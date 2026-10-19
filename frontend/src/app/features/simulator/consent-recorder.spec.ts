@@ -1,12 +1,16 @@
 import { HttpErrorResponse, provideHttpClient } from '@angular/common/http';
 import { HttpTestingController, provideHttpClientTesting } from '@angular/common/http/testing';
 import { TestBed } from '@angular/core/testing';
+import { Subject, of } from 'rxjs';
 
 import { SimulationService } from '../../core/api/simulation.service';
+import { AuthService } from '../../core/auth/auth.service';
+import { User } from '../../core/models/user.model';
 import {
   CONSENT_RECORDER,
   CONTENT_NOTICE_VERSION,
   ConsentNoticeStaleError,
+  ConsentRecorder,
   ServerConsentRecorder,
   SessionConsentRecorder,
   consentStorageKey,
@@ -341,6 +345,219 @@ describe('ServerConsentRecorder', () => {
     });
   });
 
+  /**
+   * S7-2 · El registro es UNO por pestaña y `logout()` navega sin recargar: lo que A aceptó no puede valerle a B si el
+   * GET de B falla o tarda. `prime` olvida lo de ESE caso antes de preguntar, y al cambiar de persona se olvida todo.
+   */
+  describe('lo que se sabía de otra persona no sobrevive (S7-2)', () => {
+    const recorded = { caseVersionId: CASE_ID, acceptedAt: '2026-10-18T10:00:00', noticeVersion: CONTENT_NOTICE_VERSION };
+    /** El intento de la otra persona (A): su clave no es la del intento que abre B. */
+    const A_ATTEMPT_KEY = KEY;
+    const B_ATTEMPT_KEY = OTHER_ATTEMPT_KEY;
+
+    async function acceptAsA(): Promise<void> {
+      const accepted = recorder.record(A_ATTEMPT_KEY);
+      http.expectOne(URL).flush(recordBody(), { status: 201, statusText: 'Created' });
+      await accepted;
+    }
+
+    describe('prime borra lo que se sabía de ESE caso antes de preguntar', () => {
+      // Control negativo (mutación: quitar el `delete` de `prime`): el `true` de A sobrevive al GET que falla y B arranca sin aviso.
+      it('un GET que falla deja «no se sabe» y se pide el aviso', async () => {
+        await acceptAsA();
+        expect(recorder.isGiven(B_ATTEMPT_KEY)).toBe(true); // lo que dejó A
+
+        const done = recorder.prime(CASE_ID); // B abre el mismo caso en la misma pestaña
+        const whilePending = recorder.isGiven(B_ATTEMPT_KEY); // ya antes de que responda: el borrado no espera a la red
+        http.expectOne(URL).error(new ProgressEvent('error'));
+        await done;
+
+        expect(whilePending).toBe(false);
+        expect(recorder.isGiven(B_ATTEMPT_KEY)).toBe(false);
+      });
+
+      // Control negativo (mutación: borrar solo al responder): con un GET colgado el `true` de A seguiría valiendo hasta el plazo de 3 s.
+      it('un GET que nunca responde también deja «no se sabe» (la pantalla decide con su plazo)', async () => {
+        const never = new Subject<unknown>(); // un GET colgado: no emite jamás
+        const api = {
+          getConsent: vi.fn(() => never),
+          acceptConsent: vi.fn(() => of(recorded)),
+          withdrawConsent: vi.fn(),
+        };
+        const slow = new ServerConsentRecorder(api as unknown as SimulationService);
+        await slow.record(A_ATTEMPT_KEY);
+        expect(slow.isGiven(B_ATTEMPT_KEY)).toBe(true);
+
+        const pending = slow.prime(CASE_ID);
+
+        expect(api.getConsent).toHaveBeenCalledWith(CASE_ID);
+        expect(slow.isGiven(B_ATTEMPT_KEY)).toBe(false);
+        never.complete(); // sin respuesta útil: el registro no se rechaza ni vuelve a creer lo de A
+        await expect(pending).resolves.toBeUndefined();
+        expect(slow.isGiven(B_ATTEMPT_KEY)).toBe(false);
+      });
+
+      it('un GET que sí responde manda sobre lo que había: aceptado o no', async () => {
+        await acceptAsA();
+
+        const notAccepted = recorder.prime(CASE_ID);
+        http.expectOne(URL).flush(state(false));
+        await notAccepted;
+        expect(recorder.isGiven(B_ATTEMPT_KEY)).toBe(false);
+
+        const accepted = recorder.prime(CASE_ID);
+        http.expectOne(URL).flush(state(true));
+        await accepted;
+        expect(recorder.isGiven(B_ATTEMPT_KEY)).toBe(true);
+      });
+
+      it('solo borra el caso que pregunta: lo que se sabe de otro caso sigue en pie', async () => {
+        const other = recorder.prime(8);
+        http.expectOne('/api/simulation/cases/8/consent').flush(state(true));
+        await other;
+
+        const done = recorder.prime(CASE_ID);
+        http.expectOne(URL).error(new ProgressEvent('error'));
+        await done;
+
+        expect(recorder.isGiven(OTHER_CASE_KEY)).toBe(true);
+      });
+    });
+
+    describe('reset: olvidar todo lo que se sabía', () => {
+      // Control negativo (mutación: `reset` que no vacía el mapa): el `true` de los dos casos seguiría valiendo.
+      it('vacía lo de todos los casos', async () => {
+        const first = recorder.prime(CASE_ID);
+        http.expectOne(URL).flush(state(true));
+        await first;
+        const second = recorder.prime(8);
+        http.expectOne('/api/simulation/cases/8/consent').flush(state(true));
+        await second;
+        expect(recorder.isGiven(KEY)).toBe(true);
+        expect(recorder.isGiven(OTHER_CASE_KEY)).toBe(true);
+
+        recorder.reset();
+
+        expect(recorder.isGiven(KEY)).toBe(false);
+        expect(recorder.isGiven(OTHER_ATTEMPT_KEY)).toBe(false);
+        expect(recorder.isGiven(OTHER_CASE_KEY)).toBe(false);
+      });
+
+      it('no toca lo que no es memoria: la marca de la pestaña de un intento sigue ahí', async () => {
+        await acceptAsA();
+
+        recorder.reset();
+
+        expect(sessionStorage.getItem(A_ATTEMPT_KEY)).toBe('given');
+        expect(recorder.isGiven(B_ATTEMPT_KEY)).toBe(false);
+      });
+
+      // Control negativo (mutación: `reset` que no descarta lo que viene en camino): la respuesta tardía de A llenaría lo olvidado.
+      it('una respuesta que estaba en camino al vaciar no vuelve a llenar lo olvidado', async () => {
+        const inFlight = recorder.prime(CASE_ID);
+        const request = http.expectOne(URL);
+
+        recorder.reset();
+        request.flush(state(true));
+        await inFlight;
+
+        expect(recorder.isGiven(B_ATTEMPT_KEY)).toBe(false);
+      });
+
+      it('un registro que termina después de vaciar tampoco deja el caso aceptado en memoria', async () => {
+        const inFlight = recorder.record(A_ATTEMPT_KEY);
+        const request = http.expectOne(URL);
+
+        recorder.reset();
+        request.flush(recordBody(), { status: 201, statusText: 'Created' });
+
+        await expect(inFlight).resolves.toBeUndefined(); // el servidor sí lo registró para quien lo pidió
+        expect(recorder.isGiven(B_ATTEMPT_KEY)).toBe(false);
+      });
+    });
+
+    describe('al cambiar la persona de la sesión (sale A, entra B sin recargar)', () => {
+      let personId: number | null;
+      let tracked: ServerConsentRecorder;
+
+      beforeEach(() => {
+        personId = 41;
+        tracked = new ServerConsentRecorder(TestBed.inject(SimulationService), () => personId);
+      });
+
+      async function acceptAsPerson(): Promise<void> {
+        const accepted = tracked.record(A_ATTEMPT_KEY);
+        http.expectOne(URL).flush(recordBody(), { status: 201, statusText: 'Created' });
+        await accepted;
+      }
+
+      // Control negativo (mutación: no mirar a la persona en `isGiven`): el `true` de A seguiría valiendo para B sin preguntar nada.
+      it('entra otra persona: lo que A aceptó no vale para B, sin haber preguntado nada', async () => {
+        await acceptAsPerson();
+        expect(tracked.isGiven(B_ATTEMPT_KEY)).toBe(true);
+
+        personId = 42;
+
+        expect(tracked.isGiven(B_ATTEMPT_KEY)).toBe(false);
+        expect(tracked.isGiven(OTHER_CASE_KEY)).toBe(false);
+      });
+
+      it('sale A y no entra nadie: también se olvida', async () => {
+        await acceptAsPerson();
+
+        personId = null;
+
+        expect(tracked.isGiven(B_ATTEMPT_KEY)).toBe(false);
+      });
+
+      // Control negativo (mutación: reiniciar en cada consulta): la misma persona perdería lo que sabe y se le pediría el aviso otra vez.
+      it('la misma persona conserva lo que se sabe, la consulten cuantas veces la consulten', async () => {
+        await acceptAsPerson();
+
+        expect(tracked.isGiven(B_ATTEMPT_KEY)).toBe(true);
+        expect(tracked.isGiven(B_ATTEMPT_KEY)).toBe(true);
+        expect(tracked.isGiven(OTHER_ATTEMPT_KEY)).toBe(true);
+      });
+
+      it('lo que B acepta después sí vale para B', async () => {
+        await acceptAsPerson();
+        personId = 42;
+        expect(tracked.isGiven(B_ATTEMPT_KEY)).toBe(false);
+
+        const accepted = tracked.record(B_ATTEMPT_KEY);
+        http.expectOne(URL).flush(recordBody(), { status: 201, statusText: 'Created' });
+        await accepted;
+
+        expect(tracked.isGiven(B_ATTEMPT_KEY)).toBe(true);
+      });
+
+      // Control negativo (mutación: guardar la respuesta sin mirar si cambió la persona): la respuesta de A en camino llenaría la memoria de B.
+      it('la respuesta de A que llega cuando ya entró B no se guarda para B', async () => {
+        const inFlight = tracked.prime(CASE_ID); // A pregunta…
+        const request = http.expectOne(URL);
+
+        personId = 42; // …sale A y entra B antes de que responda
+        const whilePending = tracked.isGiven(B_ATTEMPT_KEY); // B consulta: el registro ve que cambió la persona
+        request.flush(state(true)); // llega lo de A
+        await inFlight;
+
+        expect(whilePending).toBe(false);
+        expect(tracked.isGiven(B_ATTEMPT_KEY)).toBe(false);
+      });
+
+      it('si no se puede saber quién es la persona, el registro sigue funcionando y no inventa consentimientos', async () => {
+        const broken = new ServerConsentRecorder(TestBed.inject(SimulationService), () => { throw new TypeError('sin sesión'); });
+        expect(broken.isGiven(B_ATTEMPT_KEY)).toBe(false);
+
+        const done = broken.prime(CASE_ID);
+        http.expectOne(URL).flush(state(true));
+        await done;
+
+        expect(broken.isGiven(B_ATTEMPT_KEY)).toBe(true);
+      });
+    });
+  });
+
   describe('forget: el servidor respondió 403 CONSENT_REQUIRED', () => {
     it('borra lo que sabía y la marca de la pestaña, y NO la vuelve a creer mientras no se acepte de nuevo', async () => {
       const accepted = recorder.record(KEY);
@@ -449,6 +666,57 @@ describe('ServerConsentRecorder', () => {
       expect(Object.keys(request.request.body as object)).toEqual(['noticeVersion']);
       request.flush(recordBody(), { status: 201, statusText: 'Created' });
       await done;
+    });
+
+    // S7-2 · `logout()` navega sin recargar y el registro es un singleton: debe seguir a la persona de la sesión sin que
+    // `core/auth` sepa que existe (solo lee `AuthService.currentUser`, como ya hace `CachedSimulationService`).
+    describe('sigue la sesión de AuthService (S7-2)', () => {
+      const person = (id: number, nombre = 'Ana'): User => ({ id, nombre, apellido: 'Prueba', email: `persona${id}@siep.test`, role: 'ESTUDIANTE' });
+
+      async function acceptWith(injected: ConsentRecorder): Promise<void> {
+        const accepted = injected.record(KEY);
+        http.expectOne(URL).flush(recordBody(), { status: 201, statusText: 'Created' });
+        await accepted;
+      }
+
+      // Control negativo (mutación: el token arma el registro sin la persona): lo de A sigue valiendo después de salir.
+      it('al cerrar sesión se olvida lo que sabía, y entra otra persona sin heredarlo', async () => {
+        const auth = TestBed.inject(AuthService);
+        auth.currentUser.set(person(41));
+        const injected = TestBed.inject(CONSENT_RECORDER);
+        await acceptWith(injected);
+        expect(injected.isGiven(OTHER_ATTEMPT_KEY)).toBe(true);
+
+        auth.clearSession(); // sale A: la aplicación navega al inicio de sesión sin recargar la página
+
+        expect(injected.isGiven(OTHER_ATTEMPT_KEY)).toBe(false);
+        auth.currentUser.set(person(42)); // entra B en la misma pestaña
+        expect(injected.isGiven(OTHER_ATTEMPT_KEY)).toBe(false);
+      });
+
+      it('si entra otra persona sin pasar por «sin sesión», también se olvida', async () => {
+        const auth = TestBed.inject(AuthService);
+        auth.currentUser.set(person(41));
+        const injected = TestBed.inject(CONSENT_RECORDER);
+        await acceptWith(injected);
+
+        auth.currentUser.set(person(42));
+
+        expect(injected.isGiven(OTHER_ATTEMPT_KEY)).toBe(false);
+      });
+
+      // Control negativo (mutación: comparar el objeto de la ficha en vez de su id): `/me` refresca la ficha y se perdería lo que se sabe.
+      it('la ficha de la misma persona refrescada (otro objeto, mismo id) no hace olvidar nada', async () => {
+        const auth = TestBed.inject(AuthService);
+        auth.currentUser.set(person(41));
+        const injected = TestBed.inject(CONSENT_RECORDER);
+        await acceptWith(injected);
+
+        auth.currentUser.set(person(41, 'Ana María'));
+        auth.markPasswordChanged();
+
+        expect(injected.isGiven(OTHER_ATTEMPT_KEY)).toBe(true);
+      });
     });
   });
 

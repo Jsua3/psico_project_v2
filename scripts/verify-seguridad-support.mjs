@@ -25,48 +25,65 @@ export function evaluateDeployCheck(output, baseline = {}) {
 const SEVERIDADES_BLOQUEANTES = new Set(['HIGH', 'CRITICAL']);
 
 // Hallazgos normalizados de un informe de trivy (`Results`) o de grype (`matches`); null si no es ninguno de los dos.
+// `corregible`: trivy trae `FixedVersion` solo si hay corrección publicada; grype dice `fix.state: fixed` o lista `fix.versions`.
+// `corregidaEn`: la(s) versión(es) a la(s) que actualizar, si el escáner las da.
 function hallazgosDelInforme(informe) {
   if (Array.isArray(informe?.Results)) {
     return informe.Results.flatMap((resultado) => (resultado.Vulnerabilities ?? []).map((vulnerabilidad) => ({
       id: vulnerabilidad.VulnerabilityID,
       severidad: String(vulnerabilidad.Severity ?? '').toUpperCase(),
       corregible: Boolean(vulnerabilidad.FixedVersion),
+      corregidaEn: String(vulnerabilidad.FixedVersion ?? '').trim(),
       paquete: vulnerabilidad.PkgName ?? '?',
     })));
   }
   if (Array.isArray(informe?.matches)) {
-    return informe.matches.map(({ vulnerability: vulnerabilidad = {}, artifact = {} }) => ({
-      id: vulnerabilidad.id,
-      severidad: String(vulnerabilidad.severity ?? '').toUpperCase(),
-      corregible: vulnerabilidad.fix?.state === 'fixed' || (vulnerabilidad.fix?.versions ?? []).length > 0,
-      paquete: artifact.name ?? '?',
-    }));
+    return informe.matches.map(({ vulnerability: vulnerabilidad = {}, artifact = {} }) => {
+      const versiones = vulnerabilidad.fix?.versions ?? [];
+      return {
+        id: vulnerabilidad.id,
+        severidad: String(vulnerabilidad.severity ?? '').toUpperCase(),
+        corregible: vulnerabilidad.fix?.state === 'fixed' || versiones.length > 0,
+        corregidaEn: versiones.join(', '),
+        paquete: artifact.name ?? '?',
+      };
+    });
   }
   return null;
 }
 
+const sinRepetidos = (textos) => [...new Set(textos)].sort();
+
+// BORRADOR: los mensajes del escaneo (problemas y avisos) son texto técnico para quien despliega (pendiente de revisión).
 /**
- * Trinquete del escaneo de la imagen (S6-1, opcional). Bloquea una vulnerabilidad de severidad alta o crítica sin
- * corrección disponible que no esté en la lista justificada (scripts/image-scan-allowlist.json). Una salida que no es
- * un informe reconocido no pasa: no se da por buena una respuesta que no se entiende.
+ * Trinquete del escaneo de la imagen (S6-1, opcional; sentido corregido en S7-2). Bloquea una vulnerabilidad de severidad
+ * alta o crítica CON corrección disponible que no esté en la lista justificada (scripts/image-scan-allowlist.json): lo
+ * corregible se arregla actualizando el paquete o refrescando la imagen base. Lo que NO tiene corrección no se puede
+ * arreglar: se informa en `avisos` y no bloquea. Una salida que no es un informe reconocido no pasa: no se da por buena
+ * una respuesta que no se entiende.
  */
 export function evaluateImageScan(output, allowlist = {}) {
   let informe;
   try {
     informe = JSON.parse(String(output ?? ''));
   } catch {
-    return { ok: false, problemas: ['la salida del escáner no es JSON'] };
+    return { ok: false, problemas: ['la salida del escáner no es JSON'], avisos: [] };
   }
   const hallazgos = hallazgosDelInforme(informe);
-  if (!hallazgos) return { ok: false, problemas: ['formato de escáner no reconocido (trivy o grype)'] };
-  const problemas = [...new Set(
-    hallazgos
-      .filter((hallazgo) => SEVERIDADES_BLOQUEANTES.has(hallazgo.severidad)
-        && !hallazgo.corregible
-        && !Object.hasOwn(allowlist, hallazgo.id))
-      .map((hallazgo) => `${hallazgo.id} (${hallazgo.severidad}, ${hallazgo.paquete}): sin corrección disponible`),
-  )].sort();
-  return { ok: problemas.length === 0, problemas };
+  if (!hallazgos) return { ok: false, problemas: ['formato de escáner no reconocido (trivy o grype)'], avisos: [] };
+  const graves = hallazgos.filter((hallazgo) => SEVERIDADES_BLOQUEANTES.has(hallazgo.severidad) && !Object.hasOwn(allowlist, hallazgo.id));
+  const etiqueta = (hallazgo) => `${hallazgo.id} (${hallazgo.severidad}, ${hallazgo.paquete})`;
+  const problemas = sinRepetidos(
+    graves
+      .filter((hallazgo) => hallazgo.corregible)
+      .map((hallazgo) => `${etiqueta(hallazgo)}: con corrección disponible: actualiza ${hallazgo.paquete}${hallazgo.corregidaEn ? ` a ${hallazgo.corregidaEn}` : ''}`),
+  );
+  const avisos = sinRepetidos(
+    graves
+      .filter((hallazgo) => !hallazgo.corregible)
+      .map((hallazgo) => `${etiqueta(hallazgo)}: sin corrección disponible (se informa; no bloquea)`),
+  );
+  return { ok: problemas.length === 0, problemas, avisos };
 }
 
 // Valores nuevos en cada corrida, nunca literales. No se imprimen ni se guardan en ningún sitio.
@@ -218,8 +235,10 @@ export function buildSteps({
     command: trivy ?? grype ?? 'trivy',
     args: trivy || !grype ? ['image', '--format', 'json', '--quiet', imagen ?? ''] : [imagen ?? '', '-o', 'json', '--quiet'],
     scan: (output) => evaluateImageScan(output, allowlist),
-    hint: 'Corrige la vulnerabilidad (actualiza la base o la dependencia) o regístrala con su motivo en '
-      + 'scripts/image-scan-allowlist.json.',
+    // BORRADOR: texto técnico para quien despliega (pendiente de revisión).
+    hint: 'Ya hay una corrección publicada: actualiza el paquete o refresca la imagen base y vuelve a construir. Si de '
+      + 'verdad no se puede aplicar todavía, regístrala con su motivo en scripts/image-scan-allowlist.json. Lo que no '
+      + 'tiene corrección se informa y no bloquea.',
     skip: !trivy && !grype
       ? 'escáner de imagen no instalado (trivy o grype): el paso es opcional y se omite'
       : imagen ? undefined : 'sin imagen: define SIEP_IMAGE con la imagen a escanear (p. ej. docker build -t siep .)',
@@ -270,6 +289,6 @@ export function buildSteps({
       args: [join(root, 'frontend', 'scripts', 'ui', 'check-dist-dev-only.mjs')],
       skip: exists(distDir) ? undefined : 'sin build: corre npm run build:frontend',
     },
-    { id: 'image-scan', label: 'Escaneo de la imagen (trivy o grype: alta o crítica sin corrección)', ...escaneo },
+    { id: 'image-scan', label: 'Escaneo de la imagen (trivy o grype: alta o crítica con corrección disponible)', ...escaneo },
   ];
 }

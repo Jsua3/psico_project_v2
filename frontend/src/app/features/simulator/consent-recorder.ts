@@ -3,6 +3,7 @@ import { InjectionToken, inject } from '@angular/core';
 import { firstValueFrom } from 'rxjs';
 
 import { SimulationService } from '../../core/api/simulation.service';
+import { AuthService } from '../../core/auth/auth.service';
 
 /**
  * Registro del consentimiento al aviso de contenido (ETH-01; plan visual F6-2). Desde S3-2b (F10-8†) el consentimiento
@@ -22,8 +23,9 @@ export interface ConsentRecorder {
   record(key: string): PromiseLike<void>;
   /**
    * OPCIONAL (S3-2b). Pregunta al servidor si la persona ya aceptó el aviso vigente de esa versión del caso, para llenar
-   * lo que `isGiven` consulta de forma síncrona (otro navegador, otra sesión). NUNCA se rechaza: una lectura que falla
-   * deja todo como estaba, o sea, se pide el aviso.
+   * lo que `isGiven` consulta de forma síncrona (otro navegador, otra sesión). NUNCA se rechaza. Antes de preguntar
+   * OLVIDA lo que se sabía de ese caso (S7-2: podía ser de otra persona de la misma pestaña): una lectura que falla o que
+   * tarda deja «no se sabe», o sea, se pide el aviso.
    */
   prime?(caseVersionId: number): PromiseLike<void>;
   /**
@@ -90,6 +92,12 @@ export class SessionConsentRecorder implements ConsentRecorder {
 }
 
 /**
+ * Quién es la persona de la sesión: su id, o `null` sin sesión. Lo entrega quien arma el registro (el token
+ * `CONSENT_RECORDER` lo lee de `AuthService`): este archivo no obliga a `core/auth` a saber que el simulador existe.
+ */
+export type CurrentPersonId = () => number | null;
+
+/**
  * Implementación en el servidor (S3-2b): `GET/POST/DELETE /api/simulation/cases/{caseVersionId}/consent`.
  *
  * - `isGiven` sigue siendo síncrona: consulta lo último que el SERVIDOR dijo de esa versión del caso (al leer con `prime`,
@@ -97,32 +105,62 @@ export class SessionConsentRecorder implements ConsentRecorder {
  *   intento, para no pedir el aviso dos veces en la misma sesión.
  * - `record` se cumple SOLO cuando el servidor responde 200 o 201; nada se marca antes ni si algo falla.
  * - El consentimiento es de la persona y de la versión del caso, no de un intento: otro intento del mismo caso lo comparte.
+ * - S7-2: el registro es UNO por pestaña y `logout()` navega sin recargar, así que lo que se sabe es de la persona que
+ *   estaba en sesión. Si cambia (sale A, entra B), se olvida todo antes de contestar o de preguntar; y `prime` olvida lo del
+ *   caso que va a preguntar, para que una lectura que falla o tarda nunca devuelva lo de otra persona.
  */
 export class ServerConsentRecorder implements ConsentRecorder {
   /** Lo último que el servidor dijo, por versión del caso: aceptado (`true`) o no (`false`). Ausente: no se sabe. */
   private readonly known = new Map<number, boolean>();
+  /** De quién es lo que `known` guarda (S7-2). `undefined`: todavía no se miró quién es. */
+  private owner: number | null | undefined;
+  /** Cuenta los olvidos totales: una respuesta que salió antes de olvidar no es de quien mira ahora y no se guarda. */
+  private epoch = 0;
 
-  constructor(private readonly api: Pick<SimulationService, 'getConsent' | 'acceptConsent' | 'withdrawConsent'>) {}
+  constructor(
+    private readonly api: Pick<SimulationService, 'getConsent' | 'acceptConsent' | 'withdrawConsent'>,
+    private readonly currentPersonId: CurrentPersonId = () => null,
+  ) {}
+
+  /**
+   * Olvida todo lo que se sabía del servidor, de todos los casos, y descarta lo que esté en camino (S7-2). No toca las
+   * marcas de la pestaña: son por intento y el intento de una persona no puede ser el de otra. La llama el propio registro
+   * al ver que cambió la persona de la sesión; es pública para quien necesite olvidar a mano.
+   */
+  reset(): void {
+    this.known.clear();
+    this.epoch += 1;
+  }
 
   isGiven(key: string): boolean {
+    this.followPerson();
     const parsed = parseConsentStorageKey(key);
     if (!parsed) return false;
     return this.known.get(parsed.caseVersionId) ?? this.hasMark(key);
   }
 
   async prime(caseVersionId: number): Promise<void> {
+    this.followPerson();
+    // S7-2: lo que se sabía de ESTE caso puede ser de otra persona o estar vencido. Se olvida ANTES de preguntar, así una
+    // lectura que falla o que nunca responde deja «no se sabe» (se pide el aviso) y no el `true` de otro.
+    this.known.delete(caseVersionId);
+    const epoch = this.epoch;
     try {
       const state = await firstValueFrom(this.api.getConsent(caseVersionId));
-      // Solo un `true` estricto es «aceptado»: una respuesta rara es «sin consentimiento».
-      this.known.set(caseVersionId, state.accepted === true);
+      // Solo un `true` estricto es «aceptado»: una respuesta rara es «sin consentimiento». Si en el camino se olvidó todo
+      // (cambió la persona), la respuesta no es de quien mira ahora.
+      const accepted = state.accepted === true;
+      if (epoch === this.epoch) this.known.set(caseVersionId, accepted);
     } catch {
       // Una lectura que falla no es un error de pantalla: no se sabe nada y se pide el aviso.
     }
   }
 
   async record(key: string): Promise<void> {
+    this.followPerson();
     const parsed = parseConsentStorageKey(key);
     if (!parsed) throw new Error('La clave del consentimiento no es de un intento.');
+    const epoch = this.epoch;
     try {
       await firstValueFrom(this.api.acceptConsent(parsed.caseVersionId, CONTENT_NOTICE_VERSION));
     } catch (cause) {
@@ -131,11 +169,13 @@ export class ServerConsentRecorder implements ConsentRecorder {
       throw new Error('No se pudo registrar el consentimiento en el servidor.', { cause });
     }
     // Recién con la respuesta del servidor: la memoria manda; la marca de la pestaña es un respaldo de mejor esfuerzo.
-    this.known.set(parsed.caseVersionId, true);
+    // Si en el camino se olvidó todo (cambió la persona), lo aceptado no es de quien mira ahora; la marca es de ese intento.
+    if (epoch === this.epoch) this.known.set(parsed.caseVersionId, true);
     this.writeMark(key);
   }
 
   forget(key: string): void {
+    this.followPerson();
     const parsed = parseConsentStorageKey(key);
     if (!parsed) return;
     this.known.set(parsed.caseVersionId, false);
@@ -144,6 +184,7 @@ export class ServerConsentRecorder implements ConsentRecorder {
 
   /** Retira el consentimiento de esa versión del caso en el servidor (idempotente). La interfaz para pedirlo no existe todavía. */
   async withdraw(caseVersionId: number): Promise<void> {
+    this.followPerson();
     try {
       await firstValueFrom(this.api.withdrawConsent(caseVersionId));
     } catch (cause) {
@@ -151,6 +192,27 @@ export class ServerConsentRecorder implements ConsentRecorder {
     }
     this.known.set(caseVersionId, false);
     this.removeMarksOf(caseVersionId);
+  }
+
+  /**
+   * Lo que se sabe es de UNA persona: si la de la sesión cambió desde la última vez (sale A, entra B sin recargar la
+   * página) se olvida todo. Un lector que lanza cuenta como «sin sesión»: olvidar de más solo vuelve a pedir el aviso,
+   * nunca da un consentimiento por registrado.
+   */
+  private followPerson(): void {
+    let person: number | null;
+    try {
+      person = this.currentPersonId();
+    } catch {
+      person = null;
+    }
+    if (this.owner === undefined) {
+      this.owner = person;
+      return;
+    }
+    if (Object.is(person, this.owner)) return;
+    this.owner = person;
+    this.reset();
   }
 
   private hasMark(key: string): boolean {
@@ -203,5 +265,10 @@ function staleNoticeVersionOf(cause: unknown): string | null | undefined {
 
 export const CONSENT_RECORDER = new InjectionToken<ConsentRecorder>('CONSENT_RECORDER', {
   providedIn: 'root',
-  factory: () => new ServerConsentRecorder(inject(SimulationService)),
+  factory: () => {
+    const auth = inject(AuthService);
+    // S7-2: el registro vive toda la pestaña y `logout()` no la recarga: sigue a la persona de la sesión (solo la lee, como
+    // ya hace `CachedSimulationService`) para que el consentimiento «sabido» de quien salió no valga para quien entra.
+    return new ServerConsentRecorder(inject(SimulationService), () => auth.currentUser()?.id ?? null);
+  },
 });

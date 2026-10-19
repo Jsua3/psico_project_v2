@@ -41,8 +41,18 @@ Node 24 es LTS hasta el 2026-10-28. Ese día el proyecto pasa a Node 26 en estos
 
 La imagen del contenedor ya compila el frontend con `node:26-alpine` (`Dockerfile`), así que ese archivo no cambia.
 
+<!-- BORRADOR: texto técnico para quien despliega; pendiente de revisión del equipo. -->
+## Escaneo de la imagen
+
+`npm run verify:seguridad` escanea la imagen que se despliega (paso `image-scan`, opcional: necesita `trivy` o `grype` y la variable `SIEP_IMAGE` con el nombre de la imagen; sin ellos se omite y lo dice). Hazlo cada vez que se reconstruye la imagen, y con cada parche de la tabla de arriba.
+
+- **Bloquea** una vulnerabilidad de severidad alta o crítica **con corrección disponible**: lo corregible se arregla actualizando el paquete o refrescando la imagen base y volviendo a construir. El mensaje dice a qué versión actualizar («con corrección disponible: actualiza …»).
+- **No bloquea** la que **no tiene corrección**: no se puede arreglar. Se informa en la consola (`aviso: … sin corrección disponible`) y se vuelve a mirar en el siguiente parche.
+- Si una vulnerabilidad con corrección de verdad no se puede aplicar todavía (la corrección no llegó a la imagen base, o el código afectado no se alcanza), se registra con su motivo en `scripts/image-scan-allowlist.json`: cada entrada lleva un `motivo`, y se quita cuando la actualización ya se puede aplicar.
+
 ## Reglas
 
 - Ninguna dependencia nueva sin motivo y licencia anotados en el ledger del plan de seguridad.
 - Quien sube una versión actualiza en el mismo cambio su fila de la tabla y la fecha de revisión.
 - `pip-audit` y `npm audit` deben seguir en cero altas: `npm run verify:seguridad` lo comprueba.
+- El escaneo de la imagen no debe dejar altas ni críticas con corrección disponible (sección anterior).
