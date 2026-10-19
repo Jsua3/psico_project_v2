@@ -488,6 +488,8 @@ describe('AttemptOutcomeComponent: tus decisiones y marcador (F10-4, C2)', () =>
     items?: DecisionReviewItem[];
     error?: unknown;
     reviewAttemptId?: string | null;
+    /** La respuesta de decidir ya trae el reporte con sus decisiones (la ruta normal) o no (la de respaldo). */
+    reportHasDecisions?: boolean;
   } = {}): void {
     TestBed.configureTestingModule({
       imports: [AttemptOutcomeComponent],
@@ -510,7 +512,9 @@ describe('AttemptOutcomeComponent: tus decisiones y marcador (F10-4, C2)', () =>
     fixture = TestBed.createComponent(AttemptOutcomeComponent);
     component = fixture.componentInstance;
     writeInputSignal(component.status, options.status ?? 'COMPLETED');
-    writeInputSignal(component.report, makeReport({ status: 'COMPLETED' }));
+    writeInputSignal(component.report, options.reportHasDecisions
+      ? makeReport({ status: 'COMPLETED', decisionReview: items })
+      : makeReport({ status: 'COMPLETED' }));
     writeInputSignal(component.reviewAttemptId, options.reviewAttemptId === undefined ? 'a1' : options.reviewAttemptId);
     fixture.detectChanges();
   }
@@ -534,6 +538,14 @@ describe('AttemptOutcomeComponent: tus decisiones y marcador (F10-4, C2)', () =>
 
     expect(simulation.studentReport).toHaveBeenCalledWith('a1');
     expect(text(host().querySelector('#oc-decisions-title'))).toBe('Tus decisiones');
+  });
+
+  it('si la respuesta de decidir ya trae las decisiones, no se pide nada más al cerrar (una petición menos)', async () => {
+    render({ reportHasDecisions: true, items: [decision()] });
+    await settle();
+
+    expect(simulation.studentReport).not.toHaveBeenCalled();
+    expect(host().querySelectorAll('.oc-decision')).toHaveLength(1);
   });
 
   it('sin pedirlo (pausa) no se pide el reporte ni aparece la sección', async () => {
@@ -594,6 +606,8 @@ describe('AttemptOutcomeComponent: tus decisiones y marcador (F10-4, C2)', () =>
     await settle();
 
     expect(text(host().querySelector('.oc-decisions ui-empty-state'))).toContain('Este intento no tiene decisiones registradas para revisar.');
+    // El texto por defecto del tipo «sin resultados» (filtros de búsqueda) no puede aparecer aquí.
+    expect(text(host().querySelector('.oc-decisions ui-empty-state'))).not.toContain('Ningún elemento');
     expect(host().querySelector('.oc-decisions ui-error-state')).toBeNull();
   });
 

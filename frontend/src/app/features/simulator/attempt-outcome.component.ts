@@ -162,7 +162,7 @@ export type ScoreMarker = 'points' | 'progress' | 'hidden';
                   <ui-error-state [kind]="errorKind()" [status]="errorStatus()" [message]="draft.decisionsError.text" (retry)="reloadDecisions()" />
                 }
                 @case ('empty') {
-                  <ui-empty-state kind="no-results" [title]="draft.decisionsEmpty.text" />
+                  <ui-empty-state kind="no-results" [title]="draft.decisionsEmpty.text" [description]="draft.decisionsEmptyHint.text" />
                 }
                 @case ('ready') {
                   <ol class="oc-decisions__list">
@@ -178,7 +178,7 @@ export type ScoreMarker = 'points' | 'progress' | 'hidden';
                         }
                         <p class="oc-decision__tone">{{ toneLabel(item.classification) }}</p>
                         @if (item.prohibited) {
-                          <p class="oc-decision__note">{{ draft.decisionProhibitedNote.text }}</p>
+                          <p class="oc-chip oc-chip--alert oc-decision__note">{{ draft.decisionProhibitedNote.text }}</p>
                         }
                         @if (item.feedback.explanation) {
                           <p class="oc-decision__explanation">{{ item.feedback.explanation }}</p>
@@ -312,35 +312,30 @@ export type ScoreMarker = 'points' | 'progress' | 'hidden';
       padding: 8px 10px; border-radius: 10px; border-left: 3px solid rgba(182,156,255,.4);
       background: rgba(255,255,255,.04); font-size: .82rem;
     }
-    .oc-tl[data-tl='ADEQUATE']   { border-left-color: #6EC67A; }
-    .oc-tl[data-tl='RISKY']      { border-left-color: #F5B84B; }
-    .oc-tl[data-tl='INADEQUATE'] { border-left-color: #E25A4F; }
+    .oc-tl[data-tl='ADEQUATE'], .oc-decision[data-tone='ADEQUATE']     { border-left-color: #6EC67A; }
+    .oc-tl[data-tl='RISKY'], .oc-decision[data-tone='RISKY']           { border-left-color: #F5B84B; }
+    .oc-tl[data-tl='INADEQUATE'], .oc-decision[data-tone='INADEQUATE'] { border-left-color: #E25A4F; }
     .oc-tl[data-tl='PROHIBITED'] { border-left-color: #E25A4F; background: rgba(226,90,79,.08); }
     .oc-tl__time { font-family: 'JetBrains Mono', monospace; color: var(--sim-lavender, #B69CFF); }
     .oc-tl__label { color: var(--sim-ink-soft, rgba(244,247,251,.74)); line-height: 1.4; }
     .oc-tl__delta { font-family: 'JetBrains Mono', monospace; font-size: .75rem; color: var(--sim-ink-mute, rgba(244,247,251,.5)); white-space: nowrap; }
     .oc-rec { margin: 0 0 6px; color: var(--sim-ink-soft, rgba(244,247,251,.74)); font-size: .86rem; line-height: 1.55; }
-    /* Tus decisiones (C2, RN-08): la explicación y el fundamento se leen al cierre; etiquetas formativas, sin puntaje. */
+    /* Tus decisiones (C2, RN-08): la explicación y el fundamento se leen al cierre; etiquetas formativas, sin puntaje.
+       Sin colores nuevos: el tono del borde comparte la regla de la línea de tiempo y el texto secundario va con opacidad. */
     .oc-decisions__list { display: grid; gap: 10px; margin: 0; padding: 0; list-style: none; }
-    .oc-decisions__empty { margin: 0; color: var(--sim-ink-soft, rgba(244,247,251,.74)); line-height: 1.5; }
     .oc-decision {
-      display: grid; gap: 6px; padding: 12px 14px; border-radius: 12px; font-size: .86rem; line-height: 1.5;
-      background: rgba(255,255,255,.04); border-left: 3px solid rgba(182,156,255,.4);
+      display: grid; gap: 6px; padding: 12px 14px; border-radius: 12px; line-height: 1.5;
+      border-left: 3px solid transparent;
     }
-    .oc-decision[data-tone='ADEQUATE']   { border-left-color: #6EC67A; }
-    .oc-decision[data-tone='RISKY']      { border-left-color: #F5B84B; }
-    .oc-decision[data-tone='INADEQUATE'] { border-left-color: #E25A4F; }
-    .oc-decision__node { margin: 0; font-weight: 800; color: var(--sim-ink, #F4F7FB); }
-    .oc-decision__chosen, .oc-decision__consequence, .oc-decision__explanation, .oc-decision__basis {
-      margin: 0; color: var(--sim-ink-soft, rgba(244,247,251,.74));
-    }
-    .oc-decision__k { color: var(--sim-ink-mute, rgba(244,247,251,.5)); font-weight: 700; }
+    .oc-decision p { margin: 0; }
+    .oc-decision__node { font-weight: 800; }
+    .oc-decision__chosen, .oc-decision__consequence, .oc-decision__explanation, .oc-decision__basis, .oc-decision__first { opacity: .86; }
+    .oc-decision__k { opacity: .6; font-weight: 700; }
     .oc-decision__tone {
-      margin: 0; font-size: .76rem; font-weight: 900; letter-spacing: .04em; text-transform: uppercase;
-      color: var(--sim-lavender, #B69CFF);
+      font-size: var(--ds-type-caption-size); font-weight: 900; letter-spacing: .04em; text-transform: uppercase; opacity: .9;
     }
-    .oc-decision__first, .oc-decision__note { margin: 0; color: #f1a79f; }
-    .oc-decision__empty { margin: 0; font-style: italic; color: var(--sim-ink-mute, rgba(244,247,251,.5)); }
+    .oc-decision__note { display: block; border-radius: 12px; }
+    .oc-decision__empty { font-style: italic; opacity: .6; }
     .oc-actions { display: flex; flex-wrap: wrap; gap: 10px; justify-content: flex-end; margin-top: auto; padding-top: 6px; }
     .oc-btn {
       display: inline-flex; align-items: center; justify-content: center; min-height: 44px;
@@ -470,13 +465,19 @@ export class AttemptOutcomeComponent {
   protected readonly draft = DRAFT_COPY;
   protected readonly reconsideredLabel = RECONSIDERED_LABEL;
   private readonly simulation = inject(SimulationService);
-  /** Sin id (pausa, intento sin completar) el recurso está inactivo: no hay petición. */
+  /**
+   * Respaldo: solo se pide el reporte del dueño si la respuesta que cerró el intento no trajo sus decisiones. Con la
+   * ruta normal `decisionReview` ya viaja en el reporte congelado de esa respuesta (una petición menos al cerrar).
+   */
   private readonly decisionsResource = rxResource<AttemptCompletionReport, string | undefined>({
-    params: () => this.reviewAttemptId() ?? undefined,
+    params: () => (this.report()?.decisionReview === undefined ? this.reviewAttemptId() ?? undefined : undefined),
     stream: ({ params }) => (params === undefined ? EMPTY : this.simulation.studentReport(params)),
   });
-  protected readonly decisions = computed<DecisionReviewItem[]>(() =>
-    this.decisionsResource.hasValue() ? (this.decisionsResource.value()?.decisionReview ?? []) : []);
+  protected readonly decisions = computed<DecisionReviewItem[]>(() => {
+    const own = this.report()?.decisionReview;
+    if (own) return own;
+    return this.decisionsResource.hasValue() ? (this.decisionsResource.value()?.decisionReview ?? []) : [];
+  });
   /** Carga, error, vacío y listo de «Tus decisiones» con el contrato de estados de datos (§2.5). */
   protected readonly decisionsState = uiDataState({
     loading: computed(() => this.decisionsResource.isLoading()),

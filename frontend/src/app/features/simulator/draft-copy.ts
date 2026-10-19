@@ -277,6 +277,13 @@ export const DRAFT_COPY = {
     where: 'Resultado: «Tus decisiones» cuando el intento no tiene decisiones registradas',
     text: 'Este intento no tiene decisiones registradas para revisar.',
   },
+  /** Descripción del estado vacío de «Tus decisiones» (F10-4): dice qué verá la persona cuando haya decisiones. */
+  decisionsEmptyHint: {
+    decision: 'F10-4',
+    owner: 'Psicología',
+    where: 'Resultado: descripción bajo el estado vacío de «Tus decisiones»',
+    text: 'Cuando el caso registre decisiones, aparecerán aquí con su explicación.',
+  },
   /** Error al cargar «Tus decisiones» (F10-4): el resto del resultado sigue visible y el botón reintenta. */
   decisionsError: {
     decision: 'F10-4',

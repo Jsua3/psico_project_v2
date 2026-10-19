@@ -49,7 +49,7 @@ describe('draft-copy: textos en borrador pendientes de Psicología', () => {
     // reemplazo docente (F7b-7, RN-07) y el aviso de contenido sensible de la ficha del caso (F10-1). Los once del
     // resultado con retroalimentación por decisión (F10-4: «Tus decisiones», sus estados, las etiquetas y el marcador)
     // son texto que ve la persona y se validan, no solo se conocen.
-    expect(list.filter(entry => entry.review === 'validar')).toHaveLength(31);
+    expect(list.filter(entry => entry.review === 'validar')).toHaveLength(32);
   });
 
   // req: RN-07 (F7b-7, revisión)
