@@ -40,11 +40,11 @@ describe('game-world: game feel del bloque B', () => {
 
   it('ningún render dispara el destello: espera a que la sala se vea', () => {
     // Dos llamadas dentro de la escena: el fin del fundido de cámara de la salida cliente y
-    // `playRevealEffects` (el destello solo si no hay sacudida).
+    // `playRevealEffects` (el destello de cambio de sala; no hay sacudida por clasificación, RN-08).
     expect(source.match(/this\.playPendingRoomFlash\(\)/g) ?? []).toHaveLength(2);
     expect(source).toMatch(/this\.cameras\.main\.fadeIn\(180, 0, 0, 0\);[\s\S]{0,200}this\.cameras\.main\.once\('camerafadeincomplete', \(\) => this\.playPendingRoomFlash\(\)\);/);
     // Angular lo pide al retirar su fundido de escena.
-    expect(source).toMatch(/\n  playRevealEffects\(feedback: SimulationFeedback \| null\) \{ this\.scene\?\.playRevealEffects\(feedback\); \}/);
+    expect(source).toMatch(/\n  playRevealEffects\(\) \{ this\.scene\?\.playRevealEffects\(\); \}/);
   });
 
   // req: RNF-04 (REGLA-009 parte)
@@ -93,8 +93,9 @@ describe('game-world: game feel del bloque B', () => {
     expect(source).toMatch(/cam\.flashEffect\.alpha = flash\.peakAlpha;\s*cam\.flash\(flash\.durationMs, \.\.\.flash\.rgb\);/);
   });
 
-  it('la sacudida por decisión la decide decisionShake y solo con la escena lista', () => {
-    expect(source).toMatch(/playDecisionImpact\(feedback: Pick<SimulationFeedback, 'classification' \| 'prohibitedConduct'> \| null\): void \{\s*const shake = decisionShake\(feedback, this\.callbacks\.reduceMotion\);\s*if \(shake && this\.ready && this\.cameras\?\.main\) this\.cameras\.main\.shake\(shake\.durationMs, shake\.intensity\);/);
-    expect(source).toMatch(/playRevealEffects\(feedback: Pick<SimulationFeedback, 'classification' \| 'prohibitedConduct'> \| null\): void \{\s*if \(decisionShake\(feedback, this\.callbacks\.reduceMotion\)\) \{\s*this\.pendingRoomFlash = null;\s*this\.playDecisionImpact\(feedback\);\s*\} else \{\s*this\.playPendingRoomFlash\(\);\s*\}\s*\}/);
+  it('no hay sacudida por clasificación al decidir: revelar la sala solo destella (RN-08)', () => {
+    expect(source).not.toContain('decisionShake');
+    expect(source).not.toContain('playDecisionImpact');
+    expect(source).toMatch(/playRevealEffects\(\): void \{\s*this\.playPendingRoomFlash\(\);\s*\}/);
   });
 });

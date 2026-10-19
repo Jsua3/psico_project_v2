@@ -865,10 +865,15 @@ describe('SimulationPlayComponent: orientación integrada', () => {
       message: 'La decisión quedó registrada.', prohibitionReason: null, retryRequired: false, ...extra,
     });
 
-    function decide(fb: Record<string, unknown>): DialogueState | null {
+    /** La respuesta de decidir (C2): la consecuencia narrativa y, si la regla lo concede, el reintento. */
+    function decide(fb: Record<string, unknown>, retry: unknown = null): DialogueState | null {
       component.attempt.set(makeAttempt('nodo-sin-evidencia'));
       component.world.set(makeWorld('hospital-urgencias', []));
-      sim['chooseDecision'].mockReturnValue(of(makeAttempt('nodo-sin-evidencia', { feedback: fb })));
+      sim['chooseDecision'].mockReturnValue(of({
+        ...makeAttempt('nodo-sin-evidencia', { feedback: fb }),
+        consequence: retry ? null : { text: 'La estudiante asiente y pregunta por su familia.', source: 'OPTION' },
+        retry,
+      }));
       sim['getWorld'].mockReturnValue(of(makeWorld('hospital-urgencias', [])));
       sim['getScenarioConfig'].mockReturnValue(of({ scenarioKey: 'x', startRoomKey: 'x', rooms: [] }));
       component.dialogue.set({
@@ -880,20 +885,26 @@ describe('SimulationPlayComponent: orientación integrada', () => {
       return component.dialogue();
     }
 
-    it('la supervisión dice que quedó registrada en el seguimiento formativo, sin puntaje ni cifras', () => {
+    it('la consecuencia se lee con el aviso de que quedó registrada en el seguimiento, sin puntaje ni cifras', () => {
       const dialogue = decide(feedback());
       const lines = dialogue?.lines.map(line => line.text) ?? [];
 
-      expect(dialogue?.speakerName).toBe('Supervisión clínica');
+      expect(dialogue?.speakerName).toBe('Consecuencia');
+      expect(lines).toContain('La estudiante asiente y pregunta por su familia.');
       expect(lines).toContain('Tu decisión quedó registrada en tu seguimiento formativo.');
       expect(lines.join(' ')).not.toMatch(/Puntaje|Confianza|Riesgo|Estrés|\d/);
     });
 
-    it('con una primera respuesta que no se aplica conserva el texto del reintento', () => {
-      const dialogue = decide(feedback({ classification: 'RISKY', retryRequired: true }));
+    it('con una primera respuesta que no se aplica muestra el texto del reintento, no el mensaje evaluativo', () => {
+      const dialogue = decide(
+        feedback({ classification: 'RISKY', retryRequired: true, message: 'Decisión con riesgo: revisa.' }),
+        { allowed: true, message: 'Decisión con riesgo: revisa.' },
+      );
+      const lines = dialogue?.lines.map(line => line.text) ?? [];
 
-      expect(dialogue?.lines.map(line => line.text).join(' ')).toContain('No se avanzó el caso');
-      expect(dialogue?.lines.map(line => line.text)).not.toContain('Tu decisión quedó registrada en tu seguimiento formativo.');
+      expect(lines.join(' ')).toContain('No se avanzó el caso');
+      expect(lines.join(' ')).not.toContain('Decisión con riesgo');
+      expect(lines).not.toContain('Tu decisión quedó registrada en tu seguimiento formativo.');
     });
 
     function useToolWith(stressDelta: number): DialogueState | null {

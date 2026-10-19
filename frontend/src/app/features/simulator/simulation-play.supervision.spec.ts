@@ -33,11 +33,15 @@ import type { Mock } from 'vitest';
 const CASE_VERSION_ID = 7;
 const LAST_NODE = 'hospital-cierre';
 
-const FEEDBACK = {
+/** Forma heredada (bandera apagada): la respuesta trae la retroalimentación evaluativa junto a la consecuencia. */
+const LEGACY_FEEDBACK = {
   classification: 'ADEQUATE', scoreDelta: 12, stressDelta: -5, trustDelta: 10, victimRiskDelta: -5,
   prohibitedConduct: false, institutionalRouteActivated: false, revictimizationRisk: false,
   message: 'La decisión quedó registrada.', prohibitionReason: null, retryRequired: false,
 };
+
+/** La consecuencia narrativa de la decisión (C2): qué pasa en el caso, nunca si estuvo bien o mal. */
+const CONSEQUENCE = { text: 'La estudiante asiente y pregunta por su familia.', source: 'OPTION' };
 
 function makeWorld(): SimulationWorldState {
   return {
@@ -66,8 +70,12 @@ function makeAttempt(overrides: Record<string, unknown> = {}, nodeKey = 'hospita
   } as unknown as SimulationAttemptState;
 }
 
-const completed = (extra: Record<string, unknown> = {}) =>
-  makeAttempt({ status: 'COMPLETED', feedback: FEEDBACK, completionReport: { ending: null }, ...extra }, LAST_NODE);
+/** La respuesta de decidir (C2) con la forma normalizada por el servicio: el estado más consecuencia y reintento. */
+const decided = (state: SimulationAttemptState, extra: Record<string, unknown> = {}) =>
+  ({ ...state, consequence: CONSEQUENCE, retry: null, ...extra }) as unknown as SimulationAttemptState;
+
+const completed = (extra: Record<string, unknown> = {}, decisionExtra: Record<string, unknown> = {}) =>
+  decided(makeAttempt({ status: 'COMPLETED', feedback: null, completionReport: { ending: null }, ...extra }, LAST_NODE), decisionExtra);
 
 describe('SimulationPlayComponent: supervisión de la última decisión (DLG-05)', () => {
   let component: SimulationPlayComponent;
@@ -152,8 +160,8 @@ describe('SimulationPlayComponent: supervisión de la última decisión (DLG-05)
       expect(component.attempt()?.status).toBe('COMPLETED');
       expect(component.holdingOutcome()).toBe(true);
       expect(component.viewMode()).toBe('dialogue-cinematic');
-      expect(component.dialogue()?.speakerName).toBe('Supervisión clínica');
-      expect(component.dialogue()?.key).toMatch(/^supervision-/);
+      expect(component.dialogue()?.speakerName).toBe('Consecuencia');
+      expect(component.dialogue()?.key).toMatch(/^consequence-/);
       expect(component.dialogue()?.choices).toEqual([]);
     });
 
@@ -175,7 +183,7 @@ describe('SimulationPlayComponent: supervisión de la última decisión (DLG-05)
     it('una decisión que no es la última sigue como antes: el intento sigue en curso y la supervisión llega a los 400 ms', () => {
       component.attempt.set(makeAttempt());
       component.world.set(makeWorld());
-      sim['chooseDecision'].mockReturnValue(of(makeAttempt({ feedback: FEEDBACK }, 'hospital-accion')));
+      sim['chooseDecision'].mockReturnValue(of(decided(makeAttempt({}, 'hospital-accion'))));
       component.dialogue.set({
         key: 'd', speakerName: 'A', portraitKey: null, emotion: 'neutral', lines: [],
         choices: [{ key: 'o', text: 'O', decisionOptionId: 101, requiredToolCode: null, effect: {} }],
@@ -188,7 +196,7 @@ describe('SimulationPlayComponent: supervisión de la última decisión (DLG-05)
       tick(400);
 
       expect(component.holdingOutcome()).toBe(false);
-      expect(component.dialogue()?.speakerName).toBe('Supervisión clínica');
+      expect(component.dialogue()?.speakerName).toBe('Consecuencia');
       expect(component.viewMode()).toBe('dialogue-cinematic');
       expect(audio['playResolution']).not.toHaveBeenCalled();
     });
@@ -278,8 +286,8 @@ describe('SimulationPlayComponent: supervisión de la última decisión (DLG-05)
   });
 
   describe('el resultado se abre siempre', () => {
-    it('sin feedback en la respuesta no hay supervisión: resultado directo y su sonido de cierre', () => {
-      decideLast(completed({ feedback: null }));
+    it('sin consecuencia ni reintento no hay nada que leer: resultado directo y su sonido de cierre', () => {
+      decideLast(completed({}, { consequence: null, retry: null }));
 
       expect(component.holdingOutcome()).toBe(false);
       expect(component.viewMode()).toBe('outcome');
@@ -287,16 +295,16 @@ describe('SimulationPlayComponent: supervisión de la última decisión (DLG-05)
       expect(audio['playResolution']).toHaveBeenCalledTimes(1);
     });
 
-    it('si la supervisión no se puede armar, el resultado se abre igual', () => {
-      const original = (component as any).buildSupervisionDialogue;
-      (component as any).buildSupervisionDialogue = () => { throw new Error('feedback malformado'); };
+    it('si el diálogo de consecuencia no se puede armar, el resultado se abre igual', () => {
+      const original = (component as any).buildConsequenceDialogue;
+      (component as any).buildConsequenceDialogue = () => { throw new Error('consecuencia malformada'); };
 
       decideLast();
 
       expect(component.holdingOutcome()).toBe(false);
       expect(component.viewMode()).toBe('outcome');
       expect(audio['playResolution']).toHaveBeenCalledTimes(1);
-      (component as any).buildSupervisionDialogue = original;
+      (component as any).buildConsequenceDialogue = original;
     });
 
     it('si el mapa no carga tras la última decisión, la supervisión no retiene el resultado', () => {
@@ -337,6 +345,154 @@ describe('SimulationPlayComponent: supervisión de la última decisión (DLG-05)
       expect(component.holdingOutcome()).toBe(false);
       expect(component.viewMode()).toBe('outcome');
     });
+  });
+});
+
+describe('SimulationPlayComponent: lo que se muestra al decidir (RN-08, C2)', () => {
+  let component: SimulationPlayComponent;
+  let sim: Record<string, Mock>;
+
+  beforeEach(() => {
+    vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout', 'setInterval', 'clearInterval'] });
+    sessionStorage.clear();
+    localStorage.clear();
+    sim = {
+      getActiveAttempt: vi.fn(() => of(null)),
+      startAttempt: vi.fn(() => of(makeAttempt())),
+      getProgressMap: vi.fn(() => EMPTY),
+      getWorld: vi.fn(() => of(makeWorld())),
+      getScenarioConfig: vi.fn(() => throwError(() => new Error('sin escenario'))),
+      safeExit: vi.fn(() => EMPTY),
+      enterRoom: vi.fn(() => EMPTY),
+      recordNpcInteraction: vi.fn(() => EMPTY),
+      updateWorldState: vi.fn(() => EMPTY),
+      openInteraction: vi.fn(() => EMPTY),
+      chooseDecision: vi.fn(() => of(decided(makeAttempt()))),
+      useTool: vi.fn(() => EMPTY),
+    };
+    const audio = {
+      init: vi.fn(), setStressLevel: vi.fn(), isMusicMuted: vi.fn(() => false), isSfxMuted: vi.fn(() => false),
+      dispose: vi.fn(), stopIntroLament: vi.fn(), playIntroLament: vi.fn(), playSfx: vi.fn(),
+      toggleMusicMuted: vi.fn(() => false), playResolution: vi.fn(),
+    };
+    TestBed.configureTestingModule({
+      imports: [SimulationPlayComponent],
+      providers: [
+        { provide: SimulationService, useValue: sim },
+        { provide: AudioDirectorService, useValue: audio },
+        { provide: AuthService, useValue: {} },
+        { provide: Router, useValue: { navigate: vi.fn() } },
+        {
+          provide: ActivatedRoute,
+          useValue: { snapshot: { paramMap: convertToParamMap({ caseVersionId: String(CASE_VERSION_ID) }) } },
+        },
+      ],
+    });
+    component = TestBed.runInInjectionContext(() => new SimulationPlayComponent());
+  });
+
+  afterEach(() => {
+    component?.ngOnDestroy();
+    vi.useRealTimers();
+    sessionStorage.clear();
+    localStorage.clear();
+    TestBed.resetTestingModule();
+  });
+
+  const tick = (ms = 0) => { vi.advanceTimersByTime(ms); TestBed.tick(); };
+  const choices = [
+    { key: 'o', text: 'O', decisionOptionId: 101, requiredToolCode: null, effect: {} },
+    { key: 'p', text: 'P', decisionOptionId: 102, requiredToolCode: null, effect: {} },
+  ];
+  const withChoices = () => component.dialogue.set({
+    key: 'd', speakerName: 'A', portraitKey: null, emotion: 'neutral', lines: [], choices,
+  } as unknown as DialogueState);
+
+  /** Decide una escena que no es la última y deja pasar el fundido, la respuesta y los 400 ms de la lectura. */
+  function decideMiddle(response: SimulationAttemptState, optionId = 101): void {
+    component.attempt.set(makeAttempt());
+    component.world.set(makeWorld());
+    sim['chooseDecision'].mockReturnValue(of(response));
+    withChoices();
+    component.executeDecision(optionId);
+    tick(340);
+    tick(100);
+    tick(400);
+  }
+
+  /** Todo lo que el diálogo a la vista dice, en una sola cadena. */
+  const shownText = () => (component.dialogue()?.lines ?? []).map(line => line.text).join(' | ');
+
+  it('la consecuencia narrativa va en el diálogo «Consecuencia», con emoción neutral y sin clasificación', () => {
+    decideMiddle(decided(makeAttempt({}, 'hospital-accion')));
+
+    expect(component.dialogue()?.speakerName).toBe('Consecuencia');
+    expect(component.dialogue()?.emotion).toBe('neutral');
+    expect(shownText()).toContain(CONSEQUENCE.text);
+    expect(shownText()).not.toMatch(/adecuad|riesgo|inadecuad|prohib|alerta/i);
+  });
+
+  it('con la bandera apagada la respuesta trae feedback y el diálogo no lo muestra: ni el mensaje ni la razón', () => {
+    decideMiddle(decided(makeAttempt({
+      feedback: {
+        ...LEGACY_FEEDBACK, classification: 'INADEQUATE', prohibitedConduct: true,
+        message: 'Alerta ética: puede aumentar el riesgo de revictimización.', prohibitionReason: 'Culpabiliza a la víctima.',
+      },
+    }, 'hospital-accion')));
+
+    expect(shownText()).toContain(CONSEQUENCE.text);
+    expect(shownText()).not.toContain('Alerta ética');
+    expect(shownText()).not.toContain('Culpabiliza');
+    expect(component.dialogue()?.emotion).toBe('neutral');
+  });
+
+  it('un reintento muestra el aviso neutro del juego y no el mensaje evaluativo del servidor', () => {
+    decideMiddle(decided(makeAttempt({
+      feedback: { ...LEGACY_FEEDBACK, classification: 'RISKY', retryRequired: true, message: 'Decisión con riesgo: revisa las implicaciones.' },
+    }, 'hospital-accion'), { consequence: null, retry: { allowed: true, message: 'Decisión con riesgo: revisa las implicaciones.' } }));
+
+    expect(shownText()).toContain('No se avanzó el caso');
+    expect(shownText()).not.toContain('Decisión con riesgo');
+    expect(shownText()).not.toContain(CONSEQUENCE.text);
+  });
+
+  it('el efecto de cámara de la decisión no recibe clasificación: el mundo solo recibe la orden de revelar', () => {
+    const gameWorld = { playRevealEffects: vi.fn() };
+    (component as any).gameWorld = gameWorld;
+
+    (component as any).playRevealEffects();
+
+    expect(gameWorld.playRevealEffects).toHaveBeenCalledWith();
+  });
+
+  it('reenviar la misma elección tras un fallo usa el mismo requestId; otra opción recibe uno nuevo', () => {
+    component.attempt.set(makeAttempt());
+    component.world.set(makeWorld());
+    sim['chooseDecision']
+      .mockReturnValueOnce(throwError(() => new Error('red caída')))
+      .mockReturnValueOnce(of(decided(makeAttempt({}, 'hospital-accion'))))
+      .mockReturnValueOnce(of(decided(makeAttempt({}, 'hospital-accion'))));
+
+    withChoices();
+    component.executeDecision(101);
+    tick(340);
+    tick(100);
+
+    withChoices();
+    component.executeDecision(101);
+    tick(340);
+    tick(100);
+    tick(400);
+
+    withChoices();
+    component.executeDecision(102);
+    tick(340);
+    tick(100);
+
+    const ids = sim['chooseDecision'].mock.calls.map(call => call[5]);
+    expect(ids[0]).toEqual(expect.any(String));
+    expect(ids[1]).toBe(ids[0]);
+    expect(ids[2]).not.toBe(ids[0]);
   });
 });
 
