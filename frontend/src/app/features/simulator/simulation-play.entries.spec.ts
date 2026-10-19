@@ -26,7 +26,7 @@ import { AvatarStore } from '../character/avatar.store';
 import { KitService } from '../character/kit/kit.service';
 import { fakeKitService } from '../character/kit/testing/kit-testing';
 import { AudioDirectorService } from './audio-director.service';
-import { CONSENT_RECORDER } from './consent-recorder';
+import { CONSENT_RECORDER, ConsentNoticeStaleError } from './consent-recorder';
 import { DRAFT_COPY } from './draft-copy';
 import { SimulationPlayComponent } from './simulation-play.component';
 
@@ -330,6 +330,31 @@ describe('SimulationPlayComponent: las cuatro entradas (F6-2)', () => {
       // Lo que falló es el navegador, no el contenido: se anuncia con firmeza (assertive) y dice cómo seguir.
       vi.advanceTimersByTime(LIVE_WRITE_DELAY_MS);
       expect(region('assertive').textContent).toBe(DRAFT_COPY.consentStorageError.text);
+    });
+
+    // req: ETH-01, SIEP-RF-05 (S3-2b: el servidor tiene un aviso de otra versión; no se registra el consentimiento a lo que no se leyó)
+    it('si el aviso cambió de versión: el recuadro lo dice (recargar), se anuncia con firmeza y «Reintentar» sigue ahí; sin mundo ni audio', () => {
+      showConsent();
+      clickContinue();
+
+      recordings[0].reject(new ConsentNoticeStaleError('aviso-vigente-otro'));
+      fixture.detectChanges();
+
+      expect(component.worldStarted()).toBe(false);
+      expect(audio['init']).not.toHaveBeenCalled();
+      const error = overlay()!.querySelector('.consent-error')!;
+      expect(text(error.querySelector('p'))).toBe(DRAFT_COPY.consentNoticeStale.text);
+      expect(buttonsOf(error)).toContain('Reintentar');
+      vi.advanceTimersByTime(LIVE_WRITE_DELAY_MS);
+      expect(region('assertive').textContent).toBe(DRAFT_COPY.consentNoticeStale.text);
+
+      // Un fallo cualquiera después vuelve a decir lo de siempre: el recuadro no se queda con el texto anterior.
+      const retry = Array.from(error.querySelectorAll<HTMLButtonElement>('button')).find(candidate => text(candidate) === 'Reintentar')!;
+      retry.click();
+      fixture.detectChanges();
+      recordings[1].reject(new Error('sin red'));
+      fixture.detectChanges();
+      expect(text(overlay()!.querySelector('.consent-error p'))).toBe(DRAFT_COPY.consentStorageError.text);
     });
 
     // req: ETH-01 (revisión de F6: con un registro en servidor la respuesta puede llegar tarde)

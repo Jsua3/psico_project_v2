@@ -8,7 +8,7 @@ import { MatIconModule } from '@angular/material/icon';
 import { toSignal } from '@angular/core/rxjs-interop';
 import { ShortcutSettings } from '../../core/a11y/shortcut-settings.service';
 import { AnnouncePoliteness, LiveRegionAnnouncer } from '../../core/a11y/live-announcer.service';
-import { apiErrorMessage } from '../../core/api/api-error.util';
+import { apiErrorMessage, isConsentRequiredError } from '../../core/api/api-error.util';
 import { SimulationService } from '../../core/api/simulation.service';
 import { NotificationService } from '../../core/notifications/notification.service';
 import {
@@ -67,9 +67,15 @@ import { UiErrorKind } from '../../shared/ui/state/state-copy';
 import { UiErrorState } from '../../shared/ui/state/ui-error-state';
 import { UiDialog } from '../../shared/ui/dialog/ui-dialog';
 import { UiScopeNotice } from '../../shared/ui/scope-notice/ui-scope-notice';
-import { CONSENT_RECORDER } from './consent-recorder';
+import { CONSENT_RECORDER, ConsentNoticeStaleError, consentStorageKey } from './consent-recorder';
 import { DRAFT_COPY } from './draft-copy';
 
+/**
+ * Plazo máximo de la precarga del consentimiento (S3-2b): antes de decidir si se pide el aviso se pregunta al servidor si la
+ * persona ya lo aceptó. Si no contesta a tiempo se sigue como si no lo hubiera aceptado (se pide el aviso): nunca se queda
+ * esperando ni se muestra un error por esto.
+ */
+const CONSENT_PRIME_TIMEOUT_MS = 3000;
 /** Duración de la transición CSS de `.scene-fade`; los efectos de cámara esperan a que termine. */
 const SCENE_FADE_MS = 320;
 /** Un aviso no esencial se apaga solo: lo que dice ya quedó escrito en la lista «Qué hacer». */
@@ -251,7 +257,7 @@ const CASE_INTRO_PARAGRAPHS = [
                        nada y se puede reintentar; «Volver al catálogo» sigue operable. Se anuncia por la región. -->
                   <div class="consent-error">
                     <mat-icon aria-hidden="true">error</mat-icon>
-                    <p>{{ consentErrorText }}</p>
+                    <p>{{ consentErrorText() }}</p>
                     <button ui-button type="button" variant="secondary" (click)="acceptContentWarning()">Reintentar</button>
                   </div>
                 }
@@ -418,7 +424,7 @@ const CASE_INTRO_PARAGRAPHS = [
                 [releaseToken]="dialogueReleaseToken()" [pausing]="pausing()" [hintAttempt]="hintAttempt()"
                 (close)="closeDialogue()" (safeExit)="pauseFromOverlay()"
                 (execute)="executeDecision($event)" (useTool)="useTool($event)"
-                (frontendChoice)="handleFrontendChoice($event)" />
+                (frontendChoice)="handleFrontendChoice($event)" (consentRequired)="requireConsentAgain()" />
             </aside>
           }
         </div>
@@ -485,7 +491,7 @@ const CASE_INTRO_PARAGRAPHS = [
             [releaseToken]="dialogueReleaseToken()" [pausing]="pausing()" [hintAttempt]="hintAttempt()"
             (close)="closeDialogue()" (safeExit)="pauseFromOverlay()"
             (execute)="executeDecision($event)" (useTool)="useTool($event)"
-            (frontendChoice)="handleFrontendChoice($event)" />
+            (frontendChoice)="handleFrontendChoice($event)" (consentRequired)="requireConsentAgain()" />
         }
 
         @if (helpOpen()) {
@@ -1285,7 +1291,8 @@ export class SimulationPlayComponent implements OnInit, OnDestroy {
   readonly showContentWarning = signal(false);
   /** Registro del consentimiento (ETH-01): `saving` mientras guarda; `error` si el almacenamiento falló. */
   readonly consentState = signal<'idle' | 'saving' | 'error'>('idle');
-  readonly consentErrorText: string = DRAFT_COPY.consentStorageError.text;
+  /** Qué dice el recuadro de error del aviso: el de siempre, o «hay una versión nueva del aviso» (S3-2b). */
+  readonly consentErrorText = signal<string>(DRAFT_COPY.consentStorageError.text);
   /** El mundo/HUD/audio solo existen tras el consentimiento (ETH-01). */
   readonly worldStarted = signal(false);
   /** Código HTTP del fallo que pinta el estado de error (null si no vino de una respuesta HTTP). */
@@ -1512,6 +1519,10 @@ export class SimulationPlayComponent implements OnInit, OnDestroy {
   private roomBannerTimer: number | null = null;
   private transitionNoteTimer: number | null = null;
   private pauseDeadlineTimer: number | null = null;
+  /** Plazo de la precarga del consentimiento (S3-2b): pasado, el arranque sigue sin esperar al servidor. */
+  private consentPrimeTimer: number | null = null;
+  /** La pantalla ya se destruyó: una respuesta tardía de la precarga no arranca audio ni mundo. */
+  private destroyed = false;
   /** Retiro del fundido tras cargar el mundo: si el componente se destruye antes, no debe dispararse. */
   private worldRevealTimer: number | null = null;
   /** La petición de salida segura ya salió: ni la cola ni el plazo la repiten. */
@@ -1580,11 +1591,12 @@ export class SimulationPlayComponent implements OnInit, OnDestroy {
   }
 
   ngOnDestroy(): void {
+    this.destroyed = true;
     this.stopCompactWatch?.();
     // Los avisos accionables son del sistema y viven en un anfitrión global: no se quedan en el resto de la app.
     this.dismissDoorNotice();
     this.dismissActionError();
-    for (const timer of [this.noteTimer, this.softNoticeTimer, this.roomBannerTimer, this.nothingNearbyTimer, this.pauseDeadlineTimer, this.transitionNoteTimer, this.worldRevealTimer]) {
+    for (const timer of [this.noteTimer, this.softNoticeTimer, this.roomBannerTimer, this.nothingNearbyTimer, this.pauseDeadlineTimer, this.transitionNoteTimer, this.worldRevealTimer, this.consentPrimeTimer]) {
       if (timer !== null) window.clearTimeout(timer);
     }
     this.audioDirector.stopIntroLament();
@@ -1725,6 +1737,44 @@ export class SimulationPlayComponent implements OnInit, OnDestroy {
   }
 
   private bootstrapAttempt(attempt: SimulationAttemptState) {
+    // S3-2b: el consentimiento puede estar ya en el servidor (otro navegador, otra sesión): se pregunta ANTES de decidir si
+    // se pide el aviso. Hasta que responde solo se ve el indicador de carga; si falla o tarda, se pide el aviso.
+    this.primeConsent(attempt, () => this.continueBootstrap(attempt));
+  }
+
+  /**
+   * Pregunta al servidor (`prime`, opcional en el registro) si la persona ya aceptó el aviso y recién entonces sigue con
+   * `then`. Nunca bloquea ni se ve: la lectura que falla, se rechaza, lanza o pasa de `CONSENT_PRIME_TIMEOUT_MS` deja todo
+   * como estaba (= se pide el aviso). Un registro sin `prime`, o un intento que no está en curso, sigue en el acto.
+   */
+  private primeConsent(attempt: SimulationAttemptState, then: () => void): void {
+    let pending: PromiseLike<void> | undefined;
+    if (attempt.status === 'IN_PROGRESS') {
+      try {
+        pending = this.consentRecorder.prime?.(attempt.caseVersionId);
+      } catch {
+        pending = undefined;
+      }
+    }
+    if (!pending || typeof pending.then !== 'function') {
+      then();
+      return;
+    }
+    let settled = false;
+    const timer = window.setTimeout(() => proceed(), CONSENT_PRIME_TIMEOUT_MS);
+    this.consentPrimeTimer = timer;
+    const proceed = () => {
+      if (settled) return;
+      settled = true;
+      window.clearTimeout(timer);
+      if (this.consentPrimeTimer === timer) this.consentPrimeTimer = null;
+      // Una respuesta que llega con la pantalla ya cerrada no arranca audio ni mundo.
+      if (!this.destroyed) then();
+    };
+    pending.then(proceed, proceed);
+  }
+
+  private continueBootstrap(attempt: SimulationAttemptState) {
     this.attempt.set(attempt);
     this.persistAttemptToken(attempt);
     // ETH-01: sin consentimiento no se inicializa audio, ni se pide el mundo,
@@ -2243,8 +2293,15 @@ export class SimulationPlayComponent implements OnInit, OnDestroy {
     }, NOTICE_MS);
   }
 
-  /** Avisa con el mensaje real del servidor; si el interceptor ya avisó (sin red, sesión), no duplica. */
+  /**
+   * Avisa con el mensaje real del servidor; si el interceptor ya avisó (sin red, sesión), no duplica. Un 403
+   * `CONSENT_REQUIRED` no es un error de la acción: la pantalla vuelve al aviso (S3-2b).
+   */
   private reportApiError(err: unknown, fallback: string): void {
+    if (isConsentRequiredError(err)) {
+      this.requireConsentAgain();
+      return;
+    }
     const message = apiErrorMessage(err, fallback);
     if (message) this.showActionError(message);
   }
@@ -2462,10 +2519,16 @@ export class SimulationPlayComponent implements OnInit, OnDestroy {
         this.journalSaveState.set('saved');
         this.busy.set(false);
       },
-      error: () => {
+      error: err => {
+        this.busy.set(false);
+        // S3-2b: sin consentimiento no se guarda nada y tampoco es un fallo de guardado: vuelve el aviso.
+        if (isConsentRequiredError(err)) {
+          this.journalSaveState.set('idle');
+          this.requireConsentAgain();
+          return;
+        }
         this.journalMessage.set('No pudimos guardar la bitácora.');
         this.journalSaveState.set('error');
-        this.busy.set(false);
       }
     });
   }
@@ -2814,7 +2877,10 @@ export class SimulationPlayComponent implements OnInit, OnDestroy {
   private loadProgressMap(attempt: SimulationAttemptState) {
     this.simulationService.getProgressMap(attempt.attemptId, attempt.attemptToken).subscribe({
       next: map => this.progressMap.set(map),
-      error: () => this.progressMap.set(null)
+      error: err => {
+        this.progressMap.set(null);
+        if (isConsentRequiredError(err)) this.requireConsentAgain();
+      }
     });
   }
 
@@ -2822,7 +2888,9 @@ export class SimulationPlayComponent implements OnInit, OnDestroy {
     this.simulationService.getWorld(attempt.attemptId, attempt.attemptToken).subscribe({
       next: world => this.applyWorldWithScenario(world),
       error: cause => {
-        this.fail('No pudimos cargar el mapa del caso.', cause, () => this.loadWorld(attempt));
+        // S3-2b: sin consentimiento el servidor no entrega el mundo. No es un fallo de carga (sin «Reintentar»): vuelve el aviso.
+        if (isConsentRequiredError(cause)) this.requireConsentAgain();
+        else this.fail('No pudimos cargar el mapa del caso.', cause, () => this.loadWorld(attempt));
         this.worldReloadPending = false;
         this.resumeQueued = false;
         // Sin mapa no hay escena sobre la que leer la supervisión: el resultado no puede quedar retenido.
@@ -2958,12 +3026,37 @@ export class SimulationPlayComponent implements OnInit, OnDestroy {
         this.announce('Continuaste al caso. Cargando el escenario.');
         this.startWorld(attempt);
       },
-      () => {
+      (cause: unknown) => {
         if (!this.showContentWarning()) return;
+        // S3-2b: un aviso de otra versión dice que hay una versión nueva (recargar); cualquier otro fallo, lo de siempre.
+        this.consentErrorText.set(cause instanceof ConsentNoticeStaleError
+          ? DRAFT_COPY.consentNoticeStale.text
+          : DRAFT_COPY.consentStorageError.text);
         this.consentState.set('error');
-        this.announce(this.consentErrorText, 'assertive');
+        this.announce(this.consentErrorText(), 'assertive');
       },
     );
+  }
+
+  /**
+   * El servidor respondió 403 `CONSENT_REQUIRED` (S3-2b, ETH-01): el consentimiento se retiró en otra pestaña o el aviso
+   * cambió de versión. Se vuelve al aviso previo SIN perder el intento ni mostrar un error genérico: lo que se sabía del
+   * consentimiento deja de valer, no queda mundo, HUD ni audio (como antes de aceptar) y, al aceptar de nuevo, el mundo
+   * se pide otra vez. La pausa y la salida segura no pasan por aquí: el servidor nunca les exige el consentimiento (REGLA-004).
+   * Pública porque el panel de diálogo la dispara (`(consentRequired)`) cuando son las pistas las que reciben el 403.
+   */
+  requireConsentAgain(): void {
+    const attempt = this.attempt();
+    if (!attempt) return;
+    this.consentRecorder.forget?.(this.caseConsentStorageKey(attempt));
+    if (this.showContentWarning()) return;
+    this.clearTransientOverlays();
+    this.dismissActionError();
+    this.audioDirector.dispose();
+    this.worldStarted.set(false);
+    this.consentState.set('idle');
+    this.loading.set(false);
+    this.showContentWarning.set(true);
   }
 
   /** «Iniciar nuevo intento» (RN-07): nombra lo que se pierde; «Continuar» conserva el intento abierto. */
@@ -3031,7 +3124,7 @@ export class SimulationPlayComponent implements OnInit, OnDestroy {
   }
 
   private caseConsentStorageKey(attempt: SimulationAttemptState): string {
-    return `siep_case_consent_${attempt.caseVersionId}_${attempt.attemptId}`;
+    return consentStorageKey(attempt.caseVersionId, attempt.attemptId);
   }
 
   continueFromIntroScene(): void {
@@ -3275,7 +3368,8 @@ export class SimulationPlayComponent implements OnInit, OnDestroy {
             this.scheduleRevealEffects();
           }
         },
-        error: () => undefined,
+        // Un fallo no interrumpe la caminata, salvo que el servidor haya perdido el consentimiento (S3-2b).
+        error: err => { if (isConsentRequiredError(err)) this.requireConsentAgain(); },
       });
   }
 

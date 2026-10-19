@@ -22,6 +22,7 @@ import {
   DialogueState, MapObjectState, NpcConfig, SimulationAttemptState, SimulationWorldState,
 } from '../../core/models/simulation.model';
 import { AudioDirectorService } from './audio-director.service';
+import { CONSENT_RECORDER, SessionConsentRecorder } from './consent-recorder';
 import { SimulationPlayComponent } from './simulation-play.component';
 import type { Mock } from 'vitest';
 
@@ -113,6 +114,7 @@ describe('SimulationPlayComponent: diálogo sin callejones', () => {
         { provide: SimulationService, useValue: sim },
         { provide: AudioDirectorService, useValue: audio },
         { provide: AuthService, useValue: {} },
+        { provide: CONSENT_RECORDER, useValue: new SessionConsentRecorder() },
         { provide: Router, useValue: { navigate: vi.fn() } },
         {
           provide: ActivatedRoute,

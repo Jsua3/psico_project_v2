@@ -90,6 +90,12 @@ const CONTRACTS: Contract[] = [
   { method: 'getHints', call: s => s.getHints(ATTEMPT, TOKEN), verb: 'GET', url: `${att}/hints`, attemptToken: true },
   { method: 'revealNextHint', call: s => s.revealNextHint(ATTEMPT, TOKEN, 'pista-0001-abcd'), verb: 'POST',
     url: `${att}/hints/next`, body: { attemptToken: TOKEN, requestId: 'pista-0001-abcd' } },
+  // S3-2b (C12, ETH-01): el consentimiento al aviso de contenido vive en el servidor: leerlo, aceptarlo (con la versión
+  // del aviso que se mostró) y retirarlo. No llevan el token de intento: son del caso, no del intento.
+  { method: 'getConsent', call: s => s.getConsent(7), verb: 'GET', url: `${S}/cases/7/consent` },
+  { method: 'acceptConsent', call: s => s.acceptConsent(7, 'aviso-vigente'), verb: 'POST', url: `${S}/cases/7/consent`,
+    body: { noticeVersion: 'aviso-vigente' } },
+  { method: 'withdrawConsent', call: s => s.withdrawConsent(7), verb: 'DELETE', url: `${S}/cases/7/consent` },
 
   // ── docente ────────────────────────────────────────────────────────────────
   { method: 'recentAttempts', call: s => s.recentAttempts(), verb: 'GET', url: '/api/instructor/attempts/recent' },
@@ -295,13 +301,13 @@ describe('SimulationService contrato HTTP', () => {
 
     expect(publicMethods.filter(name => !documented.has(name))).toEqual([]);
     expect([...documented].filter(name => !publicMethods.includes(name))).toEqual([]);
-    expect(publicMethods).toHaveLength(60);
+    expect(publicMethods).toHaveLength(63);
   });
 
   it('cada método vive en una sola API y cada rol tiene el tamaño esperado', () => {
     const [player, authoring, instructor] = ROLE_CLASSES.map(publicMethodsOf);
-    expect(new Set([...player, ...authoring, ...instructor]).size).toBe(60);
-    expect([player.length, authoring.length, instructor.length]).toEqual([21, 34, 5]);
+    expect(new Set([...player, ...authoring, ...instructor]).size).toBe(63);
+    expect([player.length, authoring.length, instructor.length]).toEqual([24, 34, 5]);
     expect(instructor).toEqual(['recentAttempts', 'attemptTrace', 'rubric', 'replaceAttempt', 'saveRubric']);
   });
 

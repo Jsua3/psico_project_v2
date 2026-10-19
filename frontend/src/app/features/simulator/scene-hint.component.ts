@@ -1,7 +1,8 @@
-import { ChangeDetectionStrategy, Component, DestroyRef, InjectionToken, OnInit, computed, inject, input, signal } from '@angular/core';
+import { ChangeDetectionStrategy, Component, DestroyRef, InjectionToken, OnInit, computed, inject, input, output, signal } from '@angular/core';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 
 import { LiveRegionAnnouncer } from '../../core/a11y/live-announcer.service';
+import { CONSENT_REQUIRED } from '../../core/api/api-error.util';
 import { SimulationService } from '../../core/api/simulation.service';
 import { HintReason, HintState } from '../../core/models/simulation.model';
 import { UiButton } from '../../shared/ui/button/ui-button';
@@ -55,6 +56,11 @@ export class SceneHintComponent implements OnInit {
 
   readonly attemptId = input.required<string>();
   readonly attemptToken = input.required<string>();
+  /**
+   * El servidor respondió 403 `CONSENT_REQUIRED` (S3-2b, ETH-01): el consentimiento al aviso de contenido se retiró o el aviso
+   * cambió. No es un fallo de pistas: se lo dice a la pantalla de juego, que vuelve al aviso previo como con cualquier otra orden.
+   */
+  readonly consentRequired = output<void>();
 
   protected readonly state = signal<HintState | null>(null);
   protected readonly loading = signal(true);
@@ -88,6 +94,13 @@ export class SceneHintComponent implements OnInit {
     this.announcer.announce(text, politeness);
   }
 
+  /** ¿El servidor exige el consentimiento? Entonces no es un fallo de pistas: lo avisa a la pantalla de juego y no se anuncia nada. */
+  private serverRequiresConsent(error: HintError): boolean {
+    if (error?.status !== 403 || error.error?.code !== CONSENT_REQUIRED) return false;
+    this.consentRequired.emit();
+    return true;
+  }
+
   /** Respira tras revelar o tras una respuesta sin pista nueva: la ventana de duplicado del servidor. */
   private startCooldown(): void {
     this.cooling.set(true);
@@ -110,9 +123,10 @@ export class SceneHintComponent implements OnInit {
         this.state.set(state);
         this.loading.set(false);
       },
-      error: () => {
-        this.loadFailed.set(true);
+      error: (error: HintError) => {
         this.loading.set(false);
+        if (this.serverRequiresConsent(error)) return;
+        this.loadFailed.set(true);
         this.announcer.announce('No pudimos cargar las pistas.', 'assertive');
       },
     });
@@ -140,6 +154,7 @@ export class SceneHintComponent implements OnInit {
       },
       error: (error: HintError) => {
         this.revealing.set(false);
+        if (this.serverRequiresConsent(error)) return;
         const code = error?.error?.code;
         if (code === 'NO_MORE_HINTS') {
           // Otra pestaña ya las pidió: se lee el estado real en vez de mostrar un error que no lo es.

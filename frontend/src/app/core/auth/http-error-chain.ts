@@ -1,5 +1,6 @@
 import { HttpContextToken, HttpErrorResponse } from '@angular/common/http';
 import { Router } from '@angular/router';
+import { isConsentRequiredError } from '../api/api-error.util';
 import { NotificationService } from '../notifications/notification.service';
 import { AuthService } from './auth.service';
 import { CHANGE_PASSWORD_PATH, PASSWORD_CHANGE_REQUIRED } from './password-change';
@@ -144,6 +145,18 @@ export class PasswordChangeRequiredHandler extends HttpErrorHandler {
   }
 }
 
+/**
+ * S3-2b (ETH-01): el 403 `CONSENT_REQUIRED` tampoco es falta de permisos: el consentimiento al aviso de contenido se
+ * retiró (en otra pestaña) o el aviso cambió de versión. Lo explica la pantalla de juego volviendo al aviso, así que aquí
+ * solo se corta la cadena: ni «No tienes permisos» ni se toca la sesión. Va antes de `ForbiddenHandler`.
+ */
+export class ConsentRequiredHandler extends HttpErrorHandler {
+  protected canHandle(ctx: HttpErrorContext): boolean {
+    return isConsentRequiredError(ctx.error);
+  }
+  protected apply(): void {}
+}
+
 export class ForbiddenHandler extends HttpErrorHandler {
   protected canHandle(ctx: HttpErrorContext): boolean {
     return statusOf(ctx) === 403 && !ctx.screenHandlesForbidden;
@@ -171,6 +184,7 @@ export function defaultHttpErrorHandlers(): HttpErrorHandler[] {
     new UnauthorizedHandler(),
     new InactiveUserHandler(),
     new PasswordChangeRequiredHandler(),
+    new ConsentRequiredHandler(),
     new ForbiddenHandler(),
     new NoConnectionHandler(),
   ];

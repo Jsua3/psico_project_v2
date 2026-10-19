@@ -296,6 +296,53 @@ export async function main(env = process.env, fetchImpl = globalThis.fetch) {
     if (attempt?.attemptId && attempt?.attemptToken) {
       const hintsPath = `/simulation/attempts/${attempt.attemptId}/hints`;
       const headers = { 'X-SIEP-Attempt-Token': attempt.attemptToken };
+
+      // S3-2 (C12, ETH-01): el consentimiento al aviso de contenido. Con SIEP_CONSENT_REQUIRED encendida el servidor no
+      // entrega las pistas (ni el mundo) sin él; apagada, aceptar igual deja la evidencia. La matriz vale en los dos casos.
+      const consentPath = `/simulation/cases/${caseVersionId}/consent`;
+      const consentRead = await request('GET', consentPath, { token: tokens.ESTUDIANTE });
+      expectStatus('ESTUDIANTE GET /simulation/cases/{id}/consent -> 200', consentRead.status, 200);
+      const consentState = consentRead.data?.data;
+      if (
+        typeof consentState?.required === 'boolean'
+        && typeof consentState?.noticeVersion === 'string'
+        && typeof consentState?.accepted === 'boolean'
+      ) {
+        pass('el consentimiento trae required, noticeVersion y accepted');
+      } else {
+        fail('el consentimiento trae required, noticeVersion y accepted', JSON.stringify(consentState));
+      }
+      expectStatus(
+        'PROFESOR GET /simulation/cases/{id}/consent -> 403',
+        (await request('GET', consentPath, { token: tokens.PROFESOR })).status,
+        403,
+      );
+      if (consentState?.required === true) {
+        const refused = await request('GET', hintsPath, { token: tokens.ESTUDIANTE, headers });
+        expectStatus('ESTUDIANTE GET /simulation/attempts/{id}/hints sin consentimiento (exigido) -> 403', refused.status, 403);
+        if (refused.data?.code === 'CONSENT_REQUIRED' && refused.data?.noticeVersion === consentState.noticeVersion) {
+          pass('la negativa trae CONSENT_REQUIRED y la versión vigente del aviso');
+        } else {
+          fail('la negativa trae CONSENT_REQUIRED y la versión vigente del aviso', JSON.stringify(refused.data));
+        }
+      }
+      expectStatus(
+        'ESTUDIANTE POST /simulation/cases/{id}/consent con un aviso que no es el vigente -> 409',
+        (await request('POST', consentPath, {
+          token: tokens.ESTUDIANTE,
+          body: { noticeVersion: 'aviso-que-no-es-el-vigente' },
+        })).status,
+        409,
+      );
+      expectStatus(
+        'ESTUDIANTE POST /simulation/cases/{id}/consent -> 200 o 201',
+        (await request('POST', consentPath, {
+          token: tokens.ESTUDIANTE,
+          body: { noticeVersion: consentState?.noticeVersion },
+        })).status,
+        [200, 201],
+      );
+
       const hints = await request('GET', hintsPath, { token: tokens.ESTUDIANTE, headers });
       expectStatus('ESTUDIANTE GET /simulation/attempts/{id}/hints -> 200', hints.status, 200);
       if (typeof hints.data?.data?.available === 'number' && Array.isArray(hints.data?.data?.shown)) {
