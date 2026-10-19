@@ -114,6 +114,15 @@ Borra, y solo da recuentos:
 
 Se puede programar a diario en la plataforma de despliegue; entonces ya no hace falta programar por separado `purge_rate_limits` ni `purge_audit_logs` (sí `expire_temporary_passwords`). El repositorio no lo programa: el comando programado lleva `--confirm` y el correo del administrador que ejecuta. Compruébalo en el panel.
 
+## Con qué cuenta de la base se ejecutan
+
+La auditoría es de solo añadir: la base rechaza `UPDATE` y `DELETE` sobre `audit_logs` salvo dentro de una ventana que abren solo los comandos de mantenimiento. Esa ventana **no sirve si la cuenta de la base no tiene el privilegio**. Por eso hay dos cuentas distintas:
+
+- **La cuenta de la aplicación** (la que atiende las peticiones) **no** debe tener `UPDATE`, `DELETE` ni `TRUNCATE` sobre `audit_logs` (fila 22 de la compuerta). Es la protección si alguien se apodera de la aplicación.
+- **Una cuenta de mantenimiento**, solo para la terminal de quien despliega, con esos privilegios, es la que necesitan `erase_personal_data`, `purge_expired_data`, `purge_audit_logs` y `migrate`. Con la cuenta de la aplicación esos comandos fallan con `permission denied for table audit_logs`; la supresión no cambia nada (es atómica) y la depuración de cada noche falla sin ruido.
+
+Hoy SIEP lee **un solo** `DATABASE_URL`: para correr esos comandos, quien despliega lo cambia en su terminal por el de la cuenta de mantenimiento, solo en esa sesión. Crear la cuenta y decidir cómo se programa la depuración (con qué cuenta y con qué aviso si falla) es una decisión del despliegue, y queda en la lista de la compuerta (filas 21 y 22).
+
 ## Lo que decide la institución (SD-9)
 
 SIEP trae las herramientas; **no inventa obligaciones legales**. La institución debe definir:

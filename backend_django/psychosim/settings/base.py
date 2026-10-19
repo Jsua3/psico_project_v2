@@ -140,8 +140,8 @@ REST_FRAMEWORK = {
     # JSON solo como objeto (``request.data.get`` es la norma de las vistas) + formularios.
     "DEFAULT_PARSER_CLASSES": [
         "shared.parsers.ObjectJSONParser",
-        "rest_framework.parsers.FormParser",
-        "rest_framework.parsers.MultiPartParser",
+        "shared.parsers.ObjectFormParser",
+        "shared.parsers.ObjectMultiPartParser",
     ],
     # S2-4 · Solo JSON: la API navegable de DRF devuelve HTML con <script> y <style> en línea, que la política de
     # contenido en vigor degrada, y ninguna parte de SIEP la usa (el SPA, las pruebas y curl hablan JSON).

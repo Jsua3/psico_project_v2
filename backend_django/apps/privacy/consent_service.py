@@ -197,6 +197,32 @@ def _crear_aceptacion(person, case_version_id, notice_version):
         raise _YaVigente from None
 
 
+#: Cuántas veces se intenta crear la aceptación si cada intento choca con una vigente que otra petición retira antes de leerla.
+_INTENTOS_DE_ACEPTACION = 3
+
+
+def _aceptar_con_reintento(crear, leer_vigente):
+    """``(registro, creado)``: crea la aceptación, o devuelve la vigente que ganó la carrera (revisión S7-2, riesgo 4).
+
+    Si el índice único dice que ya había una vigente pero, al releerla, otra petición la acaba de RETIRAR, no hay ganadora que
+    devolver: antes ese ``.get()`` lanzaba ``DoesNotExist`` (500). Ahora se vuelve a intentar crear (quien llama aceptó DESPUÉS
+    del retiro, así que debe quedar aceptado) y, si tres vueltas seguidas chocan, un 409 que el cliente muestra con «Reintentar».
+    """
+    for _ in range(_INTENTOS_DE_ACEPTACION):
+        try:
+            return crear(), True
+        except _YaVigente:
+            ganadora = leer_vigente()
+            if ganadora is not None:
+                return ganadora, False
+    raise ApiError(
+        "CONSENT_CONFLICT",
+        # BORRADOR: texto nuevo del servidor, pendiente de la aprobación de Psicología (VD-23).
+        "El consentimiento cambió mientras se registraba. Inténtalo de nuevo.",
+        status.HTTP_409_CONFLICT,
+    )
+
+
 def accept_content_notice(person, case_version, notice_version):
     """Registra que ``person`` aceptó el aviso de contenido de la versión del caso. Devuelve ``(registro, creado)``.
 
@@ -210,11 +236,10 @@ def accept_content_notice(person, case_version, notice_version):
     if existente is not None:
         return existente, False
     _contar_aceptacion(person)
-    try:
-        return _crear_aceptacion(person, version_id, notice_version), True
-    except _YaVigente:
-        # Perdió la carrera: la ganadora es la que quedó en la base.
-        return _vigentes(person, CONTENT_NOTICE, version_id, notice_version).get(), False
+    return _aceptar_con_reintento(
+        lambda: _crear_aceptacion(person, version_id, notice_version),
+        lambda: _vigentes(person, CONTENT_NOTICE, version_id, notice_version).first(),
+    )
 
 
 @auditable("consentimiento.retirar", "CASE_VERSION", 1, context=_contexto_del_aviso)
@@ -282,10 +307,10 @@ def accept_data_treatment(person, notice_version):
     if existente is not None:
         return existente, False
     _contar_aceptacion(person)
-    try:
-        return _crear_aceptacion_del_tratamiento(person, notice_version), True
-    except _YaVigente:
-        return _vigentes(person, DATA_TREATMENT, None, notice_version).get(), False
+    return _aceptar_con_reintento(
+        lambda: _crear_aceptacion_del_tratamiento(person, notice_version),
+        lambda: _vigentes(person, DATA_TREATMENT, None, notice_version).first(),
+    )
 
 
 # ── La exigencia ─────────────────────────────────────────────────────────────────────────────────────────────────────────

@@ -27,7 +27,9 @@ from django.db import connection, transaction
 from django.utils import timezone
 
 from apps.security.limiter import hit, key_hash
+from apps.security.limits import LIMITS
 from shared.client_ip import client_ip
+from shared.security_events import log_security_event
 
 from ..models import AuditLog, CaseReview
 
@@ -169,6 +171,9 @@ CONTEXT_WHITELIST: dict[str, frozenset[str]] = {
     "RUBRIC_UPDATED": frozenset({"rubricId", "changed", "caseVersionId"}),
     "RUBRIC_ACTIVATED": frozenset({"rubricId", "active"}),
     "COMPETENCY_CREATED": frozenset({"competencyId"}),
+    # S7-2 (#2) · `node` lo manda el cliente tal cual: la lista blanca deja solo números y palabras cortas (el texto de la
+    # pregunta nunca entra: solo su longitud).
+    "AI_ASSISTANT_QUERY": frozenset({"question_length", "node", "decision_taken", "response_length"}),
     "CONSENT_ACCEPTED": frozenset({"caseVersionId", "noticeVersion"}),
     "CONSENT_WITHDRAWN": frozenset({"caseVersionId", "noticeVersion"}),
     # S3-4 · solo ids (de la persona y del ADMIN que ejecuta) y recuentos: nunca el correo, el nombre ni un texto de la persona.
@@ -304,6 +309,22 @@ def _filtrar_contexto(payload: dict, permitidos: frozenset) -> dict:
     return limpio
 
 
+def _cabe_la_fila_del_estudiante(actor_fk, actor_role):
+    """Cuenta la fila en el tope por estudiante (``audit_game_user``) y dice si cabe (revisión S7-2, #2).
+
+    La auditoría es de solo añadir y las órdenes de juego no llevan limitador: sin este tope una sola cuenta la llenaba. Solo
+    acota a los estudiantes (los demás roles tienen sus propios límites en las rutas pesadas). Lo que pasa del tope no se
+    escribe, sigue contado y deja UN aviso por ventana, sin datos de la persona salvo su id. Con el limitador apagado,
+    ``hit`` devuelve 0 y no hay tope."""
+    if actor_fk is None or actor_role != "ESTUDIANTE":
+        return True
+    total = hit("audit_game_user", key_hash(str(actor_fk), "juego"))
+    limite = LIMITS["audit_game_user"].limit
+    if total == limite + 1:
+        log_security_event("audit_game_user_capped", scope="audit_game_user", actor_id=actor_fk)
+    return total <= limite
+
+
 def append(actor_id, actor_role, action, resource_type, resource_id,
            context, ip_address, user_agent, occurred_at):
     try:
@@ -313,6 +334,8 @@ def append(actor_id, actor_role, action, resource_type, resource_id,
                 actor_fk = int(actor_id)
             except (TypeError, ValueError):
                 actor_fk = None  # e.g. a UUID actor — keep FK null
+        if not _cabe_la_fila_del_estudiante(actor_fk, actor_role):
+            return
         occurred = occurred_at or timezone.now()
         payload = dict(context) if isinstance(context, dict) else {}
         payload.setdefault("taxonomy", canonical_action(action))
