@@ -7,9 +7,10 @@
  * Nunca imprime un valor de variable de entorno, una URL con credenciales, un correo ni una IP de personas: las variables
  * se leen de la terminal de quien despliega y solo se nombran; cada texto pasa por quitarValores y sanearDetalle.
  *
- * Uso: npm run gate:primera-cuenta -- --url https://DOMINIO [--out RUTA.md] [--only id,id] [--with-image] [--with-csp]
+ * Uso: npm run gate:primera-cuenta -- --url https://DOMINIO [--out RUTA.md] [--only id,id] [--with-image] [--with-csp] [--strict]
  * Salida: 0 si ningún paso falló (lo omitido se lista y la línea final dice INCOMPLETA); 1 si algún paso falló;
- *         2 si la orden no se entiende o el informe no tiene dónde ir.
+ *         2 si la orden no se entiende o el informe no tiene dónde ir; 3 solo con --strict, si la compuerta quedó
+ *         INCOMPLETA (sin fallas, pero con algo automático omitido).
  */
 import { spawnSync } from 'node:child_process';
 import { randomBytes, randomInt } from 'node:crypto';
@@ -31,6 +32,7 @@ import {
   codigoDeSalida,
   construirInforme,
   correosDemoDesdeFuentes,
+  entornoSinSecretos,
   esRutaDentroDe,
   evaluarCabeceras,
   evaluarCuentasDemo,
@@ -77,14 +79,17 @@ const SEMILLAS_DEMO = [
 
 // BORRADOR: texto de ayuda de la consola, pendiente de revisión.
 const AYUDA = [
-  'Uso: npm run gate:primera-cuenta -- --url https://DOMINIO [--out RUTA.md] [--only id,id] [--with-image] [--with-csp]',
+  'Uso: npm run gate:primera-cuenta -- --url https://DOMINIO [--out RUTA.md] [--only id,id] [--with-image] [--with-csp] [--strict]',
   '  --url         dominio de producción (solo origen, sin credenciales). Sin él, los pasos contra el dominio se omiten.',
   '  --out         dónde escribir el informe, fuera del repositorio. Por defecto: la carpeta desde la que corriste npm.',
   '  --only        solo esos pasos automáticos (los manuales salen siempre como pendientes).',
   '  --with-image  prueba de humo de la imagen: tarda minutos y necesita docker.',
   '  --with-csp    sonda de CSP: tarda minutos y necesita Chromium y frontend/node_modules.',
+  '  --strict      una compuerta INCOMPLETA (sin fallas, pero con algo automático omitido) sale con código 3 en vez de 0.',
+  '                Úsala cuando el informe va al PR de despliegue. Las fallas siguen saliendo con 1 y el mal uso con 2.',
   `  ids: ${PASOS.map((paso) => paso.id).join(', ')}`,
   'Las variables de entorno (DJANGO_SECRET_KEY, DATABASE_URL, …) se leen de tu terminal: se nombran, nunca se imprimen.',
+  'Los procesos hijos (verify:estructural, verify:seguridad, la sonda de CSP y la imagen) corren sin esas variables.',
 ].join('\n');
 
 const venvPython = () => join(BACKEND, '.venv', isWin ? 'Scripts' : 'bin', isWin ? 'python.exe' : 'python');
@@ -127,11 +132,16 @@ export async function comprobarRedireccionYHsts({ host, fetch: pedir = fetch, se
   return { estado, detalle: `${redireccion.detalle}; ${hsts.detalle}` };
 }
 
-/** La CSP en vigor con nonce, sin unsafe-inline, y las cabeceras de seguridad, en https://HOST/. */
+/**
+ * La CSP en vigor y las cabeceras de seguridad, en https://HOST/. Pide la página DOS veces: un nonce que no cambia entre
+ * peticiones es lo mismo que no tener nonce (evaluarCabeceras exige que sea otro).
+ */
 export async function comprobarCabeceras({ host, fetch: pedir = fetch }) {
-  const respuesta = await pedir(`https://${host}/`, peticion());
-  await vaciar(respuesta);
-  return evaluarCabeceras(Object.fromEntries(respuesta.headers));
+  const primera = await pedir(`https://${host}/`, peticion());
+  await vaciar(primera);
+  const segunda = await pedir(`https://${host}/`, peticion());
+  await vaciar(segunda);
+  return evaluarCabeceras(Object.fromEntries(primera.headers), Object.fromEntries(segunda.headers));
 }
 
 /** Seis intentos contra una cuenta inventada con un X-Forwarded-For falso: cinco 401 y un 429 THROTTLED. */
@@ -175,16 +185,26 @@ export async function comprobarSalud({ origen, fetch: pedir = fetch }) {
 
 // --- Procesos hijos (verificaciones, sonda, imagen, manage.py) ------------------------------------------------
 
-function verificacionHija(nombre, script) {
-  console.log(`[siep:gate] corriendo ${nombre} (puede tardar varios minutos)...`);
-  const run = spawnSync(process.execPath, [join(ROOT, 'scripts', script)], {
+/**
+ * Corre un script de Node del repositorio como proceso hijo SIN las variables de producción (S7-2): las verificaciones, la
+ * sonda y la imagen no las necesitan, no deben recibir secretos reales y los corredores de pruebas se niegan a correr con
+ * `DATABASE_URL`. Todo hijo de Node de la compuerta pasa por aquí. Los pasos que sí las necesitan (manage.py y python)
+ * usan correrManage y correrPythonDeBackend, que reciben el entorno real. `ejecutar` se inyecta para poder probarlo.
+ */
+export function correrScriptHijo(script, { env = process.env, ejecutar = spawnSync } = {}) {
+  return ejecutar(process.execPath, [join(ROOT, 'scripts', script)], {
     cwd: ROOT,
-    env: process.env,
+    env: entornoSinSecretos(env),
     encoding: 'utf8',
     stdio: ['ignore', 'pipe', 'pipe'],
     timeout: TOPE_PROCESO_MS,
     maxBuffer: MAX_SALIDA,
   });
+}
+
+function verificacionHija(nombre, script, env) {
+  console.log(`[siep:gate] corriendo ${nombre} (puede tardar varios minutos)...`);
+  const run = correrScriptHijo(script, { env });
   return evaluarVerificacion({ nombre, status: run.status, salida: salidaDe(run) });
 }
 
@@ -216,8 +236,8 @@ function leerBaseline() {
 
 /** Pasos que llevan su comprobación; cada uno recibe el contexto de la corrida y devuelve { estado, detalle }. */
 const EJECUTORES = {
-  'verify-estructural': () => verificacionHija('verify:estructural', 'verify-estructural.mjs'),
-  'verify-seguridad': () => verificacionHija('verify:seguridad', 'verify-seguridad.mjs'),
+  'verify-estructural': (contexto) => verificacionHija('verify:estructural', 'verify-estructural.mjs', contexto.env),
+  'verify-seguridad': (contexto) => verificacionHija('verify:seguridad', 'verify-seguridad.mjs', contexto.env),
   'check-deploy': (contexto) => {
     const run = correrManage(['check', '--deploy'], contexto.env);
     return evaluarDeployCheck({ status: run.status, salida: salidaDe(run), baseline: leerBaseline() });
@@ -241,16 +261,9 @@ const EJECUTORES = {
     return comprobarRedireccionYHsts({ host: contexto.url.host, segundosEsperados });
   },
   'cabeceras-csp': (contexto) => comprobarCabeceras({ host: contexto.url.host }),
-  'csp-sonda': () => {
+  'csp-sonda': (contexto) => {
     console.log('[siep:gate] corriendo la sonda de CSP (construye el frontend de producción; tarda minutos)...');
-    const run = spawnSync(process.execPath, [join(ROOT, 'scripts', 'test-csp-probe.mjs')], {
-      cwd: ROOT,
-      env: process.env,
-      encoding: 'utf8',
-      stdio: ['ignore', 'pipe', 'pipe'],
-      timeout: TOPE_PROCESO_MS,
-      maxBuffer: MAX_SALIDA,
-    });
+    const run = correrScriptHijo('test-csp-probe.mjs', { env: contexto.env });
     return resumirSonda(salidaDe(run), run.status);
   },
   'fallos-429': (contexto) => comprobarFallos429({ origen: contexto.url.origen }),
@@ -279,16 +292,9 @@ const EJECUTORES = {
     const run = correrManage(['shell', '-c', CODIGO_PRIVILEGIOS], contexto.env);
     return evaluarPrivilegios(salidaDe(run));
   },
-  imagen: () => {
+  imagen: (contexto) => {
     console.log('[siep:gate] corriendo la prueba de humo de la imagen (la construye; tarda minutos)...');
-    const run = spawnSync(process.execPath, [join(ROOT, 'scripts', 'image-smoke.mjs')], {
-      cwd: ROOT,
-      env: process.env,
-      encoding: 'utf8',
-      stdio: ['ignore', 'pipe', 'pipe'],
-      timeout: TOPE_PROCESO_MS,
-      maxBuffer: MAX_SALIDA,
-    });
+    const run = correrScriptHijo('image-smoke.mjs', { env: contexto.env });
     return resumirImagen(salidaDe(run), run.status);
   },
   salud: (contexto) => comprobarSalud({ origen: contexto.url.origen }),
@@ -423,7 +429,7 @@ async function main(argv, env) {
   }
   console.log(`\n[siep:gate] ${resumen.linea}`);
   console.log(`[siep:gate] Informe: ${salida}`);
-  return codigoDeSalida(resultados);
+  return codigoDeSalida(resultados, { strict: opciones.strict });
 }
 
 if (process.argv[1] && fileURLToPath(import.meta.url) === process.argv[1]) {

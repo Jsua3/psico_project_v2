@@ -98,3 +98,106 @@ def test_control_negativo_detecta_un_id_repetido_en_la_tabla():
 def test_sin_tabla_no_hay_ids_que_comparar(texto):
     assert ids_de_la_guia(texto) == []
     assert ids_del_script(texto) == []
+
+
+# --- S7-2 · lo que la guía dice de --strict, de la limitación de la IP y del entorno de los procesos hijos -------------
+
+PREFIJOS_DEL_SCRIPT = re.compile(r"PREFIJOS_DE_PRODUCCION = Object\.freeze\(\[([^\]]*)\]\)")
+NOMBRES_DEL_SCRIPT = re.compile(r"NOMBRES_DE_PRODUCCION = Object\.freeze\(\[([^\]]*)\]\)")
+VALOR_EN_COMILLAS = re.compile(r"'([A-Z_]+)'")
+
+
+def seccion_como_correrla(texto):
+    """El texto de «Cómo correrla», hasta la siguiente sección."""
+    return texto.split("## Cómo correrla", 1)[1].split("\n## ", 1)[0]
+
+
+def problemas_de_strict(texto):
+    """La guía documenta --strict, el código 3 y la recomendación de usarlo cuando el informe va al PR de despliegue."""
+    seccion = seccion_como_correrla(texto)
+    problemas = []
+    if "`--strict`" not in seccion:
+        problemas.append("«Cómo correrla» no documenta --strict")
+    if "código 3" not in seccion:
+        problemas.append("«Cómo correrla» no dice que --strict hace salir con el código 3")
+    if "PR de despliegue" not in seccion or "corre con `--strict`" not in seccion:
+        problemas.append("«Cómo correrla» no recomienda --strict cuando el informe va al PR de despliegue")
+    return problemas
+
+
+def problemas_de_la_fila_3(texto):
+    """La fila 3 dice que la compuerta no detecta un SIEP_TRUSTED_PROXIES de menos y que la medición de S1-1 es manual."""
+    fila = next((linea for linea in filas_de_la_guia(texto) if linea.split("|")[1].strip() == "3"), None)
+    if fila is None:
+        return ["la guía no tiene la fila 3"]
+    problemas = []
+    if "no puede saber cuál es la IP verdadera del cliente" not in fila:
+        problemas.append("la fila 3 no dice que la compuerta no puede saber cuál es la IP verdadera")
+    if "`SIEP_TRUSTED_PROXIES` de MENOS" not in fila:
+        problemas.append("la fila 3 no dice que no detecta un SIEP_TRUSTED_PROXIES de MENOS")
+    if "S1-1" not in fila or "manual" not in fila:
+        problemas.append("la fila 3 no dice que la medición del primer despliegue (S1-1) sigue siendo manual")
+    return problemas
+
+
+def variables_que_el_script_quita(texto_del_script):
+    """(prefijos, nombres) de producción que entornoSinSecretos quita de lo que reciben los procesos hijos."""
+    prefijos = PREFIJOS_DEL_SCRIPT.search(texto_del_script)
+    nombres = NOMBRES_DEL_SCRIPT.search(texto_del_script)
+    assert prefijos and nombres, "el script ya no define PREFIJOS_DE_PRODUCCION y NOMBRES_DE_PRODUCCION"
+    return VALOR_EN_COMILLAS.findall(prefijos.group(1)), VALOR_EN_COMILLAS.findall(nombres.group(1))
+
+
+def variables_sin_documentar(texto_del_script, guia):
+    """Las variables que el script quita a los hijos y «Cómo correrla» no nombra (los prefijos van como `PREFIJO_*`)."""
+    seccion = seccion_como_correrla(guia)
+    prefijos, nombres = variables_que_el_script_quita(texto_del_script)
+    faltan = [f"`{prefijo}*`" for prefijo in prefijos if f"`{prefijo}*`" not in seccion]
+    faltan += [f"`{nombre}`" for nombre in nombres if f"`{nombre}`" not in seccion]
+    return faltan
+
+
+def test_la_guia_documenta_strict_y_su_codigo_de_salida():
+    assert problemas_de_strict(GUIA.read_text(encoding="utf-8")) == []
+
+
+def test_control_negativo_una_guia_sin_strict_o_sin_el_codigo_3_se_detecta():
+    base = GUIA.read_text(encoding="utf-8")
+    assert problemas_de_strict(base) == []
+    sin_bandera = base.replace("`--strict`", "`--otra`")
+    assert any("no documenta --strict" in problema for problema in problemas_de_strict(sin_bandera))
+    sin_codigo = base.replace("código 3", "código tres")
+    assert any("código 3" in problema for problema in problemas_de_strict(sin_codigo))
+    sin_recomendacion = base.replace("corre con `--strict`", "corre con `--otra`")
+    assert any("recomienda" in problema for problema in problemas_de_strict(sin_recomendacion))
+
+
+def test_la_fila_3_de_la_guia_dice_la_limitacion_de_la_ip_de_confianza():
+    assert problemas_de_la_fila_3(GUIA.read_text(encoding="utf-8")) == []
+
+
+def test_control_negativo_una_fila_3_sin_la_limitacion_se_detecta():
+    base = GUIA.read_text(encoding="utf-8")
+    sin_ip = base.replace("no puede saber cuál es la IP verdadera del cliente", "mide la IP")
+    assert any("IP verdadera" in problema for problema in problemas_de_la_fila_3(sin_ip))
+    sin_menos = base.replace("`SIEP_TRUSTED_PROXIES` de MENOS", "`SIEP_TRUSTED_PROXIES`")
+    assert any("de MENOS" in problema for problema in problemas_de_la_fila_3(sin_menos))
+    sin_manual = base.replace("sigue siendo manual", "queda hecha")
+    assert any("manual" in problema for problema in problemas_de_la_fila_3(sin_manual))
+
+
+def test_la_guia_nombra_las_variables_que_el_script_quita_a_los_procesos_hijos():
+    faltan = variables_sin_documentar(SOPORTE.read_text(encoding="utf-8"), GUIA.read_text(encoding="utf-8"))
+    assert faltan == [], f"«Cómo correrla» no nombra estas variables que el script quita a los hijos: {faltan}"
+
+
+def test_control_negativo_una_variable_nueva_en_el_script_sin_documentar_se_detecta():
+    script = SOPORTE.read_text(encoding="utf-8")
+    guia = GUIA.read_text(encoding="utf-8")
+    assert variables_sin_documentar(script, guia) == []
+    con_prefijo_nuevo = script.replace("'RAILWAY_']);", "'RAILWAY_', 'NUEVA_']);", 1)
+    assert con_prefijo_nuevo != script, "la mutación no cambia el script: el control no protege nada"
+    assert variables_sin_documentar(con_prefijo_nuevo, guia) == ["`NUEVA_*`"]
+    con_nombre_nuevo = script.replace("  'SIEP_ALLOWED_ASSET_HOSTS',\n]);", "  'SIEP_ALLOWED_ASSET_HOSTS',\n  'NUEVO_NOMBRE',\n]);", 1)
+    assert con_nombre_nuevo != script, "la mutación no cambia el script: el control no protege nada"
+    assert variables_sin_documentar(con_nombre_nuevo, guia) == ["`NUEVO_NOMBRE`"]

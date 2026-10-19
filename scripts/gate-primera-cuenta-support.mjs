@@ -94,7 +94,7 @@ export const PASOS = Object.freeze([
   },
   {
     id: 'cabeceras-csp',
-    comprobacion: 'Content-Security-Policy en vigor con nonce, sin unsafe-inline, y cabeceras de seguridad',
+    comprobacion: 'Content-Security-Policy en vigor con un nonce distinto en dos peticiones, object-src, frame-ancestors y base-uri cerrados, sin comodines ni unsafe-inline/unsafe-eval, y cabeceras de seguridad',
     tipo: TIPOS.AUTOMATICA,
     quien: 'script',
     tarea: 'S2-4',
@@ -341,14 +341,14 @@ export function validarIds(only = []) {
 // --- Argumentos y URL -----------------------------------------------------------------------------------------
 
 const CON_VALOR = new Set(['--url', '--out', '--only']);
-const SIN_VALOR = new Set(['--with-image', '--with-csp', '--help', '-h']);
+const SIN_VALOR = new Set(['--with-image', '--with-csp', '--strict', '--help', '-h']);
 
 /**
  * Lee la línea de órdenes. Una opción desconocida se nombra solo por su nombre (lo que va tras el «=» no sale): así una
  * URL con credenciales escrita mal no acaba en un mensaje.
  */
 export function parsearArgumentos(argv = []) {
-  const opciones = { url: undefined, out: undefined, only: [], withImage: false, withCsp: false, ayuda: false };
+  const opciones = { url: undefined, out: undefined, only: [], withImage: false, withCsp: false, strict: false, ayuda: false };
   for (let indice = 0; indice < argv.length; indice += 1) {
     const argumento = String(argv[indice]);
     if (!argumento.startsWith('-')) {
@@ -375,6 +375,7 @@ export function parsearArgumentos(argv = []) {
       if (igual >= 0) return { ok: false, motivo: `${nombre} no admite valor` };
       if (nombre === '--with-image') opciones.withImage = true;
       if (nombre === '--with-csp') opciones.withCsp = true;
+      if (nombre === '--strict') opciones.strict = true;
       if (nombre === '--help' || nombre === '-h') opciones.ayuda = true;
     } else {
       return { ok: false, motivo: `opción desconocida: ${nombre}` };
@@ -419,6 +420,36 @@ export function valoresSensibles(env = {}) {
   return Object.entries(env)
     .filter(([nombre, valor]) => VARIABLE_SENSIBLE.test(nombre) && typeof valor === 'string' && valor.length >= 8)
     .map(([, valor]) => valor);
+}
+
+// Variables de producción que NO deben llegar a los procesos hijos (verificaciones, sonda, imagen): se comparan en
+// mayúsculas, por nombre exacto o por prefijo. No son secretos de este repositorio sino los de quien despliega, que la
+// guía le pide tener en la terminal para los pasos que sí los necesitan (check --deploy, la medición de la IP, etc.).
+const PREFIJOS_DE_PRODUCCION = Object.freeze(['DB_', 'DJANGO_', 'JWT_', 'REFLECTION_', 'EMAIL_', 'GOOGLE_', 'AI_', 'RAILWAY_']);
+const NOMBRES_DE_PRODUCCION = Object.freeze([
+  'DATABASE_URL',
+  'SIEP_ADMIN_PASSWORD',
+  'SIEP_TRUSTED_PROXIES',
+  'SIEP_HSTS_SECONDS',
+  'SIEP_ALLOWED_ASSET_HOSTS',
+]);
+
+/**
+ * Una COPIA del entorno sin las variables de producción (S7-2). Los hijos que la compuerta lanza para verificar (pytest,
+ * `ng build`, Playwright, docker) no las necesitan, no deben recibir secretos reales, y los corredores de pruebas se
+ * niegan a correr con `DATABASE_URL` definido. Conserva todo lo demás (PATH, HOME, TEMP, SIEP_TEST_DB_*, SIEP_E2E_*,
+ * E2E_*, SIEP_CSP_PROBE_PORT…). No muta el original. La redacción de los textos sigue usando el entorno completo
+ * (valoresSensibles), y los pasos que SÍ necesitan el entorno real lo reciben tal cual.
+ */
+export function entornoSinSecretos(env = {}) {
+  const copia = {};
+  for (const [nombre, valor] of Object.entries(env)) {
+    const mayusculas = nombre.toUpperCase();
+    if (NOMBRES_DE_PRODUCCION.includes(mayusculas)) continue;
+    if (PREFIJOS_DE_PRODUCCION.some((prefijo) => mayusculas.startsWith(prefijo))) continue;
+    copia[nombre] = valor;
+  }
+  return copia;
 }
 
 /** Cambia cada aparición de un valor por un marcador. El valor más largo va primero para no dejar restos. */
@@ -596,17 +627,79 @@ function analizarCsp(politica) {
   return directivas;
 }
 
-/** Cabeceras en minúsculas. La CSP debe ser la EN VIGOR (no solo de reporte) y su script-src (o default-src) llevar nonce. */
-export function evaluarCabeceras(cabeceras = {}) {
+// BORRADOR: los mensajes de la política y de los nonces (hasta evaluarCabeceras) son texto técnico para quien despliega
+// (pendiente de revisión).
+// Las directivas de fuentes: default-src, script-src, img-src… y sus variantes -elem y -attr (todas terminan en «-src»,
+// «-src-elem» o «-src-attr»).
+const DIRECTIVA_DE_FUENTES = /-src(?:-elem|-attr)?$/;
+const NONCE_DE_CSP = /^'nonce-(.+)'$/i;
+
+const llevaFuente = (fuentes, valor) => fuentes.some((fuente) => fuente.toLowerCase() === valor);
+
+/** Los nonces de script-src (o de default-src, de donde hereda si no hay script-src). Solo los valores, nunca se imprimen. */
+function noncesDeScripts(directivas) {
+  return (directivas.get('script-src') ?? directivas.get('default-src') ?? [])
+    .map((fuente) => NONCE_DE_CSP.exec(fuente)?.[1])
+    .filter(Boolean);
+}
+
+/** ¿La directiva existe y vale exactamente `esperada` (p. ej. ['\'none\''])? Los valores se comparan sin mayúsculas. */
+function valeExactamente(directivas, nombre, esperada) {
+  const fuentes = directivas.get(nombre);
+  return fuentes !== undefined && fuentes.length === esperada.length && fuentes.every((fuente, indice) => fuente.toLowerCase() === esperada[indice]);
+}
+
+/**
+ * Lo que la política en vigor debe cerrar además del nonce (S7-2): object-src 'none', frame-ancestors 'none' y base-uri 'self';
+ * ninguna directiva de fuentes con `*`, `http:` ni 'unsafe-eval'; y ni script-src ni style-src con 'unsafe-inline'.
+ * style-src-attr SÍ puede llevar 'unsafe-inline' (con el acceso con Google, base.py): solo se prohíbe en style-src.
+ * Los mensajes nombran la directiva y la regla, nunca el valor de la política.
+ */
+function problemasDeLaPolitica(directivas) {
+  const problemas = [];
+  const scripts = directivas.get('script-src') ?? directivas.get('default-src') ?? [];
+  if (!scripts.some((fuente) => NONCE_DE_CSP.test(fuente))) problemas.push('script-src sin nonce de la petición');
+  if (llevaFuente(scripts, "'unsafe-inline'")) problemas.push("script-src admite 'unsafe-inline'");
+  const estilos = directivas.get('style-src') ?? directivas.get('default-src') ?? [];
+  if (llevaFuente(estilos, "'unsafe-inline'")) problemas.push("style-src admite 'unsafe-inline'");
+  for (const [nombre, valor] of [['object-src', "'none'"], ['frame-ancestors', "'none'"], ['base-uri', "'self'"]]) {
+    if (!directivas.has(nombre)) problemas.push(`falta ${nombre} ${valor}`);
+    else if (!valeExactamente(directivas, nombre, [valor])) problemas.push(`${nombre} debe ser ${valor}`);
+  }
+  for (const [nombre, fuentes] of directivas) {
+    if (!DIRECTIVA_DE_FUENTES.test(nombre)) continue;
+    if (fuentes.includes('*')) problemas.push(`${nombre} admite * (cualquier origen)`);
+    if (fuentes.some((fuente) => /^http:/i.test(fuente))) problemas.push(`${nombre} admite http: (sin cifrar)`);
+    if (llevaFuente(fuentes, "'unsafe-eval'")) problemas.push(`${nombre} admite 'unsafe-eval'`);
+  }
+  return problemas;
+}
+
+/** Un nonce fijo es lo mismo que no tener nonce: el de la segunda petición debe existir y ser otro. */
+function problemasDeNonces(directivas, segundas) {
+  const politicaDos = segundas['content-security-policy'];
+  const noncesDos = politicaDos ? noncesDeScripts(analizarCsp(politicaDos)) : [];
+  if (noncesDos.length === 0) return ['la segunda petición no trae Content-Security-Policy con nonce en script-src'];
+  const noncesUno = noncesDeScripts(directivas);
+  return noncesUno.some((nonce) => noncesDos.includes(nonce))
+    ? ['el nonce de script-src es el mismo en dos peticiones (un nonce fijo equivale a no tener nonce)']
+    : [];
+}
+
+/**
+ * Cabeceras en minúsculas. La CSP debe ser la EN VIGOR (no solo de reporte), con nonce en script-src (o default-src) y las
+ * reglas de problemasDeLaPolitica. Con las cabeceras de una SEGUNDA petición a la misma URL (`segundas`), exige además que
+ * el nonce sea otro. Sin `segundas` solo se evalúa la política: la comprobación real (comprobarCabeceras) siempre pasa las dos.
+ */
+export function evaluarCabeceras(cabeceras = {}, segundas = undefined) {
   const problemas = [];
   const politica = cabeceras['content-security-policy'];
   if (!politica) {
     problemas.push('no hay Content-Security-Policy en vigor (solo de reporte o ninguna)');
   } else {
     const directivas = analizarCsp(politica);
-    const scripts = directivas.get('script-src') ?? directivas.get('default-src') ?? [];
-    if (!scripts.some((fuente) => fuente.startsWith("'nonce-"))) problemas.push('script-src sin nonce de la petición');
-    if (scripts.includes("'unsafe-inline'")) problemas.push("script-src admite 'unsafe-inline'");
+    problemas.push(...problemasDeLaPolitica(directivas));
+    if (segundas !== undefined) problemas.push(...problemasDeNonces(directivas, segundas));
   }
   if (String(cabeceras['x-content-type-options'] ?? '').trim().toLowerCase() !== 'nosniff') {
     problemas.push('X-Content-Type-Options ausente o distinta de nosniff');
@@ -614,9 +707,13 @@ export function evaluarCabeceras(cabeceras = {}) {
   for (const [clave, nombre] of [['x-frame-options', 'X-Frame-Options'], ['referrer-policy', 'Referrer-Policy'], ['permissions-policy', 'Permissions-Policy']]) {
     if (!cabeceras[clave]) problemas.push(`falta ${nombre}`);
   }
-  return problemas.length > 0
-    ? { estado: ESTADOS.FALLA, detalle: problemas.join('; ') }
-    : { estado: ESTADOS.OK, detalle: 'CSP en vigor con nonce y sin unsafe-inline; cabeceras de seguridad presentes' };
+  if (problemas.length > 0) return { estado: ESTADOS.FALLA, detalle: problemas.join('; ') };
+  const nonces = segundas !== undefined ? 'nonce distinto en dos peticiones, ' : 'nonce, ';
+  return {
+    estado: ESTADOS.OK,
+    detalle: `CSP en vigor: ${nonces}object-src, frame-ancestors y base-uri cerrados, sin comodines, http: ni unsafe-eval, `
+      + 'sin unsafe-inline en scripts ni estilos; cabeceras de seguridad presentes',
+  };
 }
 
 // --- Inicio de sesión, IP de confianza y salud ---------------------------------------------------------------
@@ -642,10 +739,15 @@ export function evaluarFallos429(respuestas = []) {
 }
 
 // BORRADOR: texto técnico (pendiente de revisión).
+// El OK dice su límite (S7-2): solo prueba que la IP guardada no es la falsa. La compuerta no tiene cómo saber cuál es la IP
+// verdadera del cliente, así que un SIEP_TRUSTED_PROXIES de MENOS (todo el aula compartiría contador) pasa sin avisar.
+// El texto cabe en los 300 caracteres con que el informe recorta cada detalle.
 const RESULTADO_DE_LA_IP = Object.freeze({
   IP_DE_CONFIANZA: {
     estado: ESTADOS.OK,
-    detalle: 'la fila de auditoría del intento guarda la IP de confianza, no la de X-Forwarded-For falso',
+    detalle: 'la auditoría guarda la IP de confianza, no la del X-Forwarded-For falso. Límite: la compuerta no puede saber '
+      + 'cuál es la IP verdadera del cliente y no detecta un SIEP_TRUSTED_PROXIES de MENOS (todo el aula compartiría '
+      + 'contador); la medición de S1-1 en el primer despliegue sigue siendo manual',
   },
   IP_FALSA: {
     estado: ESTADOS.FALLA,
@@ -828,8 +930,14 @@ export function veredicto(resultados = []) {
   };
 }
 
-export function codigoDeSalida(resultados = []) {
-  return resultados.some((resultado) => resultado.estado === ESTADOS.FALLA) ? 1 : 0;
+/**
+ * 1 si algún paso falló; 0 en cualquier otro caso. Con `--strict` (S7-2), una compuerta INCOMPLETA (sin fallas, pero con
+ * algo automático omitido) sale con 3: así una orden que adjunta el informe al PR de despliegue no la da por buena. Las
+ * fallas ganan (1) y los errores de uso (2) los decide el script antes de llegar aquí.
+ */
+export function codigoDeSalida(resultados = [], { strict = false } = {}) {
+  if (resultados.some((resultado) => resultado.estado === ESTADOS.FALLA)) return 1;
+  return strict && veredicto(resultados).codigo === 'INCOMPLETA' ? 3 : 0;
 }
 
 // --- Informe y ruta ------------------------------------------------------------------------------------------

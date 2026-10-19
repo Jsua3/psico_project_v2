@@ -14,7 +14,7 @@ Comando: `npm run gate:primera-cuenta` (tarea S7-4 del plan 03, §11). Código: 
 
 ## Cómo correrla
 
-1. Ten en tu terminal las variables del despliegue, con sus valores reales: `DJANGO_SECRET_KEY`, `REFLECTION_ENCRYPTION_KEY`, `REFLECTION_ACTIVE_KEY`, `REFLECTION_KEYS`, `JWT_SIGNING_KEY`, `DJANGO_ALLOWED_HOSTS`, `SIEP_TRUSTED_PROXIES` y `DATABASE_URL` (o `DB_PASSWORD`). Son las mismas que la plataforma. No pegues sus valores en ningún sitio.
+1. Ten en tu terminal las variables del despliegue, con sus valores reales: `DJANGO_SECRET_KEY`, `REFLECTION_ENCRYPTION_KEY`, `REFLECTION_ACTIVE_KEY`, `REFLECTION_KEYS`, `JWT_SIGNING_KEY`, `DJANGO_ALLOWED_HOSTS`, `SIEP_TRUSTED_PROXIES` y `DATABASE_URL` (o `DB_PASSWORD`). Son las mismas que la plataforma. No pegues sus valores en ningún sitio. Los pasos de «entorno aportado» las reciben; en cambio `verify:estructural`, `verify:seguridad`, la sonda de CSP y la imagen corren como procesos hijos sin las variables de producción (`DATABASE_URL`, `DB_*`, `DJANGO_*`, `JWT_*`, `REFLECTION_*`, `EMAIL_*`, `GOOGLE_*`, `AI_*`, `RAILWAY_*`, `SIEP_ADMIN_PASSWORD`, `SIEP_TRUSTED_PROXIES`, `SIEP_HSTS_SECONDS` y `SIEP_ALLOWED_ASSET_HOSTS`): no las necesitan, no deben recibir secretos reales y los corredores de pruebas se niegan a correr con `DATABASE_URL` definido.
 2. Desde la raíz del repositorio, con el venv del backend creado (`npm run up`):
 
    ```
@@ -22,9 +22,9 @@ Comando: `npm run gate:primera-cuenta` (tarea S7-4 del plan 03, §11). Código: 
    ```
 
    De `--url` solo se usa el origen (esquema, dominio y puerto): una ruta se ignora y una URL con usuario o clave se rechaza sin repetirla. `--out` debe apuntar **fuera** del repositorio: sin `--out`, el informe va a la carpeta desde la que corriste `npm`, y si esa carpeta está dentro del repositorio la compuerta se niega a correr.
-3. Opcionales: `--with-image` (construye la imagen; tarda minutos y necesita docker), `--with-csp` (construye el frontend y corre la sonda; tarda minutos y necesita Chromium), y `--only id,id` (solo esos pasos automáticos; el informe queda INCOMPLETA).
+3. Opcionales: `--with-image` (construye la imagen; tarda minutos y necesita docker), `--with-csp` (construye el frontend y corre la sonda; tarda minutos y necesita Chromium), `--only id,id` (solo esos pasos automáticos; el informe queda INCOMPLETA) y `--strict`. **Cuando el informe va al PR de despliegue, corre con `--strict`:** una compuerta INCOMPLETA (sin fallas, pero con algo automático omitido) sale con código 3 en vez de 0, así que ni un script ni una persona la toma por buena sin darse cuenta.
 
-El código de salida es 0 si ningún paso falló, 1 si alguno falló y 2 si la orden no se entiende. Tarda: `verify:estructural` y `verify:seguridad` corren sus suites completas.
+El código de salida es 0 si ningún paso falló, 1 si alguno falló y 2 si la orden no se entiende; con `--strict`, además, 3 si no falló nada pero la compuerta quedó INCOMPLETA (las fallas siguen saliendo con 1). Tarda: `verify:estructural` y `verify:seguridad` corren sus suites completas.
 
 ## Qué escribe en la base real
 
@@ -42,9 +42,9 @@ Las 27 filas de la sección 11 del plan y, al final, dos filas extra (los derech
 |---|---|---|---|---|---|
 | 1 | `verify:estructural` y `verify:seguridad` en verde | automática | script | S0-1 | `verify-estructural`, `verify-seguridad` |
 | 2 | `check --deploy` sin avisos fuera de los permanentes del baseline | automática (entorno aportado) | quien despliega | S2-2 | `check-deploy` |
-| 3 | IP de confianza medida con un `X-Forwarded-For` falso | automática | script | S1-1 | `ip-de-confianza` |
+| 3 | IP de confianza medida con un `X-Forwarded-For` falso. Límite: la compuerta no puede saber cuál es la IP verdadera del cliente, así que no detecta un `SIEP_TRUSTED_PROXIES` de MENOS (todo el aula compartiría contador); la medición del primer despliegue (S1-1) sigue siendo manual | automática | script | S1-1 | `ip-de-confianza` |
 | 4 | Redirección 301/308 de http a https y HSTS en el escalón vigente (sin preload ni includeSubDomains) | semiautomática | script y quien despliega | S2-2 | `https-hsts` |
-| 5 | CSP en vigor con nonce, sin unsafe-inline, cabeceras de seguridad y sonda sin violaciones (`--with-csp`) | automática | script y sonda | S2-4 | `cabeceras-csp`, `csp-sonda` |
+| 5 | CSP en vigor, medida con dos peticiones a la página (el nonce debe cambiar), con `object-src 'none'`, `frame-ancestors 'none'` y `base-uri 'self'`, sin `*`, `http:` ni `'unsafe-eval'` en las directivas de fuentes y sin `'unsafe-inline'` en `script-src` ni `style-src` (solo `style-src-attr` puede llevarlo, con el acceso con Google); cabeceras de seguridad y sonda sin violaciones (`--with-csp`) | automática | script y sonda | S2-4 | `cabeceras-csp`, `csp-sonda` |
 | 6 | Seis intentos de inicio de sesión contra un correo inventado: cinco 401 y un 429 THROTTLED con Retry-After | automática | script | S1-2 | `fallos-429` |
 | 7 | Ninguna versión publicada sin sello (solo lectura) y `force_password_change_for_shared_passwords --dry-run` sin pendientes | automática (entorno aportado) | script | S1-5 | `sellos-y-claves-compartidas` |
 | 8 | Respaldo restaurado en una base vacía (runbook de E5-5) | manual | quien despliega | S7-4 | `respaldo-restaurado` |
@@ -81,7 +81,7 @@ Notas sobre la tabla:
 
 - **ok**: nada que hacer. El informe lo registra con su detalle.
 - **falla**: no sigas adelante. Corrige lo que dice el detalle y vuelve a correr la compuerta entera: un informe con fallas no se adjunta. Si `ip-de-confianza` falla, la IP de confianza no coincide con los proxies reales: mídela otra vez (S1-1) y corrige `SIEP_TRUSTED_PROXIES`. Si `variables-obligatorias` falla, el arranque nombra la causa: corrige la variable, no el valor.
-- **omitida**: falta algo que el detalle nombra (una variable por su nombre, una herramienta, `--url` o un `--with-…`). Complétalo y vuelve a correr. Mientras una comprobación automática esté omitida, la línea final dice INCOMPLETA y el informe no es evidencia completa. También queda omitida `verify-seguridad` (o `verify-estructural`) si alguno de sus pasos opcionales no corrió, por ejemplo `gitleaks` sin instalar: el detalle dice cuáles.
+- **omitida**: falta algo que el detalle nombra (una variable por su nombre, una herramienta, `--url` o un `--with-…`). Complétalo y vuelve a correr. Mientras una comprobación automática esté omitida, la línea final dice INCOMPLETA y el informe no es evidencia completa (con `--strict`, además, la orden sale con 3). También queda omitida `verify-seguridad` (o `verify-estructural`) si alguno de sus pasos opcionales no corrió, por ejemplo `gitleaks` sin instalar: el detalle dice cuáles.
 - **pendiente**: la persona responsable de la fila lo confirma y escribe su nombre y la fecha en el informe.
 
 ## Cómo adjuntar el informe al PR de despliegue

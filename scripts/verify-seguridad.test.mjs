@@ -210,10 +210,13 @@ test('--only con un paso que no existe falla y nombra los que hay', () => {
   assert.throws(() => selectSteps(pasos(), ['no-existe']), /paso desconocido: no-existe.*deploy-check/);
 });
 
-// --- Escaneo de la imagen (S6-1, opcional): trivy o grype, severidad alta o crítica sin corrección -------------------
+// --- Escaneo de la imagen (S6-1, opcional): trivy o grype, severidad alta o crítica CON corrección disponible (S7-2) ---
+// Lo corregible se arregla actualizando el paquete o refrescando la imagen base: eso es lo que bloquea. Lo que no tiene
+// corrección no se puede arreglar: se informa y no bloquea.
 
 const TRIVY = (vulnerabilidades) => JSON.stringify({ Results: [{ Target: 'siep:prueba', Vulnerabilities: vulnerabilidades }] });
-const ALTA = { VulnerabilityID: 'CVE-2099-0001', PkgName: 'libcompleja', InstalledVersion: '1.0', FixedVersion: '', Severity: 'HIGH' };
+const ALTA_CORREGIBLE = { VulnerabilityID: 'CVE-2099-0001', PkgName: 'libcompleja', InstalledVersion: '1.0', FixedVersion: '1.0.1', Severity: 'HIGH' };
+const ALTA_SIN_CORRECCION = { ...ALTA_CORREGIBLE, VulnerabilityID: 'CVE-2099-0003', FixedVersion: '' };
 
 test('image-scan se omite con «no instalado» cuando no hay trivy ni grype', () => {
   const step = porId(pasos('linux', { imagen: 'siep:prueba' }), 'image-scan');
@@ -245,25 +248,55 @@ test('image-scan cae a grype cuando no hay trivy', () => {
   assert.ok(step.args.includes('siep:prueba'));
 });
 
-test('una vulnerabilidad alta sin corrección bloquea y la nombra (trivy)', () => {
-  const veredicto = evaluateImageScan(TRIVY([ALTA]), {});
+test('una vulnerabilidad alta CON corrección bloquea, la nombra y dice a qué actualizar (trivy)', () => {
+  const veredicto = evaluateImageScan(TRIVY([ALTA_CORREGIBLE]), {});
   assert.equal(veredicto.ok, false);
   assert.match(veredicto.problemas.join('\n'), /CVE-2099-0001/);
+  assert.match(veredicto.problemas.join('\n'), /con corrección disponible: actualiza libcompleja a 1\.0\.1/);
 });
 
-test('una alta con corrección disponible no bloquea: la corrige la actualización', () => {
-  assert.equal(evaluateImageScan(TRIVY([{ ...ALTA, FixedVersion: '1.0.1' }]), {}).ok, true);
+// Control negativo por sentido: lo mismo, pero sin corrección, ya no bloquea (se informa).
+test('una alta SIN corrección no bloquea: no se puede arreglar, así que se informa y se dice que no bloquea', () => {
+  const veredicto = evaluateImageScan(TRIVY([ALTA_SIN_CORRECCION]), {});
+  assert.equal(veredicto.ok, true);
+  assert.deepEqual(veredicto.problemas, []);
+  assert.equal(veredicto.avisos.length, 1);
+  assert.match(veredicto.avisos[0], /CVE-2099-0003/);
+  assert.match(veredicto.avisos[0], /sin corrección disponible/);
+  assert.match(veredicto.avisos[0], /no bloquea/);
 });
 
-test('una crítica sin corrección pasa solo si está en la lista justificada', () => {
-  const critica = { ...ALTA, VulnerabilityID: 'CVE-2099-0002', Severity: 'CRITICAL' };
+test('una crítica CON corrección pasa solo si está en la lista justificada', () => {
+  const critica = { ...ALTA_CORREGIBLE, VulnerabilityID: 'CVE-2099-0002', Severity: 'CRITICAL' };
   assert.equal(evaluateImageScan(TRIVY([critica]), {}).ok, false);
-  assert.equal(evaluateImageScan(TRIVY([critica]), { 'CVE-2099-0002': { motivo: 'No llega a la imagen' } }).ok, true);
+  assert.equal(evaluateImageScan(TRIVY([critica]), { 'CVE-2099-0002': { motivo: 'La corrección aún no llega a la imagen base' } }).ok, true);
 });
 
-test('media y baja sin corrección no bloquean', () => {
-  assert.equal(evaluateImageScan(TRIVY([{ ...ALTA, Severity: 'MEDIUM' }]), {}).ok, true);
-  assert.equal(evaluateImageScan(TRIVY([{ ...ALTA, Severity: 'LOW' }]), {}).ok, true);
+test('una crítica SIN corrección tampoco bloquea, y la que ya está justificada ni siquiera se vuelve a informar', () => {
+  const critica = { ...ALTA_SIN_CORRECCION, VulnerabilityID: 'CVE-2099-0006', Severity: 'CRITICAL' };
+  const sinLista = evaluateImageScan(TRIVY([critica]), {});
+  assert.equal(sinLista.ok, true);
+  assert.equal(sinLista.avisos.length, 1);
+  assert.deepEqual(evaluateImageScan(TRIVY([critica]), { 'CVE-2099-0006': { motivo: 'No llega a la imagen' } }), {
+    ok: true,
+    problemas: [],
+    avisos: [],
+  });
+});
+
+test('con una corregible y una sin corrección, solo la corregible bloquea; la otra se informa', () => {
+  const veredicto = evaluateImageScan(TRIVY([ALTA_CORREGIBLE, ALTA_SIN_CORRECCION]), {});
+  assert.equal(veredicto.ok, false);
+  assert.equal(veredicto.problemas.length, 1);
+  assert.match(veredicto.problemas[0], /CVE-2099-0001/);
+  assert.equal(veredicto.avisos.length, 1);
+  assert.match(veredicto.avisos[0], /CVE-2099-0003/);
+});
+
+test('media y baja, aun con corrección, no bloquean ni se informan', () => {
+  for (const Severity of ['MEDIUM', 'LOW']) {
+    assert.deepEqual(evaluateImageScan(TRIVY([{ ...ALTA_CORREGIBLE, Severity }]), {}), { ok: true, problemas: [], avisos: [] }, Severity);
+  }
 });
 
 test('sin vulnerabilidades pasa; una salida que no es un informe reconocido falla y no se da por buena', () => {
@@ -272,12 +305,43 @@ test('sin vulnerabilidades pasa; una salida que no es un informe reconocido fall
   assert.equal(evaluateImageScan('{"otra":1}', {}).ok, false);
 });
 
-test('grype usa su propio formato (matches, fix.state) y la misma regla', () => {
+test('grype usa su propio formato (matches, fix.state, fix.versions) y la misma regla', () => {
   const grype = (vulnerabilidad) => JSON.stringify({ matches: [{ vulnerability: vulnerabilidad, artifact: { name: 'libcompleja' } }] });
   const sinCorreccion = { id: 'CVE-2099-0004', severity: 'High', fix: { state: 'not-fixed', versions: [] } };
   const corregida = { id: 'CVE-2099-0005', severity: 'High', fix: { state: 'fixed', versions: ['1.0.1'] } };
-  assert.equal(evaluateImageScan(grype(sinCorreccion), {}).ok, false);
-  assert.equal(evaluateImageScan(grype(corregida), {}).ok, true);
+  const bloqueada = evaluateImageScan(grype(corregida), {});
+  assert.equal(bloqueada.ok, false);
+  assert.match(bloqueada.problemas.join('\n'), /CVE-2099-0005.*con corrección disponible: actualiza libcompleja a 1\.0\.1/);
+  const informada = evaluateImageScan(grype(sinCorreccion), {});
+  assert.equal(informada.ok, true);
+  assert.match(informada.avisos.join('\n'), /CVE-2099-0004.*sin corrección disponible/);
+  // Un `fixed` sin versiones también es corregible; `wont-fix` y `unknown` sin versiones no lo son.
+  assert.equal(evaluateImageScan(grype({ ...corregida, fix: { state: 'fixed', versions: [] } }), {}).ok, false);
+  for (const state of ['wont-fix', 'unknown']) {
+    assert.equal(evaluateImageScan(grype({ ...sinCorreccion, fix: { state, versions: [] } }), {}).ok, true, state);
+  }
+});
+
+test('trivy con varias versiones corregidas las muestra tal cual; sin versión conocida, solo dice que actualices', () => {
+  const varias = evaluateImageScan(TRIVY([{ ...ALTA_CORREGIBLE, FixedVersion: '1.0.1, 1.1.0' }]), {});
+  assert.match(varias.problemas[0], /actualiza libcompleja a 1\.0\.1, 1\.1\.0$/);
+  const grypeSinVersion = JSON.stringify({
+    matches: [{ vulnerability: { id: 'CVE-2099-0007', severity: 'Critical', fix: { state: 'fixed', versions: [] } }, artifact: { name: 'libcompleja' } }],
+  });
+  const sinVersion = evaluateImageScan(grypeSinVersion, {});
+  assert.equal(sinVersion.ok, false);
+  assert.match(sinVersion.problemas[0], /con corrección disponible: actualiza libcompleja$/);
+});
+
+test('el paso image-scan dice en su etiqueta y en su ayuda que bloquea lo que ya tiene corrección', () => {
+  const step = porId(pasos('linux', { which: (nombre) => (nombre === 'trivy' ? '/usr/bin/trivy' : null), imagen: 'siep:prueba' }), 'image-scan');
+  assert.match(step.label, /alta o crítica con corrección disponible/);
+  assert.doesNotMatch(step.label, /sin corrección/);
+  assert.match(step.hint, /actualiza/i);
+  assert.match(step.hint, /image-scan-allowlist\.json/);
+  // El paso deja pasar lo que no tiene corrección: lo comprueba el mismo evaluador que usa el paso.
+  assert.equal(step.scan(TRIVY([ALTA_SIN_CORRECCION])).ok, true);
+  assert.equal(step.scan(TRIVY([ALTA_CORREGIBLE])).ok, false);
 });
 
 test('la lista justificada del escaneo es un JSON cuyas entradas llevan motivo', () => {
@@ -384,4 +448,27 @@ test('control negativo: quitar persist-credentials de un checkout real falla', (
   const ci = flujoReal('.github/workflows/ci.yml');
   const mutado = { ...ci, texto: mutar(ci.texto, /\n {10}persist-credentials: false/, '') };
   assert.match(evaluateActionsPinned([mutado]).problemas.join('\n'), /sin persist-credentials: false/);
+});
+
+// --- Herramientas que el CI instala sin archivo de bloqueo: con versión fija (S7-2) --------------------------------
+
+// Cada `pip install pip-audit…` de los flujos (los comentarios de YAML no cuentan) que no fije la versión con `==`: una
+// versión flotante trae lo último de PyPI en cada corrida.
+function instalacionesDePipAuditSinVersion(texto) {
+  const sinComentarios = texto.split(/\r?\n/).filter((linea) => !/^\s*#/.test(linea)).join('\n');
+  return [...sinComentarios.matchAll(/pip install (pip-audit\S*)/g)]
+    .map((coincidencia) => coincidencia[1])
+    .filter((instalacion) => !/^pip-audit==\d+(\.\d+)+$/.test(instalacion));
+}
+
+test('el CI instala pip-audit con la versión fijada (==), no la última de PyPI', () => {
+  const ci = flujoReal('.github/workflows/ci.yml');
+  assert.ok(/pip install pip-audit/.test(ci.texto), 'ci.yml instala pip-audit');
+  assert.deepEqual(instalacionesDePipAuditSinVersion(ci.texto), []);
+});
+
+test('control negativo: pip-audit sin versión, o con una versión flotante, en el flujo real se detecta', () => {
+  const ci = flujoReal('.github/workflows/ci.yml');
+  assert.deepEqual(instalacionesDePipAuditSinVersion(mutar(ci.texto, /pip install pip-audit==[\d.]+/, 'pip install pip-audit')), ['pip-audit']);
+  assert.deepEqual(instalacionesDePipAuditSinVersion(mutar(ci.texto, /pip install pip-audit==[\d.]+/, 'pip install pip-audit>=2')), ['pip-audit>=2']);
 });

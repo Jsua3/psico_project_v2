@@ -7,7 +7,9 @@
  *
  * Uso: npm run verify:seguridad [-- --keep-going] [--only id[,id]]   (ids: scripts, security-tests, deploy-check,
  *      pip-audit, npm-audit, actions-pinned, gitleaks, dist-dev-only, image-scan). image-scan escanea la imagen SIEP_IMAGE si hay
- *      trivy o grype; sin ellos, o sin esa variable, se omite y lo dice.
+ *      trivy o grype; sin ellos, o sin esa variable, se omite y lo dice. Bloquea las vulnerabilidades altas o críticas CON
+ *      corrección disponible (se arreglan actualizando el paquete o refrescando la imagen base); las que no tienen corrección
+ *      se informan y no bloquean.
  */
 import { spawnSync } from 'node:child_process';
 import { readFileSync } from 'node:fs';
@@ -70,7 +72,9 @@ function runImageScan(step) {
     process.stderr.write(run.stderr ?? '');
     return run.status ?? 1;
   }
-  const { ok, problemas } = step.scan(run.stdout ?? '');
+  const { ok, problemas, avisos = [] } = step.scan(run.stdout ?? '');
+  // Lo que no tiene corrección no se puede arreglar: se informa, no bloquea.
+  for (const aviso of avisos) console.log(`[siep:seguridad] aviso: ${aviso}`);
   for (const problema of problemas) console.error(`[siep:seguridad] ${problema}`);
   return ok ? 0 : 1;
 }

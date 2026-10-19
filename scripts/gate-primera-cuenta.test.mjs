@@ -23,6 +23,7 @@ import {
   codigoDeSalida,
   construirInforme,
   correosDemoDesdeFuentes,
+  entornoSinSecretos,
   esRutaDentroDe,
   evaluarCabeceras,
   evaluarCuentasDemo,
@@ -60,6 +61,7 @@ import {
   comprobarIp,
   comprobarRedireccionYHsts,
   comprobarSalud,
+  correrScriptHijo,
 } from './gate-primera-cuenta.mjs';
 
 const RAIZ = fileURLToPath(new URL('..', import.meta.url));
@@ -145,6 +147,15 @@ test('parsea --url, --only, --out y las banderas; la forma --opcion=valor tambi�
   assert.equal(resultado.opciones.out, 'x.md');
   assert.equal(resultado.opciones.withImage, true);
   assert.equal(resultado.opciones.withCsp, true);
+});
+
+test('--strict es una bandera sin valor: apagada por defecto, encendida con --strict, y --strict=algo se rechaza', () => {
+  assert.equal(parsearArgumentos([]).opciones.strict, false);
+  assert.equal(parsearArgumentos(['--strict']).opciones.strict, true);
+  assert.equal(parsearArgumentos(['--url', 'https://dominio.test', '--strict', '--with-image']).opciones.strict, true);
+  const conValor = parsearArgumentos(['--strict=si']);
+  assert.equal(conValor.ok, false);
+  assert.match(conValor.motivo, /--strict no admite valor/);
 });
 
 test('una opción desconocida, un argumento suelto o una opción sin valor se rechazan sin repetir su contenido', () => {
@@ -236,6 +247,114 @@ test('quitarValores borra cada valor secreto del texto y sanearDetalle quita cre
   assert.ok(limpio.includes('https://[credenciales]@dominio.test/x'));
   assert.equal(sanearDetalle('todo bien'), 'todo bien');
   assert.ok(sanearDetalle('x'.repeat(1000)).length <= 300);
+});
+
+// --- Entorno de los procesos hijos: sin los secretos de producción (S7-2) --------------------------------------
+
+const valorNuevo = () => `valor-inventado-${randomBytes(8).toString('hex')}`;
+// Una variable de producción inventada de CADA familia que la compuerta no debe pasar a sus hijos (nombres y prefijos).
+const NOMBRES_DE_PRODUCCION_DE_PRUEBA = [
+  'DATABASE_URL', 'DB_PASSWORD', 'DB_HOST', 'DJANGO_SECRET_KEY', 'DJANGO_ALLOWED_HOSTS', 'JWT_SIGNING_KEY', 'REFLECTION_KEYS',
+  'REFLECTION_ENCRYPTION_KEY', 'EMAIL_HOST_PASSWORD', 'GOOGLE_OAUTH_CLIENT_ID', 'AI_API_KEY', 'RAILWAY_TOKEN',
+  'SIEP_ADMIN_PASSWORD', 'SIEP_TRUSTED_PROXIES', 'SIEP_HSTS_SECONDS', 'SIEP_ALLOWED_ASSET_HOSTS',
+];
+// Lo que SÍ debe llegar a los hijos: el sistema y la configuración de los corredores de pruebas.
+const NOMBRES_QUE_SE_CONSERVAN = [
+  'PATH', 'HOME', 'TEMP', 'NODE_OPTIONS', 'SIEP_TEST_DB_PORT', 'SIEP_TEST_DB_PASSWORD', 'SIEP_E2E_API_PORT', 'SIEP_E2E_WEB_PORT',
+  'E2E_CHROMIUM_PATH', 'SIEP_CSP_PROBE_PORT', 'SIEP_IMAGE',
+  // Se parecen a un prefijo de producción pero no lo son (falta el «_»): no se tocan.
+  'DBUS_SESSION_BUS_ADDRESS', 'AIRFLOW_HOME', 'JWTOOLS_HOME',
+];
+const entornoConTodo = () => Object.fromEntries([...NOMBRES_DE_PRODUCCION_DE_PRUEBA, ...NOMBRES_QUE_SE_CONSERVAN].map((nombre) => [nombre, valorNuevo()]));
+
+test('entornoSinSecretos quita cada variable de producción, por nombre o por prefijo', () => {
+  const sin = entornoSinSecretos(entornoConTodo());
+  for (const nombre of NOMBRES_DE_PRODUCCION_DE_PRUEBA) {
+    assert.ok(!(nombre in sin), `${nombre} no debe llegar a los hijos`);
+  }
+});
+
+test('entornoSinSecretos no distingue mayúsculas: database_url y Django_Secret_Key también se van', () => {
+  const sin = entornoSinSecretos({
+    database_url: valorNuevo(), Django_Secret_Key: valorNuevo(), jwt_signing_key: valorNuevo(), Reflection_Keys: valorNuevo(),
+    siep_admin_password: valorNuevo(), Siep_Trusted_Proxies: valorNuevo(), Path: 'x', siep_test_db_port: '5585',
+  });
+  assert.deepEqual(Object.keys(sin).sort(), ['Path', 'siep_test_db_port']);
+});
+
+test('entornoSinSecretos conserva todo lo demás: el sistema, SIEP_TEST_DB_*, SIEP_E2E_*, E2E_*, SIEP_CSP_PROBE_PORT', () => {
+  const original = entornoConTodo();
+  const sin = entornoSinSecretos(original);
+  for (const nombre of NOMBRES_QUE_SE_CONSERVAN) {
+    assert.equal(sin[nombre], original[nombre], `${nombre} debe llegar a los hijos con su valor`);
+  }
+  assert.deepEqual(Object.keys(sin).sort(), [...NOMBRES_QUE_SE_CONSERVAN].sort());
+});
+
+test('entornoSinSecretos devuelve una copia: el entorno original no se muta', () => {
+  const original = entornoConTodo();
+  const instantanea = { ...original };
+  const sin = entornoSinSecretos(original);
+  assert.notEqual(sin, original);
+  assert.deepEqual(original, instantanea, 'el original queda igual');
+  sin.OTRA = 'x';
+  assert.ok(!('OTRA' in original), 'cambiar la copia no toca el original');
+  assert.deepEqual(entornoSinSecretos({}), {});
+  assert.deepEqual(entornoSinSecretos(), {});
+});
+
+test('un hijo real no ve las variables de producción puestas para la prueba, y sí SIEP_TEST_DB_PORT', () => {
+  const inventada = `DJANGO_${randomBytes(4).toString('hex').toUpperCase()}`;
+  const entorno = { ...process.env, [inventada]: valorNuevo(), DATABASE_URL: valorNuevo(), SIEP_TEST_DB_PORT: '5585' };
+  const verVariables = ['-e', 'process.stdout.write(JSON.stringify(Object.keys(process.env)))'];
+  const hijo = spawnSync(process.execPath, verVariables, { encoding: 'utf8', env: entornoSinSecretos(entorno) });
+  assert.equal(hijo.status, 0, hijo.stderr);
+  const vistas = JSON.parse(hijo.stdout);
+  assert.ok(!vistas.includes(inventada), 'la variable de producción inventada no llega al hijo');
+  assert.ok(!vistas.some((nombre) => nombre.toUpperCase() === 'DATABASE_URL'), 'DATABASE_URL no llega al hijo');
+  assert.ok(vistas.includes('SIEP_TEST_DB_PORT'), 'SIEP_TEST_DB_PORT sí llega');
+  // Control negativo de la prueba: sin el filtro, el mismo hijo SÍ ve la variable inventada (la prueba detecta la fuga).
+  const sinFiltro = spawnSync(process.execPath, verVariables, { encoding: 'utf8', env: entorno });
+  assert.ok(JSON.parse(sinFiltro.stdout).includes(inventada), 'sin filtrar, la variable inventada llega al hijo');
+});
+
+test('los hijos de la compuerta (verificaciones, sonda e imagen) se lanzan con el entorno sin secretos', () => {
+  const lanzados = [];
+  const ejecutar = (comando, argumentos, opciones) => {
+    lanzados.push({ comando, argumentos, opciones });
+    return { status: 0, stdout: '', stderr: '' };
+  };
+  const env = { ...entornoConTodo(), PATH: process.env.PATH };
+  const scripts = ['verify-estructural.mjs', 'verify-seguridad.mjs', 'test-csp-probe.mjs', 'image-smoke.mjs'];
+  for (const script of scripts) correrScriptHijo(script, { env, ejecutar });
+  assert.equal(lanzados.length, scripts.length);
+  lanzados.forEach(({ comando, argumentos, opciones }, indice) => {
+    assert.equal(comando, process.execPath);
+    assert.ok(argumentos[0].replaceAll('\\', '/').endsWith(`/scripts/${scripts[indice]}`));
+    for (const nombre of NOMBRES_DE_PRODUCCION_DE_PRUEBA) assert.ok(!(nombre in opciones.env), `${scripts[indice]}: ${nombre}`);
+    assert.equal(opciones.env.SIEP_TEST_DB_PORT, env.SIEP_TEST_DB_PORT);
+  });
+  assert.ok('DATABASE_URL' in env, 'el entorno de la compuerta no se tocó: lo necesitan sus otros pasos');
+});
+
+// Ningún hijo de Node se lanza fuera de correrScriptHijo y ninguno hereda process.env tal cual.
+function hijosSinFiltro(fuente) {
+  const problemas = [...fuente.matchAll(/env:\s*process\.env\b/g)].map(() => 'un hijo hereda process.env tal cual');
+  const sueltos = (fuente.match(/spawnSync\(\s*process\.execPath/g) ?? []).length;
+  if (sueltos > 0) problemas.push(`${sueltos} lugar(es) lanzan Node sin pasar por correrScriptHijo`);
+  return problemas;
+}
+
+test('el script de la compuerta no pasa process.env a ningún hijo y lanza los de Node por un solo lugar', () => {
+  const fuente = readFileSync(SCRIPT, 'utf8');
+  assert.deepEqual(hijosSinFiltro(fuente), []);
+});
+
+test('control negativo: un hijo con env: process.env, o un segundo lugar que lance Node, haría fallar la comprobación', () => {
+  const fuente = readFileSync(SCRIPT, 'utf8');
+  assert.ok(hijosSinFiltro(`${fuente}\nspawnSync(process.execPath, [x], { env: process.env });`).length >= 1);
+  assert.ok(hijosSinFiltro(`${fuente}\nspawnSync(\n  process.execPath, [x], {});`).length >= 1);
+  assert.deepEqual(hijosSinFiltro(fuente), []);
 });
 
 // --- Resúmenes de los procesos hijos --------------------------------------------------------------------------
@@ -351,8 +470,31 @@ test('control negativo: un 200 en http donde se esperaba 301 hace falla la compr
 
 // --- Cabeceras y CSP ------------------------------------------------------------------------------------------
 
+// La forma de CSP_ENFORCED_POLICY (backend_django/psychosim/settings/base.py) con el acceso con Google configurado:
+// style-src-attr 'unsafe-inline' es la única excepción, y solo en atributos de estilo.
+const DIRECTIVAS_BUENAS = [
+  "default-src 'self'",
+  "script-src 'self' 'nonce-abc123XYZ' https://accounts.google.com/gsi/client",
+  "style-src 'self' 'nonce-abc123XYZ' https://accounts.google.com/gsi/style",
+  "style-src-attr 'unsafe-inline'",
+  "img-src 'self' data: blob:",
+  "font-src 'self'",
+  "media-src 'self'",
+  "worker-src 'self'",
+  "connect-src 'self' https://accounts.google.com/gsi/",
+  'frame-src https://accounts.google.com/gsi/',
+  "frame-ancestors 'none'",
+  "base-uri 'self'",
+  "form-action 'self'",
+  "object-src 'none'",
+  'report-uri /api/security/csp-report',
+];
+const politicaCon = (directivas) => directivas.join('; ');
+const POLITICA_BUENA = politicaCon(DIRECTIVAS_BUENAS);
+const nombreDe = (directiva) => directiva.split(' ')[0];
+
 const CABECERAS_BUENAS = {
-  'content-security-policy': "default-src 'self'; script-src 'self' 'nonce-abc123XYZ' https://accounts.google.com/gsi/client; style-src 'self' 'nonce-abc123XYZ'; object-src 'none'",
+  'content-security-policy': POLITICA_BUENA,
   'x-content-type-options': 'nosniff',
   'x-frame-options': 'DENY',
   'referrer-policy': 'strict-origin-when-cross-origin',
@@ -393,15 +535,96 @@ test('el detalle de cabeceras nombra lo que falla y nunca pega el valor de la po
   assert.doesNotMatch(malo.detalle, /SECRETO-NONCE-42/);
 });
 
-test('comprobarCabeceras pide https://HOST/ y evalúa las cabeceras que llegan', async () => {
+// --- La política completa (S7-2): nonce distinto por petición y directivas que cierran lo que el nonce no cubre ---------
+
+const sinDirectiva = (nombre) => DIRECTIVAS_BUENAS.filter((directiva) => nombreDe(directiva) !== nombre);
+const cambiada = (nombre, nueva) => DIRECTIVAS_BUENAS.map((directiva) => (nombreDe(directiva) === nombre ? nueva : directiva));
+const cabecerasCon = (directivas) => ({ ...CABECERAS_BUENAS, 'content-security-policy': politicaCon(directivas) });
+const conNonce = (nonce) => ({ ...CABECERAS_BUENAS, 'content-security-policy': POLITICA_BUENA.replaceAll('abc123XYZ', nonce) });
+
+test('la CSP en vigor de base.py pasa todas las reglas, con la excepción de Google en style-src-attr o sin ella', () => {
+  assert.equal(evaluarCabeceras(CABECERAS_BUENAS).estado, OK);
+  assert.equal(evaluarCabeceras(cabecerasCon(sinDirectiva('style-src-attr'))).estado, OK);
+});
+
+// Una regla por fila, cada una con su control negativo: la política buena pasa (arriba) y la mutada falla nombrando la regla.
+const REGLAS_DE_LA_POLITICA = [
+  ['falta object-src', sinDirectiva('object-src'), /object-src/],
+  ["object-src 'self' en vez de 'none'", cambiada('object-src', "object-src 'self'"), /object-src/],
+  ['falta frame-ancestors', sinDirectiva('frame-ancestors'), /frame-ancestors/],
+  ["frame-ancestors 'self' en vez de 'none'", cambiada('frame-ancestors', "frame-ancestors 'self'"), /frame-ancestors/],
+  ['falta base-uri', sinDirectiva('base-uri'), /base-uri/],
+  ['base-uri * en vez de self', cambiada('base-uri', 'base-uri *'), /base-uri/],
+  ["base-uri 'none' (el <base href> de Angular no cargaría)", cambiada('base-uri', "base-uri 'none'"), /base-uri/],
+  ['img-src con * (cualquier origen)', cambiada('img-src', "img-src 'self' data: blob: *"), /img-src admite \*/],
+  ['connect-src con http: (sin cifrar)', cambiada('connect-src', "connect-src 'self' http:"), /connect-src admite http:/],
+  ['connect-src con un host http://', cambiada('connect-src', "connect-src 'self' http://api.invalid"), /connect-src admite http:/],
+  ["script-src con 'unsafe-eval'", cambiada('script-src', "script-src 'self' 'nonce-abc123XYZ' 'unsafe-eval'"), /script-src admite 'unsafe-eval'/],
+  ["default-src con 'unsafe-eval'", cambiada('default-src', "default-src 'self' 'unsafe-eval'"), /default-src admite 'unsafe-eval'/],
+  ["script-src con 'unsafe-inline'", cambiada('script-src', "script-src 'self' 'nonce-abc123XYZ' 'unsafe-inline'"), /script-src admite 'unsafe-inline'/],
+  ["style-src con 'unsafe-inline' (solo style-src-attr puede llevarlo)", cambiada('style-src', "style-src 'self' 'nonce-abc123XYZ' 'unsafe-inline'"), /style-src admite 'unsafe-inline'/],
+  // La regla de fuentes cubre también las variantes -elem y -attr: un * ahí abre lo que el nonce de script-src cierra.
+  ['script-src-elem con * (las variantes -elem también cuentan)', [...DIRECTIVAS_BUENAS, "script-src-elem 'self' *"], /script-src-elem admite \*/],
+  ['style-src-attr con http: (las variantes -attr también cuentan)', cambiada('style-src-attr', "style-src-attr 'unsafe-inline' http:"), /style-src-attr admite http:/],
+];
+
+for (const [nombre, directivas, patron] of REGLAS_DE_LA_POLITICA) {
+  test(`control negativo de la política: ${nombre} falla y lo nombra`, () => {
+    const resultado = evaluarCabeceras(cabecerasCon(directivas));
+    assert.equal(resultado.estado, FALLA);
+    assert.match(resultado.detalle, patron);
+  });
+}
+
+test('https://… y data:/blob: no cuentan como http: ni como comodín (la política real los lleva)', () => {
+  const lleva = cambiada('connect-src', "connect-src 'self' https://accounts.google.com/gsi/ https://api.invalid");
+  assert.equal(evaluarCabeceras(cabecerasCon(lleva)).estado, OK);
+  assert.equal(evaluarCabeceras(cabecerasCon(cambiada('img-src', "img-src 'self' data: blob: https://*.cdn.invalid"))).estado, OK);
+});
+
+test('dos peticiones con nonces distintos pasan; el mismo nonce en las dos falla (un nonce fijo no protege)', () => {
+  assert.equal(evaluarCabeceras(conNonce('nonceUNO1234'), conNonce('nonceDOS5678')).estado, OK);
+  const repetido = evaluarCabeceras(conNonce('nonceUNO1234'), conNonce('nonceUNO1234'));
+  assert.equal(repetido.estado, FALLA);
+  assert.match(repetido.detalle, /nonce.*dos peticiones/);
+  assert.doesNotMatch(repetido.detalle, /nonceUNO1234/, 'el detalle nunca pega el valor del nonce');
+});
+
+test('la segunda petición debe traer su propia CSP con nonce: sin CSP o sin nonce falla', () => {
+  const sinCsp = { ...CABECERAS_BUENAS };
+  delete sinCsp['content-security-policy'];
+  assert.equal(evaluarCabeceras(conNonce('nonceUNO1234'), sinCsp).estado, FALLA);
+  const sinNonce = cabecerasCon(cambiada('script-src', "script-src 'self' https://accounts.google.com/gsi/client"));
+  const resultado = evaluarCabeceras(conNonce('nonceUNO1234'), sinNonce);
+  assert.equal(resultado.estado, FALLA);
+  assert.match(resultado.detalle, /segunda petición/);
+});
+
+test('sin segunda petición solo se evalúa la política (la comprobación real siempre pasa las dos)', () => {
+  assert.equal(evaluarCabeceras(conNonce('nonceUNO1234')).estado, OK);
+});
+
+test('comprobarCabeceras pide https://HOST/ DOS veces y pasa si los nonces cambian', async () => {
+  const pedidas = [];
+  const fetchFalso = async (url) => {
+    pedidas.push(url);
+    return respuesta(200, conNonce(`nonce-de-la-peticion-${pedidas.length}`));
+  };
+  const resultado = await comprobarCabeceras({ host: 'dominio.test', fetch: fetchFalso });
+  assert.equal(resultado.estado, OK);
+  assert.deepEqual(pedidas, ['https://dominio.test/', 'https://dominio.test/']);
+});
+
+test('control negativo: si el servidor devuelve el mismo nonce las dos veces, comprobarCabeceras falla', async () => {
   const pedidas = [];
   const fetchFalso = async (url) => {
     pedidas.push(url);
     return respuesta(200, CABECERAS_BUENAS);
   };
   const resultado = await comprobarCabeceras({ host: 'dominio.test', fetch: fetchFalso });
-  assert.equal(resultado.estado, OK);
-  assert.deepEqual(pedidas, ['https://dominio.test/']);
+  assert.equal(pedidas.length, 2);
+  assert.equal(resultado.estado, FALLA);
+  assert.match(resultado.detalle, /nonce.*dos peticiones/);
 });
 
 // --- Inicio de sesión, IP de confianza, salud -----------------------------------------------------------------
@@ -487,6 +710,25 @@ test('evaluarIpDeConfianza solo da ok con IP_DE_CONFIANZA y nunca repite la IP',
   assert.equal(evaluarIpDeConfianza('IP_FALSA').estado, FALLA);
   assert.equal(evaluarIpDeConfianza('SIN_IP').estado, FALLA);
   assert.equal(evaluarIpDeConfianza('').estado, FALLA);
+});
+
+test('ip-de-confianza: cuando sale OK dice su límite: no puede saber la IP verdadera ni detecta un SIEP_TRUSTED_PROXIES de MENOS (S7-2)', () => {
+  const bien = evaluarIpDeConfianza('IP_DE_CONFIANZA');
+  assert.equal(bien.estado, OK);
+  assert.match(bien.detalle, /no puede saber cuál es la IP verdadera del cliente/);
+  assert.match(bien.detalle, /no detecta un SIEP_TRUSTED_PROXIES de MENOS/);
+  assert.match(bien.detalle, /todo el aula compartiría contador/);
+  assert.match(bien.detalle, /S1-1.*manual/, 'la medición del primer despliegue sigue siendo manual');
+  // El detalle llega al informe por sanear(…, 300): debe sobrevivir entero (sin recortes ni IP/correos redactados).
+  assert.equal(sanearDetalle(quitarValores(bien.detalle, []), 300), bien.detalle);
+});
+
+test('ip-de-confianza: la limitación va con el OK, no con las fallas (una falla ya dice qué corregir)', () => {
+  for (const salida of ['IP_FALSA', 'SIN_IP', 'SIN_FILA', '']) {
+    const mal = evaluarIpDeConfianza(salida);
+    assert.equal(mal.estado, FALLA, salida);
+    assert.doesNotMatch(mal.detalle, /de MENOS/, salida);
+  }
 });
 
 test('evaluarSalud pide 200 de /api/health: un 503 falla', async () => {
@@ -634,6 +876,32 @@ test('FALLA gana y el código de salida es 1; sin fallas es 0, y lo omitido no b
   assert.equal(codigoDeSalida(sinFallas), 0);
 });
 
+// Una compuerta INCOMPLETA (sin fallas, con algo automático omitido) y una COMPLETA, para probar el código de salida.
+const resultadosIncompletos = () => [
+  { id: 'salud', tipo: TIPOS.AUTOMATICA, estado: OMITIDA, detalle: MOTIVOS.url },
+  { id: 'respaldo-restaurado', tipo: TIPOS.MANUAL, estado: PENDIENTE, detalle: 'pendiente' },
+];
+const resultadosCompletos = () => [
+  { id: 'salud', tipo: TIPOS.AUTOMATICA, estado: OK, detalle: '' },
+  { id: 'respaldo-restaurado', tipo: TIPOS.MANUAL, estado: PENDIENTE, detalle: 'pendiente' },
+];
+
+test('--strict: una compuerta INCOMPLETA sale con 3; sin la bandera sale con 0 como siempre (control negativo)', () => {
+  const incompletos = resultadosIncompletos();
+  assert.equal(veredicto(incompletos).codigo, 'INCOMPLETA');
+  assert.equal(codigoDeSalida(incompletos), 0, 'sin --strict nada cambia');
+  assert.equal(codigoDeSalida(incompletos, { strict: false }), 0);
+  assert.equal(codigoDeSalida(incompletos, { strict: true }), 3);
+});
+
+test('--strict: una falla sigue saliendo con 1 (gana a INCOMPLETA) y una COMPLETA sigue saliendo con 0', () => {
+  const conFalla = [...resultadosIncompletos(), { id: 'https-hsts', tipo: TIPOS.SEMIAUTOMATICA, estado: FALLA, detalle: 'x' }];
+  assert.equal(codigoDeSalida(conFalla, { strict: true }), 1);
+  assert.equal(codigoDeSalida(conFalla), 1);
+  assert.equal(codigoDeSalida(resultadosCompletos(), { strict: true }), 0);
+  assert.equal(codigoDeSalida(resultadosCompletos()), 0);
+});
+
 test('el informe termina con el veredicto, nombra las omitidas con su motivo y deja los manuales para llenar', () => {
   const resultados = [
     { id: 'salud', comprobacion: 'GET /api/health 200', tipo: TIPOS.AUTOMATICA, quien: 'script', tarea: 'C11', estado: OMITIDA, detalle: MOTIVOS.url },
@@ -725,6 +993,49 @@ test('un paso que falla hace salir el script con 1 y el informe termina con FALL
   } finally {
     rmSync(carpeta, { recursive: true, force: true });
   }
+});
+
+test('--strict en el script real: INCOMPLETA sale con 3; sin la bandera sale con 0 (control negativo) y el informe dice INCOMPLETA en los dos', () => {
+  const carpeta = mkdtempSync(join(tmpdir(), 'siep-gate-'));
+  try {
+    const salida = join(carpeta, 'informe.md');
+    // Sin --url el paso `salud` se omite y lo demás no está pedido con --only: INCOMPLETA, ninguna falla y ni un paso toca la red.
+    const sin = spawnSync(process.execPath, [SCRIPT, '--only', 'salud', '--out', salida], { encoding: 'utf8', timeout: 60_000 });
+    assert.equal(sin.status, 0, `${sin.stdout}\n${sin.stderr}`);
+    assert.match(readFileSync(salida, 'utf8').trimEnd().split('\n').at(-1), /^INCOMPLETA/);
+    rmSync(salida);
+    const con = spawnSync(process.execPath, [SCRIPT, '--only', 'salud', '--out', salida, '--strict'], { encoding: 'utf8', timeout: 60_000 });
+    assert.equal(con.status, 3, `${con.stdout}\n${con.stderr}`);
+    assert.match(readFileSync(salida, 'utf8').trimEnd().split('\n').at(-1), /^INCOMPLETA/);
+  } finally {
+    rmSync(carpeta, { recursive: true, force: true });
+  }
+});
+
+test('--strict en el script real: una falla sigue saliendo con 1 y un uso mal escrito con 2', async () => {
+  const carpeta = mkdtempSync(join(tmpdir(), 'siep-gate-'));
+  try {
+    const puerto = await puertoCerrado();
+    const salida = join(carpeta, 'informe.md');
+    const falla = spawnSync(
+      process.execPath,
+      [SCRIPT, '--only', 'https-hsts', '--url', `http://127.0.0.1:${puerto}`, '--out', salida, '--strict'],
+      { encoding: 'utf8', timeout: 60_000 },
+    );
+    assert.equal(falla.status, 1, `${falla.stdout}\n${falla.stderr}`);
+    assert.match(readFileSync(salida, 'utf8').trimEnd().split('\n').at(-1), /^FALLA — https-hsts/);
+    const uso = spawnSync(process.execPath, [SCRIPT, '--strict=si'], { encoding: 'utf8', timeout: 60_000 });
+    assert.equal(uso.status, 2, `${uso.stdout}\n${uso.stderr}`);
+  } finally {
+    rmSync(carpeta, { recursive: true, force: true });
+  }
+});
+
+test('--help lista --strict y dice que una compuerta INCOMPLETA sale con 3', () => {
+  const run = spawnSync(process.execPath, [SCRIPT, '--help'], { encoding: 'utf8', timeout: 60_000 });
+  assert.equal(run.status, 0, run.stderr);
+  assert.match(run.stdout, /\[--strict\]/, 'la línea de uso la lista');
+  assert.match(run.stdout, /^\s+--strict\s.*INCOMPLETA.*código 3/m, 'su descripción dice que INCOMPLETA sale con el código 3');
 });
 
 test('sin --out, un informe por defecto dentro del repositorio se rechaza con 2 antes de correr nada', () => {
