@@ -354,3 +354,74 @@ def test_la_version_vigente_se_lee_en_cada_llamada_y_no_al_importar(settings):
     settings.SIEP_CONTENT_NOTICE_VERSION = f"v-{secrets.token_hex(3)}"
 
     assert consent_service.content_notice_version() == settings.SIEP_CONTENT_NOTICE_VERSION
+
+
+# ── La carrera aceptar / retirar (revisión S7-2, riesgo 4) ───────────────────────────────────────────────
+
+
+@pytest.mark.django_db
+def test_si_el_retiro_se_cuela_entre_el_choque_y_la_relectura_se_acepta_de_nuevo_y_no_hay_500(
+    settings, estudiante_a, version_publicada, monkeypatch
+):
+    """El índice único dice «ya hay una vigente»; antes de releerla otra petición la retira. Antes: ``DoesNotExist`` (500).
+    Ahora se vuelve a intentar y la persona queda aceptada (aceptó DESPUÉS del retiro)."""
+    real = consent_service._crear_aceptacion
+    llamadas = []
+
+    def _choca_la_primera_vez(person, case_version_id, notice_version):
+        llamadas.append(1)
+        if len(llamadas) == 1:
+            raise consent_service._YaVigente  # nadie escribió la fila: la «ganadora» ya se retiró
+        return real(person, case_version_id, notice_version)
+
+    monkeypatch.setattr(consent_service, "_crear_aceptacion", _choca_la_primera_vez)
+
+    registro, creado = consent_service.accept_content_notice(estudiante_a, version_publicada, _vigente(settings))
+
+    assert creado is True and registro.withdrawn_at is None
+    assert len(llamadas) == 2
+    assert consent_service.has_valid_consent(estudiante_a, version_publicada)
+
+
+@pytest.mark.django_db
+def test_si_tres_intentos_seguidos_chocan_sin_ganadora_es_un_409_que_se_puede_reintentar(
+    settings, estudiante_a, version_publicada, monkeypatch
+):
+    def _siempre_choca(person, case_version_id, notice_version):
+        raise consent_service._YaVigente
+
+    monkeypatch.setattr(consent_service, "_crear_aceptacion", _siempre_choca)
+
+    error = _error(lambda: consent_service.accept_content_notice(estudiante_a, version_publicada, _vigente(settings)))
+
+    assert (error.api_code, error.status_code) == ("CONSENT_CONFLICT", status.HTTP_409_CONFLICT)
+    assert not ConsentRecord.objects.filter(person_id=estudiante_a.pk).exists()
+
+
+@pytest.mark.django_db
+def test_control_negativo_con_una_ganadora_vigente_el_choque_devuelve_la_ganadora(
+    settings, estudiante_a, version_publicada, monkeypatch
+):
+    ganadora = ConsentRecord.objects.create(
+        person_id=estudiante_a.pk, consent_type=ConsentType.CONTENT_NOTICE,
+        case_version_id=version_publicada.pk, notice_version=_vigente(settings),
+    )
+
+    def _choca(person, case_version_id, notice_version):
+        raise consent_service._YaVigente
+
+    monkeypatch.setattr(consent_service, "_crear_aceptacion", _choca)
+    # La primera lectura (idempotencia) vería a la ganadora y no llegaría a crear: se la oculta una vez para forzar el choque.
+    lecturas = []
+    original = consent_service._vigentes
+
+    def _vigentes_sin_ver_la_primera_vez(*args, **kwargs):
+        lecturas.append(1)
+        consulta = original(*args, **kwargs)
+        return consulta.none() if len(lecturas) == 1 else consulta
+
+    monkeypatch.setattr(consent_service, "_vigentes", _vigentes_sin_ver_la_primera_vez)
+
+    registro, creado = consent_service.accept_content_notice(estudiante_a, version_publicada, _vigente(settings))
+
+    assert creado is False and registro.pk == ganadora.pk
