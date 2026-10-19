@@ -587,8 +587,19 @@ def test_el_asistente_apagado_responde_el_sobre_de_error_que_el_documento_declar
 
 # ─── Errores: cada uno que un contrato tipado documenta tiene su caso ─────────────────────────────────────
 def _transition(prefix, who, version, body):
-    """``POST …/lifecycle`` de ``who`` (``world.<who>``) sobre la versión ``version`` (``world.<version>``)."""
-    return lambda w: cl(getattr(w, who)).post(f"{prefix}/{getattr(w, version)}/lifecycle", body, format="json")
+    """``POST …/lifecycle`` de ``who`` (``world.<who>``) sobre la versión ``version`` (``world.<version>``).
+
+    Manda la revisión vigente de la versión: con ``REVISION_REQUIRED`` encendida un cuerpo sin ella es un 400 antes de
+    llegar al motivo que cada fila de ``ERRORS`` prueba, y estas pruebas valen con la bandera en cualquier valor.
+    """
+    def call(w):
+        version_id = getattr(w, version)
+        revision = CaseVersion.objects.get(pk=version_id).version
+        return cl(getattr(w, who)).post(
+            f"{prefix}/{version_id}/lifecycle", {**body, "revision": revision}, format="json"
+        )
+
+    return call
 
 
 def _stale_submit(prefix):

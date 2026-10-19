@@ -35,6 +35,8 @@ EXPECTED_FLAGS = {
     "REVISION_REQUIRED": True,
     "INVITATIONS_AUTO_ACCEPT": False,
 }
+#: Las que ya arrancan en su valor final: dos porque el cliente migró (F9-10) y dos que su valor final es el apagado.
+FINAL_BY_DEFAULT = {"REVIEW_WORKFLOW_STRICT", "REVISION_REQUIRED", "RUBRIC_NUMERIC_TOTAL", "INVITATIONS_AUTO_ACCEPT"}
 
 
 def cl(user) -> APIClient:
@@ -128,15 +130,26 @@ def test_el_registro_dice_de_cada_bandera_su_estado_final_que_la_bloquea_y_quien
         assert entry["owner"].strip(), f"{name}: ¿quién la retira?"
         assert entry["retirement_gate"].strip()
         # Las que ya arrancan en su estado final no tienen nada que las bloquee; las demás dicen qué las bloquea hoy.
-        assert bool(entry["blocked_by"]) is target, f"{name}: blocked_by debe decir qué la bloquea (o estar vacío)"
+        assert bool(entry["blocked_by"]) is (name not in FINAL_BY_DEFAULT), (
+            f"{name}: blocked_by debe decir qué la bloquea (o estar vacío si ya arranca en su valor final)"
+        )
 
 
-def test_todas_las_banderas_arrancan_apagadas_en_los_ajustes_de_prueba():
-    """El valor de arranque en despliegue es el heredado: ninguna bandera se enciende sola."""
+def test_cada_bandera_arranca_en_su_valor_final_si_el_cliente_ya_migro_y_en_el_heredado_si_no():
+    """El valor de arranque en despliegue (los ajustes base, sin la fijación de la suite unitaria)."""
     import importlib
 
     base = importlib.import_module("psychosim.settings.base")
-    assert [name for name in EXPECTED_FLAGS if getattr(base, name) is not False] == []
+    started = {name: getattr(base, name) for name in EXPECTED_FLAGS}
+    expected = {
+        name: target if name in FINAL_BY_DEFAULT else not target for name, target in EXPECTED_FLAGS.items()
+    }
+    assert started == expected
+
+
+def test_la_suite_unitaria_corre_las_banderas_encendidas_en_su_valor_heredado(settings):
+    """La fijación de ``conftest.py``: lo que cada prueba ve mientras no diga otra cosa."""
+    assert (settings.REVISION_REQUIRED, settings.REVIEW_WORKFLOW_STRICT) == (False, False)
 
 
 # ─── El ciclo completo, con todas las banderas en su valor final ──────────────────────────────
