@@ -193,6 +193,7 @@ El índice completo está en [`docs/README.md`](docs/README.md). Lo más consult
 - [`docs/PROMPT_MAESTRO.md`](docs/PROMPT_MAESTRO.md): el documento maestro único y vigente (producto, stack, arquitectura, funcionamiento, reglas, seguridad, calidad y estado).
 - [`docs/arquitectura/estrategia-stack-esquema-y-despliegue.md`](docs/arquitectura/estrategia-stack-esquema-y-despliegue.md): actualización del stack, dueño del esquema de la BD y despliegue.
 - [`docs/operacion/despliegue-railway.md`](docs/operacion/despliegue-railway.md): despliegue en Railway.
+- [`docs/seguridad/README.md`](docs/seguridad/README.md): índice de seguridad (qué hay, cómo se verifica y qué decide la institución).
 - [`docs/seguridad/compuerta-primera-cuenta.md`](docs/seguridad/compuerta-primera-cuenta.md): la compuerta «antes de la primera cuenta real» (`npm run gate:primera-cuenta`).
 - [`docs/operacion/parches.md`](docs/operacion/parches.md): calendario de parches de las versiones vigiladas (Django, DRF, Angular, Node, PostgreSQL).
 - [`docs/seguridad/incidentes.md`](docs/seguridad/incidentes.md): qué hacer ante un incidente (cuentas, contraseñas, llaves, banderas y evidencia).
