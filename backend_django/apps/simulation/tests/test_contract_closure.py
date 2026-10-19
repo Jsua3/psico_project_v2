@@ -9,6 +9,7 @@ protege a los clientes que todavía no migraron.
 """
 from __future__ import annotations
 
+import os
 from types import SimpleNamespace
 
 import pytest
@@ -147,6 +148,7 @@ def test_cada_bandera_arranca_en_su_valor_final_si_el_cliente_ya_migro_y_en_el_h
     assert started == expected
 
 
+@pytest.mark.skipif(os.environ.get("SIEP_TEST_FINAL_FLAGS") == "1", reason="se pidió el valor final (conftest.py)")
 def test_la_suite_unitaria_corre_las_banderas_encendidas_en_su_valor_heredado(settings):
     """La fijación de ``conftest.py``: lo que cada prueba ve mientras no diga otra cosa."""
     assert (settings.REVISION_REQUIRED, settings.REVIEW_WORKFLOW_STRICT) == (False, False)
@@ -314,7 +316,8 @@ def test_cada_bandera_tiene_su_prueba_del_comportamiento_heredado():
 
 @pytest.mark.parametrize("flag", sorted(LEGACY))
 def test_una_bandera_en_su_valor_heredado_conserva_el_comportamiento_de_antes(flag, world, settings):
-    """Solo ELLA en su valor heredado (las demás quedan en el de arranque): lo que el cliente de hoy espera."""
+    """Solo ELLA en su valor heredado (las demás quedan como las deja la suite unitaria: las dos ya encendidas, en el
+    heredado por ``conftest.py``): lo que el cliente de antes esperaba."""
     setattr(settings, flag, not settings.CONTRACT_FLAGS_REGISTRY[flag]["target_contract"])
 
     LEGACY[flag](world, settings)

@@ -49,7 +49,10 @@ class AssignmentSerializer(serializers.Serializer):
 
 # ─── Invitaciones del estudiante (C5) ──────────────────────────────────────────
 class InvitationSerializer(serializers.Serializer):
-    """La membresía del estudiante en un grupo: pendiente de respuesta, aceptada o rechazada (nunca las retiradas)."""
+    """La membresía del estudiante en un grupo: pendiente de respuesta, aceptada o rechazada.
+
+    El listado no trae las retiradas (`REMOVED`), pero la respuesta de `leave` (y la de aceptar o rechazar) sí devuelve
+    la membresía tal como quedó, también con ese estado."""
 
     id = serializers.IntegerField(help_text="Igual a `groupId`: la membresía es `(grupo, estudiante)`.")
     groupId = serializers.IntegerField()

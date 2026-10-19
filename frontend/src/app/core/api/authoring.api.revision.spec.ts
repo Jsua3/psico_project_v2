@@ -7,8 +7,8 @@ import { AuthoringApi } from './authoring.api';
 
 /**
  * E2-6 (RNF-08, REGLA-011, SIEP-RN-05): la revisión del caso viaja en `X-Case-Revision` en TODA mutación del
- * borrador. Sin ella el servidor no compara (`SIEP_REVISION_REQUIRED` sigue apagada); con ella responde 409
- * `REVISION_CONFLICT` si otra persona editó entre medias. La URL canónica de la autoría es `/api/authoring/**`
+ * borrador. Desde F9-10 el servidor la EXIGE (`REVISION_REQUIRED` arranca encendida: 400 si falta) y con ella responde
+ * 409 `REVISION_CONFLICT` si otra persona editó entre medias. La URL canónica de la autoría es `/api/authoring/**`
  * (ED-9; `/api/admin/cases/**` sigue como alias).
  */
 // req: RNF-08, REGLA-011, SIEP-RN-05

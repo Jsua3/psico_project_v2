@@ -37,7 +37,12 @@ def legacy_contract_flags(settings):
     banderas en su valor final y cada una en el heredado), las pruebas de cada bandera, que la fijan a mano, y el e2e,
     cuyo servidor arranca con los valores por defecto. Borrar el camino heredado (decisión del usuario) retira esta
     fijación y obliga a reescribir esas pruebas.
+
+    ``SIEP_TEST_FINAL_FLAGS=1`` salta la fijación: corre la suite contra el valor final de arranque. NO es una puerta
+    (fallan las ~240 que asumen la revisión opcional); sirve para ver cuáles son y para repetir la medición de F9-10.
     """
+    if os.environ.get("SIEP_TEST_FINAL_FLAGS") == "1":
+        return
     settings.REVISION_REQUIRED = False
     settings.REVIEW_WORKFLOW_STRICT = False
 

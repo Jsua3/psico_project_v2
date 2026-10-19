@@ -10,7 +10,8 @@ from apps.simulation.serializers.contracts import LOCAL_TIME, PageCoverageSerial
 
 
 class ReportStudentSerializer(serializers.Serializer):
-    """El estudiante del reporte. La referencia es la misma `Estudiante-<n>` de las demás vistas del docente."""
+    """El estudiante del reporte. `ref` es `Estudiante-<id>` (su id numérico) y NO el alias `Estudiante-<hash>` que la
+    revisión docente muestra en `studentAlias`: los dos no se pueden cruzar."""
 
     ref = serializers.CharField()
     displayName = serializers.CharField()

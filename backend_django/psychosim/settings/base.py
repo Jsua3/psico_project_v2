@@ -339,6 +339,8 @@ SPECTACULAR_SETTINGS = {
         "HintReasonEnum": "apps.simulation.serializers.contracts.HINT_REASONS",
         "LifecycleActionEnum": "apps.simulation.serializers.contracts.LIFECYCLE_ACTIONS",
         "MembershipStatusEnum": "apps.grupos.models.MembershipStatus",
+        "ReviewDecisionEnum": "apps.simulation.models.case.ReviewDecision",
+        "ReviewReasonEnum": "apps.simulation.models.case.ReviewReason",
         "HealthStatusEnum": "shared.health_docs.HEALTH_STATUS",
         "HealthDbEnum": "shared.health_docs.HEALTH_DB",
     },

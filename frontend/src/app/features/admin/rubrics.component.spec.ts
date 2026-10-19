@@ -360,6 +360,33 @@ describe('pantalla Rúbricas (F7-5)', () => {
       expect(component().form.get('name')?.value).toBe('La mía');
     });
 
+    // Revisión de F9-10 (I-2): el mismo defecto un salto antes. Si lo que llega tarde es la LISTA, `load` abría la primera
+    // sobre el formulario nuevo (nada seleccionado = «abre la primera») y se perdía lo escrito.
+    it('«Nueva rúbrica» pulsada antes de que llegue la lista no abre la primera encima del formulario nuevo', async () => {
+      const list = new Subject<RubricAdmin[]>();
+      await render({ list: () => list }, { stable: false });
+
+      component().newRubric();
+      component().form.patchValue({ name: 'La mía' });
+      list.next([completa, incompleta]);
+      fixture.detectChanges();
+
+      expect(service['detail']).not.toHaveBeenCalled();
+      expect(component().selected()).toBeNull();
+      expect(component().form.get('name')?.value).toBe('La mía');
+    });
+
+    it('si la rúbrica abierta ya no existe (404), la lista que se vuelve a pedir abre la primera como siempre', async () => {
+      await render();
+      component().newRubric();
+      service['detail'].mockClear();
+
+      component()['explainError'](new HttpErrorResponse({ status: 404, error: { success: false, message: 'x' } }), 'x');
+      await fixture.whenStable();
+
+      expect(service['detail']).toHaveBeenCalledWith(4);
+    });
+
     it('abrir otra rúbrica antes de que llegue el detalle de la primera deja abierta la última que se pidió', async () => {
       const firstDetail = new Subject<RubricAdmin>();
       await render({ detail: (id: number) => (id === 4 ? firstDetail : of(incompleta)) });

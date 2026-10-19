@@ -237,17 +237,15 @@ export interface CaseReview {
   readonly decidedAt?: string | null;
   readonly decidedBy?: string | null;
   /** Solo si ya se decidió. */
-  readonly decision?: DecisionEnum;
+  readonly decision?: ReviewDecisionEnum;
   /** Solo si ya se decidió; puede venir vacía. */
   readonly note?: string;
   /** Solo si se devolvió a borrador. */
-  readonly reason?: CaseReviewReasonEnum;
+  readonly reason?: ReviewReasonEnum;
   /** Hora local del servidor (America/Bogota), sin zona horaria. */
   readonly requestedAt: string;
   readonly requestedBy: string | null;
 }
-
-export type CaseReviewReasonEnum = 'FORMA' | 'CONTENIDO';
 
 /** El resultado de validar una versión: sus hallazgos y si puede publicarse. */
 export interface CaseValidation {
@@ -273,8 +271,6 @@ export interface ContentReview {
   readonly reviewedOn: string | null;
   readonly reviewer: string;
 }
-
-export type DecisionEnum = 'APPROVED' | 'REJECTED';
 
 /** Sobre de error de la API: `{success: false, code, message, field?}` (`shared.exceptions`). `code` es estable: el cliente decide por él, nunca por el texto. Algunos errores de dominio suman campos propios en la raíz (`existingAttemptId`, `nodeId`…). */
 export interface ErrorEnvelope {
@@ -368,7 +364,7 @@ export interface InstructorAttemptsListEnvelope {
   readonly success: boolean;
 }
 
-/** La membresía del estudiante en un grupo: pendiente de respuesta, aceptada o rechazada (nunca las retiradas). */
+/** La membresía del estudiante en un grupo: pendiente de respuesta, aceptada o rechazada. El listado no trae las retiradas (`REMOVED`), pero la respuesta de `leave` (y la de aceptar o rechazar) sí devuelve la membresía tal como quedó, también con ese estado. */
 export interface Invitation {
   readonly groupId: number;
   readonly groupName: string;
@@ -450,11 +446,13 @@ export interface ReportAttempt {
   readonly status: AttemptStatusEnum;
 }
 
-/** El estudiante del reporte. La referencia es la misma `Estudiante-<n>` de las demás vistas del docente. */
+/** El estudiante del reporte. `ref` es `Estudiante-<id>` (su id numérico) y NO el alias `Estudiante-<hash>` que la revisión docente muestra en `studentAlias`: los dos no se pueden cruzar. */
 export interface ReportStudent {
   readonly displayName: string;
   readonly ref: string;
 }
+
+export type ReviewDecisionEnum = 'APPROVED' | 'REJECTED';
 
 /** Devoluciones por CONTENIDO frente a FORMA entre las revisiones decididas (alarma de sello de goma). */
 export interface ReviewQuality {
@@ -469,6 +467,8 @@ export interface ReviewQuality {
   readonly rejectedTotal: number;
   readonly rubberStampAlarm: boolean;
 }
+
+export type ReviewReasonEnum = 'FORMA' | 'CONTENIDO';
 
 /** Una pista que el intento ya pidió. El texto de las que no pidió nunca sale. */
 export interface ShownHint {
