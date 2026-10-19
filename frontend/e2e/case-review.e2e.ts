@@ -1,7 +1,7 @@
 import { expect, test } from '@playwright/test';
 import type { APIRequestContext, Page } from '@playwright/test';
 
-import { buildPublishableDraft } from './support/case-fixtures';
+import { bearer, buildPublishableDraft, send as sendToCase, transition } from './support/case-fixtures';
 import { runAxe } from './support/quality-gates';
 import { loginAs } from './support/screen-tour';
 import { scaled } from './support/time-scale';
@@ -43,13 +43,9 @@ async function apiToken(request: APIRequestContext, who: { email: string; passwo
   return (await response.json()).data.token;
 }
 
-const bearer = (token: string) => ({ Authorization: `Bearer ${token}` });
-
-async function send(request: APIRequestContext, token: string, method: 'post' | 'put', path: string, data: Json, what: string): Promise<Json> {
-  const response = await request[method](`/api/authoring/cases${path}`, { headers: bearer(token), data });
-  expect(response.status(), what).toBe(200);
-  return (await response.json()).data;
-}
+/** Una mutación del caso por la API real (con su revisión, como el editor); `path` cuelga de `/api/authoring/cases`. */
+const send = (request: APIRequestContext, token: string, method: 'post' | 'put', path: string, data: Json, what: string) =>
+  sendToCase(request, token, method, `/api/authoring/cases${path}`, data, what);
 
 /** El aviso del sistema (los avisos también se repiten en la región viva, fuera de pantalla: un solo elemento visible). */
 const toast = (page: Page, text: string) => page.getByLabel('Mensajes del sistema').getByText(text);
@@ -58,10 +54,9 @@ const toast = (page: Page, text: string) => page.getByLabel('Mensajes del sistem
 async function retire(request: APIRequestContext, caseVersionId: number): Promise<void> {
   try {
     const admin = await apiToken(request, ADMIN);
-    const url = `/api/authoring/cases/${caseVersionId}/lifecycle`;
-    const state = (await (await request.get(url, { headers: bearer(admin) })).json()).data?.state;
-    if (state === 'IN_REVIEW') await request.post(url, { headers: bearer(admin), data: { action: 'reject', reason: 'FORMA', note: 'Limpieza de la prueba e2e.' } });
-    await request.post(url, { headers: bearer(admin), data: { action: 'archive', scope: 'version' } });
+    const state = (await (await request.get(`/api/authoring/cases/${caseVersionId}/lifecycle`, { headers: bearer(admin) })).json()).data?.state;
+    if (state === 'IN_REVIEW') await transition(request, admin, caseVersionId, { action: 'reject', reason: 'FORMA', note: 'Limpieza de la prueba e2e.' });
+    await transition(request, admin, caseVersionId, { action: 'archive', scope: 'version' });
   } catch {
     // La limpieza nunca tapa el resultado de la prueba.
   }

@@ -1,6 +1,7 @@
 import { expect, test } from '@playwright/test';
 import type { APIRequestContext } from '@playwright/test';
 
+import { send } from './support/case-fixtures';
 import { loginAs } from './support/screen-tour';
 import { scaled } from './support/time-scale';
 
@@ -56,12 +57,10 @@ test.describe('@lienzo conflicto de revisión', () => {
   test('si otra persona guardó el caso, el autoguardado del mundo abre la comparación y «Reintentar con mi cambio» conserva lo escrito', async ({ page, request }) => {
     test.setTimeout(scaled(120_000));
     const professorToken = await apiToken(request, PROFESOR);
-    const created = await request.post('/api/authoring/cases', {
-      headers: bearer(professorToken),
-      data: { title: `Conflicto del mundo e2e ${Date.now()}` },
-    });
-    expect(created.status(), 'crear el caso').toBe(200);
-    const view = (await created.json()).data;
+    // Por el ayudante compartido: de paso la suite aprende la revisión del caso, que la edición ajena tiene que mandar.
+    const view = await send(request, professorToken, 'post', '/api/authoring/cases', {
+      title: `Conflicto del mundo e2e ${Date.now()}`,
+    }, 'crear el caso');
     const id: number = view.caseVersionId;
     const nodeId: number = view.nodes[0].id;
 
@@ -70,11 +69,9 @@ test.describe('@lienzo conflicto de revisión', () => {
 
     // Otra persona (la administradora) guarda el caso entre medias: la revisión de la pantalla queda vencida.
     const adminToken = await apiToken(request, ADMIN);
-    const foreign = await request.post(`/api/authoring/cases/${id}/nodes`, {
-      headers: bearer(adminToken),
-      data: { ...NODE_BODY, nodeKey: 'ajeno', title: 'Nodo ajeno', narrative: 'Lo agregó otra sesión.' },
-    });
-    expect(foreign.status(), 'edición de la otra persona').toBe(200);
+    await send(request, adminToken, 'post', `/api/authoring/cases/${id}/nodes`, {
+      ...NODE_BODY, nodeKey: 'ajeno', title: 'Nodo ajeno', narrative: 'Lo agregó otra sesión.',
+    }, 'edición de la otra persona');
 
     // La docente agrega un objeto: el autoguardado manda la revisión vencida y el servidor responde 409.
     const rejected = page.waitForResponse(
