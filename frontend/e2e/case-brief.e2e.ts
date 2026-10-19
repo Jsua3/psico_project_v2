@@ -3,6 +3,7 @@ import type { APIRequestContext, Page } from '@playwright/test';
 
 import { assignCase, createPublishedCase, retireCase } from './support/case-fixtures';
 import type { AssignmentRecord, AssignmentWindow, CaseFixtureOptions } from './support/case-fixtures';
+import { resetStudentConsent } from './support/consent';
 import { assertQualityState } from './support/quality-gates';
 import { loginStudent } from './support/siep-flow';
 import { scaled } from './support/time-scale';
@@ -56,6 +57,7 @@ test('la ficha pinta lo que devuelve el servidor, no crea el intento y «Comenza
   const attemptsBefore = await student.attempts();
 
   await loginStudent(page);
+  await resetStudentConsent(page); // el consentimiento vive en el servidor (S3-2b): «Comenzar» abre el aviso solo si no lo hay
   await page.goto(`/portal/simulador/${caseVersionId}/ficha`);
   await expect(page.getByRole('heading', { level: 1, name: brief.title })).toBeVisible({ timeout: scaled(30_000) });
 

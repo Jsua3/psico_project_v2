@@ -215,6 +215,19 @@ describe('jwtInterceptor', () => {
       expect(error?.status).toBe(403);
       expect(notifications.warning).not.toHaveBeenCalled();
     });
+
+    // req: ETH-01, SIEP-RF-05 (S3-2b: el consentimiento exigido lo explica el aviso del juego, no «No tienes permisos»)
+    it('un 403 CONSENT_REQUIRED no avisa de permisos ni toca la sesión, y el error sigue llegando a la pantalla de juego', () => {
+      const error = fail('/api/simulation/attempts/a1/world', 403, {
+        success: false, code: 'CONSENT_REQUIRED', message: 'Para continuar necesitas leer y aceptar el aviso.', noticeVersion: 'v',
+      }) as { status: number; error: { code: string } } | undefined;
+
+      expect(error?.status).toBe(403);
+      expect(error?.error.code).toBe('CONSENT_REQUIRED');
+      expect(notifications.warning).not.toHaveBeenCalled();
+      expect(auth.clearSession).not.toHaveBeenCalled();
+      expect(router.navigate).not.toHaveBeenCalled();
+    });
   });
 
   describe('sin conexión (status 0)', () => {

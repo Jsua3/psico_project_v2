@@ -20,6 +20,7 @@ import { SimulationService } from '../../core/api/simulation.service';
 import { AuthService } from '../../core/auth/auth.service';
 import { SimulationAttemptState, SimulationWorldState } from '../../core/models/simulation.model';
 import { AudioDirectorService } from './audio-director.service';
+import { CONSENT_RECORDER, SessionConsentRecorder } from './consent-recorder';
 import { SimulationPlayComponent } from './simulation-play.component';
 import type { Mock } from 'vitest';
 
@@ -93,6 +94,8 @@ describe('SimulationPlayComponent: arranque y fallos con reintento (F6-1)', () =
         { provide: SimulationService, useValue: sim },
         { provide: AudioDirectorService, useValue: audio },
         { provide: AuthService, useValue: {} },
+        // El consentimiento de esta prueba vive en la pestaña (`sessionStorage`): el arranque es síncrono, sin servidor.
+        { provide: CONSENT_RECORDER, useValue: new SessionConsentRecorder() },
         { provide: Router, useValue: { navigate: vi.fn() } },
         {
           provide: ActivatedRoute,

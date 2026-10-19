@@ -42,9 +42,52 @@ describe('cadena de errores HTTP', () => {
       'UnauthorizedHandler',
       'InactiveUserHandler',
       'PasswordChangeRequiredHandler',
+      'ConsentRequiredHandler',
       'ForbiddenHandler',
       'NoConnectionHandler',
     ]);
+  });
+
+  // req: ETH-01, SIEP-RF-05 (S3-2b: el 403 CONSENT_REQUIRED no es falta de permisos; lo explica el aviso del juego)
+  describe('consentimiento exigido por el servidor', () => {
+    const consentRequired = (status = 403) => new HttpErrorResponse({
+      status, statusText: 'Forbidden',
+      error: { success: false, code: 'CONSENT_REQUIRED', message: 'Para continuar necesitas leer y aceptar el aviso.', noticeVersion: 'v-vigente' },
+    });
+
+    it('no avisa de «No tienes permisos» ni toca la sesión ni navega: la pantalla de juego vuelve al aviso', () => {
+      run(consentRequired(), '/api/simulation/attempts/a1/world');
+      expect(notifications.warning).not.toHaveBeenCalledWith(PERMISSION_MESSAGE);
+      expect(effects()).toEqual({ clear: 0, nav: 0, err: 0, warn: 0 });
+    });
+
+    it('lo atiende el eslabón del consentimiento, no el de permisos', () => {
+      const handlers = defaultHttpErrorHandlers();
+      const consent = handlers.find(handler => handler.constructor.name === 'ConsentRequiredHandler')!;
+      const forbidden = handlers.find(handler => handler.constructor.name === 'ForbiddenHandler')!;
+      const ctx: HttpErrorContext = { ...ctxBase, error: consentRequired(), url: '/api/simulation/attempts/a1/decisions' };
+      expect((consent as unknown as { canHandle(c: HttpErrorContext): boolean }).canHandle(ctx)).toBe(true);
+      expect(handlers.indexOf(consent)).toBeLessThan(handlers.indexOf(forbidden));
+    });
+
+    it('cualquier otro 403 sigue siendo falta de permisos', () => {
+      run(new HttpErrorResponse({ status: 403, error: { success: false, code: 'DATA_TREATMENT_CONSENT_REQUIRED', message: 'x' } }));
+      expect(notifications.warning).toHaveBeenCalledWith(PERMISSION_MESSAGE);
+      expect(effects()).toEqual({ clear: 0, nav: 0, err: 0, warn: 1 });
+    });
+
+    it('el mismo código con otro estado no lo atiende este eslabón', () => {
+      run(consentRequired(409), '/api/simulation/attempts/a1/world');
+      expect(effects()).toEqual({ clear: 0, nav: 0, err: 0, warn: 0 }); // 409: no lo atiende nadie
+      run(consentRequired(401), '/api/simulation/attempts/a1/world');
+      expect(auth.clearSession).toHaveBeenCalledTimes(1); // 401: sigue siendo sesión inválida
+    });
+
+    it('el cambio de contraseña obligatorio manda sobre el consentimiento (su eslabón va antes)', () => {
+      router.url = '/portal/simulador/7';
+      run(new HttpErrorResponse({ status: 403, error: { success: false, code: 'PASSWORD_CHANGE_REQUIRED', message: 'x' } }), '/api/simulation/attempts/a1/world');
+      expect(auth.requirePasswordChange).toHaveBeenCalledTimes(1);
+    });
   });
 
   // req: RN-10 (E2-9: hasta cambiar la contraseña temporal, el servidor responde 403 PASSWORD_CHANGE_REQUIRED a todo)

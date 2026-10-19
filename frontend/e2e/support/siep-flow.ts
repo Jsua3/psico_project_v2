@@ -1,5 +1,6 @@
 import { expect } from '@playwright/test';
 import type { Locator, Page, Response } from '@playwright/test';
+import { resetStudentConsent } from './consent';
 import type { SiepInputMode } from './required-viewports';
 import { scaled } from './time-scale';
 
@@ -73,6 +74,9 @@ export async function leaveBrief(page: Page): Promise<void> {
 }
 
 export async function enterCaseAtContentWarning(page: Page): Promise<Locator> {
+  // El consentimiento vive en el servidor (S3-2b): el de una prueba anterior haría que el aviso no saliera. Se parte de «sin
+  // consentimiento» ANTES de abrir el caso, o la pantalla de juego ya lo habría leído.
+  await resetStudentConsent(page);
   await page.getByRole('button', { name: /entrar al caso/i }).click();
   await page.waitForURL(/\/portal\/simulador\/\d+/, { timeout: scaled(30_000) });
   await leaveBrief(page);

@@ -532,6 +532,24 @@ test('runtime genera nonce de atestacion independiente y elimina cualquier varia
   );
 });
 
+// req: ETH-01, SIEP-RF-05 (S3-2b): las pruebas e2e «con el consentimiento exigido» arrancan el backend de la corrida con
+// `SIEP_CONSENT_REQUIRED=true node scripts/test-e2e.mjs …`; el corredor no tiene una variable propia, solo deja pasar esta.
+test('runtime de test le pasa al backend, tal cual, la bandera que exige el consentimiento y la versión del aviso', () => {
+  const runtime = createTestDatabaseRuntime({
+    SIEP_CONSENT_REQUIRED: 'true',
+    SIEP_CONTENT_NOTICE_VERSION: 'aviso-de-prueba',
+  }, (size) => Buffer.alloc(size, 0xab));
+
+  assert.equal(runtime.env.SIEP_CONSENT_REQUIRED, 'true');
+  assert.equal(runtime.env.SIEP_CONTENT_NOTICE_VERSION, 'aviso-de-prueba');
+  // Playwright (que sondea al servidor, no lee la bandera) y Angular reciben el mismo entorno sin credenciales de la BD.
+  const frontend = createFrontendProcessEnv(runtime.env);
+  assert.equal(frontend.SIEP_CONSENT_REQUIRED, 'true');
+  assert.equal(Object.keys(frontend).some((key) => key.toUpperCase().startsWith('SIEP_TEST_DB_')), false);
+  // Sin la bandera, el backend de la corrida no la recibe: el consentimiento NO se exige por omisión.
+  assert.equal('SIEP_CONSENT_REQUIRED' in createTestDatabaseRuntime({}, (size) => Buffer.alloc(size, 0xac)).env, false);
+});
+
 test('runtime de test usa defaults locales y valida el puerto antes de construir el entorno', () => {
   const runtime = createTestDatabaseRuntime({}, (size) => Buffer.alloc(size, 0xef));
   assert.deepEqual(

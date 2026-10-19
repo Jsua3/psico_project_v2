@@ -99,7 +99,8 @@ const STALE_NOTE = 'Esta conversación corresponde a otro momento del caso.';
             }
             <!-- La pista acompaña a quien decide: una confirmación de la interfaz («Explorar primero») no la ofrece. -->
             @if (offersHints(d) && hintAttempt(); as attemptRef) {
-              <app-scene-hint [attemptId]="attemptRef.attemptId" [attemptToken]="attemptRef.attemptToken" />
+              <app-scene-hint [attemptId]="attemptRef.attemptId" [attemptToken]="attemptRef.attemptToken"
+                (consentRequired)="consentRequired.emit()" />
             }
             <div class="choices" role="group" aria-label="Opciones de intervención" tabindex="-1" cdkFocusInitial
               [attr.aria-describedby]="notice ? 'choices-notice' : null"
@@ -568,6 +569,8 @@ export class DialoguePanelComponent implements AfterViewChecked, OnDestroy {
   readonly execute = output<number>();
   readonly useTool = output<string>();
   readonly frontendChoice = output<string>();
+  /** Las pistas recibieron un 403 `CONSENT_REQUIRED` (S3-2b): el anfitrión vuelve al aviso de contenido. */
+  readonly consentRequired = output<void>();
 
   readonly displayedText    = signal('');
   readonly isTypingComplete = signal(false);

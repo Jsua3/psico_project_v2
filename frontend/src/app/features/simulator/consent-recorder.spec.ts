@@ -1,4 +1,17 @@
-import { SessionConsentRecorder } from './consent-recorder';
+import { HttpErrorResponse, provideHttpClient } from '@angular/common/http';
+import { HttpTestingController, provideHttpClientTesting } from '@angular/common/http/testing';
+import { TestBed } from '@angular/core/testing';
+
+import { SimulationService } from '../../core/api/simulation.service';
+import {
+  CONSENT_RECORDER,
+  CONTENT_NOTICE_VERSION,
+  ConsentNoticeStaleError,
+  ServerConsentRecorder,
+  SessionConsentRecorder,
+  consentStorageKey,
+  parseConsentStorageKey,
+} from './consent-recorder';
 
 /**
  * Registro local del consentimiento (plan visual F6-2; ETH-01): detrás de una interfaz (`ConsentRecorder`) para que el
@@ -43,5 +56,407 @@ describe('SessionConsentRecorder', () => {
     const recorder = new SessionConsentRecorder();
     expect(recorder.isGiven(KEY)).toBe(false);
     await expect(recorder.record(KEY)).rejects.toThrow();
+  });
+});
+
+/**
+ * La clave del consentimiento de un intento (`siep_case_consent_<caseVersionId>_<attemptId>`): la pantalla de juego la
+ * arma y el registro en servidor la lee para saber de qué versión del caso es. Se prueba que armar y leer son inversas.
+ */
+// req: ETH-01, SIEP-RF-05
+describe('clave del consentimiento de un intento', () => {
+  it('conserva la forma de siempre (la pantalla de juego y las pruebas existentes dependen de ella)', () => {
+    expect(consentStorageKey(7, 'attempt-1')).toBe('siep_case_consent_7_attempt-1');
+  });
+
+  it.each([
+    [7, 'attempt-1'],
+    [1, '8f14e45f-ceea-467a-9575-1b8f8f6c6e7a'],
+    [123456, 'con_guion_bajo_y-guion'],
+  ])('leer lo armado devuelve lo mismo (%i, %s)', (caseVersionId, attemptId) => {
+    expect(parseConsentStorageKey(consentStorageKey(caseVersionId, attemptId))).toEqual({ caseVersionId, attemptId });
+  });
+
+  it.each([
+    '',
+    'otra_clave',
+    'siep_case_intro_7_attempt-1',
+    'siep_case_consent_',
+    'siep_case_consent_7',
+    'siep_case_consent_7_',
+    'siep_case_consent__attempt-1',
+    'siep_case_consent_x_attempt-1',
+    'siep_case_consent_0_attempt-1',
+    'siep_case_consent_007_attempt-1',
+    'siep_case_consent_-3_attempt-1',
+    'xsiep_case_consent_7_attempt-1',
+  ])('una clave que no es de un intento no se lee: «%s»', key => {
+    expect(parseConsentStorageKey(key)).toBeNull();
+  });
+});
+
+/**
+ * Registro del consentimiento EN EL SERVIDOR (S3-2b, F10-8†; ETH-01, SIEP-RF-05). Las reglas que no se negocian siguen
+ * siendo las de la interfaz: una red que falla NUNCA da el consentimiento por registrado y una lectura que falla es «sin
+ * consentimiento». `isGiven` es síncrona: consulta lo que el servidor dijo (en memoria) y, si no sabe, la marca de la pestaña.
+ */
+// req: ETH-01, SIEP-RF-05
+describe('ServerConsentRecorder', () => {
+  const CASE_ID = 7;
+  const KEY = consentStorageKey(CASE_ID, 'attempt-1');
+  const OTHER_ATTEMPT_KEY = consentStorageKey(CASE_ID, 'attempt-2');
+  const OTHER_CASE_KEY = consentStorageKey(8, 'attempt-1');
+  const URL = `/api/simulation/cases/${CASE_ID}/consent`;
+  let http: HttpTestingController;
+  let recorder: ServerConsentRecorder;
+
+  const state = (accepted: unknown) => ({
+    data: { required: true, noticeVersion: CONTENT_NOTICE_VERSION, accepted, acceptedAt: accepted === true ? '2026-10-18T10:00:00' : null },
+  });
+  const recordBody = () => ({
+    data: { caseVersionId: CASE_ID, acceptedAt: '2026-10-18T10:00:00', noticeVersion: CONTENT_NOTICE_VERSION },
+  });
+  const staleBody = { success: false, code: 'NOTICE_VERSION_STALE', message: 'El aviso cambió.', noticeVersion: 'aviso-vigente-otro' };
+
+  beforeEach(() => {
+    sessionStorage.clear();
+    TestBed.configureTestingModule({ providers: [provideHttpClient(), provideHttpClientTesting()] });
+    http = TestBed.inject(HttpTestingController);
+    recorder = new ServerConsentRecorder(TestBed.inject(SimulationService));
+  });
+
+  afterEach(() => {
+    http.verify();
+    vi.restoreAllMocks();
+    sessionStorage.clear();
+    TestBed.resetTestingModule();
+  });
+
+  it('la versión del aviso que envía es la constante del cliente', () => {
+    expect(CONTENT_NOTICE_VERSION).toMatch(/^\S{1,40}$/);
+  });
+
+  describe('isGiven (síncrona)', () => {
+    it('sin nada que lo respalde es «no» y no pide nada a la red', () => {
+      expect(recorder.isGiven(KEY)).toBe(false);
+      http.expectNone(URL);
+    });
+
+    it('una clave que no es de un intento es «no»', () => {
+      expect(recorder.isGiven('otra_clave')).toBe(false);
+    });
+
+    it('si el servidor no se pudo consultar, vale la marca de la pestaña de ESE intento', () => {
+      sessionStorage.setItem(KEY, 'given');
+      expect(recorder.isGiven(KEY)).toBe(true);
+      expect(recorder.isGiven(OTHER_ATTEMPT_KEY)).toBe(false);
+      expect(recorder.isGiven(OTHER_CASE_KEY)).toBe(false);
+    });
+
+    it('un almacenamiento al que ni se puede acceder es «no», sin lanzar', () => {
+      vi.spyOn(window, 'sessionStorage', 'get').mockImplementation(() => { throw new Error('SecurityError'); });
+      expect(recorder.isGiven(KEY)).toBe(false);
+    });
+  });
+
+  describe('record: aceptar el aviso', () => {
+    it.each([201, 200])('el servidor responde %i: queda registrado, en la memoria y en la pestaña', async status => {
+      const done = recorder.record(KEY);
+      const request = http.expectOne(URL);
+      expect(request.request.method).toBe('POST');
+      expect(request.request.body).toEqual({ noticeVersion: CONTENT_NOTICE_VERSION });
+      request.flush(recordBody(), { status, statusText: 'OK' });
+
+      await expect(done).resolves.toBeUndefined();
+      expect(recorder.isGiven(KEY)).toBe(true);
+      expect(sessionStorage.getItem(KEY)).toBe('given');
+      // El consentimiento es de la persona y del caso, no de un intento: otro intento del mismo caso también lo tiene.
+      expect(recorder.isGiven(OTHER_ATTEMPT_KEY)).toBe(true);
+      expect(recorder.isGiven(OTHER_CASE_KEY)).toBe(false);
+    });
+
+    // Control negativo (mutación: marcar antes de esperar la respuesta): mientras el servidor no responde NO hay consentimiento.
+    it('no se marca nada mientras el servidor no responde', async () => {
+      const done = recorder.record(KEY);
+      const request = http.expectOne(URL);
+
+      expect(recorder.isGiven(KEY)).toBe(false);
+      expect(sessionStorage.getItem(KEY)).toBeNull();
+
+      request.flush(recordBody(), { status: 201, statusText: 'Created' });
+      await done;
+      expect(recorder.isGiven(KEY)).toBe(true);
+    });
+
+    // Control negativo (mutación: tragarse el 409): una versión vieja del aviso NO es un consentimiento.
+    it('un 409 NOTICE_VERSION_STALE rechaza con el error de «hay una versión nueva del aviso» y no marca nada', async () => {
+      const done = recorder.record(KEY);
+      http.expectOne(URL).flush(staleBody, { status: 409, statusText: 'Conflict' });
+
+      const error = await done.then(() => null, (cause: unknown) => cause);
+      expect(error).toBeInstanceOf(ConsentNoticeStaleError);
+      expect((error as ConsentNoticeStaleError).currentNoticeVersion).toBe('aviso-vigente-otro');
+      expect(recorder.isGiven(KEY)).toBe(false);
+      expect(sessionStorage.getItem(KEY)).toBeNull();
+    });
+
+    it('un 409 sin la versión vigente también es «aviso nuevo»', async () => {
+      const done = recorder.record(KEY);
+      http.expectOne(URL).flush({ success: false, code: 'NOTICE_VERSION_STALE', message: 'x' }, { status: 409, statusText: 'Conflict' });
+
+      const error = await done.then(() => null, (cause: unknown) => cause);
+      expect(error).toBeInstanceOf(ConsentNoticeStaleError);
+      expect((error as ConsentNoticeStaleError).currentNoticeVersion).toBeNull();
+    });
+
+    it('un 409 con otro código es un fallo cualquiera, no «aviso nuevo»', async () => {
+      const done = recorder.record(KEY);
+      http.expectOne(URL).flush({ success: false, code: 'OTRO_CONFLICTO', message: 'x' }, { status: 409, statusText: 'Conflict' });
+
+      const error = await done.then(() => null, (cause: unknown) => cause);
+      expect(error).toBeInstanceOf(Error);
+      expect(error).not.toBeInstanceOf(ConsentNoticeStaleError);
+      expect(recorder.isGiven(KEY)).toBe(false);
+    });
+
+    it('una red caída rechaza y NO deja nada registrado', async () => {
+      const done = recorder.record(KEY);
+      http.expectOne(URL).error(new ProgressEvent('error'));
+
+      await expect(done).rejects.toThrow();
+      expect(recorder.isGiven(KEY)).toBe(false);
+      expect(sessionStorage.getItem(KEY)).toBeNull();
+    });
+
+    it.each([400, 403, 404, 429, 500, 503])('el servidor responde %i: rechaza y NO deja nada registrado', async status => {
+      const done = recorder.record(KEY);
+      http.expectOne(URL).flush({ success: false, code: 'X', message: 'x' }, { status, statusText: 'Error' });
+
+      const error = await done.then(() => null, (cause: unknown) => cause);
+      expect(error).toBeInstanceOf(Error);
+      expect(error).not.toBeInstanceOf(ConsentNoticeStaleError);
+      expect(recorder.isGiven(KEY)).toBe(false);
+      expect(sessionStorage.getItem(KEY)).toBeNull();
+    });
+
+    it('«Reintentar» tras un fallo vuelve a pedir el registro y, si sale bien, queda registrado', async () => {
+      const first = recorder.record(KEY);
+      http.expectOne(URL).error(new ProgressEvent('error'));
+      await expect(first).rejects.toThrow();
+
+      const second = recorder.record(KEY);
+      http.expectOne(URL).flush(recordBody(), { status: 201, statusText: 'Created' });
+      await second;
+      expect(recorder.isGiven(KEY)).toBe(true);
+    });
+
+    it('si la pestaña no deja guardar su marca, el registro del servidor vale igual', async () => {
+      vi.spyOn(Storage.prototype, 'setItem').mockImplementation(() => { throw new Error('cuota agotada'); });
+      const done = recorder.record(KEY);
+      http.expectOne(URL).flush(recordBody(), { status: 201, statusText: 'Created' });
+
+      await expect(done).resolves.toBeUndefined();
+      expect(recorder.isGiven(KEY)).toBe(true);
+    });
+
+    it('una clave que no es de un intento rechaza sin pedir nada al servidor', async () => {
+      await expect(recorder.record('otra_clave')).rejects.toThrow();
+      http.expectNone(URL);
+    });
+  });
+
+  describe('prime: preguntar al servidor ANTES de pedir el aviso', () => {
+    it('aceptado en el servidor: isGiven lo sabe de forma síncrona para cualquier intento de ese caso, sin marca de la pestaña', async () => {
+      const done = recorder.prime(CASE_ID);
+      const request = http.expectOne(URL);
+      expect(request.request.method).toBe('GET');
+      expect(recorder.isGiven(KEY)).toBe(false); // hasta que responde, no se sabe
+      request.flush(state(true));
+      await done;
+
+      expect(recorder.isGiven(KEY)).toBe(true);
+      expect(recorder.isGiven(OTHER_ATTEMPT_KEY)).toBe(true);
+      expect(recorder.isGiven(OTHER_CASE_KEY)).toBe(false);
+      expect(sessionStorage.getItem(KEY)).toBeNull();
+    });
+
+    it('no aceptado en el servidor: sigue siendo «no» y manda sobre una marca vieja de la pestaña', async () => {
+      sessionStorage.setItem(KEY, 'given');
+      const done = recorder.prime(CASE_ID);
+      http.expectOne(URL).flush(state(false));
+      await done;
+
+      expect(recorder.isGiven(KEY)).toBe(false);
+    });
+
+    it.each([undefined, null, 'si', 1, 'true'])('solo un `true` estricto cuenta como aceptado (%s)', async accepted => {
+      const done = recorder.prime(CASE_ID);
+      http.expectOne(URL).flush(state(accepted));
+      await done;
+
+      expect(recorder.isGiven(KEY)).toBe(false);
+    });
+
+    it('un GET que falla es «sin consentimiento»: no se rechaza (la pantalla no muestra error) y se pide el aviso', async () => {
+      const done = recorder.prime(CASE_ID);
+      http.expectOne(URL).error(new ProgressEvent('error'));
+
+      await expect(done).resolves.toBeUndefined();
+      expect(recorder.isGiven(KEY)).toBe(false);
+    });
+
+    it.each([401, 403, 404, 500])('el GET responde %i: tampoco se rechaza', async status => {
+      const done = recorder.prime(CASE_ID);
+      http.expectOne(URL).flush({ success: false, code: 'X', message: 'x' }, { status, statusText: 'Error' });
+
+      await expect(done).resolves.toBeUndefined();
+      expect(recorder.isGiven(KEY)).toBe(false);
+    });
+
+    it('si el GET falla, la marca de la pestaña evita pedir el aviso dos veces en la misma sesión', async () => {
+      sessionStorage.setItem(KEY, 'given');
+      const done = recorder.prime(CASE_ID);
+      http.expectOne(URL).error(new ProgressEvent('error'));
+      await done;
+
+      expect(recorder.isGiven(KEY)).toBe(true);
+    });
+
+    it('una respuesta mal formada no rompe: es «sin consentimiento»', async () => {
+      const done = recorder.prime(CASE_ID);
+      http.expectOne(URL).flush(null);
+      await expect(done).resolves.toBeUndefined();
+      expect(recorder.isGiven(KEY)).toBe(false);
+    });
+
+    it('lo que lance el servicio antes de pedir nada tampoco rechaza', async () => {
+      const broken = new ServerConsentRecorder({
+        getConsent: () => { throw new TypeError('no hay red'); },
+        acceptConsent: () => { throw new TypeError('no hay red'); },
+        withdrawConsent: () => { throw new TypeError('no hay red'); },
+      } as unknown as SimulationService);
+
+      await expect(broken.prime(CASE_ID)).resolves.toBeUndefined();
+      expect(broken.isGiven(KEY)).toBe(false);
+    });
+  });
+
+  describe('forget: el servidor respondió 403 CONSENT_REQUIRED', () => {
+    it('borra lo que sabía y la marca de la pestaña, y NO la vuelve a creer mientras no se acepte de nuevo', async () => {
+      const accepted = recorder.record(KEY);
+      http.expectOne(URL).flush(recordBody(), { status: 201, statusText: 'Created' });
+      await accepted;
+      expect(recorder.isGiven(KEY)).toBe(true);
+
+      recorder.forget(KEY);
+
+      expect(recorder.isGiven(KEY)).toBe(false);
+      expect(recorder.isGiven(OTHER_ATTEMPT_KEY)).toBe(false);
+      expect(sessionStorage.getItem(KEY)).toBeNull();
+
+      const again = recorder.record(KEY);
+      http.expectOne(URL).flush(recordBody(), { status: 201, statusText: 'Created' });
+      await again;
+      expect(recorder.isGiven(KEY)).toBe(true);
+    });
+
+    it('con una marca vieja de la pestaña y sin haber preguntado, también queda en «no»', () => {
+      sessionStorage.setItem(KEY, 'given');
+      recorder.forget(KEY);
+      expect(recorder.isGiven(KEY)).toBe(false);
+    });
+
+    it('no toca el consentimiento de otro caso', async () => {
+      const prime = recorder.prime(8);
+      http.expectOne('/api/simulation/cases/8/consent').flush(state(true));
+      await prime;
+
+      recorder.forget(KEY);
+
+      expect(recorder.isGiven(OTHER_CASE_KEY)).toBe(true);
+    });
+
+    it('una clave que no es de un intento no hace nada ni lanza', () => {
+      expect(() => recorder.forget('otra_clave')).not.toThrow();
+    });
+
+    it('un almacenamiento que lanza al borrar no impide olvidar', () => {
+      sessionStorage.setItem(KEY, 'given');
+      vi.spyOn(Storage.prototype, 'removeItem').mockImplementation(() => { throw new Error('bloqueado'); });
+      expect(() => recorder.forget(KEY)).not.toThrow();
+      expect(recorder.isGiven(KEY)).toBe(false);
+    });
+  });
+
+  describe('withdraw: retirar el consentimiento', () => {
+    it('llama a DELETE y, cuando el servidor responde, el caso queda sin consentimiento en memoria y en la pestaña', async () => {
+      const accepted = recorder.record(KEY);
+      http.expectOne(URL).flush(recordBody(), { status: 201, statusText: 'Created' });
+      await accepted;
+      sessionStorage.setItem(OTHER_ATTEMPT_KEY, 'given');
+      sessionStorage.setItem(OTHER_CASE_KEY, 'given');
+      sessionStorage.setItem(consentStorageKey(77, 'attempt-1'), 'given'); // el 77 empieza con el 7: no es del caso 7
+      sessionStorage.setItem('siep_case_intro_7_attempt-1', 'read');
+
+      const done = recorder.withdraw(CASE_ID);
+      const request = http.expectOne(URL);
+      expect(request.request.method).toBe('DELETE');
+      request.flush({ data: { caseVersionId: CASE_ID, withdrawnAt: '2026-10-18T11:00:00' } });
+      await expect(done).resolves.toBeUndefined();
+
+      expect(recorder.isGiven(KEY)).toBe(false);
+      expect(recorder.isGiven(OTHER_ATTEMPT_KEY)).toBe(false);
+      expect(sessionStorage.getItem(KEY)).toBeNull();
+      expect(sessionStorage.getItem(OTHER_ATTEMPT_KEY)).toBeNull();
+      // Lo de otro caso y lo que no es del consentimiento no se toca.
+      expect(sessionStorage.getItem(OTHER_CASE_KEY)).toBe('given');
+      expect(sessionStorage.getItem(consentStorageKey(77, 'attempt-1'))).toBe('given');
+      expect(sessionStorage.getItem('siep_case_intro_7_attempt-1')).toBe('read');
+    });
+
+    it('es idempotente: sin nada vigente el servidor responde 200 con withdrawnAt nulo y también queda sin consentimiento', async () => {
+      const done = recorder.withdraw(CASE_ID);
+      http.expectOne(URL).flush({ data: { caseVersionId: CASE_ID, withdrawnAt: null } });
+      await done;
+
+      expect(recorder.isGiven(KEY)).toBe(false);
+    });
+
+    it('si el servidor no responde, rechaza y NO da por retirado lo que no lo está', async () => {
+      const accepted = recorder.record(KEY);
+      http.expectOne(URL).flush(recordBody(), { status: 201, statusText: 'Created' });
+      await accepted;
+
+      const done = recorder.withdraw(CASE_ID);
+      http.expectOne(URL).error(new ProgressEvent('error'));
+
+      await expect(done).rejects.toThrow();
+      expect(recorder.isGiven(KEY)).toBe(true);
+      expect(sessionStorage.getItem(KEY)).toBe('given');
+    });
+  });
+
+  describe('el registro que usa la aplicación', () => {
+    it('el token CONSENT_RECORDER entrega el registro en servidor, no el de la pestaña', () => {
+      const injected = TestBed.inject(CONSENT_RECORDER);
+      expect(injected).toBeInstanceOf(ServerConsentRecorder);
+      expect(injected).not.toBeInstanceOf(SessionConsentRecorder);
+    });
+
+    it('lo que el registro pide a la red no lleva datos de la persona: solo la versión del aviso en el cuerpo', async () => {
+      const done = recorder.record(KEY);
+      const request = http.expectOne(URL);
+      expect(Object.keys(request.request.body as object)).toEqual(['noticeVersion']);
+      request.flush(recordBody(), { status: 201, statusText: 'Created' });
+      await done;
+    });
+  });
+
+  it('el error de «aviso nuevo» es un Error con nombre propio', () => {
+    const error = new ConsentNoticeStaleError('v2');
+    expect(error).toBeInstanceOf(Error);
+    expect(error.name).toBe('ConsentNoticeStaleError');
+    expect(error.currentNoticeVersion).toBe('v2');
+    expect(new HttpErrorResponse({ status: 409 })).not.toBeInstanceOf(ConsentNoticeStaleError);
   });
 });

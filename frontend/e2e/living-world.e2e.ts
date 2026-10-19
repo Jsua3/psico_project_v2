@@ -1,5 +1,6 @@
 import { test, expect, Page } from '@playwright/test';
 
+import { resetStudentConsent } from './support/consent';
 import { leaveBrief, nearbyAction, startFreshAttempt } from './support/siep-flow';
 import { scaled } from './support/time-scale';
 
@@ -26,6 +27,8 @@ async function login(page: Page) {
 
 async function enterPlayableCase(page: Page) {
   await page.goto('/portal/jugar');
+  // El consentimiento vive en el servidor (S3-2b): el de una prueba anterior haría que el aviso no saliera.
+  await resetStudentConsent(page);
   await page.getByRole('button', { name: /entrar al caso/i }).click();
   await page.waitForURL(/\/portal\/simulador\/\d+/);
   await leaveBrief(page);
@@ -61,6 +64,7 @@ test('menu world renders full-bleed with no shell sidebar', async ({ page }) => 
 test('in-case world loads with the HUD', async ({ page }) => {
   await login(page);
   await page.goto('/portal/jugar');
+  await resetStudentConsent(page); // el consentimiento vive en el servidor (S3-2b): se parte de «sin consentimiento»
   // Enter the first available case via the VISIBLE banner button (the player
   // spawns next to the first door, so the banner is present on load).
   await page.getByRole('button', { name: /entrar al caso/i }).click();
