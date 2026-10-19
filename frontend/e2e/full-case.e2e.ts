@@ -228,6 +228,18 @@ async function completeFullCase(
   await expect(outcome.getByText(/ruta institucional: activada/i)).toBeVisible();
   await expect(outcome.getByRole('button', { name: /reintentar caso/i })).toBeVisible();
   await expect(outcome.getByRole('link', { name: /volver al simulador/i })).toBeVisible();
+
+  // F10-4 (RN-08): «Tus decisiones» lista las seis decisiones con su explicación o su estado vacío, y una etiqueta
+  // formativa por decisión (nunca un puntaje).
+  const decisions = outcome.locator('.oc-decisions');
+  await expect(decisions.locator('#oc-decisions-title')).toHaveText('Tus decisiones', { timeout: scaled(30_000) });
+  const items = decisions.locator('.oc-decision');
+  await expect(items).toHaveCount(6, { timeout: scaled(30_000) });
+  for (const item of await items.all()) {
+    expect(await item.locator('.oc-decision__explanation, .oc-decision__empty').count()).toBe(1);
+    await expect(item.locator('.oc-decision__tone')).toHaveText(/^(Adecuada|Con riesgo|Inadecuada)$/);
+  }
+  expect(await decisions.textContent()).not.toMatch(/\d+\s*pts|puntos/i);
   await assertQualityState(page, testInfo, `${viewport.name}-full-case-outcome`);
 
   // F6-6 (H-05): el resultado es un diálogo modal con el foco inicial en su título, y a 360 px las métricas, la barra y
