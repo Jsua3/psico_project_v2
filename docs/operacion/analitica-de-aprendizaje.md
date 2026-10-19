@@ -78,7 +78,7 @@ El bloque `cohort` dice cuántos estudiantes y cuántos intentos alimentan la re
 
 - **`k = max(5, MIN_CELL_SIZE)`.** Con menos de `k` estudiantes distintos con intentos completados en el alcance, la respuesta trae **solo** `cohort` (con `suppressed: true`) y `definitions`.
 - Con cohorte suficiente, **cada bloque exige además `k` estudiantes distintos entre los que lo alimentan**, o se omite (p. ej. 5 estudiantes pero solo 3 con segundo intento: faltan `improvement` y `firstVsSecond`).
-- **El piso 5 vale para todos**, también para el ADMIN y también si la configuración dice menos.
+- **El piso 5 vale para todos**, también para el ADMIN y también si la configuración dice menos. Vale además **dentro del propio cálculo** (`analytics.compute`), no solo al leer la configuración: quien lo llame con una celda menor (o cero o negativa) sigue publicando con 5.
 - **No se mezclan reglas.** Los bloques que leen niveles (`improvement`, `acceptable`, `improvementAfterFeedback`) cuentan solo los intentos cuyo reporte se selló con la `profileRules` vigente; los que leen la reflexión (`reflectionCoverage`, `keyEvidence`), solo los cerrados con la definición de reflexión vigente. Lo demás (`cohort`, `evaluated`, `firstVsSecond`) cuenta todo.
 - **Alcance:** un docente agrega solo a los estudiantes de sus **grupos activos con membresía `ACTIVE`**; con `grupoId`, el grupo debe ser suyo y estar activo (403 si no; 404 si no existe). El ADMIN, a cualquiera. `caseVersionId` desconocido → 404; un id mal escrito → 400 `INVALID_QUERY_PARAM` (no se ignora, para no ampliar el alcance sin avisar).
 - **Auditoría:** cada consulta buena escribe **una** fila `analitica.ver` con `{groupId, caseVersionId, suppressed}`; **nunca** ids de estudiantes ni cifras. Una consulta rechazada no audita.
@@ -134,11 +134,12 @@ Esas cifras son las de la **cohorte sintética de 40 intentos** (20 estudiantes 
 - **«Cohortes comparables»** (RQ-NEG-001) no está modelado: la comparación es la del alcance que el docente elige (grupo, caso o todos), sin control de comparabilidad.
 - **«Vio la retroalimentación»** (RQ-NEG-005) se registra cuando el dueño abre el reporte por `report`, `completion-report` o `student-report`. La pantalla final del juego, que recibe el reporte en la respuesta de la última decisión, **no** lo registra: mientras el visual no lea el reporte final por una de esas rutas, `improvementAfterFeedback` solo verá a quien lo reabra desde el historial (sesgo de autoselección).
 - **Costo de lectura:** las consultas son constantes (cuatro), pero el reporte congelado se analiza en memoria por fila; con miles de intentos conviene materializar las pocas claves que se leen.
+- **Revertir la migración `0026`:** se puede aunque haya evaluaciones del sistema; la reversa **las borra** (son derivadas y no tienen docente) y deja las del docente. Tras volver a avanzar se reponen con `python manage.py backfill_attempt_reports`. Revertir la `0027` descarta la tabla de la encuesta (como cualquier tabla nueva).
 - **Sin pantalla:** E6 no cambia el visual. Los contratos nuevos (C13, C14, el reporte v2 y `effects.competencies`) están en el ledger «estructural → visual».
 
 ## 10. Preguntas abiertas para Psicología
 
-Cada una cambia una cifra o una regla; todas tienen hoy una respuesta provisional que está en este documento y en el código (una función o una tabla):
+Cada una cambia una cifra o una regla; todas tienen hoy una respuesta provisional que está en este documento y en el código (una función o una tabla). La versión para responder, en lenguaje llano y con 2 o 3 opciones por pregunta, es `docs/operacion/analitica-preguntas-para-psicologia.md`:
 
 1. **Nivel de una decisión.** ¿Es correcto traducir la severidad (recomendada, aceptable, riesgosa, crítica) a DESTACADO, LOGRADO, EN_PROCESO y EN_INICIO? ¿Debe ser configurable por caso?
 2. **Nivel de una competencia.** ¿El promedio (mitad hacia arriba) es la regla adecuada, o debe pesar más lo último, lo peor o lo más reciente? ¿El **tope `EN_PROCESO`** por una decisión crítica es correcto?
