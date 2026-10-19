@@ -3,7 +3,7 @@ import { TestBed } from '@angular/core/testing';
 import { HttpTestingController, provideHttpClientTesting } from '@angular/common/http/testing';
 import { Observable } from 'rxjs';
 
-import { AttemptCompletionReport } from '../models/simulation.model';
+import { AttemptCompletionReport, SimulationDecisionResult } from '../models/simulation.model';
 import { SimulationService } from './simulation.service';
 
 describe('SimulationService private attempt GETs', () => {
@@ -86,5 +86,107 @@ describe('SimulationService student report', () => {
 
     expect(report?.phaseDurations).toEqual([]);
     expect(report?.recommendations).toEqual(['Sigue así']);
+  });
+
+  it('conserva decisionReview tal como llega del reporte congelado (C2)', () => {
+    let report: AttemptCompletionReport | undefined;
+    service.studentReport('a1').subscribe(value => (report = value));
+
+    httpMock.expectOne('/api/simulation/attempts/a1/student-report').flush({
+      data: {
+        attemptId: 'a1',
+        status: 'COMPLETED',
+        decisionReview: [{
+          order: 1, nodeId: 4, nodeTitle: 'Sala de escucha',
+          chosen: { optionId: 9, text: 'Escuchar sin juzgar' },
+          consequence: 'La estudiante continúa la conversación.',
+          feedback: { explanation: 'Validar antes de indagar.', theoryBasis: 'Primeros auxilios psicológicos' },
+          classification: 'ADEQUATE', prohibited: false,
+        }],
+      },
+    });
+
+    expect(report?.decisionReview).toHaveLength(1);
+    expect(report?.decisionReview?.[0].feedback.theoryBasis).toBe('Primeros auxilios psicológicos');
+  });
+});
+
+describe('SimulationService chooseDecision (C2: dos formas de respuesta)', () => {
+  let service: SimulationService;
+  let httpMock: HttpTestingController;
+  const url = '/api/simulation/attempts/a1/decisions';
+  const state = { attemptId: 'a1', attemptToken: 't1', caseVersionId: 3, caseTitle: 'Caso', status: 'IN_PROGRESS' };
+
+  beforeEach(() => {
+    TestBed.configureTestingModule({
+      providers: [SimulationService, provideHttpClient(), provideHttpClientTesting()],
+    });
+    service = TestBed.inject(SimulationService);
+    httpMock = TestBed.inject(HttpTestingController);
+  });
+
+  afterEach(() => httpMock.verify());
+
+  it('con FEEDBACK_AT_CLOSE_ONLY el estado viene dentro de attempt y no hay feedback', () => {
+    let result: SimulationDecisionResult | undefined;
+    service.chooseDecision('a1', 't1', 9).subscribe(value => (result = value));
+
+    httpMock.expectOne(url).flush({
+      data: {
+        attempt: { ...state, feedback: null },
+        consequence: { text: 'La sala queda en silencio.', source: 'OPTION' },
+      },
+    });
+
+    expect(result?.attemptId).toBe('a1');
+    expect(result?.status).toBe('IN_PROGRESS');
+    expect(result?.feedback).toBeNull();
+    expect(result?.consequence).toEqual({ text: 'La sala queda en silencio.', source: 'OPTION' });
+    expect(result?.retry).toBeNull();
+  });
+
+  it('con la bandera apagada el estado viene aplanado, con feedback, consecuencia y reintento', () => {
+    let result: SimulationDecisionResult | undefined;
+    service.chooseDecision('a1', 't1', 9).subscribe(value => (result = value));
+
+    httpMock.expectOne(url).flush({
+      data: {
+        ...state,
+        feedback: { classification: 'RISKY', message: 'Decisión con riesgo.', retryRequired: true },
+        consequence: null,
+        retry: { allowed: true, message: 'Decisión con riesgo.' },
+      },
+    });
+
+    expect(result?.feedback?.classification).toBe('RISKY');
+    expect(result?.consequence).toBeNull();
+    expect(result?.retry).toEqual({ allowed: true, message: 'Decisión con riesgo.' });
+  });
+
+  it('un reintento con AT_CLOSE no trae consecuencia y sí el aviso neutro', () => {
+    let result: SimulationDecisionResult | undefined;
+    service.chooseDecision('a1', 't1', 9).subscribe(value => (result = value));
+
+    httpMock.expectOne(url).flush({
+      data: {
+        attempt: { ...state, feedback: null },
+        consequence: null,
+        retry: { allowed: true, message: 'Puedes volver a elegir en esta escena.' },
+      },
+    });
+
+    expect(result?.consequence).toBeNull();
+    expect(result?.retry?.message).toBe('Puedes volver a elegir en esta escena.');
+    expect(result?.attemptId).toBe('a1');
+  });
+
+  it('envía el requestId de la intención cuando se pasa', () => {
+    service.chooseDecision('a1', 't1', 9, false, [], 'req-intencion-1').subscribe();
+
+    const req = httpMock.expectOne(url);
+    expect(req.request.body).toEqual({
+      attemptToken: 't1', decisionOptionId: 9, evidenceOverride: false, missingEvidence: [], requestId: 'req-intencion-1',
+    });
+    req.flush({ data: { ...state } });
   });
 });

@@ -8,16 +8,32 @@ import {
   AttemptCompletionReport,
   CaseBrief,
   CatalogItem,
+  DecisionConsequence,
+  DecisionRetry,
   HintState,
   InteractionResult,
   ScenarioConfig,
   SimulationAttemptState,
   SimulationCaseSummary,
+  SimulationDecisionResult,
   StudentAttemptSummary,
   ProgressMapState,
   SimulationWorldState,
   ToolUseResult
 } from '../models/simulation.model';
+
+/**
+ * La respuesta de una decisión (C2) llega en una de dos formas según `FEEDBACK_AT_CLOSE_ONLY`: el estado del intento
+ * aplanado (bandera apagada) o `{ attempt, consequence, retry? }` (encendida). Ambas se llevan a una sola.
+ */
+type DecisionResponseWire =
+  | (SimulationAttemptState & { consequence?: DecisionConsequence | null; retry?: DecisionRetry | null })
+  | { attempt: SimulationAttemptState; consequence?: DecisionConsequence | null; retry?: DecisionRetry | null };
+
+function normalizeDecisionResult(data: DecisionResponseWire): SimulationDecisionResult {
+  const attempt = 'attempt' in data ? data.attempt : data;
+  return { ...attempt, consequence: data.consequence ?? null, retry: data.retry ?? null };
+}
 
 /**
  * API del jugador: catálogo, intentos, mundo, interacciones, decisiones, pausa segura y
@@ -137,19 +153,25 @@ export class SimulationService {
     }).pipe(map(response => response.data));
   }
 
+  /**
+   * Registra una decisión (C2). `requestId` identifica la INTENCIÓN de elegir la opción: quien llama lo reutiliza si
+   * reenvía la misma elección tras un fallo de red, y el servidor responde la repetición sin decidir dos veces.
+   */
   chooseDecision(
     attemptId: string,
     attemptToken: string,
     decisionOptionId: number,
     evidenceOverride = false,
     missingEvidence: string[] = [],
+    requestId?: string,
   ) {
-    return this.http.post<ApiResponse<SimulationAttemptState>>(`${this.API}/attempts/${attemptId}/decisions`, {
+    return this.http.post<ApiResponse<DecisionResponseWire>>(`${this.API}/attempts/${attemptId}/decisions`, {
       attemptToken,
       decisionOptionId,
       evidenceOverride,
       missingEvidence,
-    }).pipe(map(response => response.data));
+      ...(requestId ? { requestId } : {}),
+    }).pipe(map(response => normalizeDecisionResult(response.data)));
   }
 
   saveReflection(attemptId: string, attemptToken: string, nodeId: number, text: string) {
