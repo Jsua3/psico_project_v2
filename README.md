@@ -195,6 +195,7 @@ El índice completo está en [`docs/README.md`](docs/README.md). Lo más consult
 - [`docs/operacion/despliegue-railway.md`](docs/operacion/despliegue-railway.md): despliegue en Railway.
 - [`docs/seguridad/compuerta-primera-cuenta.md`](docs/seguridad/compuerta-primera-cuenta.md): la compuerta «antes de la primera cuenta real» (`npm run gate:primera-cuenta`).
 - [`docs/operacion/parches.md`](docs/operacion/parches.md): calendario de parches de las versiones vigiladas (Django, DRF, Angular, Node, PostgreSQL).
+- [`docs/seguridad/incidentes.md`](docs/seguridad/incidentes.md): qué hacer ante un incidente (cuentas, contraseñas, llaves, banderas y evidencia).
 - [`docs/requisitos/`](docs/requisitos): requisitos de negocio, funcionales y no funcionales, y técnicas de elicitación.
 
 ## Tecnologías

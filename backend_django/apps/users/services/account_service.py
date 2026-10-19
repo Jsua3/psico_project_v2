@@ -275,7 +275,14 @@ def _contexto_del_admin_creado(args, kwargs, result):
     return {"targetId": result.pk}
 
 
-@auditable("ADMIN_CREATED_BY_COMMAND", "USER", -1, context=_contexto_del_admin_creado)
+def _recurso_de_la_cuenta(args, kwargs, result):
+    """El comando no recibe el id: el recurso de la fila es la cuenta que acaba de crear o reponer (S7-5)."""
+    return result.pk
+
+
+@auditable(
+    "ADMIN_CREATED_BY_COMMAND", "USER", -1, context=_contexto_del_admin_creado, resource_id=_recurso_de_la_cuenta
+)
 def create_admin_account(email, nombre, apellido, password):
     """Crea una cuenta ADMIN activa cuya clave es TEMPORAL (cambio obligatorio y fecha de caducidad).
 
@@ -317,7 +324,9 @@ def _contexto_del_admin_repuesto(args, kwargs, result):
     return {"targetId": result.pk}
 
 
-@auditable("ADMIN_RESET_BY_COMMAND", "USER", -1, context=_contexto_del_admin_repuesto)
+@auditable(
+    "ADMIN_RESET_BY_COMMAND", "USER", -1, context=_contexto_del_admin_repuesto, resource_id=_recurso_de_la_cuenta
+)
 def reset_admin_account(email, password):
     """Repone la clave de un ADMIN existente (R1b2): clave TEMPORAL nueva, cuenta activa y sesiones cerradas.
 
