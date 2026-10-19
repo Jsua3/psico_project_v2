@@ -9,6 +9,14 @@ import { KitFigureComponent } from '../character/kit/kit-figure.component';
 import { AvatarStore } from '../character/avatar.store';
 import { KitService } from '../character/kit/kit.service';
 import { fakeKitService } from '../character/kit/testing/kit-testing';
+import { HttpErrorResponse } from '@angular/common/http';
+import { of, throwError } from 'rxjs';
+import { SimulationService } from '../../core/api/simulation.service';
+import { DecisionReviewItem } from '../../core/models/simulation.model';
+import { RECONSIDERED_LABEL } from './reconsidered.util';
+
+/** El único servicio que la pantalla de resultado llama: «Tus decisiones» lee el reporte congelado del dueño (C2). */
+const simulation = { studentReport: vi.fn() };
 
 function makeReport(overrides: Partial<AttemptCompletionReport> = {}): AttemptCompletionReport {
   return {
@@ -55,6 +63,7 @@ describe('AttemptOutcomeComponent', () => {
         provideRouter([]),
         { provide: AvatarStore, useFactory: () => new AvatarStore() },
         { provide: KitService, useValue: fakeKitService() },
+        { provide: SimulationService, useValue: simulation },
       ],
     });
     component = TestBed.createComponent(AttemptOutcomeComponent).componentInstance;
@@ -76,6 +85,7 @@ describe('AttemptOutcomeComponent', () => {
         provideRouter([]),
         { provide: AvatarStore, useFactory: () => new AvatarStore() },
         { provide: KitService, useValue: kit },
+        { provide: SimulationService, useValue: simulation },
       ],
     });
     TestBed.createComponent(AttemptOutcomeComponent);
@@ -170,6 +180,7 @@ describe('AttemptOutcomeComponent: pausa calmada renderizada (T12.1, AC-7)', () 
         provideRouter([]),
         { provide: AvatarStore, useFactory: () => new AvatarStore() },
         { provide: KitService, useValue: fakeKitService() },
+        { provide: SimulationService, useValue: simulation },
       ],
     });
     TestBed.overrideComponent(AttemptOutcomeComponent, {
@@ -449,6 +460,177 @@ describe('AttemptOutcomeComponent: pausa calmada renderizada (T12.1, AC-7)', () 
       });
       expect(host().querySelector('.oc-feedback')?.textContent).toContain('Reconsideraste 1 respuesta antes de decidir; revísala con tu docente.');
     });
+  });
+});
+
+// req: RN-08, RF-23, CU-13, RF-10 (F10-4: la retroalimentación pedagógica y su fundamento se leen al cierre, por C2)
+describe('AttemptOutcomeComponent: tus decisiones y marcador (F10-4, C2)', () => {
+  let fixture: ComponentFixture<AttemptOutcomeComponent>;
+  let component: AttemptOutcomeComponent;
+  const host = () => fixture.nativeElement as HTMLElement;
+  const text = (el: Element | null | undefined) => el?.textContent?.replace(/\s+/g, ' ').trim() ?? '';
+
+  const decision = (overrides: Partial<DecisionReviewItem> = {}): DecisionReviewItem => ({
+    order: 1,
+    nodeId: 4,
+    nodeTitle: 'Sala de escucha',
+    chosen: { optionId: 9, text: 'Escuchar sin juzgar' },
+    consequence: 'La estudiante continúa la conversación.',
+    feedback: { explanation: 'Validar antes de indagar protege la confianza.', theoryBasis: 'Primeros auxilios psicológicos' },
+    classification: 'ADEQUATE',
+    prohibited: false,
+    ...overrides,
+  });
+
+  /** Renderiza el resultado con el reporte del dueño (C2) que devuelve el servicio, o con su error. */
+  function render(options: {
+    status?: 'COMPLETED' | 'PAUSED';
+    items?: DecisionReviewItem[];
+    error?: unknown;
+    reviewAttemptId?: string | null;
+  } = {}): void {
+    TestBed.configureTestingModule({
+      imports: [AttemptOutcomeComponent],
+      providers: [
+        provideRouter([]),
+        { provide: AvatarStore, useFactory: () => new AvatarStore() },
+        { provide: KitService, useValue: fakeKitService() },
+        { provide: SimulationService, useValue: simulation },
+      ],
+    });
+    TestBed.overrideComponent(AttemptOutcomeComponent, {
+      remove: { imports: [KitFigureComponent] },
+      add: { imports: [KitFigureStubComponent] },
+    });
+    const items = options.items ?? [decision()];
+    simulation.studentReport.mockReset();
+    simulation.studentReport.mockReturnValue(options.error
+      ? throwError(() => options.error)
+      : of(makeReport({ status: 'COMPLETED', decisionReview: items })));
+    fixture = TestBed.createComponent(AttemptOutcomeComponent);
+    component = fixture.componentInstance;
+    writeInputSignal(component.status, options.status ?? 'COMPLETED');
+    writeInputSignal(component.report, makeReport({ status: 'COMPLETED' }));
+    writeInputSignal(component.reviewAttemptId, options.reviewAttemptId === undefined ? 'a1' : options.reviewAttemptId);
+    fixture.detectChanges();
+  }
+
+  /** Deja que la carga del reporte llegue y se pinte. */
+  async function settle(): Promise<void> {
+    await fixture.whenStable();
+    fixture.detectChanges();
+    await fixture.whenStable();
+    fixture.detectChanges();
+  }
+
+  afterEach(() => {
+    fixture?.destroy();
+    TestBed.resetTestingModule();
+  });
+
+  it('«Tus decisiones» aparece al completar y pide el reporte del dueño', async () => {
+    render();
+    await settle();
+
+    expect(simulation.studentReport).toHaveBeenCalledWith('a1');
+    expect(text(host().querySelector('#oc-decisions-title'))).toBe('Tus decisiones');
+  });
+
+  it('sin pedirlo (pausa) no se pide el reporte ni aparece la sección', async () => {
+    render({ status: 'PAUSED', reviewAttemptId: null });
+    await settle();
+
+    expect(simulation.studentReport).not.toHaveBeenCalled();
+    expect(host().querySelector('.oc-decisions')).toBeNull();
+  });
+
+  it('cada decisión lleva la elección, la consecuencia, la explicación, el fundamento y su etiqueta formativa', async () => {
+    render({ items: [decision()] });
+    await settle();
+
+    const item = host().querySelector('.oc-decision') as HTMLElement;
+    expect(text(item)).toContain('Escuchar sin juzgar');
+    expect(text(item)).toContain('La estudiante continúa la conversación.');
+    expect(text(item)).toContain('Validar antes de indagar protege la confianza.');
+    expect(text(item)).toContain('Primeros auxilios psicológicos');
+    expect(text(item.querySelector('.oc-decision__tone'))).toBe('Adecuada');
+  });
+
+  it('la etiqueta de cada decisión es cualitativa: nunca un puntaje', async () => {
+    render({ items: [decision({ classification: 'RISKY' }), decision({ order: 2, classification: 'INADEQUATE' })] });
+    await settle();
+
+    const labels = Array.from(host().querySelectorAll('.oc-decision__tone')).map(el => text(el));
+    expect(labels).toEqual(['Con riesgo', 'Inadecuada']);
+    expect(text(host().querySelector('.oc-decisions'))).not.toMatch(/\d+\s*pts|puntos/i);
+  });
+
+  it('una decisión sin explicación muestra su estado vacío y el resto de la lista sigue', async () => {
+    render({ items: [decision({ feedback: { explanation: '' } }), decision({ order: 2 })] });
+    await settle();
+
+    const items = host().querySelectorAll('.oc-decision');
+    expect(items).toHaveLength(2);
+    expect(text(items[0].querySelector('.oc-decision__empty'))).toBe('El caso no trae una explicación para esta decisión.');
+    expect(items[1].querySelector('.oc-decision__empty')).toBeNull();
+  });
+
+  it('con la primera respuesta no aplicada lo dice con la etiqueta congelada y la opción de entonces', async () => {
+    render({ items: [decision({ reconsidered: { firstOptionId: 7, firstOptionText: 'Dar un consejo de inmediato' } })] });
+    await settle();
+
+    expect(text(host().querySelector('.oc-decision__first'))).toBe(`${RECONSIDERED_LABEL}: Dar un consejo de inmediato`);
+  });
+
+  it('una conducta prohibida se señala con la nota ética, sin alarma de puntaje', async () => {
+    render({ items: [decision({ classification: 'INADEQUATE', prohibited: true })] });
+    await settle();
+
+    expect(text(host().querySelector('.oc-decision__note'))).toBe('Alerta ética: esta respuesta puede aumentar el riesgo de revictimización.');
+  });
+
+  it('sin decisiones que mostrar, el estado vacío lo dice y no hay error a la vez', async () => {
+    render({ items: [] });
+    await settle();
+
+    expect(text(host().querySelector('.oc-decisions ui-empty-state'))).toContain('Este intento no tiene decisiones registradas para revisar.');
+    expect(host().querySelector('.oc-decisions ui-error-state')).toBeNull();
+  });
+
+  it('un fallo al cargar muestra el error con «Reintentar», y reintentar vuelve a pedir el reporte', async () => {
+    render({ error: new HttpErrorResponse({ status: 500 }) });
+    await settle();
+
+    const section = host().querySelector('.oc-decisions') as HTMLElement;
+    expect(section.querySelector('ui-error-state')).not.toBeNull();
+    expect(section.querySelector('.oc-decisions__list')).toBeNull();
+    const retry = Array.from(section.querySelectorAll('button')).find(button => /reintentar/i.test(button.textContent ?? ''));
+    expect(retry).toBeDefined();
+
+    simulation.studentReport.mockReturnValue(of(makeReport({ status: 'COMPLETED', decisionReview: [decision()] })));
+    retry!.click();
+    await settle();
+
+    expect(simulation.studentReport).toHaveBeenCalledTimes(2);
+    expect(host().querySelectorAll('.oc-decision')).toHaveLength(1);
+  });
+
+  it('el marcador por defecto es «Puntaje total»; «progress» muestra el avance sin cifra; «hidden» no muestra marcador', async () => {
+    render();
+    await settle();
+    const metrics = () => text(host().querySelector('.oc-metrics'));
+    expect(metrics()).toContain('Puntaje total');
+    expect(metrics()).toContain('42');
+
+    writeInputSignal(component.scoreMarker, 'progress');
+    fixture.detectChanges();
+    expect(metrics()).toContain('Avance del caso');
+    expect(metrics()).not.toMatch(/Puntaje total|42/);
+
+    writeInputSignal(component.scoreMarker, 'hidden');
+    fixture.detectChanges();
+    expect(metrics()).not.toMatch(/Puntaje total|42|Avance/);
+    expect(host().querySelector('.oc-metrics')?.children).toHaveLength(4);
   });
 });
 

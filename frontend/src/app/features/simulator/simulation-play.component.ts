@@ -533,6 +533,7 @@ const CASE_INTRO_PARAGRAPHS = [
         @if (!holdingOutcome()) {
           <app-attempt-outcome [report]="game.completionReport" [status]="game.status"
             [supportResources]="supportResources()"
+            [reviewAttemptId]="game.status === 'COMPLETED' ? game.attemptId : null"
             (retry)="startNewAttempt()" (resume)="resumeCurrentAttempt()" />
         }
 
