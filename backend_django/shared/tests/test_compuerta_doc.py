@@ -57,10 +57,11 @@ def test_la_guia_nombra_exactamente_los_pasos_del_script():
     assert repetidos == [], f"la guía repite estos pasos en su tabla: {repetidos}"
 
 
-def test_la_tabla_tiene_las_27_filas_del_plan_y_la_fila_extra_de_salud():
+def test_la_tabla_tiene_las_27_filas_del_plan_y_las_dos_filas_extra():
+    """Las 27 del plan y dos extra: los derechos del titular (S3-4, manual) y la salud (automática)."""
     filas = filas_de_la_guia(GUIA.read_text(encoding="utf-8"))
-    assert len(filas) == 28
-    assert sum(1 for fila in filas if fila.split("|")[1].strip() == "extra") == 1
+    assert len(filas) == 29
+    assert sum(1 for fila in filas if fila.split("|")[1].strip() == "extra") == 2
 
 
 # Los controles negativos comparan contra la guía real (la línea base) y miran solo lo que cambian: así no dependen de
