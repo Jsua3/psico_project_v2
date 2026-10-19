@@ -27,6 +27,14 @@ def _epoca_del_token(token):
 
 
 class SiepJWTAuthentication(JWTAuthentication):
+    def get_user(self, validated_token):
+        try:
+            return super().get_user(validated_token)
+        except (TypeError, ValueError, OverflowError):
+            # S7-1a · un ``userId`` firmado que no es un número de cuenta (texto, lista, objeto) llegaba al ORM y daba 500:
+            # es un token que no apunta a nadie, igual que el de una cuenta que no existe.
+            raise AuthenticationFailed("User not found", code="user_not_found") from None
+
     def authenticate(self, request):
         result = super().authenticate(request)
         if result is None:

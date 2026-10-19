@@ -1127,19 +1127,12 @@ def _correo_de_inicio_de_sesion_de_300_mil(mundo):
     return APIClient().post(LOGIN, {"email": "a" * 300_000 + "@example.com", "password": "x"}, format="json")
 
 
-_ANIDADO = (
-    "HALLAZGO: un JSON anidado a 5000 niveles responde 500 INTERNAL_ERROR en vez de 400: `json.load` lanza RecursionError y "
-    "`ObjectJSONParser`/`JSONParser` solo atrapan ValueError (shared/parsers.py:13-17). Lo dispara cualquiera, sin sesión, "
-    "contra cualquier ruta JSON (login incluido); `apps/security/csp_report.py:47` ya captura RecursionError."
-)
-_ANIDADO_MARCA = pytest.mark.xfail(strict=True, raises=AssertionError, reason=_ANIDADO)
-
 TABLA_DE_CUERPOS = [
     pytest.param(_cuerpo_de_1_1_mib, 413, "REQUEST_TOO_LARGE", id="json-de-1,1-MiB"),
-    pytest.param(_anidado_en_un_arreglo, 400, None, id="json-anidado-5000-niveles-en-un-arreglo", marks=_ANIDADO_MARCA),
-    pytest.param(_anidado_en_un_objeto, 400, None, id="json-anidado-5000-niveles-en-un-objeto", marks=_ANIDADO_MARCA),
-    pytest.param(_anidado_dentro_de_un_campo, 400, None, id="json-anidado-5000-niveles-dentro-de-un-campo", marks=_ANIDADO_MARCA),
-    pytest.param(_anidado_en_una_ruta_con_sesion, 400, None, id="json-anidado-5000-niveles-con-sesion", marks=_ANIDADO_MARCA),
+    pytest.param(_anidado_en_un_arreglo, 400, None, id="json-anidado-5000-niveles-en-un-arreglo"),
+    pytest.param(_anidado_en_un_objeto, 400, None, id="json-anidado-5000-niveles-en-un-objeto"),
+    pytest.param(_anidado_dentro_de_un_campo, 400, None, id="json-anidado-5000-niveles-dentro-de-un-campo"),
+    pytest.param(_anidado_en_una_ruta_con_sesion, 400, None, id="json-anidado-5000-niveles-con-sesion"),
     pytest.param(_con_content_length("-5"), 400, "REQUEST_INVALID_LENGTH", id="content-length-negativo"),
     pytest.param(_con_content_length("abc"), 400, "REQUEST_INVALID_LENGTH", id="content-length-no-numerico"),
     pytest.param(_con_content_length("1e3"), 400, "REQUEST_INVALID_LENGTH", id="content-length-con-exponente"),
@@ -1190,6 +1183,20 @@ def test_control_negativo_sin_el_tope_del_cuerpo_la_peticion_hostil_llega_a_la_v
 
 
 @pytest.mark.req("RNF-002")
+def test_control_negativo_sin_el_parser_acotado_el_json_anidado_revienta(mundo, monkeypatch):
+    """S7-1a · con el ``JSONParser`` de DRF a secas (sin atrapar ``RecursionError``), el JSON anidado deja de ser un 400."""
+    from rest_framework.parsers import JSONParser
+
+    from shared import parsers
+
+    construir, estado, codigo = FILAS_DE_CUERPO["json-anidado-5000-niveles-en-un-arreglo"]
+    afirmar_que_cae(
+        lambda: _cuerpo_hostil_rechazado(mundo, construir, estado, codigo),
+        lambda: _parchado(monkeypatch, (parsers.ObjectJSONParser, "parse", JSONParser.parse)),
+    )
+
+
+@pytest.mark.req("RNF-002")
 def test_control_negativo_sin_la_validacion_del_correo_la_cadena_enorme_llega_a_la_base(mundo, monkeypatch):
     """Los campos de DRF se clonan por sus argumentos en cada serializador, así que el control apaga la ejecución de los
     validadores en la clase del campo (``EmailField``)."""
@@ -1228,20 +1235,6 @@ CARGAS_DE_INYECCION = {
     "unicode-raro": "\u202e\u0130\u00df\U0001f600",
 }
 _NUL = "\x00"
-_HALLAZGO_NUL = (
-    "HALLAZGO: un NUL (0x00) en un texto que no pasa por un serializador llega a PostgreSQL, que lo rechaza (DataError "
-    "«text fields cannot contain NUL») y la respuesta es 500 INTERNAL_ERROR en vez de 400. Pasa con `?action=` y "
-    "`?resourceType=` de `GET /api/admin/audit` (apps/simulation/services/audit_service.py:526-528), con `?status=` de "
-    "`GET /api/admin/access-requests` (apps/users/services/access_request_service.py:89-93), con la clave de "
-    "`POST …/interactions/<clave>` (apps/simulation/services/world_service.py:232-234), con `toolCode` de "
-    "`POST …/tools/use` (world_service.py:321-323) y con el `title` de `POST /api/authoring/cases` "
-    "(apps/simulation/services/authoring/cases.py:51-53). "
-    "Hace falta una validación común de los textos crudos (p. ej. un middleware que responda 400 si la ruta o la consulta "
-    "traen un NUL y un tratamiento de `DataError`)."
-)
-_MARCA_NUL = pytest.mark.xfail(strict=True, raises=AssertionError, reason=_HALLAZGO_NUL)
-
-
 class _Cualquiera(list):
     """Una lista blanca que lo admite todo: el filtro de ``estado`` apagado."""
 
@@ -1334,24 +1327,12 @@ BUSQUEDAS = {
         cuerpo=lambda carga: {"title": carga, "description": "ok"},
     ),
 }
-#: Con un NUL, estas 6 revientan hoy (500); el resto responde bien.
-BUSQUEDAS_CON_HALLAZGO_DE_NUL = {
-    "auditoria-action",
-    "auditoria-resourceType",
-    "solicitudes-status",
-    "ruta-interactions",
-    "cuerpo-herramienta-toolCode",
-    "cuerpo-titulo-del-caso",
-}
-
-
 def _parametros_de_inyeccion():
     parametros = []
     for nombre in BUSQUEDAS:
         for etiqueta, carga in CARGAS_DE_INYECCION.items():
             parametros.append(pytest.param(nombre, carga, id=f"{nombre}-{etiqueta}"))
-        marcas = [_MARCA_NUL] if nombre in BUSQUEDAS_CON_HALLAZGO_DE_NUL else []
-        parametros.append(pytest.param(nombre, _NUL, id=f"{nombre}-nul", marks=marcas))
+        parametros.append(pytest.param(nombre, _NUL, id=f"{nombre}-nul"))
     return parametros
 
 
@@ -1378,7 +1359,12 @@ def _fila_de_inyeccion(mundo, nombre, carga):
     cuentas = sorted(User.objects.values_list("id", "email"))
     respuesta = _buscar(mundo, nombre, carga)
     assert respuesta.status_code < 500, (nombre, respuesta.status_code, getattr(respuesta, "data", None))
-    BUSQUEDAS[nombre].afirma(mundo, respuesta, carga)
+    if carga == _NUL:
+        # S7-1a · un NUL no llega a la base: ni la ruta, ni la consulta, ni el cuerpo JSON lo admiten (400 uniforme).
+        assert respuesta.status_code == 400, (nombre, respuesta.status_code)
+        assert respuesta.json()["code"] == "REQUEST_INVALID_TEXT", respuesta.json()
+    else:
+        BUSQUEDAS[nombre].afirma(mundo, respuesta, carga)
     assert sorted(User.objects.values_list("id", "email")) == cuentas, "la tabla users cambió"
 
 
@@ -1386,6 +1372,32 @@ def _fila_de_inyeccion(mundo, nombre, carga):
 @pytest.mark.parametrize(("nombre", "carga"), _parametros_de_inyeccion())
 def test_un_parametro_hostil_no_da_500_ni_filas_de_mas(mundo, nombre, carga):
     _fila_de_inyeccion(mundo, nombre, carga)
+
+
+@pytest.mark.req("LS-13")
+@pytest.mark.parametrize("nombre", ["auditoria-action", "solicitudes-status", "ruta-interactions"])
+def test_control_negativo_sin_el_middleware_del_nul_la_ruta_o_la_consulta_llegan_a_la_base(mundo, nombre):
+    """S7-1a · sin ``NulByteMiddleware`` el NUL de la ruta o la consulta llega a PostgreSQL y la respuesta es un 500."""
+    sin_el_middleware = lambda: override_settings(  # noqa: E731
+        MIDDLEWARE=[m for m in settings.MIDDLEWARE if m != "shared.text_guard.NulByteMiddleware"]
+    )
+    afirmar_que_cae(lambda: _fila_de_inyeccion(mundo, nombre, _NUL), sin_el_middleware)
+
+
+@pytest.mark.req("LS-13")
+@pytest.mark.parametrize("nombre", ["cuerpo-herramienta-toolCode", "cuerpo-titulo-del-caso"])
+def test_control_negativo_sin_la_revision_del_cuerpo_el_nul_del_json_llega_a_la_base(mundo, monkeypatch, nombre):
+    """S7-1a · sin la revisión de NUL del parser (y sin la regla de texto plano en el título) el cuerpo llega a la base."""
+    from shared import parsers
+
+    afirmar_que_cae(
+        lambda: _fila_de_inyeccion(mundo, nombre, _NUL),
+        lambda: _parchado(
+            monkeypatch,
+            (parsers, "contiene_nul", lambda valor: False),
+            (text_rules, "plain_text_problem", lambda *args, **kwargs: None),
+        ),
+    )
 
 
 @pytest.mark.req("LS-13")
@@ -1410,9 +1422,8 @@ def test_control_negativo_si_el_filtro_de_accion_fuera_un_comodin_el_comodin_tra
 # ═════════════════════════════════════════════════════════════════════════════════════════════════════════════════
 #
 # Qué regla aplica a cada campo: la API RECHAZA con 400 (``VALIDATION_ERROR`` con su ``field``) el nombre y apellido de una
-# cuenta, el nombre de un grupo, el nombre de un personaje y el texto de un caso (contexto, objetivos, descripción). El
-# TÍTULO del caso se acepta al crear el borrador y la compuerta de publicación lo bloquea (``DSL.TEXT_MARKUP``,
-# ``canPublish=false``); ver el hallazgo de la última fila de la familia.
+# cuenta, el nombre de un grupo, el nombre de un personaje y el texto de un caso (contexto, objetivos, descripción y
+# título del caso (S7-1a: antes se aceptaba al crear y solo la compuerta de publicación lo bloqueaba).
 
 CARGAS_XSS = {
     "script": "<script>alert(1)</script>",
@@ -1493,6 +1504,10 @@ def _caso_con_descripcion(mundo, carga):
     )
 
 
+def _caso_con_titulo(mundo, carga):
+    return mundo.docente_a.cliente().post("/api/authoring/cases", {"title": carga, "description": "ok"}, format="json")
+
+
 def _caso_con_contexto(mundo, carga):
     caso, revision = _caso_borrador(mundo)
     return mundo.docente_a.cliente().put(f"/api/authoring/cases/{caso}/brief", {"context": carga, "revision": revision}, format="json")
@@ -1521,6 +1536,7 @@ CAMPOS_CON_XSS = {
     "nombre-de-grupo-al-crearlo": _grupo_con_nombre,
     "nombre-de-grupo-al-renombrarlo": _grupo_renombrado,
     "nombre-de-personaje": _personaje_con_nombre,
+    "titulo-del-caso-al-crearlo": _caso_con_titulo,
     "descripcion-del-caso-al-crearlo": _caso_con_descripcion,
     "contexto-del-caso": _caso_con_contexto,
     "objetivo-del-caso": _caso_con_objetivo,
@@ -1578,6 +1594,7 @@ def _sin_la_regla_de_texto(monkeypatch, campo):
         "apellido-de-solicitud-de-acceso",
         "nombre-de-grupo-al-crearlo",
         "nombre-de-personaje",
+        "titulo-del-caso-al-crearlo",
         "contexto-del-caso",
     ],
 )
@@ -1586,59 +1603,6 @@ def test_control_negativo_sin_la_regla_de_texto_plano_el_marcado_se_guarda(mundo
         lambda: _fila_de_xss(mundo, campo, CARGAS_XSS["script"]),
         lambda: _sin_la_regla_de_texto(monkeypatch, campo),
     )
-
-
-def _el_titulo_con_marcado_no_se_publica(mundo, carga):
-    docente = mundo.docente_a.cliente()
-    creado = docente.post("/api/authoring/cases", {"title": carga, "description": "ok"}, format="json")
-    assert creado.status_code == 200, creado.data
-    caso = creado.data["data"]["caseVersionId"]
-    revisado = docente.post(f"/api/authoring/cases/{caso}/validate", {}, format="json")
-    assert revisado.status_code == 200, revisado.data
-    hallazgos = [h for h in revisado.data["data"]["issues"] if h.get("path") == "caso.titulo"]
-    assert [h["code"] for h in hallazgos if h["code"] in ("DSL.TEXT_MARKUP", "DSL.TEXT_LINK")], revisado.data["data"]["issues"]
-    assert revisado.data["data"]["canPublish"] is False
-    # Un borrador no llega al estudiante: su catálogo no lo trae.
-    assert carga not in mundo.estudiante_a.cliente().get("/api/simulation/cases").content.decode("utf-8")
-
-
-@pytest.mark.req("LS-15")
-@pytest.mark.parametrize("carga", CARGAS_XSS.values(), ids=CARGAS_XSS.keys())
-def test_el_titulo_del_caso_con_marcado_lo_bloquea_la_publicacion_y_no_llega_al_estudiante(mundo, carga):
-    _el_titulo_con_marcado_no_se_publica(mundo, carga)
-
-
-@pytest.mark.req("LS-15")
-def test_control_negativo_sin_la_regla_de_texto_la_compuerta_ya_no_bloquea_el_titulo(mundo, monkeypatch):
-    from apps.simulation.casedef import text as texto_del_documento
-
-    afirmar_que_cae(
-        lambda: _el_titulo_con_marcado_no_se_publica(mundo, CARGAS_XSS["script"]),
-        lambda: _parchado(
-            monkeypatch,
-            (texto_del_documento, "plain_text_problem", lambda *args, **kwargs: None),
-            (texto_del_documento, "has_markup", lambda valor: False),
-            (texto_del_documento, "has_foreign_link", lambda valor: False),
-        ),
-    )
-
-
-@pytest.mark.xfail(
-    strict=True,
-    raises=AssertionError,
-    reason=(
-        "HALLAZGO: `POST /api/authoring/cases` guarda el `title` sin pasarlo por la regla de texto plano (solo la `description` "
-        "la pasa; apps/simulation/services/authoring/cases.py:51-53). El marcado queda en el borrador y el listado de autoría "
-        "se lo devuelve tal cual al ADMIN (otra persona) aunque la publicación lo bloquee después. Los demás textos del caso "
-        "(contexto, objetivos, personajes, pistas, nodos) sí se rechazan al guardar."
-    ),
-)
-@pytest.mark.parametrize("carga", CARGAS_XSS.values(), ids=CARGAS_XSS.keys())
-def test_el_titulo_del_caso_con_marcado_se_rechaza_al_crearlo(mundo, carga):
-    respuesta = mundo.docente_a.cliente().post("/api/authoring/cases", {"title": carga, "description": "ok"}, format="json")
-
-    assert respuesta.status_code == 400, (respuesta.status_code, respuesta.data)
-    assert carga not in mundo.admin.cliente().get("/api/authoring/cases").content.decode("utf-8")
 
 
 # ═════════════════════════════════════════════════════════════════════════════════════════════════════════════════

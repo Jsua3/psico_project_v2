@@ -61,6 +61,8 @@ MIDDLEWARE = [
     "shared.static_files.SpaStaticFilesMiddleware",
     "corsheaders.middleware.CorsMiddleware",
     "django.middleware.common.CommonMiddleware",
+    # S7-1a · un NUL (0x00) en la ruta o la consulta es un 400, no un 500 de PostgreSQL (el cuerpo JSON lo revisa su parser).
+    "shared.text_guard.NulByteMiddleware",
     # Binds the request to a thread-local for audit-trail actor/IP capture.
     "apps.simulation.middleware.AuditContextMiddleware",
 ]

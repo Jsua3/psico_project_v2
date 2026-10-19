@@ -335,21 +335,23 @@ def test_control_negativo_sin_comprobar_que_la_cuenta_esta_activa_el_token_de_un
     afirmar_que_cae(lambda: _token_de_una_cuenta_inactiva("yo"), lambda: _sin_comprobar_si_esta_activa(monkeypatch))
 
 
-@pytest.mark.xfail(
-    strict=True,
-    raises=AssertionError,
-    reason=(
-        "HALLAZGO: un token con la firma correcta y un `userId` que no es un entero (texto, lista, objeto) llega al ORM "
-        "y responde 500 INTERNAL_ERROR en vez de 401 (TypeError/ValueError sin capturar en `get_user` de simplejwt, que "
-        "`SiepJWTAuthentication.authenticate` no envuelve; apps/users/authentication.py:31). Exige la llave de firma, así "
-        "que no es explotable desde fuera; solo endurece la respuesta."
-    ),
-)
 @pytest.mark.parametrize("valor", ["abc", [1], {"a": 1}], ids=["texto", "lista", "objeto"])
 def test_un_token_firmado_con_un_userid_que_no_es_un_entero_responde_401_y_no_500(valor):
+    """S7-1a · antes llegaba al ORM y respondía 500; ahora es un token que no apunta a nadie."""
     cuenta = _cuenta()
 
     _rechazada(_pedir("Bearer " + _firmar(_cargas(cuenta, userId=valor)), "yo"))
+
+
+def test_control_negativo_sin_envolver_get_user_el_userid_que_no_es_un_entero_revienta(monkeypatch):
+    from rest_framework_simplejwt.authentication import JWTAuthentication
+
+    from apps.users.authentication import SiepJWTAuthentication
+
+    def fila():
+        _rechazada(_pedir("Bearer " + _firmar(_cargas(_cuenta(), userId="abc")), "yo"))
+
+    afirmar_que_cae(fila, lambda: _parchado(monkeypatch, (SiepJWTAuthentication, "get_user", JWTAuthentication.get_user)))
 
 
 # ── La cabecera Authorization rara: siempre 401 y nunca 500 ─────────────────────────────────────────────────────
