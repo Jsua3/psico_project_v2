@@ -25,3 +25,42 @@ class MaximumLengthBytesValidator:
 
     def get_help_text(self):
         return f"Tu contraseña no puede superar los {self.max_bytes} caracteres."
+
+
+def _forma(valor):
+    """Forma comparable de un dato de la cuenta: sin espacios y sin distinguir mayúsculas (S1-5)."""
+    return "".join(str(valor or "").split()).casefold()
+
+
+def _formas_prohibidas(user):
+    """Lo que la contraseña no puede ser: el correo, su parte local, el nombre, el apellido y sus combinaciones."""
+    correo = str(getattr(user, "email", "") or "")
+    nombre = _forma(getattr(user, "nombre", ""))
+    apellido = _forma(getattr(user, "apellido", ""))
+    formas = {_forma(correo), _forma(correo.partition("@")[0]), nombre, apellido, nombre + apellido, apellido + nombre}
+    formas.discard("")
+    return formas
+
+
+class NotSimilarToAccountValidator:
+    """S1-5 · la contraseña no puede ser IGUAL al correo, a su parte local, al nombre, al apellido, a «nombre+apellido»
+    ni a «apellido+nombre». No distingue mayúsculas ni espacios. Sin cuenta (``user`` ``None``) no compara nada.
+
+    ``user`` puede ser la cuenta o un objeto con ``email``, ``nombre`` y ``apellido``: un alta todavía no tiene cuenta, así
+    que ``apps.users.serializers`` le pasa los datos que va a guardar.
+    """
+
+    def validate(self, password, user=None):
+        if user is None:
+            return
+        clave = _forma(password)
+        if clave and clave in _formas_prohibidas(user):
+            raise ValidationError(
+                # BORRADOR: texto nuevo del servidor, pendiente de la aprobación de Psicología (VD-23).
+                "La contraseña no puede parecerse a tu correo, tu nombre ni tu apellido.",
+                code="password_too_similar",
+            )
+
+    def get_help_text(self):
+        # BORRADOR: texto nuevo del servidor, pendiente de la aprobación de Psicología (VD-23).
+        return "Tu contraseña no puede ser igual a tu correo, tu nombre ni tu apellido."

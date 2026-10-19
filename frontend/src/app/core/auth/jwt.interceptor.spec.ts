@@ -71,6 +71,32 @@ describe('jwtInterceptor', () => {
       req.flush({});
     });
 
+    // req: SIEP-RNF-04 (S1-4: el token solo viaja a la propia API)
+    it('no la agrega a una URL absoluta de un tercero ni a una protocolo-relativa', () => {
+      http.get('https://otro.sitio/api/cosa').subscribe();
+      const ajena = httpMock.expectOne('https://otro.sitio/api/cosa');
+      expect(ajena.request.headers.has('Authorization')).toBe(false);
+      ajena.flush({});
+
+      http.get('//otro.sitio/api/cosa').subscribe();
+      const relativa = httpMock.expectOne('//otro.sitio/api/cosa');
+      expect(relativa.request.headers.has('Authorization')).toBe(false);
+      relativa.flush({});
+    });
+
+    it('la agrega a una URL absoluta del mismo origen y no a rutas que no son de la API', () => {
+      const propia = `${location.origin}/api/cosa`;
+      http.get(propia).subscribe();
+      const mismoOrigen = httpMock.expectOne(propia);
+      expect(mismoOrigen.request.headers.get('Authorization')).toBe('Bearer jwt-valido');
+      mismoOrigen.flush({});
+
+      http.get('/assets/mundo/fondo.webp').subscribe();
+      const estatico = httpMock.expectOne('/assets/mundo/fondo.webp');
+      expect(estatico.request.headers.has('Authorization')).toBe(false);
+      estatico.flush({});
+    });
+
     it('no la agrega sin token', () => {
       auth.getToken.mockReturnValue(null);
       http.get('/api/cosa').subscribe();
@@ -188,6 +214,19 @@ describe('jwtInterceptor', () => {
 
       expect(error?.status).toBe(403);
       expect(notifications.warning).not.toHaveBeenCalled();
+    });
+
+    // req: ETH-01, SIEP-RF-05 (S3-2b: el consentimiento exigido lo explica el aviso del juego, no «No tienes permisos»)
+    it('un 403 CONSENT_REQUIRED no avisa de permisos ni toca la sesión, y el error sigue llegando a la pantalla de juego', () => {
+      const error = fail('/api/simulation/attempts/a1/world', 403, {
+        success: false, code: 'CONSENT_REQUIRED', message: 'Para continuar necesitas leer y aceptar el aviso.', noticeVersion: 'v',
+      }) as { status: number; error: { code: string } } | undefined;
+
+      expect(error?.status).toBe(403);
+      expect(error?.error.code).toBe('CONSENT_REQUIRED');
+      expect(notifications.warning).not.toHaveBeenCalled();
+      expect(auth.clearSession).not.toHaveBeenCalled();
+      expect(router.navigate).not.toHaveBeenCalled();
     });
   });
 

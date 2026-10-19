@@ -7,7 +7,7 @@ Snapshot shape (all coords/sizes are ints):
       "nodes":      [{"id", "startNode", "terminalNode", "x", "y", "key"?}],
       "decisions":  [{"id", "sourceNodeId", "targetNodeId", "prohibitedConduct", "prohibitionReason",
                       "feedbackText"?, "immediateFeedback"?}],
-      "maps":       [{"id", "nodeId", "width", "height", "spawnX", "spawnY"}],
+      "maps":       [{"id", "nodeId", "width", "height", "spawnX", "spawnY", "backgroundProblem"?}],
       "objects":    [{"id", "mapId", "x", "y", "width", "height", "type",
                       "key"?, "optionId"?, "toolCode"?, "meta"?}],
       "collisions": [{"id", "mapId", "x", "y", "width", "height"}],
@@ -54,6 +54,7 @@ def validate(snapshot):
     _validate_feedback(snapshot["decisions"], issues)
     _validate_safe_exit(snapshot["hasSafeExit"], issues)
     _validate_limits(snapshot, issues)
+    _validate_backgrounds(snapshot, issues)
     _validate_option_triggers(snapshot, issues)
     _validate_requirements(snapshot, issues)
     _validate_doors(snapshot, issues)
@@ -320,6 +321,20 @@ def _validate_limits(snapshot, issues):
             issues.append(_warn(
                 "MANY_DIALOGUES",
                 f"Mapa id={m['id']} tiene {dlg_count} diálogos; considera distribuirlos en más nodos",
+                f"map:{m['id']}",
+            ))
+
+
+def _validate_backgrounds(snapshot, issues):
+    """S2-6b · Un fondo de sala que no es una ruta propia de /assets/ ni un host permitido no se publica.
+
+    El problema llega ya calculado en el snapshot (``backgroundProblem``): esta función no toca URL ni configuración.
+    """
+    for m in snapshot["maps"]:
+        if m.get("backgroundProblem"):
+            issues.append(_err(
+                "MAP_BACKGROUND_NOT_ALLOWED",
+                f"Mapa id={m['id']}: el fondo de la sala no se puede publicar: {m['backgroundProblem']}",
                 f"map:{m['id']}",
             ))
 

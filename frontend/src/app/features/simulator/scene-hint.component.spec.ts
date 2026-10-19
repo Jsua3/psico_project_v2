@@ -42,7 +42,8 @@ describe('SceneHintComponent', () => {
   const askButton = () => [...host().querySelectorAll('button')].find(el => spoken(el) === 'Ver pista') as HTMLButtonElement;
   const reasonOf = (button: HTMLElement) => text(document.getElementById(button.getAttribute('aria-describedby')!.split(' ')[0]));
 
-  async function render(api: Partial<Api> = {}): Promise<Api> {
+  /** `configure` corre con el componente ya creado y ANTES de que pida nada (para escuchar sus salidas desde el primer fallo). */
+  async function render(api: Partial<Api> = {}, configure?: (component: SceneHintComponent) => void): Promise<Api> {
     const service: Api = {
       getHints: vi.fn(() => of(two)),
       revealNextHint: vi.fn(() => of(oneShown)),
@@ -58,6 +59,7 @@ describe('SceneHintComponent', () => {
       ],
     });
     fixture = TestBed.createComponent(SceneHintComponent);
+    configure?.(fixture.componentInstance);
     fixture.componentRef.setInput('attemptId', 'intento-1');
     fixture.componentRef.setInput('attemptToken', 'token-1');
     await fixture.whenStable();
@@ -238,6 +240,52 @@ describe('SceneHintComponent', () => {
       await fixture.whenStable();
 
       expect(announce).toHaveBeenCalledWith('Pista 1: Primera que ve.', 'polite');
+    });
+  });
+
+  // req: ETH-01, SIEP-RF-05 (S3-2b: el servidor exige el consentimiento también a las pistas)
+  describe('el servidor exige el consentimiento (403 CONSENT_REQUIRED)', () => {
+    const consentLost = () => failure(403, 'CONSENT_REQUIRED');
+
+    it('al leer el estado avisa a la pantalla de juego, que vuelve al aviso; no se anuncia un fallo de pistas', async () => {
+      const lost = vi.fn();
+      await render({ getHints: vi.fn(() => consentLost()) }, component => component.consentRequired.subscribe(lost));
+
+      expect(lost).toHaveBeenCalledTimes(1);
+      expect(announce, 'el aviso de contenido toma la pantalla: no se oye «No pudimos cargar las pistas»').not.toHaveBeenCalled();
+    });
+
+    it('al pedir una pista también lo avisa, y no se dice «No pudimos pedir la pista»', async () => {
+      const lost = vi.fn();
+      await render({ revealNextHint: vi.fn(() => consentLost()) }, component => component.consentRequired.subscribe(lost));
+      askButton().click();
+      await fixture.whenStable();
+
+      expect(lost).toHaveBeenCalledTimes(1);
+      expect(announce).not.toHaveBeenCalled();
+      expect(host().querySelector('.scene-hint__message')).toBeNull();
+    });
+
+    it.each([
+      ['otro 403', () => failure(403, 'FORBIDDEN')],
+      ['un 409', () => failure(409, 'ATTEMPT_NOT_PLAYING')],
+      ['un 500', () => failure(500)],
+    ])('%s al pedir la pista no lo avisa: sigue su camino de siempre y se anuncia', async (_name, error) => {
+      const lost = vi.fn();
+      await render({ revealNextHint: vi.fn(error) }, component => component.consentRequired.subscribe(lost));
+      askButton().click();
+      await fixture.whenStable();
+
+      expect(lost).not.toHaveBeenCalled();
+      expect(announce).toHaveBeenCalled();
+    });
+
+    it('otro 403 al leer el estado tampoco lo avisa', async () => {
+      const lost = vi.fn();
+      await render({ getHints: vi.fn(() => failure(403, 'FORBIDDEN')) }, component => component.consentRequired.subscribe(lost));
+
+      expect(lost).not.toHaveBeenCalled();
+      expect(announce).toHaveBeenCalledWith('No pudimos cargar las pistas.', 'assertive');
     });
   });
 

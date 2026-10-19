@@ -4,6 +4,7 @@ import { map } from 'rxjs/operators';
 import { ApiResponse } from './api-response';
 import { SCREEN_HANDLES_FORBIDDEN } from '../auth/http-error-chain';
 import { resolveScenarioConfigAssetKey } from '../../features/simulator/scenario-config-assets.util';
+import type { ConsentRecordEnvelope, ConsentStateEnvelope, ConsentWithdrawalEnvelope } from './generated/openapi-contracts';
 import {
   AttemptCompletionReport,
   CaseBrief,
@@ -67,6 +68,30 @@ export class SimulationService {
     return this.http.get<ApiResponse<SimulationAttemptState>>(`${this.API}/cases/${caseVersionId}/active-attempt`, {
       observe: 'response'
     }).pipe(map(response => response.status === 204 ? null : response.body!.data));
+  }
+
+  /**
+   * El consentimiento de la persona al aviso de contenido de esta versión del caso (C12, ETH-01): la versión VIGENTE del
+   * aviso, si el servidor exige el consentimiento y si ya lo aceptó. Los tipos salen del esquema OpenAPI generado.
+   */
+  getConsent(caseVersionId: number) {
+    return this.http.get<ConsentStateEnvelope>(`${this.API}/cases/${caseVersionId}/consent`)
+      .pipe(map(response => response.data));
+  }
+
+  /**
+   * Registra la aceptación del aviso (201 si es nueva, 200 si ya existía). `noticeVersion` es la versión que el cliente
+   * mostró: si no es la vigente, 409 `NOTICE_VERSION_STALE`. No lleva el token de intento: es del caso, no del intento.
+   */
+  acceptConsent(caseVersionId: number, noticeVersion: string) {
+    return this.http.post<ConsentRecordEnvelope>(`${this.API}/cases/${caseVersionId}/consent`, { noticeVersion })
+      .pipe(map(response => response.data));
+  }
+
+  /** Retira el consentimiento (idempotente): impide seguir jugando ese caso y no borra lo hecho. */
+  withdrawConsent(caseVersionId: number) {
+    return this.http.delete<ConsentWithdrawalEnvelope>(`${this.API}/cases/${caseVersionId}/consent`)
+      .pipe(map(response => response.data));
   }
 
   /** Las pistas de la escena actual (C9): lo que el intento ya pidió y cuántas quedan. */

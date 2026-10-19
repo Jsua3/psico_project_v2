@@ -19,6 +19,8 @@ from rest_framework.test import APIClient
 from apps.grupos.models import Grupo, GrupoEstudiante
 from apps.simulation.models import CaseVersion, DecisionOption, SimulationAttempt
 
+from .publication_support import give_support_resource
+
 pytestmark = [pytest.mark.django_db, pytest.mark.req("RNF-07")]
 
 User = get_user_model()
@@ -76,6 +78,7 @@ def _draft_copy(world):
     """Un borrador completo y válido: la copia del caso sembrado (el editor de hoy parte de una igual)."""
     response = cl(world.admin).post(f"{AUTHORING}/{world.seeded.id}/clone-version", {}, format="json")
     assert response.status_code == 200, response.data
+    give_support_resource(response.data["data"]["caseVersionId"])  # S3-3: la lista marca «protocolos de seguridad»
     return response
 
 
@@ -168,7 +171,11 @@ def test_el_ciclo_completo_con_todas_las_banderas_estrictas(world, settings):
         f"{AUTHORING}/{draft_id}/lifecycle", {"action": "approve", "note": "Sin constancia."}, format="json",
         **current_revision(admin, draft_id),
     )
-    assert no_record.status_code == 400 and no_record.data["code"] == "CONTENT_REVIEW_REQUIRED"
+    # S3-3: sin constancia la compuerta no publica (CASE_NOT_PUBLISHABLE con ETHICS.NO_CONTENT_REVIEW en los bloqueos).
+    assert no_record.status_code == 409 and no_record.data["code"] == "CASE_NOT_PUBLISHABLE"
+    assert [issue["code"] for blocker in no_record.data["blockers"] for issue in blocker["issues"]] == [
+        "ETHICS.NO_CONTENT_REVIEW"
+    ]
     content_review = {"reviewer": "Dra. Ruiz", "reviewedOn": timezone.now().date().isoformat(), "reference": "Acta 4"}
     approved = admin.post(
         f"{AUTHORING}/{draft_id}/lifecycle",

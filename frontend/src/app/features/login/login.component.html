@@ -101,6 +101,12 @@
             <input uiControl id="registro-email" type="email" formControlName="email" autocomplete="email" />
           </ui-field>
 
+          <!-- Campo trampa (S1-3): fuera de la tabulación y oculto a lectores de pantalla; el servidor descarta en silencio la solicitud que lo llene. -->
+          <div class="ds-sr-only" aria-hidden="true">
+            <label for="registro-sitio">Sitio web (déjalo vacío)</label>
+            <input id="registro-sitio" type="text" formControlName="website" tabindex="-1" autocomplete="off" />
+          </div>
+
           @if (registerNotice()) {
             <p class="acceso__notice">{{ registerNotice() }}</p>
           }

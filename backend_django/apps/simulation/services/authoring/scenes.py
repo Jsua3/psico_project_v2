@@ -18,6 +18,7 @@ from shared.jsonutils import coerce_int as _int, write_map as _write_map
 from .editor_view import editor
 from .guards import bump_revision, character_link, decision_link, ensure_draft, in_version
 from .icons import validate_icon
+from .limites import _texto
 from .request_utils import flag
 
 
@@ -200,10 +201,10 @@ def save_dialogue_choices(tree, choices, case_version_id):
             ).first()
         DialogueChoice.objects.create(
             dialogue_tree=tree,
-            choice_key=ch.get("key") or "",
+            choice_key=_texto(DialogueChoice, "choice_key", ch.get("key"), "choices.key") or "",
             text=ch.get("text") or "",
             decision_option=decision,
-            required_tool_code=ch.get("requiredToolCode"),
+            required_tool_code=_texto(DialogueChoice, "required_tool_code", ch.get("requiredToolCode"), "choices.requiredToolCode"),
             effect_json=_write_map(ch.get("effect")),
             display_order=_int(ch.get("displayOrder")),
         )

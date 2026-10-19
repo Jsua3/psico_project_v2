@@ -16,3 +16,16 @@ export function apiErrorMessage(err: unknown, fallback: string): string | null {
   }
   return fallback;
 }
+
+/**
+ * Código estable del 403 con el que el servidor exige el consentimiento al aviso de contenido (S3-2a, ETH-01): el
+ * consentimiento se retiró (en otra pestaña) o el aviso cambió de versión. Trae `noticeVersion` en el cuerpo.
+ */
+export const CONSENT_REQUIRED = 'CONSENT_REQUIRED';
+
+/** ¿Es el 403 `CONSENT_REQUIRED`? Se decide por el `code`, nunca por el texto del mensaje. */
+export function isConsentRequiredError(err: unknown): boolean {
+  if (!(err instanceof HttpErrorResponse) || err.status !== 403) return false;
+  const body = err.error as { code?: unknown } | null;
+  return body?.code === CONSENT_REQUIRED;
+}

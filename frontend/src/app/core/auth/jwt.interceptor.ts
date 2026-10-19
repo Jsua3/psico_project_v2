@@ -2,6 +2,7 @@ import { HttpInterceptorFn } from '@angular/common/http';
 import { inject } from '@angular/core';
 import { Router } from '@angular/router';
 import { catchError, throwError } from 'rxjs';
+import { isSameOriginApiUrl } from './api-origin';
 import { AuthService } from './auth.service';
 import { NotificationService } from '../notifications/notification.service';
 import { SCREEN_HANDLES_FORBIDDEN, buildHttpErrorChain } from './http-error-chain';
@@ -15,7 +16,7 @@ export const jwtInterceptor: HttpInterceptorFn = (req, next) => {
   const token = auth.getToken();
   const isLoginRequest = req.url.includes('/api/auth/login');
 
-  if (token && !isLoginRequest && !auth.isTokenExpired(token)) {
+  if (token && !isLoginRequest && isSameOriginApiUrl(req.url) && !auth.isTokenExpired(token)) {
     req = req.clone({ setHeaders: { Authorization: `Bearer ${token}` } });
   }
 

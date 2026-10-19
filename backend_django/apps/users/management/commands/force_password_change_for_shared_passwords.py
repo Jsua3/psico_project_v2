@@ -19,8 +19,10 @@ import os
 from django.contrib.auth import get_user_model
 from django.contrib.auth import hashers
 from django.core.management.base import BaseCommand
+from django.db import transaction
 
 from apps.users.models import UserRole
+from apps.users.services import account_service
 
 #: La contraseña por defecto que tenía la importación antes de E2-9 (consta en el historial de Git).
 LEGACY_DEFAULT_PASSWORD = "Siep2026!"
@@ -91,7 +93,11 @@ class Command(BaseCommand):
                 flagged.append(user.pk)
 
         if flagged and not dry_run:
-            User.objects.filter(pk__in=flagged).update(must_change_password=True)
+            # S1-4 · marcar el cambio no basta: las sesiones abiertas con la clave compartida también se cierran.
+            with transaction.atomic():
+                User.objects.filter(pk__in=flagged).update(must_change_password=True)
+                for user_id in flagged:
+                    account_service.revoke_sessions(user_id)
 
         suffix = " (simulacro: no se escribió nada)" if dry_run else ""
         self.stdout.write(

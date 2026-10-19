@@ -13,6 +13,7 @@
 | [`diseno/`](diseno) | Diseños vigentes: personajes unificados, orientación y jugabilidad, arte de las puertas y consentimiento antes de contenido sensible (ETH-01) |
 | [`visual/`](visual) | Biblia visual y láminas de revisión del arte (las genera `npm run kit:laminas` y `npm run world-art:laminas`) |
 | [`operacion/`](operacion) | Despliegue en Railway |
+| [`seguridad/`](seguridad) | Decisiones de seguridad del plan 03: [`adr-s3-csp.md`](seguridad/adr-s3-csp.md) (política de contenido, HTML del SPA con nonce y la sonda `npm run test:csp`) |
 | [`pendientes/`](pendientes) | Lo que quedó sin decidir o sin hacer: las propuestas C, E, F, G y J para la BETA (`propuestas/`) y las deudas abiertas (`deudas/`) |
 | [`informes/`](informes) | Informes y auditorías de las sesiones de octubre: brechas del plan maestro, diagnóstico de jugabilidad, revisión adversarial, pase visual y [cierre de la sesión de requisitos PN3](informes/2026-10-11-cierre-requisitos-pn3.md) |
 | [`historico/`](historico) | Documentos de la era Java/Spring que `PLAN_MAESTRO_TOTAL.md` y los informes citan como origen de requisitos y de la numeración `RQ-NEG` |

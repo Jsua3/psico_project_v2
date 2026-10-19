@@ -12,6 +12,7 @@ from django.db import transaction
 from rest_framework import status
 
 from apps.simulation.models import Competency, RubricCriterion
+from apps.simulation.services.audit_service import auditable
 from apps.simulation.services.text_rules import validate_plain_text
 from shared.exceptions import ApiError
 
@@ -50,6 +51,11 @@ def _invalid(message, field):
     return ApiError("VALIDATION_ERROR", message, status.HTTP_400_BAD_REQUEST, field=field)
 
 
+@auditable(
+    "COMPETENCY_CREATED", "COMPETENCY", -1,
+    resource_id=lambda args, kwargs, result: result["id"],
+    context=lambda args, kwargs, result: {"competencyId": result["id"]},
+)
 @transaction.atomic
 def create_competency(data):
     """``POST /api/competencies`` (ADMIN): una competencia nueva con su código normalizado."""

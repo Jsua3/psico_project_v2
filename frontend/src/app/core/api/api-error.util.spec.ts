@@ -1,10 +1,46 @@
 import { HttpErrorResponse } from '@angular/common/http';
 
-import { apiErrorMessage } from './api-error.util';
+import { CONSENT_REQUIRED, apiErrorMessage, isConsentRequiredError } from './api-error.util';
 
 function httpError(status: number, error: unknown): HttpErrorResponse {
   return new HttpErrorResponse({ status, error });
 }
+
+// req: ETH-01, SIEP-RF-05
+describe('isConsentRequiredError', () => {
+  const required = { success: false, code: 'CONSENT_REQUIRED', message: 'Para continuar necesitas leer y aceptar el aviso.', noticeVersion: 'v-vigente' };
+
+  it('reconoce el 403 con el código estable CONSENT_REQUIRED', () => {
+    expect(CONSENT_REQUIRED).toBe('CONSENT_REQUIRED');
+    expect(isConsentRequiredError(httpError(403, required))).toBe(true);
+  });
+
+  it('decide por el código y nunca por el texto', () => {
+    expect(isConsentRequiredError(httpError(403, { ...required, message: 'otro texto' }))).toBe(true);
+    expect(isConsentRequiredError(httpError(403, { success: false, code: 'OTRO', message: required.message }))).toBe(false);
+  });
+
+  it('no confunde otros 403 ni otros códigos de consentimiento', () => {
+    for (const code of ['PASSWORD_CHANGE_REQUIRED', 'DATA_TREATMENT_CONSENT_REQUIRED', 'ACCESS_CLOSED', 'FORBIDDEN']) {
+      expect(isConsentRequiredError(httpError(403, { success: false, code })), code).toBe(false);
+    }
+    expect(isConsentRequiredError(httpError(403, null))).toBe(false);
+    expect(isConsentRequiredError(httpError(403, 'CONSENT_REQUIRED'))).toBe(false);
+    expect(isConsentRequiredError(httpError(403, {}))).toBe(false);
+  });
+
+  it('exige también el estado 403', () => {
+    for (const status of [0, 400, 401, 404, 409, 429, 500]) {
+      expect(isConsentRequiredError(httpError(status, required)), String(status)).toBe(false);
+    }
+  });
+
+  it('lo que no es una respuesta HTTP no cuenta', () => {
+    expect(isConsentRequiredError(new Error('CONSENT_REQUIRED'))).toBe(false);
+    expect(isConsentRequiredError(null)).toBe(false);
+    expect(isConsentRequiredError({ status: 403, error: required })).toBe(false);
+  });
+});
 
 describe('apiErrorMessage', () => {
   it('usa el mensaje del backend', () => {

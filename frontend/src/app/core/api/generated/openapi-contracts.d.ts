@@ -200,6 +200,75 @@ export interface CaseValidationEnvelope {
 
 export type CaseVersionStatusEnum = 'DRAFT' | 'IN_REVIEW' | 'PUBLISHED' | 'ARCHIVED';
 
+/** Cuerpo de `POST …/consent`: la versión del aviso que la persona vio. */
+export interface ConsentAcceptRequest {
+  /** La versión del aviso que el cliente mostró. Si no es la vigente en el servidor, 409 `NOTICE_VERSION_STALE`. */
+  readonly noticeVersion: string;
+}
+
+/** El error de un aviso de otra versión (409 `NOTICE_VERSION_STALE`): el sobre de error con la versión vigente en la raíz. Es la forma real del 409 (sin `field`, que es de la validación de campos): por eso no extiende a `ErrorEnvelope`. */
+export interface ConsentNoticeError {
+  /** Estable: `NOTICE_VERSION_STALE`. */
+  readonly code: string;
+  readonly message: string;
+  /** La versión VIGENTE del aviso en el servidor. */
+  readonly noticeVersion: string;
+  /** Siempre `false` en un error. */
+  readonly success: boolean;
+}
+
+/** La aceptación registrada (`POST …/consent`): 201 si es nueva y 200 si ya existía, con la misma forma. */
+export interface ConsentRecord {
+  /** Hora local del servidor (America/Bogota), sin zona horaria. */
+  readonly acceptedAt: string;
+  readonly caseVersionId: number;
+  /** La versión del aviso que quedó aceptada. */
+  readonly noticeVersion: string;
+}
+
+/** Sobre de éxito: `data` es `ConsentRecord`. */
+export interface ConsentRecordEnvelope {
+  readonly data: ConsentRecord;
+  readonly message?: string;
+  /** Siempre `true` en una respuesta de éxito. */
+  readonly success: boolean;
+}
+
+/** El consentimiento de la persona al aviso de contenido de una versión del caso (`GET …/consent`). */
+export interface ConsentState {
+  /** Si la persona tiene una aceptación vigente de esa versión del aviso. */
+  readonly accepted: boolean;
+  /** Nulo si no ha aceptado. Hora local del servidor (America/Bogota), sin zona horaria. */
+  readonly acceptedAt: string | null;
+  /** La versión VIGENTE del aviso en el servidor. */
+  readonly noticeVersion: string;
+  /** Si el servidor exige el consentimiento para jugar (`SIEP_CONSENT_REQUIRED`). */
+  readonly required: boolean;
+}
+
+/** Sobre de éxito: `data` es `ConsentState`. */
+export interface ConsentStateEnvelope {
+  readonly data: ConsentState;
+  readonly message?: string;
+  /** Siempre `true` en una respuesta de éxito. */
+  readonly success: boolean;
+}
+
+/** El retiro del consentimiento (`DELETE …/consent`). Idempotente: sin nada vigente responde 200 con `withdrawnAt` nulo. */
+export interface ConsentWithdrawal {
+  readonly caseVersionId: number;
+  /** Nulo si no había nada vigente que retirar. Hora local del servidor (America/Bogota), sin zona horaria. */
+  readonly withdrawnAt: string | null;
+}
+
+/** Sobre de éxito: `data` es `ConsentWithdrawal`. */
+export interface ConsentWithdrawalEnvelope {
+  readonly data: ConsentWithdrawal;
+  readonly message?: string;
+  /** Siempre `true` en una respuesta de éxito. */
+  readonly success: boolean;
+}
+
 /** Sobre de error de la API: `{success: false, code, message, field?}` (`shared.exceptions`). `code` es estable: el cliente decide por él, nunca por el texto. Algunos errores de dominio suman campos propios en la raíz (`existingAttemptId`, `nodeId`…). */
 export interface ErrorEnvelope {
   readonly code: string;
@@ -400,6 +469,7 @@ export interface OpenApiPaths {
   readonly '/api/admin/users': 'GET' | 'POST';
   readonly '/api/admin/users/approve': 'POST';
   readonly '/api/admin/users/{user_id}': 'PUT';
+  readonly '/api/admin/users/{user_id}/revoke-sessions': 'POST';
   readonly '/api/admin/users/{user_id}/status': 'PATCH';
   readonly '/api/assignments': 'GET' | 'POST';
   readonly '/api/assignments/{assignment_id}': 'DELETE' | 'PATCH';
@@ -408,8 +478,8 @@ export interface OpenApiPaths {
   readonly '/api/auth/google': 'POST';
   readonly '/api/auth/google/config': 'GET';
   readonly '/api/auth/login': 'POST';
+  readonly '/api/auth/logout': 'POST';
   readonly '/api/auth/me': 'GET';
-  readonly '/api/auth/register': 'POST';
   readonly '/api/authoring/cases': 'GET' | 'POST';
   readonly '/api/authoring/cases/import': 'POST';
   readonly '/api/authoring/cases/{case_version_id}/brief': 'PUT';
@@ -473,6 +543,7 @@ export interface OpenApiPaths {
   readonly '/api/rubrics/{rubric_id}/deactivate': 'POST';
   readonly '/api/rubrics/{rubric_id}/default': 'POST';
   readonly '/api/rubrics/{rubric_id}/duplicate': 'POST';
+  readonly '/api/security/csp-report': 'POST';
   readonly '/api/simulation/ai-assistant': 'POST';
   readonly '/api/simulation/attempts': 'POST';
   readonly '/api/simulation/attempts/history': 'GET';
@@ -497,6 +568,7 @@ export interface OpenApiPaths {
   readonly '/api/simulation/cases': 'GET';
   readonly '/api/simulation/cases/{case_version_id}/active-attempt': 'GET';
   readonly '/api/simulation/cases/{case_version_id}/brief': 'GET';
+  readonly '/api/simulation/cases/{case_version_id}/consent': 'DELETE' | 'GET' | 'POST';
   readonly '/api/simulation/catalog': 'GET';
 }
 
