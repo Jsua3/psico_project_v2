@@ -176,3 +176,79 @@ def test_control_negativo_un_json_poco_profundo_se_lee_con_normalidad():
     respuesta = _json_crudo(b'{"email": "a@example.com", "password": "x"}')
 
     assert respuesta.status_code == 401, "un cuerpo normal llega a la vista (credenciales que no existen)"
+
+
+# ── Revisión S7-2 (#8): sustitutos sueltos y cuerpos de formulario ──────────────────────────────────────────────────
+
+
+@pytest.mark.parametrize(
+    "valor",
+    [
+        pytest.param("\ud800", id="sustituto-alto-suelto"),
+        pytest.param("x\udfffy", id="sustituto-bajo-en-medio"),
+        pytest.param({"a": ["\ud83d"]}, id="anidado"),
+    ],
+)
+def test_contiene_nul_tambien_ve_los_sustitutos_sueltos(valor):
+    assert contiene_nul(valor) is True
+
+
+def test_control_negativo_un_caracter_fuera_del_plano_basico_no_es_un_sustituto_suelto():
+    assert contiene_nul("\U0001F600 emoji, ñ y acentos: áéíóú") is False
+
+
+@pytest.mark.django_db
+@pytest.mark.parametrize(
+    "cuerpo",
+    [
+        pytest.param(b'{"email": "a@example.com", "password": "x", "otro": "\\ud800"}', id="sustituto-alto"),
+        pytest.param(b'{"email": "a@example.com", "password": "x", "otro": "a\\udfffb"}', id="sustituto-bajo"),
+    ],
+)
+def test_un_sustituto_suelto_en_el_cuerpo_json_responde_400(cuerpo):
+    _rechazada(_json_crudo(cuerpo))
+
+
+def _formulario(cuerpo, tipo="application/x-www-form-urlencoded"):
+    return APIClient().generic("POST", LOGIN, cuerpo, content_type=tipo)
+
+
+@pytest.mark.django_db
+def test_un_nul_en_un_formulario_urlencoded_responde_400_antes_de_la_vista():
+    _rechazada(_formulario(b"email=a%00b%40example.com&password=x"))
+
+
+@pytest.mark.django_db
+def test_un_nul_en_cualquiera_de_los_valores_repetidos_de_un_formulario_tambien():
+    _rechazada(_formulario(b"email=a%40example.com&password=x&otro=1&otro=%00"))
+
+
+@pytest.mark.django_db
+def test_un_nul_en_un_campo_de_texto_de_un_multipart_responde_400_antes_de_la_vista():
+    limite = "siep-limite"
+    cuerpo = (
+        f"--{limite}\r\nContent-Disposition: form-data; name=\"email\"\r\n\r\na\x00b@example.com\r\n"
+        f"--{limite}\r\nContent-Disposition: form-data; name=\"password\"\r\n\r\nx\r\n--{limite}--\r\n"
+    ).encode()
+
+    _rechazada(_formulario(cuerpo, tipo=f"multipart/form-data; boundary={limite}"))
+
+
+@pytest.mark.django_db
+def test_control_negativo_un_formulario_normal_llega_a_la_vista():
+    respuesta = _formulario(b"email=a%40example.com&password=x")
+
+    assert respuesta.status_code == 401, "un formulario normal se lee y llega a la vista (credenciales que no existen)"
+
+
+@pytest.mark.django_db
+def test_control_negativo_con_el_analizador_de_formularios_de_drf_a_secas_el_nul_ya_no_se_rechaza_ahi(monkeypatch):
+    from rest_framework.parsers import FormParser
+
+    from shared import parsers
+
+    monkeypatch.setattr(parsers.ObjectFormParser, "parse", FormParser.parse)
+
+    respuesta = _formulario(b"email=a%00b%40example.com&password=x")
+
+    assert respuesta.json().get("code") != CODIGO_NUL, "sin la revisión del analizador el NUL llega al serializador (que responde otro código)"

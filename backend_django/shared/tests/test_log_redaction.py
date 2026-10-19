@@ -4,6 +4,7 @@ Los valores de prueba se generan en cada ejecución con ``secrets``: ninguna cre
 """
 import json
 import logging
+import re
 import secrets
 import sys
 import time
@@ -180,6 +181,54 @@ def test_redact_es_lineal_con_un_texto_largo_sin_claves():
     jsonlog.redact("a" * 30_000)
 
     assert time.perf_counter() - inicio < 2
+
+
+#: El patrón de antes de la revisión S7-2 (#1): la palabra sensible rodeada de ``[\w.-]*`` sin tope.
+_CLAVE_VALOR_SIN_TOPE = re.compile(jsonlog._CLAVE_VALOR.pattern.replace("{0,120}", "*"), re.IGNORECASE)
+
+
+def _tarda(patron, texto):
+    inicio = time.perf_counter()
+    patron.sub("[x]", texto)
+    return time.perf_counter() - inicio
+
+
+@pytest.mark.parametrize(
+    "texto",
+    [
+        pytest.param("password" * 5_000, id="la-palabra-repetida-sin-separador"),
+        pytest.param("token" * 8_000, id="otra-palabra-repetida"),
+        pytest.param("x_password_" * 4_000, id="con-prefijo-y-sufijo"),
+        pytest.param("password: '" * 4_000, id="con-comilla-sin-cerrar"),
+        pytest.param('password="' + "\\\"" * 20_000, id="comilla-escapada-sin-cerrar"),
+        pytest.param("a.b-c_" * 20_000 + "secret", id="token-largo-con-la-palabra-al-final"),
+    ],
+)
+def test_redact_no_es_cuadratico_con_la_palabra_sensible_repetida(texto):
+    """Revisión S7-2 (#1): una ruta de 4 KB sin autenticar hecha de la palabra repetida costaba 165 ms de CPU por línea de
+    registro (y ~9 s con 40 000 caracteres). Con el tope a lo que rodea a la palabra, el costo es lineal."""
+    inicio = time.perf_counter()
+
+    jsonlog.redact(texto)
+
+    assert time.perf_counter() - inicio < 1.5, "la redacción de un texto hostil debe costar milisegundos, no segundos"
+
+
+def test_control_negativo_sin_el_tope_el_patron_si_era_cuadratico():
+    """El patrón viejo (sin ``{0,120}``) tarda órdenes de magnitud más que el nuevo con la misma entrada: la prueba de arriba
+    sí vigila el tope. Se compara por razón (no por segundos) para no depender de la velocidad de la máquina."""
+    texto = "password" * 1_000
+
+    assert _tarda(_CLAVE_VALOR_SIN_TOPE, texto) > 20 * max(_tarda(jsonlog._CLAVE_VALOR, texto), 1e-5)
+
+
+def test_el_tope_no_cambia_lo_que_se_redacta_en_los_casos_normales():
+    secreto = secrets.token_urlsafe(24)
+
+    assert jsonlog.redact(f"x_password={secreto}") == "x_password=[REDACTADO]"
+    assert jsonlog.redact(f"mi.clave.secret-key: {secreto};") == "mi.clave.secret-key: [REDACTADO];"
+    assert jsonlog.redact(f'{{"temporaryPassword":"{secreto}"}}') == '{"temporaryPassword":"[REDACTADO]"}'
+    assert jsonlog.redact("ruta /api/password-reset sin valor") == "ruta /api/password-reset sin valor"
 
 
 def test_redact_recorre_diccionarios_listas_y_tuplas_anidados():

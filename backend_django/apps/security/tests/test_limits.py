@@ -29,6 +29,8 @@ ESPERADOS = {
     "audit_login_fail": Limit(10, 900),
     "audit_login_fail_ip": Limit(20, 900),
     "audit_login_fail_global": Limit(300, 3600),
+    # S7-2 (#2) · tope de FILAS de auditoría de juego por estudiante: 1200 por hora.
+    "audit_game_user": Limit(1200, 3600),
 }
 
 

@@ -28,9 +28,12 @@ _PALABRA_SENSIBLE = r"(?:authorization|password|passwd|token|credential|secret|t
 
 #: ``clave: valor``, ``clave=valor`` y ``"clave": "valor"`` en texto libre. Un valor entre comillas conserva sus
 #: comillas; uno suelto puede empezar por ``Bearer``/``Basic``/``Digest`` y entonces se sustituye la cabecera entera.
-#: La clave arranca al principio de un token: sin ese ancla, un texto largo de letras costaría un tiempo cuadrático.
+#: La clave arranca al principio de un token: sin ese ancla, un texto largo de letras costaría un tiempo cuadrático. Y lo
+#: que rodea a la palabra sensible tiene tope (``{0,120}``): sin él, un token hecho de la palabra repetida
+#: (``passwordpassword…``, 4 KB en una ruta sin autenticar) volvía a recorrer el resto en cada aparición, otra vez O(n²)
+#: (revisión S7-2, #1: 165 ms de CPU por petición, ~9 s con 40 000 caracteres).
 _CLAVE_VALOR = re.compile(
-    r"(?<![\w.-])(?P<clave>[\w.-]*" + _PALABRA_SENSIBLE + r"[\w.-]*[\"']?\s*[:=]\s*)"
+    r"(?<![\w.-])(?P<clave>[\w.-]{0,120}" + _PALABRA_SENSIBLE + r"[\w.-]{0,120}[\"']?\s*[:=]\s*)"
     r"(?:(?P<comilla>[\"'])(?:\\.|(?!(?P=comilla))[^\\\n])*(?P=comilla)"
     r"|(?:(?:bearer|basic|digest)\s+)?[^\s\"',;&})\]]+)",
     re.IGNORECASE,

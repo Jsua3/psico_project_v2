@@ -43,6 +43,13 @@ LIMITS: dict[str, Limit] = {
     # escribe (sigue contado en el limitador) y deja UN aviso por ventana.
     "audit_login_fail_ip": Limit(20, 900),
     "audit_login_fail_global": Limit(300, 3600),
+    # Tope de FILAS de auditoría de juego por estudiante (revisión S7-2, #2): empezar un intento, decidir, guardar la
+    # bitácora, la salida segura y reanudar escriben una fila por llamada aunque la orden no cambie nada, y las rutas de
+    # `api/simulation/` no llevan limitador por diseño: una cuenta (o quien le robe el token) llenaba `audit_logs`, que es
+    # de solo añadir, a ~66 filas por segundo. Un estudiante deja a lo más 1200 filas por hora (uno real: decenas);
+    # pasado el tope NO se escribe la fila, la orden se atiende igual (REGLA-004: la salida segura siempre se alcanza), el
+    # limitador sigue contando y sale UN aviso `audit_game_user_capped` por ventana (`audit_service.append`).
+    "audit_game_user": Limit(1200, 3600),
 }
 
 #: Los contadores que ``hit`` suma sin aplicar ningún tope. ``security_report`` no los cuenta como límites aplicados.
