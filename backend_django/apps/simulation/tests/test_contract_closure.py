@@ -17,7 +17,7 @@ from django.utils import timezone
 from rest_framework.test import APIClient
 
 from apps.grupos.models import Grupo, GrupoEstudiante
-from apps.simulation.models import CaseVersion, DecisionOption, SimulationAttempt
+from apps.simulation.models import CaseVersion, DecisionOption, Rubric, SimulationAttempt
 
 pytestmark = [pytest.mark.django_db, pytest.mark.req("RNF-07")]
 
@@ -208,6 +208,25 @@ def test_el_ciclo_completo_con_todas_las_banderas_estrictas(world, settings):
     )
     assert saved.status_code == 200, saved.data
     assert saved.data["data"]["totalScore"] is None and saved.data["data"]["overallLevel"]
+
+
+def test_con_la_revision_obligatoria_una_ruta_que_no_es_de_autoria_no_la_pide(world, settings):
+    """``/api/rubrics/{id}`` edita una rúbrica de la VERSIÓN en borrador, pero su cuerpo no lleva la revisión del caso.
+
+    Con ``REVISION_REQUIRED`` encendida el servidor no puede pedir un dato que esa ruta no tiene: el cliente de las
+    rúbricas no tendría con qué obedecer (400 ``REVISION_REQUIRED`` sin salida).
+    """
+    _set_flags(settings, strict=True)
+    draft_id = _draft_copy(world).data["data"]["caseVersionId"]
+    rubric = Rubric.objects.create(
+        case_version_id=draft_id, name="De la versión", description="", version="1.0", active=False,
+        created_by=world.admin,
+    )
+
+    renamed = cl(world.admin).put(f"/api/rubrics/{rubric.id}", {"name": "Renombrada"}, format="json")
+
+    assert renamed.status_code == 200, renamed.data
+    assert Rubric.objects.get(pk=rubric.id).name == "Renombrada"
 
 
 # ─── Cada bandera en su valor heredado conserva el comportamiento de antes ────────────────────
