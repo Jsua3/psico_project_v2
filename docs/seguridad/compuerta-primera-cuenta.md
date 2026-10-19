@@ -36,7 +36,7 @@ Si `sellos-y-claves-compartidas` falla por versiones sin sello, el arreglo no lo
 
 ## Tabla de comprobaciones
 
-Las 27 filas de la sección 11 del plan y, al final, la fila extra de salud. La última columna es el paso que lo comprueba: su id, tal como aparece en el informe.
+Las 27 filas de la sección 11 del plan y, al final, dos filas extra (los derechos del titular y la salud). La última columna es el paso que lo comprueba: su id, tal como aparece en el informe.
 
 | Fila | Comprobación | Tipo | Quién | Tarea | Paso |
 |---|---|---|---|---|---|
@@ -67,6 +67,7 @@ Las 27 filas de la sección 11 del plan y, al final, la fila extra de salud. La 
 | 25 | `railway run` y la terminal del contenedor verificados para `create_admin` | manual | quien despliega | R1b2 | `railway-run` |
 | 26 | `SIEP_ALLOWED_ASSET_HOSTS` decidida con la institución y reflejada en `img-src` | manual | institución | S2-6b | `hosts-de-activos` |
 | 27 | Suite completa del backend con Python 3.14 (la imagen) en verde sobre el commit que se despliega | manual | quien despliega | punto de control | `suite-python-314` |
+| extra | La institución definió el procedimiento y los plazos de los derechos del titular y la retención (SD-9), y los comandos se ensayaron con `--dry-run` (`docs/seguridad/derechos-del-titular.md`) | manual | institución | S3-4 | `derechos-del-titular` |
 | extra | `GET /api/health` responde 200 | automática | script | C11 | `salud` |
 
 Notas sobre la tabla:

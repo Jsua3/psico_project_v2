@@ -309,6 +309,15 @@ export const PASOS = Object.freeze([
     requiere: [],
   },
   {
+    id: 'derechos-del-titular',
+    comprobacion: 'La institución definió el procedimiento y los plazos de los derechos del titular y la retención (SD-9), y los comandos se ensayaron con --dry-run (docs/seguridad/derechos-del-titular.md)',
+    tipo: TIPOS.MANUAL,
+    quien: 'institución',
+    tarea: 'S3-4',
+    fila: 'extra',
+    requiere: [],
+  },
+  {
     id: 'salud',
     comprobacion: 'GET /api/health responde 200 (extra: no es una fila de §11)',
     tipo: TIPOS.AUTOMATICA,

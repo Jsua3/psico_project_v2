@@ -100,9 +100,9 @@ test('el catálogo tiene un paso por id único, con comprobación, tipo válido,
   }
 });
 
-test('las comprobaciones manuales son 16, siempre quedan pendientes y no vuelven incompleta la compuerta', () => {
+test('las comprobaciones manuales son 17, siempre quedan pendientes y no vuelven incompleta la compuerta', () => {
   const manuales = PASOS.filter((candidato) => candidato.tipo === TIPOS.MANUAL);
-  assert.equal(manuales.length, 16);
+  assert.equal(manuales.length, 17);
   const resultados = PASOS.map((candidato) => ({
     ...candidato,
     estado: candidato.tipo === TIPOS.MANUAL ? PENDIENTE : OK,
