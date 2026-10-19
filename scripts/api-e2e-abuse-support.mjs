@@ -266,11 +266,13 @@ export function buildNulLoginBody() {
 export function buildHostileBodyCases() {
   return [
     {
-      id: 'json-anidado-5000-niveles',
-      name: 'POST /auth/login con un JSON de 5000 niveles -> 400',
+      // Python 3.13 corta el JSON anidado a ~1000 niveles (RecursionError); el 3.14 de la imagen lo aguanta hasta ~50 mil (corta por
+      // la pila de C). 100 mil niveles (200 KB, bajo el tope del cuerpo) revientan el analizador en las dos.
+      id: 'json-anidado-100000-niveles',
+      name: 'POST /auth/login con un JSON de 100000 niveles -> 400',
       method: 'POST',
       path: '/auth/login',
-      rawBody: buildNestedJson(5000),
+      rawBody: buildNestedJson(100_000),
       expected: { status: 400 },
     },
     {

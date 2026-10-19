@@ -159,9 +159,9 @@ def test_control_negativo_un_falso_nul_en_el_cuerpo_pasa_a_la_validacion_normal(
 @pytest.mark.parametrize(
     "cuerpo",
     [
-        pytest.param(b"[" * 5000 + b"]" * 5000, id="arreglo"),
-        pytest.param(b'{"a":' * 5000 + b"1" + b"}" * 5000, id="objeto"),
-        pytest.param(b'{"a": ' + b"[" * 5000 + b"]" * 5000 + b"}", id="dentro-de-un-campo"),
+        pytest.param(b"[" * 100_000 + b"]" * 100_000, id="arreglo"),
+        pytest.param(b'{"a":' * 100_000 + b"1" + b"}" * 100_000, id="objeto"),
+        pytest.param(b'{"a": ' + b"[" * 100_000 + b"]" * 100_000 + b"}", id="dentro-de-un-campo"),
     ],
 )
 def test_un_json_anidado_a_miles_de_niveles_responde_400_y_no_500(cuerpo):

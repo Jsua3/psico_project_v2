@@ -413,7 +413,7 @@ test('buildNulLoginBody lleva la secuencia \\u0000 en un texto y es JSON valido 
 test('buildHostileBodyCases da los tres casos de la tarea contra POST /auth/login con sus estados', () => {
   const cases = buildHostileBodyCases();
 
-  assert.deepEqual(cases.map((entry) => entry.id), ['json-anidado-5000-niveles', 'cuerpo-de-1-1-mib', 'nul-dentro-de-un-texto']);
+  assert.deepEqual(cases.map((entry) => entry.id), ['json-anidado-100000-niveles', 'cuerpo-de-1-1-mib', 'nul-dentro-de-un-texto']);
   for (const entry of cases) {
     assert.equal(entry.method, 'POST');
     assert.equal(entry.path, '/auth/login');

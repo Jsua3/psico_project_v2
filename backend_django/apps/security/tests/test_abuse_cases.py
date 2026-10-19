@@ -1078,20 +1078,25 @@ def _cuerpo_de_1_1_mib(mundo):
     return _json_crudo(APIClient(), LOGIN, cuerpo)
 
 
+#: Python 3.13 corta el JSON anidado a ~1000 niveles (RecursionError); el 3.14 de la imagen lo aguanta hasta ~50 mil (corta por
+#: la pila de C): 100 mil niveles (200 KB, bajo el tope del cuerpo) revientan el analizador en las dos.
+NIVELES_DE_ANIDADO = 100_000
+
+
 def _anidado_en_un_arreglo(mundo):
-    return _json_crudo(APIClient(), LOGIN, b"[" * 5000 + b"]" * 5000)
+    return _json_crudo(APIClient(), LOGIN, b"[" * NIVELES_DE_ANIDADO + b"]" * NIVELES_DE_ANIDADO)
 
 
 def _anidado_en_un_objeto(mundo):
-    return _json_crudo(APIClient(), LOGIN, b'{"a":' * 5000 + b"1" + b"}" * 5000)
+    return _json_crudo(APIClient(), LOGIN, b'{"a":' * NIVELES_DE_ANIDADO + b"1" + b"}" * NIVELES_DE_ANIDADO)
 
 
 def _anidado_dentro_de_un_campo(mundo):
-    return _json_crudo(APIClient(), "/api/auth/access-request", b'{"nombre": ' + b"[" * 5000 + b"]" * 5000 + b"}")
+    return _json_crudo(APIClient(), "/api/auth/access-request", b'{"nombre": ' + b"[" * NIVELES_DE_ANIDADO + b"]" * NIVELES_DE_ANIDADO + b"}")
 
 
 def _anidado_en_una_ruta_con_sesion(mundo):
-    return _json_crudo(mundo.docente_a.cliente(), "/api/grupos", b'{"nombre": ' + b"[" * 5000 + b"]" * 5000 + b"}")
+    return _json_crudo(mundo.docente_a.cliente(), "/api/grupos", b'{"nombre": ' + b"[" * NIVELES_DE_ANIDADO + b"]" * NIVELES_DE_ANIDADO + b"}")
 
 
 def _con_content_length(valor):
@@ -1129,10 +1134,10 @@ def _correo_de_inicio_de_sesion_de_300_mil(mundo):
 
 TABLA_DE_CUERPOS = [
     pytest.param(_cuerpo_de_1_1_mib, 413, "REQUEST_TOO_LARGE", id="json-de-1,1-MiB"),
-    pytest.param(_anidado_en_un_arreglo, 400, None, id="json-anidado-5000-niveles-en-un-arreglo"),
-    pytest.param(_anidado_en_un_objeto, 400, None, id="json-anidado-5000-niveles-en-un-objeto"),
-    pytest.param(_anidado_dentro_de_un_campo, 400, None, id="json-anidado-5000-niveles-dentro-de-un-campo"),
-    pytest.param(_anidado_en_una_ruta_con_sesion, 400, None, id="json-anidado-5000-niveles-con-sesion"),
+    pytest.param(_anidado_en_un_arreglo, 400, None, id="json-anidado-100-mil-niveles-en-un-arreglo"),
+    pytest.param(_anidado_en_un_objeto, 400, None, id="json-anidado-100-mil-niveles-en-un-objeto"),
+    pytest.param(_anidado_dentro_de_un_campo, 400, None, id="json-anidado-100-mil-niveles-dentro-de-un-campo"),
+    pytest.param(_anidado_en_una_ruta_con_sesion, 400, None, id="json-anidado-100-mil-niveles-con-sesion"),
     pytest.param(_con_content_length("-5"), 400, "REQUEST_INVALID_LENGTH", id="content-length-negativo"),
     pytest.param(_con_content_length("abc"), 400, "REQUEST_INVALID_LENGTH", id="content-length-no-numerico"),
     pytest.param(_con_content_length("1e3"), 400, "REQUEST_INVALID_LENGTH", id="content-length-con-exponente"),
@@ -1189,7 +1194,7 @@ def test_control_negativo_sin_el_parser_acotado_el_json_anidado_revienta(mundo, 
 
     from shared import parsers
 
-    construir, estado, codigo = FILAS_DE_CUERPO["json-anidado-5000-niveles-en-un-arreglo"]
+    construir, estado, codigo = FILAS_DE_CUERPO["json-anidado-100-mil-niveles-en-un-arreglo"]
     afirmar_que_cae(
         lambda: _cuerpo_hostil_rechazado(mundo, construir, estado, codigo),
         lambda: _parchado(monkeypatch, (parsers.ObjectJSONParser, "parse", JSONParser.parse)),
