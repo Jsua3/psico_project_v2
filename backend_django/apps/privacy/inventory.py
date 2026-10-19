@@ -498,7 +498,11 @@ DATA_INVENTORY: dict[str, dict] = {
             "decision_option_id": (SENSITIVE, "opción de decisión que eligió el estudiante"),
             "score_delta": (SENSITIVE, "efecto de la acción sobre el puntaje"),
             "stress_delta": (SENSITIVE, "efecto de la acción sobre el estrés"),
-            "detail": (SENSITIVE, "detalle de la acción que muestra la línea de tiempo (herramienta o etiqueta)"),
+            "detail": (
+                SENSITIVE,
+                "detalle de la acción que muestra la línea de tiempo (herramienta o etiqueta); en una salida segura puede llevar "
+                "el motivo escrito por la persona (texto libre, recortado a 500 caracteres)",
+            ),
             "occurred_at": (SENSITIVE, "cuándo actuó el estudiante (línea de tiempo)"),
             "request_id": TECHNICAL,
         },
@@ -531,7 +535,11 @@ DATA_INVENTORY: dict[str, dict] = {
         "columns": {
             "id": TECHNICAL,
             "attempt_id": (SENSITIVE, "intento al que pertenece el informe"),
-            "report_json": (SENSITIVE, "informe congelado del intento: decisiones, retroalimentación y tiempos"),
+            "report_json": (
+                SENSITIVE,
+                "informe congelado del intento: decisiones, retroalimentación y tiempos; su línea de tiempo copia el motivo "
+                "escrito de una salida segura (texto libre de la persona)",
+            ),
             "report_schema_version": TECHNICAL,
             "definition_hash": TECHNICAL,
             "attempt_ordinal": (SENSITIVE, "número de intento del estudiante en ese caso"),

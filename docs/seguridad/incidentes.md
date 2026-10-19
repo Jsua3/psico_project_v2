@@ -50,6 +50,7 @@ Las demás banderas de `backend_django/psychosim/settings/base.py` (por ejemplo 
 - **La institución** fija los plazos legales. El consejo citó **15 días hábiles** para avisar a la Superintendencia de Industria y Comercio (SIC) por fuentes secundarias. **Ese plazo no está confirmado**: la institución debe verificarlo.
 - **Psicología** decide el impacto sobre el estudiantado y el texto de cualquier aviso a personas.
 - **Quien despliega** ejecuta lo técnico. **El ADMIN de la plataforma** opera las cuentas.
+- **Una persona pide ver, llevarse o borrar sus datos** (no es un incidente, pero llega por el mismo canal): sigue `docs/seguridad/derechos-del-titular.md`.
 - Contactos: (la institución las completa).
 
 ## Qué NO hacer

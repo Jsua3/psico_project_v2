@@ -705,6 +705,11 @@ def save_reflection(attempt_id, attempt_token, node_id, text, actor, request_id=
     return {"nodeId": node.id, "locked": reflection.locked}
 
 
+#: Tope del motivo escrito de una salida segura (S3-4): el servidor lo RECORTA y nunca lo rechaza, porque la salida segura
+#: siempre se alcanza (REGLA-004) y un motivo largo no puede impedir la pausa.
+SAFE_EXIT_REASON_MAX = 500
+
+
 @locked_attempt
 def safe_exit(attempt_id, attempt_token, reason, actor):
     """Pausa reanudable real (ETH-02, opción A).
@@ -721,7 +726,7 @@ def safe_exit(attempt_id, attempt_token, reason, actor):
     attempt_duration.touch(attempt, timezone.now())  # suma hasta la pausa; lo que siga no cuenta
     lifecycle.apply(attempt, lifecycle.PAUSE)
     attempt.save()
-    detail = reason if (reason and reason.strip()) else "Salida segura solicitada"
+    detail = reason.strip()[:SAFE_EXIT_REASON_MAX] if (reason and reason.strip()) else "Salida segura solicitada"
     _save_event(attempt, "SAFE_EXIT_REQUESTED", attempt.current_node, None, 0, 0, detail)
     return _state(attempt, attempt_token, None)
 

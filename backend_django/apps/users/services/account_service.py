@@ -151,6 +151,24 @@ def lock_admins():
     )
 
 
+def ensure_not_erased(user):
+    """409 ``ACCOUNT_ERASED`` si la cuenta fue suprimida con ``erase_personal_data`` (S3-4).
+
+    Reactivarla o editarla volvería a ligar su historial seudonimizado (intentos, eventos, decisiones) a un nombre y un
+    correo: justo lo que la supresión deshizo. Una cuenta suprimida es la que lleva el correo seudonimo de su id y está inactiva.
+    """
+    # Importación perezosa: ``apps.privacy`` importa servicios de este paquete.
+    from apps.privacy.data_subject import correo_seudonimo
+
+    if not user.activo and user.email == correo_seudonimo(user.pk):
+        raise ApiError(
+            "ACCOUNT_ERASED",
+            # BORRADOR: texto nuevo del servidor, pendiente de la aprobación de Psicología (VD-23).
+            "Esta cuenta fue suprimida a petición de su titular y no puede reactivarse ni editarse.",
+            status.HTTP_409_CONFLICT,
+        )
+
+
 def ensure_not_last_admin(user, *, role=None, activo=None):
     """400 ``LAST_ADMIN`` si el cambio dejaría al sistema sin un ADMIN activo (D-6).
 

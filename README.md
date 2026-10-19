@@ -196,6 +196,7 @@ El índice completo está en [`docs/README.md`](docs/README.md). Lo más consult
 - [`docs/seguridad/compuerta-primera-cuenta.md`](docs/seguridad/compuerta-primera-cuenta.md): la compuerta «antes de la primera cuenta real» (`npm run gate:primera-cuenta`).
 - [`docs/operacion/parches.md`](docs/operacion/parches.md): calendario de parches de las versiones vigiladas (Django, DRF, Angular, Node, PostgreSQL).
 - [`docs/seguridad/incidentes.md`](docs/seguridad/incidentes.md): qué hacer ante un incidente (cuentas, contraseñas, llaves, banderas y evidencia).
+- [`docs/seguridad/derechos-del-titular.md`](docs/seguridad/derechos-del-titular.md): atender a una persona que pide ver, llevarse o borrar sus datos (exportar, suprimir y depurar lo vencido).
 - [`docs/requisitos/`](docs/requisitos): requisitos de negocio, funcionales y no funcionales, y técnicas de elicitación.
 
 ## Tecnologías

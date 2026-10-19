@@ -426,6 +426,11 @@ for _host_de_fondo in SIEP_ALLOWED_ASSET_HOSTS:
 #: Pasado el plazo la clave deja de servir y la cuenta de estudiante vuelve a «pendiente» (``account_service``).
 SIEP_TEMP_PASSWORD_DAYS = _entero_env("SIEP_TEMP_PASSWORD_DAYS", default=7, minimo=1)
 
+#: S3-4 · días que se conservan las solicitudes de acceso YA RESUELTAS antes de que ``manage.py purge_expired_data`` las
+#: borre. Entero ≥ 0. Vacía o 0 = no se borra ninguna: el plazo lo define la INSTITUCIÓN (SD-9, pendiente) y este repositorio
+#: no inventa obligaciones legales. Una solicitud pendiente nunca se borra por esta vía.
+SIEP_RETENTION_ACCESS_REQUEST_DAYS = _entero_env("SIEP_RETENTION_ACCESS_REQUEST_DAYS", default=0, minimo=0)
+
 #: S2-6a · tope del cuerpo de una petición, en bytes: por encima, 413 sin leerla (shared/body_limit.py).
 SIEP_MAX_BODY_BYTES = _entero_env("SIEP_MAX_BODY_BYTES", default=1024 * 1024, minimo=1)
 #: S2-6a · tope del sobre de la importación de estudiantes: el archivo (IMPORT_MAX_BYTES, 2 MiB) más el multipart.

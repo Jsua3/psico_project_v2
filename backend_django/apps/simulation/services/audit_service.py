@@ -133,6 +133,10 @@ AUDIT_TAXONOMY: dict[str, str] = {
     # S3-2a · el consentimiento al aviso de contenido: se escribe con la etiqueta (``consent_service``).
     "CONSENT_ACCEPTED": "consentimiento.aceptar",
     "CONSENT_WITHDRAWN": "consentimiento.retirar",
+    # S3-4 · los derechos del titular y la retención: comandos de gestión (``apps/privacy``), con el ADMIN que los ejecuta como actor.
+    "PERSONAL_DATA_EXPORTED": "datos.exportar",
+    "PERSONAL_DATA_ERASED": "datos.suprimir",
+    "EXPIRED_DATA_PURGED": "datos.depurar",
 }
 
 #: S4-1 · La lista blanca del contexto: por código crudo, los únicos campos que la fila de ese evento puede llevar (más
@@ -167,6 +171,10 @@ CONTEXT_WHITELIST: dict[str, frozenset[str]] = {
     "COMPETENCY_CREATED": frozenset({"competencyId"}),
     "CONSENT_ACCEPTED": frozenset({"caseVersionId", "noticeVersion"}),
     "CONSENT_WITHDRAWN": frozenset({"caseVersionId", "noticeVersion"}),
+    # S3-4 · solo ids (de la persona y del ADMIN que ejecuta) y recuentos: nunca el correo, el nombre ni un texto de la persona.
+    "PERSONAL_DATA_EXPORTED": frozenset({"targetId", "executedBy", "rows", "tables"}),
+    "PERSONAL_DATA_ERASED": frozenset({"targetId", "executedBy", "changed", "deleted", "tables"}),
+    "EXPIRED_DATA_PURGED": frozenset({"executedBy", "rateLimits", "auditLogs", "accessRequests"}),
 }
 #: Lo que el sistema pone en toda fila escrita por ``@auditable``/``record``: constantes, nunca datos de la persona.
 _CONTEXTO_DEL_SISTEMA = frozenset({"taxonomy", "method", "class"})

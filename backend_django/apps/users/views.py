@@ -391,6 +391,7 @@ class AdminUserDetailView(APIView):
         with transaction.atomic():
             account_service.lock_admins()
             user = get_object_or_404(User.objects.select_for_update(), pk=user_id)
+            account_service.ensure_not_erased(user)  # S3-4 · una cuenta suprimida no se edita
             antes = audit_events.snapshot(user)  # S4-1 · el serializador edita esta misma instancia
             ser = AdminUserWriteSerializer(instance=user, data=request.data)
             ser.is_valid(raise_exception=True)
@@ -434,6 +435,7 @@ class AdminUserStatusView(APIView):
         with transaction.atomic():
             account_service.lock_admins()
             user = get_object_or_404(User.objects.select_for_update(), pk=user_id)
+            account_service.ensure_not_erased(user)  # S3-4 · una cuenta suprimida no se reactiva
             account_service.ensure_not_last_admin(user, activo=ser.validated_data["activo"])
             cambia = user.activo != ser.validated_data["activo"]
             user.activo = ser.validated_data["activo"]
