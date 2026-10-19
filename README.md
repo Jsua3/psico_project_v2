@@ -194,6 +194,7 @@ El índice completo está en [`docs/README.md`](docs/README.md). Lo más consult
 - [`docs/arquitectura/estrategia-stack-esquema-y-despliegue.md`](docs/arquitectura/estrategia-stack-esquema-y-despliegue.md): actualización del stack, dueño del esquema de la BD y despliegue.
 - [`docs/operacion/despliegue-railway.md`](docs/operacion/despliegue-railway.md): despliegue en Railway.
 - [`docs/operacion/parches.md`](docs/operacion/parches.md): calendario de parches de las versiones vigiladas (Django, DRF, Angular, Node, PostgreSQL).
+- [`docs/seguridad/incidentes.md`](docs/seguridad/incidentes.md): qué hacer ante un incidente (cuentas, contraseñas, llaves, banderas y evidencia).
 - [`docs/requisitos/`](docs/requisitos): requisitos de negocio, funcionales y no funcionales, y técnicas de elicitación.
 
 ## Tecnologías

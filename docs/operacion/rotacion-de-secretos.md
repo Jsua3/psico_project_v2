@@ -88,7 +88,7 @@ exige producción. Las llaves deben ser **distintas entre sí**: genera cada una
 2. Si era `JWT_SIGNING_KEY`, la rotación ya cierra las sesiones: avisa a las personas de que deben volver a entrar.
 3. Revisa la auditoría del periodo en que pudo estar expuesto con `GET /api/admin/audit` (un ADMIN). Busca accesos y cambios
    que no reconozcas.
-4. Anota el incidente en `docs/seguridad/incidentes.md` (**próximamente**: ese archivo se escribe después).
+4. Anota el incidente en [`docs/seguridad/incidentes.md`](../seguridad/incidentes.md).
 
 ## Cuentas de demostración
 
