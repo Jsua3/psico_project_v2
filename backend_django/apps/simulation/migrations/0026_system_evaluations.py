@@ -4,11 +4,20 @@ Al cerrar un intento el sistema crea su propia evaluación (``origin = SISTEMA``
 ``instructor_id`` admite NULL, un CHECK exige que sea nulo si y solo si el origen es el sistema, y un único parcial
 impide que el cierre la cree dos veces para el mismo intento y la misma rúbrica. Lo existente es todo ``DOCENTE`` con
 docente: cumple el CHECK sin tocar una fila.
+
+Reversible aunque ya haya evaluaciones del sistema (M-4 de la revisión de E6): son DERIVADAS (las crea el cierre del
+intento y las repone ``backfill_attempt_reports``) y no tienen docente, así que al revertir se borran —con sus criterios,
+en cascada de la base— antes de devolver ``instructor_id`` a NOT NULL. Las evaluaciones del docente no se tocan.
 """
 
 import django.db.models.deletion
 from django.conf import settings
 from django.db import migrations, models
+
+
+def delete_system_evaluations(apps, schema_editor):
+    """Reversa: sin esto, ``instructor_id`` NOT NULL no se puede restaurar con una sola fila del sistema."""
+    apps.get_model('simulation', 'RubricEvaluation').objects.filter(origin='SISTEMA').delete()
 
 
 class Migration(migrations.Migration):
@@ -32,4 +41,7 @@ class Migration(migrations.Migration):
             model_name='rubricevaluation',
             constraint=models.UniqueConstraint(condition=models.Q(('origin', 'SISTEMA')), fields=('attempt', 'rubric'), name='uq_rubric_evaluations_system_attempt_rubric'),
         ),
+        # Al FINAL a propósito: Django revierte en orden inverso, así que su reversa corre PRIMERO (antes de quitar los
+        # constraints y de volver a NOT NULL). Hacia adelante no hace nada.
+        migrations.RunPython(migrations.RunPython.noop, delete_system_evaluations),
     ]
