@@ -16,6 +16,7 @@ Se niega con cualquier otro ajuste: nunca escribe marcado en una base de desarro
 
 Los modelos se importan dentro de las funciones: ``shared`` no depende de ``apps`` al importarse (como ``shared.testing``).
 """
+import datetime
 import json
 
 from django.contrib.auth import get_user_model
@@ -92,6 +93,30 @@ def _expect(response, statuses, what):
     return response
 
 
+def _revision_of(client, base):
+    """Los argumentos de una mutación del caso con su revisión vigente (cabecera ``X-Case-Revision``).
+
+    Con ``REVISION_REQUIRED`` (valor final de F9-10) toda mutación de autoría la pide, y ni la importación ni el ciclo de vida
+    la devuelven: se lee del editor justo antes de cada una. Sin la bandera es opcional, pero mandarla no estorba.
+    """
+    editor = _expect(client.get(f"{base}/editor"), (200,), "leer el editor del caso")
+    return {"HTTP_X_CASE_REVISION": str(editor.data["data"]["revision"])}
+
+
+def _content_review():
+    """La constancia de revisión de contenido que pide la aprobación con ``REVIEW_WORKFLOW_STRICT`` (valor final de F9-10).
+
+    A propósito no parece una real. La fecha es la de ayer: el servidor rechaza una posterior a hoy y su reloj y el de esta
+    máquina pueden quedar a un día.
+    """
+    yesterday = datetime.date.today() - datetime.timedelta(days=1)
+    return {
+        "reviewer": "Revisión de la sonda (no verificada)",
+        "reviewedOn": yesterday.isoformat(),
+        "reference": "Acta de la sonda (no real)",
+    }
+
+
 def _publish_copy(admin):
     """Importa una copia del caso demo con código y título propios y la publica por la API, con textos benignos."""
     from apps.simulation.models import CaseVersion
@@ -115,10 +140,19 @@ def _publish_copy(admin):
     )
     version_id = imported.data["data"]["caseVersionId"]
     base = f"/api/authoring/cases/{version_id}"
-    _expect(client.put(f"{base}/checklist", CHECKLIST, format="json"), (200,), "lista de publicación")
-    _expect(client.post(f"{base}/lifecycle", {"action": "submit"}, format="json"), (200, 201), "enviar a revisión")
     _expect(
-        client.post(f"{base}/lifecycle", {"action": "approve", "note": "Caso de la sonda de CSP."}, format="json"),
+        client.put(f"{base}/checklist", CHECKLIST, format="json", **_revision_of(client, base)), (200,), "lista de publicación"
+    )
+    _expect(
+        client.post(f"{base}/lifecycle", {"action": "submit"}, format="json", **_revision_of(client, base)),
+        (200, 201), "enviar a revisión",
+    )
+    _expect(
+        client.post(
+            f"{base}/lifecycle",
+            {"action": "approve", "note": "Caso de la sonda de CSP.", "contentReview": _content_review()},
+            format="json", **_revision_of(client, base),
+        ),
         (200, 201), "aprobar y publicar",
     )
     return CaseVersion.objects.select_related("simulation_case").get(pk=version_id)

@@ -103,6 +103,47 @@ def test_deja_un_caso_aparte_publicado_con_el_marcado_en_sus_textos(con_ajustes_
     assert resultado["touched"]["map_objects"] > 0 and resultado["touched"]["dialogue_lines"] > 0
 
 
+def _sonda_con(settings, **banderas):
+    """Los ajustes de la sonda MÁS estas banderas. El módulo va al final: cada ``settings.X = …`` anida un
+    ``override_settings`` nuevo y Django declara ``SETTINGS_MODULE = None`` en cada uno, así que el último gana."""
+    for nombre, valor in banderas.items():
+        setattr(settings, nombre, valor)
+    settings.SETTINGS_MODULE = "psychosim.settings.csp_probe"
+
+
+def test_deja_el_caso_publicado_tambien_con_las_banderas_en_su_valor_final(settings):
+    """F9-10 enciende por defecto ``REVISION_REQUIRED`` y ``REVIEW_WORKFLOW_STRICT``, y la sonda real corre con ellas.
+
+    La fijación de la suite las apaga, y así esta siembra pasó en verde mientras la sonda de verdad fallaba: la siembra manda
+    la revisión del caso en cada mutación y la constancia de revisión de contenido al aprobar, o el servidor la rechaza.
+    """
+    _sonda_con(settings, REVISION_REQUIRED=True, REVIEW_WORKFLOW_STRICT=True)
+
+    resultado = seed_markup_case()
+
+    assert CaseVersion.objects.get(pk=resultado["caseVersionId"]).status == "PUBLISHED"
+
+
+def test_control_negativo_sin_la_revision_el_servidor_rechaza_la_siembra(settings, monkeypatch):
+    _sonda_con(settings, REVISION_REQUIRED=True)
+    monkeypatch.setattr(csp_probe_seed, "_revision_of", lambda client, base: {})
+
+    with pytest.raises(CommandError, match="REVISION_REQUIRED"):
+        seed_markup_case()
+
+    assert not CaseVersion.objects.filter(simulation_case__code=PROBE_CODE, status="PUBLISHED").exists()
+
+
+def test_control_negativo_sin_la_constancia_el_servidor_no_aprueba_la_siembra(settings, monkeypatch):
+    _sonda_con(settings, REVIEW_WORKFLOW_STRICT=True)
+    monkeypatch.setattr(csp_probe_seed, "_content_review", lambda: None)
+
+    with pytest.raises(CommandError, match="aprobar y publicar"):
+        seed_markup_case()
+
+    assert not CaseVersion.objects.filter(simulation_case__code=PROBE_CODE, status="PUBLISHED").exists()
+
+
 def test_no_toca_el_caso_demo_ni_sus_textos(con_ajustes_de_la_sonda):
     demo = CaseVersion.objects.get(simulation_case__code=SOURCE_CODE, status="PUBLISHED")
     antes = json.dumps(definition_io.export_definition(demo.id), sort_keys=True, ensure_ascii=False)
