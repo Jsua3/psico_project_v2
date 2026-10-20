@@ -38,9 +38,15 @@ def estudiante(db):
 
 @pytest.fixture
 def transporte_de_google():
-    """Un `google.auth.transport.requests` mínimo, para no depender del paquete `requests`."""
+    """Un `google.auth.transport.requests` mínimo, para no depender del paquete `requests`: su `Request` es una clase
+    invocable que responde como el transporte real (`.status`, `.headers`, `.data`), sin red."""
+
+    class Request:
+        def __call__(self, url, method="GET", body=None, headers=None, timeout=120, **kwargs):
+            return types.SimpleNamespace(status=200, headers={}, data=b"{}")
+
     fake = types.ModuleType("google.auth.transport.requests")
-    fake.Request = lambda: object()
+    fake.Request = Request
     with patch.dict(sys.modules, {"google.auth.transport.requests": fake}):
         yield
 
@@ -76,7 +82,7 @@ def test_una_cuenta_sin_correo_recibe_401(client):
 @override_settings(GOOGLE_OAUTH_CLIENT_ID=CLIENT_ID)
 def test_una_credencial_que_google_rechaza_recibe_401(client, transporte_de_google):
     with patch("google.oauth2.id_token.verify_oauth2_token", side_effect=ValueError("Token expirado")):
-        resp = client.post(URL, {"credential": "token-vencido"}, format="json")
+        resp = client.post(URL, {"credential": "vencido.token.firma"}, format="json")
 
     assert resp.status_code == 401
     assert resp.data["message"] == "No fue posible validar la cuenta de Google"

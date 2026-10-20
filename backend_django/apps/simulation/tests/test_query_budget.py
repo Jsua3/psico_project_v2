@@ -48,7 +48,9 @@ QUERY_BUDGETS = {
     # estado del mundo por los efectos del caso, que la medición anterior omitía por no tener mundo.
     "post_decision": 12,  # (5)
     "get_student_report": 3,  # (0) era 4: E0-11 acotó node y decision_option con select_related
-    "get_group_report": 15,  # (0) crece con el grupo: E5-6 lo pagina
+    # S4-1: 15 → 16 a propósito. Leer el reporte de un grupo es leer datos de otras personas y deja UNA fila de
+    # auditoría (`reporte.leer`, RNF-007): es el INSERT de `audit_logs`, la única escritura. Las 15 de lectura no cambian.
+    "get_group_report": 16,  # (1) crece con el grupo: E5-6 lo pagina
 }
 TIMED_REPEATS = 5  # los GET se repiten para sacar la mediana de milisegundos
 PATH_TO_FAMILIA = ((340, 430), (250, 430))

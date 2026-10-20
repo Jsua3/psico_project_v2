@@ -25,7 +25,7 @@ from apps.simulation.models import (
 )
 from apps.simulation.models.rubric import AuditLog
 from apps.simulation.services import case_effects, game_service
-from shared.testing import measure, run_concurrently
+from shared.testing import measure, purge_audit_rows, run_concurrently
 
 from .test_world import _move, _start, case_version_id, cl, estudiante  # noqa: F401  (fixtures)
 
@@ -242,7 +242,7 @@ def committed_attempt(real_commits):
         CaseAssignment.objects.filter(grupo=grupo).delete()
         GrupoEstudiante.objects.filter(grupo=grupo).delete()
         grupo.delete()
-        AuditLog.objects.filter(occurred_at__gte=started).delete()
+        purge_audit_rows(AuditLog.objects.filter(occurred_at__gte=started))
         student.delete()
 
 

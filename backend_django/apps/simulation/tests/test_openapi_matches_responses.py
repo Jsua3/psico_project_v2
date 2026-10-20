@@ -16,6 +16,7 @@ from decimal import Decimal
 from typing import Callable
 
 import pytest
+from django.conf import settings as django_settings
 from django.contrib.auth import get_user_model
 from django.utils import timezone
 from drf_spectacular.generators import SchemaGenerator
@@ -67,6 +68,7 @@ WORLD_STATE = "/api/simulation/attempts/{attempt_id}/world-state"
 HINTS = "/api/simulation/attempts/{attempt_id}/hints"
 HINTS_NEXT = "/api/simulation/attempts/{attempt_id}/hints/next"
 BRIEF = "/api/simulation/cases/{case_version_id}/brief"
+CONSENT = "/api/simulation/cases/{case_version_id}/consent"
 STUDENT_REPORT = "/api/reportes/estudiante/{estudiante_id}"
 INVITATIONS = "/api/me/invitations"
 
@@ -258,6 +260,32 @@ def _hints(world):
     return cl(world.student).get(f"/api/simulation/attempts/{world.attempt_id}/hints", **{ATTEMPT_HEADER: world.token})
 
 
+def _consent_url(world, version_id=None):
+    return f"/api/simulation/cases/{world.version_id if version_id is None else version_id}/consent"
+
+
+def _accept_consent(world):
+    return cl(world.student).post(
+        _consent_url(world), {"noticeVersion": django_settings.SIEP_CONTENT_NOTICE_VERSION}, format="json"
+    )
+
+
+@calls(CONSENT, "GET")
+def _consent_state(world):
+    return cl(world.student).get(_consent_url(world))
+
+
+@calls(CONSENT, "POST", 201)
+def _consent_accepted(world):
+    return _accept_consent(world)
+
+
+@calls(CONSENT, "DELETE")
+def _consent_withdrawn(world):
+    _accept_consent(world)  # algo vigente que retirar: así la fecha del retiro llega con valor
+    return cl(world.student).delete(_consent_url(world))
+
+
 def _next_hint(world, client=None, **body):
     body = {"attemptToken": world.token, "requestId": "contrato-2", **body}
     return (client or cl(world.student)).post(
@@ -361,6 +389,18 @@ def test_las_asignaciones_traen_los_dos_destinos_y_estados_distintos(world):
     assert {r["target"]["type"] for r in rows} == {"GROUP", "STUDENT"}
     assert {r["state"] for r in rows} == {"OPEN", "CLOSED"}
     assert any("opensAt" in r and "closesAt" in r for r in rows)
+
+
+def test_aceptar_el_aviso_otra_vez_documenta_su_200_y_coincide(document, world):
+    """El primer POST crea (201) y el reenvío idempotente responde 200 con la misma forma."""
+    _accept_consent(world)
+
+    response = _accept_consent(world)
+
+    assert response.status_code == 200
+    declared = document["paths"][CONSENT]["post"]["responses"]
+    assert {"200", "201"} <= set(declared)
+    assert_matches(response.json(), response_schema(document, CONSENT, "POST", "200"), document)
 
 
 def test_las_pistas_traen_la_pedida_y_las_que_quedan(world):
@@ -779,6 +819,27 @@ ERRORS = [
     ("pistas de un intento inexistente", HINTS, "GET",
      lambda w: cl(w.student).get(f"/api/simulation/attempts/{uuid.uuid4()}/hints", **{ATTEMPT_HEADER: w.token}),
      404, "NOT_FOUND"),
+    ("consentimiento sin sesión", CONSENT, "GET", lambda w: APIClient().get(_consent_url(w)), 401, "UNAUTHENTICATED"),
+    ("consentimiento sin permiso", CONSENT, "GET", lambda w: cl(w.profesor).get(_consent_url(w)), 403, "FORBIDDEN"),
+    ("consentimiento de una versión inexistente", CONSENT, "GET",
+     lambda w: cl(w.student).get(_consent_url(w, 999999)), 404, "NOT_FOUND"),
+    ("aceptar sin sesión", CONSENT, "POST", lambda w: APIClient().post(_consent_url(w), {}, format="json"),
+     401, "UNAUTHENTICATED"),
+    ("aceptar sin permiso", CONSENT, "POST", lambda w: cl(w.profesor).post(_consent_url(w), {}, format="json"),
+     403, "FORBIDDEN"),
+    ("aceptar sin decir la versión del aviso", CONSENT, "POST",
+     lambda w: cl(w.student).post(_consent_url(w), {}, format="json"), 400, "VALIDATION_ERROR"),
+    ("aceptar una versión inexistente", CONSENT, "POST",
+     lambda w: cl(w.student).post(
+         _consent_url(w, 999999), {"noticeVersion": django_settings.SIEP_CONTENT_NOTICE_VERSION}, format="json"),
+     404, "NOT_FOUND"),
+    ("aceptar con un aviso que ya no es el vigente", CONSENT, "POST",
+     lambda w: cl(w.student).post(_consent_url(w), {"noticeVersion": "aviso-viejo"}, format="json"),
+     409, "NOTICE_VERSION_STALE"),
+    ("retirar sin sesión", CONSENT, "DELETE", lambda w: APIClient().delete(_consent_url(w)), 401, "UNAUTHENTICATED"),
+    ("retirar sin permiso", CONSENT, "DELETE", lambda w: cl(w.profesor).delete(_consent_url(w)), 403, "FORBIDDEN"),
+    ("retirar de una versión inexistente", CONSENT, "DELETE",
+     lambda w: cl(w.student).delete(_consent_url(w, 999999)), 404, "NOT_FOUND"),
     *[row for prefix in ROUTE_FAMILIES for row in _case_route_errors(prefix)],
 ]
 #: Estados documentados que no son un ``ErrorEnvelope`` y tienen su propio caso arriba.

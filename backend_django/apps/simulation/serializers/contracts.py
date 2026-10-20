@@ -17,6 +17,8 @@ from shared.openapi import ErrorEnvelopeSerializer
 ISSUE_SEVERITIES = ("error", "warning")
 HINT_REASONS = ("NONE_FOR_SCENE", "ALL_SHOWN")
 LIFECYCLE_ACTIONS = ("submit", "approve", "reject", "archive", "clone")
+#: Quién respalda una casilla de la lista de publicación (``authoring/checklist.py``: ``SYSTEM``, ``CONSTANCIA``, ``AUTHOR``).
+CHECKLIST_BACKINGS = ("system", "constancia", "author")
 
 #: Las fechas de la API son la hora local del servidor, sin desfase (``USE_TZ = False``): un cliente que las
 #: reciba debe leerlas como hora de Bogotá, no como UTC.
@@ -258,13 +260,55 @@ class CaseReviewSerializer(serializers.Serializer):
     contentReview = ContentReviewSerializer(required=False, help_text="Solo si la aprobación trae constancia.")
 
 
+class ChecklistItemSerializer(serializers.Serializer):
+    """Un ítem de la lista de publicación y quién lo respalda (S3-3)."""
+
+    code = serializers.CharField(help_text="Estable: `contentOriginal`, `ethicsReviewed`, `safetyProtocols`…")
+    label = serializers.CharField()
+    required = serializers.BooleanField(help_text="Si la publicación lo exige hoy: seis ítems, o siete con la revisión de contenido.")
+    fulfilled = serializers.BooleanField(help_text="Si la última lista guardada lo tiene marcado.")
+    draft = serializers.BooleanField(help_text="Su texto es un borrador pendiente de la validación de Psicología.")
+    backing = serializers.ChoiceField(
+        choices=CHECKLIST_BACKINGS,
+        help_text="Quién lo respalda: el sistema, la constancia de Psicología o solo la declaración de quien autora.",
+    )
+    backed = serializers.BooleanField(
+        allow_null=True, help_text="Si el dato que lo respalda existe ahora; `null` si es solo una declaración."
+    )
+    backingLabel = serializers.CharField(help_text="El respaldo en lenguaje llano, para mostrarlo tal cual.")
+
+
+class ChecklistContentReviewSerializer(serializers.Serializer):
+    """La constancia de Psicología vista desde la lista: si existe y, cuando existe, sus datos."""
+
+    fulfilled = serializers.BooleanField()
+    reviewer = serializers.CharField(required=False, help_text="Solo si ya hay constancia.")
+    reviewedOn = serializers.DateField(allow_null=True, required=False, help_text="Solo si ya hay constancia.")
+    reference = serializers.CharField(
+        required=False, help_text="El acta o la referencia de la revisión. Solo si ya hay constancia."
+    )
+
+
+class CaseChecklistSerializer(serializers.Serializer):
+    """La lista de publicación del caso con quién respalda cada casilla (S3-3): la misma que trae el editor."""
+
+    items = ChecklistItemSerializer(many=True)
+    contentReview = ChecklistContentReviewSerializer()
+    strict = serializers.BooleanField(
+        help_text="Si rige la revisión de contenido de Psicología (`SIEP_REVIEW_WORKFLOW_STRICT`): publicar exige la constancia."
+    )
+
+
 class CaseLifecycleSerializer(serializers.Serializer):
-    """El ciclo de vida de una versión: su estado, lo que esta persona puede hacer y la última revisión (C4)."""
+    """El ciclo de vida de una versión: su estado, lo que esta persona puede hacer, su lista de publicación y la última revisión (C4)."""
 
     caseVersionId = serializers.IntegerField(help_text="En `clone`, la versión NUEVA que se creó.")
     state = serializers.ChoiceField(choices=CaseVersionStatus.choices)
     allowedTransitions = serializers.ListField(
         child=serializers.ChoiceField(choices=LIFECYCLE_ACTIONS), help_text="Las acciones que esta persona puede hacer hoy."
+    )
+    checklist = CaseChecklistSerializer(
+        help_text="La lista de publicación con el respaldo de cada casilla: quien revisa la ve sin pedir el caso entero (S3-3)."
     )
     blockedReason = LifecycleBlockedReasonSerializer(
         required=False, help_text="Solo si puede enviar o aprobar y algo lo impide."

@@ -129,7 +129,7 @@ def check_revision(version, revision, actor_id=None):
         return
     try:
         requested = int(revision)
-    except (TypeError, ValueError):
+    except (TypeError, ValueError, OverflowError):  # S2-6b: un 1e400 del JSON es infinito, y no es una revisión
         raise ApiError(
             "VALIDATION_ERROR",
             # BORRADOR: texto nuevo del servidor, pendiente de la aprobación de Psicología (VD-23).

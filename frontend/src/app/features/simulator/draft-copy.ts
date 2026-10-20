@@ -119,6 +119,17 @@ export const DRAFT_COPY = {
     where: 'Aviso de contenido: error al registrar el consentimiento',
     text: 'No pudimos registrar tu consentimiento en este navegador. Revisa que no tenga bloqueado el almacenamiento e inténtalo de nuevo.',
   },
+  /**
+   * Cuando el servidor tiene una versión del aviso de contenido más nueva que la que el navegador mostró (S3-2b, ETH-01;
+   * 409 `NOTICE_VERSION_STALE`): no se da por registrado el consentimiento a un aviso que la persona no leyó. Sale en el
+   * mismo recuadro de error del aviso previo, con «Reintentar».
+   */
+  consentNoticeStale: {
+    decision: 'ETH-01',
+    owner: 'Psicología',
+    where: 'Aviso de contenido: error al registrar el consentimiento cuando el aviso cambió de versión',
+    text: 'Hay una versión nueva del aviso de contenido. Recarga la página para leerla y vuelve a intentarlo.',
+  },
 
   // ── Microtextos de funcionamiento (revisión de F6): se enseñan a Psicología, no los decide ─────────────────────
   /** Lo anuncia el lector de pantalla mientras se guarda el consentimiento (F6-2). */

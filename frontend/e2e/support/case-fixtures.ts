@@ -139,6 +139,13 @@ const NODE_BODY = {
   warningMessage: null, terminal: false, startNode: false, positionX: null, positionY: null,
 };
 
+/**
+ * Un recurso de apoyo de prueba. La lista de publicación de estos casos marca «protocolos de seguridad» y el servidor
+ * (S3-3) no deja enviar a revisión ni publicar sin al menos una escena con un recurso con texto. A propósito no parece uno
+ * real: los reales los entrega y verifica Psicología.
+ */
+const SUPPORT_RESOURCE = 'Recurso de apoyo de prueba (no verificado)';
+
 export interface DraftOptions {
   title: string;
   /** La descripción del caso (E4: OCL-07 la exige); es también el contexto que lee el estudiante. */
@@ -168,7 +175,7 @@ export async function buildPublishableDraft(
   const withClosing = await send(request, token, 'post', `${base}/${id}/nodes`, {
     ...NODE_BODY, nodeKey: 'cierre', title: 'Cierre del caso', narrative: 'Fin.', terminal: true,
     sensitiveContent: !!options.sensitive, warningMessage: options.sensitive ? 'Esta escena trata una situación delicada.' : null,
-    safeExitRequired: !!options.sensitive,
+    safeExitRequired: !!options.sensitive, supportResources: [SUPPORT_RESOURCE],
   }, 'escena final');
   const closingId: number = withClosing['nodes'].find((node: Json) => node['key'] === 'cierre')['id'];
   await send(request, token, 'post', `${base}/${id}/decisions`, {
@@ -245,6 +252,14 @@ export async function cloneAndPublishCase(
       await send(request, admin, 'post', `${base}/${id}/maps/${map['id']}/hints`, { text, hintOrder: index + 1 }, `pista ${index + 1} de ${map['title']}`);
     }
   }
+  // El caso demo no trae recursos de apoyo y la lista marca «protocolos de seguridad» (S3-3): la primera escena lleva uno de prueba.
+  const scene = (view['nodes'] as Json[])[0];
+  await send(request, admin, 'put', `${base}/${id}/nodes/${scene['id']}`, {
+    nodeKey: scene['key'], title: scene['title'], narrative: scene['narrative'], supportResources: [SUPPORT_RESOURCE],
+    requiredTools: scene['requiredTools'], sensitiveContent: scene['sensitiveContent'],
+    safeExitRequired: scene['safeExitRequired'], warningMessage: scene['warningMessage'], terminal: scene['terminal'],
+    startNode: scene['startNode'], positionX: scene['positionX'], positionY: scene['positionY'],
+  }, 'recurso de apoyo de la primera escena');
   await send(request, admin, 'put', `${base}/${id}/checklist`, {
     contentOriginal: true, ethicsReviewed: true, safetyProtocols: true, noStigmatizing: true, triggerWarnings: true,
     accessibilityOk: true, scopeEducational: true,

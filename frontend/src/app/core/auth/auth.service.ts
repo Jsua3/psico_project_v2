@@ -44,8 +44,8 @@ export class AuthService {
       }));
   }
 
-  requestAccess(payload: { nombre: string; apellido: string; email: string }) {
-    return this.http.post<ApiResponse<{ id: number }>>(`${this.API}/access-request`, payload);
+  requestAccess(payload: { nombre: string; apellido: string; email: string; website?: string }) {
+    return this.http.post<ApiResponse<{ status: string }>>(`${this.API}/access-request`, payload);
   }
 
   googleConfig() {
@@ -77,7 +77,20 @@ export class AuthService {
   }
 
   logout() {
+    this.revokeOnServer();
     this.endSession();
+  }
+
+  /**
+   * S1-4: avisa al servidor para que el token deje de valer. La salida no espera ni depende de eso: sin red, con la
+   * sesión ya vencida o con cualquier error, la sesión local se cierra igual.
+   */
+  private revokeOnServer(): void {
+    const token = this.getToken();
+    if (!token || this.isTokenExpired(token)) return;
+    this.http.post(`${this.API}/logout`, {}, { headers: { Authorization: `Bearer ${token}` } })
+      .pipe(catchError(() => of(null)))
+      .subscribe();
   }
 
   syncCurrentUser(): Observable<User | null> {
@@ -115,7 +128,13 @@ export class AuthService {
   }
 
   changePassword(currentPassword: string, newPassword: string) {
-    return this.http.post<ApiResponse<null>>(`${this.API}/change-password`, { currentPassword, newPassword });
+    return this.http.post<ApiResponse<{ token?: string } | null>>(`${this.API}/change-password`, { currentPassword, newPassword })
+      // S1-4: cambiar la contraseña cierra las demás sesiones y el servidor reemite un token a la actual: se guarda
+      // para que la persona siga en el portal sin volver a entrar.
+      .pipe(tap(res => {
+        const token = res.data?.token;
+        if (token) localStorage.setItem(this.TOKEN_KEY, token);
+      }));
   }
 
   /** Tras cambiarla: la sesión sigue (el token no cambia) y deja de exigirlo. */

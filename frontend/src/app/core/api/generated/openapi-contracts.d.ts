@@ -115,6 +115,8 @@ export interface AuditLogItem {
   readonly userAgent: string | null;
 }
 
+export type BackingEnum = 'system' | 'constancia' | 'author';
+
 /** Un personaje que Psicología marcó para la ficha del caso. */
 export interface BriefCharacter {
   readonly displayName: string;
@@ -151,6 +153,14 @@ export interface CaseBriefEnvelope {
   readonly message?: string;
   /** Siempre `true` en una respuesta de éxito. */
   readonly success: boolean;
+}
+
+/** La lista de publicación del caso con quién respalda cada casilla (S3-3): la misma que trae el editor. */
+export interface CaseChecklist {
+  readonly contentReview: ChecklistContentReview;
+  readonly items: ReadonlyArray<ChecklistItem>;
+  /** Si rige la revisión de contenido de Psicología (`SIEP_REVIEW_WORKFLOW_STRICT`): publicar exige la constancia. */
+  readonly strict: boolean;
 }
 
 /** El 409 de una transición del caso. Cada motivo suma sus campos en la raíz: `INVALID_TRANSITION` → `state` y `action`; `CASE_NOT_PUBLISHABLE` → `blockers`; `REVISION_CONFLICT` → `revision` y `current` (el editor tal como está ahora). */
@@ -208,7 +218,7 @@ export interface CaseImportedEnvelope {
   readonly success: boolean;
 }
 
-/** El ciclo de vida de una versión: su estado, lo que esta persona puede hacer y la última revisión (C4). */
+/** El ciclo de vida de una versión: su estado, lo que esta persona puede hacer, su lista de publicación y la última revisión (C4). */
 export interface CaseLifecycle {
   /** Las acciones que esta persona puede hacer hoy. */
   readonly allowedTransitions: ReadonlyArray<LifecycleActionEnum>;
@@ -216,6 +226,8 @@ export interface CaseLifecycle {
   readonly blockedReason?: LifecycleBlockedReason;
   /** En `clone`, la versión NUEVA que se creó. */
   readonly caseVersionId: number;
+  /** La lista de publicación con el respaldo de cada casilla: quien revisa la ve sin pedir el caso entero (S3-3). */
+  readonly checklist: CaseChecklist;
   /** Solo si la versión ya tuvo una revisión. */
   readonly review?: CaseReview;
   readonly state: CaseVersionStatusEnum;
@@ -263,6 +275,105 @@ export interface CaseValidationEnvelope {
 }
 
 export type CaseVersionStatusEnum = 'DRAFT' | 'IN_REVIEW' | 'PUBLISHED' | 'ARCHIVED';
+
+/** La constancia de Psicología vista desde la lista: si existe y, cuando existe, sus datos. */
+export interface ChecklistContentReview {
+  readonly fulfilled: boolean;
+  /** El acta o la referencia de la revisión. Solo si ya hay constancia. */
+  readonly reference?: string;
+  /** Solo si ya hay constancia. */
+  readonly reviewedOn?: string | null;
+  /** Solo si ya hay constancia. */
+  readonly reviewer?: string;
+}
+
+/** Un ítem de la lista de publicación y quién lo respalda (S3-3). */
+export interface ChecklistItem {
+  /** Si el dato que lo respalda existe ahora; `null` si es solo una declaración. */
+  readonly backed: boolean | null;
+  /** Quién lo respalda: el sistema, la constancia de Psicología o solo la declaración de quien autora. */
+  readonly backing: BackingEnum;
+  /** El respaldo en lenguaje llano, para mostrarlo tal cual. */
+  readonly backingLabel: string;
+  /** Estable: `contentOriginal`, `ethicsReviewed`, `safetyProtocols`… */
+  readonly code: string;
+  /** Su texto es un borrador pendiente de la validación de Psicología. */
+  readonly draft: boolean;
+  /** Si la última lista guardada lo tiene marcado. */
+  readonly fulfilled: boolean;
+  readonly label: string;
+  /** Si la publicación lo exige hoy: seis ítems, o siete con la revisión de contenido. */
+  readonly required: boolean;
+}
+
+/** Cuerpo de `POST …/consent`: la versión del aviso que la persona vio. */
+export interface ConsentAcceptRequest {
+  /** La versión del aviso que el cliente mostró. Si no es la vigente en el servidor, 409 `NOTICE_VERSION_STALE`. */
+  readonly noticeVersion: string;
+}
+
+/** El error de un aviso de otra versión (409 `NOTICE_VERSION_STALE`): el sobre de error con la versión vigente en la raíz. Es la forma real del 409 (sin `field`, que es de la validación de campos): por eso no extiende a `ErrorEnvelope`. */
+export interface ConsentNoticeError {
+  /** Estable: `NOTICE_VERSION_STALE`. */
+  readonly code: string;
+  readonly message: string;
+  /** La versión VIGENTE del aviso en el servidor. */
+  readonly noticeVersion: string;
+  /** Siempre `false` en un error. */
+  readonly success: boolean;
+}
+
+/** La aceptación registrada (`POST …/consent`): 201 si es nueva y 200 si ya existía, con la misma forma. */
+export interface ConsentRecord {
+  /** Hora local del servidor (America/Bogota), sin zona horaria. */
+  readonly acceptedAt: string;
+  readonly caseVersionId: number;
+  /** La versión del aviso que quedó aceptada. */
+  readonly noticeVersion: string;
+}
+
+/** Sobre de éxito: `data` es `ConsentRecord`. */
+export interface ConsentRecordEnvelope {
+  readonly data: ConsentRecord;
+  readonly message?: string;
+  /** Siempre `true` en una respuesta de éxito. */
+  readonly success: boolean;
+}
+
+/** El consentimiento de la persona al aviso de contenido de una versión del caso (`GET …/consent`). */
+export interface ConsentState {
+  /** Si la persona tiene una aceptación vigente de esa versión del aviso. */
+  readonly accepted: boolean;
+  /** Nulo si no ha aceptado. Hora local del servidor (America/Bogota), sin zona horaria. */
+  readonly acceptedAt: string | null;
+  /** La versión VIGENTE del aviso en el servidor. */
+  readonly noticeVersion: string;
+  /** Si el servidor exige el consentimiento para jugar (`SIEP_CONSENT_REQUIRED`). */
+  readonly required: boolean;
+}
+
+/** Sobre de éxito: `data` es `ConsentState`. */
+export interface ConsentStateEnvelope {
+  readonly data: ConsentState;
+  readonly message?: string;
+  /** Siempre `true` en una respuesta de éxito. */
+  readonly success: boolean;
+}
+
+/** El retiro del consentimiento (`DELETE …/consent`). Idempotente: sin nada vigente responde 200 con `withdrawnAt` nulo. */
+export interface ConsentWithdrawal {
+  readonly caseVersionId: number;
+  /** Nulo si no había nada vigente que retirar. Hora local del servidor (America/Bogota), sin zona horaria. */
+  readonly withdrawnAt: string | null;
+}
+
+/** Sobre de éxito: `data` es `ConsentWithdrawal`. */
+export interface ConsentWithdrawalEnvelope {
+  readonly data: ConsentWithdrawal;
+  readonly message?: string;
+  /** Siempre `true` en una respuesta de éxito. */
+  readonly success: boolean;
+}
 
 /** La constancia de la revisión de contenido de Psicología. */
 export interface ContentReview {
@@ -566,6 +677,7 @@ export interface OpenApiPaths {
   readonly '/api/admin/users': 'GET' | 'POST';
   readonly '/api/admin/users/approve': 'POST';
   readonly '/api/admin/users/{user_id}': 'PUT';
+  readonly '/api/admin/users/{user_id}/revoke-sessions': 'POST';
   readonly '/api/admin/users/{user_id}/status': 'PATCH';
   readonly '/api/assignments': 'GET' | 'POST';
   readonly '/api/assignments/{assignment_id}': 'DELETE' | 'PATCH';
@@ -574,8 +686,8 @@ export interface OpenApiPaths {
   readonly '/api/auth/google': 'POST';
   readonly '/api/auth/google/config': 'GET';
   readonly '/api/auth/login': 'POST';
+  readonly '/api/auth/logout': 'POST';
   readonly '/api/auth/me': 'GET';
-  readonly '/api/auth/register': 'POST';
   readonly '/api/authoring/cases': 'GET' | 'POST';
   readonly '/api/authoring/cases/import': 'POST';
   readonly '/api/authoring/cases/{case_version_id}/brief': 'PUT';
@@ -639,6 +751,7 @@ export interface OpenApiPaths {
   readonly '/api/rubrics/{rubric_id}/deactivate': 'POST';
   readonly '/api/rubrics/{rubric_id}/default': 'POST';
   readonly '/api/rubrics/{rubric_id}/duplicate': 'POST';
+  readonly '/api/security/csp-report': 'POST';
   readonly '/api/simulation/ai-assistant': 'POST';
   readonly '/api/simulation/attempts': 'POST';
   readonly '/api/simulation/attempts/history': 'GET';
@@ -663,6 +776,7 @@ export interface OpenApiPaths {
   readonly '/api/simulation/cases': 'GET';
   readonly '/api/simulation/cases/{case_version_id}/active-attempt': 'GET';
   readonly '/api/simulation/cases/{case_version_id}/brief': 'GET';
+  readonly '/api/simulation/cases/{case_version_id}/consent': 'DELETE' | 'GET' | 'POST';
   readonly '/api/simulation/catalog': 'GET';
 }
 

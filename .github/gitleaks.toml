@@ -10,13 +10,22 @@ useDefault = true
 [allowlist]
 description = "Falsos positivos revisados de generic-api-key"
 regexes = [
-  # Claves de dominio del caso (opciones de decisión, nodos, salas): slugs en minúscula
-  # unidos por guiones (p. ej. h1-interrogar-victima). Una credencial real no tiene esa forma.
-  '''^[a-z0-9]+(?:-[a-z0-9]+)+$''',
+  # Claves de dominio del caso (opciones de decisión, nodos, salas): slugs en minúscula unidos por guiones (p. ej.
+  # h1-interrogar-victima). Una credencial real no tiene esa forma. S7-2 (#4): ya NO vale cualquier cadena minúscula con
+  # guiones —un UUID (un token de Railway, por ejemplo) o un hash con guiones pasaría limpio—: se exige al menos una letra
+  # de la g a la z (un UUID solo lleva dígitos y a–f) y al menos un guion. Son dos alternativas (la RE2 de gitleaks no tiene
+  # anticipación): el segmento con la letra va precedido de otro, o seguido de otro. La prueba
+  # shared/tests/test_gitleaks_config.py la evalúa con UUID y con slugs reales.
+  '''^(?:[a-z0-9]+-)+[a-z0-9]*[g-z][a-z0-9]*(?:-[a-z0-9]+)*$|^[a-z0-9]*[g-z][a-z0-9]*(?:-[a-z0-9]+)+$''',
   # Marcadores de posición de .env.example: se piden cambiar antes de desplegar.
   '''^cambia-esto[a-z0-9-]*$''',
-  # Secreto JWT de DESARROLLO por defecto de settings/base.py; producción exige uno propio.
+  # Literal JWT de DESARROLLO de JWT_SECRET: base.py ya no lo contiene (S5-1) y JWT_SECRET ya no firma nada (S5-3: la
+  # llave de firma es JWT_SIGNING_KEY). Se mantiene la excepción porque sigue en el historial de git, que `gitleaks detect`
+  # también escanea: así el historial no falla.
   '''^psychosim-jwt-secret-key-must-be-at-least-256-bits-long-for-hs256$''',
+  # Llave de cifrado de reflexiones de DESARROLLO por defecto de settings/base.py (S5-1): producción la rechaza
+  # (caracteres repetidos y el marcador «dev-only»); no es un secreto.
+  '''^dev-only-reflection-key-never-use-in-production$''',
   # Nombre de la entrada de localStorage con la copia del avatar v1 (AVATAR_V1_BACKUP_KEY en
   # avatar.store.ts): es el nombre de una clave del navegador, no una credencial; la regla salta
   # solo porque la constante termina en _KEY.

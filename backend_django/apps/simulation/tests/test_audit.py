@@ -3,18 +3,23 @@ AuditLogCleanupScheduler. Audit is written AFTER a successful operation, never o
 failure, never breaking the business op; retention is occurred_at + 360 days; a
 management command purges expired rows."""
 import json
+import logging
 from datetime import datetime, timedelta
 
 import pytest
 from django.contrib.auth import get_user_model
 from django.core.management import call_command
-from django.db import connection
+from django.db import DatabaseError, connection
+from django.db.models import Sum
+from django.test import RequestFactory
 from django.utils import timezone
 from rest_framework.test import APIClient
 
 from apps.grupos.models import Grupo
+from apps.security.models import RateLimitBucket
 from apps.simulation.models import AuditLog, CaseVersion
 from apps.simulation.services import audit_service
+from shared.testing import rewrite_audit_rows
 
 User = get_user_model()
 ADMIN_BASE = "/api/admin/cases"
@@ -253,7 +258,7 @@ def _audit_row_at(admin, when, *, resource_type):
         actor=admin, actor_role="ADMIN", action="CASE_CREATED", resource_type=resource_type, resource_id="tz-1",
         retention_until=when + timedelta(days=360),
     )
-    AuditLog.objects.filter(pk=row.pk).update(occurred_at=when)  # auto_now_add pisa el valor dado al crear
+    rewrite_audit_rows(AuditLog.objects.filter(pk=row.pk), occurred_at=when)  # auto_now_add pisa el valor dado al crear
     return row
 
 
@@ -314,3 +319,139 @@ def test_la_lectura_de_la_auditoria_nunca_devuelve_texto_que_escribio_una_person
     items = cl(admin).get("/api/admin/audit", {"action": "asistente.consultar"}).data["data"]["items"]
 
     assert [i["context"] for i in items] == [{"node": 7, "response_length": 4}]
+
+
+# --- S1-1 · la IP de la auditoría la calcula client_ip (SIEP-RNF-02) ---------
+@audit_service.auditable("AUDIT_PRUEBA_IP", "PRUEBA")
+def _operacion_auditada(recurso_id):
+    return recurso_id
+
+
+def _primer_valor_sin_validar(request):
+    """La lectura de antes de S1-1 (control negativo): el primer valor de la cabecera, sin validar."""
+    reenviada = request.META.get("HTTP_X_FORWARDED_FOR")
+    if reenviada and reenviada.strip():
+        return reenviada.split(",")[0].strip()
+    return request.META.get("REMOTE_ADDR")
+
+
+def _auditar_peticion(peticion, recurso_id):
+    """Ejecuta una operación auditada con la petición ligada, como lo hace el middleware, y devuelve su fila."""
+    audit_service.bind_request(peticion)
+    try:
+        _operacion_auditada(recurso_id)
+    finally:
+        audit_service.clear_request()
+    return AuditLog.objects.filter(action="AUDIT_PRUEBA_IP", resource_id=recurso_id).order_by("-id").first()
+
+
+@pytest.mark.req("SIEP-RNF-02")
+@pytest.mark.security
+def test_la_auditoria_registra_la_ip_calculada_y_no_la_falsificada(db, settings):
+    settings.SIEP_TRUSTED_PROXIES = 1
+    peticion = RequestFactory().post("/x", HTTP_X_FORWARDED_FOR="6.6.6.6, 9.9.9.9", REMOTE_ADDR="203.0.113.7")
+
+    row = _auditar_peticion(peticion, "ip-falsificada")
+
+    assert row is not None
+    assert row.ip_address == "9.9.9.9"
+
+
+@pytest.mark.req("SIEP-RNF-02")
+@pytest.mark.security
+@pytest.mark.parametrize("saltos", [0, 1])
+def test_una_cabecera_larga_no_hace_perder_la_fila_de_auditoria(db, settings, saltos):
+    """Hallazgo de la revisión S0-3 (SF-20): ``ip_address`` es varchar(80) y ``append`` tragaba el fallo de
+    inserción, así que una cabecera de más de 80 caracteres dejaba la auditoría sin fila y sin aviso."""
+    settings.SIEP_TRUSTED_PROXIES = saltos
+    peticion = RequestFactory().post("/x", HTTP_X_FORWARDED_FOR="x" * 200, REMOTE_ADDR="203.0.113.7")
+
+    row = _auditar_peticion(peticion, f"ip-larga-{saltos}")
+
+    assert row is not None
+    assert row.ip_address == "203.0.113.7"
+    assert len(row.ip_address) <= 45
+
+
+@pytest.mark.req("SIEP-RNF-02")
+@pytest.mark.security
+def test_control_negativo_la_lectura_sin_validar_pierde_la_fila(db, settings, monkeypatch):
+    """Con la lectura de antes (primer valor, sin validar) la misma petición no deja fila: el control demuestra
+    que la prueba de arriba detecta la regresión. La inserción falla y deja abortada la transacción, así que la
+    consulta posterior lanza un error de base de datos (si la columna se ensanchara, este control avisaría)."""
+    settings.SIEP_TRUSTED_PROXIES = 0
+    monkeypatch.setattr(audit_service, "_client_ip", _primer_valor_sin_validar)
+    peticion = RequestFactory().post("/x", HTTP_X_FORWARDED_FOR="x" * 200, REMOTE_ADDR="203.0.113.7")
+
+    with pytest.raises(DatabaseError):
+        _auditar_peticion(peticion, "ip-larga-control")
+
+
+# ── S4-3 · un fallo al escribir la auditoría: ERROR, contador y la operación sigue ─────────────────────
+
+
+def _operacion_con_auditoria_de_prueba():
+    @audit_service.auditable("TEST_FALLO_AUDITORIA", "PRUEBA", 0)
+    def operacion(valor):
+        return valor * 2
+
+    return operacion
+
+
+def _fallos_contados():
+    return RateLimitBucket.objects.filter(scope="audit_failure").aggregate(total=Sum("count"))["total"] or 0
+
+
+def _ejecutar_con_fallo(punto, monkeypatch, caplog):
+    """Hace fallar la escritura de la auditoría: en ``persistencia`` (``AuditLog.objects.create``) o en ``decorador``
+    (``_write_audit``). Devuelve lo que devuelve la operación auditada y sus registros ERROR de auditoría."""
+
+    def fallar(*args, **kwargs):
+        raise RuntimeError("base caída")
+
+    if punto == "persistencia":
+        monkeypatch.setattr(AuditLog.objects, "create", fallar)
+    else:
+        monkeypatch.setattr(audit_service, "_write_audit", fallar)
+    with caplog.at_level(logging.ERROR, logger="apps.simulation.services.audit_service"):
+        resultado = _operacion_con_auditoria_de_prueba()(21)
+    errores = [
+        registro
+        for registro in caplog.records
+        if registro.levelno == logging.ERROR and getattr(registro, "fields", {}).get("event") == "audit_write_failed"
+    ]
+    return resultado, errores
+
+
+def _afirmar_fallo_registrado(resultado, errores):
+    assert resultado == 42  # la operación auditada termina igual
+    assert len(errores) == 1
+    assert errores[0].fields == {
+        "event": "audit_write_failed", "action": "TEST_FALLO_AUDITORIA", "error": "RuntimeError",
+    }
+    assert _fallos_contados() == 1
+
+
+@pytest.mark.req("SIEP-RNF-02")
+@pytest.mark.security
+@pytest.mark.parametrize("punto", ["persistencia", "decorador"])
+def test_un_fallo_al_escribir_la_auditoria_es_un_error_contado_y_la_operacion_sigue(
+    db, settings, monkeypatch, caplog, punto
+):
+    settings.SIEP_THROTTLE_ENABLED = True
+
+    resultado, errores = _ejecutar_con_fallo(punto, monkeypatch, caplog)
+
+    _afirmar_fallo_registrado(resultado, errores)
+
+
+@pytest.mark.req("SIEP-RNF-02")
+@pytest.mark.security
+def test_control_negativo_sin_el_registro_de_error_el_fallo_pasa_inadvertido(db, settings, monkeypatch, caplog):
+    settings.SIEP_THROTTLE_ENABLED = True
+    monkeypatch.setattr(audit_service, "_registrar_fallo_de_auditoria", lambda action, ex: None)
+
+    resultado, errores = _ejecutar_con_fallo("persistencia", monkeypatch, caplog)
+
+    with pytest.raises(AssertionError):
+        _afirmar_fallo_registrado(resultado, errores)

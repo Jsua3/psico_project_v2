@@ -1,7 +1,8 @@
-import { Component, Input, provideZonelessChangeDetection } from '@angular/core';
+import { HttpErrorResponse } from '@angular/common/http';
+import { CSP_NONCE, Component, Input, Provider, provideZonelessChangeDetection } from '@angular/core';
 import { ComponentFixture, TestBed } from '@angular/core/testing';
 import { provideRouter } from '@angular/router';
-import { Observable, Subject, of } from 'rxjs';
+import { Observable, Subject, of, throwError } from 'rxjs';
 
 import { AuthService } from '../../core/auth/auth.service';
 import { UiDialog } from '../../shared/ui/dialog/ui-dialog';
@@ -29,6 +30,7 @@ describe('LoginComponent', () => {
   let fixture: ComponentFixture<LoginComponent>;
   let login: ReturnType<typeof vi.fn>;
   let googleConfig: () => Observable<{ enabled: boolean; clientId?: string }>;
+  let requestAccess: (payload?: unknown) => Observable<unknown>;
   const host = () => fixture.nativeElement as HTMLElement;
   const text = (el: Element | null) => (el?.textContent ?? '').replace(/\s+/g, ' ').trim();
   /** Texto que se lee de una etiqueta (sin el «*» decorativo de obligatorio, que es aria-hidden). */
@@ -39,12 +41,13 @@ describe('LoginComponent', () => {
   };
   const originalMatchMedia = window.matchMedia;
 
-  async function render(): Promise<void> {
+  async function render(extraProviders: Provider[] = []): Promise<void> {
     TestBed.configureTestingModule({
       providers: [
+        ...extraProviders,
         provideZonelessChangeDetection(),
         provideRouter([{ path: '**', component: Screen }]),
-        { provide: AuthService, useValue: { login, googleConfig: () => googleConfig(), requestAccess: () => of({}) } },
+        { provide: AuthService, useValue: { login, googleConfig: () => googleConfig(), requestAccess: (payload: unknown) => requestAccess(payload) } },
         { provide: UiDialog, useValue: { sheet: vi.fn() } },
       ],
     });
@@ -59,6 +62,7 @@ describe('LoginComponent', () => {
 
   beforeEach(() => {
     login = vi.fn(() => of({}));
+    requestAccess = () => of({});
     googleConfig = () => of({ enabled: false });
     window.matchMedia = ((query: string) => ({
       matches: query.includes('min-width'), media: query, addEventListener: () => undefined, removeEventListener: () => undefined,
@@ -150,7 +154,7 @@ describe('LoginComponent', () => {
 
     button('Solicitar acceso').click();
     await fixture.whenStable();
-    fixture.componentInstance.registerForm.setValue({ nombre: 'Ana', apellido: 'Ruiz', email: 'ana@cue.edu.co' });
+    fixture.componentInstance.registerForm.setValue({ nombre: 'Ana', apellido: 'Ruiz', email: 'ana@cue.edu.co', website: '' });
     submit().click();
     await fixture.whenStable();
     expect(text(status())).toBe('Solicitud enviada. El equipo académico revisará tu acceso y te contactará por correo.');
@@ -180,6 +184,80 @@ describe('LoginComponent', () => {
       .mockRejectedValue(new Error('sin red'));
     await render();
     await vi.waitFor(() => expect(text(host())).toContain('El acceso con Google no está disponible ahora.'));
+  });
+
+  // req: RNF-002 (S2-4: con la CSP en vigor, Google Identity Services copia el nonce de SU script a la hoja que inyecta)
+  describe('script de Google bajo la política de contenido', () => {
+    const gsiScript = () => document.getElementById('google-gsi-script') as HTMLScriptElement | null;
+    // La prueba anterior de Google espía loadGoogleScript sin restaurarlo: aquí se necesita el método de verdad.
+    beforeEach(() => vi.restoreAllMocks());
+    afterEach(() => gsiScript()?.remove());
+
+    it('lleva el nonce de la página (CSP_NONCE): sin él Google inyecta una hoja que la política bloquea', async () => {
+      googleConfig = () => of({ enabled: true, clientId: 'cliente-demo' });
+      await render([{ provide: CSP_NONCE, useValue: 'nonce-de-la-pagina' }]);
+      await vi.waitFor(() => expect(gsiScript()).not.toBeNull());
+      expect(gsiScript()!.nonce || gsiScript()!.getAttribute('nonce')).toBe('nonce-de-la-pagina');
+      expect(gsiScript()!.src).toBe('https://accounts.google.com/gsi/client');
+    });
+
+    it('control negativo: sin política (sin nonce) el script se pide igual y no lleva ninguno', async () => {
+      googleConfig = () => of({ enabled: true, clientId: 'cliente-demo' });
+      await render([{ provide: CSP_NONCE, useValue: null }]);
+      await vi.waitFor(() => expect(gsiScript()).not.toBeNull());
+      expect(gsiScript()!.nonce || gsiScript()!.getAttribute('nonce') || '').toBe('');
+    });
+  });
+
+  // req: LW-17 (S1-3: campo trampa contra el envío automático de solicitudes de acceso)
+  describe('campo trampa de la solicitud de acceso', () => {
+    it('existe fuera de la tabulación y oculto a lectores de pantalla, y viaja vacío con la solicitud', async () => {
+      const requestAccessSpy = vi.fn(() => of({}));
+      requestAccess = requestAccessSpy;
+      await render();
+      button('Solicitar acceso').click();
+      await fixture.whenStable();
+      const trap = host().querySelector<HTMLInputElement>('#registro-sitio')!;
+      expect(trap).not.toBeNull();
+      expect(trap.tabIndex).toBe(-1);
+      expect(trap.getAttribute('autocomplete')).toBe('off');
+      expect(trap.closest('[aria-hidden="true"]')).not.toBeNull();
+      expect(trap.value).toBe('');
+
+      fixture.componentInstance.registerForm.setValue({ nombre: 'Ana', apellido: 'Ruiz', email: 'ana@cue.edu.co', website: '' });
+      submit().click();
+      await fixture.whenStable();
+      expect(requestAccessSpy).toHaveBeenCalledWith({ nombre: 'Ana', apellido: 'Ruiz', email: 'ana@cue.edu.co', website: '' });
+    });
+  });
+
+  // req: DJA-2 (S1-2: el limitador responde 429 con el texto y los segundos de espera)
+  describe('429 del limitador', () => {
+    const throttled = () => new HttpErrorResponse({
+      status: 429, statusText: 'Too Many Requests',
+      error: { success: false, code: 'THROTTLED', message: 'Demasiados intentos. Espera 40 s e inténtalo de nuevo.', retryAfter: 40 },
+    });
+
+    it('al entrar muestra el texto del servidor con la espera y deja volver a intentar', async () => {
+      login = vi.fn(() => throwError(() => throttled()));
+      await render();
+      fixture.componentInstance.form.setValue({ email: 'ana@cue.edu.co', password: 'secreta', remember: false });
+      submit().click();
+      await fixture.whenStable();
+      expect(text(host().querySelector('.acceso__error'))).toBe('Demasiados intentos. Espera 40 s e inténtalo de nuevo.');
+      expect(submit().getAttribute('aria-busy')).not.toBe('true');
+    });
+
+    it('al solicitar acceso muestra el mismo texto en su propia región de error', async () => {
+      requestAccess = () => throwError(() => throttled());
+      await render();
+      button('Solicitar acceso').click();
+      await fixture.whenStable();
+      fixture.componentInstance.registerForm.setValue({ nombre: 'Ana', apellido: 'Ruiz', email: 'ana@cue.edu.co', website: '' });
+      submit().click();
+      await fixture.whenStable();
+      expect(text(host().querySelector('.acceso__error'))).toBe('Demasiados intentos. Espera 40 s e inténtalo de nuevo.');
+    });
   });
 
   it('las partículas del panel se pueden pausar y reanudar (H-22, VD-25)', async () => {

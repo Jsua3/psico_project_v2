@@ -18,6 +18,9 @@ import { scaled } from './e2e/support/time-scale';
 export default defineConfig({
   testDir: './e2e',
   testMatch: '**/*.e2e.ts',
+  // La sonda de CSP (S2-4) necesita el build de producción servido por Django, no `ng serve`: tiene su propia
+  // configuración (playwright.csp-probe.config.ts) y su orquestador (`npm run test:csp`). Aquí no corre.
+  testIgnore: '**/csp-probe.e2e.ts',
   timeout: scaled(45_000),
   expect: { timeout: scaled(5_000) },
   forbidOnly: !!process.env.CI,

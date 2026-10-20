@@ -221,3 +221,40 @@ def test_encendido_error_del_proveedor_no_filtra_detalles(estudiante, intento, m
     assert "sk-secreto" not in response.data["response"]
     assert "provider" not in response.data["response"]
     assert "más tarde" in response.data["response"]
+
+
+# ─── S1-1 · la IP de la auditoría del asistente la calcula client_ip (SIEP-RNF-02) ───
+@pytest.mark.req("SIEP-RNF-02")
+@pytest.mark.security
+@override_settings(AI_ASSISTANT_ENABLED=True, SIEP_TRUSTED_PROXIES=1)
+def test_la_auditoria_del_asistente_registra_la_ip_del_cliente_y_no_la_falsificada(estudiante, intento, monkeypatch):
+    monkeypatch.setattr(AIAssistantView, "_call_llm", lambda self, question, context: "¿Qué observas?")
+
+    response = cl(estudiante).post(
+        URL, {"attempt_id": intento, "question": "¿Qué principios aplican?"}, format="json",
+        HTTP_X_FORWARDED_FOR="6.6.6.6, 9.9.9.9", REMOTE_ADDR="203.0.113.7",
+    )
+
+    assert response.status_code == 200
+    entry = AuditLog.objects.filter(action="AI_ASSISTANT_QUERY", resource_id=intento).order_by("-id").first()
+    assert entry is not None
+    assert entry.ip_address == "9.9.9.9"
+
+
+@pytest.mark.req("SIEP-RNF-02")
+@pytest.mark.security
+@pytest.mark.parametrize("saltos", [0, 1])
+def test_la_auditoria_del_asistente_no_se_pierde_con_una_cabecera_larga(estudiante, intento, monkeypatch, settings, saltos):
+    """Mismo hallazgo SF-20 por la vía del asistente, que escribe su propia fila de auditoría."""
+    settings.AI_ASSISTANT_ENABLED = True
+    settings.SIEP_TRUSTED_PROXIES = saltos
+    monkeypatch.setattr(AIAssistantView, "_call_llm", lambda self, question, context: "¿Qué observas?")
+
+    cl(estudiante).post(
+        URL, {"attempt_id": intento, "question": "¿Qué principios aplican?"}, format="json",
+        HTTP_X_FORWARDED_FOR="x" * 200, REMOTE_ADDR="203.0.113.7",
+    )
+
+    entry = AuditLog.objects.filter(action="AI_ASSISTANT_QUERY", resource_id=intento).order_by("-id").first()
+    assert entry is not None
+    assert entry.ip_address == "203.0.113.7"

@@ -295,3 +295,33 @@ def test_la_compuerta_si_puede_escribir_published(tmp_path):
 def test_las_pruebas_y_las_migraciones_quedan_fuera_de_la_regla(tmp_path, rel):
     files = {rel: "def f(v):\n    v.status = 'PUBLISHED'\n"}
     assert "publicacion-unica" not in _rules(tmp_path, files)
+
+
+# ── S1-1 · La cabecera de IP reenviada solo se lee en shared/client_ip.py (ip-reenviada-solo-client-ip) ──
+
+@pytest.mark.req("SIEP-RNF-02")
+@pytest.mark.security
+@pytest.mark.parametrize(
+    "snippet",
+    [
+        "def f(request):\n    return request.META.get('HTTP_X_FORWARDED_FOR')\n",
+        "def f(request):\n    return request.headers.get('X-Forwarded-For')\n",
+        "CLAVE = 'HTTP_X_FORWARDED_FOR'\n",
+    ],
+)
+def test_la_cabecera_reenviada_solo_se_lee_en_client_ip(tmp_path, snippet):
+    assert "ip-reenviada-solo-client-ip" in _rules(tmp_path, {"apps/x/services.py": snippet})
+
+
+@pytest.mark.req("SIEP-RNF-02")
+@pytest.mark.security
+def test_client_ip_es_el_unico_modulo_que_puede_leer_la_cabecera(tmp_path):
+    files = {"shared/client_ip.py": "CLAVE = 'HTTP_X_FORWARDED_FOR'\n"}
+    assert check_architecture(_tree(tmp_path, files)) == []
+
+
+@pytest.mark.req("SIEP-RNF-02")
+@pytest.mark.security
+def test_las_pruebas_pueden_nombrar_la_cabecera(tmp_path):
+    files = {"apps/x/tests/test_y.py": "CLAVE = 'HTTP_X_FORWARDED_FOR'\n"}
+    assert "ip-reenviada-solo-client-ip" not in _rules(tmp_path, files)

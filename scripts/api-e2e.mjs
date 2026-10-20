@@ -3,24 +3,47 @@
  * Matriz HTTP end-to-end contra un backend de test local y atestado.
  * El target y las seis credenciales son obligatorios; este script no tiene
  * defaults de desarrollo y valida la configuracion antes de tocar la red.
+ * Al final corre el bloque «abuso» (S7-1b, `runAbuseBlock`): tokens hostiles, cuerpos y consultas hostiles, un
+ * `Content-Length` mayor que el cuerpo, CORS, salida limpia, anonimo contra rutas privadas y esquema cerrado.
  */
+import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
+import {
+  SHORT_BODY,
+  SHORT_BODY_DECLARED_LENGTH,
+  SHORT_BODY_WAIT_MS,
+  assessAuditRows,
+  assessResponse,
+  buildHostileBodyCases,
+  buildHostileQueryCases,
+  buildHostileTokens,
+  findCorsLeaks,
+  findLeaks,
+  judgeShortBodyProbe,
+  pickPrivateGetRoutes,
+  probeShortBody,
+} from './api-e2e-abuse-support.mjs';
 import { createApiE2EConfig } from './test-runner-support.mjs';
 
 const TEST_ENVIRONMENT_HEADER = 'x-siep-test-environment';
+const SURFACE_INVENTORY_PATH = fileURLToPath(new URL('../backend_django/shared/surface-inventory.json', import.meta.url));
 
 function createRequester(apiBase, fetchImpl) {
-  return async function request(method, path, { token, body, headers: extra } = {}) {
+  // `body` es un objeto que se manda como JSON; `rawBody` es el texto tal cual (cuerpos hostiles que no son un JSON que
+  // JSON.stringify produzca: 5000 niveles, 1,1 MiB). `timeoutMs` corta una peticion que el servidor deja colgada.
+  return async function request(method, path, { token, body, rawBody, headers: extra, timeoutMs } = {}) {
+    if (body !== undefined && rawBody !== undefined) throw new TypeError('body y rawBody son excluyentes.');
     const headers = { Accept: 'application/json', ...extra };
     if (token) headers.Authorization = `Bearer ${token}`;
-    if (body !== undefined) headers['Content-Type'] = 'application/json';
+    if (body !== undefined || rawBody !== undefined) headers['Content-Type'] = 'application/json';
 
     const response = await fetchImpl(`${apiBase}${path}`, {
       method,
       headers,
-      body: body === undefined ? undefined : JSON.stringify(body),
+      body: rawBody !== undefined ? rawBody : (body === undefined ? undefined : JSON.stringify(body)),
+      signal: timeoutMs ? AbortSignal.timeout(timeoutMs) : undefined,
     });
     let data = null;
     const text = await response.text();
@@ -62,6 +85,206 @@ function redactError(error, env) {
     if (secret) message = message.replaceAll(secret, '[REDACTED]');
   }
   return message;
+}
+
+/** Tope de una peticion hostil: un servidor cargado puede tardar (el cuerpo de 1,1 MiB incluido), pero nada cuelga la matriz. */
+const ABUSE_REQUEST_TIMEOUT_MS = 30_000;
+/** La salud justo despues de la conexion colgada: si no contesta en 10 s, el servidor quedo atascado (normalmente tarda ms). */
+const HEALTH_AFTER_HANG_TIMEOUT_MS = 10_000;
+
+export function loadSurfaceInventory(path = SURFACE_INVENTORY_PATH) {
+  return JSON.parse(readFileSync(path, 'utf8'));
+}
+
+function describeError(error) {
+  const text = error?.name === 'TimeoutError' ? 'tiempo agotado' : String(error?.message ?? error ?? 'error desconocido');
+  return `${text}${error?.cause?.code ? ` [${error.cause.code}]` : ''}`;
+}
+
+/**
+ * Bloque «abuso» (S7-1b, plan 03): lo que solo se prueba contra un servidor real y no con el cliente de pruebas de Django
+ * (la tabla en pytest esta en `apps/security/tests/test_abuse_cases.py` y `test_jwt_attacks.py`). Cada comprobacion cuenta en
+ * la matriz por `check.pass` / `check.fail`; una excepcion (red, tiempo agotado) es un fallo de ESA comprobacion y no corta
+ * las demas. Las piezas puras (tokens, cuerpos, revision de respuestas) estan en `api-e2e-abuse-support.mjs`.
+ *
+ * `request` es el de la matriz (relativo a la base de la API); `originRequest`, el mismo pero sobre el origen del servidor
+ * (para `/schema/` y `/swagger-ui.html`, que no cuelgan de `/api`).
+ */
+export async function runAbuseBlock({
+  config,
+  request,
+  originRequest,
+  tokens,
+  sessions = {},
+  check,
+  loadInventory = loadSurfaceInventory,
+  probe = probeShortBody,
+  log = console.log,
+}) {
+  const record = (name, verdict) => (verdict.ok ? check.pass(name) : check.fail(name, verdict.detail));
+  const attempt = async (name, work) => {
+    try {
+      await work();
+    } catch (error) {
+      check.fail(name, `excepcion: ${describeError(error)}`);
+    }
+  };
+  const expectResponse = (name, send, expected) => attempt(name, async () => {
+    record(name, assessResponse(await send(), expected));
+  });
+  const get = (path, options = {}) => request('GET', path, { timeoutMs: ABUSE_REQUEST_TIMEOUT_MS, ...options });
+
+  log('');
+  log('[siep] Bloque abuso (S7-1b): tokens, cuerpos, conexiones y salida contra el servidor real');
+
+  // 1. Tokens hostiles contra una lectura propia y una ruta de ADMIN: siempre 401, nunca 500. Se fabrican con node:crypto a
+  // partir del token REAL del estudiante; el servidor de pruebas no revela su llave y no se usa.
+  await expectResponse(
+    'control: el token real del ESTUDIANTE GET /auth/me -> 200',
+    () => get('/auth/me', { token: tokens.ESTUDIANTE }),
+    { status: 200 },
+  );
+  await expectResponse(
+    'control: el token real del ESTUDIANTE GET /admin/users -> 403',
+    () => get('/admin/users', { token: tokens.ESTUDIANTE }),
+    { status: 403 },
+  );
+  await attempt('tokens hostiles: fabricarlos a partir del token real del ESTUDIANTE', async () => {
+    const hostile = buildHostileTokens(tokens.ESTUDIANTE, { otherUser: sessions.ADMIN?.user });
+    for (const endpoint of ['/auth/me', '/admin/users']) {
+      for (const entry of hostile) {
+        await expectResponse(
+          `token hostil ${entry.id}: GET ${endpoint} -> 401`,
+          () => get(endpoint, { headers: { Authorization: entry.authorization } }),
+          { status: 401 },
+        );
+      }
+    }
+  });
+
+  // 2. Cuerpos y consultas hostiles: un 4xx con su codigo, nunca un 500.
+  await expectResponse(
+    'control: POST /auth/login normal -> 200',
+    () => request('POST', '/auth/login', { body: config.users.ESTUDIANTE, timeoutMs: ABUSE_REQUEST_TIMEOUT_MS }),
+    { status: 200 },
+  );
+  for (const entry of buildHostileBodyCases()) {
+    await expectResponse(
+      entry.name,
+      () => request(entry.method, entry.path, { rawBody: entry.rawBody, timeoutMs: ABUSE_REQUEST_TIMEOUT_MS }),
+      entry.expected,
+    );
+  }
+  const auditControl = 'control: ADMIN GET /admin/audit sin filtros -> 200 con filas';
+  await attempt(auditControl, async () => {
+    const response = await get('/admin/audit', { token: tokens.ADMIN });
+    const verdict = assessResponse(response, { status: 200 });
+    const total = response.data?.data?.coverage?.total;
+    record(
+      auditControl,
+      verdict.ok && !(total >= 1)
+        ? { ok: false, detail: `la auditoria sin filtros no trae filas (total=${total}): la comparacion no probaria nada` }
+        : verdict,
+    );
+  });
+  for (const entry of buildHostileQueryCases()) {
+    await attempt(entry.name, async () => {
+      const response = await get(entry.path, { token: tokens.ADMIN });
+      record(entry.name, entry.expected.zeroAuditRows ? assessAuditRows(response) : assessResponse(response, entry.expected));
+    });
+  }
+
+  // 3. Content-Length mayor que el cuerpo real: lo que el cliente de pruebas de Django no puede enviar. El servidor no
+  // responde 5xx y, justo despues, sigue atendiendo por otra conexion. La conexion se destruye siempre (tope de tiempo).
+  const target = new URL(config.apiBase);
+  const hangName = `POST /auth/login con Content-Length ${SHORT_BODY_DECLARED_LENGTH} y ${Buffer.byteLength(SHORT_BODY)} bytes de cuerpo -> sin 5xx`;
+  await attempt(hangName, async () => {
+    const result = await probe({
+      host: target.hostname,
+      port: Number(target.port),
+      path: `${target.pathname}/auth/login`,
+      declaredLength: SHORT_BODY_DECLARED_LENGTH,
+      body: SHORT_BODY,
+      waitMs: SHORT_BODY_WAIT_MS,
+    });
+    const verdict = judgeShortBodyProbe(result);
+    record(hangName, verdict);
+    log(`  ...   Content-Length ${SHORT_BODY_DECLARED_LENGTH} con ${Buffer.byteLength(SHORT_BODY)} bytes: ${verdict.detail}`);
+  });
+  await expectResponse(
+    'GET /health justo despues, por otra conexion -> 200 (la conexion colgada no atasco al servidor)',
+    () => request('GET', '/health', { timeoutMs: HEALTH_AFTER_HANG_TIMEOUT_MS }),
+    { status: 200 },
+  );
+
+  // 4. CORS: una consulta previa desde un origen ajeno no recibe Access-Control-Allow-Origin. El corredor no declara ningun
+  // origen permitido (psychosim.settings.test hereda base.py, que no define CORS_ALLOWED_ORIGINS, y scripts/test-e2e.mjs no
+  // lo pasa): no hay mitad positiva que probar aqui (queda en pytest, con override_settings).
+  const corsName = 'OPTIONS /auth/login con Origin https://evil.example -> sin access-control-allow-origin';
+  await attempt(corsName, async () => {
+    const response = await request('OPTIONS', '/auth/login', {
+      headers: { Origin: 'https://evil.example', 'Access-Control-Request-Method': 'POST' },
+      timeoutMs: ABUSE_REQUEST_TIMEOUT_MS,
+    });
+    const problems = [...findCorsLeaks(response.headers), ...(response.status < 500 ? [] : [`respondio ${response.status}`])];
+    record(corsName, problems.length === 0 ? { ok: true, detail: '' } : { ok: false, detail: problems.join('; ') });
+    log('  ...   CORS: el corredor no declara ningun origen permitido; se prueba solo la mitad negativa');
+  });
+
+  // 5. Salida limpia: ni claves prohibidas (a cualquier profundidad) ni cadenas de conexion en lo que el servidor devuelve.
+  const samples = [
+    { label: 'GET /auth/me (ADMIN)', status: 200, send: () => get('/auth/me', { token: tokens.ADMIN }) },
+    { label: 'GET /auth/me (PROFESOR)', status: 200, send: () => get('/auth/me', { token: tokens.PROFESOR }) },
+    { label: 'GET /auth/me (ESTUDIANTE)', status: 200, send: () => get('/auth/me', { token: tokens.ESTUDIANTE }) },
+    { label: 'GET /admin/users (ADMIN)', status: 200, send: () => get('/admin/users', { token: tokens.ADMIN }) },
+    { label: 'un 401: GET /auth/me sin token', status: 401, send: () => get('/auth/me') },
+    {
+      label: 'un 404: GET /simulation/cases/0/brief (ESTUDIANTE)',
+      status: 404,
+      send: () => get('/simulation/cases/0/brief', { token: tokens.ESTUDIANTE }),
+    },
+  ];
+  for (const sample of samples) {
+    const name = `salida limpia, sin claves ni cadenas prohibidas: ${sample.label}`;
+    await attempt(name, async () => {
+      const response = await sample.send();
+      const verdict = assessResponse(response, { status: sample.status });
+      const leaks = findLeaks(response.data);
+      if (!verdict.ok) record(name, verdict);
+      else if (leaks.length > 0) record(name, { ok: false, detail: leaks.join('; ') });
+      else record(name, verdict);
+    });
+  }
+
+  // 6. Anonimo contra rutas privadas del inventario de superficie: 401 sin token. Control: la salud es publica.
+  await expectResponse('control: anonimo GET /health -> 200', () => get('/health'), { status: 200 });
+  await attempt('inventario de superficie: 10 rutas privadas GET sin parametros', async () => {
+    for (const route of pickPrivateGetRoutes(loadInventory(), { limit: 10 })) {
+      await expectResponse(`anonimo GET ${route.path} (${route.exposure}) -> 401`, () => get(route.path), { status: 401 });
+    }
+  });
+
+  // 7. Esquema cerrado: /schema/ y /swagger-ui.html responden 404 (o 401) sin sesion y con la del estudiante. Si el corredor
+  // enciende la documentacion (SIEP_EXPOSE_API_DOCS), el ADMIN la ve (200) y no hay nada cerrado que comprobar: se omite.
+  // Se pide como un navegador (Accept: */*): el visor solo sabe responder HTML y con «application/json» daria 406 aun abierto.
+  const docs = { headers: { Accept: '*/*' }, timeoutMs: ABUSE_REQUEST_TIMEOUT_MS };
+  for (const route of ['/schema/', '/swagger-ui.html']) {
+    await attempt(`esquema cerrado: ${route}`, async () => {
+      const asAdmin = await originRequest('GET', route, { ...docs, token: tokens.ADMIN });
+      if (asAdmin.status === 200) {
+        log(`  OMITIDO  ${route}: el corredor enciende la documentacion (SIEP_EXPOSE_API_DOCS) y el ADMIN la ve; no hay esquema cerrado que comprobar`);
+        return;
+      }
+      record(
+        `ADMIN GET ${route} -> 404 (documentacion apagada)`,
+        assessResponse(asAdmin, { status: 404 }),
+      );
+      const anonymous = await originRequest('GET', route, docs);
+      record(`anonimo GET ${route} -> 404 o 401`, assessResponse(anonymous, { status: [404, 401] }));
+      const student = await originRequest('GET', route, { ...docs, token: tokens.ESTUDIANTE });
+      record(`ESTUDIANTE GET ${route} -> 404 o 401`, assessResponse(student, { status: [404, 401] }));
+    });
+  }
 }
 
 export async function main(env = process.env, fetchImpl = globalThis.fetch) {
@@ -119,10 +342,12 @@ export async function main(env = process.env, fetchImpl = globalThis.fetch) {
   );
 
   const tokens = {};
+  const sessions = {};
   for (const role of Object.keys(config.users)) {
     try {
       const session = await login(role);
       tokens[role] = session.token;
+      sessions[role] = session;
       if (session.user.role !== role) {
         fail(`login ${role}`, `rol en respuesta ${session.user.role}`);
       } else {
@@ -296,6 +521,53 @@ export async function main(env = process.env, fetchImpl = globalThis.fetch) {
     if (attempt?.attemptId && attempt?.attemptToken) {
       const hintsPath = `/simulation/attempts/${attempt.attemptId}/hints`;
       const headers = { 'X-SIEP-Attempt-Token': attempt.attemptToken };
+
+      // S3-2 (C12, ETH-01): el consentimiento al aviso de contenido. Con SIEP_CONSENT_REQUIRED encendida el servidor no
+      // entrega las pistas (ni el mundo) sin él; apagada, aceptar igual deja la evidencia. La matriz vale en los dos casos.
+      const consentPath = `/simulation/cases/${caseVersionId}/consent`;
+      const consentRead = await request('GET', consentPath, { token: tokens.ESTUDIANTE });
+      expectStatus('ESTUDIANTE GET /simulation/cases/{id}/consent -> 200', consentRead.status, 200);
+      const consentState = consentRead.data?.data;
+      if (
+        typeof consentState?.required === 'boolean'
+        && typeof consentState?.noticeVersion === 'string'
+        && typeof consentState?.accepted === 'boolean'
+      ) {
+        pass('el consentimiento trae required, noticeVersion y accepted');
+      } else {
+        fail('el consentimiento trae required, noticeVersion y accepted', JSON.stringify(consentState));
+      }
+      expectStatus(
+        'PROFESOR GET /simulation/cases/{id}/consent -> 403',
+        (await request('GET', consentPath, { token: tokens.PROFESOR })).status,
+        403,
+      );
+      if (consentState?.required === true) {
+        const refused = await request('GET', hintsPath, { token: tokens.ESTUDIANTE, headers });
+        expectStatus('ESTUDIANTE GET /simulation/attempts/{id}/hints sin consentimiento (exigido) -> 403', refused.status, 403);
+        if (refused.data?.code === 'CONSENT_REQUIRED' && refused.data?.noticeVersion === consentState.noticeVersion) {
+          pass('la negativa trae CONSENT_REQUIRED y la versión vigente del aviso');
+        } else {
+          fail('la negativa trae CONSENT_REQUIRED y la versión vigente del aviso', JSON.stringify(refused.data));
+        }
+      }
+      expectStatus(
+        'ESTUDIANTE POST /simulation/cases/{id}/consent con un aviso que no es el vigente -> 409',
+        (await request('POST', consentPath, {
+          token: tokens.ESTUDIANTE,
+          body: { noticeVersion: 'aviso-que-no-es-el-vigente' },
+        })).status,
+        409,
+      );
+      expectStatus(
+        'ESTUDIANTE POST /simulation/cases/{id}/consent -> 200 o 201',
+        (await request('POST', consentPath, {
+          token: tokens.ESTUDIANTE,
+          body: { noticeVersion: consentState?.noticeVersion },
+        })).status,
+        [200, 201],
+      );
+
       const hints = await request('GET', hintsPath, { token: tokens.ESTUDIANTE, headers });
       expectStatus('ESTUDIANTE GET /simulation/attempts/{id}/hints -> 200', hints.status, 200);
       if (typeof hints.data?.data?.available === 'number' && Array.isArray(hints.data?.data?.shown)) {
@@ -338,6 +610,15 @@ export async function main(env = process.env, fetchImpl = globalThis.fetch) {
     },
   });
   expectStatus('POST /auth/login credenciales invalidas -> 401', loginBad.status, 401);
+
+  await runAbuseBlock({
+    config,
+    request,
+    originRequest: createRequester(new URL(config.apiBase).origin, fetchImpl),
+    tokens,
+    sessions,
+    check: { pass, fail },
+  });
 
   console.log('');
   if (failures.length > 0) {

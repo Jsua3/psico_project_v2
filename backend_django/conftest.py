@@ -13,8 +13,8 @@ os.environ.setdefault("DJANGO_SETTINGS_MODULE", "psychosim.settings.test")
 
 
 def pytest_collection_modifyitems(config, items):
-    """Un ``req`` sin código o con un código mal escrito rompe la recolección."""
-    from shared.testing import invalid_req_codes
+    """Un ``req`` sin código o mal escrito, o una prueba ``security`` sin ``req``, rompe la recolección."""
+    from shared.testing import invalid_req_codes, security_items_without_req
 
     problems = []
     for item in items:
@@ -25,6 +25,11 @@ def pytest_collection_modifyitems(config, items):
                 problems.append(f"{item.nodeid}: código inválido {code!r}")
     if problems:
         raise pytest.UsageError("Marcador req inválido:\n" + "\n".join(problems))
+    sin_req = security_items_without_req(items)
+    if sin_req:
+        raise pytest.UsageError(
+            "Marcador security sin req:\n" + "\n".join(f"{item.nodeid}: security sin req()" for item in sin_req)
+        )
 
 
 @pytest.fixture(autouse=True)

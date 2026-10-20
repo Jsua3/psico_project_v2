@@ -26,6 +26,7 @@ from .publication import create_draft_checklist
 #: Topes de la ficha (E3-4): un objetivo cabe en una línea de la pantalla; el contexto, en unos
 #: cuantos párrafos. Doce objetivos son más de los que un caso formativo declara.
 MAX_CONTEXT_LENGTH = 4000
+MAX_TITLE_LENGTH = 255  # la columna ``SimulationCase.title`` (varchar 255)
 MAX_OBJECTIVE_LENGTH = 280
 MAX_OBJECTIVES = 12
 
@@ -54,6 +55,9 @@ def create_case(request, actor):
     title = (request.get("title") or "").strip()
     if not title:
         raise ValidationError("El titulo del caso es obligatorio")
+    # S7-1a · el título es texto visible (lo lee el estudiante en el lobby): texto plano con el tope de la columna, igual
+    # que la descripción. Sin esto, el marcado se guardaba en el borrador (la compuerta de publicación lo bloqueaba tarde).
+    title = validate_plain_text(title, MAX_TITLE_LENGTH, "title")
     # Es también el contexto que lee el estudiante (``narrative_context``): texto plano con tope.
     description = validate_plain_text(
         request.get("description"), MAX_CONTEXT_LENGTH, "description", multiline=True

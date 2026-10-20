@@ -61,7 +61,7 @@ def update_checklist(case_version_id, request, actor):
             checklist=checklist, code=code, label=label,
             required=code in required, fulfilled=code in marked,
         )
-        for code, label, _, _ in checklist_rules.CHECKLIST_ITEMS
+        for code, label, *_ in checklist_rules.CHECKLIST_ITEMS
     )
     bump_revision(case_version_id)
     return editor(case_version_id)

@@ -1,4 +1,4 @@
-import { HttpErrorResponse } from '@angular/common/http';
+import { HttpErrorResponse, HttpHeaders } from '@angular/common/http';
 
 import {
   CONNECTION_MESSAGE,
@@ -9,6 +9,7 @@ import {
   buildHttpErrorChain,
   defaultHttpErrorHandlers,
 } from './http-error-chain';
+import { THROTTLED_FALLBACK_MESSAGE } from './throttled';
 
 /** Pruebas de la cadena de eslabones de errores HTTP (P-08b). Sin TestBed ni HttpClient. */
 describe('cadena de errores HTTP', () => {
@@ -37,12 +38,56 @@ describe('cadena de errores HTTP', () => {
     expect(defaultHttpErrorHandlers().map(h => h.constructor.name)).toEqual([
       'NonHttpErrorHandler',
       'LoginErrorHandler',
+      'ThrottledHandler',
       'UnauthorizedHandler',
       'InactiveUserHandler',
       'PasswordChangeRequiredHandler',
+      'ConsentRequiredHandler',
       'ForbiddenHandler',
       'NoConnectionHandler',
     ]);
+  });
+
+  // req: ETH-01, SIEP-RF-05 (S3-2b: el 403 CONSENT_REQUIRED no es falta de permisos; lo explica el aviso del juego)
+  describe('consentimiento exigido por el servidor', () => {
+    const consentRequired = (status = 403) => new HttpErrorResponse({
+      status, statusText: 'Forbidden',
+      error: { success: false, code: 'CONSENT_REQUIRED', message: 'Para continuar necesitas leer y aceptar el aviso.', noticeVersion: 'v-vigente' },
+    });
+
+    it('no avisa de «No tienes permisos» ni toca la sesión ni navega: la pantalla de juego vuelve al aviso', () => {
+      run(consentRequired(), '/api/simulation/attempts/a1/world');
+      expect(notifications.warning).not.toHaveBeenCalledWith(PERMISSION_MESSAGE);
+      expect(effects()).toEqual({ clear: 0, nav: 0, err: 0, warn: 0 });
+    });
+
+    it('lo atiende el eslabón del consentimiento, no el de permisos', () => {
+      const handlers = defaultHttpErrorHandlers();
+      const consent = handlers.find(handler => handler.constructor.name === 'ConsentRequiredHandler')!;
+      const forbidden = handlers.find(handler => handler.constructor.name === 'ForbiddenHandler')!;
+      const ctx: HttpErrorContext = { ...ctxBase, error: consentRequired(), url: '/api/simulation/attempts/a1/decisions' };
+      expect((consent as unknown as { canHandle(c: HttpErrorContext): boolean }).canHandle(ctx)).toBe(true);
+      expect(handlers.indexOf(consent)).toBeLessThan(handlers.indexOf(forbidden));
+    });
+
+    it('cualquier otro 403 sigue siendo falta de permisos', () => {
+      run(new HttpErrorResponse({ status: 403, error: { success: false, code: 'DATA_TREATMENT_CONSENT_REQUIRED', message: 'x' } }));
+      expect(notifications.warning).toHaveBeenCalledWith(PERMISSION_MESSAGE);
+      expect(effects()).toEqual({ clear: 0, nav: 0, err: 0, warn: 1 });
+    });
+
+    it('el mismo código con otro estado no lo atiende este eslabón', () => {
+      run(consentRequired(409), '/api/simulation/attempts/a1/world');
+      expect(effects()).toEqual({ clear: 0, nav: 0, err: 0, warn: 0 }); // 409: no lo atiende nadie
+      run(consentRequired(401), '/api/simulation/attempts/a1/world');
+      expect(auth.clearSession).toHaveBeenCalledTimes(1); // 401: sigue siendo sesión inválida
+    });
+
+    it('el cambio de contraseña obligatorio manda sobre el consentimiento (su eslabón va antes)', () => {
+      router.url = '/portal/simulador/7';
+      run(new HttpErrorResponse({ status: 403, error: { success: false, code: 'PASSWORD_CHANGE_REQUIRED', message: 'x' } }), '/api/simulation/attempts/a1/world');
+      expect(auth.requirePasswordChange).toHaveBeenCalledTimes(1);
+    });
   });
 
   // req: RN-10 (E2-9: hasta cambiar la contraseña temporal, el servidor responde 403 PASSWORD_CHANGE_REQUIRED a todo)
@@ -119,6 +164,12 @@ describe('cadena de errores HTTP', () => {
       expect(effects()).toEqual({ clear: 1, nav: 0, err: 0, warn: 0 });
     });
 
+    // req: SIEP-RNF-04 (S1-4: cerrar sesión con un token ya revocado no avisa de «sesión vencida»)
+    it('un 401 al cerrar sesión no avisa ni navega: la persona acaba de salir', () => {
+      run(http(401), '/api/auth/logout');
+      expect(effects()).toEqual({ clear: 0, nav: 0, err: 0, warn: 0 });
+    });
+
     it('403 en otra ruta avisa de permisos y conserva la sesión', () => {
       run(http(403));
       expect(notifications.warning).toHaveBeenCalledWith(PERMISSION_MESSAGE);
@@ -135,6 +186,32 @@ describe('cadena de errores HTTP', () => {
       run(http(status));
       expect(effects()).toEqual({ clear: 0, nav: 0, err: 0, warn: 0 });
     });
+  });
+
+  // req: DJA-2 (S1-2: el limitador responde 429 con el texto y los segundos de espera)
+  describe('429 del limitador', () => {
+    const throttled = (body?: unknown, headers?: Record<string, string>) =>
+      new HttpErrorResponse({ status: 429, statusText: 'Too Many Requests', error: body, headers: new HttpHeaders(headers) });
+
+    it('avisa con el texto del servidor y no toca la sesión ni navega', () => {
+      const message = 'Demasiados intentos. Espera 30 s e inténtalo de nuevo.';
+      run(throttled({ code: 'THROTTLED', message, retryAfter: 30 }), '/api/admin/users/approve');
+      expect(notifications.warning).toHaveBeenCalledWith(message);
+      expect(effects()).toEqual({ clear: 0, nav: 0, err: 0, warn: 1 });
+    });
+
+    it('sin texto del servidor usa los segundos de Retry-After o, si no hay nada, el de respaldo', () => {
+      run(throttled(undefined, { 'Retry-After': '20' }), '/api/grupos/3/estudiantes/import');
+      expect(notifications.warning).toHaveBeenLastCalledWith('Demasiados intentos. Espera 20 s e inténtalo de nuevo.');
+      run(throttled(), '/api/grupos/3/estudiantes/import');
+      expect(notifications.warning).toHaveBeenLastCalledWith(THROTTLED_FALLBACK_MESSAGE);
+    });
+
+    it.each(['/api/auth/login', '/api/auth/google', '/api/auth/access-request'])(
+      '%s lo explica su propia pantalla: la cadena no avisa además', url => {
+        run(throttled({ message: 'Demasiados intentos. Espera 5 s e inténtalo de nuevo.' }), url);
+        expect(effects()).toEqual({ clear: 0, nav: 0, err: 0, warn: 0 });
+      });
   });
 
   describe('el primero que reconoce el error corta la cadena', () => {

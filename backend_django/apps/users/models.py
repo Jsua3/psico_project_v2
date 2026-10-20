@@ -10,6 +10,9 @@ Passwords are BCrypt ($2b$, 10 rounds) to stay byte-compatible with Spring's
 ``BCryptPasswordEncoder`` — both directions (verify seeded users, write new ones
 Spring can read).
 """
+import functools
+import secrets
+
 import bcrypt
 from django.contrib.auth.base_user import AbstractBaseUser, BaseUserManager
 from django.db import models
@@ -56,6 +59,12 @@ class CustomUser(AbstractBaseUser):
     # E2-9 · una cuenta con contraseña temporal (importada y aprobada, o con una restablecida)
     # debe fijar la suya antes de cualquier otra orden (``apps.users.authentication``).
     must_change_password = models.BooleanField(default=False, db_default=False)
+    # S1-4 · época de sesión: cerrar sesiones la sube y los tokens emitidos con una época menor dejan de valer
+    # (``apps.users.authentication``). Solo ``account_service.revoke_sessions`` la sube.
+    session_epoch = models.PositiveIntegerField(default=0, db_default=0)
+    # S1-5 · cuándo se fijó la contraseña temporal (aprobación del ADMIN o clave fijada por un ADMIN). Vacío cuando la
+    # persona ya tiene una propia. Pasados ``SIEP_TEMP_PASSWORD_DAYS`` días, la temporal deja de servir (``account_service``).
+    temp_password_set_at = models.DateTimeField(null=True, blank=True, default=None)
 
     USERNAME_FIELD = "email"
     REQUIRED_FIELDS = ["nombre", "apellido"]
@@ -111,6 +120,25 @@ class CustomUser(AbstractBaseUser):
         """Cuenta importada que aún espera la aprobación del ADMIN (RN-10): inactiva, con el
         cambio de contraseña pendiente y sin contraseña usable."""
         return (not self.activo) and self.must_change_password and not self.has_usable_password()
+
+
+@functools.lru_cache(maxsize=1)
+def _hash_ficticio():
+    """Hash bcrypt de 10 rondas de un secreto aleatorio, calculado la primera vez que hace falta (S1-3)."""
+    return bcrypt.hashpw(secrets.token_bytes(16), bcrypt.gensalt(rounds=10))
+
+
+def burn_password_check(raw_password):
+    """Gasta lo mismo que ``CustomUser.check_password`` y devuelve siempre ``False`` (S1-3).
+
+    El inicio de sesión lo llama cuando no hay una contraseña que comparar (correo inexistente o cuenta sin clave
+    usable): así el tiempo de respuesta no revela qué cuentas existen.
+    """
+    try:
+        bcrypt.checkpw(raw_password.encode("utf-8"), _hash_ficticio())
+    except (ValueError, TypeError):
+        pass
+    return False
 
 
 class AccessRequestStatus(models.TextChoices):

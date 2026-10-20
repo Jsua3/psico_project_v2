@@ -24,6 +24,7 @@ from apps.simulation.models import (
 )
 
 from . import competencies
+from .audit_service import arg, auditable
 from .authoring.guards import ensure_draft
 
 #: Rango de la calificación de un criterio (SIEP-CU-04): el servidor es la única fuente y la
@@ -303,6 +304,30 @@ def _require_can_set_default(actor, wants_default):
         )
 
 
+#: Los campos de una rúbrica que puede editar ``update_rubric``, en el orden en que la auditoría los nombra (S4-1).
+_CAMPOS_EDITABLES = ("name", "description", "version", "active", "criteria")
+
+
+def _campos_enviados(data):
+    """Los NOMBRES de los campos que la petición trajo (nunca sus valores: el nombre y los criterios son texto de una
+    persona). ``isDefault`` cuenta solo si se pidió fijarla."""
+    nombres = [campo for campo in _CAMPOS_EDITABLES if campo in data]
+    if data.get("isDefault"):
+        nombres.append("isDefault")
+    return nombres
+
+
+def _contexto_de_creacion(args, kwargs, result):
+    contexto = {"rubricId": result["id"]}
+    if arg(args, kwargs, 0, "data").get("isDefault"):
+        contexto["isDefault"] = True
+    return contexto
+
+
+@auditable(
+    "RUBRIC_CREATED", "RUBRIC", -1,
+    resource_id=lambda args, kwargs, result: result["id"], context=_contexto_de_creacion,
+)
 @transaction.atomic
 def create_rubric(data, user):
     _require_can_set_default(user, data.get("isDefault"))
@@ -323,6 +348,12 @@ def create_rubric(data, user):
     return rubric_detail(rubric, user)
 
 
+@auditable(
+    "RUBRIC_UPDATED", "RUBRIC", 0,
+    context=lambda args, kwargs, result: {
+        "rubricId": result["id"], "changed": _campos_enviados(arg(args, kwargs, 1, "data")),
+    },
+)
 @transaction.atomic
 def update_rubric(rubric_id, data, actor):
     rubric = _load_editable(rubric_id, actor)
@@ -346,6 +377,10 @@ def update_rubric(rubric_id, data, actor):
     return rubric_detail(rubric, actor)
 
 
+@auditable(
+    "RUBRIC_ACTIVATED", "RUBRIC", 0,
+    context=lambda args, kwargs, result: {"rubricId": result["id"], "active": bool(arg(args, kwargs, 1, "active"))},
+)
 @transaction.atomic
 def activate(rubric_id, active, actor):
     rubric = _load_editable(rubric_id, actor)
@@ -359,6 +394,11 @@ def activate(rubric_id, active, actor):
     return rubric_detail(rubric, actor)
 
 
+@auditable(
+    "RUBRIC_CREATED", "RUBRIC", -1,
+    resource_id=lambda args, kwargs, result: result["id"],
+    context=lambda args, kwargs, result: {"rubricId": result["id"], "sourceId": arg(args, kwargs, 0, "rubric_id")},
+)
 @transaction.atomic
 def duplicate(rubric_id, user):
     source = _load_visible(rubric_id, user)
@@ -404,6 +444,23 @@ def set_default(rubric_id, actor=None):
     return rubric_detail(rubric, actor)
 
 
+@auditable(
+    "RUBRIC_UPDATED", "RUBRIC", 0,
+    context=lambda args, kwargs, result: {"rubricId": arg(args, kwargs, 0, "rubric_id"), "changed": ["isDefault"]},
+)
+def make_default(rubric_id, actor):
+    """La ruta ``POST /api/rubrics/<id>/default``: fija la predeterminada y deja su fila (S4-1). Aparte de ``set_default``
+    porque este también lo llaman la creación y la edición (que ya tienen su propia fila) y el sembrado del sistema (que no
+    es un cambio de una persona y no debe dejar ruido)."""
+    return set_default(rubric_id, actor)
+
+
+@auditable(
+    "RUBRIC_UPDATED", "CASE_VERSION", 0,
+    context=lambda args, kwargs, result: {
+        "caseVersionId": result["caseVersionId"], "rubricId": result["rubric"]["id"], "changed": ["assignment"],
+    },
+)
 @transaction.atomic
 def assign_to_case_version(case_version_id, rubric_id, user):
     case_version = (

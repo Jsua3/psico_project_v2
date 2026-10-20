@@ -27,10 +27,14 @@ class SelectDecisionRequest(serializers.Serializer):
     )
 
 
+#: Tope de la bitácora reflexiva (S2-6b, SF-22): el cliente no tiene uno, así que el servidor pone 5000 caracteres.
+TEXTO_BITACORA_MAX = 5000
+
+
 class ReflectionRequest(serializers.Serializer):
     attemptToken = serializers.CharField()
     nodeId = serializers.IntegerField()
-    text = serializers.CharField(allow_blank=True, trim_whitespace=False)
+    text = serializers.CharField(allow_blank=True, trim_whitespace=False, max_length=TEXTO_BITACORA_MAX)
     requestId = _request_id_field()
 
 

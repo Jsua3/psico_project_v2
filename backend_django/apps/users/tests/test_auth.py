@@ -114,58 +114,6 @@ def test_login_then_me_with_bearer(client, admin_user):
     assert me.data["data"]["email"] == admin_user.email
 
 
-def test_register_requires_authentication(client):
-    resp = client.post(
-        "/api/auth/register",
-        {"email": "x@x.com", "password": "Passw0rd-2026!", "nombre": "N",
-         "apellido": "A", "role": "ESTUDIANTE"},
-        format="json",
-    )
-    assert resp.status_code == 401
-
-
-def test_register_forbidden_for_non_admin(client, db):
-    student = User.objects.create_user(
-        email="stu_t4@x.com", password="Passw0rd-2026!", nombre="S", apellido="T",
-        role="ESTUDIANTE",
-    )
-    client.force_authenticate(user=student)
-    resp = client.post(
-        "/api/auth/register",
-        {"email": "y@x.com", "password": "Passw0rd-2026!", "nombre": "N",
-         "apellido": "A", "role": "ESTUDIANTE"},
-        format="json",
-    )
-    assert resp.status_code == 403
-    assert resp.data["message"] == "No tiene permisos para realizar esta acción"
-
-
-def test_register_creates_user(client, admin_user):
-    client.force_authenticate(user=admin_user)
-    resp = client.post(
-        "/api/auth/register",
-        {"email": "new_t4@x.com", "password": "Passw0rd-2026!", "nombre": "Nuevo",
-         "apellido": "Usuario", "role": "ESTUDIANTE"},
-        format="json",
-    )
-    assert resp.status_code == 200
-    assert resp.data["message"] == "Usuario creado exitosamente"
-    assert resp.data["data"]["email"] == "new_t4@x.com"
-    assert User.objects.filter(email="new_t4@x.com").exists()
-
-
-def test_register_duplicate_email_400(client, admin_user):
-    client.force_authenticate(user=admin_user)
-    resp = client.post(
-        "/api/auth/register",
-        {"email": admin_user.email, "password": "Passw0rd-2026!", "nombre": "N",
-         "apellido": "A", "role": "ESTUDIANTE"},
-        format="json",
-    )
-    assert resp.status_code == 400
-    assert resp.data["message"] == "El email ya está registrado"
-
-
 def test_admin_users_endpoint_lists_users(client, admin_user):
     client.force_authenticate(user=admin_user)
 

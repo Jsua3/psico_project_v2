@@ -46,10 +46,23 @@ describe('draft-copy: textos en borrador pendientes de Psicología', () => {
     );
     // Los diez de F6, los ocho de F7-4 (tres de vocabulario VD-24, el rótulo de la valoración formativa y los cuatro
     // nombres de nivel: las claves las fijó ED-2, la redacción visible la elige Psicología) y la consecuencia del
-    // reemplazo docente (F7b-7, RN-07) y el aviso de contenido sensible de la ficha del caso (F10-1). Los once del
-    // resultado con retroalimentación por decisión (F10-4: «Tus decisiones», sus estados, las etiquetas y el marcador)
-    // son texto que ve la persona y se validan, no solo se conocen.
-    expect(list.filter(entry => entry.review === 'validar')).toHaveLength(32);
+    // reemplazo docente (F7b-7, RN-07), el aviso de contenido sensible de la ficha del caso (F10-1), el aviso de que el
+    // aviso de contenido cambió de versión (S3-2b, ETH-01) y los del resultado con retroalimentación por decisión
+    // (F10-4: «Tus decisiones», sus estados, las etiquetas y el marcador): son texto que ve la persona y se validan, no
+    // solo se conocen.
+    expect(list.filter(entry => entry.review === 'validar')).toHaveLength(33);
+  });
+
+  // req: ETH-01, SIEP-RF-05 (S3-2b)
+  it('registra el texto de «hay una versión nueva del aviso», para validación de Psicología', () => {
+    expect(DRAFT_COPY.consentNoticeStale).toMatchObject({ decision: 'ETH-01', owner: 'Psicología' });
+    expect(draftCopyList().find(entry => entry.key === 'consentNoticeStale')!.review).toBe('validar');
+    expect(DRAFT_COPY.consentNoticeStale.text).toContain('versión nueva del aviso');
+    expect(DRAFT_COPY.consentNoticeStale.text).toContain('Recarga la página');
+    // El texto vive aquí y la pantalla de juego lo lee del registro: no se repite.
+    const play = readFileSync(join(__dirname, 'simulation-play.component.ts'), 'utf-8');
+    expect(play).toContain('DRAFT_COPY.consentNoticeStale.text');
+    expect(play).not.toContain(DRAFT_COPY.consentNoticeStale.text);
   });
 
   // req: RN-07 (F7b-7, revisión)

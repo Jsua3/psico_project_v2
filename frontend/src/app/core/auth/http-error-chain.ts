@@ -1,15 +1,20 @@
 import { HttpContextToken, HttpErrorResponse } from '@angular/common/http';
 import { Router } from '@angular/router';
+import { isConsentRequiredError } from '../api/api-error.util';
 import { NotificationService } from '../notifications/notification.service';
 import { AuthService } from './auth.service';
 import { CHANGE_PASSWORD_PATH, PASSWORD_CHANGE_REQUIRED } from './password-change';
+import { throttledMessage } from './throttled';
 
 export const SESSION_MESSAGE = 'Tu sesión ya no es válida o tu usuario está inactivo. Contacta al administrador.';
 export const CONNECTION_MESSAGE = 'No fue posible conectar con el servidor. Intenta nuevamente.';
 export const PERMISSION_MESSAGE = 'No tienes permisos para realizar esta acción.';
 
 const LOGIN_URL = '/api/auth/login';
+const LOGOUT_URL = '/api/auth/logout';
 const ME_URL = '/api/auth/me';
+/** Pantallas públicas que muestran su propio texto de 429 (acceso, Google y solicitud de acceso). */
+const SELF_THROTTLED_URLS = [LOGIN_URL, '/api/auth/google', '/api/auth/access-request'];
 
 /**
  * Marca de una petición cuyo 403 lo explica su pantalla con su propio texto (p. ej. «Esta rúbrica es de solo
@@ -80,12 +85,28 @@ export class NonHttpErrorHandler extends HttpErrorHandler {
   }
 }
 
-/** Los errores del login los muestra la propia pantalla: aquí solo se corta la cadena. */
+/**
+ * Los errores del login los muestra la propia pantalla, y el cierre de sesión (S1-4) nunca debe avisar de una sesión
+ * vencida a quien acaba de salir: aquí solo se corta la cadena.
+ */
 export class LoginErrorHandler extends HttpErrorHandler {
   protected canHandle(ctx: HttpErrorContext): boolean {
-    return ctx.url.includes(LOGIN_URL);
+    return ctx.url.includes(LOGIN_URL) || ctx.url.includes(LOGOUT_URL);
   }
   protected apply(): void {}
+}
+
+/**
+ * 429 (S1-2): el servidor frena los intentos repetidos y dice cuánto esperar. Se avisa con su texto y la sesión no se
+ * toca. Las pantallas públicas de acceso lo explican ellas mismas.
+ */
+export class ThrottledHandler extends HttpErrorHandler {
+  protected canHandle(ctx: HttpErrorContext): boolean {
+    return statusOf(ctx) === 429 && !SELF_THROTTLED_URLS.some(url => ctx.url.includes(url));
+  }
+  protected apply(ctx: HttpErrorContext): void {
+    ctx.notifications.warning(throttledMessage(ctx.error as HttpErrorResponse));
+  }
 }
 
 export class UnauthorizedHandler extends HttpErrorHandler {
@@ -124,6 +145,18 @@ export class PasswordChangeRequiredHandler extends HttpErrorHandler {
   }
 }
 
+/**
+ * S3-2b (ETH-01): el 403 `CONSENT_REQUIRED` tampoco es falta de permisos: el consentimiento al aviso de contenido se
+ * retiró (en otra pestaña) o el aviso cambió de versión. Lo explica la pantalla de juego volviendo al aviso, así que aquí
+ * solo se corta la cadena: ni «No tienes permisos» ni se toca la sesión. Va antes de `ForbiddenHandler`.
+ */
+export class ConsentRequiredHandler extends HttpErrorHandler {
+  protected canHandle(ctx: HttpErrorContext): boolean {
+    return isConsentRequiredError(ctx.error);
+  }
+  protected apply(): void {}
+}
+
 export class ForbiddenHandler extends HttpErrorHandler {
   protected canHandle(ctx: HttpErrorContext): boolean {
     return statusOf(ctx) === 403 && !ctx.screenHandlesForbidden;
@@ -147,9 +180,11 @@ export function defaultHttpErrorHandlers(): HttpErrorHandler[] {
   return [
     new NonHttpErrorHandler(),
     new LoginErrorHandler(),
+    new ThrottledHandler(),
     new UnauthorizedHandler(),
     new InactiveUserHandler(),
     new PasswordChangeRequiredHandler(),
+    new ConsentRequiredHandler(),
     new ForbiddenHandler(),
     new NoConnectionHandler(),
   ];

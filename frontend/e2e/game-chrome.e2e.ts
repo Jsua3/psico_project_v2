@@ -1,6 +1,7 @@
 import { expect, test } from '@playwright/test';
 import type { Page } from '@playwright/test';
 
+import { resetStudentConsent } from './support/consent';
 import {
   acceptContentWarning,
   createWorldInputDriver,
@@ -125,6 +126,7 @@ test.describe('@game-chrome arranque del juego', () => {
       await route.continue();
     });
     await openLobby(page);
+    await resetStudentConsent(page); // el consentimiento vive en el servidor (S3-2b): al reintentar debe volver el aviso
     await page.getByRole('button', { name: /entrar al caso/i }).click();
     await page.waitForURL(/\/portal\/simulador\/\d+/, { timeout: scaled(30_000) });
     await leaveBrief(page);
