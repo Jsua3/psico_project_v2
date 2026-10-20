@@ -13,10 +13,10 @@ Qué versiones vigila el proyecto, cuál usa hoy, dónde se anuncian las nuevas 
 | `djangorestframework-simplejwt` | 5.5.1 | `backend_django/requirements.txt` | GitHub del proyecto (releases) | quien despliega | 2026-10-18 |
 | `cryptography` | 50.0.2 | `backend_django/requirements.txt` | GitHub del proyecto (releases) y pypi.org | quien despliega | 2026-10-18 |
 | `bcrypt` | 5.0.0 | `backend_django/requirements.txt` | GitHub del proyecto (releases) y pypi.org | quien despliega | 2026-10-18 |
-| `google-auth` | 2.61.0 | `backend_django/requirements.txt` | GitHub del proyecto (releases) y pypi.org | quien despliega | 2026-10-18 |
+| `google-auth` | 2.62.0 | `backend_django/requirements.txt` | GitHub del proyecto (releases) y pypi.org | quien despliega | 2026-10-19 |
 | `gunicorn` | 26.2.0 | `backend_django/requirements.txt` | gunicorn.org y GitHub del proyecto (releases) | quien despliega | 2026-10-18 |
 | `whitenoise` | 6.12.0 | `backend_django/requirements.txt` | GitHub del proyecto (releases) y pypi.org | quien despliega | 2026-10-18 |
-| `@angular/core` | 22.2.1 | `frontend/package.json` (rango `^22.2.1`) | angular.dev (blog de versiones) | quien despliega | 2026-10-18 |
+| `@angular/core` | 22.2.3 | `frontend/package.json` (rango `^22.2.3`) | angular.dev (blog de versiones) | quien despliega | 2026-10-19 |
 | `Node` | 24 | `.nvmrc` y `NODE_VERSION` de `.github/workflows/ci.yml` | nodejs.org (calendario de versiones) | quien despliega | 2026-10-18 |
 | `PostgreSQL` | 18 | `docker-compose.yml` (imagen `postgres:18-alpine`; la versión menor la fija la imagen) | postgresql.org (noticias y avisos de seguridad) | quien despliega | 2026-10-18 |
 

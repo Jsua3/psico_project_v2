@@ -263,7 +263,7 @@ for (const viewport of GUIDED_VIEWPORTS) {
       await assertSafeExitPauses(page, 'diálogo sin opciones', viewport);
       await waitForWorldReady(page);
 
-      // Supervisión clínica: se recorre H1 hasta decidir y se pausa con la supervisión a la vista.
+      // Consecuencia: se recorre H1 hasta decidir y se pausa con la supervisión a la vista.
       // Tras la conversación con la enfermera el jugador queda junto a ella (más arriba que el kit): se explora.
       await exploreUntilNearby(page, input, /kit pap/i);
       await interactNearby(page, /kit pap/i, /\/interactions\/tool-pap$/);
@@ -283,7 +283,7 @@ for (const viewport of GUIDED_VIEWPORTS) {
         /abuela de la niña/i,
         /aplicar pap: contención emocional, acompañamiento en duelo/i,
       );
-      const supervision = page.getByRole('dialog', { name: /supervisión clínica/i });
+      const supervision = page.getByRole('dialog', { name: /consecuencia/i });
       await expect(supervision).toBeVisible({ timeout: scaled(30_000) });
       await assertSafeExitPauses(page, 'supervisión', viewport);
     });

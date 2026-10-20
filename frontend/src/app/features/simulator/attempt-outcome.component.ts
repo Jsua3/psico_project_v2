@@ -1,16 +1,27 @@
 import { A11yModule } from '@angular/cdk/a11y';
 import { NgTemplateOutlet } from '@angular/common';
 import { Component, ElementRef, Injector, afterNextRender, computed, effect, inject, input, output, untracked, ChangeDetectionStrategy } from '@angular/core';
+import { rxResource } from '@angular/core/rxjs-interop';
 import { RouterLink } from '@angular/router';
-import { AttemptCompletionReport, AttemptTimelineEntry, SimulationAttemptState } from '../../core/models/simulation.model';
+import { EMPTY } from 'rxjs';
+import { SimulationService } from '../../core/api/simulation.service';
+import { AttemptCompletionReport, AttemptTimelineEntry, DecisionReviewItem, SimulationAttemptState } from '../../core/models/simulation.model';
 import { UiScopeNotice } from '../../shared/ui/scope-notice/ui-scope-notice';
+import { UiSkeleton } from '../../shared/ui/skeleton/ui-skeleton';
+import { errorKindFromStatus, uiDataState } from '../../shared/ui/state/ui-data-state';
+import { UiEmptyState } from '../../shared/ui/state/ui-empty-state';
+import { UiErrorState } from '../../shared/ui/state/ui-error-state';
 import { AvatarStore } from '../character/avatar.store';
 import { toAvatarV2 } from '../character/kit/avatar-v2';
 import { resolveCharacter } from '../character/kit/character-visual.resolver';
 import { KitFigureComponent } from '../character/kit/kit-figure.component';
 import { KitService } from '../character/kit/kit.service';
+import { DRAFT_COPY } from './draft-copy';
 import { decisionTotal, performanceLabel } from './outcome.util';
-import { reconsideredChip } from './reconsidered.util';
+import { RECONSIDERED_LABEL, reconsideredChip } from './reconsidered.util';
+
+/** Marcador de puntaje del resultado (VD-6): el texto vigente, un avance sin cifra o ninguno. */
+export type ScoreMarker = 'points' | 'progress' | 'hidden';
 
 /**
  * Pantalla de fin de partida (liquid-glass) extraída de SimulationPlayComponent.
@@ -22,7 +33,7 @@ import { reconsideredChip } from './reconsidered.util';
 @Component({
   selector: 'app-attempt-outcome',
   standalone: true,
-  imports: [A11yModule, NgTemplateOutlet, RouterLink, KitFigureComponent, UiScopeNotice],
+  imports: [A11yModule, NgTemplateOutlet, RouterLink, KitFigureComponent, UiEmptyState, UiErrorState, UiScopeNotice, UiSkeleton],
   template: `
     @if (status() !== 'IN_PROGRESS') {
       <section class="outcome liquid-glass"
@@ -112,7 +123,10 @@ import { reconsideredChip } from './reconsidered.util';
             </div>
           }
           <div class="oc-metrics">
-            <div class="oc-metric"><span>Puntaje total</span><strong>{{ r.finalScore }}</strong></div>
+            @switch (scoreMarker()) {
+              @case ('points') { <div class="oc-metric"><span>Puntaje total</span><strong>{{ r.finalScore }}</strong></div> }
+              @case ('progress') { <div class="oc-metric"><span>{{ draft.scoreProgressLabel.text }}</span><strong>{{ draft.scoreProgressDone.text }}</strong></div> }
+            }
             <div class="oc-metric"><span>Escenarios</span><strong>{{ r.visitedNodeTitles.length }}</strong></div>
             <div class="oc-metric"><span>Estrés final</span><strong>{{ r.finalStress }}%</strong></div>
             <div class="oc-metric"><span>Tiempo</span><strong>{{ formatDuration(r.totalDurationSeconds) }}</strong></div>
@@ -135,6 +149,52 @@ import { reconsideredChip } from './reconsidered.util';
               @if (reconsidered(r); as chip) { <span class="oc-chip">{{ chip }}</span> }
             </div>
           </div>
+
+          @if (status() === 'COMPLETED') {
+            <!-- Tus decisiones (C2, RN-08): la explicación y el fundamento se leen al cierre, no al decidir. -->
+            <section class="oc-block oc-decisions" aria-labelledby="oc-decisions-title">
+              <p class="oc-label" id="oc-decisions-title">{{ draft.decisionsTitle.text }}</p>
+              @switch (decisionsState()) {
+                @case ('loading') {
+                  <div aria-busy="true"><ui-skeleton shape="card" [lines]="3" /></div>
+                }
+                @case ('error') {
+                  <ui-error-state [kind]="errorKind()" [status]="errorStatus()" [message]="draft.decisionsError.text" (retry)="reloadDecisions()" />
+                }
+                @case ('empty') {
+                  <ui-empty-state kind="no-results" [title]="draft.decisionsEmpty.text" [description]="draft.decisionsEmptyHint.text" />
+                }
+                @case ('ready') {
+                  <ol class="oc-decisions__list">
+                    @for (item of decisions(); track item.order) {
+                      <li class="oc-decision" [attr.data-tone]="item.classification">
+                        <p class="oc-decision__node">{{ item.nodeTitle }}</p>
+                        <p class="oc-decision__chosen"><span class="oc-decision__k">Elegiste:</span> {{ item.chosen.text }}</p>
+                        @if (item.reconsidered; as first) {
+                          <p class="oc-decision__first">{{ reconsideredLabel }}: {{ first.firstOptionText }}</p>
+                        }
+                        @if (item.consequence) {
+                          <p class="oc-decision__consequence">{{ item.consequence }}</p>
+                        }
+                        <p class="oc-decision__tone">{{ toneLabel(item.classification) }}</p>
+                        @if (item.prohibited) {
+                          <p class="oc-chip oc-chip--alert oc-decision__note">{{ draft.decisionProhibitedNote.text }}</p>
+                        }
+                        @if (item.feedback.explanation) {
+                          <p class="oc-decision__explanation">{{ item.feedback.explanation }}</p>
+                        } @else {
+                          <p class="oc-decision__empty">{{ draft.decisionNoExplanation.text }}</p>
+                        }
+                        @if (item.feedback.theoryBasis) {
+                          <p class="oc-decision__basis"><span class="oc-decision__k">{{ draft.decisionBasisLabel.text }}:</span> {{ item.feedback.theoryBasis }}</p>
+                        }
+                      </li>
+                    }
+                  </ol>
+                }
+              }
+            </section>
+          }
 
           <div class="oc-block">
             <p class="oc-label">Consecuencias del caso</p>
@@ -252,14 +312,30 @@ import { reconsideredChip } from './reconsidered.util';
       padding: 8px 10px; border-radius: 10px; border-left: 3px solid rgba(182,156,255,.4);
       background: rgba(255,255,255,.04); font-size: .82rem;
     }
-    .oc-tl[data-tl='ADEQUATE']   { border-left-color: #6EC67A; }
-    .oc-tl[data-tl='RISKY']      { border-left-color: #F5B84B; }
-    .oc-tl[data-tl='INADEQUATE'] { border-left-color: #E25A4F; }
+    .oc-tl[data-tl='ADEQUATE'], .oc-decision[data-tone='ADEQUATE']     { border-left-color: #6EC67A; }
+    .oc-tl[data-tl='RISKY'], .oc-decision[data-tone='RISKY']           { border-left-color: #F5B84B; }
+    .oc-tl[data-tl='INADEQUATE'], .oc-decision[data-tone='INADEQUATE'] { border-left-color: #E25A4F; }
     .oc-tl[data-tl='PROHIBITED'] { border-left-color: #E25A4F; background: rgba(226,90,79,.08); }
     .oc-tl__time { font-family: 'JetBrains Mono', monospace; color: var(--sim-lavender, #B69CFF); }
     .oc-tl__label { color: var(--sim-ink-soft, rgba(244,247,251,.74)); line-height: 1.4; }
     .oc-tl__delta { font-family: 'JetBrains Mono', monospace; font-size: .75rem; color: var(--sim-ink-mute, rgba(244,247,251,.5)); white-space: nowrap; }
     .oc-rec { margin: 0 0 6px; color: var(--sim-ink-soft, rgba(244,247,251,.74)); font-size: .86rem; line-height: 1.55; }
+    /* Tus decisiones (C2, RN-08): la explicación y el fundamento se leen al cierre; etiquetas formativas, sin puntaje.
+       Sin colores nuevos: el tono del borde comparte la regla de la línea de tiempo y el texto secundario va con opacidad. */
+    .oc-decisions__list { display: grid; gap: 10px; margin: 0; padding: 0; list-style: none; }
+    .oc-decision {
+      display: grid; gap: 6px; padding: 12px 14px; border-radius: 12px; line-height: 1.5;
+      border-left: 3px solid transparent;
+    }
+    .oc-decision p { margin: 0; }
+    .oc-decision__node { font-weight: 800; }
+    .oc-decision__chosen, .oc-decision__consequence, .oc-decision__explanation, .oc-decision__basis, .oc-decision__first { opacity: .86; }
+    .oc-decision__k { opacity: .6; font-weight: 700; }
+    .oc-decision__tone {
+      font-size: var(--ds-type-caption-size); font-weight: 900; letter-spacing: .04em; text-transform: uppercase; opacity: .9;
+    }
+    .oc-decision__note { display: block; border-radius: 12px; }
+    .oc-decision__empty { font-style: italic; opacity: .6; }
     .oc-actions { display: flex; flex-wrap: wrap; gap: 10px; justify-content: flex-end; margin-top: auto; padding-top: 6px; }
     .oc-btn {
       display: inline-flex; align-items: center; justify-content: center; min-height: 44px;
@@ -378,6 +454,52 @@ export class AttemptOutcomeComponent {
   readonly resume = output<void>();
   /** Recursos de apoyo que se muestran en la pausa (opcional; los aporta quien conoce el caso). */
   readonly supportResources = input<string[]>([]);
+  /**
+   * Intento cuyo reporte del dueño trae «Tus decisiones» (C2). Lo pasa quien llama solo al completar: sin id no hay
+   * petición. Con el id, `decisionReview` sale del reporte congelado, no de la respuesta de la última decisión.
+   */
+  readonly reviewAttemptId = input<string | null>(null);
+  /** Marcador de puntaje (VD-6): `points` conserva el texto vigente; `progress` y `hidden` quedan cableados. */
+  readonly scoreMarker = input<ScoreMarker>('points');
+
+  protected readonly draft = DRAFT_COPY;
+  protected readonly reconsideredLabel = RECONSIDERED_LABEL;
+  private readonly simulation = inject(SimulationService);
+  /**
+   * Respaldo: solo se pide el reporte del dueño si la respuesta que cerró el intento no trajo sus decisiones. Con la
+   * ruta normal `decisionReview` ya viaja en el reporte congelado de esa respuesta (una petición menos al cerrar).
+   */
+  private readonly decisionsResource = rxResource<AttemptCompletionReport, string | undefined>({
+    params: () => (this.report()?.decisionReview === undefined ? this.reviewAttemptId() ?? undefined : undefined),
+    stream: ({ params }) => (params === undefined ? EMPTY : this.simulation.studentReport(params)),
+  });
+  protected readonly decisions = computed<DecisionReviewItem[]>(() => {
+    const own = this.report()?.decisionReview;
+    if (own) return own;
+    return this.decisionsResource.hasValue() ? (this.decisionsResource.value()?.decisionReview ?? []) : [];
+  });
+  /** Carga, error, vacío y listo de «Tus decisiones» con el contrato de estados de datos (§2.5). */
+  protected readonly decisionsState = uiDataState({
+    loading: computed(() => this.decisionsResource.isLoading()),
+    error: computed(() => this.decisionsResource.error()),
+    isEmpty: computed(() => this.decisions().length === 0),
+  });
+  protected readonly errorStatus = computed<number | null>(() =>
+    (this.decisionsResource.error() as { status?: number } | undefined)?.status ?? null);
+  protected readonly errorKind = computed(() => errorKindFromStatus(this.errorStatus()));
+
+  reloadDecisions(): void {
+    this.decisionsResource.reload();
+  }
+
+  /** Etiqueta cualitativa de una decisión al cierre (RN-08): lenguaje formativo, nunca un puntaje. */
+  toneLabel(classification: DecisionReviewItem['classification']): string {
+    switch (classification) {
+      case 'ADEQUATE': return DRAFT_COPY.decisionToneAdequate.text;
+      case 'RISKY': return DRAFT_COPY.decisionToneRisky.text;
+      default: return DRAFT_COPY.decisionToneInadequate.text;
+    }
+  }
 
   /** Texto tranquilizador de la pausa: sin penalización y sin puntaje en primer plano. */
   readonly pauseMessage = 'Tu avance quedó guardado exactamente donde estabas. No hay penalización: puedes retomarlo cuando quieras.';

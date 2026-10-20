@@ -769,7 +769,10 @@ export async function chooseDecision(
   await option.click();
   const response = await responsePromise;
   await requireOk(response, `Falló la decisión ${optionText}`);
-  return (await response.json()).data as ApiData;
+  // C2: con FEEDBACK_AT_CLOSE_ONLY el estado del intento viene dentro de `attempt`; el resto del e2e lee el estado
+  // plano, así que se aplana aquí conservando `consequence` y `retry`.
+  const body = (await response.json()).data as ApiData;
+  return body.attempt ? { ...body.attempt, consequence: body.consequence ?? null, retry: body.retry ?? null } : body;
 }
 
 export async function useToolChoice(

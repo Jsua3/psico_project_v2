@@ -63,12 +63,75 @@ export async function apiToken(request: APIRequestContext, who: Login): Promise<
 
 export const bearer = (token: string) => ({ Authorization: `Bearer ${token}` });
 
-async function send(
-  request: APIRequestContext, token: string, method: 'post' | 'put' | 'patch', url: string, data: Json, what: string,
+/**
+ * La revisión del caso (bloqueo optimista, E2-6; `SIEP_REVISION_REQUIRED` la hace obligatoria): viaja en `X-Case-Revision`
+ * en toda mutación de autoría y cada respuesta del editor trae la siguiente. Es la misma que manda el cliente de la
+ * interfaz (`AuthoringApi`); aquí la lleva la suite por cada versión que edita: un caso nuevo no tiene ninguna.
+ */
+export const CASE_REVISION_HEADER = 'X-Case-Revision';
+const revisions = new Map<number, number>();
+const CASE_IN_URL = /\/api\/(?:authoring|admin)\/cases\/(\d+)/;
+
+/** Recuerda la revisión que trae una respuesta del editor (las demás respuestas no la traen y no cambian nada). */
+function adoptRevision(body: Json | null | undefined): void {
+  if (typeof body?.['caseVersionId'] === 'number' && typeof body['revision'] === 'number') {
+    revisions.set(body['caseVersionId'], body['revision']);
+  }
+}
+
+/** El editor de la versión, tal como está ahora; de paso recuerda su revisión. */
+export async function readEditor(request: APIRequestContext, token: string, id: number): Promise<Json> {
+  const response = await request.get(`/api/authoring/cases/${id}/editor`, { headers: bearer(token) });
+  expect(response.status(), `editor del caso ${id}`).toBe(200);
+  const view = (await response.json()).data;
+  adoptRevision(view);
+  return view;
+}
+
+/** Los encabezados de una mutación del caso al que apunta `url`: el token y la revisión vigente, si ya se conoce. */
+function mutationHeaders(token: string, url: string): Record<string, string> {
+  const revision = revisions.get(Number(CASE_IN_URL.exec(url)?.[1]));
+  return revision === undefined ? bearer(token) : { ...bearer(token), [CASE_REVISION_HEADER]: String(revision) };
+}
+
+/**
+ * La constancia de la revisión de contenido de Psicología (RQ-NEG-008): con `SIEP_REVIEW_WORKFLOW_STRICT` el servidor no
+ * aprueba sin ella (400 `CONTENT_REVIEW_REQUIRED`) y sin la bandera la acepta y la guarda. La fecha es la de ayer: el
+ * servidor rechaza una posterior a hoy y la hora local del servidor y la de esta máquina pueden quedar a un día.
+ */
+export function contentReviewProof(): { reviewer: string; reviewedOn: string; reference: string } {
+  const yesterday = new Date(Date.now() - 24 * 60 * 60 * 1000);
+  const two = (value: number) => String(value).padStart(2, '0');
+  return {
+    reviewer: 'Revisión e2e',
+    reviewedOn: `${yesterday.getFullYear()}-${two(yesterday.getMonth() + 1)}-${two(yesterday.getDate())}`,
+    reference: 'Acta e2e',
+  };
+}
+
+/**
+ * Una mutación por la API real que espera un éxito (200 o 201) y devuelve su `data`. Manda la revisión del caso y adopta
+ * la de la respuesta. Las del ciclo de vida no la traen (responden `CaseLifecycle`): después se relee el editor.
+ */
+export async function send(
+  request: APIRequestContext, token: string, method: 'post' | 'put' | 'patch' | 'delete', url: string, data: Json, what: string,
 ): Promise<Json> {
-  const response = await request[method](url, { headers: bearer(token), data });
+  const response = await request[method](url, { headers: mutationHeaders(token, url), data });
   expect([200, 201], `${what}: ${response.status()} ${await response.text().catch(() => '')}`).toContain(response.status());
-  return (await response.json()).data;
+  const body = (await response.json()).data;
+  adoptRevision(body);
+  if (url.endsWith('/lifecycle') && typeof body?.['caseVersionId'] === 'number') await readEditor(request, token, body['caseVersionId']);
+  return body;
+}
+
+/**
+ * Una transición del ciclo de vida que NO tiene que salir bien (limpiezas): relee la revisión antes de mandarla, así un
+ * caso que otra cosa tocó a medias no se queda publicado por una revisión vencida. Devuelve la respuesta tal cual.
+ */
+export async function transition(request: APIRequestContext, token: string, id: number, data: Json) {
+  await readEditor(request, token, id).catch(() => undefined);
+  const url = `/api/authoring/cases/${id}/lifecycle`;
+  return request.post(url, { headers: mutationHeaders(token, url), data });
 }
 
 const NODE_BODY = {
@@ -130,7 +193,7 @@ export async function buildPublishableDraft(
   await send(request, token, 'post', `${base}/${id}/maps`, {
     nodeId: closingId, mapKey: 'sala-cierre', title: 'Sala de cierre', width: 960, height: 540, theme: 'clinical-soft', spawnX: 145, spawnY: 430,
   }, 'mapa de la escena final');
-  const view = (await (await request.get(`${base}/${id}/editor`, { headers: bearer(token) })).json()).data;
+  const view = await readEditor(request, token, id);
   const startMapId: number = view['maps'][0]['id'];
   for (const [index, optionId] of optionIds.entries()) {
     await send(request, token, 'post', `${base}/${id}/maps/${startMapId}/objects`, {
@@ -168,7 +231,7 @@ export async function createPublishedCase(request: APIRequestContext, options: C
     await send(request, admin, 'post', `${base}/${id}/characters`, { ...character, showInBrief: true, displayOrder: index }, `personaje ${character.displayName}`);
   }
   await send(request, admin, 'post', `${base}/${id}/lifecycle`, { action: 'submit' }, 'enviar a revisión');
-  await send(request, admin, 'post', `${base}/${id}/lifecycle`, { action: 'approve', note: 'Caso de prueba e2e.' }, 'aprobar y publicar');
+  await send(request, admin, 'post', `${base}/${id}/lifecycle`, { action: 'approve', note: 'Caso de prueba e2e.', contentReview: contentReviewProof() }, 'aprobar y publicar');
   return { caseVersionId: id, title: draft.title };
 }
 
@@ -183,7 +246,7 @@ export async function cloneAndPublishCase(
   const base = '/api/authoring/cases';
   const cloned = await send(request, admin, 'post', `${base}/${sourceCaseVersionId}/clone-version`, {}, 'clonar la versión');
   const id: number = cloned['caseVersionId'];
-  const view = (await (await request.get(`${base}/${id}/editor`, { headers: bearer(admin) })).json()).data as Json;
+  const view = await readEditor(request, admin, id);
   for (const map of view['maps'] as Json[]) {
     for (const [index, text] of (options.hints ?? []).entries()) {
       await send(request, admin, 'post', `${base}/${id}/maps/${map['id']}/hints`, { text, hintOrder: index + 1 }, `pista ${index + 1} de ${map['title']}`);
@@ -202,7 +265,7 @@ export async function cloneAndPublishCase(
     accessibilityOk: true, scopeEducational: true,
   }, 'lista de publicación');
   await send(request, admin, 'post', `${base}/${id}/lifecycle`, { action: 'submit' }, 'enviar a revisión');
-  await send(request, admin, 'post', `${base}/${id}/lifecycle`, { action: 'approve', note: 'Caso de prueba e2e.' }, 'aprobar y publicar');
+  await send(request, admin, 'post', `${base}/${id}/lifecycle`, { action: 'approve', note: 'Caso de prueba e2e.', contentReview: contentReviewProof() }, 'aprobar y publicar');
   return { caseVersionId: id, title: view['title'] };
 }
 
@@ -266,9 +329,7 @@ export async function retireCase(request: APIRequestContext, caseVersionId: numb
       }
     }
     const admin = await apiToken(request, ADMIN);
-    await request.post(`/api/authoring/cases/${caseVersionId}/lifecycle`, {
-      headers: bearer(admin), data: { action: 'archive', scope: 'version' },
-    });
+    await transition(request, admin, caseVersionId, { action: 'archive', scope: 'version' });
   } catch (error) {
     // La limpieza no debe tapar el resultado de la prueba, pero un fallo aquí deja la asignación activa y el caso de la
     // semilla bloqueado por la secuencia para las pruebas siguientes: que se vea de dónde viene.

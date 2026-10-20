@@ -140,7 +140,7 @@ export class RubricsComponent implements OnInit {
         }
         this.loading.set(false);
         // `load` ya decidió qué hacer con el aviso (keepMessage): abrir la primera no lo retira.
-        if (!this.selected() && rubrics.length) this.openRubric(rubrics[0].id, true);
+        if (!this.selected() && !this.startedNew && rubrics.length) this.openRubric(rubrics[0].id, true);
       },
       error: () => {
         this.message.set('No fue posible cargar las rúbricas.');
@@ -185,16 +185,28 @@ export class RubricsComponent implements OnInit {
     return rubric.isDefault ? 'success' : (rubric.active ? 'info' : 'neutral');
   }
 
+  /**
+   * La última apertura que la persona pidió (abrir una rúbrica o empezar una nueva). El detalle de una apertura anterior
+   * puede llegar después —sobre todo el de la primera rúbrica, que `load` abre sola— y no debe pisar lo que ya se eligió.
+   */
+  private openRequest = 0;
+  /** La persona ya empezó una rúbrica nueva: la lista que llegue tarde no abre la primera encima de su formulario. */
+  private startedNew = false;
+
   /** Abre una rúbrica. Elegir otra retira el aviso de la anterior (salvo cuando la apertura es la de `load`). */
   openRubric(id: number, keepMessage = false): void {
     this.readOnly.set(false);
     if (!keepMessage) this.clearMessage();
+    this.startedNew = false;
+    const request = ++this.openRequest;
     this.rubricService.detail(id).subscribe({
       next: rubric => {
+        if (request !== this.openRequest) return;
         this.selected.set(rubric);
         this.populate(rubric);
       },
       error: () => {
+        if (request !== this.openRequest) return;
         this.message.set('No fue posible abrir la rúbrica.');
         this.messageIsError.set(true);
       },
@@ -202,6 +214,8 @@ export class RubricsComponent implements OnInit {
   }
 
   newRubric(): void {
+    this.openRequest += 1;
+    this.startedNew = true;
     this.readOnly.set(false);
     this.clearMessage();
     this.selected.set(null);
@@ -398,6 +412,7 @@ export class RubricsComponent implements OnInit {
     if (status === 404) {
       this.message.set(RUBRIC_GONE_MESSAGE);
       this.messageIsError.set(true);
+      this.startedNew = false;
       this.selected.set(null);
       this.load(true);
       return;

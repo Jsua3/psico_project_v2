@@ -8,7 +8,7 @@ psycopg[binary]==3.3.6
 cryptography==50.0.2
 drf-spectacular==0.30.0
 bcrypt==5.0.0
-google-auth==2.61.0
+google-auth==2.62.0
 # google.auth.transport.requests (inicio de sesión con Google) exige `requests` y google-auth no lo instala solo (A-10)
 requests==2.34.2
 # casedef valida `x-siep` con jsonschema y las pruebas lo usan para la comprobación cruzada del taller (E4); lo trae también drf-spectacular

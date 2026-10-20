@@ -185,8 +185,9 @@ describe('SimulationService contrato HTTP', () => {
     }
     req.flush({ data: { ok: contract.method } });
 
-    // Todos los métodos de esta tabla desenvuelven el sobre `{ data }`.
-    expect(result).toEqual({ ok: contract.method });
+    // Todos los métodos de esta tabla desenvuelven el sobre `{ data }`. `chooseDecision` añade `consequence` y `retry`
+    // (C2, forma normalizada): por eso se compara con `toMatchObject` y no con igualdad exacta.
+    expect(result).toMatchObject({ ok: contract.method });
   });
 
   it('el token de intento nunca viaja en la URL', () => {

@@ -306,3 +306,26 @@ def test_is_dev_environment_no_lanza_sin_ajustes_configurados(monkeypatch):
     monkeypatch.setattr(dev_only, "settings", SinAjustes())
 
     assert dev_only.is_dev_environment() is False
+
+
+def test_con_el_modulo_oculto_por_un_override_la_guarda_lee_el_del_proceso(monkeypatch):
+    """Bajo un ``override_settings`` Django declara ``SETTINGS_MODULE = None``: la guarda no lanza y mira el del proceso."""
+
+    class BajoOverride:
+        SETTINGS_MODULE = None
+
+    monkeypatch.setattr(dev_only, "settings", BajoOverride())
+    monkeypatch.delenv("SIEP_ALLOW_DEMO_SEED", raising=False)
+    monkeypatch.delenv("DATABASE_URL", raising=False)
+
+    monkeypatch.setenv("DJANGO_SETTINGS_MODULE", "psychosim.settings.test")
+    assert dev_only.ajustes_en_uso() == "psychosim.settings.test"
+    assert dev_only.is_dev_environment() is True
+
+    monkeypatch.setenv("DJANGO_SETTINGS_MODULE", "psychosim.settings.production")
+    assert dev_only.is_dev_environment() is False
+
+    # Sin saber qué ajustes rigen, no se afirma que sea desarrollo: cierra en falso.
+    monkeypatch.delenv("DJANGO_SETTINGS_MODULE")
+    assert dev_only.ajustes_en_uso() == ""
+    assert dev_only.is_dev_environment() is False

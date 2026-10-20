@@ -174,11 +174,15 @@ def bump_revision(case_version_id, actor_id=None):
     CaseVersion.objects.filter(pk=case_version_id).update(**revision_bump(actor_id))
 
 
-def ensure_draft(case_version_id, revision=None):
+def ensure_draft(case_version_id, revision=None, *, revision_exempt=False):
     """La versión como borrador, bajo ``FOR UPDATE`` y con su revisión comprobada.
 
     Debe llamarse dentro de una transacción: el cerrojo serializa dos guardados del mismo caso
     (el segundo espera, relee la revisión y, si es vieja, recibe el 409).
+
+    ``revision_exempt=True`` es para las rutas que tocan el borrador pero NO son de autoría y no llevan la
+    revisión del caso (las rúbricas de la versión): se comprueba que sea un borrador, no la revisión; con
+    ``REVISION_REQUIRED`` encendida pedirla sería exigir un dato que su cliente no tiene.
     """
     version = CaseVersion.objects.select_for_update().filter(pk=case_version_id).first()
     if not version:
@@ -189,7 +193,8 @@ def ensure_draft(case_version_id, revision=None):
             f"Estado actual: {version.status}. "
             "Use 'Clonar versión' para crear una copia editable."
         )
-    check_revision(version, revision)
+    if not revision_exempt:
+        check_revision(version, revision)
     return version
 
 

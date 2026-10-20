@@ -274,6 +274,87 @@ export const DRAFT_COPY = {
     where: 'Pistas de la escena: junto al contador de «Ver pista»',
     text: 'sin costo',
   },
+  /** Título de la sección «Tus decisiones» del resultado (F10-4, RN-08): la retroalimentación pedagógica va al cierre. */
+  decisionsTitle: {
+    decision: 'RN-08',
+    owner: 'Psicología',
+    where: 'Resultado: título de la sección «Tus decisiones» (una entrada por decisión)',
+    text: 'Tus decisiones',
+  },
+  /** Sección «Tus decisiones» sin decisiones que mostrar (F10-4): el estado vacío dice por qué. */
+  decisionsEmpty: {
+    decision: 'F10-4',
+    owner: 'Psicología',
+    where: 'Resultado: «Tus decisiones» cuando el intento no tiene decisiones registradas',
+    text: 'Este intento no tiene decisiones registradas para revisar.',
+  },
+  /** Descripción del estado vacío de «Tus decisiones» (F10-4): dice qué verá la persona cuando haya decisiones. */
+  decisionsEmptyHint: {
+    decision: 'F10-4',
+    owner: 'Psicología',
+    where: 'Resultado: descripción bajo el estado vacío de «Tus decisiones»',
+    text: 'Cuando el caso registre decisiones, aparecerán aquí con su explicación.',
+  },
+  /** Error al cargar «Tus decisiones» (F10-4): el resto del resultado sigue visible y el botón reintenta. */
+  decisionsError: {
+    decision: 'F10-4',
+    owner: 'Psicología',
+    where: 'Resultado: «Tus decisiones» cuando no se puede cargar el reporte',
+    text: 'No pudimos cargar tus decisiones. Puedes intentarlo de nuevo.',
+  },
+  /** Una decisión sin explicación en el caso (F10-4, estado vacío por decisión): no inventa un texto. */
+  decisionNoExplanation: {
+    decision: 'F10-4',
+    owner: 'Psicología',
+    where: 'Resultado: decisión de «Tus decisiones» sin explicación pedagógica',
+    text: 'El caso no trae una explicación para esta decisión.',
+  },
+  /** Rótulo del fundamento teórico de una decisión (F10-4). */
+  decisionBasisLabel: {
+    decision: 'F10-4',
+    owner: 'Psicología',
+    where: 'Resultado: fundamento teórico de cada decisión',
+    text: 'Fundamento teórico',
+  },
+  /** Etiquetas cualitativas de la clasificación al cierre (RN-08): lenguaje formativo, nunca un puntaje. */
+  decisionToneAdequate: {
+    decision: 'RN-08',
+    owner: 'Psicología',
+    where: 'Resultado: etiqueta cualitativa de una decisión adecuada',
+    text: 'Adecuada',
+  },
+  decisionToneRisky: {
+    decision: 'RN-08',
+    owner: 'Psicología',
+    where: 'Resultado: etiqueta cualitativa de una decisión con riesgo',
+    text: 'Con riesgo',
+  },
+  decisionToneInadequate: {
+    decision: 'RN-08',
+    owner: 'Psicología',
+    where: 'Resultado: etiqueta cualitativa de una decisión inadecuada',
+    text: 'Inadecuada',
+  },
+  /** Nota de una conducta prohibida en «Tus decisiones»: se señala con cuidado, sin cifras (RN-08, ETH). */
+  decisionProhibitedNote: {
+    decision: 'RN-08',
+    owner: 'Psicología',
+    where: 'Resultado: nota de una conducta prohibida en «Tus decisiones»',
+    text: 'Alerta ética: esta respuesta puede aumentar el riesgo de revictimización.',
+  },
+  /** Marcador de avance del HUD y del resultado cuando `scoreMarker = 'progress'` (VD-6): sin cifra de puntos. */
+  scoreProgressLabel: {
+    decision: 'VD-6',
+    owner: 'Psicología',
+    where: 'Resultado: marcador de avance (scoreMarker = progress), en lugar de «Puntaje total»',
+    text: 'Avance del caso',
+  },
+  scoreProgressDone: {
+    decision: 'VD-6',
+    owner: 'Psicología',
+    where: 'Resultado: valor del marcador de avance cuando el caso está completado',
+    text: 'Completado',
+  },
 } as const satisfies Record<string, DraftCopyEntry>;
 
 export type DraftCopyKey = keyof typeof DRAFT_COPY;

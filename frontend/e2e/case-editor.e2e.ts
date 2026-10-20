@@ -1,6 +1,7 @@
 import { expect, test } from '@playwright/test';
 import type { APIRequestContext, Page } from '@playwright/test';
 
+import { readEditor, send } from './support/case-fixtures';
 import { runAxe } from './support/quality-gates';
 import { loginAs } from './support/screen-tour';
 import { scaled } from './support/time-scale';
@@ -38,17 +39,9 @@ async function apiToken(request: APIRequestContext, who: { email: string; passwo
 
 const bearer = (token: string) => ({ Authorization: `Bearer ${token}` });
 
-async function createCase(request: APIRequestContext, token: string, title: string): Promise<Json> {
-  const response = await request.post('/api/authoring/cases', { headers: bearer(token), data: { title } });
-  expect(response.status(), 'crear el caso').toBe(200);
-  return (await response.json()).data;
-}
-
-async function readEditor(request: APIRequestContext, token: string, caseVersionId: number): Promise<Json> {
-  const response = await request.get(`/api/authoring/cases/${caseVersionId}/editor`, { headers: bearer(token) });
-  expect(response.status(), 'GET editor').toBe(200);
-  return (await response.json()).data;
-}
+/** Crea el caso por la API real; de paso la suite aprende su revisión (`support/case-fixtures`), que las ediciones por API mandan. */
+const createCase = (request: APIRequestContext, token: string, title: string): Promise<Json> =>
+  send(request, token, 'post', '/api/authoring/cases', { title }, 'crear el caso');
 
 const NODE_BODY = {
   requiredTools: [], supportResources: [], sensitiveContent: false, safeExitRequired: false,
@@ -202,7 +195,9 @@ test.describe('@editor-casos lista de publicación y envío a revisión', () => 
 
     await page.getByRole('tab', { name: 'Checklist ético' }).click();
     await expect(page.getByText('Pendiente: la constancia la registra el administrador')).toBeVisible();
-    for (const code of ['contentOriginal', 'ethicsReviewed', 'safetyProtocols', 'noStigmatizing', 'triggerWarnings', 'accessibilityOk']) {
+    // Los siete ítems obligatorios (el séptimo, `scopeEducational`, es el de alcance de RN-01: con la revisión estricta
+    // también cuenta para poder enviar).
+    for (const code of ['contentOriginal', 'ethicsReviewed', 'safetyProtocols', 'noStigmatizing', 'triggerWarnings', 'accessibilityOk', 'scopeEducational']) {
       await page.locator(`input[data-code="${code}"]`).check();
     }
     await page.getByRole('button', { name: 'Guardar lista' }).click();
@@ -216,7 +211,7 @@ test.describe('@editor-casos lista de publicación y envío a revisión', () => 
     await page.reload();
     await page.getByRole('tab', { name: 'Checklist ético' }).click();
     await expect(page.locator('input[data-code="contentOriginal"]')).toBeChecked();
-    await expect(page.locator('input[data-code="scopeEducational"]')).not.toBeChecked();
+    await expect(page.locator('input[data-code="scopeEducational"]')).toBeChecked();
   });
 
   test('una versión publicada es de solo lectura: lo explica y no abre la hoja', async ({ page, request }) => {
@@ -274,11 +269,9 @@ test.describe('@editor-casos docente y conflicto entre dos personas', () => {
 
     // Otra persona (la administradora) edita el caso entre medias: la pantalla de la docente queda con la revisión vencida.
     const adminToken = await apiToken(request, ADMIN);
-    const foreign = await request.post(`/api/authoring/cases/${id}/nodes`, {
-      headers: bearer(adminToken),
-      data: { ...NODE_BODY, nodeKey: 'ajeno', title: 'Nodo ajeno', narrative: 'Lo agregó otra sesión.' },
-    });
-    expect(foreign.status(), 'edición de la otra persona').toBe(200);
+    await send(request, adminToken, 'post', `/api/authoring/cases/${id}/nodes`, {
+      ...NODE_BODY, nodeKey: 'ajeno', title: 'Nodo ajeno', narrative: 'Lo agregó otra sesión.',
+    }, 'edición de la otra persona');
 
     await page.getByRole('button', { name: 'Nuevo nodo' }).click();
     await fillNode(page, 'mio', 'Nodo mío', 'Lo escribió la docente.');
@@ -304,11 +297,9 @@ test.describe('@editor-casos docente y conflicto entre dos personas', () => {
     await loginAs(page, 'profesor');
     await openEditor(page, id, created['title']);
     const adminToken = await apiToken(request, ADMIN);
-    const foreign = await request.post(`/api/authoring/cases/${id}/nodes`, {
-      headers: bearer(adminToken),
-      data: { ...NODE_BODY, nodeKey: 'ajeno', title: 'Nodo ajeno', narrative: 'Lo agregó otra sesión.' },
-    });
-    expect(foreign.status()).toBe(200);
+    await send(request, adminToken, 'post', `/api/authoring/cases/${id}/nodes`, {
+      ...NODE_BODY, nodeKey: 'ajeno', title: 'Nodo ajeno', narrative: 'Lo agregó otra sesión.',
+    }, 'edición de la otra persona');
 
     await page.getByRole('button', { name: 'Nuevo nodo' }).click();
     await fillNode(page, 'mio', 'Nodo mío', 'Lo escribió la docente.');
@@ -332,20 +323,14 @@ test.describe('@editor-casos grafo DAG (F8-3)', () => {
     const created = await createCase(request, token, `Grafo e2e ${Date.now()}`);
     const id: number = created['caseVersionId'];
     const startId: number = created['nodes'][0]['id'];
-    const closing = await request.post(`/api/authoring/cases/${id}/nodes`, {
-      headers: bearer(token),
-      data: { ...NODE_BODY, nodeKey: 'cierre', title: 'Cierre del caso', narrative: 'Fin.', terminal: true },
-    });
-    expect(closing.status(), 'segundo nodo').toBe(200);
-    const closingId: number = (await closing.json()).data['nodes'].find((node: Json) => node['key'] === 'cierre')['id'];
-    const decision = await request.post(`/api/authoring/cases/${id}/decisions`, {
-      headers: bearer(token),
-      data: {
-        sourceNodeId: startId, targetNodeId: closingId, optionKey: 'cerrar', text: 'Cerrar el caso', classification: 'ADEQUATE',
-        prohibitedConduct: false, prohibitionReason: null, scoreDelta: 10, stressDelta: 0, prohibitedPenalty: 0, immediateFeedback: '',
-      },
-    });
-    expect(decision.status(), 'decisión').toBe(200);
+    const closing = await send(request, token, 'post', `/api/authoring/cases/${id}/nodes`, {
+      ...NODE_BODY, nodeKey: 'cierre', title: 'Cierre del caso', narrative: 'Fin.', terminal: true,
+    }, 'segundo nodo');
+    const closingId: number = closing['nodes'].find((node: Json) => node['key'] === 'cierre')['id'];
+    await send(request, token, 'post', `/api/authoring/cases/${id}/decisions`, {
+      sourceNodeId: startId, targetNodeId: closingId, optionKey: 'cerrar', text: 'Cerrar el caso', classification: 'ADEQUATE',
+      prohibitedConduct: false, prohibitionReason: null, scoreDelta: 10, stressDelta: 0, prohibitedPenalty: 0, immediateFeedback: '',
+    }, 'decisión');
 
     await loginAs(page, 'admin');
     await openEditor(page, id, created['title']);

@@ -22,7 +22,7 @@ from django.utils import timezone
 from drf_spectacular.generators import SchemaGenerator
 from rest_framework.test import APIClient
 
-from apps.grupos.models import CaseAssignment
+from apps.grupos.models import CaseAssignment, GrupoEstudiante, MembershipStatus
 from apps.simulation.models import (
     AttemptHintView,
     AuditLog,
@@ -34,7 +34,7 @@ from apps.simulation.models import (
     SimulationAttempt,
     SimulationNode,
 )
-from apps.simulation.services.authoring import definition_io
+from apps.simulation.services.authoring import definition_io, lifecycle
 from apps.simulation.tests import dsl_support
 from apps.simulation.views.ai_assistant import AIAssistantView
 from shared import contract_testing
@@ -66,8 +66,16 @@ def assert_matches(data, schema, document, **options):
 ROUTE_FAMILIES = ("/api/admin/cases", "/api/authoring/cases")  # la misma vista con dos prefijos
 WORLD_STATE = "/api/simulation/attempts/{attempt_id}/world-state"
 HINTS = "/api/simulation/attempts/{attempt_id}/hints"
+HINTS_NEXT = "/api/simulation/attempts/{attempt_id}/hints/next"
 BRIEF = "/api/simulation/cases/{case_version_id}/brief"
 CONSENT = "/api/simulation/cases/{case_version_id}/consent"
+STUDENT_REPORT = "/api/reportes/estudiante/{estudiante_id}"
+INVITATIONS = "/api/me/invitations"
+
+
+def invitation_path(action):
+    """La ruta del documento con que se responde una invitación (``accept``, ``decline`` o ``leave``)."""
+    return f"/api/me/invitations/{{group_id}}/{action}"
 
 
 @dataclass
@@ -87,6 +95,7 @@ class World:
     draft_id: int  # un borrador vacío, con hallazgos de validación
     grupo_id: int  # el grupo de la docente al que pertenece el estudiante
     free_student: object  # un estudiante con el caso asignado y sin ningún intento
+    invited: object  # un estudiante con la invitación al grupo pendiente de respuesta (``INVITED``)
 
 
 @pytest.fixture(scope="module")
@@ -109,6 +118,10 @@ def world(db):
         portrait_key="madre-1", show_in_brief=True,
     )
     CaseAssignment.objects.create(case_version=version, estudiante=free_student, assigned_by=admin)
+    invited = make(email="invitado_contrato@x.com", password="x", nombre="In", apellido="Vitado", role="ESTUDIANTE")
+    GrupoEstudiante.objects.create(
+        grupo=grupo, estudiante=invited, status=MembershipStatus.INVITED, invited_by=profesor, invited_at=timezone.now()
+    )
 
     client = cl(student)
     started = client.post("/api/simulation/attempts", {"caseVersionId": version.id}, format="json").data["data"]
@@ -154,7 +167,7 @@ def world(db):
     SceneMap.objects.filter(case_version=draft).update(spawn_x=99999)  # un hallazgo del mundo que apunta a su mapa
     return World(
         admin, profesor, student, outsider, attempt_id, token, scene["map"]["key"], scene["player"]["x"],
-        scene["player"]["y"], version.id, draft.id, grupo.id, free_student,
+        scene["player"]["y"], version.id, draft.id, grupo.id, free_student, invited,
     )
 
 
@@ -273,6 +286,34 @@ def _consent_withdrawn(world):
     return cl(world.student).delete(_consent_url(world))
 
 
+def _next_hint(world, client=None, **body):
+    body = {"attemptToken": world.token, "requestId": "contrato-2", **body}
+    return (client or cl(world.student)).post(
+        f"/api/simulation/attempts/{world.attempt_id}/hints/next", body, format="json"
+    )
+
+
+calls(HINTS_NEXT, "POST")(_next_hint)
+
+
+@calls(STUDENT_REPORT, "GET")
+def _student_report(world):
+    return cl(world.profesor).get(f"/api/reportes/estudiante/{world.student.id}")
+
+
+@calls(INVITATIONS, "GET")
+def _my_invitations(world):
+    return cl(world.invited).get("/api/me/invitations")
+
+
+def _answer_invitation(world, action, who):
+    return cl(getattr(world, who)).post(f"/api/me/invitations/{world.grupo_id}/{action}", {}, format="json")
+
+
+for _action, _who in (("accept", "invited"), ("decline", "invited"), ("leave", "student")):
+    calls(invitation_path(_action), "POST")(lambda world, _action=_action, _who=_who: _answer_invitation(world, _action, _who))
+
+
 @calls("/api/health", "GET")
 def _health(world):
     return APIClient().get("/api/health")
@@ -286,6 +327,13 @@ def _register_case_routes(prefix):
         lambda world: cl(world.admin).get(f"{prefix}/{world.version_id}/definition")
     )
     calls(f"{prefix}/import", "POST", 201)(lambda world: _import_seeded_copy(world, prefix))
+    calls(f"{prefix}/{{case_version_id}}/lifecycle", "GET")(
+        lambda world: cl(world.admin).get(f"{prefix}/{world.draft_id}/lifecycle")
+    )
+    # «Volver a borrador» es clonar: responde el ciclo de la versión NUEVA (REGLA-005).
+    calls(f"{prefix}/{{case_version_id}}/lifecycle", "POST")(
+        lambda world: cl(world.admin).post(f"{prefix}/{world.version_id}/lifecycle", {"action": "clone"}, format="json")
+    )
 
 
 for _prefix in ROUTE_FAMILIES:
@@ -401,6 +449,49 @@ def test_la_validacion_de_un_borrador_vacio_trae_hallazgos(world):
 
     assert data["issues"] and data["canPublish"] is False
     assert {i["severity"] for i in data["issues"]} <= {"error", "warning"}
+
+
+@pytest.mark.parametrize("prefix", ROUTE_FAMILIES)
+def test_el_ciclo_de_vida_trae_la_ultima_revision_con_y_sin_constancia_de_contenido(prefix, document, world):
+    path = f"{prefix}/{{case_version_id}}/lifecycle"
+    returned = cl(world.admin).get(f"{prefix}/{world.version_id}/lifecycle").json()
+    review = returned["data"]["review"]
+    assert review["decision"] == "REJECTED" and review["reason"] == "CONTENIDO" and "contentReview" not in review
+    assert_matches(returned, response_schema(document, path, "GET"), document)
+
+    CaseReview.objects.create(
+        case_version_id=world.version_id, requested_by=world.admin, decided_by=world.admin, decision="APPROVED",
+        decided_at=timezone.now(), note="Cumple.", content_reviewer="Dra. Ruiz",
+        content_reviewed_on=timezone.now().date(), content_reference="Acta 4",
+    )
+    approved = cl(world.admin).get(f"{prefix}/{world.version_id}/lifecycle").json()
+    assert approved["data"]["review"]["contentReview"]["reference"] == "Acta 4"
+    assert_matches(approved, response_schema(document, path, "GET"), document)
+
+
+def test_las_acciones_del_ciclo_de_vida_que_el_documento_lista_son_las_del_servicio():
+    """La lista del documento es una copia (el módulo de formas no importa servicios): si una acción nace, se enteran."""
+    from apps.simulation.serializers.contracts import LIFECYCLE_ACTIONS
+
+    assert LIFECYCLE_ACTIONS == lifecycle.ACTIONS
+
+
+def test_el_reporte_de_un_estudiante_trae_intentos_abiertos_y_terminados(world):
+    attempts = _student_report(world).json()["data"]["attempts"]
+
+    assert {a["clockSeconds"] is None for a in attempts} == {True, False}
+    assert sorted(a["ordinal"] for a in attempts) == [1, 2]
+
+
+def test_las_invitaciones_traen_la_pendiente_y_la_membresia_sin_fecha_de_invitacion(document, world):
+    """Las membresías anteriores a las invitaciones no tienen fecha de invitación: ``invitedAt`` es nulo."""
+    pending = cl(world.invited).get(INVITATIONS).json()
+    member = cl(world.student).get(INVITATIONS).json()
+
+    assert [(r["status"], r["invitedAt"] is not None) for r in pending["data"]] == [("INVITED", True)]
+    assert [(r["status"], r["invitedAt"]) for r in member["data"]] == [("ACTIVE", None)]
+    for body in (pending, member):
+        assert_matches(body, response_schema(document, INVITATIONS, "GET"), document)
 
 
 @pytest.mark.parametrize("sealed", [False, True], ids=["borrador sin sello", "publicada con sello"])
@@ -535,11 +626,59 @@ def test_el_asistente_apagado_responde_el_sobre_de_error_que_el_documento_declar
 
 
 # ─── Errores: cada uno que un contrato tipado documenta tiene su caso ─────────────────────────────────────
+def _transition(prefix, who, version, body):
+    """``POST …/lifecycle`` de ``who`` (``world.<who>``) sobre la versión ``version`` (``world.<version>``).
+
+    Manda la revisión vigente de la versión: con ``REVISION_REQUIRED`` encendida un cuerpo sin ella es un 400 antes de
+    llegar al motivo que cada fila de ``ERRORS`` prueba, y estas pruebas valen con la bandera en cualquier valor.
+    """
+    def call(w):
+        version_id = getattr(w, version)
+        revision = CaseVersion.objects.get(pk=version_id).version
+        return cl(getattr(w, who)).post(
+            f"{prefix}/{version_id}/lifecycle", {**body, "revision": revision}, format="json"
+        )
+
+    return call
+
+
+def _stale_submit(prefix):
+    """Enviar a revisión con una revisión que el servidor ya superó (otra sesión editó después)."""
+    def call(w):
+        current = CaseVersion.objects.get(pk=w.draft_id).version
+        return cl(w.admin).post(
+            f"{prefix}/{w.draft_id}/lifecycle", {"action": "submit", "revision": current + 7}, format="json"
+        )
+
+    return call
+
+
 def _case_route_errors(prefix):
-    validate, definition, import_ = (
-        f"{prefix}/{{case_version_id}}/validate", f"{prefix}/{{case_version_id}}/definition", f"{prefix}/import"
+    validate, definition, import_, lifecycle = (
+        f"{prefix}/{{case_version_id}}/validate", f"{prefix}/{{case_version_id}}/definition", f"{prefix}/import",
+        f"{prefix}/{{case_version_id}}/lifecycle",
     )
     return [
+        ("ciclo de vida sin sesión", lifecycle, "GET", lambda w: APIClient().get(f"{prefix}/{w.draft_id}/lifecycle"),
+         401, "UNAUTHENTICATED"),
+        ("ciclo de vida sin permiso", lifecycle, "GET", lambda w: cl(w.student).get(f"{prefix}/{w.draft_id}/lifecycle"),
+         403, "FORBIDDEN"),
+        ("ciclo de vida de una versión inexistente", lifecycle, "GET",
+         lambda w: cl(w.admin).get(f"{prefix}/999999/lifecycle"), 404, "NOT_FOUND"),
+        ("transición sin sesión", lifecycle, "POST",
+         lambda w: APIClient().post(f"{prefix}/{w.draft_id}/lifecycle", {"action": "submit"}, format="json"),
+         401, "UNAUTHENTICATED"),
+        ("transición sin permiso", lifecycle, "POST", _transition(prefix, "student", "draft_id", {"action": "submit"}),
+         403, "FORBIDDEN"),
+        ("transición de una versión inexistente", lifecycle, "POST",
+         lambda w: cl(w.admin).post(f"{prefix}/999999/lifecycle", {"action": "submit"}, format="json"), 404, "NOT_FOUND"),
+        ("transición con una acción que no existe", lifecycle, "POST",
+         _transition(prefix, "admin", "draft_id", {"action": "explotar"}), 400, "VALIDATION_ERROR"),
+        ("enviar a revisión lo que ya está publicado", lifecycle, "POST",
+         _transition(prefix, "admin", "version_id", {"action": "submit"}), 409, "INVALID_TRANSITION"),
+        ("enviar a revisión un borrador con bloqueos", lifecycle, "POST",
+         _transition(prefix, "admin", "draft_id", {"action": "submit"}), 409, "CASE_NOT_PUBLISHABLE"),
+        ("transición con una revisión vencida", lifecycle, "POST", _stale_submit(prefix), 409, "REVISION_CONFLICT"),
         ("validar sin sesión", validate, "POST", lambda w: APIClient().post(f"{prefix}/{w.draft_id}/validate"),
          401, "UNAUTHENTICATED"),
         ("validar sin permiso", validate, "POST", lambda w: cl(w.student).post(f"{prefix}/{w.draft_id}/validate"),
@@ -564,7 +703,66 @@ def _case_route_errors(prefix):
     ]
 
 
+def _foreign_teacher_report(w):
+    """Un docente que no tiene a este estudiante en ninguno de sus grupos pide su reporte."""
+    other = User.objects.create_user(
+        email="otra_prof_contrato@x.com", password="x", nombre="Ot", apellido="Ra", role="PROFESOR"
+    )
+    return cl(other).get(f"/api/reportes/estudiante/{w.student.id}")
+
+
+def _hint_while_paused(w):
+    SimulationAttempt.objects.filter(pk=w.attempt_id).update(status="PAUSED")
+    return _next_hint(w, requestId="contrato-9")
+
+
+def _answer_as(action, who, group=None):
+    """Responder la invitación del grupo del mundo (o de ``group``) como ``world.<who>``, o sin sesión si ``who`` es None."""
+    def call(w):
+        client = APIClient() if who is None else cl(getattr(w, who))
+        return client.post(f"/api/me/invitations/{group or w.grupo_id}/{action}", {}, format="json")
+
+    return call
+
+
+def _invitation_errors():
+    rows = [
+        ("invitaciones sin sesión", INVITATIONS, "GET", lambda w: APIClient().get(INVITATIONS), 401, "UNAUTHENTICATED"),
+        ("invitaciones de un docente", INVITATIONS, "GET", lambda w: cl(w.profesor).get(INVITATIONS), 403, "FORBIDDEN"),
+    ]
+    conflict = {"accept": ("student", "MEMBERSHIP_NOT_INVITED"), "decline": ("student", "MEMBERSHIP_NOT_INVITED"),
+                "leave": ("invited", "MEMBERSHIP_NOT_ACTIVE")}
+    for action, (who, code) in conflict.items():
+        path = invitation_path(action)
+        rows += [
+            (f"{action} sin sesión", path, "POST", _answer_as(action, None), 401, "UNAUTHENTICATED"),
+            (f"{action} como docente", path, "POST", _answer_as(action, "profesor"), 403, "FORBIDDEN"),
+            (f"{action} de un grupo sin invitación", path, "POST", _answer_as(action, "invited", group=999999), 404, "NOT_FOUND"),
+            (f"{action} cuando el estado no lo permite", path, "POST", _answer_as(action, who), 409, code),
+        ]
+    return rows
+
+
 ERRORS = [
+    ("pista siguiente sin sesión", HINTS_NEXT, "POST",
+     lambda w: APIClient().post(f"/api/simulation/attempts/{w.attempt_id}/hints/next", {}, format="json"),
+     401, "UNAUTHENTICATED"),
+    ("pista siguiente sin permiso", HINTS_NEXT, "POST", lambda w: _next_hint(w, client=cl(w.profesor)), 403, "FORBIDDEN"),
+    ("pista siguiente sin el token del intento", HINTS_NEXT, "POST", lambda w: _next_hint(w, attemptToken=""),
+     400, "VALIDATION_ERROR"),
+    ("pista siguiente de un intento inexistente", HINTS_NEXT, "POST",
+     lambda w: cl(w.student).post(
+         f"/api/simulation/attempts/{uuid.uuid4()}/hints/next", {"attemptToken": w.token}, format="json"),
+     404, "NOT_FOUND"),
+    ("pista siguiente con el intento en pausa", HINTS_NEXT, "POST", _hint_while_paused, 409, "ATTEMPT_NOT_PLAYING"),
+    ("reporte del estudiante sin sesión", STUDENT_REPORT, "GET",
+     lambda w: APIClient().get(f"/api/reportes/estudiante/{w.student.id}"), 401, "UNAUTHENTICATED"),
+    ("reporte del estudiante como estudiante", STUDENT_REPORT, "GET",
+     lambda w: cl(w.student).get(f"/api/reportes/estudiante/{w.student.id}"), 403, "FORBIDDEN"),
+    ("reporte de un estudiante de otro docente", STUDENT_REPORT, "GET", _foreign_teacher_report, 403, "FORBIDDEN"),
+    ("reporte de un estudiante inexistente", STUDENT_REPORT, "GET",
+     lambda w: cl(w.profesor).get("/api/reportes/estudiante/999999"), 404, "NOT_FOUND"),
+    *_invitation_errors(),
     ("auditoría sin sesión", "/api/admin/audit", "GET", lambda w: APIClient().get("/api/admin/audit"), 401, "UNAUTHENTICATED"),
     ("auditoría sin permiso", "/api/admin/audit", "GET", lambda w: cl(w.student).get("/api/admin/audit"), 403, "FORBIDDEN"),
     ("auditoría con parámetro inválido", "/api/admin/audit", "GET",
@@ -681,6 +879,8 @@ def test_cada_error_que_un_contrato_tipado_documenta_tiene_su_caso(document):
 #: Propiedades declaradas que ninguna respuesta real de este módulo puede mostrar, con el motivo de cada una.
 NEVER_SEEN: dict[str, str] = {
     "ImportRejectedEnvelope.field": "el 400 de una importación rechazada lleva `issues`, no `field` (ese es de ErrorEnvelope)",
+    "CaseConflictEnvelope.field": "los 409 de una transición se explican con `code` y sus campos propios, nunca con `field`",
+    "MembershipConflictEnvelope.field": "los 409 de una invitación se explican con `code` y `status`, nunca con `field`",
 }
 
 

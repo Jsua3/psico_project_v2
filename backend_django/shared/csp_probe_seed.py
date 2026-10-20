@@ -18,10 +18,11 @@ Los modelos se importan dentro de las funciones: ``shared`` no depende de ``apps
 """
 import json
 
-from django.conf import settings
 from django.contrib.auth import get_user_model
 from django.core.management.base import CommandError
 from rest_framework.test import APIClient
+
+from shared.dev_only import ajustes_en_uso
 
 SOURCE_CODE = "SIM-VBG-001"
 PROBE_CODE = "SONDA-CSP-001"
@@ -78,7 +79,7 @@ def _poisoned_tables():
 
 def require_csp_probe_settings():
     """Se niega salvo con los ajustes de la sonda: el marcado hostil jamás entra en una base que no sea la desechable de la sonda."""
-    if not settings.SETTINGS_MODULE.endswith(".csp_probe"):
+    if not ajustes_en_uso().endswith(".csp_probe"):
         raise CommandError(
             # BORRADOR: mensaje de consola para quien opera, pendiente de revisión.
             "La siembra de la sonda de CSP solo corre con psychosim.settings.csp_probe (npm run test:csp)."

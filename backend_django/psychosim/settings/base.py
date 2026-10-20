@@ -292,9 +292,12 @@ def _entero_env(name, default, minimo):
 
 
 # ─── Banderas del contrato expand → migrate → contract (plan estructural §2.8, E5-10) ────
-# Todas arrancan en su valor HEREDADO (apagadas): lo nuevo ya está en el servidor y `test_contract_closure.py` recorre
-# el ciclo completo con todas en su valor final, pero el cliente visual todavía depende de lo viejo. Cada una dice abajo
-# qué hace en cada estado; `CONTRACT_FLAGS_REGISTRY` dice a qué valor van, qué las bloquea hoy y quién las retira.
+# Lo nuevo ya está en el servidor y `test_contract_closure.py` recorre el ciclo completo con todas en su valor final.
+# Una bandera arranca en su valor FINAL cuando el cliente visual ya migró (F9-10: REVIEW_WORKFLOW_STRICT y
+# REVISION_REQUIRED) y en su valor HEREDADO mientras algo del cliente todavía depende de lo viejo (ATTEMPT_START_STRICT y
+# FEEDBACK_AT_CLOSE_ONLY esperan a F10-9 y F10-4). Cada una dice abajo qué hace en cada estado; `CONTRACT_FLAGS_REGISTRY`
+# dice a qué valor van, qué las bloquea hoy y quién las retira. Una variable `SIEP_<BANDERA>=0` apaga una encendida
+# (interruptor de emergencia: el camino heredado sigue en el servidor hasta que el usuario decida borrarlo).
 #: E1-1 · ATTEMPT_START_STRICT. Encendida: con un intento abierto, `forceNew` de un ESTUDIANTE → 409
 #: ATTEMPT_ALREADY_OPEN con el id del abierto (RN-07: el estudiante reanuda; solo el docente lo reemplaza).
 #: Apagada: `forceNew` cierra el abierto como REPLACED y empieza otro (la ruta heredada de «Reintentar caso»).
@@ -314,10 +317,12 @@ RUBRIC_NUMERIC_TOTAL = _env_flag("SIEP_RUBRIC_NUMERIC_TOTAL")
 #: revisión de contenido de Psicología (409 CASE_NOT_PUBLISHABLE con ETHICS.NO_CONTENT_REVIEW si falta; 400
 #: CONTENT_REVIEW_REQUIRED si viene incompleta, S3-3). Apagada: `/publish` del ADMIN sigue publicando un borrador, la
 #: constancia es opcional y solo los seis ítems originales son obligatorios.
-REVIEW_WORKFLOW_STRICT = _env_flag("SIEP_REVIEW_WORKFLOW_STRICT")
+#: ENCENDIDA POR DEFECTO desde F9-10 (valor final): el cliente publica por el ciclo de vida con la constancia.
+REVIEW_WORKFLOW_STRICT = _env_flag("SIEP_REVIEW_WORKFLOW_STRICT", default=True)
 #: E2-6 · REVISION_REQUIRED. Encendida: `revision` es obligatoria en toda mutación de autoría (400 REVISION_REQUIRED
 #: si falta). Apagada: es opcional pero, cuando viene y está vencida, el servidor responde 409 REVISION_CONFLICT.
-REVISION_REQUIRED = _env_flag("SIEP_REVISION_REQUIRED")
+#: ENCENDIDA POR DEFECTO desde F9-10 (valor final): el editor y los fixtures e2e mandan la revisión en cada mutación.
+REVISION_REQUIRED = _env_flag("SIEP_REVISION_REQUIRED", default=True)
 #: E2-10 · INVITATIONS_AUTO_ACCEPT: PUENTE transitorio. Encendida: invitar a un estudiante lo une al grupo de una vez
 #: (`ACTIVE`), sin aceptación ni correo, como hasta E1. Apagada (valor final, decisión 22): la invitación queda
 #: `INVITED` hasta que el estudiante responde.
@@ -359,23 +364,16 @@ CONTRACT_FLAGS_REGISTRY = {
     "REVIEW_WORKFLOW_STRICT": {
         "env": "SIEP_REVIEW_WORKFLOW_STRICT",
         "target_contract": True,
-        "retirement_gate": "F9-10 (cierre de F10-6† en e2e)",
-        "blocked_by": (
-            "Dos pruebas e2e (el editor de casos y el conflicto del editor de mundo) publican por el atajo `/publish` o "
-            "con la lista de seis ítems; el cliente de revisión (F10-6) ya usa el ciclo de vida y la constancia."
-        ),
-        "owner": "sesión visual (F9-10)",
+        "retirement_gate": "F9-10 (cierre de F10-6† en e2e) — ENCENDIDA por defecto",
+        "blocked_by": None,
+        "owner": "sesión visual (F9-10); borrar el camino heredado del servidor lo decide el usuario",
     },
     "REVISION_REQUIRED": {
         "env": "SIEP_REVISION_REQUIRED",
         "target_contract": True,
-        "retirement_gate": "F9-10 (cabecera X-Case-Revision obligatoria en todos los clientes)",
-        "blocked_by": (
-            "Los fixtures e2e que arman casos por API (`frontend/e2e/support/case-fixtures.ts`, `case-review`, "
-            "`case-authoring-data`…) mutan sin `revision`: encendida, fallan 21 pruebas de siete archivos; el editor del "
-            "cliente sí la manda en cada mutación."
-        ),
-        "owner": "sesión visual (F9-10)",
+        "retirement_gate": "F9-10 (cabecera X-Case-Revision obligatoria en todos los clientes) — ENCENDIDA por defecto",
+        "blocked_by": None,
+        "owner": "sesión visual (F9-10); borrar el camino heredado del servidor lo decide el usuario",
     },
     "INVITATIONS_AUTO_ACCEPT": {
         "env": "SIEP_INVITATIONS_AUTO_ACCEPT",
@@ -555,6 +553,10 @@ SPECTACULAR_SETTINGS = {
         "AssignmentTargetTypeEnum": "apps.grupos.contracts.ASSIGNMENT_TARGETS",
         "IssueSeverityEnum": "apps.simulation.serializers.contracts.ISSUE_SEVERITIES",
         "HintReasonEnum": "apps.simulation.serializers.contracts.HINT_REASONS",
+        "LifecycleActionEnum": "apps.simulation.serializers.contracts.LIFECYCLE_ACTIONS",
+        "MembershipStatusEnum": "apps.grupos.models.MembershipStatus",
+        "ReviewDecisionEnum": "apps.simulation.models.case.ReviewDecision",
+        "ReviewReasonEnum": "apps.simulation.models.case.ReviewReason",
         "HealthStatusEnum": "shared.health_docs.HEALTH_STATUS",
         "HealthDbEnum": "shared.health_docs.HEALTH_DB",
     },

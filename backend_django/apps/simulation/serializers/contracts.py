@@ -11,10 +11,14 @@ from rest_framework import serializers
 
 from apps.grupos.contracts import AccessDecisionSerializer
 from apps.simulation.models import AttemptStatus, CaseVersionStatus
+from apps.simulation.models.case import ReviewDecision, ReviewReason
 from shared.openapi import ErrorEnvelopeSerializer
 
 ISSUE_SEVERITIES = ("error", "warning")
 HINT_REASONS = ("NONE_FOR_SCENE", "ALL_SHOWN")
+LIFECYCLE_ACTIONS = ("submit", "approve", "reject", "archive", "clone")
+#: Quién respalda una casilla de la lista de publicación (``authoring/checklist.py``: ``SYSTEM``, ``CONSTANCIA``, ``AUTHOR``).
+CHECKLIST_BACKINGS = ("system", "constancia", "author")
 
 #: Las fechas de la API son la hora local del servidor, sin desfase (``USE_TZ = False``): un cliente que las
 #: reciba debe leerlas como hora de Bogotá, no como UTC.
@@ -212,10 +216,123 @@ class ShownHintSerializer(serializers.Serializer):
 
 
 class HintStateSerializer(serializers.Serializer):
-    """Las pistas de la escena actual: las que el intento ya pidió y cuántas quedan."""
+    """Las pistas de la escena actual: las que el intento ya pidió y cuántas quedan.
+
+    Es también lo que responde `POST …/hints/next`: el estado DESPUÉS de pedir (o, si la orden se repitió o cayó
+    dentro de la ventana de duplicado, el mismo estado sin revelar otra).
+    """
 
     available = serializers.IntegerField(help_text="Cuántas quedan por pedir en esta escena.")
     shown = ShownHintSerializer(many=True)
     reason = serializers.ChoiceField(
         choices=HINT_REASONS, required=False, help_text="Solo si no quedan: la escena no tiene o ya se pidieron todas."
     )
+
+
+# ─── GET|POST /api/{admin,authoring}/cases/{id}/lifecycle  (C4) ───────────────
+class LifecycleBlockedReasonSerializer(serializers.Serializer):
+    """Por qué hoy no se puede enviar a revisión ni aprobar: el primer bloqueo."""
+
+    code = serializers.CharField(help_text="Estable: `CHECKLIST_INCOMPLETE`, `VALIDATION_ERRORS`…")
+    message = serializers.CharField()
+
+
+class ContentReviewSerializer(serializers.Serializer):
+    """La constancia de la revisión de contenido de Psicología."""
+
+    reviewer = serializers.CharField()
+    reviewedOn = serializers.DateField(allow_null=True)
+    reference = serializers.CharField(help_text="El acta o la referencia de la revisión.")
+
+
+class CaseReviewSerializer(serializers.Serializer):
+    """La última revisión de la versión. Mientras nadie la decide solo trae quién la pidió y cuándo."""
+
+    requestedBy = serializers.CharField(allow_null=True)
+    requestedAt = serializers.DateTimeField(help_text=LOCAL_TIME)
+    decision = serializers.ChoiceField(choices=ReviewDecision.choices, required=False, help_text="Solo si ya se decidió.")
+    decidedBy = serializers.CharField(allow_null=True, required=False)
+    decidedAt = serializers.DateTimeField(allow_null=True, required=False, help_text=f"Solo si ya se decidió. {LOCAL_TIME}")
+    note = serializers.CharField(required=False, help_text="Solo si ya se decidió; puede venir vacía.")
+    reason = serializers.ChoiceField(
+        choices=ReviewReason.choices, required=False, help_text="Solo si se devolvió a borrador."
+    )
+    contentReview = ContentReviewSerializer(required=False, help_text="Solo si la aprobación trae constancia.")
+
+
+class ChecklistItemSerializer(serializers.Serializer):
+    """Un ítem de la lista de publicación y quién lo respalda (S3-3)."""
+
+    code = serializers.CharField(help_text="Estable: `contentOriginal`, `ethicsReviewed`, `safetyProtocols`…")
+    label = serializers.CharField()
+    required = serializers.BooleanField(help_text="Si la publicación lo exige hoy: seis ítems, o siete con la revisión de contenido.")
+    fulfilled = serializers.BooleanField(help_text="Si la última lista guardada lo tiene marcado.")
+    draft = serializers.BooleanField(help_text="Su texto es un borrador pendiente de la validación de Psicología.")
+    backing = serializers.ChoiceField(
+        choices=CHECKLIST_BACKINGS,
+        help_text="Quién lo respalda: el sistema, la constancia de Psicología o solo la declaración de quien autora.",
+    )
+    backed = serializers.BooleanField(
+        allow_null=True, help_text="Si el dato que lo respalda existe ahora; `null` si es solo una declaración."
+    )
+    backingLabel = serializers.CharField(help_text="El respaldo en lenguaje llano, para mostrarlo tal cual.")
+
+
+class ChecklistContentReviewSerializer(serializers.Serializer):
+    """La constancia de Psicología vista desde la lista: si existe y, cuando existe, sus datos."""
+
+    fulfilled = serializers.BooleanField()
+    reviewer = serializers.CharField(required=False, help_text="Solo si ya hay constancia.")
+    reviewedOn = serializers.DateField(allow_null=True, required=False, help_text="Solo si ya hay constancia.")
+    reference = serializers.CharField(
+        required=False, help_text="El acta o la referencia de la revisión. Solo si ya hay constancia."
+    )
+
+
+class CaseChecklistSerializer(serializers.Serializer):
+    """La lista de publicación del caso con quién respalda cada casilla (S3-3): la misma que trae el editor."""
+
+    items = ChecklistItemSerializer(many=True)
+    contentReview = ChecklistContentReviewSerializer()
+    strict = serializers.BooleanField(
+        help_text="Si rige la revisión de contenido de Psicología (`SIEP_REVIEW_WORKFLOW_STRICT`): publicar exige la constancia."
+    )
+
+
+class CaseLifecycleSerializer(serializers.Serializer):
+    """El ciclo de vida de una versión: su estado, lo que esta persona puede hacer, su lista de publicación y la última revisión (C4)."""
+
+    caseVersionId = serializers.IntegerField(help_text="En `clone`, la versión NUEVA que se creó.")
+    state = serializers.ChoiceField(choices=CaseVersionStatus.choices)
+    allowedTransitions = serializers.ListField(
+        child=serializers.ChoiceField(choices=LIFECYCLE_ACTIONS), help_text="Las acciones que esta persona puede hacer hoy."
+    )
+    checklist = CaseChecklistSerializer(
+        help_text="La lista de publicación con el respaldo de cada casilla: quien revisa la ve sin pedir el caso entero (S3-3)."
+    )
+    blockedReason = LifecycleBlockedReasonSerializer(
+        required=False, help_text="Solo si puede enviar o aprobar y algo lo impide."
+    )
+    review = CaseReviewSerializer(required=False, help_text="Solo si la versión ya tuvo una revisión.")
+
+
+class CaseBlockerSerializer(serializers.Serializer):
+    """Un bloqueo de publicación: la lista incompleta o los errores de validación (con sus hallazgos)."""
+
+    code = serializers.CharField()
+    message = serializers.CharField()
+    issues = ValidationIssueSerializer(many=True, required=False, help_text="Solo en `VALIDATION_ERRORS`.")
+
+
+class CaseConflictEnvelopeSerializer(ErrorEnvelopeSerializer):
+    """El 409 de una transición del caso. Cada motivo suma sus campos en la raíz:
+
+    `INVALID_TRANSITION` → `state` y `action`; `CASE_NOT_PUBLISHABLE` → `blockers`; `REVISION_CONFLICT` → `revision` y
+    `current` (el editor tal como está ahora).
+    """
+
+    state = serializers.ChoiceField(choices=CaseVersionStatus.choices, required=False)
+    action = serializers.ChoiceField(choices=LIFECYCLE_ACTIONS, required=False)
+    blockers = CaseBlockerSerializer(many=True, required=False)
+    revision = serializers.IntegerField(required=False, help_text="La revisión vigente del caso.")
+    current = serializers.DictField(required=False, help_text="El editor del caso con los cambios de la otra sesión.")

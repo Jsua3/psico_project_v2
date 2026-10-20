@@ -32,6 +32,26 @@ def pytest_collection_modifyitems(config, items):
         )
 
 
+@pytest.fixture(autouse=True)
+def legacy_contract_flags(settings):
+    """Las suites anteriores al cierre del contrato corren contra el camino HEREDADO de las banderas ya encendidas.
+
+    ``REVISION_REQUIRED`` y ``REVIEW_WORKFLOW_STRICT`` arrancan encendidas (F9-10: el cliente ya migró), pero unas 240
+    pruebas de autoría se escribieron cuando la revisión era opcional y publicar un borrador bastaba: reescribirlas una por
+    una no prueba nada nuevo. El valor final lo prueban ``test_contract_closure.py`` (el ciclo completo con todas las
+    banderas en su valor final y cada una en el heredado), las pruebas de cada bandera, que la fijan a mano, y el e2e,
+    cuyo servidor arranca con los valores por defecto. Borrar el camino heredado (decisión del usuario) retira esta
+    fijación y obliga a reescribir esas pruebas.
+
+    ``SIEP_TEST_FINAL_FLAGS=1`` salta la fijación: corre la suite contra el valor final de arranque. NO es una puerta
+    (fallan las ~240 que asumen la revisión opcional); sirve para ver cuáles son y para repetir la medición de F9-10.
+    """
+    if os.environ.get("SIEP_TEST_FINAL_FLAGS") == "1":
+        return
+    settings.REVISION_REQUIRED = False
+    settings.REVIEW_WORKFLOW_STRICT = False
+
+
 @pytest.fixture
 def fetch_raise():
     """Un acceso perezoso accidental a una relación lanza en vez de hacer N+1 (DJA-7)."""

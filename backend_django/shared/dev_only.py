@@ -19,11 +19,25 @@ def _excepcion_activa():
     return os.environ.get(ALLOW_ENV, "").lower() in _VALORES_QUE_ABREN
 
 
+def ajustes_en_uso():
+    """El módulo de ajustes en uso (``psychosim.settings.production``…), o ``""`` si no se puede saber.
+
+    ``settings.SETTINGS_MODULE`` vale ``None`` mientras haya un ``override_settings`` activo (Django lo declara así en
+    ``UserSettingsHolder``: los ajustes ya no vienen de un módulo) y las pruebas lo activan en todas partes. Una guarda no
+    puede lanzar ``AttributeError`` por eso: cae al módulo con el que arrancó el proceso (``DJANGO_SETTINGS_MODULE``).
+    """
+    return settings.SETTINGS_MODULE or os.environ.get("DJANGO_SETTINGS_MODULE", "")
+
+
 def _motivos_de_no_desarrollo():
     """Señales de que no es desarrollo; lista vacía si lo es. No lanza nunca."""
     motivos = []
     try:
-        if settings.SETTINGS_MODULE.endswith(".production"):
+        ajustes = ajustes_en_uso()
+        if not ajustes:
+            # Sin saber qué ajustes rigen no se puede afirmar que sea desarrollo: cuenta como señal (cierra en falso).
+            motivos.append("los ajustes no están configurados")
+        elif ajustes.endswith(".production"):
             motivos.append("los ajustes son los de producción")
     except ImproperlyConfigured:
         # Sin ajustes no se puede afirmar que sea desarrollo: cuenta como señal (cierra en falso).

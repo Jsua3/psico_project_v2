@@ -82,7 +82,7 @@ async function completeFullCase(
     /aplicar pap: contención emocional, acompañamiento en duelo/i,
   );
   expect(decision.currentNode.key).toBe('hospital-sala-escucha');
-  await closeDialogue(page, /supervisión clínica/i);
+  await closeDialogue(page, /consecuencia/i);
   await waitForWorldReady(page);
 
   // Persistencia — refresh en progreso y pausa inmediata conservan el mismo intento.
@@ -125,7 +125,7 @@ async function completeFullCase(
     /resolución 459 de 2012 \+ ley 1257 de 2008/i,
   );
   expect(decision.currentNode.key).toBe('hospital-accion-etica');
-  await closeDialogue(page, /supervisión clínica/i);
+  await closeDialogue(page, /consecuencia/i);
   await waitForWorldReady(page);
 
   // H3 — protocolo EPICEE antes de la actuación integral.
@@ -140,7 +140,7 @@ async function completeFullCase(
     /pap \+ escucha \+ epicee\/spikes \+ evaluación psicosocial familiar/i,
   );
   expect(decision.currentNode.key).toBe('hospital-cierre-bloque');
-  await closeDialogue(page, /supervisión clínica/i);
+  await closeDialogue(page, /consecuencia/i);
   await waitForWorldReady(page);
 
   await input.moveUntilNearby('ArrowRight', /salida institucional/i);
@@ -175,7 +175,7 @@ async function completeFullCase(
     /valorar riesgo de feminicidio \+ medidas de protección \+ derechos/i,
   );
   expect(decision.currentNode.key).toBe('comisaria-consultorio');
-  await closeDialogue(page, /supervisión clínica/i);
+  await closeDialogue(page, /consecuencia/i);
   await waitForWorldReady(page);
 
   // C2 — marco integral de Comisaría.
@@ -188,7 +188,7 @@ async function completeFullCase(
     /ley 2126 de 2021 \+ ley 1098 de 2006 \+ ley 1257 de 2008/i,
   );
   expect(decision.currentNode.key).toBe('comisaria-accion-final');
-  await closeDialogue(page, /supervisión clínica/i);
+  await closeDialogue(page, /consecuencia/i);
   await waitForWorldReady(page);
 
   // C3 — cierre técnico y reporte integral. Tras C2 la Ruta de protección aún
@@ -211,13 +211,13 @@ async function completeFullCase(
   });
   expect(decision.completionReport.metrics.institutionalRouteActivated).toBe(true);
 
-  // AC-9: la supervisión de la ÚLTIMA decisión se mantiene a la vista y el
+  // AC-9: la consecuencia de la ÚLTIMA decisión se mantiene a la vista y el
   // resultado del intento solo se abre cuando se cierra.
-  const supervision = page.getByRole('dialog', { name: /supervisión clínica/i });
+  const supervision = page.getByRole('dialog', { name: /consecuencia/i });
   await expect(supervision).toBeVisible({ timeout: scaled(30_000) });
   await expect(page.locator('app-attempt-outcome .outcome')).toHaveCount(0);
   await assertQualityState(page, testInfo, `${viewport.name}-full-case-last-supervision`);
-  await closeDialogue(page, /supervisión clínica/i);
+  await closeDialogue(page, /consecuencia/i);
 
   const outcome = page.getByRole('alertdialog', { name: /intento finalizado/i });
   await expect(outcome).toBeVisible({ timeout: scaled(30_000) });
@@ -228,6 +228,18 @@ async function completeFullCase(
   await expect(outcome.getByText(/ruta institucional: activada/i)).toBeVisible();
   await expect(outcome.getByRole('button', { name: /reintentar caso/i })).toBeVisible();
   await expect(outcome.getByRole('link', { name: /volver al simulador/i })).toBeVisible();
+
+  // F10-4 (RN-08): «Tus decisiones» lista las seis decisiones con su explicación o su estado vacío, y una etiqueta
+  // formativa por decisión (nunca un puntaje).
+  const decisions = outcome.locator('.oc-decisions');
+  await expect(decisions.locator('#oc-decisions-title')).toHaveText('Tus decisiones', { timeout: scaled(30_000) });
+  const items = decisions.locator('.oc-decision');
+  await expect(items).toHaveCount(6, { timeout: scaled(30_000) });
+  for (const item of await items.all()) {
+    expect(await item.locator('.oc-decision__explanation, .oc-decision__empty').count()).toBe(1);
+    await expect(item.locator('.oc-decision__tone')).toHaveText(/^(Adecuada|Con riesgo|Inadecuada)$/);
+  }
+  expect(await decisions.textContent()).not.toMatch(/\d+\s*pts|puntos/i);
   await assertQualityState(page, testInfo, `${viewport.name}-full-case-outcome`);
 
   // F6-6 (H-05): el resultado es un diálogo modal con el foco inicial en su título, y a 360 px las métricas, la barra y

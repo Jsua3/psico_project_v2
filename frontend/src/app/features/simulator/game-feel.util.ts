@@ -1,4 +1,3 @@
-import type { SimulationFeedback } from '../../core/models/simulation.model';
 import { STRESS_TIER_FLOORS } from './stress-tier.util';
 
 /** Tinte rojo-violeta de la viñeta de crisis; no depende del tono del mapa. */
@@ -18,7 +17,6 @@ export interface CrisisVignetteState {
   pulse: { from: number; to: number; durationMs: number } | null;
 }
 
-export interface CameraShake { durationMs: number; intensity: number; }
 export interface CameraFlash {
   durationMs: number;
   rgb: [number, number, number];
@@ -45,19 +43,6 @@ export function crisisVignetteState(stress: number, reduceMotion: boolean): Cris
   // arranca el pulso, así que ni al reanudar ni al pasar de 84 a 85 hay un escalón (antes 0,70).
   if (reduceMotion) return { alpha: 0.55, pulse: null };
   return { alpha: 0.55, pulse: { from: 0.55, to: 0.85, durationMs: 800 } };
-}
-
-/** Sacudida de cámara por una decisión de alto impacto; null si no corresponde. */
-export function decisionShake(
-  feedback: Pick<SimulationFeedback, 'classification' | 'prohibitedConduct'> | null | undefined,
-  reduceMotion: boolean,
-): CameraShake | null {
-  if (!feedback || reduceMotion) return null;
-  if (feedback.prohibitedConduct) return { durationMs: 260, intensity: 0.006 };
-  if (feedback.classification === 'RISKY' || feedback.classification === 'INADEQUATE') {
-    return { durationMs: 200, intensity: 0.003 };
-  }
-  return null;
 }
 
 /**

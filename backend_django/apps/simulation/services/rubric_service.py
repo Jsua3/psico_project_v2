@@ -237,7 +237,7 @@ def _load_editable(rubric_id, actor):
         )
     if rubric.case_version_id is not None:
         # Una rúbrica de la versión es parte del documento que se validó y se selló: solo se toca en un borrador.
-        ensure_draft(rubric.case_version_id)
+        ensure_draft(rubric.case_version_id, revision_exempt=True)  # la ruta de rúbricas no lleva la revisión del caso
     return rubric
 
 

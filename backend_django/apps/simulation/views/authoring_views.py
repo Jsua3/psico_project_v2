@@ -22,8 +22,10 @@ from shared.response import api_created, api_ok
 from ..casedef import import_
 from ..serializers import authoring as inputs
 from ..serializers.contracts import (
+    CaseConflictEnvelopeSerializer,
     CaseDefinitionSerializer,
     CaseImportedSerializer,
+    CaseLifecycleSerializer,
     CaseValidationSerializer,
     ImportRejectedEnvelopeSerializer,
 )
@@ -151,10 +153,18 @@ class LifecycleView(_AuthoringView):
 
     throttle_classes = [HeavyUserThrottle]
 
+    @extend_schema(responses={200: envelope_of(CaseLifecycleSerializer), **error_responses(401, 403, 404)})
     def get(self, request, case_version_id):
         self.version_for(request, case_version_id, mutate=False)
         return api_ok(svc.lifecycle_of(case_version_id, request.user))
 
+    @extend_schema(
+        responses={
+            200: envelope_of(CaseLifecycleSerializer),
+            409: OpenApiResponse(CaseConflictEnvelopeSerializer, description="Choca con el estado actual del caso."),
+            **error_responses(400, 401, 403, 404),
+        }
+    )
     def post(self, request, case_version_id):
         # La autorización va primero y depende de la acción; la acción solo cuenta si es un texto.
         action = request.data.get("action") if hasattr(request.data, "get") else None
