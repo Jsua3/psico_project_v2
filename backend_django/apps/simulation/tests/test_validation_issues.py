@@ -60,8 +60,9 @@ def test_every_code_the_validator_can_emit_has_a_plain_message():
     emitted = _codes_in_the_validator()
 
     # 17 errores + 3 avisos (#67; E3-7 añade «decisión sin retroalimentación») + 3 errores de E4
-    # (OPTION_WITHOUT_TRIGGER, REQUIRES_UNKNOWN, DOOR_TARGET_MISSING).
-    assert len(emitted) == 23
+    # (OPTION_WITHOUT_TRIGGER, REQUIRES_UNKNOWN, DOOR_TARGET_MISSING) + 1 error de S2-6b
+    # (MAP_BACKGROUND_NOT_ALLOWED: el fondo de sala que no es ruta propia ni host permitido).
+    assert len(emitted) == 24
     assert emitted == set(validation_issues.PLAIN)
 
 

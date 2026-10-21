@@ -63,8 +63,10 @@ def test_a_fifty_megabyte_file_is_refused_by_size(grupo):
 
     response = _post(grupo, upload)
 
+    # S2-6a: un sobre de más de 3 MiB lo corta el tope del cuerpo antes de que la vista lo lea. El FILE_TOO_LARGE
+    # de la vista se prueba para archivos de 2 a 3 MiB en test_import_limites.py.
     assert response.status_code == 413
-    assert response.data["code"] == "FILE_TOO_LARGE"
+    assert response.json()["code"] == "REQUEST_TOO_LARGE"
 
 
 def test_a_file_that_is_not_a_zip_is_refused(grupo):

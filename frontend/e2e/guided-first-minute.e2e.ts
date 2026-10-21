@@ -176,7 +176,7 @@ for (const viewport of GUIDED_VIEWPORTS) {
           /aplicar pap: contención emocional, acompañamiento en duelo/i,
         );
         expect(decision.currentNode.key).toBe('hospital-sala-escucha');
-        await closeDialogue(page, /supervisión clínica/i);
+        await closeDialogue(page, /consecuencia/i);
         await waitForWorldReady(page);
 
         // La lista pasó a la etapa 2 y su siguiente paso es la segunda decisión.

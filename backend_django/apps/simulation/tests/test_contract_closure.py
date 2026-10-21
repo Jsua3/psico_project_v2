@@ -9,6 +9,7 @@ protege a los clientes que todavía no migraron.
 """
 from __future__ import annotations
 
+import os
 from types import SimpleNamespace
 
 import pytest
@@ -17,7 +18,9 @@ from django.utils import timezone
 from rest_framework.test import APIClient
 
 from apps.grupos.models import Grupo, GrupoEstudiante
-from apps.simulation.models import CaseVersion, DecisionOption, SimulationAttempt
+from apps.simulation.models import CaseVersion, DecisionOption, Rubric, SimulationAttempt
+
+from .publication_support import give_support_resource
 
 pytestmark = [pytest.mark.django_db, pytest.mark.req("RNF-07")]
 
@@ -35,6 +38,8 @@ EXPECTED_FLAGS = {
     "REVISION_REQUIRED": True,
     "INVITATIONS_AUTO_ACCEPT": False,
 }
+#: Las que ya arrancan en su valor final: dos porque el cliente migró (F9-10) y dos que su valor final es el apagado.
+FINAL_BY_DEFAULT = {"REVIEW_WORKFLOW_STRICT", "REVISION_REQUIRED", "RUBRIC_NUMERIC_TOTAL", "INVITATIONS_AUTO_ACCEPT"}
 
 
 def cl(user) -> APIClient:
@@ -76,6 +81,7 @@ def _draft_copy(world):
     """Un borrador completo y válido: la copia del caso sembrado (el editor de hoy parte de una igual)."""
     response = cl(world.admin).post(f"{AUTHORING}/{world.seeded.id}/clone-version", {}, format="json")
     assert response.status_code == 200, response.data
+    give_support_resource(response.data["data"]["caseVersionId"])  # S3-3: la lista marca «protocolos de seguridad»
     return response
 
 
@@ -128,15 +134,27 @@ def test_el_registro_dice_de_cada_bandera_su_estado_final_que_la_bloquea_y_quien
         assert entry["owner"].strip(), f"{name}: ¿quién la retira?"
         assert entry["retirement_gate"].strip()
         # Las que ya arrancan en su estado final no tienen nada que las bloquee; las demás dicen qué las bloquea hoy.
-        assert bool(entry["blocked_by"]) is target, f"{name}: blocked_by debe decir qué la bloquea (o estar vacío)"
+        assert bool(entry["blocked_by"]) is (name not in FINAL_BY_DEFAULT), (
+            f"{name}: blocked_by debe decir qué la bloquea (o estar vacío si ya arranca en su valor final)"
+        )
 
 
-def test_todas_las_banderas_arrancan_apagadas_en_los_ajustes_de_prueba():
-    """El valor de arranque en despliegue es el heredado: ninguna bandera se enciende sola."""
+def test_cada_bandera_arranca_en_su_valor_final_si_el_cliente_ya_migro_y_en_el_heredado_si_no():
+    """El valor de arranque en despliegue (los ajustes base, sin la fijación de la suite unitaria)."""
     import importlib
 
     base = importlib.import_module("psychosim.settings.base")
-    assert [name for name in EXPECTED_FLAGS if getattr(base, name) is not False] == []
+    started = {name: getattr(base, name) for name in EXPECTED_FLAGS}
+    expected = {
+        name: target if name in FINAL_BY_DEFAULT else not target for name, target in EXPECTED_FLAGS.items()
+    }
+    assert started == expected
+
+
+@pytest.mark.skipif(os.environ.get("SIEP_TEST_FINAL_FLAGS") == "1", reason="se pidió el valor final (conftest.py)")
+def test_la_suite_unitaria_corre_las_banderas_encendidas_en_su_valor_heredado(settings):
+    """La fijación de ``conftest.py``: lo que cada prueba ve mientras no diga otra cosa."""
+    assert (settings.REVISION_REQUIRED, settings.REVIEW_WORKFLOW_STRICT) == (False, False)
 
 
 # ─── El ciclo completo, con todas las banderas en su valor final ──────────────────────────────
@@ -168,7 +186,11 @@ def test_el_ciclo_completo_con_todas_las_banderas_estrictas(world, settings):
         f"{AUTHORING}/{draft_id}/lifecycle", {"action": "approve", "note": "Sin constancia."}, format="json",
         **current_revision(admin, draft_id),
     )
-    assert no_record.status_code == 400 and no_record.data["code"] == "CONTENT_REVIEW_REQUIRED"
+    # S3-3: sin constancia la compuerta no publica (CASE_NOT_PUBLISHABLE con ETHICS.NO_CONTENT_REVIEW en los bloqueos).
+    assert no_record.status_code == 409 and no_record.data["code"] == "CASE_NOT_PUBLISHABLE"
+    assert [issue["code"] for blocker in no_record.data["blockers"] for issue in blocker["issues"]] == [
+        "ETHICS.NO_CONTENT_REVIEW"
+    ]
     content_review = {"reviewer": "Dra. Ruiz", "reviewedOn": timezone.now().date().isoformat(), "reference": "Acta 4"}
     approved = admin.post(
         f"{AUTHORING}/{draft_id}/lifecycle",
@@ -208,6 +230,25 @@ def test_el_ciclo_completo_con_todas_las_banderas_estrictas(world, settings):
     )
     assert saved.status_code == 200, saved.data
     assert saved.data["data"]["totalScore"] is None and saved.data["data"]["overallLevel"]
+
+
+def test_con_la_revision_obligatoria_una_ruta_que_no_es_de_autoria_no_la_pide(world, settings):
+    """``/api/rubrics/{id}`` edita una rúbrica de la VERSIÓN en borrador, pero su cuerpo no lleva la revisión del caso.
+
+    Con ``REVISION_REQUIRED`` encendida el servidor no puede pedir un dato que esa ruta no tiene: el cliente de las
+    rúbricas no tendría con qué obedecer (400 ``REVISION_REQUIRED`` sin salida).
+    """
+    _set_flags(settings, strict=True)
+    draft_id = _draft_copy(world).data["data"]["caseVersionId"]
+    rubric = Rubric.objects.create(
+        case_version_id=draft_id, name="De la versión", description="", version="1.0", active=False,
+        created_by=world.admin,
+    )
+
+    renamed = cl(world.admin).put(f"/api/rubrics/{rubric.id}", {"name": "Renombrada"}, format="json")
+
+    assert renamed.status_code == 200, renamed.data
+    assert Rubric.objects.get(pk=rubric.id).name == "Renombrada"
 
 
 # ─── Cada bandera en su valor heredado conserva el comportamiento de antes ────────────────────
@@ -282,7 +323,8 @@ def test_cada_bandera_tiene_su_prueba_del_comportamiento_heredado():
 
 @pytest.mark.parametrize("flag", sorted(LEGACY))
 def test_una_bandera_en_su_valor_heredado_conserva_el_comportamiento_de_antes(flag, world, settings):
-    """Solo ELLA en su valor heredado (las demás quedan en el de arranque): lo que el cliente de hoy espera."""
+    """Solo ELLA en su valor heredado (las demás quedan como las deja la suite unitaria: las dos ya encendidas, en el
+    heredado por ``conftest.py``): lo que el cliente de antes esperaba."""
     setattr(settings, flag, not settings.CONTRACT_FLAGS_REGISTRY[flag]["target_contract"])
 
     LEGACY[flag](world, settings)

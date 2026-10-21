@@ -9,8 +9,9 @@ import time
 import zipfile
 import zlib
 from dataclasses import dataclass
-from xml.etree import ElementTree as ET
 
+from defusedxml import DefusedXmlException, DTDForbidden, EntitiesForbidden, ExternalReferenceForbidden
+from defusedxml import ElementTree as SafeET
 from django.conf import settings
 from django.contrib.auth import get_user_model
 from django.core.validators import validate_email
@@ -238,7 +239,12 @@ _UNREADABLE_BOOK = (
     ValueError,
     IndexError,
     OverflowError,
-    ET.ParseError,
+    SafeET.ParseError,
+    # defusedxml (S2-6a): entidades, DTD y referencias externas. Son ValueError, pero se nombran por claridad.
+    DefusedXmlException,
+    DTDForbidden,
+    EntitiesForbidden,
+    ExternalReferenceForbidden,
 )
 _XML_ENCODING = re.compile(
     rb"""^(?:\xef\xbb\xbf)?\s*<\?xml[^>]*?encoding\s*=\s*["']([A-Za-z0-9._-]+)["']""", re.I
@@ -278,7 +284,7 @@ def _xlsx_shared_strings(zf):
         xml = _read_xml(zf, "xl/sharedStrings.xml")
     except KeyError:
         return []
-    root = ET.fromstring(xml)
+    root = SafeET.fromstring(xml)
     ns = {"x": "http://schemas.openxmlformats.org/spreadsheetml/2006/main"}
     values = []
     for si in root.findall("x:si", ns):
@@ -289,8 +295,8 @@ def _xlsx_shared_strings(zf):
 
 def _xlsx_first_sheet_path(zf):
     try:
-        workbook = ET.fromstring(_read_xml(zf, "xl/workbook.xml"))
-        rels = ET.fromstring(_read_xml(zf, "xl/_rels/workbook.xml.rels"))
+        workbook = SafeET.fromstring(_read_xml(zf, "xl/workbook.xml"))
+        rels = SafeET.fromstring(_read_xml(zf, "xl/_rels/workbook.xml.rels"))
     except KeyError:
         raise ValidationError("El archivo Excel no tiene una hoja válida")
     ns = {
@@ -333,7 +339,7 @@ def _parse_xlsx_rows(uploaded_file):
         with zipfile.ZipFile(uploaded_file) as zf:
             shared = _xlsx_shared_strings(zf)
             sheet_path = _xlsx_first_sheet_path(zf)
-            root = ET.fromstring(_read_xml(zf, sheet_path))
+            root = SafeET.fromstring(_read_xml(zf, sheet_path))
         return _sheet_rows(root, shared, started)
     except _UNREADABLE_BOOK:
         # BORRADOR: texto nuevo del servidor, pendiente de la aprobación de Psicología (VD-23).
@@ -704,6 +710,11 @@ def listar_casos_asignados(grupo_id, actor):
     return [_case_summary(case_version_id) for case_version_id in ids]
 
 
+@auditable(
+    "GROUP_CREATED", "GRUPO", -1,
+    resource_id=lambda args, kwargs, result: result["id"],
+    context=lambda args, kwargs, result: {"groupId": result["id"]},
+)
 @transaction.atomic
 def crear(nombre, codigo, profesor):
     if Grupo.objects.filter(codigo=codigo).exists():
@@ -712,6 +723,17 @@ def crear(nombre, codigo, profesor):
     return grupo_dto(grupo)
 
 
+def _campos_del_grupo_enviados(args, kwargs, result):
+    """Solo los NOMBRES de los campos que la petición traía (el nombre y el código del grupo no van a la auditoría)."""
+    enviados = [
+        campo
+        for campo, posicion in (("nombre", 1), ("codigo", 2))
+        if arg(args, kwargs, posicion, campo) is not None
+    ]
+    return {"groupId": result["id"], "changed": enviados}
+
+
+@auditable("GROUP_UPDATED", "GRUPO", 0, context=_campos_del_grupo_enviados)
 @transaction.atomic
 def actualizar(grupo_id, nombre, codigo, profesor):
     grupo = _require_grupo(grupo_id, profesor)
@@ -731,6 +753,7 @@ def actualizar(grupo_id, nombre, codigo, profesor):
     return grupo_dto(grupo)
 
 
+@auditable("GROUP_DELETED", "GRUPO", 0, context=lambda args, kwargs, result: {"groupId": result["id"]})
 @transaction.atomic
 def eliminar(grupo_id, profesor):
     grupo = _require_grupo(grupo_id, profesor)
@@ -778,6 +801,13 @@ def agregar_estudiante(grupo_id, email, actor):
     return grupo_dto(grupo)
 
 
+def _contexto_de_la_asignacion(args, kwargs, result):
+    return {"groupId": arg(args, kwargs, 0, "grupo_id"), "caseVersionId": arg(args, kwargs, 1, "case_version_id")}
+
+
+# S4-1 · Las rutas heredadas ``/api/grupos/<id>/casos`` cambian lo mismo que ``/api/assignments`` y dejan las mismas
+# etiquetas que esta (``asignacion.crear`` y ``asignacion.eliminar``).
+@auditable("asignacion.crear", "ASSIGNMENT", -1, context=_contexto_de_la_asignacion)
 @transaction.atomic
 def asignar_caso(grupo_id, case_version_id, profesor):
     grupo = _require_grupo(grupo_id, profesor)
@@ -800,6 +830,7 @@ def asignar_caso(grupo_id, case_version_id, profesor):
     return listar_casos_asignados(grupo.id, profesor)
 
 
+@auditable("asignacion.eliminar", "ASSIGNMENT", -1, context=_contexto_de_la_asignacion)
 @transaction.atomic
 def quitar_caso(grupo_id, case_version_id, profesor):
     grupo = _require_grupo(grupo_id, profesor)

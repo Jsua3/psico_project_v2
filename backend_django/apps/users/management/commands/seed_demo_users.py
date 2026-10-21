@@ -2,6 +2,7 @@
 from django.core.management.base import BaseCommand
 
 from apps.users.models import CustomUser, UserRole
+from shared.dev_only import require_dev_environment
 
 DEMO_USERS = [
     {
@@ -32,6 +33,7 @@ class Command(BaseCommand):
     help = "Siembra las credenciales demo de desarrollo."
 
     def handle(self, *args, **options):
+        require_dev_environment("seed_demo_users")
         created = 0
         for spec in DEMO_USERS:
             if CustomUser.objects.filter(email=spec["email"]).exists():

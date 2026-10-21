@@ -13,6 +13,7 @@ from rest_framework import status
 from rest_framework.exceptions import NotFound, PermissionDenied, ValidationError
 
 from apps.grupos import assignments
+from apps.privacy import consent_service
 from apps.simulation.models import (
     INITIAL_STRESS_INDEX,
     INITIAL_USER_TRUST,
@@ -37,7 +38,7 @@ from shared.idempotency import DUPLICATE_WINDOW_SECONDS, normalize_request_id
 
 from .attempt_lock import lock_attempt_row, locked_attempt
 from .attempt_replacement import replace_open_attempt
-from .audit_service import auditable
+from .audit_service import auditable, record
 from .instructor_scope import student_ids_for_instructor
 from .node_iterator import BreadthFirstNodeIterator
 
@@ -107,7 +108,7 @@ def _require_published(case_version_id):
     return version
 
 
-def _require_attempt(attempt_id, attempt_token, actor, enforce_assignment=True, lock=False):
+def _require_attempt(attempt_id, attempt_token, actor, enforce_assignment=True, lock=False, enforce_consent=True):
     """El intento del token, **solo para su dueño** (E2-2, D-11, RNF-04).
 
     Un docente o el ADMIN no leen un intento ajeno por token: su vía es ``/api/instructor/**``
@@ -115,6 +116,11 @@ def _require_attempt(attempt_id, attempt_token, actor, enforce_assignment=True, 
 
     ``enforce_assignment=False`` solo para la salida segura (REGLA-004 / ETH-02: siempre
     alcanzable, aunque el estudiante ya no tenga el caso asignado).
+    ``enforce_consent`` (S3-2a, ETH-01): el mundo y las órdenes de juego del estudiante pasan por aquí, así que aquí se exige el
+    consentimiento al aviso de contenido cuando el servidor lo pide (``require_consent`` no hace nada con las banderas
+    apagadas y entonces no consulta la base). Exigirlo es lo POR DEFECTO: una orden nueva queda cubierta sin que nadie lo
+    recuerde. Solo lo apagan, con su motivo, la pausa/salida segura y reanudar (REGLA-004: quien necesita parar siempre puede
+    y retirar el consentimiento no puede atraparlo) y los reportes (lo hecho se lee aunque se retire el consentimiento).
     ``lock=True`` toma el cerrojo de la fila del intento (``lock_attempt_row``) en su PROPIA sentencia y solo después
     lee el intento con todas sus uniones. Una sola sentencia con ``FOR UPDATE`` y uniones (la forma de E5-1) devuelve
     la fila del intento al día pero las demás filas de la unión —el nodo, el estado del mundo— como estaban ANTES de
@@ -146,6 +152,9 @@ def _require_attempt(attempt_id, attempt_token, actor, enforce_assignment=True, 
     if (enforce_assignment and owner and actor.role == "ESTUDIANTE"
             and lifecycle.state_of(attempt).is_open and not attempt.owner_has_assignment):
         raise access_not_assigned()
+    if enforce_consent:
+        # Después del dueño y de la asignación: quien no tiene el intento no averigua nada de su consentimiento.
+        consent_service.require_consent(actor, attempt.case_version_id)
     return attempt
 
 
@@ -344,7 +353,8 @@ def get_attempt(attempt_id, attempt_token, actor):
 
 
 def get_completion_report(attempt_id, attempt_token, actor):
-    attempt = _require_attempt(attempt_id, attempt_token, actor)
+    # Un reporte no exige consentimiento (S3-2a): lo hecho se lee aunque la persona haya retirado el suyo.
+    attempt = _require_attempt(attempt_id, attempt_token, actor, enforce_consent=False)
     if lifecycle.state_of(attempt).plays:
         raise ValidationError("El intento aún está en progreso")
     attempt_report.record_feedback_viewed(attempt, actor)
@@ -356,7 +366,8 @@ def get_attempt_report(attempt_id, attempt_token, actor):
 
     Un intento en juego, en pausa o reemplazado todavía no (o ya no) tiene reporte de cierre.
     """
-    attempt = _require_attempt(attempt_id, attempt_token, actor)
+    # Un reporte no exige consentimiento (S3-2a): lo hecho se lee aunque la persona haya retirado el suyo.
+    attempt = _require_attempt(attempt_id, attempt_token, actor, enforce_consent=False)
     if attempt.status != AttemptStatus.COMPLETED:
         raise ApiError(
             "ATTEMPT_NOT_COMPLETED",
@@ -461,7 +472,13 @@ def get_student_report(attempt_id, actor):
     if not policies.can(actor, "attempt", "report", owner_id=attempt.student_id, member=member):
         raise PermissionDenied("No tiene acceso a este intento")
     attempt_report.record_feedback_viewed(attempt, actor)
-    return attempt_report.report_for(attempt)
+    informe = attempt_report.report_for(attempt)
+    if attempt.student_id != actor.id:
+        # S4-1 · quien lo lee no es su dueño: es leer datos de otra persona. La lectura de lo propio no deja fila.
+        record(
+            "REPORT_VIEWED", "ATTEMPT", attempt.id, {"attemptId": str(attempt.id), "studentId": attempt.student_id}
+        )
+    return informe
 
 
 def _override_evidence_labels(missing_evidence):
@@ -679,14 +696,21 @@ def save_reflection(attempt_id, attempt_token, node_id, text, actor, request_id=
         raise ValidationError("La bitácora ya está bloqueada")
     if not reflection:
         reflection = ReflectionJournal(attempt=attempt, node=node)
-    reflection.encrypted_text = crypto_service.encrypt(text)
-    reflection.encryption_key_ref = crypto_service.key_ref()
+    # S5-2: el texto va cifrado con los datos asociados de su intento y nodo; la referencia es la de esa misma llave.
+    ref = crypto_service.key_ref()
+    reflection.encrypted_text = crypto_service.encrypt(text, key_ref=ref, attempt_id=attempt.id, node_id=node.id)
+    reflection.encryption_key_ref = ref
     reflection.locked = False  # la guarda de arriba ya exige que el intento esté en juego
     reflection.save()
 
     attempt_duration.record_activity(attempt)
     _save_event(attempt, "REFLECTION_SAVED", node, None, 0, 0, "Bitácora registrada", request_id)
     return {"nodeId": node.id, "locked": reflection.locked}
+
+
+#: Tope del motivo escrito de una salida segura (S3-4): el servidor lo RECORTA y nunca lo rechaza, porque la salida segura
+#: siempre se alcanza (REGLA-004) y un motivo largo no puede impedir la pausa.
+SAFE_EXIT_REASON_MAX = 500
 
 
 @locked_attempt
@@ -696,15 +720,16 @@ def safe_exit(attempt_id, attempt_token, reason, actor):
     No fija ended_at/locked_at ni bloquea reflexiones: el intento queda en
     PAUSED y puede reanudarse con el mismo attemptId. Idempotente: repetir la
     llamada devuelve el estado sin duplicar eventos. No revalida la asignación:
-    la salida segura siempre es alcanzable (REGLA-004).
+    la salida segura siempre es alcanzable (REGLA-004). Tampoco exige el consentimiento al aviso
+    (S3-2a): retirarlo no puede dejar a la persona sin poder pausar.
     """
-    attempt = _require_attempt(attempt_id, attempt_token, actor, enforce_assignment=False)
+    attempt = _require_attempt(attempt_id, attempt_token, actor, enforce_assignment=False, enforce_consent=False)
     if not lifecycle.state_of(attempt).can(lifecycle.PAUSE):
         return _state(attempt, attempt_token, None)
     attempt_duration.touch(attempt, timezone.now())  # suma hasta la pausa; lo que siga no cuenta
     lifecycle.apply(attempt, lifecycle.PAUSE)
     attempt.save()
-    detail = reason if (reason and reason.strip()) else "Salida segura solicitada"
+    detail = reason.strip()[:SAFE_EXIT_REASON_MAX] if (reason and reason.strip()) else "Salida segura solicitada"
     _save_event(attempt, "SAFE_EXIT_REQUESTED", attempt.current_node, None, 0, 0, detail)
     return _state(attempt, attempt_token, None)
 
@@ -715,8 +740,11 @@ def resume_attempt(attempt_id, attempt_token, actor):
 
     Idempotente: reanudar un intento ya IN_PROGRESS devuelve su estado sin
     registrar un segundo evento. Cualquier otro estado es un error explícito.
+
+    No exige el consentimiento al aviso (S3-2a): es una orden de quien está en crisis (como pausar y consultar el intento
+    abierto) y no entrega el mundo; el cliente muestra el aviso antes de cualquier orden de juego, que sí lo exige.
     """
-    attempt = _require_attempt(attempt_id, attempt_token, actor)
+    attempt = _require_attempt(attempt_id, attempt_token, actor, enforce_consent=False)
     state = lifecycle.state_of(attempt)
     if state.plays:
         return _state(attempt, attempt_token, None)

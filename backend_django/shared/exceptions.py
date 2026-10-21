@@ -12,6 +12,9 @@ All bodies use the ``{"success": false, "code": ..., "message": ...}`` envelope.
 ``code`` is stable (the client decides by it, never by the text); a domain error can
 add its own fields at the root (``existingAttemptId``…), see ``ApiError``.
 """
+import logging
+import math
+
 from django.core.exceptions import PermissionDenied as DjangoPermissionDenied
 from django.http import Http404
 from rest_framework import status
@@ -27,6 +30,9 @@ from rest_framework.exceptions import (
 )
 from rest_framework.response import Response
 from rest_framework.views import exception_handler as drf_exception_handler
+
+# S4-3 · la causa de cada 500 queda en una línea ERROR de este logger (sin cuerpo de petición ni cabeceras).
+logger = logging.getLogger("siep.error")
 
 
 class Conflict(APIException):
@@ -98,15 +104,53 @@ def _flatten(detail, prefix=""):
     return parts
 
 
+def _datos_de_la_peticion(context):
+    """Ruta, método, vista y actor de la petición que falló. No lanza nunca: lo que falte queda en ``None``."""
+    datos = {"path": None, "method": None, "actor_id": None, "view": None}
+    try:
+        request = (context or {}).get("request")
+        vista = (context or {}).get("view")
+        datos["path"] = getattr(request, "path", None)
+        datos["method"] = getattr(request, "method", None)
+        datos["view"] = type(vista).__name__ if vista is not None else None
+        usuario = getattr(request, "user", None)
+        pk = getattr(usuario, "pk", None)
+        if getattr(usuario, "is_authenticated", False) and isinstance(pk, int):
+            datos["actor_id"] = pk
+    except Exception:  # noqa: BLE001 - registrar la causa no puede tumbar la respuesta de error
+        pass
+    return datos
+
+
+def _registrar_no_controlada(exc, context):
+    """Una línea ERROR ``unhandled_exception`` con la traza y la petición. La respuesta al cliente no cambia."""
+    logger.error("unhandled_exception", exc_info=exc, extra={"fields": _datos_de_la_peticion(context)})
+
+
+# BORRADOR: texto nuevo del servidor (la espera en palabras), pendiente de la aprobación de Psicología (VD-23).
+def _espera_legible(segundos: int) -> str:
+    """La espera como la lee la persona: segundos hasta dos minutos, minutos hasta dos horas y horas después.
+    Siempre hacia arriba: nunca anuncia menos espera de la que queda."""
+    if segundos < 120:
+        return f"{segundos} s"
+    if segundos < 7200:
+        return f"{math.ceil(segundos / 60)} min"
+    return f"{math.ceil(segundos / 3600)} h"
+
+
 def custom_exception_handler(exc, context):
     response = drf_exception_handler(exc, context)
 
-    # Uncaught -> 500 "Error interno del servidor" (Spring handleGeneric).
+    # Uncaught -> 500 "Error interno del servidor" (Spring handleGeneric); la causa queda en el log.
     if response is None:
+        _registrar_no_controlada(exc, context)
         return Response(
             {"success": False, "code": "INTERNAL_ERROR", "message": "Error interno del servidor"},
             status=status.HTTP_500_INTERNAL_SERVER_ERROR,
         )
+
+    # Segundos que hay que esperar antes de reintentar (S1-2): el 429 siempre trae una espera de al menos uno.
+    espera = int(exc.wait or 1) if isinstance(exc, Throttled) else None
 
     if isinstance(exc, ValidationError):
         message = ", ".join(_flatten(exc.detail))
@@ -118,6 +162,9 @@ def custom_exception_handler(exc, context):
         message = "No autenticado"
     elif isinstance(exc, Http404):
         message = "Recurso no encontrado"
+    elif isinstance(exc, Throttled):
+        # BORRADOR: texto nuevo del servidor, pendiente de la aprobación de Psicología (VD-23).
+        message = f"Demasiados intentos. Espera {_espera_legible(espera)} e inténtalo de nuevo."
     else:
         detail = None
         if isinstance(response.data, dict):
@@ -129,5 +176,8 @@ def custom_exception_handler(exc, context):
         # El primer campo que falló: el cliente lleva el foco ahí (§2.7, ``field?``).
         body["field"] = str(next(iter(exc.detail)))
     body.update(getattr(exc, "extra", None) or {})
+    if espera is not None:
+        body["retryAfter"] = espera
+        response["Retry-After"] = str(espera)
     response.data = body
     return response

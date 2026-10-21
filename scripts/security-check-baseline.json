@@ -1,0 +1,14 @@
+{
+  "security.W003": {
+    "motivo": "Sin CsrfViewMiddleware a propósito: no hay SessionMiddleware ni admin de Django y la API autentica solo con JWT en la cabecera Authorization (SiepJWTAuthentication), sin cookies. Permanente mientras no haya autenticación por cookie de sesión.",
+    "permanente": true
+  },
+  "security.W005": {
+    "motivo": "SECURE_HSTS_INCLUDE_SUBDOMAINS sin activar: no se activan hasta fijar el dominio definitivo (SD-5); ver docs/operacion/despliegue-railway.md.",
+    "permanente": true
+  },
+  "security.W021": {
+    "motivo": "SECURE_HSTS_PRELOAD sin activar: no se activan hasta fijar el dominio definitivo (SD-5); ver docs/operacion/despliegue-railway.md.",
+    "permanente": true
+  }
+}

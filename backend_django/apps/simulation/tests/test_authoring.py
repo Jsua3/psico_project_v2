@@ -15,6 +15,8 @@ from rest_framework.test import APIClient
 
 from apps.simulation.models import CaseVersion
 
+from .publication_support import give_support_resource
+
 User = get_user_model()
 BASE = "/api/admin/cases"
 
@@ -252,6 +254,7 @@ def test_checklist_partial_ratio(admin, published_cv):
 def test_checklist_full_then_publish(admin, published_cv):
     a = cl(admin)
     clone_id = a.post(f"{BASE}/{published_cv}/clone-version").data["data"]["caseVersionId"]
+    give_support_resource(clone_id)  # S3-3: «protocolos de seguridad» marcado exige una escena con recurso de apoyo
     chk = a.put(
         f"{BASE}/{clone_id}/checklist",
         {"contentOriginal": True, "ethicsReviewed": True, "safetyProtocols": True,
@@ -356,10 +359,11 @@ def test_world_save_persists_ambient(admin, published_cv):
     body = {
         "revision": we["revision"], "objects": we["objects"],
         "collisionZones": we["collisionZones"], "clinicalTools": we["clinicalTools"],
-        "map": {**we["map"], "ambient": {"cameraZoom": 1.5, "backgroundImage": "bg/sala.png"}},
+        # S2-6b: el fondo de sala solo admite una ruta propia de /assets/ (o un host permitido).
+        "map": {**we["map"], "ambient": {"cameraZoom": 1.5, "backgroundImage": "/assets/world/bg.webp"}},
     }
     ok = a.put(f"{BASE}/{clone_id}/world?nodeId={we['nodeId']}", body, format="json")
     assert ok.status_code == 200
     re_amb = a.get(f"{BASE}/{clone_id}/world-editor").data["data"]["map"]["ambient"]
     assert re_amb.get("cameraZoom") == 1.5
-    assert re_amb.get("backgroundImage") == "bg/sala.png"
+    assert re_amb.get("backgroundImage") == "/assets/world/bg.webp"

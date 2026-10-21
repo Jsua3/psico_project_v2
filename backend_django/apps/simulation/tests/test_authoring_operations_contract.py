@@ -36,6 +36,8 @@ from apps.simulation.models import (
 )
 from apps.simulation.services.case_cloning import CopySpec
 
+from .publication_support import give_support_resource
+
 User = get_user_model()
 BASE = "/api/admin/cases"
 
@@ -489,6 +491,7 @@ def test_checklist_publicar_y_clonar_dejan_su_rastro(api, admin, published_cv):
 
 def test_publicar_un_borrador_completo_deja_rastro(api, admin, published_cv):
     clone_id = api.post(f"{BASE}/{published_cv}/clone-version").data["data"]["caseVersionId"]
+    give_support_resource(clone_id)  # S3-3: «protocolos de seguridad» marcado exige una escena con recurso de apoyo
     api.put(
         f"{BASE}/{clone_id}/checklist",
         {"contentOriginal": True, "ethicsReviewed": True, "safetyProtocols": True,
@@ -689,6 +692,7 @@ def test_publicar_una_version_ya_publicada_se_rechaza(api, published_cv):
 
 def test_publicar_deja_la_version_publicada_con_su_fecha(api, published_cv):
     clone_id = api.post(f"{BASE}/{published_cv}/clone-version").data["data"]["caseVersionId"]
+    give_support_resource(clone_id)  # S3-3: «protocolos de seguridad» marcado exige una escena con recurso de apoyo
     api.put(
         f"{BASE}/{clone_id}/checklist",
         {"contentOriginal": True, "ethicsReviewed": True, "safetyProtocols": True,

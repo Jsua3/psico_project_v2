@@ -9,6 +9,7 @@ Cada celda del diccionario es ``rol → estado esperado``; ``"!403"`` significa 
 rol dejó pasar» (la regla de negocio decide después y responde otro estado).
 """
 import pytest
+from django.conf import settings
 from django.contrib.auth import get_user_model
 from rest_framework.test import APIClient
 
@@ -278,6 +279,26 @@ def row_analytics_read(world):
     }
 
 
+def row_consent_read(world):
+    url = f"/api/simulation/cases/{world.version.id}/consent"
+    return statuses(world, lambda client, w: _code(client.get(url))), {
+        "anon": 401, "ESTUDIANTE": 200, "PROFESOR": 403, "ADMIN": 403,
+    }
+
+
+def row_consent_record(world):
+    url = f"/api/simulation/cases/{world.version.id}/consent"
+    body = {"noticeVersion": settings.SIEP_CONTENT_NOTICE_VERSION}
+    got = statuses(world, lambda client, w: _code(client.post(url, body, format="json")))
+    for label, code in statuses(world, lambda client, w: _code(client.delete(url))).items():
+        got[f"DELETE {label}"] = code
+    # Solo el estudiante pasa la puerta de rol: acepta (201) y retira (200); el resto ni llega a la regla.
+    return got, {
+        "anon": 401, "ESTUDIANTE": 201, "PROFESOR": 403, "ADMIN": 403,
+        "DELETE anon": 401, "DELETE ESTUDIANTE": 200, "DELETE PROFESOR": 403, "DELETE ADMIN": 403,
+    }
+
+
 def row_catalog_read(world):
     return statuses(world, lambda client, w: _code(client.get("/api/simulation/cases"))), {
         "anon": 401, "ESTUDIANTE": 200, "PROFESOR": 200, "ADMIN": 200,
@@ -311,6 +332,8 @@ ROWS = {
     ("competency", "manage"): row_competency_manage,
     ("user", "manage"): row_user_manage,
     ("analytics", "read"): row_analytics_read,
+    ("consent", "read"): row_consent_read,
+    ("consent", "record"): row_consent_record,
     ("catalog", "read"): row_catalog_read,
     ("account", "self"): row_account_self,
 }

@@ -117,6 +117,20 @@
       "ADMIN": "all"
     },
     {
+      "resource": "consent",
+      "action": "read",
+      "ESTUDIANTE": "own",
+      "PROFESOR": null,
+      "ADMIN": null
+    },
+    {
+      "resource": "consent",
+      "action": "record",
+      "ESTUDIANTE": "own",
+      "PROFESOR": null,
+      "ADMIN": null
+    },
+    {
       "resource": "group",
       "action": "list",
       "ESTUDIANTE": null,

@@ -30,7 +30,7 @@ interface SceneProbe {
   setStressLevel(level: number): void;
   setReduceMotion(reduced: boolean): void;
   setMotionPaused(paused: boolean): void;
-  playRevealEffects(feedback: { classification: string; prohibitedConduct: boolean } | null): void;
+  playRevealEffects(): void;
   playPendingRoomFlash(): void;
 }
 
@@ -161,28 +161,11 @@ describe('DataDrivenWorldScene: game feel del bloque B (comportamiento)', () => 
   describe('efectos al revelar la sala', () => {
     const destello = () => roomEntryFlash('a', 'b', false);
 
-    it('una decisión de alto impacto sacude la cámara y descarta el destello pendiente', () => {
+    it('revelar la sala destella el cambio de sala una sola vez, suave, y nunca sacude la cámara (RN-08)', () => {
       const { scene, camera } = crearEscena();
       scene.pendingRoomFlash = destello();
 
-      scene.playRevealEffects({ classification: 'RISKY', prohibitedConduct: false });
-      expect(camera.shake).toHaveBeenCalledWith(200, 0.003);
-      expect(camera.flash).not.toHaveBeenCalled();
-
-      scene.playPendingRoomFlash();
-      expect(camera.flash).not.toHaveBeenCalled();
-    });
-
-    const sinImpacto: Array<[string, { classification: string; prohibitedConduct: boolean } | null]> = [
-      ['una decisión adecuada', { classification: 'ADEQUATE', prohibitedConduct: false }],
-      ['ninguna decisión', null],
-    ];
-
-    it.each(sinImpacto)('con %s destella una sola vez, suave, y no sacude', (_nombre, feedback) => {
-      const { scene, camera } = crearEscena();
-      scene.pendingRoomFlash = destello();
-
-      scene.playRevealEffects(feedback);
+      scene.playRevealEffects();
       expect(camera.flash).toHaveBeenCalledTimes(1);
       expect(camera.flash).toHaveBeenCalledWith(120, 214, 222, 236);
       expect(camera.flashEffect.alpha).toBe(roomEntryFlash('a', 'b', false)!.peakAlpha);
@@ -197,7 +180,7 @@ describe('DataDrivenWorldScene: game feel del bloque B (comportamiento)', () => 
       const { scene, camera } = crearEscena({ reduceMotion: true });
       scene.pendingRoomFlash = destello();
 
-      scene.playRevealEffects({ classification: 'RISKY', prohibitedConduct: true });
+      scene.playRevealEffects();
 
       expect(camera.shake).not.toHaveBeenCalled();
       expect(camera.flash).not.toHaveBeenCalled();
@@ -208,7 +191,7 @@ describe('DataDrivenWorldScene: game feel del bloque B (comportamiento)', () => 
       scene.cameras = { main: undefined };
       scene.pendingRoomFlash = destello();
 
-      expect(() => scene.playRevealEffects({ classification: 'RISKY', prohibitedConduct: true })).not.toThrow();
+      expect(() => scene.playRevealEffects()).not.toThrow();
       scene.pendingRoomFlash = destello();
       expect(() => scene.playPendingRoomFlash()).not.toThrow();
     });

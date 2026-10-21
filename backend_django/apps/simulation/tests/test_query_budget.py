@@ -51,7 +51,9 @@ QUERY_BUDGETS = {
     # E6: lo que cuestan el cierre (reporte v2, evaluación del sistema) y la primera lectura del dueño (el evento).
     "post_decision_closing": 35,  # (11) la decisión que cierra: reporte v2 + evaluación del sistema (antes de E6: 26 y 9)
     "get_student_report_completed": 3,  # (1) la primera lectura del dueño de un intento completado escribe el evento
-    "get_group_report": 15,  # (0) crece con el grupo: E5-6 lo pagina
+    # S4-1: 15 → 16 a propósito. Leer el reporte de un grupo es leer datos de otras personas y deja UNA fila de
+    # auditoría (`reporte.leer`, RNF-007): es el INSERT de `audit_logs`, la única escritura. Las 15 de lectura no cambian.
+    "get_group_report": 16,  # (1) crece con el grupo: E5-6 lo pagina
 }
 TIMED_REPEATS = 5  # los GET se repiten para sacar la mediana de milisegundos
 PATH_TO_FAMILIA = ((340, 430), (250, 430))

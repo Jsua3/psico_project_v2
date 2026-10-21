@@ -3,7 +3,7 @@ import { ComponentFixture, TestBed } from '@angular/core/testing';
 import { readFileSync, readdirSync } from 'fs';
 import { join } from 'path';
 
-import { of } from 'rxjs';
+import { of, throwError } from 'rxjs';
 
 import { LiveRegionAnnouncer } from '../../core/a11y/live-announcer.service';
 import { SimulationService } from '../../core/api/simulation.service';
@@ -1389,6 +1389,31 @@ describe('DialoguePanelComponent - pistas de la escena (F10-2)', () => {
     fixture.detectChanges();
     expect((fixture.nativeElement as HTMLElement).querySelector('app-scene-hint')).toBeNull();
     expect(getHints).not.toHaveBeenCalled();
+  });
+
+  // req: ETH-01, SIEP-RF-05 (S3-2b: el consentimiento exigido llega hasta la pantalla de juego también por las pistas)
+  it('si las pistas reciben un 403 CONSENT_REQUIRED, el panel lo reenvía a la pantalla de juego (una vez)', () => {
+    const lost = vi.fn();
+    component.consentRequired.subscribe(lost);
+    getHints.mockReturnValue(throwError(() => ({ status: 403, error: { success: false, code: 'CONSENT_REQUIRED' } })));
+    writeInputSignal(component.hintAttempt, { attemptId: 'intento-1', attemptToken: 'token-1' });
+
+    openWithChoices();
+
+    expect(getHints).toHaveBeenCalledTimes(1);
+    expect(lost).toHaveBeenCalledTimes(1);
+  });
+
+  it('un fallo de pistas que no es el consentimiento no lo reenvía', () => {
+    const lost = vi.fn();
+    component.consentRequired.subscribe(lost);
+    getHints.mockReturnValue(throwError(() => ({ status: 500, error: null })));
+    writeInputSignal(component.hintAttempt, { attemptId: 'intento-1', attemptToken: 'token-1' });
+
+    openWithChoices();
+
+    expect(getHints).toHaveBeenCalledTimes(1);
+    expect(lost).not.toHaveBeenCalled();
   });
 });
 

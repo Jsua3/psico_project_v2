@@ -1,0 +1,67 @@
+/*
+ * Pantalla de arranque de SIEP (plan 03, S2-4): se ve mientras llega el bundle; Angular la reemplaza al arrancar.
+ * Vive en un archivo EXTERNO (antes era un <style> en línea de index.html) para que la política de contenido (CSP)
+ * no necesite 'unsafe-inline' en los estilos del arranque. Sin <style> ni atributos style en index.html.
+ */
+.siep-boot {
+  position: fixed;
+  inset: 0;
+  display: grid;
+  place-content: center;
+  justify-items: center;
+  gap: 14px;
+  background: #F2F2F2;
+  color: #5F6B76;
+  font: 500 15px/1.4 system-ui, -apple-system, 'Segoe UI', sans-serif;
+  text-align: center;
+  animation: siep-boot-in 240ms ease-out 200ms both;
+}
+.siep-boot__mark { display: block; width: 64px; height: 64px; }
+.siep-boot__label { margin: 0; }
+.siep-boot__bar {
+  position: relative;
+  width: 120px;
+  height: 3px;
+  border-radius: 999px;
+  background: rgba(0, 72, 118, .14);
+  overflow: hidden;
+}
+.siep-boot__bar::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  width: 40%;
+  border-radius: inherit;
+  background: #004876;
+  animation: siep-boot-slide 1100ms cubic-bezier(.65, 0, .35, 1) infinite;
+}
+.siep-boot__slow { display: grid; gap: 10px; justify-items: center; max-width: 30ch; }
+.siep-boot__slow[hidden] { display: none; }
+.siep-boot__slow p { margin: 0; }
+.siep-boot__reload {
+  min-height: 44px;
+  padding: 0 20px;
+  border: 0;
+  border-radius: 999px;
+  background: #004876;
+  color: #FFFFFF;
+  font: inherit;
+  font-weight: 700;
+  cursor: pointer;
+}
+.siep-boot__reload:focus-visible { outline: 3px solid #0B5A8A; outline-offset: 3px; }
+@keyframes siep-boot-in { from { opacity: 0; } to { opacity: 1; } }
+@keyframes siep-boot-slide { from { transform: translateX(-100%); } to { transform: translateX(250%); } }
+@media (prefers-reduced-motion: reduce) {
+  .siep-boot__bar::after { animation: none; width: 100%; opacity: .5; }
+}
+
+/* Aviso de <noscript> (antes llevaba un atributo style en línea). */
+.siep-noscript {
+  margin: 0;
+  padding: 24px;
+  font: 500 16px/1.5 system-ui, sans-serif;
+  color: #101820;
+  background: #F2F2F2;
+  text-align: center;
+}

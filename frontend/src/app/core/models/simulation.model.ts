@@ -153,6 +153,46 @@ export interface AttemptCompletionReport {
   retries?: number;
   /** De esos reintentos, los que eran conducta prohibida (el docente los distingue en su traza). */
   prohibitedRetries?: number;
+  /** Una entrada por decisión registrada, con su explicación y fundamento (C2). Solo en el reporte congelado. */
+  decisionReview?: DecisionReviewItem[];
+}
+
+/**
+ * La consecuencia narrativa de una decisión (C2, RN-08): qué pasa en el caso, nunca si la respuesta estuvo bien o mal.
+ * `source` dice de dónde sale el texto: la opción o la escena a la que lleva.
+ */
+export interface DecisionConsequence {
+  text: string;
+  source: 'OPTION' | 'NODE';
+}
+
+/** Reintento que concede el caso (`rules.secondChance`): la primera respuesta no se aplicó. */
+export interface DecisionRetry {
+  allowed: true;
+  /** Con la bandera apagada es el mensaje evaluativo del servidor; el juego no lo muestra al decidir. */
+  message: string;
+}
+
+/** Lo que devuelve una decisión: el estado del intento, su consecuencia y, si la regla lo concede, el reintento. */
+export interface SimulationDecisionResult extends SimulationAttemptState {
+  consequence: DecisionConsequence | null;
+  retry: DecisionRetry | null;
+}
+
+/**
+ * Una decisión del reporte congelado (C2, `decisionReview[]`): lo que eligió, su consecuencia y la retroalimentación
+ * pedagógica con su fundamento. `reconsidered` solo existe si la primera respuesta no se aplicó.
+ */
+export interface DecisionReviewItem {
+  order: number;
+  nodeId: number;
+  nodeTitle: string;
+  chosen: { optionId: number; text: string };
+  consequence: string;
+  feedback: { explanation: string; theoryBasis?: string };
+  classification: 'ADEQUATE' | 'RISKY' | 'INADEQUATE';
+  prohibited: boolean;
+  reconsidered?: { firstOptionId: number; firstOptionText: string };
 }
 
 export interface AttemptEnding {

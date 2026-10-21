@@ -214,6 +214,8 @@ export interface AuditLogItem {
   readonly userAgent: string | null;
 }
 
+export type BackingEnum = 'system' | 'constancia' | 'author';
+
 /** Un personaje que Psicología marcó para la ficha del caso. */
 export interface BriefCharacter {
   readonly displayName: string;
@@ -222,6 +224,14 @@ export interface BriefCharacter {
   readonly portraitKey: string;
   /** Puede venir vacío. */
   readonly roleLabel: string;
+}
+
+/** Un bloqueo de publicación: la lista incompleta o los errores de validación (con sus hallazgos). */
+export interface CaseBlocker {
+  readonly code: string;
+  /** Solo en `VALIDATION_ERRORS`. */
+  readonly issues?: ReadonlyArray<ValidationIssue>;
+  readonly message: string;
 }
 
 /** La ficha del caso: lo que el estudiante lee antes de jugar. No crea intento. */
@@ -241,6 +251,31 @@ export interface CaseBriefEnvelope {
   readonly data: CaseBrief;
   readonly message?: string;
   /** Siempre `true` en una respuesta de éxito. */
+  readonly success: boolean;
+}
+
+/** La lista de publicación del caso con quién respalda cada casilla (S3-3): la misma que trae el editor. */
+export interface CaseChecklist {
+  readonly contentReview: ChecklistContentReview;
+  readonly items: ReadonlyArray<ChecklistItem>;
+  /** Si rige la revisión de contenido de Psicología (`SIEP_REVIEW_WORKFLOW_STRICT`): publicar exige la constancia. */
+  readonly strict: boolean;
+}
+
+/** El 409 de una transición del caso. Cada motivo suma sus campos en la raíz: `INVALID_TRANSITION` → `state` y `action`; `CASE_NOT_PUBLISHABLE` → `blockers`; `REVISION_CONFLICT` → `revision` y `current` (el editor tal como está ahora). */
+export interface CaseConflictEnvelope {
+  readonly action?: LifecycleActionEnum;
+  readonly blockers?: ReadonlyArray<CaseBlocker>;
+  readonly code: string;
+  /** El editor del caso con los cambios de la otra sesión. */
+  readonly current?: Readonly<Record<string, unknown>>;
+  /** El primer campo que falló la validación. */
+  readonly field?: string;
+  readonly message: string;
+  /** La revisión vigente del caso. */
+  readonly revision?: number;
+  readonly state?: CaseVersionStatusEnum;
+  /** Siempre `false` en un error. */
   readonly success: boolean;
 }
 
@@ -282,6 +317,47 @@ export interface CaseImportedEnvelope {
   readonly success: boolean;
 }
 
+/** El ciclo de vida de una versión: su estado, lo que esta persona puede hacer, su lista de publicación y la última revisión (C4). */
+export interface CaseLifecycle {
+  /** Las acciones que esta persona puede hacer hoy. */
+  readonly allowedTransitions: ReadonlyArray<LifecycleActionEnum>;
+  /** Solo si puede enviar o aprobar y algo lo impide. */
+  readonly blockedReason?: LifecycleBlockedReason;
+  /** En `clone`, la versión NUEVA que se creó. */
+  readonly caseVersionId: number;
+  /** La lista de publicación con el respaldo de cada casilla: quien revisa la ve sin pedir el caso entero (S3-3). */
+  readonly checklist: CaseChecklist;
+  /** Solo si la versión ya tuvo una revisión. */
+  readonly review?: CaseReview;
+  readonly state: CaseVersionStatusEnum;
+}
+
+/** Sobre de éxito: `data` es `CaseLifecycle`. */
+export interface CaseLifecycleEnvelope {
+  readonly data: CaseLifecycle;
+  readonly message?: string;
+  /** Siempre `true` en una respuesta de éxito. */
+  readonly success: boolean;
+}
+
+/** La última revisión de la versión. Mientras nadie la decide solo trae quién la pidió y cuándo. */
+export interface CaseReview {
+  /** Solo si la aprobación trae constancia. */
+  readonly contentReview?: ContentReview;
+  /** Solo si ya se decidió. Hora local del servidor (America/Bogota), sin zona horaria. */
+  readonly decidedAt?: string | null;
+  readonly decidedBy?: string | null;
+  /** Solo si ya se decidió. */
+  readonly decision?: ReviewDecisionEnum;
+  /** Solo si ya se decidió; puede venir vacía. */
+  readonly note?: string;
+  /** Solo si se devolvió a borrador. */
+  readonly reason?: ReviewReasonEnum;
+  /** Hora local del servidor (America/Bogota), sin zona horaria. */
+  readonly requestedAt: string;
+  readonly requestedBy: string | null;
+}
+
 /** El resultado de validar una versión: sus hallazgos y si puede publicarse. */
 export interface CaseValidation {
   /** Falso mientras haya algún error; los avisos no impiden publicar. */
@@ -298,6 +374,113 @@ export interface CaseValidationEnvelope {
 }
 
 export type CaseVersionStatusEnum = 'DRAFT' | 'IN_REVIEW' | 'PUBLISHED' | 'ARCHIVED';
+
+/** La constancia de Psicología vista desde la lista: si existe y, cuando existe, sus datos. */
+export interface ChecklistContentReview {
+  readonly fulfilled: boolean;
+  /** El acta o la referencia de la revisión. Solo si ya hay constancia. */
+  readonly reference?: string;
+  /** Solo si ya hay constancia. */
+  readonly reviewedOn?: string | null;
+  /** Solo si ya hay constancia. */
+  readonly reviewer?: string;
+}
+
+/** Un ítem de la lista de publicación y quién lo respalda (S3-3). */
+export interface ChecklistItem {
+  /** Si el dato que lo respalda existe ahora; `null` si es solo una declaración. */
+  readonly backed: boolean | null;
+  /** Quién lo respalda: el sistema, la constancia de Psicología o solo la declaración de quien autora. */
+  readonly backing: BackingEnum;
+  /** El respaldo en lenguaje llano, para mostrarlo tal cual. */
+  readonly backingLabel: string;
+  /** Estable: `contentOriginal`, `ethicsReviewed`, `safetyProtocols`… */
+  readonly code: string;
+  /** Su texto es un borrador pendiente de la validación de Psicología. */
+  readonly draft: boolean;
+  /** Si la última lista guardada lo tiene marcado. */
+  readonly fulfilled: boolean;
+  readonly label: string;
+  /** Si la publicación lo exige hoy: seis ítems, o siete con la revisión de contenido. */
+  readonly required: boolean;
+}
+
+/** Cuerpo de `POST …/consent`: la versión del aviso que la persona vio. */
+export interface ConsentAcceptRequest {
+  /** La versión del aviso que el cliente mostró. Si no es la vigente en el servidor, 409 `NOTICE_VERSION_STALE`. */
+  readonly noticeVersion: string;
+}
+
+/** El error de un aviso de otra versión (409 `NOTICE_VERSION_STALE`): el sobre de error con la versión vigente en la raíz. Es la forma real del 409 (sin `field`, que es de la validación de campos): por eso no extiende a `ErrorEnvelope`. */
+export interface ConsentNoticeError {
+  /** Estable: `NOTICE_VERSION_STALE`. */
+  readonly code: string;
+  readonly message: string;
+  /** La versión VIGENTE del aviso en el servidor. */
+  readonly noticeVersion: string;
+  /** Siempre `false` en un error. */
+  readonly success: boolean;
+}
+
+/** La aceptación registrada (`POST …/consent`): 201 si es nueva y 200 si ya existía, con la misma forma. */
+export interface ConsentRecord {
+  /** Hora local del servidor (America/Bogota), sin zona horaria. */
+  readonly acceptedAt: string;
+  readonly caseVersionId: number;
+  /** La versión del aviso que quedó aceptada. */
+  readonly noticeVersion: string;
+}
+
+/** Sobre de éxito: `data` es `ConsentRecord`. */
+export interface ConsentRecordEnvelope {
+  readonly data: ConsentRecord;
+  readonly message?: string;
+  /** Siempre `true` en una respuesta de éxito. */
+  readonly success: boolean;
+}
+
+/** El consentimiento de la persona al aviso de contenido de una versión del caso (`GET …/consent`). */
+export interface ConsentState {
+  /** Si la persona tiene una aceptación vigente de esa versión del aviso. */
+  readonly accepted: boolean;
+  /** Nulo si no ha aceptado. Hora local del servidor (America/Bogota), sin zona horaria. */
+  readonly acceptedAt: string | null;
+  /** La versión VIGENTE del aviso en el servidor. */
+  readonly noticeVersion: string;
+  /** Si el servidor exige el consentimiento para jugar (`SIEP_CONSENT_REQUIRED`). */
+  readonly required: boolean;
+}
+
+/** Sobre de éxito: `data` es `ConsentState`. */
+export interface ConsentStateEnvelope {
+  readonly data: ConsentState;
+  readonly message?: string;
+  /** Siempre `true` en una respuesta de éxito. */
+  readonly success: boolean;
+}
+
+/** El retiro del consentimiento (`DELETE …/consent`). Idempotente: sin nada vigente responde 200 con `withdrawnAt` nulo. */
+export interface ConsentWithdrawal {
+  readonly caseVersionId: number;
+  /** Nulo si no había nada vigente que retirar. Hora local del servidor (America/Bogota), sin zona horaria. */
+  readonly withdrawnAt: string | null;
+}
+
+/** Sobre de éxito: `data` es `ConsentWithdrawal`. */
+export interface ConsentWithdrawalEnvelope {
+  readonly data: ConsentWithdrawal;
+  readonly message?: string;
+  /** Siempre `true` en una respuesta de éxito. */
+  readonly success: boolean;
+}
+
+/** La constancia de la revisión de contenido de Psicología. */
+export interface ContentReview {
+  /** El acta o la referencia de la revisión. */
+  readonly reference: string;
+  readonly reviewedOn: string | null;
+  readonly reviewer: string;
+}
 
 /** Sobre de error de la API: `{success: false, code, message, field?}` (`shared.exceptions`). `code` es estable: el cliente decide por él, nunca por el texto. Algunos errores de dominio suman campos propios en la raíz (`existingAttemptId`, `nodeId`…). */
 export interface ErrorEnvelope {
@@ -331,7 +514,7 @@ export type HealthStatusEnum = 'ok' | 'degraded';
 
 export type HintReasonEnum = 'NONE_FOR_SCENE' | 'ALL_SHOWN';
 
-/** Las pistas de la escena actual: las que el intento ya pidió y cuántas quedan. */
+/** Las pistas de la escena actual: las que el intento ya pidió y cuántas quedan. Es también lo que responde `POST …/hints/next`: el estado DESPUÉS de pedir (o, si la orden se repitió o cayó dentro de la ventana de duplicado, el mismo estado sin revelar otra). */
 export interface HintState {
   /** Cuántas quedan por pedir en esta escena. */
   readonly available: number;
@@ -393,6 +576,35 @@ export interface InstructorAttemptsListEnvelope {
   readonly success: boolean;
 }
 
+/** La membresía del estudiante en un grupo: pendiente de respuesta, aceptada o rechazada. El listado no trae las retiradas (`REMOVED`), pero la respuesta de `leave` (y la de aceptar o rechazar) sí devuelve la membresía tal como quedó, también con ese estado. */
+export interface Invitation {
+  readonly groupId: number;
+  readonly groupName: string;
+  /** Igual a `groupId`: la membresía es `(grupo, estudiante)`. */
+  readonly id: number;
+  /** Hora local del servidor (America/Bogota), sin zona. Nula en las membresías anteriores a las invitaciones. */
+  readonly invitedAt: string | null;
+  readonly status: MembershipStatusEnum;
+  /** Nombre completo del docente del grupo, quien invita. */
+  readonly teacherName: string;
+}
+
+/** Sobre de éxito: `data` es `Invitation`. */
+export interface InvitationEnvelope {
+  readonly data: Invitation;
+  readonly message?: string;
+  /** Siempre `true` en una respuesta de éxito. */
+  readonly success: boolean;
+}
+
+/** Sobre de éxito: `data` es una lista de `Invitation`. */
+export interface InvitationListEnvelope {
+  readonly data: ReadonlyArray<Invitation>;
+  readonly message?: string;
+  /** Siempre `true` en una respuesta de éxito. */
+  readonly success: boolean;
+}
+
 export type IssueSeverityEnum = 'error' | 'warning';
 
 /** Los agregados de aprendizaje del alcance pedido. Cada bloque falta si no alcanza la celda mínima. */
@@ -417,6 +629,29 @@ export interface LearningAnalyticsEnvelope {
   readonly success: boolean;
 }
 
+export type LifecycleActionEnum = 'submit' | 'approve' | 'reject' | 'archive' | 'clone';
+
+/** Por qué hoy no se puede enviar a revisión ni aprobar: el primer bloqueo. */
+export interface LifecycleBlockedReason {
+  /** Estable: `CHECKLIST_INCOMPLETE`, `VALIDATION_ERRORS`… */
+  readonly code: string;
+  readonly message: string;
+}
+
+/** El 409 de responder una invitación (`MEMBERSHIP_NOT_INVITED`, `MEMBERSHIP_NOT_ACTIVE`): trae el estado de hoy. */
+export interface MembershipConflictEnvelope {
+  readonly code: string;
+  /** El primer campo que falló la validación. */
+  readonly field?: string;
+  readonly message: string;
+  /** El estado en que está la membresía hoy. */
+  readonly status: MembershipStatusEnum;
+  /** Siempre `false` en un error. */
+  readonly success: boolean;
+}
+
+export type MembershipStatusEnum = 'INVITED' | 'ACTIVE' | 'DECLINED' | 'REMOVED';
+
 /** Cuántos resultados trae la página (`shown`) y cuántos hay en total (`total`). */
 export interface PageCoverage {
   readonly shown: number;
@@ -430,6 +665,30 @@ export interface PlayerPosition {
 }
 
 export type ReflectionDefinitionEnum = 'ANY' | 'PER_DECISION_SCENE';
+
+/** Un intento del estudiante con sus tiempos y su n.º de intento en el caso. */
+export interface ReportAttempt {
+  /** Tiempo de juego real: lo que el estudiante estuvo en el caso. */
+  readonly activeSeconds: number;
+  readonly attemptId: string;
+  readonly caseTitle: string;
+  readonly caseVersionId: number;
+  /** De reloj, entre el inicio y el cierre; nulo mientras el intento está abierto. */
+  readonly clockSeconds: number | null;
+  /** El n.º de intento del estudiante en el CASO (todas sus versiones). */
+  readonly ordinal: number;
+  /** Hora local del servidor (America/Bogota), sin zona horaria. */
+  readonly startedAt: string;
+  readonly status: AttemptStatusEnum;
+}
+
+/** El estudiante del reporte. `ref` es `Estudiante-<id>` (su id numérico) y NO el alias `Estudiante-<hash>` que la revisión docente muestra en `studentAlias`: los dos no se pueden cruzar. */
+export interface ReportStudent {
+  readonly displayName: string;
+  readonly ref: string;
+}
+
+export type ReviewDecisionEnum = 'APPROVED' | 'REJECTED';
 
 /** Devoluciones por CONTENIDO frente a FORMA entre las revisiones decididas (alarma de sello de goma). */
 export interface ReviewQuality {
@@ -445,11 +704,29 @@ export interface ReviewQuality {
   readonly rubberStampAlarm: boolean;
 }
 
+export type ReviewReasonEnum = 'FORMA' | 'CONTENIDO';
+
 /** Una pista que el intento ya pidió. El texto de las que no pidió nunca sale. */
 export interface ShownHint {
   readonly id: number;
   readonly order: number;
   readonly text: string;
+}
+
+/** El reporte de un estudiante para su docente (C3): los intentos más recientes y cuántos hay en total. */
+export interface StudentReport {
+  readonly attempts: ReadonlyArray<ReportAttempt>;
+  /** «Mostrando `shown` de `total`»: los intentos que trae y los que hay. */
+  readonly coverage: PageCoverage;
+  readonly student: ReportStudent;
+}
+
+/** Sobre de éxito: `data` es `StudentReport`. */
+export interface StudentReportEnvelope {
+  readonly data: StudentReport;
+  readonly message?: string;
+  /** Siempre `true` en una respuesta de éxito. */
+  readonly success: boolean;
 }
 
 /** Lo que el estudiante envía: la calificación y, si quiere, un comentario (la validación es del servicio). */
@@ -552,6 +829,7 @@ export interface OpenApiPaths {
   readonly '/api/admin/users': 'GET' | 'POST';
   readonly '/api/admin/users/approve': 'POST';
   readonly '/api/admin/users/{user_id}': 'PUT';
+  readonly '/api/admin/users/{user_id}/revoke-sessions': 'POST';
   readonly '/api/admin/users/{user_id}/status': 'PATCH';
   readonly '/api/assignments': 'GET' | 'POST';
   readonly '/api/assignments/{assignment_id}': 'DELETE' | 'PATCH';
@@ -560,8 +838,8 @@ export interface OpenApiPaths {
   readonly '/api/auth/google': 'POST';
   readonly '/api/auth/google/config': 'GET';
   readonly '/api/auth/login': 'POST';
+  readonly '/api/auth/logout': 'POST';
   readonly '/api/auth/me': 'GET';
-  readonly '/api/auth/register': 'POST';
   readonly '/api/authoring/cases': 'GET' | 'POST';
   readonly '/api/authoring/cases/import': 'POST';
   readonly '/api/authoring/cases/{case_version_id}/brief': 'PUT';
@@ -626,6 +904,7 @@ export interface OpenApiPaths {
   readonly '/api/rubrics/{rubric_id}/deactivate': 'POST';
   readonly '/api/rubrics/{rubric_id}/default': 'POST';
   readonly '/api/rubrics/{rubric_id}/duplicate': 'POST';
+  readonly '/api/security/csp-report': 'POST';
   readonly '/api/simulation/ai-assistant': 'POST';
   readonly '/api/simulation/attempts': 'POST';
   readonly '/api/simulation/attempts/history': 'GET';
@@ -651,6 +930,7 @@ export interface OpenApiPaths {
   readonly '/api/simulation/cases': 'GET';
   readonly '/api/simulation/cases/{case_version_id}/active-attempt': 'GET';
   readonly '/api/simulation/cases/{case_version_id}/brief': 'GET';
+  readonly '/api/simulation/cases/{case_version_id}/consent': 'DELETE' | 'GET' | 'POST';
   readonly '/api/simulation/catalog': 'GET';
 }
 

@@ -8,12 +8,12 @@ import { MatIconModule } from '@angular/material/icon';
 import { toSignal } from '@angular/core/rxjs-interop';
 import { ShortcutSettings } from '../../core/a11y/shortcut-settings.service';
 import { AnnouncePoliteness, LiveRegionAnnouncer } from '../../core/a11y/live-announcer.service';
-import { apiErrorMessage } from '../../core/api/api-error.util';
+import { apiErrorMessage, isConsentRequiredError } from '../../core/api/api-error.util';
 import { SimulationService } from '../../core/api/simulation.service';
 import { NotificationService } from '../../core/notifications/notification.service';
 import {
   DialogueState, InteractionResult, MapObjectState, NpcConfig, PatientState,
-  ProgressMapState, SimulationAttemptState, ScenarioConfig, SimulationFeedback,
+  ProgressMapState, SimulationAttemptState, ScenarioConfig, SimulationDecisionResult,
   SimulationWorldState, ToolUseResult
 } from '../../core/models/simulation.model';
 import { PATIENT_INITIAL_STATE } from './patient-state.util';
@@ -67,9 +67,15 @@ import { UiErrorKind } from '../../shared/ui/state/state-copy';
 import { UiErrorState } from '../../shared/ui/state/ui-error-state';
 import { UiDialog } from '../../shared/ui/dialog/ui-dialog';
 import { UiScopeNotice } from '../../shared/ui/scope-notice/ui-scope-notice';
-import { CONSENT_RECORDER } from './consent-recorder';
+import { CONSENT_RECORDER, ConsentNoticeStaleError, consentStorageKey } from './consent-recorder';
 import { DRAFT_COPY } from './draft-copy';
 
+/**
+ * Plazo máximo de la precarga del consentimiento (S3-2b): antes de decidir si se pide el aviso se pregunta al servidor si la
+ * persona ya lo aceptó. Si no contesta a tiempo se sigue como si no lo hubiera aceptado (se pide el aviso): nunca se queda
+ * esperando ni se muestra un error por esto.
+ */
+const CONSENT_PRIME_TIMEOUT_MS = 3000;
 /** Duración de la transición CSS de `.scene-fade`; los efectos de cámara esperan a que termine. */
 const SCENE_FADE_MS = 320;
 /** Un aviso no esencial se apaga solo: lo que dice ya quedó escrito en la lista «Qué hacer». */
@@ -83,8 +89,12 @@ const NOTE_SEEN_MS = 1500;
 const FADE_OUT_MS = 340;
 /** Tras aplicar un mundo nuevo, espera antes de retirar el fundido de escena; luego corren los efectos de cámara. */
 const WORLD_REVEAL_DELAY_MS = 80;
-/** La supervisión de una decisión que no es la última se abre tanto tiempo después de la respuesta (DLG-05). */
+/** La consecuencia de una decisión que no es la última se abre tanto tiempo después de la respuesta (DLG-05). */
 const SUPERVISION_DELAY_MS = 400;
+/** Rótulo del diálogo que muestra la consecuencia narrativa justo tras decidir (RN-08; decisión del usuario 2026-10-18). */
+const CONSEQUENCE_SPEAKER = 'Consecuencia';
+/** Aviso de reintento al decidir: neutro, sin clasificación. El servidor puede mandar un mensaje evaluativo (forma heredada). */
+const RETRY_NOTICE = 'No se avanzó el caso ni se aplicaron cambios acumulados. Revisa la escena y vuelve a responder.';
 /** Sin movimientos nuevos durante este tiempo, la posición del jugador se guarda en el servidor. */
 const POSITION_SAVE_DEBOUNCE_MS = 550;
 /** Duración del pulso visual de estrés tras aplicar una herramienta. */
@@ -251,7 +261,7 @@ const CASE_INTRO_PARAGRAPHS = [
                        nada y se puede reintentar; «Volver al catálogo» sigue operable. Se anuncia por la región. -->
                   <div class="consent-error">
                     <mat-icon aria-hidden="true">error</mat-icon>
-                    <p>{{ consentErrorText }}</p>
+                    <p>{{ consentErrorText() }}</p>
                     <button ui-button type="button" variant="secondary" (click)="acceptContentWarning()">Reintentar</button>
                   </div>
                 }
@@ -418,7 +428,7 @@ const CASE_INTRO_PARAGRAPHS = [
                 [releaseToken]="dialogueReleaseToken()" [pausing]="pausing()" [hintAttempt]="hintAttempt()"
                 (close)="closeDialogue()" (safeExit)="pauseFromOverlay()"
                 (execute)="executeDecision($event)" (useTool)="useTool($event)"
-                (frontendChoice)="handleFrontendChoice($event)" />
+                (frontendChoice)="handleFrontendChoice($event)" (consentRequired)="requireConsentAgain()" />
             </aside>
           }
         </div>
@@ -485,7 +495,7 @@ const CASE_INTRO_PARAGRAPHS = [
             [releaseToken]="dialogueReleaseToken()" [pausing]="pausing()" [hintAttempt]="hintAttempt()"
             (close)="closeDialogue()" (safeExit)="pauseFromOverlay()"
             (execute)="executeDecision($event)" (useTool)="useTool($event)"
-            (frontendChoice)="handleFrontendChoice($event)" />
+            (frontendChoice)="handleFrontendChoice($event)" (consentRequired)="requireConsentAgain()" />
         }
 
         @if (helpOpen()) {
@@ -529,6 +539,7 @@ const CASE_INTRO_PARAGRAPHS = [
         @if (!holdingOutcome()) {
           <app-attempt-outcome [report]="game.completionReport" [status]="game.status"
             [supportResources]="supportResources()"
+            [reviewAttemptId]="game.status === 'COMPLETED' ? game.attemptId : null"
             (retry)="startNewAttempt()" (resume)="resumeCurrentAttempt()" />
         }
 
@@ -1285,7 +1296,8 @@ export class SimulationPlayComponent implements OnInit, OnDestroy {
   readonly showContentWarning = signal(false);
   /** Registro del consentimiento (ETH-01): `saving` mientras guarda; `error` si el almacenamiento falló. */
   readonly consentState = signal<'idle' | 'saving' | 'error'>('idle');
-  readonly consentErrorText: string = DRAFT_COPY.consentStorageError.text;
+  /** Qué dice el recuadro de error del aviso: el de siempre, o «hay una versión nueva del aviso» (S3-2b). */
+  readonly consentErrorText = signal<string>(DRAFT_COPY.consentStorageError.text);
   /** El mundo/HUD/audio solo existen tras el consentimiento (ETH-01). */
   readonly worldStarted = signal(false);
   /** Código HTTP del fallo que pinta el estado de error (null si no vino de una respuesta HTTP). */
@@ -1512,6 +1524,10 @@ export class SimulationPlayComponent implements OnInit, OnDestroy {
   private roomBannerTimer: number | null = null;
   private transitionNoteTimer: number | null = null;
   private pauseDeadlineTimer: number | null = null;
+  /** Plazo de la precarga del consentimiento (S3-2b): pasado, el arranque sigue sin esperar al servidor. */
+  private consentPrimeTimer: number | null = null;
+  /** La pantalla ya se destruyó: una respuesta tardía de la precarga no arranca audio ni mundo. */
+  private destroyed = false;
   /** Retiro del fundido tras cargar el mundo: si el componente se destruye antes, no debe dispararse. */
   private worldRevealTimer: number | null = null;
   /** La petición de salida segura ya salió: ni la cola ni el plazo la repiten. */
@@ -1580,11 +1596,12 @@ export class SimulationPlayComponent implements OnInit, OnDestroy {
   }
 
   ngOnDestroy(): void {
+    this.destroyed = true;
     this.stopCompactWatch?.();
     // Los avisos accionables son del sistema y viven en un anfitrión global: no se quedan en el resto de la app.
     this.dismissDoorNotice();
     this.dismissActionError();
-    for (const timer of [this.noteTimer, this.softNoticeTimer, this.roomBannerTimer, this.nothingNearbyTimer, this.pauseDeadlineTimer, this.transitionNoteTimer, this.worldRevealTimer]) {
+    for (const timer of [this.noteTimer, this.softNoticeTimer, this.roomBannerTimer, this.nothingNearbyTimer, this.pauseDeadlineTimer, this.transitionNoteTimer, this.worldRevealTimer, this.consentPrimeTimer]) {
       if (timer !== null) window.clearTimeout(timer);
     }
     this.audioDirector.stopIntroLament();
@@ -1725,6 +1742,44 @@ export class SimulationPlayComponent implements OnInit, OnDestroy {
   }
 
   private bootstrapAttempt(attempt: SimulationAttemptState) {
+    // S3-2b: el consentimiento puede estar ya en el servidor (otro navegador, otra sesión): se pregunta ANTES de decidir si
+    // se pide el aviso. Hasta que responde solo se ve el indicador de carga; si falla o tarda, se pide el aviso.
+    this.primeConsent(attempt, () => this.continueBootstrap(attempt));
+  }
+
+  /**
+   * Pregunta al servidor (`prime`, opcional en el registro) si la persona ya aceptó el aviso y recién entonces sigue con
+   * `then`. Nunca bloquea ni se ve: la lectura que falla, se rechaza, lanza o pasa de `CONSENT_PRIME_TIMEOUT_MS` deja todo
+   * como estaba (= se pide el aviso). Un registro sin `prime`, o un intento que no está en curso, sigue en el acto.
+   */
+  private primeConsent(attempt: SimulationAttemptState, then: () => void): void {
+    let pending: PromiseLike<void> | undefined;
+    if (attempt.status === 'IN_PROGRESS') {
+      try {
+        pending = this.consentRecorder.prime?.(attempt.caseVersionId);
+      } catch {
+        pending = undefined;
+      }
+    }
+    if (!pending || typeof pending.then !== 'function') {
+      then();
+      return;
+    }
+    let settled = false;
+    const timer = window.setTimeout(() => proceed(), CONSENT_PRIME_TIMEOUT_MS);
+    this.consentPrimeTimer = timer;
+    const proceed = () => {
+      if (settled) return;
+      settled = true;
+      window.clearTimeout(timer);
+      if (this.consentPrimeTimer === timer) this.consentPrimeTimer = null;
+      // Una respuesta que llega con la pantalla ya cerrada no arranca audio ni mundo.
+      if (!this.destroyed) then();
+    };
+    pending.then(proceed, proceed);
+  }
+
+  private continueBootstrap(attempt: SimulationAttemptState) {
     this.attempt.set(attempt);
     this.persistAttemptToken(attempt);
     // ETH-01: sin consentimiento no se inicializa audio, ni se pide el mundo,
@@ -2066,8 +2121,11 @@ export class SimulationPlayComponent implements OnInit, OnDestroy {
     }, 'door_open'));
   }
 
-  /** Sacudida por decisión, pendiente hasta que el fundido de escena deje ver el mundo. */
-  private pendingDecisionImpact: SimulationFeedback | null = null;
+  /**
+   * La intención de decidir en curso: si la misma opción falla en la red y se reenvía, viaja con el mismo `requestId`
+   * (el servidor responde la repetición sin decidir dos veces). Se libera al recibir respuesta.
+   */
+  private pendingDecisionRequest: { decisionOptionId: number; requestId: string } | null = null;
 
   /** Texto del aviso del sistema con ese id; '' si no hay o la persona ya lo cerró. */
   private noticeText(id: number | null): string {
@@ -2243,8 +2301,15 @@ export class SimulationPlayComponent implements OnInit, OnDestroy {
     }, NOTICE_MS);
   }
 
-  /** Avisa con el mensaje real del servidor; si el interceptor ya avisó (sin red, sesión), no duplica. */
+  /**
+   * Avisa con el mensaje real del servidor; si el interceptor ya avisó (sin red, sesión), no duplica. Un 403
+   * `CONSENT_REQUIRED` no es un error de la acción: la pantalla vuelve al aviso (S3-2b).
+   */
   private reportApiError(err: unknown, fallback: string): void {
+    if (isConsentRequiredError(err)) {
+      this.requireConsentAgain();
+      return;
+    }
     const message = apiErrorMessage(err, fallback);
     if (message) this.showActionError(message);
   }
@@ -2291,11 +2356,13 @@ export class SimulationPlayComponent implements OnInit, OnDestroy {
     this.dialogue.set(null);
     this.journalMessage.set('');
     this.triggerFade(() => {
+      const request = this.decisionRequestFor(decisionOptionId);
       this.simulationService.chooseDecision(
         game.attemptId, game.attemptToken, decisionOptionId,
-        evidenceOverride, confirmedMissingEvidence,
+        evidenceOverride, confirmedMissingEvidence, request.requestId,
       ).subscribe({
         next: updated => {
+          this.pendingDecisionRequest = null;
           // Una pausa enviada por el plazo (F2) ya fijó el estado autoritativo del intento: la respuesta tardía de
           // esta decisión no lo pisa con uno anterior.
           if (this.attempt()?.status === 'PAUSED') {
@@ -2311,18 +2378,16 @@ export class SimulationPlayComponent implements OnInit, OnDestroy {
           this.selectedInteraction.set(null);
           this.nearbyInteraction.set(null);
           this.journalPanel?.clear();
-          // Última decisión: la supervisión se lee sobre la escena y el resultado se abre al cerrarla. Se arma
-          // antes de pedir el mundo: si este falla, su error suelta la retención. Sin supervisión que mostrar,
-          // el resultado se abre ya y el cierre suena como siempre.
+          // Última decisión: la consecuencia se lee sobre la escena y el resultado se abre al cerrarla. Se arma antes
+          // de pedir el mundo: si este falla, su error suelta la retención. Sin consecuencia que mostrar, el resultado
+          // se abre ya y el cierre suena como siempre. Nada de esto mira la clasificación (RN-08).
           const lastDecision = updated.status === 'COMPLETED';
-          if (lastDecision && !this.holdOutcomeForSupervision(updated.feedback)) this.playCompletionAudio();
+          if (lastDecision && !this.holdOutcomeForConsequence(updated)) this.playCompletionAudio();
           this.loadProgressMap(updated);
           this.loadWorld(updated);
           this.audioDirector.setStressLevel(updated.stressIndex);
-          this.pendingDecisionImpact = updated.feedback ?? null;
-          if (!lastDecision && updated.feedback) {
-            window.setTimeout(() => this.dialogue.set(this.buildSupervisionDialogue(updated.feedback!)), SUPERVISION_DELAY_MS);
-          }
+          const consequence = lastDecision ? null : this.buildConsequenceDialogue(updated);
+          if (consequence) window.setTimeout(() => this.dialogue.set(consequence), SUPERVISION_DELAY_MS);
         },
         error: err => {
           perfCancel('decision-to-scene');
@@ -2462,10 +2527,16 @@ export class SimulationPlayComponent implements OnInit, OnDestroy {
         this.journalSaveState.set('saved');
         this.busy.set(false);
       },
-      error: () => {
+      error: err => {
+        this.busy.set(false);
+        // S3-2b: sin consentimiento no se guarda nada y tampoco es un fallo de guardado: vuelve el aviso.
+        if (isConsentRequiredError(err)) {
+          this.journalSaveState.set('idle');
+          this.requireConsentAgain();
+          return;
+        }
         this.journalMessage.set('No pudimos guardar la bitácora.');
         this.journalSaveState.set('error');
-        this.busy.set(false);
       }
     });
   }
@@ -2732,18 +2803,29 @@ export class SimulationPlayComponent implements OnInit, OnDestroy {
     };
   }
 
+  /** Reutiliza el `requestId` de la misma opción si el envío anterior falló; si no, abre una intención nueva. */
+  private decisionRequestFor(decisionOptionId: number): { decisionOptionId: number; requestId: string } {
+    const pending = this.pendingDecisionRequest;
+    if (pending && pending.decisionOptionId === decisionOptionId) return pending;
+    const requestId = globalThis.crypto?.randomUUID?.() ?? `${Date.now()}-${Math.random().toString(36).slice(2)}`;
+    this.pendingDecisionRequest = { decisionOptionId, requestId };
+    return this.pendingDecisionRequest;
+  }
+
   /**
-   * Última decisión (DLG-05): muestra la supervisión sobre la escena y retiene el resultado hasta que se cierre.
-   * Devuelve `false` si no hay nada que mostrar (sin feedback o con uno que no se puede armar): el resultado
+   * Última decisión (DLG-05): muestra la consecuencia sobre la escena y retiene el resultado hasta que se cierre.
+   * Devuelve `false` si no hay nada que mostrar (ni consecuencia ni reintento) o si no se puede armar: el resultado
    * se abre entonces como siempre.
    */
-  private holdOutcomeForSupervision(feedback: SimulationFeedback | null | undefined): boolean {
-    if (!feedback) return false;
+  private holdOutcomeForConsequence(decision: SimulationDecisionResult): boolean {
+    let dialogue: DialogueState | null;
     try {
-      this.dialogue.set(this.buildSupervisionDialogue(feedback));
+      dialogue = this.buildConsequenceDialogue(decision);
     } catch {
       return false;
     }
+    if (!dialogue) return false;
+    this.dialogue.set(dialogue);
     this.supervisionHold.set(true);
     return true;
   }
@@ -2762,34 +2844,28 @@ export class SimulationPlayComponent implements OnInit, OnDestroy {
     this.audioDirector.playSfx('session_complete');
   }
 
-  private buildSupervisionDialogue(feedback: SimulationFeedback): DialogueState {
-    const retryRequired = this.feedbackRequiresRetry(feedback);
-    const lines: DialogueState['lines'] = [
-      { order: 1, speakerName: 'Supervisión clínica', text: feedback.message, emotion: feedback.prohibitedConduct ? 'danger' : 'neutral' }
-    ];
-    if (feedback.prohibitionReason) {
-      lines.push({ order: 2, speakerName: 'Supervisión clínica', text: feedback.prohibitionReason, emotion: 'danger' });
+  /**
+   * Lo que se lee justo tras decidir (RN-08): la consecuencia narrativa y, si la regla concede otra oportunidad, el aviso
+   * neutro de reintento. Nunca la clasificación, la razón de la prohibición ni el mensaje evaluativo: eso va al cierre.
+   * Devuelve `null` si no hay nada que decir.
+   */
+  private buildConsequenceDialogue(decision: SimulationDecisionResult): DialogueState | null {
+    const text = decision.consequence?.text?.trim() ?? '';
+    const lines: DialogueState['lines'] = [];
+    if (text) {
+      lines.push({ order: 1, speakerName: CONSEQUENCE_SPEAKER, text, emotion: 'neutral' });
     }
-    if (retryRequired) {
-      lines.push({
-        order: lines.length + 1,
-        speakerName: '',
-        text: 'No se avanzó el caso ni se aplicaron cambios acumulados. Revisa la escena y vuelve a responder.',
-        emotion: 'concerned'
-      });
-    } else {
+    if (decision.retry) {
+      lines.push({ order: lines.length + 1, speakerName: text ? '' : CONSEQUENCE_SPEAKER, text: RETRY_NOTICE, emotion: 'neutral' });
+    } else if (text) {
       // Sin cifras: las del motor no coinciden con las barras del HUD y «puntaje» convierte el caso en un marcador.
-      lines.push({
-        order: lines.length + 1,
-        speakerName: '',
-        text: ORIENTATION_COPY.notices.supervision,
-        emotion: 'neutral'
-      });
+      lines.push({ order: lines.length + 1, speakerName: '', text: ORIENTATION_COPY.notices.supervision, emotion: 'neutral' });
     }
+    if (!lines.length) return null;
     return {
-      key: `supervision-${Date.now()}`, speakerName: 'Supervisión clínica',
+      key: `consequence-${Date.now()}`, speakerName: CONSEQUENCE_SPEAKER,
       portraitKey: null,
-      emotion: feedback.prohibitedConduct ? 'danger' : feedback.classification === 'ADEQUATE' ? 'positive' : 'neutral',
+      emotion: 'neutral',
       lines, choices: []
     };
   }
@@ -2805,16 +2881,18 @@ export class SimulationPlayComponent implements OnInit, OnDestroy {
     window.setTimeout(() => this.playRevealEffects(), SCENE_FADE_MS);
   }
 
+  /** Sin clasificación: el mundo solo revela la sala (RN-08; la sacudida por decisión se retiró). */
   private playRevealEffects(): void {
-    const impact = this.pendingDecisionImpact;
-    this.pendingDecisionImpact = null;
-    this.gameWorld?.playRevealEffects(impact);
+    this.gameWorld?.playRevealEffects();
   }
 
   private loadProgressMap(attempt: SimulationAttemptState) {
     this.simulationService.getProgressMap(attempt.attemptId, attempt.attemptToken).subscribe({
       next: map => this.progressMap.set(map),
-      error: () => this.progressMap.set(null)
+      error: err => {
+        this.progressMap.set(null);
+        if (isConsentRequiredError(err)) this.requireConsentAgain();
+      }
     });
   }
 
@@ -2822,12 +2900,13 @@ export class SimulationPlayComponent implements OnInit, OnDestroy {
     this.simulationService.getWorld(attempt.attemptId, attempt.attemptToken).subscribe({
       next: world => this.applyWorldWithScenario(world),
       error: cause => {
-        this.fail('No pudimos cargar el mapa del caso.', cause, () => this.loadWorld(attempt));
+        // S3-2b: sin consentimiento el servidor no entrega el mundo. No es un fallo de carga (sin «Reintentar»): vuelve el aviso.
+        if (isConsentRequiredError(cause)) this.requireConsentAgain();
+        else this.fail('No pudimos cargar el mapa del caso.', cause, () => this.loadWorld(attempt));
         this.worldReloadPending = false;
         this.resumeQueued = false;
         // Sin mapa no hay escena sobre la que leer la supervisión: el resultado no puede quedar retenido.
         this.supervisionHold.set(false);
-        this.pendingDecisionImpact = null;
         this.pendingStage = null;
         this.loading.set(false);
         this.busy.set(false);
@@ -2958,12 +3037,37 @@ export class SimulationPlayComponent implements OnInit, OnDestroy {
         this.announce('Continuaste al caso. Cargando el escenario.');
         this.startWorld(attempt);
       },
-      () => {
+      (cause: unknown) => {
         if (!this.showContentWarning()) return;
+        // S3-2b: un aviso de otra versión dice que hay una versión nueva (recargar); cualquier otro fallo, lo de siempre.
+        this.consentErrorText.set(cause instanceof ConsentNoticeStaleError
+          ? DRAFT_COPY.consentNoticeStale.text
+          : DRAFT_COPY.consentStorageError.text);
         this.consentState.set('error');
-        this.announce(this.consentErrorText, 'assertive');
+        this.announce(this.consentErrorText(), 'assertive');
       },
     );
+  }
+
+  /**
+   * El servidor respondió 403 `CONSENT_REQUIRED` (S3-2b, ETH-01): el consentimiento se retiró en otra pestaña o el aviso
+   * cambió de versión. Se vuelve al aviso previo SIN perder el intento ni mostrar un error genérico: lo que se sabía del
+   * consentimiento deja de valer, no queda mundo, HUD ni audio (como antes de aceptar) y, al aceptar de nuevo, el mundo
+   * se pide otra vez. La pausa y la salida segura no pasan por aquí: el servidor nunca les exige el consentimiento (REGLA-004).
+   * Pública porque el panel de diálogo la dispara (`(consentRequired)`) cuando son las pistas las que reciben el 403.
+   */
+  requireConsentAgain(): void {
+    const attempt = this.attempt();
+    if (!attempt) return;
+    this.consentRecorder.forget?.(this.caseConsentStorageKey(attempt));
+    if (this.showContentWarning()) return;
+    this.clearTransientOverlays();
+    this.dismissActionError();
+    this.audioDirector.dispose();
+    this.worldStarted.set(false);
+    this.consentState.set('idle');
+    this.loading.set(false);
+    this.showContentWarning.set(true);
   }
 
   /** «Iniciar nuevo intento» (RN-07): nombra lo que se pierde; «Continuar» conserva el intento abierto. */
@@ -3031,7 +3135,7 @@ export class SimulationPlayComponent implements OnInit, OnDestroy {
   }
 
   private caseConsentStorageKey(attempt: SimulationAttemptState): string {
-    return `siep_case_consent_${attempt.caseVersionId}_${attempt.attemptId}`;
+    return consentStorageKey(attempt.caseVersionId, attempt.attemptId);
   }
 
   continueFromIntroScene(): void {
@@ -3206,15 +3310,6 @@ export class SimulationPlayComponent implements OnInit, OnDestroy {
     }));
   }
 
-  private feedbackRequiresRetry(feedback: Pick<SimulationFeedback, 'classification' | 'prohibitedConduct' | 'retryRequired'>): boolean {
-    // El backend es la autoridad: solo concede reintento en la 1ª respuesta mala
-    // (regla de 2 oportunidades). La 2ª respuesta riesgosa/inadecuada queda
-    // registrada y llega con retryRequired=false (aunque la clasificación sea mala).
-    if (typeof feedback.retryRequired === 'boolean') return feedback.retryRequired;
-    // Fallback para respuestas legacy sin el flag.
-    return feedback.prohibitedConduct || feedback.classification === 'INADEQUATE' || feedback.classification === 'RISKY';
-  }
-
   private restoreViewedNpcKeys(attempt: SimulationAttemptState): ReadonlySet<string> {
     try {
       const raw = sessionStorage.getItem(`siep_attempt_${attempt.caseVersionId}`);
@@ -3275,7 +3370,8 @@ export class SimulationPlayComponent implements OnInit, OnDestroy {
             this.scheduleRevealEffects();
           }
         },
-        error: () => undefined,
+        // Un fallo no interrumpe la caminata, salvo que el servidor haya perdido el consentimiento (S3-2b).
+        error: err => { if (isConsentRequiredError(err)) this.requireConsentAgain(); },
       });
   }
 

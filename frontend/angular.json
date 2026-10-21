@@ -32,7 +32,12 @@
                 { "type": "initial", "maximumWarning": "480kb", "maximumError": "520kb" },
                 { "type": "anyComponentStyle", "maximumWarning": "18kb", "maximumError": "20kb" }
               ],
-              "outputHashing": "all"
+              "outputHashing": "all",
+              "optimization": {
+                "scripts": true,
+                "styles": { "minify": true, "inlineCritical": false, "removeSpecialComments": true },
+                "fonts": true
+              }
             },
             "development": { "optimization": false, "extractLicenses": false, "sourceMap": true }
           },

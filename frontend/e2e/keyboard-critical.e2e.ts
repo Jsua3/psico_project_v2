@@ -690,6 +690,9 @@ test('[E04 E10] comenzar, pausar con la salida segura y continuar: «Salida segu
     const consent = page.getByRole('dialog').filter({ hasText: 'Antes de entrar al caso' });
     await expect(consent).toBeVisible({ timeout: scaled(30_000) });
     await pressWithKeyboard(page, consent.getByRole('button', { name: /^continuar$/i }));
+    // El consentimiento se registra en el servidor (S3-2b): el aviso sigue a la vista, con su botón en «guardando», hasta que
+    // el servidor responde. Sin esperar a que se vaya, el recorrido de abajo tomaría el «Continuar» del propio aviso.
+    await expect(consent).toBeHidden({ timeout: scaled(30_000) });
 
     // Comenzar: el video y el contexto del caso se avanzan con Tab y Enter hasta que el mundo está listo.
     const world = page.locator('app-game-world .phaser-host[data-world-ready="true"]');

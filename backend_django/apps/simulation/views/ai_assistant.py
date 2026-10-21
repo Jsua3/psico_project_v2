@@ -18,6 +18,7 @@ from rest_framework.exceptions import NotFound, ValidationError
 from rest_framework.response import Response
 from rest_framework.views import APIView
 
+from shared.client_ip import client_ip
 from shared.openapi import error_responses
 from shared.permissions import policy_permission
 
@@ -127,8 +128,7 @@ class AIAssistantView(APIView):
             user = request.user
             actor_id = str(user.id) if getattr(user, "id", None) is not None else None
             actor_role = getattr(user, "role", None) or "STUDENT"
-            forwarded = request.META.get("HTTP_X_FORWARDED_FOR")
-            ip = forwarded.split(",")[0].strip() if forwarded else request.META.get("REMOTE_ADDR")
+            ip = client_ip(request) or None  # None (NULL): la cadena vacía no es una dirección
             audit_service.append(
                 actor_id=actor_id,
                 actor_role=actor_role,

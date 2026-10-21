@@ -14,6 +14,7 @@ from django.core.exceptions import RequestDataTooBig
 from drf_spectacular.utils import OpenApiResponse, extend_schema
 from rest_framework.views import APIView
 
+from apps.security.throttling import HeavyUserThrottle, ImportUserThrottle
 from shared.openapi import envelope_of, error_responses
 from shared.permissions import policy_permission
 from shared.response import api_created, api_ok
@@ -21,8 +22,10 @@ from shared.response import api_created, api_ok
 from ..casedef import import_
 from ..serializers import authoring as inputs
 from ..serializers.contracts import (
+    CaseConflictEnvelopeSerializer,
     CaseDefinitionSerializer,
     CaseImportedSerializer,
+    CaseLifecycleSerializer,
     CaseValidationSerializer,
     ImportRejectedEnvelopeSerializer,
 )
@@ -97,6 +100,8 @@ class CaseImportView(_AuthoringView):
     documento y crea un borrador a nombre de quien importa. 201 ``{caseVersionId, caseId, issues}``.
     """
 
+    throttle_classes = [ImportUserThrottle]
+
     @extend_schema(
         responses={
             201: envelope_of(CaseImportedSerializer),
@@ -119,6 +124,8 @@ class CaseImportView(_AuthoringView):
 
 class CaseDefinitionView(_AuthoringView):
     """E4-7 · ``GET …/cases/{id}/definition``: el documento de la versión (borrador o publicada)."""
+
+    throttle_classes = [HeavyUserThrottle]
 
     @extend_schema(responses={200: envelope_of(CaseDefinitionSerializer), **error_responses(401, 403, 404)})
     def get(self, request, case_version_id):
@@ -144,10 +151,20 @@ class PublishView(_AuthoringView):
 class LifecycleView(_AuthoringView):
     """C4 · ``CaseLifecycle``: el estado de la versión y sus transiciones (E2-5)."""
 
+    throttle_classes = [HeavyUserThrottle]
+
+    @extend_schema(responses={200: envelope_of(CaseLifecycleSerializer), **error_responses(401, 403, 404)})
     def get(self, request, case_version_id):
         self.version_for(request, case_version_id, mutate=False)
         return api_ok(svc.lifecycle_of(case_version_id, request.user))
 
+    @extend_schema(
+        responses={
+            200: envelope_of(CaseLifecycleSerializer),
+            409: OpenApiResponse(CaseConflictEnvelopeSerializer, description="Choca con el estado actual del caso."),
+            **error_responses(400, 401, 403, 404),
+        }
+    )
     def post(self, request, case_version_id):
         # La autorización va primero y depende de la acción; la acción solo cuenta si es un texto.
         action = request.data.get("action") if hasattr(request.data, "get") else None
@@ -387,6 +404,8 @@ class WorldSaveView(_AuthoringView):
 
 
 class WorldValidateView(_AuthoringView):
+    throttle_classes = [HeavyUserThrottle]
+
     def post(self, request, case_version_id):
         self.version_for(request, case_version_id, mutate=False)
         return api_ok(svc.validate_world(case_version_id))
@@ -394,6 +413,8 @@ class WorldValidateView(_AuthoringView):
 
 class CaseValidateView(_AuthoringView):
     """C6 · ``{issues: ValidationIssue[], canPublish}`` (E2-8)."""
+
+    throttle_classes = [HeavyUserThrottle]
 
     @extend_schema(responses={200: envelope_of(CaseValidationSerializer), **error_responses(401, 403, 404)})
     def post(self, request, case_version_id):

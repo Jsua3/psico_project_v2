@@ -1,7 +1,8 @@
 from django.contrib.auth import get_user_model
-from django.core.management.base import BaseCommand
+from django.core.management.base import BaseCommand, CommandError
 
 from apps.simulation.services.rubric_service import seed_default_rubric
+from shared.dev_only import is_dev_environment
 
 
 class Command(BaseCommand):
@@ -11,6 +12,12 @@ class Command(BaseCommand):
         User = get_user_model()
         user = User.objects.filter(email="admin@psychosim.edu.co").first() or User.objects.filter(role="ADMIN").first()
         if not user:
+            if not is_dev_environment():
+                # BORRADOR: mensaje de consola para el operador, pendiente de revisión.
+                raise CommandError(
+                    "No hay ningún ADMIN para firmar la rúbrica predeterminada. Fuera de desarrollo "
+                    "no se crea la cuenta demo: crea antes un ADMIN real."
+                )
             user = User.objects.create_user(
                 email="admin@psychosim.edu.co",
                 password="Admin123!",

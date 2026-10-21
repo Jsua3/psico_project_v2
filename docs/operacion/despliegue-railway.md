@@ -5,27 +5,25 @@ sirve la API en `/api/...` y también el frontend Angular (el resto de rutas), m
 una base de datos **PostgreSQL**. Como todo vive en un mismo dominio, no hay CORS
 ni proxys que configurar.
 
-> **Importante sobre la base de datos.** El esquema de tablas originalmente lo
-> creaba Flyway (el backend Spring antiguo, que ya no se despliega). Por eso el
-> repo incluye un volcado completo en [`deploy/db_seed.sql`](../../deploy/db_seed.sql)
-> (esquema + datos + usuarios demo + caso `SIM-VBG-001`). En Railway **se restaura
-> ese volcado** sobre el Postgres nuevo. No uses `migrate` desde cero: muchas
-> tablas son `managed=False` y Django no las crea.
+> **Importante sobre la base de datos.** Django crea y actualiza el esquema con sus migraciones: el contenedor corre
+> `python manage.py migrate --noinput` antes de arrancar gunicorn. No hay volcado que restaurar (el de
+> `deploy/db_seed.sql` se retiró en E0-10) ni cuentas demo: el primer administrador se crea con el comando
+> `create_admin` (sección 4).
 
 ---
 
 ## 0. Requisitos previos
 
 - Cuenta en https://railway.app (el plan gratuito/Trial sirve).
-- El código subido a GitHub (rama actual: `codex/actualizacion-completa-simulador`).
+- El código subido a GitHub, en la rama que Railway despliega.
 - Opcional (recomendado): [Railway CLI](https://docs.railway.com/guides/cli)
   `npm i -g @railway/cli` y `railway login`.
 
-Artefactos que ya dejé listos en el repo:
-- `Dockerfile` (raíz): build de Angular + backend Django con gunicorn.
+Artefactos del repo que usa el despliegue:
+- `Dockerfile` (raíz): build de Angular + backend Django con gunicorn; al arrancar corre `migrate`.
 - `railway.json`: le dice a Railway que use el Dockerfile.
-- `backend_django/psychosim/settings/production.py`: settings de producción.
-- `deploy/db_seed.sql`: volcado de la BD para restaurar.
+- `backend_django/psychosim/settings/production.py`: settings de producción. No arranca con una llave de ejemplo, con
+  `*` en `DJANGO_ALLOWED_HOSTS` ni con `SIEP_TRUSTED_PROXIES=0` en Railway.
 
 ---
 
@@ -45,10 +43,14 @@ Artefactos que ya dejé listos en el repo:
    | Variable | Valor |
    |---|---|
    | `DJANGO_SETTINGS_MODULE` | `psychosim.settings.production` |
-   | `DJANGO_SECRET_KEY` | una cadena larga y aleatoria |
-   | `JWT_SECRET` | otra cadena larga (≥ 32 caracteres) |
+   | `DJANGO_SECRET_KEY` | una cadena aleatoria de **≥ 50 caracteres con ≥ 20 distintos** |
+   | `REFLECTION_ENCRYPTION_KEY` | otra cadena aleatoria de **≥ 32 caracteres**, distinta de `DJANGO_SECRET_KEY` (cifra las reflexiones) |
    | `DJANGO_ALLOWED_HOSTS` | el dominio que te dé Railway, p. ej. `siep-production.up.railway.app` |
    | `DATABASE_URL` | **referencia** a la del Postgres (ver abajo) |
+   | `JWT_SIGNING_KEY` | otra cadena aleatoria de **≥ 50 caracteres con ≥ 20 distintos**, distinta de las demás llaves (firma las sesiones) |
+   | `REFLECTION_ACTIVE_KEY` | el id de una llave de `REFLECTION_KEYS` con la que se cifran las reflexiones nuevas (nunca `local-aes-gcm-v1`) |
+   | `REFLECTION_KEYS` | pares `id=secreto` separados por comas; cada secreto **≥ 32 caracteres** y distinto de las demás llaves |
+   | `SIEP_TRUSTED_PROXIES` | un entero: cuántos proxies hay delante de Django. En Railway, `1` hasta medirlo en el primer despliegue |
 
    Para `DATABASE_URL`: usa **Add Reference → Postgres → DATABASE_URL** (así queda
    enlazada automáticamente). Alternativamente pega el valor de
@@ -56,10 +58,24 @@ Artefactos que ya dejé listos en el repo:
 
    > Genera secretos seguros, por ejemplo en tu terminal:
    > `python -c "import secrets; print(secrets.token_urlsafe(48))"`
+   > Producción no arranca si una llave es demasiado corta o repetitiva, si es un valor de ejemplo del repositorio
+   > (`cambia-esto…`, `dev-only…`, `django-insecure…`) o si las dos llaves son iguales. El error nombra la variable, nunca su valor.
+   >
+   > **Reflexiones ya cifradas:** hasta S5-1, `REFLECTION_ENCRYPTION_KEY` caía a `JWT_SECRET` si no se definía. Si este
+   > despliegue ya guardó reflexiones sin definirla, fija `REFLECTION_ENCRYPTION_KEY` con el valor que tenía `JWT_SECRET`
+   > (cumpliendo las reglas de arriba) o consulta antes de cambiarla: con otra llave, esas reflexiones no se descifran.
+   >
+   > **Variables de seguridad (R1b):** `JWT_SECRET` ya no se pide: está obsoleta y no firma nada.
+   > - `JWT_SIGNING_KEY` firma las sesiones. Rotarla cierra todas; el primer despliegue con ella también las cierra una vez. Ver [rotacion-de-secretos.md](rotacion-de-secretos.md).
+   > - `REFLECTION_KEYS` y `REFLECTION_ACTIVE_KEY` cifran las reflexiones con llaves versionadas. Rotarlas sin perder las bitácoras está en [rotacion-de-secretos.md](rotacion-de-secretos.md).
+   > - `SIEP_TRUSTED_PROXIES` cuenta los proxies delante de Django. En Railway hay uno: `1`, hasta medirlo en el primer despliegue. Con `0` la aplicación no arranca en Railway.
 
 4. (Opcional) Variables extra ya soportadas: `JWT_EXPIRATION_HOURS` (default 8),
    `GOOGLE_OAUTH_CLIENT_ID`, `DEFAULT_FROM_EMAIL`, `CORS_ALLOWED_ORIGINS`
-   (solo si algún día sirves el frontend en otro dominio).
+   (solo si algún día sirves el frontend en otro dominio), `DJANGO_SECURE_SSL_REDIRECT`
+   (`true` por defecto; solo `false` lo apaga), `SIEP_HSTS_SECONDS` (3600 por defecto; ver
+   [HTTPS y HSTS](#https-y-hsts)) y `SIEP_CSP_ENFORCE` (apagada por defecto; ver
+   [Política de contenido](#política-de-contenido-csp)).
 
 ## 3. Generar el dominio público
 
@@ -67,43 +83,102 @@ Artefactos que ya dejé listos en el repo:
 2. Copia el dominio (p. ej. `siep-production.up.railway.app`) y confirma que está
    en `DJANGO_ALLOWED_HOSTS` (paso 2.3). Si lo cambias, la app se redepliega.
 
-## 4. Restaurar la base de datos (una sola vez)
+## 4. Crear el primer administrador (una sola vez)
 
-Con el Postgres ya creado, carga el esquema + datos del volcado.
+Django crea el esquema solo: el contenedor corre `python manage.py migrate --noinput` antes de arrancar gunicorn (mira el
+`CMD` del `Dockerfile`). No hay volcado que restaurar.
 
-**Opción A — Railway CLI (recomendada):**
+El primer ADMIN lo crea el comando `create_admin`. La clave no va en las variables del servicio ni en ningún archivo: se
+fija en la terminal de quien despliega y el comando la lee de ahí.
+
 ```bash
-railway login
-railway link            # elige el proyecto
-# Conéctate a la BD y restaura el volcado:
-railway connect Postgres   # abre psql contra el Postgres del proyecto
-# (dentro de psql)  \i deploy/db_seed.sql       ← si corres desde la raíz del repo
-```
-o, sin entrar a psql interactivo:
-```bash
-railway run -s Postgres bash -c 'psql "$DATABASE_URL" -f deploy/db_seed.sql'
+# En tu terminal (PowerShell: $env:SIEP_ADMIN_PASSWORD = '...'). No la pongas en las variables de Railway.
+export SIEP_ADMIN_PASSWORD='...'
+railway run python backend_django/manage.py create_admin --email admin@tu-dominio.edu.co --nombre Nombre --apellido Apellido
+unset SIEP_ADMIN_PASSWORD
 ```
 
-**Opción B — psql local apuntando a Railway:**
-1. En el servicio Postgres → **Variables**, copia `DATABASE_PUBLIC_URL`
-   (la URL pública, no la interna).
-2. En tu PC (con `psql` instalado):
-   ```bash
-   psql "PEGA_AQUI_DATABASE_PUBLIC_URL" -f deploy/db_seed.sql
-   ```
+- Sin `SIEP_ADMIN_PASSWORD`, el comando pide la clave dos veces en la terminal (solo si es interactiva). Nunca acepta la
+  clave como argumento.
+- La clave cumple las mismas reglas que cualquier otra: longitud, contraseñas comunes y no parecerse a la cuenta.
+- La clave es **temporal**: caduca a los `SIEP_TEMP_PASSWORD_DAYS` días (7 por defecto). Entra antes de que venza y
+  cámbiala en el primer acceso.
+- Si el correo ya tiene cuenta, el comando falla y no toca la cuenta existente: para reponer su clave, usa `--reset` (abajo).
 
-El volcado usa `DROP ... IF EXISTS` antes de crear, así que es seguro re-ejecutarlo.
+### Reponer al único administrador (`--reset`)
+
+Si el único ADMIN **pierde su clave**, o su **temporal caducó antes de su primer acceso** (no hay recuperación por correo:
+la repone un administrador), repónla con `--reset`:
+
+```bash
+export SIEP_ADMIN_PASSWORD='...'
+railway run python backend_django/manage.py create_admin --reset --email admin@tu-dominio.edu.co
+unset SIEP_ADMIN_PASSWORD
+```
+
+- La cuenta queda **activa**, con una clave **temporal nueva** (caduca igual que la de la primera vez) y sus sesiones
+  anteriores quedan **cerradas**: un token viejo deja de servir.
+- Solo repone cuentas de rol ADMIN. Si el correo no tiene cuenta, o es de un estudiante o de un docente, el comando falla
+  y no toca nada: nunca convierte a nadie en administrador. Con `--reset` no hacen falta `--nombre` ni `--apellido`.
+- La auditoría guarda solo el id de la cuenta, y el comando imprime solo ese id y que la clave es temporal.
+
+> **A verificar en el primer despliegue.** `railway run` ejecuta el comando en tu máquina, con las variables del servicio.
+> Si `DATABASE_URL` apunta a la red interna de Railway (`*.railway.internal`), esa dirección no se resuelve desde fuera y
+> el comando no conecta. En ese caso hay dos salidas:
+> - Abrir una terminal dentro del contenedor del servicio (el panel de Railway o `railway ssh`, si la versión instalada de
+>   la CLI lo trae; consulta la documentación de la CLI) y ejecutar allí `python manage.py create_admin --reset …`, con
+>   `SIEP_ADMIN_PASSWORD` fijada solo en esa sesión.
+> - O exportar en tu terminal la URL pública de la base (`DATABASE_PUBLIC_URL` del servicio de PostgreSQL) como
+>   `DATABASE_URL`, solo para ese comando.
+>
+> No pegues la clave ni la URL de la base en ningún chat ni en las variables del servicio.
 
 ## 5. Verificar
 
 1. Abre `https://TU-DOMINIO/` → debe cargar el simulador (pantalla de login).
 2. `https://TU-DOMINIO/api/auth/me` sin token → `401` (la API responde).
-3. Inicia sesión con un usuario demo del volcado:
-   - Admin: `admin@psychosim.edu.co` / `Admin123!`
-   - Docente: `profesora@psychosim.edu.co` / `Profesor123!`
-   - Estudiante: `estudiante@psychosim.edu.co` / `Estudiante123!`
+3. Entra con la cuenta de ADMIN que creaste en la sección 4. El primer acceso te pedirá cambiar la contraseña: hazlo. La
+   temporal deja de servir en cuanto la cambias.
 
-   > Cámbialas cuanto antes (o crea usuarios nuevos) si el despliegue es público.
+### HTTPS y HSTS
+
+Django redirige a HTTPS por defecto (`DJANGO_SECURE_SSL_REDIRECT`: solo `false` lo apaga). Hay una excepción a propósito: **`/api/health` queda exento**, porque Railway lo sondea por HTTP plano con `Host: healthcheck.railway.app`; un `301` ahí impediría promover el despliegue. Mientras el sondeo sea por HTTP plano, no quites esa exención.
+
+HSTS se controla con `SIEP_HSTS_SECONDS` (3600 por defecto; entero entre 0 y 63072000). Un valor que no sea un entero o que esté fuera de ese rango impide arrancar la aplicación, y el error no muestra el valor leído. `includeSubDomains` y `preload` **no** se activan hasta fijar el dominio definitivo (decisión SD-5).
+
+**Escalera:** 3600 → 86400 → 604800 → 15552000. Sube un escalón solo después de:
+
+1. comprobar la redirección: `curl -I http://TU-DOMINIO` debe responder `301` con `Location: https://…`;
+2. comprobar la cabecera: `curl -I https://TU-DOMINIO` debe llevar `Strict-Transport-Security: max-age=<valor del escalón actual>`, sin `includeSubDomains` ni `preload` (con el primer escalón, `max-age=3600`);
+3. una semana sin problemas con el escalón anterior.
+
+Un navegador que recibió HSTS obliga a HTTPS en ese dominio hasta que venza su `max-age`, aunque el servidor deje de enviar la cabecera. Por eso la escalera sube despacio: si HTTPS falla con un valor alto, esos navegadores no llegan al sitio hasta que venza.
+
+**Retroceso:** bajar `SIEP_HSTS_SECONDS` no deshace lo que ya guardó un navegador. Con `0` Django deja de enviar la cabecera (no envía `max-age=0`), así que hay que esperar a que venza el `max-age` que el navegador recibió.
+
+### Política de contenido (CSP)
+
+La CSP dice al navegador qué puede cargar y ejecutar la página; es la segunda capa contra un XSS (la primera es que Angular escapa lo que pinta). El diseño y sus motivos están en [`docs/seguridad/adr-s3-csp.md`](../seguridad/adr-s3-csp.md). Dos banderas, ambas opcionales:
+
+| Variable | Por defecto | Qué hace |
+|---|---|---|
+| `SIEP_CSP_REPORT_ONLY` | `true` | Envía `Content-Security-Policy-Report-Only` con la política inicial: el navegador **informa** de lo que incumple y no bloquea nada. `false` es solo un interruptor de emergencia (no envía ninguna política). |
+| `SIEP_CSP_ENFORCE` | `false` | `true` envía `Content-Security-Policy` (la política **en vigor**): el navegador **bloquea** lo que incumple. Los scripts y estilos solo corren con el nonce de la petición; no hay `'unsafe-inline'` en los scripts. Con ella encendida la cabecera de reporte se omite. |
+
+Los incumplimientos llegan en los dos modos a `POST /api/security/csp-report` y dejan UNA línea `csp_violation` en el registro (directiva, esquema y host del recurso bloqueado, ruta de la página y si se bloqueó o solo se informó; nunca la consulta ni el contenido).
+
+**Antes de encenderla** corre la sonda en local: `npm run test:csp` (construye el frontend de producción, lo sirve con Django como en el despliegue y recorre acceso, portal, juego, editor y reporte; falla con la lista de violaciones) y, con internet, `npm run test:csp -- --google` (usa un client id **falso** y comprueba que el script, el botón y la hoja de Google cargan; la política cambia con `GOOGLE_OAUTH_CLIENT_ID`: con él añade `style-src-attr 'unsafe-inline'`, que Google necesita para los atributos `style=` de su botón). Después:
+
+1. Pon `SIEP_CSP_ENFORCE=true` y redespliega.
+2. Comprueba la cabecera: `curl -sI https://TU-DOMINIO/login` debe llevar `Content-Security-Policy:` con `'nonce-…'` en `script-src` y `style-src`, y **no** `Content-Security-Policy-Report-Only`. Dos peticiones seguidas deben traer nonces distintos.
+3. Entra, juega un caso y abre el editor con una cuenta real; vigila el registro durante unos días: cada línea `csp_violation` con `"disposition": "enforce"` es algo que la política bloqueó a una persona real.
+4. **Botón de Google:** con `GOOGLE_OAUTH_CLIENT_ID` real, comprueba que el botón se pinta y que entrar con Google funciona. La sonda no puede hacerlo sin un client id real (ver el ADR); la política deja pasar solo lo que documenta Google (`accounts.google.com/gsi/…`).
+
+**Retroceso:** quita `SIEP_CSP_ENFORCE` (o ponla en `false`) y redespliega: vuelve al modo reporte. No hay nada que esperar en los navegadores (a diferencia de HSTS, la CSP no se guarda).
+
+**Si una imagen de fondo de un caso es de otro host** (lista blanca de S2-6), ese host debe añadirse a `img-src` de `CSP_ENFORCED_POLICY` (`psychosim/settings/base.py`), o el navegador la bloqueará.
+
+Antes de abrir la primera cuenta real, `npm run gate:primera-cuenta -- --url https://TU-DOMINIO --strict --out ..\compuerta-primera-cuenta.md` reúne la evidencia automática y deja la lista manual para el PR de despliegue: el procedimiento está en [`docs/seguridad/compuerta-primera-cuenta.md`](../seguridad/compuerta-primera-cuenta.md).
 
 ---
 
@@ -111,36 +186,20 @@ El volcado usa `DROP ... IF EXISTS` antes de crear, así que es seguro re-ejecut
 
 - **Error 400 / DisallowedHost:** falta el dominio en `DJANGO_ALLOWED_HOSTS`.
 - **500 al cargar / no conecta a la BD:** revisa que `DATABASE_URL` esté
-  referenciada y que restauraste `deploy/db_seed.sql`.
+  referenciada y mira en los registros del despliegue si el arranque llegó a aplicar las migraciones (`migrate`).
 - **La página carga pero las llamadas fallan con 404 en `/api`:** asegúrate de
   que el servicio es el del `Dockerfile` de la raíz (no solo el frontend).
 - **Recargar una ruta interna (p. ej. `/portal/...`) da 404:** ya está resuelto
   por el catch-all del SPA en `psychosim/urls.py`; si pasa, es que el build de
   Angular no se copió (revisa el log de build del Dockerfile).
 - **Actualizaciones:** cada push a la rama conectada redepliega automáticamente.
-  La BD NO se toca en redeploys; solo restauras el volcado la primera vez.
-- **Cambios de esquema sobre una BD ya restaurada:** aplica, en orden, los
-  scripts de [`deploy/upgrades/`](../../deploy/upgrades) posteriores a tu restauración
-  (todos son idempotentes):
-  ```bash
-  psql "$DATABASE_URL" -f deploy/upgrades/2026-09-29-attempt-status-paused.sql
-  psql "$DATABASE_URL" -f deploy/upgrades/2026-10-01-ambient-npcs-caso-pdf.sql
-  psql "$DATABASE_URL" -f deploy/upgrades/2026-10-01-attempt-status-replaced.sql
-  ```
-  Sin el de 2026-09-29, la "pausa segura" falla con 500 porque el CHECK viejo
-  de `simulation_attempts_v2.status` no admite `PAUSED`. Sin
-  `2026-10-01-ambient-npcs-caso-pdf.sql`, hablar con los NPC ambientales del
-  caso (enfermera, médico, trabajadora social…) responde 400 y el diálogo no se
-  abre: el backend exige su posición en `scene_maps.ambient_json.ambientNpcs`.
-  Sin `2026-10-01-attempt-status-replaced.sql`, empezar un intento nuevo sobre
-  uno activo ("forceNew") falla con 500 porque el CHECK no admite `REPLACED`;
-  ese script además reclasifica como `REPLACED` los intentos reemplazados que se
-  guardaron como salida segura. Como cada push redepliega, aplica los scripts
-  **antes** de hacer push del código que los necesita.
-- **Reflexiones cifradas:** los datos de reflexión del volcado se cifraron con el
-  `JWT_SECRET` local. Si usas un `JWT_SECRET` distinto en Railway (recomendado),
-  las reflexiones nuevas funcionan con normalidad; las viejas del volcado podrían
-  no descifrarse. No afecta al resto de la app.
+  La BD NO se restaura en los redeploys: el arranque solo aplica las migraciones que falten.
+- **Cambios de esquema:** no hay scripts SQL que aplicar a mano. Las migraciones de Django las aplica el arranque
+  (`migrate --noinput`, antes de gunicorn). Los scripts que había en `deploy/upgrades/` ya no existen en el repositorio.
+- **Reflexiones cifradas con otra llave:** si una base llega de otro entorno (por ejemplo, una restauración de respaldo),
+  sus reflexiones se descifran solo con la llave con la que se cifraron (hasta S5-1, el `JWT_SECRET` local). Si la
+  `REFLECTION_ENCRYPTION_KEY` de Railway es distinta (recomendado), las reflexiones nuevas funcionan con normalidad; las
+  viejas podrían no descifrarse. No afecta al resto de la app.
 
 ---
 

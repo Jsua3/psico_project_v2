@@ -1,5 +1,6 @@
 import { expect } from '@playwright/test';
 import type { Locator, Page, Response } from '@playwright/test';
+import { resetStudentConsent } from './consent';
 import type { SiepInputMode } from './required-viewports';
 import { scaled } from './time-scale';
 
@@ -73,6 +74,9 @@ export async function leaveBrief(page: Page): Promise<void> {
 }
 
 export async function enterCaseAtContentWarning(page: Page): Promise<Locator> {
+  // El consentimiento vive en el servidor (S3-2b): el de una prueba anterior haría que el aviso no saliera. Se parte de «sin
+  // consentimiento» ANTES de abrir el caso, o la pantalla de juego ya lo habría leído.
+  await resetStudentConsent(page);
   await page.getByRole('button', { name: /entrar al caso/i }).click();
   await page.waitForURL(/\/portal\/simulador\/\d+/, { timeout: scaled(30_000) });
   await leaveBrief(page);
@@ -765,7 +769,10 @@ export async function chooseDecision(
   await option.click();
   const response = await responsePromise;
   await requireOk(response, `Falló la decisión ${optionText}`);
-  return (await response.json()).data as ApiData;
+  // C2: con FEEDBACK_AT_CLOSE_ONLY el estado del intento viene dentro de `attempt`; el resto del e2e lee el estado
+  // plano, así que se aplana aquí conservando `consequence` y `retry`.
+  const body = (await response.json()).data as ApiData;
+  return body.attempt ? { ...body.attempt, consequence: body.consequence ?? null, retry: body.retry ?? null } : body;
 }
 
 export async function useToolChoice(

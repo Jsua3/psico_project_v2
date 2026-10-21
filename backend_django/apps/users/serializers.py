@@ -1,3 +1,5 @@
+from types import SimpleNamespace
+
 from django.contrib.auth import get_user_model
 from django.contrib.auth import password_validation
 from django.core.exceptions import ValidationError as DjangoValidationError
@@ -6,7 +8,11 @@ from rest_framework_simplejwt.serializers import TokenObtainPairSerializer
 from rest_framework_simplejwt.settings import api_settings
 from rest_framework_simplejwt.tokens import AccessToken
 
+from shared.plain_text import person_text_problem
+
+from .google_verification import LONGITUD_MAXIMA
 from .models import AccessRequest, AccessRequestStatus, UserRole
+from .services import account_service
 
 User = get_user_model()
 
@@ -44,6 +50,19 @@ def validate_new_password(value, user=None):
     return value
 
 
+def _cuenta_propuesta(datos, instance=None):
+    """La cuenta tal como quedará tras guardar (S1-5): correo, nombre y apellido del formulario o, si no vienen, los de la
+    cuenta actual. Así la clave se compara con lo que la cuenta va a ser, también en un alta (que aún no existe)."""
+
+    def dato(campo):
+        valor = datos.get(campo) if hasattr(datos, "get") else None
+        if valor is None and instance is not None:
+            valor = getattr(instance, campo, "")
+        return "" if valor is None else str(valor)
+
+    return SimpleNamespace(email=dato("email"), nombre=dato("nombre"), apellido=dato("apellido"))
+
+
 class UserSummarySerializer(serializers.ModelSerializer):
     """Spring's UserSummary record {id, nombre, apellido, email, role} + ``mustChangePassword``."""
 
@@ -69,7 +88,10 @@ class AdminUserSerializer(serializers.ModelSerializer):
 
 class AdminUserWriteSerializer(serializers.Serializer):
     email = serializers.EmailField()
-    password = serializers.CharField(write_only=True, required=False, allow_blank=True, min_length=8)
+    # Sin recorte: la clave se guarda y se compara tal cual (los espacios finales cuentan).
+    password = serializers.CharField(
+        write_only=True, required=False, allow_blank=True, min_length=8, trim_whitespace=False
+    )
     nombre = serializers.CharField(max_length=100)
     apellido = serializers.CharField(max_length=100)
     role = serializers.ChoiceField(choices=UserRole.choices)
@@ -84,8 +106,14 @@ class AdminUserWriteSerializer(serializers.Serializer):
             raise serializers.ValidationError("El email ya está registrado")
         return value
 
+    def validate_nombre(self, value):
+        return _nombre_de_persona(value)
+
+    def validate_apellido(self, value):
+        return _nombre_de_persona(value)
+
     def validate_password(self, value):
-        return validate_new_password(value, self.instance) if value else value
+        return validate_new_password(value, _cuenta_propuesta(self.initial_data, self.instance)) if value else value
 
     def validate(self, attrs):
         password = attrs.get("password", "")
@@ -95,15 +123,25 @@ class AdminUserWriteSerializer(serializers.Serializer):
 
     def create(self, validated_data):
         password = validated_data.pop("password")
-        return User.objects.create_user(password=password, **validated_data)
+        user = User.objects.create_user(password=None, **validated_data)
+        # S1-5 · SF-21: la clave que pone un ADMIN es temporal (cambio obligatorio y fecha de caducidad), y se audita.
+        return account_service.set_password_by_admin(user, password)
 
     def update(self, instance, validated_data):
         password = validated_data.pop("password", "")
+        previos = (instance.role, instance.activo)
         for field, value in validated_data.items():
             setattr(instance, field, value)
         if password:
-            instance.set_password(password)
+            # S1-5 · SF-21: la clave que fija un ADMIN queda temporal y se audita con el actor (nunca con la clave).
+            account_service.set_password_by_admin(instance, password)
         instance.save()
+        # S1-4 · una contraseña fijada, un cambio de rol o de activo cierran las sesiones de la persona.
+        if password or previos != (instance.role, instance.activo):
+            account_service.revoke_sessions(instance.pk)
+        if password:
+            # S1-5 · la persona debe saberlo: el aviso sale al confirmarse el cambio (sin la clave ni enlaces).
+            account_service.notify_admin_password_change(instance)
         return instance
 
 
@@ -113,13 +151,15 @@ class AdminUserStatusSerializer(serializers.Serializer):
 
 def generate_access_token(user):
     """Access token with the same claims Spring's JwtService emits:
-    sub=email, userId=id, role=role (plus simplejwt's exp/iat/jti)."""
+    sub=email, userId=id, role=role (plus simplejwt's exp/iat/jti), y ep = época de sesión (S1-4)."""
     token = AccessToken.for_user(user)  # sets the USER_ID_CLAIM ("userId")
     # simplejwt >= 5.5 serializa el id como texto; Spring lo emitía numérico y el
     # frontend lo tipa como number: se conserva el contrato original.
     token[api_settings.USER_ID_CLAIM] = user.id
     token["role"] = user.role
     token["sub"] = user.email
+    # S1-4 · época de sesión: ``SiepJWTAuthentication`` rechaza el token si la base la sube.
+    token["ep"] = user.session_epoch
     return str(token)
 
 
@@ -132,37 +172,22 @@ class PsychoSimTokenObtainSerializer(TokenObtainPairSerializer):
         token[api_settings.USER_ID_CLAIM] = user.id
         token["role"] = user.role
         token["sub"] = user.email
+        token["ep"] = user.session_epoch  # S1-4 · época de sesión
         return token
 
 
 class LoginSerializer(serializers.Serializer):
     email = serializers.EmailField()
-    password = serializers.CharField(write_only=True)
+    # Sin recorte (R1b): la clave con la que entra es la que se guardó, espacios finales incluidos.
+    password = serializers.CharField(write_only=True, trim_whitespace=False)
 
     def validate_email(self, value):
         return normalize_email_value(value)
 
 
 class GoogleLoginSerializer(serializers.Serializer):
-    credential = serializers.CharField(write_only=True)
-
-
-class RegisterSerializer(serializers.Serializer):
-    email = serializers.EmailField()
-    password = serializers.CharField(write_only=True, min_length=8)
-    nombre = serializers.CharField(max_length=100)
-    apellido = serializers.CharField(max_length=100)
-    role = serializers.ChoiceField(choices=UserRole.choices)
-
-    def validate_email(self, value):
-        value = validate_common_email_domain(normalize_email_value(value))
-        return value
-
-    def validate_password(self, value):
-        return validate_new_password(value)
-
-    def create(self, validated_data):
-        return User.objects.create_user(**validated_data)
+    # R1c · una credencial de Google no pasa de LONGITUD_MAXIMA: el 400 de validación llega antes de cualquier red.
+    credential = serializers.CharField(write_only=True, max_length=LONGITUD_MAXIMA)
 
 
 class ApproveUsersSerializer(serializers.Serializer):
@@ -179,10 +204,27 @@ class ChangePasswordSerializer(serializers.Serializer):
     newPassword = serializers.CharField(write_only=True, trim_whitespace=False)
 
 
+def _nombre_de_persona(value):
+    """S1-3 · nombre y apellido: texto plano de una línea, sin etiquetas ni enlaces (regla de casedef). R1b: además, sin
+    invisibles ni dominios, y solo con letras y signos de nombre (``shared.plain_text.person_text_problem``)."""
+    problema = person_text_problem(value, 100)
+    if problema is not None:
+        raise serializers.ValidationError(problema)
+    return value.strip()
+
+
 class AccessRequestCreateSerializer(serializers.Serializer):
     nombre = serializers.CharField(max_length=100)
     apellido = serializers.CharField(max_length=100)
     email = serializers.EmailField()
+    # S1-3 · campo trampa: una persona no lo ve. Si llega con texto, lo rellenó un bot (la vista lo descarta).
+    website = serializers.CharField(required=False, allow_blank=True, max_length=200, write_only=True)
+
+    def validate_nombre(self, value):
+        return _nombre_de_persona(value)
+
+    def validate_apellido(self, value):
+        return _nombre_de_persona(value)
 
     def validate_email(self, value):
         return validate_common_email_domain(normalize_email_value(value))

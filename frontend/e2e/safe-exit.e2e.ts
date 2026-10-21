@@ -1,6 +1,7 @@
 import { expect, test } from '@playwright/test';
 import type { Page } from '@playwright/test';
 
+import { probeStudentConsent } from './support/consent';
 import { GUIDED_VIEWPORTS } from './support/guided-viewports';
 import {
   acceptContentWarning,
@@ -262,7 +263,7 @@ for (const viewport of GUIDED_VIEWPORTS) {
       await assertSafeExitPauses(page, 'diálogo sin opciones', viewport);
       await waitForWorldReady(page);
 
-      // Supervisión clínica: se recorre H1 hasta decidir y se pausa con la supervisión a la vista.
+      // Consecuencia: se recorre H1 hasta decidir y se pausa con la supervisión a la vista.
       // Tras la conversación con la enfermera el jugador queda junto a ella (más arriba que el kit): se explora.
       await exploreUntilNearby(page, input, /kit pap/i);
       await interactNearby(page, /kit pap/i, /\/interactions\/tool-pap$/);
@@ -282,7 +283,7 @@ for (const viewport of GUIDED_VIEWPORTS) {
         /abuela de la niña/i,
         /aplicar pap: contención emocional, acompañamiento en duelo/i,
       );
-      const supervision = page.getByRole('dialog', { name: /supervisión clínica/i });
+      const supervision = page.getByRole('dialog', { name: /consecuencia/i });
       await expect(supervision).toBeVisible({ timeout: scaled(30_000) });
       await assertSafeExitPauses(page, 'supervisión', viewport);
     });
@@ -348,3 +349,79 @@ for (const viewport of GUIDED_VIEWPORTS) {
     });
   });
 }
+
+// ── La salida segura NO depende del consentimiento (S3-2b; REGLA-004, ETH-02) ───────────────────────────────────────────
+
+const NOT_ENFORCED = 'El backend de esta corrida no exige el consentimiento (SIEP_CONSENT_REQUIRED apagada). '
+  + 'Para probarlo: SIEP_CONSENT_REQUIRED=true node scripts/test-e2e.mjs consent-gate safe-exit';
+
+// req: REGLA-004, ETH-02, ETH-01
+test('la salida segura (y reanudar) responde 200 aunque la persona no tenga consentimiento registrado', async ({ request }) => {
+  const probe = await probeStudentConsent(request);
+  // Sin consentimiento (idempotente): lo que el servidor exija del mundo, la pausa nunca lo pide.
+  const withdrawn = await request.delete(`/api/simulation/cases/${probe.caseVersionId}/consent`, { headers: probe.headers });
+  expect(withdrawn.status()).toBe(200);
+  const started = await request.post('/api/simulation/attempts', { headers: probe.headers, data: { caseVersionId: probe.caseVersionId } });
+  expect(started.status(), 'crear o recuperar el intento no pide el aviso: el flujo es intento → aviso → mundo').toBe(200);
+  const attempt = (await started.json()).data as { attemptId: string; attemptToken: string };
+  const base = `/api/simulation/attempts/${attempt.attemptId}`;
+
+  const world = await request.get(`${base}/world`, { headers: { ...probe.headers, 'X-SIEP-Attempt-Token': attempt.attemptToken } });
+  if (probe.state.required) {
+    expect(world.status(), 'el servidor exige el consentimiento para el mundo').toBe(403);
+    expect((await world.json()).code).toBe('CONSENT_REQUIRED');
+  } else {
+    expect(world.status()).toBe(200);
+  }
+
+  const paused = await request.post(`${base}/safe-exit`, { headers: probe.headers, data: { attemptToken: attempt.attemptToken, reason: 'Prueba e2e sin consentimiento' } });
+  expect(paused.status(), 'la salida segura responde 200 sin consentimiento').toBe(200);
+  expect((await paused.json()).data.status).toBe('PAUSED');
+  const resumed = await request.post(`${base}/resume`, { headers: probe.headers, data: { attemptToken: attempt.attemptToken } });
+  expect(resumed.status(), 'reanudar tampoco pide el consentimiento').toBe(200);
+  expect((await resumed.json()).data.status).toBe('IN_PROGRESS');
+});
+
+// req: REGLA-004, ETH-02, ETH-01
+test('con el consentimiento exigido y retirado en otra pestaña, «Salida segura» sigue pausando aunque el guardado de la posición se rechace', async ({ page, request }) => {
+  test.setTimeout(scaled(240_000));
+  const probe = await probeStudentConsent(request);
+  test.skip(!probe.state.required, NOT_ENFORCED);
+
+  await page.goto('/login');
+  await loginStudent(page);
+  await page.goto('/portal/jugar');
+  await expect(page.locator('app-game-menu canvas')).toBeVisible({ timeout: scaled(30_000) });
+  const consent = await enterCaseAtContentWarning(page);
+  const introVideo = await acceptContentWarning(page, consent);
+  const caseIntro = await finishCaseIntroduction(page, introVideo);
+  await caseIntro.getByRole('button', { name: /^continuar$/i }).click();
+  await waitForWorldReady(page);
+
+  // En otra pestaña (aquí, por la API) la persona retira su consentimiento.
+  expect((await request.delete(`/api/simulation/cases/${probe.caseVersionId}/consent`, { headers: probe.headers })).status()).toBe(200);
+
+  // Un empujón y «Salida segura» de inmediato: el guardado de la posición (que va antes de la pausa) ya no tiene consentimiento…
+  const position = page.waitForResponse(response =>
+    response.request().method() === 'PATCH' && /\/api\/simulation\/attempts\/[^/]+\/world-state$/.test(new URL(response.url()).pathname),
+  { timeout: scaled(30_000) });
+  const pause = page.waitForResponse(response =>
+    response.request().method() === 'POST' && /\/api\/simulation\/attempts\/[^/]+\/safe-exit$/.test(new URL(response.url()).pathname),
+  { timeout: scaled(30_000) });
+  await createWorldInputDriver(page, 'keyboard').nudge('ArrowLeft');
+  await page.getByRole('button', { name: /salida segura/i }).click();
+
+  const positionResponse = await position;
+  expect(positionResponse.status()).toBe(403);
+  expect((await positionResponse.json()).code).toBe('CONSENT_REQUIRED');
+  // …pero la pausa sale igual (REGLA-004): 200 y el intento queda en pausa.
+  const pauseResponse = await pause;
+  expect(pauseResponse.status(), 'la salida segura no depende del consentimiento').toBe(200);
+  expect((await pauseResponse.json()).data.status).toBe('PAUSED');
+  const attemptId = /attempts\/([^/]+)\/safe-exit/.exec(pauseResponse.url())![1];
+  const history = (await (await request.get('/api/simulation/attempts/history', { headers: probe.headers })).json()).data as Array<{ attemptId: string; status: string }>;
+  expect(history.find(row => row.attemptId === attemptId)?.status).toBe('PAUSED');
+  // Sin error genérico en pantalla (lo que sigue es el aviso previo, no «No tienes permisos»).
+  await expect(page.getByText('No tienes permisos para realizar esta acción.')).toHaveCount(0);
+  await expect(page.locator('.game-failure')).toHaveCount(0);
+});

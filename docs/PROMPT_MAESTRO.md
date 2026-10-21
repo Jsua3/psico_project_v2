@@ -154,7 +154,7 @@ Hasta 20 intentos recientes de **sus** grupos (alias `Estudiante-N`), traza comp
 | Grupo | Rol | Notas |
 |---|---|---|
 | `auth/login`, `auth/google`, `auth/google/config`, `auth/access-request` | público | Google solo reconoce cuentas existentes |
-| `auth/me`, `auth/register` | sesión / ADMIN | |
+| `auth/me` | sesión | |
 | `admin/users`, `admin/access-requests` | ADMIN | crear, editar, activar/desactivar |
 | `admin/cases/**` | ADMIN | autoría, mundo, validar, publicar, clonar |
 | `grupos/**` | PROFESOR (lista: +ADMIN) | membresías, importación, casos |

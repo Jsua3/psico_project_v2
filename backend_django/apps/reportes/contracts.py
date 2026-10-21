@@ -1,16 +1,18 @@
-"""Forma documentada de la analítica de aprendizaje (E6-2b, contrato C13).
+"""Formas documentadas de las respuestas de reportes: la analítica de aprendizaje (E6-2b, contrato C13) y el reporte de un
+estudiante (E5-9, contrato C3).
 
-Estas clases solo DESCRIBEN lo que ``GET /api/reportes/analiticas`` responde: ningún código serializa ni valida con
-ellas. La prueba ``apps/simulation/tests/test_openapi_matches_responses.py`` las compara con la respuesta real, clave
-por clave. Todo es un AGREGADO con celda mínima (un bloque con menos de ``minCellSize`` estudiantes se omite) y todas las
-definiciones son BORRADOR hasta que Psicología las confirme: ver ``docs/operacion/analitica-de-aprendizaje.md``.
+Estas clases solo DESCRIBEN lo que el servidor responde: ningún código serializa ni valida con ellas. La prueba
+``apps/simulation/tests/test_openapi_matches_responses.py`` las compara con la respuesta real, clave por clave.
 
-El «índice» es la escala interna 1–4 (EN_INICIO 1, EN_PROCESO 2, LOGRADO 3, DESTACADO 4): NO es una nota (RN-09).
+La analítica es un AGREGADO con celda mínima (un bloque con menos de ``minCellSize`` estudiantes se omite) y todas sus
+definiciones son BORRADOR hasta que Psicología las confirme: ver ``docs/operacion/analitica-de-aprendizaje.md``. El «índice»
+es la escala interna 1–4 (EN_INICIO 1, EN_PROCESO 2, LOGRADO 3, DESTACADO 4): NO es una nota (RN-09).
 """
 from rest_framework import serializers
 
 from apps.simulation.assessment.definitions import DEFINITIONS_STATUS, REFLECTION_DEFINITIONS
-from apps.simulation.models import FormativeLevel
+from apps.simulation.models import AttemptStatus, FormativeLevel
+from apps.simulation.serializers.contracts import LOCAL_TIME, PageCoverageSerializer
 
 #: Los nombres de los niveles formativos, tal cual (valor = etiqueta): así ``drf-spectacular`` los reconoce como un solo enum.
 FORMATIVE_LEVELS = tuple(FormativeLevel.values)
@@ -121,3 +123,34 @@ class LearningAnalyticsSerializer(serializers.Serializer):
     satisfaction = AnalyticsSatisfactionSerializer(required=False)
     improvementAfterFeedback = AnalyticsImprovementAfterFeedbackSerializer(required=False)
     definitions = AnalyticsDefinitionsSerializer()
+
+
+class ReportStudentSerializer(serializers.Serializer):
+    """El estudiante del reporte. `ref` es `Estudiante-<id>` (su id numérico) y NO el alias `Estudiante-<hash>` que la
+    revisión docente muestra en `studentAlias`: los dos no se pueden cruzar."""
+
+    ref = serializers.CharField()
+    displayName = serializers.CharField()
+
+
+class ReportAttemptSerializer(serializers.Serializer):
+    """Un intento del estudiante con sus tiempos y su n.º de intento en el caso."""
+
+    attemptId = serializers.UUIDField()
+    caseVersionId = serializers.IntegerField()
+    caseTitle = serializers.CharField()
+    status = serializers.ChoiceField(choices=AttemptStatus.choices)
+    startedAt = serializers.DateTimeField(help_text=LOCAL_TIME)
+    activeSeconds = serializers.IntegerField(help_text="Tiempo de juego real: lo que el estudiante estuvo en el caso.")
+    clockSeconds = serializers.IntegerField(
+        allow_null=True, help_text="De reloj, entre el inicio y el cierre; nulo mientras el intento está abierto."
+    )
+    ordinal = serializers.IntegerField(help_text="El n.º de intento del estudiante en el CASO (todas sus versiones).")
+
+
+class StudentReportSerializer(serializers.Serializer):
+    """El reporte de un estudiante para su docente (C3): los intentos más recientes y cuántos hay en total."""
+
+    student = ReportStudentSerializer()
+    attempts = ReportAttemptSerializer(many=True)
+    coverage = PageCoverageSerializer(help_text="«Mostrando `shown` de `total`»: los intentos que trae y los que hay.")

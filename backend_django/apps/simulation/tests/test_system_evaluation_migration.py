@@ -1,12 +1,12 @@
-"""E6-1c / M-4 · La migración 0026 se revierte aunque ya existan evaluaciones del sistema.
+"""E6-1c / M-4 · La migración 0027 se revierte aunque ya existan evaluaciones del sistema.
 
-La 0026 hizo nulable ``rubric_evaluations.instructor_id`` para la evaluación automática (``origin = SISTEMA``, sin
+La 0027 hizo nulable ``rubric_evaluations.instructor_id`` para la evaluación automática (``origin = SISTEMA``, sin
 docente). Devolver esa columna a NOT NULL con una fila del sistema en la tabla no se podía: la reversión fallaba con
 «column contains null values» justo cuando más datos hay. Las filas del sistema son DERIVADAS (las crea el cierre del
 intento y las repone ``backfill_attempt_reports``), así que la reversión las borra; las del docente no se tocan.
 
 Como en ``grupos``/``test_assignment_data_migration``, el ejecutor de migraciones corre sobre la base de la propia
-prueba (el DDL de PostgreSQL es transaccional): se retrocede a la 0025 con filas reales y se vuelve a avanzar.
+prueba (el DDL de PostgreSQL es transaccional): se retrocede a la 0026 con filas reales y se vuelve a avanzar.
 """
 from decimal import Decimal
 from io import StringIO
@@ -30,7 +30,7 @@ from .test_attempt_report_frozen import (  # noqa: F401  (fixtures y ayudantes)
 pytestmark = [pytest.mark.django_db, pytest.mark.req("RQ-NEG-005"), pytest.mark.req("RNF-08")]
 
 User = get_user_model()
-BEFORE = [("simulation", "0025_case_version_reuse_ratio")]
+BEFORE = [("simulation", "0026_audit_logs_append_only")]
 
 
 def _migrate(targets):
@@ -90,7 +90,7 @@ def both_evaluations(completed, profesor):
     return attempt_id, system, teacher
 
 
-def test_revertir_la_0026_con_evaluaciones_del_sistema_las_borra_y_deja_las_del_docente(both_evaluations):
+def test_revertir_la_0027_con_evaluaciones_del_sistema_las_borra_y_deja_las_del_docente(both_evaluations):
     attempt_id, system, teacher = both_evaluations
     assert _instructor_is_nullable()  # hoy el esquema admite evaluaciones sin docente
     _immediate()

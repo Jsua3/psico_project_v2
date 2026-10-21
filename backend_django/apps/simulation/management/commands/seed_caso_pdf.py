@@ -14,7 +14,7 @@ import json
 from pathlib import Path
 
 from django.contrib.auth import get_user_model
-from django.core.management.base import BaseCommand
+from django.core.management.base import BaseCommand, CommandError
 from django.db import transaction
 from rest_framework.exceptions import APIException
 
@@ -22,6 +22,7 @@ from apps.simulation.casedef.canonical import definition_hash
 from apps.simulation.models import CaseVersion, SimulationCase
 from apps.simulation.services.authoring import gate, importing
 from apps.simulation.services.competencies import link_unlinked_criteria
+from shared.dev_only import is_dev_environment
 
 CASE_CODE = "SIM-VBG-001"
 DOCUMENT = Path(__file__).resolve().parents[2] / "data" / "cases" / "SIM-VBG-001.dsl.json"
@@ -39,17 +40,23 @@ class Command(BaseCommand):
         parser.add_argument("--semantic-version", default="2.0.0")
 
     def _admin(self):
+        """Quién firma la siembra. Si la cuenta demo existe, se usa tal cual (sin tocar clave, rol ni estado).
+
+        La cuenta demo, con su clave pública, solo se crea en desarrollo. Fuera de desarrollo se usa el
+        primer ADMIN activo y, si no hay ninguno, la siembra se niega.
+        """
         User = get_user_model()
         admin = User.objects.filter(email=ADMIN_EMAIL).first()
-        if not admin:
+        if admin is not None:
+            return admin
+        if is_dev_environment():
             return User.objects.create_user(
                 email=ADMIN_EMAIL, password="Admin123!", nombre="Admin", apellido="SIEP", role="ADMIN", activo=True,
             )
-        if not admin.check_password("Admin123!"):
-            admin.set_password("Admin123!")
-            admin.activo = True
-            admin.role = "ADMIN"
-            admin.save()
+        admin = User.objects.filter(role="ADMIN", activo=True).order_by("id").first()
+        if admin is None:
+            # BORRADOR: mensaje de consola para el operador, pendiente de revisión.
+            raise CommandError("No hay ningún ADMIN activo para firmar la siembra del caso.")
         return admin
 
     def _import_and_publish(self, document, admin):

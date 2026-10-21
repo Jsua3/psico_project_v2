@@ -16,6 +16,7 @@ import math
 from rest_framework import serializers
 
 from apps.simulation.models.world import MAP_OBJECT_TYPES
+from shared.jsonutils import INT4_MAX, INT4_MIN
 
 
 class LenientIntegerField(serializers.IntegerField):
@@ -42,6 +43,13 @@ def _number(**kwargs):
     kwargs.setdefault("required", False)
     kwargs.setdefault("allow_null", True)
     return LenientIntegerField(**kwargs)
+
+
+def _columna(**kwargs):
+    """Un entero que se guarda en una columna int4 (S2-6b): fuera de su rango, un 400 que nombra el campo."""
+    kwargs.setdefault("required", False)
+    kwargs.setdefault("allow_null", True)
+    return LenientIntegerField(min_value=INT4_MIN, max_value=INT4_MAX, **kwargs)
 
 
 class LifecycleRequest(serializers.Serializer):
@@ -76,8 +84,8 @@ class NodeRequest(serializers.Serializer):
     warningMessage = _text()
     terminal = _flag()
     startNode = _flag()
-    positionX = _number()
-    positionY = _number()
+    positionX = _columna()
+    positionY = _columna()
     # El servicio lo valida (plano y con tope) y lo nombra en el 400; ausente = no tocar (E3-6).
     decisionPrompt = _text()
 
@@ -97,9 +105,9 @@ class DecisionRequest(serializers.Serializer):
     classification = serializers.CharField(max_length=40)
     prohibitedConduct = _flag()
     prohibitionReason = _text()
-    scoreDelta = _number()
-    stressDelta = _number()
-    prohibitedPenalty = _number()
+    scoreDelta = _columna()
+    stressDelta = _columna()
+    prohibitedPenalty = _columna()
     immediateFeedback = _text()
     consequenceText = _text()
     theoryBasis = _text()
@@ -114,11 +122,11 @@ class MapRequest(serializers.Serializer):
     mapKey = serializers.CharField(max_length=120)
     title = serializers.CharField(max_length=255)
     nodeId = LenientIntegerField()
-    width = _number()
-    height = _number()
+    width = _columna()
+    height = _columna()
     theme = _text(100)
-    spawnX = _number()
-    spawnY = _number()
+    spawnX = _columna()
+    spawnY = _columna()
 
 
 class MapUpdateRequest(MapRequest):
@@ -131,10 +139,10 @@ class ObjectRequest(serializers.Serializer):
     objectKey = serializers.CharField(max_length=120)
     label = serializers.CharField(max_length=255)
     objectType = serializers.ChoiceField(choices=MAP_OBJECT_TYPES)
-    x = _number()
-    y = _number()
-    width = _number()
-    height = _number()
+    x = _columna()
+    y = _columna()
+    width = _columna()
+    height = _columna()
     colorHex = _text(20)
     icon = _text(80)
     shortCode = _text(20)
@@ -149,7 +157,7 @@ class ObjectRequest(serializers.Serializer):
 
 
 class DialogueLineRequest(serializers.Serializer):
-    displayOrder = _number()
+    displayOrder = _columna()
     speakerName = _text(255)
     text = serializers.CharField(allow_blank=True, trim_whitespace=False)
     emotion = _text(60)
@@ -180,7 +188,7 @@ class CharacterRequest(serializers.Serializer):
     roleLabel = _text(255)
     portraitKey = _text(120)
     showInBrief = _flag()
-    displayOrder = _number()
+    displayOrder = _columna()
 
 
 class BriefRequest(serializers.Serializer):
@@ -197,7 +205,7 @@ class HintRequest(serializers.Serializer):
     """Una pista de escena (E3-5): el texto lo valida el servicio (plano, ≤ 280)."""
 
     text = serializers.CharField(trim_whitespace=False)
-    hintOrder = _number()
+    hintOrder = _columna()
 
 
 class ChecklistRequest(serializers.Serializer):

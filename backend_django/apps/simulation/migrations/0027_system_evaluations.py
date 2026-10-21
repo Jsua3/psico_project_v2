@@ -23,7 +23,7 @@ def delete_system_evaluations(apps, schema_editor):
 class Migration(migrations.Migration):
 
     dependencies = [
-        ('simulation', '0025_case_version_reuse_ratio'),
+        ('simulation', '0026_audit_logs_append_only'),
         migrations.swappable_dependency(settings.AUTH_USER_MODEL),
     ]
 

@@ -93,14 +93,24 @@ class AdminAuditListView(APIView):
         to_dt = _parse_dt(request, "to")
         page = _parse_int(request, "page", maximum=audit_service.MAX_PAGE) or 1
         page_size = _parse_int(request, "pageSize") or audit_service.DEFAULT_PAGE_SIZE
-        return api_ok(
-            audit_service.list_audit_logs(
-                actor_id=actor_id,
-                action=action,
-                resource_type=resource_type,
-                from_dt=from_dt,
-                to_dt=to_dt,
-                page=page,
-                page_size=page_size,
-            )
+        resultado = audit_service.list_audit_logs(
+            actor_id=actor_id,
+            action=action,
+            resource_type=resource_type,
+            from_dt=from_dt,
+            to_dt=to_dt,
+            page=page,
+            page_size=page_size,
         )
+        # S4-1 · quién leyó la auditoría y de quién: los NOMBRES de los filtros y el id del actor consultado, no el texto
+        # de los demás (escrito por el ADMIN). Se anota después de armar la respuesta: la consulta no se ve a sí misma.
+        filtros = [
+            nombre
+            for nombre, valor in (
+                ("actorId", actor_id), ("action", action), ("resourceType", resource_type),
+                ("from", from_dt), ("to", to_dt),
+            )
+            if valor not in (None, "")
+        ]
+        audit_service.record("AUDIT_VIEWED", "AUDIT", None, {"filters": filtros, "actorId": actor_id, "page": page})
+        return api_ok(resultado)

@@ -4,6 +4,9 @@ Instructor review of student attempts: recent list, full trace (timeline +
 DECRYPTED reflections for authorized review + rubric summaries, with anonymized
 student alias), and rubric evaluation read/save.
 """
+import logging
+
+from cryptography.exceptions import InvalidTag
 from django.db import transaction
 from rest_framework import status
 from rest_framework.exceptions import NotFound, PermissionDenied
@@ -13,6 +16,7 @@ from apps.simulation.serializers import game_dtos as dto
 from shared import policies
 from shared.exceptions import ApiError
 from shared.identity import IdentityPresenter
+from shared.security_events import log_security_event
 
 from ..models import (
     AttemptEvent,
@@ -161,6 +165,33 @@ def recent_attempts(instructor):
     ]
 
 
+def _texto_de_bitacora(bitacora):
+    """El texto de una bitácora, o None si no se puede descifrar (llave retirada o fila alterada). Una fila así no tumba
+    el reporte del docente: su id va al registro de seguridad y nunca su contenido (S5-2)."""
+    try:
+        return crypto_service.decrypt(
+            bitacora.encrypted_text,
+            key_ref=bitacora.encryption_key_ref,
+            attempt_id=bitacora.attempt_id,
+            node_id=bitacora.node_id,
+        )
+    except (ValueError, InvalidTag):
+        log_security_event("reflection_undecryptable", level=logging.ERROR, scope=f"reflection_journal:{bitacora.pk}")
+        return None
+
+
+def _bitacora_del_reporte(bitacora):
+    texto = _texto_de_bitacora(bitacora)
+    return {
+        "nodeId": bitacora.node_id,
+        "nodeTitle": bitacora.node.title,
+        # `text` es null cuando la bitácora no se puede leer; `readable` es la marca que lo dice sin ambigüedad.
+        "text": texto,
+        "readable": texto is not None,
+        "locked": bitacora.locked,
+    }
+
+
 @transaction.atomic
 def trace(attempt_id, instructor=None):
     attempt = _require_attempt(attempt_id, instructor)
@@ -204,12 +235,7 @@ def trace(attempt_id, instructor=None):
         "events": [_to_trace_event(e) for e in events],
         "world": world_service.world_for_attempt(attempt),
         "reflections": [
-            {
-                "nodeId": r.node_id,
-                "nodeTitle": r.node.title,
-                "text": crypto_service.decrypt(r.encrypted_text),
-                "locked": r.locked,
-            }
+            _bitacora_del_reporte(r)
             for r in ReflectionJournal.objects.filter(attempt_id=attempt_id).select_related("node")
         ],
         # Solo las del docente: el cliente marca «evaluación aplicada» si alguna trae nivel (E6-1e, R7). La evaluación
@@ -259,6 +285,11 @@ replace_attempt = auditable("ATTEMPT_REPLACED", "ATTEMPT")(replace_attempt)
 def rubric(attempt_id, instructor=None):
     _require_attempt(attempt_id, instructor)
     return rubric_service.attempt_rubric_view(attempt_id)
+
+
+# S4-1 · leer la evaluación de un intento ajeno es parte de revisarlo: queda con la misma etiqueta que la traza
+# (``traza.leer``); el ``method`` de la fila (``rubric``) dice que fue la evaluación.
+rubric = auditable("traza.leer", "ATTEMPT")(rubric)
 
 
 @transaction.atomic

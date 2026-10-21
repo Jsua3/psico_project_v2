@@ -19,6 +19,7 @@ from apps.simulation.models import (
 from shared.jsonutils import read_map as _read_map, read_string_list as _read_string_list
 
 from . import checklist as checklist_rules
+from . import ethics
 from .guards import require_version
 
 
@@ -92,6 +93,24 @@ def _fulfilled_codes(latest):
     return {item.code for item in latest.items.all() if item.fulfilled} if latest else set()
 
 
+def _marked_codes(latest):
+    """Las casillas marcadas de la lista.
+
+    Una lista anterior a los ítems (sin filas) que llegó al 100 % tenía marcadas las seis de entonces: así no se
+    escapa de la comprobación del respaldo; por debajo del 100 % no se sabe cuáles eran (y no puede publicar).
+    """
+    if latest is None:
+        return set()
+    if not latest.items.all():
+        return set(checklist_rules.required_codes(False)) if int(latest.completion_ratio) >= 100 else set()
+    return _fulfilled_codes(latest)
+
+
+def latest_checklist_codes(case_version_id):
+    """Los códigos de las casillas marcadas en la última lista (vacío si no hay lista): lo que la compuerta respalda."""
+    return _marked_codes(_latest_checklist(case_version_id))
+
+
 def _ratio_of(latest):
     """El porcentaje de la última lista, con la obligatoriedad vigente (E2-7).
 
@@ -112,7 +131,12 @@ def latest_checklist_ratio(case_version_id):
 
 
 def checklist_view(case_version_id, latest=None):
-    """La lista de publicación para el editor: ítems, ítem derivado de la constancia y modo."""
+    """La lista de publicación para el editor: ítems con su respaldo, ítem derivado de la constancia y modo.
+
+    Cada ítem dice quién lo respalda (``backing``: ``system``, ``constancia`` o ``author``, con su ``backingLabel``) y si
+    el dato que lo respalda existe ahora (``backed``: ``True``/``False``, o ``None`` si es solo una declaración).
+    ``backed`` mira el dato, no la casilla: es lo mismo que la compuerta comprueba al publicar (``ethics``).
+    """
     if latest is None:
         latest = _latest_checklist(case_version_id)
     strict_mode = checklist_rules.strict()
@@ -131,20 +155,21 @@ def checklist_view(case_version_id, latest=None):
             "reviewedOn": review.content_reviewed_on.isoformat() if review.content_reviewed_on else None,
             "reference": review.content_reference,
         }
-    return {
-        "items": [
-            {
-                "code": code,
-                "label": label,
-                "required": code in required,
-                "fulfilled": code in fulfilled,
-                "draft": is_draft,
-            }
-            for code, label, _, is_draft in checklist_rules.CHECKLIST_ITEMS
-        ],
-        "contentReview": content_review,
-        "strict": strict_mode,
-    }
+    facts = ethics.facts_of(case_version_id, content_review=review is not None)
+    items = []
+    for code, label, _, is_draft, *_ in checklist_rules.CHECKLIST_ITEMS:
+        backing = checklist_rules.backing_of(code, strict_mode)
+        items.append({
+            "code": code,
+            "label": label,
+            "required": code in required,
+            "fulfilled": code in fulfilled,
+            "draft": is_draft,
+            "backing": backing,
+            "backed": ethics.backed(code, facts, strict_mode),
+            "backingLabel": checklist_rules.BACKING_LABELS[backing],
+        })
+    return {"items": items, "contentReview": content_review, "strict": strict_mode}
 
 
 # ─── editor-state DTO builders ────────────────────────────────────────────────

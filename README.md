@@ -38,7 +38,7 @@ El script:
 2. Crea `.venv` e instala dependencias Python si hace falta
 3. Genera `local.py` de desarrollo si no existe
 4. Verifica el esquema del simulador; si falta, **se detiene** (ver «Bootstrap explícito»)
-5. Arranca el backend en `http://localhost:8091` (Swagger: `/swagger-ui.html`)
+5. Arranca el backend en `http://localhost:8091` (Swagger: `/swagger-ui.html`, solo con `SIEP_EXPOSE_API_DOCS=true` y sesión de ADMIN)
 6. Arranca el frontend en `http://localhost:4200` (proxy automático a la API)
 
 > Si el puerto 5433 está ocupado por la BD de otro checkout (p. ej. el contenedor
@@ -96,6 +96,9 @@ npm run test:backend:down     # elimina SOLO los recursos del proyecto de test
 npm run test:scripts          # tests de las guardas de entorno (node --test)
 npm run test:e2e              # Playwright contra un stack aislado completo
                               # (BD desechable + Django :8093 + Angular :4315)
+npm run test:csp              # sonda de CSP: el build de producción servido por Django (:8193, BD desechable)
+                              # y cinco flujos con Playwright; falla con la lista de violaciones
+                              # (-- --mode report|report-strict, --control <nombre>; ver docs/seguridad/adr-s3-csp.md)
 ```
 
 **CI:** [`.github/workflows/ci.yml`](.github/workflows/ci.yml) ejecuta estos mismos comandos
@@ -105,6 +108,8 @@ completos del caso (`@full-case`, 4 viewports) van en
 [`.github/workflows/e2e-full-case.yml`](.github/workflows/e2e-full-case.yml): cada noche sobre
 `master` y a mano desde Actions, porque en el runner sin GPU tardan ~3-4x más que en local.
 Localmente, `npm run test:e2e` sigue corriendo todo.
+
+Mientras Actions siga bloqueado por facturación, la compuerta es la corrida local: `npm run verify:estructural` y `npm run verify:seguridad`; cada integración se anota «sin CI» en el ledger.
 
 ## Grupos — importar estudiantes por Excel
 
@@ -164,7 +169,7 @@ Valida login real (ADMIN / PROFESOR / ESTUDIANTE), acceso sin token, token invá
 
 ## API REST — rutas reales
 
-Base URL: `http://localhost:8091/api` (Swagger: `http://localhost:8091/swagger-ui.html`).
+Base URL: `http://localhost:8091/api` (Swagger: `http://localhost:8091/swagger-ui.html`). El esquema y su visor (`/schema/`, `/swagger-ui.html`) exigen `SIEP_EXPOSE_API_DOCS=true` y sesión de ADMIN; apagada la variable, responden 404.
 
 El enunciado histórico del proyecto usaba prefijos en español (`/api/simulacion`, `/api/usuarios`, `/api/casos`). **El backend Django actual usa rutas en inglés**, alineadas con el frontend:
 
@@ -188,6 +193,11 @@ El índice completo está en [`docs/README.md`](docs/README.md). Lo más consult
 - [`docs/PROMPT_MAESTRO.md`](docs/PROMPT_MAESTRO.md): el documento maestro único y vigente (producto, stack, arquitectura, funcionamiento, reglas, seguridad, calidad y estado).
 - [`docs/arquitectura/estrategia-stack-esquema-y-despliegue.md`](docs/arquitectura/estrategia-stack-esquema-y-despliegue.md): actualización del stack, dueño del esquema de la BD y despliegue.
 - [`docs/operacion/despliegue-railway.md`](docs/operacion/despliegue-railway.md): despliegue en Railway.
+- [`docs/seguridad/README.md`](docs/seguridad/README.md): índice de seguridad (qué hay, cómo se verifica y qué decide la institución).
+- [`docs/seguridad/compuerta-primera-cuenta.md`](docs/seguridad/compuerta-primera-cuenta.md): la compuerta «antes de la primera cuenta real» (`npm run gate:primera-cuenta`).
+- [`docs/operacion/parches.md`](docs/operacion/parches.md): calendario de parches de las versiones vigiladas (Django, DRF, Angular, Node, PostgreSQL).
+- [`docs/seguridad/incidentes.md`](docs/seguridad/incidentes.md): qué hacer ante un incidente (cuentas, contraseñas, llaves, banderas y evidencia).
+- [`docs/seguridad/derechos-del-titular.md`](docs/seguridad/derechos-del-titular.md): atender a una persona que pide ver, llevarse o borrar sus datos (exportar, suprimir y depurar lo vencido).
 - [`docs/requisitos/`](docs/requisitos): requisitos de negocio, funcionales y no funcionales, y técnicas de elicitación.
 
 ## Tecnologías
@@ -212,7 +222,7 @@ la instalación real:
 ```powershell
 Remove-Item backend_django\.venv -Recurse -Force
 & C:\Python313\python.exe -m venv backend_django\.venv
-backend_django\.venv\Scripts\python.exe -m pip install -r backend_django\requirements.txt
+backend_django\.venv\Scripts\python.exe -m pip install -r backend_django\requirements-dev.txt
 ```
 
 ### Errores `relation "..." does not exist` con una BD existente
@@ -226,6 +236,9 @@ el caso demo y elimina sus intentos):
 cd backend_django
 .\.venv\Scripts\python.exe manage.py bootstrap_dev_db
 ```
+
+<!-- BORRADOR: advertencia para desarrolladores, pendiente de revisión. -->
+> **Solo desarrollo.** `bootstrap_dev_db`, `seed_demo_users` y `seed_demo_access` se niegan a correr con los ajustes de producción o con `DATABASE_URL` definido. Las cuentas que ya existen no se modifican: `seed_caso_pdf` ya no restablece la clave, el rol ni el estado del admin demo, y fuera de desarrollo no crea la cuenta demo (lo mismo `seed_default_rubric`). Solo `seed_demo_access --reset` repone cuentas, a propósito. La excepción `SIEP_ALLOW_DEMO_SEED=true` es solo para una base de pruebas desechable.
 
 ### Pruebas del frontend que fallan solo en tu máquina (fin de línea CRLF)
 

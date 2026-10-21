@@ -6,6 +6,7 @@ from django.db import transaction
 
 from apps.grupos.models import Grupo, CaseAssignment, GrupoEstudiante
 from apps.simulation.models import CaseVersion, SceneMap, SimulationCase, SimulationNode
+from shared.dev_only import require_dev_environment
 
 User = get_user_model()
 
@@ -43,9 +44,16 @@ class Command(BaseCommand):
             action="store_true",
             help="Do not run seed_caso_pdf before creating demo access records.",
         )
+        parser.add_argument(
+            "--reset",
+            action="store_true",
+            # BORRADOR: ayuda de consola, pendiente de revisión.
+            help="Repone rol, nombre, activo y contraseña de las cuentas demo que ya existen.",
+        )
 
     @transaction.atomic
     def handle(self, *args, **options):
+        require_dev_environment("seed_demo_access")
         if not options["skip_case_seed"] and not self._case_is_ready():
             call_command("seed_caso_pdf")
         elif not options["skip_case_seed"]:
@@ -55,8 +63,7 @@ class Command(BaseCommand):
         users = {}
         for spec in DEMO_USERS:
             user = User.objects.filter(email=spec["email"]).first()
-            created = user is None
-            if created:
+            if user is None:
                 user = User.objects.create_user(
                     email=spec["email"],
                     password=spec["password"],
@@ -65,24 +72,17 @@ class Command(BaseCommand):
                     role=spec["role"],
                     activo=True,
                 )
+                self.stdout.write(f"Creado usuario {spec['role']}: {spec['email']}")
+            elif options["reset"]:
+                self._reponer(user, spec)
+                # BORRADOR: mensaje de consola para el operador, pendiente de revisión.
+                self.stdout.write(f"Repuesto usuario {spec['role']}: {spec['email']}")
             else:
-                changed = False
-                for field in ("nombre", "apellido", "role"):
-                    if getattr(user, field) != spec[field]:
-                        setattr(user, field, spec[field])
-                        changed = True
-                if not user.activo:
-                    user.activo = True
-                    changed = True
-                if not user.check_password(spec["password"]):
-                    user.set_password(spec["password"])
-                    changed = True
-                if changed:
-                    user.save()
+                # BORRADOR: mensaje de consola para el operador, pendiente de revisión.
+                self.stdout.write(
+                    f"Ya existe: {spec['email']} (no se modifica; usa --reset para reponerla)"
+                )
             users[spec["role"]] = user
-            self.stdout.write(
-                f"{'Creado' if created else 'Verificado'} usuario {spec['role']}: {spec['email']}"
-            )
 
         case = SimulationCase.objects.filter(code="SIM-VBG-001", active=True).first()
         if not case:
@@ -131,3 +131,20 @@ class Command(BaseCommand):
             SimulationNode.objects.filter(case_version=version).count() >= 8
             and SceneMap.objects.filter(case_version=version).count() >= 8
         )
+
+    @staticmethod
+    def _reponer(user, spec):
+        """Repone rol, nombre, activo y contraseña de una cuenta demo; solo con ``--reset``."""
+        changed = False
+        for field in ("nombre", "apellido", "role"):
+            if getattr(user, field) != spec[field]:
+                setattr(user, field, spec[field])
+                changed = True
+        if not user.activo:
+            user.activo = True
+            changed = True
+        if not user.check_password(spec["password"]):
+            user.set_password(spec["password"])
+            changed = True
+        if changed:
+            user.save()

@@ -20,6 +20,8 @@ from apps.simulation.models import (
 )
 from apps.simulation.services.authoring import publication
 
+from .publication_support import give_support_resource
+
 pytestmark = [pytest.mark.req("RN-01"), pytest.mark.req("RQ-NEG-008")]
 
 User = get_user_model()
@@ -53,12 +55,13 @@ _n = {"i": 0}
 
 @pytest.fixture
 def cv(owner):
-    """Un borrador válido (copia del sembrado) del profesor, con la lista en 0 %."""
+    """Un borrador válido (copia del sembrado) del profesor, con la lista en 0 % y un recurso de apoyo (S3-3)."""
     _n["i"] += 1
     seeded = CaseVersion.objects.get(simulation_case__code="SIM-VBG-001", status="PUBLISHED")
     version_id = publication.clone_version(seeded.id, owner)["caseVersionId"]
     case = SimulationCase.objects.create(code=f"CHK-{_n['i']}", title="Caso de la lista", created_by=owner)
     CaseVersion.objects.filter(pk=version_id).update(simulation_case=case, semantic_version="0.1.0")
+    give_support_resource(version_id)  # el sembrado no trae ninguno y «protocolos de seguridad» se marca en esta lista
     return version_id
 
 

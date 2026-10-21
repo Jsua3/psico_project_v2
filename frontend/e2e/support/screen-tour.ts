@@ -1,6 +1,8 @@
 import type { Page } from '@playwright/test';
 import type { Routes } from '@angular/router';
 
+import { resetStudentConsent } from './consent';
+
 /**
  * Recorrido de pantallas por rol: la misma lista alimenta las capturas de línea base (F0-1,
  * `scripts/ui/capture-baseline.e2e.ts`) y la línea base de Axe (F0-9, `e2e/a11y-baseline.e2e.ts`).
@@ -57,6 +59,8 @@ async function firstEditorPath(page: Page): Promise<string> {
 async function studentBriefPath(page: Page): Promise<string> {
   await page.goto('/portal/jugar');
   await waitForCanvas(page);
+  // El consentimiento vive en el servidor (S3-2b) y la pantalla «caso-aviso» ES el aviso: se parte de «sin consentimiento».
+  await resetStudentConsent(page);
   await page.getByRole('button', { name: /entrar al caso/i }).first().click({ timeout: 30_000 });
   await page.waitForURL(/\/portal\/simulador\/\d+\/ficha$/, { timeout: 30_000 });
   return new URL(page.url()).pathname;

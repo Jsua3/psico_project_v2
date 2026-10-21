@@ -1,6 +1,6 @@
 from django.http import HttpResponse
 from drf_spectacular.types import OpenApiTypes
-from drf_spectacular.utils import OpenApiParameter, extend_schema
+from drf_spectacular.utils import OpenApiParameter, OpenApiResponse, extend_schema
 from rest_framework import status
 from rest_framework.exceptions import PermissionDenied
 from rest_framework.response import Response
@@ -9,6 +9,8 @@ from rest_framework.parsers import FormParser, MultiPartParser
 
 from django.utils import timezone
 
+from apps.security.throttling import ImportUserThrottle
+from apps.simulation.services import audit_service
 from shared.exceptions import ApiError
 from shared.openapi import ApiEnvelopeSerializer, envelope_of, error_responses
 from shared.permissions import policy_permission
@@ -17,7 +19,7 @@ from shared.response import api_created, api_ok
 from shared import policies
 
 from . import assignment_service, memberships, services
-from .contracts import AssignmentSerializer
+from .contracts import AssignmentSerializer, InvitationSerializer, MembershipConflictEnvelopeSerializer
 from .import_contract import STUDENT_IMPORT_TEMPLATE_FILENAME
 from .serializers import (
     ActualizarGrupoSerializer,
@@ -84,7 +86,10 @@ class GrupoEstudiantesView(APIView):
         return [(_CAN_MANAGE_GROUP if self.request.method == "GET" else _CAN_INVITE)()]
 
     def get(self, request, pk):
-        return api_ok(services.listar_estudiantes(pk, request.user))
+        estudiantes = services.listar_estudiantes(pk, request.user)
+        # S4-1 · nombres y correos de otras personas: queda quién los leyó y de qué grupo (cuántos, no cuáles).
+        audit_service.record("GROUP_STUDENTS_VIEWED", "GRUPO", pk, {"groupId": pk, "count": len(estudiantes)})
+        return api_ok(estudiantes)
 
     def post(self, request, pk):
         ser = AgregarEstudianteSerializer(data=request.data)
@@ -108,6 +113,7 @@ class GrupoEstudianteDetailView(APIView):
 class GrupoEstudiantesImportView(APIView):
     permission_classes = [policy_permission("group", "manage")]
     parser_classes = [MultiPartParser, FormParser]
+    throttle_classes = [ImportUserThrottle]
 
     def post(self, request, pk):
         ser = ImportarEstudiantesSerializer(data=request.data)
@@ -247,11 +253,22 @@ class GrupoEstudianteActivarView(APIView):
         return api_ok(memberships.invitation_view(row), message="Membresía activada")
 
 
+#: C5 · Responder una invitación: la membresía como quedó (200) o por qué no se pudo (409, con el estado de hoy).
+_ANSWER_INVITATION = extend_schema(
+    responses={
+        200: envelope_of(InvitationSerializer),
+        409: OpenApiResponse(MembershipConflictEnvelopeSerializer, description="La membresía no está en el estado que esto exige."),
+        **error_responses(401, 403, 404),
+    }
+)
+
+
 class MeInvitationsView(APIView):
     """GET /api/me/invitations — C5: las invitaciones del estudiante a grupos."""
 
     permission_classes = [_CAN_RESPOND]
 
+    @extend_schema(responses={200: envelope_of(InvitationSerializer, many=True), **error_responses(401, 403)})
     def get(self, request):
         return api_ok(memberships.invitations_of(request.user))
 
@@ -259,6 +276,7 @@ class MeInvitationsView(APIView):
 class MeInvitationAcceptView(APIView):
     permission_classes = [_CAN_RESPOND]
 
+    @_ANSWER_INVITATION
     def post(self, request, group_id):
         row = memberships.accept(group_id, request.user.id)
         return api_ok(memberships.invitation_view(row), message="Invitación aceptada")
@@ -267,6 +285,7 @@ class MeInvitationAcceptView(APIView):
 class MeInvitationDeclineView(APIView):
     permission_classes = [_CAN_RESPOND]
 
+    @_ANSWER_INVITATION
     def post(self, request, group_id):
         row = memberships.decline(group_id, request.user.id)
         return api_ok(memberships.invitation_view(row), message="Invitación rechazada")
@@ -277,6 +296,7 @@ class MeInvitationLeaveView(APIView):
 
     permission_classes = [_CAN_RESPOND]
 
+    @_ANSWER_INVITATION
     def post(self, request, group_id):
         row = memberships.leave(group_id, request.user.id)
         return api_ok(memberships.invitation_view(row), message="Saliste del grupo")

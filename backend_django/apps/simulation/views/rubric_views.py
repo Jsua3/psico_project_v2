@@ -91,7 +91,7 @@ class RubricDefaultView(APIView):
 
     def post(self, request, rubric_id):
         return api_ok(
-            rubric_service.set_default(rubric_id, request.user),
+            rubric_service.make_default(rubric_id, request.user),
             message="Rubrica predeterminada actualizada",
         )
 
