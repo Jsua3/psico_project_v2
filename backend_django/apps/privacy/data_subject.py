@@ -379,9 +379,10 @@ ERASURE_RULES: dict[tuple[str, str], Regla] = {
         "de tiempo; el resto es lo que hizo la persona y queda",
         valor=_informe_sin_el_motivo_de_la_salida_segura,
     ),
-    **_columnas("attempt_feedback", ("attempt_id", "rating", "comment", "created_at"), Regla(
-        BORRAR_FILA, "texto libre de la persona (el comentario de la encuesta): la respuesta se borra entera"
-    )),
+    **_columnas("attempt_feedback", ("attempt_id", "rating", "created_at"), Regla(CONSERVAR, _M_CONDUCTA)),
+    ("attempt_feedback", "comment"): Regla(
+        VACIAR, "texto libre de la persona (el comentario de la encuesta): se vacía; la calificación queda como lo que hizo"
+    ),
     **_columnas("reflection_journals", ("attempt_id", "encrypted_text"), Regla(
         BORRAR_FILA, "texto libre de la persona (cifrado): la bitácora se borra entera"
     )),

@@ -16,7 +16,7 @@ from apps.grupos.models import Grupo, GrupoEstudiante, MembershipStatus
 from apps.simulation.assessment import definitions
 from apps.simulation.models import AuditLog, CaseVersion, Rubric
 from apps.simulation.tests.analytics_support import completed_attempt, make_student, seed_student_pair, v2_report
-from shared.testing import measure
+from shared.testing import measure, purge_audit_rows
 
 from .test_reportes import _add_student, _grupo, case_version_id, cl, estudiante, profesor  # noqa: F401  (fixtures)
 
@@ -284,7 +284,7 @@ def test_el_admin_puede_pedir_el_grupo_inactivo_de_cualquiera(admin, profesor, v
 # ─── auditoría ────────────────────────────────────────────────────────────────────────────────
 def test_cada_consulta_buena_deja_una_auditoria_sin_ids_de_estudiantes_ni_cifras(profesor, version, rubric):
     group, _ = cohort(profesor, version, rubric, 5)
-    AuditLog.objects.filter(action="ANALYTICS_VIEWED").delete()
+    purge_audit_rows(AuditLog.objects.filter(action="ANALYTICS_VIEWED"))
 
     get(profesor, grupoId=group.id, caseVersionId=version.id)
     get(profesor)
@@ -304,7 +304,7 @@ def test_cada_consulta_buena_deja_una_auditoria_sin_ids_de_estudiantes_ni_cifras
 
 def test_la_auditoria_dice_si_la_respuesta_fue_suprimida(profesor, version, rubric):
     group, _ = cohort(profesor, version, rubric, 4)
-    AuditLog.objects.filter(action="ANALYTICS_VIEWED").delete()
+    purge_audit_rows(AuditLog.objects.filter(action="ANALYTICS_VIEWED"))
 
     get(profesor, grupoId=group.id)
 
@@ -314,7 +314,7 @@ def test_la_auditoria_dice_si_la_respuesta_fue_suprimida(profesor, version, rubr
 
 def test_una_consulta_rechazada_no_deja_auditoria(profesor, other_teacher, estudiante, version, rubric):
     foreign, _ = cohort(other_teacher, version, rubric, 5)
-    AuditLog.objects.filter(action="ANALYTICS_VIEWED").delete()
+    purge_audit_rows(AuditLog.objects.filter(action="ANALYTICS_VIEWED"))
 
     get(estudiante)
     get(profesor, grupoId=foreign.id)

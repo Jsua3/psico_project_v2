@@ -68,7 +68,7 @@ _INTENTO_PROPIO = (
 _DOCUMENTACION = "documentación de la API: cerrada al ADMIN y apagada por defecto, sin datos de personas"
 # BORRADOR (E6-3): texto nuevo del servidor, pendiente de la aprobación de Psicología (VD-23).
 _ENCUESTA_PROPIA = (
-    "respuesta del estudiante a la encuesta breve de SU intento completado (apagada por defecto): el comentario es suyo y nunca debe llegar a la auditoría; la fila queda con su intento y su fecha en attempt_feedback"
+    "respuesta del estudiante a la encuesta breve de SU intento completado (apagada por defecto): se envía una sola vez y no se modifica, y la fila misma (el intento y la fecha en attempt_feedback) es la evidencia; el comentario no entra a la auditoría"
 )
 
 
