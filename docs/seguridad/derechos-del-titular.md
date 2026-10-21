@@ -83,6 +83,7 @@ Esta tabla la comprueba una prueba contra las reglas del código: si una regla c
 | `attempt_events` | Línea de tiempo de cada intento | se reemplaza por un valor que no identifica a nadie; el resto se conserva |
 | `attempt_hint_views` | Pistas que pidió | se conserva |
 | `attempt_reports` | Informe congelado de cada intento | se limpia el texto escrito por la persona; el resto se conserva |
+| `attempt_feedback` | Su respuesta a la encuesta breve opcional (calificación y comentario) | se borra la fila |
 | `reflection_journals` | Sus bitácoras de reflexión (cifradas) | se borra la fila |
 | `attempt_world_states` | Estado del mundo de cada intento | se conserva |
 | `student_case_completion` | Casos que completó | se conserva |

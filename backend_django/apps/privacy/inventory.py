@@ -551,6 +551,29 @@ DATA_INVENTORY: dict[str, dict] = {
             "attempt_ordinal": ["reporte"],
         },
     },
+    "attempt_feedback": {
+        "purpose": (
+            "Encuesta breve opcional de un intento completado: una calificación de 1 a 5 y un comentario de texto plano. "
+            "Apagada hasta que Psicología la apruebe (SIEP_ATTEMPT_FEEDBACK_SURVEY)."
+        ),
+        "retention": "Sin plazo definido (SD-9, pendiente de la institución).",
+        "default": None,
+        "columns": {
+            "id": TECHNICAL,
+            "attempt_id": (SENSITIVE, "intento que el estudiante encuestó"),
+            "rating": (
+                SENSITIVE,
+                "calificación de 1 a 5 que el estudiante da a su experiencia; al docente solo llega agregada, con celda mínima",
+            ),
+            "comment": (
+                SENSITIVE,
+                "texto libre del estudiante (hasta 500 caracteres, texto plano); no sale a ningún reporte, auditoría ni agregado",
+            ),
+            "created_at": (SENSITIVE, "cuándo respondió el estudiante"),
+        },
+        "exits": {"attempt_id": [], "rating": ["api"], "comment": ["api"], "created_at": ["api"]},
+        "forbidden_exits": {"comment": ["csv", "reporte", "correo", "registro"]},
+    },
     "reflection_journals": {
         "purpose": "Bitácora de reflexión del estudiante sobre una escena, cifrada en reposo.",
         "retention": "Sin plazo definido (SD-9, pendiente de la institución).",

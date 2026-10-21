@@ -206,6 +206,15 @@ LIBRES = [
     Caso("GET evaluation", f"{ATTEMPT}/evaluation", None,
          lambda p: p.api.get(p.url("/evaluation")), frozenset({200}),
          "la evaluación del docente para su dueño"),
+    # BORRADOR (E6-3): la encuesta breve se responde sobre un intento YA COMPLETADO, que pasó por el consentimiento; no entrega
+    # contenido ni avanza el caso, y retirar el consentimiento no debe impedir contestar sobre lo ya vivido. Apagada por
+    # defecto (SIEP_ATTEMPT_FEEDBACK_SURVEY): en estas pruebas responde 404, y lo que aquí importa es que NO sea CONSENT_REQUIRED.
+    Caso("GET feedback (encuesta breve)", f"{ATTEMPT}/feedback", None,
+         lambda p: p.api.get(p.url("/feedback")), frozenset({404}),
+         "la encuesta de un intento completado: no entrega contenido (apagada por defecto, 404)"),
+    Caso("POST feedback (encuesta breve)", f"{ATTEMPT}/feedback", None,
+         lambda p: p.api.post(p.url("/feedback"), {"rating": 4}, format="json"), frozenset({404}),
+         "responder la encuesta no avanza el caso (apagada por defecto, 404)"),
     Caso("GET catalog", "catalog", None,
          lambda p: p.api.get(f"{BASE}/catalog"), frozenset({200}), "el catálogo de casos"),
     Caso("GET cases", "cases", None,

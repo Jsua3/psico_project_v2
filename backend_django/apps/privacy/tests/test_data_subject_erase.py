@@ -36,6 +36,7 @@ from apps.privacy.tests.data_subject_support import Entorno, Mundo, barrer, volc
 from apps.progression.models import StudentCaseCompletion
 from apps.simulation.models import (
     AttemptEvent,
+    AttemptFeedback,
     AttemptHintView,
     AttemptReport,
     AttemptWorldState,
@@ -271,8 +272,20 @@ def test_c_sus_intentos_eventos_decisiones_y_pertenencias_siguen_con_los_mismos_
     assert despues == antes
     asi_quedan = _conteos()
     for tabla, cuenta in conteos.items():
-        if tabla not in {"reflection_journals", "audit_logs"}:
+        if tabla not in {"reflection_journals", "audit_logs", "attempt_feedback"}:
             assert asi_quedan[tabla] == cuenta, tabla
+
+
+def test_c_la_respuesta_de_la_encuesta_de_la_persona_se_borra_y_la_de_otra_no(mundo, otro):
+    """E6-3: el comentario de la encuesta es texto libre de la persona; su fila se borra entera al suprimirla."""
+    assert AttemptFeedback.objects.filter(attempt__student=mundo.persona).count() == 1
+    otra_antes = list(AttemptFeedback.objects.filter(attempt__student=otro.persona).values_list("id", "rating", "comment"))
+    assert len(otra_antes) == 1
+
+    _suprimir(mundo)
+
+    assert AttemptFeedback.objects.filter(attempt__student=mundo.persona).count() == 0
+    assert list(AttemptFeedback.objects.filter(attempt__student=otro.persona).values_list("id", "rating", "comment")) == otra_antes
 
 
 def test_c_las_bitacoras_de_la_persona_se_borran_y_las_de_otra_no(mundo, otro):

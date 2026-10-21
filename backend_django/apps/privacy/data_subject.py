@@ -244,6 +244,7 @@ PERSON_SCOPE: dict[str, tuple[Pertenencia, ...]] = {
     "attempt_events": (Pertenencia(TITULAR, lambda p: Q(attempt__student_id=p.pk)),),
     "attempt_hint_views": (Pertenencia(TITULAR, lambda p: Q(attempt__student_id=p.pk)),),
     "attempt_reports": (Pertenencia(TITULAR, lambda p: Q(attempt__student_id=p.pk)),),
+    "attempt_feedback": (Pertenencia(TITULAR, lambda p: Q(attempt__student_id=p.pk)),),
     "reflection_journals": (Pertenencia(TITULAR, lambda p: Q(attempt__student_id=p.pk)),),
     "attempt_world_states": (Pertenencia(TITULAR, lambda p: Q(attempt__student_id=p.pk)),),
     "student_case_completion": (Pertenencia(TITULAR, lambda p: Q(student_id=p.pk)),),
@@ -378,6 +379,9 @@ ERASURE_RULES: dict[tuple[str, str], Regla] = {
         "de tiempo; el resto es lo que hizo la persona y queda",
         valor=_informe_sin_el_motivo_de_la_salida_segura,
     ),
+    **_columnas("attempt_feedback", ("attempt_id", "rating", "comment", "created_at"), Regla(
+        BORRAR_FILA, "texto libre de la persona (el comentario de la encuesta): la respuesta se borra entera"
+    )),
     **_columnas("reflection_journals", ("attempt_id", "encrypted_text"), Regla(
         BORRAR_FILA, "texto libre de la persona (cifrado): la bitácora se borra entera"
     )),
