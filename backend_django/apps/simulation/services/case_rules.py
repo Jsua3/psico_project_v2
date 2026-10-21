@@ -29,6 +29,7 @@ from dataclasses import dataclass
 from django.conf import settings
 from rest_framework import status
 
+from apps.simulation.models.rubric import FormativeLevel
 from shared.exceptions import ApiError
 from shared.jsonutils import read_map
 
@@ -46,6 +47,10 @@ SEVERITIES = (SEVERITY_RECOMMENDED, SEVERITY_ACCEPTABLE, SEVERITY_RISKY, SEVERIT
 MAX_EFFECT_ENTRIES = 20
 MAX_EFFECT_DELTA = 100
 _NAME = re.compile(r"[A-Za-z0-9_]{1,60}")
+#: Código de una competencia en los efectos de una opción (E6-1a): el del catálogo, en mayúsculas.
+_COMPETENCY_CODE = re.compile(r"[A-Z0-9_]{1,100}")
+#: Niveles formativos válidos de una competencia (``FormativeLevel``).
+COMPETENCY_LEVELS = tuple(FormativeLevel.values)
 
 
 @dataclass(frozen=True)
@@ -122,7 +127,7 @@ def feedback_at_close_only(rules):
 
 # ─── los efectos de una opción ────────────────────────────────────────────────────────────────
 def normalize_effects(raw):
-    """Lo bien formado de los ``effects`` de una opción: ``{severity?, flags?, metrics?}``.
+    """Lo bien formado de los ``effects`` de una opción: ``{severity?, flags?, metrics?, competencies?}``.
 
     Indulgente a propósito (lee la base): descarta lo que no cumple y nunca lanza. Un ``{}``
     resultante significa «la opción no trae efectos propios».
@@ -142,12 +147,29 @@ def normalize_effects(raw):
         clean = {k: v for k, v in metrics.items() if isinstance(k, str) and _is_int(v)}
         if clean:
             effects["metrics"] = clean
+    competencies = raw.get("competencies")
+    if isinstance(competencies, dict):
+        clean = {
+            k: v for k, v in competencies.items()
+            if isinstance(k, str) and _COMPETENCY_CODE.fullmatch(k) and isinstance(v, str) and v in COMPETENCY_LEVELS
+        }
+        if clean:
+            effects["competencies"] = clean
     return effects
 
 
 def effects_of(decision):
     """Los efectos propios de la opción (datos del caso), o ``{}`` si no trae o están rotos."""
     return normalize_effects(read_map(getattr(decision, "effects", None)))
+
+
+def competency_overrides(decision):
+    """``{código de competencia: nivel}`` que la opción declara (E6-1a), o ``{}``.
+
+    A qué competencias aporta la opción y con qué nivel; sin esto aporta a todas las de la rúbrica con el nivel de
+    su severidad (ver ``assessment.competencies``). No forma parte de ``case_effects.option_effects``.
+    """
+    return effects_of(decision).get("competencies", {})
 
 
 def _refuse(message):
@@ -163,10 +185,12 @@ def validate_effects(raw, allowed_metrics):
     if raw is None or raw == {}:
         return {}
     if not isinstance(raw, dict):
-        raise _refuse("Los efectos deben ser un objeto con severity, flags y metrics.")
-    unknown = sorted(set(raw) - {"severity", "flags", "metrics"})
+        raise _refuse("Los efectos deben ser un objeto con severity, flags, metrics y competencies.")
+    unknown = sorted(set(raw) - {"severity", "flags", "metrics", "competencies"})
     if unknown:
-        raise _refuse(f"Efecto desconocido: {unknown[0]}. Solo se admiten severity, flags y metrics.")
+        raise _refuse(
+            f"Efecto desconocido: {unknown[0]}. Solo se admiten severity, flags, metrics y competencies."
+        )
     effects = {}
     if "severity" in raw:
         if raw["severity"] not in SEVERITIES:
@@ -190,4 +214,17 @@ def validate_effects(raw, allowed_metrics):
             if not _is_int(delta) or abs(delta) > MAX_EFFECT_DELTA:
                 raise _refuse(f"El cambio de «{name}» debe ser un entero entre -100 y 100.")
         effects["metrics"] = dict(metrics)
+    if "competencies" in raw:
+        competencies = raw["competencies"]
+        if not isinstance(competencies, dict) or len(competencies) > MAX_EFFECT_ENTRIES:
+            raise _refuse(f"Las competencias deben ser un objeto de hasta {MAX_EFFECT_ENTRIES} entradas.")
+        for code, level in competencies.items():
+            if not isinstance(code, str) or not _COMPETENCY_CODE.fullmatch(code):
+                raise _refuse("Cada competencia se nombra con su código del catálogo: mayúsculas, números o «_».")
+            if not isinstance(level, str) or level not in COMPETENCY_LEVELS:
+                raise _refuse(
+                    f"El nivel de «{code}» debe ser EN_INICIO, EN_PROCESO, LOGRADO o DESTACADO."
+                )
+        if competencies:
+            effects["competencies"] = dict(competencies)
     return effects

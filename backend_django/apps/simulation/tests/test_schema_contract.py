@@ -14,12 +14,14 @@ import pytest
 from django.db import IntegrityError, connection, transaction
 
 from apps.simulation.models import (
+    AttemptFeedback,
     CaseReview,
     CaseVersion,
     DecisionOption,
     MapObject,
     PublicationChecklist,
     Rubric,
+    RubricEvaluation,
     SimulationAttempt,
     SimulationNode,
     SimulationRubricAssignment,
@@ -37,7 +39,7 @@ TABLES = {
     "publication_checklist_items", "audit_logs", "scene_maps", "map_objects",
     "collision_zones", "dialogue_trees", "dialogue_lines", "dialogue_choices", "clinical_tools",
     "attempt_reports", "case_reviews", "case_characters", "scene_hints", "attempt_hint_views",
-    "competencies",
+    "competencies", "attempt_feedback",
 }
 
 #: Vocabulario de objetos del mundo: los 6 del CHECK original más los que ofrece el editor.
@@ -59,10 +61,11 @@ UNIQUE_COLUMNS = {
     "reflection_journals": [("attempt_id", "node_id")],
     "attempt_events": [("attempt_id", "request_id")],
     "attempt_reports": [("attempt_id",)],
+    "attempt_feedback": [("attempt_id",)],
     "case_reviews": [("case_version_id",)],  # parcial: una sola revisión pendiente por versión
     # parciales: una asignación por (grupo, versión) y otra por (estudiante, versión)
     "case_assignments": [("grupo_id", "case_version_id"), ("estudiante_id", "case_version_id")],
-    "rubric_evaluations": [("attempt_id", "rubric_id", "instructor_id")],
+    "rubric_evaluations": [("attempt_id", "rubric_id", "instructor_id"), ("attempt_id", "rubric_id")],  # el 2.º, parcial: SISTEMA
     "criterion_scores": [("rubric_evaluation_id", "rubric_criterion_id")],
     "publication_checklist_items": [("checklist_id", "code")],
     "scene_maps": [("case_version_id", "map_key"), ("node_id",)],
@@ -100,6 +103,7 @@ ON_DELETE = {
     ("attempt_hint_views", "attempt_id"): "CASCADE",
     ("attempt_hint_views", "hint_id"): "CASCADE",
     ("attempt_reports", "attempt_id"): "CASCADE",
+    ("attempt_feedback", "attempt_id"): "CASCADE",
     ("attempt_world_states", "attempt_id"): "CASCADE",
     ("case_characters", "case_version_id"): "CASCADE",
     ("case_reviews", "case_version_id"): "CASCADE",
@@ -251,6 +255,30 @@ def _simulation_attempts_status():
     _attempt_with(status="LOST")
 
 
+def _an_attempt():
+    version = _published_version()
+    return SimulationAttempt.objects.create(
+        attempt_token_hash=uuid.uuid4().hex,
+        case_version=version,
+        student=_admin(),
+        current_node=SimulationNode.objects.filter(case_version=version, start_node=True).first(),
+    )
+
+
+def _evaluation(attempt, rubric, origin, instructor):
+    return RubricEvaluation.objects.create(attempt=attempt, rubric=rubric, instructor=instructor, origin=origin)
+
+
+def _attempt_feedback_rating():
+    # E6-3: la calificación de la encuesta va de 1 a 5.
+    AttemptFeedback.objects.create(attempt=_an_attempt(), rating=0)
+
+
+def _rubric_evaluations_origin_instructor():
+    # E6-1c: una evaluación del sistema no tiene docente (y la del docente sí).
+    _evaluation(_an_attempt(), Rubric.objects.create(name="R", created_by=_admin()), "SISTEMA", _admin())
+
+
 def _attempts_stress_range():
     _attempt_with(stress_index=101)
 
@@ -281,6 +309,8 @@ CHECKS = {
     "case_reviews_decision_check": _case_reviews_decision,
     "case_reviews_reason_check": _case_reviews_reason,
     "case_reviews_rejection_has_reason_check": _case_reviews_rejection_has_reason,
+    "rubric_evaluations_origin_instructor_check": _rubric_evaluations_origin_instructor,
+    "attempt_feedback_rating_check": _attempt_feedback_rating,
 }
 
 
@@ -355,6 +385,34 @@ def test_una_version_solo_admite_una_rubrica_activa():
             SimulationRubricAssignment.objects.create(case_version=version, rubric=second, active=True)
 
     SimulationRubricAssignment.objects.create(case_version=version, rubric=second, active=False)
+
+
+def test_una_evaluacion_del_docente_exige_docente_y_la_del_sistema_no_lo_lleva():
+    attempt, rubric, admin = _an_attempt(), Rubric.objects.create(name="R", created_by=_admin()), _admin()
+
+    with pytest.raises(IntegrityError, match="rubric_evaluations_origin_instructor_check"):
+        with transaction.atomic():
+            _evaluation(attempt, rubric, "DOCENTE", None)
+    with pytest.raises(IntegrityError, match="rubric_evaluations_origin_instructor_check"):
+        with transaction.atomic():
+            _evaluation(attempt, rubric, "SISTEMA", admin)
+
+    assert _evaluation(attempt, rubric, "DOCENTE", admin).instructor_id == admin.id
+    assert _evaluation(attempt, rubric, "SISTEMA", None).instructor_id is None
+
+
+def test_un_intento_solo_admite_una_evaluacion_del_sistema_por_rubrica():
+    attempt, admin = _an_attempt(), _admin()
+    rubric, other = Rubric.objects.create(name="R", created_by=admin), Rubric.objects.create(name="O", created_by=admin)
+    _evaluation(attempt, rubric, "SISTEMA", None)
+
+    with pytest.raises(IntegrityError, match="uq_rubric_evaluations_system_attempt_rubric"):
+        with transaction.atomic():
+            _evaluation(attempt, rubric, "SISTEMA", None)
+
+    # lo demás sigue permitido: la del docente sobre la misma rúbrica y la del sistema sobre otra
+    _evaluation(attempt, rubric, "DOCENTE", admin)
+    _evaluation(attempt, other, "SISTEMA", None)
 
 
 def test_cada_fk_de_dominio_tiene_su_on_delete():

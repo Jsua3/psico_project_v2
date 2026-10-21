@@ -133,6 +133,11 @@ def _weight(criterion):
     return Decimal(criterion.weight or criterion.max_score or 0)
 
 
+def criterion_weight(criterion):
+    """El peso de un criterio (su ponderación o, a falta de ella, su puntaje máximo)."""
+    return _weight(criterion)
+
+
 def _normalize_criteria_weights(criteria):
     total = sum((_weight(c) for c in criteria), Decimal("0"))
     if total == Decimal("100.00") or not criteria:
@@ -529,7 +534,8 @@ def attempt_rubric_view(attempt_id, instructor=None):
         raise NotFound("Intento no encontrado")
     rubric = rubric_for_case_version(attempt.case_version_id)
     evaluation = (
-        RubricEvaluation.objects.filter(attempt_id=attempt.id, rubric_id=rubric.id)
+        # Solo las del DOCENTE (E6-1e): la evaluación automática del sistema no es «la evaluación» del formulario.
+        RubricEvaluation.objects.filter(attempt_id=attempt.id, rubric_id=rubric.id, origin=EvaluationOrigin.DOCENTE)
         .select_related("rubric")
         .order_by("-updated_at", "-evaluated_at", "-id")
         .first()
@@ -610,6 +616,11 @@ def _rubric_snapshot(rubric, criteria):
             for c in criteria
         ],
     })
+
+
+def rubric_snapshot(rubric, criteria):
+    """El resumen de la rúbrica (criterios y pesos) que se guarda con cada evaluación."""
+    return _rubric_snapshot(rubric, criteria)
 
 
 @transaction.atomic
@@ -733,7 +744,10 @@ def owner_evaluation_view(attempt_id, actor):
         raise PermissionDenied("No tiene acceso a esta evaluación")
     evaluations = []
     queryset = (
-        RubricEvaluation.objects.filter(attempt_id=attempt.id, status="EVALUATED")
+        # Solo las del DOCENTE (E6-1e): el perfil del sistema le llega al estudiante en su reporte (`competencyLevels`).
+        RubricEvaluation.objects.filter(
+            attempt_id=attempt.id, status="EVALUATED", origin=EvaluationOrigin.DOCENTE
+        )
         .select_related("rubric")
         .order_by("evaluated_at", "id")
     )

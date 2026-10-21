@@ -18,17 +18,20 @@ from typing import Callable
 import pytest
 from django.conf import settings as django_settings
 from django.contrib.auth import get_user_model
+from django.test import override_settings
 from django.utils import timezone
 from drf_spectacular.generators import SchemaGenerator
 from rest_framework.test import APIClient
 
 from apps.grupos.models import CaseAssignment, GrupoEstudiante, MembershipStatus
 from apps.simulation.models import (
+    AttemptFeedback,
     AttemptHintView,
     AuditLog,
     CaseCharacter,
     CaseReview,
     CaseVersion,
+    Rubric,
     SceneHint,
     SceneMap,
     SimulationAttempt,
@@ -36,6 +39,7 @@ from apps.simulation.models import (
 )
 from apps.simulation.services.authoring import definition_io, lifecycle
 from apps.simulation.tests import dsl_support
+from apps.simulation.tests.analytics_support import make_student, seed_student_pair
 from apps.simulation.views.ai_assistant import AIAssistantView
 from shared import contract_testing
 from shared.contract_testing import (
@@ -66,6 +70,9 @@ def assert_matches(data, schema, document, **options):
 ROUTE_FAMILIES = ("/api/admin/cases", "/api/authoring/cases")  # la misma vista con dos prefijos
 WORLD_STATE = "/api/simulation/attempts/{attempt_id}/world-state"
 HINTS = "/api/simulation/attempts/{attempt_id}/hints"
+FEEDBACK = "/api/simulation/attempts/{attempt_id}/feedback"
+ANALYTICS = "/api/reportes/analiticas"
+
 HINTS_NEXT = "/api/simulation/attempts/{attempt_id}/hints/next"
 BRIEF = "/api/simulation/cases/{case_version_id}/brief"
 CONSENT = "/api/simulation/cases/{case_version_id}/consent"
@@ -260,6 +267,62 @@ def _hints(world):
     return cl(world.student).get(f"/api/simulation/attempts/{world.attempt_id}/hints", **{ATTEMPT_HEADER: world.token})
 
 
+def _completed_attempt_id(world):
+    """El intento terminado del estudiante del mundo (el que ``world`` crea con ``endedAt``): el que se encuesta."""
+    return SimulationAttempt.objects.get(student=world.student, status="COMPLETED").pk
+
+
+def _feedback_url(world):
+    return f"/api/simulation/attempts/{_completed_attempt_id(world)}/feedback"
+
+
+def _survey_on(call):
+    """Ejecuta la llamada con la encuesta encendida (lo normal es apagada: el 404 de «no existe»)."""
+    with override_settings(ATTEMPT_FEEDBACK_SURVEY=True):
+        return call()
+
+
+@calls(FEEDBACK, "GET")
+def _survey_state(world):
+    """Ya respondida: trae las cuatro propiedades (sin responder solo trae ``submitted``, en su propia prueba)."""
+    AttemptFeedback.objects.create(
+        attempt_id=_completed_attempt_id(world), rating=4, comment="Me ayudó a ordenar lo que viví."
+    )
+    return _survey_on(lambda: cl(world.student).get(_feedback_url(world)))
+
+
+@calls(FEEDBACK, "POST", 201)
+def _survey_answered(world):
+    body = {"rating": 4, "comment": "Me ayudó a ordenar lo que viví."}
+    return _survey_on(lambda: cl(world.student).post(_feedback_url(world), body, format="json"))
+
+
+def _analytics_cohort(world):
+    """Cinco estudiantes con dos intentos cerrados, evaluados, con el evento y la encuesta, en el grupo de la docente.
+
+    Con ellos la analítica muestra TODOS sus bloques (el que falta es un bloque que ninguna respuesta real probaría).
+    """
+    version = CaseVersion.objects.get(pk=world.version_id)
+    rubric = Rubric.objects.create(case_version=version, name="Rúbrica de contrato", active=True, created_by=world.admin)
+    first = {"levels": ("EN_INICIO", "EN_PROCESO"), "non_recommended": 4, "covered": False, "key": False}
+    second = {"levels": ("LOGRADO", "LOGRADO"), "non_recommended": 2, "covered": True, "key": True}
+    for index in range(5):
+        who = make_student(f"ctr{index}")
+        GrupoEstudiante.objects.create(grupo_id=world.grupo_id, estudiante=who, status=MembershipStatus.ACTIVE)
+        seed_student_pair(who, version, rubric, world.profesor, first=first, second=second, rating=4)
+
+
+@calls(ANALYTICS, "GET")
+def _analytics(world):
+    _analytics_cohort(world)
+    return _survey_on(lambda: cl(world.profesor).get(ANALYTICS, {"grupoId": world.grupo_id}))
+
+
+def _answer_twice(world):
+    client = cl(world.student)
+    _survey_on(lambda: client.post(_feedback_url(world), {"rating": 4}, format="json"))
+    return _survey_on(lambda: client.post(_feedback_url(world), {"rating": 5}, format="json"))
+
 def _consent_url(world, version_id=None):
     return f"/api/simulation/cases/{world.version_id if version_id is None else version_id}/consent"
 
@@ -425,6 +488,25 @@ def test_las_pistas_dicen_por_que_no_hay_mas(hints, document, world):
 def _current_map_id(world):
     scene = cl(world.student).get(f"/api/simulation/attempts/{world.attempt_id}/world", **{ATTEMPT_HEADER: world.token})
     return scene.json()["data"]["map"]["id"]
+
+
+def test_la_encuesta_sin_responder_es_solo_submitted_false_y_coincide_con_el_documento(document, world):
+    body = _survey_on(lambda: cl(world.student).get(_feedback_url(world))).json()
+
+    assert body["data"] == {"submitted": False}
+    assert_matches(body, response_schema(document, FEEDBACK, "GET"), document)
+
+
+def test_responder_la_encuesta_devuelve_lo_guardado_y_lo_que_la_consulta_repite(document, world):
+    """El 201 y el GET que le sigue son la misma forma con los mismos valores (el cliente pinta lo que guardó)."""
+    body = {"rating": 5, "comment": "  Me dio claridad.  "}
+    posted = _survey_on(lambda: cl(world.student).post(_feedback_url(world), body, format="json"))
+    read = _survey_on(lambda: cl(world.student).get(_feedback_url(world)))
+
+    assert posted.status_code == 201 and read.status_code == 200
+    assert posted.json()["data"] == read.json()["data"]
+    assert posted.json()["data"]["comment"] == "Me dio claridad."
+    assert_matches(posted.json(), response_schema(document, FEEDBACK, "POST", "201"), document)
 
 
 def test_la_ficha_de_un_caso_cerrado_dice_por_que_y_trae_su_ventana(document, world):
@@ -819,6 +901,32 @@ ERRORS = [
     ("pistas de un intento inexistente", HINTS, "GET",
      lambda w: cl(w.student).get(f"/api/simulation/attempts/{uuid.uuid4()}/hints", **{ATTEMPT_HEADER: w.token}),
      404, "NOT_FOUND"),
+    ("encuesta sin sesión", FEEDBACK, "GET", lambda w: APIClient().get(_feedback_url(w)), 401, "UNAUTHENTICATED"),
+    ("encuesta sin permiso", FEEDBACK, "GET", lambda w: cl(w.profesor).get(_feedback_url(w)), 403, "FORBIDDEN"),
+    ("encuesta apagada", FEEDBACK, "GET", lambda w: cl(w.student).get(_feedback_url(w)), 404, "NOT_FOUND"),
+    ("encuesta de un intento ajeno", FEEDBACK, "GET",
+     lambda w: _survey_on(lambda: cl(w.outsider).get(_feedback_url(w))), 404, "NOT_FOUND"),
+    ("responder sin sesión", FEEDBACK, "POST",
+     lambda w: APIClient().post(_feedback_url(w), {"rating": 4}, format="json"), 401, "UNAUTHENTICATED"),
+    ("responder sin permiso", FEEDBACK, "POST",
+     lambda w: cl(w.profesor).post(_feedback_url(w), {"rating": 4}, format="json"), 403, "FORBIDDEN"),
+    ("responder con la encuesta apagada", FEEDBACK, "POST",
+     lambda w: cl(w.student).post(_feedback_url(w), {"rating": 4}, format="json"), 404, "NOT_FOUND"),
+    ("responder con una calificación fuera de rango", FEEDBACK, "POST",
+     lambda w: _survey_on(lambda: cl(w.student).post(_feedback_url(w), {"rating": 9}, format="json")),
+     400, "VALIDATION_ERROR"),
+    ("responder un intento que sigue abierto", FEEDBACK, "POST",
+     lambda w: _survey_on(lambda: cl(w.student).post(
+         f"/api/simulation/attempts/{w.attempt_id}/feedback", {"rating": 4}, format="json")),
+     409, "ATTEMPT_NOT_COMPLETED"),
+    ("responder dos veces", FEEDBACK, "POST", _answer_twice, 409, "FEEDBACK_ALREADY_SENT"),
+    ("analítica sin sesión", ANALYTICS, "GET", lambda w: APIClient().get(ANALYTICS), 401, "UNAUTHENTICATED"),
+    ("analítica sin permiso", ANALYTICS, "GET", lambda w: cl(w.student).get(ANALYTICS), 403, "FORBIDDEN"),
+    ("analítica con un id que no es un número", ANALYTICS, "GET",
+     lambda w: cl(w.profesor).get(ANALYTICS, {"grupoId": "abc"}), 400, "INVALID_QUERY_PARAM"),
+    ("analítica de un grupo inexistente", ANALYTICS, "GET",
+     lambda w: cl(w.profesor).get(ANALYTICS, {"grupoId": 999999}), 404, "NOT_FOUND"),
+
     ("consentimiento sin sesión", CONSENT, "GET", lambda w: APIClient().get(_consent_url(w)), 401, "UNAUTHENTICATED"),
     ("consentimiento sin permiso", CONSENT, "GET", lambda w: cl(w.profesor).get(_consent_url(w)), 403, "FORBIDDEN"),
     ("consentimiento de una versión inexistente", CONSENT, "GET",

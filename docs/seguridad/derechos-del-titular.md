@@ -33,7 +33,7 @@ python manage.py export_personal_data --email CORREO --executed-by CORREO_DEL_AD
 python manage.py export_personal_data --email CORREO --executed-by CORREO_DEL_ADMIN --confirm --out RUTA.json
 ```
 
-El archivo (`--out`) trae, en JSON: su cuenta (sin la contraseña), sus grupos y asignaciones, sus intentos y todo lo que hizo en ellos, **sus bitácoras de reflexión descifradas**, las evaluaciones que recibió, sus consentimientos, sus solicitudes de acceso y la auditoría de sus acciones con su IP y su navegador. Si además fue docente, trae lo suyo (los grupos que enseña, los casos que escribió, las evaluaciones que dio), pero **nunca los datos de otra persona**.
+El archivo (`--out`) trae, en JSON: su cuenta (sin la contraseña), sus grupos y asignaciones, sus intentos y todo lo que hizo en ellos, **sus bitácoras de reflexión descifradas y el comentario de su encuesta breve**, las evaluaciones que recibió, sus consentimientos, sus solicitudes de acceso y la auditoría de sus acciones con su IP y su navegador. Si además fue docente, trae lo suyo (los grupos que enseña, los casos que escribió, las evaluaciones que dio), pero **nunca los datos de otra persona**.
 
 - El archivo debe ser **nuevo**: el comando se niega a sobrescribir uno que exista. En Linux queda con permisos solo para quien lo creó.
 - Nunca sale por la pantalla.
@@ -55,6 +55,7 @@ Qué hace, en palabras:
 - **La cuenta** conserva su fila, pero su nombre, su apellido y su correo pasan a un seudónimo con su número (`Cuenta eliminada-NÚMERO` y `eliminada-NÚMERO@invalid`, que no es un correo real). Su contraseña queda inutilizable, la cuenta queda inactiva, sin marcas de contraseña temporal, y **se cierran todas sus sesiones**: no puede entrar y su sesión de antes deja de valer.
 - **Sus solicitudes de acceso** con su correo quedan anonimizadas: solo se conserva su estado y sus fechas.
 - **Sus bitácoras de reflexión** se borran.
+- **El comentario de su encuesta breve** (si la plataforma la tuvo encendida) se vacía; su calificación de 1 a 5 queda con el intento.
 - **El motivo escrito de una salida segura** se quita de su línea de tiempo y de su informe congelado, y las etiquetas de evidencia saltada se quitan de su línea de tiempo; el resto del informe queda.
 - **La auditoría de sus acciones** conserva qué pasó y cuándo, pero pierde la IP y el navegador. Si había texto libre antiguo del asistente de IA, también se quita.
 - **Lo que escribió como docente**: la nota de una revisión de caso que decidió, el nombre de quien revisó el contenido y las notas de evidencia de una lista de verificación se borran o se reemplazan por el seudónimo.
@@ -83,6 +84,7 @@ Esta tabla la comprueba una prueba contra las reglas del código: si una regla c
 | `attempt_events` | Línea de tiempo de cada intento | se reemplaza por un valor que no identifica a nadie; el resto se conserva |
 | `attempt_hint_views` | Pistas que pidió | se conserva |
 | `attempt_reports` | Informe congelado de cada intento | se limpia el texto escrito por la persona; el resto se conserva |
+| `attempt_feedback` | Su respuesta a la encuesta breve opcional (calificación y comentario) | se vacía; el resto se conserva |
 | `reflection_journals` | Sus bitácoras de reflexión (cifradas) | se borra la fila |
 | `attempt_world_states` | Estado del mundo de cada intento | se conserva |
 | `student_case_completion` | Casos que completó | se conserva |

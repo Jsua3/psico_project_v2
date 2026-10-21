@@ -126,6 +126,11 @@ EXPECTED = {
 
 READ_ONLY = {"get_world", "get_attempt", "progress_map", "completion_report"}
 
+#: E6-4 (R13): la ÚNICA escritura que una lectura puede hacer. El dueño de un intento COMPLETADO que abre su reporte deja
+#: un ``FEEDBACK_VIEWED`` (a lo sumo uno por intento, por la clave única de la base); ninguna otra lectura ni otro estado
+#: escribe. Se anota aquí, en el contrato, para que una escritura nueva en un GET falle esta prueba y no pase inadvertida.
+VIEWS_FEEDBACK = {("completion_report", "COMPLETED")}
+
 #: Pares (operación, estado) que sí cambian algo en el intento o sus eventos.
 MUTATES = {
     ("decisions", "IN_PROGRESS"), ("reflections", "IN_PROGRESS"),
@@ -177,7 +182,11 @@ def test_cada_operacion_en_cada_estado(intentos, operation, status):
     rejected = response.status_code >= 400
     idempotent = (operation, status) not in MUTATES and operation in ("safe_exit", "resume")
     if read_only or rejected or idempotent:
-        assert after == before, "una operación rechazada, idempotente o de solo lectura no cambia nada"
+        viewed = ["FEEDBACK_VIEWED"] if (operation, status) in VIEWS_FEEDBACK and not rejected else []
+        assert after == (before[0], before[1] + viewed), (
+            "una operación rechazada, idempotente o de solo lectura no cambia nada (salvo el evento de E6-4 en el "
+            "reporte de un intento completado)"
+        )
 
 
 def test_un_npc_inexistente_en_curso_se_rechaza_sin_cambiar_nada(intentos):

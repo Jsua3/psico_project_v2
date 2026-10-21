@@ -264,9 +264,18 @@ def row_analytics_read(world):
     got = statuses(world, lambda client, w: _code(client.get("/api/reportes/dashboard")))
     got["foreign PROFESOR scope"] = _code(_client(world.foreign).get(f"/api/reportes/grupo/{world.grupo.id}"))
     got["PROFESOR scope"] = _code(_client(world.prof).get(f"/api/reportes/grupo/{world.grupo.id}"))
+    # E6-2b: la analítica de aprendizaje (C13) cuelga de la misma política y de la misma regla de alcance del grupo.
+    got.update({f"analytics {role}": code for role, code in statuses(
+        world, lambda client, w: _code(client.get("/api/reportes/analiticas"))).items()})
+    got["analytics foreign PROFESOR scope"] = _code(
+        _client(world.foreign).get("/api/reportes/analiticas", {"grupoId": world.grupo.id}))
+    got["analytics PROFESOR scope"] = _code(
+        _client(world.prof).get("/api/reportes/analiticas", {"grupoId": world.grupo.id}))
     return got, {
         "anon": 401, "ESTUDIANTE": 403, "PROFESOR": 200, "ADMIN": 200,
         "foreign PROFESOR scope": 403, "PROFESOR scope": 200,
+        "analytics anon": 401, "analytics ESTUDIANTE": 403, "analytics PROFESOR": 200, "analytics ADMIN": 200,
+        "analytics foreign PROFESOR scope": 403, "analytics PROFESOR scope": 200,
     }
 
 

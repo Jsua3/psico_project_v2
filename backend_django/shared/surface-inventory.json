@@ -1100,6 +1100,14 @@
       "audit": "MEMBERSHIP_LEFT"
     },
     {
+      "route": "api/reportes/analiticas",
+      "method": "GET",
+      "exposure": "role:ADMIN,PROFESOR",
+      "body": "none",
+      "throttle": null,
+      "audit": "ANALYTICS_VIEWED"
+    },
+    {
       "route": "api/reportes/dashboard",
       "method": "GET",
       "exposure": "role:ADMIN,PROFESOR",
@@ -1292,6 +1300,22 @@
       "body": "none",
       "throttle": null,
       "audit": null
+    },
+    {
+      "route": "api/simulation/attempts/<uuid:attempt_id>/feedback",
+      "method": "GET",
+      "exposure": "role:ESTUDIANTE",
+      "body": "none",
+      "throttle": null,
+      "audit": null
+    },
+    {
+      "route": "api/simulation/attempts/<uuid:attempt_id>/feedback",
+      "method": "POST",
+      "exposure": "role:ESTUDIANTE",
+      "body": "json-small",
+      "throttle": null,
+      "audit": "EXENTO: respuesta del estudiante a la encuesta breve de SU intento completado (apagada por defecto): se envía una sola vez y no se modifica, y la fila misma (el intento y la fecha en attempt_feedback) es la evidencia; el comentario no entra a la auditoría"
     },
     {
       "route": "api/simulation/attempts/<uuid:attempt_id>/hints",

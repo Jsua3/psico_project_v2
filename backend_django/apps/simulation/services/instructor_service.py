@@ -20,6 +20,7 @@ from shared.security_events import log_security_event
 
 from ..models import (
     AttemptEvent,
+    EvaluationOrigin,
     ReflectionJournal,
     RubricEvaluation,
     SimulationAttempt,
@@ -200,6 +201,9 @@ def trace(attempt_id, instructor=None):
         .order_by("occurred_at", "id")
     )
     report = dto.build_completion_report(attempt, events)
+    evaluations = list(
+        RubricEvaluation.objects.filter(attempt_id=attempt_id).select_related("rubric").order_by("-evaluated_at")
+    )
     total_duration = report["totalDurationSeconds"]
     if total_duration is None and attempt.started_at and events:
         last_at = events[-1].occurred_at
@@ -234,12 +238,14 @@ def trace(attempt_id, instructor=None):
             _bitacora_del_reporte(r)
             for r in ReflectionJournal.objects.filter(attempt_id=attempt_id).select_related("node")
         ],
+        # Solo las del docente: el cliente marca «evaluación aplicada» si alguna trae nivel (E6-1e, R7). La evaluación
+        # automática del sistema va aparte, en ``systemEvaluation`` (nula si el intento no la tiene).
         "rubricEvaluations": [
-            rubric_service.evaluation_summary(ev)
-            for ev in RubricEvaluation.objects.filter(attempt_id=attempt_id)
-            .select_related("rubric")
-            .order_by("-evaluated_at")
+            rubric_service.evaluation_summary(ev) for ev in evaluations if ev.origin != EvaluationOrigin.SISTEMA
         ],
+        "systemEvaluation": next(
+            (rubric_service.evaluation_summary(ev) for ev in evaluations if ev.origin == EvaluationOrigin.SISTEMA), None
+        ),
     }
 
 

@@ -17,7 +17,7 @@ from typing import Callable
 
 import pytest
 from django.db import connection
-from django.test.utils import CaptureQueriesContext
+from django.test.utils import CaptureQueriesContext, override_settings
 from django.urls import URLPattern, URLResolver, get_resolver
 
 from apps.privacy import consent_service
@@ -113,6 +113,12 @@ def _pistas_siguiente(p):
     return p.api.post(p.url("/hints/next"), p.cuerpo(requestId=f"cons-{secrets.token_hex(6)}"), format="json")
 
 
+def _con_encuesta(llamada):
+    """Ejecuta la llamada con la encuesta breve encendida (lo normal es apagada: 404 como si no existiera)."""
+    with override_settings(ATTEMPT_FEEDBACK_SURVEY=True):
+        return llamada()
+
+
 ATTEMPT = "attempts/<uuid:attempt_id>"
 
 EXIGEN = [
@@ -206,6 +212,16 @@ LIBRES = [
     Caso("GET evaluation", f"{ATTEMPT}/evaluation", None,
          lambda p: p.api.get(p.url("/evaluation")), frozenset({200}),
          "la evaluación del docente para su dueño"),
+    # BORRADOR (E6-3): la encuesta breve se responde sobre un intento YA COMPLETADO, que pasó por el consentimiento; no entrega
+    # contenido ni avanza el caso, y retirar el consentimiento no debe impedir contestar sobre lo ya vivido. Va con la encuesta
+    # ENCENDIDA (apagada responde 404 antes de mirar el consentimiento y la prueba no protegería nada): el intento de la partida
+    # sigue abierto, así que la lectura da 200 y la respuesta su propio 409; lo que importa es que no sea CONSENT_REQUIRED.
+    Caso("GET feedback (encuesta breve)", f"{ATTEMPT}/feedback", None,
+         lambda p: _con_encuesta(lambda: p.api.get(p.url("/feedback"))), frozenset({200}),
+         "la encuesta de un intento: no entrega contenido del caso"),
+    Caso("POST feedback (encuesta breve)", f"{ATTEMPT}/feedback", None,
+         lambda p: _con_encuesta(lambda: p.api.post(p.url("/feedback"), {"rating": 4}, format="json")), frozenset({409}),
+         "responder la encuesta no avanza el caso (con el intento abierto, su propio 409)"),
     Caso("GET catalog", "catalog", None,
          lambda p: p.api.get(f"{BASE}/catalog"), frozenset({200}), "el catálogo de casos"),
     Caso("GET cases", "cases", None,

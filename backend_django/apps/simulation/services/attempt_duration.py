@@ -16,8 +16,9 @@ from django.utils import timezone
 IDLE_CAP_SECONDS = 300
 PAUSE_EVENT = "SAFE_EXIT_REQUESTED"
 #: Eventos que no son actividad que mida tiempo: una pista no parte un intervalo ocioso en dos
-#: (cada mitad con su tope), así que pedirla no suma tiempo (RF-18, «sin costo»).
-IGNORED_EVENTS = ("HINT_VIEWED",)
+#: (cada mitad con su tope), así que pedirla no suma tiempo (RF-18, «sin costo»). Abrir el reporte DESPUÉS de cerrar
+#: (``FEEDBACK_VIEWED``, E6-4) tampoco es actividad del intento: sin esto alargaría la última escena hasta el tope.
+IGNORED_EVENTS = ("HINT_VIEWED", "FEEDBACK_VIEWED")
 #: Eventos que abren una escena nueva en el tiempo por escena.
 SCENE_START_EVENTS = ("NODE_ENTERED", "ROOM_ENTERED")
 #: Campos que cambian al registrar actividad.

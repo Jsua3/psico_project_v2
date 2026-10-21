@@ -191,6 +191,30 @@ class AttemptReport(models.Model):
         super().save(*args, **kwargs)
 
 
+class AttemptFeedback(models.Model):
+    """La encuesta breve opcional de un intento completado (E6-3, RQ-NEG-004; contrato C14).
+
+    Una respuesta por intento: ``rating`` de 1 a 5 y un comentario opcional de texto plano. Solo existe si Psicología
+    aprueba la encuesta (``ATTEMPT_FEEDBACK_SURVEY``); el comentario es del estudiante y no viaja al reporte, a la
+    auditoría ni a la analítica (solo la calificación se agrega, con celda mínima).
+    """
+
+    attempt = models.OneToOneField(
+        SimulationAttempt, on_delete=models.DB_CASCADE, related_name="survey_response", db_column="attempt_id",
+    )
+    rating = models.SmallIntegerField()
+    comment = models.TextField(default="", db_default="")
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        db_table = "attempt_feedback"
+        constraints = [
+            models.CheckConstraint(
+                condition=models.Q(rating__gte=1, rating__lte=5), name="attempt_feedback_rating_check",
+            ),
+        ]
+
+
 class ReflectionJournal(models.Model):
     attempt = models.ForeignKey(
         SimulationAttempt, on_delete=models.DB_CASCADE, related_name="reflections",

@@ -21,7 +21,7 @@ import django
 import pytest
 from django.db import connection
 
-from apps.simulation.models import DecisionOption
+from apps.simulation.models import DecisionOption, SimulationAttempt
 from shared.testing import measure
 
 from .test_game import (  # noqa: F401  (fixtures de pytest)
@@ -48,6 +48,9 @@ QUERY_BUDGETS = {
     # estado del mundo por los efectos del caso, que la medición anterior omitía por no tener mundo.
     "post_decision": 12,  # (5)
     "get_student_report": 3,  # (0) era 4: E0-11 acotó node y decision_option con select_related
+    # E6: lo que cuestan el cierre (reporte v2, evaluación del sistema) y la primera lectura del dueño (el evento).
+    "post_decision_closing": 35,  # (11) la decisión que cierra: reporte v2 + evaluación del sistema (antes de E6: 26 y 9)
+    "get_student_report_completed": 3,  # (1) la primera lectura del dueño de un intento completado escribe el evento
     # S4-1: 15 → 16 a propósito. Leer el reporte de un grupo es leer datos de otras personas y deja UNA fila de
     # auditoría (`reporte.leer`, RNF-007): es el INSERT de `audit_logs`, la única escritura. Las 15 de lectura no cambian.
     "get_group_report": 16,  # (1) crece con el grupo: E5-6 lo pagina
@@ -146,6 +149,44 @@ def scenario_get_student_report(estudiante, case_version_id):
     return (lambda: client.get(url)), TIMED_REPEATS
 
 
+def _play_until_the_closing_decision(client, attempt_id, token):
+    """Decide con la opción adecuada de cada nodo hasta quedar ante la que cierra el intento; devuelve esa opción."""
+    for _ in range(30):
+        attempt = SimulationAttempt.objects.get(pk=attempt_id)
+        options = DecisionOption.objects.filter(source_node_id=attempt.current_node_id).select_related("target_node")
+        good = options.filter(classification="ADEQUATE").first() or options.first()
+        if good.target_node.terminal_node:
+            return good
+        response = client.post(
+            f"/api/simulation/attempts/{attempt_id}/decisions",
+            {"attemptToken": token, "decisionOptionId": good.id}, format="json",
+        )
+        assert response.status_code == 200, response.data
+    raise AssertionError("el caso no llegó a un nodo final")
+
+
+def scenario_post_decision_closing(estudiante, case_version_id):
+    """La decisión que cierra el intento: congela el reporte v2 y crea la evaluación del sistema (E6-1d, E6-1e)."""
+    _, client, attempt_id, token, _ = _start(estudiante, case_version_id, "BUD-CLOSE")
+    closing = _play_until_the_closing_decision(client, attempt_id, token)
+    url = f"/api/simulation/attempts/{attempt_id}/decisions"
+    body = {"attemptToken": token, "decisionOptionId": closing.id}
+    return (lambda: client.post(url, body, format="json")), 1
+
+
+def scenario_get_student_report_completed(estudiante, case_version_id):
+    """La lectura del dueño de un intento COMPLETADO: además del reporte, escribe el evento (a lo sumo una vez)."""
+    _, client, attempt_id, token, _ = _start(estudiante, case_version_id, "BUD-OWNER")
+    closing = _play_until_the_closing_decision(client, attempt_id, token)
+    done = client.post(
+        f"/api/simulation/attempts/{attempt_id}/decisions",
+        {"attemptToken": token, "decisionOptionId": closing.id}, format="json",
+    )
+    assert done.status_code == 200, done.data
+    url = f"/api/simulation/attempts/{attempt_id}/student-report"
+    return (lambda: client.get(url)), TIMED_REPEATS
+
+
 def scenario_get_group_report(estudiante, case_version_id):
     grupo, _, _, _, _ = _start(estudiante, case_version_id, "BUD-GROUP")
     client = cl(grupo.profesor)
@@ -159,6 +200,8 @@ SCENARIOS = {
     "enter_room": scenario_enter_room,
     "post_decision": scenario_post_decision,
     "get_student_report": scenario_get_student_report,
+    "post_decision_closing": scenario_post_decision_closing,
+    "get_student_report_completed": scenario_get_student_report_completed,
     "get_group_report": scenario_get_group_report,
 }
 

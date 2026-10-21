@@ -36,6 +36,7 @@ from apps.privacy.tests.data_subject_support import Entorno, Mundo, barrer, volc
 from apps.progression.models import StudentCaseCompletion
 from apps.simulation.models import (
     AttemptEvent,
+    AttemptFeedback,
     AttemptHintView,
     AttemptReport,
     AttemptWorldState,
@@ -273,6 +274,22 @@ def test_c_sus_intentos_eventos_decisiones_y_pertenencias_siguen_con_los_mismos_
     for tabla, cuenta in conteos.items():
         if tabla not in {"reflection_journals", "audit_logs"}:
             assert asi_quedan[tabla] == cuenta, tabla
+
+
+def test_c_el_comentario_de_la_encuesta_de_la_persona_se_vacia_y_su_calificacion_y_la_respuesta_de_otra_se_conservan(mundo, otro):
+    """E6-3: el comentario es texto libre de la persona y se vacía; la calificación (1 a 5) es lo que hizo y queda, como el
+    resto del intento (así la analítica no pierde retroactivamente una respuesta cuando alguien pide su supresión)."""
+    propia = AttemptFeedback.objects.get(attempt__student=mundo.persona)
+    assert propia.comment and mundo.m["encuesta"] in propia.comment
+    otra_antes = list(AttemptFeedback.objects.filter(attempt__student=otro.persona).values_list("id", "rating", "comment"))
+    assert len(otra_antes) == 1
+
+    _suprimir(mundo)
+
+    despues = AttemptFeedback.objects.get(pk=propia.pk)
+    assert despues.comment == ""
+    assert (despues.rating, despues.attempt_id, despues.created_at) == (propia.rating, propia.attempt_id, propia.created_at)
+    assert list(AttemptFeedback.objects.filter(attempt__student=otro.persona).values_list("id", "rating", "comment")) == otra_antes
 
 
 def test_c_las_bitacoras_de_la_persona_se_borran_y_las_de_otra_no(mundo, otro):

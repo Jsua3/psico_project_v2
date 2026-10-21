@@ -390,6 +390,19 @@ INVITATION_EMAIL_LIMIT = int(os.environ.get("SIEP_INVITATION_EMAIL_LIMIT", "25")
 #: E5-7 · retención mínima de auditoría (≥ 12 meses = 360 días por defecto, RNF-007).
 AUDIT_RETENTION_DAYS = max(360, int(os.environ.get("AUDIT_RETENTION_DAYS", "360")))
 
+# ── Analítica de aprendizaje (E6-5) ──────────────────────────────────────────────────────────────────
+# Definiciones operativas en BORRADOR hasta que Psicología las confirme (mesa §A20, `docs/operacion/analitica-de-
+# aprendizaje.md`). `apps.simulation.assessment.definitions` las lee al llamar y normaliza lo inválido.
+#: Nivel formativo desde el que un desempeño cuenta como «Aceptable» (EN_INICIO, EN_PROCESO, LOGRADO o DESTACADO).
+ACCEPTABLE_LEVEL = os.environ.get("SIEP_ACCEPTABLE_LEVEL", "LOGRADO")
+#: Estudiantes distintos mínimos para publicar un agregado; nunca baja de 5 (piso de privacidad).
+MIN_CELL_SIZE = os.environ.get("SIEP_MIN_CELL_SIZE", "5")
+#: Qué cuenta como reflexión en un cierre: `ANY` (≥ 1 nota) o `PER_DECISION_SCENE` (una por escena con decisión).
+REFLECTION_DEFINITION = os.environ.get("SIEP_REFLECTION_DEFINITION", "ANY")
+#: Encuesta breve opcional al terminar un intento (RQ-NEG-004): APAGADA hasta que Psicología la apruebe; apagada,
+#: sus endpoints responden 404 y la analítica no calcula la satisfacción.
+ATTEMPT_FEEDBACK_SURVEY = _env_flag("SIEP_ATTEMPT_FEEDBACK_SURVEY")
+
 #: S1-1 · proxies de confianza delante de Django (SIEP-RNF-02). 0 = no se confía en ninguna cabecera
 #: ``X-Forwarded-For``: la IP de la auditoría y de los límites es ``REMOTE_ADDR``. Producción la exige y no tiene
 #: valor por defecto (psychosim/settings/production.py la valida antes de importar este módulo).
@@ -559,6 +572,8 @@ SPECTACULAR_SETTINGS = {
         "ReviewReasonEnum": "apps.simulation.models.case.ReviewReason",
         "HealthStatusEnum": "shared.health_docs.HEALTH_STATUS",
         "HealthDbEnum": "shared.health_docs.HEALTH_DB",
+        "FormativeLevelEnum": "apps.reportes.contracts.FORMATIVE_LEVELS",
+        "ReflectionDefinitionEnum": "apps.simulation.assessment.definitions.REFLECTION_DEFINITIONS",
     },
 }
 

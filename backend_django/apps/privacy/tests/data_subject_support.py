@@ -20,6 +20,7 @@ from apps.grupos.models import CaseAssignment, Grupo, GrupoEstudiante
 from apps.privacy.models import ConsentRecord
 from apps.progression.models import StudentCaseCompletion
 from apps.simulation.models import (
+    AttemptFeedback,
     AttemptHintView,
     AttemptWorldState,
     AuditLog,
@@ -98,7 +99,7 @@ class Mundo:
             clave: marca()
             for clave in (
                 "correo", "nombre", "apellido", "reflexion", "salida", "etiqueta", "nota", "evidencia", "pregunta", "agente",
-                "comentario", "nota_ajena",
+                "comentario", "nota_ajena", "encuesta",
             )
         }
         self.clave = secrets.token_urlsafe(24)
@@ -195,6 +196,8 @@ class Mundo:
         AttemptHintView.objects.create(attempt=self.attempt, hint=pista)
         AttemptWorldState.objects.get_or_create(attempt=self.attempt, defaults={"scene_map": mapa})
         attempt_report.freeze_report(self.attempt)  # copia el motivo de la salida segura en la línea de tiempo del informe
+        # La encuesta breve (E6-3): el comentario es texto libre de la persona y se borra con ella.
+        AttemptFeedback.objects.create(attempt=self.attempt, rating=4, comment=f"Me ayudó a ordenar lo que viví {self.m['encuesta']}")
         StudentCaseCompletion.objects.create(
             student_id=self.persona.pk, simulation_case_id=entorno.version.simulation_case_id,
             first_completed_at=timezone.now(),

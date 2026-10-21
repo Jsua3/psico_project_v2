@@ -6,15 +6,15 @@
 
 ## Resumen
 
-Tablas: 41. Columnas: 362.
+Tablas: 42. Columnas: 367.
 
 | Clasificación | Columnas |
 |---|---:|
 | PUBLIC | 143 |
 | PERSONAL | 36 |
-| SENSITIVE | 48 |
+| SENSITIVE | 52 |
 | SECRET | 2 |
-| TECHNICAL | 133 |
+| TECHNICAL | 134 |
 
 ## Tablas
 
@@ -53,6 +53,23 @@ Tablas: 41. Columnas: 362.
 | `detail` | SENSITIVE | api | detalle de la acción que muestra la línea de tiempo (herramienta o etiqueta); en una salida segura puede llevar el motivo escrito por la persona (texto libre, recortado a 500 caracteres) |
 | `occurred_at` | SENSITIVE | api | cuándo actuó el estudiante (línea de tiempo) |
 | `request_id` | TECHNICAL | — |  |
+
+
+### `attempt_feedback` — simulation.AttemptFeedback
+
+**Finalidad:** Encuesta breve opcional de un intento completado: una calificación de 1 a 5 y un comentario de texto plano. Apagada hasta que Psicología la apruebe (SIEP_ATTEMPT_FEEDBACK_SURVEY).
+
+**Plazo:** Sin plazo definido (SD-9, pendiente de la institución).
+
+| Columna | Clasificación | Salidas | Motivo |
+|---|---|---|---|
+| `id` | TECHNICAL | — |  |
+| `attempt_id` | SENSITIVE | ninguna (uso interno) | intento que el estudiante encuestó |
+| `rating` | SENSITIVE | api | calificación de 1 a 5 que el estudiante da a su experiencia; al docente solo llega agregada, con celda mínima |
+| `comment` | SENSITIVE | api | texto libre del estudiante (hasta 500 caracteres, texto plano); no sale a ningún reporte, auditoría ni agregado |
+| `created_at` | SENSITIVE | api | cuándo respondió el estudiante |
+
+Nunca sale por: `comment`: csv, reporte, correo, registro.
 
 
 ### `attempt_hint_views` — simulation.AttemptHintView

@@ -8,15 +8,26 @@ E1-8: ``schemaVersion``, ``ordinal``, ``definitionHash``, ``decisionReview[]``,
 intento, el del estudiante y el historial; leer no escribe. Un intento completado antes
 de E1-8 no tiene fila: se sirve en vivo (sin persistirlo) y ``backfill_attempt_reports``
 lo congela.
+
+E6-1d (``schemaVersion 2``) añade el perfil por competencia (``competencyLevels``), ``nonRecommendedCount``,
+``reflectionCoverage`` y ``keyLearningEvidence``: se calculan UNA vez, al cerrar, con la rúbrica, el catálogo y los
+efectos de ese momento, y no se recalculan (un reporte cerrado no cambia). Un reporte v1 sigue siendo v1: se lee tal
+cual, sin las claves nuevas.
 """
 import hashlib
 import json
+import logging
 
+from django.db import transaction
 from django.db.models import Q
 
 from shared.jsonutils import read_map
 
 from apps.simulation.serializers import game_dtos as dto
+
+from apps.simulation.assessment import competencies as assessment_competencies
+from apps.simulation.assessment import definitions, evidence
+from apps.simulation.assessment import evaluation as system_evaluation
 
 from ..models import (
     AttemptEvent,
@@ -30,7 +41,9 @@ from ..models import (
 )
 from . import attempt_duration, case_effects
 
-REPORT_SCHEMA_VERSION = 1
+logger = logging.getLogger(__name__)
+
+REPORT_SCHEMA_VERSION = 2  # 1 = E1-8; 2 = E6-1d (perfil por competencia, no recomendadas, cobertura, evidencia)
 
 
 def load_events(attempt_id):
@@ -113,9 +126,29 @@ def build_decision_review(events):
     return review
 
 
+def _competency_levels(attempt, events):
+    """El perfil por competencia; es un dato derivado y NUNCA impide cerrar ni leer un reporte: si falla, queda vacío (y
+    se registra). Va en un punto de guardado para que un error de base de datos no deje abortada la transacción."""
+    try:
+        with transaction.atomic():
+            return assessment_competencies.competency_profile(attempt, events)
+    except Exception:  # noqa: BLE001 - el cierre del intento no depende de su perfil por competencia
+        logger.exception("No se pudo calcular el perfil por competencia del intento %s", attempt.id)
+        return []
+
+
 def build_report_payload(attempt, events, ordinal=None, definition_hash=None):
     """El reporte completo (superconjunto del de cierre) con lo de E1-8."""
     payload = dto.build_completion_report(attempt, events)
+    # La lista nombra las notas (sin su texto: solo el dueño lo lee, por su propia ruta).
+    reflections = [
+        {"nodeId": r.node_id, "nodeTitle": r.node.title, "locked": r.locked}
+        for r in ReflectionJournal.objects.filter(attempt_id=attempt.id).select_related("node").order_by("node_id")
+    ]
+    competency_levels = _competency_levels(attempt, events)
+    coverage = evidence.reflection_coverage(
+        [r["nodeId"] for r in reflections], evidence.decision_scene_ids(events), definitions.reflection_definition()
+    )
     payload.update({
         "schemaVersion": REPORT_SCHEMA_VERSION,
         "ordinal": ordinal if ordinal is not None else attempt_ordinal(attempt),
@@ -131,12 +164,15 @@ def build_report_payload(attempt, events, ordinal=None, definition_hash=None):
             "reflections": payload["reflectionsCount"],
         },
         "decisionReview": build_decision_review(events),
-        # La lista nombra las notas (sin su texto: solo el dueño lo lee, por su propia ruta).
-        "reflections": [
-            {"nodeId": r.node_id, "nodeTitle": r.node.title, "locked": r.locked}
-            for r in ReflectionJournal.objects.filter(attempt_id=attempt.id)
-            .select_related("node").order_by("node_id")
-        ],
+        "reflections": reflections,
+        # E6-1d: nombres de nivel, nunca un índice numérico (RN-09).
+        "competencyLevels": competency_levels,
+        "profileRules": definitions.PROFILE_RULES,  # la versión de la regla con la que se calculó (E6, revisión I-3)
+        "nonRecommendedCount": evidence.non_recommended_count(events),
+        "reflectionCoverage": coverage,
+        "keyLearningEvidence": evidence.key_learning_evidence(
+            attempt.status == AttemptStatus.COMPLETED, coverage, competency_levels
+        ),
         "timeByScene": [
             {"nodeId": scene["nodeId"], "seconds": round(scene["seconds"], 1)}
             for scene in attempt_duration.scene_durations(
@@ -156,13 +192,72 @@ def freeze_report(attempt, events=None):
     ordinal = attempt_ordinal(attempt)
     definition_hash = case_definition_hash(attempt.case_version_id)
     payload = build_report_payload(attempt, events, ordinal, definition_hash)
-    return AttemptReport.objects.create(
+    row = AttemptReport.objects.create(
         attempt=attempt,
         report_json=json.dumps(payload, ensure_ascii=False),
         report_schema_version=REPORT_SCHEMA_VERSION,
         definition_hash=definition_hash,
         attempt_ordinal=ordinal,
     )
+    _record_system_evaluation(attempt, payload)
+    return row
+
+
+#: Evento de que el estudiante abrió su retroalimentación (E6-4). Sin nodo ni opción.
+FEEDBACK_VIEWED = "FEEDBACK_VIEWED"
+#: Su clave de idempotencia: el ``request_id`` único por intento hace que la base descarte la segunda fila. Lleva una
+#: «/», que ningún cliente puede mandar en un ``requestId`` (``shared.idempotency``), así que no choca con las órdenes.
+FEEDBACK_VIEWED_KEY = "sistema/retroalimentacion-vista"
+
+
+def _insert_feedback_viewed(attempt):
+    AttemptEvent.objects.bulk_create(
+        [AttemptEvent(
+            attempt=attempt, event_type=FEEDBACK_VIEWED, request_id=FEEDBACK_VIEWED_KEY,
+            detail="Retroalimentación vista",  # BORRADOR: texto nuevo del servidor, pendiente de Psicología (VD-23)
+        )],
+        ignore_conflicts=True,  # INSERT … ON CONFLICT DO NOTHING: a lo sumo una fila por intento, sin comprobar antes
+    )
+
+
+def record_feedback_viewed(attempt, actor):
+    """Registra que el dueño de un intento COMPLETADO abrió su reporte (E6-4, R13); solo la primera vez cuenta.
+
+    Es la única escritura de una lectura y por eso es estrecha: solo el dueño (el docente y el ADMIN leen sin escribir),
+    solo un intento completado, y nunca rompe la lectura —en un punto de guardado— si la escritura falla.
+    """
+    if attempt.status != AttemptStatus.COMPLETED or attempt.student_id != actor.id:
+        return
+    try:
+        with transaction.atomic():
+            _insert_feedback_viewed(attempt)
+    except Exception:  # noqa: BLE001 - la lectura del reporte no depende de este evento
+        logger.exception("No se pudo registrar que el intento %s vio su retroalimentación", attempt.id)
+
+
+def _record_system_evaluation(attempt, payload):
+    """La evaluación automática (E6-1e) deriva del reporte que acaba de congelarse y NUNCA rompe el cierre: es un dato
+    derivado, como lo que escuchan los suscriptores de ``attempt_completed`` (``send_robust``). Va en un punto de
+    guardado para que un fallo de base de datos no deje abortada la transacción que cierra el intento."""
+    try:
+        with transaction.atomic():
+            system_evaluation.record_system_evaluation(attempt, payload)
+    except Exception:  # noqa: BLE001 - el cierre del intento no depende de su evaluación automática
+        logger.exception("No se pudo crear la evaluación del sistema del intento %s", attempt.id)
+
+
+def repair_system_evaluation(attempt):
+    """Crea la evaluación del sistema de un intento CERRADO con reporte v2 que no la tiene; devuelve la fila o ``None``.
+
+    La crea ``freeze_report`` al cerrar, pero ahí un fallo transitorio (un deadlock, un tiempo de espera) solo se
+    registra y el intento quedaría sin ella para siempre: este es el camino de reparación (lo usa
+    ``backfill_attempt_reports``). Lee el reporte CONGELADO —no recalcula nada— y, a diferencia del cierre, deja
+    pasar el error para que quien repara sepa que no pudo. Un reporte v1 no tiene niveles de qué derivarla.
+    """
+    frozen = frozen_report_for(attempt.id)
+    if frozen is None or frozen.get("schemaVersion", 1) < 2:
+        return None
+    return system_evaluation.record_system_evaluation(attempt, frozen)
 
 
 def frozen_report_for(attempt_id):
