@@ -66,6 +66,10 @@ _INTENTO_PROPIO = (
     "estado de juego del propio intento: el hecho queda en la traza del intento (attempt_events), que se audita al leerla"
 )
 _DOCUMENTACION = "documentación de la API: cerrada al ADMIN y apagada por defecto, sin datos de personas"
+# BORRADOR (E6-3): texto nuevo del servidor, pendiente de la aprobación de Psicología (VD-23).
+_ENCUESTA_PROPIA = (
+    "respuesta del estudiante a la encuesta breve de SU intento completado (apagada por defecto): el comentario es suyo y nunca debe llegar a la auditoría; la fila queda con su intento y su fecha en attempt_feedback"
+)
 
 
 def _exento(motivo):
@@ -193,6 +197,9 @@ AUDIT_BY_ROUTE: dict[tuple[str, str], str] = {
     ("api/instructor/attempts/<uuid:attempt_id>/replace", "POST"): "ATTEMPT_REPLACED",
     # ── Reportes y analítica ──
     ("api/reportes/dashboard", "GET"): "ANALYTICS_VIEWED",
+    # E6-2 · los agregados de aprendizaje (C13): una fila por consulta buena, con {groupId, caseVersionId, suppressed} y
+    # nunca ids de estudiantes ni cifras (``reportes/services.generar_analitica``).
+    ("api/reportes/analiticas", "GET"): "ANALYTICS_VIEWED",
     ("api/reportes/estudiante/<int:estudiante_id>", "GET"): "REPORT_VIEWED",
     ("api/reportes/grupo/<int:grupo_id>", "GET"): "REPORT_VIEWED",
     ("api/reportes/grupo/<int:grupo_id>/export", "GET"): "REPORT_EXPORTED",
@@ -216,6 +223,7 @@ AUDIT_BY_ROUTE: dict[tuple[str, str], str] = {
     ("api/simulation/attempts", "POST"): "ATTEMPT_STARTED",
     ("api/simulation/attempts/<uuid:attempt_id>/decisions", "POST"): "DECISION_SELECTED",
     ("api/simulation/attempts/<uuid:attempt_id>/reflections", "POST"): "REFLECTION_SAVED",
+    ("api/simulation/attempts/<uuid:attempt_id>/feedback", "POST"): _exento(_ENCUESTA_PROPIA),
     ("api/simulation/attempts/<uuid:attempt_id>/safe-exit", "POST"): "SAFE_EXIT_REQUESTED",
     ("api/simulation/attempts/<uuid:attempt_id>/resume", "POST"): "ATTEMPT_RESUMED",
     ("api/simulation/attempts/<uuid:attempt_id>/enter-room", "POST"): _exento(_INTENTO_PROPIO),

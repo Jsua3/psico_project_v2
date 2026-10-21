@@ -199,7 +199,10 @@ def test_leer_como_dueno_cuesta_una_sola_escritura_que_la_base_descarta_al_repet
     _, owner_first = measure(lambda: client.get(url))
     _, owner_again = measure(lambda: client.get(url))
 
-    assert teacher.writes == 0
+    # El docente no escribe el evento del dueño; solo deja SU fila de auditoría (S4-1: leer datos de otra persona, `reporte.leer`).
+    teacher_inserts = [sql for sql in teacher.statements if sql.lstrip().upper().startswith("INSERT")]
+    assert teacher.writes == 1 and len(teacher_inserts) == 1
+    assert '"audit_logs"' in teacher_inserts[0] and '"attempt_events"' not in teacher_inserts[0]
     assert owner_first.writes == owner_again.writes == 1  # un solo INSERT … ON CONFLICT DO NOTHING
     assert owner_again.queries == owner_first.queries  # repetir cuesta lo mismo: nada de «¿existe ya?» antes
 
