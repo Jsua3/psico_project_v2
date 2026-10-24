@@ -21,4 +21,6 @@ for (const { desde, hacia, filtro } of copias) {
   rmSync(hacia, { recursive: true, force: true });
   cpSync(desde, hacia, { recursive: true, filter: filtro });
 }
+// El esquema de P1, para que las pruebas validen la universidad contra el contrato real.
+cpSync(path.join(repo, 'biblioteca', 'esquema', 'escenario.schema.json'), path.join(destino, 'biblioteca', 'escenario.schema.json'));
 console.log(`biblioteca y kit copiados a ${path.relative(raiz, destino)}`);
