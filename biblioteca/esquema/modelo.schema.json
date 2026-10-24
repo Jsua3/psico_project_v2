@@ -46,7 +46,10 @@
       "allOf": [
         {
           "if": { "properties": { "tipo": { "const": "TOOL" } } },
-          "then": { "required": ["descripcion"], "properties": { "efecto": { "const": "recoge-herramienta" } } },
+          "then": {
+            "required": ["descripcion"],
+            "properties": { "descripcion": { "$ref": "#/$defs/texto" }, "efecto": { "const": "recoge-herramienta" } }
+          },
           "else": { "properties": { "efecto": { "enum": ["ninguno", "pista"] } } }
         }
       ]

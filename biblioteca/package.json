@@ -6,7 +6,8 @@
   "type": "module",
   "scripts": {
     "test": "node --test \"scripts/**/*.test.mjs\"",
-    "validar": "node scripts/validar.mjs"
+    "validar": "node scripts/validar.mjs",
+    "validar:modelos": "node scripts/validar-modelos.mjs"
   },
   "devDependencies": {
     "ajv": "^8.17.1"

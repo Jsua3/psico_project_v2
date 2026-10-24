@@ -40,7 +40,7 @@ async function esquema() {
   return validadorDeEsquema;
 }
 
-async function existe(ruta) {
+export async function existe(ruta) {
   try {
     await access(ruta);
     return true;
@@ -52,7 +52,7 @@ async function existe(ruta) {
 const FIRMA_PNG = Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]);
 
 /** Ancho y alto de un PNG leyendo solo su cabecera; null si no es un PNG. */
-async function medidaPng(ruta) {
+export async function medidaPng(ruta) {
   let archivo;
   try {
     archivo = await open(ruta, 'r');
@@ -79,7 +79,7 @@ const TIPOS = {
 };
 
 /** Traduce un error del esquema a una frase en español llano. */
-function mensajeDeEsquema(error) {
+export function mensajeDeEsquema(error) {
   const p = error.params ?? {};
   switch (error.keyword) {
     case 'required':
@@ -110,7 +110,7 @@ function mensajeDeEsquema(error) {
   }
 }
 
-function lugarDeEsquema(escenario, rutaJson) {
+export function lugarDeEsquema(escenario, rutaJson) {
   if (!rutaJson) return 'escenario';
   const partes = rutaJson.split('/').slice(1);
   let actual = escenario;
