@@ -153,7 +153,10 @@
           ]
         },
         "arte": { "$ref": "#/$defs/arte" },
-        "textoInteraccion": { "$ref": "#/$defs/texto" }
+        "textoInteraccion": { "$ref": "#/$defs/texto" },
+        "alRevisar": { "$ref": "#/$defs/texto" },
+        "efecto": { "enum": ["ninguno", "pista"] },
+        "animacionCerca": { "$ref": "#/$defs/animacionCerca" }
       }
     },
     "herramienta": {
@@ -164,7 +167,19 @@
         "id": { "$ref": "#/$defs/clave" },
         "nombre": { "$ref": "#/$defs/texto" },
         "descripcion": { "$ref": "#/$defs/texto" },
-        "arte": { "$ref": "#/$defs/arte" }
+        "arte": { "$ref": "#/$defs/arte" },
+        "alRevisar": { "$ref": "#/$defs/texto" },
+        "animacionCerca": { "$ref": "#/$defs/animacionCerca" }
+      }
+    },
+    "animacionCerca": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["hoja", "cuadros", "fps"],
+      "properties": {
+        "hoja": { "$ref": "#/$defs/arte" },
+        "cuadros": { "type": "integer", "minimum": 2, "maximum": 4 },
+        "fps": { "type": "integer", "minimum": 1, "maximum": 12 }
       }
     },
     "personaje": {
