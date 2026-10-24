@@ -69,6 +69,15 @@ async function medidaPng(ruta) {
   }
 }
 
+const TIPOS = {
+  integer: 'un número entero',
+  number: 'un número',
+  string: 'un texto',
+  boolean: 'verdadero o falso (true o false)',
+  array: 'una lista',
+  object: 'un grupo de campos entre llaves',
+};
+
 /** Traduce un error del esquema a una frase en español llano. */
 function mensajeDeEsquema(error) {
   const p = error.params ?? {};
@@ -82,9 +91,13 @@ function mensajeDeEsquema(error) {
     case 'const':
       return `El valor debe ser ${JSON.stringify(p.allowedValue)}.`;
     case 'type':
-      return `El valor debe ser de tipo ${p.type}.`;
+      return `El valor debe ser ${TIPOS[p.type] ?? 'de otro tipo'}.`;
     case 'pattern':
-      return 'El texto no tiene la forma esperada (minúsculas, números y guiones; el arte va en "arte/…png").';
+      if (error.schemaPath.includes('/arte/')) {
+        return 'La imagen debe ser un PNG dentro de la carpeta "arte/", con minúsculas, números y guiones (por ejemplo "arte/salas/aula.png").';
+      }
+      if (error.schemaPath.includes('/texto/')) return 'El texto no puede quedar vacío ni tener solo espacios.';
+      return 'Usa solo minúsculas sin tildes, números y guiones (por ejemplo "sala-espera").';
     case 'minimum':
     case 'maximum':
       return `El número debe ser ${error.keyword === 'minimum' ? 'como mínimo' : 'como máximo'} ${p.limit}.`;
@@ -263,7 +276,9 @@ export async function validarEscenario(dir, { kitDir = KIT_POR_DEFECTO } = {}) {
       if (!puntoEnZona(zona, puerta.x, puerta.y)) {
         error('fuera-de-la-zona', donde, `La puerta "${puerta.etiqueta}" queda fuera del suelo de la sala: nadie podría llegar a ella.`);
       }
-      if (!salas.has(puerta.hacia)) {
+      if (puerta.hacia === sala.id) {
+        error('puerta-a-si-misma', donde, `La puerta "${puerta.id}" lleva a la misma sala en la que está.`);
+      } else if (!salas.has(puerta.hacia)) {
         error('sala-inexistente', donde, `La puerta "${puerta.id}" lleva a una sala que no existe: "${puerta.hacia}".`);
       } else if (!salas.get(puerta.hacia).puertas.some((p) => p.hacia === sala.id)) {
         aviso('puerta-sin-vuelta', donde, `Se puede ir de "${sala.id}" a "${puerta.hacia}", pero no hay puerta para volver.`);
@@ -271,6 +286,23 @@ export async function validarEscenario(dir, { kitDir = KIT_POR_DEFECTO } = {}) {
       for (const tapa of libre(puerta.x, puerta.y)) {
         error('entrada-bloqueada', donde, `El mueble "${tapa.nombre}" tapa la puerta "${puerta.etiqueta}".`);
       }
+    }
+  }
+
+  // Desde la primera sala se debe poder llegar a todas caminando por las puertas.
+  const alcanzadas = new Set([escenario.salas[0].id]);
+  const pendientes = [escenario.salas[0]];
+  while (pendientes.length > 0) {
+    for (const puerta of pendientes.pop().puertas) {
+      if (salas.has(puerta.hacia) && !alcanzadas.has(puerta.hacia)) {
+        alcanzadas.add(puerta.hacia);
+        pendientes.push(salas.get(puerta.hacia));
+      }
+    }
+  }
+  for (const sala of escenario.salas) {
+    if (!alcanzadas.has(sala.id)) {
+      aviso('sala-inalcanzable', `sala "${sala.id}"`, `No se llega a "${sala.nombre}" desde "${escenario.salas[0].nombre}" por ninguna puerta.`);
     }
   }
 
@@ -291,7 +323,11 @@ async function principal(argumentos) {
   let kitDir = KIT_POR_DEFECTO;
   const iKit = resto.indexOf('--kit');
   if (iKit >= 0) {
-    kitDir = path.resolve(process.cwd(), resto[iKit + 1] ?? '');
+    if (!resto[iKit + 1] || resto[iKit + 1].startsWith('--')) {
+      console.error('Falta la carpeta del kit después de --kit.');
+      return 2;
+    }
+    kitDir = path.resolve(process.cwd(), resto[iKit + 1]);
     resto.splice(iKit, 2);
   }
   const objetivo = resto[0];

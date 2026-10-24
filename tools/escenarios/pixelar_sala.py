@@ -69,8 +69,12 @@ def pixelar_sala(src, out, factor=FACTOR_POR_DEFECTO, colores=COLORES_POR_DEFECT
     filtros = {'lanczos': Image.LANCZOS, 'cercano': Image.NEAREST}
     if remuestreo not in filtros:
         raise ValueError(f'Remuestreo desconocido: {remuestreo} (sirven lanczos o cercano).')
-    im = Image.open(src).convert('RGB')
-    im = recortar_a_proporcion(im)
+    im = Image.open(src)
+    if im.mode in ('RGBA', 'LA', 'PA') or 'transparency' in im.info:
+        # Un fondo de sala es opaco: lo transparente se pinta de negro y no conserva su color escondido.
+        rgba = im.convert('RGBA')
+        im = Image.alpha_composite(Image.new('RGBA', rgba.size, (0, 0, 0, 255)), rgba)
+    im = recortar_a_proporcion(im.convert('RGB'))
     chica = im.resize((ANCHO // factor, ALTO // factor), filtros[remuestreo])
     if chica.getcolors(maxcolors=colores) is None:
         if chica.getcolors(maxcolors=256) is not None:
@@ -85,7 +89,12 @@ def pixelar_sala(src, out, factor=FACTOR_POR_DEFECTO, colores=COLORES_POR_DEFECT
 if __name__ == '__main__':
     if len(sys.argv) < 3:
         raise SystemExit('Uso: python tools/escenarios/pixelar_sala.py <src> <out.png> [factor] [colores]')
-    factor = int(sys.argv[3]) if len(sys.argv) > 3 else FACTOR_POR_DEFECTO
-    colores = int(sys.argv[4]) if len(sys.argv) > 4 else COLORES_POR_DEFECTO
-    hecho = pixelar_sala(sys.argv[1], sys.argv[2], factor, colores)
+    try:
+        factor = int(sys.argv[3]) if len(sys.argv) > 3 else FACTOR_POR_DEFECTO
+        colores = int(sys.argv[4]) if len(sys.argv) > 4 else COLORES_POR_DEFECTO
+        hecho = pixelar_sala(sys.argv[1], sys.argv[2], factor, colores)
+    except ValueError as causa:
+        mensaje = str(causa) if 'factor' in str(causa) or 'colores' in str(causa).lower() else (
+            'El factor y los colores deben ser números enteros (por ejemplo: 2 32).')
+        raise SystemExit(mensaje)
     print(f'{sys.argv[2]}  {hecho.size[0]}x{hecho.size[1]}  colores={len(hecho.getcolors(100000))}')

@@ -95,13 +95,22 @@ def piezas(escenario):
         yield o['arte'], lambda o=o: marcador_rect(LADO_ICONO, LADO_ICONO, o['nombre'])
 
 
+def dentro_de(base, relativa):
+    """Ruta absoluta de `relativa` dentro de `base`; error si se sale de esa carpeta."""
+    base = os.path.realpath(base)
+    destino = os.path.realpath(os.path.join(base, *relativa.split('/')))
+    if os.path.commonpath([base, destino]) != base:
+        raise SystemExit(f'La imagen "{relativa}" queda fuera de la carpeta del escenario.')
+    return destino
+
+
 def crear_marcadores(ruta_escenario):
     base = os.path.dirname(os.path.abspath(ruta_escenario))
     with open(ruta_escenario, encoding='utf-8') as f:
         escenario = json.load(f)
     creados = []
     for relativa, crear in piezas(escenario):
-        destino = os.path.join(base, *relativa.split('/'))
+        destino = dentro_de(base, relativa)
         if os.path.exists(destino):
             continue
         os.makedirs(os.path.dirname(destino), exist_ok=True)

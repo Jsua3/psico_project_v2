@@ -221,6 +221,50 @@ test('el CLI sale con 0, 1 o 2 aunque se llame a través de un enlace de carpeta
   }
 });
 
+test('una sala a la que no se llega por ninguna puerta es aviso', async () => {
+  const { errores, avisos } = await validarMutado((e) => {
+    e.salas[6].puertas = e.salas[6].puertas.filter((p) => p.hacia !== 'sala-8');
+    e.salas[7].puertas = [];
+  });
+  assert.deepEqual(errores, []);
+  const hallazgo = avisos.find((h) => h.codigo === 'sala-inalcanzable');
+  assert.ok(hallazgo, JSON.stringify(avisos));
+  assert.match(hallazgo.donde, /sala-8/);
+});
+
+test('una puerta que lleva a su misma sala es error', async () => {
+  const { errores } = await validarMutado((e) => {
+    e.salas[0].puertas[0].hacia = 'sala-1';
+  });
+  assert.ok(codigos(errores).includes('puerta-a-si-misma'), JSON.stringify(errores));
+});
+
+test('los mensajes del esquema van en español llano', async () => {
+  const { errores } = await validarMutado((e) => {
+    e.salas[0].entrada.x = 'centro';
+    e.salas[1].id = 'Sala Dos';
+  });
+  const tipo = errores.find((h) => h.donde.includes('entrada'));
+  assert.ok(tipo, JSON.stringify(errores));
+  assert.doesNotMatch(tipo.mensaje, /integer|object|string/);
+  assert.match(tipo.mensaje, /número entero/);
+  const clave = errores.find((h) => /salas\[1\].* › id$/.test(h.donde));
+  assert.ok(clave, JSON.stringify(errores));
+  assert.doesNotMatch(clave.mensaje, /arte/);
+});
+
+test('un nombre de solo espacios es error de esquema', async () => {
+  const { errores } = await validarMutado((e) => {
+    e.salas[0].nombre = '   ';
+  });
+  assert.ok(codigos(errores).includes('esquema'), JSON.stringify(errores));
+});
+
+test('--kit sin carpeta es un error de uso', () => {
+  const r = spawnSync(process.execPath, [path.join(aqui, 'validar.mjs'), FIXTURE, '--kit'], { encoding: 'utf8' });
+  assert.equal(r.status, 2, r.stdout + r.stderr);
+});
+
 test('zonaCaminable devuelve los valores fijados', () => {
   assert.deepEqual(zonaCaminable('tres-paredes'), { x: 96, y: 236, ancho: 768, alto: 250 });
   assert.deepEqual(zonaCaminable('dos-paredes-izquierda'), { x: 96, y: 236, ancho: 840, alto: 250 });

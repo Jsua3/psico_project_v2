@@ -48,6 +48,11 @@ de los personajes en otro kit; por defecto usa `../frontend/src/assets/character
 | `pocas-salas` | error (aviso si `completo` es `false`) | un lugar completo necesita al menos 8 salas |
 | `encuadres-iguales` | aviso | todas las salas usan el mismo encuadre |
 | `puerta-sin-vuelta` | aviso | se puede ir de A a B pero no volver |
+| `puerta-a-si-misma` | error | una puerta lleva a la misma sala en la que está |
+| `sala-inalcanzable` | aviso | desde la primera sala no se llega a esa sala por ninguna puerta |
+
+Los recorridos sugeridos son la secuencia de escenas que se propone al docente, no un camino
+físico: dos salas seguidas de un recorrido no necesitan una puerta entre ellas.
 
 ## Formato
 
@@ -58,6 +63,12 @@ Puntos clave:
 - La sala mide 960 × 528 px, como en el juego.
 - `x` e `y` de muebles, objetos y personajes son el **punto de apoyo en el suelo**
   (centro inferior). `ancho` y `alto` de un mueble son su caja de choque.
+- El PNG de un mueble mide `ancho` de ancho pero suele ser **más alto que `alto`**: la caja
+  es solo la huella en el piso. El PNG se dibuja con su **borde inferior** en el punto de apoyo
+  (por ejemplo, el escritorio mide 122 × 58 y su caja 122 × 28). Lo que cuelga de la pared
+  (tablero, cartelera) deja aire transparente abajo y va en `y = 236`, sin choque.
+- Fondos de sala: PNG de 960 × 528. Objetos y herramientas: iconos de 32 × 32.
+- Las puertas no tienen imagen propia: van pintadas en el fondo, en su posición.
 - Zona caminable por encuadre: `tres-paredes` x 96–864, `dos-paredes-izquierda` x 96–936,
   `dos-paredes-derecha` x 24–864, `una-pared` x 24–936; siempre y 236–486.
 - Un personaje toma sus caras de `frontend/src/assets/characters/kit/<recipeId>/portrait-<expresión>.png`.

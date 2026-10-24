@@ -32,7 +32,7 @@
   },
   "$defs": {
     "clave": { "type": "string", "pattern": "^[a-z0-9]+(-[a-z0-9]+)*$" },
-    "texto": { "type": "string", "minLength": 1 },
+    "texto": { "type": "string", "minLength": 1, "pattern": "\\S" },
     "arte": { "type": "string", "pattern": "^arte/([a-z0-9-]+/)*[a-z0-9-]+\\.png$" },
     "x": { "type": "integer", "minimum": 0, "maximum": 960 },
     "y": { "type": "integer", "minimum": 0, "maximum": 528 },

@@ -67,6 +67,18 @@ def test_objetos_y_herramientas_de_32x32(generado):
         assert colores(im) <= 16, pieza['id']
 
 
+def test_no_escribe_fuera_de_la_carpeta_del_escenario(tmp_path):
+    with open(UNIVERSIDAD, encoding='utf-8') as f:
+        esc = json.load(f)
+    esc['catalogo']['muebles'][0]['arte'] = '../../escapado.png'
+    lugar = tmp_path / 'a' / 'b'
+    lugar.mkdir(parents=True)
+    (lugar / 'escenario.json').write_text(json.dumps(esc), encoding='utf-8')
+    with pytest.raises(SystemExit, match='escapado'):
+        au.generar(str(lugar / 'escenario.json'), factor=2, salas=['consultorio'])
+    assert not (tmp_path / 'escapado.png').exists()
+
+
 def test_una_pieza_sin_dibujo_es_error(tmp_path):
     with open(UNIVERSIDAD, encoding='utf-8') as f:
         esc = json.load(f)

@@ -84,6 +84,26 @@ def test_al_recortar_colores_se_funden_los_parecidos_y_no_los_pequenos(tmp_path,
     assert (40, 160, 220) in colores_finales
 
 
+def test_lo_transparente_no_conserva_su_color_escondido(tmp_path, salida):
+    """Un PNG con transparencia: los píxeles invisibles no deben aparecer con su color."""
+    im = Image.new('RGBA', (960, 528), (90, 90, 96, 255))
+    im.paste((255, 0, 0, 0), (0, 0, 480, 528))  # rojo totalmente transparente
+    ruta = tmp_path / 'transparente.png'
+    im.save(ruta)
+    pixelar_sala(str(ruta), salida, 2, COLORES, remuestreo='cercano')
+    assert (255, 0, 0) not in [c for _, c in Image.open(salida).getcolors()]
+
+
+def test_el_comando_con_un_factor_que_no_es_numero_explica_el_error(tmp_path, salida):
+    import subprocess
+    ruta = imagen_sintetica(400, 220, tmp_path / 'f.png')
+    script = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'pixelar_sala.py')
+    r = subprocess.run([sys.executable, script, str(ruta), salida, 'dos'], capture_output=True, text=True)
+    assert r.returncode != 0
+    assert 'Traceback' not in r.stderr
+    assert 'factor' in (r.stderr + r.stdout)
+
+
 def test_un_factor_que_no_divide_el_lienzo_es_error(tmp_path, salida):
     with pytest.raises(ValueError):
         pixelar_sala(imagen_sintetica(1600, 900, tmp_path / 'f.png'), salida, 7, COLORES)

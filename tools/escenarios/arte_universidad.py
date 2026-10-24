@@ -20,6 +20,7 @@ from PIL import Image, ImageDraw
 from scipy import ndimage
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+from marcadores import dentro_de  # noqa: E402
 from pixelar_sala import pixelar_sala  # noqa: E402
 
 ANCHO, ALTO = 960, 528
@@ -958,8 +959,13 @@ def generar(ruta_escenario, factor=2, salas=None):
     if faltan:
         raise SystemExit(f"No hay dibujo para: {', '.join(faltan)}")
 
+    rutas = ([s['fondo'] for s in esc['salas']] + [m['arte'] for m in esc['catalogo']['muebles']]
+             + [o['arte'] for o in esc['catalogo']['objetos'] + esc['catalogo']['herramientas']])
+    for relativa in rutas:  # antes de dibujar nada: ninguna imagen se escribe fuera del escenario
+        dentro_de(base, relativa)
+
     def destino(relativa):
-        ruta = os.path.join(base, *relativa.split('/'))
+        ruta = dentro_de(base, relativa)
         os.makedirs(os.path.dirname(ruta), exist_ok=True)
         return ruta
 
