@@ -1,12 +1,15 @@
 import type { Routes } from '@angular/router';
 
+import { InicioComponent } from './pantallas/inicio/inicio.component';
+import { LugarComponent } from './pantallas/lugar/lugar.component';
 import { PendienteComponent } from './pantallas/pendiente.component';
+import { SalasComponent } from './pantallas/salas/salas.component';
 
 /** Rutas del sandbox: cada momento del docente tiene su pantalla. */
 export const routes: Routes = [
-  { path: '', component: PendienteComponent, title: 'Mis casos · Editor de casos' },
-  { path: 'lugar', component: PendienteComponent, title: 'Elegir un lugar · Editor de casos' },
-  { path: 'salas', component: PendienteComponent, title: 'Elegir salas · Editor de casos' },
+  { path: '', component: InicioComponent, title: 'Mis casos · Editor de casos' },
+  { path: 'lugar', component: LugarComponent, title: 'Elegir un lugar · Editor de casos' },
+  { path: 'salas', component: SalasComponent, title: 'Elegir salas · Editor de casos' },
   {
     path: 'editor',
     title: 'El caso · Editor de casos',

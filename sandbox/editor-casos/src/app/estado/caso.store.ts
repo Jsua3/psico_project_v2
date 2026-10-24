@@ -1,4 +1,5 @@
-import { Injectable, effect, signal } from '@angular/core';
+import { Injectable, effect, inject, signal } from '@angular/core';
+import { Router } from '@angular/router';
 
 import type { CasoBorrador } from '../modelo/caso';
 
@@ -21,6 +22,7 @@ function leerGuardado(): CasoBorrador | null {
 /** Estado del caso en borrador. Todo el sandbox lee y cambia el caso por aquí. */
 @Injectable({ providedIn: 'root' })
 export class CasoStore {
+  private readonly router = inject(Router);
   private readonly estado = signal<CasoBorrador | null>(leerGuardado());
 
   readonly caso = this.estado.asReadonly();
@@ -45,6 +47,12 @@ export class CasoStore {
   /** Reemplaza el caso en curso. */
   fijar(caso: CasoBorrador): void {
     this.estado.set(caso);
+  }
+
+  /** Guarda un caso recién creado desde un lugar y abre el editor. */
+  crearCaso(caso: CasoBorrador): void {
+    this.fijar(caso);
+    void this.router.navigateByUrl('/editor');
   }
 
   /** Borra el caso y lo guardado: el sandbox vuelve a empezar. */

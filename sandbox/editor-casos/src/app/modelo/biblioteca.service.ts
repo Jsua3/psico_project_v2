@@ -7,12 +7,26 @@ export interface LugarResumen {
   nombre: string;
   completo: boolean;
   salas: number;
+  descripcion?: string;
+  temas?: string[];
+  recorridos?: number;
+  personajes?: number;
+  /** Fondos de algunas salas, para mostrar el lugar de un vistazo. */
+  miniaturas?: string[];
 }
 
 /** Lugares que el sandbox anuncia aunque todavía no estén en la biblioteca. */
 const PRONTO: readonly LugarResumen[] = [
-  { id: 'casa', nombre: 'Casa', completo: false, salas: 0 },
-  { id: 'comisaria-familia', nombre: 'Comisaría de familia', completo: false, salas: 0 },
+  {
+    id: 'casa', nombre: 'Casa', completo: false, salas: 0,
+    descripcion: 'Sala, cocina, habitación y entrada de una vivienda familiar.',
+    temas: ['familia', 'violencia-genero', 'nna'],
+  },
+  {
+    id: 'comisaria-familia', nombre: 'Comisaría de familia', completo: false, salas: 0,
+    descripcion: 'Recepción, sala de espera y oficinas de atención de una comisaría.',
+    temas: ['rutas-proteccion', 'violencia-genero'],
+  },
 ];
 
 const LUGARES_LISTOS = ['universidad'] as const;
@@ -36,7 +50,11 @@ export class BibliotecaService {
     const listos = await Promise.all(
       LUGARES_LISTOS.map(async (id) => {
         const e = await this.escenario(id);
-        return { id: e.id, nombre: e.nombre, completo: e.completo, salas: e.salas.length };
+        return {
+          id: e.id, nombre: e.nombre, completo: e.completo, salas: e.salas.length,
+          descripcion: e.descripcion, temas: e.temas, recorridos: e.recorridosSugeridos.length,
+          personajes: e.personajes.length, miniaturas: e.salas.slice(0, 4).map((s) => rutaArte(e.id, s.fondo)),
+        };
       }),
     );
     return [...listos, ...PRONTO];

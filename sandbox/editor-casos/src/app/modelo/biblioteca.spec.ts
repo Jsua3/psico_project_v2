@@ -19,11 +19,12 @@ describe('Biblioteca', () => {
   it('lugares lista la universidad completa y la casa y la comisaría como «Pronto»', async () => {
     vi.spyOn(globalThis, 'fetch').mockResolvedValue(new Response(JSON.stringify(universidad)));
     const lugares = await new BibliotecaService().lugares();
-    expect(lugares).toEqual([
-      { id: 'universidad', nombre: 'Universidad', completo: true, salas: universidad.salas.length },
+    expect(lugares).toMatchObject([
+      { id: 'universidad', nombre: 'Universidad', completo: true, salas: universidad.salas.length, recorridos: 3, personajes: 7 },
       { id: 'casa', nombre: 'Casa', completo: false, salas: 0 },
       { id: 'comisaria-familia', nombre: 'Comisaría de familia', completo: false, salas: 0 },
     ]);
+    expect(lugares[0].miniaturas).toHaveLength(4);
     vi.restoreAllMocks();
   });
 
