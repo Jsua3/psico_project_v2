@@ -87,11 +87,24 @@ const PASO_MOVER = 24;
               <span class="etiquetas" aria-hidden="true">
                 @if (caso().inicioId === e.id) { <span class="pildora pildora-primaria">Inicio</span> }
                 @if (e.esFinal) { <span class="pildora pildora-adecuada">Final</span> }
-                @for (a of avisosDe(e.id); track a.tipo) { <span class="pildora aviso">⚠ {{ nombreAviso[a.tipo] }}</span> }
+                @if (avisosDe(e.id).length === 1) {
+                  <span class="pildora aviso">⚠ {{ nombreAviso[avisosDe(e.id)[0].tipo] }}</span>
+                } @else if (avisosDe(e.id).length > 1) {
+                  <span class="pildora aviso">⚠ {{ avisosDe(e.id).length }} avisos</span>
+                }
               </span>
               <span class="titulo">{{ i + 1 }} · {{ e.titulo }}</span>
               <span class="sala texto-secundario">{{ nombreSala(e.salaId) }}</span>
             </button>
+          }
+
+          @if (vistaEscena(); as v) {
+            <div class="vista tarjeta" role="tooltip" [attr.id]="'vista-' + v.escena.id"
+                 [style.left.px]="pos(v.escena).x" [style.top.px]="pos(v.escena).y + altoEscena + 8">
+              <img class="pixel" [src]="v.fondo" alt="" width="960" height="528" />
+              <strong>{{ v.sala }}</strong>
+              <span class="texto-secundario">{{ v.resumen }}</span>
+            </div>
           }
 
           @if (flechaElegida(); as f) {
@@ -102,13 +115,6 @@ const PASO_MOVER = 24;
         </div>
       </div>
 
-      @if (vistaEscena(); as v) {
-        <div class="vista tarjeta" role="tooltip" [attr.id]="'vista-' + v.escena.id">
-          <img class="pixel" [src]="v.fondo" alt="" width="960" height="528" />
-          <strong>{{ v.sala }}</strong>
-          <span class="texto-secundario">{{ v.resumen }}</span>
-        </div>
-      }
     </div>
 
     <svg class="minivista" viewBox="0 0 160 90" role="img" aria-label="Minivista del mapa">
@@ -171,6 +177,10 @@ const PASO_MOVER = 24;
     .escena.con-aviso { border-color: var(--aviso); }
     .etiquetas { display: flex; flex-wrap: wrap; gap: 4px; min-height: 26px; }
     .etiquetas .pildora { min-height: 24px; padding: 0 8px; font-size: 14px; }
+    .etiquetas { flex-wrap: nowrap; overflow: hidden; max-width: 100%; }
+    .titulo, .sala { max-width: 100%; overflow: hidden; text-overflow: ellipsis; display: -webkit-box; -webkit-box-orient: vertical; }
+    .titulo { -webkit-line-clamp: 2; }
+    .sala { -webkit-line-clamp: 1; }
     .aviso { border-color: var(--aviso); color: #7a3606; background: #fdf0e6; }
     .titulo { font-weight: 700; font-size: 16px; line-height: 22px; }
     .sala { font-size: 14px; line-height: 20px; }
@@ -178,7 +188,7 @@ const PASO_MOVER = 24;
       position: absolute; transform: translate(-50%, -120%); max-width: 260px; padding: 6px 10px; font-size: 16px; line-height: 22px;
       background: var(--tinta); color: #fff; border-radius: 8px; pointer-events: none;
     }
-    .vista { position: absolute; right: 12px; top: 12px; width: 260px; display: flex; flex-direction: column; gap: 4px; z-index: 3; }
+    .vista { position: absolute; width: 260px; display: flex; flex-direction: column; gap: 4px; z-index: 3; pointer-events: none; box-shadow: 0 8px 24px rgba(20,35,42,.18); }
     .vista img { width: 100%; height: auto; border-radius: 8px; }
     .vista span { font-size: 16px; }
     .minivista { position: absolute; right: 16px; bottom: 16px; width: 160px; height: 90px; background: var(--superficie); border: 1px solid var(--linea); border-radius: 8px; }
@@ -203,6 +213,7 @@ export class MapaEscenasComponent {
   readonly accion = output<AccionEscena>();
 
   protected readonly PASO = PASO_MOVER;
+  protected readonly altoEscena = ALTO_ESCENA;
   protected readonly nombreAviso = NOMBRE_AVISO;
   protected readonly elegida = signal<string | null>(null);
   protected readonly vista = signal<string | null>(null);

@@ -4,7 +4,7 @@ import type { CasoBorrador } from './caso';
 
 /** Tamaño de la tarjeta de una escena en el mapa. */
 export const ANCHO_ESCENA = 208;
-export const ALTO_ESCENA = 104;
+export const ALTO_ESCENA = 120;
 
 /**
  * Posiciones de las escenas con un trazado de izquierda a derecha (dagre): cada respuesta
