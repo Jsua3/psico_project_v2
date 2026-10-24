@@ -1,0 +1,182 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://siep.local/biblioteca/escenario.schema.json",
+  "title": "Escenario de la biblioteca (esquema 1)",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "esquema", "id", "nombre", "descripcion", "temas", "completo", "arteProvisional",
+    "salas", "recorridosSugeridos", "catalogo", "personajes"
+  ],
+  "properties": {
+    "esquema": { "const": 1 },
+    "id": { "$ref": "#/$defs/clave" },
+    "nombre": { "$ref": "#/$defs/texto" },
+    "descripcion": { "$ref": "#/$defs/texto" },
+    "temas": { "type": "array", "items": { "$ref": "#/$defs/clave" } },
+    "completo": { "type": "boolean" },
+    "arteProvisional": { "type": "boolean" },
+    "salas": { "type": "array", "minItems": 1, "items": { "$ref": "#/$defs/sala" } },
+    "recorridosSugeridos": { "type": "array", "items": { "$ref": "#/$defs/recorrido" } },
+    "catalogo": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["muebles", "objetos", "herramientas"],
+      "properties": {
+        "muebles": { "type": "array", "items": { "$ref": "#/$defs/muebleDeCatalogo" } },
+        "objetos": { "type": "array", "items": { "$ref": "#/$defs/objetoDeCatalogo" } },
+        "herramientas": { "type": "array", "items": { "$ref": "#/$defs/herramienta" } }
+      }
+    },
+    "personajes": { "type": "array", "items": { "$ref": "#/$defs/personaje" } }
+  },
+  "$defs": {
+    "clave": { "type": "string", "pattern": "^[a-z0-9]+(-[a-z0-9]+)*$" },
+    "texto": { "type": "string", "minLength": 1 },
+    "arte": { "type": "string", "pattern": "^arte/([a-z0-9-]+/)*[a-z0-9-]+\\.png$" },
+    "x": { "type": "integer", "minimum": 0, "maximum": 960 },
+    "y": { "type": "integer", "minimum": 0, "maximum": 528 },
+    "punto": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["x", "y"],
+      "properties": { "x": { "$ref": "#/$defs/x" }, "y": { "$ref": "#/$defs/y" } }
+    },
+    "sala": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "id", "nombre", "descripcion", "encuadre", "fondo", "entrada",
+        "muebles", "objetos", "personajes", "puertas"
+      ],
+      "properties": {
+        "id": { "$ref": "#/$defs/clave" },
+        "nombre": { "$ref": "#/$defs/texto" },
+        "descripcion": { "$ref": "#/$defs/texto" },
+        "encuadre": { "enum": ["tres-paredes", "dos-paredes-izquierda", "dos-paredes-derecha", "una-pared"] },
+        "fondo": { "$ref": "#/$defs/arte" },
+        "entrada": { "$ref": "#/$defs/punto" },
+        "muebles": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["ref", "x", "y", "espejo"],
+            "properties": {
+              "ref": { "$ref": "#/$defs/clave" },
+              "x": { "$ref": "#/$defs/x" },
+              "y": { "$ref": "#/$defs/y" },
+              "espejo": { "type": "boolean" }
+            }
+          }
+        },
+        "objetos": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["ref", "x", "y"],
+            "properties": {
+              "ref": { "$ref": "#/$defs/clave" },
+              "x": { "$ref": "#/$defs/x" },
+              "y": { "$ref": "#/$defs/y" }
+            }
+          }
+        },
+        "personajes": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["ref", "x", "y", "mirando", "expresion"],
+            "properties": {
+              "ref": { "$ref": "#/$defs/clave" },
+              "x": { "$ref": "#/$defs/x" },
+              "y": { "$ref": "#/$defs/y" },
+              "mirando": { "enum": ["izquierda", "derecha"] },
+              "expresion": { "enum": ["neutral", "alegre", "preocupada", "triste"] }
+            }
+          }
+        },
+        "puertas": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["id", "hacia", "x", "y", "etiqueta"],
+            "properties": {
+              "id": { "$ref": "#/$defs/clave" },
+              "hacia": { "$ref": "#/$defs/clave" },
+              "x": { "$ref": "#/$defs/x" },
+              "y": { "$ref": "#/$defs/y" },
+              "etiqueta": { "$ref": "#/$defs/texto" }
+            }
+          }
+        }
+      }
+    },
+    "recorrido": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["id", "nombre", "descripcion", "salas"],
+      "properties": {
+        "id": { "$ref": "#/$defs/clave" },
+        "nombre": { "$ref": "#/$defs/texto" },
+        "descripcion": { "$ref": "#/$defs/texto" },
+        "salas": { "type": "array", "minItems": 2, "items": { "$ref": "#/$defs/clave" } }
+      }
+    },
+    "muebleDeCatalogo": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["id", "nombre", "arte", "ancho", "alto", "colision"],
+      "properties": {
+        "id": { "$ref": "#/$defs/clave" },
+        "nombre": { "$ref": "#/$defs/texto" },
+        "arte": { "$ref": "#/$defs/arte" },
+        "ancho": { "type": "integer", "minimum": 1, "maximum": 960 },
+        "alto": { "type": "integer", "minimum": 1, "maximum": 528 },
+        "colision": { "type": "boolean" }
+      }
+    },
+    "objetoDeCatalogo": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["id", "nombre", "tipo", "arte", "textoInteraccion"],
+      "properties": {
+        "id": { "$ref": "#/$defs/clave" },
+        "nombre": { "$ref": "#/$defs/texto" },
+        "tipo": {
+          "enum": [
+            "PERSON", "OBJECT", "ROUTE", "TOOL", "WARNING", "EXIT",
+            "PROP", "TOOL_TARGET", "TRIGGER", "NOTE", "RESOURCE"
+          ]
+        },
+        "arte": { "$ref": "#/$defs/arte" },
+        "textoInteraccion": { "$ref": "#/$defs/texto" }
+      }
+    },
+    "herramienta": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["id", "nombre", "descripcion", "arte"],
+      "properties": {
+        "id": { "$ref": "#/$defs/clave" },
+        "nombre": { "$ref": "#/$defs/texto" },
+        "descripcion": { "$ref": "#/$defs/texto" },
+        "arte": { "$ref": "#/$defs/arte" }
+      }
+    },
+    "personaje": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["id", "nombre", "rol", "recipeId"],
+      "properties": {
+        "id": { "$ref": "#/$defs/clave" },
+        "nombre": { "$ref": "#/$defs/texto" },
+        "rol": { "$ref": "#/$defs/texto" },
+        "recipeId": { "$ref": "#/$defs/clave" }
+      }
+    }
+  }
+}

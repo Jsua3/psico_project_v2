@@ -1,0 +1,358 @@
+{
+  "esquema": 1,
+  "id": "minimo",
+  "nombre": "Lugar mínimo",
+  "descripcion": "Escenario de prueba del validador.",
+  "temas": [
+    "prueba"
+  ],
+  "completo": true,
+  "arteProvisional": true,
+  "salas": [
+    {
+      "id": "sala-1",
+      "nombre": "Sala 1",
+      "descripcion": "Sala de prueba número 1.",
+      "encuadre": "tres-paredes",
+      "fondo": "arte/salas/sala-1.png",
+      "entrada": {
+        "x": 480,
+        "y": 440
+      },
+      "muebles": [
+        {
+          "ref": "mesa",
+          "x": 300,
+          "y": 300,
+          "espejo": false
+        }
+      ],
+      "objetos": [
+        {
+          "ref": "folleto",
+          "x": 600,
+          "y": 400
+        }
+      ],
+      "personajes": [
+        {
+          "ref": "persona-prueba",
+          "x": 560,
+          "y": 330,
+          "mirando": "izquierda",
+          "expresion": "neutral"
+        }
+      ],
+      "puertas": [
+        {
+          "id": "puerta-siguiente",
+          "hacia": "sala-2",
+          "x": 700,
+          "y": 236,
+          "etiqueta": "Ir a la sala 2"
+        }
+      ]
+    },
+    {
+      "id": "sala-2",
+      "nombre": "Sala 2",
+      "descripcion": "Sala de prueba número 2.",
+      "encuadre": "dos-paredes-izquierda",
+      "fondo": "arte/salas/sala-2.png",
+      "entrada": {
+        "x": 480,
+        "y": 440
+      },
+      "muebles": [
+        {
+          "ref": "mesa",
+          "x": 300,
+          "y": 300,
+          "espejo": false
+        }
+      ],
+      "objetos": [],
+      "personajes": [],
+      "puertas": [
+        {
+          "id": "puerta-anterior",
+          "hacia": "sala-1",
+          "x": 480,
+          "y": 486,
+          "etiqueta": "Volver a la sala 1"
+        },
+        {
+          "id": "puerta-siguiente",
+          "hacia": "sala-3",
+          "x": 700,
+          "y": 236,
+          "etiqueta": "Ir a la sala 3"
+        }
+      ]
+    },
+    {
+      "id": "sala-3",
+      "nombre": "Sala 3",
+      "descripcion": "Sala de prueba número 3.",
+      "encuadre": "dos-paredes-derecha",
+      "fondo": "arte/salas/sala-3.png",
+      "entrada": {
+        "x": 480,
+        "y": 440
+      },
+      "muebles": [
+        {
+          "ref": "mesa",
+          "x": 300,
+          "y": 300,
+          "espejo": false
+        }
+      ],
+      "objetos": [],
+      "personajes": [],
+      "puertas": [
+        {
+          "id": "puerta-anterior",
+          "hacia": "sala-2",
+          "x": 480,
+          "y": 486,
+          "etiqueta": "Volver a la sala 2"
+        },
+        {
+          "id": "puerta-siguiente",
+          "hacia": "sala-4",
+          "x": 700,
+          "y": 236,
+          "etiqueta": "Ir a la sala 4"
+        }
+      ]
+    },
+    {
+      "id": "sala-4",
+      "nombre": "Sala 4",
+      "descripcion": "Sala de prueba número 4.",
+      "encuadre": "una-pared",
+      "fondo": "arte/salas/sala-4.png",
+      "entrada": {
+        "x": 480,
+        "y": 440
+      },
+      "muebles": [
+        {
+          "ref": "mesa",
+          "x": 300,
+          "y": 300,
+          "espejo": false
+        }
+      ],
+      "objetos": [],
+      "personajes": [],
+      "puertas": [
+        {
+          "id": "puerta-anterior",
+          "hacia": "sala-3",
+          "x": 480,
+          "y": 486,
+          "etiqueta": "Volver a la sala 3"
+        },
+        {
+          "id": "puerta-siguiente",
+          "hacia": "sala-5",
+          "x": 700,
+          "y": 236,
+          "etiqueta": "Ir a la sala 5"
+        }
+      ]
+    },
+    {
+      "id": "sala-5",
+      "nombre": "Sala 5",
+      "descripcion": "Sala de prueba número 5.",
+      "encuadre": "tres-paredes",
+      "fondo": "arte/salas/sala-5.png",
+      "entrada": {
+        "x": 480,
+        "y": 440
+      },
+      "muebles": [
+        {
+          "ref": "mesa",
+          "x": 300,
+          "y": 300,
+          "espejo": false
+        }
+      ],
+      "objetos": [],
+      "personajes": [],
+      "puertas": [
+        {
+          "id": "puerta-anterior",
+          "hacia": "sala-4",
+          "x": 480,
+          "y": 486,
+          "etiqueta": "Volver a la sala 4"
+        },
+        {
+          "id": "puerta-siguiente",
+          "hacia": "sala-6",
+          "x": 700,
+          "y": 236,
+          "etiqueta": "Ir a la sala 6"
+        }
+      ]
+    },
+    {
+      "id": "sala-6",
+      "nombre": "Sala 6",
+      "descripcion": "Sala de prueba número 6.",
+      "encuadre": "dos-paredes-izquierda",
+      "fondo": "arte/salas/sala-6.png",
+      "entrada": {
+        "x": 480,
+        "y": 440
+      },
+      "muebles": [
+        {
+          "ref": "mesa",
+          "x": 300,
+          "y": 300,
+          "espejo": false
+        }
+      ],
+      "objetos": [],
+      "personajes": [],
+      "puertas": [
+        {
+          "id": "puerta-anterior",
+          "hacia": "sala-5",
+          "x": 480,
+          "y": 486,
+          "etiqueta": "Volver a la sala 5"
+        },
+        {
+          "id": "puerta-siguiente",
+          "hacia": "sala-7",
+          "x": 700,
+          "y": 236,
+          "etiqueta": "Ir a la sala 7"
+        }
+      ]
+    },
+    {
+      "id": "sala-7",
+      "nombre": "Sala 7",
+      "descripcion": "Sala de prueba número 7.",
+      "encuadre": "dos-paredes-derecha",
+      "fondo": "arte/salas/sala-7.png",
+      "entrada": {
+        "x": 480,
+        "y": 440
+      },
+      "muebles": [
+        {
+          "ref": "mesa",
+          "x": 300,
+          "y": 300,
+          "espejo": false
+        }
+      ],
+      "objetos": [],
+      "personajes": [],
+      "puertas": [
+        {
+          "id": "puerta-anterior",
+          "hacia": "sala-6",
+          "x": 480,
+          "y": 486,
+          "etiqueta": "Volver a la sala 6"
+        },
+        {
+          "id": "puerta-siguiente",
+          "hacia": "sala-8",
+          "x": 700,
+          "y": 236,
+          "etiqueta": "Ir a la sala 8"
+        }
+      ]
+    },
+    {
+      "id": "sala-8",
+      "nombre": "Sala 8",
+      "descripcion": "Sala de prueba número 8.",
+      "encuadre": "una-pared",
+      "fondo": "arte/salas/sala-8.png",
+      "entrada": {
+        "x": 480,
+        "y": 440
+      },
+      "muebles": [
+        {
+          "ref": "mesa",
+          "x": 300,
+          "y": 300,
+          "espejo": false
+        }
+      ],
+      "objetos": [],
+      "personajes": [],
+      "puertas": [
+        {
+          "id": "puerta-anterior",
+          "hacia": "sala-7",
+          "x": 480,
+          "y": 486,
+          "etiqueta": "Volver a la sala 7"
+        }
+      ]
+    }
+  ],
+  "recorridosSugeridos": [
+    {
+      "id": "recorrido-prueba",
+      "nombre": "Recorrido de prueba",
+      "descripcion": "De la primera a la tercera sala.",
+      "salas": [
+        "sala-1",
+        "sala-2",
+        "sala-3"
+      ]
+    }
+  ],
+  "catalogo": {
+    "muebles": [
+      {
+        "id": "mesa",
+        "nombre": "Mesa",
+        "arte": "arte/muebles/mesa.png",
+        "ancho": 100,
+        "alto": 40,
+        "colision": true
+      }
+    ],
+    "objetos": [
+      {
+        "id": "folleto",
+        "nombre": "Folleto",
+        "tipo": "RESOURCE",
+        "arte": "arte/objetos/folleto.png",
+        "textoInteraccion": "Revisar"
+      }
+    ],
+    "herramientas": [
+      {
+        "id": "ficha",
+        "nombre": "Ficha",
+        "descripcion": "Ficha de prueba.",
+        "arte": "arte/herramientas/ficha.png"
+      }
+    ]
+  },
+  "personajes": [
+    {
+      "id": "persona-prueba",
+      "nombre": "Persona de prueba",
+      "rol": "Profesional",
+      "recipeId": "persona-prueba"
+    }
+  ]
+}
