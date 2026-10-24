@@ -8,9 +8,9 @@
  *
  * Uso: npm run validar -- escenarios/universidad
  */
-import { access, readFile } from 'node:fs/promises';
+import { access, open, readFile } from 'node:fs/promises';
 import path from 'node:path';
-import { fileURLToPath, pathToFileURL } from 'node:url';
+import { fileURLToPath } from 'node:url';
 import Ajv2020 from 'ajv/dist/2020.js';
 
 import {
@@ -46,6 +46,26 @@ async function existe(ruta) {
     return true;
   } catch {
     return false;
+  }
+}
+
+const FIRMA_PNG = Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]);
+
+/** Ancho y alto de un PNG leyendo solo su cabecera; null si no es un PNG. */
+async function medidaPng(ruta) {
+  let archivo;
+  try {
+    archivo = await open(ruta, 'r');
+    const cabecera = Buffer.alloc(24);
+    const { bytesRead } = await archivo.read(cabecera, 0, 24, 0);
+    if (bytesRead < 24 || !cabecera.subarray(0, 8).equals(FIRMA_PNG) || cabecera.toString('ascii', 12, 16) !== 'IHDR') {
+      return null;
+    }
+    return { ancho: cabecera.readUInt32BE(16), alto: cabecera.readUInt32BE(20) };
+  } catch {
+    return null; // una carpeta con nombre de imagen, por ejemplo
+  } finally {
+    await archivo?.close();
   }
 }
 
@@ -155,13 +175,23 @@ export async function validarEscenario(dir, { kitDir = KIT_POR_DEFECTO } = {}) {
     aviso('encuadres-iguales', 'escenario', `Todas las salas usan el mismo encuadre ("${[...encuadres][0]}"). Conviene variar entre 3, 2 y 1 pared.`);
   }
 
-  // Arte en disco.
-  const revisarArte = async (ruta, donde) => {
-    if (!(await existe(path.join(dir, ruta)))) {
+  // Arte en disco: que exista, que sea PNG y, si es un fondo, que mida lo que mide una sala.
+  const revisarArte = async (ruta, donde, tamano) => {
+    const completa = path.join(dir, ruta);
+    if (!(await existe(completa))) {
       error('arte-faltante', donde, `No se encuentra la imagen "${ruta}".`);
+      return;
+    }
+    const medida = await medidaPng(completa);
+    if (!medida) {
+      error('arte-invalido', donde, `"${ruta}" no es una imagen PNG.`);
+    } else if (tamano && (medida.ancho !== tamano.ancho || medida.alto !== tamano.alto)) {
+      error('arte-invalido', donde, `"${ruta}" mide ${medida.ancho} × ${medida.alto} y un fondo de sala debe medir ${tamano.ancho} × ${tamano.alto}.`);
     }
   };
-  for (const sala of escenario.salas) await revisarArte(sala.fondo, `sala "${sala.id}" › fondo`);
+  for (const sala of escenario.salas) {
+    await revisarArte(sala.fondo, `sala "${sala.id}" › fondo`, { ancho: ANCHO_SALA, alto: ALTO_SALA });
+  }
   for (const m of escenario.catalogo.muebles) await revisarArte(m.arte, `mueble "${m.id}"`);
   for (const o of escenario.catalogo.objetos) await revisarArte(o.arte, `objeto "${o.id}"`);
   for (const h of escenario.catalogo.herramientas) await revisarArte(h.arte, `herramienta "${h.id}"`);
@@ -230,8 +260,8 @@ export async function validarEscenario(dir, { kitDir = KIT_POR_DEFECTO } = {}) {
 
     for (const puerta of sala.puertas) {
       const donde = `${enSala} › puerta "${puerta.id}"`;
-      if (puerta.x > ANCHO_SALA || puerta.y > ALTO_SALA) {
-        error('fuera-de-la-zona', donde, 'La puerta queda fuera de la sala.');
+      if (!puntoEnZona(zona, puerta.x, puerta.y)) {
+        error('fuera-de-la-zona', donde, `La puerta "${puerta.etiqueta}" queda fuera del suelo de la sala: nadie podría llegar a ella.`);
       }
       if (!salas.has(puerta.hacia)) {
         error('sala-inexistente', donde, `La puerta "${puerta.id}" lleva a una sala que no existe: "${puerta.hacia}".`);
@@ -277,6 +307,7 @@ async function principal(argumentos) {
   return errores.length > 0 ? 1 : 0;
 }
 
-if (process.argv[1] && import.meta.url === pathToFileURL(path.resolve(process.argv[1])).href) {
+// import.meta.main (Node 24): también vale si el archivo se llama a través de un enlace de carpeta.
+if (import.meta.main) {
   process.exitCode = await principal(process.argv.slice(2));
 }

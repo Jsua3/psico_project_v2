@@ -41,9 +41,10 @@ de los personajes en otro kit; por defecto usa `../frontend/src/assets/character
 | `sala-inexistente` | error | una puerta o un recorrido apunta a una sala que no existe |
 | `ref-inexistente` | error | una sala usa un mueble, objeto o personaje que no está en el lugar |
 | `arte-faltante` | error | una imagen no está en disco |
+| `arte-invalido` | error | una imagen no es PNG, o un fondo de sala no mide 960 × 528 |
 | `faltan-expresiones` | error | al personaje le falta alguna de sus 4 caras (neutral, alegre, preocupada, triste) |
 | `entrada-bloqueada` | error | un mueble con choque tapa la entrada o una puerta (caja libre de 32×32) |
-| `fuera-de-la-zona` | error | algo queda fuera del suelo de la sala o contra una pared que el encuadre no tiene |
+| `fuera-de-la-zona` | error | algo (mueble, objeto, personaje, entrada o puerta) queda fuera del suelo de la sala o contra una pared que el encuadre no tiene |
 | `pocas-salas` | error (aviso si `completo` es `false`) | un lugar completo necesita al menos 8 salas |
 | `encuadres-iguales` | aviso | todas las salas usan el mismo encuadre |
 | `puerta-sin-vuelta` | aviso | se puede ir de A a B pero no volver |

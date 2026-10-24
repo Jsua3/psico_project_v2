@@ -1,6 +1,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { cp, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
+import { spawnSync } from 'node:child_process';
+import { cp, mkdtemp, readFile, rm, symlink, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -161,6 +162,63 @@ test('un tipo de objeto fuera de MAP_OBJECT_TYPES es error de esquema', async ()
     e.catalogo.objetos[0].tipo = 'CAJA';
   });
   assert.ok(codigos(errores).includes('esquema'), JSON.stringify(errores));
+});
+
+test('una puerta fuera del suelo caminable es error', async () => {
+  const { errores } = await validarMutado((e) => {
+    const puerta = e.salas[0].puertas[0];
+    puerta.y = 100; // en medio de la pared del fondo: nadie llega caminando
+  });
+  const hallazgo = errores.find((h) => h.codigo === 'fuera-de-la-zona' && h.donde.includes('puerta-siguiente'));
+  assert.ok(hallazgo, JSON.stringify(errores));
+});
+
+test('un fondo que no mide 960x528 es error', async () => {
+  const { errores } = await validarMutado(() => {}, {
+    preparar: async (dir) => {
+      // Cabecera PNG mínima (firma + IHDR) de 1024x576.
+      const png = Buffer.alloc(33);
+      Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]).copy(png, 0);
+      png.writeUInt32BE(13, 8);
+      png.write('IHDR', 12, 'ascii');
+      png.writeUInt32BE(1024, 16);
+      png.writeUInt32BE(576, 20);
+      await writeFile(path.join(dir, 'arte', 'salas', 'sala-2.png'), png);
+    },
+  });
+  const hallazgo = errores.find((h) => h.codigo === 'arte-invalido');
+  assert.ok(hallazgo, JSON.stringify(errores));
+  assert.match(hallazgo.mensaje, /1024/);
+});
+
+test('una imagen que no es PNG es error', async () => {
+  const { errores } = await validarMutado(() => {}, {
+    preparar: (dir) => writeFile(path.join(dir, 'arte', 'muebles', 'mesa.png'), ''),
+  });
+  assert.ok(codigos(errores).includes('arte-invalido'), JSON.stringify(errores));
+});
+
+test('el CLI sale con 0, 1 o 2 aunque se llame a través de un enlace de carpeta', async () => {
+  const enlaces = await mkdtemp(path.join(tmpdir(), 'enlace-'));
+  const roto = await mkdtemp(path.join(tmpdir(), 'roto-'));
+  try {
+    const enlace = path.join(enlaces, 'scripts');
+    await symlink(aqui, enlace, 'junction');
+    const cli = (...args) => spawnSync(process.execPath, [path.join(enlace, 'validar.mjs'), ...args], { encoding: 'utf8' });
+
+    const bien = cli(FIXTURE, '--kit', KIT);
+    assert.equal(bien.status, 0, bien.stdout + bien.stderr);
+
+    await writeFile(path.join(roto, 'escenario.json'), '{ "esquema": 1 }');
+    const mal = cli(roto, '--kit', KIT);
+    assert.equal(mal.status, 1, mal.stdout + mal.stderr);
+    assert.match(mal.stdout, /^ERROR esquema /m);
+
+    assert.equal(cli().status, 2);
+  } finally {
+    await rm(enlaces, { recursive: true, force: true });
+    await rm(roto, { recursive: true, force: true });
+  }
 });
 
 test('zonaCaminable devuelve los valores fijados', () => {
