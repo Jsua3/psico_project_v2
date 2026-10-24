@@ -58,6 +58,32 @@ def test_imagen_vertical_se_recorta_sin_deformar(tmp_path, salida):
     assert Image.open(salida).size == (960, 528)
 
 
+def test_un_dibujo_con_pocos_colores_los_conserva_exactos(tmp_path, salida):
+    """Arte dibujado por código: sin suavizado al achicar, ni un color nuevo ni uno perdido."""
+    dibujo = Image.new('RGB', (960, 528), (116, 96, 110))
+    dibujo.paste((150, 178, 196), (271, 103, 421, 179))   # una ventana pequeña y de otro color
+    dibujo.paste((90, 64, 48), (0, 230, 960, 528))
+    ruta = tmp_path / 'dibujo.png'
+    dibujo.save(ruta)
+    pixelar_sala(str(ruta), salida, 2, COLORES, remuestreo='cercano')
+    assert sorted(c for _, c in Image.open(salida).getcolors()) == sorted([(116, 96, 110), (150, 178, 196), (90, 64, 48)])
+
+
+def test_al_recortar_colores_se_funden_los_parecidos_y_no_los_pequenos(tmp_path, salida):
+    """Con pocos colores de sobra se juntan tonos casi iguales; un detalle pequeño y distinto sigue."""
+    dibujo = Image.new('RGB', (960, 528), (100, 100, 100))
+    for k in range(40):  # 40 franjas grises casi iguales de a pares
+        gris = 100 + (k // 2) * 6 + (k % 2)
+        dibujo.paste((gris, gris, gris), (0, 228 + k * 6, 960, 234 + k * 6))
+    dibujo.paste((40, 160, 220), (300, 100, 304, 104))  # ventana diminuta, azul
+    ruta = tmp_path / 'dibujo.png'
+    dibujo.save(ruta)
+    pixelar_sala(str(ruta), salida, 2, COLORES, remuestreo='cercano')
+    colores_finales = [c for _, c in Image.open(salida).getcolors()]
+    assert len(colores_finales) <= COLORES
+    assert (40, 160, 220) in colores_finales
+
+
 def test_un_factor_que_no_divide_el_lienzo_es_error(tmp_path, salida):
     with pytest.raises(ValueError):
         pixelar_sala(imagen_sintetica(1600, 900, tmp_path / 'f.png'), salida, 7, COLORES)

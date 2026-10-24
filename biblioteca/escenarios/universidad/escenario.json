@@ -22,12 +22,8 @@
         { "ref": "cartelera", "x": 330, "y": 236, "espejo": false }
       ],
       "objetos": [],
-      "personajes": [
-        { "ref": "vigilante", "x": 290, "y": 340, "mirando": "derecha", "expresion": "neutral" }
-      ],
-      "puertas": [
-        { "id": "puerta-pasillo", "hacia": "pasillo", "x": 480, "y": 236, "etiqueta": "Entrar a la facultad" }
-      ]
+      "personajes": [{ "ref": "vigilante", "x": 290, "y": 340, "mirando": "derecha", "expresion": "neutral" }],
+      "puertas": [{ "id": "puerta-pasillo", "hacia": "pasillo", "x": 480, "y": 236, "etiqueta": "Entrar a la facultad" }]
     },
     {
       "id": "pasillo",
@@ -37,18 +33,14 @@
       "fondo": "arte/salas/pasillo.png",
       "entrada": { "x": 480, "y": 440 },
       "muebles": [
-        { "ref": "cartelera", "x": 425, "y": 236, "espejo": false },
+        { "ref": "cartelera", "x": 442, "y": 236, "espejo": false },
         { "ref": "dispensador-agua", "x": 615, "y": 262, "espejo": false },
         { "ref": "caneca", "x": 800, "y": 262, "espejo": false },
         { "ref": "banca", "x": 300, "y": 420, "espejo": false },
         { "ref": "planta", "x": 890, "y": 300, "espejo": false }
       ],
-      "objetos": [
-        { "ref": "afiche-bienestar", "x": 425, "y": 250 }
-      ],
-      "personajes": [
-        { "ref": "companera-clase", "x": 640, "y": 380, "mirando": "izquierda", "expresion": "neutral" }
-      ],
+      "objetos": [{ "ref": "afiche-bienestar", "x": 230, "y": 300 }],
+      "personajes": [{ "ref": "companera-clase", "x": 640, "y": 380, "mirando": "izquierda", "expresion": "neutral" }],
       "puertas": [
         { "id": "puerta-entrada", "hacia": "entrada", "x": 480, "y": 486, "etiqueta": "Salir a la entrada del campus" },
         { "id": "puerta-aula", "hacia": "aula", "x": 140, "y": 236, "etiqueta": "Entrar al aula" },
@@ -74,16 +66,12 @@
         { "ref": "pupitre", "x": 600, "y": 380, "espejo": false },
         { "ref": "pupitre", "x": 720, "y": 380, "espejo": false }
       ],
-      "objetos": [
-        { "ref": "mochila", "x": 250, "y": 450 }
-      ],
+      "objetos": [{ "ref": "mochila", "x": 250, "y": 450 }],
       "personajes": [
         { "ref": "docente", "x": 600, "y": 300, "mirando": "izquierda", "expresion": "neutral" },
         { "ref": "estudiante-consultante", "x": 720, "y": 410, "mirando": "izquierda", "expresion": "triste" }
       ],
-      "puertas": [
-        { "id": "puerta-pasillo", "hacia": "pasillo", "x": 480, "y": 486, "etiqueta": "Salir al pasillo" }
-      ]
+      "puertas": [{ "id": "puerta-pasillo", "hacia": "pasillo", "x": 480, "y": 486, "etiqueta": "Salir al pasillo" }]
     },
     {
       "id": "oficina-docente",
@@ -101,12 +89,8 @@
         { "ref": "planta", "x": 860, "y": 300, "espejo": false }
       ],
       "objetos": [],
-      "personajes": [
-        { "ref": "docente", "x": 340, "y": 330, "mirando": "derecha", "expresion": "preocupada" }
-      ],
-      "puertas": [
-        { "id": "puerta-pasillo", "hacia": "pasillo", "x": 480, "y": 486, "etiqueta": "Salir al pasillo" }
-      ]
+      "personajes": [{ "ref": "docente", "x": 340, "y": 330, "mirando": "derecha", "expresion": "preocupada" }],
+      "puertas": [{ "id": "puerta-pasillo", "hacia": "pasillo", "x": 480, "y": 486, "etiqueta": "Salir al pasillo" }]
     },
     {
       "id": "sala-espera",
@@ -122,12 +106,8 @@
         { "ref": "planta", "x": 110, "y": 290, "espejo": false },
         { "ref": "dispensador-agua", "x": 700, "y": 262, "espejo": false }
       ],
-      "objetos": [
-        { "ref": "folleto-rutas", "x": 520, "y": 334 }
-      ],
-      "personajes": [
-        { "ref": "estudiante-consultante", "x": 420, "y": 330, "mirando": "derecha", "expresion": "preocupada" }
-      ],
+      "objetos": [{ "ref": "folleto-rutas", "x": 520, "y": 334 }],
+      "personajes": [{ "ref": "estudiante-consultante", "x": 420, "y": 330, "mirando": "derecha", "expresion": "preocupada" }],
       "puertas": [
         { "id": "puerta-pasillo", "hacia": "pasillo", "x": 480, "y": 486, "etiqueta": "Salir al pasillo" },
         { "id": "puerta-bienestar", "hacia": "bienestar", "x": 864, "y": 360, "etiqueta": "Pasar a Bienestar" }
@@ -147,13 +127,8 @@
         { "ref": "cartelera", "x": 600, "y": 236, "espejo": false },
         { "ref": "planta", "x": 820, "y": 300, "espejo": false }
       ],
-      "objetos": [
-        { "ref": "planilla-turnos", "x": 480, "y": 290 },
-        { "ref": "afiche-bienestar", "x": 600, "y": 250 }
-      ],
-      "personajes": [
-        { "ref": "recepcionista-bienestar", "x": 360, "y": 262, "mirando": "derecha", "expresion": "alegre" }
-      ],
+      "objetos": [{ "ref": "planilla-turnos", "x": 480, "y": 290 }, { "ref": "afiche-bienestar", "x": 640, "y": 262 }],
+      "personajes": [{ "ref": "recepcionista-bienestar", "x": 360, "y": 262, "mirando": "derecha", "expresion": "alegre" }],
       "puertas": [
         { "id": "puerta-sala-espera", "hacia": "sala-espera", "x": 96, "y": 360, "etiqueta": "Volver a la sala de espera" },
         { "id": "puerta-consultorio", "hacia": "consultorio", "x": 730, "y": 236, "etiqueta": "Entrar al consultorio" }
@@ -174,16 +149,9 @@
         { "ref": "mesa-centro", "x": 370, "y": 360, "espejo": false },
         { "ref": "planta", "x": 140, "y": 290, "espejo": false }
       ],
-      "objetos": [
-        { "ref": "vaso-agua", "x": 370, "y": 352 },
-        { "ref": "folleto-rutas", "x": 650, "y": 280 }
-      ],
-      "personajes": [
-        { "ref": "psicologa-bienestar", "x": 520, "y": 350, "mirando": "izquierda", "expresion": "neutral" }
-      ],
-      "puertas": [
-        { "id": "puerta-bienestar", "hacia": "bienestar", "x": 480, "y": 486, "etiqueta": "Salir a Bienestar" }
-      ]
+      "objetos": [{ "ref": "vaso-agua", "x": 370, "y": 352 }, { "ref": "folleto-rutas", "x": 650, "y": 280 }],
+      "personajes": [{ "ref": "psicologa-bienestar", "x": 520, "y": 350, "mirando": "izquierda", "expresion": "neutral" }],
+      "puertas": [{ "id": "puerta-bienestar", "hacia": "bienestar", "x": 480, "y": 486, "etiqueta": "Salir a Bienestar" }]
     },
     {
       "id": "enfermeria",
@@ -199,15 +167,9 @@
         { "ref": "lavamanos", "x": 420, "y": 252, "espejo": false },
         { "ref": "silla-visitante", "x": 260, "y": 370, "espejo": false }
       ],
-      "objetos": [
-        { "ref": "vaso-agua", "x": 420, "y": 300 }
-      ],
-      "personajes": [
-        { "ref": "enfermera", "x": 520, "y": 360, "mirando": "izquierda", "expresion": "neutral" }
-      ],
-      "puertas": [
-        { "id": "puerta-pasillo", "hacia": "pasillo", "x": 96, "y": 380, "etiqueta": "Salir al pasillo" }
-      ]
+      "objetos": [{ "ref": "vaso-agua", "x": 420, "y": 240 }],
+      "personajes": [{ "ref": "enfermera", "x": 520, "y": 360, "mirando": "izquierda", "expresion": "neutral" }],
+      "puertas": [{ "id": "puerta-pasillo", "hacia": "pasillo", "x": 96, "y": 380, "etiqueta": "Salir al pasillo" }]
     },
     {
       "id": "cafeteria",
@@ -224,16 +186,9 @@
         { "ref": "silla-cafeteria", "x": 805, "y": 322, "espejo": true },
         { "ref": "caneca", "x": 880, "y": 280, "espejo": false }
       ],
-      "objetos": [
-        { "ref": "celular", "x": 760, "y": 314 },
-        { "ref": "mochila", "x": 470, "y": 420 }
-      ],
-      "personajes": [
-        { "ref": "companera-clase", "x": 610, "y": 400, "mirando": "izquierda", "expresion": "preocupada" }
-      ],
-      "puertas": [
-        { "id": "puerta-pasillo", "hacia": "pasillo", "x": 936, "y": 380, "etiqueta": "Volver al pasillo" }
-      ]
+      "objetos": [{ "ref": "celular", "x": 760, "y": 314 }, { "ref": "mochila", "x": 470, "y": 420 }],
+      "personajes": [{ "ref": "companera-clase", "x": 610, "y": 400, "mirando": "izquierda", "expresion": "preocupada" }],
+      "puertas": [{ "id": "puerta-pasillo", "hacia": "pasillo", "x": 936, "y": 380, "etiqueta": "Volver al pasillo" }]
     },
     {
       "id": "biblioteca",
@@ -243,18 +198,16 @@
       "fondo": "arte/salas/biblioteca.png",
       "entrada": { "x": 480, "y": 440 },
       "muebles": [
-        { "ref": "estante-biblioteca", "x": 190, "y": 252, "espejo": false },
-        { "ref": "estante-biblioteca", "x": 320, "y": 252, "espejo": false },
-        { "ref": "estante-biblioteca", "x": 640, "y": 252, "espejo": false },
-        { "ref": "estante-biblioteca", "x": 770, "y": 252, "espejo": false },
-        { "ref": "mesa-estudio", "x": 480, "y": 350, "espejo": false },
-        { "ref": "planta", "x": 830, "y": 330, "espejo": false }
+        { "ref": "estante-biblioteca", "x": 180, "y": 252, "espejo": false },
+        { "ref": "estante-biblioteca", "x": 310, "y": 252, "espejo": false },
+        { "ref": "estante-biblioteca", "x": 780, "y": 252, "espejo": false },
+        { "ref": "silla-visitante", "x": 440, "y": 320, "espejo": false },
+        { "ref": "silla-visitante", "x": 520, "y": 320, "espejo": true },
+        { "ref": "mesa-estudio", "x": 480, "y": 350, "espejo": false }
       ],
       "objetos": [],
       "personajes": [],
-      "puertas": [
-        { "id": "puerta-pasillo", "hacia": "pasillo", "x": 480, "y": 486, "etiqueta": "Salir al pasillo" }
-      ]
+      "puertas": [{ "id": "puerta-pasillo", "hacia": "pasillo", "x": 480, "y": 486, "etiqueta": "Salir al pasillo" }]
     }
   ],
   "recorridosSugeridos": [
@@ -281,7 +234,14 @@
     "muebles": [
       { "id": "escritorio", "nombre": "Escritorio", "arte": "arte/muebles/escritorio.png", "ancho": 122, "alto": 28, "colision": true },
       { "id": "silla-oficina", "nombre": "Silla de oficina", "arte": "arte/muebles/silla-oficina.png", "ancho": 26, "alto": 14, "colision": true },
-      { "id": "silla-visitante", "nombre": "Silla para visitante", "arte": "arte/muebles/silla-visitante.png", "ancho": 24, "alto": 14, "colision": true },
+      {
+        "id": "silla-visitante",
+        "nombre": "Silla para visitante",
+        "arte": "arte/muebles/silla-visitante.png",
+        "ancho": 24,
+        "alto": 14,
+        "colision": true
+      },
       { "id": "sillon", "nombre": "Sillón", "arte": "arte/muebles/sillon.png", "ancho": 46, "alto": 24, "colision": true },
       { "id": "sofa", "nombre": "Sofá de dos puestos", "arte": "arte/muebles/sofa.png", "ancho": 88, "alto": 26, "colision": true },
       { "id": "mesa-centro", "nombre": "Mesa de centro", "arte": "arte/muebles/mesa-centro.png", "ancho": 50, "alto": 18, "colision": true },
@@ -289,38 +249,118 @@
       { "id": "archivador", "nombre": "Archivador", "arte": "arte/muebles/archivador.png", "ancho": 40, "alto": 18, "colision": true },
       { "id": "planta", "nombre": "Planta", "arte": "arte/muebles/planta.png", "ancho": 36, "alto": 14, "colision": true },
       { "id": "mostrador", "nombre": "Mostrador de atención", "arte": "arte/muebles/mostrador.png", "ancho": 180, "alto": 30, "colision": true },
-      { "id": "sillas-espera", "nombre": "Fila de sillas de espera", "arte": "arte/muebles/sillas-espera.png", "ancho": 120, "alto": 22, "colision": true },
+      {
+        "id": "sillas-espera",
+        "nombre": "Fila de sillas de espera",
+        "arte": "arte/muebles/sillas-espera.png",
+        "ancho": 120,
+        "alto": 22,
+        "colision": true
+      },
       { "id": "pupitre", "nombre": "Pupitre", "arte": "arte/muebles/pupitre.png", "ancho": 46, "alto": 20, "colision": true },
       { "id": "tablero", "nombre": "Tablero", "arte": "arte/muebles/tablero.png", "ancho": 180, "alto": 8, "colision": false },
       { "id": "cartelera", "nombre": "Cartelera", "arte": "arte/muebles/cartelera.png", "ancho": 90, "alto": 6, "colision": false },
       { "id": "mesa-cafeteria", "nombre": "Mesa de cafetería", "arte": "arte/muebles/mesa-cafeteria.png", "ancho": 56, "alto": 22, "colision": true },
-      { "id": "silla-cafeteria", "nombre": "Silla de cafetería", "arte": "arte/muebles/silla-cafeteria.png", "ancho": 22, "alto": 12, "colision": true },
-      { "id": "barra-cafeteria", "nombre": "Barra de la cafetería", "arte": "arte/muebles/barra-cafeteria.png", "ancho": 200, "alto": 32, "colision": true },
+      {
+        "id": "silla-cafeteria",
+        "nombre": "Silla de cafetería",
+        "arte": "arte/muebles/silla-cafeteria.png",
+        "ancho": 22,
+        "alto": 12,
+        "colision": true
+      },
+      {
+        "id": "barra-cafeteria",
+        "nombre": "Barra de la cafetería",
+        "arte": "arte/muebles/barra-cafeteria.png",
+        "ancho": 200,
+        "alto": 32,
+        "colision": true
+      },
       { "id": "camilla", "nombre": "Camilla", "arte": "arte/muebles/camilla.png", "ancho": 104, "alto": 28, "colision": true },
-      { "id": "vitrina-medicamentos", "nombre": "Vitrina del botiquín", "arte": "arte/muebles/vitrina-medicamentos.png", "ancho": 56, "alto": 18, "colision": true },
+      {
+        "id": "vitrina-medicamentos",
+        "nombre": "Vitrina del botiquín",
+        "arte": "arte/muebles/vitrina-medicamentos.png",
+        "ancho": 56,
+        "alto": 18,
+        "colision": true
+      },
       { "id": "biombo", "nombre": "Biombo", "arte": "arte/muebles/biombo.png", "ancho": 70, "alto": 10, "colision": true },
       { "id": "lavamanos", "nombre": "Lavamanos", "arte": "arte/muebles/lavamanos.png", "ancho": 40, "alto": 14, "colision": true },
       { "id": "mesa-estudio", "nombre": "Mesa de estudio", "arte": "arte/muebles/mesa-estudio.png", "ancho": 130, "alto": 28, "colision": true },
-      { "id": "estante-biblioteca", "nombre": "Estantería de libros", "arte": "arte/muebles/estante-biblioteca.png", "ancho": 96, "alto": 20, "colision": true },
+      {
+        "id": "estante-biblioteca",
+        "nombre": "Estantería de libros",
+        "arte": "arte/muebles/estante-biblioteca.png",
+        "ancho": 96,
+        "alto": 20,
+        "colision": true
+      },
       { "id": "banca", "nombre": "Banca", "arte": "arte/muebles/banca.png", "ancho": 100, "alto": 18, "colision": true },
       { "id": "caneca", "nombre": "Caneca de reciclaje", "arte": "arte/muebles/caneca.png", "ancho": 26, "alto": 14, "colision": true },
-      { "id": "dispensador-agua", "nombre": "Dispensador de agua", "arte": "arte/muebles/dispensador-agua.png", "ancho": 26, "alto": 14, "colision": true },
+      {
+        "id": "dispensador-agua",
+        "nombre": "Dispensador de agua",
+        "arte": "arte/muebles/dispensador-agua.png",
+        "ancho": 26,
+        "alto": 14,
+        "colision": true
+      },
       { "id": "porteria", "nombre": "Caseta de portería", "arte": "arte/muebles/porteria.png", "ancho": 120, "alto": 32, "colision": true },
       { "id": "tapete", "nombre": "Tapete", "arte": "arte/muebles/tapete.png", "ancho": 120, "alto": 40, "colision": false }
     ],
     "objetos": [
-      { "id": "folleto-rutas", "nombre": "Folleto de rutas de atención", "tipo": "RESOURCE", "arte": "arte/objetos/folleto-rutas.png", "textoInteraccion": "Revisar" },
-      { "id": "afiche-bienestar", "nombre": "Afiche de servicios de Bienestar", "tipo": "NOTE", "arte": "arte/objetos/afiche-bienestar.png", "textoInteraccion": "Leer" },
-      { "id": "planilla-turnos", "nombre": "Planilla de turnos de atención", "tipo": "RESOURCE", "arte": "arte/objetos/planilla-turnos.png", "textoInteraccion": "Revisar" },
+      {
+        "id": "folleto-rutas",
+        "nombre": "Folleto de rutas de atención",
+        "tipo": "RESOURCE",
+        "arte": "arte/objetos/folleto-rutas.png",
+        "textoInteraccion": "Revisar"
+      },
+      {
+        "id": "afiche-bienestar",
+        "nombre": "Afiche de servicios de Bienestar",
+        "tipo": "NOTE",
+        "arte": "arte/objetos/afiche-bienestar.png",
+        "textoInteraccion": "Leer"
+      },
+      {
+        "id": "planilla-turnos",
+        "nombre": "Planilla de turnos de atención",
+        "tipo": "RESOURCE",
+        "arte": "arte/objetos/planilla-turnos.png",
+        "textoInteraccion": "Revisar"
+      },
       { "id": "vaso-agua", "nombre": "Vaso de agua", "tipo": "PROP", "arte": "arte/objetos/vaso-agua.png", "textoInteraccion": "Ofrecer" },
       { "id": "celular", "nombre": "Celular sobre la mesa", "tipo": "OBJECT", "arte": "arte/objetos/celular.png", "textoInteraccion": "Mirar" },
       { "id": "mochila", "nombre": "Mochila", "tipo": "OBJECT", "arte": "arte/objetos/mochila.png", "textoInteraccion": "Mirar" }
     ],
     "herramientas": [
-      { "id": "ficha-riesgo", "nombre": "Ficha de riesgo", "descripcion": "Para anotar señales de riesgo observadas.", "arte": "arte/herramientas/ficha-riesgo.png" },
-      { "id": "directorio-rutas", "nombre": "Directorio de rutas de atención", "descripcion": "Teléfonos y lugares a los que se puede remitir a la persona.", "arte": "arte/herramientas/directorio-rutas.png" },
-      { "id": "guia-primeros-auxilios", "nombre": "Guía de primeros auxilios psicológicos", "descripcion": "Pasos para acompañar a alguien en crisis: escuchar, proteger y conectar.", "arte": "arte/herramientas/guia-primeros-auxilios.png" },
-      { "id": "protocolo-bienestar", "nombre": "Protocolo de Bienestar", "descripcion": "Qué hace la universidad cuando recibe un caso y a quién avisa.", "arte": "arte/herramientas/protocolo-bienestar.png" }
+      {
+        "id": "ficha-riesgo",
+        "nombre": "Ficha de riesgo",
+        "descripcion": "Para anotar señales de riesgo observadas.",
+        "arte": "arte/herramientas/ficha-riesgo.png"
+      },
+      {
+        "id": "directorio-rutas",
+        "nombre": "Directorio de rutas de atención",
+        "descripcion": "Teléfonos y lugares a los que se puede remitir a la persona.",
+        "arte": "arte/herramientas/directorio-rutas.png"
+      },
+      {
+        "id": "guia-primeros-auxilios",
+        "nombre": "Guía de primeros auxilios psicológicos",
+        "descripcion": "Pasos para acompañar a alguien en crisis: escuchar, proteger y conectar.",
+        "arte": "arte/herramientas/guia-primeros-auxilios.png"
+      },
+      {
+        "id": "protocolo-bienestar",
+        "nombre": "Protocolo de Bienestar",
+        "descripcion": "Qué hace la universidad cuando recibe un caso y a quién avisa.",
+        "arte": "arte/herramientas/protocolo-bienestar.png"
+      }
     ]
   },
   "personajes": [

@@ -42,6 +42,12 @@ BORDE = (70, 70, 80)
 
 
 def fuente(tamano):
+    """Fuente con tildes y eñes: la de Pillow por defecto no las trae."""
+    for nombre in ('DejaVuSans.ttf', 'segoeui.ttf', 'arial.ttf'):
+        try:
+            return ImageFont.truetype(nombre, tamano)
+        except OSError:
+            continue
     try:
         return ImageFont.load_default(size=tamano)
     except TypeError:  # Pillow sin FreeType

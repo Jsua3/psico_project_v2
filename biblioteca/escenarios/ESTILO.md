@@ -3,7 +3,10 @@
 Cómo se hace el arte de un lugar de la biblioteca para que todas las salas se vean del mismo
 juego que el simulador: pixel art auténtico, la misma cámara y la misma paleta apagada.
 
-El arte de hoy es **provisional** (generado con IA). Cuando lleguen las fotos propias se
+El arte de hoy es **provisional**. El de la universidad está **dibujado por código**
+(`tools/escenarios/arte_universidad.py`): el 2026-10-24 la cuenta de Higgsfield no tenía
+créditos y el usuario eligió dibujarlo así. Las plantillas de IA de la sección 4 quedan para
+los lugares siguientes o por si se compran créditos. Cuando lleguen las fotos propias se
 reemplazan **solo los PNG**, con el mismo nombre de archivo: el `escenario.json` no cambia.
 
 ## 1. Cámara y encuadre
@@ -79,8 +82,18 @@ del kit mide 64 px y representa 1,65 m, así que el mundo va a **39 px por metro
 - **Fondos de sala: factor 2** (valor por defecto de `pixelar_sala.py`). El fondo se trabaja a
   480 × 264 y se amplía ×2 sin suavizado. Con factor 1 una imagen generada conserva textura
   fina y se lee como pintura, no como pixel art; con factor 2 los bloques ya son duros y
-  siguen cerca de la densidad de los personajes. *Pendiente de confirmar con el usuario en la
-  sala de prueba (consultorio), donde se le muestran las dos versiones.*
+  siguen cerca de la densidad de los personajes. El usuario aprobó el estilo del consultorio
+  con factor 2 el 2026-10-24 (con arte dibujado, factor 1 y 2 casi no se distinguen).
+
+### Punto de apoyo y piezas colgadas
+
+- Un PNG de mueble se apoya por su **borde inferior** en el punto `x, y` de la sala (centro
+  inferior). Lo que cuelga de la pared (tablero, cartelera) deja **aire transparente abajo**
+  en su PNG y se coloca con `y = 236`, sin choque: así queda pegado a la pared del fondo.
+- Las **puertas** no tienen PNG propio: se pintan en el fondo, en la posición que dice el
+  `escenario.json` (en la pared del fondo, de canto en una pared lateral con un tapete en el
+  piso, como tapete al borde delantero o como paso abierto con flechas en un lado sin pared).
+  Si se mueve una puerta, se vuelve a dibujar el fondo.
 
 ## 4. Plantillas de prompt (Higgsfield)
 
@@ -151,6 +164,16 @@ background, no shadow, limited palette, no text, no letters, no logos
 
 Mientras no hay arte, `python tools/escenarios/marcadores.py <escenario.json>` crea un PNG
 provisional por cada imagen que falte, para que el validador pase.
+
+### Arte dibujado por código (universidad)
+
+`python tools/escenarios/arte_universidad.py biblioteca/escenarios/universidad/escenario.json`
+redibuja todas las piezas (`--salas a,b` para algunas salas, `--factor N` para otro factor).
+Cada sala, mueble, objeto y herramienta tiene su función de dibujo; una pieza nueva del
+catálogo sin dibujo detiene el script con su nombre. Los fondos pasan por
+`pixelar_sala(..., remuestreo='cercano')`: sin suavizado al achicar y, si sobran colores, se
+juntan los dos más parecidos (no desaparece una ventana pequeña). Después:
+`python tools/escenarios/hoja_contacto.py <escenario.json> <hoja.png>`.
 
 ## 6. Cuando lleguen las fotos
 
