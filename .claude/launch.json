@@ -6,6 +6,12 @@
       "runtimeExecutable": "npm",
       "runtimeArgs": ["start", "--prefix", "frontend", "--", "--port", "4300"],
       "port": 4300
+    },
+    {
+      "name": "sandbox-editor-casos",
+      "runtimeExecutable": "npm",
+      "runtimeArgs": ["start", "--prefix", "sandbox/editor-casos"],
+      "port": 4310
     }
   ]
 }
