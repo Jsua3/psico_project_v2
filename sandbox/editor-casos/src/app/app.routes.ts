@@ -1,5 +1,6 @@
 import type { Routes } from '@angular/router';
 
+import { EditorComponent } from './pantallas/editor/editor.component';
 import { InicioComponent } from './pantallas/inicio/inicio.component';
 import { LugarComponent } from './pantallas/lugar/lugar.component';
 import { PendienteComponent } from './pantallas/pendiente.component';
@@ -15,7 +16,7 @@ export const routes: Routes = [
     path: 'editor',
     title: 'El caso · Editor de casos',
     children: [
-      { path: '', component: PendienteComponent },
+      { path: '', component: EditorComponent },
       { path: 'sala/:salaId', component: SalaComponent, title: 'Sala · Editor de casos' },
       { path: 'escena/:escenaId', component: PendienteComponent, title: 'Guion · Editor de casos' },
       { path: 'finales', component: PendienteComponent, title: 'Finales · Editor de casos' },

@@ -2,9 +2,12 @@ import { Injectable, computed, effect, inject, signal } from '@angular/core';
 import { Router } from '@angular/router';
 
 import { BibliotecaService } from '../modelo/biblioteca.service';
-import type { CasoBorrador, SalaCaso } from '../modelo/caso';
+import type { CasoBorrador, Escena, SalaCaso } from '../modelo/caso';
+import { SEPARACION_ESCENAS } from '../modelo/copiar';
 import type { ColocacionPersonaje } from '../modelo/escenario';
 import { centroDeZona, limitarAZona, zonaCaminable } from '../modelo/geometria';
+import { nuevoId } from '../modelo/ids';
+import { trazarEscenas } from '../modelo/trazado';
 import { Historial } from './historial';
 
 /** Dónde se guarda el caso en el navegador (una recarga no borra el trabajo). */
@@ -168,6 +171,118 @@ export class CasoStore {
     this.cambiar((caso) => {
       const mueble = this.sala(caso, salaId).muebles[indice];
       if (mueble) mueble.espejo = !mueble.espejo;
+    });
+  }
+
+  // ── Escenas y caminos ─────────────────────────────────────────────────────
+
+  private escena(caso: CasoBorrador, id: string): Escena {
+    const e = caso.escenas.find((x) => x.id === id);
+    if (!e) throw new Error(`La escena «${id}» no está en el caso.`);
+    return e;
+  }
+
+  private nuevaEscena(caso: CasoBorrador, salaId: string, despuesDe?: string): Escena {
+    const sala = this.sala(caso, salaId);
+    const ref = despuesDe ? caso.escenas.find((e) => e.id === despuesDe) : undefined;
+    const masDerecha = Math.max(0, ...caso.escenas.map((e) => e.posicion.x));
+    const escena: Escena = {
+      id: nuevoId('escena'),
+      titulo: `Escena nueva en ${sala.nombre.charAt(0).toLowerCase()}${sala.nombre.slice(1)}`,
+      salaId,
+      lineas: [],
+      respuestas: [],
+      esFinal: false,
+      posicion: ref ? { x: ref.posicion.x + SEPARACION_ESCENAS, y: ref.posicion.y + 120 } : { x: masDerecha + SEPARACION_ESCENAS, y: 0 },
+    };
+    caso.escenas.push(escena);
+    if (!caso.inicioId) caso.inicioId = escena.id;
+    return escena;
+  }
+
+  /** Agrega una escena en una sala del caso y devuelve su id. */
+  agregarEscena(salaId: string, despuesDe?: string): string {
+    let id = '';
+    this.cambiar((caso) => {
+      id = this.nuevaEscena(caso, salaId, despuesDe).id;
+    });
+    return id;
+  }
+
+  duplicarEscena(id: string): string {
+    let nuevoIdEscena = '';
+    this.cambiar((caso) => {
+      const original = this.escena(caso, id);
+      const copia: Escena = structuredClone(original);
+      copia.id = nuevoId('escena');
+      copia.titulo = `${original.titulo} (copia)`;
+      copia.posicion = { x: original.posicion.x + 40, y: original.posicion.y + 40 };
+      copia.lineas = copia.lineas.map((l) => ({ ...l, id: nuevoId('linea') }));
+      copia.respuestas = copia.respuestas.map((r) => ({
+        ...r,
+        id: nuevoId('respuesta'),
+        destinoId: r.destinoId === original.id ? copia.id : r.destinoId,
+      }));
+      caso.escenas.splice(caso.escenas.indexOf(original) + 1, 0, copia);
+      nuevoIdEscena = copia.id;
+    });
+    return nuevoIdEscena;
+  }
+
+  /** Borra una escena: las respuestas que llevaban a ella quedan sin destino. */
+  borrarEscena(id: string): void {
+    this.cambiar((caso) => {
+      caso.escenas = caso.escenas.filter((e) => e.id !== id);
+      for (const e of caso.escenas) {
+        for (const r of e.respuestas) if (r.destinoId === id) r.destinoId = null;
+      }
+      if (caso.inicioId === id) caso.inicioId = caso.escenas[0]?.id ?? null;
+    });
+  }
+
+  moverEscena(id: string, x: number, y: number): void {
+    this.cambiar((caso) => {
+      this.escena(caso, id).posicion = { x: Math.round(x), y: Math.round(y) };
+    });
+  }
+
+  /** Cambia a dónde lleva una respuesta (null: a ninguna escena). */
+  conectar(respuestaId: string, destinoId: string | null): void {
+    this.cambiar((caso) => {
+      for (const e of caso.escenas) {
+        const r = e.respuestas.find((x) => x.id === respuestaId);
+        if (r) r.destinoId = destinoId;
+      }
+    });
+  }
+
+  /**
+   * «Conectar con…» del mapa: agrega a la escena una respuesta (por escribir) que lleva a otra
+   * escena, o a una escena nueva en la misma sala. Devuelve el id de la escena de destino.
+   */
+  conectarEscena(origenId: string, destino: string | 'nueva'): string {
+    let destinoId = destino;
+    this.cambiar((caso) => {
+      const origen = this.escena(caso, origenId);
+      if (destino === 'nueva') destinoId = this.nuevaEscena(caso, origen.salaId, origen.id).id;
+      origen.respuestas.push({
+        id: nuevoId('respuesta'), texto: '', clasificacion: 'adecuada', retroalimentacion: '', destinoId, marcaIa: false,
+      });
+    });
+    return destinoId;
+  }
+
+  marcarFinal(id: string, esFinal: boolean): void {
+    this.cambiar((caso) => {
+      this.escena(caso, id).esFinal = esFinal;
+    });
+  }
+
+  /** Reordena el mapa con un trazado de izquierda a derecha. */
+  ordenarAutomaticamente(): void {
+    this.cambiar((caso) => {
+      const posiciones = trazarEscenas(caso);
+      for (const e of caso.escenas) e.posicion = posiciones.get(e.id) ?? e.posicion;
     });
   }
 

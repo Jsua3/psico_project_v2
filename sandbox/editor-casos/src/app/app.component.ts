@@ -25,8 +25,14 @@ import { CasoStore } from './estado/caso.store';
           <span class="marca-nombre">MetaFrónesis</span>
         </a>
         <span class="pildora pildora-primaria">Editor de casos</span>
-        <nav aria-label="Principal">
+        <nav aria-label="Principal" class="nav">
           <a routerLink="/" routerLinkActive="activo" [routerLinkActiveOptions]="{ exact: true }" class="enlace-nav">Mis casos</a>
+          @if (store.caso()) {
+            <a routerLink="/editor" routerLinkActive="activo" [routerLinkActiveOptions]="{ exact: false }" class="enlace-nav">El caso</a>
+            <a routerLink="/editor/finales" routerLinkActive="activo" class="enlace-nav" data-accion="definir-finales">Finales</a>
+            <a routerLink="/probar" routerLinkActive="activo" class="enlace-nav" data-accion="probar">Probar como estudiante</a>
+            <a routerLink="/revision" routerLinkActive="activo" class="enlace-nav" data-accion="enviar-revision">Enviar a revisión</a>
+          }
         </nav>
         @if (store.caso(); as caso) {
           <p class="caso-actual"><span class="texto-secundario">Caso:</span> <strong>{{ caso.titulo }}</strong></p>
@@ -75,6 +81,7 @@ import { CasoStore } from './estado/caso.store';
     }
     .enlace-nav.activo { border-bottom-color: var(--primario); }
     .caso-actual { margin: 0; font-size: 16px; }
+    .nav { display: flex; flex-wrap: wrap; gap: 0 4px; }
     .barra-ayuda { display: flex; flex-wrap: wrap; gap: 8px; }
     .confirmacion {
       margin: 16px auto 0; width: min(720px, calc(100% - 32px)); box-sizing: border-box; padding: 24px;

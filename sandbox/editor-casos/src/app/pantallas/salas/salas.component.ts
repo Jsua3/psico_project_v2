@@ -119,7 +119,7 @@ import { PasosCrearComponent } from '../pasos-crear.component';
             @if (elegidas().length) {
               <p><strong>{{ elegidas().length }} {{ elegidas().length === 1 ? 'sala elegida' : 'salas elegidas' }}, en este orden:</strong></p>
               <p>{{ resumenOrden() }}</p>
-              <p class="texto-secundario">Cada sala será una escena, conectadas en ese orden. Después puedes cambiarlo.</p>
+              <p class="texto-secundario">Cada sala será una escena, en ese orden. Después las unes escribiendo las respuestas.</p>
             } @else {
               <p id="sin-salas">Ninguna sala elegida. Elige al menos una, o usa una idea para empezar.</p>
             }
