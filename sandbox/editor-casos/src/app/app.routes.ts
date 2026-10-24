@@ -3,6 +3,7 @@ import type { Routes } from '@angular/router';
 import { InicioComponent } from './pantallas/inicio/inicio.component';
 import { LugarComponent } from './pantallas/lugar/lugar.component';
 import { PendienteComponent } from './pantallas/pendiente.component';
+import { SalaComponent } from './pantallas/sala/sala.component';
 import { SalasComponent } from './pantallas/salas/salas.component';
 
 /** Rutas del sandbox: cada momento del docente tiene su pantalla. */
@@ -15,7 +16,7 @@ export const routes: Routes = [
     title: 'El caso · Editor de casos',
     children: [
       { path: '', component: PendienteComponent },
-      { path: 'sala/:salaId', component: PendienteComponent, title: 'Sala · Editor de casos' },
+      { path: 'sala/:salaId', component: SalaComponent, title: 'Sala · Editor de casos' },
       { path: 'escena/:escenaId', component: PendienteComponent, title: 'Guion · Editor de casos' },
       { path: 'finales', component: PendienteComponent, title: 'Finales · Editor de casos' },
     ],

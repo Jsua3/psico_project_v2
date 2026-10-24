@@ -3,7 +3,7 @@
  * porque Angular no sirve archivos de fuera de su carpeta. La copia no va a git.
  *   node scripts/copiar-biblioteca.mjs
  */
-import { cpSync, existsSync, rmSync } from 'node:fs';
+import { cpSync, existsSync } from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
@@ -16,10 +16,11 @@ const copias = [
   { desde: path.join(repo, 'frontend', 'src', 'assets', 'characters', 'kit'), hacia: path.join(destino, 'kit'), filtro: (f) => !/\.json$/.test(f) },
 ];
 
+// Se copia encima sin borrar antes: si el servidor de desarrollo está corriendo, borrar la
+// carpeta le hace perder los archivos hasta reiniciarlo (pasaba al correr las pruebas).
 for (const { desde, hacia, filtro } of copias) {
   if (!existsSync(desde)) throw new Error(`No se encuentra ${desde}`);
-  rmSync(hacia, { recursive: true, force: true });
-  cpSync(desde, hacia, { recursive: true, filter: filtro });
+  cpSync(desde, hacia, { recursive: true, force: true, filter: filtro });
 }
 // El esquema de P1, para que las pruebas validen la universidad contra el contrato real.
 cpSync(path.join(repo, 'biblioteca', 'esquema', 'escenario.schema.json'), path.join(destino, 'biblioteca', 'escenario.schema.json'));
