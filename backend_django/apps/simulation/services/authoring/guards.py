@@ -5,6 +5,7 @@ Mapeo de errores (decisión del mantenedor — códigos semánticos):
 - la entidad no pertenece a la versión               -> ValidationError (400)
 - la versión no es un borrador (``ensure_draft``)    -> ValidationError (400)
 - la ``revision`` vencida (``check_revision``)       -> ApiError ``REVISION_CONFLICT`` (409)
+- una clave que ya usa otra fila (``ensure_unique``) -> ApiError ``VALIDATION_ERROR`` con ``field`` (400)
 
 **Toda** búsqueda del editor pasa por ``in_version`` (E2-6): una referencia a un nodo, mapa,
 objeto, decisión, herramienta o diálogo solo se admite si es de la versión que se edita.
@@ -247,3 +248,17 @@ def character_link(character_id, case_version_id):
         return in_version(CaseCharacter, character_id, case_version_id)
     except NotFound:
         return None
+
+
+# ─── Claves únicas ───────────────────────────────────────────────────────────────────────
+def ensure_unique(instance, field, message, **scope):
+    """400 con ``field`` si otra fila de ``scope`` ya usa ese valor (la propia fila no choca consigo misma).
+
+    Sin esto, la restricción única de la base respondía por el servicio: un ``IntegrityError`` que nadie
+    atrapaba y el autor veía «Error interno del servidor» sin saber qué corregir.
+    """
+    clash = type(instance).objects.filter(**scope)
+    if instance.pk is not None:
+        clash = clash.exclude(pk=instance.pk)
+    if clash.exists():
+        raise ApiError("VALIDATION_ERROR", message, status.HTTP_400_BAD_REQUEST, field=field)

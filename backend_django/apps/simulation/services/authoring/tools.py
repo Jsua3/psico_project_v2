@@ -4,7 +4,7 @@ from django.db import transaction
 from apps.simulation.models import ClinicalTool
 
 from .editor_view import editor
-from .guards import bump_revision, ensure_draft, in_version
+from .guards import bump_revision, ensure_draft, ensure_unique, in_version
 from .icons import validate_icon
 
 
@@ -39,6 +39,9 @@ def delete_tool(case_version_id, tool_id, revision=None):
 
 def _apply_tool_request(tool, request):
     tool.tool_code = request.get("toolCode")
+    # BORRADOR: texto nuevo del servidor, pendiente de la aprobación de Psicología (VD-23).
+    ensure_unique(tool, "toolCode", "Ya hay una herramienta con ese código en el caso.",
+                  case_version_id=tool.case_version_id, tool_code=tool.tool_code)
     tool.label = request.get("label")
     validate_icon(request.get("icon"), current=tool.icon)
     tool.icon = request.get("icon") if request.get("icon") is not None else "psychology"

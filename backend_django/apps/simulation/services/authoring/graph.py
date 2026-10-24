@@ -14,7 +14,7 @@ from shared.exceptions import ApiError
 from shared.jsonutils import coerce_int as _int
 
 from .editor_view import editor
-from .guards import bump_revision, ensure_draft, in_version
+from .guards import bump_revision, ensure_draft, ensure_unique, in_version
 from .request_utils import flag, write_string_list
 
 VALID_CLASSIFICATIONS = {"ADEQUATE", "RISKY", "INADEQUATE"}
@@ -101,6 +101,9 @@ def delete_node(case_version_id, node_id, revision=None):
 
 def _apply_node_request(node, request):
     node.node_key = request.get("nodeKey")
+    # BORRADOR: texto nuevo del servidor, pendiente de la aprobación de Psicología (VD-23).
+    ensure_unique(node, "nodeKey", "Ya hay un nodo con esa clave en el caso.",
+                  case_version_id=node.case_version_id, node_key=node.node_key)
     node.title = request.get("title")
     node.narrative = request.get("narrative")
     # Una lista presente (aunque vacía) reemplaza; una ausente significa «no tocar»: el
@@ -163,6 +166,9 @@ def _apply_decision_request(decision, request, case_version_id, version):
     decision.option_key = option_key if option_key is not None else (
         f"{src.node_key}->{tgt.node_key}-{int(time.time() * 1000)}"
     )
+    # BORRADOR: texto nuevo del servidor, pendiente de la aprobación de Psicología (VD-23).
+    ensure_unique(decision, "optionKey", "Ya hay una decisión con esa clave en el caso.",
+                  case_version_id=decision.case_version_id, option_key=decision.option_key)
     decision.source_node = src
     decision.target_node = tgt
     decision.text = request.get("text")

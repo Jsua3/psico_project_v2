@@ -889,14 +889,15 @@ def test_crear_un_dialogo_que_falla_a_mitad_no_deja_el_arbol(api, draft):
 def test_guardar_el_mundo_que_falla_a_mitad_no_deja_el_mapa_cambiado(api, draft):
     we = api.get(f"{BASE}/{draft}/world-editor").data["data"]
 
-    resp = api.put(
-        f"{BASE}/{draft}/world?nodeId={we['nodeId']}",
-        {"map": {"width": 1234, "theme": "a-medias"},
-         # Falla a mitad en la base: dos objetos con la misma clave (UNIQUE por mapa).
-         "objects": [{"key": "repetido", "label": "x", "type": "OBJECT", "visible": True},
-                     {"key": "repetido", "label": "y", "type": "OBJECT", "visible": True}]},
-        format="json",
-    )
+    # Falla a mitad: el mapa ya está aplicado cuando el guardado del objeto revienta. (Antes se provocaba con dos
+    # objetos de la misma clave, pero esa clave repetida ahora es un 400 que se detecta antes de escribir nada.)
+    with patch.object(MapObject, "save", side_effect=RuntimeError("fallo a mitad del guardado")):
+        resp = api.put(
+            f"{BASE}/{draft}/world?nodeId={we['nodeId']}",
+            {"map": {"width": 1234, "theme": "a-medias"},
+             "objects": [{"key": "a-medias", "label": "x", "type": "OBJECT", "visible": True}]},
+            format="json",
+        )
 
     assert resp.status_code == 500
     scene_map = SceneMap.objects.get(pk=we["map"]["id"])

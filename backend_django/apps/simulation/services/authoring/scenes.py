@@ -16,7 +16,7 @@ from apps.simulation.models import (
 from shared.jsonutils import coerce_int as _int, write_map as _write_map
 
 from .editor_view import editor
-from .guards import bump_revision, character_link, decision_link, ensure_draft, in_version
+from .guards import bump_revision, character_link, decision_link, ensure_draft, ensure_unique, in_version
 from .icons import validate_icon
 from .limites import _texto
 from .request_utils import flag
@@ -57,6 +57,12 @@ def delete_map(case_version_id, map_id, revision=None):
 
 def _apply_map_request(scene_map, request):
     scene_map.map_key = request.get("mapKey")
+    # BORRADOR: texto nuevo del servidor, pendiente de la aprobación de Psicología (VD-23).
+    ensure_unique(scene_map, "mapKey", "Ya hay un mapa con esa clave en el caso.",
+                  case_version_id=scene_map.case_version_id, map_key=scene_map.map_key)
+    # Cada nodo tiene a lo sumo un mapa: otro para el mismo nodo (nuevo o movido) choca con el suyo.
+    ensure_unique(scene_map, "nodeId", "Ese nodo ya tiene su mapa: edítalo en lugar de crear otro.",
+                  node_id=scene_map.node_id)
     scene_map.title = request.get("title")
     width = _int(request.get("width"))
     height = _int(request.get("height"))
@@ -100,6 +106,9 @@ def delete_object(case_version_id, object_id, revision=None):
 
 def _apply_object_request(obj, request, case_version_id):
     obj.object_key = request.get("objectKey")
+    # BORRADOR: texto nuevo del servidor, pendiente de la aprobación de Psicología (VD-23).
+    ensure_unique(obj, "objectKey", "Ya hay un objeto con esa clave en este mapa.",
+                  scene_map_id=obj.scene_map_id, object_key=obj.object_key)
     obj.label = request.get("label")
     obj.object_type = request.get("objectType")
     obj.position_x = _int(request.get("x"))
@@ -171,6 +180,9 @@ def delete_dialogue(case_version_id, tree_id, revision=None):
 
 def _apply_dialogue_request(tree, request):
     tree.tree_key = request.get("treeKey")
+    # BORRADOR: texto nuevo del servidor, pendiente de la aprobación de Psicología (VD-23).
+    ensure_unique(tree, "treeKey", "Ya hay un diálogo con esa clave en este mapa.",
+                  scene_map_id=tree.scene_map_id, tree_key=tree.tree_key)
     tree.speaker_name = request.get("speakerName")
     tree.portrait_key = request.get("portraitKey")
     tree.emotion = request.get("emotion") if request.get("emotion") is not None else "neutral"
