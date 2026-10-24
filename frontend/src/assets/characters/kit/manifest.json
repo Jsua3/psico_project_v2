@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "kitSha256": "d69bb5a5b1299aa2ea470270e66f368dd12350e2b3553f9dc323a0ece471748f",
+  "kitSha256": "fb72ee1f7e841639dbd3fd98c317f9bb0244bb492fddfa60b6db9289cca33d76",
   "characters": {
     "abuela-familia": {
       "displayName": "Abuela de la niña",
@@ -340,6 +340,76 @@
         }
       }
     },
+    "companera-clase": {
+      "displayName": "Compañera de clase",
+      "kind": "npc",
+      "complexion": "a",
+      "provenance": {
+        "source": "Kit SIEP",
+        "license": "SIEP-INTERNAL"
+      },
+      "geometry": {
+        "down": {
+          "opaqueHeight": 64,
+          "headWidth": 20,
+          "shoulderWidth": 23
+        },
+        "left": {
+          "opaqueHeight": 64,
+          "headWidth": 19,
+          "torsoDepth": 14
+        },
+        "right": {
+          "opaqueHeight": 64,
+          "headWidth": 19,
+          "torsoDepth": 14
+        },
+        "up": {
+          "opaqueHeight": 64,
+          "headWidth": 19,
+          "shoulderWidth": 23
+        }
+      },
+      "retouched": [],
+      "files": {
+        "idle": {
+          "path": "companera-clase/idle.png",
+          "width": 192,
+          "height": 288,
+          "pixelSha256": "fb4d2497fcba4ec3a1e7c5e7e1ac0f2969e7451aaa9f789a77c94a7cd8805daa"
+        },
+        "walk": {
+          "path": "companera-clase/walk.png",
+          "width": 288,
+          "height": 288,
+          "pixelSha256": "7bdaaf996ad17848750fcb2f19fd264756ad777d4feb7c26be965e631bb487c2"
+        },
+        "portrait-neutral": {
+          "path": "companera-clase/portrait-neutral.png",
+          "width": 32,
+          "height": 32,
+          "pixelSha256": "d3b325ce5a4d88227baddcb38c5b77f8eb513daf67ffe0281e887fe463a63a58"
+        },
+        "portrait-preocupada": {
+          "path": "companera-clase/portrait-preocupada.png",
+          "width": 32,
+          "height": 32,
+          "pixelSha256": "7daf64b84649a46f2122b16cd3b5cc4eb7ac6efed6c2bf4600ffc59bb9884ee2"
+        },
+        "portrait-triste": {
+          "path": "companera-clase/portrait-triste.png",
+          "width": 32,
+          "height": 32,
+          "pixelSha256": "9b2c6c343b54221df9ea99bd2399ed9f05fb8505e3fa8186648345a14ac258f0"
+        },
+        "portrait-alegre": {
+          "path": "companera-clase/portrait-alegre.png",
+          "width": 32,
+          "height": 32,
+          "pixelSha256": "f79afe8c249e49d16fc91885cd4640ed88e172b67d8a02ac1e8584dae96facee"
+        }
+      }
+    },
     "daniela": {
       "displayName": "Daniela",
       "kind": "jugable",
@@ -538,6 +608,76 @@
         }
       }
     },
+    "docente-universidad": {
+      "displayName": "Docente universitaria",
+      "kind": "npc",
+      "complexion": "a",
+      "provenance": {
+        "source": "Kit SIEP",
+        "license": "SIEP-INTERNAL"
+      },
+      "geometry": {
+        "down": {
+          "opaqueHeight": 64,
+          "headWidth": 21,
+          "shoulderWidth": 23
+        },
+        "left": {
+          "opaqueHeight": 64,
+          "headWidth": 20,
+          "torsoDepth": 16
+        },
+        "right": {
+          "opaqueHeight": 64,
+          "headWidth": 20,
+          "torsoDepth": 16
+        },
+        "up": {
+          "opaqueHeight": 64,
+          "headWidth": 21,
+          "shoulderWidth": 23
+        }
+      },
+      "retouched": [],
+      "files": {
+        "idle": {
+          "path": "docente-universidad/idle.png",
+          "width": 192,
+          "height": 288,
+          "pixelSha256": "9e3a5db86f81959dd8ef49c4037a1b1283d8a1809f93369ce263482e96e01b7e"
+        },
+        "walk": {
+          "path": "docente-universidad/walk.png",
+          "width": 288,
+          "height": 288,
+          "pixelSha256": "90db853087f97c94e8dff9fc6d747e89c9df8786d73fe7329f9d259d9215a50e"
+        },
+        "portrait-neutral": {
+          "path": "docente-universidad/portrait-neutral.png",
+          "width": 32,
+          "height": 32,
+          "pixelSha256": "3bbaa9ec954c3a682f6a7a8bf82c87a2b1cb8bf9e9d4907ffb7e6818c3a28f73"
+        },
+        "portrait-preocupada": {
+          "path": "docente-universidad/portrait-preocupada.png",
+          "width": 32,
+          "height": 32,
+          "pixelSha256": "c5de7fa8624669d3f62f96e9dbce7bd8d46796a399b378fcc4cfaf5ad8485b4c"
+        },
+        "portrait-triste": {
+          "path": "docente-universidad/portrait-triste.png",
+          "width": 32,
+          "height": 32,
+          "pixelSha256": "8c291dce069cfba27d6652894c35335be9ce6b4b4aff405d952c60b0d10d53d7"
+        },
+        "portrait-alegre": {
+          "path": "docente-universidad/portrait-alegre.png",
+          "width": 32,
+          "height": 32,
+          "pixelSha256": "8b639d4164b58178d6663352f890abcc54080db4b00f0b9084ff2d556e28dced"
+        }
+      }
+    },
     "enfermera-urgencias": {
       "displayName": "Enfermera de urgencias",
       "kind": "npc",
@@ -605,6 +745,76 @@
           "width": 32,
           "height": 32,
           "pixelSha256": "923981b962fe38111172fadef733e5c9f25120053b0049b6a07adc9ec8e3565b"
+        }
+      }
+    },
+    "estudiante-consultante": {
+      "displayName": "Estudiante consultante",
+      "kind": "npc",
+      "complexion": "b",
+      "provenance": {
+        "source": "Kit SIEP",
+        "license": "SIEP-INTERNAL"
+      },
+      "geometry": {
+        "down": {
+          "opaqueHeight": 65,
+          "headWidth": 25,
+          "shoulderWidth": 25
+        },
+        "left": {
+          "opaqueHeight": 65,
+          "headWidth": 22,
+          "torsoDepth": 15
+        },
+        "right": {
+          "opaqueHeight": 65,
+          "headWidth": 22,
+          "torsoDepth": 15
+        },
+        "up": {
+          "opaqueHeight": 65,
+          "headWidth": 25,
+          "shoulderWidth": 25
+        }
+      },
+      "retouched": [],
+      "files": {
+        "idle": {
+          "path": "estudiante-consultante/idle.png",
+          "width": 192,
+          "height": 288,
+          "pixelSha256": "15fd5108e3fc79d31097aee75e7f273633f08785ca0e703f106ecb857807fd0e"
+        },
+        "walk": {
+          "path": "estudiante-consultante/walk.png",
+          "width": 288,
+          "height": 288,
+          "pixelSha256": "08d6f30701acfae6c4f10d99310e4dbd62ddbaedc33eacc9f705e606440f04ca"
+        },
+        "portrait-neutral": {
+          "path": "estudiante-consultante/portrait-neutral.png",
+          "width": 32,
+          "height": 32,
+          "pixelSha256": "35c9824df49dd658ff55f3e96bfd87f0397d1563eca071757e73291f8a913850"
+        },
+        "portrait-preocupada": {
+          "path": "estudiante-consultante/portrait-preocupada.png",
+          "width": 32,
+          "height": 32,
+          "pixelSha256": "21a58f32b39e614d165cb9238f5bfeafca91343cfb7f6d17cdb6c77b6cdaa518"
+        },
+        "portrait-triste": {
+          "path": "estudiante-consultante/portrait-triste.png",
+          "width": 32,
+          "height": 32,
+          "pixelSha256": "e3fa6929cfea1989eb0a64605c349de73c592e625aa941dc8ef28c07c33bac9d"
+        },
+        "portrait-alegre": {
+          "path": "estudiante-consultante/portrait-alegre.png",
+          "width": 32,
+          "height": 32,
+          "pixelSha256": "a0d66398f3c5c0baecbca297755aa2732f62bc75261c2ec5bf980298c6befecb"
         }
       }
     },

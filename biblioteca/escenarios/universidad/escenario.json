@@ -365,9 +365,9 @@
   },
   "personajes": [
     { "id": "psicologa-bienestar", "nombre": "Psicóloga de Bienestar", "rol": "Profesional", "recipeId": "psicologa-hospitalaria" },
-    { "id": "docente", "nombre": "Docente", "rol": "Docente", "recipeId": "supervisor-clinico" },
-    { "id": "estudiante-consultante", "nombre": "Estudiante consultante", "rol": "Estudiante", "recipeId": "sobreviviente" },
-    { "id": "companera-clase", "nombre": "Compañera de clase", "rol": "Estudiante", "recipeId": "adolescente" },
+    { "id": "docente", "nombre": "Docente", "rol": "Docente", "recipeId": "docente-universidad" },
+    { "id": "estudiante-consultante", "nombre": "Estudiante consultante", "rol": "Estudiante", "recipeId": "estudiante-consultante" },
+    { "id": "companera-clase", "nombre": "Compañera de clase", "rol": "Estudiante", "recipeId": "companera-clase" },
     { "id": "recepcionista-bienestar", "nombre": "Recepcionista de Bienestar", "rol": "Personal administrativo", "recipeId": "funcionaria-recepcion" },
     { "id": "enfermera", "nombre": "Enfermera", "rol": "Profesional de salud", "recipeId": "enfermera-urgencias" },
     { "id": "vigilante", "nombre": "Vigilante", "rol": "Seguridad", "recipeId": "seguridad" }
