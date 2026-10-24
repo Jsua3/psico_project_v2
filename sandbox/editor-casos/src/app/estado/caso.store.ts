@@ -2,7 +2,7 @@ import { Injectable, computed, effect, inject, signal } from '@angular/core';
 import { Router } from '@angular/router';
 
 import { BibliotecaService } from '../modelo/biblioteca.service';
-import type { CasoBorrador, Escena, SalaCaso } from '../modelo/caso';
+import type { CasoBorrador, Escena, Final, Linea, Respuesta, SalaCaso } from '../modelo/caso';
 import { SEPARACION_ESCENAS } from '../modelo/copiar';
 import type { ColocacionPersonaje } from '../modelo/escenario';
 import { centroDeZona, limitarAZona, zonaCaminable } from '../modelo/geometria';
@@ -26,6 +26,13 @@ function leerGuardado(): CasoBorrador | null {
   } catch {
     return null; // navegador privado, almacenamiento bloqueado o contenido roto
   }
+}
+
+function moverEnLista<T extends { id: string }>(lista: T[], id: string, delta: -1 | 1): void {
+  const i = lista.findIndex((x) => x.id === id);
+  const j = i + delta;
+  if (i < 0 || j < 0 || j >= lista.length) return;
+  [lista[i], lista[j]] = [lista[j], lista[i]];
 }
 
 function lista(sala: SalaCaso, tipo: TipoElemento) {
@@ -283,6 +290,147 @@ export class CasoStore {
     this.cambiar((caso) => {
       const posiciones = trazarEscenas(caso);
       for (const e of caso.escenas) e.posicion = posiciones.get(e.id) ?? e.posicion;
+    });
+  }
+
+  editarEscena(id: string, cambios: Partial<Pick<Escena, 'titulo' | 'salaId'>>): void {
+    this.cambiar((caso) => {
+      Object.assign(this.escena(caso, id), cambios);
+    });
+  }
+
+  // ── Guion ───────────────────────────────────────────────────────────────
+
+  /** Agrega una línea; el personaje por defecto es el primero de la sala de la escena. */
+  agregarLinea(escenaId: string): string {
+    const id = nuevoId('linea');
+    this.cambiar((caso) => {
+      const escena = this.escena(caso, escenaId);
+      const enSala = caso.salas.find((s) => s.id === escena.salaId)?.personajes[0]?.ref;
+      const anterior = escena.lineas.at(-1)?.personajeId;
+      escena.lineas.push({
+        id, personajeId: anterior ?? enSala ?? caso.personajes[0]?.id ?? '', texto: '', expresion: 'neutral', marcaIa: false,
+      });
+    });
+    return id;
+  }
+
+  editarLinea(escenaId: string, lineaId: string, cambios: Partial<Omit<Linea, 'id'>>): void {
+    this.cambiar((caso) => {
+      const linea = this.escena(caso, escenaId).lineas.find((l) => l.id === lineaId);
+      if (linea) Object.assign(linea, cambios);
+    });
+  }
+
+  borrarLinea(escenaId: string, lineaId: string): void {
+    this.cambiar((caso) => {
+      const escena = this.escena(caso, escenaId);
+      escena.lineas = escena.lineas.filter((l) => l.id !== lineaId);
+    });
+  }
+
+  /** Sube (-1) o baja (+1) una línea. */
+  moverLinea(escenaId: string, lineaId: string, delta: -1 | 1): void {
+    this.cambiar((caso) => moverEnLista(this.escena(caso, escenaId).lineas, lineaId, delta));
+  }
+
+  duplicarLinea(escenaId: string, lineaId: string): string {
+    const id = nuevoId('linea');
+    this.cambiar((caso) => {
+      const lineas = this.escena(caso, escenaId).lineas;
+      const i = lineas.findIndex((l) => l.id === lineaId);
+      if (i >= 0) lineas.splice(i + 1, 0, { ...lineas[i], id });
+    });
+    return id;
+  }
+
+  agregarRespuesta(escenaId: string): string {
+    const id = nuevoId('respuesta');
+    this.cambiar((caso) => {
+      this.escena(caso, escenaId).respuestas.push({
+        id, texto: '', clasificacion: 'adecuada', retroalimentacion: '', destinoId: null, marcaIa: false,
+      });
+    });
+    return id;
+  }
+
+  editarRespuesta(escenaId: string, respuestaId: string, cambios: Partial<Omit<Respuesta, 'id'>>): void {
+    this.cambiar((caso) => {
+      const r = this.escena(caso, escenaId).respuestas.find((x) => x.id === respuestaId);
+      if (r) Object.assign(r, cambios);
+    });
+  }
+
+  borrarRespuesta(escenaId: string, respuestaId: string): void {
+    this.cambiar((caso) => {
+      const escena = this.escena(caso, escenaId);
+      escena.respuestas = escena.respuestas.filter((r) => r.id !== respuestaId);
+    });
+  }
+
+  /** Crea una escena en la misma sala, la conecta a la respuesta y devuelve su id. */
+  respuestaAEscenaNueva(escenaId: string, respuestaId: string): string {
+    let id = '';
+    this.cambiar((caso) => {
+      const origen = this.escena(caso, escenaId);
+      const nueva = this.nuevaEscena(caso, origen.salaId, origen.id);
+      const r = origen.respuestas.find((x) => x.id === respuestaId);
+      if (r) r.destinoId = nueva.id;
+      id = nueva.id;
+    });
+    return id;
+  }
+
+  /** El docente revisó algo generado por IA: deja de estar marcado. */
+  aceptarIa(ruta: { escenaId: string; lineaId?: string; respuestaId?: string } | { finalId: string }): void {
+    this.cambiar((caso) => {
+      if ('finalId' in ruta) {
+        const f = caso.finales.find((x) => x.id === ruta.finalId);
+        if (f) f.marcaIa = false;
+        return;
+      }
+      const escena = this.escena(caso, ruta.escenaId);
+      const elemento = ruta.lineaId
+        ? escena.lineas.find((l) => l.id === ruta.lineaId)
+        : escena.respuestas.find((r) => r.id === ruta.respuestaId);
+      if (elemento) elemento.marcaIa = false;
+    });
+  }
+
+  // ── Finales ─────────────────────────────────────────────────────────────
+
+  fijarModoFinales(modo: CasoBorrador['modoFinales']): void {
+    this.cambiar((caso) => {
+      caso.modoFinales = modo;
+    });
+  }
+
+  agregarFinal(): string {
+    const id = nuevoId('final');
+    this.cambiar((caso) => {
+      const ultima = caso.escenas.filter((e) => e.esFinal).at(-1) ?? caso.escenas.at(-1);
+      caso.finales.push({
+        id, nombre: `Final ${caso.finales.length + 1}`, texto: '', marcaIa: false,
+        condicion: ultima ? { tipo: 'llega-a-escena', escenaId: ultima.id } : { tipo: 'inadecuadas-al-menos', cantidad: 1 },
+      });
+    });
+    return id;
+  }
+
+  editarFinal(id: string, cambios: Partial<Omit<Final, 'id'>>): void {
+    this.cambiar((caso) => {
+      const f = caso.finales.find((x) => x.id === id);
+      if (f) Object.assign(f, cambios);
+    });
+  }
+
+  moverFinal(id: string, delta: -1 | 1): void {
+    this.cambiar((caso) => moverEnLista(caso.finales, id, delta));
+  }
+
+  borrarFinal(id: string): void {
+    this.cambiar((caso) => {
+      caso.finales = caso.finales.filter((f) => f.id !== id);
     });
   }
 
