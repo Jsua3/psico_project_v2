@@ -1,0 +1,126 @@
+{
+  "esquema": 1,
+  "nota": "Hojas de cercanía para los sprites del caso actual. El reposo sigue en su ruta de origen; al integrar (P6) la hoja se copia junto a él y el juego la reproduce dentro del radio de 74 px.",
+  "sprites": [
+    {
+      "id": "expediente",
+      "tipo": "OBJECT",
+      "codigo": "EXP",
+      "origen": "frontend/src/assets/game/objects/object_expediente.png",
+      "animacionCerca": {
+        "hoja": "arte/object_expediente-cerca.png",
+        "cuadros": 3,
+        "fps": 6,
+        "efecto": "brillo"
+      }
+    },
+    {
+      "id": "marco-normativo",
+      "tipo": "OBJECT",
+      "codigo": "LEY",
+      "origen": "frontend/src/assets/game/objects/object_marco_normativo.png",
+      "animacionCerca": {
+        "hoja": "arte/object_marco_normativo-cerca.png",
+        "cuadros": 3,
+        "fps": 6,
+        "efecto": "brillo"
+      }
+    },
+    {
+      "id": "registro",
+      "tipo": "OBJECT",
+      "codigo": "REG",
+      "origen": "frontend/src/assets/game/objects/object_registro.png",
+      "animacionCerca": {
+        "hoja": "arte/object_registro-cerca.png",
+        "cuadros": 3,
+        "fps": 6,
+        "efecto": "brillo"
+      }
+    },
+    {
+      "id": "acceso-restringido",
+      "tipo": "OBJECT",
+      "codigo": "RES",
+      "origen": "frontend/src/assets/game/objects/object_acceso_restringido.png",
+      "animacionCerca": {
+        "hoja": "arte/object_acceso_restringido-cerca.png",
+        "cuadros": 3,
+        "fps": 6,
+        "efecto": "pulso"
+      }
+    },
+    {
+      "id": "cierre",
+      "tipo": "OBJECT",
+      "codigo": "FIN",
+      "origen": "frontend/src/assets/game/objects/object_cierre.png",
+      "animacionCerca": {
+        "hoja": "arte/object_cierre-cerca.png",
+        "cuadros": 3,
+        "fps": 6,
+        "efecto": "pulso"
+      }
+    },
+    {
+      "id": "pap",
+      "tipo": "TOOL",
+      "codigo": "PAP",
+      "origen": "frontend/src/assets/game/objects/tool_pap.png",
+      "animacionCerca": {
+        "hoja": "arte/tool_pap-cerca.png",
+        "cuadros": 3,
+        "fps": 6,
+        "efecto": "brillo"
+      }
+    },
+    {
+      "id": "spikes",
+      "tipo": "TOOL",
+      "codigo": "SPIKES",
+      "origen": "frontend/src/assets/game/objects/tool_spikes.png",
+      "animacionCerca": {
+        "hoja": "arte/tool_spikes-cerca.png",
+        "cuadros": 3,
+        "fps": 6,
+        "efecto": "brillo"
+      }
+    },
+    {
+      "id": "reflection-journal",
+      "tipo": "TOOL",
+      "codigo": "REFLECTION_JOURNAL",
+      "origen": "frontend/src/assets/game/objects/tool_reflection_journal.png",
+      "animacionCerca": {
+        "hoja": "arte/tool_reflection_journal-cerca.png",
+        "cuadros": 3,
+        "fps": 6,
+        "efecto": "brillo"
+      }
+    },
+    {
+      "id": "safety-route",
+      "tipo": "TOOL",
+      "codigo": "SAFETY_ROUTE",
+      "origen": "frontend/src/assets/game/objects/tool_safety_route.png",
+      "animacionCerca": {
+        "hoja": "arte/tool_safety_route-cerca.png",
+        "cuadros": 3,
+        "fps": 6,
+        "efecto": "brillo"
+      }
+    },
+    {
+      "id": "risk-meter",
+      "tipo": "TOOL",
+      "codigo": "RISK_METER",
+      "origen": "frontend/src/assets/game/objects/tool_risk_meter.png",
+      "animacionCerca": {
+        "hoja": "arte/tool_risk_meter-cerca.png",
+        "cuadros": 3,
+        "fps": 6,
+        "efecto": "pulso"
+      }
+    }
+  ]
+}

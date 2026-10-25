@@ -206,8 +206,31 @@ export async function validarEscenario(dir, { kitDir = KIT_POR_DEFECTO } = {}) {
     await revisarArte(sala.fondo, `sala "${sala.id}" › fondo`, { ancho: ANCHO_SALA, alto: ALTO_SALA });
   }
   for (const m of escenario.catalogo.muebles) await revisarArte(m.arte, `mueble "${m.id}"`);
-  for (const o of escenario.catalogo.objetos) await revisarArte(o.arte, `objeto "${o.id}"`);
-  for (const h of escenario.catalogo.herramientas) await revisarArte(h.arte, `herramienta "${h.id}"`);
+  // La hoja de cercanía mide lo mismo de alto que el reposo y `cuadros` veces su ancho.
+  const revisarHoja = async (pieza, donde) => {
+    if (!pieza.animacionCerca) return;
+    const { hoja, cuadros } = pieza.animacionCerca;
+    const reposo = await medidaPng(path.join(dir, pieza.arte));
+    const completa = path.join(dir, hoja);
+    if (!(await existe(completa))) {
+      error('arte-faltante', donde, `No se encuentra la hoja de animación "${hoja}".`);
+      return;
+    }
+    const medida = await medidaPng(completa);
+    if (!medida) {
+      error('arte-invalido', donde, `"${hoja}" no es una imagen PNG.`);
+    } else if (reposo && (medida.ancho !== reposo.ancho * cuadros || medida.alto !== reposo.alto)) {
+      error('hoja-medida', donde, `"${hoja}" mide ${medida.ancho} × ${medida.alto}; con ${cuadros} cuadros de ${reposo.ancho} × ${reposo.alto} debe medir ${reposo.ancho * cuadros} × ${reposo.alto}.`);
+    }
+  };
+  for (const o of escenario.catalogo.objetos) {
+    await revisarArte(o.arte, `objeto "${o.id}"`);
+    await revisarHoja(o, `objeto "${o.id}"`);
+  }
+  for (const h of escenario.catalogo.herramientas) {
+    await revisarArte(h.arte, `herramienta "${h.id}"`);
+    await revisarHoja(h, `herramienta "${h.id}"`);
+  }
 
   // Caras de cada personaje en el kit.
   for (const personaje of escenario.personajes) {

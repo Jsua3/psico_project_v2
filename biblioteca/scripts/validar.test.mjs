@@ -271,3 +271,17 @@ test('zonaCaminable devuelve los valores fijados', () => {
   assert.deepEqual(zonaCaminable('dos-paredes-derecha'), { x: 24, y: 236, ancho: 840, alto: 250 });
   assert.deepEqual(zonaCaminable('una-pared'), { x: 24, y: 236, ancho: 912, alto: 250 });
 });
+
+test('una hoja de cercanía que no existe es error arte-faltante', async () => {
+  const r = await validarMutado((e) => {
+    e.catalogo.objetos[0].animacionCerca = { hoja: 'arte/objetos/folleto-cerca.png', cuadros: 3, fps: 6 };
+  });
+  assert.ok(r.errores.some((x) => x.codigo === 'arte-faltante' && x.mensaje.includes('folleto-cerca')));
+});
+
+test('una hoja de cercanía con medida que no cuadra es error hoja-medida', async () => {
+  const r = await validarMutado(
+    (e) => { e.catalogo.objetos[0].animacionCerca = { hoja: 'arte/objetos/folleto.png', cuadros: 3, fps: 6 }; },
+  );
+  assert.ok(r.errores.some((x) => x.codigo === 'hoja-medida'));
+});
