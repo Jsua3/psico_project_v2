@@ -81,4 +81,53 @@ describe('GuionComponent', () => {
     expect(store.caso()!.escenas.find((e) => e.id === id)!.lineas[0].marcaIa).toBe(false);
     expect(raiz.textContent).not.toContain('Sugerido por la IA');
   });
+
+  const enCuerpo = async (fixture: { nativeElement: HTMLElement }, listo: () => Promise<void>) => {
+    document.body.appendChild(fixture.nativeElement);
+    await listo();
+    await new Promise((r) => setTimeout(r, 0));
+  };
+  const anunciado = (raiz: HTMLElement) => raiz.querySelector('[role="status"].solo-lector')!.textContent!.trim();
+
+  it('borrar una línea lo anuncia y deja el foco en la línea que quedó en su lugar', async () => {
+    const { fixture, raiz, listo } = await montar();
+    await enCuerpo(fixture, listo);
+    boton(raiz, 'Agregar una línea').click();
+    await listo();
+    boton(raiz, 'Agregar una línea').click();
+    await listo();
+    raiz.querySelector<HTMLButtonElement>('[aria-label="Borrar la línea 1"]')!.click();
+    await listo();
+    await new Promise((r) => setTimeout(r, 0));
+    expect(document.activeElement?.id).toBe('lt0');
+    expect(anunciado(raiz)).toBe('Línea 1 borrada. Puedes deshacerlo.');
+    fixture.nativeElement.remove();
+  });
+
+  it('borrar la única respuesta deja el foco en «Agregar una respuesta»', async () => {
+    const { fixture, raiz, listo } = await montar();
+    await enCuerpo(fixture, listo);
+    boton(raiz, 'Agregar una respuesta').click();
+    await listo();
+    boton(raiz, 'Borrar la respuesta 1').click();
+    await listo();
+    await new Promise((r) => setTimeout(r, 0));
+    expect(document.activeElement?.textContent?.trim()).toBe('Agregar una respuesta');
+    expect(anunciado(raiz)).toBe('Respuesta 1 borrada. Puedes deshacerlo.');
+    fixture.nativeElement.remove();
+  });
+
+  it('aceptar una línea de la IA lo anuncia y deja el foco en su texto', async () => {
+    const { fixture, store, id, raiz, listo } = await montar();
+    const caso = structuredClone(store.caso()!);
+    caso.escenas.find((e) => e.id === id)!.lineas.push({ id: 'l-ia', personajeId: caso.personajes[0].id, texto: 'Hola', expresion: 'neutral', marcaIa: true });
+    store.fijar(caso);
+    await enCuerpo(fixture, listo);
+    boton(raiz, 'Aceptar línea').click();
+    await listo();
+    await new Promise((r) => setTimeout(r, 0));
+    expect(document.activeElement?.id).toBe('lt0');
+    expect(anunciado(raiz)).toBe('Línea 1 aceptada.');
+    fixture.nativeElement.remove();
+  });
 });

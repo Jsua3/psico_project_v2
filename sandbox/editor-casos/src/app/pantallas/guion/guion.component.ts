@@ -40,7 +40,7 @@ const CLASIFICACIONES: { valor: Clasificacion; nombre: string; simbolo: string }
           @if (e.marcaIa) {
             <div class="fila-titulo">
               <span class="pildora">Sugerido por la IA</span>
-              <button type="button" class="boton" (click)="store.aceptarIa({ escenaId: e.id })">Aceptar escena</button>
+              <button type="button" class="boton" (click)="aceptarEscena(e)">Aceptar escena</button>
             </div>
           }
           <label for="en" class="etiqueta">Escena {{ numero(e) }} · Nombre</label>
@@ -64,8 +64,8 @@ const CLASIFICACIONES: { valor: Clasificacion; nombre: string; simbolo: string }
                       <strong>Línea {{ i + 1 }}</strong>
                       @if (l.marcaIa) {
                         <span class="pildora">Sugerido por la IA</span>
-                        <button type="button" class="boton" data-accion="aceptar-ia" (click)="store.aceptarIa({ escenaId: e.id, lineaId: l.id })">Aceptar línea</button>
-                        <button type="button" class="boton boton-texto" (click)="store.borrarLinea(e.id, l.id)">Descartar línea</button>
+                        <button type="button" class="boton" data-accion="aceptar-ia" (click)="aceptarLinea(e, l, i)">Aceptar línea</button>
+                        <button type="button" class="boton boton-texto" (click)="borrarLinea(e, l, i, 'descartada')">Descartar línea</button>
                       }
                     </div>
                     <div class="linea-cuerpo">
@@ -97,8 +97,8 @@ const CLASIFICACIONES: { valor: Clasificacion; nombre: string; simbolo: string }
                     <div class="acciones">
                       <button type="button" class="boton cuadrado" [attr.aria-label]="'Subir la línea ' + (i + 1)" [attr.aria-disabled]="primero" (click)="!primero && moverLinea(e, l, i, -1)">↑</button>
                       <button type="button" class="boton cuadrado" [attr.aria-label]="'Bajar la línea ' + (i + 1)" [attr.aria-disabled]="ultimo" (click)="!ultimo && moverLinea(e, l, i, 1)">↓</button>
-                      <button type="button" class="boton cuadrado" [attr.aria-label]="'Duplicar la línea ' + (i + 1)" (click)="store.duplicarLinea(e.id, l.id)">⧉</button>
-                      <button type="button" class="boton cuadrado peligro" [attr.aria-label]="'Borrar la línea ' + (i + 1)" (click)="store.borrarLinea(e.id, l.id)">✕</button>
+                      <button type="button" class="boton cuadrado" [attr.aria-label]="'Duplicar la línea ' + (i + 1)" (click)="duplicarLinea(e, l, i)">⧉</button>
+                      <button type="button" class="boton cuadrado peligro" [attr.aria-label]="'Borrar la línea ' + (i + 1)" (click)="borrarLinea(e, l, i)">✕</button>
                     </div>
                   </li>
                 }
@@ -116,8 +116,8 @@ const CLASIFICACIONES: { valor: Clasificacion; nombre: string; simbolo: string }
                       <label [for]="'rt' + i" class="etiqueta">Respuesta {{ i + 1 }}</label>
                       @if (r.marcaIa) {
                         <span class="pildora">Sugerido por la IA</span>
-                        <button type="button" class="boton" (click)="store.aceptarIa({ escenaId: e.id, respuestaId: r.id })">Aceptar respuesta</button>
-                        <button type="button" class="boton boton-texto" (click)="store.borrarRespuesta(e.id, r.id)">Descartar respuesta</button>
+                        <button type="button" class="boton" (click)="aceptarRespuesta(e, r, i)">Aceptar respuesta</button>
+                        <button type="button" class="boton boton-texto" (click)="borrarRespuesta(e, r, i, 'descartada')">Descartar respuesta</button>
                       }
                     </div>
                     <textarea [id]="'rt' + i" class="campo" rows="2" [value]="r.texto"
@@ -155,7 +155,7 @@ const CLASIFICACIONES: { valor: Clasificacion; nombre: string; simbolo: string }
                         <a class="boton" [routerLink]="['/editor/escena', creada()!.escenaId]">Abrir su guion</a>
                       </div>
                     }
-                    <button type="button" class="boton boton-texto peligro" (click)="store.borrarRespuesta(e.id, r.id)">Borrar la respuesta {{ i + 1 }}</button>
+                    <button type="button" class="boton boton-texto peligro" (click)="borrarRespuesta(e, r, i)">Borrar la respuesta {{ i + 1 }}</button>
                   </li>
                 }
               </ol>
@@ -330,5 +330,57 @@ export class GuionComponent {
 
   private enfocar(id: string): void {
     setTimeout(() => document.getElementById(id)?.focus());
+  }
+
+  /**
+   * Lo pulsado desaparece al borrar o aceptar: el foco va al primer selector que exista, para
+   * que quien usa el teclado no vuelva al principio de la página.
+   */
+  private enfocarPrimero(...selectores: string[]): void {
+    setTimeout(() => {
+      for (const s of selectores) {
+        const el = document.querySelector<HTMLElement>(s);
+        if (el) {
+          el.focus();
+          return;
+        }
+      }
+    });
+  }
+
+  protected aceptarEscena(e: Escena): void {
+    this.store.aceptarIa({ escenaId: e.id });
+    this.anuncio.set('Escena aceptada.');
+    this.enfocarPrimero('#en');
+  }
+
+  protected aceptarLinea(e: Escena, l: Linea, i: number): void {
+    this.store.aceptarIa({ escenaId: e.id, lineaId: l.id });
+    this.anuncio.set(`Línea ${i + 1} aceptada.`);
+    this.enfocarPrimero(`#lt${i}`);
+  }
+
+  protected borrarLinea(e: Escena, l: Linea, i: number, como: 'borrada' | 'descartada' = 'borrada'): void {
+    this.store.borrarLinea(e.id, l.id);
+    this.anuncio.set(`Línea ${i + 1} ${como}. Puedes deshacerlo.`);
+    this.enfocarPrimero(`#lt${i}`, `#lt${i - 1}`, '[data-accion="agregar-linea"]');
+  }
+
+  protected duplicarLinea(e: Escena, l: Linea, i: number): void {
+    this.store.duplicarLinea(e.id, l.id);
+    this.anuncio.set(`Línea ${i + 1} duplicada: la copia es la línea ${i + 2}.`);
+    this.enfocarPrimero(`#lt${i + 1}`);
+  }
+
+  protected aceptarRespuesta(e: Escena, r: Respuesta, i: number): void {
+    this.store.aceptarIa({ escenaId: e.id, respuestaId: r.id });
+    this.anuncio.set(`Respuesta ${i + 1} aceptada.`);
+    this.enfocarPrimero(`#rt${i}`);
+  }
+
+  protected borrarRespuesta(e: Escena, r: Respuesta, i: number, como: 'borrada' | 'descartada' = 'borrada'): void {
+    this.store.borrarRespuesta(e.id, r.id);
+    this.anuncio.set(`Respuesta ${i + 1} ${como}. Puedes deshacerlo.`);
+    this.enfocarPrimero(`#rt${i}`, `#rt${i - 1}`, '[data-accion="agregar-respuesta"]');
   }
 }

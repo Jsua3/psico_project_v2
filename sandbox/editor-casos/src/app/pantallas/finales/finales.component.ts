@@ -1,4 +1,4 @@
-import { ChangeDetectionStrategy, Component, computed, inject } from '@angular/core';
+import { ChangeDetectionStrategy, Component, computed, inject, signal } from '@angular/core';
 import { RouterLink } from '@angular/router';
 
 import { CasoStore } from '../../estado/caso.store';
@@ -45,6 +45,7 @@ import { FINALES_AUTOMATICOS } from '../../modelo/finales';
         </fieldset>
 
         <p role="status" class="texto-secundario">{{ estadoCaminos() }}</p>
+        <p role="status" class="solo-lector">{{ anuncio() }}</p>
 
         @if (caso.modoFinales === 'propio') {
           <section aria-labelledby="fh" class="bloque">
@@ -57,13 +58,13 @@ import { FINALES_AUTOMATICOS } from '../../modelo/finales';
                     <strong>Final {{ i + 1 }}</strong>
                     @if (f.marcaIa) {
                       <span class="pildora">Sugerido por la IA</span>
-                      <button type="button" class="boton" (click)="store.aceptarIa({ finalId: f.id })">Aceptar final</button>
-                      <button type="button" class="boton boton-texto" (click)="store.borrarFinal(f.id)">Descartar final</button>
+                      <button type="button" class="boton" (click)="aceptarFinal(f, i)">Aceptar final</button>
+                      <button type="button" class="boton boton-texto" (click)="borrarFinal(f, i, 'descartado')">Descartar final</button>
                     }
                     <span class="acciones derecha">
                       <button type="button" class="boton cuadrado" [attr.aria-label]="'Subir el final ' + f.nombre" [attr.aria-disabled]="primero" (click)="!primero && store.moverFinal(f.id, -1)">↑</button>
                       <button type="button" class="boton cuadrado" [attr.aria-label]="'Bajar el final ' + f.nombre" [attr.aria-disabled]="ultimo" (click)="!ultimo && store.moverFinal(f.id, 1)">↓</button>
-                      <button type="button" class="boton cuadrado peligro" [attr.aria-label]="'Borrar el final ' + f.nombre" (click)="store.borrarFinal(f.id)">✕</button>
+                      <button type="button" class="boton cuadrado peligro" [attr.aria-label]="'Borrar el final ' + f.nombre" (click)="borrarFinal(f, i)">✕</button>
                     </span>
                   </div>
                   <label [for]="'fn' + i" class="etiqueta">Nombre</label>
@@ -96,7 +97,7 @@ import { FINALES_AUTOMATICOS } from '../../modelo/finales';
                 </li>
               }
             </ol>
-            <button type="button" class="boton" (click)="store.agregarFinal()">Agregar un final</button>
+            <button type="button" class="boton" id="agregar-final" (click)="agregarFinal()">Agregar un final</button>
           </section>
         } @else {
           <section aria-labelledby="fa" class="bloque">
@@ -144,6 +145,7 @@ import { FINALES_AUTOMATICOS } from '../../modelo/finales';
 })
 export class FinalesComponent {
   protected readonly store = inject(CasoStore);
+  protected readonly anuncio = signal('');
   protected readonly automaticos = Object.values(FINALES_AUTOMATICOS);
   protected readonly reglas = [
     'Cuando al menos 8 de cada 10 respuestas elegidas son adecuadas y ninguna es inadecuada.',
@@ -157,6 +159,38 @@ export class FinalesComponent {
     if (!caso) return '';
     return estadoDeCaminos(caso);
   });
+
+  protected agregarFinal(): void {
+    this.store.agregarFinal();
+    const n = this.store.caso()?.finales.length ?? 1;
+    this.anuncio.set(`Final ${n} agregado.`);
+    this.enfocarPrimero(`#fn${n - 1}`);
+  }
+
+  protected aceptarFinal(f: Final, i: number): void {
+    this.store.aceptarIa({ finalId: f.id });
+    this.anuncio.set('Final aceptado.');
+    this.enfocarPrimero(`#fn${i}`);
+  }
+
+  protected borrarFinal(f: Final, i: number, como: 'borrado' | 'descartado' = 'borrado'): void {
+    this.store.borrarFinal(f.id);
+    this.anuncio.set(`Final ${como}. Puedes deshacerlo.`);
+    this.enfocarPrimero(`#fn${i}`, `#fn${i - 1}`, '#agregar-final');
+  }
+
+  /** Lo pulsado desaparece al borrar o aceptar: el foco va al primer selector que exista. */
+  private enfocarPrimero(...selectores: string[]): void {
+    setTimeout(() => {
+      for (const s of selectores) {
+        const el = document.querySelector<HTMLElement>(s);
+        if (el) {
+          el.focus();
+          return;
+        }
+      }
+    });
+  }
 
   protected existe(escenaId: string): boolean {
     return !!this.store.caso()?.escenas.some((e) => e.id === escenaId);
