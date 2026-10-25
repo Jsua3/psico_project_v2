@@ -169,42 +169,79 @@ def camara_seguridad():
 # ── afiche de rutas de atención ────────────────────────────────────────────────
 
 def afiche_rutas_atencion():
-    """Afiche con encabezado y cuatro pasos numerados unidos por flechas; el brillo baja iluminándolos."""
+    """Afiche colgado con chinches, esquina doblada, escudo en el encabezado y un camino punteado
+    que serpentea desde una persona por tres hitos; el brillo baja por el camino iluminándolos."""
     papel, papel_s = (246, 244, 234), (206, 202, 188)
     teal = tonos((38, 128, 138))
-    flecha = (96, 106, 120)
+    camino, linea = (96, 106, 120), (170, 176, 182)
     oro, oro_c = (250, 204, 70), (255, 238, 170)
-    blanco = (255, 255, 255)
-    digitos = {
-        1: ('.X.', 'XX.', '.X.', '.X.', 'XXX'),
-        2: ('XXX', '..X', 'XXX', 'X..', 'XXX'),
-        3: ('XXX', '..X', 'XXX', '..X', 'XXX'),
-        4: ('X.X', 'X.X', 'XXX', '..X', '..X'),
-    }
+    blanco, rojo, piel = (255, 255, 255), (214, 58, 56), (236, 178, 134)
+    escudo = ('XXXXXXX', 'XXXXXXX', 'XXXXXXX', 'XXXXXXX', '.XXXXX.', '..XXX..')
+    persona = ('.PPP.', '.PPP.', 'TTTTT', '.TTT.', '.L.L.', '.L.L.')
+    hitos = ((21, 15), (10, 20), (21, 25))
 
-    def paso(d, n, cx, cy, encendido):
-        E(d, cx - 3, cy - 3, cx + 3, cy + 3, oro if encendido else teal[1])
-        _mapa(d, cx - 1, cy - 2, digitos[n], {'X': teal[3] if encendido else blanco})
+    def bezier(p0, p1, p2, p3, n=80):
+        pts = []
+        for i in range(n + 1):
+            t = i / n
+            u = 1 - t
+            x = u ** 3 * p0[0] + 3 * u * u * t * p1[0] + 3 * u * t * t * p2[0] + t ** 3 * p3[0]
+            y = u ** 3 * p0[1] + 3 * u * u * t * p1[1] + 3 * u * t * t * p2[1] + t ** 3 * p3[1]
+            q = (int(round(x)), int(round(y)))
+            if not pts or pts[-1] != q:
+                pts.append(q)
+        return pts
+
+    tramos = [
+        bezier((11, 16), (13, 16), (15, 15), (18, 15), 30),
+        bezier((21, 18), (21, 20), (17, 20), (13, 20)),
+        bezier((10, 23), (10, 25), (14, 25), (18, 25)),
+    ]
+
+    def hito(d, cx, cy, encendido):
+        for (x0, y0, x1, y1) in ((cx - 1, cy - 2, cx + 1, cy + 2), (cx - 2, cy - 1, cx + 2, cy + 1)):
+            R(d, x0, y0, x1, y1, oro if encendido else teal[1])
+        if encendido:
+            R(d, cx - 1, cy - 1, cx, cy, oro_c)
+        else:
+            R(d, cx - 1, cy + 2, cx + 1, cy + 2, teal[2]); P(d, cx + 2, cy + 1, teal[2])
+            P(d, cx, cy, blanco); P(d, cx - 1, cy - 2, teal[0])
 
     def dibujar(k):
         im, d = lienzo()
-        # k: 1 encabezado, 2 fila de arriba, 3 flecha central, 4 fila de abajo
-        R(d, 4, 2, 27, 29, papel); R(d, 27, 3, 27, 29, papel_s); R(d, 5, 29, 27, 29, papel_s)
-        P(d, 15, 1, flecha); P(d, 16, 1, flecha)                       # chinche
-        # encabezado
-        R(d, 4, 2, 26, 7, oro_c if k == 1 else teal[1])
-        R(d, 4, 2, 26, 2, blanco if k == 1 else teal[0]); R(d, 4, 7, 26, 7, oro if k == 1 else teal[2])
-        R(d, 8, 4, 23, 4, teal[2] if k == 1 else blanco); R(d, 8, 6, 17, 6, teal[2] if k == 1 else blanco)
-        # pasos en zigzag: 1 arriba-izquierda, 2 arriba-derecha, 3 abajo-derecha, 4 abajo-izquierda
-        fila1, fila2 = k == 2, k == 4
-        paso(d, 1, 9, 12, fila1); paso(d, 2, 22, 12, fila1)
-        paso(d, 3, 22, 24, fila2); paso(d, 4, 9, 24, fila2)
-        a1 = oro if fila1 else flecha                                   # flecha hacia la derecha
-        R(d, 13, 12, 16, 12, a1); R(d, 16, 11, 16, 13, a1); P(d, 17, 12, a1)
-        a2 = oro if k == 3 else flecha                                  # flecha hacia abajo
-        R(d, 22, 16, 22, 18, a2); R(d, 21, 18, 23, 18, a2); P(d, 22, 19, a2)
-        a3 = oro if fila2 else flecha                                   # flecha hacia la izquierda
-        R(d, 15, 24, 18, 24, a3); R(d, 15, 23, 15, 25, a3); P(d, 14, 24, a3)
+        # papel con sombra a la derecha y abajo
+        R(d, 4, 3, 27, 30, papel); R(d, 27, 4, 27, 30, papel_s); R(d, 5, 30, 27, 30, papel_s)
+        # encabezado con escudo y título
+        R(d, 4, 3, 27, 10, teal[1]); R(d, 4, 3, 27, 3, teal[0]); R(d, 4, 10, 27, 10, teal[2])
+        _mapa(d, 6, 4, escudo, {'X': blanco})
+        for x, y in ((9, 5), (8, 6), (9, 6), (10, 6), (9, 7)):
+            P(d, x, y, teal[1])
+        R(d, 15, 5, 25, 5, blanco); R(d, 15, 7, 21, 7, teal[0])
+        # dos chinches
+        for x in (7, 23):
+            R(d, x, 2, x + 1, 3, rojo); P(d, x, 2, oro_c)
+        # persona al inicio del camino
+        _mapa(d, 5, 12, persona, {'P': piel, 'T': oro if k == 1 else teal[2], 'L': teal[3]})
+        # camino punteado: el tramo del hito iluminado se enciende
+        for i, tramo in enumerate(tramos):
+            c = oro if k == i + 1 else camino
+            for j, (x, y) in enumerate(tramo):
+                if j % 3 != 2:
+                    P(d, x, y, c)
+        for i, (cx, cy) in enumerate(hitos):
+            hito(d, cx, cy, k == i + 2 or (i == 0 and False))
+        # pie con una línea de texto
+        R(d, 7, 29, 17, 29, linea)
+        # esquina inferior derecha doblada
+        for a in range(5):
+            for b in range(5):
+                x, y = 27 - a, 30 - b
+                if a + b < 4:
+                    d.point((x, y), fill=(0, 0, 0, 0))
+                elif a + b == 4:
+                    P(d, x, y, linea)
+                else:
+                    P(d, x, y, papel_s)
         return im
     return cuadros(4, dibujar)
 
@@ -255,12 +292,26 @@ def boligrafo_formularios():
 # ── tarjeta de contacto de Bienestar ───────────────────────────────────────────
 
 def tarjeta_contacto_bienestar():
-    """Tarjeta blanca con franja verde azulada y un teléfono; brilla y se eleva."""
-    blanca, borde = (248, 248, 242), (190, 198, 202)
+    """Tres tarjetas de presentación en abanico (la de arriba completa, con logo, nombre y teléfono),
+    con sombra sobre la mesa; se eleva 1 px y un brillo la recorre. Chispa de herramienta recogible."""
+    from math import cos, radians, sin
+    cara, borde = (240, 243, 238), (190, 198, 202)
+    atras_a, atras_b = (170, 214, 210), (150, 164, 178)
+    sombra = (112, 114, 126)
     teal = tonos((34, 150, 150))
     texto, fino = (70, 80, 94), (170, 176, 182)
     oro, brillo = (255, 214, 82), (255, 255, 255)
-    auricular = ('.XXXXXXX.', 'XXXXXXXXX', 'XXX...XXX', 'XX.....XX')
+    corazon = ('.X.X.', 'XXXXX', '.XXX.', '..X..')
+    auricular = ('.XXXX.', 'XXXXXX', 'XX..XX')
+    x0, x1, base = 5, 26, 13
+    tinta_tarjeta = {cara, borde, texto, fino, teal[0], teal[1]}
+
+    def inclinada(d, cx, cy, ang, c):
+        t = radians(ang)
+        pts = []
+        for sx, sy in ((-11.2, -6.7), (11.2, -6.7), (11.2, 6.7), (-11.2, 6.7)):
+            pts.append((cx + sx * cos(t) - sy * sin(t), cy + sx * sin(t) + sy * cos(t)))
+        POL(d, pts, c)
 
     def estrella(d, cx, cy, largo):
         P(d, cx, cy, brillo)
@@ -270,27 +321,32 @@ def tarjeta_contacto_bienestar():
 
     def dibujar(k):
         im, d = lienzo()
-        sube = (0, 1, 1, 0)[k]          # la tarjeta se eleva 1 px
-        y = 10 - sube
-        # canto de la tarjeta (más grueso cuando se eleva) y cara
-        t = 1 + sube
-        R(d, 3 + t, y + t, 27 + t, y + 15 + t, borde); R(d, 3, y, 27, y + 15, blanca)
-        # franja verde azulada con el título
-        R(d, 3, y, 27, y + 4, teal[1]); R(d, 3, y, 27, y, teal[0]); R(d, 3, y + 4, 27, y + 4, teal[2])
-        R(d, 5, y + 2, 13, y + 2, blanca)
-        # teléfono y texto simulado
-        _mapa(d, 4, y + 7, auricular, {'X': teal[1]})
-        R(d, 16, y + 7, 25, y + 8, texto); R(d, 16, y + 10, 24, y + 10, fino)
-        R(d, 16, y + 12, 22, y + 12, fino)
-        # destello en diagonal: solo se ve sobre lo que tiene color
+        sube = (0, 1, 1, 0)[k]          # la tarjeta de arriba se eleva 1 px
+        y = base - sube
+        # sombra de 1 px sobre la mesa
+        R(d, 8, 28, 28, 28, sombra)
+        # tarjetas de atrás, en abanico
+        inclinada(d, 17, 21, 9, atras_b)
+        inclinada(d, 14.5, 18, -10, atras_a)
+        # tarjeta de arriba con esquinas redondeadas y canto abajo-derecha
+        R(d, x0 + 1, y, x1 - 1, y + 12, cara); R(d, x0, y + 1, x1, y + 11, cara)
+        R(d, x0 + 1, y + 12, x1 - 1, y + 12, borde); R(d, x1, y + 1, x1, y + 11, borde)
+        # logo (corazón) y dos renglones de nombre
+        _mapa(d, 7, y + 2, corazon, {'X': teal[1]}); P(d, 8, y + 3, teal[0])
+        R(d, 13, y + 2, 22, y + 3, texto); R(d, 13, y + 5, 19, y + 5, fino)
+        # teléfono y renglón de números
+        _mapa(d, 7, y + 8, auricular, {'X': teal[1]})
+        for a, b in ((15, 17), (19, 21), (23, 24)):
+            R(d, a, y + 9, b, y + 9, texto)
+        # destello en diagonal sobre la tarjeta de arriba
         if k:
-            cx = (0, 8, 16, 24)[k]
-            for fila in range(16):
+            cx = x0 + (4, 12, 22)[k - 1]
+            for fila in range(13):
                 for x in (cx - fila, cx - fila + 1):
-                    if 3 <= x <= 27 and im.getpixel((x, y + fila))[:3] != blanca:
+                    if x0 <= x <= x1 and im.getpixel((x, y + fila))[:3] in tinta_tarjeta:
                         P(d, x, y + fila, brillo)
         # chispa de herramienta recogible, en la esquina
-        estrella(d, 27, y - 1, 2 if k in (0, 2) else 1)
+        estrella(d, 28, 9, 2 if k in (0, 2) else 1)
         return im
     return cuadros(3, dibujar)
 

@@ -281,62 +281,37 @@ def nevera_notas():
 
 @_modelo('maleta')
 def maleta():
-    """Maleta de viaje baja y ancha, abierta a medias con ropa doblada en capas; al acercarse la tapa sube y asoma más ropa."""
+    """Maleta de viaje abierta a medias con ropa doblada de prisa; al acercarse la tapa sube y asoma más ropa."""
     cas = tonos((50, 126, 138))
     forro, forro2, hueco = (126, 120, 158), (92, 86, 124), (46, 42, 64)
     azul, roja, mostaza, crema = (74, 104, 190), (212, 82, 76), (232, 184, 72), (238, 234, 224)
-    metal, metal2 = (206, 214, 228), (112, 122, 142)                                          # herrajes: claro y sombra
-
-    def quitar(d, x, y):
-        d.point((x, y), fill=(0, 0, 0, 0))
-
-    def prenda(d, x0, x1, y0, c):
-        """Ropa doblada en capas: pliegue crema arriba, dos filas de tela y una rendija oscura entre capas."""
-        R(d, x0, y0, x1, 21, c)
-        R(d, x0, y0, x1, y0, crema)
-        for y in range(y0 + 3, 22, 3):
-            R(d, x0, y, x1, y, hueco)
 
     def dibujar(k):
         im, d = lienzo()
         alza = (0, 1, 2, 1)[k]
-        top = 8 - alza
-        # tapa abierta hacia atrás: casco redondeado por fuera, forro acolchado por dentro
-        POL(d, [(6, top), (25, top), (26, top + 1), (29, 17), (2, 17), (5, top + 1)], cas[1])
-        POL(d, [(7, top + 2), (24, top + 2), (25, top + 3), (28, 17), (3, 17), (6, top + 3)], forro)
-        R(d, 6, top, 25, top, cas[0]); R(d, 2, 17, 29, 17, cas[2])
-        for x in (8, 23):                                                                    # correas elásticas del forro
-            R(d, x, top + 3, x, 16, forro2); R(d, x, 13, x, 14, mostaza)
-        R(d, 11, top + 3, 20, top + 5, forro2); R(d, 11, top + 3, 20, top + 3, metal)         # bolsillo con cierre
-        R(d, 19, top + 4, 20, top + 4, metal)
-        # asa rígida en el canto superior de la tapa: arco de 2 px
-        R(d, 13, top - 3, 18, top - 3, metal2); R(d, 13, top - 3, 15, top - 3, metal)
-        R(d, 12, top - 2, 13, top - 2, metal2); R(d, 18, top - 2, 19, top - 2, metal2)
-        R(d, 11, top - 1, 12, top - 1, metal2); R(d, 19, top - 1, 20, top - 1, metal2)
-        # hueco de la base y la ropa doblada que asoma, por capas
-        R(d, 2, 17, 29, 21, hueco)
+        top = 4 - alza
+        # tapa abierta hacia atrás: casco por fuera, forro por dentro
+        POL(d, [(5, top), (26, top), (28, 18), (3, 18)], cas[1])
+        POL(d, [(7, top + 2), (24, top + 2), (26, 18), (5, 18)], forro)
+        R(d, 5, top, 26, top, cas[0]); R(d, 3, 18, 28, 18, cas[2])
+        for x in (10, 20):                                                                   # correas elásticas del forro
+            R(d, x, top + 2, x + 1, 17, forro2); R(d, x, 12, x + 1, 13, mostaza)
+        # hueco de la base y la ropa que asoma
+        R(d, 3, 18, 28, 23, hueco)
         b = 1 if k else 0
-        m = 15 - (1 if k >= 2 else 0)
-        prenda(d, 4, 15, 16 - b, azul)
-        prenda(d, 18, 27, m, mostaza)
-        prenda(d, 10, 21, 18, roja)
-        # frente de la base, con esquinas protectoras redondeadas
-        R(d, 2, 22, 29, 27, cas[1])
-        R(d, 2, 22, 29, 22, cas[0]); R(d, 2, 22, 2, 27, cas[0])
-        R(d, 2, 27, 29, 27, cas[2]); R(d, 29, 22, 29, 27, cas[2])
-        for x in (12, 19):                                                                   # nervios del casco
-            R(d, x, 24, x, 26, cas[2])
-        for x0, x1 in ((2, 5), (26, 29)):                                                    # esquinas de metal
-            R(d, x0, 24, x1, 27, metal2)
-        P(d, 3, 24, metal); P(d, 27, 24, metal)
-        for x in (2, 29):
-            quitar(d, x, 27)
-        for x in (6, 22):                                                                    # broches metálicos claros
-            R(d, x, 22, x + 3, 25, metal); R(d, x, 25, x + 3, 25, metal2)
-            R(d, x + 1, 23, x + 2, 23, hueco)
-        for x in (4, 25):                                                                    # ruedecitas
-            R(d, x, 28, x + 2, 30, hueco); quitar(d, x, 30); quitar(d, x + 2, 30); P(d, x + 1, 29, metal2)
+        R(d, 5, 17 - b, 17, 22, azul); R(d, 5, 17 - b, 17, 17 - b, crema)
+        R(d, 13, 18, 25, 22, roja); R(d, 13, 18, 25, 18, crema)
+        R(d, 20, 15 - (1 if k >= 2 else 0), 26, 19, mostaza); R(d, 20, 15 - (1 if k >= 2 else 0), 26, 15 - (1 if k >= 2 else 0), crema)
+        # frente de la base
+        R(d, 3, 22, 28, 29, cas[1])
+        R(d, 3, 22, 28, 22, cas[0]); R(d, 3, 22, 3, 29, cas[0])
+        R(d, 3, 29, 28, 29, cas[2]); R(d, 28, 22, 28, 29, cas[2])
+        R(d, 14, 23, 17, 29, cas[2])                                                          # correa central
+        R(d, 14, 25, 17, 27, mostaza)
+        for x in (7, 22):
+            R(d, x, 23, x + 2, 25, mostaza)                                                  # broches
+        R(d, 4, 30, 7, 30, cas[3]); R(d, 24, 30, 27, 30, cas[3])                              # patitas
         if k >= 2:                                                                           # una manga cuelga por el frente
-            R(d, 14, 22, 16, 23 + (3 if k == 2 else 1), roja); R(d, 14, 24 + (2 if k == 2 else 0), 16, 24 + (2 if k == 2 else 0), crema)
+            R(d, 22, 22, 24, 23 + (3 if k == 2 else 1), roja); R(d, 22, 24 + (2 if k == 2 else 0), 24, 24 + (2 if k == 2 else 0), crema)
         return im
     return cuadros(3, dibujar)
