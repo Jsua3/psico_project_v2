@@ -1,4 +1,4 @@
-import { ChangeDetectionStrategy, Component, DestroyRef, computed, effect, inject, signal } from '@angular/core';
+import { ChangeDetectionStrategy, Component, DestroyRef, ElementRef, computed, effect, inject, signal } from '@angular/core';
 
 import { GuiaService, reducirMovimiento } from './guia.service';
 
@@ -89,6 +89,8 @@ export class FocoGuiaComponent {
   protected readonly holgura = HOLGURA;
   protected readonly reducir = reducirMovimiento();
   private readonly marco = signal(0);
+  private readonly host = inject(ElementRef<HTMLElement>);
+  private recorridoEnfocado: string | null = null;
 
   protected readonly caja = computed<Caja | null>(() => {
     this.marco();
@@ -109,6 +111,19 @@ export class FocoGuiaComponent {
   });
 
   constructor() {
+    // En el recorrido, quien usa el teclado tiene que poder avanzar sin recorrer toda la página:
+    // el foco pasa a la burbuja (el elemento sigue señalado con el anillo).
+    effect(() => {
+      const g = this.guia.activa();
+      if (!g || g.modo !== 'recorrido') {
+        this.recorridoEnfocado = null;
+        return;
+      }
+      if (this.recorridoEnfocado === g.accionId) return;
+      this.recorridoEnfocado = g.accionId;
+      setTimeout(() => (this.host.nativeElement as HTMLElement).querySelector<HTMLElement>('.boton-guia')?.focus());
+    });
+
     const medir = () => this.marco.update((n) => n + 1);
     if (typeof window !== 'undefined') {
       window.addEventListener('scroll', medir, true);

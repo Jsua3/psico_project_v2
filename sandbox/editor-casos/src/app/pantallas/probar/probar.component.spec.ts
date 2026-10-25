@@ -82,4 +82,17 @@ describe('ProbarComponent', () => {
     expect(raiz.querySelector('fieldset')).not.toBeNull();
     expect(raiz.textContent).toContain('Escena 1 de 2');
   });
+
+  it('cada línea nueva se anuncia y, al llegar a las respuestas, el foco no se pierde', async () => {
+    const { raiz, listo, boton } = await montar();
+    document.body.appendChild(raiz);
+    expect(raiz.querySelector('.dialogo')!.getAttribute('aria-live')).toBe('polite');
+    boton('Siguiente')!.click();
+    await listo();
+    await new Promise((r) => setTimeout(r, 0));
+    expect(raiz.textContent).toContain('Me da miedo.');
+    expect(raiz.querySelector('fieldset.respuestas')).not.toBeNull();
+    expect(document.activeElement).toBe(raiz.querySelector('fieldset.respuestas'));
+    raiz.remove();
+  });
 });

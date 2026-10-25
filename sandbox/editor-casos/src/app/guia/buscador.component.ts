@@ -100,6 +100,22 @@ export class BuscadorComponent {
 
   protected tecla(e: KeyboardEvent): void {
     const n = this.resultados().length;
+    if (e.key === 'Tab') {
+      const dialogo = e.currentTarget as HTMLElement;
+      const foco = [...dialogo.querySelectorAll<HTMLElement>('button:not([disabled]), input:not([disabled]), [tabindex="0"]')];
+      const primero = foco[0];
+      const ultimo = foco[foco.length - 1];
+      if (primero && ultimo) {
+        if (e.shiftKey && document.activeElement === primero) {
+          e.preventDefault();
+          ultimo.focus();
+        } else if (!e.shiftKey && document.activeElement === ultimo) {
+          e.preventDefault();
+          primero.focus();
+        }
+      }
+      return;
+    }
     if (e.key === 'Escape') {
       e.preventDefault();
       e.stopPropagation();

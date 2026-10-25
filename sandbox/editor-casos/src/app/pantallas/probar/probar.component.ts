@@ -1,4 +1,6 @@
-import { ChangeDetectionStrategy, Component, ElementRef, computed, inject, signal, viewChild } from '@angular/core';
+import {
+  ChangeDetectionStrategy, Component, ElementRef, Injector, afterNextRender, computed, inject, signal, viewChild,
+} from '@angular/core';
 import { ActivatedRoute, RouterLink } from '@angular/router';
 
 import { CasoStore } from '../../estado/caso.store';
@@ -61,7 +63,7 @@ const NOMBRE_EXPRESION: Record<string, string> = { neutral: 'Neutral', alegre: '
                 </div>
               } @else {
                 @if (lineaActual(); as l) {
-                  <div class="dialogo">
+                  <div class="dialogo" aria-live="polite">
                     <img class="pixel" [src]="retrato(l.personajeId, l.expresion)" alt="" width="96" height="96" />
                     <div>
                       <p><strong>{{ nombrePersonaje(l.personajeId) }}</strong> · {{ nombreExpresion[l.expresion] }}</p>
@@ -72,7 +74,7 @@ const NOMBRE_EXPRESION: Record<string, string> = { neutral: 'Neutral', alegre: '
                 @if (quedanLineas()) {
                   <button type="button" class="boton boton-primario" (click)="siguienteLinea()" #enfoque>Siguiente</button>
                 } @else if (e.respuestas.length) {
-                  <fieldset class="respuestas">
+                  <fieldset class="respuestas" tabindex="-1" #enfoque>
                     <legend>¿Qué respondes?</legend>
                     <ul>
                       @for (r of e.respuestas; track r.id) {
@@ -156,6 +158,7 @@ const NOMBRE_EXPRESION: Record<string, string> = { neutral: 'Neutral', alegre: '
 })
 export class ProbarComponent {
   protected readonly store = inject(CasoStore);
+  private readonly injector = inject(Injector);
   protected readonly clasificacion = CLASIFICACION;
   protected readonly nombreExpresion = NOMBRE_EXPRESION;
   private readonly enfoque = viewChild<ElementRef<HTMLElement>>('enfoque');
@@ -228,6 +231,8 @@ export class ProbarComponent {
 
   protected siguienteLinea(): void {
     this.lineaIndice.update((i) => i + 1);
+    // Al llegar a las respuestas el botón «Siguiente» desaparece: el foco pasa a ellas.
+    this.enfocar();
   }
 
   protected elegir(): void {
@@ -263,6 +268,6 @@ export class ProbarComponent {
   }
 
   private enfocar(): void {
-    setTimeout(() => this.enfoque()?.nativeElement.focus());
+    afterNextRender(() => this.enfoque()?.nativeElement.focus(), { injector: this.injector });
   }
 }
