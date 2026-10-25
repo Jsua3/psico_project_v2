@@ -78,7 +78,7 @@ const PASO_MOVER = 24;
 
           @for (e of caso().escenas; track e.id; let i = $index) {
             <button type="button" class="escena" [attr.data-escena]="e.id"
-                    [class.elegida]="elegida() === e.id" [class.final]="e.esFinal" [class.con-aviso]="avisosDe(e.id).length"
+                    [class.elegida]="elegida() === e.id" [class.final]="e.esFinal" [class.con-aviso]="avisosDe(e.id).length" [class.marca-ia]="e.marcaIa"
                     [style.left.px]="pos(e).x" [style.top.px]="pos(e).y" [attr.tabindex]="tabParada() === e.id ? 0 : -1"
                     [attr.aria-pressed]="elegida() === e.id" [attr.aria-label]="etiqueta(e, i)"
                     (click)="elegir(e.id)" (dblclick)="abrirGuion.emit(e.id)"
@@ -87,6 +87,7 @@ const PASO_MOVER = 24;
               <span class="etiquetas" aria-hidden="true">
                 @if (caso().inicioId === e.id) { <span class="pildora pildora-primaria">Inicio</span> }
                 @if (e.esFinal) { <span class="pildora pildora-adecuada">Final</span> }
+                @if (e.marcaIa) { <span class="pildora">Sugerido por la IA</span> }
                 @if (avisosDe(e.id).length === 1) {
                   <span class="pildora aviso">⚠ {{ nombreAviso[avisosDe(e.id)[0].tipo] }}</span>
                 } @else if (avisosDe(e.id).length > 1) {
@@ -175,6 +176,7 @@ const PASO_MOVER = 24;
     .escena.elegida { border: 3px solid var(--primario); box-shadow: 0 0 0 3px var(--primario-tinte); }
     .escena.final { border-style: double; border-width: 4px; }
     .escena.con-aviso { border-color: var(--aviso); }
+    .escena.marca-ia { border-style: dashed; }
     .etiquetas { display: flex; flex-wrap: wrap; gap: 4px; min-height: 26px; }
     .etiquetas .pildora { min-height: 24px; padding: 0 8px; font-size: 14px; }
     .etiquetas { flex-wrap: nowrap; overflow: hidden; max-width: 100%; }
@@ -317,6 +319,7 @@ export class MapaEscenasComponent {
     const partes = [`Escena ${i + 1} de ${this.caso().escenas.length}, ${e.titulo}, sala ${this.nombreSala(e.salaId)}`];
     if (this.caso().inicioId === e.id) partes.push('inicio');
     if (e.esFinal) partes.push('final');
+    if (e.marcaIa) partes.push('sugerida por la IA, sin revisar');
     const avisos = this.avisosDe(e.id);
     if (avisos.length) partes.push(`con aviso: ${avisos.map((a) => NOMBRE_AVISO[a.tipo].toLowerCase()).join(', ')}`);
     return partes.join(', ');

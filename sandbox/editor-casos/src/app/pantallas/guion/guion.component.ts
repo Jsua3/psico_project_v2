@@ -36,7 +36,13 @@ const CLASIFICACIONES: { valor: Clasificacion; nombre: string; simbolo: string }
         </div>
         <p role="status" class="solo-lector">{{ anuncio() }}</p>
 
-        <section aria-label="La escena" class="tarjeta escena">
+        <section aria-label="La escena" class="tarjeta escena" [class.marca-ia]="e.marcaIa">
+          @if (e.marcaIa) {
+            <div class="fila-titulo">
+              <span class="pildora">Sugerido por la IA</span>
+              <button type="button" class="boton" (click)="store.aceptarIa({ escenaId: e.id })">Aceptar escena</button>
+            </div>
+          }
           <label for="en" class="etiqueta">Escena {{ numero(e) }} · Nombre</label>
           <input id="en" type="text" class="campo" [value]="e.titulo" (change)="nombrar(e, $any($event.target).value)" />
           <p class="texto-secundario">Sala: {{ nombreSala(e.salaId) }}{{ lleganDesde(e) ? ' · Llegan aquí desde ' + lleganDesde(e) : '' }}</p>

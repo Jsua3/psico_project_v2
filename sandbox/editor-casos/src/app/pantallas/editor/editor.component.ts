@@ -37,6 +37,10 @@ import { type AccionEscena, MapaEscenasComponent } from './mapa-escenas.componen
               <p class="texto-secundario">Escena elegida</p>
               @if (escenaElegida(); as e) {
                 <h2 id="pe">{{ numero(e) }} · {{ e.titulo }}</h2>
+                @if (e.marcaIa) {
+                  <p class="marca-ia"><span class="pildora">Sugerido por la IA</span> La creó el asistente; revísala y acéptala.</p>
+                  <button type="button" class="boton" data-accion="aceptar-ia" (click)="store.aceptarIa({ escenaId: e.id })">Aceptar escena</button>
+                }
                 <p class="texto-secundario">{{ nombreSala(e.salaId) }} · {{ e.lineas.length }} líneas · {{ e.respuestas.length }} respuestas</p>
                 <dl>
                   <dt>Llegan desde</dt>

@@ -2,6 +2,7 @@ import { ChangeDetectionStrategy, Component, ElementRef, inject, signal, viewChi
 import { Router, RouterLink, RouterLinkActive, RouterOutlet } from '@angular/router';
 
 import { CasoStore } from './estado/caso.store';
+import { PanelIaComponent } from './ia/panel-ia.component';
 
 /**
  * Marco del sandbox: cabecera con el nombre del caso, la barra de ayuda (Buscar, Guía y
@@ -10,7 +11,7 @@ import { CasoStore } from './estado/caso.store';
  */
 @Component({
   selector: 'app-root',
-  imports: [RouterOutlet, RouterLink, RouterLinkActive],
+  imports: [RouterOutlet, RouterLink, RouterLinkActive, PanelIaComponent],
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
     <a class="saltar" href="#contenido">Saltar al contenido</a>
@@ -43,7 +44,8 @@ import { CasoStore } from './estado/caso.store';
           Buscar <span class="texto-secundario"><kbd>Ctrl</kbd>+<kbd>K</kbd></span>
         </button>
         <button type="button" class="boton" data-accion="guia" title="Te muestra dónde está algo">Guía</button>
-        <button type="button" class="boton" data-accion="pedir-a-la-ia" title="Escribe o cambia el caso por ti; tú apruebas">
+        <button type="button" class="boton" data-accion="pedir-a-la-ia" title="Escribe o cambia el caso por ti; tú apruebas"
+                [attr.aria-expanded]="iaAbierta()" aria-controls="panel-ia" (click)="iaAbierta.set(!iaAbierta())" #botonIa>
           Asistente de IA
         </button>
         <button type="button" class="boton boton-texto" (click)="pedirReinicio()" #botonReiniciar>Reiniciar el sandbox</button>
@@ -61,9 +63,14 @@ import { CasoStore } from './estado/caso.store';
       </div>
     }
 
-    <main id="contenido" tabindex="-1">
-      <router-outlet />
-    </main>
+    <div class="cuerpo" [class.con-ia]="iaAbierta()">
+      <main id="contenido" tabindex="-1">
+        <router-outlet />
+      </main>
+      @if (iaAbierta()) {
+        <app-panel-ia id="panel-ia" class="columna-ia" (cerrar)="cerrarIa()" />
+      }
+    </div>
   `,
   styles: `
     :host { display: flex; flex-direction: column; min-height: 100vh; }
@@ -89,15 +96,26 @@ import { CasoStore } from './estado/caso.store';
     }
     .confirmacion h2 { margin: 0 0 8px; font-size: 24px; line-height: 32px; }
     .confirmacion p { margin: 0 0 16px; }
-    main { flex: 1; width: 100%; box-sizing: border-box; outline: none; }
+    .cuerpo { flex: 1; display: grid; grid-template-columns: minmax(0, 1fr); }
+    .cuerpo.con-ia { grid-template-columns: minmax(0, 1fr) minmax(300px, 380px); }
+    @media (max-width: 1000px) { .cuerpo.con-ia { grid-template-columns: minmax(0, 1fr); } }
+    .columna-ia { position: sticky; top: 64px; align-self: start; max-height: calc(100vh - 64px); overflow: auto; }
+    main { width: 100%; min-width: 0; box-sizing: border-box; outline: none; }
   `,
 })
 export class AppComponent {
   protected readonly store = inject(CasoStore);
   private readonly router = inject(Router);
   protected readonly confirmando = signal(false);
+  protected readonly iaAbierta = signal(false);
+  private readonly botonIa = viewChild<ElementRef<HTMLButtonElement>>('botonIa');
   private readonly botonReiniciar = viewChild<ElementRef<HTMLButtonElement>>('botonReiniciar');
   private readonly botonConfirmar = viewChild<ElementRef<HTMLButtonElement>>('botonConfirmar');
+
+  protected cerrarIa(): void {
+    this.iaAbierta.set(false);
+    this.botonIa()?.nativeElement.focus();
+  }
 
   protected pedirReinicio(): void {
     this.confirmando.set(true);

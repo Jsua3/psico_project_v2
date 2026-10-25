@@ -1,6 +1,7 @@
 import { Injectable, computed, effect, inject, signal } from '@angular/core';
 import { Router } from '@angular/router';
 
+import { type Cambio, aplicarPropuesta as aplicarCambiosIa } from '../ia/propuestas';
 import { BibliotecaService } from '../modelo/biblioteca.service';
 import type { CasoBorrador, Escena, Final, Linea, Respuesta, SalaCaso } from '../modelo/caso';
 import { SEPARACION_ESCENAS } from '../modelo/copiar';
@@ -381,7 +382,10 @@ export class CasoStore {
     return id;
   }
 
-  /** El docente revisó algo generado por IA: deja de estar marcado. */
+  /**
+   * El docente revisó algo generado por IA: deja de estar marcado. Con solo `escenaId` se
+   * acepta la escena misma (la que creó la IA).
+   */
   aceptarIa(ruta: { escenaId: string; lineaId?: string; respuestaId?: string } | { finalId: string }): void {
     this.cambiar((caso) => {
       if ('finalId' in ruta) {
@@ -390,11 +394,26 @@ export class CasoStore {
         return;
       }
       const escena = this.escena(caso, ruta.escenaId);
+      if (!ruta.lineaId && !ruta.respuestaId) {
+        escena.marcaIa = false;
+        return;
+      }
       const elemento = ruta.lineaId
         ? escena.lineas.find((l) => l.id === ruta.lineaId)
         : escena.respuestas.find((r) => r.id === ruta.respuestaId);
       if (elemento) elemento.marcaIa = false;
     });
+  }
+
+  /**
+   * Aplica las partes marcadas de una propuesta de la IA en un solo paso del historial
+   * (Ctrl+Z la deshace completa). Si no cuadra, lanza un error y el caso no cambia.
+   */
+  aplicarPropuesta(cambios: Cambio[], seleccion: boolean[]): void {
+    const actual = this.estado();
+    if (!actual) return;
+    const resultado = aplicarCambiosIa(actual, cambios, seleccion); // lanza antes de tocar nada
+    this.cambiar((caso) => Object.assign(caso, resultado));
   }
 
   // ── Finales ─────────────────────────────────────────────────────────────

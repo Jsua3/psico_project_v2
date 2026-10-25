@@ -11,7 +11,7 @@
     "pretest": "npm run preparar",
     "test": "ng test --watch=false",
     "ia": "node --env-file-if-exists=.env servidor/ia.mjs",
-    "test:ia": "node --test servidor/",
+    "test:ia": "node --test \"servidor/*.test.mjs\"",
     "e2e": "playwright test"
   },
   "private": true,
@@ -24,6 +24,7 @@
     "@angular/forms": "^22.2.3",
     "@angular/platform-browser": "^22.2.3",
     "@angular/router": "^22.2.3",
+    "@anthropic-ai/sdk": "^1.3.0",
     "@dagrejs/dagre": "^1.1.8",
     "rxjs": "~7.8.0",
     "tslib": "^2.3.0"

@@ -37,6 +37,8 @@ export interface Escena {
   respuestas: Respuesta[];
   esFinal: boolean;
   posicion: { x: number; y: number };
+  /** La escena la creó la IA y el docente aún no la acepta. */
+  marcaIa?: boolean;
 }
 
 export type CondicionFinal =
