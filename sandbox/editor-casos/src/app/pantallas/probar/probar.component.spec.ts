@@ -95,4 +95,16 @@ describe('ProbarComponent', () => {
     expect(document.activeElement).toBe(raiz.querySelector('fieldset.respuestas'));
     raiz.remove();
   });
+
+  it('si la respuesta elegida no está clasificada, lo dice en vez de romperse', async () => {
+    const { raiz, listo, boton, elegir, store } = await montar();
+    const caso = structuredClone(store.caso()!);
+    caso.escenas[0].respuestas[0].clasificacion = null;
+    store.fijar(caso);
+    await listo();
+    boton('Siguiente')!.click();
+    await listo();
+    await elegir('Te acompaño adentro.');
+    expect(raiz.querySelector('.resultado')!.textContent).toContain('Sin clasificar');
+  });
 });

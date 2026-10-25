@@ -21,6 +21,15 @@ export function puedeEnviar(caso: CasoBorrador): { ok: boolean; faltas: Falta[] 
         : { ruta: '/editor', accionId: 'revisar-caminos' },
   }));
 
+  const sinClasificar = caso.escenas.flatMap((e) => e.respuestas.filter((r) => !r.clasificacion).map(() => e.id));
+  if (sinClasificar.length) {
+    const n = sinClasificar.length;
+    faltas.push({
+      mensaje: n === 1 ? 'Hay 1 respuesta sin clasificar.' : `Hay ${n} respuestas sin clasificar.`,
+      ir: { ruta: `/editor/escena/${sinClasificar[0]}` },
+    });
+  }
+
   let sinRevisar = 0;
   let primera: Falta['ir'] | null = null;
   for (const e of caso.escenas) {

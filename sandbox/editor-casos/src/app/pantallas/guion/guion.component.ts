@@ -132,6 +132,9 @@ const CLASIFICACIONES: { valor: Clasificacion; nombre: string; simbolo: string }
                         </label>
                       }
                     </fieldset>
+                    @if (!r.clasificacion) {
+                      <p class="texto-secundario nota">Elige cómo clasificas esta respuesta.</p>
+                    }
                     <label [for]="'rf' + i" class="etiqueta">Lo que lee el estudiante después de elegir</label>
                     <textarea [id]="'rf' + i" class="campo" rows="2" [value]="r.retroalimentacion"
                               (change)="store.editarRespuesta(e.id, r.id, { retroalimentacion: $any($event.target).value })"></textarea>

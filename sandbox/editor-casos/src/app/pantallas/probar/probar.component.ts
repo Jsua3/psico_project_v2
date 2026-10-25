@@ -8,7 +8,8 @@ import { rutaArte, rutaRetrato } from '../../modelo/biblioteca.service';
 import type { Escena, Respuesta } from '../../modelo/caso';
 import { type Recorrido, evaluarFinal } from '../../modelo/finales';
 
-const CLASIFICACION: Record<Respuesta['clasificacion'], { nombre: string; simbolo: string; clase: string }> = {
+const CLASIFICACION: Record<NonNullable<Respuesta['clasificacion']> | 'sin-clasificar', { nombre: string; simbolo: string; clase: string }> = {
+  'sin-clasificar': { nombre: 'Sin clasificar', simbolo: '?', clase: 'pildora' },
   adecuada: { nombre: 'Adecuada', simbolo: '✓', clase: 'pildora-adecuada' },
   'con-riesgo': { nombre: 'Con riesgo', simbolo: '▲', clase: 'pildora-riesgo' },
   inadecuada: { nombre: 'Inadecuada', simbolo: '✕', clase: 'pildora-inadecuada' },
@@ -51,8 +52,8 @@ const NOMBRE_EXPRESION: Record<string, string> = { neutral: 'Neutral', alegre: '
                 <div role="group" aria-label="Resultado de la respuesta" class="resultado" tabindex="-1" #enfoque>
                   <p>Elegiste:</p>
                   <p><strong>«{{ r.texto || 'Respuesta sin escribir' }}»</strong></p>
-                  <p><span class="pildora" [class]="'pildora ' + clasificacion[r.clasificacion].clase">
-                    <span aria-hidden="true">{{ clasificacion[r.clasificacion].simbolo }}</span> {{ clasificacion[r.clasificacion].nombre }}</span></p>
+                  <p><span class="pildora" [class]="'pildora ' + clasificacion[r.clasificacion ?? 'sin-clasificar'].clase">
+                    <span aria-hidden="true">{{ clasificacion[r.clasificacion ?? 'sin-clasificar'].simbolo }}</span> {{ clasificacion[r.clasificacion ?? 'sin-clasificar'].nombre }}</span></p>
                   <p>{{ r.retroalimentacion || 'El docente todavía no escribió qué se lee después de esta respuesta.' }}</p>
                   @if (sinDestino()) {
                     <p class="aviso" role="status">Esta respuesta aún no lleva a ninguna escena. En el caso real, el estudiante se quedaría aquí.</p>

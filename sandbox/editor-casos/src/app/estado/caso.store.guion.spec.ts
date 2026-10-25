@@ -95,4 +95,14 @@ describe('CasoStore · guion y finales', () => {
     store.editarEscena(id, { titulo: 'Escuchar el relato', salaId: 'sala-espera' });
     expect(escena()).toMatchObject({ titulo: 'Escuchar el relato', salaId: 'sala-espera' });
   });
+
+  it('una respuesta nueva nace sin clasificar, también la que nace de conectar o de «escena nueva»', () => {
+    const { store, escena, id } = montar();
+    const r = store.agregarRespuesta(id);
+    expect(escena().respuestas.find((x) => x.id === r)!.clasificacion).toBeNull();
+    store.respuestaAEscenaNueva(id, store.agregarRespuesta(id));
+    const otra = store.conectarEscena(id, 'nueva');
+    expect(store.caso()!.escenas.flatMap((e) => e.respuestas).every((x) => x.clasificacion === null)).toBe(true);
+    expect(otra).toBeTruthy();
+  });
 });

@@ -64,4 +64,14 @@ describe('puedeEnviar', () => {
       { mensaje: 'El final «Cierre» espera una escena que ya no está en el caso.', ir: { ruta: '/editor/finales', accionId: 'definir-finales' } },
     ]);
   });
+
+  it('las respuestas sin clasificar bloquean el envío y llevan a la escena', () => {
+    const caso = completo();
+    caso.escenas[0].respuestas[1].clasificacion = null;
+    const r = puedeEnviar(caso);
+    expect(r.ok).toBe(false);
+    expect(r.faltas).toEqual([{ mensaje: 'Hay 1 respuesta sin clasificar.', ir: { ruta: '/editor/escena/a' } }]);
+    caso.escenas[0].respuestas[0].clasificacion = null;
+    expect(puedeEnviar(caso).faltas[0].mensaje).toBe('Hay 2 respuestas sin clasificar.');
+  });
 });

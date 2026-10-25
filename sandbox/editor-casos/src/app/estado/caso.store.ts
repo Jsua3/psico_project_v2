@@ -294,7 +294,7 @@ export class CasoStore {
       const origen = this.escena(caso, origenId);
       if (destino === 'nueva') destinoId = this.nuevaEscena(caso, origen.salaId, origen.id).id;
       origen.respuestas.push({
-        id: nuevoId('respuesta'), texto: '', clasificacion: 'adecuada', retroalimentacion: '', destinoId, marcaIa: false,
+        id: nuevoId('respuesta'), texto: '', clasificacion: null, retroalimentacion: '', destinoId, marcaIa: false,
       });
     });
     return destinoId;
@@ -369,7 +369,7 @@ export class CasoStore {
     const id = nuevoId('respuesta');
     this.cambiar((caso) => {
       this.escena(caso, escenaId).respuestas.push({
-        id, texto: '', clasificacion: 'adecuada', retroalimentacion: '', destinoId: null, marcaIa: false,
+        id, texto: '', clasificacion: null, retroalimentacion: '', destinoId: null, marcaIa: false,
       });
     });
     return id;

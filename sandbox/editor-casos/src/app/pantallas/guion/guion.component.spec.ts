@@ -130,4 +130,17 @@ describe('GuionComponent', () => {
     expect(anunciado(raiz)).toBe('Línea 1 aceptada.');
     fixture.nativeElement.remove();
   });
+
+  it('una respuesta nueva no trae ninguna clasificación marcada y pide elegirla', async () => {
+    const { raiz, listo } = await montar();
+    boton(raiz, 'Agregar una respuesta').click();
+    await listo();
+    const radios = [...raiz.querySelectorAll<HTMLInputElement>('li.respuesta input[type="radio"]')];
+    expect(radios.length).toBeGreaterThanOrEqual(3);
+    expect(radios.some((r) => r.checked)).toBe(false);
+    expect(raiz.querySelector('li.respuesta')!.textContent).toContain('Elige cómo clasificas esta respuesta.');
+    radios[0].click();
+    await listo();
+    expect(raiz.querySelector('li.respuesta')!.textContent).not.toContain('Elige cómo clasificas esta respuesta.');
+  });
 });

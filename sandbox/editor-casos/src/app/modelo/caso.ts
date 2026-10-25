@@ -23,7 +23,7 @@ export interface Linea {
 export interface Respuesta {
   id: string;
   texto: string;
-  clasificacion: Clasificacion;
+  clasificacion: Clasificacion | null;
   retroalimentacion: string;
   destinoId: string | null;
   marcaIa: boolean;
