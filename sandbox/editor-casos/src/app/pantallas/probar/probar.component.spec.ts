@@ -107,4 +107,31 @@ describe('ProbarComponent', () => {
     await elegir('Te acompaño adentro.');
     expect(raiz.querySelector('.resultado')!.textContent).toContain('Sin clasificar');
   });
+
+  it('la prueba muestra la sala como quedó editada: fondo, muebles, objetos y personajes con su expresión', async () => {
+    const { raiz, listo, store } = await montar();
+    const caso = store.caso()!;
+    const sala = caso.salas.find((s) => s.id === caso.escenas[0].salaId)!;
+    sala.personajes[0] = { ...sala.personajes[0], expresion: 'triste' };
+    store.fijar(structuredClone(caso));
+    await listo();
+    const piezas = raiz.querySelectorAll('.sala-vista [data-pieza]');
+    expect(piezas.length).toBe(sala.muebles.length + sala.objetos.length + sala.personajes.length);
+    expect(raiz.querySelector('.sala-vista img.fondo')).not.toBeNull();
+    expect(raiz.querySelector('.sala-vista')!.getAttribute('aria-label')).toContain(sala.nombre);
+    expect(raiz.querySelector('.en-la-sala')!.textContent).toContain('triste');
+  });
+
+  it('al mover un mueble en la sala, la prueba lo muestra en su nuevo lugar', async () => {
+    const { raiz, listo, store } = await montar();
+    const caso = structuredClone(store.caso()!);
+    const sala = caso.salas.find((s) => s.id === caso.escenas[0].salaId)!;
+    sala.muebles[0].x = 640;
+    sala.muebles[0].y = 400;
+    store.fijar(caso);
+    await listo();
+    const pieza = raiz.querySelector<HTMLElement>('.sala-vista [data-pieza="mueble-0"]')!;
+    expect(pieza.style.left).toBe('640px');
+    expect(pieza.style.top).toBe('400px');
+  });
 });

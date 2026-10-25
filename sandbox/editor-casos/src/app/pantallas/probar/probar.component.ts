@@ -4,9 +4,10 @@ import {
 import { ActivatedRoute, RouterLink } from '@angular/router';
 
 import { CasoStore } from '../../estado/caso.store';
-import { rutaArte, rutaRetrato } from '../../modelo/biblioteca.service';
+import { rutaRetrato } from '../../modelo/biblioteca.service';
 import type { Escena, Respuesta } from '../../modelo/caso';
 import { type Recorrido, evaluarFinal } from '../../modelo/finales';
+import { SalaVistaComponent } from '../sala/sala-vista.component';
 
 const CLASIFICACION: Record<NonNullable<Respuesta['clasificacion']> | 'sin-clasificar', { nombre: string; simbolo: string; clase: string }> = {
   'sin-clasificar': { nombre: 'Sin clasificar', simbolo: '?', clase: 'pildora' },
@@ -24,7 +25,7 @@ const NOMBRE_EXPRESION: Record<string, string> = { neutral: 'Neutral', alegre: '
  */
 @Component({
   selector: 'app-probar',
-  imports: [RouterLink],
+  imports: [RouterLink, SalaVistaComponent],
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
     @if (store.caso(); as caso) {
@@ -44,8 +45,9 @@ const NOMBRE_EXPRESION: Record<string, string> = { neutral: 'Neutral', alegre: '
                 <span>Escena {{ numero(e) }} de {{ caso.escenas.length }}</span>
                 <span class="salida" aria-hidden="true">Aquí el estudiante tendrá un botón para salir del caso cuando lo necesite</span>
               </div>
-              @if (fondo(); as f) {
-                <img class="pixel sala" [src]="f.src" [alt]="f.alt" width="960" height="528" />
+              <app-sala-vista class="sala" [caso]="caso" [salaId]="e.salaId" />
+              @if (enLaSala(); as lista) {
+                <p class="en-la-sala texto-secundario">En la sala: {{ lista }}.</p>
               }
 
               @if (resultado(); as r) {
@@ -129,7 +131,8 @@ const NOMBRE_EXPRESION: Record<string, string> = { neutral: 'Neutral', alegre: '
     .juego :focus-visible { outline-color: #c9b3ff; }
     .cabeza-juego { display: flex; flex-wrap: wrap; justify-content: space-between; gap: 8px; font-size: 16px; }
     .salida { padding: 2px 10px; border: 2px dashed #f5b82e; border-radius: 999px; font-size: 14px; color: #f5d27a; }
-    .sala { width: 100%; height: auto; border-radius: 10px; }
+    .sala { width: 100%; }
+    .en-la-sala { margin: 0; color: #d6dcf2; font-size: 16px; }
     .dialogo { display: flex; gap: 12px; padding: 12px; border-radius: 12px; background: #0e1322; }
     .dialogo img { border-radius: 8px; image-rendering: pixelated; background: #151b2e; flex: none; }
     .dialogo p { margin: 0 0 4px; }
@@ -179,13 +182,13 @@ export class ProbarComponent {
     const r = this.resultado();
     return !!r && (!r.destinoId || !this.store.caso()?.escenas.some((e) => e.id === r.destinoId));
   });
-  protected readonly fondo = computed(() => {
+  protected readonly enLaSala = computed(() => {
     const caso = this.store.caso();
-    const e = this.escena();
-    const sala = caso?.salas.find((s) => s.id === e?.salaId);
-    if (!caso || !sala) return null;
-    const personas = sala.personajes.map((p) => caso.personajes.find((x) => x.id === p.ref)?.nombre).filter(Boolean);
-    return { src: rutaArte(caso.lugarId, sala.fondo), alt: `${sala.nombre}${personas.length ? `: ${personas.join(', ')}` : ''}.` };
+    const sala = caso?.salas.find((s) => s.id === this.escena()?.salaId);
+    if (!caso || !sala?.personajes.length) return '';
+    return sala.personajes
+      .map((p) => `${caso.personajes.find((x) => x.id === p.ref)?.nombre ?? p.ref} (${(NOMBRE_EXPRESION[p.expresion] ?? p.expresion).toLowerCase()})`)
+      .join(', ');
   });
   protected readonly caminoTexto = computed(() => {
     const caso = this.store.caso();
