@@ -73,4 +73,25 @@ describe('MapaEscenasComponent', () => {
     await fixture.whenStable();
     expect(abierta).toBe(caso.escenas[1].id);
   });
+
+  it('si la escena elegida desaparece (borrar, deshacer), otra escena sigue alcanzable con Tab', async () => {
+    const { fixture, caso, raiz } = await montar();
+    nodo(raiz, 1).click();
+    await fixture.whenStable();
+    fixture.componentRef.setInput('caso', { ...caso, escenas: caso.escenas.slice(0, 1) });
+    await fixture.whenStable();
+    fixture.detectChanges();
+    const paradas = [...raiz.querySelectorAll('button.escena')].filter((b) => b.getAttribute('tabindex') === '0');
+    expect(paradas).toHaveLength(1);
+  });
+
+  it('«Acciones» sin escena elegida no abre el menú y dice qué hacer', async () => {
+    const { fixture, raiz } = await montar();
+    const acciones = [...raiz.querySelectorAll<HTMLButtonElement>('button')].find((b) => b.textContent?.trim() === 'Acciones')!;
+    acciones.click();
+    await fixture.whenStable();
+    fixture.detectChanges();
+    expect(menuitems()).toEqual([]);
+    expect(raiz.querySelector('[role="status"]')!.textContent).toContain('Primero elige una escena en el mapa.');
+  });
 });

@@ -1,6 +1,7 @@
 import { CdkMenu, CdkMenuItem, CdkMenuTrigger } from '@angular/cdk/menu';
 import {
-  ChangeDetectionStrategy, Component, ElementRef, computed, effect, input, output, signal, viewChild,
+  ChangeDetectionStrategy, Component, ElementRef, Injector, TemplateRef, afterNextRender, computed, effect, inject, input, output,
+  signal, viewChild,
 } from '@angular/core';
 
 import { rutaArte } from '../../modelo/biblioteca.service';
@@ -42,7 +43,8 @@ const PASO_MOVER = 24;
         <kbd>Enter</kbd> abre su guion; <kbd>Mayús</kbd>+<kbd>F10</kbd> abre las acciones.
       </p>
       <div class="acciones">
-        <button type="button" class="boton" data-accion="conectar-escenas marcar-final" [cdkMenuTriggerFor]="menu" #trigger="cdkMenuTriggerFor"
+        <button type="button" class="boton" data-accion="conectar-escenas marcar-final" [cdkMenuTriggerFor]="elegidaEscena() ? menu : null"
+                #trigger="cdkMenuTriggerFor" (click)="!elegidaEscena() && pista.set('Primero elige una escena en el mapa.')"
                 [attr.aria-label]="elegidaEscena() ? 'Acciones de la escena ' + elegidaEscena()!.titulo : 'Acciones de la escena'"
                 [attr.aria-disabled]="!elegidaEscena()">Acciones</button>
         <div role="group" aria-label="Zoom del mapa" class="acciones">
@@ -53,6 +55,23 @@ const PASO_MOVER = 24;
         </div>
       </div>
     </div>
+
+    <p role="status" class="texto-secundario pista">{{ pista() }}</p>
+
+    @if (moviendo(); as m) {
+      <div role="group" aria-label="Moviendo una escena" class="tarjeta moviendo">
+        <p role="status"><strong>Moviendo: {{ tituloDe(m.escenaId) }}</strong></p>
+        <p class="texto-secundario">Usa las flechas del teclado o estos botones. <kbd>Enter</kbd> o «Listo» confirma; <kbd>Esc</kbd> cancela.</p>
+        <div class="acciones">
+          <button type="button" class="boton cuadrado" aria-label="Mover a la izquierda" (click)="empujar(-PASO, 0)">←</button>
+          <button type="button" class="boton cuadrado" aria-label="Mover hacia arriba" (click)="empujar(0, -PASO)">↑</button>
+          <button type="button" class="boton cuadrado" aria-label="Mover hacia abajo" (click)="empujar(0, PASO)">↓</button>
+          <button type="button" class="boton cuadrado" aria-label="Mover a la derecha" (click)="empujar(PASO, 0)">→</button>
+          <button type="button" class="boton boton-primario" (click)="terminarMover(true)">Listo</button>
+          <button type="button" class="boton" (click)="terminarMover(false)">Dejar donde estaba</button>
+        </div>
+      </div>
+    }
 
     <div class="marco" #marco (wheel)="rueda($event)" (keydown.escape)="vista.set(null)">
       <div class="plano" role="group" aria-label="Mapa del caso" aria-describedby="mapa-ayuda"
@@ -127,20 +146,6 @@ const PASO_MOVER = 24;
       }
     </svg>
 
-    @if (moviendo(); as m) {
-      <div role="group" aria-label="Moviendo una escena" class="tarjeta moviendo">
-        <p role="status"><strong>Moviendo: {{ tituloDe(m.escenaId) }}</strong></p>
-        <p class="texto-secundario">Usa las flechas del teclado o estos botones. <kbd>Enter</kbd> o «Listo» confirma; <kbd>Esc</kbd> cancela.</p>
-        <div class="acciones">
-          <button type="button" class="boton cuadrado" aria-label="Mover a la izquierda" (click)="empujar(-PASO, 0)">←</button>
-          <button type="button" class="boton cuadrado" aria-label="Mover hacia arriba" (click)="empujar(0, -PASO)">↑</button>
-          <button type="button" class="boton cuadrado" aria-label="Mover hacia abajo" (click)="empujar(0, PASO)">↓</button>
-          <button type="button" class="boton cuadrado" aria-label="Mover a la derecha" (click)="empujar(PASO, 0)">→</button>
-          <button type="button" class="boton boton-primario" (click)="terminarMover(true)">Listo</button>
-          <button type="button" class="boton" (click)="terminarMover(false)">Dejar donde estaba</button>
-        </div>
-      </div>
-    }
 
     <ng-template #menu>
       <div cdkMenu class="menu" aria-label="Acciones de la escena">
@@ -203,6 +208,8 @@ const PASO_MOVER = 24;
     .item:hover, .item:focus { background: var(--primario-tinte); }
     .item.peligro { color: var(--peligro); }
     hr { width: 100%; border: 0; border-top: 1px solid var(--linea); margin: 4px 0; }
+    .pista { margin: 0; font-size: 16px; line-height: 24px; }
+    .pista:empty { display: none; }
   `,
 })
 export class MapaEscenasComponent {
@@ -220,17 +227,24 @@ export class MapaEscenasComponent {
   protected readonly altoEscena = ALTO_ESCENA;
   protected readonly nombreAviso = NOMBRE_AVISO;
   protected readonly elegida = signal<string | null>(null);
+  protected readonly pista = signal('');
   protected readonly vista = signal<string | null>(null);
   protected readonly flechaActiva = signal<string | null>(null);
   protected readonly zoom = signal(1);
   protected readonly moviendo = signal<{ escenaId: string; x: number; y: number } | null>(null);
   private readonly trigger = viewChild.required<CdkMenuTrigger>('trigger');
+  private readonly plantillaMenu = viewChild.required<TemplateRef<unknown>>('menu');
+  private readonly injector = inject(Injector);
   private readonly marco = viewChild.required<ElementRef<HTMLElement>>('marco');
   private readonly raiz: HTMLElement;
 
   protected readonly porcentaje = computed(() => Math.round(this.zoom() * 100));
   protected readonly elegidaEscena = computed(() => this.caso().escenas.find((e) => e.id === this.elegida()) ?? null);
-  protected readonly tabParada = computed(() => this.elegida() ?? this.caso().inicioId ?? this.caso().escenas[0]?.id ?? null);
+  /** La escena que recibe el Tab: la elegida si todavía existe; si no, el inicio o la primera. */
+  protected readonly tabParada = computed(() => {
+    const ids = new Set(this.caso().escenas.map((e) => e.id));
+    return [this.elegida(), this.caso().inicioId, this.caso().escenas[0]?.id].find((id) => !!id && ids.has(id)) ?? null;
+  });
 
   protected readonly limites = computed(() => {
     const es = this.caso().escenas.map((e) => this.pos(e));
@@ -328,12 +342,22 @@ export class MapaEscenasComponent {
 
   protected elegir(id: string): void {
     this.elegida.set(id);
+    this.pista.set('');
     this.seleccion.emit(id);
   }
 
   elegirYEnfocar(id: string): void {
     this.elegir(id);
-    queueMicrotask(() => this.raiz.querySelector<HTMLElement>(`[data-escena="${id}"]`)?.focus());
+    // Después de pintar: una escena recién creada todavía no está en la pantalla.
+    afterNextRender(() => this.raiz.querySelector<HTMLElement>(`[data-escena="${id}"]`)?.focus(), { injector: this.injector });
+  }
+
+  /** Lleva el foco a la escena que recibe el Tab (por ejemplo, después de borrar la elegida). */
+  enfocarParada(): void {
+    afterNextRender(() => {
+      const id = this.tabParada();
+      if (id) this.raiz.querySelector<HTMLElement>(`[data-escena="${id}"]`)?.focus();
+    }, { injector: this.injector });
   }
 
   protected menuContextual(evento: MouseEvent, id: string): void {
@@ -344,6 +368,8 @@ export class MapaEscenasComponent {
   private abrirMenu(id: string): void {
     this.elegir(id);
     const trigger = this.trigger();
+    // El menú solo queda enlazado con una escena elegida; aquí se elige y se abre de una vez.
+    trigger.menuTemplateRef = this.plantillaMenu();
     trigger.open();
     // El CDK cierra el menú si el foco no está en él: se lleva al primer elemento, como el teclado.
     this.enfocarMenu(trigger, 0);

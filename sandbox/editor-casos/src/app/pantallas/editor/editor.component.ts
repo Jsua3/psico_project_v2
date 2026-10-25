@@ -1,4 +1,4 @@
-import { ChangeDetectionStrategy, Component, computed, inject, signal, viewChild } from '@angular/core';
+import { ChangeDetectionStrategy, Component, ElementRef, Injector, afterNextRender, computed, inject, signal, viewChild } from '@angular/core';
 import { Router, RouterLink } from '@angular/router';
 
 import { CasoStore } from '../../estado/caso.store';
@@ -83,32 +83,32 @@ import { type AccionEscena, MapaEscenasComponent } from './mapa-escenas.componen
 
         @if (conectando(); as origen) {
           <div class="tarjeta dialogo" role="dialog" aria-labelledby="cct" aria-modal="false">
-            <h2 id="cct">Conectar «{{ tituloDe(origen) }}» con…</h2>
+            <h2 id="cct" tabindex="-1">Conectar «{{ tituloDe(origen) }}» con…</h2>
             <p>Se agrega una respuesta en «{{ tituloDe(origen) }}» que lleva a la escena que elijas. Después puedes escribirla en el guion.</p>
             <ul role="listbox" aria-label="Escena a la que lleva" class="opciones">
               @for (e of caso.escenas; track e.id) {
                 @if (e.id !== origen) {
                   <li role="option" tabindex="0" [attr.aria-selected]="destino() === e.id"
-                      (click)="destino.set(e.id)" (keydown.enter)="destino.set(e.id)">{{ numero(e) }} · {{ e.titulo }}</li>
+                      (click)="destino.set(e.id)" (keydown.enter)="destino.set(e.id)" (keydown.space)="$event.preventDefault(); destino.set(e.id)">{{ numero(e) }} · {{ e.titulo }}</li>
                 }
               }
               <li role="option" tabindex="0" [attr.aria-selected]="destino() === 'nueva'"
-                  (click)="destino.set('nueva')" (keydown.enter)="destino.set('nueva')">Una escena nueva</li>
+                  (click)="destino.set('nueva')" (keydown.enter)="destino.set('nueva')" (keydown.space)="$event.preventDefault(); destino.set('nueva')">Una escena nueva</li>
             </ul>
             <div class="acciones">
               <button type="button" class="boton boton-primario" [attr.aria-disabled]="!destino()" (click)="conectar()">Conectar</button>
-              <button type="button" class="boton" (click)="conectando.set(null)">No conectar</button>
+              <button type="button" class="boton" (click)="noConectar(origen)">No conectar</button>
             </div>
           </div>
         }
 
         @if (borrando(); as id) {
           <div class="tarjeta dialogo peligro" role="alertdialog" aria-labelledby="bt" aria-describedby="bd">
-            <h2 id="bt">¿Borrar la escena «{{ tituloDe(id) }}»?</h2>
+            <h2 id="bt" tabindex="-1">¿Borrar la escena «{{ tituloDe(id) }}»?</h2>
             <p id="bd">{{ textoBorrar(id) }} Puedes deshacerlo.</p>
             <div class="acciones">
               <button type="button" class="boton boton-peligro" (click)="borrar(id)">Borrar la escena</button>
-              <button type="button" class="boton" (click)="borrando.set(null)">Conservar la escena</button>
+              <button type="button" class="boton" (click)="conservar(id)">Conservar la escena</button>
             </div>
           </div>
         }
@@ -151,6 +151,8 @@ export class EditorComponent {
   protected readonly store = inject(CasoStore);
   private readonly router = inject(Router);
   private readonly mapa = viewChild<MapaEscenasComponent>('mapa');
+  private readonly injector = inject(Injector);
+  private readonly raiz: HTMLElement = inject(ElementRef).nativeElement;
 
   /** La escena de inicio queda elegida al entrar, para que «Abrir guion» y «Abrir sala» estén a mano. */
   protected readonly elegida = signal<string | null>(this.store.caso()?.inicioId ?? null);
@@ -249,6 +251,7 @@ export class EditorComponent {
       case 'conectar':
         this.destino.set(null);
         this.conectando.set(a.escenaId);
+        this.enfocar('#cct');
         break;
       case 'final':
         this.store.marcarFinal(a.escenaId, a.esFinal);
@@ -256,6 +259,7 @@ export class EditorComponent {
         break;
       case 'borrar':
         this.borrando.set(a.escenaId);
+        this.enfocar('#bt');
         break;
       case 'mover':
         this.store.moverEscena(a.escenaId, a.x, a.y);
@@ -278,5 +282,21 @@ export class EditorComponent {
     this.borrando.set(null);
     this.elegida.set(null);
     this.anuncio.set('Escena borrada. Puedes deshacerlo.');
+    this.mapa()?.enfocarParada();
+  }
+
+  protected noConectar(origen: string): void {
+    this.conectando.set(null);
+    this.mapa()?.elegirYEnfocar(origen);
+  }
+
+  protected conservar(id: string): void {
+    this.borrando.set(null);
+    this.mapa()?.elegirYEnfocar(id);
+  }
+
+  /** Los diálogos salen debajo del mapa: el foco va a su título, y con él la pantalla. */
+  private enfocar(selector: string): void {
+    afterNextRender(() => this.raiz.querySelector<HTMLElement>(selector)?.focus(), { injector: this.injector });
   }
 }
