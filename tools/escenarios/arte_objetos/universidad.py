@@ -136,6 +136,8 @@ def libro_abierto():
     cub = tonos((128, 54, 48))
     pag, pag_s, canto = (244, 240, 226), (214, 207, 186), (176, 166, 140)
     tinta, amar = (92, 98, 122), (246, 206, 70)
+    hoja = (255, 254, 246)                        # la hoja en movimiento: más clara que la página
+    lomo = cub[3]                                 # pliegue del lomo, el tono más oscuro
     lineas = ((3, 11), (3, 10), (3, 11), (3, 9), (3, 11))     # (u0, u1) de cada renglón
 
     def u_de(x):                                  # distancia al lomo
@@ -144,10 +146,12 @@ def libro_abierto():
     def arriba(u):                                # las páginas se hunden hacia el lomo
         return 12 + round(2 * (13 - u) / 13)
 
-    def pagina(d, x, dy=0, subrayado=False, sombra=False):
+    def pagina(d, x, dy=0, subrayado=False, sombra=False, movil=False):
         u = u_de(x)
         t = arriba(u) + dy
-        R(d, x, t, x, t + 12, pag_s if u <= 1 or sombra else pag)
+        R(d, x, t, x, t + 12, pag_s if u <= 1 or sombra else hoja if movil else pag)
+        if movil and u > 1:                       # borde de arriba y de abajo de la hoja
+            P(d, x, t, pag_s); P(d, x, t + 12, pag_s)
         for i, (u0, u1) in enumerate(lineas):
             if u0 <= u <= u1:
                 P(d, x, t + 3 + 2 * i, tinta)
@@ -169,9 +173,11 @@ def libro_abierto():
         for j in range(ancho + 1):
             x = 16 + j
             t = 14 - round(alza * j / ancho)
-            R(d, x, t, x, t + 12, canto if j == ancho else pag_s if j <= 1 else pag)
             if j > 1:
-                P(d, x, t + 12, canto)            # canto de abajo
+                P(d, x, t + 13, canto)            # sombra de 1 px sobre la página que cubre
+            R(d, x, t, x, t + 12, pag_s if j <= 1 or j == ancho else hoja)
+            if j > 1:
+                P(d, x, t, pag_s); P(d, x, t + 12, pag_s)     # borde de la hoja
             if 2 <= j < ancho:
                 for i in range(5):
                     if i < 4 or j <= ancho - 3:
@@ -181,22 +187,25 @@ def libro_abierto():
         for x in range(15, 15 - ancho - 1, -1):
             dy = -round(alza * (15 - x) / ancho)
             t = arriba(u_de(x)) + dy
-            P(d, x, t + 13, pag_s)                # sombra de la hoja sobre la página
-            pagina(d, x, dy, subrayado=True)
+            if dy:
+                P(d, x, t + 13, canto)            # sombra de 1 px sobre la página que cubre
+            pagina(d, x, dy, subrayado=True, movil=True)
             if x == 15 - ancho:
-                R(d, x, t, x, t + 12, canto)
+                R(d, x, t, x, t + 12, pag_s)
 
     def dibujar(k):
         im, d = lienzo()
-        base(d, range(17, 27) if k == 1 else ())
+        base(d)
         if k == 1:
             hoja_derecha(d, 9, 4)
         elif k == 2:
             for y in range(9, 22):
-                x0 = 16 if y <= 12 else 15
-                P(d, x0, y, pag); P(d, x0 + 1, y, canto)
+                P(d, 16, y, hoja); P(d, 17, y, canto)
+                if y >= 14:
+                    P(d, 18, y, pag_s)            # sombra de 1 px sobre la página que cubre
         elif k == 3:
             hoja_izquierda(d, 10, 2)
+        R(d, 15, arriba(0), 15, arriba(0) + 13, lomo)     # el lomo se marca en todos los cuadros
         return im
     return cuadros(3, dibujar)
 

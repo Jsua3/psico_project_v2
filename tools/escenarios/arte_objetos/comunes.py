@@ -115,36 +115,51 @@ def ventana():
 def dispensador_agua():
     azul = tonos((72, 144, 222))
     blanco = tonos((236, 238, 244))
+    aire = tuple(int(round(v + (255 - v) * 0.6)) for v in azul[0])   # el aire de arriba, más pálido que el agua
     rojo = (208, 70, 70)
+    rojo_claro = (236, 128, 120)
+    rojo_oscuro = (140, 40, 44)
 
     def dibujar(k):
         bx, by = ((15, 14), (16, 12), (15, 10), (16, 8), (15, 6))[k]  # la burbuja sube por el botellón
         im, d = lienzo()
-        # botellón boca abajo: cúpula arriba, hombros y cuello metido en la base
-        POL(d, [(9, 5), (11, 2), (20, 2), (22, 5), (22, 12), (19, 15), (12, 15), (9, 12)], azul[1])
-        R(d, 13, 15, 18, 17, azul[2])
-        POL(d, [(11, 3), (20, 3), (21, 5), (10, 5)], azul[0])   # el aire que queda arriba
-        R(d, 20, 6, 22, 12, azul[2]); POL(d, [(19, 13), (22, 13), (19, 15)], azul[2])
-        L(d, 11, 7, 11, 12, azul[0])         # reflejo
-        L(d, 10, 9, 10, 10, azul[0])
+        # botellón boca abajo: cuerpo alto, hombros rectos que se estrechan y cuello con tapón en la base
+        R(d, 12, 1, 19, 1, aire); R(d, 11, 2, 20, 2, aire)
+        R(d, 10, 3, 21, 4, aire)                                  # el aire que queda arriba
+        P(d, 20, 2, azul[0]); R(d, 20, 3, 21, 4, azul[0])         # canto derecho del aire
+        R(d, 10, 5, 21, 12, azul[1])                              # el agua
+        R(d, 11, 5, 20, 5, azul[0])                               # línea de nivel
+        for (y, x0, x1) in ((13, 11, 20), (14, 12, 19), (15, 13, 18)):
+            R(d, x0, y, x1, y, azul[1])                           # hombros rectos
+        R(d, 20, 6, 21, 12, azul[2])                              # sombra a la derecha
+        for (y, x0, x1) in ((13, 19, 20), (14, 18, 19), (15, 17, 18)):
+            R(d, x0, y, x1, y, azul[2])
+        L(d, 11, 7, 11, 12, azul[0]); L(d, 12, 7, 12, 10, azul[0])  # reflejo vertical claro
+        P(d, 12, 13, azul[0]); P(d, 13, 14, azul[0])              # y baja por el hombro
+        # cuello con tapón, entra en la base
+        R(d, 14, 16, 17, 16, azul[1]); P(d, 17, 16, azul[2])
+        R(d, 13, 17, 18, 18, azul[2]); R(d, 13, 17, 14, 17, azul[1]); P(d, 13, 18, azul[1])  # tapón
         # burbuja
         R(d, bx, by, bx + 1, by + 1, blanco[0])
         # base blanca
         R(d, 8, 18, 23, 30, blanco[1])
-        R(d, 8, 17, 23, 17, blanco[0])
+        R(d, 8, 18, 23, 18, blanco[0])
         R(d, 8, 18, 9, 30, blanco[0])
         R(d, 22, 18, 23, 30, blanco[2])
-        R(d, 11, 17, 20, 18, blanco[2])
-        # grifos
-        R(d, 10, 20, 21, 25, blanco[2])
-        R(d, 12, 21, 14, 22, azul[1]); R(d, 12, 21, 14, 21, azul[0]); R(d, 13, 23, 13, 24, azul[2])
-        R(d, 17, 21, 19, 22, rojo); R(d, 17, 21, 19, 21, (236, 128, 120)); R(d, 18, 23, 18, 24, (140, 40, 44))
+        R(d, 11, 18, 20, 18, blanco[3])                           # boca donde entra el cuello
+        # grifos: perillas arriba, picos que salen hacia el hueco del vaso
+        R(d, 10, 22, 21, 26, blanco[3])
+        R(d, 10, 22, 21, 22, blanco[2])
+        R(d, 11, 20, 14, 21, azul[1]); R(d, 11, 20, 14, 20, azul[0]); R(d, 14, 21, 14, 21, azul[2])
+        R(d, 17, 20, 20, 21, rojo); R(d, 17, 20, 20, 20, rojo_claro); R(d, 20, 21, 20, 21, rojo_oscuro)
+        R(d, 12, 22, 13, 24, azul[1]); R(d, 12, 22, 12, 24, azul[0]); P(d, 13, 24, azul[2])
+        R(d, 18, 22, 19, 24, rojo); R(d, 18, 22, 18, 24, rojo_claro); P(d, 19, 24, rojo_oscuro)
         # bandeja
-        R(d, 10, 26, 21, 26, blanco[0])
-        R(d, 10, 27, 21, 28, blanco[3])
+        R(d, 9, 27, 22, 27, blanco[0])
+        R(d, 9, 28, 22, 29, blanco[2])
         for x in range(11, 21, 2):
-            R(d, x, 27, x, 28, blanco[2])
-        R(d, 9, 29, 22, 30, blanco[2])
+            R(d, x, 28, x, 29, blanco[3])
+        R(d, 9, 30, 22, 30, blanco[3])
         return im
 
     return cuadros(4, dibujar)
