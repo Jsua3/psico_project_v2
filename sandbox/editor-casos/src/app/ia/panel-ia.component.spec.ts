@@ -6,7 +6,8 @@ import { CasoStore } from '../estado/caso.store';
 import { BibliotecaService } from '../modelo/biblioteca.service';
 import { copiarEscenarioAlCaso } from '../modelo/copiar';
 import type { Escenario } from '../modelo/escenario';
-import { PanelIaComponent } from './panel-ia.component';
+import { PanelIaComponent, describirCambio } from './panel-ia.component';
+import type { Cambio } from './propuestas';
 
 const universidad = universidadJson as unknown as Escenario;
 
@@ -46,7 +47,7 @@ describe('PanelIaComponent', () => {
   it('sin conexión lo dice, responde con un ejemplo y la propuesta llega por partes con casillas', async () => {
     vi.spyOn(globalThis, 'fetch').mockRejectedValue(new TypeError('Failed to fetch'));
     const { raiz, listo } = await montar();
-    expect(raiz.textContent).toContain('La IA propone; tú decides. Todo lo generado queda marcado hasta que lo revises.');
+    expect(raiz.textContent).toContain('La IA propone; tú decides.');
     await pedir(raiz, listo, 'Escribe cómo saluda la psicóloga');
     expect(raiz.textContent).toContain('Modo sin conexión: respuestas de ejemplo');
     expect(raiz.querySelector('[role="log"]')!.textContent).toContain('Escribe cómo saluda la psicóloga');
@@ -90,5 +91,69 @@ describe('PanelIaComponent', () => {
     boton(raiz, 'Deshacer lo aplicado').click();
     await listo();
     expect(store.caso()).toEqual(antes);
+  });
+
+  it('«Deshacer lo aplicado» desaparece si la persona cambia algo después de aplicar', async () => {
+    vi.spyOn(globalThis, 'fetch').mockRejectedValue(new TypeError('Failed to fetch'));
+    const { store, raiz, listo } = await montar();
+    await pedir(raiz, listo, 'Propón respuestas');
+    boton(raiz, 'Aplicar lo marcado').click();
+    await listo();
+    expect(boton(raiz, 'Deshacer lo aplicado')).toBeDefined();
+    store.agregarEscena('consultorio');
+    await listo();
+    expect(boton(raiz, 'Deshacer lo aplicado')).toBeUndefined();
+  });
+
+  it('el aviso fijo no promete marcar lo que no se puede marcar', async () => {
+    vi.spyOn(globalThis, 'fetch').mockRejectedValue(new TypeError('Failed to fetch'));
+    const { raiz } = await montar();
+    expect(raiz.querySelector('.aviso-ia')!.textContent).not.toContain('Todo lo generado queda marcado');
+    expect(raiz.querySelector('.aviso-ia')!.textContent).toContain('Las escenas, líneas, respuestas y finales que agregue quedan marcados');
+  });
+
+  it('al empezar otro caso, el asistente olvida la conversación y la propuesta', async () => {
+    vi.spyOn(globalThis, 'fetch').mockRejectedValue(new TypeError('Failed to fetch'));
+    const { store, raiz, listo } = await montar();
+    await pedir(raiz, listo, 'Propón respuestas');
+    expect(raiz.querySelectorAll('input[type="checkbox"]').length).toBeGreaterThan(0);
+    store.reiniciar();
+    await listo();
+    expect(raiz.querySelectorAll('input[type="checkbox"]').length).toBe(0);
+    expect(raiz.querySelector('[role="log"]')!.textContent!.trim()).toBe('');
+  });
+});
+
+describe('describirCambio', () => {
+  const montarCaso = () => {
+    const caso = copiarEscenarioAlCaso(universidad, ['consultorio', 'sala-espera'], 'Caso');
+    return caso;
+  };
+
+  it('«mover» dice qué elemento se mueve y hacia dónde', () => {
+    const caso = montarCaso();
+    const sala = caso.salas[0];
+    const cambio: Cambio = { op: 'mover', salaId: sala.id, tipo: 'mueble', indice: 0, x: 600, y: 400 };
+    const nombre = caso.catalogo.muebles.find((m) => m.id === sala.muebles[0].ref)!.nombre;
+    const texto = describirCambio(caso, cambio, [cambio]);
+    expect(texto).toContain(nombre);
+    expect(texto).toContain(sala.nombre);
+    expect(texto).toMatch(/derecha|izquierda|centro/);
+  });
+
+  it('una respuesta dice a qué escena lleva', () => {
+    const caso = montarCaso();
+    const cambio: Cambio = { op: 'agregar-respuesta', escenaId: caso.escenas[0].id, texto: 'Hola', clasificacion: 'adecuada', retroalimentacion: 'F', destino: caso.escenas[1].id };
+    expect(describirCambio(caso, cambio, [cambio])).toContain(`lleva a «${caso.escenas[1].titulo}»`);
+    const nueva: Cambio = { ...cambio, destino: 'nueva' };
+    expect(describirCambio(caso, nueva, [nueva])).toContain('lleva a una escena nueva');
+  });
+
+  it('un final dice cuándo llega', () => {
+    const caso = montarCaso();
+    const porEscena: Cambio = { op: 'agregar-final', nombre: 'Cierre', texto: 'Fin', condicion: { tipo: 'llega-a-escena', escenaId: caso.escenas[1].id } };
+    expect(describirCambio(caso, porEscena, [porEscena])).toContain(`llega si el estudiante pasa por «${caso.escenas[1].titulo}»`);
+    const porRespuestas: Cambio = { op: 'agregar-final', nombre: 'Riesgo', texto: 'Fin', condicion: { tipo: 'inadecuadas-al-menos', cantidad: 2 } };
+    expect(describirCambio(caso, porRespuestas, [porRespuestas])).toContain('llega si elige al menos 2 respuestas inadecuadas');
   });
 });

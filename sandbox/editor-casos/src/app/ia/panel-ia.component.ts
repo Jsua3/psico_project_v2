@@ -1,4 +1,6 @@
-import { ChangeDetectionStrategy, Component, ElementRef, computed, inject, output, signal, viewChild } from '@angular/core';
+import {
+  ChangeDetectionStrategy, Component, ElementRef, computed, effect, inject, output, signal, untracked, viewChild,
+} from '@angular/core';
 import { NavigationEnd, Router } from '@angular/router';
 import { toSignal } from '@angular/core/rxjs-interop';
 import { filter, map } from 'rxjs';
@@ -36,10 +38,28 @@ export function describirCambio(caso: CasoBorrador, c: Cambio, todos: Cambio[]):
   switch (c.op) {
     case 'agregar-escena': return `Escena nueva «${c.titulo}» en ${sala(c.salaId)}`;
     case 'agregar-linea': return `${persona(c.personajeId)} dice en «${escena(c.escenaId)}» (${c.expresion}): «${c.texto}»`;
-    case 'agregar-respuesta': return `Respuesta ${CLASIFICACION[c.clasificacion]} en «${escena(c.escenaId)}»: «${c.texto}»`;
+    case 'agregar-respuesta': {
+      const destino = !c.destino ? 'todavía no lleva a ninguna escena'
+        : c.destino === 'nueva' ? 'lleva a una escena nueva'
+        : `lleva a «${escena(c.destino)}»`;
+      return `Respuesta ${CLASIFICACION[c.clasificacion]} en «${escena(c.escenaId)}»: «${c.texto}» (${destino})`;
+    }
     case 'colocar-personaje': return `Colocar a ${persona(c.ref)} en ${sala(c.salaId)}`;
-    case 'mover': return `Mover un elemento en ${sala(c.salaId)}`;
-    case 'agregar-final': return `Final «${c.nombre}»: «${c.texto}»`;
+    case 'mover': {
+      const s = caso.salas.find((x) => x.id === c.salaId);
+      const ref = (c.tipo === 'mueble' ? s?.muebles : c.tipo === 'objeto' ? s?.objetos : s?.personajes)?.[c.indice]?.ref;
+      const nombre = c.tipo === 'personaje'
+        ? persona(ref ?? '')
+        : (c.tipo === 'mueble' ? caso.catalogo.muebles : caso.catalogo.objetos).find((x) => x.id === ref)?.nombre ?? 'un elemento';
+      const lado = c.x < 380 ? 'a la izquierda' : c.x > 580 ? 'a la derecha' : 'al centro';
+      return `Mover ${nombre} ${lado} en ${sala(c.salaId)}`;
+    }
+    case 'agregar-final': {
+      const cuando = c.condicion.tipo === 'llega-a-escena'
+        ? `llega si el estudiante pasa por «${escena(c.condicion.escenaId)}»`
+        : `llega si elige al menos ${c.condicion.cantidad} ${c.condicion.cantidad === 1 ? 'respuesta inadecuada' : 'respuestas inadecuadas'}`;
+      return `Final «${c.nombre}»: «${c.texto}» (${cuando})`;
+    }
   }
 }
 
@@ -56,7 +76,7 @@ export function describirCambio(caso: CasoBorrador, c: Cambio, todos: Cambio[]):
         <h2 id="iat" tabindex="-1">Asistente de IA</h2>
         <button type="button" class="boton cuadrado" aria-label="Cerrar el asistente" (click)="cerrar.emit()">✕</button>
       </div>
-      <p class="aviso-ia"><strong>La IA propone; tú decides.</strong> Todo lo generado queda marcado hasta que lo revises.</p>
+      <p class="aviso-ia"><strong>La IA propone; tú decides.</strong> Las escenas, líneas, respuestas y finales que agregue quedan marcados hasta que los revises. Colocar y mover cosas en una sala se aplica sin marca, y lo deshaces con «Deshacer lo aplicado».</p>
 
       @if (ia.estado() === 'sin-conexion') {
         <div class="estado">
@@ -102,7 +122,7 @@ export function describirCambio(caso: CasoBorrador, c: Cambio, todos: Cambio[]):
 
       <form (submit)="enviar($event)" class="pedir">
         <label for="iaq" class="etiqueta">Pídele algo al asistente</label>
-        <textarea id="iaq" #campo rows="3" class="campo" placeholder="Por ejemplo: «Agrega una respuesta con riesgo a esta escena»"
+        <textarea id="iaq" #campo rows="3" class="campo" placeholder="Por ejemplo: «Agrega una respuesta con riesgo a la primera escena»"
                   [value]="borrador()" (input)="borrador.set($any($event.target).value)"
                   (keydown.control.enter)="enviar($event)"></textarea>
         <button type="submit" class="boton boton-secundario" [attr.aria-disabled]="pensando() || !borrador().trim()">Enviar</button>
@@ -147,7 +167,9 @@ export class PanelIaComponent {
   protected readonly pensando = signal(false);
   protected readonly propuesta = signal<{ cambios: Cambio[]; seleccion: boolean[] } | null>(null);
   /** Hay una propuesta recién aplicada que se puede deshacer de un clic. */
-  protected readonly aplicado = signal(false);
+  private readonly aplicadoSobre = signal<CasoBorrador | null>(null);
+  protected readonly aplicado = computed(() => this.aplicadoSobre() !== null && this.aplicadoSobre() === this.store.caso());
+  private idVisto: string | null = null;
   private controlador: AbortController | null = null;
 
   private readonly url = toSignal(
@@ -158,6 +180,19 @@ export class PanelIaComponent {
 
   constructor() {
     void this.ia.comprobar();
+    this.idVisto = this.store.caso()?.id ?? null;
+    // Otro caso (o el sandbox reiniciado): la conversación y la propuesta de antes ya no valen.
+    effect(() => {
+      const id = this.store.caso()?.id ?? null;
+      untracked(() => {
+        if (id === this.idVisto) return;
+        this.idVisto = id;
+        this.turnos.set([]);
+        this.propuesta.set(null);
+        this.aplicadoSobre.set(null);
+        this.borrador.set('');
+      });
+    });
   }
 
   protected descripcion(c: Cambio, todos: Cambio[]): string {
@@ -193,7 +228,7 @@ export class PanelIaComponent {
     this.turnos.update((t) => [...t, { quien: 'tu', texto: peticion }]);
     this.borrador.set('');
     this.propuesta.set(null);
-    this.aplicado.set(false);
+    this.aplicadoSobre.set(null);
     this.pensando.set(true);
     this.controlador = new AbortController();
     try {
@@ -219,7 +254,7 @@ export class PanelIaComponent {
       this.store.aplicarPropuesta(p.cambios, p.seleccion);
       const n = p.seleccion.filter(Boolean).length;
       this.turnos.update((t) => [...t, { quien: 'ia', texto: `Agregué ${n} ${n === 1 ? 'parte' : 'partes'} al caso, marcadas «Sugerido por la IA» hasta que las aceptes.` }]);
-      this.aplicado.set(true);
+      this.aplicadoSobre.set(this.store.caso());
     } catch {
       this.turnos.update((t) => [...t, { quien: 'ia', texto: MENSAJE_PROPUESTA_INVALIDA }]);
     }
@@ -229,7 +264,7 @@ export class PanelIaComponent {
 
   protected deshacerAplicado(): void {
     this.store.deshacer();
-    this.aplicado.set(false);
+    this.aplicadoSobre.set(null);
     this.turnos.update((t) => [...t, { quien: 'ia', texto: 'Deshice lo que había aplicado. El caso quedó como estaba.' }]);
     this.campo()?.nativeElement.focus();
   }

@@ -35,7 +35,18 @@ npm run ia      # el servidor de la IA, en http://localhost:4311
 npm start       # el editor, en http://localhost:4310
 ```
 
-Abre http://localhost:4310 en el navegador. El editor le pasa al servidor de la IA todo lo que
+En la terminal de `npm run ia` debe decir «con la key de .env» (si dice «sin key», el archivo
+`.env` no se leyó: revisa que esté en esta carpeta y que la línea sea `ANTHROPIC_API_KEY=tu-key`,
+sin comillas ni espacios).
+
+Abre http://localhost:4310 en el navegador.
+
+**Para probar la IA con tu key:** crea un caso (Mis casos → Crear un caso nuevo → universidad →
+«Atención en Bienestar»), pulsa «Asistente de IA» y pídele, por ejemplo, «Agrega una respuesta
+con riesgo a la primera escena». Debe aparecer una propuesta por partes, con casillas, marcada
+«Sugerido por la IA»; nada cambia hasta que pulses «Aplicar lo marcado», y «Deshacer lo aplicado»
+lo revierte. Si el asistente dice «Modo sin conexión», el servidor no está corriendo o no tiene
+la key. El editor le pasa al servidor de la IA todo lo que
 empieza por `/api`. Si `npm run ia` no está corriendo, el asistente se pone en modo sin conexión
 y todo lo demás funciona igual.
 
