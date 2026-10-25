@@ -77,4 +77,28 @@ describe('EditorComponent · diálogos', () => {
     await listo();
     expect(opcion.getAttribute('aria-selected')).toBe('true');
   });
+
+  it('un aviso de escena sin salida ofrece marcarla como final desde el propio aviso', async () => {
+    const { raiz, store, listo } = await montar();
+    const sinSalida = store.caso()!.escenas.find((e) => !e.esFinal && e.respuestas.length === 0)!;
+    const boton = [...raiz.querySelectorAll<HTMLButtonElement>('.avisos button')].find((b) => b.textContent?.includes('Marcar como final'));
+    expect(boton).toBeDefined();
+    boton!.click();
+    await listo();
+    expect(store.caso()!.escenas.find((e) => e.id === sinSalida.id)!.esFinal).toBe(true);
+  });
+
+  it('los conteos usan singular con 1 (una línea, una respuesta, una escena)', async () => {
+    const { raiz, store, listo } = await montar();
+    const caso = structuredClone(store.caso()!);
+    caso.escenas = [caso.escenas[0]];
+    caso.escenas[0].lineas = [{ id: 'l1', personajeId: caso.personajes[0].id, texto: 'x', expresion: 'neutral', marcaIa: false }];
+    caso.escenas[0].respuestas = [];
+    caso.inicioId = caso.escenas[0].id;
+    store.fijar(caso);
+    await listo();
+    const texto = raiz.textContent!;
+    expect(texto).not.toMatch(/\b1 (líneas|respuestas|escenas)\b/);
+    expect(texto).toContain('1 línea');
+  });
 });

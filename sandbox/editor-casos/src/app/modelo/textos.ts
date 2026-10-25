@@ -26,3 +26,8 @@ export function nombreTema(id: string): string {
 export function listaNumerada(nombres: string[]): string {
   return nombres.map((n, i) => `${i + 1}. ${n}`).join(', ');
 }
+
+/** «1 línea» / «3 líneas»: el número con la palabra que le toca. */
+export function plural(n: number, uno: string, varios: string): string {
+  return `${n} ${n === 1 ? uno : varios}`;
+}

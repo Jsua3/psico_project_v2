@@ -4,6 +4,7 @@ import { Router, RouterLink } from '@angular/router';
 import { CasoStore } from '../../estado/caso.store';
 import { revisarCaminos, type Aviso } from '../../modelo/caminos';
 import type { Escena } from '../../modelo/caso';
+import { plural } from '../../modelo/textos';
 import { type AccionEscena, MapaEscenasComponent } from './mapa-escenas.component';
 
 /** «Escenas y caminos» (tablero 25): el mapa del caso, la escena elegida y los avisos. */
@@ -41,7 +42,7 @@ import { type AccionEscena, MapaEscenasComponent } from './mapa-escenas.componen
                   <p class="marca-ia"><span class="pildora">Sugerido por la IA</span> La creó el asistente; revísala y acéptala.</p>
                   <button type="button" class="boton" data-accion="aceptar-ia" (click)="store.aceptarIa({ escenaId: e.id })">Aceptar escena</button>
                 }
-                <p class="texto-secundario">{{ nombreSala(e.salaId) }} · {{ e.lineas.length }} líneas · {{ e.respuestas.length }} respuestas</p>
+                <p class="texto-secundario">{{ nombreSala(e.salaId) }} · {{ plural(e.lineas.length, 'línea', 'líneas') }} · {{ plural(e.respuestas.length, 'respuesta', 'respuestas') }}</p>
                 <dl>
                   <dt>Llegan desde</dt>
                   <dd>{{ lleganDesde(e) || 'Ninguna escena' }}</dd>
@@ -68,6 +69,9 @@ import { type AccionEscena, MapaEscenasComponent } from './mapa-escenas.componen
                       <p>{{ a.mensaje }}</p>
                       @if (a.escenaId) {
                         <button type="button" class="boton" [attr.aria-label]="'Llévame ahí: ' + tituloDe(a.escenaId)" (click)="llevarA(a)">Llévame ahí</button>
+                        @if (a.tipo === 'sin-salida') {
+                          <button type="button" class="boton" [attr.aria-label]="'Marcar como final: ' + tituloDe(a.escenaId)" (click)="marcarFinalDesdeAviso(a.escenaId)">Marcar como final</button>
+                        }
                       } @else if (a.tipo === 'final-sin-escena') {
                         <a class="boton" routerLink="/editor/finales">Ir a los finales</a>
                       }
@@ -232,6 +236,13 @@ export class EditorComponent {
     const id = this.store.agregarEscena(salaId, despues?.id);
     this.mapa()?.elegirYEnfocar(id);
     this.anuncio.set('Se agregó una escena nueva. Abre su guion para escribirla.');
+  }
+
+  protected readonly plural = plural;
+
+  protected marcarFinalDesdeAviso(id: string): void {
+    this.store.marcarFinal(id, true);
+    this.anuncio.set(`«${this.tituloDe(id)}» quedó marcada como final.`);
   }
 
   protected llevarA(a: Aviso): void {

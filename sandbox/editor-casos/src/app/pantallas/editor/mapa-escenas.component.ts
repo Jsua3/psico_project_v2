@@ -6,6 +6,7 @@ import {
 
 import { rutaArte } from '../../modelo/biblioteca.service';
 import { NOMBRE_AVISO, type Aviso } from '../../modelo/caminos';
+import { plural } from '../../modelo/textos';
 import type { CasoBorrador, Escena } from '../../modelo/caso';
 import { ALTO_ESCENA, ANCHO_ESCENA } from '../../modelo/trazado';
 
@@ -39,7 +40,7 @@ const PASO_MOVER = 24;
   template: `
     <div class="barra">
       <p id="mapa-ayuda" class="texto-secundario">
-        Mapa del caso: {{ caso().escenas.length }} escenas. Con el foco en una escena, las flechas van a la escena conectada;
+        Mapa del caso: {{ plural(caso().escenas.length, 'escena', 'escenas') }}. Con el foco en una escena, las flechas van a la escena conectada;
         <kbd>Enter</kbd> abre su guion; <kbd>Mayús</kbd>+<kbd>F10</kbd> abre las acciones.
       </p>
       <div class="acciones">
@@ -228,6 +229,7 @@ export class MapaEscenasComponent {
   protected readonly nombreAviso = NOMBRE_AVISO;
   protected readonly elegida = signal<string | null>(null);
   protected readonly pista = signal('');
+  protected readonly plural = plural;
   protected readonly vista = signal<string | null>(null);
   protected readonly flechaActiva = signal<string | null>(null);
   protected readonly zoom = signal(1);

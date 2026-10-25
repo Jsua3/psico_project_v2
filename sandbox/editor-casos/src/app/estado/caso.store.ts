@@ -77,6 +77,7 @@ export class CasoStore {
   }
 
   private empezarCon(caso: CasoBorrador | null): void {
+    this.probadoAhora.set(false);
     this.historial = caso ? new Historial(caso) : null;
     this.estado.set(caso);
     this.version.update((v) => v + 1);
