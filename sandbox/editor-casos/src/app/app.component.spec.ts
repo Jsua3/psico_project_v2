@@ -156,4 +156,21 @@ describe('AppComponent (marco)', () => {
     await listo();
     expect(store.caso()!.escenas.length).toBe(antes + 1);
   });
+
+  it('al cerrar o recargar la pestaña se guarda lo que se estaba escribiendo', async () => {
+    vi.spyOn(globalThis, 'fetch').mockRejectedValue(new TypeError('Failed to fetch'));
+    const { store, listo } = await montarApp();
+    const e = store.caso()!.escenas[0];
+    store.agregarLinea(e.id);
+    await listo();
+    const campo = document.createElement('textarea');
+    // El navegador suelta el cambio del campo al perder el foco; jsdom no, así que se simula con blur.
+    campo.addEventListener('blur', () => store.editarLinea(e.id, store.caso()!.escenas[0].lineas[0].id, { texto: campo.value }));
+    document.body.appendChild(campo);
+    campo.focus();
+    campo.value = 'Texto a medias';
+    window.dispatchEvent(new Event('pagehide'));
+    const guardado = JSON.parse(localStorage.getItem('sandbox-editor-casos/v1')!);
+    expect(guardado.escenas[0].lineas[0].texto).toBe('Texto a medias');
+  });
 });

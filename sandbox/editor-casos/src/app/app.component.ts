@@ -16,7 +16,7 @@ import { PanelIaComponent } from './ia/panel-ia.component';
 @Component({
   selector: 'app-root',
   imports: [RouterOutlet, RouterLink, RouterLinkActive, PanelIaComponent, BuscadorComponent, FocoGuiaComponent],
-  host: { '(document:keydown)': 'atajo($event)' },
+  host: { '(document:keydown)': 'atajo($event)', '(window:pagehide)': 'alCerrar()' },
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
     <a class="saltar" href="#contenido" (click)="saltar($event)">Saltar al contenido</a>
@@ -101,6 +101,8 @@ import { PanelIaComponent } from './ia/panel-ia.component';
     .caso-actual { margin: 0; font-size: 16px; }
     .nav { display: flex; flex-wrap: wrap; gap: 0 4px; }
     .barra-ayuda { display: flex; flex-wrap: wrap; gap: 8px; }
+    /* Con zoom alto la cabecera de varias filas se comería la pantalla: deja de ir pegada. */
+    @media (max-height: 520px) { .cabecera { position: static; } }
     .confirmacion {
       margin: 16px auto 0; width: min(720px, calc(100% - 32px)); box-sizing: border-box; padding: 24px;
       background: var(--superficie); border: 2px solid var(--peligro); border-radius: 16px;
@@ -138,7 +140,10 @@ export class AppComponent {
     afterNextRender(() => {
       const cabecera = this.cabecera()?.nativeElement;
       if (!cabecera) return;
-      const medir = () => document.documentElement.style.setProperty('--alto-cabecera', `${Math.ceil(cabecera.getBoundingClientRect().height)}px`);
+      const medir = () => {
+        const pegajosa = getComputedStyle(cabecera).position === 'sticky';
+        document.documentElement.style.setProperty('--alto-cabecera', pegajosa ? `${Math.ceil(cabecera.getBoundingClientRect().height)}px` : '0px');
+      };
       medir();
       if (typeof ResizeObserver === 'undefined') return;
       const observador = new ResizeObserver(medir);
@@ -165,6 +170,13 @@ export class AppComponent {
     e.preventDefault();
     if (k === 'z' && !e.shiftKey) this.store.deshacer();
     else this.store.rehacer();
+  }
+
+  /** Al recargar o cerrar: lo que se está escribiendo se confirma (el campo suelta su cambio) y se guarda ya. */
+  protected alCerrar(): void {
+    const activo = document.activeElement;
+    if (activo instanceof HTMLElement && activo !== document.body) activo.blur();
+    this.store.guardarYa();
   }
 
   private esCampoDeTexto(objetivo: EventTarget | null): boolean {

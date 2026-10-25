@@ -76,6 +76,17 @@ export class CasoStore {
     });
   }
 
+  /** Guarda ya, sin esperar al siguiente ciclo (por ejemplo, justo antes de cerrar la pestaña). */
+  guardarYa(): void {
+    const caso = this.estado();
+    if (caso === null) return;
+    try {
+      localStorage.setItem(CLAVE_ALMACEN, JSON.stringify(caso));
+    } catch {
+      // sin almacenamiento: nada que hacer
+    }
+  }
+
   private empezarCon(caso: CasoBorrador | null): void {
     this.probadoAhora.set(false);
     this.historial = caso ? new Historial(caso) : null;
