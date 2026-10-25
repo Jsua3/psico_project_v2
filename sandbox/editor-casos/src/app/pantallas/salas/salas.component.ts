@@ -170,7 +170,7 @@ import { PasosCrearComponent } from '../pasos-crear.component';
     .dato > span { display: flex; flex-direction: column; }
     .nombre { font-weight: 700; font-size: 16px; line-height: 22px; }
     .dato .texto-secundario { font-size: 16px; }
-    .vista { flex: 0 1 380px; position: sticky; top: 80px; display: flex; flex-direction: column; gap: 8px; }
+    .vista { flex: 0 1 380px; position: sticky; top: calc(var(--alto-cabecera, 64px) + 16px); display: flex; flex-direction: column; gap: 8px; }
     .vista img { width: 100%; height: auto; border-radius: 10px; }
     .vista h3, .vista p { margin: 0; }
     .vista dl { margin: 0; display: grid; grid-template-columns: auto 1fr; gap: 4px 12px; font-size: 16px; line-height: 24px; }

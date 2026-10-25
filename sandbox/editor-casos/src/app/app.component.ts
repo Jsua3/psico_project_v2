@@ -1,4 +1,6 @@
-import { ChangeDetectionStrategy, Component, ElementRef, inject, signal, viewChild } from '@angular/core';
+import {
+  ChangeDetectionStrategy, Component, DestroyRef, ElementRef, Injector, afterNextRender, inject, signal, viewChild,
+} from '@angular/core';
 import { Router, RouterLink, RouterLinkActive, RouterOutlet } from '@angular/router';
 
 import { CasoStore } from './estado/caso.store';
@@ -17,8 +19,8 @@ import { PanelIaComponent } from './ia/panel-ia.component';
   host: { '(document:keydown)': 'atajo($event)' },
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
-    <a class="saltar" href="#contenido">Saltar al contenido</a>
-    <header class="cabecera">
+    <a class="saltar" href="#contenido" (click)="saltar($event)">Saltar al contenido</a>
+    <header class="cabecera" #cabecera>
       <div class="cabecera-marca">
         <a routerLink="/" class="marca" aria-label="MetaFrónesis, editor de casos: inicio">
           <svg width="32" height="32" viewBox="0 0 36 36" fill="none" aria-hidden="true">
@@ -50,7 +52,7 @@ import { PanelIaComponent } from './ia/panel-ia.component';
         <button type="button" class="boton" data-accion="guia" title="Te muestra dónde está algo"
                 aria-haspopup="dialog" (click)="abrirBuscador('preguntar', $event)">Guía</button>
         <button type="button" class="boton" data-accion="pedir-a-la-ia aceptar-ia" title="Escribe o cambia el caso por ti; tú apruebas"
-                [attr.aria-expanded]="iaAbierta()" aria-controls="panel-ia" (click)="iaAbierta.set(!iaAbierta())" #botonIa>
+                [attr.aria-expanded]="iaAbierta()" aria-controls="panel-ia" (click)="alternarIa()" #botonIa>
           Asistente de IA
         </button>
         <button type="button" class="boton boton-texto" data-accion="reiniciar" (click)="pedirReinicio()" #botonReiniciar>Reiniciar el sandbox</button>
@@ -77,9 +79,8 @@ import { PanelIaComponent } from './ia/panel-ia.component';
       <main id="contenido" tabindex="-1">
         <router-outlet />
       </main>
-      @if (iaAbierta()) {
-        <app-panel-ia id="panel-ia" class="columna-ia" (cerrar)="cerrarIa()" />
-      }
+      <!-- Se oculta en vez de quitarse, para no perder la conversación ni la propuesta. -->
+      <app-panel-ia id="panel-ia" class="columna-ia" [hidden]="!iaAbierta()" (cerrar)="cerrarIa()" />
     </div>
   `,
   styles: `
@@ -109,7 +110,11 @@ import { PanelIaComponent } from './ia/panel-ia.component';
     .cuerpo { flex: 1; display: grid; grid-template-columns: minmax(0, 1fr); }
     .cuerpo.con-ia { grid-template-columns: minmax(0, 1fr) minmax(300px, 380px); }
     @media (max-width: 1000px) { .cuerpo.con-ia { grid-template-columns: minmax(0, 1fr); } }
-    .columna-ia { position: sticky; top: 64px; align-self: start; max-height: calc(100vh - 64px); overflow: auto; }
+    .columna-ia {
+      position: sticky; top: var(--alto-cabecera, 64px); align-self: start;
+      max-height: calc(100vh - var(--alto-cabecera, 64px)); overflow: auto;
+    }
+    .columna-ia[hidden] { display: none !important; }
     main { width: 100%; min-width: 0; box-sizing: border-box; outline: none; }
   `,
 })
@@ -123,13 +128,65 @@ export class AppComponent {
   private readonly botonIa = viewChild<ElementRef<HTMLButtonElement>>('botonIa');
   private readonly botonReiniciar = viewChild<ElementRef<HTMLButtonElement>>('botonReiniciar');
   private readonly botonConfirmar = viewChild<ElementRef<HTMLButtonElement>>('botonConfirmar');
+  private readonly cabecera = viewChild<ElementRef<HTMLElement>>('cabecera');
+  private readonly injector = inject(Injector);
 
-  /** Ctrl+K abre el buscador de acciones desde cualquier pantalla. */
+  constructor() {
+    // La cabecera es pegajosa y su alto cambia con el ancho (2 o 3 filas): lo que se pega debajo
+    // de ella (panel de IA, vistas previas) y el desplazamiento al enfocar usan su alto real.
+    const destruir = inject(DestroyRef);
+    afterNextRender(() => {
+      const cabecera = this.cabecera()?.nativeElement;
+      if (!cabecera) return;
+      const medir = () => document.documentElement.style.setProperty('--alto-cabecera', `${Math.ceil(cabecera.getBoundingClientRect().height)}px`);
+      medir();
+      if (typeof ResizeObserver === 'undefined') return;
+      const observador = new ResizeObserver(medir);
+      observador.observe(cabecera);
+      destruir.onDestroy(() => observador.disconnect());
+    });
+  }
+
+  /**
+   * Atajos de todas las pantallas: Ctrl+K abre el buscador; Ctrl+Z deshace y Ctrl+Y (o
+   * Ctrl+Mayús+Z) rehace, salvo dentro de un campo de texto, donde deshacen lo escrito.
+   */
   protected atajo(e: KeyboardEvent): void {
-    if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'k') {
+    if (!(e.ctrlKey || e.metaKey)) return;
+    const k = e.key.toLowerCase();
+    if (k === 'k') {
       e.preventDefault();
       this.abrirBuscador('buscar');
+      return;
     }
+    if (k !== 'z' && k !== 'y') return;
+    // Si una pantalla ya lo atendió (la sala), no se deshace dos veces.
+    if (e.defaultPrevented || this.esCampoDeTexto(e.target)) return;
+    e.preventDefault();
+    if (k === 'z' && !e.shiftKey) this.store.deshacer();
+    else this.store.rehacer();
+  }
+
+  private esCampoDeTexto(objetivo: EventTarget | null): boolean {
+    if (!(objetivo instanceof HTMLElement)) return false;
+    if (objetivo.isContentEditable) return true;
+    if (objetivo instanceof HTMLTextAreaElement || objetivo instanceof HTMLSelectElement) return true;
+    return objetivo instanceof HTMLInputElement && !['checkbox', 'radio', 'button', 'submit', 'reset'].includes(objetivo.type);
+  }
+
+  /** El enlace normal no sirve con `<base href="/">`: recargaría la página en «Mis casos». */
+  protected saltar(e: Event): void {
+    e.preventDefault();
+    document.getElementById('contenido')?.focus();
+  }
+
+  protected alternarIa(): void {
+    if (this.iaAbierta()) {
+      this.cerrarIa();
+      return;
+    }
+    this.iaAbierta.set(true);
+    afterNextRender(() => document.getElementById('iat')?.focus(), { injector: this.injector });
   }
 
   protected abrirBuscador(modo: 'buscar' | 'preguntar', evento?: Event): void {

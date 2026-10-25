@@ -45,7 +45,7 @@ export function describirCambio(caso: CasoBorrador, c: Cambio, todos: Cambio[]):
 
 /**
  * Asistente de IA (tablero 29): el docente pide, la IA propone por partes y el docente marca
- * qué entra al caso. Nada se aplica sin «Aplicar lo marcado», y lo aplicado se deshace con Ctrl+Z.
+ * qué entra al caso. Nada se aplica sin «Aplicar lo marcado», y lo aplicado se deshace con «Deshacer lo aplicado».
  */
 @Component({
   selector: 'app-panel-ia',
@@ -53,7 +53,7 @@ export function describirCambio(caso: CasoBorrador, c: Cambio, todos: Cambio[]):
   template: `
     <aside aria-labelledby="iat" class="panel">
       <div class="cabeza">
-        <h2 id="iat">Asistente de IA</h2>
+        <h2 id="iat" tabindex="-1">Asistente de IA</h2>
         <button type="button" class="boton cuadrado" aria-label="Cerrar el asistente" (click)="cerrar.emit()">✕</button>
       </div>
       <p class="aviso-ia"><strong>La IA propone; tú decides.</strong> Todo lo generado queda marcado hasta que lo revises.</p>
@@ -76,6 +76,9 @@ export function describirCambio(caso: CasoBorrador, c: Cambio, todos: Cambio[]):
           <p role="status" class="pensando">Pensando… <button type="button" class="boton boton-texto" (click)="detener()">Detener</button></p>
         }
       </div>
+      @if (aplicado()) {
+        <button type="button" class="boton" (click)="deshacerAplicado()">Deshacer lo aplicado</button>
+      }
 
       @if (propuesta(); as p) {
         <section aria-labelledby="pia" class="tarjeta propuesta marca-ia">
@@ -143,6 +146,8 @@ export class PanelIaComponent {
   protected readonly borrador = signal('');
   protected readonly pensando = signal(false);
   protected readonly propuesta = signal<{ cambios: Cambio[]; seleccion: boolean[] } | null>(null);
+  /** Hay una propuesta recién aplicada que se puede deshacer de un clic. */
+  protected readonly aplicado = signal(false);
   private controlador: AbortController | null = null;
 
   private readonly url = toSignal(
@@ -188,6 +193,7 @@ export class PanelIaComponent {
     this.turnos.update((t) => [...t, { quien: 'tu', texto: peticion }]);
     this.borrador.set('');
     this.propuesta.set(null);
+    this.aplicado.set(false);
     this.pensando.set(true);
     this.controlador = new AbortController();
     try {
@@ -212,11 +218,19 @@ export class PanelIaComponent {
     try {
       this.store.aplicarPropuesta(p.cambios, p.seleccion);
       const n = p.seleccion.filter(Boolean).length;
-      this.turnos.update((t) => [...t, { quien: 'ia', texto: `Agregué ${n} ${n === 1 ? 'parte' : 'partes'} al caso, marcadas «Sugerido por la IA» hasta que las aceptes. Ctrl+Z lo deshace.` }]);
+      this.turnos.update((t) => [...t, { quien: 'ia', texto: `Agregué ${n} ${n === 1 ? 'parte' : 'partes'} al caso, marcadas «Sugerido por la IA» hasta que las aceptes.` }]);
+      this.aplicado.set(true);
     } catch {
       this.turnos.update((t) => [...t, { quien: 'ia', texto: MENSAJE_PROPUESTA_INVALIDA }]);
     }
     this.propuesta.set(null);
+    this.campo()?.nativeElement.focus();
+  }
+
+  protected deshacerAplicado(): void {
+    this.store.deshacer();
+    this.aplicado.set(false);
+    this.turnos.update((t) => [...t, { quien: 'ia', texto: 'Deshice lo que había aplicado. El caso quedó como estaba.' }]);
     this.campo()?.nativeElement.focus();
   }
 

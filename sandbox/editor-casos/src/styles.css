@@ -40,6 +40,9 @@
 
 html, body { margin: 0; }
 
+/* Al enfocar con el teclado, lo enfocado no queda debajo de la cabecera pegajosa. */
+html { scroll-padding-top: calc(var(--alto-cabecera, 64px) + 8px); }
+
 body {
   background: var(--fondo);
   color: var(--tinta);

@@ -228,7 +228,7 @@ const CLASIFICACIONES: { valor: Clasificacion; nombre: string; simbolo: string }
     .creada { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; padding: 8px 12px; border-radius: var(--radio-control); background: var(--adecuada-tinte); }
     .creada p { margin: 0; flex: 1 1 260px; font-size: 16px; }
     .respuesta > .boton-texto { align-self: flex-start; }
-    .vista { position: sticky; top: 80px; display: flex; flex-direction: column; gap: 12px; }
+    .vista { position: sticky; top: calc(var(--alto-cabecera, 64px) + 16px); display: flex; flex-direction: column; gap: 12px; }
     .vista h2 { margin: 0; font-size: 20px; }
     .dialogo-juego { display: flex; gap: 12px; padding: 12px; border-radius: 12px; background: #151b2e; color: #e8ecf8; }
     .dialogo-juego img { border-radius: 8px; image-rendering: pixelated; background: #0e1322; }

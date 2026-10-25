@@ -78,4 +78,17 @@ describe('PanelIaComponent', () => {
     await listo();
     expect(store.caso()).toBe(antes);
   });
+
+  it('después de aplicar, «Deshacer lo aplicado» devuelve el caso a como estaba', async () => {
+    vi.spyOn(globalThis, 'fetch').mockRejectedValue(new TypeError('Failed to fetch'));
+    const { store, raiz, listo } = await montar();
+    const antes = store.caso();
+    await pedir(raiz, listo, 'Propón respuestas');
+    boton(raiz, 'Aplicar lo marcado').click();
+    await listo();
+    expect(raiz.querySelector('[role="log"]')!.textContent).not.toContain('Ctrl+Z');
+    boton(raiz, 'Deshacer lo aplicado').click();
+    await listo();
+    expect(store.caso()).toEqual(antes);
+  });
 });
