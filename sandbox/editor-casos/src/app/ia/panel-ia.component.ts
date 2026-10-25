@@ -102,7 +102,7 @@ export function describirCambio(caso: CasoBorrador, c: Cambio, todos: Cambio[]):
 
       <form (submit)="enviar($event)" class="pedir">
         <label for="iaq" class="etiqueta">Pídele algo al asistente</label>
-        <textarea id="iaq" #campo rows="3" class="campo" placeholder="Por ejemplo: «Escribe la respuesta inadecuada con más cuidado»"
+        <textarea id="iaq" #campo rows="3" class="campo" placeholder="Por ejemplo: «Agrega una respuesta con riesgo a esta escena»"
                   [value]="borrador()" (input)="borrador.set($any($event.target).value)"
                   (keydown.control.enter)="enviar($event)"></textarea>
         <button type="submit" class="boton boton-secundario" [attr.aria-disabled]="pensando() || !borrador().trim()">Enviar</button>

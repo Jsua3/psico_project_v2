@@ -77,4 +77,41 @@ describe('SalasComponent', () => {
     fixture.detectChanges();
     expect(raiz.textContent).toContain('1. Sala de espera de Bienestar, 2. Pasillo de facultad');
   });
+
+  it('bajo el nombre dice cómo se llamará si queda vacío, sin prometer cambiarlo después', async () => {
+    const { raiz } = await montar();
+    const ayuda = raiz.querySelector('#nombre-caso')!.parentElement!.textContent!;
+    expect(ayuda).not.toContain('Puedes cambiarlo después');
+    expect(ayuda).toContain('Si lo dejas vacío, se llamará «Caso nuevo en la universidad».');
+  });
+
+  it('si ya hay un caso guardado, crear otro pide confirmación antes de borrarlo', async () => {
+    const { fixture, raiz } = await montar();
+    const store = TestBed.inject(CasoStore);
+    raiz.querySelector<HTMLButtonElement>('button[aria-label="Usar esta idea: Atención en Bienestar"]')!.click();
+    await fixture.whenStable();
+    boton(raiz, 'Crear el caso con estas salas')!.click();
+    await fixture.whenStable();
+    const primero = store.caso()!;
+
+    boton(raiz, 'Crear el caso con estas salas')!.click();
+    await fixture.whenStable();
+    fixture.detectChanges();
+    expect(store.caso()).toBe(primero);
+    const aviso = raiz.querySelector('[role="alertdialog"]')!;
+    expect(aviso.textContent).toContain(`Ya tienes un caso guardado: «${primero.titulo}».`);
+
+    boton(raiz, 'Cancelar')!.click();
+    await fixture.whenStable();
+    fixture.detectChanges();
+    expect(store.caso()).toBe(primero);
+    expect(raiz.querySelector('[role="alertdialog"]')).toBeNull();
+
+    boton(raiz, 'Crear el caso con estas salas')!.click();
+    await fixture.whenStable();
+    fixture.detectChanges();
+    boton(raiz, 'Sí, crear uno nuevo')!.click();
+    await fixture.whenStable();
+    expect(store.caso()!.id).not.toBe(primero.id);
+  });
 });

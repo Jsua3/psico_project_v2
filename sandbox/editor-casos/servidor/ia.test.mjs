@@ -4,7 +4,8 @@ import { mkdtemp, readFile, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 
-import { crearServidorIa, MENSAJE_LIMITE } from './ia.mjs';
+import { crearServidorIa, MENSAJE_KEY, MENSAJE_LIMITE } from './ia.mjs';
+import { INSTRUCCIONES_PROPONER } from './instrucciones.mjs';
 import { MODELO_CAPAZ, MODELO_RAPIDO } from './modelos.mjs';
 
 const CLAVE = 'sk-ant-prueba-CLAVE-SECRETA-123';
@@ -167,10 +168,60 @@ test('cada petición queda en el registro con fecha, ruta, pantalla y número de
 test('un cuerpo que no es JSON responde 400 en español', async () => {
   const s = await levantar({ apiKey: '' });
   try {
-    const r = await fetch(s.base + '/api/ia/proponer', { method: 'POST', body: '{roto' });
+    const r = await fetch(s.base + '/api/ia/proponer', { method: 'POST', headers: { 'content-type': 'application/json' }, body: '{roto' });
     assert.equal(r.status, 400);
     assert.match((await r.json()).mensaje, /no se pudo leer/i);
   } finally {
     await s.cerrar();
   }
+});
+
+test('una petición que no dice ser JSON se rechaza con 415, sin llamar a la API', async () => {
+  const api = apiSimulada();
+  const s = await levantar({ apiKey: CLAVE, fetch: api.fetch });
+  try {
+    const r = await fetch(s.base + '/api/ia/proponer', { method: 'POST', headers: { 'content-type': 'text/plain' }, body: JSON.stringify(proponer) });
+    assert.equal(r.status, 415);
+    assert.match((await r.json()).mensaje, /tiene que ser JSON/);
+    assert.equal(api.peticiones.length, 0);
+  } finally {
+    await s.cerrar();
+  }
+});
+
+test('una petición que viene de otra página se rechaza con 403, sin llamar a la API', async () => {
+  const api = apiSimulada();
+  const s = await levantar({ apiKey: CLAVE, fetch: api.fetch });
+  try {
+    const r = await fetch(s.base + '/api/ia/proponer', {
+      method: 'POST', headers: { 'content-type': 'application/json', origin: 'https://pagina-ajena.example' }, body: JSON.stringify(proponer),
+    });
+    assert.equal(r.status, 403);
+    assert.match((await r.json()).mensaje, /no viene del editor/);
+    assert.equal(api.peticiones.length, 0);
+    const desdeElEditor = await fetch(s.base + '/api/ia/proponer', {
+      method: 'POST', headers: { 'content-type': 'application/json', origin: 'http://localhost:4310' }, body: JSON.stringify(proponer),
+    });
+    assert.equal(desdeElEditor.status, 200);
+  } finally {
+    await s.cerrar();
+  }
+});
+
+test('si la API no acepta la key, lo dice claro en vez de «inténtalo de nuevo»', async () => {
+  const api = apiSimulada(() => new Response('{"type":"error","error":{"type":"authentication_error","message":"invalid x-api-key"}}', { status: 401, headers: { 'content-type': 'application/json' } }));
+  const s = await levantar({ apiKey: CLAVE, fetch: api.fetch });
+  try {
+    const r = await s.post('/api/ia/proponer', proponer);
+    assert.equal(r.status, 502);
+    assert.equal((await r.json()).mensaje, MENSAJE_KEY);
+  } finally {
+    await s.cerrar();
+  }
+});
+
+test('las instrucciones dicen que la IA solo puede agregar, no cambiar ni borrar', () => {
+  assert.doesNotMatch(INSTRUCCIONES_PROPONER, /Crear o cambiar/);
+  assert.match(INSTRUCCIONES_PROPONER, /Solo puedes agregar/);
+  assert.match(INSTRUCCIONES_PROPONER, /a mano/);
 });

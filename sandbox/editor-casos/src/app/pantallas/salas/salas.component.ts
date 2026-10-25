@@ -1,4 +1,4 @@
-import { ChangeDetectionStrategy, Component, computed, inject, signal } from '@angular/core';
+import { ChangeDetectionStrategy, Component, ElementRef, computed, inject, signal, viewChild } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import { ActivatedRoute, RouterLink } from '@angular/router';
 
@@ -113,7 +113,7 @@ import { PasosCrearComponent } from '../pasos-crear.component';
           <div class="campo">
             <label for="nombre-caso">Nombre del caso</label>
             <input id="nombre-caso" type="text" [ngModel]="nombre()" (ngModelChange)="nombrar($event)" />
-            <p class="texto-secundario">Puedes cambiarlo después.</p>
+            <p class="texto-secundario">Si lo dejas vacío, se llamará «{{ nombrePorDefecto() }}».</p>
           </div>
           <div class="resumen" role="status">
             @if (elegidas().length) {
@@ -124,6 +124,16 @@ import { PasosCrearComponent } from '../pasos-crear.component';
               <p id="sin-salas">Ninguna sala elegida. Elige al menos una, o usa una idea para empezar.</p>
             }
           </div>
+          @if (confirmando(); as anterior) {
+            <div class="tarjeta confirmar" role="alertdialog" aria-labelledby="rc-titulo" aria-describedby="rc-texto">
+              <h2 id="rc-titulo">¿Crear un caso nuevo?</h2>
+              <p id="rc-texto">Ya tienes un caso guardado: «{{ anterior }}». El sandbox guarda un caso a la vez: si creas uno nuevo, ese se borra y no se puede deshacer.</p>
+              <div class="acciones">
+                <button type="button" class="boton boton-peligro" #botonReemplazar (click)="crearDeVerdad()">Sí, crear uno nuevo</button>
+                <button type="button" class="boton" (click)="confirmando.set(null)">Cancelar</button>
+              </div>
+            </div>
+          }
           <div class="acciones">
             <a routerLink="/lugar" class="boton boton-texto">Volver</a>
             <button type="button" class="boton" [attr.aria-expanded]="ordenAbierto()" [attr.aria-disabled]="elegidas().length < 2"
@@ -191,6 +201,9 @@ import { PasosCrearComponent } from '../pasos-crear.component';
     }
     .campo p, .resumen p { margin: 0; font-size: 16px; line-height: 24px; }
     .resumen { flex: 2 1 320px; }
+    .confirmar { flex: 1 1 100%; border: 2px solid var(--peligro); }
+    .confirmar h2 { margin: 0 0 8px; font-size: 24px; line-height: 32px; }
+    .confirmar p { margin: 0 0 16px; }
   `,
 })
 export class SalasComponent {
@@ -206,6 +219,10 @@ export class SalasComponent {
   private nombreEditado = false;
   protected readonly ordenAbierto = signal(false);
   protected readonly anuncioOrden = signal('');
+  /** Título del caso guardado que se borraría al crear otro (pide confirmación). */
+  protected readonly confirmando = signal<string | null>(null);
+  private readonly botonReemplazar = viewChild<ElementRef<HTMLButtonElement>>('botonReemplazar');
+  protected readonly nombrePorDefecto = computed(() => `Caso nuevo en la ${(this.escenario()?.nombre ?? 'universidad').toLowerCase()}`);
   private readonly vistaId = signal<string | null>(null);
   protected readonly salaVista = computed(() => this.escenario()?.salas.find((s) => s.id === this.vistaId()) ?? null);
   protected readonly resumenOrden = computed(() => listaNumerada(this.elegidas().map((id) => this.nombreSala(id))));
@@ -271,9 +288,22 @@ export class SalasComponent {
   }
 
   protected crear(): void {
+    if (!this.escenario() || !this.elegidas().length) return;
+    const anterior = this.store.caso();
+    if (anterior) {
+      // Solo hay un caso a la vez: crear otro borra el guardado, así que primero se pregunta.
+      this.confirmando.set(anterior.titulo);
+      setTimeout(() => this.botonReemplazar()?.nativeElement.focus());
+      return;
+    }
+    this.crearDeVerdad();
+  }
+
+  protected crearDeVerdad(): void {
     const e = this.escenario();
     if (!e || !this.elegidas().length) return;
-    const titulo = this.nombre().trim() || `Caso nuevo en la ${e.nombre.toLowerCase()}`;
+    this.confirmando.set(null);
+    const titulo = this.nombre().trim() || this.nombrePorDefecto();
     this.store.crearCaso(copiarEscenarioAlCaso(e, this.elegidas(), titulo));
   }
 

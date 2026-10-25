@@ -8,6 +8,8 @@
  * - Tope de peticiones por día (IA_TOPE_PETICIONES_DIA, 200 por defecto).
  * - Cada petición deja una línea en servidor/registro.jsonl: fecha, ruta, pantalla, número
  *   de cambios y estado; nunca la key ni el contenido del caso.
+ * - Solo atiende peticiones JSON que vengan del editor (o sin origen, como las pruebas): una
+ *   página cualquiera abierta en el navegador no puede gastar la key.
  *
  *   npm run ia
  */
@@ -25,6 +27,11 @@ import { MODELO_CAPAZ, MODELO_RAPIDO } from './modelos.mjs';
 
 export const MENSAJE_LIMITE = 'Llegaste al límite de ayuda de la IA por hoy.';
 export const MENSAJE_FALLO = 'La IA no respondió. Inténtalo de nuevo en un momento.';
+export const MENSAJE_KEY = 'La IA no aceptó la key de este sandbox. Quien lo instaló debe revisar el archivo .env y volver a arrancar «npm run ia».';
+const MENSAJE_NO_JSON = 'La petición tiene que ser JSON.';
+const MENSAJE_ORIGEN = 'Esta petición no viene del editor de casos.';
+/** Solo el editor (npm start) puede pedir ayuda: así otra página abierta no gasta la key. */
+const ORIGENES_EDITOR = ['http://localhost:4310', 'http://127.0.0.1:4310'];
 export const MENSAJE_RECHAZO = 'La IA no puede ayudar con esa petición. Prueba a pedirla de otra forma.';
 const LIMITE_CUERPO = 2_000_000;
 
@@ -216,6 +223,11 @@ export function crearServidorIa(opciones = {}) {
     let estado = 200;
     let salida;
     try {
+      const origen = req.headers.origin;
+      if (origen && !ORIGENES_EDITOR.includes(origen)) throw new ErrorDePeticion(403, MENSAJE_ORIGEN);
+      if (!String(req.headers['content-type'] ?? '').toLowerCase().startsWith('application/json')) {
+        throw new ErrorDePeticion(415, MENSAJE_NO_JSON);
+      }
       cuerpo = await leerCuerpo(req);
       salida = await manejador(cuerpo);
     } catch (error) {
@@ -224,7 +236,9 @@ export function crearServidorIa(opciones = {}) {
         salida = { mensaje: error.message };
       } else {
         estado = 502;
-        salida = { mensaje: MENSAJE_FALLO };
+        // Una key mala o sin permiso no se arregla esperando: se dice claro.
+        const keyMala = error instanceof Anthropic.AuthenticationError || error instanceof Anthropic.PermissionDeniedError;
+        salida = { mensaje: keyMala ? MENSAJE_KEY : MENSAJE_FALLO };
         // Solo el tipo y el código: nunca el error completo (podría llevar cabeceras).
         const codigo = error instanceof Anthropic.APIError ? error.status : error?.name;
         console.error(`[ia] la API falló (${codigo ?? 'sin código'}) en ${ruta}`);
