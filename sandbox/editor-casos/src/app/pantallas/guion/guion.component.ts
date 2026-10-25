@@ -148,7 +148,7 @@ const CLASIFICACIONES: { valor: Clasificacion; nombre: string; simbolo: string }
                     </select>
                     @if (pendiente() === r.id) {
                       <div class="acciones">
-                        <button type="button" class="boton boton-secundario" (click)="crearEscenaNueva(e, r, i)">Crear la escena nueva</button>
+                        <button type="button" class="boton boton-secundario crear-escena-nueva" (click)="crearEscenaNueva(e, r, i)">Crear la escena nueva</button>
                         <span class="texto-secundario nota">Elegir en la lista no crea nada; el botón sí.</span>
                       </div>
                     }

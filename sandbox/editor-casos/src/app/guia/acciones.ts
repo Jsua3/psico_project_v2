@@ -12,6 +12,8 @@ export interface Accion {
   /** Otras palabras con las que el docente la buscaría. */
   palabras?: string;
   pasos?: string[];
+  /** Por paso, los selectores (por prioridad) del elemento que se señala; si ninguno está, queda el anterior. */
+  objetivos?: string[][];
   /** Lo que dice la guía al mostrarla. */
   ayuda: string;
 }
@@ -39,10 +41,12 @@ export const ACCIONES: readonly Accion[] = [
     id: 'cambiar-expresion', nombre: 'Cambiar la expresión de un personaje', pantalla: PANTALLAS.sala, ruta: '/editor/sala/:sala',
     palabras: 'cara gesto emocion triste alegre preocupada',
     pasos: ['Elige al personaje en la lista «En esta sala».', 'En «Detalles», abre «Expresión» y elige la cara.', 'El retrato cambia al instante. Ctrl+Z lo deshace.'],
+    objetivos: [['[data-accion~="cambiar-expresion"]'], ['#expresion', '.columna-detalles'], ['.escenario [data-elemento^="personaje"]', '.escenario']],
     ayuda: 'Elige al personaje en la lista; su expresión se cambia en «Detalles».',
   },
   { id: 'agregar-mueble', nombre: 'Agregar un mueble, un objeto o un personaje a la sala', pantalla: PANTALLAS.sala, ruta: '/editor/sala/:sala', palabras: 'catalogo poner sumar silla mesa', ayuda: 'En el catálogo del lugar eliges qué agregar; aparece en el centro de la sala.' },
-  { id: 'quitar-elemento', nombre: 'Quitar algo de la sala', pantalla: PANTALLAS.sala, ruta: '/editor/sala/:sala', palabras: 'borrar eliminar sacar', pasos: ['Elige lo que quieres quitar en la sala o en la lista.', 'Pulsa «Quitar de la sala» o la tecla Supr.'], ayuda: 'Elige algo y pulsa «Quitar de la sala» (o Supr).' },
+  { id: 'quitar-elemento', nombre: 'Quitar algo de la sala', pantalla: PANTALLAS.sala, ruta: '/editor/sala/:sala', palabras: 'borrar eliminar sacar', pasos: ['Elige lo que quieres quitar en la sala o en la lista.', 'Pulsa «Quitar de la sala» o la tecla Supr.'],
+    objetivos: [['.escenario'], ['.quitar', '.columna-detalles']], ayuda: 'Elige algo y pulsa «Quitar de la sala» (o Supr).' },
   { id: 'volver-sala-original', nombre: 'Volver a la sala original', pantalla: PANTALLAS.sala, ruta: '/editor/sala/:sala', palabras: 'deshacer restaurar como venia original', ayuda: 'Deja la sala como viene en el lugar. Se puede deshacer.' },
   { id: 'agregar-escena', nombre: 'Agregar una escena', pantalla: PANTALLAS.mapa, ruta: '/editor', palabras: 'nueva escena sumar', ayuda: 'Agrega una escena después de la que tienes elegida.' },
   { id: 'conectar-escenas', nombre: 'Conectar una escena con otra', pantalla: PANTALLAS.mapa, ruta: '/editor', palabras: 'unir camino flecha llevar', ayuda: 'En «Acciones» de la escena elegida, usa «Conectar con…».' },
@@ -54,6 +58,7 @@ export const ACCIONES: readonly Accion[] = [
     id: 'respuesta-a-escena-nueva', nombre: 'Hacer que una respuesta abra un camino nuevo', pantalla: PANTALLAS.guion, ruta: '/editor/escena/:escena',
     palabras: 'camino nuevo rama llevar a escena nueva',
     pasos: ['En una respuesta, abre «Lleva a…».', 'Elige «Una escena nueva».', 'Pulsa «Crear la escena nueva»: queda conectada.'],
+    objetivos: [['select[id^="rl"]', '[data-accion~="respuesta-a-escena-nueva"]'], ['select[id^="rl"]', '[data-accion~="respuesta-a-escena-nueva"]'], ['.crear-escena-nueva', 'select[id^="rl"]', '[data-accion~="respuesta-a-escena-nueva"]']],
     ayuda: 'En «Lleva a…» de una respuesta, elige «Una escena nueva» y pulsa «Crear la escena nueva».',
   },
   { id: 'revisar-caminos', nombre: 'Revisar los caminos del caso', pantalla: PANTALLAS.mapa, ruta: '/editor', palabras: 'avisos problemas errores sin salida', ayuda: 'Aquí están los avisos de caminos; «Llévame ahí» te lleva a la escena.' },

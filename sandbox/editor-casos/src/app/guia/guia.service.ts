@@ -51,6 +51,11 @@ export class GuiaService {
         if (e.key === 'Escape' && this.estado()) {
           e.preventDefault();
           this.cerrar();
+        } else if (e.altKey && this.estado()?.modo === 'recorrido' && (e.key === 'ArrowRight' || e.key === 'ArrowLeft')) {
+          // Con el foco en el elemento señalado no se llega a la burbuja: Alt + flechas avanzan y retroceden.
+          e.preventDefault();
+          if (e.key === 'ArrowRight') this.siguiente();
+          else this.anterior();
         }
       });
     }
@@ -106,11 +111,29 @@ export class GuiaService {
       return;
     }
     this.estado.set({ ...g, paso: g.paso + 1 });
+    this.señalarPaso(g.accionId, g.paso + 1);
   }
 
   anterior(): void {
     const g = this.estado();
-    if (g && g.paso > 0) this.estado.set({ ...g, paso: g.paso - 1 });
+    if (g && g.paso > 0) {
+      this.estado.set({ ...g, paso: g.paso - 1 });
+      this.señalarPaso(g.accionId, g.paso - 1);
+    }
+  }
+
+  /** Mueve el anillo y el foco al elemento del paso (si el paso no tiene uno que exista, queda el anterior). */
+  private señalarPaso(accionId: string, paso: number): void {
+    const selectores = this.accion(accionId)?.objetivos?.[paso] ?? [];
+    for (const s of selectores) {
+      const elemento = document.querySelector<HTMLElement>(`main ${s}`) ?? document.querySelector<HTMLElement>(s);
+      if (!elemento) continue;
+      this.el.set(elemento);
+      if (!enfocable(elemento)) elemento.setAttribute('tabindex', '-1');
+      elemento.scrollIntoView?.({ block: 'center', behavior: reducirMovimiento() ? 'auto' : 'smooth' });
+      elemento.focus();
+      return;
+    }
   }
 
   /** Cierra la guía. Por defecto devuelve el foco a donde estaba antes de abrirla. */
