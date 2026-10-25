@@ -5,7 +5,8 @@ import { FinalesComponent } from './pantallas/finales/finales.component';
 import { GuionComponent } from './pantallas/guion/guion.component';
 import { InicioComponent } from './pantallas/inicio/inicio.component';
 import { LugarComponent } from './pantallas/lugar/lugar.component';
-import { PendienteComponent } from './pantallas/pendiente.component';
+import { ProbarComponent } from './pantallas/probar/probar.component';
+import { RevisionComponent } from './pantallas/revision/revision.component';
 import { SalaComponent } from './pantallas/sala/sala.component';
 import { SalasComponent } from './pantallas/salas/salas.component';
 
@@ -24,7 +25,7 @@ export const routes: Routes = [
       { path: 'finales', component: FinalesComponent, title: 'Finales · Editor de casos' },
     ],
   },
-  { path: 'probar', component: PendienteComponent, title: 'Probar como estudiante · Editor de casos' },
-  { path: 'revision', component: PendienteComponent, title: 'Enviar a revisión · Editor de casos' },
+  { path: 'probar', component: ProbarComponent, title: 'Probar como estudiante · Editor de casos' },
+  { path: 'revision', component: RevisionComponent, title: 'Enviar a revisión · Editor de casos' },
   { path: '**', redirectTo: '' },
 ];

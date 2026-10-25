@@ -53,6 +53,13 @@ export class CasoStore {
   private readonly version = signal(0);
 
   readonly caso = this.estado.asReadonly();
+  /** Si en esta visita el docente ya llegó a un final probando como estudiante. */
+  private readonly probadoAhora = signal(false);
+  readonly probado = this.probadoAhora.asReadonly();
+
+  marcarProbado(): void {
+    this.probadoAhora.set(true);
+  }
   readonly puedeDeshacer = computed(() => (this.version(), this.historial?.puedeDeshacer ?? false));
   readonly puedeRehacer = computed(() => (this.version(), this.historial?.puedeRehacer ?? false));
 
