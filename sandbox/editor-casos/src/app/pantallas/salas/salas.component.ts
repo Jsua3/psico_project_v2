@@ -48,7 +48,7 @@ import { PasosCrearComponent } from '../pasos-crear.component';
           </div>
         </section>
 
-        <section aria-labelledby="lista" class="bloque">
+        <section aria-labelledby="lista" class="bloque" data-accion="elegir-salas">
           <div class="encabezado-lista">
             <h2 id="lista">Salas de la {{ e.nombre.toLowerCase() }}</h2>
             <span class="pildora">{{ elegidas().length }} de {{ e.salas.length }} elegidas</span>

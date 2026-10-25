@@ -106,7 +106,7 @@ const CLASIFICACIONES: { valor: Clasificacion; nombre: string; simbolo: string }
               <button type="button" class="boton" data-accion="agregar-linea" (click)="agregarLinea(e)">Agregar una línea</button>
             </section>
 
-            <section aria-labelledby="rh" class="bloque">
+            <section aria-labelledby="rh" class="bloque" data-accion="respuesta-a-escena-nueva">
               <h2 id="rh">Lo que puede responder el estudiante</h2>
               <p class="texto-secundario">Cada respuesta lleva a una escena. Si eliges «Una escena nueva», se crea y se conecta cuando pulsas «Crear la escena nueva».</p>
               <ol class="lista">
@@ -136,7 +136,7 @@ const CLASIFICACIONES: { valor: Clasificacion; nombre: string; simbolo: string }
                     <textarea [id]="'rf' + i" class="campo" rows="2" [value]="r.retroalimentacion"
                               (change)="store.editarRespuesta(e.id, r.id, { retroalimentacion: $any($event.target).value })"></textarea>
                     <label [for]="'rl' + i" class="etiqueta">Lleva a…</label>
-                    <select [id]="'rl' + i" class="campo" data-accion="respuesta-a-escena-nueva" (change)="elegirDestino(e, r, $any($event.target).value)">
+                    <select [id]="'rl' + i" class="campo" (change)="elegirDestino(e, r, $any($event.target).value)">
                       <option value="" [selected]="!r.destinoId && pendiente() !== r.id">Ninguna escena todavía</option>
                       @for (d of escenas(); track d.id; let j = $index) {
                         <option [value]="d.id" [selected]="d.id === r.destinoId">{{ j + 1 }} · {{ d.titulo }}</option>

@@ -20,9 +20,9 @@ import { type AccionEscena, MapaEscenasComponent } from './mapa-escenas.componen
             <p class="texto-secundario">{{ resumen() }} Las flechas son las respuestas; las de la escena elegida van en verde azulado.</p>
           </div>
           <div class="acciones">
-            <button type="button" class="boton" [attr.aria-disabled]="!store.puedeDeshacer()" (click)="store.deshacer()">Deshacer</button>
+            <button type="button" class="boton" data-accion="deshacer" [attr.aria-disabled]="!store.puedeDeshacer()" (click)="store.deshacer()">Deshacer</button>
             <button type="button" class="boton" data-accion="agregar-escena" (click)="agregarEscena()">Agregar una escena</button>
-            <button type="button" class="boton" (click)="store.ordenarAutomaticamente()">Ordenar automáticamente</button>
+            <button type="button" class="boton" data-accion="ordenar-mapa" (click)="store.ordenarAutomaticamente()">Ordenar automáticamente</button>
           </div>
         </div>
         <p role="status" class="solo-lector">{{ anuncio() }}</p>
@@ -30,7 +30,7 @@ import { type AccionEscena, MapaEscenasComponent } from './mapa-escenas.componen
         <div class="dos-columnas">
           <app-mapa-escenas #mapa [caso]="caso" [avisos]="avisos()" [elegidaInicial]="irA()"
                             (seleccion)="elegida.set($event)" (abrirGuion)="abrirGuion($event)" (abrirSala)="abrirSala($event)"
-                            (accion)="accion($event)" data-accion="revisar-caminos" />
+                            (accion)="accion($event)" />
 
           <aside aria-label="Escena elegida y avisos" class="lateral">
             <section aria-labelledby="pe" class="tarjeta">
@@ -58,7 +58,7 @@ import { type AccionEscena, MapaEscenasComponent } from './mapa-escenas.componen
               }
             </section>
 
-            <section aria-labelledby="av" class="tarjeta avisos">
+            <section aria-labelledby="av" class="tarjeta avisos" data-accion="revisar-caminos">
               <h2 id="av">Avisos ({{ avisos().length }})</h2>
               @if (avisos().length) {
                 <ul>
@@ -150,8 +150,9 @@ export class EditorComponent {
   private readonly router = inject(Router);
   private readonly mapa = viewChild<MapaEscenasComponent>('mapa');
 
-  protected readonly elegida = signal<string | null>(null);
-  protected readonly irA = signal<string | null>(null);
+  /** La escena de inicio queda elegida al entrar, para que «Abrir guion» y «Abrir sala» estén a mano. */
+  protected readonly elegida = signal<string | null>(this.store.caso()?.inicioId ?? null);
+  protected readonly irA = signal<string | null>(this.store.caso()?.inicioId ?? null);
   protected readonly conectando = signal<string | null>(null);
   protected readonly destino = signal<string | 'nueva' | null>(null);
   protected readonly borrando = signal<string | null>(null);

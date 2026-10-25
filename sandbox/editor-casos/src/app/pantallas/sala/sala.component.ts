@@ -58,7 +58,7 @@ const NOMBRE_EXPRESION: Record<Expresion, string> = {
             <h2 id="en-sala">En esta sala</h2>
             <ul role="listbox" aria-label="Cosas en la sala" class="lista">
               @for (g of grupos(); track g.titulo) {
-                <li role="group" [attr.aria-label]="g.titulo">
+                <li role="group" [attr.aria-label]="g.titulo" [attr.data-accion]="g.titulo === 'Personajes' ? 'cambiar-expresion' : null">
                   <span class="grupo" aria-hidden="true">{{ g.titulo }}</span>
                   <ul role="none">
                     @for (p of g.piezas; track p.clave) {
@@ -85,7 +85,7 @@ const NOMBRE_EXPRESION: Record<Expresion, string> = {
 
           <section aria-labelledby="la-sala" class="columna-sala">
             <h2 id="la-sala" class="solo-lector">La sala</h2>
-            <div class="escenario" #escenario tabindex="-1" (keydown)="teclaGeneral($event)"
+            <div class="escenario" #escenario tabindex="-1" data-accion="mover-mueble" (keydown)="teclaGeneral($event)"
                  [style.--escala]="escala()" (pointermove)="arrastrar($event)" (pointerup)="soltar()" (pointercancel)="soltar()">
               <div class="lienzo">
                 <img class="pixel fondo" [src]="arte(s.fondo)" alt="" [width]="ancho" [height]="alto" draggable="false" />
@@ -110,7 +110,7 @@ const NOMBRE_EXPRESION: Record<Expresion, string> = {
               <kbd>Ctrl</kbd>+<kbd>Z</kbd> deshace.
             </p>
 
-            <section aria-labelledby="catalogo" class="tarjeta catalogo">
+            <section aria-labelledby="catalogo" class="tarjeta catalogo" data-accion="agregar-mueble">
               <h3 id="catalogo">Catálogo del lugar <span class="texto-secundario">· se agrega en el centro de la sala</span></h3>
               <div role="tablist" aria-label="Qué quieres agregar" class="acciones">
                 @for (t of pestanas; track t.tipo) {
@@ -137,7 +137,7 @@ const NOMBRE_EXPRESION: Record<Expresion, string> = {
             </section>
           </section>
 
-          <section aria-labelledby="detalles" class="tarjeta columna-detalles">
+          <section aria-labelledby="detalles" class="tarjeta columna-detalles" data-accion="quitar-elemento">
             <p class="texto-secundario">Detalles</p>
             @if (piezaElegida(); as p) {
               <h2 id="detalles">{{ p.nombre }}</h2>

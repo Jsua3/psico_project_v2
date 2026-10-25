@@ -42,7 +42,7 @@ const PASO_MOVER = 24;
         <kbd>Enter</kbd> abre su guion; <kbd>Mayús</kbd>+<kbd>F10</kbd> abre las acciones.
       </p>
       <div class="acciones">
-        <button type="button" class="boton" [cdkMenuTriggerFor]="menu" #trigger="cdkMenuTriggerFor"
+        <button type="button" class="boton" data-accion="conectar-escenas marcar-final" [cdkMenuTriggerFor]="menu" #trigger="cdkMenuTriggerFor"
                 [attr.aria-label]="elegidaEscena() ? 'Acciones de la escena ' + elegidaEscena()!.titulo : 'Acciones de la escena'"
                 [attr.aria-disabled]="!elegidaEscena()">Acciones</button>
         <div role="group" aria-label="Zoom del mapa" class="acciones">

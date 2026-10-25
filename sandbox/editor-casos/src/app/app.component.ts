@@ -2,6 +2,8 @@ import { ChangeDetectionStrategy, Component, ElementRef, inject, signal, viewChi
 import { Router, RouterLink, RouterLinkActive, RouterOutlet } from '@angular/router';
 
 import { CasoStore } from './estado/caso.store';
+import { BuscadorComponent } from './guia/buscador.component';
+import { FocoGuiaComponent } from './guia/foco-guia.component';
 import { PanelIaComponent } from './ia/panel-ia.component';
 
 /**
@@ -11,7 +13,8 @@ import { PanelIaComponent } from './ia/panel-ia.component';
  */
 @Component({
   selector: 'app-root',
-  imports: [RouterOutlet, RouterLink, RouterLinkActive, PanelIaComponent],
+  imports: [RouterOutlet, RouterLink, RouterLinkActive, PanelIaComponent, BuscadorComponent, FocoGuiaComponent],
+  host: { '(document:keydown)': 'atajo($event)' },
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
     <a class="saltar" href="#contenido">Saltar al contenido</a>
@@ -40,15 +43,17 @@ import { PanelIaComponent } from './ia/panel-ia.component';
         }
       </div>
       <div role="group" aria-label="Ayuda" class="barra-ayuda">
-        <button type="button" class="boton" data-accion="buscar" title="Busca una acción por su nombre">
+        <button type="button" class="boton" data-accion="buscar" title="Busca una acción por su nombre"
+                aria-haspopup="dialog" (click)="abrirBuscador('buscar', $event)">
           Buscar <span class="texto-secundario"><kbd>Ctrl</kbd>+<kbd>K</kbd></span>
         </button>
-        <button type="button" class="boton" data-accion="guia" title="Te muestra dónde está algo">Guía</button>
-        <button type="button" class="boton" data-accion="pedir-a-la-ia" title="Escribe o cambia el caso por ti; tú apruebas"
+        <button type="button" class="boton" data-accion="guia" title="Te muestra dónde está algo"
+                aria-haspopup="dialog" (click)="abrirBuscador('preguntar', $event)">Guía</button>
+        <button type="button" class="boton" data-accion="pedir-a-la-ia aceptar-ia" title="Escribe o cambia el caso por ti; tú apruebas"
                 [attr.aria-expanded]="iaAbierta()" aria-controls="panel-ia" (click)="iaAbierta.set(!iaAbierta())" #botonIa>
           Asistente de IA
         </button>
-        <button type="button" class="boton boton-texto" (click)="pedirReinicio()" #botonReiniciar>Reiniciar el sandbox</button>
+        <button type="button" class="boton boton-texto" data-accion="reiniciar" (click)="pedirReinicio()" #botonReiniciar>Reiniciar el sandbox</button>
       </div>
     </header>
 
@@ -62,6 +67,11 @@ import { PanelIaComponent } from './ia/panel-ia.component';
         </div>
       </div>
     }
+
+    @if (buscador(); as modo) {
+      <app-buscador [modo]="modo" (cerrar)="cerrarBuscador()" />
+    }
+    <app-foco-guia />
 
     <div class="cuerpo" [class.con-ia]="iaAbierta()">
       <main id="contenido" tabindex="-1">
@@ -108,9 +118,33 @@ export class AppComponent {
   private readonly router = inject(Router);
   protected readonly confirmando = signal(false);
   protected readonly iaAbierta = signal(false);
+  protected readonly buscador = signal<'buscar' | 'preguntar' | null>(null);
+  private origenBuscador: HTMLElement | null = null;
   private readonly botonIa = viewChild<ElementRef<HTMLButtonElement>>('botonIa');
   private readonly botonReiniciar = viewChild<ElementRef<HTMLButtonElement>>('botonReiniciar');
   private readonly botonConfirmar = viewChild<ElementRef<HTMLButtonElement>>('botonConfirmar');
+
+  /** Ctrl+K abre el buscador de acciones desde cualquier pantalla. */
+  protected atajo(e: KeyboardEvent): void {
+    if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'k') {
+      e.preventDefault();
+      this.abrirBuscador('buscar');
+    }
+  }
+
+  protected abrirBuscador(modo: 'buscar' | 'preguntar', evento?: Event): void {
+    const activo = (evento?.currentTarget as HTMLElement | undefined) ?? (document.activeElement as HTMLElement | null);
+    this.origenBuscador = activo && activo !== document.body ? activo : null;
+    this.buscador.set(modo);
+  }
+
+  protected cerrarBuscador(): void {
+    this.buscador.set(null);
+    // Si se eligió una acción, la guía ya movió el foco; si no, vuelve a donde estaba.
+    queueMicrotask(() => {
+      if (document.activeElement === document.body || !document.activeElement) this.origenBuscador?.focus();
+    });
+  }
 
   protected cerrarIa(): void {
     this.iaAbierta.set(false);

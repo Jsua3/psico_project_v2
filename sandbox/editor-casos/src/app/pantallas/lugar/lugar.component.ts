@@ -39,7 +39,7 @@ import { PasosCrearComponent } from '../pasos-crear.component';
         </div>
       }
 
-      <section aria-label="Lugares" class="lugares">
+      <section aria-label="Lugares" class="lugares" data-accion="elegir-lugar">
         @for (l of filtrados(); track l.id) {
           <article class="tarjeta lugar" [class.pronto]="!l.completo">
             @if (l.miniaturas?.length) {
