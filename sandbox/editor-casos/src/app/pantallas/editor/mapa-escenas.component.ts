@@ -80,11 +80,12 @@ const PASO_MOVER = 24;
             <button type="button" class="escena" [attr.data-escena]="e.id"
                     [class.elegida]="elegida() === e.id" [class.final]="e.esFinal" [class.con-aviso]="avisosDe(e.id).length" [class.marca-ia]="e.marcaIa"
                     [style.left.px]="pos(e).x" [style.top.px]="pos(e).y" [attr.tabindex]="tabParada() === e.id ? 0 : -1"
-                    [attr.aria-pressed]="elegida() === e.id" [attr.aria-label]="etiqueta(e, i)"
+                    [attr.aria-pressed]="elegida() === e.id"
                     (click)="elegir(e.id)" (dblclick)="abrirGuion.emit(e.id)"
                     (contextmenu)="menuContextual($event, e.id)" (keydown)="tecla($event, e)"
                     (mouseenter)="vista.set(e.id)" (mouseleave)="vista.set(null)" (focus)="vista.set(e.id)" (blur)="vista.set(null)">
-              <span class="etiquetas" aria-hidden="true">
+              <!-- El nombre de la tarjeta es su propio texto (lo que se ve) más un final que solo oye el lector. -->
+              <span class="etiquetas">
                 @if (caso().inicioId === e.id) { <span class="pildora pildora-primaria">Inicio</span> }
                 @if (e.esFinal) { <span class="pildora pildora-adecuada">Final</span> }
                 @if (e.marcaIa) { <span class="pildora">Sugerido por la IA</span> }
@@ -96,6 +97,7 @@ const PASO_MOVER = 24;
               </span>
               <span class="titulo">{{ i + 1 }} · {{ e.titulo }}</span>
               <span class="sala texto-secundario">{{ nombreSala(e.salaId) }}</span>
+              <span class="solo-lector">{{ detalle(e, i) }}</span>
             </button>
           }
 
@@ -315,14 +317,13 @@ export class MapaEscenasComponent {
     return i >= 0 ? `${i + 1} · ${this.caso().escenas[i].titulo}` : '';
   }
 
-  protected etiqueta(e: Escena, i: number): string {
-    const partes = [`Escena ${i + 1} de ${this.caso().escenas.length}, ${e.titulo}, sala ${this.nombreSala(e.salaId)}`];
-    if (this.caso().inicioId === e.id) partes.push('inicio');
-    if (e.esFinal) partes.push('final');
-    if (e.marcaIa) partes.push('sugerida por la IA, sin revisar');
+  /** Lo que el lector de pantalla oye después del texto visible de la tarjeta. */
+  protected detalle(e: Escena, i: number): string {
+    const partes = [`escena ${i + 1} de ${this.caso().escenas.length}`];
+    if (e.marcaIa) partes.push('sin revisar');
     const avisos = this.avisosDe(e.id);
-    if (avisos.length) partes.push(`con aviso: ${avisos.map((a) => NOMBRE_AVISO[a.tipo].toLowerCase()).join(', ')}`);
-    return partes.join(', ');
+    if (avisos.length > 1) partes.push(`avisos: ${avisos.map((a) => NOMBRE_AVISO[a.tipo].toLowerCase()).join(', ')}`);
+    return `, ${partes.join(', ')}`;
   }
 
   protected elegir(id: string): void {

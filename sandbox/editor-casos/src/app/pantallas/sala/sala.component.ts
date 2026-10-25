@@ -122,18 +122,20 @@ const NOMBRE_EXPRESION: Record<Expresion, string> = {
               <label for="catq" class="etiqueta">Buscar en el catálogo</label>
               <input id="catq" type="search" class="campo" placeholder="Buscar, por ejemplo «silla»" [value]="busqueda()"
                      (input)="busqueda.set($any($event.target).value)" />
-              <ul role="tabpanel" class="catalogo-lista">
-                @for (c of catalogo(); track c.ref) {
-                  <li>
-                    <button type="button" class="boton" [attr.aria-label]="'Agregar a la sala: ' + c.nombre" (click)="agregar(c.ref, c.nombre)">
-                      @if (c.arte) { <img class="pixel" [src]="c.arte" alt="" /> }
-                      {{ c.nombre }}
-                    </button>
-                  </li>
-                } @empty {
-                  <li class="texto-secundario">Nada coincide con «{{ busqueda() }}».</li>
-                }
-              </ul>
+              <div role="tabpanel" [attr.aria-label]="nombrePestana()">
+                <ul class="catalogo-lista">
+                  @for (c of catalogo(); track c.ref) {
+                    <li>
+                      <button type="button" class="boton" [attr.aria-label]="'Agregar a la sala: ' + c.nombre" (click)="agregar(c.ref, c.nombre)">
+                        @if (c.arte) { <img class="pixel" [src]="c.arte" alt="" /> }
+                        {{ c.nombre }}
+                      </button>
+                    </li>
+                  } @empty {
+                    <li class="texto-secundario">Nada coincide con «{{ busqueda() }}».</li>
+                  }
+                </ul>
+              </div>
             </section>
           </section>
 
@@ -202,7 +204,9 @@ const NOMBRE_EXPRESION: Record<Expresion, string> = {
     .fondo { position: absolute; inset: 0; width: 960px; height: 528px; }
     .pieza {
       position: absolute; transform: translate(-50%, -100%); padding: 0; margin: 0; border: 0; background: none;
-      cursor: grab; line-height: 0; min-width: 24px; min-height: 24px; display: flex; align-items: flex-end; justify-content: center;
+      cursor: grab; line-height: 0; display: flex; align-items: flex-end; justify-content: center;
+      /* La sala se dibuja escalada: el mínimo de 24 px tiene que valer en pantalla, no en el dibujo. */
+      min-width: calc(24px / var(--escala, 1)); min-height: calc(24px / var(--escala, 1));
     }
     .pieza:active { cursor: grabbing; }
     .pieza.elegida { outline: 3px dashed var(--foco); outline-offset: 3px; }
@@ -248,6 +252,7 @@ export class SalaComponent {
   protected readonly elegida = signal<string | null>(null);
   protected readonly anuncio = signal('');
   protected readonly pestana = signal<TipoElemento>('mueble');
+  protected readonly nombrePestana = computed(() => this.pestanas.find((t) => t.tipo === this.pestana())?.nombre ?? '');
   protected readonly busqueda = signal('');
   protected readonly escala = signal(1);
   private readonly arrastre = signal<{ clave: string; x: number; y: number; movio: boolean } | null>(null);
