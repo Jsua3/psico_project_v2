@@ -1,4 +1,4 @@
-import { revisarCaminos } from './caminos';
+import { estadoDeCaminos, revisarCaminos } from './caminos';
 import type { CasoBorrador, Escena, Respuesta } from './caso';
 
 const resp = (id: string, destinoId: string | null, texto = `Respuesta ${id}`): Respuesta =>
@@ -68,5 +68,33 @@ describe('revisarCaminos', () => {
   it('una respuesta sin texto se nombra como «sin escribir»', () => {
     const avisos = revisarCaminos(caso([esc('a', [resp('1', null, '')]), esc('b', [], true)]));
     expect(avisos.find((x) => x.tipo === 'respuesta-sin-destino')!.mensaje).toBe('La respuesta «sin escribir» de «Escena A» no lleva a ninguna escena.');
+  });
+
+  it('final-sin-escena: un final propio que espera una escena que ya no está', () => {
+    const c = caso([esc('a', [resp('1', 'b')]), esc('b', [], true)]);
+    c.modoFinales = 'propio';
+    c.finales = [{ id: 'f1', nombre: 'Cierre', texto: 'Fin', condicion: { tipo: 'llega-a-escena', escenaId: 'borrada' }, marcaIa: false }];
+    expect(revisarCaminos(c)).toEqual([
+      { tipo: 'final-sin-escena', escenaId: null, mensaje: 'El final «Cierre» espera una escena que ya no está en el caso.' },
+    ]);
+  });
+
+  it('en modo automático los finales guardados no generan avisos', () => {
+    const c = caso([esc('a', [resp('1', 'b')]), esc('b', [], true)]);
+    c.finales = [{ id: 'f1', nombre: 'Cierre', texto: 'Fin', condicion: { tipo: 'llega-a-escena', escenaId: 'borrada' }, marcaIa: false }];
+    expect(revisarCaminos(c)).toEqual([]);
+  });
+});
+
+describe('estadoDeCaminos', () => {
+  it('sin avisos dice que todos los caminos llegan a un final', () => {
+    expect(estadoDeCaminos(caso([esc('a', [resp('1', 'b')]), esc('b', [], true)]))).toBe('Todos los caminos del caso llegan a alguna escena final.');
+  });
+
+  it('con un callejón no dice que todo llega a un final', () => {
+    const c = caso([esc('a', [resp('1', 'b'), resp('2', 'c')]), esc('b', [], true), esc('c')]);
+    expect(estadoDeCaminos(c)).toBe('Hay 1 aviso en los caminos del caso. Revísalo en el mapa.');
+    c.escenas[0].respuestas.push(resp('3', null));
+    expect(estadoDeCaminos(c)).toBe('Hay 2 avisos en los caminos del caso. Revísalos en el mapa.');
   });
 });

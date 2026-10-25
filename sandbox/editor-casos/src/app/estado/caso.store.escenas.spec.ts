@@ -6,6 +6,7 @@ import { BibliotecaService } from '../modelo/biblioteca.service';
 import type { CasoBorrador } from '../modelo/caso';
 import { copiarEscenarioAlCaso } from '../modelo/copiar';
 import type { Escenario } from '../modelo/escenario';
+import { ALTO_ESCENA, ANCHO_ESCENA } from '../modelo/trazado';
 import { CasoStore } from './caso.store';
 
 const universidad = universidadJson as unknown as Escenario;
@@ -85,5 +86,19 @@ describe('CasoStore · escenas y caminos', () => {
     const nueva = store.conectarEscena(b, 'nueva');
     expect(escena(store.caso(), b)!.respuestas.at(-1)!.destinoId).toBe(nueva);
     expect(escena(store.caso(), nueva)!.salaId).toBe('sala-espera');
+  });
+
+  it('las escenas nuevas creadas desde la misma escena no quedan encima de otra', () => {
+    const { store, b } = montar();
+    store.conectarEscena(b, 'nueva');
+    store.conectarEscena(b, 'nueva');
+    store.conectarEscena(b, 'nueva');
+    const cajas = store.caso()!.escenas.map((e) => e.posicion);
+    for (let i = 0; i < cajas.length; i++) {
+      for (let j = i + 1; j < cajas.length; j++) {
+        const encima = Math.abs(cajas[i].x - cajas[j].x) < ANCHO_ESCENA && Math.abs(cajas[i].y - cajas[j].y) < ALTO_ESCENA;
+        expect(encima, `escenas ${i} y ${j} en ${JSON.stringify([cajas[i], cajas[j]])}`).toBe(false);
+      }
+    }
   });
 });

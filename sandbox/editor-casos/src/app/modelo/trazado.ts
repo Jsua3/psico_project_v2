@@ -7,6 +7,17 @@ export const ANCHO_ESCENA = 208;
 export const ALTO_ESCENA = 120;
 
 /**
+ * El primer lugar libre a partir de `deseada`, bajando de a una tarjeta, para que una escena
+ * nueva no quede encima de otra.
+ */
+export function posicionLibre(ocupadas: { x: number; y: number }[], deseada: { x: number; y: number }): { x: number; y: number } {
+  const p = { ...deseada };
+  const choca = () => ocupadas.some((o) => Math.abs(o.x - p.x) < ANCHO_ESCENA && Math.abs(o.y - p.y) < ALTO_ESCENA);
+  while (choca()) p.y += ALTO_ESCENA + 20;
+  return p;
+}
+
+/**
  * Posiciones de las escenas con un trazado de izquierda a derecha (dagre): cada respuesta
  * es una flecha de su escena a la escena a la que lleva.
  */

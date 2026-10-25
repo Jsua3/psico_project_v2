@@ -2,6 +2,7 @@ import universidadJson from '../../../public/assets/biblioteca/universidad/escen
 import type { CasoBorrador } from '../modelo/caso';
 import { copiarEscenarioAlCaso } from '../modelo/copiar';
 import type { Escenario } from '../modelo/escenario';
+import { ALTO_ESCENA, ANCHO_ESCENA } from '../modelo/trazado';
 import { aplicarPropuesta, dependencias, ejemploLocal, validarPropuesta, type Cambio } from './propuestas';
 
 const universidad = universidadJson as unknown as Escenario;
@@ -115,5 +116,27 @@ describe('aplicarPropuesta', () => {
     const ejemplo = ejemploLocal(c, null);
     expect(ejemplo.mensaje).toMatch(/sin conexión/i);
     expect(validarPropuesta(c, ejemplo.cambios).ok).toBe(true);
+  });
+
+  it('varias escenas nuevas desde la misma escena no quedan encima de otra', () => {
+    const c = caso();
+    const id = c.escenas[1].id;
+    const r = (texto: string) => ({ op: 'agregar-respuesta', escenaId: id, texto, clasificacion: 'adecuada', retroalimentacion: 'F', destino: 'nueva' }) as Cambio;
+    const nuevo = aplicarPropuesta(c, [r('A'), r('B'), r('C')], [true, true, true]);
+    const cajas = nuevo.escenas.map((e) => e.posicion);
+    for (let i = 0; i < cajas.length; i++) {
+      for (let j = i + 1; j < cajas.length; j++) {
+        expect(Math.abs(cajas[i].x - cajas[j].x) < ANCHO_ESCENA && Math.abs(cajas[i].y - cajas[j].y) < ALTO_ESCENA).toBe(false);
+      }
+    }
+  });
+
+  it('las dependencias encadenadas se cuentan completas', () => {
+    const cambios: Cambio[] = [
+      { op: 'agregar-escena', id: 'nueva-1', salaId: 'sala-espera', titulo: 'Uno', despuesDe: null },
+      { op: 'agregar-escena', id: 'nueva-2', salaId: 'sala-espera', titulo: 'Dos', despuesDe: 'nueva-1' },
+      linea('nueva-2'),
+    ];
+    expect(dependencias(cambios)).toEqual([[], [0], [1, 0]]);
   });
 });

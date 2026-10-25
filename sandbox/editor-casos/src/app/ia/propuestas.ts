@@ -5,6 +5,7 @@
  */
 import type { CasoBorrador, Clasificacion, CondicionFinal, Escena } from '../modelo/caso';
 import { SEPARACION_ESCENAS } from '../modelo/copiar';
+import { posicionLibre } from '../modelo/trazado';
 import { EXPRESIONES, type Expresion } from '../modelo/escenario';
 import { limitarAZona, zonaCaminable } from '../modelo/geometria';
 import { nuevoId } from '../modelo/ids';
@@ -114,12 +115,26 @@ function referencias(c: Cambio): string[] {
   }
 }
 
-/** Para cada cambio, los índices de las escenas nuevas de la propuesta que necesita. */
+/**
+ * Para cada cambio, los índices de las escenas nuevas de la propuesta que necesita, también las
+ * de la cadena (una línea de una escena que va después de otra escena nueva necesita las dos).
+ */
 export function dependencias(cambios: Cambio[]): number[][] {
   const indice = new Map<string, number>();
   cambios.forEach((c, i) => { if (c.op === 'agregar-escena') indice.set(c.id, i); });
-  return cambios.map((c, i) =>
+  const directas = cambios.map((c, i) =>
     [...new Set(referencias(c).map((r) => indice.get(r)).filter((j): j is number => j !== undefined && j !== i))]);
+  return directas.map((_, i) => {
+    const todas: number[] = [];
+    const pendientes = [...directas[i]];
+    while (pendientes.length) {
+      const j = pendientes.shift()!;
+      if (j === i || todas.includes(j)) continue;
+      todas.push(j);
+      pendientes.push(...directas[j]);
+    }
+    return todas;
+  });
 }
 
 /**
@@ -143,7 +158,8 @@ export function aplicarPropuesta(caso: CasoBorrador, cambios: Cambio[], seleccio
     const masDerecha = Math.max(0, ...nuevo.escenas.map((e) => e.posicion.x));
     const escena: Escena = {
       id: nuevoId('escena'), titulo, salaId, lineas: [], respuestas: [], esFinal: false, marcaIa: true,
-      posicion: despues ? { x: despues.posicion.x + SEPARACION_ESCENAS, y: despues.posicion.y + 140 } : { x: masDerecha + SEPARACION_ESCENAS, y: 0 },
+      posicion: posicionLibre(nuevo.escenas.map((e) => e.posicion),
+        despues ? { x: despues.posicion.x + SEPARACION_ESCENAS, y: despues.posicion.y + 140 } : { x: masDerecha + SEPARACION_ESCENAS, y: 0 }),
     };
     nuevo.escenas.push(escena);
     if (!nuevo.inicioId) nuevo.inicioId = escena.id;

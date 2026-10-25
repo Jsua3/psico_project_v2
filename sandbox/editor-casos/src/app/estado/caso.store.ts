@@ -8,7 +8,7 @@ import { SEPARACION_ESCENAS } from '../modelo/copiar';
 import type { ColocacionPersonaje } from '../modelo/escenario';
 import { centroDeZona, limitarAZona, zonaCaminable } from '../modelo/geometria';
 import { nuevoId } from '../modelo/ids';
-import { trazarEscenas } from '../modelo/trazado';
+import { posicionLibre, trazarEscenas } from '../modelo/trazado';
 import { Historial } from './historial';
 
 /** Dónde se guarda el caso en el navegador (una recarga no borra el trabajo). */
@@ -208,7 +208,8 @@ export class CasoStore {
       lineas: [],
       respuestas: [],
       esFinal: false,
-      posicion: ref ? { x: ref.posicion.x + SEPARACION_ESCENAS, y: ref.posicion.y + 120 } : { x: masDerecha + SEPARACION_ESCENAS, y: 0 },
+      posicion: posicionLibre(caso.escenas.map((e) => e.posicion),
+        ref ? { x: ref.posicion.x + SEPARACION_ESCENAS, y: ref.posicion.y + 120 } : { x: masDerecha + SEPARACION_ESCENAS, y: 0 }),
     };
     caso.escenas.push(escena);
     if (!caso.inicioId) caso.inicioId = escena.id;

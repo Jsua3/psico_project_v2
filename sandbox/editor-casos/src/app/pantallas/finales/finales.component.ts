@@ -2,7 +2,7 @@ import { ChangeDetectionStrategy, Component, computed, inject } from '@angular/c
 import { RouterLink } from '@angular/router';
 
 import { CasoStore } from '../../estado/caso.store';
-import { revisarCaminos } from '../../modelo/caminos';
+import { estadoDeCaminos } from '../../modelo/caminos';
 import type { CondicionFinal, Final } from '../../modelo/caso';
 import { FINALES_AUTOMATICOS } from '../../modelo/finales';
 
@@ -78,6 +78,9 @@ import { FINALES_AUTOMATICOS } from '../../modelo/finales';
                     </select>
                     @if (f.condicion.tipo === 'llega-a-escena') {
                       <select class="campo" aria-label="Escena" (change)="fijar(f, { tipo: 'llega-a-escena', escenaId: $any($event.target).value })">
+                        @if (!existe(f.condicion.escenaId)) {
+                          <option value="" selected disabled>Elige una escena (la anterior ya no está)</option>
+                        }
                         @for (e of caso.escenas; track e.id; let j = $index) {
                           <option [value]="e.id" [selected]="f.condicion.escenaId === e.id">{{ j + 1 }} · {{ e.titulo }}{{ e.esFinal ? ' (final)' : '' }}</option>
                         }
@@ -152,10 +155,12 @@ export class FinalesComponent {
   protected readonly estadoCaminos = computed(() => {
     const caso = this.store.caso();
     if (!caso) return '';
-    return revisarCaminos(caso).some((a) => a.tipo === 'sin-final')
-      ? 'Hay caminos que no llegan a ninguna escena final. Revísalos en el mapa.'
-      : 'Todos los caminos del caso llegan a alguna escena final.';
+    return estadoDeCaminos(caso);
   });
+
+  protected existe(escenaId: string): boolean {
+    return !!this.store.caso()?.escenas.some((e) => e.id === escenaId);
+  }
 
   protected cambiarTipo(f: Final, tipo: CondicionFinal['tipo']): void {
     const caso = this.store.caso()!;

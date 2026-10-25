@@ -68,6 +68,8 @@ import { type AccionEscena, MapaEscenasComponent } from './mapa-escenas.componen
                       <p>{{ a.mensaje }}</p>
                       @if (a.escenaId) {
                         <button type="button" class="boton" [attr.aria-label]="'Llévame ahí: ' + tituloDe(a.escenaId)" (click)="llevarA(a)">Llévame ahí</button>
+                      } @else if (a.tipo === 'final-sin-escena') {
+                        <a class="boton" routerLink="/editor/finales">Ir a los finales</a>
                       }
                     </li>
                   }
@@ -200,10 +202,16 @@ export class EditorComponent {
   }
 
   protected textoBorrar(id: string): string {
-    const n = (this.store.caso()?.escenas ?? []).flatMap((e) => e.respuestas).filter((r) => r.destinoId === id).length;
-    return n
+    const caso = this.store.caso();
+    const n = (caso?.escenas ?? []).flatMap((e) => e.respuestas).filter((r) => r.destinoId === id).length;
+    const respuestas = n
       ? `${n === 1 ? 'La respuesta que llevaba' : `Las ${n} respuestas que llevaban`} a ella ya no ${n === 1 ? 'llevará' : 'llevarán'} a ninguna escena y ${n === 1 ? 'aparecerá' : 'aparecerán'} en los avisos.`
       : 'Ninguna respuesta lleva a ella.';
+    const finales = caso?.modoFinales === 'propio'
+      ? caso.finales.filter((f) => f.condicion.tipo === 'llega-a-escena' && f.condicion.escenaId === id).map((f) => `«${f.nombre}»`)
+      : [];
+    if (!finales.length) return respuestas;
+    return `${respuestas} ${finales.length === 1 ? `El final ${finales[0]} se queda` : `Los finales ${finales.join(', ')} se quedan`} sin escena y ${finales.length === 1 ? 'aparecerá' : 'aparecerán'} en los avisos.`;
   }
 
   protected abrirGuion(id: string): void {

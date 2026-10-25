@@ -1,6 +1,6 @@
 import type { CasoBorrador } from './caso';
 
-export type TipoAviso = 'sin-salida' | 'inalcanzable' | 'sin-final' | 'respuesta-sin-destino' | 'sin-inicio';
+export type TipoAviso = 'sin-salida' | 'inalcanzable' | 'sin-final' | 'respuesta-sin-destino' | 'sin-inicio' | 'final-sin-escena';
 
 export interface Aviso {
   tipo: TipoAviso;
@@ -16,6 +16,7 @@ export const NOMBRE_AVISO: Record<TipoAviso, string> = {
   'sin-final': 'Sin final',
   'respuesta-sin-destino': 'Respuesta sin destino',
   'sin-inicio': 'Sin inicio',
+  'final-sin-escena': 'Final sin escena',
 };
 
 /** Escenas a las que se llega desde `origenes` siguiendo `vecinos` (BFS; los ciclos no cuelgan). */
@@ -93,5 +94,23 @@ export function revisarCaminos(caso: CasoBorrador): Aviso[] {
       }
     }
   }
+
+  // Finales propios que esperan una escena que ya no está (por ejemplo, porque se borró).
+  if (caso.modoFinales === 'propio') {
+    for (const f of caso.finales) {
+      if (f.condicion.tipo === 'llega-a-escena' && !porId.has(f.condicion.escenaId)) {
+        avisos.push({ tipo: 'final-sin-escena', escenaId: null, mensaje: `El final «${f.nombre}» espera una escena que ya no está en el caso.` });
+      }
+    }
+  }
   return avisos;
+}
+
+/** Una frase para la pantalla de finales: o todo llega a un final, o cuántos avisos hay. */
+export function estadoDeCaminos(caso: CasoBorrador): string {
+  const n = revisarCaminos(caso).length;
+  if (n === 0) return 'Todos los caminos del caso llegan a alguna escena final.';
+  return n === 1
+    ? 'Hay 1 aviso en los caminos del caso. Revísalo en el mapa.'
+    : `Hay ${n} avisos en los caminos del caso. Revísalos en el mapa.`;
 }

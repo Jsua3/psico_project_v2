@@ -55,4 +55,13 @@ describe('puedeEnviar', () => {
     }
     expect([...tipos].sort()).toEqual(['inalcanzable', 'respuesta-sin-destino', 'sin-final', 'sin-inicio', 'sin-salida']);
   });
+
+  it('un final sin escena lleva a la pantalla de finales', () => {
+    const caso = completo();
+    caso.modoFinales = 'propio';
+    caso.finales = [{ id: 'f1', nombre: 'Cierre', texto: 'Fin', condicion: { tipo: 'llega-a-escena', escenaId: 'borrada' }, marcaIa: false }];
+    expect(puedeEnviar(caso).faltas).toEqual([
+      { mensaje: 'El final «Cierre» espera una escena que ya no está en el caso.', ir: { ruta: '/editor/finales', accionId: 'definir-finales' } },
+    ]);
+  });
 });

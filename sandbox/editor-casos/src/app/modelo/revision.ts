@@ -16,7 +16,9 @@ export function puedeEnviar(caso: CasoBorrador): { ok: boolean; faltas: Falta[] 
     mensaje: a.mensaje,
     ir: a.tipo === 'respuesta-sin-destino' && a.escenaId
       ? { ruta: `/editor/escena/${a.escenaId}`, accionId: 'respuesta-a-escena-nueva' }
-      : { ruta: '/editor', accionId: 'revisar-caminos' },
+      : a.tipo === 'final-sin-escena'
+        ? { ruta: '/editor/finales', accionId: 'definir-finales' }
+        : { ruta: '/editor', accionId: 'revisar-caminos' },
   }));
 
   let sinRevisar = 0;
