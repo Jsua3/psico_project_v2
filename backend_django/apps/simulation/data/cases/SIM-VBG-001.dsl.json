@@ -573,9 +573,7 @@
             "clase": "CONTRAINDICATED",
             "clave": "h1-noticia-sin-protocolo",
             "efectos": {
-              "milestones": [
-                "noticia_muerte_mal_manejada"
-              ],
+              "milestones": [],
               "persona": {
                 "activation": 1,
                 "bond": -1
@@ -604,9 +602,7 @@
             "clase": "CONTRAINDICATED",
             "clave": "h1-interrogar-victima",
             "efectos": {
-              "milestones": [
-                "interrogatorio_prematuro"
-              ],
+              "milestones": [],
               "persona": {
                 "activation": 1,
                 "bond": -1
@@ -3534,12 +3530,6 @@
         {
           "decisive": false,
           "description": "A confirmar con Psicología.",
-          "key": "noticia_muerte_mal_manejada",
-          "label": "Comunicar mal la noticia de la muerte"
-        },
-        {
-          "decisive": false,
-          "description": "A confirmar con Psicología.",
           "key": "familia_contenida",
           "label": "Contener a la familia"
         },
@@ -3548,12 +3538,6 @@
           "description": "A confirmar con Psicología.",
           "key": "pap_aplicado",
           "label": "Aplicar primeros auxilios psicológicos"
-        },
-        {
-          "decisive": false,
-          "description": "A confirmar con Psicología.",
-          "key": "interrogatorio_prematuro",
-          "label": "Interrogar de forma prematura"
         },
         {
           "decisive": false,

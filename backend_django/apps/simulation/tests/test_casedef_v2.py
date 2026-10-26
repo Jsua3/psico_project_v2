@@ -216,7 +216,8 @@ def test_the_seeded_document_declares_its_milestones_in_proper_spanish():
     rules = _load(SEEDED)["x-siep"]["reglas"]
 
     labels = {m["key"]: m["label"] for m in rules["milestones"]}
-    assert len(labels) == 13
+    assert len(labels) == 11  # los actos desaconsejados no son hitos (legacy.NEGATIVE_FLAGS)
+    assert not set(legacy.NEGATIVE_FLAGS) & set(labels)
     assert labels["riesgo_feminicidio_valorado"] == "Valorar el riesgo de feminicidio"
     assert labels["medidas_proteccion_activadas"] == "Recomendar medidas de protección"
     assert labels["asesoria_derechos_realizada"] == "Informar sobre derechos"
@@ -273,3 +274,15 @@ def test_a_2_0_document_exported_from_rows_imports_back_to_the_same_document():
 
     second["caso"]["id"], second["caso"]["estado"] = first["caso"]["id"], first["caso"]["estado"]
     assert canonical.canonical_bytes(second) == canonical.canonical_bytes(first)
+
+
+def test_the_discouraged_acts_are_not_milestones_anywhere_in_the_seeded_document():
+    """Ni en ``reglas`` ni en los ``efectos`` de ninguna opción; la opción que los encendía conserva su clase."""
+    document = _load(SEEDED)
+    options = {o["clave"]: o for e in document["x-siep"]["escenas"] for o in e["opciones"]}
+
+    for flag in legacy.NEGATIVE_FLAGS:
+        assert flag not in json.dumps(document["x-siep"]["reglas"])
+        assert all(flag not in o["efectos"].get("milestones", []) for o in options.values())
+    assert options["c1-mediacion-perdon"]["clase"] == "CONTRAINDICATED"
+    assert sum(1 for o in options.values() if o["clase"] == "CONTRAINDICATED") == 3

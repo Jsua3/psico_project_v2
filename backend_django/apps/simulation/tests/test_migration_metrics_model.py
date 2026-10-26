@@ -17,6 +17,7 @@ import pytest
 from django.apps import apps as django_apps
 from django.contrib.auth import get_user_model
 
+from apps.simulation.casedef import legacy
 from apps.simulation.casedef.conditions import evaluate
 from apps.simulation.casedef.vocabulary import DEFAULT_PERSONA_STEP, INITIAL_PERSONA, ResponseClass, step_persona
 from apps.simulation.models import (
@@ -171,6 +172,7 @@ def test_la_mediacion_con_el_agresor_no_es_un_hito_y_su_opcion_queda_contraindic
     for option in DecisionOption.objects.filter(pk__in=run.with_negative):
         assert option.response_class == "CONTRAINDICATED"  # la clase ya lleva el hecho
         assert NEGATIVE not in json.loads(option.effects)["milestones"]
+    assert migration.NEGATIVE_FLAGS == legacy.NEGATIVE_FLAGS  # las dos tablas son la misma
     assert NEGATIVE in migration.NEGATIVE_FLAGS
 
 
@@ -219,7 +221,7 @@ def test_la_migracion_imprime_el_informe_para_psicologia(run):
     assert "Opciones por clase: RECOMMENDED=6, ACCEPTABLE=5, RISKY=5, CONTRAINDICATED=3." in run.report
     assert "Opciones con severidad crítica SIN conducta prohibida" in run.report
     assert "Hitos de SIM-VBG-001" in run.report and "riesgo_feminicidio_valorado" in run.report
-    assert f"NO pasan a hitos (marcan un acto contraindicado): {NEGATIVE}." in run.report
+    assert "NO pasan a hitos (marcan un acto contraindicado): " + ", ".join(sorted(migration.NEGATIVE_FLAGS)) + "." in run.report
 
 
 # ─── (b) un intento abierto sigue jugable ─────────────────────────────────────────────────────────

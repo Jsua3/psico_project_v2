@@ -22,7 +22,7 @@ NEGATIVE = "mediacion_agresor_intentada"
 
 # ─── las tablas ───────────────────────────────────────────────────────────────────────────────
 def test_las_tablas_de_conversion_son_las_de_la_migracion_0030():
-    assert legacy.NEGATIVE_FLAGS == (NEGATIVE,)
+    assert legacy.NEGATIVE_FLAGS == (NEGATIVE, "noticia_muerte_mal_manejada", "interrogatorio_prematuro")
     assert legacy.DECISIVE_BY_CASE == {VBG: tuple(DECISIVE)}
     assert legacy.RISK_LEVEL_BY_CASE == {VBG: RiskLevel.EXTREME}
     assert legacy.TEMPLATE_ORDER == ("critica", "protectora", "riesgo_persistente", "con_brechas")

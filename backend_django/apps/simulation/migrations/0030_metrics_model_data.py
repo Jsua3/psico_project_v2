@@ -46,8 +46,9 @@ VBG_CODE = "SIM-VBG-001"
 VBG_DECISIVE = ("riesgo_feminicidio_valorado", "medidas_proteccion_activadas", "asesoria_derechos_realizada")
 #: Banderas que marcan un acto contraindicado (lo que el psicólogo NO debe hacer), no un paso profesional: no son
 #: hitos. La clase CONTRAINDICATED de la opción que las enciende ya lleva ese hecho; el final «critico» antiguo usaba
-#: la bandera y la condición de plantilla usa ``count: contraindicated`` en su lugar.
-NEGATIVE_FLAGS = ("mediacion_agresor_intentada",)
+#: la bandera y la condición de plantilla usa ``count: contraindicated`` en su lugar. La lista se completó en la Tarea 12
+#: del modelo de métricas (antes solo traía la mediación con el agresor); la 0030 no se había aplicado fuera de bases desechables.
+NEGATIVE_FLAGS = ("mediacion_agresor_intentada", "noticia_muerte_mal_manejada", "interrogatorio_prematuro")
 REGISTERED_EVENTS = ("DECISION_SELECTED", "PROHIBITED_DECISION_SELECTED")
 LEGACY_EFFECT_KEYS = ("severity", "flags", "metrics")
 

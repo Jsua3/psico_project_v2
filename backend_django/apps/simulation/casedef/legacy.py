@@ -17,7 +17,7 @@ from .vocabulary import DEFAULT_PERSONA_STEP, Intensity, ResponseClass, RiskLeve
 #: Banderas que marcan un acto contraindicado (lo que el psicólogo NO debe hacer), no un paso profesional: no son
 #: hitos. La clase CONTRAINDICATED de la opción que las enciende ya lleva ese hecho; el final «critico» antiguo usaba
 #: la bandera y la condición de plantilla usa ``count: contraindicated`` en su lugar.
-NEGATIVE_FLAGS = ("mediacion_agresor_intentada",)
+NEGATIVE_FLAGS = ("mediacion_agresor_intentada", "noticia_muerte_mal_manejada", "interrogatorio_prematuro")
 
 #: Los hitos que deciden el final de cada caso conocido: lo que el psicólogo hace para proteger a la persona usuaria.
 DECISIVE_BY_CASE = {
