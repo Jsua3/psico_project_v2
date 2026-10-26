@@ -1,7 +1,7 @@
 # Biblioteca de escenarios
 
-Aquí viven los **lugares** que el docente elige al empezar un caso: universidad, casa,
-comisaría de familia… Cada lugar trae sus salas, muebles, objetos, herramientas,
+Aquí viven los **lugares** que el docente elige al empezar un caso: universidad, casa y
+comisaría de familia (los tres completos, con arte provisional dibujado por código). Cada lugar trae sus salas, muebles, objetos, herramientas,
 personajes y recorridos sugeridos. Elegir un lugar **copia** el escenario dentro del caso:
 la biblioteca nunca se modifica desde un caso.
 
@@ -14,6 +14,9 @@ biblioteca/
   scripts/validar.mjs             validador (forma + integridad) y línea de comandos
   scripts/fixtures/minimo/        escenario mínimo que usan las pruebas
   escenarios/ESTILO.md            guía de arte y plantillas para generar imágenes
+  escenarios/indice.json          lista de lugares (id, nombre, salas, completo, arteProvisional, temas, hitos)
+  hoja-lugares.png                hoja general: la primera sala de cada lugar con sus cifras
+  modelos/                        objetos y herramientas interactivos compartidos (desdeModelo)
   escenarios/<lugar>/
     escenario.json
     arte/salas/  arte/muebles/  arte/objetos/  arte/herramientas/
@@ -27,6 +30,8 @@ npm install
 npm test                                   # pruebas del validador
 npm run validar -- escenarios/universidad  # revisa un lugar
 npm run modelos:aplicar -- escenarios/casa  # copia el arte de los modelos (desdeModelo) al lugar
+npm run validar -- --todos                 # valida los lugares de escenarios/indice.json y el índice
+python ../tools/escenarios/hoja_lugares.py  # hoja general (biblioteca/hoja-lugares.png)
 ```
 
 `validar` sale con código 1 si hay errores y escribe cada hallazgo como
@@ -47,6 +52,9 @@ de los personajes en otro kit; por defecto usa `../frontend/src/assets/character
 | `esquema-antiguo` | aviso | el archivo usa el esquema 1: le faltan `hitos`, `nivelRiesgoPorDefecto` y los modelos compartidos |
 | `modelo-inexistente` | error | un objeto o herramienta con `desdeModelo` nombra un modelo que no está en `modelos/catalogo.json` |
 | `desde-modelo-ambiguo` | error | un objeto o herramienta trae `desdeModelo` y, además, valores propios distintos de los del modelo (arte, animación, textos, efecto) |
+| `indice-lugar-inexistente` | error | (`--todos`) el índice nombra un lugar sin `escenario.json` |
+| `indice-no-coincide` | error | (`--todos`) una cifra o bandera del índice (`salas`, `hitos`, `completo`, `arteProvisional`, `nombre`) no coincide con el escenario |
+| `indice-falta-lugar` | aviso | (`--todos`) hay un lugar en disco que el índice no nombra |
 | `hito-inexistente` | error | un objeto o herramienta marca (`hitos`) un hito que el lugar no declara |
 | `hito-sin-forma-de-cumplirse` | aviso | ningún objeto ni herramienta del lugar marca ese hito decisivo: lo cumple la autora con sus respuestas |
 | `modelo-sin-aplicar` | aviso | un objeto o herramienta viene de un modelo y todavía no tiene su arte: falta `npm run modelos:aplicar -- <lugar>` |

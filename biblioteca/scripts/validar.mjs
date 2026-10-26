@@ -7,8 +7,9 @@
  * zona caminable del encuadre.
  *
  * Uso: npm run validar -- escenarios/universidad
+ *      npm run validar -- --todos   (todos los lugares de escenarios/indice.json)
  */
-import { access, open, readFile } from 'node:fs/promises';
+import { access, open, readFile, readdir } from 'node:fs/promises';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import Ajv2020 from 'ajv/dist/2020.js';
@@ -421,6 +422,61 @@ export async function validarEscenario(dir, { kitDir = KIT_POR_DEFECTO, catalogo
   return { errores, avisos };
 }
 
+export const DIR_ESCENARIOS = path.resolve(RAIZ_BIBLIOTECA, 'escenarios');
+
+/**
+ * Valida todos los lugares que nombra escenarios/indice.json y el índice mismo: cada entrada
+ * debe existir en disco y sus cifras (`salas`, `hitos`) y banderas deben coincidir con el
+ * escenario; un lugar en disco que el índice no nombra es aviso.
+ * @returns {Promise<{ errores: Hallazgo[], avisos: Hallazgo[], lugares: string[] }>}
+ */
+export async function validarTodos(dirEscenarios = DIR_ESCENARIOS, { kitDir = KIT_POR_DEFECTO } = {}) {
+  const errores = [];
+  const avisos = [];
+  const lugares = [];
+  const archivo = path.join(dirEscenarios, 'indice.json');
+  let indice;
+  try {
+    indice = JSON.parse(await readFile(archivo, 'utf8'));
+  } catch (causa) {
+    errores.push({ codigo: 'indice', donde: 'indice.json', mensaje: `No se pudo leer el índice: ${causa.message}` });
+    return { errores, avisos, lugares };
+  }
+  if (!Array.isArray(indice.lugares)) {
+    errores.push({ codigo: 'indice', donde: 'indice.json', mensaje: 'El índice necesita una lista "lugares".' });
+    return { errores, avisos, lugares };
+  }
+  const prefijar = (lista, id) => lista.map((h) => ({ ...h, donde: `${id} › ${h.donde}` }));
+  for (const entrada of indice.lugares) {
+    const dir = path.join(dirEscenarios, entrada.id);
+    if (!(await existe(path.join(dir, 'escenario.json')))) {
+      errores.push({ codigo: 'indice-lugar-inexistente', donde: `indice.json › ${entrada.id}`, mensaje: `El índice nombra el lugar "${entrada.id}" y no hay escenarios/${entrada.id}/escenario.json.` });
+      continue;
+    }
+    lugares.push(entrada.id);
+    const resultado = await validarEscenario(dir, { kitDir });
+    errores.push(...prefijar(resultado.errores, entrada.id));
+    avisos.push(...prefijar(resultado.avisos, entrada.id));
+    const escenario = JSON.parse(await readFile(path.join(dir, 'escenario.json'), 'utf8'));
+    const cifras = {
+      nombre: escenario.nombre, salas: escenario.salas?.length ?? 0, completo: escenario.completo,
+      arteProvisional: escenario.arteProvisional, hitos: escenario.hitos?.length ?? 0,
+    };
+    for (const [campo, valor] of Object.entries(cifras)) {
+      if (campo in entrada && JSON.stringify(entrada[campo]) !== JSON.stringify(valor)) {
+        errores.push({ codigo: 'indice-no-coincide', donde: `indice.json › ${entrada.id}`, mensaje: `El índice dice ${campo} = ${JSON.stringify(entrada[campo])} y el escenario tiene ${JSON.stringify(valor)}.` });
+      }
+    }
+  }
+  const nombrados = new Set(indice.lugares.map((l) => l.id));
+  for (const carpeta of await readdir(dirEscenarios, { withFileTypes: true })) {
+    if (carpeta.isDirectory() && !nombrados.has(carpeta.name) && (await existe(path.join(dirEscenarios, carpeta.name, 'escenario.json')))) {
+      avisos.push({ codigo: 'indice-falta-lugar', donde: 'indice.json', mensaje: `Hay un lugar en disco que el índice no nombra: "${carpeta.name}".` });
+    }
+  }
+  return { errores, avisos, lugares };
+}
+
 async function principal(argumentos) {
   const resto = [...argumentos];
   let kitDir = KIT_POR_DEFECTO;
@@ -435,11 +491,13 @@ async function principal(argumentos) {
   }
   const objetivo = resto[0];
   if (!objetivo) {
-    console.error('Uso: npm run validar -- <carpeta del escenario> [--kit <carpeta del kit>]');
+    console.error('Uso: npm run validar -- <carpeta del escenario> | --todos [--kit <carpeta del kit>]');
     return 2;
   }
-  const dir = path.resolve(process.cwd(), objetivo);
-  const { errores, avisos } = await validarEscenario(dir, { kitDir });
+  const todos = objetivo === '--todos';
+  const dir = todos ? DIR_ESCENARIOS : path.resolve(process.cwd(), objetivo);
+  const { errores, avisos, lugares } = todos ? await validarTodos(dir, { kitDir }) : await validarEscenario(dir, { kitDir });
+  if (todos) console.log(`Lugares del índice: ${lugares.join(', ')}`);
   for (const h of errores) console.log(`ERROR ${h.codigo} ${h.donde}: ${h.mensaje}`);
   for (const h of avisos) console.log(`AVISO ${h.codigo} ${h.donde}: ${h.mensaje}`);
   console.log(`${errores.length} error(es), ${avisos.length} aviso(s) en ${objetivo}`);

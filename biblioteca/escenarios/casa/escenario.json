@@ -91,6 +91,11 @@
           "ref": "papelera",
           "x": 640,
           "y": 300
+        },
+        {
+          "ref": "cerrojo-puerta",
+          "x": 445,
+          "y": 250
         }
       ],
       "personajes": [
@@ -158,11 +163,6 @@
           "ref": "portarretrato",
           "x": 700,
           "y": 252
-        },
-        {
-          "ref": "cerrojo-puerta",
-          "x": 540,
-          "y": 470
         }
       ],
       "personajes": [
@@ -494,11 +494,6 @@
           "ref": "maleta",
           "x": 560,
           "y": 420
-        },
-        {
-          "ref": "ventana",
-          "x": 500,
-          "y": 250
         }
       ],
       "personajes": [],

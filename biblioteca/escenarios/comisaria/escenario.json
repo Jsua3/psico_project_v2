@@ -90,7 +90,7 @@
         {
           "ref": "camara-seguridad",
           "x": 700,
-          "y": 250
+          "y": 236
         },
         {
           "ref": "cartel-linea-155",
@@ -168,7 +168,7 @@
         {
           "ref": "afiche-rutas-atencion",
           "x": 760,
-          "y": 250
+          "y": 236
         }
       ],
       "personajes": [
@@ -333,7 +333,7 @@
         {
           "ref": "camara-seguridad",
           "x": 480,
-          "y": 250
+          "y": 236
         }
       ],
       "personajes": [],
@@ -364,7 +364,7 @@
           "hacia": "despacho-comisaria",
           "x": 330,
           "y": 236,
-          "etiqueta": "Entrar al despacho de la comisaria"
+          "etiqueta": "Entrar al despacho de la comisaria de familia"
         },
         {
           "id": "puerta-consultorio",
@@ -683,11 +683,6 @@
       ],
       "objetos": [
         {
-          "ref": "peluche",
-          "x": 720,
-          "y": 420
-        },
-        {
           "ref": "caja-panuelos",
           "x": 480,
           "y": 350
@@ -770,7 +765,7 @@
         {
           "ref": "camara-seguridad",
           "x": 520,
-          "y": 250
+          "y": 236
         }
       ],
       "personajes": [],
@@ -1124,21 +1119,6 @@
         "alRevisar": "Vacía.",
         "textoInteraccion": "Mirar",
         "efecto": "ninguno"
-      },
-      {
-        "id": "peluche",
-        "nombre": "Peluche en el piso",
-        "tipo": "OBJECT",
-        "desdeModelo": "peluche",
-        "arte": "arte/objetos/peluche.png",
-        "animacionCerca": {
-          "hoja": "arte/objetos/peluche-cerca.png",
-          "cuadros": 3,
-          "fps": 6
-        },
-        "alRevisar": "Hay niñas o niños en esta casa.",
-        "textoInteraccion": "Mirar",
-        "efecto": "pista"
       }
     ],
     "herramientas": [

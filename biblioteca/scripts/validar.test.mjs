@@ -365,3 +365,70 @@ test('un lugar de esquema 1 valida con aviso esquema-antiguo', async () => {
   assert.deepEqual(errores, []);
   assert.ok(codigos(avisos).includes('esquema-antiguo'), JSON.stringify(avisos));
 });
+
+// ── Los tres lugares a la vez: índice y --todos ──
+
+import { validarTodos } from './validar.mjs';
+
+/** Carpeta temporal con escenarios/<id> copiados del fixture mínimo y un indice.json. */
+async function bibliotecaTemporal(indice, ids = ['minimo']) {
+  const dir = await mkdtemp(path.join(tmpdir(), 'escenarios-'));
+  for (const id of ids) {
+    await cp(FIXTURE, path.join(dir, id), { recursive: true });
+    const archivo = path.join(dir, id, 'escenario.json');
+    const e = JSON.parse(await readFile(archivo, 'utf8'));
+    e.id = id;
+    await writeFile(archivo, JSON.stringify(e));
+  }
+  await writeFile(path.join(dir, 'indice.json'), JSON.stringify(indice));
+  return dir;
+}
+
+const entradaMinimo = (extra = {}) => ({
+  id: 'minimo', nombre: 'Lugar mínimo', salas: 8, completo: true, arteProvisional: true, temas: ['prueba'], hitos: 2, ...extra,
+});
+
+test('--todos valida los lugares del índice y pasa con el fixture', async () => {
+  const dir = await bibliotecaTemporal({ esquema: 1, lugares: [entradaMinimo()] });
+  try {
+    const { errores, lugares } = await validarTodos(dir, { kitDir: KIT });
+    assert.deepEqual(errores, []);
+    assert.deepEqual(lugares, ['minimo']);
+  } finally {
+    await rm(dir, { recursive: true, force: true });
+  }
+});
+
+test('--todos falla si el índice nombra un lugar que no existe', async () => {
+  const dir = await bibliotecaTemporal({ esquema: 1, lugares: [entradaMinimo(), entradaMinimo({ id: 'hospital', nombre: 'Hospital' })] });
+  try {
+    const { errores } = await validarTodos(dir, { kitDir: KIT });
+    const hallazgo = errores.find((h) => h.codigo === 'indice-lugar-inexistente');
+    assert.ok(hallazgo, JSON.stringify(errores));
+    assert.match(hallazgo.mensaje, /hospital/);
+  } finally {
+    await rm(dir, { recursive: true, force: true });
+  }
+});
+
+test('--todos falla si salas no coincide', async () => {
+  const dir = await bibliotecaTemporal({ esquema: 1, lugares: [entradaMinimo({ salas: 9 })] });
+  try {
+    const { errores } = await validarTodos(dir, { kitDir: KIT });
+    const hallazgo = errores.find((h) => h.codigo === 'indice-no-coincide');
+    assert.ok(hallazgo, JSON.stringify(errores));
+    assert.match(hallazgo.mensaje, /salas/);
+  } finally {
+    await rm(dir, { recursive: true, force: true });
+  }
+});
+
+test('--todos avisa de un lugar en disco que el índice no nombra', async () => {
+  const dir = await bibliotecaTemporal({ esquema: 1, lugares: [entradaMinimo()] }, ['minimo', 'extra']);
+  try {
+    const { avisos } = await validarTodos(dir, { kitDir: KIT });
+    assert.ok(avisos.some((h) => h.codigo === 'indice-falta-lugar' && h.mensaje.includes('extra')), JSON.stringify(avisos));
+  } finally {
+    await rm(dir, { recursive: true, force: true });
+  }
+});
