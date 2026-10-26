@@ -1,13 +1,14 @@
 """Tarea 8 · Competencias y evidencia por clase de respuesta (RQ-NEG-001, RQ-NEG-002; Revisión de foco 3).
 
-Con el modelo de respuesta (``borrador-2``) el nivel de una competencia sale SOLO de lo que el autor declara en
-``effects.competencies`` de las opciones que el estudiante eligió:
+Con el modelo de respuesta (``borrador-2``) la opción declara QUÉ competencias evidencia (``effects.competencies``: una lista
+de códigos, ``{código: null}`` o, en el formato de E6-1a, ``{código: nivel}``) y el nivel sale de la CLASE de la respuesta:
 
+- el nivel declarado si lo hay; si no, el de su clase (``LEVEL_BY_CLASS``);
 - una opción que no declara nada no aporta a ninguna competencia (se acabó el «a todas por defecto»): la competencia
   queda «sin evidencia» (``level None``, ``basis None``, ``evidence []``);
-- ``CONTRAINDICATED`` pone el tope ``EN_PROCESO`` a cada competencia que toca, aunque el autor declare más;
+- ``CONTRAINDICATED`` pone el tope ``EN_PROCESO`` a cada competencia que toca, aunque el autor fije más;
 - cada entrada del perfil lleva ``evidence[]``: las decisiones registradas que la sostienen, en orden, con su clase y el
-  nivel que el autor declaró;
+  nivel que aportaron;
 - la analítica solo compara el primer y el segundo intento de una serie si ambos se cerraron con el MISMO
   ``schemaVersion`` (un reporte v2 y uno v3 no se miden con la misma vara).
 """
@@ -32,6 +33,11 @@ from apps.simulation.models import (
     SimulationCase,
 )
 
+from apps.simulation.services import case_rules
+from shared.exceptions import ApiError
+
+from .test_effects_competencies import _errors, _siep_with  # noqa: F401  (ayudantes del esquema)
+
 pytestmark = [pytest.mark.req("RQ-NEG-001"), pytest.mark.req("RQ-NEG-002")]
 
 User = get_user_model()
@@ -46,7 +52,7 @@ CODES = {"PAP", "ETICA", "RUTA"}
 
 def _option(response_class, competencies=None, text="Una respuesta"):
     effects = {}
-    if competencies is not None:
+    if competencies is not None:  # un mapa {código: nivel o None} o una lista de códigos
         effects["competencies"] = competencies
     return DecisionOption(
         option_key=f"o-{uuid.uuid4().hex[:6]}", text=text, response_class=response_class.value,
@@ -56,6 +62,7 @@ def _option(response_class, competencies=None, text="Una respuesta"):
 
 # ─── la tabla de referencia y el tope ─────────────────────────────────────────────────────────
 def test_la_tabla_por_clase_es_la_del_borrador_y_el_tope_es_en_proceso():
+    """La tabla es la regla: el nivel de una competencia declarada sin nivel sale de aquí."""
     assert profile.LEVEL_BY_CLASS == {REC: D, ACC: L, RISKY: P, CONTRA: I}
     assert profile.CONTRAINDICATED_CAP == P
     assert not hasattr(profile, "LEVEL_BY_SEVERITY") and not hasattr(profile, "CRITICAL_CAP")
@@ -101,6 +108,83 @@ def test_la_clase_se_lee_de_la_opcion_con_el_respaldo_de_los_datos_antiguos():
     )
 
     assert profile.contributions(legacy, CODES) == {"PAP": (D, True)}
+
+
+# ─── el nivel sale de la clase cuando el autor solo marca la competencia ──────────────────────
+@pytest.mark.parametrize("response_class", list(ResponseClass))
+@pytest.mark.parametrize("declared", [["PAP", "ETICA"], {"PAP": None, "ETICA": None}], ids=["lista", "sin-nivel"])
+def test_una_competencia_declarada_sin_nivel_aporta_el_nivel_de_la_clase(response_class, declared):
+    contributions = profile.contributions(_option(response_class, declared), CODES)
+
+    capped = response_class is CONTRA
+    expected = profile.LEVEL_BY_CLASS[response_class]
+    assert contributions == {"PAP": (expected, capped), "ETICA": (expected, capped)}  # y no aporta a RUTA
+
+
+def test_el_nivel_declarado_gana_sobre_la_clase_salvo_el_tope():
+    option = _option(RISKY, {"PAP": "DESTACADO", "ETICA": None})  # PAP con nivel fijado; ETICA, el de su clase
+
+    assert profile.contributions(option, CODES) == {"PAP": (D, False), "ETICA": (P, False)}
+    contra = _option(CONTRA, {"PAP": "DESTACADO", "ETICA": None})
+    assert profile.contributions(contra, CODES) == {"PAP": (D, True), "ETICA": (I, True)}
+    assert profile.level_of([profile.contributions(contra, CODES)["PAP"]]) == P  # el tope vale con el nivel fijado
+
+
+def test_un_codigo_declarado_sin_nivel_que_no_es_de_la_rubrica_se_ignora():
+    assert profile.contributions(_option(REC, ["PAP", "OTRA"]), CODES) == {"PAP": (D, False)}
+
+
+# ─── escribir y leer la forma nueva: lista de códigos ─────────────────────────────────────────
+def test_normalizar_acepta_la_lista_de_codigos_y_la_vuelve_un_mapa_sin_nivel():
+    assert case_rules.normalize_effects({"competencies": ["PAP", "ETICA"]}) == {
+        "competencies": {"PAP": None, "ETICA": None}
+    }
+    assert case_rules.normalize_effects({"competencies": ["PAP", "PAP"]}) == {"competencies": {"PAP": None}}
+    assert case_rules.normalize_effects({"competencies": {"PAP": None, "ETICA": "LOGRADO"}}) == {
+        "competencies": {"PAP": None, "ETICA": "LOGRADO"}
+    }
+
+
+@pytest.mark.parametrize("competencies", [[], ["pap"], [3], [None], {"PAP": "EXCELENTE"}, {"PAP": 3}])
+def test_normalizar_descarta_lo_mal_formado_sin_lanzar(competencies):
+    assert case_rules.normalize_effects({"competencies": competencies}) == {}
+
+
+def test_competency_overrides_devuelve_el_mapa_normalizado_con_none():
+    listed = DecisionOption(option_key="l", effects=json.dumps({"competencies": ["PAP", "ETICA"]}))
+    mixed = DecisionOption(option_key="m", effects=json.dumps({"competencies": {"PAP": None, "ETICA": "LOGRADO"}}))
+
+    assert case_rules.competency_overrides(listed) == {"PAP": None, "ETICA": None}
+    assert case_rules.competency_overrides(mixed) == {"PAP": None, "ETICA": "LOGRADO"}
+
+
+def test_validar_acepta_la_lista_y_el_mapa_sin_nivel_y_los_guarda_como_mapa():
+    assert case_rules.validate_effects({"competencies": ["PAP", "ETICA"]}, set()) == {
+        "competencies": {"PAP": None, "ETICA": None}
+    }
+    assert case_rules.validate_effects({"competencies": {"PAP": None}}, set()) == {"competencies": {"PAP": None}}
+    assert case_rules.validate_effects({"competencies": []}, set()) == {}
+
+
+@pytest.mark.parametrize(
+    "competencies",
+    [[3], [None], ["pap"], ["CON ESPACIO"], ["A" * 101], [f"C{i}" for i in range(21)], {"PAP": "EXCELENTE"}, "PAP"],
+)
+def test_validar_rechaza_codigos_mal_formados_con_400_y_el_campo_effects(competencies):
+    with pytest.raises(ApiError) as error:
+        case_rules.validate_effects({"competencies": competencies}, set())
+
+    assert error.value.status_code == 400 and error.value.extra["field"] == "effects"
+
+
+def test_el_esquema_de_x_siep_acepta_la_lista_de_codigos_y_el_mapa_sin_nivel():
+    assert _errors(_siep_with({"competencies": ["PAP", "ETICA_PROFESIONAL"]})) == []
+    assert _errors(_siep_with({"competencies": {"PAP": None, "ETICA_PROFESIONAL": "LOGRADO"}})) == []
+
+
+@pytest.mark.parametrize("competencies", [["pap"], [3], ["PAP", "PAP"], [f"C{i}" for i in range(21)], "PAP"])
+def test_el_esquema_de_x_siep_rechaza_listas_mal_formadas(competencies):
+    assert _errors(_siep_with({"competencies": competencies})) != []
 
 
 # ─── el perfil: con base de datos ─────────────────────────────────────────────────────────────
@@ -212,6 +296,25 @@ def test_la_evidencia_lleva_el_nivel_declarado_aunque_el_tope_lo_baje(version, r
         {"order": 1, "nodeTitle": "Escena 1", "optionText": "Revictimizar", "class": "CONTRAINDICATED",
          "level": "DESTACADO"},
     ]
+
+
+def test_el_perfil_con_competencias_marcadas_sin_nivel_usa_la_clase_y_la_evidencia_lo_dice(version, rubric):
+    events = [
+        _event(_option(REC, ["T8_PAP"], text="Contener"), "Escena 1"),
+        _event(_option(ACC, ["T8_PAP", "T8_ETICA"], text="Derivar"), "Escena 2"),
+        _event(_option(RISKY, ["T8_ETICA"], text="Preguntar"), "Escena 3"),
+        _event(_option(CONTRA, ["T8_RUTA"], text="Revictimizar"), "Escena 4"),
+    ]
+
+    by_code = _profile_of(version, events)
+
+    assert by_code["T8_PAP"]["level"] == "DESTACADO"  # (4 + 3) / 2 = 3,5 → 4
+    assert by_code["T8_ETICA"]["level"] == "LOGRADO"  # (3 + 2) / 2 = 2,5 → 3
+    assert by_code["T8_RUTA"]["level"] == "EN_INICIO"  # el tope no sube nada
+    assert [(e["class"], e["level"]) for e in by_code["T8_PAP"]["evidence"]] == [
+        ("RECOMMENDED", "DESTACADO"), ("ACCEPTABLE", "LOGRADO"),
+    ]
+    assert [(e["class"], e["level"]) for e in by_code["T8_RUTA"]["evidence"]] == [("CONTRAINDICATED", "EN_INICIO")]
 
 
 def test_el_orden_cuenta_las_decisiones_registradas_y_no_los_reintentos(version, rubric):

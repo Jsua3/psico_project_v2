@@ -1,16 +1,17 @@
 """El perfil por competencia de un intento (E6-1b, RQ-NEG-001, RQ-NEG-002; mesa §A20; ``borrador-2``).
 
-El nivel de una competencia sale SOLO de lo que el autor declara. Cada decisión registrada cuya opción declara
-``effects.competencies`` (``{código: nivel}``) aporta a esas competencias —las de la rúbrica del caso— y con esos
-niveles; un código que no es de la rúbrica se ignora. Una opción que no declara nada **no aporta a ninguna**: la
-competencia que ninguna decisión tocó queda «sin evidencia» (``level None``). Ya no hay aporte «a todas por defecto»
-según la severidad (Revisión de foco 3): inventarle un nivel a una competencia que la persona nunca puso a prueba
-era una afirmación que el caso no hacía.
+La opción declara QUÉ competencias evidencia (``effects.competencies``: una lista de códigos o, en el formato de E6-1a,
+``{código: nivel}``) y el nivel sale de la clase de la respuesta: **el nivel declarado si lo hay; si no, el de su clase**
+(``LEVEL_BY_CLASS``: Recomendada → DESTACADO, Aceptable → LOGRADO, Con riesgo → EN_PROCESO, Contraindicada → EN_INICIO).
+Solo aportan las competencias declaradas que son de la rúbrica del caso (un código ajeno se ignora). Una opción que no
+declara nada **no aporta a ninguna**: la competencia que ninguna decisión tocó queda «sin evidencia» (``level None``). Nunca
+hay aporte «a todas» (Revisión de foco 3): inventarle un nivel a una competencia que la persona no puso a prueba era una
+afirmación que el caso no hacía.
 
-El nivel es el **promedio** de los índices (1–4) de los aportes, con la mitad hacia arriba, y ``CONTRAINDICATED_CAP``
-como tope si la tocó una respuesta contraindicada —aunque el autor declare un nivel más alto—: una conducta
-revictimizante no puede dar «logrado» en la competencia. Cada entrada del perfil trae ``evidence[]``: las decisiones
-registradas que la sostienen, en orden, con su clase y el nivel declarado (lo que el informe del reporte v3 muestra).
+El nivel de la competencia es el **promedio** de los índices (1–4) de los aportes, con la mitad hacia arriba, y
+``CONTRAINDICATED_CAP`` como tope si la tocó una respuesta contraindicada —también si el autor fijó un nivel más alto—: una
+conducta revictimizante no puede dar «logrado» en la competencia. Cada entrada del perfil trae ``evidence[]``: las decisiones
+registradas que la sostienen, en orden, con su clase y el nivel que aportaron (lo que el informe del reporte v3 muestra).
 Todo esto son definiciones en **BORRADOR** hasta que Psicología las confirme: la regla es ``level_of`` y las tablas
 ``LEVEL_BY_CLASS`` y ``CONTRAINDICATED_CAP``.
 
@@ -32,8 +33,7 @@ from .definitions import PROFILE_RULES  # noqa: F401  (la versión de la regla v
 
 Competence = namedtuple("Competence", ["code", "name"])
 
-#: Nivel de referencia de cada clase de respuesta (R3, BORRADOR): lo que una respuesta de esa clase suele evidenciar.
-#: Es la tabla que Psicología revisa; el perfil NO la aplica sola: aporta solo el nivel que el autor declara.
+#: Nivel que aporta una respuesta de cada clase a las competencias que declara sin fijar nivel (R3, BORRADOR).
 LEVEL_BY_CLASS = {
     ResponseClass.RECOMMENDED: FormativeLevel.DESTACADO,
     ResponseClass.ACCEPTABLE: FormativeLevel.LOGRADO,
@@ -61,15 +61,16 @@ def level_of(contributions):
 def contributions(decision, codes):
     """Lo que aporta una opción: ``{código: (nivel, contraindicada)}`` para las competencias de ``codes`` que declara.
 
-    Solo aporta a las competencias que la opción declara en ``effects.competencies`` (y que son de ``codes``), con el
-    nivel declarado; sin declaración no aporta a ninguna. ``contraindicada`` marca el aporte de una respuesta
-    ``CONTRAINDICATED`` (la clase la da ``response_class_of``, con el respaldo de los datos antiguos), que pone el tope
-    ``CONTRAINDICATED_CAP`` aunque el autor declare un nivel más alto: una conducta revictimizante no puede dar
-    «logrado». Fuera de eso, el nivel que el autor declara es el que quiso y no se le pone tope.
+    Solo aporta a las competencias que la opción declara en ``effects.competencies`` (y que son de ``codes``); sin
+    declaración no aporta a ninguna. El nivel es el que el autor fijó o, si solo marcó la competencia, el de la clase
+    de la respuesta (``LEVEL_BY_CLASS`` con ``response_class_of``, que cae a los datos antiguos si falta). ``contraindicada``
+    marca el aporte de una respuesta ``CONTRAINDICATED``, que pone el tope ``CONTRAINDICATED_CAP`` con cualquier nivel:
+    una conducta revictimizante no puede dar «logrado». Fuera de eso, un nivel fijado por el autor no se topa.
     """
-    capped = response_class_of(decision) is ResponseClass.CONTRAINDICATED
+    response_class = response_class_of(decision)
+    capped = response_class is ResponseClass.CONTRAINDICATED
     return {
-        code: (FormativeLevel(level), capped)
+        code: (FormativeLevel(level) if level is not None else LEVEL_BY_CLASS[response_class], capped)
         for code, level in case_rules.competency_overrides(decision).items() if code in codes
     }
 
@@ -117,11 +118,12 @@ def competency_profile(attempt, events):
 
     ``events`` son los eventos del intento con ``decision_option`` y ``node`` cargados. Solo cuentan las decisiones
     registradas (no los reintentos). ``level`` es ``None`` si ninguna decisión tocó la competencia («sin evidencia»).
-    ``basis`` es ``DECLARED`` si alguna decisión la tocó y ``None`` si no: el nivel siempre lo declara el autor del caso.
+    ``basis`` es ``DECLARED`` si alguna decisión la tocó y ``None`` si no: el autor del caso declara qué competencias toca cada respuesta.
     Las bases ``DEFAULT`` y ``MIXED`` (nivel inferido de la severidad) existían hasta ``borrador-1`` y ya no se dan; la
     clave se conserva para quienes leen los reportes cerrados. ``evidence`` lista las decisiones que la sostienen, en
     orden: ``{"order", "nodeTitle", "optionText", "class", "level"}`` con ``order`` la posición de la decisión entre
-    las registradas (la de ``decisionReview``) y ``level`` el nivel declarado, antes del tope.
+    las registradas (la de ``decisionReview``) y ``level`` el nivel que aportó (el fijado por el autor o el de la clase),
+    antes del tope.
     Sin rúbrica, o sin criterios con competencia, el perfil está vacío.
     """
     rubric = rubric_of(attempt.case_version_id)

@@ -106,10 +106,20 @@
           "additionalProperties": { "type": "integer", "minimum": -100, "maximum": 100 }
         },
         "competencies": {
-          "type": "object",
-          "maxProperties": 20,
-          "propertyNames": { "$ref": "#/$defs/codigoDeCompetencia" },
-          "additionalProperties": { "enum": ["EN_INICIO", "EN_PROCESO", "LOGRADO", "DESTACADO"] }
+          "oneOf": [
+            {
+              "type": "object",
+              "maxProperties": 20,
+              "propertyNames": { "$ref": "#/$defs/codigoDeCompetencia" },
+              "additionalProperties": { "enum": ["EN_INICIO", "EN_PROCESO", "LOGRADO", "DESTACADO", null] }
+            },
+            {
+              "type": "array",
+              "maxItems": 20,
+              "uniqueItems": true,
+              "items": { "$ref": "#/$defs/codigoDeCompetencia" }
+            }
+          ]
         },
         "persona": {
           "type": "object",

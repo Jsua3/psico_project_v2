@@ -209,10 +209,12 @@ def normalize_effects(raw):
         if clean:
             effects["metrics"] = clean
     competencies = raw.get("competencies")
+    if isinstance(competencies, list):  # la forma nueva: solo los códigos; el nivel sale de la clase de la respuesta
+        competencies = {code: None for code in competencies if isinstance(code, str)}
     if isinstance(competencies, dict):
         clean = {
             k: v for k, v in competencies.items()
-            if isinstance(k, str) and _COMPETENCY_CODE.fullmatch(k) and isinstance(v, str) and v in COMPETENCY_LEVELS
+            if isinstance(k, str) and _COMPETENCY_CODE.fullmatch(k) and _is_competency_level(v)
         }
         if clean:
             effects["competencies"] = clean
@@ -229,16 +231,22 @@ def normalize_effects(raw):
     return effects
 
 
+def _is_competency_level(value):
+    """Un nivel formativo válido o ``None`` (la competencia marcada sin nivel: lo da la clase de la respuesta)."""
+    return value is None or (isinstance(value, str) and value in COMPETENCY_LEVELS)
+
+
 def effects_of(decision):
     """Los efectos propios de la opción (datos del caso), o ``{}`` si no trae o están rotos."""
     return normalize_effects(read_map(getattr(decision, "effects", None)))
 
 
 def competency_overrides(decision):
-    """``{código de competencia: nivel}`` que la opción declara (E6-1a), o ``{}``.
+    """``{código de competencia: nivel o None}`` que la opción declara (E6-1a), o ``{}``.
 
-    A qué competencias aporta la opción y con qué nivel; sin esto no aporta a ninguna (ver ``assessment.competencies``).
-    No forma parte de ``case_effects.option_effects``.
+    A qué competencias aporta la opción. El nivel es el que el autor fijó (``E6-1a``) o ``None`` si solo marcó la
+    competencia: entonces sale de la clase de la respuesta (ver ``assessment.competencies``). Sin esto la opción no
+    aporta a ninguna. No forma parte de ``case_effects.option_effects``.
     """
     return effects_of(decision).get("competencies", {})
 
@@ -291,14 +299,24 @@ def validate_effects(raw, allowed_metrics, allowed_milestones=()):
         effects["metrics"] = dict(metrics)
     if "competencies" in raw:
         competencies = raw["competencies"]
-        if not isinstance(competencies, dict) or len(competencies) > MAX_EFFECT_ENTRIES:
-            raise _refuse(f"Las competencias deben ser un objeto de hasta {MAX_EFFECT_ENTRIES} entradas.")
+        if isinstance(competencies, list):  # la forma nueva: solo los códigos (el nivel lo da la clase)
+            if not all(isinstance(code, str) for code in competencies):
+                raise _refuse("Cada competencia de la lista se nombra con su código del catálogo (un texto).")
+            competencies = {code: None for code in competencies}
+        elif not isinstance(competencies, dict):
+            raise _refuse(
+                f"Las competencias deben ser una lista de códigos o un objeto de hasta {MAX_EFFECT_ENTRIES} entradas."
+            )
+        if len(competencies) > MAX_EFFECT_ENTRIES:
+            raise _refuse(
+                f"Las competencias deben ser una lista de códigos o un objeto de hasta {MAX_EFFECT_ENTRIES} entradas."
+            )
         for code, level in competencies.items():
             if not isinstance(code, str) or not _COMPETENCY_CODE.fullmatch(code):
                 raise _refuse("Cada competencia se nombra con su código del catálogo: mayúsculas, números o «_».")
-            if not isinstance(level, str) or level not in COMPETENCY_LEVELS:
+            if not _is_competency_level(level):
                 raise _refuse(
-                    f"El nivel de «{code}» debe ser EN_INICIO, EN_PROCESO, LOGRADO o DESTACADO."
+                    f"El nivel de «{code}» debe ser EN_INICIO, EN_PROCESO, LOGRADO o DESTACADO (o ninguno: lo da la clase)."
                 )
         if competencies:
             effects["competencies"] = dict(competencies)

@@ -46,11 +46,10 @@ def test_normalizar_conserva_las_competencias_bien_formadas():
         ({"pap": "LOGRADO"}, None),  # el código va en mayúsculas
         ({"PAP": "EXCELENTE"}, None),  # nivel fuera del vocabulario
         ({"PAP": 3}, None),
-        ({"PAP": None}, None),
         ({"": "LOGRADO"}, None),
         ({"A" * 101: "LOGRADO"}, None),
         ({"CON ESPACIO": "LOGRADO"}, None),
-        (["PAP"], None),
+        ([3], None),  # la lista solo admite códigos (textos)
         ("PAP", None),
         (3, None),
         ({}, None),
@@ -98,7 +97,7 @@ def test_el_autor_guarda_las_competencias_y_el_editor_las_devuelve(profesor, cas
     "competencies",
     [
         "PAP",
-        ["PAP"],
+        [3],
         {"pap": "LOGRADO"},
         {"": "LOGRADO"},
         {"A" * 101: "LOGRADO"},
@@ -143,7 +142,7 @@ def test_el_esquema_de_x_siep_acepta_las_competencias_de_una_opcion():
 @pytest.mark.parametrize(
     "competencies",
     [
-        ["PAP"],
+        [3],
         {"pap": "LOGRADO"},
         {"PAP": "EXCELENTE"},
         {"PAP": 3},
