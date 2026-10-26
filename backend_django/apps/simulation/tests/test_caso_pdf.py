@@ -1,5 +1,5 @@
 """Caso PDF — puertas backend-driven con validación de doorKey/requires y
-efecto mariposa (flags, métricas y 4 finales).
+efecto mariposa (hitos, persona y 4 finales de plantilla).
 
 Corre contra el caso publicado por seed_caso_pdf (SIM-VBG-001 v2.x):
 hospital-urgencias ⇄ hospital-sala-escucha → comisaria-recepcion ⇄
@@ -15,15 +15,12 @@ from django.utils import timezone
 from rest_framework.test import APIClient
 
 from apps.grupos.models import Grupo
+from apps.simulation.casedef import legacy
 from apps.simulation.casedef.vocabulary import Activation, Bond
 from apps.simulation.models import AttemptEvent, CaseVersion, DecisionOption, DialogueChoice, SimulationAttempt
 from apps.simulation.services import case_state
 
 User = get_user_model()
-
-#: Las filas sembradas ya nacen en el modelo nuevo (persona e hitos, finales por clases) y el cálculo del final lee
-#: todavía el antiguo (banderas, métricas, severidad): estas pruebas esperan finales que ese cálculo ya no ve.
-SKIP_MOTOR_NUEVO = pytest.mark.skip(reason="finales por el motor nuevo: se reescriben en la Tarea 6")
 
 
 def cl(user):
@@ -360,7 +357,6 @@ def _play_full(c, attempt_id, token, case_version_id, keys):
     return state
 
 
-@SKIP_MOTOR_NUEVO
 def test_final_integral(estudiante, case_version_id):
     c = cl(estudiante)
     attempt_id, token = _start(c, case_version_id)
@@ -370,10 +366,17 @@ def test_final_integral(estudiante, case_version_id):
     ])
     assert state["status"] == "COMPLETED"
     ending = state["completionReport"]["ending"]
-    assert ending["key"] == "integral"
-    assert ending["severityCounts"]["critical"] == 0
-    assert ending["severityCounts"]["recommended"] == 6
-    assert ending["caseFlags"]["medidas_proteccion_activadas"] is True
+    assert ending["key"] == "protectora"
+    _assert_reason_in_words(ending)
+    assert f"Cumpliste: {legacy.milestone_label('medidas_proteccion_activadas')}" in ending["reason"]
+    assert not any("contraindicada" in phrase or "con riesgo" in phrase for phrase in ending["reason"])
+
+
+def _assert_reason_in_words(ending):
+    """El final explica por qué en frases, sin medidas: ni conteos por severidad, ni banderas, ni métricas."""
+    assert isinstance(ending["reason"], list) and ending["reason"]
+    assert all(isinstance(phrase, str) and phrase for phrase in ending["reason"])
+    assert not {"severityCounts", "caseFlags", "caseMetrics"} & set(ending)
 
 
 def _registrada(key):
@@ -382,7 +385,6 @@ def _registrada(key):
     return [key, key]
 
 
-@SKIP_MOTOR_NUEVO
 def test_final_critico_con_dos_criticas(estudiante, case_version_id):
     c = cl(estudiante)
     attempt_id, token = _start(c, case_version_id)
@@ -396,13 +398,13 @@ def test_final_critico_con_dos_criticas(estudiante, case_version_id):
     ])
     assert state["status"] == "COMPLETED"
     ending = state["completionReport"]["ending"]
-    assert ending["key"] == "critico"
-    assert ending["severityCounts"]["critical"] == 2
+    assert ending["key"] == "critica"
+    _assert_reason_in_words(ending)
+    assert "2 respuestas contraindicadas" in ending["reason"]
 
 
-@SKIP_MOTOR_NUEVO
 def test_final_riesgo_persistente_por_omision(estudiante, case_version_id):
-    # Sin críticas, pero sin valorar feminicidio ni activar protección (C1
+    # Sin contraindicadas, pero sin valorar feminicidio ni recomendar protección (C1
     # desviada a patrones de infancia, registrada) y C3 sin valoración de riesgo.
     c = cl(estudiante)
     attempt_id, token = _start(c, case_version_id)
@@ -412,15 +414,16 @@ def test_final_riesgo_persistente_por_omision(estudiante, case_version_id):
         "h3-integral-psicosocial",
         *_registrada("c1-patrones-infancia"),
         "c2-2126-1098-1257",
-        *_registrada("c3-valoracion-dependientes"),
+        "c3-valoracion-dependientes",  # aceptable: se aplica a la primera, sin reintento
     ])
     ending = state["completionReport"]["ending"]
-    assert ending["key"] == "riesgo"
-    assert ending["severityCounts"]["critical"] == 0
-    assert not ending["caseFlags"].get("medidas_proteccion_activadas")
+    assert ending["key"] == "riesgo_persistente"
+    _assert_reason_in_words(ending)
+    assert f"Faltó: {legacy.milestone_label('medidas_proteccion_activadas')}" in ending["reason"]
+    assert not any("contraindicada" in phrase for phrase in ending["reason"])
+    assert "medidas_proteccion_activadas" not in _milestones(attempt_id)
 
 
-@SKIP_MOTOR_NUEVO
 def test_final_riesgo_persistente_por_acumulacion(estudiante, case_version_id):
     # Protección completa, pero tres decisiones riesgosas REGISTRADAS.
     c = cl(estudiante)
@@ -434,11 +437,12 @@ def test_final_riesgo_persistente_por_acumulacion(estudiante, case_version_id):
         "c3-integral-derechos",
     ])
     ending = state["completionReport"]["ending"]
-    assert ending["key"] == "riesgo"
-    assert ending["severityCounts"]["risky"] == 3
+    assert ending["key"] == "riesgo_persistente"
+    _assert_reason_in_words(ending)
+    assert "3 respuestas con riesgo" in ending["reason"]
+    assert not any(phrase.startswith("Faltó") for phrase in ending["reason"])
 
 
-@SKIP_MOTOR_NUEVO
 def test_final_brechas_con_parciales(estudiante, case_version_id):
     # Protección completa (C1 recomendada) pero parciales acumuladas leves.
     c = cl(estudiante)
@@ -450,11 +454,11 @@ def test_final_brechas_con_parciales(estudiante, case_version_id):
         "c1-riesgo-proteccion-derechos", "c2-2126-1098-1257", "c3-integral-derechos",
     ])
     ending = state["completionReport"]["ending"]
-    assert ending["key"] == "brechas"
-    assert ending["severityCounts"]["risky"] == 2
+    assert ending["key"] == "con_brechas"
+    _assert_reason_in_words(ending)
+    assert "2 respuestas con riesgo" in ending["reason"]
 
 
-@SKIP_MOTOR_NUEVO
 def test_un_reintento_no_impide_el_final_integral(estudiante, case_version_id):
     # DLG-07: una primera respuesta mala (que el juego no aplica) no baja el final.
     c = cl(estudiante)
@@ -468,10 +472,9 @@ def test_un_reintento_no_impide_el_final_integral(estudiante, case_version_id):
         "c3-integral-derechos",
     ])
     ending = state["completionReport"]["ending"]
-    assert ending["key"] == "integral"
-    assert ending["severityCounts"] == {
-        "recommended": 6, "acceptable": 0, "risky": 0, "critical": 0,
-    }
+    assert ending["key"] == "protectora"
+    _assert_reason_in_words(ending)
+    assert not any("contraindicada" in phrase or "con riesgo" in phrase for phrase in ending["reason"])
     assert state["completionReport"]["retries"] == 4
 
 

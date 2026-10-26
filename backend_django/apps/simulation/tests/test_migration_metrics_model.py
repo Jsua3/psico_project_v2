@@ -81,6 +81,28 @@ def test_el_importador_escribe_la_clase_y_la_intensidad_al_crear(case_version_id
         assert node.intensity == ("HIGH" if node.sensitive_content else "MEDIUM")
 
 
+def _to_legacy_state(attempt_id):
+    """Devuelve el mundo del intento a su forma 1.0: ``caseFlags`` y ``caseMetrics``, sin ``milestones`` ni ``persona``.
+
+    Desde la Tarea 5 el motor ya escribe hitos y persona, así que el estado antiguo que la ``0030`` convierte hay que
+    fabricarlo: las banderas son las que encendían los ``effects`` 1.0 de las decisiones registradas del intento.
+    """
+    state = AttemptWorldState.objects.get(pk=attempt_id)
+    raw = json.loads(state.flags_json)
+    flags = {}
+    for event in AttemptEvent.objects.filter(
+        attempt_id=attempt_id, event_type__in=migration.REGISTERED_EVENTS, decision_option__isnull=False,
+    ).order_by("occurred_at", "id").select_related("decision_option"):
+        flags.update(json.loads(event.decision_option.effects).get("flags", {}))
+    raw.pop("milestones", None)
+    raw.pop("persona", None)
+    raw["caseFlags"] = flags
+    raw["caseMetrics"] = {"confianza": 50}
+    state.flags_json = json.dumps(raw, ensure_ascii=False)
+    state.save(update_fields=["flags_json"])
+    return raw
+
+
 @pytest.fixture
 def run(completed, case_version_id, capsys):
     """Un intento completado, otro abierto con decisiones y las filas en su forma antigua; luego la ``0030``."""
@@ -92,7 +114,7 @@ def run(completed, case_version_id, capsys):
         attempt = SimulationAttempt.objects.get(pk=open_id)
         option = DecisionOption.objects.filter(source_node_id=attempt.current_node_id, classification="ADEQUATE").first()
         assert _decide(client, open_id, token, option.id, requestId=f"req-abierto-{step:04d}").status_code == 200
-    legacy_state = _flags(open_id)
+    legacy_state = _to_legacy_state(open_id)
     assert legacy_state["caseFlags"] and legacy_state["caseMetrics"]  # el intento abierto trae el estado antiguo
 
     # Las filas, como estaban antes de la migración (los effects y las reglas ya las devolvió ``case_version_id``).
@@ -217,6 +239,44 @@ def test_un_intento_abierto_conserva_sus_hitos_y_su_persona_y_sigue_jugable(run)
     assert response.status_code == 200, response.data
     after = _flags(run.open_id)
     assert isinstance(after["milestones"], list) and set(after["persona"]) == {"bond", "activation"}
+
+
+def test_un_intento_abierto_migrado_termina_con_el_final_de_plantilla_que_le_corresponde(run):
+    """R-1: el intento que seguía abierto tras la ``0030``, ya completado, termina con el final de la tabla de plantilla."""
+    for step in range(30):
+        attempt = SimulationAttempt.objects.get(pk=run.open_id)
+        if attempt.status != "IN_PROGRESS":
+            break
+        option = DecisionOption.objects.filter(source_node_id=attempt.current_node_id, classification="ADEQUATE").first()
+        response = _decide(run.client, run.open_id, run.token, option.id, requestId=f"req-cierre-{step:04d}")
+        assert response.status_code == 200, response.data
+    assert SimulationAttempt.objects.get(pk=run.open_id).status == "COMPLETED"
+
+    ending = run.client.get(
+        f"/api/simulation/attempts/{run.open_id}/completion-report",
+        HTTP_X_SIEP_ATTEMPT_TOKEN=run.token,
+    ).data["data"]["ending"]
+
+    # La tabla de la plantilla, escrita aparte de ``legacy``: críticas, protectora, riesgo persistente, brechas.
+    classes = [
+        event.decision_option.response_class
+        for event in AttemptEvent.objects.filter(
+            attempt_id=run.open_id, event_type__in=("DECISION_SELECTED", "PROHIBITED_DECISION_SELECTED"),
+        ).select_related("decision_option")
+    ]
+    contraindicated, risky = classes.count("CONTRAINDICATED"), classes.count("RISKY")
+    missing = set(DECISIVE) - set(_flags(run.open_id)["milestones"])
+    if contraindicated >= 2 or (contraindicated and missing):
+        expected = "critica"
+    elif not contraindicated and risky <= 1 and not missing:
+        expected = "protectora"
+    elif missing or risky >= 3:
+        expected = "riesgo_persistente"
+    else:
+        expected = "con_brechas"
+    assert ending["key"] == expected
+    assert ending["reason"] and not {"severityCounts", "caseFlags", "caseMetrics"} & set(ending)
+    assert ending["title"].startswith("Final")  # los textos migrados de SIM-VBG-001 se conservan
 
 
 # ─── (c) los reportes congelados no se tocan ──────────────────────────────────────────────────────

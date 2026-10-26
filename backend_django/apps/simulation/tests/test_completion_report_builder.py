@@ -144,7 +144,7 @@ def sin_base_de_datos(monkeypatch):
 
     monkeypatch.setattr(game_dtos, "ReflectionJournal", _Journal)
     monkeypatch.setattr(game_dtos, "build_timeline", lambda attempt, events: ["linea"])
-    monkeypatch.setattr(game_dtos.case_effects, "compute_ending", lambda attempt, events: {"ending": 2})
+    monkeypatch.setattr(game_dtos.endings, "compute_ending", lambda attempt, events: {"ending": 2})
 
 
 def test_build_ensambla_todo_en_el_orden_publico(sin_base_de_datos):

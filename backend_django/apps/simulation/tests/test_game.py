@@ -599,7 +599,10 @@ def test_retries_do_not_lower_report_or_force_critical_ending(estudiante, case_v
 
     assert state["status"] == "COMPLETED"
     report = state["completionReport"]
-    # (El final y sus conteos por severidad se vuelven a probar con el motor de finales, Tarea 6.)
+    ending = report["ending"]
+    assert ending["key"] == "protectora"
+    assert ending["reason"] and not any("contraindicada" in phrase for phrase in ending["reason"])
+    assert not {"severityCounts", "caseFlags", "caseMetrics"} & set(ending)
 
     # El reporte cuenta solo lo registrado y muestra los reintentos aparte.
     assert report["adequateDecisions"] == 6
@@ -666,6 +669,7 @@ def test_report_recommendation_is_plural_and_replaces_the_generic_closing_one(es
     assert report["prohibitedRetries"] == expected_prohibited
     assert report["recommendations"] == ["Reconsideraste 2 respuestas antes de decidir; revísalas con tu docente."]
     assert report["adequateDecisions"] == 6  # reconsiderar no resta ni suma decisiones
+    assert report["ending"]["key"] == "protectora"
 
 
 def test_report_without_retries_has_no_reconsideration_recommendation(estudiante, case_version_id):

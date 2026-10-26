@@ -1,9 +1,9 @@
 """E3-8 · Efectos, métricas y finales del caso como datos de la versión (RNF-008, TD-02).
 
-``decision_options.effects`` y ``case_versions.rules.{metrics, endings}`` son la fuente. Una opción
-sin efectos cae a la severidad por clasificación; un caso sin finales propios no tiene final (o
-usa los del caso PDF si declara sus siete métricas); un dato malformado en la base nunca rompe una
-partida (Review Focus 5) y se rechaza al autorarlo; y el reporte ya cerrado no cambia.
+``decision_options.effects`` y ``case_versions.rules.{milestones, endings}`` son la fuente. Una opción
+sin efectos cae a la clase que dan su clasificación y su conducta; un caso con finales propios los usa y
+uno sin ellos termina con la plantilla de finales por hitos (Tarea 6); un dato malformado en la base
+nunca rompe una partida (Review Focus 5) y se rechaza al autorarlo; y el reporte ya cerrado no cambia.
 """
 import json
 import uuid
@@ -25,21 +25,16 @@ from shared.testing import seal_version
 
 pytestmark = [pytest.mark.req("RNF-008"), pytest.mark.req("TD-02")]
 
-#: Desde la Tarea 5 la decisión escribe hitos y persona (``response_effects``), ya no banderas ni métricas del caso:
-#: los finales por ``flag``/``metric`` que estas pruebas esperan los reemplaza el motor de finales de la Tarea 6.
-SKIP_FINALES_POR_METRICAS = pytest.mark.skip(
-    reason="los finales por banderas y métricas los reemplaza el motor de finales por hitos y clases (Tarea 6)"
-)
-
 User = get_user_model()
 BASE = "/api/simulation"
 AUTHORING = "/api/authoring/cases"
 
 METRICS = [{"key": "confianza", "initial": 50}, {"key": "calma", "initial": 40}]
+MILESTONES = [{"key": "familia_contenida", "label": "Contener a la familia", "decisive": True}]
 ENDINGS = [
     {
         "key": "contenido", "title": "Contenido", "message": "Contuviste a la familia.", "tone": "positive",
-        "when": {"all": [{"flag": "familia_contenida"}, {"metric": "confianza", "gte": 60}]},
+        "when": {"all": [{"milestone": "familia_contenida"}, {"count": "recommended", "gte": 1}]},
     },
     {"key": "neutro", "title": "Neutro", "message": "Terminó el caso.", "tone": "neutral"},
 ]
@@ -164,13 +159,11 @@ def test_malformed_effects_in_the_database_are_discarded_not_raised(raw):
 
 
 # ─── jugar con datos ──────────────────────────────────────────────────────────────────────────
-@SKIP_FINALES_POR_METRICAS
-def test_the_effects_apply_flags_and_metrics_and_the_versions_own_endings_decide(admin, estudiante):
+def test_the_effects_record_milestones_and_the_versions_own_endings_decide(admin, estudiante):
     version, option = _published(
         admin,
-        rules={"metrics": METRICS, "endings": ENDINGS},
-        effects={"severity": "recommended", "flags": {"familia_contenida": True},
-                 "metrics": {"confianza": 15, "calma": -10}},
+        rules={"milestones": MILESTONES, "endings": ENDINGS},
+        effects={"milestones": ["familia_contenida"], "persona": {"bond": 1, "activation": -1}},
     )
 
     _, _, state = _play(estudiante, version, option)
@@ -178,45 +171,62 @@ def test_the_effects_apply_flags_and_metrics_and_the_versions_own_endings_decide
     assert state["status"] == "COMPLETED"
     ending = state["completionReport"]["ending"]
     assert ending["key"] == "contenido"
-    assert ending["caseFlags"] == {"familia_contenida": True}
-    assert ending["caseMetrics"] == {"confianza": 65, "calma": 30}
-    assert ending["severityCounts"] == {"recommended": 1, "acceptable": 0, "risky": 0, "critical": 0}
+    assert set(ending) == {"key", "title", "message", "tone", "reason"}
+    assert ending["reason"] == ["Cumpliste: Contener a la familia"]
 
 
-@SKIP_FINALES_POR_METRICAS
 def test_the_default_ending_of_the_list_applies_when_no_condition_does(admin, estudiante):
-    version, option = _published(
-        admin, rules={"metrics": METRICS, "endings": ENDINGS},
-        effects={"severity": "recommended", "metrics": {"confianza": 5}},
-    )
+    version, option = _published(admin, rules={"milestones": MILESTONES, "endings": ENDINGS}, effects={})
 
     _, _, state = _play(estudiante, version, option)
 
     ending = state["completionReport"]["ending"]
     assert ending["key"] == "neutro"
-    assert ending["caseMetrics"]["confianza"] == 55
+    assert ending["reason"] == ["Faltó: Contener a la familia"]
 
 
-def test_a_case_without_endings_and_without_the_seven_metrics_has_no_ending(admin, estudiante):
+def test_the_own_endings_win_over_the_template_even_when_the_template_would_match(admin, estudiante):
+    own = [{"key": "propio", "title": "Propio", "message": "Fin.", "tone": "neutral",
+            "when": {"count": "recommended", "gte": 1}}]
+    version, option = _published(admin, rules={"endings": own}, effects={})  # la plantilla daría ``protectora``
+
+    _, _, state = _play(estudiante, version, option)
+
+    assert state["completionReport"]["ending"]["key"] == "propio"
+
+
+def test_a_case_without_endings_gets_the_template(admin, estudiante):
     version, option = _published(admin, rules={}, effects={})
 
     _, _, state = _play(estudiante, version, option)
 
+    ending = state["completionReport"]["ending"]
     assert state["status"] == "COMPLETED"
-    assert state["completionReport"]["ending"] is None
+    assert ending["key"] == "protectora"  # sin hitos decisivos, nada contraindicado ni con riesgo
+    assert ending["tone"] == "positive" and ending["title"] and ending["message"]
 
 
-@SKIP_FINALES_POR_METRICAS
-def test_a_case_that_declares_the_seven_metrics_without_endings_uses_the_default_endings(admin, estudiante):
-    version, option = _published(
-        admin, rules={"metrics": case_effects.DEFAULT_METRICS}, effects={"severity": "recommended"},
-    )
+def test_a_case_with_decisive_milestones_and_without_endings_ends_by_the_template(admin, estudiante):
+    decisive = [{"key": "valorar", "label": "Valorar el riesgo", "decisive": True}]
+    version, option = _published(admin, rules={"milestones": decisive}, effects={}, classification="RISKY")
 
     _, _, state = _play(estudiante, version, option)
 
     ending = state["completionReport"]["ending"]
-    assert ending["key"] == "riesgo"  # sin valorar riesgo, protección ni derechos
-    assert ending["caseMetrics"] == {key: 50 for key in case_effects.CASE_METRIC_KEYS}
+    assert ending["key"] == "riesgo_persistente"  # falta el hito decisivo
+    assert ending["reason"][0] == "Faltó: Valorar el riesgo"
+
+
+def test_a_case_that_still_declares_the_old_metrics_without_endings_uses_the_template(admin, estudiante):
+    decisive = [{"key": "valorar", "label": "Valorar el riesgo", "decisive": True}]
+    version, option = _published(
+        admin, rules={"metrics": case_effects.DEFAULT_METRICS, "milestones": decisive},
+        effects={"milestones": ["valorar"]},
+    )
+
+    _, _, state = _play(estudiante, version, option)
+
+    assert state["completionReport"]["ending"]["key"] == "protectora"
 
 
 @pytest.mark.parametrize(
@@ -224,8 +234,8 @@ def test_a_case_that_declares_the_seven_metrics_without_endings_uses_the_default
     [
         "no es json",
         "[]",
-        {"metrics": 5, "endings": "x"},
-        {"metrics": [None, 3, {"key": ""}, {"key": "ok", "initial": "mucho"}], "endings": [None, 7, {"key": 1}]},
+        {"metrics": 5, "endings": "x", "milestones": "y"},
+        {"metrics": [None, 3, {"key": ""}], "endings": [None, 7, {"key": 1}], "milestones": [None, {"key": ""}, 4]},
     ],
 )
 def test_malformed_rules_in_the_database_do_not_break_the_game(admin, estudiante, rules):
@@ -234,13 +244,13 @@ def test_malformed_rules_in_the_database_do_not_break_the_game(admin, estudiante
     _, _, state = _play(estudiante, version, option)
 
     assert state["status"] == "COMPLETED"
-    assert state["completionReport"]["ending"] is None
+    assert state["completionReport"]["ending"]["key"] == "protectora"  # no entiende nada: cae a la plantilla
 
 
 def test_malformed_effects_in_the_database_do_not_break_the_game(admin, estudiante):
     version, option = _published(
         admin, rules={"metrics": METRICS, "endings": ENDINGS},
-        effects='{"severity": "banana", "flags": [1], "metrics": {"confianza": "mucho"}}',
+        effects='{"severity": "banana", "flags": [1], "metrics": {"confianza": "mucho"}, "persona": 3, "milestones": 7}',
         classification="ADEQUATE",
     )
 
@@ -262,11 +272,10 @@ def test_a_malformed_when_never_matches_and_the_default_still_does(admin, estudi
     assert state["completionReport"]["ending"]["key"] == "por_defecto"
 
 
-@SKIP_FINALES_POR_METRICAS
 def test_the_closed_report_does_not_change_when_the_data_changes_later(admin, estudiante):
     version, option = _published(
-        admin, rules={"metrics": METRICS, "endings": ENDINGS},
-        effects={"severity": "recommended", "flags": {"familia_contenida": True}, "metrics": {"confianza": 15}},
+        admin, rules={"milestones": MILESTONES, "endings": ENDINGS},
+        effects={"milestones": ["familia_contenida"]},
     )
     client, attempt, state = _play(estudiante, version, option)
     before = client.get(
@@ -275,7 +284,7 @@ def test_the_closed_report_does_not_change_when_the_data_changes_later(admin, es
 
     DecisionOption.objects.filter(pk=option.pk).update(effects=json.dumps({"severity": "critical"}))
     CaseVersion.objects.filter(pk=version.pk).update(
-        rules=json.dumps({"metrics": METRICS, "endings": [ENDINGS[1]]})
+        rules=json.dumps({"milestones": MILESTONES, "endings": [ENDINGS[1]]})
     )
     after = client.get(
         f"{BASE}/attempts/{attempt['attemptId']}/report", HTTP_X_SIEP_ATTEMPT_TOKEN=attempt["attemptToken"]

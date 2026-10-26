@@ -1,5 +1,6 @@
 {
   "dto-sin-servicios": [
-    "apps/simulation/serializers/game_dtos.py|importa apps.simulation.services.case_effects"
+    "apps/simulation/serializers/game_dtos.py|importa apps.simulation.services.case_effects",
+    "apps/simulation/serializers/game_dtos.py|importa apps.simulation.services.endings"
   ]
 }

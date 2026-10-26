@@ -11,7 +11,7 @@ from apps.simulation.models import (
     MapObject,
     ReflectionJournal,
 )
-from apps.simulation.services import case_effects
+from apps.simulation.services import case_effects, endings
 
 SAFE_EXIT_RESOURCES = [
     "Puedes pausar el intento y retomarlo con acompañamiento docente.",
@@ -323,8 +323,8 @@ class CompletionReportBuilder:
             "activeSeconds": int(round(attempt.active_seconds or 0)),
             "clockSeconds": clock_seconds,
             "timeline": build_timeline(attempt, events),
-            # Efecto mariposa: final canónico (1-4) + flags/métricas acumuladas.
-            "ending": case_effects.compute_ending(attempt, events),
+            # El final por hitos y clases de respuesta (los propios del caso o la plantilla), con su razón en palabras.
+            "ending": endings.compute_ending(attempt, events),
         }
 
 
