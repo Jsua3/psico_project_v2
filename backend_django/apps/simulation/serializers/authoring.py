@@ -15,6 +15,7 @@ import math
 
 from rest_framework import serializers
 
+from apps.simulation.casedef.vocabulary import Intensity, ResponseClass
 from apps.simulation.models.world import MAP_OBJECT_TYPES
 from shared.jsonutils import INT4_MAX, INT4_MIN
 
@@ -88,6 +89,8 @@ class NodeRequest(serializers.Serializer):
     positionY = _columna()
     # El servicio lo valida (plano y con tope) y lo nombra en el 400; ausente = no tocar (E3-6).
     decisionPrompt = _text()
+    # Intensidad de la escena; ausente = no tocar (un nodo nuevo sensible nace en HIGH).
+    intensity = serializers.ChoiceField(choices=[m.value for m in Intensity], required=False)
 
 
 class NodeReorderRequest(serializers.Serializer):
@@ -101,10 +104,13 @@ class DecisionRequest(serializers.Serializer):
     targetNodeId = LenientIntegerField()
     optionKey = _text(120)
     text = serializers.CharField(trim_whitespace=False)
-    # La clasificación la valida el servicio (mensaje y estado de siempre: «Clasificación inválida: X»).
-    classification = serializers.CharField(max_length=40)
+    # La clase de la respuesta; en una opción nueva es obligatoria una de las dos (``responseClass`` o ``classification``).
+    responseClass = serializers.ChoiceField(choices=[m.value for m in ResponseClass], required=False)
+    # La clasificación antigua (editor viejo) la valida el servicio (mensaje y estado de siempre: «Clasificación inválida: X»).
+    classification = _text(40)
     prohibitedConduct = _flag()
     prohibitionReason = _text()
+    # TRANSITORIO: se retira en la Tarea 16. Se aceptan y se ignoran (se guardan en 0).
     scoreDelta = _columna()
     stressDelta = _columna()
     prohibitedPenalty = _columna()
@@ -240,3 +246,21 @@ class WorldSaveRequest(serializers.Serializer):
     objects = serializers.ListField(child=WorldObjectRequest(), required=False, allow_null=True)
     collisionZones = serializers.ListField(child=WorldZoneRequest(), required=False, allow_null=True)
     dialogues = serializers.ListField(child=WorldDialogueRequest(), required=False, allow_null=True)
+
+
+class MilestonesRequest(serializers.Serializer):
+    """``PUT …/rules/milestones``: la lista completa de hitos; el servicio valida cada uno y nombra el campo."""
+
+    milestones = serializers.ListField(child=serializers.JSONField())
+
+
+class RiskRequest(serializers.Serializer):
+    """``PUT …/rules/risk``: el nivel de riesgo, o ``null`` para borrarlo."""
+
+    riskLevel = serializers.CharField(max_length=40, allow_null=True)
+
+
+class EndingsRequest(serializers.Serializer):
+    """``PUT …/rules/endings``: la lista completa de finales, en orden de evaluación."""
+
+    endings = serializers.ListField(child=serializers.JSONField())

@@ -233,6 +233,34 @@ class DecisionDetailView(_AuthoringView):
         )
 
 
+# ─── Reglas del modelo: hitos, riesgo y finales ──────────────────────────────
+class RulesMilestonesView(_AuthoringView):
+    def put(self, request, case_version_id):
+        self.version_for(request, case_version_id, mutate=True)
+        body = self.payload(request, inputs.MilestonesRequest)
+        return api_ok(
+            svc.update_milestones(case_version_id, body["milestones"], body.get("revision")), "Hitos actualizados"
+        )
+
+
+class RulesRiskView(_AuthoringView):
+    def put(self, request, case_version_id):
+        self.version_for(request, case_version_id, mutate=True)
+        body = self.payload(request, inputs.RiskRequest)
+        return api_ok(
+            svc.update_risk(case_version_id, body["riskLevel"], body.get("revision")), "Nivel de riesgo actualizado"
+        )
+
+
+class RulesEndingsView(_AuthoringView):
+    def put(self, request, case_version_id):
+        self.version_for(request, case_version_id, mutate=True)
+        body = self.payload(request, inputs.EndingsRequest)
+        return api_ok(
+            svc.update_endings(case_version_id, body["endings"], body.get("revision")), "Finales actualizados"
+        )
+
+
 # ─── Map CRUD ────────────────────────────────────────────────────────────────
 class MapListView(_AuthoringView):
     def post(self, request, case_version_id):

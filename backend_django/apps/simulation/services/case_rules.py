@@ -54,6 +54,8 @@ SEVERITIES = (SEVERITY_RECOMMENDED, SEVERITY_ACCEPTABLE, SEVERITY_RISKY, SEVERIT
 MAX_EFFECT_ENTRIES = 20
 MAX_EFFECT_DELTA = 100
 _NAME = re.compile(r"[A-Za-z0-9_]{1,60}")
+#: El patrón público de una clave (hito, bandera, métrica, final): lo usa la autoría para validar.
+NAME = _NAME
 #: Código de una competencia en los efectos de una opción (E6-1a): el del catálogo, en mayúsculas.
 _COMPETENCY_CODE = re.compile(r"[A-Z0-9_]{1,100}")
 #: Niveles formativos válidos de una competencia (``FormativeLevel``).

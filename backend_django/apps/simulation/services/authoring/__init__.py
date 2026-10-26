@@ -9,6 +9,7 @@ fachada ``services/authoring_service.py``, que además aplica la auditoría.
 - ``editor_view``      — la vista de lectura del editor (``editor``) y sus DTO.
 - ``cases``            — listar y crear casos.
 - ``graph``            — nodos y decisiones (el grafo del caso).
+- ``rules``            — las reglas del modelo de métricas: hitos, nivel de riesgo y finales.
 - ``scenes``           — mapas, objetos y diálogos.
 - ``tools``            — herramientas clínicas.
 - ``characters``       — el catálogo de personajes del caso (E3-3).
@@ -25,7 +26,7 @@ fachada ``services/authoring_service.py``, que además aplica la auditoría.
 
 Dependencias (sin ciclos): ``guards`` y ``request_utils`` no importan nada del paquete;
 ``ethics`` solo importa ``checklist``; ``editor_view`` importa ``guards``, ``checklist`` y ``ethics``
-(la vista dice si el dato de cada casilla existe); ``graph`` y ``scenes`` importan ``editor_view``,
+(la vista dice si el dato de cada casilla existe); ``graph``, ``rules`` y ``scenes`` importan ``editor_view``,
 ``guards`` y ``request_utils``; ``tools`` y ``characters`` importan ``editor_view`` y ``guards``;
 ``world_definition`` importa ``editor_view`` (la herramienta clínica se ve igual en los dos
 editores), ``guards`` y ``scenes`` (las opciones de un diálogo se guardan igual en los dos

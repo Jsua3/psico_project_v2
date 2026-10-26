@@ -819,6 +819,9 @@ export interface OpenApiPaths {
   readonly '/api/admin/cases/{case_version_id}/nodes/{node_id}': 'DELETE' | 'PUT';
   readonly '/api/admin/cases/{case_version_id}/objects/{object_id}': 'DELETE' | 'PUT';
   readonly '/api/admin/cases/{case_version_id}/publish': 'POST';
+  readonly '/api/admin/cases/{case_version_id}/rules/endings': 'PUT';
+  readonly '/api/admin/cases/{case_version_id}/rules/milestones': 'PUT';
+  readonly '/api/admin/cases/{case_version_id}/rules/risk': 'PUT';
   readonly '/api/admin/cases/{case_version_id}/tools': 'POST';
   readonly '/api/admin/cases/{case_version_id}/tools/{tool_id}': 'DELETE' | 'PUT';
   readonly '/api/admin/cases/{case_version_id}/validate': 'POST';
@@ -864,6 +867,9 @@ export interface OpenApiPaths {
   readonly '/api/authoring/cases/{case_version_id}/nodes/{node_id}': 'DELETE' | 'PUT';
   readonly '/api/authoring/cases/{case_version_id}/objects/{object_id}': 'DELETE' | 'PUT';
   readonly '/api/authoring/cases/{case_version_id}/publish': 'POST';
+  readonly '/api/authoring/cases/{case_version_id}/rules/endings': 'PUT';
+  readonly '/api/authoring/cases/{case_version_id}/rules/milestones': 'PUT';
+  readonly '/api/authoring/cases/{case_version_id}/rules/risk': 'PUT';
   readonly '/api/authoring/cases/{case_version_id}/tools': 'POST';
   readonly '/api/authoring/cases/{case_version_id}/tools/{tool_id}': 'DELETE' | 'PUT';
   readonly '/api/authoring/cases/{case_version_id}/validate': 'POST';

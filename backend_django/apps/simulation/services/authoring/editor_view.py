@@ -16,6 +16,8 @@ from apps.simulation.models import (
     SceneMap,
     SimulationNode,
 )
+from apps.simulation.services import case_rules
+from apps.simulation.services.case_state import response_class_of
 from shared.jsonutils import read_map as _read_map, read_string_list as _read_string_list
 
 from . import checklist as checklist_rules
@@ -52,6 +54,7 @@ def editor(case_version_id):
         "status": version.status,
         "context": version.narrative_context or "",
         "learningObjectives": _read_string_list(version.learning_objectives),
+        "rules": rules_state(version),
         "nodes": [node_editor_state(n) for n in nodes],
         "decisions": [decision_edge(d) for d in decisions],
         "maps": [map_editor_state(m) for m in maps],
@@ -77,6 +80,22 @@ def editor(case_version_id):
         "checklistCompletion": checklist,
         "publishable": checklist >= 100,
         "checklist": checklist_view(case_version_id, latest),
+    }
+
+
+def rules_state(version):
+    """Las reglas del modelo como las lee el editor: ``{milestones[], riskLevel, endings[]}``, normalizadas.
+
+    Lo que el cliente lee aquí es lo que escribe con ``PUT …/rules/{milestones,risk,endings}``.
+    """
+    rules = case_rules.rules_of(version)
+    return {
+        "milestones": [
+            {"key": m.key, "label": m.label, "description": m.description, "decisive": m.decisive}
+            for m in rules.milestones
+        ],
+        "riskLevel": rules.risk_level.value if rules.risk_level else None,
+        "endings": [dict(e) for e in rules.endings],
     }
 
 
@@ -190,6 +209,7 @@ def node_editor_state(node):
         "positionY": node.position_y,
         "decisionPrompt": node.decision_prompt,
         "displayOrder": node.display_order,
+        "intensity": node.intensity,
     }
 
 
@@ -203,6 +223,7 @@ def decision_edge(d):
         "targetKey": d.target_node.node_key,
         "text": d.text,
         "classification": d.classification,
+        "responseClass": response_class_of(d).value,
         "prohibitedConduct": d.prohibited_conduct,
         "prohibitionReason": d.prohibition_reason,
         "scoreDelta": d.score_delta,

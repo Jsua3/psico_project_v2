@@ -37,6 +37,7 @@ from .authoring import (
     importing,
     lifecycle,
     publication,
+    rules,
     scenes,
     tools,
     validation,
@@ -106,6 +107,22 @@ def update_decision(case_version_id, decision_id, request):
 @auditable("ADMIN_DELETE_DECISION", "DECISION", 1)
 def delete_decision(case_version_id, decision_id, revision=None):
     return graph.delete_decision(case_version_id, decision_id, revision)
+
+
+# ─── Reglas del modelo: hitos, riesgo y finales ──────────────────────────────
+@auditable("ADMIN_UPDATE_MILESTONES", "CASE_VERSION")
+def update_milestones(case_version_id, items, revision=None):
+    return rules.update_milestones(case_version_id, items, revision)
+
+
+@auditable("ADMIN_UPDATE_RISK", "CASE_VERSION")
+def update_risk(case_version_id, level, revision=None):
+    return rules.update_risk(case_version_id, level, revision)
+
+
+@auditable("ADMIN_UPDATE_ENDINGS", "CASE_VERSION")
+def update_endings(case_version_id, items, revision=None):
+    return rules.update_endings(case_version_id, items, revision)
 
 
 # ─── Maps, objects and dialogues ─────────────────────────────────────────────
