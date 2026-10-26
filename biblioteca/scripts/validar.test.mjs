@@ -432,3 +432,44 @@ test('--todos avisa de un lugar en disco que el índice no nombra', async () => 
     await rm(dir, { recursive: true, force: true });
   }
 });
+
+// ── Pase de arreglos de la revisión final ──
+
+test('--todos reporta un escenario.json roto como error, sin excepción', async () => {
+  const dir = await bibliotecaTemporal({ esquema: 1, lugares: [entradaMinimo()] });
+  try {
+    await writeFile(path.join(dir, 'minimo', 'escenario.json'), '{ "esquema": 2, ');
+    const { errores } = await validarTodos(dir, { kitDir: KIT });
+    assert.ok(errores.some((h) => h.codigo === 'esquema' && h.donde.includes('minimo')), JSON.stringify(errores));
+  } finally {
+    await rm(dir, { recursive: true, force: true });
+  }
+});
+
+test('--todos reporta una entrada del índice sin id como error indice', async () => {
+  const dir = await bibliotecaTemporal({ esquema: 1, lugares: [entradaMinimo(), { nombre: 'Sin id' }, null] });
+  try {
+    const { errores, lugares } = await validarTodos(dir, { kitDir: KIT });
+    assert.equal(errores.filter((h) => h.codigo === 'indice').length, 2, JSON.stringify(errores));
+    assert.deepEqual(lugares, ['minimo']);
+  } finally {
+    await rm(dir, { recursive: true, force: true });
+  }
+});
+
+test('una pieza desdeModelo a medio resolver es error modelo-incompleto', async () => {
+  const { errores } = await validarMutado((e) => {
+    e.catalogo.objetos[0] = { id: 'folleto', nombre: 'Folleto', tipo: 'PROP', desdeModelo: 'televisor', arte: 'arte/objetos/televisor.png' };
+  });
+  const hallazgo = errores.find((h) => h.codigo === 'modelo-incompleto');
+  assert.ok(hallazgo, JSON.stringify(errores));
+  assert.match(hallazgo.mensaje, /animacionCerca/);
+});
+
+test('dos hitos con la misma key son error id-repetido', async () => {
+  const { errores } = await validarMutado((e) => {
+    e.hitos.push({ ...e.hitos[0] });
+  });
+  const hallazgo = errores.find((h) => h.codigo === 'id-repetido' && h.donde.includes('hito'));
+  assert.ok(hallazgo, JSON.stringify(errores));
+});

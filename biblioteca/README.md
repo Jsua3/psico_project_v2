@@ -43,7 +43,7 @@ de los personajes en otro kit; por defecto usa `../frontend/src/assets/character
 | Código | Tipo | Qué significa |
 |---|---|---|
 | `esquema` | error | el archivo no tiene la forma del esquema (campo de más, valor no permitido…) |
-| `id-repetido` | error | dos salas, muebles, puertas de una sala, etc. con el mismo nombre interno |
+| `id-repetido` | error | dos salas, muebles, hitos, puertas de una sala, etc. con el mismo nombre interno |
 | `sala-inexistente` | error | una puerta o un recorrido apunta a una sala que no existe |
 | `ref-inexistente` | error | una sala usa un mueble, objeto o personaje que no está en el lugar |
 | `arte-faltante` | error | una imagen no está en disco |
@@ -57,6 +57,7 @@ de los personajes en otro kit; por defecto usa `../frontend/src/assets/character
 | `indice-falta-lugar` | aviso | (`--todos`) hay un lugar en disco que el índice no nombra |
 | `hito-inexistente` | error | un objeto o herramienta marca (`hitos`) un hito que el lugar no declara |
 | `hito-sin-forma-de-cumplirse` | aviso | ningún objeto ni herramienta del lugar marca ese hito decisivo: lo cumple la autora con sus respuestas |
+| `modelo-incompleto` | error | un objeto o herramienta viene de un modelo y tiene solo parte de los campos resueltos |
 | `modelo-sin-aplicar` | aviso | un objeto o herramienta viene de un modelo y todavía no tiene su arte: falta `npm run modelos:aplicar -- <lugar>` |
 | `entrada-bloqueada` | error | un mueble con choque tapa la entrada o una puerta (caja libre de 32×32) |
 | `fuera-de-la-zona` | error | algo (mueble, objeto, personaje, entrada o puerta) queda fuera del suelo de la sala o contra una pared que el encuadre no tiene |

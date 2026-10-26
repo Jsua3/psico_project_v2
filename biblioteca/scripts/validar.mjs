@@ -208,8 +208,15 @@ export async function validarEscenario(dir, { kitDir = KIT_POR_DEFECTO, catalogo
     }
     const esperados = camposResueltos(modelo, carpeta);
     const distintos = propios.filter((campo) => JSON.stringify(pieza[campo]) !== JSON.stringify(esperados[campo]));
+    const debidos = carpeta === 'herramientas' ? CAMPOS_DE_MODELO.filter((c) => c !== 'textoInteraccion' && c !== 'efecto') : CAMPOS_DE_MODELO;
+    const faltan = debidos.filter((campo) => !(campo in pieza));
+    if (distintos.length === 0 && faltan.length > 0) {
+      error('modelo-incompleto', donde, `Viene del modelo "${pieza.desdeModelo}" y le faltan ${faltan.join(', ')}: ejecuta npm run modelos:aplicar -- <lugar>.`);
+      pendientesDeModelo.add(pieza.id);
+      return;
+    }
     if (distintos.length > 0) {
-      error('desde-modelo-ambiguo', donde, `Viene del modelo "${pieza.desdeModelo}" pero trae valores propios en ${distintos.join(', ')}: quita desdeModelo o quita esos campos y ejecuta npm run modelos:aplicar.`);
+      error('desde-modelo-ambiguo', donde, `Viene del modelo "${pieza.desdeModelo}" pero ${distintos.join(', ')} no coinciden con el modelo (se editó la pieza o el modelo): ejecuta npm run modelos:aplicar -- <lugar>, o quita desdeModelo si la pieza es propia.`);
       pendientesDeModelo.add(pieza.id);
     }
   };
@@ -232,6 +239,7 @@ export async function validarEscenario(dir, { kitDir = KIT_POR_DEFECTO, catalogo
   revisarIds(escenario.catalogo.objetos, 'objetos en el catálogo', 'objeto');
   revisarIds(escenario.catalogo.herramientas, 'herramientas', 'herramienta');
   revisarIds(escenario.personajes, 'personajes', 'personaje');
+  revisarIds((escenario.hitos ?? []).map((h) => ({ id: h.key })), 'hitos', 'hito');
   for (const sala of escenario.salas) revisarIds(sala.puertas, 'puertas', `sala "${sala.id}" › puerta`);
 
   const salas = new Map(escenario.salas.map((s) => [s.id, s]));
@@ -447,7 +455,11 @@ export async function validarTodos(dirEscenarios = DIR_ESCENARIOS, { kitDir = KI
     return { errores, avisos, lugares };
   }
   const prefijar = (lista, id) => lista.map((h) => ({ ...h, donde: `${id} › ${h.donde}` }));
-  for (const entrada of indice.lugares) {
+  for (const [i, entrada] of indice.lugares.entries()) {
+    if (!entrada || typeof entrada !== 'object' || typeof entrada.id !== 'string') {
+      errores.push({ codigo: 'indice', donde: `indice.json › lugares[${i}]`, mensaje: 'Cada entrada del índice necesita un "id" de texto (el nombre interno del lugar).' });
+      continue;
+    }
     const dir = path.join(dirEscenarios, entrada.id);
     if (!(await existe(path.join(dir, 'escenario.json')))) {
       errores.push({ codigo: 'indice-lugar-inexistente', donde: `indice.json › ${entrada.id}`, mensaje: `El índice nombra el lugar "${entrada.id}" y no hay escenarios/${entrada.id}/escenario.json.` });
@@ -457,6 +469,7 @@ export async function validarTodos(dirEscenarios = DIR_ESCENARIOS, { kitDir = KI
     const resultado = await validarEscenario(dir, { kitDir });
     errores.push(...prefijar(resultado.errores, entrada.id));
     avisos.push(...prefijar(resultado.avisos, entrada.id));
+    if (resultado.errores.some((h) => h.codigo === 'esquema')) continue; // el archivo no se pudo leer o no tiene la forma: ya está reportado
     const escenario = JSON.parse(await readFile(path.join(dir, 'escenario.json'), 'utf8'));
     const cifras = {
       nombre: escenario.nombre, salas: escenario.salas?.length ?? 0, completo: escenario.completo,
@@ -468,7 +481,7 @@ export async function validarTodos(dirEscenarios = DIR_ESCENARIOS, { kitDir = KI
       }
     }
   }
-  const nombrados = new Set(indice.lugares.map((l) => l.id));
+  const nombrados = new Set(lugares);
   for (const carpeta of await readdir(dirEscenarios, { withFileTypes: true })) {
     if (carpeta.isDirectory() && !nombrados.has(carpeta.name) && (await existe(path.join(dirEscenarios, carpeta.name, 'escenario.json')))) {
       avisos.push({ codigo: 'indice-falta-lugar', donde: 'indice.json', mensaje: `Hay un lugar en disco que el índice no nombra: "${carpeta.name}".` });
