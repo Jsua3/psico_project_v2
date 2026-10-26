@@ -6,6 +6,8 @@ JSON strings (not jsonb), so they are TextField and parsed in serializers.
 from django.conf import settings
 from django.db import models
 
+from apps.simulation.casedef.vocabulary import Intensity, ResponseClass
+
 
 class CaseVersionStatus(models.TextChoices):
     DRAFT = "DRAFT"
@@ -203,10 +205,17 @@ class SimulationNode(models.Model):
     decision_prompt = models.TextField(default="", db_default="")
     # Orden informativo con que el editor lista los nodos (E3-6, RF-08): no cambia el grafo.
     display_order = models.IntegerField(default=0, db_default=0)
+    # La intensidad de la escena (modelo de respuesta): ``LOW`` | ``MEDIUM`` | ``HIGH``; ``HIGH`` por defecto en las
+    # escenas con ``sensitive_content``. Ver ``casedef.vocabulary.Intensity``.
+    intensity = models.CharField(max_length=8, default=Intensity.MEDIUM.value, db_default=Intensity.MEDIUM.value)
 
     class Meta:
         db_table = "simulation_nodes"
         constraints = [
+            models.CheckConstraint(
+                condition=models.Q(intensity__in=[member.value for member in Intensity]),
+                name="simulation_nodes_intensity_check",
+            ),
             models.UniqueConstraint(fields=["case_version", "node_key"], name="simulation_nodes_case_version_id_node_key_key"),
         ]
 
@@ -243,10 +252,18 @@ class DecisionOption(models.Model):
     # Los efectos de la opción como datos del caso (E3-8): ``{severity, flags{}, metrics{}}``. Vacío
     # = la opción no trae efectos propios (severidad por clasificación y ningún cambio).
     effects = models.TextField(default="{}", db_default="{}")
+    # La clase de la respuesta (modelo de respuesta): ``RECOMMENDED`` | ``ACCEPTABLE`` | ``RISKY`` |
+    # ``CONTRAINDICATED``. Nula mientras la opción no la declara; ver ``casedef.vocabulary.ResponseClass``.
+    response_class = models.CharField(max_length=24, null=True, blank=True)
 
     class Meta:
         db_table = "decision_options"
         constraints = [
+            models.CheckConstraint(
+                condition=models.Q(response_class__isnull=True)
+                | models.Q(response_class__in=[member.value for member in ResponseClass]),
+                name="decision_options_response_class_check",
+            ),
             models.CheckConstraint(condition=models.Q(classification__in=DecisionClassification.values), name="decision_options_classification_check"),
             models.UniqueConstraint(fields=["case_version", "option_key"], name="decision_options_case_version_id_option_key_key"),
         ]

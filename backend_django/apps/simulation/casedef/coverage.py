@@ -78,8 +78,16 @@ EXCLUDED = {
         "last_edited_by": "quién editó por última vez; no es contenido",
         "edited_alone_since": "tanda de ediciones del editor; no es contenido",
     },
-    "SimulationNode": {"id": _ID, "case_version": _OWNER_VERSION},
-    "DecisionOption": {"id": _ID, "case_version": _OWNER_VERSION},
+    # Modelo de respuesta: el documento aún no lleva la intensidad ni la clase (el importador las deriva de la
+    # sensibilidad de la escena y de la severidad de la opción); entran al documento cuando este cambie de forma.
+    "SimulationNode": {
+        "id": _ID, "case_version": _OWNER_VERSION,
+        "intensity": "todavía no viaja en el documento: el importador la deriva de `sensitive_content`",
+    },
+    "DecisionOption": {
+        "id": _ID, "case_version": _OWNER_VERSION,
+        "response_class": "todavía no viaja en el documento: el importador la deriva de la clasificación y la severidad",
+    },
     "SceneMap": {"id": _ID, "case_version": "la versión del mapa es la de su escena", "created_at": _STAMP,
                  "updated_at": _STAMP},
     "SceneHint": {"id": _ID},

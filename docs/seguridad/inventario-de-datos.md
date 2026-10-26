@@ -6,11 +6,11 @@
 
 ## Resumen
 
-Tablas: 42. Columnas: 367.
+Tablas: 42. Columnas: 369.
 
 | Clasificación | Columnas |
 |---|---:|
-| PUBLIC | 143 |
+| PUBLIC | 145 |
 | PERSONAL | 36 |
 | SENSITIVE | 52 |
 | SECRET | 2 |
@@ -396,6 +396,7 @@ Todas las columnas heredan `PUBLIC`: la tabla no tiene datos personales ni sensi
 | `theory_basis` | PUBLIC | — |  |
 | `feedback_text` | PUBLIC | — |  |
 | `effects` | PUBLIC | — |  |
+| `response_class` | PUBLIC | — |  |
 
 
 ### `dialogue_choices` — simulation.DialogueChoice
@@ -783,6 +784,7 @@ Todas las columnas heredan `PUBLIC`: la tabla no tiene datos personales ni sensi
 | `position_y` | PUBLIC | — |  |
 | `decision_prompt` | PUBLIC | — |  |
 | `display_order` | PUBLIC | — |  |
+| `intensity` | PUBLIC | — |  |
 
 
 ### `simulation_rubric_assignments` — simulation.SimulationRubricAssignment

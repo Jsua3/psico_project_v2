@@ -30,6 +30,7 @@ from apps.simulation.casedef.model import (
     World,
     WorldObject,
 )
+from apps.simulation.casedef.vocabulary import Intensity, legacy_class
 from apps.simulation.models import (
     CaseCharacter,
     CaseVersion,
@@ -272,6 +273,7 @@ def _nodes(version, scenes):
             sensitive_content=scene.sensitive, safe_exit_required=scene.safe_exit_required,
             warning_message=scene.warning, start_node=scene.start, terminal_node=scene.terminal,
             position_x=scene.x, position_y=scene.y, decision_prompt=scene.prompt, display_order=position,
+            intensity=(Intensity.HIGH if scene.sensitive else Intensity.MEDIUM).value,
         )
         for position, scene in enumerate(scenes)
     ])
@@ -286,6 +288,7 @@ def _options(version, scenes, node_by_key):
             immediate_feedback=option.immediate_feedback, prohibited_conduct=option.prohibited,
             prohibition_reason=option.reason, consequence_text=option.consequence,
             theory_basis=option.theory_basis, feedback_text=option.feedback_text, effects=_dump(option.effects),
+            response_class=legacy_class(option.classification, option.effects.get("severity"), option.prohibited).value,
         )
         for scene in scenes for option in scene.options
     ])

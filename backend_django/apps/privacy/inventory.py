@@ -290,6 +290,7 @@ DATA_INVENTORY: dict[str, dict] = {
             "theory_basis": PUBLIC,
             "feedback_text": PUBLIC,
             "effects": PUBLIC,
+            "response_class": PUBLIC,
         },
     },
     "rubrics": {
