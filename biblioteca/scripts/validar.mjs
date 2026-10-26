@@ -374,6 +374,24 @@ export async function validarEscenario(dir, { kitDir = KIT_POR_DEFECTO, catalogo
     }
   }
 
+  // Hitos: los que marca cada objeto o herramienta deben existir, y un hito decisivo que nada
+  // del lugar puede cumplir se avisa (lo cumple la autora con sus respuestas).
+  const hitosDelLugar = new Set((escenario.hitos ?? []).map((h) => h.key));
+  const hitosConForma = new Set();
+  for (const [grupo, lista] of [['objeto', escenario.catalogo.objetos], ['herramienta', escenario.catalogo.herramientas]]) {
+    for (const pieza of lista) {
+      for (const key of pieza.hitos ?? []) {
+        if (hitosDelLugar.has(key)) hitosConForma.add(key);
+        else error('hito-inexistente', `${grupo} "${pieza.id}"`, `Marca el hito "${key}", que no está en los hitos del lugar.`);
+      }
+    }
+  }
+  for (const hito of escenario.hitos ?? []) {
+    if (hito.decisive && !hitosConForma.has(hito.key)) {
+      aviso('hito-sin-forma-de-cumplirse', `hito "${hito.key}"`, `Ningún objeto ni herramienta del lugar cumple el hito decisivo "${hito.key}" (${hito.label}); lo cumplirá la autora con sus respuestas.`);
+    }
+  }
+
   // Desde la primera sala se debe poder llegar a todas caminando por las puertas.
   const alcanzadas = new Set([escenario.salas[0].id]);
   const pendientes = [escenario.salas[0]];

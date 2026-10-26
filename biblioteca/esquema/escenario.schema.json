@@ -426,6 +426,12 @@
         },
         "desdeModelo": {
           "$ref": "#/$defs/clave"
+        },
+        "hitos": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/clave"
+          }
         }
       },
       "if": {
@@ -469,6 +475,12 @@
         },
         "desdeModelo": {
           "$ref": "#/$defs/clave"
+        },
+        "hitos": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/clave"
+          }
         }
       },
       "if": {

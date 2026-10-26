@@ -7,6 +7,7 @@
   "scripts": {
     "test": "node --test \"scripts/**/*.test.mjs\"",
     "validar": "node scripts/validar.mjs",
+    "modelos:aplicar": "node scripts/modelos-en-lugar.mjs",
     "validar:modelos": "node scripts/validar-modelos.mjs"
   },
   "devDependencies": {

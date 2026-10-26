@@ -26,6 +26,7 @@ biblioteca/
 npm install
 npm test                                   # pruebas del validador
 npm run validar -- escenarios/universidad  # revisa un lugar
+npm run modelos:aplicar -- escenarios/casa  # copia el arte de los modelos (desdeModelo) al lugar
 ```
 
 `validar` sale con código 1 si hay errores y escribe cada hallazgo como
@@ -46,6 +47,8 @@ de los personajes en otro kit; por defecto usa `../frontend/src/assets/character
 | `esquema-antiguo` | aviso | el archivo usa el esquema 1: le faltan `hitos`, `nivelRiesgoPorDefecto` y los modelos compartidos |
 | `modelo-inexistente` | error | un objeto o herramienta con `desdeModelo` nombra un modelo que no está en `modelos/catalogo.json` |
 | `desde-modelo-ambiguo` | error | un objeto o herramienta trae `desdeModelo` y, además, valores propios distintos de los del modelo (arte, animación, textos, efecto) |
+| `hito-inexistente` | error | un objeto o herramienta marca (`hitos`) un hito que el lugar no declara |
+| `hito-sin-forma-de-cumplirse` | aviso | ningún objeto ni herramienta del lugar marca ese hito decisivo: lo cumple la autora con sus respuestas |
 | `modelo-sin-aplicar` | aviso | un objeto o herramienta viene de un modelo y todavía no tiene su arte: falta `npm run modelos:aplicar -- <lugar>` |
 | `entrada-bloqueada` | error | un mueble con choque tapa la entrada o una puerta (caja libre de 32×32) |
 | `fuera-de-la-zona` | error | algo (mueble, objeto, personaje, entrada o puerta) queda fuera del suelo de la sala o contra una pared que el encuadre no tiene |
