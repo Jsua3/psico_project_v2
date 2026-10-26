@@ -17,10 +17,12 @@ ningún error; los avisos no bloquean.
 import re
 from dataclasses import dataclass
 
+from apps.simulation.casedef import publication_rules
 from apps.simulation.casedef.export import ids_of, to_document
 from apps.simulation.casedef.report import ERROR
 from apps.simulation.casedef.validate import validate_document
-from apps.simulation.services import validation_issues
+from apps.simulation.models import DecisionOption, RubricCriterion, SimulationNode
+from apps.simulation.services import case_rules, case_state, endings, validation_issues
 
 from .definition_io import load_definition
 from .guards import require_version
@@ -113,7 +115,70 @@ def assess_version(case_version_id):
     for issue in validate_document(document):
         if not _is_duplicate(present, issue):
             issues.append(_document_issue(issue, loaded, ids))
+    issues.extend(publication_issues(version))
     return Assessment(issues, _can_publish(issues), document, loaded.definition)
+
+
+def _publication_graph(version, nodes, decisions):
+    """El grafo puro de ``publication_rules`` armado desde las filas de la versión (el documento 1.0 no lleva la clase)."""
+    rules = case_rules.rules_of(version)
+    by_source = {}
+    for decision in decisions:
+        by_source.setdefault(decision.source_node_id, []).append(decision)
+    key_of = {node.id: node.node_key for node in nodes}
+    scenes = tuple(
+        publication_rules.SceneNode(
+            key=node.node_key, title=node.title, start=node.start_node, terminal=node.terminal_node,
+            intensity=node.intensity, warning_message=node.warning_message or "",
+            options=tuple(_option_node(decision, key_of) for decision in by_source.get(node.id, ())),
+        )
+        for node in nodes
+    )
+    competencies = RubricCriterion.objects.filter(
+        rubric__case_version_id=version.id, rubric__active=True, active=True, competency_ref__isnull=False,
+    ).order_by("rubric_id", "display_order", "id").values_list("competency_ref__code", flat=True)
+    return publication_rules.PublicationGraph(
+        scenes=scenes,
+        milestones=tuple(publication_rules.MilestoneNode(m.key, m.label, m.decisive) for m in rules.milestones),
+        endings=tuple(
+            publication_rules.EndingNode(e["key"], e["title"], e.get("when")) for e in endings.endings_of(rules)
+        ),
+        own_endings=bool(rules.endings),
+        rubric_competencies=tuple(dict.fromkeys(competencies)),
+    )
+
+
+def _option_node(decision, key_of):
+    effects = case_rules.effects_of(decision)
+    persona = effects.get("persona")
+    return publication_rules.OptionNode(
+        key=decision.option_key,
+        target=key_of.get(decision.target_node_id),
+        response_class=case_state.response_class_of(decision).value,
+        prohibition_reason=decision.prohibition_reason or "",
+        label=" ".join((decision.text or "").split())[:60],
+        milestones=tuple(effects.get("milestones", ())),
+        persona_step=(persona.get("bond", 0), persona.get("activation", 0)) if persona else None,
+        competencies=tuple(case_rules.competency_overrides(decision)),
+    )
+
+
+def publication_issues(version):
+    """Las seis reglas de publicación sobre las filas de la versión, como ``ValidationIssue``.
+
+    Una opción marcada como conducta prohibida sin motivo ya la reporta el mundo (``PROHIBITED_WITHOUT_REASON``):
+    no se repite aquí (R20, un defecto sale una vez).
+    """
+    nodes = list(SimulationNode.objects.filter(case_version_id=version.id).order_by("display_order", "id"))
+    decisions = list(DecisionOption.objects.filter(case_version_id=version.id).order_by("id"))
+    covered = {d.option_key for d in decisions if d.prohibited_conduct}
+    graph = _publication_graph(version, nodes, decisions)
+    node_ids = {node.node_key: node.id for node in nodes}
+    return [
+        validation_issues.publication_issue(issue, node_ids)
+        for issue in publication_rules.check(graph)
+        if not (issue.code == publication_rules.CONTRAINDICATED_WITHOUT_REASON and issue.option_key in covered)
+    ]
 
 
 def validate_version(case_version_id):
