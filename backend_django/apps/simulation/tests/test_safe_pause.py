@@ -238,7 +238,13 @@ def test_reporte_pausado_es_honesto(estudiante, case_version_id):
     start = _start(c, case_version_id)
     resp = _pause(c, start["attemptId"], start["attemptToken"])
 
-    report = resp.data["data"]["completionReport"]
+    # El estado de la pausa no trae el reporte en vivo (traía clases y conteos de las decisiones): el estudiante
+    # solo lo lee, honesto, por su endpoint de reporte.
+    assert resp.data["data"]["completionReport"] is None
+    report = c.get(
+        f"/api/simulation/attempts/{start['attemptId']}/completion-report",
+        HTTP_X_SIEP_ATTEMPT_TOKEN=start["attemptToken"],
+    ).data["data"]
     assert report["status"] == "PAUSED"
     assert report["safeExitUsed"] is True
     assert report["totalDurationSeconds"] is None, "la pausa no fija duración final"

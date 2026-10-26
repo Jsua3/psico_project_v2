@@ -214,7 +214,8 @@ def _state(attempt, attempt_token):
     """El estado del intento; si está completado, con su reporte congelado (E1-8).
 
     No lleva retroalimentación: lo que se elige se responde con su consecuencia
-    (``_decision_response``) y lo evaluativo llega al cerrar, por el reporte congelado.
+    (``_decision_response``) y lo evaluativo llega al cerrar, por el reporte congelado. Un intento que no
+    está completado (en juego, en pausa, con salida segura o reemplazado) lleva ``completionReport: null``.
     """
     if attempt.status == AttemptStatus.COMPLETED:
         report = attempt_report.frozen_report_for(attempt.id)

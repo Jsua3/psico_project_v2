@@ -341,21 +341,13 @@ def build_completion_report(attempt, events):
     )
 
 
-def attempt_state(attempt, raw_token, events=None, completion_report=None):
-    """El estado del intento. ``completion_report`` es el reporte ya resuelto (el congelado de un
-    intento completado, E1-8); sin él, un intento que no está en juego lo arma en vivo.
+def attempt_state(attempt, raw_token, completion_report=None):
+    """El estado del intento. ``completion_report`` es el reporte congelado de un intento completado
+    (E1-8); un intento que no está completado va con ``completionReport: null``: lo evaluativo (clases,
+    conteos, línea de tiempo) llega al cerrar y no se arma en vivo para el estudiante.
 
     No lleva retroalimentación de la última decisión: esa respuesta es solo su consecuencia."""
     in_progress = attempt.status == AttemptStatus.IN_PROGRESS
-    if not in_progress and completion_report is None:
-        if events is None:
-            from apps.simulation.models import AttemptEvent
-            events = list(
-                AttemptEvent.objects.filter(attempt_id=attempt.id)
-                .select_related("node", "decision_option")
-                .order_by("occurred_at", "id")
-            )
-        completion_report = build_completion_report(attempt, events)
     return {
         "attemptId": str(attempt.id),
         "attemptToken": raw_token,

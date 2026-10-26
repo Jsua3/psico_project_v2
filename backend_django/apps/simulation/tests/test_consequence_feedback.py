@@ -410,14 +410,21 @@ def test_el_estado_del_intento_ya_no_tiene_la_clave_feedback(estudiante, case_ve
         assert "feedback" not in payload
 
 
-def test_el_intento_en_pausa_conserva_su_resumen(estudiante, case_version_id):
+def test_un_intento_sin_completar_no_trae_el_reporte_en_vivo(estudiante, case_version_id):
+    """Antes del cierre no viaja la evaluación por el reporte en vivo (clases, conteos, línea de tiempo)."""
     client, attempt_id, token, node_id = _first_node(estudiante, case_version_id)
-
+    _decide(client, attempt_id, token, _option(node_id, "RECOMMENDED").id)
     paused = client.post(
         f"{BASE}/attempts/{attempt_id}/safe-exit", {"attemptToken": token, "reason": "pausa"}, format="json"
     ).data["data"]
 
-    assert paused["completionReport"]["status"] == "PAUSED"
+    state = client.get(f"{BASE}/attempts/{attempt_id}", HTTP_X_SIEP_ATTEMPT_TOKEN=token).data["data"]
+    active = client.get(f"{BASE}/cases/{case_version_id}/active-attempt").data["data"]
+
+    for payload in (paused, state, active):
+        assert payload["status"] == "PAUSED"
+        assert payload["completionReport"] is None
+        assert payload["supportResources"], "los recursos de apoyo siguen llegando"
 
 
 # ── la migración de datos ────────────────────────────────────────────────────

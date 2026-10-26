@@ -106,7 +106,8 @@ def test_intento_reemplazado_se_reporta_como_reemplazo(
     state = game_service.get_attempt(old["attemptId"], old["attemptToken"], estudiante)
     assert state["status"] == "REPLACED"
     assert state["supportResources"] == [], "nadie pidió apoyo: no es una salida segura"
-    report = state["completionReport"]
+    assert state["completionReport"] is None, "el estado de un intento sin completar no trae el reporte en vivo"
+    report = game_service.get_student_report(old["attemptId"], estudiante)
     assert "reemplaz" in report["summaryMessage"].lower()
     assert "salida segura" not in report["summaryMessage"].lower()
     assert [t["type"] for t in report["timeline"]] == ["ATTEMPT_REPLACED"]

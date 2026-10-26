@@ -333,8 +333,8 @@ def test_second_bad_answer_is_registered_and_advances(estudiante, case_version_i
     node_id, node_key = start["currentNode"]["id"], start["currentNode"]["key"]
 
     bad = DecisionOption.objects.filter(
-        source_node_id=node_id, classification__in=["INADEQUATE", "RISKY"]
-    ).first()
+        source_node_id=node_id, response_class__in=["RISKY", "CONTRAINDICATED"]
+    ).order_by("id").first()
     assert bad is not None
 
     # 1ª respuesta mala -> reintento, no avanza, retryRequired True
