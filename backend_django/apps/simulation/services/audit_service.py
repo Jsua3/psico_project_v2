@@ -53,6 +53,8 @@ AUDIT_TAXONOMY: dict[str, str] = {
     "ATTEMPT_RESUMED": "intento.reanudar",
     "ATTEMPT_REPLACED": "intento.reemplazar",
     "AI_ASSISTANT_QUERY": "asistente.consultar",
+    "AI_AUTHORING_PROPOSE": "asistente_autoria.proponer",
+    "AI_AUTHORING_GUIDE": "asistente_autoria.guiar",
     "TRACE_VIEWED": "traza.leer",
     "RUBRIC_SAVED": "rubrica.evaluar",
     "ANALYTICS_VIEWED": "analitica.ver",
@@ -177,6 +179,10 @@ CONTEXT_WHITELIST: dict[str, frozenset[str]] = {
     # S7-2 (#2) · `node` lo manda el cliente tal cual: la lista blanca deja solo números y palabras cortas (el texto de la
     # pregunta nunca entra: solo su longitud).
     "AI_ASSISTANT_QUERY": frozenset({"question_length", "node", "decision_taken", "response_length"}),
+    # P5 · el asistente de autoría: pantalla (palabra segura), modelo, recuento de cambios, duración y resultado. Nunca el
+    # texto de la petición ni de la respuesta.
+    "AI_AUTHORING_PROPOSE": frozenset({"screen", "model", "changes", "duration_ms", "outcome"}),
+    "AI_AUTHORING_GUIDE": frozenset({"screen", "model", "changes", "duration_ms", "outcome"}),
     "CONSENT_ACCEPTED": frozenset({"caseVersionId", "noticeVersion"}),
     "CONSENT_WITHDRAWN": frozenset({"caseVersionId", "noticeVersion"}),
     # S3-4 · solo ids (de la persona y del ADMIN que ejecuta) y recuentos: nunca el correo, el nombre ni un texto de la persona.

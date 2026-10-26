@@ -172,6 +172,36 @@ export interface AssistantAnswer {
   readonly response: string;
 }
 
+/** El resultado de ``propose``/``guide``; la Tarea 6 completa su forma. */
+export interface AssistantResult {
+  readonly changes?: number;
+  readonly mensaje?: string;
+  readonly model?: string;
+}
+
+/** Sobre de éxito: `data` es `AssistantResult`. */
+export interface AssistantResultEnvelope {
+  readonly data: AssistantResult;
+  readonly message?: string;
+  /** Siempre `true` en una respuesta de éxito. */
+  readonly success: boolean;
+}
+
+/** Si el asistente de autoría está listo y cuánto cupo le queda hoy a quien lo usa. */
+export interface AssistantStatus {
+  readonly enabled: boolean;
+  readonly mode: ModeEnum;
+  readonly remainingToday: number;
+}
+
+/** Sobre de éxito: `data` es `AssistantStatus`. */
+export interface AssistantStatusEnvelope {
+  readonly data: AssistantStatus;
+  readonly message?: string;
+  /** Siempre `true` en una respuesta de éxito. */
+  readonly success: boolean;
+}
+
 export type AttemptStatusEnum = 'IN_PROGRESS' | 'PAUSED' | 'SAFE_EXITED' | 'COMPLETED' | 'REPLACED';
 
 /** Página de auditoría, de la más reciente a la más antigua, con el resumen de calidad de las revisiones. */
@@ -652,6 +682,8 @@ export interface MembershipConflictEnvelope {
 
 export type MembershipStatusEnum = 'INVITED' | 'ACTIVE' | 'DECLINED' | 'REMOVED';
 
+export type ModeEnum = 'connected' | 'disabled';
+
 /** Cuántos resultados trae la página (`shown`) y cuántos hay en total (`total`). */
 export interface PageCoverage {
   readonly shown: number;
@@ -791,12 +823,26 @@ export interface WorldPatchAckMap {
   readonly key: string;
 }
 
+export interface _GuideInput {
+  readonly acciones: ReadonlyArray<unknown>;
+  readonly pregunta: string;
+}
+
+export interface _ProposeInput {
+  readonly pantalla: string;
+  readonly peticion: string;
+  readonly seleccion?: unknown | null;
+}
+
 export interface OpenApiPaths {
   readonly '/api/admin/access-requests': 'GET';
   readonly '/api/admin/access-requests/{request_id}/status': 'PATCH';
   readonly '/api/admin/audit': 'GET';
   readonly '/api/admin/cases': 'GET' | 'POST';
   readonly '/api/admin/cases/import': 'POST';
+  readonly '/api/admin/cases/{case_version_id}/assistant/guide': 'POST';
+  readonly '/api/admin/cases/{case_version_id}/assistant/propose': 'POST';
+  readonly '/api/admin/cases/{case_version_id}/assistant/status': 'GET';
   readonly '/api/admin/cases/{case_version_id}/brief': 'PUT';
   readonly '/api/admin/cases/{case_version_id}/characters': 'POST';
   readonly '/api/admin/cases/{case_version_id}/characters/{character_id}': 'DELETE' | 'PUT';
@@ -845,6 +891,9 @@ export interface OpenApiPaths {
   readonly '/api/auth/me': 'GET';
   readonly '/api/authoring/cases': 'GET' | 'POST';
   readonly '/api/authoring/cases/import': 'POST';
+  readonly '/api/authoring/cases/{case_version_id}/assistant/guide': 'POST';
+  readonly '/api/authoring/cases/{case_version_id}/assistant/propose': 'POST';
+  readonly '/api/authoring/cases/{case_version_id}/assistant/status': 'GET';
   readonly '/api/authoring/cases/{case_version_id}/brief': 'PUT';
   readonly '/api/authoring/cases/{case_version_id}/characters': 'POST';
   readonly '/api/authoring/cases/{case_version_id}/characters/{character_id}': 'DELETE' | 'PUT';

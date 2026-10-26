@@ -27,6 +27,7 @@ from .case import (  # noqa: F401
 from .rubric import (  # noqa: F401
     LEVEL_INDEX,
     AuditLog,
+    AuthoringAssistantUsage,
     Competency,
     CriterionScore,
     EvaluationOrigin,

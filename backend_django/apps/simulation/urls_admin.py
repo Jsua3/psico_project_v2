@@ -1,5 +1,6 @@
 from django.urls import path
 
+from .views.authoring_assistant import AssistantGuideView, AssistantProposeView, AssistantStatusView
 from .views.authoring_views import (
     AdminCaseListCreateView,
     BriefView,
@@ -73,4 +74,7 @@ urlpatterns = [
     path("<int:case_version_id>/world/validate", WorldValidateView.as_view()),
     path("<int:case_version_id>/world", WorldSaveView.as_view()),
     path("<int:case_version_id>/world-preview", WorldPreviewView.as_view()),
+    path("<int:case_version_id>/assistant/status", AssistantStatusView.as_view()),
+    path("<int:case_version_id>/assistant/propose", AssistantProposeView.as_view()),
+    path("<int:case_version_id>/assistant/guide", AssistantGuideView.as_view()),
 ]

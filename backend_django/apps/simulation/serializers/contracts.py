@@ -107,6 +107,23 @@ class AssistantAnswerSerializer(serializers.Serializer):
     response = serializers.CharField()
 
 
+# ─── …/cases/{id}/assistant/* (asistente de IA de autoría, P5) ────────────────
+class AssistantStatusSerializer(serializers.Serializer):
+    """Si el asistente de autoría está listo y cuánto cupo le queda hoy a quien lo usa."""
+
+    enabled = serializers.BooleanField()
+    remainingToday = serializers.IntegerField()
+    mode = serializers.ChoiceField(choices=["connected", "disabled"])
+
+
+class AssistantResultSerializer(serializers.Serializer):
+    """El resultado de ``propose``/``guide``; la Tarea 6 completa su forma."""
+
+    mensaje = serializers.CharField(required=False)
+    model = serializers.CharField(required=False)
+    changes = serializers.IntegerField(required=False)
+
+
 # ─── PATCH /api/simulation/attempts/{attempt_id}/world-state ──────────────────
 class WorldPatchAckMapSerializer(serializers.Serializer):
     """La sala en la que quedó guardado el jugador."""

@@ -399,8 +399,30 @@ def _register_case_routes(prefix):
     )
 
 
+def _assistant_call(world, prefix, route, body=None):
+    """Una ruta del asistente de autoría con la bandera encendida y el proveedor simulado (P5)."""
+    from unittest import mock
+
+    from apps.simulation.services.authoring.assistant import guide, proposals
+
+    simulated = {"mensaje": "Propuesta simulada", "model": "claude-opus-5-5", "changes": 1}
+    url = f"{prefix}/{world.draft_id}/assistant/{route}"
+    with override_settings(AI_AUTHORING_ENABLED=True, AI_AUTHORING_API_KEY="clave-de-prueba"),             mock.patch.object(proposals, "propose", return_value=simulated),             mock.patch.object(guide, "answer", return_value=simulated):
+        client = cl(world.admin)
+        return client.get(url) if body is None else client.post(url, body, format="json")
+
+
 for _prefix in ROUTE_FAMILIES:
     _register_case_routes(_prefix)
+    calls(f"{_prefix}/{{case_version_id}}/assistant/status", "GET")(
+        lambda world, _prefix=_prefix: _assistant_call(world, _prefix, "status")
+    )
+    calls(f"{_prefix}/{{case_version_id}}/assistant/propose", "POST")(
+        lambda world, _prefix=_prefix: _assistant_call(world, _prefix, "propose", {"peticion": "x", "pantalla": "mapa"})
+    )
+    calls(f"{_prefix}/{{case_version_id}}/assistant/guide", "POST")(
+        lambda world, _prefix=_prefix: _assistant_call(world, _prefix, "guide", {"pregunta": "x", "acciones": []})
+    )
 
 
 @pytest.mark.parametrize(("path", "method"), sorted(CALLS))
@@ -782,7 +804,45 @@ def _case_route_errors(prefix):
         ("importar una versión que ya existe", import_, "POST",
          lambda w: _post_document(w.admin, f"{prefix}/import", definition_io.export_definition(w.version_id)),
          409, "CASE_VERSION_EXISTS"),
+        *_assistant_route_errors(prefix),
     ]
+
+
+def _assistant_route_errors(prefix):
+    """Los errores documentados de las tres rutas del asistente de autoría (P5)."""
+    errors = []
+    for route, method, bad_body in (
+        ("status", "GET", None), ("propose", "POST", {}), ("guide", "POST", {}),
+    ):
+        path = f"{prefix}/{{case_version_id}}/assistant/{route}"
+        send = (lambda client, url, body: client.get(url)) if method == "GET" else (
+            lambda client, url, body: client.post(url, body, format="json")
+        )
+        errors += [
+            (f"asistente ({route}) sin sesión", path, method,
+             lambda w, path=path, send=send: send(APIClient(), path.replace("{case_version_id}", str(w.draft_id)), {}),
+             401, "UNAUTHENTICATED"),
+            (f"asistente ({route}) sin permiso", path, method,
+             lambda w, path=path, send=send: send(cl(w.student), path.replace("{case_version_id}", str(w.draft_id)), {}),
+             403, "FORBIDDEN"),
+            (f"asistente ({route}) de una versión inexistente", path, method,
+             lambda w, path=path, send=send: send(cl(w.admin), path.replace("{case_version_id}", "999999"), {}),
+             404, "NOT_FOUND"),
+        ]
+        if bad_body is not None:
+            errors.append((
+                f"asistente ({route}) con el cuerpo incompleto", path, method,
+                lambda w, path=path, send=send: _with_assistant_on(
+                    lambda: send(cl(w.admin), path.replace("{case_version_id}", str(w.draft_id)), {})
+                ),
+                400, "VALIDATION_ERROR",
+            ))
+    return errors
+
+
+def _with_assistant_on(call):
+    with override_settings(AI_AUTHORING_ENABLED=True, AI_AUTHORING_API_KEY="clave-de-prueba"):
+        return call()
 
 
 def _foreign_teacher_report(w):
