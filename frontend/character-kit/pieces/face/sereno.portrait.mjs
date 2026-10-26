@@ -1,5 +1,5 @@
 /**
- * Rostro sereno — versión retrato (32×32), con sus tres expresiones. El
+ * Rostro sereno — versión retrato (32×32), con sus cinco expresiones. El
  * dibujo vive en portrait-face.mjs, compartido con el rostro maduro.
  */
 

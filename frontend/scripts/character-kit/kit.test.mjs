@@ -309,3 +309,45 @@ test('applyRecipeVariant mezcla piezas y colores de la variante sin tocar la rec
   assert.equal(conBata.pieces.hair, base.pieces.hair);
   assert.equal(base.pieces.layer, undefined, 'la receta original no cambia');
 });
+
+// ── Seis estados de retrato (P4: cautelosa y en-crisis para la persona consultante) ──
+
+const SIX_STATES = ['neutral', 'preocupada', 'triste', 'alegre', 'cautelosa', 'en-crisis'];
+
+const differingPixels = (a, b) => {
+  let n = 0;
+  for (let p = 0; p < a.length; p += 4) {
+    if (a[p] !== b[p] || a[p + 1] !== b[p + 1] || a[p + 2] !== b[p + 2] || a[p + 3] !== b[p + 3]) n++;
+  }
+  return n;
+};
+
+test('cada receta publica 6 retratos', () => {
+  const bundle = buildBundle();
+  for (const recipe of Object.values(bundle.recipes)) {
+    assert.deepEqual([...(recipe.portraits ?? [])].sort(), [...SIX_STATES].sort(), recipe.id);
+    const { portraits } = composeCharacter(bundle, recipe);
+    assert.deepEqual(Object.keys(portraits).sort(), [...SIX_STATES].sort(), recipe.id);
+  }
+});
+
+test('cautelosa y en-crisis difieren de las otras cuatro en al menos 12 píxeles', () => {
+  // 12 px es lo que separa hoy a preocupada de triste; neutral y preocupada se distinguen por 8.
+  const bundle = buildBundle();
+  for (const face of ['sereno', 'maduro']) {
+    const { portraits } = composeCharacter(bundle, sampleRecipe(`face:${face}`, 'a'));
+    for (const nuevo of ['cautelosa', 'en-crisis']) {
+      assert.ok(portraits[nuevo], `${face}: falta el retrato ${nuevo}`);
+      for (const otro of SIX_STATES.filter(s => s !== nuevo)) {
+        const n = differingPixels(portraits[nuevo].rgba, portraits[otro].rgba);
+        assert.ok(n >= 12, `${face}: ${nuevo} y ${otro} solo difieren en ${n} píxeles`);
+      }
+    }
+  }
+});
+
+test('emotionToPortrait cubre guarded y crisis', () => {
+  const bundle = buildBundle();
+  assert.equal(bundle.catalog.emotionToPortrait.guarded, 'cautelosa');
+  assert.equal(bundle.catalog.emotionToPortrait.crisis, 'en-crisis');
+});

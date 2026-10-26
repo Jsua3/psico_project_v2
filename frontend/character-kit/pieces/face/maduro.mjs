@@ -1,7 +1,7 @@
 /**
  * Rostro maduro: el sereno con líneas de expresión de 1 px en sombra de piel
  * (bolsas bajo los ojos y surcos junto a la boca) y sin rubor en el sprite.
- * Retrato con las mismas tres expresiones que el sereno, más las líneas.
+ * Retrato con las mismas cinco expresiones que el sereno, más las líneas.
  * Simétrico: el perfil derecho sale del espejo del izquierdo.
  *
  * Leyenda: b ceja · k ojo · n sombra de piel (nariz y líneas) · m boca.
