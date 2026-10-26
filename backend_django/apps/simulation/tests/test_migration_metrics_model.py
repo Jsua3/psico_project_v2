@@ -34,6 +34,7 @@ pytestmark = [pytest.mark.django_db, pytest.mark.req("RN-08")]
 
 migration = import_module("apps.simulation.migrations.0030_metrics_model_data")
 User = get_user_model()
+NEGATIVE = "mediacion_agresor_intentada"  # marca un acto contraindicado: no es un hito
 DECISIVE = ["riesgo_feminicidio_valorado", "medidas_proteccion_activadas", "asesoria_derechos_realizada"]
 
 
@@ -80,12 +81,17 @@ def run(completed, case_version_id, capsys):
     SimulationNode.objects.update(intensity="MEDIUM")
     assert "severity" in DecisionOption.objects.filter(case_version_id=case_version_id).first().effects
     assert "metrics" in json.loads(CaseVersion.objects.get(pk=case_version_id).rules)
+    with_negative = [
+        option.id for option in DecisionOption.objects.filter(case_version_id=case_version_id)
+        if json.loads(option.effects).get("flags", {}).get(NEGATIVE)
+    ]
+    assert with_negative  # la siembra trae al menos una opción que enciende la bandera
     capsys.readouterr()
 
     migration.forward(django_apps, None)
     return SimpleNamespace(
         client=client, token=token, completed_id=completed_id, open_id=open_id, legacy_state=legacy_state,
-        frozen_before=frozen_before, version_id=case_version_id, report=capsys.readouterr().out,
+        frozen_before=frozen_before, with_negative=with_negative, version_id=case_version_id, report=capsys.readouterr().out,
     )
 
 
@@ -109,7 +115,18 @@ def test_los_efectos_de_las_opciones_pasan_a_persona_e_hitos(run):
     # las banderas encendidas son hitos y las apagadas desaparecen
     flagged = {key for option in DecisionOption.objects.filter(case_version_id=run.version_id)
                for key in json.loads(option.effects)["milestones"]}
-    assert set(DECISIVE) <= flagged
+    assert set(DECISIVE) <= flagged and NEGATIVE not in flagged
+
+
+def test_la_mediacion_con_el_agresor_no_es_un_hito_y_su_opcion_queda_contraindicada(run):
+    rules = json.loads(CaseVersion.objects.get(pk=run.version_id).rules)
+
+    assert NEGATIVE not in {item["key"] for item in rules["milestones"]}
+    assert NEGATIVE not in json.dumps(rules["endings"])
+    for option in DecisionOption.objects.filter(pk__in=run.with_negative):
+        assert option.response_class == "CONTRAINDICATED"  # la clase ya lleva el hecho
+        assert NEGATIVE not in json.loads(option.effects)["milestones"]
+    assert NEGATIVE in migration.NEGATIVE_FLAGS
 
 
 def test_las_escenas_sensibles_quedan_en_intensidad_alta(run):
@@ -157,6 +174,7 @@ def test_la_migracion_imprime_el_informe_para_psicologia(run):
     assert "Opciones por clase: RECOMMENDED=6, ACCEPTABLE=5, RISKY=5, CONTRAINDICATED=3." in run.report
     assert "Opciones con severidad crítica SIN conducta prohibida" in run.report
     assert "Hitos de SIM-VBG-001" in run.report and "riesgo_feminicidio_valorado" in run.report
+    assert f"NO pasan a hitos (marcan un acto contraindicado): {NEGATIVE}." in run.report
 
 
 # ─── (b) un intento abierto sigue jugable ─────────────────────────────────────────────────────────

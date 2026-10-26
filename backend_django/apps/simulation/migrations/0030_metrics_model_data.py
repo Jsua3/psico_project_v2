@@ -8,7 +8,7 @@ Convierte lo que ya existe al modelo nuevo; las columnas viejas NO se tocan (se 
   ``ACCEPTABLE``. La tabla vive en ``casedef.vocabulary.legacy_class``; aquí no se copia.
 - ``decision_options.effects``: de ``{severity, flags, metrics, competencies}`` a ``{persona, milestones, competencies}``:
   el paso por defecto de la persona según la clase, las banderas encendidas como hitos y las competencias que ya traía.
-  Las banderas apagadas y las métricas se descartan.
+  Las banderas apagadas, las que marcan un acto contraindicado (``NEGATIVE_FLAGS``) y las métricas se descartan.
 - ``simulation_nodes.intensity``: ``HIGH`` en las escenas con contenido sensible.
 - ``case_versions.rules``: ``milestones`` a partir de las banderas que usan las opciones de la versión (en
   ``SIM-VBG-001``, tres son decisivos y el riesgo del caso es ``EXTREME``), los finales que ya tenía reescritos al
@@ -44,6 +44,10 @@ BATCH = 500
 VBG_CODE = "SIM-VBG-001"
 #: Los hitos que deciden el final de SIM-VBG-001: lo que el psicólogo hace para proteger a la persona usuaria.
 VBG_DECISIVE = ("riesgo_feminicidio_valorado", "medidas_proteccion_activadas", "asesoria_derechos_realizada")
+#: Banderas que marcan un acto contraindicado (lo que el psicólogo NO debe hacer), no un paso profesional: no son
+#: hitos. La clase CONTRAINDICATED de la opción que las enciende ya lleva ese hecho; el final «critico» antiguo usaba
+#: la bandera y la condición de plantilla usa ``count: contraindicated`` en su lugar.
+NEGATIVE_FLAGS = ("mediacion_agresor_intentada",)
 REGISTERED_EVENTS = ("DECISION_SELECTED", "PROHIBITED_DECISION_SELECTED")
 LEGACY_EFFECT_KEYS = ("severity", "flags", "metrics")
 
@@ -78,7 +82,7 @@ def _new_effects(raw, response_class):
         return None
     d_bond, d_act = DEFAULT_PERSONA_STEP[response_class]
     flags = raw.get("flags") if isinstance(raw.get("flags"), dict) else {}
-    milestones = [key for key, value in flags.items() if value is True]
+    milestones = [key for key, value in flags.items() if value is True and key not in NEGATIVE_FLAGS]
     effects = {"persona": {"bond": d_bond, "activation": d_act}, "milestones": milestones}
     if isinstance(raw.get("competencies"), dict) and raw["competencies"]:
         effects["competencies"] = raw["competencies"]
@@ -86,17 +90,21 @@ def _new_effects(raw, response_class):
 
 
 def _migrate_options(apps):
-    """Clase y efectos de cada opción. Devuelve el informe y las claves de hito por versión (en orden de aparición)."""
+    """Clase y efectos de cada opción. Devuelve el informe, las claves de hito por versión (en orden de aparición) y
+    las banderas negativas que se dejaron fuera de los hitos."""
     DecisionOption = apps.get_model("simulation", "DecisionOption")
     rows = DecisionOption.objects.select_related("case_version__simulation_case").order_by("case_version_id", "id")
-    changed, counts, critical_without_conduct, keys_by_version = [], {}, [], {}
+    changed, counts, critical_without_conduct, keys_by_version, excluded = [], {}, [], {}, set()
     for option in rows.iterator(chunk_size=BATCH):
         raw = _loads(option.effects)
         keys = keys_by_version.setdefault(option.case_version_id, {})
         flags = raw.get("flags") if isinstance(raw.get("flags"), dict) else {}
         declared = raw.get("milestones") if isinstance(raw.get("milestones"), list) else []
         for key in [*flags, *(k for k in declared if isinstance(k, str))]:
-            keys.setdefault(key, None)
+            if key in NEGATIVE_FLAGS:
+                excluded.add(key)
+            else:
+                keys.setdefault(key, None)
 
         was_empty = option.response_class is None
         severity = raw.get("severity")
@@ -121,7 +129,7 @@ def _migrate_options(apps):
             changed = []
     if changed:
         DecisionOption.objects.bulk_update(changed, ["response_class", "effects"])
-    return counts, critical_without_conduct, keys_by_version
+    return counts, critical_without_conduct, keys_by_version, excluded
 
 
 # ─── las escenas ──────────────────────────────────────────────────────────────────────────────
@@ -273,7 +281,7 @@ def _migrate_world_states(apps):
 # ─── la migración ─────────────────────────────────────────────────────────────────────────────
 def forward(apps, schema_editor):
     print("\n[0030 · modelo de respuesta] informe para Psicología:")
-    counts, critical_without_conduct, keys_by_version = _migrate_options(apps)
+    counts, critical_without_conduct, keys_by_version, excluded = _migrate_options(apps)
     _migrate_nodes(apps)
     rules_report = _migrate_rules(apps, keys_by_version)
     migrated_states = _migrate_world_states(apps)
@@ -284,6 +292,8 @@ def forward(apps, schema_editor):
         f"  Opciones con severidad crítica SIN conducta prohibida (pasan a CONTRAINDICATED; revisar): "
         f"{len(critical_without_conduct)}" + (f" ({'; '.join(critical_without_conduct)})" if critical_without_conduct else "") + "."
     )
+    if excluded:
+        print(f"  Banderas que NO pasan a hitos (marcan un acto contraindicado): {', '.join(sorted(excluded))}.")
     for label, keys in rules_report.items():
         print(f"  Hitos de {label}: {', '.join(keys) if keys else '(ninguno)'}.")
     print(f"  Estados de intento migrados: {migrated_states}.")
