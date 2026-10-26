@@ -4,6 +4,7 @@ import re
 
 from shared.jsonutils import read_string_list
 
+from apps.simulation.casedef.vocabulary import Intensity
 from apps.simulation.models import (
     AttemptStatus,
     ClinicalTool,
@@ -71,6 +72,8 @@ def node_state(node, include_options):
         "sensitiveContent": node.sensitive_content,
         "safeExitRequired": node.safe_exit_required,
         "warningMessage": node.warning_message,
+        # Cuánta carga emocional trae la escena (LOW | MEDIUM | HIGH); MEDIUM si la columna viene vacía.
+        "intensity": node.intensity or Intensity.MEDIUM.value,
         "terminal": node.terminal_node,
         "decisionPrompt": node.decision_prompt,
         "displayOrder": node.display_order,
@@ -341,8 +344,10 @@ def build_completion_report(attempt, events):
     )
 
 
-def attempt_state(attempt, raw_token, completion_report=None):
-    """El estado del intento. ``completion_report`` es el reporte congelado de un intento completado
+def attempt_state(attempt, raw_token, persona, completion_report=None):
+    """El estado del intento. ``persona`` es la persona consultante ya en palabras
+    (``{"bond", "activation", "label"}``): la lee quien llama del estado guardado del mundo, porque
+    los DTO no importan servicios. ``completion_report`` es el reporte congelado de un intento completado
     (E1-8); un intento que no está completado va con ``completionReport: null``: lo evaluativo (clases,
     conteos, línea de tiempo) llega al cerrar y no se arma en vivo para el estudiante.
 
@@ -354,10 +359,12 @@ def attempt_state(attempt, raw_token, completion_report=None):
         "caseVersionId": attempt.case_version_id,
         "caseTitle": attempt.case_version.simulation_case.title,
         "status": attempt.status,
-        "accumulatedScore": attempt.accumulated_score,
-        "stressIndex": attempt.stress_index,
-        "metrics": metrics(attempt),
-        "clinicalState": case_effects.clinical_state(attempt),
+        "persona": persona,
+        # TRANSITORIO: se retira en la Tarea 17
+        "accumulatedScore": 0,
+        "stressIndex": 0,
+        "metrics": {},
+        "clinicalState": None,
         "currentNode": node_state(attempt.current_node, in_progress),
         "completionReport": completion_report,
         "supportResources": SAFE_EXIT_RESOURCES if attempt.status in _SUPPORT_STATUSES else [],

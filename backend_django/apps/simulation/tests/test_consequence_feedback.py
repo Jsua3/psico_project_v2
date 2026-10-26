@@ -37,7 +37,7 @@ REGISTERED = case_effects.REGISTERED_DECISION_EVENT_TYPES
 
 #: Claves que revelan la evaluación de la decisión: no viajan al decidir, en ningún caso.
 #: (Las cifras del estado del intento —``accumulatedScore``, ``stressIndex``, ``metrics`` y ``clinicalState``— las
-#: fija en constantes la Tarea 7 y las retira la 17: hasta entonces se quedan fuera de esta lista.)
+#: sirve fijas la Tarea 7 (``0``, ``0``, ``{}``, ``None``) y las retira la 17: se quedan fuera de esta lista.)
 EVALUATIVE_KEYS = {
     "feedback", "classification", "class", "responseClass", "scoreDelta", "stressDelta", "trustDelta",
     "victimRiskDelta", "prohibitedConduct", "prohibitionReason", "message", "retryRequired",

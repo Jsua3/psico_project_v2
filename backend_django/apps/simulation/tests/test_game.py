@@ -140,7 +140,7 @@ def test_full_playthrough_reaches_terminal_and_locks_reflection(estudiante, case
     data = start.data["data"]
     token, attempt_id = data["attemptToken"], data["attemptId"]
     assert data["status"] == "IN_PROGRESS"
-    assert data["metrics"]["userTrust"] == 50 and data["metrics"]["victimRisk"] == 50
+    assert data["metrics"] == {}  # TRANSITORIO: las cifras viejas ya no viajan (se retira en la Tarea 17)
 
     # Reflection at the start node -> encrypted at rest, unlocked while in progress.
     node_id = data["currentNode"]["id"]

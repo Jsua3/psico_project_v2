@@ -31,7 +31,7 @@ from apps.simulation.models import (
 from apps.simulation.serializers import game_dtos as dto
 from apps.simulation.signals import attempt_completed, attempt_start_requested
 from . import attempt_lifecycle as lifecycle
-from . import case_effects, crypto_service, response_effects
+from . import case_effects, case_state, crypto_service, response_effects
 from . import attempt_duration, attempt_report, case_rules
 from shared.exceptions import ApiError
 from shared import policies
@@ -217,10 +217,18 @@ def _state(attempt, attempt_token):
     (``_decision_response``) y lo evaluativo llega al cerrar, por el reporte congelado. Un intento que no
     está completado (en juego, en pausa, con salida segura o reemplazado) lleva ``completionReport: null``.
     """
+    # La persona sale del estado guardado del mundo (una lectura por estado): un intento pausado y
+    # reanudado la reconstruye igual.
+    persona = case_state.read(attempt).persona
+    persona_dto = {
+        "bond": persona[0].value,
+        "activation": persona[1].value,
+        "label": case_state.persona_label(persona),
+    }
     if attempt.status == AttemptStatus.COMPLETED:
         report = attempt_report.frozen_report_for(attempt.id)
-        return dto.attempt_state(attempt, attempt_token, completion_report=report)
-    return dto.attempt_state(attempt, attempt_token)
+        return dto.attempt_state(attempt, attempt_token, persona_dto, completion_report=report)
+    return dto.attempt_state(attempt, attempt_token, persona_dto)
 
 
 def _open_attempt_of(student_id, case_version_id):
@@ -435,7 +443,7 @@ def list_attempt_history(actor):
             "caseVersionId": a.case_version_id,
             "caseTitle": a.case_version.simulation_case.title,
             "status": a.status,
-            "accumulatedScore": a.accumulated_score,
+            "accumulatedScore": 0,  # TRANSITORIO: se retira en la Tarea 17
             "adequateDecisions": counts[a.id]["ADEQUATE"],
             "riskyDecisions": counts[a.id]["RISKY"],
             "inadequateDecisions": counts[a.id]["INADEQUATE"],
