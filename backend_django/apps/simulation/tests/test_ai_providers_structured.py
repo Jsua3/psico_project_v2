@@ -2,6 +2,7 @@
 
 El transporte HTTP se simula parchando ``urllib.request.urlopen``: nada toca la red.
 """
+import http.client
 import io
 import json
 import socket
@@ -141,6 +142,20 @@ def test_un_cuerpo_json_que_no_es_objeto_es_malformed(raw):
     assert info.value.kind == "malformed"
 
 
+@pytest.mark.parametrize("error", [http.client.IncompleteRead(b"ab"), http.client.BadStatusLine("x")])
+def test_un_error_del_protocolo_http_es_http(error):
+    with pytest.raises(ProviderError) as info:
+        _llamar(error=error)
+    assert info.value.kind == "http"
+
+
+@pytest.mark.parametrize("content", ["texto", ["texto"], [None], [{"type": "text", "text": 5}]])
+def test_un_content_que_no_es_lista_de_bloques_es_malformed(content):
+    with pytest.raises(ProviderError) as info:
+        _llamar(_Respuesta({"content": content, "stop_reason": "end_turn"}))
+    assert info.value.kind == "malformed"
+
+
 def test_un_corte_de_conexion_durante_la_lectura_es_http():
     with pytest.raises(ProviderError) as info:
         _llamar(error=ConnectionResetError("reset"))
@@ -158,7 +173,9 @@ def test_un_timeout_durante_la_lectura_es_timeout():
 
 
 def test_un_estado_no_2xx_es_http_con_el_codigo_y_sin_la_key():
-    cuerpo = ("x" * 280 + KEY + "y" * 100).encode("utf-8")  # la clave cruza el corte de 300 caracteres
+    inicio = 300 - len(KEY) + 5  # la clave cruza el corte de 300 caracteres
+    assert inicio < 300 < inicio + len(KEY)
+    cuerpo = ("x" * inicio + KEY + "y" * 100).encode("utf-8")
     error = urllib.error.HTTPError("https://api", 429, "Too Many", {}, io.BytesIO(cuerpo))
     with pytest.raises(ProviderError) as info:
         _llamar(error=error)

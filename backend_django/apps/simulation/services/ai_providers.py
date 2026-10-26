@@ -8,6 +8,7 @@ propio de la API que envuelve (URL, cabeceras, cuerpo y forma de la respuesta).
 Agregar un proveedor nuevo es crear una clase y registrarla en ``PROVIDERS``;
 la vista no se toca (principio abierto/cerrado).
 """
+import http.client
 import json
 import socket
 import urllib.error
@@ -22,6 +23,10 @@ AUTHORING_TIMEOUT_SECONDS = 30
 
 class NotConfigured(Exception):
     """El asistente está encendido pero falta la clave del proveedor."""
+
+
+#: Cabeceras cuyo valor es una credencial y se borra de los mensajes de error.
+_CABECERAS_SECRETAS = frozenset({"x-api-key", "authorization"})
 
 
 def post_json(url: str, payload: dict, headers: dict, timeout: float = TIMEOUT_SECONDS) -> dict:
@@ -40,8 +45,8 @@ def post_json(url: str, payload: dict, headers: dict, timeout: float = TIMEOUT_S
             return json.loads(response.read().decode("utf-8"))
     except urllib.error.HTTPError as exc:
         body = exc.read().decode("utf-8", errors="replace")
-        for secret in headers.values():  # primero se borra la clave y después se recorta: no puede quedar cortada a medias
-            if len(secret) >= 8:
+        for name, secret in headers.items():  # primero se borra la clave y después se recorta: no puede quedar cortada a medias
+            if name.lower() in _CABECERAS_SECRETAS and secret:
                 body = body.replace(secret, "***")
         raise RuntimeError(f"provider returned {exc.code}: {body[:300]}") from exc
 
@@ -140,6 +145,8 @@ class AnthropicProvider(AIProvider):
             if _es_timeout(exc):
                 raise ProviderError("timeout", "el proveedor no respondió a tiempo") from None
             raise ProviderError("http", self._sin_clave(f"error de red: {exc}")) from None
+        except http.client.HTTPException as exc:  # IncompleteRead, BadStatusLine, RemoteDisconnected...
+            raise ProviderError("http", self._sin_clave(f"respuesta HTTP inválida: {type(exc).__name__}")) from None
         except ValueError:  # cuerpo 2xx que no es JSON ni UTF-8 (p. ej. HTML de un proxy)
             raise ProviderError("malformed", "el cuerpo de la respuesta no es JSON") from None
 
@@ -150,7 +157,15 @@ class AnthropicProvider(AIProvider):
             raise ProviderError("refusal", "el modelo se negó a responder")
         if stop_reason == "max_tokens":
             raise ProviderError("malformed", "la respuesta se cortó por max_tokens")
-        text = next((b.get("text") for b in data.get("content") or [] if b.get("type") == "text"), None)
+        content = data.get("content")
+        if not isinstance(content, list):
+            raise ProviderError("malformed", "el contenido de la respuesta no es una lista")
+        text = next(
+            (b.get("text") for b in content if isinstance(b, dict) and b.get("type") == "text"),
+            None,
+        )
+        if text is not None and not isinstance(text, str):
+            raise ProviderError("malformed", "el bloque de texto no es una cadena")
         if text is None:
             raise ProviderError("malformed", "la respuesta no trae un bloque de texto")
         try:
