@@ -184,13 +184,15 @@ def test_the_template_endings_never_trip_the_default_rule():
     assert "ending-without-default" not in codes(rules.check(g))
 
 
-def test_template_endings_are_judged_only_when_the_case_declares_a_decisive_milestone():
-    template = (EndingNode("critica", "C", {"count": "contraindicated", "gte": 2}), EndingNode("resto", "R", None))
+def test_an_unreachable_template_ending_is_only_a_warning_and_an_own_one_an_error():
+    ending = (EndingNode("critica", "C", {"count": "contraindicated", "gte": 2}), EndingNode("resto", "R", None))
     base = line()
-    without = PublicationGraph(base.scenes, (MilestoneNode("uno"),), template, False, ())
-    with_decisive = PublicationGraph(base.scenes, (MilestoneNode("uno", decisive=True),), template, False, ())
-    assert "ending-unreachable" not in codes(rules.check(without))
-    assert [i.ending_key for i in rules.check(with_decisive) if i.code == "ending-unreachable"] == ["critica"]
+    template = PublicationGraph(base.scenes, (MilestoneNode("uno"),), ending, False, ())
+    own = PublicationGraph(base.scenes, (MilestoneNode("uno"),), ending, True, ())
+    found = [i for i in rules.check(template) if i.code == "ending-unreachable"]
+    assert [(i.severity, i.ending_key, i.template) for i in found] == [("warning", "critica", True)]
+    found = [i for i in rules.check(own) if i.code == "ending-unreachable"]
+    assert [(i.severity, i.ending_key, i.template) for i in found] == [("error", "critica", False)]
 
 
 def _wide_graph(layers):
@@ -294,6 +296,7 @@ def prof(db):
 def test_the_migrated_seeded_case_has_no_errors_and_only_the_transition_warning(seeded):
     found = validation.publication_issues(seeded)
 
+    # sus cuatro finales de plantilla se alcanzan; solo queda el aviso de transición de las competencias
     assert [(i["code"], i["severity"]) for i in found] == [("competency-without-evidence", "warning")]
     assert "competencyCode" not in found[0]
 

@@ -14,8 +14,8 @@ los dos avisos que se explican abajo:
    reunidos, los conteos por clase y la persona avanzada paso a paso (el ``effects.persona`` de la opción o la
    tabla por clase). No se mira el orden de evaluación: un final es alcanzable si algún camino cumple su
    condición. Además ``ending-without-default``: el caso declara finales propios, ninguno es el de por defecto y
-   algún camino no cumple ninguno. Los finales de la plantilla solo se juzgan si el caso declara algún hito
-   decisivo (transición: sin ellos la plantilla depende de hitos que el caso aún no tiene). Los caminos se enumeran con tope (``MAX_PATHS`` caminos, ``MAX_DEPTH``
+   algún camino no cumple ninguno. Un final PROPIO inalcanzable es ``error``; uno de la PLANTILLA es ``warning``
+   (la plantilla es automática y un caso pequeño o sin hitos decisivos puede no darla). Los caminos se enumeran con tope (``MAX_PATHS`` caminos, ``MAX_DEPTH``
    escenas, un reencuentro con una escena ya visitada corta el camino): si el tope se alcanza no se afirma nada
    y sale un único aviso ``ending-reachability-skipped``. Sin ningún camino completo tampoco se dice nada: eso
    ya lo reporta el validador del mundo.
@@ -118,6 +118,8 @@ class Issue:
     milestone_key: str | None = None
     ending_key: str | None = None
     competency_code: str | None = None
+    #: ``True`` si el final señalado es de la plantilla (cambia la frase del mensaje).
+    template: bool = False
     #: Nombres legibles (título de la escena, etiqueta del hito…) para el mensaje; nunca ids.
     labels: dict = field(default_factory=dict, compare=False)
 
@@ -248,15 +250,14 @@ def _ending_rules(graph, scenes):
     if not contexts:
         return []
     issues = []
-    # Regla de transición: la plantilla de un caso sin hitos decisivos (el documento 1.0 importado, el caso autorado
-    # antes de este modelo) no se juzga; sus finales dependen de hitos que el caso aún no declara.
-    judge_template = graph.own_endings or any(milestone.decisive for milestone in graph.milestones)
-    for ending in graph.endings if judge_template else ():
+    severity = ERROR if graph.own_endings else WARNING
+    for ending in graph.endings:
         if ending.when is None or not conditions.is_valid(ending.when):
             continue  # el de por defecto siempre aplica; un ``when`` roto ya lo reporta la validación del documento
         if not any(conditions.evaluate(ending.when, context) for context in contexts):
             issues.append(Issue(
-                ENDING_UNREACHABLE, ERROR, "endings", ending_key=ending.key,
+                ENDING_UNREACHABLE, severity, "endings", ending_key=ending.key,
+                template=not graph.own_endings,
                 labels={"ending": ending.title or ending.key},
             ))
     has_default = any(ending.when is None for ending in graph.endings)

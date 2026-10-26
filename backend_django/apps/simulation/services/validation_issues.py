@@ -92,6 +92,10 @@ PUBLICATION_PLAIN = {
         "La escena «{scene}» es de intensidad alta y no tiene mensaje de advertencia: escríbelo antes de publicar."
     ),
 }
+_TEMPLATE_ENDING_UNREACHABLE = (
+    "El final de plantilla «{ending}» no puede darse en este caso; si quieres que exista, marca hitos decisivos "
+    "o añade respuestas con riesgo o contraindicadas."
+)
 _NO_COMPETENCY_DECLARED = (
     "Ninguna respuesta declara competencias todavía: la rúbrica no tendrá evidencia que mostrar."
 )
@@ -200,6 +204,8 @@ def publication_issue(issue, node_ids):
     # BORRADOR: texto nuevo del servidor, pendiente de la aprobación de Psicología (VD-23).
     if issue.code == "competency-without-evidence" and issue.competency_code is None:
         message = _NO_COMPETENCY_DECLARED
+    elif issue.code == "ending-unreachable" and issue.template:
+        message = _TEMPLATE_ENDING_UNREACHABLE.format(**issue.labels)
     else:
         message = PUBLICATION_PLAIN[issue.code].format(**issue.labels)
     result = {"code": issue.code, "severity": issue.severity, "field": issue.field, "message": message}
