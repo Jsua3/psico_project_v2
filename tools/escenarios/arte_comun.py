@@ -191,6 +191,13 @@ def placa(d, x, y, picto=None):
         d.rectangle([x - 8, y - 6, x - 1, y + 6], fill=tinta); d.rectangle([x + 1, y - 6, x + 8, y + 6], fill=tinta)
     elif picto == 'cruz':
         d.rectangle([x - 2, y - 7, x + 2, y + 7], fill=(70, 150, 96)); d.rectangle([x - 7, y - 2, x + 7, y + 2], fill=(70, 150, 96))
+    elif picto == 'casa':   # casita: techo y cuerpo
+        d.polygon([(x - 9, y - 1), (x, y - 8), (x + 9, y - 1)], fill=(150, 80, 60)); d.rectangle([x - 6, y - 1, x + 6, y + 7], fill=tinta)
+        d.rectangle([x - 2, y + 2, x + 2, y + 7], fill=(214, 208, 190))
+    elif picto == 'estrella':   # estrella de cuatro puntas (habitación de los niños, sala de entrevista)
+        d.polygon([(x, y - 8), (x + 2, y - 2), (x + 8, y), (x + 2, y + 2), (x, y + 8), (x - 2, y + 2), (x - 8, y), (x - 2, y - 2)], fill=(214, 170, 70))
+    elif picto == 'hoja':   # hoja: patio, exterior
+        d.ellipse([x - 7, y - 5, x + 5, y + 7], fill=(80, 140, 86)); d.line([(x - 6, y + 6), (x + 4, y - 4)], fill=(50, 96, 56), width=1)
     else:
         d.rectangle([x - 6, y - 2, x + 6, y - 1], fill=(120, 116, 104))
         d.rectangle([x - 6, y + 2, x + 3, y + 3], fill=(120, 116, 104))

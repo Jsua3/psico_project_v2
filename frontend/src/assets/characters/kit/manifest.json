@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "kitSha256": "ff56b3800333829ad79163b13a2efb257b1b5c7298d49767e9e91c5187e0d561",
+  "kitSha256": "b676027f4fefcdb2bdc70f28446d8169d19328cff07fa3ef195783d2a5a59215",
   "characters": {
     "abuela-familia": {
       "displayName": "Abuela de la niña",
@@ -481,6 +481,88 @@
               "pixelSha256": "78661764e5a0b0922fb0837d9606e2d06a0cce222f5b15bf04052e71250bd636"
             }
           }
+        }
+      }
+    },
+    "comisaria-familia": {
+      "displayName": "Comisaria de familia",
+      "kind": "npc",
+      "complexion": "a",
+      "provenance": {
+        "source": "Kit SIEP",
+        "license": "SIEP-INTERNAL"
+      },
+      "geometry": {
+        "down": {
+          "opaqueHeight": 64,
+          "headWidth": 21,
+          "shoulderWidth": 23
+        },
+        "left": {
+          "opaqueHeight": 64,
+          "headWidth": 20,
+          "torsoDepth": 16
+        },
+        "right": {
+          "opaqueHeight": 64,
+          "headWidth": 20,
+          "torsoDepth": 16
+        },
+        "up": {
+          "opaqueHeight": 64,
+          "headWidth": 21,
+          "shoulderWidth": 23
+        }
+      },
+      "retouched": [],
+      "files": {
+        "idle": {
+          "path": "comisaria-familia/idle.png",
+          "width": 192,
+          "height": 288,
+          "pixelSha256": "610bc60f7c00fbf15b898dab1e995e01819b793357aabe51120dbcc89f5fb29c"
+        },
+        "walk": {
+          "path": "comisaria-familia/walk.png",
+          "width": 288,
+          "height": 288,
+          "pixelSha256": "e2e8241de33905d36abd8447c7d9b987629786a7685bfbb746f35e37bf3a16bd"
+        },
+        "portrait-neutral": {
+          "path": "comisaria-familia/portrait-neutral.png",
+          "width": 32,
+          "height": 32,
+          "pixelSha256": "b3e064ce090e80119947bb00e6628a541e7c516e8bd172597656d47117a9fe60"
+        },
+        "portrait-preocupada": {
+          "path": "comisaria-familia/portrait-preocupada.png",
+          "width": 32,
+          "height": 32,
+          "pixelSha256": "a48b3b2ddb2fdd5c61c4193d2046a6b4dcd311ef40e8b18816ed95fd6b5be8aa"
+        },
+        "portrait-triste": {
+          "path": "comisaria-familia/portrait-triste.png",
+          "width": 32,
+          "height": 32,
+          "pixelSha256": "80e13893fc7780a82d015e271d0fcf00ddab49d675cf88d4b14f7057488d6a13"
+        },
+        "portrait-alegre": {
+          "path": "comisaria-familia/portrait-alegre.png",
+          "width": 32,
+          "height": 32,
+          "pixelSha256": "8922eec80c155e9130971c8b264e53acf967176d30c39e8a332775b8d8947a7d"
+        },
+        "portrait-cautelosa": {
+          "path": "comisaria-familia/portrait-cautelosa.png",
+          "width": 32,
+          "height": 32,
+          "pixelSha256": "ecf00bf857a103536c1499de8f4772694a4b06fde49b2bc5c3f940957d8ccc90"
+        },
+        "portrait-en-crisis": {
+          "path": "comisaria-familia/portrait-en-crisis.png",
+          "width": 32,
+          "height": 32,
+          "pixelSha256": "028ba9fc69560d5958c65fd1706aef1ae42199b72645b6d26dd03546dae9d3ca"
         }
       }
     },
@@ -2171,6 +2253,88 @@
         }
       }
     },
+    "nina-casa": {
+      "displayName": "Niña de la casa",
+      "kind": "npc",
+      "complexion": "a",
+      "provenance": {
+        "source": "Kit SIEP",
+        "license": "SIEP-INTERNAL"
+      },
+      "geometry": {
+        "down": {
+          "opaqueHeight": 64,
+          "headWidth": 20,
+          "shoulderWidth": 23
+        },
+        "left": {
+          "opaqueHeight": 64,
+          "headWidth": 19,
+          "torsoDepth": 14
+        },
+        "right": {
+          "opaqueHeight": 64,
+          "headWidth": 19,
+          "torsoDepth": 14
+        },
+        "up": {
+          "opaqueHeight": 64,
+          "headWidth": 19,
+          "shoulderWidth": 23
+        }
+      },
+      "retouched": [],
+      "files": {
+        "idle": {
+          "path": "nina-casa/idle.png",
+          "width": 192,
+          "height": 288,
+          "pixelSha256": "336fdff43a4af5050684f6f2e05076ec2035f21ce363b06c9d0bb7c2aa907a63"
+        },
+        "walk": {
+          "path": "nina-casa/walk.png",
+          "width": 288,
+          "height": 288,
+          "pixelSha256": "8a5cc654e52d78636755d2aec3e4a5657a9a45f2360ddf3d436c72bcf1d94468"
+        },
+        "portrait-neutral": {
+          "path": "nina-casa/portrait-neutral.png",
+          "width": 32,
+          "height": 32,
+          "pixelSha256": "0e063a2b3f467e2b6c9e83d3f274e36d09983f5bf156bcbd14019ccd33e5147d"
+        },
+        "portrait-preocupada": {
+          "path": "nina-casa/portrait-preocupada.png",
+          "width": 32,
+          "height": 32,
+          "pixelSha256": "a8de1bec55c48e463d04d569051deb0ed0e7de8bfb55ee9d03368e135c87cd96"
+        },
+        "portrait-triste": {
+          "path": "nina-casa/portrait-triste.png",
+          "width": 32,
+          "height": 32,
+          "pixelSha256": "e306e11915b842c773c2bc023f9e86f010698fb99502213cfbe44980b58ba74a"
+        },
+        "portrait-alegre": {
+          "path": "nina-casa/portrait-alegre.png",
+          "width": 32,
+          "height": 32,
+          "pixelSha256": "93f00ceaf281898339d5119dac2168aaf1d6b645e85147e9dda02005ce05f49d"
+        },
+        "portrait-cautelosa": {
+          "path": "nina-casa/portrait-cautelosa.png",
+          "width": 32,
+          "height": 32,
+          "pixelSha256": "39e8676af908276727b6c183fbbc9aba778dbd85167984ef8b11c96b1de50179"
+        },
+        "portrait-en-crisis": {
+          "path": "nina-casa/portrait-en-crisis.png",
+          "width": 32,
+          "height": 32,
+          "pixelSha256": "9dee0f055ca750b0107aba9340474a659299df75dec45801cbb33cbd1c9eb789"
+        }
+      }
+    },
     "orientadora-juridica": {
       "displayName": "Orientadora jurídica",
       "kind": "npc",
@@ -2491,6 +2655,88 @@
               "pixelSha256": "931779b054af6ef3d0bc15e4089a973665edadb3bd2967d816575210cd1b1654"
             }
           }
+        }
+      }
+    },
+    "policia-infancia": {
+      "displayName": "Policía de infancia y adolescencia",
+      "kind": "npc",
+      "complexion": "b",
+      "provenance": {
+        "source": "Kit SIEP",
+        "license": "SIEP-INTERNAL"
+      },
+      "geometry": {
+        "down": {
+          "opaqueHeight": 64,
+          "headWidth": 19,
+          "shoulderWidth": 25
+        },
+        "left": {
+          "opaqueHeight": 64,
+          "headWidth": 19,
+          "torsoDepth": 15
+        },
+        "right": {
+          "opaqueHeight": 64,
+          "headWidth": 19,
+          "torsoDepth": 15
+        },
+        "up": {
+          "opaqueHeight": 64,
+          "headWidth": 19,
+          "shoulderWidth": 25
+        }
+      },
+      "retouched": [],
+      "files": {
+        "idle": {
+          "path": "policia-infancia/idle.png",
+          "width": 192,
+          "height": 288,
+          "pixelSha256": "dc5c0e77032cc7ad880446ae18d4b240cbcf356902f4a69f6db5fbaf2cd69f88"
+        },
+        "walk": {
+          "path": "policia-infancia/walk.png",
+          "width": 288,
+          "height": 288,
+          "pixelSha256": "0c37e8403929dd2118c31029f4ffbdd1818c7615c6adb0af10ee7f23ebc01905"
+        },
+        "portrait-neutral": {
+          "path": "policia-infancia/portrait-neutral.png",
+          "width": 32,
+          "height": 32,
+          "pixelSha256": "4b2c7011ad3b894e6fe462430777e42a3eee5a341e76056fe4d159460f513efb"
+        },
+        "portrait-preocupada": {
+          "path": "policia-infancia/portrait-preocupada.png",
+          "width": 32,
+          "height": 32,
+          "pixelSha256": "aef9173ca58e932bd4b2cf75d41a198067b70a9b4775df7244c8c318ed516080"
+        },
+        "portrait-triste": {
+          "path": "policia-infancia/portrait-triste.png",
+          "width": 32,
+          "height": 32,
+          "pixelSha256": "65cd13423c98e9b5d0534c26fcdef294b378258c10f509121c3c063977bf2818"
+        },
+        "portrait-alegre": {
+          "path": "policia-infancia/portrait-alegre.png",
+          "width": 32,
+          "height": 32,
+          "pixelSha256": "946043d0d5e43ca58c79b3a6100e9b50bd021eb4176737fc2357575c2e366d38"
+        },
+        "portrait-cautelosa": {
+          "path": "policia-infancia/portrait-cautelosa.png",
+          "width": 32,
+          "height": 32,
+          "pixelSha256": "60192ead739addcc6638eae0f350d18c8c09e21f3249aa33b407ebfd8f924a83"
+        },
+        "portrait-en-crisis": {
+          "path": "policia-infancia/portrait-en-crisis.png",
+          "width": 32,
+          "height": 32,
+          "pixelSha256": "01d3298d4d7406845c806b1e98252bdcea138f0d94881c6080536561c12eb2f0"
         }
       }
     },
@@ -3301,6 +3547,88 @@
               "pixelSha256": "8bcc24f2f5bf38717d279265dcfd1a5609f298e1cc1cca83f8b89802c94a0434"
             }
           }
+        }
+      }
+    },
+    "vecina": {
+      "displayName": "Vecina",
+      "kind": "npc",
+      "complexion": "b",
+      "provenance": {
+        "source": "Kit SIEP",
+        "license": "SIEP-INTERNAL"
+      },
+      "geometry": {
+        "down": {
+          "opaqueHeight": 65,
+          "headWidth": 21,
+          "shoulderWidth": 25
+        },
+        "left": {
+          "opaqueHeight": 65,
+          "headWidth": 20,
+          "torsoDepth": 15
+        },
+        "right": {
+          "opaqueHeight": 65,
+          "headWidth": 20,
+          "torsoDepth": 15
+        },
+        "up": {
+          "opaqueHeight": 65,
+          "headWidth": 21,
+          "shoulderWidth": 25
+        }
+      },
+      "retouched": [],
+      "files": {
+        "idle": {
+          "path": "vecina/idle.png",
+          "width": 192,
+          "height": 288,
+          "pixelSha256": "9b16e9e2ad2816ec7165a08120f4be114b28c01895f80950834033220e623e31"
+        },
+        "walk": {
+          "path": "vecina/walk.png",
+          "width": 288,
+          "height": 288,
+          "pixelSha256": "2edd86be20fb7ab841a738df2af5e146d41bc75d4bfab4f1a1db269f4dda0268"
+        },
+        "portrait-neutral": {
+          "path": "vecina/portrait-neutral.png",
+          "width": 32,
+          "height": 32,
+          "pixelSha256": "3211df0e3240c8e2968ec88c8ed58570466eb546be31b92db0be241d8b17d154"
+        },
+        "portrait-preocupada": {
+          "path": "vecina/portrait-preocupada.png",
+          "width": 32,
+          "height": 32,
+          "pixelSha256": "bc79ffbeac16fafef5a1ce83af4af7ac14b9c812d43b62874cccaacd8811a643"
+        },
+        "portrait-triste": {
+          "path": "vecina/portrait-triste.png",
+          "width": 32,
+          "height": 32,
+          "pixelSha256": "c67303416157b160a799c9c6c41f40e8876fe9c1499347829b8effebf06f1f48"
+        },
+        "portrait-alegre": {
+          "path": "vecina/portrait-alegre.png",
+          "width": 32,
+          "height": 32,
+          "pixelSha256": "1ffb893c2f85a00e042b1734944ecd23fc953f2ac851da969f0ae62a5de4c73a"
+        },
+        "portrait-cautelosa": {
+          "path": "vecina/portrait-cautelosa.png",
+          "width": 32,
+          "height": 32,
+          "pixelSha256": "e2ee47cd0e17a484d83fd1c99101ed052ea297777b1c523c2bcfa2a4422da5f5"
+        },
+        "portrait-en-crisis": {
+          "path": "vecina/portrait-en-crisis.png",
+          "width": 32,
+          "height": 32,
+          "pixelSha256": "a374bb7e757302d13c950641b3d84468b576ff8d0f3fa51ef0294f09cdecd7f2"
         }
       }
     }

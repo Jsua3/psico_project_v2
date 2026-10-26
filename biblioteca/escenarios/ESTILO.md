@@ -183,3 +183,88 @@ juntan los dos más parecidos (no desaparece una ventana pequeña). Después:
 - Si una foto muestra un encuadre distinto al de la sala (por ejemplo, se ve una sola pared
   donde el escenario dice `tres-paredes`), se cambia el campo `encuadre` y se vuelve a validar:
   es el único caso en que el `escenario.json` se toca.
+
+## 7. Casa (P4)
+
+Lugar de la visita domiciliaria y del acompañamiento a niñas, niños y adolescentes. Nueve salas:
+`fachada` (una pared), `sala` (tres), `comedor` (esquina izquierda), `cocina` (tres), `escalera`
+(esquina izquierda), `pasillo` del segundo piso (una pared), `habitacion-principal` (tres),
+`habitacion-ninos` (esquina derecha) y `patio` (una pared). Arte provisional dibujado por código
+en `tools/escenarios/arte_casa.py` (+ `arte_casa_salas_a.py`, `arte_casa_salas_b.py`,
+`arte_casa_muebles.py`).
+
+**Paleta: cálida y doméstica**, siempre apagada y de valor medio-oscuro (la pared más oscura que
+el piso). Valores de referencia (RGB):
+
+| Sala | Pared fondo | Pared lateral | Piso A / B | Acento |
+|---|---|---|---|---|
+| fachada | ladrillo (138, 92, 72) sobre revoque (168, 150, 124); cielo (150, 170, 184) | — | adoquín (124, 118, 108) / (112, 106, 98) | una matera |
+| sala | ocre (150, 128, 96) | (126, 106, 80) | madera clara (156, 114, 78) / (144, 104, 70) | cojín terracota |
+| comedor | crema tostado (158, 140, 110) | (132, 116, 92) | baldosa terracota (140, 96, 70) / (128, 88, 64) | una planta |
+| cocina | verde gris (120, 136, 120) con azulejo bajo (172, 182, 170) | (100, 114, 100) | baldosa (150, 150, 140) / (138, 138, 128) | trapo de cocina |
+| escalera | ocre (146, 124, 94) | (122, 102, 76) | madera (150, 108, 72) | — |
+| pasillo | malva gris (128, 112, 124) | — | madera (150, 108, 72) | — |
+| habitacion-principal | malva (134, 108, 126) | (110, 88, 104) | madera (150, 108, 72) / (138, 98, 64) | colcha |
+| habitacion-ninos | celeste gris (116, 136, 150) | (96, 112, 124) | alfombra (112, 124, 104) / (100, 112, 92) | un dibujo en la pared |
+| patio | ladrillo (138, 92, 72); cielo (150, 170, 184) | — | cemento (134, 130, 120) / (124, 120, 110) | las plantas |
+
+**Lo que no se dibuja**, aunque el caso trate de violencia: ninguna persona agresora, nada roto
+(vidrios, platos, puertas), manchas, armas, cuchillos a la vista en la cocina, botellas, marcas en
+la niña ni en la persona usuaria. La casa se ve habitada y ordenada a medias (ropa en una silla,
+tareas sobre la mesa, un peluche en el piso): la tensión la ponen el guion y las expresiones.
+
+**Muebles** (ancho × caja): sofá 90 × 26, sillón 46 × 24, mesa de centro 50 × 18, mueble del
+televisor 100 × 20, mesa del comedor 110 × 30, silla del comedor 22 × 12, vitrina 60 × 18, nevera
+44 × 20, estufa 56 × 22, mesón 120 × 26, lavaplatos 50 × 22, cama doble 110 × 60, mesa de noche
+30 × 16, armario 70 × 20, cama sencilla 60 × 50, escritorio de tareas 70 × 24, caja de juguetes
+40 × 20, tendedero 90 × 10, materas 60 × 14, banco del patio 80 × 18. Los objetos interactivos
+(televisor, portarretrato, teléfono, cerrojo, peluche, cuaderno, nevera con notas, maleta, ventana,
+planta, papelera) vienen de `biblioteca/modelos` por `desdeModelo`.
+
+**Personajes:** persona usuaria (`sobreviviente`), niña de la casa (`nina-casa`, receta nueva; el
+kit no tiene cuerpo infantil, así que usa el cuerpo del kit con trenza, camiseta coral y falda),
+vecina (`vecina`, receta nueva, rostro maduro, complexión B), familiar (`madre-acompanante`) y
+psicóloga visitante (`profesional-psicosocial`). Las seis caras de cada una salen del kit.
+
+## 8. Comisaría de familia (P4)
+
+Lugar de las rutas de protección. Nueve salas: `fachada` (una pared), `recepcion` (tres),
+`sala-espera` (esquina derecha), `pasillo` de atención (una pared), `orientacion-juridica` (tres),
+`despacho-comisaria` (tres), `consultorio-psicosocial` (tres), `sala-entrevista-nna` (esquina
+izquierda; cámara de Gesell: espejo en la pared, mesa baja, sillas pequeñas, juguetes) y `archivo`
+(esquina izquierda). Arte provisional dibujado por código en `tools/escenarios/arte_comisaria.py`
+(+ `arte_comisaria_salas_a.py`, `arte_comisaria_salas_b.py`, `arte_comisaria_muebles.py`).
+
+**Paleta: institucional y fría**, apagada, como la recepción y el consultorio de la comisaría del
+juego actual (`#2a3344` / `#293a34`, ver la tabla de la sección 2), pero algo más clara para que
+los personajes resalten. Valores de referencia (RGB):
+
+| Sala | Pared fondo | Pared lateral | Piso A / B | Acento |
+|---|---|---|---|---|
+| fachada | bloque gris (124, 128, 136) con franja institucional (62, 84, 118); cielo (150, 166, 184) | — | adoquín (118, 118, 116) / (108, 108, 106) | escudo sin texto |
+| recepcion | azul gris (84, 98, 120) | (68, 80, 100) | baldosa (124, 128, 136) / (114, 118, 126) | afiche |
+| sala-espera | azul gris (88, 100, 118) | (70, 82, 98) | baldosa (124, 128, 136) / (114, 118, 126) | un cartel |
+| pasillo | gris verdoso (104, 114, 112) con zócalo (76, 86, 84) | — | baldosa (128, 130, 128) / (118, 120, 118) | — |
+| orientacion-juridica | gris cálido (112, 108, 100) | (92, 88, 82) | baldosa (130, 124, 112) / (120, 114, 104) | lomos de los códigos |
+| despacho-comisaria | azul petróleo (70, 92, 104) | (58, 76, 88) | madera (124, 92, 66) / (114, 84, 60) | la bandera |
+| consultorio-psicosocial | verde gris (82, 104, 96) | (66, 86, 80) | madera (130, 96, 70) / (120, 88, 64) | una planta |
+| sala-entrevista-nna | celeste gris (104, 126, 140) | (86, 104, 118) | alfombra (110, 128, 112) / (100, 116, 102) | el tapete de juegos |
+| archivo | gris (96, 100, 108) | (80, 84, 92) | baldosa (118, 120, 124) / (108, 110, 114) | — |
+
+**Lo que no se dibuja:** personas agresoras, celdas, esposas, armas, uniformes de policía armados
+(la policía de infancia va sin arma a la vista), textos legibles ni escudos reales: el escudo de la
+fachada es una forma genérica. La comisaría se ve ordenada, con filas, carteles y expedientes.
+
+**Muebles** (ancho × caja): mostrador de recepción 180 × 30, silla giratoria 26 × 14, fila de sillas
+de espera 120 × 22, escritorio 122 × 28, silla para visitante 24 × 14, archivador metálico 40 × 18,
+estante de expedientes 96 × 20, bandera en asta 24 × 12, mesa de reunión 120 × 40, mesa baja 60 × 24,
+silla pequeña 20 × 12, tapete de juegos 90 × 60 (sin choque), estante de juguetes 60 × 18, banca del
+andén 100 × 18, caneca 26 × 14, planta de oficina 36 × 14, cartelera institucional 90 × 6 (colgada),
+cajas de archivo 40 × 18. Los objetos interactivos (dispensador de turnos, sello, carpeta de medidas,
+cámara, afiche de rutas, bolígrafo sobre formularios, dispensador de agua, cartel de la Línea 155,
+pañuelos, papelera, peluche) y la tarjeta de contacto de Bienestar vienen de `biblioteca/modelos`.
+
+**Personajes:** funcionaria de recepción, orientadora jurídica, profesional psicosocial, comisaria
+de familia (`comisaria-familia`, receta nueva: rostro maduro, blazer y gafas), persona usuaria
+(`sobreviviente`), acompañante (`madre-acompanante`) y policía de infancia y adolescencia
+(`policia-infancia`, receta nueva: camisa de uniforme verde azulado, sin arma).
