@@ -343,7 +343,7 @@ def test_el_formulario_del_docente_sigue_pendiente_hasta_que_el_docente_evalua(c
     form = cl(profesor).get(f"{TEACHER_BASE}/attempts/{attempt_id}/rubric-evaluation").data["data"]
 
     assert form["status"] == "PENDING"
-    assert all(item["level"] is None and item["score"] is None for item in form["items"])
+    assert all(item["level"] is None and "score" not in item for item in form["items"])
 
 
 def test_la_evaluacion_del_docente_convive_con_la_del_sistema_y_es_la_que_el_formulario_muestra(completed, profesor):
@@ -391,7 +391,7 @@ def test_la_traza_del_docente_separa_su_evaluacion_de_la_del_sistema(completed, 
     assert [e["origin"] for e in trace["rubricEvaluations"]] == ["DOCENTE"]
     assert trace["systemEvaluation"]["origin"] == "SISTEMA"
     assert trace["systemEvaluation"]["overallLevel"] == "DESTACADO"
-    assert trace["systemEvaluation"]["totalScore"] is None  # sin RUBRIC_NUMERIC_TOTAL no viaja un número
+    assert "totalScore" not in trace["systemEvaluation"]  # ningún DTO lleva un número
     assert isinstance(trace["systemEvaluation"]["competencyLevels"], list)
     assert trace["systemEvaluationAvailable"] is True
 

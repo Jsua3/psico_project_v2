@@ -302,11 +302,6 @@ def _entero_env(name, default, minimo):
 #: ATTEMPT_ALREADY_OPEN con el id del abierto (RN-07: el estudiante reanuda; solo el docente lo reemplaza).
 #: Apagada: `forceNew` cierra el abierto como REPLACED y empieza otro (la ruta heredada de «Reintentar caso»).
 ATTEMPT_START_STRICT = _env_flag("SIEP_ATTEMPT_START_STRICT")
-#: E1-9 · RUBRIC_NUMERIC_TOTAL. Encendida: las vistas del docente incluyen el total numérico de la evaluación
-#: (`totalScore`). Apagada (valor final, ED-2/RN-09): la evaluación es formativa, por niveles; el total no viaja y el
-#: estudiante nunca recibe un número. Existe para el paso *contract* y las revisiones que aún lo piden.
-RUBRIC_NUMERIC_TOTAL = _env_flag("SIEP_RUBRIC_NUMERIC_TOTAL")
-
 #: E2-5 · REVIEW_WORKFLOW_STRICT. Encendida: la publicación pasa por revisión: solo se publica desde `IN_REVIEW`
 #: (`POST …/publish` sobre un borrador → 409 REVIEW_REQUIRED), con la lista completa de siete ítems y la constancia de
 #: revisión de contenido de Psicología (409 CASE_NOT_PUBLISHABLE con ETHICS.NO_CONTENT_REVIEW si falta; 400
@@ -326,7 +321,7 @@ INVITATIONS_AUTO_ACCEPT = _env_flag("SIEP_INVITATIONS_AUTO_ACCEPT")
 #: Una entrada por bandera: `target_contract` es el valor al que va; `retirement_gate` el hito que la retira;
 #: `blocked_by` qué impide encenderla HOY (vacío si ya está en su valor final) y `owner` quién la retira. Lo medido
 #: lo fue el 2026-10-17 corriendo el subconjunto e2e de CI con la bandera encendida; lo vuelve a comprobar quien la
-#: encienda. `test_contract_closure.py` exige las cinco entradas completas.
+#: encienda. `test_contract_closure.py` exige las cuatro entradas completas.
 CONTRACT_FLAGS_REGISTRY = {
     "ATTEMPT_START_STRICT": {
         "env": "SIEP_ATTEMPT_START_STRICT",
@@ -338,13 +333,6 @@ CONTRACT_FLAGS_REGISTRY = {
             "unas treinta pruebas; la carga nocturna (`scripts/load/aula.mjs`) también abre cada ciclo con `forceNew`."
         ),
         "owner": "sesión visual (F9-10); la carga nocturna, estructural",
-    },
-    "RUBRIC_NUMERIC_TOTAL": {
-        "env": "SIEP_RUBRIC_NUMERIC_TOTAL",
-        "target_contract": False,
-        "retirement_gate": "ED-2 / RN-09 (evaluación formativa por niveles, permanece False)",
-        "blocked_by": None,
-        "owner": "producto (ED-2): permanece apagada",
     },
     "REVIEW_WORKFLOW_STRICT": {
         "env": "SIEP_REVIEW_WORKFLOW_STRICT",

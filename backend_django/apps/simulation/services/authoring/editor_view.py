@@ -315,12 +315,10 @@ def rubric_view(rubric):
                 "competency": c.competency,
                 "title": c.title,
                 "description": c.description,
-                "maxScore": c.max_score,
                 "displayOrder": c.display_order,
             }
             for c in RubricCriterion.objects.filter(rubric_id=rubric.id).order_by("display_order")
         ],
         "scores": [],
-        "totalScore": None,
         "comment": None,
     }

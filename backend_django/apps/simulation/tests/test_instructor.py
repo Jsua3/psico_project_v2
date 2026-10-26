@@ -143,7 +143,7 @@ def test_rubric_get_returns_criteria(estudiante, profesor, case_version_id):
     assert view["rubricId"] is not None
     assert len(view["criteria"]) >= 1
     assert view["scores"] == []
-    assert view["totalScore"] is None
+    assert "totalScore" not in view
 
 
 def test_save_rubric_evaluation(estudiante, profesor, case_version_id):
@@ -152,7 +152,7 @@ def test_save_rubric_evaluation(estudiante, profesor, case_version_id):
     view = p.get(f"/api/instructor/attempts/{attempt_id}/rubric-evaluation").data["data"]
     rubric_id = view["rubricId"]
     criteria = view["criteria"]
-    scores = [{"criterionId": c["id"], "score": 3, "comment": "ok"} for c in criteria]
+    scores = [{"criterionId": c["id"], "level": "LOGRADO", "comment": "ok"} for c in criteria]
 
     resp = p.post(
         f"/api/instructor/attempts/{attempt_id}/rubric-evaluation",
@@ -162,8 +162,8 @@ def test_save_rubric_evaluation(estudiante, profesor, case_version_id):
     assert resp.status_code == 200
     assert resp.data["message"] == "Rubrica guardada"
     saved = resp.data["data"]
-    # RN-09 / ED-2: el total numérico no viaja (RUBRIC_NUMERIC_TOTAL apagada); sí el nivel global.
-    assert saved["totalScore"] is None
+    # RN-09 / ED-2: el total numérico no viaja; sí el nivel global.
+    assert "totalScore" not in saved
     assert saved["overallLevel"] == "LOGRADO"
     assert saved["comment"] == "Buen desempeño"
     assert len(saved["scores"]) == len(criteria)
@@ -171,7 +171,7 @@ def test_save_rubric_evaluation(estudiante, profesor, case_version_id):
     # appears in the trace's rubric evaluations
     trace = p.get(f"/api/instructor/attempts/{attempt_id}/trace").data["data"]
     assert len(trace["rubricEvaluations"]) >= 1
-    assert trace["rubricEvaluations"][0]["totalScore"] is None
+    assert "totalScore" not in trace["rubricEvaluations"][0]
     assert trace["rubricEvaluations"][0]["overallLevel"] == "LOGRADO"
 
 

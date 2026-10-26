@@ -33,13 +33,12 @@ CHECKLIST = {
 }
 EXPECTED_FLAGS = {
     "ATTEMPT_START_STRICT": True,
-    "RUBRIC_NUMERIC_TOTAL": False,
     "REVIEW_WORKFLOW_STRICT": True,
     "REVISION_REQUIRED": True,
     "INVITATIONS_AUTO_ACCEPT": False,
 }
-#: Las que ya arrancan en su valor final: dos porque el cliente migró (F9-10) y dos que su valor final es el apagado.
-FINAL_BY_DEFAULT = {"REVIEW_WORKFLOW_STRICT", "REVISION_REQUIRED", "RUBRIC_NUMERIC_TOTAL", "INVITATIONS_AUTO_ACCEPT"}
+#: Las que ya arrancan en su valor final: dos porque el cliente migró (F9-10) y una cuyo valor final es el apagado.
+FINAL_BY_DEFAULT = {"REVIEW_WORKFLOW_STRICT", "REVISION_REQUIRED", "INVITATIONS_AUTO_ACCEPT"}
 
 
 def cl(user) -> APIClient:
@@ -220,16 +219,16 @@ def test_el_ciclo_completo_con_todas_las_banderas_estrictas(world, settings):
     assert "feedback" not in payload["attempt"]
     assert payload["consequence"]["text"]
 
-    # 7 · La evaluación del docente es formativa: sin total numérico (RUBRIC_NUMERIC_TOTAL apagada).
+    # 7 · La evaluación del docente es formativa: un nivel por criterio y ningún total numérico.
     teacher = cl(world.profesor)
     view = teacher.get(f"/api/instructor/attempts/{attempt_id}/rubric-evaluation").data["data"]
     saved = teacher.post(
         f"/api/instructor/attempts/{attempt_id}/rubric-evaluation",
-        {"rubricId": view["rubricId"], "scores": [{"criterionId": c["id"], "score": 3} for c in view["criteria"]]},
+        {"rubricId": view["rubricId"], "scores": [{"criterionId": c["id"], "level": "LOGRADO"} for c in view["criteria"]]},
         format="json",
     )
     assert saved.status_code == 200, saved.data
-    assert saved.data["data"]["totalScore"] is None and saved.data["data"]["overallLevel"]
+    assert "totalScore" not in saved.data["data"] and saved.data["data"]["overallLevel"]
 
 
 def test_con_la_revision_obligatoria_una_ruta_que_no_es_de_autoria_no_la_pide(world, settings):
@@ -279,20 +278,6 @@ def _legacy_revision(world, settings):
     assert briefed.status_code == 200, briefed.data
 
 
-def _legacy_rubric_total(world, settings):
-    _assign_and_enroll(world, world.seeded.id, settings)
-    started = _start(world, world.seeded.id)
-    attempt_id = started.data["data"]["attemptId"]
-    teacher = cl(world.profesor)
-    view = teacher.get(f"/api/instructor/attempts/{attempt_id}/rubric-evaluation").data["data"]
-    saved = teacher.post(
-        f"/api/instructor/attempts/{attempt_id}/rubric-evaluation",
-        {"rubricId": view["rubricId"], "scores": [{"criterionId": c["id"], "score": 3} for c in view["criteria"]]},
-        format="json",
-    )
-    assert saved.data["data"]["totalScore"] == 3.0
-
-
 def _legacy_invitation(world, settings):
     invited = cl(world.profesor).post(f"/api/grupos/{world.grupo.id}/estudiantes", {"email": world.student.email}, format="json")
     assert invited.status_code == 200, invited.data
@@ -303,7 +288,6 @@ LEGACY = {
     "ATTEMPT_START_STRICT": _legacy_attempt_start,
     "REVIEW_WORKFLOW_STRICT": _legacy_review,
     "REVISION_REQUIRED": _legacy_revision,
-    "RUBRIC_NUMERIC_TOTAL": _legacy_rubric_total,
     "INVITATIONS_AUTO_ACCEPT": _legacy_invitation,
 }
 
