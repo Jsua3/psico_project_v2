@@ -40,7 +40,7 @@ def test_the_full_document_is_the_base_plus_x_siep():
 
 def test_the_case_level_extras():
     siep = _siep()
-    assert siep["version"] == "1.0"
+    assert siep["version"] == "2.0"
     assert siep["contexto"] == "Contexto largo."
     assert siep["mundoVersion"] == 2
     assert siep["reglas"] == sample_definition().rules
@@ -119,6 +119,7 @@ def test_a_scene_in_the_base_is_linked_by_id_and_carries_its_product_extras():
     assert entry["clave"] == "inicio"
     assert entry["inicial"] is True and entry["terminal"] is False
     assert entry["salidaSeguraObligatoria"] is False
+    assert entry["intensidad"] == "MEDIUM"
     assert entry["apoyo"] == ["Línea 106"]
     assert entry["herramientasRequeridas"] == []
     assert entry["posicion"] == {"x": 40, "y": 60}
@@ -139,10 +140,11 @@ def test_a_scene_the_options_never_reach_travels_complete():
     assert hub["titulo"] == "Recepción"
     assert hub["descripcion"] == "Un pasillo que solo se alcanza por una puerta."
     assert hub["sensible"] is True and hub["advertencia"] == "Contenido sensible."
+    assert hub["intensidad"] == "HIGH"
     assert hub["pregunta"] == ""
     assert hub["opciones"] == [{
-        "clave": "salir", "texto": "Salir", "destino": "cierre", "clasificacion": "ADEQUATE",
-        "prohibida": False, "motivo": "", "consecuencia": "", "puntaje": 0, "estres": 0, "penalizacion": 0,
+        "clave": "salir", "texto": "Salir", "destino": "cierre", "clasificacion": "ADEQUATE", "clase": "ACCEPTABLE",
+        "prohibida": False, "motivo": "", "consecuencia": "",
         "retroalimentacionInmediata": "", "mensaje": "", "fundamento": "", "efectos": {},
     }]
     assert hub["mapa"]["clave"] == "sala-recepcion"
@@ -162,9 +164,9 @@ def test_hints_travel_in_x_siep_only_when_the_base_has_no_decision_to_hold_them(
 def test_options_in_the_base_carry_only_the_extras():
     options = _siep()["escenas"][0]["opciones"]
     assert options[0] == {
-        "id": "OP01", "clave": "analizar", "puntaje": 10, "estres": -5, "penalizacion": 0,
+        "id": "OP01", "clave": "analizar", "clase": "RECOMMENDED",
         "retroalimentacionInmediata": "Bien.",
-        "efectos": {"severity": "recommended", "flags": {"analizo": True}, "metrics": {"confianza": 5}},
+        "efectos": {"persona": {"bond": 1, "activation": -1}, "milestones": ["analizo"]},
     }
 
 

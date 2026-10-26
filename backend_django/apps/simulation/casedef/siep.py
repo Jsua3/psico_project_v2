@@ -7,7 +7,9 @@ descripción, una escena que solo se alcanza por una puerta, una rúbrica sin cr
 completas y sin ``id``. Todas las listas siguen el orden del modelo. Dentro del mundo, las
 referencias van por la **clave del producto** (opción, personaje, herramienta, objeto).
 """
-VERSION = "1.0"
+#: La versión del documento: la 2.0 describe las respuestas por clase, hitos y persona (sin puntaje, estrés ni
+#: penalización). El importador aún lee la 1.0 y la convierte (``casedef.legacy``).
+VERSION = "2.0"
 
 
 def _text(value):
@@ -46,9 +48,8 @@ def _tool_entries(definition, ids):
 
 def _option_entry(option, scene_key, ids):
     entry = {
-        "clave": option.key, "puntaje": option.score, "estres": option.stress,
-        "penalizacion": option.penalty, "retroalimentacionInmediata": option.immediate_feedback,
-        "efectos": option.effects,
+        "clave": option.key, "clase": option.response_class,
+        "retroalimentacionInmediata": option.immediate_feedback, "efectos": option.effects,
     }
     option_id = ids.option.get((scene_key, option.key))
     if option_id:
@@ -115,7 +116,8 @@ def _scene_entry(scene, ids):
     in_base = scene.key in ids.scene
     entry = {
         "clave": scene.key, "inicial": scene.start, "terminal": scene.terminal,
-        "salidaSeguraObligatoria": scene.safe_exit_required, "apoyo": list(scene.support),
+        "salidaSeguraObligatoria": scene.safe_exit_required, "intensidad": scene.intensity,
+        "apoyo": list(scene.support),
         "herramientasRequeridas": list(scene.required_tools), "posicion": {"x": scene.x, "y": scene.y},
         "opciones": [_option_entry(option, scene.key, ids) for option in scene.options],
     }

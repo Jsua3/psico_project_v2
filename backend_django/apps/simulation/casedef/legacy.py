@@ -3,9 +3,9 @@
 Python puro: sin Django ni modelos. Es la misma conversión que hace la migración de datos ``0030`` sobre las filas que
 ya existían, escrita como funciones puras para reutilizarla donde nace un caso desde un documento 1.0:
 
-- el importador de documentos (``services.authoring.definition_io``), para que las filas nazcan en la forma nueva;
-- ``endings.build_template`` (Tarea 6), que arma los finales de plantilla con ``template_endings_when``;
-- el importador del documento 1.0 que pase a 2.0 (Tarea 12).
+- el importador de documentos (``casedef.import_``), que convierte un documento ``x-siep 1.0`` (o el del taller, sin
+  ``x-siep``) a la definición nueva al leerlo, para que las filas nazcan en la forma nueva (Tarea 12);
+- ``endings.build_template`` (Tarea 6), que arma los finales de plantilla con ``template_endings_when``.
 
 La migración ``0030`` queda congelada tal como se aplicó en las bases que ya la corrieron: aquí se espeja su tabla (no
 se importa de ella). Si una cambia, la otra no sigue sola; las pruebas de ambas fijan los mismos valores.

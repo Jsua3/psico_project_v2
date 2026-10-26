@@ -13,15 +13,15 @@ from fractions import Fraction
 def _scene(scene):
     return (
         scene.title, scene.narrative, scene.sensitive, scene.warning, scene.start, scene.terminal, scene.support,
-        scene.required_tools, scene.safe_exit_required, scene.x, scene.y, scene.prompt,
+        scene.required_tools, scene.safe_exit_required, scene.intensity, scene.x, scene.y, scene.prompt,
     )
 
 
 def _option(option):
     return (
         option.text, option.target, option.classification, option.prohibited, option.reason, option.consequence,
-        option.immediate_feedback, option.feedback_text, option.theory_basis, option.score, option.stress,
-        option.penalty, option.effects,
+        option.immediate_feedback, option.feedback_text, option.theory_basis,
+        option.response_class, option.effects,
     )
 
 

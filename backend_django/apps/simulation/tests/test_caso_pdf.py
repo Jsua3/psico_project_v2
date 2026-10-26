@@ -15,12 +15,13 @@ from django.utils import timezone
 from rest_framework.test import APIClient
 
 from apps.grupos.models import Grupo
-from apps.simulation.casedef import legacy
 from apps.simulation.casedef.vocabulary import Activation, Bond
 from apps.simulation.models import AttemptEvent, CaseVersion, DecisionOption, DialogueChoice, SimulationAttempt
 from apps.simulation.services import case_state
 
 User = get_user_model()
+#: El rótulo del hito que el documento sembrado declara para «medidas_proteccion_activadas».
+MEDIDAS_PROTECCION = "Recomendar medidas de protección"
 
 
 def cl(user):
@@ -368,7 +369,7 @@ def test_final_integral(estudiante, case_version_id):
     ending = state["completionReport"]["ending"]
     assert ending["key"] == "protectora"
     _assert_reason_in_words(ending)
-    assert f"Cumpliste: {legacy.milestone_label('medidas_proteccion_activadas')}" in ending["reason"]
+    assert f"Cumpliste: {MEDIDAS_PROTECCION}" in ending["reason"]
     assert not any("contraindicada" in phrase or "con riesgo" in phrase for phrase in ending["reason"])
 
 
@@ -419,7 +420,7 @@ def test_final_riesgo_persistente_por_omision(estudiante, case_version_id):
     ending = state["completionReport"]["ending"]
     assert ending["key"] == "riesgo_persistente"
     _assert_reason_in_words(ending)
-    assert f"Faltó: {legacy.milestone_label('medidas_proteccion_activadas')}" in ending["reason"]
+    assert f"Faltó: {MEDIDAS_PROTECCION}" in ending["reason"]
     assert not any("contraindicada" in phrase for phrase in ending["reason"])
     assert "medidas_proteccion_activadas" not in _milestones(attempt_id)
 

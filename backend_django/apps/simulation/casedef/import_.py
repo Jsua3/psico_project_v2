@@ -11,14 +11,21 @@ Dos pasos, siempre en este orden:
    valores neutros y, sin ``x-siep`` en una escena, se le genera su sala mínima (``scaffold``). Solo se
    llama con un documento que ya pasó el validador: no revalida, pero tampoco confía a ciegas.
 
+   Un documento ``x-siep.version 2.0`` se lee tal cual (``clase``, ``intensidad``, ``efectos`` y ``reglas``). Uno
+   ``1.0`` —y el del taller, sin ``x-siep``— se **convierte** aquí con ``casedef.legacy`` (la misma tabla que la
+   migración ``0030``): la clase sale de la severidad, la clasificación y la conducta prohibida; los efectos, a
+   persona e hitos; las reglas, a hitos, nivel de riesgo y finales por clases; la intensidad, de la sensibilidad.
+   Otra versión de ``x-siep`` no se convierte: ``ValueError`` (el validador ya la rechaza con ``DSL.SIEP_SCHEMA``).
+
 ``import_issues`` junta lo que el importador añade al validador: el rechazo de ``ejecucion`` (los intentos
 viven en la base de datos, no en la definición) y los avisos de lo que no se guarda.
 """
 import json
 import math
 import re
+from dataclasses import replace
 
-from . import export, scaffold
+from . import export, legacy, scaffold
 from .limits import MAX_DEPTH
 from .model import (
     CaseDefinition,
@@ -36,9 +43,12 @@ from .model import (
     WorldObject,
 )
 from .report import ERROR, PREFIX, WARNING, Issue
+from .vocabulary import ResponseClass, legacy_class
 
 MAX_BYTES = 1024 * 1024
 SIEP_KEY = "x-siep"
+#: La versión de ``x-siep`` que se lee tal cual y la que se convierte al leerla.
+CURRENT_VERSION, LEGACY_VERSION = "2.0", "1.0"
 FORMA, LIMIT = PREFIX + "FORMA", PREFIX + "LIMIT_EXCEEDED"
 EXECUTION = PREFIX + "EXECUTION_NOT_IMPORTABLE"
 FEEDBACK_IGNORED = PREFIX + "FEEDBACK_ON_DECISION_IGNORED"
@@ -329,21 +339,32 @@ def _feedback(document):
     return found
 
 
+def _response_class(extra, classification, prohibited):
+    """La clase de una opción: la que trae el documento 2.0 (``clase``) o, en uno 1.0 o del taller, la que sale de la
+    severidad de sus efectos, la clasificación y la conducta prohibida (``legacy_class``)."""
+    if "clase" in extra:
+        return extra["clase"]
+    effects = extra.get("efectos")
+    severity = effects.get("severity") if isinstance(effects, dict) else None
+    return legacy_class(classification, severity, prohibited).value
+
+
 def _base_options(base_scene, entry, keys, feedback):
     extras = _by_id(entry.get("opciones") if entry else None)
     options = []
     for item in _dicts((base_scene.get("decision") or {}).get("opciones")):
         extra = extras.get(item["id"], {})
         message, basis = feedback.get(item["id"], (_text(extra.get("mensaje")), _text(extra.get("fundamento"))))
+        classification = CLASSIFICATION.get(item.get("clasificacion"), "ADEQUATE")
+        prohibited = bool(item.get("conductaProhibida", False))
         options.append(Option(
             key=extra.get("clave", item["id"]), text=_text(item.get("texto")),
-            target=keys.of_scene(item.get("siguienteEscena", "")),
-            classification=CLASSIFICATION.get(item.get("clasificacion"), "ADEQUATE"),
-            prohibited=bool(item.get("conductaProhibida", False)), reason=_text(item.get("motivoProhibicion")),
+            target=keys.of_scene(item.get("siguienteEscena", "")), classification=classification,
+            prohibited=prohibited, reason=_text(item.get("motivoProhibicion")),
             consequence=_text(item.get("consecuencia")),
             immediate_feedback=_text(extra.get("retroalimentacionInmediata")), feedback_text=message,
-            theory_basis=basis, score=extra.get("puntaje", 0), stress=extra.get("estres", 0),
-            penalty=extra.get("penalizacion", 0), effects=extra.get("efectos", {}),
+            theory_basis=basis, response_class=_response_class(extra, classification, prohibited),
+            effects=extra.get("efectos", {}),
         ))
     return options
 
@@ -354,7 +375,7 @@ def _entry_options(entry):
             key=o["clave"], text=o["texto"], target=o["destino"], classification=o["clasificacion"],
             prohibited=o["prohibida"], reason=o["motivo"], consequence=o["consecuencia"],
             immediate_feedback=o["retroalimentacionInmediata"], feedback_text=o["mensaje"],
-            theory_basis=o["fundamento"], score=o["puntaje"], stress=o["estres"], penalty=o["penalizacion"],
+            theory_basis=o["fundamento"], response_class=_response_class(o, o["clasificacion"], o["prohibida"]),
             effects=o["efectos"],
         )
         for o in _dicts(entry.get("opciones"))
@@ -404,6 +425,7 @@ def _scene(index, entry, base_scene, document, keys, feedback, characters):
     else:
         start = _text(document["caso"].get("escenaInicial")) == base_scene["id"]
         terminal, support, required, safe_exit = not options, (), (), False
+    intensity = (entry or {}).get("intensidad") or legacy.intensity_for(sensitive).value
     x, y = _position(entry, index)
     if entry is not None and entry.get("mapa"):
         world = _world(entry["mapa"])
@@ -414,7 +436,8 @@ def _scene(index, entry, base_scene, document, keys, feedback, characters):
         world = None
     return Scene(
         key=key, title=title, narrative=narrative, sensitive=sensitive, warning=warning, start=start,
-        terminal=terminal, support=support, required_tools=required, safe_exit_required=safe_exit, x=x, y=y,
+        terminal=terminal, support=support, required_tools=required, safe_exit_required=safe_exit,
+        intensity=intensity, x=x, y=y,
         prompt=prompt, hints=hints, options=tuple(options), world=world,
     )
 
@@ -432,10 +455,33 @@ def _description(caso, siep):
     return "" if siep.get("descripcionDerivada") and description == _text(siep.get("contexto")) else description
 
 
+def _converted(scenes, raw_rules, code):
+    """``(escenas, reglas)`` de un documento 1.0 o del taller en el modelo nuevo (``casedef.legacy``).
+
+    Las opciones traen todavía los ``effects`` del documento (severidad, banderas y métricas): de las banderas que usan
+    nacen los hitos, y los efectos pasan a persona e hitos con la clase de cada opción.
+    """
+    keys = legacy.milestone_keys(option.effects for scene in scenes for option in scene.options)
+    rules = legacy.convert_rules(raw_rules, code, keys)
+    converted = tuple(
+        replace(scene, options=tuple(
+            replace(option, effects=legacy.convert_effects(option.effects, ResponseClass(option.response_class)))
+            for option in scene.options
+        ))
+        for scene in scenes
+    )
+    return converted, rules
+
+
 def to_definition(document):
-    """La ``CaseDefinition`` de un documento que ya pasó el validador (lo contrario de ``export``)."""
+    """La ``CaseDefinition`` de un documento que ya pasó el validador (lo contrario de ``export``).
+
+    Lee el ``x-siep`` 2.0 tal cual y convierte el 1.0 (o la ausencia de ``x-siep``); otra versión es un ``ValueError``.
+    """
     caso = document["caso"]
     siep = document.get(SIEP_KEY) if isinstance(document.get(SIEP_KEY), dict) else {}
+    if siep and siep.get("version") not in (CURRENT_VERSION, LEGACY_VERSION):
+        raise ValueError(f"x-siep.version {siep.get('version')!r}: solo se lee la {CURRENT_VERSION} (y la {LEGACY_VERSION}, que se convierte).")
     keys = _Keys(siep)
     feedback = _feedback(document)
     characters = _characters(document, siep)
@@ -447,11 +493,16 @@ def to_definition(document):
     scenes = tuple(
         _scene(index, entry, base, document, keys, feedback, characters) for index, (entry, base) in enumerate(specs)
     )
+    rules = siep.get("reglas", {})
+    if siep.get("version") != CURRENT_VERSION:
+        scenes, rules = _converted(scenes, rules, caso["id"])
+    elif "escenas" not in siep:  # un 2.0 sin escenas no trae ni clase ni efectos por opción: se completan como en el 1.0
+        scenes, _ = _converted(scenes, rules, caso["id"])
     return CaseDefinition(
         code=caso["id"], title=_text(caso.get("titulo")),
         description=_description(caso, siep),
         semantic_version=_text(caso.get("version")), status="DRAFT", context=_context(caso, siep),
         objectives=tuple(o for o in caso.get("objetivosAprendizaje", ()) if isinstance(o, str)),
-        rules=siep.get("reglas", {}), world_schema_version=siep.get("mundoVersion", 2),
+        rules=rules, world_schema_version=siep.get("mundoVersion", 2),
         characters=characters, tools=_tools(document, siep), scenes=scenes, rubrics=_rubrics(document, siep),
     )

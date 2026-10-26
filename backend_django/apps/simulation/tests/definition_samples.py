@@ -2,7 +2,7 @@
 
 La usan las pruebas puras de ``x-siep`` (E4-1b) y las del validador unificado (E4-2b): cuatro escenas
 (``inicio``, ``mapa`` y ``cierre`` en la base; ``recepcion`` solo en ``x-siep``), un personaje con rol y
-otro sin él, dos herramientas (una sin descripción), reglas con métricas y finales, y dos rúbricas.
+otro sin él, dos herramientas (una sin descripción), reglas con hitos y finales, y dos rúbricas.
 """
 from apps.simulation.casedef.model import (
     CaseDefinition,
@@ -42,11 +42,12 @@ def sample_definition():
             Option(
                 key="analizar", text="Analizar", target="mapa", classification="ADEQUATE",
                 consequence="Se ve el mapa.", feedback_text="Analizar ayuda.", theory_basis="Psicología social",
-                immediate_feedback="Bien.", score=10, stress=-5, penalty=0,
-                effects={"severity": "recommended", "flags": {"analizo": True}, "metrics": {"confianza": 5}},
+                immediate_feedback="Bien.", response_class="RECOMMENDED",
+                effects={"persona": {"bond": 1, "activation": -1}, "milestones": ["analizo"]},
             ),
             Option(key="intervenir", text="Intervenir", target="cierre", classification="RISKY",
-                   feedback_text="Solo el mensaje.", immediate_feedback="Apresurado."),
+                   feedback_text="Solo el mensaje.", immediate_feedback="Apresurado.", response_class="RISKY",
+                   effects={"persona": {"bond": -1, "activation": 0}}),
         ),
         world=make_world(
             "sala-inicio",
@@ -72,24 +73,28 @@ def sample_definition():
     )
     mapa = Scene(
         key="mapa", title="Mapa de actores", narrative="Se ordenan.", prompt="¿Y ahora?",
-        options=(Option(key="seguir", text="Seguir", target="cierre", classification="ADEQUATE"),
-                 Option(key="volver", text="Volver", target="cierre", classification="RISKY")),
+        options=(Option(key="seguir", text="Seguir", target="cierre", classification="ADEQUATE",
+                        response_class="RECOMMENDED"),
+                 Option(key="volver", text="Volver", target="cierre", classification="RISKY", response_class="RISKY")),
         world=make_world("sala-mapa"),
     )
     cierre = Scene(key="cierre", title="Cierre", narrative="Fin.", terminal=True, hints=("Una pista suelta.",))
     recepcion = Scene(
         key="recepcion", title="Recepción", narrative="Un pasillo que solo se alcanza por una puerta.",
-        sensitive=True, warning="Contenido sensible.",
-        options=(Option(key="salir", text="Salir", target="cierre", classification="ADEQUATE"),),
+        sensitive=True, warning="Contenido sensible.", intensity="HIGH",
+        options=(Option(key="salir", text="Salir", target="cierre", classification="ADEQUATE",
+                        response_class="ACCEPTABLE"),),
         world=make_world("sala-recepcion"),
     )
     return CaseDefinition(
         code="CASO-001", title="Conflicto", description="Descripción.", semantic_version="1.0.0",
         status="DRAFT", context="Contexto largo.", objectives=("Objetivo uno.",),
         rules={"secondChance": True, "feedbackTiming": "IMMEDIATE",
-               "metrics": [{"key": "confianza", "initial": 50}],
+               "milestones": [{"key": "analizo", "label": "Analizar a los actores", "description": "",
+                               "decisive": True}],
+               "riskLevel": "MODERATE",
                "endings": [{"key": "bueno", "title": "Bueno", "message": "Bien.", "tone": "positive",
-                            "when": {"metric": "confianza", "gte": 60}},
+                            "when": {"milestone": "analizo"}},
                            {"key": "base", "title": "Base", "message": "", "tone": "neutral"}]},
         world_schema_version=2,
         characters=(

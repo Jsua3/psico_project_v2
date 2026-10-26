@@ -42,7 +42,9 @@ NEGATIVE = "mediacion_agresor_intentada"  # marca un acto contraindicado: no es 
 DECISIVE = ["riesgo_feminicidio_valorado", "medidas_proteccion_activadas", "asesoria_derechos_realizada"]
 
 
-DOCUMENT = Path(__file__).resolve().parents[1] / "data" / "cases" / "SIM-VBG-001.dsl.json"
+#: El documento sembrado en su forma 1.0 (severidad, banderas y métricas): desde la Tarea 12 el de ``data/cases`` es 2.0, y
+#: la prueba necesita lo que decía antes para devolver las filas a la forma que la ``0030`` sabe convertir.
+DOCUMENT = Path(__file__).resolve().parent / "fixtures" / "SIM-VBG-001.v1.dsl.json"
 
 
 @pytest.fixture

@@ -18,12 +18,12 @@ EXPORTED = {
     "SimulationNode": {
         "node_key", "title", "narrative", "support_resources_json", "required_tools_json",
         "sensitive_content", "safe_exit_required", "warning_message", "start_node", "terminal_node",
-        "position_x", "position_y", "decision_prompt", "display_order",
+        "position_x", "position_y", "decision_prompt", "display_order", "intensity",
     },
     "DecisionOption": {
-        "option_key", "source_node", "target_node", "text", "classification", "score_delta", "stress_delta",
-        "prohibited_penalty", "immediate_feedback", "prohibited_conduct", "prohibition_reason",
-        "consequence_text", "theory_basis", "feedback_text", "effects",
+        "option_key", "source_node", "target_node", "text", "classification", "immediate_feedback",
+        "prohibited_conduct", "prohibition_reason", "consequence_text", "theory_basis", "feedback_text", "effects",
+        "response_class",
     },
     "SceneMap": {"node", "map_key", "title", "width", "height", "theme", "spawn_x", "spawn_y", "ambient_json"},
     "SceneHint": {"scene_map", "hint_order", "text"},
@@ -54,6 +54,7 @@ EXPORTED = {
 _ID = "identificador de la base de datos: el documento usa ids de DSL por posición"
 _OWNER_VERSION = "la entidad es de la versión del documento"
 _STAMP = "marca de tiempo de la fila; el documento no lleva fechas"
+_RETIRED = "retirados por el modelo de métricas; columnas hasta la Tarea 16"
 
 #: modelo → {columna: motivo por el que no viaja}.
 EXCLUDED = {
@@ -78,15 +79,12 @@ EXCLUDED = {
         "last_edited_by": "quién editó por última vez; no es contenido",
         "edited_alone_since": "tanda de ediciones del editor; no es contenido",
     },
-    # Modelo de respuesta: el documento aún no lleva la intensidad ni la clase (el importador las deriva de la
-    # sensibilidad de la escena y de la severidad de la opción); entran al documento cuando este cambie de forma.
-    "SimulationNode": {
-        "id": _ID, "case_version": _OWNER_VERSION,
-        "intensity": "todavía no viaja en el documento: el importador la deriva de `sensitive_content`",
-    },
+    "SimulationNode": {"id": _ID, "case_version": _OWNER_VERSION},
+    # El documento 2.0 lleva la clase y la intensidad; el puntaje, el estrés y la penalización los retiró el modelo de
+    # métricas y sus columnas siguen en la tabla hasta que la Tarea 16 las quite.
     "DecisionOption": {
         "id": _ID, "case_version": _OWNER_VERSION,
-        "response_class": "todavía no viaja en el documento: el importador la deriva de la clasificación y la severidad",
+        "score_delta": _RETIRED, "stress_delta": _RETIRED, "prohibited_penalty": _RETIRED,
     },
     "SceneMap": {"id": _ID, "case_version": "la versión del mapa es la de su escena", "created_at": _STAMP,
                  "updated_at": _STAMP},

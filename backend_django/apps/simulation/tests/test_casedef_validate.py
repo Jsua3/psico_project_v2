@@ -7,13 +7,19 @@ hallazgos con ``code`` (``DSL.*``), ``severity`` y un mensaje en lenguaje llano 
 lleva ids de DSL.
 """
 import copy
+import json
 import re
+from pathlib import Path
 
 import pytest
 
 from apps.simulation.casedef.export import to_document
+from apps.simulation.casedef.report import ERROR
 from apps.simulation.casedef.validate import validate_document
 from apps.simulation.tests.definition_samples import sample_definition
+
+#: El documento sembrado en su forma 1.0 (antes de la Tarea 12): el importador aún lo lee y lo convierte.
+LEGACY = Path(__file__).resolve().parent / "fixtures" / "SIM-VBG-001.v1.dsl.json"
 
 pytestmark = [pytest.mark.req("RF-12"), pytest.mark.req("RN-05"), pytest.mark.req("LS-14"), pytest.mark.req("LS-15")]
 
@@ -224,15 +230,93 @@ def test_a_condition_nested_beyond_the_depth_limit_is_rejected():
     assert _one(document, "DSL.SIEP_CONDITION").path == "x-siep.reglas.endings[0].when"
 
 
-def test_a_condition_on_an_undeclared_metric_is_an_error():
+def test_a_condition_on_an_undeclared_milestone_is_an_error():
     document = _document()
+    document["x-siep"]["reglas"]["endings"][0]["when"] = {"milestone": "fantasma"}
+    issue = _one(document, "DSL.SIEP_MILESTONE")
+    assert "fantasma" in issue.message and issue.path == "x-siep.reglas.endings[0].when"
+
+
+def test_an_option_that_marks_an_undeclared_milestone_is_an_error():
+    document = _document()
+    document["x-siep"]["escenas"][0]["opciones"][0]["efectos"]["milestones"] = ["fantasma"]
+    issue = _one(document, "DSL.SIEP_MILESTONE")
+    assert issue.path == "x-siep.escenas[0].opciones[0].efectos.milestones[0]"
+
+
+@pytest.mark.parametrize("when", [
+    {"metric": "confianza", "gte": 1},
+    {"flag": "analizo"},
+    {"count": "critical", "eq": 0},
+    {"all": [{"milestone": "analizo"}, {"not": {"flag": "analizo"}}]},
+])
+def test_the_old_condition_vocabulary_is_rejected_in_a_2_0_document(when):
+    document = _document()
+    document["x-siep"]["reglas"]["endings"][0]["when"] = when
+    assert _one(document, "DSL.SIEP_CONDITION").path == "x-siep.reglas.endings[0].when"
+
+
+@pytest.mark.parametrize("old", [{"puntaje": 5}, {"estres": 1}, {"penalizacion": 0}])
+def test_the_retired_option_fields_are_rejected_in_a_2_0_document(old):
+    document = _document()
+    document["x-siep"]["escenas"][0]["opciones"][0].update(old)
+    assert _one(document, "DSL.SIEP_SCHEMA").path == "x-siep.escenas[0].opciones[0]"
+
+
+@pytest.mark.parametrize("effect", [{"metrics": {"confianza": 5}}, {"flags": {"analizo": True}}, {"severity": "risky"}])
+def test_the_retired_effects_are_rejected_in_a_2_0_document(effect):
+    document = _document()
+    document["x-siep"]["escenas"][0]["opciones"][0]["efectos"].update(effect)
+    assert _one(document, "DSL.SIEP_SCHEMA").path == "x-siep.escenas[0].opciones[0].efectos"
+
+
+def test_metrics_are_rejected_in_the_rules_of_a_2_0_document():
+    document = _document()
+    document["x-siep"]["reglas"]["metrics"] = [{"key": "confianza", "initial": 50}]
+    assert _one(document, "DSL.SIEP_SCHEMA").path == "x-siep.reglas"
+
+
+@pytest.mark.parametrize("version", ["3.0", "1.1", 2, None])
+def test_another_x_siep_version_is_a_form_error(version):
+    document = _document()
+    document["x-siep"]["version"] = version
+    assert _one(document, "DSL.SIEP_SCHEMA").path == "x-siep.version"
+
+
+def test_a_2_0_option_needs_its_class_and_a_scene_its_intensity():
+    document = _document()
+    del document["x-siep"]["escenas"][0]["opciones"][0]["clase"]
+    del document["x-siep"]["escenas"][1]["intensidad"]
+    paths = sorted(i.path for i in _issues(document) if i.code == "DSL.SIEP_SCHEMA")
+    assert paths == ["x-siep.escenas[0].opciones[0]", "x-siep.escenas[1]"]
+
+
+def test_a_class_or_an_intensity_outside_the_vocabulary_is_rejected():
+    document = _document()
+    document["x-siep"]["escenas"][0]["opciones"][0]["clase"] = "ADEQUATE"
+    document["x-siep"]["escenas"][1]["intensidad"] = "EXTREME"
+    paths = sorted(i.path for i in _issues(document) if i.code == "DSL.SIEP_SCHEMA")
+    assert paths == ["x-siep.escenas[0].opciones[0].clase", "x-siep.escenas[1].intensidad"]
+
+
+# ─── el documento 1.0 se sigue validando (el importador lo convierte) ─────────────────────────
+def _legacy():
+    return json.loads(LEGACY.read_text(encoding="utf-8"))
+
+
+def test_the_1_0_seeded_document_is_still_valid():
+    assert [i for i in _issues(_legacy()) if i.severity == ERROR] == []
+
+
+def test_a_condition_on_an_undeclared_metric_is_an_error_in_a_1_0_document():
+    document = _legacy()
     document["x-siep"]["reglas"]["endings"][0]["when"] = {"metric": "fantasma", "gte": 1}
     issue = _one(document, "DSL.SIEP_METRIC")
     assert "fantasma" in issue.message
 
 
-def test_an_option_effect_on_an_undeclared_metric_is_an_error():
-    document = _document()
+def test_an_option_effect_on_an_undeclared_metric_is_an_error_in_a_1_0_document():
+    document = _legacy()
     document["x-siep"]["escenas"][0]["opciones"][0]["efectos"]["metrics"] = {"fantasma": 5}
     issue = _one(document, "DSL.SIEP_METRIC")
     assert issue.path == "x-siep.escenas[0].opciones[0].efectos.metrics"
