@@ -9,7 +9,7 @@ la biblioteca nunca se modifica desde un caso.
 
 ```
 biblioteca/
-  esquema/escenario.schema.json   forma del archivo (esquema 1)
+  esquema/escenario.schema.json   forma del archivo (esquema 2; el 1 se acepta con aviso)
   scripts/geometria.mjs           zona caminable por encuadre y choques de cajas
   scripts/validar.mjs             validador (forma + integridad) y línea de comandos
   scripts/fixtures/minimo/        escenario mínimo que usan las pruebas
@@ -42,7 +42,11 @@ de los personajes en otro kit; por defecto usa `../frontend/src/assets/character
 | `ref-inexistente` | error | una sala usa un mueble, objeto o personaje que no está en el lugar |
 | `arte-faltante` | error | una imagen no está en disco |
 | `arte-invalido` | error | una imagen no es PNG, o un fondo de sala no mide 960 × 528 |
-| `faltan-expresiones` | error | al personaje le falta alguna de sus 4 caras (neutral, alegre, preocupada, triste) |
+| `faltan-expresiones` | error | al personaje le falta alguna de sus 6 caras (neutral, alegre, preocupada, triste, cautelosa, en-crisis) |
+| `esquema-antiguo` | aviso | el archivo usa el esquema 1: le faltan `hitos`, `nivelRiesgoPorDefecto` y los modelos compartidos |
+| `modelo-inexistente` | error | un objeto o herramienta con `desdeModelo` nombra un modelo que no está en `modelos/catalogo.json` |
+| `desde-modelo-ambiguo` | error | un objeto o herramienta trae `desdeModelo` y, además, valores propios distintos de los del modelo (arte, animación, textos, efecto) |
+| `modelo-sin-aplicar` | aviso | un objeto o herramienta viene de un modelo y todavía no tiene su arte: falta `npm run modelos:aplicar -- <lugar>` |
 | `entrada-bloqueada` | error | un mueble con choque tapa la entrada o una puerta (caja libre de 32×32) |
 | `fuera-de-la-zona` | error | algo (mueble, objeto, personaje, entrada o puerta) queda fuera del suelo de la sala o contra una pared que el encuadre no tiene |
 | `pocas-salas` | error (aviso si `completo` es `false`) | un lugar completo necesita al menos 8 salas |
@@ -72,5 +76,13 @@ Puntos clave:
 - Zona caminable por encuadre: `tres-paredes` x 96–864, `dos-paredes-izquierda` x 96–936,
   `dos-paredes-derecha` x 24–864, `una-pared` x 24–936; siempre y 236–486.
 - Un personaje toma sus caras de `frontend/src/assets/characters/kit/<recipeId>/portrait-<expresión>.png`.
+  Son seis y siguen el modelo de métricas: vínculo retraída → `triste`, cautelosa → `cautelosa`,
+  abierta → `alegre`; activación serena → `neutral`, tensa → `preocupada`, en crisis → `en-crisis`.
+  Si vínculo y activación piden caras distintas manda la activación, salvo que sea serena.
+- Esquema 2: el lugar declara `hitos` (`{key, label, description, decisive}`, lo que hace el
+  psicólogo: «valorar el riesgo», «informar derechos»…) y `nivelRiesgoPorDefecto` (`VARIABLE`,
+  `MODERATE`, `SEVERE`, `EXTREME`). Un objeto o herramienta puede venir de un modelo compartido
+  (`desdeModelo: <id de modelos/catalogo.json>`): entonces no escribe `arte`, `animacionCerca`,
+  `alRevisar`, `textoInteraccion` ni `efecto`; los rellena `npm run modelos:aplicar`.
 - Cambiar el arte (por ejemplo, por fotos propias) solo reemplaza los PNG: el
   `escenario.json` no cambia.

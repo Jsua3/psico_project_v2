@@ -1,5 +1,5 @@
 {
-  "esquema": 1,
+  "esquema": 2,
   "id": "minimo",
   "nombre": "Lugar mínimo",
   "descripcion": "Escenario de prueba del validador.",
@@ -8,6 +8,21 @@
   ],
   "completo": true,
   "arteProvisional": true,
+  "nivelRiesgoPorDefecto": "MODERATE",
+  "hitos": [
+    {
+      "key": "valorar-el-riesgo",
+      "label": "Valorar el riesgo",
+      "description": "Hito de prueba.",
+      "decisive": true
+    },
+    {
+      "key": "informar-derechos",
+      "label": "Informar derechos",
+      "description": "Hito de prueba.",
+      "decisive": false
+    }
+  ],
   "salas": [
     {
       "id": "sala-1",

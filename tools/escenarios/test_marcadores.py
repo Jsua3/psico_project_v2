@@ -41,3 +41,14 @@ def test_las_zonas_son_las_del_validador():
               "g.ENCUADRES.map(e => { const z = g.zonaCaminable(e); return [e, [z.x, z.y, z.ancho, z.alto]]; })))))")
     salida = subprocess.run(['node', '-e', codigo], capture_output=True, text=True, check=True).stdout
     assert {k: tuple(v) for k, v in json.loads(salida).items()} == marcadores.ZONAS
+
+
+def test_un_objeto_desde_modelo_sin_arte_no_recibe_marcador(tmp_path):
+    """Su arte lo copia modelos:aplicar desde biblioteca/modelos; aquí no hay nada que marcar."""
+    import marcadores
+    escenario = {
+        'salas': [], 'catalogo': {'muebles': [], 'herramientas': [],
+                                  'objetos': [{'id': 'televisor', 'nombre': 'Televisor', 'tipo': 'PROP', 'desdeModelo': 'televisor'}]},
+    }
+    (tmp_path / 'escenario.json').write_text(json.dumps(escenario), encoding='utf-8')
+    assert marcadores.crear_marcadores(str(tmp_path / 'escenario.json')) == []

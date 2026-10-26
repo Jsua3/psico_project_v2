@@ -61,6 +61,8 @@ def test_muebles_del_ancho_del_catalogo_con_alfa_binario(generado):
 def test_objetos_y_herramientas_de_32x32(generado):
     dir_, esc = generado
     for pieza in esc['catalogo']['objetos'] + esc['catalogo']['herramientas']:
+        if pieza.get('desdeModelo'):
+            continue  # su arte lo copia modelos:aplicar desde biblioteca/modelos
         im = Image.open(dir_ / pieza['arte'])
         assert im.size == (32, 32), pieza['id']
         assert set(np.unique(np.array(im)[:, :, 3]).tolist()) <= {0, 255}, pieza['id']
@@ -87,3 +89,15 @@ def test_una_pieza_sin_dibujo_es_error(tmp_path):
     (tmp_path / 'escenario.json').write_text(json.dumps(esc), encoding='utf-8')
     with pytest.raises(SystemExit, match='piano'):
         au.generar(str(tmp_path / 'escenario.json'), factor=2)
+
+
+def test_una_pieza_desde_modelo_no_necesita_dibujo(tmp_path):
+    """Su arte viene de biblioteca/modelos (modelos:aplicar): generar no la dibuja ni la exige."""
+    with open(UNIVERSIDAD, encoding='utf-8') as f:
+        esc = json.load(f)
+    esc['catalogo']['objetos'] = [{'id': 'televisor', 'nombre': 'Televisor', 'tipo': 'PROP', 'desdeModelo': 'televisor'}]
+    esc['catalogo']['herramientas'] = []
+    (tmp_path / 'escenario.json').write_text(json.dumps(esc), encoding='utf-8')
+    hechos = au.generar(str(tmp_path / 'escenario.json'), factor=2, salas=['consultorio'])
+    assert not any('televisor' in h for h in hechos)
+    assert not (tmp_path / 'arte' / 'objetos' / 'televisor.png').exists()

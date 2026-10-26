@@ -1,5 +1,5 @@
 {
-  "esquema": 1,
+  "esquema": 2,
   "id": "universidad",
   "nombre": "Universidad",
   "descripcion": "Campus universitario: atención psicológica, bienestar, clases y espacios comunes.",
@@ -10,6 +10,45 @@
   ],
   "completo": true,
   "arteProvisional": true,
+  "nivelRiesgoPorDefecto": "MODERATE",
+  "hitos": [
+    {
+      "key": "valorar-el-riesgo",
+      "label": "Valorar el riesgo",
+      "description": "Explorar con la persona usuaria las señales de riesgo y estimar su nivel antes de decidir el acompañamiento. [por validar con Psicología]",
+      "decisive": true
+    },
+    {
+      "key": "informar-derechos",
+      "label": "Informar derechos",
+      "description": "Explicar a la persona usuaria sus derechos y las rutas de atención que existen en la universidad y en la ciudad. [por validar con Psicología]",
+      "decisive": false
+    },
+    {
+      "key": "recomendar-medidas-de-proteccion",
+      "label": "Recomendar medidas de protección",
+      "description": "Proponer medidas concretas de protección y acompañar a la persona a solicitarlas. [por validar con Psicología]",
+      "decisive": false
+    },
+    {
+      "key": "derivar-a-salud-mental",
+      "label": "Derivar a salud mental",
+      "description": "Remitir a la persona usuaria a atención en salud mental y asegurar que la remisión llegue. [por validar con Psicología]",
+      "decisive": true
+    },
+    {
+      "key": "aplicar-primeros-auxilios-psicologicos",
+      "label": "Aplicar primeros auxilios psicológicos",
+      "description": "Escuchar, proteger y conectar a la persona en crisis antes de cualquier otro paso. [por validar con Psicología]",
+      "decisive": false
+    },
+    {
+      "key": "no-mediar-con-el-agresor",
+      "label": "No mediar con el agresor",
+      "description": "Evitar cualquier mediación o careo entre la persona usuaria y quien la agrede. [por validar con Psicología]",
+      "decisive": false
+    }
+  ],
   "salas": [
     {
       "id": "entrada",
@@ -120,6 +159,11 @@
           "ref": "afiche-bienestar",
           "x": 230,
           "y": 300
+        },
+        {
+          "ref": "buzon-bienestar",
+          "x": 540,
+          "y": 262
         }
       ],
       "personajes": [
@@ -312,7 +356,18 @@
           "espejo": false
         }
       ],
-      "objetos": [],
+      "objetos": [
+        {
+          "ref": "taza-cafe",
+          "x": 430,
+          "y": 262
+        },
+        {
+          "ref": "lampara-escritorio",
+          "x": 512,
+          "y": 262
+        }
+      ],
       "personajes": [
         {
           "ref": "docente",
@@ -379,6 +434,11 @@
           "ref": "folleto-rutas",
           "x": 520,
           "y": 334
+        },
+        {
+          "ref": "cartelera-horarios",
+          "x": 620,
+          "y": 262
         }
       ],
       "personajes": [
@@ -459,6 +519,16 @@
           "ref": "afiche-bienestar",
           "x": 640,
           "y": 262
+        },
+        {
+          "ref": "computador-oficina",
+          "x": 370,
+          "y": 266
+        },
+        {
+          "ref": "planta-maceta",
+          "x": 760,
+          "y": 280
         }
       ],
       "personajes": [
@@ -545,6 +615,11 @@
           "ref": "folleto-rutas",
           "x": 650,
           "y": 280
+        },
+        {
+          "ref": "caja-panuelos",
+          "x": 392,
+          "y": 350
         }
       ],
       "personajes": [
@@ -613,6 +688,11 @@
           "ref": "vaso-agua",
           "x": 420,
           "y": 240
+        },
+        {
+          "ref": "botiquin",
+          "x": 520,
+          "y": 250
         }
       ],
       "personajes": [
@@ -692,6 +772,11 @@
           "ref": "mochila",
           "x": 470,
           "y": 420
+        },
+        {
+          "ref": "carne-estudiantil",
+          "x": 575,
+          "y": 340
         }
       ],
       "personajes": [
@@ -761,7 +846,18 @@
           "espejo": false
         }
       ],
-      "objetos": [],
+      "objetos": [
+        {
+          "ref": "libro-abierto",
+          "x": 480,
+          "y": 322
+        },
+        {
+          "ref": "tablero-avisos",
+          "x": 640,
+          "y": 262
+        }
+      ],
       "personajes": [],
       "puertas": [
         {
@@ -1118,6 +1214,72 @@
           "cuadros": 3,
           "fps": 6
         }
+      },
+      {
+        "id": "carne-estudiantil",
+        "nombre": "Carné estudiantil",
+        "tipo": "OBJECT",
+        "desdeModelo": "carne-estudiantil"
+      },
+      {
+        "id": "taza-cafe",
+        "nombre": "Taza de café",
+        "tipo": "PROP",
+        "desdeModelo": "taza-cafe"
+      },
+      {
+        "id": "lampara-escritorio",
+        "nombre": "Lámpara de escritorio",
+        "tipo": "PROP",
+        "desdeModelo": "lampara-escritorio"
+      },
+      {
+        "id": "libro-abierto",
+        "nombre": "Libro abierto",
+        "tipo": "OBJECT",
+        "desdeModelo": "libro-abierto"
+      },
+      {
+        "id": "tablero-avisos",
+        "nombre": "Tablero de avisos",
+        "tipo": "NOTE",
+        "desdeModelo": "tablero-avisos"
+      },
+      {
+        "id": "computador-oficina",
+        "nombre": "Computador de la oficina",
+        "tipo": "OBJECT",
+        "desdeModelo": "computador-oficina"
+      },
+      {
+        "id": "planta-maceta",
+        "nombre": "Planta pequeña",
+        "tipo": "PROP",
+        "desdeModelo": "planta-maceta"
+      },
+      {
+        "id": "buzon-bienestar",
+        "nombre": "Buzón de Bienestar",
+        "tipo": "RESOURCE",
+        "desdeModelo": "buzon-bienestar"
+      },
+      {
+        "id": "cartelera-horarios",
+        "nombre": "Cartelera de horarios",
+        "tipo": "NOTE",
+        "desdeModelo": "cartelera-horarios"
+      },
+      {
+        "id": "botiquin",
+        "nombre": "Botiquín",
+        "tipo": "RESOURCE",
+        "desdeModelo": "botiquin"
+      },
+      {
+        "id": "caja-panuelos",
+        "nombre": "Caja de pañuelos",
+        "tipo": "OBJECT",
+        "desdeModelo": "caja-panuelos"
       }
     ],
     "herramientas": [

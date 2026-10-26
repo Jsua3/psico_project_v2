@@ -285,3 +285,83 @@ test('una hoja de cercanía con medida que no cuadra es error hoja-medida', asyn
   );
   assert.ok(r.errores.some((x) => x.codigo === 'hoja-medida'));
 });
+
+// ── Esquema 2: hitos, nivel de riesgo, modelos compartidos y seis caras ──
+
+test('un lugar de esquema 2 sin hitos es error de esquema', async () => {
+  const { errores } = await validarMutado((e) => {
+    delete e.hitos;
+  });
+  const hallazgo = errores.find((h) => h.codigo === 'esquema');
+  assert.ok(hallazgo, JSON.stringify(errores));
+  assert.match(hallazgo.mensaje, /hitos/);
+});
+
+test('un hito con decisive que no es booleano es error de esquema', async () => {
+  const { errores } = await validarMutado((e) => {
+    e.hitos[0].decisive = 'sí';
+  });
+  const hallazgo = errores.find((h) => h.codigo === 'esquema' && h.donde.includes('hitos'));
+  assert.ok(hallazgo, JSON.stringify(errores));
+  assert.match(hallazgo.mensaje, /verdadero o falso/);
+});
+
+test('nivelRiesgoPorDefecto fuera del vocabulario es error de esquema', async () => {
+  const { errores } = await validarMutado((e) => {
+    e.nivelRiesgoPorDefecto = 'ALTO';
+  });
+  const hallazgo = errores.find((h) => h.codigo === 'esquema' && h.donde.includes('nivelRiesgoPorDefecto'));
+  assert.ok(hallazgo, JSON.stringify(errores));
+  assert.match(hallazgo.mensaje, /VARIABLE, MODERATE, SEVERE, EXTREME/);
+});
+
+test('desdeModelo junto con arte es error desde-modelo-ambiguo', async () => {
+  const { errores } = await validarMutado((e) => {
+    e.catalogo.objetos[0].desdeModelo = 'televisor';
+  });
+  const hallazgo = errores.find((h) => h.codigo === 'desde-modelo-ambiguo');
+  assert.ok(hallazgo, JSON.stringify(errores));
+  assert.match(hallazgo.donde, /folleto/);
+});
+
+test('desdeModelo con un id que no está en biblioteca/modelos/catalogo.json es error modelo-inexistente', async () => {
+  const { errores } = await validarMutado((e) => {
+    e.catalogo.objetos[0] = { id: 'folleto', nombre: 'Folleto', tipo: 'RESOURCE', desdeModelo: 'televisr' };
+  });
+  const hallazgo = errores.find((h) => h.codigo === 'modelo-inexistente');
+  assert.ok(hallazgo, JSON.stringify(errores));
+  assert.match(hallazgo.mensaje, /televisr/);
+});
+
+test('desdeModelo sin aplicar todavía no es error: es aviso modelo-sin-aplicar', async () => {
+  const { errores, avisos } = await validarMutado((e) => {
+    e.catalogo.objetos[0] = { id: 'folleto', nombre: 'Folleto', tipo: 'RESOURCE', desdeModelo: 'televisor' };
+  });
+  assert.deepEqual(errores, []);
+  assert.ok(codigos(avisos).includes('modelo-sin-aplicar'), JSON.stringify(avisos));
+});
+
+test('un personaje sin portrait-cautelosa es error faltan-expresiones', async () => {
+  const kitTemporal = await mkdtemp(path.join(tmpdir(), 'kit-'));
+  try {
+    await cp(KIT, kitTemporal, { recursive: true });
+    await rm(path.join(kitTemporal, 'persona-prueba', 'portrait-cautelosa.png'));
+    await rm(path.join(kitTemporal, 'persona-prueba', 'portrait-en-crisis.png'));
+    const { errores } = await validarMutado(() => {}, { kitDir: kitTemporal });
+    const hallazgo = errores.find((h) => h.codigo === 'faltan-expresiones');
+    assert.ok(hallazgo, JSON.stringify(errores));
+    assert.match(hallazgo.mensaje, /cautelosa, en-crisis/);
+  } finally {
+    await rm(kitTemporal, { recursive: true, force: true });
+  }
+});
+
+test('un lugar de esquema 1 valida con aviso esquema-antiguo', async () => {
+  const { errores, avisos } = await validarMutado((e) => {
+    e.esquema = 1;
+    delete e.hitos;
+    delete e.nivelRiesgoPorDefecto;
+  });
+  assert.deepEqual(errores, []);
+  assert.ok(codigos(avisos).includes('esquema-antiguo'), JSON.stringify(avisos));
+});

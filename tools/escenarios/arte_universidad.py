@@ -953,14 +953,16 @@ def generar(ruta_escenario, factor=2, salas=None):
     base = os.path.dirname(os.path.abspath(ruta_escenario))
     with open(ruta_escenario, encoding='utf-8') as f:
         esc = json.load(f)
+    # Lo que viene de un modelo (desdeModelo) lo dibuja biblioteca/modelos y lo copia modelos:aplicar.
+    piezas = [o for o in esc['catalogo']['objetos'] + esc['catalogo']['herramientas'] if not o.get('desdeModelo')]
     faltan = ([s['id'] for s in esc['salas'] if s['id'] not in SALAS]
               + [m['id'] for m in esc['catalogo']['muebles'] if m['id'] not in MUEBLES]
-              + [o['id'] for o in esc['catalogo']['objetos'] + esc['catalogo']['herramientas'] if o['id'] not in ICONOS])
+              + [o['id'] for o in piezas if o['id'] not in ICONOS])
     if faltan:
         raise SystemExit(f"No hay dibujo para: {', '.join(faltan)}")
 
     rutas = ([s['fondo'] for s in esc['salas']] + [m['arte'] for m in esc['catalogo']['muebles']]
-             + [o['arte'] for o in esc['catalogo']['objetos'] + esc['catalogo']['herramientas']])
+             + [o['arte'] for o in piezas])
     for relativa in rutas:  # antes de dibujar nada: ninguna imagen se escribe fuera del escenario
         dentro_de(base, relativa)
 
@@ -984,7 +986,7 @@ def generar(ruta_escenario, factor=2, salas=None):
             raise SystemExit(f"El dibujo de {mueble['id']} mide {im.width} de ancho y el catálogo dice {mueble['ancho']}")
         terminar_sprite(im, 24).save(destino(mueble['arte']))
         hechos.append(mueble['arte'])
-    for pieza in esc['catalogo']['objetos'] + esc['catalogo']['herramientas']:
+    for pieza in piezas:
         terminar_sprite(ICONOS[pieza['id']](), 16).save(destino(pieza['arte']))
         hechos.append(pieza['arte'])
     return hechos

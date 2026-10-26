@@ -125,7 +125,7 @@ def componer_sala(base, sala, escenario, kit_dir):
 
     for colocado in sala['objetos']:  # encima de todo: son lo que se recoge o se mira
         objeto = objetos.get(colocado['ref'])
-        if not objeto:
+        if not objeto or 'arte' not in objeto:  # sin arte todavía (modelo sin aplicar)
             continue
         icono = _abrir(os.path.join(base, *objeto['arte'].split('/')))
         lienzo.alpha_composite(icono, (colocado['x'] - icono.width // 2, colocado['y'] - icono.height + 1))

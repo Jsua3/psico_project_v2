@@ -92,6 +92,8 @@ def piezas(escenario):
     for m in escenario['catalogo']['muebles']:
         yield m['arte'], lambda m=m: marcador_rect(m['ancho'], m['alto'], m['nombre'])
     for o in escenario['catalogo']['objetos'] + escenario['catalogo']['herramientas']:
+        if 'arte' not in o:  # viene de un modelo (desdeModelo): su arte lo copia modelos:aplicar
+            continue
         yield o['arte'], lambda o=o: marcador_rect(LADO_ICONO, LADO_ICONO, o['nombre'])
 
 

@@ -27,14 +27,40 @@ import {
 const aqui = path.dirname(fileURLToPath(import.meta.url));
 const RAIZ_BIBLIOTECA = path.resolve(aqui, '..');
 export const KIT_POR_DEFECTO = path.resolve(RAIZ_BIBLIOTECA, '../frontend/src/assets/characters/kit');
-export const EXPRESIONES = Object.freeze(['neutral', 'alegre', 'preocupada', 'triste']);
+/** Seis caras: bond WITHDRAWN → triste, GUARDED → cautelosa, OPEN → alegre; activation CALM → neutral, TENSE → preocupada, CRISIS → en-crisis. */
+export const EXPRESIONES = Object.freeze(['neutral', 'alegre', 'preocupada', 'triste', 'cautelosa', 'en-crisis']);
+export const ESQUEMA_ACTUAL = 2;
+export const CATALOGO_MODELOS = path.resolve(RAIZ_BIBLIOTECA, 'modelos', 'catalogo.json');
+/** Campos de un objeto o herramienta que `desdeModelo` resuelve (los escribe modelos:aplicar). */
+export const CAMPOS_DE_MODELO = Object.freeze(['arte', 'animacionCerca', 'alRevisar', 'textoInteraccion', 'efecto']);
+
+/** Modelos interactivos de biblioteca/modelos, por id. */
+export async function cargarModelos(ruta = CATALOGO_MODELOS) {
+  const catalogo = JSON.parse(await readFile(ruta, 'utf8'));
+  return new Map(catalogo.modelos.map((m) => [m.id, m]));
+}
+
+/**
+ * Valores que un objeto o herramienta del lugar debe llevar cuando viene de un modelo:
+ * el arte se copia a arte/<carpeta>/<id>.png y <id>-cerca.png; el resto se copia tal cual.
+ */
+export function camposResueltos(modelo, carpeta) {
+  const base = `arte/${carpeta}/${modelo.id}`;
+  return {
+    arte: `${base}.png`,
+    animacionCerca: { ...modelo.animacionCerca, hoja: `${base}-cerca.png` },
+    alRevisar: modelo.alRevisar,
+    textoInteraccion: modelo.textoInteraccion,
+    efecto: modelo.efecto,
+  };
+}
 export const MINIMO_DE_SALAS = 8;
 
 let validadorDeEsquema;
 async function esquema() {
   if (!validadorDeEsquema) {
     const texto = await readFile(path.join(RAIZ_BIBLIOTECA, 'esquema', 'escenario.schema.json'), 'utf8');
-    const ajv = new Ajv2020({ allErrors: true, strict: true });
+    const ajv = new Ajv2020({ allErrors: true, strict: true, strictRequired: false }); // los if/then del esquema 2 exigen campos definidos fuera de la rama
     validadorDeEsquema = ajv.compile(JSON.parse(texto));
   }
   return validadorDeEsquema;
@@ -88,6 +114,9 @@ export function mensajeDeEsquema(error) {
       return `El campo "${p.additionalProperty}" no existe en este formato.`;
     case 'enum':
       return `El valor no es válido. Debe ser uno de: ${p.allowedValues.join(', ')}.`;
+    case 'if':
+    case 'not':
+      return null; // el detalle lo dan los errores de las ramas (required, etc.)
     case 'const':
       return `El valor debe ser ${JSON.stringify(p.allowedValue)}.`;
     case 'type':
@@ -132,7 +161,7 @@ export function lugarDeEsquema(escenario, rutaJson) {
  * @returns {Promise<{ errores: Hallazgo[], avisos: Hallazgo[] }>}
  *   con Hallazgo = { codigo, donde, mensaje }
  */
-export async function validarEscenario(dir, { kitDir = KIT_POR_DEFECTO } = {}) {
+export async function validarEscenario(dir, { kitDir = KIT_POR_DEFECTO, catalogoModelos = CATALOGO_MODELOS } = {}) {
   const errores = [];
   const avisos = [];
   const error = (codigo, donde, mensaje) => errores.push({ codigo, donde, mensaje });
@@ -150,10 +179,41 @@ export async function validarEscenario(dir, { kitDir = KIT_POR_DEFECTO } = {}) {
   const validar = await esquema();
   if (!validar(escenario)) {
     for (const e of validar.errors) {
-      error('esquema', lugarDeEsquema(escenario, e.instancePath), mensajeDeEsquema(e));
+      const mensaje = mensajeDeEsquema(e);
+      if (mensaje) error('esquema', lugarDeEsquema(escenario, e.instancePath), mensaje);
     }
     return { errores, avisos };
   }
+  if (escenario.esquema !== ESQUEMA_ACTUAL) {
+    aviso('esquema-antiguo', 'escenario', `El archivo usa el esquema ${escenario.esquema}; el actual es el ${ESQUEMA_ACTUAL} (hitos, nivel de riesgo y modelos compartidos).`);
+  }
+
+  // Objetos y herramientas que vienen de un modelo de biblioteca/modelos.
+  const modelos = await cargarModelos(catalogoModelos);
+  const pendientesDeModelo = new Set();
+  const revisarModelo = (pieza, carpeta, donde) => {
+    if (!pieza.desdeModelo) return;
+    const modelo = modelos.get(pieza.desdeModelo);
+    if (!modelo) {
+      error('modelo-inexistente', donde, `El modelo "${pieza.desdeModelo}" no está en biblioteca/modelos/catalogo.json.`);
+      pendientesDeModelo.add(pieza.id);
+      return;
+    }
+    const propios = CAMPOS_DE_MODELO.filter((campo) => campo in pieza);
+    if (propios.length === 0) {
+      pendientesDeModelo.add(pieza.id);
+      aviso('modelo-sin-aplicar', donde, `Viene del modelo "${pieza.desdeModelo}" y todavía no tiene su arte: ejecuta npm run modelos:aplicar -- <lugar>.`);
+      return;
+    }
+    const esperados = camposResueltos(modelo, carpeta);
+    const distintos = propios.filter((campo) => JSON.stringify(pieza[campo]) !== JSON.stringify(esperados[campo]));
+    if (distintos.length > 0) {
+      error('desde-modelo-ambiguo', donde, `Viene del modelo "${pieza.desdeModelo}" pero trae valores propios en ${distintos.join(', ')}: quita desdeModelo o quita esos campos y ejecuta npm run modelos:aplicar.`);
+      pendientesDeModelo.add(pieza.id);
+    }
+  };
+  for (const o of escenario.catalogo.objetos) revisarModelo(o, 'objetos', `objeto "${o.id}"`);
+  for (const h of escenario.catalogo.herramientas) revisarModelo(h, 'herramientas', `herramienta "${h.id}"`);
 
   // Ids repetidos dentro de cada grupo.
   const revisarIds = (lista, grupo, donde) => {
@@ -224,15 +284,17 @@ export async function validarEscenario(dir, { kitDir = KIT_POR_DEFECTO } = {}) {
     }
   };
   for (const o of escenario.catalogo.objetos) {
+    if (pendientesDeModelo.has(o.id)) continue; // sin arte todavía, o ya avisado
     await revisarArte(o.arte, `objeto "${o.id}"`);
     await revisarHoja(o, `objeto "${o.id}"`);
   }
   for (const h of escenario.catalogo.herramientas) {
+    if (pendientesDeModelo.has(h.id)) continue;
     await revisarArte(h.arte, `herramienta "${h.id}"`);
     await revisarHoja(h, `herramienta "${h.id}"`);
   }
 
-  // Caras de cada personaje en el kit.
+  // Caras de cada personaje en el kit (las seis).
   for (const personaje of escenario.personajes) {
     const faltan = [];
     for (const expresion of EXPRESIONES) {
