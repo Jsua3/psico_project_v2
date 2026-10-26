@@ -40,6 +40,9 @@ def post_json(url: str, payload: dict, headers: dict, timeout: float = TIMEOUT_S
             return json.loads(response.read().decode("utf-8"))
     except urllib.error.HTTPError as exc:
         body = exc.read().decode("utf-8", errors="replace")
+        for secret in headers.values():  # primero se borra la clave y después se recorta: no puede quedar cortada a medias
+            if len(secret) >= 8:
+                body = body.replace(secret, "***")
         raise RuntimeError(f"provider returned {exc.code}: {body[:300]}") from exc
 
 
@@ -133,11 +136,15 @@ class AnthropicProvider(AIProvider):
             )
         except RuntimeError as exc:  # post_json: respuesta no 2xx
             raise ProviderError("http", self._sin_clave(str(exc))) from None
-        except (TimeoutError, urllib.error.URLError) as exc:
+        except OSError as exc:  # incluye URLError, TimeoutError y cortes de conexión durante la lectura
             if _es_timeout(exc):
                 raise ProviderError("timeout", "el proveedor no respondió a tiempo") from None
             raise ProviderError("http", self._sin_clave(f"error de red: {exc}")) from None
+        except ValueError:  # cuerpo 2xx que no es JSON ni UTF-8 (p. ej. HTML de un proxy)
+            raise ProviderError("malformed", "el cuerpo de la respuesta no es JSON") from None
 
+        if not isinstance(data, dict):
+            raise ProviderError("malformed", "el cuerpo de la respuesta no es un objeto JSON")
         stop_reason = data.get("stop_reason")
         if stop_reason == "refusal":
             raise ProviderError("refusal", "el modelo se negó a responder")

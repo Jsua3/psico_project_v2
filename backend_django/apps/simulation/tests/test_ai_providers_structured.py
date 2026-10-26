@@ -113,14 +113,59 @@ def test_un_error_de_red_que_no_es_timeout_es_http():
     assert info.value.kind == "http"
 
 
+class _CuerpoRaw:
+    def __init__(self, raw):
+        self._raw = raw
+
+    def read(self):
+        return self._raw
+
+    def __enter__(self):
+        return self
+
+    def __exit__(self, *exc):
+        return False
+
+
+@pytest.mark.parametrize("raw", [b"<html>proxy</html>", bytes([0xFF, 0xFE])])
+def test_un_cuerpo_2xx_que_no_es_json_es_malformed(raw):
+    with pytest.raises(ProviderError) as info:
+        _llamar(_CuerpoRaw(raw))
+    assert info.value.kind == "malformed"
+
+
+@pytest.mark.parametrize("raw", [b"[1, 2]", b'"hola"'])
+def test_un_cuerpo_json_que_no_es_objeto_es_malformed(raw):
+    with pytest.raises(ProviderError) as info:
+        _llamar(_CuerpoRaw(raw))
+    assert info.value.kind == "malformed"
+
+
+def test_un_corte_de_conexion_durante_la_lectura_es_http():
+    with pytest.raises(ProviderError) as info:
+        _llamar(error=ConnectionResetError("reset"))
+    assert info.value.kind == "http"
+
+
+def test_un_timeout_durante_la_lectura_es_timeout():
+    class _Lento(_CuerpoRaw):
+        def read(self):
+            raise socket.timeout("lectura")
+
+    with pytest.raises(ProviderError) as info:
+        _llamar(_Lento(b""))
+    assert info.value.kind == "timeout"
+
+
 def test_un_estado_no_2xx_es_http_con_el_codigo_y_sin_la_key():
-    cuerpo = ("x" * 400 + KEY).encode("utf-8")
+    cuerpo = ("x" * 280 + KEY + "y" * 100).encode("utf-8")  # la clave cruza el corte de 300 caracteres
     error = urllib.error.HTTPError("https://api", 429, "Too Many", {}, io.BytesIO(cuerpo))
     with pytest.raises(ProviderError) as info:
         _llamar(error=error)
     assert info.value.kind == "http"
     assert "429" in str(info.value)
     assert KEY not in str(info.value)
+    assert KEY[:10] not in str(info.value)
     assert len(str(info.value)) < 400
 
 
