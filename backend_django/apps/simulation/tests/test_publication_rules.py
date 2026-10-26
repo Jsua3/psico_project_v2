@@ -211,6 +211,34 @@ def test_the_path_cap_skips_the_reachability_check_with_one_warning():
     ]
 
 
+def test_dead_end_branches_count_against_the_step_budget():
+    """25 capas de dos opciones que terminan en un sumidero que no es final: 2**25 recorridos sin ningún camino completo."""
+    scenes = [scene("s0", opt("a0", "s1"), opt("b0", "s1"), start=True)]
+    for n in range(1, 25):
+        scenes.append(scene(f"s{n}", opt(f"a{n}", f"s{n + 1}"), opt(f"b{n}", f"s{n + 1}")))
+    scenes.append(scene("s25"))  # no es final y no tiene opciones
+    g = graph(*scenes, endings=(EndingNode("x", "X", {"count": "risky", "gte": 1}),), own=True)
+    found = rules.check(g)
+    assert [(i.code, i.severity) for i in found if i.code.startswith("ending")] == [
+        ("ending-reachability-skipped", "warning")
+    ]
+
+
+def test_a_self_loop_cuts_the_path_without_hanging():
+    g = graph(
+        scene("s", opt("a", "s"), opt("b", "f"), start=True),
+        scene("f", terminal=True),
+        endings=(EndingNode("x", "X", None),),
+        own=True,
+    )
+    assert [c for c in codes(rules.check(g)) if c.startswith("ending")] == []
+
+
+def test_an_invalid_when_does_not_add_a_spurious_missing_default():
+    g = _ending_graph(EndingNode("roto", "Roto", {"metric": 3}))
+    assert "ending-without-default" not in codes(rules.check(g))
+
+
 def test_under_the_cap_the_check_runs():
     found = rules.check(_wide_graph(4))
     assert "ending-reachability-skipped" not in codes(found)

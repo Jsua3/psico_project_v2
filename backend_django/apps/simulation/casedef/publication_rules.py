@@ -15,7 +15,7 @@ los dos avisos que se explican abajo:
    tabla por clase). No se mira el orden de evaluación: un final es alcanzable si algún camino cumple su
    condición. Además ``ending-without-default``: el caso declara finales propios, ninguno es el de por defecto y
    algún camino no cumple ninguno. Un final PROPIO inalcanzable es ``error``; uno de la PLANTILLA es ``warning``
-   (la plantilla es automática y un caso pequeño o sin hitos decisivos puede no darla). Los caminos se enumeran con tope (``MAX_PATHS`` caminos, ``MAX_DEPTH``
+   (la plantilla es automática y un caso pequeño o sin hitos decisivos puede no darla). Los caminos se enumeran con tope (``MAX_PATHS`` caminos, ``MAX_STEPS`` pasos, ``MAX_DEPTH``
    escenas, un reencuentro con una escena ya visitada corta el camino): si el tope se alcanza no se afirma nada
    y sale un único aviso ``ending-reachability-skipped``. Sin ningún camino completo tampoco se dice nada: eso
    ya lo reporta el validador del mundo.
@@ -43,6 +43,8 @@ WARNING = "warning"
 #: Cuántos caminos completos se enumeran como máximo y cuántas escenas puede tener uno.
 MAX_PATHS = 2000
 MAX_DEPTH = 64
+#: Cuántos pasos (opciones recorridas) se permiten en total: acota también las ramas sin salida, que no llegan a un camino.
+MAX_STEPS = 20_000
 
 SCENE_WITHOUT_RECOMMENDED = "scene-without-recommended"
 CONTRAINDICATED_WITHOUT_REASON = "contraindicated-without-reason"
@@ -171,7 +173,7 @@ def _complete_contexts(scenes):
     start = _start_of(scenes)
     if start is None:
         return [], False
-    contexts, seen, state = [], set(), {"paths": 0, "skipped": False}
+    contexts, seen, state = [], set(), {"paths": 0, "steps": 0, "skipped": False}
     class_names = tuple(member.value.lower() for member in ResponseClass)
 
     def walk(scene, visited, milestones, counts, persona):
@@ -191,6 +193,10 @@ def _complete_contexts(scenes):
             state["skipped"] = True
             return
         for option in scene.options:
+            state["steps"] += 1
+            if state["steps"] > MAX_STEPS:
+                state["skipped"] = True
+                return
             target = scenes.get(option.target) if option.target else None
             if target is None or target.key in visited:
                 continue
@@ -261,7 +267,9 @@ def _ending_rules(graph, scenes):
                 labels={"ending": ending.title or ending.key},
             ))
     has_default = any(ending.when is None for ending in graph.endings)
-    if graph.own_endings and graph.endings and not has_default and any(
+    if graph.own_endings and graph.endings and not has_default and all(
+        ending.when is None or conditions.is_valid(ending.when) for ending in graph.endings
+    ) and any(
         not any(conditions.evaluate(ending.when, context) for ending in graph.endings) for context in contexts
     ):
         issues.append(Issue(ENDING_WITHOUT_DEFAULT, ERROR, "endings"))
