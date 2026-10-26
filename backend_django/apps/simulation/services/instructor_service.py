@@ -26,7 +26,7 @@ from ..models import (
     SimulationAttempt,
 )
 from . import attempt_lifecycle as lifecycle
-from . import crypto_service, world_service
+from . import case_effects, case_state, crypto_service, world_service
 from . import rubric_service
 from .attempt_lock import lock_attempt_row
 from .attempt_replacement import replace_open_attempt
@@ -192,6 +192,24 @@ def _bitacora_del_reporte(bitacora):
     }
 
 
+def _legacy_decision_counts(events):
+    """Las decisiones registradas por clasificación antigua, como las contaba el reporte de cierre antes de la v3.
+
+    TRANSITORIO: la traza docente conserva su forma hasta la Tarea 13, que la pasa a clases e hitos y borra esto.
+    Los reintentos no cuentan.
+    """
+    counts = {"ADEQUATE": 0, "RISKY": 0, "INADEQUATE": 0, "PROHIBITED": 0}
+    for event in events:
+        if event.decision_option_id is None or event.event_type not in case_effects.REGISTERED_DECISION_EVENT_TYPES:
+            continue
+        option = event.decision_option
+        if option.classification in counts:
+            counts[option.classification] += 1
+        if option.prohibited_conduct:
+            counts["PROHIBITED"] += 1
+    return counts
+
+
 @transaction.atomic
 def trace(attempt_id, instructor=None):
     attempt = _require_attempt(attempt_id, instructor)
@@ -200,7 +218,8 @@ def trace(attempt_id, instructor=None):
         .select_related("node", "decision_option")
         .order_by("occurred_at", "id")
     )
-    report = dto.build_completion_report(attempt, events)
+    report = dto.build_completion_report(attempt, events, class_of=case_state.response_class_of)
+    legacy = _legacy_decision_counts(events)
     evaluations = list(
         RubricEvaluation.objects.filter(attempt_id=attempt_id).select_related("rubric").order_by("-evaluated_at")
     )
@@ -219,10 +238,10 @@ def trace(attempt_id, instructor=None):
         "metrics": dto.metrics(attempt),
         "startedAt": _dt(attempt.started_at),
         "endedAt": _dt(attempt.ended_at),
-        "adequateDecisions": report["adequateDecisions"],
-        "riskyDecisions": report["riskyDecisions"],
-        "inadequateDecisions": report["inadequateDecisions"],
-        "prohibitedDecisions": report["prohibitedDecisions"],
+        "adequateDecisions": legacy["ADEQUATE"],
+        "riskyDecisions": legacy["RISKY"],
+        "inadequateDecisions": legacy["INADEQUATE"],
+        "prohibitedDecisions": legacy["PROHIBITED"],
         # Primeras respuestas que el juego no aplicó (regla de reintento): no entran en los contadores de
         # arriba; sin esto la fila «reintento» de la línea de tiempo contradice el contador de contraindicadas.
         "retries": report["retries"],

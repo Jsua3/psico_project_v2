@@ -13,6 +13,12 @@ E6-1d (``schemaVersion 2``) añade el perfil por competencia (``competencyLevels
 ``reflectionCoverage`` y ``keyLearningEvidence``: se calculan UNA vez, al cerrar, con la rúbrica, el catálogo y los
 efectos de ese momento, y no se recalculan (un reporte cerrado no cambia). Un reporte v1 sigue siendo v1: se lee tal
 cual, sin las claves nuevas.
+
+``schemaVersion 3`` (modelo de métricas) retira lo numérico y lo heurístico: sin ``finalScore``, ``finalStress``,
+``metrics``, ``competencies`` ni conteos por clasificación; con ``milestones {done[], missing[]}``, ``persona``,
+``ending`` con ``reason``, ``decisionReview[].class``, ``counts`` por clase de respuesta y ``competencyLevels[].evidence[]``.
+Las recomendaciones salen solo de hitos faltantes y competencias en inicio (más lo reconsiderado y retomar con
+acompañamiento). Un reporte v1 o v2 cerrado se sirve byte a byte: nada lee ``report_schema_version`` para transformarlo.
 """
 import hashlib
 import json
@@ -23,6 +29,7 @@ from django.db.models import Q
 
 from shared.jsonutils import read_map
 
+from apps.simulation.casedef.vocabulary import ResponseClass
 from apps.simulation.serializers import game_dtos as dto
 
 from apps.simulation.assessment import competencies as assessment_competencies
@@ -35,15 +42,18 @@ from ..models import (
     AttemptStatus,
     CaseVersion,
     DecisionOption,
+    FormativeLevel,
     ReflectionJournal,
     SimulationAttempt,
     SimulationNode,
 )
-from . import attempt_duration, case_effects
+from . import attempt_duration, case_effects, case_rules, case_state
 
 logger = logging.getLogger(__name__)
 
-REPORT_SCHEMA_VERSION = 2  # 1 = E1-8; 2 = E6-1d (perfil por competencia, no recomendadas, cobertura, evidencia)
+#: 1 = E1-8; 2 = E6-1d (perfil por competencia, no recomendadas, cobertura, evidencia); 3 = modelo de métricas
+#: (hitos, persona, clases de respuesta; sin puntaje, estrés ni competencias heurísticas).
+REPORT_SCHEMA_VERSION = 3
 
 
 def load_events(attempt_id):
@@ -56,7 +66,11 @@ def load_events(attempt_id):
 
 
 def case_definition_hash(case_version_id):
-    """Huella (sha256) de la definición del caso tal como está ahora: grafo, textos y reglas.
+    """Huella (sha256) de la definición del caso tal como está ahora: grafo, textos, clases, efectos y reglas.
+
+    Mira la clase de respuesta, los efectos, las reglas y la intensidad de cada escena; ya no las columnas retiradas
+    (clasificación, puntaje, estrés, penalización y conducta prohibida). La huella de un reporte v1 o v2 ya cerrado
+    no se recalcula.
 
     Es la «versión» con la que se cerró el intento: si después cambia cualquier texto o efecto,
     el reporte guarda la huella de lo que la persona vio.
@@ -65,14 +79,15 @@ def case_definition_hash(case_version_id):
     nodes = list(
         SimulationNode.objects.filter(case_version_id=case_version_id)
         .order_by("node_key")
-        .values_list("node_key", "title", "narrative", "start_node", "terminal_node", "sensitive_content")
+        .values_list(
+            "node_key", "title", "narrative", "start_node", "terminal_node", "sensitive_content", "intensity",
+        )
     )
     options = list(
         DecisionOption.objects.filter(case_version_id=case_version_id)
         .order_by("option_key")
         .values_list(
-            "option_key", "source_node__node_key", "target_node__node_key", "text", "classification",
-            "score_delta", "stress_delta", "prohibited_penalty", "prohibited_conduct",
+            "option_key", "source_node__node_key", "target_node__node_key", "text", "response_class",
             "immediate_feedback", "consequence_text", "theory_basis", "feedback_text", "effects",
         )
     )
@@ -106,6 +121,7 @@ def build_decision_review(events):
         if ev.event_type not in case_effects.REGISTERED_DECISION_EVENT_TYPES:
             continue
         option = ev.decision_option
+        response_class = case_state.response_class_of(option)
         feedback = {"explanation": option.feedback_text or option.immediate_feedback or ""}
         if option.theory_basis:
             feedback["theoryBasis"] = option.theory_basis
@@ -116,8 +132,8 @@ def build_decision_review(events):
             "chosen": {"optionId": option.id, "text": option.text},
             "consequence": dto.consequence_dto(option)["text"],
             "feedback": feedback,
-            "classification": option.classification,
-            "prohibited": bool(option.prohibited_conduct),
+            "class": response_class.value,
+            "prohibited": response_class == ResponseClass.CONTRAINDICATED,
         }
         first = first_answers.pop(ev.node_id, None)
         if first is not None:
@@ -137,9 +153,55 @@ def _competency_levels(attempt, events):
         return []
 
 
+def _milestone_entry(milestone):
+    return {"key": milestone.key, "label": milestone.label, "decisive": milestone.decisive}
+
+
+def build_milestones(attempt):
+    """``{"done": [...], "missing": [...]}``: los hitos del caso cumplidos y los que faltaron, cada uno ``{key, label, decisive}``.
+
+    ``done`` va en el orden en que se cumplieron (lo guardado en el estado del mundo); un hito cumplido que la versión
+    ya no declara se conserva con ``label = key``. ``missing`` son los declarados que no se cumplieron, en el orden en
+    que el caso los declara.
+    """
+    declared = {m.key: m for m in case_rules.rules_of(attempt.case_version).milestones}
+    in_order = case_state.milestones_in_order(attempt)
+    done = [
+        _milestone_entry(declared[key]) if key in declared else {"key": key, "label": key, "decisive": False}
+        for key in in_order
+    ]
+    missing = [_milestone_entry(m) for key, m in declared.items() if key not in in_order]
+    return {"done": done, "missing": missing}
+
+
+def _lower_first(text):
+    """El texto con la primera letra en minúscula (el resto, como está: «ICBF» no se vuelve «icbf»)."""
+    text = text.strip().rstrip(".")
+    return text[:1].lower() + text[1:]
+
+
+def build_recommendations(milestones, competency_levels, base):
+    """Las recomendaciones del reporte v3: hitos faltantes (los decisivos primero), competencias en inicio y las de hechos.
+
+    Nada más: sin recomendación por puntaje, estrés ni una genérica de relleno; una lista vacía es válida.
+    ``base`` son las de hechos que arma el DTO (lo reconsiderado y retomar con acompañamiento).
+    """
+    # BORRADOR: texto nuevo del servidor, pendiente de la aprobación de Psicología (VD-23)
+    missing = sorted(milestones["missing"], key=lambda m: not m["decisive"])  # estable: conserva el orden del caso
+    from_milestones = [
+        f"Revisa cómo {_lower_first(m['label'])}: es un paso del caso que quedó sin cumplir." for m in missing
+    ]
+    from_competencies = [
+        f"Refuerza {entry['name']}: en las respuestas que la ponen en juego estás en inicio, repásalo con tu docente."
+        for entry in competency_levels
+        if entry.get("level") == FormativeLevel.EN_INICIO.value
+    ]
+    return from_milestones + from_competencies + list(base)
+
+
 def build_report_payload(attempt, events, ordinal=None, definition_hash=None):
-    """El reporte completo (superconjunto del de cierre) con lo de E1-8."""
-    payload = dto.build_completion_report(attempt, events)
+    """El reporte completo (superconjunto del de cierre) con lo de E1-8, v3."""
+    payload = dto.build_completion_report(attempt, events, class_of=case_state.response_class_of)
     # La lista nombra las notas (sin su texto: solo el dueño lo lee, por su propia ruta).
     reflections = [
         {"nodeId": r.node_id, "nodeTitle": r.node.title, "locked": r.locked}
@@ -149,20 +211,27 @@ def build_report_payload(attempt, events, ordinal=None, definition_hash=None):
     coverage = evidence.reflection_coverage(
         [r["nodeId"] for r in reflections], evidence.decision_scene_ids(events), definitions.reflection_definition()
     )
+    # Solo las decisiones registradas cuentan por clase: los reintentos se reportan aparte.
+    decisions = [
+        ev.decision_option for ev in events
+        if ev.decision_option_id and ev.event_type in case_effects.REGISTERED_DECISION_EVENT_TYPES
+    ]
+    by_class = case_state.counts(decisions)
+    milestones = build_milestones(attempt)
     payload.update({
         "schemaVersion": REPORT_SCHEMA_VERSION,
         "ordinal": ordinal if ordinal is not None else attempt_ordinal(attempt),
         "definitionHash": definition_hash or case_definition_hash(attempt.case_version_id),
         "counts": {
-            "adequate": payload["adequateDecisions"],
-            "risky": payload["riskyDecisions"],
-            "inadequate": payload["inadequateDecisions"],
-            "prohibited": payload["prohibitedDecisions"],
+            **by_class,
             "retries": payload["retries"],
             "prohibitedRetries": payload["prohibitedRetries"],
             "toolsUsed": payload["toolsUsed"],
             "reflections": payload["reflectionsCount"],
         },
+        "milestones": milestones,
+        "persona": case_state.persona_dto(case_state.read(attempt).persona),
+        "recommendations": build_recommendations(milestones, competency_levels, payload["recommendations"]),
         "decisionReview": build_decision_review(events),
         "reflections": reflections,
         # E6-1d: nombres de nivel, nunca un índice numérico (RN-09).
@@ -269,13 +338,14 @@ def frozen_report_for(attempt_id):
 def report_for(attempt):
     """El reporte del intento: el congelado si es un intento completado con fila; si no, en vivo.
 
-    En vivo no se persiste (leer no escribe). Un intento completado antes de E1-8 se arma con el
-    reporte completo; uno que no se completó (pausado, reemplazado, salida segura histórica) no
-    tiene reporte de cierre y recibe el resumen de siempre.
+    En vivo no se persiste (leer no escribe). Un intento completado antes de E1-8 se arma con el reporte completo (v3).
+    Un reporte congelado v1 o v2 se devuelve tal cual, sin transformarlo. Uno que no se completó (pausado,
+    reemplazado, salida segura histórica) no tiene reporte de cierre: recibe solo el resumen, sin decisiones, clases,
+    hitos, competencias ni final, para que nada que califique su recorrido llegue antes de cerrar.
     """
     if attempt.status == AttemptStatus.COMPLETED:
         frozen = frozen_report_for(attempt.id)
         if frozen is not None:
             return frozen
         return build_report_payload(attempt, load_events(attempt.id))
-    return dto.build_completion_report(attempt, load_events(attempt.id))
+    return dto.build_student_summary(attempt, load_events(attempt.id))

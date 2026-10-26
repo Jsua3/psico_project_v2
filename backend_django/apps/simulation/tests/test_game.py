@@ -11,7 +11,7 @@ from rest_framework.test import APIClient
 
 from apps.grupos.models import Grupo
 from apps.simulation.models import AttemptEvent, CaseVersion, DecisionOption, ReflectionJournal, SimulationAttempt
-from apps.simulation.services import case_state, crypto_service
+from apps.simulation.services import attempt_report, case_state, crypto_service
 from apps.simulation.services.game_service import RETRY_NEUTRAL_MESSAGE
 
 User = get_user_model()
@@ -407,7 +407,14 @@ def test_safe_exit_returns_resources(estudiante, case_version_id):
     assert len(resp.data["data"]["supportResources"]) == 3
 
 
-def test_completion_report_includes_timeline(estudiante, case_version_id):
+SUMMARY_KEYS = {
+    "attemptId", "caseTitle", "status", "summaryMessage", "retries", "reflectionsCount", "safeExitUsed", "toolsUsed",
+    "visitedNodeTitles", "activeSeconds", "clockSeconds", "totalDurationSeconds", "recommendations",
+}
+
+
+def test_completion_report_of_an_unfinished_attempt_is_only_a_summary(estudiante, case_version_id):
+    """Antes de cerrar nada que califique el recorrido llega al estudiante: ni decisiones, ni clases, ni línea de tiempo."""
     assign_case_to_student(estudiante, case_version_id, "SIM-REPORT")
     c = cl(estudiante)
     attempt = c.post("/api/simulation/attempts",
@@ -426,17 +433,9 @@ def test_completion_report_includes_timeline(estudiante, case_version_id):
         **attempt_headers(token),
     ).data["data"]
 
-    assert "timeline" in report
-    decisions = [t for t in report["timeline"]
-                 if t["type"] in ("DECISION_SELECTED", "PROHIBITED_DECISION_SELECTED")]
-    assert decisions, "la decisión elegida debe aparecer en la línea de tiempo"
-    entry = decisions[0]
-    assert entry["label"]
-    assert entry["classification"] in ("ADEQUATE", "RISKY", "INADEQUATE")
-    assert entry["time"].count(":") == 1          # mm:ss
-    assert isinstance(entry["scoreDelta"], int)
-    assert isinstance(entry["stressDelta"], int)
+    assert set(report) == SUMMARY_KEYS
     assert report["totalDurationSeconds"] is None or report["totalDurationSeconds"] >= 0
+    assert report["recommendations"] == ["Retoma el caso con acompañamiento docente cuando te sientas preparado/a."]
 
 
 def test_attempt_history_lists_own_attempts(estudiante, case_version_id):
@@ -514,7 +513,8 @@ def test_student_report_returns_completion_report(estudiante, case_version_id):
     assert resp.status_code == 200
     report = resp.data["data"]
     assert report["attemptId"] == attempt_id
-    assert "timeline" in report and "metrics" in report
+    assert set(report) == SUMMARY_KEYS
+    assert not {"timeline", "metrics", "finalScore", "finalStress", "decisionReview", "ending"} & set(report)
 
 
 def test_student_report_denies_other_students(estudiante, case_version_id):
@@ -604,40 +604,45 @@ def test_retries_do_not_lower_report_or_force_critical_ending(estudiante, case_v
     assert ending["reason"] and not any("contraindicada" in phrase for phrase in ending["reason"])
     assert not {"severityCounts", "caseFlags", "caseMetrics"} & set(ending)
 
-    # El reporte cuenta solo lo registrado y muestra los reintentos aparte.
-    assert report["adequateDecisions"] == 6
-    assert report["riskyDecisions"] == 0
-    assert report["inadequateDecisions"] == 0
-    assert report["prohibitedDecisions"] == 0
+    # El reporte cuenta solo lo registrado (por clase de respuesta) y muestra los reintentos aparte.
+    counts = report["counts"]
+    assert counts["recommended"] + counts["acceptable"] == 6
+    assert counts["risky"] == 0 and counts["contraindicated"] == 0
     assert report["retries"] == 2
     retry_events = [t for t in report["timeline"] if t["type"].endswith("RETRY_REQUIRED")]
     assert len(retry_events) == 2  # la trazabilidad conserva el reintento
+    # La línea de tiempo no lleva cifras: cuándo, qué y de qué clase.
+    decisions = [t for t in report["timeline"] if t["type"] == "DECISION_SELECTED"]
+    assert decisions and all(t["class"] in ("RECOMMENDED", "ACCEPTABLE") for t in decisions)
+    assert all(t["time"].count(":") == 1 for t in report["timeline"])  # mm:ss
+    assert not any({"scoreDelta", "stressDelta", "classification"} & set(t) for t in report["timeline"])
 
 
 def test_report_recommends_reviewing_a_reconsidered_answer_without_counting_it(estudiante, case_version_id):
     """L-03: una primera respuesta prohibida que el juego no aplicó queda en la recomendación del cierre
-    (el estudiante ve que reconsideró algo), sin contarla como decisión ni bajar el desempeño."""
+    (el estudiante ve que reconsideró algo), sin contarla como decisión."""
     assign_case_to_student(estudiante, case_version_id, "SIM-RETRYREC")
     c = cl(estudiante)
     start = c.post("/api/simulation/attempts", {"caseVersionId": case_version_id}, format="json").data["data"]
     attempt_id, token = start["attemptId"], start["attemptToken"]
     assert _world(c, attempt_id, token).status_code == 200
 
-    _decide(c, attempt_id, token, case_version_id, "h1-interrogar-victima")  # prohibida: reintento
-    _decide(c, attempt_id, token, case_version_id, "h1-pap-contencion")      # la adecuada se registra
-    c.post(f"/api/simulation/attempts/{attempt_id}/safe-exit",
-           {"attemptToken": token, "reason": "test"}, format="json")
+    state = None
+    for key in (
+        "h1-interrogar-victima",  # prohibida: reintento
+        "h1-pap-contencion", "h2-459-1257", "h3-integral-psicosocial",
+        "c1-riesgo-proteccion-derechos", "c2-2126-1098-1257", "c3-integral-derechos",
+    ):
+        state = _decide(c, attempt_id, token, case_version_id, key)
 
-    report = c.get(
-        f"/api/simulation/attempts/{attempt_id}/completion-report", **attempt_headers(token)
-    ).data["data"]
+    assert state["status"] == "COMPLETED"
+    report = state["completionReport"]
     assert report["retries"] == 1
     assert report["prohibitedRetries"] == 1
     assert "Reconsideraste 1 respuesta antes de decidir; revísala con tu docente." in report["recommendations"]
-    # No son decisiones: los contadores y el final no cambian.
-    assert report["prohibitedDecisions"] == 0
-    assert report["inadequateDecisions"] == 0
-    assert report["adequateDecisions"] == 1
+    # No son decisiones: los conteos por clase no cambian.
+    assert report["counts"]["contraindicated"] == 0
+    assert report["counts"]["recommended"] + report["counts"]["acceptable"] == 6
 
 
 def test_report_recommendation_is_plural_and_replaces_the_generic_closing_one(estudiante, case_version_id):
@@ -667,8 +672,9 @@ def test_report_recommendation_is_plural_and_replaces_the_generic_closing_one(es
         if DecisionOption.objects.get(case_version_id=case_version_id, option_key=key).prohibited_conduct
     )
     assert report["prohibitedRetries"] == expected_prohibited
-    assert report["recommendations"] == ["Reconsideraste 2 respuestas antes de decidir; revísalas con tu docente."]
-    assert report["adequateDecisions"] == 6  # reconsiderar no resta ni suma decisiones
+    assert "Reconsideraste 2 respuestas antes de decidir; revísalas con tu docente." in report["recommendations"]
+    counts = report["counts"]
+    assert counts["recommended"] + counts["acceptable"] == 6  # reconsiderar no resta ni suma decisiones
     assert report["ending"]["key"] == "protectora"
 
 
@@ -683,7 +689,6 @@ def test_report_without_retries_has_no_reconsideration_recommendation(estudiante
         f"/api/simulation/attempts/{attempt_id}/completion-report", **attempt_headers(token)
     ).data["data"]
     assert report["retries"] == 0
-    assert report["prohibitedRetries"] == 0
     assert not any("Reconsideraste" in text for text in report["recommendations"])
 
 
@@ -718,8 +723,11 @@ def test_second_bad_answer_still_counts_as_registered_decision(estudiante, case_
         f"/api/simulation/attempts/{attempt_id}/completion-report", **attempt_headers(token)
     ).data["data"]
     assert report["retries"] == 1
-    assert report["prohibitedDecisions"] == 1
-    assert report["inadequateDecisions"] == 1
+    # El resumen de un intento sin cerrar no trae clases; el reporte completo, sí: la 2.ª respuesta mala quedó registrada.
+    attempt = SimulationAttempt.objects.get(pk=attempt_id)
+    payload = attempt_report.build_report_payload(attempt, attempt_report.load_events(attempt.id))
+    assert payload["counts"]["contraindicated"] == 1
+    assert payload["counts"]["retries"] == 1
 
 
 def test_attempt_history_does_not_count_retries(estudiante, case_version_id):

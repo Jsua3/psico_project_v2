@@ -4,7 +4,7 @@ import re
 
 from shared.jsonutils import read_string_list
 
-from apps.simulation.casedef.vocabulary import Intensity
+from apps.simulation.casedef.vocabulary import Intensity, ResponseClass
 from apps.simulation.models import (
     AttemptStatus,
     ClinicalTool,
@@ -22,6 +22,7 @@ SAFE_EXIT_RESOURCES = [
 
 
 def metrics(attempt):
+    # TRANSITORIO: solo lo lee la traza docente (``instructor_service.trace``); se retira con ella en la Tarea 13.
     return {
         "professionalScore": attempt.accumulated_score,
         "sceneStress": attempt.stress_index,
@@ -150,8 +151,13 @@ def _tool_event_label(detail, tools, objects):
     return f"{label} — {match['verdict']}"
 
 
-def build_timeline(attempt, events):
-    """Línea de tiempo de decisiones/acciones clave para el reporte del estudiante."""
+def build_timeline(attempt, events, class_of=None):
+    """Línea de tiempo de decisiones/acciones clave para el reporte del estudiante.
+
+    Sin cifras: cada entrada dice cuándo, qué tipo de evento y, si fue una decisión, de qué clase (``class``).
+    ``class_of`` es la función que da la clase de una opción (``case_state.response_class_of``): los DTO no
+    importan servicios, así que la pasa quien llama; sin ella la clase queda en ``None``.
+    """
     start = attempt.started_at
     timeline = []
     tool_labels, object_labels = _tool_event_labels(attempt, events)
@@ -162,19 +168,18 @@ def build_timeline(attempt, events):
         if start and ev.occurred_at:
             seconds = int((ev.occurred_at - start).total_seconds())
         decision = ev.decision_option if ev.decision_option_id else None
+        response_class = class_of(decision) if decision is not None and class_of is not None else None
         timeline.append({
             "atSeconds": seconds,
             "time": _format_mmss(seconds),
             "type": ev.event_type,
-            "classification": decision.classification if decision else None,
-            "prohibited": bool(decision.prohibited_conduct) if decision else False,
+            "class": response_class.value if response_class else None,
+            "prohibited": response_class == ResponseClass.CONTRAINDICATED,
             "label": (
                 decision.text if decision
                 else _tool_event_label(ev.detail, tool_labels, object_labels) if ev.event_type == "TOOL_USED"
                 else ev.detail
             ) or "",
-            "scoreDelta": ev.score_delta,
-            "stressDelta": ev.stress_delta,
         })
     return timeline
 
@@ -195,30 +200,25 @@ _SUMMARY_BY_STATUS = {
 
 #: Estados en los que el intento ofrece los recursos de apoyo y recomienda retomar con acompañamiento.
 _SUPPORT_STATUSES = (AttemptStatus.SAFE_EXITED, AttemptStatus.PAUSED)
-#: Desde este estrés (0-100) el cierre recomienda practicar autorregulación.
-HIGH_STRESS_THRESHOLD = 70
-_GENERIC_RECOMMENDATION = (
-    "Consolida el aprendizaje repitiendo el caso con foco en la ruta institucional y la bitácora reflexiva."
-)
+_SUPPORT_RECOMMENDATION = "Retoma el caso con acompañamiento docente cuando te sientas preparado/a."
 
 
 class CompletionReportBuilder:
     """Builder del reporte de cierre: arma el reporte paso a paso.
 
-    Cada ``count_*`` / ``add_*`` calcula una parte (conteos, competencias,
-    recomendaciones, resumen, línea de tiempo, final) y devuelve el propio
-    constructor, de modo que se encadenan. ``build()`` ensambla el diccionario
-    final. El orden importa: competencias y recomendaciones leen los conteos.
+    Cada ``count_*`` / ``add_*`` calcula una parte (conteos de hechos, recomendaciones, resumen) y devuelve el propio
+    constructor, de modo que se encadenan. ``build()`` ensambla el reporte de cierre y ``build_summary()`` el resumen
+    sin evaluación de un intento que no se completó. Aquí no hay clases de respuesta, hitos ni competencias: eso lo
+    añade ``attempt_report.build_report_payload`` (los DTO no importan servicios). Solo se cuentan hechos.
     """
 
-    def __init__(self, attempt, events):
+    def __init__(self, attempt, events, class_of=None):
         self._attempt = attempt
         self._events = events
-        self.adequate = self.risky = self.inadequate = self.prohibited = 0
+        self._class_of = class_of
         self.tools_used = self.retries = self.prohibited_retries = 0
         self.reflections_count = 0
         self.visited = []
-        self.competencies = []
         self.recommendations = []
         self.summary = ""
 
@@ -233,114 +233,113 @@ class CompletionReportBuilder:
             if ev.event_type == "TOOL_USED":
                 self.tools_used += 1
             if ev.event_type in case_effects.RETRY_EVENT_TYPES:
-                # Reconsideración: no se aplicó ni puntúa (se reporta aparte).
+                # Reconsideración: no se aplicó (se reporta aparte de las decisiones).
                 self.retries += 1
                 if ev.event_type == "PROHIBITED_DECISION_RETRY_REQUIRED":
                     self.prohibited_retries += 1
-                continue
-            if ev.decision_option_id is None or ev.event_type not in case_effects.REGISTERED_DECISION_EVENT_TYPES:
-                continue
-            c = ev.decision_option.classification
-            if c == "ADEQUATE":
-                self.adequate += 1
-            elif c == "RISKY":
-                self.risky += 1
-            elif c == "INADEQUATE":
-                self.inadequate += 1
-            if ev.decision_option.prohibited_conduct:
-                self.prohibited += 1
         return self
 
     def count_reflections(self):
         self.reflections_count = ReflectionJournal.objects.filter(attempt_id=self._attempt.id).count()
         return self
 
-    def add_competencies(self):
-        if self._attempt.institutional_route_activated:
-            self.competencies.append("Articulación con rutas institucionales de protección")
-        if self.adequate > 0:
-            self.competencies.append("Comunicación ética y contención emocional")
-        if self.tools_used > 0:
-            self.competencies.append("Uso pertinente de herramientas clínicas")
-        if self.reflections_count > 0:
-            self.competencies.append("Reflexión clínica documentada")
-        return self
-
     def add_recommendations(self):
-        attempt = self._attempt
-        recommendations = self.recommendations
-        if self.risky > 0 or self.inadequate > 0:
-            recommendations.append("Revisa las decisiones riesgosas o inadecuadas con tu docente en sesión de retroalimentación.")
+        """Solo las de hechos: lo reconsiderado y retomar con acompañamiento tras una pausa o salida segura.
+
+        Las que salen de hitos faltantes y de competencias en inicio las antepone ``build_report_payload``.
+        """
         if self.retries > 0:
-            # No son decisiones ni bajan el desempeño, pero el estudiante debe ver que reconsideró algo: el juego le
-            # dijo en el momento «no se aplicó, reconsidera» y el cierre no puede callarlo.
-            recommendations.append(_reconsidered_recommendation(self.retries))
-        if attempt.stress_index >= HIGH_STRESS_THRESHOLD:
-            recommendations.append("Practica estrategias de autorregulación antes de escenarios de alta carga emocional.")
-        if attempt.revictimization_risk:
-            recommendations.append("Repasa los principios de no revictimización y el marco ético de intervención.")
-        if attempt.status in _SUPPORT_STATUSES:
-            recommendations.append("Retoma el caso con acompañamiento docente cuando te sientas preparado/a.")
-        if not recommendations:
-            recommendations.append(_GENERIC_RECOMMENDATION)
+            # No son decisiones, pero el estudiante debe ver que reconsideró algo: el juego le dijo en el momento
+            # «no se aplicó, reconsidera» y el cierre no puede callarlo.
+            self.recommendations.append(_reconsidered_recommendation(self.retries))
+        if self._attempt.status in _SUPPORT_STATUSES:
+            self.recommendations.append(_SUPPORT_RECOMMENDATION)
         return self
 
     def add_summary(self):
         self.summary = _SUMMARY_BY_STATUS[self._attempt.status]
         return self
 
-    def build(self):
-        attempt, events = self._attempt, self._events
-        clock_seconds = (
+    def _clock_seconds(self):
+        attempt = self._attempt
+        return (
             int((attempt.ended_at - attempt.started_at).total_seconds())
             if attempt.started_at and attempt.ended_at else None
         )
+
+    def _facts(self):
+        """Lo que comparten el reporte de cierre y el resumen: hechos y duraciones, sin evaluación."""
+        attempt = self._attempt
+        clock_seconds = self._clock_seconds()
         return {
             "attemptId": str(attempt.id),
             "caseTitle": attempt.case_version.simulation_case.title,
             "status": attempt.status,
-            "finalScore": attempt.accumulated_score,
-            "finalStress": attempt.stress_index,
-            "metrics": metrics(attempt),
-            "adequateDecisions": self.adequate,
-            "riskyDecisions": self.risky,
-            "inadequateDecisions": self.inadequate,
-            "prohibitedDecisions": self.prohibited,
             "toolsUsed": self.tools_used,
-            # Primeras respuestas que el juego no aplicó (regla de reintento); no
-            # entran en los conteos de arriba ni en el final.
+            # Primeras respuestas que el juego no aplicó (regla de reintento); no entran en los conteos por clase.
             "retries": self.retries,
-            # De esas, las que eran conducta prohibida (el docente las distingue en su traza).
-            "prohibitedRetries": self.prohibited_retries,
             "reflectionsCount": self.reflections_count,
             # Por evento, no por estado: un intento reanudado y completado también
             # registra honestamente que usó la salida segura en el camino.
-            "safeExitUsed": any(ev.event_type == "SAFE_EXIT_REQUESTED" for ev in events),
+            "safeExitUsed": any(ev.event_type == "SAFE_EXIT_REQUESTED" for ev in self._events),
             "visitedNodeTitles": self.visited,
-            "competencies": self.competencies,
-            "recommendations": self.recommendations,
             "summaryMessage": self.summary,
             "totalDurationSeconds": clock_seconds,
             # Tiempo activo (acumulador del intento, E1-5) y de reloj: no es lo mismo, y el reporte
             # no debe ofrecer uno por el otro.
             "activeSeconds": int(round(attempt.active_seconds or 0)),
             "clockSeconds": clock_seconds,
-            "timeline": build_timeline(attempt, events),
-            # El final por hitos y clases de respuesta (los propios del caso o la plantilla), con su razón en palabras.
-            "ending": endings.compute_ending(attempt, events),
         }
 
+    def build(self):
+        attempt, events = self._attempt, self._events
+        report = self._facts()
+        report.update({
+            # De esas, las que eran conducta prohibida (el docente las distingue en su traza).
+            "prohibitedRetries": self.prohibited_retries,
+            "recommendations": self.recommendations,
+            "timeline": build_timeline(attempt, events, self._class_of),
+            # El final por hitos y clases de respuesta (los propios del caso o la plantilla), con su razón en palabras.
+            "ending": endings.compute_ending(attempt, events),
+        })
+        return report
 
-def build_completion_report(attempt, events):
-    """Director: fija el orden de los pasos del Builder y devuelve el reporte."""
+    def build_summary(self):
+        """El resumen de un intento que no se completó: hechos y duraciones, sin evaluación.
+
+        Sin decisiones, clases, hitos, final ni línea de tiempo: antes de cerrar no llega al estudiante nada que
+        califique su recorrido. Las recomendaciones se limitan a retomar con acompañamiento.
+        """
+        report = self._facts()
+        report["recommendations"] = (
+            [_SUPPORT_RECOMMENDATION] if self._attempt.status in _SUPPORT_STATUSES else []
+        )
+        return report
+
+
+def build_completion_report(attempt, events, class_of=None):
+    """Director: fija el orden de los pasos del Builder y devuelve el reporte de cierre (sin clases ni hitos).
+
+    ``class_of`` da la clase de una opción para la línea de tiempo (``case_state.response_class_of``).
+    """
+    return (
+        CompletionReportBuilder(attempt, events, class_of)
+        .count_events()
+        .count_reflections()
+        .add_recommendations()
+        .add_summary()
+        .build()
+    )
+
+
+def build_student_summary(attempt, events):
+    """El resumen del intento que no se completó (pausado, con salida segura o reemplazado)."""
     return (
         CompletionReportBuilder(attempt, events)
         .count_events()
         .count_reflections()
-        .add_competencies()
-        .add_recommendations()
         .add_summary()
-        .build()
+        .build_summary()
     )
 
 

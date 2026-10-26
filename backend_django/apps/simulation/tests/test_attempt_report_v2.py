@@ -4,6 +4,10 @@ Al cerrar un intento el reporte (``attempt_reports``) pasa a ``schemaVersion 2``
 ``competencyLevels`` (``[{code, name, level}]``), ``nonRecommendedCount``, ``reflectionCoverage`` y
 ``keyLearningEvidence``. Lo cerrado no cambia (Review Focus 5 del maestro) y un reporte v1 sigue leyéndose tal cual,
 sin las claves nuevas. Nunca viaja un índice numérico (RN-09): solo los nombres de los niveles.
+
+Desde la Tarea 9 los intentos nuevos cierran en ``schemaVersion 3``, que conserva esas cuatro claves (la analítica lee v2 y v3
+igual); el archivo conserva su nombre porque prueba lo que sobrevive. Lo propio de la v3 está en
+``test_completion_report_contract.py``.
 """
 import json
 import uuid
@@ -134,12 +138,13 @@ def _frozen(attempt_id):
     return row, json.loads(row.report_json)
 
 
-def test_el_reporte_nuevo_es_v2_con_las_cuatro_claves(completed):
+def test_el_reporte_nuevo_es_v3_y_conserva_las_claves_que_nacieron_en_la_v2(completed):
+    """La v3 sigue llevando lo de E6-1d (perfil, no recomendadas, cobertura, evidencia): la analítica lee v2 y v3 igual."""
     _, attempt_id, _ = completed
 
     row, payload = _frozen(attempt_id)
 
-    assert row.report_schema_version == 2 and payload["schemaVersion"] == 2
+    assert row.report_schema_version == 3 and payload["schemaVersion"] == 3
     assert all(key in payload for key in NEW_KEYS)
 
 
@@ -375,19 +380,19 @@ def test_un_reporte_v1_se_lee_sin_error_y_sin_las_claves_nuevas(completed):
         assert not any(key in reports[name] for key in NEW_KEYS), name
 
 
-def test_un_intento_sin_fila_se_sirve_en_vivo_como_v2_y_el_comando_lo_congela_como_v2(completed):
+def test_un_intento_sin_fila_se_sirve_en_vivo_como_v3_y_el_comando_lo_congela_como_v3(completed):
     client, attempt_id, token = completed
     AttemptReport.objects.filter(attempt_id=attempt_id).delete()  # un intento anterior a E1-8
 
     live = client.get(f"{BASE}/attempts/{attempt_id}/report", HTTP_X_SIEP_ATTEMPT_TOKEN=token).data["data"]
 
-    assert live["schemaVersion"] == 2 and all(key in live for key in NEW_KEYS)
+    assert live["schemaVersion"] == 3 and all(key in live for key in NEW_KEYS)
     assert AttemptReport.objects.filter(attempt_id=attempt_id).count() == 0  # leer no escribe
 
     call_command("backfill_attempt_reports")
 
     row, payload = _frozen(attempt_id)
-    assert row.report_schema_version == 2 and payload["competencyLevels"] == live["competencyLevels"]
+    assert row.report_schema_version == 3 and payload["competencyLevels"] == live["competencyLevels"]
 
 
 def test_un_caso_sin_rubrica_activa_cierra_con_el_perfil_vacio(estudiante, case_version_id):

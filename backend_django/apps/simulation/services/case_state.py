@@ -126,6 +126,12 @@ def counts(decisions) -> dict[str, int]:
     return totals
 
 
+def persona_dto(persona: tuple[Bond, Activation]) -> dict[str, str]:
+    """La persona tal como viaja al estudiante: ``{"bond", "activation", "label"}`` (valores del enum y frase en palabras)."""
+    bond, activation = persona
+    return {"bond": bond.value, "activation": activation.value, "label": persona_label(persona)}
+
+
 def persona_label(persona: tuple[Bond, Activation]) -> str:
     """La persona en palabras para el estudiante: «se muestra cautelosa y tensa»."""
     bond, activation = persona

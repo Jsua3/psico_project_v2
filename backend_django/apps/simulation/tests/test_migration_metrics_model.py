@@ -30,7 +30,7 @@ from apps.simulation.models import (
     SimulationNode,
 )
 
-from .test_attempt_report_frozen import _decide, cl, completed, estudiante  # noqa: F401  (fixtures)
+from .test_attempt_report_frozen import _congelar_v2, _decide, cl, completed, estudiante  # noqa: F401  (fixtures)
 from .test_attempt_report_frozen import case_version_id as seeded_case_version_id  # noqa: F401  (fixture)
 from .test_world import _start
 
@@ -107,6 +107,8 @@ def _to_legacy_state(attempt_id):
 def run(completed, case_version_id, capsys):
     """Un intento completado, otro abierto con decisiones y las filas en su forma antigua; luego la ``0030``."""
     client, completed_id, _ = completed
+    # Desde la Tarea 9 los intentos nuevos cierran en v3: el cerrado «de antes» es un v2 escrito a mano.
+    _congelar_v2(completed_id)
     frozen_before = list(AttemptReport.objects.filter(attempt_id=completed_id).values())
 
     open_id, token = _start(client, case_version_id)

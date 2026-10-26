@@ -54,7 +54,9 @@ QUERY_BUDGETS = {
     # Tarea 5: 35 → 36 a propósito. ``response_effects.apply`` pasa por ``ensure_world_state``, que sincroniza el mundo con
     # la escena actual si nadie lo hizo (+1 SELECT del mapa y +1 UPDATE): este escenario recorre el caso sin pedir ``/world``
     # en cada escena, así que paga esa sincronización una vez; un jugador real ya la tiene hecha por su ``GET /world``.
-    "post_decision_closing": 36,  # (12) la decisión que cierra: reporte v2 + evaluación del sistema (antes de E6: 26 y 9)
+    # Tarea 9: 36 → 32 a propósito. El reporte v3 ya no cuenta clasificaciones ni arma las competencias heurísticas; las
+    # cuatro consultas que se fueron eran de ese cálculo, y el perfil por competencia y la evaluación del sistema siguen.
+    "post_decision_closing": 32,  # (10) la decisión que cierra: reporte v3 + evaluación del sistema (antes de E6: 26 y 9)
     "get_student_report_completed": 3,  # (1) la primera lectura del dueño de un intento completado escribe el evento
     # S4-1: 15 → 16 a propósito. Leer el reporte de un grupo es leer datos de otras personas y deja UNA fila de
     # auditoría (`reporte.leer`, RNF-007): es el INSERT de `audit_logs`, la única escritura. Las 15 de lectura no cambian.
@@ -171,7 +173,7 @@ def _play_until_the_closing_decision(client, attempt_id, token):
 
 
 def scenario_post_decision_closing(estudiante, case_version_id):
-    """La decisión que cierra el intento: congela el reporte v2 y crea la evaluación del sistema (E6-1d, E6-1e)."""
+    """La decisión que cierra el intento: congela el reporte v3 y crea la evaluación del sistema (E6-1d, E6-1e)."""
     _, client, attempt_id, token, _ = _start(estudiante, case_version_id, "BUD-CLOSE")
     closing = _play_until_the_closing_decision(client, attempt_id, token)
     url = f"/api/simulation/attempts/{attempt_id}/decisions"

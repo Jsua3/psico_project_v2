@@ -219,12 +219,7 @@ def _state(attempt, attempt_token):
     """
     # La persona sale del estado guardado del mundo (una lectura por estado): un intento pausado y
     # reanudado la reconstruye igual.
-    persona = case_state.read(attempt).persona
-    persona_dto = {
-        "bond": persona[0].value,
-        "activation": persona[1].value,
-        "label": case_state.persona_label(persona),
-    }
+    persona_dto = case_state.persona_dto(case_state.read(attempt).persona)
     if attempt.status == AttemptStatus.COMPLETED:
         report = attempt_report.frozen_report_for(attempt.id)
         return dto.attempt_state(attempt, attempt_token, persona_dto, completion_report=report)
@@ -407,10 +402,11 @@ def list_attempt_history(actor):
     for row in AttemptReport.objects.filter(attempt_id__in=attempt_ids).only("attempt_id", "report_json"):
         frozen = json.loads(row.report_json)
         counts[row.attempt_id] = {
-            "ADEQUATE": frozen["adequateDecisions"],
-            "RISKY": frozen["riskyDecisions"],
-            "INADEQUATE": frozen["inadequateDecisions"],
-            "PROHIBITED": frozen["prohibitedDecisions"],
+            # TRANSITORIO (Tarea 17): un reporte v3 ya no trae los conteos por clasificación; v1 y v2 sí.
+            "ADEQUATE": frozen.get("adequateDecisions", 0),
+            "RISKY": frozen.get("riskyDecisions", 0),
+            "INADEQUATE": frozen.get("inadequateDecisions", 0),
+            "PROHIBITED": frozen.get("prohibitedDecisions", 0),
         }
     live_ids = [aid for aid in attempt_ids if aid not in counts]
     for aid in live_ids:

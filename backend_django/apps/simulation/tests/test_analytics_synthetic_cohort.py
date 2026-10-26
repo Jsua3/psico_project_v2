@@ -20,9 +20,11 @@ analítica solo puede tocar dos cosas de esta cohorte, y se revisaron a mano:
 Todas las cifras de la derivación de abajo se conservan idénticas: la suma 37 y 60.5 de los índices, 78 y 54 de las no
 recomendadas, 14 de 20, 24 de 40, 32 y 20 de 40, 17 respuestas y 13 pares valen lo mismo que antes de la Tarea 8.
 
-Además, una prueba de punta a punta: un intento JUGADO de verdad por la API produce el reporte v2, la evaluación del
-sistema, el evento de retroalimentación y la encuesta, y la lectura de la analítica los entiende (si el formato del
-reporte cambia sin que cambie la lectura, esa prueba falla).
+Además, una prueba de punta a punta: un intento JUGADO de verdad por la API produce el reporte v3 (Tarea 9), la evaluación
+del sistema, el evento de retroalimentación y la encuesta, y la lectura de la analítica los entiende (si el formato del
+reporte cambia sin que cambie la lectura, esa prueba falla). El reporte v3 comparte con el v2 las claves que la analítica
+lee (``competencyLevels``, ``nonRecommendedCount``, ``reflectionCoverage``, ``profileRules``, ``keyLearningEvidence``):
+por eso ``analytics._report_fields`` lee los dos y la cohorte inyectada sigue siendo v2.
 
 Clases (n estudiantes) · 1.er intento → 2.º intento: niveles (índice) · no recomendadas · reflexión/evidencia ·
 extras (✓ evaluación del sistema, ◐ pendiente, ✗ ninguna; c = comentario del docente; v = vio la retroalimentación
@@ -248,7 +250,7 @@ def test_un_intento_jugado_de_verdad_alimenta_la_analitica(estudiante, case_vers
 
     (row,) = analytics.load_rows({attempt.student_id}, attempt.case_version_id)
 
-    assert row.attempt_id == str(attempt_id) and row.schema_version == 2 and row.ordinal == 1
+    assert row.attempt_id == str(attempt_id) and row.schema_version == 3 and row.ordinal == 1
     assert row.levels and set(row.levels) <= {INI, PRO, LOG, DES}  # el perfil por competencia llegó
     assert isinstance(row.non_recommended, int) and row.non_recommended >= 0
     assert row.reflection_definition == "ANY" and isinstance(row.reflection_covered, bool)

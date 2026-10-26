@@ -306,8 +306,8 @@ def _parse_report(raw, attempt_id):
     return report
 
 
-def _v2_fields(report):
-    """Lo que la analítica lee del reporte v2; cada clave se valida (un valor de otro tipo es «sin dato»)."""
+def _report_fields(report):
+    """Lo que la analítica lee de un reporte v2 o v3 (comparten estas claves); cada clave se valida (otro tipo es «sin dato»)."""
     entries = report.get("competencyLevels")
     coverage = report.get("reflectionCoverage")
     coverage = coverage if isinstance(coverage, dict) else {}
@@ -376,6 +376,6 @@ def load_rows(student_ids, case_version_id=None):
             teacher_commented=attempt_id in teacher_commented,
             feedback_viewed_at=viewed.get(attempt_id),
             rating=ratings.get(attempt_id),
-            **(_v2_fields(report) if version >= 2 else {}),
+            **(_report_fields(report) if version >= 2 else {}),
         ))
     return rows

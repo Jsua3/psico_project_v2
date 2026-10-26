@@ -110,7 +110,7 @@ def test_intento_reemplazado_se_reporta_como_reemplazo(
     report = game_service.get_student_report(old["attemptId"], estudiante)
     assert "reemplaz" in report["summaryMessage"].lower()
     assert "salida segura" not in report["summaryMessage"].lower()
-    assert [t["type"] for t in report["timeline"]] == ["ATTEMPT_REPLACED"]
+    assert "timeline" not in report  # un intento sin cerrar solo recibe el resumen: sin línea de tiempo ni clases
 
 
 def test_reporte_no_cuenta_reemplazo_como_salida_segura(
