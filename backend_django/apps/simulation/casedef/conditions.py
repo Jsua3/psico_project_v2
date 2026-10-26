@@ -9,15 +9,32 @@ con código es solo un nombre que no existe (y por tanto ``False``). El vocabula
     {"flag": "pap_aplicado"}            la bandera clínica está encendida
     {"metric": "confianza", "gte": 60}  una métrica del caso contra un número
     {"count": "critical", "eq": 0}      cuántas decisiones registradas de esa severidad
+    {"milestone": "derivo_a_comisaria"} el hito está cumplido (modelo nuevo)
+    {"count": "contraindicated", "gte": 1}  cuántas respuestas de esa clase (modelo nuevo; las
+                                        clases son ``recommended``, ``acceptable``, ``risky`` y
+                                        ``contraindicated``)
+    {"persona": {"bond": "OPEN"}}       el estado de la persona consultante (modelo nuevo):
+                                        ``bond`` ∈ WITHDRAWN|GUARDED|OPEN y ``activation`` ∈
+                                        CALM|TENSE|CRISIS; si trae las dos, se cumplen ambas
 
 Comparadores (``gte``, ``gt``, ``lte``, ``lt``, ``eq``): si hay varios, se cumplen todos. El
-contexto es ``{"flags": {…}, "metrics": {…}, "counts": {…}}``. Cualquier cosa que no sea una
+contexto es ``{"flags": {…}, "metrics": {…}, "counts": {…}, "milestones": {…}, "persona":
+{"bond": …, "activation": …}}``; lo viejo (banderas, métricas, severidades) y lo nuevo (hitos,
+persona, clases) conviven hasta que se retire lo viejo. Cualquier cosa que no sea una
 condición conocida —tipo equivocado, clave desconocida, métrica que el caso no declara, anidada
 más allá de ``MAX_DEPTH``— evalúa a ``False``: un dato malformado nunca rompe una partida, solo
 hace que ese final no aplique.
 """
+from apps.simulation.casedef.vocabulary import Activation, Bond
+
 COMPARATORS = ("gte", "gt", "lte", "lt", "eq")
-COUNT_NAMES = ("recommended", "acceptable", "risky", "critical")
+#: Lo que se puede contar: las severidades antiguas y las clases de respuesta (en minúscula).
+COUNT_NAMES = ("recommended", "acceptable", "risky", "critical", "contraindicated")
+#: Dimensiones de la persona consultante y los valores que cada una admite.
+PERSONA_DIMENSIONS = {
+    "bond": tuple(member.value for member in Bond),
+    "activation": tuple(member.value for member in Activation),
+}
 #: Hasta dónde se anida una condición; más allá es un dato roto, no un reglamento.
 MAX_DEPTH = 12
 
@@ -51,6 +68,20 @@ def _compare(value, spec):
 
 def _only(condition, *allowed):
     return set(condition) <= set(allowed)
+
+
+def _persona_spec_valid(spec):
+    """¿``spec`` es un ``{"bond"|"activation": valor}`` no vacío, con valores del vocabulario?"""
+    return (
+        isinstance(spec, dict)
+        and bool(spec)
+        and all(
+            dimension in PERSONA_DIMENSIONS
+            and isinstance(value, str)
+            and value in PERSONA_DIMENSIONS[dimension]
+            for dimension, value in spec.items()
+        )
+    )
 
 
 def evaluate(condition, context, _depth=0):
@@ -95,6 +126,20 @@ def evaluate(condition, context, _depth=0):
         if not isinstance(counts, dict):
             return False
         return _compare(counts.get(name, 0), condition)
+    if "milestone" in condition:
+        key = condition["milestone"]
+        milestones = context.get("milestones")
+        if not _only(condition, "milestone") or not isinstance(key, str) or not key:
+            return False
+        if not isinstance(milestones, (set, frozenset, list, tuple)):
+            return False
+        return key in milestones
+    if "persona" in condition:
+        spec = condition["persona"]
+        persona = context.get("persona")
+        if not _only(condition, "persona") or not _persona_spec_valid(spec) or not isinstance(persona, dict):
+            return False
+        return all(persona.get(dimension) == value for dimension, value in spec.items())
     return False
 
 
@@ -123,4 +168,8 @@ def is_valid(condition, _depth=0):
         known = isinstance(name, str) and bool(name) if subject == "metric" else name in COUNT_NAMES
         comparators = [condition[c] for c in COMPARATORS if c in condition]
         return known and bool(comparators) and all(_is_number(bound) for bound in comparators)
+    if "milestone" in condition:
+        return _only(condition, "milestone") and isinstance(condition["milestone"], str) and bool(condition["milestone"])
+    if "persona" in condition:
+        return _only(condition, "persona") and _persona_spec_valid(condition["persona"])
     return False
