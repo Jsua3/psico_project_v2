@@ -46,8 +46,7 @@ def case_summary(version, node_count):
 
 def decision_option_state(option):
     # Evaluación formativa: antes de elegir, el jugador solo recibe id y texto.
-    # La clasificación y la conducta prohibida viajan únicamente en el feedback
-    # posterior a la decisión (feedback_dto).
+    # La clase de la respuesta y la conducta prohibida viajan únicamente en el reporte de cierre.
     return {
         "id": option.id,
         "text": option.text,
@@ -90,24 +89,6 @@ def consequence_dto(decision):
     if text:
         return {"text": text, "source": "OPTION"}
     return {"text": decision.target_node.narrative or "", "source": "NODE"}
-
-
-def feedback_dto(decision, effects, message, retry_required=False):
-    return {
-        "classification": decision.classification,
-        "scoreDelta": effects.score_delta,
-        "stressDelta": effects.stress_delta,
-        "trustDelta": effects.trust_delta,
-        "victimRiskDelta": effects.victim_risk_delta,
-        "prohibitedConduct": decision.prohibited_conduct,
-        "institutionalRouteActivated": effects.institutional_route_activated,
-        "revictimizationRisk": effects.revictimization_risk,
-        "message": message,
-        "prohibitionReason": decision.prohibition_reason,
-        # True solo mientras quede una oportunidad (no se aplicó ni avanzó nada);
-        # en la 2ª respuesta riesgosa/inadecuada queda registrada y va en False.
-        "retryRequired": retry_required,
-    }
 
 
 TIMELINE_EVENT_TYPES = {
@@ -360,12 +341,13 @@ def build_completion_report(attempt, events):
     )
 
 
-def attempt_state(attempt, raw_token, feedback, events=None, completion_report=None, include_report=True):
+def attempt_state(attempt, raw_token, events=None, completion_report=None):
     """El estado del intento. ``completion_report`` es el reporte ya resuelto (el congelado de un
-    intento completado, E1-8); sin él, un intento que no está en juego lo arma en vivo, salvo con
-    ``include_report=False`` (modo «retroalimentación al cierre»: ``completionReport`` va nulo)."""
+    intento completado, E1-8); sin él, un intento que no está en juego lo arma en vivo.
+
+    No lleva retroalimentación de la última decisión: esa respuesta es solo su consecuencia."""
     in_progress = attempt.status == AttemptStatus.IN_PROGRESS
-    if not in_progress and completion_report is None and include_report:
+    if not in_progress and completion_report is None:
         if events is None:
             from apps.simulation.models import AttemptEvent
             events = list(
@@ -385,7 +367,6 @@ def attempt_state(attempt, raw_token, feedback, events=None, completion_report=N
         "metrics": metrics(attempt),
         "clinicalState": case_effects.clinical_state(attempt),
         "currentNode": node_state(attempt.current_node, in_progress),
-        "feedback": feedback,
         "completionReport": completion_report,
         "supportResources": SAFE_EXIT_RESOURCES if attempt.status in _SUPPORT_STATUSES else [],
     }

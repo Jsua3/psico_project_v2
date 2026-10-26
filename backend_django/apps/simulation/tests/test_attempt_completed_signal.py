@@ -71,7 +71,7 @@ def _decide(api, state, adequate=True):
         format="json",
     )
     assert resp.status_code == 200, resp.data
-    return resp.data["data"]
+    return resp.data["data"]["attempt"]
 
 
 def _play_to_completion(api, case_version_id):

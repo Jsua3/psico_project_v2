@@ -15,13 +15,15 @@ from django.utils import timezone
 from rest_framework.test import APIClient
 
 from apps.grupos.models import Grupo
-from apps.simulation.models import CaseVersion, DecisionOption, DialogueChoice
+from apps.simulation.casedef.vocabulary import Activation, Bond
+from apps.simulation.models import AttemptEvent, CaseVersion, DecisionOption, DialogueChoice, SimulationAttempt
+from apps.simulation.services import case_state
 
 User = get_user_model()
 
-#: Las filas sembradas ya nacen en el modelo nuevo (persona e hitos, finales por clases) y el motor actual lee el
-#: antiguo (banderas, métricas, severidad): estas pruebas esperan banderas y finales que ese motor ya no ve.
-SKIP_MOTOR_NUEVO = pytest.mark.skip(reason="finales e hitos por el motor nuevo: se reescriben en las Tareas 5 y 6")
+#: Las filas sembradas ya nacen en el modelo nuevo (persona e hitos, finales por clases) y el cálculo del final lee
+#: todavía el antiguo (banderas, métricas, severidad): estas pruebas esperan finales que ese cálculo ya no ve.
+SKIP_MOTOR_NUEVO = pytest.mark.skip(reason="finales por el motor nuevo: se reescriben en la Tarea 6")
 
 
 def cl(user):
@@ -130,7 +132,8 @@ def _deliberate_clock(monkeypatch):
     monkeypatch.setattr(timezone, "now", lambda: real_now() + timedelta(seconds=_CLOCK["seconds"]))
 
 
-def _decide(client, attempt_id, token, option_key, case_version_id):
+def _decide_payload(client, attempt_id, token, option_key, case_version_id):
+    """La respuesta completa de la decisión: ``{attempt, consequence}`` y, si hay reintento, ``retry``."""
     _CLOCK["seconds"] += 3
     option = DecisionOption.objects.get(case_version_id=case_version_id, option_key=option_key)
     # Cada llamada es una respuesta deliberada: lleva su requestId, como el cliente real (E1-3);
@@ -142,6 +145,11 @@ def _decide(client, attempt_id, token, option_key, case_version_id):
     )
     assert resp.status_code == 200, f"decisión {option_key}: {resp.data}"
     return resp.data["data"]
+
+
+def _decide(client, attempt_id, token, option_key, case_version_id):
+    """El estado del intento tras la decisión."""
+    return _decide_payload(client, attempt_id, token, option_key, case_version_id)["attempt"]
 
 
 def test_acciones_clinicas_canonicas_exponen_herramienta_sin_fingir_decision(case_version_id):
@@ -260,45 +268,47 @@ def test_entry_coordinates_from_client_are_ignored(estudiante, case_version_id):
 
 # ─── Efecto mariposa: flags y métricas por decisión ───────────────────────────
 
-@SKIP_MOTOR_NUEVO
-def test_decision_hospital_recomendada_aplica_flags(estudiante, case_version_id):
+def _milestones(attempt_id):
+    return case_state.read(SimulationAttempt.objects.get(pk=attempt_id)).milestones
+
+
+def _persona(attempt_id):
+    return case_state.read(SimulationAttempt.objects.get(pk=attempt_id)).persona
+
+
+def test_decision_hospital_recomendada_cumple_hitos_y_mueve_a_la_persona(estudiante, case_version_id):
     c = cl(estudiante)
     attempt_id, token = _start(c, case_version_id)
     _world(c, attempt_id, token)  # materializa el world state
-    state = _decide(c, attempt_id, token, "h1-pap-contencion", case_version_id)
-    assert state["feedback"]["classification"] == "ADEQUATE"
-    assert state["clinicalState"] == {
-        "papApplied": True,
-        "patient": {
-            "emotionalState": 65,
-            "trustLevel": 65,
-            "openness": 65,
-            "crisisLevel": 30,
-        },
-    }
-    world = _world(c, attempt_id, token)
-    flags = world["flags"]["caseFlags"]
-    metrics = world["flags"]["caseMetrics"]
-    assert flags["pap_aplicado"] is True
-    assert flags["familia_contenida"] is True
-    assert metrics["confianza"] > 50
-    assert metrics["crisis_emocional"] < 50
+    assert _milestones(attempt_id) == frozenset()
+    assert _persona(attempt_id) == (Bond.GUARDED, Activation.TENSE)
+
+    payload = _decide_payload(c, attempt_id, token, "h1-pap-contencion", case_version_id)
+
+    assert set(payload) == {"attempt", "consequence"}
+    assert payload["attempt"]["currentNode"]["key"] != "hospital-urgencias"
+    assert _milestones(attempt_id) >= {"pap_aplicado", "familia_contenida"}
+    assert _persona(attempt_id) == (Bond.OPEN, Activation.CALM)  # Recomendada: +1 vínculo, -1 activación
 
 
-@SKIP_MOTOR_NUEVO
-def test_decision_hospital_critica_exige_reintento_sin_flags_negativos(estudiante, case_version_id):
+def test_decision_hospital_critica_exige_reintento_sin_cumplir_hitos_ni_mover_a_la_persona(
+    estudiante, case_version_id
+):
     c = cl(estudiante)
     attempt_id, token = _start(c, case_version_id)
     _world(c, attempt_id, token)
-    state = _decide(c, attempt_id, token, "h1-interrogar-victima", case_version_id)
-    assert state["feedback"]["prohibitedConduct"] is True
-    assert state["currentNode"]["key"] == "hospital-urgencias"
-    world = _world(c, attempt_id, token)
-    flags = world["flags"].get("caseFlags", {})
-    metrics = world["flags"].get("caseMetrics", {})
-    assert flags.get("interrogatorio_prematuro") is not True
-    assert metrics.get("etica_profesional", 50) == 50
-    assert metrics.get("riesgo_victima", 50) == 50
+
+    payload = _decide_payload(c, attempt_id, token, "h1-interrogar-victima", case_version_id)
+
+    assert set(payload) == {"attempt", "consequence", "retry"}
+    assert payload["retry"]["allowed"] is True
+    assert payload["attempt"]["currentNode"]["key"] == "hospital-urgencias"
+    assert _milestones(attempt_id) == frozenset()
+    assert _persona(attempt_id) == (Bond.GUARDED, Activation.TENSE)
+    assert AttemptEvent.objects.filter(
+        attempt_id=attempt_id, event_type="PROHIBITED_DECISION_RETRY_REQUIRED"
+    ).exists()
+    assert SimulationAttempt.objects.get(pk=attempt_id).revictimization_risk is False
 
 
 def _play_hospital(c, attempt_id, token, case_version_id, h1, h2, h3):
@@ -308,35 +318,36 @@ def _play_hospital(c, attempt_id, token, case_version_id, h1, h2, h3):
     _decide(c, attempt_id, token, h3, case_version_id)
 
 
-@SKIP_MOTOR_NUEVO
-def test_decision_comisaria_recomendada_aplica_flags(estudiante, case_version_id):
+def test_decision_comisaria_recomendada_cumple_los_hitos_de_proteccion(estudiante, case_version_id):
     c = cl(estudiante)
     attempt_id, token = _start(c, case_version_id)
     _play_hospital(c, attempt_id, token, case_version_id,
                    "h1-pap-contencion", "h2-459-1257", "h3-integral-psicosocial")
-    state = _decide(c, attempt_id, token, "c1-riesgo-proteccion-derechos", case_version_id)
-    assert state["feedback"]["institutionalRouteActivated"] is True
-    world = _world(c, attempt_id, token)
-    flags = world["flags"]["caseFlags"]
-    assert flags["riesgo_feminicidio_valorado"] is True
-    assert flags["medidas_proteccion_activadas"] is True
-    assert flags["asesoria_derechos_realizada"] is True
+    assert "medidas_proteccion_activadas" not in _milestones(attempt_id)
+
+    payload = _decide_payload(c, attempt_id, token, "c1-riesgo-proteccion-derechos", case_version_id)
+
+    assert set(payload) == {"attempt", "consequence"}
+    assert _milestones(attempt_id) >= {
+        "riesgo_feminicidio_valorado", "medidas_proteccion_activadas", "asesoria_derechos_realizada",
+    }
 
 
-@SKIP_MOTOR_NUEVO
-def test_decision_comisaria_critica_exige_reintento_sin_flags_negativos(estudiante, case_version_id):
+def test_decision_comisaria_critica_exige_reintento_sin_cumplir_el_hito_de_proteccion(
+    estudiante, case_version_id
+):
     c = cl(estudiante)
     attempt_id, token = _start(c, case_version_id)
     _play_hospital(c, attempt_id, token, case_version_id,
                    "h1-pap-contencion", "h2-459-1257", "h3-integral-psicosocial")
-    state = _decide(c, attempt_id, token, "c1-mediacion-perdon", case_version_id)
-    assert state["feedback"]["prohibitedConduct"] is True
-    assert state["currentNode"]["key"] == "hospital-cierre-bloque"
-    world = _world(c, attempt_id, token)
-    flags = world["flags"]["caseFlags"]
-    metrics = world["flags"]["caseMetrics"]
-    assert flags.get("mediacion_agresor_intentada") is not True
-    assert metrics["riesgo_victima"] <= 50
+    persona_before = _persona(attempt_id)
+
+    payload = _decide_payload(c, attempt_id, token, "c1-mediacion-perdon", case_version_id)
+
+    assert payload["retry"]["allowed"] is True
+    assert payload["attempt"]["currentNode"]["key"] == "hospital-cierre-bloque"
+    assert "medidas_proteccion_activadas" not in _milestones(attempt_id)
+    assert _persona(attempt_id) == persona_before  # el reintento no mueve a la persona
 
 
 # ─── Finales ──────────────────────────────────────────────────────────────────

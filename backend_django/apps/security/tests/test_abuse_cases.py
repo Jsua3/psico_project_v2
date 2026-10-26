@@ -814,7 +814,7 @@ def _decision_adecuada_con_el_mismo_request_id(mundo):
     opcion, rid = _opcion_adecuada(mundo.intento_a), secrets.token_hex(8)
     primera, segunda = _decidir(mundo, opcion, rid), _decidir(mundo, opcion, rid)
     assert (primera.status_code, segunda.status_code) == (200, 200), (primera.data, segunda.data)
-    assert segunda.data["data"]["currentNode"]["id"] == primera.data["data"]["currentNode"]["id"]
+    assert segunda.data["data"]["attempt"]["currentNode"]["id"] == primera.data["data"]["attempt"]["currentNode"]["id"]
     assert _eventos_de_la_decision(mundo, opcion) == 1
 
 
@@ -833,7 +833,7 @@ def _decision_adecuada_con_otro_request_id(mundo):
     opcion = _opcion_adecuada(mundo.intento_a)
     primera, segunda = _decidir(mundo, opcion, secrets.token_hex(8)), _decidir(mundo, opcion, secrets.token_hex(8))
     assert (primera.status_code, segunda.status_code) == (200, 200), (primera.data, segunda.data)
-    assert segunda.data["data"]["currentNode"]["id"] == primera.data["data"]["currentNode"]["id"]
+    assert segunda.data["data"]["attempt"]["currentNode"]["id"] == primera.data["data"]["attempt"]["currentNode"]["id"]
     assert _eventos_de_la_decision(mundo, opcion) == 1
 
 

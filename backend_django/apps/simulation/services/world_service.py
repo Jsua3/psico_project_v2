@@ -15,8 +15,6 @@ from rest_framework.exceptions import NotFound, ValidationError
 from ..models import (
     DEFAULT_MAP_HEIGHT,
     DEFAULT_MAP_WIDTH,
-    INDICATOR_MAX,
-    INDICATOR_MIN,
     AttemptEvent,
     ClinicalTool,
     CollisionZone,
@@ -72,9 +70,6 @@ NPC_RANGE_TOLERANCE_PX = 16
 NPC_KEY_RE = re.compile(r"^[a-z0-9][a-z0-9_-]{0,63}$")
 PLAYER_HITBOX_WIDTH = 22
 PLAYER_HITBOX_HEIGHT = 16
-#: Estrés al usar una herramienta: baja si el uso fue pertinente y sube si no.
-TOOL_PERTINENT_STRESS_DELTA = -5
-TOOL_IMPERTINENT_STRESS_DELTA = 3
 
 
 def _require_finite_int(value, name):
@@ -276,7 +271,9 @@ def open_interaction(attempt_id, attempt_token, interaction_key, actor):
     }
 
 
-_TOOL_RESULT = re.compile(r" — (?P<verdict>no pertinente|pertinente) \(estrés (?P<delta>[+-]?\d+)%\)$")
+#: El veredicto con que termina el detalle de un uso. Los eventos guardados antes de la Tarea 5 traen además el
+#: fragmento « (estrés ±N%)», que ya no se escribe pero se sigue reconociendo al repetir una orden.
+_TOOL_RESULT = re.compile(r" — (?P<verdict>no pertinente|pertinente)(?: \(estrés [+-]?\d+%\))?$")
 
 
 def _replayed_tool_use(attempt, event, tool_code, target_key):
@@ -295,7 +292,6 @@ def _replayed_tool_use(attempt, event, tool_code, target_key):
         "toolCode": tool_code,
         "targetKey": target_key,
         "pertinent": pertinent,
-        "stressDelta": int(match["delta"]),
         "feedbackMessage": _generate_tool_feedback(tool, target_key, pertinent),
         "alreadyUsed": False,
     }
@@ -306,8 +302,8 @@ def use_tool(attempt_id, attempt_token, tool_code, target_interaction_key, actor
     """Uso de herramienta autoritativo (GAME-01/4C): exige inventario, valida
     el target (existencia + cercanía), no considera pertinente el uso sin
     target salvo herramienta declarada global, y es idempotente ante
-    reintentos (un solo evento y un solo efecto de estrés). Con ``request_id`` la
-    repetición devuelve la misma respuesta de la primera vez (E1-3)."""
+    reintentos (un solo evento). No mueve ninguna cifra del intento: solo cuenta como actividad.
+    Con ``request_id`` la repetición devuelve la misma respuesta de la primera vez (E1-3)."""
     attempt = game_service._require_attempt(attempt_id, attempt_token, actor)
     request_id = normalize_request_id(request_id)
     target_key = (target_interaction_key or "").strip() or None
@@ -348,7 +344,6 @@ def use_tool(attempt_id, attempt_token, tool_code, target_interaction_key, actor
             "toolCode": tool_code,
             "targetKey": target_key,
             "pertinent": pertinent,
-            "stressDelta": 0,
             "feedbackMessage": feedback_message,
             "alreadyUsed": True,
         }
@@ -356,17 +351,12 @@ def use_tool(attempt_id, attempt_token, tool_code, target_interaction_key, actor
     world_state.used_tool_keys_json = _append_unique(world_state.used_tool_keys_json, usage_key)
     world_state.save()
 
-    stress_delta = TOOL_PERTINENT_STRESS_DELTA if pertinent else TOOL_IMPERTINENT_STRESS_DELTA
-    attempt.stress_index = _clamp(attempt.stress_index + stress_delta, INDICATOR_MIN, INDICATOR_MAX)
-    attempt_duration.touch(attempt, timezone.now())
-    attempt.save()
+    attempt_duration.record_activity(attempt)
 
-    sign = "+" if stress_delta >= 0 else ""
     detail = (
         f"Herramienta usada: {tool_code}"
         + (f" sobre {target_key}" if target_key is not None else "")
         + f" — {'pertinente' if pertinent else 'no pertinente'}"
-        + f" (estrés {sign}{stress_delta}%)"
     )
     _save_event(attempt, "TOOL_USED", detail, request_id)
 
@@ -375,7 +365,6 @@ def use_tool(attempt_id, attempt_token, tool_code, target_interaction_key, actor
         "toolCode": tool_code,
         "targetKey": target_key,
         "pertinent": pertinent,
-        "stressDelta": stress_delta,
         "feedbackMessage": feedback_message,
         "alreadyUsed": False,
     }

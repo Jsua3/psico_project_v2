@@ -10,8 +10,9 @@ from django.utils import timezone
 from rest_framework.test import APIClient
 
 from apps.grupos.models import Grupo
-from apps.simulation.models import AttemptEvent, CaseVersion, DecisionOption, ReflectionJournal
-from apps.simulation.services import crypto_service
+from apps.simulation.models import AttemptEvent, CaseVersion, DecisionOption, ReflectionJournal, SimulationAttempt
+from apps.simulation.services import case_state, crypto_service
+from apps.simulation.services.game_service import RETRY_NEUTRAL_MESSAGE
 
 User = get_user_model()
 
@@ -119,11 +120,15 @@ def test_decision_override_persists_missing_evidence(estudiante, case_version_id
     assert "Usar PAP" in event.detail
 
     # T11.2: las etiquetas internas quedan solo en el evento; el jugador no las lee.
-    message = response.data["data"]["feedback"]["message"]
-    assert "override" not in message.lower()
-    assert "Usar PAP" not in message
-    assert "Hablar con la familia" not in message
-    assert message and message in event.detail
+    shown = json.dumps(response.data["data"]).lower()
+    assert set(response.data["data"]) == {"attempt", "consequence"}
+    assert "override" not in shown
+    assert "usar pap" not in shown
+    assert "hablar con la familia" not in shown
+    # El evento guarda la explicación propia de la opción y, después, las etiquetas del override.
+    option = DecisionOption.objects.get(pk=option_id)
+    explanation = option.feedback_text or option.immediate_feedback
+    assert explanation and event.detail.startswith(explanation)
 
 
 def test_full_playthrough_reaches_terminal_and_locks_reflection(estudiante, case_version_id):
@@ -164,8 +169,9 @@ def test_full_playthrough_reaches_terminal_and_locks_reflection(estudiante, case
         )
         assert resp.status_code == 200
         assert resp.data["message"] == "Decision procesada"
-        assert resp.data["data"]["feedback"] is not None
-        state = resp.data["data"]
+        assert set(resp.data["data"]) == {"attempt", "consequence"}
+        assert resp.data["data"]["consequence"]["text"]
+        state = resp.data["data"]["attempt"]
 
     assert state["status"] == "COMPLETED"
     assert state["completionReport"] is not None
@@ -198,8 +204,7 @@ def test_inadequate_decision_requires_retry_without_advancing(estudiante, case_v
     attempt_id, token = start["attemptId"], start["attemptToken"]
     node_id = start["currentNode"]["id"]
     node_key = start["currentNode"]["key"]
-    initial_score = start["accumulatedScore"]
-    initial_stress = start["stressIndex"]
+    state_before = case_state.read(SimulationAttempt.objects.get(pk=attempt_id))
 
     wrong = DecisionOption.objects.filter(
         source_node_id=node_id,
@@ -213,12 +218,13 @@ def test_inadequate_decision_requires_retry_without_advancing(estudiante, case_v
         format="json",
     )
     assert retry.status_code == 200
-    retry_state = retry.data["data"]
+    assert set(retry.data["data"]) == {"attempt", "consequence", "retry"}
+    assert retry.data["data"]["retry"] == {"allowed": True, "message": RETRY_NEUTRAL_MESSAGE}
+    retry_state = retry.data["data"]["attempt"]
     assert retry_state["status"] == "IN_PROGRESS"
     assert retry_state["currentNode"]["key"] == node_key
-    assert retry_state["accumulatedScore"] == initial_score
-    assert retry_state["stressIndex"] == initial_stress
-    assert "volver a responder" in retry_state["feedback"]["message"]
+    assert "feedback" not in retry_state
+    assert case_state.read(SimulationAttempt.objects.get(pk=attempt_id)) == state_before
     assert AttemptEvent.objects.filter(
         attempt_id=attempt_id,
         event_type="PROHIBITED_DECISION_RETRY_REQUIRED",
@@ -236,7 +242,7 @@ def test_inadequate_decision_requires_retry_without_advancing(estudiante, case_v
         format="json",
     )
     assert advanced.status_code == 200
-    assert advanced.data["data"]["currentNode"]["key"] != node_key
+    assert advanced.data["data"]["attempt"]["currentNode"]["key"] != node_key
 
 
 def test_risky_decision_requires_retry_without_advancing(estudiante, case_version_id):
@@ -254,16 +260,15 @@ def test_risky_decision_requires_retry_without_advancing(estudiante, case_versio
         f"/api/simulation/attempts/{attempt_id}/decisions",
         {"attemptToken": token, "decisionOptionId": first_correct.id},
         format="json",
-    ).data["data"]
+    ).data["data"]["attempt"]
 
     node_id = current["currentNode"]["id"]
     node_key = current["currentNode"]["key"]
-    initial_score = current["accumulatedScore"]
-    initial_stress = current["stressIndex"]
+    state_before = case_state.read(SimulationAttempt.objects.get(pk=attempt_id))
 
     risky = DecisionOption.objects.filter(
         source_node_id=node_id,
-        classification="RISKY",
+        response_class="RISKY",  # la clase de la respuesta decide el reintento, no la clasificación antigua
     ).first()
     assert risky is not None
 
@@ -273,12 +278,13 @@ def test_risky_decision_requires_retry_without_advancing(estudiante, case_versio
         format="json",
     )
     assert retry.status_code == 200
-    retry_state = retry.data["data"]
+    assert set(retry.data["data"]) == {"attempt", "consequence", "retry"}
+    assert retry.data["data"]["retry"] == {"allowed": True, "message": RETRY_NEUTRAL_MESSAGE}
+    retry_state = retry.data["data"]["attempt"]
     assert retry_state["status"] == "IN_PROGRESS"
     assert retry_state["currentNode"]["key"] == node_key
-    assert retry_state["accumulatedScore"] == initial_score
-    assert retry_state["stressIndex"] == initial_stress
-    assert "volver a responder" in retry_state["feedback"]["message"]
+    assert "feedback" not in retry_state
+    assert case_state.read(SimulationAttempt.objects.get(pk=attempt_id)) == state_before
     assert AttemptEvent.objects.filter(
         attempt_id=attempt_id,
         event_type="DECISION_RETRY_REQUIRED",
@@ -296,7 +302,7 @@ def test_risky_decision_requires_retry_without_advancing(estudiante, case_versio
         format="json",
     )
     assert advanced.status_code == 200
-    assert advanced.data["data"]["currentNode"]["key"] != node_key
+    assert advanced.data["data"]["attempt"]["currentNode"]["key"] != node_key
 
 
 @pytest.fixture
@@ -335,16 +341,16 @@ def test_second_bad_answer_is_registered_and_advances(estudiante, case_version_i
     r1 = c.post(f"/api/simulation/attempts/{attempt_id}/decisions",
                 {"attemptToken": token, "decisionOptionId": bad.id, "requestId": uuid.uuid4().hex},
                 format="json").data["data"]
-    assert r1["currentNode"]["key"] == node_key
-    assert r1["feedback"]["retryRequired"] is True
+    assert r1["attempt"]["currentNode"]["key"] == node_key
+    assert r1["retry"]["allowed"] is True
 
     # 2ª respuesta mala (deliberada: pasan unos segundos) -> se registra y avanza, retryRequired False
     time_passes(5)
     r2 = c.post(f"/api/simulation/attempts/{attempt_id}/decisions",
                 {"attemptToken": token, "decisionOptionId": bad.id, "requestId": uuid.uuid4().hex},
                 format="json").data["data"]
-    assert r2["currentNode"]["key"] != node_key
-    assert r2["feedback"]["retryRequired"] is False
+    assert r2["attempt"]["currentNode"]["key"] != node_key
+    assert "retry" not in r2
     assert AttemptEvent.objects.filter(
         attempt_id=attempt_id,
         event_type__in=["DECISION_SELECTED", "PROHIBITED_DECISION_SELECTED"],
@@ -543,15 +549,16 @@ def test_node_options_only_expose_id_and_text(estudiante, case_version_id):
     ).data["data"]
     assert all(set(o) == {"id", "text"} for o in again["currentNode"]["options"])
 
-    # Tras elegir, el feedback sí conserva la clasificación (el intento ya decidió).
+    # Tras elegir, tampoco: la respuesta es solo la consecuencia (la clase llega en el reporte de cierre).
     option = next(o for o in options if classification_of(o) == "ADEQUATE")
-    feedback = c.post(
+    decided = c.post(
         f"/api/simulation/attempts/{start['attemptId']}/decisions",
         {"attemptToken": start["attemptToken"], "decisionOptionId": option["id"]},
         format="json",
-    ).data["data"]["feedback"]
-    assert feedback["classification"] == "ADEQUATE"
-    assert feedback["prohibitedConduct"] is False
+    ).data["data"]
+    assert set(decided) == {"attempt", "consequence"}
+    assert "classification" not in json.dumps(decided)
+    assert "prohibitedConduct" not in json.dumps(decided)
 
 
 # ─── T11.1: los reintentos no cuentan como decisiones ────────────────────────
@@ -569,7 +576,7 @@ def _decide(c, attempt_id, token, case_version_id, option_key):
         format="json",
     )
     assert resp.status_code == 200, f"{option_key}: {resp.data}"
-    return resp.data["data"]
+    return resp.data["data"]["attempt"]
 
 
 def test_retries_do_not_lower_report_or_force_critical_ending(estudiante, case_version_id):
@@ -592,10 +599,7 @@ def test_retries_do_not_lower_report_or_force_critical_ending(estudiante, case_v
 
     assert state["status"] == "COMPLETED"
     report = state["completionReport"]
-    ending = report["ending"]
-    assert ending["key"] == "integral"
-    assert ending["severityCounts"]["critical"] == 0
-    assert ending["severityCounts"]["recommended"] == 6
+    # (El final y sus conteos por severidad se vuelven a probar con el motor de finales, Tarea 6.)
 
     # El reporte cuenta solo lo registrado y muestra los reintentos aparte.
     assert report["adequateDecisions"] == 6
@@ -662,7 +666,6 @@ def test_report_recommendation_is_plural_and_replaces_the_generic_closing_one(es
     assert report["prohibitedRetries"] == expected_prohibited
     assert report["recommendations"] == ["Reconsideraste 2 respuestas antes de decidir; revísalas con tu docente."]
     assert report["adequateDecisions"] == 6  # reconsiderar no resta ni suma decisiones
-    assert report["ending"]["key"] == "integral"
 
 
 def test_report_without_retries_has_no_reconsideration_recommendation(estudiante, case_version_id):

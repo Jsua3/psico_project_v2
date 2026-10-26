@@ -64,7 +64,7 @@ def test_completing_case_records_completion(estudiante, case_version_id):
             f"/api/simulation/attempts/{attempt_id}/decisions",
             {"attemptToken": token, "decisionOptionId": option["id"]},
             format="json",
-        ).data["data"]
+        ).data["data"]["attempt"]
     assert state["status"] == "COMPLETED"
     case_id = CaseVersion.objects.get(pk=case_version_id).simulation_case_id
     assert StudentCaseCompletion.objects.filter(

@@ -294,19 +294,14 @@ def _entero_env(name, default, minimo):
 # ─── Banderas del contrato expand → migrate → contract (plan estructural §2.8, E5-10) ────
 # Lo nuevo ya está en el servidor y `test_contract_closure.py` recorre el ciclo completo con todas en su valor final.
 # Una bandera arranca en su valor FINAL cuando el cliente visual ya migró (F9-10: REVIEW_WORKFLOW_STRICT y
-# REVISION_REQUIRED) y en su valor HEREDADO mientras algo del cliente todavía depende de lo viejo (ATTEMPT_START_STRICT y
-# FEEDBACK_AT_CLOSE_ONLY esperan a F10-9 y F10-4). Cada una dice abajo qué hace en cada estado; `CONTRACT_FLAGS_REGISTRY`
+# REVISION_REQUIRED) y en su valor HEREDADO mientras algo del cliente todavía depende de lo viejo (ATTEMPT_START_STRICT
+# espera a F10-9). Cada una dice abajo qué hace en cada estado; `CONTRACT_FLAGS_REGISTRY`
 # dice a qué valor van, qué las bloquea hoy y quién las retira. Una variable `SIEP_<BANDERA>=0` apaga una encendida
 # (interruptor de emergencia: el camino heredado sigue en el servidor hasta que el usuario decida borrarlo).
 #: E1-1 · ATTEMPT_START_STRICT. Encendida: con un intento abierto, `forceNew` de un ESTUDIANTE → 409
 #: ATTEMPT_ALREADY_OPEN con el id del abierto (RN-07: el estudiante reanuda; solo el docente lo reemplaza).
 #: Apagada: `forceNew` cierra el abierto como REPLACED y empieza otro (la ruta heredada de «Reintentar caso»).
 ATTEMPT_START_STRICT = _env_flag("SIEP_ATTEMPT_START_STRICT")
-#: E1-7 · FEEDBACK_AT_CLOSE_ONLY. Encendida: la respuesta de una decisión no trae clasificación, deltas ni mensaje
-#: evaluativo (`attempt.feedback` es nulo): la retroalimentación pedagógica llega al cierre (RN-08, decisiones 6 y 10).
-#: Apagada: cada decisión devuelve de inmediato `feedback` con clasificación, deltas y mensaje (salvo que la versión
-#: del caso declare `feedbackTiming = AT_CLOSE`).
-FEEDBACK_AT_CLOSE_ONLY = _env_flag("SIEP_FEEDBACK_AT_CLOSE_ONLY")
 #: E1-9 · RUBRIC_NUMERIC_TOTAL. Encendida: las vistas del docente incluyen el total numérico de la evaluación
 #: (`totalScore`). Apagada (valor final, ED-2/RN-09): la evaluación es formativa, por niveles; el total no viaja y el
 #: estudiante nunca recibe un número. Existe para el paso *contract* y las revisiones que aún lo piden.
@@ -331,7 +326,7 @@ INVITATIONS_AUTO_ACCEPT = _env_flag("SIEP_INVITATIONS_AUTO_ACCEPT")
 #: Una entrada por bandera: `target_contract` es el valor al que va; `retirement_gate` el hito que la retira;
 #: `blocked_by` qué impide encenderla HOY (vacío si ya está en su valor final) y `owner` quién la retira. Lo medido
 #: lo fue el 2026-10-17 corriendo el subconjunto e2e de CI con la bandera encendida; lo vuelve a comprobar quien la
-#: encienda. `test_contract_closure.py` exige las seis entradas completas.
+#: encienda. `test_contract_closure.py` exige las cinco entradas completas.
 CONTRACT_FLAGS_REGISTRY = {
     "ATTEMPT_START_STRICT": {
         "env": "SIEP_ATTEMPT_START_STRICT",
@@ -343,16 +338,6 @@ CONTRACT_FLAGS_REGISTRY = {
             "unas treinta pruebas; la carga nocturna (`scripts/load/aula.mjs`) también abre cada ciclo con `forceNew`."
         ),
         "owner": "sesión visual (F9-10); la carga nocturna, estructural",
-    },
-    "FEEDBACK_AT_CLOSE_ONLY": {
-        "env": "SIEP_FEEDBACK_AT_CLOSE_ONLY",
-        "target_contract": True,
-        "retirement_gate": "F9-10 (cierre de F6/F10-4)",
-        "blocked_by": (
-            "El juego lee la clasificación y el mensaje de la respuesta de cada decisión (`simulation-play.component.ts`): "
-            "encendida, `@full-case` falla con «Cannot read properties of undefined (reading 'key')»."
-        ),
-        "owner": "sesión visual (F10-4 y F9-10)",
     },
     "RUBRIC_NUMERIC_TOTAL": {
         "env": "SIEP_RUBRIC_NUMERIC_TOTAL",

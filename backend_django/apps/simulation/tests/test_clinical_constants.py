@@ -1,11 +1,11 @@
 """A-03c — Los números de las reglas del intento y del mapa, fijados uno a uno.
 
-Antes de darles nombre a los literales (penalizaciones de conducta prohibida, escala
-0-100, valores iniciales, métrica inicial del caso y tamaño por defecto del mapa), estas
-pruebas fijan cada valor tal como se comporta hoy. Los que ya tenían prueba están en
-otros archivos: la acotación a 0-100, el estrés de las herramientas y el 960×540 de
+Antes de darles nombre a los literales (escala 0-100, valores iniciales, métrica inicial del
+caso y tamaño por defecto del mapa), estas pruebas fijan cada valor tal como se comporta hoy.
+Los que ya tenían prueba están en otros archivos: la acotación a 0-100 y el 960×540 de
 `_door_entry` en ``test_shared_helper_call_sites``, y el umbral de estrés alto (69/70/100)
-en ``test_completion_report_contract``.
+en ``test_completion_report_contract``. Las tablas de la conducta prohibida (estrés, confianza
+y riesgo por decisión) y el estrés de las herramientas se retiraron con la Tarea 5: ya nada las usa.
 
 Casi todas son puras; las del intento nuevo, el movimiento y la autoría recorren el
 flujo HTTP real contra el caso sembrado SIM-VBG-001.
@@ -17,49 +17,13 @@ import pytest
 from django.contrib.auth import get_user_model
 
 from apps.simulation.models import AttemptWorldState, SceneMap, SimulationAttempt
-from apps.simulation.services import case_effects, decision_effects
+from apps.simulation.services import case_effects
 
 from .test_game import (  # noqa: F401
     assign_case_to_student, attempt_headers, case_version_id, cl, estudiante,
 )
 
 User = get_user_model()
-
-
-# ── decision_effects.resolve: la conducta prohibida ──────────────────────────
-def _decision(classification, prohibited=False, score=0, stress=0, penalty=0):
-    return SimpleNamespace(
-        classification=classification, prohibited_conduct=prohibited,
-        score_delta=score, stress_delta=stress, prohibited_penalty=penalty, target_node=None,
-    )
-
-
-#: clasificación → (confianza, riesgo de la víctima) de una decisión sin conducta prohibida.
-BASE = {"ADEQUATE": (10, -5), "RISKY": (-5, 8), "INADEQUATE": (-12, 12)}
-
-
-@pytest.mark.parametrize("classification", list(BASE))
-def test_una_decision_sin_conducta_prohibida_usa_solo_la_tabla_de_su_clasificacion(classification):
-    effects = decision_effects.resolve(_decision(classification, score=7, stress=-3, penalty=-25))
-
-    trust, risk = BASE[classification]
-    assert (effects.score_delta, effects.stress_delta) == (7, -3)
-    assert (effects.trust_delta, effects.victim_risk_delta) == (trust, risk)
-    assert effects.revictimization_risk is False
-
-
-@pytest.mark.parametrize("classification", list(BASE))
-def test_la_conducta_prohibida_suma_40_de_estres_resta_20_de_confianza_y_suma_15_de_riesgo(classification):
-    effects = decision_effects.resolve(
-        _decision(classification, prohibited=True, score=-10, stress=2, penalty=-25)
-    )
-
-    trust, risk = BASE[classification]
-    assert effects.score_delta == -35          # -10 + la penalización autorada de la opción
-    assert effects.stress_delta == 42          # 2 + 40
-    assert effects.trust_delta == trust - 20
-    assert effects.victim_risk_delta == risk + 15
-    assert effects.revictimization_risk is True
 
 
 # ── case_effects: la métrica del caso inicia en 50 ───────────────────────────

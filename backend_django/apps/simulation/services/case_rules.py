@@ -8,10 +8,9 @@ un JSON con
   y última oportunidad sin cambiar métricas ni avanzar? Ausente = **apagada** (ED-7: los
   casos nuevos nacen sin ella; ``SIM-VBG-001`` la declara encendida, excepción explícita a
   RN-08 por la decisión 10, y la migración 0009 la enciende en las versiones ya existentes).
-- ``feedbackTiming`` (``IMMEDIATE`` | ``AT_CLOSE``): cuándo llega la retroalimentación
-  evaluativa. Ausente = ``IMMEDIATE`` (el comportamiento de siempre) hasta que el visual
-  consuma la consecuencia narrativa; la bandera ``FEEDBACK_AT_CLOSE_ONLY`` lo fuerza a
-  ``AT_CLOSE`` para todos los casos.
+- ``feedbackTiming`` (``IMMEDIATE`` | ``AT_CLOSE``): se sigue leyendo pero **no tiene efecto**: la decisión
+  siempre devuelve solo su consecuencia y la retroalimentación llega al cerrar (la Tarea 16 del modelo de
+  métricas lo retira de las reglas).
 - ``metrics`` (``[{key, initial}]``, E3-8): las métricas del caso (0-100) y el valor con que
   parten. Ausente = el caso no declara métricas propias.
 - ``endings`` (``[{key, title, message, tone, when?}]``, E3-8): los finales en orden de
@@ -34,7 +33,6 @@ autorarlos.
 import re
 from dataclasses import dataclass
 
-from django.conf import settings
 from rest_framework import status
 
 from apps.simulation.casedef.vocabulary import RiskLevel
@@ -183,11 +181,6 @@ def rules_of(version):
         milestones=_parse_milestones(raw.get("milestones")),
         risk_level=_parse_risk_level(raw.get("riskLevel")),
     )
-
-
-def feedback_at_close_only(rules):
-    """¿La respuesta de una decisión debe omitir lo evaluativo? (bandera global o regla del caso)."""
-    return bool(settings.FEEDBACK_AT_CLOSE_ONLY) or rules.feedback_timing == AT_CLOSE
 
 
 # ─── los efectos de una opción ────────────────────────────────────────────────────────────────

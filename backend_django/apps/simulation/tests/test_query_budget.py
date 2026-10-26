@@ -46,10 +46,15 @@ QUERY_BUDGETS = {
     "enter_room": 13,  # (3) era 26
     # era 9 (4) sin mundo: +1 cerrojo y +1 búsqueda de repetición (E1-3), +1 lectura y +1 UPDATE del
     # estado del mundo por los efectos del caso, que la medición anterior omitía por no tener mundo.
-    "post_decision": 12,  # (5)
+    # Tarea 5 (modelo de métricas): 12 → 11. La decisión ya no llama a ``decision_effects`` ni a ``case_effects``: los
+    # hitos y la persona los escribe ``response_effects.apply`` (una lectura del mundo con su mapa y un UPDATE).
+    "post_decision": 11,  # (5)
     "get_student_report": 3,  # (0) era 4: E0-11 acotó node y decision_option con select_related
     # E6: lo que cuestan el cierre (reporte v2, evaluación del sistema) y la primera lectura del dueño (el evento).
-    "post_decision_closing": 35,  # (11) la decisión que cierra: reporte v2 + evaluación del sistema (antes de E6: 26 y 9)
+    # Tarea 5: 35 → 36 a propósito. ``response_effects.apply`` pasa por ``ensure_world_state``, que sincroniza el mundo con
+    # la escena actual si nadie lo hizo (+1 SELECT del mapa y +1 UPDATE): este escenario recorre el caso sin pedir ``/world``
+    # en cada escena, así que paga esa sincronización una vez; un jugador real ya la tiene hecha por su ``GET /world``.
+    "post_decision_closing": 36,  # (12) la decisión que cierra: reporte v2 + evaluación del sistema (antes de E6: 26 y 9)
     "get_student_report_completed": 3,  # (1) la primera lectura del dueño de un intento completado escribe el evento
     # S4-1: 15 → 16 a propósito. Leer el reporte de un grupo es leer datos de otras personas y deja UNA fila de
     # auditoría (`reporte.leer`, RNF-007): es el INSERT de `audit_logs`, la única escritura. Las 15 de lectura no cambian.

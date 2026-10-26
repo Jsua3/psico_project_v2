@@ -365,7 +365,7 @@ def test_herramienta_sin_target_no_global_no_es_pertinente(estudiante, case_vers
     )
     assert resp.status_code == 200
     assert resp.data["data"]["pertinent"] is False
-    assert resp.data["data"]["stressDelta"] == 3
+    assert "stressDelta" not in resp.data["data"]
 
 
 def test_target_falso_o_lejano_rechazado(estudiante, case_version_id):
@@ -409,7 +409,7 @@ def test_uso_repetido_no_duplica_evento_ni_efecto(estudiante, case_version_id):
         format="json",
     )
     assert repeat.status_code == 200
-    assert repeat.data["data"]["stressDelta"] == 0
+    assert "stressDelta" not in repeat.data["data"]
     assert _events(attempt_id, "TOOL_USED") == 1
 
 

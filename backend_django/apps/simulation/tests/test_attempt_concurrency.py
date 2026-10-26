@@ -89,8 +89,8 @@ def test_un_doble_clic_sobre_una_opcion_riesgosa_no_gasta_la_segunda_oportunidad
 
     assert first.status_code == second.status_code == 200
     assert second.data["data"] == first.data["data"]
-    assert first.data["data"]["feedback"]["retryRequired"] is True
-    assert first.data["data"]["currentNode"]["key"] == node["key"]
+    assert first.data["data"]["retry"]["allowed"] is True
+    assert first.data["data"]["attempt"]["currentNode"]["key"] == node["key"]
     assert len(_events(attempt_id, *RETRY)) == 1
     assert _events(attempt_id, *REGISTERED) == []
 
@@ -100,8 +100,8 @@ def test_un_doble_clic_sobre_una_opcion_riesgosa_no_gasta_la_segunda_oportunidad
     third = _decide(c, attempt_id, token, bad.id)
 
     assert third.status_code == 200
-    assert third.data["data"]["feedback"]["retryRequired"] is False
-    assert third.data["data"]["currentNode"]["key"] != node["key"]
+    assert "retry" not in third.data["data"]
+    assert third.data["data"]["attempt"]["currentNode"]["key"] != node["key"]
     assert len(_events(attempt_id, *REGISTERED)) == 1
 
 
@@ -118,7 +118,7 @@ def test_un_doble_clic_con_un_request_id_por_clic_tampoco_gasta_la_segunda_oport
 
     assert first.status_code == second.status_code == 200
     assert second.data["data"] == first.data["data"]
-    assert first.data["data"]["feedback"]["retryRequired"] is True
+    assert first.data["data"]["retry"]["allowed"] is True
     assert len(_events(attempt_id, *RETRY)) == 1
     assert _events(attempt_id, *REGISTERED) == []
 
@@ -135,9 +135,9 @@ def test_con_request_id_distintos_y_pasada_la_ventana_la_respuesta_es_deliberada
     monkeypatch.setattr(timezone, "now", lambda: real_now() + timedelta(seconds=5))
     second = _decide(c, attempt_id, token, bad.id, requestId="req-segunda-resp")
 
-    assert first.data["data"]["feedback"]["retryRequired"] is True
-    assert second.data["data"]["feedback"]["retryRequired"] is False
-    assert second.data["data"]["currentNode"]["key"] != node["key"]
+    assert first.data["data"]["retry"]["allowed"] is True
+    assert "retry" not in second.data["data"]
+    assert second.data["data"]["attempt"]["currentNode"]["key"] != node["key"]
 
 
 def test_un_request_id_reutilizado_con_otra_opcion_responde_409(estudiante, case_version_id):
@@ -191,12 +191,11 @@ def test_usar_la_herramienta_con_el_mismo_request_id_deja_un_evento_y_la_misma_r
     second = c.post(f"{BASE}/attempts/{attempt_id}/tools/use", body, format="json")
 
     assert first.status_code == second.status_code == 200
-    assert first.data["data"]["stressDelta"] == 3
-    assert second.data["data"]["stressDelta"] == first.data["data"]["stressDelta"]
+    assert "stressDelta" not in first.data["data"] and "stressDelta" not in second.data["data"]
     assert second.data["data"]["alreadyUsed"] is False
     assert second.data["data"]["pertinent"] == first.data["data"]["pertinent"]
     assert len(_events(attempt_id, "TOOL_USED")) == 1
-    assert SimulationAttempt.objects.get(pk=attempt_id).stress_index == 3
+    assert SimulationAttempt.objects.get(pk=attempt_id).stress_index == 0  # usar la herramienta no mueve cifras
 
 
 def test_guardar_la_bitacora_con_el_mismo_request_id_deja_un_evento_y_la_misma_respuesta(
@@ -256,7 +255,7 @@ def test_dos_hilos_con_la_misma_decision_riesgosa_registran_un_solo_reintento(co
     outcomes = run_concurrently(decide, decide)
 
     assert [o.error for o in outcomes] == [None, None]
-    assert [o.value["feedback"]["retryRequired"] for o in outcomes] == [True, True]
+    assert [o.value["retry"]["allowed"] for o in outcomes] == [True, True]
     assert len(_events(a.attempt_id, *RETRY)) == 1
     assert _events(a.attempt_id, *REGISTERED) == []
     assert SimulationAttempt.objects.get(pk=a.attempt_id).current_node_id == a.node["id"]
@@ -274,7 +273,8 @@ def test_dos_hilos_con_el_mismo_request_id_registran_una_sola_decision(committed
     outcomes = run_concurrently(decide, decide)
 
     assert [o.error for o in outcomes] == [None, None]
-    assert outcomes[0].value["accumulatedScore"] == outcomes[1].value["accumulatedScore"] == good.score_delta
+    assert outcomes[0].value["consequence"] == outcomes[1].value["consequence"]
+    assert set(outcomes[0].value) == set(outcomes[1].value) == {"attempt", "consequence"}
     assert len(_events(a.attempt_id, *REGISTERED)) == 1
 
 
@@ -292,10 +292,10 @@ def test_dos_pestanas_con_la_misma_decision_avanzan_una_sola_vez(committed_attem
     outcomes = run_concurrently(decide("req-pestana-uno-1"), decide("req-pestana-dos-2"))
 
     assert [o.error for o in outcomes] == [None, None]
-    assert outcomes[0].value["currentNode"]["id"] == outcomes[1].value["currentNode"]["id"] == good.target_node_id
-    assert len(_events(a.attempt_id, *REGISTERED)) == 1
+    nodes = [o.value["attempt"]["currentNode"]["id"] for o in outcomes]
+    assert nodes == [good.target_node_id, good.target_node_id]
+    assert len(_events(a.attempt_id, *REGISTERED)) == 1  # los efectos se aplicaron una sola vez
     attempt = SimulationAttempt.objects.get(pk=a.attempt_id)
-    assert attempt.accumulated_score == good.score_delta  # los efectos se aplicaron una sola vez
     assert attempt.current_node_id == good.target_node_id
 
 

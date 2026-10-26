@@ -5,27 +5,18 @@ importándolas con su alias de siempre. Estas pruebas fijan que cada punto de us
 acota o lee igual que antes: sin ellas, quitar la acotación de un sitio o dejar de
 leer un campo JSON no rompía ninguna prueba (lo reveló la mutación de A-01).
 
-Casi todas son puras (objetos simples, sin base de datos); la del estrés al usar una
-herramienta recorre el flujo HTTP real.
+Todas son puras (objetos simples, sin base de datos). La del estrés al usar una herramienta
+se retiró con la Tarea 5: ya no hay estrés que acotar (``test_tool_use_no_stress.py``).
 """
 import json
 from types import SimpleNamespace
 
-import pytest
-from django.contrib.auth import get_user_model
-from django.db import connection
-from rest_framework.test import APIClient
-
-from apps.grupos.models import Grupo
-from apps.simulation.models import CaseVersion, SimulationAttempt
 from apps.simulation.serializers import game_dtos
 from apps.simulation.services import (
     case_effects,
     decision_effects,
     world_service,
 )
-
-User = get_user_model()
 
 
 # ── decision_effects.apply ───────────────────────────────────────────────────
@@ -158,92 +149,3 @@ def test_node_state_con_json_invalido_o_ausente_devuelve_listas_vacias():
 
     assert state["supportResources"] == []
     assert state["requiredTools"] == []
-
-
-# ── world_service.use_tool: el estrés queda acotado ──────────────────────────
-def _cl(user):
-    client = APIClient()
-    client.force_authenticate(user=user)
-    return client
-
-
-@pytest.fixture
-def case_version_id(db):
-    return CaseVersion.objects.get(simulation_case__code="SIM-VBG-001", status="PUBLISHED").id
-
-
-@pytest.fixture
-def estudiante(db, case_version_id):
-    user = User.objects.create_user(
-        email="est_helpers@x.com", password="x", nombre="Est", apellido="Helpers", role="ESTUDIANTE"
-    )
-    profesor = User.objects.create_user(
-        email="prof_helpers@x.com", password="x", nombre="Pro", apellido="Helpers", role="PROFESOR"
-    )
-    grupo = Grupo.objects.create(nombre="Grupo helpers", codigo="HELP1", profesor=profesor)
-    with connection.cursor() as cur:
-        cur.execute(
-            "INSERT INTO grupo_estudiante (grupo_id, estudiante_id) VALUES (%s, %s) ON CONFLICT DO NOTHING",
-            [grupo.id, user.id],
-        )
-        cur.execute(
-            "INSERT INTO case_assignments (grupo_id, case_version_id) VALUES (%s, %s) ON CONFLICT DO NOTHING",
-            [grupo.id, case_version_id],
-        )
-    return user
-
-
-def _attempt_with_pap_in_inventory(client, case_version_id):
-    """Inicia un intento y recoge la herramienta PAP (misma ruta que test_world)."""
-    data = client.post(
-        "/api/simulation/attempts", {"caseVersionId": case_version_id}, format="json"
-    ).data["data"]
-    attempt_id, token = data["attemptId"], data["attemptToken"]
-    headers = {"HTTP_X_SIEP_ATTEMPT_TOKEN": token}
-    world = client.get(f"/api/simulation/attempts/{attempt_id}/world", **headers).data["data"]
-    moved = client.patch(
-        f"/api/simulation/attempts/{attempt_id}/world-state",
-        {"attemptToken": token, "playerX": 340, "playerY": 430, "currentMapKey": world["map"]["key"]},
-        format="json",
-    )
-    assert moved.status_code == 200, moved.data
-    pickup = client.post(
-        f"/api/simulation/attempts/{attempt_id}/interactions/tool-pap",
-        {"attemptToken": token}, format="json",
-    )
-    assert pickup.status_code == 200, pickup.data
-    return attempt_id, token
-
-
-def _use_pap(client, attempt_id, token):
-    resp = client.post(
-        f"/api/simulation/attempts/{attempt_id}/tools/use",
-        {"attemptToken": token, "toolCode": "PAP"}, format="json",
-    )
-    assert resp.status_code == 200, resp.data
-    return resp.data["data"]
-
-
-def test_usar_una_herramienta_no_pertinente_no_pasa_el_estres_de_100(estudiante, case_version_id):
-    client = _cl(estudiante)
-    attempt_id, token = _attempt_with_pap_in_inventory(client, case_version_id)
-    SimulationAttempt.objects.filter(pk=attempt_id).update(stress_index=99)
-
-    result = _use_pap(client, attempt_id, token)
-
-    assert result["pertinent"] is False and result["stressDelta"] == 3
-    assert SimulationAttempt.objects.get(pk=attempt_id).stress_index == 100  # 99 + 3, acotado
-
-
-def test_usar_una_herramienta_pertinente_no_baja_el_estres_de_0(
-    estudiante, case_version_id, monkeypatch
-):
-    client = _cl(estudiante)
-    attempt_id, token = _attempt_with_pap_in_inventory(client, case_version_id)
-    SimulationAttempt.objects.filter(pk=attempt_id).update(stress_index=2)
-    monkeypatch.setattr(world_service, "_evaluate_tool_pertinence", lambda *args: True)
-
-    result = _use_pap(client, attempt_id, token)
-
-    assert result["pertinent"] is True and result["stressDelta"] == -5
-    assert SimulationAttempt.objects.get(pk=attempt_id).stress_index == 0  # 2 - 5, acotado
