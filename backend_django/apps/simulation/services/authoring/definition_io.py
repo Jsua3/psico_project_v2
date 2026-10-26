@@ -30,7 +30,8 @@ from apps.simulation.casedef.model import (
     World,
     WorldObject,
 )
-from apps.simulation.casedef.vocabulary import Intensity, legacy_class
+from apps.simulation.casedef import legacy
+from apps.simulation.casedef.vocabulary import legacy_class
 from apps.simulation.models import (
     CaseCharacter,
     CaseVersion,
@@ -273,25 +274,37 @@ def _nodes(version, scenes):
             sensitive_content=scene.sensitive, safe_exit_required=scene.safe_exit_required,
             warning_message=scene.warning, start_node=scene.start, terminal_node=scene.terminal,
             position_x=scene.x, position_y=scene.y, decision_prompt=scene.prompt, display_order=position,
-            intensity=(Intensity.HIGH if scene.sensitive else Intensity.MEDIUM).value,
+            intensity=legacy.intensity_for(scene.sensitive).value,
         )
         for position, scene in enumerate(scenes)
     ])
 
 
+def _option_row(version, scene, option, node_by_key):
+    """La fila de una opción: la clase sale de la severidad y la clasificación del documento 1.0, y los efectos
+    del documento (severidad, banderas, métricas) se convierten a persona e hitos."""
+    response_class = legacy_class(option.classification, option.effects.get("severity"), option.prohibited)
+    return DecisionOption(
+        case_version=version, source_node=node_by_key[scene.key], target_node=node_by_key.get(option.target),
+        option_key=option.key, text=option.text, classification=option.classification,
+        score_delta=option.score, stress_delta=option.stress, prohibited_penalty=option.penalty,
+        immediate_feedback=option.immediate_feedback, prohibited_conduct=option.prohibited,
+        prohibition_reason=option.reason, consequence_text=option.consequence,
+        theory_basis=option.theory_basis, feedback_text=option.feedback_text,
+        effects=_dump(legacy.convert_effects(option.effects, response_class)), response_class=response_class.value,
+    )
+
+
 def _options(version, scenes, node_by_key):
     return DecisionOption.objects.bulk_create([
-        DecisionOption(
-            case_version=version, source_node=node_by_key[scene.key], target_node=node_by_key.get(option.target),
-            option_key=option.key, text=option.text, classification=option.classification,
-            score_delta=option.score, stress_delta=option.stress, prohibited_penalty=option.penalty,
-            immediate_feedback=option.immediate_feedback, prohibited_conduct=option.prohibited,
-            prohibition_reason=option.reason, consequence_text=option.consequence,
-            theory_basis=option.theory_basis, feedback_text=option.feedback_text, effects=_dump(option.effects),
-            response_class=legacy_class(option.classification, option.effects.get("severity"), option.prohibited).value,
-        )
-        for scene in scenes for option in scene.options
+        _option_row(version, scene, option, node_by_key) for scene in scenes for option in scene.options
     ])
+
+
+def _converted_rules(definition):
+    """Las ``rules`` del documento en el modelo nuevo (hitos, nivel de riesgo, finales de plantilla)."""
+    keys = legacy.milestone_keys(option.effects for scene in definition.scenes for option in scene.options)
+    return legacy.convert_rules(definition.rules, definition.code, keys)
 
 
 def _world_rows(version, scenes, node_by_key, option_by_key, character_by_key):
@@ -382,11 +395,14 @@ def write_definition(definition, *, case, actor):
     Es la inversa de ``load_definition``: el orden de cada tupla del modelo es el orden en que se crean
     las filas (y el que ``load_definition`` vuelve a leer). Debe llamarse dentro de una transacción: si
     algo falla, no queda ninguna fila.
+
+    El documento 1.0 trae severidad, banderas y métricas: las filas nacen en el modelo nuevo (clase, persona e hitos,
+    ``rules`` con hitos, nivel de riesgo y finales por clases) por ``casedef.legacy``, que es idempotente.
     """
     version = CaseVersion.objects.create(
         simulation_case=case, semantic_version=definition.semantic_version, status="DRAFT",
         narrative_context=definition.context, learning_objectives=_dump(list(definition.objectives)),
-        rules=_dump(definition.rules), world_schema_version=definition.world_schema_version, created_by=actor,
+        rules=_dump(_converted_rules(definition)), world_schema_version=definition.world_schema_version, created_by=actor,
     )
     node_by_key = {node.node_key: node for node in _nodes(version, definition.scenes)}
     characters = CaseCharacter.objects.bulk_create([

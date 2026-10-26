@@ -39,6 +39,22 @@
       "properties": {
         "secondChance": { "type": "boolean" },
         "feedbackTiming": { "enum": ["IMMEDIATE", "AT_CLOSE"] },
+        "riskLevel": { "enum": ["VARIABLE", "MODERATE", "SEVERE", "EXTREME"] },
+        "milestones": {
+          "type": "array",
+          "maxItems": 50,
+          "items": {
+            "type": "object",
+            "required": ["key"],
+            "additionalProperties": false,
+            "properties": {
+              "key": { "$ref": "#/$defs/nombreDeEfecto" },
+              "label": { "$ref": "#/$defs/texto" },
+              "description": { "$ref": "#/$defs/texto" },
+              "decisive": { "type": "boolean" }
+            }
+          }
+        },
         "metrics": {
           "type": "array",
           "maxItems": 50,
@@ -94,6 +110,19 @@
           "maxProperties": 20,
           "propertyNames": { "$ref": "#/$defs/codigoDeCompetencia" },
           "additionalProperties": { "enum": ["EN_INICIO", "EN_PROCESO", "LOGRADO", "DESTACADO"] }
+        },
+        "persona": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "bond": { "type": "integer", "minimum": -1, "maximum": 1 },
+            "activation": { "type": "integer", "minimum": -1, "maximum": 1 }
+          }
+        },
+        "milestones": {
+          "type": "array",
+          "maxItems": 20,
+          "items": { "$ref": "#/$defs/nombreDeEfecto" }
         }
       }
     },

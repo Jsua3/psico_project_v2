@@ -1,13 +1,16 @@
 """Modelo de respuesta · Las migraciones 0029 (columnas) y 0030 (datos) sobre filas reales (RN-08).
 
-La base de la prueba ya está en el esquema más reciente (``--reuse-db``), así que se llama directamente a la función
-de la ``0030`` después de devolver las filas sembradas a su forma de antes: ``response_class`` vacía e ``intensity`` en
-``MEDIUM`` (los ``effects`` y las ``rules`` que escribe la siembra ya son los antiguos). Se prueba con el caso
-SIM-VBG-001 sembrado, un intento abierto que ya tomó decisiones con el motor actual y un intento completado con su
-reporte congelado.
+La base de la prueba ya está en el esquema más reciente (``--reuse-db``) y el importador siembra SIM-VBG-001 en la
+forma NUEVA (``casedef.legacy``); la ``0030`` actúa sobre filas en la forma VIEJA. Por eso la prueba fabrica las filas
+viejas: ``case_version_id`` devuelve los ``effects`` y las ``rules`` sembradas a lo que dice el documento 1.0 (severidad,
+banderas, métricas, finales por banderas) ANTES de jugar, para que el motor actual produzca el estado antiguo de los
+intentos; y la fixture ``run`` deja además ``response_class`` vacía e ``intensity`` en ``MEDIUM`` antes de llamar
+directamente a la función de la ``0030``. Se prueba con un intento abierto que ya tomó decisiones con el motor actual
+y un intento completado con su reporte congelado.
 """
 import json
 from importlib import import_module
+from pathlib import Path
 from types import SimpleNamespace
 
 import pytest
@@ -27,7 +30,8 @@ from apps.simulation.models import (
     SimulationNode,
 )
 
-from .test_attempt_report_frozen import _decide, case_version_id, cl, completed, estudiante  # noqa: F401  (fixtures)
+from .test_attempt_report_frozen import _decide, cl, completed, estudiante  # noqa: F401  (fixtures)
+from .test_attempt_report_frozen import case_version_id as seeded_case_version_id  # noqa: F401  (fixture)
 from .test_world import _start
 
 pytestmark = [pytest.mark.django_db, pytest.mark.req("RN-08")]
@@ -36,6 +40,21 @@ migration = import_module("apps.simulation.migrations.0030_metrics_model_data")
 User = get_user_model()
 NEGATIVE = "mediacion_agresor_intentada"  # marca un acto contraindicado: no es un hito
 DECISIVE = ["riesgo_feminicidio_valorado", "medidas_proteccion_activadas", "asesoria_derechos_realizada"]
+
+
+DOCUMENT = Path(__file__).resolve().parents[1] / "data" / "cases" / "SIM-VBG-001.dsl.json"
+
+
+@pytest.fixture
+def case_version_id(seeded_case_version_id):
+    """SIM-VBG-001 sembrado, con las filas devueltas a la forma 1.0 que la ``0030`` sabe convertir."""
+    siep = json.loads(DOCUMENT.read_text(encoding="utf-8"))["x-siep"]
+    effects_by_key = {option["clave"]: option["efectos"] for scene in siep["escenas"] for option in scene["opciones"]}
+    for option in DecisionOption.objects.filter(case_version_id=seeded_case_version_id):
+        option.effects = json.dumps(effects_by_key[option.option_key], ensure_ascii=False)
+        option.save(update_fields=["effects"])
+    CaseVersion.objects.filter(pk=seeded_case_version_id).update(rules=json.dumps(siep["reglas"], ensure_ascii=False))
+    return seeded_case_version_id
 
 
 def _flags(attempt_id):
@@ -76,7 +95,7 @@ def run(completed, case_version_id, capsys):
     legacy_state = _flags(open_id)
     assert legacy_state["caseFlags"] and legacy_state["caseMetrics"]  # el intento abierto trae el estado antiguo
 
-    # Las filas sembradas, como estaban antes de la migración (los effects y las reglas de la siembra ya son antiguos).
+    # Las filas, como estaban antes de la migración (los effects y las reglas ya las devolvió ``case_version_id``).
     DecisionOption.objects.update(response_class=None)
     SimulationNode.objects.update(intensity="MEDIUM")
     assert "severity" in DecisionOption.objects.filter(case_version_id=case_version_id).first().effects
