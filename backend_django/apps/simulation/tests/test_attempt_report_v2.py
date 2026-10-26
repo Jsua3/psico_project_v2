@@ -24,8 +24,9 @@ from apps.simulation.models import (
     RubricCriterion,
     SimulationAttempt,
 )
-from apps.simulation.services import attempt_report, case_effects
+from apps.simulation.services import attempt_report
 
+from .competency_support import SEEDED_CODES, declare_all_seeded, declare_competencies
 from .test_attempt_report_frozen import (  # noqa: F401  (fixtures y ayudantes)
     BASE,
     _complete,
@@ -41,7 +42,17 @@ from .test_attempt_report_frozen import (  # noqa: F401  (fixtures y ayudantes)
 pytestmark = [pytest.mark.req("RQ-NEG-002"), pytest.mark.req("RQ-NEG-003"), pytest.mark.req("RQ-NEG-004")]
 
 NEW_KEYS = ("competencyLevels", "nonRecommendedCount", "reflectionCoverage", "keyLearningEvidence", "profileRules")
-SEEDED_COMPETENCIES = ["CONTENCION", "MARCO_NORMATIVO", "INTERVENCION_ETICA", "REFLEXION"]
+SEEDED_COMPETENCIES = list(SEEDED_CODES)
+
+
+@pytest.fixture(autouse=True)
+def seeded_declares_destacado(request):
+    """El caso sembrado no declara competencias y sin declaración no hay nivel: aquí todas declaran ``DESTACADO``.
+
+    Solo para las pruebas que juegan el caso; la que prueba «sin declaración» las quita dentro de la prueba.
+    """
+    if "case_version_id" in request.fixturenames:
+        declare_all_seeded(request.getfixturevalue("case_version_id"))
 
 
 # ─── la evidencia: puro ───────────────────────────────────────────────────────────────────────
@@ -65,7 +76,7 @@ def _decision(classification="ADEQUATE", prohibited=False, event_type="DECISION_
         ([SimpleNamespace(event_type="NODE_ENTERED", decision_option_id=None, decision_option=None, node_id=1)], 0),
     ],
 )
-def test_las_no_recomendadas_son_las_decisiones_registradas_riesgosas_inadecuadas_o_prohibidas(events, expected):
+def test_las_no_recomendadas_son_las_decisiones_registradas_con_riesgo_o_contraindicadas(events, expected):
     assert evidence.non_recommended_count(events) == expected
 
 
@@ -139,11 +150,32 @@ def test_un_recorrido_adecuado_da_destacado_en_las_competencias_de_la_rubrica(co
 
     assert [entry["code"] for entry in payload["competencyLevels"]] == SEEDED_COMPETENCIES
     assert {entry["level"] for entry in payload["competencyLevels"]} == {"DESTACADO"}
-    assert all(set(entry) == {"code", "name", "level", "basis"} and entry["name"] for entry in payload["competencyLevels"])
-    assert {entry["basis"] for entry in payload["competencyLevels"]} == {"DEFAULT"}  # el caso sembrado no declara nada
+    assert all(
+        set(entry) == {"code", "name", "level", "basis", "evidence"} and entry["name"]
+        for entry in payload["competencyLevels"]
+    )
+    assert {entry["basis"] for entry in payload["competencyLevels"]} == {"DECLARED"}
+    for entry in payload["competencyLevels"]:  # las seis decisiones del recorrido sostienen cada nivel, en orden
+        assert [item["order"] for item in entry["evidence"]] == [1, 2, 3, 4, 5, 6]
+        assert {item["level"] for item in entry["evidence"]} == {"DESTACADO"}
+        assert all(item["nodeTitle"] and item["optionText"] and item["class"] for item in entry["evidence"])
     assert payload["nonRecommendedCount"] == 0
     assert payload["reflectionCoverage"] == {"definition": "ANY", "reflections": 0, "decisionScenes": 6, "covered": False}
     assert payload["keyLearningEvidence"] is False  # no escribió ninguna reflexión
+
+
+def test_el_caso_sembrado_sin_declaraciones_deja_todas_las_competencias_sin_evidencia(estudiante, case_version_id):
+    """Revisión de foco 3, de punta a punta: sin ``effects.competencies`` nadie inventa un nivel."""
+    declare_competencies(case_version_id, {})  # quita lo que las demás pruebas declaran
+    client = cl(estudiante)
+    attempt_id, token = _start(client, case_version_id)
+    _complete(client, attempt_id, token)
+
+    _, payload = _frozen(attempt_id)
+
+    assert [entry["code"] for entry in payload["competencyLevels"]] == SEEDED_COMPETENCIES
+    assert all(e["level"] is None and e["basis"] is None and e["evidence"] == [] for e in payload["competencyLevels"])
+    assert payload["keyLearningEvidence"] is False  # sin ningún nivel no hay evidencia clave
 
 
 def test_el_reporte_sella_la_version_de_la_regla_con_la_que_se_calculo_el_perfil(completed):
@@ -198,13 +230,15 @@ def test_el_reporte_no_trae_ningun_indice_numerico_de_competencia(completed):
     assert all(entry["level"] in FormativeLevel.values for entry in payload["competencyLevels"])
 
 
-def test_una_decision_critica_registrada_deja_a_todas_en_en_proceso_y_cuenta_como_no_recomendada(
+def test_una_contraindicada_registrada_deja_a_todas_en_en_proceso_y_cuenta_como_no_recomendada(
     estudiante, case_version_id,
 ):
     client = cl(estudiante)
     attempt_id, token = _start(client, case_version_id)
     node = SimulationAttempt.objects.get(pk=attempt_id).current_node_id
-    first, second = DecisionOption.objects.filter(source_node_id=node, classification="INADEQUATE").order_by("id")[:2]
+    first, second = DecisionOption.objects.filter(
+        source_node_id=node, response_class="CONTRAINDICATED"
+    ).order_by("id")[:2]
     # la regla de segunda oportunidad: la primera respuesta mala no se aplica; la segunda (OTRA opción: repetir la
     # misma en menos de 2 s es un doble clic) queda registrada
     assert _decide(client, attempt_id, token, first.id, requestId="req-critica-0001").status_code == 200
@@ -215,34 +249,40 @@ def test_una_decision_critica_registrada_deja_a_todas_en_en_proceso_y_cuenta_com
 
     assert payload["nonRecommendedCount"] == 1
     assert {entry["level"] for entry in payload["competencyLevels"]} == {"EN_PROCESO"}  # el promedio da 4, con tope
+    assert {item["class"] for item in payload["competencyLevels"][0]["evidence"]} == {"RECOMMENDED", "CONTRAINDICATED"}
 
 
-@pytest.mark.skip(
-    reason="la severidad ya no viaja en las filas sembradas (modelo de respuesta, Tarea 4b): el reporte v3 de la "
-    "Tarea 9 reescribe el nivel por clase"
-)
-def test_una_riesgosa_con_severidad_aceptable_cuenta_como_no_recomendada_pero_no_baja_el_nivel(
+def test_una_con_riesgo_cuenta_como_no_recomendada_pero_el_nivel_es_el_que_declara_el_autor(
     estudiante, case_version_id,
 ):
-    """«No recomendada» se mide por la clasificación; el nivel, por la severidad (aquí ``acceptable`` → LOGRADO)."""
+    """«No recomendada» se mide por la clase; el nivel, por lo declarado (aquí la con riesgo declara ``LOGRADO``)."""
+    declare_all_seeded(case_version_id, "LOGRADO", response_classes=["RISKY"])
     client = cl(estudiante)
     attempt_id, token = _start(client, case_version_id)
-    first = DecisionOption.objects.filter(
-        source_node_id=SimulationAttempt.objects.get(pk=attempt_id).current_node_id, classification="ADEQUATE",
-    ).first()
-    assert _decide(client, attempt_id, token, first.id, requestId="req-adecuada-0001").status_code == 200
-    second_node = SimulationAttempt.objects.get(pk=attempt_id).current_node_id
-    risky = list(DecisionOption.objects.filter(source_node_id=second_node, classification="RISKY"))
-    accepted = next(option for option in risky if case_effects.option_severity(option) == "acceptable")
-    other = next(option for option in risky if option.id != accepted.id)
-    assert _decide(client, attempt_id, token, other.id, requestId="req-riesgosa-0001").status_code == 200  # reintento
-    assert _decide(client, attempt_id, token, accepted.id, requestId="req-riesgosa-0002").status_code == 200
-    _complete(client, attempt_id, token)
+    reached = False
+    for step in range(30):
+        attempt = SimulationAttempt.objects.get(pk=attempt_id)
+        if attempt.status != "IN_PROGRESS":
+            break
+        options = DecisionOption.objects.filter(source_node_id=attempt.current_node_id).order_by("id")
+        risky, contraindicated = options.filter(response_class="RISKY").first(), options.filter(
+            response_class="CONTRAINDICATED"
+        ).first()
+        if not reached and risky is not None and contraindicated is not None:
+            reached = True  # la contraindicada concede la segunda oportunidad (no se aplica); la con riesgo SÍ se registra
+            assert _decide(client, attempt_id, token, contraindicated.id, requestId="req-reintento-0001").status_code == 200
+            chosen = risky
+        else:
+            chosen = options.filter(response_class="RECOMMENDED").first() or options.first()
+        assert _decide(client, attempt_id, token, chosen.id, requestId=f"req-paso-{step:04d}-id").status_code == 200
+    assert reached and SimulationAttempt.objects.get(pk=attempt_id).status == "COMPLETED"
 
     _, payload = _frozen(attempt_id)
 
     assert payload["nonRecommendedCount"] == 1
     assert {entry["level"] for entry in payload["competencyLevels"]} == {"DESTACADO"}  # (5 × 4 + 3) / 6 = 3,8 → 4
+    risky_evidence = [i for i in payload["competencyLevels"][0]["evidence"] if i["class"] == "RISKY"]
+    assert len(risky_evidence) == 1 and risky_evidence[0]["level"] == "LOGRADO"
 
 
 def test_con_una_reflexion_hay_cobertura_y_evidencia_clave(estudiante, case_version_id):

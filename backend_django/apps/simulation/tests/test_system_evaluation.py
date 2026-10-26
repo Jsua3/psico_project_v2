@@ -32,6 +32,7 @@ from apps.simulation.models import (
 from apps.simulation.services import attempt_report, game_service
 from shared.testing import measure, run_concurrently
 
+from .competency_support import declare_all_seeded, declare_competencies
 from .test_attempt_concurrency import _option, committed_attempt  # noqa: F401  (fixture)
 from .test_attempt_report_frozen import (  # noqa: F401  (fixtures y ayudantes)
     BASE,
@@ -56,10 +57,17 @@ def _system(attempt_id):
 
 def _declare_competencies(case_version_id, competencies):
     """Todas las opciones del caso declaran el mismo mapa de competencias (se conservan sus demás efectos)."""
-    for option in DecisionOption.objects.filter(case_version_id=case_version_id):
-        effects = json.loads(option.effects) if option.effects else {}
-        effects["competencies"] = competencies
-        DecisionOption.objects.filter(pk=option.pk).update(effects=json.dumps(effects))
+    declare_competencies(case_version_id, competencies)
+
+
+@pytest.fixture(autouse=True)
+def seeded_declares_destacado(request):
+    """El caso sembrado no declara competencias y sin declaración no hay nivel: aquí todas declaran ``DESTACADO``.
+
+    No aplica a las pruebas con commits reales (``real_commits``): esas no deben escribir en la siembra.
+    """
+    if "real_commits" not in request.fixturenames:
+        declare_all_seeded(request.getfixturevalue("case_version_id"))
 
 
 @pytest.fixture
@@ -313,6 +321,8 @@ def test_dos_cierres_a_la_vez_dejan_una_sola_evaluacion(committed_attempt):
     attempt = SimulationAttempt.objects.get(pk=a.attempt_id)
     assert attempt.status == "COMPLETED"
     report = attempt_report.frozen_report_for(attempt.id)
+    # el caso sembrado no declara competencias (sin declaración no hay nivel): el reporte de esta prueba trae niveles
+    report["competencyLevels"] = [{"code": code, "level": "DESTACADO"} for code in SEEDED]
     _system(attempt.id).delete()
 
     outcomes = run_concurrently(

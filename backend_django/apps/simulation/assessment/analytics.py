@@ -145,14 +145,23 @@ def _improvement(series, k):
 
 
 def _first_vs_second(series, k):
-    """RQ-NEG-003 · las no recomendadas del primer y del segundo intento v2 de cada serie de al menos dos."""
+    """RQ-NEG-003 · las no recomendadas de los dos primeros intentos medidos que comparten ``schemaVersion``, de cada serie.
+
+    Un reporte v2 contaba «no recomendadas» por clasificación y uno v3 por clase: restar uno del otro no mide nada. Por
+    eso solo se empareja lo cerrado con el mismo ``schemaVersion`` (el primer par que lo comparte, en orden de intento);
+    una serie cuyos intentos medidos son todos de versiones distintas no aporta nada.
+    """
     firsts, seconds, students = [], [], set()
     for group in series:
-        measured = [row for row in group if row.non_recommended is not None]
-        if len(measured) >= 2:
-            firsts.append(measured[0].non_recommended)
-            seconds.append(measured[1].non_recommended)
-            students.add(measured[0].student_id)
+        by_version = defaultdict(list)
+        for row in group:
+            if row.non_recommended is not None:
+                by_version[row.schema_version].append(row)
+        pair = next((rows[:2] for rows in by_version.values() if len(rows) >= 2), None)
+        if pair is not None:
+            firsts.append(pair[0].non_recommended)
+            seconds.append(pair[1].non_recommended)
+            students.add(pair[0].student_id)
     if len(students) < k:
         return None
     first, second = _mean(firsts), _mean(seconds)

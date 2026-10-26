@@ -84,14 +84,14 @@ def test_cada_fila_trae_lo_que_el_reporte_la_evaluacion_el_evento_y_la_encuesta_
 
     assert rows[str(first.id)] == AttemptRow(
         attempt_id=str(first.id), student_id=who.id, case_id=world.case_a.id, started_at=T, ordinal=1, schema_version=2,
-        levels=("EN_INICIO", "EN_PROCESO"), non_recommended=3, reflection_definition="ANY", profile_rules="borrador-1",
+        levels=("EN_INICIO", "EN_PROCESO"), non_recommended=3, reflection_definition="ANY", profile_rules="borrador-2",
         reflection_covered=False, key_evidence=False, system_evaluated=True, teacher_commented=True,
         feedback_viewed_at=T + timedelta(days=1), rating=4,
     )
     assert rows[str(second.id)] == AttemptRow(
         attempt_id=str(second.id), student_id=who.id, case_id=world.case_a.id, started_at=T + timedelta(days=2), ordinal=2,
         schema_version=2, levels=("LOGRADO",), non_recommended=1, reflection_definition="PER_DECISION_SCENE",
-        profile_rules="borrador-1", reflection_covered=True, key_evidence=True, system_evaluated=False,
+        profile_rules="borrador-2", reflection_covered=True, key_evidence=True, system_evaluated=False,
         teacher_commented=False,
         feedback_viewed_at=None, rating=None,
     )
@@ -218,7 +218,7 @@ def test_el_sello_de_la_regla_del_perfil_se_lee_solo_si_es_texto(world):
 
     rules = {row.student_id: row.profile_rules for row in analytics.load_rows({stamped.id, unstamped.id, odd.id})}
 
-    assert rules == {stamped.id: "borrador-1", unstamped.id: None, odd.id: None}
+    assert rules == {stamped.id: "borrador-2", unstamped.id: None, odd.id: None}
 
 
 def test_una_evaluacion_pendiente_del_docente_no_cuenta_como_evaluada_con_comentario(world):

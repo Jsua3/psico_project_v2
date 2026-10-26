@@ -19,6 +19,7 @@ from django.db.migrations.executor import MigrationExecutor
 
 from apps.simulation.models import CriterionScore, RubricCriterion, RubricEvaluation
 
+from .competency_support import declare_all_seeded
 from .test_attempt_concurrency import _option, committed_attempt  # noqa: F401  (fixture)
 from .test_attempt_report_frozen import (  # noqa: F401  (fixtures y ayudantes)
     case_version_id,
@@ -66,6 +67,12 @@ def _constraint_names():
             "UNION SELECT indexname FROM pg_indexes WHERE tablename = 'rubric_evaluations'"
         )
         return {name for (name,) in cursor.fetchall()}
+
+
+@pytest.fixture(autouse=True)
+def seeded_declares_destacado(case_version_id):
+    """El caso sembrado no declara competencias y sin declaración no hay nivel ni evaluación del sistema."""
+    declare_all_seeded(case_version_id)
 
 
 @pytest.fixture

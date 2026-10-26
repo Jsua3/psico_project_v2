@@ -5,6 +5,21 @@ esperadas están calculadas A MANO en la tabla de abajo y NO se copian de la sal
 cambia, esta prueba falla a propósito y obliga a revisar la documentación (``docs/operacion/analitica-de-aprendizaje.md``).
 Un grupo de 4 estudiantes de esa misma cohorte no revela ninguna cifra (celda mínima), ni con filtros ni sin ellos.
 
+Tarea 8 (modelo de respuesta, ``borrador-2``): los niveles y las no recomendadas de esta cohorte NO se derivaron de
+severidades ni de «aporte a todas»: el constructor (``analytics_support.v2_report``) inyecta directamente los reportes
+congelados ya calculados (``levels``, ``non_recommended``), sin jugar ni leer opciones. Lo que la Tarea 8 cambia en la
+analítica solo puede tocar dos cosas de esta cohorte, y se revisaron a mano:
+
+  - ``PROFILE_RULES`` pasa de ``borrador-1`` a ``borrador-2``: el constructor sella cada reporte con la versión VIGENTE, así
+    que los 40 reportes siguen coincidiendo con la regla y ningún bloque de niveles los deja fuera; la única cifra que
+    cambia es ``definitions.profileRules`` (``"borrador-2"``).
+  - ``firstVsSecond`` ahora solo empareja filas del MISMO ``schemaVersion``: los 40 reportes son ``schemaVersion 2``
+    (columna y JSON), así que las 20 series siguen emparejando su 1.º y su 2.º intento y los números de ``firstVsSecond``
+    (3.9 · 2.7 · −30.8) no cambian. El caso mezclado (v2 con v3) no existe aquí: lo cubre ``test_competencies_by_class``.
+
+Todas las cifras de la derivación de abajo se conservan idénticas: la suma 37 y 60.5 de los índices, 78 y 54 de las no
+recomendadas, 14 de 20, 24 de 40, 32 y 20 de 40, 17 respuestas y 13 pares valen lo mismo que antes de la Tarea 8.
+
 Además, una prueba de punta a punta: un intento JUGADO de verdad por la API produce el reporte v2, la evaluación del
 sistema, el evento de retroalimentación y la encuesta, y la lectura de la analítica los entiende (si el formato del
 reporte cambia sin que cambie la lectura, esa prueba falla).
@@ -52,7 +67,15 @@ from apps.simulation.tests.analytics_support import (
     v2_report,
 )
 
-from .test_attempt_report_frozen import BASE, case_version_id, cl, completed, estudiante  # noqa: F401  (fixtures)
+from .competency_support import declare_all_seeded
+from .test_attempt_report_frozen import (  # noqa: F401  (fixtures y ayudantes)
+    BASE,
+    _complete,
+    _start,
+    case_version_id,
+    cl,
+    estudiante,
+)
 
 pytestmark = [
     pytest.mark.req("RQ-NEG-001"), pytest.mark.req("RQ-NEG-002"), pytest.mark.req("RQ-NEG-003"),
@@ -95,7 +118,7 @@ EXPECTED = {
     "improvementAfterFeedback": {"students": 13, "pairs": 13, "deltaPct": 42.3},
     "definitions": {
         "status": "BORRADOR", "acceptableLevel": LOG, "minCell": 5, "reflectionDefinition": "ANY",
-        "profileRules": "borrador-1",
+        "profileRules": "borrador-2",
     },
 }
 
@@ -212,10 +235,13 @@ def test_el_comentario_de_la_encuesta_y_el_del_docente_no_salen_en_ninguna_respu
 
 
 # ─── de punta a punta: un intento jugado de verdad alimenta la analítica ───────────────────────
-def test_un_intento_jugado_de_verdad_alimenta_la_analitica(completed, settings):
+def test_un_intento_jugado_de_verdad_alimenta_la_analitica(estudiante, case_version_id, settings):
     """Cierra el intento por la API, abre el reporte (evento) y responde la encuesta: la lectura entiende todo eso."""
     settings.ATTEMPT_FEEDBACK_SURVEY = True
-    client, attempt_id, _ = completed
+    declare_all_seeded(case_version_id)  # el caso sembrado no declara competencias: sin declaración no hay niveles
+    client = cl(estudiante)
+    attempt_id, token = _start(client, case_version_id)
+    _complete(client, attempt_id, token)
     attempt = SimulationAttempt.objects.get(pk=attempt_id)
     assert client.get(f"{BASE}/attempts/{attempt_id}/student-report").status_code == 200  # FEEDBACK_VIEWED
     assert client.post(f"{BASE}/attempts/{attempt_id}/feedback", {"rating": 5, "comment": "Útil"}, format="json").status_code == 201

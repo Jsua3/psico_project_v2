@@ -1,8 +1,8 @@
 """E6-1a · Las competencias en los efectos de una opción (RQ-NEG-001, RQ-NEG-002; mesa §A20, R4 de la fase).
 
 Una opción puede declarar a qué competencias aporta y con qué nivel (``effects.competencies``,
-``{CÓDIGO: NIVEL}``). Sin esa declaración el perfil por competencia usa la severidad de la opción para todas las
-de la rúbrica; con ella, la opción aporta SOLO a las que lista (E6-1b). Es un dato del caso: viaja en el editor,
+``{CÓDIGO: NIVEL}``). La opción aporta SOLO a las que lista y con esos niveles (E6-1b); sin esa declaración no aporta a
+ninguna competencia (``borrador-2``, ver ``test_competencies_by_class``). Es un dato del caso: viaja en el editor,
 en el documento DSL (``x-siep``) y en la huella, y un caso que no lo usa conserva su documento y su huella tal cual.
 
 Leer es indulgente (descarta lo mal formado, nunca lanza: una versión con datos rotos no rompe una partida) y
@@ -156,7 +156,11 @@ def test_el_esquema_de_x_siep_rechaza_competencias_mal_formadas(competencies):
 
 
 def test_el_caso_sembrado_no_gana_la_clave_ni_cambia_su_documento(db):
-    """Una opción sin competencias exporta exactamente lo de antes: el hash de lo sellado no se mueve."""
+    """Una opción sin competencias exporta exactamente lo de antes: el hash de lo sellado no se mueve.
+
+    El caso sembrado (con sus efectos ya en el modelo de respuesta: persona e hitos) no declara ninguna competencia, así
+    que su perfil sale «sin evidencia» hasta que un autor las declare en una versión nueva.
+    """
     seeded = CaseVersion.objects.get(simulation_case__code="SIM-VBG-001", status="PUBLISHED")
 
     document = definition_io.export_definition(seeded.id)

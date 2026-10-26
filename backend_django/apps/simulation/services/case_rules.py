@@ -237,8 +237,8 @@ def effects_of(decision):
 def competency_overrides(decision):
     """``{código de competencia: nivel}`` que la opción declara (E6-1a), o ``{}``.
 
-    A qué competencias aporta la opción y con qué nivel; sin esto aporta a todas las de la rúbrica con el nivel de
-    su severidad (ver ``assessment.competencies``). No forma parte de ``case_effects.option_effects``.
+    A qué competencias aporta la opción y con qué nivel; sin esto no aporta a ninguna (ver ``assessment.competencies``).
+    No forma parte de ``case_effects.option_effects``.
     """
     return effects_of(decision).get("competencies", {})
 
