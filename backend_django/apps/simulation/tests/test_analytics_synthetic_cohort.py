@@ -20,6 +20,15 @@ analítica solo puede tocar dos cosas de esta cohorte, y se revisaron a mano:
 Todas las cifras de la derivación de abajo se conservan idénticas: la suma 37 y 60.5 de los índices, 78 y 54 de las no
 recomendadas, 14 de 20, 24 de 40, 32 y 20 de 40, 17 respuestas y 13 pares valen lo mismo que antes de la Tarea 8.
 
+Tarea 13 (cobertura por hito): solo los 2.os intentos traen ``milestones.done`` (los 1.os no, y un reporte sin hitos
+no suma ni resta). Cumplieron: A (6) riesgo · protección · B (5) riesgo · protección · C (4) riesgo · D (3) riesgo ·
+protección · derechos · E (2) ninguno. Los 20 estudiantes aportan un intento con hitos, así que el porcentaje viaja
+(≥ 20) y la consulta sin versión lista los hitos observados por clave, en orden alfabético (etiqueta = clave):
+
+  derechos   3 de 20 = 15.0 % → MENOS_DE_LA_MITAD
+  proteccion 6 + 5 + 3 = 14 de 20 = 70.0 % → MAYORIA
+  riesgo     6 + 5 + 4 + 3 = 18 de 20 = 90.0 % → MAYORIA
+
 Además, una prueba de punta a punta: un intento JUGADO de verdad por la API produce el reporte v3 (Tarea 9), la evaluación
 del sistema, el evento de retroalimentación y la encuesta, y la lectura de la analítica los entiende (si el formato del
 reporte cambia sin que cambie la lectura, esa prueba falla). El reporte v3 comparte con el v2 las claves que la analítica
@@ -92,19 +101,20 @@ SECOND_START = T0 + timedelta(days=3)
 #: ``late``: cuántos DESPUÉS; ``rated``: cuántos respondieron la encuesta (con ``rating``) tras el 2.º intento.
 CLASSES = [
     {"name": "A", "size": 6, "one": dict(levels=(INI, PRO), non_recommended=5, covered=False, key=False),
-     "two": dict(levels=(LOG, LOG), non_recommended=3, covered=True, key=True),
+     "two": dict(levels=(LOG, LOG), non_recommended=3, covered=True, key=True, milestones_done=("riesgo", "proteccion")),
      "system": ("EVALUATED", "EVALUATED"), "comment": (True, True), "viewed": 6, "late": 0, "rated": 6, "rating": 5},
     {"name": "B", "size": 5, "one": dict(levels=(PRO, PRO), non_recommended=4, covered=True, key=True),
-     "two": dict(levels=(LOG, DES), non_recommended=2, covered=True, key=True),
+     "two": dict(levels=(LOG, DES), non_recommended=2, covered=True, key=True, milestones_done=("riesgo", "proteccion")),
      "system": ("EVALUATED", "EVALUATED"), "comment": (False, True), "viewed": 3, "late": 2, "rated": 5, "rating": 4},
     {"name": "C", "size": 4, "one": dict(levels=(INI,), non_recommended=6, covered=False, key=False),
-     "two": dict(levels=(PRO,), non_recommended=5, covered=False, key=False),
+     "two": dict(levels=(PRO,), non_recommended=5, covered=False, key=False, milestones_done=("riesgo",)),
      "system": ("PENDING", "EVALUATED"), "comment": (False, False), "viewed": 0, "late": 0, "rated": 3, "rating": 2},
     {"name": "D", "size": 3, "one": dict(levels=(LOG, LOG), non_recommended=0, covered=True, key=True),
-     "two": dict(levels=(DES, DES), non_recommended=0, covered=True, key=True),
+     "two": dict(levels=(DES, DES), non_recommended=0, covered=True, key=True,
+                 milestones_done=("riesgo", "proteccion", "derechos")),
      "system": ("EVALUATED", "EVALUATED"), "comment": (True, False), "viewed": 3, "late": 0, "rated": 3, "rating": 3},
     {"name": "E", "size": 2, "one": dict(levels=(PRO, LOG), non_recommended=2, covered=True, key=True),
-     "two": dict(levels=(PRO, LOG), non_recommended=3, covered=False, key=False),
+     "two": dict(levels=(PRO, LOG), non_recommended=3, covered=False, key=False, milestones_done=()),
      "system": (None, None), "comment": (False, False), "viewed": 1, "late": 0, "rated": 0, "rating": None},
 ]
 
@@ -118,6 +128,11 @@ EXPECTED = {
     "evaluated": {"attempts": 40, "systemPct": 80.0, "commentedPct": 50.0},
     "satisfaction": {"responses": 17, "satisfiedPct": 64.7},
     "improvementAfterFeedback": {"students": 13, "pairs": 13, "deltaPct": 42.3},
+    "milestones": [
+        {"key": "derechos", "label": "derechos", "decisive": False, "share": 15.0, "category": "MENOS_DE_LA_MITAD"},
+        {"key": "proteccion", "label": "proteccion", "decisive": False, "share": 70.0, "category": "MAYORIA"},
+        {"key": "riesgo", "label": "riesgo", "decisive": False, "share": 90.0, "category": "MAYORIA"},
+    ],
     "definitions": {
         "status": "BORRADOR", "acceptableLevel": LOG, "minCell": 5, "reflectionDefinition": "ANY",
         "profileRules": "borrador-2",

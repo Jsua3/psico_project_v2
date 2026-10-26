@@ -7,7 +7,7 @@ del caso); ambos se retiran en la Tarea 16. ``resolve`` es puro: lee los datos d
 """
 from dataclasses import dataclass
 
-from apps.simulation.casedef.vocabulary import DEFAULT_PERSONA_STEP, ResponseClass
+from apps.simulation.casedef.vocabulary import ResponseClass
 
 from . import case_rules, case_state
 from .world_state import ensure_world_state
@@ -33,14 +33,9 @@ def resolve(decision) -> ResponseEffects:
     """
     response_class = case_state.response_class_of(decision)
     entry = case_rules.effects_of(decision)
-    declared = entry.get("persona")
-    if declared:
-        persona_step = (declared.get("bond", 0), declared.get("activation", 0))
-    else:
-        persona_step = DEFAULT_PERSONA_STEP[response_class]
     return ResponseEffects(
         response_class=response_class,
-        persona_step=persona_step,
+        persona_step=case_state.persona_step_of(decision),
         milestones=tuple(dict.fromkeys(entry.get("milestones", ()))),
         revictimization=response_class is ResponseClass.CONTRAINDICATED,
     )

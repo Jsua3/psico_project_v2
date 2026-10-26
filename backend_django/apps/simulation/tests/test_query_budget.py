@@ -60,7 +60,7 @@ QUERY_BUDGETS = {
     "get_student_report_completed": 3,  # (1) la primera lectura del dueño de un intento completado escribe el evento
     # S4-1: 15 → 16 a propósito. Leer el reporte de un grupo es leer datos de otras personas y deja UNA fila de
     # auditoría (`reporte.leer`, RNF-007): es el INSERT de `audit_logs`, la única escritura. Las 15 de lectura no cambian.
-    "get_group_report": 16,  # (1) crece con el grupo: E5-6 lo pagina
+    "get_group_report": 13,  # (1) crece con el grupo: E5-6 lo pagina
 }
 TIMED_REPEATS = 5  # los GET se repiten para sacar la mediana de milisegundos
 PATH_TO_FAMILIA = ((340, 430), (250, 430))

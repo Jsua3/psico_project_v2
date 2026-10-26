@@ -21,18 +21,6 @@ SAFE_EXIT_RESOURCES = [
 ]
 
 
-def metrics(attempt):
-    # TRANSITORIO: solo lo lee la traza docente (``instructor_service.trace``); se retira con ella en la Tarea 13.
-    return {
-        "professionalScore": attempt.accumulated_score,
-        "sceneStress": attempt.stress_index,
-        "victimRisk": attempt.victim_risk,
-        "userTrust": attempt.user_trust,
-        "institutionalRouteActivated": attempt.institutional_route_activated,
-        "revictimizationRisk": attempt.revictimization_risk,
-    }
-
-
 def case_summary(version, node_count):
     case = version.simulation_case
     return {

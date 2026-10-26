@@ -121,8 +121,7 @@ def test_un_profesor_sin_estudiantes_ve_el_tablero_vacio(otro_profesor, estudian
     assert data["intentosRecientes"] == []
     assert data["simulacionesCompletadas"] == 0
     assert data["simulacionesEnProgreso"] == 0
-    assert data["decisionesAdecuadas"] == 0
-    assert data["puntajePromedioGlobal"] == 0
+    assert data["decisiones"] == {"recommended": 0, "acceptable": 0, "risky": 0, "contraindicated": 0}
 
 
 def test_el_tablero_del_admin_sigue_siendo_global(admin, estudiante, ajeno, case_version_id):

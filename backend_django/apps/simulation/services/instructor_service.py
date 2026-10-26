@@ -26,7 +26,7 @@ from ..models import (
     SimulationAttempt,
 )
 from . import attempt_lifecycle as lifecycle
-from . import case_effects, case_state, crypto_service, world_service
+from . import attempt_report, case_effects, case_state, crypto_service, world_service
 from . import rubric_service
 from .attempt_lock import lock_attempt_row
 from .attempt_replacement import replace_open_attempt
@@ -122,8 +122,6 @@ def list_attempts(
             "caseVersionStatus": a.case_version.status,
             "caseTitle": a.case_version.simulation_case.title,
             "status": a.status,
-            "accumulatedScore": a.accumulated_score,
-            "stressIndex": a.stress_index,
             "activeSeconds": int(round(a.active_seconds or 0)),
             "startedAt": _dt(a.started_at),
             "endedAt": _dt(a.ended_at),
@@ -157,8 +155,6 @@ def recent_attempts(instructor):
             "studentAlias": _anonymize(a, instructor=instructor),
             "caseTitle": a.case_version.simulation_case.title,
             "status": a.status,
-            "accumulatedScore": a.accumulated_score,
-            "stressIndex": a.stress_index,
             "startedAt": _dt(a.started_at),
         }
         for a in attempts
@@ -192,22 +188,36 @@ def _bitacora_del_reporte(bitacora):
     }
 
 
-def _legacy_decision_counts(events):
-    """Las decisiones registradas por clasificación antigua, como las contaba el reporte de cierre antes de la v3.
+def _persona_por_escena(events):
+    """La persona consultante DESPUÉS de cada decisión registrada, escena a escena: ``[{nodeId, nodeTitle, bond,
+    activation, label}]``. Recalculada sobre los eventos con la regla del juego (``case_state.persona_trail``)."""
+    decisions = [
+        ev for ev in events
+        if ev.decision_option_id and ev.event_type in case_effects.REGISTERED_DECISION_EVENT_TYPES
+    ]
+    trail = case_state.persona_trail(ev.decision_option for ev in decisions)
+    return [
+        {"nodeId": ev.node_id, "nodeTitle": ev.node.title if ev.node_id else "", **case_state.persona_dto(persona)}
+        for ev, persona in zip(decisions, trail)
+    ]
 
-    TRANSITORIO: la traza docente conserva su forma hasta la Tarea 13, que la pasa a clases e hitos y borra esto.
-    Los reintentos no cuentan.
+
+def _valoracion_del_sistema(attempt, evaluations):
+    """``(systemEvaluation, systemEvaluationAvailable)``: la valoración automática, plegada hasta que el docente guarda la suya.
+
+    Verla antes ancla el juicio de quien revisa. Se muestra solo cuando el intento ya tiene una evaluación del DOCENTE
+    concluida (``EVALUATED``); entonces trae el resumen del sistema y su perfil por competencia con la evidencia de
+    cada una. Antes, ``None`` y ``available`` dice si hay algo que mostrar (para «se mostrará cuando registres tu
+    valoración»).
     """
-    counts = {"ADEQUATE": 0, "RISKY": 0, "INADEQUATE": 0, "PROHIBITED": 0}
-    for event in events:
-        if event.decision_option_id is None or event.event_type not in case_effects.REGISTERED_DECISION_EVENT_TYPES:
-            continue
-        option = event.decision_option
-        if option.classification in counts:
-            counts[option.classification] += 1
-        if option.prohibited_conduct:
-            counts["PROHIBITED"] += 1
-    return counts
+    system = next((ev for ev in evaluations if ev.origin == EvaluationOrigin.SISTEMA), None)
+    if system is None:
+        return None, False
+    if not any(ev.origin == EvaluationOrigin.DOCENTE and ev.status == "EVALUATED" for ev in evaluations):
+        return None, True
+    summary = rubric_service.evaluation_summary(system)
+    summary["competencyLevels"] = attempt_report.report_for(attempt).get("competencyLevels", [])
+    return summary, True
 
 
 @transaction.atomic
@@ -219,7 +229,6 @@ def trace(attempt_id, instructor=None):
         .order_by("occurred_at", "id")
     )
     report = dto.build_completion_report(attempt, events, class_of=case_state.response_class_of)
-    legacy = _legacy_decision_counts(events)
     evaluations = list(
         RubricEvaluation.objects.filter(attempt_id=attempt_id).select_related("rubric").order_by("-evaluated_at")
     )
@@ -228,22 +237,24 @@ def trace(attempt_id, instructor=None):
         last_at = events[-1].occurred_at
         if last_at:
             total_duration = int((last_at - attempt.started_at).total_seconds())
+    system_evaluation, system_available = _valoracion_del_sistema(attempt, evaluations)
     return {
         "attemptId": str(attempt.id),
         "studentAlias": _anonymize(attempt, instructor=instructor),
         "caseTitle": attempt.case_version.simulation_case.title,
         "status": attempt.status,
-        "accumulatedScore": attempt.accumulated_score,
-        "stressIndex": attempt.stress_index,
-        "metrics": dto.metrics(attempt),
         "startedAt": _dt(attempt.started_at),
         "endedAt": _dt(attempt.ended_at),
-        "adequateDecisions": legacy["ADEQUATE"],
-        "riskyDecisions": legacy["RISKY"],
-        "inadequateDecisions": legacy["INADEQUATE"],
-        "prohibitedDecisions": legacy["PROHIBITED"],
-        # Primeras respuestas que el juego no aplicó (regla de reintento): no entran en los contadores de
-        # arriba; sin esto la fila «reintento» de la línea de tiempo contradice el contador de contraindicadas.
+        # Cuántas decisiones registradas hubo de cada clase, los hitos cumplidos y los que faltaron, y el final.
+        "counts": case_state.counts(
+            ev.decision_option for ev in events
+            if ev.decision_option_id and ev.event_type in case_effects.REGISTERED_DECISION_EVENT_TYPES
+        ),
+        "milestones": attempt_report.build_milestones(attempt),
+        "personaPorEscena": _persona_por_escena(events),
+        "ending": report["ending"],
+        # Primeras respuestas que el juego no aplicó (regla de reintento): no entran en `counts`; sin esto la fila
+        # «reintento» de la línea de tiempo contradice el conteo de contraindicadas.
         "retries": report["retries"],
         "prohibitedRetries": report["prohibitedRetries"],
         "safeExitUsed": report["safeExitUsed"],
@@ -257,14 +268,13 @@ def trace(attempt_id, instructor=None):
             _bitacora_del_reporte(r)
             for r in ReflectionJournal.objects.filter(attempt_id=attempt_id).select_related("node")
         ],
-        # Solo las del docente: el cliente marca «evaluación aplicada» si alguna trae nivel (E6-1e, R7). La evaluación
-        # automática del sistema va aparte, en ``systemEvaluation`` (nula si el intento no la tiene).
+        # Solo las del docente: el cliente marca «evaluación aplicada» si alguna trae nivel (E6-1e, R7).
         "rubricEvaluations": [
             rubric_service.evaluation_summary(ev) for ev in evaluations if ev.origin != EvaluationOrigin.SISTEMA
         ],
-        "systemEvaluation": next(
-            (rubric_service.evaluation_summary(ev) for ev in evaluations if ev.origin == EvaluationOrigin.SISTEMA), None
-        ),
+        # La valoración automática va plegada hasta que el docente guarde la suya (ver ``_valoracion_del_sistema``).
+        "systemEvaluation": system_evaluation,
+        "systemEvaluationAvailable": system_available,
     }
 
 
@@ -322,14 +332,12 @@ save_rubric = auditable("rubrica.evaluar", "ATTEMPT")(save_rubric)
 
 # ─── DTO builders ─────────────────────────────────────────────────────────────
 def _to_trace_event(event):
-    classification = event.decision_option.classification if event.decision_option_id else None
+    response_class = case_state.response_class_of(event.decision_option) if event.decision_option_id else None
     return {
         "type": event.event_type,
-        "classification": classification,
+        "class": response_class.value if response_class else None,
         "nodeTitle": event.node.title if event.node_id else None,
         "decisionText": event.decision_option.text if event.decision_option_id else None,
-        "scoreDelta": event.score_delta,
-        "stressDelta": event.stress_delta,
         "detail": event.detail,
         "occurredAt": _dt(event.occurred_at),
     }

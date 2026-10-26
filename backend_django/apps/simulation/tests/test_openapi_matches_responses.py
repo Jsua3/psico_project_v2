@@ -305,7 +305,8 @@ def _analytics_cohort(world):
     version = CaseVersion.objects.get(pk=world.version_id)
     rubric = Rubric.objects.create(case_version=version, name="Rúbrica de contrato", active=True, created_by=world.admin)
     first = {"levels": ("EN_INICIO", "EN_PROCESO"), "non_recommended": 4, "covered": False, "key": False}
-    second = {"levels": ("LOGRADO", "LOGRADO"), "non_recommended": 2, "covered": True, "key": True}
+    second = {"levels": ("LOGRADO", "LOGRADO"), "non_recommended": 2, "covered": True, "key": True,
+              "milestones_done": ("riesgo_valorado",)}
     for index in range(5):
         who = make_student(f"ctr{index}")
         GrupoEstudiante.objects.create(grupo_id=world.grupo_id, estudiante=who, status=MembershipStatus.ACTIVE)

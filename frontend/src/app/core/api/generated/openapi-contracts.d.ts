@@ -97,6 +97,19 @@ export interface AnalyticsKeyEvidence {
   readonly pct: number;
 }
 
+/** Cobertura de un hito del caso entre los intentos cerrados que traen hitos (reporte v3): ¿lo cumplió la mayoría? */
+export interface AnalyticsMilestone {
+  /** `MAYORIA` si al menos la mitad de los intentos lo cumplió. */
+  readonly category: CategoryEnum;
+  /** Verdadero si el hito decide el final del caso. */
+  readonly decisive: boolean;
+  readonly key: string;
+  /** La del caso; si la consulta abarca varias versiones, la propia clave. */
+  readonly label: string;
+  /** Solo con 20 estudiantes distintos o más; antes, nulo (un porcentaje identifica a personas). Porcentaje de 0 a 100, con un decimal. */
+  readonly share: number | null;
+}
+
 /** RQ-NEG-003 · intentos con reflexión, según la definición vigente (los cerrados con otra no se mezclan). */
 export interface AnalyticsReflection {
   readonly attempts: number;
@@ -375,6 +388,8 @@ export interface CaseValidationEnvelope {
 
 export type CaseVersionStatusEnum = 'DRAFT' | 'IN_REVIEW' | 'PUBLISHED' | 'ARCHIVED';
 
+export type CategoryEnum = 'MAYORIA' | 'MENOS_DE_LA_MITAD';
+
 /** La constancia de Psicología vista desde la lista: si existe y, cuando existe, sus datos. */
 export interface ChecklistContentReview {
   readonly fulfilled: boolean;
@@ -544,7 +559,6 @@ export interface ImportRejectedEnvelope {
 
 /** Un intento en la revisión docente. El estudiante se identifica solo por su alias (nunca por su id). */
 export interface InstructorAttemptItem {
-  readonly accumulatedScore: number;
   readonly activeSeconds: number;
   readonly attemptId: string;
   readonly caseTitle: string;
@@ -555,7 +569,6 @@ export interface InstructorAttemptItem {
   /** Hora local del servidor (America/Bogota), sin zona horaria. */
   readonly startedAt: string;
   readonly status: AttemptStatusEnum;
-  readonly stressIndex: number;
   /** `Estudiante-<hash>`: el mismo en todas las vistas del docente. */
   readonly studentAlias: string;
 }
@@ -617,6 +630,7 @@ export interface LearningAnalytics {
   readonly improvement?: AnalyticsImprovement;
   readonly improvementAfterFeedback?: AnalyticsImprovementAfterFeedback;
   readonly keyEvidence?: AnalyticsKeyEvidence;
+  readonly milestones?: ReadonlyArray<AnalyticsMilestone>;
   readonly reflectionCoverage?: AnalyticsReflection;
   readonly satisfaction?: AnalyticsSatisfaction;
 }

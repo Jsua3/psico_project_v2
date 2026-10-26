@@ -11,7 +11,7 @@ Contrato:
 """
 from django.contrib.auth import get_user_model
 
-from apps.reportes.services import SCORED_STATUSES, _estudiante_sim_dto
+from apps.reportes.services import _estudiante_sim_dto
 from apps.simulation.models import AttemptEvent, ReflectionJournal, SimulationAttempt
 
 from .test_game import assign_case_to_student, case_version_id, cl, estudiante  # noqa: F401
@@ -251,11 +251,9 @@ def test_reporte_pausado_es_honesto(estudiante, case_version_id):
     assert "pausa" in report["summaryMessage"].lower()
 
 
-def test_pausados_excluidos_del_score_docente(estudiante, case_version_id):
-    assert "PAUSED" not in SCORED_STATUSES
-
-    paused = SimulationAttempt(status="PAUSED", accumulated_score=80)
-    completed = SimulationAttempt(status="COMPLETED", accumulated_score=40)
+def test_el_estudiante_del_reporte_docente_no_lleva_puntaje_y_cuenta_la_pausa(estudiante, case_version_id):
+    paused = SimulationAttempt(status="PAUSED")
+    completed = SimulationAttempt(status="COMPLETED")
     dto = _estudiante_sim_dto(estudiante, [paused, completed])
-    assert dto["puntajePromedio"] == 40.0, "el intento pausado no contamina el promedio"
+    assert "puntajePromedio" not in dto
     assert dto["intentosEnPausa"] == 1

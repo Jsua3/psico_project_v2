@@ -12,6 +12,7 @@ Sustituye las funciones de estado de ``case_effects`` (``read_case_state``, ``ap
 from dataclasses import dataclass
 
 from apps.simulation.casedef.vocabulary import (
+    DEFAULT_PERSONA_STEP,
     INITIAL_PERSONA,
     LABELS,
     Activation,
@@ -112,6 +113,29 @@ def advance(world_state, milestones, persona_step) -> None:
     raw["persona"] = {"bond": bond.value, "activation": activation.value}
     world_state.flags_json = _write_map(raw)
     world_state.save(update_fields=["flags_json", "updated_at"])
+
+
+def persona_step_of(decision) -> tuple[int, int]:
+    """El paso (vínculo, activación) de una opción: el que declara en ``effects.persona`` (una dimensión sin declarar
+    vale 0) o, sin él, el de la tabla de su clase."""
+    declared = case_rules.effects_of(decision).get("persona")
+    if declared:
+        return declared.get("bond", 0), declared.get("activation", 0)
+    return DEFAULT_PERSONA_STEP[response_class_of(decision)]
+
+
+def persona_trail(decisions) -> list[tuple[Bond, Activation]]:
+    """La persona DESPUÉS de cada decisión, recalculada desde ``INITIAL_PERSONA`` sobre las opciones dadas en orden.
+
+    Es la misma regla con la que se escribe el estado del intento (``advance``), repetida sobre los eventos: así la
+    traza docente reconstruye la escena a escena sin guardar nada más. Puro: no toca la base.
+    """
+    persona = INITIAL_PERSONA
+    trail = []
+    for decision in decisions:
+        persona = step_persona(*persona, *persona_step_of(decision))
+        trail.append(persona)
+    return trail
 
 
 def counts(decisions) -> dict[str, int]:

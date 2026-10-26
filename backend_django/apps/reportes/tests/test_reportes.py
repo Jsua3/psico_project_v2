@@ -21,10 +21,9 @@ pytestmark = pytest.mark.usefixtures("fetch_raise")  # DJA-7: un acceso perezoso
 User = get_user_model()
 
 DASHBOARD_KEYS = [
-    "estudiantesActivos", "simulacionesCompletadasHoy", "puntajePromedioGlobal",
-    "simulacionesCompletadas", "simulacionesEnProgreso", "puntajePromedioSimulacion",
-    "decisionesAdecuadas", "decisionesRiesgosas", "decisionesInadecuadas",
-    "decisionesProhibidas", "ultimosIntentos", "intentosRecientes",
+    "estudiantesActivos", "simulacionesCompletadasHoy",
+    "simulacionesCompletadas", "simulacionesEnProgreso",
+    "decisiones", "ultimosIntentos", "intentosRecientes",
 ]
 LEGACY_KEYS_GONE = ["casosCompletadosHoy", "ultimasSesiones"]
 
@@ -176,11 +175,9 @@ def test_grupo_report_simulation_block(profesor, estudiante, case_version_id):
     assert d["caseVersionId"] == case_version_id
     assert sim["totalIntentos"] == 1
     assert sim["intentosEnProgreso"] == 1
-    decisiones = (
-        sim["decisionesAdecuadas"] + sim["decisionesRiesgosas"] + sim["decisionesInadecuadas"]
-    )
-    assert decisiones == 1
+    assert "decisionesAdecuadas" not in sim and "puntajePromedio" not in sim
     mine = next(e for e in sim["estudiantes"] if e["nombre"] == "Est Rep")
+    assert sum(mine["clases"].values()) == 1
     assert mine["totalIntentos"] == 1
     assert mine["estado"] == "EN_PROGRESO"
 
@@ -201,8 +198,9 @@ def test_export_csv_simulation_format(profesor, estudiante, case_version_id):
     content = resp.content.decode("utf-8")
     assert "success" not in content
     lines = content.split("\n")
-    assert lines[0] == (
-        "Estudiante,Intentos,Completados,En progreso,Salida segura,Puntaje prom.,"
-        "Adecuadas,Riesgosas,Inadecuadas,Bitacoras,Rubricas,Estado"
+    assert lines[0].startswith(
+        "Estudiante,Intentos,Completados,En progreso,Salida segura,"
+        "Recomendadas,Aceptables,Con riesgo,Contraindicadas,Bitacoras,Rubricas,Estado"
     )
+    assert "Puntaje" not in lines[0]
     assert any(line.startswith("Est Rep,1,") for line in lines)

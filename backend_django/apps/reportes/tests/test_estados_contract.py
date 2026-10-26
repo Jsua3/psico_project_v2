@@ -22,7 +22,6 @@ from .test_reportes import (  # noqa: F401
 
 pytestmark = pytest.mark.usefixtures("fetch_raise")  # DJA-7: un acceso perezoso accidental lanza
 
-SCORED = ("COMPLETED", "SAFE_EXITED")
 User = get_user_model()
 
 
@@ -72,21 +71,6 @@ def test_el_tablero_cuenta_cada_estado_por_separado(profesor, estudiante, case_v
     assert after["simulacionesCompletadasHoy"] - before["simulacionesCompletadasHoy"] == 2
 
 
-def test_el_promedio_del_tablero_solo_usa_completados_y_salidas_seguras(profesor, estudiante, case_version_id):
-    grupo = _grupo(profesor)
-    _add_student(grupo, estudiante)  # el tablero es del docente: sus estudiantes
-    _mixed_attempts(estudiante, case_version_id, grupo)
-    scores = list(
-        SimulationAttempt.objects.filter(student_id=estudiante.id, status__in=SCORED)
-        .values_list("accumulated_score", flat=True)
-    )
-
-    data = cl(profesor).get("/api/reportes/dashboard").data["data"]
-
-    assert data["puntajePromedioGlobal"] == pytest.approx(sum(scores) / len(scores))
-    assert 99 not in scores and 10 not in scores   # el reemplazo y el intento en juego no puntúan
-
-
 def test_el_reporte_de_grupo_cuenta_cada_estado_por_separado(profesor, estudiante, case_version_id):
     grupo = _grupo(profesor)
     _add_student(grupo, estudiante)
@@ -104,7 +88,7 @@ def test_el_reporte_de_grupo_cuenta_cada_estado_por_separado(profesor, estudiant
         assert block["intentosEnProgreso"] == 1
         assert block["intentosEnPausa"] == pausas
         assert block["intentosSalidaSegura"] == 1   # la histórica, sin evento: cuenta por su estado
-        assert block["puntajePromedio"] == pytest.approx((30 + 50 + 70 + 20) / 4)
+        assert "puntajePromedio" not in block and "decisionesAdecuadas" not in block
 
 
 def _attempts(*statuses):

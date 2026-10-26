@@ -140,3 +140,29 @@ def test_persona_label_dice_como_se_muestra_la_persona():
     assert case_state.persona_label((Bond.GUARDED, Activation.TENSE)) == "se muestra cautelosa y tensa"
     assert case_state.persona_label((Bond.OPEN, Activation.CALM)) == "se muestra abierta y serena"
     assert case_state.persona_label((Bond.WITHDRAWN, Activation.CRISIS)) == "se muestra retraída y en crisis"
+
+
+# ── persona_trail (la traza docente) ────────────────────────────────────────
+def _persona_option(response_class, persona=None):
+    effects = {"persona": persona} if persona else {}
+    return DecisionOption(response_class=response_class, effects=json.dumps(effects))
+
+
+def test_persona_trail_repite_la_regla_del_juego_paso_a_paso_desde_el_estado_inicial():
+    trail = case_state.persona_trail([
+        _persona_option("RECOMMENDED"),     # (+1, −1): de cautelosa y tensa a abierta y serena
+        _persona_option("RECOMMENDED"),     # los extremos se acotan: sigue abierta y serena
+        _persona_option("CONTRAINDICATED"),  # (−1, +1): cautelosa y tensa
+        _persona_option("ACCEPTABLE"),      # (0, 0)
+        _persona_option("RISKY", {"bond": -1, "activation": 1}),  # el paso declarado manda sobre el de la clase: retraída y en crisis
+    ])
+
+    assert trail == [
+        (Bond.OPEN, Activation.CALM), (Bond.OPEN, Activation.CALM),
+        (Bond.GUARDED, Activation.TENSE), (Bond.GUARDED, Activation.TENSE),
+        (Bond.WITHDRAWN, Activation.CRISIS),
+    ]
+
+
+def test_persona_trail_sin_decisiones_esta_vacia():
+    assert case_state.persona_trail([]) == []

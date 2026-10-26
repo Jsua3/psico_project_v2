@@ -84,8 +84,6 @@ class InstructorAttemptItemSerializer(serializers.Serializer):
     caseVersionStatus = serializers.ChoiceField(choices=CaseVersionStatus.choices)
     caseTitle = serializers.CharField()
     status = serializers.ChoiceField(choices=AttemptStatus.choices)
-    accumulatedScore = serializers.IntegerField()
-    stressIndex = serializers.IntegerField()
     activeSeconds = serializers.IntegerField()
     startedAt = serializers.DateTimeField(help_text=LOCAL_TIME)
     endedAt = serializers.DateTimeField(allow_null=True, help_text=f"Nulo mientras el intento está abierto. {LOCAL_TIME}")

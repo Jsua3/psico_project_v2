@@ -379,9 +379,9 @@ def test_la_traza_del_docente_separa_su_evaluacion_de_la_del_sistema(completed, 
     trace = cl(profesor).get(f"{TEACHER_BASE}/attempts/{attempt_id}/trace").data["data"]
 
     assert trace["rubricEvaluations"] == []  # el cliente marca «evaluación aplicada» si hay alguna con nivel
-    assert trace["systemEvaluation"]["origin"] == "SISTEMA"
-    assert trace["systemEvaluation"]["overallLevel"] == "DESTACADO"
-    assert trace["systemEvaluation"]["totalScore"] is None  # sin RUBRIC_NUMERIC_TOTAL no viaja un número
+    # Plegada: antes de que el docente guarde la suya, la valoración del sistema no viaja (no ancla su juicio).
+    assert trace["systemEvaluation"] is None
+    assert trace["systemEvaluationAvailable"] is True
 
     form = cl(profesor).get(f"{TEACHER_BASE}/attempts/{attempt_id}/rubric-evaluation").data["data"]
     scores = [{"criterionId": item["criterionId"], "level": "EN_PROCESO"} for item in form["items"]]
@@ -390,6 +390,10 @@ def test_la_traza_del_docente_separa_su_evaluacion_de_la_del_sistema(completed, 
     trace = cl(profesor).get(f"{TEACHER_BASE}/attempts/{attempt_id}/trace").data["data"]
     assert [e["origin"] for e in trace["rubricEvaluations"]] == ["DOCENTE"]
     assert trace["systemEvaluation"]["origin"] == "SISTEMA"
+    assert trace["systemEvaluation"]["overallLevel"] == "DESTACADO"
+    assert trace["systemEvaluation"]["totalScore"] is None  # sin RUBRIC_NUMERIC_TOTAL no viaja un número
+    assert isinstance(trace["systemEvaluation"]["competencyLevels"], list)
+    assert trace["systemEvaluationAvailable"] is True
 
 
 def test_un_intento_sin_evaluacion_del_sistema_trae_la_clave_nula(estudiante, case_version_id, profesor):
@@ -399,6 +403,7 @@ def test_un_intento_sin_evaluacion_del_sistema_trae_la_clave_nula(estudiante, ca
     trace = cl(profesor).get(f"{TEACHER_BASE}/attempts/{attempt_id}/trace").data["data"]
 
     assert trace["systemEvaluation"] is None
+    assert trace["systemEvaluationAvailable"] is False
 
 
 def test_el_reporte_de_grupo_cuenta_solo_las_rubricas_que_aplico_el_docente(completed, profesor, case_version_id):

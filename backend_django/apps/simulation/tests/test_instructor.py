@@ -7,7 +7,7 @@ from django.db import connection
 from rest_framework.test import APIClient
 
 from apps.grupos.models import Grupo
-from apps.simulation.models import CaseVersion, DecisionOption
+from apps.simulation.models import CaseVersion, DecisionOption, SimulationAttempt
 from apps.simulation.services import instructor_service
 
 pytestmark = pytest.mark.usefixtures("fetch_raise")  # DJA-7: un acceso perezoso accidental lanza
@@ -198,13 +198,111 @@ def test_trace_exposes_reconsidered_answers_apart_from_decisions(estudiante, pro
 
     assert trace["retries"] == 1
     assert trace["prohibitedRetries"] == 1
-    # Los contadores siguen contando solo decisiones registradas.
-    assert trace["prohibitedDecisions"] == 0
-    assert trace["inadequateDecisions"] == 0
-    assert trace["adequateDecisions"] == 1
+    # Los conteos por clase siguen contando solo decisiones registradas.
+    assert trace["counts"]["contraindicated"] == 0
+    assert trace["counts"]["recommended"] == 1
+    assert sum(trace["counts"].values()) == 1
     retry_rows = [t for t in trace["timeline"] if t["type"].endswith("RETRY_REQUIRED")]
     assert [t["type"] for t in retry_rows] == ["PROHIBITED_DECISION_RETRY_REQUIRED"]
     assert [e["type"] for e in trace["events"] if e["type"].endswith("RETRY_REQUIRED")] == ["PROHIBITED_DECISION_RETRY_REQUIRED"]
+
+
+def _all_keys(node):
+    if isinstance(node, dict):
+        for key, value in node.items():
+            yield key
+            yield from _all_keys(value)
+    elif isinstance(node, list):
+        for item in node:
+            yield from _all_keys(item)
+
+
+FORBIDDEN = {"puntaje", "accumulatedscore", "stressindex", "scoredelta", "stressdelta", "metrics"}
+
+
+def test_ni_la_traza_ni_los_listados_llevan_puntaje_ni_estres(estudiante, profesor, case_version_id):
+    attempt_id = _play_one_decision(estudiante, case_version_id, "INST-NOSCORE", profesor=profesor)
+    client = cl(profesor)
+
+    for url in (
+        f"/api/instructor/attempts/{attempt_id}/trace",
+        "/api/instructor/attempts/recent",
+        "/api/instructor/attempts",
+    ):
+        data = client.get(url).data["data"]
+        assert not {str(k).lower() for k in _all_keys(data)} & FORBIDDEN, url
+
+
+def _play_recommended_decision(estudiante, case_version_id, codigo, profesor):
+    """Un intento con UNA decisión registrada (la contención con primeros auxilios psicológicos)."""
+    assign_case_to_student(estudiante, case_version_id, codigo, profesor=profesor)
+    client = cl(estudiante)
+    start = client.post("/api/simulation/attempts", {"caseVersionId": case_version_id}, format="json").data["data"]
+    token, attempt_id = start["attemptToken"], start["attemptId"]
+    client.get(f"/api/simulation/attempts/{attempt_id}/world", HTTP_X_SIEP_ATTEMPT_TOKEN=token)
+    option = DecisionOption.objects.get(case_version_id=case_version_id, option_key="h1-pap-contencion")
+    resp = client.post(
+        f"/api/simulation/attempts/{attempt_id}/decisions",
+        {"attemptToken": token, "decisionOptionId": option.id}, format="json",
+    )
+    assert resp.status_code == 200, resp.data
+    return attempt_id
+
+
+def test_la_traza_trae_conteos_por_clase_hitos_persona_y_final(estudiante, profesor, case_version_id):
+    attempt_id = _play_recommended_decision(estudiante, case_version_id, "INST-V3", profesor)
+
+    trace = cl(profesor).get(f"/api/instructor/attempts/{attempt_id}/trace").data["data"]
+
+    assert set(trace["counts"]) == {"recommended", "acceptable", "risky", "contraindicated"}
+    assert sum(trace["counts"].values()) == 1
+    assert set(trace["milestones"]) == {"done", "missing"}
+    assert trace["ending"] is None  # el intento sigue en juego
+    (scene,) = trace["personaPorEscena"]
+    assert set(scene) == {"nodeId", "nodeTitle", "bond", "activation", "label"}
+    assert scene["bond"] in ("WITHDRAWN", "GUARDED", "OPEN") and scene["label"].startswith("se muestra ")
+    chosen = [name.upper() for name, n in trace["counts"].items() if n]
+    assert [e["class"] for e in trace["events"] if e["type"] == "DECISION_SELECTED"] == chosen
+
+
+def test_la_persona_por_escena_se_recalcula_paso_a_paso_desde_el_estado_inicial(estudiante, profesor, case_version_id):
+    from apps.simulation.services import case_state
+
+    attempt_id = _play_recommended_decision(estudiante, case_version_id, "INST-PERSONA", profesor)
+    stored = case_state.read(SimulationAttempt.objects.get(pk=attempt_id)).persona
+
+    trace = cl(profesor).get(f"/api/instructor/attempts/{attempt_id}/trace").data["data"]
+
+    # Lo recalculado sobre los eventos coincide con el estado que el juego guardó al decidir.
+    assert (trace["personaPorEscena"][-1]["bond"], trace["personaPorEscena"][-1]["activation"]) == (
+        stored[0].value, stored[1].value)
+
+
+def test_los_listados_van_del_mas_reciente_al_mas_antiguo_por_inicio(estudiante, profesor, case_version_id):
+    import uuid
+    from datetime import timedelta
+
+    from django.utils import timezone
+
+    from apps.simulation.models import SimulationNode
+
+    assign_case_to_student(estudiante, case_version_id, "INST-ORD", profesor=profesor)
+    version = CaseVersion.objects.get(pk=case_version_id)
+    node = SimulationNode.objects.filter(case_version_id=case_version_id, start_node=True).first()
+    ids = []
+    for days in (3, 1, 2):
+        attempt = SimulationAttempt.objects.create(
+            attempt_token_hash=uuid.uuid4().hex, student=estudiante, case_version=version, current_node=node,
+            status="COMPLETED",
+        )
+        SimulationAttempt.objects.filter(pk=attempt.pk).update(started_at=timezone.now() - timedelta(days=days))
+        ids.append(str(attempt.pk))
+
+    recent = [a["attemptId"] for a in cl(profesor).get("/api/instructor/attempts/recent").data["data"]]
+    listed = [a["attemptId"] for a in cl(profesor).get("/api/instructor/attempts").data["data"]["items"]]
+
+    expected = [ids[1], ids[2], ids[0]]  # 1 día, 2 días, 3 días atrás
+    assert recent == expected and listed == expected
 
 
 # --- E5-6: Revisión docente paginada e IdentityPresenter --------------------
