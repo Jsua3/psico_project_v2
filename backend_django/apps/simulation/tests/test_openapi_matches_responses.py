@@ -40,6 +40,7 @@ from apps.simulation.models import (
 from apps.simulation.services.authoring import definition_io, lifecycle
 from apps.simulation.tests import dsl_support
 from apps.simulation.tests.analytics_support import make_student, seed_student_pair
+from apps.simulation.services.ai_providers import ProviderError
 from apps.simulation.views.ai_assistant import AIAssistantView
 from shared import contract_testing
 from shared.contract_testing import (
@@ -837,7 +838,36 @@ def _assistant_route_errors(prefix):
                 ),
                 400, "VALIDATION_ERROR",
             ))
+    path = f"{prefix}/{{case_version_id}}/assistant/propose"
+    body = {"peticion": "x", "pantalla": "mapa"}
+    errors += [
+        ("asistente (propose) con una propuesta inválida", path, "POST",
+         lambda w, path=path: _propose_failing(w, path, proposals_module().InvalidProposal("Motivo fijo.")),
+         422, "AI_PROPOSAL_INVALID"),
+        ("asistente (propose) con el proveedor caído", path, "POST",
+         lambda w, path=path: _propose_failing(w, path, ProviderError("http", "caído")),
+         502, "AI_PROVIDER_ERROR"),
+        ("asistente (propose) sin cupo", path, "POST",
+         lambda w, path=path: _propose_failing(w, path, None, AI_AUTHORING_DAILY_LIMIT_PER_USER=0),
+         429, "AI_LIMIT_EXCEEDED"),
+    ]
     return errors
+
+
+def proposals_module():
+    from apps.simulation.services.authoring.assistant import proposals
+
+    return proposals
+
+
+def _propose_failing(w, path, error, **settings_):
+    """``propose`` con el asistente encendido y el proveedor simulado fallando con ``error``."""
+    from unittest import mock
+
+    url = path.replace("{case_version_id}", str(w.draft_id))
+    config = dict(AI_AUTHORING_ENABLED=True, AI_AUTHORING_API_KEY="clave-de-prueba", **settings_)
+    with override_settings(**config), mock.patch.object(proposals_module(), "propose", side_effect=error):
+        return cl(w.admin).post(url, {"peticion": "x", "pantalla": "mapa"}, format="json")
 
 
 def _with_assistant_on(call):
@@ -1049,6 +1079,9 @@ NEVER_SEEN: dict[str, str] = {
     "ImportRejectedEnvelope.field": "el 400 de una importación rechazada lleva `issues`, no `field` (ese es de ErrorEnvelope)",
     "CaseConflictEnvelope.field": "los 409 de una transición se explican con `code` y sus campos propios, nunca con `field`",
     "MembershipConflictEnvelope.field": "los 409 de una invitación se explican con `code` y `status`, nunca con `field`",
+    "ImportRejectedEnvelope.motivo": "`motivo` es solo del 422 AI_PROPOSAL_INVALID del asistente",
+    "CaseConflictEnvelope.motivo": "`motivo` es solo del 422 AI_PROPOSAL_INVALID del asistente",
+    "MembershipConflictEnvelope.motivo": "`motivo` es solo del 422 AI_PROPOSAL_INVALID del asistente",
 }
 
 

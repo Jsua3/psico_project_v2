@@ -302,6 +302,8 @@ export interface CaseConflictEnvelope {
   /** El primer campo que falló la validación. */
   readonly field?: string;
   readonly message: string;
+  /** El motivo corto (fijo) de un 422 `AI_PROPOSAL_INVALID`. */
+  readonly motivo?: string;
   /** La revisión vigente del caso. */
   readonly revision?: number;
   readonly state?: CaseVersionStatusEnum;
@@ -518,6 +520,8 @@ export interface ErrorEnvelope {
   /** El primer campo que falló la validación. */
   readonly field?: string;
   readonly message: string;
+  /** El motivo corto (fijo) de un 422 `AI_PROPOSAL_INVALID`. */
+  readonly motivo?: string;
   /** Siempre `false` en un error. */
   readonly success: boolean;
 }
@@ -568,6 +572,8 @@ export interface ImportRejectedEnvelope {
   readonly field?: string;
   readonly issues: ReadonlyArray<ValidationIssue>;
   readonly message: string;
+  /** El motivo corto (fijo) de un 422 `AI_PROPOSAL_INVALID`. */
+  readonly motivo?: string;
   /** Siempre `false` en un error. */
   readonly success: boolean;
 }
@@ -674,6 +680,8 @@ export interface MembershipConflictEnvelope {
   /** El primer campo que falló la validación. */
   readonly field?: string;
   readonly message: string;
+  /** El motivo corto (fijo) de un 422 `AI_PROPOSAL_INVALID`. */
+  readonly motivo?: string;
   /** El estado en que está la membresía hoy. */
   readonly status: MembershipStatusEnum;
   /** Siempre `false` en un error. */

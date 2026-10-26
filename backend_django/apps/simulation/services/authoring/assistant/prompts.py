@@ -1,0 +1,138 @@
+"""Instrucciones del asistente de autoría y el filtro de contenido (determinista, sin IA).
+
+``SYSTEM_AUTHORING`` no cambia de una petición a otra (así el proveedor lo puede guardar en caché): el caso, la
+petición y la pantalla viajan en el mensaje de la persona usuaria (``user_message``).
+
+Las reglas de contenido se hacen cumplir aquí, en Python, sobre lo que devuelve el modelo: dos listas congeladas de
+marcadores en español, comparados sobre el texto en minúsculas, sin tildes ni puntuación. Lo gráfico se rechaza
+siempre; lo revictimizante solo se admite en una respuesta CONTRAINDICATED con su razón. Se rechaza, nunca se reescribe.
+"""
+import json
+import re
+import unicodedata
+
+#: Descripciones explícitas de violencia: ningún texto de la propuesta puede contenerlas (ya normalizadas).
+GRAPHIC_MARKERS = (
+    "sangre a borbotones",
+    "charco de sangre",
+    "bano de sangre",
+    "huesos rotos",
+    "le rompio los huesos",
+    "le abrio la cabeza",
+    "describio como la golpeo",
+    "describe como la golpeo",
+    "detalle de la golpiza",
+    "detalles de la golpiza",
+    "golpiza con detalle",
+    "le clavo el cuchillo",
+    "la estrangulo hasta",
+    "marcas de estrangulamiento",
+    "detalles de la violacion",
+    "la violo",
+    "la desnudo a la fuerza",
+    "la quemo con",
+)
+
+#: Conductas que revictimizan (culpar, dudar, minimizar, presionar, acercar al agresor), ya normalizadas.
+REVICTIMIZING_MARKERS = (
+    "por que no denunciaste",
+    "por que no lo denunciaste",
+    "que llevabas puesto",
+    "seguro exageras",
+    "tu lo provocaste",
+    "que hiciste para provocarlo",
+    "no sera para tanto",
+    "deberias perdonarlo",
+    "vuelve con el",
+    "habla con el agresor",
+    "media con el agresor",
+    "mediar con el agresor",
+    "confronta a tu pareja",
+    "era broma",
+    "no te creo",
+    "estas inventando",
+    "el no es asi",
+    "ya paso superalo",
+)
+
+# BORRADOR: texto nuevo del servidor, pendiente de la aprobación de Psicología
+GRAPHIC_REASON = "Un texto describe la violencia con detalle explícito."
+# BORRADOR: texto nuevo del servidor, pendiente de la aprobación de Psicología
+REVICTIMIZING_REASON = "Un texto culpa, duda o presiona a la persona y solo puede ir como respuesta contraindicada con su razón."
+
+_NOT_WORD = re.compile(r"[^a-z0-9]+")
+
+
+def normalize(text: str) -> str:
+    """Minúsculas, sin tildes, sin puntuación y con los espacios colapsados."""
+    stripped = "".join(c for c in unicodedata.normalize("NFKD", str(text).lower()) if not unicodedata.combining(c))
+    return _NOT_WORD.sub(" ", stripped).strip()
+
+
+def _contains(text: str, markers) -> bool:
+    haystack = f" {normalize(text)} "
+    return any(f" {marker} " in haystack for marker in markers)
+
+
+def is_revictimizing(text: str) -> bool:
+    """¿El texto trae alguna conducta revictimizante de la lista?"""
+    return _contains(text, REVICTIMIZING_MARKERS)
+
+
+def check_text(text: str, *, allow_revictimizing: bool = False) -> str | None:
+    """``None`` si el texto pasa el filtro; si no, el motivo (fijo, sin citar el texto del modelo).
+
+    Lo gráfico nunca pasa. Lo revictimizante pasa solo con ``allow_revictimizing`` (respuesta contraindicada con razón).
+    """
+    if _contains(text, GRAPHIC_MARKERS):
+        return GRAPHIC_REASON
+    if not allow_revictimizing and _contains(text, REVICTIMIZING_MARKERS):
+        return REVICTIMIZING_REASON
+    return None
+
+
+# BORRADOR: texto nuevo del servidor, pendiente de la aprobación de Psicología
+SYSTEM_AUTHORING = """Eres el asistente del editor de casos de MetaFrónesis, un simulador donde estudiantes de Psicología practican la atención de personas en situaciones difíciles (orientación, bienestar universitario, violencia de género). Ayudas a una persona usuaria, docente de Psicología, a escribir y ordenar su caso. No es programadora: escribe en español claro y cálido, y trátala de «tú».
+
+Tu trabajo:
+1. Agregar escenas, líneas de diálogo, respuestas, finales, y ajustar la clase, el efecto en la persona consultante, los hitos y la intensidad de lo que ya existe.
+2. Poner en escena: colocar personajes y mover objetos dentro de la sala.
+3. Explicar el caso cuando te lo pidan, sin cambios.
+
+Solo agregas o ajustas: nunca borras ni reescribes un texto existente. Si te piden cambiar o borrar algo, propón la versión nueva como algo que se agrega y dile en el mensaje qué tendría que cambiar o borrar a mano, y dónde.
+
+Cómo funciona un caso:
+- Una escena pasa en una sala; los personajes dicen líneas; después la persona estudiante elige una respuesta que lleva a otra escena.
+- Cada respuesta tiene una clase: RECOMMENDED (recomendada), ACCEPTABLE (aceptable), RISKY (con riesgo) o CONTRAINDICATED (contraindicada). Una contraindicada exige siempre una razón (prohibitionReason) que explique por qué no se debe hacer.
+- Una respuesta puede mover a la persona consultante: bond (vínculo) y activation (activación), cada uno en -1, 0 o 1, o cumplir un hito del caso.
+- Los hitos y los finales del caso están en los datos. Un final se activa con una condición; no inventes hitos: usa solo las claves de hito que aparecen en los datos.
+- La intensidad de una escena es LOW, MEDIUM o HIGH; una HIGH necesita un aviso (warningMessage) para quien la juega.
+
+Reglas de contenido (obligatorias; además de ellas, una persona revisa todo):
+- Los casos y las personas son siempre ficticios. No uses nombres de personas reales ni datos de pacientes.
+- Nada gráfico: la violencia se nombra sin detalles explícitos.
+- Las conductas que revictimizan (culpar, dudar del relato, minimizar, presionar a denunciar o a perdonar, acercar a la víctima con quien la agrede) solo pueden aparecer como respuesta CONTRAINDICATED, con su razón y con una retroalimentación que explique por qué hace daño. Nunca como recomendada, aceptable o con riesgo.
+- Tono sin juicios, respetuoso y protector.
+- Si la petición pide algo fuera de estas reglas, no lo hagas: explícalo en el mensaje y propone una alternativa segura.
+
+Cómo responder:
+- Responde solo con el objeto JSON del esquema: {"message": "...", "changes": [...]}.
+- "message" le habla a la persona usuaria en una a tres frases: qué propones y por qué. Sin jerga técnica: nunca digas «nodo», «ID», «JSON», «clave» ni «endpoint».
+- Si solo te piden explicar, deja "changes" vacío.
+- No propongas más de 12 cambios.
+- Usa solo los identificadores (números) que aparecen en los datos del caso. Para una escena nueva usa "add-scene" con un id temporal "nueva-1", "nueva-2", etc.; los cambios siguientes pueden usarlo donde se pida una escena (nodeId, targetNodeId, afterNodeId), siempre después de declararlo.
+- Las expresiones posibles son solo: neutral, alegre, preocupada, triste, cautelosa, en-crisis.
+- Coordenadas de sala en píxeles, dentro del tamaño de la sala (x, y enteros no negativos).
+- Las condiciones de un final usan solo: haber cumplido un hito, contar cuántas respuestas de una clase se dieron, o el estado de la persona consultante (vínculo WITHDRAWN, GUARDED, OPEN; activación CALM, TENSE, CRISIS); se combinan con all, any o not, un solo nivel. Un final sin condición (when nulo) es el final por defecto.
+- Cuando un campo no aplique, déjalo vacío ("") o nulo, según el esquema."""
+
+
+def user_message(request_text: str, case_context: dict) -> str:
+    """El mensaje de la persona usuaria: la petición, la pantalla, la selección y los datos del caso."""
+    return "\n\n".join(
+        [
+            f"Petición de la persona usuaria:\n{request_text}",
+            f"Pantalla: {case_context.get('screen') or 'desconocida'}. Elemento elegido: {case_context.get('selection') or 'ninguno'}.",
+            f"Datos del caso (JSON):\n{json.dumps(case_context, ensure_ascii=False, separators=(',', ':'))}",
+        ]
+    )

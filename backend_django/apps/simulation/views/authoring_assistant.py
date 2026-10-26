@@ -28,6 +28,7 @@ from ..services.ai_providers import ProviderError
 from ..services.authoring import guards
 from ..services.authoring.assistant import config as assistant_config
 from ..services.authoring.assistant import guide, limits, proposals
+from ..services.authoring.assistant.proposals import InvalidProposal
 from .authoring_views import _AuthoringView
 
 logger = logging.getLogger(__name__)
@@ -36,6 +37,9 @@ logger = logging.getLogger(__name__)
 PROVIDER_ERROR_MESSAGE = "La IA no respondió. Inténtalo de nuevo en un momento."
 # BORRADOR: texto nuevo del servidor, pendiente de la aprobación de Psicología
 REFUSED_MESSAGE = "La IA no puede ayudar con esa petición. Prueba a pedirla de otra forma."
+# BORRADOR: texto nuevo del servidor, pendiente de la aprobación de Psicología
+INVALID_PROPOSAL_MESSAGE = "La propuesta no se pudo usar. Pídela de nuevo con otras palabras."
+MAX_REQUEST_LENGTH = 400
 
 _UNSAFE_SCREEN_CHARS = re.compile(r"[^a-z0-9_-]")
 MAX_SCREEN_LENGTH = 64
@@ -56,7 +60,7 @@ class _Text(serializers.CharField):
 
 
 class _ProposeInput(serializers.Serializer):
-    peticion = _Text()
+    peticion = _Text(max_length=MAX_REQUEST_LENGTH)
     pantalla = _Text(allow_blank=True)
     seleccion = serializers.JSONField(required=False, allow_null=True)
 
@@ -113,6 +117,12 @@ class _AssistantView(_AuthoringView):
                 failure = ApiError("AI_PROVIDER_ERROR", PROVIDER_ERROR_MESSAGE, status.HTTP_502_BAD_GATEWAY)
             self.audit(request, action, version.id, body, model, 0, started, outcome)
             raise failure from None
+        except InvalidProposal as invalid:
+            # La llamada ocurrió: el cupo se gasta. Al cliente solo le llega el motivo fijo, nunca texto del modelo.
+            self.audit(request, action, version.id, body, model, 0, started, "invalid")
+            raise ApiError(
+                "AI_PROPOSAL_INVALID", INVALID_PROPOSAL_MESSAGE, status.HTTP_422_UNPROCESSABLE_ENTITY, motivo=invalid.motivo
+            ) from None
         except Exception:
             limits.refund(request.user)
             raise
@@ -159,7 +169,7 @@ class AssistantProposeView(_AssistantView):
 
     @extend_schema(
         request=_ProposeInput,
-        responses={200: envelope_of(AssistantResultSerializer), **error_responses(400, 401, 403, 404)},
+        responses={200: envelope_of(AssistantResultSerializer), **error_responses(400, 401, 403, 404, 422, 429, 502)},
     )
     def post(self, request, case_version_id):
         def call(config, version, data):
