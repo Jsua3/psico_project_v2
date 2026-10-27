@@ -20,14 +20,18 @@ const LEVEL_WORDS: Record<FormativeLevel, string> = {
   DESTACADO: DRAFT_COPY.levelDestacado.text,
 };
 
-/** La clase de una respuesta en palabras («Recomendada», «Aceptable», «Con riesgo», «Contraindicada»). */
-export function responseClassWord(responseClass: ResponseClass): string {
-  return CLASS_WORDS[responseClass];
+/** La clase de una respuesta en palabras («Recomendada», «Aceptable», «Con riesgo», «Contraindicada»); nulo si no es una clase conocida. */
+export function responseClassWord(responseClass: string | null | undefined): string | null {
+  return (responseClass && CLASS_WORDS[responseClass as ResponseClass]) || null;
 }
 
-/** El nivel de una competencia en palabras; «Sin evidencia» si ninguna decisión la tocó (`level` nulo). */
-export function levelWord(level: FormativeLevel | null | undefined): string {
-  return level ? LEVEL_WORDS[level] : DRAFT_COPY.competencyNoEvidence.text;
+/**
+ * El nivel de una competencia en palabras; «Sin evidencia» si ninguna decisión la tocó (`level` nulo). Un texto que no
+ * es un nivel conocido (un reporte antiguo) no se inventa: devuelve nulo.
+ */
+export function levelWord(level: string | null | undefined): string | null {
+  if (!level) return DRAFT_COPY.competencyNoEvidence.text;
+  return LEVEL_WORDS[level as FormativeLevel] ?? null;
 }
 
 /** La palabra «clave» para un hito que decide el final; nada para los demás. */

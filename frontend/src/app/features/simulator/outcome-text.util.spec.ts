@@ -22,6 +22,12 @@ describe('outcome-text.util', () => {
     expect(milestoneMark({ decisive: false })).toBeNull();
   });
 
+  it('un texto que no es una clase ni un nivel conocido (reporte antiguo) devuelve nulo', () => {
+    expect(responseClassWord('ADEQUATE')).toBeNull();
+    expect(responseClassWord(undefined)).toBeNull();
+    expect(levelWord('MEDIO')).toBeNull();
+  });
+
   it('ninguna palabra lleva dígitos ni lenguaje de puntaje', () => {
     const words = [
       responseClassWord('RECOMMENDED'), responseClassWord('RISKY'), levelWord('LOGRADO'), levelWord(null), milestoneMark({ decisive: true }),

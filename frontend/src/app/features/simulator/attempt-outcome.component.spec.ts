@@ -671,7 +671,7 @@ describe('AttemptOutcomeComponent: tus decisiones y marcador (F10-4, C2)', () =>
     buttons().find(button => text(button) === 'Listo')!.click();
     fixture.detectChanges();
     expect(host().querySelector('.oc-selfcheck textarea')).toBeNull();
-    expect(text(host().querySelector('.oc-selfcheck'))).toContain('Tus ideas quedan solo en este dispositivo.');
+    expect(text(host().querySelector('.oc-selfcheck'))).toContain('No se guardó nada: lo que escribiste solo vive en esta pantalla.');
 
     buttons().find(button => text(button) === 'Editar mis notas')!.click();
     fixture.detectChanges();
@@ -680,6 +680,36 @@ describe('AttemptOutcomeComponent: tus decisiones y marcador (F10-4, C2)', () =>
     fixture.detectChanges();
     expect(host().querySelector('.oc-selfcheck textarea')).toBeNull();
     expect(simulation.studentReport).not.toHaveBeenCalled();
+  });
+
+  it('el foco no se pierde al plegar la autoevaluación: va a «Editar mis notas», y al reabrirla, a la primera caja', async () => {
+    render({ reportHasDecisions: true, items: [decision()] });
+    await settle();
+    const button = (name: string) => Array.from(host().querySelectorAll('.oc-selfcheck button'))
+      .find(candidate => text(candidate) === name) as HTMLButtonElement;
+
+    button('Listo').focus();
+    button('Listo').click();
+    await settle();
+    expect(document.activeElement).toBe(button('Editar mis notas'));
+
+    button('Editar mis notas').click();
+    await settle();
+    expect(document.activeElement).toBe(host().querySelector('#oc-self-good'));
+
+    button('Omitir por ahora').focus();
+    button('Omitir por ahora').click();
+    await settle();
+    expect(document.activeElement).toBe(button('Editar mis notas'));
+  });
+
+  it('una decisión de un reporte antiguo (sin clase, solo `classification`) no pinta una etiqueta vacía', async () => {
+    const legacy = { ...decision(), class: undefined, classification: 'ADEQUATE' } as unknown as DecisionReviewItem;
+    render({ items: [legacy] });
+    await settle();
+
+    expect(host().querySelectorAll('.oc-decision')).toHaveLength(1);
+    expect(host().querySelector('.oc-decision__tone')).toBeNull();
   });
 
   it('«Lo que hiciste» y «Lo que faltó» salen de los hitos, con la palabra «clave» en los decisivos', async () => {

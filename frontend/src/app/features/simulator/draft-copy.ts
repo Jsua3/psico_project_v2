@@ -480,7 +480,7 @@ export const DRAFT_COPY = {
     decision: 'VD-23',
     owner: 'Psicología',
     where: 'Cierre: autoevaluación recogida',
-    text: 'Tus ideas quedan solo en este dispositivo.',
+    text: 'No se guardó nada: lo que escribiste solo vive en esta pantalla.',
   },
   /** Botón de editar. */
   selfAssessEdit: {

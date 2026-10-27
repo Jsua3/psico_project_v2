@@ -1,6 +1,6 @@
 import { A11yModule } from '@angular/cdk/a11y';
 import { NgTemplateOutlet } from '@angular/common';
-import { Component, ElementRef, Injector, afterNextRender, computed, effect, inject, input, output, signal, untracked, ChangeDetectionStrategy } from '@angular/core';
+import { Component, ElementRef, Injector, afterNextRender, computed, effect, inject, input, output, signal, untracked, viewChild, ChangeDetectionStrategy } from '@angular/core';
 import { rxResource } from '@angular/core/rxjs-interop';
 import { RouterLink } from '@angular/router';
 import { EMPTY } from 'rxjs';
@@ -117,7 +117,7 @@ import { RECONSIDERED_LABEL, reconsideredChip } from './reconsidered.util';
               @if (selfCheckOpen()) {
                 <div class="oc-field">
                   <label for="oc-self-good">{{ draft.selfAssessGood.text }}</label>
-                  <textarea id="oc-self-good" rows="2" maxlength="600" [value]="selfGood()" (input)="selfGood.set(valueOf($event))"></textarea>
+                  <textarea #selfFirst id="oc-self-good" rows="2" maxlength="600" [value]="selfGood()" (input)="selfGood.set(valueOf($event))"></textarea>
                 </div>
                 <div class="oc-field">
                   <label for="oc-self-change">{{ draft.selfAssessChange.text }}</label>
@@ -125,12 +125,12 @@ import { RECONSIDERED_LABEL, reconsideredChip } from './reconsidered.util';
                 </div>
                 <p class="oc-selfcheck__note">{{ draft.selfAssessLocalNote.text }}</p>
                 <div class="oc-selfcheck__actions">
-                  <button type="button" class="oc-btn oc-btn--go" (click)="selfCheckOpen.set(false)">{{ draft.selfAssessDone.text }}</button>
-                  <button type="button" class="oc-btn oc-btn--line" (click)="selfCheckOpen.set(false)">{{ draft.selfAssessSkip.text }}</button>
+                  <button type="button" class="oc-btn oc-btn--go" (click)="collapseSelfCheck()">{{ draft.selfAssessDone.text }}</button>
+                  <button type="button" class="oc-btn oc-btn--line" (click)="collapseSelfCheck()">{{ draft.selfAssessSkip.text }}</button>
                 </div>
               } @else {
                 <p class="oc-selfcheck__note">{{ draft.selfAssessCollapsed.text }}</p>
-                <button type="button" class="oc-btn oc-btn--line" (click)="selfCheckOpen.set(true)">{{ draft.selfAssessEdit.text }}</button>
+                <button #selfEdit type="button" class="oc-btn oc-btn--line" (click)="reopenSelfCheck()">{{ draft.selfAssessEdit.text }}</button>
               }
             </section>
           }
@@ -216,7 +216,9 @@ import { RECONSIDERED_LABEL, reconsideredChip } from './reconsidered.util';
                         @if (item.consequence) {
                           <p class="oc-decision__consequence">{{ item.consequence }}</p>
                         }
-                        <p class="oc-decision__tone">{{ classWord(item.class) }}</p>
+                        @if (classWord(item.class); as word) {
+                          <p class="oc-decision__tone">{{ word }}</p>
+                        }
                         @if (item.prohibited) {
                           <p class="oc-chip oc-chip--alert oc-decision__note">{{ draft.decisionProhibitedNote.text }}</p>
                         }
@@ -496,6 +498,20 @@ export class AttemptOutcomeComponent {
   protected readonly selfCheckOpen = signal(true);
   protected readonly selfGood = signal('');
   protected readonly selfChange = signal('');
+  private readonly selfEdit = viewChild<ElementRef<HTMLButtonElement>>('selfEdit');
+  private readonly selfFirst = viewChild<ElementRef<HTMLTextAreaElement>>('selfFirst');
+
+  /** Recoge la autoevaluación y deja el foco en «Editar mis notas»: el botón pulsado desaparece y el foco no puede caer a <body> (2.4.3). */
+  protected collapseSelfCheck(): void {
+    this.selfCheckOpen.set(false);
+    afterNextRender(() => this.selfEdit()?.nativeElement.focus({ preventScroll: true }), { injector: this.injector });
+  }
+
+  /** Reabre la autoevaluación y lleva el foco a su primera caja de texto. */
+  protected reopenSelfCheck(): void {
+    this.selfCheckOpen.set(true);
+    afterNextRender(() => this.selfFirst()?.nativeElement.focus({ preventScroll: true }), { injector: this.injector });
+  }
 
   protected readonly draft = DRAFT_COPY;
   protected readonly reconsideredLabel = RECONSIDERED_LABEL;
