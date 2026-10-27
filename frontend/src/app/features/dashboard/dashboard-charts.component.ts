@@ -1,10 +1,11 @@
 import { Component, input, ChangeDetectionStrategy } from '@angular/core';
 import { AdminUser } from '../../core/api/user-admin.service';
 import { Dashboard } from '../../core/models/sesion.model';
-import { RecentAttempt } from '../../core/models/simulation.model';
+import { RecentAttempt, ResponseClass } from '../../core/models/simulation.model';
 import { UiCard } from '../../shared/ui/card/ui-card';
 import { UiProgress } from '../../shared/ui/progress/ui-progress';
 import { UiSkeleton } from '../../shared/ui/skeleton/ui-skeleton';
+import { responseClassWord } from '../simulator/outcome-text.util';
 import {
   ChartBar,
   attemptStatusBars,
@@ -100,31 +101,23 @@ export class DashboardChartsComponent {
     return entries.map(([label, value]) => ({ label, value, max, tone: 'purple' as const }));
   }
 
-  professorStudentChart(): ChartBar[] {
-    const data = this.dashboard();
-    const source = data?.intentosRecientes ?? data?.ultimosIntentos ?? [];
-    if (!source.length) return [];
-
-    const scores = new Map<string, number[]>();
-    for (const item of source) {
-      const list = scores.get(item.estudiante) ?? [];
-      if (item.puntaje > 0) list.push(item.puntaje);
-      scores.set(item.estudiante, list);
-    }
-
-    const bars = [...scores.entries()]
-      .map(([label, values]) => ({
-        label: label.length > 14 ? label.slice(0, 14) + '…' : label,
-        value: values.length ? Math.round(values.reduce((a, b) => a + b, 0) / values.length) : 0,
-        max: 100,
-        tone: 'blue' as const
-      }))
-      .filter(b => b.value > 0)
-      .slice(0, 6);
-
-    if (!bars.length) return [];
-    const max = Math.max(...bars.map(b => b.value), 1);
-    return bars.map(b => ({ ...b, max }));
+  /**
+   * Decisiones registradas por clase de respuesta, con las cuatro palabras de siempre (Recomendada, Aceptable, Con
+   * riesgo, Contraindicada). Son hechos del grupo, no una medida de nadie: la barra no ordena ni compara estudiantes.
+   */
+  professorDecisionChart(): ChartBar[] {
+    const counts = this.dashboard()?.decisiones;
+    if (!counts) return [];
+    const items: { responseClass: ResponseClass; value: number; tone: ChartBar['tone'] }[] = [
+      { responseClass: 'RECOMMENDED', value: counts.recommended ?? 0, tone: 'green' },
+      { responseClass: 'ACCEPTABLE', value: counts.acceptable ?? 0, tone: 'blue' },
+      { responseClass: 'RISKY', value: counts.risky ?? 0, tone: 'orange' },
+      { responseClass: 'CONTRAINDICATED', value: counts.contraindicated ?? 0, tone: 'red' },
+    ];
+    const max = Math.max(...items.map(item => item.value), 1);
+    return items.map(item => ({
+      label: responseClassWord(item.responseClass) ?? item.responseClass, value: item.value, max, tone: item.tone,
+    }));
   }
 
   professorCaseChart(): ChartBar[] {

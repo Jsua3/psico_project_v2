@@ -8,13 +8,13 @@ import { computeDagLayout, neighbourOf, wrapLabel } from './dag-layout.util';
 const node = (id: number, over: Partial<NodeEditorState> = {}): NodeEditorState => ({
   id, key: `n-${id}`, title: `Nodo ${id}`, narrative: '', supportResources: [], requiredTools: [],
   sensitiveContent: false, safeExitRequired: false, warningMessage: null, terminal: false, startNode: false,
-  positionX: null, positionY: null, decisionPrompt: '', displayOrder: 0, ...over,
+  positionX: null, positionY: null, intensity: 'MEDIUM', decisionPrompt: '', displayOrder: 0, ...over,
 });
 
 const edge = (id: number, source: number, target: number, over: Partial<DecisionEdgeState> = {}): DecisionEdgeState => ({
   id, sourceNodeId: source, sourceKey: `n-${source}`, targetNodeId: target, targetKey: `n-${target}`, optionKey: `o-${id}`,
-  text: `Decisión ${id}`, classification: 'ADEQUATE', prohibitedConduct: false, prohibitionReason: null,
-  scoreDelta: 10, stressDelta: 0, prohibitedPenalty: 0, immediateFeedback: '', ...over,
+  text: `Decisión ${id}`, classification: 'ADEQUATE', responseClass: 'RECOMMENDED', prohibitedConduct: false, prohibitionReason: null,
+  immediateFeedback: '', effects: {}, consequenceText: '', theoryBasis: '', feedbackText: '', ...over,
 } as DecisionEdgeState);
 
 // Inicio (1) → 2 y 3 → 4 (terminal); 5 queda suelto.

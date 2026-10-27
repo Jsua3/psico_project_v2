@@ -14,21 +14,21 @@ import { DagEditorComponent } from './dag-editor.component';
 const node = (id: number, over: Partial<NodeEditorState> = {}): NodeEditorState => ({
   id, key: `n-${id}`, title: `Nodo número ${id}`, narrative: `Narrativa del nodo ${id}.`, supportResources: [], requiredTools: [],
   sensitiveContent: false, safeExitRequired: false, warningMessage: null, terminal: false, startNode: false,
-  positionX: null, positionY: null, decisionPrompt: '', displayOrder: 0, ...over,
+  positionX: null, positionY: null, intensity: 'MEDIUM', decisionPrompt: '', displayOrder: 0, ...over,
 });
 
 const edge = (id: number, source: number, target: number, over: Partial<DecisionEdgeState> = {}): DecisionEdgeState => ({
   id, sourceNodeId: source, sourceKey: `n-${source}`, targetNodeId: target, targetKey: `n-${target}`, optionKey: `o-${id}`,
-  text: `Decisión número ${id}`, classification: 'ADEQUATE', prohibitedConduct: false, prohibitionReason: null,
-  scoreDelta: 10, stressDelta: 0, prohibitedPenalty: 0, immediateFeedback: '', ...over,
+  text: `Decisión número ${id}`, classification: 'ADEQUATE', responseClass: 'RECOMMENDED', prohibitedConduct: false, prohibitionReason: null,
+  immediateFeedback: '', effects: {}, consequenceText: '', theoryBasis: '', feedbackText: '', ...over,
 } as DecisionEdgeState);
 
-// Inicio (1) → 2 (adecuada) y 3 (riesgosa); 2 → 4 terminal (prohibida); 3 queda sin salida.
+// Inicio (1) → 2 (recomendada) y 3 (con riesgo); 2 → 4 terminal (contraindicada); 3 queda sin salida.
 const NODES = [node(1, { startNode: true, title: 'Inicio del caso' }), node(2), node(3), node(4, { terminal: true })];
 const EDGES = [
   edge(1, 1, 2),
-  edge(2, 1, 3, { classification: 'RISKY' }),
-  edge(3, 2, 4, { prohibitedConduct: true, classification: 'INADEQUATE' }),
+  edge(2, 1, 3, { responseClass: 'RISKY' }),
+  edge(3, 2, 4, { prohibitedConduct: true, responseClass: 'CONTRAINDICATED' }),
 ];
 
 const text = (el: Element | null | undefined) => (el?.textContent ?? '').replace(/\s+/g, ' ').trim();
@@ -63,18 +63,30 @@ describe('editor DAG (F8-3)', () => {
     it('la leyenda dice exactamente lo que se dibuja (inicio, terminal, sin salida y las cuatro clases de decisión)', async () => {
       await render();
       expect([...root().querySelectorAll('.dag-legend li')].map(text)).toEqual([
-        'Inicio', 'Terminal', 'Sin salida', 'Decisión adecuada', 'Decisión riesgosa', 'Decisión inadecuada', 'Decisión prohibida',
+        'Inicio', 'Terminal', 'Sin salida', 'Decisión recomendada', 'Decisión aceptable', 'Decisión con riesgo', 'Decisión contraindicada',
       ]);
     });
 
-    it('cada clase de decisión tiene su propio trazo y su propia punta (la inadecuada ya no usa la de la adecuada)', async () => {
-      await render({ edges: [...EDGES, edge(4, 2, 3, { classification: 'INADEQUATE' })] });
-      expect(edgeEl(1).classList.contains('dag-edge--adequate')).toBe(true);
+    it('cada clase de respuesta tiene su propio trazo y su propia punta, según `responseClass`', async () => {
+      await render({ edges: [...EDGES, edge(4, 2, 3, { responseClass: 'ACCEPTABLE' })] });
+      expect(edgeEl(1).classList.contains('dag-edge--recommended')).toBe(true);
       expect(edgeEl(2).classList.contains('dag-edge--risky')).toBe(true);
-      expect(edgeEl(3).classList.contains('dag-edge--prohibited')).toBe(true);
-      expect(edgeEl(4).classList.contains('dag-edge--inadequate')).toBe(true);
-      expect(edgeEl(4).querySelector('path')!.getAttribute('marker-end')).toBe('url(#dag-arrow-inadequate)');
-      expect(root().querySelector('#dag-arrow-inadequate')).not.toBeNull();
+      expect(edgeEl(3).classList.contains('dag-edge--contraindicated')).toBe(true);
+      expect(edgeEl(4).classList.contains('dag-edge--acceptable')).toBe(true);
+      expect(edgeEl(4).querySelector('path')!.getAttribute('marker-end')).toBe('url(#dag-arrow-acceptable)');
+      expect(root().querySelector('#dag-arrow-acceptable')).not.toBeNull();
+    });
+
+    it('el rótulo de cada arista dice la clase en palabras y ninguna cifra de puntaje ni de estrés', async () => {
+      await render({ edges: [...EDGES, edge(4, 2, 3, { responseClass: 'ACCEPTABLE' })] });
+      const words = [1, 2, 3, 4].map(id => text(edgeEl(id).querySelector('.dag-edge__class')));
+      expect(words).toEqual(['Recomendada', 'Con riesgo', 'Contraindicada', 'Aceptable']);
+      expect(text(root().querySelector('svg.dag-svg'))).not.toMatch(/pts|\d+\s?%/);
+    });
+
+    it('una conducta marcada como contraindicada se dibuja como tal aunque su clase no se haya puesto al día', async () => {
+      await render({ edges: [edge(1, 1, 2, { prohibitedConduct: true, responseClass: 'RECOMMENDED' })] });
+      expect(edgeEl(1).classList.contains('dag-edge--contraindicated')).toBe(true);
     });
 
     it('un nodo sin decisiones salientes que no es terminal se marca «Sin salida» en su propio texto', async () => {

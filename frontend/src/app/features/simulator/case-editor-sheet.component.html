@@ -24,6 +24,15 @@
           <ui-field label="Mensaje de advertencia">
             <input uiControl type="text" formControlName="warningMessage" placeholder="Contenido sensible: violencia..." autocomplete="off">
           </ui-field>
+          <ui-field label="Intensidad de la escena"
+            hint="Opcional. Sin elegir, es Media (Alta si la escena es sensible). Una escena de intensidad Alta necesita su mensaje de advertencia.">
+            <select uiControl formControlName="intensity">
+              <option value="">Según la escena</option>
+              @for (option of intensities; track option.value) {
+                <option [value]="option.value">{{ option.label }}</option>
+              }
+            </select>
+          </ui-field>
           <div class="cs-checks">
             <label ui-check><input type="checkbox" formControlName="startNode">Nodo inicial</label>
             <label ui-check><input type="checkbox" formControlName="terminal">Nodo terminal</label>
@@ -57,21 +66,15 @@
           <ui-field label="Texto de la decisión" required [error]="host.fieldError(control(g, 'text'), 'Escribe el texto de la decisión.')">
             <textarea uiControl rows="3" formControlName="text" placeholder="Escucha activa y validación emocional..."></textarea>
           </ui-field>
-          <ui-field label="Clasificación" required>
-            <select uiControl formControlName="classification">
-              @for (option of classifications; track option.value) {
+          <ui-field label="Clase de la respuesta" required
+            hint="Cómo cae esta respuesta: Recomendada, Aceptable, Con riesgo o Contraindicada. La Contraindicada exige explicar por qué."
+            [error]="host.fieldError(control(g, 'responseClass'), 'Elige la clase de la respuesta.')">
+            <select uiControl formControlName="responseClass">
+              @for (option of responseClasses; track option.value) {
                 <option [value]="option.value">{{ option.label }}</option>
               }
             </select>
           </ui-field>
-          <div class="cs-row">
-            <ui-field label="Cambio de puntaje">
-              <input uiControl type="number" formControlName="scoreDelta">
-            </ui-field>
-            <ui-field label="Cambio de estrés (%)">
-              <input uiControl type="number" formControlName="stressDelta">
-            </ui-field>
-          </div>
           <ui-field label="Retroalimentación inmediata">
             <textarea uiControl rows="2" formControlName="immediateFeedback"></textarea>
           </ui-field>
@@ -88,14 +91,11 @@
             <textarea uiControl rows="3" formControlName="theoryBasis"></textarea>
           </ui-field>
           <div class="cs-checks">
-            <label ui-check><input type="checkbox" formControlName="prohibitedConduct">Conducta prohibida (penalización grave)</label>
+            <label ui-check><input type="checkbox" formControlName="prohibitedConduct">Conducta contraindicada (explica por qué)</label>
           </div>
           @if (g.get('prohibitedConduct')?.value) {
             <ui-field label="Razón de prohibición" required [error]="host.fieldError(control(g, 'prohibitionReason'), 'Escribe la razón de la prohibición.')">
               <input uiControl type="text" formControlName="prohibitionReason" autocomplete="off">
-            </ui-field>
-            <ui-field label="Penalización de puntaje">
-              <input uiControl type="number" formControlName="prohibitedPenalty">
             </ui-field>
           }
         }

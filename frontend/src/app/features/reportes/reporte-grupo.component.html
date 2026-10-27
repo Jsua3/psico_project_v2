@@ -1,7 +1,7 @@
 <ui-page-header
   eyebrow="Reportes académicos"
   title="Reportes por grupo"
-  description="Consulta seguimiento, desempeño y trazabilidad de decisiones por cohorte y caso." />
+  description="Consulta el seguimiento y la trazabilidad de decisiones por cohorte y caso." />
 
 <p class="ds-sr-only" role="status">{{ statusText() }}</p>
 
@@ -48,7 +48,7 @@
 @switch (view()) {
   @case ('idle') {
     <ui-empty-state kind="first-use" title="Selecciona un grupo"
-      description="Elige un grupo arriba para ver su seguimiento: intentos, desempeño y decisiones." />
+      description="Elige un grupo arriba para ver su seguimiento: intentos, hitos y decisiones." />
   }
   @case ('loading') {
     <div class="rg-loading" aria-busy="true">
@@ -87,13 +87,6 @@
                 [hint]="sim.intentosCompletados + ' completados · ' + sim.intentosEnProgreso + ' en progreso'" />
             </ui-card>
             <ui-card>
-              <ui-stat label="Puntaje promedio" [value]="puntaje(sim.puntajePromedio)" hint="Desempeño profesional del grupo" />
-            </ui-card>
-            <ui-card>
-              <ui-stat label="Decisiones adecuadas" [value]="sim.decisionesAdecuadas"
-                [hint]="sim.decisionesRiesgosas + ' riesgosas · ' + sim.decisionesInadecuadas + ' inadecuadas'" />
-            </ui-card>
-            <ui-card>
               <ui-stat label="Bitácoras" [value]="sim.bitacorasRegistradas" [hint]="sim.rubricasAplicadas + ' rúbricas aplicadas'" />
             </ui-card>
           </div>
@@ -109,16 +102,78 @@
             </ui-card>
           </div>
 
+          <ui-section title="Cobertura por hito" [level]="3">
+            <p class="rg-hint">
+              Cuántos estudiantes cumplieron cada paso del caso. Es una lectura del grupo, no de cada persona; «clave» marca
+              los pasos que deciden el final.
+            </p>
+            @if (!sim.hitos.length) {
+              <p class="rg-hint">Este caso no declara hitos.</p>
+            } @else {
+              <ul class="rg-hitos">
+                @for (hito of sim.hitos; track hito.key) {
+                  <li class="rg-hito">
+                    <span class="rg-hito__top">
+                      <strong>{{ hito.label }}</strong>
+                      @if (marca(hito); as mark) { <ui-badge tone="info">{{ mark }}</ui-badge> }
+                    </span>
+                    <span class="rg-hito__words">{{ coberturaPalabras(hito) }}</span>
+                    @if (hito.porcentaje !== undefined && hito.porcentaje !== null) {
+                      <span class="rg-hito__bar">
+                        <span class="rg-bar" role="img" [attr.aria-label]="barraEtiqueta(hito)">
+                          <span class="rg-bar__fill" [style.--rg-ratio]="ratio(hito.porcentaje)"></span>
+                        </span>
+                        <span class="rg-bar__value">{{ porcentaje(hito.porcentaje) }}&nbsp;%</span>
+                      </span>
+                    }
+                  </li>
+                }
+              </ul>
+
+              <details class="rg-hitos-tabla">
+                <summary>Ver la cobertura como tabla</summary>
+                <ui-table label="Tabla de cobertura por hito" density="compact">
+                  <table ui-table>
+                    <thead>
+                      <tr>
+                        <th scope="col">Hito</th>
+                        <th scope="col">Cobertura</th>
+                        <th scope="col" class="rg-num">Porcentaje del grupo</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      @for (hito of sim.hitos; track hito.key) {
+                        <tr uiRow>
+                          <th scope="row" class="rg-name">
+                            {{ hito.label }} @if (marca(hito); as mark) { <ui-badge tone="info">{{ mark }}</ui-badge> }
+                          </th>
+                          <td>{{ coberturaPalabras(hito) }}</td>
+                          <td class="rg-num">{{ hito.porcentaje !== undefined && hito.porcentaje !== null ? porcentaje(hito.porcentaje) + ' %' : '—' }}</td>
+                        </tr>
+                      }
+                    </tbody>
+                  </table>
+                </ui-table>
+              </details>
+            }
+          </ui-section>
+
           <ui-section title="Simulación por estudiante" [level]="3">
-            <p class="rg-hint">Detalle operativo para seguimiento docente y administrativo.</p>
+            <p class="rg-hint">
+              Detalle operativo para seguimiento docente y administrativo. Los números por clase son conteos de
+              decisiones registradas; el orden es por nombre.
+            </p>
             <ui-table label="Tabla de simulación por estudiante" density="compact">
               <table ui-table>
                 <thead>
                   <tr>
                     <th scope="col">Estudiante</th>
                     <th scope="col" class="rg-num">Intentos</th>
-                    <th scope="col" class="rg-num">Puntaje prom.</th>
-                    <th scope="col" class="rg-num">Adecuadas</th>
+                    <th scope="col" class="rg-num">Hitos cumplidos</th>
+                    <th scope="col" class="rg-num">Recomendadas</th>
+                    <th scope="col" class="rg-num">Aceptables</th>
+                    <th scope="col" class="rg-num">Con riesgo</th>
+                    <th scope="col" class="rg-num">Contraindicadas</th>
                     <th scope="col" class="rg-num">Bitácoras</th>
                     <th scope="col">Estado</th>
                   </tr>
@@ -130,8 +185,11 @@
                         <a ui-link [routerLink]="['/portal/reportes/estudiante', e.id]" [queryParams]="studentLinkParams()">{{ e.nombre }}<span class="ds-sr-only"> — ver sus intentos</span></a>
                       </th>
                       <td class="rg-num">{{ e.totalIntentos }}</td>
-                      <td class="rg-num">{{ puntaje(e.puntajePromedio) }}</td>
-                      <td class="rg-num">{{ e.decisionesAdecuadas }}</td>
+                      <td class="rg-num">{{ hitosCumplidosTexto(e, sim) }}</td>
+                      <td class="rg-num">{{ e.clases.recommended }}</td>
+                      <td class="rg-num">{{ e.clases.acceptable }}</td>
+                      <td class="rg-num">{{ e.clases.risky }}</td>
+                      <td class="rg-num">{{ e.clases.contraindicated }}</td>
                       <td class="rg-num">{{ e.bitacorasRegistradas }}</td>
                       <td class="rg-nowrap"><ui-badge [tone]="estadoTone(e.estado)">{{ estadoLabel(e.estado) }}</ui-badge></td>
                     </tr>

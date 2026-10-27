@@ -8,7 +8,7 @@ import { SceneOrderComponent } from './scene-order.component';
 const node = (id: number, over: Partial<NodeEditorState> = {}): NodeEditorState => ({
   id, key: `escena-${id}`, title: `Escena ${id}`, narrative: '', supportResources: [], requiredTools: [],
   sensitiveContent: false, safeExitRequired: false, warningMessage: null, terminal: false, startNode: false,
-  positionX: null, positionY: null, decisionPrompt: '', displayOrder: id - 1, ...over,
+  positionX: null, positionY: null, intensity: 'MEDIUM', decisionPrompt: '', displayOrder: id - 1, ...over,
 });
 
 const text = (el: Element | null | undefined) => (el?.textContent ?? '').replace(/\s+/g, ' ').trim();

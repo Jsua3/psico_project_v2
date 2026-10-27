@@ -43,7 +43,7 @@
         [attr.width]="width()" [attr.height]="height()" [attr.viewBox]="'0 0 ' + layout().width + ' ' + layout().height"
         (keydown)="onKeydown($event)">
         <defs>
-          @for (kind of ['adequate', 'risky', 'inadequate', 'prohibited']; track kind) {
+          @for (kind of ['recommended', 'acceptable', 'risky', 'contraindicated']; track kind) {
             <marker [id]="'dag-arrow-' + kind" markerUnits="userSpaceOnUse" markerWidth="12" markerHeight="10" refX="11" refY="5" orient="auto">
               <polygon [class]="'dag-arrow dag-arrow--' + kind" points="0 0, 12 5, 0 10" />
             </marker>
@@ -55,7 +55,7 @@
             aria-hidden="true" [attr.data-edge-id]="view.line.edge.id" (click)="onEdgeClick(view.line.edge)">
             <path class="dag-edge__path" [attr.d]="view.path" [attr.marker-end]="'url(#dag-arrow-' + view.kind + ')'" />
             <text class="dag-edge__label" [attr.x]="view.line.mx" [attr.y]="view.line.my - 8" text-anchor="middle">{{ view.label }}</text>
-            <text class="dag-edge__score" [attr.x]="view.line.mx" [attr.y]="view.line.my + 10" text-anchor="middle">{{ view.score }}</text>
+            <text class="dag-edge__class" [attr.x]="view.line.mx" [attr.y]="view.line.my + 10" text-anchor="middle">{{ view.classWord }}</text>
           </g>
         }
 

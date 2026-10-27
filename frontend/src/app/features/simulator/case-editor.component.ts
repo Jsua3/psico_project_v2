@@ -341,6 +341,8 @@ export class CaseEditorComponent implements OnInit, CaseEditorSheetHost {
       narrative: [node?.narrative ?? '', Validators.required],
       decisionPrompt: [node?.decisionPrompt ?? '', Validators.maxLength(TEXT_LIMIT)],
       warningMessage: [node?.warningMessage ?? ''],
+      // Vacío = no se manda: el servidor decide (Media, o Alta si la escena es sensible).
+      intensity: [node?.intensity ?? ''],
       startNode: [node?.startNode ?? false],
       terminal: [node?.terminal ?? false],
       sensitiveContent: [node?.sensitiveContent ?? false],
@@ -356,12 +358,9 @@ export class CaseEditorComponent implements OnInit, CaseEditorSheetHost {
       targetNodeId: [edge?.targetNodeId ?? null, Validators.required],
       optionKey: [edge?.optionKey ?? ''],
       text: [edge?.text ?? '', Validators.required],
-      classification: [edge?.classification ?? 'ADEQUATE', Validators.required],
+      responseClass: [edge?.responseClass ?? 'RECOMMENDED', Validators.required],
       prohibitedConduct: [edge?.prohibitedConduct ?? false],
       prohibitionReason: [edge?.prohibitionReason ?? ''],
-      scoreDelta: [edge?.scoreDelta ?? 10],
-      stressDelta: [edge?.stressDelta ?? 0],
-      prohibitedPenalty: [edge?.prohibitedPenalty ?? 0],
       immediateFeedback: [edge?.immediateFeedback ?? ''],
       consequenceText: [edge?.consequenceText ?? '', Validators.maxLength(TEXT_LIMIT)],
       feedbackText: [edge?.feedbackText ?? '', Validators.maxLength(TEXT_LIMIT)],
@@ -452,6 +451,7 @@ export class CaseEditorComponent implements OnInit, CaseEditorSheetHost {
       terminal: v.terminal, startNode: v.startNode,
       positionX: v.positionX, positionY: v.positionY,
       decisionPrompt: v.decisionPrompt ?? '',
+      ...(v.intensity ? { intensity: v.intensity } : {}),
     };
     this.runAction(
       revision => editing
@@ -467,10 +467,9 @@ export class CaseEditorComponent implements OnInit, CaseEditorSheetHost {
     const v = this.decisionForm.value;
     const body = {
       sourceNodeId: Number(v.sourceNodeId), targetNodeId: Number(v.targetNodeId),
-      optionKey: v.optionKey || null, text: v.text, classification: v.classification,
+      optionKey: v.optionKey || null, text: v.text, responseClass: v.responseClass,
       prohibitedConduct: v.prohibitedConduct, prohibitionReason: v.prohibitionReason || null,
-      scoreDelta: v.scoreDelta, stressDelta: v.stressDelta,
-      prohibitedPenalty: v.prohibitedPenalty, immediateFeedback: v.immediateFeedback || '',
+      immediateFeedback: v.immediateFeedback || '',
       consequenceText: v.consequenceText ?? '', feedbackText: v.feedbackText ?? '', theoryBasis: v.theoryBasis ?? '',
     };
     const editingId = p?.kind === 'decision-edit' ? p.edge.id : null;

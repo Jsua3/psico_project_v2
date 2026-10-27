@@ -183,9 +183,16 @@
   stroke-width: 2.5;
 }
 
-.dag-edge--adequate .dag-edge__path,
-.dag-sample-edge--adequate {
+.dag-edge--recommended .dag-edge__path,
+.dag-sample-edge--recommended {
   stroke: var(--ds-success);
+}
+
+.dag-edge--acceptable .dag-edge__path,
+.dag-sample-edge--acceptable {
+  stroke: var(--ds-primary);
+  stroke-dasharray: 2 5;
+  stroke-linecap: round;
 }
 
 .dag-edge--risky .dag-edge__path,
@@ -194,38 +201,31 @@
   stroke-dasharray: 10 4;
 }
 
-.dag-edge--inadequate .dag-edge__path,
-.dag-sample-edge--inadequate {
-  stroke: var(--ds-text-2);
-  stroke-dasharray: 2 5;
-  stroke-linecap: round;
-}
-
-.dag-edge--prohibited .dag-edge__path,
-.dag-sample-edge--prohibited {
+.dag-edge--contraindicated .dag-edge__path,
+.dag-sample-edge--contraindicated {
   stroke: var(--ds-danger);
   stroke-dasharray: 14 4 2 4;
 }
 
-.dag-arrow--adequate {
+.dag-arrow--recommended {
   fill: var(--ds-success);
+}
+
+.dag-arrow--acceptable {
+  fill: var(--ds-primary);
 }
 
 .dag-arrow--risky {
   fill: var(--ds-warning-text);
 }
 
-.dag-arrow--inadequate {
-  fill: var(--ds-text-2);
-}
-
-.dag-arrow--prohibited {
+.dag-arrow--contraindicated {
   fill: var(--ds-danger);
 }
 
 // Un halo del color del lienzo separa el rótulo de la línea que lo cruza (y de un nodo que lo roce).
 .dag-edge__label,
-.dag-edge__score {
+.dag-edge__class {
   font-size: var(--ds-type-caption-size);
   paint-order: stroke fill;
   stroke: var(--ds-surface-2);
@@ -239,7 +239,7 @@
   font-weight: 600;
 }
 
-.dag-edge__score {
+.dag-edge__class {
   fill: var(--ds-text-2);
 }
 

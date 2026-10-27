@@ -16,16 +16,16 @@ const dialog = readFileSync(join(__dirname, 'trace-feedback-dialog.component.ts'
 const panel = Object.create(InstructorTraceComponent.prototype) as InstructorTraceComponent;
 
 const entry = (overrides: Partial<AttemptTimelineEntry>): AttemptTimelineEntry => ({
-  atSeconds: 10, time: '00:10', type: 'DECISION_SELECTED', classification: null, prohibited: false,
-  label: 'Etiqueta', scoreDelta: 0, stressDelta: 0, ...overrides,
+  atSeconds: 10, time: '00:10', type: 'DECISION_SELECTED', class: null, prohibited: false,
+  label: 'Etiqueta', ...overrides,
 });
 
-const prohibitedRetry = entry({ type: 'PROHIBITED_DECISION_RETRY_REQUIRED', classification: 'INADEQUATE', prohibited: true });
-const riskyRetry = entry({ type: 'DECISION_RETRY_REQUIRED', classification: 'RISKY', prohibited: false });
-const prohibitedRegistered = entry({ type: 'PROHIBITED_DECISION_SELECTED', classification: 'INADEQUATE', prohibited: true });
+const prohibitedRetry = entry({ type: 'PROHIBITED_DECISION_RETRY_REQUIRED', class: 'CONTRAINDICATED', prohibited: true });
+const riskyRetry = entry({ type: 'DECISION_RETRY_REQUIRED', class: 'RISKY', prohibited: false });
+const prohibitedRegistered = entry({ type: 'PROHIBITED_DECISION_SELECTED', class: 'CONTRAINDICATED', prohibited: true });
 
 describe('panel del docente: respuestas reconsideradas (L-02)', () => {
-  it('una fila de reintento lleva la etiqueta «Primera respuesta no aplicada (reintento)», sea prohibida o riesgosa', () => {
+  it('una fila de reintento lleva la etiqueta «Primera respuesta no aplicada (reintento)», sea contraindicada o con riesgo', () => {
     expect(panel.timelineEntryLabel(prohibitedRetry)).toBe(RECONSIDERED_LABEL);
     expect(panel.timelineEntryLabel(riskyRetry)).toBe(RECONSIDERED_LABEL);
   });
@@ -38,7 +38,7 @@ describe('panel del docente: respuestas reconsideradas (L-02)', () => {
     expect(panel.timelineEntryAccent(prohibitedRetry)).toBe('');
     expect(panel.timelineEntryTone(prohibitedRetry)).toBe('neutral');
     expect(panel.timelineEntryTone(riskyRetry)).toBe('neutral');
-    expect(panel.timelineEntryAccent(prohibitedRegistered)).toBe('inadequate');
+    expect(panel.timelineEntryAccent(prohibitedRegistered)).toBe('contraindicated');
     expect(panel.timelineEntryTone(prohibitedRegistered)).toBe('danger');
   });
 

@@ -4,7 +4,7 @@ import { moveScene, sceneKind, sceneKindLabel, sortScenes } from './scene-order.
 const node = (id: number, over: Partial<NodeEditorState> = {}): NodeEditorState => ({
   id, key: `escena-${id}`, title: `Escena ${id}`, narrative: '', supportResources: [], requiredTools: [],
   sensitiveContent: false, safeExitRequired: false, warningMessage: null, terminal: false, startNode: false,
-  positionX: null, positionY: null, decisionPrompt: '', displayOrder: 0, ...over,
+  positionX: null, positionY: null, intensity: 'MEDIUM', decisionPrompt: '', displayOrder: 0, ...over,
 });
 
 const ids = (nodes: NodeEditorState[]) => nodes.map(item => item.id);

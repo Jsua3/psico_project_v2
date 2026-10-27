@@ -23,7 +23,7 @@ const CASE_ID = 7;
 const node = (id: number, key: string, title: string, over: Partial<NodeEditorState> = {}): NodeEditorState => ({
   id, key, title, narrative: `Narrativa de ${title}`, supportResources: [], requiredTools: [],
   sensitiveContent: false, safeExitRequired: false, warningMessage: null, terminal: false, startNode: false,
-  positionX: null, positionY: null, decisionPrompt: '', displayOrder: 0, ...over,
+  positionX: null, positionY: null, intensity: 'MEDIUM', decisionPrompt: '', displayOrder: 0, ...over,
 });
 
 const CHECKLIST_ITEMS = [
@@ -666,8 +666,8 @@ describe('editor de casos (F8-1)', () => {
     const byLabel = (label: string) => host().querySelector<HTMLButtonElement>(`button[aria-label="${label}"]`)!;
     const decisionEdge = {
       id: 40, optionKey: 'cerrar', sourceNodeId: 1, sourceKey: 'inicio', targetNodeId: 2, targetKey: 'cierre', text: 'Cerrar el caso',
-      classification: 'ADEQUATE' as const, prohibitedConduct: false, prohibitionReason: null, scoreDelta: 10, stressDelta: 0,
-      prohibitedPenalty: 0, immediateFeedback: 'Bien.', consequenceText: 'Ella respira más tranquila.',
+      classification: 'RISKY' as const, responseClass: 'RISKY' as const, effects: { milestones: ['valida_emocion'] },
+      prohibitedConduct: false, prohibitionReason: null, immediateFeedback: 'Bien.', consequenceText: 'Ella respira más tranquila.',
       theoryBasis: 'Rogers (1957).', feedbackText: 'Validar sostiene la alianza.',
     };
 
@@ -1014,6 +1014,91 @@ describe('editor de casos (F8-1)', () => {
         expect(api['createDecision']).toHaveBeenCalledWith(CASE_ID, expect.objectContaining({
           consequenceText: '', feedbackText: '', theoryBasis: '',
         }), 3);
+      });
+
+      // req: modelo de métricas
+      it('la decisión viaja con su clase y sin las cifras viejas: ni scoreDelta, ni stressDelta, ni prohibitedPenalty, ni classification', async () => {
+        await render({ view: editorView({ decisions: [decisionEdge] }) });
+
+        component().openPanel({ kind: 'decision-edit', edge: decisionEdge });
+        expect(component().decisionForm!.get('responseClass')!.value).toBe('RISKY');
+        expect(component().decisionForm!.get('scoreDelta')).toBeNull();
+        component().decisionForm!.patchValue({ responseClass: 'CONTRAINDICATED', prohibitedConduct: true, prohibitionReason: 'Culpa a la persona.' });
+        component().saveDecision(CASE_ID);
+        await settle();
+
+        const [, , body] = api['updateDecision'].mock.calls[0];
+        expect(body).toMatchObject({ responseClass: 'CONTRAINDICATED', prohibitedConduct: true, prohibitionReason: 'Culpa a la persona.' });
+        for (const retired of ['scoreDelta', 'stressDelta', 'prohibitedPenalty', 'classification']) {
+          expect(body, retired).not.toHaveProperty(retired);
+        }
+        // Los efectos de la opción no se tocan desde el editor viejo: ausentes = el servidor los conserva.
+        expect(body).not.toHaveProperty('effects');
+      });
+
+      it('una decisión nueva parte de «Recomendada» y la envía como responseClass', async () => {
+        await render();
+        component().openPanel({ kind: 'decision-create' });
+        expect(component().decisionForm!.get('responseClass')!.value).toBe('RECOMMENDED');
+        component().decisionForm!.patchValue({ sourceNodeId: 1, targetNodeId: 2, text: 'Escuchar' });
+        component().saveDecision(CASE_ID);
+        await settle();
+
+        const [, body] = api['createDecision'].mock.calls[0];
+        expect(body.responseClass).toBe('RECOMMENDED');
+        expect(body).not.toHaveProperty('scoreDelta');
+      });
+
+      it('la clase es obligatoria: sin ella la decisión no se envía', async () => {
+        await render();
+        component().openPanel({ kind: 'decision-create' });
+        component().decisionForm!.patchValue({ sourceNodeId: 1, targetNodeId: 2, text: 'Escuchar', responseClass: '' });
+
+        component().save();
+
+        expect(api['createDecision']).not.toHaveBeenCalled();
+        expect(component().decisionForm!.get('responseClass')!.touched).toBe(true);
+      });
+
+      it('guardar decisiones y escenas no toca las reglas del caso (hitos, nivel de riesgo y finales viajan intactos)', async () => {
+        await render({ view: editorView({ decisions: [decisionEdge] }) });
+        component().openPanel({ kind: 'decision-edit', edge: decisionEdge });
+        component().saveDecision(CASE_ID);
+        await settle();
+        component().openPanel({ kind: 'node-edit', node: node(1, 'inicio', 'Inicio del caso') });
+        component().saveNode(CASE_ID);
+        await settle();
+
+        for (const call of [...api['updateDecision'].mock.calls, ...api['updateNode'].mock.calls]) {
+          const body = call.find((arg: unknown) => typeof arg === 'object' && arg !== null && !Array.isArray(arg));
+          for (const rule of ['rules', 'milestones', 'riskLevel', 'endings']) {
+            expect(body, rule).not.toHaveProperty(rule);
+          }
+        }
+        for (const method of ['updateMilestones', 'updateRisk', 'updateEndings']) {
+          expect(api[method]?.mock?.calls ?? [], method).toHaveLength(0);
+        }
+      });
+
+      it('la intensidad de la escena: una nueva sin elegirla no la manda; al elegirla o editarla viaja', async () => {
+        await render();
+        component().openPanel({ kind: 'node-create' });
+        component().nodeForm!.patchValue({ nodeKey: 'nuevo', title: 'Nuevo', narrative: 'Texto' });
+        component().saveNode(CASE_ID);
+        await settle();
+        expect(api['createNode'].mock.calls[0][1]).not.toHaveProperty('intensity');
+
+        component().openPanel({ kind: 'node-create' });
+        component().nodeForm!.patchValue({ nodeKey: 'otro', title: 'Otro', narrative: 'Texto', intensity: 'LOW' });
+        component().saveNode(CASE_ID);
+        await settle();
+        expect(api['createNode'].mock.calls[1][1]).toMatchObject({ intensity: 'LOW' });
+
+        component().openPanel({ kind: 'node-edit', node: node(1, 'inicio', 'Inicio del caso', { intensity: 'HIGH', warningMessage: 'Contenido sensible' }) });
+        expect(component().nodeForm!.get('intensity')!.value).toBe('HIGH');
+        component().saveNode(CASE_ID);
+        await settle();
+        expect(api['updateNode'].mock.calls[0][2]).toMatchObject({ intensity: 'HIGH' });
       });
 
       it('un texto de más de 1.200 caracteres no se envía y marca el campo', async () => {

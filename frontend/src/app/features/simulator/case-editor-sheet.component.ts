@@ -17,7 +17,7 @@ import { UiDialogActions, UiDialogFrame } from '../../shared/ui/dialog/ui-dialog
 import { UiCheck } from '../../shared/ui/field/ui-check';
 import { UiControl, UiField } from '../../shared/ui/field/ui-field';
 import { objectTypeLabel } from '../../shared/ui/labels';
-import { CLASSIFICATIONS, MAP_THEMES, OBJECT_TYPES, nodeOptionLabel, shorten } from './case-editor.options';
+import { INTENSITIES, MAP_THEMES, OBJECT_TYPES, RESPONSE_CLASSES, nodeOptionLabel, shorten } from './case-editor.options';
 
 /** El formulario que la hoja presenta: qué se crea o edita (null = ninguno). */
 export type EditorPanel =
@@ -98,7 +98,8 @@ export class CaseEditorSheetComponent {
   protected readonly objectTypes = OBJECT_TYPES;
   protected readonly objectTypeLabel = objectTypeLabel;
   protected readonly themes = MAP_THEMES;
-  protected readonly classifications = CLASSIFICATIONS;
+  protected readonly responseClasses = RESPONSE_CLASSES;
+  protected readonly intensities = INTENSITIES;
   protected readonly nodeOptionLabel = nodeOptionLabel;
   protected readonly shorten = shorten;
   protected readonly feedbackLimitMessage = FEEDBACK_LIMIT_MESSAGE;

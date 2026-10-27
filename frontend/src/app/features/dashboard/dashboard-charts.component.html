@@ -65,16 +65,16 @@
     </ui-card>
   } @else if (isProfesor()) {
     <ui-card class="dc-chart">
-      <h3 class="dc-chart__title">Desempeño por estudiante</h3>
-      <p class="dc-chart__sub">Promedio de puntaje en tus grupos</p>
-      @if (chartHasData(professorStudentChart())) {
+      <h3 class="dc-chart__title">Decisiones por clase</h3>
+      <p class="dc-chart__sub">Cuántas respuestas hubo de cada clase en tus grupos</p>
+      @if (chartHasData(professorDecisionChart())) {
         <ul class="dc-bars">
-          @for (bar of professorStudentChart(); track bar.label) {
+          @for (bar of professorDecisionChart(); track bar.label) {
             <li class="dc-bar">
               <span class="dc-bar__label">{{ bar.label }}</span>
               <span class="dc-bar__value">{{ bar.value }}</span>
               <span class="dc-bar__track" aria-hidden="true">
-                <span class="dc-bar__fill dc-tone--blue" [style.--dc-ratio]="ratio(bar)"></span>
+                <span class="dc-bar__fill dc-tone--{{ bar.tone }}" [style.--dc-ratio]="ratio(bar)"></span>
               </span>
             </li>
           }

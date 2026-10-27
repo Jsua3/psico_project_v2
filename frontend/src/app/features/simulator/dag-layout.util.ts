@@ -3,7 +3,7 @@ import { DecisionEdgeState, NodeEditorState } from '../../core/models/simulation
 /** Medidas del nodo dibujado: caben la clave, dos líneas de título y su tipo con texto de 12 px o más. */
 export const DAG_NODE_W = 192;
 export const DAG_NODE_H = 92;
-// Entre dos columnas caben el rótulo de la decisión (hasta 20 caracteres) y su puntaje sin pisar a los nodos.
+// Entre dos columnas caben el rótulo de la decisión (hasta 20 caracteres) y su clase sin pisar a los nodos.
 const COL_GAP = 330;
 const ROW_GAP = 132;
 const PAD = 56;

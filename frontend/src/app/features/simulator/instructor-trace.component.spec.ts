@@ -10,7 +10,9 @@ import { InstructorApi } from '../../core/api/instructor.api';
 import { LiveRegionAnnouncer } from '../../core/a11y/live-announcer.service';
 import { AuthService } from '../../core/auth/auth.service';
 import { NotificationService } from '../../core/notifications/notification.service';
-import { AttemptTrace, RecentAttempt, RubricCriterionView, RubricEvaluationView } from '../../core/models/simulation.model';
+import {
+  AttemptTrace, FormativeLevel, RecentAttempt, RubricCriterionView, RubricEvaluationView, RubricLevelOption,
+} from '../../core/models/simulation.model';
 import { UiDialog } from '../../shared/ui/dialog/ui-dialog';
 import { InstructorTraceComponent } from './instructor-trace.component';
 import { ReplaceAttemptDialogComponent } from './replace-attempt-dialog.component';
@@ -18,37 +20,68 @@ import { TraceFeedbackDialogComponent } from './trace-feedback-dialog.component'
 
 /**
  * Traza del docente en el sistema de la biblioteca (plan visual F7-4): lista maestro-detalle, retroalimentación en un
- * diálogo (trampa de foco, foco inicial, Esc), «Selecciona un intento» solo si hay intentos, calificación con el rango
- * del contrato (SIEP-CU-04) y la valoración formativa rotulada como tal, sin ningún número que el servidor no envíe
- * (RN-09). La prueba del diálogo vive en `trace-feedback-dialog.component.spec.ts`.
+ * diálogo (trampa de foco, foco inicial, Esc), «Selecciona un intento» solo si hay intentos, rúbrica por niveles
+ * (un nivel por criterio, sin campo numérico) y la valoración formativa rotulada como tal (RN-09). La traza dice qué
+ * hizo la persona (hitos, persona por escena, final con su razón, decisiones por clase) y no muestra puntaje ni
+ * estrés; el perfil automático del sistema queda plegado hasta que el docente guarda su valoración. La prueba del
+ * diálogo vive en `trace-feedback-dialog.component.spec.ts`.
  */
 const attempt = (attemptId: string, overrides: Partial<RecentAttempt> = {}): RecentAttempt => ({
   attemptId, studentAlias: `Estudiante ${attemptId}`, caseTitle: `Caso ${attemptId}`, status: 'COMPLETED',
-  accumulatedScore: 60, stressIndex: 20, startedAt: '2026-10-10T10:00:00Z', ...overrides,
+  startedAt: '2026-10-10T10:00:00Z', ...overrides,
 });
 
-const criterion = (id: number, title: string): RubricCriterionView => ({
-  id, competency: 'ETICA', title, description: `Descripción de ${title}`, weight: 50, maxScore: 5, displayOrder: id,
+const criterion = (id: number, title: string, competency = 'ETICA'): RubricCriterionView => ({
+  id, competency, title, description: `Descripción de ${title}`, weight: 50, displayOrder: id,
 });
+
+const LEVELS: RubricLevelOption[] = [
+  { value: 'EN_INICIO', label: 'En inicio', descriptor: 'Aún no muestra la conducta esperada.' },
+  { value: 'EN_PROCESO', label: 'En proceso', descriptor: 'La muestra a veces y con apoyo.' },
+  { value: 'LOGRADO', label: 'Logrado', descriptor: 'La muestra de forma sostenida.' },
+  { value: 'DESTACADO', label: 'Destacado', descriptor: 'La muestra y además la fundamenta.' },
+];
 
 function rubricFixture(overrides: Partial<RubricEvaluationView> = {}): RubricEvaluationView {
   return {
     attemptId: 'a-1', rubricId: 7, rubricName: 'Rúbrica básica de desempeño', description: 'Evalúa el desempeño formativo.',
-    criteria: [criterion(1, 'Ética profesional'), criterion(2, 'Ruta de atención')], scores: [], totalScore: null,
+    criteria: [criterion(1, 'Ética profesional'), criterion(2, 'Ruta de atención', 'RUTA')], scores: [], levels: LEVELS,
     overallLevel: null, comment: '', ...overrides,
   };
 }
 
+const SYSTEM_EVALUATION = {
+  id: 90, rubricName: 'Valoración del sistema', origin: 'SISTEMA' as const, overallLevel: 'EN_PROCESO' as const, comment: null,
+  evaluatedAt: '2026-10-10T11:00:00Z',
+  competencyLevels: [
+    { code: 'ETICA', name: 'Ética profesional', level: 'EN_PROCESO' as const, basis: 'Dos decisiones recomendadas de tres.', evidence: [] },
+    { code: 'RUTA', name: 'Ruta de atención', level: null, basis: null, evidence: [] },
+  ],
+};
+
 function traceFixture(id = 'a-1', overrides: Partial<AttemptTrace> = {}): AttemptTrace {
   return {
-    attemptId: id, studentAlias: `Estudiante ${id}`, caseTitle: `Caso ${id}`, status: 'COMPLETED', accumulatedScore: 60,
-    stressIndex: 20, startedAt: '2026-10-10T10:00:00Z', endedAt: '2026-10-10T10:25:00Z', totalDurationSeconds: 1500,
+    attemptId: id, studentAlias: `Estudiante ${id}`, caseTitle: `Caso ${id}`, status: 'COMPLETED',
+    startedAt: '2026-10-10T10:00:00Z', endedAt: '2026-10-10T10:25:00Z', totalDurationSeconds: 1500, activeSeconds: 1400,
     phaseDurations: [{ nodeId: 1, nodeTitle: 'Recepción', startedAt: '2026-10-10T10:00:00Z', endedAt: '2026-10-10T10:05:00Z', durationSeconds: 300 }],
-    adequateDecisions: 3, riskyDecisions: 1, inadequateDecisions: 1, prohibitedDecisions: 0, safeExitUsed: false,
-    timeline: [
-      { atSeconds: 30, time: '00:30', type: 'DECISION_SELECTED', classification: 'ADEQUATE', prohibited: false, label: 'Escucha activa', scoreDelta: 5, stressDelta: -2 },
+    counts: { recommended: 3, acceptable: 1, risky: 1, contraindicated: 0 }, safeExitUsed: false,
+    milestones: {
+      done: [{ key: 'escucha', label: 'Escuchar sin interrumpir', decisive: false }],
+      missing: [{ key: 'proteccion', label: 'Recomendar medidas de protección', decisive: true }],
+    },
+    personaPorEscena: [
+      { nodeId: 1, nodeTitle: 'Recepción', bond: 'GUARDED', activation: 'TENSE', label: 'se muestra cautelosa y tensa' },
+      { nodeId: 2, nodeTitle: 'Cierre', bond: 'OPEN', activation: 'CALM', label: 'se muestra abierta y serena' },
     ],
-    visitedNodeTitles: ['Recepción'], events: [], reflections: [], rubricEvaluations: [], metrics: {}, world: {},
+    ending: {
+      key: 'con_brechas', title: 'Cierre con brechas', message: 'El caso se cerró con pasos pendientes.', tone: 'neutral',
+      reason: ['Faltó recomendar medidas de protección.', 'Hubo una respuesta con riesgo.'],
+    },
+    timeline: [
+      { atSeconds: 30, time: '00:30', type: 'DECISION_SELECTED', class: 'RECOMMENDED', prohibited: false, label: 'Escucha activa' },
+    ],
+    visitedNodeTitles: ['Recepción'], events: [], reflections: [], rubricEvaluations: [], world: {},
+    systemEvaluation: null, systemEvaluationAvailable: false,
     ...overrides,
   } as unknown as AttemptTrace;
 }
@@ -70,11 +103,17 @@ describe('traza del docente en el sistema de la biblioteca (F7-4)', () => {
   const text = (el: Element | null | undefined) => (el?.textContent ?? '').replace(/\s+/g, ' ').trim();
   const status = () => text(host().querySelector('[role="status"].ds-sr-only'));
   const criteriaCards = () => [...host().querySelectorAll('.tr-criterion')];
-  const scoreInput = (index: number) => criteriaCards()[index].querySelector('input[type="number"]') as HTMLInputElement;
-  const type = (input: HTMLInputElement, value: string) => {
-    input.value = value;
-    input.dispatchEvent(new Event('input'));
+  const levelSelect = (index: number) => criteriaCards()[index].querySelector('select') as HTMLSelectElement;
+  /** Elige un nivel en el selector de un criterio, como lo haría el docente. */
+  const pick = (index: number, level: FormativeLevel | '') => {
+    const select = levelSelect(index);
+    select.value = level;
+    select.dispatchEvent(new Event('change'));
     fixture.detectChanges();
+  };
+  const fillLevels = (first: FormativeLevel = 'LOGRADO', second: FormativeLevel = 'EN_PROCESO') => {
+    pick(0, first);
+    pick(1, second);
   };
   const saveButton = () => [...host().querySelectorAll('button')]
     .find(button => text(button.querySelector('.ui-button__label')).startsWith('Guardar evaluación')) as HTMLButtonElement;
@@ -177,7 +216,7 @@ describe('traza del docente en el sistema de la biblioteca (F7-4)', () => {
       await fixture.whenStable();
       fixture.detectChanges();
 
-      type(scoreInput(0), '4');
+      fillLevels();
       saveButton().click();
       await fixture.whenStable();
       fixture.detectChanges();
@@ -214,6 +253,8 @@ describe('traza del docente en el sistema de la biblioteca (F7-4)', () => {
       expect(items[1].getAttribute('aria-current')).toBeNull();
       expect(text(items[1])).toContain('Estudiante a-2');
       expect(text(items[1])).toContain('En curso');
+      // La lista dice quién, qué caso y cuándo: ningún puntaje ni estrés.
+      expect(text(items[0])).not.toMatch(/Puntaje|Estrés/i);
     });
 
     it('elegir otro intento abre ese y mueve la marca de seleccionado', async () => {
@@ -284,8 +325,10 @@ describe('traza del docente en el sistema de la biblioteca (F7-4)', () => {
       await render();
       const cards = [...host().querySelectorAll('.tr-metric')] as HTMLButtonElement[];
       expect(cards.map(card => text(card.querySelector('.ui-stat__label')))).toEqual([
-        'Total decisiones', 'Adecuadas', 'Riesgosas', 'Inadecuadas', 'Reflexiones', 'Evaluación', 'Tiempo total',
+        'Total decisiones', 'Recomendadas', 'Aceptables', 'Con riesgo', 'Contraindicadas', 'Reflexiones', 'Evaluación', 'Tiempo total',
       ]);
+      // Son conteos de hechos por clase de respuesta (3 + 1 + 1 + 0), no una medida.
+      expect(cards.map(card => text(card.querySelector('.ui-stat__value')))).toEqual(['5', '3', '1', '1', '0', '0', 'Pendiente', '25 min 0 s']);
       expect(cards.every(card => card.getAttribute('aria-haspopup') === 'dialog')).toBe(true);
 
       cards[1].click();
@@ -293,8 +336,8 @@ describe('traza del docente en el sistema de la biblioteca (F7-4)', () => {
       const [component, options] = dialog.open.mock.calls[0];
       expect(component).toBe(TraceFeedbackDialogComponent);
       expect(options.size).toBe('lg');
-      expect(options.data.panel.key).toBe('ADEQUATE');
-      expect(options.data.panel.title).toBe('Decisiones adecuadas');
+      expect(options.data.panel.key).toBe('RECOMMENDED');
+      expect(options.data.panel.title).toBe('Decisiones recomendadas');
     });
 
     it('ningún panel usa el vocabulario clínico (VD-24): el vacío de decisiones es educativo', async () => {
@@ -317,41 +360,192 @@ describe('traza del docente en el sistema de la biblioteca (F7-4)', () => {
     });
   });
 
-  // req: SIEP-CU-04, RNF-04
-  describe('calificación con el rango del contrato (SIEP-CU-04)', () => {
-    it('cada criterio pide de 1,0 al máximo del criterio en pasos de 0,5, y la ayuda lo dice', async () => {
+  // req: modelo de métricas
+  describe('sin puntaje ni estrés', () => {
+    it('la traza no muestra puntaje, estrés, impactos ni porcentajes: ni en el detalle, ni en la lista, ni en los paneles', async () => {
       await render();
-      expect(criteriaCards()).toHaveLength(2);
-      const input = scoreInput(0);
-      expect(input.getAttribute('min')).toBe('1');
-      expect(input.getAttribute('max')).toBe('5');
-      expect(input.getAttribute('step')).toBe('0.5');
-      expect(text(criteriaCards()[0].querySelector('.ui-field__message'))).toBe('Rango 1,0 a 5');
+      expect(text(host())).not.toMatch(/Puntaje|Estrés|Impacto|\d+\s?%/i);
+      expect(host().querySelectorAll('input[type="number"]')).toHaveLength(0);
+
+      for (const card of [...host().querySelectorAll('.tr-metric')] as HTMLButtonElement[]) card.click();
+      const panels = dialog.open.mock.calls.map(call => JSON.stringify(call[1].data.panel));
+      expect(panels.length).toBeGreaterThan(0);
+      expect(panels.join(' ')).not.toMatch(/puntaje|estrés|impacto|scoreDelta|stressDelta/i);
     });
 
-    it('un valor fuera de rango se rechaza en línea al escribirlo y no se envía: 0,5 y 0 no son del contrato', async () => {
+    it('la línea de tiempo dice la clase en palabras y nada más (sin deltas)', async () => {
       await render();
-      type(scoreInput(0), '0.5');
-      expect(text(criteriaCards()[0].querySelector('.ui-field__message--error'))).toBe('Debe estar entre 1,0 y 5.');
-      expect(scoreInput(0).getAttribute('aria-invalid')).toBe('true');
+      const event = host().querySelector('.tr-event')!;
+      expect(text(event.querySelector('ui-badge'))).toBe('Recomendada');
+      expect(event.getAttribute('data-accent')).toBe('recommended');
+      expect(text(event.querySelector('small'))).toBe('00:30');
+    });
+  });
 
+  // req: RN-09, modelo de métricas
+  describe('hitos, persona por escena y final', () => {
+    it('«Hitos» separa los cumplidos de los que faltaron y marca «clave» el que decide el final', async () => {
+      await render();
+      const section = host().querySelector('.tr-milestones')!;
+      expect(text(section.querySelector('h2'))).toBe('Hitos');
+      const groups = [...section.querySelectorAll('.tr-milestone-groups > div')];
+      expect(text(groups[0])).toContain('Cumplidos');
+      expect(text(groups[0])).toContain('Escuchar sin interrumpir');
+      expect(groups[0].querySelector('ui-badge')).toBeNull();
+      expect(text(groups[1])).toContain('Faltaron');
+      expect(text(groups[1])).toContain('Recomendar medidas de protección');
+      expect(text(groups[1].querySelector('ui-badge'))).toBe('clave');
+    });
+
+    it('un caso sin hitos lo dice en vez de dejar el bloque vacío', async () => {
+      await render({ trace: id => of(traceFixture(id, { milestones: { done: [], missing: [] } })) });
+      expect(text(host().querySelector('.tr-milestones'))).toContain('Este caso no declara hitos.');
+    });
+
+    it('«La persona por escena» lista cada escena con la frase de cómo se mostró la persona', async () => {
+      await render();
+      const items = [...host().querySelectorAll('.tr-persona-list li')].map(text);
+      expect(items).toEqual(['Recepción → se muestra cautelosa y tensa', 'Cierre → se muestra abierta y serena']);
+    });
+
+    it('el final lleva su título, su mensaje y la razón en palabras', async () => {
+      await render();
+      const ending = host().querySelector('.tr-ending')!;
+      expect(text(ending)).toContain('Cierre con brechas');
+      expect(text(ending)).toContain('El caso se cerró con pasos pendientes.');
+      expect([...ending.querySelectorAll('.tr-reason-list li')].map(text)).toEqual([
+        'Faltó recomendar medidas de protección.', 'Hubo una respuesta con riesgo.',
+      ]);
+    });
+
+    it('un intento sin final (no se completó) no inventa uno', async () => {
+      await render({ trace: id => of(traceFixture(id, { ending: null, status: 'IN_PROGRESS', endedAt: null })) });
+      expect(host().querySelector('.tr-ending')).toBeNull();
+    });
+  });
+
+  // req: RN-09, modelo de métricas
+  describe('la valoración del sistema, plegada hasta que el docente guarda la suya', () => {
+    const systemSection = () => host().querySelector('.tr-system');
+
+    it('mientras el docente no guarda la suya no hay perfil: solo se avisa que se mostrará después', async () => {
+      await render({ trace: id => of(traceFixture(id, { systemEvaluation: null, systemEvaluationAvailable: true })) });
+      expect(text(systemSection())).toContain('La valoración del sistema se mostrará cuando registres tu propia valoración.');
+      expect(systemSection()!.querySelector('table')).toBeNull();
+      expect(text(host())).not.toContain('Dos decisiones recomendadas de tres.');
+    });
+
+    it('si el sistema no tiene valoración que mostrar, la sección no aparece', async () => {
+      await render({ trace: id => of(traceFixture(id, { systemEvaluation: null, systemEvaluationAvailable: false })) });
+      expect(systemSection()).toBeNull();
+    });
+
+    it('con la valoración presente se muestra junto a la del docente, competencia por competencia', async () => {
+      await render({
+        trace: id => of(traceFixture(id, { systemEvaluation: SYSTEM_EVALUATION, systemEvaluationAvailable: true })),
+        rubric: () => of(rubricFixture({
+          scores: [{ criterionId: 1, level: 'LOGRADO', comment: null, evidence: {} }], overallLevel: 'LOGRADO',
+        })),
+      });
+      const table = systemSection()!.querySelector('table')!;
+      expect([...table.querySelectorAll('thead th')].map(text)).toEqual([
+        'Competencia', 'Tu valoración', 'Valoración del sistema', 'Con qué se calculó',
+      ]);
+      const rows = [...table.querySelectorAll('tbody tr')].map(row => [...row.querySelectorAll('th, td')].map(text));
+      expect(rows).toEqual([
+        ['Ética profesional', 'Logrado', 'En proceso', 'Dos decisiones recomendadas de tres.'],
+        ['Ruta de atención', 'Pendiente', 'Sin evidencia', '—'],
+      ]);
+    });
+
+    it('al guardar su valoración, el docente recibe la traza de nuevo y el perfil aparece', async () => {
+      let calls = 0;
+      await render({
+        trace: id => of(++calls === 1
+          ? traceFixture(id, { systemEvaluation: null, systemEvaluationAvailable: true })
+          : traceFixture(id, { systemEvaluation: SYSTEM_EVALUATION, systemEvaluationAvailable: true })),
+      });
+      expect(systemSection()!.querySelector('table')).toBeNull();
+
+      fillLevels();
       saveButton().click();
       await fixture.whenStable();
-      expect(api.saveRubric).not.toHaveBeenCalled();
+      fixture.detectChanges();
 
-      type(scoreInput(0), '0');
-      expect(text(criteriaCards()[0].querySelector('.ui-field__message--error'))).toBe('Debe estar entre 1,0 y 5.');
-      type(scoreInput(0), '5.5');
-      expect(text(criteriaCards()[0].querySelector('.ui-field__message--error'))).toBe('Debe estar entre 1,0 y 5.');
+      expect(calls).toBe(2);
+      expect(systemSection()!.querySelector('table')).not.toBeNull();
+      expect(text(systemSection())).not.toContain('se mostrará cuando registres');
+    });
+  });
+
+  // req: SIEP-CU-04, RNF-04
+  describe('rúbrica por niveles', () => {
+    it('cada criterio pide un nivel con un selector (sin campo numérico) y cada nivel trae su nombre', async () => {
+      await render();
+      expect(criteriaCards()).toHaveLength(2);
+      expect(host().querySelectorAll('input[type="number"], [min], [max], [step]')).toHaveLength(0);
+      for (const index of [0, 1]) {
+        expect([...levelSelect(index).options].map(text)).toEqual(['Sin calificar', 'En inicio', 'En proceso', 'Logrado', 'Destacado']);
+        expect(text(criteriaCards()[index].querySelector('label'))).toBe('Nivel logrado');
+      }
+      expect(text(host().querySelector('.tr-rubric'))).not.toMatch(/total de|Calificación|Rango/);
     });
 
-    it('califica con 1,0 y con el máximo: ambos son válidos y viajan como números', async () => {
+    it('el descriptor de cada nivel está a la vista y la ayuda del criterio dice el del nivel elegido', async () => {
       await render();
-      type(scoreInput(0), '1');
-      type(scoreInput(1), '5');
-      expect(criteriaCards()[0].querySelector('.ui-field__message--error')).toBeNull();
-      expect(criteriaCards()[1].querySelector('.ui-field__message--error')).toBeNull();
+      const descriptors = [...host().querySelectorAll('.tr-levels__list > div')]
+        .map(item => `${text(item.querySelector('dt'))} ${text(item.querySelector('dd'))}`);
+      expect(descriptors).toEqual([
+        'En inicio Aún no muestra la conducta esperada.', 'En proceso La muestra a veces y con apoyo.',
+        'Logrado La muestra de forma sostenida.', 'Destacado La muestra y además la fundamenta.',
+      ]);
+      expect(text(criteriaCards()[0].querySelector('.ui-field__message'))).toBe('Elige el nivel que mejor describe la evidencia de este criterio.');
 
+      pick(0, 'LOGRADO');
+      expect(text(criteriaCards()[0].querySelector('.ui-field__message'))).toBe('La muestra de forma sostenida.');
+    });
+
+    it('guardar sin elegir un nivel en cada criterio no envía nada, lo dice sin la palabra «puntaje» y marca el criterio', async () => {
+      await render();
+      pick(0, 'LOGRADO');
+      saveButton().click();
+      await fixture.whenStable();
+      fixture.detectChanges();
+
+      expect(api.saveRubric).not.toHaveBeenCalled();
+      expect(text(host().querySelector('.tr-rubric__message'))).toBe('Elige un nivel en cada criterio para guardar la valoración.');
+      expect(text(host().querySelector('.tr-rubric__message'))).not.toMatch(/puntaje/i);
+      expect(text(criteriaCards()[1].querySelector('.ui-field__message--error'))).toBe('Elige un nivel para este criterio.');
+      expect(levelSelect(1).getAttribute('aria-invalid')).toBe('true');
+      expect(criteriaCards()[0].querySelector('.ui-field__message--error')).toBeNull();
+    });
+
+    it('elegir el nivel que faltaba quita el error de ESE criterio', async () => {
+      await render();
+      saveButton().click();
+      fixture.detectChanges();
+      expect(host().querySelectorAll('.ui-field__message--error')).toHaveLength(2);
+
+      pick(0, 'EN_INICIO');
+      expect(host().querySelectorAll('.ui-field__message--error')).toHaveLength(1);
+      pick(1, 'DESTACADO');
+      expect(host().querySelectorAll('.ui-field__message--error')).toHaveLength(0);
+      expect(host().querySelector('.tr-rubric__message--error')).toBeNull();
+    });
+
+    it('la falta de un nivel se anuncia a quien usa lector de pantalla', async () => {
+      await render();
+      const announce = vi.spyOn(TestBed.inject(LiveRegionAnnouncer), 'announce');
+      saveButton().click();
+      expect(announce).toHaveBeenCalledWith('Elige un nivel en cada criterio para guardar la valoración.', 'polite');
+    });
+
+    it('guardar envía por cada criterio {criterionId, level, comment}: nunca un número', async () => {
+      await render();
+      fillLevels('DESTACADO', 'EN_INICIO');
+      const comments = host().querySelectorAll<HTMLTextAreaElement>('.tr-criterion textarea');
+      comments[0].value = 'Validó sin juzgar.';
+      comments[0].dispatchEvent(new Event('input'));
       saveButton().click();
       await fixture.whenStable();
 
@@ -360,34 +554,37 @@ describe('traza del docente en el sistema de la biblioteca (F7-4)', () => {
       expect(attemptId).toBe('a-1');
       expect(rubricId).toBe(7);
       expect(scores).toEqual([
-        { criterionId: 1, score: 1, comment: '' },
-        { criterionId: 2, score: 5, comment: '' },
+        { criterionId: 1, level: 'DESTACADO', comment: 'Validó sin juzgar.' },
+        { criterionId: 2, level: 'EN_INICIO', comment: '' },
       ]);
+      for (const score of scores as object[]) expect(score).not.toHaveProperty('score');
     });
 
-    it('un criterio sin calificar no viaja como 0: se omite (el contrato rechaza el 0)', async () => {
-      await render();
-      type(scoreInput(1), '3.5');
-      saveButton().click();
-      await fixture.whenStable();
-
-      expect(api.saveRubric.mock.calls[0][3]).toEqual([{ criterionId: 2, score: 3.5, comment: '' }]);
+    it('los niveles ya guardados parten elegidos en el formulario', async () => {
+      await render({
+        rubric: () => of(rubricFixture({
+          scores: [
+            { criterionId: 1, level: 'LOGRADO', comment: 'Bien.', evidence: {} },
+            { criterionId: 2, level: 'EN_PROCESO', comment: null, evidence: {} },
+          ],
+          overallLevel: 'EN_PROCESO',
+        })),
+      });
+      expect(levelSelect(0).value).toBe('LOGRADO');
+      expect(levelSelect(1).value).toBe('EN_PROCESO');
+      expect(text(criteriaCards()[0].querySelector('ui-badge'))).toBe('Logrado');
+      expect(text(criteriaCards()[1].querySelector('ui-badge'))).toBe('En proceso');
+      expect((criteriaCards()[0].querySelector('textarea') as HTMLTextAreaElement).value).toBe('Bien.');
     });
 
-    it('corregir el valor quita el error de ESE criterio y deja el de los demás', async () => {
-      await render();
-      type(scoreInput(0), '0.5');
-      type(scoreInput(1), '9');
-      expect(host().querySelectorAll('.ui-field__message--error')).toHaveLength(2);
-
-      type(scoreInput(0), '2');
-      expect(host().querySelectorAll('.ui-field__message--error')).toHaveLength(1);
-      expect(text(criteriaCards()[1].querySelector('.ui-field__message--error'))).toBe('Debe estar entre 1,0 y 5.');
+    it('si el servidor no manda los niveles con su descriptor, ofrece igual los cuatro nombres', async () => {
+      await render({ rubric: () => of(rubricFixture({ levels: undefined })) });
+      expect([...levelSelect(0).options].map(text)).toEqual(['Sin calificar', 'En inicio', 'En proceso', 'Logrado', 'Destacado']);
     });
 
     it('al guardar con éxito avisa con un aviso y refresca la traza', async () => {
       await render();
-      type(scoreInput(0), '4');
+      fillLevels();
       saveButton().click();
       await fixture.whenStable();
 
@@ -397,7 +594,7 @@ describe('traza del docente en el sistema de la biblioteca (F7-4)', () => {
 
     it('si el servidor rechaza el guardado, lo dice en línea junto al botón y no con un aviso de éxito', async () => {
       await render({ save: () => throwError(() => new HttpErrorResponse({ status: 500 })) });
-      type(scoreInput(0), '4');
+      fillLevels();
       saveButton().click();
       await fixture.whenStable();
       fixture.detectChanges();
@@ -409,11 +606,11 @@ describe('traza del docente en el sistema de la biblioteca (F7-4)', () => {
 
   // req: RN-09
   describe('valoración formativa (RN-09)', () => {
-    it('rotula el total como «Valoración formativa» con el nivel que envía el servidor y ningún número si no lo envía', async () => {
+    it('rotula el total como «Valoración formativa» con el nivel que envía el servidor y ningún número', async () => {
       await render({
         rubric: () => of(rubricFixture({
-          overallLevel: 'LOGRADO', totalScore: null,
-          scores: [{ criterionId: 1, score: 4, level: 'LOGRADO', comment: null, evidence: {} }],
+          overallLevel: 'LOGRADO',
+          scores: [{ criterionId: 1, level: 'LOGRADO', comment: null, evidence: {} }],
         })),
       });
       const valuation = host().querySelector('.tr-valuation')!;
@@ -422,35 +619,12 @@ describe('traza del docente en el sistema de la biblioteca (F7-4)', () => {
       expect(text(valuation)).not.toMatch(/\d/);
     });
 
-    it('con el total numérico encendido en el servidor lo muestra, y sigue rotulado como valoración formativa', async () => {
-      await render({ rubric: () => of(rubricFixture({ overallLevel: 'DESTACADO', totalScore: 4.5 })) });
-      const valuation = host().querySelector('.tr-valuation')!;
-      expect(text(valuation)).toContain('Valoración formativa');
-      expect(text(valuation)).toContain('Destacado');
-      expect(text(valuation)).toContain('4,5');
-    });
-
-    it('sin evaluación aún: «Pendiente»; nunca una suma local de lo que se escribe', async () => {
+    it('sin evaluación aún: «Pendiente»; nunca una suma local de lo que se elige', async () => {
       await render();
       expect(text(host().querySelector('.tr-valuation'))).toContain('Pendiente');
-      type(scoreInput(0), '4');
-      type(scoreInput(1), '5');
+      fillLevels('DESTACADO', 'DESTACADO');
+      expect(text(host().querySelector('.tr-valuation'))).toContain('Pendiente');
       expect(text(host().querySelector('.tr-valuation'))).not.toMatch(/\d/);
-    });
-
-    it('cada criterio calificado muestra su nivel formativo', async () => {
-      await render({
-        rubric: () => of(rubricFixture({
-          scores: [
-            { criterionId: 1, score: 4, level: 'LOGRADO', comment: null, evidence: {} },
-            { criterionId: 2, score: 2, level: 'EN_PROCESO', comment: null, evidence: {} },
-          ],
-          overallLevel: 'EN_PROCESO',
-        })),
-      });
-      expect(text(criteriaCards()[0].querySelector('ui-badge'))).toBe('Logrado');
-      expect(text(criteriaCards()[1].querySelector('ui-badge'))).toBe('En proceso');
-      expect(scoreInput(0).value).toBe('4');
     });
   });
 
@@ -483,7 +657,7 @@ describe('traza del docente en el sistema de la biblioteca (F7-4)', () => {
     });
 
     it('«Evaluación» solo dice «Aplicada» con una evaluación concluida: una a medias es «Pendiente»', async () => {
-      const partial = { id: 1, rubricName: 'Rúbrica', totalScore: null, overallLevel: null, comment: null, evaluatedAt: '2026-10-10T11:00:00Z' };
+      const partial = { id: 1, rubricName: 'Rúbrica', overallLevel: null, comment: null, evaluatedAt: '2026-10-10T11:00:00Z' };
       await render({ trace: id => of(traceFixture(id, { rubricEvaluations: [partial] })) });
       const card = [...host().querySelectorAll('.tr-metric')].find(el => text(el.querySelector('.ui-stat__label')) === 'Evaluación')!;
       expect(text(card.querySelector('.ui-stat__value'))).toBe('Pendiente');
@@ -493,7 +667,7 @@ describe('traza del docente en el sistema de la biblioteca (F7-4)', () => {
     });
 
     it('con una evaluación concluida «Evaluación» dice «Aplicada»', async () => {
-      const done = { id: 1, rubricName: 'Rúbrica', totalScore: null, overallLevel: 'LOGRADO' as const, comment: null, evaluatedAt: '2026-10-10T11:00:00Z' };
+      const done = { id: 1, rubricName: 'Rúbrica', overallLevel: 'LOGRADO' as const, comment: null, evaluatedAt: '2026-10-10T11:00:00Z' };
       await render({ trace: id => of(traceFixture(id, { rubricEvaluations: [done] })) });
       const card = [...host().querySelectorAll('.tr-metric')].find(el => text(el.querySelector('.ui-stat__label')) === 'Evaluación')!;
       expect(text(card.querySelector('.ui-stat__value'))).toBe('Aplicada');
@@ -519,24 +693,6 @@ describe('traza del docente en el sistema de la biblioteca (F7-4)', () => {
       expect(fixture.componentInstance.selectedAttemptId()).toBe('a-2');
     });
 
-    it('la calificación pide pasos de 0,5: 2,3 se rechaza en línea y 2,5 es válido', async () => {
-      await render();
-      type(scoreInput(0), '2.3');
-      expect(text(criteriaCards()[0].querySelector('.ui-field__message--error'))).toBe('Usa pasos de 0,5 (por ejemplo, 3,5).');
-
-      type(scoreInput(0), '2.5');
-      expect(criteriaCards()[0].querySelector('.ui-field__message--error')).toBeNull();
-    });
-
-    it('un valor inválido se ANUNCIA al lector de pantalla con el nombre del criterio', async () => {
-      await render();
-      const announce = vi.spyOn(TestBed.inject(LiveRegionAnnouncer), 'announce');
-
-      type(scoreInput(0), '0.5');
-
-      expect(announce).toHaveBeenCalledWith('Ética profesional: Debe estar entre 1,0 y 5.', 'polite');
-    });
-
     it('cada criterio es un grupo con nombre: sus campos «Calificación» no quedan sueltos', async () => {
       await render();
       const group = criteriaCards()[1];
@@ -550,7 +706,7 @@ describe('traza del docente en el sistema de la biblioteca (F7-4)', () => {
 
     it('el mensaje de un fallo al guardar se anuncia en la región de estado de la pantalla', async () => {
       await render({ save: () => throwError(() => new HttpErrorResponse({ status: 500 })) });
-      type(scoreInput(0), '4');
+      fillLevels();
       saveButton().click();
       await fixture.whenStable();
       fixture.detectChanges();

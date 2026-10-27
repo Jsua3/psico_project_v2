@@ -74,8 +74,8 @@ describe('hoja de formularios del editor (F8-1)', () => {
 
   const nodeForm = () => fb.group({
     nodeKey: ['', Validators.required], title: ['', Validators.required], narrative: ['', Validators.required],
-    decisionPrompt: [''], warningMessage: [''], startNode: [false], terminal: [false], sensitiveContent: [false], safeExitRequired: [false],
-    positionX: [null], positionY: [null],
+    decisionPrompt: [''], warningMessage: [''], intensity: [''], startNode: [false], terminal: [false], sensitiveContent: [false],
+    safeExitRequired: [false], positionX: [null], positionY: [null],
   });
 
   // El marco del diálogo se registra en el contenedor del CDK al construirse: creado dentro de un bloque condicional
@@ -101,7 +101,7 @@ describe('hoja de formularios del editor (F8-1)', () => {
 
     expect(text(root().querySelector('h2'))).toBe('Nuevo nodo DAG');
     expect(fieldLabels()).toEqual([
-      'Clave del nodo', 'Título', 'Narrativa', 'Enunciado de la decisión', 'Mensaje de advertencia',
+      'Clave del nodo', 'Título', 'Narrativa', 'Enunciado de la decisión', 'Mensaje de advertencia', 'Intensidad de la escena',
       'Nodo inicial', 'Nodo terminal', 'Contenido sensible', 'Salida segura obligatoria',
       'Posición X', 'Posición Y',
     ]);
@@ -137,19 +137,20 @@ describe('hoja de formularios del editor (F8-1)', () => {
     expect(text(save)).toContain('Guardando…');
   });
 
-  it('la decisión: los selectores de nodo muestran el título y la clave, y la clasificación en español', async () => {
+  it('la decisión: los selectores de nodo muestran el título y la clave, y la clase de la respuesta con sus cuatro palabras', async () => {
     const form = fb.group({
       sourceNodeId: ['', Validators.required], targetNodeId: ['', Validators.required], optionKey: [''],
-      text: ['', Validators.required], classification: ['ADEQUATE', Validators.required], prohibitedConduct: [false],
-      prohibitionReason: [''], scoreDelta: [10], stressDelta: [0], prohibitedPenalty: [0], immediateFeedback: [''],
+      text: ['', Validators.required], responseClass: ['RECOMMENDED', Validators.required], prohibitedConduct: [false],
+      prohibitionReason: [''], immediateFeedback: [''],
       consequenceText: [''], feedbackText: [''], theoryBasis: [''],
     });
     await render({ kind: 'decision-create' }, { decisionForm: form });
 
     const origin = field('Nodo origen')!;
     expect([...origin.querySelectorAll('option')].map(text)).toEqual(['Inicio del caso (inicio)', 'Cierre (cierre)']);
-    const classification = field('Clasificación')!;
-    expect([...classification.querySelectorAll('option')].map(text)).toEqual(['Adecuada', 'Riesgosa', 'Inadecuada']);
+    const responseClass = field('Clase de la respuesta')!;
+    expect([...responseClass.querySelectorAll('option')].map(text)).toEqual(['Recomendada', 'Aceptable', 'Con riesgo', 'Contraindicada']);
+    expect(responseClass.querySelector('[aria-required="true"]')).not.toBeNull();
     expect(field('Razón de prohibición')).toBeUndefined();
 
     // Con el gesto real (la casilla), no con `patchValue`: un cambio programático entre dos pasadas da NG0100.
@@ -257,12 +258,40 @@ describe('hoja de formularios del editor (F8-1)', () => {
     });
   });
 
+  // req: modelo de métricas
+  describe('sin cifras de puntaje ni de estrés (editor vigente)', () => {
+    const decisionForm = () => fb.group({
+      sourceNodeId: [1, Validators.required], targetNodeId: [2, Validators.required], optionKey: [''],
+      text: ['x', Validators.required], responseClass: ['RECOMMENDED', Validators.required], prohibitedConduct: [true],
+      prohibitionReason: [''], immediateFeedback: [''], consequenceText: [''], feedbackText: [''], theoryBasis: [''],
+    });
+
+    it('la decisión no tiene ningún campo numérico ni nombra puntaje, estrés ni penalización, tampoco con la conducta marcada', async () => {
+      await render({ kind: 'decision-create' }, { decisionForm: decisionForm() });
+
+      expect(root().querySelectorAll('input[type="number"]')).toHaveLength(0);
+      expect(root().querySelector('[formControlName="scoreDelta"], [formControlName="stressDelta"], [formControlName="prohibitedPenalty"]')).toBeNull();
+      expect(text(root())).not.toMatch(/puntaje|estrés|penalización/i);
+      // La razón sigue ahí cuando la conducta es contraindicada.
+      expect(field('Razón de prohibición')).toBeDefined();
+    });
+
+    it('la escena ofrece una intensidad opcional: Baja, Media o Alta, y «Según la escena» no manda nada', async () => {
+      await render({ kind: 'node-create' }, { nodeForm: nodeForm() });
+
+      const intensity = field('Intensidad de la escena')!;
+      expect([...intensity.querySelectorAll('option')].map(text)).toEqual(['Según la escena', 'Baja', 'Media', 'Alta']);
+      expect(intensity.querySelector('[aria-required="true"]')).toBeNull();
+      expect(text(intensity.querySelector('.ui-field__message'))).toContain('Una escena de intensidad Alta necesita su mensaje de advertencia');
+    });
+  });
+
   // req: RF-10, CU-04
   describe('la decisión: consecuencia, retroalimentación y fundamento teórico (F10-3)', () => {
     const decisionForm = () => fb.group({
       sourceNodeId: [1, Validators.required], targetNodeId: [2, Validators.required], optionKey: [''],
-      text: ['x', Validators.required], classification: ['ADEQUATE', Validators.required], prohibitedConduct: [false],
-      prohibitionReason: [''], scoreDelta: [10], stressDelta: [0], prohibitedPenalty: [0], immediateFeedback: [''],
+      text: ['x', Validators.required], responseClass: ['RECOMMENDED', Validators.required], prohibitedConduct: [false],
+      prohibitionReason: [''], immediateFeedback: [''],
       consequenceText: [''], feedbackText: [''], theoryBasis: [''],
     });
 
@@ -270,9 +299,9 @@ describe('hoja de formularios del editor (F8-1)', () => {
       await render({ kind: 'decision-create' }, { decisionForm: decisionForm() });
 
       expect(fieldLabels()).toEqual([
-        'Nodo origen', 'Nodo destino', 'Texto de la decisión', 'Clasificación', 'Cambio de puntaje', 'Cambio de estrés (%)',
+        'Nodo origen', 'Nodo destino', 'Texto de la decisión', 'Clase de la respuesta',
         'Retroalimentación inmediata', 'Consecuencia en la historia', 'Retroalimentación pedagógica', 'Fundamento teórico',
-        'Conducta prohibida (penalización grave)',
+        'Conducta contraindicada (explica por qué)',
       ]);
       for (const label of ['Consecuencia en la historia', 'Retroalimentación pedagógica', 'Fundamento teórico']) {
         const textarea = field(label)!.querySelector('textarea')!;
@@ -289,8 +318,8 @@ describe('hoja de formularios del editor (F8-1)', () => {
     it('un texto de más de 1.200 caracteres (pegado) lo dice en su campo, sin recortarlo', async () => {
       const form = fb.group({
         sourceNodeId: [1, Validators.required], targetNodeId: [2, Validators.required], optionKey: [''],
-        text: ['x', Validators.required], classification: ['ADEQUATE', Validators.required], prohibitedConduct: [false],
-        prohibitionReason: [''], scoreDelta: [10], stressDelta: [0], prohibitedPenalty: [0], immediateFeedback: [''],
+        text: ['x', Validators.required], responseClass: ['RECOMMENDED', Validators.required], prohibitedConduct: [false],
+        prohibitionReason: [''], immediateFeedback: [''],
         consequenceText: [''], feedbackText: ['a'.repeat(1201), Validators.maxLength(1200)], theoryBasis: [''],
       });
       form.get('feedbackText')!.markAsTouched();

@@ -9,8 +9,8 @@ import { apiErrorMessage } from '../../core/api/api-error.util';
 import { InstructorApi } from '../../core/api/instructor.api';
 import { NotificationService } from '../../core/notifications/notification.service';
 import {
-  AttemptTimelineEntry, AttemptTrace, FormativeLevel, RecentAttempt, ReflectionTrace, RubricCriterionView,
-  RubricEvaluationView, RubricSummary, TraceEvent,
+  AttemptTimelineEntry, AttemptTrace, CompetencyLevelEntry, FormativeLevel, RecentAttempt, ReflectionTrace,
+  ResponseClass, RubricCriterionView, RubricEvaluationView, RubricLevelOption, RubricSummary, TraceEvent,
 } from '../../core/models/simulation.model';
 import { UiBadge, UiBadgeTone } from '../../shared/ui/badge/ui-badge';
 import { UiButton } from '../../shared/ui/button/ui-button';
@@ -27,22 +27,62 @@ import { UiEmptyState } from '../../shared/ui/state/ui-empty-state';
 import { UiErrorState } from '../../shared/ui/state/ui-error-state';
 import { UiTable, UiTableRow, UiTableTable } from '../../shared/ui/table/ui-table';
 import { DRAFT_COPY } from './draft-copy';
+import { milestoneMark } from './outcome-text.util';
 import { ReplaceAttemptDialogComponent, ReplaceAttemptDialogData } from './replace-attempt-dialog.component';
 import {
   FeedbackPanelView, SummaryFeedbackKey, TraceFeedbackDialogComponent, TraceFeedbackDialogData,
 } from './trace-feedback-dialog.component';
 import {
-  RUBRIC_MIN_LABEL, RUBRIC_MIN_SCORE, RUBRIC_SCORE_STEP, TraceAccent, cleanText, formatTraceDate, formatTraceDuration,
-  formatTraceNumber, formativeLevelLabel, formativeLevelTone, signedNumber, timelineEntryAccent, timelineEntryLabel,
-  timelineEntryTone, timelineFeedback,
+  TraceAccent, cleanText, formatTraceDate, formatTraceDuration, formativeLevelLabel, formativeLevelTone,
+  timelineEntryAccent, timelineEntryLabel, timelineEntryTone, timelineFeedback,
 } from './trace-labels.util';
+
+/** Los cuatro niveles con su nombre, para cuando el servidor no manda los descriptores. */
+const DEFAULT_LEVELS: RubricLevelOption[] = [
+  { value: 'EN_INICIO', label: DRAFT_COPY.levelEnInicio.text, descriptor: '' },
+  { value: 'EN_PROCESO', label: DRAFT_COPY.levelEnProceso.text, descriptor: '' },
+  { value: 'LOGRADO', label: DRAFT_COPY.levelLogrado.text, descriptor: '' },
+  { value: 'DESTACADO', label: DRAFT_COPY.levelDestacado.text, descriptor: '' },
+];
+
+/**
+ * BORRADOR (VD-23): textos nuevos de la traza docente, pendientes de la aprobación de Psicología. Sin cifras de
+ * desempeño: la traza dice qué hizo la persona y en qué clase cae cada respuesta.
+ */
+const TRACE_COPY = {
+  levelHint: 'Elige el nivel que mejor describe la evidencia de este criterio.',
+  levelRequired: 'Elige un nivel para este criterio.',
+  levelsMissing: 'Elige un nivel en cada criterio para guardar la valoración.',
+  noTeacherLevel: 'Sin criterio equivalente',
+  systemFolded: 'La valoración del sistema se mostrará cuando registres tu propia valoración.',
+  classPanels: {
+    RECOMMENDED: {
+      title: 'Decisiones recomendadas',
+      intro: 'Elecciones alineadas con buenas prácticas. Refuerza estos aciertos en tu retroalimentación.',
+    },
+    ACCEPTABLE: {
+      title: 'Decisiones aceptables',
+      intro: 'Elecciones que no abren un riesgo, aunque hay una ruta más sólida que puedes comentar en sesión.',
+    },
+    RISKY: {
+      title: 'Decisiones con riesgo',
+      intro: 'Elecciones que requieren revisión formativa por su posible efecto en la persona usuaria.',
+    },
+    CONTRAINDICATED: {
+      title: 'Decisiones contraindicadas',
+      intro: 'Elecciones que conviene contrastar con alternativas más pertinentes y con los principios de no revictimización.',
+    },
+  },
+} as const;
 
 /**
  * Traza del docente (plan visual F7-4): lista de intentos a la izquierda y, a la derecha, el recorrido, las
  * reflexiones y la rúbrica del elegido. La retroalimentación abre un diálogo de la biblioteca (trampa de foco, foco
- * inicial, Esc). La calificación toma su rango del contrato (SIEP-CU-04: de 1,0 al máximo del criterio, en pasos de
- * 0,5) y un valor fuera de rango se rechaza en línea; un criterio sin calificar NO viaja como 0. El total se rotula
- * «Valoración formativa» y no muestra ningún número que el servidor no envíe (RN-09, ED-2).
+ * inicial, Esc). La rúbrica se califica por niveles formativos (uno por criterio, con su descriptor y su observación):
+ * no hay campo numérico, y para guardar cada criterio necesita su nivel. La valoración se rotula «Valoración
+ * formativa» (RN-09, ED-2). La traza no muestra cifras de desempeño: cuenta hitos, la persona por escena, el final
+ * con su razón y las decisiones por clase. El perfil automático del sistema queda plegado hasta que el docente guarda
+ * su propia valoración (el servidor lo manda entonces).
  */
 @Component({
   selector: 'app-instructor-trace',
@@ -54,7 +94,7 @@ import {
   ],
   templateUrl: './instructor-trace.component.html',
   styleUrl: './instructor-trace.component.scss',
-  // Eager: los puntajes y comentarios del formulario son campos de la clase (ngModel), no señales.
+  // Eager: los niveles y comentarios del formulario son campos de la clase (ngModel), no señales.
   changeDetection: ChangeDetectionStrategy.Eager,
 })
 export class InstructorTraceComponent implements OnInit {
@@ -111,10 +151,17 @@ export class InstructorTraceComponent implements OnInit {
 
   /** Rótulo del total de la rúbrica (RN-09): la evaluación es formativa, no una nota oficial. */
   protected readonly valuationLabel = DRAFT_COPY.formativeValuationLabel.text;
-  protected readonly minScore = RUBRIC_MIN_SCORE;
-  protected readonly scoreStep = RUBRIC_SCORE_STEP;
+  /** BORRADOR (VD-23): textos nuevos de la traza por hitos, pendientes de la aprobación de Psicología. */
+  protected readonly copy = TRACE_COPY;
 
-  rubricScores: Record<number, number | null> = {};
+  /** Los cuatro niveles de la rúbrica con su descriptor; si el servidor no los manda, solo sus nombres. */
+  protected readonly rubricLevels = computed<RubricLevelOption[]>(() => {
+    const served = this.rubric()?.levels;
+    return served?.length ? served : DEFAULT_LEVELS;
+  });
+
+  /** El nivel elegido por criterio (nulo = sin calificar) y su observación; son campos de la clase (ngModel). */
+  rubricLevelsByCriterion: Record<number, FormativeLevel | null> = {};
   rubricComments: Record<number, string> = {};
   rubricComment = '';
 
@@ -229,13 +276,14 @@ export class InstructorTraceComponent implements OnInit {
     return item.rubricEvaluations.some(evaluation => !!evaluation.overallLevel);
   }
 
+  /** Decisiones registradas (los reintentos no cuentan): la suma de los hechos por clase. */
   totalDecisions(item: AttemptTrace): number {
-    return item.adequateDecisions + item.riskyDecisions + item.inadequateDecisions + item.prohibitedDecisions;
+    const { recommended, acceptable, risky, contraindicated } = item.counts;
+    return recommended + acceptable + risky + contraindicated;
   }
 
-  decisionsByClassification(item: AttemptTrace, classification: 'ADEQUATE' | 'RISKY' | 'INADEQUATE'): TraceEvent[] {
-    const target = classification.toUpperCase();
-    return item.events.filter(event => this.isDecisionEvent(event) && (event.classification ?? '').toUpperCase() === target);
+  decisionsByClass(item: AttemptTrace, responseClass: ResponseClass): TraceEvent[] {
+    return item.events.filter(event => this.isDecisionEvent(event) && (event.class ?? '').toUpperCase() === responseClass);
   }
 
   private buildFeedbackPanel(key: SummaryFeedbackKey, item: AttemptTrace): FeedbackPanelView {
@@ -251,7 +299,7 @@ export class InstructorTraceComponent implements OnInit {
       return {
         key,
         title: 'Todas las decisiones del intento',
-        intro: 'Resumen completo de las elecciones registradas y su clasificación formativa.',
+        intro: 'Resumen completo de las elecciones registradas y su clase de respuesta.',
         ...empty,
         decisions: item.events.filter(event => this.isDecisionEvent(event)),
         emptyTitle: 'Sin decisiones registradas',
@@ -259,29 +307,16 @@ export class InstructorTraceComponent implements OnInit {
       };
     }
 
-    if (key === 'ADEQUATE' || key === 'RISKY' || key === 'INADEQUATE') {
-      const labels = {
-        ADEQUATE: {
-          title: 'Decisiones adecuadas',
-          intro: 'Elecciones alineadas con buenas prácticas. Refuerza estos aciertos en tu retroalimentación.',
-        },
-        RISKY: {
-          title: 'Decisiones riesgosas',
-          intro: 'Elecciones que requieren revisión formativa por posible impacto en riesgo o estrés.',
-        },
-        INADEQUATE: {
-          title: 'Decisiones inadecuadas',
-          intro: 'Elecciones que conviene contrastar con alternativas más pertinentes en sesión docente.',
-        },
-      }[key];
+    if (key === 'RECOMMENDED' || key === 'ACCEPTABLE' || key === 'RISKY' || key === 'CONTRAINDICATED') {
+      const labels = this.copy.classPanels[key];
       return {
         key,
         title: labels.title,
         intro: labels.intro,
         ...empty,
-        decisions: this.decisionsByClassification(item, key),
+        decisions: this.decisionsByClass(item, key),
         emptyTitle: 'Sin decisiones en esta categoría',
-        emptyMessage: 'El estudiante no registró decisiones clasificadas así en este intento.',
+        emptyMessage: 'El estudiante no registró decisiones de esta clase en este intento.',
       };
     }
 
@@ -310,7 +345,7 @@ export class InstructorTraceComponent implements OnInit {
         ...empty,
         evaluations: item.rubricEvaluations,
         emptyTitle: 'Evaluación pendiente',
-        emptyMessage: 'Usa la sección de rúbrica más abajo para registrar puntajes y retroalimentación formativa.',
+        emptyMessage: 'Usa la sección de rúbrica más abajo para registrar los niveles y la retroalimentación formativa.',
       };
     }
 
@@ -401,43 +436,31 @@ export class InstructorTraceComponent implements OnInit {
           atSeconds,
           time: atSeconds === null ? '--:--' : `${String(minutes).padStart(2, '0')}:${String(seconds).padStart(2, '0')}`,
           type: event.type,
-          classification: (event.classification as AttemptTimelineEntry['classification']) ?? null,
+          class: event.class ?? null,
           prohibited,
           label: this.clean(event.decisionText || event.detail || event.nodeTitle, 'Evento registrado'),
-          scoreDelta: event.scoreDelta,
-          stressDelta: event.stressDelta,
         };
       });
   }
 
-  // ── Rúbrica ────────────────────────────────────────────────────────────────────────────────────────────────────
-  scoreHint(criterion: RubricCriterionView): string {
-    return `Rango ${RUBRIC_MIN_LABEL} a ${criterion.maxScore}`;
-  }
-
-  /** El máximo con el que se muestra el total de la valoración (el del contrato: el mayor `maxScore` de sus criterios). */
-  maxScoreOf(rubric: RubricEvaluationView): number {
-    return rubric.criteria.reduce((max, criterion) => Math.max(max, criterion.maxScore), 0);
-  }
-
-  /** Nivel formativo ya guardado de un criterio (el que el servidor derivó de su calificación), si lo hay. */
+  // ── Rúbrica por niveles ─────────────────────────────────────────────────────────────────────────────────────
+  /** Nivel formativo ya guardado de un criterio, si lo hay. */
   criterionLevel(criterionId: number): FormativeLevel | null {
     return this.rubric()?.scores.find(score => score.criterionId === criterionId)?.level ?? null;
   }
 
-  /** El docente escribió en un puntaje: se valida ESE criterio al instante (los demás errores se conservan). */
-  onScoreChange(criterion: RubricCriterionView, value: number | string | null) {
-    const parsed = value === null || value === '' ? null : Number(value);
-    this.rubricScores[criterion.id] = parsed;
+  /** Lo que dice el nivel elegido en un criterio (su descriptor), como ayuda del campo; sin nivel, cómo elegir. */
+  levelHint(criterionId: number): string {
+    const level = this.rubricLevelsByCriterion[criterionId];
+    const descriptor = level ? this.rubricLevels().find(option => option.value === level)?.descriptor : null;
+    return descriptor || this.copy.levelHint;
+  }
+
+  /** El docente eligió (o quitó) el nivel de un criterio: se limpia el error de ESE criterio y se conservan los demás. */
+  onLevelChange(criterion: RubricCriterionView, value: FormativeLevel | '' | null) {
+    this.rubricLevelsByCriterion[criterion.id] = value || null;
     const next = { ...this.rubricValidationErrors() };
-    const problem = this.scoreProblem(criterion, parsed);
-    if (problem) {
-      next[criterion.id] = problem;
-      // El error en línea aparece al teclear: se anuncia con el nombre del criterio (el campo no es una región viva).
-      this.announcer.announce(`${this.clean(criterion.title, 'Criterio')}: ${problem}`, 'polite');
-    } else {
-      delete next[criterion.id];
-    }
+    delete next[criterion.id];
     this.rubricValidationErrors.set(next);
     if (!Object.keys(next).length && this.rubricMessageIsError()) {
       this.rubricMessage.set('');
@@ -445,43 +468,24 @@ export class InstructorTraceComponent implements OnInit {
     }
   }
 
-  private scoreProblem(criterion: RubricCriterionView, score: number | null): string | null {
-    if (score === null) return null;
-    if (Number.isNaN(score) || score < RUBRIC_MIN_SCORE || score > criterion.maxScore) {
-      return `Debe estar entre ${RUBRIC_MIN_LABEL} y ${criterion.maxScore}.`;
-    }
-    // El contrato pide pasos de 0,5: 2,3 no es una calificación de la escala.
-    if (Math.abs(score / RUBRIC_SCORE_STEP - Math.round(score / RUBRIC_SCORE_STEP)) > 1e-9) {
-      return 'Usa pasos de 0,5 (por ejemplo, 3,5).';
-    }
-    return null;
-  }
-
   saveRubric() {
     const trace = this.trace();
     const rubric = this.rubric();
     if (!trace || !rubric || this.savingRubric()) return;
 
-    if (!this.validateRubricScores(rubric)) {
-      this.rubricMessage.set('Revisa los puntajes: deben estar dentro del rango de cada criterio.');
+    // Cada criterio necesita su nivel: la valoración formativa se guarda completa (un nivel por criterio).
+    if (!this.validateRubricLevels(rubric)) {
+      this.rubricMessage.set(this.copy.levelsMissing);
       this.rubricMessageIsError.set(true);
+      this.announcer.announce(this.copy.levelsMissing, 'polite');
       return;
     }
 
-    // Un criterio sin calificar no se envía: el contrato rechaza el 0 (SIEP-CU-04) y la evaluación queda pendiente.
-    const scores = rubric.criteria
-      .filter(criterion => this.rubricScores[criterion.id] !== null && this.rubricScores[criterion.id] !== undefined)
-      .map(criterion => ({
-        criterionId: criterion.id,
-        score: Number(this.rubricScores[criterion.id]),
-        comment: this.clean(this.rubricComments[criterion.id], '')
-      }));
-
-    if (!scores.length && !this.clean(this.rubricComment, '')) {
-      this.rubricMessage.set('Califica al menos un criterio o escribe una retroalimentación para guardar.');
-      this.rubricMessageIsError.set(true);
-      return;
-    }
+    const scores = rubric.criteria.map(criterion => ({
+      criterionId: criterion.id,
+      level: this.rubricLevelsByCriterion[criterion.id] as FormativeLevel,
+      comment: this.clean(this.rubricComments[criterion.id], ''),
+    }));
 
     this.savingRubric.set(true);
     this.rubricMessage.set('');
@@ -496,6 +500,7 @@ export class InstructorTraceComponent implements OnInit {
         const normalized = this.normalizeRubric(saved);
         this.rubric.set(normalized);
         this.seedRubricForm(normalized);
+        // Al guardar su valoración, el servidor entrega también el perfil automático: se vuelve a pedir la traza.
         this.refreshTrace(trace.attemptId);
       },
       error: () => {
@@ -514,14 +519,38 @@ export class InstructorTraceComponent implements OnInit {
     return Object.keys(this.rubricValidationErrors()).length > 0;
   }
 
-  private validateRubricScores(rubric: RubricEvaluationView): boolean {
+  private validateRubricLevels(rubric: RubricEvaluationView): boolean {
     const errors: Record<number, string> = {};
     for (const criterion of rubric.criteria) {
-      const problem = this.scoreProblem(criterion, this.rubricScores[criterion.id] ?? null);
-      if (problem) errors[criterion.id] = problem;
+      if (!this.rubricLevelsByCriterion[criterion.id]) errors[criterion.id] = this.copy.levelRequired;
     }
     this.rubricValidationErrors.set(errors);
     return Object.keys(errors).length === 0;
+  }
+
+  // ── Valoración del sistema (plegada hasta que el docente guarda la suya) ───────────────────────────────────────
+  /**
+   * El perfil automático por competencia junto a lo que el docente dio a los criterios de esa competencia: sus niveles,
+   * «Pendiente» si el criterio existe pero aún no lo calificó, o «Sin criterio equivalente» si la rúbrica no tiene uno.
+   */
+  systemRows(item: AttemptTrace): { entry: CompetencyLevelEntry; teacher: string }[] {
+    const criteria = this.rubric()?.criteria ?? [];
+    const scores = this.rubric()?.scores ?? [];
+    return (item.systemEvaluation?.competencyLevels ?? []).map(entry => {
+      const matching = criteria.filter(criterion => (criterion.competency ?? '').toUpperCase() === entry.code.toUpperCase());
+      const levels = matching
+        .map(criterion => scores.find(score => score.criterionId === criterion.id)?.level)
+        .filter((level): level is FormativeLevel => !!level);
+      const teacher = !matching.length
+        ? this.copy.noTeacherLevel
+        : levels.length ? levels.map(level => formativeLevelLabel(level)).join(', ') : formativeLevelLabel(null);
+      return { entry, teacher };
+    });
+  }
+
+  /** La valoración del sistema existe pero está plegada: se mostrará cuando el docente registre la suya. */
+  systemEvaluationFolded(item: AttemptTrace): boolean {
+    return item.systemEvaluation === null && item.systemEvaluationAvailable;
   }
 
   private loadRubric(attemptId: string) {
@@ -562,9 +591,9 @@ export class InstructorTraceComponent implements OnInit {
   }
 
   private seedRubricForm(rubric: RubricEvaluationView) {
-    // Sin calificación guardada el campo queda vacío (null), no en 0: el 0 no es una calificación del contrato.
-    this.rubricScores = Object.fromEntries(
-      rubric.criteria.map(item => [item.id, rubric.scores.find(score => score.criterionId === item.id)?.score ?? null])
+    // Sin nivel guardado el selector queda en «Sin calificar» (null).
+    this.rubricLevelsByCriterion = Object.fromEntries(
+      rubric.criteria.map(item => [item.id, rubric.scores.find(score => score.criterionId === item.id)?.level ?? null])
     );
     this.rubricComments = Object.fromEntries(
       rubric.criteria.map(item => [item.id, rubric.scores.find(score => score.criterionId === item.id)?.comment ?? ''])
@@ -579,6 +608,11 @@ export class InstructorTraceComponent implements OnInit {
       events: trace.events ?? [],
       reflections: trace.reflections ?? [],
       rubricEvaluations: trace.rubricEvaluations ?? [],
+      counts: trace.counts ?? { recommended: 0, acceptable: 0, risky: 0, contraindicated: 0 },
+      milestones: trace.milestones ?? { done: [], missing: [] },
+      personaPorEscena: trace.personaPorEscena ?? [],
+      systemEvaluation: trace.systemEvaluation ?? null,
+      systemEvaluationAvailable: !!trace.systemEvaluationAvailable,
     };
   }
 
@@ -611,8 +645,9 @@ export class InstructorTraceComponent implements OnInit {
     return formativeLevelTone(level);
   }
 
-  signed(value: number): string {
-    return signedNumber(value);
+  /** La palabra «clave» de un hito que decide el final (nada para los demás). */
+  milestoneMark(milestone: { decisive: boolean }): string | null {
+    return milestoneMark(milestone);
   }
 
   formatDate(value: string | null | undefined): string {
@@ -621,10 +656,6 @@ export class InstructorTraceComponent implements OnInit {
 
   formatDuration(seconds: number | null | undefined): string {
     return formatTraceDuration(seconds);
-  }
-
-  formatNumber(value: number): string {
-    return formatTraceNumber(value);
   }
 
   clean(value: string | null | undefined, fallback: string): string {

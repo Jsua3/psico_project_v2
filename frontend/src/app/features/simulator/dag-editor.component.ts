@@ -1,12 +1,13 @@
 import { ChangeDetectionStrategy, Component, ElementRef, computed, inject, input, output, signal, viewChild } from '@angular/core';
 
-import { DecisionEdgeState, NodeEditorState } from '../../core/models/simulation.model';
+import { DecisionEdgeState, NodeEditorState, ResponseClass } from '../../core/models/simulation.model';
 import { UiBadge, UiBadgeTone } from '../../shared/ui/badge/ui-badge';
 import { UiButton } from '../../shared/ui/button/ui-button';
 import { UiIconButton } from '../../shared/ui/button/ui-icon-button';
 import { UiCard } from '../../shared/ui/card/ui-card';
 import { plural } from '../../shared/ui/labels';
 import { UiEmptyState } from '../../shared/ui/state/ui-empty-state';
+import { responseClassWord } from './outcome-text.util';
 import {
   DAG_NODE_H,
   DAG_NODE_W,
@@ -18,20 +19,28 @@ import {
   wrapLabel,
 } from './dag-layout.util';
 
-type EdgeClass = 'adequate' | 'risky' | 'inadequate' | 'prohibited';
+/** El tipo de una arista es la clase de su respuesta; el color nunca va solo: el rótulo dice la palabra. */
+type EdgeClass = 'recommended' | 'acceptable' | 'risky' | 'contraindicated';
+
+const EDGE_CLASS_OF: Record<ResponseClass, EdgeClass> = {
+  RECOMMENDED: 'recommended',
+  ACCEPTABLE: 'acceptable',
+  RISKY: 'risky',
+  CONTRAINDICATED: 'contraindicated',
+};
 
 const EDGE_LABELS: Record<EdgeClass, string> = {
-  adequate: 'Adecuada',
-  risky: 'Riesgosa',
-  inadequate: 'Inadecuada',
-  prohibited: 'Prohibida',
+  recommended: responseClassWord('RECOMMENDED') ?? 'Recomendada',
+  acceptable: responseClassWord('ACCEPTABLE') ?? 'Aceptable',
+  risky: responseClassWord('RISKY') ?? 'Con riesgo',
+  contraindicated: responseClassWord('CONTRAINDICATED') ?? 'Contraindicada',
 };
 
 const EDGE_TONES: Record<EdgeClass, UiBadgeTone> = {
-  adequate: 'success',
+  recommended: 'success',
+  acceptable: 'info',
   risky: 'warning',
-  inadequate: 'neutral',
-  prohibited: 'danger',
+  contraindicated: 'danger',
 };
 
 /** Qué dibuja el grafo, en el orden de la leyenda: cada ítem tiene su muestra y su texto. */
@@ -39,10 +48,10 @@ const LEGEND = [
   { id: 'start', label: 'Inicio', sample: 'node' },
   { id: 'terminal', label: 'Terminal', sample: 'node' },
   { id: 'orphan', label: 'Sin salida', sample: 'node' },
-  { id: 'adequate', label: 'Decisión adecuada', sample: 'edge' },
-  { id: 'risky', label: 'Decisión riesgosa', sample: 'edge' },
-  { id: 'inadequate', label: 'Decisión inadecuada', sample: 'edge' },
-  { id: 'prohibited', label: 'Decisión prohibida', sample: 'edge' },
+  { id: 'recommended', label: 'Decisión recomendada', sample: 'edge' },
+  { id: 'acceptable', label: 'Decisión aceptable', sample: 'edge' },
+  { id: 'risky', label: 'Decisión con riesgo', sample: 'edge' },
+  { id: 'contraindicated', label: 'Decisión contraindicada', sample: 'edge' },
 ] as const;
 
 const ZOOM_MIN = 0.5;
@@ -73,7 +82,8 @@ interface EdgeView {
   kind: EdgeClass;
   path: string;
   label: string;
-  score: string;
+  /** La clase de la respuesta en palabras («Con riesgo»); reemplaza a las cifras que mostraba antes. */
+  classWord: string;
 }
 
 /**
@@ -157,13 +167,13 @@ export class DagEditorComponent {
       const { edge } = line;
       const dx = (line.x2 - line.x1) * 0.5;
       const text = edge.text.length > EDGE_LABEL_CHARS ? `${edge.text.slice(0, EDGE_LABEL_CHARS)}…` : edge.text;
-      const sign = (value: number) => (value >= 0 ? '+' : '');
+      const kind = this.edgeKind(edge);
       return {
         line,
-        kind: this.edgeKind(edge),
+        kind,
         path: `M ${line.x1} ${line.y1} C ${line.x1 + dx} ${line.y1}, ${line.x2 - dx} ${line.y2}, ${line.x2} ${line.y2}`,
         label: text,
-        score: `${sign(edge.scoreDelta)}${edge.scoreDelta} pts · ${sign(edge.stressDelta)}${edge.stressDelta} %`,
+        classWord: EDGE_LABELS[kind],
       };
     }));
 
@@ -194,11 +204,10 @@ export class DagEditorComponent {
     return id === null ? [] : this.edges().filter(edge => edge.sourceNodeId === id);
   });
 
+  /** Por la clase de su respuesta; una conducta marcada como contraindicada lo es aunque la clase no se haya puesto al día. */
   protected edgeKind(edge: DecisionEdgeState): EdgeClass {
-    if (edge.prohibitedConduct) return 'prohibited';
-    if (edge.classification === 'ADEQUATE') return 'adequate';
-    if (edge.classification === 'RISKY') return 'risky';
-    return 'inadequate';
+    if (edge.prohibitedConduct) return 'contraindicated';
+    return EDGE_CLASS_OF[edge.responseClass] ?? 'acceptable';
   }
 
   protected nodeType(node: NodeEditorState): string {

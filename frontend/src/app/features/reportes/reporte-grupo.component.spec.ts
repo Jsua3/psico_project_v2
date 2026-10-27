@@ -23,18 +23,23 @@ const caso = { caseVersionId: 12, code: 'CASO-12', title: 'Caso doce', semanticV
 
 function simulation(partial: Partial<ReporteSimulacionGrupo> = {}): ReporteSimulacionGrupo {
   return {
-    totalIntentos: 10, intentosCompletados: 6, intentosEnProgreso: 3, intentosSalidaSegura: 1, puntajePromedio: 72.46,
-    decisionesAdecuadas: 40, decisionesRiesgosas: 8, decisionesInadecuadas: 2, bitacorasRegistradas: 9, rubricasAplicadas: 4,
+    totalIntentos: 10, intentosCompletados: 6, intentosEnProgreso: 3, intentosSalidaSegura: 1,
+    hitos: [
+      { key: 'escucha', label: 'Escuchar sin interrumpir', decisive: false, cobertura: 'MAYORIA' },
+      { key: 'proteccion', label: 'Recomendar medidas de protección', decisive: true, cobertura: 'MENOS_DE_LA_MITAD' },
+      { key: 'remision', label: 'Remitir a la ruta institucional', decisive: true, cobertura: null },
+    ],
+    bitacorasRegistradas: 9, rubricasAplicadas: 4,
     estudiantes: [
       {
         id: 11, nombre: 'Marta Ríos', totalIntentos: 2, intentosCompletados: 2, intentosEnProgreso: 0, intentosSalidaSegura: 0,
-        puntajePromedio: 81, decisionesAdecuadas: 12, decisionesRiesgosas: 1, decisionesInadecuadas: 0, bitacorasRegistradas: 2,
-        rubricasAplicadas: 1, estado: 'COMPLETED',
+        hitosCumplidos: ['escucha', 'proteccion'], clases: { recommended: 12, acceptable: 2, risky: 1, contraindicated: 0 },
+        bitacorasRegistradas: 2, rubricasAplicadas: 1, estado: 'COMPLETED',
       },
       {
         id: 12, nombre: 'Luis Gómez', totalIntentos: 1, intentosCompletados: 0, intentosEnProgreso: 1, intentosSalidaSegura: 0,
-        puntajePromedio: 0, decisionesAdecuadas: 3, decisionesRiesgosas: 0, decisionesInadecuadas: 0, bitacorasRegistradas: 0,
-        rubricasAplicadas: 0, estado: 'PAUSED',
+        hitosCumplidos: null, clases: { recommended: 3, acceptable: 0, risky: 0, contraindicated: 0 },
+        bitacorasRegistradas: 0, rubricasAplicadas: 0, estado: 'PAUSED',
       },
     ],
     ...partial,
@@ -216,8 +221,8 @@ describe('pantalla Reportes (F7-3)', () => {
       expect(reporteService.getReporteGrupo).toHaveBeenCalledTimes(1);
       expect(reporteService.getReporteGrupo).toHaveBeenCalledWith(2, null);
       expect(text(stat('Intentos')!.querySelector('.ui-stat__value'))).toBe('10');
-      expect(text(stat('Puntaje promedio')!.querySelector('.ui-stat__value'))).toBe('72.5');
-      expect(text(stat('Decisiones adecuadas')!.querySelector('.ui-stat__value'))).toBe('40');
+      expect(stat('Puntaje promedio')).toBeUndefined();
+      expect(stat('Decisiones adecuadas')).toBeUndefined();
       expect(text(stat('Bitácoras')!.querySelector('.ui-stat__value'))).toBe('9');
       expect(text(host().querySelector('.rg-result h2'))).toContain('Cohorte B');
     });
@@ -314,11 +319,15 @@ describe('pantalla Reportes (F7-3)', () => {
       fixture.detectChanges();
     }
 
+    /** La tabla de estudiantes (la de cobertura por hito es otra, con su propio nombre). */
+    const studentTable = () => [...host().querySelectorAll('ui-table')]
+      .find(table => table.querySelector('[role="region"]')?.getAttribute('aria-label') === 'Tabla de simulación por estudiante')!;
+
     it('la tabla es una región con nombre, con una fila por estudiante y estados en insignias', async () => {
       await withReport();
-      const region = host().querySelector('ui-table [role="region"]')!;
+      const region = studentTable().querySelector('[role="region"]')!;
       expect(region.getAttribute('aria-label')).toBe('Tabla de simulación por estudiante');
-      const rows = [...host().querySelectorAll('ui-table tbody tr')];
+      const rows = [...studentTable().querySelectorAll('tbody tr')];
       expect(rows).toHaveLength(2);
       expect(text(rows[0])).toContain('Marta Ríos');
       expect(text(rows[0].querySelector('ui-badge'))).toBe('Completado');
@@ -328,9 +337,9 @@ describe('pantalla Reportes (F7-3)', () => {
     // req: RF-26, CU-15, RQ-NEG-006
     it('cada estudiante es un enlace a su reporte (F10-7), con el grupo y el caso elegidos para que el reporte conserve el contexto', async () => {
       await withReport();
-      const hrefs = () => [...host().querySelectorAll('ui-table tbody a')].map(link => link.getAttribute('href'));
+      const hrefs = () => [...studentTable().querySelectorAll('tbody a')].map(link => link.getAttribute('href'));
       expect(hrefs()).toEqual(['/portal/reportes/estudiante/11?grupo=1', '/portal/reportes/estudiante/12?grupo=1']);
-      expect(text(host().querySelector('ui-table tbody a'))).toContain('Marta Ríos');
+      expect(text(studentTable().querySelector('tbody a'))).toContain('Marta Ríos');
 
       choose(select('Caso de simulación'), 'Caso doce · v1.0.0');
       await fixture.whenStable();
@@ -384,6 +393,98 @@ describe('pantalla Reportes (F7-3)', () => {
       await fixture.whenStable();
 
       expect(notify.error).toHaveBeenCalledWith('No fue posible exportar el reporte.');
+    });
+
+    // req: RN-09, modelo de métricas
+    describe('cobertura por hito', () => {
+      const hitoRows = () => [...host().querySelectorAll('.rg-hito')];
+
+      it('no hay puntaje promedio ni decisiones adecuadas: ni en las cifras ni en las columnas', async () => {
+        await withReport();
+        expect(stat('Puntaje promedio')).toBeUndefined();
+        expect(stat('Decisiones adecuadas')).toBeUndefined();
+        const headers = [...studentTable().querySelectorAll('th[scope="col"]')].map(th => text(th));
+        expect(headers).toEqual([
+          'Estudiante', 'Intentos', 'Hitos cumplidos', 'Recomendadas', 'Aceptables', 'Con riesgo', 'Contraindicadas', 'Bitácoras', 'Estado',
+        ]);
+        expect(text(host().querySelector('.rg-result'))).not.toMatch(/Puntaje|Adecuadas|Desempeño/i);
+      });
+
+      it('cada hito sale con su nombre, la marca «clave» si decide el final y la cobertura EN PALABRAS', async () => {
+        await withReport();
+        const rows = hitoRows();
+        expect(rows).toHaveLength(3);
+        expect(text(rows[0])).toContain('Escuchar sin interrumpir');
+        expect(text(rows[0])).toContain('La mayoría cumplió este paso');
+        expect(rows[0].querySelector('ui-badge')).toBeNull();
+        expect(text(rows[1].querySelector('ui-badge'))).toBe('clave');
+        expect(text(rows[1])).toContain('Menos de la mitad cumplió este paso');
+        expect(text(rows[2])).toContain('Aún no hay datos suficientes para mostrarlo');
+        // Con menos de 20 estudiantes no viaja el porcentaje: ni barra ni cifra al lado.
+        expect(host().querySelectorAll('.rg-bar')).toHaveLength(0);
+        expect(text(host().querySelector('.rg-hitos'))).not.toMatch(/\d/);
+      });
+
+      it('con 20 estudiantes o más trae el porcentaje: barra con nombre en palabras y su valor también en texto', async () => {
+        const sim = simulation({
+          hitos: [
+            { key: 'escucha', label: 'Escuchar sin interrumpir', decisive: false, cobertura: 'MAYORIA', porcentaje: 62.5 },
+            { key: 'proteccion', label: 'Recomendar medidas de protección', decisive: true, cobertura: 'MENOS_DE_LA_MITAD', porcentaje: 30 },
+          ],
+        });
+        await render({ reporte: grupoId => of(report(grupoId, sim)) });
+        choose(select('Grupo'), 'Cohorte A · COH-A');
+        await fixture.whenStable();
+        fixture.detectChanges();
+
+        const bars = [...host().querySelectorAll('.rg-bar')];
+        expect(bars).toHaveLength(2);
+        expect(bars.every(bar => bar.getAttribute('role') === 'img')).toBe(true);
+        expect(bars[0].getAttribute('aria-label')).toBe('Escuchar sin interrumpir: La mayoría cumplió este paso, 62.5 % del grupo');
+        expect(text(hitoRows()[0].querySelector('.rg-bar__value'))).toBe('62.5 %');
+        expect(text(hitoRows()[1].querySelector('.rg-bar__value'))).toBe('30 %');
+      });
+
+      it('una tabla equivalente trae los mismos hitos con su cobertura en palabras y el porcentaje (o un guion)', async () => {
+        const sim = simulation({
+          hitos: [
+            { key: 'escucha', label: 'Escuchar sin interrumpir', decisive: false, cobertura: 'MAYORIA', porcentaje: 62.5 },
+            { key: 'proteccion', label: 'Recomendar medidas de protección', decisive: true, cobertura: 'MENOS_DE_LA_MITAD' },
+          ],
+        });
+        await render({ reporte: grupoId => of(report(grupoId, sim)) });
+        choose(select('Grupo'), 'Cohorte A · COH-A');
+        await fixture.whenStable();
+        fixture.detectChanges();
+
+        const table = [...host().querySelectorAll('ui-table')]
+          .find(el => el.querySelector('[role="region"]')?.getAttribute('aria-label') === 'Tabla de cobertura por hito')!;
+        expect([...table.querySelectorAll('thead th')].map(th => text(th))).toEqual(['Hito', 'Cobertura', 'Porcentaje del grupo']);
+        const rows = [...table.querySelectorAll('tbody tr')].map(row => [...row.querySelectorAll('th, td')].map(cell => text(cell)));
+        expect(rows).toEqual([
+          ['Escuchar sin interrumpir', 'La mayoría cumplió este paso', '62.5 %'],
+          ['Recomendar medidas de protección clave', 'Menos de la mitad cumplió este paso', '—'],
+        ]);
+      });
+
+      it('por estudiante: los conteos por clase son números en la tabla docente y el orden sigue siendo por nombre', async () => {
+        await withReport();
+        const rows = [...studentTable().querySelectorAll('tbody tr')].map(row => [...row.querySelectorAll('th, td')].slice(1, 8).map(cell => text(cell)));
+        expect(rows).toEqual([
+          ['2', '2 de 3', '12', '2', '1', '0', '2'],
+          ['1', '—', '3', '0', '0', '0', '0'],
+        ]);
+        expect(text(host().querySelector('.rg-result'))).toContain('el orden es por nombre');
+      });
+
+      it('un caso sin hitos lo dice en vez de dejar el bloque vacío', async () => {
+        await render({ reporte: grupoId => of(report(grupoId, simulation({ hitos: [] }))) });
+        choose(select('Grupo'), 'Cohorte A · COH-A');
+        await fixture.whenStable();
+        fixture.detectChanges();
+        expect(text(host().querySelector('.rg-result'))).toContain('Este caso no declara hitos.');
+        expect(hitoRows()).toHaveLength(0);
+      });
     });
 
     it('sin restos del diseño anterior: ni Material, ni medidores con ancho en línea, ni mensajes verdes', async () => {

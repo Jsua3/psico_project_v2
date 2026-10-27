@@ -7,15 +7,14 @@ import { UiButton } from '../../shared/ui/button/ui-button';
 import { UiDialogActions, UiDialogFrame } from '../../shared/ui/dialog/ui-dialog';
 import { DRAFT_COPY } from './draft-copy';
 import {
-  classificationAccent, classificationLabel, classificationTone, cleanText, decisionFeedback, formatTraceDate,
-  formatTraceNumber, formativeLevelLabel, formativeLevelTone, signedNumber, timelineEntryAccent, timelineEntryLabel,
-  timelineEntryTone, timelineFeedback,
+  cleanText, decisionFeedback, formatTraceDate, formativeLevelLabel, formativeLevelTone, responseClassAccent,
+  responseClassLabel, responseClassTone, timelineEntryAccent, timelineEntryLabel, timelineEntryTone, timelineFeedback,
 } from './trace-labels.util';
 
 export type SummaryFeedbackKey =
-  'TOTAL' | 'ADEQUATE' | 'RISKY' | 'INADEQUATE' | 'REFLECTIONS' | 'EVALUATION' | 'TIME' | 'RECORRIDO';
+  'TOTAL' | 'RECOMMENDED' | 'ACCEPTABLE' | 'RISKY' | 'CONTRAINDICATED' | 'REFLECTIONS' | 'EVALUATION' | 'TIME' | 'RECORRIDO';
 
-/** Lo que el diálogo de retroalimentación muestra: una de las siete lecturas del intento. */
+/** Lo que el diálogo de retroalimentación muestra: una de las nueve lecturas del intento. */
 export interface FeedbackPanelView {
   key: SummaryFeedbackKey;
   title: string;
@@ -47,9 +46,9 @@ export interface TraceFeedbackDialogData {
       @if (panel.decisions.length) {
         <ul class="tf-list">
           @for (decision of panel.decisions; track $index) {
-            <li class="tf-card" [attr.data-accent]="accentOf(decision.classification)">
+            <li class="tf-card" [attr.data-accent]="accentOf(decision.class)">
               <div class="tf-card__top">
-                <ui-badge [tone]="toneOf(decision.classification)">{{ labelOf(decision.classification) }}</ui-badge>
+                <ui-badge [tone]="toneOf(decision.class)">{{ labelOf(decision.class) }}</ui-badge>
                 <small>{{ date(decision.occurredAt) }}</small>
               </div>
               <h3 class="tf-card__title">{{ clean(decision.decisionText, 'Decisión registrada') }}</h3>
@@ -57,9 +56,6 @@ export interface TraceFeedbackDialogData {
                 <p class="tf-card__meta">Escenario: {{ decision.nodeTitle }}</p>
               }
               <p class="tf-card__hint">{{ feedbackOf(decision) }}</p>
-              @if (decision.scoreDelta || decision.stressDelta) {
-                <small>Impacto · Puntaje {{ signed(decision.scoreDelta) }} · Estrés {{ signed(decision.stressDelta) }}</small>
-              }
             </li>
           }
         </ul>
@@ -98,9 +94,6 @@ export interface TraceFeedbackDialogData {
               <p class="tf-card__meta">
                 {{ valuationLabel }}:
                 <ui-badge [tone]="levelTone(evaluation.overallLevel)">{{ levelLabel(evaluation.overallLevel) }}</ui-badge>
-                @if (evaluation.totalScore !== null && evaluation.totalScore !== undefined) {
-                  · <strong>{{ number(evaluation.totalScore) }}</strong>
-                }
               </p>
               @if (evaluation.comment) {
                 <p class="tf-card__hint">{{ evaluation.comment }}</p>
@@ -150,9 +143,10 @@ export interface TraceFeedbackDialogData {
       overflow-wrap: anywhere;
     }
 
-    .tf-card[data-accent='adequate'] { border-inline-start-color: var(--ds-success); }
+    .tf-card[data-accent='recommended'] { border-inline-start-color: var(--ds-success); }
+    .tf-card[data-accent='acceptable'] { border-inline-start-color: var(--ds-primary); }
     .tf-card[data-accent='risky'] { border-inline-start-color: var(--ds-warning-text); }
-    .tf-card[data-accent='inadequate'] { border-inline-start-color: var(--ds-danger); }
+    .tf-card[data-accent='contraindicated'] { border-inline-start-color: var(--ds-danger); }
 
     .tf-card__top {
       display: flex;
@@ -202,11 +196,9 @@ export class TraceFeedbackDialogComponent {
 
   protected readonly clean = cleanText;
   protected readonly date = formatTraceDate;
-  protected readonly signed = signedNumber;
-  protected readonly number = formatTraceNumber;
-  protected readonly labelOf = classificationLabel;
-  protected readonly toneOf = classificationTone;
-  protected readonly accentOf = classificationAccent;
+  protected readonly labelOf = responseClassLabel;
+  protected readonly toneOf = responseClassTone;
+  protected readonly accentOf = responseClassAccent;
   protected readonly feedbackOf = decisionFeedback;
   protected readonly entryLabel = timelineEntryLabel;
   protected readonly entryTone = timelineEntryTone;
