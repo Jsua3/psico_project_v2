@@ -9,6 +9,7 @@ mensajes fijos de abajo: ni la clave ni el texto del proveedor salen del servido
 La auditoría guarda pantalla, modelo, recuento de cambios, duración y resultado: nunca el texto de la petición ni de
 la respuesta.
 """
+import json
 import logging
 import re
 import time
@@ -39,7 +40,8 @@ PROVIDER_ERROR_MESSAGE = "La IA no respondió. Inténtalo de nuevo en un momento
 REFUSED_MESSAGE = "La IA no puede ayudar con esa petición. Prueba a pedirla de otra forma."
 # BORRADOR: texto nuevo del servidor, pendiente de la aprobación de Psicología
 INVALID_PROPOSAL_MESSAGE = "La propuesta no se pudo usar. Pídela de nuevo con otras palabras."
-MAX_REQUEST_LENGTH = 400
+MAX_REQUEST_LENGTH = 2000
+MAX_SELECTION_LENGTH = 200
 
 _UNSAFE_SCREEN_CHARS = re.compile(r"[^a-z0-9_-]")
 MAX_SCREEN_LENGTH = 64
@@ -63,6 +65,13 @@ class _ProposeInput(serializers.Serializer):
     peticion = _Text(max_length=MAX_REQUEST_LENGTH)
     pantalla = _Text(allow_blank=True)
     seleccion = serializers.JSONField(required=False, allow_null=True)
+
+    def validate_seleccion(self, value):
+        size = len(value) if isinstance(value, str) else len(json.dumps(value, ensure_ascii=False))
+        if size > MAX_SELECTION_LENGTH:
+            # BORRADOR: texto nuevo del servidor, pendiente de la aprobación de Psicología
+            raise serializers.ValidationError("La selección es demasiado larga.")
+        return value
 
     def validate_pantalla(self, value):
         screen = normalize_screen(value)

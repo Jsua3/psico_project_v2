@@ -43,7 +43,10 @@ REVICTIMIZING_MARKERS = (
     "que hiciste para provocarlo",
     "no sera para tanto",
     "deberias perdonarlo",
-    "vuelve con el",
+    "vuelve con el agresor",
+    "vuelve con tu agresor",
+    "vuelve con tu pareja",
+    "regresa con el agresor",
     "habla con el agresor",
     "media con el agresor",
     "mediar con el agresor",
@@ -65,7 +68,10 @@ _NOT_WORD = re.compile(r"[^a-z0-9]+")
 
 def normalize(text: str) -> str:
     """Minúsculas, sin tildes, sin puntuación y con los espacios colapsados."""
-    stripped = "".join(c for c in unicodedata.normalize("NFKD", str(text).lower()) if not unicodedata.combining(c))
+    stripped = "".join(
+        c for c in unicodedata.normalize("NFKD", str(text).lower())
+        if not unicodedata.combining(c) and unicodedata.category(c) != "Cf"  # sin tildes ni caracteres invisibles
+    )
     return _NOT_WORD.sub(" ", stripped).strip()
 
 
@@ -92,7 +98,7 @@ def check_text(text: str, *, allow_revictimizing: bool = False) -> str | None:
 
 
 # BORRADOR: texto nuevo del servidor, pendiente de la aprobación de Psicología
-SYSTEM_AUTHORING = """Eres el asistente del editor de casos de MetaFrónesis, un simulador donde estudiantes de Psicología practican la atención de personas en situaciones difíciles (orientación, bienestar universitario, violencia de género). Ayudas a una persona usuaria, docente de Psicología, a escribir y ordenar su caso. No es programadora: escribe en español claro y cálido, y trátala de «tú».
+SYSTEM_AUTHORING = """Eres el asistente del editor de casos de MetaFrónesis, un simulador donde estudiantes de Psicología practican la atención de personas en situaciones difíciles (orientación, bienestar universitario, violencia de género). Ayudas a una persona usuaria, docente de Psicología, a escribir y ordenar su caso. No programa: respóndele en español claro y cálido, y trátala de «tú».
 
 Tu trabajo:
 1. Agregar escenas, líneas de diálogo, respuestas, finales, y ajustar la clase, el efecto en la persona consultante, los hitos y la intensidad de lo que ya existe.

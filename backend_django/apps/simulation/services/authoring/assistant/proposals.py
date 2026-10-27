@@ -6,7 +6,7 @@ ids temporales declarados antes de usarse y las reglas de contenido de ``prompts
 texto fijo en español: no cita lo que dijo el modelo.
 """
 import re
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, replace
 
 from apps.simulation.casedef import conditions
 from apps.simulation.models import CaseCharacter, DecisionOption, MapObject, SceneMap, SimulationNode
@@ -24,6 +24,46 @@ MAX_NOTE = 1000
 MAX_CONDITION_ITEMS = 6
 DEFAULT_MAP_SIZE = 4000
 _TEMP_ID = re.compile(r"nueva-[0-9]{1,3}")
+
+
+#: Todos los motivos de rechazo (sin el prefijo «Cambio N: » y con «» donde va el nombre de un campo nuestro): son
+#: textos fijos y nunca citan lo que dijo el modelo. ``is_fixed_motivo`` lo comprueba.
+FIXED_MOTIVOS = frozenset({
+    "el campo «» no tiene la forma esperada.",
+    "el campo «» no es un número válido.",
+    "el campo «» trae un valor fuera de la lista permitida.",
+    "la sala no está en el caso.",
+    "el personaje no está en el caso.",
+    "el elemento no está en el caso.",
+    "la respuesta no está en el caso.",
+    "la escena no está en el caso ni se declaró antes.",
+    "una respuesta contraindicada necesita su razón.",
+    "solo una respuesta contraindicada lleva razón de prohibición.",
+    "el id de la escena nueva no es válido o está repetido.",
+    "una escena de intensidad alta necesita su aviso.",
+    "la clave del final no es válida o ya existe.",
+    "el caso ya tiene el máximo de finales.",
+    "el cambio en la persona debe ser -1, 0 o 1 en vínculo o activación.",
+    "el hito no lo declara el caso.",
+    "la condición del final no es válida.",
+    "la condición del final usa algo fuera del vocabulario.",
+    "la condición del final nombra un hito que el caso no declara.",
+    "la condición del final cuenta con un número fuera de rango.",
+    "la condición de la persona no dice nada.",
+    "la condición del final agrupa una cantidad de partes no válida.",
+    "no es una operación conocida o le faltan campos.",
+    prompts.GRAPHIC_REASON,
+    prompts.REVICTIMIZING_REASON,
+    "La respuesta de la IA no tiene la forma esperada.",
+    f"La IA propuso más de {schema.MAX_CHANGES} cambios.",
+})
+_FIELD_NAME = re.compile(r"«[^»]*»")
+_CHANGE_PREFIX = re.compile(r"Cambio [0-9]+: ")
+
+
+def is_fixed_motivo(motivo: str) -> bool:
+    """¿``motivo`` es uno de los textos fijos de ``FIXED_MOTIVOS`` (con o sin el prefijo del cambio)?"""
+    return _FIELD_NAME.sub("«»", _CHANGE_PREFIX.sub("", motivo, count=1)) in FIXED_MOTIVOS
 
 
 class InvalidProposal(Exception):
@@ -304,11 +344,11 @@ def propose(*, config, case_version, request_text, screen, selection, actor) -> 
     raw = provider.complete_structured(
         prompts.SYSTEM_AUTHORING, [{"role": "user", "content": message}], schema.PROPOSAL, config.model_capable, max_tokens=8000
     )
-    proposal = validate(case_version, raw)
+    proposal = replace(validate(case_version, raw), model=config.model_capable)
     return {
         "mensaje": proposal.message,
         "cambios": proposal.changes,
         "modo": "connected",
-        "model": config.model_capable,
+        "model": proposal.model,
         "changes": len(proposal.changes),
     }

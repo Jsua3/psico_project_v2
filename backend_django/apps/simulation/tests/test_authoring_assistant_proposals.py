@@ -93,6 +93,25 @@ def foreign_character(api):
     return response.data["data"]["characters"][-1]["id"]
 
 
+@pytest.fixture
+def foreign(api):
+    """Las filas reales de OTRO caso (nodo, sala, objeto, opción y personaje): ids que existen, pero no en este caso."""
+    other = api.post(BASE, {"title": "Otro caso con sus propias filas"}, format="json").data["data"]["caseVersionId"]
+
+    def post(path, body):
+        response = api.post(f"{BASE}/{other}/{path}", body, format="json")
+        assert response.status_code == 200, response.data
+        return response.data["data"]
+
+    node = post("nodes", {"nodeKey": "ajeno", "title": "Escena ajena", "narrative": "x"})["nodes"][-1]["id"]
+    scene_map = post("maps", {"mapKey": "sala_ajena", "title": "Sala ajena", "nodeId": node})["maps"][-1]["id"]
+    obj = post(f"maps/{scene_map}/objects", {"objectKey": "mesa_ajena", "label": "Mesa", "objectType": "PROP"})["objects"][-1]["id"]
+    decision = post("decisions", {"sourceNodeId": node, "targetNodeId": node, "text": "Respuesta ajena",
+                                  "responseClass": "ACCEPTABLE"})["decisions"][-1]["id"]
+    character = post("characters", {"characterKey": "ajena", "displayName": "Ajena"})["characters"][-1]["id"]
+    return {"node": node, "map": scene_map, "object": obj, "decision": decision, "character": character}
+
+
 def _scene(**extra):
     return {"op": "add-scene", "id": "nueva-1", "title": "Una conversación tranquila", "narrative": "Se sientan a hablar.",
             "intensity": "MEDIUM", "warningMessage": "", "afterNodeId": None, **extra}
@@ -120,7 +139,7 @@ def _raw(*changes, message="Te propongo esto."):
 def _invalid(version, raw):
     with pytest.raises(proposals.InvalidProposal) as caught:
         proposals.validate(version, raw)
-    assert str(caught.value)
+    assert str(caught.value) and proposals.is_fixed_motivo(str(caught.value)), str(caught.value)
     return caught.value
 
 
@@ -237,6 +256,10 @@ def test_una_propuesta_valida_conserva_el_orden_y_marca_ai_suggested(version, id
     assert "aiSuggested" not in raw["changes"][0]  # la entrada no se muta
 
 
+def test_validate_deja_el_modelo_vacio(version):
+    assert proposals.validate(version, _raw()).model == ""
+
+
 def test_sin_cambios_es_valida_cuando_solo_se_explica(version):
     assert proposals.validate(version, _raw(message="Tu caso ya tiene salida.")).changes == []
 
@@ -253,6 +276,26 @@ def test_un_id_temporal_se_declara_antes_de_usarse_y_no_se_repite(version, ids):
     _invalid(version, _raw(_scene(), _scene()))
     _invalid(version, _raw(_scene(id="otra")))
     _invalid(version, _raw(_scene(afterNodeId="nueva-1")))
+
+
+def test_ids_reales_de_otro_caso_son_invalid_proposal(version, ids, foreign):
+    """Existen en la base, pero no en ESTA versión: cada operación los rechaza."""
+    for other in (foreign["node"], foreign["map"], foreign["object"], foreign["decision"]):
+        assert other not in (ids["node"], ids["map"], ids["object"], ids["decision"])
+    _invalid(version, _raw(_line(foreign["node"], ids["character"])))
+    _invalid(version, _raw(_response(foreign["node"])))
+    _invalid(version, _raw(_response(ids["node"], targetNodeId=foreign["node"])))
+    _invalid(version, _raw(_scene(afterNodeId=foreign["node"])))
+    _invalid(version, _raw({"op": "place-character", "mapId": foreign["map"], "characterId": ids["character"], "x": 1,
+                            "y": 1, "expression": "neutral"}))
+    _invalid(version, _raw({"op": "place-character", "mapId": ids["map"], "characterId": foreign["character"], "x": 1,
+                            "y": 1, "expression": "neutral"}))
+    _invalid(version, _raw({"op": "move", "objectId": foreign["object"], "x": 1, "y": 1}))
+    _invalid(version, _raw({"op": "set-response-class", "decisionId": foreign["decision"], "responseClass": "RISKY",
+                            "prohibitionReason": ""}))
+    _invalid(version, _raw({"op": "set-persona-effect", "decisionId": foreign["decision"], "bond": 1, "activation": None}))
+    _invalid(version, _raw({"op": "mark-milestone", "decisionId": foreign["decision"], "milestoneKey": ids["milestone"]}))
+    _invalid(version, _raw({"op": "set-intensity", "nodeId": foreign["node"], "intensity": "LOW", "warningMessage": ""}))
 
 
 @pytest.mark.parametrize("bad", ["NEUTRAL", "feliz", "", None, 3])
@@ -352,6 +395,35 @@ def test_check_text_normaliza_acentos_y_mayusculas():
     assert prompts.check_text("¿Por qué no denunciaste antes?") is not None
     assert prompts.check_text("¿Por qué no denunciaste antes?", allow_revictimizing=True) is None
     assert prompts.check_text("sangre a borbotones", allow_revictimizing=True) is not None
+
+
+def test_vuelve_con_el_grupo_no_es_revictimizante_pero_vuelve_con_el_agresor_si(version, ids):
+    ok = proposals.validate(version, _raw(_response(ids["node"], text="Vuelve con el grupo cuando te sientas lista.")))
+    assert ok.changes[0]["responseClass"] == "RECOMMENDED"
+    for innocent in ("Vuelve con el médico mañana.", "Vuelve con el docente si lo necesitas."):
+        assert prompts.check_text(innocent) is None
+    for harmful in ("Vuelve con el agresor.", "Mejor vuelve con tu pareja.", "Regresa con el agresor, es lo mejor."):
+        assert prompts.check_text(harmful) == prompts.REVICTIMIZING_REASON
+
+
+def test_los_caracteres_invisibles_no_burlan_el_filtro():
+    assert prompts.check_text("había san\u200bgre a borbotones") == prompts.GRAPHIC_REASON
+    assert prompts.check_text("sangre\u00ad a borbotones") == prompts.GRAPHIC_REASON
+    assert prompts.check_text("¿por qué no\u2060 denunciaste?") == prompts.REVICTIMIZING_REASON
+
+
+def test_el_prompt_de_sistema_no_supone_genero_de_quien_escribe():
+    assert "programadora" not in prompts.SYSTEM_AUTHORING
+
+
+def test_todo_motivo_literal_del_validador_esta_en_la_lista_de_motivos_fijos():
+    import re
+
+    source = Path(proposals.__file__).read_text(encoding="utf-8")
+    literals = re.findall(r'self\.fail\("([^"{]+)"\)', source)
+    assert len(literals) >= 15
+    for literal in literals:
+        assert literal in proposals.FIXED_MOTIVOS, literal
 
 
 def test_las_listas_de_marcadores_estan_normalizadas_y_son_suficientes():
@@ -499,12 +571,17 @@ def test_el_endpoint_sin_key_es_502_y_no_gasta_cupo(api, admin, seeded_draft, pr
     assert remaining == 5 and provider["calls"] == 0
 
 
-def test_una_peticion_de_mas_de_400_caracteres_es_400(api, seeded_draft, provider):
+def test_una_peticion_de_mas_de_2000_caracteres_o_una_seleccion_de_mas_de_200_es_400(api, seeded_draft, provider):
+    url = f"{AUTHORING}/{seeded_draft}/assistant/propose"
     with override_settings(**ON):
-        response = api.post(f"{AUTHORING}/{seeded_draft}/assistant/propose",
-                            {"peticion": "z" * 401, "pantalla": "editor-mapa"}, format="json")
+        long_request = api.post(url, {"peticion": "z" * 2001, "pantalla": "editor-mapa"}, format="json")
+        long_text = api.post(url, {"peticion": "z", "pantalla": "editor-mapa", "seleccion": "s" * 201}, format="json")
+        long_json = api.post(url, {"peticion": "z", "pantalla": "editor-mapa", "seleccion": {"a": "s" * 300}}, format="json")
+        assert provider["calls"] == 0
+        at_limit = api.post(url, {"peticion": "z" * 2000, "pantalla": "editor-mapa", "seleccion": "s" * 200}, format="json")
 
-    assert response.status_code == 400 and provider["calls"] == 0
+    assert long_request.status_code == 400 and long_text.status_code == 400 and long_json.status_code == 400
+    assert at_limit.status_code == 200 and provider["calls"] == 1
 
 
 # ─── las seis peticiones difíciles ──────────────────────────────────────────────────────
@@ -528,6 +605,7 @@ def test_el_fixture_trae_seis_peticiones_con_respuestas_validas_contra_el_esquem
     assert [e["espera"] for e in entries] == ["rechazada", "rechazada", "aceptada", "rechazada", "rechazada", "rechazada"]
     for entry in entries:
         assert entry["peticion"].strip()
+        assert bool(entry["espera_motivo"]) == (entry["espera"] == "rechazada")
         stand_in = _resolve(entry["respuesta_tentadora"], {"node": 1, "map": 1, "character": 1, "other_character": 2,
                                                           "missing_node": 3, "object": 1})
         jsonschema.validate(stand_in, schema.PROPOSAL)
@@ -550,12 +628,13 @@ def test_peticiones_dificiles(index, version, ids, foreign_character, provider):
     with pytest.raises(proposals.InvalidProposal) as caught:
         _propose(version, entry["peticion"])
     motivo = str(caught.value)
-    assert motivo.strip()
-    # Nunca se devuelve al cliente un texto del modelo.
+    # La regla prevista fue la que saltó, y el motivo es uno de los textos fijos del servidor.
+    assert entry["espera_motivo"] in motivo, motivo
+    assert proposals.is_fixed_motivo(motivo), motivo
+    # Nunca se devuelve al cliente un texto del modelo (ni un valor suelto de más de tres caracteres).
     for text in _strings(tempting):
-        if len(text) > 12:
-            assert text not in motivo and text.lower() not in motivo.lower()
-    assert not hasattr(caught.value, "raw")
+        if len(text) > 3:
+            assert text.lower() not in motivo.lower(), text
 
 
 def _strings(value):
