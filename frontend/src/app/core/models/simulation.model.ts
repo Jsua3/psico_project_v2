@@ -90,71 +90,138 @@ export interface SimulationAttemptState {
    * REPLACED = cerrado porque el estudiante empezó otro intento (no es salida segura).
    */
   status: 'IN_PROGRESS' | 'PAUSED' | 'SAFE_EXITED' | 'COMPLETED' | 'REPLACED';
-  accumulatedScore: number;
-  stressIndex: number;
-  metrics: SimulationMetrics;
-  clinicalState?: ClinicalState;
+  /** La persona consultante en palabras (Tarea 9): vínculo y activación en la ficción, sin cifras. */
+  persona: Persona;
   currentNode: SimulationNodeState;
-  feedback: SimulationFeedback | null;
   completionReport: AttemptCompletionReport | null;
   supportResources: string[];
 }
 
-export interface SimulationMetrics {
-  professionalScore: number;
-  sceneStress: number;
-  victimRisk: number;
-  userTrust: number;
-  institutionalRouteActivated: boolean;
-  revictimizationRisk: boolean;
+/** La clase de una respuesta (modelo de métricas): la única etiqueta que el docente y el reporte congelado comparten. */
+export type ResponseClass = 'RECOMMENDED' | 'ACCEPTABLE' | 'RISKY' | 'CONTRAINDICATED';
+
+/** Vínculo de la persona consultante con quien la atiende: retraída, cautelosa o abierta. */
+export type Bond = 'WITHDRAWN' | 'GUARDED' | 'OPEN';
+
+/** Activación de la persona consultante: serena, tensa o en crisis. */
+export type Activation = 'CALM' | 'TENSE' | 'CRISIS';
+
+/** Intensidad de una escena; una escena `HIGH` exige `warningMessage` (Tarea 4). */
+export type Intensity = 'LOW' | 'MEDIUM' | 'HIGH';
+
+/**
+ * La persona consultante en palabras (Tarea 9): vínculo y activación sin cifras. `label` es la frase para el
+ * estudiante («se muestra cautelosa y tensa»).
+ */
+export interface Persona {
+  bond: Bond;
+  activation: Activation;
+  label: string;
 }
 
-export interface ClinicalState {
-  papApplied: boolean;
-  patient: PatientState;
+/** La persona después de decidir en una escena (traza docente, `personaPorEscena`). */
+export interface PersonaPorEscena extends Persona {
+  nodeId: number;
+  nodeTitle: string;
+}
+
+/** Un hito del caso en un reporte: `decisive` marca los que deciden el final. */
+export interface MilestoneEntry {
+  key: string;
+  label: string;
+  decisive: boolean;
+}
+
+/** Los hitos de un intento: los cumplidos (en el orden en que se cumplieron) y los que faltaron. */
+export interface MilestoneReport {
+  done: MilestoneEntry[];
+  missing: MilestoneEntry[];
+}
+
+/** Cuántas decisiones registradas hubo de cada clase (traza docente y reporte v3). */
+export interface ClassCounts {
+  recommended: number;
+  acceptable: number;
+  risky: number;
+  contraindicated: number;
+}
+
+/** Los conteos del reporte congelado v3: por clase y los hechos del recorrido (un conteo de hechos no es una medida). */
+export interface ReportCounts extends ClassCounts {
+  retries: number;
+  prohibitedRetries: number;
+  toolsUsed: number;
+  reflections: number;
 }
 
 export interface AttemptTimelineEntry {
   atSeconds: number | null;
   time: string;
   type: string;
-  classification: 'ADEQUATE' | 'RISKY' | 'INADEQUATE' | null;
+  class: ResponseClass | null;
   prohibited: boolean;
   label: string;
-  scoreDelta: number;
-  stressDelta: number;
 }
 
 export interface AttemptCompletionReport {
   attemptId: string;
   caseTitle: string;
   status: SimulationAttemptState['status'];
-  finalScore: number;
-  finalStress: number;
-  metrics: SimulationMetrics;
+  /** 3 en el reporte congelado actual; los v1 y v2 ya cerrados no se recalculan (y no traen los campos de v3). */
+  schemaVersion?: number;
   totalDurationSeconds: number | null;
   phaseDurations: PhaseDuration[];
-  adequateDecisions: number;
-  riskyDecisions: number;
-  inadequateDecisions: number;
-  prohibitedDecisions: number;
   toolsUsed: number;
   reflectionsCount: number;
   safeExitUsed: boolean;
   visitedNodeTitles: string[];
-  competencies: string[];
   recommendations: string[];
   summaryMessage: string;
   /** Línea de tiempo de decisiones/acciones clave (backend puede omitirla). */
   timeline?: AttemptTimelineEntry[];
-  /** Efecto mariposa: final canónico del caso (solo intentos COMPLETED). */
-  ending?: AttemptEnding | null;
+  /** El final por hitos y clases de respuesta, con su razón en palabras (solo intentos COMPLETED). */
+  ending?: EndingReport | null;
   /** Veces que una primera respuesta riesgosa no se aplicó (reintentos); no cuentan como decisiones registradas. */
   retries?: number;
   /** De esos reintentos, los que eran conducta prohibida (el docente los distingue en su traza). */
   prohibitedRetries?: number;
+  /** Los hitos cumplidos y los que faltaron (reporte v3). */
+  milestones?: MilestoneReport;
+  /** La persona consultante al cerrar, en palabras (reporte v3). */
+  persona?: Persona;
+  /** Decisiones por clase y hechos del recorrido (reporte v3). */
+  counts?: ReportCounts;
   /** Una entrada por decisión registrada, con su explicación y fundamento (C2). Solo en el reporte congelado. */
   decisionReview?: DecisionReviewItem[];
+  /** El perfil por competencia con la evidencia que lo sostiene (E6-1d, v3). */
+  competencyLevels?: CompetencyLevelEntry[];
+  /** Las notas de reflexión por escena, sin su texto. */
+  reflections?: { nodeId: number; nodeTitle: string; locked: boolean }[];
+  /** Cuántas escenas con decisión tienen reflexión (E6-1d). */
+  reflectionCoverage?: { definition: string; reflections: number; decisionScenes: number; covered: boolean };
+  /** «Evidencia clave»: completado, con reflexión y con al menos un nivel de competencia (RQ-NEG-004). */
+  keyLearningEvidence?: boolean;
+  /** Segundos por escena. */
+  timeByScene?: { nodeId: number; seconds: number }[];
+}
+
+/** Una decisión que sostiene el nivel de una competencia (reporte v3, `competencyLevels[].evidence[]`). */
+export interface CompetencyEvidence {
+  order: number;
+  nodeTitle: string;
+  optionText: string;
+  class: ResponseClass;
+  level: FormativeLevel | null;
+}
+
+/** El nivel de una competencia en el reporte congelado; `level` es nulo si no hubo evidencia suficiente. */
+export interface CompetencyLevelEntry {
+  code: string;
+  name: string;
+  level: FormativeLevel | null;
+  /** Con qué se calculó el nivel, en palabras. */
+  basis: string;
+  evidence: CompetencyEvidence[];
 }
 
 /**
@@ -169,7 +236,7 @@ export interface DecisionConsequence {
 /** Reintento que concede el caso (`rules.secondChance`): la primera respuesta no se aplicó. */
 export interface DecisionRetry {
   allowed: true;
-  /** Con la bandera apagada es el mensaje evaluativo del servidor; el juego no lo muestra al decidir. */
+  /** Mensaje del servidor para la otra oportunidad; el juego no lo muestra al decidir. */
   message: string;
 }
 
@@ -190,19 +257,21 @@ export interface DecisionReviewItem {
   chosen: { optionId: number; text: string };
   consequence: string;
   feedback: { explanation: string; theoryBasis?: string };
-  classification: 'ADEQUATE' | 'RISKY' | 'INADEQUATE';
+  class: ResponseClass;
   prohibited: boolean;
   reconsidered?: { firstOptionId: number; firstOptionText: string };
 }
 
-export interface AttemptEnding {
-  key: 'integral' | 'brechas' | 'riesgo' | 'critico';
+/**
+ * El final del intento (Tarea 8): sale de los hitos y las clases de respuesta. `key` es el del final de la plantilla
+ * (`critica`, `protectora`, `riesgo_persistente`, `con_brechas`) o uno propio del caso; `reason` lo explica en palabras.
+ */
+export interface EndingReport {
+  key: string;
   title: string;
   message: string;
   tone: 'positive' | 'neutral' | 'warning' | 'critical';
-  severityCounts: Record<'recommended' | 'acceptable' | 'risky' | 'critical', number>;
-  caseFlags: Record<string, boolean>;
-  caseMetrics: Record<string, number>;
+  reason: string[];
 }
 
 export interface PhaseDuration {
@@ -224,6 +293,8 @@ export interface SimulationNodeState {
   safeExitRequired: boolean;
   warningMessage: string | null;
   terminal: boolean;
+  /** Intensidad de la escena: la que decide el aviso previo (Tarea 4). */
+  intensity: Intensity;
   options: SimulationDecisionOption[];
 }
 
@@ -231,22 +302,6 @@ export interface SimulationNodeState {
 export interface SimulationDecisionOption {
   id: number;
   text: string;
-}
-
-export interface SimulationFeedback {
-  classification: 'ADEQUATE' | 'RISKY' | 'INADEQUATE';
-  scoreDelta: number;
-  stressDelta: number;
-  trustDelta: number;
-  victimRiskDelta: number;
-  prohibitedConduct: boolean;
-  institutionalRouteActivated: boolean;
-  revictimizationRisk: boolean;
-  message: string;
-  prohibitionReason: string | null;
-  /** True solo cuando el backend concede otra oportunidad (1ª respuesta mala).
-   *  En la 2ª respuesta riesgosa/inadecuada queda registrada y llega en false. */
-  retryRequired?: boolean;
 }
 
 export interface SimulationWorldState {
@@ -366,14 +421,13 @@ export interface InteractionResult {
 
 /**
  * Fase 6 — Contextual feedback when a clinical tool is used.
- * The stress delta and feedback message make the tool usage diegetic.
+ * El mensaje hace diegético el uso de la herramienta; no mueve ninguna cifra.
  */
 export interface ToolUseResult {
   world: SimulationWorldState;
   toolCode: string;
   targetKey: string | null;
   pertinent: boolean;
-  stressDelta: number;
   feedbackMessage: string;
 }
 
@@ -382,17 +436,18 @@ export interface AttemptTrace {
   studentAlias: string;
   caseTitle: string;
   status: string;
-  accumulatedScore: number;
-  stressIndex: number;
-  metrics: SimulationMetrics;
   startedAt: string;
   endedAt: string | null;
   totalDurationSeconds: number | null;
   phaseDurations: PhaseDuration[];
-  adequateDecisions: number;
-  riskyDecisions: number;
-  inadequateDecisions: number;
-  prohibitedDecisions: number;
+  /** Decisiones registradas por clase de respuesta. */
+  counts: ClassCounts;
+  /** Los hitos cumplidos y los que faltaron. */
+  milestones: MilestoneReport;
+  /** La persona después de decidir en cada escena. */
+  personaPorEscena: PersonaPorEscena[];
+  /** El final del intento; nulo si no se completó. */
+  ending: EndingReport | null;
   /** Primeras respuestas que el juego no aplicó (reintento): no entran en los contadores de decisiones (T11.1, L-02). */
   retries?: number;
   prohibitedRetries?: number;
@@ -403,15 +458,22 @@ export interface AttemptTrace {
   world: SimulationWorldState;
   reflections: ReflectionTrace[];
   rubricEvaluations: RubricSummary[];
+  /** La valoración automática; plegada (nula) hasta que el docente guarda la suya. */
+  systemEvaluation: SystemEvaluation | null;
+  /** Hay una valoración automática que mostrar cuando el docente registre la suya. */
+  systemEvaluationAvailable: boolean;
+}
+
+/** La valoración automática del sistema que ve el docente tras registrar la suya: resumen y perfil por competencia. */
+export interface SystemEvaluation extends RubricSummary {
+  competencyLevels: CompetencyLevelEntry[];
 }
 
 export interface TraceEvent {
   type: string;
-  classification: string | null;
+  class: ResponseClass | null;
   nodeTitle: string | null;
   decisionText: string | null;
-  scoreDelta: number;
-  stressDelta: number;
   detail: string | null;
   occurredAt: string;
 }
@@ -429,8 +491,8 @@ export type FormativeLevel = 'EN_INICIO' | 'EN_PROCESO' | 'LOGRADO' | 'DESTACADO
 export interface RubricSummary {
   id: number;
   rubricName: string;
-  /** Solo viaja si el servidor tiene activo `RUBRIC_NUMERIC_TOTAL` (apagado por defecto: ED-2, RN-09). */
-  totalScore: number | null;
+  /** Quién la hizo: el docente o el sistema. */
+  origin?: 'DOCENTE' | 'SISTEMA';
   /** Nivel global de la evaluación; null mientras falte calificar algún criterio. */
   overallLevel?: FormativeLevel | null;
   comment: string | null;
@@ -442,8 +504,6 @@ export interface RecentAttempt {
   studentAlias: string;
   caseTitle: string;
   status: string;
-  accumulatedScore: number;
-  stressIndex: number;
   startedAt: string;
 }
 
@@ -452,11 +512,6 @@ export interface StudentAttemptSummary {
   caseVersionId: number;
   caseTitle: string;
   status: SimulationAttemptState['status'];
-  accumulatedScore: number;
-  adequateDecisions: number;
-  riskyDecisions: number;
-  inadequateDecisions: number;
-  prohibitedDecisions: number;
   totalDurationSeconds: number | null;
   /** Tiempo activo estimado (sin pausas ni esperas > 5 min). null si no terminó. */
   activeDurationSeconds: number | null;
@@ -472,8 +527,8 @@ export interface RubricEvaluationView {
   status?: string;
   criteria: RubricCriterionView[];
   scores: CriterionScoreView[];
-  /** Solo viaja con `RUBRIC_NUMERIC_TOTAL` encendido en el servidor; si es null la pantalla no muestra ningún número. */
-  totalScore: number | null;
+  /** Los cuatro niveles que el docente elige, con su descriptor (Tarea 12); la rúbrica se califica solo por niveles. */
+  levels?: RubricLevelOption[];
   /** Nivel global de la valoración formativa (RN-09); null mientras falte calificar algún criterio. */
   overallLevel?: FormativeLevel | null;
   comment: string | null;
@@ -485,14 +540,19 @@ export interface RubricCriterionView {
   title: string;
   description: string | null;
   weight?: number;
-  maxScore: number;
   displayOrder: number;
+}
+
+/** Un nivel que el docente puede elegir en un criterio: valor, nombre y descriptor. */
+export interface RubricLevelOption {
+  value: FormativeLevel;
+  label: string;
+  descriptor: string;
 }
 
 export interface CriterionScoreView {
   criterionId: number;
-  score: number;
-  /** Nivel formativo de este criterio (el que se muestra; `score` es su índice interno o la calificación 1,0–5,0). */
+  /** Nivel formativo de este criterio; nulo mientras no se califica. */
   level?: FormativeLevel | null;
   comment: string | null;
   evidence: Record<string, unknown>;
@@ -514,6 +574,8 @@ export interface NodeEditorState {
   startNode: boolean;
   positionX: number | null;
   positionY: number | null;
+  /** Intensidad de la escena: `MEDIUM` por defecto y `HIGH` en las sensibles; `HIGH` exige `warningMessage`. */
+  intensity: Intensity;
   /** El enunciado de la decisión (E3-6, RF-06): lo que se lee antes de elegir; vacío = la escena no lo declara. */
   decisionPrompt: string;
   /** El lugar de la escena en la lista del editor (E3-6, RF-08): 0…n-1 tras reordenar; informativo, no cambia el grafo. */
@@ -528,19 +590,61 @@ export interface DecisionEdgeState {
   targetNodeId: number;
   targetKey: string;
   text: string;
+  /** Clasificación antigua que el servidor aún devuelve por compatibilidad; la que cuenta es `responseClass`. */
   classification: 'ADEQUATE' | 'RISKY' | 'INADEQUATE';
+  /** La clase de la respuesta; `CONTRAINDICATED` exige `prohibitionReason`. */
+  responseClass: ResponseClass;
   prohibitedConduct: boolean;
   prohibitionReason: string | null;
-  scoreDelta: number;
-  stressDelta: number;
-  prohibitedPenalty: number;
   immediateFeedback: string;
+  /** Lo que la opción mueve en el caso: la persona, los hitos y las competencias (E3-8). */
+  effects: DecisionEffects;
   /** Lo que pasa en la historia al elegir la opción (E3-7). */
   consequenceText: string;
   /** El fundamento teórico que respalda la retroalimentación (E3-7). */
   theoryBasis: string;
   /** La retroalimentación pedagógica: por qué la opción es adecuada o no (E3-7, RF-10). */
   feedbackText: string;
+}
+
+/**
+ * Lo que una opción mueve (E3-8). `persona` son pasos de −1 a +1 por eje; `milestones` son claves de hitos del caso;
+ * `competencies` son los códigos del catálogo (con su nivel, o nulo: lo da la clase).
+ */
+export interface DecisionEffects {
+  persona?: { bond?: number; activation?: number };
+  milestones?: string[];
+  competencies?: string[] | Record<string, FormativeLevel | null>;
+}
+
+/** Un hito declarado por el caso (`rules.milestones[]`). `decisive` marca los que deciden el final. */
+export interface Milestone {
+  key: string;
+  label: string;
+  description: string;
+  decisive: boolean;
+}
+
+/** Nivel de riesgo del caso, de la escala DA del protocolo de Medicina Legal; el catálogo es sustituible por caso. */
+export type RiskLevel = 'VARIABLE' | 'MODERATE' | 'SEVERE' | 'EXTREME';
+
+/** Una condición de un final: `{all}`, `{any}`, `{not}`, `{milestone}`, `{count}` o `{persona}`. */
+export type EndingCondition = Record<string, unknown>;
+
+/** Un final del caso, evaluado en orden: el primero cuya condición se cumple. */
+export interface EndingRule {
+  key: string;
+  title: string;
+  message: string;
+  tone: EndingReport['tone'];
+  when: EndingCondition;
+}
+
+/** Las reglas del caso que el editor lee y escribe con `PUT …/rules/{milestones,risk,endings}`. */
+export interface CaseRules {
+  milestones: Milestone[];
+  riskLevel: RiskLevel | null;
+  endings: EndingRule[];
 }
 
 export interface MapEditorState {
@@ -650,6 +754,8 @@ export interface CaseEditorView {
   tools: ClinicalToolEditorState[];
   hints: HintEditorState[];
   characters: CharacterEditorState[];
+  /** Los hitos, el nivel de riesgo y los finales del caso. */
+  rules: CaseRules;
   rubrics: RubricEvaluationView[];
   checklistCompletion: number;
   publishable: boolean;
@@ -673,6 +779,8 @@ export interface NodeUpsertRequest {
   positionY: number | null;
   /** Ausente = el servidor no lo toca; vacío = la escena no declara enunciado. */
   decisionPrompt?: string;
+  /** Ausente = no se toca (una escena nueva sensible nace en `HIGH`). */
+  intensity?: Intensity;
 }
 
 export interface DecisionOptionUpsertRequest {
@@ -680,13 +788,13 @@ export interface DecisionOptionUpsertRequest {
   targetNodeId: number;
   optionKey: string;
   text: string;
-  classification: string;
+  /** Obligatoria en una opción nueva. */
+  responseClass?: ResponseClass;
   prohibitedConduct: boolean;
   prohibitionReason: string | null;
-  scoreDelta: number;
-  stressDelta: number;
-  prohibitedPenalty: number;
   immediateFeedback: string;
+  /** Ausente = no se toca; `{}` limpia los efectos. */
+  effects?: DecisionEffects;
   /** Texto plano de hasta 1.200 caracteres (E3-7); ausente = no se toca, vacío = se borra. */
   consequenceText?: string;
   theoryBasis?: string;
@@ -1002,19 +1110,6 @@ export interface NpcDialogue {
 export interface NpcDialogueLine {
   text: string;
   emotion?: string;
-}
-
-// ─── Patient Reactive System (Plan 3) ─────────────────────────────────────────
-
-export interface PatientState {
-  /** Overall emotional wellbeing: 0 = crisis, 100 = stable/open. Starts at 40. */
-  emotionalState: number;
-  /** Trust in the professional: 0 = none, 100 = full. Starts at 20. */
-  trustLevel: number;
-  /** Willingness to open up: 0 = closed, 100 = fully open. Starts at 15. */
-  openness: number;
-  /** Crisis intensity: 0 = resolved, 100 = acute crisis. Starts at 60. */
-  crisisLevel: number;
 }
 
 // ─── Revisión del caso (F10-6†: C4 ciclo de vida y C6 validación) ─────────────────────────────────────────

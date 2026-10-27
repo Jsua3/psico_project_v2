@@ -11,10 +11,13 @@ import {
   CharacterUpsertRequest,
   ChecklistUpdateRequest,
   DecisionOptionUpsertRequest,
+  EndingRule,
   HintUpsertRequest,
   MapObjectUpsertRequest,
   MapUpsertRequest,
+  Milestone,
   NodeUpsertRequest,
+  RiskLevel,
   SimulationCaseSummary,
   ToolUpsertRequest,
   WorldDefinition,
@@ -167,6 +170,26 @@ export class AuthoringApi {
 
   deleteTool(caseVersionId: number, toolId: number, revision?: number) {
     return this.http.delete<ApiResponse<CaseEditorView>>(`${this.API}/${caseVersionId}/tools/${toolId}`, withRevision(revision))
+      .pipe(map(r => r.data));
+  }
+
+  // ─── Reglas del modelo: hitos, nivel de riesgo y finales (modelo de métricas) ─────────
+
+  /** Reemplaza la lista completa de hitos del caso; el servidor valida cada uno y nombra el campo que falla. */
+  updateMilestones(caseVersionId: number, milestones: Milestone[], revision?: number) {
+    return this.http.put<ApiResponse<CaseEditorView>>(`${this.API}/${caseVersionId}/rules/milestones`, { milestones }, withRevision(revision))
+      .pipe(map(r => r.data));
+  }
+
+  /** Fija el nivel de riesgo del caso; `null` lo borra. */
+  updateRisk(caseVersionId: number, riskLevel: RiskLevel | null, revision?: number) {
+    return this.http.put<ApiResponse<CaseEditorView>>(`${this.API}/${caseVersionId}/rules/risk`, { riskLevel }, withRevision(revision))
+      .pipe(map(r => r.data));
+  }
+
+  /** Reemplaza la lista completa de finales, en el orden en que se evalúan. */
+  updateEndings(caseVersionId: number, endings: EndingRule[], revision?: number) {
+    return this.http.put<ApiResponse<CaseEditorView>>(`${this.API}/${caseVersionId}/rules/endings`, { endings }, withRevision(revision))
       .pipe(map(r => r.data));
   }
 

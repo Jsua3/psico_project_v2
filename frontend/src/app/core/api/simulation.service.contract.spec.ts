@@ -106,9 +106,9 @@ const CONTRACTS: Contract[] = [
   // E1-2 (RN-07, plan visual F7b-7): el docente reemplaza un intento abierto con un motivo.
   { method: 'replaceAttempt', call: s => s.replaceAttempt(ATTEMPT, 'motivo'), verb: 'POST',
     url: `/api/instructor/attempts/${ATTEMPT}/replace`, body: { reason: 'motivo' } },
-  { method: 'saveRubric', call: s => s.saveRubric(ATTEMPT, 4, 'bien', [{ criterionId: 1, score: 3, comment: 'c' }]),
+  { method: 'saveRubric', call: s => s.saveRubric(ATTEMPT, 4, 'bien', [{ criterionId: 1, level: 'LOGRADO', comment: 'c' }]),
     verb: 'PUT', url: `/api/instructor/attempts/${ATTEMPT}/rubric-evaluation`,
-    body: { rubricId: 4, comment: 'bien', scores: [{ criterionId: 1, score: 3, comment: 'c' }] } },
+    body: { rubricId: 4, comment: 'bien', scores: [{ criterionId: 1, level: 'LOGRADO', comment: 'c' }] } },
 
   // ── autoría ────────────────────────────────────────────────────────────────
   { method: 'caseEditor', call: s => s.caseEditor(9), verb: 'GET', url: `${A}/9/editor` },
@@ -141,6 +141,12 @@ const CONTRACTS: Contract[] = [
   { method: 'deleteCharacter', call: s => s.deleteCharacter(9, 2), verb: 'DELETE', url: `${A}/9/characters/2` },
   { method: 'updateBrief', call: s => s.updateBrief(9, body('ficha')), verb: 'PUT', url: `${A}/9/brief`, body: body('ficha') },
   { method: 'reorderNodes', call: s => s.reorderNodes(9, [2, 1]), verb: 'PATCH', url: `${A}/9/nodes/reorder`, body: { order: [2, 1] } },
+
+  // ── reglas del modelo: hitos, nivel de riesgo y finales ─────────────────────────────────────────────
+  { method: 'updateMilestones', call: s => s.updateMilestones(9, [{ key: 'h1', label: 'H', description: '', decisive: true }]), verb: 'PUT',
+    url: `${A}/9/rules/milestones`, body: { milestones: [{ key: 'h1', label: 'H', description: '', decisive: true }] } },
+  { method: 'updateRisk', call: s => s.updateRisk(9, 'SEVERE'), verb: 'PUT', url: `${A}/9/rules/risk`, body: { riskLevel: 'SEVERE' } },
+  { method: 'updateEndings', call: s => s.updateEndings(9, []), verb: 'PUT', url: `${A}/9/rules/endings`, body: { endings: [] } },
 
   // ── editor de mundo ────────────────────────────────────────────────────────
   { method: 'worldEditor', call: s => s.worldEditor(9), verb: 'GET', url: `${A}/9/world-editor` },
@@ -183,10 +189,11 @@ describe('SimulationService contrato HTTP', () => {
     } else {
       expect(req.request.headers.has('X-SIEP-Attempt-Token')).toBe(false);
     }
-    req.flush({ data: { ok: contract.method } });
+    // La decisión (C2) responde `{ attempt, consequence, retry? }`: lo demás desenvuelve el sobre tal cual.
+    req.flush({ data: contract.method === 'chooseDecision' ? { attempt: { ok: contract.method }, consequence: null } : { ok: contract.method } });
 
     // Todos los métodos de esta tabla desenvuelven el sobre `{ data }`. `chooseDecision` añade `consequence` y `retry`
-    // (C2, forma normalizada): por eso se compara con `toMatchObject` y no con igualdad exacta.
+    // (C2): por eso se compara con `toMatchObject` y no con igualdad exacta.
     expect(result).toMatchObject({ ok: contract.method });
   });
 
@@ -302,13 +309,13 @@ describe('SimulationService contrato HTTP', () => {
 
     expect(publicMethods.filter(name => !documented.has(name))).toEqual([]);
     expect([...documented].filter(name => !publicMethods.includes(name))).toEqual([]);
-    expect(publicMethods).toHaveLength(63);
+    expect(publicMethods).toHaveLength(66);
   });
 
   it('cada método vive en una sola API y cada rol tiene el tamaño esperado', () => {
     const [player, authoring, instructor] = ROLE_CLASSES.map(publicMethodsOf);
-    expect(new Set([...player, ...authoring, ...instructor]).size).toBe(63);
-    expect([player.length, authoring.length, instructor.length]).toEqual([24, 34, 5]);
+    expect(new Set([...player, ...authoring, ...instructor]).size).toBe(66);
+    expect([player.length, authoring.length, instructor.length]).toEqual([24, 37, 5]);
     expect(instructor).toEqual(['recentAttempts', 'attemptTrace', 'rubric', 'replaceAttempt', 'saveRubric']);
   });
 

@@ -101,7 +101,7 @@ describe('SimulationService student report', () => {
           chosen: { optionId: 9, text: 'Escuchar sin juzgar' },
           consequence: 'La estudiante continúa la conversación.',
           feedback: { explanation: 'Validar antes de indagar.', theoryBasis: 'Primeros auxilios psicológicos' },
-          classification: 'ADEQUATE', prohibited: false,
+          class: 'RECOMMENDED', prohibited: false,
         }],
       },
     });
@@ -111,7 +111,7 @@ describe('SimulationService student report', () => {
   });
 });
 
-describe('SimulationService chooseDecision (C2: dos formas de respuesta)', () => {
+describe('SimulationService chooseDecision (C2: una sola forma de respuesta)', () => {
   let service: SimulationService;
   let httpMock: HttpTestingController;
   const url = '/api/simulation/attempts/a1/decisions';
@@ -127,56 +127,39 @@ describe('SimulationService chooseDecision (C2: dos formas de respuesta)', () =>
 
   afterEach(() => httpMock.verify());
 
-  it('con FEEDBACK_AT_CLOSE_ONLY el estado viene dentro de attempt y no hay feedback', () => {
+  it('la decisión llega como { attempt, consequence } y se aplana al estado del intento', () => {
     let result: SimulationDecisionResult | undefined;
     service.chooseDecision('a1', 't1', 9).subscribe(value => (result = value));
 
     httpMock.expectOne(url).flush({
       data: {
-        attempt: { ...state, feedback: null },
+        attempt: { ...state },
         consequence: { text: 'La sala queda en silencio.', source: 'OPTION' },
       },
     });
 
     expect(result?.attemptId).toBe('a1');
     expect(result?.status).toBe('IN_PROGRESS');
-    expect(result?.feedback).toBeNull();
     expect(result?.consequence).toEqual({ text: 'La sala queda en silencio.', source: 'OPTION' });
     expect(result?.retry).toBeNull();
+    // Tras decidir no llega nada evaluativo: ni retroalimentación ni cifras en el resultado.
+    expect(result).not.toHaveProperty('feedback');
   });
 
-  it('con la bandera apagada el estado viene aplanado, con feedback, consecuencia y reintento', () => {
+  it('un reintento concedido llega sin consecuencia y con el mensaje del servidor', () => {
     let result: SimulationDecisionResult | undefined;
     service.chooseDecision('a1', 't1', 9).subscribe(value => (result = value));
 
     httpMock.expectOne(url).flush({
       data: {
-        ...state,
-        feedback: { classification: 'RISKY', message: 'Decisión con riesgo.', retryRequired: true },
-        consequence: null,
-        retry: { allowed: true, message: 'Decisión con riesgo.' },
-      },
-    });
-
-    expect(result?.feedback?.classification).toBe('RISKY');
-    expect(result?.consequence).toBeNull();
-    expect(result?.retry).toEqual({ allowed: true, message: 'Decisión con riesgo.' });
-  });
-
-  it('un reintento con AT_CLOSE no trae consecuencia y sí el aviso neutro', () => {
-    let result: SimulationDecisionResult | undefined;
-    service.chooseDecision('a1', 't1', 9).subscribe(value => (result = value));
-
-    httpMock.expectOne(url).flush({
-      data: {
-        attempt: { ...state, feedback: null },
+        attempt: { ...state },
         consequence: null,
         retry: { allowed: true, message: 'Puedes volver a elegir en esta escena.' },
       },
     });
 
     expect(result?.consequence).toBeNull();
-    expect(result?.retry?.message).toBe('Puedes volver a elegir en esta escena.');
+    expect(result?.retry).toEqual({ allowed: true, message: 'Puedes volver a elegir en esta escena.' });
     expect(result?.attemptId).toBe('a1');
   });
 
@@ -187,6 +170,6 @@ describe('SimulationService chooseDecision (C2: dos formas de respuesta)', () =>
     expect(req.request.body).toEqual({
       attemptToken: 't1', decisionOptionId: 9, evidenceOverride: false, missingEvidence: [], requestId: 'req-intencion-1',
     });
-    req.flush({ data: { ...state } });
+    req.flush({ data: { attempt: { ...state }, consequence: null } });
   });
 });
