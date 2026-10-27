@@ -56,6 +56,15 @@ import { HOVER_HIT, HoverCandidate, pickHoverTarget } from './world-hover.util';
 import { NO_WALK, WALK_GROUND_RADIUS_PX, WalkState, cancelWalkOnKeys, reachRadius, startWalk, tickWalk } from './world-walk.util';
 import { InputKind, nextInputKind, touchControlsVisible } from './world-input-kind.util';
 import { PlaceCandidate } from './world-places.util';
+import { DRAFT_COPY } from './draft-copy';
+import {
+  KEY_PERSON_CHEVRON, KEY_PERSON_COLOR, KEY_PERSON_COLOR_HEX, KEY_PERSON_FEET_OFFSET_Y, KEY_PERSON_HALO_HEX, KEY_PERSON_NAME_GAP_PX,
+  KEY_PERSON_TIP_OFFSET_Y, isKeyPerson, resolveKeyPerson,
+} from './key-person.util';
+import {
+  PERSON_PAUSE_MIN_MS, PersonWalkEnv, PersonWalkState, bodyBlocks, parsePersonMovement, personFacing, personWalkBounds,
+  randomPersonPause, startPersonWalk, tickPersonWalk,
+} from './person-walk.util';
 import { COARSE_POINTER_QUERY, matchesMedia } from './pointer-modality.util';
 import {
   NUDGE_SUBSTEPS,
@@ -145,6 +154,13 @@ interface AmbientMover {
   patrolIdx: number;
 }
 
+/** Persona del caso que camina (`metadata.movimiento` distinto de «quieto»): su estado y la última pose dibujada. */
+interface PersonWalker {
+  key: string;
+  state: PersonWalkState;
+  lastPose: { direction: PlayerDirection | null; walking: boolean };
+}
+
 interface NpcMover {
   key: string;
   cfg: NpcMotionConfig;
@@ -210,6 +226,10 @@ export class DataDrivenWorldScene extends Phaser.Scene {
   private readonly doorHints  = new Map<string, Phaser.GameObjects.Container>();
   private readonly ambientMovers = new Map<string, AmbientMover>();
   private readonly npcMovers = new Map<string, NpcMover>();
+  /** Personas del caso que caminan (P6): `deambula` o `va-y-viene`; las quietas no se registran. */
+  private readonly personWalkers = new Map<string, PersonWalker>();
+  /** Chevrón y nombre sobre la persona clave de la sala (a lo sumo uno). */
+  private keyPersonIndicator?: { key: string; container: Phaser.GameObjects.Container };
   /** El mundo se congela con diálogo/journal/outcome abiertos (Fase 5/13). */
   private motionPaused = false;
   private readonly AMBIENT_SPEED = 22;        // px/sec — slow, clinical
@@ -546,10 +566,15 @@ export class DataDrivenWorldScene extends Phaser.Scene {
     this.updateNearestInteraction();
     this.updateAmbientMovers(time, delta);
     this.updateNpcMovers(time, delta);
+    this.updatePersonWalkers(delta);
     // 2.5D: re-ordena por Y a los actores que se mueven
     if (this.player) this.ysort(this.player);
     for (const mover of this.ambientMovers.values()) {
       const marker = this.markers.get(mover.key);
+      if (marker) this.ysort(marker);
+    }
+    for (const walker of this.personWalkers.values()) {
+      const marker = this.markers.get(walker.key);
       if (marker) this.ysort(marker);
     }
     for (const container of this.npcMarkers.values()) this.ysort(container);
@@ -609,6 +634,8 @@ export class DataDrivenWorldScene extends Phaser.Scene {
     this.callbacks.reduceMotion = reduced;
     // Al reducir el movimiento lo que animaba vuelve al cuadro 0; al volver a permitirlo, el principal retoma.
     this.syncProximityAnimations();
+    // Las personas que caminaban vuelven a su sitio y quedan quietas; al permitirlo de nuevo, retoman desde ahí.
+    if (reduced) this.restPersonWalkers();
     this.applyCrisisState();
   }
 
@@ -765,7 +792,7 @@ export class DataDrivenWorldScene extends Phaser.Scene {
     this.markers.forEach((marker, key) => {
       const obj = this.markerData.get(key);
       if (!obj || !this.isInteractive(obj)) return;
-      const moving = this.ambientMovers.has(key);
+      const moving = this.markerMoves(key);
       const x = moving ? marker.x : obj.x;
       const y = moving ? marker.y : obj.y;
       candidates.push({ key, x, y, playerDistance: Math.hypot(px - x, py - y) });
@@ -802,7 +829,7 @@ export class DataDrivenWorldScene extends Phaser.Scene {
     } else {
       const marker = this.markers.get(key);
       if (!marker) return null;
-      if (this.ambientMovers.has(key)) { x = marker.x; y = marker.y; }
+      if (this.markerMoves(key)) { x = marker.x; y = marker.y; }
     }
     const state = obj.type === 'EXIT' ? this.doorStates[key] : undefined;
     const door = state ? { state, missing: [], stageLocked: false, message: null } : null;
@@ -826,11 +853,13 @@ export class DataDrivenWorldScene extends Phaser.Scene {
     const mapKey = this.world?.map.key ?? '';
     this.markers.forEach((_marker, key) => {
       const obj = this.markerData.get(key);
-      if (!obj || !this.isInteractive(obj)) return;
+      const keyPerson = obj !== undefined && this.keyPersonKey() === key;
+      if (!obj || !(keyPerson || this.isInteractive(obj))) return;
       out.push({
         key,
         label: getSceneDisplayLabel(obj, mapKey),
         kind: obj.type === 'EXIT' ? 'door' : obj.type === 'PERSON' ? 'person' : 'object',
+        ...(keyPerson ? { note: DRAFT_COPY.keyPerson.text } : {}),
       });
     });
     return out;
@@ -1010,6 +1039,7 @@ export class DataDrivenWorldScene extends Phaser.Scene {
     this.npcMarkers.clear();
     this.ambientMovers.clear();
     this.npcMovers.clear();
+    this.personWalkers.clear();
     this.tiledExits.clear();
     this.toneVignette = undefined;
     this.resetOrientationVisuals();
@@ -1157,6 +1187,7 @@ export class DataDrivenWorldScene extends Phaser.Scene {
     this.npcMarkers.clear();
     this.ambientMovers.clear();
     this.npcMovers.clear();
+    this.personWalkers.clear();
     this.tiledExits.clear();
     this.toneVignette = undefined;
     this.resetOrientationVisuals();
@@ -1599,7 +1630,7 @@ export class DataDrivenWorldScene extends Phaser.Scene {
     const label = this.markerLabels.get(key);
     const obj = this.markerData.get(key);
     if (!marker || !label || !obj) return;
-    const moving = this.ambientMovers.has(key);
+    const moving = this.markerMoves(key);
     const x = moving ? marker.x : obj.x;
     const y = (moving ? marker.y : obj.y) + 28;
     if (label.x !== x || label.y !== y) label.setPosition(x, y);
@@ -1975,6 +2006,7 @@ export class DataDrivenWorldScene extends Phaser.Scene {
 
     let main: Phaser.GameObjects.GameObject;
     let personVisual: CharacterVisual | null = null;
+    let personSpriteForWalk: Phaser.GameObjects.Sprite | null = null;
     let doorSprite: Phaser.GameObjects.Image | null = null;
 
     // Un marcador con sprite de pixel art nunca se escala (markerEmphasis, focus): spec §1.1.2.
@@ -2011,6 +2043,7 @@ export class DataDrivenWorldScene extends Phaser.Scene {
             .setOrigin(KIT_ORIGIN_X, KIT_ORIGIN_Y);
           playKitPose(personSprite, personVisual, 'down', false, this.callbacks.reduceMotion);
           main = personSprite;
+          personSpriteForWalk = personSprite;
         } else {
           main = this.buildGeomMarker(color);
         }
@@ -2040,6 +2073,10 @@ export class DataDrivenWorldScene extends Phaser.Scene {
     bag['__kitSprite'] = personVisual !== null;
     bag['__pixelSprite'] = pixelSprite;
     bag['__pulse'] = pulse;
+    if (personSpriteForWalk && personVisual) {
+      bag['__personSprite'] = personSpriteForWalk;
+      bag['__personVisual'] = personVisual;
+    }
     if (personVisual?.recipeId === PATIENT_RECIPE_ID) {
       const icon = this.patientIcon(16);
       if (icon) {
@@ -2048,7 +2085,9 @@ export class DataDrivenWorldScene extends Phaser.Scene {
       }
     }
     if (label) this.markerLabels.set(object.key, label);
+    this.registerPersonWalk(marker, object);
     this.applyAmbientLife(marker, object);
+    this.buildKeyPersonIndicator(marker, object);
 
     if (isExit) {
       const hintTx = this.add.text(0, 0, this.doorHintText(object.label), {
@@ -2174,6 +2213,7 @@ export class DataDrivenWorldScene extends Phaser.Scene {
     this.hoverOutline = undefined;
     this.hoverLabel = undefined;
     this.hoverKey = null;
+    this.keyPersonIndicator = undefined;
   }
 
   private isInteractive(o: MapObjectState): boolean {
@@ -2192,6 +2232,8 @@ export class DataDrivenWorldScene extends Phaser.Scene {
     if (this.callbacks.reduceMotion) return;
     // Las personas ya respiran con su hoja de reposo; el vaivén queda para herramientas y objetos.
     if (object.type === 'PERSON' && this.isInteractive(object)) return;
+    // Una persona con `metadata.movimiento` se mueve con su propia conducta (P6), no con el vaivén heredado.
+    if (object.type === 'PERSON' && object.metadata?.['movimiento'] !== undefined) return;
     // Un mueble (PROP) se queda quieto: no flota ni se mueve.
     if (object.type === 'PROP') return;
 
@@ -2222,6 +2264,112 @@ export class DataDrivenWorldScene extends Phaser.Scene {
       retargetAt: 0,
       patrolIdx: 0,
     });
+  }
+
+  /** Un marcador que se mueve (vaivén ambiental o persona que camina): su posición viva es la del contenedor, no la del dato. */
+  private markerMoves(key: string): boolean {
+    return this.ambientMovers.has(key) || this.personWalkers.has(key);
+  }
+
+  /**
+   * Registra a la persona que camina (P6): `metadata.movimiento` es «deambula» o `va-y-viene`. Lo quieto, ausente o mal
+   * formado no se registra (queda como siempre). Empieza con una pausa de 1 a 3 s para que varias no echen a andar a la vez.
+   */
+  private registerPersonWalk(marker: Phaser.GameObjects.Container, object: MapObjectState): void {
+    if (object.type !== 'PERSON') return;
+    const movement = parsePersonMovement(object.metadata?.['movimiento']);
+    if (movement.tipo === 'quieto') return;
+    const direction = personFacing(object.facing);
+    this.personWalkers.set(object.key, {
+      key: object.key,
+      state: startPersonWalk(movement, { x: marker.x, y: marker.y }, direction, randomPersonPause(Math.random)),
+      lastPose: { direction, walking: false },
+    });
+  }
+
+  /**
+   * Mueve a las personas que caminan. Se detiene con cualquier capa abierta (diálogo, lectura, bitácora…: `motionPaused`) y
+   * con «Reducir movimiento» queda quieta en su sitio. Usa la colisión del jugador (`wouldCollide`, con los PIES de la
+   * persona) y trata al jugador como un obstáculo móvil.
+   */
+  private updatePersonWalkers(delta: number): void {
+    if (this.motionPaused || this.callbacks.reduceMotion || this.personWalkers.size === 0) return;
+    const bounds = personWalkBounds(this.world?.map.width || AUTHORED_ROOM_WIDTH, this.world?.map.height || AUTHORED_ROOM_HEIGHT);
+    const feet = KEY_PERSON_FEET_OFFSET_Y;
+    for (const walker of this.personWalkers.values()) {
+      const marker = this.markers.get(walker.key);
+      if (!marker) continue;
+      const env: PersonWalkEnv = {
+        bounds,
+        rand: Math.random,
+        blocked: (x, y, from) => this.wouldCollide(x, y + feet, walker.key)
+          || bodyBlocks({ x, y: y + feet }, { x: from.x, y: from.y + feet }, this.player ? { x: this.player.x, y: this.player.y } : null),
+      };
+      const next = tickPersonWalk(walker.state, delta, env);
+      walker.state = next;
+      if (next.x !== marker.x || next.y !== marker.y) marker.setPosition(next.x, next.y);
+      this.applyPersonPose(walker, marker, next.direction, next.walking);
+    }
+    this.syncKeyPersonIndicator();
+  }
+
+  /** Pose de la persona (dirección + caminando) solo si cambió, como el jugador y las personas del escenario. */
+  private applyPersonPose(walker: PersonWalker, marker: Phaser.GameObjects.Container, direction: PlayerDirection, walking: boolean): void {
+    if (walker.lastPose.direction === direction && walker.lastPose.walking === walking) return;
+    walker.lastPose = { direction, walking };
+    const bag = marker as unknown as Record<string, unknown>;
+    const sprite = bag['__personSprite'] as Phaser.GameObjects.Sprite | undefined;
+    const visual = bag['__personVisual'] as CharacterVisual | undefined;
+    if (sprite && visual) playKitPose(sprite, visual, direction, walking, this.callbacks.reduceMotion);
+  }
+
+  /** «Reducir movimiento» (también en caliente): cada persona vuelve a su sitio original, de pie, y queda quieta. */
+  private restPersonWalkers(): void {
+    for (const walker of this.personWalkers.values()) {
+      const { origin, movement, direction } = walker.state;
+      walker.state = startPersonWalk(movement, origin, direction, PERSON_PAUSE_MIN_MS);
+      const marker = this.markers.get(walker.key);
+      if (!marker) continue;
+      marker.setPosition(origin.x, origin.y);
+      this.applyPersonPose(walker, marker, direction, false);
+    }
+    this.syncKeyPersonIndicator();
+  }
+
+  /** Clave de la persona clave de la sala: la primera de la lista con `metadata.personaClave === true`. */
+  private keyPersonKey(): string | null {
+    return this.world ? resolveKeyPerson(this.world.objects)?.key ?? null : null;
+  }
+
+  /**
+   * Chevrón + nombre sobre la cabeza de la persona clave (P6): siempre visible, no solo cuando es la más cercana. Color
+   * #B69CFF con halo oscuro; la forma y el nombre dicen lo mismo que el color. Estático (no se anima).
+   */
+  private buildKeyPersonIndicator(marker: { x: number; y: number }, object: MapObjectState): void {
+    if (!isKeyPerson(object) || object.key !== this.keyPersonKey()) return;
+    const { halfWidth, height } = KEY_PERSON_CHEVRON;
+    const chevron = this.add.graphics();
+    chevron.fillStyle(KEY_PERSON_COLOR_HEX, 1);
+    chevron.fillTriangle(-halfWidth, -height, halfWidth, -height, 0, 0);
+    chevron.lineStyle(2, KEY_PERSON_HALO_HEX, 0.9);
+    chevron.strokeTriangle(-halfWidth, -height, halfWidth, -height, 0, 0);
+    const name = this.add.text(0, -(height + KEY_PERSON_NAME_GAP_PX), getSceneDisplayLabel(object, this.world?.map.key), {
+      fontFamily: WORLD_FONT_FAMILY, fontSize: `${LABEL_BASE_FONT_PX}px`, color: KEY_PERSON_COLOR, fontStyle: 'bold',
+      backgroundColor: 'rgba(8,12,18,.85)', padding: { x: 5, y: 3 }, align: 'center',
+    }).setOrigin(0.5, 1);
+    const container = this.add.container(marker.x, marker.y + KEY_PERSON_TIP_OFFSET_Y, [chevron, name])
+      .setDepth(LABEL_DEPTH)
+      .setScale(this.labelScale);
+    this.keyPersonIndicator = { key: object.key, container };
+  }
+
+  /** El indicador acompaña a la persona clave cuando camina. */
+  private syncKeyPersonIndicator(): void {
+    const indicator = this.keyPersonIndicator;
+    const marker = indicator ? this.markers.get(indicator.key) : undefined;
+    if (!indicator || !marker) return;
+    const y = marker.y + KEY_PERSON_TIP_OFFSET_Y;
+    if (indicator.container.x !== marker.x || indicator.container.y !== y) indicator.container.setPosition(marker.x, y);
   }
 
   private updateAmbientMovers(time: number, delta: number) {
@@ -2348,8 +2496,8 @@ export class DataDrivenWorldScene extends Phaser.Scene {
    * persistida nunca se queda atrás en silencio y las acciones validadas por
    * proximidad no fallan con "demasiado lejos".
    */
-  private wouldCollide(x: number, y: number): boolean {
-    if (this.world && serverRejectsPlayerAt(this.world, x, y)) return true;
+  private wouldCollide(x: number, y: number, ignoreObjectKey?: string): boolean {
+    if (this.world && serverRejectsPlayerAt(this.world, x, y, ignoreObjectKey)) return true;
     const hb = playerHitbox(x, y);
     if (this.wallsLayer) {
       const corners = [
@@ -2520,7 +2668,7 @@ export class DataDrivenWorldScene extends Phaser.Scene {
       label.setAlpha(shown ? 1 : 0);
       if (shown) {
         this.placeLabel(key);
-        if (this.ambientMovers.has(key)) this.followLabels.push(key);
+        if (this.markerMoves(key)) this.followLabels.push(key);
       }
     });
     this.doorHints.forEach((h, key) => h.setVisible(key === this.nearestKey || revealed.includes(key)));
@@ -2559,6 +2707,7 @@ export class DataDrivenWorldScene extends Phaser.Scene {
     this.labelWrap = Math.min(140, (LABEL_MAX_SCREEN_WIDTH_PX * displayScale) / (zoom * next));
     this.markerLabels.forEach(label => label.setScale(next).setWordWrapWidth(this.labelWrap));
     this.hoverLabel?.setScale(next);
+    this.keyPersonIndicator?.container.setScale(next);
     this.doorHints.forEach(hint => { hint.setScale(next); this.placeDoorHint(hint); });
     this.npcMarkers.forEach(container => {
       const bag = container as unknown as Record<string, unknown>;

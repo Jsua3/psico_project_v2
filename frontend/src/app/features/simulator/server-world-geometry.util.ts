@@ -18,8 +18,10 @@ const SERVER_DEFAULT_MAP_HEIGHT = 540;
  *
  * Con geometría entera, un punto flotante aceptado sigue aceptado tras el
  * Math.round con el que se envía al servidor.
+ *
+ * `ignoreKey` deja fuera a un objeto (la persona que camina por su cuenta no choca con su propio rectángulo de colisión).
  */
-export function serverRejectsPlayerAt(world: SimulationWorldState, x: number, y: number): boolean {
+export function serverRejectsPlayerAt(world: SimulationWorldState, x: number, y: number, ignoreKey?: string): boolean {
   const hitbox = playerHitbox(x, y);
   const mapWidth = world.map.width || SERVER_DEFAULT_MAP_WIDTH;
   const mapHeight = world.map.height || SERVER_DEFAULT_MAP_HEIGHT;
@@ -28,7 +30,7 @@ export function serverRejectsPlayerAt(world: SimulationWorldState, x: number, y:
     return true;
   }
   if (world.collisions.some(zone => rectsIntersect(hitbox, zone))) return true;
-  return world.objects.some(object => object.collision && rectsIntersect(hitbox, {
+  return world.objects.some(object => object.collision && (ignoreKey === undefined || object.key !== ignoreKey) && rectsIntersect(hitbox, {
     x: object.x,
     y: object.y,
     width: object.width ?? 0,

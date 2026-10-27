@@ -17,7 +17,7 @@ export interface DraftCopyEntry {
    * Decisión del plan visual (§9) o regla de negocio que lo origina; `F6-n` / `F7-n` cuando el texto nace de una
    * tarea del plan y no de una decisión.
    */
-  readonly decision: `VD-${number}` | `RN-${number}` | `ETH-${number}` | `F6-${number}` | `F7-${number}` | `F10-${number}`;
+  readonly decision: `VD-${number}` | `RN-${number}` | `ETH-${number}` | `F6-${number}` | `F7-${number}` | `F10-${number}` | `P6-${number}`;
   /** Quién debe fijar la redacción definitiva. */
   readonly owner: 'Psicología';
   /** Qué se espera de Psicología; sin indicar, `validar`. */
@@ -106,6 +106,16 @@ export const DRAFT_COPY = {
     owner: 'Psicología',
     where: 'Lista «Ir a…»: estado vacío',
     text: 'Todavía no hay nada a lo que ir: aquí aparecerán las personas y las puertas de la sala y lo que ya hayas examinado.',
+  },
+  /**
+   * Persona clave de la sala (P6, tarea 4): la que el docente marca como «a quien atender». Lo dice la lista «Ir a…» junto
+   * a su nombre y el rótulo sobre su cabeza se anuncia igual: el aviso no depende solo del color.
+   */
+  keyPerson: {
+    decision: 'P6-4',
+    owner: 'Psicología',
+    where: 'Lista «Ir a…» de la sala: nota junto al nombre de la persona clave (lectores de pantalla)',
+    text: 'persona a atender',
   },
   /** Anuncio al llegar al destino elegido en «Ir a…» (F6-11, VD-19): va seguido del nombre del lugar. */
   placesArrived: {

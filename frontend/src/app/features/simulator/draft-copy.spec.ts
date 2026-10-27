@@ -14,7 +14,7 @@ describe('draft-copy: textos en borrador pendientes de Psicología', () => {
     const entries = draftCopyList();
     expect(entries.length).toBeGreaterThan(0);
     for (const entry of entries) {
-      expect(entry.decision, entry.key).toMatch(/^(VD|RN|ETH|F6|F7|F10)-\d+$/);
+      expect(entry.decision, entry.key).toMatch(/^(VD|RN|ETH|F6|F7|F10|P6)-\d+$/);
       expect(entry.owner, entry.key).toBe('Psicología');
       expect(entry.where.trim(), entry.key).not.toBe('');
       expect(entry.text.trim(), entry.key).not.toBe('');
@@ -50,8 +50,8 @@ describe('draft-copy: textos en borrador pendientes de Psicología', () => {
     // aviso de contenido cambió de versión (S3-2b, ETH-01) y los del resultado con retroalimentación por decisión
     // (F10-4: «Tus decisiones», sus estados, las etiquetas y el marcador): son texto que ve la persona y se validan, no
     // solo se conocen; y los del cierre por hitos y competencias (VD-23: clases en palabras, hitos, competencias,
-    // autoevaluación breve y últimos cierres del panel).
-    expect(list.filter(entry => entry.review === 'validar')).toHaveLength(56);
+    // autoevaluación breve y últimos cierres del panel) y la nota «persona a atender» de la persona clave (P6-4).
+    expect(list.filter(entry => entry.review === 'validar')).toHaveLength(57);
   });
 
   // req: ETH-01, SIEP-RF-05 (S3-2b)

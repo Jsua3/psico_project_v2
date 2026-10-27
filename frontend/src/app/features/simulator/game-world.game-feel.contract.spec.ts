@@ -32,7 +32,7 @@ describe('game-world: game feel del bloque B', () => {
   });
 
   it('activar movimiento reducido reaplica la crisis y el destello pendiente se consume una sola vez', () => {
-    expect(source).toMatch(/setReduceMotion\(reduced: boolean\) \{\s*this\.callbacks\.reduceMotion = reduced;(?:\s*\/\/[^\n]*)?\s*this\.syncProximityAnimations\(\);\s*this\.applyCrisisState\(\);\s*\}/);
+    expect(source).toMatch(/setReduceMotion\(reduced: boolean\) \{\s*this\.callbacks\.reduceMotion = reduced;(?:\s*\/\/[^\n]*)?\s*this\.syncProximityAnimations\(\);(?:\s*\/\/[^\n]*)?(?:\s*if \(reduced\) this\.restPersonWalkers\(\);)?\s*this\.applyCrisisState\(\);\s*\}/);
     expect(source).toMatch(/\n  playPendingRoomFlash\(\): void \{\s*const flash = this\.pendingRoomFlash;\s*this\.pendingRoomFlash = null;/);
   });
 

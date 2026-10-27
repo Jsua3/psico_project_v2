@@ -437,7 +437,8 @@ describe('DataDrivenWorldScene: los rótulos se dibujan sobre los actores y sigu
     expect(source).toContain('const LABEL_DEPTH = DEPTH.UI - 1;');
     expect(source).toMatch(/const marker = this\.add\.container\(object\.x, object\.y, \[markerShadow, pulse, main\]\);/);
     expect(source).not.toMatch(/this\.add\.container\([^)]*\[[^\]]*\blabel\b[^\]]*\]\)/);
-    // Tres de rótulos (marcador, nombre y pista de una persona) y dos del ratón (F6-7: contorno y verbo al pasar).
-    expect(source.match(/\.setDepth\(LABEL_DEPTH\)/g) ?? []).toHaveLength(5);
+    // Tres de rótulos (marcador, nombre y pista de una persona), dos del ratón (F6-7: contorno y verbo al pasar) y el
+    // chevrón con el nombre de la persona clave (P6).
+    expect(source.match(/\.setDepth\(LABEL_DEPTH\)/g) ?? []).toHaveLength(6);
   });
 });

@@ -32,7 +32,9 @@ const KIND_LABELS: Record<PlaceKind, string> = { person: 'Persona', door: 'Puert
           @for (place of places(); track place.key) {
             <li>
               <button type="button" class="places__item" (click)="choose.emit(place)">
-                <span class="places__kind">{{ kindLabel(place.kind) }}</span>{{ ' ' }}<span class="places__name">{{ place.label }}</span>
+                <span class="places__kind">{{ kindLabel(place.kind) }}</span>{{ ' ' }}<span class="places__name">{{ place.label }}</span>@if (place.note) {
+                  {{ ' ' }}<span class="places__note">{{ place.note }}</span>
+                }
               </button>
             </li>
           }
@@ -111,6 +113,17 @@ const KIND_LABELS: Record<PlaceKind, string> = { person: 'Persona', door: 'Puert
       text-transform: uppercase;
     }
     .places__name { min-width: 0; overflow-wrap: anywhere; font-weight: 700; }
+    /* Aviso junto al nombre (persona a atender): texto, no solo color, para quien no distingue los acentos. */
+    .places__note {
+      flex-shrink: 0;
+      margin-left: auto;
+      padding: 2px 8px;
+      border: 1px solid var(--ds-border-strong);
+      border-radius: var(--ds-radius-md);
+      color: var(--ds-text-1);
+      font-size: var(--ds-type-caption-size);
+      font-weight: 700;
+    }
     .places__foot { display: flex; align-items: center; justify-content: space-between; gap: 10px; flex-wrap: wrap; }
     @media (prefers-reduced-motion: reduce) {
       .places__item:active { transform: none; }

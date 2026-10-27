@@ -61,6 +61,11 @@ POSITION_BASE_ALLOWANCE_PX = 240
 POSITION_BUDGET_MAX_SECONDS = 30
 #: Distancia máxima (al rectángulo del objeto) para interactuar/usar puertas.
 INTERACTION_RANGE_PX = 120
+#: Hasta dónde se aleja de su origen una persona con ``metadata.movimiento = "deambula"``. El cliente la mueve por su
+#: cuenta y el servidor solo conoce su posición guardada: el área de cercanía de la persona se amplía por este radio.
+#: DEBE coincidir con `PERSON_WANDER_RADIUS_PX` de `frontend/src/app/features/simulator/person-walk.util.ts`
+#: (`test_person_movement_range.py` lee ese archivo y falla si dejan de coincidir).
+PERSON_WANDER_RADIUS_PX = 160
 #: Holgura sobre el `interactionRadius` sembrado de un NPC ambiental: el cliente
 #: sincroniza la posición por muestras y puede llegar unos píxeles fuera del
 #: radio con el que ya vio el aviso de interacción. Evita rechazos legítimos sin
@@ -106,12 +111,50 @@ def _rectangles_intersect(a_x, a_y, a_w, a_h, b_x, b_y, b_w, b_h):
     )
 
 
+def _is_number(value):
+    return isinstance(value, (int, float)) and not isinstance(value, bool) and math.isfinite(value)
+
+
+def _person_movement(map_object):
+    """``metadata.movimiento`` de una persona: ``"deambula"`` | ``("va-y-viene", x, y)`` | ``None`` (quieto).
+
+    Ausente, desconocido o mal formado es quieto, igual que `parsePersonMovement` del cliente (person-walk.util.ts).
+    """
+    if map_object.object_type != "PERSON":
+        return None
+    movement = _read_map(map_object.metadata_json).get("movimiento")
+    if movement == "deambula":
+        return "deambula"
+    if not isinstance(movement, dict):
+        return None
+    if movement.get("tipo") == "deambula":
+        return "deambula"
+    hasta = movement.get("hasta")
+    if movement.get("tipo") == "va-y-viene" and isinstance(hasta, dict):
+        if _is_number(hasta.get("x")) and _is_number(hasta.get("y")):
+            return ("va-y-viene", hasta["x"], hasta["y"])
+    return None
+
+
+def _interaction_rect(map_object):
+    """Rectángulo contra el que se mide la cercanía: el guardado, ampliado si la persona camina por su cuenta."""
+    x, y = map_object.position_x, map_object.position_y
+    width, height = map_object.width or 0, map_object.height or 0
+    movement = _person_movement(map_object)
+    if movement == "deambula":
+        radius = PERSON_WANDER_RADIUS_PX
+        return x - radius, y - radius, width + 2 * radius, height + 2 * radius
+    if movement is not None:
+        _, to_x, to_y = movement
+        left, top = min(x, to_x), min(y, to_y)
+        right, bottom = max(x, to_x) + width, max(y, to_y) + height
+        return left, top, right - left, bottom - top
+    return x, y, width, height
+
+
 def _require_nearby(world_state, map_object, what="el objeto"):
-    distance = _rect_distance(
-        world_state.player_x, world_state.player_y,
-        map_object.position_x, map_object.position_y,
-        map_object.width, map_object.height,
-    )
+    rect_x, rect_y, rect_w, rect_h = _interaction_rect(map_object)
+    distance = _rect_distance(world_state.player_x, world_state.player_y, rect_x, rect_y, rect_w, rect_h)
     if distance > INTERACTION_RANGE_PX:
         raise ValidationError(f"Estás demasiado lejos de {what} para interactuar")
 
