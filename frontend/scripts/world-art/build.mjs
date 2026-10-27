@@ -7,8 +7,14 @@
  * WORLD_SPRITES y escribe `src/assets/game/<grupo>/<nombre>.png`.
  *
  *   npm run world-art:build
+ *
+ * El arte de la biblioteca (lugares, modelos y existentes animados, P6) no se reescala ni pasa por
+ * WORLD_SPRITES: entra por `biblioteca/manifiesto.json`, que genera `tools/escenarios/manifiesto.py`.
+ * Este script lo valida (manifestFindings), falla si no cuadra con los PNG y publica una copia de esos PNG y del
+ * manifiesto en `src/assets/biblioteca/` (Angular solo sirve assets dentro de frontend/; el juego los pide en
+ * /assets/biblioteca/...). Una prueba comprueba que la copia es idéntica (publishedFindings).
  */
-import { mkdirSync, readFileSync, writeFileSync } from 'node:fs';
+import { copyFileSync, existsSync, mkdirSync, readFileSync, readdirSync, rmSync, writeFileSync } from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
@@ -17,10 +23,17 @@ import { PNG } from 'pngjs';
 import { WORLD_SPRITES } from '../../src/app/features/simulator/world-scale.util.ts';
 import { paletteOf, rescaleSprite } from './rescale.mjs';
 
+/** El arte original usa 14-26 colores por sprite; más de 40 es un reescalado que mezcló píxeles. */
+export const MAX_COLORS = 40;
+
 export const FRONTEND_ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..', '..');
 export const ORIGINALS_DIR = path.join(FRONTEND_ROOT, 'world-art', 'originals');
 export const OUTPUT_DIR = path.join(FRONTEND_ROOT, 'src', 'assets', 'game');
 export const INVENTORY_FILE = path.join(FRONTEND_ROOT, 'src', 'assets', 'visual', 'v1', 'inventory.v1.json');
+export const BIBLIOTECA_DIR = path.resolve(FRONTEND_ROOT, '..', 'biblioteca');
+export const MANIFEST_FILE = path.join(BIBLIOTECA_DIR, 'manifiesto.json');
+export const PUBLISHED_DIR = path.join(FRONTEND_ROOT, 'src', 'assets', 'biblioteca');
+const MANIFEST_ORIGINS = ['modelo', 'lugar', 'existente'];
 
 export function readPng(file) {
   const png = PNG.sync.read(readFileSync(file));
@@ -58,10 +71,121 @@ export function syncInventory({ file = INVENTORY_FILE, sprites = WORLD_SPRITES }
   writeFileSync(file, text);
 }
 
+export function readManifest(file = MANIFEST_FILE) {
+  return JSON.parse(readFileSync(file, 'utf8'));
+}
+
+/** Rutas (relativas a la biblioteca, con `/`) de los PNG de arte de `escenarios/` y `modelos/`; sin hojas de contacto. */
+function libraryPngs(biblioteca) {
+  const found = [];
+  const walk = dir => {
+    for (const entry of readdirSync(path.join(biblioteca, dir), { withFileTypes: true })) {
+      const relative = `${dir}/${entry.name}`;
+      if (entry.isDirectory()) {
+        if (entry.name !== 'node_modules' && entry.name !== 'fuentes') walk(relative);
+      } else if (entry.name.endsWith('.png') && !entry.name.startsWith('hoja-')) {
+        found.push(relative);
+      }
+    }
+  };
+  for (const root of ['escenarios', 'modelos']) if (existsSync(path.join(biblioteca, root))) walk(root);
+  return found;
+}
+
+/**
+ * Valida cada entrada de `biblioteca/manifiesto.json` contra su PNG: existe, mide `ancho × cuadros` por `alto`
+ * (la hoja de cercanía mide cuadros × el ancho de un cuadro), alfa binario y a lo sumo MAX_COLORS colores;
+ * y que ningún PNG de arte quede fuera del manifiesto. Devuelve los hallazgos (vacío = todo bien).
+ */
+export function manifestFindings({ biblioteca = BIBLIOTECA_DIR, manifest = readManifest(path.join(biblioteca, 'manifiesto.json')) } = {}) {
+  const findings = [];
+  if (manifest.esquema !== 1) findings.push(`manifiesto: esquema ${manifest.esquema} no soportado`);
+  for (const [key, entry] of Object.entries(manifest.sprites ?? {}).sort(([a], [b]) => (a < b ? -1 : a > b ? 1 : 0))) {
+    if (!MANIFEST_ORIGINS.includes(entry.origen)) findings.push(`${key}: origen «${entry.origen}» no es modelo, lugar ni existente`);
+    const file = path.join(biblioteca, ...key.split('/'));
+    if (!existsSync(file)) {
+      findings.push(`${key}: no existe`);
+      continue;
+    }
+    const animated = entry.cuadros !== undefined || entry.fps !== undefined;
+    if (animated && (!Number.isInteger(entry.cuadros) || entry.cuadros < 1 || !Number.isInteger(entry.fps) || entry.fps < 1)) {
+      findings.push(`${key}: cuadros y fps van juntos`);
+    }
+    const frames = Number.isInteger(entry.cuadros) && entry.cuadros >= 1 ? entry.cuadros : 1;
+    const image = readPng(file);
+    const expectedWidth = entry.ancho * frames;
+    if (image.width !== expectedWidth || image.height !== entry.alto) {
+      const detail = frames > 1 ? ` (${frames} cuadros de ${entry.ancho})` : '';
+      findings.push(`${key}: mide ${image.width}×${image.height} y el manifiesto dice ${expectedWidth}×${entry.alto}${detail}`);
+    }
+    let binary = true;
+    for (let i = 3; i < image.data.length; i += 4) if (image.data[i] !== 0 && image.data[i] !== 255) binary = false;
+    if (!binary) findings.push(`${key}: el alfa no es binario`);
+    const colors = paletteOf(image).size;
+    if (colors > MAX_COLORS) findings.push(`${key}: usa ${colors} colores (máximo ${MAX_COLORS})`);
+  }
+  for (const key of libraryPngs(biblioteca)) {
+    if (!manifest.sprites?.[key]) findings.push(`${key}: no está en biblioteca/manifiesto.json (python tools/escenarios/manifiesto.py)`);
+  }
+  return findings;
+}
+
+/**
+ * Copia a `output` (por defecto src/assets/biblioteca) el manifiesto y cada PNG que lista, con la misma ruta relativa.
+ * Borra antes lo que hubiera: la carpeta es solo una copia. Devuelve cuántos archivos copió.
+ */
+export function publishLibrary({ biblioteca = BIBLIOTECA_DIR, output = PUBLISHED_DIR } = {}) {
+  if (path.basename(output) !== 'biblioteca') throw new Error(`publishLibrary: no borro ${output} (la carpeta de salida debe llamarse biblioteca)`);
+  const manifest = readManifest(path.join(biblioteca, 'manifiesto.json'));
+  rmSync(output, { recursive: true, force: true });
+  const files = [...Object.keys(manifest.sprites), 'manifiesto.json'];
+  for (const key of files) {
+    const target = path.join(output, ...key.split('/'));
+    mkdirSync(path.dirname(target), { recursive: true });
+    copyFileSync(path.join(biblioteca, ...key.split('/')), target);
+  }
+  return files.length;
+}
+
+function filesUnder(dir, prefix = '') {
+  const found = [];
+  if (!existsSync(dir)) return found;
+  for (const entry of readdirSync(dir, { withFileTypes: true })) {
+    const relative = prefix ? `${prefix}/${entry.name}` : entry.name;
+    if (entry.isDirectory()) found.push(...filesUnder(path.join(dir, entry.name), relative));
+    else found.push(relative);
+  }
+  return found;
+}
+
+/** Diferencias entre la copia publicada y la biblioteca: lo que falta, lo que cambió y lo que sobra. */
+export function publishedFindings({ biblioteca = BIBLIOTECA_DIR, output = PUBLISHED_DIR } = {}) {
+  const findings = [];
+  const manifest = readManifest(path.join(biblioteca, 'manifiesto.json'));
+  const wanted = [...Object.keys(manifest.sprites).sort(), 'manifiesto.json'];
+  for (const key of wanted) {
+    const copy = path.join(output, ...key.split('/'));
+    if (!existsSync(copy)) findings.push(`${key}: falta en src/assets/biblioteca (npm run world-art:build)`);
+    else if (Buffer.compare(readFileSync(copy), readFileSync(path.join(biblioteca, ...key.split('/')))) !== 0) {
+      findings.push(`${key}: la copia en src/assets/biblioteca no es igual a la biblioteca (npm run world-art:build)`);
+    }
+  }
+  const expected = new Set(wanted);
+  for (const key of filesUnder(output)) if (!expected.has(key)) findings.push(`${key}: sobra en src/assets/biblioteca (npm run world-art:build)`);
+  return findings;
+}
+
 if (process.argv[1] === fileURLToPath(import.meta.url)) {
   for (const { spec, from, to, colors } of buildWorldArt()) {
     process.stdout.write(`${spec.group}/${spec.name}.png  ${from} → ${to}  (${colors} colores)\n`);
   }
   syncInventory();
   process.stdout.write('inventario sincronizado (src/assets/visual/v1/inventory.v1.json)\n');
+  const findings = manifestFindings();
+  if (findings.length > 0) {
+    for (const finding of findings) process.stderr.write(`manifiesto: ${finding}\n`);
+    process.exit(1);
+  }
+  process.stdout.write(`manifiesto de la biblioteca al día (${Object.keys(readManifest().sprites).length} sprites)\n`);
+  process.stdout.write(`biblioteca publicada en src/assets/biblioteca (${publishLibrary()} archivos)\n`);
 }

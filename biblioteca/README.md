@@ -32,11 +32,26 @@ npm run validar -- escenarios/universidad  # revisa un lugar
 npm run modelos:aplicar -- escenarios/casa  # copia el arte de los modelos (desdeModelo) al lugar
 npm run validar -- --todos                 # valida los lugares de escenarios/indice.json y el índice
 python ../tools/escenarios/hoja_lugares.py  # hoja general (biblioteca/hoja-lugares.png)
+python ../tools/escenarios/manifiesto.py    # regenera manifiesto.json (después, desde frontend/: npm run world-art:build)
 ```
 
 `validar` sale con código 1 si hay errores y escribe cada hallazgo como
 `ERROR <código> <dónde>: <mensaje>` (o `AVISO …`). Con `--kit <carpeta>` revisa las caras
 de los personajes en otro kit; por defecto usa `../frontend/src/assets/characters/kit`.
+
+## Manifiesto de arte (`manifiesto.json`)
+
+Lista cada PNG que el juego puede cargar, con sus medidas: `{esquema: 1, sprites: {<ruta>: {ancho, alto, cuadros?, fps?, origen}}}`.
+Las rutas son relativas a esta carpeta (en el navegador, a `/assets/biblioteca/`) y `origen` es `modelo`
+(`modelos/arte`), `existente` (`modelos/existentes/arte`) o `lugar` (`escenarios/<lugar>/arte`). En una hoja de cercanía
+(`<id>-cerca.png`) `ancho` es el de un cuadro y la imagen mide `cuadros × ancho`; los cuadros y los fps salen de lo que declaran
+los catálogos (`animacionCerca`). No entran las hojas de contacto ni los fixtures. Es un archivo **generado**: no lo edites a mano.
+
+1. `python tools/escenarios/manifiesto.py` lo regenera (`--verificar` solo comprueba) y falla si una hoja no mide `cuadros × ancho del reposo`
+   o si una `-cerca.png` no está declarada.
+2. `npm run world-art:build` (en `frontend/`) valida cada entrada contra su PNG (alfa binario, a lo sumo 40 colores) y copia el manifiesto y
+   sus PNG a `frontend/src/assets/biblioteca/`, que es lo que sirve el juego (Angular solo publica assets dentro de `frontend/`).
+   `npm run test:world-art` falla si esa copia no es idéntica a la biblioteca.
 
 ## Qué revisa
 
