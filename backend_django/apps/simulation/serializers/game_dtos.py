@@ -189,6 +189,7 @@ _SUMMARY_BY_STATUS = {
 
 #: Estados en los que el intento ofrece los recursos de apoyo y recomienda retomar con acompañamiento.
 _SUPPORT_STATUSES = (AttemptStatus.SAFE_EXITED, AttemptStatus.PAUSED)
+# BORRADOR: texto del servidor, pendiente de la aprobación de Psicología (VD-23).
 _SUPPORT_RECOMMENDATION = "Retoma el caso con acompañamiento docente cuando te sientas preparado/a."
 
 

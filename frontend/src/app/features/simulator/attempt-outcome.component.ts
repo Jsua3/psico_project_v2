@@ -95,7 +95,8 @@ import { RECONSIDERED_LABEL, reconsideredChip } from './reconsidered.util';
         @if (report(); as r) {
           <!-- Orden del cierre: final, autoevaluación breve, hitos, competencias, revisión decisión por decisión. -->
           @if (r.ending; as ending) {
-            <div class="oc-ending" [attr.data-tone]="ending.tone" role="status">
+            <!-- Sin tono semáforo (R-18, §3.2 M7): el final es del mismo color para todos; ending.tone queda para el docente. -->
+            <div class="oc-ending" role="status">
               <p class="oc-ending__title">{{ ending.title }}</p>
               <p class="oc-ending__message">{{ ending.message }}</p>
               @if (r.persona; as persona) {
@@ -297,9 +298,6 @@ import { RECONSIDERED_LABEL, reconsideredChip } from './reconsidered.util';
       padding: 16px 18px; border-radius: 16px;
       background: rgba(124,77,255,.12); border: 1px solid rgba(182,156,255,.4);
     }
-    .oc-ending[data-tone='positive'] { background: rgba(110,198,122,.12); border-color: rgba(110,198,122,.5); }
-    .oc-ending[data-tone='warning']  { background: rgba(245,184,75,.10); border-color: rgba(245,184,75,.45); }
-    .oc-ending[data-tone='critical'] { background: rgba(226,90,79,.12); border-color: rgba(226,90,79,.5); }
     .oc-ending__title { margin: 0; font-weight: 900; letter-spacing: .04em; font-size: .95rem; color: var(--sim-ink, #F4F7FB); }
     .oc-ending__message { margin: 8px 0 0; color: var(--sim-ink-soft, rgba(244,247,251,.74)); line-height: 1.55; }
     .oc-ending__persona { margin: 8px 0 0; color: var(--sim-ink-soft, rgba(244,247,251,.74)); font-style: italic; }

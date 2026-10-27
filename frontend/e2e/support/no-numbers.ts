@@ -17,6 +17,10 @@ import type { Page, Response } from '@playwright/test';
 export const RETIRED_KEYS: ReadonlySet<string> = new Set([
   'accumulatedScore', 'stressIndex', 'metrics', 'clinicalState', 'scoreDelta', 'stressDelta', 'finalScore',
   'finalStress', 'adequateDecisions', 'riskyDecisions', 'inadequateDecisions', 'prohibitedDecisions',
+  // Los deltas y las medidas de la métrica vieja (`metrics`/`effects` de las decisiones y del mundo).
+  'trustDelta', 'victimRiskDelta', 'victimRisk', 'userTrust', 'sceneStress', 'professionalScore', 'revictimizationRisk',
+  // El final del motor viejo: las métricas, las banderas y los conteos por severidad del caso.
+  'caseMetrics', 'caseFlags', 'severityCounts',
 ]);
 
 /** Claves cuyo valor PUEDE ser un número, cada una con su razón. Todo lo demás que sea numérico es una medida. */
@@ -41,11 +45,11 @@ export const ALLOWED_NUMERIC_KEYS: Readonly<Record<string, string>> = {
   nonRecommendedCount: 'cuántas respuestas no fueron Recomendadas: conteo de hechos',
   rating: 'eco de la propia respuesta del estudiante en la encuesta de cierre, no una medida de él',
   seconds: 'una duración',
-  positionSyncedAt: 'marca de tiempo (época) de la última posición sincronizada: un instante, no una medida',
   x: 'posición', y: 'posición', width: 'geometría del mapa', height: 'geometría del mapa',
   spawnX: 'punto de aparición del mapa', spawnY: 'punto de aparición del mapa',
   entryX: 'punto de entrada de la puerta', entryY: 'punto de entrada de la puerta',
   interactionRadius: 'radio de interacción de un objeto',
+  cameraZoom: 'acercamiento de la cámara en la sala (`ambient` de autoría): geometría del render, no una medida',
 };
 
 /** Sufijos con una sola razón cada uno: `*Id` (identificador) y `*Seconds` (duración). */
@@ -170,6 +174,39 @@ function classValues(value: unknown, where: string, found: string[]): void {
 export function classValuesIn(records: readonly RecordedResponse[]): string[] {
   const found: string[] = [];
   for (const record of records) classValues(record.body, record.where, found);
+  return [...new Set(found)];
+}
+
+/**
+ * Lo que solo se revela al cerrar (§3.2 M1/M2): la clase de cada respuesta (`class`, `responseClass`), los conteos por
+ * clase (`counts`), el final (`ending`) y los hitos (`milestones`).
+ */
+const CLOSE_ONLY_KEYS: ReadonlySet<string> = new Set(['class', 'responseClass', 'counts', 'ending', 'milestones']);
+
+/** El estado crudo del caso que el servidor guarda en `flags` del mundo y que no debe salir hasta cerrar. */
+const RAW_CASE_STATE_IN_FLAGS: ReadonlySet<string> = new Set(['milestones', 'persona']);
+
+function closeOnlyKeys(value: unknown, where: string, parentKey: string | null, found: string[]): void {
+  if (Array.isArray(value)) {
+    for (const child of value) closeOnlyKeys(child, where, parentKey, found);
+  } else if (value !== null && typeof value === 'object') {
+    for (const [key, child] of Object.entries(value)) {
+      if (CLOSE_ONLY_KEYS.has(key)) found.push(`${where} → ${key}`);
+      // `persona` en palabras SÍ viaja a nivel del estado del intento (el HUD la expresa por diseño): solo importa
+      // la persona CRUDA dentro de `flags` del mundo.
+      if (parentKey === 'flags' && RAW_CASE_STATE_IN_FLAGS.has(key)) found.push(`${where} → flags.${key}`);
+      closeOnlyKeys(child, where, key, found);
+    }
+  }
+}
+
+/**
+ * Las claves que solo se revelan al cerrar, y el estado crudo del caso dentro de `flags`, que aparecen en alguna
+ * respuesta (sin repetidos). Se llama ANTES de la última decisión: debe estar vacío.
+ */
+export function closeOnlyKeysIn(records: readonly RecordedResponse[]): string[] {
+  const found: string[] = [];
+  for (const record of records) closeOnlyKeys(record.body, record.where, null, found);
   return [...new Set(found)];
 }
 

@@ -1,7 +1,7 @@
 """El vocabulario del modelo de respuesta: clases, persona consultante, intensidad y riesgo.
 
-Python puro: sin Django ni modelos. Lo importan ``case_rules``, las migraciones de datos, el
-importador del DSL 1.0 y el motor de respuesta, así que no debe depender de nada del proyecto.
+Python puro: sin Django ni modelos. Lo importan ``case_rules``, las migraciones ``0030`` (datos) y ``0031``
+(contracción), el importador del DSL 1.0 y el motor de respuesta, así que no debe depender de nada del proyecto.
 
 Los valores de los enums son las cadenas en mayúscula que viajan en el JSON y en la base de
 datos; las palabras en español viven en ``LABELS``.
@@ -99,7 +99,9 @@ def step_persona(bond: Bond, activation: Activation, d_bond: int, d_act: int) ->
     return _step(_BOND_ORDER, bond, d_bond), _step(_ACTIVATION_ORDER, activation, d_act)
 
 
-# Tabla de conversión de los datos antiguos (severidad y clasificación) a la clase de respuesta.
+# Tabla de conversión de los datos antiguos (severidad y clasificación) a la clase de respuesta. La usa ``legacy_class``,
+# y ``legacy_class`` la importan las migraciones ``0030`` y ``0031`` (no la copian): cambiarla cambia lo que esas
+# migraciones hacen en una base NUEVA; las bases que ya las corrieron conservan lo que se calculó entonces.
 _CLASS_BY_SEVERITY = {
     "recommended": ResponseClass.RECOMMENDED,
     "acceptable": ResponseClass.ACCEPTABLE,

@@ -23,7 +23,7 @@ export type CoberturaCategoria = 'MAYORIA' | 'MENOS_DE_LA_MITAD';
 
 /**
  * Un hito declarado por el caso y su cobertura en el grupo. `cobertura` es nulo si la celda mínima lo suprime;
- * `porcentaje` solo viaja con 20 estudiantes distintos o más (0–100, un decimal).
+ * `porcentaje` solo viaja con 20 estudiantes distintos o más (0–100, entero: lo redondea el servidor).
  */
 export interface HitoCobertura {
   key: string;

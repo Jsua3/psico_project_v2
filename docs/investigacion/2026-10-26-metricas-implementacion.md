@@ -2,7 +2,7 @@
 
 **Fecha:** 2026-10-27 · **Estado:** implementado en la rama `claude/metricas-modelo-3dcd2a` (base `origin/master` `cfc649cd`), sin push · **Especificación:** `docs/investigacion/2026-10-24-metricas-razon-de-ser.md` y el plan `2026-10-25-metricas-plan-de-implementacion.md` (los dos viven sin commitear en el checkout principal, no en esta rama) · **Alcance:** las 22 tareas del plan, más la 4b que se añadió en el camino.
 
-Este documento deja constancia de **qué se hizo, en qué se apartó de lo previsto y qué queda abierto**. Lo que el estudiante, el docente y la autora ven ahora está en la guía de cada pantalla; las definiciones de la analítica, en `docs/operacion/analitica-de-aprendizaje.md`; las decisiones que esperan a Psicología, en `docs/operacion/analitica-preguntas-para-psicologia.md` (preguntas 17 a 21 nuevas).
+Este documento deja constancia de **qué se hizo, en qué se apartó de lo previsto y qué queda abierto**. Lo que el estudiante, el docente y la autora ven ahora está en la guía de cada pantalla; las definiciones de la analítica, en `docs/operacion/analitica-de-aprendizaje.md`; las decisiones que esperan a Psicología, en `docs/operacion/analitica-preguntas-para-psicologia.md` (preguntas 17 a 22 nuevas).
 
 ## 1. Qué cambió, en una página
 
@@ -65,6 +65,10 @@ Orden de ejecución: 1 → 2 → 3 → 4 → 4b → 5 → 6 → 7 → 8 → 9 �
 13. **`rating` de la encuesta de cierre sigue permitido** en la lista blanca de «ninguna cifra» (es el eco de la propia respuesta del estudiante): pregunta 21.
 14. **El recorrido con una Contraindicada corre en dos viewports** (escritorio 1600 y móvil 390), no en los cuatro: el resto del caso es idéntico a la ruta recomendada y duplicar los cuatro habría sumado unos diez minutos a la suite sin cubrir más.
 15. **La valoración del sistema (`competencyLevels`) va anidada en `systemEvaluation`** y queda plegada hasta que el docente guarda la suya (Tarea 13): así no la copia sin mirar.
+16. **El `/world` del estudiante ya no trae el estado crudo del caso** (R-16, revisión final): `flags` se proyecta a una lista blanca (`viewedNpcKeys`, lo único que lee la pantalla). `milestones` y `persona` viajaban dentro de `flags` desde la primera decisión: los hitos se revelaban antes del cierre. La traza docente conserva `flags` completo.
+17. **Un reporte v1/v2 ya cerrado se sirve al estudiante sin sus cifras** (R-17, revisión final): una proyección de solo lectura (`attempt_report.for_student`) quita `finalScore`, `metrics`, los conteos por severidad y el resto de `RETIRED_KEYS`. Lo guardado no se toca; el docente, el ADMIN y la analítica leen el reporte tal cual.
+18. **El final del estudiante no lleva color semáforo** (R-18, revisión final): el bloque del final es de un solo color; `tone` queda para el docente. La razón del final nombra «N respuestas con riesgo» además de las contraindicadas, y la especificación hablaba solo de contraindicadas (`endings._reason`): pregunta 22 para Psicología.
+19. **Un intento en curso sin fila `AttemptWorldState` al migrar** (M-2): la `0030` no le repone la persona; queda en `INITIAL_PERSONA` hasta la siguiente decisión registrada, que la mueve desde ahí. Solo afecta a un intento abierto sin mundo guardado, que no debería existir.
 
 ## 4. Rulings tomados durante la ejecución
 
@@ -84,6 +88,9 @@ Orden de ejecución: 1 → 2 → 3 → 4 → 4b → 5 → 6 → 7 → 8 → 9 �
 | R-12 | El resolutor de retratos cae a `preocupada` si el kit no tiene `cautelosa` y a `triste` si no tiene `en-crisis` (esta rama solo tiene cuatro retratos; el kit de P4 trae seis). |
 | R-13 | `competency-without-evidence` es error solo si alguna opción declara competencias; se añade `ending-without-default`. |
 | R-14 | `0031` rellena `response_class` NULL antes de ponerla NOT NULL; el exportador del DSL del taller deriva `clasificacion` y `prohibida` de la clase. |
+| R-16 | Revisión final (I-1): `/world` del estudiante proyecta `flags` a una lista blanca (`viewedNpcKeys`); los hitos y la persona cruda no salen antes del cierre. |
+| R-17 | Revisión final (I-2): los reportes congelados v1/v2 se sirven al ESTUDIANTE con una proyección de solo lectura que quita `RETIRED_KEYS`; los bytes guardados, la analítica y el docente quedan intactos. |
+| R-18 | Revisión final (I-3): el final del estudiante sin tono semáforo (§3.2 M7); `tone` queda para el docente. La razón del final con «respuestas con riesgo» se registra como desviación y pregunta 22. |
 | R-15 | `docs/SIEP.md`, `docs/PENDIENTES.md`, `docs/TRAZABILIDAD.md` y el documento de investigación no existen en esta rama: se actualizan los documentos de `docs/operacion/`, se crea este y las ediciones exactas para los otros tres van en una nota aparte para quien los tenga. |
 
 Rulings de tarea (resumen): la persona solo avanza con decisiones registradas, no con reintentos; el informe en vivo de un intento sin cerrar no viaja ni al estudiante ni al docente con alcance; un cierre de grupo con cero estudiantes no lleva fila de cobertura; `_first_vs_second` empareja solo intentos del mismo `schemaVersion`; «valoración guardada» = evaluación del DOCENTE en estado `EVALUATED` (un borrador no revela la del sistema); la cobertura por hito solo cuenta intentos completados con reporte v3.
@@ -96,14 +103,14 @@ Rulings de tarea (resumen): la persona solo avanza con decisiones registradas, n
 
 ## 6. Pendientes abiertos
 
-1. **Los reportes v1 y v2 ya cerrados siguen trayendo `finalScore` y `metrics`.** Son inmutables por diseño (no se recalculan); la pantalla del estudiante los ignora y los bloques de la analítica que leen niveles los dejan fuera. Quien lea un reporte antiguo por la API sigue viéndolos.
+1. **Los reportes v1 y v2 ya cerrados siguen GUARDANDO `finalScore` y `metrics`.** Son inmutables por diseño (no se recalculan ni se reescriben); al estudiante se le sirven sin esas cifras (R-17) y los bloques de la analítica que leen niveles los dejan fuera. El docente y el ADMIN que los leen por la API sí los ven.
 2. **El CSV por estudiante y `hitosCumplidos` hacen cosmética la supresión por celda mínima.** El docente que ve a sus estudiantes uno por uno puede reconstruir la cobertura que la celda oculta. La regla protege el agregado (la analítica C13), no al docente frente a sus propios estudiantes.
 3. **La autoevaluación breve no se guarda** (R-6): si el docente debe verla, falta diseñar su almacenamiento y su privacidad.
 4. **BD de desarrollo: el sello `definition_hash` de las versiones ya publicadas no coincide** con el documento exportado desde `0030`. Los datos de esas versiones se migran en el lugar, así que el juego funciona; solo el sello difiere y `seed_caso_pdf` avisa (REGLA-005) sin corregirlo. Nada lo compara.
 5. **El kit de P4 trae seis retratos y esta rama cuatro** (R-12): el resolutor cae a `preocupada`/`triste` mientras falten `cautelosa`/`en-crisis`. La especificación del resolutor se queda en cuatro retratos; **P6** pasa los tres asserts de `character-visual.resolver.spec.ts` a seis al fusionar P4.
 6. **Textos nuevos del servidor en borrador (VD-23)**, pendientes de Psicología: etiquetas de los once hitos, nombres y mensajes de la plantilla de finales, frases de la persona, razones del final, recomendaciones por hito. Marcados `# BORRADOR` en el código y listados en `draft-copy.ts` para el frontend.
 7. **La analítica agregada (C13) no cuenta el final, la persona ni las duraciones**, aunque el reporte v3 los guarda (por ejemplo, el reparto de finales de un grupo). Y sigue sin pantalla.
-8. **Menores diferidos de las revisiones** (no bloquean): icono de persona ausente tras recargar hasta la primera decisión; `rubric_service` ↔ `assessment.competencies` con importación circular que funciona; la ceja del criterio en la traza muestra el código crudo de la competencia; «Pendiente» en la tabla del sistema; el CHECK de `response_class` conserva `isnull=True |` aunque la columna es NOT NULL; `0031` importa `legacy_class` vivo y conviene anclarlo con un comentario o una prueba; OpenAPI muestra `scoreDelta`/`stressDelta`/`prohibitedPenalty` como aceptados aunque dan 400; ampliar `RETIRED_KEYS` de la prueba de la Tarea 17 con `trustDelta`, `victimRiskDelta`, `victimRisk`, `userTrust`, `sceneStress`, `professionalScore` y `revictimizationRisk`.
+8. **Menores diferidos de las revisiones** (no bloquean): icono de persona ausente tras recargar hasta la primera decisión; `rubric_service` ↔ `assessment.competencies` con importación circular que funciona; la ceja del criterio en la traza muestra el código crudo de la competencia; «Pendiente» en la tabla del sistema; el CHECK de `response_class` conserva `isnull=True |` aunque la columna es NOT NULL; OpenAPI muestra `scoreDelta`/`stressDelta`/`prohibitedPenalty` como aceptados aunque dan 400. (Resueltos en la revisión final: `0031` queda anclada a `legacy_class` con un comentario y `test_migration_legacy_parity.py` compara la `0030` con `casedef/legacy.py`; `RETIRED_KEYS` de las pruebas de «ninguna cifra» ya cubre `trustDelta`, `victimRiskDelta`, `victimRisk`, `userTrust`, `sceneStress`, `professionalScore` y `revictimizationRisk`.)
 9. **El editor de la autora (P4 a P6)**: P5 (asistente de autoría) está hecha en su propia rama y falta fusionarla con esta (migración `0032` e inventarios); P6 (editor de hitos, clases y finales sobre el kit de seis retratos) está por hacer. Esta rama deja la API (`rules/*`) y el validador listos.
 
 ## 7. Documentos que aún nombran el motor viejo
@@ -117,7 +124,7 @@ Rulings de tarea (resumen): la persona solo avanza con decisiones registradas, n
 - `docs/requisitos/contraste-pn3/**`.
 - En el backend, la migración histórica `0021` y los textos de `test_architecture.py` y `test_query_budget.py` (fixtures y comentarios).
 
-Quedan además, **en `docs/PROMPT_MAESTRO.md`**, frases que siguen describiendo el modelo numérico viejo (líneas 27, 31, 43, 142 y 233: finales atados al caso, «puntaje», «estrés», clasificaciones `ADEQUATE | RISKY | INADEQUATE`); se dejaron porque el encargo era corregir solo la línea 110, y conviene reescribirlas con el resto de la consolidación de `docs/`.
+Las frases de **`docs/PROMPT_MAESTRO.md`** que describían el modelo numérico viejo (líneas 27, 31, 43, 142, 145 y 233: finales atados al caso, «puntaje», «estrés», clasificaciones `ADEQUATE | RISKY | INADEQUATE`) se reescribieron en la revisión final de la rama.
 
 ## 8. Verificación
 
@@ -128,3 +135,4 @@ Ver el informe de la Tarea 22 en el libro de ejecución para las cifras de esta 
 - e2e completo en el worktree (2026-10-27): 321 pasaron, 2 fallaron y 15 se omiten (omisiones condicionales de la suite); las dos fallas eran de esta migración y se arreglaron (`keyboard-critical` P05 calificaba con un campo numérico que ya no existe; `case-review` esperaba cero avisos de validación y ahora hay avisos de las reglas nuevas) y pasan al repetirlas. `test:csp`: 8 pasaron, 0 violaciones.
 - Defecto hallado por el e2e y corregido: el bloque «Tus últimos cierres» del panel del estudiante (Tarea 20) desbordaba 7 px en horizontal a 390 px con un título de caso largo; ahora la columna puede encogerse (`student-dashboard.component.scss`).
 - e2e de esta tarea: `full-case.e2e.ts` (recorrido recomendado en los cuatro viewports y recorrido con una Contraindicada en escritorio 1600 y móvil 390), `docencia.e2e.ts` y `student-portal.e2e.ts` con las formas actuales de la API, `world-preview.e2e.ts` sin cambios.
+- **Revisión final de la rama** (un solo commit de arreglos: I-1 a I-3 y endurecimientos de pruebas): pruebas dirigidas nuevas o ampliadas en `test_no_numbers_to_student.py`, `test_report_student_projection.py`, `test_migration_legacy_parity.py`, `test_authoring_rules.py`, `student-report-dialog.component.spec.ts` y `attempt-outcome.component.spec.ts`; en el navegador, `full-case.e2e.ts` ya no excluye la línea de tiempo del cierre y vigila que antes de la última decisión no viaje ninguna clave del cierre, y `case-review.e2e.ts` fija los avisos exactos.

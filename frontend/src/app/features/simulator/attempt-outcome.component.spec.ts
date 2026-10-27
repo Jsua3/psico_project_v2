@@ -639,7 +639,8 @@ describe('AttemptOutcomeComponent: tus decisiones y marcador (F10-4, C2)', () =>
     await settle();
 
     const ending = host().querySelector('.oc-ending') as HTMLElement;
-    expect(ending.getAttribute('data-tone')).toBe('positive');
+    // R-18: el tono del final (positive/warning/critical) no se pinta al estudiante: sin `data-tone`, un solo color.
+    expect(ending.hasAttribute('data-tone')).toBe(false);
     expect(text(ending.querySelector('.oc-ending__title'))).toBe('Cierre protector');
     expect(text(ending.querySelector('.oc-ending__persona'))).toBe('La persona usuaria se muestra abierta y serena.');
     expect(text(ending.querySelector('.oc-ending__how'))).toBe('Cómo llegaste aquí');

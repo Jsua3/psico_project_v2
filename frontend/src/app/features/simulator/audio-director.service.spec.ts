@@ -349,13 +349,13 @@ describe('AudioDirectorService: efectos nuevos (T13.2)', () => {
   it('todos los efectos apuntan a archivos que existen', () => {
     boot(false);
     const files = sfxOptions().map(options => options.src[0]).filter(src => src.endsWith('.ogg'));
-    expect(files.length).toBeGreaterThanOrEqual(11);
+    expect(files.length).toBeGreaterThanOrEqual(10); // los diez efectos declarados (sin stress_high)
     for (const src of files) {
       expect({ src, exists: existsSync(join(__dirname, '../../../', src)) }).toEqual({ src, exists: true });
     }
   });
 
-  it('subir la tensión de la escena NO dispara stress_high ni crisis_start (sin sonido de «fin de partida»)', () => {
+  it('subir la tensión de la escena NO dispara crisis_start (sin sonido de «fin de partida»)', () => {
     boot(false);
     service.setScene('MEDIUM', 'TENSE');
     service.setScene('HIGH', 'CRISIS');
@@ -366,7 +366,7 @@ describe('AudioDirectorService: efectos nuevos (T13.2)', () => {
       vi.useRealTimers();
     }
     const alarm = howlsFor('assets/game/kenney/ui-audio/Audio/switch13.ogg');
-    expect(alarm).toHaveLength(2);
+    expect(alarm).toHaveLength(1); // solo ``crisis_start``: ``stress_high`` se retiró con el estrés como índice
     for (const howl of alarm) expect(howl.play).not.toHaveBeenCalled();
   });
 });

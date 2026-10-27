@@ -26,6 +26,9 @@ from django.db import migrations, models
 
 from apps.simulation.casedef.vocabulary import legacy_class
 
+# TABLA CONGELADA: la clase de una opción antigua sale de ``legacy_class`` (vocabulario del modelo de respuesta) y esta
+# migración la importa a propósito, no la copia. Si ``legacy_class`` cambia, esta migración debe espejarla (o dejar de
+# importarla y llevar su propia copia de la tabla): lo que hace hoy es lo que ya se aplicó en las bases que la corrieron.
 BATCH = 500
 
 

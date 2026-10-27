@@ -639,7 +639,8 @@ export interface EndingRule {
   title: string;
   message: string;
   tone: EndingReport['tone'];
-  when: EndingCondition;
+  /** La condición del final; el final por defecto (el último) no la trae. */
+  when?: EndingCondition;
 }
 
 /** Las reglas del caso que el editor lee y escribe con `PUT …/rules/{milestones,risk,endings}`. */

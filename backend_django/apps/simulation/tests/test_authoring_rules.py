@@ -553,3 +553,53 @@ def test_la_cabecera_x_case_revision_hace_la_comprobacion_optimista(api, other_a
         f"{BASE}/{draft}/rules/{part}", body, format="json", HTTP_X_CASE_REVISION=str(_editor(api, draft)["revision"])
     )
     assert vigente.status_code == 200, vigente.data
+
+
+# ─── M-1 · el texto de hitos y finales es texto plano (la misma regla que el grafo) ─────────────────────────────
+@pytest.mark.parametrize(
+    "item",
+    [
+        {"key": "ok", "label": "<b>Validar</b> la emoción"},
+        {"key": "ok", "label": "Validar la emoción", "description": "Mira <script>alert(1)</script>"},
+        {"key": "ok", "label": "Validar la emoción", "description": "Escribe a https://ejemplo.org"},
+        {"key": "ok", "label": "Dos\nlíneas"},
+    ],
+    ids=["nombre-con-marcado", "descripcion-con-marcado", "descripcion-con-enlace", "nombre-de-dos-lineas"],
+)
+def test_el_texto_de_un_hito_con_marcado_o_enlaces_es_400_y_no_cambia_nada(api, draft, item):
+    before = _editor(api, draft)
+
+    response = _put(api, draft, "milestones", {"milestones": [item]})
+
+    assert response.status_code == 400, response.data
+    assert response.data["field"] == "milestones"
+    assert _editor(api, draft)["rules"] == before["rules"]
+
+
+@pytest.mark.parametrize(
+    "cambio",
+    [
+        {"title": "<i>Final</i> protector"},
+        {"message": "Mira <img src=x onerror=alert(1)>"},
+        {"message": "Visita javascript:alert(1)"},
+        {"title": "Dos\nlíneas"},
+    ],
+    ids=["titulo-con-marcado", "mensaje-con-marcado", "mensaje-con-enlace", "titulo-de-dos-lineas"],
+)
+def test_el_texto_de_un_final_con_marcado_o_enlaces_es_400_y_no_cambia_nada(api, draft, cambio):
+    before = _editor(api, draft)
+
+    response = _put(api, draft, "endings", {"endings": [_final(**cambio)]})
+
+    assert response.status_code == 400, response.data
+    assert response.data["field"] == "endings"
+    assert _editor(api, draft)["rules"] == before["rules"]
+
+
+def test_el_texto_plano_de_hitos_y_finales_se_guarda_sin_espacios_sobrantes(api, draft):
+    hitos = [{"key": "ok", "label": "  Validar la emoción  ", "description": "Primera línea\nsegunda línea", "decisive": False}]
+    assert _put(api, draft, "milestones", {"milestones": hitos}).status_code == 200
+
+    guardado = _rules_json(draft)["milestones"][0]
+
+    assert guardado["label"] == "Validar la emoción" and guardado["description"] == "Primera línea\nsegunda línea"

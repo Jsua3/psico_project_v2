@@ -697,8 +697,26 @@ def _mapa_para_estudiante(mapa):
     return {**mapa, "ambient": {clave: valor for clave, valor in ambient.items() if clave != "backgroundImage"}}
 
 
+#: Lo único de ``flags_json`` que el frontend del estudiante lee (``flags['viewedNpcKeys']``: las personas con las que ya
+#: habló). El resto es del servidor: ``milestones`` y ``persona`` (el estado del caso, que no se revela antes del cierre),
+#: y ``syncedNodeId``/``positionSyncedAt`` (la reconciliación de la posición).
+STUDENT_FLAG_KEYS = ("viewedNpcKeys",)
+
+
+def _flags_for(state, *, estudiante):
+    """Las banderas del mundo: completas para la traza docente; al estudiante, solo la lista blanca (I-1, R-16)."""
+    flags = _read_map(state.flags_json)
+    if not estudiante:
+        return flags
+    return {key: flags[key] for key in STUDENT_FLAG_KEYS if key in flags}
+
+
 def _to_world_state(attempt, state, *, estudiante=True):
-    """El estado del mundo tal como lo ve la persona. La traza docente (``estudiante=False``) no filtra el fondo."""
+    """El estado del mundo tal como lo ve la persona.
+
+    La traza docente (``estudiante=False``) no filtra el fondo y conserva ``flags`` completo; al estudiante ``flags``
+    solo le llega con lo que su pantalla lee (``STUDENT_FLAG_KEYS``).
+    """
     scene_map = state.scene_map
     inventory = _read_string_list(state.inventory_json)
     inventory_set = set(inventory)
@@ -719,7 +737,7 @@ def _to_world_state(attempt, state, *, estudiante=True):
         "inspectedObjectKeys": _read_string_list(state.inspected_object_keys_json),
         "viewedDialogueKeys": _read_string_list(state.viewed_dialogue_keys_json),
         "usedToolKeys": _read_string_list(state.used_tool_keys_json),
-        "flags": _read_map(state.flags_json),
+        "flags": _flags_for(state, estudiante=estudiante),
     }
 
 

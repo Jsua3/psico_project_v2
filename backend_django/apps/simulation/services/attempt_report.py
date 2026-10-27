@@ -18,7 +18,10 @@ cual, sin las claves nuevas.
 ``metrics``, ``competencies`` ni conteos por clasificación; con ``milestones {done[], missing[]}``, ``persona``,
 ``ending`` con ``reason``, ``decisionReview[].class``, ``counts`` por clase de respuesta y ``competencyLevels[].evidence[]``.
 Las recomendaciones salen solo de hitos faltantes y competencias en inicio (más lo reconsiderado y retomar con
-acompañamiento). Un reporte v1 o v2 cerrado se sirve byte a byte: nada lee ``report_schema_version`` para transformarlo.
+acompañamiento). Un reporte v1 o v2 cerrado no se recalcula ni se reescribe: sus bytes quedan como se guardaron y el
+docente, el ADMIN y la analítica los leen tal cual. Al ESTUDIANTE se le sirve una proyección de solo lectura
+(``for_student``) sin las claves del modelo numérico viejo: la regla «ninguna cifra al estudiante» es del contrato HTTP
+(I-2, R-17).
 """
 import hashlib
 import json
@@ -56,6 +59,48 @@ logger = logging.getLogger(__name__)
 #: 1 = E1-8; 2 = E6-1d (perfil por competencia, no recomendadas, cobertura, evidencia); 3 = modelo de métricas
 #: (hitos, persona, clases de respuesta; sin puntaje, estrés ni competencias heurísticas).
 REPORT_SCHEMA_VERSION = 3
+
+
+#: Las claves del modelo numérico viejo (puntaje, estrés, métricas, estado clínico, deltas, conteos por severidad y el
+#: final de entonces). Un reporte v1/v2 cerrado las guarda y no se reescribe; ``for_student`` las quita, en cualquier
+#: nivel, de lo que se sirve al estudiante. La prueba ``test_no_numbers_to_student`` lleva su propia copia escrita a mano
+#: y la compara con esta: si una clave se añade aquí, la prueba obliga a añadirla allá.
+RETIRED_KEYS = frozenset({
+    "accumulatedScore", "stressIndex", "metrics", "clinicalState", "scoreDelta", "stressDelta", "finalScore",
+    "finalStress", "adequateDecisions", "riskyDecisions", "inadequateDecisions", "prohibitedDecisions",
+    "trustDelta", "victimRiskDelta", "victimRisk", "userTrust", "sceneStress", "professionalScore",
+    "revictimizationRisk",
+    # ``ending`` del motor viejo: las métricas, las banderas y los conteos por severidad del caso.
+    "caseMetrics", "caseFlags", "severityCounts",
+})
+
+#: Bloques de nivel superior que un reporte anterior a la v3 llena con conteos por severidad (``counts``: adecuadas,
+#: con riesgo, inadecuadas, prohibidas…). El ``counts`` de la v3 es otra cosa (hechos por clase) y se queda.
+RETIRED_BLOCKS_BEFORE_V3 = frozenset({"counts"})
+
+
+def _without_retired(value):
+    if isinstance(value, dict):
+        return {key: _without_retired(child) for key, child in value.items() if key not in RETIRED_KEYS}
+    if isinstance(value, list):
+        return [_without_retired(child) for child in value]
+    return value
+
+
+def for_student(report):
+    """El reporte tal como lo lee el ESTUDIANTE (I-2, R-17): una proyección de solo lectura.
+
+    Un reporte ``schemaVersion >= 3`` (o ``None``) se devuelve igual. Uno v1/v2 se devuelve como una COPIA sin las
+    ``RETIRED_KEYS`` (a cualquier profundidad) ni los bloques de conteos por severidad: no toca el diccionario recibido
+    ni lo guardado. El docente y la analítica no pasan por aquí.
+    """
+    version = report.get("schemaVersion", 1) if isinstance(report, dict) else None
+    if version is None or (isinstance(version, int) and not isinstance(version, bool) and version >= 3):
+        return report
+    projected = _without_retired(report)
+    for block in RETIRED_BLOCKS_BEFORE_V3:
+        projected.pop(block, None)
+    return projected
 
 
 def load_events(attempt_id):

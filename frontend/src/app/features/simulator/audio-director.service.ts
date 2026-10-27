@@ -13,7 +13,6 @@ export type SoundEffect =
   | 'ui_confirm'
   | 'ui_cancel'
   | 'dialogue_advance'
-  | 'stress_high'
   | 'crisis_start'
   | 'session_complete';
 
@@ -107,7 +106,6 @@ export class AudioDirectorService {
       ui_confirm:       `${base}/click1.ogg`,
       ui_cancel:        `${base}/mouserelease1.ogg`,
       dialogue_advance: `${base}/click2.ogg`,
-      stress_high:      `${base}/switch13.ogg`,
       crisis_start:     `${base}/switch13.ogg`,
       session_complete: `${base}/click5.ogg`,
     };

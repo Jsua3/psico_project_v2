@@ -32,6 +32,11 @@ BASE = "/api/simulation"
 RETIRED_KEYS = frozenset({
     "accumulatedScore", "stressIndex", "metrics", "clinicalState", "scoreDelta", "stressDelta", "finalScore",
     "finalStress", "adequateDecisions", "riskyDecisions", "inadequateDecisions", "prohibitedDecisions",
+    # Los deltas y las medidas de la métrica vieja (``metrics``/``effects`` de las decisiones y del mundo).
+    "trustDelta", "victimRiskDelta", "victimRisk", "userTrust", "sceneStress", "professionalScore",
+    "revictimizationRisk",
+    # El final del modelo viejo (``ending``): las métricas, las banderas y los conteos por severidad del caso.
+    "caseMetrics", "caseFlags", "severityCounts",
 })
 
 #: Claves cuyo valor PUEDE ser un número, cada una con su razón. Todo lo demás que sea numérico es una medida y falla.
@@ -59,26 +64,31 @@ ALLOWED_NUMERIC_KEYS = {
     "rating": "eco de la propia respuesta del estudiante en la encuesta de cierre, no una medida de él",
     # ── duraciones y tiempos; los ``*Seconds`` entran por ``ALLOWED_SUFFIXES`` ──
     "seconds": "una duración",
-    "positionSyncedAt": "marca de tiempo (época) de la última posición sincronizada: un instante, no una medida",
     # ── posiciones y geometría del mundo ──
     "x": "posición", "y": "posición", "width": "geometría del mapa", "height": "geometría del mapa",
     "spawnX": "punto de aparición del mapa", "spawnY": "punto de aparición del mapa",
     "entryX": "punto de entrada de la puerta", "entryY": "punto de entrada de la puerta",
     "interactionRadius": "radio de interacción de un objeto",
+    "cameraZoom": "acercamiento de la cámara en la sala (``ambient`` de autoría): geometría del render, no una medida",
 }
 
 #: Sufijos con una sola razón cada uno: ``*Id`` (identificador: ``caseVersionId``, ``nodeId``, ``optionId``,
-#: ``decisionOptionId``, ``firstOptionId``, ``syncedNodeId``…) y ``*Seconds`` (duración: ``activeSeconds``,
+#: ``decisionOptionId``, ``firstOptionId``…) y ``*Seconds`` (duración: ``activeSeconds``,
 #: ``clockSeconds``, ``totalDurationSeconds``, ``activeDurationSeconds``, ``atSeconds``…).
 ALLOWED_SUFFIXES = ("Id", "Seconds")
 
 
 class RecordingClient(APIClient):
-    """Un cliente que guarda el cuerpo JSON de cada respuesta de ``/api/simulation/**``."""
+    """Un cliente que guarda el cuerpo JSON de cada respuesta de ``/api/simulation/**``.
+
+    ``marks`` guarda en qué posición de ``recorded`` ocurrió cada hito del recorrido (p. ej. justo antes de la última
+    decisión), para que una prueba pueda mirar solo «lo que se vio antes del cierre».
+    """
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
         self.recorded = []
+        self.marks = {}
 
     def request(self, **kwargs):
         response = super().request(**kwargs)
@@ -185,6 +195,8 @@ def _play(estudiante, case_version_id, settings):
     decide(attempt_id, token, "h1-interrogar-victima", expect_retry=True)
     decide(attempt_id, token, "h1-pap-contencion")
     decide(attempt_id, token, "h2-459-1257")
+    # El mundo DESPUÉS de decidir: es donde el estado guardado del caso (hitos, persona) ya existe en ``flags_json``.
+    assert client.get(f"{BASE}/attempts/{attempt_id}/world", **header(token)).status_code == 200
     assert client.get(f"{BASE}/attempts/{attempt_id}/progress-map", **header(token)).status_code == 200
     paused = client.post(f"{BASE}/attempts/{attempt_id}/safe-exit", {"attemptToken": token, "reason": "Necesito parar"},
                          format="json")
@@ -197,9 +209,11 @@ def _play(estudiante, case_version_id, settings):
     token = active.data["data"]["attemptToken"]
     resumed = client.post(f"{BASE}/attempts/{attempt_id}/resume", {"attemptToken": token}, format="json")
     assert resumed.status_code == 200 and resumed.data["data"]["status"] == "IN_PROGRESS"
+    assert client.get(f"{BASE}/attempts/{attempt_id}/world", **header(token)).status_code == 200
     decide(attempt_id, token, "h3-integral-psicosocial")
     decide(attempt_id, token, "c1-riesgo-proteccion-derechos")
     decide(attempt_id, token, "c2-2126-1098-1257")
+    client.marks["antes_de_la_ultima_decision"] = len(client.recorded)
     final = decide(attempt_id, token, "c3-integral-derechos")
     assert final["status"] == "COMPLETED" and final["completionReport"]["schemaVersion"] == 3
 
@@ -214,7 +228,8 @@ def _play(estudiante, case_version_id, settings):
     assert client.post(f"{BASE}/attempts/{attempt_id}/feedback", {"rating": 4, "comment": "Útil."},
                        format="json").status_code == 201
 
-    # Otro intento que queda en pausa por una salida segura.
+    # Otro intento que queda en pausa por una salida segura (nunca cierra: todo lo que ve es «antes del cierre»).
+    client.marks["otro_intento"] = len(client.recorded)
     other = client.post(f"{BASE}/attempts", {"caseVersionId": case_version_id, "forceNew": True},
                         format="json").data["data"]
     assert client.post(f"{BASE}/attempts/{other['attemptId']}/safe-exit",
@@ -223,12 +238,17 @@ def _play(estudiante, case_version_id, settings):
     assert client.get(f"{BASE}/attempts/{other['attemptId']}/student-report").status_code == 200
     assert client.get(f"{BASE}/attempts/history").status_code == 200
 
-    return client.recorded
+    return client
 
 
 @pytest.fixture
-def recorrido(estudiante, case_version_id, settings):
+def cliente_del_recorrido(estudiante, case_version_id, settings):
     return _play(estudiante, case_version_id, settings)
+
+
+@pytest.fixture
+def recorrido(cliente_del_recorrido):
+    return cliente_del_recorrido.recorded
 
 
 def _shape(where):
@@ -275,3 +295,72 @@ def test_ningun_numero_de_las_respuestas_es_una_medida(recorrido):
     measures = sorted({(where, key, value) for where, key, value in numbers if not _allowed(key)}, key=str)
 
     assert measures == [], f"números que no son id, hecho, duración ni posición: {measures}"
+
+
+def test_cada_respuesta_del_recorrido_es_2xx(recorrido):
+    """Un 500 con cuerpo JSON no trae cifras: pasaría las demás pruebas sin que el recorrido hubiera tocado la ruta."""
+    fallidas = sorted({(where, status) for where, status, _body in recorrido if not 200 <= status < 300})
+
+    assert fallidas == [], f"respuestas que no son 2xx: {fallidas}"
+
+
+#: Lo que se revela SOLO al cerrar (§3.2 M1/M2): la clase de cada respuesta, los conteos por clase, el final y los hitos.
+CLAVES_DEL_CIERRE = frozenset({"class", "responseClass", "counts", "ending", "milestones"})
+
+
+def _banderas(value, found):
+    """Cada ``flags`` (un diccionario) que cuelgue de cualquier nivel de la respuesta."""
+    if isinstance(value, dict):
+        for key, child in value.items():
+            if key == "flags" and isinstance(child, dict):
+                found.append(child)
+            _banderas(child, found)
+    elif isinstance(value, list):
+        for child in value:
+            _banderas(child, found)
+
+
+def _antes_del_cierre(cliente):
+    """Las respuestas de antes de la última decisión del intento que se cierra, y las del intento que nunca cierra."""
+    recorrido = cliente.recorded
+    return recorrido[:cliente.marks["antes_de_la_ultima_decision"]] + recorrido[cliente.marks["otro_intento"]:]
+
+
+def test_antes_de_la_ultima_decision_ninguna_respuesta_trae_lo_que_solo_se_revela_al_cerrar(cliente_del_recorrido):
+    """T22(3): ni la clase, ni los conteos, ni el final, ni los hitos viajan antes del cierre.
+
+    Decisión: ``persona`` (vínculo y activación EN PALABRAS) sí viaja, a nivel del estado del intento, porque la
+    persona se expresa en el HUD por diseño (Tareas 7 y 19); lo que no puede viajar es la persona CRUDA dentro de
+    ``flags`` del mundo, ni los hitos. Por eso ``persona`` se revisa solo dentro de ``flags``.
+    """
+    previas = _antes_del_cierre(cliente_del_recorrido)
+    assert len(previas) >= 30
+
+    _numbers, keys = _scan(previas)
+    reveladas = sorted({(where, key) for where, key in keys if key in CLAVES_DEL_CIERRE})
+    assert reveladas == [], f"claves del cierre que viajaron antes de cerrar: {reveladas}"
+
+    crudas = []
+    for where, _status, body in previas:
+        banderas = []
+        _banderas(body, banderas)
+        crudas += [(where, key) for flags in banderas for key in flags if key in {"persona", "milestones"}]
+    assert crudas == [], f"estado crudo del caso dentro de ``flags`` antes del cierre: {sorted(set(crudas))}"
+
+
+def test_el_mundo_del_estudiante_solo_deja_pasar_las_banderas_que_lee_el_frontend(cliente_del_recorrido):
+    """I-1 (R-16): ``flags`` del ``/world`` es una lista blanca; ``positionSyncedAt`` y ``syncedNodeId`` son del servidor."""
+    mundos = [body for where, _s, body in cliente_del_recorrido.recorded if _shape(where).endswith("/world")]
+    assert mundos
+
+    claves = {key for body in mundos for key in body["data"]["flags"]}
+
+    assert claves <= {"viewedNpcKeys"}, claves
+    assert "viewedNpcKeys" in claves, "el recorrido habló con un NPC: el frontend lo necesita"
+
+
+def test_las_claves_retiradas_de_la_prueba_son_las_del_codigo_de_produccion():
+    """I-2 (R-17): una sola lista de claves retiradas; la prueba la escribe a mano y esta la compara con la del código."""
+    from apps.simulation.services import attempt_report
+
+    assert RETIRED_KEYS == attempt_report.RETIRED_KEYS

@@ -2,7 +2,7 @@ import { expect, test } from '@playwright/test';
 import type { Locator, Page, TestInfo } from '@playwright/test';
 
 import { assertNoUnexpectedConsoleOrPageErrors, KNOWN_CONSOLE_PATTERNS } from './support/console-gate';
-import { classValuesIn, measuresIn, measuresInText, recordSimulationResponses, retiredKeysIn, shapeOf } from './support/no-numbers';
+import { classValuesIn, closeOnlyKeysIn, measuresIn, measuresInText, recordSimulationResponses, retiredKeysIn, shapeOf } from './support/no-numbers';
 import { assertQualityState } from './support/quality-gates';
 import { REQUIRED_VIEWPORTS } from './support/required-viewports';
 import {
@@ -288,6 +288,8 @@ async function completeFullCase(
   // Antes de la última decisión ninguna respuesta del servidor ha llevado la clase de una respuesta.
   await recorder.settled();
   expect(classValuesIn(recorder.records), 'la clase de una respuesta viajó antes de cerrar el caso').toEqual([]);
+  // Tampoco viajaron las claves del cierre (clase, conteos, final, hitos) ni el estado crudo del caso dentro de `flags`.
+  expect(closeOnlyKeysIn(recorder.records), 'algo que solo se revela al cerrar viajó antes de la última decisión').toEqual([]);
 
   decision = await chooseDecision(
     page,
@@ -335,7 +337,7 @@ async function completeFullCase(
   // El final y su razón en palabras; los hitos cumplidos y los que faltaron; la persona al cerrar.
   const ending = outcome.locator('.oc-ending');
   await expect(ending.locator('.oc-ending__title')).toHaveText(report.ending.title);
-  await expect(ending).toHaveAttribute('data-tone', report.ending.tone);
+  await expect(ending).not.toHaveAttribute('data-tone'); // R-18: el estudiante no ve el tono semáforo del final
   await expect(ending.locator('.oc-ending__reasons li')).toHaveCount(report.ending.reason.length);
   await expect(ending.locator('.oc-ending__persona')).toContainText(report.persona.label);
   await expect(outcome.locator('.oc-milestones__col--done li')).toHaveCount(report.milestones.done.length);
@@ -365,7 +367,7 @@ async function completeFullCase(
   await expect(decisions.locator('.oc-decision__note')).toHaveCount(contraindicated);
 
   // Ninguna cifra en el cierre (la línea de tiempo trae horas, no medidas).
-  await expectNoMeasuresOnScreen('el cierre', outcome, ['.oc-timeline']);
+  await expectNoMeasuresOnScreen('el cierre', outcome);
   await assertQualityState(page, testInfo, `${viewport.name}-${route}-outcome`);
 
   // F6-6 (H-05): el resultado es un diálogo modal con el foco inicial en su título, y a 360 px los hitos, el final y

@@ -414,6 +414,8 @@ def exportar_csv(grupo_id, case_version_id, usuario):
     o más, el porcentaje entre paréntesis. Sin puntaje, promedio ni orden por desempeño (los estudiantes van por nombre).
     """
     reporte = generar_reporte_grupo(grupo_id, case_version_id, usuario)
+    # BORRADOR: los textos del CSV (encabezados de columna, «Sí»/«No» por hito y «Cobertura del grupo») son del servidor y
+    # están pendientes de la aprobación de Psicología (VD-23); los de la cobertura en palabras, en COBERTURA_EN_PALABRAS.
     buffer = io.StringIO()
     writer = csv.writer(buffer, lineterminator="\n")
     simulacion = reporte["simulacion"]

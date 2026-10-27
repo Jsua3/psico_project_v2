@@ -130,9 +130,14 @@ test.describe('@revision-casos qué falta y estado del caso (F10-6)', () => {
     try {
       await loginAs(page, 'admin');
       const panel = await openReview(page, draft.id, draft.title);
-      // Los avisos de las reglas de publicación del modelo de métricas (competencias sin declarar, finales de plantilla
-      // que este borrador mínimo no puede alcanzar) no bloquean: lo que importa es que no haya errores.
-      await expect(panel.locator('.rv-summary')).toHaveText(/^Sin errores de validación( · \d+ avisos?)?$/);
+      // Este borrador mínimo (una escena de decisión con una respuesta Recomendada y una Con riesgo, sin hitos) trae
+      // exactamente dos avisos de las reglas de publicación del modelo de métricas (`ending-unreachable`): dos finales
+      // de plantilla que no puede alcanzar con una sola decisión. Son avisos, no bloquean: no hay errores. Medido con
+      // este mismo spec: el panel no muestra ningún otro aviso (ninguno de competencias).
+      await expect(panel.locator('.rv-summary')).toHaveText('Sin errores de validación · 2 avisos');
+      const avisos = panel.locator('.rv-issues');
+      await expect(avisos).toContainText('El final de plantilla «Intervención con riesgo de revictimización» no puede darse en este caso');
+      await expect(avisos).toContainText('El final de plantilla «El riesgo sigue abierto» no puede darse en este caso');
       await expect(panel.getByText(/Falta para avanzar/)).toHaveCount(0);
 
       // 1 · enviar a revisión (pide confirmar)

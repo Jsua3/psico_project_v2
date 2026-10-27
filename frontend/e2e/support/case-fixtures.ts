@@ -161,7 +161,7 @@ const DEFAULT_DESCRIPTION = 'Caso de prueba: una decisión de dos opciones que l
  * de DOS opciones (OCL-02), cada una con su retroalimentación escrita (E3: sin ella es un aviso de validación) y un objeto
  * del mapa que la ofrece (`WORLD.OPTION_WITHOUT_TRIGGER`: una opción que ningún diálogo ni objeto ofrece no se puede
  * elegir), la descripción del caso (OCL-07), un mapa por escena, una salida segura y la lista de publicación al 100 %.
- * Sin errores ni avisos de validación. Lo comparten las pruebas que necesitan un caso publicable (`createPublishedCase`
+ * Sin errores de validación (y dos avisos de plantilla: no alcanza dos finales con una sola decisión). Lo comparten las pruebas que necesitan un caso publicable (`createPublishedCase`
  * y la revisión del caso).
  */
 export async function buildPublishableDraft(

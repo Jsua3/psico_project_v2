@@ -216,7 +216,8 @@ def _state(attempt, attempt_token):
     # reanudado la reconstruye igual.
     persona_dto = case_state.persona_dto(case_state.read(attempt).persona)
     if attempt.status == AttemptStatus.COMPLETED:
-        report = attempt_report.frozen_report_for(attempt.id)
+        # Es la vista del dueño del intento: un reporte v1/v2 sin las cifras del modelo viejo (``for_student``).
+        report = attempt_report.for_student(attempt_report.frozen_report_for(attempt.id))
         return dto.attempt_state(attempt, attempt_token, persona_dto, completion_report=report)
     return dto.attempt_state(attempt, attempt_token, persona_dto)
 
@@ -350,7 +351,7 @@ def get_completion_report(attempt_id, attempt_token, actor):
     if lifecycle.state_of(attempt).plays:
         raise ValidationError("El intento aún está en progreso")
     attempt_report.record_feedback_viewed(attempt, actor)
-    return attempt_report.report_for(attempt)
+    return attempt_report.for_student(attempt_report.report_for(attempt))  # por token: siempre su dueño
 
 
 def get_attempt_report(attempt_id, attempt_token, actor):
@@ -368,7 +369,7 @@ def get_attempt_report(attempt_id, attempt_token, actor):
             status.HTTP_409_CONFLICT,
         )
     attempt_report.record_feedback_viewed(attempt, actor)
-    return attempt_report.report_for(attempt)
+    return attempt_report.for_student(attempt_report.report_for(attempt))  # por token: siempre su dueño
 
 
 def list_attempt_history(actor):
@@ -424,6 +425,9 @@ def get_student_report(attempt_id, actor):
         raise PermissionDenied("No tiene acceso a este intento")
     attempt_report.record_feedback_viewed(attempt, actor)
     informe = attempt_report.report_for(attempt)
+    if actor.role == "ESTUDIANTE":
+        # I-2 (R-17): el estudiante no recibe las cifras de un reporte v1/v2; el docente y el ADMIN lo leen guardado.
+        informe = attempt_report.for_student(informe)
     if attempt.student_id != actor.id:
         # S4-1 · quien lo lee no es su dueño: es leer datos de otra persona. La lectura de lo propio no deja fila.
         record(

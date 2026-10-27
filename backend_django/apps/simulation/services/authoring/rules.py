@@ -17,6 +17,7 @@ from apps.simulation.casedef import conditions
 from apps.simulation.casedef.vocabulary import RiskLevel
 from apps.simulation.models import DecisionOption
 from apps.simulation.services import case_rules
+from apps.simulation.services.text_rules import validate_plain_text
 from shared.exceptions import ApiError
 from shared.jsonutils import read_map
 
@@ -83,6 +84,9 @@ def _clean_milestones(items):
                 "milestones",
                 f"La descripción del hito «{key}» debe ser un texto de hasta {MAX_DESCRIPTION_LENGTH} caracteres.",
             )
+        # M-1 · el nombre y la descripción los lee el estudiante al cerrar (hitos del reporte): texto plano, como en el grafo.
+        label = validate_plain_text(label, MAX_LABEL_LENGTH, "milestones")
+        description = validate_plain_text(description, MAX_DESCRIPTION_LENGTH, "milestones", multiline=True)
         decisive = item.get("decisive", False)
         if not isinstance(decisive, bool):
             raise _refuse("milestones", f"Que el hito «{key}» sea decisivo se indica con sí o no.")
@@ -178,6 +182,9 @@ def _clean_endings(items, declared):
             raise _refuse("endings", f"El final «{key}» necesita un título de hasta {MAX_LABEL_LENGTH} caracteres.")
         if not isinstance(message, str) or not message.strip() or len(message) > MAX_MESSAGE_LENGTH:
             raise _refuse("endings", f"El final «{key}» necesita un mensaje de hasta {MAX_MESSAGE_LENGTH} caracteres.")
+        # M-1 · el título y el mensaje del final los lee el estudiante: texto plano, como en el grafo.
+        title = validate_plain_text(title, MAX_LABEL_LENGTH, "endings")
+        message = validate_plain_text(message, MAX_MESSAGE_LENGTH, "endings", multiline=True)
         tone = item.get("tone") or "neutral"
         if tone not in ENDING_TONES:
             raise _refuse("endings", f"El tono del final «{key}» debe ser {', '.join(ENDING_TONES)}.")

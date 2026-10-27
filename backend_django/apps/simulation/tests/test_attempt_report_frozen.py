@@ -227,17 +227,31 @@ def _congelar_v2(attempt_id):
     )
 
 
-def test_un_reporte_v2_congelado_se_lee_tal_cual_por_las_tres_rutas(completed):
+#: Lo que el ESTUDIANTE lee de ``V2_CONGELADO`` (I-2, R-17): el mismo reporte v2 sin el puntaje, el estrés, las métricas, los
+#: conteos por severidad (``counts``) ni los deltas de la línea de tiempo. Escrito a mano, no calculado con el código.
+V2_PARA_EL_ESTUDIANTE = {
+    "schemaVersion": 2, "ordinal": 1, "definitionHash": "b" * 64, "attemptId": "x", "caseTitle": "Caso", "status": "COMPLETED",
+    "competencies": ["Comunicación ética y contención emocional"],
+    "decisionReview": [{"order": 1, "classification": "ADEQUATE", "prohibited": False}],
+    "competencyLevels": [], "profileRules": "borrador-1", "nonRecommendedCount": 3,
+    "recommendations": ["Practica estrategias de autorregulación antes de escenarios de alta carga emocional."],
+    "timeline": [{"type": "DECISION_SELECTED", "classification": "ADEQUATE"}],
+}
+
+
+def test_un_reporte_v2_congelado_se_lee_sin_sus_cifras_por_las_tres_rutas_y_queda_guardado_tal_cual(completed):
     client, attempt_id, token = completed
-    _congelar_v2(attempt_id)
+    fila = _congelar_v2(attempt_id)
 
     reports = _reports(client, attempt_id, token)
 
-    # Sin transformar: conserva su puntaje, su estrés y su clasificación, y no gana claves de la v3.
-    assert reports["report"] == V2_CONGELADO
-    assert reports["completion"] == V2_CONGELADO
-    assert reports["student"] == V2_CONGELADO
+    # El estudiante no recibe el puntaje, el estrés ni los conteos por severidad, pero sigue siendo el reporte v2.
+    assert reports["report"] == V2_PARA_EL_ESTUDIANTE
+    assert reports["completion"] == V2_PARA_EL_ESTUDIANTE
+    assert reports["student"] == V2_PARA_EL_ESTUDIANTE
     assert "milestones" not in reports["report"] and "persona" not in reports["report"]
+    # Lo guardado no se toca: la proyección es de solo lectura (bytes idénticos).
+    assert json.loads(AttemptReport.objects.get(pk=fila.pk).report_json) == V2_CONGELADO
 
 
 def test_el_historial_no_expone_los_conteos_de_un_reporte_v2_congelado(completed):

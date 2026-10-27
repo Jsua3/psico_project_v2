@@ -24,11 +24,11 @@
 
 **Ocho hechos que hay que saber antes de tocar nada**
 
-1. **Un solo caso** (`SIM-VBG-001`: 8 nodos, 6 bloques de decisión, 19 opciones, 5 herramientas). Finales, métricas y orientación están atados a él; un segundo caso exige generalizar (bloque J).
+1. **Un solo caso** (`SIM-VBG-001`: 8 nodos, 6 bloques de decisión, 19 opciones, 5 herramientas). Finales, hitos y orientación están atados a él; un segundo caso exige generalizar (bloque J).
 2. **Solo ADMIN autora, valida y publica casos.** El profesor recibe 403 en autoría; solo asigna versiones publicadas a sus grupos y revisa.
 3. **El esquema de BD tiene tres definiciones** sin sincronía automática: `deploy/db_seed.sql` (producción), `bootstrap_dev_db` (dev y pruebas) y los modelos (25 de 27 son `managed=False`). Los cambios para BDs ya restauradas van a `deploy/upgrades/*.sql` a mano; el despliegue no corre `migrate`.
 4. **Intento:** estados `IN_PROGRESS`, `PAUSED`, `COMPLETED`, `REPLACED` (más `SAFE_EXITED`, solo histórico). La primera respuesta mala de cada nodo no se aplica (segunda oportunidad). `forceNew` reemplaza el intento abierto.
-5. **Retroalimentación:** el texto autorado de la opción se devuelve **en la respuesta de cada decisión**; el informe completo (final, métricas, línea de tiempo, competencias) llega al cerrar el intento.
+5. **Retroalimentación:** la respuesta de cada decisión devuelve solo la **consecuencia** narrativa (nunca si estuvo bien o mal) y **ningún número de evaluación llega jamás al estudiante**; la clase de cada respuesta, los hitos cumplidos, la persona al cierre, el final con su razón, la línea de tiempo y el perfil por competencia llegan **al cerrar** el intento (reporte congelado v3).
 6. **Bitácora reflexiva cifrada en reposo** (AES-GCM); el docente de ese estudiante la lee descifrada en la traza.
 7. **No hay DSL ni JSON Schema ni import/export de casos.** El taller de DSL (`docs/diseno/dsl/`) lo propone y trae validador; aún no está integrado al producto.
 8. **CI:** 6 jobs (secretos, vulnerabilidades, scripts, backend, frontend, e2e). El e2e de recorrido completo y orientación corre de noche, no en el PR.
@@ -40,7 +40,7 @@
 ## 1. Producto, roles y límites
 
 ### Modelo pedagógico
-Cada caso es un **grafo dirigido** de nodos clínicos (narrativa, sala, objetos, diálogos). Una **decisión** pertenece a un nodo y tiene opciones clasificadas `ADEQUATE | RISKY | INADEQUATE` (con marca de **conducta prohibida** y su razón). Hablar con un NPC y elegir una respuesta *es* decidir. El backend es la única autoridad del puntaje; el cliente solo presenta. Evaluación **por competencias y rúbrica**, no por acierto único.
+Cada caso es un **grafo dirigido** de nodos clínicos (narrativa, sala, objetos, diálogos). Una **decisión** pertenece a un nodo y tiene opciones con una **clase de respuesta** `RECOMMENDED | ACCEPTABLE | RISKY | CONTRAINDICATED` (la contraindicada lleva su razón). Hablar con un NPC y elegir una respuesta *es* decidir. No hay puntaje ni estrés: el caso declara **hitos** (pasos que una respuesta cumple) y la **persona consultante** se expresa en palabras (vínculo y activación). El backend es la única autoridad de la clase, los hitos y el final; el cliente solo presenta. Evaluación **por hitos, competencias y rúbrica por niveles**, no por acierto único.
 
 ### Roles (la autoridad es el servidor, que lee el rol de la BD en cada petición)
 
@@ -139,10 +139,10 @@ stateDiagram-v2
 ```
 - **Iniciar:** versión PUBLISHED de un caso activo y, para estudiantes, asignada a un grupo activo suyo. Sin `forceNew`, si hay un intento abierto lo devuelve (y reemite su token).
 - **Token del intento:** 32 bytes aleatorios (se guarda el SHA-256); viaja en `X-SIEP-Attempt-Token` (GET) o en el cuerpo. Un token rotado anula a la otra pestaña.
-- **Decisión:** solo desde el nodo actual. La **primera** respuesta RISKY/INADEQUATE/prohibida de un nodo no se aplica ni avanza (aviso de «última oportunidad»); la segunda se registra y avanza. Efectos: puntaje (`score_delta` + penalización), estrés, confianza y riesgo (acotados 0–100; conducta prohibida +40 estrés, −20 confianza, +15 riesgo). 19 opciones canónicas del caso 1 activan banderas y 7 métricas; al completar se resuelve uno de **4 finales** (integral, brechas, riesgo persistente, crítico).
+- **Decisión:** solo desde el nodo actual. Con `rules.secondChance`, la **primera** respuesta RISKY o CONTRAINDICATED de un nodo no se aplica ni avanza (aviso de «última oportunidad»); la segunda se registra y avanza. Efectos (`effects` de la opción): un paso de la persona en vínculo y activación (por defecto el de su clase), los hitos que cumple y las competencias que toca; sin puntaje, estrés ni métricas. Al completar se resuelve un **final por hitos y clases de respuesta**: el del caso (`rules.endings`) o, si no declara, la plantilla (crítica, protectora, riesgo persistente, con brechas), con su razón en palabras. Un intento cerrado antes de este modelo conserva su reporte v1/v2 tal cual; al estudiante se le sirve sin sus cifras.
 - **Pausa (`safe-exit`) y reanudación:** misma `attemptId`, nodo y métricas; sin bloquear la bitácora; idempotentes. **No** existe un checkpoint aparte: cada operación persiste su efecto al instante.
 - **Bitácora:** una nota por (intento, nodo), editable mientras se juega; se bloquea al completar o reemplazar.
-- **Mundo (autoritativo en el servidor):** movimiento validado por colisión y velocidad; interacción a ≤ 120 px; herramientas del inventario con pertinencia; puertas encadenadas (existe → destino → cerca → inspeccionado → herramientas → nodos → NPC). Cambiar de sala no cambia el nodo del grafo ni el puntaje.
+- **Mundo (autoritativo en el servidor):** movimiento validado por colisión y velocidad; interacción a ≤ 120 px; herramientas del inventario con pertinencia; puertas encadenadas (existe → destino → cerca → inspeccionado → herramientas → nodos → NPC). Cambiar de sala no cambia el nodo del grafo ni los hitos.
 
 ### Qué ve el estudiante
 Catálogo → aviso de contenido (ETH-01) → introducción (solo en `hospital-urgencias`) → mundo con HUD, tarjeta «Qué hacer», diálogos con opciones sin clasificación → «Supervisión clínica» tras decidir (mensaje del servidor, sin cifras) → resultado al cerrar. Salida segura desde cualquier superposición (Esc encadena ayuda → bitácora → diálogo → pausa).
@@ -230,7 +230,7 @@ Todas las respuestas llevan el sobre `{success, message, data}`; 401 sin token, 
 | **E Social Mapping** | **No existe** (propuesta lista) |
 | **F Verbal Tension Box** | **No existe** (propuesta lista) |
 | G RF-027 asistente IA | Parcial: backend apagado, sin pantalla |
-| H WCAG 2.2 AA | Parcial: faltan atajos, anuncios de estrés y foco/`wcag22aa` |
+| H WCAG 2.2 AA | Parcial: faltan atajos, anuncio de la persona (vínculo y activación) y foco/`wcag22aa` |
 | I CI | Hecho (distinto del plan) |
 | J Escenarios | Parcial: un solo caso |
 | K Landing y onboarding | Hecho |
