@@ -339,16 +339,12 @@ import { RECONSIDERED_LABEL, reconsideredChip } from './reconsidered.util';
     .oc-chip--ok { border-color: rgba(110,198,122,.5); color: #a9e2b1; }
     .oc-chips--state { margin-top: 0; }
     .oc-timeline { display: grid; gap: 8px; margin: 0; padding: 0; list-style: none; }
+    /* R-19 (§3.2 M7): sin tono semáforo al cierre; la clase se lee en palabras, no en color. */
     .oc-tl {
       display: grid; grid-template-columns: 52px 1fr; gap: 10px; align-items: baseline;
       padding: 8px 10px; border-radius: 10px; border-left: 3px solid rgba(182,156,255,.4);
       background: rgba(255,255,255,.04); font-size: .82rem;
     }
-    .oc-tl[data-tl='RECOMMENDED'], .oc-decision[data-tone='RECOMMENDED']       { border-left-color: #6EC67A; }
-    .oc-tl[data-tl='ACCEPTABLE'], .oc-decision[data-tone='ACCEPTABLE']         { border-left-color: #B69CFF; }
-    .oc-tl[data-tl='RISKY'], .oc-decision[data-tone='RISKY']                   { border-left-color: #F5B84B; }
-    .oc-tl[data-tl='CONTRAINDICATED'], .oc-decision[data-tone='CONTRAINDICATED'] { border-left-color: #E25A4F; }
-    .oc-tl[data-tl='PROHIBITED'] { border-left-color: #E25A4F; background: rgba(226,90,79,.08); }
     .oc-tl__time { font-family: 'JetBrains Mono', monospace; color: var(--sim-lavender, #B69CFF); }
     .oc-tl__label { color: var(--sim-ink-soft, rgba(244,247,251,.74)); line-height: 1.4; }
     .oc-rec { margin: 0 0 6px; color: var(--sim-ink-soft, rgba(244,247,251,.74)); font-size: .86rem; line-height: 1.55; }
