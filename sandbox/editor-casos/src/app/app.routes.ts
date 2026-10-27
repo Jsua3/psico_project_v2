@@ -1,0 +1,31 @@
+import type { Routes } from '@angular/router';
+
+import { EditorComponent } from './pantallas/editor/editor.component';
+import { FinalesComponent } from './pantallas/finales/finales.component';
+import { GuionComponent } from './pantallas/guion/guion.component';
+import { InicioComponent } from './pantallas/inicio/inicio.component';
+import { LugarComponent } from './pantallas/lugar/lugar.component';
+import { ProbarComponent } from './pantallas/probar/probar.component';
+import { RevisionComponent } from './pantallas/revision/revision.component';
+import { SalaComponent } from './pantallas/sala/sala.component';
+import { SalasComponent } from './pantallas/salas/salas.component';
+
+/** Rutas del sandbox: cada momento del docente tiene su pantalla. */
+export const routes: Routes = [
+  { path: '', component: InicioComponent, title: 'Mis casos · Editor de casos' },
+  { path: 'lugar', component: LugarComponent, title: 'Elegir un lugar · Editor de casos' },
+  { path: 'salas', component: SalasComponent, title: 'Elegir salas · Editor de casos' },
+  {
+    path: 'editor',
+    title: 'El caso · Editor de casos',
+    children: [
+      { path: '', component: EditorComponent },
+      { path: 'sala/:salaId', component: SalaComponent, title: 'Sala · Editor de casos' },
+      { path: 'escena/:escenaId', component: GuionComponent, title: 'Guion · Editor de casos' },
+      { path: 'finales', component: FinalesComponent, title: 'Finales · Editor de casos' },
+    ],
+  },
+  { path: 'probar', component: ProbarComponent, title: 'Probar como estudiante · Editor de casos' },
+  { path: 'revision', component: RevisionComponent, title: 'Enviar a revisión · Editor de casos' },
+  { path: '**', redirectTo: '' },
+];
