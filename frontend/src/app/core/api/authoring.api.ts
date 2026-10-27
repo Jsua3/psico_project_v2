@@ -2,6 +2,7 @@ import { Injectable, inject } from '@angular/core';
 import { HttpClient, HttpErrorResponse, HttpParams } from '@angular/common/http';
 import { Subject } from 'rxjs';
 import { map, tap } from 'rxjs/operators';
+import { Escenario, LugarResumen } from '../models/biblioteca.model';
 import {
   BriefUpdateRequest,
   CaseEditorView,
@@ -11,6 +12,7 @@ import {
   CharacterUpsertRequest,
   ChecklistUpdateRequest,
   DecisionOptionUpsertRequest,
+  DialogueUpsertRequest,
   EndingRule,
   HintUpsertRequest,
   MapObjectUpsertRequest,
@@ -21,10 +23,11 @@ import {
   SimulationCaseSummary,
   ToolUpsertRequest,
   WorldDefinition,
-  WorldSaveRequest,
+  WorldRoomSaveRequest,
   WorldValidationState
 } from '../models/simulation.model';
 import { ApiResponse } from './api-response';
+import type { AssistantGuide, AssistantGuideBody, AssistantProposeBody, AssistantResult, AssistantStatus } from './generated/openapi-contracts';
 import { CaseListCache } from './case-list-cache';
 import { revisionConflictOf } from './revision-conflict.util';
 
@@ -32,6 +35,10 @@ export interface CaseCreateRequest {
   title: string;
   code?: string | null;
   description?: string | null;
+  /** Un lugar de la biblioteca: el caso nace con una copia de las salas elegidas (sin lugar, nace vacío como siempre). */
+  lugarId?: string | null;
+  /** Ids de las salas del lugar, en el orden pedido (la primera es el inicio); obligatoria con `lugarId`. */
+  salas?: string[];
 }
 
 /** Cabecera con la revisión que el editor tiene del caso (E2-6): el servidor responde 409 si está vencida. */
@@ -72,6 +79,8 @@ export class AuthoringApi {
   readonly caseChanges = this.caseChanged.asObservable();
   /** Espacio canónico de la autoría (ED-9); la ruta antigua bajo admin/cases sigue en el servidor como alias. */
   private readonly API = '/api/authoring/cases';
+  /** La biblioteca de lugares: de ahí sale lo que el editor ofrece al crear un caso y al agregar piezas. */
+  private readonly API_LUGARES = '/api/biblioteca/lugares';
 
   caseEditor(caseVersionId: number) {
     return this.http.get<ApiResponse<CaseEditorView>>(`${this.API}/${caseVersionId}/editor`)
@@ -119,6 +128,52 @@ export class AuthoringApi {
 
   updateDecision(caseVersionId: number, decisionId: number, body: DecisionOptionUpsertRequest, revision?: number) {
     return this.http.put<ApiResponse<CaseEditorView>>(`${this.API}/${caseVersionId}/decisions/${decisionId}`, body, withRevision(revision))
+      .pipe(map(r => r.data));
+  }
+
+  deleteDecision(caseVersionId: number, decisionId: number, revision?: number) {
+    return this.http.delete<ApiResponse<CaseEditorView>>(`${this.API}/${caseVersionId}/decisions/${decisionId}`, withRevision(revision))
+      .pipe(map(r => r.data));
+  }
+
+  // ─── Diálogos: uno por sala, con sus líneas ──────────────────────────────
+
+  createDialogue(caseVersionId: number, mapId: number, body: DialogueUpsertRequest, revision?: number) {
+    return this.http.post<ApiResponse<CaseEditorView>>(`${this.API}/${caseVersionId}/maps/${mapId}/dialogues`, body, withRevision(revision))
+      .pipe(map(r => r.data));
+  }
+
+  /** Las líneas que lleguen reemplazan a las que había; una línea sin `aiSuggested` conserva la marca de su lugar. */
+  updateDialogue(caseVersionId: number, treeId: number, body: DialogueUpsertRequest, revision?: number) {
+    return this.http.put<ApiResponse<CaseEditorView>>(`${this.API}/${caseVersionId}/dialogues/${treeId}`, body, withRevision(revision))
+      .pipe(map(r => r.data));
+  }
+
+  deleteDialogue(caseVersionId: number, treeId: number, revision?: number) {
+    return this.http.delete<ApiResponse<CaseEditorView>>(`${this.API}/${caseVersionId}/dialogues/${treeId}`, withRevision(revision))
+      .pipe(map(r => r.data));
+  }
+
+  // ─── Lo que propuso la IA: «Revisar» baja la marca de la parte (P5) ───────────
+
+  acceptAiNode(caseVersionId: number, nodeId: number, revision?: number) {
+    return this.http.post<ApiResponse<CaseEditorView>>(`${this.API}/${caseVersionId}/nodes/${nodeId}/accept-ai`, {}, withRevision(revision))
+      .pipe(map(r => r.data));
+  }
+
+  acceptAiDecision(caseVersionId: number, decisionId: number, revision?: number) {
+    return this.http.post<ApiResponse<CaseEditorView>>(`${this.API}/${caseVersionId}/decisions/${decisionId}/accept-ai`, {}, withRevision(revision))
+      .pipe(map(r => r.data));
+  }
+
+  /** Baja la marca de TODAS las líneas del diálogo. */
+  acceptAiDialogue(caseVersionId: number, treeId: number, revision?: number) {
+    return this.http.post<ApiResponse<CaseEditorView>>(`${this.API}/${caseVersionId}/dialogues/${treeId}/accept-ai`, {}, withRevision(revision))
+      .pipe(map(r => r.data));
+  }
+
+  acceptAiObject(caseVersionId: number, objectId: number, revision?: number) {
+    return this.http.post<ApiResponse<CaseEditorView>>(`${this.API}/${caseVersionId}/objects/${objectId}/accept-ai`, {}, withRevision(revision))
       .pipe(map(r => r.data));
   }
 
@@ -237,6 +292,42 @@ export class AuthoringApi {
       .pipe(map(r => r.data));
   }
 
+  // ─── Asistente de IA de autoría (P5) ────────────────────────────────────────
+  // El servidor no compara la revisión aquí: proponer NO escribe nada, el cliente aplica los cambios con las rutas de
+  // siempre (y esas sí llevan la revisión). Apagado, las tres rutas son un 404.
+
+  /** Si el asistente está listo y cuánto cupo le queda hoy a quien lo usa. */
+  assistantStatus(caseVersionId: number) {
+    return this.http.get<ApiResponse<AssistantStatus>>(`${this.API}/${caseVersionId}/assistant/status`)
+      .pipe(map(r => r.data));
+  }
+
+  /** Una propuesta de cambios para la pantalla del editor; los `cambios` ya vienen validados contra el caso. */
+  assistantPropose(caseVersionId: number, body: AssistantProposeBody) {
+    return this.http.post<ApiResponse<AssistantResult>>(`${this.API}/${caseVersionId}/assistant/propose`, body)
+      .pipe(map(r => r.data));
+  }
+
+  /** La guía («¿cómo hago X?»): elige una acción del catálogo que se le manda. */
+  assistantGuide(caseVersionId: number, body: AssistantGuideBody) {
+    return this.http.post<ApiResponse<AssistantGuide>>(`${this.API}/${caseVersionId}/assistant/guide`, body)
+      .pipe(map(r => r.data));
+  }
+
+  // ─── Biblioteca de lugares ───────────────────────────────────────────────────
+
+  /** Los lugares que ofrece la biblioteca, en el orden de su índice. */
+  libraryPlaces() {
+    return this.http.get<ApiResponse<LugarResumen[]>>(this.API_LUGARES)
+      .pipe(map(r => r.data));
+  }
+
+  /** Un lugar completo (salas, catálogo, personajes, hitos); las imágenes ya vienen con su dirección pública. */
+  libraryPlace(placeId: string) {
+    return this.http.get<ApiResponse<Escenario>>(`${this.API_LUGARES}/${encodeURIComponent(placeId)}`)
+      .pipe(map(r => r.data));
+  }
+
   // ─── Checklist ──────────────────────────────────────────────────────────
 
   updateChecklist(caseVersionId: number, body: ChecklistUpdateRequest, revision?: number) {
@@ -256,7 +347,7 @@ export class AuthoringApi {
   }
 
   /** Guarda el borrador del mundo (con bloqueo optimista por revision). */
-  saveWorld(caseVersionId: number, body: WorldSaveRequest, nodeId?: number) {
+  saveWorld(caseVersionId: number, body: WorldRoomSaveRequest, nodeId?: number) {
     let params = new HttpParams();
     if (nodeId != null) params = params.set('nodeId', nodeId);
     return this.http.put<ApiResponse<WorldDefinition>>(

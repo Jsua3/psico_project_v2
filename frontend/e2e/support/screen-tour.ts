@@ -146,6 +146,9 @@ export const TOUR_SCREENS: readonly TourScreen[] = [
   { id: 'catalogo', role: 'admin', routePattern: 'portal/simulador', path: '/portal/simulador' },
   { id: 'casos', role: 'admin', routePattern: 'portal/casos', path: '/portal/casos' },
   { id: 'editor-caso', role: 'admin', routePattern: 'portal/casos/:caseVersionId/editor', resolvePath: firstEditorPath },
+  { id: 'casos-nuevo', role: 'admin', routePattern: 'portal/casos/nuevo', path: '/portal/casos/nuevo' },
+  // El editor anterior, mientras exista (P6, tarea 8).
+  { id: 'editor-caso-anterior', role: 'admin', routePattern: 'portal/casos/:caseVersionId/editor-anterior', resolvePath: async page => `${await firstEditorPath(page)}-anterior` },
   { id: 'trazabilidad', role: 'admin', routePattern: 'portal/docente/trazabilidad', path: '/portal/docente/trazabilidad' },
   { id: 'rubricas', role: 'admin', routePattern: 'portal/rubricas', path: '/portal/rubricas' },
   { id: 'usuarios', role: 'admin', routePattern: 'portal/admin/usuarios', path: '/portal/admin/usuarios' },

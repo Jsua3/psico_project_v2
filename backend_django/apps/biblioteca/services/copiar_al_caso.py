@@ -7,7 +7,9 @@ toca un caso ya creado, ni dos casos se tocan entre sí.
 Por cada sala elegida, en el orden pedido (la primera es la escena de inicio):
 
 - una escena (``SimulationNode``, clave = id de la sala) y su mapa (``SceneMap``: fondo en ``ambient.backgroundImage``,
-  ``ambient.encuadre``, entrada = punto de aparición);
+  ``ambient.encuadre``, entrada = punto de aparición); el mapa dice a qué sala y a qué lugar pertenece en
+  ``ambient.salaId`` y ``ambient.lugarId``: el editor agrupa por ahí las escenas que comparten sala (varias escenas en
+  una misma sala son varios mapas con el mismo ``salaId``) y, con ``lugarId``, sabe de qué lugar sacar el catálogo;
 - los muebles → ``PROP`` con el tamaño y la colisión del catálogo, ``metadata.arte`` y, si el mueble es un espejo,
   ``metadata.espejo``; el mueble va con ``collision=False`` y ``metadata.colision`` guarda lo que dijo el catálogo; los que
   chocan dejan su huella en el suelo como ``CollisionZone`` (lo único que bloquea al jugador);
@@ -305,7 +307,10 @@ def copiar_al_caso(case_version, lugar, salas):
         escena = SceneMap.objects.create(
             case_version=case_version, node=nodo, map_key=f"sala-{sala['id']}", title=sala["nombre"],
             width=ANCHO_SALA, height=ALTO_SALA, theme=TEMA, spawn_x=sala["entrada"]["x"], spawn_y=sala["entrada"]["y"],
-            ambient_json=_json({"backgroundImage": url_de_arte(lugar_id, sala["fondo"]), "encuadre": sala["encuadre"]}),
+            ambient_json=_json({
+                "backgroundImage": url_de_arte(lugar_id, sala["fondo"]), "encuadre": sala["encuadre"],
+                "salaId": sala["id"], "lugarId": lugar_id,
+            }),
         )
         claves = _Claves()
         de_muebles, zonas = _muebles(escena, sala, muebles, lugar_id, claves)

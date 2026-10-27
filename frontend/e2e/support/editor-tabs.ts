@@ -80,7 +80,7 @@ export async function visitEditorTabs(
   const version = await createRichCase(request, token);
 
   await loginAs(page, 'admin');
-  await page.goto(`/portal/casos/${version.caseVersionId}/editor`);
+  await page.goto(`/portal/casos/${version.caseVersionId}/editor-anterior`);
   await expect(page.getByRole('heading', { level: 1 })).toBeVisible({ timeout: scaled(30_000) });
   for (const tab of EDITOR_TABS) {
     await page.getByRole('tab', { name: tab }).click();

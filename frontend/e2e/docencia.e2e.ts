@@ -635,22 +635,11 @@ test.describe('@docencia hub de casos', () => {
     await expect(page.getByText('Aún no hay casos')).toHaveCount(0);
   });
 
-  test('sin casos: vacío con «Agregar nuevo caso» que abre el formulario con el foco en el título', async ({ page }) => {
+  // P6: todo caso nuevo empieza eligiendo un lugar; ya no hay formulario de caso en blanco en la lista.
+  test('sin casos: vacío con «Crear un caso nuevo» que lleva a elegir un lugar', async ({ page }) => {
     await openHub(page, { cases: [] });
-    await page.locator('app-case-authoring-hub ui-empty-state').getByRole('button', { name: 'Agregar nuevo caso' }).click();
-    await expect(page.getByRole('textbox', { name: /Título del caso/ })).toBeFocused();
-  });
-
-  test('si la creación falla: el error dice qué revisar, con «Reintentar», y el formulario conserva los datos', async ({ page }) => {
-    const { created } = await openHub(page, { createStatus: 409 });
-    await page.getByRole('button', { name: 'Agregar nuevo caso' }).first().click();
-    await page.getByRole('textbox', { name: /Título del caso/ }).fill('Caso nuevo');
-    await page.getByRole('button', { name: 'Crear y abrir editor' }).click();
-
-    await expect(page.locator('.hub-create ui-error-state')).toContainText('No fue posible crear el caso');
-    await expect(page.getByRole('textbox', { name: /Título del caso/ })).toHaveValue('Caso nuevo');
-    await page.locator('.hub-create ui-error-state').getByRole('button', { name: 'Reintentar' }).click();
-    await expect.poll(() => created.length).toBe(2);
+    await page.locator('app-case-authoring-hub ui-empty-state').getByRole('button', { name: 'Crear un caso nuevo' }).click();
+    await expect(page).toHaveURL(/\/portal\/casos\/nuevo$/);
   });
 });
 

@@ -585,6 +585,8 @@ export interface NodeEditorState {
   decisionPrompt: string;
   /** El lugar de la escena en la lista del editor (E3-6, RF-08): 0…n-1 tras reordenar; informativo, no cambia el grafo. */
   displayOrder: number;
+  /** La escena la propuso el asistente de IA y nadie la ha revisado (P5). */
+  aiSuggested?: boolean;
 }
 
 export interface DecisionEdgeState {
@@ -609,6 +611,8 @@ export interface DecisionEdgeState {
   theoryBasis: string;
   /** La retroalimentación pedagógica: por qué la opción es adecuada o no (E3-7, RF-10). */
   feedbackText: string;
+  /** La opción la propuso el asistente de IA y nadie la ha revisado (P5). */
+  aiSuggested?: boolean;
 }
 
 /**
@@ -643,6 +647,8 @@ export interface EndingRule {
   tone: EndingReport['tone'];
   /** La condición del final; el final por defecto (el último) no la trae. */
   when?: EndingCondition;
+  /** El final lo propuso el asistente de IA y nadie lo ha revisado (P5). */
+  aiSuggested?: boolean;
 }
 
 /** Las reglas del caso que el editor lee y escribe con `PUT …/rules/{milestones,risk,endings}`. */
@@ -683,7 +689,11 @@ export interface MapObjectEditorState {
   interactionText: string;
   decisionOptionId: number | null;
   toolCode: string | null;
+  /** El personaje del caso al que representa un objeto PERSON. */
+  characterId?: number | null;
   mapId: number;
+  /** El objeto lo propuso el asistente de IA y nadie lo ha revisado (P5). */
+  aiSuggested?: boolean;
 }
 
 export interface ClinicalToolEditorState {
@@ -786,6 +796,8 @@ export interface NodeUpsertRequest {
   decisionPrompt?: string;
   /** Ausente = no se toca (una escena nueva sensible nace en `HIGH`). */
   intensity?: Intensity;
+  /** Ausente = no se toca; `true` marca la escena como propuesta por la IA, `false` la da por revisada. */
+  aiSuggested?: boolean;
 }
 
 export interface DecisionOptionUpsertRequest {
@@ -804,6 +816,8 @@ export interface DecisionOptionUpsertRequest {
   consequenceText?: string;
   theoryBasis?: string;
   feedbackText?: string;
+  /** Ausente = no se toca. */
+  aiSuggested?: boolean;
 }
 
 /** Una ayuda de una sala: texto plano de hasta 280 caracteres; sin `hintOrder` se agrega al final. */
@@ -856,6 +870,30 @@ export interface MapObjectUpsertRequest {
   interactionText: string;
   decisionOptionId: number | null;
   toolCode: string | null;
+  /** Ausente = no se toca; `null` desvincula al personaje. */
+  characterId?: number | null;
+  /** Ausente = no se toca. */
+  aiSuggested?: boolean;
+}
+
+/** Una línea del diálogo de una sala; `speakerName` ausente = habla quien habla el diálogo. */
+export interface DialogueLineUpsertRequest {
+  displayOrder: number;
+  speakerName?: string;
+  text: string;
+  emotion?: string;
+  /** Ausente = la línea conserva la marca que tenía en ese lugar. */
+  aiSuggested?: boolean;
+}
+
+/** El diálogo de una sala (uno por árbol): sus líneas reemplazan a las que había. */
+export interface DialogueUpsertRequest {
+  treeKey: string;
+  speakerName: string;
+  portraitKey?: string | null;
+  emotion?: string;
+  mapObjectId?: number | null;
+  lines?: DialogueLineUpsertRequest[] | null;
 }
 
 export interface ToolUpsertRequest {
@@ -930,6 +968,10 @@ export interface WorldObject {
   unlockCondition: Record<string, unknown>;
   movementPattern: Record<string, unknown>;
   metadata: Record<string, unknown>;
+  /** El personaje del caso al que representa un objeto PERSON. */
+  characterId?: number | null;
+  /** El objeto lo propuso el asistente de IA y nadie lo ha revisado (P5). */
+  aiSuggested?: boolean;
 }
 
 export interface WorldCollisionZone {
@@ -947,6 +989,8 @@ export interface WorldDialogueLine {
   speakerName: string;
   text: string;
   emotion: string;
+  /** La línea la propuso el asistente de IA y nadie la ha revisado (P5). */
+  aiSuggested?: boolean;
 }
 
 export interface WorldDialogueChoice {
@@ -1030,6 +1074,13 @@ export interface WorldSaveRequest {
   dialogues: WorldDialogueTree[];
   clinicalTools: WorldClinicalTool[];
 }
+
+/**
+ * Guardar solo la sala: el servidor deja sin tocar una lista ausente (`dialogues`, `clinicalTools`), y el editor nuevo
+ * guarda el guion por su propia ruta (…/dialogues), así que no manda los diálogos de la sala.
+ */
+export type WorldRoomSaveRequest = Omit<WorldSaveRequest, 'dialogues' | 'clinicalTools'>
+  & Partial<Pick<WorldSaveRequest, 'dialogues' | 'clinicalTools'>>;
 
 // ─── Multi-Room + NPC System (Plan 2) ─────────────────────────────────────────
 

@@ -148,6 +148,23 @@ const CONTRACTS: Contract[] = [
   { method: 'updateRisk', call: s => s.updateRisk(9, 'SEVERE'), verb: 'PUT', url: `${A}/9/rules/risk`, body: { riskLevel: 'SEVERE' } },
   { method: 'updateEndings', call: s => s.updateEndings(9, []), verb: 'PUT', url: `${A}/9/rules/endings`, body: { endings: [] } },
 
+  // ── editor nuevo (P6): borrar una opción, diálogos, revisar lo de la IA, asistente y biblioteca ──────────────────
+  { method: 'deleteDecision', call: s => s.deleteDecision(9, 4), verb: 'DELETE', url: `${A}/9/decisions/4` },
+  { method: 'createDialogue', call: s => s.createDialogue(9, 3, body('dialogo')), verb: 'POST', url: `${A}/9/maps/3/dialogues`, body: body('dialogo') },
+  { method: 'updateDialogue', call: s => s.updateDialogue(9, 5, body('dialogo')), verb: 'PUT', url: `${A}/9/dialogues/5`, body: body('dialogo') },
+  { method: 'deleteDialogue', call: s => s.deleteDialogue(9, 5), verb: 'DELETE', url: `${A}/9/dialogues/5` },
+  { method: 'acceptAiNode', call: s => s.acceptAiNode(9, 2), verb: 'POST', url: `${A}/9/nodes/2/accept-ai`, body: {} },
+  { method: 'acceptAiDecision', call: s => s.acceptAiDecision(9, 4), verb: 'POST', url: `${A}/9/decisions/4/accept-ai`, body: {} },
+  { method: 'acceptAiDialogue', call: s => s.acceptAiDialogue(9, 5), verb: 'POST', url: `${A}/9/dialogues/5/accept-ai`, body: {} },
+  { method: 'acceptAiObject', call: s => s.acceptAiObject(9, 6), verb: 'POST', url: `${A}/9/objects/6/accept-ai`, body: {} },
+  { method: 'assistantStatus', call: s => s.assistantStatus(9), verb: 'GET', url: `${A}/9/assistant/status` },
+  { method: 'assistantPropose', call: s => s.assistantPropose(9, { peticion: 'p', pantalla: 'guion' }), verb: 'POST',
+    url: `${A}/9/assistant/propose`, body: { peticion: 'p', pantalla: 'guion' } },
+  { method: 'assistantGuide', call: s => s.assistantGuide(9, { pregunta: 'q', acciones: [] }), verb: 'POST',
+    url: `${A}/9/assistant/guide`, body: { pregunta: 'q', acciones: [] } },
+  { method: 'libraryPlaces', call: s => s.libraryPlaces(), verb: 'GET', url: '/api/biblioteca/lugares' },
+  { method: 'libraryPlace', call: s => s.libraryPlace('universidad'), verb: 'GET', url: '/api/biblioteca/lugares/universidad' },
+
   // ── editor de mundo ────────────────────────────────────────────────────────
   { method: 'worldEditor', call: s => s.worldEditor(9), verb: 'GET', url: `${A}/9/world-editor` },
   { method: 'saveWorld', call: s => s.saveWorld(9, body('mundo')), verb: 'PUT', url: `${A}/9/world`, body: body('mundo') },
@@ -309,13 +326,13 @@ describe('SimulationService contrato HTTP', () => {
 
     expect(publicMethods.filter(name => !documented.has(name))).toEqual([]);
     expect([...documented].filter(name => !publicMethods.includes(name))).toEqual([]);
-    expect(publicMethods).toHaveLength(66);
+    expect(publicMethods).toHaveLength(79);
   });
 
   it('cada método vive en una sola API y cada rol tiene el tamaño esperado', () => {
     const [player, authoring, instructor] = ROLE_CLASSES.map(publicMethodsOf);
-    expect(new Set([...player, ...authoring, ...instructor]).size).toBe(66);
-    expect([player.length, authoring.length, instructor.length]).toEqual([24, 37, 5]);
+    expect(new Set([...player, ...authoring, ...instructor]).size).toBe(79);
+    expect([player.length, authoring.length, instructor.length]).toEqual([24, 50, 5]);
     expect(instructor).toEqual(['recentAttempts', 'attemptTrace', 'rubric', 'replaceAttempt', 'saveRubric']);
   });
 

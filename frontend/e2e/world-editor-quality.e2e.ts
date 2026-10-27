@@ -95,7 +95,7 @@ test.describe('@lienzo calidad · Axe', () => {
 
     await loginAs(page, 'admin');
     await page.setViewportSize({ width: 1440, height: 1000 });
-    await page.goto(`/portal/casos/${id}/editor`);
+    await page.goto(`/portal/casos/${id}/editor-anterior`);
     await expect(page.getByRole('heading', { level: 1, name: view.title })).toBeVisible({ timeout: scaled(30_000) });
     await page.getByRole('tab', { name: 'Mundo' }).click();
     await page.getByRole('button', { name: /Inicio del caso\s+\(inicio\)/ }).click();
@@ -145,7 +145,7 @@ test.describe('@lienzo calidad · solo lectura', () => {
 
     await loginAs(page, 'admin');
     await page.setViewportSize({ width: 1440, height: 1000 });
-    await page.goto(`/portal/casos/${published!['caseVersionId']}/editor`);
+    await page.goto(`/portal/casos/${published!['caseVersionId']}/editor-anterior`);
     await expect(page.getByRole('heading', { level: 1, name: published!['title'] })).toBeVisible({ timeout: scaled(30_000) });
     await page.getByRole('tab', { name: 'Mundo' }).click();
     // El primer nodo de la versión publicada, por su «Título (clave)».

@@ -331,7 +331,7 @@ test('7 · un texto de caso con <script> y un manejador en línea se ve como tex
       await loginAs(page, 'admin');
       await page.goto('/portal/casos');
       await expect(page.locator('body')).toContainText(SCRIPT, { timeout: scaled(30_000) });
-      await page.goto(`/portal/casos/${caseVersionId}/editor`);
+      await page.goto(`/portal/casos/${caseVersionId}/editor-anterior`);
       await expect(page.getByRole('heading', { level: 1 })).toBeVisible({ timeout: scaled(30_000) });
       for (const tab of EDITOR_TABS) {
         await page.getByRole('tab', { name: tab }).click();

@@ -1,0 +1,72 @@
+// Piel clara de autoría (el editor de casos de P6), tomada del sistema visual del lienzo de prototipos y de los
+// componentes del editor. Acotada al marco del editor para no tocar el resto del programa (REGLA-010: en :root solo
+// la piel del portal). Las variables también se declaran en el contenedor de superposiciones de CDK: el menú de
+// «Conectar» se dibuja ahí, fuera del marco, y sin ellas perdería los colores.
+// El morado `--guia` es solo de la guía; el ámbar (`--salida-segura`), solo de «Salida segura».
+app-autoria-shell,
+.cdk-overlay-container {
+  --fondo: #f3f5f4;
+  --fondo-hundido: #e9edee;
+  --superficie: #ffffff;
+  --sobre-primario: #ffffff;
+  --tinta: #14232a;
+  --texto-secundario: #4b5d65;
+  --primario: #0b5563;
+  --primario-oscuro: #083f4a;
+  --primario-tinte: #e3eef1;
+  --borde-control: #6b7c84;
+  --linea: #cbd5d8;
+  --foco: #1f5fa8;
+  --salida-segura: #f5b82e;
+  --peligro: #7a1a12;
+  --peligro-oscuro: #5c130d;
+  --peligro-tinte: #fbeae8;
+  --adecuada: #14532d;
+  --adecuada-tinte: #ddefe3;
+  --adecuada-borde: #2e7d4f;
+  --riesgo: #4a1f40;
+  --riesgo-tinte: #f3e4ef;
+  --riesgo-borde: #6b2f5c;
+  --aviso: #b4530a;
+  --aviso-texto: #7a3606;
+  --aviso-tinte: #fdf0e6;
+  --guia: #7c3aed;
+  --guia-tinte: #efe7fd;
+  --velo: rgba(20, 35, 42, 0.7);
+  --sombra-buscador: 0 16px 40px rgba(20, 35, 42, 0.3);
+  --sombra-foco: 0 12px 32px rgba(20, 35, 42, 0.25);
+  --sombra-menu: 0 8px 24px rgba(20, 35, 42, 0.18);
+  --radio-control: 10px;
+  --radio-tarjeta: 16px;
+
+  // La vista de «Probar como estudiante» imita el juego, que es oscuro.
+  --juego-fondo: #151b2e;
+  --juego-hundido: #0e1322;
+  --juego-elevado: #1f2740;
+  --juego-escenario: #0e1016;
+  --juego-texto: #e8ecf8;
+  --juego-texto-suave: #d6dcf2;
+  --juego-borde: #8a96b8;
+  --juego-acento: #b69cff;
+  --juego-acento-claro: #c9b3ff;
+  --juego-salida: #f5d27a;
+  --juego-aviso: #ffd28a;
+
+  // Tamaños de texto del editor (16 px es el mínimo para leer; 14 px solo en etiquetas auxiliares).
+  --autoria-texto-14: 0.875rem;
+  --autoria-texto-16: 1rem;
+  --autoria-texto-18: 1.125rem;
+  --autoria-texto-20: 1.25rem;
+  --autoria-texto-22: 1.375rem;
+  --autoria-texto-24: 1.5rem;
+  --autoria-texto-32: 2rem;
+
+  // Capas del editor.
+  --autoria-capa-3: 3;
+  --autoria-capa-4: 4;
+  --autoria-capa-5: 5;
+  --autoria-capa-10: 10;
+  --autoria-capa-40: 40;
+  --autoria-capa-41: 41;
+  --autoria-capa-50: 50;
+}

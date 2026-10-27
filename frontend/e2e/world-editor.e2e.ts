@@ -97,7 +97,7 @@ test('el editor de mundo conserva los ids reales entre autoguardados y persiste 
   await page.getByRole('button', { name: /^ingresar$/i }).click();
   await page.waitForURL(/\/portal\//, { timeout: scaled(30_000) });
 
-  await page.goto(`/portal/casos/${versionId}/editor`);
+  await page.goto(`/portal/casos/${versionId}/editor-anterior`);
   await openWorldEditor(page, versionId);
   await expect(page.locator('.we-info')).toContainText('0 objetos');
   const templates = page.locator('.we-template-btn');

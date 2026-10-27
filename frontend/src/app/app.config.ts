@@ -1,5 +1,5 @@
 import { ApplicationConfig, ErrorHandler, inject, provideAppInitializer, provideBrowserGlobalErrorListeners } from '@angular/core';
-import { TitleStrategy, provideRouter, withNavigationErrorHandler, withPreloading } from '@angular/router';
+import { TitleStrategy, provideRouter, withComponentInputBinding, withNavigationErrorHandler, withPreloading } from '@angular/router';
 import { provideHttpClient, withInterceptors } from '@angular/common/http';
 import { MAT_CARD_CONFIG } from '@angular/material/card';
 import { MatIconRegistry } from '@angular/material/icon';
@@ -34,7 +34,7 @@ export const appConfig: ApplicationConfig = {
     provideBrowserGlobalErrorListeners(),
     { provide: ErrorHandler, useExisting: SiepErrorHandler },
     // Sin red, una navegación que no pudo descargar su código lleva a «Sin conexión», precargada con red (F4-3).
-    provideRouter(routes, withNavigationErrorHandler(offlineNavigationHandler), withPreloading(PreloadMarkedRoutes)),
+    provideRouter(routes, withNavigationErrorHandler(offlineNavigationHandler), withPreloading(PreloadMarkedRoutes), withComponentInputBinding()),
     { provide: TitleStrategy, useClass: SiepTitleStrategy },
     provideHttpClient(withInterceptors([jwtInterceptor])),
     // Proxy de caché: los componentes siguen inyectando SimulationService (ver CachedSimulationService).

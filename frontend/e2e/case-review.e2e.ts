@@ -69,7 +69,7 @@ test.afterEach(async ({ request }) => {
 });
 
 async function openReview(page: Page, caseVersionId: number, title: string) {
-  await page.goto(`/portal/casos/${caseVersionId}/editor`);
+  await page.goto(`/portal/casos/${caseVersionId}/editor-anterior`);
   await expect(page.getByRole('heading', { level: 1, name: title })).toBeVisible({ timeout: scaled(30_000) });
   await page.getByRole('tab', { name: 'Revisión' }).click();
   const panel = page.locator('app-case-review-panel');

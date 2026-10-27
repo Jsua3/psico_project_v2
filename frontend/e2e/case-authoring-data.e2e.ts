@@ -63,7 +63,7 @@ const toast = (page: Page, text: string) => page.getByLabel('Mensajes del sistem
 
 async function openEditor(page: Page, seed: Seed): Promise<void> {
   await loginAs(page, 'profesor');
-  await page.goto(`/portal/casos/${seed.id}/editor`);
+  await page.goto(`/portal/casos/${seed.id}/editor-anterior`);
   await expect(page.getByRole('heading', { level: 1, name: seed.title })).toBeVisible({ timeout: scaled(30_000) });
 }
 

@@ -28,7 +28,7 @@ test('«Recargar» no desmonta el tablero de la vista previa y no muestra puntaj
 
   await loginAs(page, 'admin');
   await page.setViewportSize({ width: 1440, height: 1000 });
-  await page.goto(`/portal/casos/${id}/editor`);
+  await page.goto(`/portal/casos/${id}/editor-anterior`);
   await expect(page.getByRole('heading', { level: 1, name: view.title })).toBeVisible({ timeout: scaled(30_000) });
 
   const isPreview = (r: { request(): { method(): string }; url(): string }) =>

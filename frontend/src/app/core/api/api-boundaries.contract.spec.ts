@@ -22,6 +22,8 @@ const injecting = (api: string) => FILES.filter(f => f.text.includes(`inject(${a
 describe('fronteras de las APIs por rol', () => {
   it('solo el editor y sus vistas inyectan AuthoringApi', () => {
     expect(injecting('AuthoringApi')).toEqual([
+      // El editor nuevo (P6) llega a la API solo por su fachada; ni el store ni las pantallas la inyectan.
+      'features/autoria/api/autoria-api.service.ts',
       'features/simulator/case-authoring-hub.component.ts',
       'features/simulator/case-editor.component.ts',
       'features/simulator/case-review-panel.component.ts',
@@ -38,6 +40,7 @@ describe('fronteras de las APIs por rol', () => {
   });
 
   it.each([
+    'features/autoria/api/autoria-api.service.ts',
     'features/simulator/case-authoring-hub.component.ts',
     'features/simulator/case-editor.component.ts',
     'features/simulator/case-review-panel.component.ts',

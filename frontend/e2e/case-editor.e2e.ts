@@ -52,7 +52,7 @@ const NODE_BODY = {
 const toast = (page: Page, text: string) => page.getByLabel('Mensajes del sistema').getByText(text);
 
 async function openEditor(page: Page, caseVersionId: number, title: string): Promise<void> {
-  await page.goto(`/portal/casos/${caseVersionId}/editor`);
+  await page.goto(`/portal/casos/${caseVersionId}/editor-anterior`);
   await expect(page.getByRole('heading', { level: 1, name: title })).toBeVisible({ timeout: scaled(30_000) });
 }
 

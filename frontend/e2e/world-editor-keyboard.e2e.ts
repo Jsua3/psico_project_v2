@@ -55,7 +55,7 @@ test('el editor de mundo se maneja solo con teclado: colocar, mover, borrar, dib
 
   await loginAs(page, 'admin');
   await page.setViewportSize({ width: 1440, height: 1000 });
-  await page.goto(`/portal/casos/${id}/editor`);
+  await page.goto(`/portal/casos/${id}/editor-anterior`);
   await expect(page.getByRole('heading', { level: 1, name: view.title })).toBeVisible({ timeout: scaled(30_000) });
 
   // ── Llegar al editor de mundo: pestañas con flechas y el selector de sala con Intro ───────────────────────────
@@ -151,7 +151,7 @@ test('los atajos de una letra no secuestran la página: fuera del lienzo no camb
   });
   const view = (await created.json()).data;
   await loginAs(page, 'admin');
-  await page.goto(`/portal/casos/${view.caseVersionId}/editor`);
+  await page.goto(`/portal/casos/${view.caseVersionId}/editor-anterior`);
   await expect(page.getByRole('heading', { level: 1, name: view.title })).toBeVisible({ timeout: scaled(30_000) });
   await page.getByRole('tab', { name: 'Mundo' }).click();
   await page.getByRole('button', { name: /Inicio del caso\s+\(inicio\)/ }).click();
@@ -187,7 +187,7 @@ test('las letras eligen herramienta desde la barra y, tras un clic en el lienzo,
   const nodeId: number = view.nodes[0].id;
   await loginAs(page, 'admin');
   await page.setViewportSize({ width: 1440, height: 1000 });
-  await page.goto(`/portal/casos/${id}/editor`);
+  await page.goto(`/portal/casos/${id}/editor-anterior`);
   await expect(page.getByRole('heading', { level: 1, name: view.title })).toBeVisible({ timeout: scaled(30_000) });
   await page.getByRole('tab', { name: 'Mundo' }).click();
   await page.getByRole('button', { name: /Inicio del caso\s+\(inicio\)/ }).click();

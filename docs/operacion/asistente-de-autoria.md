@@ -4,7 +4,7 @@ Ayuda de IA para quien escribe un caso en el editor (P5). **Propone, nunca escri
 
 > El asistente del estudiante (`AI_ASSISTANT_*`) es otro, sigue apagado y no se toca.
 >
-> El servidor Node del sandbox queda solo para el sandbox (`sandbox/editor-casos/servidor/`, rama `claude/editor-casos-p3`). El programa usa las rutas de abajo.
+> El sandbox del editor (con su servidor Node de IA, `sandbox/editor-casos/`) se retiró del árbol al llevar el editor al programa (P6); se recupera de la rama `claude/editor-casos-p3` (`b13222a5`). El programa usa las rutas de abajo.
 
 ## Rutas
 

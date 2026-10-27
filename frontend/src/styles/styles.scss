@@ -7,6 +7,7 @@
 @use 'base/overlays';
 @use 'tokens/glass-bar' as glass-bar-tokens;
 @use 'components/glass-bar';
+@use 'components/autoria';
 
 :root {
   /* Heredados sin token propio todavía: el vidrio pasa a mixins (F1-7) y las alturas al shell nuevo (F3). Los demás --psy-* y --siep-* son alias (_aliases.scss). */

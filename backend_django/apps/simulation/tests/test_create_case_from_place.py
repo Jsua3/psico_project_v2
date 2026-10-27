@@ -116,6 +116,20 @@ def test_crea_un_nodo_y_un_mapa_por_sala_elegida(caso):
     assert ambiente["encuadre"] == consultorio["encuadre"]
 
 
+def test_cada_mapa_dice_a_que_sala_y_a_que_lugar_pertenece(caso):
+    # El editor agrupa las escenas por sala: dos escenas en la misma sala son dos mapas con el mismo ``salaId``. Sin esto
+    # un mapa es una sala en sí mismo y el caso no sabe de qué lugar salió (el editor no puede ofrecer su catálogo).
+    mapas = SceneMap.objects.filter(case_version=caso).select_related("node")
+    assert mapas.count() == len(RECORRIDO)
+    for mapa in mapas:
+        ambiente = json.loads(mapa.ambient_json)
+        assert ambiente["salaId"] == mapa.node.node_key
+        assert ambiente["lugarId"] == "universidad"
+    # Y lo que ya decía el ambiente se conserva junto a la identidad.
+    consultorio = json.loads(mapas.get(node__node_key="consultorio").ambient_json)
+    assert set(consultorio) == {"backgroundImage", "encuadre", "salaId", "lugarId"}
+
+
 def test_el_orden_de_las_salas_manda_y_la_primera_es_la_de_inicio(profesor):
     version = CaseVersion.objects.get(pk=_crear(profesor, ["consultorio", "pasillo"]).data["data"]["caseVersionId"])
     nodos = list(SimulationNode.objects.filter(case_version=version).order_by("display_order"))

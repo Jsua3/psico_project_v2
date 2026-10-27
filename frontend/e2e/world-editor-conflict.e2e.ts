@@ -45,7 +45,7 @@ async function readWorld(request: APIRequestContext, token: string, caseVersionI
 /** Abre «Mundo» en el nodo «inicio» y espera a que exista el panel de la sala. */
 async function openWorld(page: import('@playwright/test').Page, id: number, title: string): Promise<void> {
   await page.setViewportSize({ width: 1440, height: 1000 });
-  await page.goto(`/portal/casos/${id}/editor`);
+  await page.goto(`/portal/casos/${id}/editor-anterior`);
   await expect(page.getByRole('heading', { level: 1, name: title })).toBeVisible({ timeout: scaled(30_000) });
   await page.getByRole('tab', { name: 'Mundo' }).click();
   await page.getByRole('button', { name: /Inicio del caso\s+\(inicio\)/ }).click();

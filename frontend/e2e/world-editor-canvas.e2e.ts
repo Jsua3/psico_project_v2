@@ -61,7 +61,7 @@ async function openCanvas(page: Page, request: APIRequestContext): Promise<{ id:
 
   await loginAs(page, 'admin');
   await page.setViewportSize({ width: 1440, height: 1000 });
-  await page.goto(`/portal/casos/${id}/editor`);
+  await page.goto(`/portal/casos/${id}/editor-anterior`);
   await expect(page.getByRole('heading', { level: 1, name: view.title })).toBeVisible({ timeout: scaled(30_000) });
   await page.getByRole('tab', { name: 'Mundo' }).click();
   const loaded = page.waitForResponse(

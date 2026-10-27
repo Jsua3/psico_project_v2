@@ -24,7 +24,7 @@
             "styles": ["src/styles/styles.scss"],
             "stylePreprocessorOptions": { "includePaths": ["src/styles"] },
             "scripts": [],
-            "allowedCommonJsDependencies": ["phaser", "howler", "axe-core"]
+            "allowedCommonJsDependencies": ["phaser", "howler", "axe-core", "@dagrejs/dagre"]
           },
           "configurations": {
             "production": {
