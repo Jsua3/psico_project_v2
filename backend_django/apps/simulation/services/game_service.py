@@ -1,7 +1,6 @@
 """Port of Spring's SimulationGameService — the DAG state machine."""
 import base64
 import hashlib
-import json
 import secrets
 from datetime import timedelta
 
@@ -20,7 +19,6 @@ from apps.simulation.models import (
     INITIAL_USER_TRUST,
     INITIAL_VICTIM_RISK,
     AttemptEvent,
-    AttemptReport,
     AttemptStatus,
     CaseVersion,
     DecisionOption,
@@ -385,9 +383,8 @@ def get_attempt_report(attempt_id, attempt_token, actor):
 def list_attempt_history(actor):
     """Resumen de los intentos del propio estudiante (más recientes primero).
 
-    Las cuentas de un intento completado salen de su reporte congelado (E1-8: no cambian si
-    el caso cambia después); las de los demás se calculan en una sola consulta agregada para
-    evitar N+1, con la misma semántica que el reporte de finalización.
+    Sin cifras de evaluación: ni puntaje ni conteos por clase. Lo que el estudiante lee de un intento cerrado
+    es su reporte (hitos, persona, final con su razón), no esta lista.
     """
     attempts = list(
         SimulationAttempt.objects.filter(student_id=actor.id)
@@ -397,53 +394,12 @@ def list_attempt_history(actor):
     if not attempts:
         return []
 
-    attempt_ids = [a.id for a in attempts]
-    counts = {}
-    for row in AttemptReport.objects.filter(attempt_id__in=attempt_ids).only("attempt_id", "report_json"):
-        frozen = json.loads(row.report_json)
-        counts[row.attempt_id] = {
-            # TRANSITORIO (Tarea 17): un reporte v3 ya no trae los conteos por clasificación; v1 y v2 sí.
-            "ADEQUATE": frozen.get("adequateDecisions", 0),
-            "RISKY": frozen.get("riskyDecisions", 0),
-            "INADEQUATE": frozen.get("inadequateDecisions", 0),
-            "PROHIBITED": frozen.get("prohibitedDecisions", 0),
-        }
-    live_ids = [aid for aid in attempt_ids if aid not in counts]
-    for aid in live_ids:
-        counts[aid] = {"ADEQUATE": 0, "RISKY": 0, "INADEQUATE": 0, "PROHIBITED": 0}
-    if live_ids:
-        # Solo decisiones registradas: los reintentos no puntúan (misma regla que el reporte).
-        decision_events = (
-            AttemptEvent.objects.filter(
-                attempt_id__in=live_ids,
-                event_type__in=case_effects.REGISTERED_DECISION_EVENT_TYPES,
-                decision_option__isnull=False,
-            )
-            .values(
-                "attempt_id",
-                "decision_option__classification",
-                "decision_option__prohibited_conduct",
-            )
-        )
-        for ev in decision_events:
-            bucket = counts[ev["attempt_id"]]
-            classification = ev["decision_option__classification"]
-            if classification in bucket:
-                bucket[classification] += 1
-            if ev["decision_option__prohibited_conduct"]:
-                bucket["PROHIBITED"] += 1
-
     return [
         {
             "attemptId": str(a.id),
             "caseVersionId": a.case_version_id,
             "caseTitle": a.case_version.simulation_case.title,
             "status": a.status,
-            "accumulatedScore": 0,  # TRANSITORIO: se retira en la Tarea 17
-            "adequateDecisions": counts[a.id]["ADEQUATE"],
-            "riskyDecisions": counts[a.id]["RISKY"],
-            "inadequateDecisions": counts[a.id]["INADEQUATE"],
-            "prohibitedDecisions": counts[a.id]["PROHIBITED"],
             "totalDurationSeconds": (
                 int((a.ended_at - a.started_at).total_seconds())
                 if a.started_at and a.ended_at else None

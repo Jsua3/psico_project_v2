@@ -347,11 +347,6 @@ def attempt_state(attempt, raw_token, persona, completion_report=None):
         "caseTitle": attempt.case_version.simulation_case.title,
         "status": attempt.status,
         "persona": persona,
-        # TRANSITORIO: se retira en la Tarea 17
-        "accumulatedScore": 0,
-        "stressIndex": 0,
-        "metrics": {},
-        "clinicalState": None,
         "currentNode": node_state(attempt.current_node, in_progress),
         "completionReport": completion_report,
         "supportResources": SAFE_EXIT_RESOURCES if attempt.status in _SUPPORT_STATUSES else [],

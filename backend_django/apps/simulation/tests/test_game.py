@@ -140,7 +140,6 @@ def test_full_playthrough_reaches_terminal_and_locks_reflection(estudiante, case
     data = start.data["data"]
     token, attempt_id = data["attemptToken"], data["attemptId"]
     assert data["status"] == "IN_PROGRESS"
-    assert data["metrics"] == {}  # TRANSITORIO: las cifras viejas ya no viajan (se retira en la Tarea 17)
 
     # Reflection at the start node -> encrypted at rest, unlocked while in progress.
     node_id = data["currentNode"]["id"]
@@ -407,6 +406,15 @@ def test_safe_exit_returns_resources(estudiante, case_version_id):
     assert len(resp.data["data"]["supportResources"]) == 3
 
 
+#: El historial dice qué intentos hubo y cuánto duraron; lo evaluativo está en el reporte, no aquí.
+HISTORY_KEYS = {
+    "attemptId", "caseVersionId", "caseTitle", "status", "totalDurationSeconds", "activeDurationSeconds",
+    "startedAt", "endedAt",
+}
+HISTORY_RETIRED_KEYS = {
+    "accumulatedScore", "adequateDecisions", "riskyDecisions", "inadequateDecisions", "prohibitedDecisions",
+}
+
 SUMMARY_KEYS = {
     "attemptId", "caseTitle", "status", "summaryMessage", "retries", "reflectionsCount", "safeExitUsed", "toolsUsed",
     "visitedNodeTitles", "activeSeconds", "clockSeconds", "totalDurationSeconds", "recommendations",
@@ -456,7 +464,7 @@ def test_attempt_history_lists_own_attempts(estudiante, case_version_id):
     mine = next((h for h in history if h["attemptId"] == attempt_id), None)
     assert mine is not None
     assert mine["caseVersionId"] == case_version_id
-    assert mine["adequateDecisions"] >= 1
+    assert not HISTORY_RETIRED_KEYS & set(mine)
     assert "startedAt" in mine
     # Intento en curso: el tiempo activo solo se informa al terminar.
     assert "activeDurationSeconds" in mine
@@ -730,7 +738,8 @@ def test_second_bad_answer_still_counts_as_registered_decision(estudiante, case_
     assert payload["counts"]["retries"] == 1
 
 
-def test_attempt_history_does_not_count_retries(estudiante, case_version_id):
+def test_attempt_history_item_carries_no_evaluation(estudiante, case_version_id):
+    """Ni un reintento ni una decisión dejan puntaje o conteos por clase en el historial (Tarea 17)."""
     assign_case_to_student(estudiante, case_version_id, "SIM-HISTRETRY")
     c = cl(estudiante)
     start = c.post("/api/simulation/attempts",
@@ -741,6 +750,4 @@ def test_attempt_history_does_not_count_retries(estudiante, case_version_id):
 
     history = c.get("/api/simulation/attempts/history").data["data"]
     mine = next(h for h in history if h["attemptId"] == attempt_id)
-    assert mine["prohibitedDecisions"] == 0
-    assert mine["inadequateDecisions"] == 0
-    assert mine["adequateDecisions"] == 0
+    assert set(mine) == HISTORY_KEYS

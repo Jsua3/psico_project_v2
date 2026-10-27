@@ -69,7 +69,7 @@ def test_un_intento_nuevo_arranca_sin_estres_y_con_confianza_y_riesgo_a_media_es
 
     row = SimulationAttempt.objects.get(pk=data["attemptId"])
     assert (row.stress_index, row.victim_risk, row.user_trust) == (0, 50, 50)
-    assert data["metrics"] == {}  # las columnas conservan sus valores, pero ya no viajan al estudiante
+    assert "metrics" not in data  # las columnas conservan sus valores, pero ya no viajan al estudiante
 
 
 def test_los_valores_por_defecto_del_modelo_son_los_iniciales_del_intento():

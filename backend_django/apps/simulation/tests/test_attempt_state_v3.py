@@ -2,7 +2,7 @@
 
 El estado que recibe el estudiante lleva a la persona consultante en palabras (``persona``) y la
 intensidad de la escena (``currentNode.intensity``); las cifras viejas (``accumulatedScore``,
-``stressIndex``, ``metrics``, ``clinicalState``) se sirven fijas hasta que la Tarea 17 las retire.
+``stressIndex``, ``metrics``, ``clinicalState``) ya no viajan (Tarea 17).
 
 Corre por HTTP contra el caso publicado por seed_caso_pdf (SIM-VBG-001): hospital-urgencias es la
 escena sensible (intensidad ``HIGH``); las demás son ``MEDIUM``.
@@ -25,6 +25,7 @@ from .test_caso_pdf import (  # noqa: F401  (fixtures y ayudas del recorrido can
 )
 
 #: Claves de la vieja forma numérica: ninguna cifra clínica llega al estudiante.
+RETIRED_STATE_KEYS = {"accumulatedScore", "stressIndex", "metrics", "clinicalState"}
 LIVE_NUMBER_KEYS = {"victimRisk", "userTrust", "sceneStress", "professionalScore", "revictimizationRisk"}
 
 
@@ -166,7 +167,7 @@ def test_una_intensidad_vacia_se_sirve_como_media(empty):
     assert node_state(node, include_options=False)["intensity"] == "MEDIUM"
 
 
-def test_las_claves_viejas_se_sirven_fijas_y_sin_cifras_clinicas(estudiante, case_version_id):
+def test_las_claves_viejas_ya_no_viajan_ni_las_cifras_clinicas(estudiante, case_version_id):
     c = cl(estudiante)
     attempt_id, token = _start(c, case_version_id)
     _world(c, attempt_id, token)
@@ -177,9 +178,6 @@ def test_las_claves_viejas_se_sirven_fijas_y_sin_cifras_clinicas(estudiante, cas
         _decide_payload(c, attempt_id, token, key, case_version_id)["attempt"],
         _state(c, attempt_id, token),
     ):
-        assert state["accumulatedScore"] == 0
-        assert state["stressIndex"] == 0
-        assert state["metrics"] == {}
-        assert state["clinicalState"] is None
+        assert not RETIRED_STATE_KEYS & set(state)
         assert not LIVE_NUMBER_KEYS & _keys(state)
         assert "finalScore" not in json.dumps(state) and "finalStress" not in json.dumps(state)

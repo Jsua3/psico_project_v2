@@ -187,25 +187,17 @@ export interface AssistantAnswer {
   readonly response: string;
 }
 
-/** El estado del intento (inicio, lectura, reanudación): la escena, la persona y, al completar, el informe congelado. Ninguna cifra llega al estudiante. Las cuatro claves marcadas TRANSITORIO (`accumulatedScore`, `stressIndex`, `metrics`, `clinicalState`) siguen en el sobre solo para no romper a los clientes antiguos y valen siempre 0, `{}` o nulo; la Tarea 17 las retira junto con su consumo en el frontend (R-4). El documento OpenAPI de esta versión no tiene forma de marcar una propiedad como `deprecated`: la marca va en la descripción. La respuesta lleva además `attemptToken` (la credencial del intento, que el cliente reenvía en la cabecera): este contrato NO la declara a propósito, porque el documento no publica ninguna propiedad con nombre de credencial (`test_openapi_schema_never_exposes_prohibited_fields`). Su prueba la admite como la única clave de más. */
+/** El estado del intento (inicio, lectura, reanudación): la escena, la persona y, al completar, el informe congelado. Ninguna cifra llega al estudiante: ni puntaje, ni estrés, ni métricas, ni estado clínico (`test_no_numbers_to_student`). La respuesta lleva además `attemptToken` (la credencial del intento, que el cliente reenvía en la cabecera): este contrato NO la declara a propósito, porque el documento no publica ninguna propiedad con nombre de credencial (`test_openapi_schema_never_exposes_prohibited_fields`). Su prueba la admite como la única clave de más. */
 export interface AttemptState {
-  /** TRANSITORIO: se retira en la Tarea 17. Siempre 0. */
-  readonly accumulatedScore: number;
   /** UUID del intento. */
   readonly attemptId: string;
   readonly caseTitle: string;
   readonly caseVersionId: number;
-  /** TRANSITORIO: se retira en la Tarea 17. Siempre nulo. */
-  readonly clinicalState: Readonly<Record<string, unknown>> | null;
   /** El informe congelado (schemaVersion 3) de un intento completado; nulo mientras no lo está. Su forma (hitos, persona, final con su razón, revisión de decisiones, niveles con su evidencia) la fija `attempt_report`; tiparla campo a campo queda fuera de este contrato. */
   readonly completionReport: Readonly<Record<string, unknown>> | null;
   readonly currentNode: CurrentNode;
-  /** TRANSITORIO: se retira en la Tarea 17. Siempre vacío. */
-  readonly metrics: Readonly<Record<string, unknown>>;
   readonly persona: PersonaState;
   readonly status: AttemptStatusEnum;
-  /** TRANSITORIO: se retira en la Tarea 17. Siempre 0. */
-  readonly stressIndex: number;
   /** Recursos de apoyo: solo si el intento está en pausa o salió de forma segura. */
   readonly supportResources: ReadonlyArray<string>;
 }

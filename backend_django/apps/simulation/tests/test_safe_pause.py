@@ -146,7 +146,7 @@ def test_resume_conserva_estado_y_audita(estudiante, case_version_id):
     assert data["attemptId"] == start["attemptId"], "reanuda el MISMO intento"
     assert data["status"] == "IN_PROGRESS"
     assert data["currentNode"]["key"] == start["currentNode"]["key"]
-    assert data["accumulatedScore"] == start["accumulatedScore"]
+    assert data["persona"] == start["persona"]
 
     assert AttemptEvent.objects.filter(
         attempt_id=start["attemptId"], event_type="ATTEMPT_RESUMED"

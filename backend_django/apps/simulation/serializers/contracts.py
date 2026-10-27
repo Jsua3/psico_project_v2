@@ -355,9 +355,6 @@ class CaseConflictEnvelopeSerializer(ErrorEnvelopeSerializer):
 
 
 # ─── GET /api/simulation/attempts/{attempt_id} ────────────────────────────────
-TRANSITORIO = "TRANSITORIO: se retira en la Tarea 17"
-
-
 class DecisionOptionStateSerializer(serializers.Serializer):
     """Una opción de decisión tal como la ve quien juega: solo su id y su texto (ni clase ni efectos, antes de decidir)."""
 
@@ -397,10 +394,7 @@ class CurrentNodeSerializer(serializers.Serializer):
 class AttemptStateSerializer(serializers.Serializer):
     """El estado del intento (inicio, lectura, reanudación): la escena, la persona y, al completar, el informe congelado.
 
-    Ninguna cifra llega al estudiante. Las cuatro claves marcadas TRANSITORIO (`accumulatedScore`, `stressIndex`,
-    `metrics`, `clinicalState`) siguen en el sobre solo para no romper a los clientes antiguos y valen siempre 0, `{}` o
-    nulo; la Tarea 17 las retira junto con su consumo en el frontend (R-4). El documento OpenAPI de esta versión no
-    tiene forma de marcar una propiedad como `deprecated`: la marca va en la descripción.
+    Ninguna cifra llega al estudiante: ni puntaje, ni estrés, ni métricas, ni estado clínico (`test_no_numbers_to_student`).
 
     La respuesta lleva además `attemptToken` (la credencial del intento, que el cliente reenvía en la cabecera): este
     contrato NO la declara a propósito, porque el documento no publica ninguna propiedad con nombre de credencial
@@ -412,10 +406,6 @@ class AttemptStateSerializer(serializers.Serializer):
     caseTitle = serializers.CharField()
     status = serializers.ChoiceField(choices=AttemptStatus.choices)
     persona = PersonaStateSerializer()
-    accumulatedScore = serializers.IntegerField(help_text=f"{TRANSITORIO}. Siempre 0.")
-    stressIndex = serializers.IntegerField(help_text=f"{TRANSITORIO}. Siempre 0.")
-    metrics = serializers.DictField(help_text=f"{TRANSITORIO}. Siempre vacío.")
-    clinicalState = serializers.DictField(allow_null=True, help_text=f"{TRANSITORIO}. Siempre nulo.")
     currentNode = CurrentNodeSerializer()
     completionReport = serializers.DictField(
         allow_null=True,

@@ -241,19 +241,19 @@ def test_un_reporte_v2_congelado_se_lee_tal_cual_por_las_tres_rutas(completed):
     assert "milestones" not in reports["report"] and "persona" not in reports["report"]
 
 
-def test_el_historial_lee_los_conteos_de_un_reporte_v2_congelado(completed, case_version_id):
+def test_el_historial_no_expone_los_conteos_de_un_reporte_v2_congelado(completed):
     client, attempt_id, _ = completed
     _congelar_v2(attempt_id)
-    DecisionOption.objects.filter(case_version_id=case_version_id).update(classification="INADEQUATE")
 
     history = {h["attemptId"]: h for h in client.get(f"{BASE}/attempts/history").data["data"]}
 
+    # El reporte v2 conserva sus cifras al servirse como reporte; la lista del historial ya no las repite.
     entry = history[attempt_id]
-    assert entry["adequateDecisions"] == 4
-    assert entry["inadequateDecisions"] == 2
+    assert not {"accumulatedScore", "adequateDecisions", "riskyDecisions", "inadequateDecisions",
+                "prohibitedDecisions"} & set(entry)
 
 
-def test_el_historial_no_se_rompe_con_un_reporte_v3_que_ya_no_trae_conteos_por_clasificacion(completed):
+def test_el_historial_sigue_respondiendo_con_un_reporte_v3_que_ya_no_trae_conteos_por_clasificacion(completed):
     client, attempt_id, _ = completed
     frozen = json.loads(AttemptReport.objects.get(attempt_id=attempt_id).report_json)
     assert frozen["schemaVersion"] == 3 and "adequateDecisions" not in frozen

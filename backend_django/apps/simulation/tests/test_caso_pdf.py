@@ -489,5 +489,6 @@ def test_cambiar_sala_no_puntua_ni_avanza(estudiante, case_version_id):
         f"/api/simulation/attempts/{attempt_id}",
         HTTP_X_SIEP_ATTEMPT_TOKEN=token,
     ).data["data"]
-    assert state["accumulatedScore"] == 0
     assert state["currentNode"]["key"] == "hospital-urgencias"  # el DAG no avanzó
+    assert _milestones(attempt_id) == frozenset()  # no cumple hitos
+    assert _persona(attempt_id) == (Bond.GUARDED, Activation.TENSE)  # ni mueve a la persona
