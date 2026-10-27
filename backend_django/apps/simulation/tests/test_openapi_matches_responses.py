@@ -69,6 +69,7 @@ def assert_matches(data, schema, document, **options):
     SEEN.update(exercised_properties(data, schema, document))
 ROUTE_FAMILIES = ("/api/admin/cases", "/api/authoring/cases")  # la misma vista con dos prefijos
 WORLD_STATE = "/api/simulation/attempts/{attempt_id}/world-state"
+ATTEMPT = "/api/simulation/attempts/{attempt_id}"
 HINTS = "/api/simulation/attempts/{attempt_id}/hints"
 FEEDBACK = "/api/simulation/attempts/{attempt_id}/feedback"
 ANALYTICS = "/api/reportes/analiticas"
@@ -262,6 +263,11 @@ def _brief(world):
     return cl(world.student).get(f"/api/simulation/cases/{world.version_id}/brief")
 
 
+@calls(ATTEMPT, "GET")
+def _attempt_state(world):
+    return cl(world.student).get(f"/api/simulation/attempts/{world.attempt_id}", **{ATTEMPT_HEADER: world.token})
+
+
 @calls(HINTS, "GET")
 def _hints(world):
     return cl(world.student).get(f"/api/simulation/attempts/{world.attempt_id}/hints", **{ATTEMPT_HEADER: world.token})
@@ -404,6 +410,11 @@ for _prefix in ROUTE_FAMILIES:
     _register_case_routes(_prefix)
 
 
+#: Claves que la respuesta real trae y el documento NO publica a propósito (una credencial no se declara en el esquema:
+#: ``test_openapi_schema_never_exposes_prohibited_fields``). La prueba las exige presentes y las quita antes de comparar.
+UNDECLARED_ON_PURPOSE: dict[tuple[str, str], set[str]] = {(ATTEMPT, "GET"): {"attemptToken"}}
+
+
 @pytest.mark.parametrize(("path", "method"), sorted(CALLS))
 def test_la_respuesta_real_coincide_con_el_esquema_del_documento(path, method, document, world):
     call, status = CALLS[(path, method)]
@@ -414,6 +425,8 @@ def test_la_respuesta_real_coincide_con_el_esquema_del_documento(path, method, d
     CASES_RUN.add((path, method))
     body = response.json()
     assert body["success"] is True and set(body) <= {"success", "message", "data"}  # el sobre real
+    for clave in UNDECLARED_ON_PURPOSE.get((path, method), ()):
+        assert body["data"].pop(clave)
     assert_matches(body, response_schema(document, path, method, str(status)), document)
 
 
@@ -465,6 +478,40 @@ def test_aceptar_el_aviso_otra_vez_documenta_su_200_y_coincide(document, world):
     declared = document["paths"][CONSENT]["post"]["responses"]
     assert {"200", "201"} <= set(declared)
     assert_matches(response.json(), response_schema(document, CONSENT, "POST", "200"), document)
+
+
+def _afirmar_estado_del_intento(body, document):
+    """Coincide con el documento; la única clave de más es ``attemptToken``, la credencial que el documento no publica."""
+    assert body["data"]["attemptToken"]
+    sin_credencial = copy.deepcopy(body)
+    del sin_credencial["data"]["attemptToken"]
+    assert_matches(sin_credencial, response_schema(document, ATTEMPT, "GET"), document)
+
+
+def test_el_estado_del_intento_trae_la_persona_y_la_intensidad_y_coincide_con_el_documento(document, world):
+    body = _attempt_state(world).json()
+
+    assert set(body["data"]["persona"]) == {"bond", "activation", "label"}
+    assert body["data"]["currentNode"]["intensity"] in {"LOW", "MEDIUM", "HIGH"}
+    assert body["data"]["completionReport"] is None
+    _afirmar_estado_del_intento(body, document)
+
+
+def test_el_estado_de_un_intento_completado_trae_el_informe_congelado_y_coincide_con_el_documento(document, world):
+    from apps.simulation.services import attempt_report
+
+    completo = SimulationAttempt.objects.get(student=world.student, status="COMPLETED")
+    # Sin token en claro: el estado se pide con el del intento abierto, así que se completa ese mismo.
+    abierto = SimulationAttempt.objects.get(pk=world.attempt_id)
+    abierto.status = "COMPLETED"
+    abierto.save(update_fields=["status"])
+    attempt_report.freeze_report(abierto)
+
+    body = _attempt_state(world).json()
+
+    assert completo.pk != abierto.pk
+    assert body["data"]["completionReport"]["schemaVersion"] == 3
+    _afirmar_estado_del_intento(body, document)
 
 
 def test_las_pistas_traen_la_pedida_y_las_que_quedan(world):
@@ -891,6 +938,16 @@ ERRORS = [
     ("ficha de un caso no asignado", BRIEF, "GET",
      lambda w: cl(w.outsider).get(f"/api/simulation/cases/{w.version_id}/brief"), 403, "ACCESS_NOT_ASSIGNED"),
     ("ficha de un caso inexistente", BRIEF, "GET", lambda w: cl(w.student).get("/api/simulation/cases/999999/brief"),
+     404, "NOT_FOUND"),
+    ("estado del intento sin sesión", ATTEMPT, "GET",
+     lambda w: APIClient().get(f"/api/simulation/attempts/{w.attempt_id}"), 401, "UNAUTHENTICATED"),
+    ("estado del intento sin permiso", ATTEMPT, "GET",
+     lambda w: cl(w.profesor).get(f"/api/simulation/attempts/{w.attempt_id}", **{ATTEMPT_HEADER: w.token}),
+     403, "FORBIDDEN"),
+    ("estado del intento sin el token", ATTEMPT, "GET",
+     lambda w: cl(w.student).get(f"/api/simulation/attempts/{w.attempt_id}"), 400, "VALIDATION_ERROR"),
+    ("estado de un intento inexistente", ATTEMPT, "GET",
+     lambda w: cl(w.student).get(f"/api/simulation/attempts/{uuid.uuid4()}", **{ATTEMPT_HEADER: w.token}),
      404, "NOT_FOUND"),
     ("pistas sin sesión", HINTS, "GET",
      lambda w: APIClient().get(f"/api/simulation/attempts/{w.attempt_id}/hints"), 401, "UNAUTHENTICATED"),

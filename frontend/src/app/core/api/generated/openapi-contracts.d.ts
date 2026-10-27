@@ -14,6 +14,8 @@ export interface AccessDecision {
 
 export type AccessReasonEnum = 'NOT_ASSIGNED' | 'NOT_YET_OPEN' | 'CLOSED' | 'LOCKED_BY_SEQUENCE';
 
+export type ActivationEnum = 'CALM' | 'TENSE' | 'CRISIS';
+
 /** RQ-NEG-002 · estudiantes con algún intento cuyas competencias con nivel están todas en el nivel aceptable o más. */
 export interface AnalyticsAcceptable {
   readonly achieved: number;
@@ -185,6 +187,37 @@ export interface AssistantAnswer {
   readonly response: string;
 }
 
+/** El estado del intento (inicio, lectura, reanudación): la escena, la persona y, al completar, el informe congelado. Ninguna cifra llega al estudiante. Las cuatro claves marcadas TRANSITORIO (`accumulatedScore`, `stressIndex`, `metrics`, `clinicalState`) siguen en el sobre solo para no romper a los clientes antiguos y valen siempre 0, `{}` o nulo; la Tarea 17 las retira junto con su consumo en el frontend (R-4). El documento OpenAPI de esta versión no tiene forma de marcar una propiedad como `deprecated`: la marca va en la descripción. La respuesta lleva además `attemptToken` (la credencial del intento, que el cliente reenvía en la cabecera): este contrato NO la declara a propósito, porque el documento no publica ninguna propiedad con nombre de credencial (`test_openapi_schema_never_exposes_prohibited_fields`). Su prueba la admite como la única clave de más. */
+export interface AttemptState {
+  /** TRANSITORIO: se retira en la Tarea 17. Siempre 0. */
+  readonly accumulatedScore: number;
+  /** UUID del intento. */
+  readonly attemptId: string;
+  readonly caseTitle: string;
+  readonly caseVersionId: number;
+  /** TRANSITORIO: se retira en la Tarea 17. Siempre nulo. */
+  readonly clinicalState: Readonly<Record<string, unknown>> | null;
+  /** El informe congelado (schemaVersion 3) de un intento completado; nulo mientras no lo está. Su forma (hitos, persona, final con su razón, revisión de decisiones, niveles con su evidencia) la fija `attempt_report`; tiparla campo a campo queda fuera de este contrato. */
+  readonly completionReport: Readonly<Record<string, unknown>> | null;
+  readonly currentNode: CurrentNode;
+  /** TRANSITORIO: se retira en la Tarea 17. Siempre vacío. */
+  readonly metrics: Readonly<Record<string, unknown>>;
+  readonly persona: PersonaState;
+  readonly status: AttemptStatusEnum;
+  /** TRANSITORIO: se retira en la Tarea 17. Siempre 0. */
+  readonly stressIndex: number;
+  /** Recursos de apoyo: solo si el intento está en pausa o salió de forma segura. */
+  readonly supportResources: ReadonlyArray<string>;
+}
+
+/** Sobre de éxito: `data` es `AttemptState`. */
+export interface AttemptStateEnvelope {
+  readonly data: AttemptState;
+  readonly message?: string;
+  /** Siempre `true` en una respuesta de éxito. */
+  readonly success: boolean;
+}
+
 export type AttemptStatusEnum = 'IN_PROGRESS' | 'PAUSED' | 'SAFE_EXITED' | 'COMPLETED' | 'REPLACED';
 
 /** Página de auditoría, de la más reciente a la más antigua, con el resumen de calidad de las revisiones. */
@@ -228,6 +261,8 @@ export interface AuditLogItem {
 }
 
 export type BackingEnum = 'system' | 'constancia' | 'author';
+
+export type BondEnum = 'WITHDRAWN' | 'GUARDED' | 'OPEN';
 
 /** Un personaje que Psicología marcó para la ficha del caso. */
 export interface BriefCharacter {
@@ -497,6 +532,31 @@ export interface ContentReview {
   readonly reviewer: string;
 }
 
+/** La escena actual del intento. ``options`` va vacía si el intento no está en juego o la escena es terminal. */
+export interface CurrentNode {
+  readonly decisionPrompt: string;
+  readonly displayOrder: number;
+  readonly id: number;
+  /** Cuánta carga emocional trae la escena. */
+  readonly intensity: IntensityEnum;
+  readonly key: string;
+  readonly narrative: string;
+  readonly options: ReadonlyArray<DecisionOptionState>;
+  readonly requiredTools: ReadonlyArray<string>;
+  readonly safeExitRequired: boolean;
+  readonly sensitiveContent: boolean;
+  readonly supportResources: ReadonlyArray<string>;
+  readonly terminal: boolean;
+  readonly title: string;
+  readonly warningMessage: string | null;
+}
+
+/** Una opción de decisión tal como la ve quien juega: solo su id y su texto (ni clase ni efectos, antes de decidir). */
+export interface DecisionOptionState {
+  readonly id: number;
+  readonly text: string;
+}
+
 /** Sobre de error de la API: `{success: false, code, message, field?}` (`shared.exceptions`). `code` es estable: el cliente decide por él, nunca por el texto. Algunos errores de dominio suman campos propios en la raíz (`existingAttemptId`, `nodeId`…). */
 export interface ErrorEnvelope {
   readonly code: string;
@@ -589,6 +649,8 @@ export interface InstructorAttemptsListEnvelope {
   readonly success: boolean;
 }
 
+export type IntensityEnum = 'LOW' | 'MEDIUM' | 'HIGH';
+
 /** La membresía del estudiante en un grupo: pendiente de respuesta, aceptada o rechazada. El listado no trae las retiradas (`REMOVED`), pero la respuesta de `leave` (y la de aceptar o rechazar) sí devuelve la membresía tal como quedó, también con ese estado. */
 export interface Invitation {
   readonly groupId: number;
@@ -670,6 +732,14 @@ export type MembershipStatusEnum = 'INVITED' | 'ACTIVE' | 'DECLINED' | 'REMOVED'
 export interface PageCoverage {
   readonly shown: number;
   readonly total: number;
+}
+
+/** La persona consultante en palabras: su vínculo y su activación en la ficción, sin cifras. */
+export interface PersonaState {
+  readonly activation: ActivationEnum;
+  readonly bond: BondEnum;
+  /** La frase para el estudiante: «se muestra cautelosa y tensa». */
+  readonly label: string;
 }
 
 /** Posición del jugador en el mapa, en píxeles. */

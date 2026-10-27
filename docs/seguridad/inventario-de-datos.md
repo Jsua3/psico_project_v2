@@ -48,8 +48,8 @@ Tablas: 42. Columnas: 369.
 | `event_type` | SENSITIVE | api | qué hizo el estudiante: decisión, herramienta, bitácora o salida |
 | `node_id` | TECHNICAL | — |  |
 | `decision_option_id` | SENSITIVE | api, reporte | opción de decisión que eligió el estudiante |
-| `score_delta` | SENSITIVE | api | efecto de la acción sobre el puntaje |
-| `stress_delta` | SENSITIVE | api | efecto de la acción sobre el estrés |
+| `score_delta` | SENSITIVE | ninguna (uso interno) | efecto de la acción sobre el puntaje; retirado por el modelo de métricas; columna hasta la Tarea 16 |
+| `stress_delta` | SENSITIVE | ninguna (uso interno) | efecto de la acción sobre el estrés; retirado por el modelo de métricas; columna hasta la Tarea 16 |
 | `detail` | SENSITIVE | api | detalle de la acción que muestra la línea de tiempo (herramienta o etiqueta); en una salida segura puede llevar el motivo escrito por la persona (texto libre, recortado a 500 caracteres) |
 | `occurred_at` | SENSITIVE | api | cuándo actuó el estudiante (línea de tiempo) |
 | `request_id` | TECHNICAL | — |  |
@@ -96,7 +96,7 @@ Nunca sale por: `comment`: csv, reporte, correo, registro.
 |---|---|---|---|
 | `id` | TECHNICAL | — |  |
 | `attempt_id` | SENSITIVE | api, reporte | intento al que pertenece el informe |
-| `report_json` | SENSITIVE | api, reporte | informe congelado del intento: decisiones, retroalimentación y tiempos; su línea de tiempo copia el motivo escrito de una salida segura (texto libre de la persona) |
+| `report_json` | SENSITIVE | api, reporte | informe congelado del intento (v3): decisiones y su clase, hitos cumplidos y faltantes, estado de la persona usuaria, motivo del final, evidencia por nivel de competencia y tiempos; su línea de tiempo copia el motivo escrito de una salida segura (texto libre de la persona) |
 | `report_schema_version` | TECHNICAL | — |  |
 | `definition_hash` | TECHNICAL | — |  |
 | `attempt_ordinal` | SENSITIVE | reporte | número de intento del estudiante en ese caso |
@@ -119,7 +119,7 @@ Nunca sale por: `comment`: csv, reporte, correo, registro.
 | `inspected_object_keys_json` | SENSITIVE | api | objetos que el estudiante revisó |
 | `viewed_dialogue_keys_json` | SENSITIVE | api | diálogos que el estudiante vio |
 | `used_tool_keys_json` | SENSITIVE | api | herramientas que el estudiante usó |
-| `flags_json` | SENSITIVE | api | banderas del caso que el estudiante ha activado |
+| `flags_json` | SENSITIVE | api, reporte | banderas del caso que el estudiante ha activado, los hitos que ha cumplido y el estado de la persona usuaria en la ficción (vínculo y activación) según sus decisiones |
 | `updated_at` | TECHNICAL | — |  |
 
 
@@ -365,7 +365,7 @@ Todas las columnas heredan `PUBLIC`: la tabla no tiene datos personales ni sensi
 | `id` | TECHNICAL | — |  |
 | `rubric_evaluation_id` | TECHNICAL | — |  |
 | `rubric_criterion_id` | TECHNICAL | — |  |
-| `score` | SENSITIVE | api | puntaje de un criterio sobre el desempeño del estudiante |
+| `score` | SENSITIVE | ninguna (uso interno) | puntaje de un criterio sobre el desempeño del estudiante; interno: el DTO sirve solo el nivel |
 | `level` | SENSITIVE | api | nivel alcanzado en un criterio |
 | `comment` | SENSITIVE | api | comentario del docente sobre el criterio |
 | `evidence_json` | SENSITIVE | ninguna (uso interno) | evidencia de la evaluación; el servicio la escribe vacía y no sale |
@@ -640,7 +640,7 @@ Todas las columnas heredan `PUBLIC`: la tabla no tiene datos personales ni sensi
 | `attempt_id` | SENSITIVE | api | intento evaluado: enlaza la evaluación con lo que hizo el estudiante |
 | `rubric_id` | TECHNICAL | — |  |
 | `instructor_id` | PERSONAL | ninguna (uso interno) | docente que evaluó |
-| `total_score` | SENSITIVE | api | puntaje total de la evaluación docente sobre el estudiante |
+| `total_score` | SENSITIVE | ninguna (uso interno) | puntaje total de la evaluación docente sobre el estudiante; interno: el DTO sirve solo el nivel |
 | `comment` | SENSITIVE | api | comentario del docente sobre el desempeño del estudiante |
 | `status` | TECHNICAL | — |  |
 | `snapshot_json` | PUBLIC | — |  |
@@ -723,11 +723,11 @@ Todas las columnas heredan `PUBLIC`: la tabla no tiene datos personales ni sensi
 | `student_id` | PERSONAL | ninguna (uso interno) | estudiante dueño del intento; sale solo como alias (Estudiante-<hash>) |
 | `current_node_id` | SENSITIVE | api | escena en la que está el estudiante |
 | `status` | SENSITIVE | api, reporte | estado del intento en el caso (en curso, pausado, terminado) |
-| `accumulated_score` | SENSITIVE | api, csv, reporte | puntaje acumulado de las decisiones del estudiante |
-| `stress_index` | SENSITIVE | api | índice de estrés que producen sus decisiones |
-| `victim_risk` | SENSITIVE | api | riesgo de la víctima simulada según las decisiones del estudiante |
-| `user_trust` | SENSITIVE | api | confianza del personaje afectado en el estudiante, según sus decisiones |
-| `institutional_route_activated` | SENSITIVE | api | si el intento activó la ruta institucional |
+| `accumulated_score` | SENSITIVE | ninguna (uso interno) | puntaje acumulado de las decisiones del estudiante; retirado por el modelo de métricas; columna hasta la Tarea 16 |
+| `stress_index` | SENSITIVE | ninguna (uso interno) | índice de estrés que producen sus decisiones; retirado por el modelo de métricas; columna hasta la Tarea 16 |
+| `victim_risk` | SENSITIVE | ninguna (uso interno) | riesgo de la víctima simulada según las decisiones del estudiante; retirado por el modelo de métricas; columna hasta la Tarea 16 |
+| `user_trust` | SENSITIVE | ninguna (uso interno) | confianza del personaje afectado en el estudiante, según sus decisiones; retirado por el modelo de métricas; columna hasta la Tarea 16 |
+| `institutional_route_activated` | SENSITIVE | ninguna (uso interno) | si el intento activó la ruta institucional; retirado por el modelo de métricas; columna hasta la Tarea 16 |
 | `revictimization_risk` | SENSITIVE | api | riesgo de revictimización que producen las decisiones |
 | `started_at` | SENSITIVE | api | cuándo empezó el intento (conducta del estudiante) |
 | `ended_at` | SENSITIVE | api | cuándo terminó el intento (conducta del estudiante) |

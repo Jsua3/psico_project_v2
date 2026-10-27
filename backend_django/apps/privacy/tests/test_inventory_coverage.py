@@ -364,3 +364,55 @@ def test_control_negativo_salida_prohibida(monkeypatch):
 def test_control_negativo_serializador_con_el_hash(monkeypatch):
     monkeypatch.setattr(UserSummarySerializer.Meta, "fields", [*UserSummarySerializer.Meta.fields, "password_hash"])
     assert "UserSummarySerializer" in _serializadores_con_hash()
+
+
+# ── Modelo de métricas (Tarea 15) ────────────────────────────────────────────────────────────────────────────
+
+#: Columnas que el modelo de métricas retiró: siguen en la tabla hasta la Tarea 16 y no salen por ningún canal.
+COLUMNAS_RETIRADAS = (
+    ("simulation_attempts_v2", "accumulated_score"),
+    ("simulation_attempts_v2", "stress_index"),
+    ("simulation_attempts_v2", "victim_risk"),
+    ("simulation_attempts_v2", "user_trust"),
+    ("simulation_attempts_v2", "institutional_route_activated"),
+    ("attempt_events", "score_delta"),
+    ("attempt_events", "stress_delta"),
+    ("decision_options", "score_delta"),
+    ("decision_options", "stress_delta"),
+    ("decision_options", "prohibited_penalty"),
+    ("rubric_evaluations", "total_score"),
+    ("criterion_scores", "score"),
+)
+
+
+def test_la_clase_de_respuesta_y_la_intensidad_son_contenido_del_caso():
+    assert classify("decision_options", "response_class") is PUBLIC
+    assert classify("simulation_nodes", "intensity") is PUBLIC
+
+
+def test_el_estado_de_la_persona_y_los_hitos_son_sensibles_y_salen_por_la_api_y_el_reporte():
+    assert classify("attempt_world_states", "flags_json") is SENSITIVE
+    motivo = inventory.motivo("attempt_world_states", "flags_json")
+    assert "hitos" in motivo and "persona" in motivo
+    assert salidas("attempt_world_states", "flags_json") == ["api", "reporte"]
+    motivo_del_informe = inventory.motivo("attempt_reports", "report_json")
+    assert all(palabra in motivo_del_informe for palabra in ("hitos", "persona", "motivo del final"))
+
+
+@pytest.mark.parametrize(("tabla", "columna"), COLUMNAS_RETIRADAS)
+def test_las_columnas_retiradas_no_declaran_ninguna_salida(tabla, columna):
+    assert salidas(tabla, columna) == []
+    assert tabla in inventory.DATA_INVENTORY and columna in inventory.DATA_INVENTORY[tabla]["exits"]
+
+
+@pytest.mark.parametrize(
+    ("tabla", "columna"), [par for par in COLUMNAS_RETIRADAS if par[0] in {"simulation_attempts_v2", "attempt_events"}],
+)
+def test_las_columnas_retiradas_conservan_su_clase_y_dicen_por_que_no_salen(tabla, columna):
+    assert classify(tabla, columna) is SENSITIVE
+    assert "retirado por el modelo de métricas; columna hasta la Tarea 16" in inventory.motivo(tabla, columna)
+
+
+@pytest.mark.parametrize(("tabla", "columna"), [("rubric_evaluations", "total_score"), ("criterion_scores", "score")])
+def test_el_puntaje_de_la_evaluacion_docente_es_interno(tabla, columna):
+    assert "interno: el DTO sirve solo el nivel" in inventory.motivo(tabla, columna)

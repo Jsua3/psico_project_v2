@@ -10,6 +10,7 @@ Los nombres de los campos son los del servicio (camelCase), no los de las column
 from rest_framework import serializers
 
 from apps.grupos.contracts import AccessDecisionSerializer
+from apps.simulation.casedef.vocabulary import Activation, Bond, Intensity
 from apps.simulation.models import AttemptStatus, CaseVersionStatus
 from apps.simulation.models.case import ReviewDecision, ReviewReason
 from shared.openapi import ErrorEnvelopeSerializer
@@ -351,3 +352,79 @@ class CaseConflictEnvelopeSerializer(ErrorEnvelopeSerializer):
     blockers = CaseBlockerSerializer(many=True, required=False)
     revision = serializers.IntegerField(required=False, help_text="La revisión vigente del caso.")
     current = serializers.DictField(required=False, help_text="El editor del caso con los cambios de la otra sesión.")
+
+
+# ─── GET /api/simulation/attempts/{attempt_id} ────────────────────────────────
+TRANSITORIO = "TRANSITORIO: se retira en la Tarea 17"
+
+
+class DecisionOptionStateSerializer(serializers.Serializer):
+    """Una opción de decisión tal como la ve quien juega: solo su id y su texto (ni clase ni efectos, antes de decidir)."""
+
+    id = serializers.IntegerField()
+    text = serializers.CharField()
+
+
+class PersonaStateSerializer(serializers.Serializer):
+    """La persona consultante en palabras: su vínculo y su activación en la ficción, sin cifras."""
+
+    bond = serializers.ChoiceField(choices=[valor.value for valor in Bond])
+    activation = serializers.ChoiceField(choices=[valor.value for valor in Activation])
+    label = serializers.CharField(help_text="La frase para el estudiante: «se muestra cautelosa y tensa».")
+
+
+class CurrentNodeSerializer(serializers.Serializer):
+    """La escena actual del intento. ``options`` va vacía si el intento no está en juego o la escena es terminal."""
+
+    id = serializers.IntegerField()
+    key = serializers.CharField()
+    title = serializers.CharField()
+    narrative = serializers.CharField()
+    supportResources = serializers.ListField(child=serializers.CharField())
+    requiredTools = serializers.ListField(child=serializers.CharField())
+    sensitiveContent = serializers.BooleanField()
+    safeExitRequired = serializers.BooleanField()
+    warningMessage = serializers.CharField(allow_null=True)
+    intensity = serializers.ChoiceField(
+        choices=[valor.value for valor in Intensity], help_text="Cuánta carga emocional trae la escena."
+    )
+    terminal = serializers.BooleanField()
+    decisionPrompt = serializers.CharField()
+    displayOrder = serializers.IntegerField()
+    options = DecisionOptionStateSerializer(many=True)
+
+
+class AttemptStateSerializer(serializers.Serializer):
+    """El estado del intento (inicio, lectura, reanudación): la escena, la persona y, al completar, el informe congelado.
+
+    Ninguna cifra llega al estudiante. Las cuatro claves marcadas TRANSITORIO (`accumulatedScore`, `stressIndex`,
+    `metrics`, `clinicalState`) siguen en el sobre solo para no romper a los clientes antiguos y valen siempre 0, `{}` o
+    nulo; la Tarea 17 las retira junto con su consumo en el frontend (R-4). El documento OpenAPI de esta versión no
+    tiene forma de marcar una propiedad como `deprecated`: la marca va en la descripción.
+
+    La respuesta lleva además `attemptToken` (la credencial del intento, que el cliente reenvía en la cabecera): este
+    contrato NO la declara a propósito, porque el documento no publica ninguna propiedad con nombre de credencial
+    (`test_openapi_schema_never_exposes_prohibited_fields`). Su prueba la admite como la única clave de más.
+    """
+
+    attemptId = serializers.CharField(help_text="UUID del intento.")
+    caseVersionId = serializers.IntegerField()
+    caseTitle = serializers.CharField()
+    status = serializers.ChoiceField(choices=AttemptStatus.choices)
+    persona = PersonaStateSerializer()
+    accumulatedScore = serializers.IntegerField(help_text=f"{TRANSITORIO}. Siempre 0.")
+    stressIndex = serializers.IntegerField(help_text=f"{TRANSITORIO}. Siempre 0.")
+    metrics = serializers.DictField(help_text=f"{TRANSITORIO}. Siempre vacío.")
+    clinicalState = serializers.DictField(allow_null=True, help_text=f"{TRANSITORIO}. Siempre nulo.")
+    currentNode = CurrentNodeSerializer()
+    completionReport = serializers.DictField(
+        allow_null=True,
+        help_text=(
+            "El informe congelado (schemaVersion 3) de un intento completado; nulo mientras no lo está. Su forma "
+            "(hitos, persona, final con su razón, revisión de decisiones, niveles con su evidencia) la fija "
+            "`attempt_report`; tiparla campo a campo queda fuera de este contrato."
+        ),
+    )
+    supportResources = serializers.ListField(
+        child=serializers.CharField(), help_text="Recursos de apoyo: solo si el intento está en pausa o salió de forma segura."
+    )
