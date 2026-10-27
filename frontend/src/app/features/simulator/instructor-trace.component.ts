@@ -53,6 +53,7 @@ const TRACE_COPY = {
   levelHint: 'Elige el nivel que mejor describe la evidencia de este criterio.',
   levelRequired: 'Elige un nivel para este criterio.',
   levelsMissing: 'Elige un nivel en cada criterio para guardar la valoración.',
+  levelOrComment: 'Elige un nivel o escribe una retroalimentación para guardar.',
   noTeacherLevel: 'Sin criterio equivalente',
   systemFolded: 'La valoración del sistema se mostrará cuando registres tu propia valoración.',
   classPanels: {
@@ -486,6 +487,13 @@ export class InstructorTraceComponent implements OnInit {
       level: this.rubricLevelsByCriterion[criterion.id] as FormativeLevel,
       comment: this.clean(this.rubricComments[criterion.id], ''),
     }));
+
+    // Una rúbrica sin criterios no tiene niveles que enviar: sin ellos hace falta al menos la retroalimentación.
+    if (!scores.length && !this.clean(this.rubricComment, '')) {
+      this.rubricMessage.set(this.copy.levelOrComment);
+      this.rubricMessageIsError.set(true);
+      return;
+    }
 
     this.savingRubric.set(true);
     this.rubricMessage.set('');

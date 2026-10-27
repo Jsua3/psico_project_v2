@@ -23,6 +23,7 @@ from apps.simulation.models import (
 )
 
 from . import competencies
+from ..assessment import competencies as assessment_competencies
 from .audit_service import arg, auditable
 from .authoring.guards import ensure_draft
 
@@ -574,7 +575,9 @@ def attempt_rubric_view(attempt_id, instructor=None):
             s.rubric_criterion_id: s
             for s in CriterionScore.objects.filter(rubric_evaluation=evaluation)
         }
-    criteria = list(_criteria_qs(rubric))
+    criteria = list(_criteria_qs(rubric).select_related("competency_ref"))
+    # El mismo código que `competencyLevels[].code` de la valoración del sistema: así se emparejan lado a lado.
+    competency_codes = {c.id: assessment_competencies.competency_code_of(c) for c in criteria}
     items = []
     for c in criteria:
         score = scores.get(c.id)
@@ -603,7 +606,7 @@ def attempt_rubric_view(attempt_id, instructor=None):
         "criteria": [
             {
                 "id": item["criterionId"],
-                "competency": "",
+                "competency": competency_codes[item["criterionId"]],
                 "title": item["title"],
                 "description": item["description"],
                 "weight": item["weight"],

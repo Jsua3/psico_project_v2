@@ -1036,6 +1036,25 @@ describe('editor de casos (F8-1)', () => {
         expect(body).not.toHaveProperty('effects');
       });
 
+      it('la casilla «Conducta contraindicada» y la clase van juntas: marcarla elige Contraindicada y otra clase la desmarca', async () => {
+        await render();
+        component().openPanel({ kind: 'decision-create' });
+        const form = component().decisionForm!;
+
+        form.get('prohibitedConduct')!.setValue(true);
+        expect(form.get('responseClass')!.value).toBe('CONTRAINDICATED');
+
+        form.get('responseClass')!.setValue('ACCEPTABLE');
+        expect(form.get('prohibitedConduct')!.value).toBe(false);
+
+        form.get('responseClass')!.setValue('CONTRAINDICATED');
+        expect(form.get('prohibitedConduct')!.value).toBe(true);
+
+        // Quitar la casilla de una contraindicada la devuelve a una clase que no lo es.
+        form.get('prohibitedConduct')!.setValue(false);
+        expect(form.get('responseClass')!.value).not.toBe('CONTRAINDICATED');
+      });
+
       it('una decisión nueva parte de «Recomendada» y la envía como responseClass', async () => {
         await render();
         component().openPanel({ kind: 'decision-create' });

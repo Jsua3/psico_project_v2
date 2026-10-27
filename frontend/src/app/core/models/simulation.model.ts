@@ -1008,6 +1008,8 @@ export interface WorldOutgoingDecision {
   optionKey: string;
   text: string;
   classification: 'ADEQUATE' | 'RISKY' | 'INADEQUATE';
+  /** La clase efectiva de la opción; la que el autor debe ver (la clasificación antigua queda por compatibilidad). */
+  responseClass: ResponseClass;
   targetNodeKey: string;
   prohibitedConduct: boolean;
 }

@@ -71,6 +71,7 @@ import {
 import { CanvasView, cursorFor, fitView, snapZoneRect, wheelZoomFactor, zoomAtPoint } from './canvas-view.util';
 import { Point, cycleKey, elementAt, moveByKey, zoneBetween } from './keyboard-edit.util';
 import { objectTypeLabel } from '../../../shared/ui/labels';
+import { responseClassWord } from '../outcome-text.util';
 import {
   RevisionConflictAnswer,
   RevisionConflictDialogComponent,
@@ -430,7 +431,7 @@ const OBJECT_COLORS: Record<string, string> = {
                             (ngModelChange)="setChoiceDecision($index, $event)">
                       <option [ngValue]="null">— sin destino —</option>
                       @for (dec of store.availableDecisions(); track dec.id) {
-                        <option [ngValue]="dec.id">{{ dec.classification }} → {{ dec.targetNodeKey }}: {{ dec.text }}</option>
+                        <option [ngValue]="dec.id">{{ classWord(dec.responseClass) }} → {{ dec.targetNodeKey }}: {{ dec.text }}</option>
                       }
                     </select>
                     <button class="we-del" (click)="removeChoice($index)" type="button"
@@ -1025,6 +1026,11 @@ export class WorldEditorComponent implements OnInit, OnDestroy {
   private viewInitialised = false;
   private lastRoom: number | undefined;
   private conflictDialogOpen = false;
+
+  /** La clase de una decisión en palabras (Recomendada, Aceptable, Con riesgo, Contraindicada). */
+  protected classWord(responseClass: string | null | undefined): string {
+    return responseClassWord(responseClass) ?? 'Sin clase';
+  }
 
   /** Lo que dice la región viva del guardado. */
   protected readonly saveStatusText = computed(() => {

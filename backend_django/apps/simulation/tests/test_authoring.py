@@ -340,8 +340,9 @@ def test_world_editor_exposes_available_decisions(admin, published_cv):
     we = cl(admin).get(f"{BASE}/{published_cv}/world-editor").data["data"]
     assert "availableDecisions" in we
     for d in we["availableDecisions"]:
-        for k in ("id", "optionKey", "text", "classification", "targetNodeKey", "prohibitedConduct"):
+        for k in ("id", "optionKey", "text", "classification", "responseClass", "targetNodeKey", "prohibitedConduct"):
             assert k in d, f"availableDecisions missing {k}"
+        assert d["responseClass"] in {"RECOMMENDED", "ACCEPTABLE", "RISKY", "CONTRAINDICATED"}
 
 
 # --- Fase 3: multi-room (rooms list + ambient persistence) ------------------

@@ -247,7 +247,8 @@ export class ReporteGrupoComponent {
   /** «2 de 3»: los hitos que cumplió en su último intento completado; sin ese dato, un guion. */
   hitosCumplidosTexto(estudiante: EstudianteSimulacionReporte, sim: ReporteSimulacionGrupo): string {
     if (estudiante.hitosCumplidos === null || estudiante.hitosCumplidos === undefined) return '—';
-    return `${estudiante.hitosCumplidos.length} de ${sim.hitos.length}`;
+    const keysDelCaso = new Set(sim.hitos.map(hito => hito.key));
+    return `${estudiante.hitosCumplidos.filter(key => keysDelCaso.has(key)).length} de ${sim.hitos.length}`;
   }
 
   completionRate(sim: ReporteSimulacionGrupo) {

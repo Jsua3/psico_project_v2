@@ -33,7 +33,7 @@ function simulation(partial: Partial<ReporteSimulacionGrupo> = {}): ReporteSimul
     estudiantes: [
       {
         id: 11, nombre: 'Marta Ríos', totalIntentos: 2, intentosCompletados: 2, intentosEnProgreso: 0, intentosSalidaSegura: 0,
-        hitosCumplidos: ['escucha', 'proteccion'], clases: { recommended: 12, acceptable: 2, risky: 1, contraindicated: 0 },
+        hitosCumplidos: ['escucha', 'proteccion', 'hito_de_otra_version'], clases: { recommended: 12, acceptable: 2, risky: 1, contraindicated: 0 },
         bitacorasRegistradas: 2, rubricasAplicadas: 1, estado: 'COMPLETED',
       },
       {
@@ -471,6 +471,7 @@ describe('pantalla Reportes (F7-3)', () => {
         await withReport();
         const rows = [...studentTable().querySelectorAll('tbody tr')].map(row => [...row.querySelectorAll('th, td')].slice(1, 8).map(cell => text(cell)));
         expect(rows).toEqual([
+          // La clave que no es de los hitos del caso no se cuenta: «2 de 3», no «3 de 3».
           ['2', '2 de 3', '12', '2', '1', '0', '2'],
           ['1', '—', '3', '0', '0', '0', '0'],
         ]);

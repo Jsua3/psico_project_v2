@@ -176,6 +176,20 @@ def test_la_vista_trae_los_niveles_con_su_descriptor(admin, attempt):
     assert all(n["descriptor"] for n in view["levels"])
 
 
+def test_cada_criterio_trae_el_codigo_de_su_competencia_el_mismo_de_la_valoracion_del_sistema(admin, attempt):
+    """El docente ve su valoración junto a la del sistema emparejando por código de competencia."""
+    from apps.simulation.models import RubricCriterion
+    from apps.simulation.assessment.competencies import competency_code_of
+
+    view = cl(admin).get(f"/api/instructor/attempts/{attempt}/rubric-evaluation").data["data"]
+
+    assert view["criteria"]
+    criteria = {c.id: c for c in RubricCriterion.objects.filter(id__in=[c["id"] for c in view["criteria"]]).select_related("competency_ref")}
+    for served in view["criteria"]:
+        assert served["competency"], f"el criterio {served['id']} no trae su competencia"
+        assert served["competency"] == competency_code_of(criteria[served["id"]])
+
+
 def test_una_fila_vieja_con_score_y_sin_nivel_se_lee_con_el_nivel_derivado(admin, estudiante, attempt):
     client = cl(admin)
     ids = _criteria(client, attempt)

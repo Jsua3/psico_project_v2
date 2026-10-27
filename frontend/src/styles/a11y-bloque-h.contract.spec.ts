@@ -167,8 +167,10 @@ describe('bloque H: semántica del HUD y de la tarjeta de contexto', () => {
   it('los cuatro aria-label del HUD y de la tarjeta de contexto que colgaban de un div sin rol ya tienen rol o se quitaron', () => {
     // El bloque «Paso k (k/6)» salió del HUD (T7.1): el único contador es el chip «Decisión k de 6».
     expect(hud).not.toContain('class="hud-step"');
-    expect(hud).toContain('<div class="hud-patient" role="group" aria-label="Estado de la paciente">');
-    expect(hud).toMatch(/<div class="hud-score" role="group" \[attr\.aria-label\]="'Seguimiento formativo: '/);
+    // La persona va en palabras (grupo con su frase como nombre) y el HUD ya no tiene medidor ni marcador de seguimiento.
+    expect(hud).toMatch(/<div class="hud-persona"[^>]* role="group" \[attr\.aria-label\]="game\.persona\.label">/);
+    expect(hud).not.toContain('hud-patient');
+    expect(hud).not.toContain('Seguimiento formativo');
     expect(play).toContain('<div class="case-intro-card__body" tabindex="0" role="region" aria-label="Contexto narrativo del caso">');
   });
 });

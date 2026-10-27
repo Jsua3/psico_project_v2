@@ -31,7 +31,9 @@ const attempt = (attemptId: string, overrides: Partial<RecentAttempt> = {}): Rec
   startedAt: '2026-10-10T10:00:00Z', ...overrides,
 });
 
-const criterion = (id: number, title: string, competency = 'ETICA'): RubricCriterionView => ({
+// `competency` es el código que el servidor sirve en `criteria[]`: el mismo de `competencyLevels[].code`
+// (`competency_code_of`: el del catálogo o el texto normalizado, p. ej. «Ética profesional» → ETICA_PROFESIONAL).
+const criterion = (id: number, title: string, competency = 'ETICA_PROFESIONAL'): RubricCriterionView => ({
   id, competency, title, description: `Descripción de ${title}`, weight: 50, displayOrder: id,
 });
 
@@ -45,7 +47,7 @@ const LEVELS: RubricLevelOption[] = [
 function rubricFixture(overrides: Partial<RubricEvaluationView> = {}): RubricEvaluationView {
   return {
     attemptId: 'a-1', rubricId: 7, rubricName: 'Rúbrica básica de desempeño', description: 'Evalúa el desempeño formativo.',
-    criteria: [criterion(1, 'Ética profesional'), criterion(2, 'Ruta de atención', 'RUTA')], scores: [], levels: LEVELS,
+    criteria: [criterion(1, 'Ética profesional'), criterion(2, 'Ruta de atención', 'RUTA_DE_ATENCION')], scores: [], levels: LEVELS,
     overallLevel: null, comment: '', ...overrides,
   };
 }
@@ -54,8 +56,8 @@ const SYSTEM_EVALUATION = {
   id: 90, rubricName: 'Valoración del sistema', origin: 'SISTEMA' as const, overallLevel: 'EN_PROCESO' as const, comment: null,
   evaluatedAt: '2026-10-10T11:00:00Z',
   competencyLevels: [
-    { code: 'ETICA', name: 'Ética profesional', level: 'EN_PROCESO' as const, basis: 'Dos decisiones recomendadas de tres.', evidence: [] },
-    { code: 'RUTA', name: 'Ruta de atención', level: null, basis: null, evidence: [] },
+    { code: 'ETICA_PROFESIONAL', name: 'Ética profesional', level: 'EN_PROCESO' as const, basis: 'Dos decisiones recomendadas de tres.', evidence: [] },
+    { code: 'RUTA_DE_ATENCION', name: 'Ruta de atención', level: null, basis: null, evidence: [] },
   ],
 };
 
@@ -458,6 +460,19 @@ describe('traza del docente en el sistema de la biblioteca (F7-4)', () => {
       ]);
     });
 
+    it('un criterio sin código de competencia (el servidor lo manda vacío) no se empareja: «Sin criterio equivalente»', async () => {
+      await render({
+        trace: id => of(traceFixture(id, { systemEvaluation: SYSTEM_EVALUATION, systemEvaluationAvailable: true })),
+        rubric: () => of(rubricFixture({
+          criteria: [criterion(1, 'Ética profesional', ''), criterion(2, 'Ruta de atención', 'RUTA_DE_ATENCION')],
+          scores: [{ criterionId: 1, level: 'LOGRADO', comment: null, evidence: {} }],
+        })),
+      });
+      const rows = [...systemSection()!.querySelectorAll('tbody tr')].map(row => [...row.querySelectorAll('th, td')].map(text));
+      expect(rows[0].slice(0, 3)).toEqual(['Ética profesional', 'Sin criterio equivalente', 'En proceso']);
+      expect(rows[1].slice(0, 2)).toEqual(['Ruta de atención', 'Pendiente']);
+    });
+
     it('al guardar su valoración, el docente recibe la traza de nuevo y el perfil aparece', async () => {
       let calls = 0;
       await render({
@@ -575,6 +590,24 @@ describe('traza del docente en el sistema de la biblioteca (F7-4)', () => {
       expect(text(criteriaCards()[0].querySelector('ui-badge'))).toBe('Logrado');
       expect(text(criteriaCards()[1].querySelector('ui-badge'))).toBe('En proceso');
       expect((criteriaCards()[0].querySelector('textarea') as HTMLTextAreaElement).value).toBe('Bien.');
+    });
+
+    it('una rúbrica sin criterios no envía una lista vacía: pide un nivel o una retroalimentación', async () => {
+      await render({ rubric: () => of(rubricFixture({ criteria: [] })) });
+      saveButton().click();
+      await fixture.whenStable();
+      fixture.detectChanges();
+      expect(api.saveRubric).not.toHaveBeenCalled();
+      expect(text(host().querySelector('.tr-rubric__message'))).toBe('Elige un nivel o escribe una retroalimentación para guardar.');
+
+      const comment = host().querySelector<HTMLTextAreaElement>('.tr-actions')!.parentElement!.querySelector('textarea')!;
+      comment.value = 'Buen trabajo.';
+      comment.dispatchEvent(new Event('input'));
+      saveButton().click();
+      await fixture.whenStable();
+      expect(api.saveRubric).toHaveBeenCalledTimes(1);
+      expect(api.saveRubric.mock.calls[0][2]).toBe('Buen trabajo.');
+      expect(api.saveRubric.mock.calls[0][3]).toEqual([]);
     });
 
     it('si el servidor no manda los niveles con su descriptor, ofrece igual los cuatro nombres', async () => {

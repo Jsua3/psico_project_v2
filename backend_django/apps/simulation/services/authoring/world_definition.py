@@ -28,6 +28,7 @@ from shared.jsonutils import (
     write_map as _write_map,
 )
 
+from ..case_state import response_class_of
 from .editor_view import clinical_tool_editor
 from .guards import bump_revision, character_link, decision_link, ensure_draft, require_version
 from .icons import validate_icon
@@ -87,6 +88,8 @@ def world_editor(case_version_id, node_id):
                 "optionKey": d.option_key,
                 "text": d.text,
                 "classification": d.classification,
+                # La clase efectiva (la declarada o la que dan sus datos antiguos): la que el autor debe ver.
+                "responseClass": response_class_of(d).value,
                 "targetNodeKey": d.target_node.node_key,
                 "prohibitedConduct": d.prohibited_conduct,
             }

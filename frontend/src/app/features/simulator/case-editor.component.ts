@@ -4,7 +4,7 @@ import { ChangeDetectionStrategy, Component, DestroyRef, ElementRef, Injector, O
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { AbstractControl, FormBuilder, FormGroup, ReactiveFormsModule, Validators } from '@angular/forms';
 import { ActivatedRoute, Router, RouterLink } from '@angular/router';
-import { Observable, firstValueFrom } from 'rxjs';
+import { Observable, Subscription, firstValueFrom } from 'rxjs';
 import { apiErrorMessage } from '../../core/api/api-error.util';
 import { AuthoringApi } from '../../core/api/authoring.api';
 import { RevisionConflict, revisionConflictOf } from '../../core/api/revision-conflict.util';
@@ -116,6 +116,7 @@ export class CaseEditorComponent implements OnInit, CaseEditorSheetHost {
 
   nodeForm: FormGroup | null = null;
   decisionForm: FormGroup | null = null;
+  private decisionFormSync: Subscription | null = null;
   mapForm: FormGroup | null = null;
   objectForm: FormGroup | null = null;
   toolForm: FormGroup | null = null;
@@ -353,6 +354,7 @@ export class CaseEditorComponent implements OnInit, CaseEditorSheetHost {
   }
 
   private initDecisionForm(edge: DecisionEdgeState | null, sourceNode: NodeEditorState | null): void {
+    this.decisionFormSync?.unsubscribe();
     this.decisionForm = this.fb.group({
       sourceNodeId: [edge?.sourceNodeId ?? sourceNode?.id ?? null, Validators.required],
       targetNodeId: [edge?.targetNodeId ?? null, Validators.required],
@@ -366,6 +368,19 @@ export class CaseEditorComponent implements OnInit, CaseEditorSheetHost {
       feedbackText: [edge?.feedbackText ?? '', Validators.maxLength(TEXT_LIMIT)],
       theoryBasis: [edge?.theoryBasis ?? '', Validators.maxLength(TEXT_LIMIT)],
     });
+    // La casilla «Conducta contraindicada» y la clase van juntas: marcarla elige Contraindicada y elegir otra clase la
+    // desmarca, de modo que el grafo y el servidor lean lo mismo.
+    const { responseClass, prohibitedConduct } = this.decisionForm.controls;
+    const sync = new Subscription();
+    sync.add(responseClass.valueChanges.subscribe(value => {
+      const contraindicated = value === 'CONTRAINDICATED';
+      if (prohibitedConduct.value !== contraindicated) prohibitedConduct.setValue(contraindicated, { emitEvent: false });
+    }));
+    sync.add(prohibitedConduct.valueChanges.subscribe(checked => {
+      if (checked && responseClass.value !== 'CONTRAINDICATED') responseClass.setValue('CONTRAINDICATED', { emitEvent: false });
+      else if (!checked && responseClass.value === 'CONTRAINDICATED') responseClass.setValue('RISKY', { emitEvent: false });
+    }));
+    this.decisionFormSync = sync;
   }
 
   private initMapForm(map: MapEditorState | null): void {
