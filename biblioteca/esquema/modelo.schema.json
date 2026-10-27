@@ -1,0 +1,58 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "siep://biblioteca/modelo.schema.json",
+  "title": "Biblioteca de modelos interactivos (objetos y herramientas con animación de cercanía)",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["esquema", "modelos"],
+  "properties": {
+    "esquema": { "const": 1 },
+    "modelos": {
+      "type": "array",
+      "minItems": 1,
+      "items": { "$ref": "#/$defs/modelo" }
+    }
+  },
+  "$defs": {
+    "clave": { "type": "string", "pattern": "^[a-z0-9]+(-[a-z0-9]+)*$", "maxLength": 60 },
+    "texto": { "type": "string", "minLength": 1, "maxLength": 280 },
+    "arte": { "type": "string", "pattern": "^arte/[a-z0-9]+(-[a-z0-9]+)*\\.png$" },
+    "animacionCerca": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["hoja", "cuadros", "fps"],
+      "properties": {
+        "hoja": { "$ref": "#/$defs/arte" },
+        "cuadros": { "type": "integer", "minimum": 2, "maximum": 4 },
+        "fps": { "type": "integer", "minimum": 1, "maximum": 12 }
+      }
+    },
+    "modelo": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["id", "nombre", "tipo", "lugarSugerido", "textoInteraccion", "alRevisar", "efecto", "arte", "animacionCerca"],
+      "properties": {
+        "id": { "$ref": "#/$defs/clave" },
+        "nombre": { "$ref": "#/$defs/texto" },
+        "tipo": { "enum": ["OBJECT", "PROP", "NOTE", "RESOURCE", "TOOL"] },
+        "lugarSugerido": { "enum": ["comunes", "universidad", "casa", "comisaria"] },
+        "textoInteraccion": { "$ref": "#/$defs/texto" },
+        "alRevisar": { "$ref": "#/$defs/texto" },
+        "efecto": { "enum": ["ninguno", "pista", "recoge-herramienta"] },
+        "descripcion": { "$ref": "#/$defs/texto" },
+        "arte": { "$ref": "#/$defs/arte" },
+        "animacionCerca": { "$ref": "#/$defs/animacionCerca" }
+      },
+      "allOf": [
+        {
+          "if": { "properties": { "tipo": { "const": "TOOL" } } },
+          "then": {
+            "required": ["descripcion"],
+            "properties": { "descripcion": { "$ref": "#/$defs/texto" }, "efecto": { "const": "recoge-herramienta" } }
+          },
+          "else": { "properties": { "efecto": { "enum": ["ninguno", "pista"] } } }
+        }
+      ]
+    }
+  }
+}

@@ -1,0 +1,19 @@
+{
+  "name": "siep-biblioteca",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Biblioteca de escenarios (lugares) para el editor de casos de SIEP",
+  "type": "module",
+  "scripts": {
+    "test": "node --test \"scripts/**/*.test.mjs\"",
+    "validar": "node scripts/validar.mjs",
+    "modelos:aplicar": "node scripts/modelos-en-lugar.mjs",
+    "validar:modelos": "node scripts/validar-modelos.mjs"
+  },
+  "devDependencies": {
+    "ajv": "^8.17.1"
+  },
+  "engines": {
+    "node": "^24.15.0 || >=26.0.0"
+  }
+}

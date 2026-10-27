@@ -19,6 +19,6 @@
     "shoes": "carbon",
     "sole": "gris-claro"
   },
-  "portraits": ["neutral", "preocupada", "triste", "alegre"],
+  "portraits": ["neutral", "preocupada", "triste", "alegre", "cautelosa", "en-crisis"],
   "provenance": { "source": "Kit SIEP", "license": "SIEP-INTERNAL" }
 }

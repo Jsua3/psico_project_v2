@@ -16,10 +16,10 @@ test('parseArgs entiende modos, escala y salida', () => {
   assert.deepEqual(parseArgs(['--elenco']), { elenco: true });
 });
 
-test('ficha de receta: 4 vistas, retratos, 16 cuadros de reposo y 24 de caminata', () => {
+test('ficha de receta: 4 vistas, 6 retratos, 16 cuadros de reposo y 24 de caminata', () => {
   const { name, html } = buildLamina({ receta: 'valentina' });
   assert.equal(name, 'receta-valentina');
-  assert.equal(images(html), 4 + 1 + 16 + 24);
+  assert.equal(images(html), 4 + 6 + 16 + 24);
   assert.match(html, /image-rendering: pixelated/);
 });
 

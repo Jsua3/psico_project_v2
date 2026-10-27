@@ -52,7 +52,9 @@
     "calm": "neutral",
     "receptive": "neutral",
     "closed": "neutral",
-    "positive": "alegre"
+    "positive": "alegre",
+    "guarded": "cautelosa",
+    "crisis": "en-crisis"
   },
   "editor": {
     "complexions": ["a", "b"],

@@ -52,11 +52,11 @@ test('writeOutputs borra lo que sobra dentro de las carpetas que conserva', () =
     const { files } = buildOutputs();
     writeOutputs(files, out);
     // Una receta que dejó de tener un retrato, un archivo suelto y una carpeta vacía.
-    writeFileSync(path.join(out, 'valentina', 'portrait-triste.png'), 'x');
+    writeFileSync(path.join(out, 'valentina', 'portrait-sobrante.png'), 'x');
     writeFileSync(path.join(out, 'viejo.json'), '{}');
     mkdirSync(path.join(out, 'valentina', 'vacia'));
     writeOutputs(files, out);
-    assert.ok(!existsSync(path.join(out, 'valentina', 'portrait-triste.png')));
+    assert.ok(!existsSync(path.join(out, 'valentina', 'portrait-sobrante.png')));
     assert.ok(!existsSync(path.join(out, 'viejo.json')));
     assert.ok(!existsSync(path.join(out, 'valentina', 'vacia')));
     for (const rel of files.keys()) assert.ok(existsSync(path.join(out, rel)), rel);
