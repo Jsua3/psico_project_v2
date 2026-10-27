@@ -50,6 +50,30 @@
       "audit": "CASE_CREATED"
     },
     {
+      "route": "api/admin/cases/<int:case_version_id>/assistant/guide",
+      "method": "POST",
+      "exposure": "role:ADMIN,PROFESOR",
+      "body": "json-small",
+      "throttle": null,
+      "audit": "AI_AUTHORING_GUIDE"
+    },
+    {
+      "route": "api/admin/cases/<int:case_version_id>/assistant/propose",
+      "method": "POST",
+      "exposure": "role:ADMIN,PROFESOR",
+      "body": "json-small",
+      "throttle": null,
+      "audit": "AI_AUTHORING_PROPOSE"
+    },
+    {
+      "route": "api/admin/cases/<int:case_version_id>/assistant/status",
+      "method": "GET",
+      "exposure": "role:ADMIN,PROFESOR",
+      "body": "none",
+      "throttle": null,
+      "audit": "EXENTO: lectura de lo propio o de un catálogo común a todos los roles: no son datos de otra persona"
+    },
+    {
       "route": "api/admin/cases/<int:case_version_id>/brief",
       "method": "PUT",
       "exposure": "role:ADMIN,PROFESOR",
@@ -122,6 +146,14 @@
       "audit": "ADMIN_UPDATE_DECISION"
     },
     {
+      "route": "api/admin/cases/<int:case_version_id>/decisions/<int:decision_id>/accept-ai",
+      "method": "POST",
+      "exposure": "role:ADMIN,PROFESOR",
+      "body": "json-small",
+      "throttle": null,
+      "audit": "ADMIN_ACCEPT_AI_DECISION"
+    },
+    {
       "route": "api/admin/cases/<int:case_version_id>/definition",
       "method": "GET",
       "exposure": "role:ADMIN,PROFESOR",
@@ -146,6 +178,14 @@
       "body": "json-small",
       "throttle": null,
       "audit": "ADMIN_UPDATE_DIALOGUE"
+    },
+    {
+      "route": "api/admin/cases/<int:case_version_id>/dialogues/<int:tree_id>/accept-ai",
+      "method": "POST",
+      "exposure": "role:ADMIN,PROFESOR",
+      "body": "json-small",
+      "throttle": null,
+      "audit": "ADMIN_ACCEPT_AI_DIALOGUE"
     },
     {
       "route": "api/admin/cases/<int:case_version_id>/editor",
@@ -264,6 +304,14 @@
       "audit": "ADMIN_UPDATE_NODE"
     },
     {
+      "route": "api/admin/cases/<int:case_version_id>/nodes/<int:node_id>/accept-ai",
+      "method": "POST",
+      "exposure": "role:ADMIN,PROFESOR",
+      "body": "json-small",
+      "throttle": null,
+      "audit": "ADMIN_ACCEPT_AI_NODE"
+    },
+    {
       "route": "api/admin/cases/<int:case_version_id>/nodes/reorder",
       "method": "PATCH",
       "exposure": "role:ADMIN,PROFESOR",
@@ -288,12 +336,44 @@
       "audit": "ADMIN_UPDATE_OBJECT"
     },
     {
+      "route": "api/admin/cases/<int:case_version_id>/objects/<int:object_id>/accept-ai",
+      "method": "POST",
+      "exposure": "role:ADMIN,PROFESOR",
+      "body": "json-small",
+      "throttle": null,
+      "audit": "ADMIN_ACCEPT_AI_OBJECT"
+    },
+    {
       "route": "api/admin/cases/<int:case_version_id>/publish",
       "method": "POST",
       "exposure": "role:ADMIN",
       "body": "json-small",
       "throttle": null,
       "audit": "ADMIN_PUBLISH_CASE"
+    },
+    {
+      "route": "api/admin/cases/<int:case_version_id>/rules/endings",
+      "method": "PUT",
+      "exposure": "role:ADMIN,PROFESOR",
+      "body": "json-small",
+      "throttle": null,
+      "audit": "ADMIN_UPDATE_ENDINGS"
+    },
+    {
+      "route": "api/admin/cases/<int:case_version_id>/rules/milestones",
+      "method": "PUT",
+      "exposure": "role:ADMIN,PROFESOR",
+      "body": "json-small",
+      "throttle": null,
+      "audit": "ADMIN_UPDATE_MILESTONES"
+    },
+    {
+      "route": "api/admin/cases/<int:case_version_id>/rules/risk",
+      "method": "PUT",
+      "exposure": "role:ADMIN,PROFESOR",
+      "body": "json-small",
+      "throttle": null,
+      "audit": "ADMIN_UPDATE_RISK"
     },
     {
       "route": "api/admin/cases/<int:case_version_id>/tools",
@@ -534,6 +614,30 @@
       "audit": "CASE_CREATED"
     },
     {
+      "route": "api/authoring/cases/<int:case_version_id>/assistant/guide",
+      "method": "POST",
+      "exposure": "role:ADMIN,PROFESOR",
+      "body": "json-small",
+      "throttle": null,
+      "audit": "AI_AUTHORING_GUIDE"
+    },
+    {
+      "route": "api/authoring/cases/<int:case_version_id>/assistant/propose",
+      "method": "POST",
+      "exposure": "role:ADMIN,PROFESOR",
+      "body": "json-small",
+      "throttle": null,
+      "audit": "AI_AUTHORING_PROPOSE"
+    },
+    {
+      "route": "api/authoring/cases/<int:case_version_id>/assistant/status",
+      "method": "GET",
+      "exposure": "role:ADMIN,PROFESOR",
+      "body": "none",
+      "throttle": null,
+      "audit": "EXENTO: lectura de lo propio o de un catálogo común a todos los roles: no son datos de otra persona"
+    },
+    {
       "route": "api/authoring/cases/<int:case_version_id>/brief",
       "method": "PUT",
       "exposure": "role:ADMIN,PROFESOR",
@@ -606,6 +710,14 @@
       "audit": "ADMIN_UPDATE_DECISION"
     },
     {
+      "route": "api/authoring/cases/<int:case_version_id>/decisions/<int:decision_id>/accept-ai",
+      "method": "POST",
+      "exposure": "role:ADMIN,PROFESOR",
+      "body": "json-small",
+      "throttle": null,
+      "audit": "ADMIN_ACCEPT_AI_DECISION"
+    },
+    {
       "route": "api/authoring/cases/<int:case_version_id>/definition",
       "method": "GET",
       "exposure": "role:ADMIN,PROFESOR",
@@ -630,6 +742,14 @@
       "body": "json-small",
       "throttle": null,
       "audit": "ADMIN_UPDATE_DIALOGUE"
+    },
+    {
+      "route": "api/authoring/cases/<int:case_version_id>/dialogues/<int:tree_id>/accept-ai",
+      "method": "POST",
+      "exposure": "role:ADMIN,PROFESOR",
+      "body": "json-small",
+      "throttle": null,
+      "audit": "ADMIN_ACCEPT_AI_DIALOGUE"
     },
     {
       "route": "api/authoring/cases/<int:case_version_id>/editor",
@@ -748,6 +868,14 @@
       "audit": "ADMIN_UPDATE_NODE"
     },
     {
+      "route": "api/authoring/cases/<int:case_version_id>/nodes/<int:node_id>/accept-ai",
+      "method": "POST",
+      "exposure": "role:ADMIN,PROFESOR",
+      "body": "json-small",
+      "throttle": null,
+      "audit": "ADMIN_ACCEPT_AI_NODE"
+    },
+    {
       "route": "api/authoring/cases/<int:case_version_id>/nodes/reorder",
       "method": "PATCH",
       "exposure": "role:ADMIN,PROFESOR",
@@ -772,12 +900,44 @@
       "audit": "ADMIN_UPDATE_OBJECT"
     },
     {
+      "route": "api/authoring/cases/<int:case_version_id>/objects/<int:object_id>/accept-ai",
+      "method": "POST",
+      "exposure": "role:ADMIN,PROFESOR",
+      "body": "json-small",
+      "throttle": null,
+      "audit": "ADMIN_ACCEPT_AI_OBJECT"
+    },
+    {
       "route": "api/authoring/cases/<int:case_version_id>/publish",
       "method": "POST",
       "exposure": "role:ADMIN",
       "body": "json-small",
       "throttle": null,
       "audit": "ADMIN_PUBLISH_CASE"
+    },
+    {
+      "route": "api/authoring/cases/<int:case_version_id>/rules/endings",
+      "method": "PUT",
+      "exposure": "role:ADMIN,PROFESOR",
+      "body": "json-small",
+      "throttle": null,
+      "audit": "ADMIN_UPDATE_ENDINGS"
+    },
+    {
+      "route": "api/authoring/cases/<int:case_version_id>/rules/milestones",
+      "method": "PUT",
+      "exposure": "role:ADMIN,PROFESOR",
+      "body": "json-small",
+      "throttle": null,
+      "audit": "ADMIN_UPDATE_MILESTONES"
+    },
+    {
+      "route": "api/authoring/cases/<int:case_version_id>/rules/risk",
+      "method": "PUT",
+      "exposure": "role:ADMIN,PROFESOR",
+      "body": "json-small",
+      "throttle": null,
+      "audit": "ADMIN_UPDATE_RISK"
     },
     {
       "route": "api/authoring/cases/<int:case_version_id>/tools",

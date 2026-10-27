@@ -88,6 +88,7 @@ Esta tabla la comprueba una prueba contra las reglas del código: si una regla c
 | `reflection_journals` | Sus bitácoras de reflexión (cifradas) | se borra la fila |
 | `attempt_world_states` | Estado del mundo de cada intento | se conserva |
 | `student_case_completion` | Casos que completó | se conserva |
+| `authoring_assistant_usage` | Cuántas veces usó el asistente de IA de autoría cada día (sin el texto de las peticiones) | se conserva |
 | `rubric_evaluations` | Evaluaciones docentes que recibió o dio | se conserva |
 | `criterion_scores` | Puntaje y comentario de cada criterio | se conserva |
 | `audit_logs` | Auditoría de sus acciones | se anula y se limpia el texto escrito por la persona; el resto se conserva |

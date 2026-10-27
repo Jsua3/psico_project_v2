@@ -24,6 +24,7 @@ from apps.simulation.models import (
     AttemptHintView,
     AttemptWorldState,
     AuditLog,
+    AuthoringAssistantUsage,
     CaseReview,
     CaseVersion,
     CriterionScore,
@@ -228,6 +229,8 @@ class Mundo:
         self.caso = SimulationCase.objects.create(
             code=f"CASO-{secrets.token_hex(4)}", title=f"Caso propio {secrets.token_hex(3)}", created_by=persona
         )
+        # El contador diario del asistente de IA de autoría (P5): una fila por docente y día.
+        AuthoringAssistantUsage.objects.create(user=persona, day=date.today(), count=3)
         self.version_propia = CaseVersion.objects.create(
             simulation_case=self.caso, semantic_version="0.1.0", status="DRAFT", created_by=persona, last_edited_by=persona
         )

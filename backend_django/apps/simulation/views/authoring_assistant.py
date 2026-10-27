@@ -113,7 +113,7 @@ class _AssistantView(_AuthoringView):
             raise NotFound("El asistente no está disponible")
         return version, config
 
-    def run(self, request, case_version_id, *, action, input_class, call, default_model):
+    def run(self, request, case_version_id, *, input_class, call, default_model):
         """Valida el cuerpo, reserva el cupo, llama al proveedor (``call``) y audita."""
         version, config = self.gate(request, case_version_id)
         body = input_class(data=request.data)
@@ -135,11 +135,11 @@ class _AssistantView(_AuthoringView):
                 limits.refund(request.user)
                 outcome = "error"
                 failure = ApiError("AI_PROVIDER_ERROR", PROVIDER_ERROR_MESSAGE, status.HTTP_502_BAD_GATEWAY)
-            self.audit(request, action, version.id, body, model, 0, started, outcome)
+            self.audit(request, version.id, body, model, 0, started, outcome)
             raise failure from None
         except InvalidProposal as invalid:
             # La llamada ocurrió: el cupo se gasta. Al cliente solo le llega el motivo fijo, nunca texto del modelo.
-            self.audit(request, action, version.id, body, model, 0, started, "invalid")
+            self.audit(request, version.id, body, model, 0, started, "invalid")
             raise ApiError(
                 "AI_PROPOSAL_INVALID", INVALID_PROPOSAL_MESSAGE, status.HTTP_422_UNPROCESSABLE_ENTITY, motivo=invalid.motivo
             ) from None
@@ -150,11 +150,14 @@ class _AssistantView(_AuthoringView):
             model = result["model"]
         if isinstance(result.get("changes"), int) and not isinstance(result["changes"], bool):
             changes = result["changes"]
-        self.audit(request, action, version.id, body, model, changes, started, "ok")
+        self.audit(request, version.id, body, model, changes, started, "ok")
         return api_ok(result)
 
-    @staticmethod
-    def audit(request, action, case_version_id, body, model, changes, started, outcome):
+    def record_audit(self, request, case_version_id, context):
+        """Escribe la fila con el código de la ruta (cada vista lo escribe como literal: lo lee la compuerta de auditoría)."""
+        raise NotImplementedError
+
+    def audit(self, request, case_version_id, body, model, changes, started, outcome):
         """Una fila de auditoría sin el texto de la petición ni el de la respuesta."""
         context = {
             "model": model,
@@ -165,7 +168,7 @@ class _AssistantView(_AuthoringView):
         screen = body.validated_data.get("pantalla")
         if screen:
             context["screen"] = screen
-        audit_service.record(action, "CASE_VERSION", case_version_id, context, actor=request.user)
+        self.record_audit(request, case_version_id, context)
 
 
 class AssistantStatusView(_AssistantView):
@@ -187,6 +190,9 @@ class AssistantStatusView(_AssistantView):
 class AssistantProposeView(_AssistantView):
     """``POST …/assistant/propose``: una propuesta de cambios para la pantalla del editor."""
 
+    def record_audit(self, request, case_version_id, context):
+        audit_service.record("AI_AUTHORING_PROPOSE", "CASE_VERSION", case_version_id, context, actor=request.user)
+
     @extend_schema(
         request=AssistantProposeBody,
         responses={200: envelope_of(AssistantResultSerializer), **error_responses(400, 401, 403, 404, 422, 429, 502)},
@@ -203,13 +209,16 @@ class AssistantProposeView(_AssistantView):
             )
 
         return self.run(
-            request, case_version_id, action="AI_AUTHORING_PROPOSE", input_class=AssistantProposeBody, call=call,
+            request, case_version_id, input_class=AssistantProposeBody, call=call,
             default_model=lambda config: config.model_capable,
         )
 
 
 class AssistantGuideView(_AssistantView):
     """``POST …/assistant/guide``: una respuesta de guía («¿cómo hago X?») según lo que la persona ya hizo."""
+
+    def record_audit(self, request, case_version_id, context):
+        audit_service.record("AI_AUTHORING_GUIDE", "CASE_VERSION", case_version_id, context, actor=request.user)
 
     @extend_schema(
         request=AssistantGuideBody,
@@ -220,6 +229,6 @@ class AssistantGuideView(_AssistantView):
             return guide.answer(config=config, question=data["pregunta"], actions=data["acciones"])
 
         return self.run(
-            request, case_version_id, action="AI_AUTHORING_GUIDE", input_class=AssistantGuideBody, call=call,
+            request, case_version_id, input_class=AssistantGuideBody, call=call,
             default_model=lambda config: config.model_fast,
         )
