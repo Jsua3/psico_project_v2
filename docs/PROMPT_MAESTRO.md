@@ -107,7 +107,7 @@ flowchart LR
 |---|---|
 | `users` | Identidad (`CustomUser`, roles, bcrypt), login con correo/clave y Google, JWT HS256 de 8 h, solicitudes de acceso, gestión por el admin |
 | `grupos` | Grupos del profesor, membresías (SQL crudo), importación `.xlsx`, asignación de versiones publicadas |
-| `simulation` | El núcleo: modelos de caso/mundo/intento/rúbrica, autoría (`services/authoring/*`), motor del intento (`game_service`, `attempt_lifecycle`, `decision_effects`, `case_effects`), runtime del mundo (`world_service`, `door_chain`), validación (`world_validation`), cifrado, auditoría, asistente IA |
+| `simulation` | El núcleo: modelos de caso/mundo/intento/rúbrica, autoría (`services/authoring/*`), motor del intento (`game_service`, `attempt_lifecycle`, `response_effects`, `case_state`, `case_rules`, `endings`), runtime del mundo (`world_service`, `door_chain`), validación (`world_validation`), cifrado, auditoría, asistente IA |
 | `reportes` | Dashboard, reporte por grupo y CSV (solo simulador) |
 | `progression` | Casos completados y catálogo con desbloqueo lineal (tabla gestionada por Django) |
 | `shared` | Sobre de respuesta `{success,message,data}`, excepciones, permisos por rol |

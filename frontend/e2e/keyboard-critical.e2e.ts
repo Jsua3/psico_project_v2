@@ -380,7 +380,7 @@ test('[P04] ver reportes y exportar CSV: el grupo se elige con las flechas y «E
 });
 
 // req: SIEP-CU-04, RN-09, RNF-004, WCAG 2.1.1
-test('[P05] revisar la traza y calificar con rúbrica: el intento se elige con Enter, las notas se escriben y «Guardar evaluación» guarda', async ({ page, request }) => {
+test('[P05] revisar la traza y calificar con rúbrica: el intento se elige con Enter, el nivel de cada criterio se elige con las flechas y «Guardar evaluación» guarda', async ({ page, request }) => {
   test.setTimeout(scaled(120_000));
   const { caseTitle } = await seededGroupWithAttempt(request);
   await keyboardLogin(page, PROFESOR);
@@ -391,7 +391,7 @@ test('[P05] revisar la traza y calificar con rúbrica: el intento se elige con E
   const criteria = page.locator('.tr-criterion');
   await expect(criteria.first()).toBeVisible({ timeout: scaled(30_000) });
   for (let index = 0; index < await criteria.count(); index += 1) {
-    await typeInto(page, criteria.nth(index).getByLabel('Calificación'), '4');
+    await selectWithKeyboard(page, criteria.nth(index).getByLabel('Nivel logrado'), 'Logrado');
   }
   const saved = page.waitForResponse(response => /\/rubric-evaluation$/.test(new URL(response.url()).pathname) && response.request().method() === 'PUT', { timeout: scaled(30_000) });
   await pressWithKeyboard(page, page.getByRole('button', { name: 'Guardar evaluación' }));

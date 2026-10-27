@@ -99,6 +99,9 @@
 .sd-bars,
 .sd-closings {
   display: grid;
+  // Una sola columna que SÍ puede encogerse: sin esto el título de un caso largo, que no parte, ensancha la lista
+  // más allá de la tarjeta (7 px de desborde horizontal a 390 px).
+  grid-template-columns: minmax(0, 1fr);
   gap: var(--ds-space-3);
   margin: 0;
   padding: 0;
@@ -147,6 +150,7 @@
 
 // Últimos cierres: el caso (que se recorta) y su fecha, sin cifras.
 .sd-closing {
+  min-width: 0;
   display: flex;
   justify-content: space-between;
   gap: var(--ds-space-3);

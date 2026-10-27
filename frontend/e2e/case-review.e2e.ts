@@ -130,7 +130,9 @@ test.describe('@revision-casos qué falta y estado del caso (F10-6)', () => {
     try {
       await loginAs(page, 'admin');
       const panel = await openReview(page, draft.id, draft.title);
-      await expect(panel.locator('.rv-summary')).toHaveText('Sin errores de validación');
+      // Los avisos de las reglas de publicación del modelo de métricas (competencias sin declarar, finales de plantilla
+      // que este borrador mínimo no puede alcanzar) no bloquean: lo que importa es que no haya errores.
+      await expect(panel.locator('.rv-summary')).toHaveText(/^Sin errores de validación( · \d+ avisos?)?$/);
       await expect(panel.getByText(/Falta para avanzar/)).toHaveCount(0);
 
       // 1 · enviar a revisión (pide confirmar)

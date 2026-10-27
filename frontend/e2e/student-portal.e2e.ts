@@ -14,9 +14,9 @@ const WCAG_TAGS = ['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa', 'wcag22aa'];
 
 const CASE_TITLE = 'Violencia Familiar y Tentativa de Feminicidio';
 const HISTORY = [
-  { attemptId: 'p', caseVersionId: 1, caseTitle: CASE_TITLE, status: 'PAUSED', accumulatedScore: 38, adequateDecisions: 3, riskyDecisions: 1, inadequateDecisions: 0, prohibitedDecisions: 0, totalDurationSeconds: 900, activeDurationSeconds: 640, startedAt: '2026-10-12T15:20:00Z', endedAt: null },
-  { attemptId: 'c2', caseVersionId: 1, caseTitle: CASE_TITLE, status: 'COMPLETED', accumulatedScore: 72, adequateDecisions: 6, riskyDecisions: 1, inadequateDecisions: 1, prohibitedDecisions: 0, totalDurationSeconds: 1500, activeDurationSeconds: 1320, startedAt: '2026-10-08T14:00:00Z', endedAt: '2026-10-08T14:25:00Z' },
-  { attemptId: 's', caseVersionId: 1, caseTitle: CASE_TITLE, status: 'SAFE_EXITED', accumulatedScore: 15, adequateDecisions: 1, riskyDecisions: 2, inadequateDecisions: 0, prohibitedDecisions: 1, totalDurationSeconds: 300, activeDurationSeconds: 280, startedAt: '2026-10-05T10:00:00Z', endedAt: '2026-10-05T10:05:00Z' },
+  { attemptId: 'p', caseVersionId: 1, caseTitle: CASE_TITLE, status: 'PAUSED', totalDurationSeconds: 900, activeDurationSeconds: 640, startedAt: '2026-10-12T15:20:00Z', endedAt: null },
+  { attemptId: 'c2', caseVersionId: 1, caseTitle: CASE_TITLE, status: 'COMPLETED', totalDurationSeconds: 1500, activeDurationSeconds: 1320, startedAt: '2026-10-08T14:00:00Z', endedAt: '2026-10-08T14:25:00Z' },
+  { attemptId: 's', caseVersionId: 1, caseTitle: CASE_TITLE, status: 'SAFE_EXITED', totalDurationSeconds: 300, activeDurationSeconds: 280, startedAt: '2026-10-05T10:00:00Z', endedAt: '2026-10-05T10:05:00Z' },
 ];
 
 const overflowX = (page: Page) => page.evaluate(() => document.documentElement.scrollWidth - window.innerWidth);
@@ -53,20 +53,38 @@ test.describe('@estudiante panel', () => {
     expect(await blockingViolations(page, 'app-student-dashboard')).toEqual([]);
   });
 
-  test('el ratón sobre un punto del gráfico muestra su dato exacto', async ({ page }) => {
+  test('el ratón sobre la barra de progreso muestra el dato exacto: intentos completados, no un puntaje', async ({ page }) => {
     await openPanel(page);
-    await page.locator('.sd-chart__hit').last().hover();
-    // El último punto es el último intento TERMINADO (el abierto no se dibuja): 72 puntos.
-    await expect(page.locator('ui-tooltip-panel')).toHaveText(new RegExp(` · ${CASE_TITLE}: 72 puntos$`));
+    await page.locator('.sd-bar').first().hover();
+    // Tres intentos del caso y uno solo terminado: la barra cuenta intentos (un hecho), nunca puntos.
+    await expect(page.locator('ui-tooltip-panel')).toHaveText(`${CASE_TITLE}: 1 de 3 intentos completados`);
+  });
+
+  test('ninguna cifra de desempeño en el panel del estudiante: ni puntaje, ni estrés, ni porcentajes', async ({ page }) => {
+    await openPanel(page);
+    const panel = page.locator('app-student-dashboard');
+    await expect(panel.getByRole('heading', { name: 'Tu evolución' })).toBeVisible();
+    const text = (await panel.innerText()).replace(/\s+/g, ' ');
+    expect(text).not.toMatch(/puntaje|puntos|estr[eé]s|ranking|desempe[nñ]o|%/i);
+    await expect(panel.locator('[role="progressbar"], [role="meter"], progress, meter')).toHaveCount(0);
   });
 });
 
 const REPORT = {
-  attemptId: 'c2', caseTitle: CASE_TITLE, status: 'COMPLETED', finalScore: 72, finalStress: 35,
-  metrics: { professionalScore: 0, sceneStress: 0, victimRisk: 0, userTrust: 0, institutionalRouteActivated: true, revictimizationRisk: false },
-  totalDurationSeconds: 1500, phaseDurations: [], adequateDecisions: 6, riskyDecisions: 1, inadequateDecisions: 1,
-  prohibitedDecisions: 0, toolsUsed: 2, reflectionsCount: 3, safeExitUsed: false, visitedNodeTitles: [], competencies: [],
-  recommendations: ['Activa la ruta institucional antes de cerrar el caso.'], summaryMessage: '',
+  attemptId: 'c2', caseTitle: CASE_TITLE, status: 'COMPLETED', schemaVersion: 3,
+  totalDurationSeconds: 1500, phaseDurations: [], toolsUsed: 2, reflectionsCount: 3, safeExitUsed: false, visitedNodeTitles: [],
+  ending: {
+    key: 'riesgo_persistente', title: 'El riesgo sigue abierto', tone: 'warning',
+    message: 'Quedó pendiente alguno de los pasos de protección.',
+    reason: ['Cumpliste: Recomendar medidas de protección', 'Faltó: Valorar el riesgo de feminicidio'],
+  },
+  milestones: {
+    done: [{ key: 'medidas_proteccion_activadas', label: 'Recomendar medidas de protección', decisive: true }],
+    missing: [{ key: 'riesgo_feminicidio_valorado', label: 'Valorar el riesgo de feminicidio', decisive: true }],
+  },
+  persona: { bond: 'GUARDED', activation: 'TENSE', label: 'se muestra cautelosa y tensa' },
+  recommendations: ['Revisa cómo valorar el riesgo de feminicidio: es un paso del caso que quedó sin cumplir.'],
+  summaryMessage: '',
 };
 
 async function openCatalog(page: Page): Promise<void> {
@@ -272,7 +290,10 @@ test.describe('@estudiante catálogo', () => {
     await page.keyboard.press('Enter');
     const dialog = page.getByRole('dialog', { name: CASE_TITLE });
     await expect(dialog).toBeVisible();
-    await expect(dialog).toContainText('Activa la ruta institucional antes de cerrar el caso.');
+    await expect(dialog).toContainText('Revisa cómo valorar el riesgo de feminicidio');
+    // El resumen del estudiante dice qué hizo (hitos) y no cuánto sacó.
+    await expect(dialog).toContainText('Recomendar medidas de protección');
+    expect(((await dialog.innerText()).replace(/\s+/g, ' '))).not.toMatch(/puntaje|puntos|estr[eé]s|ranking|desempe[nñ]o|%/i);
     expect(await blockingViolations(page, '.cdk-dialog-container')).toEqual([]);
     await page.keyboard.press('Escape');
     await expect(dialog).toBeHidden();
