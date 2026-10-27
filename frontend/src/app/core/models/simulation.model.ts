@@ -219,8 +219,8 @@ export interface CompetencyLevelEntry {
   code: string;
   name: string;
   level: FormativeLevel | null;
-  /** Con qué se calculó el nivel, en palabras. */
-  basis: string;
+  /** Con qué se calculó el nivel, en palabras; nulo si ninguna decisión tocó la competencia. */
+  basis: string | null;
   evidence: CompetencyEvidence[];
 }
 
@@ -439,7 +439,10 @@ export interface AttemptTrace {
   startedAt: string;
   endedAt: string | null;
   totalDurationSeconds: number | null;
-  phaseDurations: PhaseDuration[];
+  /** El servidor no la manda en la traza. */
+  phaseDurations?: PhaseDuration[];
+  /** Tiempo con la persona jugando, en segundos. */
+  activeSeconds: number;
   /** Decisiones registradas por clase de respuesta. */
   counts: ClassCounts;
   /** Los hitos cumplidos y los que faltaron. */

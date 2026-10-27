@@ -33,7 +33,7 @@ export interface HitoCobertura {
   porcentaje?: number;
 }
 
-/** Cuántas respuestas hubo de cada clase: hechos, no una medida de nadie. */
+/** Cuántas respuestas hubo de cada clase: hechos, no una medida de nadie. El código nuevo usa `ClassCounts`. */
 export type ClasesCount = ClassCounts;
 
 export interface EstudianteSimulacionReporte {
