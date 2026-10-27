@@ -103,3 +103,13 @@ PROPOSAL = _obj({
         "items": {"anyOf": [_obj({"op": _enum([op]), **fields}) for op, fields in OPERATIONS.items()]},
     },
 })
+
+#: Modos en que el editor muestra la acción elegida por la guía.
+GUIDE_MODES = ("resaltar", "foco", "recorrido")
+
+#: La respuesta de la guía: ``accionId`` es el id de una acción del catálogo que manda el cliente, o ``null``.
+GUIDE = _obj({
+    "accionId": {"type": ["string", "null"]},
+    "modo": _enum(GUIDE_MODES),
+    "mensaje": _TEXT,
+})

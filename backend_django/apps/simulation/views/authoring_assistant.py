@@ -14,6 +14,7 @@ import logging
 import re
 import time
 
+from django.core.validators import RegexValidator
 from django.db import transaction
 from drf_spectacular.utils import extend_schema
 from rest_framework import serializers, status
@@ -23,7 +24,7 @@ from shared.exceptions import ApiError
 from shared.openapi import envelope_of, error_responses
 from shared.response import api_ok
 
-from ..serializers.contracts import AssistantResultSerializer, AssistantStatusSerializer
+from ..serializers.contracts import AssistantGuideSerializer, AssistantResultSerializer, AssistantStatusSerializer
 from ..services import audit_service
 from ..services.ai_providers import ProviderError
 from ..services.authoring import guards
@@ -42,6 +43,8 @@ REFUSED_MESSAGE = "La IA no puede ayudar con esa petición. Prueba a pedirla de 
 INVALID_PROPOSAL_MESSAGE = "La propuesta no se pudo usar. Pídela de nuevo con otras palabras."
 MAX_REQUEST_LENGTH = 2000
 MAX_SELECTION_LENGTH = 200
+MAX_GUIDE_QUESTION = 500
+MAX_GUIDE_ACTIONS = 60
 
 _UNSAFE_SCREEN_CHARS = re.compile(r"[^a-z0-9_-]")
 MAX_SCREEN_LENGTH = 64
@@ -81,9 +84,17 @@ class _ProposeInput(serializers.Serializer):
         return screen
 
 
+class _GuideAction(serializers.Serializer):
+    """Una acción del catálogo del editor: ``id`` es un identificador seguro (sin espacios ni comillas)."""
+
+    id = _Text(max_length=80, validators=[RegexValidator(r"^[A-Za-z0-9_.:-]+$")])
+    nombre = _Text(max_length=120)
+    pantalla = _Text(max_length=64)
+
+
 class _GuideInput(serializers.Serializer):
-    pregunta = _Text()
-    acciones = serializers.ListField(child=serializers.JSONField())
+    pregunta = _Text(max_length=MAX_GUIDE_QUESTION)
+    acciones = serializers.ListField(child=_GuideAction(), max_length=MAX_GUIDE_ACTIONS)
 
 
 class _AssistantView(_AuthoringView):
@@ -202,7 +213,7 @@ class AssistantGuideView(_AssistantView):
 
     @extend_schema(
         request=_GuideInput,
-        responses={200: envelope_of(AssistantResultSerializer), **error_responses(400, 401, 403, 404)},
+        responses={200: envelope_of(AssistantGuideSerializer), **error_responses(400, 401, 403, 404)},
     )
     def post(self, request, case_version_id):
         def call(config, version, data):

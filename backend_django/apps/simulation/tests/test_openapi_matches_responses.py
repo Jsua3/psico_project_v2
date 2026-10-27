@@ -407,8 +407,9 @@ def _assistant_call(world, prefix, route, body=None):
     from apps.simulation.services.authoring.assistant import guide, proposals
 
     simulated = {"mensaje": "Propuesta simulada", "model": "claude-opus-5-5", "changes": 1}
+    guided = {"accionId": "mapa.agregar-sala", "modo": "foco", "mensaje": "Aquí.", "model": "claude-haiku-5-5", "changes": 0}
     url = f"{prefix}/{world.draft_id}/assistant/{route}"
-    with override_settings(AI_AUTHORING_ENABLED=True, AI_AUTHORING_API_KEY="clave-de-prueba"),             mock.patch.object(proposals, "propose", return_value=simulated),             mock.patch.object(guide, "answer", return_value=simulated):
+    with override_settings(AI_AUTHORING_ENABLED=True, AI_AUTHORING_API_KEY="clave-de-prueba"),             mock.patch.object(proposals, "propose", return_value=simulated),             mock.patch.object(guide, "answer", return_value=guided):
         client = cl(world.admin)
         return client.get(url) if body is None else client.post(url, body, format="json")
 

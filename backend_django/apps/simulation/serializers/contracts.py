@@ -124,6 +124,16 @@ class AssistantResultSerializer(serializers.Serializer):
     changes = serializers.IntegerField(required=False)
 
 
+class AssistantGuideSerializer(serializers.Serializer):
+    """El resultado de ``guide``: la acción elegida del catálogo (o ``null``), cómo mostrarla y el mensaje."""
+
+    accionId = serializers.CharField(allow_null=True)
+    modo = serializers.ChoiceField(choices=["resaltar", "foco", "recorrido"])
+    mensaje = serializers.CharField()
+    model = serializers.CharField(required=False)
+    changes = serializers.IntegerField(required=False)
+
+
 # ─── PATCH /api/simulation/attempts/{attempt_id}/world-state ──────────────────
 class WorldPatchAckMapSerializer(serializers.Serializer):
     """La sala en la que quedó guardado el jugador."""

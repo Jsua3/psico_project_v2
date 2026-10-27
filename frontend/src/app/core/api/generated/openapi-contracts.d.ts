@@ -172,6 +172,23 @@ export interface AssistantAnswer {
   readonly response: string;
 }
 
+/** El resultado de ``guide``: la acción elegida del catálogo (o ``null``), cómo mostrarla y el mensaje. */
+export interface AssistantGuide {
+  readonly accionId: string | null;
+  readonly changes?: number;
+  readonly mensaje: string;
+  readonly model?: string;
+  readonly modo: ModoEnum;
+}
+
+/** Sobre de éxito: `data` es `AssistantGuide`. */
+export interface AssistantGuideEnvelope {
+  readonly data: AssistantGuide;
+  readonly message?: string;
+  /** Siempre `true` en una respuesta de éxito. */
+  readonly success: boolean;
+}
+
 /** El resultado de ``propose``/``guide``; la Tarea 6 completa su forma. */
 export interface AssistantResult {
   readonly changes?: number;
@@ -692,6 +709,8 @@ export type MembershipStatusEnum = 'INVITED' | 'ACTIVE' | 'DECLINED' | 'REMOVED'
 
 export type ModeEnum = 'connected' | 'disabled';
 
+export type ModoEnum = 'resaltar' | 'foco' | 'recorrido';
+
 /** Cuántos resultados trae la página (`shown`) y cuántos hay en total (`total`). */
 export interface PageCoverage {
   readonly shown: number;
@@ -831,8 +850,15 @@ export interface WorldPatchAckMap {
   readonly key: string;
 }
 
+/** Una acción del catálogo del editor: ``id`` es un identificador seguro (sin espacios ni comillas). */
+export interface _GuideAction {
+  readonly id: string;
+  readonly nombre: string;
+  readonly pantalla: string;
+}
+
 export interface _GuideInput {
-  readonly acciones: ReadonlyArray<unknown>;
+  readonly acciones: ReadonlyArray<_GuideAction>;
   readonly pregunta: string;
 }
 

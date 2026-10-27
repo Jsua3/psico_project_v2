@@ -142,3 +142,17 @@ def user_message(request_text: str, case_context: dict) -> str:
             f"Datos del caso (JSON):\n{json.dumps(case_context, ensure_ascii=False, separators=(',', ':'))}",
         ]
     )
+
+
+# BORRADOR: texto nuevo del servidor, pendiente de la aprobación de Psicología
+SYSTEM_GUIDE = """Eres la guía del editor de casos de MetaFrónesis. Un docente pregunta dónde está algo o cómo se hace algo. Elige, de la lista de acciones que recibes, la que responde la pregunta, y cómo mostrarla:
+- "resaltar" si basta con señalar un botón o un campo;
+- "foco" si conviene oscurecer el resto de la pantalla para que lo vea;
+- "recorrido" si son varios pasos.
+Responde solo con el objeto JSON del esquema. "accionId" es el id exacto de una acción de la lista, o null si ninguna sirve. "mensaje" es una frase corta en español de Colombia, tratando de «tú», sin jerga técnica."""
+
+
+def guide_message(question: str, actions: list) -> str:
+    """El mensaje de la guía: el catálogo de acciones (id, nombre, pantalla) y la pregunta, nada más."""
+    catalog = [{"id": a["id"], "nombre": a["nombre"], "pantalla": a["pantalla"]} for a in actions]
+    return f"Acciones disponibles:\n{json.dumps(catalog, ensure_ascii=False)}\n\nPregunta del docente:\n{question}"
