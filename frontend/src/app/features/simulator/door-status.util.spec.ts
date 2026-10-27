@@ -133,8 +133,8 @@ describe('puertas auxiliares', () => {
     const exit = obj('puerta-consultorio', 'EXIT', 838, 440, 'Consultorio', { requiresInspected: ['expediente-caso'] });
     const status = doorStatus(exit, ctxFor('recepcion', {}, [EXPEDIENTE, exit]));
     const verb = interactionVerb(exit, status);
-    expect(verb.locked).toBe(true);
-    expect(verb.reason).toBe(status.message);
+    expect(verb?.locked).toBe(true);
+    expect(verb?.reason).toBe(status.message);
   });
 
   it('el respaldo para una puerta que el servidor rechaza no usa el texto antiguo del seed', () => {

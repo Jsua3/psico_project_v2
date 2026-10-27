@@ -31,7 +31,8 @@ describe('game-world: el jugador sale del kit (spec §8.2)', () => {
 
   it('el paquete del kit llega antes que Phaser, y sin él el juego arranca igual', () => {
     // F6-8: también se espera a Poppins (con plazo), sin que su fallo detenga el arranque.
-    expect(source).toMatch(/this\.kit\.load\(\)\.then\(bundle => bundle, \(\) => null\),\s*whenWorldFontsReady\(\),\s*\]\)\.then\(\(\[bundle\]\) => \{[\s\S]*?this\.startGame\(bundle\)/);
+    // El manifiesto del arte de la biblioteca viaja con él; si no llega, el juego arranca sin animaciones de cercanía.
+    expect(source).toMatch(/this\.kit\.load\(\)\.then\(bundle => bundle, \(\) => null\),\s*this\.bibliotecaManifest\.load\(\),\s*whenWorldFontsReady\(\),\s*\]\)\.then\(\(\[bundle, manifest\]\) => \{[\s\S]*?this\.startGame\(bundle, manifest\)/);
     expect(source).toMatch(/new DataDrivenWorldScene\(\{\s*reduceMotion,\s*kit,/);
   });
 });

@@ -339,7 +339,9 @@ export interface PlayerState {
 export interface MapObjectState {
   key: string;
   label: string;
-  type: 'PERSON' | 'OBJECT' | 'ROUTE' | 'TOOL' | 'WARNING' | 'EXIT';
+  /** Los 11 tipos de `MAP_OBJECT_TYPES` del servidor. */
+  type: 'PERSON' | 'OBJECT' | 'ROUTE' | 'TOOL' | 'WARNING' | 'EXIT'
+    | 'PROP' | 'TOOL_TARGET' | 'TRIGGER' | 'NOTE' | 'RESOURCE';
   x: number;
   y: number;
   width: number;

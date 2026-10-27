@@ -2,8 +2,8 @@
 
 Se juega un intento COMPLETO del caso sembrado SIM-VBG-001 por la API HTTP, como estudiante, y se recoge CADA respuesta
 JSON de ``/api/simulation/**``. Cada una se recorre entera: falla si un número (``int``/``float``, no ``bool``) cuelga de
-una clave que no sea una de la lista blanca explícita de abajo (ids, contadores de HECHOS, duraciones y geometría), o si
-aparece, en cualquier nivel, una de las claves retiradas del modelo viejo (puntaje, estrés, métricas, estado clínico,
+una clave que no sea una de la lista blanca explícita de abajo (ids, contadores de HECHOS, duraciones, geometría y la
+animación del dibujo), o si aparece, en cualquier nivel, una de las claves retiradas del modelo viejo (puntaje, estrés, métricas, estado clínico,
 deltas y conteos por severidad).
 
 Un conteo de hechos («reconsideraste 2 respuestas») no es una medida: ``counts.*`` del reporte congelado v3 son hechos
@@ -14,9 +14,13 @@ import json
 import re
 
 import pytest
+from django.contrib.auth import get_user_model
+from django.db import connection
 from rest_framework.test import APIClient
 
-from apps.simulation.models import SceneHint, SceneMap, SimulationAttempt
+from apps.grupos.models import Grupo
+from apps.simulation.models import CaseVersion, SceneHint, SceneMap, SimulationAttempt
+from shared.testing import seal_version
 
 from .test_caso_pdf import (  # noqa: F401  (fixtures y ayudas del recorrido canónico)
     PATH_TO_DOOR,
@@ -70,6 +74,9 @@ ALLOWED_NUMERIC_KEYS = {
     "entryX": "punto de entrada de la puerta", "entryY": "punto de entrada de la puerta",
     "interactionRadius": "radio de interacción de un objeto",
     "cameraZoom": "acercamiento de la cámara en la sala (``ambient`` de autoría): geometría del render, no una medida",
+    # ── la animación del dibujo de un objeto copiado de la biblioteca (``metadata.animacionCerca``) ──
+    "cuadros": "cuántos cuadros tiene la hoja de animación de un objeto cuando la persona se le acerca: es el dibujo, no una medida de ella",
+    "fps": "a cuántos cuadros por segundo se anima esa hoja: velocidad del dibujo, no una medida de la persona",
 }
 
 #: Sufijos con una sola razón cada uno: ``*Id`` (identificador: ``caseVersionId``, ``nodeId``, ``optionId``,
@@ -364,3 +371,113 @@ def test_las_claves_retiradas_de_la_prueba_son_las_del_codigo_de_produccion():
     from apps.simulation.services import attempt_report
 
     assert RETIRED_KEYS == attempt_report.RETIRED_KEYS
+
+
+# ─── un caso creado desde un lugar de la biblioteca ───────────────────────────────────────────────────────────────
+#: Las salas de la universidad: cada una se vuelve un caso de una sola sala para ver el mundo de TODAS las salas.
+SALAS_DEL_LUGAR = ["pasillo", "sala-espera", "bienestar", "consultorio"]
+
+
+def _jugar_casos_de_un_lugar():
+    """El profesor crea un caso por sala desde la universidad; una estudiante por sala abre el suyo y recibe sus respuestas.
+
+    El caso se crea por la API de autoría (``lugarId`` + ``salas``), se publica y se asigna al grupo de la estudiante
+    con el atajo de las demás pruebas; desde ahí todo es lo que ve ella: tarjeta del caso, intento y mundo.
+    """
+    User = get_user_model()
+    profesor = User.objects.create_user(
+        email="prof_lugar@x.com", password="x", nombre="Prof", apellido="Lugar", role="PROFESOR",
+    )
+    autor = APIClient()
+    autor.force_authenticate(user=profesor)
+    cliente = RecordingClient()
+
+    for sala in SALAS_DEL_LUGAR:
+        creado = autor.post(
+            "/api/authoring/cases", {"title": f"Caso desde {sala}", "lugarId": "universidad", "salas": [sala]},
+            format="json",
+        )
+        assert creado.status_code == 200, creado.data
+        version_id = creado.data["data"]["caseVersionId"]
+        CaseVersion.objects.filter(pk=version_id).update(status="PUBLISHED")
+        seal_version(version_id)  # empezar un intento exige el sello de la compuerta
+        # Una estudiante por sala: la secuencia lineal de una sola estudiante solo desbloquearía el primer caso.
+        estudiante = User.objects.create_user(
+            email=f"est_lugar_{sala}@x.com", password="x", nombre="Est", apellido="Lugar", role="ESTUDIANTE",
+        )
+        grupo = Grupo.objects.create(nombre=f"Grupo {sala}", codigo=f"LU-{sala}"[:20], profesor=profesor)
+        with connection.cursor() as cur:
+            cur.execute(
+                "INSERT INTO grupo_estudiante (grupo_id, estudiante_id) VALUES (%s, %s) ON CONFLICT DO NOTHING",
+                [grupo.id, estudiante.id],
+            )
+            cur.execute(
+                "INSERT INTO case_assignments (grupo_id, case_version_id) VALUES (%s, %s) ON CONFLICT DO NOTHING",
+                [grupo.id, version_id],
+            )
+        cliente.force_authenticate(user=estudiante)
+        assert cliente.get(f"{BASE}/cases/{version_id}/brief").status_code == 200
+        iniciado = cliente.post(f"{BASE}/attempts", {"caseVersionId": version_id}, format="json")
+        assert iniciado.status_code in (200, 201), iniciado.data
+        intento, token = iniciado.data["data"]["attemptId"], iniciado.data["data"]["attemptToken"]
+        cabecera = {"HTTP_X_SIEP_ATTEMPT_TOKEN": token}
+        assert cliente.get(f"{BASE}/attempts/{intento}", **cabecera).status_code == 200
+        assert cliente.get(f"{BASE}/attempts/{intento}/world", **cabecera).status_code == 200
+    assert cliente.get(f"{BASE}/cases").status_code == 200
+    return cliente
+
+
+def _objetos_del_mundo(cliente):
+    return [
+        objeto
+        for where, _status, body in cliente.recorded
+        if _shape(where).endswith("/world")
+        for objeto in body["data"]["objects"]
+    ]
+
+
+@pytest.fixture
+def cliente_de_un_caso_de_un_lugar(db):
+    return _jugar_casos_de_un_lugar()
+
+
+def test_el_recorrido_de_un_caso_de_un_lugar_llega_hasta_el_mundo_de_cada_sala(cliente_de_un_caso_de_un_lugar):
+    cliente = cliente_de_un_caso_de_un_lugar
+
+    assert all(200 <= status < 300 for _where, status, _body in cliente.recorded)
+    mundos = [body for where, _s, body in cliente.recorded if _shape(where).endswith("/world")]
+    assert len(mundos) == len(SALAS_DEL_LUGAR)
+    tipos = {objeto["type"] for objeto in _objetos_del_mundo(cliente)}
+    assert {"PROP", "OBJECT", "NOTE", "RESOURCE", "PERSON"} <= tipos, tipos
+
+
+def test_un_caso_de_un_lugar_lleva_la_animacion_de_cercania_y_sus_cifras_son_del_dibujo(cliente_de_un_caso_de_un_lugar):
+    """``cuadros`` y ``fps`` viajan en ``metadata.animacionCerca``: son la animación del dibujo, no una medida de nadie.
+
+    Esta prueba es la razón de ser de las dos entradas de ``ALLOWED_NUMERIC_KEYS``: aparecen en un caso real, y
+    las que la lista blanca acepta son exactamente esas.
+    """
+    cliente = cliente_de_un_caso_de_un_lugar
+    animados = [o for o in _objetos_del_mundo(cliente) if "animacionCerca" in (o.get("metadata") or {})]
+    assert animados, "ningún objeto del mundo trae animación de cercanía: la lista blanca quedaría sin justificar"
+
+    for objeto in animados:
+        animacion = objeto["metadata"]["animacionCerca"]
+        assert set(animacion) == {"hoja", "cuadros", "fps"}, animacion
+        assert isinstance(animacion["cuadros"], int) and isinstance(animacion["fps"], int)
+        # El alto, el ancho del cuadro y el resto de lo que mide la hoja salen del manifiesto en el cliente, no del caso.
+        assert not {"ancho", "alto", "width", "height"} & set(animacion)
+
+    numeros, _claves = _scan(cliente.recorded)
+    dibujo = {(clave, valor) for _where, clave, valor in numeros if clave in {"cuadros", "fps"}}
+    assert {clave for clave, _valor in dibujo} == {"cuadros", "fps"}
+
+
+def test_ninguna_respuesta_de_un_caso_de_un_lugar_lleva_una_medida_ni_una_clave_retirada(cliente_de_un_caso_de_un_lugar):
+    numeros, claves = _scan(cliente_de_un_caso_de_un_lugar.recorded)
+
+    retiradas = sorted({(where, key) for where, key in claves if key in RETIRED_KEYS})
+    medidas = sorted({(where, key, value) for where, key, value in numeros if not _allowed(key)}, key=str)
+
+    assert retiradas == [], f"claves retiradas en las respuestas: {retiradas}"
+    assert medidas == [], f"números que no son id, hecho, duración, posición ni dibujo: {medidas}"

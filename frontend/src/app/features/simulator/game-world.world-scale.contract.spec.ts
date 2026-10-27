@@ -34,8 +34,9 @@ describe('game-world: puertas, herramientas y objetos a escala 1 (spec §13.1, d
 
   it('las herramientas y los objetos de escenario no llevan escala', () => {
     expect(source).not.toContain('TOOL_SPRITE_SCALE');
-    expect(source).toContain('main = this.atWorldScale(this.add.image(0, -6, toolTex));');
-    expect(source).toContain('main = this.atWorldScale(this.add.image(0, -6, resolveObjectTextureKey(object.shortCode)!));');
+    // Reposo y hoja de cercanía (cuadro 0 = reposo, mismas medidas): ni uno ni otro se escalan.
+    expect(source).toContain('return { sprite: this.atWorldScale(this.add.image(0, -6, art.textureKey)), animation: null };');
+    expect(source).toContain('const sprite = this.add.sprite(0, -6, sheet.textureKey, 0);');
   });
 
   it('un marcador con sprite de pixel art no se escala al acercarse ni al enfocarlo: el pulso va a su anillo', () => {

@@ -49,7 +49,7 @@ import {
   selectRevealed,
 } from './interaction-priority.util';
 import { serverRejectsPlayerAt } from './server-world-geometry.util';
-import { InteractionVerb, interactionVerb } from './interaction-verb.util';
+import { InteractionVerb, interactionVerb, participatesInInteraction } from './interaction-verb.util';
 import { paintVignette, vignetteTextureKey } from './vignette-texture.util';
 import { WORLD_FONT_FAMILY, whenWorldFontsReady } from './world-typography.util';
 import { HOVER_HIT, HoverCandidate, pickHoverTarget } from './world-hover.util';
@@ -78,7 +78,10 @@ import { PixelRender } from './pixel-render';
 import { doorFacing, doorSpriteSpecs, resolveDoorSideTextureKey, resolveDoorTextureKey } from './door-sprite.util';
 import { furnitureSpriteSpecs } from './furniture-sprite.util';
 import { CameraFlash, CRISIS_VIGNETTE_TINT, crisisVignetteState, roomEntryFlash, vignetteFrame } from './game-feel.util';
-import { objectSpriteSpecs, resolveObjectTextureKey, resolveToolTextureKey } from './object-sprite.util';
+import { artLoadsFor, BibliotecaManifest, objectSheetSpecs, objectSpriteSpecs, spriteFor } from './object-sprite.util';
+import {
+  ProximityAnimation, proximityAnimationKey, syncProximityAnimation,
+} from './proximity-animation.util';
 import { AVATAR_STORAGE_KEY } from '../character/avatar.store';
 import { NpcMotionConfig, NpcMovementZone } from '../../core/models/simulation.model';
 import type { KitBundle } from '../character/kit/kit-engine';
@@ -88,6 +91,7 @@ import {
   playKitPose, queueCharacterSheets,
 } from '../character/kit/kit-phaser';
 import { KitService } from '../character/kit/kit.service';
+import { BibliotecaManifestService } from './biblioteca-manifest.service';
 import {
   KIT_ICON_OFFSET_Y, KIT_LABEL_OFFSET_Y, PATIENT_RECIPE_ID,
   extrasCharacterRef, markerEmphasis, npcCharacterRef, personCharacterRef, playerCharacterRef,
@@ -116,10 +120,18 @@ interface WorldCallbacks {
   onWalkEnded?:  (key: string, label: string, outcome: 'arrived' | 'blocked') => void;
   /** Progreso de la precarga, 0-100 (solo la carga inicial). */
   onLoadProgress: (percent: number) => void;
+  /**
+   * La segunda ola de carga (el arte de la biblioteca que pide `queueMissingArt` ya con el mundo en marcha) sigue viva:
+   * se avisa al empezar y con cada archivo que llega o falla, para que el vigilante de arranque cuente esa espera como
+   * avance y no declare colgada una sala que sí está cargando.
+   */
+  onArtLoading?: () => void;
   /** Fin de la precarga; lista las claves esenciales que fallaron (vacía si todo cargó). */
   onLoadComplete: (criticalFailures: string[]) => void;
   reduceMotion:  boolean;
   sfxMuted:       boolean;
+  /** Manifiesto del arte de la biblioteca (null si no cargó: los objetos quedan en su reposo, sin animación de cercanía). */
+  artManifest?: BibliotecaManifest | null;
   /** Paquete del kit (null si no cargó: los actores caen a su marcador). */
   kit: KitBundle | null;
 }
@@ -191,6 +203,10 @@ export class DataDrivenWorldScene extends Phaser.Scene {
   private readonly markers    = new Map<string, Phaser.GameObjects.Container>();
   private readonly markerData = new Map<string, MapObjectState>();
   private readonly markerLabels = new Map<string, Phaser.GameObjects.Text>();
+  /** Objetos con hoja de cercanía, por clave de marcador: se reproduce cuando son el candidato principal. */
+  private readonly proximityAnimations = new Map<string, ProximityAnimation>();
+  /** Texturas de arte que ya se pidieron (lleguen o fallen): no se vuelven a pedir en cada pintado. */
+  private readonly requestedArt = new Set<string>();
   private readonly doorHints  = new Map<string, Phaser.GameObjects.Container>();
   private readonly ambientMovers = new Map<string, AmbientMover>();
   private readonly npcMovers = new Map<string, NpcMover>();
@@ -330,6 +346,11 @@ export class DataDrivenWorldScene extends Phaser.Scene {
     // ── Sprites pixel-art de objetos (herramientas + escenario), puertas y mobiliario; fallback si faltan ──
     for (const spec of [...objectSpriteSpecs(), ...doorSpriteSpecs(), ...furnitureSpriteSpecs()]) {
       this.load.image(spec.textureKey, spec.assetPath);
+    }
+    // Hojas de cercanía de esos mismos sprites: solo las que el manifiesto respalda; si una falla, el objeto queda en su reposo.
+    for (const sheet of objectSheetSpecs(this.callbacks.artManifest ?? null)) {
+      this.requestedArt.add(sheet.textureKey);
+      this.load.spritesheet(sheet.textureKey, sheet.assetPath, { frameWidth: sheet.frameWidth, frameHeight: sheet.frameHeight });
     }
 
     // Tiled JSON maps — all known scenario keys (missing ones fail silently)
@@ -586,6 +607,8 @@ export class DataDrivenWorldScene extends Phaser.Scene {
 
   setReduceMotion(reduced: boolean) {
     this.callbacks.reduceMotion = reduced;
+    // Al reducir el movimiento lo que animaba vuelve al cuadro 0; al volver a permitirlo, el principal retoma.
+    this.syncProximityAnimations();
     this.applyCrisisState();
   }
 
@@ -784,7 +807,8 @@ export class DataDrivenWorldScene extends Phaser.Scene {
     const state = obj.type === 'EXIT' ? this.doorStates[key] : undefined;
     const door = state ? { state, missing: [], stageLocked: false, message: null } : null;
     const radius = key.startsWith(NPC_KEY_PREFIX) ? NPC_INTERACT_RADIUS : MARKER_INTERACT_RADIUS;
-    return { x, y, verb: interactionVerb(obj, door), reach: reachRadius(radius), label: obj.label };
+    const verb = interactionVerb(obj, door);
+    return verb ? { x, y, verb, reach: reachRadius(radius), label: obj.label } : null;
   }
 
   /**
@@ -931,8 +955,39 @@ export class DataDrivenWorldScene extends Phaser.Scene {
     }
   }
 
+  /**
+   * Pide el arte de los objetos del mundo que aún no está en la escena: reposos y hojas de la biblioteca, que no se
+   * precargan (son muchos y cada caso usa pocos). Devuelve true si quedó algo en cola; el mundo se pinta de nuevo al
+   * terminar la carga. Lo que falla no se vuelve a pedir: ese objeto queda en su reposo o en su marcador de siempre.
+   */
+  private queueMissingArt(): boolean {
+    const pending = artLoadsFor(this.renderableWorldObjects(), this.callbacks.artManifest ?? null)
+      .filter(art => !this.textures.exists(art.textureKey) && !this.requestedArt.has(art.textureKey));
+    if (pending.length === 0) return false;
+    for (const art of pending) {
+      this.requestedArt.add(art.textureKey);
+      if (art.kind === 'sheet') {
+        this.load.spritesheet(art.textureKey, art.assetPath, { frameWidth: art.frameWidth!, frameHeight: art.frameHeight! });
+      } else {
+        this.load.image(art.textureKey, art.assetPath);
+      }
+    }
+    // Esta carga ocurre tras la inicial, que ya no avisa su progreso: cada archivo que llega (o falla) reanuda el vigilante.
+    const waiting = () => this.callbacks.onArtLoading?.();
+    this.load.on(Phaser.Loader.Events.PROGRESS, waiting);
+    this.load.once(Phaser.Loader.Events.COMPLETE, () => {
+      this.load.off(Phaser.Loader.Events.PROGRESS, waiting);
+      if (this.ready) this.renderWorld();
+    });
+    waiting();
+    this.load.start();
+    return true;
+  }
+
   private renderWorld() {
     if (!this.world) return;
+    // El arte de la biblioteca que aún no está cargado se pide primero; el mundo se pinta de nuevo al llegar.
+    if (this.queueMissingArt()) return;
 
     // Multi-room mode: delegate to renderRoom() when a ScenarioConfig is loaded
     if (this.scenarioConfig) {
@@ -949,6 +1004,7 @@ export class DataDrivenWorldScene extends Phaser.Scene {
     this.children.removeAll(true);
     this.markers.clear();
     this.markerData.clear();
+    this.proximityAnimations.clear();
     this.markerLabels.clear();
     this.doorHints.clear();
     this.npcMarkers.clear();
@@ -1095,6 +1151,7 @@ export class DataDrivenWorldScene extends Phaser.Scene {
     this.children.removeAll(true);
     this.markers.clear();
     this.markerData.clear();
+    this.proximityAnimations.clear();
     this.markerLabels.clear();
     this.doorHints.clear();
     this.npcMarkers.clear();
@@ -1834,6 +1891,50 @@ export class DataDrivenWorldScene extends Phaser.Scene {
   }
 
   /**
+   * Sprite de un objeto con arte propio, o `null` (→ su marcador de siempre). Con hoja de cercanía cargada nace en
+   * el cuadro 0 (el reposo: mismas medidas) y su animación queda lista; si la hoja falta del manifiesto o no cargó,
+   * se dibuja el reposo y no hay animación.
+   */
+  private buildArtSprite(
+    object: MapObjectState,
+  ): { sprite: Phaser.GameObjects.Image | Phaser.GameObjects.Sprite; animation: ProximityAnimation | null } | null {
+    const art = spriteFor(object, this.callbacks.artManifest ?? null);
+    if (!art) return null;
+    const sheet = art.sheet;
+    if (sheet && this.textures.exists(sheet.textureKey)) {
+      const animationKey = proximityAnimationKey(sheet.textureKey, sheet.fps);
+      if (this.ensureProximityAnimation(animationKey, sheet.textureKey, sheet.frames, sheet.fps)) {
+        const sprite = this.add.sprite(0, -6, sheet.textureKey, 0);
+        return { sprite, animation: { sprite, animationKey, playing: false } };
+      }
+    }
+    if (!this.textures.exists(art.textureKey)) return null;
+    return { sprite: this.atWorldScale(this.add.image(0, -6, art.textureKey)), animation: null };
+  }
+
+  /** Registra (una sola vez) la animación en bucle de una hoja; false si la hoja trae menos de dos cuadros. */
+  private ensureProximityAnimation(animationKey: string, textureKey: string, frames: number, fps: number): boolean {
+    if (this.anims.exists(animationKey)) return true;
+    // `frameTotal` cuenta el cuadro base de Phaser además de los de la hoja.
+    const available = Math.min(frames, this.textures.get(textureKey).frameTotal - 1);
+    if (available < 2) return false;
+    this.anims.create({
+      key: animationKey,
+      frames: this.anims.generateFrameNumbers(textureKey, { start: 0, end: available - 1 }),
+      frameRate: fps,
+      repeat: -1,
+    });
+    return true;
+  }
+
+  /** Reproduce o detiene la animación de cercanía de cada objeto que la tiene, según sea o no el principal. */
+  private syncProximityAnimations(): void {
+    this.proximityAnimations.forEach((animation, key) => {
+      syncProximityAnimation(animation, key === this.nearestKey, this.callbacks.reduceMotion);
+    });
+  }
+
+  /**
    * Sprite de una puerta, o `null` si no hay arte para ella (→ fallback del marcador).
    *
    * Contra un muro lateral se usa la variante en 3/4; el asset está dibujado
@@ -1878,6 +1979,7 @@ export class DataDrivenWorldScene extends Phaser.Scene {
 
     // Un marcador con sprite de pixel art nunca se escala (markerEmphasis, focus): spec §1.1.2.
     let pixelSprite = false;
+    const art = this.assetsLoaded && !isExit ? this.buildArtSprite(object) : null;
     if (this.assetsLoaded) {
       doorSprite = isExit ? this.buildDoorSprite(object) : null;
       if (doorSprite) {
@@ -1895,17 +1997,12 @@ export class DataDrivenWorldScene extends Phaser.Scene {
       } else if (isExit && this.textures.exists('dungeon-tiles')) {
         main = this.add.image(0, 0, 'dungeon-tiles', KenneyDungeonFrames.DOOR).setScale(3);
         pixelSprite = true;
-      } else if (object.type === 'TOOL') {
-        const toolTex = resolveToolTextureKey(object.toolCode);
-        if (toolTex && this.textures.exists(toolTex)) {
-          main = this.atWorldScale(this.add.image(0, -6, toolTex));
-          pixelSprite = true;
-        } else {
-          main = this.buildToolMarker(color, object.shortCode || object.toolCode || object.label);
-        }
-      } else if (object.type === 'OBJECT' && this.loadedTexture(resolveObjectTextureKey(object.shortCode))) {
-        main = this.atWorldScale(this.add.image(0, -6, resolveObjectTextureKey(object.shortCode)!));
+      } else if (art) {
+        // Arte propio del objeto (biblioteca o sprites fijos): con hoja de cercanía si el manifiesto la respalda.
+        main = art.sprite;
         pixelSprite = true;
+      } else if (object.type === 'TOOL') {
+        main = this.buildToolMarker(color, object.shortCode || object.toolCode || object.label);
       } else if (object.type === 'PERSON') {
         personVisual = this.callbacks.kit ? this.actorVisual(personCharacterRef(this.callbacks.kit, object)) : null;
         if (personVisual) {
@@ -1938,6 +2035,7 @@ export class DataDrivenWorldScene extends Phaser.Scene {
     this.setFeetOffset(marker, 16);   // la sombra marca el contacto con el piso
     this.markers.set(object.key, marker);
     this.markerData.set(object.key, object);
+    if (art?.animation) this.proximityAnimations.set(object.key, art.animation);
     const bag = marker as unknown as Record<string, unknown>;
     bag['__kitSprite'] = personVisual !== null;
     bag['__pixelSprite'] = pixelSprite;
@@ -2079,7 +2177,7 @@ export class DataDrivenWorldScene extends Phaser.Scene {
   }
 
   private isInteractive(o: MapObjectState): boolean {
-    return o.type === 'EXIT' || o.type === 'TOOL' || o.type === 'ROUTE'
+    return o.type === 'EXIT' || o.type === 'TOOL' || o.type === 'ROUTE' || o.type === 'NOTE' || o.type === 'RESOURCE'
       || o.decisionOptionId != null
       || (o.toolCode != null && o.toolCode !== '')
       || o.dialogue != null;
@@ -2094,6 +2192,8 @@ export class DataDrivenWorldScene extends Phaser.Scene {
     if (this.callbacks.reduceMotion) return;
     // Las personas ya respiran con su hoja de reposo; el vaivén queda para herramientas y objetos.
     if (object.type === 'PERSON' && this.isInteractive(object)) return;
+    // Un mueble (PROP) se queda quieto: no flota ni se mueve.
+    if (object.type === 'PROP') return;
 
     if (this.isInteractive(object)) {
       // Interactable juice: subtle float on top of the existing glow pulse.
@@ -2304,6 +2404,8 @@ export class DataDrivenWorldScene extends Phaser.Scene {
     for (const [key, marker] of this.markers) {
       const obj = this.markerData.get(key);
       if (!obj) continue;
+      // Un mueble (PROP) y lo que no tiene comportamiento se dibujan, pero no entran en la prioridad de interacción.
+      if (!participatesInInteraction(obj)) continue;
       const c = this.candidateAt(list.length);
       c.key = key; c.kind = 'marker'; c.exit = obj.type === 'EXIT';
       c.distance = Math.hypot(px - marker.x, py - marker.y); c.radius = MARKER_INTERACT_RADIUS;
@@ -2398,6 +2500,7 @@ export class DataDrivenWorldScene extends Phaser.Scene {
    */
   private refreshMarkerStates() {
     this.syncLabelScale();
+    this.syncProximityAnimations();
     const revealed = this.revealed;
     this.syncTargetRing();
     this.applyDoorStates();
@@ -2680,7 +2783,7 @@ export class GameWorldComponent implements OnChanges, OnDestroy {
     if (!nearby) return null;
     const state = nearby.type === 'EXIT' ? this.doorStates()[nearby.key] : undefined;
     const door = state ? { state, missing: [], stageLocked: false, message: null } : null;
-    return interactionVerb(nearby, door).text;
+    return interactionVerb(nearby, door)?.text ?? null;
   });
   /** Personas con las que ya se habló (claves de persona): lo ya examinado se resalta con el ratón aunque esté lejos. */
   readonly viewedNpcKeys = input<ReadonlySet<string>>(NO_KEYS);
@@ -2752,6 +2855,7 @@ export class GameWorldComponent implements OnChanges, OnDestroy {
   private detachScrollKeyGuard?: () => void;
 
   private readonly kit = inject(KitService);
+  private readonly bibliotecaManifest = inject(BibliotecaManifestService);
   /** El componente se destruyó mientras llegaba el paquete del kit. */
   private destroyed = false;
   private booting = false;
@@ -2935,13 +3039,15 @@ export class GameWorldComponent implements OnChanges, OnDestroy {
     // El paquete del kit llega antes que Phaser; si falla, el juego arranca igual y los
     // actores caen a su marcador (KitService lo reintenta en el próximo boot).
     // También se espera a Poppins (con plazo): Phaser mide el texto al crearlo y con la fuente aún sin cargar queda mal medido.
+    // El manifiesto del arte de la biblioteca viaja igual: si no llega, el juego sigue sin animaciones de cercanía.
     Promise.all([
       this.kit.load().then(bundle => bundle, () => null),
+      this.bibliotecaManifest.load(),
       whenWorldFontsReady(),
-    ]).then(([bundle]) => {
+    ]).then(([bundle, manifest]) => {
       this.booting = false;
       if (!this.destroyed) this.emitPatientVisual(bundle);
-      if (!this.destroyed && this.gameHost && !this.phaserGame) this.startGame(bundle);
+      if (!this.destroyed && this.gameHost && !this.phaserGame) this.startGame(bundle, manifest);
     });
   }
 
@@ -2950,12 +3056,13 @@ export class GameWorldComponent implements OnChanges, OnDestroy {
     this.patientVisual.emit(visual?.recipeId === PATIENT_RECIPE_ID ? visual : null);
   }
 
-  private startGame(kit: KitBundle | null) {
+  private startGame(kit: KitBundle | null, artManifest: BibliotecaManifest | null) {
     const reduceMotion = this.effectiveReduceMotion();
     this.zone.runOutsideAngular(() => {
       this.scene = new DataDrivenWorldScene({
         reduceMotion,
         kit,
+        artManifest,
         onReady:       () => this.zone.run(() => {
           this.clearBootWatchdog();
           this.renderedMapKey.set(this.world()?.map.key ?? null);
@@ -2982,6 +3089,7 @@ export class GameWorldComponent implements OnChanges, OnDestroy {
           // Una carga que avanza no está colgada: el plazo cuenta desde el último avance, no desde el arranque.
           if (!this.renderReady()) this.armBootWatchdog();
         }),
+        onArtLoading: () => this.onArtLoading(),
         onLoadComplete: failures => this.zone.run(() => {
           this.loadPercent.set(100);
           this.assetsReady.set(true);
@@ -3027,6 +3135,11 @@ export class GameWorldComponent implements OnChanges, OnDestroy {
       this.pushExamined();
       this.pushOrientation();
     }, 0);
+  }
+
+  /** La segunda ola de carga (arte de la biblioteca) sigue viva: mientras la primera pintura la espera, el vigilante se reanuda. */
+  onArtLoading(): void {
+    if (!this.destroyed && !this.renderReady()) this.armBootWatchdog();
   }
 
   /** Si en `BOOT_WATCHDOG_MS` el mundo no se pintó, avisa: el indicador de carga no puede quedar eterno. */

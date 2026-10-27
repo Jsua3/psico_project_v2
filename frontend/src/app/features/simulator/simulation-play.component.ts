@@ -24,7 +24,7 @@ import {
 import { decorateDialogueState, otherStageDecisionKeys } from './dialogue-decoration.util';
 import { type CopyContext, evidenceNoticeText } from './evidence-copy.util';
 import { type DoorStatus, type DoorStatusContext, doorStateMap, doorStatus } from './door-status.util';
-import { type InteractionVerb, interactionVerb } from './interaction-verb.util';
+import { type InteractionVerb, interactionVerb, readsLocally } from './interaction-verb.util';
 import { HIGHLIGHT_TOOL_TARGETS, NAME_TOOLS_IN_HINTS, ORIENTATION_COPY, RoomGroup, SAFE_EXIT_ALWAYS_REACHABLE } from './orientation.config';
 import { GameHelpComponent } from './game-help.component';
 import { HELP_FIRST_CARD, markHelpSeen, readHelpSeen, resetHelpSeen } from './help-memory.util';
@@ -1931,6 +1931,12 @@ export class SimulationPlayComponent implements OnInit, OnDestroy {
       return;
     }
 
+    // Una nota o un recurso del caso se lee sin preguntarle nada al servidor: su texto ya está en el mundo.
+    if (readsLocally(interaction)) {
+      this.showLocalReading(interaction);
+      return;
+    }
+
     if (isSceneAmbientInteraction(interaction.key)) {
       this.showAmbientDialogue(interaction);
       return;
@@ -2000,6 +2006,7 @@ export class SimulationPlayComponent implements OnInit, OnDestroy {
     const mapKey = this.world()?.map.key;
     const shown = { ...obj, label: getSceneDisplayLabel(obj, mapKey) };
     const verb = interactionVerb(shown, obj.type === 'EXIT' ? this.doorStatusFor(obj) : null);
+    if (!verb) return null;
     const reason = verb.locked && verb.reason ? verb.reason : null;
     const rawDescription = obj.key.startsWith('npc:') ? '' : getSceneInteractionDescription(obj, mapKey);
     // La descripción sembrada solo sirve de ayuda (title) si dice algo que el verbo y la etiqueta no dicen.
@@ -2269,6 +2276,23 @@ export class SimulationPlayComponent implements OnInit, OnDestroy {
         text,
         emotion: 'neutral',
       }],
+      choices: [],
+    });
+  }
+
+  /**
+   * Diálogo local de una nota o un recurso: su `interactionText` (lo que el docente escribió en «Al revisar») tal cual,
+   * sin llamada al servidor. Sin texto, muestra su nombre.
+   */
+  private showLocalReading(interaction: MapObjectState): void {
+    this.selectedInteraction.set(interaction);
+    const text = interaction.interactionText.trim() || interaction.label;
+    this.dialogue.set({
+      key: interaction.key,
+      speakerName: interaction.label,
+      portraitKey: 'info',
+      emotion: 'neutral',
+      lines: [{ order: 1, speakerName: interaction.label, text, emotion: 'neutral' }],
       choices: [],
     });
   }

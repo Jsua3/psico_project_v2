@@ -32,7 +32,7 @@ describe('game-world: game feel del bloque B', () => {
   });
 
   it('activar movimiento reducido reaplica la crisis y el destello pendiente se consume una sola vez', () => {
-    expect(source).toMatch(/setReduceMotion\(reduced: boolean\) \{\s*this\.callbacks\.reduceMotion = reduced;\s*this\.applyCrisisState\(\);\s*\}/);
+    expect(source).toMatch(/setReduceMotion\(reduced: boolean\) \{\s*this\.callbacks\.reduceMotion = reduced;(?:\s*\/\/[^\n]*)?\s*this\.syncProximityAnimations\(\);\s*this\.applyCrisisState\(\);\s*\}/);
     expect(source).toMatch(/\n  playPendingRoomFlash\(\): void \{\s*const flash = this\.pendingRoomFlash;\s*this\.pendingRoomFlash = null;/);
   });
 
@@ -71,7 +71,7 @@ describe('game-world: game feel del bloque B', () => {
   it('el rótulo y el resto del texto del lienzo usan Poppins y se crean con la fuente ya disponible', () => {
     expect(source).not.toContain("'Arial, sans-serif'");
     expect(source).toContain('fontFamily: WORLD_FONT_FAMILY');
-    expect(source).toMatch(/Promise\.all\(\[\s*this\.kit\.load\(\)\.then\(bundle => bundle, \(\) => null\),\s*whenWorldFontsReady\(\),\s*\]\)\.then\(\(\[bundle\]\) => \{/);
+    expect(source).toMatch(/Promise\.all\(\[\s*this\.kit\.load\(\)\.then\(bundle => bundle, \(\) => null\),\s*this\.bibliotecaManifest\.load\(\),\s*whenWorldFontsReady\(\),\s*\]\)\.then\(\(\[bundle, manifest\]\) => \{/);
   });
 
   it('tras reintentar el foco va a #main-content y no queda perdido en <body>', () => {
