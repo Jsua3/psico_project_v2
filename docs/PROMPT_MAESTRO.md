@@ -140,7 +140,7 @@ stateDiagram-v2
 - **Iniciar:** versión PUBLISHED de un caso activo y, para estudiantes, asignada a un grupo activo suyo. Sin `forceNew`, si hay un intento abierto lo devuelve (y reemite su token).
 - **Token del intento:** 32 bytes aleatorios (se guarda el SHA-256); viaja en `X-SIEP-Attempt-Token` (GET) o en el cuerpo. Un token rotado anula a la otra pestaña.
 - **Decisión:** solo desde el nodo actual. Con `rules.secondChance`, la **primera** respuesta RISKY o CONTRAINDICATED de un nodo no se aplica ni avanza (aviso de «última oportunidad»); la segunda se registra y avanza. Efectos (`effects` de la opción): un paso de la persona en vínculo y activación (por defecto el de su clase), los hitos que cumple y las competencias que toca; sin puntaje, estrés ni métricas. Al completar se resuelve un **final por hitos y clases de respuesta**: el del caso (`rules.endings`) o, si no declara, la plantilla (crítica, protectora, riesgo persistente, con brechas), con su razón en palabras. Un intento cerrado antes de este modelo conserva su reporte v1/v2 tal cual; al estudiante se le sirve sin sus cifras.
-- **Pausa (`safe-exit`) y reanudación:** misma `attemptId`, nodo y métricas; sin bloquear la bitácora; idempotentes. **No** existe un checkpoint aparte: cada operación persiste su efecto al instante.
+- **Pausa (`safe-exit`) y reanudación:** misma `attemptId`, nodo, hitos y estado de la persona; sin bloquear la bitácora; idempotentes. **No** existe un checkpoint aparte: cada operación persiste su efecto al instante.
 - **Bitácora:** una nota por (intento, nodo), editable mientras se juega; se bloquea al completar o reemplazar.
 - **Mundo (autoritativo en el servidor):** movimiento validado por colisión y velocidad; interacción a ≤ 120 px; herramientas del inventario con pertinencia; puertas encadenadas (existe → destino → cerca → inspeccionado → herramientas → nodos → NPC). Cambiar de sala no cambia el nodo del grafo ni los hitos.
 
@@ -243,7 +243,7 @@ Todas las respuestas llevan el sobre `{success, message, data}`; 401 sin token, 
 | E | Ecomapa guiado, lista primero, 4 etiquetas, sin «afinidad» ni puntos | solo lectura primero; la niña y la persona agresora no aparecen | 12–21 d + Psicología |
 | F | Entrevista por turnos (2–4 intercambios) en M1 y M9, sin tiempo ni reflejos | por turnos; Psicología redacta M1 y M9 | 20–31 d + Psicología |
 | G | Ayuda curada (30–50 entradas); IA opcional solo tras decidir y con concepto jurídico (Ley 1581/2012) | reinterpretar RF-027; sin IA sin concepto escrito | 22,5–38 d |
-| J | Consultorio de primera escucha como 2.º caso; antes generalizar finales, métricas, aviso e introducción | 14 preguntas a Psicología | Ing. 20–37 d |
+| J | Consultorio de primera escucha como 2.º caso; antes generalizar finales por hitos, aviso e introducción | 14 preguntas a Psicología | Ing. 20–37 d |
 
 C, E y F comparten una Fase 0 de 6–10 d; 0a (movimiento reducido en el panel) y 0b (botón único de salida segura) ya están. Las preguntas que más bloquean están en `propuestas-c-e-f-resumen.md`. Las mismas propuestas están redactadas como **162 requisitos** (47 RF, 41 RNF, 46 RN, 28 CU), con criterios de aceptación y 58 preguntas para Psicología, en `docs/requisitos/propuestas/` (PR #60); ninguno es obligación hasta que el equipo los apruebe.
 
