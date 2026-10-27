@@ -1118,6 +1118,56 @@ def test_cada_error_que_un_contrato_tipado_documenta_tiene_su_caso(document):
         )
 
 
+# ─── «Parte revisada»: POST …/{nodes|decisions|dialogues|objects}/{id}/accept-ai (P5) ───────────────────────────────
+# Devuelven el editor (sin contrato tipado): el 200 se contrasta con el sobre genérico y el 409 con el de error.
+_ACCEPT_PARAMS = {"nodes": "node_id", "decisions": "decision_id", "dialogues": "tree_id", "objects": "object_id"}
+
+
+def _accept_marked(prefix, kind, segment):
+    """Un borrador del autor con una parte marcada de cada clase, y la ruta ``accept-ai`` de la de clase ``kind``."""
+    from .test_ai_suggested import _marked_draft
+
+    author = User.objects.create_user(email=f"ia_autor_{kind}@x.com", password="x", nombre="Au", apellido="Tor", role="PROFESOR")
+    cv, ids = _marked_draft(author)
+    template = f"{prefix}/{{case_version_id}}/{segment}/{{{_ACCEPT_PARAMS[segment]}}}/accept-ai"
+    return author, cv, ids, template, f"{prefix}/{cv}/{segment}/{ids[kind]}/accept-ai"
+
+
+@pytest.mark.parametrize("prefix", ROUTE_FAMILIES)
+@pytest.mark.parametrize("kind,segment", [("node", "nodes"), ("decision", "decisions"), ("tree", "dialogues"), ("object", "objects")])
+def test_aceptar_una_parte_de_la_ia_responde_el_sobre_que_el_documento_declara(prefix, kind, segment, document, db):
+    author, cv, _ids, template, url = _accept_marked(prefix, kind, segment)
+    revision = cl(author).get(f"/api/authoring/cases/{cv}/editor").json()["data"]["revision"]
+
+    response = cl(author).post(url, {"revision": revision}, format="json")
+
+    assert response.status_code == 200, response.content
+    declared = document["paths"][template]["post"]["responses"]
+    assert "200" in declared
+    assert_matches(response.json(), declared["200"]["content"]["application/json"]["schema"], document)
+
+
+@pytest.mark.parametrize("prefix", ROUTE_FAMILIES)
+@pytest.mark.parametrize("kind,segment", [("node", "nodes"), ("decision", "decisions"), ("tree", "dialogues"), ("object", "objects")])
+def test_aceptar_con_una_revision_vencida_es_el_409_que_el_documento_declara(prefix, kind, segment, document, db):
+    author, cv, _ids, template, url = _accept_marked(prefix, kind, segment)
+    stale = cl(author).get(f"/api/authoring/cases/{cv}/editor").json()["data"]["revision"]
+    admin = User.objects.create_user(email=f"ia_admin_{kind}@x.com", password="x", nombre="Ad", apellido="Min", role="ADMIN")
+    ids_node = _ids["node"]
+    other = cl(admin)  # otra persona edita después: la revisión de la autora ya no es de su tanda
+    fresh = other.get(f"/api/authoring/cases/{cv}/editor").json()["data"]["revision"]
+    assert other.post(f"/api/authoring/cases/{cv}/nodes/{ids_node}/accept-ai", {"revision": fresh}, format="json").status_code == 200
+
+    response = cl(author).post(url, {"revision": stale}, format="json")
+
+    assert response.status_code == 409, response.content
+    body = response.json()
+    assert body["success"] is False and body["code"] == "REVISION_CONFLICT"
+    declared = document["paths"][template]["post"]["responses"]
+    assert "409" in declared
+    assert_matches(body, declared["409"]["content"]["application/json"]["schema"], document)
+
+
 #: Propiedades declaradas que ninguna respuesta real de este módulo puede mostrar, con el motivo de cada una.
 NEVER_SEEN: dict[str, str] = {
     "ImportRejectedEnvelope.field": "el 400 de una importación rechazada lleva `issues`, no `field` (ese es de ErrorEnvelope)",

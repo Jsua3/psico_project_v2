@@ -16,7 +16,7 @@ Montadas en `/api/authoring/cases/{id}/assistant/…` (canónica) y en `/api/adm
 | `POST assistant/propose` | Una propuesta de cambios para la pantalla del editor | el capaz (`AI_AUTHORING_MODEL_CAPABLE`) |
 | `POST assistant/guide` | «¿Cómo hago X?»: elige una acción del catálogo del editor y cómo mostrarla (`resaltar`, `foco`, `recorrido`) | el rápido (`AI_AUTHORING_MODEL_FAST`) |
 
-`propose` y `guide` solo aceptan una versión en borrador. Apagado (`AI_AUTHORING_ENABLED=false`) las tres rutas responden 404 «El asistente no está disponible» y no tocan al proveedor; la propiedad del caso se revisa antes, así que un caso ajeno es 403 con la bandera como esté.
+`propose` y `guide` solo aceptan una versión en borrador; `status` responde con cualquier versión propia (comprueba la autoría, no el estado), y un caso ajeno es 403 también en `status`. Apagado (`AI_AUTHORING_ENABLED=false`) las tres rutas responden 404 «El asistente no está disponible» y no tocan al proveedor; la propiedad del caso se revisa antes, así que un caso ajeno es 403 con la bandera como esté.
 
 ## Configuración
 
@@ -56,7 +56,7 @@ Cada `propose` y `guide` deja una fila:
 | Acción | Taxonomía | Contexto guardado |
 |---|---|---|
 | `AI_AUTHORING_PROPOSE` | `asistente_autoria.proponer` | `screen`, `model`, `changes`, `duration_ms`, `outcome` |
-| `AI_AUTHORING_GUIDE` | `asistente_autoria.guiar` | ídem |
+| `AI_AUTHORING_GUIDE` | `asistente_autoria.guiar` | `model`, `changes`, `duration_ms`, `outcome` (sin `screen`: la guía no recibe pantalla) |
 
 `outcome` es `ok`, `refusal`, `error` o `invalid`. **Nunca se guarda el texto de la petición ni el de la respuesta**; la pantalla se reduce a una palabra segura (`[a-z0-9_-]`, hasta 64). Aceptar una parte sugerida deja `ADMIN_ACCEPT_AI_NODE|DECISION|DIALOGUE|OBJECT` (`ia.aceptar_nodo|decision|dialogo|objeto`).
 
@@ -107,4 +107,4 @@ Una escena nueva usa un id temporal `nueva-N` que los cambios siguientes pueden 
 | 429 | `AI_LIMIT_EXCEEDED` | Cupo diario o mensual agotado |
 | 502 | `AI_PROVIDER_ERROR` | El proveedor no respondió o no hay clave; el cupo se devuelve |
 
-El contrato tipado (OpenAPI → `frontend/src/app/core/api/generated/openapi-contracts.d.ts`) cubre `status`, `propose` y `guide` en las dos familias de rutas. Las rutas `accept-ai` devuelven el editor, que no tiene contrato tipado, y solo declaran sus errores.
+El contrato tipado (OpenAPI → `frontend/src/app/core/api/generated/openapi-contracts.d.ts`) cubre `status`, `propose` y `guide` en las dos familias de rutas. Las rutas `accept-ai` devuelven el editor, que no tiene contrato tipado: se contrastan con el sobre genérico (200) y con el sobre de conflicto (409 `REVISION_CONFLICT`, que trae `revision` y `current`). Las tres rutas del asistente tienen casos reales de 401, 403 y 404 en las pruebas de contrato (`status` incluido).
