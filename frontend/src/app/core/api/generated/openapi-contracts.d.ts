@@ -175,10 +175,24 @@ export interface AssistantAnswer {
 /** El resultado de ``guide``: la acción elegida del catálogo (o ``null``), cómo mostrarla y el mensaje. */
 export interface AssistantGuide {
   readonly accionId: string | null;
-  readonly changes?: number;
+  /** Siempre 0: la guía no propone cambios. */
+  readonly changes: number;
   readonly mensaje: string;
-  readonly model?: string;
-  readonly modo: ModoEnum;
+  /** El modelo que respondió. */
+  readonly model: string;
+  readonly modo: AssistantGuideModeEnum;
+}
+
+/** Una acción del catálogo del editor: ``id`` es un identificador seguro (sin espacios ni comillas). */
+export interface AssistantGuideAction {
+  readonly id: string;
+  readonly nombre: string;
+  readonly pantalla: string;
+}
+
+export interface AssistantGuideBody {
+  readonly acciones: ReadonlyArray<AssistantGuideAction>;
+  readonly pregunta: string;
 }
 
 /** Sobre de éxito: `data` es `AssistantGuide`. */
@@ -189,11 +203,25 @@ export interface AssistantGuideEnvelope {
   readonly success: boolean;
 }
 
-/** El resultado de ``propose``/``guide``; la Tarea 6 completa su forma. */
+export type AssistantGuideModeEnum = 'resaltar' | 'foco' | 'recorrido';
+
+export interface AssistantProposeBody {
+  readonly pantalla: string;
+  readonly peticion: string;
+  readonly seleccion?: unknown | null;
+}
+
+/** El resultado de ``propose``: el mensaje, la lista de cambios propuestos y con qué modelo se hizo. Cada cambio es un objeto con su ``op`` (una de las diez operaciones del asistente) y los campos de esa operación; el servidor ya los validó contra el caso. Proponer NO escribe nada: el cliente los aplica. */
 export interface AssistantResult {
-  readonly changes?: number;
-  readonly mensaje?: string;
-  readonly model?: string;
+  /** Cambios validados, cada uno con su `op`. */
+  readonly cambios: ReadonlyArray<Readonly<Record<string, unknown>>>;
+  /** Cuántos cambios trae `cambios`. */
+  readonly changes: number;
+  readonly mensaje: string;
+  /** El modelo que respondió. */
+  readonly model: string;
+  /** Siempre `connected` en un resultado. */
+  readonly modo: string;
 }
 
 /** Sobre de éxito: `data` es `AssistantResult`. */
@@ -207,7 +235,7 @@ export interface AssistantResultEnvelope {
 /** Si el asistente de autoría está listo y cuánto cupo le queda hoy a quien lo usa. */
 export interface AssistantStatus {
   readonly enabled: boolean;
-  readonly mode: ModeEnum;
+  readonly mode: AssistantStatusModeEnum;
   readonly remainingToday: number;
 }
 
@@ -218,6 +246,8 @@ export interface AssistantStatusEnvelope {
   /** Siempre `true` en una respuesta de éxito. */
   readonly success: boolean;
 }
+
+export type AssistantStatusModeEnum = 'connected' | 'disabled';
 
 export type AttemptStatusEnum = 'IN_PROGRESS' | 'PAUSED' | 'SAFE_EXITED' | 'COMPLETED' | 'REPLACED';
 
@@ -707,10 +737,6 @@ export interface MembershipConflictEnvelope {
 
 export type MembershipStatusEnum = 'INVITED' | 'ACTIVE' | 'DECLINED' | 'REMOVED';
 
-export type ModeEnum = 'connected' | 'disabled';
-
-export type ModoEnum = 'resaltar' | 'foco' | 'recorrido';
-
 /** Cuántos resultados trae la página (`shown`) y cuántos hay en total (`total`). */
 export interface PageCoverage {
   readonly shown: number;
@@ -848,24 +874,6 @@ export interface WorldPatchAckEnvelope {
 /** La sala en la que quedó guardado el jugador. */
 export interface WorldPatchAckMap {
   readonly key: string;
-}
-
-/** Una acción del catálogo del editor: ``id`` es un identificador seguro (sin espacios ni comillas). */
-export interface _GuideAction {
-  readonly id: string;
-  readonly nombre: string;
-  readonly pantalla: string;
-}
-
-export interface _GuideInput {
-  readonly acciones: ReadonlyArray<_GuideAction>;
-  readonly pregunta: string;
-}
-
-export interface _ProposeInput {
-  readonly pantalla: string;
-  readonly peticion: string;
-  readonly seleccion?: unknown | null;
 }
 
 export interface OpenApiPaths {

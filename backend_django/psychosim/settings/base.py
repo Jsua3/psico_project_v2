@@ -560,6 +560,8 @@ SPECTACULAR_SETTINGS = {
         "AssignmentStateEnum": "apps.grupos.contracts.ASSIGNMENT_STATES",
         "AssignmentTargetTypeEnum": "apps.grupos.contracts.ASSIGNMENT_TARGETS",
         "IssueSeverityEnum": "apps.simulation.serializers.contracts.ISSUE_SEVERITIES",
+        "AssistantStatusModeEnum": "apps.simulation.serializers.contracts.ASSISTANT_STATUS_MODES",
+        "AssistantGuideModeEnum": "apps.simulation.serializers.contracts.ASSISTANT_GUIDE_MODES",
         "HintReasonEnum": "apps.simulation.serializers.contracts.HINT_REASONS",
         "LifecycleActionEnum": "apps.simulation.serializers.contracts.LIFECYCLE_ACTIONS",
         "MembershipStatusEnum": "apps.grupos.models.MembershipStatus",

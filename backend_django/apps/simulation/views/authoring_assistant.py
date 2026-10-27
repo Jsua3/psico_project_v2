@@ -64,7 +64,7 @@ class _Text(serializers.CharField):
         return super().to_internal_value(data)
 
 
-class _ProposeInput(serializers.Serializer):
+class AssistantProposeBody(serializers.Serializer):
     peticion = _Text(max_length=MAX_REQUEST_LENGTH)
     pantalla = _Text(allow_blank=True)
     seleccion = serializers.JSONField(required=False, allow_null=True)
@@ -84,7 +84,7 @@ class _ProposeInput(serializers.Serializer):
         return screen
 
 
-class _GuideAction(serializers.Serializer):
+class AssistantGuideAction(serializers.Serializer):
     """Una acción del catálogo del editor: ``id`` es un identificador seguro (sin espacios ni comillas)."""
 
     id = _Text(max_length=80, validators=[RegexValidator(r"^[A-Za-z0-9_.:-]+$")])
@@ -92,9 +92,9 @@ class _GuideAction(serializers.Serializer):
     pantalla = _Text(max_length=64)
 
 
-class _GuideInput(serializers.Serializer):
+class AssistantGuideBody(serializers.Serializer):
     pregunta = _Text(max_length=MAX_GUIDE_QUESTION)
-    acciones = serializers.ListField(child=_GuideAction(), max_length=MAX_GUIDE_ACTIONS)
+    acciones = serializers.ListField(child=AssistantGuideAction(), max_length=MAX_GUIDE_ACTIONS)
 
 
 class _AssistantView(_AuthoringView):
@@ -188,7 +188,7 @@ class AssistantProposeView(_AssistantView):
     """``POST …/assistant/propose``: una propuesta de cambios para la pantalla del editor."""
 
     @extend_schema(
-        request=_ProposeInput,
+        request=AssistantProposeBody,
         responses={200: envelope_of(AssistantResultSerializer), **error_responses(400, 401, 403, 404, 422, 429, 502)},
     )
     def post(self, request, case_version_id):
@@ -203,7 +203,7 @@ class AssistantProposeView(_AssistantView):
             )
 
         return self.run(
-            request, case_version_id, action="AI_AUTHORING_PROPOSE", input_class=_ProposeInput, call=call,
+            request, case_version_id, action="AI_AUTHORING_PROPOSE", input_class=AssistantProposeBody, call=call,
             default_model=lambda config: config.model_capable,
         )
 
@@ -212,14 +212,14 @@ class AssistantGuideView(_AssistantView):
     """``POST …/assistant/guide``: una respuesta de guía («¿cómo hago X?») según lo que la persona ya hizo."""
 
     @extend_schema(
-        request=_GuideInput,
-        responses={200: envelope_of(AssistantGuideSerializer), **error_responses(400, 401, 403, 404)},
+        request=AssistantGuideBody,
+        responses={200: envelope_of(AssistantGuideSerializer), **error_responses(400, 401, 403, 404, 422, 429, 502)},
     )
     def post(self, request, case_version_id):
         def call(config, version, data):
             return guide.answer(config=config, question=data["pregunta"], actions=data["acciones"])
 
         return self.run(
-            request, case_version_id, action="AI_AUTHORING_GUIDE", input_class=_GuideInput, call=call,
+            request, case_version_id, action="AI_AUTHORING_GUIDE", input_class=AssistantGuideBody, call=call,
             default_model=lambda config: config.model_fast,
         )

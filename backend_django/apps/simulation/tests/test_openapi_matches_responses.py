@@ -9,6 +9,7 @@ contratos tipados baje y cada error que un contrato documenta tiene que tener su
 """
 import copy
 import json
+import re
 import uuid
 from dataclasses import dataclass
 from datetime import timedelta
@@ -406,7 +407,10 @@ def _assistant_call(world, prefix, route, body=None):
 
     from apps.simulation.services.authoring.assistant import guide, proposals
 
-    simulated = {"mensaje": "Propuesta simulada", "model": "claude-opus-5-5", "changes": 1}
+    simulated = {
+        "mensaje": "Propuesta simulada", "cambios": [{"op": "set-intensity", "nodeId": 1}], "modo": "connected",
+        "model": "claude-opus-5-5", "changes": 1,
+    }
     guided = {"accionId": "mapa.agregar-sala", "modo": "foco", "mensaje": "Aquí.", "model": "claude-haiku-5-5", "changes": 0}
     url = f"{prefix}/{world.draft_id}/assistant/{route}"
     with override_settings(AI_AUTHORING_ENABLED=True, AI_AUTHORING_API_KEY="clave-de-prueba"),             mock.patch.object(proposals, "propose", return_value=simulated),             mock.patch.object(guide, "answer", return_value=guided):
@@ -852,7 +856,46 @@ def _assistant_route_errors(prefix):
          lambda w, path=path: _propose_failing(w, path, None, AI_AUTHORING_DAILY_LIMIT_PER_USER=0),
          429, "AI_LIMIT_EXCEEDED"),
     ]
+    guide_path = f"{prefix}/{{case_version_id}}/assistant/guide"
+    errors += [
+        ("asistente (guide) con el proveedor caído", guide_path, "POST",
+         lambda w, path=guide_path: _guide_failing(w, path, ProviderError("http", "caído")),
+         502, "AI_PROVIDER_ERROR"),
+        ("asistente (guide) rechazado por el proveedor", guide_path, "POST",
+         lambda w, path=guide_path: _guide_failing(w, path, ProviderError("refusal", "no")),
+         422, "AI_REFUSED"),
+        ("asistente (guide) sin cupo", guide_path, "POST",
+         lambda w, path=guide_path: _guide_failing(w, path, None, AI_AUTHORING_DAILY_LIMIT_PER_USER=0),
+         429, "AI_LIMIT_EXCEEDED"),
+    ]
+    for segment, param in (("nodes", "node_id"), ("decisions", "decision_id"), ("dialogues", "tree_id"), ("objects", "object_id")):
+        path = f"{prefix}/{{case_version_id}}/{segment}/{{{param}}}/accept-ai"
+        errors += [
+            (f"revisar ({segment}) sin sesión", path, "POST",
+             lambda w, path=path: APIClient().post(_accept_url(path, w.draft_id), {}, format="json"), 401, "UNAUTHENTICATED"),
+            (f"revisar ({segment}) sin permiso", path, "POST",
+             lambda w, path=path: cl(w.student).post(_accept_url(path, w.draft_id), {}, format="json"), 403, "FORBIDDEN"),
+            (f"revisar ({segment}) de una versión inexistente", path, "POST",
+             lambda w, path=path: cl(w.admin).post(_accept_url(path, 999999), {}, format="json"), 404, "NOT_FOUND"),
+        ]
     return errors
+
+
+def _accept_url(path, version_id):
+    url = path.replace("{case_version_id}", str(version_id))
+    return re.sub(r"\{[a-z_]+_id\}", "1", url)
+
+
+def _guide_failing(w, path, error, **settings_):
+    """``guide`` con el asistente encendido y el proveedor simulado fallando con ``error``."""
+    from unittest import mock
+
+    from apps.simulation.services.authoring.assistant import guide
+
+    url = path.replace("{case_version_id}", str(w.draft_id))
+    config = dict(AI_AUTHORING_ENABLED=True, AI_AUTHORING_API_KEY="clave-de-prueba", **settings_)
+    with override_settings(**config), mock.patch.object(guide, "answer", side_effect=error):
+        return cl(w.admin).post(url, {"pregunta": "x", "acciones": []}, format="json")
 
 
 def proposals_module():
