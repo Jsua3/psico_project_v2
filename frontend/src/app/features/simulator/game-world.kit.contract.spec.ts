@@ -56,16 +56,16 @@ describe('game-world: NPC, personas, guía y figurantes del kit; nada los deform
     expect(source).toContain('extrasCharacterRef(kit)');
   });
 
-  it('el estado de la paciente es un icono sobre la cabeza', () => {
-    const update = body('updatePatientVisualState(state:');
-    expect(update).toContain('patientIconKind(state)');
-    expect(update).toContain('icon.setTexture(patientIconKey(kind))');
+  it('el estado de la persona es un icono sobre la cabeza', () => {
+    const update = body('updatePatientVisualState(persona:');
+    expect(update).toContain('personaIconKind(persona)');
+    expect(update).toContain('icon.setTexture(personaIconKey(kind))');
   });
 
   it('el icono sobrevive a un re-render: la escena recuerda el estado y cada icono nace con él', () => {
-    expect(body('updatePatientVisualState(state:')).toContain('this.patientState = state;');
+    expect(body('updatePatientVisualState(persona:')).toContain('this.persona = persona;');
     const create = body('private patientIcon(feetY: number)');
-    expect(create).toContain('patientIconView(this.patientState)');
+    expect(create).toContain('personaIconView(this.persona)');
     expect(create).toContain('.setVisible(view.visible)');
     expect(create).not.toContain('.setVisible(false)');
   });

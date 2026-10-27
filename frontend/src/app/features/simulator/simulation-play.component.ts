@@ -12,11 +12,12 @@ import { apiErrorMessage, isConsentRequiredError } from '../../core/api/api-erro
 import { SimulationService } from '../../core/api/simulation.service';
 import { NotificationService } from '../../core/notifications/notification.service';
 import {
-  DialogueState, InteractionResult, MapObjectState, NpcConfig, PatientState,
+  DialogueState, InteractionResult, MapObjectState, NpcConfig, Persona,
   ProgressMapState, SimulationAttemptState, ScenarioConfig, SimulationDecisionResult,
   SimulationWorldState, ToolUseResult
 } from '../../core/models/simulation.model';
-import { PATIENT_INITIAL_STATE } from './patient-state.util';
+import type { CharacterVisual } from '../character/kit/character-visual.resolver';
+import { personaChangeAnnouncement } from './persona-change.util';
 import {
   choiceEvidence, mergeEvidence, type NodeEvidenceDef, collectViewedNpcKeys, missingEvidence, missingEvidenceItems, nodeEvidence,
 } from './evidence-gating.config';
@@ -97,8 +98,6 @@ const CONSEQUENCE_SPEAKER = 'Consecuencia';
 const RETRY_NOTICE = 'No se avanzó el caso ni se aplicaron cambios acumulados. Revisa la escena y vuelve a responder.';
 /** Sin movimientos nuevos durante este tiempo, la posición del jugador se guarda en el servidor. */
 const POSITION_SAVE_DEBOUNCE_MS = 550;
-/** Duración del pulso visual de estrés tras aplicar una herramienta. */
-const STRESS_PULSE_MS = 700;
 /** Línea «no hay nada cerca» tras pedir interactuar sin nada al alcance. */
 const NOTHING_NEARBY_MS = 2500;
 /** Nombre de la sala al cambiar de sala. */
@@ -206,11 +205,6 @@ const CASE_INTRO_PARAGRAPHS = [
                 Ya tienes un intento activo en <strong>{{ active.caseTitle }}</strong>.
                 Puedes retomarlo desde <strong>{{ active.currentNode.title }}</strong> o iniciar uno nuevo.
               </p>
-              <div class="case-intro-card__metrics">
-                <span>Puntaje: {{ active.accumulatedScore }}</span>
-                <span>Estrés: {{ active.stressIndex }}%</span>
-                <span>Riesgo: {{ active.metrics.victimRisk }}%</span>
-              </div>
             </div>
 
             <footer class="case-intro-card__actions">
@@ -343,8 +337,7 @@ const CASE_INTRO_PARAGRAPHS = [
         <header class="top-bar" [attr.inert]="inputBlocked() ? '' : null" [attr.aria-hidden]="inputBlocked() ? 'true' : null">
           <app-simulation-hud
             [attempt]="game"
-            [stressPulse]="stressPulse()"
-            [patientState]="patientState()"
+            [patientVisual]="patientVisual()"
             [stageLabel]="stageLabel()"
             [locationLabel]="world()?.map?.title ?? ''"
             [journalOpen]="journalOpen()"
@@ -386,10 +379,11 @@ const CASE_INTRO_PARAGRAPHS = [
                 [motionPaused]="worldMotionPaused()"
                 [sfxMuted]="sfxMuted()"
                 [reduceMotion]="reduceMotion()"
-                [stressLevel]="attempt()?.stressIndex ?? 0"
+                [activation]="attempt()?.persona?.activation ?? 'CALM'"
+                [intensity]="attempt()?.currentNode?.intensity ?? 'MEDIUM'"
                 [doorStates]="doorStates()"
                 [nextTargetKey]="nextTargetKey()" [dimmedKeys]="dimmedKeys()" [compact]="compactMode()"
-                [showLoader]="false" (worldReady)="onWorldReady()"
+                [showLoader]="false" (worldReady)="onWorldReady()" (patientVisual)="patientVisual.set($event)"
                 (proximity)="nearbyInteraction.set($event)" (proximityAlso)="nearbyAlso.set($event)"
                 (nothingNearby)="showNothingNearby()" (interact)="openInteraction($event)"
                 (npcInteract)="openNpcDialogue($event)" (walkEnded)="onWalkEnded($event)"
@@ -533,7 +527,7 @@ const CASE_INTRO_PARAGRAPHS = [
           @if (game.currentNode.sensitiveContent) {
             <p class="sr-only" role="note">Contenido sensible. Puedes pausar el caso con el botón «Salida segura» o con la tecla Escape.</p>
           }
-          <div class="sr-only">Puntaje: {{ game.accumulatedScore }}. Estrés: {{ game.stressIndex }}%. Estado: {{ statusLabelA11y(game.status) }}.</div>
+          <div class="sr-only">Estado: {{ statusLabelA11y(game.status) }}. La persona usuaria {{ game.persona.label }}.</div>
         </section>
 
         @if (!holdingOutcome()) {
@@ -1064,11 +1058,6 @@ const CASE_INTRO_PARAGRAPHS = [
     /* «Reanudar» es la misma entrada que las otras tres (F6-2): por encima de ellas y sin el CSS propio que tenía. */
     .case-intro-overlay--resume { z-index: 400; }
     .case-intro-card--entry { width: min(560px, 100%); }
-    .case-intro-card__metrics { display: flex; flex-wrap: wrap; gap: 10px; margin-top: 16px; }
-    .case-intro-card__metrics span {
-      padding: 8px 12px; border-radius: 999px; background: rgba(255,255,255,.06);
-      border: 1px solid rgba(255,255,255,.08); font-size: .82rem; font-weight: 700;
-    }
     /* ETH-01: el almacenamiento falló y el consentimiento NO está registrado; el aviso previo sigue (sin mundo). */
     .consent-error {
       display: grid; grid-template-columns: auto minmax(0, 1fr); align-items: start; gap: 8px 10px;
@@ -1261,7 +1250,6 @@ export class SimulationPlayComponent implements OnInit, OnDestroy {
   private readonly pendingRestrictedInteraction = signal<MapObjectState | null>(null);
   readonly selectedInteraction = signal<MapObjectState | null>(null);
   readonly dialogue    = signal<DialogueState | null>(null);
-  readonly stressPulse = signal(false);
   readonly journalOpen  = signal(false);
   /** «Ir a…» (F6-11): la lista de personas y puertas de la sala abierta y lo que ofrece. */
   readonly placesOpen   = signal(false);
@@ -1367,7 +1355,10 @@ export class SimulationPlayComponent implements OnInit, OnDestroy {
   private readonly seenTransitionMapKeys = new Set<string>();
 
   /** Estado reactivo de la paciente (Fase 8) — alimenta HUD y tint/shake del NPC. */
-  readonly patientState = signal<PatientState>(PATIENT_INITIAL_STATE);
+  /** Retrato de la persona consultante en el kit (lo da el mundo al cargarlo): el HUD le pone la expresión de la persona. */
+  readonly patientVisual = signal<CharacterVisual | null>(null);
+  /** Última persona vista de cada intento: el cambio es lo único que se anuncia (nunca el primer valor). */
+  private lastPersona: { attemptId: string; persona: Pick<Persona, 'bond' | 'activation'> } | null = null;
   /** NPCs de ScenarioConfig hablados en esta sesión (evidencia frontend, Fase 9). */
   protected readonly viewedNpcKeys = signal<ReadonlySet<string>>(new Set<string>());
   private pendingEvidenceDecisionId: number | null = null;
@@ -1699,7 +1690,8 @@ export class SimulationPlayComponent implements OnInit, OnDestroy {
         // Un diálogo que llegó tarde mientras el intento estaba en pausa (la supervisión se abre
         // `SUPERVISION_DELAY_MS` después de la decisión) no debe reaparecer al reanudar.
         this.dialogue.set(null);
-        this.audioDirector.setStressLevel(attempt.stressIndex);
+        this.trackPersona(attempt);
+        this.applyAudioScene(attempt);
         // Si se pausó desde la introducción sin haberla leído, reaparece (`resolveIntroStep` ya lo
         // decide); el consentimiento ya está dado en esta sesión y no se vuelve a pedir.
         const world = this.world();
@@ -1807,13 +1799,13 @@ export class SimulationPlayComponent implements OnInit, OnDestroy {
     this.audioDirector.init();
     this.musicMuted.set(this.audioDirector.isMusicMuted());
     this.sfxMuted.set(this.audioDirector.isSfxMuted());
-    this.patientState.set(PATIENT_INITIAL_STATE);
+    this.lastPersona = { attemptId: attempt.attemptId, persona: attempt.persona };
     this.viewedNpcKeys.set(this.restoreViewedNpcKeys(attempt));
     this.visitedRooms.set(readVisitedRooms(attempt.caseVersionId, attempt.attemptId));
     this.pendingEvidenceDecisionId = null;
     this.loadProgressMap(attempt);
     this.loadWorld(attempt);
-    this.audioDirector.setStressLevel(attempt.stressIndex);
+    this.applyAudioScene(attempt);
   }
 
   @HostListener('window:keydown', ['$event'])
@@ -2373,7 +2365,8 @@ export class SimulationPlayComponent implements OnInit, OnDestroy {
           }
           this.trackStageChange(game, updated);
           this.attempt.set(updated);
-          this.hydrateClinicalState(updated);
+          this.syncPersonaIcon(updated);
+          this.trackPersona(updated);
           this.persistAttemptToken(updated);
           this.selectedInteraction.set(null);
           this.nearbyInteraction.set(null);
@@ -2385,7 +2378,7 @@ export class SimulationPlayComponent implements OnInit, OnDestroy {
           if (lastDecision && !this.holdOutcomeForConsequence(updated)) this.playCompletionAudio();
           this.loadProgressMap(updated);
           this.loadWorld(updated);
-          this.audioDirector.setStressLevel(updated.stressIndex);
+          this.applyAudioScene(updated);
           const consequence = lastDecision ? null : this.buildConsequenceDialogue(updated);
           if (consequence) window.setTimeout(() => this.dialogue.set(consequence), SUPERVISION_DELAY_MS);
         },
@@ -2425,12 +2418,6 @@ export class SimulationPlayComponent implements OnInit, OnDestroy {
       next: (result: ToolUseResult) => {
         this.world.set(result.world);
         this.mergeViewedNpcKeysFromWorld(result.world);
-        const cur = this.attempt();
-        if (cur) {
-          const newStress = Math.max(0, Math.min(100, cur.stressIndex + result.stressDelta));
-          this.attempt.set({ ...cur, stressIndex: newStress });
-          this.audioDirector.setStressLevel(newStress);
-        }
         this.showToolFeedback(result);
         this.busy.set(false);
       },
@@ -2740,17 +2727,9 @@ export class SimulationPlayComponent implements OnInit, OnDestroy {
       key: `tool-feedback-${result.toolCode}-${Date.now()}`,
       speakerName: result.pertinent ? '✓ Herramienta pertinente' : 'ℹ Herramienta aplicada',
       portraitKey: null, emotion: result.pertinent ? 'positive' : 'neutral',
-      lines: [
-        { order: 1, speakerName: '', text: result.feedbackMessage, emotion: 'neutral' },
-        // «Estrés +0%» no dice nada: solo se informa cuando el cambio real existe.
-        ...(result.stressDelta !== 0
-          ? [{ order: 2, speakerName: '', text: `Estrés ${result.stressDelta > 0 ? '+' : ''}${result.stressDelta}%`, emotion: 'neutral' }]
-          : []),
-      ],
+      lines: [{ order: 1, speakerName: '', text: result.feedbackMessage, emotion: 'neutral' }],
       choices: []
     });
-    this.stressPulse.set(true);
-    window.setTimeout(() => this.stressPulse.set(false), STRESS_PULSE_MS);
     // Sin announce(): el panel de diálogo ya anuncia esta misma línea por su región viva (con las dos se leía dos veces).
   }
 
@@ -2760,7 +2739,7 @@ export class SimulationPlayComponent implements OnInit, OnDestroy {
     if (!muted) {
       // Durante la intro vuelve su tema; en la partida, la música adaptativa del mapa.
       if (this.showIntroScene() || this.showCaseIntro()) this.audioDirector.playIntroLament();
-      else this.audioDirector.setStressLevel(this.attempt()?.stressIndex ?? 0);
+      else this.applyAudioScene(this.attempt());
     }
     this.announce(muted ? 'Música silenciada.' : 'Música activada.');
   }
@@ -2858,7 +2837,7 @@ export class SimulationPlayComponent implements OnInit, OnDestroy {
     if (decision.retry) {
       lines.push({ order: lines.length + 1, speakerName: text ? '' : CONSEQUENCE_SPEAKER, text: RETRY_NOTICE, emotion: 'neutral' });
     } else if (text) {
-      // Sin cifras: las del motor no coinciden con las barras del HUD y «puntaje» convierte el caso en un marcador.
+      // Sin cifras: «puntaje» convierte el caso en un marcador.
       lines.push({ order: lines.length + 1, speakerName: '', text: ORIENTATION_COPY.notices.supervision, emotion: 'neutral' });
     }
     if (!lines.length) return null;
@@ -2950,7 +2929,7 @@ export class SimulationPlayComponent implements OnInit, OnDestroy {
     }
     this.rememberVisitedRoom(world);
     this.world.set(world);
-    this.hydrateClinicalState(this.attempt());
+    this.syncPersonaIcon(this.attempt());
     this.mergeViewedNpcKeysFromWorld(world);
     this.loading.set(false);
     this.busy.set(false);
@@ -2975,11 +2954,26 @@ export class SimulationPlayComponent implements OnInit, OnDestroy {
     this.finishWorldReload();
   }
 
-  private hydrateClinicalState(attempt: SimulationAttemptState | null): void {
-    const patient = attempt?.clinicalState?.patient;
-    if (!patient) return;
-    this.patientState.set(patient);
-    this.gameWorld?.updatePatientVisualState(patient);
+  /** La persona de este intento sobre la cabeza de la paciente en el mundo (el icono nace con el último estado). */
+  private syncPersonaIcon(attempt: SimulationAttemptState | null): void {
+    if (attempt?.persona) this.gameWorld?.updatePatientVisualState(attempt.persona);
+  }
+
+  /** Música y viñeta siguen a la intensidad de la escena y a la activación de la persona, nunca a una cifra. */
+  private applyAudioScene(attempt: SimulationAttemptState | null): void {
+    this.audioDirector.setScene(attempt?.currentNode?.intensity ?? 'MEDIUM', attempt?.persona?.activation ?? 'CALM');
+  }
+
+  /**
+   * Anuncia, en cortesía y una sola vez, que la persona cambió de estado (VD-23). Compara con la última persona vista del
+   * MISMO intento: la primera carga y un intento distinto solo la recuerdan.
+   */
+  private trackPersona(attempt: SimulationAttemptState): void {
+    const previous = this.lastPersona;
+    this.lastPersona = { attemptId: attempt.attemptId, persona: attempt.persona };
+    if (!previous || previous.attemptId !== attempt.attemptId) return;
+    const message = personaChangeAnnouncement(previous.persona, attempt.persona);
+    if (message) this.announce(message);
   }
 
   private maybeShowInitialCaseIntro(world: SimulationWorldState): void {
@@ -3153,7 +3147,7 @@ export class SimulationPlayComponent implements OnInit, OnDestroy {
     if (attempt) this.writeStored(this.caseIntroStorageKey(attempt), 'read');
     this.showCaseIntro.set(false);
     this.audioDirector.stopIntroLament();
-    this.audioDirector.setStressLevel(attempt?.stressIndex ?? 0);
+    this.applyAudioScene(attempt);
     this.announce('Introducción completada. Inicia la intervención en urgencias.');
   }
 

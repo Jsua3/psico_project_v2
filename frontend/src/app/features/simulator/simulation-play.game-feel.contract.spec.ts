@@ -4,8 +4,10 @@ import { join } from 'path';
 const source = readFileSync(join(__dirname, 'simulation-play.component.ts'), 'utf-8');
 
 describe('simulation-play: game feel del bloque B', () => {
-  it('el mundo recibe el estrés del intento', () => {
-    expect(source).toContain('[stressLevel]="attempt()?.stressIndex ?? 0"');
+  it('el mundo recibe la activación de la persona y la intensidad de la escena', () => {
+    expect(source).toContain("[activation]=\"attempt()?.persona?.activation ?? 'CALM'\"");
+    expect(source).toContain("[intensity]=\"attempt()?.currentNode?.intensity ?? 'MEDIUM'\"");
+    expect(source).not.toMatch(/stressLevel|stressIndex/);
   });
 
   it('el destello de sala espera a que el fundido de escena deje ver el mundo, sin clasificación (RN-08)', () => {

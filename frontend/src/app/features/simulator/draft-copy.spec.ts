@@ -50,7 +50,7 @@ describe('draft-copy: textos en borrador pendientes de Psicología', () => {
     // aviso de contenido cambió de versión (S3-2b, ETH-01) y los del resultado con retroalimentación por decisión
     // (F10-4: «Tus decisiones», sus estados, las etiquetas y el marcador): son texto que ve la persona y se validan, no
     // solo se conocen.
-    expect(list.filter(entry => entry.review === 'validar')).toHaveLength(33);
+    expect(list.filter(entry => entry.review === 'validar')).toHaveLength(34);
   });
 
   // req: ETH-01, SIEP-RF-05 (S3-2b)

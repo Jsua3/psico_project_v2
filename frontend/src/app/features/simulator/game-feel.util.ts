@@ -1,14 +1,13 @@
-import { STRESS_TIER_FLOORS } from './stress-tier.util';
+import type { Activation, Intensity } from '../../core/models/simulation.model';
 
 /** Tinte rojo-violeta de la viñeta de crisis; no depende del tono del mapa. */
 export const CRISIS_VIGNETTE_TINT = 0x4a0f2e;
-/**
- * Hasta este estrés la viñeta de crisis no se ve: es el piso del tramo «alto» del HUD y del audio
- * (antes 50, de modo que la viñeta aparecía antes que el color del HUD y la música).
- */
-export const CRISIS_VIGNETTE_START = STRESS_TIER_FLOORS.high;
-/** Desde este estrés (inclusive, el tramo «crítico» del HUD y del audio) la viñeta pulsa. */
-export const CRISIS_PULSE_THRESHOLD = STRESS_TIER_FLOORS.critical;
+/** Opacidad de la viñeta con la persona tensa: se ve, pero fija (sin pulso). */
+export const TENSE_VIGNETTE_ALPHA = 0.3;
+/** Opacidad de la viñeta con la persona en crisis (mínimo del pulso). */
+export const CRISIS_VIGNETTE_ALPHA = 0.55;
+/** Una escena de intensidad alta oscurece un poco la viñeta (se multiplica su opacidad; el tinte no cambia). */
+export const HIGH_INTENSITY_DARKEN = 1.1;
 
 export interface CrisisVignetteState {
   /** Opacidad de la capa de crisis (0 = invisible). */
@@ -28,21 +27,23 @@ export interface VignetteFrame { x: number; y: number; width: number; height: nu
 const round2 = (value: number) => Math.round(value * 100) / 100;
 
 /**
- * Cuánto se ve la viñeta de crisis según el stressIndex (0-100) del intento.
- * Un valor que no es un número no dibuja nada: un efecto visual no debe asustar
- * por un dato roto.
+ * Cuánto se ve la viñeta de crisis según la activación de la persona y la intensidad de la escena:
+ * serena no se ve; tensa se ve fija; en crisis pulsa (fija con movimiento reducido o el mundo en pausa, en el
+ * mínimo del pulso, así que ni al reanudar hay un escalón). Una intensidad alta oscurece un poco la viñeta.
+ * Un valor desconocido no dibuja nada: un efecto visual no debe asustar por un dato roto.
  */
-export function crisisVignetteState(stress: number, reduceMotion: boolean): CrisisVignetteState {
-  const s = Number.isFinite(stress) ? Math.min(100, Math.max(0, stress)) : 0;
-  if (s <= CRISIS_VIGNETTE_START) return { alpha: 0, pulse: null };
-  if (s < CRISIS_PULSE_THRESHOLD) {
-    const t = (s - CRISIS_VIGNETTE_START) / (CRISIS_PULSE_THRESHOLD - CRISIS_VIGNETTE_START);
-    return { alpha: round2(0.55 * t), pulse: null };
-  }
-  // Fija (movimiento reducido o mundo en pausa) en el mínimo del pulso: es donde termina la rampa y donde
-  // arranca el pulso, así que ni al reanudar ni al pasar de 84 a 85 hay un escalón (antes 0,70).
-  if (reduceMotion) return { alpha: 0.55, pulse: null };
-  return { alpha: 0.55, pulse: { from: 0.55, to: 0.85, durationMs: 800 } };
+export function crisisVignetteState(
+  activation: Activation,
+  intensity: Intensity,
+  reduceMotion: boolean,
+): CrisisVignetteState {
+  const darken = intensity === 'HIGH' ? HIGH_INTENSITY_DARKEN : 1;
+  const level = (alpha: number) => round2(Math.min(1, alpha * darken));
+  if (activation === 'TENSE') return { alpha: level(TENSE_VIGNETTE_ALPHA), pulse: null };
+  if (activation !== 'CRISIS') return { alpha: 0, pulse: null };
+  const from = level(CRISIS_VIGNETTE_ALPHA);
+  if (reduceMotion) return { alpha: from, pulse: null };
+  return { alpha: from, pulse: { from, to: level(0.85), durationMs: 800 } };
 }
 
 /**

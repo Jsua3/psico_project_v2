@@ -34,13 +34,6 @@ import type { Mock } from 'vitest';
 const CASE_VERSION_ID = 7;
 const LAST_NODE = 'hospital-cierre';
 
-/** Forma heredada (bandera apagada): la respuesta trae la retroalimentación evaluativa junto a la consecuencia. */
-const LEGACY_FEEDBACK = {
-  classification: 'ADEQUATE', scoreDelta: 12, stressDelta: -5, trustDelta: 10, victimRiskDelta: -5,
-  prohibitedConduct: false, institutionalRouteActivated: false, revictimizationRisk: false,
-  message: 'La decisión quedó registrada.', prohibitionReason: null, retryRequired: false,
-};
-
 /** La consecuencia narrativa de la decisión (C2): qué pasa en el caso, nunca si estuvo bien o mal. */
 const CONSEQUENCE = { text: 'La estudiante asiente y pregunta por su familia.', source: 'OPTION' };
 
@@ -58,14 +51,11 @@ function makeAttempt(overrides: Record<string, unknown> = {}, nodeKey = 'hospita
     caseVersionId: CASE_VERSION_ID,
     caseTitle: 'Caso demo',
     status: 'IN_PROGRESS',
-    accumulatedScore: 0,
-    stressIndex: 0,
-    metrics: { victimRisk: 50 },
+    persona: { bond: 'GUARDED', activation: 'TENSE', label: 'se muestra cautelosa y tensa' },
     currentNode: {
       id: 1, key: nodeKey, title: 'Título del nodo', narrative: 'Primera frase.', terminal: false,
       options: [{ id: 101, text: 'Opción' }],
     },
-    feedback: null,
     completionReport: null,
     ...overrides,
   } as unknown as SimulationAttemptState;
@@ -76,7 +66,7 @@ const decided = (state: SimulationAttemptState, extra: Record<string, unknown> =
   ({ ...state, consequence: CONSEQUENCE, retry: null, ...extra }) as unknown as SimulationAttemptState;
 
 const completed = (extra: Record<string, unknown> = {}, decisionExtra: Record<string, unknown> = {}) =>
-  decided(makeAttempt({ status: 'COMPLETED', feedback: null, completionReport: { ending: null }, ...extra }, LAST_NODE), decisionExtra);
+  decided(makeAttempt({ status: 'COMPLETED', completionReport: { ending: null }, ...extra }, LAST_NODE), decisionExtra);
 
 describe('SimulationPlayComponent: supervisión de la última decisión (DLG-05)', () => {
   let component: SimulationPlayComponent;
@@ -102,7 +92,7 @@ describe('SimulationPlayComponent: supervisión de la última decisión (DLG-05)
       useTool: vi.fn(() => EMPTY),
     };
     audio = {
-      init: vi.fn(), setStressLevel: vi.fn(), isMusicMuted: vi.fn(() => false), isSfxMuted: vi.fn(() => false),
+      init: vi.fn(), setScene: vi.fn(), isMusicMuted: vi.fn(() => false), isSfxMuted: vi.fn(() => false),
       dispose: vi.fn(), stopIntroLament: vi.fn(), playIntroLament: vi.fn(), playSfx: vi.fn(),
       toggleMusicMuted: vi.fn(() => false), playResolution: vi.fn(),
     };
@@ -373,7 +363,7 @@ describe('SimulationPlayComponent: lo que se muestra al decidir (RN-08, C2)', ()
       useTool: vi.fn(() => EMPTY),
     };
     const audio = {
-      init: vi.fn(), setStressLevel: vi.fn(), isMusicMuted: vi.fn(() => false), isSfxMuted: vi.fn(() => false),
+      init: vi.fn(), setScene: vi.fn(), isMusicMuted: vi.fn(() => false), isSfxMuted: vi.fn(() => false),
       dispose: vi.fn(), stopIntroLament: vi.fn(), playIntroLament: vi.fn(), playSfx: vi.fn(),
       toggleMusicMuted: vi.fn(() => false), playResolution: vi.fn(),
     };
@@ -434,24 +424,9 @@ describe('SimulationPlayComponent: lo que se muestra al decidir (RN-08, C2)', ()
     expect(shownText()).not.toMatch(/adecuad|riesgo|inadecuad|prohib|alerta/i);
   });
 
-  it('con la bandera apagada la respuesta trae feedback y el diálogo no lo muestra: ni el mensaje ni la razón', () => {
-    decideMiddle(decided(makeAttempt({
-      feedback: {
-        ...LEGACY_FEEDBACK, classification: 'INADEQUATE', prohibitedConduct: true,
-        message: 'Alerta ética: puede aumentar el riesgo de revictimización.', prohibitionReason: 'Culpabiliza a la víctima.',
-      },
-    }, 'hospital-accion')));
-
-    expect(shownText()).toContain(CONSEQUENCE.text);
-    expect(shownText()).not.toContain('Alerta ética');
-    expect(shownText()).not.toContain('Culpabiliza');
-    expect(component.dialogue()?.emotion).toBe('neutral');
-  });
-
   it('un reintento muestra el aviso neutro del juego y no el mensaje evaluativo del servidor', () => {
-    decideMiddle(decided(makeAttempt({
-      feedback: { ...LEGACY_FEEDBACK, classification: 'RISKY', retryRequired: true, message: 'Decisión con riesgo: revisa las implicaciones.' },
-    }, 'hospital-accion'), { consequence: null, retry: { allowed: true, message: 'Decisión con riesgo: revisa las implicaciones.' } }));
+    decideMiddle(decided(makeAttempt({}, 'hospital-accion'),
+      { consequence: null, retry: { allowed: true, message: 'Decisión con riesgo: revisa las implicaciones.' } }));
 
     expect(shownText()).toContain('No se avanzó el caso');
     expect(shownText()).not.toContain('Decisión con riesgo');

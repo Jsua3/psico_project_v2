@@ -47,14 +47,11 @@ function makeAttempt(overrides: Record<string, unknown> = {}, nodeKey = 'hospita
     caseVersionId: CASE_VERSION_ID,
     caseTitle: 'Caso demo',
     status: 'IN_PROGRESS',
-    accumulatedScore: 0,
-    stressIndex: 0,
-    metrics: { victimRisk: 50 },
+    persona: { bond: 'GUARDED', activation: 'TENSE', label: 'se muestra cautelosa y tensa' },
     currentNode: {
       id: 1, key: nodeKey, title: 'Título del nodo', narrative: 'Primera frase.', terminal: false,
       options: [{ id: 101, text: 'Opción' }],
     },
-    feedback: null,
     completionReport: null,
     ...overrides,
   } as unknown as SimulationAttemptState;
@@ -86,7 +83,7 @@ describe('SimulationPlayComponent: tiempos de la pantalla de juego (A-03b)', () 
       useTool: vi.fn(() => EMPTY),
     };
     audio = {
-      init: vi.fn(), setStressLevel: vi.fn(), isMusicMuted: vi.fn(() => false), isSfxMuted: vi.fn(() => false),
+      init: vi.fn(), setScene: vi.fn(), isMusicMuted: vi.fn(() => false), isSfxMuted: vi.fn(() => false),
       dispose: vi.fn(), stopIntroLament: vi.fn(), playIntroLament: vi.fn(), playSfx: vi.fn(),
       toggleMusicMuted: vi.fn(() => false), playResolution: vi.fn(),
     };
@@ -182,16 +179,6 @@ describe('SimulationPlayComponent: tiempos de la pantalla de juego (A-03b)', () 
       advance(1);
       expect(component.transitionNote()).toBe('');
     });
-
-    it('el pulso de estrés de una herramienta dura 700 ms', () => {
-      internals().showToolFeedback({ toolCode: 'PAP', pertinent: true, feedbackMessage: 'Bien aplicada.', stressDelta: -5 });
-      expect(component.stressPulse()).toBe(true);
-
-      advance(699);
-      expect(component.stressPulse()).toBe(true);
-      advance(1);
-      expect(component.stressPulse()).toBe(false);
-    });
   });
 
   describe('esperas entre un paso y el siguiente', () => {
@@ -209,7 +196,7 @@ describe('SimulationPlayComponent: tiempos de la pantalla de juego (A-03b)', () 
 
     it('con el mundo cargado el fundido se retira a los 80 ms y los efectos de cámara llegan 320 ms después', () => {
       // Doble mínimo de la escena: aplicar un mundo también pide recalcular la escala (otro temporizador, de 0 ms).
-      const gameWorld = { playRevealEffects: vi.fn(), refreshScale: vi.fn() };
+      const gameWorld = { playRevealEffects: vi.fn(), refreshScale: vi.fn(), updatePatientVisualState: vi.fn() };
       internals().gameWorld = gameWorld;
       component.attempt.set(makeAttempt());
       component.fadeActive.set(true);
@@ -232,7 +219,7 @@ describe('SimulationPlayComponent: tiempos de la pantalla de juego (A-03b)', () 
     it('si el componente se destruye antes de los 80 ms, el fundido no se retira ni se piden efectos de cámara', () => {
       // El retiro del fundido toca `window` al dispararse: en las pruebas, un temporizador de un componente
       // que nadie destruyó se disparaba con el entorno ya desmontado («window is not defined», intermitente en CI).
-      const gameWorld = { playRevealEffects: vi.fn(), refreshScale: vi.fn() };
+      const gameWorld = { playRevealEffects: vi.fn(), refreshScale: vi.fn(), updatePatientVisualState: vi.fn() };
       internals().gameWorld = gameWorld;
       component.attempt.set(makeAttempt());
       component.fadeActive.set(true);

@@ -3,6 +3,7 @@ import { provideRouter } from '@angular/router';
 import { readFileSync } from 'fs';
 import { join } from 'path';
 import { SimulationAttemptState } from '../../core/models/simulation.model';
+import type { CharacterVisual } from '../character/kit/character-visual.resolver';
 import { ORIENTATION_COPY } from './orientation.config';
 import { SimulationHudComponent } from './simulation-hud.component';
 
@@ -11,9 +12,8 @@ const hudSource = readFileSync(join(__dirname, 'simulation-hud.component.ts'), '
 const ATTEMPT = {
   attemptId: 'a-1',
   caseTitle: 'Violencia familiar',
-  stressIndex: 40,
-  accumulatedScore: 12,
-  currentNode: { key: 'hospital-urgencias', title: 'Urgencia vital y crisis' },
+  persona: { bond: 'GUARDED', activation: 'TENSE', label: 'se muestra cautelosa y tensa' },
+  currentNode: { key: 'hospital-urgencias', title: 'Urgencia vital y crisis', intensity: 'MEDIUM' },
 } as unknown as SimulationAttemptState;
 
 type InputSignalNodeLike<T> = {
@@ -271,46 +271,87 @@ describe('HUD: cabecera (T7.1) y Ajustes (T7.2)', () => {
     });
   });
 
-  describe('marcador de puntaje (F6-3; RN-08 y RN-09)', () => {
+  describe('avance formativo (F6-3; RN-08 y RN-09)', () => {
     // req: RN-08, RN-09, RNF-04
-    it('por defecto muestra los puntos con el texto de siempre', () => {
+    it('por defecto no hay marcador: sin etiqueta de avance no queda nada, y nunca hay puntos', () => {
       const root = mount();
-      const score = root.querySelector('.hud-score')!;
-      expect(score.getAttribute('aria-label')).toBe('Seguimiento formativo: 12 puntos');
-      expect(score.querySelector('strong')?.textContent?.trim()).toBe('12');
+      expect(root.querySelector('.hud-score')).toBeNull();
+      expect(root.textContent).not.toMatch(/puntos|Puntaje|Seguimiento formativo/i);
     });
 
     it("'hidden' no deja hueco: ni el marcador ni nada en su lugar", () => {
       const root = mount(false, { scoreMarker: 'hidden', progressLabel: 'Decisión 2 de 6' });
       expect(root.querySelector('.hud-score')).toBeNull();
-      expect(root.textContent).not.toMatch(/Seguimiento formativo|puntos/i);
     });
 
-    it("'progress' no muestra cifra de puntos: dice el avance con su propio texto", () => {
+    it("'progress' dice el avance con su propio texto", () => {
       const root = mount(false, { scoreMarker: 'progress', progressLabel: 'Decisión 2 de 6' });
       const score = root.querySelector('.hud-score')!;
       expect(score.textContent).toContain('Decisión 2 de 6');
-      expect(score.textContent).not.toMatch(/\b12\b/);
       expect(score.getAttribute('aria-label') ?? '').not.toMatch(/puntos/i);
     });
 
-    it("'progress' sin etiqueta de avance no deja un marcador vacío", () => {
-      const root = mount(false, { scoreMarker: 'progress' });
-      expect(root.querySelector('.hud-score')).toBeNull();
+    it('la fuente ya no sabe de puntos ni de acumulado', () => {
+      expect(hudSource).not.toMatch(/accumulatedScore|'points'/);
     });
   });
 
-  describe('barras de la paciente (F6-3)', () => {
+  describe('la persona en palabras (sin cifras)', () => {
     // req: RNF-04, BLOQUE-H
-    const patient = { trustLevel: 70, emotionalState: 20, openness: 10, crisisLevel: 50 };
+    const fakeVisual = {
+      key: 'kit-sobreviviente', recipeId: 'sobreviviente',
+      idle: { kind: 'url', url: 'idle.png' }, walk: { kind: 'url', url: 'walk.png' },
+      portraits: {
+        neutral: { kind: 'url', url: 'portrait-neutral.png' },
+        preocupada: { kind: 'url', url: 'portrait-preocupada.png' },
+        triste: { kind: 'url', url: 'portrait-triste.png' },
+        alegre: { kind: 'url', url: 'portrait-alegre.png' },
+      },
+    } as unknown as CharacterVisual;
 
-    it('el relleno es la proporción con transform (nunca width) y conserva su medidor accesible', () => {
-      const root = mount(false, { patientState: patient });
-      const fills = Array.from(root.querySelectorAll<HTMLElement>('.mini-track > span'));
-      expect(fills.map(fill => fill.style.transform)).toEqual(['scaleX(0.7)', 'scaleX(0.2)']);
-      for (const fill of fills) expect(fill.style.width).toBe('');
-      const meters = Array.from(root.querySelectorAll('.mini-track[role="meter"]'));
-      expect(meters.map(meter => meter.getAttribute('aria-valuenow'))).toEqual(['70', '20']);
+    it('muestra la frase de la persona como texto y como nombre accesible, sin ninguna cifra de métrica', () => {
+      const root = mount();
+      const block = root.querySelector('.hud-persona')!;
+      expect(block.textContent).toContain('se muestra cautelosa y tensa');
+      expect(block.getAttribute('aria-label')).toBe('se muestra cautelosa y tensa');
+      expect(block.getAttribute('aria-label')).not.toMatch(/\d/);
+    });
+
+    it('el HUD entero no pinta ningún dígito de métrica: ni «N %», ni «Puntaje», ni «Estrés», ni medidores', () => {
+      const root = mount(false, { stageLabel: 'Decisión 2 de 6', locationLabel: 'Urgencias' });
+      const text = root.textContent ?? '';
+      expect(text).not.toMatch(/\d+\s?%/);
+      expect(text).not.toMatch(/Puntaje|Estrés|Confianza|Bienestar/i);
+      expect(root.querySelector('[role="meter"]')).toBeNull();
+      expect(root.querySelector('.heart, .hud-hearts, .stress-pct, .mini-track')).toBeNull();
+    });
+
+    it('sin retrato del kit queda solo con palabras', () => {
+      const root = mount();
+      expect(root.querySelector('app-kit-figure')).toBeNull();
+      expect(root.querySelector('.hud-persona')!.classList.contains('hud-persona--text-only')).toBe(true);
+    });
+
+    it.each([
+      ['WITHDRAWN', 'CALM', 'triste'],
+      ['GUARDED', 'TENSE', 'preocupada'],
+      ['OPEN', 'CALM', 'alegre'],
+      ['GUARDED', 'CALM', 'preocupada'],
+      ['OPEN', 'CRISIS', 'triste'],
+    ] as const)('el retrato cambia de expresión con la persona (%s y %s → %s con el kit de cuatro estados)', (bond, activation, esperado) => {
+      mount(false, {
+        patientVisual: fakeVisual,
+        attempt: { ...ATTEMPT, persona: { bond, activation, label: 'x' } },
+      });
+      expect(hud.portraitState()).toBe(esperado);
+      const figure = (fixture.nativeElement as HTMLElement).querySelector('app-kit-figure .kit-figure') as HTMLElement | null;
+      expect(figure?.style.backgroundImage ?? '').toContain(`portrait-${esperado}.png`);
+    });
+
+    it('el borde del HUD sigue a la activación y no a una cifra', () => {
+      const root = mount(false, { attempt: { ...ATTEMPT, persona: { bond: 'GUARDED', activation: 'CRISIS', label: 'x' } } });
+      expect(root.querySelector('.hud-shell')!.classList.contains('hud--crisis')).toBe(true);
+      expect(hudSource).not.toMatch(/stress|accumulatedScore|trustLevel|emotionalState/i);
     });
   });
 
@@ -378,10 +419,9 @@ describe('HUD: cabecera (T7.1) y Ajustes (T7.2)', () => {
       expect(base).toMatch(/\.settings-menu > button,\s*\.settings-menu > a \{[^}]*min-height: 44px;/);
     });
 
-    it('ninguna barra del HUD anima width y con movimiento reducido no hay transición de barras', () => {
+    it('nada del HUD anima width y ya no quedan barras ni pulsos de estrés', () => {
       expect(hudSource).not.toMatch(/transition:[^;]*\bwidth\b/);
-      expect(baseStyles()).toMatch(/\.mini-track span \{[^}]*transform-origin: left/);
-      expect(hudSource).toMatch(/@media \(prefers-reduced-motion: reduce\) \{[\s\S]*?\.mini-track span \{ transition: none; \}/);
+      expect(hudSource).not.toMatch(/mini-track|stress-pulse|hud-hearts/);
     });
 
     it('el anillo de foco de los botones es el global de la piel del juego: sin anillo local con literales', () => {
@@ -398,11 +438,6 @@ describe('HUD: cabecera (T7.1) y Ajustes (T7.2)', () => {
     it('la zona central no desborda sobre sus vecinos (HUD-10)', () => {
       expect(hudSource).toMatch(/\.hud-zone--center \{[^}]*min-width: 0;[^}]*overflow: hidden;/);
       expect(hudSource).toMatch(/\.hud-scene \{[^}]*min-width: 0;/);
-    });
-
-    it('el HUD adopta los umbrales únicos de estrés y no cifras propias', () => {
-      expect(hudSource).toMatch(/from '\.\/stress-tier\.util'/);
-      expect(hudSource).not.toMatch(/s >= (25|50|75)/);
     });
   });
 });

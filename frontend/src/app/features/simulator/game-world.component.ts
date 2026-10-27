@@ -2,7 +2,7 @@ import { CommonModule } from '@angular/common';
 import { Component, ElementRef, NgZone, OnChanges, OnDestroy, SimpleChanges, ViewChild, computed, inject, input, output, signal, ChangeDetectionStrategy } from '@angular/core';
 import { MatIconModule } from '@angular/material/icon';
 import Phaser from 'phaser';
-import { CollisionZoneState, MapObjectState, NpcConfig, RoomConfig, ScenarioConfig, SimulationWorldState } from '../../core/models/simulation.model';
+import { Activation, CollisionZoneState, Intensity, MapObjectState, NpcConfig, Persona, RoomConfig, ScenarioConfig, SimulationWorldState } from '../../core/models/simulation.model';
 import { backgroundImage } from './world-editor/room-edit.util';
 import { KenneyDungeonFrames } from './kenney-frames.constants';
 import {
@@ -92,7 +92,7 @@ import {
   KIT_ICON_OFFSET_Y, KIT_LABEL_OFFSET_Y, PATIENT_RECIPE_ID,
   extrasCharacterRef, markerEmphasis, npcCharacterRef, personCharacterRef, playerCharacterRef,
 } from './world-characters.util';
-import { PATIENT_ICON_KINDS, patientIconImage, patientIconKey, patientIconKind, patientIconView } from './patient-state-icon.util';
+import { PERSONA_ICON_KINDS, personaIconImage, personaIconKey, personaIconKind, personaIconView } from './persona-icon.util';
 import { DOOR_FALLBACK_HEIGHT, DOOR_SPRITE_FEET_Y, doorHintY, staleSpriteSize, worldSpriteForTexture } from './world-scale.util';
 
 interface WorldCallbacks {
@@ -167,8 +167,8 @@ export class DataDrivenWorldScene extends Phaser.Scene {
   private playerSprite?: Phaser.GameObjects.Sprite;
   /** Visual del jugador en el kit (null si no hay paquete). */
   private playerVisual: CharacterVisual | null = null;
-  /** Último estado clínico recibido: cada icono nace con él (los actores se recrean en cada render). */
-  private patientState: import('../../core/models/simulation.model').PatientState | null = null;
+  /** Última persona recibida: cada icono nace con ella (los actores se recrean en cada render). */
+  private persona: Persona | null = null;
   /** Las hojas y animaciones del jugador están listas (si no, marcador geométrico). */
   private playerKitReady = false;
   private lastDirection: PlayerDirection = 'down';
@@ -249,8 +249,9 @@ export class DataDrivenWorldScene extends Phaser.Scene {
   private pixelRender?: PixelRender;
   private assetsLoaded = false;
   private firstSceneFadeDone = false;
-  /** stressIndex del intento (0-100); lo fija Angular y sobrevive a los re-render. */
-  private stressLevel = 0;
+  /** Activación de la persona y intensidad de la escena; las fija Angular y sobreviven a los re-render. */
+  private activation: Activation = 'CALM';
+  private intensity: Intensity = 'MEDIUM';
   /** Capa de crisis sobre la viñeta de tono; se recrea en cada render. */
   private crisisVignette?: Phaser.GameObjects.Image;
   /** Sala que encuadra la cámara: el zoom entero se recalcula con ella al cambiar el lienzo. */
@@ -381,7 +382,7 @@ export class DataDrivenWorldScene extends Phaser.Scene {
     this.input.keyboard?.disableGlobalCapture();
     this.keys = this.input.keyboard?.addKeys('W,A,S,D,E,SPACE,ENTER', false) as Record<string, Phaser.Input.Keyboard.Key>;
     this.playerKitReady = this.playerVisual !== null && ensureCharacterAnims(this, this.playerVisual);
-    for (const kind of PATIENT_ICON_KINDS) addRgbaTexture(this, patientIconKey(kind), patientIconImage(kind));
+    for (const kind of PERSONA_ICON_KINDS) addRgbaTexture(this, personaIconKey(kind), personaIconImage(kind));
     // Un toque corto (keydown y keyup en el mismo cuadro, habitual con pocos fps) deja `JustDown` en falso
     // y la pulsación se perdía junto a una persona (T0.2): el evento `down` de la tecla sí llega siempre.
     this.keys['E']?.on('down', () => { this.tappedKeys.e = true; });
@@ -589,8 +590,9 @@ export class DataDrivenWorldScene extends Phaser.Scene {
   }
 
   /** Seguro antes de `create()`: la capa se pinta con este valor en el primer render. */
-  setStressLevel(level: number) {
-    this.stressLevel = level;
+  setPersonaScene(activation: Activation, intensity: Intensity) {
+    this.activation = activation;
+    this.intensity = intensity;
     this.applyCrisisState();
   }
 
@@ -1547,17 +1549,17 @@ export class DataDrivenWorldScene extends Phaser.Scene {
   }
 
   /**
-   * Estado clínico de la paciente (decisión 13): un icono de pixel art sobre la cabeza de cada
+   * La persona consultante (decisión 13): un icono de pixel art sobre la cabeza de cada
    * actor dibujado con su receta; el sprite no se toca. La crisis, además, sacude 2 px.
    */
-  updatePatientVisualState(state: import('../../core/models/simulation.model').PatientState) {
-    this.patientState = state;
-    const kind = patientIconKind(state);
+  updatePatientVisualState(persona: Persona) {
+    this.persona = persona;
+    const kind = personaIconKind(persona);
     for (const container of [...this.npcMarkers.values(), ...this.markers.values()]) {
       const icon = (container as unknown as Record<string, unknown>)['__patientIcon'] as Phaser.GameObjects.Image | null | undefined;
       if (!icon) continue;
       icon.setVisible(kind !== null);
-      if (kind) icon.setTexture(patientIconKey(kind));
+      if (kind) icon.setTexture(personaIconKey(kind));
       if (kind === 'crisis' && !this.callbacks.reduceMotion) {
         this.tweens.add({ targets: container, x: container.x + 2, duration: 60, yoyo: true, repeat: 3, ease: 'Sine.easeInOut' });
       }
@@ -1690,7 +1692,7 @@ export class DataDrivenWorldScene extends Phaser.Scene {
 
   /**
    * Viñeta de crisis: la misma banda que la de tono pero rojo-violeta, y con su
-   * opacidad atada al estrés del intento. Se pinta también en salas con luz
+   * opacidad atada a la activación de la persona. Se pinta también en salas con luz
    * pintada, porque es estado del caso y no decoración.
    */
   private applyCrisisVignette(): void {
@@ -1706,7 +1708,7 @@ export class DataDrivenWorldScene extends Phaser.Scene {
     const g = this.crisisVignette;
     if (!g || !g.scene) return;
     // Con el mundo en pausa (diálogo, bitácora, cierre) la crisis se ve fija: nada late mientras se lee.
-    const state = crisisVignetteState(this.stressLevel, this.callbacks.reduceMotion || this.motionPaused);
+    const state = crisisVignetteState(this.activation, this.intensity, this.callbacks.reduceMotion || this.motionPaused);
     const key = JSON.stringify(state);
     // Mismo estado y el pulso sigue vivo: no se reinicia (pasar de 88 a 90 no debe dar un salto).
     if (key === this.crisisStateKey && (!state.pulse || this.crisisPulse?.isPlaying())) return;
@@ -1808,10 +1810,10 @@ export class DataDrivenWorldScene extends Phaser.Scene {
     return null;
   }
 
-  /** Icono del estado clínico con los pies del actor en `feetY`; nace con el último estado conocido. */
+  /** Icono de la persona con los pies del actor en `feetY`; nace con el último estado conocido. */
   private patientIcon(feetY: number): Phaser.GameObjects.Image | null {
-    if (!this.textures.exists(patientIconKey('crisis'))) return null;
-    const view = patientIconView(this.patientState);
+    if (!this.textures.exists(personaIconKey('crisis'))) return null;
+    const view = personaIconView(this.persona);
     return this.add.image(0, feetY + KIT_ICON_OFFSET_Y, view.key).setOrigin(0.5, 1).setVisible(view.visible);
   }
 
@@ -2692,8 +2694,10 @@ export class GameWorldComponent implements OnChanges, OnDestroy {
   readonly motionPaused = input(false);
   readonly sfxMuted = input(false);
   readonly reduceMotion = input<boolean | null>(null);
-  /** stressIndex del intento (0-100): mueve la viñeta de crisis. */
-  readonly stressLevel = input(0);
+  /** Activación de la persona (serena, tensa o en crisis): mueve la viñeta de crisis. */
+  readonly activation = input<Activation>('CALM');
+  /** Intensidad de la escena: una escena de intensidad alta oscurece un poco la viñeta. */
+  readonly intensity = input<Intensity>('MEDIUM');
   /** Siguiente destino del proceso (clave de objeto o `npc:{clave}`): lleva el anillo y el rótulo fijo. */
   readonly nextTargetKey = input<string | null>(null);
   /** Estado vivo de cada puerta por clave: la bloqueada lleva candado y borde discontinuo en su rótulo. */
@@ -2708,6 +2712,11 @@ export class GameWorldComponent implements OnChanges, OnDestroy {
    */
   readonly showLoader = input(true);
   /** Primer cuadro pintado del mapa actual: el anfitrión retira su indicador de carga. */
+  /**
+   * Retrato de la persona consultante del caso (la receta de la paciente), para que el HUD la muestre con la expresión
+   * de su estado. `null` si el kit no la trae: el HUD dice la persona solo con palabras.
+   */
+  readonly patientVisual = output<CharacterVisual | null>();
   readonly worldReady = output<void>();
   /** Candidato PRINCIPAL en rango; un NPC llega como `MapObjectState` sintético con key `npc:{clave}`. */
   readonly proximity = output<MapObjectState | null>();
@@ -2790,7 +2799,7 @@ export class GameWorldComponent implements OnChanges, OnDestroy {
     if (changes['motionPaused']) this.scene?.setMotionPaused(this.motionPaused());
     if (changes['sfxMuted']) this.scene?.setSfxMuted(this.sfxMuted());
     if (changes['reduceMotion']) this.scene?.setReduceMotion(this.effectiveReduceMotion());
-    if (changes['stressLevel']) this.scene?.setStressLevel(this.stressLevel());
+    if (changes['activation'] || changes['intensity']) this.scene?.setPersonaScene(this.activation(), this.intensity());
     if (changes['compact']) this.scene?.setCompactLabels(this.compact());
     if (changes['nextTargetKey'] || changes['doorStates'] || changes['dimmedKeys']) this.pushOrientation();
   }
@@ -2916,8 +2925,8 @@ export class GameWorldComponent implements OnChanges, OnDestroy {
     this.scene?.transitionToRoom(targetRoomKey, entryX, entryY);
   }
   playRevealEffects() { this.scene?.playRevealEffects(); }
-  updatePatientVisualState(state: import('../../core/models/simulation.model').PatientState) {
-    this.scene?.updatePatientVisualState(state);
+  updatePatientVisualState(persona: Persona) {
+    this.scene?.updatePatientVisualState(persona);
   }
 
   private boot() {
@@ -2931,8 +2940,14 @@ export class GameWorldComponent implements OnChanges, OnDestroy {
       whenWorldFontsReady(),
     ]).then(([bundle]) => {
       this.booting = false;
+      if (!this.destroyed) this.emitPatientVisual(bundle);
       if (!this.destroyed && this.gameHost && !this.phaserGame) this.startGame(bundle);
     });
+  }
+
+  private emitPatientVisual(bundle: KitBundle | null): void {
+    const visual = bundle ? resolveCharacter(bundle, { kind: 'receta', recipeId: PATIENT_RECIPE_ID }) : null;
+    this.patientVisual.emit(visual?.recipeId === PATIENT_RECIPE_ID ? visual : null);
   }
 
   private startGame(kit: KitBundle | null) {
@@ -2975,7 +2990,7 @@ export class GameWorldComponent implements OnChanges, OnDestroy {
         }),
         sfxMuted: this.sfxMuted(),
       });
-      this.scene.setStressLevel(this.stressLevel());
+      this.scene.setPersonaScene(this.activation(), this.intensity());
       this.armBootWatchdog();
       this.phaserGame = new Phaser.Game({
         // PHA-5 (E5-8): se mantiene Phaser.AUTO (WebGL preferido con caída a Canvas 2D) para soportar equipos de aula

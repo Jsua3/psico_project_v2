@@ -34,14 +34,33 @@ const SHORTCUTS_SETTING_LABEL = 'Atajos de una tecla';
 
 export const DRAFT_COPY = {
   /**
-   * Antecede al rótulo del tramo cuando el estrés cruza 30, 60 u 85 (F6-12). Va en `polite` y sin alarmar: el
-   * rótulo es el del medidor del HUD (`STRESS_TIER_LABELS`).
+   * Anuncio a lectores de pantalla cuando la persona cambia de estado tras una decisión (VD-23). Va en `polite`, una
+   * sola vez por cambio y nunca al cargar; si cambian el vínculo y la activación, se dicen en una sola frase
+   * (`personaChangeAnnouncement`). Sin cifras: dice cómo se muestra la persona, no cuánto.
    */
-  stressAnnouncementPrefix: {
-    decision: 'VD-20',
+  personaChangeCalmer: {
+    decision: 'VD-23',
     owner: 'Psicología',
-    where: 'Anuncio a lectores de pantalla al cambiar el nivel de estrés (HUD)',
-    text: 'Nivel de estrés:',
+    where: 'Anuncio a lectores de pantalla: la activación de la persona baja',
+    text: 'La persona se muestra más tranquila',
+  },
+  personaChangeTenser: {
+    decision: 'VD-23',
+    owner: 'Psicología',
+    where: 'Anuncio a lectores de pantalla: la activación de la persona sube',
+    text: 'La persona se muestra más tensa',
+  },
+  personaChangeOpens: {
+    decision: 'VD-23',
+    owner: 'Psicología',
+    where: 'Anuncio a lectores de pantalla: el vínculo de la persona mejora',
+    text: 'La persona se abre un poco más',
+  },
+  personaChangeCloses: {
+    decision: 'VD-23',
+    owner: 'Psicología',
+    where: 'Anuncio a lectores de pantalla: el vínculo de la persona empeora',
+    text: 'La persona se cierra',
   },
   /**
    * Confirmación al pulsar «Iniciar nuevo intento» con uno abierto (F6-2, RN-07): dice qué se pierde. «Continuar»
@@ -341,19 +360,6 @@ export const DRAFT_COPY = {
     owner: 'Psicología',
     where: 'Resultado: nota de una conducta prohibida en «Tus decisiones»',
     text: 'Alerta ética: esta respuesta puede aumentar el riesgo de revictimización.',
-  },
-  /** Marcador de avance del HUD y del resultado cuando `scoreMarker = 'progress'` (VD-6): sin cifra de puntos. */
-  scoreProgressLabel: {
-    decision: 'VD-6',
-    owner: 'Psicología',
-    where: 'Resultado: marcador de avance (scoreMarker = progress), en lugar de «Puntaje total»',
-    text: 'Avance del caso',
-  },
-  scoreProgressDone: {
-    decision: 'VD-6',
-    owner: 'Psicología',
-    where: 'Resultado: valor del marcador de avance cuando el caso está completado',
-    text: 'Completado',
   },
 } as const satisfies Record<string, DraftCopyEntry>;
 

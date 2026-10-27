@@ -49,9 +49,9 @@ describe('SimulationPlayComponent: anuncios y avisos (F6-12)', () => {
 
   const ATTEMPT = {
     attemptId: 'attempt-1', attemptToken: 'token-1', caseVersionId: 7, caseTitle: 'Caso demo', status: 'IN_PROGRESS',
-    accumulatedScore: 0, stressIndex: 0, metrics: { victimRisk: 50 },
+    persona: { bond: 'GUARDED', activation: 'TENSE', label: 'se muestra cautelosa y tensa' },
     currentNode: { id: 1, key: 'hospital-urgencias', title: 'Urgencias', narrative: 'N', terminal: false, options: [] },
-    feedback: null, completionReport: null,
+    completionReport: null,
   } as unknown as SimulationAttemptState;
 
   const nurse = {
@@ -71,7 +71,7 @@ describe('SimulationPlayComponent: anuncios y avisos (F6-12)', () => {
       startAttempt: vi.fn(() => EMPTY),
     };
     const audio = {
-      init: vi.fn(), setStressLevel: vi.fn(), isMusicMuted: vi.fn(() => false), isSfxMuted: vi.fn(() => false),
+      init: vi.fn(), setScene: vi.fn(), isMusicMuted: vi.fn(() => false), isSfxMuted: vi.fn(() => false),
       dispose: vi.fn(), stopIntroLament: vi.fn(), playIntroLament: vi.fn(), playSfx: vi.fn(),
     };
     TestBed.configureTestingModule({

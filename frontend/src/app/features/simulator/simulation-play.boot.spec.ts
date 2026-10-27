@@ -46,11 +46,8 @@ function makeAttempt(overrides: Record<string, unknown> = {}): SimulationAttempt
     caseVersionId: CASE_VERSION_ID,
     caseTitle: 'Caso demo',
     status: 'IN_PROGRESS',
-    accumulatedScore: 0,
-    stressIndex: 0,
-    metrics: { victimRisk: 50 },
+    persona: { bond: 'GUARDED', activation: 'TENSE', label: 'se muestra cautelosa y tensa' },
     currentNode: { id: 1, key: 'hospital-seguimiento', title: 'Título', narrative: '.', terminal: false, options: [] },
-    feedback: null,
     completionReport: null,
     ...overrides,
   } as unknown as SimulationAttemptState;
@@ -85,7 +82,7 @@ describe('SimulationPlayComponent: arranque y fallos con reintento (F6-1)', () =
       ...options.sim,
     };
     const audio = {
-      init: vi.fn(), setStressLevel: vi.fn(), isMusicMuted: vi.fn(() => false), isSfxMuted: vi.fn(() => false),
+      init: vi.fn(), setScene: vi.fn(), isMusicMuted: vi.fn(() => false), isSfxMuted: vi.fn(() => false),
       dispose: vi.fn(), stopIntroLament: vi.fn(), playIntroLament: vi.fn(), playSfx: vi.fn(),
     };
     TestBed.configureTestingModule({

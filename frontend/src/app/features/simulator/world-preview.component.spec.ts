@@ -97,7 +97,7 @@ describe('WorldPreviewComponent: vista previa del autor', () => {
         {
           provide: AudioDirectorService,
           useValue: {
-            init: vi.fn(), setStressLevel: vi.fn(), isMusicMuted: vi.fn(() => false), isSfxMuted: vi.fn(() => false),
+            init: vi.fn(), setScene: vi.fn(), isMusicMuted: vi.fn(() => false), isSfxMuted: vi.fn(() => false),
             dispose: vi.fn(), stopIntroLament: vi.fn(), playIntroLament: vi.fn(), playSfx: vi.fn(),
           },
         },

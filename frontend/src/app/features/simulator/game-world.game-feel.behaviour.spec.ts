@@ -27,7 +27,7 @@ interface SceneProbe {
   crisisVignette?: FakeVignette;
   pendingRoomFlash: unknown;
   ready: boolean;
-  setStressLevel(level: number): void;
+  setPersonaScene(activation: 'CALM' | 'TENSE' | 'CRISIS', intensity: 'LOW' | 'MEDIUM' | 'HIGH'): void;
   setReduceMotion(reduced: boolean): void;
   setMotionPaused(paused: boolean): void;
   playRevealEffects(): void;
@@ -75,47 +75,47 @@ function crearEscena(opciones: { reduceMotion?: boolean; conVineta?: boolean } =
 
 describe('DataDrivenWorldScene: game feel del bloque B (comportamiento)', () => {
   describe('viñeta de crisis', () => {
-    it('un estrés de crisis crea un solo pulso y reaplicar un estado igual no lo reinicia', () => {
+    it('una persona en crisis crea un solo pulso y reaplicar un estado igual no lo reinicia', () => {
       const { scene, tweens } = crearEscena();
 
-      scene.setStressLevel(92);
+      scene.setPersonaScene('CRISIS', 'MEDIUM');
       expect(scene.tweens.add).toHaveBeenCalledTimes(1);
       expect(scene.tweens.add).toHaveBeenCalledWith(expect.objectContaining({ yoyo: true, repeat: -1 }));
 
-      scene.setStressLevel(90);
+      scene.setPersonaScene('CRISIS', 'MEDIUM');
       expect(scene.tweens.add).toHaveBeenCalledTimes(1);
       expect(tweens[0].stop).not.toHaveBeenCalled();
     });
 
-    it('al bajar de la zona de crisis el pulso se detiene y la viñeta queda fija', () => {
+    it('al bajar de la crisis el pulso se detiene y la viñeta queda fija', () => {
       const { scene, tweens, vignette } = crearEscena();
 
-      scene.setStressLevel(92);
-      scene.setStressLevel(70);
+      scene.setPersonaScene('CRISIS', 'MEDIUM');
+      scene.setPersonaScene('TENSE', 'MEDIUM');
 
       expect(tweens[0].stop).toHaveBeenCalledTimes(1);
       expect(scene.tweens.add).toHaveBeenCalledTimes(1);
-      expect(vignette!.alpha).toBe(crisisVignetteState(70, false).alpha);
+      expect(vignette!.alpha).toBe(crisisVignetteState('TENSE', 'MEDIUM', false).alpha);
     });
 
     it('activar movimiento reducido detiene el pulso y deja la viñeta fija', () => {
       const { scene, tweens, vignette } = crearEscena();
 
-      scene.setStressLevel(92);
+      scene.setPersonaScene('CRISIS', 'MEDIUM');
       scene.setReduceMotion(true);
 
       expect(tweens[0].stop).toHaveBeenCalledTimes(1);
-      expect(vignette!.alpha).toBe(crisisVignetteState(92, true).alpha);
+      expect(vignette!.alpha).toBe(crisisVignetteState('CRISIS', 'MEDIUM', true).alpha);
       expect(scene.tweens.add).toHaveBeenCalledTimes(1);
     });
 
     it('con el mundo en pausa la crisis se congela y al reanudar vuelve a pulsar', () => {
       const { scene, tweens, vignette } = crearEscena();
 
-      scene.setStressLevel(92);
+      scene.setPersonaScene('CRISIS', 'MEDIUM');
       scene.setMotionPaused(true);
       expect(tweens[0].stop).toHaveBeenCalledTimes(1);
-      expect(vignette!.alpha).toBe(crisisVignetteState(92, true).alpha);
+      expect(vignette!.alpha).toBe(crisisVignetteState('CRISIS', 'MEDIUM', true).alpha);
 
       scene.setMotionPaused(false);
       expect(scene.tweens.add).toHaveBeenCalledTimes(2);
@@ -125,7 +125,7 @@ describe('DataDrivenWorldScene: game feel del bloque B (comportamiento)', () => 
     it('al reanudar tras una pausa el pulso arranca donde quedó la viñeta fija: sin escalón', () => {
       const { scene, vignette } = crearEscena();
 
-      scene.setStressLevel(92);
+      scene.setPersonaScene('CRISIS', 'MEDIUM');
       scene.setMotionPaused(true);
       const fija = vignette!.alpha;
       scene.setMotionPaused(false);
@@ -134,23 +134,39 @@ describe('DataDrivenWorldScene: game feel del bloque B (comportamiento)', () => 
       expect(pulso.alpha.from).toBe(fija);
     });
 
-    it('sin estrés no hay pulso y un valor roto no dibuja ni lanza', () => {
-      const bajo = crearEscena();
-      bajo.scene.setStressLevel(30);
-      expect(bajo.vignette!.alpha).toBe(0);
-      expect(bajo.scene.tweens.add).not.toHaveBeenCalled();
+    it('tensa se ve fija y sin pulso; serena no se ve ni lanza con un valor roto', () => {
+      const tensa = crearEscena();
+      tensa.scene.setPersonaScene('TENSE', 'MEDIUM');
+      expect(tensa.vignette!.alpha).toBe(crisisVignetteState('TENSE', 'MEDIUM', false).alpha);
+      expect(tensa.vignette!.alpha).toBeGreaterThan(0);
+      expect(tensa.scene.tweens.add).not.toHaveBeenCalled();
+
+      const serena = crearEscena();
+      serena.scene.setPersonaScene('CALM', 'MEDIUM');
+      expect(serena.vignette!.alpha).toBe(0);
+      expect(serena.scene.tweens.add).not.toHaveBeenCalled();
 
       const roto = crearEscena();
-      expect(() => roto.scene.setStressLevel(NaN)).not.toThrow();
+      expect(() => roto.scene.setPersonaScene(undefined as never, undefined as never)).not.toThrow();
       expect(roto.vignette!.alpha).toBe(0);
       expect(roto.scene.tweens.add).not.toHaveBeenCalled();
     });
 
-    it('antes de que exista la viñeta, estrés, movimiento reducido y pausa no lanzan ni tocan los tweens', () => {
+    it('una escena de intensidad alta oscurece un poco la viñeta', () => {
+      const media = crearEscena();
+      media.scene.setPersonaScene('TENSE', 'MEDIUM');
+      const alta = crearEscena();
+      alta.scene.setPersonaScene('TENSE', 'HIGH');
+      expect(media.vignette!.alpha).toBe(crisisVignetteState('TENSE', 'MEDIUM', false).alpha);
+      expect(alta.vignette!.alpha).toBe(crisisVignetteState('TENSE', 'HIGH', false).alpha);
+      expect(alta.vignette!.alpha).toBeGreaterThan(media.vignette!.alpha);
+    });
+
+    it('antes de que exista la viñeta, la persona, movimiento reducido y pausa no lanzan ni tocan los tweens', () => {
       const { scene } = crearEscena({ conVineta: false });
 
       expect(() => {
-        scene.setStressLevel(92);
+        scene.setPersonaScene('CRISIS', 'HIGH');
         scene.setReduceMotion(true);
         scene.setMotionPaused(true);
       }).not.toThrow();

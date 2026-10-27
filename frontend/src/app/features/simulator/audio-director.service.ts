@@ -1,7 +1,7 @@
 import { Injectable, NgZone, inject } from '@angular/core';
 import { Howl } from 'howler';
 import { FADE_TICK_MS, fadeStep } from './audio-fade.util';
-import { STRESS_TIER_FLOORS, stressTier } from './stress-tier.util';
+import type { Activation, Intensity } from '../../core/models/simulation.model';
 
 export type MusicLayer = 'ambient' | 'tension' | 'resolution' | 'crisis';
 export type SoundEffect =
@@ -24,7 +24,7 @@ interface StemTrack {
 }
 
 /**
- * Con una sola capa de música cargada (hoy solo `ambient`), bajarla o apagarla por el estrés deja el
+ * Con una sola capa de música cargada (hoy solo `ambient`), bajarla o apagarla por la escena deja el
  * caso sin música justo en los momentos más tensos: las otras capas no existen para tomar el relevo.
  * Mientras sea la única, no baja de esta fracción de su volumen.
  */
@@ -149,37 +149,34 @@ export class AudioDirectorService {
     this.introLament?.stop();
   }
 
-  setStressLevel(stress: number): void {
+  /**
+   * Las capas siguen a la escena y a la persona (nunca a una cifra): la intensidad de la escena elige la capa
+   * (LOW = solo la calma; MEDIUM = la tensión a medias; HIGH = la tensión completa) y una persona en crisis
+   * suma la capa de crisis. Un valor desconocido suena como una escena de intensidad media.
+   */
+  setScene(intensity: Intensity, activation: Activation): void {
     if (!this.initialized || this.stems.size === 0) return;
 
-    // Los tramos salen de stress-tier.util (umbrales únicos); aquí solo se decide qué capa suena en cada uno.
-    switch (stressTier(stress)) {
-      case 'calm':
-        this.setAmbientTarget(1.0);
-        this.setTargetVolume('tension', 0);
-        this.setTargetVolume('resolution', 0);
-        this.setTargetVolume('crisis', 0);
-        break;
-      case 'moderate': {
-        const t = (stress - STRESS_TIER_FLOORS.moderate) / (STRESS_TIER_FLOORS.high - STRESS_TIER_FLOORS.moderate);
-        this.setAmbientTarget(1.0 - t * 0.5);
-        this.setTargetVolume('tension', t);
-        this.setTargetVolume('resolution', 0);
-        this.setTargetVolume('crisis', 0);
-        break;
-      }
-      case 'high':
-        this.setAmbientTarget(0.2);
-        this.setTargetVolume('tension', 1.0);
-        this.setTargetVolume('resolution', 0);
-        this.setTargetVolume('crisis', 0);
-        break;
-      case 'critical':
-        this.setAmbientTarget(0);
-        this.setTargetVolume('tension', 0.3);
-        this.setTargetVolume('resolution', 0);
-        this.setTargetVolume('crisis', 1.0);
-        break;
+    if (activation === 'CRISIS') {
+      this.setAmbientTarget(0);
+      this.setTargetVolume('tension', 0.3);
+      this.setTargetVolume('resolution', 0);
+      this.setTargetVolume('crisis', 1.0);
+    } else if (intensity === 'LOW') {
+      this.setAmbientTarget(1.0);
+      this.setTargetVolume('tension', 0);
+      this.setTargetVolume('resolution', 0);
+      this.setTargetVolume('crisis', 0);
+    } else if (intensity === 'HIGH') {
+      this.setAmbientTarget(0.2);
+      this.setTargetVolume('tension', 1.0);
+      this.setTargetVolume('resolution', 0);
+      this.setTargetVolume('crisis', 0);
+    } else {
+      this.setAmbientTarget(0.75);
+      this.setTargetVolume('tension', 0.5);
+      this.setTargetVolume('resolution', 0);
+      this.setTargetVolume('crisis', 0);
     }
 
     this.stems.forEach(stem => {
@@ -223,7 +220,7 @@ export class AudioDirectorService {
     this.introLament?.mute(muted);
     // El silencio no depende de volume(). En HTML5 Howler no toca el volumen del nodo
     // mientras está silenciado: por eso volume(0) va antes de mute(true), y mute(false)
-    // antes de cualquier fundido posterior (setStressLevel).
+    // antes de cualquier fundido posterior (setScene).
     if (muted) {
       this.stems.forEach(stem => {
         stem.targetVolume = 0;

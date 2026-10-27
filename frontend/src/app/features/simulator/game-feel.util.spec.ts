@@ -1,11 +1,11 @@
 import {
-  CRISIS_PULSE_THRESHOLD,
-  CRISIS_VIGNETTE_START,
+  CRISIS_VIGNETTE_ALPHA,
+  TENSE_VIGNETTE_ALPHA,
+  HIGH_INTENSITY_DARKEN,
   crisisVignetteState,
   roomEntryFlash,
   vignetteFrame,
 } from './game-feel.util';
-import { STRESS_TIER_FLOORS } from './stress-tier.util';
 
 /** Luminancia relativa WCAG de un color sRGB 0-255. */
 function relativeLuminance([r, g, b]: [number, number, number]): number {
@@ -15,55 +15,47 @@ function relativeLuminance([r, g, b]: [number, number, number]): number {
 
 describe('game-feel.util', () => {
   describe('crisisVignetteState', () => {
-    it('usa los mismos umbrales que el HUD y el audio (stress-tier.util)', () => {
-      expect(CRISIS_VIGNETTE_START).toBe(STRESS_TIER_FLOORS.high);
-      expect(CRISIS_PULSE_THRESHOLD).toBe(STRESS_TIER_FLOORS.critical);
+    it('serena no se ve, con cualquier intensidad', () => {
+      expect(crisisVignetteState('CALM', 'LOW', false)).toEqual({ alpha: 0, pulse: null });
+      expect(crisisVignetteState('CALM', 'MEDIUM', false)).toEqual({ alpha: 0, pulse: null });
     });
 
-    it('no se ve con estrés bajo ni con valores que no son números', () => {
-      expect(crisisVignetteState(0, false)).toEqual({ alpha: 0, pulse: null });
-      expect(crisisVignetteState(STRESS_TIER_FLOORS.moderate, false)).toEqual({ alpha: 0, pulse: null });
-      expect(crisisVignetteState(CRISIS_VIGNETTE_START, false)).toEqual({ alpha: 0, pulse: null });
-      expect(crisisVignetteState(Number.NaN, false)).toEqual({ alpha: 0, pulse: null });
-      expect(crisisVignetteState(-30, false)).toEqual({ alpha: 0, pulse: null });
+    it('tensa se ve fija, sin pulso', () => {
+      expect(crisisVignetteState('TENSE', 'MEDIUM', false)).toEqual({ alpha: TENSE_VIGNETTE_ALPHA, pulse: null });
+      expect(crisisVignetteState('TENSE', 'MEDIUM', true).pulse).toBeNull();
     });
 
-    it('crece con el estrés desde el tramo alto hasta el crítico, sin pulso', () => {
-      const mid = crisisVignetteState(72.5, false);
-      expect(mid.pulse).toBeNull();
-      expect(mid.alpha).toBeCloseTo(0.28, 2);
-      const casiCritico = crisisVignetteState(CRISIS_PULSE_THRESHOLD - 1, false);
-      expect(casiCritico.pulse).toBeNull();
-      expect(casiCritico.alpha).toBeCloseTo(0.53, 2);
-      expect(casiCritico.alpha).toBeLessThan(0.55);
-    });
-
-    it('pulsa desde el tramo crítico (inclusive) y se limita a 100', () => {
-      const crisis = { alpha: 0.55, pulse: { from: 0.55, to: 0.85, durationMs: 800 } };
-      expect(crisisVignetteState(CRISIS_PULSE_THRESHOLD, false)).toEqual(crisis);
-      expect(crisisVignetteState(86, false)).toEqual(crisis);
-      expect(crisisVignetteState(250, false)).toEqual(crisis);
+    it('en crisis pulsa', () => {
+      expect(crisisVignetteState('CRISIS', 'MEDIUM', false))
+        .toEqual({ alpha: CRISIS_VIGNETTE_ALPHA, pulse: { from: 0.55, to: 0.85, durationMs: 800 } });
     });
 
     it('con movimiento reducido (o el mundo en pausa) la crisis se ve fija en el mínimo del pulso, sin escalón', () => {
-      const pulso = crisisVignetteState(95, false).pulse!;
-      expect(crisisVignetteState(95, true)).toEqual({ alpha: pulso.from, pulse: null });
-      expect(crisisVignetteState(CRISIS_PULSE_THRESHOLD, true)).toEqual({ alpha: pulso.from, pulse: null });
-      expect(crisisVignetteState(70, true).pulse).toBeNull();
-      // Sin escalón entre el final de la rampa y el tramo crítico con movimiento reducido.
-      expect(crisisVignetteState(CRISIS_PULSE_THRESHOLD - 0.01, true).alpha)
-        .toBeCloseTo(crisisVignetteState(CRISIS_PULSE_THRESHOLD, true).alpha, 1);
+      const pulso = crisisVignetteState('CRISIS', 'MEDIUM', false).pulse!;
+      expect(crisisVignetteState('CRISIS', 'MEDIUM', true)).toEqual({ alpha: pulso.from, pulse: null });
     });
 
-    it('la opacidad nunca baja al subir el estrés (con y sin movimiento reducido)', () => {
+    it('la intensidad alta oscurece un poco la viñeta (más opaca, mismo pulso) y la baja no cambia nada', () => {
+      const media = crisisVignetteState('CRISIS', 'MEDIUM', false);
+      const alta = crisisVignetteState('CRISIS', 'HIGH', false);
+      expect(alta.alpha).toBeGreaterThan(media.alpha);
+      expect(alta.alpha).toBeLessThanOrEqual(media.alpha * HIGH_INTENSITY_DARKEN + 0.01);
+      expect(alta.pulse?.durationMs).toBe(media.pulse?.durationMs);
+      expect(crisisVignetteState('CRISIS', 'LOW', false)).toEqual(media);
+      expect(crisisVignetteState('TENSE', 'HIGH', false).alpha).toBeGreaterThan(crisisVignetteState('TENSE', 'LOW', false).alpha);
+      expect(crisisVignetteState('CALM', 'HIGH', false).alpha).toBe(0);
+    });
+
+    it('la opacidad no baja al subir la activación (serena, tensa, en crisis)', () => {
       for (const reduced of [false, true]) {
-        let anterior = -1;
-        for (let s = 0; s <= 100; s += 1) {
-          const { alpha } = crisisVignetteState(s, reduced);
-          expect(alpha).toBeGreaterThanOrEqual(anterior);
-          anterior = alpha;
-        }
+        const alphas = (['CALM', 'TENSE', 'CRISIS'] as const).map(a => crisisVignetteState(a, 'MEDIUM', reduced).alpha);
+        expect(alphas).toEqual([...alphas].sort((x, y) => x - y));
       }
+    });
+
+    it('un valor desconocido no dibuja ni lanza', () => {
+      expect(crisisVignetteState(undefined as never, undefined as never, false).alpha).toBe(0);
+      expect(crisisVignetteState('X' as never, 'Y' as never, false).pulse).toBeNull();
     });
   });
 
