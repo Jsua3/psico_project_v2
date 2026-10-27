@@ -239,7 +239,7 @@ class RulesMilestonesView(_AuthoringView):
         self.version_for(request, case_version_id, mutate=True)
         body = self.payload(request, inputs.MilestonesRequest)
         return api_ok(
-            svc.update_milestones(case_version_id, body["milestones"], body.get("revision")), "Hitos actualizados"
+            svc.update_milestones(case_version_id, body["milestones"], self.revision(request)), "Hitos actualizados"
         )
 
 
@@ -248,7 +248,7 @@ class RulesRiskView(_AuthoringView):
         self.version_for(request, case_version_id, mutate=True)
         body = self.payload(request, inputs.RiskRequest)
         return api_ok(
-            svc.update_risk(case_version_id, body["riskLevel"], body.get("revision")), "Nivel de riesgo actualizado"
+            svc.update_risk(case_version_id, body["riskLevel"], self.revision(request)), "Nivel de riesgo actualizado"
         )
 
 
@@ -257,7 +257,7 @@ class RulesEndingsView(_AuthoringView):
         self.version_for(request, case_version_id, mutate=True)
         body = self.payload(request, inputs.EndingsRequest)
         return api_ok(
-            svc.update_endings(case_version_id, body["endings"], body.get("revision")), "Finales actualizados"
+            svc.update_endings(case_version_id, body["endings"], self.revision(request)), "Finales actualizados"
         )
 
 

@@ -296,6 +296,30 @@
       "audit": "ADMIN_PUBLISH_CASE"
     },
     {
+      "route": "api/admin/cases/<int:case_version_id>/rules/endings",
+      "method": "PUT",
+      "exposure": "role:ADMIN,PROFESOR",
+      "body": "json-small",
+      "throttle": null,
+      "audit": "ADMIN_UPDATE_ENDINGS"
+    },
+    {
+      "route": "api/admin/cases/<int:case_version_id>/rules/milestones",
+      "method": "PUT",
+      "exposure": "role:ADMIN,PROFESOR",
+      "body": "json-small",
+      "throttle": null,
+      "audit": "ADMIN_UPDATE_MILESTONES"
+    },
+    {
+      "route": "api/admin/cases/<int:case_version_id>/rules/risk",
+      "method": "PUT",
+      "exposure": "role:ADMIN,PROFESOR",
+      "body": "json-small",
+      "throttle": null,
+      "audit": "ADMIN_UPDATE_RISK"
+    },
+    {
       "route": "api/admin/cases/<int:case_version_id>/tools",
       "method": "POST",
       "exposure": "role:ADMIN,PROFESOR",
@@ -778,6 +802,30 @@
       "body": "json-small",
       "throttle": null,
       "audit": "ADMIN_PUBLISH_CASE"
+    },
+    {
+      "route": "api/authoring/cases/<int:case_version_id>/rules/endings",
+      "method": "PUT",
+      "exposure": "role:ADMIN,PROFESOR",
+      "body": "json-small",
+      "throttle": null,
+      "audit": "ADMIN_UPDATE_ENDINGS"
+    },
+    {
+      "route": "api/authoring/cases/<int:case_version_id>/rules/milestones",
+      "method": "PUT",
+      "exposure": "role:ADMIN,PROFESOR",
+      "body": "json-small",
+      "throttle": null,
+      "audit": "ADMIN_UPDATE_MILESTONES"
+    },
+    {
+      "route": "api/authoring/cases/<int:case_version_id>/rules/risk",
+      "method": "PUT",
+      "exposure": "role:ADMIN,PROFESOR",
+      "body": "json-small",
+      "throttle": null,
+      "audit": "ADMIN_UPDATE_RISK"
     },
     {
       "route": "api/authoring/cases/<int:case_version_id>/tools",

@@ -448,7 +448,7 @@ def exportar_csv(grupo_id, case_version_id, usuario):
                 csv_cell(e["estado"]),
                 *[("" if cumplidos is None else "Sí" if hito["key"] in cumplidos else "No") for hito in hitos],
             ])
-        if hitos:
+        if hitos and simulacion["estudiantes"]:
             writer.writerow([
                 "Cobertura del grupo", *[""] * 11,
                 *[

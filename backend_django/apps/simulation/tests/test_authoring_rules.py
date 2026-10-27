@@ -531,3 +531,19 @@ def test_el_editor_devuelve_las_reglas_y_la_clase_efectiva_de_cada_opcion(api, s
     assert data["decisions"]
     assert all(d["responseClass"] in {"RECOMMENDED", "ACCEPTABLE", "RISKY", "CONTRAINDICATED"} for d in data["decisions"])
     assert all("classification" in d and "scoreDelta" in d for d in data["decisions"])  # lo viejo sigue (Tarea 21)
+
+
+# ─── la revisión también viaja en la cabecera ──────────────────────────────────────────────────
+@pytest.mark.parametrize(("part", "body"), PARTES)
+def test_la_cabecera_x_case_revision_hace_la_comprobacion_optimista(api, other_admin, draft, part, body):
+    stale = _editor(api, draft)["revision"]
+    assert _put(cl(other_admin), draft, "risk", {"riskLevel": "VARIABLE"}, revision=stale).status_code == 200
+
+    vencida = api.put(f"{BASE}/{draft}/rules/{part}", body, format="json", HTTP_X_CASE_REVISION=str(stale))
+    assert vencida.status_code == 409
+    assert vencida.data["code"] == "REVISION_CONFLICT"
+
+    vigente = api.put(
+        f"{BASE}/{draft}/rules/{part}", body, format="json", HTTP_X_CASE_REVISION=str(_editor(api, draft)["revision"])
+    )
+    assert vigente.status_code == 200, vigente.data
