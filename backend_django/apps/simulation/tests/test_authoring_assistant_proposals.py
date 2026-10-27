@@ -464,16 +464,45 @@ def test_no_se_puede_reclasificar_como_buena_una_opcion_revictimizante(api, seed
                                       "responseClass": "CONTRAINDICATED", "prohibitionReason": "Minimiza lo que vive."}))
 
 
-# ─── propose: lo que viaja al proveedor ─────────────────────────────────────────────────
+def test_la_ia_no_rebaja_una_contraindicada_de_una_persona_aunque_su_texto_no_tenga_marcadores(version, ids):
+    from apps.simulation.models import DecisionOption
+
+    text = "Dile que lo piense mejor y lo perdone"
+    assert not prompts.is_revictimizing(text)
+    DecisionOption.objects.filter(pk=ids["decision"]).update(
+        text=text, response_class="CONTRAINDICATED", prohibition_reason="Presiona a la persona a perdonar.",
+    )
+
+    _invalid(version, _raw({"op": "set-response-class", "decisionId": ids["decision"], "responseClass": "RECOMMENDED",
+                            "prohibitionReason": ""}))
+    _invalid(version, _raw({"op": "set-response-class", "decisionId": ids["decision"], "responseClass": "RISKY",
+                            "prohibitionReason": ""}))
+    proposals.validate(version, _raw({"op": "set-response-class", "decisionId": ids["decision"],
+                                      "responseClass": "CONTRAINDICATED", "prohibitionReason": ""}))
+
+
+def test_la_ia_no_rebaja_una_opcion_con_razon_o_conducta_prohibida(version, ids):
+    from apps.simulation.models import DecisionOption
+
+    change = {"op": "set-response-class", "decisionId": ids["decision"], "responseClass": "ACCEPTABLE", "prohibitionReason": ""}
+    DecisionOption.objects.filter(pk=ids["decision"]).update(response_class="RISKY", prohibition_reason="Una razón escrita.")
+    _invalid(version, _raw(change))
+    DecisionOption.objects.filter(pk=ids["decision"]).update(prohibition_reason="", prohibited_conduct=True)
+    _invalid(version, _raw(change))
+    DecisionOption.objects.filter(pk=ids["decision"]).update(prohibited_conduct=False)
+    proposals.validate(version, _raw(change))
+
+
+# ─── propose: lo que viaja al proveedor ─────────────────────────────────────────────────────────────────────────────────────────
 @pytest.fixture
 def provider(monkeypatch):
     """Un ``complete_structured`` simulado que registra lo que recibe y devuelve ``reply['value']``."""
     seen = {"calls": 0}
     reply = {"value": {"message": "Listo.", "changes": []}}
 
-    def complete_structured(self, system, messages, schema_, model, max_tokens=4000):
+    def complete_structured(self, system, messages, schema_, model, max_tokens=4000, timeout=30):
         seen.update(calls=seen["calls"] + 1, system=system, messages=messages, schema=schema_, model=model,
-                    max_tokens=max_tokens, key=self.api_key)
+                    max_tokens=max_tokens, timeout=timeout, key=self.api_key)
         return reply["value"]
 
     monkeypatch.setattr(AnthropicProvider, "complete_structured", complete_structured)
@@ -490,6 +519,17 @@ def _propose(version, request_text="Agrega una escena", selection=None, **config
                              selection=selection, actor=None)
 
 
+def test_el_timeout_y_el_tope_de_tokens_de_los_ajustes_llegan_a_la_llamada_del_proveedor(version, provider):
+    with override_settings(**ON, AI_AUTHORING_TIMEOUT_SECONDS=45, AI_AUTHORING_MAX_TOKENS_PROPOSE=5000):
+        config = assistant_config.current()
+    assert (config.timeout_seconds, config.max_tokens_propose) == (45, 5000)
+
+    proposals.propose(config=config, case_version=version, request_text="Agrega una escena", screen="editor-mapa",
+                      selection=None, actor=None)
+
+    assert provider["timeout"] == 45 and provider["max_tokens"] == 5000
+
+
 def test_propose_manda_al_proveedor_el_esquema_el_sistema_y_el_contexto(version, provider):
     result = _propose(version, "Agrega una escena nueva en el consultorio", selection="objeto 3")
 
@@ -497,6 +537,7 @@ def test_propose_manda_al_proveedor_el_esquema_el_sistema_y_el_contexto(version,
     assert provider["schema"] is schema.PROPOSAL
     assert provider["system"] == prompts.SYSTEM_AUTHORING
     assert provider["model"] == "claude-opus-5-5" and provider["max_tokens"] == 8000 and provider["key"] == KEY
+    assert provider["timeout"] == 60
     (message,) = provider["messages"]
     assert message["role"] == "user"
     assert "Agrega una escena nueva en el consultorio" in message["content"]

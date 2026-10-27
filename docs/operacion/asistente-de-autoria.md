@@ -31,6 +31,8 @@ Variables del backend (`backend_django/psychosim/settings/base.py`, ejemplo en `
 | `AI_AUTHORING_MODEL_FAST` | `claude-haiku-5-5` | Modelo de `guide` |
 | `AI_AUTHORING_DAILY_LIMIT_PER_USER` | `200` | Peticiones por docente y día |
 | `AI_AUTHORING_MONTHLY_LIMIT` | `3000` | Peticiones de todo el programa por mes |
+| `AI_AUTHORING_TIMEOUT_SECONDS` | `60` | Cuánto espera el servidor al proveedor (segundos), en `propose` y `guide`. Mantenerlo por debajo del `--timeout` de gunicorn (120 en el `Dockerfile`): mientras espera, un hilo del servidor queda ocupado |
+| `AI_AUTHORING_MAX_TOKENS_PROPOSE` | `8000` | Tokens de salida que admite una propuesta (`propose`). La guía usa 600 fijos. Si la respuesta se corta por este tope, es un fallo `malformed` y responde 502 |
 
 La clave nunca sale del servidor: al cliente solo llegan mensajes fijos, y al registro va solo el tipo de fallo del proveedor, no su texto.
 
@@ -47,7 +49,7 @@ Los usos se guardan por docente y día (`AuthoringAssistantUsage`, migración `0
 
 **Se envía:** la petición del docente (hasta 2000 caracteres), la pantalla del editor, el elemento elegido (hasta 200) y el contenido del caso que se está editando: título, escenas, líneas de diálogo, respuestas con su clase y sus efectos, salas y sus elementos, personajes, hitos, finales y nivel de riesgo (textos largos recortados a 600 caracteres). Para `guide`: el catálogo de acciones del editor (id, nombre, pantalla) y la pregunta (hasta 500).
 
-**Nunca se envía:** intentos ni respuestas de estudiantes, reflexiones, cuentas, correos, nombres reales de personas, grupos, auditoría, otros casos ni la clave de la API. El contexto se arma solo con el contenido del caso.
+**Nunca se envía:** intentos ni respuestas de estudiantes, reflexiones, cuentas, correos, grupos, auditoría, otros casos ni la clave de la API. El contexto se arma solo con el contenido del caso. El texto libre que el docente escribió en el caso y en su petición **sí viaja** a la IA tal cual: la regla es que el caso es ficticio y no lleva nombres ni datos de personas reales, y el servidor no lo comprueba.
 
 ## Auditoría
 
@@ -67,7 +69,9 @@ Se hacen cumplir en Python sobre lo que devuelve el modelo (`prompts.py`), sin I
 - **Lista gráfica** (violencia descrita con detalle explícito): ningún texto de la propuesta puede contenerla, nunca.
 - **Lista revictimizante** (culpar, dudar, minimizar, presionar, acercar al agresor): solo se admite en una respuesta `CONTRAINDICATED` **con su razón** (`prohibitionReason`). Una `CONTRAINDICATED` sin razón también se rechaza.
 
-Los marcadores son dos listas congeladas en español, comparadas sobre el texto en minúsculas, sin tildes ni puntuación. Los textos y las listas son BORRADOR hasta que Psicología los apruebe.
+Los marcadores son dos listas congeladas en español, comparadas sobre el texto en minúsculas, sin tildes ni puntuación. **Son un primer filtro, no el control:** una frase dañina puede no coincidir con ninguna. El control real es la marca «sugerido por la IA» más la revisión humana de cada parte antes de enviar el caso. Los textos y las listas son BORRADOR hasta que Psicología los apruebe.
+
+**La IA no rebaja una respuesta que una persona dejó contraindicada.** `set-response-class` se rechaza (422 `AI_PROPOSAL_INVALID`) si la respuesta es hoy `CONTRAINDICATED`, o tiene razón de prohibición o conducta prohibida, y la clase nueva no es `CONTRAINDICATED`; no importa si su texto coincide o no con un marcador. Volver a proponer `CONTRAINDICATED` sí se admite.
 
 ## Las diez operaciones y cómo se aplican
 
@@ -93,6 +97,7 @@ Una escena nueva usa un id temporal `nueva-N` que los cambios siguientes pueden 
 - **Campos:** `ai_suggested` (API: `aiSuggested`) en nodo, decisión, objeto del mapa y línea de diálogo, y `aiSuggested` dentro de cada final (en el documento de reglas). Lo que viene de una propuesta entra con la marca en alto.
 - **Bloqueo:** mientras quede una parte marcada, la compuerta devuelve el bloqueador `AI_SUGGESTED_UNREVIEWED` («N parte(s) sugeridas por la IA sin revisar.») y **no deja enviar a revisión ni aprobar**.
 - **Quitarla:** `POST …/nodes/{id}/accept-ai`, `…/decisions/{id}/accept-ai`, `…/dialogues/{id}/accept-ai` (todas las líneas del diálogo) y `…/objects/{id}/accept-ai`. Cada una avanza la revisión del caso y devuelve el editor. También se baja reescribiendo la parte con `aiSuggested: false`; los finales se aceptan con `PUT rules/endings`.
+- **Finales:** en `PUT rules/endings`, un final que **omite** `aiSuggested` conserva la marca guardada para esa misma `key` (una `key` nueva nace sin marca, así que renombrar un final marcado la suelta); `aiSuggested: false` explícito la baja y `true` explícito la sube. Omitirla nunca suelta la compuerta de publicación.
 - **Clonar** una versión conserva la marca. **Exportar e importar NO la conserva** (el documento no la lleva), salvo en los finales, que la guardan dentro de las reglas.
 
 ## Códigos de error

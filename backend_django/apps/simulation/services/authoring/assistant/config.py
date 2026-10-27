@@ -13,6 +13,8 @@ class AuthoringAssistantConfig:
     model_capable: str
     daily_limit: int
     monthly_limit: int
+    timeout_seconds: int = 60
+    max_tokens_propose: int = 8000
 
     def __repr__(self) -> str:
         """Igual que el repr de un dataclass, pero con la clave enmascarada: nunca se imprime."""
@@ -35,4 +37,6 @@ def current() -> AuthoringAssistantConfig:
         model_capable=getattr(settings, "AI_AUTHORING_MODEL_CAPABLE", "claude-opus-5-5"),
         daily_limit=int(getattr(settings, "AI_AUTHORING_DAILY_LIMIT_PER_USER", 200)),
         monthly_limit=int(getattr(settings, "AI_AUTHORING_MONTHLY_LIMIT", 3000)),
+        timeout_seconds=int(getattr(settings, "AI_AUTHORING_TIMEOUT_SECONDS", 60)),
+        max_tokens_propose=int(getattr(settings, "AI_AUTHORING_MAX_TOKENS_PROPOSE", 8000)),
     )

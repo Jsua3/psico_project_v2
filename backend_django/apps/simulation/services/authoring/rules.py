@@ -151,12 +151,21 @@ def update_endings(case_version_id, items, revision=None):
     """``PUT …/rules/endings``: reemplaza los finales del caso, en orden de evaluación (``[]`` los quita)."""
     version = ensure_draft(case_version_id, revision)
     declared = {m.key for m in case_rules.rules_of(version).milestones}
-    _write(version, read_map(version.rules), endings=_clean_endings(items, declared))
+    raw_rules = read_map(version.rules)
+    _write(version, raw_rules, endings=_clean_endings(items, declared, _stored_marks(raw_rules)))
     bump_revision(case_version_id)
     return editor(case_version_id)
 
 
-def _clean_endings(items, declared):
+def _stored_marks(raw_rules):
+    """``{key del final: aiSuggested guardado}`` de los finales que el caso ya tiene (los marcados en alto)."""
+    stored = raw_rules.get("endings")
+    if not isinstance(stored, list):
+        return {}
+    return {e["key"]: e.get("aiSuggested") is True for e in stored if isinstance(e, dict) and isinstance(e.get("key"), str)}
+
+
+def _clean_endings(items, declared, stored_marks=None):
     if not isinstance(items, list):
         raise _refuse("endings", "Los finales deben ser una lista.")
     if len(items) > MAX_ENDINGS:
@@ -181,7 +190,9 @@ def _clean_endings(items, declared):
         tone = item.get("tone") or "neutral"
         if tone not in ENDING_TONES:
             raise _refuse("endings", f"El tono del final «{key}» debe ser {', '.join(ENDING_TONES)}.")
-        ai_suggested = item.get("aiSuggested", False)
+        # Sin ``aiSuggested`` el final conserva la marca guardada con esa misma clave (una clave nueva nace sin marca): omitirla
+        # no puede soltar la compuerta de publicación. Solo ``false`` explícito la baja y ``true`` explícito la sube.
+        ai_suggested = item["aiSuggested"] if "aiSuggested" in item else (stored_marks or {}).get(key, False)
         if not isinstance(ai_suggested, bool):
             raise _refuse("endings", f"Que el final «{key}» sea sugerido por la IA se indica con sí o no.")
         ending = {"key": key, "title": title, "message": message, "tone": tone}

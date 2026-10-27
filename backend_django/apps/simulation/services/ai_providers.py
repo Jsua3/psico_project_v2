@@ -118,7 +118,13 @@ class AnthropicProvider(AIProvider):
         return (content[0].get("text", "") if content else "").strip()
 
     def complete_structured(
-        self, system: str, messages: list[dict], schema: dict, model: str, max_tokens: int = 4000
+        self,
+        system: str,
+        messages: list[dict],
+        schema: dict,
+        model: str,
+        max_tokens: int = 4000,
+        timeout: float = AUTHORING_TIMEOUT_SECONDS,
     ) -> dict:
         """Una llamada con salida estructurada: el modelo responde un JSON que cumple ``schema``.
 
@@ -137,7 +143,7 @@ class AnthropicProvider(AIProvider):
                 self.URL,
                 payload,
                 {"x-api-key": self.api_key, "anthropic-version": "2023-06-01"},
-                timeout=AUTHORING_TIMEOUT_SECONDS,
+                timeout=timeout,
             )
         except RuntimeError as exc:  # post_json: respuesta no 2xx
             raise ProviderError("http", self._sin_clave(str(exc))) from None

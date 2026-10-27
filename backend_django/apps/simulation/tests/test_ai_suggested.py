@@ -162,6 +162,63 @@ def test_replacing_a_dialogue_keeps_the_marks_of_lines_that_do_not_say_otherwise
     ) == [True, False]
 
 
+def _put_endings(client, cv, endings):
+    return client.put(f"{AUTHORING}/{cv}/rules/endings", _with_rev(client, cv, {"endings": endings}), format="json")
+
+
+def _bare(endings):
+    """Los finales como los manda un cliente que no conoce ``aiSuggested``: sin la clave."""
+    return [{k: v for k, v in e.items() if k != "aiSuggested"} for e in endings]
+
+
+def test_a_put_that_omits_the_ending_flag_keeps_the_mark_and_the_gate_still_blocks(prof):
+    cv, ids = _marked_draft(prof)
+    client = cl(prof)
+    base = f"{AUTHORING}/{cv}"
+    for segment, key in (("nodes", "node"), ("decisions", "decision"), ("objects", "object"), ("dialogues", "tree")):
+        assert client.post(f"{base}/{segment}/{ids[key]}/accept-ai", _with_rev(client, cv), format="json").status_code == 200
+    assert gate.ai_suggested_count(CaseVersion.objects.get(pk=cv)) == 1  # solo queda el final
+
+    r = _put_endings(client, cv, _bare(_editor(client, cv)["rules"]["endings"]))
+
+    assert r.status_code == 200, r.data
+    endings = {e["key"]: e["aiSuggested"] for e in _editor(client, cv)["rules"]["endings"]}
+    assert endings["ia_final"] is True
+    assert gate.ai_suggested_count(CaseVersion.objects.get(pk=cv)) == 1
+    blocked = _post(client, cv, action="submit")
+    assert blocked.status_code == 409
+    assert [b["code"] for b in blocked.data["blockers"]] == ["AI_SUGGESTED_UNREVIEWED"]
+
+
+def test_an_explicit_false_lowers_the_ending_mark_and_an_explicit_true_raises_it(prof):
+    cv, _ = _marked_draft(prof)
+    client = cl(prof)
+    endings = _editor(client, cv)["rules"]["endings"]
+
+    lowered = [{**e, "aiSuggested": False} if e["key"] == "ia_final" else e for e in endings]
+    assert _put_endings(client, cv, lowered).status_code == 200
+    assert {e["key"]: e["aiSuggested"] for e in _editor(client, cv)["rules"]["endings"]}["ia_final"] is False
+
+    raised = [{**e, "aiSuggested": True} if e["key"] == "ia_final" else e for e in _editor(client, cv)["rules"]["endings"]]
+    assert _put_endings(client, cv, raised).status_code == 200
+    assert {e["key"]: e["aiSuggested"] for e in _editor(client, cv)["rules"]["endings"]}["ia_final"] is True
+
+
+def test_a_renamed_ending_key_starts_without_the_mark(prof):
+    cv, _ = _marked_draft(prof)
+    client = cl(prof)
+    renamed = [
+        {**e, "key": "ia_final_renombrado"} if e["key"] == "ia_final" else e
+        for e in _bare(_editor(client, cv)["rules"]["endings"])
+    ]
+
+    assert _put_endings(client, cv, renamed).status_code == 200
+
+    endings = {e["key"]: e["aiSuggested"] for e in _editor(client, cv)["rules"]["endings"]}
+    assert endings["ia_final_renombrado"] is False
+    assert "ia_final" not in endings
+
+
 def test_an_ending_mark_must_be_a_boolean(prof):
     cv = _draft_owned_by(prof)
     client = cl(prof)

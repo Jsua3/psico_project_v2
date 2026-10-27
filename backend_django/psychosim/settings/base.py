@@ -497,6 +497,9 @@ AI_AUTHORING_MODEL_FAST = os.environ.get("AI_AUTHORING_MODEL_FAST", "claude-haik
 AI_AUTHORING_MODEL_CAPABLE = os.environ.get("AI_AUTHORING_MODEL_CAPABLE", "claude-opus-5-5").strip()
 AI_AUTHORING_DAILY_LIMIT_PER_USER = int(os.environ.get("AI_AUTHORING_DAILY_LIMIT_PER_USER", "200"))
 AI_AUTHORING_MONTHLY_LIMIT = int(os.environ.get("AI_AUTHORING_MONTHLY_LIMIT", "3000"))
+# Cuánto espera el servidor al proveedor (segundos) y cuántos tokens de salida admite una propuesta (``propose``; la guía usa 600).
+AI_AUTHORING_TIMEOUT_SECONDS = int(os.environ.get("AI_AUTHORING_TIMEOUT_SECONDS", "60"))
+AI_AUTHORING_MAX_TOKENS_PROPOSE = int(os.environ.get("AI_AUTHORING_MAX_TOKENS_PROPOSE", "8000"))
 
 ACCESS_REQUEST_NOTIFY_EMAILS = [
     email.strip()

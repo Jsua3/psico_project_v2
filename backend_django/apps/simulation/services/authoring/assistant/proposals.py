@@ -13,6 +13,7 @@ from apps.simulation.models import CaseCharacter, DecisionOption, MapObject, Sce
 from apps.simulation.services import case_rules
 from apps.simulation.services.ai_providers import ProviderError, provider_class
 from apps.simulation.services.authoring.rules import MAX_ENDINGS
+from apps.simulation.services.case_state import response_class_of
 
 from . import context, prompts, schema
 
@@ -26,6 +27,7 @@ DEFAULT_MAP_SIZE = 4000
 _TEMP_ID = re.compile(r"nueva-[0-9]{1,3}")
 
 
+# BORRADOR: texto nuevo del servidor, pendiente de la aprobación de Psicología (todos los motivos fijos de este módulo).
 #: Todos los motivos de rechazo (sin el prefijo «Cambio N: » y con «» donde va el nombre de un campo nuestro): son
 #: textos fijos y nunca citan lo que dijo el modelo. ``is_fixed_motivo`` lo comprueba.
 FIXED_MOTIVOS = frozenset({
@@ -39,6 +41,7 @@ FIXED_MOTIVOS = frozenset({
     "la escena no está en el caso ni se declaró antes.",
     "una respuesta contraindicada necesita su razón.",
     "solo una respuesta contraindicada lleva razón de prohibición.",
+    "una respuesta contraindicada la deja una persona: la IA no puede cambiarle la clase.",
     "el id de la escena nueva no es válido o está repetido.",
     "una escena de intensidad alta necesita su aviso.",
     "la clave del final no es válida o ya existe.",
@@ -89,7 +92,7 @@ class _Case:
     maps: dict           # id → (ancho, alto)
     objects: dict        # id → id del mapa
     characters: set
-    decisions: dict      # id → (texto, razón de prohibición)
+    decisions: dict      # id → (texto, razón de prohibición, clase efectiva, conducta prohibida)
     milestones: set
     endings: set
 
@@ -101,7 +104,10 @@ class _Case:
             maps={m.id: (m.width, m.height) for m in SceneMap.objects.filter(case_version_id=version.id)},
             objects=dict(MapObject.objects.filter(scene_map__case_version_id=version.id).values_list("id", "scene_map_id")),
             characters=set(CaseCharacter.objects.filter(case_version_id=version.id).values_list("id", flat=True)),
-            decisions={d.id: (d.text, d.prohibition_reason or "") for d in DecisionOption.objects.filter(case_version_id=version.id)},
+            decisions={
+                d.id: (d.text, d.prohibition_reason or "", response_class_of(d).value, bool(d.prohibited_conduct))
+                for d in DecisionOption.objects.filter(case_version_id=version.id)
+            },
             milestones={m.key for m in rules.milestones},
             endings={e["key"] for e in rules.endings},
         )
@@ -232,7 +238,13 @@ class _Validator:
         decision = self.known(self.case.decisions, c, "decisionId", "la respuesta")
         response_class = self.choice(c, "responseClass", schema.RESPONSE_CLASSES)
         reason = self.text(c, "prohibitionReason", MAX_NOTE, required=False)
-        existing_text, existing_reason = self.case.decisions[decision]
+        existing_text, existing_reason, existing_class, prohibited = self.case.decisions[decision]
+        # Una respuesta contraindicada (o con razón o conducta prohibida) la fijó una persona: la IA no la rebaja, ni siquiera
+        # cuando su texto no cae en ningún marcador (las listas de marcadores son un primer filtro, no el control).
+        if response_class != "CONTRAINDICATED" and (
+            existing_class == "CONTRAINDICATED" or existing_reason.strip() or prohibited
+        ):
+            self.fail("una respuesta contraindicada la deja una persona: la IA no puede cambiarle la clase.")
         if response_class == "CONTRAINDICATED" and not (reason.strip() or existing_reason.strip()):
             self.fail("una respuesta contraindicada necesita su razón.")
         if response_class != "CONTRAINDICATED" and reason.strip():
@@ -342,7 +354,8 @@ def propose(*, config, case_version, request_text, screen, selection, actor) -> 
     message = prompts.user_message(request_text[:MAX_REQUEST_CHARS], case_context)
     provider = provider_class(config.provider)(config.api_key, config.model_capable)
     raw = provider.complete_structured(
-        prompts.SYSTEM_AUTHORING, [{"role": "user", "content": message}], schema.PROPOSAL, config.model_capable, max_tokens=8000
+        prompts.SYSTEM_AUTHORING, [{"role": "user", "content": message}], schema.PROPOSAL, config.model_capable,
+        max_tokens=config.max_tokens_propose, timeout=config.timeout_seconds,
     )
     proposal = replace(validate(case_version, raw), model=config.model_capable)
     return {

@@ -14,6 +14,8 @@ MAX_MESSAGE = 300
 MAX_TOKENS = 600
 # BORRADOR: texto nuevo del servidor, pendiente de la aprobación de Psicología
 FALLBACK_MESSAGE = "No encontré esa acción. Prueba con el buscador de acciones."
+# BORRADOR: texto nuevo del servidor, pendiente de la aprobación de Psicología
+FOUND_MESSAGE = "Te muestro dónde está."
 
 
 def _truncate(text: str) -> str:
@@ -50,6 +52,7 @@ def answer(*, config, question, actions) -> dict:
         schema.GUIDE,
         config.model_fast,
         max_tokens=MAX_TOKENS,
+        timeout=config.timeout_seconds,
     )
     if not isinstance(raw, dict):
         return result
@@ -58,4 +61,7 @@ def answer(*, config, question, actions) -> dict:
     result["accionId"] = action_id if isinstance(action_id, str) and action_id in known else None
     result["modo"] = raw["modo"] if raw.get("modo") in schema.GUIDE_MODES else "foco"
     result["mensaje"] = _message(raw.get("mensaje"))
+    if result["accionId"] and result["mensaje"] == FALLBACK_MESSAGE:
+        # La acción sí existe: decir «no encontré» junto a un resaltado sería contradictorio.
+        result["mensaje"] = FOUND_MESSAGE
     return result

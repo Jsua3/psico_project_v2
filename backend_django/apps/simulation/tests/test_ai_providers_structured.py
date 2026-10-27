@@ -63,6 +63,13 @@ def test_envia_el_esquema_como_salida_estructurada_y_devuelve_el_json():
     assert kwargs["timeout"] == 30
 
 
+def test_el_timeout_de_la_llamada_se_puede_pasar():
+    with mock.patch("urllib.request.urlopen", return_value=_ok('{"titulo": "Duelo"}')) as urlopen:
+        _provider().complete_structured("sistema", MESSAGES, SCHEMA, "claude-opus-5-5", timeout=45)
+
+    assert urlopen.call_args.kwargs["timeout"] == 45
+
+
 def test_la_key_viaja_solo_en_la_cabecera_x_api_key():
     _, request, _ = _llamar(_ok("{}"))
     headers = {k.lower(): v for k, v in request.header_items()}

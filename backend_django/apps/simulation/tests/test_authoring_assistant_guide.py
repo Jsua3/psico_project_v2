@@ -22,6 +22,7 @@ KEY = "sk-ant-clave-de-prueba-0123456789"
 ON = dict(AI_AUTHORING_ENABLED=True, AI_AUTHORING_API_KEY=KEY, AI_AUTHORING_DAILY_LIMIT_PER_USER=5,
           AI_AUTHORING_MONTHLY_LIMIT=100)
 FALLBACK = "No encontré esa acción. Prueba con el buscador de acciones."
+FOUND = "Te muestro dónde está."
 CATALOG = [
     {"id": "mapa.agregar-sala", "nombre": "Agregar una sala", "pantalla": "editor-mapa"},
     {"id": "dialogo.nueva-linea", "nombre": "Escribir una línea de diálogo", "pantalla": "editor-dialogo"},
@@ -52,9 +53,9 @@ def provider(monkeypatch):
     seen = {"calls": 0}
     reply = {"value": {"accionId": "mapa.agregar-sala", "modo": "resaltar", "mensaje": "Aquí está."}}
 
-    def complete_structured(self, system, messages, schema_, model, max_tokens=4000):
+    def complete_structured(self, system, messages, schema_, model, max_tokens=4000, timeout=30):
         seen.update(calls=seen["calls"] + 1, system=system, messages=messages, schema=schema_, model=model,
-                    max_tokens=max_tokens, key=self.api_key)
+                    max_tokens=max_tokens, timeout=timeout, key=self.api_key)
         return reply["value"]
 
     monkeypatch.setattr(AnthropicProvider, "complete_structured", complete_structured)
@@ -96,6 +97,7 @@ def test_usa_model_fast_con_el_sistema_y_el_esquema_de_la_guia(provider):
     assert provider["system"] == prompts.SYSTEM_GUIDE
     assert provider["schema"] is schema.GUIDE
     assert provider["max_tokens"] == 600 and provider["key"] == KEY
+    assert provider["timeout"] == 60  # AI_AUTHORING_TIMEOUT_SECONDS por defecto
 
 
 def test_el_mensaje_lleva_la_pregunta_y_el_catalogo_y_nada_mas(provider):
@@ -135,7 +137,16 @@ def test_un_mensaje_con_marcador_grafico_se_vuelve_el_texto_fijo(provider):
 
     result = _answer()
 
-    assert result["mensaje"] == FALLBACK and result["accionId"] == "mapa.agregar-sala"
+    assert result["mensaje"] == FOUND and result["accionId"] == "mapa.agregar-sala"
+
+
+@pytest.mark.parametrize("mensaje", ["", None, "Hay un charco de sangre."])
+def test_con_accion_valida_y_mensaje_inservible_el_texto_es_neutro(provider, mensaje):
+    provider["reply"]["value"] = {"accionId": "mapa.agregar-sala", "modo": "resaltar", "mensaje": mensaje}
+
+    result = _answer()
+
+    assert result["accionId"] == "mapa.agregar-sala" and result["mensaje"] == FOUND
 
 
 def test_un_mensaje_largo_se_recorta_en_una_palabra_con_puntos_suspensivos(provider):
