@@ -122,6 +122,17 @@ class MapObject(models.Model):
     z_index = models.IntegerField(default=0, db_default=0)
     facing = models.CharField(max_length=20, default="", db_default="")
     movement_pattern_json = models.TextField(default="{}", db_default="{}")
+    # Datos libres del objeto (JSON). Convenciones: en una puerta (``EXIT``) ``targetNodeKey``, ``entryX``, ``entryY`` y los
+    # ``requires*``; en lo que viene de la biblioteca (P6) ``arte`` y ``animacionCerca`` = ``{hoja, cuadros, fps}``; en una
+    # persona ``recipeId`` y ``expresion`` y, además:
+    #   ``movimiento``: ``"quieto"`` (por defecto, también si falta), ``"deambula"`` o, para ir y venir,
+    #     ``{"tipo": "va-y-viene", "hasta": {"x": n, "y": n}}`` (la ida es la posición del objeto).
+    #   ``personaClave``: ``true`` si la docente marca a la persona que hay que atender (a lo sumo una por sala); la copia
+    #     desde la biblioteca nunca la pone.
+    #   ``colision`` (mueble copiado de la biblioteca): ``true`` si el catálogo dice que choca. El objeto va con
+    #     ``collision=False`` y el choque lo lleva la ``CollisionZone`` ``choque-<object_key>``: el servidor lee la caja de un
+    #     objeto con ``collision=True`` como esquina superior izquierda, y la posición de la biblioteca es el centro inferior.
+    #   ``espejo``: ``true`` si el mueble se dibuja volteado (solo aparece cuando es verdadero).
     metadata_json = models.TextField(default="{}", db_default="{}")
     # Sugerido por el asistente de IA y aún sin revisar (P5): la compuerta de publicación no deja pasar mientras esté en alto.
     ai_suggested = models.BooleanField(default=False, db_default=False)

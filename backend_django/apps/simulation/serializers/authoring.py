@@ -63,6 +63,50 @@ class LifecycleRequest(serializers.Serializer):
     contentReview = serializers.DictField(required=False, allow_null=True)
 
 
+class _TextoEstricto(serializers.CharField):
+    """Un texto de verdad: DRF acepta un número como cadena, y aquí un ``7`` no es el id de un lugar."""
+
+    def to_internal_value(self, data):
+        if not isinstance(data, str):
+            self.fail("invalid")
+        return super().to_internal_value(data)
+
+
+class CaseLugarRequest(serializers.Serializer):
+    """Lo que ``POST …/cases`` lee cuando el caso nace de un lugar de la biblioteca (P6).
+
+    ``lugarId`` es el id del lugar y ``salas`` los ids de las salas elegidas, en el orden en que se quedan (la primera es
+    la escena de inicio). Que cada sala exista en el lugar y que no se repitan lo comprueba el servicio de la copia.
+    Sin ``lugarId`` el cuerpo no se mira: el caso se crea como siempre.
+    """
+
+    # BORRADOR: textos nuevos del servidor, pendientes de la aprobación de Psicología (VD-23).
+    lugarId = _TextoEstricto(
+        max_length=60,
+        error_messages={
+            "blank": "Elige un lugar.", "null": "Elige un lugar.", "invalid": "El lugar debe ser un texto.",
+            "max_length": "El lugar no existe en la biblioteca.",
+        },
+    )
+    salas = serializers.ListField(
+        child=_TextoEstricto(
+            max_length=60,
+            error_messages={
+                "blank": "Una de las salas elegidas no existe en este lugar.", "null": "Elige al menos una sala del lugar.",
+                "invalid": "Una de las salas elegidas no existe en este lugar.",
+                "max_length": "Una de las salas elegidas no existe en este lugar.",
+            },
+        ),
+        allow_empty=False,
+        max_length=40,
+        error_messages={
+            "required": "Elige al menos una sala del lugar.", "null": "Elige al menos una sala del lugar.",
+            "not_a_list": "Las salas deben ser una lista.", "empty": "Elige al menos una sala del lugar.",
+            "max_length": "Un caso admite hasta 40 salas.",
+        },
+    )
+
+
 class PublishRequest(serializers.Serializer):
     """``POST …/publish`` (alias de aprobar): nota y constancia opcionales."""
 

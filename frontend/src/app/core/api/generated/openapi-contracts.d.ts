@@ -1052,6 +1052,8 @@ export interface OpenApiPaths {
   readonly '/api/authoring/cases/{case_version_id}/world-editor': 'GET';
   readonly '/api/authoring/cases/{case_version_id}/world-preview': 'GET';
   readonly '/api/authoring/cases/{case_version_id}/world/validate': 'POST';
+  readonly '/api/biblioteca/lugares': 'GET';
+  readonly '/api/biblioteca/lugares/{lugar_id}': 'GET';
   readonly '/api/competencies': 'GET' | 'POST';
   readonly '/api/grupos': 'GET' | 'POST';
   readonly '/api/grupos/estudiantes/import/spec': 'GET';

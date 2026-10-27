@@ -1018,6 +1018,22 @@
       "audit": "CASE_IMPORTED"
     },
     {
+      "route": "api/biblioteca/lugares",
+      "method": "GET",
+      "exposure": "role:ADMIN,PROFESOR",
+      "body": "none",
+      "throttle": null,
+      "audit": "EXENTO: catálogo de lugares, salas y objetos de la biblioteca (archivos del servidor): no son datos de personas"
+    },
+    {
+      "route": "api/biblioteca/lugares/<str:lugar_id>",
+      "method": "GET",
+      "exposure": "role:ADMIN,PROFESOR",
+      "body": "none",
+      "throttle": null,
+      "audit": "EXENTO: catálogo de lugares, salas y objetos de la biblioteca (archivos del servidor): no son datos de personas"
+    },
+    {
       "route": "api/competencies",
       "method": "GET",
       "exposure": "role:ADMIN,PROFESOR",

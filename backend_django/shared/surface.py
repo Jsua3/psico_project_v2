@@ -61,6 +61,7 @@ _SEUDONIMO = (
     "listado seudonimizado (alias por docente) dentro de su alcance; leer el detalle de un intento "
     "(traza, evaluación, reporte) sí queda auditado"
 )
+_CATALOGO = "catálogo de lugares, salas y objetos de la biblioteca (archivos del servidor): no son datos de personas"
 _ESTATICO = "plantilla o especificación estática: no lee datos de nadie"
 _INTENTO_PROPIO = (
     "estado de juego del propio intento: el hecho queda en la traza del intento (attempt_events), que se audita al leerla"
@@ -233,6 +234,9 @@ AUDIT_BY_ROUTE: dict[tuple[str, str], str] = {
     ("api/rubrics/case-versions/<int:case_version_id>", "PUT"): "RUBRIC_UPDATED",
     ("api/competencies", "GET"): _exento(_RUBRICAS),
     ("api/competencies", "POST"): "COMPETENCY_CREATED",
+    # ── La biblioteca de lugares del editor de casos (P6) ──
+    ("api/biblioteca/lugares", "GET"): _exento(_CATALOGO),
+    ("api/biblioteca/lugares/<str:lugar_id>", "GET"): _exento(_CATALOGO),
     # ── El juego del estudiante ──
     ("api/simulation/ai-assistant", "POST"): "AI_ASSISTANT_QUERY",
     ("api/simulation/attempts", "POST"): "ATTEMPT_STARTED",

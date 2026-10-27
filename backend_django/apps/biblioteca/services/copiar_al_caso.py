@@ -1,0 +1,327 @@
+"""Copia las salas elegidas de un lugar de la biblioteca a un borrador de caso (P6).
+
+**Copia por valor.** Lo que se escribe en el caso son filas y JSON nuevos construidos aquí campo por campo: ningún diccionario
+del ``lugar`` cargado se guarda ni se comparte, así que editar la biblioteca después (o mutar el diccionario en memoria) no
+toca un caso ya creado, ni dos casos se tocan entre sí.
+
+Por cada sala elegida, en el orden pedido (la primera es la escena de inicio):
+
+- una escena (``SimulationNode``, clave = id de la sala) y su mapa (``SceneMap``: fondo en ``ambient.backgroundImage``,
+  ``ambient.encuadre``, entrada = punto de aparición);
+- los muebles → ``PROP`` con el tamaño y la colisión del catálogo, ``metadata.arte`` y, si el mueble es un espejo,
+  ``metadata.espejo``; el mueble va con ``collision=False`` y ``metadata.colision`` guarda lo que dijo el catálogo; los que
+  chocan dejan su huella en el suelo como ``CollisionZone`` (lo único que bloquea al jugador);
+- los objetos → su tipo (``OBJECT``, ``NOTE``, ``RESOURCE``, ``PROP``…), ``interaction_text`` = ``alRevisar``,
+  ``interaction_prompt`` = ``textoInteraccion``, ``metadata.arte`` y ``metadata.animacionCerca = {hoja, cuadros, fps}``;
+- los personajes → ``PERSON`` enlazada a un ``CaseCharacter`` (uno por personaje del lugar, aunque salga en varias salas),
+  con ``metadata.recipeId``, ``metadata.expresion`` y ``metadata.movimiento = "quieto"`` (``personaClave`` lo marca la
+  docente: la copia nunca lo pone);
+- las puertas que llevan a otra sala elegida → ``EXIT`` con ``metadata.{targetNodeKey, entryX, entryY}`` (la entrada de la
+  sala de destino). Las que llevan a una sala no elegida no se crean.
+
+Del lugar entero pasan al caso las herramientas (``ClinicalTool``: ninguna sala las coloca, son el maletín del caso), los
+hitos y el nivel de riesgo (``rules.milestones`` y ``rules.riskLevel``).
+
+Todas las posiciones son las de la biblioteca: el punto de apoyo en el suelo (centro inferior), no el centro de la caja.
+"""
+import copy
+import json
+from dataclasses import dataclass
+
+from rest_framework import status
+
+from apps.simulation.models import (
+    CaseCharacter,
+    ClinicalTool,
+    CollisionZone,
+    MapObject,
+    SceneMap,
+    SimulationNode,
+)
+from apps.simulation.models.world import MAP_OBJECT_TYPES
+from apps.simulation.services import case_rules
+from shared.exceptions import ApiError
+from shared.jsonutils import read_map
+
+from .lugares import url_de_arte
+
+#: La sala mide lo que el juego (``AUTHORED_ROOM_WIDTH/HEIGHT``).
+ANCHO_SALA, ALTO_SALA = 960, 528
+#: El tema de las salas autoradas; el fondo de la biblioteca va encima, en ``ambient.backgroundImage``.
+TEMA = "clinical-soft"
+#: Las escenas se colocan en el grafo en una cuadrícula que no se solapa: ``COLUMNAS`` por fila, separación fija.
+COLUMNAS, SEPARACION_X, SEPARACION_Y, ORIGEN_X, ORIGEN_Y = 4, 280, 200, 180, 180
+MAX_SALAS = 40
+#: Los objetos y herramientas de la biblioteca son iconos de 32 × 32.
+TAMANO_OBJETO = 32
+TAMANO_PERSONA = (48, 48)
+#: La puerta ya está pintada en el fondo: su caja solo marca dónde se cruza. Es lo bastante chica para caber en la sala aunque
+#: la puerta esté en el borde (x = 936, y = 486), que es donde la validación del mundo exige que quepa.
+TAMANO_PUERTA = (24, 40)
+FPS_POR_DEFECTO = 6
+#: Material Symbols válidos (``apps/simulation/data/material_icons.json``) para el marcador de cada tipo.
+ICONO_POR_TIPO = {"PERSON": "person", "EXIT": "door_front", "NOTE": "article", "RESOURCE": "description"}
+ICONO_POR_DEFECTO = "inventory_2"
+ICONO_HERRAMIENTA = "assignment"
+COLOR = "#4FA3A5"
+MIRANDO = {"izquierda": "left", "derecha": "right"}
+
+
+@dataclass(frozen=True)
+class ResumenCopia:
+    """Lo que la copia escribió, para que quien llama pueda decírselo a la persona."""
+
+    lugar_id: str
+    salas: tuple
+    nodos: int
+    mapas: int
+    muebles: int
+    objetos: int
+    personajes: int  # personas colocadas en las salas
+    personajes_del_caso: int  # personajes distintos (CaseCharacter)
+    puertas: int
+    herramientas: int
+    hitos: int
+
+
+def _rechazar(mensaje):
+    # BORRADOR: texto nuevo del servidor, pendiente de la aprobación de Psicología (VD-23).
+    return ApiError("VALIDATION_ERROR", mensaje, status.HTTP_400_BAD_REQUEST, field="salas")
+
+
+def validar_salas(lugar, salas):
+    """Las salas pedidas como lista de ids: no vacía, sin repetidas y todas del lugar (400 con ``field: salas``)."""
+    if not isinstance(salas, list) or not salas:
+        raise _rechazar("Elige al menos una sala del lugar.")
+    if len(salas) > MAX_SALAS:
+        raise _rechazar(f"Un caso admite hasta {MAX_SALAS} salas.")
+    existentes = {sala["id"] for sala in lugar.get("salas", [])}
+    vistas = set()
+    for sala in salas:
+        if not isinstance(sala, str) or sala not in existentes:
+            raise _rechazar("Una de las salas elegidas no existe en este lugar.")
+        if sala in vistas:
+            raise _rechazar("Una sala está elegida más de una vez.")
+        vistas.add(sala)
+    return list(salas)
+
+
+def clave_de_hito(clave):
+    """La clave de un hito de la biblioteca (``valorar-el-riesgo``) en la forma que entiende el modelo de reglas."""
+    traducida = clave.replace("-", "_")
+    if not case_rules.NAME.fullmatch(traducida):
+        raise ApiError(
+            "BIBLIOTECA_INVALIDA", "Un hito del lugar tiene una clave que el caso no admite.",
+            status.HTTP_500_INTERNAL_SERVER_ERROR,
+        )
+    return traducida
+
+
+class _Claves:
+    """Claves de objeto únicas dentro de una sala: la primera es la base, las demás ``base-2``, ``base-3``…"""
+
+    def __init__(self):
+        self._usadas = set()
+
+    def nueva(self, base):
+        clave, n = base, 2
+        while clave in self._usadas:
+            clave, n = f"{base}-{n}", n + 1
+        self._usadas.add(clave)
+        return clave
+
+
+def _json(valor):
+    return json.dumps(valor, ensure_ascii=False)
+
+
+def _objeto(escena, clave, etiqueta, tipo, x, y, ancho, alto, **campos):
+    if tipo not in MAP_OBJECT_TYPES:
+        raise ApiError(
+            "BIBLIOTECA_INVALIDA", "Un objeto del lugar tiene un tipo que el caso no admite.",
+            status.HTTP_500_INTERNAL_SERVER_ERROR,
+        )
+    metadata = campos.pop("metadata", {})
+    return MapObject(
+        scene_map=escena, object_key=clave, label=etiqueta, object_type=tipo, position_x=x, position_y=y,
+        width=ancho, height=alto, color_hex=COLOR, icon=ICONO_POR_TIPO.get(tipo, ICONO_POR_DEFECTO),
+        metadata_json=_json(metadata), **campos,
+    )
+
+
+def _muebles(escena, sala, catalogo, lugar_id, claves):
+    objetos, zonas = [], []
+    for colocado in sala.get("muebles", []):
+        modelo = catalogo[colocado["ref"]]
+        clave = claves.nueva(colocado["ref"])
+        choca = bool(modelo["colision"])
+        metadata = {"arte": url_de_arte(lugar_id, modelo["arte"]), "colision": choca}
+        if colocado.get("espejo"):
+            metadata["espejo"] = True
+        # El choque lo lleva SOLO la zona de abajo. ``collision`` del objeto va en falso: el servidor
+        # (``world_service._position_blocked``) lee la caja de un objeto con choque como esquina superior izquierda, y la
+        # posición de la biblioteca es el centro inferior, así que bloquearía una caja desplazada (un bloqueo fantasma).
+        objetos.append(_objeto(
+            escena, clave, modelo["nombre"], "PROP", colocado["x"], colocado["y"], modelo["ancho"], modelo["alto"],
+            collision=False, metadata=metadata,
+        ))
+        if choca:
+            # La caja de choque es la huella en el suelo: el punto de apoyo es su centro inferior.
+            zonas.append(CollisionZone(
+                scene_map=escena, zone_key=f"choque-{clave}", label=modelo["nombre"],
+                position_x=colocado["x"] - modelo["ancho"] // 2, position_y=colocado["y"] - modelo["alto"],
+                width=modelo["ancho"], height=modelo["alto"],
+            ))
+    return objetos, zonas
+
+
+def _objetos(escena, sala, catalogo, lugar_id, claves):
+    resultado = []
+    for colocado in sala.get("objetos", []):
+        modelo = catalogo[colocado["ref"]]
+        metadata = {"arte": url_de_arte(lugar_id, modelo["arte"])}
+        animacion = modelo.get("animacionCerca")
+        if isinstance(animacion, dict):
+            metadata["animacionCerca"] = {
+                "hoja": url_de_arte(lugar_id, animacion["hoja"]),
+                "cuadros": animacion["cuadros"],
+                "fps": animacion.get("fps", FPS_POR_DEFECTO),
+            }
+        resultado.append(_objeto(
+            escena, claves.nueva(colocado["ref"]), modelo["nombre"], modelo["tipo"], colocado["x"], colocado["y"],
+            TAMANO_OBJETO, TAMANO_OBJETO,
+            interaction_prompt=modelo.get("textoInteraccion") or "", interaction_text=modelo.get("alRevisar") or "",
+            metadata=metadata,
+        ))
+    return resultado
+
+
+def _personas(escena, sala, personajes, caracteres, claves):
+    resultado = []
+    for colocado in sala.get("personajes", []):
+        info = personajes[colocado["ref"]]
+        metadata = {"recipeId": info["recipeId"], "movimiento": "quieto"}
+        if colocado.get("expresion"):
+            metadata["expresion"] = colocado["expresion"]
+        ancho, alto = TAMANO_PERSONA
+        resultado.append(_objeto(
+            escena, claves.nueva(colocado["ref"]), info["nombre"], "PERSON", colocado["x"], colocado["y"], ancho, alto,
+            interaction_prompt="Hablar", facing=MIRANDO.get(colocado.get("mirando"), "down"),
+            character=caracteres[colocado["ref"]], metadata=metadata,
+        ))
+    return resultado
+
+
+def _puertas(escena, sala, entradas, claves):
+    resultado = []
+    for puerta in sala.get("puertas", []):
+        if puerta["hacia"] not in entradas:
+            continue  # lleva a una sala que no se eligió
+        destino = entradas[puerta["hacia"]]
+        ancho, alto = TAMANO_PUERTA
+        resultado.append(_objeto(
+            escena, claves.nueva(puerta["id"]), puerta["etiqueta"], "EXIT", puerta["x"], puerta["y"], ancho, alto,
+            interaction_prompt=puerta["etiqueta"],
+            metadata={"targetNodeKey": puerta["hacia"], "entryX": destino["x"], "entryY": destino["y"]},
+        ))
+    return resultado
+
+
+def _personajes_del_caso(case_version, lugar, elegidas):
+    """Un ``CaseCharacter`` por personaje del lugar que aparece en alguna sala elegida, en el orden en que aparece."""
+    por_id = {personaje["id"]: personaje for personaje in lugar.get("personajes", [])}
+    caracteres = {}
+    for sala in elegidas:
+        for colocado in sala.get("personajes", []):
+            ref = colocado["ref"]
+            if ref in caracteres:
+                continue
+            info = por_id[ref]
+            caracteres[ref] = CaseCharacter.objects.create(
+                case_version=case_version, character_key=ref, display_name=info["nombre"],
+                role_label=info.get("rol", ""), display_order=len(caracteres),
+            )
+    return caracteres
+
+
+def _herramientas(case_version, lugar):
+    herramientas = [
+        ClinicalTool(
+            case_version=case_version, tool_code=herramienta["id"], label=herramienta["nombre"],
+            icon=ICONO_HERRAMIENTA, category="clinical", description=herramienta.get("descripcion", ""), active=True,
+        )
+        for herramienta in lugar.get("catalogo", {}).get("herramientas", [])
+    ]
+    ClinicalTool.objects.bulk_create(herramientas)
+    return len(herramientas)
+
+
+def _reglas(case_version, lugar):
+    """Los hitos y el nivel de riesgo del lugar en ``rules`` (las demás claves de las reglas se conservan)."""
+    reglas = read_map(case_version.rules)
+    hitos = [
+        {
+            "key": clave_de_hito(hito["key"]), "label": hito["label"],
+            "description": hito.get("description", ""), "decisive": bool(hito.get("decisive", False)),
+        }
+        for hito in lugar.get("hitos", [])
+    ]
+    if hitos:
+        reglas["milestones"] = hitos
+    if lugar.get("nivelRiesgoPorDefecto"):
+        reglas["riskLevel"] = lugar["nivelRiesgoPorDefecto"]
+    case_version.rules = _json(reglas)
+    case_version.save(update_fields=["rules"])
+    return len(hitos)
+
+
+def copiar_al_caso(case_version, lugar, salas):
+    """Copia ``salas`` (ids, en orden) del ``lugar`` cargado a ``case_version``; devuelve el ``ResumenCopia``.
+
+    Debe llamarse dentro de la transacción que crea el borrador: si algo falla no queda una copia a medias.
+    """
+    ids = validar_salas(lugar, salas)
+    # La copia trabaja sobre su propia copia del lugar: nada de lo que se escribe puede alcanzar (ni ser alcanzado por) el
+    # diccionario de quien llama, ni siquiera si éste se muta mientras la copia corre.
+    lugar = copy.deepcopy(lugar)
+    lugar_id = lugar["id"]
+    por_id = {sala["id"]: sala for sala in lugar["salas"]}
+    elegidas = [por_id[id_] for id_ in ids]
+    entradas = {sala["id"]: sala["entrada"] for sala in elegidas}
+    catalogo = lugar.get("catalogo", {})
+    muebles = {m["id"]: m for m in catalogo.get("muebles", [])}
+    objetos = {o["id"]: o for o in catalogo.get("objetos", [])}
+    personajes = {p["id"]: p for p in lugar.get("personajes", [])}
+    caracteres = _personajes_del_caso(case_version, lugar, elegidas)
+
+    cuenta = {"muebles": 0, "objetos": 0, "personajes": 0, "puertas": 0}
+    for posicion, sala in enumerate(elegidas):
+        nodo = SimulationNode.objects.create(
+            case_version=case_version, node_key=sala["id"], title=sala["nombre"], narrative=sala["descripcion"],
+            support_resources_json="[]", required_tools_json="[]", start_node=posicion == 0, terminal_node=False,
+            position_x=ORIGEN_X + (posicion % COLUMNAS) * SEPARACION_X,
+            position_y=ORIGEN_Y + (posicion // COLUMNAS) * SEPARACION_Y, display_order=posicion,
+        )
+        escena = SceneMap.objects.create(
+            case_version=case_version, node=nodo, map_key=f"sala-{sala['id']}", title=sala["nombre"],
+            width=ANCHO_SALA, height=ALTO_SALA, theme=TEMA, spawn_x=sala["entrada"]["x"], spawn_y=sala["entrada"]["y"],
+            ambient_json=_json({"backgroundImage": url_de_arte(lugar_id, sala["fondo"]), "encuadre": sala["encuadre"]}),
+        )
+        claves = _Claves()
+        de_muebles, zonas = _muebles(escena, sala, muebles, lugar_id, claves)
+        de_objetos = _objetos(escena, sala, objetos, lugar_id, claves)
+        de_personas = _personas(escena, sala, personajes, caracteres, claves)
+        de_puertas = _puertas(escena, sala, entradas, claves)
+        MapObject.objects.bulk_create(de_muebles + de_objetos + de_personas + de_puertas)
+        CollisionZone.objects.bulk_create(zonas)
+        cuenta["muebles"] += len(de_muebles)
+        cuenta["objetos"] += len(de_objetos)
+        cuenta["personajes"] += len(de_personas)
+        cuenta["puertas"] += len(de_puertas)
+
+    herramientas = _herramientas(case_version, lugar)
+    hitos = _reglas(case_version, lugar)
+    return ResumenCopia(
+        lugar_id=lugar_id, salas=tuple(ids), nodos=len(ids), mapas=len(ids), personajes_del_caso=len(caracteres),
+        herramientas=herramientas, hitos=hitos, **cuenta,
+    )

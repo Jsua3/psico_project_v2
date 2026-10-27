@@ -38,6 +38,7 @@ INSTALLED_APPS = [
     "apps.progression",
     "apps.security",
     "apps.privacy",
+    "apps.biblioteca",
 ]
 
 MIDDLEWARE = [
@@ -390,6 +391,11 @@ SIEP_THROTTLE_ENABLED = _env_flag_cerrada("SIEP_THROTTLE_ENABLED", default=True)
 #: anteriores a la época actual. Encendida por defecto; apagada, la época se emite pero no se exige (interruptor de
 #: emergencia: no lo apagues en producción).
 SIEP_SESSION_EPOCH_ENFORCE = _env_flag_cerrada("SIEP_SESSION_EPOCH_ENFORCE", default=True)
+
+#: P6 · Carpeta de la biblioteca de lugares (``<BIBLIOTECA_DIR>/escenarios/indice.json`` y un ``escenario.json`` por
+#: lugar). Sin ``SIEP_BIBLIOTECA_DIR`` es ``biblioteca/`` junto a ``backend_django/``; la imagen de producción la copia a
+#: ``/app/biblioteca`` y fija la variable. Solo se leen los JSON: el arte lo sirve el frontend bajo ``/assets/biblioteca/``.
+BIBLIOTECA_DIR = Path(os.environ.get("SIEP_BIBLIOTECA_DIR") or BASE_DIR.parent / "biblioteca")
 
 #: S2-6b · hosts ``https://`` de los que el fondo de sala puede cargar su imagen (separados por comas). Vacía = solo
 #: rutas propias de ``/assets/``. Cada estudiante descarga la imagen desde su navegador: no añadas hosts ajenos.

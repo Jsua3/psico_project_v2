@@ -36,3 +36,7 @@ frontend/scripts
 # npm run build ejecuta frontend/scripts/ui/check-dist-dev-only.mjs: esa excepción conserva el script del build.
 !frontend/scripts/ui/check-dist-dev-only.mjs
 **/_sondeo
+# P6 · De la biblioteca de lugares la imagen solo necesita los JSON de biblioteca/escenarios/ (el arte ya viaja en el frontend).
+biblioteca/escenarios/*/arte
+biblioteca/escenarios/*/fuentes
+biblioteca/escenarios/*/*.png

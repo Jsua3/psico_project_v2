@@ -6,6 +6,7 @@ from django.db import transaction
 from rest_framework import status
 from rest_framework.exceptions import ValidationError
 
+from apps.biblioteca.services import copiar_al_caso, lugares
 from apps.simulation.models import (
     DEFAULT_MAP_HEIGHT,
     DEFAULT_MAP_WIDTH,
@@ -14,6 +15,7 @@ from apps.simulation.models import (
     SimulationCase,
     SimulationNode,
 )
+from apps.simulation.serializers import authoring as inputs
 from apps.simulation.serializers import game_dtos as dto
 from apps.simulation.services.text_rules import validate_plain_text
 from shared import policies
@@ -52,6 +54,8 @@ def list_authoring_cases(actor):
 
 @transaction.atomic
 def create_case(request, actor):
+    """Crea un borrador. Con ``lugarId`` y ``salas`` nace de la biblioteca (P6): las salas elegidas se copian al caso y la
+    primera es la escena de inicio; sin ``lugarId`` nace con la escena vacía de siempre."""
     title = (request.get("title") or "").strip()
     if not title:
         raise ValidationError("El titulo del caso es obligatorio")
@@ -69,6 +73,7 @@ def create_case(request, actor):
             raise ValidationError(f"Ya existe un caso con el codigo: {code}")
     else:
         code = _unique_case_code(_normalize_case_code(title))
+    lugar, salas = _lugar_pedido(request)
 
     case = SimulationCase.objects.create(
         code=code,
@@ -85,32 +90,50 @@ def create_case(request, actor):
         created_by=actor,
         world_schema_version=2,
     )
-    node = SimulationNode.objects.create(
-        case_version=version,
-        node_key="inicio",
-        title="Inicio del caso",
-        narrative="Describe aqui el contexto inicial que vera el estudiante.",
-        support_resources_json="[]",
-        required_tools_json="[]",
-        start_node=True,
-        terminal_node=False,
-        position_x=180,
-        position_y=180,
-    )
-    SceneMap.objects.create(
-        case_version=version,
-        node=node,
-        map_key="escena-inicial",
-        title="Escena inicial",
-        width=DEFAULT_MAP_WIDTH,
-        height=DEFAULT_MAP_HEIGHT,
-        theme="clinical-soft",
-        spawn_x=145,
-        spawn_y=430,
-        ambient_json="{}",
-    )
+    if lugar is not None:
+        copiar_al_caso.copiar_al_caso(version, lugar, salas)
+    else:
+        node = SimulationNode.objects.create(
+            case_version=version,
+            node_key="inicio",
+            title="Inicio del caso",
+            narrative="Describe aqui el contexto inicial que vera el estudiante.",
+            support_resources_json="[]",
+            required_tools_json="[]",
+            start_node=True,
+            terminal_node=False,
+            position_x=180,
+            position_y=180,
+        )
+        SceneMap.objects.create(
+            case_version=version,
+            node=node,
+            map_key="escena-inicial",
+            title="Escena inicial",
+            width=DEFAULT_MAP_WIDTH,
+            height=DEFAULT_MAP_HEIGHT,
+            theme="clinical-soft",
+            spawn_x=145,
+            spawn_y=430,
+            ambient_json="{}",
+        )
     create_draft_checklist(version, actor)
     return editor(version.id)
+
+
+def _lugar_pedido(request):
+    """El lugar de la biblioteca y las salas que pide el cuerpo, o ``(None, None)`` si el caso no nace de un lugar.
+
+    404 si el lugar no existe; 400 con ``field`` si el cuerpo está mal formado o las salas no sirven.
+    """
+    if request.get("lugarId") is None:
+        return None, None
+    pedido = inputs.CaseLugarRequest(
+        data={clave: request[clave] for clave in ("lugarId", "salas") if clave in request}
+    )
+    pedido.is_valid(raise_exception=True)
+    lugar = lugares.cargar_lugar(pedido.validated_data["lugarId"])
+    return lugar, copiar_al_caso.validar_salas(lugar, pedido.validated_data["salas"])
 
 
 @transaction.atomic

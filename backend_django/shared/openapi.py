@@ -120,6 +120,7 @@ _COLLECTION_GET_PATHS = frozenset({
     "/api/instructor/attempts",
     "/api/simulation/catalog",
     "/api/simulation/cases",
+    "/api/biblioteca/lugares",
 })
 
 
