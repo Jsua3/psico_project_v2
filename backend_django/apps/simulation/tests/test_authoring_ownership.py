@@ -141,6 +141,10 @@ FOREIGN_ROUTES = [
     ("put", "<int:case_version_id>/tools/<int:tool_id>", {"toolCode": "T", "label": "T"}, 403),
     ("delete", "<int:case_version_id>/tools/<int:tool_id>", None, 403),
     ("patch", "<int:case_version_id>/nodes/reorder", {"order": []}, 403),
+    ("post", "<int:case_version_id>/nodes/<int:node_id>/accept-ai", {}, 403),
+    ("post", "<int:case_version_id>/decisions/<int:decision_id>/accept-ai", {}, 403),
+    ("post", "<int:case_version_id>/objects/<int:object_id>/accept-ai", {}, 403),
+    ("post", "<int:case_version_id>/dialogues/<int:tree_id>/accept-ai", {}, 403),
     ("put", "<int:case_version_id>/rules/milestones", {"milestones": []}, 403),
     ("put", "<int:case_version_id>/rules/risk", {"riskLevel": None}, 403),
     ("put", "<int:case_version_id>/rules/endings", {"endings": []}, 403),
@@ -152,6 +156,9 @@ FOREIGN_ROUTES = [
     ("put", "<int:case_version_id>/characters/<int:character_id>",
      {"characterKey": "k", "displayName": "N"}, 403),
     ("delete", "<int:case_version_id>/characters/<int:character_id>", None, 403),
+    ("get", "<int:case_version_id>/assistant/status", None, 403),
+    ("post", "<int:case_version_id>/assistant/propose", {"peticion": "x", "pantalla": "p"}, 403),
+    ("post", "<int:case_version_id>/assistant/guide", {"pregunta": "x", "acciones": []}, 403),
     # Importar no apunta a un caso por su id: el caso ajeno se decide por ``caso.id`` dentro del documento
     # (403 ``CASE_NOT_OWNED``, en ``test_definition_import``); un cuerpo vacío es un 400 para cualquiera.
     ("post", "import", {}, 400),

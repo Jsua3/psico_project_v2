@@ -476,6 +476,19 @@ AI_ASSISTANT_PROVIDER = os.environ.get("AI_ASSISTANT_PROVIDER", "openai").strip(
 AI_ASSISTANT_API_KEY = os.environ.get("AI_ASSISTANT_API_KEY", "").strip()
 AI_ASSISTANT_MODEL = os.environ.get("AI_ASSISTANT_MODEL", "gpt-4o-mini").strip()
 
+# Asistente de autoría (P5): apagado por defecto; la clave solo vive en el servidor. Distinto del asistente del
+# estudiante (AI_ASSISTANT_*). Ids de modelo verificados el 2026-10-26 con la skill claude-api.
+AI_AUTHORING_ENABLED = _env_flag("AI_AUTHORING_ENABLED")
+AI_AUTHORING_PROVIDER = os.environ.get("AI_AUTHORING_PROVIDER", "anthropic").strip()
+AI_AUTHORING_API_KEY = os.environ.get("AI_AUTHORING_API_KEY", "").strip()
+AI_AUTHORING_MODEL_FAST = os.environ.get("AI_AUTHORING_MODEL_FAST", "claude-haiku-5-5").strip()
+AI_AUTHORING_MODEL_CAPABLE = os.environ.get("AI_AUTHORING_MODEL_CAPABLE", "claude-opus-5-5").strip()
+AI_AUTHORING_DAILY_LIMIT_PER_USER = int(os.environ.get("AI_AUTHORING_DAILY_LIMIT_PER_USER", "200"))
+AI_AUTHORING_MONTHLY_LIMIT = int(os.environ.get("AI_AUTHORING_MONTHLY_LIMIT", "3000"))
+# Cuánto espera el servidor al proveedor (segundos) y cuántos tokens de salida admite una propuesta (``propose``; la guía usa 600).
+AI_AUTHORING_TIMEOUT_SECONDS = int(os.environ.get("AI_AUTHORING_TIMEOUT_SECONDS", "60"))
+AI_AUTHORING_MAX_TOKENS_PROPOSE = int(os.environ.get("AI_AUTHORING_MAX_TOKENS_PROPOSE", "8000"))
+
 ACCESS_REQUEST_NOTIFY_EMAILS = [
     email.strip()
     for email in os.environ.get(
@@ -538,6 +551,8 @@ SPECTACULAR_SETTINGS = {
         "AssignmentStateEnum": "apps.grupos.contracts.ASSIGNMENT_STATES",
         "AssignmentTargetTypeEnum": "apps.grupos.contracts.ASSIGNMENT_TARGETS",
         "IssueSeverityEnum": "apps.simulation.serializers.contracts.ISSUE_SEVERITIES",
+        "AssistantStatusModeEnum": "apps.simulation.serializers.contracts.ASSISTANT_STATUS_MODES",
+        "AssistantGuideModeEnum": "apps.simulation.serializers.contracts.ASSISTANT_GUIDE_MODES",
         "HintReasonEnum": "apps.simulation.serializers.contracts.HINT_REASONS",
         "LifecycleActionEnum": "apps.simulation.serializers.contracts.LIFECYCLE_ACTIONS",
         "MembershipStatusEnum": "apps.grupos.models.MembershipStatus",

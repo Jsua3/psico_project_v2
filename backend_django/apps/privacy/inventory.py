@@ -287,7 +287,26 @@ DATA_INVENTORY: dict[str, dict] = {
             "feedback_text": PUBLIC,
             "effects": PUBLIC,
             "response_class": PUBLIC,
+            "ai_suggested": PUBLIC,
         },
+    },
+    "authoring_assistant_usage": {
+        "purpose": (
+            "Cuántas veces usó cada docente el asistente de IA de autoría en un día: sirve para aplicar el tope diario "
+            "y el mensual."
+        ),
+        "retention": (
+            "Sin plazo definido (SD-9, pendiente de la institución). Se borra con la cuenta; no guarda el texto de las "
+            "peticiones."
+        ),
+        "default": None,
+        "columns": {
+            "id": TECHNICAL,
+            "user_id": (PERSONAL, "docente que usó el asistente"),
+            "day": (PERSONAL, "día en que el docente usó el asistente"),
+            "count": (PERSONAL, "cuántas veces lo usó ese día el docente"),
+        },
+        "exits": {"user_id": [], "day": [], "count": ["api"]},
     },
     "rubrics": {
         "purpose": "Rúbricas de evaluación: nombre, versión y docente que las creó.",
@@ -389,6 +408,7 @@ DATA_INVENTORY: dict[str, dict] = {
             "speaker_name": PUBLIC,
             "text": PUBLIC,
             "emotion": PUBLIC,
+            "ai_suggested": PUBLIC,
         },
     },
     "dialogue_choices": {

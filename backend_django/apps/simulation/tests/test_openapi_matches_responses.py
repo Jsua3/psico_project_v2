@@ -9,6 +9,7 @@ contratos tipados baje y cada error que un contrato documenta tiene que tener su
 """
 import copy
 import json
+import re
 import uuid
 from dataclasses import dataclass
 from datetime import timedelta
@@ -40,6 +41,7 @@ from apps.simulation.models import (
 from apps.simulation.services.authoring import definition_io, lifecycle
 from apps.simulation.tests import dsl_support
 from apps.simulation.tests.analytics_support import make_student, seed_student_pair
+from apps.simulation.services.ai_providers import ProviderError
 from apps.simulation.views.ai_assistant import AIAssistantView
 from shared import contract_testing
 from shared.contract_testing import (
@@ -406,8 +408,34 @@ def _register_case_routes(prefix):
     )
 
 
+def _assistant_call(world, prefix, route, body=None):
+    """Una ruta del asistente de autoría con la bandera encendida y el proveedor simulado (P5)."""
+    from unittest import mock
+
+    from apps.simulation.services.authoring.assistant import guide, proposals
+
+    simulated = {
+        "mensaje": "Propuesta simulada", "cambios": [{"op": "set-intensity", "nodeId": 1}], "modo": "connected",
+        "model": "claude-opus-5-5", "changes": 1,
+    }
+    guided = {"accionId": "mapa.agregar-sala", "modo": "foco", "mensaje": "Aquí.", "model": "claude-haiku-5-5", "changes": 0}
+    url = f"{prefix}/{world.draft_id}/assistant/{route}"
+    with override_settings(AI_AUTHORING_ENABLED=True, AI_AUTHORING_API_KEY="clave-de-prueba"),             mock.patch.object(proposals, "propose", return_value=simulated),             mock.patch.object(guide, "answer", return_value=guided):
+        client = cl(world.admin)
+        return client.get(url) if body is None else client.post(url, body, format="json")
+
+
 for _prefix in ROUTE_FAMILIES:
     _register_case_routes(_prefix)
+    calls(f"{_prefix}/{{case_version_id}}/assistant/status", "GET")(
+        lambda world, _prefix=_prefix: _assistant_call(world, _prefix, "status")
+    )
+    calls(f"{_prefix}/{{case_version_id}}/assistant/propose", "POST")(
+        lambda world, _prefix=_prefix: _assistant_call(world, _prefix, "propose", {"peticion": "x", "pantalla": "mapa"})
+    )
+    calls(f"{_prefix}/{{case_version_id}}/assistant/guide", "POST")(
+        lambda world, _prefix=_prefix: _assistant_call(world, _prefix, "guide", {"pregunta": "x", "acciones": []})
+    )
 
 
 #: Claves que la respuesta real trae y el documento NO publica a propósito (una credencial no se declara en el esquema:
@@ -830,7 +858,113 @@ def _case_route_errors(prefix):
         ("importar una versión que ya existe", import_, "POST",
          lambda w: _post_document(w.admin, f"{prefix}/import", definition_io.export_definition(w.version_id)),
          409, "CASE_VERSION_EXISTS"),
+        *_assistant_route_errors(prefix),
     ]
+
+
+def _assistant_route_errors(prefix):
+    """Los errores documentados de las tres rutas del asistente de autoría (P5)."""
+    errors = []
+    for route, method, bad_body in (
+        ("status", "GET", None), ("propose", "POST", {}), ("guide", "POST", {}),
+    ):
+        path = f"{prefix}/{{case_version_id}}/assistant/{route}"
+        send = (lambda client, url, body: client.get(url)) if method == "GET" else (
+            lambda client, url, body: client.post(url, body, format="json")
+        )
+        errors += [
+            (f"asistente ({route}) sin sesión", path, method,
+             lambda w, path=path, send=send: send(APIClient(), path.replace("{case_version_id}", str(w.draft_id)), {}),
+             401, "UNAUTHENTICATED"),
+            (f"asistente ({route}) sin permiso", path, method,
+             lambda w, path=path, send=send: send(cl(w.student), path.replace("{case_version_id}", str(w.draft_id)), {}),
+             403, "FORBIDDEN"),
+            (f"asistente ({route}) de una versión inexistente", path, method,
+             lambda w, path=path, send=send: send(cl(w.admin), path.replace("{case_version_id}", "999999"), {}),
+             404, "NOT_FOUND"),
+        ]
+        if bad_body is not None:
+            errors.append((
+                f"asistente ({route}) con el cuerpo incompleto", path, method,
+                lambda w, path=path, send=send: _with_assistant_on(
+                    lambda: send(cl(w.admin), path.replace("{case_version_id}", str(w.draft_id)), {})
+                ),
+                400, "VALIDATION_ERROR",
+            ))
+    path = f"{prefix}/{{case_version_id}}/assistant/propose"
+    body = {"peticion": "x", "pantalla": "mapa"}
+    errors += [
+        ("asistente (propose) con una propuesta inválida", path, "POST",
+         lambda w, path=path: _propose_failing(w, path, proposals_module().InvalidProposal("Motivo fijo.")),
+         422, "AI_PROPOSAL_INVALID"),
+        ("asistente (propose) con el proveedor caído", path, "POST",
+         lambda w, path=path: _propose_failing(w, path, ProviderError("http", "caído")),
+         502, "AI_PROVIDER_ERROR"),
+        ("asistente (propose) sin cupo", path, "POST",
+         lambda w, path=path: _propose_failing(w, path, None, AI_AUTHORING_DAILY_LIMIT_PER_USER=0),
+         429, "AI_LIMIT_EXCEEDED"),
+    ]
+    guide_path = f"{prefix}/{{case_version_id}}/assistant/guide"
+    errors += [
+        ("asistente (guide) con el proveedor caído", guide_path, "POST",
+         lambda w, path=guide_path: _guide_failing(w, path, ProviderError("http", "caído")),
+         502, "AI_PROVIDER_ERROR"),
+        ("asistente (guide) rechazado por el proveedor", guide_path, "POST",
+         lambda w, path=guide_path: _guide_failing(w, path, ProviderError("refusal", "no")),
+         422, "AI_REFUSED"),
+        ("asistente (guide) sin cupo", guide_path, "POST",
+         lambda w, path=guide_path: _guide_failing(w, path, None, AI_AUTHORING_DAILY_LIMIT_PER_USER=0),
+         429, "AI_LIMIT_EXCEEDED"),
+    ]
+    for segment, param in (("nodes", "node_id"), ("decisions", "decision_id"), ("dialogues", "tree_id"), ("objects", "object_id")):
+        path = f"{prefix}/{{case_version_id}}/{segment}/{{{param}}}/accept-ai"
+        errors += [
+            (f"revisar ({segment}) sin sesión", path, "POST",
+             lambda w, path=path: APIClient().post(_accept_url(path, w.draft_id), {}, format="json"), 401, "UNAUTHENTICATED"),
+            (f"revisar ({segment}) sin permiso", path, "POST",
+             lambda w, path=path: cl(w.student).post(_accept_url(path, w.draft_id), {}, format="json"), 403, "FORBIDDEN"),
+            (f"revisar ({segment}) de una versión inexistente", path, "POST",
+             lambda w, path=path: cl(w.admin).post(_accept_url(path, 999999), {}, format="json"), 404, "NOT_FOUND"),
+        ]
+    return errors
+
+
+def _accept_url(path, version_id):
+    url = path.replace("{case_version_id}", str(version_id))
+    return re.sub(r"\{[a-z_]+_id\}", "1", url)
+
+
+def _guide_failing(w, path, error, **settings_):
+    """``guide`` con el asistente encendido y el proveedor simulado fallando con ``error``."""
+    from unittest import mock
+
+    from apps.simulation.services.authoring.assistant import guide
+
+    url = path.replace("{case_version_id}", str(w.draft_id))
+    config = dict(AI_AUTHORING_ENABLED=True, AI_AUTHORING_API_KEY="clave-de-prueba", **settings_)
+    with override_settings(**config), mock.patch.object(guide, "answer", side_effect=error):
+        return cl(w.admin).post(url, {"pregunta": "x", "acciones": []}, format="json")
+
+
+def proposals_module():
+    from apps.simulation.services.authoring.assistant import proposals
+
+    return proposals
+
+
+def _propose_failing(w, path, error, **settings_):
+    """``propose`` con el asistente encendido y el proveedor simulado fallando con ``error``."""
+    from unittest import mock
+
+    url = path.replace("{case_version_id}", str(w.draft_id))
+    config = dict(AI_AUTHORING_ENABLED=True, AI_AUTHORING_API_KEY="clave-de-prueba", **settings_)
+    with override_settings(**config), mock.patch.object(proposals_module(), "propose", side_effect=error):
+        return cl(w.admin).post(url, {"peticion": "x", "pantalla": "mapa"}, format="json")
+
+
+def _with_assistant_on(call):
+    with override_settings(AI_AUTHORING_ENABLED=True, AI_AUTHORING_API_KEY="clave-de-prueba"):
+        return call()
 
 
 def _foreign_teacher_report(w):
@@ -1042,11 +1176,64 @@ def test_cada_error_que_un_contrato_tipado_documenta_tiene_su_caso(document):
         )
 
 
+# ─── «Parte revisada»: POST …/{nodes|decisions|dialogues|objects}/{id}/accept-ai (P5) ───────────────────────────────
+# Devuelven el editor (sin contrato tipado): el 200 se contrasta con el sobre genérico y el 409 con el de error.
+_ACCEPT_PARAMS = {"nodes": "node_id", "decisions": "decision_id", "dialogues": "tree_id", "objects": "object_id"}
+
+
+def _accept_marked(prefix, kind, segment):
+    """Un borrador del autor con una parte marcada de cada clase, y la ruta ``accept-ai`` de la de clase ``kind``."""
+    from .test_ai_suggested import _marked_draft
+
+    author = User.objects.create_user(email=f"ia_autor_{kind}@x.com", password="x", nombre="Au", apellido="Tor", role="PROFESOR")
+    cv, ids = _marked_draft(author)
+    template = f"{prefix}/{{case_version_id}}/{segment}/{{{_ACCEPT_PARAMS[segment]}}}/accept-ai"
+    return author, cv, ids, template, f"{prefix}/{cv}/{segment}/{ids[kind]}/accept-ai"
+
+
+@pytest.mark.parametrize("prefix", ROUTE_FAMILIES)
+@pytest.mark.parametrize("kind,segment", [("node", "nodes"), ("decision", "decisions"), ("tree", "dialogues"), ("object", "objects")])
+def test_aceptar_una_parte_de_la_ia_responde_el_sobre_que_el_documento_declara(prefix, kind, segment, document, db):
+    author, cv, _ids, template, url = _accept_marked(prefix, kind, segment)
+    revision = cl(author).get(f"/api/authoring/cases/{cv}/editor").json()["data"]["revision"]
+
+    response = cl(author).post(url, {"revision": revision}, format="json")
+
+    assert response.status_code == 200, response.content
+    declared = document["paths"][template]["post"]["responses"]
+    assert "200" in declared
+    assert_matches(response.json(), declared["200"]["content"]["application/json"]["schema"], document)
+
+
+@pytest.mark.parametrize("prefix", ROUTE_FAMILIES)
+@pytest.mark.parametrize("kind,segment", [("node", "nodes"), ("decision", "decisions"), ("tree", "dialogues"), ("object", "objects")])
+def test_aceptar_con_una_revision_vencida_es_el_409_que_el_documento_declara(prefix, kind, segment, document, db):
+    author, cv, _ids, template, url = _accept_marked(prefix, kind, segment)
+    stale = cl(author).get(f"/api/authoring/cases/{cv}/editor").json()["data"]["revision"]
+    admin = User.objects.create_user(email=f"ia_admin_{kind}@x.com", password="x", nombre="Ad", apellido="Min", role="ADMIN")
+    ids_node = _ids["node"]
+    other = cl(admin)  # otra persona edita después: la revisión de la autora ya no es de su tanda
+    fresh = other.get(f"/api/authoring/cases/{cv}/editor").json()["data"]["revision"]
+    assert other.post(f"/api/authoring/cases/{cv}/nodes/{ids_node}/accept-ai", {"revision": fresh}, format="json").status_code == 200
+
+    response = cl(author).post(url, {"revision": stale}, format="json")
+
+    assert response.status_code == 409, response.content
+    body = response.json()
+    assert body["success"] is False and body["code"] == "REVISION_CONFLICT"
+    declared = document["paths"][template]["post"]["responses"]
+    assert "409" in declared
+    assert_matches(body, declared["409"]["content"]["application/json"]["schema"], document)
+
+
 #: Propiedades declaradas que ninguna respuesta real de este módulo puede mostrar, con el motivo de cada una.
 NEVER_SEEN: dict[str, str] = {
     "ImportRejectedEnvelope.field": "el 400 de una importación rechazada lleva `issues`, no `field` (ese es de ErrorEnvelope)",
     "CaseConflictEnvelope.field": "los 409 de una transición se explican con `code` y sus campos propios, nunca con `field`",
     "MembershipConflictEnvelope.field": "los 409 de una invitación se explican con `code` y `status`, nunca con `field`",
+    "ImportRejectedEnvelope.motivo": "`motivo` es solo del 422 AI_PROPOSAL_INVALID del asistente",
+    "CaseConflictEnvelope.motivo": "`motivo` es solo del 422 AI_PROPOSAL_INVALID del asistente",
+    "MembershipConflictEnvelope.motivo": "`motivo` es solo del 422 AI_PROPOSAL_INVALID del asistente",
 }
 
 

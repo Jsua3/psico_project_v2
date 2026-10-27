@@ -211,6 +211,7 @@ def node_editor_state(node):
         "decisionPrompt": node.decision_prompt,
         "displayOrder": node.display_order,
         "intensity": node.intensity,
+        "aiSuggested": node.ai_suggested,
     }
 
 
@@ -232,6 +233,7 @@ def decision_edge(d):
         "theoryBasis": d.theory_basis,
         "feedbackText": d.feedback_text,
         "effects": _read_map(d.effects),
+        "aiSuggested": d.ai_suggested,
     }
 
 
@@ -271,6 +273,7 @@ def map_object_editor(o):
         "characterId": o.character_id,
         "toolCode": o.tool_code,
         "mapId": o.scene_map_id,
+        "aiSuggested": o.ai_suggested,
     }
 
 

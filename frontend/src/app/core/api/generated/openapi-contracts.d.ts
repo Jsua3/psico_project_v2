@@ -187,6 +187,83 @@ export interface AssistantAnswer {
   readonly response: string;
 }
 
+/** El resultado de ``guide``: la acción elegida del catálogo (o ``null``), cómo mostrarla y el mensaje. */
+export interface AssistantGuide {
+  readonly accionId: string | null;
+  /** Siempre 0: la guía no propone cambios. */
+  readonly changes: number;
+  readonly mensaje: string;
+  /** El modelo que respondió. */
+  readonly model: string;
+  readonly modo: AssistantGuideModeEnum;
+}
+
+/** Una acción del catálogo del editor: ``id`` es un identificador seguro (sin espacios ni comillas). */
+export interface AssistantGuideAction {
+  readonly id: string;
+  readonly nombre: string;
+  readonly pantalla: string;
+}
+
+export interface AssistantGuideBody {
+  readonly acciones: ReadonlyArray<AssistantGuideAction>;
+  readonly pregunta: string;
+}
+
+/** Sobre de éxito: `data` es `AssistantGuide`. */
+export interface AssistantGuideEnvelope {
+  readonly data: AssistantGuide;
+  readonly message?: string;
+  /** Siempre `true` en una respuesta de éxito. */
+  readonly success: boolean;
+}
+
+export type AssistantGuideModeEnum = 'resaltar' | 'foco' | 'recorrido';
+
+export interface AssistantProposeBody {
+  readonly pantalla: string;
+  readonly peticion: string;
+  readonly seleccion?: unknown | null;
+}
+
+/** El resultado de ``propose``: el mensaje, la lista de cambios propuestos y con qué modelo se hizo. Cada cambio es un objeto con su ``op`` (una de las diez operaciones del asistente) y los campos de esa operación; el servidor ya los validó contra el caso. Proponer NO escribe nada: el cliente los aplica. */
+export interface AssistantResult {
+  /** Cambios validados, cada uno con su `op`. */
+  readonly cambios: ReadonlyArray<Readonly<Record<string, unknown>>>;
+  /** Cuántos cambios trae `cambios`. */
+  readonly changes: number;
+  readonly mensaje: string;
+  /** El modelo que respondió. */
+  readonly model: string;
+  /** Siempre `connected` en un resultado. */
+  readonly modo: string;
+}
+
+/** Sobre de éxito: `data` es `AssistantResult`. */
+export interface AssistantResultEnvelope {
+  readonly data: AssistantResult;
+  readonly message?: string;
+  /** Siempre `true` en una respuesta de éxito. */
+  readonly success: boolean;
+}
+
+/** Si el asistente de autoría está listo y cuánto cupo le queda hoy a quien lo usa. */
+export interface AssistantStatus {
+  readonly enabled: boolean;
+  readonly mode: AssistantStatusModeEnum;
+  readonly remainingToday: number;
+}
+
+/** Sobre de éxito: `data` es `AssistantStatus`. */
+export interface AssistantStatusEnvelope {
+  readonly data: AssistantStatus;
+  readonly message?: string;
+  /** Siempre `true` en una respuesta de éxito. */
+  readonly success: boolean;
+}
+
+export type AssistantStatusModeEnum = 'connected' | 'disabled';
+
 /** El estado del intento (inicio, lectura, reanudación): la escena, la persona y, al completar, el informe congelado. Ninguna cifra llega al estudiante: ni puntaje, ni estrés, ni métricas, ni estado clínico (`test_no_numbers_to_student`). La respuesta lleva además `attemptToken` (la credencial del intento, que el cliente reenvía en la cabecera): este contrato NO la declara a propósito, porque el documento no publica ninguna propiedad con nombre de credencial (`test_openapi_schema_never_exposes_prohibited_fields`). Su prueba la admite como la única clave de más. */
 export interface AttemptState {
   /** UUID del intento. */
@@ -312,6 +389,8 @@ export interface CaseConflictEnvelope {
   /** El primer campo que falló la validación. */
   readonly field?: string;
   readonly message: string;
+  /** El motivo corto (fijo) de un 422 `AI_PROPOSAL_INVALID`. */
+  readonly motivo?: string;
   /** La revisión vigente del caso. */
   readonly revision?: number;
   readonly state?: CaseVersionStatusEnum;
@@ -555,6 +634,8 @@ export interface ErrorEnvelope {
   /** El primer campo que falló la validación. */
   readonly field?: string;
   readonly message: string;
+  /** El motivo corto (fijo) de un 422 `AI_PROPOSAL_INVALID`. */
+  readonly motivo?: string;
   /** Siempre `false` en un error. */
   readonly success: boolean;
 }
@@ -605,6 +686,8 @@ export interface ImportRejectedEnvelope {
   readonly field?: string;
   readonly issues: ReadonlyArray<ValidationIssue>;
   readonly message: string;
+  /** El motivo corto (fijo) de un 422 `AI_PROPOSAL_INVALID`. */
+  readonly motivo?: string;
   /** Siempre `false` en un error. */
   readonly success: boolean;
 }
@@ -712,6 +795,8 @@ export interface MembershipConflictEnvelope {
   /** El primer campo que falló la validación. */
   readonly field?: string;
   readonly message: string;
+  /** El motivo corto (fijo) de un 422 `AI_PROPOSAL_INVALID`. */
+  readonly motivo?: string;
   /** El estado en que está la membresía hoy. */
   readonly status: MembershipStatusEnum;
   /** Siempre `false` en un error. */
@@ -873,6 +958,9 @@ export interface OpenApiPaths {
   readonly '/api/admin/audit': 'GET';
   readonly '/api/admin/cases': 'GET' | 'POST';
   readonly '/api/admin/cases/import': 'POST';
+  readonly '/api/admin/cases/{case_version_id}/assistant/guide': 'POST';
+  readonly '/api/admin/cases/{case_version_id}/assistant/propose': 'POST';
+  readonly '/api/admin/cases/{case_version_id}/assistant/status': 'GET';
   readonly '/api/admin/cases/{case_version_id}/brief': 'PUT';
   readonly '/api/admin/cases/{case_version_id}/characters': 'POST';
   readonly '/api/admin/cases/{case_version_id}/characters/{character_id}': 'DELETE' | 'PUT';
@@ -880,8 +968,10 @@ export interface OpenApiPaths {
   readonly '/api/admin/cases/{case_version_id}/clone-version': 'POST';
   readonly '/api/admin/cases/{case_version_id}/decisions': 'POST';
   readonly '/api/admin/cases/{case_version_id}/decisions/{decision_id}': 'DELETE' | 'PUT';
+  readonly '/api/admin/cases/{case_version_id}/decisions/{decision_id}/accept-ai': 'POST';
   readonly '/api/admin/cases/{case_version_id}/definition': 'GET';
   readonly '/api/admin/cases/{case_version_id}/dialogues/{tree_id}': 'DELETE' | 'PUT';
+  readonly '/api/admin/cases/{case_version_id}/dialogues/{tree_id}/accept-ai': 'POST';
   readonly '/api/admin/cases/{case_version_id}/editor': 'GET';
   readonly '/api/admin/cases/{case_version_id}/hints/{hint_id}': 'DELETE' | 'PUT';
   readonly '/api/admin/cases/{case_version_id}/lifecycle': 'GET' | 'POST';
@@ -893,7 +983,9 @@ export interface OpenApiPaths {
   readonly '/api/admin/cases/{case_version_id}/nodes': 'POST';
   readonly '/api/admin/cases/{case_version_id}/nodes/reorder': 'PATCH';
   readonly '/api/admin/cases/{case_version_id}/nodes/{node_id}': 'DELETE' | 'PUT';
+  readonly '/api/admin/cases/{case_version_id}/nodes/{node_id}/accept-ai': 'POST';
   readonly '/api/admin/cases/{case_version_id}/objects/{object_id}': 'DELETE' | 'PUT';
+  readonly '/api/admin/cases/{case_version_id}/objects/{object_id}/accept-ai': 'POST';
   readonly '/api/admin/cases/{case_version_id}/publish': 'POST';
   readonly '/api/admin/cases/{case_version_id}/rules/endings': 'PUT';
   readonly '/api/admin/cases/{case_version_id}/rules/milestones': 'PUT';
@@ -921,6 +1013,9 @@ export interface OpenApiPaths {
   readonly '/api/auth/me': 'GET';
   readonly '/api/authoring/cases': 'GET' | 'POST';
   readonly '/api/authoring/cases/import': 'POST';
+  readonly '/api/authoring/cases/{case_version_id}/assistant/guide': 'POST';
+  readonly '/api/authoring/cases/{case_version_id}/assistant/propose': 'POST';
+  readonly '/api/authoring/cases/{case_version_id}/assistant/status': 'GET';
   readonly '/api/authoring/cases/{case_version_id}/brief': 'PUT';
   readonly '/api/authoring/cases/{case_version_id}/characters': 'POST';
   readonly '/api/authoring/cases/{case_version_id}/characters/{character_id}': 'DELETE' | 'PUT';
@@ -928,8 +1023,10 @@ export interface OpenApiPaths {
   readonly '/api/authoring/cases/{case_version_id}/clone-version': 'POST';
   readonly '/api/authoring/cases/{case_version_id}/decisions': 'POST';
   readonly '/api/authoring/cases/{case_version_id}/decisions/{decision_id}': 'DELETE' | 'PUT';
+  readonly '/api/authoring/cases/{case_version_id}/decisions/{decision_id}/accept-ai': 'POST';
   readonly '/api/authoring/cases/{case_version_id}/definition': 'GET';
   readonly '/api/authoring/cases/{case_version_id}/dialogues/{tree_id}': 'DELETE' | 'PUT';
+  readonly '/api/authoring/cases/{case_version_id}/dialogues/{tree_id}/accept-ai': 'POST';
   readonly '/api/authoring/cases/{case_version_id}/editor': 'GET';
   readonly '/api/authoring/cases/{case_version_id}/hints/{hint_id}': 'DELETE' | 'PUT';
   readonly '/api/authoring/cases/{case_version_id}/lifecycle': 'GET' | 'POST';
@@ -941,7 +1038,9 @@ export interface OpenApiPaths {
   readonly '/api/authoring/cases/{case_version_id}/nodes': 'POST';
   readonly '/api/authoring/cases/{case_version_id}/nodes/reorder': 'PATCH';
   readonly '/api/authoring/cases/{case_version_id}/nodes/{node_id}': 'DELETE' | 'PUT';
+  readonly '/api/authoring/cases/{case_version_id}/nodes/{node_id}/accept-ai': 'POST';
   readonly '/api/authoring/cases/{case_version_id}/objects/{object_id}': 'DELETE' | 'PUT';
+  readonly '/api/authoring/cases/{case_version_id}/objects/{object_id}/accept-ai': 'POST';
   readonly '/api/authoring/cases/{case_version_id}/publish': 'POST';
   readonly '/api/authoring/cases/{case_version_id}/rules/endings': 'PUT';
   readonly '/api/authoring/cases/{case_version_id}/rules/milestones': 'PUT';

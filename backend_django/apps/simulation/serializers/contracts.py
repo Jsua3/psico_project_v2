@@ -16,6 +16,8 @@ from apps.simulation.models.case import ReviewDecision, ReviewReason
 from shared.openapi import ErrorEnvelopeSerializer
 
 ISSUE_SEVERITIES = ("error", "warning")
+ASSISTANT_STATUS_MODES = ("connected", "disabled")
+ASSISTANT_GUIDE_MODES = ("resaltar", "foco", "recorrido")
 HINT_REASONS = ("NONE_FOR_SCENE", "ALL_SHOWN")
 LIFECYCLE_ACTIONS = ("submit", "approve", "reject", "archive", "clone")
 #: Quién respalda una casilla de la lista de publicación (``authoring/checklist.py``: ``SYSTEM``, ``CONSTANCIA``, ``AUTHOR``).
@@ -104,6 +106,39 @@ class AssistantAnswerSerializer(serializers.Serializer):
     """La respuesta del asistente de IA: un objeto con el texto, SIN el sobre `{success, data}` de las demás rutas."""
 
     response = serializers.CharField()
+
+
+# ─── …/cases/{id}/assistant/* (asistente de IA de autoría, P5) ────────────────
+class AssistantStatusSerializer(serializers.Serializer):
+    """Si el asistente de autoría está listo y cuánto cupo le queda hoy a quien lo usa."""
+
+    enabled = serializers.BooleanField()
+    remainingToday = serializers.IntegerField()
+    mode = serializers.ChoiceField(choices=ASSISTANT_STATUS_MODES)
+
+
+class AssistantResultSerializer(serializers.Serializer):
+    """El resultado de ``propose``: el mensaje, la lista de cambios propuestos y con qué modelo se hizo.
+
+    Cada cambio es un objeto con su ``op`` (una de las diez operaciones del asistente) y los campos de esa
+    operación; el servidor ya los validó contra el caso. Proponer NO escribe nada: el cliente los aplica.
+    """
+
+    mensaje = serializers.CharField()
+    cambios = serializers.ListField(child=serializers.DictField(), help_text="Cambios validados, cada uno con su `op`.")
+    modo = serializers.CharField(help_text="Siempre `connected` en un resultado.")
+    model = serializers.CharField(help_text="El modelo que respondió.")
+    changes = serializers.IntegerField(help_text="Cuántos cambios trae `cambios`.")
+
+
+class AssistantGuideSerializer(serializers.Serializer):
+    """El resultado de ``guide``: la acción elegida del catálogo (o ``null``), cómo mostrarla y el mensaje."""
+
+    accionId = serializers.CharField(allow_null=True)
+    modo = serializers.ChoiceField(choices=ASSISTANT_GUIDE_MODES)
+    mensaje = serializers.CharField()
+    model = serializers.CharField(help_text="El modelo que respondió.")
+    changes = serializers.IntegerField(help_text="Siempre 0: la guía no propone cambios.")
 
 
 # ─── PATCH /api/simulation/attempts/{attempt_id}/world-state ──────────────────

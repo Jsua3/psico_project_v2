@@ -6,15 +6,15 @@
 
 ## Resumen
 
-Tablas: 42. Columnas: 356.
+Tablas: 43. Columnas: 364.
 
 | Clasificación | Columnas |
 |---|---:|
-| PUBLIC | 140 |
-| PERSONAL | 36 |
+| PUBLIC | 144 |
+| PERSONAL | 39 |
 | SENSITIVE | 44 |
 | SECRET | 2 |
-| TECHNICAL | 134 |
+| TECHNICAL | 135 |
 
 ## Tablas
 
@@ -185,6 +185,20 @@ Todas las columnas heredan `TECHNICAL`: la tabla no tiene datos personales ni se
 | `name` | TECHNICAL | — |  |
 | `content_type_id` | TECHNICAL | — |  |
 | `codename` | TECHNICAL | — |  |
+
+
+### `authoring_assistant_usage` — simulation.AuthoringAssistantUsage
+
+**Finalidad:** Cuántas veces usó cada docente el asistente de IA de autoría en un día: sirve para aplicar el tope diario y el mensual.
+
+**Plazo:** Sin plazo definido (SD-9, pendiente de la institución). Se borra con la cuenta; no guarda el texto de las peticiones.
+
+| Columna | Clasificación | Salidas | Motivo |
+|---|---|---|---|
+| `id` | TECHNICAL | — |  |
+| `user_id` | PERSONAL | ninguna (uso interno) | docente que usó el asistente |
+| `day` | PERSONAL | ninguna (uso interno) | día en que el docente usó el asistente |
+| `count` | PERSONAL | api | cuántas veces lo usó ese día el docente |
 
 
 ### `case_assignments` — grupos.CaseAssignment
@@ -390,6 +404,7 @@ Todas las columnas heredan `PUBLIC`: la tabla no tiene datos personales ni sensi
 | `feedback_text` | PUBLIC | — |  |
 | `effects` | PUBLIC | — |  |
 | `response_class` | PUBLIC | — |  |
+| `ai_suggested` | PUBLIC | — |  |
 
 
 ### `dialogue_choices` — simulation.DialogueChoice
@@ -424,6 +439,7 @@ Todas las columnas heredan `PUBLIC`: la tabla no tiene datos personales ni sensi
 | `speaker_name` | PUBLIC | — |  |
 | `text` | PUBLIC | — |  |
 | `emotion` | PUBLIC | — |  |
+| `ai_suggested` | PUBLIC | — |  |
 
 
 ### `dialogue_trees` — simulation.DialogueTree
@@ -529,6 +545,7 @@ Todas las columnas heredan `PUBLIC`: la tabla no tiene datos personales ni sensi
 | `facing` | PUBLIC | — |  |
 | `movement_pattern_json` | PUBLIC | — |  |
 | `metadata_json` | PUBLIC | — |  |
+| `ai_suggested` | PUBLIC | — |  |
 
 
 ### `publication_checklist_items` — simulation.PublicationChecklistItem
@@ -772,6 +789,7 @@ Todas las columnas heredan `PUBLIC`: la tabla no tiene datos personales ni sensi
 | `decision_prompt` | PUBLIC | — |  |
 | `display_order` | PUBLIC | — |  |
 | `intensity` | PUBLIC | — |  |
+| `ai_suggested` | PUBLIC | — |  |
 
 
 ### `simulation_rubric_assignments` — simulation.SimulationRubricAssignment

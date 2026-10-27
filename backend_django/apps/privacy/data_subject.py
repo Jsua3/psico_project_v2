@@ -248,6 +248,8 @@ PERSON_SCOPE: dict[str, tuple[Pertenencia, ...]] = {
     "reflection_journals": (Pertenencia(TITULAR, lambda p: Q(attempt__student_id=p.pk)),),
     "attempt_world_states": (Pertenencia(TITULAR, lambda p: Q(attempt__student_id=p.pk)),),
     "student_case_completion": (Pertenencia(TITULAR, lambda p: Q(student_id=p.pk)),),
+    # ── Uso del asistente de IA de autoría (P5): los contadores diarios del docente ──
+    "authoring_assistant_usage": (Pertenencia(TITULAR, lambda p: Q(user_id=p.pk)),),
     "rubric_evaluations": (
         Pertenencia(TITULAR, lambda p: Q(attempt__student_id=p.pk), excluir=("instructor_id",)),
         Pertenencia(
@@ -394,6 +396,15 @@ ERASURE_RULES: dict[tuple[str, str], Regla] = {
         Regla(CONSERVAR, _M_CONDUCTA),
     ),
     **_columnas("student_case_completion", ("student_id", "first_completed_at"), Regla(CONSERVAR, _M_CONDUCTA)),
+    # ── Uso del asistente de autoría: contadores sin texto; el tope mensual los suma, así que se conservan ──
+    **_columnas(
+        "authoring_assistant_usage", ("user_id", "day", "count"),
+        Regla(
+            CONSERVAR,
+            "contador diario de uso del asistente, sin el texto de las peticiones, enlazado a una cuenta ya seudonimizada; "
+            "el tope mensual suma estas filas de todos los docentes, así que borrarlas lo alteraría (SD-9)",
+        ),
+    ),
     # ── Evaluaciones docentes: la institución decide (SD-9); hoy se conservan ──
     **_columnas("rubric_evaluations", ("attempt_id", "instructor_id", "total_score"), Regla(CONSERVAR, _M_CONDUCTA)),
     ("rubric_evaluations", "comment"): Regla(CONSERVAR, _M_TEXTO_DE_OTRO),

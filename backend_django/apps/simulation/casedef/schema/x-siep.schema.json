@@ -67,7 +67,8 @@
               "title": { "$ref": "#/$defs/texto" },
               "message": { "$ref": "#/$defs/texto" },
               "tone": { "type": "string", "maxLength": 40 },
-              "when": { "$ref": "#/$defs/objeto_libre" }
+              "when": { "$ref": "#/$defs/objeto_libre" },
+              "aiSuggested": { "type": "boolean" }
             }
           }
         }

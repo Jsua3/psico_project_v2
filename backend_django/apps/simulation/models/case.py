@@ -202,6 +202,8 @@ class SimulationNode(models.Model):
     # La intensidad de la escena (modelo de respuesta): ``LOW`` | ``MEDIUM`` | ``HIGH``; ``HIGH`` por defecto en las
     # escenas con ``sensitive_content``. Ver ``casedef.vocabulary.Intensity``.
     intensity = models.CharField(max_length=8, default=Intensity.MEDIUM.value, db_default=Intensity.MEDIUM.value)
+    # Sugerido por el asistente de IA y aún sin revisar (P5): la compuerta de publicación no deja pasar mientras esté en alto.
+    ai_suggested = models.BooleanField(default=False, db_default=False)
 
     class Meta:
         db_table = "simulation_nodes"
@@ -245,6 +247,8 @@ class DecisionOption(models.Model):
     # ``CONTRAINDICATED``; ver ``casedef.vocabulary.ResponseClass``. Toda opción la tiene: la ``CONTRAINDICATED`` es la
     # conducta que se debe evitar y exige ``prohibition_reason``.
     response_class = models.CharField(max_length=24)
+    # Sugerido por el asistente de IA y aún sin revisar (P5): la compuerta de publicación no deja pasar mientras esté en alto.
+    ai_suggested = models.BooleanField(default=False, db_default=False)
 
     class Meta:
         db_table = "decision_options"

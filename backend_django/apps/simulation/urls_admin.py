@@ -1,5 +1,6 @@
 from django.urls import path
 
+from .views.authoring_assistant import AssistantGuideView, AssistantProposeView, AssistantStatusView
 from .views.authoring_views import (
     AdminCaseListCreateView,
     BriefView,
@@ -10,8 +11,10 @@ from .views.authoring_views import (
     CharacterListView,
     ChecklistView,
     CloneVersionView,
+    DecisionAcceptAiView,
     DecisionDetailView,
     DecisionListView,
+    DialogueAcceptAiView,
     DialogueDetailView,
     DialogueListView,
     EditorView,
@@ -20,9 +23,11 @@ from .views.authoring_views import (
     LifecycleView,
     MapDetailView,
     MapListView,
+    NodeAcceptAiView,
     NodeDetailView,
     NodeListView,
     NodeReorderView,
+    ObjectAcceptAiView,
     ObjectDetailView,
     ObjectListView,
     PublishView,
@@ -53,6 +58,10 @@ urlpatterns = [
     path("<int:case_version_id>/nodes/<int:node_id>", NodeDetailView.as_view()),
     path("<int:case_version_id>/decisions", DecisionListView.as_view()),
     path("<int:case_version_id>/decisions/<int:decision_id>", DecisionDetailView.as_view()),
+    path("<int:case_version_id>/nodes/<int:node_id>/accept-ai", NodeAcceptAiView.as_view()),
+    path("<int:case_version_id>/decisions/<int:decision_id>/accept-ai", DecisionAcceptAiView.as_view()),
+    path("<int:case_version_id>/dialogues/<int:tree_id>/accept-ai", DialogueAcceptAiView.as_view()),
+    path("<int:case_version_id>/objects/<int:object_id>/accept-ai", ObjectAcceptAiView.as_view()),
     path("<int:case_version_id>/rules/milestones", RulesMilestonesView.as_view()),
     path("<int:case_version_id>/rules/risk", RulesRiskView.as_view()),
     path("<int:case_version_id>/rules/endings", RulesEndingsView.as_view()),
@@ -73,4 +82,7 @@ urlpatterns = [
     path("<int:case_version_id>/world/validate", WorldValidateView.as_view()),
     path("<int:case_version_id>/world", WorldSaveView.as_view()),
     path("<int:case_version_id>/world-preview", WorldPreviewView.as_view()),
+    path("<int:case_version_id>/assistant/status", AssistantStatusView.as_view()),
+    path("<int:case_version_id>/assistant/propose", AssistantProposeView.as_view()),
+    path("<int:case_version_id>/assistant/guide", AssistantGuideView.as_view()),
 ]

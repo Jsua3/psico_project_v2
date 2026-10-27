@@ -28,6 +28,7 @@ from shared.exceptions import ApiError
 
 from .audit_service import auditable
 from .authoring import (
+    ai_review,
     cases,
     characters,
     editor_view,
@@ -123,6 +124,27 @@ def update_risk(case_version_id, level, revision=None):
 @auditable("ADMIN_UPDATE_ENDINGS", "CASE_VERSION")
 def update_endings(case_version_id, items, revision=None):
     return rules.update_endings(case_version_id, items, revision)
+
+
+# ─── Revisión de lo sugerido por la IA (P5) ──────────────────────────────────
+@auditable("ADMIN_ACCEPT_AI_NODE", "CASE_VERSION")
+def accept_ai_node(case_version_id, node_id, revision=None):
+    return ai_review.accept_node(case_version_id, node_id, revision)
+
+
+@auditable("ADMIN_ACCEPT_AI_DECISION", "CASE_VERSION")
+def accept_ai_decision(case_version_id, decision_id, revision=None):
+    return ai_review.accept_decision(case_version_id, decision_id, revision)
+
+
+@auditable("ADMIN_ACCEPT_AI_DIALOGUE", "CASE_VERSION")
+def accept_ai_dialogue(case_version_id, tree_id, revision=None):
+    return ai_review.accept_dialogue(case_version_id, tree_id, revision)
+
+
+@auditable("ADMIN_ACCEPT_AI_OBJECT", "CASE_VERSION")
+def accept_ai_object(case_version_id, object_id, revision=None):
+    return ai_review.accept_object(case_version_id, object_id, revision)
 
 
 # ─── Maps, objects and dialogues ─────────────────────────────────────────────
