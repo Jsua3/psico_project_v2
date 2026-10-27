@@ -92,14 +92,13 @@ def _conservado(mundo):
     return {
         "intentos": list(
             SimulationAttempt.objects.filter(student_id=p).order_by("id").values_list(
-                "id", "case_version_id", "current_node_id", "status", "accumulated_score", "stress_index", "victim_risk",
-                "user_trust", "institutional_route_activated", "revictimization_risk", "started_at", "ended_at",
+                "id", "case_version_id", "current_node_id", "status", "started_at", "ended_at",
                 "active_seconds", "last_activity_at", "replaced_by_id", "replace_reason",
             )
         ),
         "eventos": list(
             AttemptEvent.objects.filter(attempt__student_id=p).order_by("id").values_list(
-                "id", "attempt_id", "event_type", "node_id", "decision_option_id", "score_delta", "stress_delta", "occurred_at",
+                "id", "attempt_id", "event_type", "node_id", "decision_option_id", "occurred_at",
             )
         ),
         "pistas": list(AttemptHintView.objects.filter(attempt__student_id=p).order_by("id").values_list("id", "attempt_id", "hint_id", "viewed_at")),

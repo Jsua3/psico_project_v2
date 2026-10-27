@@ -40,8 +40,7 @@ async function seedDraft(request: APIRequestContext, label: string, options: { h
   const nodes = Object.fromEntries((view['nodes'] as Json[]).map(node => [node['key'], node['id']])) as Record<string, number>;
   await send(request, token, 'post', `${A}/${id}/decisions`, {
     sourceNodeId: startId, targetNodeId: nodes['consulta'], optionKey: 'escuchar', text: 'Escuchar con atención',
-    classification: 'ADEQUATE', prohibitedConduct: false, prohibitionReason: null, scoreDelta: 10, stressDelta: 0,
-    prohibitedPenalty: 0, immediateFeedback: '',
+    responseClass: 'RECOMMENDED', prohibitedConduct: false, prohibitionReason: null, immediateFeedback: '',
   }, 'decisión');
   await send(request, token, 'put', `${A}/${id}/brief`, {
     context: 'Una mujer llega a urgencias.', learningObjectives: ['Validar sin juzgar.'],

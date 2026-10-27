@@ -330,7 +330,6 @@ def test_paginated_attempts_filters_and_exceeds_20_without_published_filter(
             case_version=published_cv,
             current_node=start_node,
             status="COMPLETED",
-            accumulated_score=50 + i,
             active_seconds=120,
         )
     archived_attempt = SimulationAttempt.objects.create(
@@ -339,7 +338,6 @@ def test_paginated_attempts_filters_and_exceeds_20_without_published_filter(
         case_version=archived_cv,
         current_node=start_node,
         status="PAUSED",
-        accumulated_score=30,
         active_seconds=45,
     )
 

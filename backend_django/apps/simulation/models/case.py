@@ -28,12 +28,6 @@ class ReviewReason(models.TextChoices):
     CONTENIDO = "CONTENIDO"
 
 
-class DecisionClassification(models.TextChoices):
-    ADEQUATE = "ADEQUATE"
-    RISKY = "RISKY"
-    INADEQUATE = "INADEQUATE"
-
-
 class SimulationCase(models.Model):
     code = models.CharField(max_length=80, unique=True)
     title = models.CharField(max_length=255)
@@ -87,8 +81,8 @@ class CaseVersion(models.Model):
     version = models.BigIntegerField(default=0, db_default=0)
     world_schema_version = models.IntegerField(default=1, db_default=1)
     # Reglas de la versión (JSON en TEXT, como los demás): ``secondChance`` (¿se concede una
-    # segunda oportunidad ante una primera respuesta riesgosa o inadecuada?) y ``feedbackTiming``
-    # (``IMMEDIATE`` | ``AT_CLOSE``). Ausente = segunda oportunidad apagada (ED-7). Ver
+    # segunda oportunidad ante una primera respuesta con riesgo o contraindicada?), ``milestones``,
+    # ``riskLevel`` y ``endings``. Ausente = segunda oportunidad apagada (ED-7). Ver
     # ``services/case_rules.py``.
     rules = models.TextField(default="{}", db_default="{}")
     # E2 (revisión de fase, R15): quién editó por última vez y desde qué revisión lo hace en
@@ -236,12 +230,7 @@ class DecisionOption(models.Model):
         db_column="target_node_id",
     )
     text = models.TextField()
-    classification = models.CharField(max_length=24, choices=DecisionClassification.choices)
-    score_delta = models.IntegerField(default=0, db_default=0)
-    stress_delta = models.IntegerField(default=0, db_default=0)
-    prohibited_penalty = models.IntegerField(default=0, db_default=0)
     immediate_feedback = models.TextField(default="")
-    prohibited_conduct = models.BooleanField(default=False, db_default=False)
     prohibition_reason = models.TextField(blank=True, null=True)
     # Consecuencia narrativa (lo que se ve al elegir) frente a retroalimentación pedagógica (lo
     # que se explica al cierre, con su fundamento): decisiones 6 y 10, RN-08 (E1-7). Vacíos: la
@@ -249,12 +238,13 @@ class DecisionOption(models.Model):
     consequence_text = models.TextField(blank=True, null=True)
     theory_basis = models.TextField(blank=True, null=True)
     feedback_text = models.TextField(blank=True, null=True)
-    # Los efectos de la opción como datos del caso (E3-8): ``{severity, flags{}, metrics{}}``. Vacío
-    # = la opción no trae efectos propios (severidad por clasificación y ningún cambio).
+    # Los efectos de la opción como datos del caso: ``{persona, milestones, competencies}``. Vacío = la opción no
+    # trae efectos propios (la persona se mueve según su clase y no marca hitos).
     effects = models.TextField(default="{}", db_default="{}")
     # La clase de la respuesta (modelo de respuesta): ``RECOMMENDED`` | ``ACCEPTABLE`` | ``RISKY`` |
-    # ``CONTRAINDICATED``. Nula mientras la opción no la declara; ver ``casedef.vocabulary.ResponseClass``.
-    response_class = models.CharField(max_length=24, null=True, blank=True)
+    # ``CONTRAINDICATED``; ver ``casedef.vocabulary.ResponseClass``. Toda opción la tiene: la ``CONTRAINDICATED`` es la
+    # conducta que se debe evitar y exige ``prohibition_reason``.
+    response_class = models.CharField(max_length=24)
 
     class Meta:
         db_table = "decision_options"
@@ -264,7 +254,6 @@ class DecisionOption(models.Model):
                 | models.Q(response_class__in=[member.value for member in ResponseClass]),
                 name="decision_options_response_class_check",
             ),
-            models.CheckConstraint(condition=models.Q(classification__in=DecisionClassification.values), name="decision_options_classification_check"),
             models.UniqueConstraint(fields=["case_version", "option_key"], name="decision_options_case_version_id_option_key_key"),
         ]
 

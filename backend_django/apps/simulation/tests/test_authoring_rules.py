@@ -386,11 +386,14 @@ def test_una_opcion_nueva_sin_clase_ni_clasificacion_es_400_con_su_campo(api, dr
     ("response_class", "classification"),
     [("RECOMMENDED", "ADEQUATE"), ("ACCEPTABLE", "ADEQUATE"), ("RISKY", "RISKY"), ("CONTRAINDICATED", "INADEQUATE")],
 )
-def test_la_clase_se_guarda_y_la_clasificacion_antigua_se_deriva_de_ella(api, draft, response_class, classification):
+def test_la_clase_se_guarda_y_la_casilla_de_conducta_contraindicada_se_deriva_de_ella(
+    api, draft, response_class, classification
+):
     edge = _created_decision(_decision(api, draft, responseClass=response_class))
 
     assert edge["responseClass"] == response_class
-    assert edge["classification"] == classification
+    assert edge["prohibitedConduct"] is (response_class == "CONTRAINDICATED")
+    assert "classification" not in edge  # la clasificación antigua ya no se guarda ni se sirve
     assert DecisionOption.objects.get(pk=edge["id"]).response_class == response_class
 
 
@@ -399,19 +402,20 @@ def test_la_clase_se_guarda_y_la_clasificacion_antigua_se_deriva_de_ella(api, dr
     [("ADEQUATE", "RECOMMENDED"), ("RISKY", "RISKY"), ("INADEQUATE", "CONTRAINDICATED")],
 )
 def test_el_editor_viejo_con_solo_classification_sigue_funcionando_y_deriva_la_clase(api, draft, classification, response_class):
-    edge = _created_decision(_decision(api, draft, classification=classification, scoreDelta=5, stressDelta=-3))
+    edge = _created_decision(_decision(api, draft, classification=classification))
 
-    assert edge["classification"] == classification
     assert edge["responseClass"] == response_class
     assert DecisionOption.objects.get(pk=edge["id"]).response_class == response_class
 
 
-def test_los_deltas_numericos_se_aceptan_y_se_ignoran(api, draft):
-    edge = _created_decision(
-        _decision(api, draft, responseClass="RISKY", scoreDelta=9, stressDelta=9, prohibitedPenalty=9)
-    )
+@pytest.mark.parametrize("field", ["scoreDelta", "stressDelta", "prohibitedPenalty"])
+def test_los_deltas_numericos_retirados_son_400_con_su_campo(api, draft, field):
+    response = _decision(api, draft, responseClass="RISKY", **{field: 9})
 
-    assert (edge["scoreDelta"], edge["stressDelta"], edge["prohibitedPenalty"]) == (0, 0, 0)
+    assert response.status_code == 400
+    assert response.data["field"] == field
+    assert "ya no existe" in response.data["message"]
+    assert not DecisionOption.objects.filter(case_version_id=draft).exists()
 
 
 def test_la_conducta_prohibida_sin_clase_explicita_es_contraindicada(api, draft):
@@ -438,7 +442,7 @@ def test_reenviar_la_clasificacion_de_una_aceptable_no_la_vuelve_recomendada(api
     )
 
     again = next(d for d in response.data["data"]["decisions"] if d["id"] == edge["id"])
-    assert (again["text"], again["responseClass"], again["classification"]) == ("Otro texto", "ACCEPTABLE", "ADEQUATE")
+    assert (again["text"], again["responseClass"]) == ("Otro texto", "ACCEPTABLE")
 
 
 def test_actualizar_sin_clase_ni_clasificacion_no_toca_la_clase(api, draft):
@@ -530,7 +534,9 @@ def test_el_editor_devuelve_las_reglas_y_la_clase_efectiva_de_cada_opcion(api, s
     assert set(data["rules"]) == {"milestones", "riskLevel", "endings"}
     assert data["decisions"]
     assert all(d["responseClass"] in {"RECOMMENDED", "ACCEPTABLE", "RISKY", "CONTRAINDICATED"} for d in data["decisions"])
-    assert all("classification" in d and "scoreDelta" in d for d in data["decisions"])  # lo viejo sigue (Tarea 21)
+    retired = {"classification", "scoreDelta", "stressDelta", "prohibitedPenalty"}
+    assert not any(retired & set(d) for d in data["decisions"])
+    assert all(d["prohibitedConduct"] is (d["responseClass"] == "CONTRAINDICATED") for d in data["decisions"])
 
 
 # ─── la revisión también viaja en la cabecera ──────────────────────────────────────────────────

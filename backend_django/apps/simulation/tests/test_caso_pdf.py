@@ -306,7 +306,6 @@ def test_decision_hospital_critica_exige_reintento_sin_cumplir_hitos_ni_mover_a_
     assert AttemptEvent.objects.filter(
         attempt_id=attempt_id, event_type="PROHIBITED_DECISION_RETRY_REQUIRED"
     ).exists()
-    assert SimulationAttempt.objects.get(pk=attempt_id).revictimization_risk is False
 
 
 def _play_hospital(c, attempt_id, token, case_version_id, h1, h2, h3):

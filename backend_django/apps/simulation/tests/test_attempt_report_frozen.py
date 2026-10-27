@@ -9,7 +9,6 @@ import json
 
 import pytest
 from django.core.management import call_command
-from django.db.models import F
 
 from apps.simulation.casedef.vocabulary import ResponseClass
 from apps.simulation.models import (
@@ -45,9 +44,9 @@ def _complete(client, attempt_id, token, first_bad=False):
             break
         options = DecisionOption.objects.filter(source_node_id=attempt.current_node_id).order_by("id")
         if first_bad and step == 0:
-            bad = options.filter(classification__in=["RISKY", "INADEQUATE"]).first()
+            bad = options.filter(response_class__in=["RISKY", "CONTRAINDICATED"]).first()
             assert _decide(client, attempt_id, token, bad.id, requestId="req-reintento-0001").status_code == 200
-        good = options.filter(classification="ADEQUATE").first() or options.first()
+        good = options.filter(response_class="RECOMMENDED").first() or options.first()
         response = _decide(client, attempt_id, token, good.id, requestId=f"req-paso-{step:04d}-id")
         assert response.status_code == 200, response.data
     assert SimulationAttempt.objects.get(pk=attempt_id).status == "COMPLETED"
@@ -89,9 +88,9 @@ def test_mutar_efectos_y_textos_despues_de_cerrar_no_cambia_el_reporte(completed
     before = _reports(client, attempt_id, token)
 
     DecisionOption.objects.filter(case_version_id=case_version_id).update(
-        score_delta=F("score_delta") + 100, classification="INADEQUATE", response_class="CONTRAINDICATED",
+        response_class="CONTRAINDICATED",
         consequence_text="otra consecuencia", feedback_text="otra explicación",
-        theory_basis="otra teoría", immediate_feedback="otro mensaje", prohibited_conduct=True,
+        theory_basis="otra teoría", immediate_feedback="otro mensaje",
     )
     SimulationNode.objects.filter(case_version_id=case_version_id).update(title="otro título", narrative="otra")
     CaseVersion.objects.filter(pk=case_version_id).update(rules=json.dumps({"secondChance": False}))
@@ -118,7 +117,7 @@ def test_decision_review_trae_cada_decision_con_su_consecuencia_y_su_retroalimen
     client = cl(estudiante)
     attempt_id, token = _start(client, case_version_id)
     start_node = SimulationAttempt.objects.get(pk=attempt_id).current_node_id
-    good = DecisionOption.objects.filter(source_node_id=start_node, classification="ADEQUATE").first()
+    good = DecisionOption.objects.filter(source_node_id=start_node, response_class="RECOMMENDED").first()
     DecisionOption.objects.filter(pk=good.pk).update(
         consequence_text="Consecuencia propia", feedback_text="Explicación pedagógica", theory_basis="Teoría X",
     )
@@ -264,7 +263,7 @@ def test_el_historial_sigue_respondiendo_con_un_reporte_v3_que_ya_no_trae_conteo
     assert attempt_id in {h["attemptId"] for h in response.data["data"]}
 
 
-def test_la_huella_de_la_definicion_mira_la_clase_los_efectos_y_las_reglas_y_no_las_columnas_retiradas(
+def test_la_huella_de_la_definicion_mira_la_clase_los_efectos_y_las_reglas(
     case_version_id,
 ):
     from apps.simulation.services import attempt_report
@@ -272,13 +271,7 @@ def test_la_huella_de_la_definicion_mira_la_clase_los_efectos_y_las_reglas_y_no_
     base = attempt_report.case_definition_hash(case_version_id)
     option = DecisionOption.objects.filter(case_version_id=case_version_id).order_by("id").first()
 
-    # Las columnas retiradas ya no cuentan.
-    DecisionOption.objects.filter(pk=option.pk).update(
-        classification="INADEQUATE", score_delta=99, stress_delta=99, prohibited_penalty=99, prohibited_conduct=True,
-    )
-    assert attempt_report.case_definition_hash(case_version_id) == base
-
-    # La clase, los efectos, las reglas y la intensidad de la escena sí.
+    # La clase, los efectos, las reglas y la intensidad de la escena cambian la huella.
     other = "CONTRAINDICATED" if option.response_class != "CONTRAINDICATED" else "RECOMMENDED"
     DecisionOption.objects.filter(pk=option.pk).update(response_class=other)
     by_class = attempt_report.case_definition_hash(case_version_id)

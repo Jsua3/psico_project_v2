@@ -346,14 +346,8 @@ def test_a_prohibited_option_without_a_reason_is_left_to_the_world_validator(pro
     cv = _draft_owned_by(prof)
     version = CaseVersion.objects.get(pk=cv)
     option = DecisionOption.objects.filter(case_version_id=cv).order_by("id").first()
-    DecisionOption.objects.filter(pk=option.pk).update(prohibited_conduct=True, prohibition_reason=None)
+    DecisionOption.objects.filter(pk=option.pk).update(response_class="CONTRAINDICATED", prohibition_reason=None)
     assert "contraindicated-without-reason" not in [i["code"] for i in validation.publication_issues(version)]
-
-    DecisionOption.objects.filter(pk=option.pk).update(
-        prohibited_conduct=False, response_class="CONTRAINDICATED", prohibition_reason=None
-    )
-    found = [i for i in validation.publication_issues(version) if i["code"] == "contraindicated-without-reason"]
-    assert [(i["optionKey"], i["field"]) for i in found] == [(option.option_key, "prohibitionReason")]
 
 
 def test_an_unreachable_milestone_and_ending_keep_the_draft_from_review(prof):

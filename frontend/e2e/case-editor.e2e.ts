@@ -328,8 +328,8 @@ test.describe('@editor-casos grafo DAG (F8-3)', () => {
     }, 'segundo nodo');
     const closingId: number = closing['nodes'].find((node: Json) => node['key'] === 'cierre')['id'];
     await send(request, token, 'post', `/api/authoring/cases/${id}/decisions`, {
-      sourceNodeId: startId, targetNodeId: closingId, optionKey: 'cerrar', text: 'Cerrar el caso', classification: 'ADEQUATE',
-      prohibitedConduct: false, prohibitionReason: null, scoreDelta: 10, stressDelta: 0, prohibitedPenalty: 0, immediateFeedback: '',
+      sourceNodeId: startId, targetNodeId: closingId, optionKey: 'cerrar', text: 'Cerrar el caso', responseClass: 'RECOMMENDED',
+      prohibitedConduct: false, prohibitionReason: null, immediateFeedback: '',
     }, 'decisión');
 
     await loginAs(page, 'admin');

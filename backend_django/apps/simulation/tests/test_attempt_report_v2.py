@@ -61,7 +61,10 @@ def seeded_declares_destacado(request):
 
 # ─── la evidencia: puro ───────────────────────────────────────────────────────────────────────
 def _decision(classification="ADEQUATE", prohibited=False, event_type="DECISION_SELECTED", node_id=1):
-    option = SimpleNamespace(classification=classification, prohibited_conduct=prohibited)
+    response_class = "CONTRAINDICATED" if prohibited else {
+        "ADEQUATE": "RECOMMENDED", "RISKY": "RISKY", "INADEQUATE": "CONTRAINDICATED",
+    }[classification]
+    option = SimpleNamespace(response_class=response_class)
     return SimpleNamespace(event_type=event_type, decision_option_id=1, decision_option=option, node_id=node_id)
 
 
@@ -313,7 +316,7 @@ def test_un_intento_sin_completar_nunca_es_evidencia_clave_aunque_haya_reflexion
     client = cl(estudiante)
     attempt_id, token = _start(client, case_version_id)
     first = SimulationAttempt.objects.get(pk=attempt_id).current_node_id
-    good = DecisionOption.objects.filter(source_node_id=first, classification="ADEQUATE").first()
+    good = DecisionOption.objects.filter(source_node_id=first, response_class="RECOMMENDED").first()
     client.post(
         f"{BASE}/attempts/{attempt_id}/reflections",
         {"attemptToken": token, "nodeId": first, "text": "Una nota"}, format="json",
@@ -356,8 +359,8 @@ def test_cambiar_la_rubrica_el_catalogo_y_los_efectos_despues_de_cerrar_no_cambi
     RubricCriterion.objects.filter(rubric__case_version_id=case_version_id).update(active=False)
     Rubric.objects.update(active=False)
     DecisionOption.objects.filter(case_version_id=case_version_id).update(
-        effects=json.dumps({"severity": "critical", "competencies": {"REFLEXION": "EN_INICIO"}}),
-        classification="INADEQUATE",
+        effects=json.dumps({"competencies": {"REFLEXION": "EN_INICIO"}}),
+        response_class="CONTRAINDICATED",
     )
 
     after = _reports(client, attempt_id, token)

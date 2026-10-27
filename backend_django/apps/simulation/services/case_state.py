@@ -5,9 +5,8 @@ se cumplieron) y ``persona`` (``{"bond": "GUARDED", "activation": "TENSE"}``, lo
 enums como cadenas), junto a las demás claves del mundo (``syncedNodeId``, ``positionSyncedAt``…).
 No hay columnas nuevas; la migración 0030 dejó los intentos antiguos en este formato.
 
-Sustituye las funciones de estado de ``case_effects`` (``read_case_state``, ``apply_case_effects``,
-``severity_counts``), que se retiran con ese módulo en la Tarea 16. Quien decide qué escribir es
-``response_effects``; este módulo solo lee, escribe y cuenta, y no lo importa (así no hay ciclo).
+Quien decide qué escribir es ``response_effects``; este módulo solo lee, escribe y cuenta, y no lo importa (así no hay
+ciclo).
 """
 from dataclasses import dataclass
 
@@ -18,7 +17,6 @@ from apps.simulation.casedef.vocabulary import (
     Activation,
     Bond,
     ResponseClass,
-    legacy_class,
     step_persona,
 )
 from apps.simulation.models import AttemptWorldState
@@ -36,22 +34,11 @@ class CaseState:
 
 
 def response_class_of(decision) -> ResponseClass:
-    """La clase de una opción: la que declara o, si no (R-8), la que dan sus datos antiguos.
+    """La clase de una opción: la de su columna ``response_class`` (NOT NULL desde la migración 0031).
 
-    ``response_class`` nula, vacía o desconocida cae a ``legacy_class`` con la clasificación, la
-    severidad de sus ``effects`` y la conducta prohibida. Vive aquí, y no en ``response_effects``,
-    para que ``counts`` la use sin que los dos módulos se importen entre sí.
+    Vive aquí, y no en ``response_effects``, para que ``counts`` la use sin que los dos módulos se importen entre sí.
     """
-    declared = getattr(decision, "response_class", None)
-    try:
-        return ResponseClass(declared)
-    except ValueError:
-        pass
-    return legacy_class(
-        getattr(decision, "classification", None),
-        case_rules.effects_of(decision).get("severity"),
-        bool(getattr(decision, "prohibited_conduct", False)),
-    )
+    return ResponseClass(decision.response_class)
 
 
 def _milestones_of(raw) -> list[str]:
@@ -141,8 +128,7 @@ def persona_trail(decisions) -> list[tuple[Bond, Activation]]:
 def counts(decisions) -> dict[str, int]:
     """Cuántas opciones hay de cada clase: ``{"recommended", "acceptable", "risky", "contraindicated"}``.
 
-    Siempre trae las cuatro claves. Usa ``response_class_of``, así que una opción sin clase cuenta
-    por sus datos antiguos (R-8).
+    Siempre trae las cuatro claves.
     """
     totals = {member.value.lower(): 0 for member in ResponseClass}
     for decision in decisions:

@@ -5,102 +5,13 @@ importándolas con su alias de siempre. Estas pruebas fijan que cada punto de us
 acota o lee igual que antes: sin ellas, quitar la acotación de un sitio o dejar de
 leer un campo JSON no rompía ninguna prueba (lo reveló la mutación de A-01).
 
-Todas son puras (objetos simples, sin base de datos). La del estrés al usar una herramienta
-se retiró con la Tarea 5: ya no hay estrés que acotar (``test_tool_use_no_stress.py``).
+Todas son puras (objetos simples, sin base de datos). Las de la acotación de los indicadores del intento y de las
+métricas del caso se retiraron con el modelo de métricas: ya no hay indicadores 0-100 que acotar.
 """
-import json
 from types import SimpleNamespace
 
 from apps.simulation.serializers import game_dtos
-from apps.simulation.services import (
-    case_effects,
-    decision_effects,
-    world_service,
-)
-
-
-# ── decision_effects.apply ───────────────────────────────────────────────────
-def _attempt(**overrides):
-    base = dict(
-        accumulated_score=0, stress_index=50, user_trust=50, victim_risk=50,
-        institutional_route_activated=False, revictimization_risk=False,
-    )
-    base.update(overrides)
-    return SimpleNamespace(**base)
-
-
-def _effects(**overrides):
-    base = dict(
-        score_delta=0, stress_delta=0, trust_delta=0, victim_risk_delta=0,
-        institutional_route_activated=False, revictimization_risk=False,
-    )
-    base.update(overrides)
-    return decision_effects.DecisionEffects(**base)
-
-
-def test_decision_effects_acota_por_arriba_a_100():
-    attempt = _attempt(stress_index=95, user_trust=98, victim_risk=99)
-
-    decision_effects.apply(
-        attempt, _effects(stress_delta=40, trust_delta=10, victim_risk_delta=15)
-    )
-
-    assert (attempt.stress_index, attempt.user_trust, attempt.victim_risk) == (100, 100, 100)
-
-
-def test_decision_effects_acota_por_abajo_a_0():
-    attempt = _attempt(stress_index=5, user_trust=3, victim_risk=2)
-
-    decision_effects.apply(
-        attempt, _effects(stress_delta=-10, trust_delta=-20, victim_risk_delta=-5)
-    )
-
-    assert (attempt.stress_index, attempt.user_trust, attempt.victim_risk) == (0, 0, 0)
-
-
-def test_decision_effects_dentro_del_rango_suma_sin_acotar():
-    attempt = _attempt()
-
-    decision_effects.apply(
-        attempt, _effects(stress_delta=10, trust_delta=-5, victim_risk_delta=7)
-    )
-
-    assert (attempt.stress_index, attempt.user_trust, attempt.victim_risk) == (60, 45, 57)
-
-
-# ── case_effects.apply_case_effects ──────────────────────────────────────────
-class _FakeState:
-    """Estado de mundo mínimo: solo `flags_json` y `save`."""
-
-    def __init__(self, raw):
-        self.flags_json = json.dumps(raw)
-        self.saved_fields = None
-
-    def save(self, update_fields=None):
-        self.saved_fields = update_fields
-
-
-def test_case_effects_acota_las_metricas_del_caso_a_0_100(monkeypatch):
-    state = _FakeState({"caseMetrics": {"confianza": 95, "crisis_emocional": 10}})
-    monkeypatch.setattr(case_effects, "_load_state", lambda attempt: state)
-
-    # h1-pap-contencion: confianza +15, crisis_emocional -20, calidad_duelo +15 (resto fuera del caso).
-    pap_contencion = {
-        "severity": "recommended",
-        "flags": {"pap_aplicado": True, "familia_contenida": True},
-        "metrics": {"confianza": 15, "crisis_emocional": -20, "calidad_duelo": 15,
-                    "rigor_tecnico": 10, "etica_profesional": 10, "riesgo_victima": -5},
-    }
-    case_effects.apply_case_effects(
-        SimpleNamespace(id=1),
-        SimpleNamespace(option_key="h1-pap-contencion", effects=json.dumps(pap_contencion)),
-    )
-
-    metrics = json.loads(state.flags_json)["caseMetrics"]
-    assert metrics["confianza"] == 100        # 95 + 15, acotada
-    assert metrics["crisis_emocional"] == 0   # 10 - 20, acotada
-    assert metrics["calidad_duelo"] == 65     # 50 (por defecto) + 15, sin acotar
-    assert state.saved_fields == ["flags_json", "updated_at"]
+from apps.simulation.services import world_service
 
 
 # ── world_service._door_entry ────────────────────────────────────────────────

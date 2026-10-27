@@ -1,8 +1,7 @@
 """El final del caso por hitos y clases de respuesta, con una plantilla automática (Tarea 6 del modelo de métricas).
 
-Sustituye a ``case_effects.compute_ending`` y a ``DEFAULT_ENDINGS`` (finales por banderas, métricas y conteos por
-severidad), que se retiran con ese módulo en la Tarea 16. Las condiciones usan el vocabulario nuevo de
-``casedef.conditions``: ``milestone``, ``count`` por clase de respuesta y ``persona``.
+Las condiciones usan el vocabulario de ``casedef.conditions``: ``milestone``, ``count`` por clase de respuesta y
+``persona``.
 
 - Un caso puede declarar sus propios finales (``rules.endings``); si los declara, ganan a la plantilla.
 - Si no declara ninguno, aplica la plantilla: ``critica`` → ``protectora`` → ``riesgo_persistente`` → ``con_brechas``.
@@ -19,10 +18,9 @@ severidad), que se retiran con ese módulo en la Tarea 16. Las condiciones usan 
 from typing import NotRequired, TypedDict
 
 from apps.simulation.casedef import conditions, legacy
-from apps.simulation.models import AttemptStatus
+from apps.simulation.models import REGISTERED_DECISION_EVENT_TYPES, AttemptStatus
 
 from . import case_rules, case_state
-from .case_effects import REGISTERED_DECISION_EVENT_TYPES
 
 
 class Ending(TypedDict):

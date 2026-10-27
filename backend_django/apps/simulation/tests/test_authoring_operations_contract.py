@@ -209,8 +209,7 @@ def test_un_nodo_de_otra_version_se_rechaza_y_uno_inexistente_es_404(api, draft,
 def _decision_body(source, target, **overrides):
     body = {
         "sourceNodeId": source, "targetNodeId": target, "optionKey": "opt-p05b", "text": "Decido esto",
-        "classification": "RISKY", "prohibitedConduct": False, "scoreDelta": -3, "stressDelta": 4,
-        "prohibitedPenalty": 0, "immediateFeedback": "Mensaje",
+        "responseClass": "RISKY", "prohibitedConduct": False, "immediateFeedback": "Mensaje",
     }
     body.update(overrides)
     return body
@@ -223,21 +222,19 @@ def test_crear_actualizar_y_eliminar_una_decision(api, admin, draft):
 
     assert created.status_code == 200 and created.data["message"] == "Decision creada"
     edge = next(d for d in created.data["data"]["decisions"] if d["optionKey"] == "opt-p05b")
-    assert (edge["sourceKey"], edge["targetKey"], edge["classification"]) == ("dec-a", "dec-b", "RISKY")
-    # Los deltas numéricos se aceptan y se ignoran (Tarea 11); la clase sale de la clasificación del editor viejo.
-    assert (edge["scoreDelta"], edge["stressDelta"], edge["immediateFeedback"]) == (0, 0, "Mensaje")
-    assert edge["responseClass"] == "RISKY"
+    assert (edge["sourceKey"], edge["targetKey"], edge["responseClass"]) == ("dec-a", "dec-b", "RISKY")
+    assert edge["immediateFeedback"] == "Mensaje"
+    assert not {"classification", "scoreDelta", "stressDelta", "prohibitedPenalty"} & set(edge)
     _assert_audited(admin, "ADMIN_CREATE_DECISION", "CASE_VERSION", draft, "create_decision")
 
     updated = api.put(
         f"{BASE}/{draft}/decisions/{edge['id']}",
-        _decision_body(a["id"], b["id"], text="Otro texto", classification="ADEQUATE", scoreDelta=5),
+        _decision_body(a["id"], b["id"], text="Otro texto", responseClass="RECOMMENDED"),
         format="json",
     )
     assert updated.status_code == 200 and updated.data["message"] == "Decision actualizada"
     again = next(d for d in updated.data["data"]["decisions"] if d["id"] == edge["id"])
-    assert (again["text"], again["classification"], again["scoreDelta"]) == ("Otro texto", "ADEQUATE", 0)
-    assert again["responseClass"] == "RECOMMENDED"
+    assert (again["text"], again["responseClass"]) == ("Otro texto", "RECOMMENDED")
     _assert_audited(admin, "ADMIN_UPDATE_DECISION", "DECISION", edge["id"], "update_decision")
 
     deleted = api.delete(f"{BASE}/{draft}/decisions/{edge['id']}")

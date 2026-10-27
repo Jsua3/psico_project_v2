@@ -96,18 +96,12 @@ def attempt(version, estudiante):
     )
 
 
-_LEGACY = {
-    "RECOMMENDED": "ADEQUATE", "ACCEPTABLE": "ADEQUATE", "RISKY": "RISKY", "CONTRAINDICATED": "INADEQUATE",
-}
-
-
 def _option(version, response_class):
     """Una opción nueva de la clase pedida."""
     base = DecisionOption.objects.filter(case_version=version).first()
     return DecisionOption.objects.create(
         case_version=version, option_key=f"T9-{uuid.uuid4().hex[:8]}", source_node=base.source_node,
         target_node=base.target_node, text=f"Opción {response_class}", response_class=response_class,
-        classification=_LEGACY[response_class],
     )
 
 
@@ -421,17 +415,6 @@ def test_sin_hitos_faltantes_ni_competencias_en_inicio_la_lista_es_vacia_y_no_ha
     _declare(version, [])
 
     assert _payload(attempt)["recommendations"] == []
-
-
-def test_ninguna_recomendacion_nace_del_estres_ni_del_riesgo_de_revictimizacion(attempt, version):
-    _declare(version, [])
-    attempt.stress_index = 100
-    attempt.revictimization_risk = True
-    attempt.save(update_fields=["stress_index", "revictimization_risk"])
-
-    recommendations = _payload(attempt)["recommendations"]
-
-    assert recommendations == []
 
 
 def test_la_reconsideracion_va_en_singular_y_en_plural(attempt, version):

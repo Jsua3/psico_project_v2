@@ -2,21 +2,19 @@
 
 Antes cada uso sumaba o restaba estrés al intento (``TOOL_PERTINENT_STRESS_DELTA`` y
 ``TOOL_IMPERTINENT_STRESS_DELTA``) y la respuesta devolvía ``stressDelta``. En el modelo de respuesta
-la herramienta se sigue registrando (evento, inventario, uso único) pero el intento no cambia de cifras: la
-respuesta no trae ``stressDelta`` y el detalle del evento no menciona estrés ni porcentajes.
+la herramienta se sigue registrando (evento, inventario, uso único) pero no mueve al intento: ni su estado, ni la
+persona, ni los hitos; la respuesta no trae ``stressDelta`` y el detalle del evento no menciona estrés ni porcentajes.
 """
 import pytest
 
 from apps.simulation.models import AttemptEvent, SimulationAttempt
-from apps.simulation.services import world_service
+from apps.simulation.services import case_state, world_service
 
 from .test_world import _move, _start, case_version_id, cl, estudiante  # noqa: F401  (fixtures)
 
 pytestmark = [pytest.mark.req("RN-08")]
 
 BASE = "/api/simulation"
-#: Las cifras que el intento guardaba y que una herramienta no debe tocar.
-CIFRAS = ("accumulated_score", "stress_index", "user_trust", "victim_risk", "institutional_route_activated")
 
 
 def _con_pap_en_el_inventario(client, case_version_id):
@@ -40,9 +38,10 @@ def _usar_pap(client, attempt_id, token, **extra):
     )
 
 
-def _cifras(attempt_id):
+def _estado(attempt_id):
+    """Lo que una herramienta no debe mover: el estado del intento, su escena, la persona y los hitos."""
     attempt = SimulationAttempt.objects.get(pk=attempt_id)
-    return {name: getattr(attempt, name) for name in CIFRAS}
+    return attempt.status, attempt.current_node_id, case_state.read(attempt)
 
 
 def test_la_respuesta_de_usar_una_herramienta_no_trae_stress_delta(estudiante, case_version_id):
@@ -61,20 +60,18 @@ def test_la_respuesta_de_usar_una_herramienta_no_trae_stress_delta(estudiante, c
 
 
 @pytest.mark.parametrize("pertinente", [False, True])
-def test_usar_una_herramienta_no_cambia_ninguna_cifra_del_intento(
+def test_usar_una_herramienta_no_mueve_el_estado_del_intento(
     estudiante, case_version_id, monkeypatch, pertinente
 ):
     c = cl(estudiante)
     attempt_id, token = _con_pap_en_el_inventario(c, case_version_id)
-    # Un punto de partida lejos de los extremos: cualquier suma o resta de estrés se vería.
-    SimulationAttempt.objects.filter(pk=attempt_id).update(stress_index=50)
-    before = _cifras(attempt_id)
+    before = _estado(attempt_id)
     monkeypatch.setattr(world_service, "_evaluate_tool_pertinence", lambda *args: pertinente)
 
     result = _usar_pap(c, attempt_id, token).data["data"]
 
     assert result["pertinent"] is pertinente
-    assert _cifras(attempt_id) == before
+    assert _estado(attempt_id) == before
 
 
 def test_el_evento_de_la_herramienta_no_habla_de_estres(estudiante, case_version_id):
@@ -85,7 +82,6 @@ def test_el_evento_de_la_herramienta_no_habla_de_estres(estudiante, case_version
 
     event = AttemptEvent.objects.get(attempt_id=attempt_id, event_type="TOOL_USED")
     assert event.detail == "Herramienta usada: PAP — no pertinente"
-    assert event.score_delta == 0 and event.stress_delta == 0
     assert "estrés" not in event.detail and "%" not in event.detail
 
 

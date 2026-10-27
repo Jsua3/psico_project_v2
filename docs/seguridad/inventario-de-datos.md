@@ -6,13 +6,13 @@
 
 ## Resumen
 
-Tablas: 42. Columnas: 369.
+Tablas: 42. Columnas: 356.
 
 | Clasificación | Columnas |
 |---|---:|
-| PUBLIC | 145 |
+| PUBLIC | 140 |
 | PERSONAL | 36 |
-| SENSITIVE | 52 |
+| SENSITIVE | 44 |
 | SECRET | 2 |
 | TECHNICAL | 134 |
 
@@ -37,7 +37,7 @@ Tablas: 42. Columnas: 369.
 
 ### `attempt_events` — simulation.AttemptEvent
 
-**Finalidad:** Línea de tiempo del intento: cada decisión, herramienta, bitácora o salida, con su efecto.
+**Finalidad:** Línea de tiempo del intento: cada decisión, herramienta, bitácora o salida.
 
 **Plazo:** Sin plazo definido (SD-9, pendiente de la institución).
 
@@ -48,8 +48,6 @@ Tablas: 42. Columnas: 369.
 | `event_type` | SENSITIVE | api | qué hizo el estudiante: decisión, herramienta, bitácora o salida |
 | `node_id` | TECHNICAL | — |  |
 | `decision_option_id` | SENSITIVE | api, reporte | opción de decisión que eligió el estudiante |
-| `score_delta` | SENSITIVE | ninguna (uso interno) | efecto de la acción sobre el puntaje; retirado por el modelo de métricas; columna hasta la Tarea 16 |
-| `stress_delta` | SENSITIVE | ninguna (uso interno) | efecto de la acción sobre el estrés; retirado por el modelo de métricas; columna hasta la Tarea 16 |
 | `detail` | SENSITIVE | api | detalle de la acción que muestra la línea de tiempo (herramienta o etiqueta); en una salida segura puede llevar el motivo escrito por la persona (texto libre, recortado a 500 caracteres) |
 | `occurred_at` | SENSITIVE | api | cuándo actuó el estudiante (línea de tiempo) |
 | `request_id` | TECHNICAL | — |  |
@@ -373,7 +371,7 @@ Todas las columnas heredan `PUBLIC`: la tabla no tiene datos personales ni sensi
 
 ### `decision_options` — simulation.DecisionOption
 
-**Finalidad:** Opciones de decisión de cada escena, con su texto, su clasificación y su retroalimentación.
+**Finalidad:** Opciones de decisión de cada escena, con su texto, su clase de respuesta y su retroalimentación.
 
 **Plazo:** Mientras exista la versión del caso (SD-9, pendiente de la institución).
 
@@ -385,12 +383,7 @@ Todas las columnas heredan `PUBLIC`: la tabla no tiene datos personales ni sensi
 | `source_node_id` | TECHNICAL | — |  |
 | `target_node_id` | TECHNICAL | — |  |
 | `text` | PUBLIC | — |  |
-| `classification` | PUBLIC | — |  |
-| `score_delta` | PUBLIC | — |  |
-| `stress_delta` | PUBLIC | — |  |
-| `prohibited_penalty` | PUBLIC | — |  |
 | `immediate_feedback` | PUBLIC | — |  |
-| `prohibited_conduct` | PUBLIC | — |  |
 | `prohibition_reason` | PUBLIC | — |  |
 | `consequence_text` | PUBLIC | — |  |
 | `theory_basis` | PUBLIC | — |  |
@@ -711,7 +704,7 @@ Todas las columnas heredan `PUBLIC`: la tabla no tiene datos personales ni sensi
 
 ### `simulation_attempts_v2` — simulation.SimulationAttempt
 
-**Finalidad:** Intentos de un estudiante en un caso: estado, puntajes, riesgos y tiempos. Son sus decisiones.
+**Finalidad:** Intentos de un estudiante en un caso: estado y tiempos. Son sus decisiones.
 
 **Plazo:** Sin plazo definido (SD-9, pendiente de la institución).
 
@@ -723,12 +716,6 @@ Todas las columnas heredan `PUBLIC`: la tabla no tiene datos personales ni sensi
 | `student_id` | PERSONAL | ninguna (uso interno) | estudiante dueño del intento; sale solo como alias (Estudiante-<hash>) |
 | `current_node_id` | SENSITIVE | api | escena en la que está el estudiante |
 | `status` | SENSITIVE | api, reporte | estado del intento en el caso (en curso, pausado, terminado) |
-| `accumulated_score` | SENSITIVE | ninguna (uso interno) | puntaje acumulado de las decisiones del estudiante; retirado por el modelo de métricas; columna hasta la Tarea 16 |
-| `stress_index` | SENSITIVE | ninguna (uso interno) | índice de estrés que producen sus decisiones; retirado por el modelo de métricas; columna hasta la Tarea 16 |
-| `victim_risk` | SENSITIVE | ninguna (uso interno) | riesgo de la víctima simulada según las decisiones del estudiante; retirado por el modelo de métricas; columna hasta la Tarea 16 |
-| `user_trust` | SENSITIVE | ninguna (uso interno) | confianza del personaje afectado en el estudiante, según sus decisiones; retirado por el modelo de métricas; columna hasta la Tarea 16 |
-| `institutional_route_activated` | SENSITIVE | ninguna (uso interno) | si el intento activó la ruta institucional; retirado por el modelo de métricas; columna hasta la Tarea 16 |
-| `revictimization_risk` | SENSITIVE | api | riesgo de revictimización que producen las decisiones |
 | `started_at` | SENSITIVE | api | cuándo empezó el intento (conducta del estudiante) |
 | `ended_at` | SENSITIVE | api | cuándo terminó el intento (conducta del estudiante) |
 | `locked_at` | TECHNICAL | — |  |

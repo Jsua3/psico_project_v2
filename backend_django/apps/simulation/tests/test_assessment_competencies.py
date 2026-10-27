@@ -56,8 +56,12 @@ def test_el_nivel_de_una_competencia_es_el_promedio_con_tope_si_hubo_una_critica
 
 # ─── lo que aporta una decisión: puro ─────────────────────────────────────────────────────────
 def _option(classification="ADEQUATE", effects=None, prohibited=False):
+    """Una opción cuya clase sale de la clasificación del taller (``prohibited`` la vuelve contraindicada)."""
+    response_class = "CONTRAINDICATED" if prohibited else {
+        "ADEQUATE": "RECOMMENDED", "RISKY": "RISKY", "INADEQUATE": "CONTRAINDICATED",
+    }[classification]
     return DecisionOption(
-        option_key=f"o-{uuid.uuid4().hex[:6]}", classification=classification, prohibited_conduct=prohibited,
+        option_key=f"o-{uuid.uuid4().hex[:6]}", response_class=response_class,
         effects=json.dumps(effects) if effects is not None else None,
     )
 

@@ -6,30 +6,25 @@ con código es solo un nombre que no existe (y por tanto ``False``). El vocabula
     {"all": [c, …]}                     todas se cumplen (lista vacía: verdadera)
     {"any": [c, …]}                     alguna se cumple (lista vacía: falsa)
     {"not": c}                          la negación
-    {"flag": "pap_aplicado"}            la bandera clínica está encendida
-    {"metric": "confianza", "gte": 60}  una métrica del caso contra un número
-    {"count": "critical", "eq": 0}      cuántas decisiones registradas de esa severidad
-    {"milestone": "derivo_a_comisaria"} el hito está cumplido (modelo nuevo)
-    {"count": "contraindicated", "gte": 1}  cuántas respuestas de esa clase (modelo nuevo; las
-                                        clases son ``recommended``, ``acceptable``, ``risky`` y
-                                        ``contraindicated``)
-    {"persona": {"bond": "OPEN"}}       el estado de la persona consultante (modelo nuevo):
-                                        ``bond`` ∈ WITHDRAWN|GUARDED|OPEN y ``activation`` ∈
-                                        CALM|TENSE|CRISIS; si trae las dos, se cumplen ambas
+    {"milestone": "derivo_a_comisaria"} el hito está cumplido
+    {"count": "contraindicated", "gte": 1}  cuántas respuestas de esa clase (las clases son ``recommended``,
+                                        ``acceptable``, ``risky`` y ``contraindicated``)
+    {"persona": {"bond": "OPEN"}}       el estado de la persona consultante: ``bond`` ∈
+                                        WITHDRAWN|GUARDED|OPEN y ``activation`` ∈ CALM|TENSE|CRISIS; si trae las
+                                        dos, se cumplen ambas
 
-Comparadores (``gte``, ``gt``, ``lte``, ``lt``, ``eq``): si hay varios, se cumplen todos. El
-contexto es ``{"flags": {…}, "metrics": {…}, "counts": {…}, "milestones": {…}, "persona":
-{"bond": …, "activation": …}}``; lo viejo (banderas, métricas, severidades) y lo nuevo (hitos,
-persona, clases) conviven hasta que se retire lo viejo. Cualquier cosa que no sea una
-condición conocida —tipo equivocado, clave desconocida, métrica que el caso no declara, anidada
-más allá de ``MAX_DEPTH``— evalúa a ``False``: un dato malformado nunca rompe una partida, solo
-hace que ese final no aplique.
+Comparadores (``gte``, ``gt``, ``lte``, ``lt``, ``eq``): si hay varios, se cumplen todos. El contexto es
+``{"counts": {…}, "milestones": {…}, "persona": {"bond": …, "activation": …}}``. Cualquier cosa que no sea una
+condición conocida —tipo equivocado, clave desconocida (también el vocabulario del modelo antiguo: ``flag``, ``metric``
+y el conteo por severidad), anidada más allá de ``MAX_DEPTH``— evalúa a ``False``: un dato malformado nunca rompe una
+partida, solo hace que ese final no aplique. El documento 1.0 se valida con ``legacy.is_valid_condition``, que sí
+conoce el vocabulario antiguo.
 """
 from apps.simulation.casedef.vocabulary import Activation, Bond
 
 COMPARATORS = ("gte", "gt", "lte", "lt", "eq")
-#: Lo que se puede contar: las severidades antiguas y las clases de respuesta (en minúscula).
-COUNT_NAMES = ("recommended", "acceptable", "risky", "critical", "contraindicated")
+#: Lo que se puede contar: las clases de respuesta (en minúscula).
+COUNT_NAMES = ("recommended", "acceptable", "risky", "contraindicated")
 #: Dimensiones de la persona consultante y los valores que cada una admite.
 PERSONA_DIMENSIONS = {
     "bond": tuple(member.value for member in Bond),
@@ -104,20 +99,6 @@ def evaluate(condition, context, _depth=0):
         inner = condition["not"]
         # ``not`` de algo desconocido no vuelve verdadero lo malformado: sigue siendo falso.
         return is_valid(inner) and not evaluate(inner, context, next_depth)
-    if "flag" in condition:
-        name = condition["flag"]
-        flags = context.get("flags")
-        if not _only(condition, "flag") or not isinstance(name, str) or not isinstance(flags, dict):
-            return False
-        return bool(flags.get(name))
-    if "metric" in condition:
-        name = condition["metric"]
-        metrics = context.get("metrics")
-        if not _only(condition, "metric", *COMPARATORS) or not isinstance(name, str):
-            return False
-        if not isinstance(metrics, dict) or name not in metrics:
-            return False
-        return _compare(metrics[name], condition)
     if "count" in condition:
         name = condition["count"]
         counts = context.get("counts")
@@ -158,16 +139,11 @@ def is_valid(condition, _depth=0):
             )
     if "not" in condition:
         return _only(condition, "not") and is_valid(condition["not"], next_depth)
-    if "flag" in condition:
-        return _only(condition, "flag") and isinstance(condition["flag"], str) and bool(condition["flag"])
-    if "metric" in condition or "count" in condition:
-        subject = "metric" if "metric" in condition else "count"
-        if not _only(condition, subject, *COMPARATORS):
+    if "count" in condition:
+        if not _only(condition, "count", *COMPARATORS):
             return False
-        name = condition[subject]
-        known = isinstance(name, str) and bool(name) if subject == "metric" else name in COUNT_NAMES
         comparators = [condition[c] for c in COMPARATORS if c in condition]
-        return known and bool(comparators) and all(_is_number(bound) for bound in comparators)
+        return condition["count"] in COUNT_NAMES and bool(comparators) and all(_is_number(bound) for bound in comparators)
     if "milestone" in condition:
         return _only(condition, "milestone") and isinstance(condition["milestone"], str) and bool(condition["milestone"])
     if "persona" in condition:

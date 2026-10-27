@@ -59,7 +59,7 @@ def _pause(client, attempt):
     return resp.data["data"]
 
 
-def _closed_attempt(estudiante, case_version_id, status, score):
+def _closed_attempt(estudiante, case_version_id, status):
     return SimulationAttempt.objects.create(
         attempt_token_hash=uuid.uuid4().hex,
         case_version_id=case_version_id,
@@ -68,7 +68,6 @@ def _closed_attempt(estudiante, case_version_id, status, score):
             case_version_id=case_version_id, start_node=True
         ).first(),
         status=status,
-        accumulated_score=score,
         ended_at=timezone.now(),
     )
 
@@ -155,7 +154,7 @@ def test_pausa_luego_reemplazada_cuenta_como_salida_segura(
 def test_salida_segura_historica_se_conserva(profesor, estudiante, case_version_id):
     """Decisión 2026-10-01: las SAFE_EXITED reales (previas a la pausa) no cambian."""
     grupo = _setup(profesor, estudiante, case_version_id)
-    legacy = _closed_attempt(estudiante, case_version_id, "SAFE_EXITED", 40)
+    legacy = _closed_attempt(estudiante, case_version_id, "SAFE_EXITED")
     AttemptEvent.objects.create(
         attempt=legacy,
         event_type="SAFE_EXIT_REQUESTED",

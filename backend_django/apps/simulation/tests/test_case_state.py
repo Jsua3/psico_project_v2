@@ -42,12 +42,10 @@ def _set_world_flags(attempt, flags):
     state.save(update_fields=["flags_json"])
 
 
-def _option(response_class=None, classification="ADEQUATE", prohibited=False, effects=None):
+def _option(response_class="ACCEPTABLE", effects=None):
     return DecisionOption(
         option_key=f"opt-{uuid.uuid4().hex[:6]}",
         text="x",
-        classification=classification,
-        prohibited_conduct=prohibited,
         response_class=response_class,
         effects=json.dumps(effects) if effects is not None else "{}",
     )
@@ -116,22 +114,20 @@ def test_counts_trae_las_cuatro_claves_siempre():
     assert case_state.counts([]) == {"recommended": 0, "acceptable": 0, "risky": 0, "contraindicated": 0}
 
 
-def test_counts_cuenta_por_clase_y_aplica_el_respaldo_r8():
+def test_counts_cuenta_por_clase():
     decisions = [
         _option("RECOMMENDED"),
         _option("RECOMMENDED"),
         _option("ACCEPTABLE"),
         _option("RISKY"),
         _option("CONTRAINDICATED"),
-        _option(None, classification="INADEQUATE"),  # R-8: sin clase, contraindicada por clasificación
-        _option(None, classification="ADEQUATE"),  # R-8: recomendada
     ]
 
     assert case_state.counts(decisions) == {
-        "recommended": 3,
+        "recommended": 2,
         "acceptable": 1,
         "risky": 1,
-        "contraindicated": 2,
+        "contraindicated": 1,
     }
 
 

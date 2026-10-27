@@ -1,7 +1,7 @@
 """Modelo de métricas nuevo · Las condiciones de los finales con hitos, persona y clases.
 
-Sin base de datos. ``milestone``, ``persona`` y ``count`` con las cuatro clases conviven con el
-vocabulario viejo (``flag``, ``metric``, severidades); lo desconocido sigue evaluando a ``False``.
+Sin base de datos. ``milestone``, ``persona`` y ``count`` con las cuatro clases son todo el vocabulario: el viejo
+(``flag``, ``metric``, severidades) ya no existe; lo desconocido evalúa a ``False``.
 """
 import pytest
 
@@ -58,8 +58,8 @@ def test_not_milestone_is_true_when_the_milestone_is_missing():
 
 
 # ─── conteo por clase ─────────────────────────────────────────────────────────────────────────
-def test_count_names_are_the_union_of_the_old_severities_and_the_four_classes():
-    assert set(COUNT_NAMES) == {"recommended", "acceptable", "risky", "critical", "contraindicated"}
+def test_count_names_are_the_four_classes():
+    assert set(COUNT_NAMES) == {"recommended", "acceptable", "risky", "contraindicated"}
     assert COUNT_NAMES is pure_conditions.COUNT_NAMES
 
 
@@ -78,8 +78,9 @@ def test_count_of_a_class_missing_from_the_context_is_zero():
     assert evaluate({"count": "contraindicated", "eq": 0}, {}) is False  # sin ``counts`` no hay de qué leer
 
 
-def test_the_old_severity_counts_still_work():
-    assert evaluate({"count": "critical", "gte": 1}, {"counts": {"critical": 1}}) is True
+def test_the_old_severity_count_no_longer_exists():
+    assert evaluate({"count": "critical", "gte": 1}, {"counts": {"critical": 1}}) is False
+    assert is_valid({"count": "critical", "gte": 1}) is False
 
 
 def test_an_unknown_count_name_is_false_and_invalid():
@@ -144,8 +145,12 @@ def test_not_persona_does_not_make_a_malformed_condition_true():
         {"persona": {"activation": "CRISIS", "bond": "WITHDRAWN"}},
         {"count": "contraindicated", "gte": 1},
         PROTECTORA,
-        {"any": [{"persona": {"activation": "CRISIS"}}, {"milestone": "x"}, {"flag": "vieja"}]},
+        {"any": [{"persona": {"activation": "CRISIS"}}, {"milestone": "x"}, {"count": "risky", "gte": 2}]},
     ],
 )
-def test_is_valid_accepts_the_new_vocabulary_alone_and_mixed_with_the_old(condition):
+def test_is_valid_accepts_the_vocabulary_alone_and_mixed(condition):
     assert is_valid(condition) is True
+
+
+def test_is_valid_rejects_the_old_vocabulary_even_mixed_with_the_new():
+    assert is_valid({"any": [{"persona": {"activation": "CRISIS"}}, {"flag": "vieja"}]}) is False

@@ -1,7 +1,7 @@
 """Modelo de métricas nuevo · Reglas y efectos: hitos, nivel de riesgo y estado de la persona.
 
 Sin base de datos. ``rules_of`` lee con indulgencia (lo roto se descarta, nunca lanza);
-``validate_effects`` es estricto (400 con ``field: effects``); lo viejo sigue funcionando.
+``validate_effects`` es estricto (400 con ``field: effects``); el vocabulario del modelo antiguo ya no existe.
 """
 import json
 from types import SimpleNamespace
@@ -88,6 +88,12 @@ def test_an_unknown_risk_level_is_none(raw):
     assert _rules({"riskLevel": raw}).risk_level is None
 
 
+def test_the_old_rules_are_ignored_not_an_error():
+    rules = _rules({"secondChance": True, "feedbackTiming": "AT_CLOSE", "metrics": [{"key": "confianza", "initial": 50}]})
+
+    assert rules == CaseRules(second_chance=True)
+
+
 def test_endings_keep_a_condition_of_the_new_vocabulary():
     when = {"all": [{"milestone": "a"}, {"persona": {"bond": "OPEN"}}, {"count": "risky", "lte": 1}]}
 
@@ -134,16 +140,16 @@ def test_normalize_never_raises_on_broken_data(raw):
     assert normalize_effects(raw) == {}
 
 
-def test_normalize_still_keeps_the_old_effects_next_to_the_new_ones():
+def test_normalize_drops_the_old_effects_and_keeps_the_new_ones():
     raw = {"severity": "risky", "flags": {"f": True}, "metrics": {"m": -5}, "persona": {"bond": -1}, "milestones": ["x"]}
 
-    assert normalize_effects(raw) == raw
+    assert normalize_effects(raw) == {"persona": {"bond": -1}, "milestones": ["x"]}
 
 
 # ─── validate_effects: lo nuevo, estricto ─────────────────────────────────────────────────────
 def _refusal(raw, milestones=("a",)):
     with pytest.raises(ApiError) as caught:
-        validate_effects(raw, (), milestones)
+        validate_effects(raw, milestones)
     assert caught.value.status_code == 400
     assert caught.value.extra["field"] == "effects"
     return caught.value
@@ -152,21 +158,26 @@ def _refusal(raw, milestones=("a",)):
 def test_validate_accepts_declared_milestones_and_a_persona_step():
     raw = {"persona": {"bond": 1, "activation": -1}, "milestones": ["a", "b"]}
 
-    assert validate_effects(raw, (), ("a", "b", "c")) == raw
+    assert validate_effects(raw, ("a", "b", "c")) == raw
 
 
 def test_validate_deduplicates_milestones():
-    assert validate_effects({"milestones": ["a", "a"]}, (), ("a",)) == {"milestones": ["a"]}
+    assert validate_effects({"milestones": ["a", "a"]}, ("a",)) == {"milestones": ["a"]}
 
 
 def test_validate_clears_an_empty_persona_and_empty_milestones():
-    assert validate_effects({"persona": {}, "milestones": []}, (), ()) == {}
+    assert validate_effects({"persona": {}, "milestones": []}, ()) == {}
 
 
-def test_the_third_argument_is_optional_so_the_current_callers_keep_working():
-    assert validate_effects({"severity": "risky"}, ()) == {"severity": "risky"}
-    assert validate_effects(None, ()) == {}
+def test_the_milestones_argument_is_optional_and_without_it_no_milestone_is_declared():
+    assert validate_effects({"persona": {"bond": 1}}) == {"persona": {"bond": 1}}
+    assert validate_effects(None) == {}
     _refusal({"milestones": ["a"]}, milestones=())
+
+
+@pytest.mark.parametrize("raw", [{"severity": "risky"}, {"flags": {"f": True}}, {"metrics": {"m": -5}}])
+def test_the_vocabulary_of_the_old_model_is_a_400(raw):
+    assert "Efecto desconocido" in str(_refusal(raw).detail)
 
 
 def test_an_undeclared_milestone_is_a_400_naming_effects():
@@ -198,7 +209,7 @@ def test_more_milestones_than_the_cap_is_a_400():
     keys = [f"h{i}" for i in range(MAX_EFFECT_ENTRIES + 1)]
 
     _refusal({"milestones": keys}, milestones=keys)
-    assert validate_effects({"milestones": keys[:-1]}, (), keys) == {"milestones": keys[:-1]}
+    assert validate_effects({"milestones": keys[:-1]}, keys) == {"milestones": keys[:-1]}
 
 
 def test_an_unknown_effect_still_names_the_accepted_ones():

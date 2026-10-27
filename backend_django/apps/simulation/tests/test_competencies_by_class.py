@@ -56,7 +56,7 @@ def _option(response_class, competencies=None, text="Una respuesta"):
         effects["competencies"] = competencies
     return DecisionOption(
         option_key=f"o-{uuid.uuid4().hex[:6]}", text=text, response_class=response_class.value,
-        prohibited_conduct=response_class is CONTRA, effects=json.dumps(effects),
+        effects=json.dumps(effects),
     )
 
 
@@ -98,16 +98,6 @@ def test_una_contraindicada_pone_el_tope_aunque_el_autor_declare_destacado():
 
     assert contributions == {"PAP": (D, True)}
     assert profile.level_of([contributions["PAP"]]) == P
-
-
-def test_la_clase_se_lee_de_la_opcion_con_el_respaldo_de_los_datos_antiguos():
-    """Sin ``response_class`` manda lo antiguo (R-8): la conducta prohibida es contraindicada y pone el tope."""
-    legacy = DecisionOption(
-        option_key="vieja", classification="ADEQUATE", prohibited_conduct=True,
-        effects=json.dumps({"competencies": {"PAP": "DESTACADO"}}),
-    )
-
-    assert profile.contributions(legacy, CODES) == {"PAP": (D, True)}
 
 
 # ─── el nivel sale de la clase cuando el autor solo marca la competencia ──────────────────────
@@ -342,13 +332,6 @@ def test_no_recomendada_es_riesgosa_o_contraindicada(response_class, expected):
     event = SimpleNamespace(event_type="DECISION_SELECTED", decision_option_id=1, decision_option=_option(response_class))
 
     assert evidence.non_recommended_count([event]) == expected
-
-
-def test_una_decision_sin_clase_declarada_cae_a_los_datos_antiguos():
-    legacy = DecisionOption(option_key="v", classification="INADEQUATE", prohibited_conduct=False)
-    event = SimpleNamespace(event_type="DECISION_SELECTED", decision_option_id=1, decision_option=legacy)
-
-    assert evidence.non_recommended_count([event]) == 1
 
 
 # ─── la analítica compara solo filas del mismo schemaVersion ──────────────────────────────────

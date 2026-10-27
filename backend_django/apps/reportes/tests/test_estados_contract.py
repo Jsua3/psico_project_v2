@@ -25,14 +25,13 @@ pytestmark = pytest.mark.usefixtures("fetch_raise")  # DJA-7: un acceso perezoso
 User = get_user_model()
 
 
-def _attempt(estudiante, case_version_id, status, score=0, ended_at=None):
+def _attempt(estudiante, case_version_id, status, ended_at=None):
     return SimulationAttempt.objects.create(
         attempt_token_hash=uuid.uuid4().hex,
         case_version_id=case_version_id,
         student_id=estudiante.id,
         current_node=SimulationNode.objects.filter(case_version_id=case_version_id, start_node=True).first(),
         status=status,
-        accumulated_score=score,
         ended_at=ended_at,
     )
 
@@ -42,20 +41,20 @@ def _mixed_attempts(estudiante, case_version_id, grupo=None):
     estudiante; más 2 en pausa de otros dos estudiantes del grupo (DM-5.4: un estudiante no puede
     tener dos intentos abiertos del mismo caso, así que las pausas son de personas distintas)."""
     now = timezone.now()
-    _attempt(estudiante, case_version_id, "IN_PROGRESS", score=10)
-    for n, score in enumerate((11, 12)):
+    _attempt(estudiante, case_version_id, "IN_PROGRESS")
+    for n in range(2):
         otro = User.objects.create_user(
             email=f"pausa{n}_{uuid.uuid4().hex[:6]}@x.com", password="pass1234",
             nombre="Otro", apellido=f"Pausa{n}", role="ESTUDIANTE",
         )
         if grupo is not None:
             _add_student(grupo, otro)
-        _attempt(otro, case_version_id, "PAUSED", score=score)
-    _attempt(estudiante, case_version_id, "COMPLETED", score=30, ended_at=now)
-    _attempt(estudiante, case_version_id, "COMPLETED", score=50, ended_at=now)
-    _attempt(estudiante, case_version_id, "COMPLETED", score=70, ended_at=now - timedelta(days=1))
-    _attempt(estudiante, case_version_id, "SAFE_EXITED", score=20, ended_at=now)
-    _attempt(estudiante, case_version_id, "REPLACED", score=99, ended_at=now)
+        _attempt(otro, case_version_id, "PAUSED")
+    _attempt(estudiante, case_version_id, "COMPLETED", ended_at=now)
+    _attempt(estudiante, case_version_id, "COMPLETED", ended_at=now)
+    _attempt(estudiante, case_version_id, "COMPLETED", ended_at=now - timedelta(days=1))
+    _attempt(estudiante, case_version_id, "SAFE_EXITED", ended_at=now)
+    _attempt(estudiante, case_version_id, "REPLACED", ended_at=now)
 
 
 def test_el_tablero_cuenta_cada_estado_por_separado(profesor, estudiante, case_version_id):
@@ -92,7 +91,7 @@ def test_el_reporte_de_grupo_cuenta_cada_estado_por_separado(profesor, estudiant
 
 
 def _attempts(*statuses):
-    return [SimulationAttempt(status=s, accumulated_score=10) for s in statuses]
+    return [SimulationAttempt(status=s) for s in statuses]
 
 
 @pytest.mark.parametrize(

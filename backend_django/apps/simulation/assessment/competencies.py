@@ -24,8 +24,8 @@ from decimal import ROUND_HALF_UP, Decimal
 from rest_framework.exceptions import NotFound
 
 from apps.simulation.casedef.vocabulary import ResponseClass
-from apps.simulation.models import LEVEL_INDEX, FormativeLevel, RubricCriterion
-from apps.simulation.services import case_effects, case_rules, rubric_service
+from apps.simulation.models import LEVEL_INDEX, REGISTERED_DECISION_EVENT_TYPES, FormativeLevel, RubricCriterion
+from apps.simulation.services import case_rules, rubric_service
 from apps.simulation.services.case_state import response_class_of
 from apps.simulation.services.competencies import normalize_code
 
@@ -137,7 +137,7 @@ def competency_profile(attempt, events):
     supporting = {code: [] for code in codes}
     order = 0
     for event in events:
-        if event.decision_option_id is None or event.event_type not in case_effects.REGISTERED_DECISION_EVENT_TYPES:
+        if event.decision_option_id is None or event.event_type not in REGISTERED_DECISION_EVENT_TYPES:
             continue
         order += 1
         option = event.decision_option

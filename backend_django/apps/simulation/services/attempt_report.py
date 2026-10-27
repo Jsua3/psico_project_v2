@@ -37,6 +37,8 @@ from apps.simulation.assessment import definitions, evidence
 from apps.simulation.assessment import evaluation as system_evaluation
 
 from ..models import (
+    REGISTERED_DECISION_EVENT_TYPES,
+    RETRY_EVENT_TYPES,
     AttemptEvent,
     AttemptReport,
     AttemptStatus,
@@ -47,7 +49,7 @@ from ..models import (
     SimulationAttempt,
     SimulationNode,
 )
-from . import attempt_duration, case_effects, case_rules, case_state
+from . import attempt_duration, case_rules, case_state
 
 logger = logging.getLogger(__name__)
 
@@ -115,10 +117,10 @@ def build_decision_review(events):
     for ev in events:
         if not ev.decision_option_id:
             continue
-        if ev.event_type in case_effects.RETRY_EVENT_TYPES:
+        if ev.event_type in RETRY_EVENT_TYPES:
             first_answers.setdefault(ev.node_id, ev.decision_option)
             continue
-        if ev.event_type not in case_effects.REGISTERED_DECISION_EVENT_TYPES:
+        if ev.event_type not in REGISTERED_DECISION_EVENT_TYPES:
             continue
         option = ev.decision_option
         response_class = case_state.response_class_of(option)
@@ -214,7 +216,7 @@ def build_report_payload(attempt, events, ordinal=None, definition_hash=None):
     # Solo las decisiones registradas cuentan por clase: los reintentos se reportan aparte.
     decisions = [
         ev.decision_option for ev in events
-        if ev.decision_option_id and ev.event_type in case_effects.REGISTERED_DECISION_EVENT_TYPES
+        if ev.decision_option_id and ev.event_type in REGISTERED_DECISION_EVENT_TYPES
     ]
     by_class = case_state.counts(decisions)
     milestones = build_milestones(attempt)

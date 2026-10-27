@@ -140,7 +140,7 @@ def world(db):
     SimulationAttempt.objects.create(
         attempt_token_hash=uuid.uuid4().hex, student=student, case_version=version,
         current_node=SimulationNode.objects.filter(case_version=version, start_node=True).first(),
-        status="COMPLETED", accumulated_score=70, stress_index=20, active_seconds=300.4, ended_at=timezone.now(),
+        status="COMPLETED", active_seconds=300.4, ended_at=timezone.now(),
     )
     # Auditoría con todos los campos y otra de sistema (sin actor, recurso, IP ni agente: los nulos reales).
     retention = timezone.now() + timedelta(days=360)

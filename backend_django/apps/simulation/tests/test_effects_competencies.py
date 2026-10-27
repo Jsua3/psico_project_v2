@@ -18,7 +18,7 @@ import pytest
 
 from apps.simulation.casedef.export import to_document
 from apps.simulation.models import CaseVersion, DecisionOption
-from apps.simulation.services import case_effects, case_rules
+from apps.simulation.services import case_rules
 from apps.simulation.services.authoring import definition_io
 from apps.simulation.tests.definition_samples import sample_definition
 
@@ -35,9 +35,9 @@ COMPETENCIES = {"PAP": "LOGRADO", "ETICA_PROFESIONAL": "DESTACADO"}
 
 # ─── leer: indulgente ─────────────────────────────────────────────────────────────────────────
 def test_normalizar_conserva_las_competencias_bien_formadas():
-    raw = {"severity": "risky", "competencies": dict(COMPETENCIES)}
+    raw = {"severity": "risky", "competencies": dict(COMPETENCIES)}  # la severidad del modelo antiguo se ignora
 
-    assert case_rules.normalize_effects(raw) == {"severity": "risky", "competencies": COMPETENCIES}
+    assert case_rules.normalize_effects(raw) == {"competencies": COMPETENCIES}
 
 
 @pytest.mark.parametrize(
@@ -64,28 +64,19 @@ def test_normalizar_descarta_lo_mal_formado_sin_lanzar(competencies, kept):
 
 def test_competency_overrides_lee_las_competencias_de_la_opcion():
     decision = DecisionOption(
-        option_key="con", classification="RISKY", effects=json.dumps({"competencies": COMPETENCIES, "flags": {"a": True}})
+        option_key="con", response_class="RISKY", effects=json.dumps({"competencies": COMPETENCIES, "flags": {"a": True}})
     )
-    sin = DecisionOption(option_key="sin", classification="RISKY")
-    rota = DecisionOption(option_key="rota", classification="RISKY", effects="no es json")
+    sin = DecisionOption(option_key="sin", response_class="RISKY")
+    rota = DecisionOption(option_key="rota", response_class="RISKY", effects="no es json")
 
     assert case_rules.competency_overrides(decision) == COMPETENCIES
     assert case_rules.competency_overrides(sin) == {}
     assert case_rules.competency_overrides(rota) == {}
 
 
-def test_option_effects_no_gana_la_clave_de_competencias():
-    """Sus consumidores y sus pruebas comparan el diccionario exacto: el perfil usa ``competency_overrides``."""
-    decision = DecisionOption(
-        option_key="con", classification="RISKY", effects=json.dumps({"competencies": COMPETENCIES})
-    )
-
-    assert case_effects.option_effects(decision) == {"severity": "risky", "flags": {}, "metrics": {}}
-
-
 # ─── escribir: estricto (el editor) ───────────────────────────────────────────────────────────
 def test_el_autor_guarda_las_competencias_y_el_editor_las_devuelve(profesor, case):
-    effects = {"severity": "recommended", "competencies": dict(COMPETENCIES)}
+    effects = {"competencies": dict(COMPETENCIES)}
 
     response = _decide(cl(profesor), case, effects=effects)
 
@@ -117,10 +108,10 @@ def test_competencias_mal_formadas_son_un_400_con_el_campo_y_no_guardan_nada(pro
 
 
 def test_un_objeto_vacio_de_competencias_se_limpia(profesor, case):
-    response = _decide(cl(profesor), case, effects={"severity": "risky", "competencies": {}})
+    response = _decide(cl(profesor), case, effects={"persona": {"bond": 1}, "competencies": {}})
 
     assert response.status_code == 200, response.data
-    assert response.data["data"]["decisions"][0]["effects"] == {"severity": "risky"}
+    assert response.data["data"]["decisions"][0]["effects"] == {"persona": {"bond": 1}}
 
 
 # ─── el documento DSL ─────────────────────────────────────────────────────────────────────────

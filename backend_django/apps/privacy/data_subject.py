@@ -351,8 +351,7 @@ ERASURE_RULES: dict[tuple[str, str], Regla] = {
     **_columnas(
         "simulation_attempts_v2",
         (
-            "id", "student_id", "current_node_id", "status", "accumulated_score", "stress_index", "victim_risk", "user_trust",
-            "institutional_route_activated", "revictimization_risk", "started_at", "ended_at", "active_seconds",
+            "id", "student_id", "current_node_id", "status", "started_at", "ended_at", "active_seconds",
             "last_activity_at",
         ),
         Regla(CONSERVAR, _M_CONDUCTA),
@@ -362,7 +361,7 @@ ERASURE_RULES: dict[tuple[str, str], Regla] = {
         Regla(CONSERVAR, "quién y por qué cerró el intento (texto del docente o del sistema): " + _M_TEXTO_DE_OTRO),
     ),
     **_columnas(
-        "attempt_events", ("attempt_id", "event_type", "decision_option_id", "score_delta", "stress_delta", "occurred_at"),
+        "attempt_events", ("attempt_id", "event_type", "decision_option_id", "occurred_at"),
         Regla(CONSERVAR, _M_CONDUCTA),
     ),
     ("attempt_events", "detail"): Regla(

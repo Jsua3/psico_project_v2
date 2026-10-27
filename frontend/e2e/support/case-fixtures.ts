@@ -179,13 +179,13 @@ export async function buildPublishableDraft(
   }, 'escena final');
   const closingId: number = withClosing['nodes'].find((node: Json) => node['key'] === 'cierre')['id'];
   await send(request, token, 'post', `${base}/${id}/decisions`, {
-    sourceNodeId: startId, targetNodeId: closingId, optionKey: 'cerrar', text: 'Cerrar el caso', classification: 'ADEQUATE',
-    prohibitedConduct: false, prohibitionReason: null, scoreDelta: 10, stressDelta: 0, prohibitedPenalty: 0,
+    sourceNodeId: startId, targetNodeId: closingId, optionKey: 'cerrar', text: 'Cerrar el caso', responseClass: 'RECOMMENDED',
+    prohibitedConduct: false, prohibitionReason: null,
     immediateFeedback: 'Cerrar el caso es adecuado en este ejemplo.',
   }, 'decisión');
   const withOptions = await send(request, token, 'post', `${base}/${id}/decisions`, {
-    sourceNodeId: startId, targetNodeId: closingId, optionKey: 'postergar', text: 'Dejar el caso para después', classification: 'RISKY',
-    prohibitedConduct: false, prohibitionReason: null, scoreDelta: -5, stressDelta: 5, prohibitedPenalty: 0,
+    sourceNodeId: startId, targetNodeId: closingId, optionKey: 'postergar', text: 'Dejar el caso para después', responseClass: 'RISKY',
+    prohibitedConduct: false, prohibitionReason: null,
     immediateFeedback: 'Postergar el cierre deja el caso abierto sin necesidad.',
   }, 'segunda opción de la decisión');
   const optionIds: number[] = withOptions['decisions'].map((decision: Json) => decision['id']);

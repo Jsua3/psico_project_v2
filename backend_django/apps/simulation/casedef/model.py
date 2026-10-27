@@ -143,9 +143,6 @@ class Option:
     text: str
     #: Clave de la escena a la que conduce.
     target: str
-    #: ``ADEQUATE`` | ``RISKY`` | ``INADEQUATE``.
-    classification: str
-    prohibited: bool = False
     reason: str = ""
     consequence: str = ""
     immediate_feedback: str = ""

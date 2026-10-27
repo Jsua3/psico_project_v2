@@ -359,8 +359,7 @@ def _base_options(base_scene, entry, keys, feedback):
         prohibited = bool(item.get("conductaProhibida", False))
         options.append(Option(
             key=extra.get("clave", item["id"]), text=_text(item.get("texto")),
-            target=keys.of_scene(item.get("siguienteEscena", "")), classification=classification,
-            prohibited=prohibited, reason=_text(item.get("motivoProhibicion")),
+            target=keys.of_scene(item.get("siguienteEscena", "")), reason=_text(item.get("motivoProhibicion")),
             consequence=_text(item.get("consecuencia")),
             immediate_feedback=_text(extra.get("retroalimentacionInmediata")), feedback_text=message,
             theory_basis=basis, response_class=_response_class(extra, classification, prohibited),
@@ -372,8 +371,7 @@ def _base_options(base_scene, entry, keys, feedback):
 def _entry_options(entry):
     return [
         Option(
-            key=o["clave"], text=o["texto"], target=o["destino"], classification=o["clasificacion"],
-            prohibited=o["prohibida"], reason=o["motivo"], consequence=o["consecuencia"],
+            key=o["clave"], text=o["texto"], target=o["destino"], reason=o["motivo"], consequence=o["consecuencia"],
             immediate_feedback=o["retroalimentacionInmediata"], feedback_text=o["mensaje"],
             theory_basis=o["fundamento"], response_class=_response_class(o, o["clasificacion"], o["prohibida"]),
             effects=o["efectos"],

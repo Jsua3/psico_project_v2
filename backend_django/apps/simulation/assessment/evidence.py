@@ -5,7 +5,7 @@ si **reflexionó** (según la definición vigente) y si el intento es **evidenci
 reflexión y con un perfil de competencias). Las definiciones están en BORRADOR hasta que Psicología las confirme.
 """
 from apps.simulation.casedef.vocabulary import ResponseClass
-from apps.simulation.services import case_effects
+from apps.simulation.models import REGISTERED_DECISION_EVENT_TYPES
 from apps.simulation.services.case_state import response_class_of
 
 from .definitions import REFLECTION_PER_DECISION_SCENE
@@ -14,7 +14,7 @@ from .definitions import REFLECTION_PER_DECISION_SCENE
 def _registered_decisions(events):
     return [
         event for event in events
-        if event.decision_option_id is not None and event.event_type in case_effects.REGISTERED_DECISION_EVENT_TYPES
+        if event.decision_option_id is not None and event.event_type in REGISTERED_DECISION_EVENT_TYPES
     ]
 
 

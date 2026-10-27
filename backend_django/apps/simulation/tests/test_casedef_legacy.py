@@ -20,6 +20,35 @@ DECISIVE = ["riesgo_feminicidio_valorado", "medidas_proteccion_activadas", "ases
 NEGATIVE = "mediacion_agresor_intentada"
 
 
+# ─── el vocabulario antiguo de las condiciones ────────────────────────────────────────────────
+@pytest.mark.parametrize("condition", [
+    {"flag": "pap_aplicado"},
+    {"metric": "confianza", "gte": 50},
+    {"count": "critical", "eq": 0},
+    {"count": "risky", "lte": 1},
+    {"milestone": "a"},
+    {"not": {"any": [{"flag": "a"}, {"metric": "m", "lt": 3}]}},
+])
+def test_el_validador_del_documento_1_0_acepta_el_vocabulario_antiguo_y_el_nuevo(condition):
+    assert legacy.is_valid_condition(condition) is True
+
+
+@pytest.mark.parametrize("condition", [
+    {}, {"flag": ""}, {"flag": 3}, {"metric": "m"}, {"metric": "m", "gte": "1"}, {"count": "critical"},
+    {"count": "mortal", "gte": 1}, {"flag": "a", "extra": 1}, {"all": [{"flag": "a"}, {"nope": 1}]}, "texto", None,
+])
+def test_el_validador_del_documento_1_0_rechaza_lo_mal_formado(condition):
+    assert legacy.is_valid_condition(condition) is False
+
+
+def test_el_validador_del_documento_1_0_acota_la_profundidad():
+    deep = {"flag": "x"}
+    for _ in range(20):
+        deep = {"not": deep}
+
+    assert legacy.is_valid_condition(deep) is False
+
+
 # ─── las tablas ───────────────────────────────────────────────────────────────────────────────
 def test_las_tablas_de_conversion_son_las_de_la_migracion_0030():
     assert legacy.NEGATIVE_FLAGS == (NEGATIVE, "noticia_muerte_mal_manejada", "interrogatorio_prematuro")

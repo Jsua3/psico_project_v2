@@ -17,6 +17,8 @@ from rest_framework.exceptions import ValidationError
 
 from apps.grupos.models import Grupo, CaseAssignment, GrupoEstudiante
 from apps.simulation.models import (
+    REGISTERED_DECISION_EVENT_TYPES,
+    RETRY_EVENT_TYPES,
     AttemptEvent,
     CaseVersion,
     DecisionOption,
@@ -24,7 +26,7 @@ from apps.simulation.models import (
     SimulationAttempt,
 )
 from apps.simulation.models.rubric import AuditLog
-from apps.simulation.services import case_effects, game_service
+from apps.simulation.services import game_service
 from shared.testing import measure, purge_audit_rows, run_concurrently
 
 from .test_world import _move, _start, case_version_id, cl, estudiante  # noqa: F401  (fixtures)
@@ -33,8 +35,8 @@ pytestmark = [pytest.mark.req("RNF-08"), pytest.mark.req("TD-04")]
 
 BASE = "/api/simulation"
 User = get_user_model()
-RETRY = case_effects.RETRY_EVENT_TYPES
-REGISTERED = case_effects.REGISTERED_DECISION_EVENT_TYPES
+RETRY = RETRY_EVENT_TYPES
+REGISTERED = REGISTERED_DECISION_EVENT_TYPES
 
 
 def _decide(client, attempt_id, token, option_id, **extra):
@@ -45,10 +47,13 @@ def _decide(client, attempt_id, token, option_id, **extra):
     )
 
 
+#: La clasificación del taller que el caso sembrado le daba a cada clase: solo la Recomendada es ``ADEQUATE``.
+_CLASSES_OF = {"ADEQUATE": ("RECOMMENDED",), "RISKY": ("ACCEPTABLE", "RISKY"), "INADEQUATE": ("CONTRAINDICATED",)}
+
+
 def _option(node_id, *classifications):
-    return DecisionOption.objects.filter(
-        source_node_id=node_id, classification__in=classifications
-    ).order_by("id").first()
+    classes = [name for classification in classifications for name in _CLASSES_OF[classification]]
+    return DecisionOption.objects.filter(source_node_id=node_id, response_class__in=classes).order_by("id").first()
 
 
 def _events(attempt_id, *types):
@@ -195,7 +200,6 @@ def test_usar_la_herramienta_con_el_mismo_request_id_deja_un_evento_y_la_misma_r
     assert second.data["data"]["alreadyUsed"] is False
     assert second.data["data"]["pertinent"] == first.data["data"]["pertinent"]
     assert len(_events(attempt_id, "TOOL_USED")) == 1
-    assert SimulationAttempt.objects.get(pk=attempt_id).stress_index == 0  # usar la herramienta no mueve cifras
 
 
 def test_guardar_la_bitacora_con_el_mismo_request_id_deja_un_evento_y_la_misma_respuesta(
@@ -303,7 +307,7 @@ def test_dos_decisiones_distintas_a_la_vez_desde_el_mismo_nodo_se_serializan(com
     """Con el cerrojo, la segunda orden lee el estado que dejó la primera: una opción que ya no
     está disponible desde la escena actual se rechaza (sin cerrojo, ambas avanzarían)."""
     a = committed_attempt
-    options = list(DecisionOption.objects.filter(source_node_id=a.node["id"], classification="ADEQUATE")[:1])
+    options = list(DecisionOption.objects.filter(source_node_id=a.node["id"], response_class="RECOMMENDED")[:1])
     other = DecisionOption.objects.filter(source_node_id=a.node["id"]).exclude(pk=options[0].pk).first()
     # Se aplana el reintento: sin segunda oportunidad la otra opción también avanza el intento.
     # Se conserva el resto de las reglas (métricas y finales del caso) y se restauran tal cual al

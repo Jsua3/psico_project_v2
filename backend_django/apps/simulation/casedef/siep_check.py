@@ -39,8 +39,7 @@ MILESTONE = PREFIX + "SIEP_MILESTONE"
 LIMIT, TOO_LONG = PREFIX + "LIMIT_EXCEEDED", PREFIX + "TEXT_TOO_LONG"
 MAX_SCHEMA_ERRORS = 50
 
-#: Las métricas que un caso sin ``reglas.metrics`` conserva: las siete del caso PDF. Es una copia de
-#: ``services.case_effects.CASE_METRIC_KEYS`` (este paquete no importa Django); una prueba las compara.
+#: Las métricas que un documento 1.0 sin ``reglas.metrics`` conserva: las siete del caso PDF del modelo antiguo.
 DEFAULT_METRICS = (
     "confianza", "crisis_emocional", "riesgo_victima", "rigor_tecnico", "etica_profesional",
     "ruta_institucional", "calidad_duelo",
@@ -360,7 +359,7 @@ def _rules_issues(document, siep, names):
         route = (SIEP_KEY, "reglas", "endings", position, "when")
         if "when" not in ending:
             continue
-        if not conditions.is_valid(ending["when"]):
+        if not legacy.is_valid_condition(ending["when"]):
             collector.add(
                 CONDITION, route,
                 "la condición del final no es válida: solo admite all, any, not, flag, metric y count, "
@@ -415,7 +414,7 @@ def _milestone_issues(document, siep, names):
         route = (SIEP_KEY, "reglas", "endings", position, "when")
         if "when" not in ending:
             continue
-        if not conditions.is_valid(ending["when"]) or legacy.uses_legacy_condition(ending["when"]):
+        if not conditions.is_valid(ending["when"]):
             collector.add(
                 CONDITION, route,
                 "la condición del final no es válida: solo admite all, any, not, milestone, count (por clase) y persona, "

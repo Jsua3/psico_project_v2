@@ -593,10 +593,9 @@ export interface DecisionEdgeState {
   targetNodeId: number;
   targetKey: string;
   text: string;
-  /** Clasificación antigua que el servidor aún devuelve por compatibilidad; la que cuenta es `responseClass`. */
-  classification: 'ADEQUATE' | 'RISKY' | 'INADEQUATE';
   /** La clase de la respuesta; `CONTRAINDICATED` exige `prohibitionReason`. */
   responseClass: ResponseClass;
+  /** Derivada de la clase: `true` si es `CONTRAINDICATED`. */
   prohibitedConduct: boolean;
   prohibitionReason: string | null;
   immediateFeedback: string;
@@ -1007,8 +1006,7 @@ export interface WorldOutgoingDecision {
   id: number;
   optionKey: string;
   text: string;
-  classification: 'ADEQUATE' | 'RISKY' | 'INADEQUATE';
-  /** La clase efectiva de la opción; la que el autor debe ver (la clasificación antigua queda por compatibilidad). */
+  /** La clase efectiva de la opción; la que el autor debe ver. */
   responseClass: ResponseClass;
   targetNodeKey: string;
   prohibitedConduct: boolean;

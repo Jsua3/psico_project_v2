@@ -30,7 +30,6 @@ from apps.simulation.casedef.model import (
     World,
     WorldObject,
 )
-from apps.simulation.casedef.vocabulary import legacy_class
 from apps.simulation.models import (
     CaseCharacter,
     CaseVersion,
@@ -77,12 +76,10 @@ def _options_by_source(rows, node_keys):
         grouped.setdefault(row.source_node_id, []).append(
             Option(
                 key=row.option_key, text=row.text, target=node_keys.get(row.target_node_id, ""),
-                classification=row.classification, prohibited=row.prohibited_conduct,
                 reason=_text(row.prohibition_reason), consequence=_text(row.consequence_text),
                 immediate_feedback=_text(row.immediate_feedback), feedback_text=_text(row.feedback_text),
                 theory_basis=_text(row.theory_basis),
-                response_class=row.response_class
-                or legacy_class(row.classification, None, row.prohibited_conduct).value,
+                response_class=row.response_class,
                 effects=read_map(row.effects),
             )
         )
@@ -283,12 +280,11 @@ def _nodes(version, scenes):
 
 def _option_row(version, scene, option, node_by_key):
     """La fila de una opción: la definición ya trae la clase y los efectos en el modelo nuevo (el importador convierte
-    el documento 1.0 al leerlo); las columnas del puntaje, el estrés y la penalización se quedan en su valor por defecto."""
+    el documento 1.0 al leerlo)."""
     return DecisionOption(
         case_version=version, source_node=node_by_key[scene.key], target_node=node_by_key.get(option.target),
-        option_key=option.key, text=option.text, classification=option.classification,
-        immediate_feedback=option.immediate_feedback, prohibited_conduct=option.prohibited,
-        prohibition_reason=option.reason, consequence_text=option.consequence,
+        option_key=option.key, text=option.text,
+        immediate_feedback=option.immediate_feedback, prohibition_reason=option.reason, consequence_text=option.consequence,
         theory_basis=option.theory_basis, feedback_text=option.feedback_text,
         effects=_dump(option.effects), response_class=option.response_class,
     )

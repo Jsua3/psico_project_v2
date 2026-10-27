@@ -138,7 +138,7 @@ def scenario_post_decision(estudiante, case_version_id):
     _walk(client, attempt_id, token, map_key, PATH_TO_FAMILIA[:1])
     option = next(
         o for o in data["currentNode"]["options"]
-        if DecisionOption.objects.get(pk=o["id"]).classification == "ADEQUATE"
+        if DecisionOption.objects.get(pk=o["id"]).response_class == "RECOMMENDED"
     )
     url = f"/api/simulation/attempts/{attempt_id}/decisions"
     body = {"attemptToken": token, "decisionOptionId": option["id"]}
@@ -161,7 +161,7 @@ def _play_until_the_closing_decision(client, attempt_id, token):
     for _ in range(30):
         attempt = SimulationAttempt.objects.get(pk=attempt_id)
         options = DecisionOption.objects.filter(source_node_id=attempt.current_node_id).select_related("target_node")
-        good = options.filter(classification="ADEQUATE").first() or options.first()
+        good = options.filter(response_class="RECOMMENDED").first() or options.first()
         if good.target_node.terminal_node:
             return good
         response = client.post(

@@ -147,17 +147,6 @@ def test_el_indice_unico_permite_cerrados_junto_a_un_abierto(estudiante, case_ve
 
 
 @pytest.mark.req("RNF-08")
-@pytest.mark.django_db
-@pytest.mark.parametrize(
-    ("field", "value"),
-    [("stress_index", 101), ("stress_index", -1), ("victim_risk", 101), ("user_trust", -1)],
-)
-def test_los_indicadores_del_intento_quedan_entre_0_y_100(estudiante, case_version_id, field, value):
-    with pytest.raises(IntegrityError), transaction.atomic():
-        _attempt_row(estudiante.id, case_version_id, **{field: value}).save()
-
-
-@pytest.mark.req("RNF-08")
 def test_dos_inicios_concurrentes_crean_un_solo_intento(real_commits):
     suffix = uuid.uuid4().hex[:8]
     profesor = User.objects.get(email="profesora@psychosim.edu.co")

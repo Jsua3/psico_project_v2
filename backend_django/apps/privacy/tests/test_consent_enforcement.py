@@ -86,8 +86,6 @@ def instantanea(p):
     return {
         "estado": intento.status,
         "nodo": intento.current_node_id,
-        "puntaje": intento.accumulated_score,
-        "estres": intento.stress_index,
         "token": intento.attempt_token_hash,
         "actividad": (intento.last_activity_at, intento.active_seconds),
         "eventos": AttemptEvent.objects.filter(attempt_id=p.attempt_id).count(),

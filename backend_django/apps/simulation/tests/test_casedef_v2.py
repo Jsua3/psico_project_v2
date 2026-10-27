@@ -91,6 +91,56 @@ def test_the_workshop_base_keeps_its_classification_and_is_untouched_by_the_clas
     assert "clase" not in set(_keys(base))
 
 
+@pytest.mark.parametrize(
+    ("response_class", "classification", "prohibited"),
+    [("RECOMMENDED", "ADECUADA", False), ("ACCEPTABLE", "ADECUADA", False), ("RISKY", "RIESGOSA", False),
+     ("CONTRAINDICATED", "INADECUADA", True)],
+)
+def test_the_workshop_base_derives_its_classification_and_prohibition_from_the_class(
+    response_class, classification, prohibited
+):
+    definition = sample_definition()
+    scene = definition.scenes[0]
+    option = replace(scene.options[0], response_class=response_class, reason="Revictimiza." if prohibited else "")
+    scenes = (replace(scene, options=(option, *scene.options[1:])), *definition.scenes[1:])
+
+    written = to_base_document(replace(definition, scenes=scenes))["escenas"][0]["decision"]["opciones"][0]
+
+    assert written["clasificacion"] == classification
+    assert written.get("conductaProhibida", False) is prohibited
+
+
+def test_a_2_0_import_ignores_the_base_classification_and_the_class_comes_from_x_siep():
+    document = to_document(_definition_with_a_world_for_every_hint())
+    first = document["escenas"][0]["decision"]["opciones"][0]
+    assert first["clasificacion"] == "ADECUADA"
+    first["clasificacion"] = "INADECUADA"
+    first["conductaProhibida"] = True
+
+    read = import_.to_definition(_read(document))
+
+    assert read.scenes[0].options[0].response_class == "RECOMMENDED"
+    assert to_document(read)["escenas"][0]["decision"]["opciones"][0]["clasificacion"] == "ADECUADA"
+    assert "conductaProhibida" not in to_document(read)["escenas"][0]["decision"]["opciones"][0]
+
+
+def test_a_1_0_import_still_converts_the_base_classification_through_legacy_class():
+    document = to_document(sample_definition())
+    document["x-siep"]["version"] = "1.0"
+    for entry in document["x-siep"]["escenas"]:
+        for option in entry["opciones"]:
+            option.pop("clase")
+            option.update({"puntaje": 0, "estres": 0, "penalizacion": 0})
+        entry.pop("intensidad")
+    document["x-siep"]["reglas"] = {}
+    document["escenas"][0]["decision"]["opciones"][1]["clasificacion"] = "INADECUADA"
+    document["escenas"][0]["decision"]["opciones"][1]["motivoProhibicion"] = "Revictimiza."
+
+    read = import_.to_definition(_read(document))
+
+    assert [o.response_class for o in read.scenes[0].options] == ["RECOMMENDED", "CONTRAINDICATED"]
+
+
 def test_a_2_0_document_is_read_as_is():
     definition = _definition_with_a_world_for_every_hint()
 

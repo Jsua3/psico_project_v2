@@ -7,6 +7,11 @@ banderas, métricas, finales por banderas) ANTES de jugar, para que el motor act
 intentos; y la fixture ``run`` deja además ``response_class`` vacía e ``intensity`` en ``MEDIUM`` antes de llamar
 directamente a la función de la ``0030``. Se prueba con un intento abierto que ya tomó decisiones con el motor actual
 y un intento completado con su reporte congelado.
+
+La ``0031`` (contracción) ya quitó de la base las columnas que la ``0030`` lee (``classification``,
+``prohibited_conduct``…). La prueba corre dentro de una transacción, así que las repone con DDL (que PostgreSQL deshace
+al terminar) y llama a la función de la ``0030`` con el estado histórico de esa migración (``legacy_apps``), no con los
+modelos de hoy.
 """
 import json
 from importlib import import_module
@@ -14,8 +19,9 @@ from pathlib import Path
 from types import SimpleNamespace
 
 import pytest
-from django.apps import apps as django_apps
 from django.contrib.auth import get_user_model
+from django.db import connection
+from django.db.migrations.loader import MigrationLoader
 
 from apps.simulation.casedef import legacy
 from apps.simulation.casedef.conditions import evaluate
@@ -48,10 +54,43 @@ DECISIVE = ["riesgo_feminicidio_valorado", "medidas_proteccion_activadas", "ases
 DOCUMENT = Path(__file__).resolve().parent / "fixtures" / "SIM-VBG-001.v1.dsl.json"
 
 
+CLASSIFICATION = {"ADECUADA": "ADEQUATE", "RIESGOSA": "RISKY", "INADECUADA": "INADEQUATE"}
+
+
 @pytest.fixture
-def case_version_id(seeded_case_version_id):
+def legacy_apps():
+    """El estado histórico de la ``0030`` con las columnas de la forma antigua repuestas en ``decision_options``.
+
+    ``response_class`` vuelve a admitir nulos y las cinco columnas que quitó la ``0031`` regresan con su valor por
+    defecto (las llena ``case_version_id`` con lo que decía el documento 1.0).
+    """
+    with connection.cursor() as cursor:
+        cursor.execute("SET CONSTRAINTS ALL IMMEDIATE")  # sin eventos de FK pendientes antes del DDL
+        cursor.execute(
+            "ALTER TABLE decision_options ALTER COLUMN response_class DROP NOT NULL, "
+            "ADD COLUMN classification varchar(24) NOT NULL DEFAULT 'ADEQUATE', "
+            "ADD COLUMN score_delta integer NOT NULL DEFAULT 0, ADD COLUMN stress_delta integer NOT NULL DEFAULT 0, "
+            "ADD COLUMN prohibited_penalty integer NOT NULL DEFAULT 0, "
+            "ADD COLUMN prohibited_conduct boolean NOT NULL DEFAULT false"
+        )
+    return MigrationLoader(connection).project_state([("simulation", "0030_metrics_model_data")]).apps
+
+
+@pytest.fixture
+def case_version_id(seeded_case_version_id, legacy_apps):
     """SIM-VBG-001 sembrado, con las filas devueltas a la forma 1.0 que la ``0030`` sabe convertir."""
-    siep = json.loads(DOCUMENT.read_text(encoding="utf-8"))["x-siep"]
+    document = json.loads(DOCUMENT.read_text(encoding="utf-8"))
+    siep = document["x-siep"]
+    key_of_id = {option["id"]: option["clave"] for scene in siep["escenas"] for option in scene["opciones"]}
+    with connection.cursor() as cursor:
+        for scene in document["escenas"]:
+            for option in (scene.get("decision") or {}).get("opciones", []):
+                cursor.execute(
+                    "UPDATE decision_options SET classification = %s, prohibited_conduct = %s "
+                    "WHERE case_version_id = %s AND option_key = %s",
+                    [CLASSIFICATION[option["clasificacion"]], bool(option.get("conductaProhibida")),
+                     seeded_case_version_id, key_of_id[option["id"]]],
+                )
     effects_by_key = {option["clave"]: option["efectos"] for scene in siep["escenas"] for option in scene["opciones"]}
     for option in DecisionOption.objects.filter(case_version_id=seeded_case_version_id):
         option.effects = json.dumps(effects_by_key[option.option_key], ensure_ascii=False)
@@ -107,7 +146,7 @@ def _to_legacy_state(attempt_id):
 
 
 @pytest.fixture
-def run(completed, case_version_id, capsys):
+def run(completed, case_version_id, legacy_apps, capsys):
     """Un intento completado, otro abierto con decisiones y las filas en su forma antigua; luego la ``0030``."""
     client, completed_id, _ = completed
     # Desde la Tarea 9 los intentos nuevos cierran en v3: el cerrado «de antes» es un v2 escrito a mano.
@@ -117,7 +156,7 @@ def run(completed, case_version_id, capsys):
     open_id, token = _start(client, case_version_id)
     for step in range(2):
         attempt = SimulationAttempt.objects.get(pk=open_id)
-        option = DecisionOption.objects.filter(source_node_id=attempt.current_node_id, classification="ADEQUATE").first()
+        option = DecisionOption.objects.filter(source_node_id=attempt.current_node_id, response_class="RECOMMENDED").first()
         assert _decide(client, open_id, token, option.id, requestId=f"req-abierto-{step:04d}").status_code == 200
     legacy_state = _to_legacy_state(open_id)
     assert legacy_state["caseFlags"] and legacy_state["caseMetrics"]  # el intento abierto trae el estado antiguo
@@ -134,7 +173,7 @@ def run(completed, case_version_id, capsys):
     assert with_negative  # la siembra trae al menos una opción que enciende la bandera
     capsys.readouterr()
 
-    migration.forward(django_apps, None)
+    migration.forward(legacy_apps, None)
     return SimpleNamespace(
         client=client, token=token, completed_id=completed_id, open_id=open_id, legacy_state=legacy_state,
         frozen_before=frozen_before, with_negative=with_negative, version_id=case_version_id, report=capsys.readouterr().out,
@@ -239,7 +278,7 @@ def test_un_intento_abierto_conserva_sus_hitos_y_su_persona_y_sigue_jugable(run)
     assert "caseFlags" not in state and "caseMetrics" not in state
 
     attempt = SimulationAttempt.objects.get(pk=run.open_id)
-    option = DecisionOption.objects.filter(source_node_id=attempt.current_node_id, classification="ADEQUATE").first()
+    option = DecisionOption.objects.filter(source_node_id=attempt.current_node_id, response_class="RECOMMENDED").first()
     response = _decide(run.client, run.open_id, run.token, option.id, requestId="req-despues-0001")
 
     assert response.status_code == 200, response.data
@@ -253,7 +292,7 @@ def test_un_intento_abierto_migrado_termina_con_el_final_de_plantilla_que_le_cor
         attempt = SimulationAttempt.objects.get(pk=run.open_id)
         if attempt.status != "IN_PROGRESS":
             break
-        option = DecisionOption.objects.filter(source_node_id=attempt.current_node_id, classification="ADEQUATE").first()
+        option = DecisionOption.objects.filter(source_node_id=attempt.current_node_id, response_class="RECOMMENDED").first()
         response = _decide(run.client, run.open_id, run.token, option.id, requestId=f"req-cierre-{step:04d}")
         assert response.status_code == 200, response.data
     assert SimulationAttempt.objects.get(pk=run.open_id).status == "COMPLETED"
@@ -294,17 +333,17 @@ def test_un_reporte_v2_congelado_queda_byte_a_byte_igual(run):
 
 
 # ─── (d) idempotencia ─────────────────────────────────────────────────────────────────────────────
-def test_la_migracion_es_idempotente_sobre_filas_ya_migradas(run, capsys):
+def test_la_migracion_es_idempotente_sobre_filas_ya_migradas(run, legacy_apps, capsys):
     first = _snapshot(run.version_id)
 
-    migration.forward(django_apps, None)
+    migration.forward(legacy_apps, None)
 
     assert _snapshot(run.version_id) == first
     assert "Opciones con severidad crítica SIN conducta prohibida (pasan a CONTRAINDICATED; revisar): 0." in capsys.readouterr().out
 
 
 # ─── otras versiones ──────────────────────────────────────────────────────────────────────────────
-def test_otras_versiones_conservan_sus_finales_propios_y_las_sin_finales_no_ganan_ninguno(estudiante, capsys):
+def test_otras_versiones_conservan_sus_finales_propios_y_las_sin_finales_no_ganan_ninguno(estudiante, legacy_apps, capsys):
     case = SimulationCase.objects.create(code="CASO-MIG-1", title="Caso de prueba", created_by=estudiante)
 
     def version(number, rules):
@@ -323,7 +362,7 @@ def test_otras_versiones_conservan_sus_finales_propios_y_las_sin_finales_no_gana
     without = version("2.0", {"metrics": [{"key": "confianza", "initial": 50}]})
     empty = version("3.0", {})
 
-    migration.forward(django_apps, None)
+    migration.forward(legacy_apps, None)
 
     rules = json.loads(CaseVersion.objects.get(pk=own.pk).rules)
     assert "metrics" not in rules and rules["secondChance"] is True and "riskLevel" not in rules

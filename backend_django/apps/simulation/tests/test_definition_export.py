@@ -71,7 +71,7 @@ def _small_version(code, *, flip_creation_order=False, orders=(1, 2)):
     for key, text in (("o1", "Primera"), ("o2", "Segunda")):
         DecisionOption.objects.create(
             case_version=version, option_key=key, source_node=nodes["a"], target_node=nodes["b"],
-            text=text, classification="ADEQUATE" if key == "o1" else "RISKY", immediate_feedback="Ok",
+            text=text, response_class="RECOMMENDED" if key == "o1" else "RISKY", immediate_feedback="Ok",
         )
     return version
 

@@ -40,12 +40,12 @@ def sample_definition():
         hints=("Piensa en los actores.",), x=40, y=60, support=("Línea 106",),
         options=(
             Option(
-                key="analizar", text="Analizar", target="mapa", classification="ADEQUATE",
+                key="analizar", text="Analizar", target="mapa",
                 consequence="Se ve el mapa.", feedback_text="Analizar ayuda.", theory_basis="Psicología social",
                 immediate_feedback="Bien.", response_class="RECOMMENDED",
                 effects={"persona": {"bond": 1, "activation": -1}, "milestones": ["analizo"]},
             ),
-            Option(key="intervenir", text="Intervenir", target="cierre", classification="RISKY",
+            Option(key="intervenir", text="Intervenir", target="cierre",
                    feedback_text="Solo el mensaje.", immediate_feedback="Apresurado.", response_class="RISKY",
                    effects={"persona": {"bond": -1, "activation": 0}}),
         ),
@@ -73,17 +73,15 @@ def sample_definition():
     )
     mapa = Scene(
         key="mapa", title="Mapa de actores", narrative="Se ordenan.", prompt="¿Y ahora?",
-        options=(Option(key="seguir", text="Seguir", target="cierre", classification="ADEQUATE",
-                        response_class="RECOMMENDED"),
-                 Option(key="volver", text="Volver", target="cierre", classification="RISKY", response_class="RISKY")),
+        options=(Option(key="seguir", text="Seguir", target="cierre", response_class="RECOMMENDED"),
+                 Option(key="volver", text="Volver", target="cierre", response_class="RISKY")),
         world=make_world("sala-mapa"),
     )
     cierre = Scene(key="cierre", title="Cierre", narrative="Fin.", terminal=True, hints=("Una pista suelta.",))
     recepcion = Scene(
         key="recepcion", title="Recepción", narrative="Un pasillo que solo se alcanza por una puerta.",
         sensitive=True, warning="Contenido sensible.", intensity="HIGH",
-        options=(Option(key="salir", text="Salir", target="cierre", classification="ADEQUATE",
-                        response_class="ACCEPTABLE"),),
+        options=(Option(key="salir", text="Salir", target="cierre", response_class="ACCEPTABLE"),),
         world=make_world("sala-recepcion"),
     )
     return CaseDefinition(

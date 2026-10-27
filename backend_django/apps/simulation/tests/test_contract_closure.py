@@ -107,7 +107,7 @@ def _start(world, version_id, **extra):
 def _adequate_option(started) -> int:
     """Una opción adecuada de la escena de inicio: la prohibida no se aplica (es un reintento) y no tiene consecuencia."""
     options = started.data["data"]["currentNode"]["options"]
-    adequate = [o["id"] for o in options if DecisionOption.objects.get(pk=o["id"]).classification == "ADEQUATE"]
+    adequate = [o["id"] for o in options if DecisionOption.objects.get(pk=o["id"]).response_class == "RECOMMENDED"]
     return (adequate or [options[0]["id"]])[0]
 
 

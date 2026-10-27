@@ -111,7 +111,6 @@ def _closed_attempt(estudiante, case_version_id, status):
         student_id=estudiante.id,
         current_node=start_node,
         status=status,
-        accumulated_score=40,
         ended_at=timezone.now(),
     )
 
@@ -159,7 +158,7 @@ def test_grupo_report_simulation_block(profesor, estudiante, case_version_id):
     options = start["currentNode"]["options"]
     # El JSON del nodo ya no trae la clasificación (T11.5): se consulta por id.
     option = next(
-        (o for o in options if DecisionOption.objects.get(pk=o["id"]).classification == "ADEQUATE"),
+        (o for o in options if DecisionOption.objects.get(pk=o["id"]).response_class == "RECOMMENDED"),
         options[0],
     )
     c.post(

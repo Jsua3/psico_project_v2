@@ -185,8 +185,8 @@ def _case_versions_reuse_ratio():
     CaseVersion.objects.filter(pk=_published_version().pk).update(reuse_ratio=2)
 
 
-def _decision_options_classification():
-    DecisionOption.objects.filter(pk=DecisionOption.objects.first().pk).update(classification="MAYBE")
+def _decision_options_response_class():
+    DecisionOption.objects.filter(pk=DecisionOption.objects.first().pk).update(response_class="MAYBE")
 
 
 def _map_objects_object_type():
@@ -279,30 +279,15 @@ def _rubric_evaluations_origin_instructor():
     _evaluation(_an_attempt(), Rubric.objects.create(name="R", created_by=_admin()), "SISTEMA", _admin())
 
 
-def _attempts_stress_range():
-    _attempt_with(stress_index=101)
-
-
-def _attempts_victim_risk_range():
-    _attempt_with(victim_risk=-1)
-
-
-def _attempts_user_trust_range():
-    _attempt_with(user_trust=101)
-
-
 CHECKS = {
     "users_role_check": _users_role,
     "case_versions_status_check": _case_versions_status,
     "case_versions_seal_check": _case_versions_seal,
     "case_versions_reuse_ratio_check": _case_versions_reuse_ratio,
-    "decision_options_classification_check": _decision_options_classification,
+    "decision_options_response_class_check": _decision_options_response_class,
     "map_objects_object_type_check": _map_objects_object_type,
     "publication_checklists_status_check": _publication_checklists_status,
     "simulation_attempts_v2_status_check": _simulation_attempts_status,
-    "ck_attempts_stress_range": _attempts_stress_range,
-    "ck_attempts_victim_risk_range": _attempts_victim_risk_range,
-    "ck_attempts_user_trust_range": _attempts_user_trust_range,
     "grupo_estudiante_status_check": _grupo_estudiante_status,
     "case_assignments_target_check": _case_assignments_target,
     "case_assignments_window_check": _case_assignments_window,

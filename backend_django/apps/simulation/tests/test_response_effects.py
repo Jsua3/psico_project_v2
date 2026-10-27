@@ -1,8 +1,7 @@
 """Motor de respuestas: la clase de una opción, el paso de la persona y los hitos (RN-08).
 
 ``resolve`` es puro (no toca la base); ``apply`` escribe en el estado del mundo del intento
-a través de ``case_state``. Una opción sin ``response_class`` cae a la clase que daban los
-datos antiguos (R-8).
+a través de ``case_state``. La clase sale de la columna ``response_class``.
 """
 import json
 import uuid
@@ -25,13 +24,11 @@ pytestmark = [pytest.mark.req("RN-08")]
 User = get_user_model()
 
 
-def _option(response_class=None, effects=None, classification="ADEQUATE", prohibited=False):
+def _option(response_class="ACCEPTABLE", effects=None):
     """Una opción sin guardar: ``resolve`` solo lee sus campos."""
     return DecisionOption(
         option_key=f"opt-{uuid.uuid4().hex[:6]}",
         text="Hacer algo",
-        classification=classification,
-        prohibited_conduct=prohibited,
         response_class=response_class,
         effects=json.dumps(effects) if effects is not None else "{}",
     )
@@ -88,12 +85,6 @@ def test_el_paso_por_defecto_sale_de_la_clase(response_class, step):
     assert effects.milestones == ()
 
 
-def test_una_contraindicada_enciende_la_revictimizacion_y_ninguna_otra():
-    assert response_effects.resolve(_option("CONTRAINDICATED")).revictimization is True
-    for other in ("RECOMMENDED", "ACCEPTABLE", "RISKY"):
-        assert response_effects.resolve(_option(other)).revictimization is False
-
-
 def test_el_persona_de_la_opcion_gana_a_la_tabla_por_defecto():
     effects = response_effects.resolve(
         _option("RECOMMENDED", effects={"persona": {"bond": -1, "activation": 1}})
@@ -116,41 +107,6 @@ def test_los_hitos_de_la_opcion_salen_sin_repetidos_y_en_orden():
     )
 
     assert effects.milestones == ("b_hito", "a_hito")
-
-
-def test_sin_clase_cae_a_la_clasificacion_antigua_r8():
-    adequate = response_effects.resolve(_option(None, classification="ADEQUATE"))
-    risky = response_effects.resolve(_option(None, classification="RISKY"))
-    inadequate = response_effects.resolve(_option(None, classification="INADEQUATE"))
-
-    assert adequate.response_class is ResponseClass.RECOMMENDED
-    assert risky.response_class is ResponseClass.RISKY
-    assert inadequate.response_class is ResponseClass.CONTRAINDICATED
-
-
-def test_sin_clase_la_severidad_y_la_conducta_prohibida_mandan_r8():
-    by_severity = response_effects.resolve(
-        _option(None, effects={"severity": "acceptable"}, classification="RISKY")
-    )
-    by_prohibition = response_effects.resolve(_option(None, classification="ADEQUATE", prohibited=True))
-
-    assert by_severity.response_class is ResponseClass.ACCEPTABLE
-    assert by_prohibition.response_class is ResponseClass.CONTRAINDICATED
-    assert by_prohibition.revictimization is True
-
-
-@pytest.mark.parametrize("raw", ["", "   ", "NO_EXISTE"])
-def test_una_clase_vacia_o_desconocida_cae_a_los_datos_antiguos(raw):
-    effects = response_effects.resolve(_option(raw, classification="RISKY"))
-
-    assert effects.response_class is ResponseClass.RISKY
-
-
-def test_la_clase_declarada_gana_a_la_clasificacion():
-    effects = response_effects.resolve(_option("ACCEPTABLE", classification="INADEQUATE", prohibited=True))
-
-    assert effects.response_class is ResponseClass.ACCEPTABLE
-    assert effects.revictimization is False
 
 
 # ── apply ───────────────────────────────────────────────────────────────────

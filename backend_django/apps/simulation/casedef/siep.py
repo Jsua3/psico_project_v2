@@ -7,6 +7,8 @@ descripción, una escena que solo se alcanza por una puerta, una rúbrica sin cr
 completas y sin ``id``. Todas las listas siguen el orden del modelo. Dentro del mundo, las
 referencias van por la **clave del producto** (opción, personaje, herramienta, objeto).
 """
+from .vocabulary import CLASSIFICATION_OF_CLASS, ResponseClass
+
 #: La versión del documento: la 2.0 describe las respuestas por clase, hitos y persona (sin puntaje, estrés ni
 #: penalización). El importador aún lee la 1.0 y la convierte (``casedef.legacy``).
 VERSION = "2.0"
@@ -61,8 +63,9 @@ def _option_entry(option, scene_key, ids):
                 entry["fundamento"] = option.theory_basis
     else:
         entry.update({
-            "texto": option.text, "destino": option.target, "clasificacion": option.classification,
-            "prohibida": option.prohibited, "motivo": option.reason, "consecuencia": option.consequence,
+            "texto": option.text, "destino": option.target,
+            "clasificacion": CLASSIFICATION_OF_CLASS[ResponseClass(option.response_class)],
+            "prohibida": option.response_class == ResponseClass.CONTRAINDICATED, "motivo": option.reason, "consecuencia": option.consequence,
             "mensaje": option.feedback_text, "fundamento": option.theory_basis,
         })
     return entry

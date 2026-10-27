@@ -3,6 +3,7 @@
 Cada mutación de autoría devuelve esta vista completa, así que casi todo el
 subsistema depende de este módulo.
 """
+from apps.simulation.casedef.vocabulary import ResponseClass
 from apps.simulation.models import (
     CaseCharacter,
     CaseReview,
@@ -222,13 +223,10 @@ def decision_edge(d):
         "targetNodeId": d.target_node_id,
         "targetKey": d.target_node.node_key,
         "text": d.text,
-        "classification": d.classification,
         "responseClass": response_class_of(d).value,
-        "prohibitedConduct": d.prohibited_conduct,
+        # Derivada: la casilla «conducta contraindicada» del editor y el grafo la leen; la clase es la fuente.
+        "prohibitedConduct": response_class_of(d) is ResponseClass.CONTRAINDICATED,
         "prohibitionReason": d.prohibition_reason,
-        "scoreDelta": d.score_delta,
-        "stressDelta": d.stress_delta,
-        "prohibitedPenalty": d.prohibited_penalty,
         "immediateFeedback": d.immediate_feedback,
         "consequenceText": d.consequence_text,
         "theoryBasis": d.theory_basis,

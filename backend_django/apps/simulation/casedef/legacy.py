@@ -12,6 +12,7 @@ se importa de ella). Si una cambia, la otra no sigue sola; las pruebas de ambas 
 
 Toda conversión es idempotente: lo que ya está en la forma nueva sale igual.
 """
+from . import conditions
 from .vocabulary import DEFAULT_PERSONA_STEP, Intensity, ResponseClass, RiskLevel
 
 #: Banderas que marcan un acto contraindicado (lo que el psicólogo NO debe hacer), no un paso profesional: no son
@@ -103,6 +104,41 @@ def uses_legacy_condition(condition) -> bool:
     if "metric" in condition or "flag" in condition or condition.get("count") == "critical":
         return True
     return any(uses_legacy_condition(value) for value in condition.values() if isinstance(value, (dict, list)))
+
+
+def _is_number(value):
+    return isinstance(value, (int, float)) and not isinstance(value, bool)
+
+
+def is_valid_condition(condition, _depth=0) -> bool:
+    """¿Es una condición bien formada del documento 1.0? Además del vocabulario vigente admite el antiguo.
+
+    El antiguo es ``{"flag": nombre}``, ``{"metric": nombre, gte|gt|lte|lt|eq}`` y ``{"count": "critical", …}``. El
+    validador del documento 1.0 (``siep_check``) la usa porque ``conditions.is_valid`` ya no los conoce.
+    """
+    if _depth > conditions.MAX_DEPTH or not isinstance(condition, dict):
+        return False
+    next_depth = _depth + 1
+    for group in ("all", "any"):
+        if group in condition:
+            items = condition[group]
+            return (
+                set(condition) == {group}
+                and isinstance(items, list)
+                and all(is_valid_condition(item, next_depth) for item in items)
+            )
+    if "not" in condition:
+        return set(condition) == {"not"} and is_valid_condition(condition["not"], next_depth)
+    if "flag" in condition:
+        return set(condition) == {"flag"} and isinstance(condition["flag"], str) and bool(condition["flag"])
+    comparators = [condition[name] for name in conditions.COMPARATORS if name in condition]
+    allowed = {"metric", "count", *conditions.COMPARATORS}
+    if "metric" in condition and set(condition) <= allowed - {"count"}:
+        name = condition["metric"]
+        return isinstance(name, str) and bool(name) and bool(comparators) and all(_is_number(bound) for bound in comparators)
+    if condition.get("count") == "critical" and set(condition) <= allowed - {"metric"}:
+        return bool(comparators) and all(_is_number(bound) for bound in comparators)
+    return conditions.is_valid(condition)
 
 
 def template_endings_when(decisive_keys) -> dict:

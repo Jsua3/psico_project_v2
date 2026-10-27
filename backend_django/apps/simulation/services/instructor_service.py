@@ -19,6 +19,7 @@ from shared.identity import IdentityPresenter
 from shared.security_events import log_security_event
 
 from ..models import (
+    REGISTERED_DECISION_EVENT_TYPES,
     AttemptEvent,
     EvaluationOrigin,
     ReflectionJournal,
@@ -26,7 +27,7 @@ from ..models import (
     SimulationAttempt,
 )
 from . import attempt_lifecycle as lifecycle
-from . import attempt_report, case_effects, case_state, crypto_service, world_service
+from . import attempt_report, case_state, crypto_service, world_service
 from . import rubric_service
 from .attempt_lock import lock_attempt_row
 from .attempt_replacement import replace_open_attempt
@@ -193,7 +194,7 @@ def _persona_por_escena(events):
     activation, label}]``. Recalculada sobre los eventos con la regla del juego (``case_state.persona_trail``)."""
     decisions = [
         ev for ev in events
-        if ev.decision_option_id and ev.event_type in case_effects.REGISTERED_DECISION_EVENT_TYPES
+        if ev.decision_option_id and ev.event_type in REGISTERED_DECISION_EVENT_TYPES
     ]
     trail = case_state.persona_trail(ev.decision_option for ev in decisions)
     return [
@@ -248,7 +249,7 @@ def trace(attempt_id, instructor=None):
         # Cuántas decisiones registradas hubo de cada clase, los hitos cumplidos y los que faltaron, y el final.
         "counts": case_state.counts(
             ev.decision_option for ev in events
-            if ev.decision_option_id and ev.event_type in case_effects.REGISTERED_DECISION_EVENT_TYPES
+            if ev.decision_option_id and ev.event_type in REGISTERED_DECISION_EVENT_TYPES
         ),
         "milestones": attempt_report.build_milestones(attempt),
         "personaPorEscena": _persona_por_escena(events),

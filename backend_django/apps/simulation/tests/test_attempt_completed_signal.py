@@ -62,7 +62,7 @@ def _start(api, case_version_id):
 def _decide(api, state, adequate=True):
     options = state["currentNode"]["options"]
     option = next(
-        (o for o in options if DecisionOption.objects.get(pk=o["id"]).classification == "ADEQUATE"),
+        (o for o in options if DecisionOption.objects.get(pk=o["id"]).response_class == "RECOMMENDED"),
         options[0],
     ) if adequate else options[0]
     resp = api.post(

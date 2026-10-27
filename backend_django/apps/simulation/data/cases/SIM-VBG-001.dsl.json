@@ -56,7 +56,7 @@
         "id": "D02",
         "opciones": [
           {
-            "clasificacion": "RIESGOSA",
+            "clasificacion": "ADECUADA",
             "id": "OP04",
             "siguienteEscena": "E03",
             "texto": "Aplicar solo la Resolución 459 de 2012 (protocolo de atención integral a víctimas de violencia sexual y de género)."
@@ -92,13 +92,13 @@
             "texto": "Escucha activa sin juicios, intervenir la disonancia cognitiva, indagar antecedentes de la relación y activar ruta por psicología clínica y psiquiatría."
           },
           {
-            "clasificacion": "RIESGOSA",
+            "clasificacion": "ADECUADA",
             "id": "OP08",
             "siguienteEscena": "E04",
             "texto": "PAP a la familia + escucha activa y sin juicios a la víctima (cuando esté consciente) + protocolo EPICEE/SPIKES para comunicar el fallecimiento de la menor."
           },
           {
-            "clasificacion": "RIESGOSA",
+            "clasificacion": "ADECUADA",
             "id": "OP09",
             "siguienteEscena": "E04",
             "texto": "Lo anterior + antecedentes de la relación para determinar el ciclo de la violencia + manejo interdisciplinario del caso."
@@ -160,7 +160,7 @@
             "texto": "Ley 2126 de 2021 + Ley 1098 de 2006 + Ley 1257 de 2008."
           },
           {
-            "clasificacion": "RIESGOSA",
+            "clasificacion": "ADECUADA",
             "id": "OP15",
             "siguienteEscena": "E06",
             "texto": "Ley 1098 de 2006 + Ley 1257 de 2008."
@@ -190,7 +190,7 @@
             "texto": "Escucha activa, intervenir la disonancia, antecedentes y ciclos de violencia, valoración de riesgo de feminicidio y ruta por psicología clínica y psiquiatría."
           },
           {
-            "clasificacion": "RIESGOSA",
+            "clasificacion": "ADECUADA",
             "id": "OP18",
             "siguienteEscena": "E07",
             "texto": "Valoración inicial psicológica y emocional de la víctima y de las personas dependientes o en situación de vulnerabilidad + escucha activa + antecedentes y ciclos + rutas de derivación a salud y salud mental."

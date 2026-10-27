@@ -13,7 +13,7 @@ const node = (id: number, over: Partial<NodeEditorState> = {}): NodeEditorState 
 
 const edge = (id: number, source: number, target: number, over: Partial<DecisionEdgeState> = {}): DecisionEdgeState => ({
   id, sourceNodeId: source, sourceKey: `n-${source}`, targetNodeId: target, targetKey: `n-${target}`, optionKey: `o-${id}`,
-  text: `Decisión ${id}`, classification: 'ADEQUATE', responseClass: 'RECOMMENDED', prohibitedConduct: false, prohibitionReason: null,
+  text: `Decisión ${id}`, responseClass: 'RECOMMENDED', prohibitedConduct: false, prohibitionReason: null,
   immediateFeedback: '', effects: {}, consequenceText: '', theoryBasis: '', feedbackText: '', ...over,
 } as DecisionEdgeState);
 

@@ -6,13 +6,14 @@ from shared.jsonutils import read_string_list
 
 from apps.simulation.casedef.vocabulary import Intensity, ResponseClass
 from apps.simulation.models import (
+    RETRY_EVENT_TYPES,
     AttemptStatus,
     ClinicalTool,
     DecisionOption,
     MapObject,
     ReflectionJournal,
 )
-from apps.simulation.services import case_effects, endings
+from apps.simulation.services import endings
 
 SAFE_EXIT_RESOURCES = [
     "Puedes pausar el intento y retomarlo con acompañamiento docente.",
@@ -220,7 +221,7 @@ class CompletionReportBuilder:
                     self.visited.append(title)
             if ev.event_type == "TOOL_USED":
                 self.tools_used += 1
-            if ev.event_type in case_effects.RETRY_EVENT_TYPES:
+            if ev.event_type in RETRY_EVENT_TYPES:
                 # Reconsideración: no se aplicó (se reporta aparte de las decisiones).
                 self.retries += 1
                 if ev.event_type == "PROHIBITED_DECISION_RETRY_REQUIRED":

@@ -80,7 +80,7 @@ def test_editor_returns_view(admin, published_cv):
         assert key in node, f"node missing {key}"
     edge = data["decisions"][0]
     for key in ("id", "optionKey", "sourceNodeId", "sourceKey", "targetNodeId",
-                "targetKey", "classification", "prohibitedConduct", "scoreDelta"):
+                "targetKey", "responseClass", "prohibitedConduct"):
         assert key in edge
 
 
@@ -340,7 +340,7 @@ def test_world_editor_exposes_available_decisions(admin, published_cv):
     we = cl(admin).get(f"{BASE}/{published_cv}/world-editor").data["data"]
     assert "availableDecisions" in we
     for d in we["availableDecisions"]:
-        for k in ("id", "optionKey", "text", "classification", "responseClass", "targetNodeKey", "prohibitedConduct"):
+        for k in ("id", "optionKey", "text", "responseClass", "targetNodeKey", "prohibitedConduct"):
             assert k in d, f"availableDecisions missing {k}"
         assert d["responseClass"] in {"RECOMMENDED", "ACCEPTABLE", "RISKY", "CONTRAINDICATED"}
 

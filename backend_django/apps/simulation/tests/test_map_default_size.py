@@ -1,83 +1,22 @@
-"""A-03c — Los números de las reglas del intento y del mapa, fijados uno a uno.
+"""A-03c — El tamaño por defecto del mapa, fijado.
 
-Antes de darles nombre a los literales (escala 0-100, valores iniciales, métrica inicial del
-caso y tamaño por defecto del mapa), estas pruebas fijan cada valor tal como se comporta hoy.
-Los que ya tenían prueba están en otros archivos: la acotación a 0-100 y el 960×540 de
-`_door_entry` en ``test_shared_helper_call_sites``, y el umbral de estrés alto (69/70/100)
-en ``test_completion_report_contract``. Las tablas de la conducta prohibida (estrés, confianza
-y riesgo por decisión) y el estrés de las herramientas se retiraron con la Tarea 5: ya nada las usa.
+Un mapa sin tamaño guardado mide 960×540: ese valor limita el movimiento del jugador y es el tamaño del primer mapa de un
+caso nuevo. Los valores iniciales y las tablas del intento antiguo (escala 0-100, estrés, confianza, riesgo y la métrica
+inicial del caso) se retiraron con el modelo de métricas; la acotación de la entrada de una puerta (``_door_entry``) está
+en ``test_shared_helper_call_sites``.
 
-Casi todas son puras; las del intento nuevo, el movimiento y la autoría recorren el
-flujo HTTP real contra el caso sembrado SIM-VBG-001.
+Recorren el flujo HTTP real contra el caso sembrado SIM-VBG-001.
 """
-import json
-from types import SimpleNamespace
-
 import pytest
 from django.contrib.auth import get_user_model
 
-from apps.simulation.models import AttemptWorldState, SceneMap, SimulationAttempt
-from apps.simulation.services import case_effects
+from apps.simulation.models import AttemptWorldState, SceneMap
 
 from .test_game import (  # noqa: F401
     assign_case_to_student, attempt_headers, case_version_id, cl, estudiante,
 )
 
 User = get_user_model()
-
-
-# ── case_effects: la métrica del caso inicia en 50 ───────────────────────────
-class _FakeState:
-    def __init__(self, raw):
-        self.flags_json = json.dumps(raw)
-
-    def save(self, update_fields=None):
-        pass
-
-
-def test_las_metricas_del_caso_sin_estado_guardado_inician_todas_en_50(monkeypatch):
-    monkeypatch.setattr(case_effects, "_load_state", lambda attempt: None)
-
-    flags, metrics = case_effects.read_case_state(SimpleNamespace(id=1))
-
-    assert flags == {}
-    assert metrics == {key: 50 for key in case_effects.CASE_METRIC_KEYS}
-
-
-def test_una_metrica_fuera_de_la_lista_del_caso_tambien_parte_de_50(monkeypatch):
-    state = _FakeState({})
-    monkeypatch.setattr(case_effects, "_load_state", lambda attempt: state)
-    effects = {"severity": case_effects.SEVERITY_ACCEPTABLE, "flags": {}, "metrics": {"metrica_extra": 10}}
-
-    case_effects.apply_case_effects(
-        SimpleNamespace(id=1),
-        SimpleNamespace(option_key="opcion-de-prueba", effects=json.dumps(effects)),
-    )
-
-    assert json.loads(state.flags_json)["caseMetrics"]["metrica_extra"] == 60
-
-
-# ── intento nuevo: valores iniciales ─────────────────────────────────────────
-def test_un_intento_nuevo_arranca_sin_estres_y_con_confianza_y_riesgo_a_media_escala(
-    estudiante, case_version_id
-):
-    assign_case_to_student(estudiante, case_version_id, "SIM-A03C-INI")
-
-    data = cl(estudiante).post(
-        "/api/simulation/attempts", {"caseVersionId": case_version_id}, format="json"
-    ).data["data"]
-
-    row = SimulationAttempt.objects.get(pk=data["attemptId"])
-    assert (row.stress_index, row.victim_risk, row.user_trust) == (0, 50, 50)
-    assert "metrics" not in data  # las columnas conservan sus valores, pero ya no viajan al estudiante
-
-
-def test_los_valores_por_defecto_del_modelo_son_los_iniciales_del_intento():
-    field = SimulationAttempt._meta.get_field
-
-    assert field("stress_index").default == 0
-    assert field("victim_risk").default == 50
-    assert field("user_trust").default == 50
 
 
 # ── mapa sin tamaño guardado: 960 × 540 ──────────────────────────────────────

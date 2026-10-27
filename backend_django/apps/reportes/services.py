@@ -9,7 +9,6 @@ import csv
 import io
 import json
 from datetime import datetime, time
-from types import SimpleNamespace
 
 from django.contrib.auth import get_user_model
 from django.db.models import Count
@@ -27,7 +26,7 @@ from apps.simulation.models.attempt import (
 )
 from apps.simulation.models.case import CaseVersion
 from apps.simulation.models.rubric import EvaluationOrigin, RubricEvaluation
-from apps.simulation.services import case_rules, case_state
+from apps.simulation.services import case_rules
 from apps.simulation.services.audit_service import arg, auditable
 from apps.simulation.services.instructor_scope import student_ids_for_instructor
 from shared.identity import IdentityPresenter
@@ -48,28 +47,22 @@ def _grupo_student_ids(grupo_id):
     )
 
 
-#: Las columnas de una opción de las que sale su clase de respuesta (``case_state.response_class_of``).
-_CLASS_COLUMNS = ("response_class", "classification", "prohibited_conduct", "effects")
-
-
 def _class_counts(events, by=None):
     """Las decisiones registradas de ``events`` contadas por clase de respuesta, en UNA consulta agrupada.
 
-    Agrupa por las columnas de la clase (no trae un evento por fila: el costo lo marca la variedad de opciones, no el
+    Agrupa por la clase de la opción (no trae un evento por fila: el costo lo marca la variedad de clases, no el
     historial). Con ``by`` (p. ej. ``"attempt__student_id"``) devuelve ``{valor de by: conteos}``; sin él, un solo conteo.
     Los reintentos no cuentan: son respuestas que el juego no aplicó.
     """
-    prefix = "decision_option__"
-    group = ([by] if by else []) + [prefix + column for column in _CLASS_COLUMNS]
+    group = ([by] if by else []) + ["decision_option__response_class"]
     rows = (
         events.filter(event_type__in=DECISION_EVENT_TYPES, decision_option__isnull=False)
         .values(*group).annotate(n=Count("id")).order_by()
     )
     result = {}
     for row in rows:
-        option = SimpleNamespace(**{column: row[prefix + column] for column in _CLASS_COLUMNS})
         counts = result.setdefault(row[by] if by else None, _no_counts())
-        counts[case_state.response_class_of(option).value.lower()] += row["n"]
+        counts[row["decision_option__response_class"].lower()] += row["n"]
     return result if by else result.get(None, _no_counts())
 
 

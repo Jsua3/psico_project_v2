@@ -178,7 +178,7 @@ class Mundo:
         self._post(f"{ruta}/resume", {"attemptToken": token})
         adecuada = next(
             opcion["id"] for opcion in inicio["currentNode"]["options"]
-            if DecisionOption.objects.get(pk=opcion["id"]).classification == "ADEQUATE"
+            if DecisionOption.objects.get(pk=opcion["id"]).response_class == "RECOMMENDED"
         )
         self._post(
             f"{ruta}/decisions",

@@ -106,14 +106,15 @@ class DecisionRequest(serializers.Serializer):
     text = serializers.CharField(trim_whitespace=False)
     # La clase de la respuesta; en una opción nueva es obligatoria una de las dos (``responseClass`` o ``classification``).
     responseClass = serializers.ChoiceField(choices=[m.value for m in ResponseClass], required=False)
-    # La clasificación antigua (editor viejo) la valida el servicio (mensaje y estado de siempre: «Clasificación inválida: X»).
+    # La clasificación antigua (editor viejo) solo sirve para derivar la clase; la valida el servicio («Clasificación inválida: X»).
     classification = _text(40)
     prohibitedConduct = _flag()
     prohibitionReason = _text()
-    # TRANSITORIO: se retira en la Tarea 16. Se aceptan y se ignoran (se guardan en 0).
-    scoreDelta = _columna()
-    stressDelta = _columna()
-    prohibitedPenalty = _columna()
+    # Retirados con el puntaje y el estrés: se declaran para que lleguen al servicio, que los rechaza con un 400 que
+    # nombra el campo (``graph.RETIRED_FIELDS``); sin declararlos, el serializador los descartaría en silencio.
+    scoreDelta = serializers.JSONField(required=False, allow_null=True)
+    stressDelta = serializers.JSONField(required=False, allow_null=True)
+    prohibitedPenalty = serializers.JSONField(required=False, allow_null=True)
     immediateFeedback = _text()
     consequenceText = _text()
     theoryBasis = _text()

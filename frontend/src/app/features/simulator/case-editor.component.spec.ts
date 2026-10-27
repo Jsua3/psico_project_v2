@@ -666,7 +666,7 @@ describe('editor de casos (F8-1)', () => {
     const byLabel = (label: string) => host().querySelector<HTMLButtonElement>(`button[aria-label="${label}"]`)!;
     const decisionEdge = {
       id: 40, optionKey: 'cerrar', sourceNodeId: 1, sourceKey: 'inicio', targetNodeId: 2, targetKey: 'cierre', text: 'Cerrar el caso',
-      classification: 'RISKY' as const, responseClass: 'RISKY' as const, effects: { milestones: ['valida_emocion'] },
+      responseClass: 'RISKY' as const, effects: { milestones: ['valida_emocion'] },
       prohibitedConduct: false, prohibitionReason: null, immediateFeedback: 'Bien.', consequenceText: 'Ella respira más tranquila.',
       theoryBasis: 'Rogers (1957).', feedbackText: 'Validar sostiene la alianza.',
     };

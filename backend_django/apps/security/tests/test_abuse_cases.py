@@ -784,7 +784,7 @@ def ventana_larga(monkeypatch):
 def _opcion_adecuada(intento):
     for opcion in intento["currentNode"]["options"]:
         decision = DecisionOption.objects.get(pk=opcion["id"])
-        if decision.classification == "ADEQUATE" and not decision.prohibited_conduct:
+        if decision.response_class == "RECOMMENDED":
             return decision.id
     raise AssertionError("la primera escena del caso sembrado no tiene una opción adecuada")
 
@@ -792,7 +792,7 @@ def _opcion_adecuada(intento):
 def _opcion_mala(intento):
     for opcion in intento["currentNode"]["options"]:
         decision = DecisionOption.objects.get(pk=opcion["id"])
-        if decision.prohibited_conduct or decision.classification in ("RISKY", "INADEQUATE"):
+        if decision.response_class in ("RISKY", "CONTRAINDICATED"):
             return decision.id
     raise AssertionError("la primera escena del caso sembrado no tiene una opción riesgosa o inadecuada")
 

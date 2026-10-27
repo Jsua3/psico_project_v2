@@ -15,9 +15,8 @@ from apps.grupos import assignments
 from apps.privacy import consent_service
 from apps.simulation.casedef.vocabulary import ResponseClass
 from apps.simulation.models import (
-    INITIAL_STRESS_INDEX,
-    INITIAL_USER_TRUST,
-    INITIAL_VICTIM_RISK,
+    REGISTERED_DECISION_EVENT_TYPES,
+    RETRY_EVENT_TYPES,
     AttemptEvent,
     AttemptStatus,
     CaseVersion,
@@ -29,7 +28,7 @@ from apps.simulation.models import (
 from apps.simulation.serializers import game_dtos as dto
 from apps.simulation.signals import attempt_completed, attempt_start_requested
 from . import attempt_lifecycle as lifecycle
-from . import case_effects, case_state, crypto_service, response_effects
+from . import case_state, crypto_service, response_effects
 from . import attempt_duration, attempt_report, case_rules
 from shared.exceptions import ApiError
 from shared import policies
@@ -51,14 +50,12 @@ def _new_token() -> str:
     return secrets.token_urlsafe(32)
 
 
-def _save_event(attempt, event_type, node, decision, score_delta, stress_delta, detail, request_id=None):
+def _save_event(attempt, event_type, node, decision, detail, request_id=None):
     AttemptEvent.objects.create(
         attempt=attempt,
         event_type=event_type,
         node=node,
         decision_option=decision,
-        score_delta=score_delta,
-        stress_delta=stress_delta,
         detail=detail,
         request_id=request_id,
     )
@@ -309,20 +306,14 @@ def start_attempt(case_version_id, actor, force_new=False):
                 current_node=start_node,
                 last_activity_at=timezone.now(),
                 status=lifecycle.INITIAL_STATUS,
-                accumulated_score=0,
-                stress_index=INITIAL_STRESS_INDEX,
-                victim_risk=INITIAL_VICTIM_RISK,
-                user_trust=INITIAL_USER_TRUST,
-                institutional_route_activated=False,
-                revictimization_risk=False,
             )
     except IntegrityError:
         winner = _open_attempt_of(actor.id, case_version_id)
         if winner is None:
             raise
         return _resumed_state(winner)
-    _save_event(attempt, "ATTEMPT_STARTED", start_node, None, 0, 0, "Intento iniciado")
-    _save_event(attempt, "NODE_ENTERED", start_node, None, 0, 0, "Nodo inicial")
+    _save_event(attempt, "ATTEMPT_STARTED", start_node, None, "Intento iniciado")
+    _save_event(attempt, "NODE_ENTERED", start_node, None, "Nodo inicial")
     state = _state(attempt, raw_token)
     state["resumed"] = False
     return state
@@ -450,7 +441,7 @@ def _override_evidence_labels(missing_evidence):
     return labels
 
 
-_DECISION_EVENT_TYPES = case_effects.REGISTERED_DECISION_EVENT_TYPES + case_effects.RETRY_EVENT_TYPES
+_DECISION_EVENT_TYPES = REGISTERED_DECISION_EVENT_TYPES + RETRY_EVENT_TYPES
 
 
 def _find_decision_replay(attempt, decision_option_id, request_id):
@@ -509,7 +500,7 @@ def _replayed_decision_state(attempt, attempt_token, event):
     """La respuesta de una decisión ya procesada, reconstruida desde su evento y el estado actual."""
     return _decision_response(
         attempt, attempt_token, event.decision_option,
-        retry_required=event.event_type in case_effects.RETRY_EVENT_TYPES,
+        retry_required=event.event_type in RETRY_EVENT_TYPES,
     )
 
 
@@ -567,7 +558,7 @@ def choose_decision(
         prior_retries = AttemptEvent.objects.filter(
             attempt_id=attempt.id,
             node_id=attempt.current_node_id,
-            event_type__in=case_effects.RETRY_EVENT_TYPES,
+            event_type__in=RETRY_EVENT_TYPES,
         ).count()
         if prior_retries == 0:
             event_type = (
@@ -576,7 +567,7 @@ def choose_decision(
             # Trazado para revisión/rúbrica docente; sin cambios de estado ni avance. El tipo del evento
             # ya dice qué pasó: el detalle es el mismo aviso neutro que recibe el jugador.
             _save_event(
-                attempt, event_type, decision.source_node, decision, 0, 0, RETRY_NEUTRAL_MESSAGE, request_id
+                attempt, event_type, decision.source_node, decision, RETRY_NEUTRAL_MESSAGE, request_id
             )
             attempt.save(update_fields=attempt_duration.ACTIVITY_FIELDS)  # el reintento también es actividad
             return _decision_response(attempt, attempt_token, decision, retry_required=True)
@@ -584,16 +575,14 @@ def choose_decision(
     # Los hitos y el paso de la persona se escriben ANTES de avanzar el nodo: el estado del mundo sigue
     # sincronizado al nodo actual y el próximo /world hará el reset de sala que corresponda.
     response_effects.apply(attempt, effects)
-    if effects.revictimization:
-        attempt.revictimization_risk = True  # la columna vive hasta la Tarea 16: el reporte antiguo la lee
     event_type = "PROHIBITED_DECISION_SELECTED" if contraindicated else "DECISION_SELECTED"
     attempt.current_node = decision.target_node
 
     _save_event(
-        attempt, event_type, decision.source_node, decision, 0, 0,
+        attempt, event_type, decision.source_node, decision,
         _decision_event_detail(decision, evidence_override, missing_evidence), request_id,
     )
-    _save_event(attempt, "NODE_ENTERED", decision.target_node, None, 0, 0, "Nodo visitado")
+    _save_event(attempt, "NODE_ENTERED", decision.target_node, None, "Nodo visitado")
 
     if decision.target_node.terminal_node:
         now = timezone.now()
@@ -605,7 +594,7 @@ def choose_decision(
     attempt.save()
 
     if attempt.status == AttemptStatus.COMPLETED:
-        _save_event(attempt, "ATTEMPT_COMPLETED", decision.target_node, None, 0, 0, "Intento finalizado")
+        _save_event(attempt, "ATTEMPT_COMPLETED", decision.target_node, None, "Intento finalizado")
         # E1-8: el reporte queda congelado en la misma transacción que cierra el intento.
         attempt_report.freeze_report(attempt)
         # P-13: se anuncia el hecho; quien reacciona (progresión, hoy) se suscribe. Síncrona y
@@ -649,7 +638,7 @@ def save_reflection(attempt_id, attempt_token, node_id, text, actor, request_id=
     reflection.save()
 
     attempt_duration.record_activity(attempt)
-    _save_event(attempt, "REFLECTION_SAVED", node, None, 0, 0, "Bitácora registrada", request_id)
+    _save_event(attempt, "REFLECTION_SAVED", node, None, "Bitácora registrada", request_id)
     return {"nodeId": node.id, "locked": reflection.locked}
 
 
@@ -675,7 +664,7 @@ def safe_exit(attempt_id, attempt_token, reason, actor):
     lifecycle.apply(attempt, lifecycle.PAUSE)
     attempt.save()
     detail = reason.strip()[:SAFE_EXIT_REASON_MAX] if (reason and reason.strip()) else "Salida segura solicitada"
-    _save_event(attempt, "SAFE_EXIT_REQUESTED", attempt.current_node, None, 0, 0, detail)
+    _save_event(attempt, "SAFE_EXIT_REQUESTED", attempt.current_node, None, detail)
     return _state(attempt, attempt_token)
 
 
@@ -698,7 +687,7 @@ def resume_attempt(attempt_id, attempt_token, actor):
     lifecycle.apply(attempt, lifecycle.RESUME)
     attempt_duration.reset_clock(attempt, timezone.now())  # el tiempo en pausa no es tiempo activo
     attempt.save()
-    _save_event(attempt, "ATTEMPT_RESUMED", attempt.current_node, None, 0, 0, "Intento reanudado tras pausa segura")
+    _save_event(attempt, "ATTEMPT_RESUMED", attempt.current_node, None, "Intento reanudado tras pausa segura")
     return _state(attempt, attempt_token)
 
 

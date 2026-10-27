@@ -112,6 +112,16 @@ _CLASS_BY_CLASSIFICATION = {
 }
 
 
+#: La clasificación del DSL del taller (``ADEQUATE`` | ``RISKY`` | ``INADEQUATE``) que le corresponde a cada clase: la base
+#: del documento la conserva, pero se DERIVA de la clase (el importador de un documento 2.0 la ignora).
+CLASSIFICATION_OF_CLASS = {
+    ResponseClass.RECOMMENDED: "ADEQUATE",
+    ResponseClass.ACCEPTABLE: "ADEQUATE",
+    ResponseClass.RISKY: "RISKY",
+    ResponseClass.CONTRAINDICATED: "INADEQUATE",
+}
+
+
 def legacy_class(classification: str | None, severity: str | None, prohibited_conduct: bool) -> ResponseClass:
     """La clase de una respuesta antigua: conducta prohibida o gravedad crítica es contraindicada;
     si no, manda la gravedad; sin ella, la clasificación; y si nada coincide, aceptable."""

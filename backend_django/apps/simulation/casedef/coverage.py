@@ -21,9 +21,8 @@ EXPORTED = {
         "position_x", "position_y", "decision_prompt", "display_order", "intensity",
     },
     "DecisionOption": {
-        "option_key", "source_node", "target_node", "text", "classification", "immediate_feedback",
-        "prohibited_conduct", "prohibition_reason", "consequence_text", "theory_basis", "feedback_text", "effects",
-        "response_class",
+        "option_key", "source_node", "target_node", "text", "immediate_feedback",
+        "prohibition_reason", "consequence_text", "theory_basis", "feedback_text", "effects", "response_class",
     },
     "SceneMap": {"node", "map_key", "title", "width", "height", "theme", "spawn_x", "spawn_y", "ambient_json"},
     "SceneHint": {"scene_map", "hint_order", "text"},
@@ -54,7 +53,6 @@ EXPORTED = {
 _ID = "identificador de la base de datos: el documento usa ids de DSL por posición"
 _OWNER_VERSION = "la entidad es de la versión del documento"
 _STAMP = "marca de tiempo de la fila; el documento no lleva fechas"
-_RETIRED = "retirados por el modelo de métricas; columnas hasta la Tarea 16"
 
 #: modelo → {columna: motivo por el que no viaja}.
 EXCLUDED = {
@@ -80,12 +78,7 @@ EXCLUDED = {
         "edited_alone_since": "tanda de ediciones del editor; no es contenido",
     },
     "SimulationNode": {"id": _ID, "case_version": _OWNER_VERSION},
-    # El documento 2.0 lleva la clase y la intensidad; el puntaje, el estrés y la penalización los retiró el modelo de
-    # métricas y sus columnas siguen en la tabla hasta que la Tarea 16 las quite.
-    "DecisionOption": {
-        "id": _ID, "case_version": _OWNER_VERSION,
-        "score_delta": _RETIRED, "stress_delta": _RETIRED, "prohibited_penalty": _RETIRED,
-    },
+    "DecisionOption": {"id": _ID, "case_version": _OWNER_VERSION},
     "SceneMap": {"id": _ID, "case_version": "la versión del mapa es la de su escena", "created_at": _STAMP,
                  "updated_at": _STAMP},
     "SceneHint": {"id": _ID},

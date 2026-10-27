@@ -57,7 +57,7 @@ def test_completing_case_records_completion(estudiante, case_version_id):
         assert options
         # El JSON del nodo ya no trae la clasificación (T11.5): se consulta por id.
         option = next(
-            (o for o in options if DecisionOption.objects.get(pk=o["id"]).classification == "ADEQUATE"),
+            (o for o in options if DecisionOption.objects.get(pk=o["id"]).response_class == "RECOMMENDED"),
             options[0],
         )
         state = c.post(

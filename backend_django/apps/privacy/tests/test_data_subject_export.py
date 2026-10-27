@@ -93,11 +93,11 @@ def test_los_intentos_salen_con_los_hitos_la_persona_y_el_informe_v3_y_sin_punta
     congelado = json.loads(informe["report_json"])
     assert congelado["schemaVersion"] == 3
     assert "milestones" in congelado and "persona" in congelado
-    # Nada de puntaje en lo que cuenta la persona: las columnas retiradas salen en su valor por defecto (0) y el informe no las trae.
+    # Nada de puntaje en lo que cuenta la persona: ni el intento lo guarda ni el informe lo trae.
     texto = json.dumps(exportacion)
     assert "accumulatedScore" not in texto and "finalScore" not in texto and "finalStress" not in texto
     [intento] = [fila for fila in exportacion["tablas"]["simulation_attempts_v2"] if str(fila["id"]) == str(mundo.attempt.pk)]
-    assert not intento["accumulated_score"] and not intento["stress_index"]
+    assert not {"accumulated_score", "stress_index", "victim_risk", "user_trust"} & set(intento)
 
 
 def test_la_cuenta_va_con_sus_datos_pero_sin_la_clave(mundo):

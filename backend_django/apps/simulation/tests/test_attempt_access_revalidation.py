@@ -65,7 +65,7 @@ def test_un_estudiante_sin_acceso_no_puede_continuar_ni_operar(estudiante, case_
     c = cl(estudiante)
     attempt_id, token = _start(c, case_version_id)
     node_id = SimulationAttempt.objects.get(pk=attempt_id).current_node_id
-    option = DecisionOption.objects.filter(source_node_id=node_id, classification="ADEQUATE").first()
+    option = DecisionOption.objects.filter(source_node_id=node_id, response_class="RECOMMENDED").first()
     map_key = c.get(f"{BASE}/attempts/{attempt_id}/world", HTTP_X_SIEP_ATTEMPT_TOKEN=token).data["data"]["map"]["key"]
     LOSE_ACCESS[how](estudiante)
 
@@ -80,7 +80,7 @@ def test_una_version_archivada_se_deja_terminar(estudiante, case_version_id):
     c = cl(estudiante)
     attempt_id, token = _start(c, case_version_id)
     node_id = SimulationAttempt.objects.get(pk=attempt_id).current_node_id
-    option = DecisionOption.objects.filter(source_node_id=node_id, classification="ADEQUATE").first()
+    option = DecisionOption.objects.filter(source_node_id=node_id, response_class="RECOMMENDED").first()
     CaseVersion.objects.filter(pk=case_version_id).update(status="ARCHIVED")
 
     active = c.get(f"{BASE}/cases/{case_version_id}/active-attempt")

@@ -42,8 +42,15 @@ def attempt_headers(token):
 
 
 def classification_of(option):
-    """El JSON del nodo ya no trae la clasificación (T11.5): se consulta por id."""
-    return DecisionOption.objects.get(pk=option["id"]).classification
+    """El JSON del nodo ya no trae la clase (T11.5): se consulta por id.
+
+    Devuelve la clasificación del taller que el caso sembrado le daba a cada clase: solo la Recomendada es ``ADEQUATE``,
+    la Aceptable y la Con riesgo son ``RISKY`` y la Contraindicada ``INADEQUATE``. Las pruebas la usan para elegir la
+    respuesta «buena» del recorrido.
+    """
+    return {"RECOMMENDED": "ADEQUATE", "CONTRAINDICATED": "INADEQUATE"}.get(
+        DecisionOption.objects.get(pk=option["id"]).response_class, "RISKY"
+    )
 
 
 def assign_case_to_student(estudiante, case_version_id, codigo="SIM-G"):
@@ -207,7 +214,7 @@ def test_inadequate_decision_requires_retry_without_advancing(estudiante, case_v
 
     wrong = DecisionOption.objects.filter(
         source_node_id=node_id,
-        classification="INADEQUATE",
+        response_class="CONTRAINDICATED",
     ).first()
     assert wrong is not None
 
@@ -232,7 +239,7 @@ def test_inadequate_decision_requires_retry_without_advancing(estudiante, case_v
 
     correct = DecisionOption.objects.filter(
         source_node_id=node_id,
-        classification="ADEQUATE",
+        response_class="RECOMMENDED",
     ).first()
     assert correct is not None
     advanced = c.post(
@@ -252,7 +259,7 @@ def test_risky_decision_requires_retry_without_advancing(estudiante, case_versio
 
     first_correct = DecisionOption.objects.filter(
         source_node_id=start["currentNode"]["id"],
-        classification="ADEQUATE",
+        response_class="RECOMMENDED",
     ).first()
     assert first_correct is not None
     current = c.post(
@@ -292,7 +299,7 @@ def test_risky_decision_requires_retry_without_advancing(estudiante, case_versio
 
     correct = DecisionOption.objects.filter(
         source_node_id=node_id,
-        classification="ADEQUATE",
+        response_class="RECOMMENDED",
     ).first()
     assert correct is not None
     advanced = c.post(
@@ -677,7 +684,7 @@ def test_report_recommendation_is_plural_and_replaces_the_generic_closing_one(es
     assert report["retries"] == 2
     expected_prohibited = sum(
         1 for key in bad_keys
-        if DecisionOption.objects.get(case_version_id=case_version_id, option_key=key).prohibited_conduct
+        if DecisionOption.objects.get(case_version_id=case_version_id, option_key=key).response_class == "CONTRAINDICATED"
     )
     assert report["prohibitedRetries"] == expected_prohibited
     assert "Reconsideraste 2 respuestas antes de decidir; revísalas con tu docente." in report["recommendations"]

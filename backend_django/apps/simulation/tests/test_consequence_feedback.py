@@ -3,9 +3,8 @@
 Al decidir, la persona ve la **consecuencia** de lo que eligió y nada más: ni clasificación, ni
 cifras, ni mensaje evaluativo. La respuesta tiene UNA sola forma, en todos los casos:
 ``{attempt, consequence}`` y, cuando se concede la segunda oportunidad, ``{attempt, consequence, retry}``.
-Lo evaluativo llega al cierre, por el reporte congelado. ``FEEDBACK_AT_CLOSE_ONLY`` y
-``rules.feedbackTiming`` ya no cambian nada: la segunda oportunidad es una regla de la versión
-(``rules.secondChance``) y la clase de la respuesta sale del motor nuevo (``response_effects``).
+Lo evaluativo llega al cierre, por el reporte congelado. La segunda oportunidad es una regla de la versión
+(``rules.secondChance``) y la clase de la respuesta sale del motor (``response_effects``).
 """
 import importlib
 import json
@@ -14,15 +13,14 @@ import pytest
 from django.contrib.auth import get_user_model
 
 from apps.simulation.models import (
-    INITIAL_STRESS_INDEX,
-    INITIAL_USER_TRUST,
-    INITIAL_VICTIM_RISK,
+    REGISTERED_DECISION_EVENT_TYPES,
+    RETRY_EVENT_TYPES,
     AttemptEvent,
     CaseVersion,
     DecisionOption,
     SimulationAttempt,
 )
-from apps.simulation.services import case_effects, case_state
+from apps.simulation.services import case_state
 from apps.simulation.services.case_rules import rules_of
 from apps.simulation.services.game_service import RETRY_NEUTRAL_MESSAGE
 
@@ -32,8 +30,8 @@ pytestmark = [pytest.mark.req("RN-08"), pytest.mark.req("RF-17")]
 
 BASE = "/api/simulation"
 User = get_user_model()
-RETRY = case_effects.RETRY_EVENT_TYPES
-REGISTERED = case_effects.REGISTERED_DECISION_EVENT_TYPES
+RETRY = RETRY_EVENT_TYPES
+REGISTERED = REGISTERED_DECISION_EVENT_TYPES
 
 #: Claves que revelan la evaluación de la decisión: no viajan al decidir, en ningún caso.
 #: (Las cifras viejas del estado del intento ya no existen: ``test_no_numbers_to_student`` vigila que no vuelvan.)
@@ -208,9 +206,7 @@ def test_una_respuesta_con_riesgo_usa_el_evento_de_reintento_comun(estudiante, c
     _set_rules(case_version_id, secondChance=True)
     client, attempt_id, token, node_id = _first_node(estudiante, case_version_id)
     risky = _option(node_id, "RECOMMENDED")
-    DecisionOption.objects.filter(pk=risky.pk).update(
-        response_class="RISKY", classification="RISKY", prohibited_conduct=False
-    )
+    DecisionOption.objects.filter(pk=risky.pk).update(response_class="RISKY")
 
     _decide(client, attempt_id, token, risky.id)
 
@@ -285,27 +281,10 @@ def test_las_reglas_ausentes_o_invalidas_toman_los_valores_por_defecto(db):
     version = CaseVersion.objects.get(simulation_case__code="SIM-VBG-001", status="PUBLISHED")
     for raw in ("{}", "", "no es json", "[1, 2]", '{"secondChance": "si", "feedbackTiming": "NUNCA"}'):
         version.rules = raw
-        rules = rules_of(version)
-        assert rules.second_chance is False
-        assert rules.feedback_timing == "IMMEDIATE"
+        assert rules_of(version).second_chance is False
 
 
-# ── lo que queda en el intento y en el evento ────────────────────────────────
-def test_decidir_no_mueve_las_cifras_del_intento_ni_las_del_evento(estudiante, case_version_id):
-    _set_rules(case_version_id, secondChance=False)
-    client, attempt_id, token, node_id = _first_node(estudiante, case_version_id)
-    good = _option(node_id, "RECOMMENDED")
-
-    _decide(client, attempt_id, token, good.id)
-
-    attempt = SimulationAttempt.objects.get(pk=attempt_id)
-    assert (attempt.accumulated_score, attempt.stress_index) == (0, INITIAL_STRESS_INDEX)
-    assert (attempt.user_trust, attempt.victim_risk) == (INITIAL_USER_TRUST, INITIAL_VICTIM_RISK)
-    assert attempt.institutional_route_activated is False
-    event = AttemptEvent.objects.get(attempt_id=attempt_id, event_type="DECISION_SELECTED")
-    assert (event.score_delta, event.stress_delta) == (0, 0)
-
-
+# ── lo que queda en el evento ────────────────────────────────────────────────
 def test_el_detalle_del_evento_es_la_explicacion_de_la_opcion_sin_prefijos_evaluativos(
     estudiante, case_version_id
 ):
@@ -331,9 +310,7 @@ def test_sin_feedback_text_el_detalle_es_la_retroalimentacion_inmediata(estudian
     )
 
 
-def test_una_respuesta_contraindicada_registrada_enciende_la_revictimizacion_y_usa_el_evento_prohibido(
-    estudiante, case_version_id
-):
+def test_una_respuesta_contraindicada_registrada_usa_el_evento_prohibido(estudiante, case_version_id):
     _set_rules(case_version_id, secondChance=False)
     client, attempt_id, token, node_id = _first_node(estudiante, case_version_id)
     prohibited = _contraindicated_option(node_id)
@@ -341,18 +318,9 @@ def test_una_respuesta_contraindicada_registrada_enciende_la_revictimizacion_y_u
     data = _decide(client, attempt_id, token, prohibited.id).data["data"]
 
     assert set(data) == {"attempt", "consequence"}
-    assert SimulationAttempt.objects.get(pk=attempt_id).revictimization_risk is True
     assert AttemptEvent.objects.filter(
         attempt_id=attempt_id, event_type="PROHIBITED_DECISION_SELECTED", decision_option_id=prohibited.id
     ).exists()
-
-
-def test_una_respuesta_que_no_es_contraindicada_no_enciende_la_revictimizacion(estudiante, case_version_id):
-    client, attempt_id, token, node_id = _first_node(estudiante, case_version_id)
-
-    _decide(client, attempt_id, token, _option(node_id, "RECOMMENDED").id)
-
-    assert SimulationAttempt.objects.get(pk=attempt_id).revictimization_risk is False
 
 
 def test_el_override_de_evidencia_queda_en_el_evento_y_no_en_la_respuesta(estudiante, case_version_id):

@@ -4,7 +4,7 @@ Hasta E1-5 leer el mundo lo **guardaba** (un UPDATE por cada ``GET /world``) y e
 del servidor daba por hecho que, al decidir, ese estado ya existía. Ahora resolverlo es
 una función pura (``resolve_world_state``): la lectura no escribe nada y solo las órdenes
 que mutan lo persisten (``require_world_state``). Vive aparte de ``world_service`` porque
-también lo necesitan los efectos del caso (``case_effects``), que ``world_service`` y
+también lo necesitan los efectos de la respuesta (``response_effects``), que ``world_service`` y
 ``game_service`` importan: así no hay ciclo.
 """
 from django.utils import timezone

@@ -166,18 +166,17 @@ def _option_node(decision, key_of):
 def publication_issues(version):
     """Las seis reglas de publicación sobre las filas de la versión, como ``ValidationIssue``.
 
-    Una opción marcada como conducta prohibida sin motivo ya la reporta el mundo (``PROHIBITED_WITHOUT_REASON``):
-    no se repite aquí (R20, un defecto sale una vez).
+    Una opción contraindicada sin motivo ya la reporta el mundo (``PROHIBITED_WITHOUT_REASON``): no se repite aquí
+    (R20, un defecto sale una vez).
     """
     nodes = list(SimulationNode.objects.filter(case_version_id=version.id).order_by("display_order", "id"))
     decisions = list(DecisionOption.objects.filter(case_version_id=version.id).order_by("id"))
-    covered = {d.option_key for d in decisions if d.prohibited_conduct}
     graph = _publication_graph(version, nodes, decisions)
     node_ids = {node.node_key: node.id for node in nodes}
     return [
         validation_issues.publication_issue(issue, node_ids)
         for issue in publication_rules.check(graph)
-        if not (issue.code == publication_rules.CONTRAINDICATED_WITHOUT_REASON and issue.option_key in covered)
+        if issue.code != publication_rules.CONTRAINDICATED_WITHOUT_REASON
     ]
 
 

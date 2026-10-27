@@ -176,7 +176,7 @@ def fuente(admin, autor):
     )
     decision = DecisionOption.objects.create(
         case_version=version, source_node=node_a, target_node=node_b,
-        **_all_distinct(DecisionOption, classification="RISKY", response_class="CONTRAINDICATED"),
+        **_all_distinct(DecisionOption, response_class="CONTRAINDICATED"),
     )
     scene_map = SceneMap.objects.create(case_version=version, node=node_a, **_all_distinct(SceneMap))
     CollisionZone.objects.create(scene_map=scene_map, **_all_distinct(CollisionZone))

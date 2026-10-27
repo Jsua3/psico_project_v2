@@ -39,7 +39,6 @@ def _attempt(**overrides):
     base = dict(
         id="11111111-1111-1111-1111-111111111111",
         status="COMPLETED",
-        institutional_route_activated=False,
         started_at=datetime(2026, 10, 1, 10, 0, 0, tzinfo=timezone.utc),
         ended_at=datetime(2026, 10, 1, 10, 5, 30, tzinfo=timezone.utc),
         active_seconds=0.0,

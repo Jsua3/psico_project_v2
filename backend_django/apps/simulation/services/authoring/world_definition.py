@@ -7,6 +7,7 @@ from django.db import transaction
 from rest_framework import status
 from rest_framework.exceptions import NotFound
 
+from apps.simulation.casedef.vocabulary import ResponseClass
 from apps.simulation.models import (
     ClinicalTool,
     CollisionZone,
@@ -87,11 +88,9 @@ def world_editor(case_version_id, node_id):
                 "id": d.id,
                 "optionKey": d.option_key,
                 "text": d.text,
-                "classification": d.classification,
-                # La clase efectiva (la declarada o la que dan sus datos antiguos): la que el autor debe ver.
                 "responseClass": response_class_of(d).value,
                 "targetNodeKey": d.target_node.node_key,
-                "prohibitedConduct": d.prohibited_conduct,
+                "prohibitedConduct": response_class_of(d) is ResponseClass.CONTRAINDICATED,
             }
             for d in outgoing
         ],
@@ -457,7 +456,7 @@ def run_world_validation(version):
                 "id": d.id,
                 "sourceNodeId": d.source_node_id,
                 "targetNodeId": d.target_node_id,
-                "prohibitedConduct": d.prohibited_conduct,
+                "prohibitedConduct": response_class_of(d) is ResponseClass.CONTRAINDICATED,
                 "prohibitionReason": d.prohibition_reason,
                 "feedbackText": d.feedback_text,
                 "immediateFeedback": d.immediate_feedback,

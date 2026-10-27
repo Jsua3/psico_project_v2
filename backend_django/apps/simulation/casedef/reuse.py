@@ -19,7 +19,7 @@ def _scene(scene):
 
 def _option(option):
     return (
-        option.text, option.target, option.classification, option.prohibited, option.reason, option.consequence,
+        option.text, option.target, option.reason, option.consequence,
         option.immediate_feedback, option.feedback_text, option.theory_basis,
         option.response_class, option.effects,
     )
