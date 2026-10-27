@@ -1,13 +1,12 @@
 import { StudentAttemptSummary } from '../../core/models/simulation.model';
 import {
-  attemptTone, caseProgress, decisionBreakdown, firstUseCopy, formatActiveTime, formatDate, openAttempt, scoreSeries,
+  attemptTone, caseProgress, firstUseCopy, formatActiveTime, formatDate, lastClosings, openAttempt,
 } from './student-dashboard.util';
 
 function attempt(partial: Partial<StudentAttemptSummary>): StudentAttemptSummary {
   return {
     attemptId: 'a', caseVersionId: 1, caseTitle: 'Caso', status: 'COMPLETED',
-    accumulatedScore: 0, adequateDecisions: 0, riskyDecisions: 0,
-    inadequateDecisions: 0, prohibitedDecisions: 0, totalDurationSeconds: null,
+    totalDurationSeconds: null,
     activeDurationSeconds: null, startedAt: '2026-09-01T10:00:00Z', endedAt: null,
     ...partial,
   };
@@ -30,26 +29,27 @@ describe('student-dashboard.util', () => {
     expect(attemptTone('REPLACED')).toBe('neutral');
   });
 
-  it('scoreSeries ordena por fecha, se queda con los ocho últimos y nombra cada punto con su fecha y su caso', () => {
-    const history = Array.from({ length: 10 }, (_, index) => attempt({
-      attemptId: `a${index}`, caseTitle: `Caso ${index}`, accumulatedScore: index * 10,
-      startedAt: `2026-09-${String(20 - index).padStart(2, '0')}T10:00:00Z`,
+  it('lastClosings devuelve los tres últimos intentos completados, del más reciente al más antiguo, con caso y fecha', () => {
+    const history = Array.from({ length: 5 }, (_, index) => attempt({
+      attemptId: `a${index}`, caseTitle: `Caso ${index}`, startedAt: `2026-09-${String(10 + index).padStart(2, '0')}T10:00:00Z`,
     }));
-    const series = scoreSeries(history);
-    expect(series).toHaveLength(8);
-    // El más antiguo de los ocho últimos es el de índice 7 (día 13); el último, el de índice 0 (día 20).
-    expect(series[0]).toMatchObject({ label: formatDate('2026-09-13T10:00:00Z'), value: 70, caseTitle: 'Caso 7' });
-    expect(series[7]).toMatchObject({ label: formatDate('2026-09-20T10:00:00Z'), value: 0, caseTitle: 'Caso 0' });
+    expect(lastClosings(history)).toEqual([
+      { attemptId: 'a4', caseTitle: 'Caso 4', dateLabel: formatDate('2026-09-14T10:00:00Z') },
+      { attemptId: 'a3', caseTitle: 'Caso 3', dateLabel: formatDate('2026-09-13T10:00:00Z') },
+      { attemptId: 'a2', caseTitle: 'Caso 2', dateLabel: formatDate('2026-09-12T10:00:00Z') },
+    ]);
+    expect(lastClosings([])).toEqual([]);
   });
 
-  // Revisión de F5: un intento abierto aún no tiene su puntaje; dibujarlo sería una caída falsa a 0.
-  it('scoreSeries deja fuera los intentos abiertos (en curso o en pausa)', () => {
-    const series = scoreSeries([
-      attempt({ attemptId: 'a', accumulatedScore: 40, startedAt: '2026-09-01T10:00:00Z' }),
-      attempt({ attemptId: 'b', status: 'PAUSED', accumulatedScore: 0, startedAt: '2026-09-02T10:00:00Z' }),
-      attempt({ attemptId: 'c', status: 'IN_PROGRESS', accumulatedScore: 5, startedAt: '2026-09-03T10:00:00Z' }),
+  it('lastClosings deja fuera lo que no se completó (abierto, interrumpido o reemplazado)', () => {
+    const closings = lastClosings([
+      attempt({ attemptId: 'a', status: 'COMPLETED' }),
+      attempt({ attemptId: 'b', status: 'PAUSED' }),
+      attempt({ attemptId: 'c', status: 'IN_PROGRESS' }),
+      attempt({ attemptId: 'd', status: 'SAFE_EXITED' }),
+      attempt({ attemptId: 'e', status: 'REPLACED' }),
     ]);
-    expect(series.map(point => point.value)).toEqual([40]);
+    expect(closings.map(item => item.attemptId)).toEqual(['a']);
   });
 
   it('caseProgress cuenta por caso los completados frente al total, con el título entero (máximo cinco casos)', () => {
@@ -65,20 +65,6 @@ describe('student-dashboard.util', () => {
     const many = ['A', 'B', 'C', 'D', 'E', 'F'].map(caseTitle => attempt({ caseTitle }));
     expect(caseProgress(many)).toHaveLength(5);
     expect(caseProgress([])).toEqual([]);
-  });
-
-  it('decisionBreakdown suma por clase, calcula el porcentaje y omite las clases en cero', () => {
-    const breakdown = decisionBreakdown([
-      attempt({ adequateDecisions: 3, riskyDecisions: 1 }),
-      attempt({ adequateDecisions: 3, prohibitedDecisions: 1 }),
-    ]);
-    expect(breakdown.total).toBe(8);
-    expect(breakdown.slices).toEqual([
-      { key: 'adequate', label: 'Adecuadas', value: 6, percent: 75 },
-      { key: 'risky', label: 'Riesgosas', value: 1, percent: 13 },
-      { key: 'prohibited', label: 'Prohibidas', value: 1, percent: 13 },
-    ]);
-    expect(decisionBreakdown([attempt({})])).toEqual({ total: 0, slices: [] });
   });
 
   it('formatActiveTime: horas y minutos, minutos o segundos; «Sin datos» si ningún intento lo informa', () => {

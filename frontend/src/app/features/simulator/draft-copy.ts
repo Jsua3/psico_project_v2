@@ -335,24 +335,180 @@ export const DRAFT_COPY = {
     where: 'Resultado: fundamento teórico de cada decisión',
     text: 'Fundamento teórico',
   },
-  /** Etiquetas cualitativas de la clasificación al cierre (RN-08): lenguaje formativo, nunca un puntaje. */
-  decisionToneAdequate: {
-    decision: 'RN-08',
+  /** Clase de una decisión al cierre, en palabras (modelo de métricas): nunca una cifra. */
+  responseClassRecommended: {
+    decision: 'VD-23',
     owner: 'Psicología',
-    where: 'Resultado: etiqueta cualitativa de una decisión adecuada',
-    text: 'Adecuada',
+    where: 'Cierre: etiqueta de una decisión de clase Recomendada',
+    text: 'Recomendada',
   },
-  decisionToneRisky: {
-    decision: 'RN-08',
+  /** Clase Aceptable. */
+  responseClassAcceptable: {
+    decision: 'VD-23',
     owner: 'Psicología',
-    where: 'Resultado: etiqueta cualitativa de una decisión con riesgo',
+    where: 'Cierre: etiqueta de una decisión de clase Aceptable',
+    text: 'Aceptable',
+  },
+  /** Clase Con riesgo. */
+  responseClassRisky: {
+    decision: 'VD-23',
+    owner: 'Psicología',
+    where: 'Cierre: etiqueta de una decisión de clase Con riesgo',
     text: 'Con riesgo',
   },
-  decisionToneInadequate: {
-    decision: 'RN-08',
+  /** Clase Contraindicada. */
+  responseClassContraindicated: {
+    decision: 'VD-23',
     owner: 'Psicología',
-    where: 'Resultado: etiqueta cualitativa de una decisión inadecuada',
-    text: 'Inadecuada',
+    where: 'Cierre: etiqueta de una decisión de clase Contraindicada',
+    text: 'Contraindicada',
+  },
+  /** Marca en palabras de un hito decisivo (nunca un número). */
+  milestoneKeyMark: {
+    decision: 'VD-23',
+    owner: 'Psicología',
+    where: 'Cierre: marca de un hito que decide el final',
+    text: 'clave',
+  },
+  /** Título de los hitos cumplidos. */
+  milestonesDoneTitle: {
+    decision: 'VD-23',
+    owner: 'Psicología',
+    where: 'Cierre: título de los hitos cumplidos',
+    text: 'Lo que hiciste',
+  },
+  /** Título de los hitos que faltaron. */
+  milestonesMissingTitle: {
+    decision: 'VD-23',
+    owner: 'Psicología',
+    where: 'Cierre: título de los hitos que faltaron',
+    text: 'Lo que faltó',
+  },
+  /** Estado vacío de los hitos cumplidos. */
+  milestonesNoneDone: {
+    decision: 'VD-23',
+    owner: 'Psicología',
+    where: 'Cierre: sin ningún hito cumplido',
+    text: 'En este recorrido no se cumplió ningún hito.',
+  },
+  /** Estado vacío de los hitos que faltaron. */
+  milestonesNoneMissing: {
+    decision: 'VD-23',
+    owner: 'Psicología',
+    where: 'Cierre: sin hitos pendientes',
+    text: 'No faltó ningún hito.',
+  },
+  /** Título de la lista de razones del final. */
+  endingReasonTitle: {
+    decision: 'VD-23',
+    owner: 'Psicología',
+    where: 'Cierre: título de las razones del final',
+    text: 'Cómo llegaste aquí',
+  },
+  /** Prefijo de la frase sobre la persona al cerrar; el estado lo trae el servidor. */
+  endingPersonaPrefix: {
+    decision: 'VD-23',
+    owner: 'Psicología',
+    where: 'Cierre: frase de la persona usuaria al cerrar (precede a su estado en palabras)',
+    text: 'La persona usuaria',
+  },
+  /** Título de las competencias con su nivel en palabras. */
+  competenciesTitle: {
+    decision: 'VD-23',
+    owner: 'Psicología',
+    where: 'Cierre: título de las competencias en palabras',
+    text: 'Tus competencias, en palabras',
+  },
+  /** Nivel de una competencia que ninguna decisión tocó. */
+  competencyNoEvidence: {
+    decision: 'VD-23',
+    owner: 'Psicología',
+    where: 'Cierre: competencia sin decisiones que la sustenten',
+    text: 'Sin evidencia',
+  },
+  /** Encabezado de la lista de evidencia. */
+  competencyEvidenceLead: {
+    decision: 'VD-23',
+    owner: 'Psicología',
+    where: 'Cierre: encabezado de las decisiones que sustentan una competencia',
+    text: 'Decisiones que lo sustentan',
+  },
+  /** Autoevaluación breve. */
+  selfAssessTitle: {
+    decision: 'VD-23',
+    owner: 'Psicología',
+    where: 'Cierre: título de la autoevaluación breve (antes de la revisión)',
+    text: 'Antes de revisar tus decisiones',
+  },
+  /** Pregunta 1. */
+  selfAssessGood: {
+    decision: 'VD-23',
+    owner: 'Psicología',
+    where: 'Cierre: primera pregunta de la autoevaluación',
+    text: '¿Qué salió bien?',
+  },
+  /** Pregunta 2. */
+  selfAssessChange: {
+    decision: 'VD-23',
+    owner: 'Psicología',
+    where: 'Cierre: segunda pregunta de la autoevaluación',
+    text: '¿Qué cambiarías?',
+  },
+  /** Aviso de privacidad de la autoevaluación (local, sin persistir). */
+  selfAssessLocalNote: {
+    decision: 'VD-23',
+    owner: 'Psicología',
+    where: 'Cierre: aviso de que la autoevaluación no se envía',
+    text: 'Lo que escribas se queda solo en este dispositivo: no se envía ni se guarda.',
+  },
+  /** Botón de listo. */
+  selfAssessDone: {
+    decision: 'VD-23',
+    owner: 'Psicología',
+    where: 'Cierre: botón que cierra la autoevaluación',
+    text: 'Listo',
+  },
+  /** Botón de omitir. */
+  selfAssessSkip: {
+    decision: 'VD-23',
+    owner: 'Psicología',
+    where: 'Cierre: botón que omite la autoevaluación',
+    text: 'Omitir por ahora',
+  },
+  /** Línea de la autoevaluación ya recogida. */
+  selfAssessCollapsed: {
+    decision: 'VD-23',
+    owner: 'Psicología',
+    where: 'Cierre: autoevaluación recogida',
+    text: 'Tus ideas quedan solo en este dispositivo.',
+  },
+  /** Botón de editar. */
+  selfAssessEdit: {
+    decision: 'VD-23',
+    owner: 'Psicología',
+    where: 'Cierre: botón para volver a abrir la autoevaluación',
+    text: 'Editar mis notas',
+  },
+  /** Tarjeta del panel con los últimos casos completados. */
+  closingsTitle: {
+    decision: 'VD-23',
+    owner: 'Psicología',
+    where: 'Panel del estudiante: título de los últimos cierres',
+    text: 'Tus últimos cierres',
+  },
+  /** Subtítulo. */
+  closingsSub: {
+    decision: 'VD-23',
+    owner: 'Psicología',
+    where: 'Panel del estudiante: subtítulo de los últimos cierres',
+    text: 'Los últimos casos que completaste',
+  },
+  /** Estado vacío. */
+  closingsEmpty: {
+    decision: 'VD-23',
+    owner: 'Psicología',
+    where: 'Panel del estudiante: sin cierres todavía',
+    text: 'Aún sin cierres: aparecerán cuando completes un caso.',
   },
   /** Nota de una conducta prohibida en «Tus decisiones»: se señala con cuidado, sin cifras (RN-08, ETH). */
   decisionProhibitedNote: {

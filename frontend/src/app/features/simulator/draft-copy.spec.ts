@@ -49,8 +49,9 @@ describe('draft-copy: textos en borrador pendientes de Psicología', () => {
     // reemplazo docente (F7b-7, RN-07), el aviso de contenido sensible de la ficha del caso (F10-1), el aviso de que el
     // aviso de contenido cambió de versión (S3-2b, ETH-01) y los del resultado con retroalimentación por decisión
     // (F10-4: «Tus decisiones», sus estados, las etiquetas y el marcador): son texto que ve la persona y se validan, no
-    // solo se conocen.
-    expect(list.filter(entry => entry.review === 'validar')).toHaveLength(34);
+    // solo se conocen; y los del cierre por hitos y competencias (VD-23: clases en palabras, hitos, competencias,
+    // autoevaluación breve y últimos cierres del panel).
+    expect(list.filter(entry => entry.review === 'validar')).toHaveLength(56);
   });
 
   // req: ETH-01, SIEP-RF-05 (S3-2b)

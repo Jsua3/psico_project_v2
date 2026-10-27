@@ -14,6 +14,8 @@ import { errorKindFromStatus, uiDataState } from '../../shared/ui/state/ui-data-
 import { UiErrorState } from '../../shared/ui/state/ui-error-state';
 import { attemptTone } from '../dashboard/student-dashboard.util';
 import { formatAttemptDuration } from './attempt-history-duration.util';
+import { DRAFT_COPY } from './draft-copy';
+import { milestoneMark } from './outcome-text.util';
 
 export interface StudentReportDialogData {
   attemptId: string;
@@ -46,13 +48,34 @@ export interface StudentReportDialogData {
           @if (report(); as report) {
             <ui-badge [tone]="tone(report.status)">{{ statusLabel(report.status) }}</ui-badge>
             <dl class="sr-grid">
-              <div><dt>Puntaje</dt><dd>{{ report.finalScore }}</dd></div>
-              <div><dt>Estrés final</dt><dd>{{ report.finalStress }} %</dd></div>
               <div><dt>Tiempo total</dt><dd>{{ duration(report.totalDurationSeconds) }}</dd></div>
-              <div><dt>Decisiones adecuadas</dt><dd>{{ report.adequateDecisions }}</dd></div>
-              <div><dt>Riesgosas o críticas</dt><dd>{{ report.riskyDecisions + report.inadequateDecisions + report.prohibitedDecisions }}</dd></div>
               <div><dt>Reflexiones</dt><dd>{{ report.reflectionsCount }}</dd></div>
             </dl>
+            @if (report.ending; as ending) {
+              <h3 class="sr-subtitle">{{ ending.title }}</h3>
+            }
+            @if (report.milestones; as milestones) {
+              <h3 class="sr-subtitle">{{ draft.milestonesDoneTitle.text }}</h3>
+              @if (milestones.done.length) {
+                <ul class="sr-list">
+                  @for (milestone of milestones.done; track milestone.key) {
+                    <li>{{ milestone.label }} @if (markOf(milestone); as mark) { ({{ mark }}) }</li>
+                  }
+                </ul>
+              } @else {
+                <p class="sr-muted">{{ draft.milestonesNoneDone.text }}</p>
+              }
+              <h3 class="sr-subtitle">{{ draft.milestonesMissingTitle.text }}</h3>
+              @if (milestones.missing.length) {
+                <ul class="sr-list">
+                  @for (milestone of milestones.missing; track milestone.key) {
+                    <li>{{ milestone.label }} @if (markOf(milestone); as mark) { ({{ mark }}) }</li>
+                  }
+                </ul>
+              } @else {
+                <p class="sr-muted">{{ draft.milestonesNoneMissing.text }}</p>
+              }
+            }
             @if (report.phaseDurations.length) {
               <h3 class="sr-subtitle">Tiempo por escenario</h3>
               <ul class="sr-list">
@@ -147,6 +170,8 @@ export class StudentReportDialogComponent {
   protected readonly statusLabel = statusLabel;
   protected readonly tone = attemptTone;
   protected readonly duration = formatAttemptDuration;
+  protected readonly draft = DRAFT_COPY;
+  protected readonly markOf = milestoneMark;
 
   protected load(): void {
     this.reportResource.reload();

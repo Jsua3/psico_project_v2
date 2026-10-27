@@ -23,25 +23,34 @@ function makeReport(overrides: Partial<AttemptCompletionReport> = {}): AttemptCo
     attemptId: 'a1',
     caseTitle: 'Caso',
     status: 'COMPLETED',
-    finalScore: 42,
-    finalStress: 30,
-    metrics: {
-      professionalScore: 0, sceneStress: 0, victimRisk: 0, userTrust: 0,
-      institutionalRouteActivated: false, revictimizationRisk: false,
-    },
+    schemaVersion: 3,
     totalDurationSeconds: 125,
     phaseDurations: [],
-    adequateDecisions: 3,
-    riskyDecisions: 1,
-    inadequateDecisions: 0,
-    prohibitedDecisions: 0,
     toolsUsed: 2,
     reflectionsCount: 1,
     safeExitUsed: false,
     visitedNodeTitles: ['Escena 1', 'Escena 2'],
-    competencies: ['Escucha activa'],
     recommendations: ['Sigue así'],
     summaryMessage: 'Buen trabajo',
+    ending: {
+      key: 'protectora', title: 'Cierre protector', message: 'Acompañaste con cuidado a la persona usuaria.', tone: 'positive',
+      reason: ['Recomendaste medidas de protección.', 'Ninguna de tus respuestas fue contraindicada.'],
+    },
+    persona: { bond: 'OPEN', activation: 'CALM', label: 'se muestra abierta y serena' },
+    milestones: {
+      done: [
+        { key: 'escucha', label: 'Escuchar sin juzgar', decisive: false },
+        { key: 'proteccion', label: 'Recomendar medidas de protección', decisive: true },
+      ],
+      missing: [{ key: 'remision', label: 'Remitir a la ruta institucional', decisive: true }],
+    },
+    competencyLevels: [
+      {
+        code: 'C1', name: 'Escucha activa', level: 'LOGRADO', basis: null,
+        evidence: [{ order: 1, nodeTitle: 'Sala de escucha', optionText: 'Escuchar sin juzgar', class: 'RECOMMENDED', level: 'LOGRADO' }],
+      },
+      { code: 'C2', name: 'Manejo de la crisis', level: null, basis: null, evidence: [] },
+    ],
     ...overrides,
   };
 }
@@ -107,35 +116,19 @@ describe('AttemptOutcomeComponent', () => {
     expect(component.headline('REPLACED')).not.toMatch(/salida segura|sin penalización/i);
   });
 
-  it('perf labels performance from the report adequacy ratio', () => {
-    expect(component.perf(makeReport({ adequateDecisions: 5, riskyDecisions: 0, inadequateDecisions: 0 }))).toBe('Excelente');
-    expect(component.perf(makeReport({ adequateDecisions: 0, riskyDecisions: 0, inadequateDecisions: 0 }))).toBe('Sin decisiones');
-  });
-
-  it('barPct returns rounded percentages and 0 when there are no decisions', () => {
-    expect(component.barPct(makeReport({ adequateDecisions: 3, riskyDecisions: 1, inadequateDecisions: 0 }), 3)).toBe(75);
-    expect(component.barPct(makeReport({ adequateDecisions: 0, riskyDecisions: 0, inadequateDecisions: 0 }), 0)).toBe(0);
-  });
-
-  it('formatDuration renders minutes and seconds, or a fallback when unknown', () => {
-    expect(component.formatDuration(125)).toBe('2 min 5 s');
-    expect(component.formatDuration(40)).toBe('40 s');
-    expect(component.formatDuration(null)).toBe('No disponible');
-  });
-
-  it('timelineTone: prohibida pisa la clasificación; sin clasificación = evento', () => {
-    const base = { atSeconds: 10, time: '00:10', type: 'DECISION_SELECTED', label: 'x', scoreDelta: 5, stressDelta: -2 };
-    expect(component.timelineTone({ ...base, classification: 'ADEQUATE', prohibited: false })).toBe('ADEQUATE');
-    expect(component.timelineTone({ ...base, classification: 'INADEQUATE', prohibited: true })).toBe('PROHIBITED');
-    expect(component.timelineTone({ ...base, type: 'ROOM_ENTERED', classification: null, prohibited: false })).toBe('EVENT');
+  it('timelineTone: prohibida pisa la clase; sin clase = evento', () => {
+    const base = { atSeconds: 10, time: '00:10', type: 'DECISION_SELECTED', label: 'x' };
+    expect(component.timelineTone({ ...base, class: 'RECOMMENDED', prohibited: false })).toBe('RECOMMENDED');
+    expect(component.timelineTone({ ...base, class: 'CONTRAINDICATED', prohibited: true })).toBe('PROHIBITED');
+    expect(component.timelineTone({ ...base, type: 'ROOM_ENTERED', class: null, prohibited: false })).toBe('EVENT');
   });
 
   it('el reporte acepta una línea de tiempo opcional (contrato aditivo)', () => {
     const report = makeReport({
       timeline: [{
         atSeconds: 135, time: '02:15', type: 'DECISION_SELECTED',
-        classification: 'ADEQUATE', prohibited: false,
-        label: 'Aplicar Primeros Auxilios Psicológicos', scoreDelta: 120, stressDelta: -10,
+        class: 'RECOMMENDED', prohibited: false,
+        label: 'Aplicar Primeros Auxilios Psicológicos',
       }],
     });
     expect(report.timeline![0].time).toBe('02:15');
@@ -242,15 +235,15 @@ describe('AttemptOutcomeComponent: pausa calmada renderizada (T12.1, AC-7)', () 
     expect(document.activeElement).toBe(host().querySelector('button.oc-btn--go'));
   });
 
-  it('«Puntaje total» solo aparece dentro del details cerrado «Ver mi seguimiento»', () => {
+  it('el final del caso solo aparece dentro del details cerrado «Ver mi seguimiento»', () => {
     render('PAUSED');
     const details = host().querySelector('details') as HTMLDetailsElement;
     expect(details).not.toBeNull();
     expect(details.open).toBe(false);
     expect(text(details.querySelector('summary'))).toBe('Ver mi seguimiento');
-    expect(text(details)).toContain('Puntaje total');
+    expect(text(details)).toContain('Cierre protector');
     const outside = Array.from(host().querySelectorAll('section > :not(details)')).map(el => el.textContent).join(' ');
-    expect(outside).not.toContain('Puntaje total');
+    expect(outside).not.toContain('Cierre protector');
   });
 
   it('las acciones van antes que los recursos y que el tablero (visibles sin desplazarse)', () => {
@@ -279,7 +272,7 @@ describe('AttemptOutcomeComponent: pausa calmada renderizada (T12.1, AC-7)', () 
   it('el resto de estados conserva su tablero y sus acciones', () => {
     render('COMPLETED');
     expect(host().querySelector('details')).toBeNull();
-    expect(host().textContent).toContain('Puntaje total');
+    expect(host().textContent).toContain('Cierre protector');
     expect(Array.from(host().querySelectorAll('footer button, footer a')).map(el => text(el)))
       .toEqual(['Reintentar caso', 'Volver al simulador', 'Volver al portal']);
     expect(host().querySelector('[role="alertdialog"]')?.classList).not.toContain('outcome--pause');
@@ -384,7 +377,7 @@ describe('AttemptOutcomeComponent: pausa calmada renderizada (T12.1, AC-7)', () 
     it('los textos congelados no cambian', () => {
       render('COMPLETED');
       expect(component.eyebrow('COMPLETED')).toBe('¡Simulación completada!');
-      expect(host().textContent).toContain('Puntaje total');
+      expect(host().textContent).toContain('Cierre protector');
       fixture.destroy();
       TestBed.resetTestingModule();
       render('PAUSED');
@@ -409,23 +402,18 @@ describe('AttemptOutcomeComponent: pausa calmada renderizada (T12.1, AC-7)', () 
     });
 
     it('ningún rótulo del resultado baja de 12 px', () => {
-      for (const selector of ['.oc-label', '.oc-eyebrow', '.oc-chip, .oc-tag', '.oc-tl__delta', '.oc-bar__k']) {
+      for (const selector of ['.oc-label', '.oc-eyebrow', '.oc-chip, .oc-tag']) {
         const size = selector === '.oc-chip, .oc-tag'
           ? Number(/font-size:\s*([0-9.]+)rem/.exec(source.match(/\.oc-chip, \.oc-tag \{([^}]*)\}/)?.[1] ?? '')?.[1])
           : rem(selector);
         expect(size * 16, selector).toBeGreaterThanOrEqual(12);
       }
-      // Las etiquetas de las métricas son un selector compuesto (`.oc-metric span`).
-      const metricLabel = Number(/font-size:\s*([0-9.]+)rem/.exec(source.match(/\.oc-metric span \{([^}]*)\}/)?.[1] ?? '')?.[1]);
-      expect(metricLabel * 16, '.oc-metric span').toBeGreaterThanOrEqual(12);
     });
 
-    it('a 360 px las métricas, la barra y la línea de tiempo caben en una columna útil (sin desplazamiento horizontal)', () => {
+    it('a 360 px los hitos y la línea de tiempo caben en una columna útil (sin desplazamiento horizontal)', () => {
       const narrow = source.match(/@media \(max-width: 480px\) \{([\s\S]*?)\n    \}/)?.[1] ?? '';
-      expect(narrow).toMatch(/\.oc-metrics \{[^}]*grid-template-columns: repeat\(2, minmax\(0, ?1fr\)\)/);
-      expect(narrow).toMatch(/\.oc-bar \{[^}]*grid-template-columns: [^;}]*minmax\(0, ?\d+px\)/);
+      expect(narrow).toMatch(/\.oc-milestones \{[^}]*grid-template-columns: minmax\(0, ?1fr\)/);
       expect(narrow).toMatch(/\.oc-tl \{[^}]*grid-template-columns: \d+px minmax\(0, ?1fr\)/);
-      expect(narrow).toMatch(/\.oc-tl__delta \{[^}]*grid-column: 2/);
       expect(narrow).toMatch(/\.oc-actions \{[^}]*flex-direction: column/);
     });
   });
@@ -438,11 +426,11 @@ describe('AttemptOutcomeComponent: pausa calmada renderizada (T12.1, AC-7)', () 
       expect(chips()).toContain('Reconsideradas: 6');
     });
 
-    it('no son decisiones: no cambian las barras ni las alertas éticas ni el desempeño', () => {
+    it('no son decisiones: no cambian el final ni los hitos ni agregan alertas éticas', () => {
       render('COMPLETED', { report: makeReport({ retries: 2, prohibitedRetries: 1 }) });
       expect(chips().some(chip => /alertas éticas/i.test(chip))).toBe(false);
-      expect(host().textContent).toMatch(/Adecuadas\s*3/);
-      expect(component.perf(makeReport({ retries: 6, adequateDecisions: 6 }))).toBe('Excelente');
+      expect(text(host().querySelector('.oc-ending__title'))).toBe('Cierre protector');
+      expect(host().querySelectorAll('.oc-milestones__list li')).toHaveLength(3);
     });
 
     it('sin reintentos (0 o ausente) no aparece el chip', () => {
@@ -477,7 +465,7 @@ describe('AttemptOutcomeComponent: tus decisiones y marcador (F10-4, C2)', () =>
     chosen: { optionId: 9, text: 'Escuchar sin juzgar' },
     consequence: 'La estudiante continúa la conversación.',
     feedback: { explanation: 'Validar antes de indagar protege la confianza.', theoryBasis: 'Primeros auxilios psicológicos' },
-    classification: 'ADEQUATE',
+    class: 'RECOMMENDED',
     prohibited: false,
     ...overrides,
   });
@@ -565,15 +553,15 @@ describe('AttemptOutcomeComponent: tus decisiones y marcador (F10-4, C2)', () =>
     expect(text(item)).toContain('La estudiante continúa la conversación.');
     expect(text(item)).toContain('Validar antes de indagar protege la confianza.');
     expect(text(item)).toContain('Primeros auxilios psicológicos');
-    expect(text(item.querySelector('.oc-decision__tone'))).toBe('Adecuada');
+    expect(text(item.querySelector('.oc-decision__tone'))).toBe('Recomendada');
   });
 
   it('la etiqueta de cada decisión es cualitativa: nunca un puntaje', async () => {
-    render({ items: [decision({ classification: 'RISKY' }), decision({ order: 2, classification: 'INADEQUATE' })] });
+    render({ items: [decision({ class: 'ACCEPTABLE' }), decision({ order: 2, class: 'RISKY' }), decision({ order: 3, class: 'CONTRAINDICATED' })] });
     await settle();
 
     const labels = Array.from(host().querySelectorAll('.oc-decision__tone')).map(el => text(el));
-    expect(labels).toEqual(['Con riesgo', 'Inadecuada']);
+    expect(labels).toEqual(['Aceptable', 'Con riesgo', 'Contraindicada']);
     expect(text(host().querySelector('.oc-decisions'))).not.toMatch(/\d+\s*pts|puntos/i);
   });
 
@@ -595,7 +583,7 @@ describe('AttemptOutcomeComponent: tus decisiones y marcador (F10-4, C2)', () =>
   });
 
   it('una conducta prohibida se señala con la nota ética, sin alarma de puntaje', async () => {
-    render({ items: [decision({ classification: 'INADEQUATE', prohibited: true })] });
+    render({ items: [decision({ class: 'CONTRAINDICATED', prohibited: true })] });
     await settle();
 
     expect(text(host().querySelector('.oc-decision__note'))).toBe('Alerta ética: esta respuesta puede aumentar el riesgo de revictimización.');
@@ -629,22 +617,118 @@ describe('AttemptOutcomeComponent: tus decisiones y marcador (F10-4, C2)', () =>
     expect(host().querySelectorAll('.oc-decision')).toHaveLength(1);
   });
 
-  it('el marcador por defecto es «Puntaje total»; «progress» muestra el avance sin cifra; «hidden» no muestra marcador', async () => {
-    render();
+  it('el cierre completo no muestra puntaje, estrés, desempeño ni porcentajes', async () => {
+    render({ reportHasDecisions: true, items: [decision()] });
     await settle();
-    const metrics = () => text(host().querySelector('.oc-metrics'));
-    expect(metrics()).toContain('Puntaje total');
-    expect(metrics()).toContain('42');
 
-    writeInputSignal(component.scoreMarker, 'progress');
-    fixture.detectChanges();
-    expect(metrics()).toContain('Avance del caso');
-    expect(metrics()).not.toMatch(/Puntaje total|42/);
-
-    writeInputSignal(component.scoreMarker, 'hidden');
-    fixture.detectChanges();
-    expect(metrics()).not.toMatch(/Puntaje total|42|Avance/);
-    expect(host().querySelector('.oc-metrics')?.children).toHaveLength(4);
+    expect(text(host())).not.toMatch(/puntaje|estrés|desempeño|\d+\s?%/i);
+    expect(host().querySelector('.oc-metrics, .oc-bars, .oc-bar')).toBeNull();
   });
+
+  it('el orden del cierre: final, autoevaluación, hitos, competencias y revisión decisión por decisión', async () => {
+    render({ reportHasDecisions: true, items: [decision()] });
+    await settle();
+
+    const order = Array.from(host().querySelectorAll('.oc-ending, .oc-selfcheck, .oc-milestones, .oc-competencies, .oc-decisions'))
+      .map(el => ['oc-ending', 'oc-selfcheck', 'oc-milestones', 'oc-competencies', 'oc-decisions'].find(name => el.classList.contains(name)));
+    expect(order).toEqual(['oc-ending', 'oc-selfcheck', 'oc-milestones', 'oc-competencies', 'oc-decisions']);
+  });
+
+  it('el final lleva su título, su mensaje, la persona en palabras y «Cómo llegaste aquí» con cada razón', async () => {
+    render({ reportHasDecisions: true, items: [decision()] });
+    await settle();
+
+    const ending = host().querySelector('.oc-ending') as HTMLElement;
+    expect(ending.getAttribute('data-tone')).toBe('positive');
+    expect(text(ending.querySelector('.oc-ending__title'))).toBe('Cierre protector');
+    expect(text(ending.querySelector('.oc-ending__persona'))).toBe('La persona usuaria se muestra abierta y serena.');
+    expect(text(ending.querySelector('.oc-ending__how'))).toBe('Cómo llegaste aquí');
+    expect(Array.from(ending.querySelectorAll('.oc-ending__reasons li')).map(text))
+      .toEqual(['Recomendaste medidas de protección.', 'Ninguna de tus respuestas fue contraindicada.']);
+    expect(ending.querySelector('.oc-chip')).toBeNull();
+  });
+
+  it('la autoevaluación (¿qué salió bien? / ¿qué cambiarías?) va antes de la revisión y es local', async () => {
+    render({ reportHasDecisions: true, items: [decision()] });
+    await settle();
+
+    const selfcheck = host().querySelector('.oc-selfcheck') as HTMLElement;
+    const review = host().querySelector('.oc-decisions') as HTMLElement;
+    expect(selfcheck.compareDocumentPosition(review) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    expect(Array.from(selfcheck.querySelectorAll('label')).map(text)).toEqual(['¿Qué salió bien?', '¿Qué cambiarías?']);
+    expect(selfcheck.querySelectorAll('textarea')).toHaveLength(2);
+    expect(text(selfcheck)).toContain('se queda solo en este dispositivo');
+  });
+
+  it('la autoevaluación se recoge al pulsar «Listo» u «Omitir por ahora», sin pedir nada al servidor', async () => {
+    render({ reportHasDecisions: true, items: [decision()] });
+    await settle();
+    const buttons = () => Array.from(host().querySelectorAll('.oc-selfcheck button')) as HTMLButtonElement[];
+
+    const good = host().querySelector('#oc-self-good') as HTMLTextAreaElement;
+    good.value = 'Escuché sin interrumpir';
+    good.dispatchEvent(new Event('input'));
+    buttons().find(button => text(button) === 'Listo')!.click();
+    fixture.detectChanges();
+    expect(host().querySelector('.oc-selfcheck textarea')).toBeNull();
+    expect(text(host().querySelector('.oc-selfcheck'))).toContain('Tus ideas quedan solo en este dispositivo.');
+
+    buttons().find(button => text(button) === 'Editar mis notas')!.click();
+    fixture.detectChanges();
+    expect((host().querySelector('#oc-self-good') as HTMLTextAreaElement).value).toBe('Escuché sin interrumpir');
+    buttons().find(button => text(button) === 'Omitir por ahora')!.click();
+    fixture.detectChanges();
+    expect(host().querySelector('.oc-selfcheck textarea')).toBeNull();
+    expect(simulation.studentReport).not.toHaveBeenCalled();
+  });
+
+  it('«Lo que hiciste» y «Lo que faltó» salen de los hitos, con la palabra «clave» en los decisivos', async () => {
+    render({ reportHasDecisions: true, items: [decision()] });
+    await settle();
+
+    const done = host().querySelector('.oc-milestones__col--done') as HTMLElement;
+    const missing = host().querySelector('.oc-milestones__col--missing') as HTMLElement;
+    expect(text(done.querySelector('.oc-label'))).toBe('Lo que hiciste');
+    expect(text(missing.querySelector('.oc-label'))).toBe('Lo que faltó');
+    expect(Array.from(done.querySelectorAll('li')).map(text)).toEqual(['Escuchar sin juzgar', 'Recomendar medidas de protección clave']);
+    expect(Array.from(missing.querySelectorAll('li')).map(text)).toEqual(['Remitir a la ruta institucional clave']);
+    expect(done.querySelectorAll('.oc-tag--key')).toHaveLength(1);
+  });
+
+  it('las competencias salen en palabras con las decisiones que las sustentan, y «Sin evidencia» si no hay nivel', async () => {
+    render({ reportHasDecisions: true, items: [decision()] });
+    await settle();
+
+    const rows = Array.from(host().querySelectorAll('.oc-competency')) as HTMLElement[];
+    expect(rows).toHaveLength(2);
+    expect(text(rows[0].querySelector('.oc-competency__name'))).toBe('Escucha activa');
+    expect(text(rows[0].querySelector('.oc-competency__level'))).toBe('Logrado');
+    expect(Array.from(rows[0].querySelectorAll('.oc-competency__evidence li')).map(text)).toEqual(['Sala de escucha: Escuchar sin juzgar']);
+    expect(text(rows[1].querySelector('.oc-competency__level'))).toBe('Sin evidencia');
+    expect(rows[1].querySelector('.oc-competency__evidence')).toBeNull();
+  });
+
+  it('con un reporte anterior (sin final, hitos ni competencias) el cierre no inventa bloques', async () => {
+    render({ reportHasDecisions: true, items: [decision()] });
+    writeInputSignal(component.report, makeReport({
+      ending: null, persona: undefined, milestones: undefined, competencyLevels: undefined, decisionReview: [decision()],
+    }));
+    fixture.detectChanges();
+    await settle();
+
+    expect(host().querySelector('.oc-ending, .oc-milestones, .oc-competencies')).toBeNull();
+    expect(host().querySelector('.oc-decisions')).not.toBeNull();
+  });
+
+  it('las variantes de pausa y salida segura siguen mostrando su apoyo y no la autoevaluación', async () => {
+    render({ status: 'PAUSED', reviewAttemptId: null });
+    writeInputSignal(component.supportResources, ['Línea 155 de orientación']);
+    fixture.detectChanges();
+    await settle();
+
+    expect(text(host().querySelector('.oc-support'))).toContain('Línea 155 de orientación');
+    expect(host().querySelector('.oc-selfcheck')).toBeNull();
+  });
+
 });
 

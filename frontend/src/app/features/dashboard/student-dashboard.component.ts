@@ -18,14 +18,11 @@ import { UiErrorState } from '../../shared/ui/state/ui-error-state';
 import { UiTable, UiTableRow, UiTableTable } from '../../shared/ui/table/ui-table';
 import { UiTooltip } from '../../shared/ui/tooltip/ui-tooltip';
 import { NO_DATA_LABEL, completedAttemptCount, totalActiveSeconds } from './dashboard-metrics.util';
+import { DRAFT_COPY } from '../simulator/draft-copy';
 import {
-  attemptTone, caseProgress, decisionBreakdown, firstUseCopy, formatActiveTime, formatDate, openAttempt, scoreSeries,
+  attemptTone, caseProgress, firstUseCopy, formatActiveTime, formatDate, lastClosings, openAttempt,
 } from './student-dashboard.util';
 
-/** Lienzo del gráfico de puntaje (unidades del viewBox). */
-const CHART_W = 280;
-const CHART_H = 96;
-const CHART_PAD = 8;
 const RECENT_ROWS = 5;
 
 /**
@@ -80,41 +77,19 @@ export class StudentDashboardComponent {
     return { value: String(count), hint: count > 0 ? 'Disponibles en la sala' : 'Sin casos por ahora' };
   });
   protected readonly completed = computed(() => completedAttemptCount(this.history()));
-  protected readonly bestScore = computed(() => {
-    const scores = this.history().map(attempt => attempt.accumulatedScore).filter(score => score > 0);
-    return scores.length ? String(Math.max(...scores)) : 'Pendiente';
-  });
   protected readonly activeTime = computed(() => {
     const seconds = totalActiveSeconds(this.history());
     return { value: formatActiveTime(seconds), hint: seconds === null ? 'Se calcula al terminar un intento' : 'Estimado, sin pausas' };
   });
-
-  protected readonly scores = computed(() => scoreSeries(this.history()));
-  protected readonly scoresHaveData = computed(() => this.scores().some(point => point.value > 0));
-  protected readonly scorePoints = computed(() => {
-    const points = this.scores();
-    const max = Math.max(...points.map(point => point.value), 1);
-    const usableH = CHART_H - 2 * CHART_PAD;
-    return points.map((point, index) => ({
-      ...point,
-      x: points.length === 1 ? CHART_W / 2 : CHART_PAD + (index / (points.length - 1)) * (CHART_W - 2 * CHART_PAD),
-      y: CHART_PAD + usableH - (point.value / max) * usableH,
-      tooltip: `${point.label} · ${point.caseTitle}: ${plural(point.value, 'punto')}`,
-    }));
-  });
-  protected readonly scorePolyline = computed(() => this.scorePoints().map(point => `${point.x},${point.y}`).join(' '));
-  protected readonly scoreSummary = computed(() => {
-    const points = this.scores();
-    return `Evolución de puntaje: ${plural(points.length, 'intento')}, de ${points[0]?.value ?? 0} a ${points.at(-1)?.value ?? 0} puntos`;
-  });
-  protected readonly chartViewBox = `0 0 ${CHART_W} ${CHART_H}`;
 
   protected readonly progress = computed(() => caseProgress(this.history()).map(item => ({
     ...item,
     ratio: item.total ? item.completed / item.total : 0,
     tooltip: `${item.title}: ${item.completed} de ${plural(item.total, 'intento completado', 'intentos completados')}`,
   })));
-  protected readonly decisions = computed(() => decisionBreakdown(this.history()));
+  /** Los últimos casos que completó: caso y fecha, sin cifras. */
+  protected readonly closings = computed(() => lastClosings(this.history()));
+  protected readonly draft = DRAFT_COPY;
 
   protected readonly recent = computed(() => this.history().slice(0, RECENT_ROWS));
   protected readonly statusLabel = statusLabel;
