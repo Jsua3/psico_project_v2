@@ -123,6 +123,8 @@ class MapObject(models.Model):
     facing = models.CharField(max_length=20, default="", db_default="")
     movement_pattern_json = models.TextField(default="{}", db_default="{}")
     metadata_json = models.TextField(default="{}", db_default="{}")
+    # Sugerido por el asistente de IA y aún sin revisar (P5): la compuerta de publicación no deja pasar mientras esté en alto.
+    ai_suggested = models.BooleanField(default=False, db_default=False)
 
     class Meta:
         db_table = "map_objects"
@@ -178,6 +180,8 @@ class DialogueLine(models.Model):
     speaker_name = models.CharField(max_length=255)
     text = models.TextField()
     emotion = models.CharField(max_length=60, default="", db_default="")
+    # Sugerido por el asistente de IA y aún sin revisar (P5): la compuerta de publicación no deja pasar mientras esté en alto.
+    ai_suggested = models.BooleanField(default=False, db_default=False)
 
     class Meta:
         db_table = "dialogue_lines"

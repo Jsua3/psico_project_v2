@@ -233,6 +233,43 @@ class DecisionDetailView(_AuthoringView):
         )
 
 
+# ─── Revisión de lo sugerido por la IA (P5) ──────────────────────────────────
+class NodeAcceptAiView(_AuthoringView):
+    """``POST …/nodes/<id>/accept-ai``: baja la marca «sugerido por la IA» del nodo y devuelve el editor."""
+
+    def post(self, request, case_version_id, node_id):
+        self.version_for(request, case_version_id, mutate=True)
+        # BORRADOR: texto nuevo del servidor, pendiente de la aprobación de Psicología (VD-23).
+        return api_ok(svc.accept_ai_node(case_version_id, node_id, self.revision(request)), "Parte revisada")
+
+
+class DecisionAcceptAiView(_AuthoringView):
+    """``POST …/decisions/<id>/accept-ai``: baja la marca de la decisión."""
+
+    def post(self, request, case_version_id, decision_id):
+        self.version_for(request, case_version_id, mutate=True)
+        # BORRADOR: texto nuevo del servidor, pendiente de la aprobación de Psicología (VD-23).
+        return api_ok(svc.accept_ai_decision(case_version_id, decision_id, self.revision(request)), "Parte revisada")
+
+
+class DialogueAcceptAiView(_AuthoringView):
+    """``POST …/dialogues/<id>/accept-ai``: baja la marca de todas las líneas del diálogo."""
+
+    def post(self, request, case_version_id, tree_id):
+        self.version_for(request, case_version_id, mutate=True)
+        # BORRADOR: texto nuevo del servidor, pendiente de la aprobación de Psicología (VD-23).
+        return api_ok(svc.accept_ai_dialogue(case_version_id, tree_id, self.revision(request)), "Parte revisada")
+
+
+class ObjectAcceptAiView(_AuthoringView):
+    """``POST …/objects/<id>/accept-ai``: baja la marca del objeto."""
+
+    def post(self, request, case_version_id, object_id):
+        self.version_for(request, case_version_id, mutate=True)
+        # BORRADOR: texto nuevo del servidor, pendiente de la aprobación de Psicología (VD-23).
+        return api_ok(svc.accept_ai_object(case_version_id, object_id, self.revision(request)), "Parte revisada")
+
+
 # ─── Reglas del modelo: hitos, riesgo y finales ──────────────────────────────
 class RulesMilestonesView(_AuthoringView):
     def put(self, request, case_version_id):

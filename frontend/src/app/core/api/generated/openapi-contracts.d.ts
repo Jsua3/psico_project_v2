@@ -884,8 +884,10 @@ export interface OpenApiPaths {
   readonly '/api/admin/cases/{case_version_id}/clone-version': 'POST';
   readonly '/api/admin/cases/{case_version_id}/decisions': 'POST';
   readonly '/api/admin/cases/{case_version_id}/decisions/{decision_id}': 'DELETE' | 'PUT';
+  readonly '/api/admin/cases/{case_version_id}/decisions/{decision_id}/accept-ai': 'POST';
   readonly '/api/admin/cases/{case_version_id}/definition': 'GET';
   readonly '/api/admin/cases/{case_version_id}/dialogues/{tree_id}': 'DELETE' | 'PUT';
+  readonly '/api/admin/cases/{case_version_id}/dialogues/{tree_id}/accept-ai': 'POST';
   readonly '/api/admin/cases/{case_version_id}/editor': 'GET';
   readonly '/api/admin/cases/{case_version_id}/hints/{hint_id}': 'DELETE' | 'PUT';
   readonly '/api/admin/cases/{case_version_id}/lifecycle': 'GET' | 'POST';
@@ -897,7 +899,9 @@ export interface OpenApiPaths {
   readonly '/api/admin/cases/{case_version_id}/nodes': 'POST';
   readonly '/api/admin/cases/{case_version_id}/nodes/reorder': 'PATCH';
   readonly '/api/admin/cases/{case_version_id}/nodes/{node_id}': 'DELETE' | 'PUT';
+  readonly '/api/admin/cases/{case_version_id}/nodes/{node_id}/accept-ai': 'POST';
   readonly '/api/admin/cases/{case_version_id}/objects/{object_id}': 'DELETE' | 'PUT';
+  readonly '/api/admin/cases/{case_version_id}/objects/{object_id}/accept-ai': 'POST';
   readonly '/api/admin/cases/{case_version_id}/publish': 'POST';
   readonly '/api/admin/cases/{case_version_id}/rules/endings': 'PUT';
   readonly '/api/admin/cases/{case_version_id}/rules/milestones': 'PUT';
@@ -935,8 +939,10 @@ export interface OpenApiPaths {
   readonly '/api/authoring/cases/{case_version_id}/clone-version': 'POST';
   readonly '/api/authoring/cases/{case_version_id}/decisions': 'POST';
   readonly '/api/authoring/cases/{case_version_id}/decisions/{decision_id}': 'DELETE' | 'PUT';
+  readonly '/api/authoring/cases/{case_version_id}/decisions/{decision_id}/accept-ai': 'POST';
   readonly '/api/authoring/cases/{case_version_id}/definition': 'GET';
   readonly '/api/authoring/cases/{case_version_id}/dialogues/{tree_id}': 'DELETE' | 'PUT';
+  readonly '/api/authoring/cases/{case_version_id}/dialogues/{tree_id}/accept-ai': 'POST';
   readonly '/api/authoring/cases/{case_version_id}/editor': 'GET';
   readonly '/api/authoring/cases/{case_version_id}/hints/{hint_id}': 'DELETE' | 'PUT';
   readonly '/api/authoring/cases/{case_version_id}/lifecycle': 'GET' | 'POST';
@@ -948,7 +954,9 @@ export interface OpenApiPaths {
   readonly '/api/authoring/cases/{case_version_id}/nodes': 'POST';
   readonly '/api/authoring/cases/{case_version_id}/nodes/reorder': 'PATCH';
   readonly '/api/authoring/cases/{case_version_id}/nodes/{node_id}': 'DELETE' | 'PUT';
+  readonly '/api/authoring/cases/{case_version_id}/nodes/{node_id}/accept-ai': 'POST';
   readonly '/api/authoring/cases/{case_version_id}/objects/{object_id}': 'DELETE' | 'PUT';
+  readonly '/api/authoring/cases/{case_version_id}/objects/{object_id}/accept-ai': 'POST';
   readonly '/api/authoring/cases/{case_version_id}/publish': 'POST';
   readonly '/api/authoring/cases/{case_version_id}/rules/endings': 'PUT';
   readonly '/api/authoring/cases/{case_version_id}/rules/milestones': 'PUT';

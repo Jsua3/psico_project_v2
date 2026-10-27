@@ -91,6 +91,8 @@ class NodeRequest(serializers.Serializer):
     decisionPrompt = _text()
     # Intensidad de la escena; ausente = no tocar (un nodo nuevo sensible nace en HIGH).
     intensity = serializers.ChoiceField(choices=[m.value for m in Intensity], required=False)
+    # Sugerido por el asistente de IA y sin revisar (P5); ausente = no tocar (un nodo nuevo nace en falso).
+    aiSuggested = serializers.BooleanField(required=False)
 
 
 class NodeReorderRequest(serializers.Serializer):
@@ -120,6 +122,7 @@ class DecisionRequest(serializers.Serializer):
     feedbackText = _text()
     # Los efectos de la opción (E3-8): el servicio los valida con su forma y su campo.
     effects = serializers.DictField(required=False, allow_null=True)
+    aiSuggested = serializers.BooleanField(required=False)
 
 
 class MapRequest(serializers.Serializer):
@@ -160,6 +163,7 @@ class ObjectRequest(serializers.Serializer):
     decisionOptionId = _number()
     # «Ausente = no tocar»; ``null`` desvincula el personaje (E3-3).
     characterId = _number()
+    aiSuggested = serializers.BooleanField(required=False)
 
 
 class DialogueLineRequest(serializers.Serializer):
@@ -167,6 +171,7 @@ class DialogueLineRequest(serializers.Serializer):
     speakerName = _text(255)
     text = serializers.CharField(allow_blank=True, trim_whitespace=False)
     emotion = _text(60)
+    aiSuggested = serializers.BooleanField(required=False)
 
 
 class DialogueRequest(serializers.Serializer):

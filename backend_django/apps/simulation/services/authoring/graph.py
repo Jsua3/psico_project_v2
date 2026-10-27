@@ -130,6 +130,8 @@ def _apply_node_request(node, request):
     node.start_node = flag(request, "startNode")
     node.position_x = request.get("positionX")
     node.position_y = request.get("positionY")
+    if "aiSuggested" in request:
+        node.ai_suggested = bool(request["aiSuggested"])
     # «Ausente = no tocar»; una cadena vacía borra el enunciado (es blando).
     if "decisionPrompt" in request:
         node.decision_prompt = validate_plain_text(
@@ -179,6 +181,8 @@ def _apply_decision_request(decision, request, case_version_id, version):
     decision.source_node = src
     decision.target_node = tgt
     decision.text = request.get("text")
+    if "aiSuggested" in request:
+        decision.ai_suggested = bool(request["aiSuggested"])
     decision.prohibited_conduct = flag(request, "prohibitedConduct")
     decision.prohibition_reason = request.get("prohibitionReason")
     _apply_response_class(decision, request)

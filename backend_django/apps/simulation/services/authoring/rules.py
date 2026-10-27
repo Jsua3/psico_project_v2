@@ -32,7 +32,7 @@ MAX_MESSAGE_LENGTH = 2000
 #: El tono de un final; ``neutral`` si no se indica.
 ENDING_TONES = ("critical", "positive", "warning", "neutral")
 _MILESTONE_FIELDS = {"key", "label", "description", "decisive"}
-_ENDING_FIELDS = {"key", "title", "message", "tone", "when"}
+_ENDING_FIELDS = {"key", "title", "message", "tone", "when", "aiSuggested"}
 
 
 def _refuse(field, message):
@@ -181,7 +181,12 @@ def _clean_endings(items, declared):
         tone = item.get("tone") or "neutral"
         if tone not in ENDING_TONES:
             raise _refuse("endings", f"El tono del final «{key}» debe ser {', '.join(ENDING_TONES)}.")
+        ai_suggested = item.get("aiSuggested", False)
+        if not isinstance(ai_suggested, bool):
+            raise _refuse("endings", f"Que el final «{key}» sea sugerido por la IA se indica con sí o no.")
         ending = {"key": key, "title": title, "message": message, "tone": tone}
+        if ai_suggested:  # solo se guarda en alto: así el documento de un final revisado queda como siempre
+            ending["aiSuggested"] = True
         when = item.get("when")
         if when is not None:
             if not conditions.is_valid(when):

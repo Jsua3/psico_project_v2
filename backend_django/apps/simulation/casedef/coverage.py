@@ -54,6 +54,7 @@ EXPORTED = {
 _ID = "identificador de la base de datos: el documento usa ids de DSL por posición"
 _OWNER_VERSION = "la entidad es de la versión del documento"
 _STAMP = "marca de tiempo de la fila; el documento no lleva fechas"
+_AI_MARK = "marca de revisión del asistente de IA (P5): la lleva la compuerta de publicación, no el documento (se pierde al exportar e importar)"
 
 #: modelo → {columna: motivo por el que no viaja}.
 EXCLUDED = {
@@ -83,19 +84,21 @@ EXCLUDED = {
     "SimulationNode": {
         "id": _ID, "case_version": _OWNER_VERSION,
         "intensity": "todavía no viaja en el documento: el importador la deriva de `sensitive_content`",
+        "ai_suggested": _AI_MARK,
     },
     "DecisionOption": {
         "id": _ID, "case_version": _OWNER_VERSION,
         "response_class": "todavía no viaja en el documento: el importador la deriva de la clasificación y la severidad",
+        "ai_suggested": _AI_MARK,
     },
     "SceneMap": {"id": _ID, "case_version": "la versión del mapa es la de su escena", "created_at": _STAMP,
                  "updated_at": _STAMP},
     "SceneHint": {"id": _ID},
     "CaseCharacter": {"id": _ID, "case_version": _OWNER_VERSION},
-    "MapObject": {"id": _ID, "created_at": _STAMP, "updated_at": _STAMP},
+    "MapObject": {"id": _ID, "created_at": _STAMP, "updated_at": _STAMP, "ai_suggested": _AI_MARK},
     "CollisionZone": {"id": _ID},
     "DialogueTree": {"id": _ID, "created_at": _STAMP},
-    "DialogueLine": {"id": _ID},
+    "DialogueLine": {"id": _ID, "ai_suggested": _AI_MARK},
     "DialogueChoice": {"id": _ID},
     "ClinicalTool": {"id": _ID, "case_version": _OWNER_VERSION},
     "Rubric": {

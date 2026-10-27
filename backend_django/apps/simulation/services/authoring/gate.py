@@ -31,6 +31,7 @@ from shared.exceptions import ApiError
 
 from . import checklist as checklist_rules
 from . import ethics
+from .ai_review import ai_suggested_count
 from .definition_io import load_definition
 from .editor_view import latest_checklist_codes, latest_checklist_ratio
 from .guards import revision_bump
@@ -87,6 +88,13 @@ def _assess(version, require_checklist, *, at_approval=False, content_review_giv
             # BORRADOR: texto nuevo del servidor, pendiente de la aprobación de Psicología (VD-23).
             "message": f"El caso tiene {len(errors)} error(es) de validación que impiden publicarlo.",
             "issues": errors,
+        })
+    suggested = ai_suggested_count(version)
+    if suggested:
+        blockers.append({
+            "code": "AI_SUGGESTED_UNREVIEWED",
+            # BORRADOR: texto nuevo del servidor, pendiente de la aprobación de Psicología (VD-23).
+            "message": f"{suggested} parte(s) sugeridas por la IA sin revisar.",
         })
     if require_checklist:
         blockers.extend(

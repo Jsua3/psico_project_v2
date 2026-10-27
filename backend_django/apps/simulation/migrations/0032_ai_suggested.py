@@ -25,4 +25,24 @@ class Migration(migrations.Migration):
                 'constraints': [models.UniqueConstraint(fields=('user', 'day'), name='uq_authoring_assistant_usage_user_day')],
             },
         ),
+        migrations.AddField(
+            model_name='simulationnode',
+            name='ai_suggested',
+            field=models.BooleanField(db_default=False, default=False),
+        ),
+        migrations.AddField(
+            model_name='decisionoption',
+            name='ai_suggested',
+            field=models.BooleanField(db_default=False, default=False),
+        ),
+        migrations.AddField(
+            model_name='mapobject',
+            name='ai_suggested',
+            field=models.BooleanField(db_default=False, default=False),
+        ),
+        migrations.AddField(
+            model_name='dialogueline',
+            name='ai_suggested',
+            field=models.BooleanField(db_default=False, default=False),
+        ),
     ]

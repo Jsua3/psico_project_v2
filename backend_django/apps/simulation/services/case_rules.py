@@ -133,6 +133,8 @@ def _parse_endings(raw):
         }
         if "when" in item:
             ending["when"] = item["when"]
+        # Sugerido por el asistente de IA y sin revisar (P5): siempre un booleano.
+        ending["aiSuggested"] = item.get("aiSuggested") is True
         parsed.append(ending)
     return tuple(parsed)
 
