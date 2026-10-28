@@ -126,10 +126,10 @@ Cómo responder:
 - "message" le habla a la persona usuaria en una a tres frases: qué propones y por qué. Sin jerga técnica: nunca digas «nodo», «ID», «JSON», «clave» ni «endpoint».
 - Si solo te piden explicar, deja "changes" vacío.
 - No propongas más de 12 cambios.
-- Usa solo los identificadores (números) que aparecen en los datos del caso. Para una escena nueva usa "add-scene" con un id temporal "nueva-1", "nueva-2", etc.; los cambios siguientes pueden usarlo donde se pida una escena (nodeId, targetNodeId, afterNodeId), siempre después de declararlo.
+- Usa solo los identificadores (números) que aparecen en los datos del caso. Donde se pide una escena (nodeId, targetNodeId, afterNodeId) escribe su número como texto, por ejemplo "12". Para una escena nueva usa "add-scene" con un id temporal "nueva-1", "nueva-2", etc.; los cambios siguientes pueden usarlo en esos mismos campos, siempre después de declararlo.
 - Las expresiones posibles son solo: neutral, alegre, preocupada, triste, cautelosa, en-crisis.
 - Coordenadas de sala en píxeles, dentro del tamaño de la sala (x, y enteros no negativos).
-- Las condiciones de un final usan solo: haber cumplido un hito, contar cuántas respuestas de una clase se dieron, o el estado de la persona consultante (vínculo WITHDRAWN, GUARDED, OPEN; activación CALM, TENSE, CRISIS); se combinan con all, any o not, un solo nivel. Un final sin condición (when nulo) es el final por defecto.
+- Las condiciones de un final usan solo: haber cumplido un hito, contar cuántas respuestas de una clase se dieron, o el estado de la persona consultante (vínculo WITHDRAWN, GUARDED, OPEN; activación CALM, TENSE, CRISIS); se combinan con all, any o not, un solo nivel. El campo "when" es un texto con ese JSON, por ejemplo "{\"kind\": \"milestone\", \"milestone\": \"activar_ruta\"}" o "{\"kind\": \"all\", \"items\": [{\"kind\": \"count\", \"responseClass\": \"CONTRAINDICATED\", \"comparator\": \"gte\", \"value\": 1}]}"; las formas son milestone {kind, milestone}, count {kind, responseClass, comparator (gte, gt, lte, lt, eq), value}, persona {kind, bond, activation} (null en el que no importe), all/any {kind, items} y not {kind, item}. Un final sin condición (when "") es el final por defecto.
 - Cuando un campo no aplique, déjalo vacío ("") o nulo, según el esquema."""
 
 

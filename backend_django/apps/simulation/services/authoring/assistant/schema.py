@@ -4,9 +4,9 @@
 campos obligatorios (lo opcional es ``null`` o ``""``). Sin recursión ni límites numéricos: eso lo revisa
 ``proposals.validate`` en Python, que nunca confía en lo que devuelve el modelo.
 
-Ids: un número es el id de una fila de ESTA versión del caso; una escena nueva se declara con ``add-scene`` y un id
-temporal ``nueva-N`` que los cambios siguientes pueden usar donde se pide una escena (``nodeId``, ``targetNodeId``,
-``afterNodeId``).
+Ids: un número es el id de una fila de ESTA versión del caso; una escena se nombra siempre con texto: su id escrito
+como texto (``"12"``) o, si es nueva, el id temporal ``nueva-N`` que declara ``add-scene`` y que los cambios siguientes
+pueden usar donde se pide una escena (``nodeId``, ``targetNodeId``, ``afterNodeId``).
 
 Operación → endpoint de autoría con que el cliente la aplica (``/api/authoring/cases/{id}/…``, siempre sobre un
 borrador y con la revisión vigente):
@@ -26,8 +26,9 @@ borrador y con la revisión vigente):
 - ``mark-milestone``      → ``PUT decisions/{decisionId}`` agregando la clave a ``effects.milestones``.
 - ``set-intensity``       → ``PUT nodes/{nodeId}`` (``intensity``, ``warningMessage``).
 
-La condición ``when`` de ``add-ending`` viaja en una forma plana de un solo nivel (``kind``) que ``proposals.validate``
-traduce a la gramática de las condiciones (``{all|any|not|milestone|count|persona}``).
+La condición ``when`` de ``add-ending`` viaja como texto: el JSON de una forma plana de un solo nivel (``kind``), o ``""``
+si el final no tiene condición; ``proposals.validate`` la lee y la traduce a la gramática de las condiciones
+(``{all|any|not|milestone|count|persona}``).
 """
 from apps.simulation.casedef.vocabulary import Activation, Bond, Intensity, ResponseClass
 from apps.simulation.services.authoring.rules import ENDING_TONES
@@ -59,23 +60,15 @@ def _nullable(inner: dict) -> dict:
     return {"anyOf": [inner, {"type": "null"}]}
 
 
-#: Una escena: el id de una existente (número) o un id temporal ``nueva-N``.
-_NODE_REF = {"anyOf": [_INT, _TEXT]}
+#: Una escena: el id de una existente escrito como texto (``"12"``) o un id temporal ``nueva-N``. Es texto y no
+#: «número o texto» porque el proveedor admite a lo sumo 16 parámetros unión por esquema; ``proposals`` devuelve el
+#: id de una escena existente como número, así que el cliente recibe lo mismo que antes.
+_NODE_REF = _TEXT
 
-_LEAF_CONDITIONS = [
-    _obj({"kind": _enum(["milestone"]), "milestone": _TEXT}),
-    _obj({"kind": _enum(["count"]), "responseClass": _enum(RESPONSE_CLASSES), "comparator": _enum(COMPARATORS), "value": _INT}),
-    _obj({"kind": _enum(["persona"]), "bond": _nullable(_enum(BONDS)), "activation": _nullable(_enum(ACTIVATIONS))}),
-]
-_LEAF = {"anyOf": _LEAF_CONDITIONS}
-_WHEN = _nullable({
-    "anyOf": [
-        *_LEAF_CONDITIONS,
-        _obj({"kind": _enum(["all"]), "items": {"type": "array", "items": _LEAF}}),
-        _obj({"kind": _enum(["any"]), "items": {"type": "array", "items": _LEAF}}),
-        _obj({"kind": _enum(["not"]), "item": _LEAF}),
-    ]
-})
+#: La condición de un final viaja como TEXTO con el JSON de la forma plana (``{"kind": …}``; ``""`` es «sin condición»):
+#: como objetos anidados, aun de un solo nivel, el proveedor responde 400 «The compiled grammar is too large».
+#: ``proposals.validate`` la lee y la revisa campo por campo con el vocabulario de abajo.
+_WHEN = _TEXT
 
 #: Los campos de cada operación (sin ``op``).
 OPERATIONS: dict[str, dict] = {
