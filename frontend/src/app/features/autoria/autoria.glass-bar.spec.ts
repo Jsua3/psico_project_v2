@@ -69,12 +69,12 @@ describe('Editor de casos: la barra de vidrio (tableros 45–51)', () => {
     expect(barra.getAttribute('data-estado')).toBe('scroll');
   });
 
-  it('el módulo central trae «‹ Mis casos» y «Editor de casos»; la cuenta, la ayuda y el menú de la cuenta', async () => {
+  it('con un caso abierto, el módulo central trae «‹ Mis casos», el nombre del caso y sus secciones; la cuenta, la ayuda y el menú', async () => {
     const { raiz } = await irA('/portal/casos/41/editor');
     const central = raiz.querySelector('header .modulo-principal')!;
     expect(central.querySelector('a')!.getAttribute('href')).toBe('/portal/casos');
     expect(central.textContent).toContain('Mis casos');
-    expect(central.textContent).toContain('Editor de casos');
+    expect(central.querySelector('.caso-actual')!.textContent).toContain('Primera escucha');
     const cuenta = raiz.querySelector('header .modulo-cuenta')!;
     const ayuda = cuenta.querySelector('[role="group"][aria-label="Ayuda"]')!;
     expect([...ayuda.querySelectorAll('button')].map((b) => b.textContent!.replace(/\s+/g, ' ').trim().split(' Ctrl')[0])).toEqual(['Buscar', 'Guía', 'Asistente de IA']);
@@ -122,27 +122,34 @@ describe('Editor de casos: la barra de vidrio (tableros 45–51)', () => {
     expect(barra.getAttribute('data-estado')).toBe('scroll');
   });
 
-  it('las secciones del caso y su nombre van en una banda sólida bajo la barra, no dentro del vidrio', async () => {
+  it('las secciones del caso van dentro de la barra, en el módulo central, y no hay banda debajo', async () => {
     const { raiz } = await irA('/portal/casos/41/editor');
-    const banda = raiz.querySelector('.banda')!;
-    expect(raiz.querySelector('header')!.contains(banda)).toBe(false);
-    expect(banda.textContent).toContain('Primera escucha');
-    const secciones = [...banda.querySelectorAll('nav[aria-label="Secciones del caso"] a')].map((a) => a.getAttribute('href'));
-    expect(secciones).toEqual([
-      '/portal/casos', '/portal/casos/41/editor', '/portal/casos/41/editor/datos', '/portal/casos/41/editor/finales',
+    expect(raiz.querySelector('.banda')).toBeNull();
+    const secciones = raiz.querySelector('header .modulo-principal nav[aria-label="Secciones del caso"]')!;
+    expect([...secciones.querySelectorAll('a')].map((a) => a.getAttribute('href'))).toEqual([
+      '/portal/casos/41/editor', '/portal/casos/41/editor/datos', '/portal/casos/41/editor/finales',
       '/portal/casos/41/editor/probar', '/portal/casos/41/editor/revision',
     ]);
+    // Cada sección se anuncia con su nombre completo, aunque por ancho se vea su rótulo corto.
+    expect([...secciones.querySelectorAll('a')].map((a) => a.getAttribute('aria-label'))).toEqual([
+      'El caso', 'Datos del caso', 'Finales', 'Probar como estudiante', 'Enviar a revisión',
+    ]);
     // La guía las encuentra por su acción.
-    for (const accion of ['datos-del-caso', 'definir-finales', 'probar', 'enviar-revision']) expect(banda.querySelector(`[data-accion~="${accion}"]`)).not.toBeNull();
+    for (const accion of ['datos-del-caso', 'definir-finales', 'probar', 'enviar-revision']) expect(secciones.querySelector(`[data-accion~="${accion}"]`)).not.toBeNull();
     // La pantalla en la que estás se marca para el lector de pantalla.
-    expect(banda.querySelector('a[aria-current="page"]')!.textContent).toContain('El caso');
+    expect(secciones.querySelector('a[aria-current="page"]')!.getAttribute('aria-label')).toBe('El caso');
+  });
+
+  it('las secciones nunca se pliegan al desplazarse: ninguna es plegable', async () => {
+    const { raiz } = await irA('/portal/casos/41/editor');
+    expect(raiz.querySelectorAll('header .modulo-principal .control-plegable')).toHaveLength(0);
   });
 
   it('crear un caso (sin caso abierto) trae la misma barra y ninguna sección', async () => {
     const { raiz } = await irA('/portal/casos/nuevo');
     expect(raiz.querySelectorAll('header')).toHaveLength(1);
     expect(raiz.querySelector('header .modulo-principal')!.textContent).toContain('Editor de casos');
-    expect(raiz.querySelectorAll('.banda nav a')).toHaveLength(0);
+    expect(raiz.querySelectorAll('nav[aria-label="Secciones del caso"] a')).toHaveLength(0);
   });
 
   it('el contenido es el destino de «Saltar al contenido principal» de la aplicación (#main-content)', async () => {
