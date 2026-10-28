@@ -118,6 +118,9 @@ app-autoria-shell .texto-secundario,
 app-autoria-shell .saltar {
   position: absolute;
   left: -9999px;
+  display: inline-flex;
+  align-items: center;
+  min-height: 44px;
 }
 
 app-autoria-shell .saltar:focus {

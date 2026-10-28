@@ -2,6 +2,7 @@ import type { Routes } from '@angular/router';
 
 import { canLeaveGuard } from '../../core/navigation/can-leave.guard';
 import { AutoriaShellComponent } from './autoria-shell.component';
+import { DatosComponent } from './pantallas/datos/datos.component';
 import { EditorComponent } from './pantallas/editor/editor.component';
 import { FinalesComponent } from './pantallas/finales/finales.component';
 import { GuionComponent } from './pantallas/guion/guion.component';
@@ -16,6 +17,7 @@ export const pantallasDelEditor: Routes = [
   { path: '', component: EditorComponent, title: 'El caso · Editor de casos' },
   { path: 'sala/:salaId', component: SalaComponent, title: 'Sala · Editor de casos' },
   { path: 'escena/:escenaId', component: GuionComponent, title: 'Guion · Editor de casos' },
+  { path: 'datos', component: DatosComponent, title: 'Datos del caso · Editor de casos' },
   { path: 'finales', component: FinalesComponent, title: 'Finales · Editor de casos' },
   { path: 'probar', component: ProbarComponent, title: 'Probar como estudiante · Editor de casos' },
   { path: 'revision', component: RevisionComponent, title: 'Enviar a revisión · Editor de casos' },

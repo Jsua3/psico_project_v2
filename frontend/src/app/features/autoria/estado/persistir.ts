@@ -8,7 +8,9 @@
  */
 import { HttpErrorResponse } from '@angular/common/http';
 
-import type { ChecklistUpdateRequest, WorldDefinition, WorldRoomSaveRequest } from '../../../core/models/simulation.model';
+import type {
+  ChecklistUpdateRequest, WorldDefinition, WorldDialogueChoice, WorldDialogueTree, WorldObject, WorldRoomSaveRequest,
+} from '../../../core/models/simulation.model';
 import type { CasoBorrador, Escena, Respuesta } from '../modelo/caso';
 import { arbolDeGuion } from '../modelo/desde-api';
 import {
@@ -96,8 +98,22 @@ export async function guardarSala(s: SesionServidor, caso: CasoBorrador, salaId:
         if (esConflicto(otra)) throw otra;
         throw new SalaDesalineada(salaId);
       }
+      await recuperarGuiones(s, caso, nodos);
       return;
     }
+  }
+  await recuperarGuiones(s, caso, nodos);
+}
+
+/**
+ * El guion de una escena cuelga de una persona de su sala: si la sala se guardó sin esa persona, el servidor se llevó el
+ * guion con ella. El borrador lo conserva, así que se vuelve a escribir (con otra persona de la sala, si queda alguna).
+ */
+async function recuperarGuiones(s: SesionServidor, caso: CasoBorrador, nodos: number[]): Promise<void> {
+  for (const nodoId of nodos) {
+    const escenaId = s.escenaDeNodo(nodoId, caso.escenas);
+    const escena = escenaId === undefined ? undefined : escenaDe(caso, escenaId);
+    if (escena && escena.lineas.length > 0 && !arbolDeGuion(s.mundos.get(nodoId))) await sincronizarGuion(s, caso, escena.id);
   }
 }
 
@@ -172,7 +188,8 @@ export async function actualizarEscena(s: SesionServidor, caso: CasoBorrador, es
   if (previo
     && previo.title === cuerpo.title && previo.narrative === cuerpo.narrative && previo.terminal === cuerpo.terminal && previo.startNode === cuerpo.startNode
     && previo.positionX === cuerpo.positionX && previo.positionY === cuerpo.positionY && previo.intensity === cuerpo.intensity
-    && (previo.warningMessage ?? null) === (cuerpo.warningMessage ?? null)) {
+    && (previo.warningMessage ?? null) === (cuerpo.warningMessage ?? null)
+    && JSON.stringify(previo.supportResources ?? []) === JSON.stringify(cuerpo.supportResources ?? [])) {
     return; // nada que decirle al servidor
   }
   await s.actualizarNodo(nodoId, cuerpo);
@@ -217,6 +234,70 @@ export async function sincronizarGuion(s: SesionServidor, caso: CasoBorrador, es
     await s.crearDialogo(mapa.id, cuerpo);
     await s.releerMundo(nodoId); // para saber el id del diálogo que se creó
   }
+  await ofrecerOpciones(s, caso, escenaId);
+}
+
+/** Las respuestas de la escena que ya son una opción en el servidor, como las elecciones del diálogo del guion. */
+function eleccionesDeEscena(s: SesionServidor, escena: Escena): WorldDialogueChoice[] {
+  const elecciones: WorldDialogueChoice[] = [];
+  for (const respuesta of escena.respuestas) {
+    const decisionId = s.decisionDe(respuesta.id);
+    const decision = decisionId === undefined ? undefined : s.vista.decisions.find((d) => d.id === decisionId);
+    if (!decision) continue;
+    elecciones.push({
+      key: decision.optionKey, text: respuesta.texto, decisionOptionId: decision.id, requiredToolCode: null, effect: {},
+      displayOrder: elecciones.length + 1,
+    });
+  }
+  return elecciones;
+}
+
+const mismasElecciones = (a: WorldDialogueChoice[], b: WorldDialogueChoice[]): boolean =>
+  a.length === b.length && a.every((c, i) => c.key === b[i].key && c.text === b[i].text && c.decisionOptionId === b[i].decisionOptionId);
+
+/**
+ * La persona de la sala de la que cuelga el guion: la que ya lo tiene si sigue en la sala; si no, la que dice la primera
+ * línea; si no, la primera persona de la sala. Sin ninguna persona, el guion queda suelto.
+ */
+function duenioDelGuion(s: SesionServidor, mundo: WorldDefinition, guion: WorldDialogueTree, escena: Escena): WorldObject | undefined {
+  const personas = mundo.objects.filter((o) => o.type === 'PERSON');
+  const actual = personas.find((o) => o.id === guion.mapObjectId);
+  if (actual) return actual;
+  const personaje = escena.lineas[0]?.personajeId;
+  const delPersonaje = personaje === undefined
+    ? undefined
+    : personas.find((o) => s.vista.characters.find((c) => c.id === o.characterId)?.key === personaje);
+  return delPersonaje ?? personas[0];
+}
+
+/**
+ * Hace que el estudiante pueda elegir las respuestas de la escena: el guion es el diálogo de una persona de la sala y sus
+ * elecciones son las respuestas (cada una es una opción del servidor). Sin esto, ninguna opción tiene por dónde elegirse
+ * (la compuerta lo marca como error) y el estudiante vería la sala sin poder responder. Solo habla con el servidor si algo
+ * cambió: el dueño del guion o las elecciones.
+ */
+export async function ofrecerOpciones(s: SesionServidor, caso: CasoBorrador, escenaId: string): Promise<void> {
+  const escena = escenaDe(caso, escenaId);
+  const nodoId = s.nodoDe(escenaId);
+  const nodo = nodoId === undefined ? undefined : s.vista.nodes.find((n) => n.id === nodoId);
+  if (!escena || nodoId === undefined || !nodo) return;
+  const mundo = await s.mundoDe(nodoId);
+  const guion = arbolDeGuion(mundo);
+  if (!guion) return; // sin líneas todavía no hay diálogo que ofrezca nada
+  const elecciones = eleccionesDeEscena(s, escena);
+  const duenio = duenioDelGuion(s, mundo, guion, escena);
+  if ((duenio?.id ?? null) === (guion.mapObjectId ?? null) && mismasElecciones(guion.choices ?? [], elecciones)) return;
+  const cuerpo = cuerpoGuion(escena, caso.personajes, { nodeKey: nodo.key, previo: guion });
+  const arbol: WorldDialogueTree = {
+    id: guion.id, key: cuerpo.treeKey, speakerName: cuerpo.speakerName, portraitKey: cuerpo.portraitKey ?? null,
+    emotion: cuerpo.emotion ?? 'neutral', mapObjectId: duenio?.id ?? null, ...(duenio ? { mapObjectKey: duenio.key } : {}),
+    lines: (cuerpo.lines ?? []).map((l) => ({
+      order: l.displayOrder, speakerName: l.speakerName ?? cuerpo.speakerName, text: l.text, emotion: l.emotion ?? 'neutral',
+      aiSuggested: l.aiSuggested,
+    })),
+    choices: elecciones,
+  };
+  await s.guardarDialogos(nodoId, mundo.dialogues.map((t) => (t.id === guion.id ? arbol : t)));
 }
 
 // ─── Respuestas ──────────────────────────────────────────────────────────────
@@ -236,6 +317,20 @@ export function motivoSinGuardar(respuesta: Respuesta): string | null {
 
 /** Pone al día la respuesta en el servidor: la crea cuando ya se puede, la actualiza, o la borra si desapareció o ya no lleva a ninguna escena. */
 export async function sincronizarRespuesta(s: SesionServidor, caso: CasoBorrador, respuestaId: string): Promise<void> {
+  // La escena de la que sale la opción, antes y después: una respuesta borrada ya no está en el borrador, pero su opción sí en el servidor.
+  const decisionAntes = s.decisionDe(respuestaId);
+  const nodoAntes = decisionAntes === undefined ? undefined : s.vista.decisions.find((d) => d.id === decisionAntes)?.sourceNodeId;
+  await escribirRespuesta(s, caso, respuestaId);
+  const escenas = new Set<string>();
+  const enBorrador = caso.escenas.find((e) => e.respuestas.some((r) => r.id === respuestaId));
+  if (enBorrador) escenas.add(enBorrador.id);
+  const antes = nodoAntes === undefined ? undefined : s.escenaDeNodo(nodoAntes, caso.escenas);
+  if (antes) escenas.add(antes);
+  // Cada opción del servidor tiene que estar entre las elecciones del guion de su escena.
+  for (const id of escenas) await ofrecerOpciones(s, caso, id);
+}
+
+async function escribirRespuesta(s: SesionServidor, caso: CasoBorrador, respuestaId: string): Promise<void> {
   const decisionId = s.decisionDe(respuestaId);
   let origen: Escena | undefined;
   let respuesta: Respuesta | undefined;
@@ -303,6 +398,14 @@ export async function guardarHitosYFinales(s: SesionServidor, caso: CasoBorrador
   if (quitaHitos && dependen) await guardarFinales(s, caso);
   await guardarHitos(s, caso);
   if (!quitaHitos && dependen) await guardarFinales(s, caso);
+}
+
+/** El contexto y los objetivos del caso; si el servidor ya los tiene así, no le dice nada (tampoco sube la revisión). */
+export async function guardarFicha(s: SesionServidor, caso: CasoBorrador): Promise<void> {
+  const contexto = caso.contexto ?? '';
+  const objetivos = caso.objetivos ?? [];
+  if (s.vista.context === contexto && igual(s.vista.learningObjectives ?? [], objetivos)) return;
+  await s.guardarFicha({ context: contexto, learningObjectives: objetivos });
 }
 
 /** Pone al día la lista de verificación; si el servidor ya la tiene así, no le dice nada (tampoco sube la revisión). */

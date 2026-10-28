@@ -97,6 +97,8 @@ describe('las palabras prohibidas no aparecen en ninguna plantilla', () => {
     // el modelo de métricas: lo que dice la revisión, el estado de la persona, las frases de las condiciones y los avisos de las pantallas
     'modelo/revision.ts', 'modelo/persona.ts', 'modelo/finales.ts', 'pantallas/revision/revision.component.ts',
     'pantallas/editor/editor.component.ts', 'pantallas/probar/probar.component.ts',
+    // cómo se mueve una persona, a quién atender y los datos del caso
+    'modelo/movimiento.ts', 'modelo/ficha.ts', 'pantallas/datos/datos.component.ts',
   ];
 
   function literales(archivo: string): string[] {

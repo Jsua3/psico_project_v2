@@ -8,7 +8,7 @@ import { ADMIN, PROFESOR, apiToken, assignCase, bearer, retireCase } from './sup
 import { directiveSources, isExecutionViolation, nonceOfDirective } from './support/csp-probe';
 import type { Finding } from './support/csp-probe';
 import { injectCanary, probeMode, recordFinding, runProbedFlow, startProbe } from './support/csp-probe-runtime';
-import { EDITOR_TABS, visitEditorTabs } from './support/editor-tabs';
+import { recorrerEditor, visitEditorTabs } from './support/editor-tabs';
 import { nameStamp } from './support/own-password';
 import { TOUR_SCREENS, loginAs, openScreen } from './support/screen-tour';
 import {
@@ -221,7 +221,7 @@ test('4 · sala del juego: la sala, la ficha, el aviso, la introducción y un ca
 
 // ── 5 · Editor del docente ───────────────────────────────────────────────────────────────────────
 
-test('5 · editor del docente: las nueve pestañas del caso, el editor de mundo (Konva) y la vista previa (Phaser)', async ({ page, request }) => {
+test('5 · editor del docente: crear un caso desde la universidad y recorrer sus pantallas (mapa, guion, sala, finales, probar y revisión)', async ({ page, request }) => {
   test.setTimeout(scaled(300_000));
   await runProbedFlow(page, 'editor del docente', async () => {
     await visitEditorTabs(page, request, async () => undefined);
@@ -327,16 +327,13 @@ test('7 · un texto de caso con <script> y un manejador en línea se ve como tex
         expect(probe.dialogs, `ningún alert/confirm/prompt (${who})`).toEqual([]);
       };
 
-      // El administrador: la lista de casos y todas las pestañas del editor del caso.
+      // El administrador: la lista de casos y todas las pantallas del editor del caso.
       await loginAs(page, 'admin');
       await page.goto('/portal/casos');
       await expect(page.locator('body')).toContainText(SCRIPT, { timeout: scaled(30_000) });
-      await page.goto(`/portal/casos/${caseVersionId}/editor-anterior`);
-      await expect(page.getByRole('heading', { level: 1 })).toBeVisible({ timeout: scaled(30_000) });
-      for (const tab of EDITOR_TABS) {
-        await page.getByRole('tab', { name: tab }).click();
-        await page.waitForTimeout(scaled(300));
-      }
+      await page.goto(`/portal/casos/${caseVersionId}/editor`);
+      await expect(page.locator('button.escena').first()).toBeVisible({ timeout: scaled(30_000) });
+      await recorrerEditor(page, async () => { await page.waitForTimeout(scaled(300)); });
       await expect(page.locator('body')).toContainText(SCRIPT);
       await assertInert('administrador');
 

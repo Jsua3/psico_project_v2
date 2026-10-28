@@ -14,8 +14,28 @@ export type PuertaCaso = Omit<Puerta, 'hacia'> & { hacia: string | null };
  * Un mueble u objeto colocado en una sala del caso. `clave` es la del objeto en el mapa (la que lo identifica al
  * guardar la sala); una pieza recién agregada aún no la tiene.
  */
-export type ColocacionCaso = Colocacion & { clave?: string };
-export type ColocacionPersonajeCaso = ColocacionPersonaje & { clave?: string };
+export type ColocacionCaso = Colocacion & {
+  clave?: string;
+  /**
+   * La respuesta (la opción del servidor, por su número) que ofrece este objeto del mapa: tocarlo la elige. Es otra forma de ofrecer una
+   * respuesta, sin una persona. Ausente si no ofrece ninguna. Se conserva al guardar la sala.
+   */
+  decisionOptionId?: number;
+};
+
+/**
+ * Cómo se mueve una persona de la sala: se queda quieta (por defecto), camina por la sala o va y viene entre el lugar
+ * donde la puso el docente y otro punto (`hasta`). Es el `metadata.movimiento` del juego, leído sin pérdida.
+ */
+export type MovimientoPersonaje = 'quieto' | 'deambula' | { tipo: 'va-y-viene'; hasta: { x: number; y: number } };
+
+export type ColocacionPersonajeCaso = ColocacionPersonaje & {
+  clave?: string;
+  /** Ausente = «no se sabe»: se conserva lo que el servidor tenía. Al leer un caso siempre viene. */
+  movimiento?: MovimientoPersonaje;
+  /** La persona a atender de la sala (a lo sumo una por sala). Ausente = se conserva lo que el servidor tenía. */
+  personaClave?: boolean;
+};
 
 /** Sala del caso: conserva de dónde salió (si salió de un lugar) para poder «Volver a la sala original». */
 export type SalaCaso = Omit<Sala, 'puertas' | 'muebles' | 'objetos' | 'personajes'> & {
@@ -105,6 +125,12 @@ export interface Escena {
   intensidad: IntensidadEscena;
   /** El aviso que el estudiante lee antes de una escena de intensidad alta; `null` si no hay. */
   advertencia: string | null;
+  /**
+   * Los recursos de apoyo que lee el estudiante en esta escena (a quién acudir, qué línea llamar). La casilla «protocolos de
+   * seguridad» de la lista de verificación se respalda con que alguna escena tenga uno con texto. Ausente = los que ya tuviera
+   * el servidor (un caso nuevo no los trae).
+   */
+  recursosApoyo?: string[];
   /** La escena la creó la IA y el docente aún no la acepta. */
   marcaIa?: boolean;
 }
@@ -184,6 +210,10 @@ export interface CasoBorrador {
   /** La revisión del caso que se está viendo (viaja en cada cambio); 0 en un caso que aún no está en el servidor. */
   revision: number;
   titulo: string;
+  /** El contexto que lee el estudiante antes de empezar (texto plano); ausente en un borrador que aún no está en el servidor. */
+  contexto?: string;
+  /** Los objetivos de aprendizaje del caso, uno por renglón; ausente en un borrador que aún no está en el servidor. */
+  objetivos?: string[];
   /** El lugar de la biblioteca del que se copió; `null` en un caso sin lugar (se edita sin catálogo). */
   lugarId: string | null;
   salas: SalaCaso[];

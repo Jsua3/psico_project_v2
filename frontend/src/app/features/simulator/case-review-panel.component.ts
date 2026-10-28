@@ -21,7 +21,7 @@ import { UiSection } from '../../shared/ui/section/ui-section';
 import { UiSkeleton } from '../../shared/ui/skeleton/ui-skeleton';
 import { errorKindFromStatus, uiDataState } from '../../shared/ui/state/ui-data-state';
 import { UiErrorState } from '../../shared/ui/state/ui-error-state';
-import { statusTone } from './case-editor.options';
+import { statusTone } from './case-labels.util';
 import {
   CaseReviewDecision, CaseReviewDecisionData, CaseReviewDecisionDialogComponent,
 } from './case-review-decision-dialog.component';

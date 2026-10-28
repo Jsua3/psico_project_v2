@@ -42,7 +42,7 @@ function node(x = 0, y = 0): FakeNode {
   return self;
 }
 
-interface FakeSprite { play: Mock; stop: Mock; setFrame: Mock }
+interface FakeSprite { play: Mock; stop: Mock; setFrame: Mock; frame?: { name: number } }
 const fakeSprite = (): FakeSprite => ({ play: vi.fn(), stop: vi.fn(), setFrame: vi.fn() });
 
 /** Superficie privada de la escena que estos casos ejercitan. */
@@ -68,6 +68,7 @@ interface SceneProbe {
   updateNearestInteraction(suppressSound?: boolean): void;
   setReduceMotion(reduced: boolean): void;
   buildArtSprite(object: MapObjectState): { sprite: unknown; animation: unknown } | null;
+  reportProximityAnimation(): void;
   queueMissingArt(): boolean;
 }
 
@@ -145,6 +146,36 @@ function crearEscena(objects: MapObjectState[], artManifest: BibliotecaManifest 
 }
 
 const move = (h: Harness, x: number, y: number) => { h.scene.player.x = x; h.scene.player.y = y; h.scene.updateNearestInteraction(true); };
+
+describe('DataDrivenWorldScene: lo que se publica de la animación de cercanía (contrato del e2e)', () => {
+  it('avisa qué anima y el cuadro de cada objeto, y solo cuando algo cambia', () => {
+    const h = crearEscena([conArte('ventana', 'OBJECT', 500, 430)]);
+    const avisar = vi.fn();
+    (h.callbacks as unknown as { onProximityAnimation: Mock }).onProximityAnimation = avisar;
+    h.sprites['ventana'].frame = { name: 0 };
+
+    h.scene.reportProximityAnimation();
+    expect(avisar).toHaveBeenLastCalledWith({ playing: null, frames: { ventana: 0 } });
+    h.scene.reportProximityAnimation(); // nada cambió: no vuelve a avisar
+    expect(avisar).toHaveBeenCalledTimes(1);
+
+    move(h, 480, 430); // se acerca: empieza a animar
+    h.sprites['ventana'].frame = { name: 2 };
+    h.scene.reportProximityAnimation();
+    expect(avisar).toHaveBeenLastCalledWith({ playing: 'ventana', frames: { ventana: 2 } });
+
+    move(h, 700, 430); // se aleja: vuelve al reposo, cuadro 0
+    h.sprites['ventana'].frame = { name: 0 };
+    h.scene.reportProximityAnimation();
+    expect(avisar).toHaveBeenLastCalledWith({ playing: null, frames: { ventana: 0 } });
+    expect(avisar).toHaveBeenCalledTimes(3);
+  });
+
+  it('sin el aviso conectado no hace nada', () => {
+    const h = crearEscena([conArte('ventana', 'OBJECT', 500, 430)]);
+    expect(() => h.scene.reportProximityAnimation()).not.toThrow();
+  });
+});
 
 describe('DataDrivenWorldScene: animación de cercanía', () => {
   it('al ser nearestKey se reproduce y al dejar de serlo vuelve al cuadro 0', () => {

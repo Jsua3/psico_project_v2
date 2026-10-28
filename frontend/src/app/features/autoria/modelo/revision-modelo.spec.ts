@@ -157,6 +157,15 @@ describe('faltasDelServidor: lo que dice la compuerta, en lenguaje del docente y
     expect(faltas.every((f) => f.codigo && f.ir.ruta)).toBe(true);
   });
 
+  it('la falta de recursos de apoyo lleva al campo del guion de la primera escena', () => {
+    const caso = completo();
+    const [falta] = faltasDelServidor([
+      issue({ code: 'ETHICS.NO_SUPPORT_RESOURCES', message: 'La casilla «protocolos de seguridad» está marcada, pero ninguna escena tiene recursos de apoyo.' }),
+    ], caso, opciones(caso));
+    expect(falta.ir).toEqual({ ruta: '/editor/escena/a', ancla: 'recursos-escena' });
+    expect(falta.mensaje).toContain('recursos de apoyo');
+  });
+
   it('el final sin condición para el resto se lista; el aviso de demasiados recorridos no bloquea', () => {
     const caso = completo();
     const faltas = faltasDelServidor([

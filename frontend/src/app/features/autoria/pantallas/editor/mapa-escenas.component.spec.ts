@@ -42,6 +42,17 @@ describe('MapaEscenasComponent', () => {
   const flecha = (raiz: HTMLElement) => raiz.querySelector<SVGPathElement>('path.flecha')!;
   const detalleDeRespuesta = (raiz: HTMLElement) => raiz.querySelector<HTMLElement>('.tarjeta-flecha');
 
+  // Axe (aria-prohibited-attr): un aria-label sin rol en un <path> no se permite; la flecha es una imagen con nombre.
+  it('cada flecha es una imagen con nombre: dice qué respuesta es', async () => {
+    const { raiz } = await montar();
+    const flechas = [...raiz.querySelectorAll<SVGPathElement>('path.flecha')];
+    expect(flechas.length).toBeGreaterThan(0);
+    for (const f of flechas) {
+      expect(f.getAttribute('role')).toBe('img');
+      expect(f.getAttribute('aria-label')).toMatch(/^Respuesta: /);
+    }
+  });
+
   it('la atención en una respuesta muestra su detalle (qué dice y a dónde lleva) y se pliega con Esc', async () => {
     const { fixture, caso, raiz } = await montar();
     expect(detalleDeRespuesta(raiz)).toBeNull();

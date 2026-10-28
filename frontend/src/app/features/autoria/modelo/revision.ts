@@ -1,6 +1,6 @@
 import type { ValidationIssue } from '../../../core/models/simulation.model';
 import { revisarCaminos, type TipoAviso } from './caminos';
-import type { CasoBorrador, Escena } from './caso';
+import type { CasoBorrador, Escena, Respuesta, SalaCaso } from './caso';
 import { competenciasMarcadas } from './efectos';
 import { escenasAlcanzables, hitosInalcanzables } from './hitos';
 import { evaluarCondicion, esCondicionValida, hitosDeCondicion } from './condiciones';
@@ -34,6 +34,46 @@ const rutaDeEscena = (id: string | number) => `/editor/escena/${id}`;
 function primeraRespuesta(caso: Pick<CasoBorrador, 'escenas'>): { escena: Escena; respuestaId: string } | null {
   const escena = caso.escenas.find((e) => e.respuestas.length > 0);
   return escena ? { escena, respuestaId: escena.respuestas[0].id } : null;
+}
+
+/**
+ * Las respuestas de la escena que su sala no tiene cómo ofrecer. El estudiante elige una respuesta de dos formas: hablando con
+ * una persona de la sala (el guion cuelga de ella) o tocando un objeto del mapa que la ofrece (`decisionOptionId`). Sin personas,
+ * solo las ofrecen los objetos; una respuesta recién escrita (sin número del servidor) no puede estar ofrecida por ninguno.
+ */
+export function respuestasSinForma(escena: Pick<Escena, 'respuestas'>, sala: Pick<SalaCaso, 'personajes' | 'muebles' | 'objetos'>): Respuesta[] {
+  if (sala.personajes.length > 0) return [];
+  const ofrecidas = new Set([...sala.objetos, ...sala.muebles].flatMap((o) => (o.decisionOptionId === undefined ? [] : [o.decisionOptionId])));
+  return escena.respuestas.filter((r) => !(/^\d+$/.test(r.id) && ofrecidas.has(Number(r.id))));
+}
+
+/**
+ * Una escena con respuestas que su sala no tiene cómo ofrecer (ni una persona ni un objeto del mapa que las ofrezca) no se puede
+ * jugar: el estudiante no podría responder. Lleva al catálogo de la sala para agregar una persona.
+ */
+function faltasDeSalasSinPersonas(caso: Pick<CasoBorrador, 'escenas' | 'salas'>): Falta[] {
+  const faltas: Falta[] = [];
+  for (const e of caso.escenas) {
+    const sala = caso.salas.find((s) => s.id === e.salaId);
+    if (!sala || respuestasSinForma(e, sala).length === 0) continue;
+    faltas.push({
+      mensaje: `La escena «${e.titulo}» tiene respuestas pero en su sala no hay nadie con quien hablar. Agrega una persona.`,
+      ir: { ruta: `/editor/sala/${sala.id}`, ancla: 'catalogo' },
+    });
+  }
+  return faltas;
+}
+
+/** Una escena con diálogo, pero sin respuestas, en una sala sin personas: nadie dice sus líneas. Conviene verlo; no impide enviar. */
+function avisosDeDialogoSinPersona(caso: Pick<CasoBorrador, 'escenas' | 'salas'>): Falta[] {
+  return caso.escenas.flatMap((e) => {
+    const sala = caso.salas.find((s) => s.id === e.salaId);
+    if (!sala || sala.personajes.length > 0 || e.respuestas.length > 0 || e.lineas.length === 0) return [];
+    return [{
+      mensaje: `La escena «${e.titulo}» tiene diálogo pero en su sala no hay nadie que lo diga. Agrega una persona.`,
+      ir: { ruta: `/editor/sala/${sala.id}`, ancla: 'catalogo' },
+    }];
+  });
 }
 
 /** Las reglas del modelo de respuesta, comprobadas sobre el borrador: lo mismo que mide la compuerta al publicar. */
@@ -134,6 +174,7 @@ export function puedeEnviar(caso: CasoBorrador): { ok: boolean; faltas: Falta[] 
     });
   }
 
+  faltas.push(...faltasDeSalasSinPersonas(caso));
   faltas.push(...faltasDelModelo(caso));
 
   // La lista de verificación ética: todos los ítems obligatorios marcados (lo mismo que exige la compuerta).
@@ -222,6 +263,12 @@ export function faltasDelServidor(
       case 'high-intensity-without-warning':
         faltas.push(falta({ ruta: escena ?? '/editor', ...(escena ? { ancla: 'aviso-escena' } : {}) }));
         break;
+      case 'ETHICS.NO_SUPPORT_RESOURCES': {
+        // Los recursos de apoyo se escriben en el guion de una escena: se lleva a la primera, donde está su campo.
+        const primera = caso.escenas[0];
+        faltas.push(falta(primera ? { ruta: rutaDeEscena(primera.id), ancla: 'recursos-escena' } : { ruta: '/editor' }));
+        break;
+      }
       case 'CHECKLIST_INCOMPLETE':
         // La lista de verificación se completa en la pantalla de revisión.
         faltas.push(falta({ ruta: '/revision', ancla: 'lista-verificacion' }));
@@ -258,7 +305,7 @@ function avisosDeCompetencias(caso: CasoBorrador): Falta[] {
 
 /** Cosas que conviene mirar pero no impiden enviar. */
 export function sugerencias(caso: CasoBorrador, probado: boolean): Falta[] {
-  const lista: Falta[] = [...avisosDeCompetencias(caso)];
+  const lista: Falta[] = [...avisosDeCompetencias(caso), ...avisosDeDialogoSinPersona(caso)];
   if (!probado) lista.push({ mensaje: 'Todavía no probaste el caso completo como estudiante.', ir: { ruta: '/probar' } });
   caso.escenas.forEach((e) => {
     const vaciasL = e.lineas.filter((l) => !l.texto.trim()).length;

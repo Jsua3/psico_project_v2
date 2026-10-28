@@ -10,13 +10,16 @@ import {
   type Cambio, type ResolverIds, type Tocados, aplicarPropuesta as aplicarCambiosIa, resolverLocal,
 } from '../ia/propuestas';
 import { BibliotecaService } from '../modelo/biblioteca.service';
-import type { CasoBorrador, ClaveFinalPlantilla, Escena, Final, Hito, Linea, NivelRiesgo, Respuesta, SalaCaso } from '../modelo/caso';
+import type {
+  CasoBorrador, ClaveFinalPlantilla, Escena, Final, Hito, Linea, MovimientoPersonaje, NivelRiesgo, Respuesta, SalaCaso,
+} from '../modelo/caso';
 import { SEPARACION_ESCENAS } from '../modelo/copiar';
 import type { ColocacionPersonaje } from '../modelo/escenario';
 import { nuevaRespuesta } from '../modelo/fabricas';
 import { centroDeZona, limitarAZona, zonaCaminable } from '../modelo/geometria';
 import { claveLibre, cuerpoCrearCaso } from '../modelo/hacia-api';
 import { nuevoId } from '../modelo/ids';
+import { revisarPuntoDeIda } from '../modelo/movimiento';
 import { posicionLibre, trazarEscenas } from '../modelo/trazado';
 import { Historial } from './historial';
 import * as persistir from './persistir';
@@ -88,6 +91,8 @@ const FALTA_POR_CAMPO: Record<string, string> = {
   title: 'Falta el nombre.',
   text: 'Falta el texto.',
   nodeKey: 'El nombre de la escena no es válido.',
+  context: 'Revisa el contexto: debe ser texto plano, sin enlaces y de hasta 4.000 caracteres.',
+  learningObjectives: 'Revisa los objetivos: hasta 12, de 280 caracteres cada uno y en texto plano.',
   warningMessage: 'Una escena de intensidad alta necesita su aviso.',
   intensity: 'Una escena de intensidad alta necesita su aviso.',
 };
@@ -135,6 +140,9 @@ export class CasoStore {
   private esperas: Array<() => void> = [];
   private historial: Historial<SalaCaso[]> | null = null;
   private readonly version = signal(0);
+  /** Cuántas veces se abrió o se releyó el caso (no cambia con cada edición): las pantallas con texto propio parten de nuevo del caso. */
+  private readonly lecturaAhora = signal(0);
+  readonly lectura = this.lecturaAhora.asReadonly();
   private readonly enLinea = signal(false);
 
   readonly caso = this.estado.asReadonly();
@@ -265,9 +273,9 @@ export class CasoStore {
     return this.sesion?.nodoDe(escenaId) ?? null;
   }
 
-  /** Crea un caso en el servidor, con las salas elegidas de un lugar, y devuelve su id. */
-  async crearCaso(titulo: string, lugarId: string | null, salas: string[]): Promise<number> {
-    const vista = await firstValueFrom(this.servicio.api.createCase(cuerpoCrearCaso(titulo, lugarId, salas)));
+  /** Crea un caso en el servidor, con las salas elegidas de un lugar y la descripción que lee el estudiante, y devuelve su id. */
+  async crearCaso(titulo: string, lugarId: string | null, salas: string[], descripcion = ''): Promise<number> {
+    const vista = await firstValueFrom(this.servicio.api.createCase(cuerpoCrearCaso(titulo, lugarId, salas, descripcion)));
     return vista.caseVersionId;
   }
 
@@ -291,6 +299,7 @@ export class CasoStore {
     this.guardandoAhora.set(false);
     this.enLinea.set(sesion !== null);
     this.version.update((v) => v + 1);
+    this.lecturaAhora.update((v) => v + 1);
   }
 
   /** Espera a que todo lo que se cambió haya llegado al servidor (o a que algo lo detenga). */
@@ -549,6 +558,48 @@ export class CasoStore {
     });
   }
 
+  /**
+   * Cómo se mueve una persona de la sala. Un «va y viene» necesita su punto y este se revisa antes: dentro de la zona por
+   * donde se camina, fuera de los muebles y lejos de donde está la persona; si no sirve, no se cambia nada y se dice por qué.
+   */
+  fijarMovimiento(salaId: string, indice: number, movimiento: MovimientoPersonaje): { ok: true } | { ok: false; motivo: string } {
+    const caso = this.estado();
+    const sala = caso?.salas.find((s) => s.id === salaId);
+    const persona = sala?.personajes[indice];
+    if (!caso || !sala || !persona) return { ok: false, motivo: 'Esa persona ya no está en la sala.' };
+    if (typeof movimiento !== 'string') {
+      const revisado = revisarPuntoDeIda(sala, caso.catalogo, persona, movimiento.hasta);
+      if (!revisado.ok) return revisado;
+    }
+    const nuevo: MovimientoPersonaje = typeof movimiento === 'string' ? movimiento : { tipo: 'va-y-viene', hasta: { ...movimiento.hasta } };
+    this.cambiarSala(salaId, 'Cambiaste cómo se mueve una persona', (_caso, s) => {
+      const p = s.personajes[indice];
+      if (p) p.movimiento = structuredClone(nuevo);
+    });
+    return { ok: true };
+  }
+
+  /**
+   * Marca o desmarca a la persona a atender de la sala. Hay a lo sumo una por sala: marcar a otra desmarca a la anterior, y
+   * se devuelve el nombre de quien dejó de serlo (o `null`) para que el editor lo diga.
+   */
+  marcarPersonaAAtender(salaId: string, indice: number, marcada: boolean): string | null {
+    const caso = this.estado();
+    const sala = caso?.salas.find((s) => s.id === salaId);
+    if (!caso || !sala?.personajes[indice]) return null;
+    const anterior = marcada ? sala.personajes.findIndex((p, i) => i !== indice && p.personaClave === true) : -1;
+    const nombreAnterior = anterior >= 0
+      ? (caso.personajes.find((p) => p.id === sala.personajes[anterior].ref)?.nombre ?? sala.personajes[anterior].ref)
+      : null;
+    this.cambiarSala(salaId, marcada ? 'Marcaste a la persona a atender' : 'Quitaste la marca de la persona a atender', (_caso, s) => {
+      s.personajes.forEach((p, i) => {
+        if (i === indice) p.personaClave = marcada;
+        else if (marcada) p.personaClave = false;
+      });
+    });
+    return nombreAnterior;
+  }
+
   /** Gira un mueble (espejo). */
   voltearMueble(salaId: string, indice: number): void {
     this.cambiarSala(salaId, 'Volteaste un mueble', (_caso, sala) => {
@@ -733,7 +784,7 @@ export class CasoStore {
     });
   }
 
-  editarEscena(id: string, cambios: Partial<Pick<Escena, 'titulo' | 'intensidad' | 'advertencia'>>): void {
+  editarEscena(id: string, cambios: Partial<Pick<Escena, 'titulo' | 'intensidad' | 'advertencia' | 'recursosApoyo'>>): void {
     const escena = this.tituloEscena(id);
     this.ejecutar({
       nombre: 'la escena',
@@ -744,6 +795,7 @@ export class CasoStore {
         ...textoCompleto('Título de una escena', cambios.titulo),
         ...(cambios.intensidad ? [`Cambiaste la intensidad de la escena «${escena}»`] : []),
         ...textoCompleto(`Aviso para el estudiante de la escena «${escena}»`, cambios.advertencia ?? undefined),
+        ...(cambios.recursosApoyo ? [`Cambiaste los recursos de apoyo de la escena «${escena}»${cambios.recursosApoyo.length ? `: ${cambios.recursosApoyo.map((r) => `«${r}»`).join(', ')}` : ''}`] : []),
       ],
     });
   }
@@ -1049,6 +1101,27 @@ export class CasoStore {
       },
       enviar: (despues, sesion) => persistir.guardarLista(sesion, despues),
       fusion: 'lista',
+    });
+  }
+
+  // ─── Datos del caso ─────────────────────────────────────────────────────────
+
+  /** El contexto que lee el estudiante y los objetivos de aprendizaje del caso (texto plano; el servidor pone los topes). */
+  editarFicha(contexto: string, objetivos: string[]): void {
+    const limpio = contexto.trim();
+    const lista = objetivos.map((o) => o.trim()).filter(Boolean);
+    this.ejecutar({
+      nombre: 'los datos del caso',
+      resumen: [
+        ...textoCompleto('Contexto del caso', limpio),
+        ...(lista.length ? [`Objetivos de aprendizaje: ${lista.map((o) => `«${o}»`).join(', ')}`] : []),
+      ],
+      aplicar: (caso) => {
+        caso.contexto = limpio;
+        caso.objetivos = [...lista];
+      },
+      enviar: (despues, sesion) => persistir.guardarFicha(sesion, despues),
+      fusion: 'ficha',
     });
   }
 

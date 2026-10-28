@@ -174,7 +174,9 @@ const CLASIFICACION: Record<NonNullable<Respuesta['clase']> | 'sin-clasificar', 
     .juego .boton-primario { color: var(--juego-hundido); background: var(--juego-acento); }
     .resultado, .final { display: flex; flex-direction: column; gap: 8px; padding: 12px; border-radius: 12px; background: var(--juego-hundido); }
     .resultado p, .final p { margin: 0; }
-    .final h2 { margin: 0; }
+    .final h2 { margin: 0; color: var(--juego-texto); }
+    /* Dentro de la vista del estudiante (fondo oscuro) los textos de apoyo y los títulos van con la tinta del juego, no con la del editor. */
+    .juego .texto-secundario { color: var(--juego-texto-suave); }
     .aviso { color: var(--juego-aviso); }
     .lateral { display: flex; flex-direction: column; gap: 8px; }
     .lateral h2 { margin: 0; font-size: var(--autoria-texto-20); line-height: 28px; }

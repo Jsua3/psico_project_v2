@@ -207,6 +207,14 @@ describe('casoDesdeApi: de lo que entrega el servidor al borrador del editor', (
       expect(linea.emocionDeOrigen).toBe(emocion);
     });
 
+    it('los recursos de apoyo de cada nodo llegan a su escena', () => {
+      const m = structuredClone(editor);
+      m.nodes[0].supportResources = ['Línea de atención 106'];
+      const escenas = casoDesdeApi(m, mundos).escenas;
+      expect(escenas[0].recursosApoyo).toEqual(['Línea de atención 106']);
+      expect(escenas[1].recursosApoyo).toEqual(editor.nodes[1].supportResources);
+    });
+
     it('la tabla de emociones es la del kit de personajes', () => {
       expect(EMOCION_A_EXPRESION).toEqual(catalogoDelKit.emotionToPortrait);
     });
@@ -223,10 +231,18 @@ describe('casoDesdeApi: de lo que entrega el servidor al borrador del editor', (
       expect(casoDesdeApi(editor, m).escenas[0].lineas[0].personajeId).toBe('Vecina');
     });
 
-    it('los diálogos atados a una persona del mapa no son el guion de la escena', () => {
+    it('los diálogos atados a una persona del mapa que no son «guion-…» no son el guion de la escena', () => {
       const m = structuredClone(mundos);
+      m[0].dialogues[0].key = 'dialogo-de-la-vecina';
       m[0].dialogues[0].mapObjectId = 21;
       expect(casoDesdeApi(editor, m).escenas[0].lineas).toEqual([]);
+    });
+
+    it('el guion sigue siendo el guion cuando cuelga de una persona de la sala (así lo recibe el estudiante)', () => {
+      const m = structuredClone(mundos);
+      expect(m[0].dialogues[0].key).toMatch(/^guion-/);
+      m[0].dialogues[0].mapObjectId = 21;
+      expect(casoDesdeApi(editor, m).escenas[0].lineas).toHaveLength(2);
     });
 
     it('los hitos y el riesgo del caso, y sus finales propios con la condición y la marca de la IA', () => {
@@ -273,8 +289,10 @@ describe('casoDesdeApi: de lo que entrega el servidor al borrador del editor', (
       const { editor, mundos } = sinMapa();
       const caso = casoDesdeApi(editor, mundos);
       expect(revisarCaminos(caso)).toEqual([]);
-      // Ningún aviso de caminos: solo lo del modelo (la escena sin recomendada, el hito que nadie marca) y lo de la IA.
+      // Ningún aviso de caminos: solo que la sala de la escena no tiene a nadie con quien hablar, lo del modelo (la escena sin
+      // recomendada, el hito que nadie marca) y lo de la IA.
       expect(puedeEnviar(caso).faltas.map((f) => f.codigo ?? f.mensaje)).toEqual([
+        'La escena «Valoración del riesgo» tiene respuestas pero en su sala no hay nadie con quien hablar. Agrega una persona.',
         'scene-without-recommended', 'milestone-unreachable', '4 partes generadas por IA sin revisar.',
       ]);
     });
@@ -326,5 +344,70 @@ describe('casoDesdeApi: de lo que entrega el servidor al borrador del editor', (
       expect(caso.competencias).toEqual([{ codigo: 'ETICA_PROFESIONAL', nombre: 'Ética profesional' }]);
       expect(caso.estado).toBe('IN_REVIEW');
     });
+  });
+});
+
+describe('casoDesdeApi: cómo se mueven las personas, a quién atender y los datos del caso', () => {
+  const lugar = () => structuredClone(casoCopiadoDeLugar(universidad, SALAS));
+  const personaDe = (mundos: WorldDefinition[], sala = 1) => mundos[sala].objects.find((o) => o.type === 'PERSON')!;
+
+  it('una persona sin dato se queda quieta y no es a quien atender', () => {
+    const { editor, mundos } = lugar();
+    const caso = casoDesdeApi(editor, mundos, universidad);
+    expect(caso.salas[1].personajes[0]).toMatchObject({ movimiento: 'quieto', personaClave: false });
+  });
+
+  it('lee que la persona camina por la sala', () => {
+    const { editor, mundos } = lugar();
+    personaDe(mundos).metadata = { ...personaDe(mundos).metadata, movimiento: 'deambula' };
+    expect(casoDesdeApi(editor, mundos, universidad).salas[1].personajes[0].movimiento).toBe('deambula');
+  });
+
+  it('lee que la persona va y viene hasta un punto', () => {
+    const { editor, mundos } = lugar();
+    personaDe(mundos).metadata = { ...personaDe(mundos).metadata, movimiento: { tipo: 'va-y-viene', hasta: { x: 600, y: 420 } } };
+    expect(casoDesdeApi(editor, mundos, universidad).salas[1].personajes[0].movimiento).toEqual({ tipo: 'va-y-viene', hasta: { x: 600, y: 420 } });
+  });
+
+  it('un movimiento mal formado se lee como quieto', () => {
+    const { editor, mundos } = lugar();
+    personaDe(mundos).metadata = { ...personaDe(mundos).metadata, movimiento: { tipo: 'va-y-viene', hasta: 'allá' } };
+    expect(casoDesdeApi(editor, mundos, universidad).salas[1].personajes[0].movimiento).toBe('quieto');
+  });
+
+  it('lee a la persona a atender, y solo si el dato es verdadero', () => {
+    const { editor, mundos } = lugar();
+    personaDe(mundos).metadata = { ...personaDe(mundos).metadata, personaClave: true };
+    expect(casoDesdeApi(editor, mundos, universidad).salas[1].personajes[0].personaClave).toBe(true);
+    personaDe(mundos).metadata = { ...personaDe(mundos).metadata, personaClave: 'sí' };
+    expect(casoDesdeApi(editor, mundos, universidad).salas[1].personajes[0].personaClave).toBe(false);
+  });
+
+  it('trae el contexto y los objetivos de aprendizaje del caso', () => {
+    const { editor, mundos } = lugar();
+    editor.context = 'Una estudiante llega a Bienestar.';
+    editor.learningObjectives = ['Valorar el riesgo.', 'Validar sin juzgar.'];
+    const caso = casoDesdeApi(editor, mundos, universidad);
+    expect(caso.contexto).toBe('Una estudiante llega a Bienestar.');
+    expect(caso.objetivos).toEqual(['Valorar el riesgo.', 'Validar sin juzgar.']);
+  });
+
+  it('un caso sin contexto ni objetivos los trae vacíos', () => {
+    const { editor, mundos } = lugar();
+    editor.context = undefined as unknown as string;
+    editor.learningObjectives = undefined as unknown as string[];
+    const caso = casoDesdeApi(editor, mundos, universidad);
+    expect(caso.contexto).toBe('');
+    expect(caso.objetivos).toEqual([]);
+  });
+
+  it('un objeto del mapa que ofrece una respuesta conserva cuál: sin eso el editor creería que nadie la ofrece', () => {
+    const { editor, mundos } = lugar();
+    const objeto = mundos[1].objects.find((o) => o.type !== 'PERSON' && o.type !== 'EXIT' && o.type !== 'PROP')!;
+    objeto.decisionOptionId = 77;
+    const caso = casoDesdeApi(editor, mundos, universidad);
+    const colocado = caso.salas[1].objetos.find((o) => o.clave === objeto.key)!;
+    expect(colocado.decisionOptionId).toBe(77);
+    expect(caso.salas[1].objetos.filter((o) => o.decisionOptionId !== undefined)).toHaveLength(1);
   });
 });

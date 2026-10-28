@@ -20,6 +20,7 @@ import { competenciasDeRubricas } from './efectos';
 import type { Encuadre, Escenario, Mirando } from './escenario';
 import { EXPRESIONES } from './escenario';
 import { textosDeLaPlantillaGuardada } from './finales';
+import { movimientoDeMetadata } from './movimiento';
 
 /** La clave con la que se guarda el guion de una escena: el diálogo de la sala que no es de ninguna persona. */
 export const PREFIJO_GUION = 'guion-';
@@ -94,12 +95,14 @@ function salaDesdeMundo(mundo: WorldDefinition, ctx: Contexto, lugarId: string |
       personajes.push({
         ref: personaje?.key ?? o.key, clave: o.key, x: o.x, y: o.y,
         mirando: (o.facing === 'left' ? 'izquierda' : 'derecha') satisfies Mirando, expresion: expresionDe(o.metadata?.['expresion']),
+        movimiento: movimientoDeMetadata(o.metadata?.['movimiento']), personaClave: o.metadata?.['personaClave'] === true,
       });
     } else {
       const refMueble = refDeCatalogo(o.key, idsMuebles);
       const refObjeto = refDeCatalogo(o.key, idsObjetos);
       const esMueble = o.type === 'PROP' && (refMueble !== null || refObjeto === null);
       const colocacion: ColocacionCaso = { ref: (esMueble ? refMueble : refObjeto) ?? o.key, clave: o.key, x: o.x, y: o.y };
+      if (o.decisionOptionId != null) colocacion.decisionOptionId = o.decisionOptionId;
       if (esMueble) {
         colocacion.espejo = o.metadata?.['espejo'] === true;
         muebles.push(colocacion);
@@ -116,10 +119,13 @@ function salaDesdeMundo(mundo: WorldDefinition, ctx: Contexto, lugarId: string |
   };
 }
 
-/** El diálogo que es el guion de la escena: el que no es de ninguna persona del mapa (el de clave «guion-…» primero). */
+/**
+ * El diálogo que es el guion de la escena: el de clave «guion-…» (lo reconoce por la clave, tenga o no dueño: para que el
+ * estudiante lo reciba, el guion cuelga de una persona de la sala) o, en un caso anterior, el que no es de ninguna persona.
+ */
 export function arbolDeGuion(mundo: WorldDefinition | undefined): WorldDialogueTree | undefined {
-  const propios = (mundo?.dialogues ?? []).filter((d) => d.mapObjectId == null);
-  return propios.find((d) => d.key.startsWith(PREFIJO_GUION)) ?? propios[0];
+  const todos = mundo?.dialogues ?? [];
+  return todos.find((d) => d.key.startsWith(PREFIJO_GUION)) ?? todos.find((d) => d.mapObjectId == null);
 }
 
 function efectosDesdeApi(efectos: DecisionEdgeState['effects'] | undefined): EfectosRespuesta {
@@ -156,7 +162,7 @@ function escenaDesdeApi(
   return {
     id: String(n.id), titulo: n.title, narracion: n.narrative ?? '', salaId, esFinal: n.terminal,
     posicion: { x: n.positionX ?? 0, y: n.positionY ?? 0 },
-    intensidad: n.intensity, advertencia: n.warningMessage ?? null, marcaIa: n.aiSuggested === true,
+    intensidad: n.intensity, advertencia: n.warningMessage ?? null, recursosApoyo: [...(n.supportResources ?? [])], marcaIa: n.aiSuggested === true,
     lineas: lineasDesdeApi(mundo, editor.characters),
     respuestas: editor.decisions.filter((d) => d.sourceNodeId === n.id).map(respuestaDesdeApi),
   };
@@ -240,6 +246,7 @@ export function casoDesdeApi(editor: CaseEditorView, mundos: WorldDefinition[], 
   const textosPlantilla = guardados.length > 0 ? textosDeLaPlantillaGuardada(guardados, hitos) : null;
   return {
     id: String(editor.caseVersionId), revision: editor.revision, titulo: editor.title, lugarId, salas, escenas,
+    contexto: editor.context ?? '', objetivos: [...(editor.learningObjectives ?? [])],
     inicioId: inicio ? String(inicio.id) : null,
     hitos, nivelRiesgo: editor.rules.riskLevel,
     modoFinales: guardados.length > 0 && !textosPlantilla ? 'propio' : 'automatico',

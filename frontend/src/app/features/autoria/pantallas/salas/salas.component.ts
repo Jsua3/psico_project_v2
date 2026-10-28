@@ -288,7 +288,9 @@ export class SalasComponent {
     this.errorAlCrear.set(null);
     try {
       const titulo = this.nombre().trim() || this.nombrePorDefecto();
-      const id = await this.store.crearCaso(titulo, e.id, this.elegidas());
+      // La descripción del caso es la de la idea elegida o, si se eligieron las salas una por una, la del lugar.
+      const idea = e.recorridosSugeridos.find((r) => r.id === this.ideaElegida());
+      const id = await this.store.crearCaso(titulo, e.id, this.elegidas(), idea?.descripcion || e.descripcion);
       await this.router.navigateByUrl(rutaDelEditor('/editor', String(id)));
     } catch {
       this.errorAlCrear.set('No se pudo crear el caso. Vuelve a intentarlo en un momento.');

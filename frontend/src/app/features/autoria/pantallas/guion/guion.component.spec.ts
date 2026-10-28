@@ -31,6 +31,17 @@ const boton = (raiz: HTMLElement, texto: string) =>
   [...raiz.querySelectorAll<HTMLButtonElement>('button')].find((b) => b.textContent?.trim() === texto)!;
 
 describe('GuionComponent', () => {
+  it('los recursos de apoyo de la escena se escriben uno por línea y respaldan la casilla «protocolos de seguridad»', async () => {
+    const { store, id, raiz, listo } = await montar();
+    const campo = raiz.querySelector<HTMLTextAreaElement>('#recursos-escena')!;
+    expect(campo.labels?.[0].textContent).toContain('Recursos de apoyo para el estudiante');
+    campo.value = 'Línea de atención de Bienestar\n\n  Consultorio de psicología, piso 2  \n';
+    campo.dispatchEvent(new Event('change'));
+    await listo();
+    expect(store.caso()!.escenas.find((e) => e.id === id)!.recursosApoyo).toEqual(['Línea de atención de Bienestar', 'Consultorio de psicología, piso 2']);
+    expect(campo.value).toBe('Línea de atención de Bienestar\nConsultorio de psicología, piso 2');
+  });
+
   it('escribir una línea la guarda con su personaje y expresión', async () => {
     const { store, id, raiz, listo } = await montar();
     boton(raiz, 'Agregar una línea').click();

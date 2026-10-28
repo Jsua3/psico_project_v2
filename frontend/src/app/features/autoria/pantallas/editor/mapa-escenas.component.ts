@@ -93,7 +93,7 @@ const PASO_MOVER = 24;
               </marker>
             </defs>
             @for (f of flechas(); track f.id) {
-              <path class="flecha" [class.de-elegida]="f.deElegida" [attr.d]="f.d" tabindex="0"
+              <path class="flecha" [class.de-elegida]="f.deElegida" [attr.d]="f.d" tabindex="0" role="img"
                     [attr.marker-end]="f.deElegida ? 'url(#punta-elegida)' : 'url(#punta)'"
                     [attr.aria-label]="'Respuesta: ' + (f.texto || 'sin escribir')"
                     (mouseenter)="flechaActiva.set(f.id)" (mouseleave)="flechaActiva.set(null)"

@@ -15,6 +15,7 @@ import type {
 import type { CasoBorrador, EfectosRespuesta, Escena, Hito, Linea, ListaVerificacion, Respuesta, SalaCaso } from './caso';
 import { expresionDe } from './desde-api';
 import { finalesDePlantilla, plantillaEditada } from './finales';
+import { mismoMovimiento, movimientoAMetadata, movimientoDeMetadata } from './movimiento';
 import type { Escenario, Personaje } from './escenario';
 
 const MAX_CLAVE_REGLA = 60;
@@ -86,7 +87,7 @@ export function cuerpoNodo(escena: Escena, opciones: OpcionesNodo): NodeUpsertRe
     title: escena.titulo,
     narrative: escena.narracion,
     requiredTools: previo ? [...previo.requiredTools] : [],
-    supportResources: previo ? [...previo.supportResources] : [],
+    supportResources: escena.recursosApoyo ? [...escena.recursosApoyo] : previo ? [...previo.supportResources] : [],
     sensitiveContent: previo?.sensitiveContent ?? false,
     safeExitRequired: previo?.safeExitRequired ?? false,
     warningMessage: escena.advertencia,
@@ -236,6 +237,22 @@ function huella(clave: string, etiqueta: string, x: number, y: number, ancho: nu
 }
 
 /**
+ * Lo que se guarda de una persona que ya estaba en el mapa: la expresión y, si el docente los cambió, cómo se mueve y si es la
+ * persona a atender. Lo que no cambió se deja tal cual lo guardó el servidor (incluso un movimiento que el editor no entiende).
+ */
+function metadataDePersona(base: Record<string, unknown>, p: SalaCaso['personajes'][number]): Record<string, unknown> {
+  const metadata: Record<string, unknown> = { ...base, expresion: p.expresion satisfies Expresion };
+  if (p.movimiento !== undefined && !mismoMovimiento(p.movimiento, movimientoDeMetadata(base['movimiento']))) {
+    metadata['movimiento'] = movimientoAMetadata(p.movimiento);
+  }
+  if (p.personaClave !== undefined && p.personaClave !== (base['personaClave'] === true)) {
+    if (p.personaClave) metadata['personaClave'] = true;
+    else delete metadata['personaClave'];
+  }
+  return metadata;
+}
+
+/**
  * La sala como mundo de uno de sus mapas. El servidor guarda cada escena con su propio mapa, así que para una sala
  * compartida por varias escenas el store llama a esta función una vez por mapa, con el mundo previo de ese mapa.
  *
@@ -297,7 +314,9 @@ export function solicitudDeSala(sala: SalaCaso, contexto: ContextoSala, previo: 
   for (const p of sala.personajes) {
     const facing = p.mirando === 'izquierda' ? 'left' : 'right';
     if (p.clave && previos.has(p.clave)) {
-      existentes.set(p.clave, (base) => ({ ...base, x: p.x, y: p.y, facing, metadata: { ...base.metadata, expresion: p.expresion satisfies Expresion } }));
+      existentes.set(p.clave, (base) => ({
+        ...base, x: p.x, y: p.y, facing, metadata: metadataDePersona(base.metadata, p),
+      }));
       continue;
     }
     const info = personajesLugar.get(p.ref);
@@ -307,7 +326,10 @@ export function solicitudDeSala(sala: SalaCaso, contexto: ContextoSala, previo: 
       claveDeNuevo(p.clave, p.ref, usadas), info?.nombre ?? delCaso?.displayName ?? p.ref, 'PERSON', p.x, p.y, TAMANO_PERSONA, TAMANO_PERSONA, {
         interactionPrompt: 'Hablar', facing,
         ...(delCaso ? { characterId: delCaso.id } : {}),
-        metadata: { recipeId: info?.recipeId ?? '', movimiento: 'quieto', expresion: p.expresion },
+        metadata: {
+          recipeId: info?.recipeId ?? '', movimiento: movimientoAMetadata(p.movimiento ?? 'quieto'), expresion: p.expresion,
+          ...(p.personaClave ? { personaClave: true } : {}),
+        },
       },
     ));
   }
@@ -352,6 +374,9 @@ export function solicitudDeSala(sala: SalaCaso, contexto: ContextoSala, previo: 
 // ─── Casos nuevos ────────────────────────────────────────────────────────────
 
 /** Crear un caso: con un lugar, nace con una copia de las salas elegidas; sin lugar, nace vacío. */
-export function cuerpoCrearCaso(titulo: string, lugarId: string | null, salas: string[]): CaseCreateRequest {
-  return lugarId === null ? { title: titulo } : { title: titulo, lugarId, salas: [...salas] };
+export function cuerpoCrearCaso(titulo: string, lugarId: string | null, salas: string[], descripcion = ''): CaseCreateRequest {
+  // La descripción es el contexto que lee el estudiante y la compuerta de publicación exige una: el editor no tiene dónde
+  // escribirla, así que nace con la de la idea o el lugar elegidos.
+  const conDescripcion = descripcion.trim() ? { description: descripcion.trim() } : {};
+  return lugarId === null ? { title: titulo, ...conDescripcion } : { title: titulo, ...conDescripcion, lugarId, salas: [...salas] };
 }

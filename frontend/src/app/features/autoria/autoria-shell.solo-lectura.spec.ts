@@ -59,6 +59,26 @@ describe('AutoriaShellComponent · un caso que ya no es un borrador', () => {
     expect(raiz.querySelector<HTMLFieldSetElement>('main fieldset.marco-pantalla')!.disabled).toBe(false);
   });
 
+  it('en la revisión de un caso que ya no es un borrador los controles siguen vivos: ahí se decide y se crea la versión nueva', async () => {
+    const { raiz } = await irA('/portal/casos/41/editor/revision', 'IN_REVIEW');
+    const marco = raiz.querySelector<HTMLFieldSetElement>('main fieldset.marco-pantalla')!;
+    expect(marco.disabled).toBe(false);
+    const botones = [...marco.querySelectorAll<HTMLButtonElement>('[data-accion="decision-caso"] button')];
+    const aprobar = botones.find((b) => b.textContent?.includes('Aprobar y publicar'))!;
+    expect(aprobar, 'el panel ofrece aprobar').toBeDefined();
+    expect(aprobar.disabled || aprobar.matches(':disabled')).toBe(false);
+  });
+
+  it('los datos del caso de un caso en revisión se pueden leer con el teclado: la pantalla no se deshabilita, sus campos son de solo lectura', async () => {
+    const { raiz, servidor } = await irA('/portal/casos/41/editor/datos', 'IN_REVIEW');
+    expect(raiz.querySelector('main [role="note"].solo-lectura')).not.toBeNull();
+    const marco = raiz.querySelector<HTMLFieldSetElement>('main fieldset.marco-pantalla')!;
+    expect(marco.disabled).toBe(false);
+    expect(marco.querySelector<HTMLTextAreaElement>('#d-contexto')!.readOnly).toBe(true);
+    expect(marco.querySelector<HTMLTextAreaElement>('#d-contexto')!.disabled).toBe(false);
+    expect(servidor.llamadasA('updateBrief')).toHaveLength(0);
+  });
+
   it('un borrador no muestra el aviso ni bloquea nada', async () => {
     const { raiz, store } = await irA('/portal/casos/41/editor', 'DRAFT');
     expect(store.soloLectura()).toBe(false);

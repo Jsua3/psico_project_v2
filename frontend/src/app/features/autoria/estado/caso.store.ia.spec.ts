@@ -45,8 +45,9 @@ describe('CasoStore · propuestas de la IA (con servidor)', () => {
     expect(store.error()).toBeNull();
     expect(servidor.metodos).toEqual([
       'createNode', 'createMap', 'saveWorld', // la escena nueva
-      'createDialogue', 'worldEditor', // su línea
+      'createDialogue', 'worldEditor', 'saveWorld', // su línea, en el guion que cuelga de una persona de la sala
       'createDecision', 'createDecision', // las dos respuestas, ya con la escena real como destino
+      'saveWorld', // y sus elecciones en ese guion: sin ellas ninguna opción tendría por dónde elegirse
     ]);
     const nodo = servidor.llamadasA('createNode')[0].args[0] as NodeUpsertRequest;
     expect(nodo).toMatchObject({ aiSuggested: true, intensity: 'HIGH', warningMessage: 'Habla de violencia.', narrative: 'La persona duda en la puerta.' });

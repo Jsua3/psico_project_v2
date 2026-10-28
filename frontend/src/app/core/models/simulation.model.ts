@@ -1088,6 +1088,9 @@ export interface WorldSaveRequest {
 export type WorldRoomSaveRequest = Omit<WorldSaveRequest, 'dialogues' | 'clinicalTools'>
   & Partial<Pick<WorldSaveRequest, 'dialogues' | 'clinicalTools'>>;
 
+/** Guardar solo los diálogos de un mapa: objetos y zonas, al faltar, quedan como están. */
+export type WorldDialoguesSaveRequest = Pick<WorldSaveRequest, 'revision' | 'dialogues'>;
+
 // ─── Multi-Room + NPC System (Plan 2) ─────────────────────────────────────────
 
 export interface ScenarioConfig {

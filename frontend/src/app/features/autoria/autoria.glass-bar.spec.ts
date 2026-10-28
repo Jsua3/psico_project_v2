@@ -129,10 +129,11 @@ describe('Editor de casos: la barra de vidrio (tableros 45–51)', () => {
     expect(banda.textContent).toContain('Primera escucha');
     const secciones = [...banda.querySelectorAll('nav[aria-label="Secciones del caso"] a')].map((a) => a.getAttribute('href'));
     expect(secciones).toEqual([
-      '/portal/casos', '/portal/casos/41/editor', '/portal/casos/41/editor/finales', '/portal/casos/41/editor/probar', '/portal/casos/41/editor/revision',
+      '/portal/casos', '/portal/casos/41/editor', '/portal/casos/41/editor/datos', '/portal/casos/41/editor/finales',
+      '/portal/casos/41/editor/probar', '/portal/casos/41/editor/revision',
     ]);
     // La guía las encuentra por su acción.
-    for (const accion of ['definir-finales', 'probar', 'enviar-revision']) expect(banda.querySelector(`[data-accion~="${accion}"]`)).not.toBeNull();
+    for (const accion of ['datos-del-caso', 'definir-finales', 'probar', 'enviar-revision']) expect(banda.querySelector(`[data-accion~="${accion}"]`)).not.toBeNull();
     // La pantalla en la que estás se marca para el lector de pantalla.
     expect(banda.querySelector('a[aria-current="page"]')!.textContent).toContain('El caso');
   });

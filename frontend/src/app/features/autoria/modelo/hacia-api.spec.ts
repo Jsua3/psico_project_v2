@@ -104,6 +104,14 @@ describe('cuerpoNodo: la escena como nodo', () => {
     });
   });
 
+  it('los recursos de apoyo que el docente escribió viajan; sin ellos, una escena que ya existe conserva los suyos', () => {
+    const previo = casoSinLugar().editor.nodes[1];
+    expect(cuerpoNodo(escena({ recursosApoyo: ['Línea 106'] }), { esInicio: false, previo }).supportResources).toEqual(['Línea 106']);
+    expect(cuerpoNodo(escena({ recursosApoyo: [] }), { esInicio: false, previo }).supportResources).toEqual([]);
+    expect(cuerpoNodo(escena(), { esInicio: false, previo }).supportResources).toEqual(['Línea 123']);
+    expect(cuerpoNodo(escena({ recursosApoyo: ['Línea 106'] }), { nodeKey: 'x', esInicio: false }).supportResources).toEqual(['Línea 106']);
+  });
+
   it('no manda el enunciado de la decisión (el servidor no lo toca si falta)', () => {
     const cuerpo = cuerpoNodo(escena(), { nodeKey: 'x', esInicio: false, previo: casoSinLugar().editor.nodes[0] });
     expect(cuerpo).not.toHaveProperty('decisionPrompt');
@@ -374,10 +382,12 @@ describe('solicitudDeSala: la sala como mundo del mapa', () => {
   });
 
   it('cambiar la mirada o la expresión de un personaje conserva lo demás: el movimiento y la persona clave', () => {
-    const c = caso();
     const mundo: WorldDefinition = structuredClone(copiado.mundos[indiceEspera]);
     const persona = mundo.objects.find((o) => o.type === 'PERSON')!;
     persona.metadata = { ...persona.metadata, personaClave: true, movimiento: 'deambula' };
+    // El borrador se lee de lo que el servidor tiene: sabe que camina y que es a quien atender.
+    const c = casoDesdeApi(copiado.editor, copiado.mundos.map((m) => (m.nodeId === mundo.nodeId ? mundo : m)), universidad);
+    expect(c.salas[indiceEspera].personajes[0]).toMatchObject({ movimiento: 'deambula', personaClave: true });
     c.salas[indiceEspera].personajes[0] = { ...c.salas[indiceEspera].personajes[0], mirando: 'izquierda', expresion: 'triste' };
     const { solicitud } = solicitudDeSala(c.salas[indiceEspera], contexto, mundo);
     const guardada = solicitud.objects.find((o) => o.key === persona.key)!;
@@ -431,5 +441,114 @@ describe('cuerpoCrearCaso', () => {
 
   it('sin lugar manda solo el título', () => {
     expect(cuerpoCrearCaso('Caso', null, [])).toEqual({ title: 'Caso' });
+  });
+
+  it('manda la descripción cuando la hay (la compuerta de publicación la exige) y la recorta', () => {
+    expect(cuerpoCrearCaso('Caso', 'universidad', ['pasillo'], '  La persona llega y es escuchada.  ')).toEqual({
+      title: 'Caso', description: 'La persona llega y es escuchada.', lugarId: 'universidad', salas: ['pasillo'],
+    });
+    expect(cuerpoCrearCaso('Caso', 'universidad', ['pasillo'], '   ')).toEqual({ title: 'Caso', lugarId: 'universidad', salas: ['pasillo'] });
+  });
+});
+
+describe('solicitudDeSala: cómo se mueve una persona y a quién atender', () => {
+  const copiado = casoCopiadoDeLugar(universidad, ['pasillo', 'sala-espera', 'bienestar', 'consultorio']);
+  const caso = () => casoDesdeApi(copiado.editor, copiado.mundos, universidad);
+  const contexto = { revision: 3, catalogo: universidad.catalogo, personajes: universidad.personajes, personajesDelCaso: copiado.editor.characters };
+  const indice = 1;
+  const personaGuardada = (solicitud: { objects: WorldDefinition['objects'] }) => solicitud.objects.find((o) => o.type === 'PERSON')!;
+
+  it('una persona que va y viene se guarda con la forma que lee el juego', () => {
+    const c = caso();
+    c.salas[indice].personajes[0].movimiento = { tipo: 'va-y-viene', hasta: { x: 600, y: 420 } };
+    const { solicitud } = solicitudDeSala(c.salas[indice], contexto, copiado.mundos[indice]);
+    expect(personaGuardada(solicitud).metadata['movimiento']).toEqual({ tipo: 'va-y-viene', hasta: { x: 600, y: 420 } });
+  });
+
+  it('una persona que camina por la sala se guarda como «deambula»', () => {
+    const c = caso();
+    c.salas[indice].personajes[0].movimiento = 'deambula';
+    const { solicitud } = solicitudDeSala(c.salas[indice], contexto, copiado.mundos[indice]);
+    expect(personaGuardada(solicitud).metadata['movimiento']).toBe('deambula');
+  });
+
+  it('volver a «se queda quieto» lo escribe, aunque antes caminara', () => {
+    const mundo: WorldDefinition = structuredClone(copiado.mundos[indice]);
+    const persona = mundo.objects.find((o) => o.type === 'PERSON')!;
+    persona.metadata = { ...persona.metadata, movimiento: 'deambula' };
+    const c = caso();
+    c.salas[indice].personajes[0].movimiento = 'quieto';
+    const { solicitud } = solicitudDeSala(c.salas[indice], contexto, mundo);
+    expect(personaGuardada(solicitud).metadata['movimiento']).toBe('quieto');
+  });
+
+  it('marcar a la persona a atender escribe el dato; desmarcarla lo quita del todo', () => {
+    const c = caso();
+    c.salas[indice].personajes[0].personaClave = true;
+    const { solicitud } = solicitudDeSala(c.salas[indice], contexto, copiado.mundos[indice]);
+    expect(personaGuardada(solicitud).metadata['personaClave']).toBe(true);
+
+    const marcado: WorldDefinition = structuredClone(copiado.mundos[indice]);
+    const persona = marcado.objects.find((o) => o.type === 'PERSON')!;
+    persona.metadata = { ...persona.metadata, personaClave: true };
+    c.salas[indice].personajes[0].personaClave = false;
+    const { solicitud: sin } = solicitudDeSala(c.salas[indice], contexto, marcado);
+    expect(personaGuardada(sin).metadata).not.toHaveProperty('personaClave');
+  });
+
+  it('lo que no cambió no se reescribe: una sala leída y guardada queda igual (sin «personaClave: false» ni «movimiento» nuevos)', () => {
+    const c = caso();
+    expect(c.salas[indice].personajes[0]).toMatchObject({ movimiento: 'quieto', personaClave: false });
+    const { solicitud } = solicitudDeSala(c.salas[indice], contexto, copiado.mundos[indice]);
+    expect(solicitud.objects).toEqual(copiado.mundos[indice].objects);
+  });
+
+  it('un movimiento que el juego no entiende se conserva mientras el docente no lo cambie', () => {
+    const mundo: WorldDefinition = structuredClone(copiado.mundos[indice]);
+    const persona = mundo.objects.find((o) => o.type === 'PERSON')!;
+    persona.metadata = { ...persona.metadata, movimiento: 'baila' };
+    const c = casoDesdeApi(copiado.editor, [copiado.mundos[0], mundo, ...copiado.mundos.slice(2)], universidad);
+    const { solicitud } = solicitudDeSala(c.salas[indice], contexto, mundo);
+    expect(personaGuardada(solicitud).metadata['movimiento']).toBe('baila');
+  });
+
+  it('una persona nueva en la sala nace quieta y sin ser la persona a atender', () => {
+    const c = caso();
+    const enCaso = copiado.editor.characters[0];
+    c.salas[indice].personajes.push({ ref: enCaso.key, x: 300, y: 300, mirando: 'izquierda', expresion: 'neutral' });
+    const { solicitud } = solicitudDeSala(c.salas[indice], contexto, copiado.mundos[indice]);
+    const nueva = solicitud.objects.find((o) => o.id === 0 && o.type === 'PERSON')!;
+    expect(nueva.metadata['movimiento']).toBe('quieto');
+    expect(nueva.metadata).not.toHaveProperty('personaClave');
+  });
+
+  it('una persona nueva puede nacer ya con su movimiento y su marca (deshacer un «quitar»)', () => {
+    const c = caso();
+    const enCaso = copiado.editor.characters[0];
+    c.salas[indice].personajes.push({
+      ref: enCaso.key, x: 300, y: 300, mirando: 'izquierda', expresion: 'neutral', movimiento: 'deambula', personaClave: true,
+    });
+    const { solicitud } = solicitudDeSala(c.salas[indice], contexto, copiado.mundos[indice]);
+    const nueva = solicitud.objects.find((o) => o.id === 0 && o.type === 'PERSON')!;
+    expect(nueva.metadata).toMatchObject({ movimiento: 'deambula', personaClave: true });
+  });
+});
+
+describe('solicitudDeSala: un objeto que ofrece una respuesta', () => {
+  const copiado = casoCopiadoDeLugar(universidad, ['pasillo', 'sala-espera', 'bienestar', 'consultorio']);
+  const contexto = { revision: 3, catalogo: universidad.catalogo, personajes: universidad.personajes, personajesDelCaso: copiado.editor.characters };
+
+  it('lo que ofrece sigue ofreciéndolo al guardar la sala, también si se mueve', () => {
+    const mundo: WorldDefinition = structuredClone(copiado.mundos[1]);
+    const objeto = mundo.objects.find((o) => o.type !== 'PERSON' && o.type !== 'EXIT' && o.type !== 'PROP')!;
+    objeto.decisionOptionId = 77;
+    const mundos = copiado.mundos.map((m) => (m.nodeId === mundo.nodeId ? mundo : m));
+    const caso = casoDesdeApi(copiado.editor, mundos, universidad);
+    const intacta = solicitudDeSala(caso.salas[1], contexto, mundo).solicitud;
+    expect(intacta.objects).toEqual(mundo.objects);
+    const indice = caso.salas[1].objetos.findIndex((o) => o.clave === objeto.key);
+    caso.salas[1].objetos[indice] = { ...caso.salas[1].objetos[indice], x: 600, y: 400 };
+    const movida = solicitudDeSala(caso.salas[1], contexto, mundo).solicitud.objects.find((o) => o.key === objeto.key)!;
+    expect([movida.x, movida.y, movida.decisionOptionId]).toEqual([600, 400, 77]);
   });
 });

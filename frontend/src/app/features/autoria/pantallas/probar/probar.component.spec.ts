@@ -1,3 +1,6 @@
+import { readFileSync } from 'node:fs';
+import { join } from 'node:path';
+
 import { TestBed } from '@angular/core/testing';
 import { provideRouter } from '@angular/router';
 
@@ -133,5 +136,16 @@ describe('ProbarComponent', () => {
     const pieza = raiz.querySelector<HTMLElement>('.sala-vista [data-pieza="mueble-0"]')!;
     expect(pieza.style.left).toBe('640px');
     expect(pieza.style.top).toBe('400px');
+  });
+});
+
+// Axe (color-contrast): el final de la prueba se dibuja sobre el fondo oscuro del juego; el título del final y los textos de
+// apoyo de la vista del estudiante tienen que llevar la tinta del juego, no la del editor (oscura sobre oscuro es ilegible).
+describe('ProbarComponent · la tinta del final', () => {
+  const fuente = readFileSync(join(__dirname, 'probar.component.ts'), 'utf-8');
+
+  it('el título del final y los textos de apoyo de la vista del estudiante usan los colores del juego', () => {
+    expect(fuente).toMatch(/\.final h2 \{[^}]*color: var\(--juego-texto\)/);
+    expect(fuente).toMatch(/\.juego \.texto-secundario \{[^}]*color: var\(--juego-texto-suave\)/);
   });
 });

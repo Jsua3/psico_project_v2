@@ -79,6 +79,7 @@ const MENU_CUENTA: UiMenuItem[] = [{ value: 'salir', label: 'Cerrar sesión', ic
         @if (store.caso()) {
           <a [routerLink]="rutas.a('/')" class="enlace-nav enlace-mis-casos"><span aria-hidden="true">‹</span> Mis casos</a>
           <a [routerLink]="rutas.a('/editor')" routerLinkActive="activo" ariaCurrentWhenActive="page" [routerLinkActiveOptions]="{ exact: true }" class="enlace-nav">El caso</a>
+          <a [routerLink]="rutas.a('/editor/datos')" routerLinkActive="activo" ariaCurrentWhenActive="page" class="enlace-nav" data-accion="datos-del-caso">Datos del caso</a>
           <a [routerLink]="rutas.a('/editor/finales')" routerLinkActive="activo" ariaCurrentWhenActive="page" class="enlace-nav" data-accion="definir-finales">Finales</a>
           <a [routerLink]="rutas.a('/probar')" routerLinkActive="activo" ariaCurrentWhenActive="page" class="enlace-nav" data-accion="probar">Probar como estudiante</a>
           <a [routerLink]="rutas.a('/revision')" routerLinkActive="activo" ariaCurrentWhenActive="page" class="enlace-nav" data-accion="enviar-revision">Enviar a revisión</a>
@@ -184,8 +185,11 @@ export class AutoriaShellComponent implements CanLeave {
   private readonly direccion = toSignal(
     this.router.events.pipe(filter((e) => e instanceof NavigationEnd), map(() => this.router.url)), { initialValue: this.router.url },
   );
-  /** Las pantallas no se pueden cambiar si el caso ya no es un borrador; probar como estudiante no cambia nada, así que sigue viva. */
-  protected readonly bloqueado = computed(() => this.store.soloLectura() && !this.direccion().split('?')[0].endsWith('/probar'));
+  /**
+   * Las pantallas no se pueden cambiar si el caso ya no es un borrador. Siguen vivas probar como estudiante (no cambia nada), los
+   * datos del caso (sus campos son de solo lectura, para poder leerlos con el teclado) y la revisión: en un caso que ya no es un borrador es donde se decide (aprobar, devolver, archivar) y se crea la versión nueva.
+   */
+  protected readonly bloqueado = computed(() => this.store.soloLectura() && !/\/(probar|revision|datos)$/.test(this.direccion().split('?')[0]));
   protected readonly iaAbierta = signal(false);
   protected readonly buscador = signal<'buscar' | 'preguntar' | null>(null);
   /** Con el buscador o la guía abiertos la barra se congela (DG-9): lo que la guía señala no salta 6 px al desplazarse. */

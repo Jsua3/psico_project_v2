@@ -24,7 +24,7 @@ function casoLimpio() {
   return datos;
 }
 
-async function montar(opciones: { hallazgos?: ValidationIssue[]; estado?: string; bloqueos?: ServidorFalso['bloqueos']; marcados?: string[]; constancia?: boolean } = {}) {
+async function montar(opciones: { hallazgos?: ValidationIssue[]; estado?: string; revision?: ServidorFalso['ultimaRevision']; bloqueos?: ServidorFalso['bloqueos']; marcados?: string[]; constancia?: boolean } = {}) {
   localStorage.clear();
   TestBed.resetTestingModule();
   const datos = casoLimpio();
@@ -33,6 +33,7 @@ async function montar(opciones: { hallazgos?: ValidationIssue[]; estado?: string
   const servidor = new ServidorFalso(datos, universidad);
   servidor.hallazgos = opciones.hallazgos ?? [];
   servidor.bloqueos = opciones.bloqueos ?? [];
+  servidor.ultimaRevision = opciones.revision;
   await TestBed.configureTestingModule({
     imports: [RevisionComponent],
     providers: [provideRouter([]), { provide: AuthoringApi, useValue: servidor.autoria }],
@@ -107,6 +108,30 @@ describe('RevisionComponent · la compuerta de publicación en lenguaje del doce
     await new Promise((r) => setTimeout(r, 120));
     await listo();
     expect(navegar).toHaveBeenCalledWith(`/portal/casos/${store.caso()!.id}/editor`);
+    expect(document.activeElement).toBe(destino);
+    destino.remove();
+  });
+
+  it('una escena con respuestas en una sala sin personas bloquea el envío y «Llévame ahí» abre la sala', async () => {
+    const { raiz, store, enviar, listo } = await montar();
+    // El consultorio se queda sin su única persona (el caso ya trae una respuesta en esa escena).
+    const caso = structuredClone(store.caso()!);
+    caso.salas.find((x) => x.id === 'consultorio')!.personajes = [];
+    store.fijar(caso);
+    await listo();
+    const mensaje = 'La escena «Consultorio de atención psicológica» tiene respuestas pero en su sala no hay nadie con quien hablar. Agrega una persona.';
+    const filas = [...raiz.querySelectorAll('section.por-resolver li.falta p')].map((p) => p.textContent);
+    expect(filas).toEqual([mensaje]);
+    expect(enviar().getAttribute('aria-disabled')).toBe('true');
+    const router = TestBed.inject(Router);
+    const navegar = vi.spyOn(router, 'navigateByUrl').mockResolvedValue(true);
+    const destino = document.createElement('h3');
+    destino.id = 'catalogo';
+    document.body.appendChild(destino);
+    raiz.querySelector<HTMLButtonElement>('section.por-resolver li.falta button')!.click();
+    await new Promise((r) => setTimeout(r, 120));
+    await listo();
+    expect(navegar).toHaveBeenCalledWith(`/portal/casos/${store.caso()!.id}/editor/sala/consultorio`);
     expect(document.activeElement).toBe(destino);
     destino.remove();
   });
@@ -250,5 +275,91 @@ describe('RevisionComponent · lista de verificación ética y académica', () =
     await new Promise((r) => setTimeout(r, 20));
     await listo();
     expect(raiz.querySelector('section.por-resolver')!.textContent).toContain('Falta completar la lista de verificación');
+  });
+});
+
+describe('RevisionComponent · un caso que ya no es un borrador (decisión de Psicología y versión nueva)', () => {
+  afterEach(() => document.querySelectorAll('body > app-revision, body > [ng-version]').forEach((n) => n.remove()));
+
+  it('en revisión muestra el panel de la decisión (aprobar o devolver) y no ofrece crear una versión nueva', async () => {
+    const { raiz, servidor } = await montar({ estado: 'IN_REVIEW' });
+    const decision = raiz.querySelector<HTMLElement>('[data-accion="decision-caso"]')!;
+    expect(decision.querySelector('h2')!.textContent).toContain('Estado y decisión del caso');
+    expect(decision.querySelector('app-case-review-panel')).not.toBeNull();
+    const botones = [...decision.querySelectorAll('button')].map((b) => b.textContent ?? '').join('|');
+    expect(botones).toContain('Aprobar y publicar');
+    expect(botones).toContain('Devolver a borrador');
+    expect(botones).not.toContain('Crear una versión nueva');
+    expect(servidor.metodos).toContain('lifecycle');
+  });
+
+  it('publicado dice que está publicado y deja crear una versión nueva, que abre en el editor', async () => {
+    const { raiz, servidor, fixture, listo } = await montar({ estado: 'PUBLISHED' });
+    expect(raiz.querySelector('[role="status"].listo')!.textContent).toContain('El caso está publicado');
+    const navegar = vi.spyOn(TestBed.inject(Router), 'navigateByUrl').mockResolvedValue(true);
+    const crear = [...raiz.querySelectorAll<HTMLButtonElement>('[data-accion="decision-caso"] button')].find((b) => b.textContent?.trim() === 'Crear una versión nueva')!;
+    expect(crear).toBeDefined();
+    crear.click();
+    await listo();
+    await fixture.whenStable();
+    expect(servidor.llamadasA('cloneCaseVersion')).toHaveLength(1);
+    expect(navegar).toHaveBeenCalledWith(`/portal/casos/${CASO + 1000}/editor`);
+  });
+
+  it('si no se puede crear la versión, lo dice y no se mueve de pantalla', async () => {
+    const { raiz, servidor, fixture, listo } = await montar({ estado: 'PUBLISHED' });
+    servidor.fallar('cloneCaseVersion', 500);
+    const navegar = vi.spyOn(TestBed.inject(Router), 'navigateByUrl').mockResolvedValue(true);
+    [...raiz.querySelectorAll<HTMLButtonElement>('button')].find((b) => b.textContent?.trim() === 'Crear una versión nueva')!.click();
+    await listo();
+    await fixture.whenStable();
+    await listo();
+    expect(raiz.querySelector('.version-nueva .error')!.textContent).toContain('No se pudo crear la versión nueva');
+    expect(navegar).not.toHaveBeenCalled();
+  });
+
+  it('cuando el panel cambia el estado del caso, la pantalla lo vuelve a leer', async () => {
+    const { servidor, store, listo } = await montar({ estado: 'IN_REVIEW' });
+    servidor.llamadas.length = 0;
+    servidor.editor.status = 'PUBLISHED';
+    servidor.editor.revision += 1;
+    servidor.cambiosDelCaso.next(CASO);
+    await new Promise((r) => setTimeout(r, 20));
+    await listo();
+    expect(servidor.llamadasA('caseEditor')).toHaveLength(1);
+    expect(store.caso()!.estado).toBe('PUBLISHED');
+  });
+
+  it('el aviso de otro caso no la hace releer', async () => {
+    const { servidor, listo } = await montar({ estado: 'IN_REVIEW' });
+    servidor.llamadas.length = 0;
+    servidor.cambiosDelCaso.next(CASO + 7);
+    await new Promise((r) => setTimeout(r, 20));
+    await listo();
+    expect(servidor.llamadasA('caseEditor')).toHaveLength(0);
+  });
+});
+
+describe('RevisionComponent · un caso que Psicología devolvió', () => {
+  afterEach(() => document.querySelectorAll('body > app-revision, body > [ng-version]').forEach((n) => n.remove()));
+
+  it('quien autora lee el motivo y la nota con los que se devolvió el caso a borrador', async () => {
+    const { raiz } = await montar({
+      revision: { requestedBy: 'Docente', requestedAt: '2026-10-20T10:00:00Z', decision: 'REJECTED', reason: 'FORMA', note: 'Falta contexto en la primera escena.' },
+    });
+    const tarjeta = raiz.querySelector<HTMLElement>('[data-accion="devuelto-por-psicologia"]')!;
+    expect(tarjeta.querySelector('h2')!.textContent).toContain('Psicología devolvió el caso');
+    expect(tarjeta.textContent).toContain('Motivo: Forma.');
+    expect(tarjeta.textContent).toContain('Nota: Falta contexto en la primera escena.');
+  });
+
+  it('un caso que nunca se devolvió no muestra esa tarjeta', async () => {
+    const { raiz } = await montar();
+    expect(raiz.querySelector('[data-accion="devuelto-por-psicologia"]')).toBeNull();
+  });
+
+  it('una aprobación anterior tampoco la muestra', async () => {
+    const { raiz } = await montar({ revision: { requestedBy: 'Docente', requestedAt: '2026-10-20T10:00:00Z', decision: 'APPROVED' } });
+    expect(raiz.querySelector('[data-accion="devuelto-por-psicologia"]')).toBeNull();
   });
 });

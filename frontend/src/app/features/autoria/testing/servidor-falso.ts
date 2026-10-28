@@ -7,12 +7,12 @@
  * «esta acción llamó a esta ruta con la revisión que devolvió la anterior».
  */
 import { HttpErrorResponse } from '@angular/common/http';
-import { Observable, of, throwError } from 'rxjs';
+import { Observable, Subject, of, throwError } from 'rxjs';
 
 import type { AuthoringApi } from '../../../core/api/authoring.api';
 import type { AssistantProposeBody } from '../../../core/api/generated/openapi-contracts';
 import type {
-  CaseEditorView, CaseLifecycle, ChecklistUpdateRequest, CaseTransitionRequest, CaseValidation, CharacterUpsertRequest, ValidationIssue, DecisionOptionUpsertRequest, DialogueUpsertRequest, EndingRule, MapUpsertRequest,
+  BriefUpdateRequest, CaseEditorView, CaseLifecycle, CaseReviewInfo, ChecklistUpdateRequest, CaseTransitionRequest, CaseValidation, CharacterUpsertRequest, ValidationIssue, DecisionOptionUpsertRequest, DialogueUpsertRequest, EndingRule, MapUpsertRequest,
   Milestone, NodeUpsertRequest, RiskLevel, WorldDefinition, WorldDialogueTree, WorldRoomSaveRequest,
 } from '../../../core/models/simulation.model';
 import type { Escenario } from '../modelo/escenario';
@@ -56,6 +56,10 @@ export class ServidorFalso {
   bloqueos: Array<{ code: string; message: string; issues?: ValidationIssue[] }> = [];
   readonly editor: CaseEditorView;
   readonly mundos = new Map<number, WorldDefinition>();
+  /** Lo que emite `AuthoringApi.caseChanges`: el id de un caso que cambió bajo quien lo muestra (una transición aplicada o un 409 de estado). */
+  readonly cambiosDelCaso = new Subject<number>();
+  /** Lo que el servidor dice de la última revisión del caso (`lifecycle.review`): quién decidió, con qué motivo y nota. */
+  ultimaRevision: CaseReviewInfo | undefined;
   /** Errores que un método devuelve: tras dejar pasar `saltar` llamadas, falla `veces` veces. */
   private readonly fallos = new Map<string, { error: HttpErrorResponse; saltar: number; veces: number }>();
   private siguienteId = 5000;
@@ -121,6 +125,7 @@ export class ServidorFalso {
   }
 
   readonly api = {
+    caseChanges: this.cambiosDelCaso.asObservable(),
     caseEditor: (cv: number) => {
       const error = this.entrar('caseEditor', undefined, [cv]);
       return error ? throwError(() => error) : of(clonar(this.editor));
@@ -161,6 +166,7 @@ export class ServidorFalso {
         Object.assign(nodo, {
           title: cuerpo.title, warningMessage: cuerpo.warningMessage, terminal: cuerpo.terminal, startNode: cuerpo.startNode,
           positionX: cuerpo.positionX, positionY: cuerpo.positionY, intensity: cuerpo.intensity ?? nodo.intensity,
+          supportResources: cuerpo.supportResources ?? nodo.supportResources,
         });
       }),
     deleteNode: (cv: number, nodeId: number, revision?: number) =>
@@ -273,6 +279,12 @@ export class ServidorFalso {
         this.editor.rules.endings = clonar(endings);
       }),
 
+    updateBrief: (cv: number, cuerpo: BriefUpdateRequest, revision?: number) =>
+      this.escribir('updateBrief', revision, [cuerpo], () => {
+        if (cuerpo.context !== undefined) this.editor.context = cuerpo.context;
+        if (cuerpo.learningObjectives !== undefined) this.editor.learningObjectives = [...cuerpo.learningObjectives];
+      }),
+
     updateChecklist: (cv: number, cuerpo: ChecklistUpdateRequest, revision?: number) =>
       this.escribir('updateChecklist', revision, [cuerpo], () => {
         const marcados = cuerpo as unknown as Record<string, boolean>;
@@ -331,12 +343,26 @@ export class ServidorFalso {
       if (error) return throwError(() => error);
       const mundo = this.mundos.get(nodeId ?? -1);
       if (!mundo) return throwError(() => new HttpErrorResponse({ status: 404 }));
-      mundo.map = clonar(cuerpo.map);
-      mundo.objects = cuerpo.objects.map((o) => ({ ...clonar(o), id: o.id || this.id() }));
-      mundo.collisionZones = cuerpo.collisionZones.map((z) => ({ ...clonar(z), id: z.id || this.id() }));
+      // Como el servidor: una lista que no viene no se toca; la que viene reemplaza a la de la sala.
+      if (cuerpo.map) mundo.map = clonar(cuerpo.map);
+      if (cuerpo.objects) mundo.objects = cuerpo.objects.map((o) => ({ ...clonar(o), id: o.id || this.id() }));
+      if (cuerpo.collisionZones) mundo.collisionZones = cuerpo.collisionZones.map((z) => ({ ...clonar(z), id: z.id || this.id() }));
+      if (cuerpo.dialogues) {
+        const duenio = (d: WorldDialogueTree) => (d.mapObjectKey ? mundo.objects.find((o) => o.key === d.mapObjectKey)?.id ?? null : d.mapObjectId ?? null);
+        mundo.dialogues = cuerpo.dialogues.map((d) => ({ ...clonar(d), id: d.id || this.id(), mapObjectId: duenio(d) }));
+      }
+      // Un diálogo no puede colgar de una persona que ya no está en la sala: se va con ella.
+      const quedan = new Set(mundo.objects.map((o) => o.id));
+      mundo.dialogues = mundo.dialogues.filter((d) => d.mapObjectId === null || d.mapObjectId === undefined || quedan.has(d.mapObjectId));
       this.editor.revision += 1;
       mundo.revision = this.editor.revision;
       return of(clonar(mundo));
+    },
+
+    cloneCaseVersion: (cv: number) => {
+      const error = this.entrar('cloneCaseVersion', undefined, [cv]);
+      if (error) return throwError(() => error);
+      return of({ ...clonar(this.editor), caseVersionId: this.editor.caseVersionId + 1000, status: 'DRAFT', revision: 1 });
     },
 
     assistantPropose: (cv: number, cuerpo: AssistantProposeBody) => {
@@ -354,7 +380,7 @@ export class ServidorFalso {
   private ciclo(): CaseLifecycle {
     const estado = this.editor.status as CaseLifecycle['state'];
     return {
-      caseVersionId: this.editor.caseVersionId, state: estado, allowedTransitions: estado === 'DRAFT' ? ['submit'] : [],
+      caseVersionId: this.editor.caseVersionId, state: estado, ...(this.ultimaRevision ? { review: clonar(this.ultimaRevision) } : {}), allowedTransitions: estado === 'DRAFT' ? ['submit'] : estado === 'IN_REVIEW' ? ['approve', 'reject'] : ['archive', 'clone'],
       ...(estado === 'DRAFT' && this.bloqueosEfectivos().length
         ? { blockedReason: { code: this.bloqueosEfectivos()[0].code, message: this.bloqueosEfectivos()[0].message } } : {}),
     };

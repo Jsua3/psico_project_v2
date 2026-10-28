@@ -44,6 +44,6 @@ export const CRITICAL_FUNCTIONS: readonly CriticalFunction[] = [
 
   { id: 'A01', role: 'admin', label: 'Gestionar usuarios y solicitudes' },
   { id: 'A02', role: 'admin', label: 'Crear y editar un caso' },
-  { id: 'A03', role: 'admin', label: 'Editar el grafo y el mundo (colocar, mover, borrar con teclado)' },
+  { id: 'A03', role: 'admin', label: 'Editar el mapa del caso y la sala (abrir, agregar, mover y quitar con teclado)' },
   { id: 'A04', role: 'admin', label: 'Validar y publicar' },
 ];

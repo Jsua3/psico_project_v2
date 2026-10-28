@@ -9,6 +9,8 @@ export interface ProximitySprite {
   play(animationKey: string): unknown;
   stop(): unknown;
   setFrame(frame: number): unknown;
+  /** El cuadro que se está dibujando (en Phaser, `name` es el número de cuadro de la hoja). */
+  frame?: { name: string | number };
 }
 
 /** Un objeto con hoja de cercanía y su estado de reproducción. */
@@ -43,4 +45,24 @@ export function syncProximityAnimation(animation: ProximityAnimation, near: bool
     animation.sprite.stop();
     animation.sprite.setFrame(0);
   }
+}
+
+/**
+ * Lo que se publica en el host del juego para la prueba de extremo a extremo (`data-proximity`, igual que
+ * `data-player-x`): qué objeto está animando ahora y el cuadro que muestra cada objeto con hoja de cercanía. Se
+ * calcula aquí, sin Phaser, para poder probarlo; el juego solo lo escribe cuando cambia.
+ */
+export interface ProximityReport {
+  playing: string | null;
+  frames: Record<string, number>;
+}
+
+export function proximityReport(animations: ReadonlyMap<string, ProximityAnimation>): ProximityReport {
+  let playing: string | null = null;
+  const frames: Record<string, number> = {};
+  animations.forEach((animation, key) => {
+    if (animation.playing && playing === null) playing = key;
+    frames[key] = Number(animation.sprite.frame?.name ?? 0) || 0;
+  });
+  return { playing, frames };
 }

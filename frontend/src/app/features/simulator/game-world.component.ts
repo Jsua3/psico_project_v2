@@ -3,7 +3,7 @@ import { Component, ElementRef, NgZone, OnChanges, OnDestroy, SimpleChanges, Vie
 import { MatIconModule } from '@angular/material/icon';
 import Phaser from 'phaser';
 import { Activation, CollisionZoneState, Intensity, MapObjectState, NpcConfig, Persona, RoomConfig, ScenarioConfig, SimulationWorldState } from '../../core/models/simulation.model';
-import { backgroundImage } from './world-editor/room-edit.util';
+import { backgroundImage } from './room-ambient.util';
 import { KenneyDungeonFrames } from './kenney-frames.constants';
 import {
   HOSPITAL_COLLISIONS,
@@ -89,7 +89,7 @@ import { furnitureSpriteSpecs } from './furniture-sprite.util';
 import { CameraFlash, CRISIS_VIGNETTE_TINT, crisisVignetteState, roomEntryFlash, vignetteFrame } from './game-feel.util';
 import { artLoadsFor, BibliotecaManifest, objectSheetSpecs, objectSpriteSpecs, spriteFor } from './object-sprite.util';
 import {
-  ProximityAnimation, proximityAnimationKey, syncProximityAnimation,
+  ProximityAnimation, ProximityReport, proximityAnimationKey, proximityReport, syncProximityAnimation,
 } from './proximity-animation.util';
 import { AVATAR_STORAGE_KEY } from '../character/avatar.store';
 import { NpcMotionConfig, NpcMovementZone } from '../../core/models/simulation.model';
@@ -125,6 +125,10 @@ interface WorldCallbacks {
   onNpcInteract: (npc: NpcConfig) => void;
   /** El puntero está sobre esta clave (marcador o `npc:{clave}`) o sobre nada (F6-7, VD-5). */
   onHover?:      (key: string | null) => void;
+  /** Para la prueba de extremo a extremo: qué objeto anima por cercanía y el cuadro de cada uno; solo se avisa al cambiar. */
+  onProximityAnimation?: (report: ProximityReport) => void;
+  /** Para la prueba de extremo a extremo: el nombre que lleva el indicador de la persona a atender, o `null` si la sala no lo tiene. */
+  onKeyPersonIndicator?: (name: string | null) => void;
   /** Terminó una caminata pedida con «Ir a…» (F6-11): llegó, o no pudo (muro, mueble, servidor). */
   onWalkEnded?:  (key: string, label: string, outcome: 'arrived' | 'blocked') => void;
   /** Progreso de la precarga, 0-100 (solo la carga inicial). */
@@ -221,6 +225,8 @@ export class DataDrivenWorldScene extends Phaser.Scene {
   private readonly markerLabels = new Map<string, Phaser.GameObjects.Text>();
   /** Objetos con hoja de cercanía, por clave de marcador: se reproduce cuando son el candidato principal. */
   private readonly proximityAnimations = new Map<string, ProximityAnimation>();
+  /** Lo último que se avisó de esas animaciones (se compara para avisar solo cuando cambia). */
+  private lastProximityReport = '';
   /** Texturas de arte que ya se pidieron (lleguen o fallen): no se vuelven a pedir en cada pintado. */
   private readonly requestedArt = new Set<string>();
   private readonly doorHints  = new Map<string, Phaser.GameObjects.Container>();
@@ -469,6 +475,7 @@ export class DataDrivenWorldScene extends Phaser.Scene {
   }
 
   override update(time: number, delta: number) {
+    this.reportProximityAnimation();
     if (!this.player || !this.cursors || !this.keys || !this.world) {
       this.tappedKeys.e = this.tappedKeys.space = this.tappedKeys.enter = false;
       return;
@@ -1958,6 +1965,17 @@ export class DataDrivenWorldScene extends Phaser.Scene {
     return true;
   }
 
+  /** Avisa al host (solo cuando cambia) qué anima por cercanía y en qué cuadro va cada objeto con hoja. */
+  private reportProximityAnimation(): void {
+    const notify = this.callbacks.onProximityAnimation;
+    if (!notify) return;
+    const report = proximityReport(this.proximityAnimations);
+    const serialized = JSON.stringify(report);
+    if (serialized === this.lastProximityReport) return;
+    this.lastProximityReport = serialized;
+    notify(report);
+  }
+
   /** Reproduce o detiene la animación de cercanía de cada objeto que la tiene, según sea o no el principal. */
   private syncProximityAnimations(): void {
     this.proximityAnimations.forEach((animation, key) => {
@@ -2214,6 +2232,7 @@ export class DataDrivenWorldScene extends Phaser.Scene {
     this.hoverLabel = undefined;
     this.hoverKey = null;
     this.keyPersonIndicator = undefined;
+    this.callbacks.onKeyPersonIndicator?.(null);
   }
 
   private isInteractive(o: MapObjectState): boolean {
@@ -2353,7 +2372,8 @@ export class DataDrivenWorldScene extends Phaser.Scene {
     chevron.fillTriangle(-halfWidth, -height, halfWidth, -height, 0, 0);
     chevron.lineStyle(2, KEY_PERSON_HALO_HEX, 0.9);
     chevron.strokeTriangle(-halfWidth, -height, halfWidth, -height, 0, 0);
-    const name = this.add.text(0, -(height + KEY_PERSON_NAME_GAP_PX), getSceneDisplayLabel(object, this.world?.map.key), {
+    const label = getSceneDisplayLabel(object, this.world?.map.key);
+    const name = this.add.text(0, -(height + KEY_PERSON_NAME_GAP_PX), label, {
       fontFamily: WORLD_FONT_FAMILY, fontSize: `${LABEL_BASE_FONT_PX}px`, color: KEY_PERSON_COLOR, fontStyle: 'bold',
       backgroundColor: 'rgba(8,12,18,.85)', padding: { x: 5, y: 3 }, align: 'center',
     }).setOrigin(0.5, 1);
@@ -2361,6 +2381,7 @@ export class DataDrivenWorldScene extends Phaser.Scene {
       .setDepth(LABEL_DEPTH)
       .setScale(this.labelScale);
     this.keyPersonIndicator = { key: object.key, container };
+    this.callbacks.onKeyPersonIndicator?.(label);
   }
 
   /** El indicador acompaña a la persona clave cuando camina. */
@@ -3143,6 +3164,22 @@ export class GameWorldComponent implements OnChanges, OnDestroy {
   /** Camina hasta una de ellas; false si ya no está (cambió la sala). */
   walkToKey(key: string): boolean { return this.scene?.walkToKey(key) ?? false; }
 
+  /** Qué anima por cercanía y el cuadro de cada objeto con hoja, como `data-proximity` (JSON) del host: contrato del e2e. Directo al DOM. */
+  private writeProximityAnimation(report: ProximityReport): void {
+    const host = this.gameHost?.nativeElement;
+    if (!host) return;
+    if (Object.keys(report.frames).length === 0) host.removeAttribute('data-proximity');
+    else host.setAttribute('data-proximity', JSON.stringify(report));
+  }
+
+  /** El nombre que lleva el indicador de la persona a atender, como `data-key-person` del host (contrato del e2e). Directo al DOM. */
+  private writeKeyPerson(name: string | null): void {
+    const host = this.gameHost?.nativeElement;
+    if (!host) return;
+    if (name === null) host.removeAttribute('data-key-person');
+    else host.setAttribute('data-key-person', name);
+  }
+
   /** Qué tiene el puntero encima, como `data-world-hover` del host (contrato del e2e: el contorno y el cursor viven en
    *  el lienzo). Directo al DOM: cambia con el puntero y no debe disparar la detección de cambios. */
   private writeHover(key: string | null): void {
@@ -3232,6 +3269,8 @@ export class GameWorldComponent implements OnChanges, OnDestroy {
           this.zone.run(() => this.enterRoom.emit({ targetNodeKey, entryX, entryY })),
         onNpcInteract: npc => this.zone.run(() => this.npcInteract.emit(npc)),
         onHover:       key => this.writeHover(key),
+        onProximityAnimation: report => this.writeProximityAnimation(report),
+        onKeyPersonIndicator: name => this.writeKeyPerson(name),
         onWalkEnded:   (key, label, outcome) => this.zone.run(() => this.walkEnded.emit({ key, label, outcome })),
         onLoadProgress: percent => this.zone.run(() => {
           this.loadPercent.set(percent);

@@ -265,10 +265,6 @@ describe('el cliente ya no recibe ni usa la clasificación de las opciones (T8.4
     expect(source).toMatch(/<app-journal-panel[\s\S]*?\[resources\]="supportResources\(\)"/);
   });
 
-  it('la vista previa de autor cierra el diálogo con su salida segura (no hay intento que pausar)', () => {
-    const preview = readFileSync(join(__dirname, 'world-preview.component.ts'), 'utf-8');
-    expect(preview).toMatch(/<app-dialogue-panel[^>]*\(safeExit\)="closeDialogue\(\)"/);
-  });
 });
 
 describe('modo compacto (T10)', () => {

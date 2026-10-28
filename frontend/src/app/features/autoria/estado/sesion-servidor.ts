@@ -2,8 +2,8 @@ import { Observable, firstValueFrom } from 'rxjs';
 
 import type { AuthoringApi } from '../../../core/api/authoring.api';
 import type {
-  CaseEditorView, ChecklistUpdateRequest, CharacterUpsertRequest, DecisionOptionUpsertRequest, DialogueUpsertRequest, EndingRule, MapEditorState,
-  MapUpsertRequest, Milestone, NodeUpsertRequest, RiskLevel, WorldDefinition, WorldRoomSaveRequest,
+  BriefUpdateRequest, CaseEditorView, ChecklistUpdateRequest, CharacterUpsertRequest, DecisionOptionUpsertRequest, DialogueUpsertRequest, EndingRule, MapEditorState,
+  MapUpsertRequest, Milestone, NodeUpsertRequest, RiskLevel, WorldDefinition, WorldDialogueTree, WorldDialoguesSaveRequest, WorldRoomSaveRequest,
 } from '../../../core/models/simulation.model';
 import type { CasoLeido } from '../api/autoria-api.service';
 import type { Escenario } from '../modelo/escenario';
@@ -134,6 +134,10 @@ export class SesionServidor {
     return this.escribir((r) => this.api.updateRisk(this.caseVersionId, nivel, r));
   }
 
+  guardarFicha(ficha: BriefUpdateRequest) {
+    return this.escribir((r) => this.api.updateBrief(this.caseVersionId, ficha, r));
+  }
+
   guardarLista(lista: ChecklistUpdateRequest) {
     return this.escribir((r) => this.api.updateChecklist(this.caseVersionId, lista, r));
   }
@@ -160,6 +164,18 @@ export class SesionServidor {
   /** Guarda la sala de un mapa con la revisión vigente (viaja en el cuerpo) y adopta la que devuelve. */
   async guardarMundo(nodoId: number, solicitud: Omit<WorldRoomSaveRequest, 'revision'>): Promise<WorldDefinition> {
     const mundo = await firstValueFrom(this.api.saveWorld(this.caseVersionId, { ...solicitud, revision: this.revision }, nodoId));
+    this.mundos.set(nodoId, mundo);
+    this.revision = mundo.revision;
+    return mundo;
+  }
+
+  /**
+   * Guarda solo los diálogos de un mapa (el servidor deja sin tocar las listas que no vienen: objetos y zonas quedan como
+   * están) con la revisión vigente. La lista reemplaza a la de la sala: cada diálogo que se quiere conservar va en ella.
+   */
+  async guardarDialogos(nodoId: number, dialogues: WorldDialogueTree[]): Promise<WorldDefinition> {
+    const cuerpo: WorldDialoguesSaveRequest = { revision: this.revision, dialogues };
+    const mundo = await firstValueFrom(this.api.saveWorld(this.caseVersionId, cuerpo, nodoId));
     this.mundos.set(nodoId, mundo);
     this.revision = mundo.revision;
     return mundo;

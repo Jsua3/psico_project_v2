@@ -60,7 +60,9 @@ describe('SalasComponent', () => {
     boton(raiz, 'Crear el caso con estas salas')!.click();
     await fixture.whenStable();
 
-    expect(createCase).toHaveBeenCalledWith({ title: 'Crisis en un espacio común', lugarId: 'universidad', salas: ['cafeteria', 'enfermeria', 'consultorio'] });
+    expect(createCase).toHaveBeenCalledWith(expect.objectContaining({ title: 'Crisis en un espacio común', lugarId: 'universidad', salas: ['cafeteria', 'enfermeria', 'consultorio'] }));
+    // El caso nace con la descripción de la idea elegida: es el contexto que lee el estudiante y la compuerta de publicación la exige.
+    expect(createCase).toHaveBeenCalledWith(expect.objectContaining({ description: expect.stringMatching(/\S/) }));
     expect(navegar).toHaveBeenCalledWith('/portal/casos/77/editor');
   });
 

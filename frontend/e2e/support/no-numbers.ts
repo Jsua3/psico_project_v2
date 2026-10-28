@@ -50,6 +50,8 @@ export const ALLOWED_NUMERIC_KEYS: Readonly<Record<string, string>> = {
   entryX: 'punto de entrada de la puerta', entryY: 'punto de entrada de la puerta',
   interactionRadius: 'radio de interacción de un objeto',
   cameraZoom: 'acercamiento de la cámara en la sala (`ambient` de autoría): geometría del render, no una medida',
+  cuadros: 'cuadros de la hoja de animación de cercanía de un objeto (`metadata.animacionCerca`): parámetro del dibujo, no una medida',
+  fps: 'cuadros por segundo de esa animación: parámetro del dibujo, no una medida',
 };
 
 /** Sufijos con una sola razón cada uno: `*Id` (identificador) y `*Seconds` (duración). */

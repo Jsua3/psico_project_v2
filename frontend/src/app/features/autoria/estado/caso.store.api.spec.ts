@@ -138,7 +138,7 @@ describe('CasoStore con la API · cada acción llama a su endpoint con la revisi
 
     // Líneas del guion
     let linea = '';
-    await probar('agregar una línea', () => { linea = store.agregarLinea(consultorio.id); }, ['createDialogue', 'worldEditor']);
+    await probar('agregar una línea', () => { linea = store.agregarLinea(consultorio.id); }, ['createDialogue', 'worldEditor', 'saveWorld']); // el guion nuevo cuelga de una persona de la sala
     await probar('escribir la línea', () => store.editarLinea(consultorio.id, linea, { texto: 'Hola, pasa.' }), ['updateDialogue']);
     await probar('duplicar la línea', () => store.duplicarLinea(consultorio.id, linea), ['updateDialogue']);
     await probar('mover la línea', () => store.moverLinea(consultorio.id, linea, 1), ['updateDialogue']);
@@ -149,14 +149,14 @@ describe('CasoStore con la API · cada acción llama a su endpoint con la revisi
     await probar('agregar una respuesta', () => { respuesta = store.agregarRespuesta(consultorio.id); }, []);
     await probar('escribir la respuesta', () => store.editarRespuesta(consultorio.id, respuesta, { texto: 'Cuéntame.' }), []);
     await probar('elegir la clase', () => store.editarRespuesta(consultorio.id, respuesta, { clase: 'RECOMMENDED' }), []);
-    await probar('elegir a dónde lleva (ya se puede guardar)', () => store.conectar(respuesta, pasillo.id), ['createDecision']);
+    await probar('elegir a dónde lleva (ya se puede guardar)', () => store.conectar(respuesta, pasillo.id), ['createDecision', 'saveWorld']); // y la elección en el guion
     await probar('editar la respuesta', () => store.editarRespuesta(consultorio.id, respuesta, { retroalimentacion: 'Escuchar da seguridad.' }), ['updateDecision']);
     await probar('conectar con otra escena', () => store.conectar(respuesta, nueva), ['updateDecision']);
-    await probar('dejarla sin destino', () => store.conectar(respuesta, null), ['deleteDecision']);
-    await probar('conectar de nuevo', () => store.conectar(respuesta, pasillo.id), ['createDecision']);
+    await probar('dejarla sin destino', () => store.conectar(respuesta, null), ['deleteDecision', 'saveWorld']);
+    await probar('conectar de nuevo', () => store.conectar(respuesta, pasillo.id), ['createDecision', 'saveWorld']);
     await probar('una respuesta que abre una escena nueva', () => store.respuestaAEscenaNueva(consultorio.id, respuesta), ['createNode', 'createMap', 'saveWorld', 'updateDecision']);
     await probar('conectar con…, a una escena nueva', () => store.conectarEscena(pasillo.id, 'nueva'), ['createNode', 'createMap', 'saveWorld']);
-    await probar('borrar la respuesta', () => store.borrarRespuesta(consultorio.id, respuesta), ['deleteDecision']);
+    await probar('borrar la respuesta', () => store.borrarRespuesta(consultorio.id, respuesta), ['deleteDecision', 'saveWorld']);
 
     // Hitos, riesgo y finales
     await probar('agregar un hito', () => store.agregarHito({ clave: 'abrir_la_conversacion', nombre: 'Abrir la conversación', descripcion: '', decisivo: false }), ['updateMilestones']);
@@ -541,5 +541,280 @@ describe('CasoStore con la API · lo que cambia un servidor distinto al de siemp
     const cuerpo = servidor.llamadasA('createNode')[0].args[0] as NodeUpsertRequest;
     expect(cuerpo).toMatchObject({ nodeKey: 'escena-1', startNode: false, terminal: false, intensity: 'MEDIUM' });
     expect(cuerpo.title).toContain('Escena nueva');
+  });
+});
+
+// P6, tarea 8: sin esto la compuerta marca todas las respuestas como errores (`WORLD.OPTION_WITHOUT_TRIGGER`: ningún diálogo ni
+// objeto las ofrece) y el estudiante vería la sala sin poder responder.
+describe('CasoStore con la API · las respuestas se ofrecen en el guion de una persona de la sala', () => {
+  /** El guion de la escena como lo tiene el servidor ahora y la persona de la que cuelga. */
+  const guionDe = (servidor: ServidorFalso, store: CasoStore, salaId: string) => {
+    const nodo = Number(escenaDe(store, salaId).id);
+    const mundo = servidor.mundos.get(nodo)!;
+    const arbol = mundo.dialogues.find((d) => d.key.startsWith('guion-'))!;
+    return { mundo, arbol, duenio: mundo.objects.find((o) => o.id === arbol?.mapObjectId) };
+  };
+
+  /** Una escena con una línea y dos respuestas que llevan a la otra escena. */
+  async function conGuionYRespuestas() {
+    const { servidor, store } = await abrir();
+    const consultorio = escenaDe(store, 'consultorio');
+    const pasillo = escenaDe(store, 'pasillo');
+    store.agregarLinea(consultorio.id);
+    const linea = escenaDe(store, 'consultorio').lineas[0].id;
+    store.editarLinea(consultorio.id, linea, { texto: 'Hola, pasa.' });
+    const respuestas: string[] = [];
+    for (const texto of ['Te escucho.', 'Cuéntame.']) {
+      const id = store.agregarRespuesta(consultorio.id);
+      store.editarRespuesta(consultorio.id, id, { texto, clase: 'RECOMMENDED', retroalimentacion: 'Escuchar da seguridad.' });
+      store.conectar(id, pasillo.id);
+      respuestas.push(id);
+    }
+    await store.sincronizado();
+    expect(store.error()).toBeNull();
+    return { servidor, store, consultorio, pasillo, respuestas };
+  }
+
+  it('el guion cuelga de una persona de la sala y sus elecciones son las respuestas, cada una con su opción del servidor', async () => {
+    const { servidor, store } = await conGuionYRespuestas();
+    const { arbol, duenio } = guionDe(servidor, store, 'consultorio');
+    expect(duenio?.type).toBe('PERSON');
+    expect(arbol.lines.map((l) => l.text)).toEqual(['Hola, pasa.']);
+    const opciones = servidor.editor.decisions.filter((d) => d.text === 'Te escucho.' || d.text === 'Cuéntame.');
+    expect(arbol.choices.map((c) => [c.text, c.decisionOptionId])).toEqual(opciones.map((d) => [d.text, d.id]));
+    expect(arbol.choices.map((c) => c.displayOrder)).toEqual([1, 2]);
+  });
+
+  it('borrar una respuesta la quita de las elecciones, y dejarla sin destino también', async () => {
+    const { servidor, store, consultorio, respuestas } = await conGuionYRespuestas();
+    store.conectar(respuestas[0], null);
+    await store.sincronizado();
+    expect(guionDe(servidor, store, 'consultorio').arbol.choices.map((c) => c.text)).toEqual(['Cuéntame.']);
+    store.borrarRespuesta(consultorio.id, respuestas[1]);
+    await store.sincronizado();
+    expect(guionDe(servidor, store, 'consultorio').arbol.choices).toEqual([]);
+    expect(store.error()).toBeNull();
+  });
+
+  it('cambiar el texto de una línea no vuelve a mandar las elecciones si no cambiaron', async () => {
+    const { servidor, store, consultorio } = await conGuionYRespuestas();
+    servidor.llamadas.length = 0;
+    store.editarLinea(consultorio.id, escenaDe(store, 'consultorio').lineas[0].id, { texto: 'Hola, pasa y siéntate.' });
+    await store.sincronizado();
+    expect(servidor.metodos).toEqual(['updateDialogue']);
+  });
+
+  it('si la sala se guarda sin la persona de la que colgaba el guion, el guion se vuelve a escribir con otra persona', async () => {
+    const { servidor, store } = await conGuionYRespuestas();
+    const antes = guionDe(servidor, store, 'consultorio');
+    // La sala del consultorio trae una sola persona: se suma otra del lugar y se quita la que tenía el guion.
+    store.agregarElemento('consultorio', 'personaje', caso(store).personajes.find((p) => !sala(store, 'consultorio').personajes.some((x) => x.ref === p.id))!.id);
+    await store.sincronizado();
+    const salaConsultorio = sala(store, 'consultorio');
+    const indice = salaConsultorio.personajes.findIndex((p) => p.clave === antes.duenio!.key);
+    expect(indice).toBeGreaterThanOrEqual(0);
+    expect(salaConsultorio.personajes.length).toBeGreaterThan(1);
+    store.quitarElemento('consultorio', 'personaje', indice);
+    await store.sincronizado();
+    const despues = guionDe(servidor, store, 'consultorio');
+    expect(despues.arbol).toBeDefined();
+    expect(despues.arbol.lines.map((l) => l.text)).toEqual(['Hola, pasa.']);
+    expect(despues.duenio?.key).not.toBe(antes.duenio!.key);
+  });
+});
+
+describe('CasoStore con la API · recursos de apoyo de una escena', () => {
+  it('escribirlos manda el nodo con sus recursos y la lista de verificación puede respaldar «protocolos de seguridad»', async () => {
+    const { servidor, store } = await abrir();
+    const consultorio = escenaDe(store, 'consultorio');
+    store.editarEscena(consultorio.id, { recursosApoyo: ['Línea 106', 'Consultorio de Bienestar, piso 2'] });
+    await store.sincronizado();
+    expect(servidor.metodos).toEqual(['updateNode']);
+    expect((servidor.llamadas[0].args[1] as NodeUpsertRequest).supportResources).toEqual(['Línea 106', 'Consultorio de Bienestar, piso 2']);
+    expect(servidor.editor.nodes.find((n) => String(n.id) === consultorio.id)!.supportResources).toEqual(['Línea 106', 'Consultorio de Bienestar, piso 2']);
+    expect(store.error()).toBeNull();
+  });
+});
+
+describe('CasoStore con la API · cómo se mueve una persona y a quién atender', () => {
+  const persona = (store: CasoStore, salaId: string, indice = 0) => sala(store, salaId).personajes[indice];
+  const guardada = (servidor: ServidorFalso, store: CasoStore, salaId: string, clave: string) =>
+    servidor.mundos.get(Number(escenaDe(store, salaId).id))!.objects.find((o) => o.key === clave)!;
+
+  it('elegir que una persona camina o va y viene se guarda en el mapa con la forma que lee el juego', async () => {
+    const { servidor, store } = await abrir();
+    const clave = persona(store, 'consultorio').clave!;
+    expect(store.fijarMovimiento('consultorio', 0, 'deambula')).toEqual({ ok: true });
+    await store.sincronizado();
+    expect(guardada(servidor, store, 'consultorio', clave).metadata['movimiento']).toBe('deambula');
+
+    const hasta = { x: 700, y: 420 };
+    expect(store.fijarMovimiento('consultorio', 0, { tipo: 'va-y-viene', hasta })).toEqual({ ok: true });
+    await store.sincronizado();
+    expect(guardada(servidor, store, 'consultorio', clave).metadata['movimiento']).toEqual({ tipo: 'va-y-viene', hasta });
+    expect(persona(store, 'consultorio').movimiento).toEqual({ tipo: 'va-y-viene', hasta });
+    expect(store.error()).toBeNull();
+  });
+
+  it('un punto de ida dentro de un mueble no se fija: el movimiento queda como estaba y se dice por qué', async () => {
+    const { servidor, store } = await abrir();
+    const escritorio = sala(store, 'consultorio').muebles.find((m) => m.ref === 'escritorio')!;
+    servidor.llamadas.length = 0;
+    const resultado = store.fijarMovimiento('consultorio', 0, { tipo: 'va-y-viene', hasta: { x: escritorio.x, y: escritorio.y - 10 } });
+    expect(resultado.ok).toBe(false);
+    if (!resultado.ok) expect(resultado.motivo).toMatch(/dentro de «.+»/);
+    await store.sincronizado();
+    expect(persona(store, 'consultorio').movimiento).toBe('quieto');
+    expect(servidor.metodos).toEqual([]);
+  });
+
+  it('un punto fuera de la sala tampoco se fija', async () => {
+    const { store } = await abrir();
+    const resultado = store.fijarMovimiento('consultorio', 0, { tipo: 'va-y-viene', hasta: { x: 5, y: 5 } });
+    expect(resultado.ok).toBe(false);
+    expect(persona(store, 'consultorio').movimiento).toBe('quieto');
+  });
+
+  it('marcar a una persona como la persona a atender se guarda; marcar a otra desmarca a la primera y dice quién era', async () => {
+    const { servidor, store } = await abrir();
+    store.agregarElemento('consultorio', 'personaje', caso(store).personajes.find((p) => !sala(store, 'consultorio').personajes.some((x) => x.ref === p.id))!.id);
+    await store.sincronizado();
+    const primera = persona(store, 'consultorio', 0);
+    const segunda = persona(store, 'consultorio', 1);
+
+    expect(store.marcarPersonaAAtender('consultorio', 0, true)).toBeNull();
+    await store.sincronizado();
+    expect(guardada(servidor, store, 'consultorio', primera.clave!).metadata['personaClave']).toBe(true);
+
+    const nombreDeLaPrimera = caso(store).personajes.find((p) => p.id === primera.ref)!.nombre;
+    expect(store.marcarPersonaAAtender('consultorio', 1, true)).toBe(nombreDeLaPrimera);
+    await store.sincronizado();
+    expect(persona(store, 'consultorio', 0).personaClave).toBe(false);
+    expect(persona(store, 'consultorio', 1).personaClave).toBe(true);
+    expect(guardada(servidor, store, 'consultorio', primera.clave!).metadata).not.toHaveProperty('personaClave');
+    expect(guardada(servidor, store, 'consultorio', segunda.clave!).metadata['personaClave']).toBe(true);
+    expect(store.error()).toBeNull();
+  });
+
+  it('desmarcar a la persona a atender deja la sala sin ninguna', async () => {
+    const { servidor, store } = await abrir();
+    const clave = persona(store, 'consultorio').clave!;
+    store.marcarPersonaAAtender('consultorio', 0, true);
+    expect(store.marcarPersonaAAtender('consultorio', 0, false)).toBeNull();
+    await store.sincronizado();
+    expect(guardada(servidor, store, 'consultorio', clave).metadata).not.toHaveProperty('personaClave');
+  });
+
+  it('la persona a atender de una sala compartida se guarda en todos sus mapas', async () => {
+    const { servidor, store } = await abrir();
+    store.agregarEscena('consultorio');
+    await store.sincronizado();
+    servidor.llamadas.length = 0;
+    store.marcarPersonaAAtender('consultorio', 0, true);
+    await store.sincronizado();
+    const guardados = servidor.llamadasA('saveWorld');
+    expect(guardados).toHaveLength(2);
+    for (const g of guardados) {
+      const cuerpo = g.args[0] as WorldRoomSaveRequest;
+      expect(cuerpo.objects.find((o) => o.type === 'PERSON')!.metadata['personaClave']).toBe(true);
+    }
+  });
+
+  it('cambiar cómo se mueve o a quién atender se puede deshacer y rehacer', async () => {
+    const { store } = await abrir();
+    store.fijarMovimiento('consultorio', 0, 'deambula');
+    store.marcarPersonaAAtender('consultorio', 0, true);
+    await store.sincronizado();
+    store.deshacer();
+    expect(persona(store, 'consultorio').personaClave).toBe(false);
+    expect(persona(store, 'consultorio').movimiento).toBe('deambula');
+    store.deshacer();
+    expect(persona(store, 'consultorio').movimiento).toBe('quieto');
+    store.rehacer();
+    store.rehacer();
+    expect(persona(store, 'consultorio')).toMatchObject({ movimiento: 'deambula', personaClave: true });
+    await store.sincronizado();
+  });
+
+  it('mover a una persona que va y viene conserva su punto de ida', async () => {
+    const { store } = await abrir();
+    const hasta = { x: 700, y: 420 };
+    store.fijarMovimiento('consultorio', 0, { tipo: 'va-y-viene', hasta });
+    store.moverElemento('consultorio', 'personaje', 0, 320, 330);
+    await store.sincronizado();
+    expect(persona(store, 'consultorio').movimiento).toEqual({ tipo: 'va-y-viene', hasta });
+  });
+});
+
+describe('CasoStore con la API · los datos del caso (contexto y objetivos)', () => {
+  it('guardar el contexto y los objetivos se ve al instante y llama a la ficha con la revisión vigente', async () => {
+    const { servidor, store } = await abrir();
+    const revision = servidor.editor.revision;
+    store.editarFicha('Una estudiante llega a Bienestar.', ['Valorar el riesgo.', 'Validar sin juzgar.']);
+    expect(caso(store).contexto).toBe('Una estudiante llega a Bienestar.');
+    expect(caso(store).objetivos).toEqual(['Valorar el riesgo.', 'Validar sin juzgar.']);
+    await store.sincronizado();
+    expect(servidor.metodos).toEqual(['updateBrief']);
+    expect(servidor.llamadas[0].revision).toBe(revision);
+    expect(servidor.llamadas[0].args[0]).toEqual({ context: 'Una estudiante llega a Bienestar.', learningObjectives: ['Valorar el riesgo.', 'Validar sin juzgar.'] });
+    expect(servidor.editor.context).toBe('Una estudiante llega a Bienestar.');
+    expect(caso(store).revision).toBe(servidor.editor.revision);
+    expect(store.error()).toBeNull();
+  });
+
+  it('el contexto se guarda sin espacios sobrantes', async () => {
+    const { servidor, store } = await abrir();
+    store.editarFicha('  Un contexto.  \n', []);
+    await store.sincronizado();
+    expect((servidor.llamadas[0].args[0] as { context: string }).context).toBe('Un contexto.');
+  });
+
+  it('si no cambió nada no le dice nada al servidor', async () => {
+    const { servidor, store } = await abrir();
+    store.editarFicha(caso(store).contexto ?? '', caso(store).objetivos ?? []);
+    await store.sincronizado();
+    expect(servidor.metodos).toEqual([]);
+  });
+
+  it('dos cambios seguidos se mandan en uno', async () => {
+    const { servidor, store } = await abrir();
+    store.editarFicha('Uno.', []);
+    store.editarFicha('Dos.', ['Objetivo.']);
+    await store.sincronizado();
+    expect(servidor.llamadasA('updateBrief').length).toBeLessThanOrEqual(2);
+    expect(servidor.editor.context).toBe('Dos.');
+    expect(servidor.editor.learningObjectives).toEqual(['Objetivo.']);
+  });
+
+  it('si el servidor no acepta el texto, el borrador vuelve a lo que había, lo dice y guarda lo que se escribió para no perderlo', async () => {
+    const { servidor, store } = await abrir();
+    const antes = caso(store).contexto;
+    servidor.fallar('updateBrief', 400, 'No.', { campo: 'context' });
+    store.editarFicha('Texto que no se acepta.', []);
+    await store.sincronizado();
+    expect(caso(store).contexto).toBe(antes);
+    expect(store.error()).toMatch(/No se pudo guardar los datos del caso/);
+    expect(store.descartado().join(' ')).toContain('Texto que no se acepta.');
+  });
+
+  it('un caso que ya no es un borrador no se cambia', async () => {
+    const { servidor, store } = await abrir();
+    servidor.editor.status = 'IN_REVIEW';
+    await store.cargar(CASO, true);
+    servidor.llamadas.length = 0;
+    store.editarFicha('Otro contexto.', ['Otro.']);
+    await store.sincronizado();
+    expect(servidor.metodos).toEqual([]);
+    expect(caso(store).contexto).not.toBe('Otro contexto.');
+  });
+
+  it('un conflicto de revisión conserva lo escrito y lo avisa', async () => {
+    const { servidor, store } = await abrir();
+    servidor.otraSesionEscribe();
+    store.editarFicha('Mi contexto.', []);
+    await store.sincronizado();
+    expect(store.conflicto()).not.toBeNull();
+    expect(store.conflicto()!.sinGuardar.join(' ')).toContain('Mi contexto.');
+    expect(caso(store).contexto).toBe('Mi contexto.');
   });
 });

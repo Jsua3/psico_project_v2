@@ -162,7 +162,8 @@ describe('AutoriaShellComponent · como ruta del programa', () => {
     const enlaces = [...raiz.querySelectorAll<HTMLAnchorElement>('nav a')].map((a) => a.getAttribute('href'));
     expect(enlaces).toEqual([
       '/portal/casos', '/portal/casos',
-      '/portal/casos', '/portal/casos/41/editor', '/portal/casos/41/editor/finales', '/portal/casos/41/editor/probar', '/portal/casos/41/editor/revision',
+      '/portal/casos', '/portal/casos/41/editor', '/portal/casos/41/editor/datos', '/portal/casos/41/editor/finales',
+      '/portal/casos/41/editor/probar', '/portal/casos/41/editor/revision',
     ]);
   });
 

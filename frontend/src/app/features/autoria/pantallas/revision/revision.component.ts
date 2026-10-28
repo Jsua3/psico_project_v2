@@ -1,17 +1,24 @@
 import { HttpErrorResponse } from '@angular/common/http';
 import { ChangeDetectionStrategy, Component, computed, inject, signal } from '@angular/core';
+import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { Router, RouterLink } from '@angular/router';
+import { firstValueFrom } from 'rxjs';
 
 import type { CaseLifecycle, ValidationIssue } from '../../../../core/models/simulation.model';
+import { CaseReviewPanelComponent } from '../../../simulator/case-review-panel.component';
+import { AutoriaApiService } from '../../api/autoria-api.service';
 import { CasoStore } from '../../estado/caso.store';
 import { GuiaService } from '../../guia/guia.service';
 import { type Falta, faltasDelServidor, puedeEnviar, sugerencias } from '../../modelo/revision';
-import { RutasAutoria } from '../../rutas';
+import { RutasAutoria, rutaDelEditor } from '../../rutas';
 
 /** Cómo se nombra el estado del caso ante el docente. */
 const NOMBRE_ESTADO: Record<string, string> = {
   DRAFT: 'Borrador', IN_REVIEW: 'En revisión', PUBLISHED: 'Publicado', ARCHIVED: 'Archivado',
 };
+
+/** Cómo se nombra el motivo con el que Psicología devuelve un caso. */
+const NOMBRE_MOTIVO: Record<string, string> = { FORMA: 'Forma', CONTENIDO: 'Contenido' };
 
 /** Lo que dice el docente cuando el envío no pasó por una razón que no es un bloqueo de la compuerta. */
 const NO_SE_PUDO_ENVIAR = 'No se pudo enviar el caso. No se cambió nada: vuelve a intentarlo en un momento.';
@@ -23,7 +30,7 @@ const NO_SE_PUDO_ENVIAR = 'No se pudo enviar el caso. No se cambió nada: vuelve
  */
 @Component({
   selector: 'app-revision',
-  imports: [RouterLink],
+  imports: [RouterLink, CaseReviewPanelComponent],
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
     @if (store.caso(); as caso) {
@@ -40,8 +47,28 @@ const NO_SE_PUDO_ENVIAR = 'No se pudo enviar el caso. No se cambió nada: vuelve
         </section>
 
         @if (store.soloLectura()) {
-          <p role="status" class="listo">El caso está en revisión de Psicología. Se puede ver, pero no editar.</p>
+          <p role="status" class="listo">{{ textoSoloLectura() }}</p>
+          <section aria-labelledby="dc" class="tarjeta bloque" data-accion="decision-caso">
+            <h2 id="dc">Estado y decisión del caso</h2>
+            <app-case-review-panel [caseVersionId]="casoId()" [revision]="caso.revision" [editable]="false" />
+            @if (puedeCrearVersion()) {
+              <div class="version-nueva">
+                <p class="texto-secundario">Un caso publicado o archivado no se cambia: se crea una versión nueva, que sí se puede editar.</p>
+                <button type="button" class="boton" [attr.aria-disabled]="creandoVersion()" aria-describedby="vnp" (click)="crearVersion()">Crear una versión nueva</button>
+                <p role="status" id="vnp" [class.error]="!!falloVersion()">
+                  @if (falloVersion(); as fallo) { {{ fallo }} } @else if (creandoVersion()) { Creando la versión nueva… }
+                </p>
+              </div>
+            }
+          </section>
         } @else {
+          @if (devuelto(); as d) {
+            <section aria-labelledby="dv" class="tarjeta bloque devuelto" data-accion="devuelto-por-psicologia">
+              <h2 id="dv">Psicología devolvió el caso</h2>
+              <p>Motivo: {{ d.motivo }}.</p>
+              @if (d.nota) { <p>Nota: {{ d.nota }}</p> }
+            </section>
+          }
           <section aria-labelledby="fl" class="bloque por-resolver">
             <h2 id="fl">Por resolver ({{ faltas().length }})</h2>
             @if (consultando()) {
@@ -168,6 +195,11 @@ const NO_SE_PUDO_ENVIAR = 'No se pudo enviar el caso. No se cambió nada: vuelve
     .envio .error { color: var(--peligro); font-weight: 700; }
     .etiqueta { font-weight: 700; font-size: var(--autoria-texto-16); }
     .campo { padding: 8px 12px; font: inherit; font-size: var(--autoria-texto-16); border: 2px solid var(--borde-control); border-radius: var(--radio-control); resize: vertical; }
+    .devuelto { border-color: var(--aviso-texto); }
+    .devuelto p { margin: 0; }
+    .version-nueva { display: flex; flex-direction: column; gap: 6px; align-items: flex-start; }
+    .version-nueva p { margin: 0; }
+    .version-nueva .error { color: var(--peligro); font-weight: 700; }
     .listo { margin: 0; padding: 10px 12px; border-radius: var(--radio-control); background: var(--adecuada-tinte); color: var(--adecuada); font-weight: 700; }
   `,
 })
@@ -176,6 +208,7 @@ export class RevisionComponent {
   protected readonly store = inject(CasoStore);
   private readonly router = inject(Router);
   private readonly guia = inject(GuiaService);
+  private readonly autoria = inject(AutoriaApiService);
   protected readonly mensaje = signal('');
   protected readonly anuncio = signal('');
   protected readonly enviando = signal(false);
@@ -188,10 +221,39 @@ export class RevisionComponent {
   private readonly bloqueosDelEnvio = signal<ValidationIssue[]>([]);
   protected readonly consultando = signal(false);
   protected readonly noSeComprobo = signal(false);
+  protected readonly creandoVersion = signal(false);
+  protected readonly falloVersion = signal<string | null>(null);
 
   constructor() {
     void this.comprobar();
+    // Una decisión tomada en el panel (aprobar, devolver, archivar) cambia el caso en el servidor: se vuelve a leer para
+    // que el editor, la revisión vigente y las acciones permitidas sean las nuevas.
+    this.autoria.api.caseChanges.pipe(takeUntilDestroyed()).subscribe((id) => {
+      if (String(id) === this.store.caso()?.id) void this.recargar();
+    });
   }
+
+  /** El caso abierto como número, que es como lo piden el panel y el servidor. */
+  protected readonly casoId = computed(() => Number(this.store.caso()?.id ?? 0));
+
+  /** Lo que se le dice a quien ve el caso cuando ya no es un borrador. */
+  protected readonly textoSoloLectura = computed(() => {
+    switch (this.store.caso()?.estado) {
+      case 'PUBLISHED': return 'El caso está publicado. Se puede ver, pero no editar.';
+      case 'ARCHIVED': return 'El caso está archivado. Se puede ver, pero no editar.';
+      default: return 'El caso está en revisión de Psicología. Se puede ver, pero no editar.';
+    }
+  });
+
+  /** La última decisión, si fue devolver el caso a borrador: quien lo autora tiene que poder leer por qué volvió. */
+  protected readonly devuelto = computed(() => {
+    const revision = this.ciclo()?.review;
+    if (this.store.soloLectura() || revision?.decision !== 'REJECTED') return null;
+    return { motivo: NOMBRE_MOTIVO[revision.reason ?? ''] ?? 'Sin motivo', nota: revision.note?.trim() ?? '' };
+  });
+
+  /** Crear una versión nueva solo se ofrece cuando el servidor la permite (un caso publicado o archivado). */
+  protected readonly puedeCrearVersion = computed(() => this.ciclo()?.allowedTransitions.includes('clone') === true);
 
   /** El estado del caso: el que el servidor acaba de decir o, si no, el del borrador que se está viendo. */
   protected readonly nombreEstado = computed(() => NOMBRE_ESTADO[this.store.caso()?.estado ?? this.ciclo()?.state ?? 'DRAFT'] ?? 'Borrador');
@@ -253,6 +315,29 @@ export class RevisionComponent {
   protected marcarItem(codigo: string, cumplido: boolean): void {
     this.store.marcarItemLista(codigo, cumplido);
     void this.comprobar();
+  }
+
+  /** Vuelve a leer el caso y lo que el servidor dice de él, después de una decisión tomada fuera de esta pantalla. */
+  private async recargar(): Promise<void> {
+    const id = this.casoId();
+    if (!id) return;
+    await this.store.cargar(id, true);
+    await this.comprobar();
+  }
+
+  /** Clona la versión y abre la copia en el editor: un caso publicado o archivado no se cambia, se versiona. */
+  protected async crearVersion(): Promise<void> {
+    if (this.creandoVersion()) return;
+    this.creandoVersion.set(true);
+    this.falloVersion.set(null);
+    try {
+      const vista = await firstValueFrom(this.autoria.api.cloneCaseVersion(this.casoId()));
+      await this.router.navigateByUrl(rutaDelEditor('/editor', String(vista.caseVersionId)));
+    } catch {
+      this.falloVersion.set('No se pudo crear la versión nueva. No se cambió nada: vuelve a intentarlo en un momento.');
+    } finally {
+      this.creandoVersion.set(false);
+    }
   }
 
   /** Le pregunta a la compuerta del servidor qué impide enviar y qué estado tiene el caso. Sin red, deja lo que se ve en el borrador. */

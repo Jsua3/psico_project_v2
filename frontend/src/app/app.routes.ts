@@ -115,13 +115,6 @@ export const routes: Routes = [
         loadChildren: () => import('./features/autoria/autoria.routes').then(m => m.rutasEditorCaso)
       },
       {
-        // El editor anterior, mientras exista (la tarea 8 de P6 lo retira).
-        path: 'casos/:caseVersionId/editor-anterior',
-        title: 'Editor de caso (anterior)',
-        canActivate: [roleGuard(...rolesFor('casos'))],
-        loadComponent: () => import('./features/simulator/case-editor.component').then(m => m.CaseEditorComponent)
-      },
-      {
         path: 'docente/trazabilidad',
         title: 'Trazabilidad docente',
         canActivate: [roleGuard(...rolesFor('trazabilidad'))],

@@ -23,6 +23,7 @@ import {
   SimulationCaseSummary,
   ToolUpsertRequest,
   WorldDefinition,
+  WorldDialoguesSaveRequest,
   WorldRoomSaveRequest,
   WorldValidationState
 } from '../models/simulation.model';
@@ -347,7 +348,7 @@ export class AuthoringApi {
   }
 
   /** Guarda el borrador del mundo (con bloqueo optimista por revision). */
-  saveWorld(caseVersionId: number, body: WorldRoomSaveRequest, nodeId?: number) {
+  saveWorld(caseVersionId: number, body: WorldRoomSaveRequest | WorldDialoguesSaveRequest, nodeId?: number) {
     let params = new HttpParams();
     if (nodeId != null) params = params.set('nodeId', nodeId);
     return this.http.put<ApiResponse<WorldDefinition>>(

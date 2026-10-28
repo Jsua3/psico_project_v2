@@ -74,13 +74,14 @@ interface SceneProbe {
   tweens: { add: Mock };
   keyPersonIndicator?: { key: string; container: FakeContainer };
   buildKeyPersonIndicator(marker: { x: number; y: number }, object: MapObjectState): void;
+  resetOrientationVisuals(): void;
   syncKeyPersonIndicator(): void;
   placeCandidates(): PlaceCandidate[];
   setReduceMotion(reduced: boolean): void;
 }
 
-function crearEscena(objects: MapObjectState[], reduceMotion = false) {
-  const scene = new DataDrivenWorldScene({ reduceMotion, sfxMuted: true } as never) as unknown as SceneProbe;
+function crearEscena(objects: MapObjectState[], reduceMotion = false, callbacks: Record<string, unknown> = {}) {
+  const scene = new DataDrivenWorldScene({ reduceMotion, sfxMuted: true, ...callbacks } as never) as unknown as SceneProbe;
   scene.world = { map: { key: 'sala-demo', width: 960, height: 528 }, objects, collisions: [], inventory: [] } as unknown as SimulationWorldState;
   scene.markers = new Map();
   scene.markerData = new Map();
@@ -217,6 +218,26 @@ describe('persona clave: el indicador sobre la cabeza', () => {
 
     expect(containers[0].x).toBe(340);
     expect(containers[0].y).toBe(yInicial + 10);
+  });
+
+  // Contrato del e2e (como `data-proximity`): el juego publica en su host el nombre que lleva el indicador.
+  it('avisa al anfitrión el nombre de la persona a atender cuando dibuja su indicador, y lo retira al reconstruir la sala', () => {
+    const alAtender = vi.fn();
+    const { scene } = crearEscena([clave('madre', 'Marta')], false, { onKeyPersonIndicator: alAtender });
+    expect(alAtender).not.toHaveBeenCalled();
+    scene.buildKeyPersonIndicator({ x: 300, y: 240 }, scene.markerData.get('madre')!);
+    expect(alAtender).toHaveBeenLastCalledWith('Marta');
+    scene.resetOrientationVisuals();
+    expect(alAtender).toHaveBeenLastCalledWith(null);
+  });
+
+  it('una persona que no es clave no avisa nada, y sin el aviso conectado no pasa nada', () => {
+    const alAtender = vi.fn();
+    const { scene } = crearEscena([objeto('otra', 'Otra')], false, { onKeyPersonIndicator: alAtender });
+    scene.buildKeyPersonIndicator({ x: 300, y: 240 }, scene.markerData.get('otra')!);
+    expect(alAtender).not.toHaveBeenCalled();
+    const sin = crearEscena([clave('madre', 'Marta')]).scene;
+    expect(() => sin.buildKeyPersonIndicator({ x: 300, y: 240 }, sin.markerData.get('madre')!)).not.toThrow();
   });
 
   it('no se anima: ni con movimiento normal ni reducido', () => {

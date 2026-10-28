@@ -74,6 +74,12 @@ const PASOS_ACTIVACION = [{ valor: -1, nombre: 'Se calma' }, { valor: 0, nombre:
               }
             }
           </div>
+          <div class="recursos" data-accion="recursos-de-apoyo">
+            <label for="recursos-escena" class="etiqueta">Recursos de apoyo para el estudiante</label>
+            <textarea id="recursos-escena" class="campo" rows="3" aria-describedby="recursos-escena-ayuda"
+                      [value]="(e.recursosApoyo ?? []).join('\\n')" (change)="cambiarRecursos(e, $any($event.target).value)"></textarea>
+            <p id="recursos-escena-ayuda" class="texto-secundario nota">Uno por línea: a quién puede acudir la persona o qué línea de atención llamar. Al menos una escena del caso tiene que traer uno para poder enviarlo a revisión.</p>
+          </div>
           <div class="acciones">
             @if (e.salaId) {
               <a class="boton" [routerLink]="rutas.a('/editor/sala', e.salaId)">Abrir sala</a>
@@ -328,6 +334,7 @@ const PASOS_ACTIVACION = [{ valor: -1, nombre: 'Se calma' }, { valor: 0, nombre:
     .opcion-simple input, .casilla input { width: 20px; height: 20px; accent-color: var(--primario); }
     .intensidad { display: flex; flex-direction: column; gap: 6px; }
     .intensidad select { max-width: 240px; }
+    .recursos { display: flex; flex-direction: column; gap: 6px; }
     .campo[aria-invalid='true'] { border-color: var(--peligro); }
     .creada { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; padding: 8px 12px; border-radius: var(--radio-control); background: var(--adecuada-tinte); }
     .creada p { margin: 0; flex: 1 1 260px; font-size: var(--autoria-texto-16); }
@@ -403,6 +410,13 @@ export class GuionComponent {
   protected nombrar(e: Escena, titulo: string): void {
     const limpio = titulo.trim();
     if (limpio && limpio !== e.titulo) this.store.editarEscena(e.id, { titulo: limpio });
+  }
+
+  /** Un recurso por línea; las líneas vacías no cuentan. */
+  protected cambiarRecursos(e: Escena, texto: string): void {
+    const recursos = texto.split('\n').map((r) => r.trim()).filter(Boolean);
+    this.store.editarEscena(e.id, { recursosApoyo: recursos });
+    this.anuncio.set(recursos.length ? 'Recursos de apoyo guardados.' : 'Sin recursos de apoyo en esta escena.');
   }
 
   protected cambiarIntensidad(e: Escena, valor: string): void {

@@ -7,7 +7,6 @@ import { AuthService } from './core/auth/auth.service';
 import { canLeaveGuard } from './core/navigation/can-leave.guard';
 import { ChangePasswordComponent } from './features/account/change-password.component';
 import { rutasEditorCaso, rutasNuevoCaso } from './features/autoria/autoria.routes';
-import { CaseEditorComponent } from './features/simulator/case-editor.component';
 import { InvitationsComponent } from './features/invitations/invitations.component';
 import { ReporteEstudianteComponent } from './features/reportes/reporte-estudiante.component';
 import { caseUnlockedGuard } from './features/simulator/case-unlocked.guard';
@@ -36,7 +35,7 @@ describe('app.routes: cromo del portal', () => {
 
 /**
  * P6: el editor nuevo de casos vive en casos/:caseVersionId/editor y crear un caso en casos/nuevo; ambos para PROFESOR y
- * ADMIN (el servidor hace cumplir que un PROFESOR solo abra los suyos). El editor anterior queda aparte mientras exista.
+ * ADMIN (el servidor hace cumplir que un PROFESOR solo abra los suyos). El editor anterior se retiró (P6, tarea 8).
  */
 // req: RF-12, RNF-002
 describe('app.routes: editor de casos', () => {
@@ -51,14 +50,12 @@ describe('app.routes: editor de casos', () => {
     expect(ruta('casos/nuevo').loadComponent).toBeUndefined();
   });
 
-  it('el editor anterior sigue en casos/:caseVersionId/editor-anterior, con su misma pantalla', async () => {
-    const anterior = ruta('casos/:caseVersionId/editor-anterior');
-    expect(await (anterior.loadComponent as () => Promise<unknown>)()).toBe(CaseEditorComponent);
-    expect(anterior.data?.['chrome']).toBeUndefined();
+  it('el editor anterior ya no existe: ninguna ruta lleva a casos/:caseVersionId/editor-anterior', () => {
+    expect(children.map(child => child.path)).not.toContain('casos/:caseVersionId/editor-anterior');
   });
 
-  it('las tres llevan la guardia de rol de «casos»: docentes y administradores pasan; el estudiante, no', () => {
-    for (const path of ['casos/nuevo', 'casos/:caseVersionId/editor', 'casos/:caseVersionId/editor-anterior']) {
+  it('las dos llevan la guardia de rol de «casos»: docentes y administradores pasan; el estudiante, no', () => {
+    for (const path of ['casos/nuevo', 'casos/:caseVersionId/editor']) {
       const decide = (role: string) => {
         const auth = { getToken: () => 'x', isTokenMalformed: () => false, isTokenExpired: () => false, clearSession: () => undefined,
           hasRole: (...roles: string[]) => roles.includes(role) };
@@ -77,7 +74,7 @@ describe('app.routes: editor de casos', () => {
   it('«casos/nuevo» va antes que la ruta de un caso y los dos antes del comodín', () => {
     const pos = (path: string) => children.findIndex(child => child.path === path);
     expect(pos('casos/nuevo')).toBeLessThan(pos('casos/:caseVersionId/editor'));
-    expect(pos('casos/:caseVersionId/editor-anterior')).toBeLessThan(pos('**'));
+    expect(pos('casos/:caseVersionId/editor')).toBeLessThan(pos('**'));
   });
 });
 
