@@ -16,10 +16,13 @@ DEFINITIONS_STATUS = "BORRADOR"
 #: Piso de la celda mínima: un agregado de menos estudiantes distintos no se publica (mesa §A20, privacidad).
 MIN_CELL_FLOOR = 5
 
-#: Versión de la regla que convierte decisiones en niveles por competencia (tabla severidad → nivel, tope y promedio de
-#: ``assessment.competencies``). Se SELLA en cada reporte al cerrar (``profileRules``): cuando Psicología cambie la regla,
-#: se sube este valor y la analítica no mezcla intentos calculados con reglas distintas (lo cerrado no se recalcula).
-PROFILE_RULES = "borrador-1"
+#: Versión de la regla que convierte decisiones en niveles por competencia (``assessment.competencies``). Se SELLA en cada
+#: reporte al cerrar (``profileRules``): cuando Psicología cambie la regla, se sube este valor y la analítica no mezcla
+#: intentos calculados con reglas distintas (lo cerrado no se recalcula).
+#: ``borrador-2`` (modelo de respuesta): el nivel sale SOLO de lo que el autor declara en ``effects.competencies`` (se
+#: acabó el nivel por severidad aplicado a todas las competencias: sin declaración no hay aporte y la competencia queda
+#: «sin evidencia»), ``CONTRAINDICATED`` sigue poniendo el tope ``EN_PROCESO`` y cada nivel trae la evidencia declarada.
+PROFILE_RULES = "borrador-2"
 
 REFLECTION_ANY = "ANY"
 REFLECTION_PER_DECISION_SCENE = "PER_DECISION_SCENE"

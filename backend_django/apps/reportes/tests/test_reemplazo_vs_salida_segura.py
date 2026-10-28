@@ -8,9 +8,8 @@ importar cómo se modele el reemplazo (evento propio o estado propio):
 - el reemplazo cierra el intento como REPLACED y deja su propio evento
   (ATTEMPT_REPLACED), sin rastro de salida segura;
 - el reporte docente cuenta como «salida segura» los intentos que la usaron;
-- el puntaje parcial de un intento reemplazado no entra en el promedio;
 - las salidas seguras terminales anteriores a la pausa (SAFE_EXITED) se
-  conservan tal cual: cuentan como salida segura y siguen puntuando.
+  conservan tal cual: cuentan como salida segura.
 """
 import uuid
 
@@ -60,7 +59,7 @@ def _pause(client, attempt):
     return resp.data["data"]
 
 
-def _closed_attempt(estudiante, case_version_id, status, score):
+def _closed_attempt(estudiante, case_version_id, status):
     return SimulationAttempt.objects.create(
         attempt_token_hash=uuid.uuid4().hex,
         case_version_id=case_version_id,
@@ -69,7 +68,6 @@ def _closed_attempt(estudiante, case_version_id, status, score):
             case_version_id=case_version_id, start_node=True
         ).first(),
         status=status,
-        accumulated_score=score,
         ended_at=timezone.now(),
     )
 
@@ -106,10 +104,11 @@ def test_intento_reemplazado_se_reporta_como_reemplazo(
     state = game_service.get_attempt(old["attemptId"], old["attemptToken"], estudiante)
     assert state["status"] == "REPLACED"
     assert state["supportResources"] == [], "nadie pidió apoyo: no es una salida segura"
-    report = state["completionReport"]
+    assert state["completionReport"] is None, "el estado de un intento sin completar no trae el reporte en vivo"
+    report = game_service.get_student_report(old["attemptId"], estudiante)
     assert "reemplaz" in report["summaryMessage"].lower()
     assert "salida segura" not in report["summaryMessage"].lower()
-    assert [t["type"] for t in report["timeline"]] == ["ATTEMPT_REPLACED"]
+    assert "timeline" not in report  # un intento sin cerrar solo recibe el resumen: sin línea de tiempo ni clases
 
 
 def test_reporte_no_cuenta_reemplazo_como_salida_segura(
@@ -137,40 +136,25 @@ def test_reporte_muestra_salida_segura_real(profesor, estudiante, case_version_i
     assert mine["estado"] == "EN_PAUSA"
 
 
-def test_reporte_no_promedia_intento_reemplazado(profesor, estudiante, case_version_id):
-    grupo = _setup(profesor, estudiante, case_version_id)
-    c = cl(estudiante)
-    old = _start(c, case_version_id)
-    SimulationAttempt.objects.filter(pk=old["attemptId"]).update(accumulated_score=-15)
-    _start(c, case_version_id, force_new=True)
-    _closed_attempt(estudiante, case_version_id, "COMPLETED", 40)
-
-    sim, mine = _reporte(profesor, grupo, case_version_id)
-    assert sim["puntajePromedio"] == 40.0, "el parcial del intento abandonado no promedia"
-    assert mine["puntajePromedio"] == 40.0
-
-
-def test_pausa_luego_reemplazada_cuenta_como_salida_segura_sin_puntuar(
+def test_pausa_luego_reemplazada_cuenta_como_salida_segura(
     profesor, estudiante, case_version_id
 ):
     grupo = _setup(profesor, estudiante, case_version_id)
     c = cl(estudiante)
     old = _start(c, case_version_id)
     _pause(c, old)
-    SimulationAttempt.objects.filter(pk=old["attemptId"]).update(accumulated_score=-15)
     _start(c, case_version_id, force_new=True)
 
     sim, mine = _reporte(profesor, grupo, case_version_id)
     assert sim["intentosSalidaSegura"] == 1, "la pausa ocurrió aunque luego se reemplazara"
     assert mine["intentosSalidaSegura"] == 1
-    assert sim["puntajePromedio"] == 0.0
     assert mine["estado"] == "EN_PROGRESO"
 
 
 def test_salida_segura_historica_se_conserva(profesor, estudiante, case_version_id):
     """Decisión 2026-10-01: las SAFE_EXITED reales (previas a la pausa) no cambian."""
     grupo = _setup(profesor, estudiante, case_version_id)
-    legacy = _closed_attempt(estudiante, case_version_id, "SAFE_EXITED", 40)
+    legacy = _closed_attempt(estudiante, case_version_id, "SAFE_EXITED")
     AttemptEvent.objects.create(
         attempt=legacy,
         event_type="SAFE_EXIT_REQUESTED",
@@ -180,5 +164,4 @@ def test_salida_segura_historica_se_conserva(profesor, estudiante, case_version_
 
     sim, mine = _reporte(profesor, grupo, case_version_id)
     assert sim["intentosSalidaSegura"] == 1
-    assert sim["puntajePromedio"] == 40.0, "siguen puntuando como antes"
     assert mine["estado"] == "SAFE_EXITED"

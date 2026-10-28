@@ -7,6 +7,7 @@ from django.db import transaction
 from rest_framework import status
 from rest_framework.exceptions import NotFound
 
+from apps.simulation.casedef.vocabulary import ResponseClass
 from apps.simulation.models import (
     ClinicalTool,
     CollisionZone,
@@ -28,11 +29,12 @@ from shared.jsonutils import (
     write_map as _write_map,
 )
 
+from ..case_state import response_class_of
 from .editor_view import clinical_tool_editor
 from .guards import bump_revision, character_link, decision_link, ensure_draft, require_version
 from .icons import validate_icon
 from .limites import _texto
-from .scenes import save_dialogue_choices
+from .scenes import line_mark, marks_of_lines, save_dialogue_choices
 from ..world_assets import world_asset_url_problem
 
 
@@ -86,9 +88,9 @@ def world_editor(case_version_id, node_id):
                 "id": d.id,
                 "optionKey": d.option_key,
                 "text": d.text,
-                "classification": d.classification,
+                "responseClass": response_class_of(d).value,
                 "targetNodeKey": d.target_node.node_key,
-                "prohibitedConduct": d.prohibited_conduct,
+                "prohibitedConduct": response_class_of(d) is ResponseClass.CONTRAINDICATED,
             }
             for d in outgoing
         ],
@@ -306,6 +308,8 @@ def _save_objects(scene_map, objects, case_version_id):
         obj.unlock_condition_json = _write_map(wo.get("unlockCondition"))
         obj.movement_pattern_json = _write_map(wo.get("movementPattern"))
         obj.metadata_json = _write_map(wo.get("metadata"))
+        if "aiSuggested" in wo:
+            obj.ai_suggested = bool(wo["aiSuggested"])
         if wo.get("decisionOptionId") is not None:
             # Una decisión de otra versión nunca se enlaza (400); una borrada deja el enlace como estaba.
             decision = decision_link(wo.get("decisionOptionId"), case_version_id)
@@ -358,10 +362,12 @@ def _save_dialogues(scene_map, case_version_id, dialogues, saved_objects):
         )
         tree.save()
         kept_tree_ids.append(tree.id)
+        previous = marks_of_lines(tree.id)
         DialogueLine.objects.filter(dialogue_tree=tree).delete()
         for ln in (dt.get("lines") or []):
             DialogueLine.objects.create(
                 dialogue_tree=tree,
+                ai_suggested=line_mark(ln, _int(ln.get("order")), previous),
                 display_order=_int(ln.get("order")),
                 speaker_name=(
                     _texto(DialogueLine, "speaker_name", ln.get("speakerName"), "dialogues.lines.speakerName")
@@ -454,7 +460,7 @@ def run_world_validation(version):
                 "id": d.id,
                 "sourceNodeId": d.source_node_id,
                 "targetNodeId": d.target_node_id,
-                "prohibitedConduct": d.prohibited_conduct,
+                "prohibitedConduct": response_class_of(d) is ResponseClass.CONTRAINDICATED,
                 "prohibitionReason": d.prohibition_reason,
                 "feedbackText": d.feedback_text,
                 "immediateFeedback": d.immediate_feedback,
@@ -552,6 +558,7 @@ def _world_object(o):
         "unlockCondition": _read_map(o.unlock_condition_json),
         "movementPattern": _read_map(o.movement_pattern_json),
         "metadata": _read_map(o.metadata_json),
+        "aiSuggested": o.ai_suggested,
     }
 
 
@@ -569,7 +576,8 @@ def _world_collision_zone(c):
 
 def _world_dialogue_tree(tree):
     lines = [
-        {"order": l.display_order, "speakerName": l.speaker_name, "text": l.text, "emotion": l.emotion}
+        {"order": l.display_order, "speakerName": l.speaker_name, "text": l.text, "emotion": l.emotion,
+         "aiSuggested": l.ai_suggested}
         for l in DialogueLine.objects.filter(dialogue_tree_id=tree.id).order_by("display_order")
     ]
     choices = [

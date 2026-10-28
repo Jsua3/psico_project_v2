@@ -50,11 +50,8 @@ function makeAttempt(overrides: Record<string, unknown> = {}): SimulationAttempt
     caseVersionId: CASE_VERSION_ID,
     caseTitle: 'Caso demo',
     status: 'IN_PROGRESS',
-    accumulatedScore: 0,
-    stressIndex: 0,
-    metrics: { victimRisk: 50 },
+    persona: { bond: 'GUARDED', activation: 'TENSE', label: 'se muestra cautelosa y tensa' },
     currentNode: { id: 1, key: 'nodo-sin-evidencia', title: 'Nodo', options: [{ id: 11 }] },
-    feedback: null,
     completionReport: null,
     ...overrides,
   } as unknown as SimulationAttemptState;
@@ -108,7 +105,7 @@ describe('SimulationPlayComponent: el consentimiento usa el servidor (S3-2b)', (
       updateWorldState: vi.fn(() => EMPTY),
     };
     audio = {
-      init: vi.fn(), setStressLevel: vi.fn(), isMusicMuted: vi.fn(() => false), isSfxMuted: vi.fn(() => false),
+      init: vi.fn(), setScene: vi.fn(), isMusicMuted: vi.fn(() => false), isSfxMuted: vi.fn(() => false),
       dispose: vi.fn(), stopIntroLament: vi.fn(), playIntroLament: vi.fn(), playSfx: vi.fn(),
     };
     const providers: unknown[] = [

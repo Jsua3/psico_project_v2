@@ -1,8 +1,8 @@
 """Ayudantes compartidos de JSON y acotación (shared/jsonutils.py).
 
 Fijan el comportamiento de los lectores que estaban copiados en game_dtos,
-instructor_service y game_views, y de la función de acotación que estaba
-copiada tres veces (case_effects, decision_effects y world_service).
+instructor_service y game_views, y de la función de acotación que usa
+world_service.
 No usan la base de datos.
 """
 import json

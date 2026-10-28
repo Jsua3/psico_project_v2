@@ -80,6 +80,26 @@ def test_trae_el_formato_la_fecha_y_el_id_de_la_persona(mundo):
     assert exportacion["generadoEn"][:4].isdigit() and "T" in exportacion["generadoEn"]
 
 
+def test_los_intentos_salen_con_los_hitos_la_persona_y_el_informe_v3_y_sin_puntaje(mundo):
+    exportacion = services.export_person(mundo.persona)
+
+    [mundo_del_intento] = [
+        fila for fila in exportacion["tablas"]["attempt_world_states"] if str(fila["attempt_id"]) == str(mundo.attempt.pk)
+    ]
+    banderas = json.loads(mundo_del_intento["flags_json"])  # columna de texto: sale tal cual, como JSON en una cadena
+    assert "milestones" in banderas
+    assert set(banderas["persona"]) >= {"bond", "activation"}
+    [informe] = [fila for fila in exportacion["tablas"]["attempt_reports"] if str(fila["attempt_id"]) == str(mundo.attempt.pk)]
+    congelado = json.loads(informe["report_json"])
+    assert congelado["schemaVersion"] == 3
+    assert "milestones" in congelado and "persona" in congelado
+    # Nada de puntaje en lo que cuenta la persona: ni el intento lo guarda ni el informe lo trae.
+    texto = json.dumps(exportacion)
+    assert "accumulatedScore" not in texto and "finalScore" not in texto and "finalStress" not in texto
+    [intento] = [fila for fila in exportacion["tablas"]["simulation_attempts_v2"] if str(fila["id"]) == str(mundo.attempt.pk)]
+    assert not {"accumulated_score", "stress_index", "victim_risk", "user_trust"} & set(intento)
+
+
 def test_la_cuenta_va_con_sus_datos_pero_sin_la_clave(mundo):
     [cuenta] = services.export_person(mundo.persona)["tablas"]["users"]
 

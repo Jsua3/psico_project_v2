@@ -9,7 +9,8 @@ VISUAL_INVENTORY_PATH = (
     REPO_ROOT / "frontend" / "src" / "assets" / "visual" / "v1" / "inventory.v1.json"
 )
 KIT_PATH = REPO_ROOT / "frontend" / "src" / "assets" / "characters" / "kit" / "kit.json"
-PORTRAIT_STATES = {"neutral", "alegre", "preocupada", "triste"}
+# Los seis retratos del kit (`PORTRAIT_STATES` de `frontend/src/app/features/character/kit/kit-engine.ts`; P4 sumó `cautelosa` y `en-crisis`).
+PORTRAIT_STATES = {"neutral", "alegre", "preocupada", "triste", "cautelosa", "en-crisis"}
 
 EXPECTED_MAP_BINDINGS = {
     "hospital-urgencias": "hospital-urgencias",

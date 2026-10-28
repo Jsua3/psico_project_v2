@@ -45,11 +45,8 @@ function makeAttempt(overrides: Record<string, unknown> = {}): SimulationAttempt
     caseVersionId: CASE_VERSION_ID,
     caseTitle: 'Caso demo',
     status: 'IN_PROGRESS',
-    accumulatedScore: 0,
-    stressIndex: 0,
-    metrics: { victimRisk: 50 },
+    persona: { bond: 'GUARDED', activation: 'TENSE', label: 'se muestra cautelosa y tensa' },
     currentNode: { key: 'hospital-urgencias', title: 'Urgencias' },
-    feedback: null,
     completionReport: null,
     ...overrides,
   } as unknown as SimulationAttemptState;
@@ -87,7 +84,7 @@ describe('SimulationPlayComponent — puerta de consentimiento (ETH-01)', () => 
   };
   let audio: {
     init: Mock;
-    setStressLevel: Mock;
+    setScene: Mock;
     isMusicMuted: Mock;
     isSfxMuted: Mock;
     dispose: Mock;
@@ -114,7 +111,7 @@ describe('SimulationPlayComponent — puerta de consentimiento (ETH-01)', () => 
     };
     audio = {
       init: vi.fn(),
-      setStressLevel: vi.fn(),
+      setScene: vi.fn(),
       isMusicMuted: vi.fn(() => false),
       isSfxMuted: vi.fn(() => false),
       dispose: vi.fn(),
@@ -157,7 +154,7 @@ describe('SimulationPlayComponent — puerta de consentimiento (ETH-01)', () => 
     expect(component.showContentWarning()).toBe(true);
     expect(component.worldStarted()).toBe(false);
     expect(audio.init).not.toHaveBeenCalled();
-    expect(audio.setStressLevel).not.toHaveBeenCalled();
+    expect(audio.setScene).not.toHaveBeenCalled();
     expect(sim.getWorld).not.toHaveBeenCalled();
     expect(sim.getProgressMap).not.toHaveBeenCalled();
   });
@@ -176,7 +173,7 @@ describe('SimulationPlayComponent — puerta de consentimiento (ETH-01)', () => 
     expect(audio.init).toHaveBeenCalledTimes(1);
     expect(sim.getWorld).toHaveBeenCalledTimes(1);
     expect(sim.getProgressMap).toHaveBeenCalledTimes(1);
-    expect(audio.setStressLevel).toHaveBeenCalledTimes(1);
+    expect(audio.setScene).toHaveBeenCalledTimes(1);
   });
 
   it('rechazar vuelve al catálogo sin inicializar nada y sin llamar safe-exit', () => {
@@ -322,7 +319,7 @@ describe('SimulationPlayComponent — puerta de consentimiento (ETH-01)', () => 
     component.toggleMusicMute();
 
     expect(audio.playIntroLament).toHaveBeenCalled();
-    expect(audio.setStressLevel).not.toHaveBeenCalled();
+    expect(audio.setScene).not.toHaveBeenCalled();
   });
 
   describe('activación por teclado de los botones de las tarjetas de la intro', () => {
@@ -480,7 +477,6 @@ describe('SimulationPlayComponent — puerta de consentimiento (ETH-01)', () => 
           toolCode: string;
           pertinent: boolean;
           feedbackMessage: string;
-          stressDelta: number;
         }): void;
       };
 
@@ -488,11 +484,10 @@ describe('SimulationPlayComponent — puerta de consentimiento (ETH-01)', () => 
         toolCode: 'PAP',
         pertinent: true,
         feedbackMessage: 'Una explicación clínica extensa que debe avanzar manualmente.',
-        stressDelta: -5,
       });
       vi.advanceTimersByTime(5_000);
 
-      expect(component.dialogue()?.lines).toHaveLength(2);
+      expect(component.dialogue()?.lines).toHaveLength(1);
     } finally {
       vi.useRealTimers();
     }
@@ -743,22 +738,19 @@ describe('SimulationPlayComponent — puerta de consentimiento (ETH-01)', () => 
     }
   });
 
-  it('hidrata el estado de paciente desde clinicalState al cargar el mundo', () => {
+  it('al cargar el mundo la persona del intento llega al icono del mundo', () => {
     setup(makeAttempt());
-    const patient = {
-      emotionalState: 65,
-      trustLevel: 65,
-      openness: 65,
-      crisisLevel: 30,
-    };
-    component.attempt.set(makeAttempt({ clinicalState: { papApplied: true, patient } }));
+    const persona = { bond: 'OPEN', activation: 'CALM', label: 'se muestra abierta y serena' };
+    const updatePatientVisualState = vi.fn();
+    (component as any).gameWorld = { updatePatientVisualState };
+    component.attempt.set(makeAttempt({ persona }));
 
     (component as any).applyLoadedWorld({
       map: { key: 'hospital-urgencias' },
       flags: {},
     } as unknown as SimulationWorldState);
 
-    expect(component.patientState()).toEqual(patient);
+    expect(updatePatientVisualState).toHaveBeenCalledWith(persona);
   });
 
   it('expone un control de interacción únicamente para el objeto cercano sin overlay', () => {

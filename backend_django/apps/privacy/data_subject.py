@@ -248,6 +248,8 @@ PERSON_SCOPE: dict[str, tuple[Pertenencia, ...]] = {
     "reflection_journals": (Pertenencia(TITULAR, lambda p: Q(attempt__student_id=p.pk)),),
     "attempt_world_states": (Pertenencia(TITULAR, lambda p: Q(attempt__student_id=p.pk)),),
     "student_case_completion": (Pertenencia(TITULAR, lambda p: Q(student_id=p.pk)),),
+    # ── Uso del asistente de IA de autoría (P5): los contadores diarios del docente ──
+    "authoring_assistant_usage": (Pertenencia(TITULAR, lambda p: Q(user_id=p.pk)),),
     "rubric_evaluations": (
         Pertenencia(TITULAR, lambda p: Q(attempt__student_id=p.pk), excluir=("instructor_id",)),
         Pertenencia(
@@ -351,8 +353,7 @@ ERASURE_RULES: dict[tuple[str, str], Regla] = {
     **_columnas(
         "simulation_attempts_v2",
         (
-            "id", "student_id", "current_node_id", "status", "accumulated_score", "stress_index", "victim_risk", "user_trust",
-            "institutional_route_activated", "revictimization_risk", "started_at", "ended_at", "active_seconds",
+            "id", "student_id", "current_node_id", "status", "started_at", "ended_at", "active_seconds",
             "last_activity_at",
         ),
         Regla(CONSERVAR, _M_CONDUCTA),
@@ -362,7 +363,7 @@ ERASURE_RULES: dict[tuple[str, str], Regla] = {
         Regla(CONSERVAR, "quién y por qué cerró el intento (texto del docente o del sistema): " + _M_TEXTO_DE_OTRO),
     ),
     **_columnas(
-        "attempt_events", ("attempt_id", "event_type", "decision_option_id", "score_delta", "stress_delta", "occurred_at"),
+        "attempt_events", ("attempt_id", "event_type", "decision_option_id", "occurred_at"),
         Regla(CONSERVAR, _M_CONDUCTA),
     ),
     ("attempt_events", "detail"): Regla(
@@ -395,6 +396,15 @@ ERASURE_RULES: dict[tuple[str, str], Regla] = {
         Regla(CONSERVAR, _M_CONDUCTA),
     ),
     **_columnas("student_case_completion", ("student_id", "first_completed_at"), Regla(CONSERVAR, _M_CONDUCTA)),
+    # ── Uso del asistente de autoría: contadores sin texto; el tope mensual los suma, así que se conservan ──
+    **_columnas(
+        "authoring_assistant_usage", ("user_id", "day", "count"),
+        Regla(
+            CONSERVAR,
+            "contador diario de uso del asistente, sin el texto de las peticiones, enlazado a una cuenta ya seudonimizada; "
+            "el tope mensual suma estas filas de todos los docentes, así que borrarlas lo alteraría (SD-9)",
+        ),
+    ),
     # ── Evaluaciones docentes: la institución decide (SD-9); hoy se conservan ──
     **_columnas("rubric_evaluations", ("attempt_id", "instructor_id", "total_score"), Regla(CONSERVAR, _M_CONDUCTA)),
     ("rubric_evaluations", "comment"): Regla(CONSERVAR, _M_TEXTO_DE_OTRO),

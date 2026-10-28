@@ -5,9 +5,35 @@ esperadas están calculadas A MANO en la tabla de abajo y NO se copian de la sal
 cambia, esta prueba falla a propósito y obliga a revisar la documentación (``docs/operacion/analitica-de-aprendizaje.md``).
 Un grupo de 4 estudiantes de esa misma cohorte no revela ninguna cifra (celda mínima), ni con filtros ni sin ellos.
 
-Además, una prueba de punta a punta: un intento JUGADO de verdad por la API produce el reporte v2, la evaluación del
-sistema, el evento de retroalimentación y la encuesta, y la lectura de la analítica los entiende (si el formato del
-reporte cambia sin que cambie la lectura, esa prueba falla).
+Tarea 8 (modelo de respuesta, ``borrador-2``): los niveles y las no recomendadas de esta cohorte NO se derivaron de
+severidades ni de «aporte a todas»: el constructor (``analytics_support.v2_report``) inyecta directamente los reportes
+congelados ya calculados (``levels``, ``non_recommended``), sin jugar ni leer opciones. Lo que la Tarea 8 cambia en la
+analítica solo puede tocar dos cosas de esta cohorte, y se revisaron a mano:
+
+  - ``PROFILE_RULES`` pasa de ``borrador-1`` a ``borrador-2``: el constructor sella cada reporte con la versión VIGENTE, así
+    que los 40 reportes siguen coincidiendo con la regla y ningún bloque de niveles los deja fuera; la única cifra que
+    cambia es ``definitions.profileRules`` (``"borrador-2"``).
+  - ``firstVsSecond`` ahora solo empareja filas del MISMO ``schemaVersion``: los 40 reportes son ``schemaVersion 2``
+    (columna y JSON), así que las 20 series siguen emparejando su 1.º y su 2.º intento y los números de ``firstVsSecond``
+    (3.9 · 2.7 · −30.8) no cambian. El caso mezclado (v2 con v3) no existe aquí: lo cubre ``test_competencies_by_class``.
+
+Todas las cifras de la derivación de abajo se conservan idénticas: la suma 37 y 60.5 de los índices, 78 y 54 de las no
+recomendadas, 14 de 20, 24 de 40, 32 y 20 de 40, 17 respuestas y 13 pares valen lo mismo que antes de la Tarea 8.
+
+Tarea 13 (cobertura por hito): solo los 2.os intentos traen ``milestones.done`` (los 1.os no, y un reporte sin hitos
+no suma ni resta). Cumplieron: A (6) riesgo · protección · B (5) riesgo · protección · C (4) riesgo · D (3) riesgo ·
+protección · derechos · E (2) ninguno. Los 20 estudiantes aportan un intento con hitos, así que el porcentaje viaja
+(≥ 20) y la consulta sin versión lista los hitos observados por clave, en orden alfabético (etiqueta = clave):
+
+  derechos   3 de 20 = 15.0 % → MENOS_DE_LA_MITAD
+  proteccion 6 + 5 + 3 = 14 de 20 = 70.0 % → MAYORIA
+  riesgo     6 + 5 + 4 + 3 = 18 de 20 = 90.0 % → MAYORIA
+
+Además, una prueba de punta a punta: un intento JUGADO de verdad por la API produce el reporte v3 (Tarea 9), la evaluación
+del sistema, el evento de retroalimentación y la encuesta, y la lectura de la analítica los entiende (si el formato del
+reporte cambia sin que cambie la lectura, esa prueba falla). El reporte v3 comparte con el v2 las claves que la analítica
+lee (``competencyLevels``, ``nonRecommendedCount``, ``reflectionCoverage``, ``profileRules``, ``keyLearningEvidence``):
+por eso ``analytics._report_fields`` lee los dos y la cohorte inyectada sigue siendo v2.
 
 Clases (n estudiantes) · 1.er intento → 2.º intento: niveles (índice) · no recomendadas · reflexión/evidencia ·
 extras (✓ evaluación del sistema, ◐ pendiente, ✗ ninguna; c = comentario del docente; v = vio la retroalimentación
@@ -52,7 +78,15 @@ from apps.simulation.tests.analytics_support import (
     v2_report,
 )
 
-from .test_attempt_report_frozen import BASE, case_version_id, cl, completed, estudiante  # noqa: F401  (fixtures)
+from .competency_support import declare_all_seeded
+from .test_attempt_report_frozen import (  # noqa: F401  (fixtures y ayudantes)
+    BASE,
+    _complete,
+    _start,
+    case_version_id,
+    cl,
+    estudiante,
+)
 
 pytestmark = [
     pytest.mark.req("RQ-NEG-001"), pytest.mark.req("RQ-NEG-002"), pytest.mark.req("RQ-NEG-003"),
@@ -67,19 +101,20 @@ SECOND_START = T0 + timedelta(days=3)
 #: ``late``: cuántos DESPUÉS; ``rated``: cuántos respondieron la encuesta (con ``rating``) tras el 2.º intento.
 CLASSES = [
     {"name": "A", "size": 6, "one": dict(levels=(INI, PRO), non_recommended=5, covered=False, key=False),
-     "two": dict(levels=(LOG, LOG), non_recommended=3, covered=True, key=True),
+     "two": dict(levels=(LOG, LOG), non_recommended=3, covered=True, key=True, milestones_done=("riesgo", "proteccion")),
      "system": ("EVALUATED", "EVALUATED"), "comment": (True, True), "viewed": 6, "late": 0, "rated": 6, "rating": 5},
     {"name": "B", "size": 5, "one": dict(levels=(PRO, PRO), non_recommended=4, covered=True, key=True),
-     "two": dict(levels=(LOG, DES), non_recommended=2, covered=True, key=True),
+     "two": dict(levels=(LOG, DES), non_recommended=2, covered=True, key=True, milestones_done=("riesgo", "proteccion")),
      "system": ("EVALUATED", "EVALUATED"), "comment": (False, True), "viewed": 3, "late": 2, "rated": 5, "rating": 4},
     {"name": "C", "size": 4, "one": dict(levels=(INI,), non_recommended=6, covered=False, key=False),
-     "two": dict(levels=(PRO,), non_recommended=5, covered=False, key=False),
+     "two": dict(levels=(PRO,), non_recommended=5, covered=False, key=False, milestones_done=("riesgo",)),
      "system": ("PENDING", "EVALUATED"), "comment": (False, False), "viewed": 0, "late": 0, "rated": 3, "rating": 2},
     {"name": "D", "size": 3, "one": dict(levels=(LOG, LOG), non_recommended=0, covered=True, key=True),
-     "two": dict(levels=(DES, DES), non_recommended=0, covered=True, key=True),
+     "two": dict(levels=(DES, DES), non_recommended=0, covered=True, key=True,
+                 milestones_done=("riesgo", "proteccion", "derechos")),
      "system": ("EVALUATED", "EVALUATED"), "comment": (True, False), "viewed": 3, "late": 0, "rated": 3, "rating": 3},
     {"name": "E", "size": 2, "one": dict(levels=(PRO, LOG), non_recommended=2, covered=True, key=True),
-     "two": dict(levels=(PRO, LOG), non_recommended=3, covered=False, key=False),
+     "two": dict(levels=(PRO, LOG), non_recommended=3, covered=False, key=False, milestones_done=()),
      "system": (None, None), "comment": (False, False), "viewed": 1, "late": 0, "rated": 0, "rating": None},
 ]
 
@@ -93,9 +128,14 @@ EXPECTED = {
     "evaluated": {"attempts": 40, "systemPct": 80.0, "commentedPct": 50.0},
     "satisfaction": {"responses": 17, "satisfiedPct": 64.7},
     "improvementAfterFeedback": {"students": 13, "pairs": 13, "deltaPct": 42.3},
+    "milestones": [
+        {"key": "derechos", "label": "derechos", "decisive": False, "share": 15.0, "category": "MENOS_DE_LA_MITAD"},
+        {"key": "proteccion", "label": "proteccion", "decisive": False, "share": 70.0, "category": "MAYORIA"},
+        {"key": "riesgo", "label": "riesgo", "decisive": False, "share": 90.0, "category": "MAYORIA"},
+    ],
     "definitions": {
         "status": "BORRADOR", "acceptableLevel": LOG, "minCell": 5, "reflectionDefinition": "ANY",
-        "profileRules": "borrador-1",
+        "profileRules": "borrador-2",
     },
 }
 
@@ -212,17 +252,20 @@ def test_el_comentario_de_la_encuesta_y_el_del_docente_no_salen_en_ninguna_respu
 
 
 # ─── de punta a punta: un intento jugado de verdad alimenta la analítica ───────────────────────
-def test_un_intento_jugado_de_verdad_alimenta_la_analitica(completed, settings):
+def test_un_intento_jugado_de_verdad_alimenta_la_analitica(estudiante, case_version_id, settings):
     """Cierra el intento por la API, abre el reporte (evento) y responde la encuesta: la lectura entiende todo eso."""
     settings.ATTEMPT_FEEDBACK_SURVEY = True
-    client, attempt_id, _ = completed
+    declare_all_seeded(case_version_id)  # el caso sembrado no declara competencias: sin declaración no hay niveles
+    client = cl(estudiante)
+    attempt_id, token = _start(client, case_version_id)
+    _complete(client, attempt_id, token)
     attempt = SimulationAttempt.objects.get(pk=attempt_id)
     assert client.get(f"{BASE}/attempts/{attempt_id}/student-report").status_code == 200  # FEEDBACK_VIEWED
     assert client.post(f"{BASE}/attempts/{attempt_id}/feedback", {"rating": 5, "comment": "Útil"}, format="json").status_code == 201
 
     (row,) = analytics.load_rows({attempt.student_id}, attempt.case_version_id)
 
-    assert row.attempt_id == str(attempt_id) and row.schema_version == 2 and row.ordinal == 1
+    assert row.attempt_id == str(attempt_id) and row.schema_version == 3 and row.ordinal == 1
     assert row.levels and set(row.levels) <= {INI, PRO, LOG, DES}  # el perfil por competencia llegó
     assert isinstance(row.non_recommended, int) and row.non_recommended >= 0
     assert row.reflection_definition == "ANY" and isinstance(row.reflection_covered, bool)

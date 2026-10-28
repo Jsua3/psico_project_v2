@@ -117,6 +117,8 @@ def _apply_object_request(obj, request, case_version_id):
     obj.interaction_prompt = request.get("interactionPrompt")
     obj.interaction_text = request.get("interactionText")
     obj.tool_code = request.get("toolCode")
+    if "aiSuggested" in request:
+        obj.ai_suggested = bool(request["aiSuggested"])
     decision_option_id = request.get("decisionOptionId")
     if decision_option_id is not None:
         # Una decisión de otra versión nunca se enlaza (400); una borrada deja el enlace como estaba.
@@ -154,8 +156,9 @@ def update_dialogue(case_version_id, tree_id, request):
     tree = in_version(DialogueTree, tree_id, case_version_id)
     _apply_dialogue_request(tree, request)
     tree.save()
+    previous = marks_of_lines(tree_id)
     DialogueLine.objects.filter(dialogue_tree_id=tree_id).delete()
-    _save_dialogue_lines(tree, request.get("lines"))
+    _save_dialogue_lines(tree, request.get("lines"), previous)
     bump_revision(case_version_id)
     return editor(case_version_id)
 
@@ -176,13 +179,28 @@ def _apply_dialogue_request(tree, request):
     tree.emotion = request.get("emotion") if request.get("emotion") is not None else "neutral"
 
 
-def _save_dialogue_lines(tree, lines):
+def marks_of_lines(tree_id):
+    """``{display_order: ai_suggested}`` de las líneas de un diálogo, antes de reemplazarlas."""
+    return dict(DialogueLine.objects.filter(dialogue_tree_id=tree_id).values_list("display_order", "ai_suggested"))
+
+
+def line_mark(line_req, display_order, previous):
+    """La marca «sugerido por la IA» de una línea: la que traiga, o (ausente = no tocar) la que tenía en ese orden."""
+    if "aiSuggested" in line_req:
+        return bool(line_req["aiSuggested"])
+    return bool(previous.get(display_order, False))
+
+
+def _save_dialogue_lines(tree, lines, previous=None):
     if lines is None:
         return
+    previous = previous or {}
     for line_req in lines:
+        order = _int(line_req.get("displayOrder"))
         DialogueLine.objects.create(
             dialogue_tree=tree,
-            display_order=_int(line_req.get("displayOrder")),
+            ai_suggested=line_mark(line_req, order, previous),
+            display_order=order,
             speaker_name=line_req.get("speakerName") or tree.speaker_name,
             text=line_req.get("text") or "",
             emotion=line_req.get("emotion") if line_req.get("emotion") is not None else "neutral",

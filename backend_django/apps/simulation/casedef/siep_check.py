@@ -1,4 +1,4 @@
-"""``x-siep`` del documento (E4-2b, R17): esquema, enlaces, claves repetidas, condiciones y métricas.
+"""``x-siep`` del documento (E4-2b, R17): esquema, enlaces, claves repetidas, condiciones y métricas o hitos.
 
 ``x-siep`` lleva lo que el DSL del taller no puede expresar (``siep``). Aquí se valida con cinco
 pasadas, todas defensivas —un documento que llega de fuera puede traer cualquier forma—:
@@ -9,7 +9,12 @@ pasadas, todas defensivas —un documento que llega de fuera puede traer cualqui
 3. **claves repetidas**: las claves son únicas por caso (escena, opción, personaje, herramienta, mapa) o
    por mapa (objeto, zona de colisión, diálogo) o por diálogo (elección);
 4. **condiciones** de los finales: solo el vocabulario de ``conditions``, sin ``eval`` ni ``exec``;
-5. **métricas**: las condiciones y los efectos de las opciones solo mueven métricas que el caso declara.
+5. **métricas** (documento 1.0): las condiciones y los efectos de las opciones solo mueven métricas que el caso declara;
+   **hitos** (documento 2.0): los finales y las opciones solo nombran hitos que ``reglas.milestones`` declara, y las
+   condiciones solo usan ``all/any/not/milestone/count/persona`` (sin ``metric``, ``flag`` ni conteos por severidad).
+
+La versión de ``x-siep`` elige el esquema: la ``2.0`` es la vigente y la ``1.0`` se sigue leyendo (el importador la
+convierte, ``casedef.legacy``); cualquier otra es un error del esquema vigente («debe ser 2.0»).
 
 Las referencias de las puertas (``targetNodeKey``, ``requires*``) no se miran aquí: son de la validación
 del mundo, que corre sobre la versión ya guardada.
@@ -21,18 +26,20 @@ from pathlib import Path
 
 import jsonschema
 
-from . import conditions, messages, text
+from . import conditions, legacy, messages, text
 from .report import ERROR, PREFIX, Issue
 
 SIEP_KEY = "x-siep"
 SCHEMA_NAME = "x-siep.schema.json"
+LEGACY_SCHEMA_NAME = "x-siep.v1.schema.json"
+LEGACY_VERSION = "1.0"
 SCHEMA, REF, DUPLICATE = PREFIX + "SIEP_SCHEMA", PREFIX + "SIEP_REF", PREFIX + "SIEP_DUPLICATE"
 CONDITION, METRIC = PREFIX + "SIEP_CONDITION", PREFIX + "SIEP_METRIC"
+MILESTONE = PREFIX + "SIEP_MILESTONE"
 LIMIT, TOO_LONG = PREFIX + "LIMIT_EXCEEDED", PREFIX + "TEXT_TOO_LONG"
 MAX_SCHEMA_ERRORS = 50
 
-#: Las métricas que un caso sin ``reglas.metrics`` conserva: las siete del caso PDF. Es una copia de
-#: ``services.case_effects.CASE_METRIC_KEYS`` (este paquete no importa Django); una prueba las compara.
+#: Las métricas que un documento 1.0 sin ``reglas.metrics`` conserva: las siete del caso PDF del modelo antiguo.
 DEFAULT_METRICS = (
     "confianza", "crisis_emocional", "riesgo_victima", "rigor_tecnico", "etica_profesional",
     "ruta_institucional", "calidad_duelo",
@@ -45,10 +52,15 @@ _TYPE_NAMES = {
 }
 
 
-@functools.lru_cache(maxsize=1)
-def _validator():
-    schema = json.loads((Path(__file__).parent / "schema" / SCHEMA_NAME).read_text(encoding="utf-8"))
+@functools.lru_cache(maxsize=2)
+def _validator(name=SCHEMA_NAME):
+    schema = json.loads((Path(__file__).parent / "schema" / name).read_text(encoding="utf-8"))
     return jsonschema.Draft202012Validator(schema)
+
+
+def is_legacy(siep):
+    """¿``x-siep`` es de la versión 1.0 (puntaje, estrés, métricas y banderas), que el importador aún convierte?"""
+    return isinstance(siep, dict) and siep.get("version") == LEGACY_VERSION
 
 
 def _items(value):
@@ -106,7 +118,8 @@ def _reason(error):
 
 
 def _schema_issues(document, siep, names):
-    errors = list(itertools.islice(_validator().iter_errors(siep), MAX_SCHEMA_ERRORS))
+    validator = _validator(LEGACY_SCHEMA_NAME if is_legacy(siep) else SCHEMA_NAME)
+    errors = list(itertools.islice(validator.iter_errors(siep), MAX_SCHEMA_ERRORS))
     errors.sort(key=lambda error: [str(step) for step in error.absolute_path])
     issues = []
     for error in errors:
@@ -312,7 +325,7 @@ def _map_links(found, route, mapa, option_keys, characters, tools):
                 found.missing(there + ("herramientaRequerida",), "la herramienta", choice["herramientaRequerida"])
 
 
-# ─── 4 y 5. condiciones y métricas ────────────────────────────────────────────────────────────
+# ─── 4 y 5. condiciones, y métricas (1.0) o hitos (2.0) ───────────────────────────────────────
 def _metrics_in(condition):
     """Los nombres de métrica que nombra una condición válida (recorrido sin recursión)."""
     found, pending = [], [condition]
@@ -346,7 +359,7 @@ def _rules_issues(document, siep, names):
         route = (SIEP_KEY, "reglas", "endings", position, "when")
         if "when" not in ending:
             continue
-        if not conditions.is_valid(ending["when"]):
+        if not legacy.is_valid_condition(ending["when"]):
             collector.add(
                 CONDITION, route,
                 "la condición del final no es válida: solo admite all, any, not, flag, metric y count, "
@@ -368,6 +381,61 @@ def _rules_issues(document, siep, names):
     return collector.issues
 
 
+def _milestones_in(condition):
+    """Los hitos que nombra una condición válida (recorrido sin recursión)."""
+    found, pending = [], [condition]
+    while pending:
+        node = pending.pop()
+        if not isinstance(node, dict):
+            continue
+        if isinstance(node.get("milestone"), str):
+            found.append(node["milestone"])
+        for group in ("all", "any"):
+            if isinstance(node.get(group), list):
+                pending.extend(node[group])
+        pending.append(node.get("not"))
+    return found
+
+
+def _declared_milestones(rules):
+    return {item["key"] for _, item in _items(rules.get("milestones")) if isinstance(item.get("key"), str)}
+
+
+def _milestone_issues(document, siep, names):
+    """El documento 2.0: las condiciones de los finales usan solo el vocabulario nuevo y todo hito nombrado existe."""
+    rules = siep.get("reglas") if isinstance(siep.get("reglas"), dict) else {}
+    declared = _declared_milestones(rules)
+    collector = _Collector(document, names)
+
+    def undeclared(route, key, subject):
+        collector.add(MILESTONE, route, f"{subject} el hito {_shown(key)}, que el caso no declara en reglas.milestones.")
+
+    for position, ending in _items(rules.get("endings")):
+        route = (SIEP_KEY, "reglas", "endings", position, "when")
+        if "when" not in ending:
+            continue
+        if not conditions.is_valid(ending["when"]):
+            collector.add(
+                CONDITION, route,
+                "la condición del final no es válida: solo admite all, any, not, milestone, count (por clase) y persona, "
+                f"con números como límite y hasta {conditions.MAX_DEPTH} niveles.",
+            )
+            continue
+        for key in dict.fromkeys(_milestones_in(ending["when"])):
+            if key not in declared:
+                undeclared(route, key, "la condición del final usa")
+    for position, entry in _items(siep.get("escenas")):
+        for o_position, option in _items(entry.get("opciones")):
+            effects = option.get("efectos")
+            marked = effects.get("milestones") if isinstance(effects, dict) else None
+            if isinstance(marked, list):
+                for m_position, key in enumerate(marked):
+                    if isinstance(key, str) and key not in declared:
+                        route = (SIEP_KEY, "escenas", position, "opciones", o_position, "efectos", "milestones", m_position)
+                        undeclared(route, key, "la opción marca")
+    return collector.issues
+
+
 def check(document, names=None):
     """Los hallazgos de ``x-siep``: ``DSL.SIEP_*`` (más los topes y textos largos que marca el esquema)."""
     if not isinstance(document, dict) or SIEP_KEY not in document:
@@ -376,5 +444,6 @@ def check(document, names=None):
     names = names if names is not None else messages.names_of(document)
     issues = _schema_issues(document, siep, names)
     if isinstance(siep, dict):
-        issues += _links(document, siep, names) + _rules_issues(document, siep, names)
+        issues += _links(document, siep, names)
+        issues += _rules_issues(document, siep, names) if is_legacy(siep) else _milestone_issues(document, siep, names)
     return issues

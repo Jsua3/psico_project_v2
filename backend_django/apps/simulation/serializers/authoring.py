@@ -15,6 +15,7 @@ import math
 
 from rest_framework import serializers
 
+from apps.simulation.casedef.vocabulary import Intensity, ResponseClass
 from apps.simulation.models.world import MAP_OBJECT_TYPES
 from shared.jsonutils import INT4_MAX, INT4_MIN
 
@@ -62,6 +63,50 @@ class LifecycleRequest(serializers.Serializer):
     contentReview = serializers.DictField(required=False, allow_null=True)
 
 
+class _TextoEstricto(serializers.CharField):
+    """Un texto de verdad: DRF acepta un número como cadena, y aquí un ``7`` no es el id de un lugar."""
+
+    def to_internal_value(self, data):
+        if not isinstance(data, str):
+            self.fail("invalid")
+        return super().to_internal_value(data)
+
+
+class CaseLugarRequest(serializers.Serializer):
+    """Lo que ``POST …/cases`` lee cuando el caso nace de un lugar de la biblioteca (P6).
+
+    ``lugarId`` es el id del lugar y ``salas`` los ids de las salas elegidas, en el orden en que se quedan (la primera es
+    la escena de inicio). Que cada sala exista en el lugar y que no se repitan lo comprueba el servicio de la copia.
+    Sin ``lugarId`` el cuerpo no se mira: el caso se crea como siempre.
+    """
+
+    # BORRADOR: textos nuevos del servidor, pendientes de la aprobación de Psicología (VD-23).
+    lugarId = _TextoEstricto(
+        max_length=60,
+        error_messages={
+            "blank": "Elige un lugar.", "null": "Elige un lugar.", "invalid": "El lugar debe ser un texto.",
+            "max_length": "El lugar no existe en la biblioteca.",
+        },
+    )
+    salas = serializers.ListField(
+        child=_TextoEstricto(
+            max_length=60,
+            error_messages={
+                "blank": "Una de las salas elegidas no existe en este lugar.", "null": "Elige al menos una sala del lugar.",
+                "invalid": "Una de las salas elegidas no existe en este lugar.",
+                "max_length": "Una de las salas elegidas no existe en este lugar.",
+            },
+        ),
+        allow_empty=False,
+        max_length=40,
+        error_messages={
+            "required": "Elige al menos una sala del lugar.", "null": "Elige al menos una sala del lugar.",
+            "not_a_list": "Las salas deben ser una lista.", "empty": "Elige al menos una sala del lugar.",
+            "max_length": "Un caso admite hasta 40 salas.",
+        },
+    )
+
+
 class PublishRequest(serializers.Serializer):
     """``POST …/publish`` (alias de aprobar): nota y constancia opcionales."""
 
@@ -88,6 +133,10 @@ class NodeRequest(serializers.Serializer):
     positionY = _columna()
     # El servicio lo valida (plano y con tope) y lo nombra en el 400; ausente = no tocar (E3-6).
     decisionPrompt = _text()
+    # Intensidad de la escena; ausente = no tocar (un nodo nuevo sensible nace en HIGH).
+    intensity = serializers.ChoiceField(choices=[m.value for m in Intensity], required=False)
+    # Sugerido por el asistente de IA y sin revisar (P5); ausente = no tocar (un nodo nuevo nace en falso).
+    aiSuggested = serializers.BooleanField(required=False)
 
 
 class NodeReorderRequest(serializers.Serializer):
@@ -101,19 +150,24 @@ class DecisionRequest(serializers.Serializer):
     targetNodeId = LenientIntegerField()
     optionKey = _text(120)
     text = serializers.CharField(trim_whitespace=False)
-    # La clasificación la valida el servicio (mensaje y estado de siempre: «Clasificación inválida: X»).
-    classification = serializers.CharField(max_length=40)
+    # La clase de la respuesta; en una opción nueva es obligatoria una de las dos (``responseClass`` o ``classification``).
+    responseClass = serializers.ChoiceField(choices=[m.value for m in ResponseClass], required=False)
+    # La clasificación antigua (editor viejo) solo sirve para derivar la clase; la valida el servicio («Clasificación inválida: X»).
+    classification = _text(40)
     prohibitedConduct = _flag()
     prohibitionReason = _text()
-    scoreDelta = _columna()
-    stressDelta = _columna()
-    prohibitedPenalty = _columna()
+    # Retirados con el puntaje y el estrés: se declaran para que lleguen al servicio, que los rechaza con un 400 que
+    # nombra el campo (``graph.RETIRED_FIELDS``); sin declararlos, el serializador los descartaría en silencio.
+    scoreDelta = serializers.JSONField(required=False, allow_null=True)
+    stressDelta = serializers.JSONField(required=False, allow_null=True)
+    prohibitedPenalty = serializers.JSONField(required=False, allow_null=True)
     immediateFeedback = _text()
     consequenceText = _text()
     theoryBasis = _text()
     feedbackText = _text()
     # Los efectos de la opción (E3-8): el servicio los valida con su forma y su campo.
     effects = serializers.DictField(required=False, allow_null=True)
+    aiSuggested = serializers.BooleanField(required=False)
 
 
 class MapRequest(serializers.Serializer):
@@ -154,6 +208,7 @@ class ObjectRequest(serializers.Serializer):
     decisionOptionId = _number()
     # «Ausente = no tocar»; ``null`` desvincula el personaje (E3-3).
     characterId = _number()
+    aiSuggested = serializers.BooleanField(required=False)
 
 
 class DialogueLineRequest(serializers.Serializer):
@@ -161,6 +216,7 @@ class DialogueLineRequest(serializers.Serializer):
     speakerName = _text(255)
     text = serializers.CharField(allow_blank=True, trim_whitespace=False)
     emotion = _text(60)
+    aiSuggested = serializers.BooleanField(required=False)
 
 
 class DialogueRequest(serializers.Serializer):
@@ -240,3 +296,21 @@ class WorldSaveRequest(serializers.Serializer):
     objects = serializers.ListField(child=WorldObjectRequest(), required=False, allow_null=True)
     collisionZones = serializers.ListField(child=WorldZoneRequest(), required=False, allow_null=True)
     dialogues = serializers.ListField(child=WorldDialogueRequest(), required=False, allow_null=True)
+
+
+class MilestonesRequest(serializers.Serializer):
+    """``PUT …/rules/milestones``: la lista completa de hitos; el servicio valida cada uno y nombra el campo."""
+
+    milestones = serializers.ListField(child=serializers.JSONField())
+
+
+class RiskRequest(serializers.Serializer):
+    """``PUT …/rules/risk``: el nivel de riesgo, o ``null`` para borrarlo."""
+
+    riskLevel = serializers.CharField(max_length=40, allow_null=True)
+
+
+class EndingsRequest(serializers.Serializer):
+    """``PUT …/rules/endings``: la lista completa de finales, en orden de evaluación."""
+
+    endings = serializers.ListField(child=serializers.JSONField())

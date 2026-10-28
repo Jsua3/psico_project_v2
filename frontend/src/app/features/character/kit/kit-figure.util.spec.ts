@@ -29,7 +29,9 @@ describe('figureStyle', () => {
   });
 
   it('retrato a ×3; si la receta no tiene el estado, el neutral', () => {
-    expect(figureStyle(valentina, { ...base, portrait: 'triste', scale: 3 })).toEqual({
+    // Todas las recetas del kit publican los seis retratos (P4); el respaldo se prueba con una que solo trae el neutral.
+    const soloNeutral = { ...valentina, portraits: { neutral: valentina.portraits.neutral } };
+    expect(figureStyle(soloNeutral, { ...base, portrait: 'triste', scale: 3 })).toEqual({
       width: '96px', height: '96px',
       'background-image': 'url("/assets/characters/kit/valentina/portrait-neutral.png")',
       'background-size': '96px 96px',

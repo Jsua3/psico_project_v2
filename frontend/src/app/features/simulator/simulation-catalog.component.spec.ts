@@ -20,8 +20,7 @@ function caseSummary(id: number, partial: Partial<SimulationCaseSummary> = {}): 
 function attempt(partial: Partial<StudentAttemptSummary>): StudentAttemptSummary {
   return {
     attemptId: 'a', caseVersionId: 1, caseTitle: 'Caso 1', status: 'COMPLETED',
-    accumulatedScore: 0, adequateDecisions: 0, riskyDecisions: 0,
-    inadequateDecisions: 0, prohibitedDecisions: 0, totalDurationSeconds: null,
+    totalDurationSeconds: null,
     activeDurationSeconds: null, startedAt: '2026-09-01T10:00:00Z', endedAt: null,
     ...partial,
   };
@@ -29,11 +28,14 @@ function attempt(partial: Partial<StudentAttemptSummary>): StudentAttemptSummary
 
 function report(partial: Partial<AttemptCompletionReport> = {}): AttemptCompletionReport {
   return {
-    attemptId: 'done', caseTitle: 'Caso 1', status: 'COMPLETED', finalScore: 72, finalStress: 35,
-    metrics: { professionalScore: 0, sceneStress: 0, victimRisk: 0, userTrust: 0, institutionalRouteActivated: false, revictimizationRisk: false },
-    totalDurationSeconds: 754, phaseDurations: [], adequateDecisions: 5, riskyDecisions: 1, inadequateDecisions: 0,
-    prohibitedDecisions: 0, toolsUsed: 2, reflectionsCount: 3, safeExitUsed: false, visitedNodeTitles: [],
-    competencies: [], recommendations: ['Activa la ruta institucional antes de cerrar el caso.'], summaryMessage: '',
+    attemptId: 'done', caseTitle: 'Caso 1', status: 'COMPLETED', schemaVersion: 3,
+    totalDurationSeconds: 754, phaseDurations: [], toolsUsed: 2, reflectionsCount: 3, safeExitUsed: false, visitedNodeTitles: [],
+    recommendations: ['Activa la ruta institucional antes de cerrar el caso.'], summaryMessage: '',
+    ending: { key: 'con_brechas', title: 'Cierre con brechas', message: 'Quedaron aspectos por reforzar.', tone: 'neutral', reason: [] },
+    milestones: {
+      done: [{ key: 'escucha', label: 'Escuchar sin juzgar', decisive: false }],
+      missing: [{ key: 'ruta', label: 'Recomendar medidas de protección', decisive: true }],
+    },
     ...partial,
   };
 }
@@ -150,9 +152,9 @@ describe('SimulationCatalogComponent', () => {
   it('historial: la fila en pausa o en curso ofrece «Continuar»; la cerrada, «Ver resumen»; estados humanizados', async () => {
     await render('ESTUDIANTE', {
       attemptHistory: () => of([
-        attempt({ attemptId: 'p', caseVersionId: 1, status: 'PAUSED', accumulatedScore: 20 }),
+        attempt({ attemptId: 'p', caseVersionId: 1, status: 'PAUSED', }),
         attempt({ attemptId: 'c', caseVersionId: 1, status: 'IN_PROGRESS' }),
-        attempt({ attemptId: 'done', caseVersionId: 1, status: 'COMPLETED', adequateDecisions: 4, prohibitedDecisions: 1, totalDurationSeconds: 754 }),
+        attempt({ attemptId: 'done', caseVersionId: 1, status: 'COMPLETED', totalDurationSeconds: 754 }),
       ]),
     });
     // La región de la tabla no repite el nombre de su sección (Axe landmark-unique).
@@ -163,7 +165,7 @@ describe('SimulationCatalogComponent', () => {
     expect(rows.map(row => text(row.querySelector('ui-badge')))).toEqual(['En pausa (reanudable)', 'En curso', 'Finalizado']);
     expect(rows.map(row => buttons(row))).toEqual([['Continuar'], ['Continuar'], ['Ver resumen']]);
     expect(text(rows[2])).toContain('12 min 34 s');
-    expect([...historySection().querySelectorAll('th')].map(text)).toContain('Alertas éticas');
+    expect([...historySection().querySelectorAll('th')].map(text)).toEqual(['Caso', 'Inicio', 'Estado', 'Duración', 'Acción']);
     expect(historySection().textContent).not.toMatch(/PAUSED|IN_PROGRESS|COMPLETED/);
   });
 
@@ -190,16 +192,21 @@ describe('SimulationCatalogComponent', () => {
     expect(historySection().querySelector('ui-error-state')).toBeNull();
   });
 
-  it('el reporte se abre en un diálogo junto a su fila, con su contenido, alertas y estrés con tildes', async () => {
+  it('el reporte se abre en un diálogo junto a su fila: final, hitos y recomendaciones, sin puntaje ni estrés', async () => {
     await render('ESTUDIANTE', { attemptHistory: () => of([attempt({ attemptId: 'done', caseTitle: 'Caso 1' })]) });
     (historySection().querySelector('tbody button') as HTMLButtonElement).click();
     await fixture.whenStable();
     const content = text(dialog());
     expect(dialog()?.getAttribute('aria-modal')).toBe('true');
     expect(content).toContain('Caso 1');
-    expect(field('Puntaje')).toBe('72');
-    expect(field('Estrés final')).toBe('35 %');
     expect(field('Tiempo total')).toBe('12 min 34 s');
+    expect(field('Reflexiones')).toBe('3');
+    expect(content).toContain('Cierre con brechas');
+    expect(content).toContain('Lo que hiciste');
+    expect(content).toContain('Escuchar sin juzgar');
+    expect(content).toContain('Lo que faltó');
+    expect(content).toContain('Recomendar medidas de protección (clave)');
+    expect(content).not.toMatch(/puntaje|estrés|desempeño|\d+\s?%|adecuadas/i);
     expect(content).toContain('Activa la ruta institucional antes de cerrar el caso.');
     expect(content).toContain('no realiza diagnósticos clínicos');
     // Un solo «Cerrar» (el del pie), como los demás diálogos del sistema.
@@ -225,7 +232,7 @@ describe('SimulationCatalogComponent', () => {
     (error.querySelector('button') as HTMLButtonElement).click();
     await fixture.whenStable();
     expect(calls).toBe(2);
-    expect(field('Puntaje')).toBe('72');
+    expect(field('Tiempo total')).toBe('12 min 34 s');
   });
 
   it('si falla el catálogo: error con «Reintentar»; sin casos: vacío que lo dice', async () => {

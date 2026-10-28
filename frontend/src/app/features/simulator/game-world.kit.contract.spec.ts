@@ -31,7 +31,8 @@ describe('game-world: el jugador sale del kit (spec §8.2)', () => {
 
   it('el paquete del kit llega antes que Phaser, y sin él el juego arranca igual', () => {
     // F6-8: también se espera a Poppins (con plazo), sin que su fallo detenga el arranque.
-    expect(source).toMatch(/this\.kit\.load\(\)\.then\(bundle => bundle, \(\) => null\),\s*whenWorldFontsReady\(\),\s*\]\)\.then\(\(\[bundle\]\) => \{[\s\S]*?this\.startGame\(bundle\)/);
+    // El manifiesto del arte de la biblioteca viaja con él; si no llega, el juego arranca sin animaciones de cercanía.
+    expect(source).toMatch(/this\.kit\.load\(\)\.then\(bundle => bundle, \(\) => null\),\s*this\.bibliotecaManifest\.load\(\),\s*whenWorldFontsReady\(\),\s*\]\)\.then\(\(\[bundle, manifest\]\) => \{[\s\S]*?this\.startGame\(bundle, manifest\)/);
     expect(source).toMatch(/new DataDrivenWorldScene\(\{\s*reduceMotion,\s*kit,/);
   });
 });
@@ -56,16 +57,16 @@ describe('game-world: NPC, personas, guía y figurantes del kit; nada los deform
     expect(source).toContain('extrasCharacterRef(kit)');
   });
 
-  it('el estado de la paciente es un icono sobre la cabeza', () => {
-    const update = body('updatePatientVisualState(state:');
-    expect(update).toContain('patientIconKind(state)');
-    expect(update).toContain('icon.setTexture(patientIconKey(kind))');
+  it('el estado de la persona es un icono sobre la cabeza', () => {
+    const update = body('updatePatientVisualState(persona:');
+    expect(update).toContain('personaIconKind(persona)');
+    expect(update).toContain('icon.setTexture(personaIconKey(kind))');
   });
 
   it('el icono sobrevive a un re-render: la escena recuerda el estado y cada icono nace con él', () => {
-    expect(body('updatePatientVisualState(state:')).toContain('this.patientState = state;');
+    expect(body('updatePatientVisualState(persona:')).toContain('this.persona = persona;');
     const create = body('private patientIcon(feetY: number)');
-    expect(create).toContain('patientIconView(this.patientState)');
+    expect(create).toContain('personaIconView(this.persona)');
     expect(create).toContain('.setVisible(view.visible)');
     expect(create).not.toContain('.setVisible(false)');
   });

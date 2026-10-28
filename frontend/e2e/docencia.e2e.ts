@@ -13,15 +13,16 @@ const WCAG_TAGS = ['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa', 'wcag22aa'];
 
 const CASE_TITLE = 'Violencia Familiar y Tentativa de Feminicidio';
 
+// El panel cuenta HECHOS por clase de respuesta (modelo de métricas): ni puntaje ni promedio.
 const DASHBOARD = {
-  estudiantesActivos: 18, simulacionesCompletadasHoy: 3, puntajePromedioGlobal: 64,
-  simulacionesCompletadas: 41, simulacionesEnProgreso: 5, puntajePromedioSimulacion: 66,
-  decisionesAdecuadas: 120, decisionesRiesgosas: 31, decisionesInadecuadas: 14, decisionesProhibidas: 3,
+  estudiantesActivos: 18, simulacionesCompletadasHoy: 3,
+  simulacionesCompletadas: 41, simulacionesEnProgreso: 5,
+  decisiones: { recommended: 120, acceptable: 31, risky: 14, contraindicated: 3 },
   ultimosIntentos: [],
   intentosRecientes: [
-    { id: 'a-1', casoTitulo: CASE_TITLE, estudiante: 'Camila R.', puntaje: 72, estado: 'COMPLETED' },
-    { id: 'a-2', casoTitulo: CASE_TITLE, estudiante: 'Andrés M.', puntaje: 0, estado: 'IN_PROGRESS' },
-    { id: 'a-3', casoTitulo: CASE_TITLE, estudiante: 'Laura P.', puntaje: 38, estado: 'PAUSED' },
+    { id: 'a-1', casoTitulo: CASE_TITLE, estudiante: 'Camila R.', estado: 'COMPLETED' },
+    { id: 'a-2', casoTitulo: CASE_TITLE, estudiante: 'Andrés M.', estado: 'IN_PROGRESS' },
+    { id: 'a-3', casoTitulo: CASE_TITLE, estudiante: 'Laura P.', estado: 'PAUSED' },
   ],
 };
 
@@ -32,7 +33,7 @@ const GRUPOS = [
 
 const RECENT = DASHBOARD.intentosRecientes.map(item => ({
   attemptId: item.id, studentAlias: item.estudiante, caseTitle: item.casoTitulo, status: item.estado,
-  accumulatedScore: item.puntaje, stressIndex: 20, startedAt: '2026-10-10T10:00:00Z',
+  startedAt: '2026-10-10T10:00:00Z',
 }));
 
 const overflowX = (page: Page) => page.evaluate(() => document.documentElement.scrollWidth - window.innerWidth);
@@ -168,18 +169,26 @@ test.describe('@docencia grupos', () => {
   });
 });
 
+// Con menos de 20 estudiantes la cobertura por hito se dice en dos categorías y sin porcentaje (celda mínima).
 const REPORTE = {
   grupoId: 1,
   caseVersionId: null,
   simulacion: {
-    totalIntentos: 10, intentosCompletados: 6, intentosEnProgreso: 3, intentosSalidaSegura: 1, puntajePromedio: 72.4,
-    decisionesAdecuadas: 40, decisionesRiesgosas: 8, decisionesInadecuadas: 2, bitacorasRegistradas: 9, rubricasAplicadas: 4,
+    totalIntentos: 10, intentosCompletados: 6, intentosEnProgreso: 3, intentosSalidaSegura: 1,
+    hitos: [
+      { key: 'pap_aplicado', label: 'Aplicar primeros auxilios psicológicos', decisive: false, cobertura: 'MAYORIA' },
+      { key: 'medidas_proteccion_activadas', label: 'Recomendar medidas de protección', decisive: true, cobertura: 'MAYORIA' },
+      { key: 'riesgo_feminicidio_valorado', label: 'Valorar el riesgo de feminicidio', decisive: true, cobertura: 'MENOS_DE_LA_MITAD' },
+    ],
+    bitacorasRegistradas: 9, rubricasAplicadas: 4,
     estudiantes: [
       { id: 11, nombre: 'Marta Ríos', totalIntentos: 2, intentosCompletados: 2, intentosEnProgreso: 0, intentosSalidaSegura: 0,
-        puntajePromedio: 81, decisionesAdecuadas: 12, decisionesRiesgosas: 1, decisionesInadecuadas: 0, bitacorasRegistradas: 2,
+        hitosCumplidos: ['pap_aplicado', 'medidas_proteccion_activadas'],
+        clases: { recommended: 5, acceptable: 1, risky: 0, contraindicated: 0 }, bitacorasRegistradas: 2,
         rubricasAplicadas: 1, estado: 'COMPLETED' },
       { id: 12, nombre: 'Luis Gómez', totalIntentos: 1, intentosCompletados: 0, intentosEnProgreso: 1, intentosSalidaSegura: 0,
-        puntajePromedio: 0, decisionesAdecuadas: 3, decisionesRiesgosas: 0, decisionesInadecuadas: 0, bitacorasRegistradas: 0,
+        hitosCumplidos: null,
+        clases: { recommended: 2, acceptable: 1, risky: 0, contraindicated: 0 }, bitacorasRegistradas: 0,
         rubricasAplicadas: 0, estado: 'PAUSED' },
     ],
   },
@@ -254,36 +263,62 @@ test.describe('@docencia reportes', () => {
 });
 
 const RECENT_ATTEMPTS = [
-  { attemptId: 'a-1', studentAlias: 'Marta R.', caseTitle: CASE_TITLE, status: 'COMPLETED', accumulatedScore: 72, stressIndex: 30, startedAt: '2026-10-10T10:00:00Z' },
-  { attemptId: 'a-2', studentAlias: 'Luis G.', caseTitle: CASE_TITLE, status: 'IN_PROGRESS', accumulatedScore: 20, stressIndex: 55, startedAt: '2026-10-11T09:00:00Z' },
+  { attemptId: 'a-1', studentAlias: 'Marta R.', caseTitle: CASE_TITLE, status: 'COMPLETED', startedAt: '2026-10-10T10:00:00Z' },
+  { attemptId: 'a-2', studentAlias: 'Luis G.', caseTitle: CASE_TITLE, status: 'IN_PROGRESS', startedAt: '2026-10-11T09:00:00Z' },
 ];
 
 function traceOf(attemptId: string) {
   return {
     attemptId, studentAlias: attemptId === 'a-1' ? 'Marta R.' : 'Luis G.', caseTitle: CASE_TITLE, status: 'COMPLETED',
-    accumulatedScore: 72, stressIndex: 30, startedAt: '2026-10-10T10:00:00Z', endedAt: '2026-10-10T10:25:00Z',
-    totalDurationSeconds: 1500, adequateDecisions: 3, riskyDecisions: 1, inadequateDecisions: 1, prohibitedDecisions: 0,
+    startedAt: '2026-10-10T10:00:00Z', endedAt: '2026-10-10T10:25:00Z',
+    totalDurationSeconds: 1500, activeSeconds: 1320,
+    counts: { recommended: 3, acceptable: 1, risky: 1, contraindicated: 0 },
+    milestones: {
+      done: [
+        { key: 'pap_aplicado', label: 'Aplicar primeros auxilios psicológicos', decisive: false },
+        { key: 'medidas_proteccion_activadas', label: 'Recomendar medidas de protección', decisive: true },
+      ],
+      missing: [{ key: 'riesgo_feminicidio_valorado', label: 'Valorar el riesgo de feminicidio', decisive: true }],
+    },
+    personaPorEscena: [
+      { nodeId: 1, nodeTitle: 'Recepción', bond: 'OPEN', activation: 'CALM', label: 'se muestra abierta y serena' },
+    ],
+    ending: {
+      key: 'riesgo_persistente', title: 'El riesgo sigue abierto', tone: 'warning',
+      message: 'Quedó pendiente alguno de los pasos de protección.',
+      reason: ['Cumpliste: Recomendar medidas de protección', 'Faltó: Valorar el riesgo de feminicidio'],
+    },
     safeExitUsed: false, retries: 0, visitedNodeTitles: ['Recepción'],
     phaseDurations: [{ nodeId: 1, nodeTitle: 'Recepción', startedAt: '2026-10-10T10:00:00Z', endedAt: '2026-10-10T10:05:00Z', durationSeconds: 300 }],
     timeline: [
-      { atSeconds: 30, time: '00:30', type: 'DECISION_SELECTED', classification: 'ADEQUATE', prohibited: false, label: 'Escucha activa', scoreDelta: 5, stressDelta: -2 },
-      { atSeconds: 90, time: '01:30', type: 'DECISION_SELECTED', classification: 'RISKY', prohibited: false, label: 'Interrumpir', scoreDelta: -3, stressDelta: 4 },
+      { atSeconds: 30, time: '00:30', type: 'DECISION_SELECTED', class: 'RECOMMENDED', prohibited: false, label: 'Escucha activa' },
+      { atSeconds: 90, time: '01:30', type: 'DECISION_SELECTED', class: 'RISKY', prohibited: false, label: 'Interrumpir' },
     ],
     events: [
-      { type: 'DECISION_SELECTED', classification: 'ADEQUATE', nodeTitle: 'Recepción', decisionText: 'Escuchar sin interrumpir', scoreDelta: 5, stressDelta: -2, detail: null, occurredAt: '2026-10-10T10:00:30Z' },
+      { type: 'DECISION_SELECTED', class: 'RECOMMENDED', nodeTitle: 'Recepción', decisionText: 'Escuchar sin interrumpir', detail: null, occurredAt: '2026-10-10T10:00:30Z' },
     ],
     reflections: [{ nodeId: 1, nodeTitle: 'Recepción', text: 'Me costó escuchar.', locked: false }],
-    rubricEvaluations: [], metrics: {}, world: {},
+    rubricEvaluations: [], world: {},
+    systemEvaluation: null, systemEvaluationAvailable: true,
   };
 }
+
+// La rúbrica se califica por niveles formativos con su descriptor: no hay número 1-5 ni total (Tarea 14).
+const LEVELS = [
+  { value: 'EN_INICIO', label: 'En inicio', descriptor: 'Aún no muestra la conducta esperada.' },
+  { value: 'EN_PROCESO', label: 'En proceso', descriptor: 'La muestra de forma parcial.' },
+  { value: 'LOGRADO', label: 'Logrado', descriptor: 'La muestra de forma consistente.' },
+  { value: 'DESTACADO', label: 'Destacado', descriptor: 'La muestra y la fundamenta.' },
+];
 
 const RUBRIC = {
   attemptId: 'a-1', rubricId: 7, rubricName: 'Rúbrica básica de desempeño', description: 'Evalúa el desempeño formativo.',
   criteria: [
-    { id: 1, competency: 'ETICA', title: 'Ética profesional', description: 'Actúa con ética.', weight: 50, maxScore: 5, displayOrder: 1 },
-    { id: 2, competency: 'RUTA', title: 'Ruta de atención', description: 'Activa la ruta.', weight: 50, maxScore: 5, displayOrder: 2 },
+    { id: 1, competency: 'ETICA', title: 'Ética profesional', description: 'Actúa con ética.', weight: 50, displayOrder: 1 },
+    { id: 2, competency: 'RUTA', title: 'Ruta de atención', description: 'Activa la ruta.', weight: 50, displayOrder: 2 },
   ],
-  scores: [], totalScore: null, overallLevel: null, comment: '',
+  levels: LEVELS,
+  scores: [], overallLevel: null, comment: '',
 };
 
 async function openTrace(page: Page, recent: unknown[] = RECENT_ATTEMPTS): Promise<{ saved: unknown[] }> {
@@ -305,7 +340,7 @@ async function openTrace(page: Page, recent: unknown[] = RECENT_ATTEMPTS): Promi
   return { saved };
 }
 
-// req: RNF-04, BLOQUE-H, SIEP-CU-04, RN-09
+// req: RNF-04, BLOQUE-H, SIEP-CU-04, RN-09 (RN-09 ya no es un conflicto: la rúbrica es solo niveles)
 test.describe('@docencia traza', () => {
   for (const viewport of [{ width: 1440, height: 900 }, { width: 390, height: 844 }]) {
     test(`con un intento abierto: sin desborde y Axe sin hallazgos serios (${viewport.width})`, async ({ page }) => {
@@ -325,45 +360,61 @@ test.describe('@docencia traza', () => {
     expect(await blockingViolations(page, 'app-instructor-trace')).toEqual([]);
   });
 
-  test('SIEP-CU-04: califica con 1,0 y con el máximo y rechaza 0,5 en línea sin enviarlo', async ({ page }) => {
+  test('SIEP-CU-04: califica por niveles, exige uno por criterio y no envía nada incompleto', async ({ page }) => {
     const { saved } = await openTrace(page);
-    const first = page.locator('.tr-criterion').nth(0).locator('input[type="number"]');
-    const second = page.locator('.tr-criterion').nth(1).locator('input[type="number"]');
+    const first = page.locator('.tr-criterion').nth(0).getByLabel('Nivel logrado');
+    const second = page.locator('.tr-criterion').nth(1).getByLabel('Nivel logrado');
     await expect(first).toBeVisible();
-    await expect(page.locator('.tr-criterion').nth(0)).toContainText('Rango 1,0 a 5');
+    // La rúbrica ya no lleva campos numéricos: solo el selector de niveles y la observación.
+    await expect(page.locator('.tr-criterion input[type="number"]')).toHaveCount(0);
+    await expect(first.locator('option')).toHaveText(['Sin calificar', 'En inicio', 'En proceso', 'Logrado', 'Destacado']);
 
-    await first.fill('0.5');
-    await expect(page.locator('.tr-criterion').nth(0)).toContainText('Debe estar entre 1,0 y 5.');
-    // El botón queda aria-disabled con su motivo: Playwright no lo pulsaría; un usuario sí, y el clic no envía nada.
+    // Con un criterio sin nivel el aviso dice qué falta y no se envía nada.
+    await first.selectOption('EN_INICIO');
     await page.getByRole('button', { name: 'Guardar evaluación' }).click({ force: true });
+    await expect(page.locator('.tr-criterion').nth(1)).toContainText('Elige un nivel para este criterio.');
     expect(saved).toEqual([]);
 
-    await first.fill('1');
-    await second.fill('5');
+    await second.selectOption('DESTACADO');
     await expect(page.locator('.tr-criterion .ui-field__message--error')).toHaveCount(0);
     await page.getByRole('button', { name: 'Guardar evaluación' }).click();
     await expect.poll(() => saved.length).toBe(1);
     expect(saved[0]).toMatchObject({
       rubricId: 7,
-      scores: [{ criterionId: 1, score: 1 }, { criterionId: 2, score: 5 }],
+      scores: [{ criterionId: 1, level: 'EN_INICIO' }, { criterionId: 2, level: 'DESTACADO' }],
     });
+    expect(JSON.stringify(saved[0])).not.toMatch(/"score"|"total/);
   });
 
-  test('RN-09: el total se rotula «Valoración formativa» con el nivel y sin números', async ({ page }) => {
+  test('RN-09: la valoración se rotula «Valoración formativa» con el nivel y sin números', async ({ page }) => {
     await openTrace(page);
     const valuation = page.locator('.tr-valuation');
     await expect(valuation).toContainText('Valoración formativa');
     await expect(valuation).toContainText('Pendiente');
     await expect(valuation).not.toContainText(/\d/);
+    // Cada nivel se explica con su descriptor, no con una cifra.
+    await expect(page.locator('.tr-levels')).toContainText('La muestra de forma consistente.');
+    await expect(page.locator('.tr-rubric')).not.toContainText(/\b\d+\s*(?:\/|de)\s*5\b|\b1\s*(?:a|–|-)\s*5\b|%/);
+  });
+
+  test('la traza cuenta hitos, la persona por escena y el final con su razón, sin puntaje ni estrés', async ({ page }) => {
+    await openTrace(page);
+    const trace = page.locator('app-instructor-trace');
+    await expect(trace.locator('.tr-milestones')).toContainText('Recomendar medidas de protección');
+    await expect(trace.locator('.tr-milestones')).toContainText('Valorar el riesgo de feminicidio');
+    await expect(trace.locator('.tr-persona')).toContainText('se muestra abierta y serena');
+    await expect(trace.locator('.tr-ending')).toContainText('Faltó: Valorar el riesgo de feminicidio');
+    await expect(trace.getByText('Contraindicadas', { exact: true })).toBeVisible();
+    await expect(trace).not.toContainText(/puntaje|estr[eé]s|%/i);
   });
 
   test('la retroalimentación abre un diálogo con el foco dentro; Tab no sale; Esc lo cierra y devuelve el foco', async ({ page }) => {
     await openTrace(page);
-    const opener = page.getByRole('button', { name: /^Adecuadas/ });
+    const opener = page.getByRole('button', { name: /^Recomendadas/ });
     await opener.click();
     const dialog = page.getByRole('dialog');
     await expect(dialog).toBeVisible();
-    await expect(dialog.getByRole('heading', { name: 'Decisiones adecuadas' })).toBeVisible();
+    await expect(dialog.getByRole('heading', { name: 'Decisiones recomendadas' })).toBeVisible();
     await expect(dialog.getByText('Escuchar sin interrumpir')).toBeVisible();
     await expect.poll(() => page.evaluate(() => !!document.activeElement?.closest('[role="dialog"]'))).toBe(true);
 
@@ -584,22 +635,11 @@ test.describe('@docencia hub de casos', () => {
     await expect(page.getByText('Aún no hay casos')).toHaveCount(0);
   });
 
-  test('sin casos: vacío con «Agregar nuevo caso» que abre el formulario con el foco en el título', async ({ page }) => {
+  // P6: todo caso nuevo empieza eligiendo un lugar; ya no hay formulario de caso en blanco en la lista.
+  test('sin casos: vacío con «Crear un caso nuevo» que lleva a elegir un lugar', async ({ page }) => {
     await openHub(page, { cases: [] });
-    await page.locator('app-case-authoring-hub ui-empty-state').getByRole('button', { name: 'Agregar nuevo caso' }).click();
-    await expect(page.getByRole('textbox', { name: /Título del caso/ })).toBeFocused();
-  });
-
-  test('si la creación falla: el error dice qué revisar, con «Reintentar», y el formulario conserva los datos', async ({ page }) => {
-    const { created } = await openHub(page, { createStatus: 409 });
-    await page.getByRole('button', { name: 'Agregar nuevo caso' }).first().click();
-    await page.getByRole('textbox', { name: /Título del caso/ }).fill('Caso nuevo');
-    await page.getByRole('button', { name: 'Crear y abrir editor' }).click();
-
-    await expect(page.locator('.hub-create ui-error-state')).toContainText('No fue posible crear el caso');
-    await expect(page.getByRole('textbox', { name: /Título del caso/ })).toHaveValue('Caso nuevo');
-    await page.locator('.hub-create ui-error-state').getByRole('button', { name: 'Reintentar' }).click();
-    await expect.poll(() => created.length).toBe(2);
+    await page.locator('app-case-authoring-hub ui-empty-state').getByRole('button', { name: 'Crear un caso nuevo' }).click();
+    await expect(page).toHaveURL(/\/portal\/casos\/nuevo$/);
   });
 });
 

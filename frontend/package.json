@@ -36,6 +36,7 @@
     "@angular/material": "^22.2.3",
     "@angular/platform-browser": "^22.2.3",
     "@angular/router": "^22.2.3",
+    "@dagrejs/dagre": "^1.1.8",
     "@types/howler": "^2.2.13",
     "howler": "^2.2.4",
     "konva": "^10.9.0",

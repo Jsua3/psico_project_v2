@@ -32,6 +32,7 @@ from apps.simulation.models import (
 from apps.simulation.services import attempt_report, game_service
 from shared.testing import measure, run_concurrently
 
+from .competency_support import declare_all_seeded, declare_competencies
 from .test_attempt_concurrency import _option, committed_attempt  # noqa: F401  (fixture)
 from .test_attempt_report_frozen import (  # noqa: F401  (fixtures y ayudantes)
     BASE,
@@ -56,10 +57,17 @@ def _system(attempt_id):
 
 def _declare_competencies(case_version_id, competencies):
     """Todas las opciones del caso declaran el mismo mapa de competencias (se conservan sus demás efectos)."""
-    for option in DecisionOption.objects.filter(case_version_id=case_version_id):
-        effects = json.loads(option.effects) if option.effects else {}
-        effects["competencies"] = competencies
-        DecisionOption.objects.filter(pk=option.pk).update(effects=json.dumps(effects))
+    declare_competencies(case_version_id, competencies)
+
+
+@pytest.fixture(autouse=True)
+def seeded_declares_destacado(request):
+    """El caso sembrado no declara competencias y sin declaración no hay nivel: aquí todas declaran ``DESTACADO``.
+
+    No aplica a las pruebas con commits reales (``real_commits``): esas no deben escribir en la siembra.
+    """
+    if "real_commits" not in request.fixturenames:
+        declare_all_seeded(request.getfixturevalue("case_version_id"))
 
 
 @pytest.fixture
@@ -313,6 +321,8 @@ def test_dos_cierres_a_la_vez_dejan_una_sola_evaluacion(committed_attempt):
     attempt = SimulationAttempt.objects.get(pk=a.attempt_id)
     assert attempt.status == "COMPLETED"
     report = attempt_report.frozen_report_for(attempt.id)
+    # el caso sembrado no declara competencias (sin declaración no hay nivel): el reporte de esta prueba trae niveles
+    report["competencyLevels"] = [{"code": code, "level": "DESTACADO"} for code in SEEDED]
     _system(attempt.id).delete()
 
     outcomes = run_concurrently(
@@ -333,7 +343,7 @@ def test_el_formulario_del_docente_sigue_pendiente_hasta_que_el_docente_evalua(c
     form = cl(profesor).get(f"{TEACHER_BASE}/attempts/{attempt_id}/rubric-evaluation").data["data"]
 
     assert form["status"] == "PENDING"
-    assert all(item["level"] is None and item["score"] is None for item in form["items"])
+    assert all(item["level"] is None and "score" not in item for item in form["items"])
 
 
 def test_la_evaluacion_del_docente_convive_con_la_del_sistema_y_es_la_que_el_formulario_muestra(completed, profesor):
@@ -369,9 +379,9 @@ def test_la_traza_del_docente_separa_su_evaluacion_de_la_del_sistema(completed, 
     trace = cl(profesor).get(f"{TEACHER_BASE}/attempts/{attempt_id}/trace").data["data"]
 
     assert trace["rubricEvaluations"] == []  # el cliente marca «evaluación aplicada» si hay alguna con nivel
-    assert trace["systemEvaluation"]["origin"] == "SISTEMA"
-    assert trace["systemEvaluation"]["overallLevel"] == "DESTACADO"
-    assert trace["systemEvaluation"]["totalScore"] is None  # sin RUBRIC_NUMERIC_TOTAL no viaja un número
+    # Plegada: antes de que el docente guarde la suya, la valoración del sistema no viaja (no ancla su juicio).
+    assert trace["systemEvaluation"] is None
+    assert trace["systemEvaluationAvailable"] is True
 
     form = cl(profesor).get(f"{TEACHER_BASE}/attempts/{attempt_id}/rubric-evaluation").data["data"]
     scores = [{"criterionId": item["criterionId"], "level": "EN_PROCESO"} for item in form["items"]]
@@ -380,6 +390,10 @@ def test_la_traza_del_docente_separa_su_evaluacion_de_la_del_sistema(completed, 
     trace = cl(profesor).get(f"{TEACHER_BASE}/attempts/{attempt_id}/trace").data["data"]
     assert [e["origin"] for e in trace["rubricEvaluations"]] == ["DOCENTE"]
     assert trace["systemEvaluation"]["origin"] == "SISTEMA"
+    assert trace["systemEvaluation"]["overallLevel"] == "DESTACADO"
+    assert "totalScore" not in trace["systemEvaluation"]  # ningún DTO lleva un número
+    assert isinstance(trace["systemEvaluation"]["competencyLevels"], list)
+    assert trace["systemEvaluationAvailable"] is True
 
 
 def test_un_intento_sin_evaluacion_del_sistema_trae_la_clave_nula(estudiante, case_version_id, profesor):
@@ -389,6 +403,7 @@ def test_un_intento_sin_evaluacion_del_sistema_trae_la_clave_nula(estudiante, ca
     trace = cl(profesor).get(f"{TEACHER_BASE}/attempts/{attempt_id}/trace").data["data"]
 
     assert trace["systemEvaluation"] is None
+    assert trace["systemEvaluationAvailable"] is False
 
 
 def test_el_reporte_de_grupo_cuenta_solo_las_rubricas_que_aplico_el_docente(completed, profesor, case_version_id):

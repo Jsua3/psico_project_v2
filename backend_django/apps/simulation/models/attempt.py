@@ -29,13 +29,11 @@ class AttemptStatus(models.TextChoices):
 #: ``lifecycle.OPEN_STATUSES`` los deriva de la tabla de transiciones; una prueba exige que coincidan.
 OPEN_ATTEMPT_STATUSES = (AttemptStatus.IN_PROGRESS, AttemptStatus.PAUSED)
 
-#: Escala de los indicadores del intento: estrés, confianza en la persona y riesgo de la víctima.
-INDICATOR_MIN = 0
-INDICATOR_MAX = 100
-#: Un intento nuevo arranca sin estrés y con la confianza y el riesgo a media escala.
-INITIAL_STRESS_INDEX = 0
-INITIAL_VICTIM_RISK = 50
-INITIAL_USER_TRUST = 50
+#: Eventos de decisión REGISTRADA: los únicos que cuentan en el reporte y en el final. La primera respuesta riesgosa
+#: o contraindicada de una escena no se aplica (regla de reintento) y queda como evento ``*_RETRY_REQUIRED``, que se
+#: reporta aparte: contarla contradiría lo que el juego le promete a la persona.
+REGISTERED_DECISION_EVENT_TYPES = ("DECISION_SELECTED", "PROHIBITED_DECISION_SELECTED")
+RETRY_EVENT_TYPES = ("DECISION_RETRY_REQUIRED", "PROHIBITED_DECISION_RETRY_REQUIRED")
 
 
 def new_attempt_id():
@@ -60,13 +58,6 @@ class SimulationAttempt(models.Model):
     status = models.CharField(
         max_length=24, choices=AttemptStatus.choices, default=AttemptStatus.IN_PROGRESS
     )
-    accumulated_score = models.IntegerField(default=0, db_default=0)
-    stress_index = models.IntegerField(default=INITIAL_STRESS_INDEX, db_default=0)
-    # Clinical metrics (Flyway V8).
-    victim_risk = models.IntegerField(default=INITIAL_VICTIM_RISK, db_default=50)
-    user_trust = models.IntegerField(default=INITIAL_USER_TRUST, db_default=50)
-    institutional_route_activated = models.BooleanField(default=False, db_default=False)
-    revictimization_risk = models.BooleanField(default=False, db_default=False)
     started_at = models.DateTimeField(auto_now_add=True)
     ended_at = models.DateTimeField(null=True, blank=True)
     locked_at = models.DateTimeField(null=True, blank=True)
@@ -94,18 +85,6 @@ class SimulationAttempt(models.Model):
                 condition=models.Q(status__in=OPEN_ATTEMPT_STATUSES),
                 name="uq_attempts_open_per_student_case",
             ),
-            models.CheckConstraint(
-                condition=models.Q(stress_index__gte=INDICATOR_MIN, stress_index__lte=INDICATOR_MAX),
-                name="ck_attempts_stress_range",
-            ),
-            models.CheckConstraint(
-                condition=models.Q(victim_risk__gte=INDICATOR_MIN, victim_risk__lte=INDICATOR_MAX),
-                name="ck_attempts_victim_risk_range",
-            ),
-            models.CheckConstraint(
-                condition=models.Q(user_trust__gte=INDICATOR_MIN, user_trust__lte=INDICATOR_MAX),
-                name="ck_attempts_user_trust_range",
-            ),
         ]
         indexes = [
             models.Index(fields=["student", "status"], name="idx_attempts_student_status"),
@@ -124,8 +103,6 @@ class AttemptEvent(models.Model):
         DecisionOption, on_delete=models.DO_NOTHING, null=True, blank=True,
         db_column="decision_option_id",
     )
-    score_delta = models.IntegerField(default=0, db_default=0)
-    stress_delta = models.IntegerField(default=0, db_default=0)
     detail = models.TextField(null=True, blank=True)
     occurred_at = models.DateTimeField(auto_now_add=True)
     # Idempotencia (E1-3): el ``requestId`` que el cliente puso a la orden, en el evento primario de

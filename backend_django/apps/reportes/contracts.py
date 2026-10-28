@@ -98,6 +98,21 @@ class AnalyticsImprovementAfterFeedbackSerializer(serializers.Serializer):
     deltaPct = serializers.FloatField(help_text=f"Mejora como porcentaje del recorrido posible (3 puntos). {DELTA}")
 
 
+class AnalyticsMilestoneSerializer(serializers.Serializer):
+    """Cobertura de un hito del caso entre los intentos cerrados que traen hitos (reporte v3): ¿lo cumplió la mayoría?"""
+
+    key = serializers.CharField()
+    label = serializers.CharField(help_text="La del caso; si la consulta abarca varias versiones, la propia clave.")
+    decisive = serializers.BooleanField(help_text="Verdadero si el hito decide el final del caso.")
+    share = serializers.FloatField(
+        allow_null=True,
+        help_text=f"Solo con 20 estudiantes distintos o más; antes, nulo (un porcentaje identifica a personas). {PERCENT}",
+    )
+    category = serializers.ChoiceField(
+        choices=("MAYORIA", "MENOS_DE_LA_MITAD"), help_text="`MAYORIA` si al menos la mitad de los intentos lo cumplió."
+    )
+
+
 class AnalyticsDefinitionsSerializer(serializers.Serializer):
     """Con qué reglas se calculó. Mientras `status` sea `BORRADOR` ninguna cifra es oficial."""
 
@@ -122,6 +137,7 @@ class LearningAnalyticsSerializer(serializers.Serializer):
     evaluated = AnalyticsEvaluatedSerializer(required=False)
     satisfaction = AnalyticsSatisfactionSerializer(required=False)
     improvementAfterFeedback = AnalyticsImprovementAfterFeedbackSerializer(required=False)
+    milestones = AnalyticsMilestoneSerializer(many=True, required=False)
     definitions = AnalyticsDefinitionsSerializer()
 
 

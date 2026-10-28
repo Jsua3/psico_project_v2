@@ -12,8 +12,7 @@ import { formatDate } from './student-dashboard.util';
 function attempt(partial: Partial<StudentAttemptSummary>): StudentAttemptSummary {
   return {
     attemptId: 'a', caseVersionId: 1, caseTitle: 'Caso', status: 'COMPLETED',
-    accumulatedScore: 0, adequateDecisions: 0, riskyDecisions: 0,
-    inadequateDecisions: 0, prohibitedDecisions: 0, totalDurationSeconds: null,
+    totalDurationSeconds: null,
     activeDurationSeconds: null, startedAt: '2026-09-01T10:00:00Z', endedAt: null,
     ...partial,
   };
@@ -102,15 +101,14 @@ describe('StudentDashboardComponent', () => {
 
   it('cada cifra aparece UNA vez (sin la tarjeta de estado que repetía cuatro de seis) y el 0 se muestra como 0', async () => {
     await render({
-      attemptHistory: () => of([attempt({ status: 'SAFE_EXITED', accumulatedScore: 0 })]),
+      attemptHistory: () => of([attempt({ status: 'SAFE_EXITED' })]),
       listCases: () => of([caseSummary(1)]),
     });
     const labels = [...host().querySelectorAll('.ui-stat__label')].map(text);
-    expect(labels).toEqual(['Casos asignados', 'Intentos completados', 'Mejor puntaje', 'Tiempo activo']);
+    expect(labels).toEqual(['Casos asignados', 'Intentos completados', 'Tiempo activo']);
     expect(new Set(labels).size).toBe(labels.length);
     expect(statValue('Casos asignados')).toBe('1');
     expect(statValue('Intentos completados')).toBe('0');
-    expect(statValue('Mejor puntaje')).toBe('Pendiente');
     expect(statValue('Tiempo activo')).toBe('Sin datos');
   });
 
@@ -197,7 +195,7 @@ describe('StudentDashboardComponent', () => {
   it('intento abierto: UNA tarjeta «Continuar» que lleva al caso y dice si está en pausa, sin porcentaje inventado', async () => {
     await render({
       attemptHistory: () => of([
-        attempt({ attemptId: 'p', caseVersionId: 7, caseTitle: 'Caso en pausa', status: 'PAUSED', accumulatedScore: 40 }),
+        attempt({ attemptId: 'p', caseVersionId: 7, caseTitle: 'Caso en pausa', status: 'PAUSED' }),
         attempt({ attemptId: 'done', status: 'COMPLETED' }),
       ]),
     });
@@ -216,65 +214,52 @@ describe('StudentDashboardComponent', () => {
     expect(actions(/^Continuar$/)).toHaveLength(0);
   });
 
-  it('los tres gráficos tienen estado sin datos propio cuando su serie está vacía', async () => {
+  it('hay dos tarjetas, sin puntaje ni decisiones por clase: el progreso por caso y los últimos cierres', async () => {
     await render({ attemptHistory: () => of([attempt({ status: 'IN_PROGRESS' })]) });
     const charts = [...host().querySelectorAll('.sd-chart')];
-    expect(charts.map(chart => text(chart.querySelector('h3')))).toEqual(['Evolución de puntaje', 'Progreso por caso', 'Tus decisiones']);
-    expect(text(charts[0].querySelector('.sd-chart__empty'))).toBe('Aún sin puntajes: aparecerán cuando tus intentos sumen puntos.');
-    expect(charts[1].querySelector('.sd-chart__empty')).toBeNull();
-    expect(text(charts[2].querySelector('.sd-chart__empty'))).toBe('Aún sin decisiones registradas.');
+    expect(charts.map(chart => text(chart.querySelector('h3')))).toEqual(['Progreso por caso', 'Tus últimos cierres']);
+    expect(charts[0].querySelector('.sd-chart__empty')).toBeNull();
+    expect(text(charts[1].querySelector('.sd-chart__empty'))).toBe('Aún sin cierres: aparecerán cuando completes un caso.');
+    expect(host().querySelector('svg')).toBeNull();
+    expect(text(host())).not.toMatch(/puntaje|estrés|desempeño|\d+\s?%|Adecuadas|Riesgosas|Prohibidas/i);
   });
 
-  it('con datos, cada punto o barra tiene globo y los valores están en una tabla para el lector de pantalla', async () => {
+  it('con datos: cada barra tiene su cuenta y los tres últimos cierres llevan caso y fecha, sin números sueltos', async () => {
     await render({
       attemptHistory: () => of([
-        attempt({ attemptId: '1', caseTitle: 'Violencia familiar y tentativa de feminicidio', accumulatedScore: 30, adequateDecisions: 2, riskyDecisions: 1, startedAt: '2026-09-01T10:00:00Z' }),
-        attempt({ attemptId: '2', caseTitle: 'Violencia familiar y tentativa de feminicidio', status: 'SAFE_EXITED', accumulatedScore: 45, adequateDecisions: 1, startedAt: '2026-09-02T10:00:00Z' }),
+        attempt({ attemptId: '1', caseTitle: 'Violencia familiar y tentativa de feminicidio', startedAt: '2026-09-01T10:00:00Z' }),
+        attempt({ attemptId: '2', caseTitle: 'Violencia familiar y tentativa de feminicidio', status: 'SAFE_EXITED', startedAt: '2026-09-02T10:00:00Z' }),
       ]),
     });
-    const [score, progress, decisions] = [...host().querySelectorAll('.sd-chart')];
-    const svg = score.querySelector('svg')!;
-    expect(svg.getAttribute('role')).toBe('img');
-    expect(svg.getAttribute('aria-label')).toBe('Evolución de puntaje: 2 intentos, de 30 a 45 puntos');
-    expect(score.querySelectorAll('.sd-chart__hit')).toHaveLength(2);
-    const cells = (row: Element) => [...row.querySelectorAll('th, td')].map(text).join(' ');
-    expect([...score.querySelectorAll('.ds-sr-only table tbody tr')].map(cells)).toEqual([
-      `${formatDate('2026-09-01T10:00:00Z')} Violencia familiar y tentativa de feminicidio 30`,
-      `${formatDate('2026-09-02T10:00:00Z')} Violencia familiar y tentativa de feminicidio 45`,
-    ]);
+    const [progress, closings] = [...host().querySelectorAll('.sd-chart')];
     // Título entero en el DOM (lo recorta el CSS, no el código) y la cuenta en el globo.
     expect(text(progress.querySelector('.sd-bar__label'))).toBe('Violencia familiar y tentativa de feminicidio');
     expect(text(progress.querySelector('.sd-bar__value'))).toBe('1 de 2');
-    expect([...decisions.querySelectorAll('li')].map(text)).toEqual(['Adecuadas 3 (75 %)', 'Riesgosas 1 (25 %)']);
+    expect([...closings.querySelectorAll('.sd-closing')].map(text)).toEqual([
+      `Violencia familiar y tentativa de feminicidio ${formatDate('2026-09-01T10:00:00Z')}`,
+    ]);
   });
 
-  it('al pasar el ratón por un punto o una barra aparece su globo con el dato exacto', async () => {
+  it('al pasar el ratón por una barra aparece su globo con el dato exacto', async () => {
     await render({
       attemptHistory: () => of([
-        attempt({ attemptId: '1', caseTitle: 'Caso A', accumulatedScore: 30, startedAt: '2026-09-01T10:00:00Z' }),
-        attempt({ attemptId: '2', caseTitle: 'Caso A', status: 'SAFE_EXITED', accumulatedScore: 45, startedAt: '2026-09-02T10:00:00Z' }),
+        attempt({ attemptId: '1', caseTitle: 'Caso A', startedAt: '2026-09-01T10:00:00Z' }),
+        attempt({ attemptId: '2', caseTitle: 'Caso A', status: 'SAFE_EXITED', startedAt: '2026-09-02T10:00:00Z' }),
       ]),
     });
     vi.useFakeTimers();
     // El globo visible es el panel del overlay (las descripciones de AriaDescriber también llevan role="tooltip").
     const tooltip = () => text(document.querySelector('ui-tooltip-panel'));
-    const hover = async (el: Element) => {
-      el.dispatchEvent(new MouseEvent('mouseenter'));
-      await vi.advanceTimersByTimeAsync(450);
-    };
-    await hover(host().querySelectorAll('.sd-chart__hit')[1]);
-    expect(tooltip()).toBe(`${formatDate('2026-09-02T10:00:00Z')} · Caso A: 45 puntos`);
-    host().querySelectorAll('.sd-chart__hit')[1].dispatchEvent(new MouseEvent('mouseleave'));
-    await vi.advanceTimersByTimeAsync(300);
-    await hover(host().querySelector('.sd-bar')!);
+    host().querySelector('.sd-bar')!.dispatchEvent(new MouseEvent('mouseenter'));
+    await vi.advanceTimersByTimeAsync(450);
     expect(tooltip()).toBe('Caso A: 1 de 2 intentos completados');
   });
 
   it('el historial reciente va en una tabla con nombre, estados humanizados y el enlace al historial completo', async () => {
-    await render({ attemptHistory: () => of([attempt({ status: 'PAUSED', caseTitle: 'Caso A', accumulatedScore: 12 })]) });
+    await render({ attemptHistory: () => of([attempt({ status: 'PAUSED', caseTitle: 'Caso A' })]) });
     const table = host().querySelector('ui-table')!;
     expect(table.querySelector('[role="region"]')?.getAttribute('aria-label')).toBe('Tabla de tus últimos intentos');
-    expect([...table.querySelectorAll('th')].map(text)).toEqual(['Caso', 'Inicio', 'Estado', 'Puntaje']);
+    expect([...table.querySelectorAll('th')].map(text)).toEqual(['Caso', 'Inicio', 'Estado']);
     expect(text(table.querySelector('tbody ui-badge'))).toBe('En pausa (reanudable)');
     expect(table.querySelector('tbody')!.textContent).not.toMatch(/PAUSED|IN_PROGRESS/);
     expect(actions(/^Ver todo el historial$/)[0]?.getAttribute('href')).toBe('/portal/simulador');
@@ -282,7 +267,7 @@ describe('StudentDashboardComponent', () => {
 
   // Los estilos en línea los vigila ui:lint (inlineStyleAttr); las barras usan [style.--var], que sí vale (GUIA).
   it('sin restos de la identidad «pixel» del panel anterior (VD-3)', async () => {
-    await render({ attemptHistory: () => of([attempt({ accumulatedScore: 10 })]) });
+    await render({ attemptHistory: () => of([attempt({})]) });
     expect(host().querySelectorAll('.pixel-card, .pixel-panel, .pixel-badge, .pixel-progress')).toHaveLength(0);
   });
 });

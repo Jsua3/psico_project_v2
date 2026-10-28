@@ -6,6 +6,8 @@ JSON strings (not jsonb), so they are TextField and parsed in serializers.
 from django.conf import settings
 from django.db import models
 
+from apps.simulation.casedef.vocabulary import Intensity, ResponseClass
+
 
 class CaseVersionStatus(models.TextChoices):
     DRAFT = "DRAFT"
@@ -24,12 +26,6 @@ class ReviewReason(models.TextChoices):
 
     FORMA = "FORMA"
     CONTENIDO = "CONTENIDO"
-
-
-class DecisionClassification(models.TextChoices):
-    ADEQUATE = "ADEQUATE"
-    RISKY = "RISKY"
-    INADEQUATE = "INADEQUATE"
 
 
 class SimulationCase(models.Model):
@@ -85,8 +81,8 @@ class CaseVersion(models.Model):
     version = models.BigIntegerField(default=0, db_default=0)
     world_schema_version = models.IntegerField(default=1, db_default=1)
     # Reglas de la versión (JSON en TEXT, como los demás): ``secondChance`` (¿se concede una
-    # segunda oportunidad ante una primera respuesta riesgosa o inadecuada?) y ``feedbackTiming``
-    # (``IMMEDIATE`` | ``AT_CLOSE``). Ausente = segunda oportunidad apagada (ED-7). Ver
+    # segunda oportunidad ante una primera respuesta con riesgo o contraindicada?), ``milestones``,
+    # ``riskLevel`` y ``endings``. Ausente = segunda oportunidad apagada (ED-7). Ver
     # ``services/case_rules.py``.
     rules = models.TextField(default="{}", db_default="{}")
     # E2 (revisión de fase, R15): quién editó por última vez y desde qué revisión lo hace en
@@ -203,10 +199,19 @@ class SimulationNode(models.Model):
     decision_prompt = models.TextField(default="", db_default="")
     # Orden informativo con que el editor lista los nodos (E3-6, RF-08): no cambia el grafo.
     display_order = models.IntegerField(default=0, db_default=0)
+    # La intensidad de la escena (modelo de respuesta): ``LOW`` | ``MEDIUM`` | ``HIGH``; ``HIGH`` por defecto en las
+    # escenas con ``sensitive_content``. Ver ``casedef.vocabulary.Intensity``.
+    intensity = models.CharField(max_length=8, default=Intensity.MEDIUM.value, db_default=Intensity.MEDIUM.value)
+    # Sugerido por el asistente de IA y aún sin revisar (P5): la compuerta de publicación no deja pasar mientras esté en alto.
+    ai_suggested = models.BooleanField(default=False, db_default=False)
 
     class Meta:
         db_table = "simulation_nodes"
         constraints = [
+            models.CheckConstraint(
+                condition=models.Q(intensity__in=[member.value for member in Intensity]),
+                name="simulation_nodes_intensity_check",
+            ),
             models.UniqueConstraint(fields=["case_version", "node_key"], name="simulation_nodes_case_version_id_node_key_key"),
         ]
 
@@ -227,12 +232,7 @@ class DecisionOption(models.Model):
         db_column="target_node_id",
     )
     text = models.TextField()
-    classification = models.CharField(max_length=24, choices=DecisionClassification.choices)
-    score_delta = models.IntegerField(default=0, db_default=0)
-    stress_delta = models.IntegerField(default=0, db_default=0)
-    prohibited_penalty = models.IntegerField(default=0, db_default=0)
     immediate_feedback = models.TextField(default="")
-    prohibited_conduct = models.BooleanField(default=False, db_default=False)
     prohibition_reason = models.TextField(blank=True, null=True)
     # Consecuencia narrativa (lo que se ve al elegir) frente a retroalimentación pedagógica (lo
     # que se explica al cierre, con su fundamento): decisiones 6 y 10, RN-08 (E1-7). Vacíos: la
@@ -240,14 +240,24 @@ class DecisionOption(models.Model):
     consequence_text = models.TextField(blank=True, null=True)
     theory_basis = models.TextField(blank=True, null=True)
     feedback_text = models.TextField(blank=True, null=True)
-    # Los efectos de la opción como datos del caso (E3-8): ``{severity, flags{}, metrics{}}``. Vacío
-    # = la opción no trae efectos propios (severidad por clasificación y ningún cambio).
+    # Los efectos de la opción como datos del caso: ``{persona, milestones, competencies}``. Vacío = la opción no
+    # trae efectos propios (la persona se mueve según su clase y no marca hitos).
     effects = models.TextField(default="{}", db_default="{}")
+    # La clase de la respuesta (modelo de respuesta): ``RECOMMENDED`` | ``ACCEPTABLE`` | ``RISKY`` |
+    # ``CONTRAINDICATED``; ver ``casedef.vocabulary.ResponseClass``. Toda opción la tiene: la ``CONTRAINDICATED`` es la
+    # conducta que se debe evitar y exige ``prohibition_reason``.
+    response_class = models.CharField(max_length=24)
+    # Sugerido por el asistente de IA y aún sin revisar (P5): la compuerta de publicación no deja pasar mientras esté en alto.
+    ai_suggested = models.BooleanField(default=False, db_default=False)
 
     class Meta:
         db_table = "decision_options"
         constraints = [
-            models.CheckConstraint(condition=models.Q(classification__in=DecisionClassification.values), name="decision_options_classification_check"),
+            models.CheckConstraint(
+                condition=models.Q(response_class__isnull=True)
+                | models.Q(response_class__in=[member.value for member in ResponseClass]),
+                name="decision_options_response_class_check",
+            ),
             models.UniqueConstraint(fields=["case_version", "option_key"], name="decision_options_case_version_id_option_key_key"),
         ]
 

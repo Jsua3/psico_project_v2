@@ -1,10 +1,10 @@
-"""E6-1b · El perfil por competencia de un intento (RQ-NEG-001, RQ-NEG-002; mesa §A20, R3 a R5 de la fase).
+"""E6-1b · El perfil por competencia de un intento (RQ-NEG-001, RQ-NEG-002; mesa §A20, R3 a R5 de la fase; ``borrador-2``).
 
-Cada decisión registrada aporta un nivel a las competencias de la rúbrica del caso: por defecto el de su severidad
-(``recommended → DESTACADO``, ``acceptable → LOGRADO``, ``risky → EN_PROCESO``, ``critical → EN_INICIO``) para TODAS
-las competencias; si la opción declara ``effects.competencies`` aporta SOLO a esas y con esos niveles. El nivel de una
-competencia es el promedio de sus aportes (mitad hacia arriba) con un tope en ``EN_PROCESO`` si una decisión crítica
-por defecto la tocó. Son definiciones en BORRADOR (Psicología): la regla es una función y una tabla.
+Cada decisión registrada aporta SOLO a las competencias que su opción declara en ``effects.competencies`` y con el nivel
+que declara; una opción que no declara nada no aporta a ninguna (la competencia queda «sin evidencia»: lo prueba
+``test_competencies_by_class``). El nivel de una competencia es el promedio de sus aportes (mitad hacia arriba) con un
+tope en ``EN_PROCESO`` si una respuesta contraindicada la tocó. Son definiciones en BORRADOR (Psicología): la regla es una
+función y las tablas viven en ``assessment.competencies``.
 """
 import json
 import uuid
@@ -54,53 +54,19 @@ def test_el_nivel_de_una_competencia_es_el_promedio_con_tope_si_hubo_una_critica
     assert profile.level_of(contributions) == expected
 
 
-def test_la_tabla_de_severidades_es_la_del_borrador():
-    assert profile.LEVEL_BY_SEVERITY == {
-        "recommended": D, "acceptable": L, "risky": P, "critical": I,
-    }
-    assert profile.CRITICAL_CAP == P
-
-
 # ─── lo que aporta una decisión: puro ─────────────────────────────────────────────────────────
 def _option(classification="ADEQUATE", effects=None, prohibited=False):
+    """Una opción cuya clase sale de la clasificación del taller (``prohibited`` la vuelve contraindicada)."""
+    response_class = "CONTRAINDICATED" if prohibited else {
+        "ADEQUATE": "RECOMMENDED", "RISKY": "RISKY", "INADEQUATE": "CONTRAINDICATED",
+    }[classification]
     return DecisionOption(
-        option_key=f"o-{uuid.uuid4().hex[:6]}", classification=classification, prohibited_conduct=prohibited,
+        option_key=f"o-{uuid.uuid4().hex[:6]}", response_class=response_class,
         effects=json.dumps(effects) if effects is not None else None,
     )
 
 
 CODES = {"PAP", "ETICA", "RUTA"}
-
-
-@pytest.mark.parametrize(
-    ("option", "level", "critical"),
-    [
-        (_option("ADEQUATE"), D, False),
-        (_option("RISKY"), P, False),
-        (_option("INADEQUATE"), I, True),
-        (_option("ADEQUATE", prohibited=True), I, True),  # la conducta prohibida es crítica
-        (_option("INADEQUATE", {"severity": "acceptable"}), L, False),  # los efectos propios mandan sobre la clasificación
-        (_option("ADEQUATE", {"severity": "critical"}), I, True),
-    ],
-)
-def test_sin_competencias_declaradas_aporta_a_todas_con_el_nivel_de_su_severidad(option, level, critical):
-    assert profile.contributions(option, CODES) == {code: (level, critical) for code in CODES}
-
-
-def test_con_competencias_declaradas_aporta_solo_a_esas_y_con_esos_niveles():
-    option = _option("INADEQUATE", {"competencies": {"PAP": "DESTACADO", "ETICA": "EN_INICIO"}})
-
-    assert profile.contributions(option, CODES) == {"PAP": (D, False), "ETICA": (I, False)}
-
-
-def test_una_conducta_prohibida_pone_tope_aunque_el_autor_fije_la_severidad_o_declare_el_nivel():
-    """«Una conducta revictimizante no puede dar logrado»: el tope es de la conducta, no de la severidad que se le puso."""
-    by_severity = _option("ADEQUATE", {"severity": "acceptable"}, prohibited=True)
-    by_override = _option("ADEQUATE", {"competencies": {"PAP": "DESTACADO"}}, prohibited=True)
-
-    assert profile.contributions(by_severity, CODES) == {code: (L, True) for code in CODES}
-    assert profile.contributions(by_override, CODES) == {"PAP": (D, True)}
-    assert profile.level_of([profile.contributions(by_override, CODES)["PAP"]]) == P
 
 
 def test_un_codigo_que_no_es_de_la_rubrica_se_ignora_y_si_no_queda_ninguno_no_aporta_a_nadie():
@@ -163,40 +129,40 @@ def test_las_competencias_de_la_rubrica_salen_una_vez_en_el_orden_de_los_criteri
     ]
 
 
-def test_un_recorrido_todo_adecuado_da_destacado_en_todas(version, rubric):
-    events = [_event(_option("ADEQUATE")) for _ in range(4)]
+def test_un_recorrido_que_declara_destacado_en_todas_da_destacado_en_todas(version, rubric):
+    declared = {"T3_PAP": "DESTACADO", "T3_ETICA": "DESTACADO", "REFLEXION_Y_BITACORA": "DESTACADO"}
+    events = [_event(_option("ADEQUATE", {"competencies": declared})) for _ in range(4)]
 
     levels = profile.competency_profile(_attempt(version), events)
 
-    assert levels == [
-        {"code": "T3_PAP", "name": "Primeros auxilios psicológicos", "level": "DESTACADO", "basis": "DEFAULT"},
-        {"code": "T3_ETICA", "name": "Ética profesional", "level": "DESTACADO", "basis": "DEFAULT"},
-        {"code": "REFLEXION_Y_BITACORA", "name": "Reflexión y bitácora", "level": "DESTACADO", "basis": "DEFAULT"},
+    assert [{k: v for k, v in e.items() if k != "evidence"} for e in levels] == [
+        {"code": "T3_PAP", "name": "Primeros auxilios psicológicos", "level": "DESTACADO", "basis": "DECLARED"},
+        {"code": "T3_ETICA", "name": "Ética profesional", "level": "DESTACADO", "basis": "DECLARED"},
+        {"code": "REFLEXION_Y_BITACORA", "name": "Reflexión y bitácora", "level": "DESTACADO", "basis": "DECLARED"},
     ]
+    assert all(len(e["evidence"]) == 4 for e in levels)
 
 
-def test_una_decision_critica_por_defecto_deja_a_todas_en_en_proceso_como_maximo(version, rubric):
-    events = [_event(_option("ADEQUATE")) for _ in range(5)] + [_event(_option("INADEQUATE"))]
+def test_una_contraindicada_que_declara_todas_las_deja_en_en_proceso_como_maximo(version, rubric):
+    declared = {"T3_PAP": "DESTACADO", "T3_ETICA": "DESTACADO", "REFLEXION_Y_BITACORA": "DESTACADO"}
+    events = [_event(_option("ADEQUATE", {"competencies": declared})) for _ in range(5)]
+    events.append(_event(_option("INADEQUATE", {"competencies": declared})))
 
     levels = profile.competency_profile(_attempt(version), events)
 
-    assert {entry["level"] for entry in levels} == {"EN_PROCESO"}  # el promedio es 3,5 → DESTACADO, con tope
+    assert {entry["level"] for entry in levels} == {"EN_PROCESO"}  # el promedio es 4, con tope
 
 
-def test_las_competencias_declaradas_sobrescriben_y_las_demas_decisiones_siguen_aportando_a_todas(version, rubric):
+def test_cada_decision_aporta_solo_a_las_competencias_que_declara(version, rubric):
     events = [
         _event(_option("RISKY", {"competencies": {"T3_PAP": "DESTACADO"}})),  # solo PAP, con DESTACADO
         _event(_option("ADEQUATE", {"competencies": {"T3_ETICA": "LOGRADO"}})),  # solo ETICA, con LOGRADO
-        _event(_option("INADEQUATE")),  # por defecto: todas, EN_INICIO y crítica
+        _event(_option("INADEQUATE")),  # no declara nada: no aporta a nadie
     ]
 
     by_code = {e["code"]: e["level"] for e in profile.competency_profile(_attempt(version), events)}
 
-    assert by_code == {
-        "T3_PAP": "EN_PROCESO",  # (4 + 1) / 2 = 2,5 → 3 (LOGRADO), con el tope de la crítica
-        "T3_ETICA": "EN_PROCESO",  # (3 + 1) / 2 = 2 → EN_PROCESO
-        "REFLEXION_Y_BITACORA": "EN_INICIO",  # solo la crítica
-    }
+    assert by_code == {"T3_PAP": "DESTACADO", "T3_ETICA": "LOGRADO", "REFLEXION_Y_BITACORA": None}
 
 
 def test_una_competencia_sin_ninguna_decision_que_la_toque_queda_sin_nivel(version, rubric):
@@ -215,41 +181,39 @@ def test_una_conducta_prohibida_con_el_nivel_declarado_nunca_da_logrado_en_la_co
     assert by_code["T3_PAP"] == "EN_PROCESO"  # DESTACADO declarado, con el tope de la conducta prohibida
 
 
-# ─── de dónde sale el nivel: declarado por el autor o inferido de la severidad (hallazgo I-2 de la revisión) ───
-def test_cada_entrada_dice_si_su_nivel_se_infirio_de_la_severidad_o_lo_declaro_el_autor(version, rubric):
+# ─── de dónde sale el nivel: siempre lo declara el autor ──────────────────────────────────────
+def test_cada_entrada_dice_que_su_nivel_lo_declaro_el_autor_o_que_no_tiene_base(version, rubric):
     declared = _event(_option("RISKY", {"competencies": {"T3_PAP": "DESTACADO"}}))
-    inferred = _event(_option("ADEQUATE"))
+    undeclared = _event(_option("ADEQUATE"))
 
-    only_default = profile.competency_profile(_attempt(version), [inferred])
-    mixed = profile.competency_profile(_attempt(version), [declared, inferred])
-    only_declared = profile.competency_profile(_attempt(version), [declared])
+    only_undeclared = profile.competency_profile(_attempt(version), [undeclared])
+    mixed = profile.competency_profile(_attempt(version), [declared, undeclared])
 
-    assert {e["code"]: e["basis"] for e in only_default} == {
-        "T3_PAP": "DEFAULT", "T3_ETICA": "DEFAULT", "REFLEXION_Y_BITACORA": "DEFAULT"}
+    assert {e["code"]: e["basis"] for e in only_undeclared} == {
+        "T3_PAP": None, "T3_ETICA": None, "REFLEXION_Y_BITACORA": None}  # lo no declarado no es evidencia
     assert {e["code"]: e["basis"] for e in mixed} == {
-        "T3_PAP": "MIXED", "T3_ETICA": "DEFAULT", "REFLEXION_Y_BITACORA": "DEFAULT"}
-    assert {e["code"]: e["basis"] for e in only_declared} == {
-        "T3_PAP": "DECLARED", "T3_ETICA": None, "REFLEXION_Y_BITACORA": None}  # sin evidencia: sin base
+        "T3_PAP": "DECLARED", "T3_ETICA": None, "REFLEXION_Y_BITACORA": None}
 
 
 def test_una_competencia_sin_evidencia_no_tiene_nivel_ni_base(version, rubric):
     entries = profile.competency_profile(_attempt(version), [])
 
-    assert [(e["level"], e["basis"]) for e in entries] == [(None, None)] * 3
+    assert [(e["level"], e["basis"], e["evidence"]) for e in entries] == [(None, None, [])] * 3
 
 
 def test_la_version_de_la_regla_del_perfil_es_la_de_las_definiciones():
-    """Se sella en cada reporte; cambia al cambiar la tabla severidad → nivel, el tope o el promedio."""
-    assert profile.PROFILE_RULES == definitions.PROFILE_RULES and definitions.PROFILE_RULES == "borrador-1"
+    """Se sella en cada reporte; cambia al cambiar las tablas de nivel, el tope o el promedio."""
+    assert profile.PROFILE_RULES == definitions.PROFILE_RULES and definitions.PROFILE_RULES == "borrador-2"
 
 
 def test_solo_cuentan_las_decisiones_registradas(version, rubric):
     """Los reintentos (la primera respuesta que el juego no aplicó) y los demás eventos no aportan."""
+    declared = {"T3_PAP": "DESTACADO", "T3_ETICA": "DESTACADO", "REFLEXION_Y_BITACORA": "DESTACADO"}
     events = [
-        _event(_option("INADEQUATE"), "DECISION_RETRY_REQUIRED"),
-        _event(_option("INADEQUATE"), "PROHIBITED_DECISION_RETRY_REQUIRED"),
+        _event(_option("INADEQUATE", {"competencies": declared}), "DECISION_RETRY_REQUIRED"),
+        _event(_option("INADEQUATE", {"competencies": declared}), "PROHIBITED_DECISION_RETRY_REQUIRED"),
         SimpleNamespace(event_type="NODE_ENTERED", decision_option_id=None, decision_option=None),
-        _event(_option("ADEQUATE")),
+        _event(_option("ADEQUATE", {"competencies": declared})),
     ]
 
     levels = profile.competency_profile(_attempt(version), events)
@@ -271,8 +235,9 @@ def test_una_rubrica_sin_criterios_activos_da_un_perfil_vacio(owner, version):
 
 
 def test_el_numero_de_consultas_no_crece_con_las_decisiones(version, rubric):
-    few = [_event(_option("ADEQUATE")) for _ in range(1)]
-    many = [_event(_option("RISKY")) for _ in range(40)]
+    declared = {"T3_PAP": "LOGRADO", "T3_ETICA": "LOGRADO"}
+    few = [_event(_option("ADEQUATE", {"competencies": declared})) for _ in range(1)]
+    many = [_event(_option("RISKY", {"competencies": declared})) for _ in range(40)]
 
     _, small = measure(lambda: profile.competency_profile(_attempt(version), few))
     _, large = measure(lambda: profile.competency_profile(_attempt(version), many))

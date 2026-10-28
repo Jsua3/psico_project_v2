@@ -3,6 +3,7 @@
 Cada mutación de autoría devuelve esta vista completa, así que casi todo el
 subsistema depende de este módulo.
 """
+from apps.simulation.casedef.vocabulary import ResponseClass
 from apps.simulation.models import (
     CaseCharacter,
     CaseReview,
@@ -16,6 +17,8 @@ from apps.simulation.models import (
     SceneMap,
     SimulationNode,
 )
+from apps.simulation.services import case_rules
+from apps.simulation.services.case_state import response_class_of
 from shared.jsonutils import read_map as _read_map, read_string_list as _read_string_list
 
 from . import checklist as checklist_rules
@@ -52,6 +55,7 @@ def editor(case_version_id):
         "status": version.status,
         "context": version.narrative_context or "",
         "learningObjectives": _read_string_list(version.learning_objectives),
+        "rules": rules_state(version),
         "nodes": [node_editor_state(n) for n in nodes],
         "decisions": [decision_edge(d) for d in decisions],
         "maps": [map_editor_state(m) for m in maps],
@@ -77,6 +81,22 @@ def editor(case_version_id):
         "checklistCompletion": checklist,
         "publishable": checklist >= 100,
         "checklist": checklist_view(case_version_id, latest),
+    }
+
+
+def rules_state(version):
+    """Las reglas del modelo como las lee el editor: ``{milestones[], riskLevel, endings[]}``, normalizadas.
+
+    Lo que el cliente lee aquí es lo que escribe con ``PUT …/rules/{milestones,risk,endings}``.
+    """
+    rules = case_rules.rules_of(version)
+    return {
+        "milestones": [
+            {"key": m.key, "label": m.label, "description": m.description, "decisive": m.decisive}
+            for m in rules.milestones
+        ],
+        "riskLevel": rules.risk_level.value if rules.risk_level else None,
+        "endings": [dict(e) for e in rules.endings],
     }
 
 
@@ -190,6 +210,8 @@ def node_editor_state(node):
         "positionY": node.position_y,
         "decisionPrompt": node.decision_prompt,
         "displayOrder": node.display_order,
+        "intensity": node.intensity,
+        "aiSuggested": node.ai_suggested,
     }
 
 
@@ -202,17 +224,16 @@ def decision_edge(d):
         "targetNodeId": d.target_node_id,
         "targetKey": d.target_node.node_key,
         "text": d.text,
-        "classification": d.classification,
-        "prohibitedConduct": d.prohibited_conduct,
+        "responseClass": response_class_of(d).value,
+        # Derivada: la casilla «conducta contraindicada» del editor y el grafo la leen; la clase es la fuente.
+        "prohibitedConduct": response_class_of(d) is ResponseClass.CONTRAINDICATED,
         "prohibitionReason": d.prohibition_reason,
-        "scoreDelta": d.score_delta,
-        "stressDelta": d.stress_delta,
-        "prohibitedPenalty": d.prohibited_penalty,
         "immediateFeedback": d.immediate_feedback,
         "consequenceText": d.consequence_text,
         "theoryBasis": d.theory_basis,
         "feedbackText": d.feedback_text,
         "effects": _read_map(d.effects),
+        "aiSuggested": d.ai_suggested,
     }
 
 
@@ -252,6 +273,7 @@ def map_object_editor(o):
         "characterId": o.character_id,
         "toolCode": o.tool_code,
         "mapId": o.scene_map_id,
+        "aiSuggested": o.ai_suggested,
     }
 
 
@@ -294,12 +316,10 @@ def rubric_view(rubric):
                 "competency": c.competency,
                 "title": c.title,
                 "description": c.description,
-                "maxScore": c.max_score,
                 "displayOrder": c.display_order,
             }
             for c in RubricCriterion.objects.filter(rubric_id=rubric.id).order_by("display_order")
         ],
         "scores": [],
-        "totalScore": None,
         "comment": None,
     }

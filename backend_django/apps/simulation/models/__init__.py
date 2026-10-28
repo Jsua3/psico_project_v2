@@ -1,9 +1,6 @@
 from .attempt import (  # noqa: F401
-    INDICATOR_MAX,
-    INDICATOR_MIN,
-    INITIAL_STRESS_INDEX,
-    INITIAL_USER_TRUST,
-    INITIAL_VICTIM_RISK,
+    REGISTERED_DECISION_EVENT_TYPES,
+    RETRY_EVENT_TYPES,
     AttemptEvent,
     AttemptFeedback,
     AttemptHintView,
@@ -17,7 +14,6 @@ from .case import (  # noqa: F401
     CaseReview,
     CaseVersion,
     CaseVersionStatus,
-    DecisionClassification,
     DecisionOption,
     ReviewDecision,
     ReviewReason,
@@ -27,6 +23,7 @@ from .case import (  # noqa: F401
 from .rubric import (  # noqa: F401
     LEVEL_INDEX,
     AuditLog,
+    AuthoringAssistantUsage,
     Competency,
     CriterionScore,
     EvaluationOrigin,

@@ -1,7 +1,9 @@
 """E3-8 · El evaluador de condiciones de los finales (R11): un árbol JSON sin ``eval``.
 
-Sin base de datos. Cada operador, el anidamiento, los tipos equivocados y lo desconocido; y que
-una cadena con código no se ejecuta nunca.
+Sin base de datos. Cada operador, el anidamiento, los tipos equivocados y lo desconocido; y que una cadena con código no
+se ejecuta nunca. El vocabulario es el vigente (``all``, ``any``, ``not``, ``milestone``, ``count`` por clase y
+``persona``, este último en ``test_conditions_v2``); el del modelo antiguo (``flag``, ``metric`` y el conteo por
+severidad) ya no existe y evalúa a falso.
 """
 import os
 
@@ -13,45 +15,43 @@ from apps.simulation.services.conditions import evaluate, is_valid
 pytestmark = [pytest.mark.req("RNF-008"), pytest.mark.req("TD-02")]
 
 CONTEXT = {
-    "flags": {"pap_aplicado": True, "apagada": False},
-    "metrics": {"confianza": 60, "crisis_emocional": 20},
-    "counts": {"recommended": 4, "acceptable": 1, "risky": 0, "critical": 2},
+    "milestones": {"valoro_riesgo", "informo_derechos"},
+    "counts": {"recommended": 4, "acceptable": 1, "risky": 0, "contraindicated": 2},
 }
 
 
 # ─── operadores ───────────────────────────────────────────────────────────────────────────────
-def test_flag_is_true_only_when_the_flag_is_on():
-    assert evaluate({"flag": "pap_aplicado"}, CONTEXT) is True
-    assert evaluate({"flag": "apagada"}, CONTEXT) is False
-    assert evaluate({"flag": "no_existe"}, CONTEXT) is False
-
-
-@pytest.mark.parametrize(
-    "comparator,bound,expected",
-    [("gte", 60, True), ("gte", 61, False), ("gt", 59, True), ("gt", 60, False),
-     ("lte", 60, True), ("lte", 59, False), ("lt", 61, True), ("lt", 60, False),
-     ("eq", 60, True), ("eq", 59, False)],
-)
-def test_metric_comparators(comparator, bound, expected):
-    assert evaluate({"metric": "confianza", comparator: bound}, CONTEXT) is expected
-
-
-def test_several_comparators_must_all_hold():
-    assert evaluate({"metric": "confianza", "gte": 50, "lte": 70}, CONTEXT) is True
-    assert evaluate({"metric": "confianza", "gte": 50, "lt": 60}, CONTEXT) is False
+def test_milestone_is_true_only_when_the_milestone_is_done():
+    assert evaluate({"milestone": "valoro_riesgo"}, CONTEXT) is True
+    assert evaluate({"milestone": "no_hecho"}, CONTEXT) is False
 
 
 @pytest.mark.parametrize(
     "name,comparator,bound,expected",
-    [("recommended", "gte", 4, True), ("critical", "eq", 0, False), ("risky", "eq", 0, True),
-     ("critical", "gte", 2, True), ("acceptable", "lte", 0, False)],
+    [("recommended", "gte", 4, True), ("contraindicated", "eq", 0, False), ("risky", "eq", 0, True),
+     ("contraindicated", "gte", 2, True), ("acceptable", "lte", 0, False)],
 )
 def test_count_comparators(name, comparator, bound, expected):
     assert evaluate({"count": name, comparator: bound}, CONTEXT) is expected
 
 
+@pytest.mark.parametrize(
+    "comparator,bound,expected",
+    [("gte", 4, True), ("gte", 5, False), ("gt", 3, True), ("gt", 4, False),
+     ("lte", 4, True), ("lte", 3, False), ("lt", 5, True), ("lt", 4, False),
+     ("eq", 4, True), ("eq", 3, False)],
+)
+def test_every_comparator(comparator, bound, expected):
+    assert evaluate({"count": "recommended", comparator: bound}, CONTEXT) is expected
+
+
+def test_several_comparators_must_all_hold():
+    assert evaluate({"count": "recommended", "gte": 3, "lte": 5}, CONTEXT) is True
+    assert evaluate({"count": "recommended", "gte": 3, "lt": 4}, CONTEXT) is False
+
+
 def test_all_any_and_not():
-    yes, no = {"flag": "pap_aplicado"}, {"flag": "apagada"}
+    yes, no = {"milestone": "valoro_riesgo"}, {"milestone": "no_hecho"}
 
     assert evaluate({"all": [yes, {"count": "recommended", "gte": 1}]}, CONTEXT) is True
     assert evaluate({"all": [yes, no]}, CONTEXT) is False
@@ -68,51 +68,36 @@ def test_an_empty_all_is_true_and_an_empty_any_is_false():
 
 def test_nesting_composes():
     condition = {"any": [
-        {"count": "critical", "gte": 3},
-        {"all": [{"flag": "pap_aplicado"}, {"not": {"metric": "crisis_emocional", "gt": 50}}]},
+        {"count": "contraindicated", "gte": 3},
+        {"all": [{"milestone": "valoro_riesgo"}, {"not": {"count": "risky", "gt": 0}}]},
     ]}
 
     assert evaluate(condition, CONTEXT) is True
-
-
-def test_the_four_default_endings_are_expressible_as_data():
-    """Las condiciones del caso PDF se evalúan con el mismo evaluador (R10)."""
-    from apps.simulation.services.case_effects import DEFAULT_ENDINGS
-
-    by_key = {e["key"]: e for e in DEFAULT_ENDINGS}
-    context = {
-        "flags": {"mediacion_agresor_intentada": True},
-        "metrics": {},
-        "counts": {"recommended": 0, "acceptable": 0, "risky": 0, "critical": 0},
-    }
-
-    assert evaluate(by_key["critico"]["when"], context) is True  # mediación sin protección
-    assert "when" not in by_key["brechas"]  # el último es el valor por defecto
-    for ending in DEFAULT_ENDINGS:
-        assert "when" not in ending or is_valid(ending["when"])
 
 
 # ─── lo que no es una condición ───────────────────────────────────────────────────────────────
 @pytest.mark.parametrize(
     "condition",
     [
-        None, "pap_aplicado", 5, [], [{"flag": "pap_aplicado"}], {},
+        None, "valoro_riesgo", 5, [], [{"milestone": "valoro_riesgo"}], {},
         {"unknown": 1},
-        {"flag": 7},
-        {"flag": ["pap_aplicado"]},
-        {"metric": "confianza"},                      # sin comparador
-        {"metric": "confianza", "gte": "50"},          # límite que no es número
-        {"metric": "confianza", "gte": True},          # un booleano no es un número
-        {"metric": "no_existe", "gte": 0},             # métrica que el caso no declara
-        {"metric": 5, "gte": 0},
-        {"count": "mortal", "gte": 0},                 # severidad desconocida
-        {"count": "critical"},
+        {"milestone": 7},
+        {"milestone": ""},
+        {"milestone": ["valoro_riesgo"]},
+        {"count": "recommended"},                     # sin comparador
+        {"count": "recommended", "gte": "4"},          # límite que no es número
+        {"count": "recommended", "gte": True},         # un booleano no es un número
+        {"count": "mortal", "gte": 0},                 # clase desconocida
         {"all": "no es una lista"},
-        {"any": {"flag": "pap_aplicado"}},
-        {"all": [{"flag": "pap_aplicado"}], "any": []},  # dos operadores a la vez
-        {"flag": "pap_aplicado", "extra": 1},
+        {"any": {"milestone": "valoro_riesgo"}},
+        {"all": [{"milestone": "valoro_riesgo"}], "any": []},  # dos operadores a la vez
+        {"milestone": "valoro_riesgo", "extra": 1},
         {"not": {"unknown": 1}},                       # negar lo desconocido no lo vuelve verdadero
         {"not": None},
+        # el vocabulario del modelo antiguo ya no existe
+        {"flag": "pap_aplicado"},
+        {"metric": "confianza", "gte": 0},
+        {"count": "critical", "eq": 0},
     ],
 )
 def test_anything_unknown_or_malformed_is_false(condition):
@@ -120,14 +105,13 @@ def test_anything_unknown_or_malformed_is_false(condition):
 
 
 def test_a_missing_or_broken_context_is_false_not_an_error():
-    assert evaluate({"flag": "x"}, {}) is False
-    assert evaluate({"metric": "confianza", "gte": 0}, {"metrics": None}) is False
-    assert evaluate({"count": "critical", "eq": 0}, {"counts": []}) is False
-    assert evaluate({"flag": "x"}, None) is False
+    assert evaluate({"milestone": "x"}, {}) is False
+    assert evaluate({"count": "risky", "eq": 0}, {"counts": []}) is False
+    assert evaluate({"milestone": "x"}, None) is False
 
 
 def test_too_deep_a_tree_is_false_instead_of_blowing_the_stack():
-    condition = {"flag": "pap_aplicado"}
+    condition = {"milestone": "valoro_riesgo"}
     for _ in range(conditions.MAX_DEPTH + 2):
         condition = {"all": [condition]}
 
@@ -142,15 +126,14 @@ def test_a_string_of_code_is_a_name_that_does_not_exist_and_is_never_executed(mo
     monkeypatch.setattr(os, "system", lambda *a, **k: called.append(a))
 
     results = [
-        evaluate({"flag": code}, CONTEXT),
-        evaluate({"metric": code, "gte": 0}, CONTEXT),
+        evaluate({"milestone": code}, CONTEXT),
         evaluate({"count": code, "gte": 0}, CONTEXT),
         evaluate({code: True}, CONTEXT),
         evaluate({"all": [code]}, CONTEXT),
         evaluate(code, CONTEXT),
     ]
 
-    assert results == [False] * 6
+    assert results == [False] * 5
     assert called == []
     assert not marker.exists()
 
@@ -159,11 +142,10 @@ def test_a_string_of_code_is_a_name_that_does_not_exist_and_is_never_executed(mo
 @pytest.mark.parametrize(
     "condition",
     [
-        {"flag": "pap_aplicado"},
-        {"metric": "confianza", "gte": 50},
+        {"milestone": "valoro_riesgo"},
         {"count": "risky", "lte": 1},
         {"all": []},
-        {"not": {"any": [{"flag": "a"}, {"count": "critical", "eq": 0}]}},
+        {"not": {"any": [{"milestone": "a"}, {"count": "contraindicated", "eq": 0}]}},
     ],
 )
 def test_is_valid_accepts_the_whole_vocabulary(condition):
@@ -172,8 +154,9 @@ def test_is_valid_accepts_the_whole_vocabulary(condition):
 
 @pytest.mark.parametrize(
     "condition",
-    [{}, {"unknown": 1}, {"flag": ""}, {"metric": "m"}, {"count": "x", "gte": 1}, {"not": {}},
-     {"all": [{"flag": "a"}, {"nope": 1}]}, {"metric": "m", "gte": "1"}],
+    [{}, {"unknown": 1}, {"milestone": ""}, {"count": "risky"}, {"count": "x", "gte": 1}, {"not": {}},
+     {"all": [{"milestone": "a"}, {"nope": 1}]}, {"count": "risky", "gte": "1"},
+     {"flag": "pap_aplicado"}, {"metric": "confianza", "gte": 50}, {"count": "critical", "eq": 0}],
 )
 def test_is_valid_rejects_what_the_evaluator_would_not_understand(condition):
     assert is_valid(condition) is False

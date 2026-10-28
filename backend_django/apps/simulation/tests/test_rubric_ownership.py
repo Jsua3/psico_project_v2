@@ -202,12 +202,12 @@ def test_the_rubric_dto_says_who_owns_it_and_whether_the_viewer_can_edit_it(prof
     assert listed[global_default.id]["editable"] is False
 
 
-def test_the_criteria_say_their_score_range(prof_a):
+def test_the_criteria_carry_no_score_range(prof_a):
     detail = cl(prof_a).get(f"{BASE}/{_create(prof_a)}").data["data"]
 
     assert detail["criteria"]
     for criterion in detail["criteria"]:
-        assert (criterion["minScore"], criterion["step"]) == (1.0, 0.5)
+        assert not {"minScore", "maxScore", "step"} & set(criterion)
 
 
 def test_a_read_only_rubric_says_why_with_its_own_code(prof_a, global_default):

@@ -61,6 +61,7 @@ _SEUDONIMO = (
     "listado seudonimizado (alias por docente) dentro de su alcance; leer el detalle de un intento "
     "(traza, evaluación, reporte) sí queda auditado"
 )
+_CATALOGO = "catálogo de lugares, salas y objetos de la biblioteca (archivos del servidor): no son datos de personas"
 _ESTATICO = "plantilla o especificación estática: no lee datos de nadie"
 _INTENTO_PROPIO = (
     "estado de juego del propio intento: el hecho queda en la traza del intento (attempt_events), que se audita al leerla"
@@ -86,6 +87,10 @@ _AUTORIA = {
     ("", "GET"): _exento(_CONTENIDO),
     ("", "POST"): "CASE_CREATED",
     ("/import", "POST"): "CASE_IMPORTED",
+    # P5 · el asistente de IA de autoría: ``status`` solo lee el cupo de quien llama y su propio caso.
+    (f"{_CV}/assistant/status", "GET"): _exento(_PROPIO),
+    (f"{_CV}/assistant/propose", "POST"): "AI_AUTHORING_PROPOSE",
+    (f"{_CV}/assistant/guide", "POST"): "AI_AUTHORING_GUIDE",
     (f"{_CV}/brief", "PUT"): "ADMIN_UPDATE_BRIEF",
     (f"{_CV}/characters", "POST"): "ADMIN_CREATE_CHARACTER",
     (f"{_CV}/characters/<int:character_id>", "PUT"): "ADMIN_UPDATE_CHARACTER",
@@ -111,12 +116,23 @@ _AUTORIA = {
     (f"{_CV}/maps/<int:map_id>/hints", "POST"): "ADMIN_CREATE_HINT",
     (f"{_CV}/maps/<int:map_id>/objects", "POST"): "ADMIN_CREATE_OBJECT",
     (f"{_CV}/nodes", "POST"): "ADMIN_CREATE_NODE",
+    (f"{_CV}/nodes/<int:node_id>/accept-ai", "POST"): "ADMIN_ACCEPT_AI_NODE",
+    (f"{_CV}/decisions/<int:decision_id>/accept-ai", "POST"): "ADMIN_ACCEPT_AI_DECISION",
+    (f"{_CV}/dialogues/<int:tree_id>/accept-ai", "POST"): "ADMIN_ACCEPT_AI_DIALOGUE",
+    (f"{_CV}/objects/<int:object_id>/accept-ai", "POST"): "ADMIN_ACCEPT_AI_OBJECT",
+    # Las reglas de métricas (hitos, riesgo y finales) vienen de la rama de métricas; se declaran aquí para la compuerta.
+    (f"{_CV}/rules/milestones", "PUT"): "ADMIN_UPDATE_MILESTONES",
+    (f"{_CV}/rules/risk", "PUT"): "ADMIN_UPDATE_RISK",
+    (f"{_CV}/rules/endings", "PUT"): "ADMIN_UPDATE_ENDINGS",
     (f"{_CV}/nodes/<int:node_id>", "PUT"): "ADMIN_UPDATE_NODE",
     (f"{_CV}/nodes/<int:node_id>", "DELETE"): "ADMIN_DELETE_NODE",
     (f"{_CV}/nodes/reorder", "PATCH"): "ADMIN_REORDER_NODES",
     (f"{_CV}/objects/<int:object_id>", "PUT"): "ADMIN_UPDATE_OBJECT",
     (f"{_CV}/objects/<int:object_id>", "DELETE"): "ADMIN_DELETE_OBJECT",
     (f"{_CV}/publish", "POST"): "ADMIN_PUBLISH_CASE",
+    (f"{_CV}/rules/milestones", "PUT"): "ADMIN_UPDATE_MILESTONES",
+    (f"{_CV}/rules/risk", "PUT"): "ADMIN_UPDATE_RISK",
+    (f"{_CV}/rules/endings", "PUT"): "ADMIN_UPDATE_ENDINGS",
     (f"{_CV}/tools", "POST"): "ADMIN_CREATE_TOOL",
     (f"{_CV}/tools/<int:tool_id>", "PUT"): "ADMIN_UPDATE_TOOL",
     (f"{_CV}/tools/<int:tool_id>", "DELETE"): "ADMIN_DELETE_TOOL",
@@ -218,6 +234,9 @@ AUDIT_BY_ROUTE: dict[tuple[str, str], str] = {
     ("api/rubrics/case-versions/<int:case_version_id>", "PUT"): "RUBRIC_UPDATED",
     ("api/competencies", "GET"): _exento(_RUBRICAS),
     ("api/competencies", "POST"): "COMPETENCY_CREATED",
+    # ── La biblioteca de lugares del editor de casos (P6) ──
+    ("api/biblioteca/lugares", "GET"): _exento(_CATALOGO),
+    ("api/biblioteca/lugares/<str:lugar_id>", "GET"): _exento(_CATALOGO),
     # ── El juego del estudiante ──
     ("api/simulation/ai-assistant", "POST"): "AI_ASSISTANT_QUERY",
     ("api/simulation/attempts", "POST"): "ATTEMPT_STARTED",

@@ -1,9 +1,9 @@
 """E3-8 · Efectos, métricas y finales del caso como datos de la versión (RNF-008, TD-02).
 
-``decision_options.effects`` y ``case_versions.rules.{metrics, endings}`` son la fuente. Una opción
-sin efectos cae a la severidad por clasificación; un caso sin finales propios no tiene final (o
-usa los del caso PDF si declara sus siete métricas); un dato malformado en la base nunca rompe una
-partida (Review Focus 5) y se rechaza al autorarlo; y el reporte ya cerrado no cambia.
+``decision_options.effects`` y ``case_versions.rules.{milestones, endings}`` son la fuente. Una opción
+sin efectos cae a la clase que dan su clasificación y su conducta; un caso con finales propios los usa y
+uno sin ellos termina con la plantilla de finales por hitos (Tarea 6); un dato malformado en la base
+nunca rompe una partida (Review Focus 5) y se rechaza al autorarlo; y el reporte ya cerrado no cambia.
 """
 import json
 import uuid
@@ -20,7 +20,7 @@ from apps.simulation.models import (
     SimulationCase,
     SimulationNode,
 )
-from apps.simulation.services import case_effects
+from apps.simulation.services import case_rules
 from shared.testing import seal_version
 
 pytestmark = [pytest.mark.req("RNF-008"), pytest.mark.req("TD-02")]
@@ -29,11 +29,12 @@ User = get_user_model()
 BASE = "/api/simulation"
 AUTHORING = "/api/authoring/cases"
 
-METRICS = [{"key": "confianza", "initial": 50}, {"key": "calma", "initial": 40}]
+OLD_METRICS = [{"key": "confianza", "initial": 50}, {"key": "calma", "initial": 40}]  # el modelo antiguo: se ignoran
+MILESTONES = [{"key": "familia_contenida", "label": "Contener a la familia", "decisive": True}]
 ENDINGS = [
     {
         "key": "contenido", "title": "Contenido", "message": "Contuviste a la familia.", "tone": "positive",
-        "when": {"all": [{"flag": "familia_contenida"}, {"metric": "confianza", "gte": 60}]},
+        "when": {"all": [{"milestone": "familia_contenida"}, {"count": "recommended", "gte": 1}]},
     },
     {"key": "neutro", "title": "Neutro", "message": "Terminó el caso.", "tone": "neutral"},
 ]
@@ -71,7 +72,9 @@ def estudiante(db, profesor):
 
 
 def _published(owner, *, rules, effects, classification="ADEQUATE", prohibited=False):
-    """Una versión publicada de dos nodos y una sola opción, con sus datos como datos."""
+    """Una versión publicada de dos nodos y una sola opción, con sus datos como datos.
+
+    La clase de la opción sale de ``classification`` (``prohibited`` la vuelve contraindicada)."""
     case = SimulationCase.objects.create(
         code=f"FX-{uuid.uuid4().hex[:6].upper()}", title="Caso de efectos", created_by=owner
     )
@@ -93,7 +96,9 @@ def _published(owner, *, rules, effects, classification="ADEQUATE", prohibited=F
         )
     option = DecisionOption.objects.create(
         case_version=version, option_key="opt-1", source_node=start, target_node=end, text="Hacer algo",
-        classification=classification, prohibited_conduct=prohibited,
+        response_class="CONTRAINDICATED" if prohibited else {
+            "ADEQUATE": "RECOMMENDED", "RISKY": "RISKY", "INADEQUATE": "CONTRAINDICATED",
+        }[classification],
         effects=effects if isinstance(effects, str) else json.dumps(effects),
     )
     return version, option
@@ -112,35 +117,10 @@ def _play(student, version, option):
         format="json",
     )
     assert decided.status_code == 200, decided.data
-    return client, attempt, decided.data["data"]
+    return client, attempt, decided.data["data"]["attempt"]
 
 
 # ─── los efectos de la opción ─────────────────────────────────────────────────────────────────
-def test_an_option_without_effects_takes_its_severity_from_the_classification():
-    cases = [
-        ({"classification": "ADEQUATE"}, case_effects.SEVERITY_RECOMMENDED),
-        ({"classification": "RISKY"}, case_effects.SEVERITY_RISKY),
-        ({"classification": "INADEQUATE"}, case_effects.SEVERITY_CRITICAL),
-        ({"classification": "ADEQUATE", "prohibited_conduct": True}, case_effects.SEVERITY_CRITICAL),
-    ]
-
-    for fields, severity in cases:
-        decision = DecisionOption(option_key="sin-efectos", **fields)
-        assert case_effects.option_effects(decision) == {"severity": severity, "flags": {}, "metrics": {}}
-        assert case_effects.option_severity(decision) == severity
-
-
-def test_the_options_own_effects_win_over_the_classification():
-    decision = DecisionOption(
-        option_key="con-efectos", classification="INADEQUATE",
-        effects=json.dumps({"severity": "acceptable", "flags": {"a": True}, "metrics": {"confianza": 5}}),
-    )
-
-    assert case_effects.option_effects(decision) == {
-        "severity": "acceptable", "flags": {"a": True}, "metrics": {"confianza": 5},
-    }
-
-
 @pytest.mark.parametrize(
     "raw",
     [
@@ -150,20 +130,17 @@ def test_the_options_own_effects_win_over_the_classification():
     ],
 )
 def test_malformed_effects_in_the_database_are_discarded_not_raised(raw):
-    decision = DecisionOption(option_key="roto", classification="RISKY", effects=raw)
+    decision = DecisionOption(option_key="roto", response_class="RISKY", effects=raw)
 
-    result = case_effects.option_effects(decision)
-
-    assert result == {"severity": case_effects.SEVERITY_RISKY, "flags": {}, "metrics": {}}
+    assert case_rules.effects_of(decision) == {}
 
 
 # ─── jugar con datos ──────────────────────────────────────────────────────────────────────────
-def test_the_effects_apply_flags_and_metrics_and_the_versions_own_endings_decide(admin, estudiante):
+def test_the_effects_record_milestones_and_the_versions_own_endings_decide(admin, estudiante):
     version, option = _published(
         admin,
-        rules={"metrics": METRICS, "endings": ENDINGS},
-        effects={"severity": "recommended", "flags": {"familia_contenida": True},
-                 "metrics": {"confianza": 15, "calma": -10}},
+        rules={"milestones": MILESTONES, "endings": ENDINGS},
+        effects={"milestones": ["familia_contenida"], "persona": {"bond": 1, "activation": -1}},
     )
 
     _, _, state = _play(estudiante, version, option)
@@ -171,43 +148,62 @@ def test_the_effects_apply_flags_and_metrics_and_the_versions_own_endings_decide
     assert state["status"] == "COMPLETED"
     ending = state["completionReport"]["ending"]
     assert ending["key"] == "contenido"
-    assert ending["caseFlags"] == {"familia_contenida": True}
-    assert ending["caseMetrics"] == {"confianza": 65, "calma": 30}
-    assert ending["severityCounts"] == {"recommended": 1, "acceptable": 0, "risky": 0, "critical": 0}
+    assert set(ending) == {"key", "title", "message", "tone", "reason"}
+    assert ending["reason"] == ["Cumpliste: Contener a la familia"]
 
 
 def test_the_default_ending_of_the_list_applies_when_no_condition_does(admin, estudiante):
-    version, option = _published(
-        admin, rules={"metrics": METRICS, "endings": ENDINGS},
-        effects={"severity": "recommended", "metrics": {"confianza": 5}},
-    )
+    version, option = _published(admin, rules={"milestones": MILESTONES, "endings": ENDINGS}, effects={})
 
     _, _, state = _play(estudiante, version, option)
 
     ending = state["completionReport"]["ending"]
     assert ending["key"] == "neutro"
-    assert ending["caseMetrics"]["confianza"] == 55
+    assert ending["reason"] == ["Faltó: Contener a la familia"]
 
 
-def test_a_case_without_endings_and_without_the_seven_metrics_has_no_ending(admin, estudiante):
+def test_the_own_endings_win_over_the_template_even_when_the_template_would_match(admin, estudiante):
+    own = [{"key": "propio", "title": "Propio", "message": "Fin.", "tone": "neutral",
+            "when": {"count": "recommended", "gte": 1}}]
+    version, option = _published(admin, rules={"endings": own}, effects={})  # la plantilla daría ``protectora``
+
+    _, _, state = _play(estudiante, version, option)
+
+    assert state["completionReport"]["ending"]["key"] == "propio"
+
+
+def test_a_case_without_endings_gets_the_template(admin, estudiante):
     version, option = _published(admin, rules={}, effects={})
 
     _, _, state = _play(estudiante, version, option)
 
+    ending = state["completionReport"]["ending"]
     assert state["status"] == "COMPLETED"
-    assert state["completionReport"]["ending"] is None
+    assert ending["key"] == "protectora"  # sin hitos decisivos, nada contraindicado ni con riesgo
+    assert ending["tone"] == "positive" and ending["title"] and ending["message"]
 
 
-def test_a_case_that_declares_the_seven_metrics_without_endings_uses_the_default_endings(admin, estudiante):
-    version, option = _published(
-        admin, rules={"metrics": case_effects.DEFAULT_METRICS}, effects={"severity": "recommended"},
-    )
+def test_a_case_with_decisive_milestones_and_without_endings_ends_by_the_template(admin, estudiante):
+    decisive = [{"key": "valorar", "label": "Valorar el riesgo", "decisive": True}]
+    version, option = _published(admin, rules={"milestones": decisive}, effects={}, classification="RISKY")
 
     _, _, state = _play(estudiante, version, option)
 
     ending = state["completionReport"]["ending"]
-    assert ending["key"] == "riesgo"  # sin valorar riesgo, protección ni derechos
-    assert ending["caseMetrics"] == {key: 50 for key in case_effects.CASE_METRIC_KEYS}
+    assert ending["key"] == "riesgo_persistente"  # falta el hito decisivo
+    assert ending["reason"][0] == "Faltó: Valorar el riesgo"
+
+
+def test_a_case_that_still_declares_the_old_metrics_without_endings_uses_the_template(admin, estudiante):
+    decisive = [{"key": "valorar", "label": "Valorar el riesgo", "decisive": True}]
+    version, option = _published(
+        admin, rules={"metrics": OLD_METRICS, "milestones": decisive},
+        effects={"milestones": ["valorar"]},
+    )
+
+    _, _, state = _play(estudiante, version, option)
+
+    assert state["completionReport"]["ending"]["key"] == "protectora"
 
 
 @pytest.mark.parametrize(
@@ -215,8 +211,8 @@ def test_a_case_that_declares_the_seven_metrics_without_endings_uses_the_default
     [
         "no es json",
         "[]",
-        {"metrics": 5, "endings": "x"},
-        {"metrics": [None, 3, {"key": ""}, {"key": "ok", "initial": "mucho"}], "endings": [None, 7, {"key": 1}]},
+        {"metrics": 5, "endings": "x", "milestones": "y"},
+        {"metrics": [None, 3, {"key": ""}], "endings": [None, 7, {"key": 1}], "milestones": [None, {"key": ""}, 4]},
     ],
 )
 def test_malformed_rules_in_the_database_do_not_break_the_game(admin, estudiante, rules):
@@ -225,13 +221,13 @@ def test_malformed_rules_in_the_database_do_not_break_the_game(admin, estudiante
     _, _, state = _play(estudiante, version, option)
 
     assert state["status"] == "COMPLETED"
-    assert state["completionReport"]["ending"] is None
+    assert state["completionReport"]["ending"]["key"] == "protectora"  # no entiende nada: cae a la plantilla
 
 
 def test_malformed_effects_in_the_database_do_not_break_the_game(admin, estudiante):
     version, option = _published(
-        admin, rules={"metrics": METRICS, "endings": ENDINGS},
-        effects='{"severity": "banana", "flags": [1], "metrics": {"confianza": "mucho"}}',
+        admin, rules={"metrics": OLD_METRICS, "endings": ENDINGS},
+        effects='{"severity": "banana", "flags": [1], "metrics": {"confianza": "mucho"}, "persona": 3, "milestones": 7}',
         classification="ADEQUATE",
     )
 
@@ -246,7 +242,7 @@ def test_a_malformed_when_never_matches_and_the_default_still_does(admin, estudi
         {"key": "roto", "title": "Roto", "message": "", "tone": "neutral", "when": {"eval": "1 + 1"}},
         {"key": "por_defecto", "title": "Por defecto", "message": "Fin.", "tone": "neutral"},
     ]
-    version, option = _published(admin, rules={"metrics": METRICS, "endings": endings}, effects={})
+    version, option = _published(admin, rules={"metrics": OLD_METRICS, "endings": endings}, effects={})
 
     _, _, state = _play(estudiante, version, option)
 
@@ -255,17 +251,17 @@ def test_a_malformed_when_never_matches_and_the_default_still_does(admin, estudi
 
 def test_the_closed_report_does_not_change_when_the_data_changes_later(admin, estudiante):
     version, option = _published(
-        admin, rules={"metrics": METRICS, "endings": ENDINGS},
-        effects={"severity": "recommended", "flags": {"familia_contenida": True}, "metrics": {"confianza": 15}},
+        admin, rules={"milestones": MILESTONES, "endings": ENDINGS},
+        effects={"milestones": ["familia_contenida"]},
     )
     client, attempt, state = _play(estudiante, version, option)
     before = client.get(
         f"{BASE}/attempts/{attempt['attemptId']}/report", HTTP_X_SIEP_ATTEMPT_TOKEN=attempt["attemptToken"]
     ).data["data"]
 
-    DecisionOption.objects.filter(pk=option.pk).update(effects=json.dumps({"severity": "critical"}))
+    DecisionOption.objects.filter(pk=option.pk).update(response_class="CONTRAINDICATED", effects=json.dumps({"persona": {"bond": -1}}))
     CaseVersion.objects.filter(pk=version.pk).update(
-        rules=json.dumps({"metrics": METRICS, "endings": [ENDINGS[1]]})
+        rules=json.dumps({"milestones": MILESTONES, "endings": [ENDINGS[1]]})
     )
     after = client.get(
         f"{BASE}/attempts/{attempt['attemptId']}/report", HTTP_X_SIEP_ATTEMPT_TOKEN=attempt["attemptToken"]
@@ -277,8 +273,8 @@ def test_the_closed_report_does_not_change_when_the_data_changes_later(admin, es
 
 def test_the_effects_never_travel_to_the_player(admin, estudiante):
     version, option = _published(
-        admin, rules={"metrics": METRICS, "endings": ENDINGS},
-        effects={"severity": "recommended", "flags": {"bandera_secreta_xyz": True}, "metrics": {"confianza": 1}},
+        admin, rules={"milestones": MILESTONES, "endings": ENDINGS},
+        effects={"milestones": ["hito_secreto_xyz"], "persona": {"bond": 1}},
     )
     CaseAssignment.objects.create(grupo=estudiante.grupo_fixture, case_version=version)
     client = cl(estudiante)
@@ -286,7 +282,7 @@ def test_the_effects_never_travel_to_the_player(admin, estudiante):
 
     body = json.dumps(started)
 
-    assert "bandera_secreta_xyz" not in body
+    assert "hito_secreto_xyz" not in body
     assert '"effects"' not in body
 
 
@@ -302,6 +298,7 @@ def case(profesor):
         {"nodeKey": "fin", "title": "Fin", "narrative": "Fin.", "terminal": True}, format="json",
     ).data["data"]
     ids = {n["key"]: n["id"] for n in with_end["nodes"]}
+    CaseVersion.objects.filter(pk=cv).update(rules=json.dumps({"milestones": MILESTONES}))
     return {"cv": cv, "source": ids["inicio"], "target": ids["fin"]}
 
 
@@ -317,7 +314,7 @@ def _decide(client, case, **extra):
 
 
 def test_the_author_saves_effects_and_the_editor_returns_them(profesor, case):
-    effects = {"severity": "recommended", "flags": {"familia_contenida": True}, "metrics": {"confianza": 15}}
+    effects = {"persona": {"bond": 1, "activation": -1}, "milestones": ["familia_contenida"]}
 
     response = _decide(cl(profesor), case, effects=effects)
 
@@ -327,7 +324,7 @@ def test_the_author_saves_effects_and_the_editor_returns_them(profesor, case):
 
 def test_absent_effects_are_not_touched_and_an_empty_object_clears_them(profesor, case):
     client = cl(profesor)
-    effects = {"severity": "risky", "flags": {"a": True}, "metrics": {"confianza": -5}}
+    effects = {"persona": {"bond": -1}, "milestones": ["familia_contenida"]}
     decision_id = _decide(client, case, effects=effects).data["data"]["decisions"][0]["id"]
 
     kept = client.put(
@@ -347,15 +344,16 @@ def test_absent_effects_are_not_touched_and_an_empty_object_clears_them(profesor
         "texto",
         [1, 2],
         {"desconocido": 1},
-        {"severity": "banana"},
-        {"flags": [1]},
-        {"flags": {"con espacio": True}},
-        {"flags": {"a": "si"}},
-        {"flags": {f"f{i}": True for i in range(21)}},
-        {"metrics": {"no_declarada": 5}},
-        {"metrics": {"confianza": 101}},
-        {"metrics": {"confianza": 1.5}},
-        {"metrics": {"confianza": True}},
+        {"severity": "risky"},  # el vocabulario del modelo antiguo ya no existe
+        {"flags": {"a": True}},
+        {"metrics": {"confianza": 5}},
+        {"persona": 3},
+        {"persona": {"bond": 2}},
+        {"persona": {"mood": 1}},
+        {"milestones": "familia_contenida"},
+        {"milestones": ["no_declarado"]},
+        {"milestones": ["con espacio"]},
+        {"milestones": [f"h{i}" for i in range(21)]},
     ],
 )
 def test_malformed_effects_are_a_400_naming_the_field_and_save_nothing(profesor, case, effects):
@@ -368,9 +366,9 @@ def test_malformed_effects_are_a_400_naming_the_field_and_save_nothing(profesor,
 
 def test_cloning_copies_the_effects_and_the_rules(profesor, admin, case):
     client = cl(profesor)
-    effects = {"severity": "acceptable", "flags": {"a": True}, "metrics": {"confianza": 3}}
+    effects = {"persona": {"bond": 1}, "milestones": ["familia_contenida"]}
     _decide(client, case, effects=effects)
-    rules = {"secondChance": True, "metrics": METRICS, "endings": ENDINGS}
+    rules = {"secondChance": True, "milestones": MILESTONES, "endings": ENDINGS}
     CaseVersion.objects.filter(pk=case["cv"]).update(rules=json.dumps(rules))
 
     cloned = cl(admin).post(f"{AUTHORING}/{case['cv']}/clone-version", {}, format="json")

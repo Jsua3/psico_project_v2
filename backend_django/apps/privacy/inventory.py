@@ -53,6 +53,7 @@ TECHNICAL = Classification.TECHNICAL
 
 #: Clasificaciones que exigen motivo y salidas declaradas.
 CON_SALIDAS = (PERSONAL, SENSITIVE, SECRET)
+
 CANALES = ("api", "csv", "reporte", "correo", "registro")
 
 #: Documento versionado: ``<raíz del repositorio>/docs/seguridad/inventario-de-datos.md``.
@@ -269,7 +270,7 @@ DATA_INVENTORY: dict[str, dict] = {
         },
     },
     "decision_options": {
-        "purpose": "Opciones de decisión de cada escena, con su texto, su clasificación y su retroalimentación.",
+        "purpose": "Opciones de decisión de cada escena, con su texto, su clase de respuesta y su retroalimentación.",
         "retention": "Mientras exista la versión del caso (SD-9, pendiente de la institución).",
         "default": None,
         "columns": {
@@ -279,18 +280,33 @@ DATA_INVENTORY: dict[str, dict] = {
             "source_node_id": TECHNICAL,
             "target_node_id": TECHNICAL,
             "text": PUBLIC,
-            "classification": PUBLIC,
-            "score_delta": PUBLIC,
-            "stress_delta": PUBLIC,
-            "prohibited_penalty": PUBLIC,
             "immediate_feedback": PUBLIC,
-            "prohibited_conduct": PUBLIC,
             "prohibition_reason": PUBLIC,
             "consequence_text": PUBLIC,
             "theory_basis": PUBLIC,
             "feedback_text": PUBLIC,
             "effects": PUBLIC,
+            "response_class": PUBLIC,
+            "ai_suggested": PUBLIC,
         },
+    },
+    "authoring_assistant_usage": {
+        "purpose": (
+            "Cuántas veces usó cada docente el asistente de IA de autoría en un día: sirve para aplicar el tope diario "
+            "y el mensual."
+        ),
+        "retention": (
+            "Sin plazo definido (SD-9, pendiente de la institución). Se borra con la cuenta; no guarda el texto de las "
+            "peticiones."
+        ),
+        "default": None,
+        "columns": {
+            "id": TECHNICAL,
+            "user_id": (PERSONAL, "docente que usó el asistente"),
+            "day": (PERSONAL, "día en que el docente usó el asistente"),
+            "count": (PERSONAL, "cuántas veces lo usó ese día el docente"),
+        },
+        "exits": {"user_id": [], "day": [], "count": ["api"]},
     },
     "rubrics": {
         "purpose": "Rúbricas de evaluación: nombre, versión y docente que las creó.",
@@ -392,6 +408,7 @@ DATA_INVENTORY: dict[str, dict] = {
             "speaker_name": PUBLIC,
             "text": PUBLIC,
             "emotion": PUBLIC,
+            "ai_suggested": PUBLIC,
         },
     },
     "dialogue_choices": {
@@ -441,7 +458,7 @@ DATA_INVENTORY: dict[str, dict] = {
     },
     # ── Intentos, bitácoras, evaluaciones y auditoría ─────────────────────────────────────────────
     "simulation_attempts_v2": {
-        "purpose": "Intentos de un estudiante en un caso: estado, puntajes, riesgos y tiempos. Son sus decisiones.",
+        "purpose": "Intentos de un estudiante en un caso: estado y tiempos. Son sus decisiones.",
         "retention": "Sin plazo definido (SD-9, pendiente de la institución).",
         "default": None,
         "columns": {
@@ -451,12 +468,6 @@ DATA_INVENTORY: dict[str, dict] = {
             "student_id": (PERSONAL, "estudiante dueño del intento; sale solo como alias (Estudiante-<hash>)"),
             "current_node_id": (SENSITIVE, "escena en la que está el estudiante"),
             "status": (SENSITIVE, "estado del intento en el caso (en curso, pausado, terminado)"),
-            "accumulated_score": (SENSITIVE, "puntaje acumulado de las decisiones del estudiante"),
-            "stress_index": (SENSITIVE, "índice de estrés que producen sus decisiones"),
-            "victim_risk": (SENSITIVE, "riesgo de la víctima simulada según las decisiones del estudiante"),
-            "user_trust": (SENSITIVE, "confianza del personaje afectado en el estudiante, según sus decisiones"),
-            "institutional_route_activated": (SENSITIVE, "si el intento activó la ruta institucional"),
-            "revictimization_risk": (SENSITIVE, "riesgo de revictimización que producen las decisiones"),
             "started_at": (SENSITIVE, "cuándo empezó el intento (conducta del estudiante)"),
             "ended_at": (SENSITIVE, "cuándo terminó el intento (conducta del estudiante)"),
             "locked_at": TECHNICAL,
@@ -469,12 +480,6 @@ DATA_INVENTORY: dict[str, dict] = {
             "id": ["api"],
             "current_node_id": ["api"],
             "status": ["api", "reporte"],
-            "accumulated_score": ["api", "csv", "reporte"],
-            "stress_index": ["api"],
-            "victim_risk": ["api"],
-            "user_trust": ["api"],
-            "institutional_route_activated": ["api"],
-            "revictimization_risk": ["api"],
             "started_at": ["api"],
             "ended_at": ["api"],
             "active_seconds": ["api"],
@@ -487,7 +492,7 @@ DATA_INVENTORY: dict[str, dict] = {
         "forbidden_exits": {"attempt_token_hash": ["api", "csv", "reporte", "correo", "registro"]},
     },
     "attempt_events": {
-        "purpose": "Línea de tiempo del intento: cada decisión, herramienta, bitácora o salida, con su efecto.",
+        "purpose": "Línea de tiempo del intento: cada decisión, herramienta, bitácora o salida.",
         "retention": "Sin plazo definido (SD-9, pendiente de la institución).",
         "default": None,
         "columns": {
@@ -496,8 +501,6 @@ DATA_INVENTORY: dict[str, dict] = {
             "event_type": (SENSITIVE, "qué hizo el estudiante: decisión, herramienta, bitácora o salida"),
             "node_id": TECHNICAL,
             "decision_option_id": (SENSITIVE, "opción de decisión que eligió el estudiante"),
-            "score_delta": (SENSITIVE, "efecto de la acción sobre el puntaje"),
-            "stress_delta": (SENSITIVE, "efecto de la acción sobre el estrés"),
             "detail": (
                 SENSITIVE,
                 "detalle de la acción que muestra la línea de tiempo (herramienta o etiqueta); en una salida segura puede llevar "
@@ -510,8 +513,6 @@ DATA_INVENTORY: dict[str, dict] = {
             "attempt_id": ["api"],
             "event_type": ["api"],
             "decision_option_id": ["api", "reporte"],
-            "score_delta": ["api"],
-            "stress_delta": ["api"],
             "detail": ["api"],
             "occurred_at": ["api"],
         },
@@ -537,7 +538,8 @@ DATA_INVENTORY: dict[str, dict] = {
             "attempt_id": (SENSITIVE, "intento al que pertenece el informe"),
             "report_json": (
                 SENSITIVE,
-                "informe congelado del intento: decisiones, retroalimentación y tiempos; su línea de tiempo copia el motivo "
+                "informe congelado del intento (v3): decisiones y su clase, hitos cumplidos y faltantes, estado de la persona usuaria, "
+                "motivo del final, evidencia por nivel de competencia y tiempos; su línea de tiempo copia el motivo "
                 "escrito de una salida segura (texto libre de la persona)",
             ),
             "report_schema_version": TECHNICAL,
@@ -607,7 +609,11 @@ DATA_INVENTORY: dict[str, dict] = {
             "inspected_object_keys_json": (SENSITIVE, "objetos que el estudiante revisó"),
             "viewed_dialogue_keys_json": (SENSITIVE, "diálogos que el estudiante vio"),
             "used_tool_keys_json": (SENSITIVE, "herramientas que el estudiante usó"),
-            "flags_json": (SENSITIVE, "banderas del caso que el estudiante ha activado"),
+            "flags_json": (
+                SENSITIVE,
+                "banderas del caso que el estudiante ha activado, los hitos que ha cumplido y el estado de la persona usuaria "
+                "en la ficción (vínculo y activación) según sus decisiones",
+            ),
             "updated_at": TECHNICAL,
         },
         "exits": {
@@ -619,7 +625,7 @@ DATA_INVENTORY: dict[str, dict] = {
             "inspected_object_keys_json": ["api"],
             "viewed_dialogue_keys_json": ["api"],
             "used_tool_keys_json": ["api"],
-            "flags_json": ["api"],
+            "flags_json": ["api", "reporte"],
         },
     },
     "student_case_completion": {
@@ -644,7 +650,7 @@ DATA_INVENTORY: dict[str, dict] = {
             "attempt_id": (SENSITIVE, "intento evaluado: enlaza la evaluación con lo que hizo el estudiante"),
             "rubric_id": TECHNICAL,
             "instructor_id": (PERSONAL, "docente que evaluó"),
-            "total_score": (SENSITIVE, "puntaje total de la evaluación docente sobre el estudiante"),
+            "total_score": (SENSITIVE, "puntaje total de la evaluación docente sobre el estudiante; interno: el DTO sirve solo el nivel"),
             "comment": (SENSITIVE, "comentario del docente sobre el desempeño del estudiante"),
             "status": TECHNICAL,
             "snapshot_json": PUBLIC,
@@ -656,7 +662,7 @@ DATA_INVENTORY: dict[str, dict] = {
         "exits": {
             "attempt_id": ["api"],
             "instructor_id": [],
-            "total_score": ["api"],
+            "total_score": [],
             "comment": ["api"],
         },
     },
@@ -668,13 +674,13 @@ DATA_INVENTORY: dict[str, dict] = {
             "id": TECHNICAL,
             "rubric_evaluation_id": TECHNICAL,
             "rubric_criterion_id": TECHNICAL,
-            "score": (SENSITIVE, "puntaje de un criterio sobre el desempeño del estudiante"),
+            "score": (SENSITIVE, "puntaje de un criterio sobre el desempeño del estudiante; interno: el DTO sirve solo el nivel"),
             "level": (SENSITIVE, "nivel alcanzado en un criterio"),
             "comment": (SENSITIVE, "comentario del docente sobre el criterio"),
             "evidence_json": (SENSITIVE, "evidencia de la evaluación; el servicio la escribe vacía y no sale"),
         },
         "exits": {
-            "score": ["api"],
+            "score": [],
             "level": ["api"],
             "comment": ["api"],
             "evidence_json": [],

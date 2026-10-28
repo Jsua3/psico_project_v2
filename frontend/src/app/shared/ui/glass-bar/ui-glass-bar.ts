@@ -1,6 +1,6 @@
 import {
   ChangeDetectionStrategy, Component, DestroyRef, ElementRef, ViewEncapsulation, afterEveryRender, afterNextRender,
-  booleanAttribute, inject, input, signal,
+  booleanAttribute, effect, inject, input, signal,
 } from '@angular/core';
 
 import { GlassBarMachine } from './glass-bar-machine';
@@ -66,6 +66,11 @@ export class UiGlassBar {
    * acceso no la tiene). Va tras «Saltar al contenido principal», que pinta app-root.
    */
   readonly navSkip = input(false, { transform: booleanAttribute });
+  /**
+   * Congela el estado que se ve (editor de casos, DG-9): con una ayuda abierta la barra no cambia, para que lo que la
+   * guía señala no salte 6 px. Al soltarla cae al estado que le toca.
+   */
+  readonly congelada = input(false, { transform: booleanAttribute });
 
   private readonly host = inject<ElementRef<HTMLElement>>(ElementRef).nativeElement;
   private readonly isFinePointer = media('(hover: hover) and (pointer: fine)', true);
@@ -81,6 +86,7 @@ export class UiGlassBar {
   });
 
   constructor() {
+    effect(() => this.machine.freeze(this.congelada()));
     const cleanups: Array<() => void> = [];
     const listen = (target: EventTarget, type: string, fn: (event: Event) => void, options?: AddEventListenerOptions) => {
       target.addEventListener(type, fn, options);

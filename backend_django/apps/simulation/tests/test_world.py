@@ -234,7 +234,7 @@ def test_use_tool_requires_inventory_and_no_target_is_not_pertinent(estudiante, 
     assert result["toolCode"] == "PAP"
     # Sin target y sin categoría global: uso registrado pero NO pertinente.
     assert result["pertinent"] is False
-    assert result["stressDelta"] == 3
+    assert "stressDelta" not in result
     assert "PAP" in result["world"]["inventory"]
 
 

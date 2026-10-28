@@ -89,3 +89,84 @@
 .rg-nowrap {
   white-space: nowrap;
 }
+
+// ── Cobertura por hito ──────────────────────────────────────────────────────────────────────────────────────────
+// La palabra manda; la barra la acompaña y su valor va también en texto (WCAG 1.4.1). Sin colores de semáforo.
+.rg-hitos {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: var(--ds-space-3);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.rg-hito {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: var(--ds-space-1);
+  padding: var(--ds-space-3);
+  border: 1px solid var(--ds-border);
+  border-radius: var(--ds-radius-md);
+  background: var(--ds-surface-1);
+  overflow-wrap: anywhere;
+}
+
+.rg-hito__top {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--ds-space-2);
+}
+
+.rg-hito__words {
+  color: var(--ds-text-2);
+  font-size: var(--ds-type-body-s-size);
+  line-height: var(--ds-type-body-s-line);
+}
+
+.rg-hito__bar {
+  display: flex;
+  align-items: center;
+  gap: var(--ds-space-3);
+}
+
+.rg-bar {
+  flex: 1 1 auto;
+  min-width: 0;
+  block-size: 0.75rem;
+  border: 1px solid var(--ds-border-strong);
+  border-radius: var(--ds-radius-sm, 4px);
+  background: var(--ds-surface-2);
+  overflow: hidden;
+}
+
+.rg-bar__fill {
+  display: block;
+  block-size: 100%;
+  background: var(--ds-primary);
+  transform: scaleX(var(--rg-ratio, 0));
+  transform-origin: left center;
+}
+
+@media (forced-colors: active) {
+  .rg-bar__fill {
+    background: CanvasText;
+  }
+}
+
+.rg-bar__value {
+  font-variant-numeric: tabular-nums;
+  font-size: var(--ds-type-body-s-size);
+  white-space: nowrap;
+}
+
+.rg-hitos-tabla {
+  margin-block-start: var(--ds-space-3);
+
+  summary {
+    cursor: pointer;
+    font-weight: var(--ds-type-h3-weight);
+    font-size: var(--ds-type-body-s-size);
+  }
+}

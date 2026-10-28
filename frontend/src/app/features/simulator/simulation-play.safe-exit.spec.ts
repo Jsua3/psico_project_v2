@@ -46,9 +46,9 @@ const zIndex = (selector: string): number => Number(/z-index:\s*(\d+)/.exec(rule
 function makeAttempt(overrides: Record<string, unknown> = {}): SimulationAttemptState {
   return {
     attemptId: 'attempt-1', attemptToken: 'token-1', caseVersionId: 7, caseTitle: 'Caso demo', status: 'IN_PROGRESS',
-    accumulatedScore: 0, stressIndex: 0, metrics: { victimRisk: 50 },
+    persona: { bond: 'GUARDED', activation: 'TENSE', label: 'se muestra cautelosa y tensa' },
     currentNode: { id: 1, key: 'hospital-urgencias', title: 'Urgencias', narrative: 'N', terminal: false, options: [] },
-    feedback: null, completionReport: null, ...overrides,
+    completionReport: null, ...overrides,
   } as unknown as SimulationAttemptState;
 }
 
@@ -71,7 +71,7 @@ describe('SimulationPlayComponent: salida segura (correcciones de la revisión)'
     };
     audio = {
       init: vi.fn(), dispose: vi.fn(), stopIntroLament: vi.fn(), playIntroLament: vi.fn(), playSfx: vi.fn(),
-      setStressLevel: vi.fn(), isMusicMuted: vi.fn(() => false), isSfxMuted: vi.fn(() => false),
+      setScene: vi.fn(), isMusicMuted: vi.fn(() => false), isSfxMuted: vi.fn(() => false),
     };
     TestBed.configureTestingModule({
       imports: [SimulationPlayComponent],
@@ -410,7 +410,7 @@ describe('SimulationPlayComponent: salida segura (correcciones de la revisión)'
       vi.advanceTimersByTime(DEADLINE_MS);
       expect(component.attempt()?.status).toBe('PAUSED');
 
-      decision.next(makeAttempt({ status: 'IN_PROGRESS', accumulatedScore: 10 }));
+      decision.next(makeAttempt({ status: 'IN_PROGRESS' }));
 
       expect(component.attempt()?.status).toBe('PAUSED');
       expect(component.busy()).toBe(false);

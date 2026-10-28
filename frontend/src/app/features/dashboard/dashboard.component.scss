@@ -47,8 +47,11 @@
   min-width: 0;
 }
 
-.td-num {
-  font-variant-numeric: tabular-nums;
+.td-hint {
+  margin: 0 0 var(--ds-space-3);
+  color: var(--ds-text-2);
+  font-size: var(--ds-type-body-s-size);
+  line-height: var(--ds-type-body-s-line);
 }
 
 // En un teléfono la fecha y el estado no se parten letra a letra: la tabla se desplaza dentro de ui-table.

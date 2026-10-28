@@ -106,9 +106,9 @@ const CONTRACTS: Contract[] = [
   // E1-2 (RN-07, plan visual F7b-7): el docente reemplaza un intento abierto con un motivo.
   { method: 'replaceAttempt', call: s => s.replaceAttempt(ATTEMPT, 'motivo'), verb: 'POST',
     url: `/api/instructor/attempts/${ATTEMPT}/replace`, body: { reason: 'motivo' } },
-  { method: 'saveRubric', call: s => s.saveRubric(ATTEMPT, 4, 'bien', [{ criterionId: 1, score: 3, comment: 'c' }]),
+  { method: 'saveRubric', call: s => s.saveRubric(ATTEMPT, 4, 'bien', [{ criterionId: 1, level: 'LOGRADO', comment: 'c' }]),
     verb: 'PUT', url: `/api/instructor/attempts/${ATTEMPT}/rubric-evaluation`,
-    body: { rubricId: 4, comment: 'bien', scores: [{ criterionId: 1, score: 3, comment: 'c' }] } },
+    body: { rubricId: 4, comment: 'bien', scores: [{ criterionId: 1, level: 'LOGRADO', comment: 'c' }] } },
 
   // ── autoría ────────────────────────────────────────────────────────────────
   { method: 'caseEditor', call: s => s.caseEditor(9), verb: 'GET', url: `${A}/9/editor` },
@@ -141,6 +141,29 @@ const CONTRACTS: Contract[] = [
   { method: 'deleteCharacter', call: s => s.deleteCharacter(9, 2), verb: 'DELETE', url: `${A}/9/characters/2` },
   { method: 'updateBrief', call: s => s.updateBrief(9, body('ficha')), verb: 'PUT', url: `${A}/9/brief`, body: body('ficha') },
   { method: 'reorderNodes', call: s => s.reorderNodes(9, [2, 1]), verb: 'PATCH', url: `${A}/9/nodes/reorder`, body: { order: [2, 1] } },
+
+  // ── reglas del modelo: hitos, nivel de riesgo y finales ─────────────────────────────────────────────
+  { method: 'updateMilestones', call: s => s.updateMilestones(9, [{ key: 'h1', label: 'H', description: '', decisive: true }]), verb: 'PUT',
+    url: `${A}/9/rules/milestones`, body: { milestones: [{ key: 'h1', label: 'H', description: '', decisive: true }] } },
+  { method: 'updateRisk', call: s => s.updateRisk(9, 'SEVERE'), verb: 'PUT', url: `${A}/9/rules/risk`, body: { riskLevel: 'SEVERE' } },
+  { method: 'updateEndings', call: s => s.updateEndings(9, []), verb: 'PUT', url: `${A}/9/rules/endings`, body: { endings: [] } },
+
+  // ── editor nuevo (P6): borrar una opción, diálogos, revisar lo de la IA, asistente y biblioteca ──────────────────
+  { method: 'deleteDecision', call: s => s.deleteDecision(9, 4), verb: 'DELETE', url: `${A}/9/decisions/4` },
+  { method: 'createDialogue', call: s => s.createDialogue(9, 3, body('dialogo')), verb: 'POST', url: `${A}/9/maps/3/dialogues`, body: body('dialogo') },
+  { method: 'updateDialogue', call: s => s.updateDialogue(9, 5, body('dialogo')), verb: 'PUT', url: `${A}/9/dialogues/5`, body: body('dialogo') },
+  { method: 'deleteDialogue', call: s => s.deleteDialogue(9, 5), verb: 'DELETE', url: `${A}/9/dialogues/5` },
+  { method: 'acceptAiNode', call: s => s.acceptAiNode(9, 2), verb: 'POST', url: `${A}/9/nodes/2/accept-ai`, body: {} },
+  { method: 'acceptAiDecision', call: s => s.acceptAiDecision(9, 4), verb: 'POST', url: `${A}/9/decisions/4/accept-ai`, body: {} },
+  { method: 'acceptAiDialogue', call: s => s.acceptAiDialogue(9, 5), verb: 'POST', url: `${A}/9/dialogues/5/accept-ai`, body: {} },
+  { method: 'acceptAiObject', call: s => s.acceptAiObject(9, 6), verb: 'POST', url: `${A}/9/objects/6/accept-ai`, body: {} },
+  { method: 'assistantStatus', call: s => s.assistantStatus(9), verb: 'GET', url: `${A}/9/assistant/status` },
+  { method: 'assistantPropose', call: s => s.assistantPropose(9, { peticion: 'p', pantalla: 'guion' }), verb: 'POST',
+    url: `${A}/9/assistant/propose`, body: { peticion: 'p', pantalla: 'guion' } },
+  { method: 'assistantGuide', call: s => s.assistantGuide(9, { pregunta: 'q', acciones: [] }), verb: 'POST',
+    url: `${A}/9/assistant/guide`, body: { pregunta: 'q', acciones: [] } },
+  { method: 'libraryPlaces', call: s => s.libraryPlaces(), verb: 'GET', url: '/api/biblioteca/lugares' },
+  { method: 'libraryPlace', call: s => s.libraryPlace('universidad'), verb: 'GET', url: '/api/biblioteca/lugares/universidad' },
 
   // ── editor de mundo ────────────────────────────────────────────────────────
   { method: 'worldEditor', call: s => s.worldEditor(9), verb: 'GET', url: `${A}/9/world-editor` },
@@ -183,10 +206,11 @@ describe('SimulationService contrato HTTP', () => {
     } else {
       expect(req.request.headers.has('X-SIEP-Attempt-Token')).toBe(false);
     }
-    req.flush({ data: { ok: contract.method } });
+    // La decisión (C2) responde `{ attempt, consequence, retry? }`: lo demás desenvuelve el sobre tal cual.
+    req.flush({ data: contract.method === 'chooseDecision' ? { attempt: { ok: contract.method }, consequence: null } : { ok: contract.method } });
 
     // Todos los métodos de esta tabla desenvuelven el sobre `{ data }`. `chooseDecision` añade `consequence` y `retry`
-    // (C2, forma normalizada): por eso se compara con `toMatchObject` y no con igualdad exacta.
+    // (C2): por eso se compara con `toMatchObject` y no con igualdad exacta.
     expect(result).toMatchObject({ ok: contract.method });
   });
 
@@ -302,13 +326,13 @@ describe('SimulationService contrato HTTP', () => {
 
     expect(publicMethods.filter(name => !documented.has(name))).toEqual([]);
     expect([...documented].filter(name => !publicMethods.includes(name))).toEqual([]);
-    expect(publicMethods).toHaveLength(63);
+    expect(publicMethods).toHaveLength(79);
   });
 
   it('cada método vive en una sola API y cada rol tiene el tamaño esperado', () => {
     const [player, authoring, instructor] = ROLE_CLASSES.map(publicMethodsOf);
-    expect(new Set([...player, ...authoring, ...instructor]).size).toBe(63);
-    expect([player.length, authoring.length, instructor.length]).toEqual([24, 34, 5]);
+    expect(new Set([...player, ...authoring, ...instructor]).size).toBe(79);
+    expect([player.length, authoring.length, instructor.length]).toEqual([24, 50, 5]);
     expect(instructor).toEqual(['recentAttempts', 'attemptTrace', 'rubric', 'replaceAttempt', 'saveRubric']);
   });
 

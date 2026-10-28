@@ -93,6 +93,9 @@ EXPECTED_TAXONOMY = {
     "ADMIN_CREATE_DECISION": "decision.crear",
     "ADMIN_UPDATE_DECISION": "decision.actualizar",
     "ADMIN_DELETE_DECISION": "decision.eliminar",
+    "ADMIN_UPDATE_MILESTONES": "reglas.actualizar_hitos",
+    "ADMIN_UPDATE_RISK": "reglas.actualizar_riesgo",
+    "ADMIN_UPDATE_ENDINGS": "reglas.actualizar_finales",
     "ADMIN_CREATE_MAP": "mapa.crear",
     "ADMIN_UPDATE_MAP": "mapa.actualizar",
     "ADMIN_DELETE_MAP": "mapa.eliminar",
@@ -206,8 +209,7 @@ def test_un_nodo_de_otra_version_se_rechaza_y_uno_inexistente_es_404(api, draft,
 def _decision_body(source, target, **overrides):
     body = {
         "sourceNodeId": source, "targetNodeId": target, "optionKey": "opt-p05b", "text": "Decido esto",
-        "classification": "RISKY", "prohibitedConduct": False, "scoreDelta": -3, "stressDelta": 4,
-        "prohibitedPenalty": 0, "immediateFeedback": "Mensaje",
+        "responseClass": "RISKY", "prohibitedConduct": False, "immediateFeedback": "Mensaje",
     }
     body.update(overrides)
     return body
@@ -220,18 +222,19 @@ def test_crear_actualizar_y_eliminar_una_decision(api, admin, draft):
 
     assert created.status_code == 200 and created.data["message"] == "Decision creada"
     edge = next(d for d in created.data["data"]["decisions"] if d["optionKey"] == "opt-p05b")
-    assert (edge["sourceKey"], edge["targetKey"], edge["classification"]) == ("dec-a", "dec-b", "RISKY")
-    assert (edge["scoreDelta"], edge["stressDelta"], edge["immediateFeedback"]) == (-3, 4, "Mensaje")
+    assert (edge["sourceKey"], edge["targetKey"], edge["responseClass"]) == ("dec-a", "dec-b", "RISKY")
+    assert edge["immediateFeedback"] == "Mensaje"
+    assert not {"classification", "scoreDelta", "stressDelta", "prohibitedPenalty"} & set(edge)
     _assert_audited(admin, "ADMIN_CREATE_DECISION", "CASE_VERSION", draft, "create_decision")
 
     updated = api.put(
         f"{BASE}/{draft}/decisions/{edge['id']}",
-        _decision_body(a["id"], b["id"], text="Otro texto", classification="ADEQUATE", scoreDelta=5),
+        _decision_body(a["id"], b["id"], text="Otro texto", responseClass="RECOMMENDED"),
         format="json",
     )
     assert updated.status_code == 200 and updated.data["message"] == "Decision actualizada"
     again = next(d for d in updated.data["data"]["decisions"] if d["id"] == edge["id"])
-    assert (again["text"], again["classification"], again["scoreDelta"]) == ("Otro texto", "ADEQUATE", 5)
+    assert (again["text"], again["responseClass"]) == ("Otro texto", "RECOMMENDED")
     _assert_audited(admin, "ADMIN_UPDATE_DECISION", "DECISION", edge["id"], "update_decision")
 
     deleted = api.delete(f"{BASE}/{draft}/decisions/{edge['id']}")
@@ -568,6 +571,9 @@ def _published_mutations(editor_data, cv):
         ("POST", f"{BASE}/{cv}/decisions", _decision_body(node["id"], node["id"]), "ADMIN_CREATE_DECISION", cv),
         ("PUT", f"{BASE}/{cv}/decisions/{decision['id']}", _decision_body(node["id"], node["id"]), "ADMIN_UPDATE_DECISION", decision["id"]),
         ("DELETE", f"{BASE}/{cv}/decisions/{decision['id']}", None, "ADMIN_DELETE_DECISION", decision["id"]),
+        ("PUT", f"{BASE}/{cv}/rules/milestones", {"milestones": []}, "ADMIN_UPDATE_MILESTONES", cv),
+        ("PUT", f"{BASE}/{cv}/rules/risk", {"riskLevel": None}, "ADMIN_UPDATE_RISK", cv),
+        ("PUT", f"{BASE}/{cv}/rules/endings", {"endings": []}, "ADMIN_UPDATE_ENDINGS", cv),
         ("POST", f"{BASE}/{cv}/maps", {"nodeId": node["id"], "mapKey": "m", "title": "t"}, "ADMIN_CREATE_MAP", cv),
         ("PUT", f"{BASE}/{cv}/maps/{scene_map['id']}", {"mapKey": "m", "title": "t"}, "ADMIN_UPDATE_MAP", scene_map["id"]),
         ("DELETE", f"{BASE}/{cv}/maps/{scene_map['id']}", None, "ADMIN_DELETE_MAP", scene_map["id"]),

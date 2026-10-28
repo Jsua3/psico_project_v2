@@ -8,9 +8,7 @@ import {
 
 function attempt(partial: Partial<StudentAttemptSummary>): StudentAttemptSummary {
   return {
-    attemptId: 'a', caseVersionId: 1, caseTitle: 'Caso', status: 'COMPLETED',
-    accumulatedScore: 0, adequateDecisions: 0, riskyDecisions: 0,
-    inadequateDecisions: 0, prohibitedDecisions: 0, totalDurationSeconds: null,
+    attemptId: 'a', caseVersionId: 1, caseTitle: 'Caso', status: 'COMPLETED', totalDurationSeconds: null,
     activeDurationSeconds: null, startedAt: '2026-09-01T10:00:00Z', endedAt: null,
     ...partial,
   };

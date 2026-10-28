@@ -11,6 +11,8 @@ export interface PlaceCandidate {
   readonly key: string;
   readonly label: string;
   readonly kind: PlaceKind;
+  /** Aviso que acompaña al nombre (p. ej. «persona a atender» en la persona clave de la sala). */
+  readonly note?: string;
 }
 
 const GROUP_ORDER: Record<PlaceKind, number> = { person: 0, door: 1, object: 2 };
@@ -27,8 +29,8 @@ export function selectPlaces(candidates: readonly PlaceCandidate[], examined: Re
     if (label === '' || seen.has(candidate.key)) return;
     if (candidate.kind === 'object' && !examined.has(candidate.key)) return;
     seen.add(candidate.key);
-    kept.push({ key: candidate.key, label, kind: candidate.kind, index });
+    kept.push({ key: candidate.key, label, kind: candidate.kind, ...(candidate.note ? { note: candidate.note } : {}), index });
   });
   kept.sort((a, b) => GROUP_ORDER[a.kind] - GROUP_ORDER[b.kind] || a.index - b.index);
-  return kept.map(({ key, label, kind }) => ({ key, label, kind }));
+  return kept.map(({ key, label, kind, note }) => ({ key, label, kind, ...(note ? { note } : {}) }));
 }

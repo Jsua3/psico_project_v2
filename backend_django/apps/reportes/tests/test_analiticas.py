@@ -107,7 +107,7 @@ def test_el_docente_recibe_los_bloques_de_su_grupo_con_las_cifras_conocidas(prof
     assert "satisfaction" not in data  # la encuesta está apagada por defecto
     assert data["definitions"] == {
         "status": "BORRADOR", "acceptableLevel": "LOGRADO", "minCell": 5, "reflectionDefinition": "ANY",
-        "profileRules": "borrador-1",
+        "profileRules": "borrador-2",
     }
 
 
@@ -154,14 +154,14 @@ def test_la_definicion_de_reflexion_configurada_llega_al_calculo(profesor, versi
 
 def test_cambiar_la_version_de_la_regla_del_perfil_deja_fuera_los_niveles_ya_cerrados(profesor, version, rubric, monkeypatch):
     group, _ = cohort(profesor, version, rubric, 5)
-    monkeypatch.setattr(definitions, "PROFILE_RULES", "borrador-2")
+    monkeypatch.setattr(definitions, "PROFILE_RULES", "borrador-3")
 
     data = get(profesor, grupoId=group.id).data["data"]
 
     for block in ("improvement", "acceptable", "improvementAfterFeedback"):
-        assert block not in data  # los reportes se sellaron con ``borrador-1``
+        assert block not in data  # los reportes se sellaron con ``borrador-2``
     assert data["firstVsSecond"]["students"] == 5  # lo que no depende de los niveles sigue ahí
-    assert data["definitions"]["profileRules"] == "borrador-2"
+    assert data["definitions"]["profileRules"] == "borrador-3"
 
 
 def test_la_celda_minima_configurada_no_baja_del_piso(profesor, version, rubric):

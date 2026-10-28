@@ -1,6 +1,6 @@
 import { A11yModule } from '@angular/cdk/a11y';
 import { NgTemplateOutlet } from '@angular/common';
-import { Component, ElementRef, Injector, afterNextRender, computed, effect, inject, input, output, untracked, ChangeDetectionStrategy } from '@angular/core';
+import { Component, ElementRef, Injector, afterNextRender, computed, effect, inject, input, output, signal, untracked, viewChild, ChangeDetectionStrategy } from '@angular/core';
 import { rxResource } from '@angular/core/rxjs-interop';
 import { RouterLink } from '@angular/router';
 import { EMPTY } from 'rxjs';
@@ -17,11 +17,8 @@ import { resolveCharacter } from '../character/kit/character-visual.resolver';
 import { KitFigureComponent } from '../character/kit/kit-figure.component';
 import { KitService } from '../character/kit/kit.service';
 import { DRAFT_COPY } from './draft-copy';
-import { decisionTotal, performanceLabel } from './outcome.util';
+import { levelWord, milestoneMark, responseClassWord } from './outcome-text.util';
 import { RECONSIDERED_LABEL, reconsideredChip } from './reconsidered.util';
-
-/** Marcador de puntaje del resultado (VD-6): el texto vigente, un avance sin cifra o ninguno. */
-export type ScoreMarker = 'points' | 'progress' | 'hidden';
 
 /**
  * Pantalla de fin de partida (liquid-glass) extraída de SimulationPlayComponent.
@@ -53,7 +50,7 @@ export type ScoreMarker = 'points' | 'progress' | 'hidden';
         </header>
 
         @if (status() === 'PAUSED') {
-          <!-- Pausa calmada: lo primero es poder volver; el tablero queda plegado y sin puntaje en primer plano. -->
+          <!-- Pausa calmada: lo primero es poder volver; el tablero queda plegado y sin cifras en primer plano. -->
           <p class="oc-pause-copy">{{ pauseMessage }}</p>
           <div class="oc-actions oc-actions--pause">
             <!-- Pausa reanudable real: mismo intento, sin crear uno nuevo. -->
@@ -96,59 +93,103 @@ export type ScoreMarker = 'points' | 'progress' | 'hidden';
         <!-- Aviso de alcance (RN-01, borrador de Psicología): fuera de los textos validados del resultado. -->
         <ui-scope-notice />
         @if (report(); as r) {
+          <!-- Orden del cierre: final, autoevaluación breve, hitos, competencias, revisión decisión por decisión. -->
           @if (r.ending; as ending) {
-            <div class="oc-ending" [attr.data-tone]="ending.tone" role="status">
+            <!-- Sin tono semáforo (R-18, §3.2 M7): el final es del mismo color para todos; ending.tone queda para el docente. -->
+            <div class="oc-ending" role="status">
               <p class="oc-ending__title">{{ ending.title }}</p>
               <p class="oc-ending__message">{{ ending.message }}</p>
-              <div class="oc-chips oc-chips--state">
-                <span class="oc-chip">Recomendadas: {{ ending.severityCounts.recommended }}</span>
-                <span class="oc-chip">Aceptables: {{ ending.severityCounts.acceptable }}</span>
-                <span class="oc-chip">Riesgosas: {{ ending.severityCounts.risky }}</span>
-                @if (ending.severityCounts.critical) {
-                  <span class="oc-chip oc-chip--alert">Críticas: {{ ending.severityCounts.critical }}</span>
-                }
-              </div>
-            </div>
-            <div class="oc-block">
-              <p class="oc-label">Métricas del caso</p>
-              <div class="oc-bars">
-                @for (metric of caseMetricRows(ending.caseMetrics); track metric.key) {
-                  <div class="oc-bar">
-                    <span class="oc-bar__k">{{ metric.label }}</span>
-                    <div class="oc-bar__t"><i [class]="'oc-bar__f ' + metric.cls" [style.width.%]="metric.value"></i></div>
-                    <span class="oc-bar__n">{{ metric.value }}</span>
-                  </div>
-                }
-              </div>
+              @if (r.persona; as persona) {
+                <p class="oc-ending__persona">{{ draft.endingPersonaPrefix.text }} {{ persona.label }}.</p>
+              }
+              @if (ending.reason && ending.reason.length) {
+                <p class="oc-ending__how">{{ draft.endingReasonTitle.text }}</p>
+                <ul class="oc-ending__reasons">
+                  @for (reason of ending.reason; track $index) { <li>{{ reason }}</li> }
+                </ul>
+              }
             </div>
           }
-          <div class="oc-metrics">
-            @switch (scoreMarker()) {
-              @case ('points') { <div class="oc-metric"><span>Puntaje total</span><strong>{{ r.finalScore }}</strong></div> }
-              @case ('progress') { <div class="oc-metric"><span>{{ draft.scoreProgressLabel.text }}</span><strong>{{ draft.scoreProgressDone.text }}</strong></div> }
-            }
-            <div class="oc-metric"><span>Escenarios</span><strong>{{ r.visitedNodeTitles.length }}</strong></div>
-            <div class="oc-metric"><span>Estrés final</span><strong>{{ r.finalStress }}%</strong></div>
-            <div class="oc-metric"><span>Tiempo</span><strong>{{ formatDuration(r.totalDurationSeconds) }}</strong></div>
-            <div class="oc-metric oc-metric--hi"><span>Desempeño</span><strong>{{ perf(r) }}</strong></div>
-          </div>
 
-          <div class="oc-block">
-            <p class="oc-label">Decisiones clave</p>
-            <div class="oc-bars">
-              <div class="oc-bar"><span class="oc-bar__k">Adecuadas</span><div class="oc-bar__t"><i class="oc-bar__f oc-bar__f--ok" [style.width.%]="barPct(r, r.adequateDecisions)"></i></div><span class="oc-bar__n">{{ r.adequateDecisions }}</span></div>
-              <div class="oc-bar"><span class="oc-bar__k">Riesgosas</span><div class="oc-bar__t"><i class="oc-bar__f oc-bar__f--warn" [style.width.%]="barPct(r, r.riskyDecisions)"></i></div><span class="oc-bar__n">{{ r.riskyDecisions }}</span></div>
-              <div class="oc-bar"><span class="oc-bar__k">Inadecuadas</span><div class="oc-bar__t"><i class="oc-bar__f oc-bar__f--bad" [style.width.%]="barPct(r, r.inadequateDecisions)"></i></div><span class="oc-bar__n">{{ r.inadequateDecisions }}</span></div>
+          @if (status() === 'COMPLETED') {
+            <!-- Autoevaluación breve (R-6): va ANTES de la revisión; vive solo aquí, no se envía ni se guarda. -->
+            <section class="oc-block oc-selfcheck" aria-labelledby="oc-selfcheck-title">
+              <p class="oc-label" id="oc-selfcheck-title">{{ draft.selfAssessTitle.text }}</p>
+              @if (selfCheckOpen()) {
+                <div class="oc-field">
+                  <label for="oc-self-good">{{ draft.selfAssessGood.text }}</label>
+                  <textarea #selfFirst id="oc-self-good" rows="2" maxlength="600" [value]="selfGood()" (input)="selfGood.set(valueOf($event))"></textarea>
+                </div>
+                <div class="oc-field">
+                  <label for="oc-self-change">{{ draft.selfAssessChange.text }}</label>
+                  <textarea id="oc-self-change" rows="2" maxlength="600" [value]="selfChange()" (input)="selfChange.set(valueOf($event))"></textarea>
+                </div>
+                <p class="oc-selfcheck__note">{{ draft.selfAssessLocalNote.text }}</p>
+                <div class="oc-selfcheck__actions">
+                  <button type="button" class="oc-btn oc-btn--go" (click)="collapseSelfCheck()">{{ draft.selfAssessDone.text }}</button>
+                  <button type="button" class="oc-btn oc-btn--line" (click)="collapseSelfCheck()">{{ draft.selfAssessSkip.text }}</button>
+                </div>
+              } @else {
+                <p class="oc-selfcheck__note">{{ draft.selfAssessCollapsed.text }}</p>
+                <button #selfEdit type="button" class="oc-btn oc-btn--line" (click)="reopenSelfCheck()">{{ draft.selfAssessEdit.text }}</button>
+              }
+            </section>
+          }
+
+          @if (r.milestones; as milestones) {
+            <div class="oc-milestones">
+              <section class="oc-block oc-milestones__col oc-milestones__col--done" aria-labelledby="oc-milestones-done-title">
+                <p class="oc-label" id="oc-milestones-done-title">{{ draft.milestonesDoneTitle.text }}</p>
+                @if (milestones.done.length) {
+                  <ul class="oc-milestones__list">
+                    @for (milestone of milestones.done; track milestone.key) {
+                      <li>{{ milestone.label }} @if (markOf(milestone); as mark) { <span class="oc-tag oc-tag--key">{{ mark }}</span> }</li>
+                    }
+                  </ul>
+                } @else {
+                  <p class="oc-muted">{{ draft.milestonesNoneDone.text }}</p>
+                }
+              </section>
+              <section class="oc-block oc-milestones__col oc-milestones__col--missing" aria-labelledby="oc-milestones-missing-title">
+                <p class="oc-label" id="oc-milestones-missing-title">{{ draft.milestonesMissingTitle.text }}</p>
+                @if (milestones.missing.length) {
+                  <ul class="oc-milestones__list">
+                    @for (milestone of milestones.missing; track milestone.key) {
+                      <li>{{ milestone.label }} @if (markOf(milestone); as mark) { <span class="oc-tag oc-tag--key">{{ mark }}</span> }</li>
+                    }
+                  </ul>
+                } @else {
+                  <p class="oc-muted">{{ draft.milestonesNoneMissing.text }}</p>
+                }
+              </section>
             </div>
-            <div class="oc-chips">
-              <span class="oc-chip">Herramientas: {{ r.toolsUsed }}</span>
-              <span class="oc-chip">Reflexiones: {{ r.reflectionsCount }}</span>
-              @if (r.safeExitUsed) { <span class="oc-chip">Salida segura</span> }
-              @if (r.prohibitedDecisions) { <span class="oc-chip oc-chip--alert">Alertas éticas: {{ r.prohibitedDecisions }}</span> }
-              <!-- No son decisiones ni bajan el desempeño: el juego no aplicó esa primera respuesta y se le pidió reconsiderar (L-03). -->
-              @if (reconsidered(r); as chip) { <span class="oc-chip">{{ chip }}</span> }
-            </div>
-          </div>
+          }
+
+          <!-- «Frente a tu intento anterior»: el reporte aún no trae datos del intento previo; el bloque entra cuando los traiga. -->
+
+          @if (r.competencyLevels && r.competencyLevels.length) {
+            <section class="oc-block oc-competencies" aria-labelledby="oc-competencies-title">
+              <p class="oc-label" id="oc-competencies-title">{{ draft.competenciesTitle.text }}</p>
+              <ul class="oc-competencies__list">
+                @for (competency of r.competencyLevels; track competency.code) {
+                  <li class="oc-competency" [attr.data-level]="competency.level ?? 'NONE'">
+                    <p class="oc-competency__head">
+                      <span class="oc-competency__name">{{ competency.name }}</span>
+                      <span class="oc-competency__level">{{ levelWord(competency.level) }}</span>
+                    </p>
+                    @if (competency.evidence.length) {
+                      <p class="oc-competency__lead">{{ draft.competencyEvidenceLead.text }}</p>
+                      <ul class="oc-competency__evidence">
+                        @for (item of competency.evidence; track item.order) {
+                          <li><span class="oc-competency__node">{{ item.nodeTitle }}:</span> {{ item.optionText }}</li>
+                        }
+                      </ul>
+                    }
+                  </li>
+                }
+              </ul>
+            </section>
+          }
 
           @if (status() === 'COMPLETED') {
             <!-- Tus decisiones (C2, RN-08): la explicación y el fundamento se leen al cierre, no al decidir. -->
@@ -167,7 +208,7 @@ export type ScoreMarker = 'points' | 'progress' | 'hidden';
                 @case ('ready') {
                   <ol class="oc-decisions__list">
                     @for (item of decisions(); track item.order) {
-                      <li class="oc-decision" [attr.data-tone]="item.classification">
+                      <li class="oc-decision" [attr.data-tone]="item.class">
                         <p class="oc-decision__node">{{ item.nodeTitle }}</p>
                         <p class="oc-decision__chosen"><span class="oc-decision__k">Elegiste:</span> {{ item.chosen.text }}</p>
                         @if (item.reconsidered; as first) {
@@ -176,7 +217,9 @@ export type ScoreMarker = 'points' | 'progress' | 'hidden';
                         @if (item.consequence) {
                           <p class="oc-decision__consequence">{{ item.consequence }}</p>
                         }
-                        <p class="oc-decision__tone">{{ toneLabel(item.classification) }}</p>
+                        @if (classWord(item.class); as word) {
+                          <p class="oc-decision__tone">{{ word }}</p>
+                        }
                         @if (item.prohibited) {
                           <p class="oc-chip oc-chip--alert oc-decision__note">{{ draft.decisionProhibitedNote.text }}</p>
                         }
@@ -196,19 +239,13 @@ export type ScoreMarker = 'points' | 'progress' | 'hidden';
             </section>
           }
 
-          <div class="oc-block">
-            <p class="oc-label">Consecuencias del caso</p>
-            <div class="oc-chips oc-chips--state">
-              <span class="oc-chip">Confianza final: {{ r.metrics.userTrust }}%</span>
-              <span class="oc-chip">Riesgo final: {{ r.metrics.victimRisk }}%</span>
-              <span class="oc-chip" [class.oc-chip--ok]="r.metrics.institutionalRouteActivated">
-                Ruta institucional: {{ r.metrics.institutionalRouteActivated ? 'activada' : 'no activada' }}
-              </span>
-              @if (r.metrics.revictimizationRisk) {
-                <span class="oc-chip oc-chip--alert">Riesgo de revictimización detectado</span>
-              }
+          @if (r.safeExitUsed || reconsidered(r)) {
+            <div class="oc-chips">
+              @if (r.safeExitUsed) { <span class="oc-chip">Salida segura</span> }
+              <!-- No son decisiones: el juego no aplicó esa primera respuesta y se le pidió reconsiderar (L-03). -->
+              @if (reconsidered(r); as chip) { <span class="oc-chip">{{ chip }}</span> }
             </div>
-          </div>
+          }
 
           @if (r.timeline?.length) {
             <div class="oc-block">
@@ -218,21 +255,9 @@ export type ScoreMarker = 'points' | 'progress' | 'hidden';
                   <li class="oc-tl" [attr.data-tl]="timelineTone(t)">
                     <span class="oc-tl__time">{{ t.time }}</span>
                     <span class="oc-tl__label">{{ t.label }}</span>
-                    @if (t.scoreDelta || t.stressDelta) {
-                      <span class="oc-tl__delta">{{ t.scoreDelta >= 0 ? '+' : '' }}{{ t.scoreDelta }} pts · estrés {{ t.stressDelta >= 0 ? '+' : '' }}{{ t.stressDelta }}%</span>
-                    }
                   </li>
                 }
               </ol>
-            </div>
-          }
-
-          @if (r.competencies.length) {
-            <div class="oc-block">
-              <p class="oc-label">Competencias trabajadas</p>
-              <div class="oc-tags">
-                @for (c of r.competencies; track c) { <span class="oc-tag">{{ c }}</span> }
-              </div>
             </div>
           }
 
@@ -265,14 +290,6 @@ export type ScoreMarker = 'points' | 'progress' | 'hidden';
     .oc-eyebrow { margin: 0; color: var(--sim-lavender, #B69CFF); font-size: .8rem; font-weight: 900; letter-spacing: .06em; text-transform: uppercase; }
     .outcome--safe .oc-eyebrow { color: rgba(244,247,251,.7); }
     .oc-head__copy h3 { margin: 4px 0 0; font-family: 'Poppins', system-ui, sans-serif; font-size: clamp(1.1rem, 2vw, 1.5rem); color: var(--sim-ink, #F4F7FB); }
-    .oc-metrics { display: grid; grid-template-columns: repeat(5, minmax(0,1fr)); gap: 10px; }
-    .oc-metric {
-      display: grid; gap: 4px; padding: 12px; border-radius: 14px;
-      background: var(--sim-surface, rgba(27,33,51,.72)); border: 1px solid var(--sim-border, rgba(182,156,255,.22));
-    }
-    .oc-metric span { font-size: .75rem; color: var(--sim-ink-mute, rgba(244,247,251,.5)); text-transform: uppercase; letter-spacing: .05em; }
-    .oc-metric strong { font-size: 1.3rem; color: var(--sim-ink, #F4F7FB); font-weight: 800; }
-    .oc-metric--hi strong { color: var(--sim-lavender, #B69CFF); }
     .oc-block {
       padding: 14px 16px; border-radius: 16px;
       background: var(--sim-surface, rgba(27,33,51,.72)); border: 1px solid var(--sim-border, rgba(182,156,255,.22));
@@ -281,23 +298,38 @@ export type ScoreMarker = 'points' | 'progress' | 'hidden';
       padding: 16px 18px; border-radius: 16px;
       background: rgba(124,77,255,.12); border: 1px solid rgba(182,156,255,.4);
     }
-    .oc-ending[data-tone='positive'] { background: rgba(110,198,122,.12); border-color: rgba(110,198,122,.5); }
-    .oc-ending[data-tone='warning']  { background: rgba(245,184,75,.10); border-color: rgba(245,184,75,.45); }
-    .oc-ending[data-tone='critical'] { background: rgba(226,90,79,.12); border-color: rgba(226,90,79,.5); }
     .oc-ending__title { margin: 0; font-weight: 900; letter-spacing: .04em; font-size: .95rem; color: var(--sim-ink, #F4F7FB); }
     .oc-ending__message { margin: 8px 0 0; color: var(--sim-ink-soft, rgba(244,247,251,.74)); line-height: 1.55; }
-    .oc-bar__f--mid { background: #B69CFF; }
+    .oc-ending__persona { margin: 8px 0 0; color: var(--sim-ink-soft, rgba(244,247,251,.74)); font-style: italic; }
+    .oc-ending__how { margin: 14px 0 6px; color: var(--sim-lavender, #B69CFF); font-size: .8rem; font-weight: 900; letter-spacing: .06em; text-transform: uppercase; }
+    .oc-ending__reasons, .oc-milestones__list, .oc-competency__evidence {
+      margin: 0; padding-left: 18px; display: grid; gap: 6px; line-height: 1.5; color: var(--sim-ink-soft, rgba(244,247,251,.74));
+    }
+    .oc-muted { margin: 0; color: var(--sim-ink-mute, rgba(244,247,251,.5)); font-size: .86rem; }
+    .oc-tag--key { margin-left: 6px; padding: 2px 9px; }
+    .oc-milestones { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; }
+    .oc-milestones__col--missing { border-style: dashed; }
+    .oc-competencies__list { display: grid; gap: 10px; margin: 0; padding: 0; list-style: none; }
+    .oc-competency { padding: 10px 12px; border-radius: 12px; border-left: 3px solid rgba(182,156,255,.4); background: rgba(255,255,255,.04); }
+    .oc-competency[data-level='NONE'] { border-left-color: rgba(244,247,251,.25); }
+    .oc-competency p { margin: 0; }
+    .oc-competency__head { display: flex; flex-wrap: wrap; justify-content: space-between; gap: 8px; font-weight: 800; }
+    .oc-competency__level { color: var(--sim-lavender, #B69CFF); }
+    .oc-competency p.oc-competency__lead { margin-top: 8px; font-size: .8rem; color: var(--sim-ink-mute, rgba(244,247,251,.5)); }
+    .oc-competency__evidence { margin-top: 4px; font-size: .86rem; }
+    .oc-competency__node { font-weight: 700; }
+    /* Autoevaluación breve: dos cajas de texto locales (no se envían ni se guardan). */
+    .oc-field { display: grid; gap: 6px; margin-bottom: 12px; }
+    .oc-field label { font-weight: 800; font-size: .9rem; }
+    .oc-field textarea {
+      width: 100%; box-sizing: border-box; padding: 10px 12px; border-radius: 12px; resize: vertical; font: inherit; line-height: 1.5;
+      color: var(--sim-ink, #F4F7FB); background: var(--sim-surface-2, rgba(18,24,42,.6)); border: 1px solid var(--sim-border, rgba(182,156,255,.22));
+    }
+    .oc-field textarea:focus-visible { outline: 3px solid #C9B3FF; outline-offset: 2px; }
+    .oc-selfcheck__note { margin: 0 0 10px; font-size: .84rem; color: var(--sim-ink-mute, rgba(244,247,251,.5)); }
+    .oc-selfcheck__actions { display: flex; flex-wrap: wrap; gap: 10px; }
     .oc-label { margin: 0 0 10px; color: var(--sim-lavender, #B69CFF); font-size: .75rem; font-weight: 900; letter-spacing: .08em; text-transform: uppercase; }
-    .oc-bars { display: grid; gap: 8px; }
-    .oc-bar { display: grid; grid-template-columns: 92px 1fr 28px; align-items: center; gap: 10px; }
-    .oc-bar__k { font-size: .8rem; color: var(--sim-ink-soft, rgba(244,247,251,.74)); }
-    .oc-bar__t { height: 9px; border-radius: 999px; background: rgba(255,255,255,.08); overflow: hidden; }
-    .oc-bar__f { display: block; height: 100%; border-radius: inherit; min-width: 3px; }
-    .oc-bar__f--ok   { background: #6EC67A; }
-    .oc-bar__f--warn { background: #F5B84B; }
-    .oc-bar__f--bad  { background: #E25A4F; }
-    .oc-bar__n { text-align: right; font-family: 'JetBrains Mono', monospace; font-weight: 800; color: var(--sim-ink, #F4F7FB); }
-    .oc-chips, .oc-tags { display: flex; flex-wrap: wrap; gap: 7px; margin-top: 12px; }
+    .oc-chips { display: flex; flex-wrap: wrap; gap: 7px; margin-top: 12px; }
     .oc-chip, .oc-tag {
       padding: 5px 11px; border-radius: 999px; font-size: .76rem; font-weight: 700;
       background: rgba(124,77,255,.16); border: 1px solid rgba(124,77,255,.4); color: #d6c6ff;
@@ -307,20 +339,16 @@ export type ScoreMarker = 'points' | 'progress' | 'hidden';
     .oc-chip--ok { border-color: rgba(110,198,122,.5); color: #a9e2b1; }
     .oc-chips--state { margin-top: 0; }
     .oc-timeline { display: grid; gap: 8px; margin: 0; padding: 0; list-style: none; }
+    /* R-19 (§3.2 M7): sin tono semáforo al cierre; la clase se lee en palabras, no en color. */
     .oc-tl {
-      display: grid; grid-template-columns: 52px 1fr auto; gap: 10px; align-items: baseline;
+      display: grid; grid-template-columns: 52px 1fr; gap: 10px; align-items: baseline;
       padding: 8px 10px; border-radius: 10px; border-left: 3px solid rgba(182,156,255,.4);
       background: rgba(255,255,255,.04); font-size: .82rem;
     }
-    .oc-tl[data-tl='ADEQUATE'], .oc-decision[data-tone='ADEQUATE']     { border-left-color: #6EC67A; }
-    .oc-tl[data-tl='RISKY'], .oc-decision[data-tone='RISKY']           { border-left-color: #F5B84B; }
-    .oc-tl[data-tl='INADEQUATE'], .oc-decision[data-tone='INADEQUATE'] { border-left-color: #E25A4F; }
-    .oc-tl[data-tl='PROHIBITED'] { border-left-color: #E25A4F; background: rgba(226,90,79,.08); }
     .oc-tl__time { font-family: 'JetBrains Mono', monospace; color: var(--sim-lavender, #B69CFF); }
     .oc-tl__label { color: var(--sim-ink-soft, rgba(244,247,251,.74)); line-height: 1.4; }
-    .oc-tl__delta { font-family: 'JetBrains Mono', monospace; font-size: .75rem; color: var(--sim-ink-mute, rgba(244,247,251,.5)); white-space: nowrap; }
     .oc-rec { margin: 0 0 6px; color: var(--sim-ink-soft, rgba(244,247,251,.74)); font-size: .86rem; line-height: 1.55; }
-    /* Tus decisiones (C2, RN-08): la explicación y el fundamento se leen al cierre; etiquetas formativas, sin puntaje.
+    /* Tus decisiones (C2, RN-08): la explicación y el fundamento se leen al cierre; etiquetas formativas, en palabras.
        Sin colores nuevos: el tono del borde comparte la regla de la línea de tiempo y el texto secundario va con opacidad. */
     .oc-decisions__list { display: grid; gap: 10px; margin: 0; padding: 0; list-style: none; }
     .oc-decision {
@@ -363,15 +391,13 @@ export type ScoreMarker = 'points' | 'progress' | 'hidden';
     }
     .oc-details > :not(summary) { margin-top: 12px; }
 
-    /* Columna útil a 360 px (F6-6): métricas en dos columnas, barras y línea de tiempo que no desbordan, acciones
-       a todo el ancho. Sin desplazamiento horizontal ni con el zoom del navegador al 200 %. */
+    /* Columna útil a 360 px (F6-6): hitos en una columna, línea de tiempo que no desborda, acciones a todo el ancho.
+       Sin desplazamiento horizontal ni con el zoom del navegador al 200 %. */
     @media (max-width: 480px) {
       .outcome { padding: 16px 14px; gap: 12px; }
       .oc-head { gap: 12px; }
-      .oc-metrics { grid-template-columns: repeat(2, minmax(0, 1fr)); }
-      .oc-bar { grid-template-columns: minmax(0, 84px) 1fr 28px; gap: 8px; }
+      .oc-milestones { grid-template-columns: minmax(0, 1fr); }
       .oc-tl { grid-template-columns: 44px minmax(0, 1fr); }
-      .oc-tl__delta { grid-column: 2; white-space: normal; }
       .oc-actions { flex-direction: column; align-items: stretch; }
       .oc-btn { width: 100%; }
     }
@@ -459,8 +485,27 @@ export class AttemptOutcomeComponent {
    * petición. Con el id, `decisionReview` sale del reporte congelado, no de la respuesta de la última decisión.
    */
   readonly reviewAttemptId = input<string | null>(null);
-  /** Marcador de puntaje (VD-6): `points` conserva el texto vigente; `progress` y `hidden` quedan cableados. */
-  readonly scoreMarker = input<ScoreMarker>('points');
+  /**
+   * Autoevaluación breve (R-6): abierta hasta que la persona pulsa «Listo» u «Omitir»; después se recoge.
+   * Solo vive en este componente: no se envía al servidor ni se guarda (se pierde al cerrar la pantalla).
+   */
+  protected readonly selfCheckOpen = signal(true);
+  protected readonly selfGood = signal('');
+  protected readonly selfChange = signal('');
+  private readonly selfEdit = viewChild<ElementRef<HTMLButtonElement>>('selfEdit');
+  private readonly selfFirst = viewChild<ElementRef<HTMLTextAreaElement>>('selfFirst');
+
+  /** Recoge la autoevaluación y deja el foco en «Editar mis notas»: el botón pulsado desaparece y el foco no puede caer a <body> (2.4.3). */
+  protected collapseSelfCheck(): void {
+    this.selfCheckOpen.set(false);
+    afterNextRender(() => this.selfEdit()?.nativeElement.focus({ preventScroll: true }), { injector: this.injector });
+  }
+
+  /** Reabre la autoevaluación y lleva el foco a su primera caja de texto. */
+  protected reopenSelfCheck(): void {
+    this.selfCheckOpen.set(true);
+    afterNextRender(() => this.selfFirst()?.nativeElement.focus({ preventScroll: true }), { injector: this.injector });
+  }
 
   protected readonly draft = DRAFT_COPY;
   protected readonly reconsideredLabel = RECONSIDERED_LABEL;
@@ -492,16 +537,16 @@ export class AttemptOutcomeComponent {
     this.decisionsResource.reload();
   }
 
-  /** Etiqueta cualitativa de una decisión al cierre (RN-08): lenguaje formativo, nunca un puntaje. */
-  toneLabel(classification: DecisionReviewItem['classification']): string {
-    switch (classification) {
-      case 'ADEQUATE': return DRAFT_COPY.decisionToneAdequate.text;
-      case 'RISKY': return DRAFT_COPY.decisionToneRisky.text;
-      default: return DRAFT_COPY.decisionToneInadequate.text;
-    }
+  /** La clase de una decisión al cierre, en palabras (RN-08): nunca una cifra. */
+  protected readonly classWord = responseClassWord;
+  protected readonly levelWord = levelWord;
+  protected readonly markOf = milestoneMark;
+
+  protected valueOf(event: Event): string {
+    return (event.target as HTMLTextAreaElement).value;
   }
 
-  /** Texto tranquilizador de la pausa: sin penalización y sin puntaje en primer plano. */
+  /** Texto tranquilizador de la pausa: sin penalización y sin cifras en primer plano. */
   readonly pauseMessage = 'Tu avance quedó guardado exactamente donde estabas. No hay penalización: puedes retomarlo cuando quieras.';
 
   /** Título de la pantalla. La pausa siempre dice «pausa» (el e2e la localiza por su nombre accesible). */
@@ -530,55 +575,13 @@ export class AttemptOutcomeComponent {
     }
   }
 
-  perf(r: AttemptCompletionReport): string { return performanceLabel(r); }
-
-  /** Tono visual de una entrada del timeline: prohibida pisa la clasificación. */
   /** Chip «Reconsideradas: N» (solo con reintentos): lo único que el cierre no puede callar de ellos. */
   reconsidered(r: AttemptCompletionReport): string | null {
     return reconsideredChip(r.retries);
   }
 
+  /** Tono visual de una entrada del timeline: prohibida pisa la clase. */
   timelineTone(t: AttemptTimelineEntry): string {
-    return t.prohibited ? 'PROHIBITED' : (t.classification ?? 'EVENT');
-  }
-
-  barPct(r: AttemptCompletionReport, n: number): number {
-    const total = decisionTotal(r);
-    return total === 0 ? 0 : Math.round((n / total) * 100);
-  }
-
-  /** Métricas del caso (0-100) en filas presentables; verde alto = deseable,
-   *  rojo alto = riesgo (crisis_emocional y riesgo_victima invierten el tono). */
-  caseMetricRows(metrics: Record<string, number>): Array<{ key: string; label: string; value: number; cls: string }> {
-    const labels: Record<string, string> = {
-      confianza: 'Confianza',
-      crisis_emocional: 'Crisis emocional',
-      riesgo_victima: 'Riesgo de la víctima',
-      rigor_tecnico: 'Rigor técnico',
-      etica_profesional: 'Ética profesional',
-      ruta_institucional: 'Ruta institucional',
-      calidad_duelo: 'Manejo del duelo',
-    };
-    const inverted = new Set(['crisis_emocional', 'riesgo_victima']);
-    return Object.keys(labels)
-      .filter(key => typeof metrics[key] === 'number')
-      .map(key => {
-        const value = Math.max(0, Math.min(100, metrics[key]));
-        const good = inverted.has(key) ? value <= 40 : value >= 60;
-        const bad = inverted.has(key) ? value >= 60 : value <= 40;
-        return {
-          key,
-          label: labels[key],
-          value,
-          cls: good ? 'oc-bar__f--ok' : bad ? 'oc-bar__f--bad' : 'oc-bar__f--mid',
-        };
-      });
-  }
-
-  formatDuration(seconds: number | null | undefined): string {
-    if (seconds === null || seconds === undefined) return 'No disponible';
-    const minutes = Math.floor(seconds / 60);
-    const rest = seconds % 60;
-    return minutes > 0 ? `${minutes} min ${rest} s` : `${rest} s`;
+    return t.prohibited ? 'PROHIBITED' : (t.class ?? 'EVENT');
   }
 }

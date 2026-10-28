@@ -44,9 +44,9 @@ const CASE_VERSION_ID = 7;
 
 const ATTEMPT = {
   attemptId: 'attempt-1', attemptToken: 'token-1', caseVersionId: CASE_VERSION_ID, caseTitle: 'Violencia Familiar',
-  status: 'IN_PROGRESS', accumulatedScore: 12, stressIndex: 30, metrics: { victimRisk: 50 },
+  status: 'IN_PROGRESS', persona: { bond: 'GUARDED', activation: 'TENSE', label: 'se muestra cautelosa y tensa' },
   currentNode: { id: 1, key: 'hospital-urgencias', title: 'Urgencias: crisis y contención', narrative: 'N', terminal: false, options: [] },
-  feedback: null, completionReport: null,
+  completionReport: null,
 } as unknown as SimulationAttemptState;
 
 // Cadenas validadas (copiadas del juego tal como estaban antes de F6-2): la comparación es byte a byte.
@@ -55,7 +55,6 @@ const FROZEN = {
     eyebrow: 'Intento en progreso',
     title: 'Continuar simulación formativa',
     body: 'Ya tienes un intento activo en Violencia Familiar. Puedes retomarlo desde Urgencias: crisis y contención o iniciar uno nuevo.',
-    metrics: ['Puntaje: 12', 'Estrés: 30%', 'Riesgo: 50%'],
     actions: ['Volver al catálogo', 'Iniciar nuevo intento', 'Continuar intento en progreso'],
   },
   consent: {
@@ -140,7 +139,7 @@ describe('SimulationPlayComponent: las cuatro entradas (F6-2)', () => {
       startAttempt: vi.fn(() => EMPTY),
     };
     audio = {
-      init: vi.fn(), setStressLevel: vi.fn(), isMusicMuted: vi.fn(() => false), isSfxMuted: vi.fn(() => false),
+      init: vi.fn(), setScene: vi.fn(), isMusicMuted: vi.fn(() => false), isSfxMuted: vi.fn(() => false),
       dispose: vi.fn(), stopIntroLament: vi.fn(), playIntroLament: vi.fn(), playSfx: vi.fn(),
     };
     TestBed.configureTestingModule({
@@ -226,8 +225,9 @@ describe('SimulationPlayComponent: las cuatro entradas (F6-2)', () => {
       expect(text(dialog.querySelector('.psy-eyebrow'))).toBe(FROZEN.resume.eyebrow);
       expect(text(dialog.querySelector('h2'))).toBe(FROZEN.resume.title);
       expect(text(dialog.querySelector('.case-intro-card__body > p'))).toBe(FROZEN.resume.body);
-      expect(Array.from(dialog.querySelectorAll('.case-intro-card__metrics span')).map(span => text(span)))
-        .toEqual([...FROZEN.resume.metrics]);
+      // Sin cifras: la tarjeta de reanudar dice el caso y la escena, nunca puntaje, estrés ni riesgo.
+      expect(dialog.querySelector('.case-intro-card__metrics')).toBeNull();
+      expect(dialog.textContent).not.toMatch(/Puntaje|Estrés|Riesgo|\d+\s?%/);
       expect(buttonsOf(dialog.querySelector('.case-intro-card__actions')!)).toEqual([...FROZEN.resume.actions]);
     });
 

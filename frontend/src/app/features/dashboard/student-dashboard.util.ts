@@ -3,27 +3,11 @@ import { UiBadgeTone } from '../../shared/ui/badge/ui-badge';
 import { plural } from '../../shared/ui/labels';
 import { NO_DATA_LABEL, completedAttemptCount } from './dashboard-metrics.util';
 
-/** Un punto de «Evolución de puntaje»: la fecha del intento, su caso y su puntaje. */
-export interface ScorePoint {
-  label: string;
-  caseTitle: string;
-  value: number;
-}
-
 /** Una barra de «Progreso por caso»: el título entero (lo recorta el CSS) y la cuenta real. */
 export interface CaseProgress {
   title: string;
   completed: number;
   total: number;
-  percent: number;
-}
-
-export type DecisionKey = 'adequate' | 'risky' | 'inadequate' | 'prohibited';
-
-export interface DecisionSlice {
-  key: DecisionKey;
-  label: string;
-  value: number;
   percent: number;
 }
 
@@ -34,7 +18,7 @@ export interface FirstUseCopy {
 }
 
 const OPEN_STATUSES = new Set(['IN_PROGRESS', 'PAUSED']);
-const MAX_SCORE_POINTS = 8;
+const MAX_CLOSINGS = 3;
 const MAX_CASES = 5;
 
 /** El intento abierto (en curso o en pausa): lo que el estudiante puede continuar. Nunca uno cerrado. */
@@ -49,20 +33,20 @@ export function attemptTone(status: string): UiBadgeTone {
   return 'neutral';
 }
 
-/**
- * Los ocho últimos intentos CERRADOS por fecha de inicio, del más antiguo al más reciente. Un intento abierto aún
- * no tiene su puntaje (dibujarlo sería una caída falsa); el rótulo es la fecha, no un número relativo a la ventana.
- */
-export function scoreSeries(history: readonly StudentAttemptSummary[]): ScorePoint[] {
+/** Un cierre reciente: el caso y la fecha en que empezó el intento, sin cifras. */
+export interface ClosingEntry {
+  attemptId: string;
+  caseTitle: string;
+  dateLabel: string;
+}
+
+/** Los tres últimos intentos COMPLETADOS, del más reciente al más antiguo (por fecha de inicio). */
+export function lastClosings(history: readonly StudentAttemptSummary[]): ClosingEntry[] {
   return history
-    .filter(attempt => !OPEN_STATUSES.has(attempt.status))
-    .sort((a, b) => new Date(a.startedAt).getTime() - new Date(b.startedAt).getTime())
-    .slice(-MAX_SCORE_POINTS)
-    .map(attempt => ({
-      label: formatDate(attempt.startedAt),
-      caseTitle: attempt.caseTitle,
-      value: Math.max(0, attempt.accumulatedScore),
-    }));
+    .filter(attempt => attempt.status === 'COMPLETED')
+    .sort((a, b) => new Date(b.startedAt).getTime() - new Date(a.startedAt).getTime())
+    .slice(0, MAX_CLOSINGS)
+    .map(attempt => ({ attemptId: attempt.attemptId, caseTitle: attempt.caseTitle, dateLabel: formatDate(attempt.startedAt) }));
 }
 
 /** Completados frente al total por caso (máximo cinco); el interrumpido no cuenta como completado. */
@@ -75,26 +59,6 @@ export function caseProgress(history: readonly StudentAttemptSummary[]): CasePro
     const completed = completedAttemptCount(attempts);
     return { title, completed, total: attempts.length, percent: Math.round((completed / attempts.length) * 100) };
   });
-}
-
-const DECISION_CLASSES: readonly { key: DecisionKey; label: string; pick: (attempt: StudentAttemptSummary) => number }[] = [
-  { key: 'adequate', label: 'Adecuadas', pick: attempt => attempt.adequateDecisions },
-  { key: 'risky', label: 'Riesgosas', pick: attempt => attempt.riskyDecisions },
-  { key: 'inadequate', label: 'Inadecuadas', pick: attempt => attempt.inadequateDecisions },
-  { key: 'prohibited', label: 'Prohibidas', pick: attempt => attempt.prohibitedDecisions },
-];
-
-/** Decisiones registradas por clase, con su porcentaje; las clases en cero no se pintan. */
-export function decisionBreakdown(history: readonly StudentAttemptSummary[]): { total: number; slices: DecisionSlice[] } {
-  const counts = DECISION_CLASSES.map(item => ({
-    key: item.key, label: item.label, value: history.reduce((sum, attempt) => sum + item.pick(attempt), 0),
-  }));
-  const total = counts.reduce((sum, item) => sum + item.value, 0);
-  if (total === 0) return { total: 0, slices: [] };
-  return {
-    total,
-    slices: counts.filter(item => item.value > 0).map(item => ({ ...item, percent: Math.round((item.value / total) * 100) })),
-  };
 }
 
 /** Tiempo activo legible; «Sin datos» si ningún intento lo informa (nunca un 0 inventado). */

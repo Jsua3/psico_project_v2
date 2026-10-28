@@ -30,7 +30,8 @@ export const NAV_ITEMS: readonly NavItem[] = [
   { id: 'rubricas', label: 'Rúbricas', route: '/portal/rubricas', icon: 'grading', roles: ['PROFESOR', 'ADMIN'], fold: ['PROFESOR', 'ADMIN'], order: 50 },
   { id: 'grupos', label: 'Grupos', route: '/portal/grupos', icon: 'groups', roles: ['PROFESOR'], fold: ['PROFESOR'], order: 60 },
   { id: 'reportes', label: 'Reportes', route: '/portal/reportes', icon: 'analytics', roles: ['PROFESOR'], fold: ['PROFESOR'], order: 70 },
-  // E2-4: el profesor autora con propiedad (F8-0 le abre el hub y el editor de lo suyo); publicar sigue siendo del ADMIN.
+  // E2-4 y P6: el profesor y el administrador entran a «Mis casos» (lista, crear desde un lugar y el editor nuevo); el profesor solo
+  // ve y edita lo suyo (lo hace cumplir el servidor); aprobar y publicar siguen siendo del ADMIN.
   { id: 'casos', label: 'Editar casos', route: '/portal/casos', icon: 'edit_square', roles: ['PROFESOR', 'ADMIN'], fold: ['PROFESOR'], order: 80 },
   { id: 'usuarios', label: 'Usuarios', route: '/portal/admin/usuarios', icon: 'manage_accounts', roles: ['ADMIN'], fold: ['ADMIN'], order: 90 },
 ];

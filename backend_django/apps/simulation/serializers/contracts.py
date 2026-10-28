@@ -10,11 +10,14 @@ Los nombres de los campos son los del servicio (camelCase), no los de las column
 from rest_framework import serializers
 
 from apps.grupos.contracts import AccessDecisionSerializer
+from apps.simulation.casedef.vocabulary import Activation, Bond, Intensity
 from apps.simulation.models import AttemptStatus, CaseVersionStatus
 from apps.simulation.models.case import ReviewDecision, ReviewReason
 from shared.openapi import ErrorEnvelopeSerializer
 
 ISSUE_SEVERITIES = ("error", "warning")
+ASSISTANT_STATUS_MODES = ("connected", "disabled")
+ASSISTANT_GUIDE_MODES = ("resaltar", "foco", "recorrido")
 HINT_REASONS = ("NONE_FOR_SCENE", "ALL_SHOWN")
 LIFECYCLE_ACTIONS = ("submit", "approve", "reject", "archive", "clone")
 #: Quién respalda una casilla de la lista de publicación (``authoring/checklist.py``: ``SYSTEM``, ``CONSTANCIA``, ``AUTHOR``).
@@ -84,8 +87,6 @@ class InstructorAttemptItemSerializer(serializers.Serializer):
     caseVersionStatus = serializers.ChoiceField(choices=CaseVersionStatus.choices)
     caseTitle = serializers.CharField()
     status = serializers.ChoiceField(choices=AttemptStatus.choices)
-    accumulatedScore = serializers.IntegerField()
-    stressIndex = serializers.IntegerField()
     activeSeconds = serializers.IntegerField()
     startedAt = serializers.DateTimeField(help_text=LOCAL_TIME)
     endedAt = serializers.DateTimeField(allow_null=True, help_text=f"Nulo mientras el intento está abierto. {LOCAL_TIME}")
@@ -105,6 +106,39 @@ class AssistantAnswerSerializer(serializers.Serializer):
     """La respuesta del asistente de IA: un objeto con el texto, SIN el sobre `{success, data}` de las demás rutas."""
 
     response = serializers.CharField()
+
+
+# ─── …/cases/{id}/assistant/* (asistente de IA de autoría, P5) ────────────────
+class AssistantStatusSerializer(serializers.Serializer):
+    """Si el asistente de autoría está listo y cuánto cupo le queda hoy a quien lo usa."""
+
+    enabled = serializers.BooleanField()
+    remainingToday = serializers.IntegerField()
+    mode = serializers.ChoiceField(choices=ASSISTANT_STATUS_MODES)
+
+
+class AssistantResultSerializer(serializers.Serializer):
+    """El resultado de ``propose``: el mensaje, la lista de cambios propuestos y con qué modelo se hizo.
+
+    Cada cambio es un objeto con su ``op`` (una de las diez operaciones del asistente) y los campos de esa
+    operación; el servidor ya los validó contra el caso. Proponer NO escribe nada: el cliente los aplica.
+    """
+
+    mensaje = serializers.CharField()
+    cambios = serializers.ListField(child=serializers.DictField(), help_text="Cambios validados, cada uno con su `op`.")
+    modo = serializers.CharField(help_text="Siempre `connected` en un resultado.")
+    model = serializers.CharField(help_text="El modelo que respondió.")
+    changes = serializers.IntegerField(help_text="Cuántos cambios trae `cambios`.")
+
+
+class AssistantGuideSerializer(serializers.Serializer):
+    """El resultado de ``guide``: la acción elegida del catálogo (o ``null``), cómo mostrarla y el mensaje."""
+
+    accionId = serializers.CharField(allow_null=True)
+    modo = serializers.ChoiceField(choices=ASSISTANT_GUIDE_MODES)
+    mensaje = serializers.CharField()
+    model = serializers.CharField(help_text="El modelo que respondió.")
+    changes = serializers.IntegerField(help_text="Siempre 0: la guía no propone cambios.")
 
 
 # ─── PATCH /api/simulation/attempts/{attempt_id}/world-state ──────────────────
@@ -353,3 +387,69 @@ class CaseConflictEnvelopeSerializer(ErrorEnvelopeSerializer):
     blockers = CaseBlockerSerializer(many=True, required=False)
     revision = serializers.IntegerField(required=False, help_text="La revisión vigente del caso.")
     current = serializers.DictField(required=False, help_text="El editor del caso con los cambios de la otra sesión.")
+
+
+# ─── GET /api/simulation/attempts/{attempt_id} ────────────────────────────────
+class DecisionOptionStateSerializer(serializers.Serializer):
+    """Una opción de decisión tal como la ve quien juega: solo su id y su texto (ni clase ni efectos, antes de decidir)."""
+
+    id = serializers.IntegerField()
+    text = serializers.CharField()
+
+
+class PersonaStateSerializer(serializers.Serializer):
+    """La persona consultante en palabras: su vínculo y su activación en la ficción, sin cifras."""
+
+    bond = serializers.ChoiceField(choices=[valor.value for valor in Bond])
+    activation = serializers.ChoiceField(choices=[valor.value for valor in Activation])
+    label = serializers.CharField(help_text="La frase para el estudiante: «se muestra cautelosa y tensa».")
+
+
+class CurrentNodeSerializer(serializers.Serializer):
+    """La escena actual del intento. ``options`` va vacía si el intento no está en juego o la escena es terminal."""
+
+    id = serializers.IntegerField()
+    key = serializers.CharField()
+    title = serializers.CharField()
+    narrative = serializers.CharField()
+    supportResources = serializers.ListField(child=serializers.CharField())
+    requiredTools = serializers.ListField(child=serializers.CharField())
+    sensitiveContent = serializers.BooleanField()
+    safeExitRequired = serializers.BooleanField()
+    warningMessage = serializers.CharField(allow_null=True)
+    intensity = serializers.ChoiceField(
+        choices=[valor.value for valor in Intensity], help_text="Cuánta carga emocional trae la escena."
+    )
+    terminal = serializers.BooleanField()
+    decisionPrompt = serializers.CharField()
+    displayOrder = serializers.IntegerField()
+    options = DecisionOptionStateSerializer(many=True)
+
+
+class AttemptStateSerializer(serializers.Serializer):
+    """El estado del intento (inicio, lectura, reanudación): la escena, la persona y, al completar, el informe congelado.
+
+    Ninguna cifra llega al estudiante: ni puntaje, ni estrés, ni métricas, ni estado clínico (`test_no_numbers_to_student`).
+
+    La respuesta lleva además `attemptToken` (la credencial del intento, que el cliente reenvía en la cabecera): este
+    contrato NO la declara a propósito, porque el documento no publica ninguna propiedad con nombre de credencial
+    (`test_openapi_schema_never_exposes_prohibited_fields`). Su prueba la admite como la única clave de más.
+    """
+
+    attemptId = serializers.CharField(help_text="UUID del intento.")
+    caseVersionId = serializers.IntegerField()
+    caseTitle = serializers.CharField()
+    status = serializers.ChoiceField(choices=AttemptStatus.choices)
+    persona = PersonaStateSerializer()
+    currentNode = CurrentNodeSerializer()
+    completionReport = serializers.DictField(
+        allow_null=True,
+        help_text=(
+            "El informe congelado (schemaVersion 3) de un intento completado; nulo mientras no lo está. Su forma "
+            "(hitos, persona, final con su razón, revisión de decisiones, niveles con su evidencia) la fija "
+            "`attempt_report`; tiparla campo a campo queda fuera de este contrato."
+        ),
+    )
+    supportResources = serializers.ListField(
+        child=serializers.CharField(), help_text="Recursos de apoyo: solo si el intento está en pausa o salió de forma segura."
+    )

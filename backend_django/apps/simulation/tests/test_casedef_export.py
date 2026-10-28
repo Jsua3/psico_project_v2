@@ -26,8 +26,12 @@ from apps.simulation.casedef.model import (
 pytestmark = [pytest.mark.req("RF-12"), pytest.mark.req("RNF-07"), pytest.mark.req("TD-02")]
 
 
+#: La base del taller deriva su ``clasificacion`` de la clase de la respuesta (``ADEQUATE``/``RISKY``/``INADEQUATE``).
+_CLASS_OF = {"ADEQUATE": "RECOMMENDED", "RISKY": "RISKY", "INADEQUATE": "CONTRAINDICATED"}
+
+
 def _option(key, text, target, classification="ADEQUATE", **extra):
-    return Option(key=key, text=text, target=target, classification=classification, **extra)
+    return Option(key=key, text=text, target=target, response_class=_CLASS_OF[classification], **extra)
 
 
 def _definition(**overrides):
@@ -109,7 +113,7 @@ def test_the_state_is_translated(status, estado):
     assert to_base_document(_definition(status=status))["caso"]["estado"] == estado
 
 
-def test_a_scene_with_options_carries_a_decision_with_classification_and_hints():
+def test_a_scene_with_options_carries_a_decision_with_a_derived_classification_and_hints():
     first = to_base_document(_definition())["escenas"][0]
     assert first["titulo"] == "Reunión de equipo"
     assert first["descripcion"] == "El equipo discute."
@@ -129,11 +133,11 @@ def test_a_scene_without_options_is_a_conclusion_without_a_decision():
     assert "decision" not in last
 
 
-def test_a_prohibited_option_carries_its_reason():
+def test_a_contraindicated_option_is_prohibited_and_carries_its_reason():
     scenes = list(_definition().scenes)
     options = list(scenes[0].options)
     options[1] = _option(
-        "intervenir", "Intervenir ya", "cierre", "INADEQUATE", prohibited=True, reason="Revictimiza.",
+        "intervenir", "Intervenir ya", "cierre", "INADEQUATE", reason="Revictimiza.",
     )
     scenes[0] = Scene(**{**scenes[0].__dict__, "options": tuple(options)})
     option = to_base_document(_definition(scenes=tuple(scenes)))["escenas"][0]["decision"]["opciones"][1]

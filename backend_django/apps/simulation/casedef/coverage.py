@@ -18,12 +18,11 @@ EXPORTED = {
     "SimulationNode": {
         "node_key", "title", "narrative", "support_resources_json", "required_tools_json",
         "sensitive_content", "safe_exit_required", "warning_message", "start_node", "terminal_node",
-        "position_x", "position_y", "decision_prompt", "display_order",
+        "position_x", "position_y", "decision_prompt", "display_order", "intensity",
     },
     "DecisionOption": {
-        "option_key", "source_node", "target_node", "text", "classification", "score_delta", "stress_delta",
-        "prohibited_penalty", "immediate_feedback", "prohibited_conduct", "prohibition_reason",
-        "consequence_text", "theory_basis", "feedback_text", "effects",
+        "option_key", "source_node", "target_node", "text", "immediate_feedback",
+        "prohibition_reason", "consequence_text", "theory_basis", "feedback_text", "effects", "response_class",
     },
     "SceneMap": {"node", "map_key", "title", "width", "height", "theme", "spawn_x", "spawn_y", "ambient_json"},
     "SceneHint": {"scene_map", "hint_order", "text"},
@@ -54,6 +53,7 @@ EXPORTED = {
 _ID = "identificador de la base de datos: el documento usa ids de DSL por posición"
 _OWNER_VERSION = "la entidad es de la versión del documento"
 _STAMP = "marca de tiempo de la fila; el documento no lleva fechas"
+_AI_MARK = "marca de revisión del asistente de IA (P5): la lleva la compuerta de publicación, no el documento (se pierde al exportar e importar)"
 
 #: modelo → {columna: motivo por el que no viaja}.
 EXCLUDED = {
@@ -78,16 +78,16 @@ EXCLUDED = {
         "last_edited_by": "quién editó por última vez; no es contenido",
         "edited_alone_since": "tanda de ediciones del editor; no es contenido",
     },
-    "SimulationNode": {"id": _ID, "case_version": _OWNER_VERSION},
-    "DecisionOption": {"id": _ID, "case_version": _OWNER_VERSION},
+    "SimulationNode": {"id": _ID, "case_version": _OWNER_VERSION, "ai_suggested": _AI_MARK},
+    "DecisionOption": {"id": _ID, "case_version": _OWNER_VERSION, "ai_suggested": _AI_MARK},
     "SceneMap": {"id": _ID, "case_version": "la versión del mapa es la de su escena", "created_at": _STAMP,
                  "updated_at": _STAMP},
     "SceneHint": {"id": _ID},
     "CaseCharacter": {"id": _ID, "case_version": _OWNER_VERSION},
-    "MapObject": {"id": _ID, "created_at": _STAMP, "updated_at": _STAMP},
+    "MapObject": {"id": _ID, "created_at": _STAMP, "updated_at": _STAMP, "ai_suggested": _AI_MARK},
     "CollisionZone": {"id": _ID},
     "DialogueTree": {"id": _ID, "created_at": _STAMP},
-    "DialogueLine": {"id": _ID},
+    "DialogueLine": {"id": _ID, "ai_suggested": _AI_MARK},
     "DialogueChoice": {"id": _ID},
     "ClinicalTool": {"id": _ID, "case_version": _OWNER_VERSION},
     "Rubric": {

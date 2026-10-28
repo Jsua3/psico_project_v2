@@ -16,7 +16,6 @@ export interface RubricCriterionAdmin {
   title: string;
   description?: string | null;
   weight: number;
-  maxScore?: number;
   displayOrder: number;
   active: boolean;
 }

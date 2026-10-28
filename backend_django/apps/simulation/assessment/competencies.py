@@ -1,15 +1,19 @@
-"""El perfil por competencia de un intento (E6-1b, RQ-NEG-001, RQ-NEG-002; mesa §A20).
+"""El perfil por competencia de un intento (E6-1b, RQ-NEG-001, RQ-NEG-002; mesa §A20; ``borrador-2``).
 
-Cada decisión registrada aporta un nivel formativo a las competencias de la rúbrica del caso:
+La opción declara QUÉ competencias evidencia (``effects.competencies``: una lista de códigos o, en el formato de E6-1a,
+``{código: nivel}``) y el nivel sale de la clase de la respuesta: **el nivel declarado si lo hay; si no, el de su clase**
+(``LEVEL_BY_CLASS``: Recomendada → DESTACADO, Aceptable → LOGRADO, Con riesgo → EN_PROCESO, Contraindicada → EN_INICIO).
+Solo aportan las competencias declaradas que son de la rúbrica del caso (un código ajeno se ignora). Una opción que no
+declara nada **no aporta a ninguna**: la competencia que ninguna decisión tocó queda «sin evidencia» (``level None``). Nunca
+hay aporte «a todas» (Revisión de foco 3): inventarle un nivel a una competencia que la persona no puso a prueba era una
+afirmación que el caso no hacía.
 
-- **por defecto** el de su severidad (``LEVEL_BY_SEVERITY``) a TODAS las competencias de la rúbrica;
-- si la opción declara ``effects.competencies`` aporta SOLO a esas y con esos niveles (los datos del autor mandan);
-  un código que no es de la rúbrica se ignora.
-
-El nivel de una competencia es el **promedio** de los índices (1–4) de sus aportes, con la mitad hacia arriba, y
-``CRITICAL_CAP`` como tope si la tocó una decisión crítica *por defecto*: una conducta revictimizante no puede dar
-«logrado» en la competencia. Todo esto son definiciones en **BORRADOR** hasta que Psicología las confirme: la regla es
-``level_of`` y la tabla ``LEVEL_BY_SEVERITY``.
+El nivel de la competencia es el **promedio** de los índices (1–4) de los aportes, con la mitad hacia arriba, y
+``CONTRAINDICATED_CAP`` como tope si la tocó una respuesta contraindicada —también si el autor fijó un nivel más alto—: una
+conducta revictimizante no puede dar «logrado» en la competencia. Cada entrada del perfil trae ``evidence[]``: las decisiones
+registradas que la sostienen, en orden, con su clase y el nivel que aportaron (lo que el informe del reporte v3 muestra).
+Todo esto son definiciones en **BORRADOR** hasta que Psicología las confirme: la regla es ``level_of`` y las tablas
+``LEVEL_BY_CLASS`` y ``CONTRAINDICATED_CAP``.
 
 Lo puro (``level_of``, ``contributions``) no toca la base; ``rubric_competencies`` y ``competency_profile`` leen la
 rúbrica del caso con un número constante de consultas. El catálogo (alta y lectura) sigue en ``services.competencies``.
@@ -19,57 +23,56 @@ from decimal import ROUND_HALF_UP, Decimal
 
 from rest_framework.exceptions import NotFound
 
-from apps.simulation.models import LEVEL_INDEX, FormativeLevel, RubricCriterion
-from apps.simulation.services import case_effects, case_rules, rubric_service
+from apps.simulation.casedef.vocabulary import ResponseClass
+from apps.simulation.models import LEVEL_INDEX, REGISTERED_DECISION_EVENT_TYPES, FormativeLevel, RubricCriterion
+from apps.simulation.services import case_rules, rubric_service
+from apps.simulation.services.case_state import response_class_of
 from apps.simulation.services.competencies import normalize_code
 
 from .definitions import PROFILE_RULES  # noqa: F401  (la versión de la regla vive con las definiciones y se sella en el reporte)
 
 Competence = namedtuple("Competence", ["code", "name"])
 
-#: Nivel que aporta una decisión según su severidad (R3, BORRADOR).
-LEVEL_BY_SEVERITY = {
-    case_rules.SEVERITY_RECOMMENDED: FormativeLevel.DESTACADO,
-    case_rules.SEVERITY_ACCEPTABLE: FormativeLevel.LOGRADO,
-    case_rules.SEVERITY_RISKY: FormativeLevel.EN_PROCESO,
-    case_rules.SEVERITY_CRITICAL: FormativeLevel.EN_INICIO,
+#: Nivel que aporta una respuesta de cada clase a las competencias que declara sin fijar nivel (R3, BORRADOR).
+LEVEL_BY_CLASS = {
+    ResponseClass.RECOMMENDED: FormativeLevel.DESTACADO,
+    ResponseClass.ACCEPTABLE: FormativeLevel.LOGRADO,
+    ResponseClass.RISKY: FormativeLevel.EN_PROCESO,
+    ResponseClass.CONTRAINDICATED: FormativeLevel.EN_INICIO,
 }
-#: Techo de una competencia a la que aportó una decisión crítica por defecto (R3, BORRADOR).
-CRITICAL_CAP = FormativeLevel.EN_PROCESO
+#: Techo de una competencia a la que aportó una respuesta contraindicada (R3, BORRADOR).
+CONTRAINDICATED_CAP = FormativeLevel.EN_PROCESO
 
 _LEVEL_OF_INDEX = {index: level for level, index in LEVEL_INDEX.items()}
 
 
 def level_of(contributions):
-    """El nivel de una competencia a partir de sus aportes ``(nivel, crítica)``; ``None`` si no hubo ninguno."""
+    """El nivel de una competencia a partir de sus aportes ``(nivel, contraindicada)``; ``None`` si no hubo ninguno."""
     contributions = list(contributions)
     if not contributions:
         return None
     mean = Decimal(sum(LEVEL_INDEX[level] for level, _ in contributions)) / len(contributions)
     index = int(mean.quantize(Decimal("1"), rounding=ROUND_HALF_UP))
-    if any(critical for _, critical in contributions):
-        index = min(index, LEVEL_INDEX[CRITICAL_CAP])
+    if any(capped for _, capped in contributions):
+        index = min(index, LEVEL_INDEX[CONTRAINDICATED_CAP])
     return _LEVEL_OF_INDEX[max(1, min(4, index))]
 
 
 def contributions(decision, codes):
-    """Lo que aporta una opción: ``{código: (nivel, crítica)}`` para las competencias de ``codes`` que toca.
+    """Lo que aporta una opción: ``{código: (nivel, contraindicada)}`` para las competencias de ``codes`` que declara.
 
-    ``crítica`` marca el aporte que pone el tope ``CRITICAL_CAP``: el POR DEFECTO de una decisión de severidad crítica
-    y el de CUALQUIER conducta prohibida —aunque el autor le fije otra severidad o le declare el nivel—, porque una
-    conducta revictimizante no puede dar «logrado». Fuera de eso, cuando el autor declara el nivel de una competencia,
-    ese nivel es el que quiso y no se le pone tope.
+    Solo aporta a las competencias que la opción declara en ``effects.competencies`` (y que son de ``codes``); sin
+    declaración no aporta a ninguna. El nivel es el que el autor fijó o, si solo marcó la competencia, el de la clase
+    de la respuesta (``LEVEL_BY_CLASS`` con ``response_class_of``, que cae a los datos antiguos si falta). ``contraindicada``
+    marca el aporte de una respuesta ``CONTRAINDICATED``, que pone el tope ``CONTRAINDICATED_CAP`` con cualquier nivel:
+    una conducta revictimizante no puede dar «logrado». Fuera de eso, un nivel fijado por el autor no se topa.
     """
-    prohibited = bool(getattr(decision, "prohibited_conduct", False))
-    overrides = case_rules.competency_overrides(decision)
-    if overrides:
-        return {
-            code: (FormativeLevel(level), prohibited) for code, level in overrides.items() if code in codes
-        }
-    severity = case_effects.option_severity(decision)
-    level = LEVEL_BY_SEVERITY[severity]
-    critical = prohibited or severity == case_rules.SEVERITY_CRITICAL
-    return {code: (level, critical) for code in codes}
+    response_class = response_class_of(decision)
+    capped = response_class is ResponseClass.CONTRAINDICATED
+    return {
+        code: (FormativeLevel(level) if level is not None else LEVEL_BY_CLASS[response_class], capped)
+        for code, level in case_rules.competency_overrides(decision).items() if code in codes
+    }
 
 
 def competency_code_of(criterion):
@@ -107,26 +110,20 @@ def rubric_of(case_version_id):
         return None
 
 
-BASIS_DEFAULT, BASIS_DECLARED, BASIS_MIXED = "DEFAULT", "DECLARED", "MIXED"
-
-
-def _basis(declared_flags):
-    """De dónde salió el nivel: ``DECLARED`` (todas las decisiones que la tocaron declaran ``effects.competencies``),
-    ``DEFAULT`` (ninguna: se infirió de su severidad) o ``MIXED``; ``None`` si ninguna la tocó."""
-    if not declared_flags:
-        return None
-    if all(declared_flags):
-        return BASIS_DECLARED
-    return BASIS_DEFAULT if not any(declared_flags) else BASIS_MIXED
+BASIS_DECLARED = "DECLARED"
 
 
 def competency_profile(attempt, events):
-    """``[{"code", "name", "level", "basis"}]`` del intento: una entrada por competencia de la rúbrica del caso.
+    """``[{"code", "name", "level", "basis", "evidence"}]`` del intento: una entrada por competencia de la rúbrica.
 
-    ``events`` son los eventos del intento con ``decision_option`` cargada. Solo cuentan las decisiones registradas
-    (no los reintentos). ``level`` es ``None`` si ninguna decisión tocó la competencia («sin evidencia»). ``basis``
-    dice si el nivel lo DECLARÓ el autor del caso o se INFIRIÓ de la severidad de las decisiones: sin declaraciones,
-    todas las competencias salen con el mismo nivel (el de la severidad media) y quien lee el reporte debe saberlo.
+    ``events`` son los eventos del intento con ``decision_option`` y ``node`` cargados. Solo cuentan las decisiones
+    registradas (no los reintentos). ``level`` es ``None`` si ninguna decisión tocó la competencia («sin evidencia»).
+    ``basis`` es ``DECLARED`` si alguna decisión la tocó y ``None`` si no: el autor del caso declara qué competencias toca cada respuesta.
+    Las bases ``DEFAULT`` y ``MIXED`` (nivel inferido de la severidad) existían hasta ``borrador-1`` y ya no se dan; la
+    clave se conserva para quienes leen los reportes cerrados. ``evidence`` lista las decisiones que la sostienen, en
+    orden: ``{"order", "nodeTitle", "optionText", "class", "level"}`` con ``order`` la posición de la decisión entre
+    las registradas (la de ``decisionReview``) y ``level`` el nivel que aportó (el fijado por el autor o el de la clase),
+    antes del tope.
     Sin rúbrica, o sin criterios con competencia, el perfil está vacío.
     """
     rubric = rubric_of(attempt.case_version_id)
@@ -137,19 +134,34 @@ def competency_profile(attempt, events):
         return []
     codes = {competence.code for competence in competences}
     gathered = {code: [] for code in codes}
-    declared = {code: [] for code in codes}
+    supporting = {code: [] for code in codes}
+    order = 0
     for event in events:
-        if event.decision_option_id is None or event.event_type not in case_effects.REGISTERED_DECISION_EVENT_TYPES:
+        if event.decision_option_id is None or event.event_type not in REGISTERED_DECISION_EVENT_TYPES:
             continue
-        is_declared = bool(case_rules.competency_overrides(event.decision_option))
-        for code, contribution in contributions(event.decision_option, codes).items():
+        order += 1
+        option = event.decision_option
+        for code, contribution in contributions(option, codes).items():
             gathered[code].append(contribution)
-            declared[code].append(is_declared)
+            supporting[code].append({
+                "order": order,
+                "nodeTitle": _node_title(event),
+                "optionText": option.text,
+                "class": response_class_of(option).value,
+                "level": contribution[0].value,
+            })
     profile = []
     for competence in competences:
         level = level_of(gathered[competence.code])
         profile.append({
             "code": competence.code, "name": competence.name,
-            "level": level.value if level else None, "basis": _basis(declared[competence.code]),
+            "level": level.value if level else None,
+            "basis": BASIS_DECLARED if gathered[competence.code] else None,
+            "evidence": supporting[competence.code],
         })
     return profile
+
+
+def _node_title(event):
+    node = getattr(event, "node", None)
+    return node.title if node is not None else ""

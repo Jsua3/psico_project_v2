@@ -235,8 +235,6 @@ export class DashboardComponent implements OnInit {
     const grupos = this.grupos();
     const assignedStudents = grupos.reduce((sum, g) => sum + (g.totalEstudiantes ?? 0), 0);
     const casosAsignados = this.uniqueCasesCount(data);
-    const promedioRaw = data?.puntajePromedioSimulacion ?? data?.puntajePromedioGlobal;
-    const promedio = promedioRaw && promedioRaw > 0 ? String(Math.round(promedioRaw)) : 'Pendiente';
     const criticas = this.criticalDecisions(data);
     const recentCount = data?.intentosRecientes?.length ?? 0;
     const completed = data?.simulacionesCompletadas ?? 0;
@@ -250,7 +248,6 @@ export class DashboardComponent implements OnInit {
       this.metric(recentCount, 'Intentos recientes', recentCount > 0 ? 'Últimas sesiones' : 'Aún no hay intentos registrados', dashboardDown),
       this.metric(casosAsignados, 'Casos asignados', casosAsignados > 0 ? 'Catálogo activo' : 'No hay casos asignados', dashboardDown),
       this.metric(completed, 'Simulaciones completadas', completed > 0 ? 'Avance registrado' : 'Aún no hay intentos registrados', dashboardDown),
-      this.metric(promedio, 'Promedio de desempeño', promedio === 'Pendiente' ? 'Sin datos suficientes todavía' : 'Evaluación activa', dashboardDown),
       this.metric(criticas, 'Decisiones críticas', criticas > 0 ? 'Requiere revisión' : 'Sin alertas registradas', dashboardDown),
     ];
   }
@@ -261,7 +258,7 @@ export class DashboardComponent implements OnInit {
     return (
       (data.simulacionesCompletadas ?? 0) === 0 &&
       (data.simulacionesEnProgreso ?? 0) === 0 &&
-      (data.decisionesAdecuadas ?? 0) === 0
+      this.decisionCount(data.decisiones, 'recommended') === 0
     );
   }
 
@@ -320,7 +317,7 @@ export class DashboardComponent implements OnInit {
     return [
       { titulo: 'Simulaciones completadas', valor: data.simulacionesCompletadas ?? 0 },
       { titulo: 'Simulaciones en progreso', valor: data.simulacionesEnProgreso ?? 0 },
-      { titulo: 'Decisiones adecuadas', valor: data.decisionesAdecuadas ?? 0 }
+      { titulo: 'Decisiones recomendadas', valor: this.decisionCount(data.decisiones, 'recommended') }
     ];
   }
 
@@ -334,7 +331,6 @@ export class DashboardComponent implements OnInit {
         id: item.id,
         casoTitulo: item.casoTitulo,
         estudiante: item.estudiante,
-        puntajeLabel: item.puntaje && item.puntaje > 0 ? String(item.puntaje) : 'Pendiente',
         estado,
         tone: (estado === 'Completado' ? 'success' : estado === 'En curso' ? 'info' : 'neutral') as UiBadgeTone,
       };
@@ -405,13 +401,14 @@ export class DashboardComponent implements OnInit {
     return { value: metricDisplay(value), label, status };
   }
 
+  /** Decisiones por revisar: las de clase Con riesgo y Contraindicada (un conteo de hechos, no una medida). */
   private criticalDecisions(data: Dashboard | null): number {
     if (!data) return 0;
-    return (
-      (data.decisionesRiesgosas ?? 0) +
-      (data.decisionesInadecuadas ?? 0) +
-      (data.decisionesProhibidas ?? 0)
-    );
+    return this.decisionCount(data.decisiones, 'risky') + this.decisionCount(data.decisiones, 'contraindicated');
+  }
+
+  private decisionCount(counts: Dashboard['decisiones'] | undefined, responseClass: keyof Dashboard['decisiones']): number {
+    return counts?.[responseClass] ?? 0;
   }
 
   private uniqueCasesCount(data: Dashboard | null): number {

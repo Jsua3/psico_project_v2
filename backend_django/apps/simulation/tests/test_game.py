@@ -10,8 +10,9 @@ from django.utils import timezone
 from rest_framework.test import APIClient
 
 from apps.grupos.models import Grupo
-from apps.simulation.models import AttemptEvent, CaseVersion, DecisionOption, ReflectionJournal
-from apps.simulation.services import crypto_service
+from apps.simulation.models import AttemptEvent, CaseVersion, DecisionOption, ReflectionJournal, SimulationAttempt
+from apps.simulation.services import attempt_report, case_state, crypto_service
+from apps.simulation.services.game_service import RETRY_NEUTRAL_MESSAGE
 
 User = get_user_model()
 
@@ -41,8 +42,15 @@ def attempt_headers(token):
 
 
 def classification_of(option):
-    """El JSON del nodo ya no trae la clasificación (T11.5): se consulta por id."""
-    return DecisionOption.objects.get(pk=option["id"]).classification
+    """El JSON del nodo ya no trae la clase (T11.5): se consulta por id.
+
+    Devuelve la clasificación del taller que el caso sembrado le daba a cada clase: solo la Recomendada es ``ADEQUATE``,
+    la Aceptable y la Con riesgo son ``RISKY`` y la Contraindicada ``INADEQUATE``. Las pruebas la usan para elegir la
+    respuesta «buena» del recorrido.
+    """
+    return {"RECOMMENDED": "ADEQUATE", "CONTRAINDICATED": "INADEQUATE"}.get(
+        DecisionOption.objects.get(pk=option["id"]).response_class, "RISKY"
+    )
 
 
 def assign_case_to_student(estudiante, case_version_id, codigo="SIM-G"):
@@ -119,11 +127,15 @@ def test_decision_override_persists_missing_evidence(estudiante, case_version_id
     assert "Usar PAP" in event.detail
 
     # T11.2: las etiquetas internas quedan solo en el evento; el jugador no las lee.
-    message = response.data["data"]["feedback"]["message"]
-    assert "override" not in message.lower()
-    assert "Usar PAP" not in message
-    assert "Hablar con la familia" not in message
-    assert message and message in event.detail
+    shown = json.dumps(response.data["data"]).lower()
+    assert set(response.data["data"]) == {"attempt", "consequence"}
+    assert "override" not in shown
+    assert "usar pap" not in shown
+    assert "hablar con la familia" not in shown
+    # El evento guarda la explicación propia de la opción y, después, las etiquetas del override.
+    option = DecisionOption.objects.get(pk=option_id)
+    explanation = option.feedback_text or option.immediate_feedback
+    assert explanation and event.detail.startswith(explanation)
 
 
 def test_full_playthrough_reaches_terminal_and_locks_reflection(estudiante, case_version_id):
@@ -135,7 +147,6 @@ def test_full_playthrough_reaches_terminal_and_locks_reflection(estudiante, case
     data = start.data["data"]
     token, attempt_id = data["attemptToken"], data["attemptId"]
     assert data["status"] == "IN_PROGRESS"
-    assert data["metrics"]["userTrust"] == 50 and data["metrics"]["victimRisk"] == 50
 
     # Reflection at the start node -> encrypted at rest, unlocked while in progress.
     node_id = data["currentNode"]["id"]
@@ -164,8 +175,9 @@ def test_full_playthrough_reaches_terminal_and_locks_reflection(estudiante, case
         )
         assert resp.status_code == 200
         assert resp.data["message"] == "Decision procesada"
-        assert resp.data["data"]["feedback"] is not None
-        state = resp.data["data"]
+        assert set(resp.data["data"]) == {"attempt", "consequence"}
+        assert resp.data["data"]["consequence"]["text"]
+        state = resp.data["data"]["attempt"]
 
     assert state["status"] == "COMPLETED"
     assert state["completionReport"] is not None
@@ -198,12 +210,11 @@ def test_inadequate_decision_requires_retry_without_advancing(estudiante, case_v
     attempt_id, token = start["attemptId"], start["attemptToken"]
     node_id = start["currentNode"]["id"]
     node_key = start["currentNode"]["key"]
-    initial_score = start["accumulatedScore"]
-    initial_stress = start["stressIndex"]
+    state_before = case_state.read(SimulationAttempt.objects.get(pk=attempt_id))
 
     wrong = DecisionOption.objects.filter(
         source_node_id=node_id,
-        classification="INADEQUATE",
+        response_class="CONTRAINDICATED",
     ).first()
     assert wrong is not None
 
@@ -213,12 +224,13 @@ def test_inadequate_decision_requires_retry_without_advancing(estudiante, case_v
         format="json",
     )
     assert retry.status_code == 200
-    retry_state = retry.data["data"]
+    assert set(retry.data["data"]) == {"attempt", "consequence", "retry"}
+    assert retry.data["data"]["retry"] == {"allowed": True, "message": RETRY_NEUTRAL_MESSAGE}
+    retry_state = retry.data["data"]["attempt"]
     assert retry_state["status"] == "IN_PROGRESS"
     assert retry_state["currentNode"]["key"] == node_key
-    assert retry_state["accumulatedScore"] == initial_score
-    assert retry_state["stressIndex"] == initial_stress
-    assert "volver a responder" in retry_state["feedback"]["message"]
+    assert "feedback" not in retry_state
+    assert case_state.read(SimulationAttempt.objects.get(pk=attempt_id)) == state_before
     assert AttemptEvent.objects.filter(
         attempt_id=attempt_id,
         event_type="PROHIBITED_DECISION_RETRY_REQUIRED",
@@ -227,7 +239,7 @@ def test_inadequate_decision_requires_retry_without_advancing(estudiante, case_v
 
     correct = DecisionOption.objects.filter(
         source_node_id=node_id,
-        classification="ADEQUATE",
+        response_class="RECOMMENDED",
     ).first()
     assert correct is not None
     advanced = c.post(
@@ -236,7 +248,7 @@ def test_inadequate_decision_requires_retry_without_advancing(estudiante, case_v
         format="json",
     )
     assert advanced.status_code == 200
-    assert advanced.data["data"]["currentNode"]["key"] != node_key
+    assert advanced.data["data"]["attempt"]["currentNode"]["key"] != node_key
 
 
 def test_risky_decision_requires_retry_without_advancing(estudiante, case_version_id):
@@ -247,23 +259,22 @@ def test_risky_decision_requires_retry_without_advancing(estudiante, case_versio
 
     first_correct = DecisionOption.objects.filter(
         source_node_id=start["currentNode"]["id"],
-        classification="ADEQUATE",
+        response_class="RECOMMENDED",
     ).first()
     assert first_correct is not None
     current = c.post(
         f"/api/simulation/attempts/{attempt_id}/decisions",
         {"attemptToken": token, "decisionOptionId": first_correct.id},
         format="json",
-    ).data["data"]
+    ).data["data"]["attempt"]
 
     node_id = current["currentNode"]["id"]
     node_key = current["currentNode"]["key"]
-    initial_score = current["accumulatedScore"]
-    initial_stress = current["stressIndex"]
+    state_before = case_state.read(SimulationAttempt.objects.get(pk=attempt_id))
 
     risky = DecisionOption.objects.filter(
         source_node_id=node_id,
-        classification="RISKY",
+        response_class="RISKY",  # la clase de la respuesta decide el reintento, no la clasificación antigua
     ).first()
     assert risky is not None
 
@@ -273,12 +284,13 @@ def test_risky_decision_requires_retry_without_advancing(estudiante, case_versio
         format="json",
     )
     assert retry.status_code == 200
-    retry_state = retry.data["data"]
+    assert set(retry.data["data"]) == {"attempt", "consequence", "retry"}
+    assert retry.data["data"]["retry"] == {"allowed": True, "message": RETRY_NEUTRAL_MESSAGE}
+    retry_state = retry.data["data"]["attempt"]
     assert retry_state["status"] == "IN_PROGRESS"
     assert retry_state["currentNode"]["key"] == node_key
-    assert retry_state["accumulatedScore"] == initial_score
-    assert retry_state["stressIndex"] == initial_stress
-    assert "volver a responder" in retry_state["feedback"]["message"]
+    assert "feedback" not in retry_state
+    assert case_state.read(SimulationAttempt.objects.get(pk=attempt_id)) == state_before
     assert AttemptEvent.objects.filter(
         attempt_id=attempt_id,
         event_type="DECISION_RETRY_REQUIRED",
@@ -287,7 +299,7 @@ def test_risky_decision_requires_retry_without_advancing(estudiante, case_versio
 
     correct = DecisionOption.objects.filter(
         source_node_id=node_id,
-        classification="ADEQUATE",
+        response_class="RECOMMENDED",
     ).first()
     assert correct is not None
     advanced = c.post(
@@ -296,7 +308,7 @@ def test_risky_decision_requires_retry_without_advancing(estudiante, case_versio
         format="json",
     )
     assert advanced.status_code == 200
-    assert advanced.data["data"]["currentNode"]["key"] != node_key
+    assert advanced.data["data"]["attempt"]["currentNode"]["key"] != node_key
 
 
 @pytest.fixture
@@ -327,24 +339,24 @@ def test_second_bad_answer_is_registered_and_advances(estudiante, case_version_i
     node_id, node_key = start["currentNode"]["id"], start["currentNode"]["key"]
 
     bad = DecisionOption.objects.filter(
-        source_node_id=node_id, classification__in=["INADEQUATE", "RISKY"]
-    ).first()
+        source_node_id=node_id, response_class__in=["RISKY", "CONTRAINDICATED"]
+    ).order_by("id").first()
     assert bad is not None
 
     # 1ª respuesta mala -> reintento, no avanza, retryRequired True
     r1 = c.post(f"/api/simulation/attempts/{attempt_id}/decisions",
                 {"attemptToken": token, "decisionOptionId": bad.id, "requestId": uuid.uuid4().hex},
                 format="json").data["data"]
-    assert r1["currentNode"]["key"] == node_key
-    assert r1["feedback"]["retryRequired"] is True
+    assert r1["attempt"]["currentNode"]["key"] == node_key
+    assert r1["retry"]["allowed"] is True
 
     # 2ª respuesta mala (deliberada: pasan unos segundos) -> se registra y avanza, retryRequired False
     time_passes(5)
     r2 = c.post(f"/api/simulation/attempts/{attempt_id}/decisions",
                 {"attemptToken": token, "decisionOptionId": bad.id, "requestId": uuid.uuid4().hex},
                 format="json").data["data"]
-    assert r2["currentNode"]["key"] != node_key
-    assert r2["feedback"]["retryRequired"] is False
+    assert r2["attempt"]["currentNode"]["key"] != node_key
+    assert "retry" not in r2
     assert AttemptEvent.objects.filter(
         attempt_id=attempt_id,
         event_type__in=["DECISION_SELECTED", "PROHIBITED_DECISION_SELECTED"],
@@ -401,7 +413,23 @@ def test_safe_exit_returns_resources(estudiante, case_version_id):
     assert len(resp.data["data"]["supportResources"]) == 3
 
 
-def test_completion_report_includes_timeline(estudiante, case_version_id):
+#: El historial dice qué intentos hubo y cuánto duraron; lo evaluativo está en el reporte, no aquí.
+HISTORY_KEYS = {
+    "attemptId", "caseVersionId", "caseTitle", "status", "totalDurationSeconds", "activeDurationSeconds",
+    "startedAt", "endedAt",
+}
+HISTORY_RETIRED_KEYS = {
+    "accumulatedScore", "adequateDecisions", "riskyDecisions", "inadequateDecisions", "prohibitedDecisions",
+}
+
+SUMMARY_KEYS = {
+    "attemptId", "caseTitle", "status", "summaryMessage", "retries", "reflectionsCount", "safeExitUsed", "toolsUsed",
+    "visitedNodeTitles", "activeSeconds", "clockSeconds", "totalDurationSeconds", "recommendations",
+}
+
+
+def test_completion_report_of_an_unfinished_attempt_is_only_a_summary(estudiante, case_version_id):
+    """Antes de cerrar nada que califique el recorrido llega al estudiante: ni decisiones, ni clases, ni línea de tiempo."""
     assign_case_to_student(estudiante, case_version_id, "SIM-REPORT")
     c = cl(estudiante)
     attempt = c.post("/api/simulation/attempts",
@@ -420,17 +448,9 @@ def test_completion_report_includes_timeline(estudiante, case_version_id):
         **attempt_headers(token),
     ).data["data"]
 
-    assert "timeline" in report
-    decisions = [t for t in report["timeline"]
-                 if t["type"] in ("DECISION_SELECTED", "PROHIBITED_DECISION_SELECTED")]
-    assert decisions, "la decisión elegida debe aparecer en la línea de tiempo"
-    entry = decisions[0]
-    assert entry["label"]
-    assert entry["classification"] in ("ADEQUATE", "RISKY", "INADEQUATE")
-    assert entry["time"].count(":") == 1          # mm:ss
-    assert isinstance(entry["scoreDelta"], int)
-    assert isinstance(entry["stressDelta"], int)
+    assert set(report) == SUMMARY_KEYS
     assert report["totalDurationSeconds"] is None or report["totalDurationSeconds"] >= 0
+    assert report["recommendations"] == ["Retoma el caso con acompañamiento docente cuando te sientas preparado/a."]
 
 
 def test_attempt_history_lists_own_attempts(estudiante, case_version_id):
@@ -451,7 +471,7 @@ def test_attempt_history_lists_own_attempts(estudiante, case_version_id):
     mine = next((h for h in history if h["attemptId"] == attempt_id), None)
     assert mine is not None
     assert mine["caseVersionId"] == case_version_id
-    assert mine["adequateDecisions"] >= 1
+    assert not HISTORY_RETIRED_KEYS & set(mine)
     assert "startedAt" in mine
     # Intento en curso: el tiempo activo solo se informa al terminar.
     assert "activeDurationSeconds" in mine
@@ -508,7 +528,8 @@ def test_student_report_returns_completion_report(estudiante, case_version_id):
     assert resp.status_code == 200
     report = resp.data["data"]
     assert report["attemptId"] == attempt_id
-    assert "timeline" in report and "metrics" in report
+    assert set(report) == SUMMARY_KEYS
+    assert not {"timeline", "metrics", "finalScore", "finalStress", "decisionReview", "ending"} & set(report)
 
 
 def test_student_report_denies_other_students(estudiante, case_version_id):
@@ -543,15 +564,16 @@ def test_node_options_only_expose_id_and_text(estudiante, case_version_id):
     ).data["data"]
     assert all(set(o) == {"id", "text"} for o in again["currentNode"]["options"])
 
-    # Tras elegir, el feedback sí conserva la clasificación (el intento ya decidió).
+    # Tras elegir, tampoco: la respuesta es solo la consecuencia (la clase llega en el reporte de cierre).
     option = next(o for o in options if classification_of(o) == "ADEQUATE")
-    feedback = c.post(
+    decided = c.post(
         f"/api/simulation/attempts/{start['attemptId']}/decisions",
         {"attemptToken": start["attemptToken"], "decisionOptionId": option["id"]},
         format="json",
-    ).data["data"]["feedback"]
-    assert feedback["classification"] == "ADEQUATE"
-    assert feedback["prohibitedConduct"] is False
+    ).data["data"]
+    assert set(decided) == {"attempt", "consequence"}
+    assert "classification" not in json.dumps(decided)
+    assert "prohibitedConduct" not in json.dumps(decided)
 
 
 # ─── T11.1: los reintentos no cuentan como decisiones ────────────────────────
@@ -569,7 +591,7 @@ def _decide(c, attempt_id, token, case_version_id, option_key):
         format="json",
     )
     assert resp.status_code == 200, f"{option_key}: {resp.data}"
-    return resp.data["data"]
+    return resp.data["data"]["attempt"]
 
 
 def test_retries_do_not_lower_report_or_force_critical_ending(estudiante, case_version_id):
@@ -593,44 +615,49 @@ def test_retries_do_not_lower_report_or_force_critical_ending(estudiante, case_v
     assert state["status"] == "COMPLETED"
     report = state["completionReport"]
     ending = report["ending"]
-    assert ending["key"] == "integral"
-    assert ending["severityCounts"]["critical"] == 0
-    assert ending["severityCounts"]["recommended"] == 6
+    assert ending["key"] == "protectora"
+    assert ending["reason"] and not any("contraindicada" in phrase for phrase in ending["reason"])
+    assert not {"severityCounts", "caseFlags", "caseMetrics"} & set(ending)
 
-    # El reporte cuenta solo lo registrado y muestra los reintentos aparte.
-    assert report["adequateDecisions"] == 6
-    assert report["riskyDecisions"] == 0
-    assert report["inadequateDecisions"] == 0
-    assert report["prohibitedDecisions"] == 0
+    # El reporte cuenta solo lo registrado (por clase de respuesta) y muestra los reintentos aparte.
+    counts = report["counts"]
+    assert counts["recommended"] + counts["acceptable"] == 6
+    assert counts["risky"] == 0 and counts["contraindicated"] == 0
     assert report["retries"] == 2
     retry_events = [t for t in report["timeline"] if t["type"].endswith("RETRY_REQUIRED")]
     assert len(retry_events) == 2  # la trazabilidad conserva el reintento
+    # La línea de tiempo no lleva cifras: cuándo, qué y de qué clase.
+    decisions = [t for t in report["timeline"] if t["type"] == "DECISION_SELECTED"]
+    assert decisions and all(t["class"] in ("RECOMMENDED", "ACCEPTABLE") for t in decisions)
+    assert all(t["time"].count(":") == 1 for t in report["timeline"])  # mm:ss
+    assert not any({"scoreDelta", "stressDelta", "classification"} & set(t) for t in report["timeline"])
 
 
 def test_report_recommends_reviewing_a_reconsidered_answer_without_counting_it(estudiante, case_version_id):
     """L-03: una primera respuesta prohibida que el juego no aplicó queda en la recomendación del cierre
-    (el estudiante ve que reconsideró algo), sin contarla como decisión ni bajar el desempeño."""
+    (el estudiante ve que reconsideró algo), sin contarla como decisión."""
     assign_case_to_student(estudiante, case_version_id, "SIM-RETRYREC")
     c = cl(estudiante)
     start = c.post("/api/simulation/attempts", {"caseVersionId": case_version_id}, format="json").data["data"]
     attempt_id, token = start["attemptId"], start["attemptToken"]
     assert _world(c, attempt_id, token).status_code == 200
 
-    _decide(c, attempt_id, token, case_version_id, "h1-interrogar-victima")  # prohibida: reintento
-    _decide(c, attempt_id, token, case_version_id, "h1-pap-contencion")      # la adecuada se registra
-    c.post(f"/api/simulation/attempts/{attempt_id}/safe-exit",
-           {"attemptToken": token, "reason": "test"}, format="json")
+    state = None
+    for key in (
+        "h1-interrogar-victima",  # prohibida: reintento
+        "h1-pap-contencion", "h2-459-1257", "h3-integral-psicosocial",
+        "c1-riesgo-proteccion-derechos", "c2-2126-1098-1257", "c3-integral-derechos",
+    ):
+        state = _decide(c, attempt_id, token, case_version_id, key)
 
-    report = c.get(
-        f"/api/simulation/attempts/{attempt_id}/completion-report", **attempt_headers(token)
-    ).data["data"]
+    assert state["status"] == "COMPLETED"
+    report = state["completionReport"]
     assert report["retries"] == 1
     assert report["prohibitedRetries"] == 1
     assert "Reconsideraste 1 respuesta antes de decidir; revísala con tu docente." in report["recommendations"]
-    # No son decisiones: los contadores y el final no cambian.
-    assert report["prohibitedDecisions"] == 0
-    assert report["inadequateDecisions"] == 0
-    assert report["adequateDecisions"] == 1
+    # No son decisiones: los conteos por clase no cambian.
+    assert report["counts"]["contraindicated"] == 0
+    assert report["counts"]["recommended"] + report["counts"]["acceptable"] == 6
 
 
 def test_report_recommendation_is_plural_and_replaces_the_generic_closing_one(estudiante, case_version_id):
@@ -657,12 +684,13 @@ def test_report_recommendation_is_plural_and_replaces_the_generic_closing_one(es
     assert report["retries"] == 2
     expected_prohibited = sum(
         1 for key in bad_keys
-        if DecisionOption.objects.get(case_version_id=case_version_id, option_key=key).prohibited_conduct
+        if DecisionOption.objects.get(case_version_id=case_version_id, option_key=key).response_class == "CONTRAINDICATED"
     )
     assert report["prohibitedRetries"] == expected_prohibited
-    assert report["recommendations"] == ["Reconsideraste 2 respuestas antes de decidir; revísalas con tu docente."]
-    assert report["adequateDecisions"] == 6  # reconsiderar no resta ni suma decisiones
-    assert report["ending"]["key"] == "integral"
+    assert "Reconsideraste 2 respuestas antes de decidir; revísalas con tu docente." in report["recommendations"]
+    counts = report["counts"]
+    assert counts["recommended"] + counts["acceptable"] == 6  # reconsiderar no resta ni suma decisiones
+    assert report["ending"]["key"] == "protectora"
 
 
 def test_report_without_retries_has_no_reconsideration_recommendation(estudiante, case_version_id):
@@ -676,7 +704,6 @@ def test_report_without_retries_has_no_reconsideration_recommendation(estudiante
         f"/api/simulation/attempts/{attempt_id}/completion-report", **attempt_headers(token)
     ).data["data"]
     assert report["retries"] == 0
-    assert report["prohibitedRetries"] == 0
     assert not any("Reconsideraste" in text for text in report["recommendations"])
 
 
@@ -711,11 +738,15 @@ def test_second_bad_answer_still_counts_as_registered_decision(estudiante, case_
         f"/api/simulation/attempts/{attempt_id}/completion-report", **attempt_headers(token)
     ).data["data"]
     assert report["retries"] == 1
-    assert report["prohibitedDecisions"] == 1
-    assert report["inadequateDecisions"] == 1
+    # El resumen de un intento sin cerrar no trae clases; el reporte completo, sí: la 2.ª respuesta mala quedó registrada.
+    attempt = SimulationAttempt.objects.get(pk=attempt_id)
+    payload = attempt_report.build_report_payload(attempt, attempt_report.load_events(attempt.id))
+    assert payload["counts"]["contraindicated"] == 1
+    assert payload["counts"]["retries"] == 1
 
 
-def test_attempt_history_does_not_count_retries(estudiante, case_version_id):
+def test_attempt_history_item_carries_no_evaluation(estudiante, case_version_id):
+    """Ni un reintento ni una decisión dejan puntaje o conteos por clase en el historial (Tarea 17)."""
     assign_case_to_student(estudiante, case_version_id, "SIM-HISTRETRY")
     c = cl(estudiante)
     start = c.post("/api/simulation/attempts",
@@ -726,6 +757,4 @@ def test_attempt_history_does_not_count_retries(estudiante, case_version_id):
 
     history = c.get("/api/simulation/attempts/history").data["data"]
     mine = next(h for h in history if h["attemptId"] == attempt_id)
-    assert mine["prohibitedDecisions"] == 0
-    assert mine["inadequateDecisions"] == 0
-    assert mine["adequateDecisions"] == 0
+    assert set(mine) == HISTORY_KEYS

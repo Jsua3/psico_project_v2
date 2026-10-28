@@ -21,7 +21,14 @@ describe('resolveCharacter', () => {
       recipeId: 'valentina',
       idle: url('valentina/idle.png'),
       walk: url('valentina/walk.png'),
-      portraits: { neutral: url('valentina/portrait-neutral.png') },
+      portraits: {
+        neutral: url('valentina/portrait-neutral.png'),
+        preocupada: url('valentina/portrait-preocupada.png'),
+        triste: url('valentina/portrait-triste.png'),
+        alegre: url('valentina/portrait-alegre.png'),
+        cautelosa: url('valentina/portrait-cautelosa.png'),
+        'en-crisis': url('valentina/portrait-en-crisis.png'),
+      },
     });
   });
 
@@ -31,7 +38,7 @@ describe('resolveCharacter', () => {
     expect(conBata.idle).toEqual(url('valentina/bata/idle.png'));
     const npc = resolveCharacter(bundle, { kind: 'receta', recipeId: 'abuela-familia', variant: 'bata' });
     expect(npc.key).toBe('kit-abuela-familia');
-    expect(Object.keys(npc.portraits).sort()).toEqual(['alegre', 'neutral', 'preocupada', 'triste']);
+    expect(Object.keys(npc.portraits).sort()).toEqual(['alegre', 'cautelosa', 'en-crisis', 'neutral', 'preocupada', 'triste']);
   });
 
   it('una receta desconocida cae a la receta por defecto', () => {
@@ -119,7 +126,9 @@ describe('retratos', () => {
   });
 
   it('un jugable sin el estado pedido muestra su retrato neutral', () => {
-    const visual = resolveCharacter(bundle, { kind: 'receta', recipeId: 'andres' });
+    // Todas las recetas del kit publican los seis retratos (P4); el respaldo se prueba con una que solo trae el neutral.
+    const completo = resolveCharacter(bundle, { kind: 'receta', recipeId: 'andres' });
+    const visual = { ...completo, portraits: { neutral: completo.portraits.neutral } };
     expect(visualPortrait(visual, 'triste')).toEqual(url('andres/portrait-neutral.png'));
   });
 });

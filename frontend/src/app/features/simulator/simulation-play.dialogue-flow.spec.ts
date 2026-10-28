@@ -43,15 +43,12 @@ function makeAttempt(overrides: Record<string, unknown> = {}): SimulationAttempt
     caseVersionId: CASE_VERSION_ID,
     caseTitle: 'Caso demo',
     status: 'IN_PROGRESS',
-    accumulatedScore: 0,
-    stressIndex: 0,
-    metrics: { victimRisk: 50 },
+    persona: { bond: 'GUARDED', activation: 'TENSE', label: 'se muestra cautelosa y tensa' },
     currentNode: {
       key: FREE_NODE,
       title: 'Etapa',
       options: [{ id: 11, text: 'Opción de esta etapa' }],
     },
-    feedback: null,
     completionReport: null,
     ...overrides,
   } as unknown as SimulationAttemptState;
@@ -99,7 +96,7 @@ describe('SimulationPlayComponent: diálogo sin callejones', () => {
     };
     audio = {
       init: vi.fn(),
-      setStressLevel: vi.fn(),
+      setScene: vi.fn(),
       isMusicMuted: vi.fn(() => false),
       isSfxMuted: vi.fn(() => false),
       dispose: vi.fn(),

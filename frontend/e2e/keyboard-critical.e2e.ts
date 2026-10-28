@@ -2,7 +2,7 @@ import { expect, test } from '@playwright/test';
 import type { APIRequestContext, Locator, Page } from '@playwright/test';
 
 import {
-  ADMIN, ESTUDIANTE, PROFESOR, apiToken, assignCase, bearer, createPublishedCase, retireCase, seededGroupId,
+  ADMIN, ESTUDIANTE, PROFESOR, apiToken, assignCase, bearer, buildPublishableDraft, createPublishedCase, retireCase, seededGroupId,
 } from './support/case-fixtures';
 import type { AssignmentRecord } from './support/case-fixtures';
 import {
@@ -380,7 +380,7 @@ test('[P04] ver reportes y exportar CSV: el grupo se elige con las flechas y «E
 });
 
 // req: SIEP-CU-04, RN-09, RNF-004, WCAG 2.1.1
-test('[P05] revisar la traza y calificar con rúbrica: el intento se elige con Enter, las notas se escriben y «Guardar evaluación» guarda', async ({ page, request }) => {
+test('[P05] revisar la traza y calificar con rúbrica: el intento se elige con Enter, el nivel de cada criterio se elige con las flechas y «Guardar evaluación» guarda', async ({ page, request }) => {
   test.setTimeout(scaled(120_000));
   const { caseTitle } = await seededGroupWithAttempt(request);
   await keyboardLogin(page, PROFESOR);
@@ -391,7 +391,7 @@ test('[P05] revisar la traza y calificar con rúbrica: el intento se elige con E
   const criteria = page.locator('.tr-criterion');
   await expect(criteria.first()).toBeVisible({ timeout: scaled(30_000) });
   for (let index = 0; index < await criteria.count(); index += 1) {
-    await typeInto(page, criteria.nth(index).getByLabel('Calificación'), '4');
+    await selectWithKeyboard(page, criteria.nth(index).getByLabel('Nivel logrado'), 'Logrado');
   }
   const saved = page.waitForResponse(response => /\/rubric-evaluation$/.test(new URL(response.url()).pathname) && response.request().method() === 'PUT', { timeout: scaled(30_000) });
   await pressWithKeyboard(page, page.getByRole('button', { name: 'Guardar evaluación' }));
@@ -450,96 +450,149 @@ test('[A01] gestionar usuarios y solicitudes: una solicitud se atiende con «Cre
 });
 
 // req: RF-05, CU-04, RNF-004, WCAG 2.1.1
-test('[A02] crear y editar un caso: el hub crea el caso y la hoja agrega un nodo, todo con teclas', async ({ page }) => {
-  test.setTimeout(scaled(120_000));
-  await keyboardLogin(page, ADMIN);
-  await page.goto('/portal/casos');
-  await pressWithKeyboard(page, page.getByRole('button', { name: 'Agregar nuevo caso' }).first());
-  const title = `Caso teclado ${stamp()}`;
-  await typeInto(page, page.getByRole('textbox', { name: /Título del caso/ }), title);
-  await page.keyboard.press('Enter');
-  await page.waitForURL(/\/portal\/casos\/\d+\/editor/, { timeout: scaled(30_000) });
-  await expect(page.getByRole('heading', { level: 1, name: title })).toBeVisible({ timeout: scaled(30_000) });
+test('[A02] crear y editar un caso: desde «Mis casos» se elige el lugar y las salas, se crea el caso y se escribe una línea del guion, todo con teclas', async ({ page, request }) => {
+  test.setTimeout(scaled(180_000));
+  let id = 0;
+  try {
+    await keyboardLogin(page, ADMIN);
+    await page.goto('/portal/casos');
+    await pressWithKeyboard(page, page.getByRole('link', { name: 'Crear un caso nuevo' }), { max: 120 });
+    await expect(page.getByRole('heading', { level: 1, name: '¿Dónde pasa tu caso?' })).toBeVisible({ timeout: scaled(30_000) });
+    await pressWithKeyboard(page, page.getByRole('link', { name: 'Elegir este lugar: Universidad' }), { max: 120 });
+    await expect(page.getByRole('heading', { level: 1, name: 'Elige las salas de tu caso' })).toBeVisible({ timeout: scaled(30_000) });
+    await pressWithKeyboard(page, page.getByRole('button', { name: 'Usar esta idea: Atención en Bienestar' }), { max: 160 });
+    const title = `Caso teclado ${stamp()}`;
+    await typeInto(page, page.getByLabel('Nombre del caso'), title, { max: 160 });
+    await pressWithKeyboard(page, page.getByRole('button', { name: 'Crear el caso con estas salas' }), { max: 160 });
+    await page.waitForURL(/\/portal\/casos\/\d+\/editor/, { timeout: scaled(60_000) });
+    await expect(page.getByRole('heading', { level: 1, name: /Escenas y caminos/ })).toBeVisible({ timeout: scaled(30_000) });
+    id = Number(/\/portal\/casos\/(\d+)\/editor/.exec(page.url())![1]);
 
-  await pressWithKeyboard(page, page.getByRole('button', { name: 'Nuevo nodo' }));
-  const sheet = page.getByRole('dialog', { name: 'Nuevo nodo DAG' });
-  await expect(sheet.getByLabel('Clave del nodo')).toBeFocused();
-  await page.keyboard.type('nodo-teclado');
-  await page.keyboard.press('Tab');
-  await page.keyboard.type('Nodo de teclado');
-  await page.keyboard.press('Tab');
-  await page.keyboard.type('Lo que ocurre en esta escena.');
-  await pressWithKeyboard(page, sheet.getByRole('button', { name: 'Guardar nodo' }));
-  await expect(toast(page, 'Nodo guardado.')).toBeVisible({ timeout: scaled(15_000) });
-  await expect(page.getByRole('button', { name: /^nodo-teclado / })).toBeVisible();
-  await expectNoPointer(page, 'crear y editar un caso');
+    // Enter sobre la primera escena del mapa abre su guion; ahí se escribe una línea.
+    await pressWithKeyboard(page, page.locator('button.escena').first(), { max: 160 });
+    await expect(page.getByRole('heading', { level: 1, name: 'Guion de la escena' })).toBeVisible({ timeout: scaled(30_000) });
+    await pressWithKeyboard(page, page.getByRole('button', { name: 'Agregar una línea' }), { max: 200 });
+    await typeInto(page, page.getByLabel('Lo que dice, línea 1'), 'Hola, ¿esta es la oficina de Bienestar?', { max: 200 });
+    await page.keyboard.press('Tab'); // al salir del campo, el editor guarda
+    const admin = await apiToken(request, ADMIN);
+    const world: Json = (await (await request.get(`/api/authoring/cases/${id}/editor`, { headers: bearer(admin) })).json()).data;
+    const guionDelServidor = async (): Promise<string[]> => {
+      const mundo: Json = (await (await request.get(`/api/authoring/cases/${id}/world-editor?nodeId=${world['nodes'][0]['id']}`, { headers: bearer(admin) })).json()).data;
+      return mundo['dialogues'].flatMap((d: Json) => d['lines']).map((l: Json) => l['text']);
+    };
+    await expect.poll(guionDelServidor, { timeout: scaled(30_000), message: 'el servidor guardó la línea' }).toContain('Hola, ¿esta es la oficina de Bienestar?');
+    expect(world['title']).toBe(title);
+    await expectNoPointer(page, 'crear y editar un caso');
+  } finally {
+    if (id) await retireCase(request, id);
+  }
 });
 
-/** Un borrador del administrador con su escena inicial (y su mapa) listo para el editor de mundo. */
-async function adminDraft(request: APIRequestContext, label: string): Promise<{ id: number; title: string; nodeId: number; token: string }> {
+/** Un caso del administrador con tres salas de la universidad (la preparación va por API: el editor copia el lugar al caso en el servidor). */
+async function adminCaseFromPlace(request: APIRequestContext, label: string): Promise<{ id: number; title: string; token: string }> {
   const token = await apiToken(request, ADMIN);
-  const created = await request.post('/api/authoring/cases', { headers: bearer(token), data: { title: `${label} ${stamp()}` } });
-  expect(created.status(), 'crear el borrador').toBe(200);
+  const created = await request.post('/api/authoring/cases', {
+    headers: bearer(token),
+    data: { title: `${label} ${stamp()}`, description: 'Una persona llega, espera y es escuchada.', lugarId: 'universidad', salas: ['pasillo', 'sala-espera', 'consultorio'] },
+  });
+  expect(created.status(), 'crear el caso desde la universidad').toBe(200);
   const view: Json = (await created.json()).data;
-  return { id: view['caseVersionId'], title: view['title'], nodeId: view['nodes'][0]['id'], token };
+  return { id: view['caseVersionId'], title: view['title'], token };
 }
 
-// req: RNF-04, WCAG 2.1.1, WCAG 2.1.4
-test('[A03] editar el grafo y el mundo: el grafo se recorre con flechas y el mundo coloca, mueve y borra con teclas', async ({ page, request }) => {
-  test.setTimeout(scaled(150_000));
-  const draft = await adminDraft(request, 'Mundo teclado');
-  await keyboardLogin(page, ADMIN);
-  await page.goto(`/portal/casos/${draft.id}/editor`);
-  await expect(page.getByRole('heading', { level: 1, name: draft.title })).toBeVisible({ timeout: scaled(30_000) });
+/** Los objetos de la primera sala del caso, tal como los tiene el servidor. */
+async function firstRoomObjects(request: APIRequestContext, id: number, token: string): Promise<Json[]> {
+  const editor: Json = (await (await request.get(`/api/authoring/cases/${id}/editor`, { headers: bearer(token) })).json()).data;
+  const world: Json = (await (await request.get(`/api/authoring/cases/${id}/world-editor?nodeId=${editor['nodes'][0]['id']}`, { headers: bearer(token) })).json()).data;
+  return world['objects'];
+}
 
-  // El grafo: Tab hasta el nodo, Enter abre su detalle y Esc lo cierra.
-  const node = page.getByRole('button', { name: /^inicio / });
-  await pressWithKeyboard(page, node);
-  await expect(page.getByRole('heading', { level: 3, name: 'Inicio del caso' })).toBeVisible();
-  await page.keyboard.press('Escape');
-  await expect(page.getByRole('heading', { level: 3, name: 'Inicio del caso' })).toBeHidden();
+// req: RNF-04, WCAG 2.1.1, WCAG 2.1.4, WCAG 2.5.7
+test('[A03] editar el mapa del caso y la sala: se abre la sala desde el mapa y se agrega, se mueve y se quita una pieza con teclas', async ({ page, request }) => {
+  test.setTimeout(scaled(240_000));
+  const draft = await adminCaseFromPlace(request, 'Sala teclado');
+  try {
+    const before = await firstRoomObjects(request, draft.id, draft.token);
+    await keyboardLogin(page, ADMIN);
+    await page.goto(`/portal/casos/${draft.id}/editor`);
+    await expect(page.getByRole('heading', { level: 1, name: /Escenas y caminos/ })).toBeVisible({ timeout: scaled(30_000) });
 
-  // El mundo: las pestañas con flechas, la sala con Enter, el lienzo con Tab; O coloca, flechas mueven y Supr borra.
-  await tabTo(page, page.getByRole('tab', { selected: true }));
-  await arrowToTab(page, 'Mundo');
-  await pressWithKeyboard(page, page.getByRole('button', { name: /Inicio del caso\s+\(inicio\)/ }));
-  await expect(page.getByRole('heading', { name: 'Sala', level: 3 })).toBeVisible({ timeout: scaled(15_000) });
-  const canvas = page.locator('.we-konva-host');
-  await tabTo(page, canvas, { max: 120 });
-  const saved = () => page.waitForResponse(r => r.request().method() === 'PUT' && r.url().includes(`/api/authoring/cases/${draft.id}/world`), { timeout: scaled(30_000) });
-  await page.keyboard.press('o');
-  await expect(page.getByRole('button', { name: 'Colocar objeto' })).toHaveAttribute('aria-pressed', 'true');
-  await page.keyboard.press('ArrowRight');
-  let response = saved();
-  await page.keyboard.press('Enter');
-  expect((await response).status(), 'colocar').toBe(200);
-  response = saved();
-  await page.keyboard.press('ArrowLeft');
-  expect((await response).status(), 'mover').toBe(200);
-  response = saved();
-  await page.keyboard.press('Delete');
-  expect((await response).status(), 'borrar').toBe(200);
-  const world: Json = (await (await request.get(`/api/authoring/cases/${draft.id}/world-editor?nodeId=${draft.nodeId}`, { headers: bearer(draft.token) })).json()).data;
-  expect(world['objects']).toHaveLength(0);
-  await expectNoPointer(page, 'editar el grafo y el mundo');
+    // El mapa del caso: una escena se elige con Enter y su sala se abre con el enlace «Abrir sala».
+    await pressWithKeyboard(page, page.locator('button.escena').first(), { max: 160 });
+    await pressWithKeyboard(page, page.getByRole('link', { name: 'Abrir sala' }), { max: 160 });
+    await expect(page.locator('.pieza').first()).toBeVisible({ timeout: scaled(30_000) });
+    const piecesBefore = await page.locator('.pieza').evaluateAll(items => items.map(item => item.getAttribute('data-elemento')));
+
+    // Agregar una pieza del catálogo (se pone en el centro de la sala).
+    const catalog = page.getByRole('tabpanel').getByRole('button', { name: /^Agregar a la sala: / }).first();
+    const added = page.waitForResponse(r => r.request().method() === 'PUT' && /\/api\/authoring\/cases\/\d+\/world/.test(r.url()), { timeout: scaled(30_000) });
+    await pressWithKeyboard(page, catalog, { max: 200 });
+    expect((await added).status(), 'agregar la pieza').toBe(200);
+    const piecesAfter = await page.locator('.pieza').evaluateAll(items => items.map(item => item.getAttribute('data-elemento')));
+    const fresh = piecesAfter.filter(key => !piecesBefore.includes(key));
+    expect(fresh, 'la sala tiene una pieza nueva').toHaveLength(1);
+    const piece = page.locator(`button.pieza[data-elemento="${fresh[0]}"]`);
+    expect((await firstRoomObjects(request, draft.id, draft.token)).length, 'el servidor tiene una pieza más').toBe(before.length + 1);
+
+    // Mover con las flechas: cada pulsación se guarda.
+    const origin = await piece.evaluate(item => [parseFloat(item.style.left), parseFloat(item.style.top)]);
+    await tabTo(page, piece, { max: 200 });
+    const moved = page.waitForResponse(r => r.request().method() === 'PUT' && /\/api\/authoring\/cases\/\d+\/world/.test(r.url()), { timeout: scaled(30_000) });
+    await page.keyboard.press('ArrowRight');
+    expect((await moved).status(), 'mover la pieza').toBe(200);
+    const after = await piece.evaluate(item => [parseFloat(item.style.left), parseFloat(item.style.top)]);
+    expect(after[0], 'la pieza se movió a la derecha').toBeGreaterThan(origin[0]);
+
+    // Quitar con Supr.
+    const removed = page.waitForResponse(r => r.request().method() === 'PUT' && /\/api\/authoring\/cases\/\d+\/world/.test(r.url()), { timeout: scaled(30_000) });
+    await page.keyboard.press('Delete');
+    expect((await removed).status(), 'quitar la pieza').toBe(200);
+    await expect(piece).toHaveCount(0);
+    expect((await firstRoomObjects(request, draft.id, draft.token)).length, 'el servidor volvió a las piezas de antes').toBe(before.length);
+    await expectNoPointer(page, 'editar el mapa del caso y la sala');
+  } finally {
+    await retireCase(request, draft.id);
+  }
 });
 
 // req: RF-12, RF-13, CU-05, RNF-004, WCAG 2.1.1
-test('[A04] validar y publicar: «Revisión» muestra lo que falta y «Enviar a revisión» se pide con teclas hasta la confirmación', async ({ page, request }) => {
-  test.setTimeout(scaled(150_000));
-  const draft = await adminDraft(request, 'Revisión teclado');
-  await keyboardLogin(page, ADMIN);
-  await page.goto(`/portal/casos/${draft.id}/editor`);
-  await expect(page.getByRole('heading', { level: 1, name: draft.title })).toBeVisible({ timeout: scaled(30_000) });
+test('[A04] validar y publicar: «Enviar a revisión» muestra lo que falta, se envía con Enter y la decisión «Aprobar y publicar» se toma con teclas', async ({ page, request }) => {
+  test.setTimeout(scaled(240_000));
+  const admin = await apiToken(request, ADMIN);
+  const draft = await buildPublishableDraft(request, admin, { title: `Revisión teclado ${stamp()}` });
+  try {
+    await keyboardLogin(page, ADMIN);
+    await page.goto(`/portal/casos/${draft.id}/editor/revision`);
+    await expect(page.getByRole('heading', { level: 1, name: 'Enviar a revisión' })).toBeVisible({ timeout: scaled(30_000) });
+    await expect(page.getByRole('heading', { name: 'Por resolver (0)' })).toBeVisible({ timeout: scaled(30_000) });
 
-  await tabTo(page, page.getByRole('tab', { selected: true }));
-  await arrowToTab(page, 'Revisión');
-  await expect(page.getByText(/Falta para avanzar/)).toBeVisible({ timeout: scaled(30_000) });
-  const submit = page.getByRole('button', { name: 'Enviar a revisión' });
-  await tabTo(page, submit);
-  await expect(submit).toHaveAttribute('aria-disabled', 'true');
-  await expect(submit).toHaveAccessibleDescription(/checklist|error/i);
-  await expectNoPointer(page, 'validar y publicar');
+    // «Comprobar de nuevo» vuelve a preguntarle al servidor qué falta; «Enviar a Psicología» se alcanza con Tab.
+    await pressWithKeyboard(page, page.getByRole('button', { name: 'Comprobar de nuevo' }), { max: 160 });
+    const submit = page.getByRole('button', { name: 'Enviar a Psicología' });
+    await expect(submit).toHaveAttribute('aria-disabled', 'false', { timeout: scaled(30_000) });
+    await pressWithKeyboard(page, submit, { max: 200 });
+    const decision = page.locator('[data-accion="decision-caso"]');
+    await expect(decision.locator('ui-badge').first()).toHaveText('En revisión', { timeout: scaled(30_000) });
+
+    // La decisión: «Aprobar y publicar» abre un cuadro; se escribe una nota y se confirma con Enter.
+    await pressWithKeyboard(page, decision.getByRole('button', { name: 'Aprobar y publicar' }), { max: 200 });
+    const dialog = page.getByRole('dialog', { name: 'Aprobar y publicar' });
+    await expect(dialog).toBeVisible();
+    await typeInto(page, dialog.getByLabel('Nota (opcional)'), 'Cumple con lo acordado.');
+    const yesterday = new Date(Date.now() - 24 * 60 * 60 * 1000);
+    const two = (value: number) => String(value).padStart(2, '0');
+    await typeInto(page, dialog.getByLabel('Quién revisó'), 'Dra. Ruiz');
+    await typeInto(page, dialog.getByLabel('Fecha de la revisión'), `${two(yesterday.getMonth() + 1)}${two(yesterday.getDate())}${yesterday.getFullYear()}`);
+    await typeInto(page, dialog.getByLabel('Referencia o acta'), 'Acta 4 de Psicología');
+    await pressWithKeyboard(page, dialog.getByRole('button', { name: 'Aprobar y publicar' }));
+    await expect(toast(page, 'El caso se publicó.')).toBeVisible({ timeout: scaled(30_000) });
+    await expect(decision.locator('ui-badge').first()).toHaveText('Publicado', { timeout: scaled(30_000) });
+    const lifecycle: Json = (await (await request.get(`/api/authoring/cases/${draft.id}/lifecycle`, { headers: bearer(admin) })).json()).data;
+    expect(lifecycle['state']).toBe('PUBLISHED');
+    await expectNoPointer(page, 'validar y publicar');
+  } finally {
+    await retireCase(request, draft.id);
+  }
 });
 
 // ── Estudiante en el juego ─────────────────────────────────────────────────────────────────────────────────────────

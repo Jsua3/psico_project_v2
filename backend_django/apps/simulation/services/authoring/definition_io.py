@@ -76,11 +76,11 @@ def _options_by_source(rows, node_keys):
         grouped.setdefault(row.source_node_id, []).append(
             Option(
                 key=row.option_key, text=row.text, target=node_keys.get(row.target_node_id, ""),
-                classification=row.classification, prohibited=row.prohibited_conduct,
                 reason=_text(row.prohibition_reason), consequence=_text(row.consequence_text),
                 immediate_feedback=_text(row.immediate_feedback), feedback_text=_text(row.feedback_text),
-                theory_basis=_text(row.theory_basis), score=row.score_delta, stress=row.stress_delta,
-                penalty=row.prohibited_penalty, effects=read_map(row.effects),
+                theory_basis=_text(row.theory_basis),
+                response_class=row.response_class,
+                effects=read_map(row.effects),
             )
         )
     return grouped
@@ -195,7 +195,7 @@ def load_definition(case_version_id):
             start=node.start_node, terminal=node.terminal_node,
             support=tuple(read_string_list(node.support_resources_json)),
             required_tools=tuple(read_string_list(node.required_tools_json)),
-            safe_exit_required=node.safe_exit_required,
+            safe_exit_required=node.safe_exit_required, intensity=node.intensity,
             x=node.position_x or 0, y=node.position_y or 0, prompt=_text(node.decision_prompt),
             hints=tuple(hints.get(maps.get(node.id), ())),
             options=tuple(options.get(node.id, ())),
@@ -272,22 +272,27 @@ def _nodes(version, scenes):
             sensitive_content=scene.sensitive, safe_exit_required=scene.safe_exit_required,
             warning_message=scene.warning, start_node=scene.start, terminal_node=scene.terminal,
             position_x=scene.x, position_y=scene.y, decision_prompt=scene.prompt, display_order=position,
+            intensity=scene.intensity,
         )
         for position, scene in enumerate(scenes)
     ])
 
 
+def _option_row(version, scene, option, node_by_key):
+    """La fila de una opción: la definición ya trae la clase y los efectos en el modelo nuevo (el importador convierte
+    el documento 1.0 al leerlo)."""
+    return DecisionOption(
+        case_version=version, source_node=node_by_key[scene.key], target_node=node_by_key.get(option.target),
+        option_key=option.key, text=option.text,
+        immediate_feedback=option.immediate_feedback, prohibition_reason=option.reason, consequence_text=option.consequence,
+        theory_basis=option.theory_basis, feedback_text=option.feedback_text,
+        effects=_dump(option.effects), response_class=option.response_class,
+    )
+
+
 def _options(version, scenes, node_by_key):
     return DecisionOption.objects.bulk_create([
-        DecisionOption(
-            case_version=version, source_node=node_by_key[scene.key], target_node=node_by_key.get(option.target),
-            option_key=option.key, text=option.text, classification=option.classification,
-            score_delta=option.score, stress_delta=option.stress, prohibited_penalty=option.penalty,
-            immediate_feedback=option.immediate_feedback, prohibited_conduct=option.prohibited,
-            prohibition_reason=option.reason, consequence_text=option.consequence,
-            theory_basis=option.theory_basis, feedback_text=option.feedback_text, effects=_dump(option.effects),
-        )
-        for scene in scenes for option in scene.options
+        _option_row(version, scene, option, node_by_key) for scene in scenes for option in scene.options
     ])
 
 
@@ -379,6 +384,9 @@ def write_definition(definition, *, case, actor):
     Es la inversa de ``load_definition``: el orden de cada tupla del modelo es el orden en que se crean
     las filas (y el que ``load_definition`` vuelve a leer). Debe llamarse dentro de una transacción: si
     algo falla, no queda ninguna fila.
+
+    La definición ya está en el modelo nuevo (clase, persona e hitos, ``rules`` con hitos, nivel de riesgo y finales por
+    clases): el importador (``casedef.import_``) convierte el documento 1.0 al leerlo, y aquí las filas se escriben tal cual.
     """
     version = CaseVersion.objects.create(
         simulation_case=case, semantic_version=definition.semantic_version, status="DRAFT",

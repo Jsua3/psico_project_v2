@@ -4,10 +4,12 @@ import { join } from 'path';
 const source = readFileSync(join(__dirname, 'game-world.component.ts'), 'utf-8');
 
 describe('game-world: game feel del bloque B', () => {
-  it('el componente recibe el estrés y lo pasa a la escena en el arranque y en cada cambio', () => {
-    expect(source).toContain('readonly stressLevel = input(0);');
-    expect(source).toContain("if (changes['stressLevel']) this.scene?.setStressLevel(this.stressLevel());");
-    expect(source).toMatch(/this\.scene = new DataDrivenWorldScene\(\{[\s\S]*?\}\);\s*this\.scene\.setStressLevel\(this\.stressLevel\(\)\);/);
+  it('el componente recibe la activación y la intensidad y las pasa a la escena en el arranque y en cada cambio', () => {
+    expect(source).toContain("readonly activation = input<Activation>('CALM');");
+    expect(source).toContain("readonly intensity = input<Intensity>('MEDIUM');");
+    expect(source).toContain("if (changes['activation'] || changes['intensity']) this.scene?.setPersonaScene(this.activation(), this.intensity());");
+    expect(source).toMatch(/this\.scene = new DataDrivenWorldScene\(\{[\s\S]*?\}\);\s*this\.scene\.setPersonaScene\(this\.activation\(\), this\.intensity\(\)\);/);
+    expect(source).not.toMatch(/stressLevel|setStressLevel/);
   });
 
   it('las dos rutas de render pintan la viñeta de crisis, también en salas con luz pintada', () => {
@@ -24,13 +26,13 @@ describe('game-world: game feel del bloque B', () => {
   });
 
   it('la crisis la decide la utilidad pura, se congela con el mundo en pausa y nunca deja dos pulsos vivos', () => {
-    expect(source).toMatch(/private applyCrisisState\(\): void \{[\s\S]*?crisisVignetteState\(this\.stressLevel, this\.callbacks\.reduceMotion \|\| this\.motionPaused\)[\s\S]*?this\.crisisPulse\?\.stop\(\);[\s\S]*?this\.crisisPulse = this\.tweens\.add\(\{[\s\S]*?yoyo: true,[\s\S]*?repeat: -1/);
+    expect(source).toMatch(/private applyCrisisState\(\): void \{[\s\S]*?crisisVignetteState\(this\.activation, this\.intensity, this\.callbacks\.reduceMotion \|\| this\.motionPaused\)[\s\S]*?this\.crisisPulse\?\.stop\(\);[\s\S]*?this\.crisisPulse = this\.tweens\.add\(\{[\s\S]*?yoyo: true,[\s\S]*?repeat: -1/);
     expect(source).toMatch(/setMotionPaused\(paused: boolean\) \{[\s\S]{0,260}this\.applyCrisisState\(\);\s*\}/);
     expect(source).toContain("this.addVignette('crisis', CRISIS_VIGNETTE_TINT, 0.18, 1, DEPTH.LIGHTING + 1)");
   });
 
   it('activar movimiento reducido reaplica la crisis y el destello pendiente se consume una sola vez', () => {
-    expect(source).toMatch(/setReduceMotion\(reduced: boolean\) \{\s*this\.callbacks\.reduceMotion = reduced;\s*this\.applyCrisisState\(\);\s*\}/);
+    expect(source).toMatch(/setReduceMotion\(reduced: boolean\) \{\s*this\.callbacks\.reduceMotion = reduced;(?:\s*\/\/[^\n]*)?\s*this\.syncProximityAnimations\(\);(?:\s*\/\/[^\n]*)?(?:\s*if \(reduced\) this\.restPersonWalkers\(\);)?\s*this\.applyCrisisState\(\);\s*\}/);
     expect(source).toMatch(/\n  playPendingRoomFlash\(\): void \{\s*const flash = this\.pendingRoomFlash;\s*this\.pendingRoomFlash = null;/);
   });
 
@@ -69,7 +71,7 @@ describe('game-world: game feel del bloque B', () => {
   it('el rótulo y el resto del texto del lienzo usan Poppins y se crean con la fuente ya disponible', () => {
     expect(source).not.toContain("'Arial, sans-serif'");
     expect(source).toContain('fontFamily: WORLD_FONT_FAMILY');
-    expect(source).toMatch(/Promise\.all\(\[\s*this\.kit\.load\(\)\.then\(bundle => bundle, \(\) => null\),\s*whenWorldFontsReady\(\),\s*\]\)\.then\(\(\[bundle\]\) => \{/);
+    expect(source).toMatch(/Promise\.all\(\[\s*this\.kit\.load\(\)\.then\(bundle => bundle, \(\) => null\),\s*this\.bibliotecaManifest\.load\(\),\s*whenWorldFontsReady\(\),\s*\]\)\.then\(\(\[bundle, manifest\]\) => \{/);
   });
 
   it('tras reintentar el foco va a #main-content y no queda perdido en <body>', () => {

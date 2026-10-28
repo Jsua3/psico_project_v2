@@ -276,3 +276,37 @@ describe('ui-glass-bar', () => {
     removedFromDocument.mockRestore();
   });
 });
+
+@Component({
+  imports: [UiGlassBar],
+  template: `
+    <header ui-glass-bar label="Editor de casos" [congelada]="congelada()">
+      <a class="modulo modulo-logo" href="/inicio">S</a>
+      <div class="modulo modulo-principal"><a class="nav-enlace" href="/a">A</a></div>
+      <div class="modulo modulo-cuenta"><span>Cuenta</span></div>
+    </header>
+  `,
+})
+class CongeladaHost {
+  congelada = signal(false);
+}
+
+// req: BLOQUE-H (editor de casos, DG-9: la barra no cambia de estado con una ayuda abierta)
+describe('ui-glass-bar congelada', () => {
+  afterEach(() => scrollTo(0));
+
+  it('con [congelada] no cambia de estado al desplazarse, y al soltarla cae al que le toca', async () => {
+    TestBed.configureTestingModule({ providers: [provideZonelessChangeDetection()] });
+    const fixture = TestBed.createComponent(CongeladaHost);
+    await fixture.whenStable();
+    const header = fixture.nativeElement.querySelector('header') as HTMLElement;
+    fixture.componentInstance.congelada.set(true);
+    await fixture.whenStable();
+    scrollTo(400);
+    await fixture.whenStable();
+    expect(header.dataset['estado']).toBe('inicial');
+    fixture.componentInstance.congelada.set(false);
+    await fixture.whenStable();
+    expect(header.dataset['estado']).toBe('scroll');
+  });
+});

@@ -49,9 +49,9 @@ describe('SimulationPlayComponent: anuncios y avisos (F6-12)', () => {
 
   const ATTEMPT = {
     attemptId: 'attempt-1', attemptToken: 'token-1', caseVersionId: 7, caseTitle: 'Caso demo', status: 'IN_PROGRESS',
-    accumulatedScore: 0, stressIndex: 0, metrics: { victimRisk: 50 },
+    persona: { bond: 'GUARDED', activation: 'TENSE', label: 'se muestra cautelosa y tensa' },
     currentNode: { id: 1, key: 'hospital-urgencias', title: 'Urgencias', narrative: 'N', terminal: false, options: [] },
-    feedback: null, completionReport: null,
+    completionReport: null,
   } as unknown as SimulationAttemptState;
 
   const nurse = {
@@ -71,7 +71,7 @@ describe('SimulationPlayComponent: anuncios y avisos (F6-12)', () => {
       startAttempt: vi.fn(() => EMPTY),
     };
     const audio = {
-      init: vi.fn(), setStressLevel: vi.fn(), isMusicMuted: vi.fn(() => false), isSfxMuted: vi.fn(() => false),
+      init: vi.fn(), setScene: vi.fn(), isMusicMuted: vi.fn(() => false), isSfxMuted: vi.fn(() => false),
       dispose: vi.fn(), stopIntroLament: vi.fn(), playIntroLament: vi.fn(), playSfx: vi.fn(),
     };
     TestBed.configureTestingModule({
@@ -244,6 +244,68 @@ describe('SimulationPlayComponent: anuncios y avisos (F6-12)', () => {
       fixture.destroy();
 
       expect(toasts()).toEqual([]);
+    });
+  });
+
+  // Revisión final · C3: «persona a atender» no puede vivir solo en la lista «Ir a…» y en el dibujo del lienzo.
+  describe('la persona a atender (P6): se anuncia al entrar a la sala y cuando cambia', () => {
+    const sala = (key: string, title: string, objects: unknown[]) =>
+      ({ map: { key, title }, objects }) as unknown as SimulationWorldState;
+    const persona = (key: string, label: string, clave: boolean) =>
+      ({ ...nurse, key, label, metadata: clave ? { personaClave: true } : {} }) as unknown as MapObjectState;
+
+    it('al entrar a una sala con persona a atender, la región viva dice su nombre y «persona a atender»', () => {
+      internals().announceKeyPerson(sala('consultorio', 'Consultorio', [persona('madre', 'Marta', true), persona('otra', 'Otra', false)]));
+      settle();
+      expect(region('polite').textContent).toBe('Marta, persona a atender');
+      expect(region('assertive').textContent).toBe('');
+    });
+
+    it('no la repite mientras sea la misma en la misma sala (cada acción vuelve a poner el mundo)', () => {
+      const mundo = sala('consultorio', 'Consultorio', [persona('madre', 'Marta', true)]);
+      internals().announceKeyPerson(mundo);
+      settle();
+      vi.advanceTimersByTime(60_000); // la región ya se vació sola
+      expect(region('polite').textContent).toBe('');
+      internals().announceKeyPerson(sala('consultorio', 'Consultorio', [persona('madre', 'Marta', true)]));
+      settle();
+      expect(region('polite').textContent).toBe('');
+    });
+
+    it('si la persona a atender cambia (otra persona, otro nombre de sala), se anuncia la nueva', () => {
+      internals().announceKeyPerson(sala('consultorio', 'Consultorio', [persona('madre', 'Marta', true), persona('hijo', 'Luis', false)]));
+      settle();
+      vi.advanceTimersByTime(60_000);
+      internals().announceKeyPerson(sala('consultorio', 'Consultorio', [persona('madre', 'Marta', false), persona('hijo', 'Luis', true)]));
+      settle();
+      expect(region('polite').textContent).toBe('Luis, persona a atender');
+    });
+
+    it('al volver a una sala con ella después de pasar por otra sin ella, se anuncia de nuevo', () => {
+      const conClave = () => sala('consultorio', 'Consultorio', [persona('madre', 'Marta', true)]);
+      internals().announceKeyPerson(conClave());
+      internals().announceKeyPerson(sala('pasillo', 'Pasillo', [persona('otra', 'Otra', false)]));
+      settle();
+      vi.advanceTimersByTime(60_000);
+      internals().announceKeyPerson(conClave());
+      settle();
+      expect(region('polite').textContent).toBe('Marta, persona a atender');
+    });
+
+    it('sin persona a atender (o sin mundo) no dice nada', () => {
+      internals().announceKeyPerson(sala('pasillo', 'Pasillo', [persona('otra', 'Otra', false)]));
+      internals().announceKeyPerson(null);
+      internals().announceKeyPerson({ map: { key: 'x', title: 'X' } } as unknown as SimulationWorldState);
+      settle();
+      expect(region('polite').textContent).toBe('');
+    });
+
+    it('sale junto con «Entraste a …» en la misma lectura, sin pisarla', () => {
+      const mundo = sala('consultorio', 'Consultorio', [persona('madre', 'Marta', true)]);
+      internals().announceRoomChange(mundo);
+      internals().announceKeyPerson(mundo);
+      settle();
+      expect(region('polite').textContent).toBe('Entraste a Consultorio. Marta, persona a atender');
     });
   });
 

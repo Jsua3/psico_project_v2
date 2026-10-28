@@ -1,7 +1,6 @@
 """Port of Spring's SimulationGameService — the DAG state machine."""
 import base64
 import hashlib
-import json
 import secrets
 from datetime import timedelta
 
@@ -14,12 +13,11 @@ from rest_framework.exceptions import NotFound, PermissionDenied, ValidationErro
 
 from apps.grupos import assignments
 from apps.privacy import consent_service
+from apps.simulation.casedef.vocabulary import ResponseClass
 from apps.simulation.models import (
-    INITIAL_STRESS_INDEX,
-    INITIAL_USER_TRUST,
-    INITIAL_VICTIM_RISK,
+    REGISTERED_DECISION_EVENT_TYPES,
+    RETRY_EVENT_TYPES,
     AttemptEvent,
-    AttemptReport,
     AttemptStatus,
     CaseVersion,
     DecisionOption,
@@ -30,7 +28,7 @@ from apps.simulation.models import (
 from apps.simulation.serializers import game_dtos as dto
 from apps.simulation.signals import attempt_completed, attempt_start_requested
 from . import attempt_lifecycle as lifecycle
-from . import case_effects, crypto_service, decision_effects
+from . import case_state, crypto_service, response_effects
 from . import attempt_duration, attempt_report, case_rules
 from shared.exceptions import ApiError
 from shared import policies
@@ -52,14 +50,12 @@ def _new_token() -> str:
     return secrets.token_urlsafe(32)
 
 
-def _save_event(attempt, event_type, node, decision, score_delta, stress_delta, detail, request_id=None):
+def _save_event(attempt, event_type, node, decision, detail, request_id=None):
     AttemptEvent.objects.create(
         attempt=attempt,
         event_type=event_type,
         node=node,
         decision_option=decision,
-        score_delta=score_delta,
-        stress_delta=stress_delta,
         detail=detail,
         request_id=request_id,
     )
@@ -209,18 +205,21 @@ def _close_active_attempts(student, case_version_id, reason):
         replace_open_attempt(active, by=student, reason=reason)
 
 
-def _state(attempt, attempt_token, feedback=None):
+def _state(attempt, attempt_token):
     """El estado del intento; si está completado, con su reporte congelado (E1-8).
 
-    En modo «retroalimentación al cierre» un intento que NO está completado no lleva el reporte
-    en vivo (traía conteos y línea de tiempo con la clasificación de cada decisión): la
-    evaluación llega al cerrar, por el reporte congelado.
+    No lleva retroalimentación: lo que se elige se responde con su consecuencia
+    (``_decision_response``) y lo evaluativo llega al cerrar, por el reporte congelado. Un intento que no
+    está completado (en juego, en pausa, con salida segura o reemplazado) lleva ``completionReport: null``.
     """
+    # La persona sale del estado guardado del mundo (una lectura por estado): un intento pausado y
+    # reanudado la reconstruye igual.
+    persona_dto = case_state.persona_dto(case_state.read(attempt).persona)
     if attempt.status == AttemptStatus.COMPLETED:
-        report = attempt_report.frozen_report_for(attempt.id)
-        return dto.attempt_state(attempt, attempt_token, feedback, completion_report=report)
-    at_close = case_rules.feedback_at_close_only(case_rules.rules_of(attempt.case_version))
-    return dto.attempt_state(attempt, attempt_token, feedback, include_report=not at_close)
+        # Es la vista del dueño del intento: un reporte v1/v2 sin las cifras del modelo viejo (``for_student``).
+        report = attempt_report.for_student(attempt_report.frozen_report_for(attempt.id))
+        return dto.attempt_state(attempt, attempt_token, persona_dto, completion_report=report)
+    return dto.attempt_state(attempt, attempt_token, persona_dto)
 
 
 def _open_attempt_of(student_id, case_version_id):
@@ -238,7 +237,7 @@ def _open_attempt_of(student_id, case_version_id):
 
 def _resumed_state(attempt):
     """El intento abierto con un token nuevo y ``resumed: true`` (C1)."""
-    state = _state(attempt, _reissue_token(attempt), None)
+    state = _state(attempt, _reissue_token(attempt))
     state["resumed"] = True
     return state
 
@@ -308,21 +307,15 @@ def start_attempt(case_version_id, actor, force_new=False):
                 current_node=start_node,
                 last_activity_at=timezone.now(),
                 status=lifecycle.INITIAL_STATUS,
-                accumulated_score=0,
-                stress_index=INITIAL_STRESS_INDEX,
-                victim_risk=INITIAL_VICTIM_RISK,
-                user_trust=INITIAL_USER_TRUST,
-                institutional_route_activated=False,
-                revictimization_risk=False,
             )
     except IntegrityError:
         winner = _open_attempt_of(actor.id, case_version_id)
         if winner is None:
             raise
         return _resumed_state(winner)
-    _save_event(attempt, "ATTEMPT_STARTED", start_node, None, 0, 0, "Intento iniciado")
-    _save_event(attempt, "NODE_ENTERED", start_node, None, 0, 0, "Nodo inicial")
-    state = _state(attempt, raw_token, None)
+    _save_event(attempt, "ATTEMPT_STARTED", start_node, None, "Intento iniciado")
+    _save_event(attempt, "NODE_ENTERED", start_node, None, "Nodo inicial")
+    state = _state(attempt, raw_token)
     state["resumed"] = False
     return state
 
@@ -342,14 +335,14 @@ def find_active_attempt(case_version_id, actor):
         actor.id, case_version_id
     ):
         raise access_not_assigned()
-    state = _state(active, _reissue_token(active), None)
+    state = _state(active, _reissue_token(active))
     state["resumed"] = True
     return state
 
 
 def get_attempt(attempt_id, attempt_token, actor):
     attempt = _require_attempt(attempt_id, attempt_token, actor)
-    return _state(attempt, attempt_token, None)
+    return _state(attempt, attempt_token)
 
 
 def get_completion_report(attempt_id, attempt_token, actor):
@@ -358,7 +351,7 @@ def get_completion_report(attempt_id, attempt_token, actor):
     if lifecycle.state_of(attempt).plays:
         raise ValidationError("El intento aún está en progreso")
     attempt_report.record_feedback_viewed(attempt, actor)
-    return attempt_report.report_for(attempt)
+    return attempt_report.for_student(attempt_report.report_for(attempt))  # por token: siempre su dueño
 
 
 def get_attempt_report(attempt_id, attempt_token, actor):
@@ -376,15 +369,14 @@ def get_attempt_report(attempt_id, attempt_token, actor):
             status.HTTP_409_CONFLICT,
         )
     attempt_report.record_feedback_viewed(attempt, actor)
-    return attempt_report.report_for(attempt)
+    return attempt_report.for_student(attempt_report.report_for(attempt))  # por token: siempre su dueño
 
 
 def list_attempt_history(actor):
     """Resumen de los intentos del propio estudiante (más recientes primero).
 
-    Las cuentas de un intento completado salen de su reporte congelado (E1-8: no cambian si
-    el caso cambia después); las de los demás se calculan en una sola consulta agregada para
-    evitar N+1, con la misma semántica que el reporte de finalización.
+    Sin cifras de evaluación: ni puntaje ni conteos por clase. Lo que el estudiante lee de un intento cerrado
+    es su reporte (hitos, persona, final con su razón), no esta lista.
     """
     attempts = list(
         SimulationAttempt.objects.filter(student_id=actor.id)
@@ -394,52 +386,12 @@ def list_attempt_history(actor):
     if not attempts:
         return []
 
-    attempt_ids = [a.id for a in attempts]
-    counts = {}
-    for row in AttemptReport.objects.filter(attempt_id__in=attempt_ids).only("attempt_id", "report_json"):
-        frozen = json.loads(row.report_json)
-        counts[row.attempt_id] = {
-            "ADEQUATE": frozen["adequateDecisions"],
-            "RISKY": frozen["riskyDecisions"],
-            "INADEQUATE": frozen["inadequateDecisions"],
-            "PROHIBITED": frozen["prohibitedDecisions"],
-        }
-    live_ids = [aid for aid in attempt_ids if aid not in counts]
-    for aid in live_ids:
-        counts[aid] = {"ADEQUATE": 0, "RISKY": 0, "INADEQUATE": 0, "PROHIBITED": 0}
-    if live_ids:
-        # Solo decisiones registradas: los reintentos no puntúan (misma regla que el reporte).
-        decision_events = (
-            AttemptEvent.objects.filter(
-                attempt_id__in=live_ids,
-                event_type__in=case_effects.REGISTERED_DECISION_EVENT_TYPES,
-                decision_option__isnull=False,
-            )
-            .values(
-                "attempt_id",
-                "decision_option__classification",
-                "decision_option__prohibited_conduct",
-            )
-        )
-        for ev in decision_events:
-            bucket = counts[ev["attempt_id"]]
-            classification = ev["decision_option__classification"]
-            if classification in bucket:
-                bucket[classification] += 1
-            if ev["decision_option__prohibited_conduct"]:
-                bucket["PROHIBITED"] += 1
-
     return [
         {
             "attemptId": str(a.id),
             "caseVersionId": a.case_version_id,
             "caseTitle": a.case_version.simulation_case.title,
             "status": a.status,
-            "accumulatedScore": a.accumulated_score,
-            "adequateDecisions": counts[a.id]["ADEQUATE"],
-            "riskyDecisions": counts[a.id]["RISKY"],
-            "inadequateDecisions": counts[a.id]["INADEQUATE"],
-            "prohibitedDecisions": counts[a.id]["PROHIBITED"],
             "totalDurationSeconds": (
                 int((a.ended_at - a.started_at).total_seconds())
                 if a.started_at and a.ended_at else None
@@ -473,6 +425,9 @@ def get_student_report(attempt_id, actor):
         raise PermissionDenied("No tiene acceso a este intento")
     attempt_report.record_feedback_viewed(attempt, actor)
     informe = attempt_report.report_for(attempt)
+    if actor.role == "ESTUDIANTE":
+        # I-2 (R-17): el estudiante no recibe las cifras de un reporte v1/v2; el docente y el ADMIN lo leen guardado.
+        informe = attempt_report.for_student(informe)
     if attempt.student_id != actor.id:
         # S4-1 · quien lo lee no es su dueño: es leer datos de otra persona. La lectura de lo propio no deja fila.
         record(
@@ -490,7 +445,7 @@ def _override_evidence_labels(missing_evidence):
     return labels
 
 
-_DECISION_EVENT_TYPES = case_effects.REGISTERED_DECISION_EVENT_TYPES + case_effects.RETRY_EVENT_TYPES
+_DECISION_EVENT_TYPES = REGISTERED_DECISION_EVENT_TYPES + RETRY_EVENT_TYPES
 
 
 def _find_decision_replay(attempt, decision_option_id, request_id):
@@ -523,50 +478,48 @@ def _find_decision_replay(attempt, decision_option_id, request_id):
     return None
 
 
-#: Mensaje del reintento cuando la respuesta no puede ser evaluativa (``FEEDBACK_AT_CLOSE_ONLY``):
-#: anuncia que se puede volver a elegir sin decir si la respuesta fue buena o mala.
+#: Aviso del reintento: anuncia que se puede volver a elegir sin decir si la respuesta fue buena o mala.
 # BORRADOR: texto nuevo del servidor, pendiente de la aprobación de Psicología (VD-23).
 RETRY_NEUTRAL_MESSAGE = "Puedes volver a elegir en esta escena."
 
 
-def _decision_response(attempt, attempt_token, decision, effects, message, rules, retry_required=False):
-    """La respuesta de una decisión (C2): consecuencia narrativa y, según la regla, lo evaluativo.
+def _decision_response(attempt, attempt_token, decision, retry_required=False):
+    """La respuesta de una decisión (C2): solo su consecuencia narrativa; lo evaluativo llega al cerrar.
 
-    Con ``FEEDBACK_AT_CLOSE_ONLY`` (o ``feedbackTiming = AT_CLOSE`` en la versión) la forma es
-    ``{attempt, consequence, retry?}`` y no viaja clasificación, deltas ni mensaje evaluativo:
-    llegan en el reporte al cierre. Con la bandera apagada se conserva la forma de siempre
-    (``attemptState`` con ``feedback``) y se **añaden** ``consequence`` y ``retry``. Un reintento
-    no aplicó nada, así que no tiene consecuencia (``consequence: null``).
+    Una sola forma, siempre: ``{attempt, consequence}`` y, cuando se concede la segunda oportunidad,
+    ``{attempt, consequence: null, retry: {allowed, message}}``. No viaja clasificación, ni cifras, ni
+    mensaje evaluativo: eso es del reporte congelado. Un reintento no aplicó nada, así que no tiene
+    consecuencia.
     """
-    at_close = case_rules.feedback_at_close_only(rules)
-    consequence = None if retry_required else dto.consequence_dto(decision)
-    retry = None
+    response = {
+        "attempt": _state(attempt, attempt_token),
+        "consequence": None if retry_required else dto.consequence_dto(decision),
+    }
     if retry_required:
-        retry = {"allowed": True, "message": RETRY_NEUTRAL_MESSAGE if at_close else message}
-    if at_close:
-        response = {"attempt": _state(attempt, attempt_token, None), "consequence": consequence}
-        if retry:
-            response["retry"] = retry
-        return response
-    feedback = dto.feedback_dto(decision, effects, message, retry_required=retry_required)
-    response = _state(attempt, attempt_token, feedback)
-    response["consequence"] = consequence
-    if retry:
-        response["retry"] = retry
+        response["retry"] = {"allowed": True, "message": RETRY_NEUTRAL_MESSAGE}
     return response
 
 
 def _replayed_decision_state(attempt, attempt_token, event):
     """La respuesta de una decisión ya procesada, reconstruida desde su evento y el estado actual."""
-    decision = event.decision_option
-    effects = decision_effects.resolve(decision)
-    rules = case_rules.rules_of(attempt.case_version)
-    if event.event_type in case_effects.RETRY_EVENT_TYPES:
-        return _decision_response(
-            attempt, attempt_token, decision, effects, event.detail, rules, retry_required=True
-        )
-    message = decision_effects.format_feedback(decision, effects)
-    return _decision_response(attempt, attempt_token, decision, effects, message, rules)
+    return _decision_response(
+        attempt, attempt_token, event.decision_option,
+        retry_required=event.event_type in RETRY_EVENT_TYPES,
+    )
+
+
+def _decision_event_detail(decision, evidence_override, missing_evidence):
+    """El detalle del evento de una decisión registrada: la explicación propia de la opción, sin juicio.
+
+    Las etiquetas del override de evidencia son trazabilidad para el docente: se guardan solo en el
+    evento, nunca en lo que ve el jugador.
+    """
+    parts = [decision.feedback_text or decision.immediate_feedback or ""]
+    if evidence_override:
+        labels = _override_evidence_labels(missing_evidence)
+        if labels:
+            parts.append(f"Override de evidencia: {', '.join(labels)}")
+    return " | ".join(part for part in parts if part)
 
 
 @locked_attempt
@@ -597,9 +550,10 @@ def choose_decision(
     if decision.case_version_id != attempt.case_version_id:
         raise ValidationError("La decisión no pertenece al caso del intento")
 
-    effects = decision_effects.resolve(decision)
+    effects = response_effects.resolve(decision)
     rules = case_rules.rules_of(attempt.case_version)
-    is_bad_answer = decision.prohibited_conduct or decision.classification in {"RISKY", "INADEQUATE"}
+    contraindicated = effects.response_class is ResponseClass.CONTRAINDICATED
+    is_bad_answer = contraindicated or effects.response_class is ResponseClass.RISKY
     if is_bad_answer and rules.second_chance:
         # Regla de 2 oportunidades por escena/cuestionario (``rules.secondChance``, E1-7): la
         # PRIMERA respuesta riesgosa/inadecuada concede una segunda (y última) oportunidad sin
@@ -608,47 +562,31 @@ def choose_decision(
         prior_retries = AttemptEvent.objects.filter(
             attempt_id=attempt.id,
             node_id=attempt.current_node_id,
-            event_type__in=case_effects.RETRY_EVENT_TYPES,
+            event_type__in=RETRY_EVENT_TYPES,
         ).count()
         if prior_retries == 0:
-            message = (
-                "La respuesta seleccionada puede ser riesgosa o inadecuada para este momento. "
-                "Tienes una última oportunidad para volver a responder esta escena."
-            )
             event_type = (
-                "PROHIBITED_DECISION_RETRY_REQUIRED"
-                if decision.prohibited_conduct
-                else "DECISION_RETRY_REQUIRED"
+                "PROHIBITED_DECISION_RETRY_REQUIRED" if contraindicated else "DECISION_RETRY_REQUIRED"
             )
-            # Trazado para revisión/rúbrica docente; sin cambios de métricas ni avance.
-            _save_event(attempt, event_type, decision.source_node, decision, 0, 0, message, request_id)
+            # Trazado para revisión/rúbrica docente; sin cambios de estado ni avance. El tipo del evento
+            # ya dice qué pasó: el detalle es el mismo aviso neutro que recibe el jugador.
+            _save_event(
+                attempt, event_type, decision.source_node, decision, RETRY_NEUTRAL_MESSAGE, request_id
+            )
             attempt.save(update_fields=attempt_duration.ACTIVITY_FIELDS)  # el reintento también es actividad
-            return _decision_response(
-                attempt, attempt_token, decision, effects, message, rules, retry_required=True
-            )
+            return _decision_response(attempt, attempt_token, decision, retry_required=True)
 
-    decision_effects.apply(attempt, effects)
-    # Efecto mariposa del caso: flags clínicos + métricas acumulativas (se
-    # aplica ANTES de avanzar el nodo — el world state sigue sincronizado al
-    # nodo actual y el próximo /world hará el reset de sala que corresponda).
-    case_effects.apply_case_effects(attempt, decision)
-    event_type = "PROHIBITED_DECISION_SELECTED" if decision.prohibited_conduct else "DECISION_SELECTED"
-
-    message = decision_effects.format_feedback(decision, effects)
-    # Las etiquetas del override son trazabilidad para el docente: se guardan
-    # solo en el evento; el mensaje que ve el jugador no las lleva.
-    event_detail = message
-    if evidence_override:
-        labels = _override_evidence_labels(missing_evidence)
-        if labels:
-            event_detail = f"{message} | Override de evidencia: {', '.join(labels)}"
+    # Los hitos y el paso de la persona se escriben ANTES de avanzar el nodo: el estado del mundo sigue
+    # sincronizado al nodo actual y el próximo /world hará el reset de sala que corresponda.
+    response_effects.apply(attempt, effects)
+    event_type = "PROHIBITED_DECISION_SELECTED" if contraindicated else "DECISION_SELECTED"
     attempt.current_node = decision.target_node
 
     _save_event(
         attempt, event_type, decision.source_node, decision,
-        effects.score_delta, effects.stress_delta, event_detail, request_id,
+        _decision_event_detail(decision, evidence_override, missing_evidence), request_id,
     )
-    _save_event(attempt, "NODE_ENTERED", decision.target_node, None, 0, 0, "Nodo visitado")
+    _save_event(attempt, "NODE_ENTERED", decision.target_node, None, "Nodo visitado")
 
     if decision.target_node.terminal_node:
         now = timezone.now()
@@ -660,14 +598,14 @@ def choose_decision(
     attempt.save()
 
     if attempt.status == AttemptStatus.COMPLETED:
-        _save_event(attempt, "ATTEMPT_COMPLETED", decision.target_node, None, 0, 0, "Intento finalizado")
+        _save_event(attempt, "ATTEMPT_COMPLETED", decision.target_node, None, "Intento finalizado")
         # E1-8: el reporte queda congelado en la misma transacción que cierra el intento.
         attempt_report.freeze_report(attempt)
         # P-13: se anuncia el hecho; quien reacciona (progresión, hoy) se suscribe. Síncrona y
         # dentro de esta transacción, y robusta: un suscriptor que falla no rompe la decisión.
         attempt_completed.send_robust(sender=SimulationAttempt, attempt=attempt)
 
-    return _decision_response(attempt, attempt_token, decision, effects, message, rules)
+    return _decision_response(attempt, attempt_token, decision)
 
 
 @locked_attempt
@@ -704,7 +642,7 @@ def save_reflection(attempt_id, attempt_token, node_id, text, actor, request_id=
     reflection.save()
 
     attempt_duration.record_activity(attempt)
-    _save_event(attempt, "REFLECTION_SAVED", node, None, 0, 0, "Bitácora registrada", request_id)
+    _save_event(attempt, "REFLECTION_SAVED", node, None, "Bitácora registrada", request_id)
     return {"nodeId": node.id, "locked": reflection.locked}
 
 
@@ -725,13 +663,13 @@ def safe_exit(attempt_id, attempt_token, reason, actor):
     """
     attempt = _require_attempt(attempt_id, attempt_token, actor, enforce_assignment=False, enforce_consent=False)
     if not lifecycle.state_of(attempt).can(lifecycle.PAUSE):
-        return _state(attempt, attempt_token, None)
+        return _state(attempt, attempt_token)
     attempt_duration.touch(attempt, timezone.now())  # suma hasta la pausa; lo que siga no cuenta
     lifecycle.apply(attempt, lifecycle.PAUSE)
     attempt.save()
     detail = reason.strip()[:SAFE_EXIT_REASON_MAX] if (reason and reason.strip()) else "Salida segura solicitada"
-    _save_event(attempt, "SAFE_EXIT_REQUESTED", attempt.current_node, None, 0, 0, detail)
-    return _state(attempt, attempt_token, None)
+    _save_event(attempt, "SAFE_EXIT_REQUESTED", attempt.current_node, None, detail)
+    return _state(attempt, attempt_token)
 
 
 @locked_attempt
@@ -747,14 +685,14 @@ def resume_attempt(attempt_id, attempt_token, actor):
     attempt = _require_attempt(attempt_id, attempt_token, actor, enforce_consent=False)
     state = lifecycle.state_of(attempt)
     if state.plays:
-        return _state(attempt, attempt_token, None)
+        return _state(attempt, attempt_token)
     if not state.can(lifecycle.RESUME):
         raise ValidationError("Solo un intento en pausa segura puede reanudarse")
     lifecycle.apply(attempt, lifecycle.RESUME)
     attempt_duration.reset_clock(attempt, timezone.now())  # el tiempo en pausa no es tiempo activo
     attempt.save()
-    _save_event(attempt, "ATTEMPT_RESUMED", attempt.current_node, None, 0, 0, "Intento reanudado tras pausa segura")
-    return _state(attempt, attempt_token, None)
+    _save_event(attempt, "ATTEMPT_RESUMED", attempt.current_node, None, "Intento reanudado tras pausa segura")
+    return _state(attempt, attempt_token)
 
 
 def get_progress_map(attempt_id, attempt_token, actor):

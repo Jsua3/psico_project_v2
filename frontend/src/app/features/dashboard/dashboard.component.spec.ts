@@ -47,10 +47,9 @@ const httpFailure = () => throwError(() => new Error('HTTP 500'));
 
 function dashboardData(partial: Partial<Dashboard> = {}): Dashboard {
   return {
-    estudiantesActivos: 0, simulacionesCompletadasHoy: 0, puntajePromedioGlobal: 0,
-    simulacionesCompletadas: 0, simulacionesEnProgreso: 0, puntajePromedioSimulacion: 0,
-    decisionesAdecuadas: 0, decisionesRiesgosas: 0, decisionesInadecuadas: 0,
-    decisionesProhibidas: 0, ultimosIntentos: [], intentosRecientes: [],
+    estudiantesActivos: 0, simulacionesCompletadasHoy: 0, simulacionesCompletadas: 0, simulacionesEnProgreso: 0,
+    decisiones: { recommended: 0, acceptable: 0, risky: 0, contraindicated: 0 },
+    ultimosIntentos: [], intentosRecientes: [],
     ...partial,
   };
 }
@@ -69,7 +68,6 @@ function adminUser(activo: boolean): AdminUser {
 function ownAttempt(partial: Partial<StudentAttemptSummary> = {}): StudentAttemptSummary {
   return {
     attemptId: 'own-1', caseVersionId: 7, caseTitle: 'Caso propio', status: 'IN_PROGRESS',
-    accumulatedScore: 0, adequateDecisions: 0, riskyDecisions: 0, inadequateDecisions: 0, prohibitedDecisions: 0,
     totalDurationSeconds: null, activeDurationSeconds: null, startedAt: '2026-09-01T10:00:00Z', endedAt: null,
     ...partial,
   };
@@ -335,7 +333,7 @@ describe('DashboardComponent', () => {
       expect(new Set(labels).size).toBe(labels.length);
       expect(labels).toEqual([
         'Grupos activos', 'Estudiantes asignados', 'Intentos recientes', 'Casos asignados',
-        'Simulaciones completadas', 'Promedio de desempeño', 'Decisiones críticas',
+        'Simulaciones completadas', 'Decisiones críticas',
       ]);
       const stat = (label: string) => [...host().querySelectorAll('ui-stat')]
         .find(el => text(el.querySelector('.ui-stat__label')) === label);
@@ -344,13 +342,45 @@ describe('DashboardComponent', () => {
       expect(text(stat('Decisiones críticas')!.querySelector('.ui-stat__value'))).toBe('0');
     });
 
+    // req: modelo de métricas
+    it('el panel del docente no muestra puntaje ni promedios: la tabla de intentos trae caso, estudiante, estado y detalle', async () => {
+      await render('PROFESOR', {
+        reporte: {
+          getDashboard: () => of(dashboardData({
+            simulacionesCompletadas: 1,
+            intentosRecientes: [{ id: 'a-1', casoTitulo: 'Caso 1', estudiante: 'Ana', estado: 'COMPLETED' }],
+          })),
+        },
+      });
+      expect(text(host())).not.toMatch(/Puntaje|Promedio de desempeño|Desempeño por estudiante|Pendiente/);
+      const headers = [...host().querySelectorAll('thead th')].map(text);
+      expect(headers).toEqual(['Caso', 'Estudiante', 'Estado', 'Detalle']);
+      const cells = [...host().querySelectorAll('tbody tr:first-child td')].map(text);
+      expect(cells.slice(0, 3)).toEqual(['Caso 1', 'Ana', 'Completado']);
+    });
+
+    it('la gráfica de decisiones cuenta cada clase con su palabra y no compara estudiantes', async () => {
+      await render('PROFESOR', {
+        reporte: {
+          getDashboard: () => of(dashboardData({ decisiones: { recommended: 7, acceptable: 3, risky: 2, contraindicated: 1 } })),
+        },
+      });
+      const chart = [...host().querySelectorAll('.dc-chart')].find(card => text(card.querySelector('h3')) === 'Decisiones por clase')!;
+      expect(chart).toBeDefined();
+      const bars = [...chart.querySelectorAll('.dc-bar')].map(bar => [text(bar.querySelector('.dc-bar__label')), text(bar.querySelector('.dc-bar__value'))]);
+      expect(bars).toEqual([['Recomendada', '7'], ['Aceptable', '3'], ['Con riesgo', '2'], ['Contraindicada', '1']]);
+      // «Decisiones críticas» cuenta las de clase Con riesgo y Contraindicada (2 + 1).
+      const critical = [...host().querySelectorAll('ui-stat')].find(el => text(el.querySelector('.ui-stat__label')) === 'Decisiones críticas')!;
+      expect(text(critical.querySelector('.ui-stat__value'))).toBe('3');
+    });
+
     it('«Ver detalle» lleva al intento de esa fila, no a la lista general', async () => {
       await render('PROFESOR', {
         reporte: {
           getDashboard: () => of(dashboardData({
             intentosRecientes: [
-              { id: 'a-1', casoTitulo: 'Caso 1', estudiante: 'Ana', puntaje: 40, estado: 'COMPLETED' },
-              { id: 'a-2', casoTitulo: 'Caso 2', estudiante: 'Beto', puntaje: 0, estado: 'IN_PROGRESS' },
+              { id: 'a-1', casoTitulo: 'Caso 1', estudiante: 'Ana', estado: 'COMPLETED' },
+              { id: 'a-2', casoTitulo: 'Caso 2', estudiante: 'Beto', estado: 'IN_PROGRESS' },
             ],
           })),
         },
@@ -372,7 +402,7 @@ describe('DashboardComponent', () => {
     // req: ED-5 (E2: el ADMIN no juega; desde entonces nadie del personal tiene intento propio que retomar)
     it('nunca ofrece continuar un intento: ni el de OTRA persona ni uno propio del administrador (ED-5)', async () => {
       const others = dashboardData({
-        intentosRecientes: [{ id: 'x', casoTitulo: 'Caso de otra', estudiante: 'Carla', puntaje: 0, estado: 'IN_PROGRESS' }],
+        intentosRecientes: [{ id: 'x', casoTitulo: 'Caso de otra', estudiante: 'Carla', estado: 'IN_PROGRESS' }],
       });
       await render('ADMIN', {
         reporte: { getDashboard: () => of(others) },
@@ -452,8 +482,8 @@ describe('DashboardComponent', () => {
       await render('PROFESOR', {
         reporte: {
           getDashboard: () => of(dashboardData({
-            simulacionesEnProgreso: 2, decisionesRiesgosas: 1,
-            intentosRecientes: [{ id: 'a-1', casoTitulo: 'Caso 1', estudiante: 'Ana', puntaje: 40, estado: 'IN_PROGRESS' }],
+            simulacionesEnProgreso: 2, decisiones: { recommended: 0, acceptable: 0, risky: 1, contraindicated: 0 },
+            intentosRecientes: [{ id: 'a-1', casoTitulo: 'Caso 1', estudiante: 'Ana', estado: 'IN_PROGRESS' }],
           })),
         },
       });

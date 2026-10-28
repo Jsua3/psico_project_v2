@@ -73,6 +73,8 @@ export class GlassBarMachine {
   private anchor = 0;
   /** Móvil: el mayor alto del viewport visual visto en esta orientación (referencia del teclado). */
   private keyboardReference = 0;
+  /** Congelada (DG-9): el estado que se ve no cambia, aunque la máquina siga anotando lo que pasa. */
+  private frozen = false;
 
   constructor(private readonly signals: GlassBarSignals, private readonly timers: GlassBarTimers = BROWSER_TIMERS) {
     this.desktop = signals.isDesktop();
@@ -162,6 +164,16 @@ export class GlassBarMachine {
     this.paint();
   }
 
+  /**
+   * Congela el estado que se ve (editor de casos, DG-9): con una ayuda abierta —el buscador o la guía— la barra no
+   * cambia de estado, para que lo que la guía señala no salte 6 px. La máquina sigue anotando el desplazamiento y la
+   * atención; al soltarla, la barra cae al estado que le toca.
+   */
+  freeze(frozen: boolean): void {
+    this.frozen = frozen;
+    this.paint();
+  }
+
   destroy(): void {
     this.timers.clear(this.closeTimer);
   }
@@ -211,6 +223,7 @@ export class GlassBarMachine {
   }
 
   private paint(): void {
+    if (this.frozen) return;
     this.stateSignal.set(this.derive());
   }
 }

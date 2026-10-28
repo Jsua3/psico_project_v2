@@ -54,12 +54,13 @@ NODE = CopySpec(SimulationNode, (
     "node_key", "title", "narrative", "support_resources_json", "required_tools_json",
     "sensitive_content", "safe_exit_required", "warning_message", "start_node",
     "terminal_node", "position_x", "position_y", "decision_prompt", "display_order",
+    "intensity", "ai_suggested",
 ))
 
 DECISION = CopySpec(DecisionOption, (
-    "option_key", "text", "classification", "score_delta", "stress_delta",
-    "prohibited_penalty", "immediate_feedback", "prohibited_conduct", "prohibition_reason",
-    "consequence_text", "theory_basis", "feedback_text", "effects",
+    "option_key", "text", "immediate_feedback", "prohibition_reason",
+    "consequence_text", "theory_basis", "feedback_text", "effects", "response_class",
+    "ai_suggested",
 ))
 
 MAP = CopySpec(SceneMap, (
@@ -80,12 +81,12 @@ MAP_OBJECT = CopySpec(MapObject, (
     "object_key", "label", "object_type", "position_x", "position_y", "width", "height",
     "color_hex", "icon", "short_code", "collision", "visible", "interaction_prompt",
     "interaction_text", "tool_code", "unlock_condition_json", "z_index", "facing",
-    "movement_pattern_json", "metadata_json",
+    "movement_pattern_json", "metadata_json", "ai_suggested",
 ))
 
 DIALOGUE_TREE = CopySpec(DialogueTree, ("tree_key", "speaker_name", "portrait_key", "emotion"))
 
-DIALOGUE_LINE = CopySpec(DialogueLine, ("display_order", "speaker_name", "text", "emotion"))
+DIALOGUE_LINE = CopySpec(DialogueLine, ("display_order", "speaker_name", "text", "emotion", "ai_suggested"))
 
 DIALOGUE_CHOICE = CopySpec(DialogueChoice, (
     "choice_key", "text", "required_tool_code", "effect_json", "display_order",

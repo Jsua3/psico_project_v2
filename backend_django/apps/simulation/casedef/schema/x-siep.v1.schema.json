@@ -1,0 +1,385 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "urn:siep:x-siep:1.0.0",
+  "title": "x-siep: lo que SIEP añade al DSL de casos del taller",
+  "description": "Espacio de extensión del documento del caso (E4, R7 y R10). La base del DSL lleva lo que el esquema del taller puede expresar; x-siep lleva el resto sin duplicarlo: cada entidad que está en la base se enlaza por su `id` de DSL y las que no caben (un personaje sin rol, una herramienta sin descripción, una escena que solo se alcanza por una puerta) van completas. Dentro del mundo las referencias van por la clave del producto (opción, personaje, herramienta, objeto). Las condiciones de los finales se validan además con el vocabulario de `casedef.conditions` (profundidad máxima 12), que un esquema no puede expresar.",
+  "type": "object",
+  "required": ["version"],
+  "additionalProperties": false,
+  "properties": {
+    "version": { "const": "1.0" },
+    "contexto": { "type": "string", "maxLength": 4000 },
+    "descripcionDerivada": { "const": true, "description": "`caso.descripcion` de la base es el contexto de la versión (el caso no tenía descripción propia): el importador no la guarda como descripción." },
+    "mundoVersion": { "type": "integer", "minimum": 1, "maximum": 1000000 },
+    "reglas": { "$ref": "#/$defs/reglas" },
+    "personajes": { "type": "array", "maxItems": 100, "items": { "$ref": "#/$defs/personaje" } },
+    "herramientas": { "type": "array", "maxItems": 100, "items": { "$ref": "#/$defs/herramienta" } },
+    "escenas": { "type": "array", "maxItems": 200, "items": { "$ref": "#/$defs/escena" } },
+    "rubricas": { "type": "array", "maxItems": 50, "items": { "$ref": "#/$defs/rubrica" } }
+  },
+  "$defs": {
+    "clave": { "type": "string", "minLength": 1, "maxLength": 120 },
+    "codigoHerramienta": { "type": "string", "minLength": 1, "maxLength": 80, "description": "`clinical_tools.tool_code` mide 80 en la base de datos." },
+    "texto": { "type": "string", "maxLength": 20000 },
+    "entero": { "type": "integer", "minimum": -1000000, "maximum": 1000000 },
+    "nombreDeEfecto": { "type": "string", "pattern": "^[A-Za-z0-9_]{1,60}(?![\\s\\S])" },
+    "codigoDeCompetencia": { "type": "string", "pattern": "^[A-Z0-9_]{1,100}(?![\\s\\S])" },
+    "idEscena": { "type": "string", "pattern": "^E[0-9]{2,6}(?![\\s\\S])" },
+    "idOpcion": { "type": "string", "pattern": "^OP[0-9]{2,6}(?![\\s\\S])" },
+    "idPersonaje": { "type": "string", "pattern": "^P[0-9]{2,6}(?![\\s\\S])" },
+    "idHerramienta": { "type": "string", "pattern": "^H[0-9]{2,6}(?![\\s\\S])" },
+    "idRubrica": { "type": "string", "pattern": "^RUB-[0-9]{2,6}(?![\\s\\S])" },
+    "idCriterio": { "type": "string", "pattern": "^CR[0-9]{2,6}(?![\\s\\S])" },
+    "objeto_libre": { "type": "object", "maxProperties": 200 },
+
+    "reglas": {
+      "type": "object",
+      "additionalProperties": false,
+      "description": "`case_versions.rules` tal cual (E1-7, E3-8).",
+      "properties": {
+        "secondChance": { "type": "boolean" },
+        "feedbackTiming": { "enum": ["IMMEDIATE", "AT_CLOSE"] },
+        "riskLevel": { "enum": ["VARIABLE", "MODERATE", "SEVERE", "EXTREME"] },
+        "milestones": {
+          "type": "array",
+          "maxItems": 50,
+          "items": {
+            "type": "object",
+            "required": ["key"],
+            "additionalProperties": false,
+            "properties": {
+              "key": { "$ref": "#/$defs/nombreDeEfecto" },
+              "label": { "$ref": "#/$defs/texto" },
+              "description": { "$ref": "#/$defs/texto" },
+              "decisive": { "type": "boolean" }
+            }
+          }
+        },
+        "metrics": {
+          "type": "array",
+          "maxItems": 50,
+          "items": {
+            "type": "object",
+            "required": ["key"],
+            "additionalProperties": false,
+            "properties": {
+              "key": { "$ref": "#/$defs/nombreDeEfecto" },
+              "initial": { "type": "integer", "minimum": 0, "maximum": 100 }
+            }
+          }
+        },
+        "endings": {
+          "type": "array",
+          "maxItems": 50,
+          "items": {
+            "type": "object",
+            "required": ["key", "title"],
+            "additionalProperties": false,
+            "properties": {
+              "key": { "$ref": "#/$defs/clave" },
+              "title": { "$ref": "#/$defs/texto" },
+              "message": { "$ref": "#/$defs/texto" },
+              "tone": { "type": "string", "maxLength": 40 },
+              "when": { "$ref": "#/$defs/objeto_libre" }
+            }
+          }
+        }
+      }
+    },
+
+    "efectos": {
+      "type": "object",
+      "additionalProperties": false,
+      "description": "Los efectos de una opción (E3-8, E6-1a): severidad, banderas, cambios de métricas y las competencias a las que aporta.",
+      "properties": {
+        "severity": { "enum": ["recommended", "acceptable", "risky", "critical"] },
+        "flags": {
+          "type": "object",
+          "maxProperties": 20,
+          "propertyNames": { "$ref": "#/$defs/nombreDeEfecto" },
+          "additionalProperties": { "type": "boolean" }
+        },
+        "metrics": {
+          "type": "object",
+          "maxProperties": 20,
+          "propertyNames": { "$ref": "#/$defs/nombreDeEfecto" },
+          "additionalProperties": { "type": "integer", "minimum": -100, "maximum": 100 }
+        },
+        "competencies": {
+          "oneOf": [
+            {
+              "type": "object",
+              "maxProperties": 20,
+              "propertyNames": { "$ref": "#/$defs/codigoDeCompetencia" },
+              "additionalProperties": { "enum": ["EN_INICIO", "EN_PROCESO", "LOGRADO", "DESTACADO", null] }
+            },
+            {
+              "type": "array",
+              "maxItems": 20,
+              "uniqueItems": true,
+              "items": { "$ref": "#/$defs/codigoDeCompetencia" }
+            }
+          ]
+        },
+        "persona": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "bond": { "type": "integer", "minimum": -1, "maximum": 1 },
+            "activation": { "type": "integer", "minimum": -1, "maximum": 1 }
+          }
+        },
+        "milestones": {
+          "type": "array",
+          "maxItems": 20,
+          "items": { "$ref": "#/$defs/nombreDeEfecto" }
+        }
+      }
+    },
+
+    "personaje": {
+      "type": "object",
+      "required": ["clave", "retrato", "enFicha", "orden"],
+      "additionalProperties": false,
+      "properties": {
+        "id": { "$ref": "#/$defs/idPersonaje" },
+        "clave": { "$ref": "#/$defs/clave" },
+        "nombre": { "type": "string", "maxLength": 255 },
+        "rol": { "type": "string", "maxLength": 255 },
+        "retrato": { "type": "string", "maxLength": 120 },
+        "enFicha": { "type": "boolean" },
+        "orden": { "$ref": "#/$defs/entero" }
+      },
+      "if": { "not": { "required": ["id"] } },
+      "then": { "required": ["nombre", "rol"] }
+    },
+
+    "herramienta": {
+      "type": "object",
+      "required": ["codigo", "icono", "activa"],
+      "additionalProperties": false,
+      "properties": {
+        "id": { "$ref": "#/$defs/idHerramienta" },
+        "codigo": { "$ref": "#/$defs/codigoHerramienta" },
+        "etiqueta": { "type": "string", "maxLength": 255 },
+        "descripcion": { "$ref": "#/$defs/texto" },
+        "categoria": { "type": "string", "maxLength": 80 },
+        "icono": { "type": "string", "maxLength": 80 },
+        "activa": { "type": "boolean" }
+      },
+      "if": { "not": { "required": ["id"] } },
+      "then": { "required": ["etiqueta", "descripcion", "categoria"] }
+    },
+
+    "opcion": {
+      "type": "object",
+      "required": ["clave", "puntaje", "estres", "penalizacion", "retroalimentacionInmediata", "efectos"],
+      "additionalProperties": false,
+      "properties": {
+        "id": { "$ref": "#/$defs/idOpcion" },
+        "clave": { "$ref": "#/$defs/clave" },
+        "texto": { "$ref": "#/$defs/texto" },
+        "destino": { "$ref": "#/$defs/clave" },
+        "clasificacion": { "enum": ["ADEQUATE", "RISKY", "INADEQUATE"] },
+        "prohibida": { "type": "boolean" },
+        "motivo": { "$ref": "#/$defs/texto" },
+        "consecuencia": { "$ref": "#/$defs/texto" },
+        "puntaje": { "$ref": "#/$defs/entero" },
+        "estres": { "$ref": "#/$defs/entero" },
+        "penalizacion": { "$ref": "#/$defs/entero" },
+        "retroalimentacionInmediata": { "$ref": "#/$defs/texto" },
+        "mensaje": { "$ref": "#/$defs/texto" },
+        "fundamento": { "$ref": "#/$defs/texto" },
+        "efectos": { "$ref": "#/$defs/efectos" }
+      },
+      "if": { "not": { "required": ["id"] } },
+      "then": {
+        "required": ["texto", "destino", "clasificacion", "prohibida", "motivo", "consecuencia", "mensaje", "fundamento"]
+      }
+    },
+
+    "escena": {
+      "type": "object",
+      "required": ["clave", "inicial", "terminal", "salidaSeguraObligatoria", "apoyo", "herramientasRequeridas", "posicion", "opciones"],
+      "additionalProperties": false,
+      "properties": {
+        "id": { "$ref": "#/$defs/idEscena" },
+        "clave": { "$ref": "#/$defs/clave" },
+        "titulo": { "type": "string", "maxLength": 255 },
+        "descripcion": { "$ref": "#/$defs/texto" },
+        "sensible": { "type": "boolean" },
+        "advertencia": { "$ref": "#/$defs/texto" },
+        "pregunta": { "$ref": "#/$defs/texto" },
+        "preguntaDerivada": { "const": true },
+        "pistas": { "type": "array", "maxItems": 50, "items": { "type": "string", "maxLength": 280 } },
+        "inicial": { "type": "boolean" },
+        "terminal": { "type": "boolean" },
+        "salidaSeguraObligatoria": { "type": "boolean" },
+        "apoyo": { "type": "array", "maxItems": 50, "items": { "type": "string", "maxLength": 2000 } },
+        "herramientasRequeridas": { "type": "array", "maxItems": 50, "items": { "$ref": "#/$defs/clave" } },
+        "posicion": {
+          "type": "object",
+          "required": ["x", "y"],
+          "additionalProperties": false,
+          "properties": { "x": { "$ref": "#/$defs/entero" }, "y": { "$ref": "#/$defs/entero" } }
+        },
+        "opciones": { "type": "array", "maxItems": 50, "items": { "$ref": "#/$defs/opcion" } },
+        "mapa": { "$ref": "#/$defs/mapa" }
+      },
+      "if": { "not": { "required": ["id"] } },
+      "then": { "required": ["titulo", "descripcion", "sensible", "advertencia", "pregunta", "pistas"] }
+    },
+
+    "mapa": {
+      "type": "object",
+      "required": ["clave", "titulo", "ancho", "alto", "tema", "aparicion", "ambiente", "colisiones", "objetos", "dialogos"],
+      "additionalProperties": false,
+      "properties": {
+        "clave": { "$ref": "#/$defs/clave" },
+        "titulo": { "type": "string", "maxLength": 255 },
+        "ancho": { "$ref": "#/$defs/entero" },
+        "alto": { "$ref": "#/$defs/entero" },
+        "tema": { "type": "string", "maxLength": 100 },
+        "aparicion": {
+          "type": "object",
+          "required": ["x", "y"],
+          "additionalProperties": false,
+          "properties": { "x": { "$ref": "#/$defs/entero" }, "y": { "$ref": "#/$defs/entero" } }
+        },
+        "ambiente": { "$ref": "#/$defs/objeto_libre" },
+        "colisiones": { "type": "array", "maxItems": 600, "items": { "$ref": "#/$defs/colision" } },
+        "objetos": { "type": "array", "maxItems": 500, "items": { "$ref": "#/$defs/objetoDeMapa" } },
+        "dialogos": { "type": "array", "maxItems": 200, "items": { "$ref": "#/$defs/dialogo" } }
+      }
+    },
+
+    "colision": {
+      "type": "object",
+      "required": ["clave", "etiqueta", "x", "y", "ancho", "alto"],
+      "additionalProperties": false,
+      "properties": {
+        "clave": { "$ref": "#/$defs/clave" },
+        "etiqueta": { "type": "string", "maxLength": 255 },
+        "x": { "$ref": "#/$defs/entero" },
+        "y": { "$ref": "#/$defs/entero" },
+        "ancho": { "$ref": "#/$defs/entero" },
+        "alto": { "$ref": "#/$defs/entero" }
+      }
+    },
+
+    "objetoDeMapa": {
+      "type": "object",
+      "required": [
+        "clave", "etiqueta", "tipo", "x", "y", "ancho", "alto", "z", "orientacion", "color", "icono", "codigoCorto",
+        "colision", "visible", "indicacion", "texto", "opcion", "personaje", "herramienta", "desbloqueo", "movimiento",
+        "metadatos"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "clave": { "$ref": "#/$defs/clave" },
+        "etiqueta": { "type": "string", "maxLength": 255 },
+        "tipo": {
+          "enum": ["PERSON", "OBJECT", "ROUTE", "TOOL", "WARNING", "EXIT", "PROP", "TOOL_TARGET", "TRIGGER", "NOTE", "RESOURCE"]
+        },
+        "x": { "$ref": "#/$defs/entero" },
+        "y": { "$ref": "#/$defs/entero" },
+        "ancho": { "$ref": "#/$defs/entero" },
+        "alto": { "$ref": "#/$defs/entero" },
+        "z": { "$ref": "#/$defs/entero" },
+        "orientacion": { "type": "string", "maxLength": 20 },
+        "color": { "type": "string", "maxLength": 20 },
+        "icono": { "type": "string", "maxLength": 80 },
+        "codigoCorto": { "type": "string", "maxLength": 20 },
+        "colision": { "type": "boolean" },
+        "visible": { "type": "boolean" },
+        "indicacion": { "type": "string", "maxLength": 255 },
+        "texto": { "$ref": "#/$defs/texto" },
+        "opcion": { "type": ["string", "null"], "maxLength": 120 },
+        "personaje": { "type": ["string", "null"], "maxLength": 120 },
+        "herramienta": { "type": ["string", "null"], "maxLength": 80 },
+        "desbloqueo": { "$ref": "#/$defs/objeto_libre" },
+        "movimiento": { "$ref": "#/$defs/objeto_libre" },
+        "metadatos": { "$ref": "#/$defs/objeto_libre" }
+      }
+    },
+
+    "dialogo": {
+      "type": "object",
+      "required": ["clave", "hablante", "retrato", "emocion", "objeto", "lineas", "elecciones"],
+      "additionalProperties": false,
+      "properties": {
+        "clave": { "$ref": "#/$defs/clave" },
+        "hablante": { "type": "string", "maxLength": 255 },
+        "retrato": { "type": ["string", "null"], "maxLength": 120 },
+        "emocion": { "type": "string", "maxLength": 60 },
+        "objeto": { "type": ["string", "null"], "maxLength": 120 },
+        "lineas": {
+          "type": "array",
+          "maxItems": 200,
+          "items": {
+            "type": "object",
+            "required": ["orden", "hablante", "texto", "emocion"],
+            "additionalProperties": false,
+            "properties": {
+              "orden": { "$ref": "#/$defs/entero" },
+              "hablante": { "type": "string", "maxLength": 255 },
+              "texto": { "$ref": "#/$defs/texto" },
+              "emocion": { "type": "string", "maxLength": 60 }
+            }
+          }
+        },
+        "elecciones": {
+          "type": "array",
+          "maxItems": 100,
+          "items": {
+            "type": "object",
+            "required": ["clave", "texto", "opcion", "herramientaRequerida", "efecto", "orden"],
+            "additionalProperties": false,
+            "properties": {
+              "clave": { "$ref": "#/$defs/clave" },
+              "texto": { "$ref": "#/$defs/texto" },
+              "opcion": { "type": ["string", "null"], "maxLength": 120 },
+              "herramientaRequerida": { "type": ["string", "null"], "maxLength": 80 },
+              "efecto": { "$ref": "#/$defs/objeto_libre" },
+              "orden": { "$ref": "#/$defs/entero" }
+            }
+          }
+        }
+      }
+    },
+
+    "criterio": {
+      "type": "object",
+      "required": ["puntajeMaximo", "peso", "activo"],
+      "additionalProperties": false,
+      "properties": {
+        "id": { "$ref": "#/$defs/idCriterio" },
+        "competencia": { "type": "string", "maxLength": 100 },
+        "titulo": { "type": "string", "maxLength": 255 },
+        "descripcion": { "$ref": "#/$defs/texto" },
+        "puntajeMaximo": { "$ref": "#/$defs/entero" },
+        "peso": { "type": "string", "pattern": "^-?[0-9]{1,3}\\.[0-9]{2}(?![\\s\\S])" },
+        "activo": { "type": "boolean" },
+        "competenciaCodigo": { "type": "string", "maxLength": 100 }
+      },
+      "if": { "not": { "required": ["id"] } },
+      "then": { "required": ["competencia", "titulo", "descripcion"] }
+    },
+
+    "rubrica": {
+      "type": "object",
+      "required": ["criterios"],
+      "additionalProperties": false,
+      "properties": {
+        "id": { "$ref": "#/$defs/idRubrica" },
+        "nombre": { "type": "string", "maxLength": 255 },
+        "descripcion": { "$ref": "#/$defs/texto" },
+        "version": { "type": "string", "maxLength": 30 },
+        "activa": { "type": "boolean" },
+        "criterios": { "type": "array", "maxItems": 100, "items": { "$ref": "#/$defs/criterio" } }
+      },
+      "if": { "not": { "required": ["id"] } },
+      "then": { "required": ["nombre", "descripcion", "version", "activa"] }
+    }
+  }
+}

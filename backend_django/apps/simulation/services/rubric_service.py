@@ -1,7 +1,6 @@
 import json
 from decimal import Decimal, InvalidOperation, ROUND_HALF_UP
 
-from django.conf import settings
 from django.db import transaction
 from django.db.models import Q
 from django.utils import timezone
@@ -24,14 +23,9 @@ from apps.simulation.models import (
 )
 
 from . import competencies
+from ..assessment import competencies as assessment_competencies
 from .audit_service import arg, auditable
 from .authoring.guards import ensure_draft
-
-#: Rango de la calificación de un criterio (SIEP-CU-04): el servidor es la única fuente y la
-#: interfaz lo lee del DTO (``minScore``, ``maxScore``, ``step``).
-SCORE_MIN = Decimal("1.0")
-SCORE_MAX = Decimal("5.0")
-SCORE_STEP = Decimal("0.5")
 
 BASIC_RUBRIC_NAME = "R\u00fabrica b\u00e1sica de desempe\u00f1o SIEP"
 BASIC_RUBRIC_DESCRIPTION = (
@@ -101,8 +95,51 @@ def _level_from_index(value):
 
 
 def level_for_score(score):
-    """El nivel que corresponde a un ``score`` heredado de 1.0–5.0 (la escala de antes de E1-9)."""
+    """El nivel que corresponde a un ``score`` heredado de 1.0–5.0 (la escala de antes de E1-9).
+
+    Solo sirve para LEER filas viejas que traen ``score`` y no ``level``: ya no se acepta como entrada.
+    """
     return _level_from_index(Decimal("1") + (Decimal(score) - Decimal("1")) * Decimal("3") / Decimal("4"))
+
+
+def _level_of(criterion_score):
+    """El nivel de una calificación guardada: su ``level`` o, en una fila anterior a E1, el que deriva su ``score``."""
+    if criterion_score is None:
+        return None
+    if criterion_score.level:
+        return criterion_score.level
+    if criterion_score.score is None:
+        return None
+    return level_for_score(criterion_score.score)
+
+
+#: Los niveles que el docente elige, con el descriptor que el selector muestra (el servidor es la única fuente).
+LEVELS = [
+    {
+        "value": "EN_INICIO",
+        "label": "En inicio",
+        # BORRADOR: texto nuevo del servidor, pendiente de la aprobación de Psicología (VD-23).
+        "descriptor": "Muestra los primeros acercamientos al criterio; necesita acompañamiento para sostenerlo.",
+    },
+    {
+        "value": "EN_PROCESO",
+        "label": "En proceso",
+        # BORRADOR: texto nuevo del servidor, pendiente de la aprobación de Psicología (VD-23).
+        "descriptor": "Aplica el criterio de forma parcial: acierta en algunos momentos y se le escapan otros.",
+    },
+    {
+        "value": "LOGRADO",
+        "label": "Logrado",
+        # BORRADOR: texto nuevo del servidor, pendiente de la aprobación de Psicología (VD-23).
+        "descriptor": "Aplica el criterio con solidez y justifica lo que decide.",
+    },
+    {
+        "value": "DESTACADO",
+        "label": "Destacado",
+        # BORRADOR: texto nuevo del servidor, pendiente de la aprobación de Psicología (VD-23).
+        "descriptor": "Aplica el criterio con criterio propio y anticipa lo que la situación pide.",
+    },
+]
 
 
 def overall_level(weighted_levels):
@@ -118,11 +155,6 @@ def overall_level(weighted_levels):
         return None
     weighted = sum((Decimal(weight) * LEVEL_INDEX[level] for weight, level in weighted_levels), Decimal("0"))
     return _level_from_index(weighted / total_weight)
-
-
-def _numeric_total(total):
-    """El total numérico solo viaja con ``RUBRIC_NUMERIC_TOTAL`` (apagada: ED-2, RN-09)."""
-    return float(total) if settings.RUBRIC_NUMERIC_TOTAL and total is not None else None
 
 
 def _criteria_qs(rubric):
@@ -203,9 +235,6 @@ def rubric_detail(rubric, actor=None):
             "title": c.title,
             "description": c.description,
             "weight": float(_weight(c)),
-            "minScore": float(SCORE_MIN),
-            "maxScore": c.max_score,
-            "step": float(SCORE_STEP),
             "displayOrder": c.display_order,
             "active": c.active,
         }
@@ -546,7 +575,9 @@ def attempt_rubric_view(attempt_id, instructor=None):
             s.rubric_criterion_id: s
             for s in CriterionScore.objects.filter(rubric_evaluation=evaluation)
         }
-    criteria = list(_criteria_qs(rubric))
+    criteria = list(_criteria_qs(rubric).select_related("competency_ref"))
+    # El mismo código que `competencyLevels[].code` de la valoración del sistema: así se emparejan lado a lado.
+    competency_codes = {c.id: assessment_competencies.competency_code_of(c) for c in criteria}
     items = []
     for c in criteria:
         score = scores.get(c.id)
@@ -557,13 +588,11 @@ def attempt_rubric_view(attempt_id, instructor=None):
             "title": c.title,
             "description": c.description,
             "weight": float(_weight(c)),
-            "level": score.level if score else None,
-            "score": float(score.score) if score else None,
+            "level": _level_of(score),
             "observations": score.comment if score else "",
             "comment": score.comment if score else "",
             "displayOrder": c.display_order,
         })
-    total = evaluation.total_score if evaluation else None
     return {
         "attempt_id": str(attempt.id),
         "attemptId": str(attempt.id),
@@ -577,13 +606,10 @@ def attempt_rubric_view(attempt_id, instructor=None):
         "criteria": [
             {
                 "id": item["criterionId"],
-                "competency": "",
+                "competency": competency_codes[item["criterionId"]],
                 "title": item["title"],
                 "description": item["description"],
                 "weight": item["weight"],
-                "minScore": float(SCORE_MIN),
-                "maxScore": int(SCORE_MAX),
-                "step": float(SCORE_STEP),
                 "displayOrder": item["displayOrder"],
             }
             for item in items
@@ -591,17 +617,15 @@ def attempt_rubric_view(attempt_id, instructor=None):
         "scores": [
             {
                 "criterionId": item["criterionId"],
-                "score": item["score"],
                 "level": item["level"],
                 "comment": item["comment"],
                 "evidence": {},
             }
-            for item in items if item["score"] is not None
+            for item in items if item["level"] is not None
         ],
+        "levels": [dict(level) for level in LEVELS],
         "overallLevel": overall_level([(item["weight"], item["level"]) for item in items]),
         "origin": evaluation.origin if evaluation else None,
-        "total_score": _numeric_total(total),
-        "totalScore": _numeric_total(total),
         "general_observations": evaluation.comment if evaluation else "",
         "comment": evaluation.comment if evaluation else "",
     }
@@ -640,35 +664,36 @@ def save_attempt_evaluation(attempt_id, data, instructor):
         except (TypeError, ValueError):
             # BORRADOR: texto nuevo del servidor, pendiente de la aprobación de Psicología (VD-23).
             raise ValidationError("Cada calificacion necesita su criterionId")
+        if "score" in item:
+            # La entrada numérica de 1.0–5.0 se retiró (Tarea 14): la rúbrica se valora por niveles.
+            raise ApiError(
+                "VALIDATION_ERROR",
+                # BORRADOR: texto nuevo del servidor, pendiente de la aprobación de Psicología (VD-23).
+                "La rúbrica se valora por niveles: usa level",
+                status.HTTP_400_BAD_REQUEST,
+                field="scores",
+            )
         level = item.get("level")
-        score = item.get("score")
-        if level not in (None, ""):
-            # El nivel formativo es lo que se muestra; el ``score`` interno es su índice (1–4).
-            if not isinstance(level, str) or level not in LEVEL_INDEX:
-                raise ValidationError(
-                    "Nivel inválido: use EN_INICIO, EN_PROCESO, LOGRADO o DESTACADO"  # BORRADOR (VD-23)
-                )
-            score = Decimal(LEVEL_INDEX[level])
-        elif score in (None, ""):
+        if level in (None, ""):
             continue
-        else:
-            # Escala heredada 1.0–5.0 (SIEP-CU-04: se rechaza el 0 y todo valor fuera del contrato).
-            score = _decimal(score)
-            if score < SCORE_MIN or score > SCORE_MAX:
-                raise ValidationError("Cada calificacion debe estar entre 1.0 y 5.0")
-            level = level_for_score(score)
+        if not isinstance(level, str) or level not in LEVEL_INDEX:
+            raise ValidationError(
+                "Nivel inválido: use EN_INICIO, EN_PROCESO, LOGRADO o DESTACADO"  # BORRADOR (VD-23)
+            )
         score_by_id[cid] = {
-            "score": score,
+            # Dato interno: el índice del nivel (1–4). Nunca viaja en un DTO.
+            "score": Decimal(LEVEL_INDEX[level]),
             "level": level,
             "comment": item.get("comment") or item.get("observations") or "",
         }
 
+    # Dato interno (reversible): el promedio ponderado de los índices. Nunca viaja en un DTO.
     total = Decimal("0")
     for criterion in criteria:
         if criterion.id in score_by_id:
             total += score_by_id[criterion.id]["score"] * _weight(criterion) / Decimal("100")
     total = total.quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)
-    status = "EVALUATED" if len(score_by_id) == len(criteria) else "PENDING"
+    eval_status = "EVALUATED" if len(score_by_id) == len(criteria) else "PENDING"
 
     evaluation = RubricEvaluation.objects.filter(
         attempt_id=attempt.id, rubric_id=rubric.id, instructor_id=instructor.id
@@ -683,7 +708,7 @@ def save_attempt_evaluation(attempt_id, data, instructor):
         )
     evaluation.total_score = total
     evaluation.comment = data.get("comment") or data.get("general_observations") or ""
-    evaluation.status = status
+    evaluation.status = eval_status
     evaluation.snapshot_json = _rubric_snapshot(rubric, criteria)
     evaluation.updated_at = timezone.now()
     evaluation.save()
@@ -711,18 +736,17 @@ def _evaluation_levels(evaluation):
         for s in CriterionScore.objects.filter(rubric_evaluation=evaluation)
     }
     return [
-        (_weight(c), scores[c.id].level if c.id in scores else None)
+        (_weight(c), _level_of(scores.get(c.id)))
         for c in RubricCriterion.objects.filter(rubric_id=evaluation.rubric_id, active=True)
     ], scores
 
 
 def evaluation_summary(evaluation):
-    """La evaluación para la traza docente: niveles y total (este último tras ``RUBRIC_NUMERIC_TOTAL``)."""
+    """La evaluación para la traza docente: solo niveles."""
     levels, _ = _evaluation_levels(evaluation)
     return {
         "id": evaluation.id,
         "rubricName": evaluation.rubric.name,
-        "totalScore": _numeric_total(evaluation.total_score),
         "overallLevel": overall_level(levels),
         "origin": evaluation.origin,
         "comment": evaluation.comment,
@@ -733,7 +757,7 @@ def evaluation_summary(evaluation):
 def owner_evaluation_view(attempt_id, actor):
     """La evaluación del docente tal como la lee el dueño del intento: comentario y niveles.
 
-    Nunca trae un número (RN-09): ni el ``score`` interno ni el total, con o sin la bandera.
+    Nunca trae un número (RN-09): ni el ``score`` interno ni el total.
     Solo las evaluaciones concluidas (``EVALUATED``); una a medias no se muestra.
     """
     attempt = SimulationAttempt.objects.filter(pk=attempt_id).first()
@@ -757,7 +781,7 @@ def owner_evaluation_view(attempt_id, actor):
             {
                 "criterionId": c.id,
                 "title": c.title,
-                "level": scores[c.id].level,
+                "level": _level_of(scores[c.id]),
                 "comment": scores[c.id].comment or "",
             }
             for c in _criteria_qs(evaluation.rubric)

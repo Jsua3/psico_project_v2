@@ -1,3 +1,5 @@
+import type { ClassCounts } from './simulation.model';
+
 export interface ReporteGrupo {
   grupoId: number;
   caseVersionId: number | null;
@@ -9,14 +11,30 @@ export interface ReporteSimulacionGrupo {
   intentosCompletados: number;
   intentosEnProgreso: number;
   intentosSalidaSegura: number;
-  puntajePromedio: number;
-  decisionesAdecuadas: number;
-  decisionesRiesgosas: number;
-  decisionesInadecuadas: number;
+  /** Cobertura por hito del caso: sin puntaje ni promedio (modelo de métricas). */
+  hitos: HitoCobertura[];
   bitacorasRegistradas: number;
   rubricasAplicadas: number;
   estudiantes: EstudianteSimulacionReporte[];
 }
+
+/** Cuántos del grupo cumplieron un hito, por categorías (celda mínima: `max(5, MIN_CELL_SIZE)`). */
+export type CoberturaCategoria = 'MAYORIA' | 'MENOS_DE_LA_MITAD';
+
+/**
+ * Un hito declarado por el caso y su cobertura en el grupo. `cobertura` es nulo si la celda mínima lo suprime;
+ * `porcentaje` solo viaja con 20 estudiantes distintos o más (0–100, entero: lo redondea el servidor).
+ */
+export interface HitoCobertura {
+  key: string;
+  label: string;
+  decisive: boolean;
+  cobertura: CoberturaCategoria | null;
+  porcentaje?: number;
+}
+
+/** Cuántas respuestas hubo de cada clase: hechos, no una medida de nadie. El código nuevo usa `ClassCounts`. */
+export type ClasesCount = ClassCounts;
 
 export interface EstudianteSimulacionReporte {
   id: number;
@@ -25,10 +43,9 @@ export interface EstudianteSimulacionReporte {
   intentosCompletados: number;
   intentosEnProgreso: number;
   intentosSalidaSegura: number;
-  puntajePromedio: number;
-  decisionesAdecuadas: number;
-  decisionesRiesgosas: number;
-  decisionesInadecuadas: number;
+  /** Claves de los hitos que cumplió en su último intento completado; nulo si ese intento no trae hitos (reporte v3). */
+  hitosCumplidos: string[] | null;
+  clases: ClasesCount;
   bitacorasRegistradas: number;
   rubricasAplicadas: number;
   estado: string;
@@ -37,14 +54,10 @@ export interface EstudianteSimulacionReporte {
 export interface Dashboard {
   estudiantesActivos: number;
   simulacionesCompletadasHoy: number;
-  puntajePromedioGlobal: number;
   simulacionesCompletadas: number;
   simulacionesEnProgreso: number;
-  puntajePromedioSimulacion: number;
-  decisionesAdecuadas: number;
-  decisionesRiesgosas: number;
-  decisionesInadecuadas: number;
-  decisionesProhibidas: number;
+  /** Cuántas respuestas hubo de cada clase: hechos, no una medida. */
+  decisiones: ClasesCount;
   ultimosIntentos: SimulacionResumen[];
   intentosRecientes: IntentoReciente[];
 }
@@ -53,7 +66,6 @@ export interface SimulacionResumen {
   id: string;
   casoTitulo: string;
   estudiante: string;
-  puntaje: number;
   estado: string;
 }
 
@@ -61,7 +73,6 @@ export interface IntentoReciente {
   id: string;
   casoTitulo: string;
   estudiante: string;
-  puntaje: number;
   estado: string;
 }
 

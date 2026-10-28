@@ -20,7 +20,7 @@ export function sampleRecipe(pieceKey, complexion) {
   recipe.id = `muestra-${kind}-${id}-${complexion}`;
   if (kind === 'accessory') recipe.pieces.accessories = [id];
   else recipe.pieces[kind] = id;
-  if (kind === 'face') recipe.portraits = ['neutral', 'preocupada', 'triste', 'alegre'];
+  if (kind === 'face') recipe.portraits = ['neutral', 'preocupada', 'triste', 'alegre', 'cautelosa', 'en-crisis'];
   return recipe;
 }
 

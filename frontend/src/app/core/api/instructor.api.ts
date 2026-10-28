@@ -9,7 +9,7 @@ export interface ReplacedAttempt {
   reason: string;
   replacedAt: string | null;
 }
-import { AttemptTrace, RecentAttempt, RubricEvaluationView } from '../models/simulation.model';
+import { AttemptTrace, FormativeLevel, RecentAttempt, RubricEvaluationView } from '../models/simulation.model';
 import { ApiResponse } from './api-response';
 
 /**
@@ -42,7 +42,8 @@ export class InstructorApi {
       .pipe(map(response => response.data));
   }
 
-  saveRubric(attemptId: string, rubricId: number, comment: string, scores: { criterionId: number; score: number; comment: string }[]) {
+  /** Guarda la valoración del docente: un nivel formativo por criterio (la rúbrica no lleva números). */
+  saveRubric(attemptId: string, rubricId: number, comment: string, scores: { criterionId: number; level: FormativeLevel; comment: string }[]) {
     return this.http.put<ApiResponse<RubricEvaluationView>>(`/api/instructor/attempts/${attemptId}/rubric-evaluation`, {
       rubricId,
       comment,

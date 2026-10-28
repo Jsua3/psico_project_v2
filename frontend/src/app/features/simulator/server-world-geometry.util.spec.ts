@@ -6,7 +6,7 @@ function world(opts: {
   width?: number;
   height?: number;
   collisions?: Array<Pick<CollisionZoneState, 'x' | 'y' | 'width' | 'height'>>;
-  objects?: Array<Pick<MapObjectState, 'x' | 'y' | 'width' | 'height' | 'collision'>>;
+  objects?: Array<Pick<MapObjectState, 'x' | 'y' | 'width' | 'height' | 'collision'> & { key?: string }>;
 } = {}): SimulationWorldState {
   return {
     map: { width: opts.width ?? 960, height: opts.height ?? 528 },
@@ -38,6 +38,16 @@ describe('serverRejectsPlayerAt (espejo de world_service.update_position)', () =
     const kit = { x: 318, y: 428, width: 48, height: 48 };
     expect(serverRejectsPlayerAt(world({ objects: [{ ...kit, collision: true }] }), 342, 440)).toBe(true);
     expect(serverRejectsPlayerAt(world({ objects: [{ ...kit, collision: false }] }), 342, 440)).toBe(false);
+  });
+
+  it('puede ignorar un objeto concreto (la persona que camina no choca consigo misma)', () => {
+    const persona = { key: 'madre', x: 318, y: 428, width: 48, height: 48, collision: true };
+    const otra = { key: 'sofa', x: 500, y: 428, width: 48, height: 48, collision: true };
+    const w = world({ objects: [persona, otra] });
+    expect(serverRejectsPlayerAt(w, 342, 440)).toBe(true);
+    expect(serverRejectsPlayerAt(w, 342, 440, 'madre')).toBe(false);
+    // Lo demás sigue bloqueando.
+    expect(serverRejectsPlayerAt(w, 520, 440, 'madre')).toBe(true);
   });
 
   it('exige el hitbox completo dentro de los límites del mapa', () => {

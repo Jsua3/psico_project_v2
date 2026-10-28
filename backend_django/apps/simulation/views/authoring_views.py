@@ -15,7 +15,7 @@ from drf_spectacular.utils import OpenApiResponse, extend_schema
 from rest_framework.views import APIView
 
 from apps.security.throttling import HeavyUserThrottle, ImportUserThrottle
-from shared.openapi import envelope_of, error_responses
+from shared.openapi import ApiEnvelopeSerializer, envelope_of, error_responses
 from shared.permissions import policy_permission
 from shared.response import api_created, api_ok
 
@@ -230,6 +230,82 @@ class DecisionDetailView(_AuthoringView):
         self.version_for(request, case_version_id, mutate=True)
         return api_ok(
             svc.delete_decision(case_version_id, decision_id, self.revision(request)), "Decision eliminada"
+        )
+
+
+# ─── Revisión de lo sugerido por la IA (P5) ──────────────────────────────────
+_ACCEPT_AI_RESPONSES = {
+    200: ApiEnvelopeSerializer,
+    409: OpenApiResponse(CaseConflictEnvelopeSerializer, description="La revisión del caso está vencida (`REVISION_CONFLICT`)."),
+    **error_responses(401, 403, 404),
+}
+
+
+class NodeAcceptAiView(_AuthoringView):
+    """``POST …/nodes/<id>/accept-ai``: baja la marca «sugerido por la IA» del nodo y devuelve el editor."""
+
+    @extend_schema(responses=_ACCEPT_AI_RESPONSES)
+    def post(self, request, case_version_id, node_id):
+        self.version_for(request, case_version_id, mutate=True)
+        # BORRADOR: texto nuevo del servidor, pendiente de la aprobación de Psicología (VD-23).
+        return api_ok(svc.accept_ai_node(case_version_id, node_id, self.revision(request)), "Parte revisada")
+
+
+class DecisionAcceptAiView(_AuthoringView):
+    """``POST …/decisions/<id>/accept-ai``: baja la marca de la decisión."""
+
+    @extend_schema(responses=_ACCEPT_AI_RESPONSES)
+    def post(self, request, case_version_id, decision_id):
+        self.version_for(request, case_version_id, mutate=True)
+        # BORRADOR: texto nuevo del servidor, pendiente de la aprobación de Psicología (VD-23).
+        return api_ok(svc.accept_ai_decision(case_version_id, decision_id, self.revision(request)), "Parte revisada")
+
+
+class DialogueAcceptAiView(_AuthoringView):
+    """``POST …/dialogues/<id>/accept-ai``: baja la marca de todas las líneas del diálogo."""
+
+    @extend_schema(responses=_ACCEPT_AI_RESPONSES)
+    def post(self, request, case_version_id, tree_id):
+        self.version_for(request, case_version_id, mutate=True)
+        # BORRADOR: texto nuevo del servidor, pendiente de la aprobación de Psicología (VD-23).
+        return api_ok(svc.accept_ai_dialogue(case_version_id, tree_id, self.revision(request)), "Parte revisada")
+
+
+class ObjectAcceptAiView(_AuthoringView):
+    """``POST …/objects/<id>/accept-ai``: baja la marca del objeto."""
+
+    @extend_schema(responses=_ACCEPT_AI_RESPONSES)
+    def post(self, request, case_version_id, object_id):
+        self.version_for(request, case_version_id, mutate=True)
+        # BORRADOR: texto nuevo del servidor, pendiente de la aprobación de Psicología (VD-23).
+        return api_ok(svc.accept_ai_object(case_version_id, object_id, self.revision(request)), "Parte revisada")
+
+
+# ─── Reglas del modelo: hitos, riesgo y finales ──────────────────────────────
+class RulesMilestonesView(_AuthoringView):
+    def put(self, request, case_version_id):
+        self.version_for(request, case_version_id, mutate=True)
+        body = self.payload(request, inputs.MilestonesRequest)
+        return api_ok(
+            svc.update_milestones(case_version_id, body["milestones"], self.revision(request)), "Hitos actualizados"
+        )
+
+
+class RulesRiskView(_AuthoringView):
+    def put(self, request, case_version_id):
+        self.version_for(request, case_version_id, mutate=True)
+        body = self.payload(request, inputs.RiskRequest)
+        return api_ok(
+            svc.update_risk(case_version_id, body["riskLevel"], self.revision(request)), "Nivel de riesgo actualizado"
+        )
+
+
+class RulesEndingsView(_AuthoringView):
+    def put(self, request, case_version_id):
+        self.version_for(request, case_version_id, mutate=True)
+        body = self.payload(request, inputs.EndingsRequest)
+        return api_ok(
+            svc.update_endings(case_version_id, body["endings"], self.revision(request)), "Finales actualizados"
         )
 
 

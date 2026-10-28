@@ -9,8 +9,8 @@ import json
 
 import pytest
 from django.core.management import call_command
-from django.db.models import F
 
+from apps.simulation.casedef.vocabulary import ResponseClass
 from apps.simulation.models import (
     AttemptEvent,
     AttemptReport,
@@ -19,6 +19,7 @@ from apps.simulation.models import (
     SimulationAttempt,
     SimulationNode,
 )
+from apps.simulation.services import case_state
 
 from .test_world import _start, case_version_id, cl, estudiante  # noqa: F401  (fixtures)
 
@@ -43,9 +44,9 @@ def _complete(client, attempt_id, token, first_bad=False):
             break
         options = DecisionOption.objects.filter(source_node_id=attempt.current_node_id).order_by("id")
         if first_bad and step == 0:
-            bad = options.filter(classification__in=["RISKY", "INADEQUATE"]).first()
+            bad = options.filter(response_class__in=["RISKY", "CONTRAINDICATED"]).first()
             assert _decide(client, attempt_id, token, bad.id, requestId="req-reintento-0001").status_code == 200
-        good = options.filter(classification="ADEQUATE").first() or options.first()
+        good = options.filter(response_class="RECOMMENDED").first() or options.first()
         response = _decide(client, attempt_id, token, good.id, requestId=f"req-paso-{step:04d}-id")
         assert response.status_code == 200, response.data
     assert SimulationAttempt.objects.get(pk=attempt_id).status == "COMPLETED"
@@ -73,11 +74,11 @@ def test_completar_persiste_una_fila_con_version_de_esquema_ordinal_y_huella(com
 
     row = AttemptReport.objects.get(attempt_id=attempt_id)
 
-    assert row.report_schema_version == 2  # E6-1d: perfil por competencia (ver test_attempt_report_v2.py)
+    assert row.report_schema_version == 3  # modelo de métricas: hitos, persona y clases (ver test_completion_report_contract.py)
     assert row.attempt_ordinal == 1
     assert len(row.definition_hash) == 64
     payload = json.loads(row.report_json)
-    assert payload["schemaVersion"] == 2 and payload["ordinal"] == 1
+    assert payload["schemaVersion"] == 3 and payload["ordinal"] == 1
     assert payload["definitionHash"] == row.definition_hash
     assert payload["status"] == "COMPLETED"
 
@@ -87,9 +88,9 @@ def test_mutar_efectos_y_textos_despues_de_cerrar_no_cambia_el_reporte(completed
     before = _reports(client, attempt_id, token)
 
     DecisionOption.objects.filter(case_version_id=case_version_id).update(
-        score_delta=F("score_delta") + 100, classification="INADEQUATE",
+        response_class="CONTRAINDICATED",
         consequence_text="otra consecuencia", feedback_text="otra explicación",
-        theory_basis="otra teoría", immediate_feedback="otro mensaje", prohibited_conduct=True,
+        theory_basis="otra teoría", immediate_feedback="otro mensaje",
     )
     SimulationNode.objects.filter(case_version_id=case_version_id).update(title="otro título", narrative="otra")
     CaseVersion.objects.filter(pk=case_version_id).update(rules=json.dumps({"secondChance": False}))
@@ -116,7 +117,7 @@ def test_decision_review_trae_cada_decision_con_su_consecuencia_y_su_retroalimen
     client = cl(estudiante)
     attempt_id, token = _start(client, case_version_id)
     start_node = SimulationAttempt.objects.get(pk=attempt_id).current_node_id
-    good = DecisionOption.objects.filter(source_node_id=start_node, classification="ADEQUATE").first()
+    good = DecisionOption.objects.filter(source_node_id=start_node, response_class="RECOMMENDED").first()
     DecisionOption.objects.filter(pk=good.pk).update(
         consequence_text="Consecuencia propia", feedback_text="Explicación pedagógica", theory_basis="Teoría X",
     )
@@ -131,7 +132,10 @@ def test_decision_review_trae_cada_decision_con_su_consecuencia_y_su_retroalimen
     assert first["chosen"] == {"optionId": good.id, "text": good.text}
     assert first["consequence"] == "Consecuencia propia"
     assert first["feedback"] == {"explanation": "Explicación pedagógica", "theoryBasis": "Teoría X"}
-    assert first["classification"] == "ADEQUATE" and first["prohibited"] is False
+    assert first["class"] == case_state.response_class_of(good).value
+    assert first["class"] in {member.value for member in ResponseClass}
+    assert "classification" not in first  # la clasificación antigua ya no viaja
+    assert first["prohibited"] is (first["class"] == ResponseClass.CONTRAINDICATED.value)
     assert first["reconsidered"]["firstOptionText"]
     # Las decisiones sin textos propios caen a la narrativa del nodo y al mensaje inmediato.
     second = payload[1]
@@ -190,7 +194,7 @@ def test_un_intento_completado_sin_fila_se_sirve_en_vivo_y_el_comando_lo_congela
     live = client.get(f"{BASE}/attempts/{attempt_id}/report", HTTP_X_SIEP_ATTEMPT_TOKEN=token)
 
     assert live.status_code == 200
-    assert live.data["data"]["schemaVersion"] == 2
+    assert live.data["data"]["schemaVersion"] == 3
     assert AttemptReport.objects.filter(attempt_id=attempt_id).count() == 0  # leer no escribe
 
     call_command("backfill_attempt_reports")
@@ -199,16 +203,102 @@ def test_un_intento_completado_sin_fila_se_sirve_en_vivo_y_el_comando_lo_congela
     assert AttemptReport.objects.filter(attempt_id=attempt_id).count() == 1
 
 
-def test_el_historial_lee_los_conteos_del_reporte_congelado(completed, case_version_id):
+#: Un reporte v2 tal como lo congelaba el sistema antes del modelo de métricas: con puntaje, estrés y clasificación.
+#: Está escrito a mano a propósito: lo cerrado no se toca ni se recalcula.
+V2_CONGELADO = {
+    "schemaVersion": 2, "ordinal": 1, "definitionHash": "b" * 64, "attemptId": "x", "caseTitle": "Caso", "status": "COMPLETED",
+    "finalScore": 70, "finalStress": 35, "metrics": {"professionalScore": 70, "sceneStress": 35},
+    "adequateDecisions": 4, "riskyDecisions": 1, "inadequateDecisions": 2, "prohibitedDecisions": 1,
+    "competencies": ["Comunicación ética y contención emocional"],
+    "counts": {"adequate": 4, "risky": 1, "inadequate": 2, "prohibited": 1, "retries": 0},
+    "decisionReview": [{"order": 1, "classification": "ADEQUATE", "prohibited": False}],
+    "competencyLevels": [], "profileRules": "borrador-1", "nonRecommendedCount": 3,
+    "recommendations": ["Practica estrategias de autorregulación antes de escenarios de alta carga emocional."],
+    "timeline": [{"type": "DECISION_SELECTED", "classification": "ADEQUATE", "scoreDelta": 5, "stressDelta": -2}],
+}
+
+
+def _congelar_v2(attempt_id):
+    """Cambia la fila congelada del intento por el reporte v2 literal (un intento cerrado antes de la v3)."""
+    AttemptReport.objects.filter(attempt_id=attempt_id).delete()
+    return AttemptReport.objects.create(
+        attempt_id=attempt_id, report_json=json.dumps(V2_CONGELADO, ensure_ascii=False),
+        report_schema_version=2, definition_hash="b" * 64, attempt_ordinal=1,
+    )
+
+
+#: Lo que el ESTUDIANTE lee de ``V2_CONGELADO`` (I-2, R-17): el mismo reporte v2 sin el puntaje, el estrés, las métricas, los
+#: conteos por severidad (``counts``) ni los deltas de la línea de tiempo. Escrito a mano, no calculado con el código.
+V2_PARA_EL_ESTUDIANTE = {
+    "schemaVersion": 2, "ordinal": 1, "definitionHash": "b" * 64, "attemptId": "x", "caseTitle": "Caso", "status": "COMPLETED",
+    "competencies": ["Comunicación ética y contención emocional"],
+    "decisionReview": [{"order": 1, "classification": "ADEQUATE", "prohibited": False}],
+    "competencyLevels": [], "profileRules": "borrador-1", "nonRecommendedCount": 3,
+    "recommendations": ["Practica estrategias de autorregulación antes de escenarios de alta carga emocional."],
+    "timeline": [{"type": "DECISION_SELECTED", "classification": "ADEQUATE"}],
+}
+
+
+def test_un_reporte_v2_congelado_se_lee_sin_sus_cifras_por_las_tres_rutas_y_queda_guardado_tal_cual(completed):
+    client, attempt_id, token = completed
+    fila = _congelar_v2(attempt_id)
+
+    reports = _reports(client, attempt_id, token)
+
+    # El estudiante no recibe el puntaje, el estrés ni los conteos por severidad, pero sigue siendo el reporte v2.
+    assert reports["report"] == V2_PARA_EL_ESTUDIANTE
+    assert reports["completion"] == V2_PARA_EL_ESTUDIANTE
+    assert reports["student"] == V2_PARA_EL_ESTUDIANTE
+    assert "milestones" not in reports["report"] and "persona" not in reports["report"]
+    # Lo guardado no se toca: la proyección es de solo lectura (bytes idénticos).
+    assert json.loads(AttemptReport.objects.get(pk=fila.pk).report_json) == V2_CONGELADO
+
+
+def test_el_historial_no_expone_los_conteos_de_un_reporte_v2_congelado(completed):
     client, attempt_id, _ = completed
-    frozen = json.loads(AttemptReport.objects.get(attempt_id=attempt_id).report_json)
-    DecisionOption.objects.filter(case_version_id=case_version_id).update(classification="INADEQUATE")
+    _congelar_v2(attempt_id)
 
     history = {h["attemptId"]: h for h in client.get(f"{BASE}/attempts/history").data["data"]}
 
+    # El reporte v2 conserva sus cifras al servirse como reporte; la lista del historial ya no las repite.
     entry = history[attempt_id]
-    assert entry["adequateDecisions"] == frozen["adequateDecisions"] > 0
-    assert entry["inadequateDecisions"] == frozen["inadequateDecisions"]
+    assert not {"accumulatedScore", "adequateDecisions", "riskyDecisions", "inadequateDecisions",
+                "prohibitedDecisions"} & set(entry)
+
+
+def test_el_historial_sigue_respondiendo_con_un_reporte_v3_que_ya_no_trae_conteos_por_clasificacion(completed):
+    client, attempt_id, _ = completed
+    frozen = json.loads(AttemptReport.objects.get(attempt_id=attempt_id).report_json)
+    assert frozen["schemaVersion"] == 3 and "adequateDecisions" not in frozen
+
+    response = client.get(f"{BASE}/attempts/history")
+
+    assert response.status_code == 200
+    assert attempt_id in {h["attemptId"] for h in response.data["data"]}
+
+
+def test_la_huella_de_la_definicion_mira_la_clase_los_efectos_y_las_reglas(
+    case_version_id,
+):
+    from apps.simulation.services import attempt_report
+
+    base = attempt_report.case_definition_hash(case_version_id)
+    option = DecisionOption.objects.filter(case_version_id=case_version_id).order_by("id").first()
+
+    # La clase, los efectos, las reglas y la intensidad de la escena cambian la huella.
+    other = "CONTRAINDICATED" if option.response_class != "CONTRAINDICATED" else "RECOMMENDED"
+    DecisionOption.objects.filter(pk=option.pk).update(response_class=other)
+    by_class = attempt_report.case_definition_hash(case_version_id)
+    assert by_class != base
+    DecisionOption.objects.filter(pk=option.pk).update(effects=json.dumps({"milestones": ["nuevo-hito"]}))
+    by_effects = attempt_report.case_definition_hash(case_version_id)
+    assert by_effects != by_class
+    CaseVersion.objects.filter(pk=case_version_id).update(rules=json.dumps({"secondChance": True}))
+    by_rules = attempt_report.case_definition_hash(case_version_id)
+    assert by_rules != by_effects
+    node = SimulationNode.objects.filter(case_version_id=case_version_id).order_by("id").first()
+    SimulationNode.objects.filter(pk=node.pk).update(intensity="LOW" if node.intensity != "LOW" else "MEDIUM")
+    assert attempt_report.case_definition_hash(case_version_id) != by_rules
 
 
 def test_el_reporte_incluye_el_tiempo_por_escena(completed):

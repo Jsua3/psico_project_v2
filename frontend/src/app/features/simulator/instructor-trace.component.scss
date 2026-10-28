@@ -189,6 +189,61 @@
   white-space: nowrap;
 }
 
+// ── Hitos, persona por escena y final ──────────────────────────────────────────────────────────────────────────
+.tr-milestone-groups {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: var(--ds-space-4);
+}
+
+@media (min-width: 48rem) {
+  .tr-milestone-groups {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+.tr-subtitle {
+  margin: 0 0 var(--ds-space-2);
+  font-size: var(--ds-type-body-size);
+  line-height: var(--ds-type-body-line);
+  font-weight: var(--ds-type-h3-weight);
+}
+
+.tr-milestone-list,
+.tr-persona-list,
+.tr-reason-list {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: var(--ds-space-2);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  font-size: var(--ds-type-body-s-size);
+  line-height: var(--ds-type-body-s-line);
+}
+
+.tr-milestone-list li {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--ds-space-2);
+  overflow-wrap: anywhere;
+}
+
+.tr-persona-list li,
+.tr-reason-list li {
+  overflow-wrap: anywhere;
+}
+
+.tr-reason-list {
+  padding-inline-start: var(--ds-space-5);
+  list-style: disc;
+}
+
+.tr-ending__title {
+  margin: 0;
+}
+
 // ── Línea de tiempo y reflexiones ───────────────────────────────────────────────────────────────────────────────
 .tr-events,
 .tr-reflection-list,
@@ -220,9 +275,10 @@
   overflow-wrap: anywhere;
 }
 
-.tr-event[data-accent='adequate'] { border-inline-start-color: var(--ds-success); }
+.tr-event[data-accent='recommended'] { border-inline-start-color: var(--ds-success); }
+.tr-event[data-accent='acceptable'] { border-inline-start-color: var(--ds-primary); }
 .tr-event[data-accent='risky'] { border-inline-start-color: var(--ds-warning-text); }
-.tr-event[data-accent='inadequate'] { border-inline-start-color: var(--ds-danger); }
+.tr-event[data-accent='contraindicated'] { border-inline-start-color: var(--ds-danger); }
 
 .tr-event__body {
   display: grid;
@@ -256,6 +312,41 @@
 
 .tr-valuation__label {
   font-weight: var(--ds-type-h3-weight);
+}
+
+// Los niveles y su descriptor, plegados: la ayuda del campo ya dice lo que significa el nivel elegido.
+.tr-levels {
+  padding: var(--ds-space-3);
+  border: 1px solid var(--ds-border);
+  border-radius: var(--ds-radius-md);
+  background: var(--ds-surface-1);
+  font-size: var(--ds-type-body-s-size);
+  line-height: var(--ds-type-body-s-line);
+
+  summary {
+    cursor: pointer;
+    font-weight: var(--ds-type-h3-weight);
+  }
+}
+
+.tr-levels__list {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: var(--ds-space-2);
+  margin: var(--ds-space-3) 0 0;
+
+  dt {
+    font-weight: var(--ds-type-h3-weight);
+  }
+
+  dd {
+    margin: 0;
+    color: var(--ds-text-2);
+  }
+}
+
+.tr-system__folded {
+  padding-block: var(--ds-space-2);
 }
 
 .tr-criterion {

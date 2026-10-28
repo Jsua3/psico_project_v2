@@ -9,6 +9,7 @@ from shared.permissions import policy_permission
 from shared.response import api_created, api_ok
 
 from apps.simulation.serializers.contracts import (
+    AttemptStateSerializer,
     CaseBriefSerializer,
     HintStateSerializer,
     SurveyRequestSerializer,
@@ -101,6 +102,10 @@ class ActiveAttemptView(APIView):
 class AttemptView(APIView):
     permission_classes = [policy_permission("attempt", "play")]
 
+    @extend_schema(
+        parameters=[OpenApiParameter(ATTEMPT_TOKEN_HEADER, str, OpenApiParameter.HEADER, required=True)],
+        responses={200: envelope_of(AttemptStateSerializer), **error_responses(400, 401, 403, 404)},
+    )
     def get(self, request, attempt_id):
         return _private_ok(game_service.get_attempt(
             attempt_id, _attempt_token(request), request.user,

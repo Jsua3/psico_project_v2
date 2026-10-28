@@ -102,6 +102,8 @@ urlpatterns = [
     path("api/authoring/cases/", include("apps.simulation.urls_admin")),
     path("api/admin/cases", AdminCaseListCreateView.as_view()),
     path("api/admin/cases/", include("apps.simulation.urls_admin")),
+    # P6 · la biblioteca de lugares del editor de casos (solo quien autora).
+    path("api/biblioteca/", include("apps.biblioteca.urls")),
     path("api/admin/audit", AdminAuditListView.as_view()),
     path("api/admin/users", AdminUserListCreateView.as_view()),
     path("api/admin/users/approve", AdminUserApproveView.as_view()),

@@ -24,16 +24,17 @@ import {
 } from '../models/simulation.model';
 
 /**
- * La respuesta de una decisión (C2) llega en una de dos formas según `FEEDBACK_AT_CLOSE_ONLY`: el estado del intento
- * aplanado (bandera apagada) o `{ attempt, consequence, retry? }` (encendida). Ambas se llevan a una sola.
+ * La respuesta de una decisión (C2) tiene una sola forma: `{ attempt, consequence, retry? }`. Sin puntaje, delta ni
+ * clase: tras decidir solo llegan la consecuencia y, si el caso concede otra oportunidad, el reintento.
  */
-type DecisionResponseWire =
-  | (SimulationAttemptState & { consequence?: DecisionConsequence | null; retry?: DecisionRetry | null })
-  | { attempt: SimulationAttemptState; consequence?: DecisionConsequence | null; retry?: DecisionRetry | null };
+interface DecisionResponseWire {
+  attempt: SimulationAttemptState;
+  consequence: DecisionConsequence | null;
+  retry?: DecisionRetry | null;
+}
 
-function normalizeDecisionResult(data: DecisionResponseWire): SimulationDecisionResult {
-  const attempt = 'attempt' in data ? data.attempt : data;
-  return { ...attempt, consequence: data.consequence ?? null, retry: data.retry ?? null };
+function toDecisionResult(data: DecisionResponseWire): SimulationDecisionResult {
+  return { ...data.attempt, consequence: data.consequence, retry: data.retry ?? null };
 }
 
 /**
@@ -196,7 +197,7 @@ export class SimulationService {
       evidenceOverride,
       missingEvidence,
       ...(requestId ? { requestId } : {}),
-    }).pipe(map(response => normalizeDecisionResult(response.data)));
+    }).pipe(map(response => toDecisionResult(response.data)));
   }
 
   saveReflection(attemptId: string, attemptToken: string, nodeId: number, text: string) {

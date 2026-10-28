@@ -57,14 +57,14 @@ def test_completing_case_records_completion(estudiante, case_version_id):
         assert options
         # El JSON del nodo ya no trae la clasificación (T11.5): se consulta por id.
         option = next(
-            (o for o in options if DecisionOption.objects.get(pk=o["id"]).classification == "ADEQUATE"),
+            (o for o in options if DecisionOption.objects.get(pk=o["id"]).response_class == "RECOMMENDED"),
             options[0],
         )
         state = c.post(
             f"/api/simulation/attempts/{attempt_id}/decisions",
             {"attemptToken": token, "decisionOptionId": option["id"]},
             format="json",
-        ).data["data"]
+        ).data["data"]["attempt"]
     assert state["status"] == "COMPLETED"
     case_id = CaseVersion.objects.get(pk=case_version_id).simulation_case_id
     assert StudentCaseCompletion.objects.filter(

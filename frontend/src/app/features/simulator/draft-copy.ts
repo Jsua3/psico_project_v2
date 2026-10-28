@@ -17,7 +17,7 @@ export interface DraftCopyEntry {
    * Decisión del plan visual (§9) o regla de negocio que lo origina; `F6-n` / `F7-n` cuando el texto nace de una
    * tarea del plan y no de una decisión.
    */
-  readonly decision: `VD-${number}` | `RN-${number}` | `ETH-${number}` | `F6-${number}` | `F7-${number}` | `F10-${number}`;
+  readonly decision: `VD-${number}` | `RN-${number}` | `ETH-${number}` | `F6-${number}` | `F7-${number}` | `F10-${number}` | `P6-${number}`;
   /** Quién debe fijar la redacción definitiva. */
   readonly owner: 'Psicología';
   /** Qué se espera de Psicología; sin indicar, `validar`. */
@@ -34,14 +34,33 @@ const SHORTCUTS_SETTING_LABEL = 'Atajos de una tecla';
 
 export const DRAFT_COPY = {
   /**
-   * Antecede al rótulo del tramo cuando el estrés cruza 30, 60 u 85 (F6-12). Va en `polite` y sin alarmar: el
-   * rótulo es el del medidor del HUD (`STRESS_TIER_LABELS`).
+   * Anuncio a lectores de pantalla cuando la persona cambia de estado tras una decisión (VD-23). Va en `polite`, una
+   * sola vez por cambio y nunca al cargar; si cambian el vínculo y la activación, se dicen en una sola frase
+   * (`personaChangeAnnouncement`). Sin cifras: dice cómo se muestra la persona, no cuánto.
    */
-  stressAnnouncementPrefix: {
-    decision: 'VD-20',
+  personaChangeCalmer: {
+    decision: 'VD-23',
     owner: 'Psicología',
-    where: 'Anuncio a lectores de pantalla al cambiar el nivel de estrés (HUD)',
-    text: 'Nivel de estrés:',
+    where: 'Anuncio a lectores de pantalla: la activación de la persona baja',
+    text: 'La persona se muestra más tranquila',
+  },
+  personaChangeTenser: {
+    decision: 'VD-23',
+    owner: 'Psicología',
+    where: 'Anuncio a lectores de pantalla: la activación de la persona sube',
+    text: 'La persona se muestra más tensa',
+  },
+  personaChangeOpens: {
+    decision: 'VD-23',
+    owner: 'Psicología',
+    where: 'Anuncio a lectores de pantalla: el vínculo de la persona mejora',
+    text: 'La persona se abre un poco más',
+  },
+  personaChangeCloses: {
+    decision: 'VD-23',
+    owner: 'Psicología',
+    where: 'Anuncio a lectores de pantalla: el vínculo de la persona empeora',
+    text: 'La persona se cierra',
   },
   /**
    * Confirmación al pulsar «Iniciar nuevo intento» con uno abierto (F6-2, RN-07): dice qué se pierde. «Continuar»
@@ -87,6 +106,16 @@ export const DRAFT_COPY = {
     owner: 'Psicología',
     where: 'Lista «Ir a…»: estado vacío',
     text: 'Todavía no hay nada a lo que ir: aquí aparecerán las personas y las puertas de la sala y lo que ya hayas examinado.',
+  },
+  /**
+   * Persona clave de la sala (P6, tarea 4): la que el docente marca como «a quien atender». Lo dice la lista «Ir a…» junto
+   * a su nombre y el rótulo sobre su cabeza se anuncia igual: el aviso no depende solo del color.
+   */
+  keyPerson: {
+    decision: 'P6-4',
+    owner: 'Psicología',
+    where: 'Lista «Ir a…» de la sala: nota junto al nombre de la persona clave (lectores de pantalla)',
+    text: 'persona a atender',
   },
   /** Anuncio al llegar al destino elegido en «Ir a…» (F6-11, VD-19): va seguido del nombre del lugar. */
   placesArrived: {
@@ -316,24 +345,180 @@ export const DRAFT_COPY = {
     where: 'Resultado: fundamento teórico de cada decisión',
     text: 'Fundamento teórico',
   },
-  /** Etiquetas cualitativas de la clasificación al cierre (RN-08): lenguaje formativo, nunca un puntaje. */
-  decisionToneAdequate: {
-    decision: 'RN-08',
+  /** Clase de una decisión al cierre, en palabras (modelo de métricas): nunca una cifra. */
+  responseClassRecommended: {
+    decision: 'VD-23',
     owner: 'Psicología',
-    where: 'Resultado: etiqueta cualitativa de una decisión adecuada',
-    text: 'Adecuada',
+    where: 'Cierre: etiqueta de una decisión de clase Recomendada',
+    text: 'Recomendada',
   },
-  decisionToneRisky: {
-    decision: 'RN-08',
+  /** Clase Aceptable. */
+  responseClassAcceptable: {
+    decision: 'VD-23',
     owner: 'Psicología',
-    where: 'Resultado: etiqueta cualitativa de una decisión con riesgo',
+    where: 'Cierre: etiqueta de una decisión de clase Aceptable',
+    text: 'Aceptable',
+  },
+  /** Clase Con riesgo. */
+  responseClassRisky: {
+    decision: 'VD-23',
+    owner: 'Psicología',
+    where: 'Cierre: etiqueta de una decisión de clase Con riesgo',
     text: 'Con riesgo',
   },
-  decisionToneInadequate: {
-    decision: 'RN-08',
+  /** Clase Contraindicada. */
+  responseClassContraindicated: {
+    decision: 'VD-23',
     owner: 'Psicología',
-    where: 'Resultado: etiqueta cualitativa de una decisión inadecuada',
-    text: 'Inadecuada',
+    where: 'Cierre: etiqueta de una decisión de clase Contraindicada',
+    text: 'Contraindicada',
+  },
+  /** Marca en palabras de un hito decisivo (nunca un número). */
+  milestoneKeyMark: {
+    decision: 'VD-23',
+    owner: 'Psicología',
+    where: 'Cierre: marca de un hito que decide el final',
+    text: 'clave',
+  },
+  /** Título de los hitos cumplidos. */
+  milestonesDoneTitle: {
+    decision: 'VD-23',
+    owner: 'Psicología',
+    where: 'Cierre: título de los hitos cumplidos',
+    text: 'Lo que hiciste',
+  },
+  /** Título de los hitos que faltaron. */
+  milestonesMissingTitle: {
+    decision: 'VD-23',
+    owner: 'Psicología',
+    where: 'Cierre: título de los hitos que faltaron',
+    text: 'Lo que faltó',
+  },
+  /** Estado vacío de los hitos cumplidos. */
+  milestonesNoneDone: {
+    decision: 'VD-23',
+    owner: 'Psicología',
+    where: 'Cierre: sin ningún hito cumplido',
+    text: 'En este recorrido no se cumplió ningún hito.',
+  },
+  /** Estado vacío de los hitos que faltaron. */
+  milestonesNoneMissing: {
+    decision: 'VD-23',
+    owner: 'Psicología',
+    where: 'Cierre: sin hitos pendientes',
+    text: 'No faltó ningún hito.',
+  },
+  /** Título de la lista de razones del final. */
+  endingReasonTitle: {
+    decision: 'VD-23',
+    owner: 'Psicología',
+    where: 'Cierre: título de las razones del final',
+    text: 'Cómo llegaste aquí',
+  },
+  /** Prefijo de la frase sobre la persona al cerrar; el estado lo trae el servidor. */
+  endingPersonaPrefix: {
+    decision: 'VD-23',
+    owner: 'Psicología',
+    where: 'Cierre: frase de la persona usuaria al cerrar (precede a su estado en palabras)',
+    text: 'La persona usuaria',
+  },
+  /** Título de las competencias con su nivel en palabras. */
+  competenciesTitle: {
+    decision: 'VD-23',
+    owner: 'Psicología',
+    where: 'Cierre: título de las competencias en palabras',
+    text: 'Tus competencias, en palabras',
+  },
+  /** Nivel de una competencia que ninguna decisión tocó. */
+  competencyNoEvidence: {
+    decision: 'VD-23',
+    owner: 'Psicología',
+    where: 'Cierre: competencia sin decisiones que la sustenten',
+    text: 'Sin evidencia',
+  },
+  /** Encabezado de la lista de evidencia. */
+  competencyEvidenceLead: {
+    decision: 'VD-23',
+    owner: 'Psicología',
+    where: 'Cierre: encabezado de las decisiones que sustentan una competencia',
+    text: 'Decisiones que lo sustentan',
+  },
+  /** Autoevaluación breve. */
+  selfAssessTitle: {
+    decision: 'VD-23',
+    owner: 'Psicología',
+    where: 'Cierre: título de la autoevaluación breve (antes de la revisión)',
+    text: 'Antes de revisar tus decisiones',
+  },
+  /** Pregunta 1. */
+  selfAssessGood: {
+    decision: 'VD-23',
+    owner: 'Psicología',
+    where: 'Cierre: primera pregunta de la autoevaluación',
+    text: '¿Qué salió bien?',
+  },
+  /** Pregunta 2. */
+  selfAssessChange: {
+    decision: 'VD-23',
+    owner: 'Psicología',
+    where: 'Cierre: segunda pregunta de la autoevaluación',
+    text: '¿Qué cambiarías?',
+  },
+  /** Aviso de privacidad de la autoevaluación (local, sin persistir). */
+  selfAssessLocalNote: {
+    decision: 'VD-23',
+    owner: 'Psicología',
+    where: 'Cierre: aviso de que la autoevaluación no se envía',
+    text: 'Lo que escribas se queda solo en este dispositivo: no se envía ni se guarda.',
+  },
+  /** Botón de listo. */
+  selfAssessDone: {
+    decision: 'VD-23',
+    owner: 'Psicología',
+    where: 'Cierre: botón que cierra la autoevaluación',
+    text: 'Listo',
+  },
+  /** Botón de omitir. */
+  selfAssessSkip: {
+    decision: 'VD-23',
+    owner: 'Psicología',
+    where: 'Cierre: botón que omite la autoevaluación',
+    text: 'Omitir por ahora',
+  },
+  /** Línea de la autoevaluación ya recogida. */
+  selfAssessCollapsed: {
+    decision: 'VD-23',
+    owner: 'Psicología',
+    where: 'Cierre: autoevaluación recogida',
+    text: 'No se guardó nada: lo que escribiste solo vive en esta pantalla.',
+  },
+  /** Botón de editar. */
+  selfAssessEdit: {
+    decision: 'VD-23',
+    owner: 'Psicología',
+    where: 'Cierre: botón para volver a abrir la autoevaluación',
+    text: 'Editar mis notas',
+  },
+  /** Tarjeta del panel con los últimos casos completados. */
+  closingsTitle: {
+    decision: 'VD-23',
+    owner: 'Psicología',
+    where: 'Panel del estudiante: título de los últimos cierres',
+    text: 'Tus últimos cierres',
+  },
+  /** Subtítulo. */
+  closingsSub: {
+    decision: 'VD-23',
+    owner: 'Psicología',
+    where: 'Panel del estudiante: subtítulo de los últimos cierres',
+    text: 'Los últimos casos que completaste',
+  },
+  /** Estado vacío. */
+  closingsEmpty: {
+    decision: 'VD-23',
+    owner: 'Psicología',
+    where: 'Panel del estudiante: sin cierres todavía',
+    text: 'Aún sin cierres: aparecerán cuando completes un caso.',
   },
   /** Nota de una conducta prohibida en «Tus decisiones»: se señala con cuidado, sin cifras (RN-08, ETH). */
   decisionProhibitedNote: {
@@ -341,19 +526,6 @@ export const DRAFT_COPY = {
     owner: 'Psicología',
     where: 'Resultado: nota de una conducta prohibida en «Tus decisiones»',
     text: 'Alerta ética: esta respuesta puede aumentar el riesgo de revictimización.',
-  },
-  /** Marcador de avance del HUD y del resultado cuando `scoreMarker = 'progress'` (VD-6): sin cifra de puntos. */
-  scoreProgressLabel: {
-    decision: 'VD-6',
-    owner: 'Psicología',
-    where: 'Resultado: marcador de avance (scoreMarker = progress), en lugar de «Puntaje total»',
-    text: 'Avance del caso',
-  },
-  scoreProgressDone: {
-    decision: 'VD-6',
-    owner: 'Psicología',
-    where: 'Resultado: valor del marcador de avance cuando el caso está completado',
-    text: 'Completado',
   },
 } as const satisfies Record<string, DraftCopyEntry>;
 

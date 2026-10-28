@@ -36,7 +36,7 @@ def _world(client, attempt_id, token):
 def _advance(client, attempt_id, token):
     """Decide la opción adecuada del nodo actual: el intento pasa al nodo siguiente."""
     node_id = SimulationAttempt.objects.get(pk=attempt_id).current_node_id
-    good = DecisionOption.objects.filter(source_node_id=node_id, classification="ADEQUATE").order_by("id").first()
+    good = DecisionOption.objects.filter(source_node_id=node_id, response_class="RECOMMENDED").order_by("id").first()
     response = client.post(
         f"{BASE}/attempts/{attempt_id}/decisions",
         {"attemptToken": token, "decisionOptionId": good.id},

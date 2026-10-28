@@ -6,6 +6,7 @@ import { authGuard, passwordChangeGuard } from './core/auth/auth.guard';
 import { AuthService } from './core/auth/auth.service';
 import { canLeaveGuard } from './core/navigation/can-leave.guard';
 import { ChangePasswordComponent } from './features/account/change-password.component';
+import { rutasEditorCaso, rutasNuevoCaso } from './features/autoria/autoria.routes';
 import { InvitationsComponent } from './features/invitations/invitations.component';
 import { ReporteEstudianteComponent } from './features/reportes/reporte-estudiante.component';
 import { caseUnlockedGuard } from './features/simulator/case-unlocked.guard';
@@ -13,12 +14,67 @@ import { NotFoundComponent } from './features/public/not-found.component';
 import { ForbiddenComponent } from './features/public/forbidden.component';
 import { OfflineComponent } from './features/public/offline.component';
 
-/** Plan visual F3-3: solo las superficies de juego ocultan la barra del portal (`data.chrome = 'hidden'`). */
+/**
+ * Plan visual F3-3: solo las superficies de juego ocultan la barra del portal (`data.chrome = 'hidden'`). P6: el editor
+ * nuevo de casos trae su propia barra de vidrio (con el camino de vuelta a «Mis casos»), así que no lleva la del portal
+ * (`data.chrome = 'propio'`): una sola barra en pantalla, y la página se desplaza como en el portal.
+ */
 describe('app.routes: cromo del portal', () => {
+  const hijos = () => routes.find(route => route.path === 'portal')!.children ?? [];
+
   it('jugar y simulador/:caseVersionId ocultan la barra; ninguna otra ruta del portal', () => {
-    const portal = routes.find(route => route.path === 'portal')!;
-    const hidden = (portal.children ?? []).filter(child => child.data?.['chrome'] === 'hidden').map(child => child.path);
+    const hidden = hijos().filter(child => child.data?.['chrome'] === 'hidden').map(child => child.path);
     expect(hidden).toEqual(['jugar', 'simulador/:caseVersionId']);
+  });
+
+  it('crear un caso y el editor de casos traen su propia barra (chrome: propio)', () => {
+    const propio = hijos().filter(child => child.data?.['chrome'] === 'propio').map(child => child.path);
+    expect(propio).toEqual(['casos/nuevo', 'casos/:caseVersionId/editor']);
+  });
+});
+
+/**
+ * P6: el editor nuevo de casos vive en casos/:caseVersionId/editor y crear un caso en casos/nuevo; ambos para PROFESOR y
+ * ADMIN (el servidor hace cumplir que un PROFESOR solo abra los suyos). El editor anterior se retiró (P6, tarea 8).
+ */
+// req: RF-12, RNF-002
+describe('app.routes: editor de casos', () => {
+  const children = routes.find(route => route.path === 'portal')!.children ?? [];
+  const ruta = (path: string) => children.find(child => child.path === path)!;
+
+  it('el editor y crear un caso cargan las rutas del editor nuevo, perezosas', async () => {
+    const editor = await (ruta('casos/:caseVersionId/editor').loadChildren as () => Promise<unknown>)();
+    expect(editor).toBe(rutasEditorCaso);
+    const nuevo = await (ruta('casos/nuevo').loadChildren as () => Promise<unknown>)();
+    expect(nuevo).toBe(rutasNuevoCaso);
+    expect(ruta('casos/nuevo').loadComponent).toBeUndefined();
+  });
+
+  it('el editor anterior ya no existe: ninguna ruta lleva a casos/:caseVersionId/editor-anterior', () => {
+    expect(children.map(child => child.path)).not.toContain('casos/:caseVersionId/editor-anterior');
+  });
+
+  it('las dos llevan la guardia de rol de «casos»: docentes y administradores pasan; el estudiante, no', () => {
+    for (const path of ['casos/nuevo', 'casos/:caseVersionId/editor']) {
+      const decide = (role: string) => {
+        const auth = { getToken: () => 'x', isTokenMalformed: () => false, isTokenExpired: () => false, clearSession: () => undefined,
+          hasRole: (...roles: string[]) => roles.includes(role) };
+        const router = { createUrlTree: (commands: unknown[]) => ({ commands }) };
+        TestBed.configureTestingModule({ providers: [{ provide: AuthService, useValue: auth }, { provide: Router, useValue: router }] });
+        const result = TestBed.runInInjectionContext(() => (ruta(path).canActivate![0] as (...args: unknown[]) => unknown)({}, { url: '/portal/casos' }));
+        TestBed.resetTestingModule();
+        return result;
+      };
+      expect(decide('PROFESOR'), path).toBe(true);
+      expect(decide('ADMIN'), path).toBe(true);
+      expect(decide('ESTUDIANTE'), path).toEqual({ commands: ['/portal/sin-permiso'] });
+    }
+  });
+
+  it('«casos/nuevo» va antes que la ruta de un caso y los dos antes del comodín', () => {
+    const pos = (path: string) => children.findIndex(child => child.path === path);
+    expect(pos('casos/nuevo')).toBeLessThan(pos('casos/:caseVersionId/editor'));
+    expect(pos('casos/:caseVersionId/editor')).toBeLessThan(pos('**'));
   });
 });
 

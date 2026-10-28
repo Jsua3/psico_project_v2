@@ -2,8 +2,9 @@ import { CommonModule } from '@angular/common';
 import { Component, ElementRef, NgZone, OnChanges, OnDestroy, SimpleChanges, ViewChild, computed, inject, input, output, signal, ChangeDetectionStrategy } from '@angular/core';
 import { MatIconModule } from '@angular/material/icon';
 import Phaser from 'phaser';
-import { CollisionZoneState, MapObjectState, NpcConfig, RoomConfig, ScenarioConfig, SimulationWorldState } from '../../core/models/simulation.model';
-import { backgroundImage } from './world-editor/room-edit.util';
+import { Activation, CollisionZoneState, Intensity, MapObjectState, NpcConfig, Persona, RoomConfig, ScenarioConfig, SimulationWorldState } from '../../core/models/simulation.model';
+import { backgroundImage, walkableZone } from './room-ambient.util';
+import { LEGACY_FEET_OFFSET_Y, isPaintedDoor, markerFeetOffsetY, markerLabelOffsetY, standsOnFeet } from './object-anchor.util';
 import { KenneyDungeonFrames } from './kenney-frames.constants';
 import {
   HOSPITAL_COLLISIONS,
@@ -49,13 +50,22 @@ import {
   selectRevealed,
 } from './interaction-priority.util';
 import { serverRejectsPlayerAt } from './server-world-geometry.util';
-import { InteractionVerb, interactionVerb } from './interaction-verb.util';
+import { InteractionVerb, interactionVerb, participatesInInteraction } from './interaction-verb.util';
 import { paintVignette, vignetteTextureKey } from './vignette-texture.util';
 import { WORLD_FONT_FAMILY, whenWorldFontsReady } from './world-typography.util';
 import { HOVER_HIT, HoverCandidate, pickHoverTarget } from './world-hover.util';
 import { NO_WALK, WALK_GROUND_RADIUS_PX, WalkState, cancelWalkOnKeys, reachRadius, startWalk, tickWalk } from './world-walk.util';
 import { InputKind, nextInputKind, touchControlsVisible } from './world-input-kind.util';
 import { PlaceCandidate } from './world-places.util';
+import { DRAFT_COPY } from './draft-copy';
+import {
+  KEY_PERSON_CHEVRON, KEY_PERSON_COLOR, KEY_PERSON_COLOR_HEX, KEY_PERSON_HALO_HEX, KEY_PERSON_NAME_GAP_PX,
+  isKeyPerson, keyPersonTipOffsetY, resolveKeyPerson,
+} from './key-person.util';
+import {
+  PERSON_PAUSE_MIN_MS, PersonWalkEnv, PersonWalkState, bodyBlocks, parsePersonMovement, personFacing, personWalkBounds, resumePersonWalk,
+  randomPersonPause, startPersonWalk, tickPersonWalk,
+} from './person-walk.util';
 import { COARSE_POINTER_QUERY, matchesMedia } from './pointer-modality.util';
 import {
   NUDGE_SUBSTEPS,
@@ -78,7 +88,10 @@ import { PixelRender } from './pixel-render';
 import { doorFacing, doorSpriteSpecs, resolveDoorSideTextureKey, resolveDoorTextureKey } from './door-sprite.util';
 import { furnitureSpriteSpecs } from './furniture-sprite.util';
 import { CameraFlash, CRISIS_VIGNETTE_TINT, crisisVignetteState, roomEntryFlash, vignetteFrame } from './game-feel.util';
-import { objectSpriteSpecs, resolveObjectTextureKey, resolveToolTextureKey } from './object-sprite.util';
+import { artLoadsFor, BibliotecaManifest, objectSheetSpecs, objectSpriteSpecs, spriteFor } from './object-sprite.util';
+import {
+  ProximityAnimation, ProximityReport, proximityAnimationKey, proximityReport, syncProximityAnimation,
+} from './proximity-animation.util';
 import { AVATAR_STORAGE_KEY } from '../character/avatar.store';
 import { NpcMotionConfig, NpcMovementZone } from '../../core/models/simulation.model';
 import type { KitBundle } from '../character/kit/kit-engine';
@@ -88,11 +101,12 @@ import {
   playKitPose, queueCharacterSheets,
 } from '../character/kit/kit-phaser';
 import { KitService } from '../character/kit/kit.service';
+import { BibliotecaManifestService } from './biblioteca-manifest.service';
 import {
   KIT_ICON_OFFSET_Y, KIT_LABEL_OFFSET_Y, PATIENT_RECIPE_ID,
   extrasCharacterRef, markerEmphasis, npcCharacterRef, personCharacterRef, playerCharacterRef,
 } from './world-characters.util';
-import { PATIENT_ICON_KINDS, patientIconImage, patientIconKey, patientIconKind, patientIconView } from './patient-state-icon.util';
+import { PERSONA_ICON_KINDS, personaIconImage, personaIconKey, personaIconKind, personaIconView } from './persona-icon.util';
 import { DOOR_FALLBACK_HEIGHT, DOOR_SPRITE_FEET_Y, doorHintY, staleSpriteSize, worldSpriteForTexture } from './world-scale.util';
 
 interface WorldCallbacks {
@@ -112,14 +126,28 @@ interface WorldCallbacks {
   onNpcInteract: (npc: NpcConfig) => void;
   /** El puntero está sobre esta clave (marcador o `npc:{clave}`) o sobre nada (F6-7, VD-5). */
   onHover?:      (key: string | null) => void;
+  /** Para la prueba de extremo a extremo: qué objeto anima por cercanía y el cuadro de cada uno; solo se avisa al cambiar. */
+  onProximityAnimation?: (report: ProximityReport) => void;
+  /** Para la prueba de extremo a extremo: el nombre que lleva el indicador de la persona a atender, o `null` si la sala no lo tiene. */
+  onKeyPersonIndicator?: (name: string | null) => void;
+  /** Para la prueba de extremo a extremo: dónde está ahora la persona a atender (redondeada), o `null` si no hay; solo se avisa al cambiar. */
+  onKeyPersonPosition?: (position: { x: number; y: number } | null) => void;
   /** Terminó una caminata pedida con «Ir a…» (F6-11): llegó, o no pudo (muro, mueble, servidor). */
   onWalkEnded?:  (key: string, label: string, outcome: 'arrived' | 'blocked') => void;
   /** Progreso de la precarga, 0-100 (solo la carga inicial). */
   onLoadProgress: (percent: number) => void;
+  /**
+   * La segunda ola de carga (el arte de la biblioteca que pide `queueMissingArt` ya con el mundo en marcha) sigue viva:
+   * se avisa al empezar y con cada archivo que llega o falla, para que el vigilante de arranque cuente esa espera como
+   * avance y no declare colgada una sala que sí está cargando.
+   */
+  onArtLoading?: () => void;
   /** Fin de la precarga; lista las claves esenciales que fallaron (vacía si todo cargó). */
   onLoadComplete: (criticalFailures: string[]) => void;
   reduceMotion:  boolean;
   sfxMuted:       boolean;
+  /** Manifiesto del arte de la biblioteca (null si no cargó: los objetos quedan en su reposo, sin animación de cercanía). */
+  artManifest?: BibliotecaManifest | null;
   /** Paquete del kit (null si no cargó: los actores caen a su marcador). */
   kit: KitBundle | null;
 }
@@ -131,6 +159,15 @@ interface AmbientMover {
   target: { x: number; y: number } | null;
   retargetAt: number;
   patrolIdx: number;
+}
+
+/** Persona del caso que camina (`metadata.movimiento` distinto de «quieto»): su estado y la última pose dibujada. */
+interface PersonWalker {
+  key: string;
+  state: PersonWalkState;
+  /** Cuánto bajo su marcador pisa (0 si el marcador es su punto de apoyo, `metadata.apoyo = "pies"`; 16 en los casos de antes). */
+  feetOffsetY: number;
+  lastPose: { direction: PlayerDirection | null; walking: boolean };
 }
 
 interface NpcMover {
@@ -151,6 +188,8 @@ const NPC_KEY_PREFIX = 'npc:';
 /** Plazo máximo para el primer cuadro del mundo (F6-8): pasado, el anfitrión ofrece reintentar. */
 const BOOT_WATCHDOG_MS = 25_000;
 const NO_KEYS: ReadonlySet<string> = new Set<string>();
+/** El informe de cercanía cuando ningún objeto tiene hoja: lo que se publica al quedarse sin animaciones. */
+const NO_PROXIMITY_REPORT = JSON.stringify({ playing: null, frames: {} });
 /** Anillo estático bajo el siguiente destino del proceso: trazo claro con halo oscuro (contraste en cualquier piso). */
 const RING_COLOR = 0xcdbcff;
 const RING_HALO_COLOR = 0x0b0f1a;
@@ -167,8 +206,8 @@ export class DataDrivenWorldScene extends Phaser.Scene {
   private playerSprite?: Phaser.GameObjects.Sprite;
   /** Visual del jugador en el kit (null si no hay paquete). */
   private playerVisual: CharacterVisual | null = null;
-  /** Último estado clínico recibido: cada icono nace con él (los actores se recrean en cada render). */
-  private patientState: import('../../core/models/simulation.model').PatientState | null = null;
+  /** Última persona recibida: cada icono nace con ella (los actores se recrean en cada render). */
+  private persona: Persona | null = null;
   /** Las hojas y animaciones del jugador están listas (si no, marcador geométrico). */
   private playerKitReady = false;
   private lastDirection: PlayerDirection = 'down';
@@ -191,9 +230,24 @@ export class DataDrivenWorldScene extends Phaser.Scene {
   private readonly markers    = new Map<string, Phaser.GameObjects.Container>();
   private readonly markerData = new Map<string, MapObjectState>();
   private readonly markerLabels = new Map<string, Phaser.GameObjects.Text>();
+  /** Objetos con hoja de cercanía, por clave de marcador: se reproduce cuando son el candidato principal. */
+  private readonly proximityAnimations = new Map<string, ProximityAnimation>();
+  /** Lo último que se avisó de esas animaciones (se compara para avisar solo cuando cambia). */
+  private lastProximityReport = '';
+  /** Texturas de arte que ya se pidieron (lleguen o fallen): no se vuelven a pedir en cada pintado. */
+  private readonly requestedArt = new Set<string>();
   private readonly doorHints  = new Map<string, Phaser.GameObjects.Container>();
   private readonly ambientMovers = new Map<string, AmbientMover>();
   private readonly npcMovers = new Map<string, NpcMover>();
+  /** Personas del caso que caminan (P6): `deambula` o `va-y-viene`; las quietas no se registran. */
+  private readonly personWalkers = new Map<string, PersonWalker>();
+  /** La sala de la que son `personWalkers` y cómo iban al reconstruirse: si la sala es la misma, retoman (cada `world.set` la reconstruye). */
+  private personWalkRoom = '';
+  private savedPersonWalks: ReadonlyMap<string, PersonWalkState> | null = null;
+  /** Chevrón y nombre sobre la persona clave de la sala (a lo sumo uno). */
+  private keyPersonIndicator?: { key: string; container: Phaser.GameObjects.Container; tipOffsetY: number };
+  /** Lo último que se avisó de dónde está la persona clave (se compara para avisar solo cuando cambia de píxel). */
+  private lastKeyPersonPosition: { x: number; y: number } | null = null;
   /** El mundo se congela con diálogo/journal/outcome abiertos (Fase 5/13). */
   private motionPaused = false;
   private readonly AMBIENT_SPEED = 22;        // px/sec — slow, clinical
@@ -249,8 +303,9 @@ export class DataDrivenWorldScene extends Phaser.Scene {
   private pixelRender?: PixelRender;
   private assetsLoaded = false;
   private firstSceneFadeDone = false;
-  /** stressIndex del intento (0-100); lo fija Angular y sobrevive a los re-render. */
-  private stressLevel = 0;
+  /** Activación de la persona y intensidad de la escena; las fija Angular y sobreviven a los re-render. */
+  private activation: Activation = 'CALM';
+  private intensity: Intensity = 'MEDIUM';
   /** Capa de crisis sobre la viñeta de tono; se recrea en cada render. */
   private crisisVignette?: Phaser.GameObjects.Image;
   /** Sala que encuadra la cámara: el zoom entero se recalcula con ella al cambiar el lienzo. */
@@ -330,6 +385,11 @@ export class DataDrivenWorldScene extends Phaser.Scene {
     for (const spec of [...objectSpriteSpecs(), ...doorSpriteSpecs(), ...furnitureSpriteSpecs()]) {
       this.load.image(spec.textureKey, spec.assetPath);
     }
+    // Hojas de cercanía de esos mismos sprites: solo las que el manifiesto respalda; si una falla, el objeto queda en su reposo.
+    for (const sheet of objectSheetSpecs(this.callbacks.artManifest ?? null)) {
+      this.requestedArt.add(sheet.textureKey);
+      this.load.spritesheet(sheet.textureKey, sheet.assetPath, { frameWidth: sheet.frameWidth, frameHeight: sheet.frameHeight });
+    }
 
     // Tiled JSON maps — all known scenario keys (missing ones fail silently)
     // Rename the Tiled object "name" field to match your backend object keys.
@@ -381,7 +441,7 @@ export class DataDrivenWorldScene extends Phaser.Scene {
     this.input.keyboard?.disableGlobalCapture();
     this.keys = this.input.keyboard?.addKeys('W,A,S,D,E,SPACE,ENTER', false) as Record<string, Phaser.Input.Keyboard.Key>;
     this.playerKitReady = this.playerVisual !== null && ensureCharacterAnims(this, this.playerVisual);
-    for (const kind of PATIENT_ICON_KINDS) addRgbaTexture(this, patientIconKey(kind), patientIconImage(kind));
+    for (const kind of PERSONA_ICON_KINDS) addRgbaTexture(this, personaIconKey(kind), personaIconImage(kind));
     // Un toque corto (keydown y keyup en el mismo cuadro, habitual con pocos fps) deja `JustDown` en falso
     // y la pulsación se perdía junto a una persona (T0.2): el evento `down` de la tecla sí llega siempre.
     this.keys['E']?.on('down', () => { this.tappedKeys.e = true; });
@@ -427,6 +487,7 @@ export class DataDrivenWorldScene extends Phaser.Scene {
   }
 
   override update(time: number, delta: number) {
+    this.reportProximityAnimation();
     if (!this.player || !this.cursors || !this.keys || !this.world) {
       this.tappedKeys.e = this.tappedKeys.space = this.tappedKeys.enter = false;
       return;
@@ -524,10 +585,15 @@ export class DataDrivenWorldScene extends Phaser.Scene {
     this.updateNearestInteraction();
     this.updateAmbientMovers(time, delta);
     this.updateNpcMovers(time, delta);
+    this.updatePersonWalkers(delta);
     // 2.5D: re-ordena por Y a los actores que se mueven
     if (this.player) this.ysort(this.player);
     for (const mover of this.ambientMovers.values()) {
       const marker = this.markers.get(mover.key);
+      if (marker) this.ysort(marker);
+    }
+    for (const walker of this.personWalkers.values()) {
+      const marker = this.markers.get(walker.key);
       if (marker) this.ysort(marker);
     }
     for (const container of this.npcMarkers.values()) this.ysort(container);
@@ -573,6 +639,7 @@ export class DataDrivenWorldScene extends Phaser.Scene {
       this.setHeldDirection(null); // un overlay tapa los controles: no seguir caminando detrás
       this.setHover(null);
     }
+    this.settlePersonWalkerPoses();
     this.applyCrisisState();
   }
 
@@ -585,12 +652,17 @@ export class DataDrivenWorldScene extends Phaser.Scene {
 
   setReduceMotion(reduced: boolean) {
     this.callbacks.reduceMotion = reduced;
+    // Al reducir el movimiento lo que animaba vuelve al cuadro 0; al volver a permitirlo, el principal retoma.
+    this.syncProximityAnimations();
+    // Las personas que caminaban vuelven a su sitio y quedan quietas; al permitirlo de nuevo, retoman desde ahí.
+    if (reduced) this.restPersonWalkers();
     this.applyCrisisState();
   }
 
   /** Seguro antes de `create()`: la capa se pinta con este valor en el primer render. */
-  setStressLevel(level: number) {
-    this.stressLevel = level;
+  setPersonaScene(activation: Activation, intensity: Intensity) {
+    this.activation = activation;
+    this.intensity = intensity;
     this.applyCrisisState();
   }
 
@@ -740,7 +812,7 @@ export class DataDrivenWorldScene extends Phaser.Scene {
     this.markers.forEach((marker, key) => {
       const obj = this.markerData.get(key);
       if (!obj || !this.isInteractive(obj)) return;
-      const moving = this.ambientMovers.has(key);
+      const moving = this.markerMoves(key);
       const x = moving ? marker.x : obj.x;
       const y = moving ? marker.y : obj.y;
       candidates.push({ key, x, y, playerDistance: Math.hypot(px - x, py - y) });
@@ -777,12 +849,13 @@ export class DataDrivenWorldScene extends Phaser.Scene {
     } else {
       const marker = this.markers.get(key);
       if (!marker) return null;
-      if (this.ambientMovers.has(key)) { x = marker.x; y = marker.y; }
+      if (this.markerMoves(key)) { x = marker.x; y = marker.y; }
     }
     const state = obj.type === 'EXIT' ? this.doorStates[key] : undefined;
     const door = state ? { state, missing: [], stageLocked: false, message: null } : null;
     const radius = key.startsWith(NPC_KEY_PREFIX) ? NPC_INTERACT_RADIUS : MARKER_INTERACT_RADIUS;
-    return { x, y, verb: interactionVerb(obj, door), reach: reachRadius(radius), label: obj.label };
+    const verb = interactionVerb(obj, door);
+    return verb ? { x, y, verb, reach: reachRadius(radius), label: obj.label } : null;
   }
 
   /**
@@ -800,11 +873,13 @@ export class DataDrivenWorldScene extends Phaser.Scene {
     const mapKey = this.world?.map.key ?? '';
     this.markers.forEach((_marker, key) => {
       const obj = this.markerData.get(key);
-      if (!obj || !this.isInteractive(obj)) return;
+      const keyPerson = obj !== undefined && this.keyPersonKey() === key;
+      if (!obj || !(keyPerson || this.isInteractive(obj))) return;
       out.push({
         key,
         label: getSceneDisplayLabel(obj, mapKey),
         kind: obj.type === 'EXIT' ? 'door' : obj.type === 'PERSON' ? 'person' : 'object',
+        ...(keyPerson ? { note: DRAFT_COPY.keyPerson.text } : {}),
       });
     });
     return out;
@@ -929,8 +1004,39 @@ export class DataDrivenWorldScene extends Phaser.Scene {
     }
   }
 
+  /**
+   * Pide el arte de los objetos del mundo que aún no está en la escena: reposos y hojas de la biblioteca, que no se
+   * precargan (son muchos y cada caso usa pocos). Devuelve true si quedó algo en cola; el mundo se pinta de nuevo al
+   * terminar la carga. Lo que falla no se vuelve a pedir: ese objeto queda en su reposo o en su marcador de siempre.
+   */
+  private queueMissingArt(): boolean {
+    const pending = artLoadsFor(this.renderableWorldObjects(), this.callbacks.artManifest ?? null)
+      .filter(art => !this.textures.exists(art.textureKey) && !this.requestedArt.has(art.textureKey));
+    if (pending.length === 0) return false;
+    for (const art of pending) {
+      this.requestedArt.add(art.textureKey);
+      if (art.kind === 'sheet') {
+        this.load.spritesheet(art.textureKey, art.assetPath, { frameWidth: art.frameWidth!, frameHeight: art.frameHeight! });
+      } else {
+        this.load.image(art.textureKey, art.assetPath);
+      }
+    }
+    // Esta carga ocurre tras la inicial, que ya no avisa su progreso: cada archivo que llega (o falla) reanuda el vigilante.
+    const waiting = () => this.callbacks.onArtLoading?.();
+    this.load.on(Phaser.Loader.Events.PROGRESS, waiting);
+    this.load.once(Phaser.Loader.Events.COMPLETE, () => {
+      this.load.off(Phaser.Loader.Events.PROGRESS, waiting);
+      if (this.ready) this.renderWorld();
+    });
+    waiting();
+    this.load.start();
+    return true;
+  }
+
   private renderWorld() {
     if (!this.world) return;
+    // El arte de la biblioteca que aún no está cargado se pide primero; el mundo se pinta de nuevo al llegar.
+    if (this.queueMissingArt()) return;
 
     // Multi-room mode: delegate to renderRoom() when a ScenarioConfig is loaded
     if (this.scenarioConfig) {
@@ -947,11 +1053,13 @@ export class DataDrivenWorldScene extends Phaser.Scene {
     this.children.removeAll(true);
     this.markers.clear();
     this.markerData.clear();
+    this.proximityAnimations.clear();
     this.markerLabels.clear();
     this.doorHints.clear();
     this.npcMarkers.clear();
     this.ambientMovers.clear();
     this.npcMovers.clear();
+    this.resetPersonWalkers(this.world.map.key);
     this.tiledExits.clear();
     this.toneVignette = undefined;
     this.resetOrientationVisuals();
@@ -1093,11 +1201,13 @@ export class DataDrivenWorldScene extends Phaser.Scene {
     this.children.removeAll(true);
     this.markers.clear();
     this.markerData.clear();
+    this.proximityAnimations.clear();
     this.markerLabels.clear();
     this.doorHints.clear();
     this.npcMarkers.clear();
     this.ambientMovers.clear();
     this.npcMovers.clear();
+    this.resetPersonWalkers(roomConfig.key);
     this.tiledExits.clear();
     this.toneVignette = undefined;
     this.resetOrientationVisuals();
@@ -1540,24 +1650,24 @@ export class DataDrivenWorldScene extends Phaser.Scene {
     const label = this.markerLabels.get(key);
     const obj = this.markerData.get(key);
     if (!marker || !label || !obj) return;
-    const moving = this.ambientMovers.has(key);
+    const moving = this.markerMoves(key);
     const x = moving ? marker.x : obj.x;
-    const y = (moving ? marker.y : obj.y) + 28;
+    const y = (moving ? marker.y : obj.y) + markerLabelOffsetY(obj);
     if (label.x !== x || label.y !== y) label.setPosition(x, y);
   }
 
   /**
-   * Estado clínico de la paciente (decisión 13): un icono de pixel art sobre la cabeza de cada
+   * La persona consultante (decisión 13): un icono de pixel art sobre la cabeza de cada
    * actor dibujado con su receta; el sprite no se toca. La crisis, además, sacude 2 px.
    */
-  updatePatientVisualState(state: import('../../core/models/simulation.model').PatientState) {
-    this.patientState = state;
-    const kind = patientIconKind(state);
+  updatePatientVisualState(persona: Persona) {
+    this.persona = persona;
+    const kind = personaIconKind(persona);
     for (const container of [...this.npcMarkers.values(), ...this.markers.values()]) {
       const icon = (container as unknown as Record<string, unknown>)['__patientIcon'] as Phaser.GameObjects.Image | null | undefined;
       if (!icon) continue;
       icon.setVisible(kind !== null);
-      if (kind) icon.setTexture(patientIconKey(kind));
+      if (kind) icon.setTexture(personaIconKey(kind));
       if (kind === 'crisis' && !this.callbacks.reduceMotion) {
         this.tweens.add({ targets: container, x: container.x + 2, duration: 60, yoyo: true, repeat: 3, ease: 'Sine.easeInOut' });
       }
@@ -1690,7 +1800,7 @@ export class DataDrivenWorldScene extends Phaser.Scene {
 
   /**
    * Viñeta de crisis: la misma banda que la de tono pero rojo-violeta, y con su
-   * opacidad atada al estrés del intento. Se pinta también en salas con luz
+   * opacidad atada a la activación de la persona. Se pinta también en salas con luz
    * pintada, porque es estado del caso y no decoración.
    */
   private applyCrisisVignette(): void {
@@ -1706,7 +1816,7 @@ export class DataDrivenWorldScene extends Phaser.Scene {
     const g = this.crisisVignette;
     if (!g || !g.scene) return;
     // Con el mundo en pausa (diálogo, bitácora, cierre) la crisis se ve fija: nada late mientras se lee.
-    const state = crisisVignetteState(this.stressLevel, this.callbacks.reduceMotion || this.motionPaused);
+    const state = crisisVignetteState(this.activation, this.intensity, this.callbacks.reduceMotion || this.motionPaused);
     const key = JSON.stringify(state);
     // Mismo estado y el pulso sigue vivo: no se reinicia (pasar de 88 a 90 no debe dar un salto).
     if (key === this.crisisStateKey && (!state.pulse || this.crisisPulse?.isPlaying())) return;
@@ -1808,10 +1918,10 @@ export class DataDrivenWorldScene extends Phaser.Scene {
     return null;
   }
 
-  /** Icono del estado clínico con los pies del actor en `feetY`; nace con el último estado conocido. */
+  /** Icono de la persona con los pies del actor en `feetY`; nace con el último estado conocido. */
   private patientIcon(feetY: number): Phaser.GameObjects.Image | null {
-    if (!this.textures.exists(patientIconKey('crisis'))) return null;
-    const view = patientIconView(this.patientState);
+    if (!this.textures.exists(personaIconKey('crisis'))) return null;
+    const view = personaIconView(this.persona);
     return this.add.image(0, feetY + KIT_ICON_OFFSET_Y, view.key).setOrigin(0.5, 1).setVisible(view.visible);
   }
 
@@ -1829,6 +1939,69 @@ export class DataDrivenWorldScene extends Phaser.Scene {
   /** Devuelve la clave si su textura ya cargó; si no, null (→ fallback del marcador). */
   private loadedTexture(key: string | null): string | null {
     return key && this.textures.exists(key) ? key : null;
+  }
+
+  /**
+   * Sprite de un objeto con arte propio, o `null` (→ su marcador de siempre). Con hoja de cercanía cargada nace en
+   * el cuadro 0 (el reposo: mismas medidas) y su animación queda lista; si la hoja falta del manifiesto o no cargó,
+   * se dibuja el reposo y no hay animación.
+   */
+  private buildArtSprite(
+    object: MapObjectState,
+  ): { sprite: Phaser.GameObjects.Image | Phaser.GameObjects.Sprite; animation: ProximityAnimation | null } | null {
+    const art = spriteFor(object, this.callbacks.artManifest ?? null);
+    if (!art) return null;
+    // Con apoyo en los pies (lo que trae el editor) la base del arte está en (x, y); sin él, centrado y 6 px arriba.
+    const onFeet = standsOnFeet(object);
+    const artY = onFeet ? 0 : -6;
+    const sheet = art.sheet;
+    if (sheet && this.textures.exists(sheet.textureKey)) {
+      const animationKey = proximityAnimationKey(sheet.textureKey, sheet.fps);
+      if (this.ensureProximityAnimation(animationKey, sheet.textureKey, sheet.frames, sheet.fps)) {
+        const sprite = this.add.sprite(0, artY, sheet.textureKey, 0);
+        if (onFeet) sprite.setOrigin(0.5, 1);
+        return { sprite, animation: { sprite, animationKey, playing: false } };
+      }
+    }
+    if (!this.textures.exists(art.textureKey)) return null;
+    const image = this.add.image(0, artY, art.textureKey);
+    if (onFeet) image.setOrigin(0.5, 1);
+    return { sprite: this.atWorldScale(image), animation: null };
+  }
+
+  /** Registra (una sola vez) la animación en bucle de una hoja; false si la hoja trae menos de dos cuadros. */
+  private ensureProximityAnimation(animationKey: string, textureKey: string, frames: number, fps: number): boolean {
+    if (this.anims.exists(animationKey)) return true;
+    // `frameTotal` cuenta el cuadro base de Phaser además de los de la hoja.
+    const available = Math.min(frames, this.textures.get(textureKey).frameTotal - 1);
+    if (available < 2) return false;
+    this.anims.create({
+      key: animationKey,
+      frames: this.anims.generateFrameNumbers(textureKey, { start: 0, end: available - 1 }),
+      frameRate: fps,
+      repeat: -1,
+    });
+    return true;
+  }
+
+  /** Avisa al host (solo cuando cambia) qué anima por cercanía y en qué cuadro va cada objeto con hoja. */
+  private reportProximityAnimation(): void {
+    const notify = this.callbacks.onProximityAnimation;
+    if (!notify) return;
+    // Sin hojas de cercanía (la mayoría de las salas) y con «nada anima» ya publicado, no hay informe que armar por cuadro.
+    if (this.proximityAnimations.size === 0 && this.lastProximityReport === NO_PROXIMITY_REPORT) return;
+    const report = proximityReport(this.proximityAnimations);
+    const serialized = JSON.stringify(report);
+    if (serialized === this.lastProximityReport) return;
+    this.lastProximityReport = serialized;
+    notify(report);
+  }
+
+  /** Reproduce o detiene la animación de cercanía de cada objeto que la tiene, según sea o no el principal. */
+  private syncProximityAnimations(): void {
+    this.proximityAnimations.forEach((animation, key) => {
+      syncProximityAnimation(animation, key === this.nearestKey, this.callbacks.reduceMotion);
+    });
   }
 
   /**
@@ -1865,18 +2038,26 @@ export class DataDrivenWorldScene extends Phaser.Scene {
     // aparece para la interacción cercana o seleccionada (refreshMarkerStates).
     // Los EXIT no llevan label propio — su door hint ya nombra el destino.
     // Fuera del contenedor del marcador y sobre los actores: un sprite que pase por delante no lo tapa.
-    const label  = isExit ? null : this.add.text(object.x, object.y + 28, displayLabel, {
+    const label  = isExit ? null : this.add.text(object.x, object.y + markerLabelOffsetY(object), displayLabel, {
       fontFamily: WORLD_FONT_FAMILY, fontSize: `${LABEL_BASE_FONT_PX}px`, color: '#e8f0f4',
       backgroundColor: 'rgba(8,12,18,.72)', padding: { x:5, y:3 }, align: 'center', wordWrap: { width: this.labelWrap }
     }).setOrigin(.5, 0).setAlpha(0).setScale(this.labelScale).setDepth(LABEL_DEPTH);
 
     let main: Phaser.GameObjects.GameObject;
+    // Dónde pisa el objeto dentro de su marcador: 0 si su posición es su punto de apoyo (`metadata.apoyo`), 16 como siempre si no.
+    const feetY = markerFeetOffsetY(object);
+    // Una puerta que ya está pintada en el fondo no lleva sprite encima: solo la pista y el área para cruzar.
+    const painted = isPaintedDoor(object);
     let personVisual: CharacterVisual | null = null;
+    let personSpriteForWalk: Phaser.GameObjects.Sprite | null = null;
     let doorSprite: Phaser.GameObjects.Image | null = null;
 
     // Un marcador con sprite de pixel art nunca se escala (markerEmphasis, focus): spec §1.1.2.
     let pixelSprite = false;
-    if (this.assetsLoaded) {
+    const art = this.assetsLoaded && !isExit ? this.buildArtSprite(object) : null;
+    if (painted) {
+      main = this.add.container(0, 0);
+    } else if (this.assetsLoaded) {
       doorSprite = isExit ? this.buildDoorSprite(object) : null;
       if (doorSprite) {
         // Puerta de arte propio: gana en ambos contextos (sala de autoría y salas
@@ -1893,25 +2074,22 @@ export class DataDrivenWorldScene extends Phaser.Scene {
       } else if (isExit && this.textures.exists('dungeon-tiles')) {
         main = this.add.image(0, 0, 'dungeon-tiles', KenneyDungeonFrames.DOOR).setScale(3);
         pixelSprite = true;
-      } else if (object.type === 'TOOL') {
-        const toolTex = resolveToolTextureKey(object.toolCode);
-        if (toolTex && this.textures.exists(toolTex)) {
-          main = this.atWorldScale(this.add.image(0, -6, toolTex));
-          pixelSprite = true;
-        } else {
-          main = this.buildToolMarker(color, object.shortCode || object.toolCode || object.label);
-        }
-      } else if (object.type === 'OBJECT' && this.loadedTexture(resolveObjectTextureKey(object.shortCode))) {
-        main = this.atWorldScale(this.add.image(0, -6, resolveObjectTextureKey(object.shortCode)!));
+      } else if (art) {
+        // Arte propio del objeto (biblioteca o sprites fijos): con hoja de cercanía si el manifiesto la respalda.
+        main = art.sprite;
         pixelSprite = true;
+      } else if (object.type === 'TOOL') {
+        main = this.buildToolMarker(color, object.shortCode || object.toolCode || object.label);
       } else if (object.type === 'PERSON') {
         personVisual = this.callbacks.kit ? this.actorVisual(personCharacterRef(this.callbacks.kit, object)) : null;
         if (personVisual) {
-          // Pies del arte sobre la sombra del marcador (y = 16), de frente y respirando.
-          const personSprite = this.add.sprite(0, 16, kitSheetKey(personVisual, 'idle'), kitFrameIndex('idle', 'down'))
+          // Pies del arte sobre la sombra del marcador (y = 16), mirando hacia donde dice el editor (de frente si no dice) y respirando.
+          const facing = personFacing(object.facing);
+          const personSprite = this.add.sprite(0, feetY, kitSheetKey(personVisual, 'idle'), kitFrameIndex('idle', facing))
             .setOrigin(KIT_ORIGIN_X, KIT_ORIGIN_Y);
-          playKitPose(personSprite, personVisual, 'down', false, this.callbacks.reduceMotion);
+          playKitPose(personSprite, personVisual, facing, false, this.callbacks.reduceMotion);
           main = personSprite;
+          personSpriteForWalk = personSprite;
         } else {
           main = this.buildGeomMarker(color);
         }
@@ -1925,30 +2103,42 @@ export class DataDrivenWorldScene extends Phaser.Scene {
       main = this.buildGeomMarker(color);
     }
 
-    const pulse = this.add.circle(0, 0, 22, color, .1);
-    if (!this.callbacks.reduceMotion) {
+    // Un icono de respaldo (sin arte propio) va centrado: con el apoyo en los pies queda sobre la sombra, 16 px arriba.
+    const centerY = feetY - LEGACY_FEET_OFFSET_Y;
+    if (centerY !== 0 && !art && !doorSprite && !personVisual && !painted) (main as unknown as { y: number }).y = centerY;
+    const pulse = this.add.circle(0, centerY, 22, color, .1);
+    if (painted) pulse.setVisible(false);
+    else if (!this.callbacks.reduceMotion) {
       this.tweens.add({ targets: pulse, scale: 1.3, alpha: .05, duration: 1100, yoyo: true, repeat: -1, ease: 'Sine.easeInOut' });
     }
 
-    // Sombra de contacto: el icono queda asentado en el piso, no flotando.
-    const markerShadow = this.add.ellipse(0, 16, 26, 8, 0x000000, .2);
+    // Sombra de contacto: el icono queda asentado en el piso, no flotando (una puerta pintada ya tiene la suya en el fondo).
+    const markerShadow = this.add.ellipse(0, feetY, 26, 8, 0x000000, .2);
+    if (painted) markerShadow.setVisible(false);
     const marker = this.add.container(object.x, object.y, [markerShadow, pulse, main]);
-    this.setFeetOffset(marker, 16);   // la sombra marca el contacto con el piso
+    this.setFeetOffset(marker, feetY);   // la sombra marca el contacto con el piso
     this.markers.set(object.key, marker);
     this.markerData.set(object.key, object);
+    if (art?.animation) this.proximityAnimations.set(object.key, art.animation);
     const bag = marker as unknown as Record<string, unknown>;
     bag['__kitSprite'] = personVisual !== null;
     bag['__pixelSprite'] = pixelSprite;
     bag['__pulse'] = pulse;
+    if (personSpriteForWalk && personVisual) {
+      bag['__personSprite'] = personSpriteForWalk;
+      bag['__personVisual'] = personVisual;
+    }
     if (personVisual?.recipeId === PATIENT_RECIPE_ID) {
-      const icon = this.patientIcon(16);
+      const icon = this.patientIcon(feetY);
       if (icon) {
         marker.add(icon);
         bag['__patientIcon'] = icon;
       }
     }
     if (label) this.markerLabels.set(object.key, label);
+    this.registerPersonWalk(marker, object);
     this.applyAmbientLife(marker, object);
+    this.buildKeyPersonIndicator(marker, object);
 
     if (isExit) {
       const hintTx = this.add.text(0, 0, this.doorHintText(object.label), {
@@ -2035,7 +2225,7 @@ export class DataDrivenWorldScene extends Phaser.Scene {
     }
     // Posición de reposo del marcador (la del dato, no la del icono que flota): el anillo es estático.
     const obj = this.markerData.get(key);
-    return obj && this.markers.has(key) ? { x: obj.x, y: obj.y + 16 } : null;
+    return obj && this.markers.has(key) ? { x: obj.x, y: obj.y + markerFeetOffsetY(obj) } : null;
   }
 
   /**
@@ -2074,10 +2264,13 @@ export class DataDrivenWorldScene extends Phaser.Scene {
     this.hoverOutline = undefined;
     this.hoverLabel = undefined;
     this.hoverKey = null;
+    this.keyPersonIndicator = undefined;
+    this.callbacks.onKeyPersonIndicator?.(null);
+    this.reportKeyPersonPosition(null);
   }
 
   private isInteractive(o: MapObjectState): boolean {
-    return o.type === 'EXIT' || o.type === 'TOOL' || o.type === 'ROUTE'
+    return o.type === 'EXIT' || o.type === 'TOOL' || o.type === 'ROUTE' || o.type === 'NOTE' || o.type === 'RESOURCE'
       || o.decisionOptionId != null
       || (o.toolCode != null && o.toolCode !== '')
       || o.dialogue != null;
@@ -2092,6 +2285,10 @@ export class DataDrivenWorldScene extends Phaser.Scene {
     if (this.callbacks.reduceMotion) return;
     // Las personas ya respiran con su hoja de reposo; el vaivén queda para herramientas y objetos.
     if (object.type === 'PERSON' && this.isInteractive(object)) return;
+    // Una persona con `metadata.movimiento` se mueve con su propia conducta (P6), no con el vaivén heredado.
+    if (object.type === 'PERSON' && object.metadata?.['movimiento'] !== undefined) return;
+    // Un mueble (PROP) se queda quieto: no flota ni se mueve.
+    if (object.type === 'PROP') return;
 
     if (this.isInteractive(object)) {
       // Interactable juice: subtle float on top of the existing glow pulse.
@@ -2120,6 +2317,169 @@ export class DataDrivenWorldScene extends Phaser.Scene {
       retargetAt: 0,
       patrolIdx: 0,
     });
+  }
+
+  /** Un marcador que se mueve (vaivén ambiental o persona que camina): su posición viva es la del contenedor, no la del dato. */
+  private markerMoves(key: string): boolean {
+    return this.ambientMovers.has(key) || this.personWalkers.has(key);
+  }
+
+  /**
+   * Registra a la persona que camina (P6): `metadata.movimiento` es «deambula» o `va-y-viene`. Lo quieto, ausente o mal
+   * formado no se registra (queda como siempre). Empieza con una pausa de 1 a 3 s para que varias no echen a andar a la vez.
+   */
+  private registerPersonWalk(marker: Phaser.GameObjects.Container, object: MapObjectState): void {
+    if (object.type !== 'PERSON') return;
+    const movement = parsePersonMovement(object.metadata?.['movimiento']);
+    if (movement.tipo === 'quieto') return;
+    const direction = personFacing(object.facing);
+    const origin = { x: marker.x, y: marker.y };
+    // Reconstruir la sala (cada `world.set`) no la devuelve a su origen: si iba caminando en esta misma sala, retoma.
+    const resumed = resumePersonWalk(this.savedPersonWalks?.get(object.key), movement, origin);
+    const walker: PersonWalker = {
+      key: object.key,
+      state: resumed ?? startPersonWalk(movement, origin, direction, randomPersonPause(Math.random)),
+      feetOffsetY: markerFeetOffsetY(object),
+      lastPose: { direction, walking: false },
+    };
+    this.personWalkers.set(object.key, walker);
+    if (resumed) {
+      if (resumed.x !== marker.x || resumed.y !== marker.y) marker.setPosition(resumed.x, resumed.y);
+      // El cuerpo nace de pie y de frente: se le da la pose que le toca.
+      walker.lastPose = { direction: null, walking: false };
+      this.applyPersonPose(walker, marker, resumed.direction, this.personShouldWalk(resumed));
+    }
+  }
+
+  /** ¿Debe verse caminando? Solo si va andando y el mundo no está en pausa ni se pidió reducir el movimiento. */
+  private personShouldWalk(state: PersonWalkState): boolean {
+    return state.walking && !this.motionPaused && !this.callbacks.reduceMotion;
+  }
+
+  /**
+   * La sala se reconstruye: guarda cómo iba cada persona que camina (si la sala es la misma, se retoma al registrarlas de
+   * nuevo) y vacía el registro. Una sala distinta no arrastra a las de la anterior.
+   */
+  private resetPersonWalkers(room: string): void {
+    const sameRoom = this.personWalkRoom === room;
+    this.savedPersonWalks = sameRoom && this.personWalkers.size > 0
+      ? new Map([...this.personWalkers].map(([key, walker]) => [key, walker.state]))
+      : null;
+    this.personWalkers.clear();
+    this.personWalkRoom = room;
+  }
+
+  /** Pausar el mundo deja de pie a quien caminaba (no mueve las piernas en su sitio); reanudar le devuelve la pose que le toca. */
+  private settlePersonWalkerPoses(): void {
+    for (const walker of this.personWalkers.values()) {
+      const marker = this.markers.get(walker.key);
+      if (marker) this.applyPersonPose(walker, marker, walker.state.direction, this.personShouldWalk(walker.state));
+    }
+  }
+
+  /**
+   * Mueve a las personas que caminan. Se detiene con cualquier capa abierta (diálogo, lectura, bitácora…: `motionPaused`) y
+   * con «Reducir movimiento» queda quieta en su sitio. Usa la colisión del jugador (`wouldCollide`, con los PIES de la
+   * persona) y trata al jugador como un obstáculo móvil.
+   */
+  private updatePersonWalkers(delta: number): void {
+    if (this.motionPaused || this.callbacks.reduceMotion || this.personWalkers.size === 0) return;
+    // Por donde camina: la zona que el encuadre de la sala deja al suelo (el resto es pared pintada) o, sin encuadre, toda la sala.
+    const zone = walkableZone(this.world?.map.ambient);
+    for (const walker of this.personWalkers.values()) {
+      const marker = this.markers.get(walker.key);
+      if (!marker) continue;
+      const feet = walker.feetOffsetY;
+      const bounds = personWalkBounds(
+        this.world?.map.width || AUTHORED_ROOM_WIDTH, this.world?.map.height || AUTHORED_ROOM_HEIGHT, undefined, zone, feet,
+      );
+      const env: PersonWalkEnv = {
+        bounds,
+        rand: Math.random,
+        blocked: (x, y, from) => this.wouldCollide(x, y + feet, walker.key)
+          || bodyBlocks({ x, y: y + feet }, { x: from.x, y: from.y + feet }, this.player ? { x: this.player.x, y: this.player.y } : null),
+      };
+      const next = tickPersonWalk(walker.state, delta, env);
+      walker.state = next;
+      if (next.x !== marker.x || next.y !== marker.y) marker.setPosition(next.x, next.y);
+      this.applyPersonPose(walker, marker, next.direction, next.walking);
+    }
+    this.syncKeyPersonIndicator();
+  }
+
+  /** Pose de la persona (dirección + caminando) solo si cambió, como el jugador y las personas del escenario. */
+  private applyPersonPose(walker: PersonWalker, marker: Phaser.GameObjects.Container, direction: PlayerDirection, walking: boolean): void {
+    if (walker.lastPose.direction === direction && walker.lastPose.walking === walking) return;
+    walker.lastPose = { direction, walking };
+    const bag = marker as unknown as Record<string, unknown>;
+    const sprite = bag['__personSprite'] as Phaser.GameObjects.Sprite | undefined;
+    const visual = bag['__personVisual'] as CharacterVisual | undefined;
+    if (sprite && visual) playKitPose(sprite, visual, direction, walking, this.callbacks.reduceMotion);
+  }
+
+  /** «Reducir movimiento» (también en caliente): cada persona vuelve a su sitio original, de pie, y queda quieta. */
+  private restPersonWalkers(): void {
+    for (const walker of this.personWalkers.values()) {
+      const { origin, movement, direction } = walker.state;
+      walker.state = startPersonWalk(movement, origin, direction, PERSON_PAUSE_MIN_MS);
+      const marker = this.markers.get(walker.key);
+      if (!marker) continue;
+      marker.setPosition(origin.x, origin.y);
+      this.applyPersonPose(walker, marker, direction, false);
+    }
+    this.syncKeyPersonIndicator();
+  }
+
+  /** Clave de la persona clave de la sala: la primera de la lista con `metadata.personaClave === true`. */
+  private keyPersonKey(): string | null {
+    return this.world ? resolveKeyPerson(this.world.objects)?.key ?? null : null;
+  }
+
+  /**
+   * Chevrón + nombre sobre la cabeza de la persona clave (P6): siempre visible, no solo cuando es la más cercana. Color
+   * #B69CFF con halo oscuro; la forma y el nombre dicen lo mismo que el color. Estático (no se anima).
+   */
+  private buildKeyPersonIndicator(marker: { x: number; y: number }, object: MapObjectState): void {
+    if (!isKeyPerson(object) || object.key !== this.keyPersonKey()) return;
+    const { halfWidth, height } = KEY_PERSON_CHEVRON;
+    const chevron = this.add.graphics();
+    chevron.fillStyle(KEY_PERSON_COLOR_HEX, 1);
+    chevron.fillTriangle(-halfWidth, -height, halfWidth, -height, 0, 0);
+    chevron.lineStyle(2, KEY_PERSON_HALO_HEX, 0.9);
+    chevron.strokeTriangle(-halfWidth, -height, halfWidth, -height, 0, 0);
+    const label = getSceneDisplayLabel(object, this.world?.map.key);
+    const name = this.add.text(0, -(height + KEY_PERSON_NAME_GAP_PX), label, {
+      fontFamily: WORLD_FONT_FAMILY, fontSize: `${LABEL_BASE_FONT_PX}px`, color: KEY_PERSON_COLOR, fontStyle: 'bold',
+      backgroundColor: 'rgba(8,12,18,.85)', padding: { x: 5, y: 3 }, align: 'center',
+    }).setOrigin(0.5, 1);
+    const tipOffsetY = keyPersonTipOffsetY(markerFeetOffsetY(object));
+    const container = this.add.container(marker.x, marker.y + tipOffsetY, [chevron, name])
+      .setDepth(LABEL_DEPTH)
+      .setScale(this.labelScale);
+    this.keyPersonIndicator = { key: object.key, container, tipOffsetY };
+    this.callbacks.onKeyPersonIndicator?.(label);
+    this.reportKeyPersonPosition(marker);
+  }
+
+  /** Avisa dónde está la persona clave (al píxel) solo cuando cambia: un cuadro sin moverla no cuesta nada. `null`: la sala no la tiene. */
+  private reportKeyPersonPosition(marker: { x: number; y: number } | null): void {
+    const notify = this.callbacks.onKeyPersonPosition;
+    if (!notify) return;
+    const next = marker ? { x: Math.round(marker.x), y: Math.round(marker.y) } : null;
+    const last = this.lastKeyPersonPosition;
+    if (next === last || (next && last && next.x === last.x && next.y === last.y)) return;
+    this.lastKeyPersonPosition = next;
+    notify(next);
+  }
+
+  /** El indicador acompaña a la persona clave cuando camina. */
+  private syncKeyPersonIndicator(): void {
+    const indicator = this.keyPersonIndicator;
+    const marker = indicator ? this.markers.get(indicator.key) : undefined;
+    if (!indicator || !marker) return;
+    this.reportKeyPersonPosition(marker);
+    const y = marker.y + indicator.tipOffsetY;
+    if (indicator.container.x !== marker.x || indicator.container.y !== y) indicator.container.setPosition(marker.x, y);
   }
 
   private updateAmbientMovers(time: number, delta: number) {
@@ -2246,8 +2606,8 @@ export class DataDrivenWorldScene extends Phaser.Scene {
    * persistida nunca se queda atrás en silencio y las acciones validadas por
    * proximidad no fallan con "demasiado lejos".
    */
-  private wouldCollide(x: number, y: number): boolean {
-    if (this.world && serverRejectsPlayerAt(this.world, x, y)) return true;
+  private wouldCollide(x: number, y: number, ignoreObjectKey?: string): boolean {
+    if (this.world && serverRejectsPlayerAt(this.world, x, y, ignoreObjectKey)) return true;
     const hb = playerHitbox(x, y);
     if (this.wallsLayer) {
       const corners = [
@@ -2302,6 +2662,8 @@ export class DataDrivenWorldScene extends Phaser.Scene {
     for (const [key, marker] of this.markers) {
       const obj = this.markerData.get(key);
       if (!obj) continue;
+      // Un mueble (PROP) y lo que no tiene comportamiento se dibujan, pero no entran en la prioridad de interacción.
+      if (!participatesInInteraction(obj)) continue;
       const c = this.candidateAt(list.length);
       c.key = key; c.kind = 'marker'; c.exit = obj.type === 'EXIT';
       c.distance = Math.hypot(px - marker.x, py - marker.y); c.radius = MARKER_INTERACT_RADIUS;
@@ -2396,6 +2758,7 @@ export class DataDrivenWorldScene extends Phaser.Scene {
    */
   private refreshMarkerStates() {
     this.syncLabelScale();
+    this.syncProximityAnimations();
     const revealed = this.revealed;
     this.syncTargetRing();
     this.applyDoorStates();
@@ -2415,7 +2778,7 @@ export class DataDrivenWorldScene extends Phaser.Scene {
       label.setAlpha(shown ? 1 : 0);
       if (shown) {
         this.placeLabel(key);
-        if (this.ambientMovers.has(key)) this.followLabels.push(key);
+        if (this.markerMoves(key)) this.followLabels.push(key);
       }
     });
     this.doorHints.forEach((h, key) => h.setVisible(key === this.nearestKey || revealed.includes(key)));
@@ -2454,6 +2817,7 @@ export class DataDrivenWorldScene extends Phaser.Scene {
     this.labelWrap = Math.min(140, (LABEL_MAX_SCREEN_WIDTH_PX * displayScale) / (zoom * next));
     this.markerLabels.forEach(label => label.setScale(next).setWordWrapWidth(this.labelWrap));
     this.hoverLabel?.setScale(next);
+    this.keyPersonIndicator?.container.setScale(next);
     this.doorHints.forEach(hint => { hint.setScale(next); this.placeDoorHint(hint); });
     this.npcMarkers.forEach(container => {
       const bag = container as unknown as Record<string, unknown>;
@@ -2678,7 +3042,7 @@ export class GameWorldComponent implements OnChanges, OnDestroy {
     if (!nearby) return null;
     const state = nearby.type === 'EXIT' ? this.doorStates()[nearby.key] : undefined;
     const door = state ? { state, missing: [], stageLocked: false, message: null } : null;
-    return interactionVerb(nearby, door).text;
+    return interactionVerb(nearby, door)?.text ?? null;
   });
   /** Personas con las que ya se habló (claves de persona): lo ya examinado se resalta con el ratón aunque esté lejos. */
   readonly viewedNpcKeys = input<ReadonlySet<string>>(NO_KEYS);
@@ -2692,8 +3056,10 @@ export class GameWorldComponent implements OnChanges, OnDestroy {
   readonly motionPaused = input(false);
   readonly sfxMuted = input(false);
   readonly reduceMotion = input<boolean | null>(null);
-  /** stressIndex del intento (0-100): mueve la viñeta de crisis. */
-  readonly stressLevel = input(0);
+  /** Activación de la persona (serena, tensa o en crisis): mueve la viñeta de crisis. */
+  readonly activation = input<Activation>('CALM');
+  /** Intensidad de la escena: una escena de intensidad alta oscurece un poco la viñeta. */
+  readonly intensity = input<Intensity>('MEDIUM');
   /** Siguiente destino del proceso (clave de objeto o `npc:{clave}`): lleva el anillo y el rótulo fijo. */
   readonly nextTargetKey = input<string | null>(null);
   /** Estado vivo de cada puerta por clave: la bloqueada lleva candado y borde discontinuo en su rótulo. */
@@ -2708,6 +3074,11 @@ export class GameWorldComponent implements OnChanges, OnDestroy {
    */
   readonly showLoader = input(true);
   /** Primer cuadro pintado del mapa actual: el anfitrión retira su indicador de carga. */
+  /**
+   * Retrato de la persona consultante del caso (la receta de la paciente), para que el HUD la muestre con la expresión
+   * de su estado. `null` si el kit no la trae: el HUD dice la persona solo con palabras.
+   */
+  readonly patientVisual = output<CharacterVisual | null>();
   readonly worldReady = output<void>();
   /** Candidato PRINCIPAL en rango; un NPC llega como `MapObjectState` sintético con key `npc:{clave}`. */
   readonly proximity = output<MapObjectState | null>();
@@ -2743,6 +3114,7 @@ export class GameWorldComponent implements OnChanges, OnDestroy {
   private detachScrollKeyGuard?: () => void;
 
   private readonly kit = inject(KitService);
+  private readonly bibliotecaManifest = inject(BibliotecaManifestService);
   /** El componente se destruyó mientras llegaba el paquete del kit. */
   private destroyed = false;
   private booting = false;
@@ -2790,7 +3162,7 @@ export class GameWorldComponent implements OnChanges, OnDestroy {
     if (changes['motionPaused']) this.scene?.setMotionPaused(this.motionPaused());
     if (changes['sfxMuted']) this.scene?.setSfxMuted(this.sfxMuted());
     if (changes['reduceMotion']) this.scene?.setReduceMotion(this.effectiveReduceMotion());
-    if (changes['stressLevel']) this.scene?.setStressLevel(this.stressLevel());
+    if (changes['activation'] || changes['intensity']) this.scene?.setPersonaScene(this.activation(), this.intensity());
     if (changes['compact']) this.scene?.setCompactLabels(this.compact());
     if (changes['nextTargetKey'] || changes['doorStates'] || changes['dimmedKeys']) this.pushOrientation();
   }
@@ -2881,6 +3253,35 @@ export class GameWorldComponent implements OnChanges, OnDestroy {
   /** Camina hasta una de ellas; false si ya no está (cambió la sala). */
   walkToKey(key: string): boolean { return this.scene?.walkToKey(key) ?? false; }
 
+  /** Qué anima por cercanía y el cuadro de cada objeto con hoja, como `data-proximity` (JSON) del host: contrato del e2e. Directo al DOM. */
+  private writeProximityAnimation(report: ProximityReport): void {
+    const host = this.gameHost?.nativeElement;
+    if (!host) return;
+    if (Object.keys(report.frames).length === 0) host.removeAttribute('data-proximity');
+    else host.setAttribute('data-proximity', JSON.stringify(report));
+  }
+
+  /** El nombre que lleva el indicador de la persona a atender, como `data-key-person` del host (contrato del e2e). Directo al DOM. */
+  private writeKeyPerson(name: string | null): void {
+    const host = this.gameHost?.nativeElement;
+    if (!host) return;
+    if (name === null) host.removeAttribute('data-key-person');
+    else host.setAttribute('data-key-person', name);
+  }
+
+  /** Dónde está ahora la persona a atender, como `data-key-person-x/y` del host (contrato del e2e, igual que `data-player-x/y`). Directo al DOM. */
+  private writeKeyPersonPosition(position: { x: number; y: number } | null): void {
+    const host = this.gameHost?.nativeElement;
+    if (!host) return;
+    if (position === null) {
+      host.removeAttribute('data-key-person-x');
+      host.removeAttribute('data-key-person-y');
+    } else {
+      host.setAttribute('data-key-person-x', String(position.x));
+      host.setAttribute('data-key-person-y', String(position.y));
+    }
+  }
+
   /** Qué tiene el puntero encima, como `data-world-hover` del host (contrato del e2e: el contorno y el cursor viven en
    *  el lienzo). Directo al DOM: cambia con el puntero y no debe disparar la detección de cambios. */
   private writeHover(key: string | null): void {
@@ -2916,8 +3317,8 @@ export class GameWorldComponent implements OnChanges, OnDestroy {
     this.scene?.transitionToRoom(targetRoomKey, entryX, entryY);
   }
   playRevealEffects() { this.scene?.playRevealEffects(); }
-  updatePatientVisualState(state: import('../../core/models/simulation.model').PatientState) {
-    this.scene?.updatePatientVisualState(state);
+  updatePatientVisualState(persona: Persona) {
+    this.scene?.updatePatientVisualState(persona);
   }
 
   private boot() {
@@ -2926,21 +3327,30 @@ export class GameWorldComponent implements OnChanges, OnDestroy {
     // El paquete del kit llega antes que Phaser; si falla, el juego arranca igual y los
     // actores caen a su marcador (KitService lo reintenta en el próximo boot).
     // También se espera a Poppins (con plazo): Phaser mide el texto al crearlo y con la fuente aún sin cargar queda mal medido.
+    // El manifiesto del arte de la biblioteca viaja igual: si no llega, el juego sigue sin animaciones de cercanía.
     Promise.all([
       this.kit.load().then(bundle => bundle, () => null),
+      this.bibliotecaManifest.load(),
       whenWorldFontsReady(),
-    ]).then(([bundle]) => {
+    ]).then(([bundle, manifest]) => {
       this.booting = false;
-      if (!this.destroyed && this.gameHost && !this.phaserGame) this.startGame(bundle);
+      if (!this.destroyed) this.emitPatientVisual(bundle);
+      if (!this.destroyed && this.gameHost && !this.phaserGame) this.startGame(bundle, manifest);
     });
   }
 
-  private startGame(kit: KitBundle | null) {
+  private emitPatientVisual(bundle: KitBundle | null): void {
+    const visual = bundle ? resolveCharacter(bundle, { kind: 'receta', recipeId: PATIENT_RECIPE_ID }) : null;
+    this.patientVisual.emit(visual?.recipeId === PATIENT_RECIPE_ID ? visual : null);
+  }
+
+  private startGame(kit: KitBundle | null, artManifest: BibliotecaManifest | null) {
     const reduceMotion = this.effectiveReduceMotion();
     this.zone.runOutsideAngular(() => {
       this.scene = new DataDrivenWorldScene({
         reduceMotion,
         kit,
+        artManifest,
         onReady:       () => this.zone.run(() => {
           this.clearBootWatchdog();
           this.renderedMapKey.set(this.world()?.map.key ?? null);
@@ -2961,12 +3371,16 @@ export class GameWorldComponent implements OnChanges, OnDestroy {
           this.zone.run(() => this.enterRoom.emit({ targetNodeKey, entryX, entryY })),
         onNpcInteract: npc => this.zone.run(() => this.npcInteract.emit(npc)),
         onHover:       key => this.writeHover(key),
+        onProximityAnimation: report => this.writeProximityAnimation(report),
+        onKeyPersonIndicator: name => this.writeKeyPerson(name),
+        onKeyPersonPosition: position => this.writeKeyPersonPosition(position),
         onWalkEnded:   (key, label, outcome) => this.zone.run(() => this.walkEnded.emit({ key, label, outcome })),
         onLoadProgress: percent => this.zone.run(() => {
           this.loadPercent.set(percent);
           // Una carga que avanza no está colgada: el plazo cuenta desde el último avance, no desde el arranque.
           if (!this.renderReady()) this.armBootWatchdog();
         }),
+        onArtLoading: () => this.onArtLoading(),
         onLoadComplete: failures => this.zone.run(() => {
           this.loadPercent.set(100);
           this.assetsReady.set(true);
@@ -2975,7 +3389,7 @@ export class GameWorldComponent implements OnChanges, OnDestroy {
         }),
         sfxMuted: this.sfxMuted(),
       });
-      this.scene.setStressLevel(this.stressLevel());
+      this.scene.setPersonaScene(this.activation(), this.intensity());
       this.armBootWatchdog();
       this.phaserGame = new Phaser.Game({
         // PHA-5 (E5-8): se mantiene Phaser.AUTO (WebGL preferido con caída a Canvas 2D) para soportar equipos de aula
@@ -3012,6 +3426,11 @@ export class GameWorldComponent implements OnChanges, OnDestroy {
       this.pushExamined();
       this.pushOrientation();
     }, 0);
+  }
+
+  /** La segunda ola de carga (arte de la biblioteca) sigue viva: mientras la primera pintura la espera, el vigilante se reanuda. */
+  onArtLoading(): void {
+    if (!this.destroyed && !this.renderReady()) this.armBootWatchdog();
   }
 
   /** Si en `BOOT_WATCHDOG_MS` el mundo no se pintó, avisa: el indicador de carga no puede quedar eterno. */

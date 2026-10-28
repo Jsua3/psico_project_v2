@@ -17,6 +17,8 @@ from rest_framework.exceptions import ValidationError
 
 from apps.grupos.models import Grupo, CaseAssignment, GrupoEstudiante
 from apps.simulation.models import (
+    REGISTERED_DECISION_EVENT_TYPES,
+    RETRY_EVENT_TYPES,
     AttemptEvent,
     CaseVersion,
     DecisionOption,
@@ -24,7 +26,7 @@ from apps.simulation.models import (
     SimulationAttempt,
 )
 from apps.simulation.models.rubric import AuditLog
-from apps.simulation.services import case_effects, game_service
+from apps.simulation.services import game_service
 from shared.testing import measure, purge_audit_rows, run_concurrently
 
 from .test_world import _move, _start, case_version_id, cl, estudiante  # noqa: F401  (fixtures)
@@ -33,8 +35,8 @@ pytestmark = [pytest.mark.req("RNF-08"), pytest.mark.req("TD-04")]
 
 BASE = "/api/simulation"
 User = get_user_model()
-RETRY = case_effects.RETRY_EVENT_TYPES
-REGISTERED = case_effects.REGISTERED_DECISION_EVENT_TYPES
+RETRY = RETRY_EVENT_TYPES
+REGISTERED = REGISTERED_DECISION_EVENT_TYPES
 
 
 def _decide(client, attempt_id, token, option_id, **extra):
@@ -45,10 +47,13 @@ def _decide(client, attempt_id, token, option_id, **extra):
     )
 
 
+#: La clasificación del taller que el caso sembrado le daba a cada clase: solo la Recomendada es ``ADEQUATE``.
+_CLASSES_OF = {"ADEQUATE": ("RECOMMENDED",), "RISKY": ("ACCEPTABLE", "RISKY"), "INADEQUATE": ("CONTRAINDICATED",)}
+
+
 def _option(node_id, *classifications):
-    return DecisionOption.objects.filter(
-        source_node_id=node_id, classification__in=classifications
-    ).order_by("id").first()
+    classes = [name for classification in classifications for name in _CLASSES_OF[classification]]
+    return DecisionOption.objects.filter(source_node_id=node_id, response_class__in=classes).order_by("id").first()
 
 
 def _events(attempt_id, *types):
@@ -89,8 +94,8 @@ def test_un_doble_clic_sobre_una_opcion_riesgosa_no_gasta_la_segunda_oportunidad
 
     assert first.status_code == second.status_code == 200
     assert second.data["data"] == first.data["data"]
-    assert first.data["data"]["feedback"]["retryRequired"] is True
-    assert first.data["data"]["currentNode"]["key"] == node["key"]
+    assert first.data["data"]["retry"]["allowed"] is True
+    assert first.data["data"]["attempt"]["currentNode"]["key"] == node["key"]
     assert len(_events(attempt_id, *RETRY)) == 1
     assert _events(attempt_id, *REGISTERED) == []
 
@@ -100,8 +105,8 @@ def test_un_doble_clic_sobre_una_opcion_riesgosa_no_gasta_la_segunda_oportunidad
     third = _decide(c, attempt_id, token, bad.id)
 
     assert third.status_code == 200
-    assert third.data["data"]["feedback"]["retryRequired"] is False
-    assert third.data["data"]["currentNode"]["key"] != node["key"]
+    assert "retry" not in third.data["data"]
+    assert third.data["data"]["attempt"]["currentNode"]["key"] != node["key"]
     assert len(_events(attempt_id, *REGISTERED)) == 1
 
 
@@ -118,7 +123,7 @@ def test_un_doble_clic_con_un_request_id_por_clic_tampoco_gasta_la_segunda_oport
 
     assert first.status_code == second.status_code == 200
     assert second.data["data"] == first.data["data"]
-    assert first.data["data"]["feedback"]["retryRequired"] is True
+    assert first.data["data"]["retry"]["allowed"] is True
     assert len(_events(attempt_id, *RETRY)) == 1
     assert _events(attempt_id, *REGISTERED) == []
 
@@ -135,9 +140,9 @@ def test_con_request_id_distintos_y_pasada_la_ventana_la_respuesta_es_deliberada
     monkeypatch.setattr(timezone, "now", lambda: real_now() + timedelta(seconds=5))
     second = _decide(c, attempt_id, token, bad.id, requestId="req-segunda-resp")
 
-    assert first.data["data"]["feedback"]["retryRequired"] is True
-    assert second.data["data"]["feedback"]["retryRequired"] is False
-    assert second.data["data"]["currentNode"]["key"] != node["key"]
+    assert first.data["data"]["retry"]["allowed"] is True
+    assert "retry" not in second.data["data"]
+    assert second.data["data"]["attempt"]["currentNode"]["key"] != node["key"]
 
 
 def test_un_request_id_reutilizado_con_otra_opcion_responde_409(estudiante, case_version_id):
@@ -191,12 +196,10 @@ def test_usar_la_herramienta_con_el_mismo_request_id_deja_un_evento_y_la_misma_r
     second = c.post(f"{BASE}/attempts/{attempt_id}/tools/use", body, format="json")
 
     assert first.status_code == second.status_code == 200
-    assert first.data["data"]["stressDelta"] == 3
-    assert second.data["data"]["stressDelta"] == first.data["data"]["stressDelta"]
+    assert "stressDelta" not in first.data["data"] and "stressDelta" not in second.data["data"]
     assert second.data["data"]["alreadyUsed"] is False
     assert second.data["data"]["pertinent"] == first.data["data"]["pertinent"]
     assert len(_events(attempt_id, "TOOL_USED")) == 1
-    assert SimulationAttempt.objects.get(pk=attempt_id).stress_index == 3
 
 
 def test_guardar_la_bitacora_con_el_mismo_request_id_deja_un_evento_y_la_misma_respuesta(
@@ -256,7 +259,7 @@ def test_dos_hilos_con_la_misma_decision_riesgosa_registran_un_solo_reintento(co
     outcomes = run_concurrently(decide, decide)
 
     assert [o.error for o in outcomes] == [None, None]
-    assert [o.value["feedback"]["retryRequired"] for o in outcomes] == [True, True]
+    assert [o.value["retry"]["allowed"] for o in outcomes] == [True, True]
     assert len(_events(a.attempt_id, *RETRY)) == 1
     assert _events(a.attempt_id, *REGISTERED) == []
     assert SimulationAttempt.objects.get(pk=a.attempt_id).current_node_id == a.node["id"]
@@ -274,7 +277,8 @@ def test_dos_hilos_con_el_mismo_request_id_registran_una_sola_decision(committed
     outcomes = run_concurrently(decide, decide)
 
     assert [o.error for o in outcomes] == [None, None]
-    assert outcomes[0].value["accumulatedScore"] == outcomes[1].value["accumulatedScore"] == good.score_delta
+    assert outcomes[0].value["consequence"] == outcomes[1].value["consequence"]
+    assert set(outcomes[0].value) == set(outcomes[1].value) == {"attempt", "consequence"}
     assert len(_events(a.attempt_id, *REGISTERED)) == 1
 
 
@@ -292,10 +296,10 @@ def test_dos_pestanas_con_la_misma_decision_avanzan_una_sola_vez(committed_attem
     outcomes = run_concurrently(decide("req-pestana-uno-1"), decide("req-pestana-dos-2"))
 
     assert [o.error for o in outcomes] == [None, None]
-    assert outcomes[0].value["currentNode"]["id"] == outcomes[1].value["currentNode"]["id"] == good.target_node_id
-    assert len(_events(a.attempt_id, *REGISTERED)) == 1
+    nodes = [o.value["attempt"]["currentNode"]["id"] for o in outcomes]
+    assert nodes == [good.target_node_id, good.target_node_id]
+    assert len(_events(a.attempt_id, *REGISTERED)) == 1  # los efectos se aplicaron una sola vez
     attempt = SimulationAttempt.objects.get(pk=a.attempt_id)
-    assert attempt.accumulated_score == good.score_delta  # los efectos se aplicaron una sola vez
     assert attempt.current_node_id == good.target_node_id
 
 
@@ -303,7 +307,7 @@ def test_dos_decisiones_distintas_a_la_vez_desde_el_mismo_nodo_se_serializan(com
     """Con el cerrojo, la segunda orden lee el estado que dejó la primera: una opción que ya no
     está disponible desde la escena actual se rechaza (sin cerrojo, ambas avanzarían)."""
     a = committed_attempt
-    options = list(DecisionOption.objects.filter(source_node_id=a.node["id"], classification="ADEQUATE")[:1])
+    options = list(DecisionOption.objects.filter(source_node_id=a.node["id"], response_class="RECOMMENDED")[:1])
     other = DecisionOption.objects.filter(source_node_id=a.node["id"]).exclude(pk=options[0].pk).first()
     # Se aplana el reintento: sin segunda oportunidad la otra opción también avanza el intento.
     # Se conserva el resto de las reglas (métricas y finales del caso) y se restauran tal cual al

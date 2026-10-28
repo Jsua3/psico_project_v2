@@ -267,7 +267,7 @@ def test_llegar_a_un_nodo_terminal_completa_el_intento_y_lo_cierra(intentos):
             _body(attempt, decisionOptionId=option["id"]), format="json",
         )
         assert resp.status_code == 200, resp.data
-        state = resp.data["data"]
+        state = resp.data["data"]["attempt"]
 
     row = SimulationAttempt.objects.get(pk=attempt["attemptId"])
     assert row.status == "COMPLETED"

@@ -74,14 +74,11 @@ function makeAttempt(nodeKey = 'hospital-urgencias', overrides: Record<string, u
     caseVersionId: CASE_VERSION_ID,
     caseTitle: 'Caso demo',
     status: 'IN_PROGRESS',
-    accumulatedScore: 0,
-    stressIndex: 0,
-    metrics: { victimRisk: 50 },
+    persona: { bond: 'GUARDED', activation: 'TENSE', label: 'se muestra cautelosa y tensa' },
     currentNode: {
       id: 1, key: nodeKey, title: 'Título del nodo', narrative: 'Primera frase. Segunda frase.', terminal: false,
       options: [{ id: 101, text: 'Opción' }],
     },
-    feedback: null,
     completionReport: null,
     ...overrides,
   } as unknown as SimulationAttemptState;
@@ -113,7 +110,7 @@ describe('SimulationPlayComponent: orientación integrada', () => {
       useTool: vi.fn(() => EMPTY),
     };
     audio = {
-      init: vi.fn(), setStressLevel: vi.fn(), isMusicMuted: vi.fn(() => false), isSfxMuted: vi.fn(() => false),
+      init: vi.fn(), setScene: vi.fn(), isMusicMuted: vi.fn(() => false), isSfxMuted: vi.fn(() => false),
       dispose: vi.fn(), stopIntroLament: vi.fn(), playIntroLament: vi.fn(), playSfx: vi.fn(),
       toggleMusicMuted: vi.fn(() => false), playResolution: vi.fn(),
     };
@@ -860,19 +857,13 @@ describe('SimulationPlayComponent: orientación integrada', () => {
     });
   });
 
-  describe('T9.11: supervisión sin números y herramienta sin «+0%»', () => {
-    const feedback = (extra: Record<string, unknown> = {}) => ({
-      classification: 'ADEQUATE', scoreDelta: 12, stressDelta: -5, trustDelta: 10, victimRiskDelta: -5,
-      prohibitedConduct: false, institutionalRouteActivated: false, revictimizationRisk: false,
-      message: 'La decisión quedó registrada.', prohibitionReason: null, retryRequired: false, ...extra,
-    });
-
-    /** La respuesta de decidir (C2): la consecuencia narrativa y, si la regla lo concede, el reintento. */
-    function decide(fb: Record<string, unknown>, retry: unknown = null): DialogueState | null {
+  describe('T9.11: supervisión sin números y herramienta sin cifras', () => {
+    /** La respuesta de decidir (C2): el estado del intento, la consecuencia narrativa y, si la regla lo concede, el reintento. */
+    function decide(retry: unknown = null, attemptOverrides: Record<string, unknown> = {}): DialogueState | null {
       component.attempt.set(makeAttempt('nodo-sin-evidencia'));
       component.world.set(makeWorld('hospital-urgencias', []));
       sim['chooseDecision'].mockReturnValue(of({
-        ...makeAttempt('nodo-sin-evidencia', { feedback: fb }),
+        ...makeAttempt('nodo-sin-evidencia', attemptOverrides),
         consequence: retry ? null : { text: 'La estudiante asiente y pregunta por su familia.', source: 'OPTION' },
         retry,
       }));
@@ -888,7 +879,7 @@ describe('SimulationPlayComponent: orientación integrada', () => {
     }
 
     it('la consecuencia se lee con el aviso de que quedó registrada en el seguimiento, sin puntaje ni cifras', () => {
-      const dialogue = decide(feedback());
+      const dialogue = decide();
       const lines = dialogue?.lines.map(line => line.text) ?? [];
 
       expect(dialogue?.speakerName).toBe('Consecuencia');
@@ -897,11 +888,8 @@ describe('SimulationPlayComponent: orientación integrada', () => {
       expect(lines.join(' ')).not.toMatch(/Puntaje|Confianza|Riesgo|Estrés|\d/);
     });
 
-    it('con una primera respuesta que no se aplica muestra el texto del reintento, no el mensaje evaluativo', () => {
-      const dialogue = decide(
-        feedback({ classification: 'RISKY', retryRequired: true, message: 'Decisión con riesgo: revisa.' }),
-        { allowed: true, message: 'Decisión con riesgo: revisa.' },
-      );
+    it('con una primera respuesta que no se aplica muestra el texto del reintento, no un mensaje evaluativo', () => {
+      const dialogue = decide({ allowed: true, message: 'Decisión con riesgo: revisa.' });
       const lines = dialogue?.lines.map(line => line.text) ?? [];
 
       expect(lines.join(' ')).toContain('No se avanzó el caso');
@@ -909,26 +897,83 @@ describe('SimulationPlayComponent: orientación integrada', () => {
       expect(lines).not.toContain('Tu decisión quedó registrada en tu seguimiento formativo.');
     });
 
-    function useToolWith(stressDelta: number): DialogueState | null {
+    function useTool(): DialogueState | null {
       startInUrgencias();
       component.selectedInteraction.set(urgenciasObjects().find(o => o.key === 'familia-crisis')!);
       sim['useTool'].mockReturnValue(of({
         world: makeWorld('hospital-urgencias', urgenciasObjects(), { usedToolKeys: ['PAP'] }),
-        toolCode: 'PAP', targetKey: 'familia-crisis', pertinent: true, stressDelta, feedbackMessage: 'La familia escucha con más calma.',
+        toolCode: 'PAP', targetKey: 'familia-crisis', pertinent: true, feedbackMessage: 'La familia escucha con más calma.',
       }));
       component.useTool('PAP');
       return component.dialogue();
     }
 
-    it('un cambio de estrés de 0 no se anuncia como «Estrés +0%»', () => {
-      const lines = useToolWith(0)?.lines.map(line => line.text) ?? [];
+    it('la herramienta dice solo su mensaje: sin línea de estrés ni pulso, y no toca el intento', () => {
+      const lines = useTool()?.lines.map(line => line.text) ?? [];
 
       expect(lines).toEqual(['La familia escucha con más calma.']);
+      expect(component.attempt()).toEqual(makeAttempt());
+      expect((component as any).stressPulse).toBeUndefined();
+    });
+  });
+
+  describe('anuncio del cambio de la persona (VD-23)', () => {
+    const persona = (bond: string, activation: string) => ({ bond, activation, label: 'x' });
+    let announced: Mock;
+
+    beforeEach(() => {
+      announced = vi.fn();
+      (component as any).announce = announced;
     });
 
-    it('un cambio real de estrés sí se informa, con su signo', () => {
-      expect(useToolWith(-4)?.lines.map(line => line.text)).toEqual(['La familia escucha con más calma.', 'Estrés -4%']);
-      expect(useToolWith(3)?.lines.map(line => line.text)).toEqual(['La familia escucha con más calma.', 'Estrés +3%']);
+    it('la primera carga del intento no anuncia nada', () => {
+      (component as any).trackPersona(makeAttempt('a', { persona: persona('GUARDED', 'TENSE') }));
+      expect(announced).not.toHaveBeenCalled();
+    });
+
+    it('si la activación baja se anuncia UNA vez, con el texto del borrador, y repetir el mismo estado no vuelve a anunciar', () => {
+      const t = (component as any).trackPersona.bind(component);
+      t(makeAttempt('a', { persona: persona('GUARDED', 'TENSE') }));
+      t(makeAttempt('a', { persona: persona('GUARDED', 'CALM') }));
+      t(makeAttempt('a', { persona: persona('GUARDED', 'CALM') }));
+
+      expect(announced).toHaveBeenCalledTimes(1);
+      expect(announced).toHaveBeenCalledWith('La persona se muestra más tranquila.');
+    });
+
+    it('si cambian el vínculo y la activación se dicen en una sola frase', () => {
+      const t = (component as any).trackPersona.bind(component);
+      t(makeAttempt('a', { persona: persona('GUARDED', 'TENSE') }));
+      t(makeAttempt('a', { persona: persona('OPEN', 'CALM') }));
+
+      expect(announced).toHaveBeenCalledTimes(1);
+      expect(announced).toHaveBeenCalledWith('La persona se muestra más tranquila y se abre un poco más.');
+    });
+
+    it('un intento distinto solo recuerda la persona: no anuncia', () => {
+      const t = (component as any).trackPersona.bind(component);
+      t(makeAttempt('a', { persona: persona('GUARDED', 'TENSE') }));
+      t(makeAttempt('a', { attemptId: 'attempt-2', persona: persona('OPEN', 'CALM') }));
+
+      expect(announced).not.toHaveBeenCalled();
+    });
+
+    it('al decidir, si la respuesta trae otra persona, se anuncia una sola vez', () => {
+      component.attempt.set(makeAttempt('nodo-sin-evidencia'));
+      (component as any).trackPersona(component.attempt());
+      component.world.set(makeWorld('hospital-urgencias', []));
+      sim['chooseDecision'].mockReturnValue(of({
+        ...makeAttempt('nodo-sin-evidencia', { persona: persona('GUARDED', 'CALM') }),
+        consequence: { text: 'La persona respira.', source: 'OPTION' },
+        retry: null,
+      }));
+      sim['getWorld'].mockReturnValue(of(makeWorld('hospital-urgencias', [])));
+      sim['getScenarioConfig'].mockReturnValue(of({ scenarioKey: 'x', startRoomKey: 'x', rooms: [] }));
+      component.executeDecision(101);
+      tick(340); tick(100); tick(400);
+
+      const calls = announced.mock.calls.filter(args => /^La persona /.test(String(args[0])));
+      expect(calls).toEqual([['La persona se muestra más tranquila.']]);
     });
   });
 

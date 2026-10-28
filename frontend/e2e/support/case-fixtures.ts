@@ -161,7 +161,7 @@ const DEFAULT_DESCRIPTION = 'Caso de prueba: una decisión de dos opciones que l
  * de DOS opciones (OCL-02), cada una con su retroalimentación escrita (E3: sin ella es un aviso de validación) y un objeto
  * del mapa que la ofrece (`WORLD.OPTION_WITHOUT_TRIGGER`: una opción que ningún diálogo ni objeto ofrece no se puede
  * elegir), la descripción del caso (OCL-07), un mapa por escena, una salida segura y la lista de publicación al 100 %.
- * Sin errores ni avisos de validación. Lo comparten las pruebas que necesitan un caso publicable (`createPublishedCase`
+ * Sin errores de validación (y dos avisos de plantilla: no alcanza dos finales con una sola decisión). Lo comparten las pruebas que necesitan un caso publicable (`createPublishedCase`
  * y la revisión del caso).
  */
 export async function buildPublishableDraft(
@@ -179,13 +179,13 @@ export async function buildPublishableDraft(
   }, 'escena final');
   const closingId: number = withClosing['nodes'].find((node: Json) => node['key'] === 'cierre')['id'];
   await send(request, token, 'post', `${base}/${id}/decisions`, {
-    sourceNodeId: startId, targetNodeId: closingId, optionKey: 'cerrar', text: 'Cerrar el caso', classification: 'ADEQUATE',
-    prohibitedConduct: false, prohibitionReason: null, scoreDelta: 10, stressDelta: 0, prohibitedPenalty: 0,
+    sourceNodeId: startId, targetNodeId: closingId, optionKey: 'cerrar', text: 'Cerrar el caso', responseClass: 'RECOMMENDED',
+    prohibitedConduct: false, prohibitionReason: null,
     immediateFeedback: 'Cerrar el caso es adecuado en este ejemplo.',
   }, 'decisión');
   const withOptions = await send(request, token, 'post', `${base}/${id}/decisions`, {
-    sourceNodeId: startId, targetNodeId: closingId, optionKey: 'postergar', text: 'Dejar el caso para después', classification: 'RISKY',
-    prohibitedConduct: false, prohibitionReason: null, scoreDelta: -5, stressDelta: 5, prohibitedPenalty: 0,
+    sourceNodeId: startId, targetNodeId: closingId, optionKey: 'postergar', text: 'Dejar el caso para después', responseClass: 'RISKY',
+    prohibitedConduct: false, prohibitionReason: null,
     immediateFeedback: 'Postergar el cierre deja el caso abierto sin necesidad.',
   }, 'segunda opción de la decisión');
   const optionIds: number[] = withOptions['decisions'].map((decision: Json) => decision['id']);

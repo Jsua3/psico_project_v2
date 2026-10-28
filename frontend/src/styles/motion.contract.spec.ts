@@ -37,7 +37,6 @@ describe('movimiento: hover sin desplazamiento en el portal', () => {
     // F7: la clase y sus estilos viven en archivos distintos; el contrato mira los dos.
     trace: source('../app/features/simulator/instructor-trace.component.ts') + source('../app/features/simulator/instructor-trace.component.scss'),
     grupos: source('../app/features/grupos/grupo-list.component.ts') + source('../app/features/grupos/grupo-list.component.scss'),
-    preview: source('../app/features/simulator/world-preview.component.ts'),
     dashboard: source('../app/features/dashboard/dashboard.component.scss'),
   };
 
@@ -46,7 +45,6 @@ describe('movimiento: hover sin desplazamiento en el portal', () => {
     expect(files['quickActions']).not.toContain('transform: translate(-1px, -1px);');
     expect(files['trace']).not.toContain('transform: translate(-2px, -2px);');
     expect(files['grupos']).not.toContain('.group-card:hover { transform: translateY(-1px);');
-    expect(files['preview']).not.toMatch(/\.interaction-card:hover, \.interaction-card--selected \{\s*transform/);
   });
 
   it('el foco de teclado de las tarjetas no comparte regla con el hover', () => {

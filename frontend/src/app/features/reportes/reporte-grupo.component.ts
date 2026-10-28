@@ -10,7 +10,9 @@ import { Grupo, GrupoService } from '../../core/api/grupo.service';
 import { ReporteService } from '../../core/api/reporte.service';
 import { SimulationService } from '../../core/api/simulation.service';
 import { NotificationService } from '../../core/notifications/notification.service';
-import { ReporteGrupo, ReporteSimulacionGrupo } from '../../core/models/sesion.model';
+import {
+  CoberturaCategoria, EstudianteSimulacionReporte, HitoCobertura, ReporteGrupo, ReporteSimulacionGrupo,
+} from '../../core/models/sesion.model';
 import { SimulationCaseSummary } from '../../core/models/simulation.model';
 import { UiBadge, UiBadgeTone } from '../../shared/ui/badge/ui-badge';
 import { UiButton } from '../../shared/ui/button/ui-button';
@@ -26,8 +28,19 @@ import { UiEmptyState } from '../../shared/ui/state/ui-empty-state';
 import { UiErrorState } from '../../shared/ui/state/ui-error-state';
 import { UiLink } from '../../shared/ui/link/ui-link';
 import { UiTable, UiTableRow, UiTableTable } from '../../shared/ui/table/ui-table';
+import { milestoneMark } from '../simulator/outcome-text.util';
 
 type ReportView = 'idle' | 'pending' | 'loading' | 'error' | 'empty' | 'ready';
+
+/**
+ * BORRADOR (VD-23): la cobertura de cada hito en palabras, pendiente de la aprobación de Psicología. El grupo se lee
+ * por pasos del caso (qué hizo la mayoría), nunca por una nota ni un promedio.
+ */
+const COBERTURA_PALABRAS: Record<CoberturaCategoria, string> = {
+  MAYORIA: 'La mayoría cumplió este paso',
+  MENOS_DE_LA_MITAD: 'Menos de la mitad cumplió este paso',
+};
+const COBERTURA_SIN_DATOS = 'Aún no hay datos suficientes para mostrarlo';
 
 /**
  * Pantalla Reportes (plan visual F7-3): el reporte sale al elegir el grupo (o al llegar con `?grupo=<id>` desde
@@ -206,8 +219,36 @@ export class ReporteGrupoComponent {
     });
   }
 
-  puntaje(value: number): string {
+  /** Un porcentaje con coma decimal y un decimal como máximo («62,5»). */
+  porcentaje(value: number): string {
     return this.decimal.transform(value, '1.0-1') ?? '0';
+  }
+
+  /** Proporción 0–1 del porcentaje del grupo (el relleno de la barra escala con transform). */
+  ratio(percent: number): number {
+    return Math.min(1, Math.max(0, percent / 100));
+  }
+
+  /** La cobertura de un hito en palabras; sin categoría (celda mínima), dice que aún no hay datos suficientes. */
+  coberturaPalabras(hito: HitoCobertura): string {
+    return (hito.cobertura && COBERTURA_PALABRAS[hito.cobertura]) || COBERTURA_SIN_DATOS;
+  }
+
+  /** La palabra «clave» de un hito que decide el final. */
+  marca(hito: HitoCobertura): string | null {
+    return milestoneMark(hito);
+  }
+
+  /** Lo que lee quien usa lector de pantalla en la barra: el hito, la cobertura en palabras y el porcentaje. */
+  barraEtiqueta(hito: HitoCobertura): string {
+    return `${hito.label}: ${this.coberturaPalabras(hito)}, ${this.porcentaje(hito.porcentaje ?? 0)} % del grupo`;
+  }
+
+  /** «2 de 3»: los hitos que cumplió en su último intento completado; sin ese dato, un guion. */
+  hitosCumplidosTexto(estudiante: EstudianteSimulacionReporte, sim: ReporteSimulacionGrupo): string {
+    if (estudiante.hitosCumplidos === null || estudiante.hitosCumplidos === undefined) return '—';
+    const keysDelCaso = new Set(sim.hitos.map(hito => hito.key));
+    return `${estudiante.hitosCumplidos.filter(key => keysDelCaso.has(key)).length} de ${sim.hitos.length}`;
   }
 
   completionRate(sim: ReporteSimulacionGrupo) {

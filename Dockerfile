@@ -28,6 +28,10 @@ COPY backend_django/requirements.txt ./
 RUN pip install --no-cache-dir -r requirements.txt
 
 COPY backend_django/ ./
+# P6 · La biblioteca de lugares del editor de casos: el servidor solo lee sus JSON (el arte lo sirve el frontend, ya dentro de
+# frontend_dist). El .dockerignore deja fuera los PNG y las fuentes sin procesar.
+COPY biblioteca/escenarios/ ./biblioteca/escenarios/
+ENV SIEP_BIBLIOTECA_DIR=/app/biblioteca
 # El build de Angular (carpeta browser/) se copia a frontend_dist para WhiteNoise.
 COPY --from=frontend /fe/dist/psychosim-admin-panel/browser ./frontend_dist
 

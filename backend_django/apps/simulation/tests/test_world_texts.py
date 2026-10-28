@@ -55,7 +55,7 @@ def test_evento_de_herramienta_dice_estres_con_tilde(estudiante, case_version_id
     assert resp.status_code == 200
     assert not UNACCENTED.search(resp.data["data"]["feedbackMessage"])
     detail = AttemptEvent.objects.get(attempt_id=attempt_id, event_type="TOOL_USED").detail
-    assert "(estrés -5%)" in detail
+    assert "estrés" not in detail  # el detalle ya no escribe cifras de estrés (Tarea 5)
     assert not UNACCENTED.search(detail), detail
 
 

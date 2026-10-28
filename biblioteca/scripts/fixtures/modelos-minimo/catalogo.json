@@ -1,0 +1,16 @@
+{
+  "esquema": 1,
+  "modelos": [
+    {
+      "id": "cosa",
+      "nombre": "Cosa de prueba",
+      "tipo": "PROP",
+      "lugarSugerido": "comunes",
+      "textoInteraccion": "Mirar",
+      "alRevisar": "Una cosa.",
+      "efecto": "ninguno",
+      "arte": "arte/cosa.png",
+      "animacionCerca": { "hoja": "arte/cosa-cerca.png", "cuadros": 3, "fps": 6 }
+    }
+  ]
+}

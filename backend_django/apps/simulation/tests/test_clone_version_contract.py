@@ -167,13 +167,16 @@ def fuente(admin, autor):
     CaseVersion.objects.filter(pk=version.pk).update(world_schema_version=2)
     version.refresh_from_db()
 
-    node_a = SimulationNode.objects.create(case_version=version, **_all_distinct(SimulationNode))
+    # ``intensity`` y ``response_class`` llevan un CHECK sobre su vocabulario: se fijan a un valor válido distinto del
+    # predeterminado (``MEDIUM`` y nulo) en vez de dejar que ``_all_distinct`` invente un texto.
+    node_a = SimulationNode.objects.create(case_version=version, **_all_distinct(SimulationNode, intensity="HIGH"))
     node_b = SimulationNode.objects.create(
-        case_version=version, **_all_distinct(SimulationNode, node_key="p03-node-b", start_node=False)
+        case_version=version,
+        **_all_distinct(SimulationNode, node_key="p03-node-b", start_node=False, intensity="LOW"),
     )
     decision = DecisionOption.objects.create(
         case_version=version, source_node=node_a, target_node=node_b,
-        **_all_distinct(DecisionOption, classification="RISKY"),
+        **_all_distinct(DecisionOption, response_class="CONTRAINDICATED"),
     )
     scene_map = SceneMap.objects.create(case_version=version, node=node_a, **_all_distinct(SceneMap))
     CollisionZone.objects.create(scene_map=scene_map, **_all_distinct(CollisionZone))

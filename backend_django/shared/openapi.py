@@ -45,6 +45,7 @@ class ErrorEnvelopeSerializer(serializers.Serializer):
     code = serializers.CharField()
     message = serializers.CharField()
     field = serializers.CharField(required=False, help_text="El primer campo que falló la validación.")
+    motivo = serializers.CharField(required=False, help_text="El motivo corto (fijo) de un 422 `AI_PROPOSAL_INVALID`.")
 
 
 _ENVELOPES: dict[tuple[type, bool], type[serializers.Serializer]] = {}
@@ -77,6 +78,9 @@ _ERROR_DESCRIPTIONS = {
     403: "Sin permiso para esta acción.",
     404: "No existe, o no es visible para quien pregunta.",
     409: "Choca con el estado actual.",
+    422: "La petición es válida pero el contenido no se puede usar; el motivo va en `code`.",
+    429: "Se agotó un límite de uso.",
+    502: "Falló un servicio externo.",
 }
 
 
@@ -116,6 +120,7 @@ _COLLECTION_GET_PATHS = frozenset({
     "/api/instructor/attempts",
     "/api/simulation/catalog",
     "/api/simulation/cases",
+    "/api/biblioteca/lugares",
 })
 
 

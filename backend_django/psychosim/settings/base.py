@@ -38,6 +38,7 @@ INSTALLED_APPS = [
     "apps.progression",
     "apps.security",
     "apps.privacy",
+    "apps.biblioteca",
 ]
 
 MIDDLEWARE = [
@@ -294,24 +295,14 @@ def _entero_env(name, default, minimo):
 # ─── Banderas del contrato expand → migrate → contract (plan estructural §2.8, E5-10) ────
 # Lo nuevo ya está en el servidor y `test_contract_closure.py` recorre el ciclo completo con todas en su valor final.
 # Una bandera arranca en su valor FINAL cuando el cliente visual ya migró (F9-10: REVIEW_WORKFLOW_STRICT y
-# REVISION_REQUIRED) y en su valor HEREDADO mientras algo del cliente todavía depende de lo viejo (ATTEMPT_START_STRICT y
-# FEEDBACK_AT_CLOSE_ONLY esperan a F10-9 y F10-4). Cada una dice abajo qué hace en cada estado; `CONTRACT_FLAGS_REGISTRY`
+# REVISION_REQUIRED) y en su valor HEREDADO mientras algo del cliente todavía depende de lo viejo (ATTEMPT_START_STRICT
+# espera a F10-9). Cada una dice abajo qué hace en cada estado; `CONTRACT_FLAGS_REGISTRY`
 # dice a qué valor van, qué las bloquea hoy y quién las retira. Una variable `SIEP_<BANDERA>=0` apaga una encendida
 # (interruptor de emergencia: el camino heredado sigue en el servidor hasta que el usuario decida borrarlo).
 #: E1-1 · ATTEMPT_START_STRICT. Encendida: con un intento abierto, `forceNew` de un ESTUDIANTE → 409
 #: ATTEMPT_ALREADY_OPEN con el id del abierto (RN-07: el estudiante reanuda; solo el docente lo reemplaza).
 #: Apagada: `forceNew` cierra el abierto como REPLACED y empieza otro (la ruta heredada de «Reintentar caso»).
 ATTEMPT_START_STRICT = _env_flag("SIEP_ATTEMPT_START_STRICT")
-#: E1-7 · FEEDBACK_AT_CLOSE_ONLY. Encendida: la respuesta de una decisión no trae clasificación, deltas ni mensaje
-#: evaluativo (`attempt.feedback` es nulo): la retroalimentación pedagógica llega al cierre (RN-08, decisiones 6 y 10).
-#: Apagada: cada decisión devuelve de inmediato `feedback` con clasificación, deltas y mensaje (salvo que la versión
-#: del caso declare `feedbackTiming = AT_CLOSE`).
-FEEDBACK_AT_CLOSE_ONLY = _env_flag("SIEP_FEEDBACK_AT_CLOSE_ONLY")
-#: E1-9 · RUBRIC_NUMERIC_TOTAL. Encendida: las vistas del docente incluyen el total numérico de la evaluación
-#: (`totalScore`). Apagada (valor final, ED-2/RN-09): la evaluación es formativa, por niveles; el total no viaja y el
-#: estudiante nunca recibe un número. Existe para el paso *contract* y las revisiones que aún lo piden.
-RUBRIC_NUMERIC_TOTAL = _env_flag("SIEP_RUBRIC_NUMERIC_TOTAL")
-
 #: E2-5 · REVIEW_WORKFLOW_STRICT. Encendida: la publicación pasa por revisión: solo se publica desde `IN_REVIEW`
 #: (`POST …/publish` sobre un borrador → 409 REVIEW_REQUIRED), con la lista completa de siete ítems y la constancia de
 #: revisión de contenido de Psicología (409 CASE_NOT_PUBLISHABLE con ETHICS.NO_CONTENT_REVIEW si falta; 400
@@ -331,7 +322,7 @@ INVITATIONS_AUTO_ACCEPT = _env_flag("SIEP_INVITATIONS_AUTO_ACCEPT")
 #: Una entrada por bandera: `target_contract` es el valor al que va; `retirement_gate` el hito que la retira;
 #: `blocked_by` qué impide encenderla HOY (vacío si ya está en su valor final) y `owner` quién la retira. Lo medido
 #: lo fue el 2026-10-17 corriendo el subconjunto e2e de CI con la bandera encendida; lo vuelve a comprobar quien la
-#: encienda. `test_contract_closure.py` exige las seis entradas completas.
+#: encienda. `test_contract_closure.py` exige las cuatro entradas completas.
 CONTRACT_FLAGS_REGISTRY = {
     "ATTEMPT_START_STRICT": {
         "env": "SIEP_ATTEMPT_START_STRICT",
@@ -343,23 +334,6 @@ CONTRACT_FLAGS_REGISTRY = {
             "unas treinta pruebas; la carga nocturna (`scripts/load/aula.mjs`) también abre cada ciclo con `forceNew`."
         ),
         "owner": "sesión visual (F9-10); la carga nocturna, estructural",
-    },
-    "FEEDBACK_AT_CLOSE_ONLY": {
-        "env": "SIEP_FEEDBACK_AT_CLOSE_ONLY",
-        "target_contract": True,
-        "retirement_gate": "F9-10 (cierre de F6/F10-4)",
-        "blocked_by": (
-            "El juego lee la clasificación y el mensaje de la respuesta de cada decisión (`simulation-play.component.ts`): "
-            "encendida, `@full-case` falla con «Cannot read properties of undefined (reading 'key')»."
-        ),
-        "owner": "sesión visual (F10-4 y F9-10)",
-    },
-    "RUBRIC_NUMERIC_TOTAL": {
-        "env": "SIEP_RUBRIC_NUMERIC_TOTAL",
-        "target_contract": False,
-        "retirement_gate": "ED-2 / RN-09 (evaluación formativa por niveles, permanece False)",
-        "blocked_by": None,
-        "owner": "producto (ED-2): permanece apagada",
     },
     "REVIEW_WORKFLOW_STRICT": {
         "env": "SIEP_REVIEW_WORKFLOW_STRICT",
@@ -417,6 +391,11 @@ SIEP_THROTTLE_ENABLED = _env_flag_cerrada("SIEP_THROTTLE_ENABLED", default=True)
 #: anteriores a la época actual. Encendida por defecto; apagada, la época se emite pero no se exige (interruptor de
 #: emergencia: no lo apagues en producción).
 SIEP_SESSION_EPOCH_ENFORCE = _env_flag_cerrada("SIEP_SESSION_EPOCH_ENFORCE", default=True)
+
+#: P6 · Carpeta de la biblioteca de lugares (``<BIBLIOTECA_DIR>/escenarios/indice.json`` y un ``escenario.json`` por
+#: lugar). Sin ``SIEP_BIBLIOTECA_DIR`` es ``biblioteca/`` junto a ``backend_django/``; la imagen de producción la copia a
+#: ``/app/biblioteca`` y fija la variable. Solo se leen los JSON: el arte lo sirve el frontend bajo ``/assets/biblioteca/``.
+BIBLIOTECA_DIR = Path(os.environ.get("SIEP_BIBLIOTECA_DIR") or BASE_DIR.parent / "biblioteca")
 
 #: S2-6b · hosts ``https://`` de los que el fondo de sala puede cargar su imagen (separados por comas). Vacía = solo
 #: rutas propias de ``/assets/``. Cada estudiante descarga la imagen desde su navegador: no añadas hosts ajenos.
@@ -503,6 +482,19 @@ AI_ASSISTANT_PROVIDER = os.environ.get("AI_ASSISTANT_PROVIDER", "openai").strip(
 AI_ASSISTANT_API_KEY = os.environ.get("AI_ASSISTANT_API_KEY", "").strip()
 AI_ASSISTANT_MODEL = os.environ.get("AI_ASSISTANT_MODEL", "gpt-4o-mini").strip()
 
+# Asistente de autoría (P5): apagado por defecto; la clave solo vive en el servidor. Distinto del asistente del
+# estudiante (AI_ASSISTANT_*). Ids de modelo verificados el 2026-10-26 con la skill claude-api.
+AI_AUTHORING_ENABLED = _env_flag("AI_AUTHORING_ENABLED")
+AI_AUTHORING_PROVIDER = os.environ.get("AI_AUTHORING_PROVIDER", "anthropic").strip()
+AI_AUTHORING_API_KEY = os.environ.get("AI_AUTHORING_API_KEY", "").strip()
+AI_AUTHORING_MODEL_FAST = os.environ.get("AI_AUTHORING_MODEL_FAST", "claude-haiku-5-5").strip()
+AI_AUTHORING_MODEL_CAPABLE = os.environ.get("AI_AUTHORING_MODEL_CAPABLE", "claude-opus-5-5").strip()
+AI_AUTHORING_DAILY_LIMIT_PER_USER = int(os.environ.get("AI_AUTHORING_DAILY_LIMIT_PER_USER", "200"))
+AI_AUTHORING_MONTHLY_LIMIT = int(os.environ.get("AI_AUTHORING_MONTHLY_LIMIT", "3000"))
+# Cuánto espera el servidor al proveedor (segundos) y cuántos tokens de salida admite una propuesta (``propose``; la guía usa 600).
+AI_AUTHORING_TIMEOUT_SECONDS = int(os.environ.get("AI_AUTHORING_TIMEOUT_SECONDS", "60"))
+AI_AUTHORING_MAX_TOKENS_PROPOSE = int(os.environ.get("AI_AUTHORING_MAX_TOKENS_PROPOSE", "8000"))
+
 ACCESS_REQUEST_NOTIFY_EMAILS = [
     email.strip()
     for email in os.environ.get(
@@ -565,6 +557,8 @@ SPECTACULAR_SETTINGS = {
         "AssignmentStateEnum": "apps.grupos.contracts.ASSIGNMENT_STATES",
         "AssignmentTargetTypeEnum": "apps.grupos.contracts.ASSIGNMENT_TARGETS",
         "IssueSeverityEnum": "apps.simulation.serializers.contracts.ISSUE_SEVERITIES",
+        "AssistantStatusModeEnum": "apps.simulation.serializers.contracts.ASSISTANT_STATUS_MODES",
+        "AssistantGuideModeEnum": "apps.simulation.serializers.contracts.ASSISTANT_GUIDE_MODES",
         "HintReasonEnum": "apps.simulation.serializers.contracts.HINT_REASONS",
         "LifecycleActionEnum": "apps.simulation.serializers.contracts.LIFECYCLE_ACTIONS",
         "MembershipStatusEnum": "apps.grupos.models.MembershipStatus",

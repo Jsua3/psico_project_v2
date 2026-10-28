@@ -17,7 +17,6 @@ from rest_framework.test import APIClient
 
 from apps.simulation.casedef import siep_check
 from apps.simulation.models import CaseVersion, DecisionOption, DialogueLine, SimulationNode
-from apps.simulation.services import case_effects
 from apps.simulation.services.authoring import definition_io, lifecycle, publication, validation
 from apps.simulation.services.authoring.world_definition import run_world_validation
 
@@ -79,9 +78,12 @@ def test_the_seeded_case_has_no_errors(seeded):
     assert can_publish is True
 
 
-def test_the_default_metrics_copy_matches_the_service_constant():
-    """``casedef`` no importa Django: copia las siete métricas por defecto y esta prueba vigila la copia."""
-    assert siep_check.DEFAULT_METRICS == tuple(case_effects.CASE_METRIC_KEYS)
+def test_the_1_0_default_metrics_are_the_seven_of_the_pdf_case():
+    """Un documento 1.0 sin ``reglas.metrics`` conserva las siete métricas del caso PDF del modelo antiguo."""
+    assert siep_check.DEFAULT_METRICS == (
+        "confianza", "crisis_emocional", "riesgo_victima", "rigor_tecnico", "etica_profesional",
+        "ruta_institucional", "calidad_duelo",
+    )
 
 
 # ─── lo que ve el documento, con el foco del editor ───────────────────────────────────────────
@@ -188,7 +190,7 @@ def test_a_cycle_is_reported_once_by_the_world(admin, case):
 
 def test_a_prohibited_option_without_a_reason_is_reported_once_by_the_world(admin, case):
     cv, *_ = _one_option_case(admin, case)
-    DecisionOption.objects.filter(case_version_id=cv).update(prohibited_conduct=True, prohibition_reason=None)
+    DecisionOption.objects.filter(case_version_id=cv).update(response_class="CONTRAINDICATED", prohibition_reason=None)
 
     issues, _ = validation.validate_version(cv)
 

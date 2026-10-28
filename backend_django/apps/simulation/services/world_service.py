@@ -15,8 +15,6 @@ from rest_framework.exceptions import NotFound, ValidationError
 from ..models import (
     DEFAULT_MAP_HEIGHT,
     DEFAULT_MAP_WIDTH,
-    INDICATOR_MAX,
-    INDICATOR_MIN,
     AttemptEvent,
     ClinicalTool,
     CollisionZone,
@@ -63,6 +61,11 @@ POSITION_BASE_ALLOWANCE_PX = 240
 POSITION_BUDGET_MAX_SECONDS = 30
 #: Distancia máxima (al rectángulo del objeto) para interactuar/usar puertas.
 INTERACTION_RANGE_PX = 120
+#: Hasta dónde se aleja de su origen una persona con ``metadata.movimiento = "deambula"``. El cliente la mueve por su
+#: cuenta y el servidor solo conoce su posición guardada: el área de cercanía de la persona se amplía por este radio.
+#: DEBE coincidir con `PERSON_WANDER_RADIUS_PX` de `frontend/src/app/features/simulator/person-walk.util.ts`
+#: (`test_person_movement_range.py` lee ese archivo y falla si dejan de coincidir).
+PERSON_WANDER_RADIUS_PX = 160
 #: Holgura sobre el `interactionRadius` sembrado de un NPC ambiental: el cliente
 #: sincroniza la posición por muestras y puede llegar unos píxeles fuera del
 #: radio con el que ya vio el aviso de interacción. Evita rechazos legítimos sin
@@ -72,9 +75,6 @@ NPC_RANGE_TOLERANCE_PX = 16
 NPC_KEY_RE = re.compile(r"^[a-z0-9][a-z0-9_-]{0,63}$")
 PLAYER_HITBOX_WIDTH = 22
 PLAYER_HITBOX_HEIGHT = 16
-#: Estrés al usar una herramienta: baja si el uso fue pertinente y sube si no.
-TOOL_PERTINENT_STRESS_DELTA = -5
-TOOL_IMPERTINENT_STRESS_DELTA = 3
 
 
 def _require_finite_int(value, name):
@@ -111,12 +111,64 @@ def _rectangles_intersect(a_x, a_y, a_w, a_h, b_x, b_y, b_w, b_h):
     )
 
 
+# Lo más lejos que un dato de coordenada puede estar de cero (px): ninguna sala se le acerca, y un entero de cientos de
+# dígitos no debe llegar a `math.isfinite` (OverflowError → 500) ni agrandar el área de cercanía sin límite.
+MAX_COORDINATE_PX = 1_000_000
+
+
+def _is_number(value):
+    """Un número de coordenada usable: finito y de magnitud razonable. Nunca lanza (un entero enorme es «mal formado»)."""
+    if isinstance(value, bool) or not isinstance(value, (int, float)):
+        return False
+    if isinstance(value, float) and not math.isfinite(value):
+        return False
+    return abs(value) <= MAX_COORDINATE_PX
+
+
+def _person_movement(map_object):
+    """``metadata.movimiento`` de una persona: ``"deambula"`` | ``("va-y-viene", x, y)`` | ``None`` (quieto).
+
+    Ausente, desconocido o mal formado es quieto, igual que `parsePersonMovement` del cliente (person-walk.util.ts).
+    """
+    if map_object.object_type != "PERSON":
+        return None
+    movement = _read_map(map_object.metadata_json).get("movimiento")
+    if movement == "deambula":
+        return "deambula"
+    if not isinstance(movement, dict):
+        return None
+    if movement.get("tipo") == "deambula":
+        return "deambula"
+    hasta = movement.get("hasta")
+    if movement.get("tipo") == "va-y-viene" and isinstance(hasta, dict):
+        if _is_number(hasta.get("x")) and _is_number(hasta.get("y")):
+            return ("va-y-viene", hasta["x"], hasta["y"])
+    return None
+
+
+def _interaction_rect(map_object):
+    """Rectángulo contra el que se mide la cercanía: el guardado, ampliado si la persona camina por su cuenta."""
+    x, y = map_object.position_x, map_object.position_y
+    width, height = map_object.width or 0, map_object.height or 0
+    movement = _person_movement(map_object)
+    if movement == "deambula":
+        radius = PERSON_WANDER_RADIUS_PX
+        return x - radius, y - radius, width + 2 * radius, height + 2 * radius
+    if movement is not None:
+        _, to_x, to_y = movement
+        # El punto lejano no puede estar fuera de la sala: un `hasta` desmedido no vuelve «cercano» lo que no lo es.
+        scene_map = map_object.scene_map
+        to_x = _clamp(to_x, 0, scene_map.width or DEFAULT_MAP_WIDTH)
+        to_y = _clamp(to_y, 0, scene_map.height or DEFAULT_MAP_HEIGHT)
+        left, top = min(x, to_x), min(y, to_y)
+        right, bottom = max(x, to_x) + width, max(y, to_y) + height
+        return left, top, right - left, bottom - top
+    return x, y, width, height
+
+
 def _require_nearby(world_state, map_object, what="el objeto"):
-    distance = _rect_distance(
-        world_state.player_x, world_state.player_y,
-        map_object.position_x, map_object.position_y,
-        map_object.width, map_object.height,
-    )
+    rect_x, rect_y, rect_w, rect_h = _interaction_rect(map_object)
+    distance = _rect_distance(world_state.player_x, world_state.player_y, rect_x, rect_y, rect_w, rect_h)
     if distance > INTERACTION_RANGE_PX:
         raise ValidationError(f"Estás demasiado lejos de {what} para interactuar")
 
@@ -276,7 +328,9 @@ def open_interaction(attempt_id, attempt_token, interaction_key, actor):
     }
 
 
-_TOOL_RESULT = re.compile(r" — (?P<verdict>no pertinente|pertinente) \(estrés (?P<delta>[+-]?\d+)%\)$")
+#: El veredicto con que termina el detalle de un uso. Los eventos guardados antes de la Tarea 5 traen además el
+#: fragmento « (estrés ±N%)», que ya no se escribe pero se sigue reconociendo al repetir una orden.
+_TOOL_RESULT = re.compile(r" — (?P<verdict>no pertinente|pertinente)(?: \(estrés [+-]?\d+%\))?$")
 
 
 def _replayed_tool_use(attempt, event, tool_code, target_key):
@@ -295,7 +349,6 @@ def _replayed_tool_use(attempt, event, tool_code, target_key):
         "toolCode": tool_code,
         "targetKey": target_key,
         "pertinent": pertinent,
-        "stressDelta": int(match["delta"]),
         "feedbackMessage": _generate_tool_feedback(tool, target_key, pertinent),
         "alreadyUsed": False,
     }
@@ -306,8 +359,8 @@ def use_tool(attempt_id, attempt_token, tool_code, target_interaction_key, actor
     """Uso de herramienta autoritativo (GAME-01/4C): exige inventario, valida
     el target (existencia + cercanía), no considera pertinente el uso sin
     target salvo herramienta declarada global, y es idempotente ante
-    reintentos (un solo evento y un solo efecto de estrés). Con ``request_id`` la
-    repetición devuelve la misma respuesta de la primera vez (E1-3)."""
+    reintentos (un solo evento). No mueve ninguna cifra del intento: solo cuenta como actividad.
+    Con ``request_id`` la repetición devuelve la misma respuesta de la primera vez (E1-3)."""
     attempt = game_service._require_attempt(attempt_id, attempt_token, actor)
     request_id = normalize_request_id(request_id)
     target_key = (target_interaction_key or "").strip() or None
@@ -348,7 +401,6 @@ def use_tool(attempt_id, attempt_token, tool_code, target_interaction_key, actor
             "toolCode": tool_code,
             "targetKey": target_key,
             "pertinent": pertinent,
-            "stressDelta": 0,
             "feedbackMessage": feedback_message,
             "alreadyUsed": True,
         }
@@ -356,17 +408,12 @@ def use_tool(attempt_id, attempt_token, tool_code, target_interaction_key, actor
     world_state.used_tool_keys_json = _append_unique(world_state.used_tool_keys_json, usage_key)
     world_state.save()
 
-    stress_delta = TOOL_PERTINENT_STRESS_DELTA if pertinent else TOOL_IMPERTINENT_STRESS_DELTA
-    attempt.stress_index = _clamp(attempt.stress_index + stress_delta, INDICATOR_MIN, INDICATOR_MAX)
-    attempt_duration.touch(attempt, timezone.now())
-    attempt.save()
+    attempt_duration.record_activity(attempt)
 
-    sign = "+" if stress_delta >= 0 else ""
     detail = (
         f"Herramienta usada: {tool_code}"
         + (f" sobre {target_key}" if target_key is not None else "")
         + f" — {'pertinente' if pertinent else 'no pertinente'}"
-        + f" (estrés {sign}{stress_delta}%)"
     )
     _save_event(attempt, "TOOL_USED", detail, request_id)
 
@@ -375,7 +422,6 @@ def use_tool(attempt_id, attempt_token, tool_code, target_interaction_key, actor
         "toolCode": tool_code,
         "targetKey": target_key,
         "pertinent": pertinent,
-        "stressDelta": stress_delta,
         "feedbackMessage": feedback_message,
         "alreadyUsed": False,
     }
@@ -708,8 +754,26 @@ def _mapa_para_estudiante(mapa):
     return {**mapa, "ambient": {clave: valor for clave, valor in ambient.items() if clave != "backgroundImage"}}
 
 
+#: Lo único de ``flags_json`` que el frontend del estudiante lee (``flags['viewedNpcKeys']``: las personas con las que ya
+#: habló). El resto es del servidor: ``milestones`` y ``persona`` (el estado del caso, que no se revela antes del cierre),
+#: y ``syncedNodeId``/``positionSyncedAt`` (la reconciliación de la posición).
+STUDENT_FLAG_KEYS = ("viewedNpcKeys",)
+
+
+def _flags_for(state, *, estudiante):
+    """Las banderas del mundo: completas para la traza docente; al estudiante, solo la lista blanca (I-1, R-16)."""
+    flags = _read_map(state.flags_json)
+    if not estudiante:
+        return flags
+    return {key: flags[key] for key in STUDENT_FLAG_KEYS if key in flags}
+
+
 def _to_world_state(attempt, state, *, estudiante=True):
-    """El estado del mundo tal como lo ve la persona. La traza docente (``estudiante=False``) no filtra el fondo."""
+    """El estado del mundo tal como lo ve la persona.
+
+    La traza docente (``estudiante=False``) no filtra el fondo y conserva ``flags`` completo; al estudiante ``flags``
+    solo le llega con lo que su pantalla lee (``STUDENT_FLAG_KEYS``).
+    """
     scene_map = state.scene_map
     inventory = _read_string_list(state.inventory_json)
     inventory_set = set(inventory)
@@ -730,7 +794,7 @@ def _to_world_state(attempt, state, *, estudiante=True):
         "inspectedObjectKeys": _read_string_list(state.inspected_object_keys_json),
         "viewedDialogueKeys": _read_string_list(state.viewed_dialogue_keys_json),
         "usedToolKeys": _read_string_list(state.used_tool_keys_json),
-        "flags": _read_map(state.flags_json),
+        "flags": _flags_for(state, estudiante=estudiante),
     }
 
 

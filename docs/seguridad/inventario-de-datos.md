@@ -6,15 +6,15 @@
 
 ## Resumen
 
-Tablas: 42. Columnas: 367.
+Tablas: 43. Columnas: 364.
 
 | Clasificación | Columnas |
 |---|---:|
-| PUBLIC | 143 |
-| PERSONAL | 36 |
-| SENSITIVE | 52 |
+| PUBLIC | 144 |
+| PERSONAL | 39 |
+| SENSITIVE | 44 |
 | SECRET | 2 |
-| TECHNICAL | 134 |
+| TECHNICAL | 135 |
 
 ## Tablas
 
@@ -37,7 +37,7 @@ Tablas: 42. Columnas: 367.
 
 ### `attempt_events` — simulation.AttemptEvent
 
-**Finalidad:** Línea de tiempo del intento: cada decisión, herramienta, bitácora o salida, con su efecto.
+**Finalidad:** Línea de tiempo del intento: cada decisión, herramienta, bitácora o salida.
 
 **Plazo:** Sin plazo definido (SD-9, pendiente de la institución).
 
@@ -48,8 +48,6 @@ Tablas: 42. Columnas: 367.
 | `event_type` | SENSITIVE | api | qué hizo el estudiante: decisión, herramienta, bitácora o salida |
 | `node_id` | TECHNICAL | — |  |
 | `decision_option_id` | SENSITIVE | api, reporte | opción de decisión que eligió el estudiante |
-| `score_delta` | SENSITIVE | api | efecto de la acción sobre el puntaje |
-| `stress_delta` | SENSITIVE | api | efecto de la acción sobre el estrés |
 | `detail` | SENSITIVE | api | detalle de la acción que muestra la línea de tiempo (herramienta o etiqueta); en una salida segura puede llevar el motivo escrito por la persona (texto libre, recortado a 500 caracteres) |
 | `occurred_at` | SENSITIVE | api | cuándo actuó el estudiante (línea de tiempo) |
 | `request_id` | TECHNICAL | — |  |
@@ -96,7 +94,7 @@ Nunca sale por: `comment`: csv, reporte, correo, registro.
 |---|---|---|---|
 | `id` | TECHNICAL | — |  |
 | `attempt_id` | SENSITIVE | api, reporte | intento al que pertenece el informe |
-| `report_json` | SENSITIVE | api, reporte | informe congelado del intento: decisiones, retroalimentación y tiempos; su línea de tiempo copia el motivo escrito de una salida segura (texto libre de la persona) |
+| `report_json` | SENSITIVE | api, reporte | informe congelado del intento (v3): decisiones y su clase, hitos cumplidos y faltantes, estado de la persona usuaria, motivo del final, evidencia por nivel de competencia y tiempos; su línea de tiempo copia el motivo escrito de una salida segura (texto libre de la persona) |
 | `report_schema_version` | TECHNICAL | — |  |
 | `definition_hash` | TECHNICAL | — |  |
 | `attempt_ordinal` | SENSITIVE | reporte | número de intento del estudiante en ese caso |
@@ -119,7 +117,7 @@ Nunca sale por: `comment`: csv, reporte, correo, registro.
 | `inspected_object_keys_json` | SENSITIVE | api | objetos que el estudiante revisó |
 | `viewed_dialogue_keys_json` | SENSITIVE | api | diálogos que el estudiante vio |
 | `used_tool_keys_json` | SENSITIVE | api | herramientas que el estudiante usó |
-| `flags_json` | SENSITIVE | api | banderas del caso que el estudiante ha activado |
+| `flags_json` | SENSITIVE | api, reporte | banderas del caso que el estudiante ha activado, los hitos que ha cumplido y el estado de la persona usuaria en la ficción (vínculo y activación) según sus decisiones |
 | `updated_at` | TECHNICAL | — |  |
 
 
@@ -187,6 +185,20 @@ Todas las columnas heredan `TECHNICAL`: la tabla no tiene datos personales ni se
 | `name` | TECHNICAL | — |  |
 | `content_type_id` | TECHNICAL | — |  |
 | `codename` | TECHNICAL | — |  |
+
+
+### `authoring_assistant_usage` — simulation.AuthoringAssistantUsage
+
+**Finalidad:** Cuántas veces usó cada docente el asistente de IA de autoría en un día: sirve para aplicar el tope diario y el mensual.
+
+**Plazo:** Sin plazo definido (SD-9, pendiente de la institución). Se borra con la cuenta; no guarda el texto de las peticiones.
+
+| Columna | Clasificación | Salidas | Motivo |
+|---|---|---|---|
+| `id` | TECHNICAL | — |  |
+| `user_id` | PERSONAL | ninguna (uso interno) | docente que usó el asistente |
+| `day` | PERSONAL | ninguna (uso interno) | día en que el docente usó el asistente |
+| `count` | PERSONAL | api | cuántas veces lo usó ese día el docente |
 
 
 ### `case_assignments` — grupos.CaseAssignment
@@ -365,7 +377,7 @@ Todas las columnas heredan `PUBLIC`: la tabla no tiene datos personales ni sensi
 | `id` | TECHNICAL | — |  |
 | `rubric_evaluation_id` | TECHNICAL | — |  |
 | `rubric_criterion_id` | TECHNICAL | — |  |
-| `score` | SENSITIVE | api | puntaje de un criterio sobre el desempeño del estudiante |
+| `score` | SENSITIVE | ninguna (uso interno) | puntaje de un criterio sobre el desempeño del estudiante; interno: el DTO sirve solo el nivel |
 | `level` | SENSITIVE | api | nivel alcanzado en un criterio |
 | `comment` | SENSITIVE | api | comentario del docente sobre el criterio |
 | `evidence_json` | SENSITIVE | ninguna (uso interno) | evidencia de la evaluación; el servicio la escribe vacía y no sale |
@@ -373,7 +385,7 @@ Todas las columnas heredan `PUBLIC`: la tabla no tiene datos personales ni sensi
 
 ### `decision_options` — simulation.DecisionOption
 
-**Finalidad:** Opciones de decisión de cada escena, con su texto, su clasificación y su retroalimentación.
+**Finalidad:** Opciones de decisión de cada escena, con su texto, su clase de respuesta y su retroalimentación.
 
 **Plazo:** Mientras exista la versión del caso (SD-9, pendiente de la institución).
 
@@ -385,17 +397,14 @@ Todas las columnas heredan `PUBLIC`: la tabla no tiene datos personales ni sensi
 | `source_node_id` | TECHNICAL | — |  |
 | `target_node_id` | TECHNICAL | — |  |
 | `text` | PUBLIC | — |  |
-| `classification` | PUBLIC | — |  |
-| `score_delta` | PUBLIC | — |  |
-| `stress_delta` | PUBLIC | — |  |
-| `prohibited_penalty` | PUBLIC | — |  |
 | `immediate_feedback` | PUBLIC | — |  |
-| `prohibited_conduct` | PUBLIC | — |  |
 | `prohibition_reason` | PUBLIC | — |  |
 | `consequence_text` | PUBLIC | — |  |
 | `theory_basis` | PUBLIC | — |  |
 | `feedback_text` | PUBLIC | — |  |
 | `effects` | PUBLIC | — |  |
+| `response_class` | PUBLIC | — |  |
+| `ai_suggested` | PUBLIC | — |  |
 
 
 ### `dialogue_choices` — simulation.DialogueChoice
@@ -430,6 +439,7 @@ Todas las columnas heredan `PUBLIC`: la tabla no tiene datos personales ni sensi
 | `speaker_name` | PUBLIC | — |  |
 | `text` | PUBLIC | — |  |
 | `emotion` | PUBLIC | — |  |
+| `ai_suggested` | PUBLIC | — |  |
 
 
 ### `dialogue_trees` — simulation.DialogueTree
@@ -535,6 +545,7 @@ Todas las columnas heredan `PUBLIC`: la tabla no tiene datos personales ni sensi
 | `facing` | PUBLIC | — |  |
 | `movement_pattern_json` | PUBLIC | — |  |
 | `metadata_json` | PUBLIC | — |  |
+| `ai_suggested` | PUBLIC | — |  |
 
 
 ### `publication_checklist_items` — simulation.PublicationChecklistItem
@@ -639,7 +650,7 @@ Todas las columnas heredan `PUBLIC`: la tabla no tiene datos personales ni sensi
 | `attempt_id` | SENSITIVE | api | intento evaluado: enlaza la evaluación con lo que hizo el estudiante |
 | `rubric_id` | TECHNICAL | — |  |
 | `instructor_id` | PERSONAL | ninguna (uso interno) | docente que evaluó |
-| `total_score` | SENSITIVE | api | puntaje total de la evaluación docente sobre el estudiante |
+| `total_score` | SENSITIVE | ninguna (uso interno) | puntaje total de la evaluación docente sobre el estudiante; interno: el DTO sirve solo el nivel |
 | `comment` | SENSITIVE | api | comentario del docente sobre el desempeño del estudiante |
 | `status` | TECHNICAL | — |  |
 | `snapshot_json` | PUBLIC | — |  |
@@ -710,7 +721,7 @@ Todas las columnas heredan `PUBLIC`: la tabla no tiene datos personales ni sensi
 
 ### `simulation_attempts_v2` — simulation.SimulationAttempt
 
-**Finalidad:** Intentos de un estudiante en un caso: estado, puntajes, riesgos y tiempos. Son sus decisiones.
+**Finalidad:** Intentos de un estudiante en un caso: estado y tiempos. Son sus decisiones.
 
 **Plazo:** Sin plazo definido (SD-9, pendiente de la institución).
 
@@ -722,12 +733,6 @@ Todas las columnas heredan `PUBLIC`: la tabla no tiene datos personales ni sensi
 | `student_id` | PERSONAL | ninguna (uso interno) | estudiante dueño del intento; sale solo como alias (Estudiante-<hash>) |
 | `current_node_id` | SENSITIVE | api | escena en la que está el estudiante |
 | `status` | SENSITIVE | api, reporte | estado del intento en el caso (en curso, pausado, terminado) |
-| `accumulated_score` | SENSITIVE | api, csv, reporte | puntaje acumulado de las decisiones del estudiante |
-| `stress_index` | SENSITIVE | api | índice de estrés que producen sus decisiones |
-| `victim_risk` | SENSITIVE | api | riesgo de la víctima simulada según las decisiones del estudiante |
-| `user_trust` | SENSITIVE | api | confianza del personaje afectado en el estudiante, según sus decisiones |
-| `institutional_route_activated` | SENSITIVE | api | si el intento activó la ruta institucional |
-| `revictimization_risk` | SENSITIVE | api | riesgo de revictimización que producen las decisiones |
 | `started_at` | SENSITIVE | api | cuándo empezó el intento (conducta del estudiante) |
 | `ended_at` | SENSITIVE | api | cuándo terminó el intento (conducta del estudiante) |
 | `locked_at` | TECHNICAL | — |  |
@@ -783,6 +788,8 @@ Todas las columnas heredan `PUBLIC`: la tabla no tiene datos personales ni sensi
 | `position_y` | PUBLIC | — |  |
 | `decision_prompt` | PUBLIC | — |  |
 | `display_order` | PUBLIC | — |  |
+| `intensity` | PUBLIC | — |  |
+| `ai_suggested` | PUBLIC | — |  |
 
 
 ### `simulation_rubric_assignments` — simulation.SimulationRubricAssignment

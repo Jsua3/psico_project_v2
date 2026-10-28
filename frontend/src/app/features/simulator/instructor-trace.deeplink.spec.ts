@@ -13,7 +13,7 @@ import { InstructorTraceComponent } from './instructor-trace.component';
  */
 const attempt = (attemptId: string): RecentAttempt => ({
   attemptId, studentAlias: `Alias ${attemptId}`, caseTitle: `Caso ${attemptId}`, status: 'COMPLETED',
-  accumulatedScore: 50, stressIndex: 10, startedAt: '2026-10-10T10:00:00Z',
+  startedAt: '2026-10-10T10:00:00Z',
 });
 
 function openTrace(intento: string | null) {

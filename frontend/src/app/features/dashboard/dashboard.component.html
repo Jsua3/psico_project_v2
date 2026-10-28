@@ -54,13 +54,13 @@
 
       <div class="td-split">
         <ui-section title="Intentos recientes">
+          <p class="td-hint">Del más reciente al más antiguo, por fecha de inicio.</p>
           <ui-table label="Tabla de intentos recientes" density="compact" [state]="rows().length ? 'ready' : 'empty'">
             <table ui-table>
               <thead>
                 <tr>
                   <th scope="col">Caso</th>
                   <th scope="col">Estudiante</th>
-                  <th scope="col">Puntaje</th>
                   <th scope="col">Estado</th>
                   <th scope="col">Detalle</th>
                 </tr>
@@ -70,7 +70,6 @@
                   <tr uiRow>
                     <td class="td-case">{{ row.casoTitulo }}</td>
                     <td>{{ row.estudiante }}</td>
-                    <td class="td-num">{{ row.puntajeLabel }}</td>
                     <td class="td-nowrap"><ui-badge [tone]="row.tone">{{ row.estado }}</ui-badge></td>
                     <td class="td-nowrap">
                       <a ui-button variant="ghost" size="sm" [routerLink]="traceRoute" [queryParams]="{ intento: row.id }"

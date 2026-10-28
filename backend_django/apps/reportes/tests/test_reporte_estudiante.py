@@ -163,7 +163,6 @@ def test_el_csv_neutraliza_las_formulas_y_no_altera_los_numeros(profesor, case_v
         _add_student(grupo, student)
     _assign_case(grupo, case_version_id)
     _attempt(hostil, case_version_id, "COMPLETED", timezone.now(), ended_after=10)
-    SimulationAttempt.objects.filter(student_id=hostil.id).update(accumulated_score=-15)
 
     rows = _csv_rows(profesor, grupo, case_version_id)
 
@@ -171,8 +170,8 @@ def test_el_csv_neutraliza_las_formulas_y_no_altera_los_numeros(profesor, case_v
     assert "'=HYPERLINK(\"http://x\",\"clic\") +cmd" in names  # neutralizada: empieza con '
     assert 'Ana, la "mejor" Pérez' in names  # el csv.reader la devuelve íntegra: iba entrecomillada
     hostile_row = next(row for row in rows[1:] if row[0].startswith("'="))
-    assert hostile_row[5] == "-15.0"  # un número negativo NO se toca
-    assert len(rows[0]) == len(hostile_row) == 12
+    assert hostile_row[1] == "1"  # los números no se tocan
+    assert {len(row) for row in rows} == {len(rows[0])}  # encabezado, estudiantes y cobertura: las mismas columnas
 
 
 def test_el_csv_declara_utf_8_y_conserva_el_encabezado(profesor, estudiante, case_version_id):
@@ -183,9 +182,9 @@ def test_el_csv_declara_utf_8_y_conserva_el_encabezado(profesor, estudiante, cas
     response = cl(profesor).get(f"/api/reportes/grupo/{grupo.id}/export?caseVersionId={case_version_id}")
 
     assert response["Content-Type"] == "text/csv;charset=UTF-8"
-    assert response.content.decode("utf-8").split("\n")[0] == (
-        "Estudiante,Intentos,Completados,En progreso,Salida segura,Puntaje prom.,"
-        "Adecuadas,Riesgosas,Inadecuadas,Bitacoras,Rubricas,Estado"
+    assert response.content.decode("utf-8").split("\n")[0].startswith(
+        "Estudiante,Intentos,Completados,En progreso,Salida segura,"
+        "Recomendadas,Aceptables,Con riesgo,Contraindicadas,Bitacoras,Rubricas,Estado"
     )
 
 

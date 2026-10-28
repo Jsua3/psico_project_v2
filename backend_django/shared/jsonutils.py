@@ -2,7 +2,7 @@
 
 Deduplicated from world_service.py and authoring_service.py (idénticas en ambas),
 y después de game_dtos.py, instructor_service.py y game_views.py (lectores) y de
-case_effects.py, decision_effects.py y world_service.py (`clamp`, copiada tres veces).
+world_service.py (`clamp`).
 Las columnas JSON del esquema viven como TEXT, así que se leen/escriben con estas.
 """
 import json

@@ -109,13 +109,10 @@ describe('bloque H: juego (foco y texto del diálogo)', () => {
   });
 });
 
-describe('bloque H: foco visible en Grupos y en el editor DAG', () => {
+describe('bloque H: foco visible en Grupos', () => {
   const grupos = source('../app/features/grupos/grupo-list.component.ts');
   const groupsHtml = source('../app/features/grupos/grupo-list.component.html');
   const groupsScss = source('../app/features/grupos/grupo-list.component.scss');
-  const dag = source('../app/features/simulator/dag-editor.component.ts');
-  const dagHtml = source('../app/features/simulator/dag-editor.component.html');
-  const dagScss = source('../app/features/simulator/dag-editor.component.scss');
 
   it('el buscador de Grupos es un campo de la biblioteca: el anillo es el global y la pantalla no apaga contornos', () => {
     // Antes el input conservaba `outline: 0` y un `.search-box:focus-within` dibujaba el anillo en su contenedor.
@@ -129,21 +126,6 @@ describe('bloque H: foco visible en Grupos y en el editor DAG', () => {
       expect(contrastRatio('#004876', surface)).toBeGreaterThanOrEqual(3);
     }
   });
-
-  it('los nodos del DAG muestran el foco con el trazo del token de foco y ya no se apagan', () => {
-    // Desde F8-3 el trazo sale de `--ds-focus` (#004876 en el portal) y el lienzo es `--ds-surface-2` (#EEF2F6).
-    expect(dagScss).not.toMatch(/\.dag-node:focus \{[^}]*outline: none/);
-    expect(dagScss).toMatch(/&:focus-visible \.dag-node__box \{[^}]*stroke: var\(--ds-focus\)/);
-    expect(contrastRatio('#004876', '#EEF2F6')).toBeGreaterThanOrEqual(3);
-  });
-
-  it('el grafo es un grupo (no una imagen) y sus nodos responden a Espacio además de Enter', () => {
-    expect(dagHtml).toContain('role="group" aria-label="Grafo DAG del caso"');
-    expect(dagHtml).not.toContain('role="img" aria-label="Grafo DAG del caso"');
-    // El teclado del grafo es un solo manejador sobre el lienzo: Enter y Espacio abren el detalle del nodo enfocado.
-    expect(dagHtml).toContain('(keydown)="onKeydown($event)"');
-    expect(dag).toMatch(/case 'Enter':\s*case ' ':/);
-  });
 });
 
 describe('bloque H: el diálogo recibe el interruptor de movimiento reducido', () => {
@@ -151,12 +133,6 @@ describe('bloque H: el diálogo recibe el interruptor de movimiento reducido', (
     const tags = source('../app/features/simulator/simulation-play.component.ts').match(/<app-dialogue-panel[^>]*?\/>/g) ?? [];
     expect(tags).toHaveLength(2);
     for (const tag of tags) expect(tag).toContain('[reduceMotion]="reduceMotion()"');
-  });
-
-  it('la vista previa de autor pasa el movimiento reducido al mundo y al diálogo', () => {
-    const preview = source('../app/features/simulator/world-preview.component.ts');
-    expect(preview).toMatch(/<app-game-world[^>]*\[reduceMotion\]="reduceMotion\(\)"/);
-    expect(preview).toMatch(/<app-dialogue-panel[^>]*\[reduceMotion\]="reduceMotion\(\)"/);
   });
 });
 
@@ -167,8 +143,10 @@ describe('bloque H: semántica del HUD y de la tarjeta de contexto', () => {
   it('los cuatro aria-label del HUD y de la tarjeta de contexto que colgaban de un div sin rol ya tienen rol o se quitaron', () => {
     // El bloque «Paso k (k/6)» salió del HUD (T7.1): el único contador es el chip «Decisión k de 6».
     expect(hud).not.toContain('class="hud-step"');
-    expect(hud).toContain('<div class="hud-patient" role="group" aria-label="Estado de la paciente">');
-    expect(hud).toMatch(/<div class="hud-score" role="group" \[attr\.aria-label\]="'Seguimiento formativo: '/);
+    // La persona va en palabras (grupo con su frase como nombre) y el HUD ya no tiene medidor ni marcador de seguimiento.
+    expect(hud).toMatch(/<div class="hud-persona"[^>]* role="group" \[attr\.aria-label\]="game\.persona\.label">/);
+    expect(hud).not.toContain('hud-patient');
+    expect(hud).not.toContain('Seguimiento formativo');
     expect(play).toContain('<div class="case-intro-card__body" tabindex="0" role="region" aria-label="Contexto narrativo del caso">');
   });
 });

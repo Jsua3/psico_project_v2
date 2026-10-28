@@ -23,7 +23,7 @@ export type ViewId = 'down' | 'left' | 'right' | 'up';
 export type ViewKind = 'front' | 'back' | 'side';
 export type SheetId = 'idle' | 'walk';
 export type PieceKind = 'hair' | 'face' | 'top' | 'layer' | 'bottom' | 'shoes' | 'accessory';
-export type PortraitState = 'neutral' | 'preocupada' | 'triste' | 'alegre';
+export type PortraitState = 'neutral' | 'preocupada' | 'triste' | 'alegre' | 'cautelosa' | 'en-crisis';
 
 export const FRAME = Object.freeze({ width: 48, height: 72, pivotX: 24, pivotY: 68 });
 /** Retrato de 32×32: se muestra a ×3 en una caja de 96 px (estilo tierno de poco detalle). */
@@ -34,7 +34,8 @@ export const SHEETS: Readonly<Record<SheetId, { readonly frames: number; readonl
 });
 export const SHEET_IDS: readonly SheetId[] = Object.freeze(['idle', 'walk']);
 export const VIEW_ROWS: readonly ViewId[] = Object.freeze(['down', 'left', 'right', 'up']);
-export const PORTRAIT_STATES: readonly PortraitState[] = Object.freeze(['neutral', 'preocupada', 'triste', 'alegre']);
+/** Seis estados: los cuatro de 2026-10 más cautelosa (vínculo GUARDED) y en-crisis (activación CRISIS). */
+export const PORTRAIT_STATES: readonly PortraitState[] = Object.freeze(['neutral', 'preocupada', 'triste', 'alegre', 'cautelosa', 'en-crisis']);
 export const OUTLINE = '#15131d';
 export const TONE = Object.freeze({ HI: 0, BASE: 1, SHADE: 2, DEEP: 3 });
 

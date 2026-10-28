@@ -1,10 +1,10 @@
-"""E1-7 · Consecuencia narrativa ≠ retroalimentación pedagógica (RN-08 en el servidor, RF-17, N8).
+"""La decisión devuelve solo la consecuencia (RN-08, RF-17, N8; Tarea 5 del modelo de métricas).
 
-Decisiones 6 y 10: en el momento de decidir la persona ve la **consecuencia** de lo que
-eligió; la **retroalimentación** pedagógica (clasificación, deltas, mensaje evaluativo)
-llega al cierre. Contrato C2, en modo *expand*: la respuesta de una decisión añade
-``consequence`` (y ``retry``); con ``FEEDBACK_AT_CLOSE_ONLY`` no trae nada evaluativo. La
-segunda oportunidad pasa a ser una regla de la versión del caso (``rules.secondChance``).
+Al decidir, la persona ve la **consecuencia** de lo que eligió y nada más: ni clasificación, ni
+cifras, ni mensaje evaluativo. La respuesta tiene UNA sola forma, en todos los casos:
+``{attempt, consequence}`` y, cuando se concede la segunda oportunidad, ``{attempt, consequence, retry}``.
+Lo evaluativo llega al cierre, por el reporte congelado. La segunda oportunidad es una regla de la versión
+(``rules.secondChance``) y la clase de la respuesta sale del motor (``response_effects``).
 """
 import importlib
 import json
@@ -12,9 +12,17 @@ import json
 import pytest
 from django.contrib.auth import get_user_model
 
-from apps.simulation.models import AttemptEvent, CaseVersion, DecisionOption, SimulationAttempt
-from apps.simulation.services import case_effects
+from apps.simulation.models import (
+    REGISTERED_DECISION_EVENT_TYPES,
+    RETRY_EVENT_TYPES,
+    AttemptEvent,
+    CaseVersion,
+    DecisionOption,
+    SimulationAttempt,
+)
+from apps.simulation.services import case_state
 from apps.simulation.services.case_rules import rules_of
+from apps.simulation.services.game_service import RETRY_NEUTRAL_MESSAGE
 
 from .test_world import _start, case_version_id, cl, estudiante  # noqa: F401  (fixtures)
 
@@ -22,13 +30,14 @@ pytestmark = [pytest.mark.req("RN-08"), pytest.mark.req("RF-17")]
 
 BASE = "/api/simulation"
 User = get_user_model()
-RETRY = case_effects.RETRY_EVENT_TYPES
-REGISTERED = case_effects.REGISTERED_DECISION_EVENT_TYPES
+RETRY = RETRY_EVENT_TYPES
+REGISTERED = REGISTERED_DECISION_EVENT_TYPES
 
-#: Claves que revelan la evaluación de la decisión: no pueden viajar antes del cierre.
+#: Claves que revelan la evaluación de la decisión: no viajan al decidir, en ningún caso.
+#: (Las cifras viejas del estado del intento ya no existen: ``test_no_numbers_to_student`` vigila que no vuelvan.)
 EVALUATIVE_KEYS = {
-    "classification", "scoreDelta", "stressDelta", "trustDelta", "victimRiskDelta",
-    "prohibitedConduct", "prohibitionReason", "message", "retryRequired",
+    "feedback", "classification", "class", "responseClass", "scoreDelta", "stressDelta", "trustDelta",
+    "victimRiskDelta", "prohibitedConduct", "prohibitionReason", "message", "retryRequired",
 }
 
 
@@ -64,31 +73,57 @@ def _decide(client, attempt_id, token, option_id, **extra):
     )
 
 
-def _option(node_id, *classifications):
+def _option(node_id, *response_classes):
+    """La primera opción de la escena con alguna de esas clases (la primera escena sembrada solo tiene
+    «Recomendada» y «Contraindicada»)."""
     return DecisionOption.objects.filter(
-        source_node_id=node_id, classification__in=classifications
+        source_node_id=node_id, response_class__in=response_classes
     ).order_by("id").first()
 
 
-# ── la consecuencia ──────────────────────────────────────────────────────────
-def test_con_la_bandera_apagada_conserva_el_feedback_y_agrega_la_consecuencia_del_nodo(
-    estudiante, case_version_id, settings
+def _contraindicated_option(node_id):
+    return _option(node_id, "CONTRAINDICATED")
+
+
+def _sin_nada_evaluativo(data):
+    """Nada evaluativo en ninguna parte de la respuesta (el aviso neutro de ``retry`` es el único ``message``)."""
+    sin_aviso = {key: value for key, value in data.items() if key != "retry"}
+    assert _keys(sin_aviso) & EVALUATIVE_KEYS == set()
+
+
+# ── la forma única de la respuesta ───────────────────────────────────────────
+@pytest.mark.parametrize("clase", [("RECOMMENDED",), ("CONTRAINDICATED",)])
+def test_la_respuesta_de_una_decision_registrada_es_attempt_y_consequence(
+    estudiante, case_version_id, clase
 ):
-    settings.FEEDBACK_AT_CLOSE_ONLY = False
+    _set_rules(case_version_id, secondChance=False)  # la respuesta mala se registra de inmediato
     client, attempt_id, token, node_id = _first_node(estudiante, case_version_id)
-    good = _option(node_id, "ADEQUATE")
+    option = _option(node_id, *clase)
+
+    response = _decide(client, attempt_id, token, option.id)
+
+    data = response.data["data"]
+    assert response.status_code == 200
+    assert set(data) == {"attempt", "consequence"}
+    assert data["attempt"]["currentNode"]["id"] != node_id
+    assert data["consequence"]["source"] in ("OPTION", "NODE")
+    _sin_nada_evaluativo(data)
+
+
+def test_la_consecuencia_sale_de_la_narrativa_del_nodo_destino(estudiante, case_version_id):
+    client, attempt_id, token, node_id = _first_node(estudiante, case_version_id)
+    good = _option(node_id, "RECOMMENDED")
+    DecisionOption.objects.filter(pk=good.pk).update(consequence_text=None)
 
     data = _decide(client, attempt_id, token, good.id).data["data"]
 
-    assert data["feedback"]["classification"] == "ADEQUATE"
     assert data["consequence"] == {"text": good.target_node.narrative, "source": "NODE"}
     assert "retry" not in data
 
 
-def test_la_consecuencia_sale_del_texto_de_la_opcion_cuando_existe(estudiante, case_version_id, settings):
-    settings.FEEDBACK_AT_CLOSE_ONLY = False
+def test_la_consecuencia_sale_del_texto_de_la_opcion_cuando_existe(estudiante, case_version_id):
     client, attempt_id, token, node_id = _first_node(estudiante, case_version_id)
-    good = _option(node_id, "ADEQUATE")
+    good = _option(node_id, "RECOMMENDED")
     DecisionOption.objects.filter(pk=good.pk).update(consequence_text="La familia respira y te escucha.")
 
     data = _decide(client, attempt_id, token, good.id).data["data"]
@@ -96,93 +131,132 @@ def test_la_consecuencia_sale_del_texto_de_la_opcion_cuando_existe(estudiante, c
     assert data["consequence"] == {"text": "La familia respira y te escucha.", "source": "OPTION"}
 
 
-# ── la bandera FEEDBACK_AT_CLOSE_ONLY ────────────────────────────────────────
-def test_con_la_bandera_encendida_la_respuesta_no_trae_nada_evaluativo(estudiante, case_version_id, settings):
-    settings.FEEDBACK_AT_CLOSE_ONLY = True
+def test_la_bandera_feedback_at_close_only_ya_no_existe(settings):
+    from psychosim.settings import base
+
+    assert not hasattr(settings, "FEEDBACK_AT_CLOSE_ONLY")
+    assert "FEEDBACK_AT_CLOSE_ONLY" not in base.CONTRACT_FLAGS_REGISTRY
+
+
+@pytest.mark.parametrize("timing", ["IMMEDIATE", "AT_CLOSE", "NUNCA"])
+def test_feedback_timing_de_la_version_no_cambia_la_respuesta(estudiante, case_version_id, timing):
+    _set_rules(case_version_id, feedbackTiming=timing)
     client, attempt_id, token, node_id = _first_node(estudiante, case_version_id)
-    good = _option(node_id, "ADEQUATE")
 
-    response = _decide(client, attempt_id, token, good.id)
+    data = _decide(client, attempt_id, token, _option(node_id, "RECOMMENDED").id).data["data"]
 
-    data = response.data["data"]
-    assert response.status_code == 200
     assert set(data) == {"attempt", "consequence"}
-    assert data["attempt"]["feedback"] is None
-    assert data["attempt"]["currentNode"]["key"] != "hospital-urgencias"
-    assert _keys(data) & EVALUATIVE_KEYS == set()
-    assert data["consequence"]["source"] in ("OPTION", "NODE")
+    _sin_nada_evaluativo(data)
 
 
-def test_con_la_bandera_encendida_el_reintento_no_es_evaluativo(estudiante, case_version_id, settings):
-    settings.FEEDBACK_AT_CLOSE_ONLY = True
+# ── la segunda oportunidad como regla del caso ───────────────────────────────
+def test_la_primera_respuesta_con_riesgo_concede_la_segunda_oportunidad_sin_decir_que_estuvo_mal(
+    estudiante, case_version_id
+):
     _set_rules(case_version_id, secondChance=True)
     client, attempt_id, token, node_id = _first_node(estudiante, case_version_id)
-    bad = _option(node_id, "RISKY", "INADEQUATE")
+    bad = _option(node_id, "CONTRAINDICATED", "RISKY")
 
     data = _decide(client, attempt_id, token, bad.id).data["data"]
 
     assert set(data) == {"attempt", "consequence", "retry"}
     assert data["consequence"] is None
-    assert data["retry"]["allowed"] is True
-    assert not {"riesgosa", "inadecuada", "inadecuado"} & set(data["retry"]["message"].lower().split())
-    # ``retry.message`` es el aviso neutro; lo evaluativo no puede viajar en ninguna otra parte.
-    assert _keys({key: value for key, value in data.items() if key != "retry"}) & EVALUATIVE_KEYS == set()
-    assert set(data["retry"]) == {"allowed", "message"}
-    assert len(AttemptEvent.objects.filter(attempt_id=attempt_id, event_type__in=RETRY)) == 1
+    assert data["retry"] == {"allowed": True, "message": RETRY_NEUTRAL_MESSAGE}
+    assert data["attempt"]["currentNode"]["id"] == node_id
+    assert not {"riesgosa", "inadecuada", "inadecuado", "mal", "error"} & set(data["retry"]["message"].lower().split())
+    _sin_nada_evaluativo(data)
+    assert AttemptEvent.objects.filter(attempt_id=attempt_id, event_type__in=RETRY).count() == 1
+    assert AttemptEvent.objects.filter(attempt_id=attempt_id, event_type__in=REGISTERED).count() == 0
 
 
-def test_la_bandera_tambien_cubre_la_repeticion_de_una_decision(estudiante, case_version_id, settings):
-    settings.FEEDBACK_AT_CLOSE_ONLY = True
-    client, attempt_id, token, node_id = _first_node(estudiante, case_version_id)
-    good = _option(node_id, "ADEQUATE")
-
-    first = _decide(client, attempt_id, token, good.id, requestId="req-bandera-0001")
-    second = _decide(client, attempt_id, token, good.id, requestId="req-bandera-0001")
-
-    assert second.data["data"] == first.data["data"]
-    assert _keys(second.data["data"]) & EVALUATIVE_KEYS == set()
-
-
-def test_feedback_timing_at_close_en_la_version_oculta_lo_evaluativo_sin_la_bandera(
-    estudiante, case_version_id, settings
-):
-    settings.FEEDBACK_AT_CLOSE_ONLY = False
-    _set_rules(case_version_id, feedbackTiming="AT_CLOSE")
+@pytest.mark.parametrize("timing", ["IMMEDIATE", "AT_CLOSE"])
+def test_el_aviso_del_reintento_es_el_mismo_con_cualquier_feedback_timing(estudiante, case_version_id, timing):
+    _set_rules(case_version_id, secondChance=True, feedbackTiming=timing)
     client, attempt_id, token, node_id = _first_node(estudiante, case_version_id)
 
-    data = _decide(client, attempt_id, token, _option(node_id, "ADEQUATE").id).data["data"]
+    data = _decide(client, attempt_id, token, _option(node_id, "CONTRAINDICATED", "RISKY").id).data["data"]
 
-    assert set(data) == {"attempt", "consequence"}
-
-
-# ── la segunda oportunidad como regla del caso ───────────────────────────────
-def test_sin_segunda_oportunidad_la_respuesta_mala_se_registra_de_inmediato(
-    estudiante, case_version_id, settings
-):
-    settings.FEEDBACK_AT_CLOSE_ONLY = False
-    _set_rules(case_version_id, secondChance=False)
-    client, attempt_id, token, node_id = _first_node(estudiante, case_version_id)
-    bad = _option(node_id, "RISKY", "INADEQUATE")
-
-    data = _decide(client, attempt_id, token, bad.id).data["data"]
-
-    assert data["feedback"]["retryRequired"] is False
-    assert data["currentNode"]["id"] != node_id
-    assert AttemptEvent.objects.filter(attempt_id=attempt_id, event_type__in=RETRY).count() == 0
-    assert AttemptEvent.objects.filter(attempt_id=attempt_id, event_type__in=REGISTERED).count() == 1
+    assert data["retry"]["message"] == RETRY_NEUTRAL_MESSAGE
 
 
-def test_con_segunda_oportunidad_el_flujo_de_reintento_se_conserva(estudiante, case_version_id, settings):
-    settings.FEEDBACK_AT_CLOSE_ONLY = False
+def test_el_reintento_no_cambia_el_estado_del_intento_ni_cumple_hitos(estudiante, case_version_id):
     _set_rules(case_version_id, secondChance=True)
     client, attempt_id, token, node_id = _first_node(estudiante, case_version_id)
-    bad = _option(node_id, "RISKY", "INADEQUATE")
+    before = case_state.read(SimulationAttempt.objects.get(pk=attempt_id))
+
+    _decide(client, attempt_id, token, _option(node_id, "CONTRAINDICATED", "RISKY").id)
+
+    assert case_state.read(SimulationAttempt.objects.get(pk=attempt_id)) == before
+
+
+def test_una_respuesta_contraindicada_usa_el_evento_de_reintento_prohibido(estudiante, case_version_id):
+    _set_rules(case_version_id, secondChance=True)
+    client, attempt_id, token, node_id = _first_node(estudiante, case_version_id)
+    prohibited = _contraindicated_option(node_id)
+
+    data = _decide(client, attempt_id, token, prohibited.id).data["data"]
+
+    assert data["retry"]["allowed"] is True
+    assert AttemptEvent.objects.filter(
+        attempt_id=attempt_id, event_type="PROHIBITED_DECISION_RETRY_REQUIRED", decision_option_id=prohibited.id
+    ).exists()
+
+
+def test_una_respuesta_con_riesgo_usa_el_evento_de_reintento_comun(estudiante, case_version_id):
+    _set_rules(case_version_id, secondChance=True)
+    client, attempt_id, token, node_id = _first_node(estudiante, case_version_id)
+    risky = _option(node_id, "RECOMMENDED")
+    DecisionOption.objects.filter(pk=risky.pk).update(response_class="RISKY")
+
+    _decide(client, attempt_id, token, risky.id)
+
+    assert AttemptEvent.objects.filter(
+        attempt_id=attempt_id, event_type="DECISION_RETRY_REQUIRED", decision_option_id=risky.id
+    ).exists()
+
+
+def test_la_segunda_oportunidad_se_decide_por_la_clase_de_la_respuesta_no_por_la_clasificacion_antigua(
+    estudiante, case_version_id
+):
+    """Una opción declarada «Contraindicada» pide reintento aunque su clasificación antigua diga ADEQUATE."""
+    _set_rules(case_version_id, secondChance=True)
+    client, attempt_id, token, node_id = _first_node(estudiante, case_version_id)
+    good = _option(node_id, "RECOMMENDED")
+    DecisionOption.objects.filter(pk=good.pk).update(
+        response_class="CONTRAINDICATED", prohibition_reason="Revictimiza a la persona usuaria."
+    )
+
+    data = _decide(client, attempt_id, token, good.id).data["data"]
+
+    assert data["retry"]["allowed"] is True
+    assert data["attempt"]["currentNode"]["id"] == node_id
+
+
+def test_una_opcion_recomendada_nunca_pide_reintento_aunque_su_dato_antiguo_sea_malo(
+    estudiante, case_version_id
+):
+    _set_rules(case_version_id, secondChance=True)
+    client, attempt_id, token, node_id = _first_node(estudiante, case_version_id)
+    bad = _option(node_id, "CONTRAINDICATED", "RISKY")
+    DecisionOption.objects.filter(pk=bad.pk).update(response_class="RECOMMENDED")
 
     data = _decide(client, attempt_id, token, bad.id).data["data"]
 
-    assert data["feedback"]["retryRequired"] is True
-    assert data["retry"]["allowed"] is True
-    assert data["currentNode"]["id"] == node_id
+    assert set(data) == {"attempt", "consequence"}
+    assert data["attempt"]["currentNode"]["id"] != node_id
+
+
+def test_sin_segunda_oportunidad_la_respuesta_mala_se_registra_de_inmediato(estudiante, case_version_id):
+    _set_rules(case_version_id, secondChance=False)
+    client, attempt_id, token, node_id = _first_node(estudiante, case_version_id)
+    bad = _option(node_id, "CONTRAINDICATED", "RISKY")
+
+    data = _decide(client, attempt_id, token, bad.id).data["data"]
+
+    assert set(data) == {"attempt", "consequence"}
+    assert data["attempt"]["currentNode"]["id"] != node_id
+    assert AttemptEvent.objects.filter(attempt_id=attempt_id, event_type__in=RETRY).count() == 0
+    assert AttemptEvent.objects.filter(attempt_id=attempt_id, event_type__in=REGISTERED).count() == 1
 
 
 def test_el_caso_sembrado_conserva_la_segunda_oportunidad(db):
@@ -207,31 +281,106 @@ def test_las_reglas_ausentes_o_invalidas_toman_los_valores_por_defecto(db):
     version = CaseVersion.objects.get(simulation_case__code="SIM-VBG-001", status="PUBLISHED")
     for raw in ("{}", "", "no es json", "[1, 2]", '{"secondChance": "si", "feedbackTiming": "NUNCA"}'):
         version.rules = raw
-        rules = rules_of(version)
-        assert rules.second_chance is False
-        assert rules.feedback_timing == "IMMEDIATE"
+        assert rules_of(version).second_chance is False
 
 
-# ── la migración de datos ────────────────────────────────────────────────────
-def test_la_migracion_enciende_la_segunda_oportunidad_en_las_versiones_existentes():
-    migration = importlib.import_module("apps.simulation.migrations.0009_case_rules_existing_second_chance")
-
-    assert json.loads(migration.with_second_chance("{}")) == {"secondChance": True}
-    assert json.loads(migration.with_second_chance("")) == {"secondChance": True}
-    assert json.loads(migration.with_second_chance("no es json")) == {"secondChance": True}
-    assert json.loads(migration.with_second_chance('{"feedbackTiming": "AT_CLOSE"}')) == {
-        "feedbackTiming": "AT_CLOSE", "secondChance": True,
-    }
-    assert json.loads(migration.with_second_chance('{"secondChance": false}')) == {"secondChance": False}
-
-
-def test_con_la_bandera_encendida_un_intento_en_pausa_no_trae_el_reporte_en_vivo(
-    estudiante, case_version_id, settings
+# ── lo que queda en el evento ────────────────────────────────────────────────
+def test_el_detalle_del_evento_es_la_explicacion_de_la_opcion_sin_prefijos_evaluativos(
+    estudiante, case_version_id
 ):
-    """Revisión de E1 (I-4): antes del cierre no viaja la evaluación por el reporte en vivo."""
-    settings.FEEDBACK_AT_CLOSE_ONLY = True
     client, attempt_id, token, node_id = _first_node(estudiante, case_version_id)
-    _decide(client, attempt_id, token, _option(node_id, "ADEQUATE").id)
+    good = _option(node_id, "RECOMMENDED")
+    DecisionOption.objects.filter(pk=good.pk).update(feedback_text="Porque estabiliza a la familia.")
+
+    _decide(client, attempt_id, token, good.id)
+
+    event = AttemptEvent.objects.get(attempt_id=attempt_id, event_type="DECISION_SELECTED")
+    assert event.detail == "Porque estabiliza a la familia."
+
+
+def test_sin_feedback_text_el_detalle_es_la_retroalimentacion_inmediata(estudiante, case_version_id):
+    client, attempt_id, token, node_id = _first_node(estudiante, case_version_id)
+    good = _option(node_id, "RECOMMENDED")
+    DecisionOption.objects.filter(pk=good.pk).update(feedback_text=None, immediate_feedback="Explicación propia.")
+
+    _decide(client, attempt_id, token, good.id)
+
+    assert AttemptEvent.objects.get(attempt_id=attempt_id, event_type="DECISION_SELECTED").detail == (
+        "Explicación propia."
+    )
+
+
+def test_una_respuesta_contraindicada_registrada_usa_el_evento_prohibido(estudiante, case_version_id):
+    _set_rules(case_version_id, secondChance=False)
+    client, attempt_id, token, node_id = _first_node(estudiante, case_version_id)
+    prohibited = _contraindicated_option(node_id)
+
+    data = _decide(client, attempt_id, token, prohibited.id).data["data"]
+
+    assert set(data) == {"attempt", "consequence"}
+    assert AttemptEvent.objects.filter(
+        attempt_id=attempt_id, event_type="PROHIBITED_DECISION_SELECTED", decision_option_id=prohibited.id
+    ).exists()
+
+
+def test_el_override_de_evidencia_queda_en_el_evento_y_no_en_la_respuesta(estudiante, case_version_id):
+    client, attempt_id, token, node_id = _first_node(estudiante, case_version_id)
+    good = _option(node_id, "RECOMMENDED")
+
+    data = _decide(
+        client, attempt_id, token, good.id, evidenceOverride=True, missingEvidence=["Usar PAP"]
+    ).data["data"]
+
+    event = AttemptEvent.objects.get(attempt_id=attempt_id, event_type="DECISION_SELECTED")
+    assert "Override de evidencia: Usar PAP" in event.detail
+    assert "Usar PAP" not in json.dumps(data)
+
+
+# ── la repetición de una decisión ────────────────────────────────────────────
+def test_repetir_una_decision_devuelve_la_misma_forma_unica(estudiante, case_version_id):
+    client, attempt_id, token, node_id = _first_node(estudiante, case_version_id)
+    good = _option(node_id, "RECOMMENDED")
+
+    first = _decide(client, attempt_id, token, good.id, requestId="req-forma-unica-1")
+    second = _decide(client, attempt_id, token, good.id, requestId="req-forma-unica-1")
+
+    assert second.data["data"] == first.data["data"]
+    assert set(second.data["data"]) == {"attempt", "consequence"}
+    _sin_nada_evaluativo(second.data["data"])
+
+
+def test_repetir_un_reintento_devuelve_el_mismo_aviso_neutro(estudiante, case_version_id):
+    _set_rules(case_version_id, secondChance=True)
+    client, attempt_id, token, node_id = _first_node(estudiante, case_version_id)
+    bad = _option(node_id, "CONTRAINDICATED", "RISKY")
+
+    first = _decide(client, attempt_id, token, bad.id, requestId="req-reintento-1")
+    second = _decide(client, attempt_id, token, bad.id, requestId="req-reintento-1")
+
+    assert second.data["data"] == first.data["data"]
+    assert set(second.data["data"]) == {"attempt", "consequence", "retry"}
+    assert second.data["data"]["retry"]["message"] == RETRY_NEUTRAL_MESSAGE
+    assert AttemptEvent.objects.filter(attempt_id=attempt_id, event_type__in=RETRY).count() == 1
+
+
+# ── el estado del intento nunca trae `feedback` ──────────────────────────────
+def test_el_estado_del_intento_ya_no_tiene_la_clave_feedback(estudiante, case_version_id):
+    client, attempt_id, token, node_id = _first_node(estudiante, case_version_id)
+
+    state = client.get(f"{BASE}/attempts/{attempt_id}", HTTP_X_SIEP_ATTEMPT_TOKEN=token).data["data"]
+    decided = _decide(client, attempt_id, token, _option(node_id, "RECOMMENDED").id).data["data"]["attempt"]
+    paused = client.post(
+        f"{BASE}/attempts/{attempt_id}/safe-exit", {"attemptToken": token, "reason": "pausa"}, format="json"
+    ).data["data"]
+
+    for payload in (state, decided, paused):
+        assert "feedback" not in payload
+
+
+def test_un_intento_sin_completar_no_trae_el_reporte_en_vivo(estudiante, case_version_id):
+    """Antes del cierre no viaja la evaluación por el reporte en vivo (clases, conteos, línea de tiempo)."""
+    client, attempt_id, token, node_id = _first_node(estudiante, case_version_id)
+    _decide(client, attempt_id, token, _option(node_id, "RECOMMENDED").id)
     paused = client.post(
         f"{BASE}/attempts/{attempt_id}/safe-exit", {"attemptToken": token, "reason": "pausa"}, format="json"
     ).data["data"]
@@ -245,15 +394,17 @@ def test_con_la_bandera_encendida_un_intento_en_pausa_no_trae_el_reporte_en_vivo
         assert payload["supportResources"], "los recursos de apoyo siguen llegando"
 
 
-def test_con_la_bandera_apagada_el_intento_en_pausa_conserva_su_resumen(estudiante, case_version_id, settings):
-    settings.FEEDBACK_AT_CLOSE_ONLY = False
-    client, attempt_id, token, node_id = _first_node(estudiante, case_version_id)
+# ── la migración de datos ────────────────────────────────────────────────────
+def test_la_migracion_enciende_la_segunda_oportunidad_en_las_versiones_existentes():
+    migration = importlib.import_module("apps.simulation.migrations.0009_case_rules_existing_second_chance")
 
-    paused = client.post(
-        f"{BASE}/attempts/{attempt_id}/safe-exit", {"attemptToken": token, "reason": "pausa"}, format="json"
-    ).data["data"]
-
-    assert paused["completionReport"]["status"] == "PAUSED"
+    assert json.loads(migration.with_second_chance("{}")) == {"secondChance": True}
+    assert json.loads(migration.with_second_chance("")) == {"secondChance": True}
+    assert json.loads(migration.with_second_chance("no es json")) == {"secondChance": True}
+    assert json.loads(migration.with_second_chance('{"feedbackTiming": "AT_CLOSE"}')) == {
+        "feedbackTiming": "AT_CLOSE", "secondChance": True,
+    }
+    assert json.loads(migration.with_second_chance('{"secondChance": false}')) == {"secondChance": False}
 
 
 def test_la_migracion_0009_funciona_sobre_filas_reales(db):

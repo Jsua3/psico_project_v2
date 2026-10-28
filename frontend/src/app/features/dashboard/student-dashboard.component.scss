@@ -96,36 +96,12 @@
   padding-block: var(--ds-space-5);
 }
 
-.sd-line {
-  width: 100%;
-  height: auto;
-  overflow: visible;
-}
-
-.sd-line__path {
-  fill: none;
-  stroke: var(--ds-primary);
-  stroke-width: 2.5;
-  stroke-linejoin: round;
-  vector-effect: non-scaling-stroke;
-}
-
-.sd-line__dot {
-  fill: var(--ds-surface-1);
-  stroke: var(--ds-primary);
-  stroke-width: 2;
-  vector-effect: non-scaling-stroke;
-}
-
-// Zona de puntero del punto (más grande que el punto): el globo sale con el ratón.
-.sd-chart__hit {
-  fill: transparent;
-  cursor: help;
-}
-
 .sd-bars,
-.sd-legend {
+.sd-closings {
   display: grid;
+  // Una sola columna que SÍ puede encogerse: sin esto el título de un caso largo, que no parte, ensancha la lista
+  // más allá de la tarjeta (7 px de desborde horizontal a 390 px).
+  grid-template-columns: minmax(0, 1fr);
   gap: var(--ds-space-3);
   margin: 0;
   padding: 0;
@@ -172,68 +148,36 @@
   transform-origin: left center;
 }
 
-// Barra apilada de decisiones: una parte por clase, ancho proporcional (la leyenda lleva los números).
-.sd-stack {
+// Últimos cierres: el caso (que se recorta) y su fecha, sin cifras.
+.sd-closing {
+  min-width: 0;
   display: flex;
-  height: 0.75rem;
-  border-radius: var(--ds-radius-pill);
-  overflow: hidden;
-  background: var(--ds-surface-2);
-}
-
-.sd-stack__part {
-  flex: var(--sd-ratio, 0) 0 0;
-}
-
-.sd-legend li {
-  display: flex;
-  align-items: center;
-  gap: var(--ds-space-2);
+  justify-content: space-between;
+  gap: var(--ds-space-3);
   font-size: var(--ds-type-body-s-size);
   line-height: var(--ds-type-body-s-line);
 }
 
-.sd-legend__swatch {
+.sd-closing__case {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.sd-closing__date {
   flex: none;
-  width: 0.75rem;
-  height: 0.75rem;
-  border-radius: 2px;
+  color: var(--ds-text-2);
 }
 
-.sd-tone--adequate {
-  background: var(--ds-success);
-}
-
-.sd-tone--risky {
-  background: var(--ds-warning-text);
-}
-
-.sd-tone--inadequate {
-  background: var(--ds-danger);
-}
-
-.sd-tone--prohibited {
-  background: var(--ds-text-1);
-}
-
-// Con colores forzados los fondos desaparecen: las partes y muestras se dibujan con el color del texto del sistema.
+// Con colores forzados los fondos desaparecen: el relleno se dibuja con el color del texto del sistema.
 @media (forced-colors: active) {
-  .sd-bar__fill,
-  .sd-stack__part,
-  .sd-legend__swatch {
+  .sd-bar__fill {
     background: CanvasText;
-  }
-
-  .sd-stack__part + .sd-stack__part {
-    border-inline-start: 2px solid Canvas;
   }
 }
 
 // ── Historial reciente ──────────────────────────────────────────────────────────────────────────────────────────
-.sd-num {
-  font-variant-numeric: tabular-nums;
-}
-
 // En un teléfono la fecha y el estado no se parten letra a letra: la tabla se desplaza dentro de ui-table.
 .sd-nowrap {
   white-space: nowrap;

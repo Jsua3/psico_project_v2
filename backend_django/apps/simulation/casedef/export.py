@@ -10,6 +10,7 @@ from dataclasses import dataclass
 
 from . import siep
 from .model import CaseDefinition
+from .vocabulary import CLASSIFICATION_OF_CLASS, ResponseClass
 
 #: ``caso.estado``: ``IN_REVIEW`` no tiene equivalente en el taller y se lee como borrador.
 STATE = {"DRAFT": "BORRADOR", "IN_REVIEW": "BORRADOR", "PUBLISHED": "PUBLICADO", "ARCHIVED": "ARCHIVADO"}
@@ -172,9 +173,9 @@ def _option_document(scene, option, ids, required):
         "id": ids.option[(scene.key, option.key)],
         "texto": option.text,
         "siguienteEscena": ids.scene.get(option.target, ""),
-        "clasificacion": CLASSIFICATION.get(option.classification, option.classification),
+        "clasificacion": CLASSIFICATION[CLASSIFICATION_OF_CLASS[ResponseClass(option.response_class)]],
     }
-    if option.prohibited:
+    if option.response_class == ResponseClass.CONTRAINDICATED:
         document["conductaProhibida"] = True
     if _text(option.reason):
         document["motivoProhibicion"] = option.reason

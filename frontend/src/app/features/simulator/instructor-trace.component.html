@@ -33,7 +33,7 @@
                   <ui-badge [tone]="statusTone(attempt.status)">{{ statusLabel(attempt.status) }}</ui-badge>
                 </span>
                 <span class="tr-attempt__case">{{ clean(attempt.caseTitle, 'Caso sin título') }}</span>
-                <span class="tr-attempt__meta">Puntaje {{ attempt.accumulatedScore }} · {{ formatDate(attempt.startedAt) }}</span>
+                <span class="tr-attempt__meta">{{ formatDate(attempt.startedAt) }}</span>
               </button>
             </li>
           }
@@ -78,8 +78,9 @@
               </p>
               <div class="tr-facts">
                 <ui-badge [tone]="statusTone(item.status)">{{ statusLabel(item.status) }}</ui-badge>
-                <ui-badge>Puntaje {{ item.accumulatedScore }}</ui-badge>
-                <ui-badge>Estrés {{ item.stressIndex }}%</ui-badge>
+                @if (item.ending; as ending) {
+                  <ui-badge>{{ ending.title }}</ui-badge>
+                }
               </div>
               @if (canReplace(item)) {
                 <!-- E1-2 (RN-07): solo el docente reemplaza un intento abierto, con motivo. -->
@@ -95,16 +96,20 @@
                 <ui-stat label="Total decisiones" [value]="totalDecisions(item)" />
                 <span class="tr-metric__cta">Ver retroalimentación</span>
               </button>
-              <button ui-card type="button" class="tr-metric" aria-haspopup="dialog" (click)="openFeedback('ADEQUATE', item)">
-                <ui-stat label="Adecuadas" [value]="item.adequateDecisions" />
+              <button ui-card type="button" class="tr-metric" aria-haspopup="dialog" (click)="openFeedback('RECOMMENDED', item)">
+                <ui-stat label="Recomendadas" [value]="item.counts.recommended" />
+                <span class="tr-metric__cta">Ver retroalimentación</span>
+              </button>
+              <button ui-card type="button" class="tr-metric" aria-haspopup="dialog" (click)="openFeedback('ACCEPTABLE', item)">
+                <ui-stat label="Aceptables" [value]="item.counts.acceptable" />
                 <span class="tr-metric__cta">Ver retroalimentación</span>
               </button>
               <button ui-card type="button" class="tr-metric" aria-haspopup="dialog" (click)="openFeedback('RISKY', item)">
-                <ui-stat label="Riesgosas" [value]="item.riskyDecisions" />
+                <ui-stat label="Con riesgo" [value]="item.counts.risky" />
                 <span class="tr-metric__cta">Ver retroalimentación</span>
               </button>
-              <button ui-card type="button" class="tr-metric" aria-haspopup="dialog" (click)="openFeedback('INADEQUATE', item)">
-                <ui-stat label="Inadecuadas" [value]="item.inadequateDecisions" />
+              <button ui-card type="button" class="tr-metric" aria-haspopup="dialog" (click)="openFeedback('CONTRAINDICATED', item)">
+                <ui-stat label="Contraindicadas" [value]="item.counts.contraindicated" />
                 <span class="tr-metric__cta">Ver retroalimentación</span>
               </button>
               <button ui-card type="button" class="tr-metric" aria-haspopup="dialog" (click)="openFeedback('REFLECTIONS', item)">
@@ -121,7 +126,77 @@
               </button>
             </div>
 
-            @if (item.phaseDurations.length) {
+            <ui-section class="tr-milestones" title="Hitos">
+              <div class="tr-stack">
+                <p class="tr-hint">Lo que la persona hizo en el caso. «clave» marca los hitos que deciden el final.</p>
+                @if (!item.milestones.done.length && !item.milestones.missing.length) {
+                  <p class="tr-empty">Este caso no declara hitos.</p>
+                } @else {
+                  <div class="tr-milestone-groups">
+                    <div>
+                      <h3 class="tr-subtitle">Cumplidos</h3>
+                      @if (item.milestones.done.length) {
+                        <ul class="tr-milestone-list">
+                          @for (milestone of item.milestones.done; track milestone.key) {
+                            <li>
+                              <span>{{ milestone.label }}</span>
+                              @if (milestoneMark(milestone); as mark) { <ui-badge tone="info">{{ mark }}</ui-badge> }
+                            </li>
+                          }
+                        </ul>
+                      } @else {
+                        <p class="tr-empty">Ninguno todavía.</p>
+                      }
+                    </div>
+                    <div>
+                      <h3 class="tr-subtitle">Faltaron</h3>
+                      @if (item.milestones.missing.length) {
+                        <ul class="tr-milestone-list">
+                          @for (milestone of item.milestones.missing; track milestone.key) {
+                            <li>
+                              <span>{{ milestone.label }}</span>
+                              @if (milestoneMark(milestone); as mark) { <ui-badge tone="warning">{{ mark }}</ui-badge> }
+                            </li>
+                          }
+                        </ul>
+                      } @else {
+                        <p class="tr-empty">Ninguno.</p>
+                      }
+                    </div>
+                  </div>
+                }
+              </div>
+            </ui-section>
+
+            <ui-section class="tr-persona" title="La persona por escena">
+              @if (item.personaPorEscena.length) {
+                <ul class="tr-persona-list">
+                  @for (scene of item.personaPorEscena; track scene.nodeId) {
+                    <li><strong>{{ clean(scene.nodeTitle, 'Escena') }}</strong> → {{ scene.label }}</li>
+                  }
+                </ul>
+              } @else {
+                <p class="tr-empty">Aún no hay escenas con una decisión registrada.</p>
+              }
+            </ui-section>
+
+            @if (item.ending; as ending) {
+              <ui-section class="tr-ending" title="Final del intento">
+                <div class="tr-stack">
+                  <p class="tr-ending__title"><strong>{{ ending.title }}</strong></p>
+                  <p class="tr-hint">{{ ending.message }}</p>
+                  @if (ending.reason.length) {
+                    <ul class="tr-reason-list" aria-label="Por qué se llegó a este final">
+                      @for (reason of ending.reason; track $index) {
+                        <li>{{ reason }}</li>
+                      }
+                    </ul>
+                  }
+                </div>
+              </ui-section>
+            }
+
+            @if (item.phaseDurations?.length) {
               <ui-section class="tr-phases" title="Duración por escenario">
                 <ui-table label="Tiempo por escenario" density="compact">
                   <table ui-table>
@@ -171,12 +246,7 @@
                             <strong>{{ clean(entry.label, 'Evento registrado') }}</strong>
                             <ui-badge [tone]="timelineEntryTone(entry)">{{ timelineEntryLabel(entry) }}</ui-badge>
                           </span>
-                          <small>
-                            {{ entry.time }}
-                            @if (entry.scoreDelta || entry.stressDelta) {
-                              · Puntaje {{ signed(entry.scoreDelta) }} · Estrés {{ signed(entry.stressDelta) }}
-                            }
-                          </small>
+                          <small>{{ entry.time }}</small>
                         </span>
                       </li>
                     }
@@ -236,10 +306,19 @@
                   <p class="tr-valuation">
                     <span class="tr-valuation__label">{{ valuationLabel }}</span>
                     <ui-badge [tone]="levelTone(rub.overallLevel)">{{ levelLabel(rub.overallLevel) }}</ui-badge>
-                    @if (rub.totalScore !== null && rub.totalScore !== undefined) {
-                      <span class="tr-valuation__total">· {{ formatNumber(rub.totalScore) }} de {{ maxScoreOf(rub) }}</span>
-                    }
                   </p>
+
+                  <details class="tr-levels" open>
+                    <summary>Niveles y su descriptor</summary>
+                    <dl class="tr-levels__list">
+                      @for (level of rubricLevels(); track level.value) {
+                        <div>
+                          <dt>{{ level.label }}</dt>
+                          @if (level.descriptor) { <dd>{{ level.descriptor }}</dd> }
+                        </div>
+                      }
+                    </dl>
+                  </details>
 
                   @if (!rub.criteria.length) {
                     <p class="tr-empty">No hay rúbrica disponible para este caso.</p>
@@ -257,10 +336,14 @@
                       </div>
 
                       <div class="tr-criterion__fields">
-                        <ui-field label="Calificación" [hint]="scoreHint(criterion)" [error]="rubricFieldError(criterion.id)">
-                          <input uiControl type="number" inputmode="decimal" [attr.min]="minScore" [attr.max]="criterion.maxScore"
-                            [attr.step]="scoreStep" [ngModel]="rubricScores[criterion.id]"
-                            (ngModelChange)="onScoreChange(criterion, $event)">
+                        <ui-field label="Nivel logrado" [hint]="levelHint(criterion.id)" [error]="rubricFieldError(criterion.id)">
+                          <select uiControl [ngModel]="rubricLevelsByCriterion[criterion.id] ?? ''"
+                            (ngModelChange)="onLevelChange(criterion, $event)">
+                            <option value="">Sin calificar</option>
+                            @for (level of rubricLevels(); track level.value) {
+                              <option [value]="level.value">{{ level.label }}</option>
+                            }
+                          </select>
                         </ui-field>
                         <ui-field label="Observación del criterio">
                           <textarea uiControl rows="3" [(ngModel)]="rubricComments[criterion.id]"
@@ -278,7 +361,7 @@
 
                   <div class="tr-actions">
                     <button ui-button type="button" icon="save" [loading]="savingRubric()"
-                      [disabledReason]="hasRubricErrors() ? 'Corrige los puntajes marcados para guardar.' : null"
+                      [disabledReason]="hasRubricErrors() ? 'Elige el nivel de los criterios marcados para guardar.' : null"
                       (click)="saveRubric()">
                       {{ savingRubric() ? 'Guardando evaluación' : 'Guardar evaluación' }}
                     </button>
@@ -296,6 +379,41 @@
                 </div>
               }
             </ui-section>
+
+            <!-- La valoración automática queda plegada hasta que el docente guarda la suya: así no la copia sin mirar. -->
+            @if (item.systemEvaluation; as system) {
+              <ui-section class="tr-system" title="Valoración del sistema">
+                <div class="tr-stack">
+                  <p class="tr-hint">El perfil automático por competencia, junto a tu valoración. Es una referencia: la valoración que cuenta es la tuya.</p>
+                  <ui-table label="Valoración del sistema y tu valoración por competencia" density="compact">
+                    <table ui-table>
+                      <thead>
+                        <tr>
+                          <th scope="col">Competencia</th>
+                          <th scope="col">Tu valoración</th>
+                          <th scope="col">Valoración del sistema</th>
+                          <th scope="col">Con qué se calculó</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        @for (row of systemRows(item); track row.entry.code) {
+                          <tr uiRow>
+                            <th scope="row" class="tr-rowhead">{{ clean(row.entry.name, row.entry.code) }}</th>
+                            <td>{{ row.teacher }}</td>
+                            <td><ui-badge [tone]="levelTone(row.entry.level)">{{ row.entry.level ? levelLabel(row.entry.level) : 'Sin evidencia' }}</ui-badge></td>
+                            <td>{{ row.entry.basis ?? '—' }}</td>
+                          </tr>
+                        }
+                      </tbody>
+                    </table>
+                  </ui-table>
+                </div>
+              </ui-section>
+            } @else if (systemEvaluationFolded(item)) {
+              <ui-section class="tr-system" title="Valoración del sistema">
+                <p class="tr-hint tr-system__folded">{{ copy.systemFolded }}</p>
+              </ui-section>
+            }
           </div>
         }
       }

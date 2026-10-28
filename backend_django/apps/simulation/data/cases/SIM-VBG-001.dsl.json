@@ -56,7 +56,7 @@
         "id": "D02",
         "opciones": [
           {
-            "clasificacion": "RIESGOSA",
+            "clasificacion": "ADECUADA",
             "id": "OP04",
             "siguienteEscena": "E03",
             "texto": "Aplicar solo la Resolución 459 de 2012 (protocolo de atención integral a víctimas de violencia sexual y de género)."
@@ -92,13 +92,13 @@
             "texto": "Escucha activa sin juicios, intervenir la disonancia cognitiva, indagar antecedentes de la relación y activar ruta por psicología clínica y psiquiatría."
           },
           {
-            "clasificacion": "RIESGOSA",
+            "clasificacion": "ADECUADA",
             "id": "OP08",
             "siguienteEscena": "E04",
             "texto": "PAP a la familia + escucha activa y sin juicios a la víctima (cuando esté consciente) + protocolo EPICEE/SPIKES para comunicar el fallecimiento de la menor."
           },
           {
-            "clasificacion": "RIESGOSA",
+            "clasificacion": "ADECUADA",
             "id": "OP09",
             "siguienteEscena": "E04",
             "texto": "Lo anterior + antecedentes de la relación para determinar el ciclo de la violencia + manejo interdisciplinario del caso."
@@ -160,7 +160,7 @@
             "texto": "Ley 2126 de 2021 + Ley 1098 de 2006 + Ley 1257 de 2008."
           },
           {
-            "clasificacion": "RIESGOSA",
+            "clasificacion": "ADECUADA",
             "id": "OP15",
             "siguienteEscena": "E06",
             "texto": "Ley 1098 de 2006 + Ley 1257 de 2008."
@@ -190,7 +190,7 @@
             "texto": "Escucha activa, intervenir la disonancia, antecedentes y ciclos de violencia, valoración de riesgo de feminicidio y ruta por psicología clínica y psiquiatría."
           },
           {
-            "clasificacion": "RIESGOSA",
+            "clasificacion": "ADECUADA",
             "id": "OP18",
             "siguienteEscena": "E07",
             "texto": "Valoración inicial psicológica y emocional de la víctima y de las personas dependientes o en situación de vulnerabilidad + escucha activa + antecedentes y ciclos + rutas de derivación a salud y salud mental."
@@ -299,6 +299,7 @@
         "herramientasRequeridas": [],
         "id": "E01",
         "inicial": true,
+        "intensidad": "HIGH",
         "mapa": {
           "alto": 528,
           "ambiente": {
@@ -569,68 +570,45 @@
         },
         "opciones": [
           {
+            "clase": "CONTRAINDICATED",
             "clave": "h1-noticia-sin-protocolo",
             "efectos": {
-              "flags": {
-                "noticia_muerte_mal_manejada": true
-              },
-              "metrics": {
-                "calidad_duelo": -25,
-                "confianza": -15,
-                "crisis_emocional": 25,
-                "etica_profesional": -15,
-                "rigor_tecnico": -10
-              },
-              "severity": "critical"
+              "milestones": [],
+              "persona": {
+                "activation": 1,
+                "bond": -1
+              }
             },
-            "estres": 25,
             "id": "OP01",
-            "penalizacion": -5,
-            "puntaje": -10,
             "retroalimentacionInmediata": "La noticia de una muerte exige protocolo (EPICEE/SPIKES), contención y estabilización previa. Sin eso, la crisis escala."
           },
           {
+            "clase": "RECOMMENDED",
             "clave": "h1-pap-contencion",
             "efectos": {
-              "flags": {
-                "familia_contenida": true,
-                "pap_aplicado": true
-              },
-              "metrics": {
-                "calidad_duelo": 15,
-                "confianza": 15,
-                "crisis_emocional": -20,
-                "etica_profesional": 10,
-                "riesgo_victima": -5,
-                "rigor_tecnico": 10
-              },
-              "severity": "recommended"
+              "milestones": [
+                "familia_contenida",
+                "pap_aplicado"
+              ],
+              "persona": {
+                "activation": -1,
+                "bond": 1
+              }
             },
-            "estres": -5,
             "id": "OP02",
-            "penalizacion": 0,
-            "puntaje": 10,
             "retroalimentacionInmediata": "Los PAP son la primera línea en crisis: estabilizan, contienen y preparan a la familia para el proceso de duelo."
           },
           {
+            "clase": "CONTRAINDICATED",
             "clave": "h1-interrogar-victima",
             "efectos": {
-              "flags": {
-                "interrogatorio_prematuro": true
-              },
-              "metrics": {
-                "confianza": -20,
-                "crisis_emocional": 15,
-                "etica_profesional": -25,
-                "riesgo_victima": 15,
-                "rigor_tecnico": -10
-              },
-              "severity": "critical"
+              "milestones": [],
+              "persona": {
+                "activation": 1,
+                "bond": -1
+              }
             },
-            "estres": 25,
             "id": "OP03",
-            "penalizacion": -5,
-            "puntaje": -10,
             "retroalimentacionInmediata": "La urgencia vital y la estabilización van primero: interrogar a una víctima en shock la revictimiza."
           }
         ],
@@ -648,6 +626,7 @@
         "herramientasRequeridas": [],
         "id": "E02",
         "inicial": false,
+        "intensidad": "MEDIUM",
         "mapa": {
           "alto": 528,
           "ambiente": {
@@ -1107,54 +1086,44 @@
         },
         "opciones": [
           {
+            "clase": "ACCEPTABLE",
             "clave": "h2-solo-459",
             "efectos": {
-              "flags": {},
-              "metrics": {
-                "rigor_tecnico": 2,
-                "ruta_institucional": 5
-              },
-              "severity": "acceptable"
+              "milestones": [],
+              "persona": {
+                "activation": 0,
+                "bond": 0
+              }
             },
-            "estres": 4,
             "id": "OP04",
-            "penalizacion": 0,
-            "puntaje": 3,
             "retroalimentacionInmediata": "La Resolución 459 aplica, pero sola queda incompleta: la Ley 1257 de 2008 es el eje de protección frente a las violencias contra la mujer."
           },
           {
+            "clase": "RECOMMENDED",
             "clave": "h2-459-1257",
             "efectos": {
-              "flags": {
-                "marco_hospital_correcto": true
-              },
-              "metrics": {
-                "etica_profesional": 5,
-                "rigor_tecnico": 10,
-                "ruta_institucional": 15
-              },
-              "severity": "recommended"
+              "milestones": [
+                "marco_hospital_correcto"
+              ],
+              "persona": {
+                "activation": -1,
+                "bond": 1
+              }
             },
-            "estres": -5,
             "id": "OP05",
-            "penalizacion": 0,
-            "puntaje": 10,
             "retroalimentacionInmediata": "Correcto: protocolo de atención integral en salud más el marco de protección de la Ley 1257 de 2008."
           },
           {
+            "clase": "RISKY",
             "clave": "h2-459-1448",
             "efectos": {
-              "flags": {},
-              "metrics": {
-                "rigor_tecnico": -8,
-                "ruta_institucional": -10
-              },
-              "severity": "risky"
+              "milestones": [],
+              "persona": {
+                "activation": 0,
+                "bond": -1
+              }
             },
-            "estres": 8,
             "id": "OP06",
-            "penalizacion": 0,
-            "puntaje": -5,
             "retroalimentacionInmediata": "La Ley 1448 (víctimas del conflicto armado) no es el eje de este caso: el marco correcto es la Ley 1257 de 2008."
           }
         ],
@@ -1172,6 +1141,7 @@
         "herramientasRequeridas": [],
         "id": "E03",
         "inicial": false,
+        "intensidad": "MEDIUM",
         "mapa": {
           "alto": 528,
           "ambiente": {
@@ -1631,80 +1601,62 @@
         },
         "opciones": [
           {
+            "clase": "RISKY",
             "clave": "h3-parcial-disonancia",
             "efectos": {
-              "flags": {},
-              "metrics": {
-                "calidad_duelo": -5,
-                "crisis_emocional": 5,
-                "rigor_tecnico": -5
-              },
-              "severity": "risky"
+              "milestones": [],
+              "persona": {
+                "activation": 0,
+                "bond": -1
+              }
             },
-            "estres": 8,
             "id": "OP07",
-            "penalizacion": 0,
-            "puntaje": 0,
             "retroalimentacionInmediata": "Parcial: falta protocolo de noticia difícil, PAP a la familia y articulación interdisciplinaria."
           },
           {
+            "clase": "ACCEPTABLE",
             "clave": "h3-pap-epicee",
             "efectos": {
-              "flags": {
-                "epicee_aplicado": true
-              },
-              "metrics": {
-                "calidad_duelo": 8,
-                "crisis_emocional": -5,
-                "rigor_tecnico": 8
-              },
-              "severity": "acceptable"
+              "milestones": [
+                "epicee_aplicado"
+              ],
+              "persona": {
+                "activation": 0,
+                "bond": 0
+              }
             },
-            "estres": 0,
             "id": "OP08",
-            "penalizacion": 0,
-            "puntaje": 5,
             "retroalimentacionInmediata": "Buena base, pero incompleta: falta la evaluación psicosocial familiar y el manejo interdisciplinario."
           },
           {
+            "clase": "ACCEPTABLE",
             "clave": "h3-epicee-ciclo",
             "efectos": {
-              "flags": {
-                "epicee_aplicado": true
-              },
-              "metrics": {
-                "calidad_duelo": 8,
-                "crisis_emocional": -5,
-                "rigor_tecnico": 10
-              },
-              "severity": "acceptable"
+              "milestones": [
+                "epicee_aplicado"
+              ],
+              "persona": {
+                "activation": 0,
+                "bond": 0
+              }
             },
-            "estres": 0,
             "id": "OP09",
-            "penalizacion": 0,
-            "puntaje": 6,
             "retroalimentacionInmediata": "Sólida, pero aún sin la evaluación psicosocial de factores protectores y de riesgo en el afrontamiento del duelo."
           },
           {
+            "clase": "RECOMMENDED",
             "clave": "h3-integral-psicosocial",
             "efectos": {
-              "flags": {
-                "duelo_acompanado": true,
-                "epicee_aplicado": true
-              },
-              "metrics": {
-                "calidad_duelo": 15,
-                "confianza": 10,
-                "crisis_emocional": -10,
-                "etica_profesional": 10,
-                "rigor_tecnico": 15
-              },
-              "severity": "recommended"
+              "milestones": [
+                "duelo_acompanado",
+                "epicee_aplicado"
+              ],
+              "persona": {
+                "activation": -1,
+                "bond": 1
+              }
             },
-            "estres": -5,
             "id": "OP10",
-            "penalizacion": 0,
-            "puntaje": 12,
             "retroalimentacionInmediata": "Intervención integral: contención, protocolo de noticia difícil, evaluación psicosocial e interdisciplina."
           }
         ],
@@ -1722,6 +1674,7 @@
         "herramientasRequeridas": [],
         "id": "E04",
         "inicial": false,
+        "intensidad": "MEDIUM",
         "mapa": {
           "alto": 528,
           "ambiente": {
@@ -1988,64 +1941,46 @@
         },
         "opciones": [
           {
+            "clase": "CONTRAINDICATED",
             "clave": "c1-mediacion-perdon",
             "efectos": {
-              "flags": {
-                "mediacion_agresor_intentada": true
-              },
-              "metrics": {
-                "confianza": -20,
-                "crisis_emocional": 15,
-                "etica_profesional": -25,
-                "riesgo_victima": 30,
-                "ruta_institucional": -15
-              },
-              "severity": "critical"
+              "milestones": [],
+              "persona": {
+                "activation": 1,
+                "bond": -1
+              }
             },
-            "estres": 25,
             "id": "OP11",
-            "penalizacion": -5,
-            "puntaje": -10,
             "retroalimentacionInmediata": "La Ley 2126 de 2021 y los estándares de VBG prohíben la mediación: eleva el riesgo y revictimiza."
           },
           {
+            "clase": "RECOMMENDED",
             "clave": "c1-riesgo-proteccion-derechos",
             "efectos": {
-              "flags": {
-                "asesoria_derechos_realizada": true,
-                "medidas_proteccion_activadas": true,
-                "riesgo_feminicidio_valorado": true
-              },
-              "metrics": {
-                "confianza": 10,
-                "etica_profesional": 10,
-                "riesgo_victima": -25,
-                "rigor_tecnico": 10,
-                "ruta_institucional": 20
-              },
-              "severity": "recommended"
+              "milestones": [
+                "asesoria_derechos_realizada",
+                "medidas_proteccion_activadas",
+                "riesgo_feminicidio_valorado"
+              ],
+              "persona": {
+                "activation": -1,
+                "bond": 1
+              }
             },
-            "estres": -5,
             "id": "OP12",
-            "penalizacion": 0,
-            "puntaje": 12,
             "retroalimentacionInmediata": "Prioridad correcta: valoración de riesgo, protección efectiva y enfoque de derechos."
           },
           {
+            "clase": "RISKY",
             "clave": "c1-patrones-infancia",
             "efectos": {
-              "flags": {},
-              "metrics": {
-                "riesgo_victima": 10,
-                "rigor_tecnico": -10,
-                "ruta_institucional": -10
-              },
-              "severity": "risky"
+              "milestones": [],
+              "persona": {
+                "activation": 0,
+                "bond": -1
+              }
             },
-            "estres": 10,
             "id": "OP13",
-            "penalizacion": 0,
-            "puntaje": -5,
             "retroalimentacionInmediata": "Enfoque desviado: psicologizar la elección de pareja desplaza la responsabilidad del agresor y pospone la protección."
           }
         ],
@@ -2063,6 +1998,7 @@
         "herramientasRequeridas": [],
         "id": "E05",
         "inicial": false,
+        "intensidad": "MEDIUM",
         "mapa": {
           "alto": 528,
           "ambiente": {
@@ -2473,53 +2409,44 @@
         },
         "opciones": [
           {
+            "clase": "RECOMMENDED",
             "clave": "c2-2126-1098-1257",
             "efectos": {
-              "flags": {
-                "marco_comisaria_correcto": true
-              },
-              "metrics": {
-                "rigor_tecnico": 10,
-                "ruta_institucional": 15
-              },
-              "severity": "recommended"
+              "milestones": [
+                "marco_comisaria_correcto"
+              ],
+              "persona": {
+                "activation": -1,
+                "bond": 1
+              }
             },
-            "estres": -5,
             "id": "OP14",
-            "penalizacion": 0,
-            "puntaje": 10,
             "retroalimentacionInmediata": "Correcto: competencia de las comisarías (Ley 2126), protección de NNA (Ley 1098) y protección de la mujer (Ley 1257)."
           },
           {
+            "clase": "ACCEPTABLE",
             "clave": "c2-1098-1257",
             "efectos": {
-              "flags": {},
-              "metrics": {
-                "rigor_tecnico": 3,
-                "ruta_institucional": 5
-              },
-              "severity": "acceptable"
+              "milestones": [],
+              "persona": {
+                "activation": 0,
+                "bond": 0
+              }
             },
-            "estres": 4,
             "id": "OP15",
-            "penalizacion": 0,
-            "puntaje": 3,
             "retroalimentacionInmediata": "Incompleto: falta la Ley 2126 de 2021, que regula la actuación de las Comisarías de Familia."
           },
           {
+            "clase": "RISKY",
             "clave": "c2-eje-1448",
             "efectos": {
-              "flags": {},
-              "metrics": {
-                "rigor_tecnico": -8,
-                "ruta_institucional": -8
-              },
-              "severity": "risky"
+              "milestones": [],
+              "persona": {
+                "activation": 0,
+                "bond": -1
+              }
             },
-            "estres": 8,
             "id": "OP16",
-            "penalizacion": 0,
-            "puntaje": -5,
             "retroalimentacionInmediata": "La Ley 1448 no es el eje de este caso: el restablecimiento se rige por 2126 + 1098 + 1257."
           }
         ],
@@ -2537,6 +2464,7 @@
         "herramientasRequeridas": [],
         "id": "E06",
         "inicial": false,
+        "intensidad": "MEDIUM",
         "mapa": {
           "alto": 528,
           "ambiente": {
@@ -2947,63 +2875,51 @@
         },
         "opciones": [
           {
+            "clase": "RISKY",
             "clave": "c3-parcial-clinica",
             "efectos": {
-              "flags": {
-                "riesgo_feminicidio_valorado": true
-              },
-              "metrics": {
-                "riesgo_victima": -3,
-                "rigor_tecnico": 3
-              },
-              "severity": "risky"
+              "milestones": [
+                "riesgo_feminicidio_valorado"
+              ],
+              "persona": {
+                "activation": 0,
+                "bond": -1
+              }
             },
-            "estres": 8,
             "id": "OP17",
-            "penalizacion": 0,
-            "puntaje": 0,
             "retroalimentacionInmediata": "Parcial: omite la valoración de dependientes y el nivel de vulneración de derechos."
           },
           {
+            "clase": "ACCEPTABLE",
             "clave": "c3-valoracion-dependientes",
             "efectos": {
-              "flags": {
-                "derivacion_salud_mental_activada": true,
-                "valoracion_dependientes_realizada": true
-              },
-              "metrics": {
-                "riesgo_victima": -8,
-                "rigor_tecnico": 8,
-                "ruta_institucional": 5
-              },
-              "severity": "acceptable"
+              "milestones": [
+                "derivacion_salud_mental_activada",
+                "valoracion_dependientes_realizada"
+              ],
+              "persona": {
+                "activation": 0,
+                "bond": 0
+              }
             },
-            "estres": 0,
             "id": "OP18",
-            "penalizacion": 0,
-            "puntaje": 5,
             "retroalimentacionInmediata": "Buena, pero falta establecer el nivel de riesgo de vulneración de derechos y la valoración de feminicidio."
           },
           {
+            "clase": "RECOMMENDED",
             "clave": "c3-integral-derechos",
             "efectos": {
-              "flags": {
-                "derivacion_salud_mental_activada": true,
-                "riesgo_feminicidio_valorado": true,
-                "valoracion_dependientes_realizada": true
-              },
-              "metrics": {
-                "etica_profesional": 10,
-                "riesgo_victima": -15,
-                "rigor_tecnico": 15,
-                "ruta_institucional": 10
-              },
-              "severity": "recommended"
+              "milestones": [
+                "derivacion_salud_mental_activada",
+                "riesgo_feminicidio_valorado",
+                "valoracion_dependientes_realizada"
+              ],
+              "persona": {
+                "activation": -1,
+                "bond": 1
+              }
             },
-            "estres": -5,
             "id": "OP19",
-            "penalizacion": 0,
-            "puntaje": 12,
             "retroalimentacionInmediata": "Actuación integral: víctima y dependientes valorados, riesgos establecidos y rutas activadas."
           }
         ],
@@ -3021,6 +2937,7 @@
         "herramientasRequeridas": [],
         "id": "E07",
         "inicial": false,
+        "intensidad": "MEDIUM",
         "mapa": {
           "alto": 528,
           "ambiente": {
@@ -3180,6 +3097,7 @@
         "descripcion": "Recepción de la Comisaría de Familia: revisa el expediente y la orientación de ingreso antes de pasar al consultorio.",
         "herramientasRequeridas": [],
         "inicial": false,
+        "intensidad": "MEDIUM",
         "mapa": {
           "alto": 528,
           "ambiente": {
@@ -3509,32 +3427,33 @@
     "reglas": {
       "endings": [
         {
-          "key": "critico",
+          "key": "critica",
           "message": "La intervención aumentó el riesgo de revictimización y falló en activar medidas de protección básicas. Se requiere supervisión y corrección inmediata.",
           "title": "Final 4 — Intervención Crítica / Revictimizante",
           "tone": "critical",
           "when": {
             "any": [
               {
-                "count": "critical",
+                "count": "contraindicated",
                 "gte": 2
               },
               {
                 "all": [
                   {
-                    "flag": "mediacion_agresor_intentada"
+                    "count": "contraindicated",
+                    "gte": 1
                   },
                   {
                     "not": {
                       "all": [
                         {
-                          "flag": "riesgo_feminicidio_valorado"
+                          "milestone": "riesgo_feminicidio_valorado"
                         },
                         {
-                          "flag": "medidas_proteccion_activadas"
+                          "milestone": "medidas_proteccion_activadas"
                         },
                         {
-                          "flag": "asesoria_derechos_realizada"
+                          "milestone": "asesoria_derechos_realizada"
                         }
                       ]
                     }
@@ -3545,14 +3464,14 @@
           }
         },
         {
-          "key": "integral",
+          "key": "protectora",
           "message": "Lograste una intervención protectora, ética e interdisciplinaria. La ruta institucional queda activada y la sobreviviente recibe orientación integral.",
           "title": "Final 1 — Intervención Protectora Integral",
           "tone": "positive",
           "when": {
             "all": [
               {
-                "count": "critical",
+                "count": "contraindicated",
                 "eq": 0
               },
               {
@@ -3560,29 +3479,19 @@
                 "lte": 1
               },
               {
-                "count": "recommended",
-                "gte": 4
+                "milestone": "riesgo_feminicidio_valorado"
               },
               {
-                "flag": "pap_aplicado"
+                "milestone": "medidas_proteccion_activadas"
               },
               {
-                "flag": "marco_hospital_correcto"
-              },
-              {
-                "flag": "riesgo_feminicidio_valorado"
-              },
-              {
-                "flag": "medidas_proteccion_activadas"
-              },
-              {
-                "flag": "asesoria_derechos_realizada"
+                "milestone": "asesoria_derechos_realizada"
               }
             ]
           }
         },
         {
-          "key": "riesgo",
+          "key": "riesgo_persistente",
           "message": "El acompañamiento redujo parte de la crisis, pero el riesgo institucional y psicosocial permanece alto por omisiones críticas.",
           "title": "Final 3 — Riesgo Persistente",
           "tone": "warning",
@@ -3590,17 +3499,17 @@
             "any": [
               {
                 "not": {
-                  "flag": "riesgo_feminicidio_valorado"
+                  "milestone": "riesgo_feminicidio_valorado"
                 }
               },
               {
                 "not": {
-                  "flag": "medidas_proteccion_activadas"
+                  "milestone": "medidas_proteccion_activadas"
                 }
               },
               {
                 "not": {
-                  "flag": "asesoria_derechos_realizada"
+                  "milestone": "asesoria_derechos_realizada"
                 }
               },
               {
@@ -3611,42 +3520,81 @@
           }
         },
         {
-          "key": "brechas",
+          "key": "con_brechas",
           "message": "La intervención contiene elementos adecuados, pero dejó brechas en la valoración o articulación institucional que deben corregirse.",
           "title": "Final 2 — Intervención Adecuada con Brechas",
           "tone": "neutral"
         }
       ],
-      "metrics": [
+      "milestones": [
         {
-          "initial": 50,
-          "key": "confianza"
+          "decisive": false,
+          "description": "A confirmar con Psicología.",
+          "key": "familia_contenida",
+          "label": "Contener a la familia"
         },
         {
-          "initial": 50,
-          "key": "crisis_emocional"
+          "decisive": false,
+          "description": "A confirmar con Psicología.",
+          "key": "pap_aplicado",
+          "label": "Aplicar primeros auxilios psicológicos"
         },
         {
-          "initial": 50,
-          "key": "riesgo_victima"
+          "decisive": false,
+          "description": "A confirmar con Psicología.",
+          "key": "marco_hospital_correcto",
+          "label": "Aplicar el marco normativo del hospital"
         },
         {
-          "initial": 50,
-          "key": "rigor_tecnico"
+          "decisive": false,
+          "description": "A confirmar con Psicología.",
+          "key": "epicee_aplicado",
+          "label": "Aplicar el protocolo EPICEE"
         },
         {
-          "initial": 50,
-          "key": "etica_profesional"
+          "decisive": false,
+          "description": "A confirmar con Psicología.",
+          "key": "duelo_acompanado",
+          "label": "Acompañar el duelo"
         },
         {
-          "initial": 50,
-          "key": "ruta_institucional"
+          "decisive": true,
+          "description": "A confirmar con Psicología.",
+          "key": "asesoria_derechos_realizada",
+          "label": "Informar sobre derechos"
         },
         {
-          "initial": 50,
-          "key": "calidad_duelo"
+          "decisive": true,
+          "description": "A confirmar con Psicología.",
+          "key": "medidas_proteccion_activadas",
+          "label": "Recomendar medidas de protección"
+        },
+        {
+          "decisive": true,
+          "description": "A confirmar con Psicología.",
+          "key": "riesgo_feminicidio_valorado",
+          "label": "Valorar el riesgo de feminicidio"
+        },
+        {
+          "decisive": false,
+          "description": "A confirmar con Psicología.",
+          "key": "marco_comisaria_correcto",
+          "label": "Aplicar el marco normativo de la comisaría"
+        },
+        {
+          "decisive": false,
+          "description": "A confirmar con Psicología.",
+          "key": "derivacion_salud_mental_activada",
+          "label": "Derivar a salud mental"
+        },
+        {
+          "decisive": false,
+          "description": "A confirmar con Psicología.",
+          "key": "valoracion_dependientes_realizada",
+          "label": "Valorar a las personas dependientes"
         }
       ],
+      "riskLevel": "EXTREME",
       "secondChance": true
     },
     "rubricas": [
@@ -3684,6 +3632,6 @@
         "id": "RUB-01"
       }
     ],
-    "version": "1.0"
+    "version": "2.0"
   }
 }

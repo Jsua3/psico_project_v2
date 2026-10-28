@@ -143,17 +143,14 @@ class Option:
     text: str
     #: Clave de la escena a la que conduce.
     target: str
-    #: ``ADEQUATE`` | ``RISKY`` | ``INADEQUATE``.
-    classification: str
-    prohibited: bool = False
     reason: str = ""
     consequence: str = ""
     immediate_feedback: str = ""
     feedback_text: str = ""
     theory_basis: str = ""
-    score: int = 0
-    stress: int = 0
-    penalty: int = 0
+    #: ``RECOMMENDED`` | ``ACCEPTABLE`` | ``RISKY`` | ``CONTRAINDICATED`` (``vocabulary.ResponseClass``).
+    response_class: str = "ACCEPTABLE"
+    #: ``{persona?, milestones?, competencies?}``: lo que la opción mueve (el documento 2.0 no lleva puntaje).
     effects: dict = field(default_factory=dict)
 
 
@@ -169,6 +166,8 @@ class Scene:
     support: tuple[str, ...] = ()
     required_tools: tuple[str, ...] = ()
     safe_exit_required: bool = False
+    #: ``LOW`` | ``MEDIUM`` | ``HIGH`` (``vocabulary.Intensity``).
+    intensity: str = "MEDIUM"
     x: int = 0
     y: int = 0
     #: El enunciado de la decisión (``decision_prompt``); vacío = la escena no lo declara.

@@ -77,6 +77,7 @@ class AttemptRow:
     teacher_commented: bool = False  # tiene una evaluación del docente con comentario
     feedback_viewed_at: datetime | None = None  # primera vez que su dueño abrió el reporte
     rating: int | None = None  # calificación de la encuesta (el comentario nunca llega aquí)
+    milestones_done: tuple[str, ...] | None = None  # claves de los hitos cumplidos (solo el reporte v3 los trae)
 
 
 # ─── utilidades puras ─────────────────────────────────────────────────────────────────────────
@@ -123,6 +124,37 @@ def _mean(values):
     return sum(values, Fraction(0)) / len(values)
 
 
+# ─── cobertura por hito ───────────────────────────────────────────────────────────────────────
+#: Con menos de este número de estudiantes distintos el porcentaje por hito se colapsa a dos categorías y sin conteos.
+PERCENT_FROM_STUDENTS = 20
+MAJORITY = "MAYORIA"
+LESS_THAN_HALF = "MENOS_DE_LA_MITAD"
+
+
+def milestone_coverage(attempts, keys, k):
+    """La cobertura de cada hito en ``keys`` sobre ``attempts`` (``[(estudiante, claves cumplidas)]``), con la celda mínima.
+
+    Es LA regla de privacidad de los agregados por hito y la comparten el reporte de grupo y el bloque ``milestones`` de
+    la analítica. ``None`` si los estudiantes DISTINTOS son menos de ``k`` (nada se publica). Si no, ``{clave: {category,
+    percent}}``: ``category`` es ``MAYORIA`` si al menos la mitad de los intentos cumplió el hito y ``MENOS_DE_LA_MITAD``
+    si no; ``percent`` (entero de 0 a 100) solo con ``PERCENT_FROM_STUDENTS`` estudiantes o más, y ``None`` antes: con
+    pocos estudiantes un porcentaje o un conteo identifica a personas.
+    """
+    attempts = [(student, frozenset(done)) for student, done in attempts]
+    students = {student for student, _ in attempts}
+    if len(students) < k:
+        return None
+    total = len(attempts)
+    coverage = {}
+    for key in keys:
+        share = Fraction(sum(1 for _, done in attempts if key in done), total)
+        coverage[key] = {
+            "category": MAJORITY if share * 2 >= 1 else LESS_THAN_HALF,
+            "percent": int(round_half_up(share * 100, 0)) if len(students) >= PERCENT_FROM_STUDENTS else None,
+        }
+    return coverage
+
+
 # ─── los bloques ──────────────────────────────────────────────────────────────────────────────
 def _improvement(series, k):
     """RQ-NEG-001 · primer frente al último intento (con índice) de cada serie de al menos dos."""
@@ -145,14 +177,23 @@ def _improvement(series, k):
 
 
 def _first_vs_second(series, k):
-    """RQ-NEG-003 · las no recomendadas del primer y del segundo intento v2 de cada serie de al menos dos."""
+    """RQ-NEG-003 · las no recomendadas de los dos primeros intentos medidos que comparten ``schemaVersion``, de cada serie.
+
+    Un reporte v2 contaba «no recomendadas» por clasificación y uno v3 por clase: restar uno del otro no mide nada. Por
+    eso solo se empareja lo cerrado con el mismo ``schemaVersion`` (el primer par que lo comparte, en orden de intento);
+    una serie cuyos intentos medidos son todos de versiones distintas no aporta nada.
+    """
     firsts, seconds, students = [], [], set()
     for group in series:
-        measured = [row for row in group if row.non_recommended is not None]
-        if len(measured) >= 2:
-            firsts.append(measured[0].non_recommended)
-            seconds.append(measured[1].non_recommended)
-            students.add(measured[0].student_id)
+        by_version = defaultdict(list)
+        for row in group:
+            if row.non_recommended is not None:
+                by_version[row.schema_version].append(row)
+        pair = next((rows[:2] for rows in by_version.values() if len(rows) >= 2), None)
+        if pair is not None:
+            firsts.append(pair[0].non_recommended)
+            seconds.append(pair[1].non_recommended)
+            students.add(pair[0].student_id)
     if len(students) < k:
         return None
     first, second = _mean(firsts), _mean(seconds)
@@ -246,12 +287,38 @@ def _improvement_after_feedback(series, k):
     return {"students": len(students), "pairs": len(pairs), "deltaPct": round_half_up((post - pre) * 100 / _SPAN, 1)}
 
 
-def compute(rows, *, min_cell, acceptable_level, reflection_definition, profile_rules, survey_enabled):
+def _milestones(rows, k, declared):
+    """Cobertura por hito de los intentos cuyo reporte congelado trae hitos (v3); el resto no aporta ni resta.
+
+    ``declared`` es ``[(clave, etiqueta, decisivo)]`` de la versión del caso (se conserva su orden) o ``None`` si la
+    consulta abarca varias versiones: entonces los hitos son los observados, por clave, y la etiqueta es la clave.
+    """
+    attempts = [(row.student_id, row.milestones_done) for row in rows if row.milestones_done is not None]
+    keys = [entry[0] for entry in declared] if declared is not None else sorted({key for _, done in attempts for key in done})
+    coverage = milestone_coverage(attempts, keys, k)
+    if coverage is None or not keys:
+        return None
+    labels = {key: (label, decisive) for key, label, decisive in declared} if declared is not None else {}
+    result = []
+    for key in keys:
+        label, decisive = labels.get(key, (key, False))
+        percent = coverage[key]["percent"]
+        result.append({
+            "key": key, "label": label, "decisive": decisive,
+            "share": float(percent) if percent is not None else None,
+            "category": coverage[key]["category"],
+        })
+    return result
+
+
+def compute(rows, *, min_cell, acceptable_level, reflection_definition, profile_rules, survey_enabled, milestones=None):
     """La forma de C13 para estas filas: ``cohort``, los bloques que alcanzan la celda mínima y ``definitions``.
 
     Puro y determinista: el mismo conjunto de filas, en cualquier orden, da el mismo resultado. Los bloques que leen
     NIVELES (mejora, aceptable, mejora tras la retroalimentación) cuentan solo los intentos calculados con la regla
     ``profile_rules``; los que leen la reflexión, solo los cerrados con la ``reflection_definition`` vigente.
+    ``milestones`` son los hitos que declara la versión pedida, ``[(clave, etiqueta, decisivo)]`` (``None`` si la consulta
+    abarca varias versiones: entonces el bloque ``milestones`` lista los hitos observados con la clave por etiqueta).
     """
     rows = list(rows)
     k = max(MIN_CELL_FLOOR, min_cell)  # el piso de privacidad vale AQUÍ, también para quien llame sin ``min_cell_size()``
@@ -272,6 +339,7 @@ def compute(rows, *, min_cell, acceptable_level, reflection_definition, profile_
             "evaluated": _evaluated(rows),
             "satisfaction": _satisfaction(rows, k) if survey_enabled else None,
             "improvementAfterFeedback": _improvement_after_feedback(series_current, k),
+            "milestones": _milestones(rows, k, milestones),
         }
         result.update({name: block for name, block in blocks.items() if block is not None})
     result["definitions"] = {
@@ -297,8 +365,19 @@ def _parse_report(raw, attempt_id):
     return report
 
 
-def _v2_fields(report):
-    """Lo que la analítica lee del reporte v2; cada clave se valida (un valor de otro tipo es «sin dato»)."""
+def _milestones_done(report):
+    """Las claves de los hitos cumplidos del reporte v3 (``milestones.done[].key``), o ``None`` si no los trae."""
+    milestones = report.get("milestones")
+    done = milestones.get("done") if isinstance(milestones, dict) else None
+    if not isinstance(done, list):
+        return None
+    return tuple(dict.fromkeys(
+        entry["key"] for entry in done if isinstance(entry, dict) and isinstance(entry.get("key"), str)
+    ))
+
+
+def _report_fields(report):
+    """Lo que la analítica lee de un reporte v2 o v3 (comparten estas claves); cada clave se valida (otro tipo es «sin dato»)."""
     entries = report.get("competencyLevels")
     coverage = report.get("reflectionCoverage")
     coverage = coverage if isinstance(coverage, dict) else {}
@@ -314,6 +393,7 @@ def _v2_fields(report):
         "reflection_definition": definition if isinstance(definition, str) else None,
         "reflection_covered": covered if isinstance(covered, bool) else None,
         "key_evidence": report.get("keyLearningEvidence") is True,
+        "milestones_done": _milestones_done(report),
     }
 
 
@@ -367,6 +447,6 @@ def load_rows(student_ids, case_version_id=None):
             teacher_commented=attempt_id in teacher_commented,
             feedback_viewed_at=viewed.get(attempt_id),
             rating=ratings.get(attempt_id),
-            **(_v2_fields(report) if version >= 2 else {}),
+            **(_report_fields(report) if version >= 2 else {}),
         ))
     return rows

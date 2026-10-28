@@ -46,14 +46,21 @@ QUERY_BUDGETS = {
     "enter_room": 13,  # (3) era 26
     # era 9 (4) sin mundo: +1 cerrojo y +1 búsqueda de repetición (E1-3), +1 lectura y +1 UPDATE del
     # estado del mundo por los efectos del caso, que la medición anterior omitía por no tener mundo.
-    "post_decision": 12,  # (5)
+    # Tarea 5 (modelo de métricas): 12 → 11. La decisión ya no llama a ``decision_effects`` ni a ``case_effects``: los
+    # hitos y la persona los escribe ``response_effects.apply`` (una lectura del mundo con su mapa y un UPDATE).
+    "post_decision": 11,  # (5)
     "get_student_report": 3,  # (0) era 4: E0-11 acotó node y decision_option con select_related
     # E6: lo que cuestan el cierre (reporte v2, evaluación del sistema) y la primera lectura del dueño (el evento).
-    "post_decision_closing": 35,  # (11) la decisión que cierra: reporte v2 + evaluación del sistema (antes de E6: 26 y 9)
+    # Tarea 5: 35 → 36 a propósito. ``response_effects.apply`` pasa por ``ensure_world_state``, que sincroniza el mundo con
+    # la escena actual si nadie lo hizo (+1 SELECT del mapa y +1 UPDATE): este escenario recorre el caso sin pedir ``/world``
+    # en cada escena, así que paga esa sincronización una vez; un jugador real ya la tiene hecha por su ``GET /world``.
+    # Tarea 9: 36 → 32 a propósito. El reporte v3 ya no cuenta clasificaciones ni arma las competencias heurísticas; las
+    # cuatro consultas que se fueron eran de ese cálculo, y el perfil por competencia y la evaluación del sistema siguen.
+    "post_decision_closing": 32,  # (10) la decisión que cierra: reporte v3 + evaluación del sistema (antes de E6: 26 y 9)
     "get_student_report_completed": 3,  # (1) la primera lectura del dueño de un intento completado escribe el evento
     # S4-1: 15 → 16 a propósito. Leer el reporte de un grupo es leer datos de otras personas y deja UNA fila de
     # auditoría (`reporte.leer`, RNF-007): es el INSERT de `audit_logs`, la única escritura. Las 15 de lectura no cambian.
-    "get_group_report": 16,  # (1) crece con el grupo: E5-6 lo pagina
+    "get_group_report": 13,  # (1) crece con el grupo: E5-6 lo pagina
 }
 TIMED_REPEATS = 5  # los GET se repiten para sacar la mediana de milisegundos
 PATH_TO_FAMILIA = ((340, 430), (250, 430))
@@ -131,7 +138,7 @@ def scenario_post_decision(estudiante, case_version_id):
     _walk(client, attempt_id, token, map_key, PATH_TO_FAMILIA[:1])
     option = next(
         o for o in data["currentNode"]["options"]
-        if DecisionOption.objects.get(pk=o["id"]).classification == "ADEQUATE"
+        if DecisionOption.objects.get(pk=o["id"]).response_class == "RECOMMENDED"
     )
     url = f"/api/simulation/attempts/{attempt_id}/decisions"
     body = {"attemptToken": token, "decisionOptionId": option["id"]}
@@ -154,7 +161,7 @@ def _play_until_the_closing_decision(client, attempt_id, token):
     for _ in range(30):
         attempt = SimulationAttempt.objects.get(pk=attempt_id)
         options = DecisionOption.objects.filter(source_node_id=attempt.current_node_id).select_related("target_node")
-        good = options.filter(classification="ADEQUATE").first() or options.first()
+        good = options.filter(response_class="RECOMMENDED").first() or options.first()
         if good.target_node.terminal_node:
             return good
         response = client.post(
@@ -166,7 +173,7 @@ def _play_until_the_closing_decision(client, attempt_id, token):
 
 
 def scenario_post_decision_closing(estudiante, case_version_id):
-    """La decisión que cierra el intento: congela el reporte v2 y crea la evaluación del sistema (E6-1d, E6-1e)."""
+    """La decisión que cierra el intento: congela el reporte v3 y crea la evaluación del sistema (E6-1d, E6-1e)."""
     _, client, attempt_id, token, _ = _start(estudiante, case_version_id, "BUD-CLOSE")
     closing = _play_until_the_closing_decision(client, attempt_id, token)
     url = f"/api/simulation/attempts/{attempt_id}/decisions"

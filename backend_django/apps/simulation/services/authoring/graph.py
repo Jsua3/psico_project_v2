@@ -6,18 +6,20 @@ from django.db import models, transaction
 from rest_framework import status
 from rest_framework.exceptions import ValidationError
 
+from apps.simulation.casedef.legacy import intensity_for
+from apps.simulation.casedef.vocabulary import CLASSIFICATION_OF_CLASS, ResponseClass, legacy_class
 from apps.simulation.models import DecisionOption, SimulationNode
 from apps.simulation.services import case_rules
-from apps.simulation.services.case_effects import CASE_METRIC_KEYS
 from apps.simulation.services.text_rules import validate_plain_text
 from shared.exceptions import ApiError
-from shared.jsonutils import coerce_int as _int
 
 from .editor_view import editor
 from .guards import bump_revision, ensure_draft, in_version
 from .request_utils import flag, write_string_list
 
-VALID_CLASSIFICATIONS = {"ADEQUATE", "RISKY", "INADEQUATE"}
+#: Lo que un editor antiguo todavía puede mandar y ya no tiene dónde guardarse: la respuesta se valora por su clase.
+RETIRED_FIELDS = ("scoreDelta", "stressDelta", "prohibitedPenalty")
+VALID_CLASSIFICATIONS = frozenset(CLASSIFICATION_OF_CLASS.values())
 #: El enunciado de la decisión es un párrafo corto (E3-6); más largo es narrativa, no enunciado.
 MAX_DECISION_PROMPT_LENGTH = 1200
 #: La consecuencia, la retroalimentación y el fundamento teórico de una decisión (E3-7, RF-10).
@@ -113,10 +115,17 @@ def _apply_node_request(node, request):
     node.sensitive_content = flag(request, "sensitiveContent")
     node.safe_exit_required = flag(request, "safeExitRequired")
     node.warning_message = request.get("warningMessage")
+    # Un nodo nuevo sensible nace con intensidad alta (como al importar); si no, la que se pida o la de siempre.
+    if "intensity" in request:
+        node.intensity = request["intensity"]
+    elif node.pk is None:
+        node.intensity = intensity_for(node.sensitive_content).value
     node.terminal_node = flag(request, "terminal")
     node.start_node = flag(request, "startNode")
     node.position_x = request.get("positionX")
     node.position_y = request.get("positionY")
+    if "aiSuggested" in request:
+        node.ai_suggested = bool(request["aiSuggested"])
     # «Ausente = no tocar»; una cadena vacía borra el enunciado (es blando).
     if "decisionPrompt" in request:
         node.decision_prompt = validate_plain_text(
@@ -154,7 +163,21 @@ def delete_decision(case_version_id, decision_id, revision=None):
     return editor(case_version_id)
 
 
+def _refuse_retired_fields(request):
+    """400 con el campo si la petición manda el puntaje, el estrés o la penalización: el modelo ya no los tiene."""
+    for name in RETIRED_FIELDS:
+        if name in request:
+            raise ApiError(
+                "VALIDATION_ERROR",
+                # BORRADOR: texto nuevo del servidor, pendiente de la aprobación de Psicología (VD-23).
+                "Este campo ya no existe: la respuesta se valora por su clase.",
+                status.HTTP_400_BAD_REQUEST,
+                field=name,
+            )
+
+
 def _apply_decision_request(decision, request, case_version_id, version):
+    _refuse_retired_fields(request)
     source_id, target_id = request.get("sourceNodeId"), request.get("targetNodeId")
     # RN-02: una decisión solo une nodos de su propia versión del caso.
     src = in_version(SimulationNode, source_id, case_version_id, not_found=f"Nodo origen: {source_id}")
@@ -166,15 +189,10 @@ def _apply_decision_request(decision, request, case_version_id, version):
     decision.source_node = src
     decision.target_node = tgt
     decision.text = request.get("text")
-    classification = request.get("classification")
-    if classification not in VALID_CLASSIFICATIONS:
-        raise ValidationError(f"Clasificación inválida: {classification}")
-    decision.classification = classification
-    decision.prohibited_conduct = flag(request, "prohibitedConduct")
+    if "aiSuggested" in request:
+        decision.ai_suggested = bool(request["aiSuggested"])
     decision.prohibition_reason = request.get("prohibitionReason")
-    decision.score_delta = _int(request.get("scoreDelta"))
-    decision.stress_delta = _int(request.get("stressDelta"))
-    decision.prohibited_penalty = _int(request.get("prohibitedPenalty"))
+    _apply_response_class(decision, request)
     feedback = request.get("immediateFeedback")
     decision.immediate_feedback = feedback if feedback is not None else ""
     # Un texto presente (aunque vacío) reemplaza; uno ausente significa «no tocar»: los editores
@@ -190,9 +208,43 @@ def _apply_decision_request(decision, request, case_version_id, version):
             )
             setattr(decision, field, text or None)
     # Los efectos de la opción son datos del caso (E3-8): «ausente = no tocar»; ``{}``/``null``
-    # los limpia; una forma rota o una métrica que el caso no declara es un 400 con el campo.
+    # los limpia; una forma rota o un hito que el caso no declara es un 400 con el campo.
     if "effects" in request:
-        declared = {key for key, _ in case_rules.rules_of(version).metrics} or set(CASE_METRIC_KEYS)
-        decision.effects = json.dumps(
-            case_rules.validate_effects(request.get("effects"), declared), ensure_ascii=False
+        milestones = {milestone.key for milestone in case_rules.rules_of(version).milestones}
+        decision.effects = json.dumps(case_rules.validate_effects(request.get("effects"), milestones), ensure_ascii=False)
+
+
+def _apply_response_class(decision, request):
+    """La clase de la opción (R-5): ``responseClass`` manda; sin ella, un editor antiguo la deriva de ``classification``.
+
+    La clasificación antigua ya no se guarda: solo sirve para derivar la clase. ``prohibitedConduct`` tampoco: marcarla
+    equivale a la clase contraindicada.
+
+    - ``responseClass`` presente: se escribe tal cual.
+    - solo ``classification``: la clase sale de ``legacy_class`` (conducta prohibida = contraindicada); una opción que
+      ya tenía clase y cuya clasificación derivada coincide con la enviada la conserva (Aceptable no se vuelve
+      Recomendada por reenviar «ADEQUATE»).
+    - ninguna de las dos: en una opción nueva es un 400 ``field: responseClass``; en una existente no se toca la clase
+      (salvo que se marque la conducta como prohibida, que la vuelve contraindicada).
+    """
+    explicit = request.get("responseClass")
+    classification = request.get("classification")
+    if classification is not None and classification not in VALID_CLASSIFICATIONS:
+        raise ValidationError(f"Clasificación inválida: {classification}")
+    prohibited = flag(request, "prohibitedConduct")
+    if explicit is not None:
+        decision.response_class = explicit
+    elif classification is not None:
+        current = ResponseClass(decision.response_class) if decision.response_class else None
+        if current is None or prohibited or CLASSIFICATION_OF_CLASS[current] != classification:
+            decision.response_class = legacy_class(classification, None, prohibited).value
+    elif decision.pk is None:
+        raise ApiError(
+            "VALIDATION_ERROR",
+            # BORRADOR: texto nuevo del servidor, pendiente de la aprobación de Psicología (VD-23).
+            "La opción necesita su clase: Recomendada, Aceptable, Con riesgo o Contraindicada.",
+            status.HTTP_400_BAD_REQUEST,
+            field="responseClass",
         )
+    elif prohibited:
+        decision.response_class = ResponseClass.CONTRAINDICATED.value

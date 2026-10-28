@@ -1,8 +1,9 @@
-"""Pruebas de las costuras que introduce P-04 (Builder del reporte de cierre).
+"""Pruebas de las costuras del Builder del reporte de cierre (P-04), en su forma v3.
 
 Trabajan con intentos y eventos simulados (sin base de datos) para comprobar que
 cada paso del constructor hace una sola cosa y que el director los une en el
-mismo orden de siempre. La forma completa del reporte la fija
+mismo orden de siempre. El constructor solo cuenta hechos: las clases de respuesta, los hitos y las
+competencias los añade ``attempt_report.build_report_payload``. La forma completa del reporte la fija
 ``test_completion_report_contract``.
 """
 from datetime import datetime, timezone
@@ -11,11 +12,17 @@ from types import SimpleNamespace
 import pytest
 
 from apps.simulation.serializers import game_dtos
-from apps.simulation.serializers.game_dtos import CompletionReportBuilder, build_completion_report
+from apps.simulation.serializers.game_dtos import (
+    CompletionReportBuilder,
+    build_completion_report,
+    build_student_summary,
+)
+
+SUPPORT = "Retoma el caso con acompañamiento docente cuando te sientas preparado/a."
 
 
-def _option(classification, prohibited=False):
-    return SimpleNamespace(classification=classification, prohibited_conduct=prohibited)
+def _option():
+    return SimpleNamespace(text="x")
 
 
 def _event(event_type, option=None, node_title=None):
@@ -32,12 +39,6 @@ def _attempt(**overrides):
     base = dict(
         id="11111111-1111-1111-1111-111111111111",
         status="COMPLETED",
-        accumulated_score=70,
-        stress_index=30,
-        victim_risk=10,
-        user_trust=60,
-        institutional_route_activated=False,
-        revictimization_risk=False,
         started_at=datetime(2026, 10, 1, 10, 0, 0, tzinfo=timezone.utc),
         ended_at=datetime(2026, 10, 1, 10, 5, 30, tzinfo=timezone.utc),
         active_seconds=0.0,
@@ -47,31 +48,30 @@ def _attempt(**overrides):
     return SimpleNamespace(**base)
 
 
-# ─── Paso: conteos ───────────────────────────────────────────────────────────
-def test_count_events_clasifica_decisiones_y_herramientas():
+# ─── Paso: conteos de hechos ─────────────────────────────────────────────────
+def test_count_events_cuenta_herramientas_y_no_clasifica_decisiones():
     events = [
-        _event("DECISION_SELECTED", _option("ADEQUATE")),
-        _event("DECISION_SELECTED", _option("RISKY")),
-        _event("PROHIBITED_DECISION_SELECTED", _option("INADEQUATE", prohibited=True)),
+        _event("DECISION_SELECTED", _option()),
+        _event("PROHIBITED_DECISION_SELECTED", _option()),
         _event("TOOL_USED"),
         _event("TOOL_USED"),
     ]
 
     b = CompletionReportBuilder(_attempt(), events).count_events()
 
-    assert (b.adequate, b.risky, b.inadequate, b.prohibited, b.tools_used) == (1, 1, 1, 1, 2)
+    assert b.tools_used == 2
+    assert not hasattr(b, "adequate") and not hasattr(b, "prohibited")  # las clases son de build_report_payload
 
 
-def test_count_events_los_reintentos_no_son_decisiones():
+def test_count_events_los_reintentos_se_cuentan_aparte():
     events = [
-        _event("DECISION_RETRY_REQUIRED", _option("INADEQUATE")),
-        _event("PROHIBITED_DECISION_RETRY_REQUIRED", _option("INADEQUATE", prohibited=True)),
+        _event("DECISION_RETRY_REQUIRED", _option()),
+        _event("PROHIBITED_DECISION_RETRY_REQUIRED", _option()),
     ]
 
     b = CompletionReportBuilder(_attempt(), events).count_events()
 
     assert (b.retries, b.prohibited_retries) == (2, 1)
-    assert (b.adequate, b.risky, b.inadequate, b.prohibited) == (0, 0, 0, 0)
 
 
 def test_count_events_los_nodos_visitados_no_se_repiten_y_conservan_el_orden():
@@ -84,43 +84,34 @@ def test_count_events_los_nodos_visitados_no_se_repiten_y_conservan_el_orden():
     assert CompletionReportBuilder(_attempt(), events).count_events().visited == ["Recepción", "Sala"]
 
 
-# ─── Pasos: competencias, recomendaciones, resumen ───────────────────────────
-def test_add_competencies_depende_de_los_conteos_ya_hechos():
-    b = CompletionReportBuilder(_attempt(institutional_route_activated=True), [])
-    b.adequate, b.tools_used, b.reflections_count = 1, 1, 1
-
-    assert b.add_competencies().competencies == [
-        "Articulación con rutas institucionales de protección",
-        "Comunicación ética y contención emocional",
-        "Uso pertinente de herramientas clínicas",
-        "Reflexión clínica documentada",
-    ]
+def test_el_constructor_ya_no_tiene_el_paso_de_competencias_heuristicas():
+    assert not hasattr(CompletionReportBuilder, "add_competencies")
+    assert not hasattr(game_dtos, "HIGH_STRESS_THRESHOLD")
+    assert not hasattr(game_dtos, "_GENERIC_RECOMMENDATION")
 
 
-def test_add_competencies_sin_logros_queda_vacio():
-    assert CompletionReportBuilder(_attempt(), []).add_competencies().competencies == []
+# ─── Pasos: recomendaciones y resumen ────────────────────────────────────────
+def test_add_recommendations_sin_motivos_queda_vacia_sin_recomendacion_generica():
+    assert CompletionReportBuilder(_attempt(), []).add_recommendations().recommendations == []
 
 
-def test_add_recommendations_sin_motivos_da_la_recomendacion_generica():
-    got = CompletionReportBuilder(_attempt(), []).add_recommendations().recommendations
-
-    assert got == [game_dtos._GENERIC_RECOMMENDATION]
-
-
-def test_add_recommendations_en_orden_y_sin_la_generica_cuando_hay_otras():
-    b = CompletionReportBuilder(
-        _attempt(stress_index=70, revictimization_risk=True, status="PAUSED"), [],
-    )
-    b.risky, b.retries = 1, 2
+def test_add_recommendations_solo_de_hechos_en_orden():
+    b = CompletionReportBuilder(_attempt(status="PAUSED"), [])
+    b.retries = 2
 
     got = b.add_recommendations().recommendations
 
-    assert len(got) == 5
-    assert got[0].startswith("Revisa las decisiones riesgosas")
-    assert got[1] == "Reconsideraste 2 respuestas antes de decidir; revísalas con tu docente."
-    assert got[2].startswith("Practica estrategias de autorregulación")
-    assert got[3].startswith("Repasa los principios de no revictimización")
-    assert got[4].startswith("Retoma el caso con acompañamiento docente")
+    assert got == ["Reconsideraste 2 respuestas antes de decidir; revísalas con tu docente.", SUPPORT]
+
+
+@pytest.mark.parametrize("status", ["PAUSED", "SAFE_EXITED"])
+def test_add_recommendations_tras_una_pausa_o_salida_segura_recomienda_retomar(status):
+    assert CompletionReportBuilder(_attempt(status=status), []).add_recommendations().recommendations == [SUPPORT]
+
+
+@pytest.mark.parametrize("status", ["COMPLETED", "REPLACED", "IN_PROGRESS"])
+def test_add_recommendations_en_los_demas_estados_no_recomienda_retomar(status):
+    assert CompletionReportBuilder(_attempt(status=status), []).add_recommendations().recommendations == []
 
 
 @pytest.mark.parametrize("status", ["COMPLETED", "PAUSED", "SAFE_EXITED", "REPLACED", "IN_PROGRESS"])
@@ -143,40 +134,80 @@ def sin_base_de_datos(monkeypatch):
                 return SimpleNamespace(count=lambda: 3)
 
     monkeypatch.setattr(game_dtos, "ReflectionJournal", _Journal)
-    monkeypatch.setattr(game_dtos, "build_timeline", lambda attempt, events: ["linea"])
-    monkeypatch.setattr(game_dtos.case_effects, "compute_ending", lambda attempt, events: {"ending": 2})
+    monkeypatch.setattr(game_dtos, "build_timeline", lambda attempt, events, class_of=None: ["linea"])
+    monkeypatch.setattr(game_dtos.endings, "compute_ending", lambda attempt, events: {"ending": 2})
 
 
 def test_build_ensambla_todo_en_el_orden_publico(sin_base_de_datos):
     report = CompletionReportBuilder(_attempt(), []).count_events().count_reflections().add_summary().build()
 
     assert list(report) == [
-        "attemptId", "caseTitle", "status", "finalScore", "finalStress", "metrics",
-        "adequateDecisions", "riskyDecisions", "inadequateDecisions", "prohibitedDecisions",
-        "toolsUsed", "retries", "prohibitedRetries", "reflectionsCount", "safeExitUsed",
-        "visitedNodeTitles", "competencies", "recommendations", "summaryMessage",
-        "totalDurationSeconds", "activeSeconds", "clockSeconds", "timeline", "ending",
+        "attemptId", "caseTitle", "status", "toolsUsed", "retries", "reflectionsCount", "safeExitUsed",
+        "visitedNodeTitles", "summaryMessage", "totalDurationSeconds", "activeSeconds", "clockSeconds",
+        "prohibitedRetries", "recommendations", "timeline", "ending",
     ]
     assert report["reflectionsCount"] == 3
     assert report["totalDurationSeconds"] == 330
     assert report["timeline"] == ["linea"] and report["ending"] == {"ending": 2}
 
 
+def test_build_no_lleva_ninguna_clave_numerica_de_evaluacion(sin_base_de_datos):
+    report = build_completion_report(_attempt(), [])
+
+    for retired in ("finalScore", "finalStress", "metrics", "competencies", "adequateDecisions", "riskyDecisions",
+                    "inadequateDecisions", "prohibitedDecisions"):
+        assert retired not in report
+
+
 def test_el_director_aplica_todos_los_pasos(sin_base_de_datos):
-    events = [_event("DECISION_SELECTED", _option("ADEQUATE")), _event("SAFE_EXIT_REQUESTED")]
+    events = [_event("DECISION_RETRY_REQUIRED", _option()), _event("SAFE_EXIT_REQUESTED")]
 
     report = build_completion_report(_attempt(), events)
 
-    assert report["adequateDecisions"] == 1
+    assert report["retries"] == 1
     assert report["safeExitUsed"] is True
     assert report["reflectionsCount"] == 3
-    assert "Comunicación ética y contención emocional" in report["competencies"]
-    assert "Reflexión clínica documentada" in report["competencies"]
-    assert report["recommendations"] == [game_dtos._GENERIC_RECOMMENDATION]
+    assert report["recommendations"] == ["Reconsideraste 1 respuesta antes de decidir; revísala con tu docente."]
     assert report["summaryMessage"].startswith("Intento finalizado")
+
+
+def test_el_director_pasa_la_funcion_de_clase_a_la_linea_de_tiempo(monkeypatch, sin_base_de_datos):
+    received = {}
+    monkeypatch.setattr(
+        game_dtos, "build_timeline", lambda attempt, events, class_of=None: received.setdefault("class_of", class_of) or []
+    )
+    marker = object()
+
+    build_completion_report(_attempt(), [], class_of=marker)
+
+    assert received["class_of"] is marker
 
 
 def test_sin_duracion_cuando_el_intento_no_ha_terminado(sin_base_de_datos):
     report = build_completion_report(_attempt(ended_at=None, status="IN_PROGRESS"), [])
 
     assert report["totalDurationSeconds"] is None
+
+
+# ─── El resumen de un intento que no se completó ─────────────────────────────
+def test_el_resumen_solo_lleva_hechos_y_la_recomendacion_de_apoyo(sin_base_de_datos):
+    events = [
+        _event("DECISION_SELECTED", _option()),
+        _event("DECISION_RETRY_REQUIRED", _option()),
+        _event("TOOL_USED"),
+        _event("NODE_ENTERED", node_title="Recepción"),
+    ]
+
+    summary = build_student_summary(_attempt(status="PAUSED", ended_at=None), events)
+
+    assert set(summary) == {
+        "attemptId", "caseTitle", "status", "toolsUsed", "retries", "reflectionsCount", "safeExitUsed",
+        "visitedNodeTitles", "summaryMessage", "totalDurationSeconds", "activeSeconds", "clockSeconds",
+        "recommendations",
+    }
+    assert (summary["retries"], summary["toolsUsed"], summary["visitedNodeTitles"]) == (1, 1, ["Recepción"])
+    assert summary["recommendations"] == [SUPPORT]  # ni siquiera lo reconsiderado: eso llega al cerrar
+
+
+def test_el_resumen_de_un_intento_reemplazado_no_trae_recomendaciones(sin_base_de_datos):
+    assert build_student_summary(_attempt(status="REPLACED"), [])["recommendations"] == []

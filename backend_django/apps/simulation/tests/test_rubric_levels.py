@@ -1,9 +1,9 @@
 """E1-9 · Evaluación formativa por niveles (RN-09, SIEP-CU-04, ED-2).
 
 La evaluación del docente es **cualitativa**: cada criterio recibe un nivel (``EN_INICIO``,
-``EN_PROCESO``, ``LOGRADO`` o ``DESTACADO``) y el total numérico queda detrás de
-``RUBRIC_NUMERIC_TOTAL`` (apagada). El estudiante lee su evaluación sin ningún número.
-Compatibilidad: el ``score`` 1.0–5.0 de antes se sigue aceptando y deriva el nivel.
+``EN_PROCESO``, ``LOGRADO`` o ``DESTACADO``) y ningún DTO lleva un número (Tarea 14: se retiró la bandera
+``RUBRIC_NUMERIC_TOTAL`` y la entrada ``score`` de 1.0–5.0). Las columnas ``score`` y ``total_score`` se conservan como
+dato interno; una fila vieja sin ``level`` se lee con el nivel que su ``score`` deriva.
 """
 import json
 from decimal import ROUND_HALF_UP, Decimal
@@ -114,57 +114,105 @@ def test_un_nivel_fuera_del_vocabulario_responde_400(admin, attempt, level):
     assert not CriterionScore.objects.filter(level=level if level else "__none__").exists()
 
 
-@pytest.mark.parametrize("score", [0, "0", 0.5, 5.5, -1])
-def test_un_score_heredado_cero_o_fuera_de_rango_responde_400(admin, attempt, score):
+@pytest.mark.parametrize("score", [0, "0", 0.5, 3, 3.0, 5.5, -1])
+def test_un_score_heredado_responde_400_con_el_campo(admin, attempt, score):
     client = cl(admin)
     cid = _criteria(client, attempt)[0]
 
     response = _save(client, attempt, [{"criterionId": cid, "score": score}])
 
-    assert response.status_code == 400
-    assert not RubricEvaluation.objects.filter(attempt_id=attempt, status="EVALUATED").exists()
+    assert response.status_code == 400, response.data
+    assert response.data["field"] == "scores"
+    assert "level" in response.data["message"]
+    assert not RubricEvaluation.objects.filter(attempt_id=attempt).exists()
 
 
-def test_el_score_heredado_deriva_el_nivel(admin, attempt):
+def test_un_score_junto_al_nivel_tambien_se_rechaza(admin, attempt):
+    client = cl(admin)
+    cid = _criteria(client, attempt)[0]
+
+    response = _save(client, attempt, [{"criterionId": cid, "level": "LOGRADO", "score": 4}])
+
+    assert response.status_code == 400 and response.data["field"] == "scores"
+
+
+def _claves(valor):
+    """Todas las claves de un DTO, a cualquier profundidad."""
+    if isinstance(valor, dict):
+        for clave, hijo in valor.items():
+            yield clave
+            yield from _claves(hijo)
+    elif isinstance(valor, list):
+        for hijo in valor:
+            yield from _claves(hijo)
+
+
+NUMERICAS = {"score", "total_score", "totalScore", "minScore", "maxScore", "step"}
+
+
+def test_ningun_dto_de_la_rubrica_lleva_un_puntaje(admin, estudiante, attempt):
+    client = cl(admin)
+    vacia = client.get(f"/api/instructor/attempts/{attempt}/rubric-evaluation").data["data"]
+    ids = [c["id"] for c in vacia["criteria"]]
+    guardada = _save(client, attempt, [{"criterionId": c, "level": "LOGRADO", "comment": "ok"} for c in ids]).data["data"]
+    trace = client.get(f"/api/instructor/attempts/{attempt}/trace").data["data"]
+    propia = cl(estudiante).get(f"{BASE}/attempts/{attempt}/evaluation").data["data"]
+    plantilla = client.get(f"/api/rubrics/{guardada['rubricId']}").data["data"]
+
+    for nombre, dto in (("vacia", vacia), ("guardada", guardada), ("traza", trace), ("propia", propia), ("rubrica", plantilla)):
+        assert not NUMERICAS & set(_claves(dto)), nombre
+    # Las columnas internas siguen escritas: el cambio es reversible.
+    evaluation = RubricEvaluation.objects.get(attempt_id=attempt)
+    assert evaluation.total_score == Decimal("3.00")
+    assert set(CriterionScore.objects.filter(rubric_evaluation=evaluation).values_list("score", flat=True)) == {Decimal("3.00")}
+
+
+def test_la_vista_trae_los_niveles_con_su_descriptor(admin, attempt):
+    view = cl(admin).get(f"/api/instructor/attempts/{attempt}/rubric-evaluation").data["data"]
+
+    assert [(n["value"], n["label"]) for n in view["levels"]] == [
+        ("EN_INICIO", "En inicio"), ("EN_PROCESO", "En proceso"), ("LOGRADO", "Logrado"), ("DESTACADO", "Destacado"),
+    ]
+    assert all(n["descriptor"] for n in view["levels"])
+
+
+def test_cada_criterio_trae_el_codigo_de_su_competencia_el_mismo_de_la_valoracion_del_sistema(admin, attempt):
+    """El docente ve su valoración junto a la del sistema emparejando por código de competencia."""
+    from apps.simulation.models import RubricCriterion
+    from apps.simulation.assessment.competencies import competency_code_of
+
+    view = cl(admin).get(f"/api/instructor/attempts/{attempt}/rubric-evaluation").data["data"]
+
+    assert view["criteria"]
+    criteria = {c.id: c for c in RubricCriterion.objects.filter(id__in=[c["id"] for c in view["criteria"]]).select_related("competency_ref")}
+    for served in view["criteria"]:
+        assert served["competency"], f"el criterio {served['id']} no trae su competencia"
+        assert served["competency"] == competency_code_of(criteria[served["id"]])
+
+
+def test_una_fila_vieja_con_score_y_sin_nivel_se_lee_con_el_nivel_derivado(admin, estudiante, attempt):
     client = cl(admin)
     ids = _criteria(client, attempt)
-    scores = [1.0, 2.0, 3.0, 4.0, 5.0, 3.0][: len(ids)]
+    _save(client, attempt, [{"criterionId": c, "level": "EN_INICIO"} for c in ids])
+    # Fila anterior a E1: score en la escala 1–5 y nivel vacío.
+    CriterionScore.objects.filter(rubric_evaluation__attempt_id=attempt).update(score=Decimal("5.0"), level=None)
 
-    _save(client, attempt, [{"criterionId": c, "score": s} for c, s in zip(ids, scores)])
-
-    by_criterion = dict(CriterionScore.objects.filter(
-        rubric_evaluation__attempt_id=attempt).values_list("rubric_criterion_id", "level"))
-    expected = ["EN_INICIO", "EN_PROCESO", "LOGRADO", "LOGRADO", "DESTACADO", "LOGRADO"][: len(ids)]
-    assert [by_criterion[c] for c in ids] == expected
-
-
-def test_con_la_bandera_apagada_el_total_numerico_no_viaja(admin, attempt, settings):
-    settings.RUBRIC_NUMERIC_TOTAL = False
-    client = cl(admin)
-    ids = _criteria(client, attempt)
-
-    data = _save(client, attempt, [{"criterionId": c, "level": "LOGRADO"} for c in ids]).data["data"]
+    view = client.get(f"/api/instructor/attempts/{attempt}/rubric-evaluation").data["data"]
+    propia = cl(estudiante).get(f"{BASE}/attempts/{attempt}/evaluation").data["data"]
     trace = client.get(f"/api/instructor/attempts/{attempt}/trace").data["data"]
 
-    assert data["totalScore"] is None and data["total_score"] is None
-    assert trace["rubricEvaluations"][0]["totalScore"] is None
-    assert trace["rubricEvaluations"][0]["overallLevel"] == "LOGRADO"
+    assert {item["level"] for item in view["items"]} == {"DESTACADO"}
+    assert view["overallLevel"] == "DESTACADO"
+    assert {c["level"] for c in propia["evaluations"][0]["criteria"]} == {"DESTACADO"}
+    assert trace["rubricEvaluations"][0]["overallLevel"] == "DESTACADO"
 
 
-def test_con_la_bandera_encendida_el_total_numerico_viaja(admin, attempt, settings):
-    settings.RUBRIC_NUMERIC_TOTAL = True
-    client = cl(admin)
-    ids = _criteria(client, attempt)
-
-    data = _save(client, attempt, [{"criterionId": c, "score": 3} for c in ids]).data["data"]
-    trace = client.get(f"/api/instructor/attempts/{attempt}/trace").data["data"]
-
-    assert data["totalScore"] == 3.0
-    assert trace["rubricEvaluations"][0]["totalScore"] == 3.0
+def test_la_bandera_de_total_numerico_ya_no_existe(settings):
+    assert not hasattr(settings, "RUBRIC_NUMERIC_TOTAL")
+    assert "RUBRIC_NUMERIC_TOTAL" not in settings.CONTRACT_FLAGS_REGISTRY
 
 
-def test_el_dueno_lee_su_evaluacion_sin_ningun_numero(admin, estudiante, attempt, settings):
-    settings.RUBRIC_NUMERIC_TOTAL = True  # aun con la bandera encendida, el estudiante no ve números
+def test_el_dueno_lee_su_evaluacion_sin_ningun_numero(admin, estudiante, attempt):
     client = cl(admin)
     ids = _criteria(client, attempt)
     _save(client, attempt, [{"criterionId": c, "level": "EN_PROCESO", "comment": "sigue así"} for c in ids],
@@ -183,6 +231,7 @@ def test_el_dueno_lee_su_evaluacion_sin_ningun_numero(admin, estudiante, attempt
     dumped = json.dumps(data)
     for forbidden in ("score", "Score", "weight", "total", "maxScore"):
         assert forbidden not in dumped, forbidden
+    assert not NUMERICAS & set(_claves(data))
 
 
 def test_una_evaluacion_pendiente_no_se_muestra_al_estudiante(admin, estudiante, attempt):
@@ -228,8 +277,10 @@ def test_la_migracion_deriva_el_nivel_de_las_calificaciones_anteriores_a_e1(admi
     migration = importlib.import_module("apps.simulation.migrations.0012_formative_levels_backfill")
     client = cl(admin)
     ids = _criteria(client, attempt)
-    _save(client, attempt, [{"criterionId": c, "score": s} for c, s in zip(ids, [4.0, 3.0, 5.0, 1.0, 2.0, 3.0])])
-    CriterionScore.objects.filter(rubric_evaluation__attempt_id=attempt).update(level=None)  # fila anterior a E1
+    _save(client, attempt, [{"criterionId": c, "level": "LOGRADO"} for c in ids])
+    for c, sc in zip(ids, [4.0, 3.0, 5.0, 1.0, 2.0, 3.0]):  # fila anterior a E1: score 1–5 y sin nivel
+        CriterionScore.objects.filter(rubric_evaluation__attempt_id=attempt, rubric_criterion_id=c).update(
+            score=Decimal(str(sc)), level=None)
 
     migration.backfill_levels(django_apps, None)
 
@@ -239,12 +290,3 @@ def test_la_migracion_deriva_el_nivel_de_las_calificaciones_anteriores_a_e1(admi
     assert [by_criterion[c] for c in ids] == expected
     view = client.get(f"/api/instructor/attempts/{attempt}/rubric-evaluation").data["data"]
     assert view["overallLevel"] is not None
-
-
-def test_los_criterios_de_la_evaluacion_traen_el_rango_del_contrato(admin, attempt):
-    """E3-0 (F7-4): el servidor es la única fuente del rango de la calificación."""
-    view = cl(admin).get(f"/api/instructor/attempts/{attempt}/rubric-evaluation").data["data"]
-
-    assert view["criteria"]
-    for criterion in view["criteria"]:
-        assert (criterion["minScore"], criterion["maxScore"], criterion["step"]) == (1.0, 5, 0.5)

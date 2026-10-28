@@ -24,11 +24,11 @@
 
 **Ocho hechos que hay que saber antes de tocar nada**
 
-1. **Un solo caso** (`SIM-VBG-001`: 8 nodos, 6 bloques de decisión, 19 opciones, 5 herramientas). Finales, métricas y orientación están atados a él; un segundo caso exige generalizar (bloque J).
+1. **Un solo caso** (`SIM-VBG-001`: 8 nodos, 6 bloques de decisión, 19 opciones, 5 herramientas). Finales, hitos y orientación están atados a él; un segundo caso exige generalizar (bloque J).
 2. **Solo ADMIN autora, valida y publica casos.** El profesor recibe 403 en autoría; solo asigna versiones publicadas a sus grupos y revisa.
 3. **El esquema de BD tiene tres definiciones** sin sincronía automática: `deploy/db_seed.sql` (producción), `bootstrap_dev_db` (dev y pruebas) y los modelos (25 de 27 son `managed=False`). Los cambios para BDs ya restauradas van a `deploy/upgrades/*.sql` a mano; el despliegue no corre `migrate`.
 4. **Intento:** estados `IN_PROGRESS`, `PAUSED`, `COMPLETED`, `REPLACED` (más `SAFE_EXITED`, solo histórico). La primera respuesta mala de cada nodo no se aplica (segunda oportunidad). `forceNew` reemplaza el intento abierto.
-5. **Retroalimentación:** el texto autorado de la opción se devuelve **en la respuesta de cada decisión**; el informe completo (final, métricas, línea de tiempo, competencias) llega al cerrar el intento.
+5. **Retroalimentación:** la respuesta de cada decisión devuelve solo la **consecuencia** narrativa (nunca si estuvo bien o mal) y **ningún número de evaluación llega jamás al estudiante**; la clase de cada respuesta, los hitos cumplidos, la persona al cierre, el final con su razón, la línea de tiempo y el perfil por competencia llegan **al cerrar** el intento (reporte congelado v3).
 6. **Bitácora reflexiva cifrada en reposo** (AES-GCM); el docente de ese estudiante la lee descifrada en la traza.
 7. **No hay DSL ni JSON Schema ni import/export de casos.** El taller de DSL (`docs/diseno/dsl/`) lo propone y trae validador; aún no está integrado al producto.
 8. **CI:** 6 jobs (secretos, vulnerabilidades, scripts, backend, frontend, e2e). El e2e de recorrido completo y orientación corre de noche, no en el PR.
@@ -40,7 +40,7 @@
 ## 1. Producto, roles y límites
 
 ### Modelo pedagógico
-Cada caso es un **grafo dirigido** de nodos clínicos (narrativa, sala, objetos, diálogos). Una **decisión** pertenece a un nodo y tiene opciones clasificadas `ADEQUATE | RISKY | INADEQUATE` (con marca de **conducta prohibida** y su razón). Hablar con un NPC y elegir una respuesta *es* decidir. El backend es la única autoridad del puntaje; el cliente solo presenta. Evaluación **por competencias y rúbrica**, no por acierto único.
+Cada caso es un **grafo dirigido** de nodos clínicos (narrativa, sala, objetos, diálogos). Una **decisión** pertenece a un nodo y tiene opciones con una **clase de respuesta** `RECOMMENDED | ACCEPTABLE | RISKY | CONTRAINDICATED` (la contraindicada lleva su razón). Hablar con un NPC y elegir una respuesta *es* decidir. No hay puntaje ni estrés: el caso declara **hitos** (pasos que una respuesta cumple) y la **persona consultante** se expresa en palabras (vínculo y activación). El backend es la única autoridad de la clase, los hitos y el final; el cliente solo presenta. Evaluación **por hitos, competencias y rúbrica por niveles**, no por acierto único.
 
 ### Roles (la autoridad es el servidor, que lee el rol de la BD en cada petición)
 
@@ -107,7 +107,7 @@ flowchart LR
 |---|---|
 | `users` | Identidad (`CustomUser`, roles, bcrypt), login con correo/clave y Google, JWT HS256 de 8 h, solicitudes de acceso, gestión por el admin |
 | `grupos` | Grupos del profesor, membresías (SQL crudo), importación `.xlsx`, asignación de versiones publicadas |
-| `simulation` | El núcleo: modelos de caso/mundo/intento/rúbrica, autoría (`services/authoring/*`), motor del intento (`game_service`, `attempt_lifecycle`, `decision_effects`, `case_effects`), runtime del mundo (`world_service`, `door_chain`), validación (`world_validation`), cifrado, auditoría, asistente IA |
+| `simulation` | El núcleo: modelos de caso/mundo/intento/rúbrica, autoría (`services/authoring/*`), motor del intento (`game_service`, `attempt_lifecycle`, `response_effects`, `case_state`, `case_rules`, `endings`), runtime del mundo (`world_service`, `door_chain`), validación (`world_validation`), cifrado, auditoría, asistente IA |
 | `reportes` | Dashboard, reporte por grupo y CSV (solo simulador) |
 | `progression` | Casos completados y catálogo con desbloqueo lineal (tabla gestionada por Django) |
 | `shared` | Sobre de respuesta `{success,message,data}`, excepciones, permisos por rol |
@@ -115,7 +115,7 @@ flowchart LR
 Settings en `psychosim/settings/`: `base`, `local` (copia gitignored de `local.example.py`), `test` (aislada, con atestación) y `production` (aborta si faltan secretos). JWT firmado con el `SECRET_KEY` de Django; `JWT_SECRET` solo es la clave por defecto del cifrado.
 
 ### Frontend (`frontend/src/app/`)
-`core/` (auth, guardas, API por rol, modelos), `shared/` (shell, avisos, confirmaciones), `features/`: `login`, `public` (portada), `dashboard`, `admin` (usuarios y solicitudes), `grupos`, `reportes`, `character` (editor del avatar y kit por código) y `simulator` (catálogo, juego, editor de casos, traza docente; el 80 % del código). Rutas en `app.routes.ts`: portada `/`, `/login`, portal `/portal/**` con `authGuard` y `roleGuard`. **Dos componentes enormes** concentran el runtime: `simulation-play.component.ts` (~3.060 líneas) y `game-world.component.ts` (~2.840, escena Phaser).
+`core/` (auth, guardas, API por rol, modelos), `shared/` (shell, avisos, confirmaciones), `features/`: `login`, `public` (portada), `dashboard`, `admin` (usuarios y solicitudes), `grupos`, `reportes`, `character` (editor del avatar y kit por código), `autoria` (el editor de casos y su asistente de IA; ver `docs/operacion/editor-de-casos.md`) y `simulator` (catálogo, juego, traza docente; el 80 % del código). Rutas en `app.routes.ts`: portada `/`, `/login`, portal `/portal/**` con `authGuard` y `roleGuard`. **Dos componentes enormes** concentran el runtime: `simulation-play.component.ts` (~3.060 líneas) y `game-world.component.ts` (~2.840, escena Phaser).
 
 ### Datos y esquema
 27 modelos, 25 `managed=False`; gestionados por Django: `access_requests` y `student_case_completion`. El volcado (`pg_dump` 16.13, 41 tablas, 6 CHECK, 61 FK) manda en producción; hay una prueba de contrato que cruza 4 de los 6 CHECK con los `TextChoices`. Columnas JSON son TEXT. La estrategia de esquema (Django dueño, despliegue en Hetzner) está en `docs/arquitectura/estrategia-stack-esquema-y-despliegue.md` y **no se ha ejecutado**.
@@ -139,10 +139,10 @@ stateDiagram-v2
 ```
 - **Iniciar:** versión PUBLISHED de un caso activo y, para estudiantes, asignada a un grupo activo suyo. Sin `forceNew`, si hay un intento abierto lo devuelve (y reemite su token).
 - **Token del intento:** 32 bytes aleatorios (se guarda el SHA-256); viaja en `X-SIEP-Attempt-Token` (GET) o en el cuerpo. Un token rotado anula a la otra pestaña.
-- **Decisión:** solo desde el nodo actual. La **primera** respuesta RISKY/INADEQUATE/prohibida de un nodo no se aplica ni avanza (aviso de «última oportunidad»); la segunda se registra y avanza. Efectos: puntaje (`score_delta` + penalización), estrés, confianza y riesgo (acotados 0–100; conducta prohibida +40 estrés, −20 confianza, +15 riesgo). 19 opciones canónicas del caso 1 activan banderas y 7 métricas; al completar se resuelve uno de **4 finales** (integral, brechas, riesgo persistente, crítico).
-- **Pausa (`safe-exit`) y reanudación:** misma `attemptId`, nodo y métricas; sin bloquear la bitácora; idempotentes. **No** existe un checkpoint aparte: cada operación persiste su efecto al instante.
+- **Decisión:** solo desde el nodo actual. Con `rules.secondChance`, la **primera** respuesta RISKY o CONTRAINDICATED de un nodo no se aplica ni avanza (aviso de «última oportunidad»); la segunda se registra y avanza. Efectos (`effects` de la opción): un paso de la persona en vínculo y activación (por defecto el de su clase), los hitos que cumple y las competencias que toca; sin puntaje, estrés ni métricas. Al completar se resuelve un **final por hitos y clases de respuesta**: el del caso (`rules.endings`) o, si no declara, la plantilla (crítica, protectora, riesgo persistente, con brechas), con su razón en palabras. Un intento cerrado antes de este modelo conserva su reporte v1/v2 tal cual; al estudiante se le sirve sin sus cifras.
+- **Pausa (`safe-exit`) y reanudación:** misma `attemptId`, nodo, hitos y estado de la persona; sin bloquear la bitácora; idempotentes. **No** existe un checkpoint aparte: cada operación persiste su efecto al instante.
 - **Bitácora:** una nota por (intento, nodo), editable mientras se juega; se bloquea al completar o reemplazar.
-- **Mundo (autoritativo en el servidor):** movimiento validado por colisión y velocidad; interacción a ≤ 120 px; herramientas del inventario con pertinencia; puertas encadenadas (existe → destino → cerca → inspeccionado → herramientas → nodos → NPC). Cambiar de sala no cambia el nodo del grafo ni el puntaje.
+- **Mundo (autoritativo en el servidor):** movimiento validado por colisión y velocidad; interacción a ≤ 120 px; herramientas del inventario con pertinencia; puertas encadenadas (existe → destino → cerca → inspeccionado → herramientas → nodos → NPC). Cambiar de sala no cambia el nodo del grafo ni los hitos.
 
 ### Qué ve el estudiante
 Catálogo → aviso de contenido (ETH-01) → introducción (solo en `hospital-urgencias`) → mundo con HUD, tarjeta «Qué hacer», diálogos con opciones sin clasificación → «Supervisión clínica» tras decidir (mensaje del servidor, sin cifras) → resultado al cerrar. Salida segura desde cualquier superposición (Esc encadena ayuda → bitácora → diálogo → pausa).
@@ -230,7 +230,7 @@ Todas las respuestas llevan el sobre `{success, message, data}`; 401 sin token, 
 | **E Social Mapping** | **No existe** (propuesta lista) |
 | **F Verbal Tension Box** | **No existe** (propuesta lista) |
 | G RF-027 asistente IA | Parcial: backend apagado, sin pantalla |
-| H WCAG 2.2 AA | Parcial: faltan atajos, anuncios de estrés y foco/`wcag22aa` |
+| H WCAG 2.2 AA | Parcial: faltan atajos, anuncio de la persona (vínculo y activación) y foco/`wcag22aa` |
 | I CI | Hecho (distinto del plan) |
 | J Escenarios | Parcial: un solo caso |
 | K Landing y onboarding | Hecho |
@@ -243,7 +243,7 @@ Todas las respuestas llevan el sobre `{success, message, data}`; 401 sin token, 
 | E | Ecomapa guiado, lista primero, 4 etiquetas, sin «afinidad» ni puntos | solo lectura primero; la niña y la persona agresora no aparecen | 12–21 d + Psicología |
 | F | Entrevista por turnos (2–4 intercambios) en M1 y M9, sin tiempo ni reflejos | por turnos; Psicología redacta M1 y M9 | 20–31 d + Psicología |
 | G | Ayuda curada (30–50 entradas); IA opcional solo tras decidir y con concepto jurídico (Ley 1581/2012) | reinterpretar RF-027; sin IA sin concepto escrito | 22,5–38 d |
-| J | Consultorio de primera escucha como 2.º caso; antes generalizar finales, métricas, aviso e introducción | 14 preguntas a Psicología | Ing. 20–37 d |
+| J | Consultorio de primera escucha como 2.º caso; antes generalizar finales por hitos, aviso e introducción | 14 preguntas a Psicología | Ing. 20–37 d |
 
 C, E y F comparten una Fase 0 de 6–10 d; 0a (movimiento reducido en el panel) y 0b (botón único de salida segura) ya están. Las preguntas que más bloquean están en `propuestas-c-e-f-resumen.md`. Las mismas propuestas están redactadas como **162 requisitos** (47 RF, 41 RNF, 46 RN, 28 CU), con criterios de aceptación y 58 preguntas para Psicología, en `docs/requisitos/propuestas/` (PR #60); ninguno es obligación hasta que el equipo los apruebe.
 

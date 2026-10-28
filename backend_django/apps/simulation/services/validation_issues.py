@@ -61,6 +61,44 @@ PLAIN = {
         "La puerta «{object}» del mapa «{map}» lleva a una escena que no existe o que no tiene mapa."
     ),
 }
+# BORRADOR: textos nuevos del servidor, pendientes de la aprobación de Psicología (VD-23).
+#: Las seis reglas de publicación del modelo de respuesta (``casedef.publication_rules``): código estable → frase
+#: «Por resolver» en el lenguaje del docente. Los marcadores se rellenan con títulos, nunca con ids.
+PUBLICATION_PLAIN = {
+    "scene-without-recommended": (
+        "La escena «{scene}» no tiene ninguna respuesta recomendada: marca al menos una como «Recomendada»."
+    ),
+    "contraindicated-without-reason": (
+        "La respuesta «{option}» de la escena «{scene}» es contraindicada y no explica por qué: "
+        "escribe el motivo de la prohibición."
+    ),
+    "milestone-unreachable": (
+        "El hito «{milestone}» no se puede cumplir: ninguna respuesta de las escenas a las que se llega "
+        "desde el inicio lo marca."
+    ),
+    "ending-unreachable": (
+        "El final «{ending}» no se puede alcanzar: ningún recorrido completo cumple su condición."
+    ),
+    "ending-without-default": (
+        "Ningún final del caso aplica a todos los recorridos: agrega un final sin condición para el resto."
+    ),
+    "ending-reachability-skipped": (
+        "El caso tiene tantos recorridos posibles que no se pudo comprobar si todos los finales se alcanzan."
+    ),
+    "competency-without-evidence": (
+        "La competencia «{competency}» de la rúbrica no tiene evidencia: ninguna respuesta del caso la declara."
+    ),
+    "high-intensity-without-warning": (
+        "La escena «{scene}» es de intensidad alta y no tiene mensaje de advertencia: escríbelo antes de publicar."
+    ),
+}
+_TEMPLATE_ENDING_UNREACHABLE = (
+    "El final de plantilla «{ending}» no puede darse en este caso; si quieres que exista, marca hitos decisivos "
+    "o añade respuestas con riesgo o contraindicadas."
+)
+_NO_COMPETENCY_DECLARED = (
+    "Ninguna respuesta declara competencias todavía: la rúbrica no tendrá evidencia que mostrar."
+)
 _UNKNOWN = "El caso tiene un problema de validación ({code})."
 _SNIPPET = 60
 
@@ -159,3 +197,24 @@ def issues_of(validation):
     """``(issues, canPublish)`` de un resultado de ``world_validation.validate``."""
     raw = list(validation["errors"]) + list(validation["warnings"])
     return build_issues(raw), validation["canPublish"]
+
+
+def publication_issue(issue, node_ids):
+    """``ValidationIssue`` de un hallazgo de ``casedef.publication_rules``, con la escena a la que llevar el foco."""
+    # BORRADOR: texto nuevo del servidor, pendiente de la aprobación de Psicología (VD-23).
+    if issue.code == "competency-without-evidence" and issue.competency_code is None:
+        message = _NO_COMPETENCY_DECLARED
+    elif issue.code == "ending-unreachable" and issue.template:
+        message = _TEMPLATE_ENDING_UNREACHABLE.format(**issue.labels)
+    else:
+        message = PUBLICATION_PLAIN[issue.code].format(**issue.labels)
+    result = {"code": issue.code, "severity": issue.severity, "field": issue.field, "message": message}
+    for name, value in (
+        ("sceneKey", issue.scene_key), ("optionKey", issue.option_key), ("milestoneKey", issue.milestone_key),
+        ("endingKey", issue.ending_key), ("competencyCode", issue.competency_code),
+    ):
+        if value is not None:
+            result[name] = value
+    if issue.scene_key in node_ids:
+        result["nodeId"] = node_ids[issue.scene_key]
+    return result

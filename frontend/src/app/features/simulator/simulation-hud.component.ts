@@ -1,13 +1,14 @@
 import { CommonModule } from '@angular/common';
-import { Component, DestroyRef, ElementRef, HostListener, Renderer2, computed, effect, inject, input, output, signal, untracked, viewChild, ChangeDetectionStrategy } from '@angular/core';
+import { Component, DestroyRef, ElementRef, HostListener, Renderer2, computed, effect, inject, input, output, signal, viewChild, ChangeDetectionStrategy } from '@angular/core';
 import { RouterLink } from '@angular/router';
 import { MatIconModule } from '@angular/material/icon';
-import { LiveRegionAnnouncer } from '../../core/a11y/live-announcer.service';
-import { PatientState, SimulationAttemptState } from '../../core/models/simulation.model';
+import { SimulationAttemptState } from '../../core/models/simulation.model';
+import { CharacterVisual } from '../character/kit/character-visual.resolver';
+import { KitFigureComponent } from '../character/kit/kit-figure.component';
+import type { PortraitState } from '../character/kit/kit-engine';
 import { DRAFT_COPY } from './draft-copy';
 import { COARSE_POINTER_QUERY, matchesMedia, watchMedia } from './pointer-modality.util';
-import { Heart, stressToHearts } from './stress-hearts.util';
-import { STRESS_TIER_LABELS, StressTier, stressTier as resolveStressTier } from './stress-tier.util';
+import { portraitStateForPersona } from './persona-portrait.util';
 
 /** Marca de «ayuda vista» (la escribe la tarjeta de primera vez; aquí solo se borra desde Ajustes). */
 const HELP_MEMORY_KEY = 'siep.ayuda.v1';
@@ -15,14 +16,14 @@ const HELP_MEMORY_KEY = 'siep.ayuda.v1';
 @Component({
   selector: 'app-simulation-hud',
   standalone: true,
-  imports: [CommonModule, RouterLink, MatIconModule],
+  imports: [CommonModule, RouterLink, MatIconModule, KitFigureComponent],
   template: `
     @if (attempt(); as game) {
       <div class="hud-shell"
         role="complementary"
         aria-label="Indicadores del simulador"
-        [class.hud--stress-high]="stressTier() === 'high'"
-        [class.hud--stress-critical]="stressTier() === 'critical'">
+        [class.hud--tense]="game.persona.activation === 'TENSE'"
+        [class.hud--crisis]="game.persona.activation === 'CRISIS'">
 
         <div class="hud-strip">
           <div class="hud-brand" aria-hidden="true">
@@ -54,58 +55,17 @@ const HELP_MEMORY_KEY = 'siep.ayuda.v1';
 
           <!-- RIGHT: vitals + actions -->
           <div class="hud-zone hud-zone--right">
-            <div class="hud-stress"
-              [class.hud-stress--pulse]="stressPulse()"
-              role="meter"
-              [attr.aria-valuenow]="game.stressIndex" aria-valuemin="0" aria-valuemax="100"
-              [attr.aria-label]="'Estado de estrés del caso: ' + game.stressIndex + '%. ' + stressLabel()">
-              <span class="hud-metric-label">Estrés</span>
-              <div class="hud-hearts-wrap" title="Estrés del caso: los corazones muestran la calma restante">
-                <div class="hud-hearts" aria-hidden="true" [style.color]="stressColor()">
-                  @for (h of hearts(); track $index) {
-                    <span class="heart" [class.heart--half]="h === 'half'" [class.heart--full]="h === 'full'">
-                      <svg viewBox="0 0 24 24" class="heart-svg">
-                        <path class="heart-outline" d="M12 20.3l-1.5-1.35C5.2 14.2 2 11.3 2 7.7 2 5 4.1 3 6.8 3c1.6 0 3.1.7 4 1.9C11.7 3.7 13.2 3 14.8 3 17.5 3 19.6 5 19.6 7.7c0 3.6-3.2 6.5-8.5 11.25L12 20.3z"/>
-                        <path class="heart-fill" d="M12 20.3l-1.5-1.35C5.2 14.2 2 11.3 2 7.7 2 5 4.1 3 6.8 3c1.6 0 3.1.7 4 1.9C11.7 3.7 13.2 3 14.8 3 17.5 3 19.6 5 19.6 7.7c0 3.6-3.2 6.5-8.5 11.25L12 20.3z"/>
-                      </svg>
-                    </span>
-                  }
-                </div>
-                <span class="stress-pct" [style.color]="stressColor()" aria-hidden="true">{{ game.stressIndex }}%</span>
-              </div>
+            <!-- La persona en palabras (sin cifras): su cara según el vínculo y la activación, y la frase del servidor. -->
+            <div class="hud-persona" [class.hud-persona--text-only]="!patientVisual()" role="group" [attr.aria-label]="game.persona.label">
+              @if (patientVisual(); as visual) {
+                <app-kit-figure class="hud-persona-face" [visual]="visual" [portrait]="portraitState()" [scale]="1" />
+              }
+              <span class="hud-persona-label" [title]="game.persona.label">{{ game.persona.label }}</span>
             </div>
 
-            @if (patientState(); as ps) {
-              <div class="hud-patient" role="group" aria-label="Estado de la paciente">
-                <div class="patient-bars">
-                  <div class="patient-bar-row">
-                    <span class="bar-label">Confianza</span>
-                    <div class="mini-track" role="meter" [attr.aria-valuenow]="ps.trustLevel" aria-valuemin="0" aria-valuemax="100" aria-label="Confianza de la paciente">
-                      <span [style.transform]="fillScale(ps.trustLevel)" [style.background]="trustColor(ps.trustLevel)"></span>
-                    </div>
-                    <span class="bar-value">{{ ps.trustLevel }}%</span>
-                  </div>
-                  <div class="patient-bar-row">
-                    <span class="bar-label">Bienestar</span>
-                    <div class="mini-track" role="meter" [attr.aria-valuenow]="ps.emotionalState" aria-valuemin="0" aria-valuemax="100" aria-label="Bienestar emocional de la paciente">
-                      <span [style.transform]="fillScale(ps.emotionalState)" [style.background]="emotionColor(ps.emotionalState)"></span>
-                    </div>
-                    <span class="bar-value">{{ ps.emotionalState }}%</span>
-                  </div>
-                </div>
-              </div>
-            }
-
             @switch (scoreMarker()) {
-              @case ('points') {
-                <div class="hud-score" role="group" [attr.aria-label]="'Seguimiento formativo: ' + game.accumulatedScore + ' puntos'"
-                  [title]="progressLabel()">
-                  <mat-icon aria-hidden="true">fact_check</mat-icon>
-                  <strong>{{ game.accumulatedScore }}</strong>
-                </div>
-              }
               @case ('progress') {
-                <!-- Sin cifra de puntos: solo el avance que quien integra el HUD declara en progressLabel. -->
+                <!-- Sin cifras de métrica: solo el avance que quien integra el HUD declara en progressLabel. -->
                 @if (progressLabel(); as progress) {
                   <div class="hud-score hud-score--progress">
                     <mat-icon aria-hidden="true">fact_check</mat-icon>
@@ -212,8 +172,8 @@ const HELP_MEMORY_KEY = 'siep.ayuda.v1';
       color: rgba(232,240,244,.9);
       transition: border-color var(--psy-motion-ui);
     }
-    .hud--stress-high  { border-color: rgba(212,160,80,.4); }
-    .hud--stress-critical { border-color: rgba(168,80,98,.5); }
+    .hud--tense  { border-color: rgba(212,160,80,.4); }
+    .hud--crisis { border-color: rgba(168,80,98,.5); }
 
     .hud-strip {
       display: flex;
@@ -225,7 +185,7 @@ const HELP_MEMORY_KEY = 'siep.ayuda.v1';
     .hud-zone { display: flex; align-items: center; }
     .hud-zone--case { gap: 10px; min-width: 0; flex-shrink: 1; }
     /* overflow: hidden + min-width: 0 en la zona y en la sala: nada del centro se derrama sobre el
-       caso ni sobre el estrés (HUD-10: entre 961 y 1200 px se encimaban y la sala quedaba en 0 px). */
+       caso ni sobre la persona (HUD-10: entre 961 y 1200 px se encimaban y la sala quedaba en 0 px). */
     .hud-zone--center { flex: 1; min-width: 0; overflow: hidden; gap: 10px; justify-content: center; }
     .hud-zone--right { flex-shrink: 0; gap: 12px; margin-left: auto; }
 
@@ -259,42 +219,19 @@ const HELP_MEMORY_KEY = 'siep.ayuda.v1';
 
     .hud-score { display: flex; align-items: center; gap: 5px; flex-shrink: 0; }
     .hud-score mat-icon { color: #B69CFF; font-size: 18px; width: 18px; height: 18px; }
-    .hud-score strong { font-family: 'JetBrains Mono', monospace; font-size: .9rem; letter-spacing: .04em; }
     .hud-score--progress span { font-size: .75rem; font-weight: 800; white-space: nowrap; }
 
-    .hud-stress { display: flex; align-items: center; gap: 7px; flex: 0 0 auto; }
-    .hud-stress--pulse { animation: stress-pulse .6s ease-out; }
-    .hud-metric-label,
-    .bar-label {
-      color: rgba(232,240,244,.68);
-      font-size: .75rem;
-      font-weight: 900;
-      letter-spacing: .04em;
-      text-transform: uppercase;
+    .hud-persona { display: flex; align-items: center; gap: 8px; flex: 0 1 auto; min-width: 0; }
+    .hud-persona-face { flex: 0 0 auto; }
+    .hud-persona-label {
+      min-width: 0;
+      max-width: 220px;
+      overflow: hidden;
+      text-overflow: ellipsis;
       white-space: nowrap;
-    }
-    .hud-hearts-wrap { display: flex; align-items: center; gap: 6px; }
-    .hud-hearts { display: inline-flex; align-items: center; gap: 2px; }
-    .heart { display: inline-block; width: 15px; height: 15px; line-height: 0; }
-    .heart-svg { width: 15px; height: 15px; display: block; }
-    .heart-outline { fill: none; stroke: currentColor; stroke-width: 1.7; opacity: .6; }
-    .heart-fill { fill: currentColor; clip-path: inset(0 100% 0 0); }
-    .heart--half .heart-fill { clip-path: inset(0 50% 0 0); }
-    .heart--full .heart-fill { clip-path: inset(0 0 0 0); }
-    .heart--full .heart-outline { opacity: 1; }
-    .stress-pct { font-family: 'JetBrains Mono', monospace; font-size: .78rem; min-width: 38px; transition: color var(--psy-motion-ui); }
-
-    .hud-patient { display: flex; align-items: center; gap: 8px; flex-shrink: 0; }
-    .patient-bars { display: flex; flex-direction: column; gap: 3px; }
-    .patient-bar-row { display: grid; grid-template-columns: 68px 56px 34px; align-items: center; gap: 5px; }
-    .bar-label { font-size: .75rem; text-transform: none; letter-spacing: 0; }
-    .bar-value { color: rgba(232,240,244,.58); font-family: 'JetBrains Mono', monospace; font-size: .75rem; text-align: right; }
-    .mini-track { width: 56px; height: 5px; border-radius: 999px; background: rgba(255,255,255,.1); overflow: hidden; }
-    /* El relleno es la proporción del ancho con transform (compositor): animar width obligaba a recalcular el diseño. */
-    .mini-track span {
-      display: block; width: 100%; height: 100%; border-radius: inherit;
-      transform-origin: left center;
-      transition: transform .5s ease, background-color .5s ease;
+      color: rgba(232,240,244,.84);
+      font-size: .78rem;
+      font-weight: 800;
     }
 
     .hud-scene { display: flex; align-items: center; gap: 5px; min-width: 0; overflow: hidden; }
@@ -444,20 +381,15 @@ const HELP_MEMORY_KEY = 'siep.ayuda.v1';
       border: 0;
     }
 
-    @keyframes stress-pulse {
-      0%   { box-shadow: 0 0 0 0 rgba(212,160,80,.4); }
-      70%  { box-shadow: 0 0 0 6px rgba(212,160,80,0); }
-      100% { box-shadow: none; }
-    }
-
-    /* Sin ancho de sobra primero se va el nombre del caso; después la sala y las barras de la paciente.
+    /* Sin ancho de sobra primero se va el nombre del caso; después la sala y la frase de la persona.
        El chip «Decisión k de 6» se queda siempre: es el único contador. */
     @media (max-width: 1359px) {
       .hud-zone--case { display: none; }
     }
     @media (max-width: 960px) {
       .hud-scene { display: none; }
-      .hud-patient { display: none; }
+      .hud-persona-label { display: none; }
+      .hud-persona--text-only { display: none; }
       /* Sin sala que ceda, el chip puede acortarse antes que recortarse. */
       .hud-stage-chip { flex-shrink: 1; }
     }
@@ -465,16 +397,13 @@ const HELP_MEMORY_KEY = 'siep.ayuda.v1';
       .hud-strip { gap: 4px; min-width: 0; padding: 0 6px; }
       .hud-zone--right { min-width: 0; gap: 6px; }
       .hud-brand { display: none; }
-      .hud-metric-label,
-      .hud-hearts { display: none; }
-      .stress-pct { min-width: 0; }
       .hud-actions { min-width: 0; gap: 4px; padding-left: 6px; }
     }
     /* Teléfono en vertical: el catálogo sigue a un toque en Ajustes («Catálogo»). */
     @media (max-width: 480px) {
       .hud-action--home { display: none; }
     }
-    /* Pantallas mínimas (320 px): el contador manda sobre el puntaje. */
+    /* Pantallas mínimas (320 px): el contador manda sobre el avance. */
     @media (max-width: 380px) {
       .hud-score { display: none; }
     }
@@ -487,25 +416,22 @@ const HELP_MEMORY_KEY = 'siep.ayuda.v1';
     }
     /* Las acciones de la cabecera y de Ajustes miden 44 px con cualquier puntero (no solo con dedo): HUD-17, F6-3. */
     @media (prefers-reduced-motion: reduce) {
-      .hud-stress--pulse { animation: none; }
       .hud-action:active { transform: none; }
-      .mini-track span { transition: none; }
     }
   `]
 })
 export class SimulationHudComponent {
   readonly attempt = input<SimulationAttemptState | null>(null);
-  readonly stressPulse = input(false);
-  readonly patientState = input<PatientState | null>(null);
+  /** Retrato de la persona consultante en el kit (lo da el mundo al cargar); sin él, la persona se dice solo con palabras. */
+  readonly patientVisual = input<CharacterVisual | null>(null);
   /** Contador único del chip central («Decisión k de 6»); lo calcula quien integra el HUD. Sin valor, no hay chip. */
   readonly stageLabel = input<string | null>(null);
   readonly progressLabel = input('');
   /**
-   * Qué marca el HUD del avance formativo (RN-08 y RN-09 siguen a decidir por el equipo): `points` muestra los puntos
-   * («Seguimiento formativo: N puntos», el texto vigente); `progress` no muestra cifra y dice el avance con
-   * `progressLabel`; `hidden` no pinta nada y no deja hueco.
+   * Qué marca el HUD del avance formativo: `progress` dice el avance con `progressLabel` (y no pinta nada si va vacío);
+   * `hidden` no pinta nada y no deja hueco. Nunca hay puntos: el estudiante no ve cifras de métrica.
    */
-  readonly scoreMarker = input<'points' | 'progress' | 'hidden'>('points');
+  readonly scoreMarker = input<'progress' | 'hidden'>('progress');
   /** Sala física actual (world.map.title); con puertas puede diferir del nodo DAG. */
   readonly locationLabel = input('');
   readonly journalOpen = input(false);
@@ -539,9 +465,6 @@ export class SimulationHudComponent {
 
   private readonly host = inject<ElementRef<HTMLElement>>(ElementRef);
   private readonly renderer = inject(Renderer2);
-  private readonly liveAnnouncer = inject(LiveRegionAnnouncer);
-  /** Último tramo visto de un intento: el cambio de tramo es lo único que se anuncia (nunca el primer valor). */
-  private lastStressSeen: { attemptId: string; tier: StressTier } | null = null;
   private readonly settingsTrigger = viewChild<ElementRef<HTMLButtonElement>>('settingsTrigger');
   private readonly settingsMenu = viewChild<ElementRef<HTMLElement>>('settingsMenu');
   /** Borde superior del menú (px): justo bajo la cabecera, medido al abrirlo porque su alto cambia en compacto. */
@@ -549,13 +472,6 @@ export class SimulationHudComponent {
   private stopPointerListener: (() => void) | null = null;
 
   constructor() {
-    // El estrés se anuncia solo al CRUZAR 30, 60 u 85 (H-08, VD-20 borrador): en cortesía, con el rótulo del medidor y
-    // sin anunciar el valor de un intento recién cargado ni cada punto.
-    effect(() => {
-      const attempt = this.attempt();
-      const tier = this.stressTier();
-      untracked(() => this.announceStressCrossing(attempt?.attemptId ?? null, tier));
-    });
     // El oyente de clic fuera existe solo mientras Ajustes está abierto: uno global y
     // permanente hace entrar en la zona de Angular cada toque de toda la pantalla de juego.
     effect(() => {
@@ -579,13 +495,6 @@ export class SimulationHudComponent {
       this.unlistenOutsidePointer();
       stopWatchingPointer();
     });
-  }
-
-  private announceStressCrossing(attemptId: string | null, tier: StressTier): void {
-    const previous = this.lastStressSeen;
-    this.lastStressSeen = attemptId === null ? null : { attemptId, tier };
-    if (!previous || previous.attemptId !== attemptId || previous.tier === tier) return;
-    this.liveAnnouncer.announce(`${DRAFT_COPY.stressAnnouncementPrefix.text} ${STRESS_TIER_LABELS[tier]}`, 'polite');
   }
 
   /** Cierra Ajustes; por defecto devuelve el foco al engranaje (el botón «x» desaparece). */
@@ -641,35 +550,14 @@ export class SimulationHudComponent {
     this.stopPointerListener = null;
   }
 
-  /** Tramos de estrés de `stress-tier.util` (umbrales únicos de toda la partida). */
-  readonly stressTier = computed<StressTier>(() => resolveStressTier(this.attempt()?.stressIndex));
-
-  readonly hearts = computed<Heart[]>(() => stressToHearts(this.attempt()?.stressIndex ?? 0));
-
-  readonly stressColor = computed(() => ({
-    calm:     '#6EC67A',
-    moderate: '#F5B84B',
-    high:     '#F08C4B',
-    critical: '#E25A4F'
-  })[this.stressTier()]);
-
-  readonly stressLabel = computed(() => STRESS_TIER_LABELS[this.stressTier()]);
-
-  /** Relleno de una barra de 0 a 100 como proporción del ancho (transform: el compositor, nunca width). */
-  fillScale(percent: number): string {
-    const ratio = Math.min(100, Math.max(0, Number.isFinite(percent) ? percent : 0)) / 100;
-    return `scaleX(${ratio})`;
-  }
-
-  trustColor(v: number): string {
-    if (v >= 60) return '#4fa3a5';
-    if (v >= 30) return '#c4c84a';
-    return '#e06070';
-  }
-
-  emotionColor(v: number): string {
-    if (v >= 60) return '#4fa3a5';
-    if (v >= 30) return '#d4943a';
-    return '#e06070';
-  }
+  /**
+   * Expresión del retrato según la persona (R-12): entre los estados que trae la receta, el definitivo o su cara
+   * cercana. El kit de esta rama trae cuatro; los de seis estados llegan con P6 sin tocar esto.
+   */
+  readonly portraitState = computed<PortraitState>(() => {
+    const persona = this.attempt()?.persona;
+    const visual = this.patientVisual();
+    if (!persona || !visual) return 'neutral';
+    return portraitStateForPersona(persona, Object.keys(visual.portraits)) as PortraitState;
+  });
 }

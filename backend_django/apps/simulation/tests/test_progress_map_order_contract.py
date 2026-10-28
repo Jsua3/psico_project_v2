@@ -95,7 +95,7 @@ def test_los_nodos_inalcanzables_van_al_final_en_orden_de_id(estudiante, case_ve
     # el recorrido no entra por ahí, así que ambos quedan en el bloque final, por id.
     DecisionOption.objects.create(
         case_version_id=case_version_id, option_key="PM-H1-H2", source_node=huerfano_1,
-        target_node=huerfano_2, text="t", classification="ADEQUATE",
+        target_node=huerfano_2, text="t", response_class="RECOMMENDED",
     )
 
     keys = _keys(_progress(c, attempt))
@@ -110,7 +110,7 @@ def test_un_ciclo_no_repite_nodos_ni_cuelga_el_recorrido(estudiante, case_versio
     ultimo = SimulationNode.objects.filter(case_version_id=case_version_id).exclude(pk=start.pk).last()
     DecisionOption.objects.create(
         case_version_id=case_version_id, option_key="PM-VUELTA", source_node=ultimo,
-        target_node=start, text="t", classification="ADEQUATE",
+        target_node=start, text="t", response_class="RECOMMENDED",
     )
 
     keys = _keys(_progress(c, attempt))
@@ -127,7 +127,7 @@ def test_una_rama_nueva_se_visita_por_niveles_no_en_profundidad(estudiante, case
     for key, source, target in (("PM-A", start, hijo_a), ("PM-B", start, hijo_b), ("PM-N", hijo_a, nieto)):
         DecisionOption.objects.create(
             case_version_id=case_version_id, option_key=key, source_node=source, target_node=target,
-            text="t", classification="ADEQUATE",
+            text="t", response_class="RECOMMENDED",
         )
 
     keys = _keys(_progress(c, attempt))

@@ -39,9 +39,13 @@ def make_student(label="e"):
     return make_user("ESTUDIANTE", label)
 
 
-def v2_report(levels=("LOGRADO",), non_recommended=0, covered=True, key=True, definition="ANY"):
-    """El reporte congelado v2 con solo lo que la analítica lee (un nivel por competencia, en el orden dado)."""
-    return {
+def v2_report(levels=("LOGRADO",), non_recommended=0, covered=True, key=True, definition="ANY", milestones_done=None):
+    """El reporte congelado v2 con solo lo que la analítica lee (un nivel por competencia, en el orden dado).
+
+    ``milestones_done`` (claves) inyecta el bloque ``milestones`` que trae un reporte v3: la analítica lo lee de
+    cualquier reporte que lo traiga, así la cohorte v2 de las pruebas puede aportar a la cobertura por hito.
+    """
+    report = {
         "schemaVersion": 2,
         "competencyLevels": [
             {"code": f"C{i}", "name": f"Competencia {i}", "level": level, "basis": "DEFAULT"}
@@ -52,6 +56,9 @@ def v2_report(levels=("LOGRADO",), non_recommended=0, covered=True, key=True, de
         "reflectionCoverage": {"definition": definition, "reflections": 1, "decisionScenes": 1, "covered": covered},
         "keyLearningEvidence": key,
     }
+    if milestones_done is not None:
+        report["milestones"] = {"done": [{"key": k, "label": k, "decisive": False} for k in milestones_done], "missing": []}
+    return report
 
 
 def completed_attempt(student, version, ordinal=1, *, report=None, schema_version=2, started_at=None, status="COMPLETED"):

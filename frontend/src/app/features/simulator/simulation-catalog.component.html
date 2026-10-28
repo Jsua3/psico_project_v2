@@ -88,9 +88,6 @@
                 <th scope="col">Caso</th>
                 <th scope="col">Inicio</th>
                 <th scope="col">Estado</th>
-                <th scope="col">Puntaje</th>
-                <th scope="col">Adecuadas</th>
-                <th scope="col">Alertas éticas</th>
                 <th scope="col">Duración</th>
                 <th scope="col"><span class="ds-sr-only">Acción</span></th>
               </tr>
@@ -101,9 +98,6 @@
                   <td class="catalog-history__case">{{ row.attempt.caseTitle }}</td>
                   <td class="catalog-nowrap">{{ formatDate(row.attempt.startedAt, true) }}</td>
                   <td class="catalog-nowrap"><ui-badge [tone]="tone(row.attempt.status)">{{ statusLabel(row.attempt.status) }}</ui-badge></td>
-                  <td class="catalog-num">{{ row.attempt.accumulatedScore }}</td>
-                  <td class="catalog-num">{{ row.attempt.adequateDecisions }}</td>
-                  <td class="catalog-num">{{ row.attempt.prohibitedDecisions }}</td>
                   <td class="catalog-nowrap">{{ row.duration }}</td>
                   <td class="catalog-nowrap">
                     @if (row.open) {

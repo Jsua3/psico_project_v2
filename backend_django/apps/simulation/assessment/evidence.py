@@ -4,7 +4,9 @@ Tres cálculos puros que el reporte congelado v2 guarda al cerrar: cuántas deci
 si **reflexionó** (según la definición vigente) y si el intento es **evidencia clave** de aprendizaje (completado, con
 reflexión y con un perfil de competencias). Las definiciones están en BORRADOR hasta que Psicología las confirme.
 """
-from apps.simulation.services import case_effects
+from apps.simulation.casedef.vocabulary import ResponseClass
+from apps.simulation.models import REGISTERED_DECISION_EVENT_TYPES
+from apps.simulation.services.case_state import response_class_of
 
 from .definitions import REFLECTION_PER_DECISION_SCENE
 
@@ -12,15 +14,15 @@ from .definitions import REFLECTION_PER_DECISION_SCENE
 def _registered_decisions(events):
     return [
         event for event in events
-        if event.decision_option_id is not None and event.event_type in case_effects.REGISTERED_DECISION_EVENT_TYPES
+        if event.decision_option_id is not None and event.event_type in REGISTERED_DECISION_EVENT_TYPES
     ]
 
 
 def non_recommended_count(events):
-    """Decisiones registradas riesgosas, inadecuadas o prohibidas (los reintentos no se aplicaron: no cuentan)."""
+    """Decisiones registradas «con riesgo» o «contraindicadas» (los reintentos no se aplicaron: no cuentan)."""
     return sum(
         1 for event in _registered_decisions(events)
-        if event.decision_option.classification != "ADEQUATE" or event.decision_option.prohibited_conduct
+        if response_class_of(event.decision_option) in (ResponseClass.RISKY, ResponseClass.CONTRAINDICATED)
     )
 
 

@@ -7,7 +7,7 @@ import { RECONSIDERED_LABEL } from './reconsidered.util';
 import { FeedbackPanelView, TraceFeedbackDialogComponent } from './trace-feedback-dialog.component';
 
 /**
- * Diálogo de retroalimentación de la traza docente (plan visual F7-4): muestra las siete lecturas del intento con los
+ * Diálogo de retroalimentación de la traza docente (plan visual F7-4): muestra las nueve lecturas del intento con los
  * componentes de la biblioteca. La trampa de foco, Esc y el retorno del foco son del diálogo de la biblioteca
  * (`ui-dialog.spec.ts`); aquí se prueba lo que cada lectura dice.
  */
@@ -18,13 +18,13 @@ const emptyPanel = (overrides: Partial<FeedbackPanelView>): FeedbackPanelView =>
 });
 
 const decision = (overrides: Partial<TraceEvent> = {}): TraceEvent => ({
-  type: 'DECISION_SELECTED', classification: 'ADEQUATE', nodeTitle: 'Recepción', decisionText: 'Escuchar sin interrumpir',
-  scoreDelta: 5, stressDelta: -2, detail: null, occurredAt: '2026-10-10T10:00:00Z', ...overrides,
+  type: 'DECISION_SELECTED', class: 'RECOMMENDED', nodeTitle: 'Recepción', decisionText: 'Escuchar sin interrumpir',
+  detail: null, occurredAt: '2026-10-10T10:00:00Z', ...overrides,
 });
 
 const entry = (overrides: Partial<AttemptTimelineEntry> = {}): AttemptTimelineEntry => ({
-  atSeconds: 30, time: '00:30', type: 'DECISION_SELECTED', classification: 'RISKY', prohibited: false,
-  label: 'Interrumpir', scoreDelta: -3, stressDelta: 4, ...overrides,
+  atSeconds: 30, time: '00:30', type: 'DECISION_SELECTED', class: 'RISKY', prohibited: false,
+  label: 'Interrumpir', ...overrides,
 });
 
 describe('diálogo de retroalimentación de la traza (F7-4)', () => {
@@ -60,21 +60,24 @@ describe('diálogo de retroalimentación de la traza (F7-4)', () => {
     expect(close).toHaveBeenCalledTimes(1);
   });
 
-  it('las decisiones salen con su clasificación en una insignia con texto, su escenario y su impacto', async () => {
-    await open(emptyPanel({ decisions: [decision(), decision({ classification: 'RISKY', decisionText: 'Interrumpir' })] }));
+  it('las decisiones salen con su clase en una insignia con texto y su escenario, sin puntaje ni estrés', async () => {
+    await open(emptyPanel({
+      decisions: [
+        decision(), decision({ class: 'RISKY', decisionText: 'Interrumpir' }),
+        decision({ class: 'ACCEPTABLE', decisionText: 'Callar' }), decision({ class: 'CONTRAINDICATED', decisionText: 'Culpar' }),
+      ],
+    }));
     const cards = [...host().querySelectorAll('.tf-card')];
-    expect(cards).toHaveLength(2);
-    expect(text(cards[0].querySelector('ui-badge'))).toBe('Adecuada');
-    expect(cards[0].getAttribute('data-accent')).toBe('adequate');
+    expect(cards).toHaveLength(4);
+    expect(cards.map(card => text(card.querySelector('ui-badge')))).toEqual(['Recomendada', 'Con riesgo', 'Aceptable', 'Contraindicada']);
+    expect(cards.map(card => card.getAttribute('data-accent'))).toEqual(['recommended', 'risky', 'acceptable', 'contraindicated']);
     expect(text(cards[0])).toContain('Escuchar sin interrumpir');
     expect(text(cards[0])).toContain('Escenario: Recepción');
-    expect(text(cards[0])).toContain('Impacto · Puntaje +5 · Estrés -2');
-    expect(text(cards[1].querySelector('ui-badge'))).toBe('Riesgosa');
-    expect(cards[1].getAttribute('data-accent')).toBe('risky');
+    expect(text(host())).not.toMatch(/Impacto|Puntaje|Estrés|\d+\s?%/);
   });
 
-  it('el texto de apoyo de una decisión sin clasificación ya no usa el vocabulario clínico (VD-24)', async () => {
-    await open(emptyPanel({ decisions: [decision({ classification: null, type: 'DECISION_SELECTED' })] }));
+  it('el texto de apoyo de una decisión sin clase ya no usa el vocabulario clínico (VD-24)', async () => {
+    await open(emptyPanel({ decisions: [decision({ class: null, type: 'DECISION_SELECTED' })] }));
     expect(text(host())).toContain('Revisar el contexto del escenario y la justificación de la decisión.');
     expect(text(host()).toLowerCase()).not.toContain('clínic');
   });
@@ -83,9 +86,9 @@ describe('diálogo de retroalimentación de la traza (F7-4)', () => {
     await open(emptyPanel({
       key: 'RECORRIDO',
       timeline: [
-        entry({ type: 'PROHIBITED_DECISION_RETRY_REQUIRED', classification: 'INADEQUATE', prohibited: true, label: 'Primera respuesta' }),
-        entry({ type: 'PROHIBITED_DECISION_SELECTED', classification: 'INADEQUATE', prohibited: true, label: 'Respuesta registrada' }),
-        entry({ classification: 'ADEQUATE', label: 'Paso adecuado' }),
+        entry({ type: 'PROHIBITED_DECISION_RETRY_REQUIRED', class: 'CONTRAINDICATED', prohibited: true, label: 'Primera respuesta' }),
+        entry({ type: 'PROHIBITED_DECISION_SELECTED', class: 'CONTRAINDICATED', prohibited: true, label: 'Respuesta registrada' }),
+        entry({ class: 'RECOMMENDED', label: 'Paso adecuado' }),
       ],
     }));
     const cards = [...host().querySelectorAll('.tf-card')];
@@ -93,7 +96,7 @@ describe('diálogo de retroalimentación de la traza (F7-4)', () => {
     expect(cards[0].getAttribute('data-accent')).toBe('');
     expect(text(cards[0])).toContain('no cuenta como decisión registrada');
     expect(text(cards[1].querySelector('ui-badge'))).toBe('Contraindicada');
-    expect(cards[1].getAttribute('data-accent')).toBe('inadequate');
+    expect(cards[1].getAttribute('data-accent')).toBe('contraindicated');
     expect(text(cards[2])).toContain('Paso adecuado dentro del recorrido simulado.');
     expect(text(host()).toLowerCase()).not.toContain('clínic');
   });
@@ -114,21 +117,21 @@ describe('diálogo de retroalimentación de la traza (F7-4)', () => {
   });
 
   // req: RN-09
-  it('las evaluaciones se rotulan «Valoración formativa» con el nivel, y sin número si el servidor no lo envía', async () => {
+  it('las evaluaciones se rotulan «Valoración formativa» con el nivel y nunca llevan un número', async () => {
     await open(emptyPanel({
       key: 'EVALUATION',
       evaluations: [
-        { id: 1, rubricName: 'Rúbrica básica', totalScore: null, overallLevel: 'LOGRADO', comment: 'Buen trabajo', evaluatedAt: '2026-10-10T11:00:00Z' },
-        { id: 2, rubricName: 'Rúbrica extra', totalScore: 4.5, overallLevel: 'DESTACADO', comment: null, evaluatedAt: '2026-10-10T12:00:00Z' },
-        { id: 3, rubricName: 'Rúbrica a medias', totalScore: null, overallLevel: null, comment: null, evaluatedAt: '2026-10-10T13:00:00Z' },
+        { id: 1, rubricName: 'Rúbrica básica', overallLevel: 'LOGRADO', comment: 'Buen trabajo', evaluatedAt: '2026-10-10T11:00:00Z' },
+        { id: 2, rubricName: 'Rúbrica extra', overallLevel: 'DESTACADO', comment: null, evaluatedAt: '2026-10-10T12:00:00Z' },
+        { id: 3, rubricName: 'Rúbrica a medias', overallLevel: null, comment: null, evaluatedAt: '2026-10-10T13:00:00Z' },
       ],
     }));
     const cards = [...host().querySelectorAll('.tf-card')];
     expect(text(cards[0])).toContain('Valoración formativa:');
     expect(text(cards[0].querySelector('ui-badge'))).toBe('Logrado');
     expect(text(cards[0])).not.toContain('Puntaje total');
-    expect(cards[0].querySelector('strong')).toBeNull();
-    expect(text(cards[1].querySelector('strong'))).toBe('4,5');
+    expect(cards.every(card => card.querySelector('strong') === null)).toBe(true);
+    expect(text(cards[1])).not.toMatch(/\d,\d/);
     expect(text(cards[1].querySelector('ui-badge'))).toBe('Destacado');
     expect(text(cards[2].querySelector('ui-badge'))).toBe('Pendiente');
   });

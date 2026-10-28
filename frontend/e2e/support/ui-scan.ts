@@ -3,7 +3,9 @@ import type { Page } from '@playwright/test';
 /**
  * Escáner de estilos computados (plan visual F9-2; RNF-04, WCAG 1.4.4 y 2.5.8): lo que se PINTA, no lo que dice el CSS.
  * Texto visible por debajo de 12 px (fuera del canvas) y objetivos interactivos por debajo de 24 px (mínimo AA) y de
- * 44 px (táctil). Los enlaces en línea dentro de un texto y lo oculto o recortado no cuentan.
+ * 44 px (táctil). Los enlaces en línea dentro de un texto y lo oculto o recortado no cuentan. Un control con
+ * `data-equivalente` (las piezas de una sala dibujadas a escala, que se manejan también desde la lista «En esta sala» y sus
+ * botones, de 44 px) no cuenta contra el mínimo táctil de 44 px —WCAG 2.5.8, excepción «equivalente»—, pero SÍ contra el de 24 px.
  */
 export interface UiScan {
   smallText: string[];
@@ -50,7 +52,7 @@ export async function scanUi(page: Page): Promise<UiScan> {
       const width = Math.round(rect.width);
       const height = Math.round(rect.height);
       if (width < 24 || height < 24) smallTargets.add(label(element, `${width}x${height}`));
-      else if (width < 44 || height < 44) touchTargets.add(label(element, `${width}x${height}`));
+      else if ((width < 44 || height < 44) && !element.hasAttribute('data-equivalente')) touchTargets.add(label(element, `${width}x${height}`));
     }
     return { smallText: Array.from(smallText), smallTargets: Array.from(smallTargets), touchTargets: Array.from(touchTargets) };
   });

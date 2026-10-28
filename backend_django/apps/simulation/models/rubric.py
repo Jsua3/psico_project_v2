@@ -248,3 +248,23 @@ class AuditLog(models.Model):
             models.Index(fields=["occurred_at"], name="idx_audit_logs_time"),
             models.Index(fields=["retention_until"], name="idx_audit_logs_retention"),
         ]
+
+
+class AuthoringAssistantUsage(models.Model):
+    """Consumo diario del asistente de IA de autoría (P5): una fila por persona y día.
+
+    ``limits.consume`` la reserva ANTES de llamar al proveedor (bajo ``select_for_update``) y
+    ``limits.refund`` la devuelve si el proveedor falla.
+    """
+
+    user = models.ForeignKey(
+        settings.AUTH_USER_MODEL, on_delete=models.CASCADE, db_column="user_id", related_name="+",
+    )
+    day = models.DateField()
+    count = models.PositiveIntegerField(default=0)
+
+    class Meta:
+        db_table = "authoring_assistant_usage"
+        constraints = [
+            models.UniqueConstraint(fields=["user", "day"], name="uq_authoring_assistant_usage_user_day"),
+        ]

@@ -1,13 +1,13 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "$id": "urn:siep:x-siep:1.0.0",
+  "$id": "urn:siep:x-siep:2.0.0",
   "title": "x-siep: lo que SIEP añade al DSL de casos del taller",
-  "description": "Espacio de extensión del documento del caso (E4, R7 y R10). La base del DSL lleva lo que el esquema del taller puede expresar; x-siep lleva el resto sin duplicarlo: cada entidad que está en la base se enlaza por su `id` de DSL y las que no caben (un personaje sin rol, una herramienta sin descripción, una escena que solo se alcanza por una puerta) van completas. Dentro del mundo las referencias van por la clave del producto (opción, personaje, herramienta, objeto). Las condiciones de los finales se validan además con el vocabulario de `casedef.conditions` (profundidad máxima 12), que un esquema no puede expresar.",
+  "description": "Espacio de extensión del documento del caso (E4, R7 y R10). La base del DSL lleva lo que el esquema del taller puede expresar; x-siep lleva el resto sin duplicarlo: cada entidad que está en la base se enlaza por su `id` de DSL y las que no caben (un personaje sin rol, una herramienta sin descripción, una escena que solo se alcanza por una puerta) van completas. Dentro del mundo las referencias van por la clave del producto (opción, personaje, herramienta, objeto). La versión 2.0 describe cada respuesta por su clase, los hitos que marca y el paso de la persona (sin puntaje, estrés ni penalización) y los finales por hitos, clases y persona. Las condiciones de los finales y los hitos que nombran se validan además con `casedef.siep_check` (vocabulario de `casedef.conditions`, profundidad máxima 12), que un esquema no puede expresar. El esquema de la versión 1.0, que el importador aún lee y convierte, se conserva en `x-siep.v1.schema.json`.",
   "type": "object",
   "required": ["version"],
   "additionalProperties": false,
   "properties": {
-    "version": { "const": "1.0" },
+    "version": { "const": "2.0" },
     "contexto": { "type": "string", "maxLength": 4000 },
     "descripcionDerivada": { "const": true, "description": "`caso.descripcion` de la base es el contexto de la versión (el caso no tenía descripción propia): el importador no la guarda como descripción." },
     "mundoVersion": { "type": "integer", "minimum": 1, "maximum": 1000000 },
@@ -35,11 +35,12 @@
     "reglas": {
       "type": "object",
       "additionalProperties": false,
-      "description": "`case_versions.rules` tal cual (E1-7, E3-8).",
+      "description": "`case_versions.rules` tal cual: hitos, nivel de riesgo y finales (sin métricas).",
       "properties": {
         "secondChance": { "type": "boolean" },
         "feedbackTiming": { "enum": ["IMMEDIATE", "AT_CLOSE"] },
-        "metrics": {
+        "riskLevel": { "enum": ["VARIABLE", "MODERATE", "SEVERE", "EXTREME"] },
+        "milestones": {
           "type": "array",
           "maxItems": 50,
           "items": {
@@ -48,7 +49,9 @@
             "additionalProperties": false,
             "properties": {
               "key": { "$ref": "#/$defs/nombreDeEfecto" },
-              "initial": { "type": "integer", "minimum": 0, "maximum": 100 }
+              "label": { "$ref": "#/$defs/texto" },
+              "description": { "$ref": "#/$defs/texto" },
+              "decisive": { "type": "boolean" }
             }
           }
         },
@@ -64,7 +67,8 @@
               "title": { "$ref": "#/$defs/texto" },
               "message": { "$ref": "#/$defs/texto" },
               "tone": { "type": "string", "maxLength": 40 },
-              "when": { "$ref": "#/$defs/objeto_libre" }
+              "when": { "$ref": "#/$defs/objeto_libre" },
+              "aiSuggested": { "type": "boolean" }
             }
           }
         }
@@ -74,26 +78,36 @@
     "efectos": {
       "type": "object",
       "additionalProperties": false,
-      "description": "Los efectos de una opción (E3-8, E6-1a): severidad, banderas, cambios de métricas y las competencias a las que aporta.",
+      "description": "Los efectos de una opción: el paso de la persona, los hitos que marca y las competencias a las que aporta.",
       "properties": {
-        "severity": { "enum": ["recommended", "acceptable", "risky", "critical"] },
-        "flags": {
-          "type": "object",
-          "maxProperties": 20,
-          "propertyNames": { "$ref": "#/$defs/nombreDeEfecto" },
-          "additionalProperties": { "type": "boolean" }
-        },
-        "metrics": {
-          "type": "object",
-          "maxProperties": 20,
-          "propertyNames": { "$ref": "#/$defs/nombreDeEfecto" },
-          "additionalProperties": { "type": "integer", "minimum": -100, "maximum": 100 }
-        },
         "competencies": {
+          "oneOf": [
+            {
+              "type": "object",
+              "maxProperties": 20,
+              "propertyNames": { "$ref": "#/$defs/codigoDeCompetencia" },
+              "additionalProperties": { "enum": ["EN_INICIO", "EN_PROCESO", "LOGRADO", "DESTACADO", null] }
+            },
+            {
+              "type": "array",
+              "maxItems": 20,
+              "uniqueItems": true,
+              "items": { "$ref": "#/$defs/codigoDeCompetencia" }
+            }
+          ]
+        },
+        "persona": {
           "type": "object",
-          "maxProperties": 20,
-          "propertyNames": { "$ref": "#/$defs/codigoDeCompetencia" },
-          "additionalProperties": { "enum": ["EN_INICIO", "EN_PROCESO", "LOGRADO", "DESTACADO"] }
+          "additionalProperties": false,
+          "properties": {
+            "bond": { "type": "integer", "minimum": -1, "maximum": 1 },
+            "activation": { "type": "integer", "minimum": -1, "maximum": 1 }
+          }
+        },
+        "milestones": {
+          "type": "array",
+          "maxItems": 20,
+          "items": { "$ref": "#/$defs/nombreDeEfecto" }
         }
       }
     },
@@ -134,20 +148,18 @@
 
     "opcion": {
       "type": "object",
-      "required": ["clave", "puntaje", "estres", "penalizacion", "retroalimentacionInmediata", "efectos"],
+      "required": ["clave", "clase", "retroalimentacionInmediata", "efectos"],
       "additionalProperties": false,
       "properties": {
         "id": { "$ref": "#/$defs/idOpcion" },
         "clave": { "$ref": "#/$defs/clave" },
         "texto": { "$ref": "#/$defs/texto" },
         "destino": { "$ref": "#/$defs/clave" },
+        "clase": { "enum": ["RECOMMENDED", "ACCEPTABLE", "RISKY", "CONTRAINDICATED"] },
         "clasificacion": { "enum": ["ADEQUATE", "RISKY", "INADEQUATE"] },
         "prohibida": { "type": "boolean" },
         "motivo": { "$ref": "#/$defs/texto" },
         "consecuencia": { "$ref": "#/$defs/texto" },
-        "puntaje": { "$ref": "#/$defs/entero" },
-        "estres": { "$ref": "#/$defs/entero" },
-        "penalizacion": { "$ref": "#/$defs/entero" },
         "retroalimentacionInmediata": { "$ref": "#/$defs/texto" },
         "mensaje": { "$ref": "#/$defs/texto" },
         "fundamento": { "$ref": "#/$defs/texto" },
@@ -161,7 +173,7 @@
 
     "escena": {
       "type": "object",
-      "required": ["clave", "inicial", "terminal", "salidaSeguraObligatoria", "apoyo", "herramientasRequeridas", "posicion", "opciones"],
+      "required": ["clave", "inicial", "terminal", "salidaSeguraObligatoria", "intensidad", "apoyo", "herramientasRequeridas", "posicion", "opciones"],
       "additionalProperties": false,
       "properties": {
         "id": { "$ref": "#/$defs/idEscena" },
@@ -176,6 +188,7 @@
         "inicial": { "type": "boolean" },
         "terminal": { "type": "boolean" },
         "salidaSeguraObligatoria": { "type": "boolean" },
+        "intensidad": { "enum": ["LOW", "MEDIUM", "HIGH"] },
         "apoyo": { "type": "array", "maxItems": 50, "items": { "type": "string", "maxLength": 2000 } },
         "herramientasRequeridas": { "type": "array", "maxItems": 50, "items": { "$ref": "#/$defs/clave" } },
         "posicion": {

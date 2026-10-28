@@ -69,28 +69,28 @@ describe('AudioDirectorService: bucle de fundido', () => {
 
   it('arranca fuera de la zona de Angular al fijar un objetivo', () => {
     const outside = vi.spyOn(TestBed.inject(NgZone), 'runOutsideAngular');
-    service.setStressLevel(10);
+    service.setScene('LOW', 'CALM');
     expect(outside).toHaveBeenCalled();
     expect(vi.getTimerCount()).toBe(1);
   });
 
   it('se detiene solo al llegar al volumen objetivo', () => {
-    service.setStressLevel(10);
+    service.setScene('LOW', 'CALM');
     vi.advanceTimersByTime(20_000);
     expect(vi.getTimerCount()).toBe(0);
     expect(ambientHowl().volume).toHaveBeenLastCalledWith(0.42);
   });
 
   it('vuelve a arrancar después de stopAll', () => {
-    service.setStressLevel(10);
+    service.setScene('LOW', 'CALM');
     service.stopAll();
     expect(vi.getTimerCount()).toBe(0);
-    service.setStressLevel(70);
+    service.setScene('HIGH', 'TENSE');
     expect(vi.getTimerCount()).toBe(1);
   });
 
   it('silenciar la música corta el volumen y termina el fundido', () => {
-    service.setStressLevel(10);
+    service.setScene('LOW', 'CALM');
     vi.advanceTimersByTime(1_000);
     service.setMusicMuted(true);
     vi.advanceTimersByTime(100);
@@ -173,7 +173,7 @@ describe('AudioDirectorService: pistas largas y silencio', () => {
       const stem = howlFor(STEM);
       service.setMusicMuted(true);
       service.setMusicMuted(false);
-      service.setStressLevel(10);
+      service.setScene('LOW', 'CALM');
       vi.advanceTimersByTime(20_000);
       expect(stem.volume).toHaveBeenLastCalledWith(0.42);
       expect(lastOrder(stem.mute)).toBeLessThan(lastOrder(stem.volume));
@@ -219,17 +219,19 @@ describe('AudioDirectorService: piso de música con una sola capa (T13.1)', () =
     expect((service as unknown as { stems: Map<string, unknown> }).stems.size).toBe(1);
   });
 
-  it.each([45, 70, 90, 100])('con estrés %i la única capa no baja de 0,6 ni se apaga', stress => {
-    service.setStressLevel(10);
+  it.each([
+    ['MEDIUM', 'TENSE'], ['HIGH', 'TENSE'], ['HIGH', 'CRISIS'], ['LOW', 'CRISIS'],
+  ] as const)('con la escena %s y la persona %s la única capa no baja de 0,6 ni se apaga', (intensity, activation) => {
+    service.setScene('LOW', 'CALM');
     vi.advanceTimersByTime(20_000);
     ambientHowl().volume.mockClear();
 
-    service.setStressLevel(stress);
+    service.setScene(intensity, activation);
     vi.advanceTimersByTime(20_000);
 
     const calls = volumes(ambientHowl());
     for (const v of calls) expect(v).toBeGreaterThan(0);
-    if (stress >= 60) {
+    if (intensity === 'HIGH' || activation === 'CRISIS') {
       // Tramos en que antes se bajaba a 0,2 o a 0: ahora se queda en el piso.
       expect(calls[calls.length - 1]).toBeCloseTo(FLOOR, 5);
       for (const v of calls) expect(v).toBeGreaterThanOrEqual(FLOOR - 1e-9);
@@ -237,7 +239,7 @@ describe('AudioDirectorService: piso de música con una sola capa (T13.1)', () =
   });
 
   it('en calma sigue al volumen completo de la música', () => {
-    service.setStressLevel(5);
+    service.setScene('LOW', 'CALM');
     vi.advanceTimersByTime(20_000);
     expect(ambientHowl().volume).toHaveBeenLastCalledWith(MUSIC_VOLUME);
   });
@@ -245,18 +247,18 @@ describe('AudioDirectorService: piso de música con una sola capa (T13.1)', () =
   it('con más de una capa cargada el piso no se aplica (el resto de capas toma el relevo)', () => {
     const stems = (service as unknown as { stems: Map<string, unknown> }).stems;
     stems.set('crisis', { howl: new Howl({ src: ['x.ogg'] }), volume: 0, targetVolume: 0 });
-    service.setStressLevel(10);
+    service.setScene('LOW', 'CALM');
     vi.advanceTimersByTime(20_000);
     ambientHowl().volume.mockClear();
 
-    service.setStressLevel(95);
+    service.setScene('HIGH', 'CRISIS');
     vi.advanceTimersByTime(20_000);
 
     expect(ambientHowl().volume).toHaveBeenLastCalledWith(0);
   });
 
   it('la resolución final tampoco deja la música por debajo del piso', () => {
-    service.setStressLevel(10);
+    service.setScene('LOW', 'CALM');
     vi.advanceTimersByTime(20_000);
     ambientHowl().volume.mockClear();
 
@@ -267,10 +269,10 @@ describe('AudioDirectorService: piso de música con una sola capa (T13.1)', () =
     expect(calls[calls.length - 1]).toBeCloseTo(FLOOR, 5);
   });
 
-  it('usa los umbrales únicos de stress-tier.util y no cifras propias', () => {
+  it('las capas siguen a la intensidad de la escena y a la activación, no a cifras', () => {
     const source = readFileSync(join(__dirname, 'audio-director.service.ts'), 'utf-8');
-    expect(source).toMatch(/from '\.\/stress-tier\.util'/);
-    expect(source).not.toMatch(/stress\s*<=\s*\d+/);
+    expect(source).not.toMatch(/setStressLevel|stressTier|STRESS_TIER/);
+    expect(source).toMatch(/setScene\(intensity: Intensity, activation: Activation\)/);
   });
 });
 
@@ -347,16 +349,16 @@ describe('AudioDirectorService: efectos nuevos (T13.2)', () => {
   it('todos los efectos apuntan a archivos que existen', () => {
     boot(false);
     const files = sfxOptions().map(options => options.src[0]).filter(src => src.endsWith('.ogg'));
-    expect(files.length).toBeGreaterThanOrEqual(11);
+    expect(files.length).toBeGreaterThanOrEqual(10); // los diez efectos declarados (sin stress_high)
     for (const src of files) {
       expect({ src, exists: existsSync(join(__dirname, '../../../', src)) }).toEqual({ src, exists: true });
     }
   });
 
-  it('subir el estrés NO dispara stress_high ni crisis_start (sin sonido de «fin de partida»)', () => {
+  it('subir la tensión de la escena NO dispara crisis_start (sin sonido de «fin de partida»)', () => {
     boot(false);
-    service.setStressLevel(50);
-    service.setStressLevel(95);
+    service.setScene('MEDIUM', 'TENSE');
+    service.setScene('HIGH', 'CRISIS');
     vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout', 'setInterval', 'clearInterval'] });
     try {
       vi.advanceTimersByTime(20_000);
@@ -364,8 +366,71 @@ describe('AudioDirectorService: efectos nuevos (T13.2)', () => {
       vi.useRealTimers();
     }
     const alarm = howlsFor('assets/game/kenney/ui-audio/Audio/switch13.ogg');
-    expect(alarm).toHaveLength(2);
+    expect(alarm).toHaveLength(1); // solo ``crisis_start``: ``stress_high`` se retiró con el estrés como índice
     for (const howl of alarm) expect(howl.play).not.toHaveBeenCalled();
+  });
+});
+
+describe('AudioDirectorService: capas según la escena y la persona', () => {
+  let service: AudioDirectorService;
+  type Stem = { targetVolume: number };
+  const stems = () => (service as unknown as { stems: Map<string, Stem> }).stems;
+  const target = (layer: string) => stems().get(layer)!.targetVolume / 0.42;
+
+  beforeAll(() => {
+    Object.defineProperty(window, 'matchMedia', {
+      configurable: true,
+      value: () => ({ matches: false, addEventListener: () => undefined, removeEventListener: () => undefined }),
+    });
+  });
+
+  beforeEach(() => {
+    vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout', 'setInterval', 'clearInterval'] });
+    TestBed.resetTestingModule();
+    service = TestBed.inject(AudioDirectorService);
+    service.init();
+    // Cuatro capas para ver el reparto real (con una sola, el piso de la ambiental lo disimula).
+    for (const layer of ['tension', 'resolution', 'crisis'] as const) {
+      stems().set(layer, { howl: new Howl({ src: ['x.ogg'] }), volume: 0, targetVolume: 0 } as never);
+    }
+  });
+
+  afterEach(() => {
+    service.dispose();
+    vi.useRealTimers();
+  });
+
+  it('LOW: solo la capa de calma', () => {
+    service.setScene('LOW', 'CALM');
+    expect([target('ambient'), target('tension'), target('crisis')]).toEqual([1, 0, 0]);
+  });
+
+  it('MEDIUM: la tensión a medias', () => {
+    service.setScene('MEDIUM', 'CALM');
+    expect(target('tension')).toBeCloseTo(0.5, 5);
+    expect(target('crisis')).toBe(0);
+  });
+
+  it('HIGH: la tensión completa y la calma casi apagada', () => {
+    service.setScene('HIGH', 'TENSE');
+    expect(target('tension')).toBeCloseTo(1, 5);
+    expect(target('ambient')).toBeLessThan(0.5);
+    expect(target('crisis')).toBe(0);
+  });
+
+  it('una persona en crisis suma la capa de crisis, con cualquier intensidad', () => {
+    for (const intensity of ['LOW', 'MEDIUM', 'HIGH'] as const) {
+      service.setScene(intensity, 'CRISIS');
+      expect(target('crisis')).toBeCloseTo(1, 5);
+      expect(target('ambient')).toBe(0);
+    }
+  });
+
+  it('tensa o serena no encienden la capa de crisis', () => {
+    service.setScene('HIGH', 'TENSE');
+    expect(target('crisis')).toBe(0);
+    service.setScene('HIGH', 'CALM');
+    expect(target('crisis')).toBe(0);
   });
 });
 

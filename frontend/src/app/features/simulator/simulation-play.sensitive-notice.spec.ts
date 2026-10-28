@@ -26,7 +26,7 @@ const WARNING = 'Este caso aborda violencia de género, tentativa de feminicidio
 
 function attemptWith(node: Record<string, unknown>): SimulationAttemptState {
   return {
-    attemptId: 'a1', attemptToken: 't1', caseVersionId: 7, status: 'IN_PROGRESS', stressIndex: 0,
+    attemptId: 'a1', attemptToken: 't1', caseVersionId: 7, status: 'IN_PROGRESS', persona: { bond: 'GUARDED', activation: 'TENSE', label: 'se muestra cautelosa y tensa' },
     currentNode: { id: 1, key: 'hospital-urgencias', title: 'T', narrative: 'N', terminal: false, options: [], ...node },
   } as unknown as SimulationAttemptState;
 }
