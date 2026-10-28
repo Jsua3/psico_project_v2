@@ -5,6 +5,7 @@ ids temporales declarados antes de usarse y las reglas de contenido de ``prompts
 ``InvalidProposal`` sin devolver nada. Nunca se confía en la salida del modelo, nunca se reescribe y el motivo es un
 texto fijo en español: no cita lo que dijo el modelo.
 """
+import json
 import re
 from dataclasses import dataclass, field, replace
 
@@ -23,8 +24,14 @@ MAX_TEXT = 2000
 MAX_TITLE = 255
 MAX_NOTE = 1000
 MAX_CONDITION_ITEMS = 6
+#: El largo máximo del texto de una condición de final.
+MAX_CONDITION_TEXT = 2000
 DEFAULT_MAP_SIZE = 4000
 _TEMP_ID = re.compile(r"nueva-[0-9]{1,3}")
+#: El id de una escena existente escrito como texto (el esquema pide texto para no pasar del tope de uniones).
+_NODE_ID_TEXT = re.compile(r"[0-9]{1,18}")
+#: Los campos que nombran una escena.
+_NODE_FIELDS = ("nodeId", "targetNodeId", "afterNodeId")
 
 
 # BORRADOR: texto nuevo del servidor, pendiente de la aprobación de Psicología (todos los motivos fijos de este módulo).
@@ -111,6 +118,16 @@ class _Case:
             milestones={m.key for m in rules.milestones},
             endings={e["key"] for e in rules.endings},
         )
+
+
+def _scene_ids_as_numbers(change):
+    """Una copia del cambio con el id de cada escena existente («12») como número; ``nueva-N`` y lo demás, tal cual."""
+    out = dict(change)
+    for name in _NODE_FIELDS:
+        value = out.get(name)
+        if isinstance(value, str) and _NODE_ID_TEXT.fullmatch(value):
+            out[name] = int(value)
+    return out
 
 
 def _is_int(value):
@@ -230,9 +247,17 @@ class _Validator:
         self.text(c, "message", MAX_TEXT)
         self.choice(c, "tone", schema.TONES)
         self.new_endings.add(key)
-        if c["when"] is None:
-            return c
-        return {**c, "when": self.condition(c["when"])}
+        when = c["when"]
+        if when is None or (isinstance(when, str) and not when.strip()):
+            return {**c, "when": None}
+        if isinstance(when, str):
+            if len(when) > MAX_CONDITION_TEXT:
+                self.fail("la condición del final no es válida.")
+            try:
+                when = json.loads(when)
+            except ValueError:
+                self.fail("la condición del final no es válida.")
+        return {**c, "when": self.condition(when)}
 
     def set_response_class(self, c):
         decision = self.known(self.case.decisions, c, "decisionId", "la respuesta")
@@ -324,6 +349,7 @@ class _Validator:
             if not isinstance(change, dict) or not isinstance(change.get("op"), str) or change["op"] not in schema.FIELDS or set(change) != schema.FIELDS[change["op"]]:
                 self.fail("no es una operación conocida o le faltan campos.")
             method = getattr(self, change["op"].replace("-", "_"))
+            change = _scene_ids_as_numbers(change)
             checked = method(change)
             out.append({**(checked if isinstance(checked, dict) else change), "aiSuggested": True})
         return out

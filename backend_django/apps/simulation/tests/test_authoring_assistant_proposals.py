@@ -220,6 +220,75 @@ def test_los_vocabularios_del_esquema_son_los_cerrados():
     assert set(schema.EXPRESSIONS) == {"neutral", "alegre", "preocupada", "triste", "cautelosa", "en-crisis"}
 
 
+def _union_params(node):
+    """Los parámetros (propiedades de un objeto) cuyo esquema es una unión, contados en cada aparición, como el proveedor."""
+    return sum(
+        1
+        for inner in _walk(node)
+        if isinstance(inner, dict) and inner.get("type") == "object"
+        for prop in inner["properties"].values()
+        if "anyOf" in prop or isinstance(prop.get("type"), list)
+    )
+
+
+def test_el_esquema_cabe_en_el_limite_de_uniones_del_proveedor():
+    # Anthropic responde 400 con más de 16 parámetros unión («too many parameters with union types»). La prueba con la
+    # clave real del 2026-10-28 falló así con 17: los ids de escena eran número-o-texto.
+    assert _union_params(schema.PROPOSAL) <= 16
+    assert _union_params(schema.PROPOSAL) <= 13  # margen: una operación nueva con un campo nulo no debe romperlo
+
+
+def test_un_id_de_escena_escrito_como_texto_llega_como_numero(version, ids):
+    node = str(ids["node"])
+    raw = _raw(
+        _scene(afterNodeId=node),
+        _line(node, ids["character"]),
+        _response(node, targetNodeId="nueva-1"),
+        {"op": "set-intensity", "nodeId": node, "intensity": "LOW", "warningMessage": ""},
+    )
+
+    changes = proposals.validate(version, raw).changes
+
+    assert changes[0]["afterNodeId"] == ids["node"]
+    assert changes[1]["nodeId"] == ids["node"]
+    assert changes[2]["nodeId"] == ids["node"] and changes[2]["targetNodeId"] == "nueva-1"
+    assert changes[3]["nodeId"] == ids["node"]
+    jsonschema.validate(raw, schema.PROPOSAL)  # lo que manda el modelo cumple el esquema nuevo
+
+
+def test_la_condicion_de_un_final_viaja_como_texto_en_el_esquema():
+    # Con la condición como objetos anidados, Anthropic responde 400 «The compiled grammar is too large» (prueba real
+    # del 2026-10-28, aun con un solo nivel). Como texto compila; el servidor la lee y la revisa campo por campo.
+    variant = next(v for v in schema.PROPOSAL["properties"]["changes"]["items"]["anyOf"]
+                   if v["properties"]["op"]["enum"] == ["add-ending"])
+    assert variant["properties"]["when"] == {"type": "string"}
+
+
+def test_la_condicion_de_texto_se_traduce_como_la_de_objetos(version, ids):
+    when = json.dumps({"kind": "all", "items": [
+        {"kind": "milestone", "milestone": ids["milestone"]},
+        {"kind": "persona", "bond": "OPEN", "activation": None},
+    ]})
+    changes = proposals.validate(version, _raw(_ending(when=when), _ending(key="final_por_defecto", when=""))).changes
+
+    assert changes[0]["when"] == {"all": [{"milestone": ids["milestone"]}, {"persona": {"bond": "OPEN"}}]}
+    assert changes[1]["when"] is None
+
+
+def test_una_condicion_de_texto_que_no_es_json_o_sale_del_vocabulario_es_invalida(version, ids):
+    _invalid(version, _raw(_ending(when="hito cumplido")))
+    _invalid(version, _raw(_ending(when="[1, 2]")))
+    _invalid(version, _raw(_ending(when=json.dumps({"kind": "metric", "value": 3}))))
+    _invalid(version, _raw(_ending(when=json.dumps({"kind": "milestone", "milestone": "no_existe"}))))
+    _invalid(version, _raw(_ending(when=" " * 10 + "x" * 5000)))
+
+
+def test_un_id_de_escena_de_texto_que_no_esta_en_el_caso_es_invalido(version, ids):
+    _invalid(version, _raw(_line("987654321", ids["character"])))
+    _invalid(version, _raw(_line("-1", ids["character"])))
+    _invalid(version, _raw(_line(" 12", ids["character"])))
+
+
 # ─── validación: lo bueno ───────────────────────────────────────────────────────────────
 def test_una_propuesta_valida_conserva_el_orden_y_marca_ai_suggested(version, ids):
     when = {"kind": "all", "items": [
@@ -630,7 +699,22 @@ def _resolve(value, mapping):
     if isinstance(value, list):
         return [_resolve(v, mapping) for v in value]
     if isinstance(value, dict):
-        return {k: _resolve(v, mapping) for k, v in value.items()}
+        # Una escena viaja como texto («12») y la condición de un final como el texto de su JSON, igual que los escribe
+        # el modelo con el esquema de propuestas.
+        return {k: _as_model_writes(k, r) for k, r in ((k, _resolve(v, mapping)) for k, v in value.items())}
+    return value
+
+
+_SCENE_FIELDS = ("nodeId", "targetNodeId", "afterNodeId")
+
+
+def _as_model_writes(key, value):
+    if key in _SCENE_FIELDS and isinstance(value, int):
+        return str(value)
+    if key == "when" and isinstance(value, dict):
+        return json.dumps(value)
+    if key == "when" and value is None:
+        return ""
     return value
 
 

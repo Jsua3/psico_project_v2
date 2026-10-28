@@ -42,7 +42,7 @@ describe('AutoriaShellComponent (marco)', () => {
     TestBed.inject(CasoStore).fijar(caso);
     const fixture = TestBed.createComponent(AutoriaShellComponent);
     await fixture.whenStable();
-    expect(fixture.nativeElement.querySelector('.banda').textContent).toContain('Primera escucha en Bienestar');
+    expect(fixture.nativeElement.querySelector('header .caso-actual').textContent).toContain('Primera escucha en Bienestar');
   });
 
   async function montarApp() {
@@ -156,13 +156,12 @@ describe('AutoriaShellComponent · como ruta del programa', () => {
     const { raiz, servidor, store } = await irA('/portal/casos/41/editor');
     expect(servidor.llamadasA('caseEditor')).toHaveLength(1);
     expect(store.caso()!.id).toBe('41');
-    expect(raiz.querySelector('.banda')!.textContent).toContain('Primera escucha en Bienestar');
+    expect(raiz.querySelector('header .caso-actual')!.textContent).toContain('Primera escucha en Bienestar');
     expect(raiz.querySelector('main h1')!.textContent).toContain('Escenas y caminos');
-    // Los enlaces del marco cuelgan del caso abierto y de la lista de casos: la marca y «Mis casos» de la barra, y las secciones de la banda
-    const enlaces = [...raiz.querySelectorAll<HTMLAnchorElement>('nav a')].map((a) => a.getAttribute('href'));
+    // Los enlaces del marco cuelgan del caso abierto y de la lista de casos: la marca, «Mis casos» y las secciones, todo en la barra
+    const enlaces = [...raiz.querySelectorAll<HTMLAnchorElement>('header a')].map((a) => a.getAttribute('href'));
     expect(enlaces).toEqual([
-      '/portal/casos', '/portal/casos',
-      '/portal/casos', '/portal/casos/41/editor', '/portal/casos/41/editor/datos', '/portal/casos/41/editor/finales',
+      '/portal/casos', '/portal/casos', '/portal/casos/41/editor', '/portal/casos/41/editor/datos', '/portal/casos/41/editor/finales',
       '/portal/casos/41/editor/probar', '/portal/casos/41/editor/revision',
     ]);
   });

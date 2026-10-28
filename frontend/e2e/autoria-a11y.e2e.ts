@@ -122,7 +122,7 @@ test.describe('@autoria accesibilidad de cada ruta del editor de casos', () => {
       await page.keyboard.press('Escape');
       await expect(page.locator('.pieza.atendida')).toHaveCount(0);
 
-      // 6. Finales, probar y revisión, con las secciones de la banda de debajo de la barra.
+      // 6. Finales, probar y revisión, con las secciones del caso, dentro de la barra.
       const secciones = page.getByRole('navigation', { name: 'Secciones del caso' });
       await secciones.getByRole('link', { name: 'Finales' }).click();
       await expect(page.getByRole('heading', { level: 1 })).toBeVisible();

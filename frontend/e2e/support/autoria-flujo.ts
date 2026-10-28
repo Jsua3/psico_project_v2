@@ -259,7 +259,7 @@ export async function asentar(page: Page): Promise<void> {
 
 /** Axe (WCAG 2.2 AA) sobre la pantalla: ninguna infracción seria ni crítica, y que de verdad haya evaluado reglas. */
 export async function sinInfraccionesGraves(page: Page, donde: string): Promise<void> {
-  // La barra fija y la banda pegajosa tapan lo que queda debajo cuando la página está desplazada (Axe lo cuenta como objetivo
+  // La barra fija tapa lo que queda debajo cuando la página está desplazada (Axe lo cuenta como objetivo
   // solapado): se mide desde arriba, como en `autoria-a11y.e2e.ts`.
   await page.evaluate(() => window.scrollTo(0, 0));
   await asentar(page);

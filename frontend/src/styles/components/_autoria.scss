@@ -27,27 +27,73 @@ html:has(app-autoria-shell) {
   scroll-padding-top: calc(var(--alto-cabecera, 64px) + 8px);
 }
 
-// La barra del editor lleva la ayuda junto a la cuenta (DG-5). En escritorio cabe en una fila; por debajo de 64rem la banda
-// superior de la barra pasa a ser más alta y la ayuda baja a una segunda fila en vez de desbordar (sin desplazamiento horizontal).
+// La barra del editor lleva el caso y sus secciones en el módulo central, y la ayuda junto a la cuenta (DG-5). DESVÍO de la
+// receta (decisión del dueño, D10): la píldora del portal mide a lo sumo 80rem y reparte `1fr auto 1fr`, así que el centro
+// solo recibe lo que dejan los lados; con las secciones dentro, se montaban sobre la ayuda. En el editor la píldora ocupa
+// el ancho de la ventana (hasta 120rem) y el centro toma el espacio libre (`auto minmax(0, 1fr) auto`).
+@media (min-width: 64rem) {
+  app-autoria-shell .cromo .bandeja {
+    width: min(calc(100% - 2rem), 120rem);
+    grid-template-columns: auto minmax(0, 1fr) auto;
+  }
+
+  app-autoria-shell .cromo .modulo-principal {
+    min-width: 0;
+  }
+}
+
+// El chip de la cuenta (nombre y rol) es lo primero que cede: el menú de la cuenta sigue ahí.
+@media (max-width: 119.999rem) {
+  app-autoria-shell .cromo .cuenta-chip {
+    display: none;
+  }
+}
+
+// Por debajo de 64rem la barra es una banda de tres filas cortas, sin desplazamiento horizontal de la página: la marca y el menú
+// de la cuenta; la ayuda (Buscar, Guía y Asistente de IA, que nunca se pliega: DG-9); y las secciones del caso, que se
+// desplazan de lado si no caben. El módulo de la cuenta se deshace (`display: contents`) para que su menú suba a la primera
+// fila: en móvil los módulos no llevan vidrio (el vidrio es la banda), así que no se pierde nada.
 @media (max-width: 63.999rem) {
   app-autoria-shell .cromo .bandeja {
     height: auto;
     min-height: var(--asb-alto-modulo-superior);
     flex-wrap: wrap;
+    align-items: center;
     padding-block: 0.25rem;
     row-gap: 0.25rem;
   }
 
   app-autoria-shell .cromo .modulo-cuenta {
-    flex: 1 1 auto;
-    flex-wrap: wrap;
-    justify-content: flex-end;
-    white-space: normal;
+    display: contents;
+  }
+
+  app-autoria-shell .cromo .modulo-logo {
+    order: 1;
+  }
+
+  app-autoria-shell .cromo .modulo-cuenta ui-menu {
+    order: 2;
+    margin-inline-start: auto;
   }
 
   app-autoria-shell .cromo .barra-ayuda {
-    flex-wrap: wrap;
-    justify-content: flex-end;
+    order: 3;
+    flex: 1 1 100%;
+    gap: 0.5rem;
+  }
+
+  app-autoria-shell .cromo .barra-ayuda .boton {
+    flex: 1 1 auto;
+    padding-inline: 0.75rem;
+    font-size: var(--autoria-texto-16);
+  }
+
+  app-autoria-shell .cromo .modulo-principal {
+    display: flex;
+    order: 4;
+    flex: 1 1 100%;
+    min-width: 0;
+    justify-content: flex-start;
   }
 }
 
