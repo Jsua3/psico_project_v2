@@ -21,6 +21,8 @@ const toTab = ({ id, label, icon, route }: NavItem): BottomTab => ({ id, label, 
  * desplazándose en `window`. Los destinos salen de NAV_ITEMS (la misma fuente que los guards) y se pliegan según el
  * rol (D3). Por debajo de 64rem la navegación principal baja a pestañas fijas (D11, F3-5): arriba quedan marca y
  * cuenta, y los destinos plegables van a la hoja «Más». En el juego —rutas con `data: { chrome: 'hidden' }`— no hay barra y el contenido ocupa la ventana.
+ * En el editor de casos —`data: { chrome: 'propio' }`— tampoco hay barra del portal porque la pantalla trae la suya (una sola barra
+ * en pantalla); la página se desplaza en `window` y el `<main>` del shell no es un segundo hito de contenido.
  *
  * El `<body>` no recibe clases por ruta (REGLA-010, F6-1): el cromo se oculta por dato de ruta y lo demás vive en
  * `.game-container` y en los componentes del juego.
@@ -30,7 +32,7 @@ const toTab = ({ id, label, icon, route }: NavItem): BottomTab => ({ id, label, 
   imports: [RouterOutlet, RouterLink, RouterLinkActive, BottomTabsComponent, UiGlassBar, UiMenu, UiRouteProgress],
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
-    @if (!inGame()) {
+    @if (conBarra()) {
       <header ui-glass-bar label="Navegación principal" navSkip>
         <a class="modulo modulo-logo pulsable ds-motion" routerLink="/portal/dashboard" aria-label="SIEP: ir al panel">
           <span class="logo-doble ds-motion">
@@ -58,8 +60,8 @@ const toTab = ({ id, label, icon, route }: NavItem): BottomTab => ({ id, label, 
     }
 
     <!-- Destino de «Saltar al contenido principal». En el juego lo es su contenedor (simulation-play): un solo id. -->
-    <main class="portal-main" [class.portal-main--juego]="inGame()"
-      [attr.id]="inGame() ? null : 'main-content'" [attr.tabindex]="inGame() ? null : -1">
+    <main class="portal-main" [class.portal-main--juego]="inGame()" [class.portal-main--propio]="propio()"
+      [attr.role]="propio() ? 'none' : null" [attr.id]="conBarra() ? 'main-content' : null" [attr.tabindex]="conBarra() ? -1 : null">
       <router-outlet />
     </main>
   `,
@@ -75,13 +77,15 @@ const toTab = ({ id, label, icon, route }: NavItem): BottomTab => ({ id, label, 
       padding: 0;
       overflow: hidden;
     }
+    /* El editor de casos pone su propia barra y su propio relleno: el shell solo le deja la página. */
+    .portal-main--propio { padding: 0; }
     @media (max-width: 920px) {
-      .portal-main:not(.portal-main--juego) { padding-inline: 16px; }
+      .portal-main:not(.portal-main--juego, .portal-main--propio) { padding-inline: 16px; }
     }
     /* Móvil (F3-5): la barra de arriba es una banda de 3,5rem y abajo están las pestañas fijas; el contenido reserva
        los dos altos y la zona segura. */
     @media (max-width: 63.999rem) {
-      .portal-main:not(.portal-main--juego) {
+      .portal-main:not(.portal-main--juego, .portal-main--propio) {
         padding-top: calc(var(--asb-alto-modulo-superior) + env(safe-area-inset-top, 0px) + 1rem);
         padding-bottom: calc(var(--asb-alto-modulo-inferior) + env(safe-area-inset-bottom, 0px) + 1.5rem);
       }
@@ -98,6 +102,9 @@ export class ShellComponent {
   );
 
   readonly inGame = computed(() => this.chrome() === 'hidden');
+  /** La pantalla trae su propia barra (el editor de casos): el shell no pone la suya ni su relleno. */
+  readonly propio = computed(() => this.chrome() === 'propio');
+  readonly conBarra = computed(() => this.chrome() === 'full');
   readonly navItems = computed(() => navItemsFor(this.auth.currentUser()?.role));
   /** Móvil (D11): lo que no se pliega en escritorio es pestaña; lo que se pliega va a «Más». */
   protected readonly tabs = computed(() => this.navItems().filter(item => !this.folds(item)).map(toTab));

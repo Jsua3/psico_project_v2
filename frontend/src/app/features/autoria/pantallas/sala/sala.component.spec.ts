@@ -67,6 +67,46 @@ describe('SalaComponent', () => {
     expect(store.caso()!.salas[0].personajes[0].expresion).toBe('preocupada');
   });
 
+  // Atención (hover y foco) en la lista «En esta sala»: señala la pieza en la sala; lo elegido pesa más que la atención. Tablero 50.
+  const opcionDe = (raiz: HTMLElement, nombre: string) =>
+    [...raiz.querySelectorAll<HTMLElement>('[role="option"]')].find((o) => o.textContent?.includes(nombre))!;
+  const piezaAtendida = (raiz: HTMLElement) => raiz.querySelector<HTMLElement>('.pieza.atendida');
+
+  it('la atención en una cosa de la lista señala dónde está en la sala, y Esc la pliega', async () => {
+    const { fixture, raiz } = await montar();
+    expect(piezaAtendida(raiz)).toBeNull();
+    opcionDe(raiz, 'Psicóloga de Bienestar').dispatchEvent(new MouseEvent('mouseenter'));
+    await fixture.whenStable();
+    fixture.detectChanges();
+    expect(piezaAtendida(raiz)!.getAttribute('aria-label')).toContain('Psicóloga de Bienestar');
+    document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }));
+    await fixture.whenStable();
+    fixture.detectChanges();
+    expect(piezaAtendida(raiz)).toBeNull();
+  });
+
+  it('con el teclado: el foco en la lista señala la pieza y salir de la lista la suelta; Esc no quita lo elegido', async () => {
+    const { fixture, raiz } = await montar();
+    const opcion = opcionDe(raiz, 'Psicóloga de Bienestar');
+    opcion.click();
+    await fixture.whenStable();
+    fixture.detectChanges();
+    opcion.dispatchEvent(new FocusEvent('focus'));
+    await fixture.whenStable();
+    fixture.detectChanges();
+    expect(piezaAtendida(raiz)).not.toBeNull();
+    document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }));
+    await fixture.whenStable();
+    fixture.detectChanges();
+    expect(piezaAtendida(raiz)).toBeNull();
+    expect(opcionDe(raiz, 'Psicóloga de Bienestar').getAttribute('aria-selected')).toBe('true'); // lo elegido sigue elegido
+    opcion.dispatchEvent(new FocusEvent('focus'));
+    opcion.dispatchEvent(new FocusEvent('blur'));
+    await fixture.whenStable();
+    fixture.detectChanges();
+    expect(piezaAtendida(raiz)).toBeNull();
+  });
+
   it('los personajes se dibujan con la hoja y el retrato del kit del programa', async () => {
     const { raiz } = await montar();
     const estilo = raiz.querySelector<HTMLElement>('.escenario .personaje')!.getAttribute('style') ?? '';

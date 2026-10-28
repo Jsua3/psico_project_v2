@@ -33,6 +33,7 @@ interface Pieza {
   selector: 'app-sala',
   imports: [RouterLink],
   changeDetection: ChangeDetectionStrategy.OnPush,
+  host: { '(document:keydown.escape)': 'atencion.set(null)' },
   template: `
     @if (sala(); as s) {
       <div class="pagina">
@@ -60,7 +61,8 @@ interface Pieza {
                   <ul role="none">
                     @for (p of g.piezas; track p.clave) {
                       <li role="option" tabindex="0" [attr.aria-selected]="elegida() === p.clave"
-                          (click)="elegir(p.clave)" (keydown.enter)="elegir(p.clave)" (keydown.space)="elegir(p.clave); $event.preventDefault()">
+                          (mouseenter)="atencion.set(p.clave)" (mouseleave)="soltarAtencion(p.clave)"
+                          (focus)="atencion.set(p.clave)" (blur)="soltarAtencion(p.clave)" (click)="elegir(p.clave)" (keydown.enter)="elegir(p.clave)" (keydown.space)="elegir(p.clave); $event.preventDefault()">
                         {{ p.nombre }}
                       </li>
                     } @empty {
@@ -87,7 +89,7 @@ interface Pieza {
               <div class="lienzo">
                 <img class="pixel fondo" [src]="arte(s.fondo)" alt="" [width]="ancho" [height]="alto" draggable="false" />
                 @for (p of piezasOrdenadas(); track p.clave) {
-                  <button type="button" class="pieza" [attr.data-elemento]="p.clave" [class.elegida]="elegida() === p.clave"
+                  <button type="button" class="pieza" [attr.data-elemento]="p.clave" [class.elegida]="elegida() === p.clave" [class.atendida]="atencion() === p.clave"
                           [attr.aria-label]="p.nombre + (elegida() === p.clave ? ', elegido' : '')"
                           [style.left.px]="posicion(p).x" [style.top.px]="posicion(p).y" [style.z-index]="p.y"
                           (pointerdown)="empezarArrastre($event, p)" (click)="elegir(p.clave)" (keydown)="teclaPieza($event, p)">
@@ -211,6 +213,8 @@ interface Pieza {
     }
     .pieza:active { cursor: grabbing; }
     .pieza.elegida { outline: 3px dashed var(--foco); outline-offset: 3px; }
+    /* La atención (cursor o foco en la lista) señala la pieza con un trazo sólido; lo elegido pesa más y conserva el suyo. */
+    .pieza.atendida:not(.elegida) { outline: 3px solid var(--primario); outline-offset: 3px; }
     .pieza img { image-rendering: pixelated; pointer-events: none; }
     .pieza img.espejo { transform: scaleX(-1); }
     .personaje { display: block; width: 48px; height: 72px; background-repeat: no-repeat; image-rendering: pixelated; pointer-events: none; }
@@ -252,6 +256,8 @@ export class SalaComponent {
   ];
 
   protected readonly elegida = signal<string | null>(null);
+  /** La cosa de la lista «En esta sala» en la que está el cursor o el foco: se señala en la sala. Esc la suelta. */
+  protected readonly atencion = signal<string | null>(null);
   protected readonly anuncio = signal('');
   protected readonly pestana = signal<TipoElemento>('mueble');
   protected readonly nombrePestana = computed(() => this.pestanas.find((t) => t.tipo === this.pestana())?.nombre ?? '');
@@ -320,6 +326,10 @@ export class SalaComponent {
       : caso.personajes.map((p) => ({ ref: p.id, nombre: p.nombre, arte: rutaRetrato(p.recipeId, 'neutral') }));
     return items.filter((i) => !q || i.nombre.toLowerCase().includes(q));
   });
+
+  protected soltarAtencion(clave: string): void {
+    if (this.atencion() === clave) this.atencion.set(null);
+  }
 
   constructor() {
     afterNextRender(() => {

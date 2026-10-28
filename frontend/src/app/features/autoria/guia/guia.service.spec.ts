@@ -1,6 +1,7 @@
 import { TestBed } from '@angular/core/testing';
 import { Router, provideRouter, withComponentInputBinding } from '@angular/router';
 
+import { cuentaDePrueba } from '../testing/cuenta';
 import { universidad } from '../testing/universidad';
 import { AutoriaShellComponent } from '../autoria-shell.component';
 import { rutasDePrueba } from '../testing/rutas';
@@ -20,6 +21,7 @@ async function montar() {
     providers: [
       provideRouter(rutasDePrueba, withComponentInputBinding()),
       { provide: BibliotecaService, useValue: { escenario: async () => universidad, lugares: async () => [] } },
+      cuentaDePrueba,
     ],
   }).compileComponents();
   TestBed.inject(CasoStore).fijar(copiarEscenarioAlCaso(universidad, ['sala-espera', 'consultorio'], 'Caso'));

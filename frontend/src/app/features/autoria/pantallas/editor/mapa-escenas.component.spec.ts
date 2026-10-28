@@ -38,6 +38,68 @@ describe('MapaEscenasComponent', () => {
     expect(vista!.textContent).toContain('Consultorio de atención psicológica');
   });
 
+  // Atención (hover y foco) en una respuesta: la flecha que la une a su escena. Tablero 50 de estados.
+  const flecha = (raiz: HTMLElement) => raiz.querySelector<SVGPathElement>('path.flecha')!;
+  const detalleDeRespuesta = (raiz: HTMLElement) => raiz.querySelector<HTMLElement>('.tarjeta-flecha');
+
+  it('la atención en una respuesta muestra su detalle (qué dice y a dónde lleva) y se pliega con Esc', async () => {
+    const { fixture, caso, raiz } = await montar();
+    expect(detalleDeRespuesta(raiz)).toBeNull();
+    flecha(raiz).dispatchEvent(new MouseEvent('mouseenter'));
+    await fixture.whenStable();
+    fixture.detectChanges();
+    const detalle = detalleDeRespuesta(raiz)!;
+    expect(detalle).not.toBeNull();
+    expect(detalle.textContent).toContain('Acompañarla');
+    expect(detalle.textContent).toContain(`Lleva a la escena 2 · ${caso.escenas[1].titulo}`);
+    document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }));
+    await fixture.whenStable();
+    fixture.detectChanges();
+    expect(detalleDeRespuesta(raiz)).toBeNull();
+  });
+
+  it('con el teclado: el foco en la respuesta la muestra, Esc la pliega sin quitar el foco, y volver a enfocarla la muestra otra vez', async () => {
+    const { fixture, raiz } = await montar();
+    const camino = flecha(raiz);
+    camino.focus();
+    camino.dispatchEvent(new FocusEvent('focus'));
+    await fixture.whenStable();
+    fixture.detectChanges();
+    expect(detalleDeRespuesta(raiz)).not.toBeNull();
+    camino.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }));
+    await fixture.whenStable();
+    fixture.detectChanges();
+    expect(detalleDeRespuesta(raiz)).toBeNull();
+    expect(document.activeElement).toBe(camino);
+    camino.dispatchEvent(new FocusEvent('blur'));
+    camino.dispatchEvent(new FocusEvent('focus'));
+    await fixture.whenStable();
+    fixture.detectChanges();
+    expect(detalleDeRespuesta(raiz)).not.toBeNull();
+  });
+
+  it('Esc también pliega la vista de la sala de una escena, aunque el cursor siga encima (dismissible, WCAG 1.4.13)', async () => {
+    const { fixture, raiz } = await montar();
+    nodo(raiz, 1).dispatchEvent(new MouseEvent('mouseenter'));
+    await fixture.whenStable();
+    fixture.detectChanges();
+    expect(raiz.querySelector('[role="tooltip"]')).not.toBeNull();
+    document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }));
+    await fixture.whenStable();
+    fixture.detectChanges();
+    expect(raiz.querySelector('[role="tooltip"]')).toBeNull();
+  });
+
+  it('el detalle de una respuesta no roba el foco ni se lee dos veces: es un aviso de estado, no un diálogo', async () => {
+    const { fixture, raiz } = await montar();
+    flecha(raiz).dispatchEvent(new MouseEvent('mouseenter'));
+    await fixture.whenStable();
+    fixture.detectChanges();
+    const detalle = detalleDeRespuesta(raiz)!;
+    expect(detalle.getAttribute('role')).toBe('status');
+    expect(detalle.hasAttribute('tabindex')).toBe(false);
+  });
+
   const abrirCon: Record<string, () => Event> = {
     'clic derecho': () => new MouseEvent('contextmenu', { bubbles: true, cancelable: true, clientX: 10, clientY: 10 }),
     'Mayús+F10': () => new KeyboardEvent('keydown', { key: 'F10', shiftKey: true, bubbles: true }),

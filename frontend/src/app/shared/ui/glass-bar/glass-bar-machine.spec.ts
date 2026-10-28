@@ -317,3 +317,52 @@ describe('GlassBarMachine: limpieza', () => {
     expect(machine.state()).toBe('atencion');
   });
 });
+
+// req: BLOQUE-H (editor de casos, DG-9: con una ayuda abierta la barra no cambia de estado)
+describe('GlassBarMachine: congelada con una ayuda abierta', () => {
+  it('mientras está congelada, desplazarse no cambia el estado', () => {
+    const { machine } = setup();
+    machine.freeze(true);
+    machine.sync(400);
+    expect(machine.state()).toBe('inicial');
+  });
+
+  it('congelada en «scroll», volver arriba no la reúne; al soltarla, cae al estado que le toca', () => {
+    const { machine } = setup();
+    machine.sync(400);
+    expect(machine.state()).toBe('scroll');
+    machine.freeze(true);
+    machine.sync(0);
+    expect(machine.state()).toBe('scroll');
+    machine.freeze(false);
+    expect(machine.state()).toBe('inicial');
+  });
+
+  it('el cursor que entra o sale de la franja y la gracia de 280 ms tampoco la mueven', () => {
+    const { machine, timers } = setup();
+    machine.sync(400);
+    machine.freeze(true);
+    machine.pointerEnter('mouse');
+    expect(machine.state()).toBe('scroll');
+    machine.pointerLeave('mouse');
+    timers.advance(GLASS_BAR_GRACE_MS + 10);
+    expect(machine.state()).toBe('scroll');
+  });
+
+  it('al soltarla recoge lo que pasó mientras tanto: el cursor sigue dentro, así que despliega', () => {
+    const { machine } = setup();
+    machine.sync(400);
+    machine.freeze(true);
+    machine.pointerEnter('mouse');
+    machine.freeze(false);
+    expect(machine.state()).toBe('atencion');
+  });
+
+  it('congelar y soltar sin que pase nada deja el estado como estaba', () => {
+    const { machine } = setup();
+    machine.sync(400);
+    machine.freeze(true);
+    machine.freeze(false);
+    expect(machine.state()).toBe('scroll');
+  });
+});

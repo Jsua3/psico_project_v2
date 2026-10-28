@@ -17,13 +17,20 @@ import { OfflineComponent } from './features/public/offline.component';
 
 /**
  * Plan visual F3-3: solo las superficies de juego ocultan la barra del portal (`data.chrome = 'hidden'`). P6: el editor
- * nuevo de casos trae su propio marco con la cabecera y el camino de vuelta a «Mis casos», así que también la oculta.
+ * nuevo de casos trae su propia barra de vidrio (con el camino de vuelta a «Mis casos»), así que no lleva la del portal
+ * (`data.chrome = 'propio'`): una sola barra en pantalla, y la página se desplaza como en el portal.
  */
 describe('app.routes: cromo del portal', () => {
-  it('jugar, simulador/:caseVersionId y el editor de casos ocultan la barra; ninguna otra ruta del portal', () => {
-    const portal = routes.find(route => route.path === 'portal')!;
-    const hidden = (portal.children ?? []).filter(child => child.data?.['chrome'] === 'hidden').map(child => child.path);
-    expect(hidden).toEqual(['jugar', 'simulador/:caseVersionId', 'casos/nuevo', 'casos/:caseVersionId/editor']);
+  const hijos = () => routes.find(route => route.path === 'portal')!.children ?? [];
+
+  it('jugar y simulador/:caseVersionId ocultan la barra; ninguna otra ruta del portal', () => {
+    const hidden = hijos().filter(child => child.data?.['chrome'] === 'hidden').map(child => child.path);
+    expect(hidden).toEqual(['jugar', 'simulador/:caseVersionId']);
+  });
+
+  it('crear un caso y el editor de casos traen su propia barra (chrome: propio)', () => {
+    const propio = hijos().filter(child => child.data?.['chrome'] === 'propio').map(child => child.path);
+    expect(propio).toEqual(['casos/nuevo', 'casos/:caseVersionId/editor']);
   });
 });
 

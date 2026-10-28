@@ -1,8 +1,8 @@
 {
   "version": 1,
-  "generatedAt": "2026-10-18",
+  "generatedAt": "2026-10-28",
   "counts": {
-    "colorLiterals": 480,
+    "colorLiterals": 464,
     "transitionAll": 0,
     "easeIn": 0,
     "scale0": 0,
@@ -10,7 +10,7 @@
     "hoverUnguarded": 4,
     "important": 25,
     "zIndexLiteral": 29,
-    "fontSizeLiteral": 159,
+    "fontSizeLiteral": 156,
     "backdropFilter": 6,
     "clickableNoActive": 37,
     "inlineStyleAttr": 0,

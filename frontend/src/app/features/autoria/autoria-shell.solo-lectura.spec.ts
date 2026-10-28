@@ -7,6 +7,7 @@ import { AuthoringApi } from '../../core/api/authoring.api';
 import { rutasEditorCaso, rutasNuevoCaso } from './autoria.routes';
 import { CasoStore } from './estado/caso.store';
 import { casoCopiadoDeLugar } from './testing/caso-api';
+import { cuentaDePrueba } from './testing/cuenta';
 import { ServidorFalso } from './testing/servidor-falso';
 import { universidad } from './testing/universidad';
 
@@ -23,6 +24,7 @@ async function irA(url: string, estado: string) {
         { path: 'portal/casos', children: [] },
       ]),
       { provide: AuthoringApi, useValue: { ...servidor.api, assistantStatus: () => of({ enabled: true, mode: 'connected', remainingToday: 5 }) } },
+      cuentaDePrueba,
     ],
   }).compileComponents();
   const harness = await RouterTestingHarness.create();

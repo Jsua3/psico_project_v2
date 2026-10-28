@@ -20,6 +20,8 @@ interface Flecha {
   origen: string;
   destino: string;
   texto: string;
+  /** A dónde lleva la respuesta, dicho con palabras. */
+  hacia: string;
   d: string;
   medio: { x: number; y: number };
   deElegida: boolean;
@@ -30,13 +32,16 @@ const PASO_MOVER = 24;
 
 /**
  * Mapa de escenas (tablero 25): cada escena es una tarjeta, cada respuesta una flecha.
- * Al pasar el cursor o enfocar una escena se ve su sala. Las acciones están en el clic
- * derecho, en Mayús+F10 o la tecla de menú, y en el botón «Acciones».
+ * Al pasar el cursor o enfocar una escena se ve su sala, y al hacerlo con una respuesta, qué dice y a dónde lleva (estados de
+ * atención, tablero 50). Esc pliega lo que se muestra sin quitar el foco ni el cursor de donde están (WCAG 1.4.13); volver a
+ * entrar o a enfocar lo muestra otra vez. Las acciones están en el clic derecho, en Mayús+F10 o la tecla de menú, y en el
+ * botón «Acciones».
  */
 @Component({
   selector: 'app-mapa-escenas',
   imports: [CdkMenu, CdkMenuItem, CdkMenuTrigger],
   changeDetection: ChangeDetectionStrategy.OnPush,
+  host: { '(document:keydown.escape)': 'plegarAtencion()' },
   template: `
     <div class="barra">
       <p id="mapa-ayuda" class="texto-secundario">
@@ -135,7 +140,8 @@ const PASO_MOVER = 24;
 
           @if (flechaElegida(); as f) {
             <div class="tarjeta-flecha" role="status" [style.left.px]="f.medio.x" [style.top.px]="f.medio.y">
-              {{ f.texto || 'Respuesta sin escribir' }}
+              <strong>{{ f.texto || 'Respuesta sin escribir' }}</strong>
+              <span class="hacia">{{ f.hacia }}</span>
             </div>
           }
         </div>
@@ -205,7 +211,10 @@ const PASO_MOVER = 24;
     .tarjeta-flecha {
       position: absolute; transform: translate(-50%, -120%); max-width: 260px; padding: 6px 10px; font-size: var(--autoria-texto-16); line-height: 22px;
       background: var(--tinta); color: var(--sobre-primario); border-radius: 8px; pointer-events: none;
+      display: flex; flex-direction: column; gap: 2px;
     }
+    .tarjeta-flecha .hacia { font-weight: 400; }
+
     .vista { position: absolute; width: 260px; display: flex; flex-direction: column; gap: 4px; z-index: var(--autoria-capa-3); pointer-events: none; box-shadow: var(--sombra-menu); }
     .vista img { width: 100%; height: auto; border-radius: 8px; }
     .vista span { font-size: var(--autoria-texto-16); }
@@ -290,7 +299,8 @@ export class MapaEscenasComponent {
           d = `M${x1},${y1} C${x1 + c},${y1} ${x2 - c},${y2} ${x2 - 2},${y2}`;
           medio = { x: (x1 + x2) / 2, y: (y1 + y2) / 2 };
         }
-        lista.push({ id: r.id, origen: e.id, destino: destino.id, texto: r.texto, d, medio, deElegida: e.id === this.elegida() });
+        const hacia = destino.id === e.id ? 'Vuelve a esta misma escena' : `Lleva a la escena ${caso.escenas.indexOf(destino) + 1} · ${destino.titulo}`;
+        lista.push({ id: r.id, origen: e.id, destino: destino.id, texto: r.texto, hacia, d, medio, deElegida: e.id === this.elegida() });
       }
     }
     return lista;
@@ -318,6 +328,15 @@ export class MapaEscenasComponent {
       const id = this.elegidaInicial();
       if (id) this.elegirYEnfocar(id);
     });
+  }
+
+  /**
+   * Esc pliega lo que la atención mostró (la vista de una sala y el detalle de una respuesta), esté el foco o solo el cursor encima.
+   * No suelta nada más: la escena elegida, el foco y el menú abierto siguen como estaban.
+   */
+  protected plegarAtencion(): void {
+    if (this.vista() !== null) this.vista.set(null);
+    if (this.flechaActiva() !== null) this.flechaActiva.set(null);
   }
 
   protected pos(e: Escena): { x: number; y: number } {

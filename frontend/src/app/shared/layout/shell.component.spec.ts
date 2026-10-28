@@ -56,6 +56,7 @@ describe('ShellComponent: barra de vidrio en el portal', () => {
               { path: 'simulador', component: Screen },
               { path: 'simulador/:id', component: Screen, data: { chrome: 'hidden' } },
               { path: 'jugar', component: Screen, data: { chrome: 'hidden' } },
+              { path: 'casos/nuevo', component: Screen, data: { chrome: 'propio' } },
             ],
           },
         ]),
@@ -163,6 +164,20 @@ describe('ShellComponent: barra de vidrio en el portal', () => {
     await go('/portal/dashboard');
     expect(host().querySelector('header.cromo')).not.toBeNull();
     expect(bodyClasses()).toEqual(before);
+  });
+
+  // req: RNF-002 (una sola barra en el editor de casos; la página se desplaza, no se recorta)
+  it('en una pantalla con barra propia (chrome: propio) no hay barra del portal, el <main> no recorta y no es un hito más', async () => {
+    await go('/portal/casos/nuevo');
+    expect(host().querySelector('header.cromo')).toBeNull();
+    const main = host().querySelector('main.portal-main')!;
+    expect(main.classList).toContain('portal-main--propio');
+    expect(main.classList).not.toContain('portal-main--juego');
+    expect(main.getAttribute('role')).toBe('none');
+    expect(main.hasAttribute('id')).toBe(false);
+    await go('/portal/dashboard');
+    expect(host().querySelector('header.cromo')).not.toBeNull();
+    expect(host().querySelector('main.portal-main')!.getAttribute('role')).toBeNull();
   });
 
 });

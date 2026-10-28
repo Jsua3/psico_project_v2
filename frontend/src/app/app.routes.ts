@@ -102,7 +102,7 @@ export const routes: Routes = [
         // P6: crear un caso empieza por elegir el lugar y las salas; el editor nuevo pone su propio marco (sin la barra del portal).
         path: 'casos/nuevo',
         title: 'Nuevo caso',
-        data: { chrome: 'hidden' },
+        data: { chrome: 'propio' },
         canActivate: [roleGuard(...rolesFor('casos'))],
         loadChildren: () => import('./features/autoria/autoria.routes').then(m => m.rutasNuevoCaso)
       },
@@ -110,7 +110,7 @@ export const routes: Routes = [
         // P6: el editor nuevo de casos. Un PROFESOR solo abre los suyos (lo hace cumplir el servidor).
         path: 'casos/:caseVersionId/editor',
         title: 'Editor de caso',
-        data: { chrome: 'hidden' },
+        data: { chrome: 'propio' },
         canActivate: [roleGuard(...rolesFor('casos'))],
         loadChildren: () => import('./features/autoria/autoria.routes').then(m => m.rutasEditorCaso)
       },

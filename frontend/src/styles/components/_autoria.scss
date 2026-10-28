@@ -16,9 +16,39 @@ app-autoria-shell {
   color-scheme: light;
 }
 
-// Al enfocar con el teclado, lo enfocado no queda debajo de la cabecera pegajosa.
+// La barra de vidrio del marco es fija (`position: fixed`): el marco le deja su alto arriba. `--alto-barra` y `--alto-cabecera`
+// los mide el marco (la barra sola, y la barra con la banda pegajosa de debajo).
+app-autoria-shell {
+  padding-top: var(--alto-barra, 4.5rem);
+}
+
+// Al enfocar con el teclado, lo enfocado no queda debajo de la barra ni de la banda pegajosa.
 html:has(app-autoria-shell) {
   scroll-padding-top: calc(var(--alto-cabecera, 64px) + 8px);
+}
+
+// La barra del editor lleva la ayuda junto a la cuenta (DG-5). En escritorio cabe en una fila; por debajo de 64rem la banda
+// superior de la barra pasa a ser más alta y la ayuda baja a una segunda fila en vez de desbordar (sin desplazamiento horizontal).
+@media (max-width: 63.999rem) {
+  app-autoria-shell .cromo .bandeja {
+    height: auto;
+    min-height: var(--asb-alto-modulo-superior);
+    flex-wrap: wrap;
+    padding-block: 0.25rem;
+    row-gap: 0.25rem;
+  }
+
+  app-autoria-shell .cromo .modulo-cuenta {
+    flex: 1 1 auto;
+    flex-wrap: wrap;
+    justify-content: flex-end;
+    white-space: normal;
+  }
+
+  app-autoria-shell .cromo .barra-ayuda {
+    flex-wrap: wrap;
+    justify-content: flex-end;
+  }
 }
 
 app-autoria-shell * {

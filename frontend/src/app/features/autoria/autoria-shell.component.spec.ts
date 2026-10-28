@@ -11,6 +11,7 @@ import { CasoStore } from './estado/caso.store';
 import type { CasoBorrador } from './modelo/caso';
 import { copiarEscenarioAlCaso } from './modelo/copiar';
 import { casoCopiadoDeLugar } from './testing/caso-api';
+import { cuentaDePrueba } from './testing/cuenta';
 import { rutasDePrueba } from './testing/rutas';
 import { ServidorFalso } from './testing/servidor-falso';
 import { universidad } from './testing/universidad';
@@ -33,15 +34,15 @@ describe('AutoriaShellComponent (marco)', () => {
     TestBed.resetTestingModule();
     await TestBed.configureTestingModule({
       imports: [AutoriaShellComponent],
-      providers: [provideRouter(rutasDePrueba), { provide: AuthoringApi, useValue: asistente }],
+      providers: [provideRouter(rutasDePrueba), { provide: AuthoringApi, useValue: asistente }, cuentaDePrueba],
     }).compileComponents();
   });
 
-  it('muestra el nombre del caso en la cabecera', async () => {
+  it('muestra el nombre del caso bajo la barra', async () => {
     TestBed.inject(CasoStore).fijar(caso);
     const fixture = TestBed.createComponent(AutoriaShellComponent);
     await fixture.whenStable();
-    expect(fixture.nativeElement.querySelector('header').textContent).toContain('Primera escucha en Bienestar');
+    expect(fixture.nativeElement.querySelector('.banda').textContent).toContain('Primera escucha en Bienestar');
   });
 
   async function montarApp() {
@@ -68,7 +69,7 @@ describe('AutoriaShellComponent (marco)', () => {
     enlace.dispatchEvent(clic);
     await listo();
     expect(clic.defaultPrevented).toBe(true);
-    expect(document.activeElement?.id).toBe('contenido');
+    expect(document.activeElement?.id).toBe('main-content');
   });
 
   it('abrir el asistente lleva el foco al panel', async () => {
@@ -133,6 +134,7 @@ describe('AutoriaShellComponent · como ruta del programa', () => {
           { path: 'portal/casos', children: [] },
         ]),
         { provide: AuthoringApi, useValue: { ...servidor.api, assistantStatus: asistente.assistantStatus } },
+        cuentaDePrueba,
         ...extra,
       ],
     }).compileComponents();
@@ -154,11 +156,14 @@ describe('AutoriaShellComponent · como ruta del programa', () => {
     const { raiz, servidor, store } = await irA('/portal/casos/41/editor');
     expect(servidor.llamadasA('caseEditor')).toHaveLength(1);
     expect(store.caso()!.id).toBe('41');
-    expect(raiz.querySelector('header')!.textContent).toContain('Primera escucha en Bienestar');
+    expect(raiz.querySelector('.banda')!.textContent).toContain('Primera escucha en Bienestar');
     expect(raiz.querySelector('main h1')!.textContent).toContain('Escenas y caminos');
-    // Los enlaces del marco cuelgan del caso abierto y de la lista de casos
+    // Los enlaces del marco cuelgan del caso abierto y de la lista de casos: la marca y «Mis casos» de la barra, y las secciones de la banda
     const enlaces = [...raiz.querySelectorAll<HTMLAnchorElement>('nav a')].map((a) => a.getAttribute('href'));
-    expect(enlaces).toEqual(['/portal/casos', '/portal/casos/41/editor', '/portal/casos/41/editor/finales', '/portal/casos/41/editor/probar', '/portal/casos/41/editor/revision']);
+    expect(enlaces).toEqual([
+      '/portal/casos', '/portal/casos',
+      '/portal/casos', '/portal/casos/41/editor', '/portal/casos/41/editor/finales', '/portal/casos/41/editor/probar', '/portal/casos/41/editor/revision',
+    ]);
   });
 
   it('si el caso no se puede abrir, lo dice y deja volver a intentarlo o volver a Mis casos', async () => {
@@ -214,7 +219,8 @@ describe('AutoriaShellComponent · como ruta del programa', () => {
     const { raiz, servidor } = await irA('/portal/casos/nuevo');
     expect(servidor.llamadasA('caseEditor')).toHaveLength(0);
     expect(raiz.querySelector('main h1')!.textContent).toContain('¿Dónde pasa tu caso?');
-    expect([...raiz.querySelectorAll<HTMLAnchorElement>('nav a')].map((a) => a.getAttribute('href'))).toEqual(['/portal/casos']);
+    // Solo la marca y «Mis casos» de la barra: sin caso no hay secciones.
+    expect([...raiz.querySelectorAll<HTMLAnchorElement>('nav a')].map((a) => a.getAttribute('href'))).toEqual(['/portal/casos', '/portal/casos']);
   });
 
   it('salir del editor espera a que lo pendiente llegue al servidor y cierra el caso', async () => {
