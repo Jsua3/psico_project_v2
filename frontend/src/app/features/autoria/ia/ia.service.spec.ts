@@ -10,7 +10,7 @@ import { copiarEscenarioAlCaso } from '../modelo/copiar';
 import { casoCopiadoDeLugar } from '../testing/caso-api';
 import { ServidorFalso } from '../testing/servidor-falso';
 import { universidad } from '../testing/universidad';
-import { IaService, MENSAJE_APAGADO } from './ia.service';
+import { IaService, MENSAJE_APAGADO, MENSAJE_SOLO_LECTURA } from './ia.service';
 import { MENSAJE_PROPUESTA_INVALIDA } from './propuestas';
 
 /** Un caso del servidor: su id y los de sus escenas son números, como los del servidor. */
@@ -177,5 +177,16 @@ describe('IaService · la escena elegida viaja con el número del servidor', () 
     const { servidor, store, ia } = await abrirConServidor();
     await ia.proponer(store.caso()!, 'Mueve la mesa', { pantalla: 'sala', seleccion: 'consultorio' });
     expect(servidor.llamadasA('assistantPropose')[0].args[1]).toMatchObject({ pantalla: 'sala', seleccion: 'consultorio' });
+  });
+});
+
+describe('IaService · un caso que ya no es un borrador', () => {
+  it('no le pide nada al asistente (cada petición gasta cupo) y dice que el caso no se puede cambiar', async () => {
+    const propose = vi.fn(() => of(resultado()));
+    const { ia, store } = montar({ assistantPropose: propose });
+    store.fijar({ ...store.caso()!, estado: 'IN_REVIEW' });
+    const respuesta = await ia.proponer(store.caso()!, 'Agrega una escena', contexto);
+    expect(propose).not.toHaveBeenCalled();
+    expect(respuesta).toMatchObject({ mensaje: MENSAJE_SOLO_LECTURA, cambios: [], error: true });
   });
 });

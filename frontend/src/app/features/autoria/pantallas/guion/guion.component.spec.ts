@@ -134,8 +134,8 @@ describe('GuionComponent', () => {
     const { raiz, listo } = await montar();
     boton(raiz, 'Agregar una respuesta').click();
     await listo();
-    const radios = [...raiz.querySelectorAll<HTMLInputElement>('li.respuesta input[type="radio"]')];
-    expect(radios.length).toBeGreaterThanOrEqual(3);
+    const radios = [...raiz.querySelectorAll<HTMLInputElement>('li.respuesta fieldset.clasificacion input[type="radio"]')];
+    expect(radios.length).toBe(4);
     expect(radios.some((r) => r.checked)).toBe(false);
     expect(raiz.querySelector('li.respuesta')!.textContent).toContain('Elige cómo clasificas esta respuesta.');
     radios[0].click();

@@ -3,8 +3,8 @@ import {
   viewChild,
 } from '@angular/core';
 import { toSignal } from '@angular/core/rxjs-interop';
-import { ActivatedRoute, RouterLink, RouterLinkActive, RouterOutlet } from '@angular/router';
-import { map } from 'rxjs';
+import { ActivatedRoute, NavigationEnd, Router, RouterLink, RouterLinkActive, RouterOutlet } from '@angular/router';
+import { filter, map } from 'rxjs';
 
 import type { CanLeave } from '../../core/navigation/can-leave.guard';
 import { UiDialog } from '../../shared/ui/dialog/ui-dialog';
@@ -60,9 +60,13 @@ import { RutasAutoria } from './rutas';
         <button type="button" class="boton" data-accion="guia" title="Te muestra dónde está algo"
                 aria-haspopup="dialog" (click)="abrirBuscador('preguntar', $event)">Guía</button>
         <button type="button" class="boton" data-accion="pedir-a-la-ia aceptar-ia" title="Escribe o cambia el caso por ti; tú apruebas"
-                [attr.aria-expanded]="iaAbierta()" aria-controls="panel-ia" (click)="alternarIa()" #botonIa>
+                [attr.aria-expanded]="iaAbierta() && !store.soloLectura()" aria-controls="panel-ia" [disabled]="store.soloLectura()"
+                [attr.aria-describedby]="store.soloLectura() ? 'aviso-ia' : null" (click)="alternarIa()" #botonIa>
           Asistente de IA
         </button>
+        @if (store.soloLectura()) {
+          <p id="aviso-ia" class="aviso-ia">{{ textoAsistenteBloqueado() }}</p>
+        }
       </div>
     </header>
 
@@ -72,7 +76,7 @@ import { RutasAutoria } from './rutas';
     <app-foco-guia />
     @if (store.caso()) { <app-avisos-guardado /> }
 
-    <div class="cuerpo" [class.con-ia]="iaAbierta()">
+    <div class="cuerpo" [class.con-ia]="iaAbierta() && !store.soloLectura()">
       <main id="contenido" tabindex="-1">
         @if (abriendo()) {
           <p class="pagina" role="status">Abriendo tu caso…</p>
@@ -88,11 +92,19 @@ import { RutasAutoria } from './rutas';
             </div>
           </div>
         } @else {
-          <router-outlet />
+          @if (store.soloLectura()) {
+            <div class="pagina">
+              <p class="solo-lectura" role="note">{{ textoSoloLectura() }}</p>
+            </div>
+          }
+          <!-- En un caso que ya no es un borrador, los campos de las pantallas se bloquean (la prueba como estudiante no cambia nada y sigue viva). -->
+          <fieldset class="marco-pantalla" [disabled]="bloqueado()">
+            <router-outlet />
+          </fieldset>
         }
       </main>
       <!-- Se oculta en vez de quitarse, para no perder la conversación ni la propuesta. -->
-      <app-panel-ia id="panel-ia" class="columna-ia" [hidden]="!iaAbierta()" (cerrar)="cerrarIa()" />
+      <app-panel-ia id="panel-ia" class="columna-ia" [hidden]="!iaAbierta() || store.soloLectura()" (cerrar)="cerrarIa()" />
     </div>
   `,
   styles: `
@@ -122,6 +134,9 @@ import { RutasAutoria } from './rutas';
       position: sticky; top: var(--alto-cabecera, 64px); align-self: start;
       max-height: calc(100vh - var(--alto-cabecera, 64px)); overflow: auto;
     }
+    .aviso-ia { margin: 0; align-self: center; font-size: var(--autoria-texto-16); font-weight: 700; max-width: 360px; }
+    .marco-pantalla { border: 0; margin: 0; padding: 0; min-width: 0; }
+    .solo-lectura { margin: 0; padding: 10px 12px; border-radius: var(--radio-control); background: var(--primario-tinte); font-weight: 700; }
     main { width: 100%; min-width: 0; box-sizing: border-box; outline: none; }
   `,
 })
@@ -138,6 +153,12 @@ export class AutoriaShellComponent implements CanLeave {
     return pedido !== null && this.store.caso()?.id !== pedido && this.store.errorDeCarga() === null;
   });
   protected readonly fallo = computed(() => (this.casoPedido() !== null && this.store.caso()?.id !== this.casoPedido() ? this.store.errorDeCarga() : null));
+  private readonly router = inject(Router);
+  private readonly direccion = toSignal(
+    this.router.events.pipe(filter((e) => e instanceof NavigationEnd), map(() => this.router.url)), { initialValue: this.router.url },
+  );
+  /** Las pantallas no se pueden cambiar si el caso ya no es un borrador; probar como estudiante no cambia nada, así que sigue viva. */
+  protected readonly bloqueado = computed(() => this.store.soloLectura() && !this.direccion().split('?')[0].endsWith('/probar'));
   protected readonly iaAbierta = signal(false);
   protected readonly buscador = signal<'buscar' | 'preguntar' | null>(null);
   private origenBuscador: HTMLElement | null = null;
@@ -213,6 +234,20 @@ export class AutoriaShellComponent implements CanLeave {
     return respuesta === 'proceed';
   }
 
+  /** Qué se le dice al docente cuando el caso ya no se puede editar. */
+  protected textoSoloLectura(): string {
+    const estado = this.store.caso()?.estado;
+    const donde = estado === 'PUBLISHED' ? 'está publicado' : estado === 'ARCHIVED' ? 'está archivado' : 'está en revisión de Psicología';
+    return `El caso ${donde}. Se puede ver, pero no editar.`;
+  }
+
+  /** Por qué no se puede usar el asistente cuando el caso ya no es un borrador. */
+  protected textoAsistenteBloqueado(): string {
+    const estado = this.store.caso()?.estado;
+    const donde = estado === 'PUBLISHED' ? 'está publicado' : estado === 'ARCHIVED' ? 'está archivado' : 'está en revisión';
+    return `El caso ${donde}: no se puede cambiar. El asistente de IA no está disponible.`;
+  }
+
   reintentar(): void {
     const pedido = this.casoPedido();
     if (pedido !== null) void this.store.cargar(Number(pedido), true);
@@ -225,6 +260,7 @@ export class AutoriaShellComponent implements CanLeave {
   }
 
   protected alternarIa(): void {
+    if (this.store.soloLectura()) return;
     if (this.iaAbierta()) {
       this.cerrarIa();
       return;

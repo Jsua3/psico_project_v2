@@ -2,7 +2,7 @@ import { Observable, firstValueFrom } from 'rxjs';
 
 import type { AuthoringApi } from '../../../core/api/authoring.api';
 import type {
-  CaseEditorView, CharacterUpsertRequest, DecisionOptionUpsertRequest, DialogueUpsertRequest, EndingRule, MapEditorState,
+  CaseEditorView, ChecklistUpdateRequest, CharacterUpsertRequest, DecisionOptionUpsertRequest, DialogueUpsertRequest, EndingRule, MapEditorState,
   MapUpsertRequest, Milestone, NodeUpsertRequest, RiskLevel, WorldDefinition, WorldRoomSaveRequest,
 } from '../../../core/models/simulation.model';
 import type { CasoLeido } from '../api/autoria-api.service';
@@ -132,6 +132,10 @@ export class SesionServidor {
 
   guardarRiesgo(nivel: RiskLevel | null) {
     return this.escribir((r) => this.api.updateRisk(this.caseVersionId, nivel, r));
+  }
+
+  guardarLista(lista: ChecklistUpdateRequest) {
+    return this.escribir((r) => this.api.updateChecklist(this.caseVersionId, lista, r));
   }
 
   guardarFinales(finales: EndingRule[]) {

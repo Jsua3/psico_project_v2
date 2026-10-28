@@ -8,12 +8,13 @@
 import type { Expresion } from '../../../core/models/biblioteca.model';
 import type { CaseCreateRequest } from '../../../core/api/authoring.api';
 import type {
-  CharacterEditorState, DecisionEdgeState, DecisionEffects, DecisionOptionUpsertRequest, DialogueUpsertRequest,
+  ChecklistUpdateRequest, CharacterEditorState, DecisionEdgeState, DecisionEffects, DecisionOptionUpsertRequest, DialogueUpsertRequest,
   EndingRule, Milestone, NodeEditorState, NodeUpsertRequest, WorldCollisionZone, WorldDefinition,
   WorldDialogueTree, WorldObject, WorldRoomSaveRequest,
 } from '../../../core/models/simulation.model';
-import type { CasoBorrador, EfectosRespuesta, Escena, Hito, Linea, Respuesta, SalaCaso } from './caso';
+import type { CasoBorrador, EfectosRespuesta, Escena, Hito, Linea, ListaVerificacion, Respuesta, SalaCaso } from './caso';
 import { expresionDe } from './desde-api';
+import { finalesDePlantilla, plantillaEditada } from './finales';
 import type { Escenario, Personaje } from './escenario';
 
 const MAX_CLAVE_REGLA = 60;
@@ -39,13 +40,14 @@ export function hitosAApi(hitos: Hito[]): Milestone[] {
 }
 
 /**
- * Los finales propios del docente, en el orden en que se evalúan. En modo automático no se manda ninguno: sin finales
- * propios valen los cuatro del modelo (`critica` → `protectora` → `riesgo_persistente` → `con_brechas`).
+ * Los finales que se guardan en el caso, en el orden en que se evalúan. En modo propio, los del docente. En modo
+ * automático no se manda ninguno (valen los cuatro del modelo) salvo que el docente haya reescrito el nombre o el texto
+ * de alguno: entonces se mandan los cuatro de plantilla, con sus textos y la condición de los hitos decisivos de ahora.
  */
-export function finalesAApi(caso: Pick<CasoBorrador, 'modoFinales' | 'finales'>): EndingRule[] {
-  if (caso.modoFinales !== 'propio') return [];
+export function finalesAApi(caso: Pick<CasoBorrador, 'modoFinales' | 'finales' | 'hitos' | 'textosPlantilla'>): EndingRule[] {
+  const finales = caso.modoFinales === 'propio' ? caso.finales : plantillaEditada(caso) ? finalesDePlantilla(caso) : [];
   const usadas = new Set<string>();
-  return caso.finales.map((f) => {
+  return finales.map((f) => {
     const final: EndingRule = {
       key: claveLibre(claveDeRegla(f.id), usadas, '_'), title: f.nombre, message: f.texto, tone: f.tono,
     };
@@ -53,6 +55,18 @@ export function finalesAApi(caso: Pick<CasoBorrador, 'modoFinales' | 'finales'>)
     final.aiSuggested = f.marcaIa; // explícita: omitirla conserva la marca guardada, y aceptar un final tiene que bajarla
     return final;
   });
+}
+
+// ─── Lista de verificación ───────────────────────────────────────────────────
+
+/** La lista completa como la pide el servidor: una casilla por ítem (lo que la lista no trae va sin marcar). */
+export function cuerpoLista(lista: ListaVerificacion): ChecklistUpdateRequest {
+  const marcado = (codigo: string) => lista.items.some((i) => i.codigo === codigo && i.cumplido);
+  return {
+    contentOriginal: marcado('contentOriginal'), ethicsReviewed: marcado('ethicsReviewed'), safetyProtocols: marcado('safetyProtocols'),
+    noStigmatizing: marcado('noStigmatizing'), triggerWarnings: marcado('triggerWarnings'), accessibilityOk: marcado('accessibilityOk'),
+    scopeEducational: marcado('scopeEducational'),
+  };
 }
 
 // ─── Escenas ─────────────────────────────────────────────────────────────────

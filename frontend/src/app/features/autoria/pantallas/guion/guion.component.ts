@@ -3,9 +3,13 @@ import { Router, RouterLink } from '@angular/router';
 
 import { CasoStore } from '../../estado/caso.store';
 import { rutaRetrato } from '../../modelo/biblioteca.service';
-import type { ClaseRespuesta, Escena, Linea, Respuesta } from '../../modelo/caso';
+import type { ClaseRespuesta, Escena, IntensidadEscena, Linea, Respuesta } from '../../modelo/caso';
+import {
+  competenciasMarcadas, conCompetencia, conHito, conPasoDePersona, sinPasoDePersona,
+} from '../../modelo/efectos';
+import { fraseDeRespuesta, pasoDeRespuesta } from '../../modelo/persona';
 import { EXPRESIONES } from '../../modelo/escenario';
-import { NOMBRE_CLASE, NOMBRE_EXPRESION } from '../../modelo/textos';
+import { NOMBRE_CLASE, NOMBRE_EXPRESION, NOMBRE_INTENSIDAD } from '../../modelo/textos';
 import { RutasAutoria } from '../../rutas';
 
 const CLASIFICACIONES: { valor: ClaseRespuesta; nombre: string; simbolo: string }[] = [
@@ -15,9 +19,19 @@ const CLASIFICACIONES: { valor: ClaseRespuesta; nombre: string; simbolo: string 
   { valor: 'CONTRAINDICATED', nombre: NOMBRE_CLASE.CONTRAINDICATED, simbolo: '✕' },
 ];
 
+const INTENSIDADES: { valor: IntensidadEscena; nombre: string }[] = [
+  { valor: 'LOW', nombre: NOMBRE_INTENSIDAD.LOW },
+  { valor: 'MEDIUM', nombre: NOMBRE_INTENSIDAD.MEDIUM },
+  { valor: 'HIGH', nombre: NOMBRE_INTENSIDAD.HIGH },
+];
+/** Lo que la docente puede elegir que le pase a la persona: el paso en cada eje, dicho con palabras. */
+const PASOS_VINCULO = [{ valor: -1, nombre: 'Se cierra' }, { valor: 0, nombre: 'Sin cambio' }, { valor: 1, nombre: 'Se abre' }];
+const PASOS_ACTIVACION = [{ valor: -1, nombre: 'Se calma' }, { valor: 0, nombre: 'Sin cambio' }, { valor: 1, nombre: 'Se tensa' }];
+
 /**
  * Guion de una escena, tipo libreto (tablero 27): personaje, expresión y lo que dice; debajo,
- * lo que puede responder el estudiante, con su clasificación, lo que lee después y a dónde lleva.
+ * lo que puede responder el estudiante, con su clasificación, lo que lee después, qué le pasa a la persona, qué hitos
+ * cumple, qué competencias evidencia y a dónde lleva. Además, la intensidad de la escena y su aviso.
  */
 @Component({
   selector: 'app-guion',
@@ -44,6 +58,22 @@ const CLASIFICACIONES: { valor: ClaseRespuesta; nombre: string; simbolo: string 
           <label for="en" class="etiqueta">Escena {{ numero(e) }} · Nombre</label>
           <input id="en" type="text" class="campo" [value]="e.titulo" (change)="nombrar(e, $any($event.target).value)" />
           <p class="texto-secundario">Sala: {{ nombreSala(e.salaId) }}{{ lleganDesde(e) ? ' · Llegan aquí desde ' + lleganDesde(e) : '' }}</p>
+          <div class="intensidad" data-accion="intensidad-escena">
+            <label for="intensidad-escena" class="etiqueta">Intensidad de la escena</label>
+            <select id="intensidad-escena" class="campo" (change)="cambiarIntensidad(e, $any($event.target).value)">
+              @for (i of intensidades; track i.valor) { <option [value]="i.valor" [selected]="e.intensidad === i.valor">{{ i.nombre }}</option> }
+            </select>
+            <p class="texto-secundario nota">Una escena de intensidad alta avisa al estudiante antes de empezar.</p>
+            @if (e.intensidad === 'HIGH') {
+              <label for="aviso-escena" class="etiqueta">Aviso para el estudiante</label>
+              <textarea id="aviso-escena" class="campo" rows="2" [value]="e.advertencia ?? ''" aria-describedby="aviso-escena-ayuda"
+                        [attr.aria-invalid]="e.advertencia?.trim() ? null : 'true'"
+                        (change)="store.editarEscena(e.id, { advertencia: $any($event.target).value.trim() || null })"></textarea>
+              @if (!e.advertencia?.trim()) {
+                <p id="aviso-escena-ayuda" class="texto-secundario nota">Una escena de intensidad alta necesita un aviso para el estudiante.</p>
+              }
+            }
+          </div>
           <div class="acciones">
             @if (e.salaId) {
               <a class="boton" [routerLink]="rutas.a('/editor/sala', e.salaId)">Abrir sala</a>
@@ -106,12 +136,12 @@ const CLASIFICACIONES: { valor: ClaseRespuesta; nombre: string; simbolo: string 
               <button type="button" class="boton" data-accion="agregar-linea" (click)="agregarLinea(e)">Agregar una línea</button>
             </section>
 
-            <section aria-labelledby="rh" class="bloque" data-accion="respuesta-a-escena-nueva">
+            <section aria-labelledby="rh" class="bloque" id="respuestas-escena" tabindex="-1" data-accion="respuesta-a-escena-nueva">
               <h2 id="rh">Lo que puede responder el estudiante</h2>
               <p class="texto-secundario">Cada respuesta lleva a una escena. Si eliges «Una escena nueva», se crea y se conecta cuando pulsas «Crear la escena nueva».</p>
               <ol class="lista">
                 @for (r of e.respuestas; track r.id; let i = $index) {
-                  <li class="tarjeta respuesta" [class.marca-ia]="r.marcaIa">
+                  <li class="tarjeta respuesta" [class.marca-ia]="r.marcaIa" [id]="'respuesta-' + r.id" tabindex="-1">
                     <div class="fila-titulo">
                       <label [for]="'rt' + i" class="etiqueta">Respuesta {{ i + 1 }}</label>
                       @if (r.marcaIa) {
@@ -137,15 +167,67 @@ const CLASIFICACIONES: { valor: ClaseRespuesta; nombre: string; simbolo: string 
                     }
                     @if (r.clase === 'CONTRAINDICATED') {
                       <label [for]="'rz' + i" class="etiqueta">Por qué es contraindicada</label>
-                      <textarea [id]="'rz' + i" class="campo" rows="2" [value]="r.razon"
+                      <textarea [id]="'rz' + i" class="campo" rows="2" [value]="r.razon" [attr.aria-invalid]="r.razon.trim() ? null : 'true'"
+                                [attr.aria-describedby]="r.razon.trim() ? null : 'rzn' + i"
                                 (change)="store.editarRespuesta(e.id, r.id, { razon: $any($event.target).value })"></textarea>
                       @if (!r.razon.trim()) {
-                        <p class="texto-secundario nota">Explica por qué esta respuesta puede hacerle daño a la persona.</p>
+                        <p [id]="'rzn' + i" class="texto-secundario nota">Explica por qué esta respuesta puede hacerle daño a la persona. Sin esta razón la respuesta no se guarda.</p>
                       }
                     }
                     <label [for]="'rf' + i" class="etiqueta">Lo que lee el estudiante después de elegir</label>
                     <textarea [id]="'rf' + i" class="campo" rows="2" [value]="r.retroalimentacion"
                               (change)="store.editarRespuesta(e.id, r.id, { retroalimentacion: $any($event.target).value })"></textarea>
+                    <fieldset class="persona">
+                      <legend>Qué le pasa a la persona después de esta respuesta</legend>
+                      <label class="opcion-simple">
+                        <input type="radio" [name]="'pm' + r.id" value="automatica" [checked]="!r.efectos.persona" (change)="personaAutomatica(e, r)" />
+                        Automático: según la clase
+                      </label>
+                      <label class="opcion-simple">
+                        <input type="radio" [name]="'pm' + r.id" value="propia" [checked]="!!r.efectos.persona" (change)="personaPropia(e, r)" />
+                        Lo elijo yo
+                      </label>
+                      @if (r.efectos.persona; as paso) {
+                        <div class="dos-campos">
+                          <div class="campo-col">
+                            <label [for]="'pv' + i" class="etiqueta">Vínculo</label>
+                            <select [id]="'pv' + i" class="campo" (change)="cambiarPaso(e, r, 'bond', $any($event.target).value)">
+                              @for (o of pasosVinculo; track o.valor) { <option [value]="o.valor" [selected]="(paso.bond ?? 0) === o.valor">{{ o.nombre }}</option> }
+                            </select>
+                          </div>
+                          <div class="campo-col">
+                            <label [for]="'pa' + i" class="etiqueta">Activación</label>
+                            <select [id]="'pa' + i" class="campo" (change)="cambiarPaso(e, r, 'activation', $any($event.target).value)">
+                              @for (o of pasosActivacion; track o.valor) { <option [value]="o.valor" [selected]="(paso.activation ?? 0) === o.valor">{{ o.nombre }}</option> }
+                            </select>
+                          </div>
+                        </div>
+                      } @else {
+                        <p class="persona-auto texto-secundario nota">{{ textoAutomatico(r) }}</p>
+                      }
+                    </fieldset>
+                    <fieldset class="hitos">
+                      <legend>Hitos que cumple esta respuesta</legend>
+                      @for (h of hitos(); track h.clave) {
+                        <label class="casilla">
+                          <input type="checkbox" [checked]="r.efectos.hitos?.includes(h.clave) ?? false" (change)="marcarHito(e, r, h.clave, $any($event.target).checked)" />
+                          {{ h.nombre }}
+                        </label>
+                      } @empty {
+                        <p class="texto-secundario nota">Este caso todavía no tiene hitos.</p>
+                      }
+                    </fieldset>
+                    <fieldset class="competencias" [id]="'competencias-' + r.id" tabindex="-1">
+                      <legend>Competencias que evidencia (una o dos)</legend>
+                      @for (c of competencias(); track c.codigo) {
+                        <label class="casilla">
+                          <input type="checkbox" [checked]="marcadas(r).includes(c.codigo)" (change)="marcarCompetencia(e, r, c.codigo, $any($event.target).checked)" />
+                          {{ c.nombre }}
+                        </label>
+                      } @empty {
+                        <p class="texto-secundario nota">La rúbrica de este caso todavía no tiene competencias.</p>
+                      }
+                    </fieldset>
                     <label [for]="'rl' + i" class="etiqueta">Lleva a…</label>
                     <select [id]="'rl' + i" class="campo" (change)="elegirDestino(e, r, $any($event.target).value)">
                       <option value="" [selected]="!r.destinoId && pendiente() !== r.id">Ninguna escena todavía</option>
@@ -239,6 +321,14 @@ const CLASIFICACIONES: { valor: ClaseRespuesta; nombre: string; simbolo: string 
     .opcion.RECOMMENDED:has(input:checked), .opcion.ACCEPTABLE:has(input:checked) { background: var(--adecuada-tinte); border-color: var(--adecuada-borde); color: var(--adecuada); }
     .opcion.RISKY:has(input:checked) { background: var(--riesgo-tinte); border-color: var(--riesgo-borde); color: var(--riesgo); }
     .opcion.CONTRAINDICATED:has(input:checked) { background: var(--peligro-tinte); border-color: var(--peligro); color: var(--peligro); }
+    .persona, .hitos, .competencias { border: 0; margin: 0; padding: 0; display: flex; flex-wrap: wrap; gap: 8px; }
+    .persona legend, .hitos legend, .competencias legend { font-weight: 700; font-size: var(--autoria-texto-16); margin-bottom: 4px; }
+    .persona .dos-campos, .persona .nota { flex: 1 1 100%; }
+    .opcion-simple, .casilla { display: inline-flex; align-items: center; gap: 8px; min-height: 48px; padding: 0 12px; font-size: var(--autoria-texto-16); }
+    .opcion-simple input, .casilla input { width: 20px; height: 20px; accent-color: var(--primario); }
+    .intensidad { display: flex; flex-direction: column; gap: 6px; }
+    .intensidad select { max-width: 240px; }
+    .campo[aria-invalid='true'] { border-color: var(--peligro); }
     .creada { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; padding: 8px 12px; border-radius: var(--radio-control); background: var(--adecuada-tinte); }
     .creada p { margin: 0; flex: 1 1 260px; font-size: var(--autoria-texto-16); }
     .respuesta > .boton-texto { align-self: flex-start; }
@@ -260,6 +350,10 @@ export class GuionComponent {
   protected readonly expresiones = EXPRESIONES;
   protected readonly nombreExpresion = NOMBRE_EXPRESION;
   protected readonly clasificaciones = CLASIFICACIONES;
+  protected readonly intensidades = INTENSIDADES;
+  protected readonly pasosVinculo = PASOS_VINCULO;
+  protected readonly pasosActivacion = PASOS_ACTIVACION;
+  protected readonly marcadas = (r: Respuesta) => competenciasMarcadas(r.efectos);
   protected readonly anuncio = signal('');
   protected readonly lineaVista = signal<string | null>(null);
   protected readonly pendiente = signal<string | null>(null);
@@ -268,6 +362,8 @@ export class GuionComponent {
   protected readonly escena = computed(() => this.store.caso()?.escenas.find((e) => e.id === this.escenaId()) ?? null);
   protected readonly escenas = computed(() => this.store.caso()?.escenas ?? []);
   protected readonly personajes = computed(() => this.store.caso()?.personajes ?? []);
+  protected readonly hitos = computed(() => this.store.caso()?.hitos ?? []);
+  protected readonly competencias = computed(() => this.store.caso()?.competencias ?? []);
   protected readonly lineaMostrada = computed(() => {
     const e = this.escena();
     return e?.lineas.find((l) => l.id === this.lineaVista()) ?? e?.lineas[0] ?? null;
@@ -307,6 +403,45 @@ export class GuionComponent {
   protected nombrar(e: Escena, titulo: string): void {
     const limpio = titulo.trim();
     if (limpio && limpio !== e.titulo) this.store.editarEscena(e.id, { titulo: limpio });
+  }
+
+  protected cambiarIntensidad(e: Escena, valor: string): void {
+    this.store.editarEscena(e.id, { intensidad: valor as IntensidadEscena });
+    this.anuncio.set(valor === 'HIGH' ? 'Intensidad alta: escribe el aviso para el estudiante.' : `Intensidad ${NOMBRE_INTENSIDAD[valor as IntensidadEscena].toLowerCase()}.`);
+  }
+
+  /** Lo que le pasa a la persona en modo automático, dicho con palabras; sin clase, qué falta. */
+  protected textoAutomatico(r: Respuesta): string {
+    const frase = fraseDeRespuesta(r);
+    return frase ? `Si el estudiante la elige, la persona ${frase}.` : 'Elige la clase para ver qué le pasa a la persona.';
+  }
+
+  /** La respuesta como está ahora en el caso: dos cambios seguidos (antes de que la pantalla se redibuje) no pisan el primero. */
+  private vigente(e: Escena, r: Respuesta): Respuesta {
+    return this.store.caso()?.escenas.find((x) => x.id === e.id)?.respuestas.find((x) => x.id === r.id) ?? r;
+  }
+
+  protected personaAutomatica(e: Escena, r: Respuesta): void {
+    this.store.editarRespuesta(e.id, r.id, { efectos: sinPasoDePersona(this.vigente(e, r).efectos) });
+  }
+
+  /** Empieza donde lo dejaba la clase, para que la docente corrija en vez de partir de cero. */
+  protected personaPropia(e: Escena, r: Respuesta): void {
+    const actual = this.vigente(e, r);
+    const [vinculo, activacion] = pasoDeRespuesta(actual) ?? [0, 0];
+    this.store.editarRespuesta(e.id, r.id, { efectos: conPasoDePersona(actual.efectos, { bond: vinculo, activation: activacion }) });
+  }
+
+  protected cambiarPaso(e: Escena, r: Respuesta, eje: 'bond' | 'activation', valor: string): void {
+    this.store.editarRespuesta(e.id, r.id, { efectos: conPasoDePersona(this.vigente(e, r).efectos, { [eje]: Number(valor) }) });
+  }
+
+  protected marcarHito(e: Escena, r: Respuesta, clave: string, cumple: boolean): void {
+    this.store.editarRespuesta(e.id, r.id, { efectos: conHito(this.vigente(e, r).efectos, clave, cumple) });
+  }
+
+  protected marcarCompetencia(e: Escena, r: Respuesta, codigo: string, evidencia: boolean): void {
+    this.store.editarRespuesta(e.id, r.id, { efectos: conCompetencia(this.vigente(e, r).efectos, codigo, evidencia) });
   }
 
   protected agregarLinea(e: Escena): void {

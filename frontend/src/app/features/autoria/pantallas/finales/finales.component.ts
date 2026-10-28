@@ -3,17 +3,30 @@ import { RouterLink } from '@angular/router';
 
 import { CasoStore } from '../../estado/caso.store';
 import { estadoDeCaminos } from '../../modelo/caminos';
-import type { CondicionFinal, Final } from '../../modelo/caso';
+import type { ClaveFinalPlantilla, CondicionFinal, Final } from '../../modelo/caso';
 import { describirCondicion } from '../../modelo/condiciones';
-import { FINALES_AUTOMATICOS, ORDEN_AUTOMATICOS } from '../../modelo/finales';
+import { FINALES_AUTOMATICOS, finalesDePlantilla, reglasDePlantilla } from '../../modelo/finales';
+import {
+  type ParteDeCondicion, type TipoDeParte, condicionDePartes, parteNueva, partesDeCondicion,
+} from '../../modelo/partes-de-condicion';
+import { ACTIVACION_EN_PALABRAS, VINCULO_EN_PALABRAS } from '../../modelo/persona';
+import { finalesAlcanzados } from '../../modelo/recorridos';
 import { RutasAutoria } from '../../rutas';
 
-/** Las condiciones sencillas que el editor sabe armar; cualquier otra se conserva tal cual. */
-type TipoCondicion = 'hito' | 'contraindicadas' | 'riesgo' | 'ninguna' | 'otra';
+/** Las frases que el editor sabe armar; una condición que no es una lista de ellas se conserva tal cual. */
+const TIPOS_DE_FRASE: { tipo: TipoDeParte; nombre: string }[] = [
+  { tipo: 'hito', nombre: 'Si cumplió el hito' },
+  { tipo: 'sin-hito', nombre: 'Si no cumplió el hito' },
+  { tipo: 'contraindicadas', nombre: 'Si eligió respuestas contraindicadas' },
+  { tipo: 'ninguna-contraindicada', nombre: 'Si no eligió ninguna respuesta contraindicada' },
+  { tipo: 'riesgo', nombre: 'Si eligió respuestas con riesgo' },
+  { tipo: 'persona', nombre: 'Si la persona terminó' },
+];
 
 /**
- * Finales del caso (tablero 28): si el docente no hace nada se calculan solos; si quiere,
- * define los suyos con una condición cada uno. Gana el primero de la lista que se cumpla.
+ * Finales del caso (tablero 28): si el docente no hace nada se calculan solos —cuatro finales de plantilla que dependen de los
+ * hitos que marque como decisivos y cuyo texto puede reescribir—; si quiere, define los suyos con una condición en frases cada
+ * uno. Gana el primero de la lista que se cumpla.
  */
 @Component({
   selector: 'app-finales',
@@ -57,7 +70,7 @@ type TipoCondicion = 'hito' | 'contraindicadas' | 'riesgo' | 'ninguna' | 'otra';
             <p class="texto-secundario">Si el estudiante cumple las condiciones de varios finales, verá el que está más arriba. Si no cumple ninguna, verá uno de los cuatro finales que se calculan solos.</p>
             <ol class="lista">
               @for (f of caso.finales; track f.id; let i = $index; let primero = $first; let ultimo = $last) {
-                <li class="tarjeta final" [class.marca-ia]="f.marcaIa">
+                <li class="tarjeta final" [class.marca-ia]="f.marcaIa" [id]="'final-' + f.id" tabindex="-1">
                   <div class="fila-titulo">
                     <strong>Final {{ i + 1 }}</strong>
                     @if (f.marcaIa) {
@@ -77,43 +90,70 @@ type TipoCondicion = 'hito' | 'contraindicadas' | 'riesgo' | 'ninguna' | 'otra';
                   <textarea [id]="'ft' + i" class="campo" rows="3" [value]="f.texto" (change)="store.editarFinal(f.id, { texto: $any($event.target).value })"></textarea>
                   <fieldset class="condicion">
                     <legend>El final «{{ f.nombre }}» llega cuando…</legend>
-                    <select class="campo" aria-label="Tipo de condición" (change)="cambiarTipo(f, $any($event.target).value)">
-                      <option value="hito" [selected]="tipoDe(f.condicion) === 'hito'" [disabled]="!caso.hitos.length">El estudiante cumple un hito</option>
-                      <option value="contraindicadas" [selected]="tipoDe(f.condicion) === 'contraindicadas'">Elige respuestas contraindicadas</option>
-                      <option value="riesgo" [selected]="tipoDe(f.condicion) === 'riesgo'">Elige respuestas con riesgo</option>
-                      <option value="ninguna" [selected]="tipoDe(f.condicion) === 'ninguna'">Ninguna condición en particular</option>
-                      @if (tipoDe(f.condicion) === 'otra') {
-                        <option value="otra" selected>Una condición combinada</option>
+                    @if (partes(f.condicion); as lista) {
+                      @if (lista.length === 0) {
+                        <div class="frase">
+                          <select class="campo" aria-label="Tipo de condición" (change)="cambiarTipo(f, lista, 0, $any($event.target).value)">
+                            @for (t of tipos; track t.tipo) { <option [value]="t.tipo" [disabled]="!caso.hitos.length && (t.tipo === 'hito' || t.tipo === 'sin-hito')">{{ t.nombre }}</option> }
+                            <option value="ninguna" selected>Ninguna condición en particular</option>
+                          </select>
+                        </div>
                       }
-                    </select>
-                    @switch (tipoDe(f.condicion)) {
-                      @case ('hito') {
-                        <select class="campo" aria-label="Hito" (change)="fijar(f, { milestone: $any($event.target).value })">
-                          @if (!existeHito(f.condicion)) {
-                            <option value="" selected disabled>Elige un hito (el anterior ya no está)</option>
+                      @for (p of lista; track $index; let j = $index) {
+                        <div class="frase">
+                          @if (j > 0) { <span class="y" aria-hidden="true">y</span> }
+                          <select class="campo" [attr.aria-label]="etiqueta('Tipo de condición', j, lista.length)" (change)="cambiarTipo(f, lista, j, $any($event.target).value)">
+                            @for (t of tipos; track t.tipo) { <option [value]="t.tipo" [selected]="p.tipo === t.tipo" [disabled]="!caso.hitos.length && (t.tipo === 'hito' || t.tipo === 'sin-hito')">{{ t.nombre }}</option> }
+                            @if (lista.length === 1) { <option value="ninguna">Ninguna condición en particular</option> }
+                          </select>
+                          @switch (p.tipo) {
+                            @case ('hito') {
+                              <select class="campo" [attr.aria-label]="etiqueta('Hito', j, lista.length)" (change)="fijarParte(f, lista, j, { tipo: 'hito', clave: $any($event.target).value })">
+                                @if (!existeHito(p.clave)) { <option value="" selected disabled>Elige un hito (el anterior ya no está)</option> }
+                                @for (h of caso.hitos; track h.clave) { <option [value]="h.clave" [selected]="p.clave === h.clave">{{ h.nombre }}</option> }
+                              </select>
+                            }
+                            @case ('sin-hito') {
+                              <select class="campo" [attr.aria-label]="etiqueta('Hito', j, lista.length)" (change)="fijarParte(f, lista, j, { tipo: 'sin-hito', clave: $any($event.target).value })">
+                                @if (!existeHito(p.clave)) { <option value="" selected disabled>Elige un hito (el anterior ya no está)</option> }
+                                @for (h of caso.hitos; track h.clave) { <option [value]="h.clave" [selected]="p.clave === h.clave">{{ h.nombre }}</option> }
+                              </select>
+                            }
+                            @case ('contraindicadas') {
+                              <select class="campo" [attr.aria-label]="etiqueta('Cuántas', j, lista.length)" (change)="fijarParte(f, lista, j, { tipo: 'contraindicadas', n: +$any($event.target).value })">
+                                @for (n of cantidades; track n) { <option [value]="n" [selected]="p.n === n">al menos {{ n }}</option> }
+                              </select>
+                            }
+                            @case ('riesgo') {
+                              <select class="campo" [attr.aria-label]="etiqueta('Cuántas', j, lista.length)" (change)="fijarParte(f, lista, j, { tipo: 'riesgo', n: +$any($event.target).value })">
+                                @for (n of cantidades; track n) { <option [value]="n" [selected]="p.n === n">al menos {{ n }}</option> }
+                              </select>
+                            }
+                            @case ('persona') {
+                              <select class="campo" [attr.aria-label]="etiqueta('Cómo termina el vínculo', j, lista.length)" (change)="cambiarPersona($event, f, lista, j, p, 'bond')">
+                                <option value="" [selected]="!p.bond">Cualquiera</option>
+                                @for (v of vinculos; track v.valor) { <option [value]="v.valor" [selected]="p.bond === v.valor">{{ v.nombre }}</option> }
+                              </select>
+                              <select class="campo" [attr.aria-label]="etiqueta('Cómo termina la activación', j, lista.length)" (change)="cambiarPersona($event, f, lista, j, p, 'activation')">
+                                <option value="" [selected]="!p.activation">Cualquiera</option>
+                                @for (v of activaciones; track v.valor) { <option [value]="v.valor" [selected]="p.activation === v.valor">{{ v.nombre }}</option> }
+                              </select>
+                            }
                           }
-                          @for (h of caso.hitos; track h.clave) {
-                            <option [value]="h.clave" [selected]="hitoDe(f.condicion) === h.clave">{{ h.nombre }}</option>
+                          @if (lista.length > 0) {
+                            <button type="button" class="boton cuadrado peligro" [attr.aria-label]="etiqueta('Quitar la condición', j, lista.length)" (click)="quitarParte(f, lista, j)">✕</button>
                           }
-                        </select>
+                        </div>
                       }
-                      @case ('contraindicadas') {
-                        <select class="campo" aria-label="Cuántas" (change)="fijar(f, { count: 'contraindicated', gte: +$any($event.target).value })">
-                          @for (n of [1, 2, 3, 4, 5]; track n) {
-                            <option [value]="n" [selected]="cantidadDe(f.condicion) === n">{{ n }} o más</option>
-                          }
-                        </select>
+                      @if (lista.length > 0) {
+                        <button type="button" class="boton agregar-condicion" (click)="agregarParte(f, lista)">Agregar otra condición (y…)</button>
                       }
-                      @case ('riesgo') {
-                        <select class="campo" aria-label="Cuántas" (change)="fijar(f, { count: 'risky', gte: +$any($event.target).value })">
-                          @for (n of [1, 2, 3, 4, 5]; track n) {
-                            <option [value]="n" [selected]="cantidadDe(f.condicion) === n">{{ n }} o más</option>
-                          }
-                        </select>
+                      @if (f.condicion) {
+                        <p class="texto-secundario en-palabras">El estudiante {{ describir(f.condicion) }}.</p>
                       }
-                      @case ('otra') {
-                        <p class="texto-secundario">El estudiante {{ describir(f.condicion) }}. Esta condición se conserva como está.</p>
-                      }
+                    } @else {
+                      <p><strong>Una condición combinada</strong></p>
+                      <p class="texto-secundario en-palabras">El estudiante {{ describir(f.condicion) }}. Esta condición se conserva como está.</p>
                     }
                   </fieldset>
                 </li>
@@ -122,14 +162,38 @@ type TipoCondicion = 'hito' | 'contraindicadas' | 'riesgo' | 'ninguna' | 'otra';
             <button type="button" class="boton" id="agregar-final" (click)="agregarFinal()">Agregar un final</button>
           </section>
         } @else {
+          <fieldset class="tarjeta decisivos">
+            <legend>Hitos que deciden el final</legend>
+            <p class="texto-secundario">Marca los pasos que el estudiante tiene que dar sí o sí. Con ellos se arman los cuatro finales de abajo.</p>
+            @for (h of caso.hitos; track h.clave) {
+              <label class="casilla">
+                <input type="checkbox" [checked]="h.decisivo" (change)="store.editarHito(h.clave, { decisivo: $any($event.target).checked })" />
+                {{ h.nombre }}
+              </label>
+            } @empty {
+              <p class="texto-secundario">Este caso todavía no tiene hitos.</p>
+            }
+            @if (!hayDecisivos()) {
+              <p class="sin-decisivos" role="note">Sin hitos decisivos, los finales no dependen de los pasos del caso. Marca al menos un hito como decisivo.</p>
+            }
+          </fieldset>
+
           <section aria-labelledby="fa" class="bloque">
             <h2 id="fa">Los cuatro finales que se calculan solos</h2>
+            <p class="texto-secundario">Gana el primero de la lista que se cumple. Puedes reescribir el nombre y el texto de cada uno; cuándo llega lo deciden los hitos de arriba.</p>
             <ul class="lista">
-              @for (f of automaticos; track f.nombre; let i = $index) {
-                <li class="tarjeta">
+              @for (f of plantilla(); track f.id) {
+                <li class="tarjeta final-plantilla final" [id]="'final-' + f.id">
                   <strong>{{ f.nombre }}</strong>
-                  <p class="texto-secundario regla">{{ reglas[i] }}</p>
-                  <p>{{ f.texto }}</p>
+                  <p class="texto-secundario regla" [id]="'regla-' + f.id">{{ reglas()[f.id] }}</p>
+                  <p class="texto-secundario alcance">{{ alcance(f.id) }}</p>
+                  <label [for]="'pn-' + f.id" class="etiqueta">Nombre</label>
+                  <input [id]="'pn-' + f.id" type="text" class="campo" [value]="f.nombre" (change)="editarPlantilla(f.id, { nombre: $any($event.target).value })" />
+                  <label [for]="'pt-' + f.id" class="etiqueta">Lo que lee el estudiante al terminar</label>
+                  <textarea [id]="'pt-' + f.id" class="campo" rows="3" [value]="f.texto" (change)="editarPlantilla(f.id, { texto: $any($event.target).value })"></textarea>
+                  @if (editado(f.id)) {
+                    <button type="button" class="boton boton-texto restaurar" [id]="'restaurar-' + f.id" (click)="restaurar(f.id)">Volver al texto original</button>
+                  }
                 </li>
               }
             </ul>
@@ -160,6 +224,18 @@ type TipoCondicion = 'hito' | 'contraindicadas' | 'riesgo' | 'ninguna' | 'otra';
     .campo { min-height: 48px; padding: 8px 12px; font: inherit; font-size: var(--autoria-texto-16); border: 2px solid var(--borde-control); border-radius: var(--radio-control); background: var(--superficie); width: 100%; }
     select.campo { padding: 0 12px; width: auto; }
     .condicion { border: 0; padding: 0; margin: 6px 0 0; display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
+    .decisivos { display: flex; flex-direction: column; gap: 4px; border: 1px solid var(--linea); }
+    .decisivos legend { font-weight: 700; padding: 0 4px; }
+    .decisivos p { margin: 0; }
+    .casilla { display: inline-flex; align-items: center; gap: 8px; min-height: 48px; font-size: var(--autoria-texto-16); }
+    .casilla input { width: 20px; height: 20px; accent-color: var(--primario); }
+    .sin-decisivos { padding: 8px 12px; border-radius: var(--radio-control); background: var(--aviso-tinte); color: var(--aviso-texto); font-weight: 700; }
+    .final-plantilla { display: flex; flex-direction: column; gap: 6px; }
+    .frase { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; width: 100%; }
+    .frase .y { font-weight: 700; }
+    .frase .campo { max-width: 100%; }
+    .en-palabras { margin: 0; width: 100%; }
+    .restaurar { align-self: flex-start; }
     .condicion legend { font-weight: 700; font-size: var(--autoria-texto-16); margin-bottom: 4px; }
     .lista li p { margin: 4px 0 0; }
     .regla { font-size: var(--autoria-texto-16); }
@@ -169,13 +245,22 @@ export class FinalesComponent {
   protected readonly rutas = inject(RutasAutoria);
   protected readonly store = inject(CasoStore);
   protected readonly anuncio = signal('');
-  protected readonly automaticos = ORDEN_AUTOMATICOS.map((id) => FINALES_AUTOMATICOS[id]);
-  protected readonly reglas = [
-    'Cuando elige 2 o más respuestas contraindicadas, o una contraindicada sin haber cumplido todos los hitos decisivos.',
-    'Cuando cumple todos los hitos decisivos, no elige respuestas contraindicadas y elige a lo más una con riesgo.',
-    'Cuando le falta algún hito decisivo, o elige 3 o más respuestas con riesgo.',
-    'En cualquier otro caso.',
-  ];
+  protected readonly tipos = TIPOS_DE_FRASE;
+  protected readonly cantidades = [1, 2, 3, 4, 5];
+  protected readonly vinculos = Object.entries(VINCULO_EN_PALABRAS).map(([valor, nombre]) => ({ valor, nombre }));
+  protected readonly activaciones = Object.entries(ACTIVACION_EN_PALABRAS).map(([valor, nombre]) => ({ valor, nombre }));
+
+  /** Los cuatro finales de plantilla como van a quedar: el texto del modelo o el que reescribió la docente, con la condición de ahora. */
+  protected readonly plantilla = computed(() => {
+    const caso = this.store.caso();
+    return caso ? finalesDePlantilla(caso).map((f) => ({ ...f, id: f.id as ClaveFinalPlantilla })) : [];
+  });
+  protected readonly reglas = computed(() => reglasDePlantilla(this.store.caso()?.hitos.filter((h) => h.decisivo) ?? []));
+  protected readonly hayDecisivos = computed(() => (this.store.caso()?.hitos ?? []).some((h) => h.decisivo));
+  private readonly alcanzados = computed(() => {
+    const caso = this.store.caso();
+    return caso ? finalesAlcanzados(caso) : { finales: {}, omitido: false };
+  });
 
   protected readonly estadoCaminos = computed(() => {
     const caso = this.store.caso();
@@ -215,44 +300,87 @@ export class FinalesComponent {
     });
   }
 
-  protected tipoDe(c: CondicionFinal | null): TipoCondicion {
-    if (c === null) return 'ninguna';
-    if ('milestone' in c) return 'hito';
-    if ('count' in c && Object.keys(c).length === 2 && c.gte !== undefined) {
-      if (c.count === 'contraindicated') return 'contraindicadas';
-      if (c.count === 'risky') return 'riesgo';
-    }
-    return 'otra';
+  protected alcance(id: string): string {
+    const { finales, omitido } = this.alcanzados();
+    if (omitido) return 'No se pudo comprobar: el caso tiene demasiados recorridos.';
+    return finales[id] ? 'Algún recorrido llega aquí.' : 'Ningún recorrido llega aquí con las respuestas de ahora.';
   }
 
-  protected hitoDe(c: CondicionFinal | null): string {
-    return c && 'milestone' in c ? c.milestone : '';
+  /** ¿La docente reescribió el nombre o el texto de este final de plantilla? */
+  protected editado(id: ClaveFinalPlantilla): boolean {
+    const e = this.store.caso()?.textosPlantilla?.[id];
+    return (!!e?.nombre?.trim() && e.nombre !== FINALES_AUTOMATICOS[id].nombre) || (!!e?.texto?.trim() && e.texto !== FINALES_AUTOMATICOS[id].texto);
   }
 
-  protected existeHito(c: CondicionFinal | null): boolean {
-    return !!this.store.caso()?.hitos.some((h) => h.clave === this.hitoDe(c));
+  protected editarPlantilla(id: ClaveFinalPlantilla, cambios: { nombre?: string; texto?: string }): void {
+    this.store.editarTextoPlantilla(id, cambios);
   }
 
-  protected cantidadDe(c: CondicionFinal | null): number {
-    return c && 'count' in c ? (c.gte ?? 1) : 1;
+  protected restaurar(id: ClaveFinalPlantilla): void {
+    this.store.restaurarTextoPlantilla(id);
+    this.anuncio.set('El final volvió al texto original.');
+    this.enfocarPrimero(`#pn-${id}`);
+  }
+
+  /** Las frases de la condición; `null` si el editor no sabe mostrarla en frases (se conserva como está). */
+  protected partes(c: CondicionFinal | null): ParteDeCondicion[] | null {
+    return partesDeCondicion(c);
+  }
+
+  /** «Hito», «Hito 2»…: con una sola frase el nombre va solo; con varias, numerado. */
+  protected etiqueta(base: string, indice: number, total: number): string {
+    return total > 1 ? `${base} ${indice + 1}` : base;
+  }
+
+  protected existeHito(clave: string): boolean {
+    return !!this.store.caso()?.hitos.some((h) => h.clave === clave);
   }
 
   protected describir(c: CondicionFinal | null): string {
     return describirCondicion(c, this.store.caso()?.hitos ?? []);
   }
 
-  protected cambiarTipo(f: Final, tipo: TipoCondicion): void {
-    const caso = this.store.caso()!;
-    if (tipo === 'otra') return;
-    const condicion: CondicionFinal | null =
-      tipo === 'hito' ? { milestone: (caso.hitos.find((h) => h.decisivo) ?? caso.hitos[0]).clave }
-      : tipo === 'contraindicadas' ? { count: 'contraindicated', gte: 1 }
-      : tipo === 'riesgo' ? { count: 'risky', gte: 1 }
-      : null;
-    this.fijar(f, condicion);
+  private guardar(f: Final, partes: ParteDeCondicion[]): void {
+    this.store.editarFinal(f.id, { condicion: condicionDePartes(partes) });
   }
 
-  protected fijar(f: Final, condicion: CondicionFinal | null): void {
-    this.store.editarFinal(f.id, { condicion });
+  /** Cambiar el tipo de una frase la reemplaza por una nueva de ese tipo; «Ninguna condición» quita todas. */
+  protected cambiarTipo(f: Final, partes: ParteDeCondicion[], indice: number, tipo: string): void {
+    if (tipo === 'ninguna') {
+      this.guardar(f, []);
+      return;
+    }
+    const caso = this.store.caso()!;
+    const nueva = parteNueva(tipo as TipoDeParte, caso.hitos);
+    if (!nueva) return;
+    // El primer hito decisivo es la mejor primera elección para «cumplió el hito».
+    const decisivo = caso.hitos.find((h) => h.decisivo);
+    if ((nueva.tipo === 'hito' || nueva.tipo === 'sin-hito') && decisivo) nueva.clave = decisivo.clave;
+    this.guardar(f, partes.length ? partes.map((p, j) => (j === indice ? nueva : p)) : [nueva]);
+  }
+
+  protected fijarParte(f: Final, partes: ParteDeCondicion[], indice: number, nueva: ParteDeCondicion): void {
+    this.guardar(f, partes.map((p, j) => (j === indice ? nueva : p)));
+  }
+
+  protected cambiarPersona(
+    evento: Event, f: Final, partes: ParteDeCondicion[], indice: number, actual: Extract<ParteDeCondicion, { tipo: 'persona' }>, eje: 'bond' | 'activation',
+  ): void {
+    const campo = evento.target as HTMLSelectElement;
+    const nueva = { ...actual, [eje]: campo.value || undefined } as Extract<ParteDeCondicion, { tipo: 'persona' }>;
+    if (!nueva.bond && !nueva.activation) {
+      campo.value = actual[eje] ?? ''; // una condición sobre la persona dice al menos una cosa
+      return;
+    }
+    this.fijarParte(f, partes, indice, nueva);
+  }
+
+  protected quitarParte(f: Final, partes: ParteDeCondicion[], indice: number): void {
+    this.guardar(f, partes.filter((_, j) => j !== indice));
+  }
+
+  /** La segunda frase nace como «no eligió ninguna contraindicada»: lo que más se pide junto a un hito cumplido. */
+  protected agregarParte(f: Final, partes: ParteDeCondicion[]): void {
+    this.guardar(f, [...partes, { tipo: 'ninguna-contraindicada' }]);
   }
 }

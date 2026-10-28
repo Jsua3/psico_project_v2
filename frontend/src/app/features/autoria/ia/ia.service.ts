@@ -35,6 +35,7 @@ export interface AccionGuia {
 export const MENSAJE_APAGADO = 'El asistente de IA no está disponible por ahora. Puedes seguir editando a mano: todo lo demás del editor funciona igual.';
 export const MENSAJE_SIN_CUPO = 'Llegaste al límite de ayuda de la IA. Puedes seguir editando a mano.';
 const MENSAJE_FALLO = 'La IA no respondió. Inténtalo de nuevo en un momento.';
+export const MENSAJE_SOLO_LECTURA = 'El caso está en revisión: no se puede cambiar.';
 const MENSAJE_RECHAZO = 'El asistente no pudo ayudar con esa petición. Prueba pidiéndolo con otras palabras.';
 
 const abandono = (senal?: AbortSignal): Promise<never> =>
@@ -88,6 +89,8 @@ export class IaService {
   async proponer(caso: CasoBorrador, peticion: string, contexto: ContextoIa, senal?: AbortSignal): Promise<RespuestaIa> {
     const cv = this.caseVersionId;
     if (cv === null) return { mensaje: MENSAJE_FALLO, cambios: [], invalida: false, error: true };
+    // Un caso en revisión no se cambia: ni se le pide nada al asistente (cada petición gasta cupo) ni se promete que se agregó algo.
+    if (this.store.soloLectura()) return { mensaje: MENSAJE_SOLO_LECTURA, cambios: [], invalida: false, error: true };
     // El servidor propone sobre lo que tiene guardado: primero que lo que se está escribiendo llegue.
     await this.store.sincronizado();
     // En el guion la selección es una escena del borrador: se nombra con el número que el servidor le dio. Si esa escena

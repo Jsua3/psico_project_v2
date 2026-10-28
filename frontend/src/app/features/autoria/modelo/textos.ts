@@ -1,4 +1,4 @@
-import type { ClaseRespuesta } from './caso';
+import type { ClaseRespuesta, IntensidadEscena } from './caso';
 import type { Encuadre, Expresion } from './escenario';
 
 /** Cómo se nombra un encuadre ante el docente (nunca la clave técnica). */
@@ -42,3 +42,6 @@ export const NOMBRE_EXPRESION: Record<Expresion, string> = {
 export const NOMBRE_CLASE: Record<ClaseRespuesta, string> = {
   RECOMMENDED: 'Recomendada', ACCEPTABLE: 'Aceptable', RISKY: 'Con riesgo', CONTRAINDICATED: 'Contraindicada',
 };
+
+/** Cómo se nombra la intensidad de una escena ante el docente. */
+export const NOMBRE_INTENSIDAD: Record<IntensidadEscena, string> = { LOW: 'Baja', MEDIUM: 'Media', HIGH: 'Alta' };

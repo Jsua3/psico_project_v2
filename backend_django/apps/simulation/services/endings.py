@@ -80,6 +80,24 @@ def build_template(rules: case_rules.CaseRules) -> tuple[Ending, ...]:
     return tuple(template)
 
 
+def stored_endings_are_template(rules: case_rules.CaseRules) -> bool:
+    """``True`` si los finales guardados son los cuatro de la plantilla, aunque el docente haya reescrito su título o su mensaje.
+
+    Lo son cuando sus claves, en orden, y sus ``when`` coinciden exactamente con los de ``build_template`` para los hitos
+    decisivos de ahora. El editor los guarda así cuando el docente solo reescribe los textos de la plantilla: para la
+    publicación siguen siendo la plantilla (un final inalcanzable es un aviso) y no finales propios. Sin finales guardados
+    no hay nada que reconocer: ``False``.
+    """
+    stored = tuple(rules.endings)
+    if not stored:
+        return False
+    template = build_template(rules)
+    return len(stored) == len(template) and all(
+        isinstance(mine, dict) and mine.get("key") == base["key"] and mine.get("when") == base.get("when")
+        for mine, base in zip(stored, template)
+    )
+
+
 def endings_of(rules: case_rules.CaseRules) -> tuple[Ending, ...]:
     """Los finales de la versión: los propios si declara alguno (ganan a la plantilla) y, si no, la plantilla."""
     return tuple(rules.endings) if rules.endings else build_template(rules)

@@ -4,6 +4,7 @@
  * `eval`, y todo lo desconocido o mal formado es «no se cumple».
  */
 import type { CondicionFinal, ConteoClase } from './caso';
+import { ACTIVACION_EN_PALABRAS, VINCULO_EN_PALABRAS } from './persona';
 
 export const CONTEOS: readonly ConteoClase[] = ['recommended', 'acceptable', 'risky', 'contraindicated'];
 const COMPARADORES = ['gte', 'gt', 'lte', 'lt', 'eq'] as const;
@@ -102,8 +103,6 @@ const CLASE_EN_PALABRAS: Record<ConteoClase, [string, string]> = {
   risky: ['con riesgo', 'con riesgo'],
   contraindicated: ['contraindicada', 'contraindicadas'],
 };
-const VINCULO_EN_PALABRAS: Record<string, string> = { WITHDRAWN: 'retraída', GUARDED: 'cautelosa', OPEN: 'abierta' };
-const ACTIVACION_EN_PALABRAS: Record<string, string> = { CALM: 'serena', TENSE: 'tensa', CRISIS: 'en crisis' };
 
 /** Una condición en palabras para el docente: «cumple “Valorar el riesgo” y elige al menos 2 respuestas contraindicadas». */
 export function describirCondicion(c: unknown, hitos: ReadonlyArray<{ clave: string; nombre: string }>): string {

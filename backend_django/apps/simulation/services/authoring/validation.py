@@ -143,7 +143,8 @@ def _publication_graph(version, nodes, decisions):
         endings=tuple(
             publication_rules.EndingNode(e["key"], e["title"], e.get("when")) for e in endings.endings_of(rules)
         ),
-        own_endings=bool(rules.endings),
+        # Los cuatro finales de plantilla con el texto reescrito siguen siendo la plantilla, no finales propios.
+        own_endings=bool(rules.endings) and not endings.stored_endings_are_template(rules),
         rubric_competencies=tuple(dict.fromkeys(competencies)),
     )
 

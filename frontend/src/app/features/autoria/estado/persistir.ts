@@ -8,11 +8,11 @@
  */
 import { HttpErrorResponse } from '@angular/common/http';
 
-import type { WorldDefinition, WorldRoomSaveRequest } from '../../../core/models/simulation.model';
+import type { ChecklistUpdateRequest, WorldDefinition, WorldRoomSaveRequest } from '../../../core/models/simulation.model';
 import type { CasoBorrador, Escena, Respuesta } from '../modelo/caso';
 import { arbolDeGuion } from '../modelo/desde-api';
 import {
-  claveLibre, cuerpoDecision, cuerpoGuion, cuerpoNodo, finalesAApi, hitosAApi, solicitudDeSala,
+  claveLibre, cuerpoDecision, cuerpoLista, cuerpoGuion, cuerpoNodo, finalesAApi, hitosAApi, solicitudDeSala,
 } from '../modelo/hacia-api';
 import type { SesionServidor } from './sesion-servidor';
 
@@ -291,4 +291,24 @@ export async function guardarRiesgo(s: SesionServidor, caso: CasoBorrador): Prom
 export async function guardarFinales(s: SesionServidor, caso: CasoBorrador): Promise<void> {
   const finales = finalesAApi(caso);
   if (!igual(s.vista.rules.endings, finales)) await s.guardarFinales(finales);
+}
+
+/**
+ * Hitos y finales juntos, en el orden que el servidor admite: no deja quitar un hito que la condición de un final guardado
+ * nombra (primero los finales), ni guardar un final que nombra un hito aún no declarado (primero los hitos). Solo los
+ * finales de plantilla dependen de los hitos decisivos; los propios se guardan por su lado.
+ */
+export async function guardarHitosYFinales(s: SesionServidor, caso: CasoBorrador, quitaHitos: boolean): Promise<void> {
+  const dependen = caso.modoFinales === 'automatico';
+  if (quitaHitos && dependen) await guardarFinales(s, caso);
+  await guardarHitos(s, caso);
+  if (!quitaHitos && dependen) await guardarFinales(s, caso);
+}
+
+/** Pone al día la lista de verificación; si el servidor ya la tiene así, no le dice nada (tampoco sube la revisión). */
+export async function guardarLista(s: SesionServidor, caso: CasoBorrador): Promise<void> {
+  if (!caso.lista) return;
+  const cuerpo = cuerpoLista(caso.lista) as unknown as Record<string, boolean>;
+  const igualALoGuardado = s.vista.checklist.items.length > 0 && s.vista.checklist.items.every((i) => cuerpo[i.code] === i.fulfilled);
+  if (!igualALoGuardado) await s.guardarLista(cuerpo as unknown as ChecklistUpdateRequest);
 }

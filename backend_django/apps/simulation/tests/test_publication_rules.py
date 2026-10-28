@@ -376,3 +376,61 @@ def test_a_clean_draft_still_goes_to_review(prof):
     cv = _draft_owned_by(prof)
 
     assert _post(cl(prof), cv, action="submit").status_code == 200
+
+
+# ─── los finales de plantilla guardados con el texto reescrito siguen siendo la plantilla ───────────────────────────
+def _con_finales_guardados(prof, cambios=None):
+    """Un borrador con un hito decisivo que nadie marca y los cuatro finales de plantilla guardados (con ``cambios`` por clave)."""
+    from types import SimpleNamespace
+
+    from apps.simulation.services import case_rules, endings
+
+    cv = _draft_owned_by(prof)
+    version = CaseVersion.objects.get(pk=cv)
+    declared = json.loads(version.rules)
+    declared["milestones"] = [*declared.get("milestones", []), {"key": "hito_huerfano", "label": "Hito huérfano", "decisive": True}]
+    plantilla = endings.build_template(case_rules.rules_of(SimpleNamespace(rules=json.dumps(declared))))
+    declared["endings"] = [{**dict(ending), **(cambios or {}).get(ending["key"], {})} for ending in plantilla]
+    CaseVersion.objects.filter(pk=cv).update(rules=json.dumps(declared))
+    return CaseVersion.objects.get(pk=cv)
+
+
+def _inalcanzables(version):
+    return [i for i in validation.publication_issues(version) if i["code"] == "ending-unreachable"]
+
+
+def test_a_template_ending_with_edited_text_that_no_path_reaches_is_only_a_warning(prof):
+    """El editor guarda los cuatro finales de plantilla al reescribir un texto: para publicar siguen siendo la plantilla."""
+    version = _con_finales_guardados(prof, {"protectora": {"title": "Cuidaste bien", "message": "Acompañaste bien a la persona."}})
+
+    found = _inalcanzables(version)
+
+    assert found, "con un hito decisivo que nadie marca, la protectora no se alcanza"
+    assert {i["severity"] for i in found} == {"warning"}
+    assert "protectora" in {i["endingKey"] for i in found}
+
+
+def test_endings_with_another_condition_are_own_endings_and_an_unreachable_one_is_an_error(prof):
+    version = _con_finales_guardados(prof, {"protectora": {"when": {"all": [{"milestone": "hito_huerfano"}, {"count": "contraindicated", "eq": 0}]}}})
+
+    found = _inalcanzables(version)
+
+    assert {(i["endingKey"], i["severity"]) for i in found} == {("protectora", "error")}
+
+
+def test_the_editor_still_saves_the_template_as_before(prof):
+    """Reescribir el texto de la plantilla guarda sus cuatro finales por la misma ruta de siempre."""
+    from apps.simulation.tests.test_case_lifecycle import AUTHORING
+
+    cv = _draft_owned_by(prof)
+    version = CaseVersion.objects.get(pk=cv)
+    from types import SimpleNamespace
+
+    from apps.simulation.services import case_rules, endings
+
+    plantilla = [dict(e) for e in endings.build_template(case_rules.rules_of(SimpleNamespace(rules=version.rules)))]
+    plantilla[1]["message"] = "Mi texto."
+    response = cl(prof).put(f"{AUTHORING}/{cv}/rules/endings", {"endings": plantilla}, format="json")
+
+    assert response.status_code == 200, response.data
+    assert [e["key"] for e in response.data["data"]["rules"]["endings"]] == ["critica", "protectora", "riesgo_persistente", "con_brechas"]

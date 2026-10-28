@@ -9,8 +9,10 @@ import { ACCIONES } from './guia/acciones';
 import { MENSAJE_APAGADO, MENSAJE_SIN_CUPO } from './ia/ia.service';
 import { MENSAJE_PROPUESTA_INVALIDA } from './ia/propuestas';
 import { NOMBRE_AVISO } from './modelo/caminos';
-import { FINALES_AUTOMATICOS } from './modelo/finales';
-import { ENCUADRE_LEGIBLE, NOMBRE_CLASE, NOMBRE_EXPRESION, TEMAS } from './modelo/textos';
+import { FINALES_AUTOMATICOS, reglasDePlantilla } from './modelo/finales';
+import { describirParte } from './modelo/partes-de-condicion';
+import { ACTIVACION_EN_PALABRAS, VINCULO_EN_PALABRAS, fraseDePaso } from './modelo/persona';
+import { ENCUADRE_LEGIBLE, NOMBRE_CLASE, NOMBRE_EXPRESION, NOMBRE_INTENSIDAD, TEMAS } from './modelo/textos';
 
 /**
  * La regla del diseño: el docente nunca lee jerga técnica («nodo», «DAG», «ID», «clave», «hex», «prompt»…).
@@ -73,6 +75,14 @@ describe('las palabras prohibidas no aparecen en ninguna plantilla', () => {
       ...Object.values(ENCUADRE_LEGIBLE), ...Object.values(NOMBRE_CLASE), ...Object.values(NOMBRE_EXPRESION),
       ...Object.values(NOMBRE_AVISO), ...TEMAS.map((t) => t.nombre),
       ...ACCIONES.flatMap((a) => [a.nombre, a.ayuda]),
+      // el modelo de métricas: intensidad, estado de la persona, reglas de los finales de plantilla y frases de las condiciones
+      ...Object.values(NOMBRE_INTENSIDAD), ...Object.values(VINCULO_EN_PALABRAS), ...Object.values(ACTIVACION_EN_PALABRAS),
+      fraseDePaso(1, -1), fraseDePaso(-1, 1), fraseDePaso(0, 0),
+      ...Object.values(reglasDePlantilla([{ nombre: 'Valorar el riesgo' }, { nombre: 'Informar derechos' }])), ...Object.values(reglasDePlantilla([])),
+      ...[
+        { tipo: 'hito', clave: 'a' }, { tipo: 'sin-hito', clave: 'a' }, { tipo: 'contraindicadas', n: 2 }, { tipo: 'ninguna-contraindicada' },
+        { tipo: 'riesgo', n: 3 }, { tipo: 'persona', bond: 'OPEN', activation: 'CALM' },
+      ].map((p) => describirParte(p as Parameters<typeof describirParte>[0], [{ clave: 'a', nombre: 'Valorar el riesgo' }])),
     ];
     expect(tablas.filter((t) => PROHIBIDAS.test(t))).toEqual([]);
   });
@@ -84,6 +94,9 @@ describe('las palabras prohibidas no aparecen en ninguna plantilla', () => {
   const ARCHIVOS_CON_MENSAJES = [
     'estado/caso.store.ts', 'estado/persistir.ts', 'ia/ia.service.ts', 'ia/propuestas.ts',
     'pantallas/salas/salas.component.ts', 'pantallas/lugar/lugar.component.ts', 'avisos-guardado.component.ts', 'autoria-shell.component.ts',
+    // el modelo de métricas: lo que dice la revisión, el estado de la persona, las frases de las condiciones y los avisos de las pantallas
+    'modelo/revision.ts', 'modelo/persona.ts', 'modelo/finales.ts', 'pantallas/revision/revision.component.ts',
+    'pantallas/editor/editor.component.ts', 'pantallas/probar/probar.component.ts',
   ];
 
   function literales(archivo: string): string[] {

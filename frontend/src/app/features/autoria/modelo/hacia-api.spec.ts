@@ -37,6 +37,20 @@ describe('reglas del caso: hitos, riesgo y finales', () => {
       expect(finalesAApi({ ...base, modoFinales: 'automatico' })).toEqual([]);
     });
 
+    it('en modo automático con un texto reescrito se mandan los cuatro de plantilla, con ese texto y la condición de los hitos decisivos', () => {
+      const lugar = casoCopiadoDeLugar(universidad, ['sala-espera', 'consultorio']);
+      const automatico = casoDesdeApi(lugar.editor, lugar.mundos, universidad);
+      const decisivos = automatico.hitos.filter((h) => h.decisivo).map((h) => h.clave);
+      expect(decisivos.length).toBeGreaterThan(0);
+      const enviados = finalesAApi({ ...automatico, textosPlantilla: { protectora: { texto: 'Acompañaste bien.' } } });
+      expect(enviados.map((f) => f.key)).toEqual(['critica', 'protectora', 'riesgo_persistente', 'con_brechas']);
+      expect(enviados[1]).toMatchObject({ title: 'Intervención protectora', message: 'Acompañaste bien.', tone: 'positive', aiSuggested: false });
+      expect(JSON.stringify(enviados[1].when)).toContain(decisivos[0]);
+      expect(enviados[3]).not.toHaveProperty('when');
+      // sin textos reescritos no se manda nada: el servidor usa los suyos
+      expect(finalesAApi({ ...automatico, textosPlantilla: {} })).toEqual([]);
+    });
+
     it('en modo propio se mandan los del docente, en orden, con su condición y su tono', () => {
       expect(finalesAApi({ ...base, modoFinales: 'propio' })).toEqual([
         { key: 'critica', title: 'Crítica', message: 'Pudo hacer daño.', tone: 'critical', when: { count: 'contraindicated', gte: 1 }, aiSuggested: false },

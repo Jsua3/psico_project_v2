@@ -6,7 +6,8 @@ import { ActivatedRoute, RouterLink } from '@angular/router';
 import { CasoStore } from '../../estado/caso.store';
 import { rutaRetrato } from '../../modelo/biblioteca.service';
 import type { Escena, Respuesta } from '../../modelo/caso';
-import { type Recorrido, evaluarFinal } from '../../modelo/finales';
+import { type Recorrido, contextoDeRecorrido, evaluarFinal } from '../../modelo/finales';
+import { ACTIVACION_EN_PALABRAS, VINCULO_EN_PALABRAS, fraseDeRespuesta } from '../../modelo/persona';
 import { NOMBRE_CLASE, NOMBRE_EXPRESION } from '../../modelo/textos';
 import { SalaVistaComponent } from '../sala/sala-vista.component';
 import { RutasAutoria } from '../../rutas';
@@ -22,7 +23,8 @@ const CLASIFICACION: Record<NonNullable<Respuesta['clase']> | 'sin-clasificar', 
 /**
  * Probar el caso como lo vería un estudiante (tablero 31): líneas una a una, respuestas sin
  * su clasificación, la retroalimentación al elegir y el final. Una columna «Solo en la
- * prueba» deja saltar a cualquier escena y ver el camino recorrido.
+ * prueba» (la vista de autora) deja saltar a cualquier escena, ver el camino recorrido, cómo está la persona en palabras
+ * y qué hitos se van cumpliendo, sin cifras. El estudiante real nunca ve esa columna.
  */
 @Component({
   selector: 'app-probar',
@@ -59,8 +61,6 @@ const CLASIFICACION: Record<NonNullable<Respuesta['clase']> | 'sin-clasificar', 
                 <div role="group" aria-label="Resultado de la respuesta" class="resultado" tabindex="-1" #enfoque>
                   <p>Elegiste:</p>
                   <p><strong>«{{ r.texto || 'Respuesta sin escribir' }}»</strong></p>
-                  <p><span class="pildora" [class]="'pildora ' + clasificacion[r.clase ?? 'sin-clasificar'].clase">
-                    <span aria-hidden="true">{{ clasificacion[r.clase ?? 'sin-clasificar'].simbolo }}</span> {{ clasificacion[r.clase ?? 'sin-clasificar'].nombre }}</span></p>
                   <p>{{ r.retroalimentacion || 'El docente todavía no escribió qué se lee después de esta respuesta.' }}</p>
                   @if (sinDestino()) {
                     <p class="aviso" role="status">Esta respuesta aún no lleva a ninguna escena. En el caso real, el estudiante se quedaría aquí.</p>
@@ -123,6 +123,26 @@ const CLASIFICACION: Record<NonNullable<Respuesta['clase']> | 'sin-clasificar', 
             <p class="etiqueta">Camino recorrido</p>
             <p>{{ caminoTexto() }}</p>
             <button type="button" class="boton" (click)="reiniciar()">Empezar de nuevo</button>
+
+            <h3 class="subtitulo">Cómo va la persona</h3>
+            <p class="persona-ahora" role="status">La persona se muestra {{ vistaDeAutora().persona }}.</p>
+            @if (resultado(); as r) {
+              <p class="ultima">
+                <span class="pildora" [class]="'pildora ' + clasificacion[r.clase ?? 'sin-clasificar'].clase">
+                  <span aria-hidden="true">{{ clasificacion[r.clase ?? 'sin-clasificar'].simbolo }}</span> {{ clasificacion[r.clase ?? 'sin-clasificar'].nombre }}</span>
+                @if (fraseDeLaUltima(r); as frase) { Con esa respuesta, la persona {{ frase }}. }
+              </p>
+            }
+            <h3 class="subtitulo">Hitos del caso</h3>
+            <ul class="hitos-prueba">
+              @for (h of vistaDeAutora().hitos; track h.clave) {
+                <li class="hito-prueba" [class.cumplido]="h.cumplido">
+                  <span aria-hidden="true">{{ h.cumplido ? '✓' : '○' }}</span> {{ h.nombre }} · {{ h.cumplido ? 'cumplido' : 'sin cumplir' }}
+                </li>
+              } @empty {
+                <li class="texto-secundario">Este caso todavía no tiene hitos.</li>
+              }
+            </ul>
           </aside>
         </div>
       </div>
@@ -161,6 +181,9 @@ const CLASIFICACION: Record<NonNullable<Respuesta['clase']> | 'sin-clasificar', 
     .lateral p { margin: 0; font-size: var(--autoria-texto-16); }
     .lateral .boton { align-self: flex-start; }
     .etiqueta { font-weight: 700; font-size: var(--autoria-texto-16); }
+    .subtitulo { margin: 8px 0 0; font-size: var(--autoria-texto-16); line-height: 24px; }
+    .hitos-prueba { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 4px; font-size: var(--autoria-texto-16); }
+    .hito-prueba.cumplido { color: var(--adecuada); font-weight: 700; }
     .fila { display: flex; gap: 8px; }
     .campo { flex: 1; min-width: 0; min-height: 48px; padding: 0 12px; font: inherit; font-size: var(--autoria-texto-16); border: 2px solid var(--borde-control); border-radius: var(--radio-control); background: var(--superficie); }
   `,
@@ -202,6 +225,26 @@ export class ProbarComponent {
     const ids = [...this.recorrido().map((p) => p.escenaId), ...(this.actualId() ? [this.actualId()!] : [])];
     return ids.length ? `Escenas ${ids.map((id) => caso.escenas.findIndex((e) => e.id === id) + 1).join(' → ')}` : 'Todavía nada.';
   });
+
+  /**
+   * Lo que solo ve la autora: cómo está la persona (en palabras) y qué hitos se cumplieron, contando la respuesta que está a la vista
+   * aunque aún no se haya pulsado «Continuar». Nunca una cifra.
+   */
+  protected readonly vistaDeAutora = computed(() => {
+    const caso = this.store.caso();
+    if (!caso) return { persona: '', hitos: [] as { clave: string; nombre: string; cumplido: boolean }[] };
+    const porId = new Map(caso.escenas.flatMap((e) => e.respuestas.map((r) => [r.id, r] as const)));
+    const elegidas = [...this.recorrido().map((p) => porId.get(p.respuestaId)), this.resultado() ?? undefined].filter((r): r is Respuesta => !!r);
+    const ctx = contextoDeRecorrido(elegidas);
+    return {
+      persona: `${VINCULO_EN_PALABRAS[ctx.persona.bond]} y ${ACTIVACION_EN_PALABRAS[ctx.persona.activation]}`,
+      hitos: caso.hitos.map((h) => ({ clave: h.clave, nombre: h.nombre, cumplido: ctx.hitos.has(h.clave) })),
+    };
+  });
+
+  protected fraseDeLaUltima(r: Respuesta): string | null {
+    return fraseDeRespuesta(r);
+  }
 
   constructor() {
     this.reiniciar(this.desde);

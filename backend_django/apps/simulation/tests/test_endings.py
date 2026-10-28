@@ -255,3 +255,53 @@ def test_una_condicion_rota_dentro_de_not_tampoco_se_vuelve_verdadera(monkeypatc
     ]
 
     assert _play(monkeypatch, rules=_rules(endings=own))["key"] == "por_defecto"
+
+
+# ─── los finales de plantilla guardados con el texto reescrito siguen siendo la plantilla ───────────────────────────
+def _leer(rules):
+    return case_rules.rules_of(SimpleNamespace(rules=json.dumps(rules)))
+
+
+def _guardados(rules, **cambios):
+    """Los cuatro finales de plantilla tal como los guarda el editor, con los cambios por clave (p. ej. ``protectora={...}``)."""
+    base = [dict(ending) for ending in endings.build_template(_leer(rules))]
+    return [{**ending, **cambios.get(ending["key"], {})} for ending in base]
+
+
+def test_los_finales_de_plantilla_con_texto_reescrito_se_reconocen_como_plantilla():
+    rules = _rules(endings=_guardados(_rules(), protectora={"title": "Cuidaste bien", "message": "Mi texto."}))
+
+    assert endings.stored_endings_are_template(_leer(rules)) is True
+
+
+def test_sin_finales_guardados_no_hay_plantilla_que_reconocer():
+    assert endings.stored_endings_are_template(_leer(_rules())) is False
+
+
+@pytest.mark.parametrize(
+    "cambio",
+    [
+        {"protectora": {"when": {"count": "risky", "lte": 7}}},  # otra condición
+        {"con_brechas": {"when": {"count": "risky", "gte": 1}}},  # el de por defecto con condición
+        {"critica": {"key": "otra_clave"}},  # otra clave
+    ],
+)
+def test_otra_condicion_o_otra_clave_son_finales_propios(cambio):
+    rules = _rules(endings=_guardados(_rules(), **cambio))
+
+    assert endings.stored_endings_are_template(_leer(rules)) is False
+
+
+def test_menos_de_cuatro_finales_o_en_otro_orden_son_propios():
+    cuatro = _guardados(_rules())
+
+    assert endings.stored_endings_are_template(_leer(_rules(endings=cuatro[:3]))) is False
+    assert endings.stored_endings_are_template(_leer(_rules(endings=[cuatro[1], cuatro[0], *cuatro[2:]]))) is False
+
+
+def test_la_condicion_debe_seguir_a_los_hitos_decisivos_de_ahora():
+    """Si el docente cambia qué hitos son decisivos y los finales guardados no se regeneraron, ya no son la plantilla."""
+    guardados = _guardados(_rules())
+    otros = [{**m, "decisive": not m["decisive"]} for m in MILESTONES]
+
+    assert endings.stored_endings_are_template(_leer({"milestones": otros, "endings": guardados})) is False

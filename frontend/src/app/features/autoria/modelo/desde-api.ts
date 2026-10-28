@@ -16,8 +16,10 @@ import type {
   CasoBorrador, ColocacionCaso, ColocacionPersonajeCaso, EfectosRespuesta, Escena, Final, Hito, Linea, PuertaCaso,
   Respuesta, SalaCaso,
 } from './caso';
+import { competenciasDeRubricas } from './efectos';
 import type { Encuadre, Escenario, Mirando } from './escenario';
 import { EXPRESIONES } from './escenario';
+import { textosDeLaPlantillaGuardada } from './finales';
 
 /** La clave con la que se guarda el guion de una escena: el diálogo de la sala que no es de ninguna persona. */
 export const PREFIJO_GUION = 'guion-';
@@ -167,6 +169,23 @@ function finalDesdeApi(e: EndingRule): Final {
   };
 }
 
+/** La lista de verificación como la lee el docente. */
+function listaDesdeApi(lista: CaseEditorView['checklist'] | undefined): NonNullable<CasoBorrador['lista']> {
+  return {
+    items: (lista?.items ?? []).map((i) => ({
+      codigo: i.code, texto: i.label, obligatorio: i.required, cumplido: i.fulfilled, enBorrador: i.draft,
+      respaldo: i.backingLabel ?? null, respaldado: i.backed ?? null,
+    })),
+    constanciaRegistrada: lista?.contentReview?.fulfilled === true,
+  };
+}
+
+const ESTADOS = ['DRAFT', 'IN_REVIEW', 'PUBLISHED', 'ARCHIVED'] as const;
+/** El estado del caso en el servidor; un valor que no se conoce se trata como borrador (el servidor decide al guardar). */
+function estadoDe(valor: string): NonNullable<CasoBorrador['estado']> {
+  return (ESTADOS as readonly string[]).includes(valor) ? (valor as NonNullable<CasoBorrador['estado']>) : 'DRAFT';
+}
+
 function hitoDesdeApi(h: CaseEditorView['rules']['milestones'][number]): Hito {
   return { clave: h.key, nombre: h.label, descripcion: h.description, decisivo: h.decisive };
 }
@@ -215,12 +234,20 @@ export function casoDesdeApi(editor: CaseEditorView, mundos: WorldDefinition[], 
     return c.portraitKey || texto(enMapa?.metadata?.['recipeId']) || lugar?.personajes.find((p) => p.id === c.key)?.recipeId || '';
   };
 
+  const hitos = editor.rules.milestones.map(hitoDesdeApi);
+  const guardados = editor.rules.endings.map(finalDesdeApi);
+  // Los cuatro finales de plantilla guardados (porque el docente reescribió alguno) siguen siendo el modo automático.
+  const textosPlantilla = guardados.length > 0 ? textosDeLaPlantillaGuardada(guardados, hitos) : null;
   return {
     id: String(editor.caseVersionId), revision: editor.revision, titulo: editor.title, lugarId, salas, escenas,
     inicioId: inicio ? String(inicio.id) : null,
-    hitos: editor.rules.milestones.map(hitoDesdeApi), nivelRiesgo: editor.rules.riskLevel,
-    modoFinales: editor.rules.endings.length > 0 ? 'propio' : 'automatico',
-    finales: editor.rules.endings.map(finalDesdeApi),
+    hitos, nivelRiesgo: editor.rules.riskLevel,
+    modoFinales: guardados.length > 0 && !textosPlantilla ? 'propio' : 'automatico',
+    finales: textosPlantilla ? [] : guardados,
+    ...(textosPlantilla ? { textosPlantilla } : {}),
+    competencias: competenciasDeRubricas(editor.rubrics ?? []),
+    estado: estadoDe(editor.status),
+    lista: listaDesdeApi(editor.checklist),
     personajes: editor.characters.map((c) => ({ id: c.key, nombre: c.displayName, rol: c.roleLabel, recipeId: recetaDe(c) })),
     catalogo: structuredClone(catalogo),
   };

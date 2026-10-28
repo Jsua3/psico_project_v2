@@ -3,7 +3,8 @@ import { Router, RouterLink } from '@angular/router';
 
 import { CasoStore } from '../../estado/caso.store';
 import { revisarCaminos, type Aviso } from '../../modelo/caminos';
-import type { Escena } from '../../modelo/caso';
+import type { Escena, Hito } from '../../modelo/caso';
+import { dondeSeCumple, hitosInalcanzables } from '../../modelo/hitos';
 import { plural } from '../../modelo/textos';
 import { type AccionEscena, MapaEscenasComponent } from './mapa-escenas.component';
 import { RutasAutoria } from '../../rutas';
@@ -67,9 +68,16 @@ import { RutasAutoria } from '../../rutas';
             </section>
 
             <section aria-labelledby="av" class="tarjeta avisos" data-accion="revisar-caminos">
-              <h2 id="av">Avisos ({{ avisos().length }})</h2>
-              @if (avisos().length) {
+              <h2 id="av">Avisos ({{ avisos().length + hitosSinCumplir().length }})</h2>
+              @if (avisos().length || hitosSinCumplir().length) {
                 <ul>
+                  @for (h of hitosSinCumplir(); track h.clave) {
+                    <li>
+                      <span class="pildora aviso">Por resolver</span>
+                      <p>{{ avisoDeHito(h) }}</p>
+                      <button type="button" class="boton" [attr.aria-label]="'Llévame ahí: hito ' + h.nombre" (click)="llevarAHito(h)">Llévame ahí</button>
+                    </li>
+                  }
                   @for (a of avisos(); track $index) {
                     <li>
                       <span class="pildora aviso">Por resolver</span>
@@ -87,6 +95,41 @@ import { RutasAutoria } from '../../rutas';
                 </ul>
               } @else {
                 <p>Sin avisos: todos los caminos llegan a un final.</p>
+              }
+            </section>
+
+            <section aria-labelledby="hc" class="tarjeta hitos-del-caso" data-accion="hitos-del-caso">
+              <h2 id="hc">Hitos del caso</h2>
+              <p class="texto-secundario">
+                Los pasos profesionales que entrena el caso. Los marcas en cada respuesta, desde el guion. Cuáles deciden el final se elige en
+                <a class="boton boton-texto" [routerLink]="rutas.a('/editor/finales')">Finales</a>.
+              </p>
+              @if (hitosDelCaso().length) {
+                <ul class="lista-hitos">
+                  @for (fila of hitosDelCaso(); track fila.hito.clave) {
+                    <li class="hito" [id]="'hito-' + fila.hito.clave" tabindex="-1">
+                      <strong>{{ fila.hito.nombre }}</strong>
+                      @if (fila.hito.decisivo) { <span class="pildora pildora-primaria">Decide el final</span> }
+                      @if (fila.hito.descripcion) { <span class="texto-secundario">{{ fila.hito.descripcion }}</span> }
+                      @if (fila.donde.length) {
+                        <span>Se cumple en:</span>
+                        <ul class="donde">
+                          @for (d of fila.donde; track d.respuestaId) {
+                            <li><a class="boton boton-texto" [routerLink]="rutas.a('/editor/escena', d.escenaId)">{{ d.escenaTitulo }}: «{{ d.respuestaTexto || 'respuesta sin escribir' }}»</a></li>
+                          }
+                        </ul>
+                      } @else {
+                        <span class="texto-secundario">Ninguna respuesta lo marca todavía.</span>
+                      }
+                      @if (fila.inalcanzable) {
+                        <p class="aviso-hito" role="note">{{ avisoDeHito(fila.hito) }}</p>
+                        <button type="button" class="boton" [attr.aria-label]="'Llévame ahí: hito ' + fila.hito.nombre" (click)="llevarAHito(fila.hito)">Llévame ahí</button>
+                      }
+                    </li>
+                  }
+                </ul>
+              } @else {
+                <p>Este caso todavía no tiene hitos.</p>
               }
             </section>
           </aside>
@@ -148,6 +191,10 @@ import { RutasAutoria } from '../../rutas';
     .avisos ul { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 12px; }
     .avisos li { display: flex; flex-direction: column; gap: 6px; align-items: flex-start; }
     .avisos li p { font-size: var(--autoria-texto-16); line-height: 24px; }
+    .lista-hitos { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 12px; }
+    .hito { display: flex; flex-direction: column; gap: 4px; align-items: flex-start; font-size: var(--autoria-texto-16); line-height: 24px; }
+    .hito .donde { margin: 0; padding-left: 20px; }
+    .aviso-hito { color: var(--aviso-texto); font-weight: 700; }
     .aviso { border-color: var(--aviso); color: var(--aviso-texto); background: var(--aviso-tinte); }
     .dialogo { display: flex; flex-direction: column; gap: 12px; max-width: 640px; border: 2px solid var(--primario); }
     .dialogo.peligro { border-color: var(--peligro); }
@@ -178,6 +225,15 @@ export class EditorComponent {
     const caso = this.store.caso();
     return caso ? revisarCaminos(caso) : [];
   });
+
+  /** Cada hito del caso con las respuestas que lo cumplen y si nadie podría cumplirlo. */
+  protected readonly hitosDelCaso = computed(() => {
+    const caso = this.store.caso();
+    if (!caso) return [];
+    const inalcanzables = new Set(hitosInalcanzables(caso).map((h) => h.clave));
+    return caso.hitos.map((hito) => ({ hito, donde: dondeSeCumple(caso, hito.clave), inalcanzable: inalcanzables.has(hito.clave) }));
+  });
+  protected readonly hitosSinCumplir = computed(() => this.hitosDelCaso().filter((f) => f.inalcanzable).map((f) => f.hito));
 
   protected readonly escenaElegida = computed(() => this.store.caso()?.escenas.find((e) => e.id === this.elegida()) ?? null);
 
@@ -247,6 +303,19 @@ export class EditorComponent {
   }
 
   protected readonly plural = plural;
+
+  protected avisoDeHito(h: Hito): string {
+    return `El hito «${h.nombre}» no se puede cumplir: ninguna respuesta lo marca.`;
+  }
+
+  /** Lleva al guion donde se marca: el de la escena elegida o, si no hay, el de la primera con respuestas. */
+  protected llevarAHito(h: Hito): void {
+    const caso = this.store.caso();
+    if (!caso) return;
+    const destino = this.escenaElegida()?.respuestas.length ? this.escenaElegida() : caso.escenas.find((e) => e.respuestas.length) ?? caso.escenas[0];
+    if (destino) void this.router.navigateByUrl(this.rutas.a('/editor/escena', destino.id));
+    this.anuncio.set(`Para cumplir «${h.nombre}», marca el hito en una respuesta del guion.`);
+  }
 
   protected marcarFinalDesdeAviso(id: string): void {
     this.store.marcarFinal(id, true);

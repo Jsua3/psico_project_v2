@@ -12,7 +12,7 @@ import { Observable, of, throwError } from 'rxjs';
 import type { AuthoringApi } from '../../../core/api/authoring.api';
 import type { AssistantProposeBody } from '../../../core/api/generated/openapi-contracts';
 import type {
-  CaseEditorView, CharacterUpsertRequest, DecisionOptionUpsertRequest, DialogueUpsertRequest, EndingRule, MapUpsertRequest,
+  CaseEditorView, CaseLifecycle, ChecklistUpdateRequest, CaseTransitionRequest, CaseValidation, CharacterUpsertRequest, ValidationIssue, DecisionOptionUpsertRequest, DialogueUpsertRequest, EndingRule, MapUpsertRequest,
   Milestone, NodeUpsertRequest, RiskLevel, WorldDefinition, WorldDialogueTree, WorldRoomSaveRequest,
 } from '../../../core/models/simulation.model';
 import type { Escenario } from '../modelo/escenario';
@@ -37,8 +37,23 @@ function conflicto409(revision: number, current: CaseEditorView): HttpErrorRespo
   });
 }
 
+/** Las claves de hito que nombra una condición (`all`, `any`, `not`, `milestone`). */
+function hitosDe(condicion: unknown): string[] {
+  if (typeof condicion !== 'object' || condicion === null) return [];
+  const c = condicion as Record<string, unknown>;
+  const hijos = [...(Array.isArray(c['all']) ? c['all'] : []), ...(Array.isArray(c['any']) ? c['any'] : []), ...(c['not'] ? [c['not']] : [])];
+  return [...(typeof c['milestone'] === 'string' ? [c['milestone']] : []), ...hijos.flatMap(hitosDe)];
+}
+
+const rechazo = (campo: string, mensaje: string) =>
+  new HttpErrorResponse({ status: 400, error: { success: false, code: 'VALIDATION_ERROR', message: mensaje, field: campo } });
+
 export class ServidorFalso {
   readonly llamadas: Llamada[] = [];
+  /** Lo que la validación del caso (`validateCase`) devuelve. */
+  hallazgos: ValidationIssue[] = [];
+  /** Lo que impide enviar a revisión: el 409 de la transición trae estos bloqueos. */
+  bloqueos: Array<{ code: string; message: string; issues?: ValidationIssue[] }> = [];
   readonly editor: CaseEditorView;
   readonly mundos = new Map<number, WorldDefinition>();
   /** Errores que un método devuelve: tras dejar pasar `saltar` llamadas, falla `veces` veces. */
@@ -235,6 +250,12 @@ export class ServidorFalso {
 
     updateMilestones: (cv: number, milestones: Milestone[], revision?: number) =>
       this.escribir('updateMilestones', revision, [milestones], () => {
+        // Como el servidor: no deja quitar un hito que la condición de un final guardado todavía nombra.
+        const quedan = new Set(milestones.map((m) => m.key));
+        for (const quitado of this.editor.rules.milestones.filter((m) => !quedan.has(m.key))) {
+          const final = this.editor.rules.endings.find((e) => hitosDe(e.when).includes(quitado.key));
+          if (final) throw rechazo('milestones', `El hito «${quitado.key}» no se puede quitar: la condición del final «${final.key}» lo nombra.`);
+        }
         this.editor.rules.milestones = clonar(milestones);
       }),
     updateRisk: (cv: number, riskLevel: RiskLevel | null, revision?: number) =>
@@ -243,8 +264,50 @@ export class ServidorFalso {
       }),
     updateEndings: (cv: number, endings: EndingRule[], revision?: number) =>
       this.escribir('updateEndings', revision, [endings], () => {
+        // Como el servidor: la condición de un final no puede nombrar un hito que el caso no declara.
+        const declarados = new Set(this.editor.rules.milestones.map((m) => m.key));
+        for (const final of endings) {
+          const falta = hitosDe(final.when).find((h) => !declarados.has(h));
+          if (falta) throw rechazo('endings', `La condición del final «${final.key}» nombra el hito «${falta}», que el caso no declara.`);
+        }
         this.editor.rules.endings = clonar(endings);
       }),
+
+    updateChecklist: (cv: number, cuerpo: ChecklistUpdateRequest, revision?: number) =>
+      this.escribir('updateChecklist', revision, [cuerpo], () => {
+        const marcados = cuerpo as unknown as Record<string, boolean>;
+        for (const item of this.editor.checklist.items) item.fulfilled = marcados[item.code] === true;
+        const obligatorios = this.editor.checklist.items.filter((i) => i.required);
+        this.editor.checklistCompletion = obligatorios.length ? Math.round((100 * obligatorios.filter((i) => i.fulfilled).length) / obligatorios.length) : 0;
+      }),
+
+    validateCase: (cv: number) => {
+      const error = this.entrar('validateCase', undefined, [cv]);
+      if (error) return throwError(() => error);
+      const issues = clonar(this.hallazgos);
+      const resultado: CaseValidation = { issues, canPublish: !issues.some((i) => i.severity === 'error') };
+      return of(resultado);
+    },
+    lifecycle: (cv: number) => {
+      const error = this.entrar('lifecycle', undefined, [cv]);
+      return error ? throwError(() => error) : of(this.ciclo());
+    },
+    transitionCase: (cv: number, cuerpo: CaseTransitionRequest, revision?: number) => {
+      const error = this.entrar('transitionCase', revision, [cuerpo]);
+      if (error) return throwError(() => error);
+      if (this.editor.status !== 'DRAFT') {
+        return throwError(() => new HttpErrorResponse({ status: 409, error: { success: false, code: 'INVALID_TRANSITION', message: 'No se puede.' } }));
+      }
+      const bloqueos = this.bloqueosEfectivos();
+      if (bloqueos.length) {
+        return throwError(() => new HttpErrorResponse({
+          status: 409, error: { success: false, code: 'CASE_NOT_PUBLISHABLE', message: bloqueos[0].message, blockers: clonar(bloqueos) },
+        }));
+      }
+      this.editor.status = 'IN_REVIEW';
+      this.editor.revision += 1;
+      return of(this.ciclo());
+    },
 
     acceptAiNode: (cv: number, id: number, revision?: number) =>
       this.escribir('acceptAiNode', revision, [id], () => {
@@ -287,6 +350,24 @@ export class ServidorFalso {
       return of({ enabled: true, mode: 'connected' as const, remainingToday: 10 });
     },
   };
+
+  private ciclo(): CaseLifecycle {
+    const estado = this.editor.status as CaseLifecycle['state'];
+    return {
+      caseVersionId: this.editor.caseVersionId, state: estado, allowedTransitions: estado === 'DRAFT' ? ['submit'] : [],
+      ...(estado === 'DRAFT' && this.bloqueosEfectivos().length
+        ? { blockedReason: { code: this.bloqueosEfectivos()[0].code, message: this.bloqueosEfectivos()[0].message } } : {}),
+    };
+  }
+
+  /** Lo que impide enviar: lo que la prueba puso y, si el caso trae su lista de verificación, que falte algún ítem obligatorio. */
+  private bloqueosEfectivos(): ServidorFalso['bloqueos'] {
+    const faltaLista = this.editor.checklist.items.some((i) => i.required && !i.fulfilled);
+    return [
+      ...(faltaLista ? [{ code: 'CHECKLIST_INCOMPLETE', message: 'El checklist ético y académico debe estar al 100% antes de enviar el caso a revisión.' }] : []),
+      ...this.bloqueos,
+    ];
+  }
 
   /** Lo que la prueba pasa como `AuthoringApi`. */
   get autoria(): AuthoringApi {

@@ -248,3 +248,22 @@ export function casoSinLugar(): CasoApi {
   };
   return { editor, mundos: [m1, m2, m3] };
 }
+
+/** Los siete ítems de la lista de verificación como los entrega el servidor (con quién respalda cada uno). */
+export function listaDelServidor(marcados: string[] = [], opciones: { constancia?: boolean } = {}): CaseEditorView['checklist'] {
+  const item = (code: string, label: string, required: boolean, backing: 'system' | 'constancia' | 'author', backingLabel: string, backed: boolean | null, draft = false) =>
+    ({ code, label, required, fulfilled: marcados.includes(code), draft, backing, backingLabel, backed });
+  return {
+    items: [
+      item('contentOriginal', 'Contenido original — sin copiar personajes, mapas ni narrativa comercial.', true, 'author', 'Declaración de quien autora el caso', null),
+      item('ethicsReviewed', 'Revisión ética — caso validado por experto o comité.', true, 'author', 'Declaración de quien autora el caso', null),
+      item('safetyProtocols', 'Protocolos de seguridad — ruta VBG, NNA y salida segura incluidos.', true, 'system', 'Lo comprueba el sistema', false),
+      item('noStigmatizing', 'Sin lenguaje estigmatizante ni estereotipos clínicos.', true, 'author', 'Declaración de quien autora el caso', null),
+      item('triggerWarnings', 'Advertencias de contenido sensible configuradas en nodos.', true, 'system', 'Lo comprueba el sistema', true),
+      item('accessibilityOk', 'Accesibilidad — fallback accesible y controles táctiles probados.', true, 'author', 'Declaración de quien autora el caso', null),
+      item('scopeEducational', 'El caso declara su alcance educativo: es un ejercicio formativo, no un diagnóstico ni una intervención clínica real.', false, 'author', 'Declaración de quien autora el caso', null, true),
+    ],
+    contentReview: opciones.constancia ? { fulfilled: true, reviewer: 'Psicología', reviewedOn: '2026-10-20', reference: 'ACTA-1' } : { fulfilled: false },
+    strict: false,
+  };
+}

@@ -736,6 +736,12 @@ export interface PublicationChecklistItem {
   fulfilled: boolean;
   /** Texto en borrador, pendiente de la validación de Psicología (decisión 17). */
   draft: boolean;
+  /** Quién lo respalda: `system`, `constancia` o `author` (S3-3). El contrato generado lo trae; aquí es opcional. */
+  backing?: 'system' | 'constancia' | 'author';
+  /** Si el dato que lo respalda existe ahora; `null` si es solo una declaración. */
+  backed?: boolean | null;
+  /** El respaldo en lenguaje llano, para mostrarlo tal cual. */
+  backingLabel?: string;
 }
 
 /** La lista de publicación del editor (E2-7): ítems del autor y la constancia de revisión de contenido (solo lectura). */
@@ -1182,6 +1188,12 @@ export interface ValidationIssue {
   message: string;
   nodeId?: number;
   mapId?: number;
+  /** Solo en las reglas de publicación del modelo de respuesta: qué elemento concreto señalan (la compuerta los manda aunque el contrato generado aún no los liste). */
+  sceneKey?: string;
+  optionKey?: string;
+  milestoneKey?: string;
+  endingKey?: string;
+  competencyCode?: string;
 }
 
 export interface CaseValidation {

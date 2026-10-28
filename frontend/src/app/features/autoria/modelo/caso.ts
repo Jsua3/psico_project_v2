@@ -40,6 +40,12 @@ export type IntensidadEscena = Intensity;
 export type NivelRiesgo = RiskLevel;
 
 /** Un hito del caso: un paso profesional que el estudiante debe dar. Los decisivos deciden el final. */
+/** Una competencia de la rúbrica del caso: su código (el de las respuestas) y su nombre. */
+export interface CompetenciaCaso {
+  codigo: string;
+  nombre: string;
+}
+
 export interface Hito {
   /** Letras, números y «_» (la biblioteca los trae con guiones; al copiarlos pasan a «_»). */
   clave: string;
@@ -144,6 +150,35 @@ export interface Final {
   marcaIa: boolean;
 }
 
+/** Las claves de los cuatro finales de plantilla, en el orden en que se evalúan. */
+export type ClaveFinalPlantilla = 'critica' | 'protectora' | 'riesgo_persistente' | 'con_brechas';
+
+/** Lo que el docente cambió del nombre o el texto de un final de plantilla; lo que no cambió sigue siendo el del modelo. */
+export type TextosPlantilla = Partial<Record<ClaveFinalPlantilla, { nombre?: string; texto?: string }>>;
+
+/** En qué estado está el caso en el servidor: solo un borrador se puede editar. */
+export type EstadoCaso = 'DRAFT' | 'IN_REVIEW' | 'PUBLISHED' | 'ARCHIVED';
+
+/** Un ítem de la lista de verificación ética y académica del caso: su texto y quién lo fija los pone el servidor. */
+export interface ItemLista {
+  codigo: string;
+  texto: string;
+  obligatorio: boolean;
+  cumplido: boolean;
+  /** El texto aún está pendiente de la validación de Psicología. */
+  enBorrador: boolean;
+  /** Quién lo respalda, en palabras («Lo comprueba el sistema», «Declaración de quien autora el caso»…); `null` si no se sabe. */
+  respaldo: string | null;
+  /** ¿Existe ya lo que respalda la casilla? `null` si es solo una declaración. */
+  respaldado: boolean | null;
+}
+
+export interface ListaVerificacion {
+  items: ItemLista[];
+  /** Psicología ya registró la constancia de la revisión de contenido (no es una casilla de la autora). */
+  constanciaRegistrada: boolean;
+}
+
 export interface CasoBorrador {
   id: string;
   /** La revisión del caso que se está viendo (viaja en cada cambio); 0 en un caso que aún no está en el servidor. */
@@ -159,6 +194,14 @@ export interface CasoBorrador {
   /** `automatico`: los cuatro finales del modelo; `propio`: los del docente (`finales`). */
   modoFinales: 'automatico' | 'propio';
   finales: Final[];
+  /** En modo automático, los textos de los cuatro finales de plantilla que el docente reescribió (sin cambios: el servidor usa los del modelo). */
+  textosPlantilla?: TextosPlantilla;
+  /** Las competencias de la rúbrica del caso, para marcar cuáles evidencia cada respuesta. */
+  competencias?: CompetenciaCaso[];
+  /** La lista de verificación ética y académica; ausente en un borrador que aún no está en el servidor. */
+  lista?: ListaVerificacion;
+  /** El estado del caso en el servidor; ausente en un borrador que aún no está allí. */
+  estado?: EstadoCaso;
   /** Personajes y catálogo del lugar, copiados al crear el caso (el caso no depende de la biblioteca). */
   personajes: Escenario['personajes'];
   catalogo: Escenario['catalogo'];

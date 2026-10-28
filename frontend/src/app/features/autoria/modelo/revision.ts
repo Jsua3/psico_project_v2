@@ -1,15 +1,119 @@
-import { revisarCaminos } from './caminos';
-import type { CasoBorrador } from './caso';
+import type { ValidationIssue } from '../../../core/models/simulation.model';
+import { revisarCaminos, type TipoAviso } from './caminos';
+import type { CasoBorrador, Escena } from './caso';
+import { competenciasMarcadas } from './efectos';
+import { escenasAlcanzables, hitosInalcanzables } from './hitos';
+import { evaluarCondicion, esCondicionValida, hitosDeCondicion } from './condiciones';
+import { contextosDeRecorridos } from './recorridos';
 
 export interface Falta {
   mensaje: string;
-  /** A dónde lleva «Llévame ahí»: una ruta y, si hace falta, la acción que muestra la guía. */
-  ir: { ruta: string; accionId?: string };
+  /** El código de la regla del modelo que la causa (el mismo que usa la compuerta del servidor); ausente en los avisos de caminos y de IA. */
+  codigo?: string;
+  /**
+   * A dónde lleva «Llévame ahí»: una ruta y, si hace falta, la acción que muestra la guía o el elemento concreto (`ancla`)
+   * al que va el foco al llegar: una respuesta, un hito, un final, el aviso de una escena…
+   */
+  ir: { ruta: string; accionId?: string; ancla?: string };
+}
+
+/** Las seis reglas de publicación del modelo, más las dos que cuelgan de los finales. */
+export const CODIGOS_DEL_MODELO = [
+  'scene-without-recommended', 'contraindicated-without-reason', 'milestone-unreachable', 'ending-unreachable',
+  'ending-without-default', 'competency-without-evidence', 'high-intensity-without-warning',
+] as const;
+
+const recorte = (texto: string, largo = 60): string => {
+  const limpio = texto.replace(/\s+/g, ' ').trim() || 'sin escribir';
+  return limpio.length <= largo ? limpio : `${limpio.slice(0, largo - 1)}…`;
+};
+
+const rutaDeEscena = (id: string | number) => `/editor/escena/${id}`;
+
+/** La primera respuesta del caso (escena y respuesta), donde se marcan las competencias. */
+function primeraRespuesta(caso: Pick<CasoBorrador, 'escenas'>): { escena: Escena; respuestaId: string } | null {
+  const escena = caso.escenas.find((e) => e.respuestas.length > 0);
+  return escena ? { escena, respuestaId: escena.respuestas[0].id } : null;
+}
+
+/** Las reglas del modelo de respuesta, comprobadas sobre el borrador: lo mismo que mide la compuerta al publicar. */
+function faltasDelModelo(caso: CasoBorrador): Falta[] {
+  const faltas: Falta[] = [];
+
+  for (const e of caso.escenas) {
+    const clasificadas = e.respuestas.length > 0 && e.respuestas.every((r) => r.clase);
+    if (!e.esFinal && clasificadas && !e.respuestas.some((r) => r.clase === 'RECOMMENDED')) {
+      faltas.push({
+        codigo: 'scene-without-recommended',
+        mensaje: `La escena «${e.titulo}» no tiene ninguna respuesta recomendada: marca al menos una como «Recomendada».`,
+        ir: { ruta: rutaDeEscena(e.id), ancla: 'respuestas-escena' },
+      });
+    }
+    for (const r of e.respuestas) {
+      if (r.clase === 'CONTRAINDICATED' && !r.razon.trim()) {
+        faltas.push({
+          codigo: 'contraindicated-without-reason',
+          mensaje: `La respuesta «${recorte(r.texto)}» de la escena «${e.titulo}» es contraindicada y no explica por qué: escribe el motivo de la prohibición.`,
+          ir: { ruta: rutaDeEscena(e.id), ancla: `respuesta-${r.id}` },
+        });
+      }
+    }
+    if (e.intensidad === 'HIGH' && !e.advertencia?.trim()) {
+      faltas.push({
+        codigo: 'high-intensity-without-warning',
+        mensaje: `La escena «${e.titulo}» es de intensidad alta y no tiene aviso para el estudiante: escríbelo antes de enviar.`,
+        ir: { ruta: rutaDeEscena(e.id), ancla: 'aviso-escena' },
+      });
+    }
+  }
+
+  for (const h of hitosInalcanzables(caso)) {
+    faltas.push({
+      codigo: 'milestone-unreachable',
+      mensaje: `El hito «${h.nombre}» no se puede cumplir: ninguna respuesta de las escenas a las que se llega desde el inicio lo marca.`,
+      ir: { ruta: '/editor', ancla: `hito-${h.clave}` },
+    });
+  }
+
+  faltas.push(...faltasDeFinales(caso));
+  return faltas;
+}
+
+/** Finales propios que ningún recorrido cumple, o sin uno que valga para todos. (Los de plantilla solo avisan en el servidor.) */
+function faltasDeFinales(caso: CasoBorrador): Falta[] {
+  if (caso.modoFinales !== 'propio' || caso.finales.length === 0) return [];
+  const declarados = new Set(caso.hitos.map((h) => h.clave));
+  // Si un final nombra un hito que ya no existe, eso es lo que hay que arreglar primero (ya tiene su aviso).
+  if (caso.finales.some((f) => hitosDeCondicion(f.condicion).some((h) => !declarados.has(h)))) return [];
+  const { contextos, omitido } = contextosDeRecorridos(caso);
+  if (omitido || contextos.length === 0) return [];
+  const faltas: Falta[] = [];
+  for (const f of caso.finales) {
+    if (f.condicion === null || !esCondicionValida(f.condicion)) continue;
+    if (!contextos.some((ctx) => evaluarCondicion(f.condicion, ctx))) {
+      faltas.push({
+        codigo: 'ending-unreachable',
+        mensaje: `El final «${f.nombre}» no se puede alcanzar: ningún recorrido completo cumple su condición.`,
+        ir: { ruta: '/editor/finales', ancla: `final-${f.id}` },
+      });
+    }
+  }
+  const sinPorDefecto = !caso.finales.some((f) => f.condicion === null);
+  if (sinPorDefecto && caso.finales.every((f) => esCondicionValida(f.condicion))
+    && contextos.some((ctx) => !caso.finales.some((f) => evaluarCondicion(f.condicion, ctx)))) {
+    faltas.push({
+      codigo: 'ending-without-default',
+      mensaje: 'Ningún final del caso aplica a todos los recorridos: agrega un final sin condición para el resto.',
+      ir: { ruta: '/editor/finales', accionId: 'definir-finales' },
+    });
+  }
+  return faltas;
 }
 
 /**
- * ¿Se puede enviar el caso a Psicología? Lo bloquean los avisos de caminos y cualquier parte
- * generada por IA que el docente aún no aceptó.
+ * ¿Se puede enviar el caso a Psicología? Lo bloquean los avisos de caminos, las respuestas sin clasificar, las reglas
+ * del modelo de respuesta (recomendada por escena, motivo de las contraindicadas, hitos y finales que se puedan alcanzar,
+ * competencias con evidencia, aviso en las escenas intensas) y cualquier parte generada por IA que el docente aún no aceptó.
  */
 export function puedeEnviar(caso: CasoBorrador): { ok: boolean; faltas: Falta[] } {
   const faltas: Falta[] = revisarCaminos(caso).map((a) => ({
@@ -30,28 +134,131 @@ export function puedeEnviar(caso: CasoBorrador): { ok: boolean; faltas: Falta[] 
     });
   }
 
-  let sinRevisar = 0;
-  let primera: Falta['ir'] | null = null;
-  for (const e of caso.escenas) {
-    const partes = (e.marcaIa ? 1 : 0) + e.lineas.filter((l) => l.marcaIa).length + e.respuestas.filter((r) => r.marcaIa).length;
-    if (partes && !primera) primera = e.marcaIa ? { ruta: '/editor', accionId: 'aceptar-ia' } : { ruta: `/editor/escena/${e.id}`, accionId: 'aceptar-ia' };
-    sinRevisar += partes;
-  }
-  const finalesIa = caso.finales.filter((f) => f.marcaIa).length;
-  if (finalesIa && !primera) primera = { ruta: '/editor/finales', accionId: 'aceptar-ia' };
-  sinRevisar += finalesIa;
-  if (sinRevisar) {
+  faltas.push(...faltasDelModelo(caso));
+
+  // La lista de verificación ética: todos los ítems obligatorios marcados (lo mismo que exige la compuerta).
+  if (caso.lista?.items.some((i) => i.obligatorio && !i.cumplido)) {
     faltas.push({
-      mensaje: sinRevisar === 1 ? '1 parte generada por IA sin revisar.' : `${sinRevisar} partes generadas por IA sin revisar.`,
+      codigo: 'CHECKLIST_INCOMPLETE',
+      mensaje: 'Falta completar la lista de verificación: marca todos los ítems obligatorios.',
+      ir: { ruta: '/revision', ancla: 'lista-verificacion' },
+    });
+  }
+
+  const { cuantas, primera } = partesDeIa(caso);
+  if (cuantas) {
+    faltas.push({
+      mensaje: cuantas === 1 ? '1 parte generada por IA sin revisar.' : `${cuantas} partes generadas por IA sin revisar.`,
       ir: primera!,
     });
   }
   return { ok: faltas.length === 0, faltas };
 }
 
+/** Cuántas partes sugeridas por la IA siguen sin revisar y a dónde ir a la primera. */
+function partesDeIa(caso: CasoBorrador): { cuantas: number; primera: Falta['ir'] | null } {
+  let cuantas = 0;
+  let primera: Falta['ir'] | null = null;
+  for (const e of caso.escenas) {
+    const partes = (e.marcaIa ? 1 : 0) + e.lineas.filter((l) => l.marcaIa).length + e.respuestas.filter((r) => r.marcaIa).length;
+    if (partes && !primera) primera = e.marcaIa ? { ruta: '/editor', accionId: 'aceptar-ia' } : { ruta: `/editor/escena/${e.id}`, accionId: 'aceptar-ia' };
+    cuantas += partes;
+  }
+  const finalesIa = caso.finales.filter((f) => f.marcaIa).length;
+  if (finalesIa && !primera) primera = { ruta: '/editor/finales', accionId: 'aceptar-ia' };
+  return { cuantas: cuantas + finalesIa, primera };
+}
+
+/** Los códigos del mundo que los avisos de caminos del editor ya cubren, y el aviso que los cubre. */
+const AVISO_QUE_CUBRE: Record<string, TipoAviso> = {
+  'WORLD.NO_START_NODE': 'sin-inicio',
+  'WORLD.NO_TERMINAL_NODE': 'sin-final',
+  'WORLD.UNREACHABLE_NODE': 'inalcanzable',
+  'WORLD.NODE_WITHOUT_OPTIONS': 'sin-salida',
+};
+
+/**
+ * Lo que la compuerta del servidor dice que impide publicar (los hallazgos que son errores), como faltas del docente. Las
+ * reglas del modelo llevan a la escena, la respuesta, el hito o el final concretos; lo que el editor ya listó por su cuenta
+ * (`faltasLocales`, y sus avisos de caminos y de IA) no se repite.
+ */
+export function faltasDelServidor(
+  hallazgos: ValidationIssue[],
+  caso: CasoBorrador,
+  opciones: { respuestaDeOpcion: (optionKey: string) => string | undefined; faltasLocales: Falta[] },
+): Falta[] {
+  const yaListados = new Set(opciones.faltasLocales.map((f) => f.codigo).filter((c): c is string => !!c));
+  const avisosDeCaminos = new Set(revisarCaminos(caso).map((a) => a.tipo));
+  const hayIa = partesDeIa(caso).cuantas > 0;
+  const faltas: Falta[] = [];
+
+  for (const h of hallazgos) {
+    if (h.severity !== 'error' || yaListados.has(h.code)) continue;
+    const escena = h.nodeId !== undefined ? rutaDeEscena(h.nodeId) : null;
+    const falta = (ir: Falta['ir']): Falta => ({ codigo: h.code, mensaje: h.message, ir });
+    switch (h.code) {
+      case 'scene-without-recommended':
+        faltas.push(falta({ ruta: escena ?? '/editor', ...(escena ? { ancla: 'respuestas-escena' } : {}) }));
+        break;
+      case 'contraindicated-without-reason': {
+        const respuesta = h.optionKey ? opciones.respuestaDeOpcion(h.optionKey) : undefined;
+        faltas.push(falta({ ruta: escena ?? '/editor', ...(escena ? { ancla: respuesta ? `respuesta-${respuesta}` : 'respuestas-escena' } : {}) }));
+        break;
+      }
+      case 'milestone-unreachable':
+        faltas.push(falta({ ruta: '/editor', ...(h.milestoneKey ? { ancla: `hito-${h.milestoneKey}` } : {}) }));
+        break;
+      case 'ending-unreachable':
+        faltas.push(falta({ ruta: '/editor/finales', ...(h.endingKey ? { ancla: `final-${h.endingKey}` } : {}) }));
+        break;
+      case 'ending-without-default':
+        faltas.push(falta({ ruta: '/editor/finales', accionId: 'definir-finales' }));
+        break;
+      case 'competency-without-evidence': {
+        const primera = primeraRespuesta(caso);
+        faltas.push(falta(primera ? { ruta: rutaDeEscena(primera.escena.id), ancla: `competencias-${primera.respuestaId}` } : { ruta: '/editor' }));
+        break;
+      }
+      case 'high-intensity-without-warning':
+        faltas.push(falta({ ruta: escena ?? '/editor', ...(escena ? { ancla: 'aviso-escena' } : {}) }));
+        break;
+      case 'CHECKLIST_INCOMPLETE':
+        // La lista de verificación se completa en la pantalla de revisión.
+        faltas.push(falta({ ruta: '/revision', ancla: 'lista-verificacion' }));
+        break;
+      case 'AI_SUGGESTED_UNREVIEWED':
+        if (!hayIa) faltas.push(falta({ ruta: '/editor', accionId: 'aceptar-ia' }));
+        break;
+      default: {
+        const cubierto = AVISO_QUE_CUBRE[h.code];
+        if (cubierto && avisosDeCaminos.has(cubierto)) break;
+        faltas.push(falta({ ruta: escena ?? '/editor' }));
+      }
+    }
+  }
+  return faltas;
+}
+
+/**
+ * Competencias de la rúbrica que ninguna respuesta parece evidenciar. Solo avisa: el editor deriva los códigos de todos los
+ * criterios de la rúbrica y el servidor solo cuenta los activos enlazados al catálogo, así que la autoridad es la compuerta
+ * (si ella bloquea, su falta se lista aparte). Mientras nadie declare competencias en las respuestas, no hay aviso.
+ */
+function avisosDeCompetencias(caso: CasoBorrador): Falta[] {
+  const hayDeclaraciones = caso.escenas.some((e) => e.respuestas.some((r) => competenciasMarcadas(r.efectos).length > 0));
+  if (!hayDeclaraciones) return [];
+  const declaradas = new Set(escenasAlcanzables(caso).flatMap((e) => e.respuestas.flatMap((r) => competenciasMarcadas(r.efectos))));
+  const primera = primeraRespuesta(caso);
+  return (caso.competencias ?? []).filter((c) => !declaradas.has(c.codigo)).map((c) => ({
+    codigo: 'competency-without-evidence',
+    mensaje: `La competencia «${c.nombre}» de la rúbrica parece no tener evidencia: ninguna respuesta la marca. La compuerta de Psicología lo confirma al enviar.`,
+    ir: primera ? { ruta: rutaDeEscena(primera.escena.id), ancla: `competencias-${primera.respuestaId}` } : { ruta: '/editor' },
+  }));
+}
+
 /** Cosas que conviene mirar pero no impiden enviar. */
 export function sugerencias(caso: CasoBorrador, probado: boolean): Falta[] {
-  const lista: Falta[] = [];
+  const lista: Falta[] = [...avisosDeCompetencias(caso)];
   if (!probado) lista.push({ mensaje: 'Todavía no probaste el caso completo como estudiante.', ir: { ruta: '/probar' } });
   caso.escenas.forEach((e) => {
     const vaciasL = e.lineas.filter((l) => !l.texto.trim()).length;

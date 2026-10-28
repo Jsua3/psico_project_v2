@@ -5,6 +5,8 @@ import { universidad } from '../testing/universidad';
 import { revisarCaminos } from './caminos';
 import { EMOCION_A_EXPRESION, casoDesdeApi, salaIdDeMapa } from './desde-api';
 import { puedeEnviar } from './revision';
+import { finalesDePlantilla } from './finales';
+import { finalesAApi } from './hacia-api';
 
 const SALAS = ['pasillo', 'sala-espera', 'bienestar', 'consultorio'];
 
@@ -271,7 +273,10 @@ describe('casoDesdeApi: de lo que entrega el servidor al borrador del editor', (
       const { editor, mundos } = sinMapa();
       const caso = casoDesdeApi(editor, mundos);
       expect(revisarCaminos(caso)).toEqual([]);
-      expect(puedeEnviar(caso).faltas.map((f) => f.mensaje)).toEqual(['4 partes generadas por IA sin revisar.']); // solo lo de la IA: ningún aviso de caminos
+      // Ningún aviso de caminos: solo lo del modelo (la escena sin recomendada, el hito que nadie marca) y lo de la IA.
+      expect(puedeEnviar(caso).faltas.map((f) => f.codigo ?? f.mensaje)).toEqual([
+        'scene-without-recommended', 'milestone-unreachable', '4 partes generadas por IA sin revisar.',
+      ]);
     });
 
     it('el inicio sin mapa de un caso en blanco aparece como escena de inicio', () => {
@@ -283,6 +288,43 @@ describe('casoDesdeApi: de lo que entrega el servidor al borrador del editor', (
       expect(blanco.escenas).toHaveLength(1);
       expect(blanco.escenas[0]).toMatchObject({ id: '1', titulo: 'Inicio', salaId: null, lineas: [] });
       expect(blanco.inicioId).toBe('1');
+    });
+  });
+
+  describe('finales de plantilla, competencias y estado', () => {
+    const lugar = () => casoCopiadoDeLugar(universidad, SALAS);
+
+    it('los cuatro finales de plantilla guardados vuelven como modo automático con solo los textos que cambió el docente', () => {
+      const { editor, mundos } = lugar();
+      const original = casoDesdeApi(editor, mundos, universidad);
+      editor.rules.endings = finalesAApi({ ...original, textosPlantilla: { critica: { texto: 'Cuidado con esto.' } } });
+      expect(editor.rules.endings).toHaveLength(4);
+      const caso = casoDesdeApi(editor, mundos, universidad);
+      expect(caso.modoFinales).toBe('automatico');
+      expect(caso.finales).toEqual([]);
+      expect(caso.textosPlantilla).toEqual({ critica: { texto: 'Cuidado con esto.' } });
+      expect(finalesDePlantilla(caso)[0].texto).toBe('Cuidado con esto.');
+    });
+
+    it('finales propios que no son los de plantilla siguen siendo propios', () => {
+      const { editor, mundos } = lugar();
+      editor.rules.endings = [{ key: 'uno', title: 'Uno', message: 'Texto.', tone: 'neutral' }];
+      const caso = casoDesdeApi(editor, mundos, universidad);
+      expect(caso.modoFinales).toBe('propio');
+      expect(caso.finales.map((f) => f.id)).toEqual(['uno']);
+      expect(caso.textosPlantilla).toBeUndefined();
+    });
+
+    it('las competencias del caso salen de su rúbrica y el estado es el del servidor', () => {
+      const { editor, mundos } = lugar();
+      editor.status = 'IN_REVIEW';
+      editor.rubrics = [{
+        rubricId: 1, rubricName: 'R', description: null, scores: [], comment: null,
+        criteria: [{ id: 1, competency: 'Ética profesional', title: 'Ética', description: null, displayOrder: 0 }],
+      }];
+      const caso = casoDesdeApi(editor, mundos, universidad);
+      expect(caso.competencias).toEqual([{ codigo: 'ETICA_PROFESIONAL', nombre: 'Ética profesional' }]);
+      expect(caso.estado).toBe('IN_REVIEW');
     });
   });
 });

@@ -3,13 +3,14 @@ import { Injectable, Injector, computed, inject, signal } from '@angular/core';
 import { firstValueFrom } from 'rxjs';
 
 import { revisionConflictOf } from '../../../core/api/revision-conflict.util';
+import type { CaseLifecycle, ValidationIssue } from '../../../core/models/simulation.model';
 import { AutoriaApiService } from '../api/autoria-api.service';
 import { casoDesdeApi } from '../modelo/desde-api';
 import {
   type Cambio, type ResolverIds, type Tocados, aplicarPropuesta as aplicarCambiosIa, resolverLocal,
 } from '../ia/propuestas';
 import { BibliotecaService } from '../modelo/biblioteca.service';
-import type { CasoBorrador, Escena, Final, Hito, Linea, NivelRiesgo, Respuesta, SalaCaso } from '../modelo/caso';
+import type { CasoBorrador, ClaveFinalPlantilla, Escena, Final, Hito, Linea, NivelRiesgo, Respuesta, SalaCaso } from '../modelo/caso';
 import { SEPARACION_ESCENAS } from '../modelo/copiar';
 import type { ColocacionPersonaje } from '../modelo/escenario';
 import { nuevaRespuesta } from '../modelo/fabricas';
@@ -137,6 +138,11 @@ export class CasoStore {
   private readonly enLinea = signal(false);
 
   readonly caso = this.estado.asReadonly();
+  /** El caso ya no es un borrador (está en revisión o publicado): se puede ver, pero no cambiar. */
+  readonly soloLectura = computed(() => {
+    const estado = this.estado()?.estado;
+    return estado !== undefined && estado !== 'DRAFT';
+  });
   /** Si en esta visita el docente ya llegó a un final probando como estudiante. */
   private readonly probadoAhora = signal(false);
   readonly probado = this.probadoAhora.asReadonly();
@@ -301,7 +307,7 @@ export class CasoStore {
    */
   private ejecutar(op: Operacion, opciones: { sala?: boolean; propuesta?: boolean } = {}): void {
     const actual = this.estado();
-    if (!actual) return;
+    if (!actual || this.soloLectura()) return;
     const nuevo = structuredClone(actual);
     op.aplicar(nuevo); // si lanza, nada cambió
     if (!opciones.propuesta) this.propuestaAplicada.set(null); // lo aplicado por el asistente solo se deshace de un paso si nada más cambió
@@ -468,7 +474,7 @@ export class CasoStore {
   /** Deja las salas como estaban en el historial y guarda las que cambiaron. */
   private restaurarSalas(salas: SalaCaso[]): void {
     const actual = this.estado();
-    if (!actual) return;
+    if (!actual || this.soloLectura()) return;
     this.propuestaAplicada.set(null);
     const cambiadas = salas.filter((s) => JSON.stringify(s) !== JSON.stringify(actual.salas.find((x) => x.id === s.id))).map((s) => s.id);
     const nuevo = structuredClone(actual);
@@ -727,13 +733,18 @@ export class CasoStore {
     });
   }
 
-  editarEscena(id: string, cambios: Partial<Pick<Escena, 'titulo'>>): void {
+  editarEscena(id: string, cambios: Partial<Pick<Escena, 'titulo' | 'intensidad' | 'advertencia'>>): void {
+    const escena = this.tituloEscena(id);
     this.ejecutar({
       nombre: 'la escena',
       aplicar: (caso) => { Object.assign(this.escena(caso, id), cambios); },
       enviar: (despues, sesion) => persistir.actualizarEscena(sesion, despues, id),
       fusion: `escena:${id}`,
-      resumen: textoCompleto('Título de una escena', cambios.titulo),
+      resumen: [
+        ...textoCompleto('Título de una escena', cambios.titulo),
+        ...(cambios.intensidad ? [`Cambiaste la intensidad de la escena «${escena}»`] : []),
+        ...textoCompleto(`Aviso para el estudiante de la escena «${escena}»`, cambios.advertencia ?? undefined),
+      ],
     });
   }
 
@@ -984,6 +995,63 @@ export class CasoStore {
     };
   }
 
+  // ─── Revisión y envío a Psicología ──────────────────────────────────────────
+
+  /** La clave de la opción en el servidor → la respuesta del borrador que es (para llevar al docente a ella). */
+  respuestaDeOpcion(optionKey: string): string | undefined {
+    const caso = this.estado();
+    const sesion = this.sesion;
+    const decision = sesion?.vista.decisions.find((d) => d.optionKey === optionKey);
+    if (!caso || !sesion || !decision) return undefined;
+    return sesion.respuestaDeDecision(decision.id, caso.escenas.flatMap((e) => e.respuestas));
+  }
+
+  /**
+   * Lo que el servidor opina del caso ahora: los hallazgos de la compuerta y el ciclo de vida (estado y qué se puede hacer).
+   * Primero espera a que lo pendiente haya llegado, para que opine sobre lo que el docente ve.
+   */
+  async revisarConServidor(): Promise<{ hallazgos: ValidationIssue[]; ciclo: CaseLifecycle }> {
+    await this.sincronizado();
+    const sesion = this.sesion;
+    if (!sesion) throw new Error('Este caso todavía no se guardó.');
+    const validacion = await firstValueFrom(sesion.api.validateCase(sesion.caseVersionId));
+    const ciclo = await firstValueFrom(sesion.api.lifecycle(sesion.caseVersionId));
+    return { hallazgos: validacion.issues, ciclo };
+  }
+
+  /**
+   * Envía el caso a revisión de Psicología (la transición de envío) con la revisión vigente y vuelve a leer el caso: queda
+   * «En revisión» y solo se puede ver. Si la compuerta tiene bloqueadores, lanza el 409 con ellos y el caso sigue editable.
+   */
+  async enviarARevision(nota = ''): Promise<CaseLifecycle> {
+    await this.sincronizado();
+    const sesion = this.sesion;
+    if (!sesion) throw new Error('Este caso todavía no se guardó.');
+    const cuerpo = { action: 'submit' as const, ...(nota.trim() ? { note: nota.trim() } : {}) };
+    const ciclo = await firstValueFrom(sesion.api.transitionCase(sesion.caseVersionId, cuerpo, sesion.revision));
+    await this.cargar(sesion.caseVersionId, true);
+    return ciclo;
+  }
+
+  // ─── Lista de verificación ética ────────────────────────────────────────────
+
+  /** Marca o desmarca un ítem de la lista de verificación; se guarda la lista completa con la revisión vigente. */
+  marcarItemLista(codigo: string, cumplido: boolean): void {
+    const item = this.estado()?.lista?.items.find((i) => i.codigo === codigo);
+    if (!item) return;
+    this.ejecutar({
+      nombre: 'la lista de verificación',
+      resumen: [`${cumplido ? 'Marcaste' : 'Desmarcaste'} en la lista de verificación: «${item.texto}»`],
+      aplicar: (caso) => {
+        const i = caso.lista?.items.find((x) => x.codigo === codigo);
+        if (!i) throw new Error('Ese ítem ya no está en la lista.');
+        i.cumplido = cumplido;
+      },
+      enviar: (despues, sesion) => persistir.guardarLista(sesion, despues),
+      fusion: 'lista',
+    });
+  }
+
   // ─── Hitos y nivel de riesgo ────────────────────────────────────────────────
 
   agregarHito(hito: Hito): void {
@@ -994,7 +1062,7 @@ export class CasoStore {
         if (caso.hitos.some((h) => h.clave === hito.clave)) throw new Error('Ya hay un hito con ese nombre.');
         caso.hitos.push({ ...hito });
       },
-      enviar: (despues, sesion) => persistir.guardarHitos(sesion, despues),
+      enviar: (despues, sesion) => persistir.guardarHitosYFinales(sesion, despues, false),
     });
   }
 
@@ -1005,9 +1073,13 @@ export class CasoStore {
         const h = caso.hitos.find((x) => x.clave === clave);
         if (h) Object.assign(h, cambios);
       },
-      enviar: (despues, sesion) => persistir.guardarHitos(sesion, despues),
+      // Marcar o desmarcar un hito decisivo regenera la condición de los cuatro finales de plantilla (su texto no cambia).
+      enviar: (despues, sesion) => persistir.guardarHitosYFinales(sesion, despues, false),
       fusion: 'hitos',
-      resumen: [...textoCompleto('Nombre de un hito', cambios.nombre), ...textoCompleto('Descripción de un hito', cambios.descripcion)],
+      resumen: [
+        ...textoCompleto('Nombre de un hito', cambios.nombre), ...textoCompleto('Descripción de un hito', cambios.descripcion),
+        ...(cambios.decisivo !== undefined ? ['Cambiaste qué hitos deciden el final'] : []),
+      ],
     });
   }
 
@@ -1016,7 +1088,8 @@ export class CasoStore {
       nombre: 'los hitos',
       resumen: ['Borraste un hito'],
       aplicar: (caso) => { caso.hitos = caso.hitos.filter((h) => h.clave !== clave); },
-      enviar: (despues, sesion) => persistir.guardarHitos(sesion, despues),
+      // Con los finales de plantilla guardados, el servidor no deja quitar un hito que sus condiciones nombran: primero los finales.
+      enviar: (despues, sesion) => persistir.guardarHitosYFinales(sesion, despues, true),
     });
   }
 
@@ -1062,6 +1135,21 @@ export class CasoStore {
       const f = caso.finales.find((x) => x.id === id);
       if (f) Object.assign(f, cambios);
     }, `final:${id}`, [...textoCompleto('Nombre de un final', cambios.nombre), ...textoCompleto('Texto de un final', cambios.texto)]);
+  }
+
+  /** Reescribe el nombre o el texto de uno de los cuatro finales de plantilla (modo automático); la condición sigue a los hitos decisivos. */
+  editarTextoPlantilla(id: ClaveFinalPlantilla, cambios: { nombre?: string; texto?: string }): void {
+    this.finales('Cambiaste un final que se calcula solo', (caso) => {
+      caso.textosPlantilla = { ...caso.textosPlantilla, [id]: { ...caso.textosPlantilla?.[id], ...cambios } };
+    }, `plantilla:${id}`, [...textoCompleto('Nombre de un final', cambios.nombre), ...textoCompleto('Texto de un final', cambios.texto)]);
+  }
+
+  /** Vuelve al nombre y al texto del modelo en un final de plantilla. */
+  restaurarTextoPlantilla(id: ClaveFinalPlantilla): void {
+    this.finales('Volviste un final al texto original', (caso) => {
+      const { [id]: _quitado, ...resto } = caso.textosPlantilla ?? {};
+      caso.textosPlantilla = resto;
+    });
   }
 
   moverFinal(id: string, delta: -1 | 1): void {

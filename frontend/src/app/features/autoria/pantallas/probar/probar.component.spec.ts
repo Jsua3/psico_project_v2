@@ -60,7 +60,7 @@ describe('ProbarComponent', () => {
     expect(raiz.textContent).toContain('Me da miedo.');
     await elegir('Te acompaño adentro.');
     const resultado = raiz.querySelector('[aria-label="Resultado de la respuesta"]')!;
-    expect(resultado.textContent).toContain('Recomendada');
+    expect(resultado.textContent).not.toContain('Recomendada'); // la clase la ve solo la autora, al lado (el estudiante la lee al cierre)
     expect(resultado.textContent).toContain('Acompañar da seguridad.');
     boton('Continuar')!.click();
     await listo();
@@ -104,7 +104,8 @@ describe('ProbarComponent', () => {
     boton('Siguiente')!.click();
     await listo();
     await elegir('Te acompaño adentro.');
-    expect(raiz.querySelector('.resultado')!.textContent).toContain('Sin clasificar');
+    expect(raiz.querySelector('aside.lateral .ultima')!.textContent).toContain('Sin clasificar'); // la clase ya no la lee el estudiante: la ve la autora, al lado
+    expect(raiz.querySelector('.resultado')!.textContent).toContain('Acompañar da seguridad.');
   });
 
   it('la prueba muestra la sala como quedó editada: fondo, muebles, objetos y personajes con su expresión', async () => {

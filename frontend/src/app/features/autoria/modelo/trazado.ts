@@ -4,7 +4,7 @@ import type { CasoBorrador } from './caso';
 
 /** Tamaño de la tarjeta de una escena en el mapa. */
 export const ANCHO_ESCENA = 208;
-export const ALTO_ESCENA = 120;
+export const ALTO_ESCENA = 140;
 
 /**
  * El primer lugar libre a partir de `deseada`, bajando de a una tarjeta, para que una escena

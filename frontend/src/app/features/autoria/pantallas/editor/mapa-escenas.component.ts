@@ -6,7 +6,7 @@ import {
 
 import { rutaArte } from '../../modelo/biblioteca.service';
 import { NOMBRE_AVISO, type Aviso } from '../../modelo/caminos';
-import { plural } from '../../modelo/textos';
+import { NOMBRE_INTENSIDAD, plural } from '../../modelo/textos';
 import type { CasoBorrador, Escena } from '../../modelo/caso';
 import { ALTO_ESCENA, ANCHO_ESCENA } from '../../modelo/trazado';
 
@@ -117,6 +117,9 @@ const PASO_MOVER = 24;
               </span>
               <span class="titulo">{{ i + 1 }} · {{ e.titulo }}</span>
               <span class="sala texto-secundario">{{ nombreSala(e.salaId) }}</span>
+              <span class="intensidad-marca" [attr.data-intensidad]="e.intensidad">
+                <span aria-hidden="true">{{ simboloIntensidad[e.intensidad] }}</span> Intensidad {{ nombreIntensidad[e.intensidad].toLowerCase() }}
+              </span>
               <span class="solo-lector">{{ detalle(e, i) }}</span>
             </button>
           }
@@ -195,6 +198,8 @@ const PASO_MOVER = 24;
     .titulo { -webkit-line-clamp: 2; }
     .sala { -webkit-line-clamp: 1; }
     .aviso { border-color: var(--aviso); color: var(--aviso-texto); background: var(--aviso-tinte); }
+    .intensidad-marca { font-size: var(--autoria-texto-14); line-height: 20px; font-weight: 700; color: var(--texto-secundario); }
+    .intensidad-marca[data-intensidad='HIGH'] { color: var(--aviso-texto); }
     .titulo { font-weight: 700; font-size: var(--autoria-texto-16); line-height: 22px; }
     .sala { font-size: var(--autoria-texto-14); line-height: 20px; }
     .tarjeta-flecha {
@@ -230,6 +235,9 @@ export class MapaEscenasComponent {
 
   protected readonly PASO = PASO_MOVER;
   protected readonly altoEscena = ALTO_ESCENA;
+  protected readonly nombreIntensidad = NOMBRE_INTENSIDAD;
+  /** La intensidad también se ve en la forma (no solo en el color): una, dos o tres barras. */
+  protected readonly simboloIntensidad: Record<Escena['intensidad'], string> = { LOW: '▁', MEDIUM: '▃', HIGH: '▇' };
   protected readonly nombreAviso = NOMBRE_AVISO;
   protected readonly elegida = signal<string | null>(null);
   protected readonly pista = signal('');
@@ -341,6 +349,7 @@ export class MapaEscenasComponent {
   protected detalle(e: Escena, i: number): string {
     const partes = [`escena ${i + 1} de ${this.caso().escenas.length}`];
     if (e.marcaIa) partes.push('sin revisar');
+    partes.push(`intensidad ${NOMBRE_INTENSIDAD[e.intensidad].toLowerCase()}`);
     const avisos = this.avisosDe(e.id);
     if (avisos.length > 1) partes.push(`avisos: ${avisos.map((a) => NOMBRE_AVISO[a.tipo].toLowerCase()).join(', ')}`);
     return `, ${partes.join(', ')}`;

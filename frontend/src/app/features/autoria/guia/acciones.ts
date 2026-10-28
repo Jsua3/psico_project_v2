@@ -62,6 +62,8 @@ export const ACCIONES: readonly Accion[] = [
     ayuda: 'En «Lleva a…» de una respuesta, elige «Una escena nueva» y pulsa «Crear la escena nueva».',
   },
   { id: 'revisar-caminos', nombre: 'Revisar los caminos del caso', pantalla: PANTALLAS.mapa, ruta: '/editor', palabras: 'avisos problemas errores sin salida', ayuda: 'Aquí están los avisos de caminos; «Llévame ahí» te lleva a la escena.' },
+  { id: 'hitos-del-caso', nombre: 'Ver los hitos del caso y dónde se cumplen', pantalla: PANTALLAS.mapa, ruta: '/editor', palabras: 'pasos profesionales cumplir decisivo inalcanzable valorar riesgo', ayuda: 'En «Hitos del caso» ves cada paso profesional, dónde se cumple y si nadie podría lograrlo.' },
+  { id: 'intensidad-escena', nombre: 'Cambiar la intensidad de una escena y su aviso', pantalla: PANTALLAS.guion, ruta: '/editor/escena/:escena', palabras: 'baja media alta fuerte sensible advertencia aviso contenido', ayuda: 'Elige qué tan intensa es la escena; si es alta, escribe el aviso que lee el estudiante antes de empezar.' },
   { id: 'definir-finales', nombre: 'Definir los finales del caso', pantalla: PANTALLAS.finales, ruta: '/editor/finales', palabras: 'final cierre puntaje resultado', ayuda: 'Elige si los finales se calculan solos o escribes los tuyos.' },
   { id: 'deshacer', nombre: 'Deshacer el último cambio de la sala', pantalla: PANTALLAS.sala, ruta: '/editor/sala/:sala', palabras: 'atras volver error ctrl z', ayuda: 'Deshace el último cambio de la sala. También funciona Ctrl+Z.' },
   { id: 'ordenar-mapa', nombre: 'Ordenar el mapa de escenas', pantalla: PANTALLAS.mapa, ruta: '/editor', palabras: 'acomodar organizar automático', ayuda: 'Acomoda las escenas de izquierda a derecha según sus caminos.' },
