@@ -25,8 +25,16 @@ export const KEY_PERSON_FEET_OFFSET_Y = 16;
 /** Separación entre el nombre y el chevrón. */
 export const KEY_PERSON_NAME_GAP_PX = 3;
 
-/** Dónde queda la punta del chevrón respecto al centro del marcador: sobre la cabeza del cuerpo. */
-export const KEY_PERSON_TIP_OFFSET_Y = KEY_PERSON_FEET_OFFSET_Y - KEY_PERSON_HEAD_PX - KEY_PERSON_GAP_PX;
+/**
+ * Dónde queda la punta del chevrón respecto al centro del marcador: sobre la cabeza del cuerpo, que está `feetOffsetY` px
+ * bajo el marcador (16 en los casos de antes; 0 si el marcador ya es el punto de apoyo, `metadata.apoyo = "pies"`).
+ */
+export function keyPersonTipOffsetY(feetOffsetY: number): number {
+  return feetOffsetY - KEY_PERSON_HEAD_PX - KEY_PERSON_GAP_PX;
+}
+
+/** La punta del chevrón en los casos de antes (marcador 16 px sobre los pies). */
+export const KEY_PERSON_TIP_OFFSET_Y = keyPersonTipOffsetY(KEY_PERSON_FEET_OFFSET_Y);
 
 export function isKeyPerson(object: Pick<MapObjectState, 'type' | 'metadata'>): boolean {
   return object.type === 'PERSON' && object.metadata?.['personaClave'] === true;

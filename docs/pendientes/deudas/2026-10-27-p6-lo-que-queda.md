@@ -35,6 +35,8 @@ El editor anterior tenía ocho pestañas; el nuevo cubre salas, escenas, guion, 
 
 ## Otros
 
+- **Los casos creados antes de la revisión final no se migran** (geometría de los lugares): no tienen las paredes del encuadre como zonas de choque (el jugador puede subir por la pared pintada), ni `metadata.apoyo = "pies"` (el juego los dibuja como antes: centrados en (x, y), con los pies 16 px más abajo, 5 a 49 px distinto del editor) ni `metadata.pintada` en las puertas (siguen con el tile del juego encima). Quien deambula en ellos sí respeta la zona caminable del encuadre (el juego la lee de `ambient.encuadre`). Un caso nuevo, o uno que se vuelva a crear desde el lugar, nace bien.
+
 - **Quitar de una sala a la persona de la que cuelga el guion** hace que el servidor se lleve el guion con ella; el editor lo vuelve a escribir con otra persona de la sala si queda alguna. Si la sala se queda sin personas, el editor pregunta antes de quitar a la última solo si quedarían respuestas que ningún objeto del mapa ofrece, y «Enviar a revisión» lista como falta cada escena con respuestas que su sala no tiene cómo ofrecer (ni una persona ni un objeto que las ofrezca; con «Llévame ahí» a la sala); una escena con solo líneas sale como sugerencia.
 - **El sandbox aprobado** (aplicación Angular propia, servidor Node de IA local y sus pruebas) se recupera de la rama `claude/editor-casos-p3` (commit `b13222a5`); ver [`2026-10-27-sandbox-editor-retirado.md`](2026-10-27-sandbox-editor-retirado.md).
 - **Pasar este documento y `operacion/editor-de-casos.md` a los documentos consolidados** (`docs/SIEP.md` y `docs/PENDIENTES.md`) cuando lleguen a la rama: la consolidación está sin commitear en el checkout principal y no existe todavía aquí.

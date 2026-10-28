@@ -21,6 +21,8 @@ export type ColocacionCaso = Colocacion & {
    * respuesta, sin una persona. Ausente si no ofrece ninguna. Se conserva al guardar la sala.
    */
   decisionOptionId?: number;
+  /** Lo puso o lo movió el asistente y el docente aún no lo acepta. Ausente = no está marcado. */
+  marcaIa?: boolean;
 };
 
 /**
@@ -35,6 +37,8 @@ export type ColocacionPersonajeCaso = ColocacionPersonaje & {
   movimiento?: MovimientoPersonaje;
   /** La persona a atender de la sala (a lo sumo una por sala). Ausente = se conserva lo que el servidor tenía. */
   personaClave?: boolean;
+  /** La puso o la movió el asistente y el docente aún no la acepta. Ausente = no está marcada. */
+  marcaIa?: boolean;
 };
 
 /** Sala del caso: conserva de dónde salió (si salió de un lugar) para poder «Volver a la sala original». */

@@ -2,13 +2,16 @@ import { expect, test } from '@playwright/test';
 import type { Page } from '@playwright/test';
 
 import {
-  aprobarYPublicarPorApi, completarListaYEnviar, crearCasoBienestar, entrarALaPrimeraSala, escribirCasoBienestar, marcarPersonaAAtender,
+  aprobarYPublicarPorApi, completarListaYEnviar, crearCasoBienestar, entrarALaPrimeraSala, escribirCasoBienestar, hacerQueVayaYVenga,
+  marcarPersonaAAtender,
 } from './support/autoria-flujo';
 import { assignCase, retireCase } from './support/case-fixtures';
 import type { AssignmentRecord } from './support/case-fixtures';
 import { measuresIn, measuresInText, recordSimulationResponses, retiredKeysIn, shapeOf } from './support/no-numbers';
 import { loginAs } from './support/screen-tour';
-import { chooseDecision, createWorldInputDriver, exploreUntilNearby, interactNearby, readPlayerPosition } from './support/siep-flow';
+import {
+  chooseDecision, createWorldInputDriver, exploreUntilNearby, interactNearby, readPlayerPosition, waitForWorldReady,
+} from './support/siep-flow';
 import { scaled } from './support/time-scale';
 
 /**
@@ -21,6 +24,8 @@ import { scaled } from './support/time-scale';
  *   (qué objeto anima y el cuadro de cada uno), igual que `data-player-x/y`: la animación vive en el lienzo de Phaser;
  * - la persona clave está en la lista accesible «Ir a…» con el texto «persona a atender», y el juego publica en su host
  *   (`data-key-person`) el nombre que lleva su chevrón sobre la cabeza (el dibujo vive en el lienzo y se revisa a ojo);
+ * - la persona a atender, a la que la docente le pidió que «vaya y venga», camina de verdad (el juego publica su posición viva en
+ *   `data-key-person-x/y`, igual que la del jugador) y, con «reducir movimiento» del sistema, queda quieta en su sitio;
  * - la persona clave habla (el guion de la escena cuelga de ella) y sus respuestas se pueden elegir: la elegida lleva a la
  *   segunda escena;
  * - ninguna cifra llega al estudiante: ni en lo que lee ni en lo que recibe del servidor (la regla de la Tarea 17).
@@ -33,6 +38,12 @@ const anfitrion = (page: Page) => page.locator('app-game-world .phaser-host');
 async function proximidad(page: Page): Promise<Proximidad | null> {
   const crudo = await anfitrion(page).getAttribute('data-proximity');
   return crudo === null ? null : (JSON.parse(crudo) as Proximidad);
+}
+
+/** Dónde está ahora la persona a atender (`data-key-person-x/y` del host); `null` si el juego aún no la publica. */
+async function posicionDePersonaClave(page: Page): Promise<{ x: number; y: number } | null> {
+  const [x, y] = await anfitrion(page).evaluate((el) => [el.getAttribute('data-key-person-x'), el.getAttribute('data-key-person-y')]);
+  return x === null || y === null ? null : { x: Number(x), y: Number(y) };
 }
 
 const atender = (nombre: string) => new RegExp(`${nombre.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}.*persona a atender`, 'i');
@@ -49,6 +60,7 @@ test('un estudiante juega la primera sala de un caso hecho en el editor: el obje
     caseVersionId = await crearCasoBienestar(page, `Objetos animados e2e ${Date.now()}`);
     await escribirCasoBienestar(page);
     const persona = await marcarPersonaAAtender(page);
+    await hacerQueVayaYVenga(page); // la persona que quedó elegida en la sala va y viene hasta un punto que la docente fijó
     await completarListaYEnviar(page);
 
     // ── Psicología lo aprueba y se asigna al grupo del estudiante ────────────────────────────────────────────────
@@ -84,8 +96,17 @@ test('un estudiante juega la primera sala de un caso hecho en el editor: el obje
     // El chevrón con su nombre sobre la cabeza: el juego publica el nombre que lleva, como `data-proximity`.
     await expect(anfitrion(page)).toHaveAttribute('data-key-person', persona, { timeout: scaled(15_000) });
 
+    // ── La persona a atender «va y viene»: camina de verdad ─────────────────────────────────────────────────────────
+    await expect.poll(() => posicionDePersonaClave(page), { timeout: scaled(15_000), message: 'el juego publicó dónde está la persona a atender' }).not.toBeNull();
+    const origen = (await posicionDePersonaClave(page))!;
+    let masLejos = 0;
+    await expect.poll(async () => {
+      const ahora = await posicionDePersonaClave(page);
+      if (ahora) masLejos = Math.max(masLejos, Math.hypot(ahora.x - origen.x, ahora.y - origen.y));
+      return masLejos;
+    }, { timeout: scaled(40_000), intervals: [200], message: 'la persona a atender se aleja de donde empezó (va y viene)' }).toBeGreaterThan(30);
+
     // ── Se acerca a un objeto: anima, y el cuadro avanza ─────────────────────────────────────────────────────────
-    const entrada = await readPlayerPosition(page);
     const entrada2 = createWorldInputDriver(page, 'keyboard');
     await exploreUntilNearby(page, entrada2, /buzón de bienestar|afiche de servicios de bienestar/i);
     await expect.poll(async () => (await proximidad(page))?.playing ?? null, { timeout: scaled(15_000), message: 'el objeto cercano anima' }).not.toBeNull();
@@ -110,7 +131,22 @@ test('un estudiante juega la primera sala de un caso hecho en el editor: el obje
     await expect.poll(async () => (await proximidad(page))?.frames[cercano], { timeout: scaled(10_000), message: 'y vuelve al cuadro 0' }).toBe(0);
     const hasta = await readPlayerPosition(page);
     expect(Math.hypot(hasta.x - desde.x, hasta.y - desde.y), 'el jugador se movió de verdad').toBeGreaterThan(40);
-    expect(Number.isFinite(entrada.x) && Number.isFinite(entrada.y), 'se leyó la posición inicial del jugador').toBe(true);
+
+    // ── Con «reducir movimiento» del sistema, la persona a atender queda quieta en su sitio ─────────────────────────────
+    await page.emulateMedia({ reducedMotion: 'reduce' });
+    await page.reload();
+    // Un caso del editor no trae escenario con nombre (`data-rendered-scenario-key` vacío): se espera al mundo, sin comparar la clave.
+    const continuar = page.getByRole('button', { name: /continuar intento en progreso/i });
+    await expect(continuar).toBeVisible({ timeout: scaled(30_000) });
+    await continuar.click();
+    await waitForWorldReady(page);
+    await expect.poll(() => posicionDePersonaClave(page), { timeout: scaled(15_000), message: 'el juego volvió a publicar dónde está la persona a atender' }).not.toBeNull();
+    const quieta = (await posicionDePersonaClave(page))!;
+    for (let lectura = 0; lectura < 16; lectura++) {
+      await page.waitForTimeout(500); // 8 s: de sobra para que, sin la preferencia, ya hubiera echado a andar (pausa de 1 a 3 s)
+      expect(await posicionDePersonaClave(page), `lectura ${lectura + 1}: la persona a atender sigue en su sitio`).toEqual(quieta);
+    }
+    await page.emulateMedia({ reducedMotion: 'no-preference' });
 
     // ── La persona a atender habla y sus respuestas se pueden elegir (el guion cuelga de ella) ───────────────────────
     const nombre = new RegExp(persona.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'i');

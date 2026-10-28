@@ -21,6 +21,7 @@ const NOMBRE_ESTADO: Record<string, string> = {
 const NOMBRE_MOTIVO: Record<string, string> = { FORMA: 'Forma', CONTENIDO: 'Contenido' };
 
 /** Lo que dice el docente cuando el envío no pasó por una razón que no es un bloqueo de la compuerta. */
+const OTRA_PERSONA_CAMBIO_EL_CASO = 'Otra persona cambió el caso mientras lo revisabas, así que no se envió. Recarga el caso (el aviso de arriba tiene el botón) y vuelve a enviarlo.';
 const NO_SE_PUDO_ENVIAR = 'No se pudo enviar el caso. No se cambió nada: vuelve a intentarlo en un momento.';
 
 /**
@@ -42,7 +43,7 @@ const NO_SE_PUDO_ENVIAR = 'No se pudo enviar el caso. No se cambió nada: vuelve
 
         <section aria-label="El caso" class="tarjeta resumen">
           <h2>{{ caso.titulo }}</h2>
-          <p class="texto-secundario">Universidad · {{ caso.escenas.length }} {{ caso.escenas.length === 1 ? 'escena' : 'escenas' }} · {{ textoFinales() }}</p>
+          <p class="texto-secundario">@if (lugar(); as nombre) { {{ nombre }} · }{{ caso.escenas.length }} {{ caso.escenas.length === 1 ? 'escena' : 'escenas' }} · {{ textoFinales() }}</p>
           <span class="pildora estado">{{ nombreEstado() }}</span>
         </section>
 
@@ -286,6 +287,8 @@ export class RevisionComponent {
     const codigosEnFaltas = new Set(this.faltas().map((f) => f.codigo).filter(Boolean));
     return sugerencias(caso, this.store.probado()).filter((s) => !s.codigo || !codigosEnFaltas.has(s.codigo));
   });
+  /** El nombre del lugar del caso; nada si el caso no tiene lugar. */
+  protected readonly lugar = computed(() => (this.store.caso(), this.store.nombreDelLugar()));
   protected readonly textoFinales = computed(() => {
     const caso = this.store.caso();
     if (!caso) return '';
@@ -393,7 +396,7 @@ export class RevisionComponent {
         this.bloqueosDelEnvio.set(bloqueos);
         this.falloEnvio.set('Psicología no puede recibir el caso todavía: resuelve lo de arriba.');
       } else {
-        this.falloEnvio.set(NO_SE_PUDO_ENVIAR);
+        this.falloEnvio.set(this.store.conflicto() ? OTRA_PERSONA_CAMBIO_EL_CASO : NO_SE_PUDO_ENVIAR);
       }
     } finally {
       this.enviando.set(false);

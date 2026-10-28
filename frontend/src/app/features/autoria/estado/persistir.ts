@@ -117,6 +117,21 @@ async function recuperarGuiones(s: SesionServidor, caso: CasoBorrador, nodos: nu
   }
 }
 
+/**
+ * Da por revisada una pieza de la sala (la puso o la movió el asistente). Cada escena de la sala tiene su propio mapa con su
+ * propia fila de la pieza: se baja la marca en todas (bajarla donde ya estaba baja no cambia nada).
+ */
+export async function aceptarPieza(s: SesionServidor, caso: CasoBorrador, salaId: string, clave: string): Promise<void> {
+  const nodos = caso.escenas
+    .filter((e) => e.salaId === salaId)
+    .map((e) => s.nodoDe(e.id))
+    .filter((id): id is number => id !== undefined && s.mapaDeNodo(id) !== undefined);
+  for (const nodoId of nodos) {
+    const fila = (await s.mundoDe(nodoId)).objects.find((o) => o.key === clave);
+    if (fila && fila.id) await s.aceptarObjeto(fila.id);
+  }
+}
+
 // ─── Escenas ─────────────────────────────────────────────────────────────────
 
 /**
@@ -185,7 +200,7 @@ export async function actualizarEscena(s: SesionServidor, caso: CasoBorrador, es
   if (!escena || nodoId === undefined) return;
   const previo = s.vista.nodes.find((n) => n.id === nodoId);
   const cuerpo = cuerpoNodo(escena, { esInicio: caso.inicioId === escena.id, previo });
-  if (previo
+  if (previo && !cuerpo.aiSuggested
     && previo.title === cuerpo.title && previo.narrative === cuerpo.narrative && previo.terminal === cuerpo.terminal && previo.startNode === cuerpo.startNode
     && previo.positionX === cuerpo.positionX && previo.positionY === cuerpo.positionY && previo.intensity === cuerpo.intensity
     && (previo.warningMessage ?? null) === (cuerpo.warningMessage ?? null)

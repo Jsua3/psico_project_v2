@@ -410,4 +410,18 @@ describe('casoDesdeApi: cómo se mueven las personas, a quién atender y los dat
     expect(colocado.decisionOptionId).toBe(77);
     expect(caso.salas[1].objetos.filter((o) => o.decisionOptionId !== undefined)).toHaveLength(1);
   });
+
+  it('A7 · lo que el servidor tiene marcado como sugerido por la IA (muebles, objetos y personas) llega con la marca; lo demás, sin ella', () => {
+    const { editor, mundos } = lugar();
+    const sala = mundos[1];
+    const mueble = sala.objects.find((o) => o.type === 'PROP')!;
+    const persona = sala.objects.find((o) => o.type === 'PERSON')!;
+    mueble.aiSuggested = true;
+    persona.aiSuggested = true;
+    const caso = casoDesdeApi(editor, mundos, universidad);
+    const delaSala = caso.salas[1];
+    expect(delaSala.muebles.find((m) => m.clave === mueble.key)!.marcaIa).toBe(true);
+    expect(delaSala.personajes.find((p) => p.clave === persona.key)!.marcaIa).toBe(true);
+    expect([...delaSala.muebles, ...delaSala.objetos, ...delaSala.personajes].filter((c) => c.marcaIa)).toHaveLength(2);
+  });
 });

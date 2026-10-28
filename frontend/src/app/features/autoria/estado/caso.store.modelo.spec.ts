@@ -123,6 +123,29 @@ describe('CasoStore · enviar a revisión y solo lectura', () => {
     expect(store.soloLectura()).toBe(true);
   });
 
+  it('A4 · enviar con la revisión vencida activa el conflicto (ofrece recargar) y el caso sigue editable', async () => {
+    const { servidor, store } = await abrir();
+    servidor.otraSesionEscribe();
+    const error = await store.enviarARevision().catch((e: unknown) => e);
+    expect(error).toBeInstanceOf(HttpErrorResponse);
+    expect(store.conflicto()).not.toBeNull();
+    expect(store.conflicto()!.mensaje).toContain('Otra persona');
+    expect(store.haySinGuardar()).toBe(true);
+    expect(store.soloLectura()).toBe(false);
+    // Recargar trae la versión del servidor y quita el aviso; entonces el envío sale.
+    await store.recargar();
+    expect(store.conflicto()).toBeNull();
+    await store.enviarARevision();
+    expect(store.soloLectura()).toBe(true);
+  });
+
+  it('A4 · los bloqueos de la compuerta (también un 409) NO son un conflicto de revisión', async () => {
+    const { servidor, store } = await abrir();
+    servidor.bloqueos = [{ code: 'CHECKLIST_INCOMPLETE', message: 'Falta la lista.' }];
+    await store.enviarARevision().catch(() => undefined);
+    expect(store.conflicto()).toBeNull();
+  });
+
   it('un caso en revisión es de solo lectura: ninguna edición cambia el borrador ni llama al servidor', async () => {
     const { servidor, store } = await abrir('IN_REVIEW');
     expect(store.soloLectura()).toBe(true);

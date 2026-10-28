@@ -240,6 +240,60 @@ describe('persona clave: el indicador sobre la cabeza', () => {
     expect(() => sin.buildKeyPersonIndicator({ x: 300, y: 240 }, sin.markerData.get('madre')!)).not.toThrow();
   });
 
+  // Revisión final · C5: contrato del e2e (`data-key-person-x/y`), como `data-player-x/y`: la posición viva de la persona a atender.
+  describe('su posición viva, para la prueba de extremo a extremo', () => {
+    it('se avisa al dibujar el indicador, al moverse la persona y se retira al reconstruir la sala', () => {
+      const alMoverse = vi.fn();
+      const { scene } = crearEscena([clave('madre', 'Marta')], false, { onKeyPersonPosition: alMoverse });
+      const marker = scene.markers.get('madre')!;
+      scene.buildKeyPersonIndicator(marker, scene.markerData.get('madre')!);
+      expect(alMoverse).toHaveBeenLastCalledWith({ x: 300, y: 240 });
+
+      marker.x = 340.4;
+      marker.y = 250.6;
+      scene.syncKeyPersonIndicator();
+      expect(alMoverse).toHaveBeenLastCalledWith({ x: 340, y: 251 });
+
+      scene.resetOrientationVisuals();
+      expect(alMoverse).toHaveBeenLastCalledWith(null);
+    });
+
+    it('solo avisa cuando la posición (redondeada) cambia: un cuadro sin mover a la persona no cuesta nada', () => {
+      const alMoverse = vi.fn();
+      const { scene } = crearEscena([clave('madre', 'Marta')], false, { onKeyPersonPosition: alMoverse });
+      const marker = scene.markers.get('madre')!;
+      scene.buildKeyPersonIndicator(marker, scene.markerData.get('madre')!);
+      alMoverse.mockClear();
+      for (let cuadro = 0; cuadro < 60; cuadro++) scene.syncKeyPersonIndicator();
+      expect(alMoverse).not.toHaveBeenCalled();
+      marker.x = 300.3; // sigue siendo 300 al redondear
+      scene.syncKeyPersonIndicator();
+      expect(alMoverse).not.toHaveBeenCalled();
+      marker.x = 301;
+      scene.syncKeyPersonIndicator();
+      expect(alMoverse).toHaveBeenCalledTimes(1);
+    });
+
+    it('sin persona a atender no publica nada, y sin el aviso conectado no pasa nada', () => {
+      const alMoverse = vi.fn();
+      const { scene } = crearEscena([objeto('otra', 'Otra')], false, { onKeyPersonPosition: alMoverse });
+      scene.buildKeyPersonIndicator({ x: 300, y: 240 }, scene.markerData.get('otra')!);
+      scene.syncKeyPersonIndicator();
+      expect(alMoverse).not.toHaveBeenCalled();
+      const sin = crearEscena([clave('madre', 'Marta')]).scene;
+      sin.buildKeyPersonIndicator(sin.markers.get('madre')!, sin.markerData.get('madre')!);
+      expect(() => sin.syncKeyPersonIndicator()).not.toThrow();
+    });
+
+    it('el anfitrión lo escribe como data-key-person-x/y directo en el DOM, sin Angular', () => {
+      const fuente = readFileSync(join(__dirname, 'game-world.component.ts'), 'utf-8');
+      expect(fuente).toContain('onKeyPersonPosition: position => this.writeKeyPersonPosition(position),');
+      expect(fuente).toContain("host.setAttribute('data-key-person-x', String(position.x));");
+      expect(fuente).toContain("host.setAttribute('data-key-person-y', String(position.y));");
+      expect(fuente).not.toContain('[attr.data-key-person-x]');
+    });
+  });
+
   it('no se anima: ni con movimiento normal ni reducido', () => {
     for (const reducido of [false, true]) {
       const { scene } = crearEscena([clave('madre', 'Marta')], reducido);

@@ -7,24 +7,29 @@ toca un caso ya creado, ni dos casos se tocan entre sí.
 Por cada sala elegida, en el orden pedido (la primera es la escena de inicio):
 
 - una escena (``SimulationNode``, clave = id de la sala) y su mapa (``SceneMap``: fondo en ``ambient.backgroundImage``,
-  ``ambient.encuadre``, entrada = punto de aparición); el mapa dice a qué sala y a qué lugar pertenece en
+  ``ambient.encuadre``, entrada = punto de aparición) y las paredes del encuadre como ``CollisionZone`` (``pared-*`` y
+  ``borde-*``: lo que queda fuera de la zona caminable, ver ``geometria``); el mapa dice a qué sala y a qué lugar pertenece en
   ``ambient.salaId`` y ``ambient.lugarId``: el editor agrupa por ahí las escenas que comparten sala (varias escenas en
   una misma sala son varios mapas con el mismo ``salaId``) y, con ``lugarId``, sabe de qué lugar sacar el catálogo;
-- los muebles → ``PROP`` con el tamaño y la colisión del catálogo, ``metadata.arte`` y, si el mueble es un espejo,
-  ``metadata.espejo``; el mueble va con ``collision=False`` y ``metadata.colision`` guarda lo que dijo el catálogo; los que
+- los muebles → ``PROP`` con el tamaño y la colisión del catálogo, ``metadata.arte``, ``metadata.apoyo = "pies"`` y, si el
+  mueble es un espejo, ``metadata.espejo``; el mueble va con ``collision=False`` y ``metadata.colision`` guarda lo que dijo el catálogo; los que
   chocan dejan su huella en el suelo como ``CollisionZone`` (lo único que bloquea al jugador);
 - los objetos → su tipo (``OBJECT``, ``NOTE``, ``RESOURCE``, ``PROP``…), ``interaction_text`` = ``alRevisar``,
-  ``interaction_prompt`` = ``textoInteraccion``, ``metadata.arte`` y ``metadata.animacionCerca = {hoja, cuadros, fps}``;
+  ``interaction_prompt`` = ``textoInteraccion``, ``metadata.arte``, ``metadata.apoyo = "pies"`` y
+  ``metadata.animacionCerca = {hoja, cuadros, fps}``;
 - los personajes → ``PERSON`` enlazada a un ``CaseCharacter`` (uno por personaje del lugar, aunque salga en varias salas),
-  con ``metadata.recipeId``, ``metadata.expresion`` y ``metadata.movimiento = "quieto"`` (``personaClave`` lo marca la
-  docente: la copia nunca lo pone);
+  con ``metadata.recipeId``, ``metadata.expresion``, ``metadata.apoyo = "pies"`` y ``metadata.movimiento = "quieto"``
+  (``personaClave`` lo marca la docente: la copia nunca lo pone);
 - las puertas que llevan a otra sala elegida → ``EXIT`` con ``metadata.{targetNodeKey, entryX, entryY}`` (la entrada de la
-  sala de destino). Las que llevan a una sala no elegida no se crean.
+  sala de destino) y ``metadata.pintada = true``: la puerta ya está dibujada en el fondo, el juego solo pone la pista y el
+  área de cruce. Las que llevan a una sala no elegida no se crean.
 
 Del lugar entero pasan al caso las herramientas (``ClinicalTool``: ninguna sala las coloca, son el maletín del caso), los
 hitos y el nivel de riesgo (``rules.milestones`` y ``rules.riskLevel``).
 
 Todas las posiciones son las de la biblioteca: el punto de apoyo en el suelo (centro inferior), no el centro de la caja.
+``metadata.apoyo = "pies"`` se lo dice al juego, que dibuja con la base en (x, y) igual que el editor; un caso que no lo
+trae (hecho antes) se dibuja como siempre.
 """
 import copy
 import json
@@ -45,10 +50,10 @@ from apps.simulation.services import case_rules
 from shared.exceptions import ApiError
 from shared.jsonutils import read_map
 
+from . import geometria
+from .geometria import ALTO_SALA, ANCHO_SALA
 from .lugares import url_de_arte
 
-#: La sala mide lo que el juego (``AUTHORED_ROOM_WIDTH/HEIGHT``).
-ANCHO_SALA, ALTO_SALA = 960, 528
 #: El tema de las salas autoradas; el fondo de la biblioteca va encima, en ``ambient.backgroundImage``.
 TEMA = "clinical-soft"
 #: Las escenas se colocan en el grafo en una cuadrícula que no se solapa: ``COLUMNAS`` por fila, separación fija.
@@ -66,6 +71,8 @@ ICONO_POR_TIPO = {"PERSON": "person", "EXIT": "door_front", "NOTE": "article", "
 ICONO_POR_DEFECTO = "inventory_2"
 ICONO_HERRAMIENTA = "assignment"
 COLOR = "#4FA3A5"
+#: ``metadata.apoyo``: la posición del objeto es el punto donde apoya en el suelo (centro inferior), no el centro de su caja.
+APOYO = "pies"
 MIRANDO = {"izquierda": "left", "derecha": "right"}
 
 
@@ -157,7 +164,7 @@ def _muebles(escena, sala, catalogo, lugar_id, claves):
         modelo = catalogo[colocado["ref"]]
         clave = claves.nueva(colocado["ref"])
         choca = bool(modelo["colision"])
-        metadata = {"arte": url_de_arte(lugar_id, modelo["arte"]), "colision": choca}
+        metadata = {"arte": url_de_arte(lugar_id, modelo["arte"]), "colision": choca, "apoyo": APOYO}
         if colocado.get("espejo"):
             metadata["espejo"] = True
         # El choque lo lleva SOLO la zona de abajo. ``collision`` del objeto va en falso: el servidor
@@ -177,11 +184,22 @@ def _muebles(escena, sala, catalogo, lugar_id, claves):
     return objetos, zonas
 
 
+def _paredes(escena, sala):
+    """Las paredes y bordes del encuadre de la sala: lo que el fondo pintado ya muestra como pared, ahora también en el mundo."""
+    return [
+        CollisionZone(
+            scene_map=escena, zone_key=pared.clave, label=pared.etiqueta,
+            position_x=pared.x, position_y=pared.y, width=pared.ancho, height=pared.alto,
+        )
+        for pared in geometria.paredes(sala["encuadre"])
+    ]
+
+
 def _objetos(escena, sala, catalogo, lugar_id, claves):
     resultado = []
     for colocado in sala.get("objetos", []):
         modelo = catalogo[colocado["ref"]]
-        metadata = {"arte": url_de_arte(lugar_id, modelo["arte"])}
+        metadata = {"arte": url_de_arte(lugar_id, modelo["arte"]), "apoyo": APOYO}
         animacion = modelo.get("animacionCerca")
         if isinstance(animacion, dict):
             metadata["animacionCerca"] = {
@@ -202,7 +220,7 @@ def _personas(escena, sala, personajes, caracteres, claves):
     resultado = []
     for colocado in sala.get("personajes", []):
         info = personajes[colocado["ref"]]
-        metadata = {"recipeId": info["recipeId"], "movimiento": "quieto"}
+        metadata = {"recipeId": info["recipeId"], "movimiento": "quieto", "apoyo": APOYO}
         if colocado.get("expresion"):
             metadata["expresion"] = colocado["expresion"]
         ancho, alto = TAMANO_PERSONA
@@ -224,7 +242,7 @@ def _puertas(escena, sala, entradas, claves):
         resultado.append(_objeto(
             escena, claves.nueva(puerta["id"]), puerta["etiqueta"], "EXIT", puerta["x"], puerta["y"], ancho, alto,
             interaction_prompt=puerta["etiqueta"],
-            metadata={"targetNodeKey": puerta["hacia"], "entryX": destino["x"], "entryY": destino["y"]},
+            metadata={"targetNodeKey": puerta["hacia"], "entryX": destino["x"], "entryY": destino["y"], "pintada": True},
         ))
     return resultado
 
@@ -318,7 +336,7 @@ def copiar_al_caso(case_version, lugar, salas):
         de_personas = _personas(escena, sala, personajes, caracteres, claves)
         de_puertas = _puertas(escena, sala, entradas, claves)
         MapObject.objects.bulk_create(de_muebles + de_objetos + de_personas + de_puertas)
-        CollisionZone.objects.bulk_create(zonas)
+        CollisionZone.objects.bulk_create(_paredes(escena, sala) + zonas)
         cuenta["muebles"] += len(de_muebles)
         cuenta["objetos"] += len(de_objetos)
         cuenta["personajes"] += len(de_personas)

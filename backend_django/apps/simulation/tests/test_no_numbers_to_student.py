@@ -74,8 +74,6 @@ ALLOWED_NUMERIC_KEYS = {
     "entryX": "punto de entrada de la puerta", "entryY": "punto de entrada de la puerta",
     "interactionRadius": "radio de interacción de un objeto",
     "cameraZoom": "acercamiento de la cámara en la sala (``ambient`` de autoría): geometría del render, no una medida",
-    "cuadros": "cuadros de la hoja de animación de cercanía de un objeto (``metadata.animacionCerca``): parámetro del dibujo, no una medida",
-    "fps": "cuadros por segundo de esa animación: parámetro del dibujo, no una medida",
     # ── la animación del dibujo de un objeto copiado de la biblioteca (``metadata.animacionCerca``) ──
     "cuadros": "cuántos cuadros tiene la hoja de animación de un objeto cuando la persona se le acerca: es el dibujo, no una medida de ella",
     "fps": "a cuántos cuadros por segundo se anima esa hoja: velocidad del dibujo, no una medida de la persona",

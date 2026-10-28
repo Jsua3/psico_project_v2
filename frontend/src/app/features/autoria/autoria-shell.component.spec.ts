@@ -353,4 +353,72 @@ describe('AutoriaShellComponent · como ruta del programa', () => {
     await listo();
     expect(cerrar()).toBe(true);
   });
+
+  describe('A3 · lo escrito en un campo no se pierde al salir sin salir del campo', () => {
+    /** Un campo como los del editor: guarda al perder el foco (jsdom no suelta el `change` solo, así que se simula con blur). */
+    function campoConCambioPendiente(store: CasoStore, titulo: string): HTMLTextAreaElement {
+      const campo = document.createElement('textarea');
+      campo.addEventListener('blur', () => store.editarEscena(store.caso()!.escenas[0].id, { titulo: campo.value }));
+      document.body.appendChild(campo);
+      campo.focus();
+      campo.value = titulo;
+      return campo;
+    }
+
+    afterEach(() => document.querySelectorAll('body > textarea').forEach((n) => n.remove()));
+
+    it('cerrar la pestaña con el cursor en un campo pregunta y el cambio entra a la cola', async () => {
+      const { listo, store, servidor } = await irA('/portal/casos/41/editor');
+      campoConCambioPendiente(store, 'Escrito sin salir del campo');
+      const cerrar = new Event('beforeunload', { cancelable: true });
+      window.dispatchEvent(cerrar);
+      expect(cerrar.defaultPrevented).toBe(true);
+      await store.sincronizado();
+      await listo();
+      expect(store.caso()!.escenas[0].titulo).toBe('Escrito sin salir del campo');
+      expect(servidor.llamadasA('updateNode').length).toBeGreaterThan(0);
+    });
+
+    it('salir del editor con el cursor en un campo guarda lo escrito y sale sin preguntar', async () => {
+      const consequence = vi.fn(async (_opciones: unknown) => 'proceed' as const);
+      const { harness, listo, store, servidor } = await irA('/portal/casos/41/editor', undefined, [{ provide: UiDialog, useValue: { consequence } }]);
+      campoConCambioPendiente(store, 'Titulo al salir');
+      await harness.navigateByUrl('/portal/casos');
+      await listo();
+      expect(consequence).not.toHaveBeenCalled();
+      expect(TestBed.inject(Router).url).toBe('/portal/casos');
+      const guardado = servidor.llamadasA('updateNode').at(-1)!.args.map((a) => JSON.stringify(a)).join(' ');
+      expect(guardado).toContain('Titulo al salir');
+    });
+
+    it('un cambio que el sistema rechazó y se deshizo cuenta como algo que se pierde: salir pregunta y lo dice', async () => {
+      const consequence = vi.fn(async (_opciones: unknown) => 'continue' as const);
+      const { harness, listo, store, servidor } = await irA('/portal/casos/41/editor', undefined, [{ provide: UiDialog, useValue: { consequence } }]);
+      servidor.fallar('updateNode', 400, 'No.', { campo: 'title' });
+      store.editarEscena(store.caso()!.escenas[0].id, { titulo: 'No se pudo' });
+      await store.sincronizado();
+      await listo();
+      expect(store.error()).not.toBeNull();
+      await harness.navigateByUrl('/portal/casos');
+      await listo();
+      expect(consequence).toHaveBeenCalledTimes(1);
+      expect((consequence.mock.calls[0][0] as { consequence: string }).consequence).toContain('no se guardó');
+      expect(TestBed.inject(Router).url).toBe('/portal/casos/41/editor');
+    });
+
+    it('cerrar la pestaña con un cambio rechazado pregunta; si el aviso se descarta, ya no', async () => {
+      const { listo, store, servidor } = await irA('/portal/casos/41/editor');
+      servidor.fallar('updateNode', 400, 'No.', { campo: 'title' });
+      store.editarEscena(store.caso()!.escenas[0].id, { titulo: 'No se pudo' });
+      await store.sincronizado();
+      await listo();
+      const cerrar = new Event('beforeunload', { cancelable: true });
+      window.dispatchEvent(cerrar);
+      expect(cerrar.defaultPrevented).toBe(true);
+      store.descartarError();
+      const otra = new Event('beforeunload', { cancelable: true });
+      window.dispatchEvent(otra);
+      expect(otra.defaultPrevented).toBe(false);
+    });
+  });
 });

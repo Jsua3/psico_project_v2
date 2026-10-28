@@ -50,16 +50,27 @@ const TIPOS_DE_FRASE: { tipo: TipoDeParte; nombre: string }[] = [
         <fieldset class="tarjeta modo" data-accion="definir-finales">
           <legend>Cómo se deciden los finales</legend>
           <label class="opcion">
-            <input type="radio" name="modo" value="automatico" [checked]="caso.modoFinales === 'automatico'" (change)="store.fijarModoFinales('automatico')" />
+            <input type="radio" name="modo" value="automatico" [checked]="caso.modoFinales === 'automatico'" (change)="pedirModo('automatico', $event)" />
             <span><strong>Los finales se calculan solos</strong><br />
               <span class="texto-secundario">Según los hitos que cumplió y cuántas respuestas con riesgo o contraindicadas eligió el estudiante. No tienes que escribir nada.</span></span>
           </label>
           <label class="opcion">
-            <input type="radio" name="modo" value="propio" [checked]="caso.modoFinales === 'propio'" (change)="store.fijarModoFinales('propio')" />
+            <input type="radio" name="modo" value="propio" [checked]="caso.modoFinales === 'propio'" (change)="pedirModo('propio', $event)" />
             <span><strong>Quiero definir mis finales</strong><br />
               <span class="texto-secundario">Tú decides cuántos hay, qué los provoca y qué dice cada uno.</span></span>
           </label>
         </fieldset>
+
+        @if (confirmandoModo()) {
+          <div class="tarjeta dialogo peligro" role="alertdialog" aria-labelledby="cmt">
+            <h2 id="cmt" tabindex="-1">{{ preguntaModo(caso.finales.length) }}</h2>
+            <p>Los finales se calcularán solos con los hitos y las respuestas. Si después quieres volver a definirlos tú, tendrás que escribirlos de nuevo.</p>
+            <div class="acciones">
+              <button type="button" class="boton boton-peligro" (click)="aceptarModo()">Sí, usar los que se calculan solos</button>
+              <button type="button" class="boton" (click)="conservarModo()">No, conservar mis finales</button>
+            </div>
+          </div>
+        }
 
         <p role="status" class="texto-secundario">{{ estadoCaminos() }}</p>
         <p role="status" class="solo-lector">{{ anuncio() }}</p>
@@ -210,6 +221,8 @@ const TIPOS_DE_FRASE: { tipo: TipoDeParte; nombre: string }[] = [
     .opcion { display: flex; gap: 12px; align-items: flex-start; padding: 12px; border: 2px solid var(--borde-control); border-radius: var(--radio-control); cursor: pointer; }
     .opcion:has(input:checked) { border-color: var(--primario); background: var(--primario-tinte); }
     .opcion input { width: 22px; height: 22px; margin-top: 3px; accent-color: var(--primario); }
+    .dialogo { display: flex; flex-direction: column; gap: 12px; max-width: 640px; border: 2px solid var(--peligro); }
+    .dialogo h2, .dialogo p { margin: 0; }
     .bloque { display: flex; flex-direction: column; gap: 12px; }
     .bloque h2, .bloque > p { margin: 0; }
     .bloque > .boton { align-self: flex-start; }
@@ -267,6 +280,45 @@ export class FinalesComponent {
     if (!caso) return '';
     return estadoDeCaminos(caso);
   });
+
+  /** El docente pidió pasar a los finales automáticos teniendo finales propios: se pregunta antes de dejar de usarlos. */
+  protected readonly confirmandoModo = signal(false);
+
+  /**
+   * Cambiar el modo. Pasar a «se calculan solos» con finales propios los quita del servidor: antes se pregunta y, mientras tanto,
+   * el selector se queda donde estaba.
+   */
+  protected pedirModo(modo: 'automatico' | 'propio', evento: Event): void {
+    const caso = this.store.caso();
+    if (!caso) return;
+    if (modo === 'automatico' && caso.modoFinales === 'propio' && caso.finales.length > 0) {
+      const elegido = evento.target as HTMLInputElement;
+      elegido.checked = false;
+      const propio = elegido.closest('fieldset')?.querySelector<HTMLInputElement>('input[value="propio"]');
+      if (propio) propio.checked = true;
+      this.confirmandoModo.set(true);
+      setTimeout(() => document.getElementById('cmt')?.focus());
+      return;
+    }
+    this.store.fijarModoFinales(modo);
+  }
+
+  protected preguntaModo(n: number): string {
+    return n === 1 ? 'Tu final propio dejará de usarse. ¿Seguir?' : `Tus ${n} finales propios dejarán de usarse. ¿Seguir?`;
+  }
+
+  protected aceptarModo(): void {
+    this.confirmandoModo.set(false);
+    this.store.fijarModoFinales('automatico');
+    this.anuncio.set('Los finales se calculan solos.');
+    this.enfocarPrimero('input[name="modo"][value="automatico"]');
+  }
+
+  protected conservarModo(): void {
+    this.confirmandoModo.set(false);
+    this.anuncio.set('Se conservan tus finales.');
+    this.enfocarPrimero('input[name="modo"][value="propio"]');
+  }
 
   protected agregarFinal(): void {
     this.store.agregarFinal();

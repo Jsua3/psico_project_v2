@@ -187,10 +187,54 @@ describe('aplicarPropuesta', () => {
       { op: 'set-intensity', nodeId: 2, intensity: 'HIGH', warningMessage: 'Habla de violencia.' },
     ] as Cambio[], [true, true, true, true, true], resolver(c), ids);
     expect(nuevo.escenas[0].respuestas[0]).toMatchObject({
-      clase: 'CONTRAINDICATED', razon: 'Presiona.', efectos: { persona: { bond: -1, activation: 1 }, hitos: ['a', 'valorar_el_riesgo'] }, marcaIa: false,
+      clase: 'CONTRAINDICATED', razon: 'Presiona.', efectos: { persona: { bond: -1, activation: 1 }, hitos: ['a', 'valorar_el_riesgo'] }, marcaIa: true,
     });
-    expect(nuevo.escenas[1]).toMatchObject({ intensidad: 'HIGH', advertencia: 'Habla de violencia.' });
+    expect(nuevo.escenas[1]).toMatchObject({ intensidad: 'HIGH', advertencia: 'Habla de violencia.', marcaIa: true });
     expect(tocados).toMatchObject({ respuestas: ['r1'], escenas: [c.escenas[1].id] });
+  });
+
+  describe('A7 · todo lo que la IA cambia o coloca queda marcado «sugerido por la IA»', () => {
+    const respuestaPropia = (c: CasoBorrador) => {
+      c.escenas[0].respuestas = [{ id: 'r1', texto: 'Hola', clase: 'ACCEPTABLE', razon: '', retroalimentacion: '', efectos: {}, destinoId: c.escenas[1].id, marcaIa: false }];
+    };
+
+    it('cambiar la clase, el efecto en la persona o un hito marca la respuesta que se toca (y solo esa)', () => {
+      for (const cambio of [
+        { op: 'set-response-class', decisionId: 1, responseClass: 'RISKY', prohibitionReason: '' },
+        { op: 'set-persona-effect', decisionId: 1, bond: 1, activation: null },
+        { op: 'mark-milestone', decisionId: 1, milestoneKey: 'valorar_el_riesgo' },
+      ] as Cambio[]) {
+        const c = caso();
+        respuestaPropia(c);
+        c.escenas[1].respuestas = [{ id: 'r2', texto: 'Otra', clase: 'ACCEPTABLE', razon: '', retroalimentacion: '', efectos: {}, destinoId: c.escenas[0].id, marcaIa: false }];
+        const { caso: nuevo } = aplicarPropuesta(c, [cambio], [true], resolver(c), ids);
+        expect(nuevo.escenas[0].respuestas[0].marcaIa, cambio.op).toBe(true);
+        expect(nuevo.escenas[1].respuestas[0].marcaIa, cambio.op).toBe(false);
+      }
+    });
+
+    it('cambiar la intensidad de una escena existente la marca', () => {
+      const c = caso();
+      expect(c.escenas[1].marcaIa).toBeFalsy();
+      const { caso: nuevo } = aplicarPropuesta(c, [{ op: 'set-intensity', nodeId: 2, intensity: 'HIGH', warningMessage: 'Habla de violencia.' }] as Cambio[], [true], resolver(c), ids);
+      expect(nuevo.escenas[1].marcaIa).toBe(true);
+      expect(nuevo.escenas[0].marcaIa).toBeFalsy();
+    });
+
+    it('colocar un personaje deja a esa persona marcada; las demás no', () => {
+      const c = caso();
+      const { caso: nuevo } = aplicarPropuesta(c, [{ op: 'place-character', mapId: 2, characterId: personaje1, x: 300, y: 350, expression: 'alegre' }] as Cambio[], [true], resolver(c), ids);
+      const personas = nuevo.salas.find((s) => s.id === 'consultorio')!.personajes;
+      expect(personas.at(-1)!.marcaIa).toBe(true);
+      expect(personas.slice(0, -1).every((p) => !p.marcaIa)).toBe(true);
+    });
+
+    it('mover algo lo marca', () => {
+      const c = caso();
+      const { caso: nuevo } = aplicarPropuesta(c, [{ op: 'move', objectId: 1, x: 400, y: 300 }] as Cambio[], [true], resolver(c), ids);
+      expect(nuevo.salas[0].muebles[0].marcaIa).toBe(true);
+      expect(nuevo.salas[0].muebles[1].marcaIa).toBeFalsy();
+    });
   });
 
   it('con los mismos ids de entrada da el mismo resultado (el store la vuelve a aplicar si otro cambio falla)', () => {
@@ -240,5 +284,14 @@ describe('describirCambio', () => {
     expect(textos[4]).toContain('llega cuando no se cumple ningún otro');
     expect(textos[5]).toContain('intensidad alta');
     for (const t of textos) expect(t).not.toMatch(/\bnodo\b|\bID\b|nueva-\d|undefined|\[object/i);
+  });
+
+  it('A8 · la expresión se dice con su nombre del kit, no con la clave cruda', () => {
+    const c = caso();
+    const r = resolver(c);
+    const dicha = describirCambio(c, linea(1, { expression: 'en-crisis' }), [], r);
+    expect(dicha).toContain('(en crisis)');
+    expect(dicha).not.toContain('en-crisis');
+    expect(describirCambio(c, linea(1, { expression: 'preocupada' }), [], r)).toContain('(preocupada)');
   });
 });

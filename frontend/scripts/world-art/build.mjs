@@ -130,19 +130,35 @@ export function manifestFindings({ biblioteca = BIBLIOTECA_DIR, manifest = readM
   return findings;
 }
 
+/** `inner` es `outer` o está dentro de ella (rutas ya resueltas; sin distinguir mayúsculas en Windows). */
+function isSameOrInside(inner, outer) {
+  const relative = path.relative(outer, inner);
+  return relative === '' || (!relative.startsWith('..') && !path.isAbsolute(relative));
+}
+
 /**
  * Copia a `output` (por defecto src/assets/biblioteca) el manifiesto y cada PNG que lista, con la misma ruta relativa.
  * Borra antes lo que hubiera: la carpeta es solo una copia. Devuelve cuántos archivos copió.
+ *
+ * Se valida todo ANTES de borrar: la salida debe llamarse `biblioteca`, no puede ser la biblioteca fuente ni estar dentro de
+ * ella (copiaría sobre sí misma) ni contenerla (borrarla se llevaría la fuente), y cada archivo que el manifiesto lista debe existir.
  */
 export function publishLibrary({ biblioteca = BIBLIOTECA_DIR, output = PUBLISHED_DIR } = {}) {
   if (path.basename(output) !== 'biblioteca') throw new Error(`publishLibrary: no borro ${output} (la carpeta de salida debe llamarse biblioteca)`);
-  const manifest = readManifest(path.join(biblioteca, 'manifiesto.json'));
-  rmSync(output, { recursive: true, force: true });
+  const source = path.resolve(biblioteca);
+  const target = path.resolve(output);
+  if (isSameOrInside(target, source) || isSameOrInside(source, target)) {
+    throw new Error(`publishLibrary: la salida (${target}) no puede ser la biblioteca (${source}), estar dentro de ella ni contenerla`);
+  }
+  const manifest = readManifest(path.join(source, 'manifiesto.json'));
   const files = [...Object.keys(manifest.sprites), 'manifiesto.json'];
+  const missing = files.filter((key) => !existsSync(path.join(source, ...key.split('/'))));
+  if (missing.length > 0) throw new Error(`publishLibrary: el manifiesto lista archivos que no existen (${missing.join(', ')}); no borro ${target}`);
+  rmSync(target, { recursive: true, force: true });
   for (const key of files) {
-    const target = path.join(output, ...key.split('/'));
-    mkdirSync(path.dirname(target), { recursive: true });
-    copyFileSync(path.join(biblioteca, ...key.split('/')), target);
+    const destination = path.join(target, ...key.split('/'));
+    mkdirSync(path.dirname(destination), { recursive: true });
+    copyFileSync(path.join(source, ...key.split('/')), destination);
   }
   return files.length;
 }

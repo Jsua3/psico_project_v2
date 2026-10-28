@@ -205,9 +205,16 @@ function partesDeIa(caso: CasoBorrador): { cuantas: number; primera: Falta['ir']
     if (partes && !primera) primera = e.marcaIa ? { ruta: '/editor', accionId: 'aceptar-ia' } : { ruta: `/editor/escena/${e.id}`, accionId: 'aceptar-ia' };
     cuantas += partes;
   }
+  // lo que la IA puso o movió en las salas
+  let piezasIa = 0;
+  for (const sala of caso.salas) {
+    const marcadas = [...sala.muebles, ...sala.objetos, ...sala.personajes].filter((p) => p.marcaIa).length;
+    if (marcadas && !primera) primera = { ruta: `/editor/sala/${sala.id}`, accionId: 'aceptar-ia' };
+    piezasIa += marcadas;
+  }
   const finalesIa = caso.finales.filter((f) => f.marcaIa).length;
   if (finalesIa && !primera) primera = { ruta: '/editor/finales', accionId: 'aceptar-ia' };
-  return { cuantas: cuantas + finalesIa, primera };
+  return { cuantas: cuantas + piezasIa + finalesIa, primera };
 }
 
 /** Los códigos del mundo que los avisos de caminos del editor ya cubren, y el aviso que los cubre. */

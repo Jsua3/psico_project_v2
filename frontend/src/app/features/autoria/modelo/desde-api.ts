@@ -96,6 +96,7 @@ function salaDesdeMundo(mundo: WorldDefinition, ctx: Contexto, lugarId: string |
         ref: personaje?.key ?? o.key, clave: o.key, x: o.x, y: o.y,
         mirando: (o.facing === 'left' ? 'izquierda' : 'derecha') satisfies Mirando, expresion: expresionDe(o.metadata?.['expresion']),
         movimiento: movimientoDeMetadata(o.metadata?.['movimiento']), personaClave: o.metadata?.['personaClave'] === true,
+        ...(o.aiSuggested === true ? { marcaIa: true } : {}),
       });
     } else {
       const refMueble = refDeCatalogo(o.key, idsMuebles);
@@ -103,6 +104,7 @@ function salaDesdeMundo(mundo: WorldDefinition, ctx: Contexto, lugarId: string |
       const esMueble = o.type === 'PROP' && (refMueble !== null || refObjeto === null);
       const colocacion: ColocacionCaso = { ref: (esMueble ? refMueble : refObjeto) ?? o.key, clave: o.key, x: o.x, y: o.y };
       if (o.decisionOptionId != null) colocacion.decisionOptionId = o.decisionOptionId;
+      if (o.aiSuggested === true) colocacion.marcaIa = true;
       if (esMueble) {
         colocacion.espejo = o.metadata?.['espejo'] === true;
         muebles.push(colocacion);

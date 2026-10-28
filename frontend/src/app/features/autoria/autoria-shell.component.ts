@@ -254,28 +254,44 @@ export class AutoriaShellComponent implements CanLeave {
     }
   }
 
-  /** Al recargar o cerrar: lo que se está escribiendo se confirma (el campo suelta su cambio). */
-  protected alCerrar(): void {
+  /**
+   * Suelta el foco: los campos guardan al perder el foco, así que lo que se está escribiendo entra a la cola antes de mirar si hay
+   * algo sin guardar (cerrar o salir con el cursor aún dentro de un campo no lo pierde).
+   */
+  private soltarFoco(): void {
     const activo = document.activeElement;
     if (activo instanceof HTMLElement && activo !== document.body) activo.blur();
   }
 
-  /** Si hay algo que no está a salvo (cambios viajando, un conflicto o respuestas a medias), el navegador pregunta antes de cerrar la pestaña. */
+  /** Hay algo que se perdería al salir: lo que no está a salvo y también un cambio que el sistema rechazó (ya está deshecho). */
+  private haySinGuardar(): boolean {
+    return this.store.haySinGuardar() || this.store.error() !== null || this.store.descartado().length > 0;
+  }
+
+  /** Al recargar o cerrar: lo que se está escribiendo se confirma (el campo suelta su cambio). */
+  protected alCerrar(): void {
+    this.soltarFoco();
+  }
+
+  /** Si hay algo que no está a salvo (cambios viajando, un conflicto, respuestas a medias o un cambio rechazado), el navegador pregunta antes de cerrar la pestaña. */
   protected antesDeSalir(e: BeforeUnloadEvent): void {
-    if (this.store.haySinGuardar()) e.preventDefault();
+    this.soltarFoco();
+    if (this.haySinGuardar()) e.preventDefault();
   }
 
   /**
-   * Salir del editor (guardia de la ruta): primero se espera a que lo pendiente llegue; si aun así queda algo que no está a
-   * salvo, se pregunta nombrando lo que se pierde, con «Seguir editando» como acción segura.
+   * Salir del editor (guardia de la ruta): primero se suelta el foco y se espera a que lo pendiente llegue; si aun así queda algo
+   * que no está a salvo, se pregunta nombrando lo que se pierde, con «Seguir editando» como acción segura.
    */
   async canLeave(): Promise<boolean> {
+    this.soltarFoco();
     await this.store.sincronizado();
-    if (!this.store.haySinGuardar()) return true;
+    if (!this.haySinGuardar()) return true;
     const motivos: string[] = [];
     if (this.store.conflicto()) motivos.push('otra persona cambió el caso y tus últimos cambios no se guardaron');
     const n = this.store.sinGuardar().length;
     if (n > 0) motivos.push(n === 1 ? 'hay 1 respuesta sin completar que solo está en esta pantalla' : `hay ${n} respuestas sin completar que solo están en esta pantalla`);
+    if (this.store.error() !== null || this.store.descartado().length > 0) motivos.push('un cambio no se guardó y se deshizo (el aviso sigue arriba)');
     const respuesta = await this.dialogo.consequence({
       title: 'Tienes cambios sin guardar',
       consequence: `Si sales ahora se pierde lo que no está guardado: ${motivos.join(' y ')}.`,

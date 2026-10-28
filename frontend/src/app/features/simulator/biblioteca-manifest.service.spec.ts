@@ -2,7 +2,7 @@ import { provideHttpClient } from '@angular/common/http';
 import { HttpTestingController, provideHttpClientTesting } from '@angular/common/http/testing';
 import { TestBed } from '@angular/core/testing';
 
-import { BibliotecaManifestService } from './biblioteca-manifest.service';
+import { BIBLIOTECA_MANIFEST_TIMEOUT_MS, BibliotecaManifestService } from './biblioteca-manifest.service';
 import { BIBLIOTECA_MANIFEST_URL, BibliotecaManifest } from './object-sprite.util';
 
 const MANIFEST: BibliotecaManifest = {
@@ -80,5 +80,42 @@ describe('BibliotecaManifestService', () => {
     const retry = service.load();
     http.expectOne(BIBLIOTECA_MANIFEST_URL).flush(MANIFEST);
     await expect(retry).resolves.toEqual(MANIFEST);
+  });
+
+  // Revisión final · C8: el arranque del juego espera este manifiesto; un servidor que no contesta no debe colgarlo.
+  describe('con un servidor que no contesta', () => {
+    beforeEach(() => vi.useFakeTimers());
+    afterEach(() => vi.useRealTimers());
+
+    it('pasado el plazo devuelve null (el juego sigue sin animaciones) y cancela la petición', async () => {
+      expect(BIBLIOTECA_MANIFEST_TIMEOUT_MS).toBe(8000);
+      const result = service.load();
+      const request = http.expectOne(BIBLIOTECA_MANIFEST_URL);
+      vi.advanceTimersByTime(BIBLIOTECA_MANIFEST_TIMEOUT_MS - 1);
+      expect(request.cancelled).toBe(false);
+      vi.advanceTimersByTime(1);
+      await expect(result).resolves.toBeNull();
+      expect(request.cancelled).toBe(true);
+    });
+
+    it('y el siguiente load() vuelve a intentarlo', async () => {
+      const lento = service.load();
+      http.expectOne(BIBLIOTECA_MANIFEST_URL);
+      vi.advanceTimersByTime(BIBLIOTECA_MANIFEST_TIMEOUT_MS);
+      await expect(lento).resolves.toBeNull();
+
+      const retry = service.load();
+      http.expectOne(BIBLIOTECA_MANIFEST_URL).flush(MANIFEST);
+      await expect(retry).resolves.toEqual(MANIFEST);
+    });
+
+    it('una respuesta a tiempo no se ve afectada por el plazo', async () => {
+      const result = service.load();
+      vi.advanceTimersByTime(BIBLIOTECA_MANIFEST_TIMEOUT_MS - 1000);
+      http.expectOne(BIBLIOTECA_MANIFEST_URL).flush(MANIFEST);
+      await expect(result).resolves.toEqual(MANIFEST);
+      vi.advanceTimersByTime(60_000);
+      expect(await service.load()).toEqual(MANIFEST);
+    });
   });
 });

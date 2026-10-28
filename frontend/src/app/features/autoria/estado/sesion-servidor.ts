@@ -43,6 +43,18 @@ export class SesionServidor {
     return id !== undefined && this.vista.nodes.some((n) => n.id === id) ? id : undefined;
   }
 
+  /** El id del borrador de la escena que es el nodo: el que se le dio al crearla en esta visita o, si no, el número del servidor. */
+  idLocalDeNodo(nodoId: number): string {
+    for (const [local, id] of this.nodos) if (id === nodoId) return local;
+    return String(nodoId);
+  }
+
+  /** El id del borrador de la respuesta que es la opción: el que se le dio al crearla en esta visita o, si no, el número del servidor. */
+  idLocalDeDecision(decisionId: number): string {
+    for (const [local, id] of this.decisiones) if (id === decisionId) return local;
+    return String(decisionId);
+  }
+
   anotarNodo(escenaId: string, nodoId: number): void {
     this.nodos.set(escenaId, nodoId);
   }
@@ -110,6 +122,10 @@ export class SesionServidor {
     return this.escribir((r) => this.api.deleteDecision(this.caseVersionId, decisionId, r));
   }
 
+  aceptarObjeto(objetoId: number) {
+    return this.escribir((r) => this.api.acceptAiObject(this.caseVersionId, objetoId, r));
+  }
+
   aceptarDecision(decisionId: number) {
     return this.escribir((r) => this.api.acceptAiDecision(this.caseVersionId, decisionId, r));
   }
@@ -159,6 +175,20 @@ export class SesionServidor {
     const mundo = await firstValueFrom(this.api.worldEditor(this.caseVersionId, nodoId));
     this.mundos.set(nodoId, mundo);
     return mundo;
+  }
+
+  /**
+   * Vuelve a leer del servidor el caso y el mundo de cada mapa. Lo usa el store tras un cambio de varias llamadas que falló a
+   * medias: las llamadas que sí entraron no siempre dejan su resultado en la sesión (por ejemplo, un diálogo cambiado), así que
+   * lo que el editor sabe se pone al día de una vez.
+   */
+  async releerTodo(): Promise<void> {
+    const vista = await firstValueFrom(this.api.caseEditor(this.caseVersionId));
+    const mundos = await Promise.all(vista.maps.map((m) => firstValueFrom(this.api.worldEditor(this.caseVersionId, m.nodeId))));
+    this.vista = vista;
+    this.revision = vista.revision;
+    this.mundos.clear();
+    for (const m of mundos) this.mundos.set(m.nodeId, m);
   }
 
   /** Guarda la sala de un mapa con la revisión vigente (viaja en el cuerpo) y adopta la que devuelve. */

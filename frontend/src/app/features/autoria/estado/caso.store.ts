@@ -23,6 +23,7 @@ import { revisarPuntoDeIda } from '../modelo/movimiento';
 import { posicionLibre, trazarEscenas } from '../modelo/trazado';
 import { Historial } from './historial';
 import * as persistir from './persistir';
+import { casoLeidoDelServidor, firmaDelCaso } from './releer';
 import { SesionServidor } from './sesion-servidor';
 
 export type TipoElemento = 'mueble' | 'objeto' | 'personaje';
@@ -58,6 +59,8 @@ interface Operacion {
    * guarda (conflicto o rechazo) para que no lo pierda.
    */
   resumen?: string[];
+  /** Qué más hacer si el cambio no se pudo guardar (por ejemplo, apagar «Deshacer lo aplicado» de una propuesta). */
+  alFallar?: () => void;
 }
 
 function moverEnLista<T extends { id: string }>(lista: T[], id: string, delta: -1 | 1): void {
@@ -98,8 +101,10 @@ const FALTA_POR_CAMPO: Record<string, string> = {
 };
 
 /** Lo que se le dice al docente cuando un cambio no se pudo guardar: sin códigos ni palabras técnicas. */
-export function mensajeDeFallo(error: unknown, nombre: string): string {
-  const base = `No se pudo guardar ${nombre}. Lo dejamos como estaba.`;
+export function mensajeDeFallo(error: unknown, nombre: string, aMedias = false): string {
+  const base = aMedias
+    ? `No se pudo terminar de guardar ${nombre}. Quedó a medias: esto es lo que se guardó.`
+    : `No se pudo guardar ${nombre}. Lo dejamos como estaba.`;
   if (!(error instanceof HttpErrorResponse)) return base;
   if (error.status === 0) return `${base} No hay conexión. Revisa tu internet y vuelve a intentarlo.`;
   if (error.status === 403) return `${base} No tienes permiso para cambiar este caso.`;
@@ -268,6 +273,12 @@ export class CasoStore {
     if (this.sesion === sesion) this.cerrar();
   }
 
+  /** El nombre del lugar de la biblioteca del que salió el caso; `null` si el caso no tiene lugar o aún no se leyó. */
+  nombreDelLugar(): string | null {
+    const lugar = this.sesion?.lugar;
+    return lugar && lugar.id === this.estado()?.lugarId ? lugar.nombre : null;
+  }
+
   /** El número que el servidor le dio a una escena; null si aún no está allí o el caso no viene del servidor. */
   nodoDeEscena(escenaId: string): number | null {
     return this.sesion?.nodoDe(escenaId) ?? null;
@@ -370,6 +381,7 @@ export class CasoStore {
         const sesion = this.sesion;
         const op = this.cola[0];
         const despues = structuredClone(this.base);
+        const revisionAntes = sesion.revision;
         try {
           op.aplicar(despues);
           await op.enviar?.(despues, sesion);
@@ -380,16 +392,15 @@ export class CasoStore {
         } catch (error) {
           if (this.sesion !== sesion) return;
           if (revisionConflictOf(error) || this.esCasoVencido(error)) {
-            this.conflictoAhora.set({
-              mensaje: 'Otra persona (u otra pestaña) cambió este caso mientras lo editabas. Para no pisar su trabajo, tus últimos cambios no se guardaron todavía. Si recargas el caso, verás la versión guardada y estos cambios no se aplicarán.',
-              sinGuardar: [...new Set([...this.cola.flatMap((o) => o.resumen ?? []), ...this.resumenDePendientes()])],
-            });
+            this.avisarConflicto([...new Set([...this.cola.flatMap((o) => o.resumen ?? []), ...this.resumenDePendientes()])]);
             break;
           }
           this.cola.shift(); // se revierte solo este cambio
-          this.errorAhora.set(this.mensajeDe(error, op));
+          const aMedias = await this.reflejarLoQueQuedo(error, sesion, revisionAntes);
+          if (this.sesion !== sesion) return; // mientras se releía se abrió otro caso
+          this.errorAhora.set(this.mensajeDe(error, op, aMedias));
           this.descartadoAhora.set(op.resumen ?? []);
-          this.reflejarLoQueQuedo(error, sesion);
+          op.alFallar?.();
         }
         this.recomputar();
       }
@@ -415,17 +426,22 @@ export class CasoStore {
   }
 
   /** El mensaje de un cambio que no se guardó; dos casos dejan el caso a medias y lo dicen. */
-  private mensajeDe(error: unknown, op: Operacion): string {
+  private mensajeDe(error: unknown, op: Operacion, aMedias = false): string {
     if (error instanceof persistir.SalaDesalineada) return 'Algunas escenas de esta sala pueden mostrarla distinta. Vuelve a guardarla.';
     if (error instanceof persistir.BorradoAMedias) {
       return 'Se quitaron los caminos que llevaban a esa escena, pero la escena no se pudo borrar. Vuelve a conectar esos caminos si hace falta.';
     }
-    return mensajeDeFallo(error, op.nombre);
+    return mensajeDeFallo(error, op.nombre, aMedias);
   }
 
-  /** Cuando un cambio falló a medias, el borrador confirmado muestra lo que quedó en el sistema, no lo de antes. */
-  private reflejarLoQueQuedo(error: unknown, sesion: SesionServidor): void {
-    if (!this.base) return;
+  /**
+   * Cuando un cambio falló a medias, el borrador confirmado muestra lo que quedó en el sistema, no lo de antes. Dos fallos
+   * conocidos se arreglan en el sitio (una sala desalineada, un borrado a medias); en cualquier otro, si el servidor ya había
+   * aceptado algo (la revisión cambió), se vuelve a leer el caso y se conserva lo local que aún no se puede guardar.
+   * Devuelve si quedó a medias (el servidor tiene algo que el editor no mostraba).
+   */
+  private async reflejarLoQueQuedo(error: unknown, sesion: SesionServidor, revisionAntes: number): Promise<boolean> {
+    if (!this.base) return false;
     if (error instanceof persistir.SalaDesalineada) {
       const leido = casoDesdeApi(sesion.vista, [...sesion.mundos.values()], sesion.lugar);
       const sala = leido.salas.find((s) => s.id === error.salaId);
@@ -435,7 +451,21 @@ export class CasoStore {
       for (const e of this.base.escenas) {
         for (const r of e.respuestas) if (error.respuestas.includes(r.id)) r.destinoId = null;
       }
+    } else if (sesion.revision !== revisionAntes) {
+      try {
+        await sesion.releerTodo();
+      } catch {
+        return false; // sin poder leer, el borrador se queda como estaba (el aviso no promete más)
+      }
+      if (this.sesion !== sesion || !this.base) return false;
+      const leido = casoLeidoDelServidor(sesion, this.base);
+      if (firmaDelCaso(leido) !== firmaDelCaso(this.base)) {
+        this.base = leido;
+        this.lecturaAhora.update((v) => v + 1); // las pantallas con texto propio parten de nuevo del caso
+        return true;
+      }
     }
+    return false;
   }
 
   /** Un 409 que no trae la revisión pero dice que el estado del caso cambió (por ejemplo, ya no es un borrador). */
@@ -925,11 +955,17 @@ export class CasoStore {
    * El docente revisó algo generado por IA: deja de estar marcado. Con solo `escenaId` se
    * acepta la escena misma (la que creó la IA).
    */
-  aceptarIa(ruta: { escenaId: string; lineaId?: string; respuestaId?: string } | { finalId: string }): void {
+  aceptarIa(ruta: { escenaId: string; lineaId?: string; respuestaId?: string } | { finalId: string } | { salaId: string; tipo: TipoElemento; indice: number }): void {
+    const pieza = 'tipo' in ruta ? lista(this.sala(this.estado()!, ruta.salaId), ruta.tipo)[ruta.indice] : undefined;
     this.ejecutar({
       nombre: 'la revisión',
       resumen: ['Aceptaste una parte sugerida por el asistente'],
       aplicar: (caso) => {
+        if ('tipo' in ruta) {
+          const elemento = lista(this.sala(caso, ruta.salaId), ruta.tipo)[ruta.indice];
+          if (elemento) elemento.marcaIa = false;
+          return;
+        }
         if ('finalId' in ruta) {
           const f = caso.finales.find((x) => x.id === ruta.finalId);
           if (f) f.marcaIa = false;
@@ -946,6 +982,7 @@ export class CasoStore {
         if (elemento) elemento.marcaIa = false;
       },
       enviar: async (despues, sesion) => {
+        if ('tipo' in ruta) return pieza?.clave ? persistir.aceptarPieza(sesion, despues, ruta.salaId, pieza.clave) : undefined;
         if ('finalId' in ruta) return persistir.guardarFinales(sesion, despues);
         if (ruta.lineaId) return persistir.sincronizarGuion(sesion, despues, ruta.escenaId);
         if (ruta.respuestaId) {
@@ -970,6 +1007,7 @@ export class CasoStore {
     this.ejecutar({
       nombre: 'la propuesta del asistente',
       resumen: [`Aplicaste una propuesta del asistente (${seleccion.filter(Boolean).length} ${seleccion.filter(Boolean).length === 1 ? 'parte' : 'partes'})`],
+      alFallar: () => this.propuestaAplicada.set(null), // lo aplicado a medias ya no se puede deshacer de un paso
       aplicar: (caso) => {
         let n = 0;
         const resultado = aplicarCambiosIa(caso, cambios, seleccion, this.resolver(caso), (prefijo) => `${prefijo}-${semilla}${n++}`);
@@ -1080,9 +1118,24 @@ export class CasoStore {
     const sesion = this.sesion;
     if (!sesion) throw new Error('Este caso todavía no se guardó.');
     const cuerpo = { action: 'submit' as const, ...(nota.trim() ? { note: nota.trim() } : {}) };
-    const ciclo = await firstValueFrom(sesion.api.transitionCase(sesion.caseVersionId, cuerpo, sesion.revision));
+    let ciclo: CaseLifecycle;
+    try {
+      ciclo = await firstValueFrom(sesion.api.transitionCase(sesion.caseVersionId, cuerpo, sesion.revision));
+    } catch (error) {
+      // Con la revisión vencida el envío tampoco entra: se avisa igual que en un cambio cualquiera (ofrece recargar el caso).
+      if (this.sesion === sesion && revisionConflictOf(error)) this.avisarConflicto([]);
+      throw error;
+    }
     await this.cargar(sesion.caseVersionId, true);
     return ciclo;
+  }
+
+  /** Otra sesión cambió el caso: se avisa, no se manda nada más y se espera a que el docente decida recargar. */
+  private avisarConflicto(sinGuardar: string[]): void {
+    this.conflictoAhora.set({
+      mensaje: 'Otra persona (u otra pestaña) cambió este caso mientras lo editabas. Para no pisar su trabajo, tus últimos cambios no se guardaron todavía. Si recargas el caso, verás la versión guardada y estos cambios no se aplicarán.',
+      sinGuardar,
+    });
   }
 
   // ─── Lista de verificación ética ────────────────────────────────────────────

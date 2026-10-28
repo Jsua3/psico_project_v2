@@ -181,6 +181,37 @@ describe('RevisionComponent · la compuerta de publicación en lenguaje del doce
     expect(store.soloLectura()).toBe(false);
   });
 
+  it('A4 · si otra persona cambió el caso, enviar no dice «vuelve a intentarlo»: manda a recargar', async () => {
+    const { raiz, servidor, store, enviar, listo } = await montar();
+    servidor.otraSesionEscribe();
+    enviar().click();
+    await new Promise((r) => setTimeout(r, 20));
+    await listo();
+    expect(store.conflicto()).not.toBeNull();
+    const aviso = raiz.querySelector('#eph')!.textContent!;
+    expect(aviso).toContain('Otra persona cambió el caso');
+    expect(aviso).toContain('Recarga');
+    expect(aviso).not.toContain('vuelve a intentarlo en un momento');
+    expect(store.soloLectura()).toBe(false);
+  });
+
+  it('A5 · el resumen nombra el lugar del caso, no uno fijo', async () => {
+    const { raiz } = await montar();
+    expect(raiz.querySelector('section.resumen p')!.textContent).toContain(`${universidad.nombre} · 2 escenas`);
+  });
+
+  it('A5 · un caso sin lugar no nombra ninguno', async () => {
+    const { raiz, store, listo, fixture } = await montar();
+    const caso = structuredClone(store.caso()!);
+    caso.lugarId = null;
+    store.fijar(caso);
+    fixture.detectChanges();
+    await listo();
+    const texto = raiz.querySelector('section.resumen p')!.textContent!.trim();
+    expect(texto).toMatch(/^2 escenas · /);
+    expect(texto).not.toContain(universidad.nombre);
+  });
+
   it('un caso que ya está en revisión se ve así y no ofrece enviar', async () => {
     const { raiz } = await montar({ estado: 'IN_REVIEW' });
     expect(raiz.querySelector('.pildora.estado')!.textContent!.trim()).toBe('En revisión');

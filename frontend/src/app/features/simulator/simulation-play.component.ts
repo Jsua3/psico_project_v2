@@ -38,6 +38,7 @@ import { isShortcutContext } from './keyboard-focus.util';
 import { SafeExitButtonComponent } from './safe-exit-button.component';
 import { WorldPlacesListComponent } from './world-places-list.component';
 import { PlaceCandidate, selectPlaces } from './world-places.util';
+import { keyPersonAccessibleName, resolveKeyPerson } from './key-person.util';
 import { SimulationHudComponent } from './simulation-hud.component';
 import { ToolInventoryComponent } from './tool-inventory.component';
 import { AudioDirectorService } from './audio-director.service';
@@ -1574,6 +1575,11 @@ export class SimulationPlayComponent implements OnInit, OnDestroy {
     effect(() => {
       const label = this.contextLabel();
       untracked(() => { if (label) this.announce(label); });
+    });
+    // La persona a atender (P6) se dibuja con un chevrón en el lienzo: quien no lo ve la oye al entrar a la sala.
+    effect(() => {
+      const world = this.world();
+      untracked(() => this.announceKeyPerson(world));
     });
     // Sale una petición nueva: el error anterior ya no describe lo que está pasando (VD-29).
     effect(() => {
@@ -3215,6 +3221,26 @@ export class SimulationPlayComponent implements OnInit, OnDestroy {
         this.transitionNote.set('');
       }, TRANSITION_NOTE_MS);
     }
+  }
+
+  /** La sala y la persona a atender que ya se anunciaron: `world.set` repite el mundo en cada acción y no debe repetir el aviso. */
+  private announcedKeyPerson: string | null = null;
+
+  /**
+   * Anuncia la persona a atender de la sala («Marta, persona a atender») por la región viva de cortesía: al entrar a la sala
+   * y cuando cambia, no en cada vez que el mundo se vuelve a poner. Sin ella, olvida la anterior (volver a una sala con ella
+   * la anuncia de nuevo).
+   */
+  private announceKeyPerson(world: SimulationWorldState | null): void {
+    const person = world ? resolveKeyPerson(world.objects ?? []) : null;
+    if (!world || !person) {
+      this.announcedKeyPerson = null;
+      return;
+    }
+    const id = `${world.map.key}|${person.key}`;
+    if (id === this.announcedKeyPerson) return;
+    this.announcedKeyPerson = id;
+    this.announce(keyPersonAccessibleName(getSceneDisplayLabel(person, world.map.key)));
   }
 
   private showRoomBanner(text: string, ms: number): void {

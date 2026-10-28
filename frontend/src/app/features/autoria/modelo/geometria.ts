@@ -1,6 +1,10 @@
 /**
  * Geometría de las salas, copiada de P1 (`biblioteca/scripts/geometria.mjs`): lienzo de
  * 960 × 528 y zona caminable por encuadre. Si cambia allá, cambia aquí.
+ *
+ * Es también la fuente que lee el juego (`simulator/room-ambient.util.ts`) para que las personas que deambulan no salgan de la
+ * zona; el servidor lleva la misma tabla (`apps/biblioteca/services/geometria.py`) y sus paredes las levanta la copia al caso.
+ * `test_geometria_encuadres.py` falla si las cuatro divergen.
  */
 import type { Encuadre } from './escenario';
 
@@ -20,6 +24,11 @@ const ZONAS: Record<Encuadre, Zona> = {
   'dos-paredes-derecha': { x: 24, y: 236, ancho: 840, alto: 250 },
   'una-pared': { x: 24, y: 236, ancho: 912, alto: 250 },
 };
+
+/** ¿Es el nombre de un encuadre que conocemos? (el juego lo lee de un registro libre, así que no se fía del tipo). */
+export function esEncuadre(valor: unknown): valor is Encuadre {
+  return typeof valor === 'string' && Object.prototype.hasOwnProperty.call(ZONAS, valor);
+}
 
 export function zonaCaminable(encuadre: Encuadre): Zona {
   return { ...ZONAS[encuadre] };

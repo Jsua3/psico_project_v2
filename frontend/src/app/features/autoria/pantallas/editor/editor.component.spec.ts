@@ -65,6 +65,15 @@ describe('EditorComponent · diálogos', () => {
     expect(document.activeElement?.classList.contains('escena')).toBe(true);
   });
 
+  it('A8 · la pregunta de borrar dice que se pierden el guion y las respuestas de la escena', async () => {
+    const { raiz, listo } = await montar();
+    tarjeta(raiz, 1).dispatchEvent(new KeyboardEvent('keydown', { key: 'Delete', bubbles: true }));
+    await listo();
+    const texto = raiz.querySelector('#bd')!.textContent!;
+    expect(texto).toContain('Se pierden su guion y sus respuestas.');
+    expect(texto).toContain('No se puede deshacer.');
+  });
+
   it('en «Conectar con…» la barra espaciadora elige una opción', async () => {
     const { raiz, listo } = await montar();
     tarjeta(raiz, 0).dispatchEvent(new KeyboardEvent('keydown', { key: 'F10', shiftKey: true, bubbles: true }));

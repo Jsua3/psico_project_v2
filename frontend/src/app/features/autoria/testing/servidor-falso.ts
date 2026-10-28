@@ -168,6 +168,7 @@ export class ServidorFalso {
           positionX: cuerpo.positionX, positionY: cuerpo.positionY, intensity: cuerpo.intensity ?? nodo.intensity,
           supportResources: cuerpo.supportResources ?? nodo.supportResources,
         });
+        if (cuerpo.aiSuggested !== undefined) nodo.aiSuggested = cuerpo.aiSuggested; // como el servidor: ausente = no se toca
       }),
     deleteNode: (cv: number, nodeId: number, revision?: number) =>
       this.escribir('deleteNode', revision, [nodeId], () => {
@@ -218,6 +219,7 @@ export class ServidorFalso {
           targetNodeId: destino.id, targetKey: destino.key, text: cuerpo.text, responseClass: cuerpo.responseClass ?? decision.responseClass,
           prohibitionReason: cuerpo.prohibitionReason ?? null, feedbackText: cuerpo.feedbackText ?? '', effects: cuerpo.effects ?? decision.effects,
         });
+        if (cuerpo.aiSuggested !== undefined) decision.aiSuggested = cuerpo.aiSuggested;
       }),
     deleteDecision: (cv: number, decisionId: number, revision?: number) =>
       this.escribir('deleteDecision', revision, [decisionId], () => {
@@ -330,6 +332,12 @@ export class ServidorFalso {
       this.escribir('acceptAiDecision', revision, [id], () => {
         const decision = this.editor.decisions.find((d) => d.id === id);
         if (decision) decision.aiSuggested = false;
+      }),
+    acceptAiObject: (cv: number, id: number, revision?: number) =>
+      this.escribir('acceptAiObject', revision, [id], () => {
+        for (const mundo of this.mundos.values()) {
+          for (const objeto of mundo.objects) if (objeto.id === id) objeto.aiSuggested = false;
+        }
       }),
     acceptAiDialogue: (cv: number, id: number, revision?: number) =>
       this.escribir('acceptAiDialogue', revision, [id], () => {

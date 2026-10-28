@@ -97,8 +97,8 @@ export function cuerpoNodo(escena: Escena, opciones: OpcionesNodo): NodeUpsertRe
     positionY: Math.round(escena.posicion.y),
     intensity: escena.intensidad,
   };
-  // Una escena que propuso la IA nace con la marca; después solo «Revisar» (accept-ai) la baja.
-  if (!previo && escena.marcaIa) cuerpo.aiSuggested = true;
+  // Una escena que propuso o cambió la IA se marca (si el servidor aún no la tiene marcada); solo «Aceptar» (accept-ai) la baja.
+  if (escena.marcaIa && !previo?.aiSuggested) cuerpo.aiSuggested = true;
   return cuerpo;
 }
 
@@ -143,7 +143,7 @@ export function cuerpoDecision(
     effects: efectosAApi(respuesta.efectos),
   };
   if (respuesta.clase) cuerpo.responseClass = respuesta.clase;
-  if (!previo && respuesta.marcaIa) cuerpo.aiSuggested = true;
+  if (respuesta.marcaIa && !previo?.aiSuggested) cuerpo.aiSuggested = true;
   return cuerpo;
 }
 
@@ -206,6 +206,24 @@ const ICONO_POR_DEFECTO = 'inventory_2';
 const TAMANO_OBJETO = 32;
 const TAMANO_PERSONA = 48;
 const FPS_POR_DEFECTO = 6;
+/**
+ * `metadata.apoyo`: la posición del objeto es el punto donde apoya en el suelo (centro inferior), como lo dibuja el editor y,
+ * para lo que dice esto, el juego. Lo mismo que escribe la copia del servidor. Solo lo que se agrega desde el catálogo lo
+ * lleva: lo que ya estaba conserva lo que el servidor guardó (un caso de antes no cambia de lugar en el juego).
+ */
+const APOYO_EN_LOS_PIES = 'pies';
+
+/**
+ * La marca «sugerido por la IA» de un objeto que ya estaba: la del borrador manda (así «Aceptar» la baja aunque la copia que
+ * se guardó del mapa aún diga que sí). Sin marca en ninguno de los dos lados no se toca.
+ */
+function conMarca(objeto: WorldObject, marca: boolean | undefined): WorldObject {
+  if (marca === true) return { ...objeto, aiSuggested: true };
+  return objeto.aiSuggested === true ? { ...objeto, aiSuggested: false } : objeto;
+}
+
+/** La marca de un objeto que el servidor aún no tiene. */
+const marcaNueva = (marca: boolean | undefined): Partial<WorldObject> => (marca === true ? { aiSuggested: true } : {});
 
 /**
  * La clave de un objeto que el servidor aún no tiene: la que el borrador ya le dio (así todos los mapas de una sala
@@ -280,43 +298,43 @@ export function solicitudDeSala(sala: SalaCaso, contexto: ContextoSala, previo: 
       existentes.set(m.clave, (base) => {
         const metadata = { ...base.metadata };
         if (m.espejo) metadata['espejo'] = true; else delete metadata['espejo'];
-        return { ...base, x: m.x, y: m.y, metadata };
+        return conMarca({ ...base, x: m.x, y: m.y, metadata }, m.marcaIa);
       });
       continue;
     }
     const pieza = muebles.get(m.ref);
     if (!pieza) continue; // sin catálogo no se pueden agregar piezas
     const clave = claveDeNuevo(m.clave, m.ref, usadas);
-    const metadata: Record<string, unknown> = { arte: pieza.arte, colision: pieza.colision };
+    const metadata: Record<string, unknown> = { arte: pieza.arte, colision: pieza.colision, apoyo: APOYO_EN_LOS_PIES };
     if (m.espejo) metadata['espejo'] = true;
-    nuevos.push(objetoNuevo(clave, pieza.nombre, 'PROP', m.x, m.y, pieza.ancho, pieza.alto, { metadata }));
+    nuevos.push(objetoNuevo(clave, pieza.nombre, 'PROP', m.x, m.y, pieza.ancho, pieza.alto, { metadata, ...marcaNueva(m.marcaIa) }));
     if (pieza.colision) zonasNuevas.push(huella(clave, pieza.nombre, m.x, m.y, pieza.ancho, pieza.alto));
   }
 
   for (const o of sala.objetos) {
     if (o.clave && previos.has(o.clave)) {
-      existentes.set(o.clave, (base) => ({ ...base, x: o.x, y: o.y }));
+      existentes.set(o.clave, (base) => conMarca({ ...base, x: o.x, y: o.y }, o.marcaIa));
       continue;
     }
     const pieza = objetosCatalogo.get(o.ref);
     if (!pieza) continue;
-    const metadata: Record<string, unknown> = { arte: pieza.arte };
+    const metadata: Record<string, unknown> = { arte: pieza.arte, apoyo: APOYO_EN_LOS_PIES };
     if (pieza.animacionCerca) {
       metadata['animacionCerca'] = {
         hoja: pieza.animacionCerca.hoja, cuadros: pieza.animacionCerca.cuadros, fps: pieza.animacionCerca.fps ?? FPS_POR_DEFECTO,
       };
     }
     nuevos.push(objetoNuevo(claveDeNuevo(o.clave, o.ref, usadas), pieza.nombre, pieza.tipo, o.x, o.y, TAMANO_OBJETO, TAMANO_OBJETO, {
-      interactionPrompt: pieza.textoInteraccion, interactionText: pieza.alRevisar ?? '', metadata,
+      interactionPrompt: pieza.textoInteraccion, interactionText: pieza.alRevisar ?? '', metadata, ...marcaNueva(o.marcaIa),
     }));
   }
 
   for (const p of sala.personajes) {
     const facing = p.mirando === 'izquierda' ? 'left' : 'right';
     if (p.clave && previos.has(p.clave)) {
-      existentes.set(p.clave, (base) => ({
+      existentes.set(p.clave, (base) => conMarca({
         ...base, x: p.x, y: p.y, facing, metadata: metadataDePersona(base.metadata, p),
-      }));
+      }, p.marcaIa));
       continue;
     }
     const info = personajesLugar.get(p.ref);
@@ -324,10 +342,11 @@ export function solicitudDeSala(sala: SalaCaso, contexto: ContextoSala, previo: 
     if (!delCaso && !faltanPersonajes.includes(p.ref)) faltanPersonajes.push(p.ref);
     nuevos.push(objetoNuevo(
       claveDeNuevo(p.clave, p.ref, usadas), info?.nombre ?? delCaso?.displayName ?? p.ref, 'PERSON', p.x, p.y, TAMANO_PERSONA, TAMANO_PERSONA, {
-        interactionPrompt: 'Hablar', facing,
+        interactionPrompt: 'Hablar', facing, ...marcaNueva(p.marcaIa),
         ...(delCaso ? { characterId: delCaso.id } : {}),
         metadata: {
           recipeId: info?.recipeId ?? '', movimiento: movimientoAMetadata(p.movimiento ?? 'quieto'), expresion: p.expresion,
+          apoyo: APOYO_EN_LOS_PIES,
           ...(p.personaClave ? { personaClave: true } : {}),
         },
       },

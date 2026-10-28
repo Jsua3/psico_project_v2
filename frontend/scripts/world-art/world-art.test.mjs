@@ -263,3 +263,37 @@ test('publishLibrary copia el manifiesto y sus PNG, borra lo que sobra y publish
     rmSync(root, { recursive: true, force: true });
   }
 });
+
+// Revisión final · C7: la salida nunca puede ser la propia biblioteca (publicar borra la carpeta de salida antes de copiar).
+test('publishLibrary se niega si la salida es la biblioteca, está dentro de ella o la contiene, y no borra nada', () => {
+  const root = mkdtempSync(path.join(tmpdir(), 'manifiesto-salida-'));
+  try {
+    const biblioteca = path.join(root, 'biblioteca');
+    toyLibrary(biblioteca);
+    const antes = readFileSync(path.join(biblioteca, 'manifiesto.json'), 'utf8');
+    // `biblioteca` también se llama «biblioteca»: el nombre de la carpeta no basta como guarda.
+    for (const output of [biblioteca, path.join(biblioteca, 'biblioteca'), path.join(biblioteca, '..', 'biblioteca'), path.join(biblioteca, 'modelos', '..')]) {
+      assert.throws(() => publishLibrary({ biblioteca, output }), /publishLibrary: la salida/, output);
+    }
+    // La que contiene a la biblioteca (borrarla se llevaría la fuente) tampoco.
+    const contenedora = path.join(root, 'x', 'biblioteca');
+    mkdirSync(contenedora, { recursive: true });
+    const dentro = path.join(contenedora, 'dentro');
+    toyLibrary(dentro);
+    assert.throws(() => publishLibrary({ biblioteca: dentro, output: contenedora }), /publishLibrary: la salida/);
+    assert.ok(existsSync(path.join(dentro, 'manifiesto.json')), 'la biblioteca fuente sigue donde estaba');
+    // La biblioteca fuente quedó intacta.
+    assert.equal(readFileSync(path.join(biblioteca, 'manifiesto.json'), 'utf8'), antes);
+    assert.ok(existsSync(path.join(biblioteca, 'modelos', 'arte', 'taza.png')));
+    // Un manifiesto que lista un PNG inexistente falla ANTES de borrar la copia vieja.
+    const output = path.join(root, 'assets', 'biblioteca');
+    writePng(path.join(output, 'modelos', 'arte', 'viejo.png'), solid(2, 2));
+    const manifest = JSON.parse(antes);
+    manifest.sprites['modelos/arte/fantasma.png'] = { alto: 4, ancho: 4, origen: 'modelo' };
+    writeFileSync(path.join(biblioteca, 'manifiesto.json'), JSON.stringify(manifest));
+    assert.throws(() => publishLibrary({ biblioteca, output }), /publishLibrary: .*fantasma/);
+    assert.ok(existsSync(path.join(output, 'modelos', 'arte', 'viejo.png')), 'la copia anterior sigue ahí: se validó antes de borrar');
+  } finally {
+    rmSync(root, { recursive: true, force: true });
+  }
+});

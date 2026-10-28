@@ -3,8 +3,9 @@
     python tools/escenarios/manifiesto.py              # escribe biblioteca/manifiesto.json
     python tools/escenarios/manifiesto.py --verificar  # sale con 1 si el archivo versionado no es el que se generaría
 
-El juego lo lee en `/assets/biblioteca/manifiesto.json` (angular.json publica `biblioteca/` con ese prefijo), así que las
-claves son rutas relativas a `biblioteca/` (= a `assets/biblioteca/` en el navegador). Forma:
+El juego lo lee en `/assets/biblioteca/manifiesto.json`: `npm run world-art:build` (en `frontend/`) valida este archivo y
+publica una copia suya y de cada PNG que lista en `frontend/src/assets/biblioteca/` (Angular solo sirve assets dentro de
+`frontend/`). Las claves son rutas relativas a `biblioteca/` (= a `assets/biblioteca/` en el navegador). Forma:
 
     {"esquema": 1, "sprites": {"<ruta>": {"ancho", "alto", "cuadros"?, "fps"?, "origen": "modelo"|"lugar"|"existente"}}}
 

@@ -101,4 +101,57 @@ describe('FinalesComponent', () => {
       'Intervención con riesgo de revictimización', 'Intervención protectora', 'El riesgo sigue abierto', 'Intervención con brechas',
     ]);
   });
+
+  describe('pasar a «Los finales se calculan solos» con finales propios', () => {
+    const radio = (raiz: HTMLElement, valor: string) => raiz.querySelector<HTMLInputElement>(`input[name="modo"][value="${valor}"]`)!;
+
+    it('pregunta antes de dejar de usar los finales propios y no cambia nada hasta que se acepta', async () => {
+      const { store, raiz, listo } = await montar();
+      store.agregarFinal();
+      store.agregarFinal();
+      await listo();
+      radio(raiz, 'automatico').click();
+      await listo();
+      expect(store.caso()!.modoFinales).toBe('propio');
+      const aviso = raiz.querySelector('[role="alertdialog"]')!;
+      expect(aviso.textContent).toContain('Tus 2 finales propios dejarán de usarse. ¿Seguir?');
+      expect(radio(raiz, 'propio').checked).toBe(true); // el selector vuelve a donde estaba mientras se decide
+      boton(raiz, 'Sí, usar los que se calculan solos').click();
+      await listo();
+      expect(store.caso()!.modoFinales).toBe('automatico');
+      expect(raiz.querySelector('[role="alertdialog"]')).toBeNull();
+    });
+
+    it('con un solo final propio lo dice en singular', async () => {
+      const { store, raiz, listo } = await montar();
+      store.agregarFinal();
+      await listo();
+      radio(raiz, 'automatico').click();
+      await listo();
+      expect(raiz.querySelector('[role="alertdialog"]')!.textContent).toContain('Tu final propio dejará de usarse. ¿Seguir?');
+    });
+
+    it('cancelar deja todo como estaba y devuelve el foco al selector', async () => {
+      const { store, raiz, listo } = await montar();
+      store.agregarFinal();
+      await listo();
+      radio(raiz, 'automatico').click();
+      await listo();
+      boton(raiz, 'No, conservar mis finales').click();
+      await listo();
+      expect(store.caso()!.modoFinales).toBe('propio');
+      expect(store.caso()!.finales).toHaveLength(1);
+      expect(raiz.querySelector('[role="alertdialog"]')).toBeNull();
+      expect(radio(raiz, 'propio').checked).toBe(true);
+      expect(document.activeElement).toBe(radio(raiz, 'propio'));
+    });
+
+    it('sin finales propios cambia al momento, sin preguntar', async () => {
+      const { store, raiz, listo } = await montar();
+      radio(raiz, 'automatico').click();
+      await listo();
+      expect(raiz.querySelector('[role="alertdialog"]')).toBeNull();
+      expect(store.caso()!.modoFinales).toBe('automatico');
+    });
+  });
 });

@@ -8,6 +8,8 @@ import {
   WalkBounds,
   bodyBlocks,
   parsePersonMovement,
+  personWalkBounds,
+  resumePersonWalk,
   startPersonWalk,
   tickPersonWalk,
 } from './person-walk.util';
@@ -357,5 +359,68 @@ describe('person-walk: velocidad y pasos', () => {
     const largo = startPersonWalk({ tipo: 'va-y-viene', hasta: { x: 900, y: 200 } }, { x: 100, y: 200 }, 'down', 0);
     const s = camina(largo, 60_000, env);
     expect(s.x - 100).toBeLessThan(PERSON_WALK_SPEED_PX_S * 0.3);
+  });
+});
+
+describe('person-walk: la zona caminable del encuadre (revisión final · B1)', () => {
+  const TRES_PAREDES = { x: 96, y: 236, ancho: 768, alto: 250 };
+
+  it('sin zona, los límites son toda la sala con su margen, como siempre', () => {
+    expect(personWalkBounds(960, 528)).toEqual({ minX: 24, minY: 24, maxX: 936, maxY: 504 });
+  });
+
+  it('con zona, los límites son los de la zona caminable con el hitbox de pies (22 × 16) entero dentro, no los del cuarto', () => {
+    // El hitbox mide 11 px a cada lado de los pies y 16 de alto: es lo que el servidor hace valer con las paredes de la copia.
+    expect(personWalkBounds(960, 528, 24, TRES_PAREDES)).toEqual({ minX: 107, minY: 252, maxX: 853, maxY: 486 });
+  });
+
+  it('el marcador de una persona sin apoyo en los pies está 16 px sobre sus pies: la zona se corre lo mismo', () => {
+    expect(personWalkBounds(960, 528, 24, TRES_PAREDES, 16)).toEqual({ minX: 107, minY: 236, maxX: 853, maxY: 470 });
+  });
+
+  it('una zona que se sale del cuarto no lo agranda: manda el margen de la sala', () => {
+    expect(personWalkBounds(960, 528, 24, { x: 0, y: 0, ancho: 960, alto: 528 })).toEqual({ minX: 24, minY: 24, maxX: 936, maxY: 504 });
+  });
+
+  it('deambular con esos límites jamás sale de la zona, aunque el mundo no bloquee nada (un caso viejo sin paredes)', () => {
+    const bounds = personWalkBounds(960, 528, 24, TRES_PAREDES);
+    const env: PersonWalkEnv = { bounds, rand: semilla(7), blocked: () => false };
+    let s = startPersonWalk({ tipo: 'deambula' }, { x: 120, y: 260 });
+    let recorrido = 0;
+    for (let t = 0; t < 120_000; t += 16) {
+      const antes = { x: s.x, y: s.y };
+      s = tickPersonWalk(s, 16, env);
+      recorrido += Math.hypot(s.x - antes.x, s.y - antes.y);
+      expect(s.x, `x en ${t} ms`).toBeGreaterThanOrEqual(bounds.minX);
+      expect(s.x).toBeLessThanOrEqual(bounds.maxX);
+      expect(s.y, `y en ${t} ms`).toBeGreaterThanOrEqual(bounds.minY);
+      expect(s.y).toBeLessThanOrEqual(bounds.maxY);
+    }
+    expect(recorrido, 'caminó de verdad').toBeGreaterThan(200);
+  });
+});
+
+/** Revisión final · C2: lo que la escena recuerda de una persona al reconstruir la sala, y cuándo vale todavía. */
+describe('resumePersonWalk: retomar donde iba al reconstruir la sala', () => {
+  const origen = { x: 300, y: 240 };
+  const caminando: PersonWalkState = {
+    ...startPersonWalk({ tipo: 'deambula' }, origen), x: 340, y: 262, target: { x: 380, y: 280 }, pauseMs: 0, walking: true, direction: 'right',
+  };
+
+  it('devuelve el estado guardado si el movimiento y el origen siguen siendo los mismos', () => {
+    expect(resumePersonWalk(caminando, { tipo: 'deambula' }, { x: 300, y: 240 })).toBe(caminando);
+    const ida = startPersonWalk({ tipo: 'va-y-viene', hasta: { x: 400, y: 240 } }, origen);
+    expect(resumePersonWalk(ida, { tipo: 'va-y-viene', hasta: { x: 400, y: 240 } }, origen)).toBe(ida);
+  });
+
+  it('no devuelve nada si no había nada guardado', () => {
+    expect(resumePersonWalk(undefined, { tipo: 'deambula' }, origen)).toBeNull();
+  });
+
+  it('empieza de nuevo si cambió el origen, el tipo de movimiento o el punto de ida', () => {
+    expect(resumePersonWalk(caminando, { tipo: 'deambula' }, { x: 301, y: 240 })).toBeNull();
+    expect(resumePersonWalk(caminando, { tipo: 'va-y-viene', hasta: { x: 400, y: 240 } }, origen)).toBeNull();
+    const ida = startPersonWalk({ tipo: 'va-y-viene', hasta: { x: 400, y: 240 } }, origen);
+    expect(resumePersonWalk(ida, { tipo: 'va-y-viene', hasta: { x: 410, y: 240 } }, origen)).toBeNull();
   });
 });

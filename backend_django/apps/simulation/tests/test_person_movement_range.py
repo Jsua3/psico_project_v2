@@ -157,3 +157,42 @@ def test_metadata_invalida_no_rompe(escena):
     _jugador_a(escena, world_service.INTERACTION_RANGE_PX + 1)
     with pytest.raises(ValidationError):
         _cerca(escena)
+
+
+# ── Revisión final · C6: un dato enorme no rompe ni agranda el área sin límite ────────────────────────────────────────
+
+
+def test_un_entero_enorme_en_hasta_se_trata_como_quieto_y_no_lanza(escena):
+    """Un entero de 400 dígitos desbordaba `math.isfinite` (OverflowError → 500): es un dato mal formado, es quieto."""
+    _movimiento(escena, {"tipo": "va-y-viene", "hasta": {"x": 10 ** 400, "y": 300}})
+    assert world_service._person_movement(escena["persona"]) is None
+    _jugador_a(escena, world_service.INTERACTION_RANGE_PX + 1)
+    with pytest.raises(ValidationError):
+        _cerca(escena)
+    _jugador_a(escena, world_service.INTERACTION_RANGE_PX)
+    _cerca(escena)
+
+
+def test_un_hasta_fuera_de_rango_razonable_no_es_un_numero_valido(escena):
+    for fuera in (1_000_001, -1_000_001, 2.5e9, float("inf")):
+        _movimiento(escena, {"tipo": "va-y-viene", "hasta": {"x": fuera, "y": 300}})
+        assert world_service._person_movement(escena["persona"]) is None, fuera
+    _movimiento(escena, {"tipo": "va-y-viene", "hasta": {"x": 1_000_000, "y": 300}})
+    assert world_service._person_movement(escena["persona"]) is not None
+
+
+def test_un_hasta_enorme_se_recorta_al_tamano_del_mapa(escena):
+    """Un `hasta` a 900 000 px no vuelve «cercano» lo que está fuera de la sala: el área llega, como mucho, al borde del mapa."""
+    _movimiento(escena, {"tipo": "va-y-viene", "hasta": {"x": 900_000, "y": 300}})
+    mapa = escena["state"].scene_map
+    ancho = mapa.width or world_service.DEFAULT_MAP_WIDTH
+    x, y, w, _ = world_service._interaction_rect(escena["persona"])
+    assert x + w <= ancho + SIZE[0], "el rectángulo se pasó del borde derecho del mapa"
+    state = escena["state"]
+    state.player_x = ancho + 2_000
+    state.player_y = ORIGIN[1]
+    with pytest.raises(ValidationError):
+        _cerca(escena)
+    # Y dentro de la sala el recorrido legítimo (hasta el borde) sigue cubierto.
+    state.player_x = ancho - 10
+    _cerca(escena)

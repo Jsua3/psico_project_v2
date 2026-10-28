@@ -122,10 +122,14 @@ describe('cuerpoNodo: la escena como nodo', () => {
     expect(cuerpo).toMatchObject({ terminal: true, startNode: true, intensity: 'HIGH', warningMessage: 'Habla de violencia.' });
   });
 
-  it('la marca de la IA se manda solo al crear una escena que propuso la IA; al editar no se toca', () => {
+  it('la marca de la IA se manda al crear una escena que propuso la IA y al editar una que el servidor aún no tiene marcada; si ya la tiene, no se toca', () => {
     expect(cuerpoNodo(escena({ marcaIa: true }), { nodeKey: 'x', esInicio: false })).toMatchObject({ aiSuggested: true });
-    const previo = casoSinLugar().editor.nodes[1];
-    expect(cuerpoNodo(escena({ marcaIa: true }), { esInicio: false, previo })).not.toHaveProperty('aiSuggested');
+    const { nodes } = casoSinLugar().editor;
+    expect(nodes[1].aiSuggested).toBe(true);
+    expect(cuerpoNodo(escena({ marcaIa: true }), { esInicio: false, previo: nodes[1] })).not.toHaveProperty('aiSuggested');
+    // la IA cambió una escena que existía (por ejemplo, su intensidad): hay que marcarla
+    expect(cuerpoNodo(escena({ marcaIa: true }), { esInicio: false, previo: nodes[0] })).toMatchObject({ aiSuggested: true });
+    expect(cuerpoNodo(escena({ marcaIa: false }), { esInicio: false, previo: nodes[0] })).not.toHaveProperty('aiSuggested');
     expect(cuerpoNodo(escena({ marcaIa: false }), { nodeKey: 'x', esInicio: false })).not.toHaveProperty('aiSuggested');
   });
 });
@@ -177,12 +181,20 @@ describe('cuerpoDecision: la respuesta como opción', () => {
     expect(cuerpo).toMatchObject({ optionKey: 'derivar', immediateFeedback: 'Es una opción.', feedbackText: 'Nueva.' });
   });
 
-  it('no manda el texto de consecuencia ni el fundamento (no se tocan) ni la marca de la IA al editar', () => {
-    const previo = casoSinLugar().editor.decisions[0];
+  it('no manda el texto de consecuencia ni el fundamento (no se tocan) ni la marca de la IA si el servidor ya la tiene', () => {
+    const previo = casoSinLugar().editor.decisions[1];
+    expect(previo.aiSuggested).toBe(true);
     const cuerpo = cuerpoDecision(respuesta({ marcaIa: true }), 1, { previo })!;
     expect(cuerpo).not.toHaveProperty('consequenceText');
     expect(cuerpo).not.toHaveProperty('theoryBasis');
     expect(cuerpo).not.toHaveProperty('aiSuggested');
+  });
+
+  it('A7 · una respuesta existente que la IA cambió se manda con la marca en alto; si no la cambió, no se toca', () => {
+    const previo = casoSinLugar().editor.decisions[0];
+    expect(previo.aiSuggested).toBe(false);
+    expect(cuerpoDecision(respuesta({ marcaIa: true }), 1, { previo })).toMatchObject({ aiSuggested: true });
+    expect(cuerpoDecision(respuesta({ marcaIa: false }), 1, { previo })).not.toHaveProperty('aiSuggested');
   });
 
   it('una respuesta que propuso la IA se crea con la marca en alto', () => {
@@ -325,7 +337,7 @@ describe('solicitudDeSala: la sala como mundo del mapa', () => {
     const nuevo = solicitud.objects.find((o) => o.key === 'sofa')!;
     expect(nuevo).toMatchObject({
       id: 0, label: sofa.nombre, type: 'PROP', x: 200, y: 420, width: sofa.ancho, height: sofa.alto, collision: false,
-      metadata: { arte: sofa.arte, colision: sofa.colision },
+      metadata: { arte: sofa.arte, colision: sofa.colision, apoyo: 'pies' },
     });
     expect(solicitud.collisionZones.some((z) => z.key === 'choque-sofa')).toBe(sofa.colision);
     if (sofa.colision) {
@@ -333,6 +345,40 @@ describe('solicitudDeSala: la sala como mundo del mapa', () => {
         x: 200 - Math.floor(sofa.ancho / 2), y: 420 - sofa.alto, width: sofa.ancho, height: sofa.alto,
       });
     }
+  });
+
+  it('lo que el docente agrega desde el catálogo dice que su posición es el punto de apoyo en el suelo (como la copia del servidor)', () => {
+    const c = caso();
+    const pieza = universidad.catalogo.objetos[0];
+    c.salas[indiceEspera].muebles.push({ ref: 'planta', x: 200, y: 420, espejo: false });
+    c.salas[indiceEspera].objetos.push({ ref: pieza.id, x: 300, y: 300 });
+    c.salas[indiceEspera].personajes.push({ ref: copiado.editor.characters[0].key, x: 350, y: 300, mirando: 'derecha', expresion: 'neutral' });
+    const { solicitud } = solicitudDeSala(c.salas[indiceEspera], contexto, copiado.mundos[indiceEspera]);
+    const nuevos = solicitud.objects.filter((o) => o.id === 0);
+    expect(nuevos.map((o) => o.type).sort()).toEqual(['PERSON', 'PROP', pieza.tipo].sort());
+    for (const nuevo of nuevos) expect(nuevo.metadata['apoyo'], nuevo.key).toBe('pies');
+  });
+
+  it('lo que ya estaba conserva su apoyo: un caso de antes no se vuelve «de pies» por moverle algo', () => {
+    const mundo: WorldDefinition = structuredClone(copiado.mundos[indiceEspera]);
+    for (const objeto of mundo.objects) delete objeto.metadata['apoyo']; // como los casos hechos antes de la revisión final
+    const c = casoDesdeApi(copiado.editor, copiado.mundos.map((m) => (m.nodeId === mundo.nodeId ? mundo : m)), universidad);
+    c.salas[indiceEspera].muebles[0] = { ...c.salas[indiceEspera].muebles[0], x: 500, y: 400 };
+    const { solicitud } = solicitudDeSala(c.salas[indiceEspera], contexto, mundo);
+    for (const objeto of solicitud.objects) expect('apoyo' in objeto.metadata, objeto.key).toBe(false);
+  });
+
+  it('las paredes de la sala (zonas que no son la huella de un mueble) pasan intactas al guardar', () => {
+    const mundo: WorldDefinition = structuredClone(copiado.mundos[indiceEspera]);
+    const paredes = [
+      { id: 901, key: 'pared-fondo', label: 'Pared del fondo', x: 0, y: 0, width: 960, height: 236 },
+      { id: 902, key: 'borde-delantero', label: 'Borde delantero', x: 0, y: 486, width: 960, height: 42 },
+    ];
+    mundo.collisionZones = [...paredes, ...mundo.collisionZones];
+    const c = caso();
+    c.salas[indiceEspera].muebles[0] = { ...c.salas[indiceEspera].muebles[0], x: 500, y: 400 };
+    const { solicitud } = solicitudDeSala(c.salas[indiceEspera], contexto, mundo);
+    expect(solicitud.collisionZones.filter((z) => !z.key.startsWith('choque-'))).toEqual(paredes);
   });
 
   it('agregar el mismo mueble dos veces les da claves distintas', () => {
@@ -363,7 +409,7 @@ describe('solicitudDeSala: la sala como mundo del mapa', () => {
     expect(nuevo).toMatchObject({
       type: 'RESOURCE', width: 32, height: 32, interactionPrompt: pieza.textoInteraccion, interactionText: pieza.alRevisar ?? '',
     });
-    expect(nuevo.metadata).toMatchObject({ arte: pieza.arte, animacionCerca: pieza.animacionCerca });
+    expect(nuevo.metadata).toMatchObject({ arte: pieza.arte, animacionCerca: pieza.animacionCerca, apoyo: 'pies' });
   });
 
   it('agregar un personaje del lugar lo enlaza a su personaje del caso; si el caso aún no lo tiene, lo dice', () => {
@@ -376,7 +422,9 @@ describe('solicitudDeSala: la sala como mundo del mapa', () => {
     const { solicitud, faltanPersonajes } = solicitudDeSala(c.salas[indiceEspera], contexto, copiado.mundos[indiceEspera]);
 
     const nuevo = solicitud.objects.find((o) => o.id === 0 && o.type === 'PERSON' && o.characterId === enCaso.id)!;
-    expect(nuevo).toMatchObject({ facing: 'left', width: 48, height: 48, metadata: { expresion: 'triste', movimiento: 'quieto' } });
+    expect(nuevo).toMatchObject({
+      facing: 'left', width: 48, height: 48, metadata: { expresion: 'triste', movimiento: 'quieto', apoyo: 'pies' },
+    });
     expect(faltanPersonajes).toEqual([sinPersonaje.id]);
     expect(solicitud.objects.find((o) => o.label === sinPersonaje.nombre)?.characterId).toBeUndefined();
   });
@@ -393,6 +441,39 @@ describe('solicitudDeSala: la sala como mundo del mapa', () => {
     const guardada = solicitud.objects.find((o) => o.key === persona.key)!;
     expect(guardada.facing).toBe('left');
     expect(guardada.metadata).toEqual({ ...persona.metadata, expresion: 'triste' });
+  });
+
+  describe('A7 · la marca «sugerido por la IA» de lo que hay en la sala', () => {
+    it('un objeto existente que la IA movió o colocó se guarda con la marca en alto; los demás no cambian', () => {
+      const c = caso();
+      const sala = c.salas[indiceEspera];
+      sala.muebles[2] = { ...sala.muebles[2], x: 600, y: 400, marcaIa: true };
+      sala.personajes[0] = { ...sala.personajes[0], marcaIa: true };
+      const { solicitud } = solicitudDeSala(sala, contexto, copiado.mundos[indiceEspera]);
+      const marcados = solicitud.objects.filter((o) => o.aiSuggested === true).map((o) => o.key).sort();
+      expect(marcados).toEqual([sala.muebles[2].clave, sala.personajes[0].clave].sort());
+      expect(solicitud.objects.find((o) => o.key === sala.muebles[0].clave)).toEqual(copiado.mundos[indiceEspera].objects.find((o) => o.key === sala.muebles[0].clave));
+    });
+
+    it('un personaje nuevo que colocó la IA nace con la marca; uno que puso el docente, sin ella', () => {
+      const c = caso();
+      const sala = c.salas[indiceEspera];
+      const delLugar = universidad.personajes[0].id;
+      sala.personajes.push({ ref: delLugar, x: 300, y: 350, mirando: 'izquierda', expresion: 'neutral', clave: 'ia-1', marcaIa: true });
+      sala.personajes.push({ ref: delLugar, x: 320, y: 350, mirando: 'izquierda', expresion: 'neutral', clave: 'doc-1' });
+      const { solicitud } = solicitudDeSala(sala, contexto, copiado.mundos[indiceEspera]);
+      expect(solicitud.objects.find((o) => o.key === 'ia-1')).toMatchObject({ aiSuggested: true });
+      expect(solicitud.objects.find((o) => o.key === 'doc-1')).not.toHaveProperty('aiSuggested');
+    });
+
+    it('un objeto que ya se aceptó deja de mandarse marcado aunque la copia guardada del mapa aún diga que sí', () => {
+      const c = caso();
+      const sala = c.salas[indiceEspera];
+      const mundo = structuredClone(copiado.mundos[indiceEspera]);
+      mundo.objects.find((o) => o.key === sala.muebles[0].clave)!.aiSuggested = true; // la copia vieja
+      const { solicitud } = solicitudDeSala(sala, contexto, mundo); // el borrador ya no tiene la marca
+      expect(solicitud.objects.find((o) => o.key === sala.muebles[0].clave)!.aiSuggested).toBe(false);
+    });
   });
 
   it('una sala sin lugar (sin catálogo) también se guarda: lo que había se conserva', () => {

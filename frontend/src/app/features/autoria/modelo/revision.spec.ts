@@ -36,6 +36,20 @@ describe('puedeEnviar', () => {
     expect(puedeEnviar(caso).faltas.map((f) => f.mensaje)).toEqual(['3 partes generadas por IA sin revisar.']);
   });
 
+  it('A7 · una persona o un mueble que la IA puso o movió sin aceptar bloquea el envío y lleva a su sala', () => {
+    const caso = completo();
+    caso.salas = [{
+      id: 'consultorio', nombre: 'Consultorio', descripcion: '', encuadre: 'tres-paredes', fondo: '', entrada: { x: 0, y: 0 }, puertas: [], origen: null,
+      muebles: [{ ref: 'silla', x: 1, y: 1, marcaIa: true }], objetos: [], personajes: [{ ref: 'camila', x: 2, y: 2, mirando: 'izquierda', expresion: 'neutral', marcaIa: true }],
+    }];
+    caso.escenas[0].marcaIa = true;
+    const r = puedeEnviar(caso);
+    expect(r.ok).toBe(false);
+    expect(r.faltas.map((f) => f.mensaje)).toEqual(['3 partes generadas por IA sin revisar.']);
+    caso.escenas[0].marcaIa = false;
+    expect(puedeEnviar(caso).faltas[0].ir).toEqual({ ruta: '/editor/sala/consultorio', accionId: 'aceptar-ia' });
+  });
+
   it('cada aviso de camino bloquea el envío con su mensaje', () => {
     const casos: CasoBorrador[] = [];
     const sinSalida = completo(); sinSalida.escenas[1].esFinal = false; casos.push(sinSalida);

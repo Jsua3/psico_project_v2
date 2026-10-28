@@ -15,6 +15,8 @@ vi.mock('phaser', () => ({
   },
 }));
 
+import { readFileSync } from 'fs';
+import { join } from 'path';
 import type { Mock } from 'vitest';
 import { MapObjectState, SimulationWorldState } from '../../core/models/simulation.model';
 import { DataDrivenWorldScene } from './game-world.component';
@@ -29,7 +31,11 @@ import { playerHitbox, rectsIntersect } from './player-motion.util';
 interface FakeNode { x: number; y: number; setPosition: Mock }
 interface Point { x: number; y: number }
 
-interface WalkerProbe { key: string; state: { x: number; y: number; walking: boolean; target: Point | null } }
+interface WalkerProbe {
+  key: string;
+  state: { x: number; y: number; walking: boolean; target: Point | null; pauseMs: number; direction: string };
+  lastPose: { direction: string | null; walking: boolean };
+}
 
 interface WalkScene {
   player: Point | undefined;
@@ -46,6 +52,8 @@ interface WalkScene {
   updatePersonWalkers(delta: number): void;
   applyAmbientLife(marker: FakeNode, object: MapObjectState): void;
   setReduceMotion(reduced: boolean): void;
+  setMotionPaused(paused: boolean): void;
+  resetPersonWalkers(room: string): void;
   markerMoves(key: string): boolean;
 }
 
@@ -248,5 +256,199 @@ describe('personas que caminan: en la escena', () => {
     scene.setReduceMotion(false);
     pasar(scene, 20_000);
     expect(dist(marker, { x: 300, y: 240 })).toBeGreaterThan(0);
+  });
+});
+
+/**
+ * La pared del fondo pintado (revisión final · B1). La copia de un lugar levanta las paredes del encuadre como zonas de choque
+ * (`world.collisions`) y la sala dice su encuadre en `map.ambient`: quien deambula no sube por la pared ni con la colisión del
+ * servidor ni —en un caso hecho antes, sin esas zonas— gracias a los límites de la zona caminable.
+ */
+describe('personas que caminan: la pared pintada de la sala', () => {
+  /** Lo que el servidor guarda para `tres-paredes` (zona caminable x 96–864, y 236–486): todo lo demás es pared o borde. */
+  const PAREDES = [
+    { x: 0, y: 0, width: 960, height: 236 }, { x: 0, y: 236, width: 96, height: 250 },
+    { x: 864, y: 236, width: 96, height: 250 }, { x: 0, y: 486, width: 960, height: 42 },
+  ];
+  const ZONA = { minX: 96, maxX: 864, minY: 236, maxY: 486 };
+  /** Los pies, con el hitbox entero dentro de la zona: 11 px de cada lado y 16 de alto. */
+  const PIES = { minX: 107, maxX: 853, minY: 252, maxY: 486 };
+
+  /** Una sala con encuadre; los pies de la persona (marcador + `pies`) son los que cuentan. */
+  function salaConEncuadre(conParedes: boolean): WalkScene {
+    const scene = crearEscena();
+    scene.world = {
+      map: { key: 'sala-demo', width: 960, height: 528, ambient: { encuadre: 'tres-paredes' } }, objects: [],
+      collisions: conParedes ? PAREDES.map((z, i) => ({ id: i, key: `pared-${i}`, label: 'Pared', ...z })) : [], inventory: [],
+    } as unknown as SimulationWorldState;
+    return scene;
+  }
+
+  function recorre(scene: WalkScene, objeto: MapObjectState, pies: number, cuadros = 4000) {
+    const marker = agregar(scene, objeto);
+    const visto = { minX: Infinity, maxX: -Infinity, minY: Infinity, maxY: -Infinity };
+    let recorrido = 0;
+    let previo = { x: marker.x, y: marker.y };
+    for (let paso = 0; paso < cuadros; paso++) {
+      scene.updatePersonWalkers(16);
+      const hitbox = playerHitbox(marker.x, marker.y + pies);
+      expect(PAREDES.some((p) => rectsIntersect(hitbox, p)), `cuadro ${paso}: pies en (${marker.x}, ${marker.y + pies})`).toBe(false);
+      visto.minX = Math.min(visto.minX, marker.x); visto.maxX = Math.max(visto.maxX, marker.x);
+      visto.minY = Math.min(visto.minY, marker.y + pies); visto.maxY = Math.max(visto.maxY, marker.y + pies);
+      recorrido += dist(previo, marker);
+      previo = { x: marker.x, y: marker.y };
+    }
+    expect(recorrido, 'caminó de verdad').toBeGreaterThan(100);
+    return visto;
+  }
+
+  it('con las paredes del servidor, una persona con apoyo en los pies deambula sin pisar la pared y puede llegar al borde del piso', () => {
+    const scene = salaConEncuadre(true);
+    delete (scene as unknown as Record<string, unknown>)['wouldCollide']; // la colisión real del juego
+    const visto = recorre(scene, persona('madre', 240, 330, undefined, { metadata: { movimiento: 'deambula', apoyo: 'pies' } }), 0);
+    expect(visto.minY, 'sube hasta la pared del fondo, sin entrar').toBeGreaterThanOrEqual(PIES.minY);
+    expect(visto.minY, 'y llega a acercarse a ella').toBeLessThan(PIES.minY + 40);
+    expect(visto.maxY, 'y baja hasta cerca del borde delantero').toBeGreaterThan(PIES.maxY - 50);
+  });
+
+  it('con las paredes del servidor, una persona de un caso de antes (marcador 16 px sobre sus pies) tampoco pisa la pared', () => {
+    const scene = salaConEncuadre(true);
+    delete (scene as unknown as Record<string, unknown>)['wouldCollide'];
+    recorre(scene, persona('madre', 240, 260, 'deambula'), 16);
+  });
+
+  it('en un caso sin paredes en el servidor, el encuadre de la sala basta: sus pies no salen de la zona caminable', () => {
+    const scene = salaConEncuadre(false);
+    scene.wouldCollide = () => false; // nada bloquea: solo los límites de la zona
+    const visto = recorre(scene, persona('madre', 240, 330, undefined, { metadata: { movimiento: 'deambula', apoyo: 'pies' } }), 0, 6000);
+    expect(visto.minY).toBeGreaterThanOrEqual(PIES.minY);
+    expect(visto.maxY).toBeLessThanOrEqual(PIES.maxY);
+    expect(visto.minX).toBeGreaterThanOrEqual(PIES.minX);
+    expect(visto.maxX).toBeLessThanOrEqual(PIES.maxX);
+    expect(PIES.minX).toBeGreaterThan(ZONA.minX); // (la zona es de pies; el hitbox sale 11 px a cada lado)
+  });
+
+  it('un va-y-viene con apoyo en los pies camina entre sus dos puntos, que están dentro de la zona', () => {
+    const scene = salaConEncuadre(true);
+    delete (scene as unknown as Record<string, unknown>)['wouldCollide'];
+    const marker = agregar(scene, persona('ronda', 200, 300, undefined, {
+      metadata: { movimiento: { tipo: 'va-y-viene', hasta: { x: 320, y: 300 } }, apoyo: 'pies' },
+    }));
+    const llegadas: number[] = [];
+    let caminabaAntes = false;
+    for (let t = 0; t < 60_000 && llegadas.length < 4; t += 16) {
+      scene.updatePersonWalkers(16);
+      const caminando = scene.personWalkers.get('ronda')!.state.walking;
+      if (caminabaAntes && !caminando) llegadas.push(Math.round(marker.x));
+      caminabaAntes = caminando;
+    }
+    expect(llegadas).toEqual([320, 200, 320, 200]);
+  });
+});
+
+/**
+ * Revisión final · C1: una persona que camina y se pausa el mundo (diálogo, bitácora…) no sigue moviendo las piernas en su sitio:
+ * la pose pasa a reposo y, al reanudar, vuelve la que le toca (la pose que ve el estudiante es `lastPose`, la que pidió a la hoja).
+ */
+describe('personas que caminan: la pose al pausar el mundo', () => {
+  function caminando(): { scene: WalkScene; walker: WalkerProbe } {
+    const scene = crearEscena();
+    agregar(scene, persona('madre', 300, 240, 'deambula'));
+    const walker = scene.personWalkers.get('madre')!;
+    for (let t = 0; t < 30_000 && !walker.state.walking; t += 16) scene.updatePersonWalkers(16);
+    expect(walker.state.walking, 'echó a andar').toBe(true);
+    expect(walker.lastPose.walking, 'y la pose es la de caminar').toBe(true);
+    return { scene, walker };
+  }
+
+  it('al pausar el mundo, la pose pasa a reposo (misma dirección) y no queda caminando en su sitio', () => {
+    const { scene, walker } = caminando();
+    const direccion = walker.state.direction;
+    scene.setMotionPaused(true);
+    expect(walker.lastPose).toEqual({ direction: direccion, walking: false });
+    // El tiempo que pase en pausa no la mueve ni la vuelve a poner a caminar.
+    for (let t = 0; t < 2000; t += 16) scene.updatePersonWalkers(16);
+    expect(walker.lastPose.walking).toBe(false);
+  });
+
+  it('al reanudar, vuelve a la pose que le corresponde: caminando si iba caminando', () => {
+    const { scene, walker } = caminando();
+    scene.setMotionPaused(true);
+    scene.setMotionPaused(false);
+    expect(walker.state.walking).toBe(true);
+    expect(walker.lastPose.walking, 'retoma la pose de caminar sin esperar al siguiente cuadro').toBe(true);
+  });
+
+  it('si estaba parada (en una pausa de las suyas), pausar y reanudar la deja de pie', () => {
+    const scene = crearEscena();
+    agregar(scene, persona('madre', 300, 240, 'deambula'));
+    const walker = scene.personWalkers.get('madre')!;
+    expect(walker.state.walking).toBe(false);
+    scene.setMotionPaused(true);
+    scene.setMotionPaused(false);
+    expect(walker.lastPose.walking).toBe(false);
+  });
+});
+
+/**
+ * Revisión final · C2: abrir una interacción o usar una herramienta hace `world.set` y la escena reconstruye la sala. Quien
+ * caminaba no vuelve a su origen: si la sala es la misma, retoma posición, destino y pausa.
+ */
+describe('personas que caminan: la sala se reconstruye sin cambiar de sala', () => {
+  it('con la misma sala, la persona retoma donde iba (posición, destino y pausa)', () => {
+    const scene = crearEscena();
+    const objeto = persona('madre', 300, 240, 'deambula');
+    scene.resetPersonWalkers('sala-demo'); // la primera vez no hay nada que recordar
+    const marker = agregar(scene, objeto);
+    pasar(scene, 9000);
+    const antes = scene.personWalkers.get('madre')!.state;
+    expect(dist(antes, { x: 300, y: 240 }), 'ya se había alejado de su origen').toBeGreaterThan(0);
+
+    scene.resetPersonWalkers('sala-demo'); // setWorld → renderWorld/renderRoom
+    expect(scene.personWalkers.size).toBe(0);
+    const nuevo = node(objeto.x, objeto.y); // el marcador nace en el dato, en su origen
+    scene.markers.set('madre', nuevo);
+    scene.registerPersonWalk(nuevo, objeto);
+    const despues = scene.personWalkers.get('madre')!.state;
+    expect({ x: nuevo.x, y: nuevo.y }, 'el marcador vuelve a donde estaba').toEqual({ x: antes.x, y: antes.y });
+    expect(despues.x).toBe(antes.x);
+    expect(despues.y).toBe(antes.y);
+    expect(despues.target).toEqual(antes.target);
+    expect(despues.pauseMs).toBe(antes.pauseMs);
+    expect(marker).not.toBe(nuevo);
+  });
+
+  it('una sala distinta no arrastra a las personas de la anterior: vuelven a su origen', () => {
+    const scene = crearEscena();
+    const objeto = persona('madre', 300, 240, 'deambula');
+    scene.resetPersonWalkers('sala-demo');
+    agregar(scene, objeto);
+    pasar(scene, 9000);
+    scene.resetPersonWalkers('otra-sala');
+    const nuevo = node(objeto.x, objeto.y);
+    scene.markers.set('madre', nuevo);
+    scene.registerPersonWalk(nuevo, objeto);
+    expect([nuevo.x, nuevo.y]).toEqual([300, 240]);
+    expect(scene.personWalkers.get('madre')!.state.target).toBeNull();
+  });
+
+  it('si el docente cambió su origen o su movimiento, empieza de nuevo con el dato nuevo', () => {
+    const scene = crearEscena();
+    scene.resetPersonWalkers('sala-demo');
+    agregar(scene, persona('madre', 300, 240, 'deambula'));
+    pasar(scene, 9000);
+    scene.resetPersonWalkers('sala-demo');
+    const movida = persona('madre', 500, 300, 'deambula');
+    const nuevo = node(500, 300);
+    scene.markers.set('madre', nuevo);
+    scene.registerPersonWalk(nuevo, movida);
+    expect([nuevo.x, nuevo.y]).toEqual([500, 300]);
+  });
+
+  it('las dos formas de reconstruir la sala (una sola sala y varias) pasan por ese mismo punto', () => {
+    const fuente = readFileSync(join(__dirname, 'game-world.component.ts'), 'utf-8');
+    expect(fuente.match(/this\.resetPersonWalkers\(/g) ?? []).toHaveLength(2);
+    // `personWalkers.clear()` ya no se llama suelto al reconstruir: solo `resetPersonWalkers` lo hace (guardando antes el estado).
+    expect(fuente.match(/this\.personWalkers\.clear\(\)/g) ?? []).toHaveLength(1);
   });
 });

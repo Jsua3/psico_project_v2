@@ -125,6 +125,61 @@ describe('SalaComponent', () => {
     expect(retratos.every((s) => !s || !s.includes('assets/kit/'))).toBe(true);
   });
 
+  describe('A7 · lo que la IA puso o movió en la sala', () => {
+    const marcar = (store: CasoStore, tipo: 'personajes' | 'muebles' | 'objetos', i: number) => {
+      const caso = structuredClone(store.caso()!);
+      caso.salas[0][tipo][i].marcaIa = true;
+      store.fijar(caso);
+    };
+
+    it('lo marcado dice «Sugerido por la IA» en la lista y en los detalles, con un botón para aceptarlo', async () => {
+      const { fixture, store, raiz } = await montar();
+      marcar(store, 'personajes', 0);
+      fixture.detectChanges();
+      await fixture.whenStable();
+      const opcion = [...raiz.querySelectorAll<HTMLElement>('[role="option"]')].find((o) => o.textContent?.includes('Psicóloga de Bienestar'))!;
+      expect(opcion.textContent).toContain('sugerido por la IA');
+      expect([...raiz.querySelectorAll('[role="option"]')].filter((o) => o.textContent?.includes('sugerido por la IA'))).toHaveLength(1);
+      opcion.click();
+      await fixture.whenStable();
+      fixture.detectChanges();
+      const detalles = raiz.querySelector('.columna-detalles')!;
+      expect(detalles.textContent).toContain('Sugerido por la IA');
+      expect(detalles.querySelector('button[data-accion="aceptar-ia"]')).not.toBeNull();
+    });
+
+    it('«Aceptar» baja la marca y lo anuncia; lo que no está marcado no ofrece aceptar', async () => {
+      const { fixture, store, raiz } = await montar();
+      marcar(store, 'muebles', 0);
+      fixture.detectChanges();
+      await fixture.whenStable();
+      raiz.querySelector<HTMLButtonElement>('[data-elemento="mueble-1"]')!.click();
+      await fixture.whenStable();
+      fixture.detectChanges();
+      expect(raiz.querySelector('.columna-detalles button[data-accion="aceptar-ia"]')).toBeNull();
+      raiz.querySelector<HTMLButtonElement>('[data-elemento="mueble-0"]')!.click();
+      await fixture.whenStable();
+      fixture.detectChanges();
+      raiz.querySelector<HTMLButtonElement>('.columna-detalles button[data-accion="aceptar-ia"]')!.click();
+      await fixture.whenStable();
+      fixture.detectChanges();
+      expect(store.caso()!.salas[0].muebles[0].marcaIa).toBe(false);
+      expect(raiz.querySelector('.columna-detalles button[data-accion="aceptar-ia"]')).toBeNull();
+      expect(raiz.querySelector('[role="status"].solo-lector')!.textContent).toContain('Aceptado');
+    });
+  });
+
+  it('A8 · la nota de las expresiones cuenta las del kit (seis), no cuatro', async () => {
+    const { fixture, raiz } = await montar();
+    raiz.querySelector<HTMLButtonElement>('[data-elemento="personaje-0"]')!.click();
+    await fixture.whenStable();
+    fixture.detectChanges();
+    const detalles = raiz.querySelector('.columna-detalles')!.textContent!;
+    expect(detalles).toContain('Las 6 caras');
+    expect(detalles).not.toContain('Las 4 caras');
+    expect(raiz.querySelectorAll('select#expresion option')).toHaveLength(6);
+  });
+
   it('agregar desde el catálogo pone la pieza en la sala', async () => {
     const { fixture, store, raiz } = await montar();
     raiz.querySelector<HTMLButtonElement>('button[aria-label="Agregar a la sala: Sofá de dos puestos"]')!.click();

@@ -281,7 +281,7 @@ export class EditorComponent {
       ? `${n === 1 ? 'La respuesta que llevaba' : `Las ${n} respuestas que llevaban`} a ella ya no ${n === 1 ? 'llevará' : 'llevarán'} a ninguna escena y ${n === 1 ? 'aparecerá' : 'aparecerán'} en los avisos.`
       : 'Ninguna respuesta lleva a ella.';
     // Los finales dependen de los pasos y las respuestas del recorrido, no de una escena: borrar una escena no los toca.
-    return respuestas;
+    return `Se pierden su guion y sus respuestas. ${respuestas}`;
   }
 
   protected abrirGuion(id: string): void {

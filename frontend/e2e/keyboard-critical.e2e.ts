@@ -452,36 +452,40 @@ test('[A01] gestionar usuarios y solicitudes: una solicitud se atiende con «Cre
 // req: RF-05, CU-04, RNF-004, WCAG 2.1.1
 test('[A02] crear y editar un caso: desde «Mis casos» se elige el lugar y las salas, se crea el caso y se escribe una línea del guion, todo con teclas', async ({ page, request }) => {
   test.setTimeout(scaled(180_000));
-  await keyboardLogin(page, ADMIN);
-  await page.goto('/portal/casos');
-  await pressWithKeyboard(page, page.getByRole('link', { name: 'Crear un caso nuevo' }), { max: 120 });
-  await expect(page.getByRole('heading', { level: 1, name: '¿Dónde pasa tu caso?' })).toBeVisible({ timeout: scaled(30_000) });
-  await pressWithKeyboard(page, page.getByRole('link', { name: 'Elegir este lugar: Universidad' }), { max: 120 });
-  await expect(page.getByRole('heading', { level: 1, name: 'Elige las salas de tu caso' })).toBeVisible({ timeout: scaled(30_000) });
-  await pressWithKeyboard(page, page.getByRole('button', { name: 'Usar esta idea: Atención en Bienestar' }), { max: 160 });
-  const title = `Caso teclado ${stamp()}`;
-  await typeInto(page, page.getByLabel('Nombre del caso'), title, { max: 160 });
-  await pressWithKeyboard(page, page.getByRole('button', { name: 'Crear el caso con estas salas' }), { max: 160 });
-  await page.waitForURL(/\/portal\/casos\/\d+\/editor/, { timeout: scaled(60_000) });
-  await expect(page.getByRole('heading', { level: 1, name: /Escenas y caminos/ })).toBeVisible({ timeout: scaled(30_000) });
-  const id = Number(/\/portal\/casos\/(\d+)\/editor/.exec(page.url())![1]);
+  let id = 0;
+  try {
+    await keyboardLogin(page, ADMIN);
+    await page.goto('/portal/casos');
+    await pressWithKeyboard(page, page.getByRole('link', { name: 'Crear un caso nuevo' }), { max: 120 });
+    await expect(page.getByRole('heading', { level: 1, name: '¿Dónde pasa tu caso?' })).toBeVisible({ timeout: scaled(30_000) });
+    await pressWithKeyboard(page, page.getByRole('link', { name: 'Elegir este lugar: Universidad' }), { max: 120 });
+    await expect(page.getByRole('heading', { level: 1, name: 'Elige las salas de tu caso' })).toBeVisible({ timeout: scaled(30_000) });
+    await pressWithKeyboard(page, page.getByRole('button', { name: 'Usar esta idea: Atención en Bienestar' }), { max: 160 });
+    const title = `Caso teclado ${stamp()}`;
+    await typeInto(page, page.getByLabel('Nombre del caso'), title, { max: 160 });
+    await pressWithKeyboard(page, page.getByRole('button', { name: 'Crear el caso con estas salas' }), { max: 160 });
+    await page.waitForURL(/\/portal\/casos\/\d+\/editor/, { timeout: scaled(60_000) });
+    await expect(page.getByRole('heading', { level: 1, name: /Escenas y caminos/ })).toBeVisible({ timeout: scaled(30_000) });
+    id = Number(/\/portal\/casos\/(\d+)\/editor/.exec(page.url())![1]);
 
-  // Enter sobre la primera escena del mapa abre su guion; ahí se escribe una línea.
-  await pressWithKeyboard(page, page.locator('button.escena').first(), { max: 160 });
-  await expect(page.getByRole('heading', { level: 1, name: 'Guion de la escena' })).toBeVisible({ timeout: scaled(30_000) });
-  await pressWithKeyboard(page, page.getByRole('button', { name: 'Agregar una línea' }), { max: 200 });
-  await typeInto(page, page.getByLabel('Lo que dice, línea 1'), 'Hola, ¿esta es la oficina de Bienestar?', { max: 200 });
-  await page.keyboard.press('Tab'); // al salir del campo, el editor guarda
-  const admin = await apiToken(request, ADMIN);
-  const world: Json = (await (await request.get(`/api/authoring/cases/${id}/editor`, { headers: bearer(admin) })).json()).data;
-  const guionDelServidor = async (): Promise<string[]> => {
-    const mundo: Json = (await (await request.get(`/api/authoring/cases/${id}/world-editor?nodeId=${world['nodes'][0]['id']}`, { headers: bearer(admin) })).json()).data;
-    return mundo['dialogues'].flatMap((d: Json) => d['lines']).map((l: Json) => l['text']);
-  };
-  await expect.poll(guionDelServidor, { timeout: scaled(30_000), message: 'el servidor guardó la línea' }).toContain('Hola, ¿esta es la oficina de Bienestar?');
-  expect(world['title']).toBe(title);
-  await expectNoPointer(page, 'crear y editar un caso');
-  await retireCase(request, id);
+    // Enter sobre la primera escena del mapa abre su guion; ahí se escribe una línea.
+    await pressWithKeyboard(page, page.locator('button.escena').first(), { max: 160 });
+    await expect(page.getByRole('heading', { level: 1, name: 'Guion de la escena' })).toBeVisible({ timeout: scaled(30_000) });
+    await pressWithKeyboard(page, page.getByRole('button', { name: 'Agregar una línea' }), { max: 200 });
+    await typeInto(page, page.getByLabel('Lo que dice, línea 1'), 'Hola, ¿esta es la oficina de Bienestar?', { max: 200 });
+    await page.keyboard.press('Tab'); // al salir del campo, el editor guarda
+    const admin = await apiToken(request, ADMIN);
+    const world: Json = (await (await request.get(`/api/authoring/cases/${id}/editor`, { headers: bearer(admin) })).json()).data;
+    const guionDelServidor = async (): Promise<string[]> => {
+      const mundo: Json = (await (await request.get(`/api/authoring/cases/${id}/world-editor?nodeId=${world['nodes'][0]['id']}`, { headers: bearer(admin) })).json()).data;
+      return mundo['dialogues'].flatMap((d: Json) => d['lines']).map((l: Json) => l['text']);
+    };
+    await expect.poll(guionDelServidor, { timeout: scaled(30_000), message: 'el servidor guardó la línea' }).toContain('Hola, ¿esta es la oficina de Bienestar?');
+    expect(world['title']).toBe(title);
+    await expectNoPointer(page, 'crear y editar un caso');
+  } finally {
+    if (id) await retireCase(request, id);
+  }
 });
 
 /** Un caso del administrador con tres salas de la universidad (la preparación va por API: el editor copia el lugar al caso en el servidor). */

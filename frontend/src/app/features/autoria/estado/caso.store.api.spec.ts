@@ -300,7 +300,8 @@ describe('CasoStore con la API · si el servidor rechaza un cambio', () => {
     await store.sincronizado();
     expect(caso(store).escenas).toHaveLength(antes);
     expect(caso(store).escenas.some((e) => e.id === id)).toBe(false);
-    expect(servidor.metodos).toEqual(['createNode', 'createMap', 'deleteNode']); // deshizo el nodo que alcanzó a crear
+    // Deshizo el nodo que alcanzó a crear y, como el servidor aceptó algo por el camino, volvió a leer el caso para estar seguro de lo que quedó.
+    expect(servidor.metodos).toEqual(['createNode', 'createMap', 'deleteNode', 'caseEditor', 'worldEditor', 'worldEditor']);
     expect(servidor.editor.nodes).toHaveLength(antes);
     expect(store.error()).toContain('Revisa lo que escribiste'); // un 400 no cita el texto del backend
   });
@@ -416,7 +417,7 @@ describe('CasoStore con la API · finales por hitos', () => {
     expect(finales[0]).toMatchObject({ aiSuggested: false });
     expect(caso(store).finales[0].id).toBe(id);
 
-    // Volver a automático borra los propios en el servidor
+    // Volver a automático borra los propios en el servidor (la pantalla pregunta antes: ver finales.component.spec; el almacén obedece)
     store.fijarModoFinales('automatico');
     await store.sincronizado();
     expect(servidor.llamadasA('updateEndings').at(-1)!.args[0]).toEqual([]);

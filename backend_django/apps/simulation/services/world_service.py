@@ -111,8 +111,18 @@ def _rectangles_intersect(a_x, a_y, a_w, a_h, b_x, b_y, b_w, b_h):
     )
 
 
+# Lo más lejos que un dato de coordenada puede estar de cero (px): ninguna sala se le acerca, y un entero de cientos de
+# dígitos no debe llegar a `math.isfinite` (OverflowError → 500) ni agrandar el área de cercanía sin límite.
+MAX_COORDINATE_PX = 1_000_000
+
+
 def _is_number(value):
-    return isinstance(value, (int, float)) and not isinstance(value, bool) and math.isfinite(value)
+    """Un número de coordenada usable: finito y de magnitud razonable. Nunca lanza (un entero enorme es «mal formado»)."""
+    if isinstance(value, bool) or not isinstance(value, (int, float)):
+        return False
+    if isinstance(value, float) and not math.isfinite(value):
+        return False
+    return abs(value) <= MAX_COORDINATE_PX
 
 
 def _person_movement(map_object):
@@ -146,6 +156,10 @@ def _interaction_rect(map_object):
         return x - radius, y - radius, width + 2 * radius, height + 2 * radius
     if movement is not None:
         _, to_x, to_y = movement
+        # El punto lejano no puede estar fuera de la sala: un `hasta` desmedido no vuelve «cercano» lo que no lo es.
+        scene_map = map_object.scene_map
+        to_x = _clamp(to_x, 0, scene_map.width or DEFAULT_MAP_WIDTH)
+        to_y = _clamp(to_y, 0, scene_map.height or DEFAULT_MAP_HEIGHT)
         left, top = min(x, to_x), min(y, to_y)
         right, bottom = max(x, to_x) + width, max(y, to_y) + height
         return left, top, right - left, bottom - top

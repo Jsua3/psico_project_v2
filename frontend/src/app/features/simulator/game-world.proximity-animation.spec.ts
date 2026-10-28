@@ -171,6 +171,36 @@ describe('DataDrivenWorldScene: lo que se publica de la animación de cercanía 
     expect(avisar).toHaveBeenCalledTimes(3);
   });
 
+  // Revisión final · C8: la mayoría de las salas no tiene ninguna hoja de cercanía y `update()` lo pregunta en cada cuadro.
+  it('en una sala sin animaciones de cercanía no trabaja por cuadro: ni arma el informe ni lo serializa', () => {
+    const h = crearEscena([objectState('mesa', 'PROP', 500, 430)]);
+    const avisar = vi.fn();
+    (h.callbacks as unknown as { onProximityAnimation: Mock }).onProximityAnimation = avisar;
+    h.scene.reportProximityAnimation(); // el primer cuadro publica «nada anima»
+    expect(avisar).toHaveBeenCalledTimes(1);
+    expect(avisar).toHaveBeenLastCalledWith({ playing: null, frames: {} });
+
+    const serializar = vi.spyOn(JSON, 'stringify');
+    for (let cuadro = 0; cuadro < 60; cuadro++) h.scene.reportProximityAnimation();
+    expect(serializar).not.toHaveBeenCalled();
+    expect(avisar).toHaveBeenCalledTimes(1);
+    serializar.mockRestore();
+  });
+
+  it('al quedarse sin animaciones (otra sala) publica «nada anima» una vez', () => {
+    const h = crearEscena([conArte('ventana', 'OBJECT', 500, 430)]);
+    const avisar = vi.fn();
+    (h.callbacks as unknown as { onProximityAnimation: Mock }).onProximityAnimation = avisar;
+    h.sprites['ventana'].frame = { name: 0 };
+    h.scene.reportProximityAnimation();
+    h.scene.proximityAnimations.clear(); // se reconstruyó la sala sin hojas
+    h.scene.reportProximityAnimation();
+    expect(avisar).toHaveBeenLastCalledWith({ playing: null, frames: {} });
+    expect(avisar).toHaveBeenCalledTimes(2);
+    h.scene.reportProximityAnimation();
+    expect(avisar).toHaveBeenCalledTimes(2);
+  });
+
   it('sin el aviso conectado no hace nada', () => {
     const h = crearEscena([conArte('ventana', 'OBJECT', 500, 430)]);
     expect(() => h.scene.reportProximityAnimation()).not.toThrow();

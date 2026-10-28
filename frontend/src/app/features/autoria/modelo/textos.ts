@@ -14,8 +14,8 @@ export const TEMAS: readonly { id: string; nombre: string }[] = [
   { id: 'orientacion', nombre: 'Orientación' },
   { id: 'bienestar', nombre: 'Bienestar' },
   { id: 'violencia-genero', nombre: 'Violencia de género' },
-  { id: 'familia', nombre: 'Familia' },
-  { id: 'nna', nombre: 'Niñas, niños y adolescentes' },
+  { id: 'ninez-adolescencia', nombre: 'Niñez y adolescencia' },
+  { id: 'plan-seguridad', nombre: 'Plan de seguridad' },
   { id: 'rutas-proteccion', nombre: 'Rutas de protección' },
 ];
 

@@ -29,6 +29,8 @@ interface Pieza {
   /** Para personajes: cómo se mueve y si es la persona a atender de la sala. */
   movimiento?: MovimientoPersonaje;
   personaClave?: boolean;
+  /** La puso o la movió el asistente y el docente aún no la acepta. */
+  marcaIa?: boolean;
 }
 
 /** Un punto elegido a mano con las flechas o con un clic. */
@@ -76,7 +78,7 @@ const DISTANCIAS_INICIALES = [96, -96, 160, -160, 48, -48];
                       <li role="option" tabindex="0" [attr.aria-selected]="elegida() === p.clave"
                           (mouseenter)="atencion.set(p.clave)" (mouseleave)="soltarAtencion(p.clave)"
                           (focus)="atencion.set(p.clave)" (blur)="soltarAtencion(p.clave)" (click)="elegir(p.clave)" (keydown.enter)="elegir(p.clave)" (keydown.space)="elegir(p.clave); $event.preventDefault()">
-                        {{ p.nombre }}{{ p.personaClave ? ' · ' + textoPersonaAAtender : '' }}
+                        {{ p.nombre }}{{ p.personaClave ? ' · ' + textoPersonaAAtender : '' }}{{ p.marcaIa ? ' · sugerido por la IA' : '' }}
                       </li>
                     } @empty {
                       <li role="none" class="texto-secundario vacio">Ninguno</li>
@@ -112,8 +114,8 @@ const DISTANCIAS_INICIALES = [96, -96, 160, -160, 48, -48];
                   }
                 </svg>
                 @for (p of piezasOrdenadas(); track p.clave) {
-                  <button type="button" class="pieza" data-equivalente="lista-de-la-sala" [attr.data-elemento]="p.clave" [class.elegida]="elegida() === p.clave" [class.atendida]="atencion() === p.clave"
-                          [attr.aria-label]="p.nombre + (p.personaClave ? ', ' + textoPersonaAAtender : '') + (elegida() === p.clave ? ', elegido' : '')"
+                  <button type="button" class="pieza" data-equivalente="lista-de-la-sala" [attr.data-elemento]="p.clave" [class.elegida]="elegida() === p.clave" [class.atendida]="atencion() === p.clave" [class.marca-ia]="p.marcaIa"
+                          [attr.aria-label]="p.nombre + (p.personaClave ? ', ' + textoPersonaAAtender : '') + (p.marcaIa ? ', sugerido por la IA' : '') + (elegida() === p.clave ? ', elegido' : '')"
                           [style.left.px]="posicion(p).x" [style.top.px]="posicion(p).y" [style.z-index]="p.y"
                           (pointerdown)="empezarArrastre($event, p)" (click)="elegir(p.clave)" (keydown)="teclaPieza($event, p)">
                     @if (p.personaClave) {
@@ -180,6 +182,10 @@ const DISTANCIAS_INICIALES = [96, -96, 160, -160, 48, -48];
             <p class="texto-secundario">Detalles</p>
             @if (piezaElegida(); as p) {
               <h2 id="detalles">{{ p.nombre }}</h2>
+              @if (p.marcaIa) {
+                <p class="marca-ia-aviso"><span class="pildora">Sugerido por la IA</span> Lo puso o lo movió el asistente; revísalo y acéptalo.</p>
+                <button type="button" class="boton" data-accion="aceptar-ia" [attr.aria-label]="'Aceptar lo sugerido: ' + p.nombre" (click)="aceptarIa(p)">Aceptar</button>
+              }
               @if (p.tipo === 'personaje') {
                 @let pj = s.personajes[p.indice];
                 <span id="pmira" class="etiqueta">Hacia dónde mira</span>
@@ -196,7 +202,7 @@ const DISTANCIAS_INICIALES = [96, -96, 160, -160, 48, -48];
                     @for (e of expresiones; track e) { <option [value]="e" [selected]="e === pj.expresion">{{ nombreExpresion[e] }}</option> }
                   </select>
                 </div>
-                <p class="texto-secundario nota">Las 4 caras que tiene este personaje. El retrato cambia al elegir.</p>
+                <p class="texto-secundario nota">Las {{ expresiones.length }} caras que tiene este personaje. El retrato cambia al elegir.</p>
 
                 <div class="bloque" data-accion="como-se-mueve">
                   <span id="pmueve" class="etiqueta">Cómo se mueve</span>
@@ -282,6 +288,8 @@ const DISTANCIAS_INICIALES = [96, -96, 160, -160, 48, -48];
     .escenario { position: relative; width: 100%; aspect-ratio: 960 / 528; overflow: hidden; border-radius: 10px; border: 1px solid var(--linea); background: var(--juego-escenario); touch-action: none; }
     .lienzo { position: absolute; left: 0; top: 0; width: 960px; height: 528px; transform: scale(var(--escala, 1)); transform-origin: 0 0; }
     .fondo { position: absolute; inset: 0; width: 960px; height: 528px; }
+    .pieza.marca-ia { outline: 2px dashed var(--borde-control); outline-offset: 2px; }
+    .marca-ia-aviso { margin: 0; }
     .pieza {
       position: absolute; transform: translate(-50%, -100%); padding: 0; margin: 0; border: 0; background: none;
       cursor: grab; line-height: 0; display: flex; align-items: flex-end; justify-content: center;
@@ -394,19 +402,19 @@ export class SalaComponent {
       ...s.muebles.map((m, i) => {
         const c = nombreMueble(m.ref);
         return { clave: `mueble-${i}`, tipo: 'mueble' as const, indice: i, nombre: etiqueta(c?.nombre ?? m.ref, veces(s.muebles, m.ref)),
-          x: m.x, y: m.y, arte: rutaArte(caso.lugarId, c?.arte ?? ''), espejo: !!m.espejo };
+          x: m.x, y: m.y, arte: rutaArte(caso.lugarId, c?.arte ?? ''), espejo: !!m.espejo, marcaIa: m.marcaIa === true };
       }),
       ...s.objetos.map((o, i) => {
         const c = nombreObjeto(o.ref);
         return { clave: `objeto-${i}`, tipo: 'objeto' as const, indice: i, nombre: etiqueta(c?.nombre ?? o.ref, veces(s.objetos, o.ref)),
-          x: o.x, y: o.y, arte: rutaArte(caso.lugarId, c?.arte ?? ''), espejo: false };
+          x: o.x, y: o.y, arte: rutaArte(caso.lugarId, c?.arte ?? ''), espejo: false, marcaIa: o.marcaIa === true };
       }),
       ...s.personajes.map((p, i) => {
         const c = caso.personajes.find((x) => x.id === p.ref);
         return { clave: `personaje-${i}`, tipo: 'personaje' as const, indice: i, nombre: etiqueta(c?.nombre ?? p.ref, veces(s.personajes, p.ref)),
           x: p.x, y: p.y, arte: '', espejo: false,
           sprite: { url: rutaSpriteKit(c?.recipeId ?? p.ref), fila: p.mirando === 'izquierda' ? 1 : 2 },
-          movimiento: p.movimiento ?? 'quieto', personaClave: p.personaClave === true };
+          movimiento: p.movimiento ?? 'quieto', personaClave: p.personaClave === true, marcaIa: p.marcaIa === true };
       }),
     ];
   });
@@ -533,6 +541,13 @@ export class SalaComponent {
     this.elegida.set(clave);
     const p = this.piezas().find((x) => x.clave === clave);
     if (p) this.anuncio.set(`Elegido: ${p.nombre}.`);
+  }
+
+  /** Da por revisado lo que el asistente puso o movió: la marca baja y el foco queda en la pieza. */
+  protected aceptarIa(p: Pieza): void {
+    this.store.aceptarIa({ salaId: this.salaId(), tipo: p.tipo, indice: p.indice });
+    this.anuncio.set(`Aceptado: ${p.nombre}.`);
+    setTimeout(() => this.escenario()?.nativeElement.querySelector<HTMLElement>(`[data-elemento="${p.clave}"]`)?.focus());
   }
 
   protected desplazar(p: Pieza, dx: number, dy: number): void {

@@ -102,7 +102,7 @@ describe('CasoStore · propuestas de la IA (con servidor)', () => {
     expect(servidor.editor.rules.endings).toHaveLength(5);
   });
 
-  it('colocar y mover en una sala se guardan en el mapa, sin marca', async () => {
+  it('colocar y mover en una sala se guardan en el mapa, con la marca de la IA en lo que se tocó', async () => {
     const { servidor, store, psicologa, mapaConsultorio } = await abrir();
     const objeto = servidor.mundos.get(mapaConsultorio.nodeId)!.objects.find((o) => o.type === 'PROP')!;
     store.aplicarPropuesta([
@@ -113,7 +113,70 @@ describe('CasoStore · propuestas de la IA (con servidor)', () => {
     expect(servidor.metodos).toEqual(['saveWorld']);
     const mundo = servidor.mundos.get(mapaConsultorio.nodeId)!;
     expect(mundo.objects.filter((o) => o.type === 'PERSON')).toHaveLength(2);
-    expect(mundo.objects.find((o) => o.key === objeto.key)).toMatchObject({ x: 420 });
+    expect(mundo.objects.find((o) => o.key === objeto.key)).toMatchObject({ x: 420, aiSuggested: true });
+    expect(mundo.objects.filter((o) => o.type === 'PERSON').filter((o) => o.aiSuggested === true)).toHaveLength(1); // solo la que colocó la IA
+    expect(mundo.objects.filter((o) => o.aiSuggested === true)).toHaveLength(2);
+  });
+
+  it('A7 · cambiar la intensidad de una escena que existía la marca en el servidor, y aceptarla la baja', async () => {
+    const { servidor, store, consultorio } = await abrir();
+    expect(servidor.editor.nodes[0].aiSuggested).toBe(false);
+    store.aplicarPropuesta([{ op: 'set-intensity', nodeId: consultorio.id, intensity: 'HIGH', warningMessage: 'Habla de violencia.' }] as Cambio[], [true]);
+    await store.sincronizado();
+    expect((servidor.llamadasA('updateNode')[0].args[1] as NodeUpsertRequest).aiSuggested).toBe(true);
+    expect(servidor.editor.nodes[0]).toMatchObject({ intensity: 'HIGH', aiSuggested: true });
+    expect(store.caso()!.escenas[0].marcaIa).toBe(true);
+    servidor.llamadas.length = 0;
+    store.aceptarIa({ escenaId: store.caso()!.escenas[0].id });
+    await store.sincronizado();
+    expect(servidor.metodos).toEqual(['acceptAiNode']);
+    expect(servidor.editor.nodes[0].aiSuggested).toBe(false);
+  });
+
+  it('A7 · cambiar la clase de una respuesta que existía la marca en el servidor, y aceptarla la baja', async () => {
+    const { servidor, store, consultorio, pasillo } = await abrir();
+    const origen = store.caso()!.escenas.find((e) => e.id === String(consultorio.id))!;
+    const r = store.agregarRespuesta(origen.id);
+    store.editarRespuesta(origen.id, r, { texto: 'Hola', clase: 'ACCEPTABLE', destinoId: String(pasillo.id) });
+    await store.sincronizado();
+    const decision = servidor.editor.decisions[0];
+    expect(decision.aiSuggested).toBe(false);
+    store.aplicarPropuesta([{ op: 'set-response-class', decisionId: decision.id, responseClass: 'RISKY', prohibitionReason: '' }] as Cambio[], [true]);
+    await store.sincronizado();
+    expect((servidor.llamadasA('updateDecision').at(-1)!.args[1] as DecisionOptionUpsertRequest).aiSuggested).toBe(true);
+    expect(servidor.editor.decisions[0]).toMatchObject({ responseClass: 'RISKY', aiSuggested: true });
+    servidor.llamadas.length = 0;
+    store.aceptarIa({ escenaId: origen.id, respuestaId: r });
+    await store.sincronizado();
+    expect(servidor.metodos).toEqual(['acceptAiDecision']);
+    expect(servidor.editor.decisions[0].aiSuggested).toBe(false);
+  });
+
+  it('A7 · aceptar una persona que colocó la IA baja la marca del objeto en el servidor, y moverla después no la vuelve a marcar', async () => {
+    const { servidor, store, psicologa, mapaConsultorio } = await abrir();
+    store.aplicarPropuesta([
+      { op: 'place-character', mapId: mapaConsultorio.id, characterId: psicologa.id, x: 300, y: 350, expression: 'alegre' },
+    ] as Cambio[], [true]);
+    await store.sincronizado();
+    const sala = store.caso()!.salas.find((x) => x.id === 'consultorio')!;
+    const puesta = sala.personajes.at(-1)!;
+    expect(puesta.marcaIa).toBe(true);
+    const enServidor = () => servidor.mundos.get(mapaConsultorio.nodeId)!.objects.find((o) => o.key === puesta.clave)!;
+    expect(enServidor().aiSuggested).toBe(true);
+
+    servidor.llamadas.length = 0;
+    store.aceptarIa({ salaId: 'consultorio', tipo: 'personaje', indice: sala.personajes.length - 1 });
+    await store.sincronizado();
+    expect(servidor.metodos).toEqual(['acceptAiObject']);
+    expect(servidor.llamadasA('acceptAiObject')[0].args[0]).toBe(enServidor().id);
+    expect(enServidor().aiSuggested).toBe(false);
+    expect(store.caso()!.salas.find((x) => x.id === 'consultorio')!.personajes.at(-1)!.marcaIa).toBe(false);
+
+    // mover algo después no la vuelve a marcar (la copia guardada del mapa en la sesión todavía dice que sí)
+    const indice = store.caso()!.salas.find((x) => x.id === 'consultorio')!.personajes.length - 1;
+    store.moverElemento('consultorio', 'personaje', indice, 340, 350);
+    await store.sincronizado();
+    expect(enServidor()).toMatchObject({ x: 340, aiSuggested: false });
   });
 
   it('aceptar una escena creada por la IA le quita la marca', async () => {

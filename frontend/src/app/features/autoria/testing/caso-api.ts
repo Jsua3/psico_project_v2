@@ -101,7 +101,7 @@ export function casoCopiadoDeLugar(
       const m = muebles.get(c.ref)!;
       const clave = claves.nueva(c.ref);
       mundoObjetos.push(objetoDeMundo(id(), clave, m.nombre, 'PROP', c.x, c.y, m.ancho, m.alto, {
-        metadata: { arte: m.arte, colision: m.colision, ...(c.espejo ? { espejo: true } : {}) },
+        metadata: { arte: m.arte, colision: m.colision, apoyo: 'pies', ...(c.espejo ? { espejo: true } : {}) },
       }));
       if (m.colision) {
         zonas.push({
@@ -112,7 +112,7 @@ export function casoCopiadoDeLugar(
     }
     for (const c of sala.objetos) {
       const o = objetosCat.get(c.ref)!;
-      const metadata: Record<string, unknown> = { arte: o.arte };
+      const metadata: Record<string, unknown> = { arte: o.arte, apoyo: 'pies' };
       if (o.animacionCerca) metadata['animacionCerca'] = { ...o.animacionCerca };
       mundoObjetos.push(objetoDeMundo(id(), claves.nueva(c.ref), o.nombre, o.tipo, c.x, c.y, 32, 32, {
         interactionPrompt: o.textoInteraccion, interactionText: o.alRevisar ?? '', metadata,
@@ -123,14 +123,14 @@ export function casoCopiadoDeLugar(
       const personaje = characters.find((x) => x.key === c.ref)!;
       mundoObjetos.push(objetoDeMundo(id(), claves.nueva(c.ref), info.nombre, 'PERSON', c.x, c.y, 48, 48, {
         interactionPrompt: 'Hablar', facing: (MIRANDO[c.mirando] ?? 'down') as WorldObject['facing'],
-        characterId: personaje.id, metadata: { recipeId: info.recipeId, movimiento: 'quieto', expresion: c.expresion },
+        characterId: personaje.id, metadata: { recipeId: info.recipeId, movimiento: 'quieto', expresion: c.expresion, apoyo: 'pies' },
       }));
     }
     for (const p of sala.puertas) {
       const destino = entradas.get(p.hacia);
       if (!destino) continue;
       mundoObjetos.push(objetoDeMundo(id(), claves.nueva(p.id), p.etiqueta, 'EXIT', p.x, p.y, 24, 40, {
-        interactionPrompt: p.etiqueta, metadata: { targetNodeKey: p.hacia, entryX: destino.x, entryY: destino.y },
+        interactionPrompt: p.etiqueta, metadata: { targetNodeKey: p.hacia, entryX: destino.x, entryY: destino.y, pintada: true },
       }));
     }
     const mundo = mundoVacio(nodeId, {

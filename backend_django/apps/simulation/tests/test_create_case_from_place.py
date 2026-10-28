@@ -16,7 +16,7 @@ from django.conf import settings
 from django.contrib.auth import get_user_model
 from rest_framework.test import APIClient
 
-from apps.biblioteca.services import copiar_al_caso, lugares
+from apps.biblioteca.services import copiar_al_caso, geometria, lugares
 from apps.simulation.models import (
     CaseCharacter,
     CaseVersion,
@@ -229,7 +229,10 @@ def test_una_puerta_entre_salas_elegidas_lleva_a_la_entrada_de_la_otra(caso):
     consultorio = next(s for s in lugar["salas"] if s["id"] == "consultorio")
     original = next(p for s in lugar["salas"] if s["id"] == "bienestar" for p in s["puertas"] if p["id"] == "puerta-consultorio")
     assert puerta.object_type == "EXIT"
-    assert meta == {"targetNodeKey": "consultorio", "entryX": consultorio["entrada"]["x"], "entryY": consultorio["entrada"]["y"]}
+    assert meta == {
+        "targetNodeKey": "consultorio", "entryX": consultorio["entrada"]["x"], "entryY": consultorio["entrada"]["y"],
+        "pintada": True,  # la puerta ya está en el fondo: el juego no le pone otro dibujo encima
+    }
     assert (puerta.position_x, puerta.position_y) == (original["x"], original["y"])
     assert puerta.label == original["etiqueta"] == puerta.interaction_prompt
 
@@ -286,7 +289,7 @@ def test_un_mueble_repetido_en_una_sala_recibe_claves_distintas(profesor):
 
 
 def test_los_muebles_con_colision_dejan_su_zona_de_choque(caso):
-    zonas = CollisionZone.objects.filter(scene_map__case_version=caso)
+    zonas = CollisionZone.objects.filter(scene_map__case_version=caso, zone_key__startswith="choque-")
     con_choque = [o for o in _objetos(caso) if o.object_type == "PROP" and _meta(o).get("colision") is True]
     assert zonas.count() == len(con_choque) > 0
     objeto = con_choque[0]
@@ -325,6 +328,89 @@ def test_la_huella_bloquea_con_el_servidor_y_la_zona_fantasma_no(profesor):
         assert world_service._position_blocked(estado, *pies) is False, mueble.object_key
         revisados += 1
     assert revisados > 0
+
+
+# ─── las paredes del encuadre (revisión final · B1) ───────────────────────────────────────────
+def _zonas_de_pared(mapa):
+    """Las zonas del mapa que no son la huella de un mueble: las paredes y los bordes de la sala."""
+    return {
+        z.zone_key: (z.position_x, z.position_y, z.width, z.height)
+        for z in CollisionZone.objects.filter(scene_map=mapa) if not z.zone_key.startswith("choque-")
+    }
+
+
+@pytest.fixture
+def universidad_entera(profesor):
+    salas = [s["id"] for s in lugares.cargar_lugar("universidad")["salas"]]
+    return CaseVersion.objects.get(pk=_crear(profesor, salas).data["data"]["caseVersionId"])
+
+
+def test_cada_sala_copiada_lleva_las_paredes_de_su_encuadre(universidad_entera):
+    """El fondo pintado dice dónde hay pared; sin una zona de choque ahí, el jugador y las personas que deambulan subirían."""
+    encuadres = set()
+    for mapa in SceneMap.objects.filter(case_version=universidad_entera):
+        encuadre = json.loads(mapa.ambient_json)["encuadre"]
+        encuadres.add(encuadre)
+        esperadas = {p.clave: (p.x, p.y, p.ancho, p.alto) for p in geometria.paredes(encuadre)}
+        assert _zonas_de_pared(mapa) == esperadas, mapa.map_key
+    assert encuadres == {"tres-paredes", "dos-paredes-izquierda", "dos-paredes-derecha", "una-pared"}
+
+
+def test_las_paredes_de_cada_encuadre_son_las_que_dice_la_tabla_compartida(caso):
+    pasillo = SceneMap.objects.get(case_version=caso, map_key="sala-pasillo")  # una pared: fondo y bordes abiertos
+    assert set(_zonas_de_pared(pasillo)) == {"pared-fondo", "borde-izquierdo", "borde-derecho", "borde-delantero"}
+    bienestar = SceneMap.objects.get(case_version=caso, map_key="sala-bienestar")  # tres paredes
+    assert set(_zonas_de_pared(bienestar)) == {"pared-fondo", "pared-izquierda", "pared-derecha", "borde-delantero"}
+    assert _zonas_de_pared(bienestar)["pared-fondo"] == (0, 0, 960, 236)
+
+
+def test_el_servidor_rechaza_la_pared_y_acepta_el_piso(universidad_entera):
+    """Con el hitbox de pies del jugador (22 × 16): rechaza lo que pisa la pared y acepta lo que cae en el piso, al píxel."""
+    CollisionZone.objects.filter(scene_map__case_version=universidad_entera, zone_key__startswith="choque-").delete()
+    for mapa in SceneMap.objects.filter(case_version=universidad_entera):
+        zx, zy, zancho, zalto = geometria.zona_caminable(json.loads(mapa.ambient_json)["encuadre"])
+        estado = SimpleNamespace(scene_map_id=mapa.id, inventory_json="[]")
+        bloqueado = lambda x, y: world_service._position_blocked(estado, x, y)  # noqa: E731
+        medio_x, medio_y = zx + zancho // 2, zy + zalto // 2
+        assert not bloqueado(medio_x, medio_y), mapa.map_key
+        # Fondo: el hitbox sube 16 px desde los pies, así que los pies a menos de 16 px de la pared la pisan.
+        assert bloqueado(medio_x, zy + 15) and not bloqueado(medio_x, zy + 16), mapa.map_key
+        # Borde delantero: los pies no pasan del final del piso.
+        assert not bloqueado(medio_x, zy + zalto) and bloqueado(medio_x, zy + zalto + 1), mapa.map_key
+        # Laterales (pared o borde abierto): el hitbox mide 11 px a cada lado de los pies.
+        assert bloqueado(zx + 10, medio_y) and not bloqueado(zx + 11, medio_y), mapa.map_key
+        assert bloqueado(zx + zancho - 10, medio_y) and not bloqueado(zx + zancho - 11, medio_y), mapa.map_key
+
+
+def test_la_entrada_y_las_personas_de_cada_sala_no_caen_en_la_pared(universidad_entera):
+    """Quien aparece o está de pie en una sala copiada nunca queda dentro de la pared que acabamos de levantar."""
+    CollisionZone.objects.filter(scene_map__case_version=universidad_entera, zone_key__startswith="choque-").delete()
+    for mapa in SceneMap.objects.filter(case_version=universidad_entera):
+        estado = SimpleNamespace(scene_map_id=mapa.id, inventory_json="[]")
+        assert not world_service._position_blocked(estado, mapa.spawn_x, mapa.spawn_y), f"entrada de {mapa.map_key}"
+        for persona in MapObject.objects.filter(scene_map=mapa, object_type="PERSON"):
+            assert not world_service._position_blocked(estado, persona.position_x, persona.position_y), persona.object_key
+
+
+# ─── el punto de apoyo y la puerta pintada (revisión final · B2 y B3) ─────────────────────────
+def test_lo_que_se_apoya_en_el_suelo_lo_dice_en_su_metadata(caso):
+    """El editor dibuja con la base en (x, y); ``apoyo: "pies"`` le dice lo mismo al juego (los casos viejos no lo traen)."""
+    tipos = set()
+    for objeto in _objetos(caso):
+        if objeto.object_type == "EXIT":
+            continue
+        tipos.add(objeto.object_type)
+        assert _meta(objeto)["apoyo"] == "pies", objeto.object_key
+    assert {"PROP", "PERSON"} <= tipos
+
+
+def test_las_puertas_copiadas_dicen_que_ya_estan_pintadas_en_el_fondo(caso):
+    puertas = [o for o in _objetos(caso) if o.object_type == "EXIT"]
+    assert puertas
+    for puerta in puertas:
+        assert _meta(puerta)["pintada"] is True, puerta.object_key
+    # Y solo ellas: nada más lleva la marca.
+    assert not any("pintada" in _meta(o) for o in _objetos(caso) if o.object_type != "EXIT")
 
 
 def test_los_objetos_llevan_su_tipo_su_texto_y_su_animacion(caso):

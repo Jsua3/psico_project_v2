@@ -16,7 +16,7 @@ import { EXPRESIONES, type Expresion } from '../modelo/escenario';
 import { limitarAZona, zonaCaminable } from '../modelo/geometria';
 import { claveDeRegla, claveLibre } from '../modelo/hacia-api';
 import { posicionLibre } from '../modelo/trazado';
-import { NOMBRE_CLASE } from '../modelo/textos';
+import { NOMBRE_CLASE, NOMBRE_EXPRESION } from '../modelo/textos';
 
 /** Una escena: el número de una que existe en el servidor o el id temporal de una que declara la propuesta. */
 export type RefEscena = number | string;
@@ -207,7 +207,7 @@ export function describirCambio(caso: CasoBorrador, c: Cambio, todos: Cambio[], 
   };
   switch (c.op) {
     case 'add-scene': return `Escena nueva «${c.title}»`;
-    case 'add-line': return `${nombre.personaje(c.characterId)} dice en «${nombre.escena(c.nodeId)}» (${c.expression}): «${c.text}»`;
+    case 'add-line': return `${nombre.personaje(c.characterId)} dice en «${nombre.escena(c.nodeId)}» (${NOMBRE_EXPRESION[c.expression].toLowerCase()}): «${c.text}»`;
     case 'add-response':
       return `Respuesta ${NOMBRE_CLASE[c.responseClass].toLowerCase()} en «${nombre.escena(c.nodeId)}»: «${c.text}» (lleva a «${nombre.escena(c.targetNodeId)}»)`;
     case 'place-character': return `Colocar a ${nombre.personaje(c.characterId)} en ${nombre.sala(c.mapId)}`;
@@ -306,7 +306,7 @@ export function aplicarPropuesta(
         const { x, y } = limitarAZona(zonaCaminable(sala.encuadre), c.x, c.y);
         const usadas = new Set<string>(sala.puertas.map((p) => p.id));
         for (const e of [...sala.muebles, ...sala.objetos, ...sala.personajes]) if (e.clave) usadas.add(e.clave);
-        sala.personajes.push({ ref, x, y, mirando: 'izquierda', expresion: c.expression, clave: claveLibre(ref, usadas) });
+        sala.personajes.push({ ref, x, y, mirando: 'izquierda', expresion: c.expression, clave: claveLibre(ref, usadas), marcaIa: true });
         marcar(tocados.salas, sala.id);
         break;
       }
@@ -316,7 +316,7 @@ export function aplicarPropuesta(
         const lista = objeto.tipo === 'mueble' ? sala.muebles : objeto.tipo === 'objeto' ? sala.objetos : sala.personajes;
         const elemento = lista[objeto.indice];
         const medio = objeto.tipo === 'mueble' ? (nuevo.catalogo.muebles.find((m) => m.id === elemento.ref)?.ancho ?? 0) / 2 : 0;
-        Object.assign(elemento, limitarAZona(zonaCaminable(sala.encuadre), c.x, c.y, medio));
+        Object.assign(elemento, limitarAZona(zonaCaminable(sala.encuadre), c.x, c.y, medio), { marcaIa: true });
         marcar(tocados.salas, sala.id);
         break;
       }
@@ -340,6 +340,7 @@ export function aplicarPropuesta(
         const respuesta = nuevo.escenas.find((e) => e.id === ubicada.escenaId)!.respuestas.find((r) => r.id === ubicada.respuestaId)!;
         respuesta.clase = c.responseClass;
         respuesta.razon = c.responseClass === 'CONTRAINDICATED' ? c.prohibitionReason : '';
+        respuesta.marcaIa = true;
         marcar(tocados.respuestas, respuesta.id);
         break;
       }
@@ -350,6 +351,7 @@ export function aplicarPropuesta(
         if (c.bond !== null) persona.bond = c.bond;
         if (c.activation !== null) persona.activation = c.activation;
         respuesta.efectos = { ...respuesta.efectos, persona };
+        respuesta.marcaIa = true;
         marcar(tocados.respuestas, respuesta.id);
         break;
       }
@@ -358,6 +360,7 @@ export function aplicarPropuesta(
         const respuesta = nuevo.escenas.find((e) => e.id === ubicada.escenaId)!.respuestas.find((r) => r.id === ubicada.respuestaId)!;
         const hitosDe = respuesta.efectos.hitos ?? [];
         if (!hitosDe.includes(c.milestoneKey)) respuesta.efectos = { ...respuesta.efectos, hitos: [...hitosDe, c.milestoneKey] };
+        respuesta.marcaIa = true;
         marcar(tocados.respuestas, respuesta.id);
         break;
       }
@@ -365,6 +368,7 @@ export function aplicarPropuesta(
         const escena = escenaDe(c.nodeId);
         escena.intensidad = c.intensity;
         escena.advertencia = c.warningMessage.trim() ? c.warningMessage.trim() : null;
+        escena.marcaIa = true;
         if (!tocados.escenasNuevas.includes(escena.id)) marcar(tocados.escenas, escena.id);
         break;
       }

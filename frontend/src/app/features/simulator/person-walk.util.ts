@@ -1,4 +1,4 @@
-import { PLAYER_MAX_FRAME_DELTA_MS, PlayerDirection, playerHitbox, rectsIntersect, resolveDirection, splitFrameDelta } from './player-motion.util';
+import { PLAYER_HITBOX, PLAYER_MAX_FRAME_DELTA_MS, PlayerDirection, playerHitbox, rectsIntersect, resolveDirection, splitFrameDelta } from './player-motion.util';
 import { stepToward } from './scene-motion.util';
 import { WALK_STUCK_MS, WalkPoint } from './world-walk.util';
 
@@ -102,9 +102,33 @@ export function personFacing(raw: unknown): PlayerDirection {
   return raw === 'up' || raw === 'down' || raw === 'left' || raw === 'right' ? raw : 'down';
 }
 
-/** Zona caminable de una sala de ese tamaño, con margen (la colisión fina la pone el mundo inyectado). */
-export function personWalkBounds(mapWidth: number, mapHeight: number, margin = 24): WalkBounds {
-  return { minX: margin, minY: margin, maxX: mapWidth - margin, maxY: mapHeight - margin };
+/** Zona caminable del encuadre de la sala, en px de sala (la de `autoria/modelo/geometria.ts`). */
+export interface WalkZone {
+  readonly x: number;
+  readonly y: number;
+  readonly ancho: number;
+  readonly alto: number;
+}
+
+/**
+ * Límites por donde puede caminar una persona, en coordenadas de su marcador: toda la sala con margen o, si la sala dice su
+ * encuadre (`zone`), solo la zona caminable que el fondo pintado deja al suelo (el resto es pared). Es la misma regla que hace
+ * valer el servidor con las paredes de la copia: el hitbox de pies (22 × 16, igual que el del jugador) entero dentro de la zona.
+ * `feetOffsetY` es lo que los pies de la persona quedan bajo su marcador (0 si el marcador ya es el punto de apoyo, 16 en los
+ * casos de antes); la zona es de PIES, así que se corre lo mismo. La colisión fina (muebles) la pone el mundo inyectado.
+ */
+export function personWalkBounds(
+  mapWidth: number, mapHeight: number, margin = 24, zone: WalkZone | null = null, feetOffsetY = 0,
+): WalkBounds {
+  const room = { minX: margin, minY: margin, maxX: mapWidth - margin, maxY: mapHeight - margin };
+  if (!zone) return room;
+  const halfWidth = PLAYER_HITBOX.width / 2;
+  return {
+    minX: Math.max(room.minX, zone.x + halfWidth),
+    minY: Math.max(room.minY, zone.y + PLAYER_HITBOX.height - feetOffsetY),
+    maxX: Math.min(room.maxX, zone.x + zone.ancho - halfWidth),
+    maxY: Math.min(room.maxY, zone.y + zone.alto - feetOffsetY),
+  };
 }
 
 /** Estado inicial: parada en su sitio, con una pausa de salida (para que varias personas no echen a andar a la vez). */
@@ -129,6 +153,21 @@ export function bodyBlocks(next: WalkPoint, current: WalkPoint, other: WalkPoint
   if (!other) return false;
   if (!rectsIntersect(playerHitbox(next.x, next.y), playerHitbox(other.x, other.y))) return false;
   return Math.hypot(next.x - other.x, next.y - other.y) < Math.hypot(current.x - other.x, current.y - other.y);
+}
+
+/**
+ * Lo que una persona recuerda de su caminata cuando la escena reconstruye la sala sin cambiar de sala (cada `world.set` del
+ * juego: abrir una interacción, usar una herramienta…). Devuelve el estado guardado si sigue valiendo —mismo movimiento y mismo
+ * origen—, o `null` si no había nada o el docente lo cambió (entonces empieza de nuevo con el dato nuevo).
+ */
+export function resumePersonWalk(
+  saved: PersonWalkState | undefined, movement: PersonMovement, origin: WalkPoint,
+): PersonWalkState | null {
+  if (!saved || saved.origin.x !== origin.x || saved.origin.y !== origin.y) return null;
+  const before = saved.movement;
+  if (before.tipo !== movement.tipo) return null;
+  if (before.tipo === 'va-y-viene' && movement.tipo === 'va-y-viene' && (before.hasta.x !== movement.hasta.x || before.hasta.y !== movement.hasta.y)) return null;
+  return saved;
 }
 
 /** Pausa de 1 a 3 s (también la de salida: varias personas no echan a andar a la vez). */
