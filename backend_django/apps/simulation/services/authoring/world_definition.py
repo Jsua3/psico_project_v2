@@ -123,6 +123,7 @@ def save_world(case_version_id, node_id, request):
     """
     ensure_draft(case_version_id, request.get("revision"))
     _validar_enteros_del_mundo(request)
+    _validar_claves_del_mundo(request)
     _validar_fondo_de_sala(request.get("map"))
 
     all_maps = list(SceneMap.objects.filter(case_version_id=case_version_id).order_by("id"))
@@ -232,6 +233,74 @@ def _validar_enteros_del_mundo(request):
             _revisar_ids(opcion, ("decisionOptionId",), "choices")
 
 
+#: Cómo se nombra cada lista del cuerpo en el mensaje (el campo técnico va aparte, en ``field``).
+_QUE_SE_REPITE = {
+    ("objects", "key"): "dos objetos con la misma clave",
+    ("collisionZones", "key"): "dos zonas de colisión con la misma clave",
+    ("dialogues", "key"): "dos diálogos con la misma clave",
+    ("dialogues.lines", "order"): "dos líneas de un diálogo con el mismo orden",
+    ("choices", "key"): "dos opciones de un diálogo con la misma clave",
+}
+
+
+def _revisar_repetidas(filas, clave, seccion, *, por_defecto=None):
+    vistas = set()
+    for fila in filas:
+        valor = fila.get(clave)
+        if valor is None:
+            if por_defecto is None:
+                continue  # sin clave no hay choque de claves: lo que falte lo trata su propia regla
+            valor = por_defecto
+        if valor in vistas:
+            # BORRADOR: texto nuevo del servidor, pendiente de la aprobación de Psicología (VD-23).
+            raise ApiError(
+                "VALIDATION_ERROR",
+                f"La sala trae {_QUE_SE_REPITE[(seccion, clave)]} («{valor}»): cada una debe ser única.",
+                status.HTTP_400_BAD_REQUEST,
+                field=f"{seccion}.{clave}",
+            )
+        vistas.add(valor)
+
+
+def _validar_claves_del_mundo(request):
+    """Dos entradas del cuerpo con la misma clave son un 400 con su campo: la base las rechaza con su restricción
+    única y antes la respuesta era un 500. Los valores por defecto son los que el guardado escribiría."""
+    _revisar_repetidas(_filas(request.get("objects")), "key", "objects")
+    _revisar_repetidas(_filas(request.get("collisionZones")), "key", "collisionZones", por_defecto="")
+    dialogos = _filas(request.get("dialogues"))
+    _revisar_repetidas(dialogos, "key", "dialogues", por_defecto="")
+    for dialogo in dialogos:
+        lineas = [{"order": _int(linea.get("order"))} for linea in _filas(dialogo.get("lines"))]
+        _revisar_repetidas(lineas, "order", "dialogues.lines")
+        _revisar_repetidas(_filas(dialogo.get("choices")), "key", "choices", por_defecto="")
+
+
+def _fila_de_la_sala(model, scene_map, entrada, campo_clave, clave, reclamadas):
+    """La fila que edita una entrada del cuerpo: la de su id en esta sala o, si no trae uno de la sala, la que ya
+    tiene su clave y ninguna otra entrada reclama por id.
+
+    Lo que no viene se borra DESPUÉS de guardar lo que viene: sin esto, una entrada sin id con la clave de una fila
+    que el mismo guardado iba a borrar (quitada y vuelta a poner, o cuyo id el editor no llegó a recibir porque un
+    guardado anterior se canceló en vuelo) chocaba con la restricción única y respondía 500.
+    """
+    fila = None
+    if entrada.get("id") is not None:
+        fila = model.objects.filter(pk=entrada.get("id"), scene_map=scene_map).first()
+    if fila is None:
+        fila = (
+            model.objects.filter(scene_map=scene_map, **{campo_clave: clave})
+            .exclude(pk__in=reclamadas)
+            .first()
+        )
+    return fila if fila is not None else model(scene_map=scene_map)
+
+
+def _ids_reclamados(model, scene_map, entradas):
+    """Los ids de filas de esta sala que alguna entrada del cuerpo edita por su id."""
+    ids = [e.get("id") for e in entradas if isinstance(e, dict) and e.get("id") is not None]
+    return set(model.objects.filter(scene_map=scene_map, pk__in=ids).values_list("id", flat=True))
+
+
 def _validar_fondo_de_sala(map_def):
     """El fondo de sala (``ambient.backgroundImage``) solo puede ser una ruta propia o un host permitido (S2-6b)."""
     ambient = map_def.get("ambient") if isinstance(map_def, dict) else None
@@ -268,12 +337,9 @@ def _apply_map_definition(scene_map, map_def):
 def _save_objects(scene_map, objects, case_version_id):
     """Crea o actualiza los objetos recibidos; devuelve los guardados, en el orden recibido."""
     saved = []
+    reclamadas = _ids_reclamados(MapObject, scene_map, objects)
     for wo in objects:
-        obj = None
-        if wo.get("id") is not None:
-            obj = MapObject.objects.filter(pk=wo.get("id"), scene_map=scene_map).first()
-        if obj is None:
-            obj = MapObject()
+        obj = _fila_de_la_sala(MapObject, scene_map, wo, "object_key", wo.get("key"), reclamadas)
         obj.scene_map = scene_map
         obj.object_key = wo.get("key")
         obj.label = wo.get("label")
@@ -338,12 +404,9 @@ def _save_dialogues(scene_map, case_version_id, dialogues, saved_objects):
     owner_by_key = {o.object_key: o for o in owners}
     owner_ids = {o.id for o in owners}
     kept_tree_ids = []
+    reclamados = _ids_reclamados(DialogueTree, scene_map, dialogues)
     for dt in dialogues:
-        tree = None
-        if dt.get("id") is not None:
-            tree = DialogueTree.objects.filter(pk=dt.get("id"), scene_map=scene_map).first()
-        if tree is None:
-            tree = DialogueTree(scene_map=scene_map)
+        tree = _fila_de_la_sala(DialogueTree, scene_map, dt, "tree_key", dt.get("key") or "", reclamados)
         owner = None
         if dt.get("mapObjectKey") is not None:
             owner = owner_by_key.get(dt.get("mapObjectKey"))
@@ -396,12 +459,9 @@ def _delete_absent_objects(scene_map, saved_objects):
 def _save_collision_zones(scene_map, zones):
     """Crea o actualiza las zonas recibidas y borra las ausentes."""
     kept_ids = []
+    reclamadas = _ids_reclamados(CollisionZone, scene_map, zones)
     for wz in zones:
-        zone = None
-        if wz.get("id") is not None:
-            zone = CollisionZone.objects.filter(pk=wz.get("id"), scene_map=scene_map).first()
-        if zone is None:
-            zone = CollisionZone(scene_map=scene_map)
+        zone = _fila_de_la_sala(CollisionZone, scene_map, wz, "zone_key", wz.get("key") or "", reclamadas)
         width, height = _int(wz.get("width")), _int(wz.get("height"))
         zone.zone_key = wz.get("key") or ""
         zone.label = _texto(CollisionZone, "label", wz.get("label"), "collisionZones.label")
