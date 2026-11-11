@@ -289,12 +289,13 @@ def open_interaction(attempt_id, attempt_token, interaction_key, actor):
         raise NotFound("Interaccion no encontrada")
     _require_nearby(world_state, map_object)
 
-    world_state.inspected_object_keys_json = _append_unique(
-        world_state.inspected_object_keys_json, map_object.object_key
-    )
+    # Antes de tocar las listas globales: la primera vez, ``record_fact`` toma de ellas la foto de lo explorado antes.
     option_availability.record_fact(world_state, "inspected", map_object.object_key)
     if map_object.object_type == "PERSON":
         option_availability.record_fact(world_state, "talked", map_object.object_key)
+    world_state.inspected_object_keys_json = _append_unique(
+        world_state.inspected_object_keys_json, map_object.object_key
+    )
 
     dialogue = _to_dialogue(map_object)
     if dialogue is not None:
@@ -473,6 +474,8 @@ def record_npc_interaction(attempt_id, attempt_token, npc_key, actor):
         raise ValidationError("La clave del NPC no es válida")
     world_state = require_world_state(attempt)
     _require_nearby_ambient_npc(world_state, npc_key)
+    # Antes de tocar ``viewedNpcKeys``: la foto de lo explorado antes no debe incluir a este NPC.
+    option_availability.record_fact(world_state, "talked", npc_key)
     flags = _read_map(world_state.flags_json)
     viewed = flags.get("viewedNpcKeys")
     if not isinstance(viewed, list):
@@ -481,7 +484,6 @@ def record_npc_interaction(attempt_id, attempt_token, npc_key, actor):
         viewed.append(npc_key)
     flags["viewedNpcKeys"] = viewed
     world_state.flags_json = _write_map(flags)
-    option_availability.record_fact(world_state, "talked", npc_key)
     world_state.save(update_fields=["flags_json", "updated_at"])
     attempt_duration.record_activity(attempt)
     _save_event(attempt, "NPC_DIALOGUE_VIEWED", f"NPC escuchado: {npc_key}")

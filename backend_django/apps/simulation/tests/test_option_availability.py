@@ -175,6 +175,37 @@ def test_attempt_without_room_record_uses_the_global_lists(game):  # Foco 4
     assert game.gated.id in {o.id for o in option_availability.split_options(_fresh(game))[0]}
 
 
+def test_what_was_explored_before_the_room_record_keeps_counting(game):  # Foco 4 (Ruling 8)
+    world_state = require_world_state(_fresh(game))
+    world_state.inspected_object_keys_json = json.dumps(["carpeta"])
+    world_state.save()
+
+    result = _interact(game, "kit")  # otro objeto de la sala: crea el registro por sala
+
+    flags = json.loads(AttemptWorldState.objects.get(attempt_id=game.attempt.id).flags_json)
+    assert flags["exploredBySala"]["sala-inicio"]["inspected"] == ["kit"]
+    assert flags["exploredBeforeSala"] == {"talked": [], "inspected": ["carpeta"]}
+    assert game.gated.id in {o["id"] for o in result["world"]["decisionOptions"]}
+    assert game.gated.id in _option_ids(_state(game))
+
+
+def test_the_before_snapshot_does_not_leak_new_facts_between_rooms(game):  # Ruling 8
+    other_room = SceneMap.objects.get(case_version_id=game.version.id, map_key="sala-mapa")
+    world_state = require_world_state(_fresh(game))
+    home_room = world_state.scene_map
+    world_state.scene_map = other_room
+    option_availability.record_fact(world_state, "inspected", "carpeta")  # antes de tocar las listas globales
+    world_state.inspected_object_keys_json = json.dumps(["carpeta"])
+    world_state.scene_map = home_room
+    world_state.save()
+
+    _interact(game, "kit")
+
+    flags = json.loads(AttemptWorldState.objects.get(attempt_id=game.attempt.id).flags_json)
+    assert "exploredBeforeSala" not in flags
+    assert game.gated.id not in _option_ids(_state(game))
+
+
 def test_attempt_without_world_state_does_not_fail(game):  # Foco 4
     AttemptWorldState.objects.filter(attempt_id=game.attempt.id).delete()
 
@@ -194,6 +225,7 @@ def test_corrupt_requires_json_hides_the_option_without_error(game):  # Foco 5
 def test_student_world_does_not_expose_the_room_record(game):
     result = _interact(game, "carpeta")
     assert "exploredBySala" not in result["world"]["flags"]
+    assert "exploredBeforeSala" not in result["world"]["flags"]
     assert "exploredBySala" in json.loads(AttemptWorldState.objects.get(attempt_id=game.attempt.id).flags_json)
 
 

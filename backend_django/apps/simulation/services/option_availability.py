@@ -23,6 +23,8 @@ from . import case_rules, case_state, endings
 logger = logging.getLogger("siep.game")
 
 EXPLORED_KEY = "exploredBySala"
+#: Foto de lo explorado antes de que el intento tuviera registro por sala (Ruling 8): ``{"talked": [...], "inspected": [...]}``.
+BEFORE_KEY = "exploredBeforeSala"
 _FACT_KINDS = ("talked", "inspected")
 
 
@@ -42,6 +44,18 @@ def record_fact(world_state, kind: str, key: str) -> None:
     by_sala = flags.get(EXPLORED_KEY)
     if not isinstance(by_sala, dict):
         by_sala = {}
+        # Primer registro por sala de este intento: lo explorado hasta ahora (listas globales) se guarda aparte para no
+        # perderlo. Quien llama DEBE invocar ``record_fact`` ANTES de agregar ``key`` a las listas globales: así el hecho
+        # que se está registrando no entra en la foto (por eso el ``!= key`` es solo una segunda guarda).
+        before = {
+            "talked": [k for k in _strings_list(flags.get("viewedNpcKeys")) if not (kind == "talked" and k == key)],
+            "inspected": [
+                k for k in _strings_list(read_string_list(world_state.inspected_object_keys_json))
+                if not (kind == "inspected" and k == key)
+            ],
+        }
+        if before["talked"] or before["inspected"]:
+            flags[BEFORE_KEY] = before
     entry = by_sala.get(sala_key(world_state.scene_map))
     if not isinstance(entry, dict):
         entry = {}
@@ -54,6 +68,10 @@ def record_fact(world_state, kind: str, key: str) -> None:
     by_sala[sala_key(world_state.scene_map)] = entry
     flags[EXPLORED_KEY] = by_sala
     world_state.flags_json = write_map(flags)
+
+
+def _strings_list(value) -> list:
+    return [item for item in value if isinstance(item, str)] if isinstance(value, list) else []
 
 
 def _strings(value) -> set:
@@ -76,8 +94,10 @@ def _explored(world_state, node) -> dict:
         scene_map = SceneMap.objects.filter(node_id=node.id).first()
         entry = by_sala.get(sala_key(scene_map)) if scene_map is not None else None
         entry = entry if isinstance(entry, dict) else {}
-        explored["talked"] = _strings(entry.get("talked"))
-        explored["inspected"] = _strings(entry.get("inspected"))
+        before = flags.get(BEFORE_KEY)
+        before = before if isinstance(before, dict) else {}
+        explored["talked"] = _strings(entry.get("talked")) | _strings(before.get("talked"))
+        explored["inspected"] = _strings(entry.get("inspected")) | _strings(before.get("inspected"))
     else:
         # Intento anterior al registro por sala: las listas globales del mundo.
         viewed = flags.get("viewedNpcKeys")
