@@ -141,3 +141,12 @@ def test_a_character_of_a_map_that_does_not_offer_the_option_still_breaks_ocl_12
     third["mapa"]["objetos"].append({"clave": "ajena", "tipo": "PERSON", "personaje": "ajena", "visible": True})
     _gated(scene)["reaccion"]["personaje"] = "ajena"
     assert _states(document)["OCL-12"] == "INCUMPLE"
+
+
+def test_a_requirement_over_the_length_cap_is_a_condition_issue():
+    document = _doc()
+    _gated(_scene(document))["requiere"] = {"all": [{"inspected": f"objeto-{n}"} for n in range(300)]}
+    issues = [i for i in validate.validate_document(document) if i.code == "DSL.SIEP_CONDITION"]
+    assert len(issues) == 1
+    assert "demasiado largo" in issues[0].message
+    assert issues[0].path.endswith(".requiere")
