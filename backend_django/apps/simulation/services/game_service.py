@@ -28,7 +28,7 @@ from apps.simulation.models import (
 from apps.simulation.serializers import game_dtos as dto
 from apps.simulation.signals import attempt_completed, attempt_start_requested
 from . import attempt_lifecycle as lifecycle
-from . import case_state, crypto_service, response_effects
+from . import case_state, crypto_service, option_availability, response_effects
 from . import attempt_duration, attempt_report, case_rules
 from shared.exceptions import ApiError
 from shared import policies
@@ -219,7 +219,10 @@ def _state(attempt, attempt_token):
         # Es la vista del dueño del intento: un reporte v1/v2 sin las cifras del modelo viejo (``for_student``).
         report = attempt_report.for_student(attempt_report.frozen_report_for(attempt.id))
         return dto.attempt_state(attempt, attempt_token, persona_dto, completion_report=report)
-    return dto.attempt_state(attempt, attempt_token, persona_dto)
+    offered = None
+    if attempt.status == AttemptStatus.IN_PROGRESS and not attempt.current_node.terminal_node:
+        offered, _ = option_availability.split_options(attempt)
+    return dto.attempt_state(attempt, attempt_token, persona_dto, options=offered)
 
 
 def _open_attempt_of(student_id, case_version_id):
@@ -549,6 +552,9 @@ def choose_decision(
         raise ValidationError("La decisión no está disponible desde la escena actual")
     if decision.case_version_id != attempt.case_version_id:
         raise ValidationError("La decisión no pertenece al caso del intento")
+    if not option_availability.is_offered(attempt, decision):
+        # BORRADOR: texto nuevo del servidor, pendiente de la aprobación de Psicología
+        raise ValidationError("Esa respuesta no está disponible todavía.")
 
     effects = response_effects.resolve(decision)
     rules = case_rules.rules_of(attempt.case_version)

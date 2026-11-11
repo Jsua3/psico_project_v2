@@ -44,12 +44,12 @@ def decision_option_state(option):
     }
 
 
-def node_state(node, include_options):
+def node_state(node, include_options, options=None):
+    """La escena para el jugador. ``options`` es la lista ya filtrada por disponibilidad (``option_availability``); sin
+    ella se consultan todas las opciones de la escena."""
     if include_options and not node.terminal_node:
-        options = [
-            decision_option_state(o)
-            for o in DecisionOption.objects.filter(source_node_id=node.id).order_by("id")
-        ]
+        rows = options if options is not None else DecisionOption.objects.filter(source_node_id=node.id).order_by("id")
+        options = [decision_option_state(o) for o in rows]
     else:
         options = []
     return {
@@ -66,6 +66,7 @@ def node_state(node, include_options):
         "intensity": node.intensity or Intensity.MEDIUM.value,
         "terminal": node.terminal_node,
         "decisionPrompt": node.decision_prompt,
+        "goal": node.goal,
         "displayOrder": node.display_order,
         "options": options,
     }
@@ -333,12 +334,14 @@ def build_student_summary(attempt, events):
     )
 
 
-def attempt_state(attempt, raw_token, persona, completion_report=None):
+def attempt_state(attempt, raw_token, persona, completion_report=None, options=None):
     """El estado del intento. ``persona`` es la persona consultante ya en palabras
     (``{"bond", "activation", "label"}``): la lee quien llama del estado guardado del mundo, porque
     los DTO no importan servicios. ``completion_report`` es el reporte congelado de un intento completado
     (E1-8); un intento que no está completado va con ``completionReport: null``: lo evaluativo (clases,
     conteos, línea de tiempo) llega al cerrar y no se arma en vivo para el estudiante.
+
+    ``options`` son las opciones ofrecidas de la escena actual (ya filtradas por disponibilidad); sin ellas se listan todas.
 
     No lleva retroalimentación de la última decisión: esa respuesta es solo su consecuencia."""
     in_progress = attempt.status == AttemptStatus.IN_PROGRESS
@@ -349,7 +352,7 @@ def attempt_state(attempt, raw_token, persona, completion_report=None):
         "caseTitle": attempt.case_version.simulation_case.title,
         "status": attempt.status,
         "persona": persona,
-        "currentNode": node_state(attempt.current_node, in_progress),
+        "currentNode": node_state(attempt.current_node, in_progress, options),
         "completionReport": completion_report,
         "supportResources": SAFE_EXIT_RESOURCES if attempt.status in _SUPPORT_STATUSES else [],
     }

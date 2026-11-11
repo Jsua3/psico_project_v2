@@ -607,6 +607,8 @@ export interface ContentReview {
 export interface CurrentNode {
   readonly decisionPrompt: string;
   readonly displayOrder: number;
+  /** El objetivo de la escena en una frase; vacío si la escena no lo declara. */
+  readonly goal: string;
   readonly id: number;
   /** Cuánta carga emocional trae la escena. */
   readonly intensity: IntensityEnum;

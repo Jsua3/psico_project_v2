@@ -422,6 +422,7 @@ class CurrentNodeSerializer(serializers.Serializer):
     )
     terminal = serializers.BooleanField()
     decisionPrompt = serializers.CharField()
+    goal = serializers.CharField(help_text="El objetivo de la escena en una frase; vacío si la escena no lo declara.")
     displayOrder = serializers.IntegerField()
     options = DecisionOptionStateSerializer(many=True)
 

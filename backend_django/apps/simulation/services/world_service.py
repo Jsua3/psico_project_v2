@@ -16,6 +16,7 @@ from ..models import (
     DEFAULT_MAP_HEIGHT,
     DEFAULT_MAP_WIDTH,
     AttemptEvent,
+    AttemptStatus,
     ClinicalTool,
     CollisionZone,
     DialogueChoice,
@@ -24,7 +25,7 @@ from ..models import (
     MapObject,
     SceneMap,
 )
-from . import attempt_duration, attempt_lifecycle as lifecycle, door_chain, game_service
+from . import attempt_duration, attempt_lifecycle as lifecycle, door_chain, game_service, option_availability
 from .attempt_lock import locked_attempt
 from .world_state import (
     require_world_state,
@@ -291,6 +292,9 @@ def open_interaction(attempt_id, attempt_token, interaction_key, actor):
     world_state.inspected_object_keys_json = _append_unique(
         world_state.inspected_object_keys_json, map_object.object_key
     )
+    option_availability.record_fact(world_state, "inspected", map_object.object_key)
+    if map_object.object_type == "PERSON":
+        option_availability.record_fact(world_state, "talked", map_object.object_key)
 
     dialogue = _to_dialogue(map_object)
     if dialogue is not None:
@@ -477,6 +481,7 @@ def record_npc_interaction(attempt_id, attempt_token, npc_key, actor):
         viewed.append(npc_key)
     flags["viewedNpcKeys"] = viewed
     world_state.flags_json = _write_map(flags)
+    option_availability.record_fact(world_state, "talked", npc_key)
     world_state.save(update_fields=["flags_json", "updated_at"])
     attempt_duration.record_activity(attempt)
     _save_event(attempt, "NPC_DIALOGUE_VIEWED", f"NPC escuchado: {npc_key}")
@@ -768,6 +773,15 @@ def _flags_for(state, *, estudiante):
     return {key: flags[key] for key in STUDENT_FLAG_KEYS if key in flags}
 
 
+def _decision_options(attempt, state, *, estudiante):
+    """Las opciones que se ofrecen ahora (``id`` y ``text``): solo al estudiante y con el intento en juego."""
+    node = attempt.current_node
+    if not estudiante or attempt.status != AttemptStatus.IN_PROGRESS or node.terminal_node:
+        return []
+    offered, _ = option_availability.split_options(attempt, node, world_state=state)
+    return [{"id": o.id, "text": o.text} for o in offered]
+
+
 def _to_world_state(attempt, state, *, estudiante=True):
     """El estado del mundo tal como lo ve la persona.
 
@@ -795,6 +809,7 @@ def _to_world_state(attempt, state, *, estudiante=True):
         "viewedDialogueKeys": _read_string_list(state.viewed_dialogue_keys_json),
         "usedToolKeys": _read_string_list(state.used_tool_keys_json),
         "flags": _flags_for(state, estudiante=estudiante),
+        "decisionOptions": _decision_options(attempt, state, estudiante=estudiante),
     }
 
 
