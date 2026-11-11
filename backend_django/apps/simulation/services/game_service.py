@@ -28,7 +28,7 @@ from apps.simulation.models import (
 from apps.simulation.serializers import game_dtos as dto
 from apps.simulation.signals import attempt_completed, attempt_start_requested
 from . import attempt_lifecycle as lifecycle
-from . import case_state, crypto_service, option_availability, response_effects
+from . import case_state, crypto_service, option_availability, reaction, response_effects
 from . import attempt_duration, attempt_report, case_rules
 from shared.exceptions import ApiError
 from shared import policies
@@ -490,7 +490,7 @@ def _decision_response(attempt, attempt_token, decision, retry_required=False):
     """La respuesta de una decisión (C2): solo su consecuencia narrativa; lo evaluativo llega al cerrar.
 
     Una sola forma, siempre: ``{attempt, consequence}`` y, cuando se concede la segunda oportunidad,
-    ``{attempt, consequence: null, retry: {allowed, message}}``. No viaja clasificación, ni cifras, ni
+    ``{attempt, consequence: null, retry: {allowed, message}}``. Siempre lleva ``reaction`` (la del personaje, o ``null``). No viaja clasificación, ni cifras, ni
     mensaje evaluativo: eso es del reporte congelado. Un reintento no aplicó nada, así que no tiene
     consecuencia.
     """
@@ -498,6 +498,7 @@ def _decision_response(attempt, attempt_token, decision, retry_required=False):
         "attempt": _state(attempt, attempt_token),
         "consequence": None if retry_required else dto.consequence_dto(decision),
     }
+    response["reaction"] = reaction.resolve(decision, case_state.read(attempt).persona)
     if retry_required:
         response["retry"] = {"allowed": True, "message": RETRY_NEUTRAL_MESSAGE}
     return response
