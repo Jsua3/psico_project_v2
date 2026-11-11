@@ -7,7 +7,7 @@
   "required": ["version"],
   "additionalProperties": false,
   "properties": {
-    "version": { "const": "2.0" },
+    "version": { "enum": ["2.0", "2.1"] },
     "contexto": { "type": "string", "maxLength": 4000 },
     "descripcionDerivada": { "const": true, "description": "`caso.descripcion` de la base es el contexto de la versión (el caso no tenía descripción propia): el importador no la guarda como descripción." },
     "mundoVersion": { "type": "integer", "minimum": 1, "maximum": 1000000 },
@@ -163,7 +163,18 @@
         "retroalimentacionInmediata": { "$ref": "#/$defs/texto" },
         "mensaje": { "$ref": "#/$defs/texto" },
         "fundamento": { "$ref": "#/$defs/texto" },
-        "efectos": { "$ref": "#/$defs/efectos" }
+        "efectos": { "$ref": "#/$defs/efectos" },
+        "requiere": { "$ref": "#/$defs/objeto_libre" },
+        "reaccion": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "linea": { "type": "string", "maxLength": 400 },
+            "emocion": { "type": "string", "maxLength": 40 },
+            "gesto": { "type": "string", "maxLength": 40 },
+            "personaje": { "$ref": "#/$defs/clave" }
+          }
+        }
       },
       "if": { "not": { "required": ["id"] } },
       "then": {
@@ -185,6 +196,7 @@
         "pregunta": { "$ref": "#/$defs/texto" },
         "preguntaDerivada": { "const": true },
         "pistas": { "type": "array", "maxItems": 50, "items": { "type": "string", "maxLength": 280 } },
+        "objetivo": { "type": "string", "maxLength": 200 },
         "inicial": { "type": "boolean" },
         "terminal": { "type": "boolean" },
         "salidaSeguraObligatoria": { "type": "boolean" },

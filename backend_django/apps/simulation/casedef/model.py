@@ -152,6 +152,10 @@ class Option:
     response_class: str = "ACCEPTABLE"
     #: ``{persona?, milestones?, competencies?}``: lo que la opción mueve (el documento 2.0 no lleva puntaje).
     effects: dict = field(default_factory=dict)
+    #: Condición para que la opción se ofrezca (hechos de ``conditions``); ``{}`` = siempre disponible (documento 2.1).
+    requires: dict = field(default_factory=dict)
+    #: ``{linea?, emocion?, gesto?, personaje?}``: cómo reacciona la persona; ``{}`` = la reacción por defecto (2.1).
+    reaction: dict = field(default_factory=dict)
 
 
 @dataclass(frozen=True)
@@ -177,6 +181,8 @@ class Scene:
     options: tuple[Option, ...] = ()
     #: La sala de la escena, o ``None`` si la escena no tiene mapa.
     world: World | None = None
+    #: Lo que el estudiante debe lograr en la escena, en una frase; vacío = la escena no lo declara (documento 2.1).
+    goal: str = ""
 
 
 @dataclass(frozen=True)

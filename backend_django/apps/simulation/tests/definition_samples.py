@@ -4,6 +4,8 @@ La usan las pruebas puras de ``x-siep`` (E4-1b) y las del validador unificado (E
 (``inicio``, ``mapa`` y ``cierre`` en la base; ``recepcion`` solo en ``x-siep``), un personaje con rol y
 otro sin él, dos herramientas (una sin descripción), reglas con hitos y finales, y dos rúbricas.
 """
+from dataclasses import replace
+
 from apps.simulation.casedef.model import (
     CaseDefinition,
     Character,
@@ -116,3 +118,27 @@ def sample_definition():
             Rubric(name="", description="Sin nombre", criteria=(Criterion(competency="X", title="X"),)),
         ),
     )
+
+
+def sample_definition_v21():
+    """La muestra 2.0 con los campos del 2.1: ``inicio`` gana un objetivo y un objeto ``carpeta``; la opción ``analizar``
+    exige haber inspeccionado la carpeta y trae una reacción; ``intervenir`` queda sin requisito ni reacción."""
+    base = sample_definition()
+    inicio = base.scenes[0]
+    options = tuple(
+        replace(
+            option,
+            requires={"inspected": "carpeta"},
+            reaction={"linea": "Gracias por quedarse.", "emocion": "triste", "gesto": "se-acerca"},
+        )
+        if option.key == "analizar" else option
+        for option in inicio.options
+    )
+    world = replace(
+        inicio.world,
+        objects=(*inicio.world.objects, make_object("carpeta", "OBJECT", interaction_text="Una carpeta con notas.")),
+    )
+    scene = replace(inicio, goal="Entiende qué le preocupa al equipo antes de decidir.", options=options, world=world)
+    # ``cierre`` trae pistas sin mapa: el importador le generaría una sala; con la suya la ida y vuelta es exacta.
+    closing = replace(base.scenes[2], world=make_world("sala-cierre"))
+    return replace(base, scenes=(scene, base.scenes[1], closing, *base.scenes[3:]))
