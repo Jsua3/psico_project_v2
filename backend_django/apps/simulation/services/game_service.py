@@ -206,7 +206,7 @@ def _close_active_attempts(student, case_version_id, reason):
         replace_open_attempt(active, by=student, reason=reason)
 
 
-def _state(attempt, attempt_token):
+def _state(attempt, attempt_token, world_state=case_state.NOT_LOADED):
     """El estado del intento; si está completado, con su reporte congelado (E1-8).
 
     No lleva retroalimentación: lo que se elige se responde con su consecuencia
@@ -215,14 +215,15 @@ def _state(attempt, attempt_token):
     """
     # La persona sale del estado guardado del mundo (una lectura por estado): un intento pausado y
     # reanudado la reconstruye igual.
-    persona_dto = case_state.persona_dto(case_state.read(attempt).persona)
+    # ``world_state``: quien ya lo cargó lo pasa y esta lectura, la de la persona y la de la disponibilidad lo comparten.
+    persona_dto = case_state.persona_dto(case_state.read(attempt, world_state).persona)
     if attempt.status == AttemptStatus.COMPLETED:
         # Es la vista del dueño del intento: un reporte v1/v2 sin las cifras del modelo viejo (``for_student``).
         report = attempt_report.for_student(attempt_report.frozen_report_for(attempt.id))
         return dto.attempt_state(attempt, attempt_token, persona_dto, completion_report=report)
     offered = None
     if attempt.status == AttemptStatus.IN_PROGRESS and not attempt.current_node.terminal_node:
-        offered, _ = option_availability.split_options(attempt)
+        offered, _ = option_availability.split_options(attempt, world_state=world_state)
     return dto.attempt_state(attempt, attempt_token, persona_dto, options=offered)
 
 
@@ -501,11 +502,13 @@ def _decision_response(attempt, attempt_token, decision, retry_required=False, s
     mensaje evaluativo: eso es del reporte congelado. Un reintento no aplicó nada, así que no tiene
     consecuencia.
     """
+    # El estado del mundo tal como quedó tras decidir: una sola lectura para el estado del intento y para la reacción.
+    world_state = AttemptWorldState.objects.filter(attempt_id=attempt.id).select_related("scene_map").first()
     response = {
-        "attempt": _state(attempt, attempt_token),
+        "attempt": _state(attempt, attempt_token, world_state),
         "consequence": None if retry_required else dto.consequence_dto(decision),
     }
-    response["reaction"] = reaction.resolve(decision, case_state.read(attempt).persona, scene_map)
+    response["reaction"] = reaction.resolve(decision, case_state.read(attempt, world_state).persona, scene_map)
     if retry_required:
         response["retry"] = {"allowed": True, "message": RETRY_NEUTRAL_MESSAGE}
     return response
@@ -563,14 +566,15 @@ def choose_decision(
     if decision.case_version_id != attempt.case_version_id:
         raise ValidationError("La decisión no pertenece al caso del intento")
     # El contexto de disponibilidad se arma una vez, ANTES de aplicar efectos: sirve a la comprobación y al evento.
-    availability = option_availability.availability_context(attempt, decision.source_node)
-    offered, withheld = option_availability.split_options(attempt, decision.source_node, context=availability)
+    # El estado del mundo se lee una vez y sirve al contexto de disponibilidad y al mapa donde decide el estudiante.
+    world_before = AttemptWorldState.objects.filter(attempt_id=attempt.id).select_related("scene_map").first()
+    offered, withheld, availability = option_availability.evaluate_options(attempt, decision.source_node, world_before)
     if decision.id not in {option.id for option in offered}:
         # BORRADOR: texto nuevo del servidor, pendiente de la aprobación de Psicología
         raise ValidationError("Esa respuesta no está disponible todavía.")
 
     # El mapa donde decide el estudiante, ANTES de que la decisión mueva el nodo (el mundo no cambia hasta el siguiente /world).
-    scene_map = _world_map(attempt)
+    scene_map = world_before.scene_map if world_before is not None else None
     effects = response_effects.resolve(decision)
     rules = case_rules.rules_of(attempt.case_version)
     contraindicated = effects.response_class is ResponseClass.CONTRAINDICATED

@@ -108,27 +108,41 @@ def _explored(world_state, node) -> dict:
     return explored
 
 
-def availability_context(attempt, node, world_state=None) -> dict:
-    """El contexto de las condiciones de las opciones: ``{"milestones", "persona", "counts", "explored"}``."""
-    if world_state is None:
+def _mentions_count(condition) -> bool:
+    """¿La condición compara algún conteo de respuestas (``count``)? Solo entonces hace falta leer las decisiones."""
+    if isinstance(condition, list):
+        return any(_mentions_count(item) for item in condition)
+    if not isinstance(condition, dict):
+        return False
+    return "count" in condition or any(_mentions_count(value) for value in condition.values())
+
+
+def availability_context(attempt, node, world_state=case_state.NOT_LOADED, *, need_counts=True) -> dict:
+    """El contexto de las condiciones de las opciones: ``{"milestones", "persona", "counts", "explored"}``.
+
+    Con ``world_state`` ya cargado no se vuelve a leer (hitos y persona salen de ahí). ``need_counts=False`` evita leer las
+    decisiones del intento cuando ningún requisito cuenta respuestas: los conteos quedan en cero.
+    """
+    if world_state is case_state.NOT_LOADED:
         world_state = AttemptWorldState.objects.filter(attempt_id=attempt.id).select_related("scene_map").first()
-    decisions = [
-        event.decision_option
-        for event in AttemptEvent.objects.filter(
-            attempt_id=attempt.id, event_type__in=REGISTERED_DECISION_EVENT_TYPES, decision_option__isnull=False
-        ).select_related("decision_option")
-    ]
-    context = endings.condition_context(case_state.read(attempt), decisions)
+    decisions = []
+    if need_counts:
+        decisions = [
+            event.decision_option
+            for event in AttemptEvent.objects.filter(
+                attempt_id=attempt.id, event_type__in=REGISTERED_DECISION_EVENT_TYPES, decision_option__isnull=False
+            ).select_related("decision_option")
+        ]
+    context = endings.condition_context(case_state.read(attempt, world_state=world_state), decisions)
     context["explored"] = _explored(world_state, node)
     return context
 
 
-def split_options(attempt, node=None, world_state=None, context=None):
-    """``(ofrecidas, retenidas)`` de la escena, por id. Si ninguna quedara ofrecida, se ofrecen todas.
-
-    ``context`` es el de ``availability_context``: quien ya lo calculó lo pasa para no armarlo dos veces.
-    """
+def evaluate_options(attempt, node=None, world_state=case_state.NOT_LOADED):
+    """``(ofrecidas, retenidas, contexto)`` de la escena. El contexto se arma solo si algún requisito lo necesita (si no,
+    ``{}``) y, cuando se arma, se lee una vez. Si ninguna quedara ofrecida, se ofrecen todas."""
     node = node or attempt.current_node
+    context = None
     options = list(DecisionOption.objects.filter(source_node_id=node.id).order_by("id"))
     offered, withheld = [], []
     for option in options:
@@ -137,14 +151,21 @@ def split_options(attempt, node=None, world_state=None, context=None):
             withheld.append(option)
             continue
         if requires and context is None:
-            context = availability_context(attempt, node, world_state)
+            need_counts = any(_mentions_count(case_rules.requires_of(o) or {}) for o in options)
+            context = availability_context(attempt, node, world_state, need_counts=need_counts)
         (offered if is_available(requires, context or {}) else withheld).append(option)
     if options and not offered:
         logger.warning(
             "Todas las opciones de la escena %s (intento %s) quedaron retenidas por su requisito: se ofrecen todas.",
             node.id, attempt.id,
         )
-        return options, []
+        return options, [], context or {}
+    return offered, withheld, context or {}
+
+
+def split_options(attempt, node=None, world_state=case_state.NOT_LOADED):
+    """``(ofrecidas, retenidas)`` de la escena, por id (ver ``evaluate_options``)."""
+    offered, withheld, _ = evaluate_options(attempt, node, world_state)
     return offered, withheld
 
 
