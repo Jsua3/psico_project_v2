@@ -53,3 +53,48 @@ def test_a_malformed_requirement_is_a_condition_issue():
     document = _doc()
     _gated(_scene(document))["requiere"] = {"visto": "algo"}
     assert "DSL.SIEP_CONDITION" in {issue.code for issue in validate.validate_document(document)}
+
+
+def _findings(document):
+    return [f for r in validate.run_rules(document).results if r.rule in ("OCL-09", "OCL-10", "OCL-11", "OCL-12")
+            for f in r.findings]
+
+@pytest.mark.parametrize("junk", [[], {}, 7, [1, 2], {"a": 1}])
+def test_unexpected_key_types_never_raise_in_the_four_rules(junk):
+    document = _doc()
+    siep = document["x-siep"]
+    scene = _scene(document)
+    for obj in scene["mapa"]["objetos"]:
+        obj["clave"], obj["herramienta"], obj["opcion"] = junk, junk, junk
+    scene["mapa"]["ambiente"] = {"ambientNpcs": [{"key": junk}]}
+    for dialog in scene["mapa"]["dialogos"]:
+        dialog["objeto"] = junk
+        for choice in dialog["elecciones"]:
+            choice["opcion"] = junk
+    for tool in siep["herramientas"]:
+        tool["codigo"] = junk
+    for milestone in siep["reglas"]["milestones"]:
+        milestone["key"] = junk
+    for option in scene["opciones"]:
+        option["clave"] = junk
+    _gated(scene)["requiere"] = {"all": [{"talked": "laura"}, {"has": "MAPA"}, {"milestone": "analizo"}]}
+    _gated(scene)["reaccion"]["personaje"] = junk
+    report = validate.run_rules(document)
+    assert not [f for r in report.results for f in r.findings if "Error interno" in f.message]
+    assert {r.rule: r.state for r in report.results}["OCL-12"] in ("CUMPLE", "INCUMPLE", "NO_APLICA")
+
+@pytest.mark.parametrize("clave", [None, "", []])
+def test_an_option_without_key_does_not_satisfy_ocl_12_by_accident(clave):
+    document = _doc()
+    scene = _scene(document)
+    option = _gated(scene)
+    option.pop("clave", None)
+    if clave is not None:
+        option["clave"] = clave
+    option["reaccion"].pop("personaje", None)
+    for obj in scene["mapa"]["objetos"]:
+        obj.pop("opcion", None)
+    for dialog in scene["mapa"]["dialogos"]:
+        for choice in dialog["elecciones"]:
+            choice.pop("opcion", None)
+    assert _states(document)["OCL-12"] == "INCUMPLE"

@@ -77,16 +77,21 @@ def _milestones_in(condition):
     return found
 
 
+def _strs(values):
+    """Solo las cadenas no vacías de ``values``: los valores crudos del documento pueden no ser hashables."""
+    return {v for v in values if isinstance(v, str) and v}
+
+
 def _declared_milestones(doc):
     rules = _siep(doc).get("reglas")
-    return {m.get("key") for _, m in _objetos(rules.get("milestones"))} if isinstance(rules, dict) else set()
+    return _strs(m.get("key") for _, m in _objetos(rules.get("milestones"))) if isinstance(rules, dict) else set()
 
 
 def _delivered_tools(doc):
     """Los códigos de herramienta declarados en el caso que algún objeto de algún mapa entrega."""
-    declared = {t.get("codigo") for _, t in _objetos(_siep(doc).get("herramientas"))}
-    given = {x.get("herramienta") for _, scene in _scenes(doc) for x in _map_objects(scene)}
-    return {code for code in declared & given if isinstance(code, str)}
+    declared = _strs(t.get("codigo") for _, t in _objetos(_siep(doc).get("herramientas")))
+    given = _strs(x.get("herramienta") for _, scene in _scenes(doc) for x in _map_objects(scene))
+    return declared & given
 
 
 def _reacting(doc):
@@ -140,11 +145,11 @@ def ocl_10_requisito_alcanzable(doc):
         if not conditions.is_valid(requirement, facts=True):
             continue  # un requisito mal formado lo señala siep_check
         objects = _map_objects(scene)
-        people = {x.get("clave") for x in objects if x.get("tipo") == "PERSON" and _visible(x)}
+        people = _strs(x.get("clave") for x in objects if x.get("tipo") == "PERSON" and _visible(x))
         ambient = _map(scene).get("ambiente")
         if isinstance(ambient, dict):
-            people |= {n.get("key") for _, n in _objetos(ambient.get("ambientNpcs"))}
-        things = {x.get("clave") for x in objects if _visible(x)}
+            people |= _strs(n.get("key") for _, n in _objetos(ambient.get("ambientNpcs")))
+        things = _strs(x.get("clave") for x in objects if _visible(x))
         where = f"la opción {_option_label(option)} de la escena {_label(scene)}"
         route = _route(i, j, "requiere")
         problems = []
@@ -216,11 +221,16 @@ def ocl_12_quien_reacciona_esta_presente(doc):
                 findings.append(_h(f"Escena {_label(scene)}", _route(i, j, "reaccion.personaje"), message))
             continue
         key = option.get("clave")
-        keys = {p.get("clave") for p in people}
-        offered = any(p.get("opcion") == key for p in people)
-        for _, dialog in _objetos(_map(scene).get("dialogos")):
-            if dialog.get("objeto") in keys and any(c.get("opcion") == key for _, c in _objetos(dialog.get("elecciones"))):
-                offered = True
+        offered = False
+        if isinstance(key, str) and key:  # sin clave, nadie puede ofrecerla (y ``None == None`` no cuenta)
+            keys = _strs(p.get("clave") for p in people)
+            offered = any(p.get("opcion") == key for p in people)
+            for _, dialog in _objetos(_map(scene).get("dialogos")):
+                speaker = dialog.get("objeto")
+                if isinstance(speaker, str) and speaker in keys and any(
+                    c.get("opcion") == key for _, c in _objetos(dialog.get("elecciones"))
+                ):
+                    offered = True
         if not offered:
             # BORRADOR: texto nuevo del servidor, pendiente de la aprobación de Psicología
             message = f"En {where}, ningún personaje de la sala ofrece esa opción, así que nadie podría reaccionar."
