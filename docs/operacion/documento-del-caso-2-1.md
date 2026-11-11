@@ -55,7 +55,7 @@ Reglas:
 - **Profundidad máxima: 12.** La raíz es el nivel 0; más allá es dato roto.
 - **Ausente = `{}` = siempre disponible.** `null` y `{}` son lo mismo.
 - **Dato malformado = no disponible.** Una clave desconocida, un tipo equivocado, un hecho con claves de más o una condición muy anidada evalúan a falso: nunca rompen la partida. Un `requires_json` guardado que no es JSON, no es objeto o no es una condición válida cuenta como «no disponible» (no como «sin requisito»).
-- Los hechos solo son válidos en requisitos de opciones y reacciones; en los finales no.
+- Los hechos solo son válidos en requisitos de opciones; en los finales no.
 - Una condición con forma inválida es el hallazgo `DSL.SIEP_CONDITION` (`siep_check`).
 
 ### Alcance por sala
@@ -110,6 +110,8 @@ Una opción se ofrece si su requisito se cumple con lo que el intento lleva (hit
 
 Es `[]` cuando el intento no está EN JUEGO, la escena es terminal, o la vista es la **traza docente** (`world_for_attempt`, `estudiante = false`).
 
+> **Nota para el bloque B.** El cliente actual ya reemplaza `attempt.currentNode.options` con `world.decisionOptions` cuando una respuesta de mundo trae esa clave y el intento está en juego (`applyDecisionOptions` en `frontend/src/app/features/simulator/simulation-play.component.ts`).
+
 ### 4.3 Elegir una opción no ofrecida
 
 `POST …/decisions` con una opción que la escena actual no ofrece responde 400:
@@ -135,7 +137,7 @@ La respuesta de `POST …/decisions` lleva siempre `reaction`: un objeto o `null
       "line": "(La abuela respira un poco más despacio y te sostiene la mirada.) Gracias por quedarse…",
       "emotion": "triste",
       "gesture": "se-acerca",
-      "objectKey": "familia-crisis"
+      "objectKey": "familia-duelo"
     }
   }
 }

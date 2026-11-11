@@ -270,7 +270,7 @@ export interface AttemptState {
   readonly attemptId: string;
   readonly caseTitle: string;
   readonly caseVersionId: number;
-  /** El informe congelado (schemaVersion 3) de un intento completado; nulo mientras no lo está. Su forma (hitos, persona, final con su razón, revisión de decisiones, niveles con su evidencia) la fija `attempt_report`; tiparla campo a campo queda fuera de este contrato. */
+  /** El informe congelado (schemaVersion 4) de un intento completado; nulo mientras no lo está. Su forma (hitos, persona, final con su razón, revisión de decisiones, niveles con su evidencia) la fija `attempt_report`; tiparla campo a campo queda fuera de este contrato. */
   readonly completionReport: Readonly<Record<string, unknown>> | null;
   readonly currentNode: CurrentNode;
   readonly persona: PersonaState;
