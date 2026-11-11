@@ -263,7 +263,8 @@ def trace(attempt_id, instructor=None):
         "activeSeconds": report["activeSeconds"],
         "timeline": report["timeline"],
         "visitedNodeTitles": report["visitedNodeTitles"],
-        "events": [_to_trace_event(e) for e in events],
+        # ``OPTIONS_NOT_OFFERED`` es contabilidad del informe de cierre, no un hecho del recorrido.
+        "events": [_to_trace_event(e) for e in events if e.event_type != "OPTIONS_NOT_OFFERED"],
         "world": world_service.world_for_attempt(attempt),
         "reflections": [
             _bitacora_del_reporte(r)

@@ -6,9 +6,11 @@ por sala viven en ``AttemptWorldState.flags_json`` bajo ``exploredBySala``; un i
 los tiene y usa las listas globales del mundo. Un requisito roto no se ofrece, pero si eso dejara la escena sin salida
 se ofrecen todas: una partida nunca se atasca por un dato mal armado.
 """
+import json
 import logging
 
 from apps.simulation.casedef.availability import is_available
+from apps.simulation.casedef.conditions import unmet_facts
 from apps.simulation.models import (
     REGISTERED_DECISION_EVENT_TYPES,
     AttemptEvent,
@@ -121,11 +123,13 @@ def availability_context(attempt, node, world_state=None) -> dict:
     return context
 
 
-def split_options(attempt, node=None, world_state=None):
-    """``(ofrecidas, retenidas)`` de la escena, por id. Si ninguna quedara ofrecida, se ofrecen todas."""
+def split_options(attempt, node=None, world_state=None, context=None):
+    """``(ofrecidas, retenidas)`` de la escena, por id. Si ninguna quedara ofrecida, se ofrecen todas.
+
+    ``context`` es el de ``availability_context``: quien ya lo calculó lo pasa para no armarlo dos veces.
+    """
     node = node or attempt.current_node
     options = list(DecisionOption.objects.filter(source_node_id=node.id).order_by("id"))
-    context = None
     offered, withheld = [], []
     for option in options:
         requires = case_rules.requires_of(option)
@@ -142,6 +146,23 @@ def split_options(attempt, node=None, world_state=None):
         )
         return options, []
     return offered, withheld
+
+
+#: Evento de contabilidad (no es de decisión ni sale en la línea de tiempo): qué opciones no se ofrecieron al decidir.
+OPTIONS_NOT_OFFERED = "OPTIONS_NOT_OFFERED"
+
+
+def not_offered_detail(withheld, context) -> str:
+    """El detalle del evento ``OPTIONS_NOT_OFFERED``: ``{"v": 1, "options": [{"id", "unmet": [[tipo, clave], …]}]}``.
+
+    ``unmet`` lista los hechos del requisito que no se cumplen; queda vacía si el requisito está roto.
+    """
+    entries = []
+    for option in withheld:
+        requires = case_rules.requires_of(option)
+        unmet = unmet_facts(requires, context) if requires else []
+        entries.append({"id": option.id, "unmet": [list(fact) for fact in unmet]})
+    return json.dumps({"v": 1, "options": entries}, ensure_ascii=False)
 
 
 def is_offered(attempt, option) -> bool:

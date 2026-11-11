@@ -538,7 +538,7 @@ def test_el_estado_de_un_intento_completado_trae_el_informe_congelado_y_coincide
     body = _attempt_state(world).json()
 
     assert completo.pk != abierto.pk
-    assert body["data"]["completionReport"]["schemaVersion"] == 3
+    assert body["data"]["completionReport"]["schemaVersion"] == 4
     _afirmar_estado_del_intento(body, document)
 
 

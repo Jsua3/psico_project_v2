@@ -222,7 +222,7 @@ def _play(estudiante, case_version_id, settings):
     decide(attempt_id, token, "c2-2126-1098-1257")
     client.marks["antes_de_la_ultima_decision"] = len(client.recorded)
     final = decide(attempt_id, token, "c3-integral-derechos")
-    assert final["status"] == "COMPLETED" and final["completionReport"]["schemaVersion"] == 3
+    assert final["status"] == "COMPLETED" and final["completionReport"]["schemaVersion"] == 4
 
     # Después de cerrar: el estado, los tres reportes, la evaluación, el recorrido, el historial y la encuesta.
     assert client.get(f"{BASE}/attempts/{attempt_id}", **header(token)).status_code == 200

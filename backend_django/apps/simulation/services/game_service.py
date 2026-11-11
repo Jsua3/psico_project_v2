@@ -553,7 +553,10 @@ def choose_decision(
         raise ValidationError("La decisión no está disponible desde la escena actual")
     if decision.case_version_id != attempt.case_version_id:
         raise ValidationError("La decisión no pertenece al caso del intento")
-    if not option_availability.is_offered(attempt, decision):
+    # El contexto de disponibilidad se arma una vez, ANTES de aplicar efectos: sirve a la comprobación y al evento.
+    availability = option_availability.availability_context(attempt, decision.source_node)
+    offered, withheld = option_availability.split_options(attempt, decision.source_node, context=availability)
+    if decision.id not in {option.id for option in offered}:
         # BORRADOR: texto nuevo del servidor, pendiente de la aprobación de Psicología
         raise ValidationError("Esa respuesta no está disponible todavía.")
 
@@ -589,6 +592,11 @@ def choose_decision(
     event_type = "PROHIBITED_DECISION_SELECTED" if contraindicated else "DECISION_SELECTED"
     attempt.current_node = decision.target_node
 
+    if withheld:
+        _save_event(
+            attempt, option_availability.OPTIONS_NOT_OFFERED, decision.source_node, None,
+            option_availability.not_offered_detail(withheld, availability),
+        )
     _save_event(
         attempt, event_type, decision.source_node, decision,
         _decision_event_detail(decision, evidence_override, missing_evidence), request_id,

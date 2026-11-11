@@ -91,7 +91,7 @@ def test_los_intentos_salen_con_los_hitos_la_persona_y_el_informe_v3_y_sin_punta
     assert set(banderas["persona"]) >= {"bond", "activation"}
     [informe] = [fila for fila in exportacion["tablas"]["attempt_reports"] if str(fila["attempt_id"]) == str(mundo.attempt.pk)]
     congelado = json.loads(informe["report_json"])
-    assert congelado["schemaVersion"] == 3
+    assert congelado["schemaVersion"] == 4
     assert "milestones" in congelado and "persona" in congelado
     # Nada de puntaje en lo que cuenta la persona: ni el intento lo guarda ni el informe lo trae.
     texto = json.dumps(exportacion)

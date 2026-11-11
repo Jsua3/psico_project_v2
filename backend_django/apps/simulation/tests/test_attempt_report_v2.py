@@ -147,7 +147,7 @@ def test_el_reporte_nuevo_es_v3_y_conserva_las_claves_que_nacieron_en_la_v2(comp
 
     row, payload = _frozen(attempt_id)
 
-    assert row.report_schema_version == 3 and payload["schemaVersion"] == 3
+    assert row.report_schema_version == 4 and payload["schemaVersion"] == 4
     assert all(key in payload for key in NEW_KEYS)
 
 
@@ -389,13 +389,13 @@ def test_un_intento_sin_fila_se_sirve_en_vivo_como_v3_y_el_comando_lo_congela_co
 
     live = client.get(f"{BASE}/attempts/{attempt_id}/report", HTTP_X_SIEP_ATTEMPT_TOKEN=token).data["data"]
 
-    assert live["schemaVersion"] == 3 and all(key in live for key in NEW_KEYS)
+    assert live["schemaVersion"] == 4 and all(key in live for key in NEW_KEYS)
     assert AttemptReport.objects.filter(attempt_id=attempt_id).count() == 0  # leer no escribe
 
     call_command("backfill_attempt_reports")
 
     row, payload = _frozen(attempt_id)
-    assert row.report_schema_version == 3 and payload["competencyLevels"] == live["competencyLevels"]
+    assert row.report_schema_version == 4 and payload["competencyLevels"] == live["competencyLevels"]
 
 
 def test_un_caso_sin_rubrica_activa_cierra_con_el_perfil_vacio(estudiante, case_version_id):

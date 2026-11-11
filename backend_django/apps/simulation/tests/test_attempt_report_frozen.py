@@ -74,11 +74,11 @@ def test_completar_persiste_una_fila_con_version_de_esquema_ordinal_y_huella(com
 
     row = AttemptReport.objects.get(attempt_id=attempt_id)
 
-    assert row.report_schema_version == 3  # modelo de métricas: hitos, persona y clases (ver test_completion_report_contract.py)
+    assert row.report_schema_version == 4  # modelo de métricas: hitos, persona y clases (ver test_completion_report_contract.py)
     assert row.attempt_ordinal == 1
     assert len(row.definition_hash) == 64
     payload = json.loads(row.report_json)
-    assert payload["schemaVersion"] == 3 and payload["ordinal"] == 1
+    assert payload["schemaVersion"] == 4 and payload["ordinal"] == 1
     assert payload["definitionHash"] == row.definition_hash
     assert payload["status"] == "COMPLETED"
 
@@ -194,7 +194,7 @@ def test_un_intento_completado_sin_fila_se_sirve_en_vivo_y_el_comando_lo_congela
     live = client.get(f"{BASE}/attempts/{attempt_id}/report", HTTP_X_SIEP_ATTEMPT_TOKEN=token)
 
     assert live.status_code == 200
-    assert live.data["data"]["schemaVersion"] == 3
+    assert live.data["data"]["schemaVersion"] == 4
     assert AttemptReport.objects.filter(attempt_id=attempt_id).count() == 0  # leer no escribe
 
     call_command("backfill_attempt_reports")
@@ -269,7 +269,7 @@ def test_el_historial_no_expone_los_conteos_de_un_reporte_v2_congelado(completed
 def test_el_historial_sigue_respondiendo_con_un_reporte_v3_que_ya_no_trae_conteos_por_clasificacion(completed):
     client, attempt_id, _ = completed
     frozen = json.loads(AttemptReport.objects.get(attempt_id=attempt_id).report_json)
-    assert frozen["schemaVersion"] == 3 and "adequateDecisions" not in frozen
+    assert frozen["schemaVersion"] == 4 and "adequateDecisions" not in frozen
 
     response = client.get(f"{BASE}/attempts/history")
 
