@@ -20,7 +20,7 @@ from apps.simulation.models import (
     SimulationAttempt,
     SimulationCase,
 )
-from apps.simulation.services import attempt_report, game_service, world_service
+from apps.simulation.services import attempt_report, game_service, instructor_service, world_service
 from apps.simulation.services.authoring import definition_io
 from apps.simulation.tests.definition_samples import sample_definition_v21
 from apps.simulation.tests.test_world import _assign_case_to_student
@@ -160,3 +160,13 @@ def test_an_unknown_key_falls_back_to_the_key_as_label(game):
     missed = _report(game)["decisionReview"][0]["missed"]
 
     assert missed[0]["missing"] == [{"kind": "used", "key": "NO_EXISTE", "label": "NO_EXISTE"}]
+
+
+def test_the_instructor_trace_hides_the_bookkeeping_event(game):
+    _finish_with_the_plain_option(game)
+    assert AttemptEvent.objects.filter(attempt_id=game.attempt.id, event_type="OPTIONS_NOT_OFFERED").exists()
+
+    trace = instructor_service.trace(game.attempt.id)
+
+    assert trace["events"]
+    assert "OPTIONS_NOT_OFFERED" not in {event["type"] for event in trace["events"]}

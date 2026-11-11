@@ -1,3 +1,5 @@
+from dataclasses import replace
+
 from apps.simulation.casedef import siep, validate
 from apps.simulation.casedef.canonical import definition_hash
 from apps.simulation.casedef.export import to_document
@@ -49,3 +51,14 @@ def test_schema_rejects_bad_reaction_and_long_goal():
     scene["objetivo"] = "x" * 201
     codes = {issue.code for issue in validate.validate_document(document)}
     assert codes & {"DSL.SIEP_SCHEMA", "DSL.TEXT_TOO_LONG"}
+
+
+def test_explicit_empty_requires_reaction_and_goal_export_as_2_0_without_the_fields():
+    base = sample_definition_v21()
+    scenes = tuple(
+        replace(scene, goal="", options=tuple(replace(o, requires={}, reaction={}) for o in scene.options))
+        for scene in base.scenes
+    )
+    document = to_document(replace(base, scenes=scenes))
+    assert document["x-siep"]["version"] == "2.0"
+    assert not (_keys(document) & NEW_KEYS)

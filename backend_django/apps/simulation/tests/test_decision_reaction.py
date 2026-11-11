@@ -124,8 +124,30 @@ def test_corrupt_reaction_json_falls_back_to_defaults(game):  # Foco 5
 
     response = _choose(game, game.plain)
 
-    assert response["reaction"]["gesture"] in vocabulary.GESTURES
+    # RISKY y la ofrece laura: gesto por defecto de la clase, sin línea ni emoción, y la persona que la ofrece.
+    assert response["reaction"]["gesture"] == "baja-la-mirada"
     assert response["reaction"]["line"] == ""
+    assert response["reaction"]["emotion"] is None
+    assert response["reaction"]["objectKey"] == "laura"
+
+
+def test_reaction_character_that_exists_in_no_map_gives_no_object_key(game):
+    DecisionOption.objects.filter(pk=game.plain.id).update(
+        reaction_json=json.dumps({"personaje": "nadie-en-ningun-mapa", "linea": "Hola"})
+    )
+
+    response = _choose(game, game.plain)
+
+    assert response["reaction"]["objectKey"] is None
+    assert response["reaction"]["line"] == "Hola"
+
+
+def test_replaying_a_decision_returns_the_same_reaction(game):
+    first = game_service.choose_decision(game.attempt.id, game.token, game.plain.id, game.actor, request_id="req-reac-1")
+    again = game_service.choose_decision(game.attempt.id, game.token, game.plain.id, game.actor, request_id="req-reac-1")
+
+    assert first["reaction"] is not None
+    assert again["reaction"] == first["reaction"]
 
 
 def test_reaction_never_carries_the_class(game):

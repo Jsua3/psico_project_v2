@@ -165,6 +165,18 @@ def test_replaying_a_decision_returns_the_first_answer(game):  # Foco 3
     assert again["consequence"] == first["consequence"]
 
 
+def test_replaying_after_the_option_stopped_being_available_returns_the_first_answer(game):  # Foco 3
+    _interact(game, "carpeta")
+    first = game_service.choose_decision(game.attempt.id, game.token, game.gated.id, game.actor, request_id="req-0002")
+    # Después de la primera respuesta la opción deja de cumplir su requisito: la repetición no revalida.
+    DecisionOption.objects.filter(pk=game.gated.id).update(requires_json='{"inspected": "no-existe"}')
+
+    again = game_service.choose_decision(game.attempt.id, game.token, game.gated.id, game.actor, request_id="req-0002")
+
+    assert first["consequence"] is not None
+    assert again == first
+
+
 def test_attempt_without_room_record_uses_the_global_lists(game):  # Foco 4
     world_state = require_world_state(_fresh(game))
     world_state.inspected_object_keys_json = json.dumps(["carpeta"])
