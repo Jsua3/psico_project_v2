@@ -24,6 +24,7 @@ from django.db import connection
 from apps.simulation.models import DecisionOption, SimulationAttempt
 from shared.testing import measure
 
+from .case_exploration import explore_what_the_case_asks_for
 from .test_game import (  # noqa: F401  (fixtures de pytest)
     assign_case_to_student,
     attempt_headers,
@@ -38,17 +39,26 @@ pytestmark = pytest.mark.req("RNF-05")
 QUERY_BUDGETS = {
     # Medido en master 80e365e (2026-10-13), sin SAVEPOINT. «escrituras» entre paréntesis.
     # E5-1: carga de árboles/líneas/opciones en 3 consultas y AttemptWorldState junto al intento.
-    "get_world": 8,  # (0) era 14; antes de E1-6 era 16 con 2 escrituras (D-15)
+    # Bloque A: 8 → 9 a propósito. El mundo ahora trae ``decisionOptions`` y eso es UNA consulta nueva e inherente: las filas de
+    # ``decision_options`` de la escena. El contexto de disponibilidad no suma nada: el estado del mundo ya está cargado y las
+    # decisiones del intento solo se leen si algún requisito cuenta respuestas (los de SIM-VBG-001 no).
+    "get_world": 9,  # (0) era 14; antes de E1-6 era 16 con 2 escrituras (D-15)
     # E5-1: acuse mínimo + cerrojo en la lectura del intento + INSERT directo del estado inicial. Reparación de
     # E5-1: 6 → 7, porque el estado del mundo se lee DESPUÉS del cerrojo (en la misma sentencia llegaba viejo y el
     # PATCH pisaba lo que otra orden acababa de confirmar: test_world_patch_race.py). Sigue siendo 21 → 7.
     "patch_world_state": 7,  # (2) era 21 (4)
-    "enter_room": 13,  # (3) era 26
+    # Bloque A: 13 → 15 a propósito. El mundo que devuelve trae ``decisionOptions``: +1 las opciones de la escena y +1 el mapa
+    # de la escena de decisión (no el de la sala a la que entra), de donde salen los hechos de exploración de sus requisitos.
+    "enter_room": 15,  # (3) era 26
     # era 9 (4) sin mundo: +1 cerrojo y +1 búsqueda de repetición (E1-3), +1 lectura y +1 UPDATE del
     # estado del mundo por los efectos del caso, que la medición anterior omitía por no tener mundo.
     # Tarea 5 (modelo de métricas): 12 → 11. La decisión ya no llama a ``decision_effects`` ni a ``case_effects``: los
     # hitos y la persona los escribe ``response_effects.apply`` (una lectura del mundo con su mapa y un UPDATE).
-    "post_decision": 11,  # (5)
+    # Bloque A: 11 → 15 a propósito. +1 las opciones de la escena de origen (la revalidación al elegir: el servidor rechaza una
+    # opción no disponible), +1 las opciones de la escena de destino (el estado del intento las trae ya filtradas) y +2 la
+    # reacción del personaje (``map_objects`` y ``dialogue_choices``, una consulta por tipo). El estado del mundo se lee una
+    # sola vez para disponibilidad, mapa, persona y reacción; sin ese cuidado eran 18.
+    "post_decision": 15,  # (5)
     "get_student_report": 3,  # (0) era 4: E0-11 acotó node y decision_option con select_related
     # E6: lo que cuestan el cierre (reporte v2, evaluación del sistema) y la primera lectura del dueño (el evento).
     # Tarea 5: 35 → 36 a propósito. ``response_effects.apply`` pasa por ``ensure_world_state``, que sincroniza el mundo con
@@ -56,7 +66,8 @@ QUERY_BUDGETS = {
     # en cada escena, así que paga esa sincronización una vez; un jugador real ya la tiene hecha por su ``GET /world``.
     # Tarea 9: 36 → 32 a propósito. El reporte v3 ya no cuenta clasificaciones ni arma las competencias heurísticas; las
     # cuatro consultas que se fueron eran de ese cálculo, y el perfil por competencia y la evaluación del sistema siguen.
-    "post_decision_closing": 32,  # (10) la decisión que cierra: reporte v3 + evaluación del sistema (antes de E6: 26 y 9)
+    # Bloque A: 32 → 36 a propósito, por lo mismo que ``post_decision`` (+4: opciones de origen, reacción en 2 consultas y la lectura previa del estado del mundo).
+    "post_decision_closing": 36,  # (10) la decisión que cierra: reporte v3 + evaluación del sistema (antes de E6: 26 y 9)
     "get_student_report_completed": 3,  # (1) la primera lectura del dueño de un intento completado escribe el evento
     # S4-1: 15 → 16 a propósito. Leer el reporte de un grupo es leer datos de otras personas y deja UNA fila de
     # auditoría (`reporte.leer`, RNF-007): es el INSERT de `audit_logs`, la única escritura. Las 15 de lectura no cambian.
@@ -136,12 +147,13 @@ def scenario_post_decision(estudiante, case_version_id):
     # caso no se escribían y la medición subestimaba la decisión (E1-6 la hace con el estado creado).
     map_key = _map_key(client, attempt_id, token)
     _walk(client, attempt_id, token, map_key, PATH_TO_FAMILIA[:1])
-    option = next(
-        o for o in data["currentNode"]["options"]
-        if DecisionOption.objects.get(pk=o["id"]).response_class == "RECOMMENDED"
-    )
+    # El caso 2.1 retiene la recomendada hasta explorar: se deja lo explorado (el estudiante ya lo habría hecho).
+    explore_what_the_case_asks_for(attempt_id)
+    option = DecisionOption.objects.filter(
+        source_node_id=data["currentNode"]["id"], response_class="RECOMMENDED"
+    ).order_by("id").first()
     url = f"/api/simulation/attempts/{attempt_id}/decisions"
-    body = {"attemptToken": token, "decisionOptionId": option["id"]}
+    body = {"attemptToken": token, "decisionOptionId": option.id}
     return (lambda: client.post(url, body, format="json")), 1
 
 
@@ -158,6 +170,7 @@ def scenario_get_student_report(estudiante, case_version_id):
 
 def _play_until_the_closing_decision(client, attempt_id, token):
     """Decide con la opción adecuada de cada nodo hasta quedar ante la que cierra el intento; devuelve esa opción."""
+    explore_what_the_case_asks_for(attempt_id)  # el caso 2.1 retiene las recomendadas hasta explorar
     for _ in range(30):
         attempt = SimulationAttempt.objects.get(pk=attempt_id)
         options = DecisionOption.objects.filter(source_node_id=attempt.current_node_id).select_related("target_node")
