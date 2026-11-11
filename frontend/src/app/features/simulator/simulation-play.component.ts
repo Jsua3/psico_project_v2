@@ -2061,6 +2061,7 @@ export class SimulationPlayComponent implements OnInit, OnDestroy {
       next: result => {
         this.world.set(result.world);
         this.mergeViewedNpcKeysFromWorld(result.world);
+        this.applyDecisionOptions(result.world);
         this.selectedInteraction.set(result.interaction);
         this.dialogue.set(this.decorateDialogue(result.dialogue ?? result.interaction.dialogue));
         this.announcePickup(result);
@@ -2448,6 +2449,7 @@ export class SimulationPlayComponent implements OnInit, OnDestroy {
       next: (result: ToolUseResult) => {
         this.world.set(result.world);
         this.mergeViewedNpcKeysFromWorld(result.world);
+        this.applyDecisionOptions(result.world);
         this.showToolFeedback(result);
         this.busy.set(false);
       },
@@ -2504,6 +2506,7 @@ export class SimulationPlayComponent implements OnInit, OnDestroy {
     this.simulationService.recordNpcInteraction(game.attemptId, game.attemptToken, npc.key).subscribe({
       next: world => {
         this.mergeViewedNpcKeysFromWorld(world);
+        this.applyDecisionOptions(world);
         this.showNpcDialogue(npc);
         this.busy.set(false);
       },
@@ -2961,6 +2964,7 @@ export class SimulationPlayComponent implements OnInit, OnDestroy {
     this.world.set(world);
     this.syncPersonaIcon(this.attempt());
     this.mergeViewedNpcKeysFromWorld(world);
+    this.applyDecisionOptions(world);
     this.loading.set(false);
     this.busy.set(false);
     this.worldRevealTimer = window.setTimeout(() => {
@@ -3366,6 +3370,16 @@ export class SimulationPlayComponent implements OnInit, OnDestroy {
     } catch {
       return new Set<string>();
     }
+  }
+
+  /** El servidor oculta las opciones cuyo requisito de exploración no se cumple: cuando la respuesta del mundo trae
+   *  `decisionOptions`, esa lista (las ofrecidas ahora) reemplaza las del nodo actual. Sin la clave no se toca nada. */
+  private applyDecisionOptions(world: SimulationWorldState): void {
+    const offered = world.decisionOptions;
+    if (!offered) return;
+    this.attempt.update(game => game && game.status === 'IN_PROGRESS'
+      ? { ...game, currentNode: { ...game.currentNode, options: offered.map(option => ({ ...option })) } }
+      : game);
   }
 
   private mergeViewedNpcKeysFromWorld(world: SimulationWorldState): void {
