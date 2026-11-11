@@ -197,6 +197,8 @@ class SimulationNode(models.Model):
     # El enunciado de la decisión (E3-6, RF-06): lo que el estudiante lee antes de elegir. Texto
     # plano y blando: vacío = la escena no lo declara.
     decision_prompt = models.TextField(default="", db_default="")
+    # El objetivo de la escena (x-siep 2.1): una frase para la docente; vacío = la escena no lo declara.
+    goal = models.TextField(default="", db_default="")
     # Orden informativo con que el editor lista los nodos (E3-6, RF-08): no cambia el grafo.
     display_order = models.IntegerField(default=0, db_default=0)
     # La intensidad de la escena (modelo de respuesta): ``LOW`` | ``MEDIUM`` | ``HIGH``; ``HIGH`` por defecto en las
@@ -243,6 +245,9 @@ class DecisionOption(models.Model):
     # Los efectos de la opción como datos del caso: ``{persona, milestones, competencies}``. Vacío = la opción no
     # trae efectos propios (la persona se mueve según su clase y no marca hitos).
     effects = models.TextField(default="{}", db_default="{}")
+    # Requisito de disponibilidad y reacción de la persona (x-siep 2.1), como JSON; ``{}`` = sin requisito / sin reacción propia.
+    requires_json = models.TextField(default="{}", db_default="{}")
+    reaction_json = models.TextField(default="{}", db_default="{}")
     # La clase de la respuesta (modelo de respuesta): ``RECOMMENDED`` | ``ACCEPTABLE`` | ``RISKY`` |
     # ``CONTRAINDICATED``; ver ``casedef.vocabulary.ResponseClass``. Toda opción la tiene: la ``CONTRAINDICATED`` es la
     # conducta que se debe evitar y exige ``prohibition_reason``.
