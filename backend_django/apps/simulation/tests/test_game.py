@@ -13,6 +13,7 @@ from apps.grupos.models import Grupo
 from apps.simulation.models import AttemptEvent, CaseVersion, DecisionOption, ReflectionJournal, SimulationAttempt
 from apps.simulation.services import attempt_report, case_state, crypto_service, world_service
 from apps.simulation.services.game_service import RETRY_NEUTRAL_MESSAGE
+from .case_exploration import explore_what_the_case_asks  # noqa: F401  (también la usan otras pruebas desde aquí)
 
 User = get_user_model()
 
@@ -35,21 +36,6 @@ def cl(user):
     c = APIClient()
     c.force_authenticate(user=user)
     return c
-
-
-def explore_what_the_case_asks(client, attempt):
-    """Deja en el mundo lo que piden los requisitos del caso (hablar con la enfermera, PAP, SPIKES, RISK_METER) y devuelve
-    el intento tal como lo ve el estudiante ahora (con las opciones que ya se ofrecen). Ver ``test_caso_pdf``."""
-    state, _ = world_service.resolve_world_state(SimulationAttempt.objects.get(pk=attempt["attemptId"]))
-    flags = json.loads(state.flags_json or "{}")
-    flags["viewedNpcKeys"] = ["enfermera-urgencias"]
-    state.flags_json = json.dumps(flags)
-    state.inventory_json = json.dumps(["PAP", "SPIKES", "RISK_METER"])
-    state.used_tool_keys_json = json.dumps(["PAP@familia-crisis", "RISK_METER@sobreviviente-consulta"])
-    state.save(force_insert=state._state.adding)
-    return client.get(
-        f"/api/simulation/attempts/{attempt['attemptId']}", HTTP_X_SIEP_ATTEMPT_TOKEN=attempt["attemptToken"]
-    ).data["data"]
 
 
 def attempt_headers(token):

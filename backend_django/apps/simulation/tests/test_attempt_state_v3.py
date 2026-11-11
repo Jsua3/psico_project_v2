@@ -14,6 +14,7 @@ import pytest
 from apps.simulation.casedef.vocabulary import Activation, Bond
 from apps.simulation.models import DecisionOption, SimulationAttempt, SimulationNode
 
+from .case_exploration import explore_what_the_case_asks_for
 from .test_caso_pdf import (  # noqa: F401  (fixtures y ayudas del recorrido canónico)
     _decide_payload,
     _deliberate_clock,
@@ -84,6 +85,7 @@ def test_una_recomendada_mueve_un_paso_a_la_persona(estudiante, case_version_id)
     c = cl(estudiante)
     attempt_id, token = _start(c, case_version_id)
     _world(c, attempt_id, token)
+    explore_what_the_case_asks_for(attempt_id)  # el caso 2.1 retiene la recomendada hasta explorar
     key = _option_key(c, attempt_id, token, "RECOMMENDED")
 
     state = _decide_payload(c, attempt_id, token, key, case_version_id)["attempt"]
@@ -114,6 +116,7 @@ def test_un_intento_pausado_y_reanudado_reconstruye_a_la_persona(estudiante, cas
     c = cl(estudiante)
     attempt_id, token = _start(c, case_version_id)
     _world(c, attempt_id, token)
+    explore_what_the_case_asks_for(attempt_id)  # el caso 2.1 retiene la recomendada hasta explorar
     key = _option_key(c, attempt_id, token, "RECOMMENDED")
     before = _decide_payload(c, attempt_id, token, key, case_version_id)["attempt"]
 
@@ -150,6 +153,7 @@ def test_las_escenas_no_sensibles_van_en_intensidad_media(estudiante, case_versi
     c = cl(estudiante)
     attempt_id, token = _start(c, case_version_id)
     _world(c, attempt_id, token)
+    explore_what_the_case_asks_for(attempt_id)  # el caso 2.1 retiene la recomendada hasta explorar
     key = _option_key(c, attempt_id, token, "RECOMMENDED")
 
     node = _decide_payload(c, attempt_id, token, key, case_version_id)["attempt"]["currentNode"]
@@ -171,6 +175,7 @@ def test_las_claves_viejas_ya_no_viajan_ni_las_cifras_clinicas(estudiante, case_
     c = cl(estudiante)
     attempt_id, token = _start(c, case_version_id)
     _world(c, attempt_id, token)
+    explore_what_the_case_asks_for(attempt_id)  # el caso 2.1 retiene la recomendada hasta explorar
     key = _option_key(c, attempt_id, token, "RECOMMENDED")
 
     for state in (

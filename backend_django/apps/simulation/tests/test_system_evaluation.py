@@ -33,7 +33,7 @@ from apps.simulation.services import attempt_report, game_service
 from shared.testing import measure, run_concurrently
 
 from .competency_support import declare_all_seeded, declare_competencies
-from .test_attempt_concurrency import _option, committed_attempt  # noqa: F401  (fixture)
+from .test_attempt_concurrency import _option, committed_attempt, explored_attempt  # noqa: F401  (fixtures)
 from .test_attempt_report_frozen import (  # noqa: F401  (fixtures y ayudantes)
     BASE,
     _complete,
@@ -307,9 +307,9 @@ def test_si_la_evaluacion_del_sistema_falla_el_cierre_sigue_y_el_reporte_queda(e
     assert _system(attempt_id).count() == 0
 
 
-def test_dos_cierres_a_la_vez_dejan_una_sola_evaluacion(committed_attempt):
+def test_dos_cierres_a_la_vez_dejan_una_sola_evaluacion(explored_attempt):
     """Hilos con commits reales: el relleno y el cierre pueden coincidir; el único parcial decide y nadie falla."""
-    a = committed_attempt
+    a = explored_attempt
     for _ in range(12):
         attempt = SimulationAttempt.objects.get(pk=a.attempt_id)
         if attempt.status != "IN_PROGRESS":

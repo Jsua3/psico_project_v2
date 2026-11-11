@@ -30,6 +30,7 @@ from apps.simulation.models import (
 )
 from apps.simulation.services import attempt_report
 
+from .case_exploration import explore_what_the_case_asks_for
 from .competency_support import SEEDED_CODES, declare_all_seeded, declare_competencies
 from .test_attempt_report_frozen import (  # noqa: F401  (fixtures y ayudantes)
     BASE,
@@ -267,6 +268,7 @@ def test_una_con_riesgo_cuenta_como_no_recomendada_pero_el_nivel_es_el_que_decla
     declare_all_seeded(case_version_id, "LOGRADO", response_classes=["RISKY"])
     client = cl(estudiante)
     attempt_id, token = _start(client, case_version_id)
+    explore_what_the_case_asks_for(attempt_id)  # el caso 2.1 retiene las recomendadas hasta explorar
     reached = False
     for step in range(30):
         attempt = SimulationAttempt.objects.get(pk=attempt_id)
@@ -315,6 +317,7 @@ def test_un_intento_sin_completar_nunca_es_evidencia_clave_aunque_haya_reflexion
     """El contrato de ``build_report_payload``: la evidencia clave exige un intento COMPLETADO (RQ-NEG-004)."""
     client = cl(estudiante)
     attempt_id, token = _start(client, case_version_id)
+    explore_what_the_case_asks_for(attempt_id)  # el caso 2.1 retiene la recomendada hasta explorar
     first = SimulationAttempt.objects.get(pk=attempt_id).current_node_id
     good = DecisionOption.objects.filter(source_node_id=first, response_class="RECOMMENDED").first()
     client.post(

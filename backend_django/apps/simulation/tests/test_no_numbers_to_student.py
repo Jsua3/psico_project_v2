@@ -22,6 +22,7 @@ from apps.grupos.models import Grupo
 from apps.simulation.models import CaseVersion, SceneHint, SceneMap, SimulationAttempt
 from shared.testing import seal_version
 
+from .case_exploration import explore_what_the_case_asks_for
 from .test_caso_pdf import (  # noqa: F401  (fixtures y ayudas del recorrido canónico)
     PATH_TO_DOOR,
     _deliberate_clock,
@@ -217,6 +218,9 @@ def _play(estudiante, case_version_id, settings):
     resumed = client.post(f"{BASE}/attempts/{attempt_id}/resume", {"attemptToken": token}, format="json")
     assert resumed.status_code == 200 and resumed.data["data"]["status"] == "IN_PROGRESS"
     assert client.get(f"{BASE}/attempts/{attempt_id}/world", **header(token)).status_code == 200
+    # El recorrido camina la primera escena de verdad; lo que piden las siguientes (SPIKES, el medidor de riesgo) se deja
+    # escrito, porque el caso 2.1 retiene esas recomendadas hasta explorar y esta prueba es del contenido de las respuestas.
+    explore_what_the_case_asks_for(attempt_id)
     decide(attempt_id, token, "h3-integral-psicosocial")
     decide(attempt_id, token, "c1-riesgo-proteccion-derechos")
     decide(attempt_id, token, "c2-2126-1098-1257")

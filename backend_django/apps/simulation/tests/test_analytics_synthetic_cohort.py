@@ -265,7 +265,7 @@ def test_un_intento_jugado_de_verdad_alimenta_la_analitica(estudiante, case_vers
 
     (row,) = analytics.load_rows({attempt.student_id}, attempt.case_version_id)
 
-    assert row.attempt_id == str(attempt_id) and row.schema_version == 3 and row.ordinal == 1
+    assert row.attempt_id == str(attempt_id) and row.schema_version == 4 and row.ordinal == 1
     assert row.levels and set(row.levels) <= {INI, PRO, LOG, DES}  # el perfil por competencia llegó
     assert isinstance(row.non_recommended, int) and row.non_recommended >= 0
     assert row.reflection_definition == "ANY" and isinstance(row.reflection_covered, bool)

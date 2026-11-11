@@ -10,6 +10,8 @@ from apps.grupos.models import Grupo
 from apps.simulation.models import CaseVersion, DecisionOption, SimulationAttempt
 from apps.simulation.services import instructor_service
 
+from .case_exploration import explore_what_the_case_asks_for
+
 pytestmark = pytest.mark.usefixtures("fetch_raise")  # DJA-7: un acceso perezoso accidental lanza
 
 User = get_user_model()
@@ -186,6 +188,7 @@ def test_trace_exposes_reconsidered_answers_apart_from_decisions(estudiante, pro
     ).data["data"]
     token, attempt_id = start["attemptToken"], start["attemptId"]
     client.get(f"/api/simulation/attempts/{attempt_id}/world", HTTP_X_SIEP_ATTEMPT_TOKEN=token)
+    explore_what_the_case_asks_for(attempt_id)  # el caso 2.1 retiene la recomendada hasta explorar
     for key in ("h1-interrogar-victima", "h1-pap-contencion"):  # prohibida (reintento) y luego la adecuada
         option = DecisionOption.objects.get(case_version_id=case_version_id, option_key=key)
         resp = client.post(
@@ -240,6 +243,7 @@ def _play_recommended_decision(estudiante, case_version_id, codigo, profesor):
     start = client.post("/api/simulation/attempts", {"caseVersionId": case_version_id}, format="json").data["data"]
     token, attempt_id = start["attemptToken"], start["attemptId"]
     client.get(f"/api/simulation/attempts/{attempt_id}/world", HTTP_X_SIEP_ATTEMPT_TOKEN=token)
+    explore_what_the_case_asks_for(attempt_id)  # el caso 2.1 retiene la recomendada hasta explorar
     option = DecisionOption.objects.get(case_version_id=case_version_id, option_key="h1-pap-contencion")
     resp = client.post(
         f"/api/simulation/attempts/{attempt_id}/decisions",

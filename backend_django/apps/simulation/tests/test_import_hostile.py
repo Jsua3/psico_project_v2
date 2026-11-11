@@ -137,7 +137,9 @@ def test_repeated_keys_are_refused_instead_of_silently_merged(admin, raw):
 
 def _with_number(full, token):
     """El documento con ``token`` como valor dentro de un objeto libre (que ningún esquema tipa)."""
-    full["x-siep"]["escenas"][0]["mapa"]["ambiente"] = {"numero": "__NUMERO__"}
+    # Se suma al ambiente existente: ahí viven los personajes de ambiente de los que dependen los requisitos del caso 2.1.
+    ambient = full["x-siep"]["escenas"][0]["mapa"].get("ambiente")
+    full["x-siep"]["escenas"][0]["mapa"]["ambiente"] = {**(ambient if isinstance(ambient, dict) else {}), "numero": "__NUMERO__"}
     raw = dumps(full).replace(b'"__NUMERO__"', token, 1)
     assert token in raw
     return raw

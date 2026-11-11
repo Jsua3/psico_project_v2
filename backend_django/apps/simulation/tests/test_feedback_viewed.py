@@ -15,7 +15,7 @@ from apps.simulation.models import AttemptEvent, AttemptReport, DecisionOption, 
 from apps.simulation.services import attempt_report, game_service
 from shared.testing import measure, run_concurrently
 
-from .test_attempt_concurrency import _option, committed_attempt  # noqa: F401  (fixture)
+from .test_attempt_concurrency import _option, committed_attempt, explored_attempt  # noqa: F401  (fixtures)
 from .test_attempt_report_frozen import (  # noqa: F401  (fixtures y ayudantes)
     BASE,
     _complete,
@@ -207,9 +207,9 @@ def test_leer_como_dueno_cuesta_una_sola_escritura_que_la_base_descarta_al_repet
     assert owner_again.queries == owner_first.queries  # repetir cuesta lo mismo: nada de «¿existe ya?» antes
 
 
-def test_dos_lecturas_simultaneas_dejan_un_solo_evento(committed_attempt):
+def test_dos_lecturas_simultaneas_dejan_un_solo_evento(explored_attempt):
     """Hilos con commits reales: la clave de idempotencia es de la base, no de una comprobación previa."""
-    a = committed_attempt
+    a = explored_attempt
     for _ in range(12):
         attempt = SimulationAttempt.objects.get(pk=a.attempt_id)
         if attempt.status != "IN_PROGRESS":

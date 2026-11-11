@@ -19,6 +19,7 @@ from rest_framework.test import APIClient
 from apps.grupos.models import CaseAssignment, Grupo, GrupoEstudiante
 from apps.privacy.models import ConsentRecord
 from apps.progression.models import StudentCaseCompletion
+from apps.simulation.tests.case_exploration import explore_what_the_case_asks_for
 from apps.simulation.models import (
     AttemptFeedback,
     AttemptHintView,
@@ -177,10 +178,11 @@ class Mundo:
         assert mundo.status_code == 200, mundo.data
         self._post(f"{ruta}/safe-exit", {"attemptToken": token, "reason": f"Necesito pausar {self.m['salida']}"})
         self._post(f"{ruta}/resume", {"attemptToken": token})
-        adecuada = next(
-            opcion["id"] for opcion in inicio["currentNode"]["options"]
-            if DecisionOption.objects.get(pk=opcion["id"]).response_class == "RECOMMENDED"
-        )
+        # El caso 2.1 retiene la recomendada hasta explorar: se deja lo explorado y se elige por clase en la base.
+        explore_what_the_case_asks_for(inicio["attemptId"])
+        adecuada = DecisionOption.objects.filter(
+            source_node_id=inicio["currentNode"]["id"], response_class="RECOMMENDED"
+        ).order_by("id").values_list("id", flat=True).first()
         self._post(
             f"{ruta}/decisions",
             {

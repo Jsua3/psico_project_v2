@@ -5,7 +5,6 @@ Corre contra el caso publicado por seed_caso_pdf (SIM-VBG-001 v2.x):
 hospital-urgencias ⇄ hospital-sala-escucha → comisaria-recepcion ⇄
 comisaria-consultorio, con 6 decisiones canónicas.
 """
-import json
 import uuid
 from datetime import timedelta
 
@@ -24,7 +23,8 @@ from apps.simulation.models import (
     DialogueChoice,
     SimulationAttempt,
 )
-from apps.simulation.services import case_state, world_service
+from apps.simulation.services import case_state
+from .case_exploration import explore_what_the_case_asks_for
 
 User = get_user_model()
 #: El rótulo del hito que el documento sembrado declara para «medidas_proteccion_activadas».
@@ -86,21 +86,7 @@ def _inspect(client, attempt_id, token, key):
     return resp.data["data"]
 
 
-def _explore_what_the_case_asks(attempt_id):
-    """Deja en el mundo del intento lo que piden los requisitos de las opciones recomendadas (SIM-VBG-001 2.1).
-
-    Es lo que dejaría un recorrido completo: hablar con la enfermera de urgencias, tener y usar PAP, tener SPIKES y
-    usar el medidor de riesgo. Se escribe directo en el estado del mundo (sin registro por sala, así que valen las
-    listas globales) para que estas pruebas sigan siendo del flujo de decisiones y no de la caminata.
-    """
-    # La lectura del mundo no lo guarda (E1-6): se resuelve el que tendría y se persiste con lo explorado.
-    state, _ = world_service.resolve_world_state(SimulationAttempt.objects.get(pk=attempt_id))
-    flags = json.loads(state.flags_json or "{}")
-    flags["viewedNpcKeys"] = ["enfermera-urgencias"]
-    state.flags_json = json.dumps(flags)
-    state.inventory_json = json.dumps(["PAP", "SPIKES", "RISK_METER"])
-    state.used_tool_keys_json = json.dumps(["PAP@familia-crisis", "RISK_METER@sobreviviente-consulta"])
-    state.save(force_insert=state._state.adding)
+_explore_what_the_case_asks = explore_what_the_case_asks_for
 
 
 def _move(client, attempt_id, token, map_key, *points):

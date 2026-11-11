@@ -15,7 +15,7 @@ from django.utils import timezone
 from apps.simulation.models import AttemptEvent, ReflectionJournal, SimulationAttempt
 
 from .test_game import (  # noqa: F401
-    assign_case_to_student, attempt_headers, case_version_id, classification_of, cl, estudiante,
+    assign_case_to_student, attempt_headers, case_version_id, classification_of, cl, estudiante, explore_what_the_case_asks,
 )
 
 STATUSES = ["IN_PROGRESS", "PAUSED", "COMPLETED", "REPLACED", "SAFE_EXITED"]
@@ -256,7 +256,7 @@ def test_llegar_a_un_nodo_terminal_completa_el_intento_y_lo_cierra(intentos):
     )
     assert note.status_code == 200
 
-    state = attempt
+    state = explore_what_the_case_asks(client, attempt)  # el caso 2.1 retiene las recomendadas hasta explorar
     for _ in range(25):
         if state["status"] != "IN_PROGRESS":
             break

@@ -6,6 +6,7 @@ from rest_framework.test import APIClient
 from apps.grupos.models import Grupo
 from apps.progression.models import StudentCaseCompletion
 from apps.simulation.models import CaseVersion, DecisionOption
+from apps.simulation.tests.case_exploration import explore_what_the_case_asks
 
 User = get_user_model()
 
@@ -49,7 +50,7 @@ def test_completing_case_records_completion(estudiante, case_version_id):
     c = _cl(estudiante)
     start = c.post("/api/simulation/attempts", {"caseVersionId": case_version_id}, format="json").data["data"]
     token, attempt_id = start["attemptToken"], start["attemptId"]
-    state = start
+    state = explore_what_the_case_asks(c, start)  # el caso 2.1 retiene las recomendadas hasta explorar
     for _ in range(25):
         if state["status"] != "IN_PROGRESS":
             break

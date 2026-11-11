@@ -39,7 +39,7 @@ def _node(**overrides):
         id=7, node_key="n-1", title="Escena", narrative="Texto",
         support_resources_json='["Línea 106", "Bienestar"]', required_tools_json='["PAP"]',
         sensitive_content=False, safe_exit_required=False, warning_message=None,
-        terminal_node=False, decision_prompt="", display_order=0, intensity="MEDIUM",
+        terminal_node=False, decision_prompt="", display_order=0, intensity="MEDIUM", goal="",
     )
     base.update(overrides)
     return SimpleNamespace(**base)

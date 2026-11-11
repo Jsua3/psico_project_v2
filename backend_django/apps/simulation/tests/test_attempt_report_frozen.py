@@ -21,6 +21,7 @@ from apps.simulation.models import (
 )
 from apps.simulation.services import case_state
 
+from .case_exploration import explore_what_the_case_asks_for
 from .test_world import _start, case_version_id, cl, estudiante  # noqa: F401  (fixtures)
 
 pytestmark = [pytest.mark.req("RF-22"), pytest.mark.req("RF-23"), pytest.mark.req("CU-12"), pytest.mark.req("TD-08")]
@@ -37,7 +38,10 @@ def _decide(client, attempt_id, token, option_id, **extra):
 
 
 def _complete(client, attempt_id, token, first_bad=False):
-    """Recorre el caso con la opción adecuada de cada nodo (con un reintento al inicio si se pide)."""
+    """Recorre el caso con la opción adecuada de cada nodo (con un reintento al inicio si se pide).
+
+    Antes explora lo que piden los requisitos de las recomendadas (SIM-VBG-001 2.1)."""
+    explore_what_the_case_asks_for(attempt_id)
     for step in range(30):
         attempt = SimulationAttempt.objects.get(pk=attempt_id)
         if attempt.status != "IN_PROGRESS":
