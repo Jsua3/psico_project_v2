@@ -5,6 +5,7 @@ Corre contra el caso publicado por seed_caso_pdf (SIM-VBG-001 v2.x):
 hospital-urgencias ⇄ hospital-sala-escucha → comisaria-recepcion ⇄
 comisaria-consultorio, con 6 decisiones canónicas.
 """
+import json
 import uuid
 from datetime import timedelta
 
@@ -16,8 +17,14 @@ from rest_framework.test import APIClient
 
 from apps.grupos.models import Grupo
 from apps.simulation.casedef.vocabulary import Activation, Bond
-from apps.simulation.models import AttemptEvent, CaseVersion, DecisionOption, DialogueChoice, SimulationAttempt
-from apps.simulation.services import case_state
+from apps.simulation.models import (
+    AttemptEvent,
+    CaseVersion,
+    DecisionOption,
+    DialogueChoice,
+    SimulationAttempt,
+)
+from apps.simulation.services import case_state, world_service
 
 User = get_user_model()
 #: El rótulo del hito que el documento sembrado declara para «medidas_proteccion_activadas».
@@ -77,6 +84,23 @@ def _inspect(client, attempt_id, token, key):
     )
     assert resp.status_code == 200, f"interacción {key}: {resp.data}"
     return resp.data["data"]
+
+
+def _explore_what_the_case_asks(attempt_id):
+    """Deja en el mundo del intento lo que piden los requisitos de las opciones recomendadas (SIM-VBG-001 2.1).
+
+    Es lo que dejaría un recorrido completo: hablar con la enfermera de urgencias, tener y usar PAP, tener SPIKES y
+    usar el medidor de riesgo. Se escribe directo en el estado del mundo (sin registro por sala, así que valen las
+    listas globales) para que estas pruebas sigan siendo del flujo de decisiones y no de la caminata.
+    """
+    # La lectura del mundo no lo guarda (E1-6): se resuelve el que tendría y se persiste con lo explorado.
+    state, _ = world_service.resolve_world_state(SimulationAttempt.objects.get(pk=attempt_id))
+    flags = json.loads(state.flags_json or "{}")
+    flags["viewedNpcKeys"] = ["enfermera-urgencias"]
+    state.flags_json = json.dumps(flags)
+    state.inventory_json = json.dumps(["PAP", "SPIKES", "RISK_METER"])
+    state.used_tool_keys_json = json.dumps(["PAP@familia-crisis", "RISK_METER@sobreviviente-consulta"])
+    state.save(force_insert=state._state.adding)
 
 
 def _move(client, attempt_id, token, map_key, *points):
@@ -278,12 +302,13 @@ def test_decision_hospital_recomendada_cumple_hitos_y_mueve_a_la_persona(estudia
     c = cl(estudiante)
     attempt_id, token = _start(c, case_version_id)
     _world(c, attempt_id, token)  # materializa el world state
+    _explore_what_the_case_asks(attempt_id)
     assert _milestones(attempt_id) == frozenset()
     assert _persona(attempt_id) == (Bond.GUARDED, Activation.TENSE)
 
     payload = _decide_payload(c, attempt_id, token, "h1-pap-contencion", case_version_id)
 
-    assert set(payload) == {"attempt", "consequence"}
+    assert set(payload) == {"attempt", "consequence", "reaction"}
     assert payload["attempt"]["currentNode"]["key"] != "hospital-urgencias"
     assert _milestones(attempt_id) >= {"pap_aplicado", "familia_contenida"}
     assert _persona(attempt_id) == (Bond.OPEN, Activation.CALM)  # Recomendada: +1 vínculo, -1 activación
@@ -298,7 +323,7 @@ def test_decision_hospital_critica_exige_reintento_sin_cumplir_hitos_ni_mover_a_
 
     payload = _decide_payload(c, attempt_id, token, "h1-interrogar-victima", case_version_id)
 
-    assert set(payload) == {"attempt", "consequence", "retry"}
+    assert set(payload) == {"attempt", "consequence", "reaction", "retry"}
     assert payload["retry"]["allowed"] is True
     assert payload["attempt"]["currentNode"]["key"] == "hospital-urgencias"
     assert _milestones(attempt_id) == frozenset()
@@ -310,6 +335,7 @@ def test_decision_hospital_critica_exige_reintento_sin_cumplir_hitos_ni_mover_a_
 
 def _play_hospital(c, attempt_id, token, case_version_id, h1, h2, h3):
     _world(c, attempt_id, token)
+    _explore_what_the_case_asks(attempt_id)
     _decide(c, attempt_id, token, h1, case_version_id)
     _decide(c, attempt_id, token, h2, case_version_id)
     _decide(c, attempt_id, token, h3, case_version_id)
@@ -324,7 +350,7 @@ def test_decision_comisaria_recomendada_cumple_los_hitos_de_proteccion(estudiant
 
     payload = _decide_payload(c, attempt_id, token, "c1-riesgo-proteccion-derechos", case_version_id)
 
-    assert set(payload) == {"attempt", "consequence"}
+    assert set(payload) == {"attempt", "consequence", "reaction"}
     assert _milestones(attempt_id) >= {
         "riesgo_feminicidio_valorado", "medidas_proteccion_activadas", "asesoria_derechos_realizada",
     }
@@ -351,6 +377,7 @@ def test_decision_comisaria_critica_exige_reintento_sin_cumplir_el_hito_de_prote
 
 def _play_full(c, attempt_id, token, case_version_id, keys):
     _world(c, attempt_id, token)
+    _explore_what_the_case_asks(attempt_id)
     state = None
     for key in keys:
         state = _decide(c, attempt_id, token, key, case_version_id)

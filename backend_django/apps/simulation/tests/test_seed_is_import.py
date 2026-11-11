@@ -182,7 +182,7 @@ def test_the_case_code_and_the_semantic_version_options_still_work(db):
     expected["caso"]["id"], expected["caso"]["version"] = "SIM-ALT-001", "3.1.4"
     assert version.status == "PUBLISHED" and version.definition_hash is not None
     assert canonical_bytes(definition_io.export_definition(version.id)) == canonical_bytes(expected)
-    assert _seeded().semantic_version == "2.0.0"  # el canónico no se movió
+    assert _seeded().semantic_version == "2.1.0"  # el canónico no se movió
     assert "SIM-ALT-001" in out
 
 
@@ -222,7 +222,7 @@ def test_the_other_published_versions_of_the_case_are_archived(db):
 
     stray.refresh_from_db()
     assert stray.status == "ARCHIVED"
-    assert _seeded().semantic_version == "2.0.0"
+    assert _seeded().semantic_version == "2.1.0"
 
 
 def test_the_legacy_duplicate_cases_are_still_retired(db):

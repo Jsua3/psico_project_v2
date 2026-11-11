@@ -224,14 +224,14 @@ def _seed(*args):
 
 
 def test_seeding_an_older_version_leaves_the_current_published_one_alone(seeded):
-    """I6: tras ``--semantic-version 2.1.0``, la siembra por defecto (2.0.0, archivada) archivaba la 2.1.0."""
-    _seed("--semantic-version", "2.1.0")
-    assert CaseVersion.objects.get(simulation_case__code=SEED_CODE, status="PUBLISHED").semantic_version == "2.1.0"
+    """I6: tras ``--semantic-version 2.2.0``, la siembra por defecto (2.1.0, archivada) archivaba la 2.2.0."""
+    _seed("--semantic-version", "2.2.0")
+    assert CaseVersion.objects.get(simulation_case__code=SEED_CODE, status="PUBLISHED").semantic_version == "2.2.0"
 
     _, err = _seed()
 
     current = CaseVersion.objects.get(simulation_case__code=SEED_CODE, status="PUBLISHED")  # sin publicada: DoesNotExist
-    assert current.semantic_version == "2.1.0"
+    assert current.semantic_version == "2.2.0"
     assert "ARCHIVED" in err
 
 
