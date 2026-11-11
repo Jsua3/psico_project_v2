@@ -31,7 +31,6 @@ from shared.testing import measure, purge_audit_rows, run_concurrently
 
 from .case_exploration import explore_what_the_case_asks_for
 from .test_world import _move, _start, case_version_id, cl, estudiante  # noqa: F401  (fixtures)
-from .case_exploration import explore_what_the_case_asks_for
 
 pytestmark = [pytest.mark.req("RNF-08"), pytest.mark.req("TD-04")]
 

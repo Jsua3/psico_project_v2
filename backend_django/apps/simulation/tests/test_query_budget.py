@@ -67,7 +67,10 @@ QUERY_BUDGETS = {
     # Tarea 9: 36 → 32 a propósito. El reporte v3 ya no cuenta clasificaciones ni arma las competencias heurísticas; las
     # cuatro consultas que se fueron eran de ese cálculo, y el perfil por competencia y la evaluación del sistema siguen.
     # Bloque A: 32 → 36 a propósito, por lo mismo que ``post_decision`` (+4: opciones de origen, reacción en 2 consultas y la lectura previa del estado del mundo).
-    "post_decision_closing": 36,  # (10) la decisión que cierra: reporte v3 + evaluación del sistema (antes de E6: 26 y 9)
+    # Ronda 1: 36 → 37. Con los hechos de exploración registrados por sala (como los deja el juego), la disponibilidad necesita el
+    # mapa de la escena de decisión; este escenario no pide ``/world`` en cada escena, así que el del mundo no es ese y se
+    # consulta (+1). Un jugador real ya tiene el mapa de la escena cargado y paga 36.
+    "post_decision_closing": 37,  # (10) la decisión que cierra: reporte v3 + evaluación del sistema (antes de E6: 26 y 9)
     "get_student_report_completed": 3,  # (1) la primera lectura del dueño de un intento completado escribe el evento
     # S4-1: 15 → 16 a propósito. Leer el reporte de un grupo es leer datos de otras personas y deja UNA fila de
     # auditoría (`reporte.leer`, RNF-007): es el INSERT de `audit_logs`, la única escritura. Las 15 de lectura no cambian.

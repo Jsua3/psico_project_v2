@@ -93,7 +93,9 @@ def _explored(world_state, node) -> dict:
     }
     by_sala = flags.get(EXPLORED_KEY)
     if isinstance(by_sala, dict):
-        scene_map = SceneMap.objects.filter(node_id=node.id).first()
+        # El mapa del mundo, si ya está cargado y es el de la escena, ahorra la consulta (es lo normal al decidir).
+        loaded = world_state._state.fields_cache.get("scene_map")
+        scene_map = loaded if loaded is not None and loaded.node_id == node.id else SceneMap.objects.filter(node_id=node.id).first()
         entry = by_sala.get(sala_key(scene_map)) if scene_map is not None else None
         entry = entry if isinstance(entry, dict) else {}
         before = flags.get(BEFORE_KEY)
