@@ -12,6 +12,14 @@ con código es solo un nombre que no existe (y por tanto ``False``). El vocabula
     {"persona": {"bond": "OPEN"}}       el estado de la persona consultante: ``bond`` ∈
                                         WITHDRAWN|GUARDED|OPEN y ``activation`` ∈ CALM|TENSE|CRISIS; si trae las
                                         dos, se cumplen ambas
+    {"talked": "enfermera"}             hechos de exploración (bloque A, DSL 2.1): ya habló con ese personaje
+    {"inspected": "historia"}           ya inspeccionó ese objeto
+    {"has": "PAP"}                      tiene ese ítem (o herramienta) en el inventario
+    {"used": "PAP"}                     ya usó esa herramienta; «PAP@familia» cuenta como uso de «PAP»
+
+Los hechos leen ``context["explored"]``, ``{"talked": set, "inspected": set, "has": set, "used": set}`` de cadenas. Solo son
+condiciones válidas al guardar con ``is_valid(..., facts=True)`` (requisitos de opciones y reacciones); los finales se
+siguen validando sin hechos.
 
 Comparadores (``gte``, ``gt``, ``lte``, ``lt``, ``eq``): si hay varios, se cumplen todos. El contexto es
 ``{"counts": {…}, "milestones": {…}, "persona": {"bond": …, "activation": …}}``. Cualquier cosa que no sea una
@@ -32,6 +40,9 @@ PERSONA_DIMENSIONS = {
 }
 #: Hasta dónde se anida una condición; más allá es un dato roto, no un reglamento.
 MAX_DEPTH = 12
+
+#: Hechos de exploración que una condición puede preguntar.
+FACT_KINDS = ("talked", "inspected", "has", "used")
 
 _GROUPS = ("all", "any")
 
@@ -79,6 +90,33 @@ def _persona_spec_valid(spec):
     )
 
 
+def _fact_holds(kind, key, context):
+    """¿``key`` está en ``context["explored"][kind]``? ``used`` también acepta «clave@…»."""
+    explored = context.get("explored")
+    if not isinstance(explored, dict):
+        return False
+    entries = explored.get(kind)
+    if not isinstance(entries, (set, frozenset, list, tuple)):
+        return False
+    if key in entries:
+        return True
+    if kind == "used":
+        prefix = key + "@"
+        return any(isinstance(entry, str) and entry.startswith(prefix) for entry in entries)
+    return False
+
+
+def _fact_of(condition):
+    """``(tipo, clave)`` si ``condition`` es un hecho bien formado; ``None`` si no."""
+    for kind in FACT_KINDS:
+        if kind in condition:
+            key = condition[kind]
+            if _only(condition, kind) and isinstance(key, str) and key:
+                return (kind, key)
+            return None
+    return None
+
+
 def evaluate(condition, context, _depth=0):
     """El valor de verdad de ``condition`` con ``context``; ``False`` ante todo lo desconocido."""
     if _depth > MAX_DEPTH or not isinstance(condition, dict):
@@ -98,7 +136,7 @@ def evaluate(condition, context, _depth=0):
             return False
         inner = condition["not"]
         # ``not`` de algo desconocido no vuelve verdadero lo malformado: sigue siendo falso.
-        return is_valid(inner) and not evaluate(inner, context, next_depth)
+        return is_valid(inner, facts=True) and not evaluate(inner, context, next_depth)
     if "count" in condition:
         name = condition["count"]
         counts = context.get("counts")
@@ -121,11 +159,17 @@ def evaluate(condition, context, _depth=0):
         if not _only(condition, "persona") or not _persona_spec_valid(spec) or not isinstance(persona, dict):
             return False
         return all(persona.get(dimension) == value for dimension, value in spec.items())
+    if any(kind in condition for kind in FACT_KINDS):
+        fact = _fact_of(condition)
+        return fact is not None and _fact_holds(fact[0], fact[1], context)
     return False
 
 
-def is_valid(condition, _depth=0):
-    """¿Es una condición del vocabulario, completa y bien formada? (la regla de guardado, R11)."""
+def is_valid(condition, _depth=0, *, facts=False):
+    """¿Es una condición del vocabulario, completa y bien formada? (la regla de guardado, R11).
+
+    Los hechos de exploración (``talked``, ``inspected``, ``has``, ``used``) solo valen con ``facts=True``.
+    """
     if _depth > MAX_DEPTH or not isinstance(condition, dict):
         return False
     next_depth = _depth + 1
@@ -135,10 +179,10 @@ def is_valid(condition, _depth=0):
             return (
                 _only(condition, group)
                 and isinstance(items, list)
-                and all(is_valid(item, next_depth) for item in items)
+                and all(is_valid(item, next_depth, facts=facts) for item in items)
             )
     if "not" in condition:
-        return _only(condition, "not") and is_valid(condition["not"], next_depth)
+        return _only(condition, "not") and is_valid(condition["not"], next_depth, facts=facts)
     if "count" in condition:
         if not _only(condition, "count", *COMPARATORS):
             return False
@@ -148,4 +192,44 @@ def is_valid(condition, _depth=0):
         return _only(condition, "milestone") and isinstance(condition["milestone"], str) and bool(condition["milestone"])
     if "persona" in condition:
         return _only(condition, "persona") and _persona_spec_valid(condition["persona"])
+    if facts and any(kind in condition for kind in FACT_KINDS):
+        return _fact_of(condition) is not None
     return False
+
+
+def facts_in(condition):
+    """Cada ``(tipo, clave)`` de hecho de ``condition`` una vez, en orden de aparición (también dentro de ``not``)."""
+    found = []
+    _collect_facts(condition, found, 0, into_not=True)
+    return found
+
+
+def unmet_facts(condition, context):
+    """Los hechos de ``condition`` que evalúan a falso con ``context``; no entra a los ``not``."""
+    context = context if isinstance(context, dict) else {}
+    return [fact for fact in _collect_facts_list(condition, False) if not _fact_holds(fact[0], fact[1], context)]
+
+
+def _collect_facts_list(condition, into_not):
+    found = []
+    _collect_facts(condition, found, 0, into_not=into_not)
+    return found
+
+
+def _collect_facts(condition, found, depth, *, into_not):
+    if depth > MAX_DEPTH or not isinstance(condition, dict):
+        return
+    for group in _GROUPS:
+        if group in condition:
+            items = condition[group]
+            if isinstance(items, list):
+                for item in items:
+                    _collect_facts(item, found, depth + 1, into_not=into_not)
+            return
+    if "not" in condition:
+        if into_not:
+            _collect_facts(condition["not"], found, depth + 1, into_not=into_not)
+        return
+    fact = _fact_of(condition)
+    if fact is not None and fact not in found:
+        found.append(fact)
