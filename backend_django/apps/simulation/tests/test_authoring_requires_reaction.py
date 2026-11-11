@@ -84,6 +84,14 @@ def test_put_decision_rejects_bad_values_naming_the_field(api, case, body, field
     assert _row(case).reaction_json == "{}"
 
 
+@pytest.mark.parametrize("linea", ["Con <b>formato</b>", "Mira https://ejemplo.com", "dos\nlíneas"])
+def test_reaction_line_must_be_plain_single_line_text(api, case, linea):
+    response = _put(api, case, reaction={"linea": linea})
+
+    assert response.status_code == 400, response.data
+    assert response.data["field"] == "reaction"
+
+
 def test_a_known_character_is_accepted_and_empty_keys_are_dropped(api, case):
     CaseCharacter.objects.create(case_version_id=case["cv"], character_key="ana", display_name="Ana")
 
@@ -127,6 +135,10 @@ def test_put_node_saves_goal_and_rejects_a_long_one(api, case):
     too_long = _put_node(api, case, goal="g" * 201)
     assert too_long.status_code == 400
     assert too_long.data["field"] == "goal"
+
+    multiline = _put_node(api, case, goal="uno\ndos")
+    assert multiline.status_code == 400
+    assert multiline.data["field"] == "goal"
 
     # ausente = no tocar
     assert _put_node(api, case).status_code == 200
@@ -182,3 +194,20 @@ def test_requires_of_reads_strictly(stored, expected):
 ])
 def test_reaction_of_is_lenient(stored, expected):
     assert case_rules.reaction_of(_Row(reaction_json=stored)) == expected
+
+
+@pytest.mark.parametrize("linea", ["Mira http://ejemplo.com", "dos\nlíneas", "x" * 401])
+def test_document_text_check_governs_the_reaction_line(linea):
+    from apps.simulation.casedef.export import to_document
+    from apps.simulation.casedef.validate import validate_document
+    from apps.simulation.tests.definition_samples import sample_definition_v21
+
+    document = to_document(sample_definition_v21())
+    assert not [i for i in validate_document(document) if i.code.startswith("DSL.TEXT")]
+    option = next(o for s in document["x-siep"]["escenas"] for o in s.get("opciones", []) if o.get("reaccion"))
+    option["reaccion"]["linea"] = linea
+
+    issues = [i for i in validate_document(document) if i.code.startswith("DSL.TEXT")]
+
+    assert issues
+    assert any("reaccion" in i.path and i.path.endswith("linea") for i in issues)

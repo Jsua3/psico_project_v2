@@ -136,7 +136,7 @@ def _apply_node_request(node, request):
         )
     # El objetivo de la escena (DSL 2.1): igual que el enunciado, texto plano con tope; ausente = no tocar.
     if "goal" in request:
-        node.goal = validate_plain_text(request.get("goal"), GOAL_MAX, "goal", multiline=True)
+        node.goal = validate_plain_text(request.get("goal"), GOAL_MAX, "goal", multiline=False)
 
 
 # ─── Decision CRUD ──────────────────────────────────────────────────────────

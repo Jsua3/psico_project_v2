@@ -38,6 +38,7 @@ from apps.simulation.casedef.vocabulary import (
     RiskLevel,
 )
 from apps.simulation.models.rubric import FormativeLevel
+from apps.simulation.services.text_rules import validate_plain_text
 from shared.exceptions import ApiError
 from shared.jsonutils import read_map
 
@@ -340,8 +341,11 @@ def validate_reaction(raw, character_keys):
             continue
         if not isinstance(value, str):
             raise _refuse(f"«{key}» de la reacción debe ser un texto.", "reaction")
-        if key == "linea" and len(value) > REACTION_LINE_MAX:
-            raise _refuse(f"La línea de la reacción admite hasta {REACTION_LINE_MAX} caracteres.", "reaction")
+        if key == "linea":
+            # Texto plano de una línea, como los demás textos que lee el estudiante; el 400 nombra ``reaction``.
+            value = validate_plain_text(value, REACTION_LINE_MAX, "reaction", multiline=False)
+            if not value:
+                continue
         if key == "emocion" and value not in EXPRESSIONS:
             raise _refuse(f"La emoción «{value}» no existe: {', '.join(EXPRESSIONS)}.", "reaction")
         if key == "gesto" and value not in GESTURES:
