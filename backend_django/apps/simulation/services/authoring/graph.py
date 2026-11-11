@@ -7,8 +7,8 @@ from rest_framework import status
 from rest_framework.exceptions import ValidationError
 
 from apps.simulation.casedef.legacy import intensity_for
-from apps.simulation.casedef.vocabulary import CLASSIFICATION_OF_CLASS, ResponseClass, legacy_class
-from apps.simulation.models import DecisionOption, SimulationNode
+from apps.simulation.casedef.vocabulary import CLASSIFICATION_OF_CLASS, GOAL_MAX, ResponseClass, legacy_class
+from apps.simulation.models import CaseCharacter, DecisionOption, SimulationNode
 from apps.simulation.services import case_rules
 from apps.simulation.services.text_rules import validate_plain_text
 from shared.exceptions import ApiError
@@ -134,6 +134,9 @@ def _apply_node_request(node, request):
         node.decision_prompt = validate_plain_text(
             request.get("decisionPrompt"), MAX_DECISION_PROMPT_LENGTH, "decisionPrompt", multiline=True
         )
+    # El objetivo de la escena (DSL 2.1): igual que el enunciado, texto plano con tope; ausente = no tocar.
+    if "goal" in request:
+        node.goal = validate_plain_text(request.get("goal"), GOAL_MAX, "goal", multiline=True)
 
 
 # ─── Decision CRUD ──────────────────────────────────────────────────────────
@@ -218,6 +221,16 @@ def _apply_decision_request(decision, request, case_version_id, version):
     if "effects" in request:
         milestones = {milestone.key for milestone in case_rules.rules_of(version).milestones}
         decision.effects = json.dumps(case_rules.validate_effects(request.get("effects"), milestones), ensure_ascii=False)
+    # Requisito y reacción (DSL 2.1): «ausente = no tocar»; nulo o ``{}`` los limpia; lo roto es un 400 con el campo.
+    if "requires" in request:
+        decision.requires_json = json.dumps(case_rules.validate_requires(request.get("requires")), ensure_ascii=False)
+    if "reaction" in request:
+        characters = set(
+            CaseCharacter.objects.filter(case_version_id=case_version_id).values_list("character_key", flat=True)
+        )
+        decision.reaction_json = json.dumps(
+            case_rules.validate_reaction(request.get("reaction"), characters), ensure_ascii=False
+        )
 
 
 def _apply_response_class(decision, request):

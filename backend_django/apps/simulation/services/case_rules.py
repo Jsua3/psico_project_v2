@@ -22,12 +22,21 @@ Un valor ausente, de otro tipo o fuera del vocabulario toma el valor por defecto
 nunca rompe una partida (Review Focus 5 del maestro). Lo mismo vale para los ``effects`` de una opción
 (``normalize_effects``), que ``validate_effects`` exige estrictos al autorarlos.
 """
+import json
 import re
 from dataclasses import dataclass
 
 from rest_framework import status
 
-from apps.simulation.casedef.vocabulary import RiskLevel
+from apps.simulation.casedef import conditions
+from apps.simulation.casedef.vocabulary import (
+    EXPRESSIONS,
+    GESTURES,
+    REACTION_KEYS,
+    REACTION_LINE_MAX,
+    REQUIRES_MAX_CHARS,
+    RiskLevel,
+)
 from apps.simulation.models.rubric import FormativeLevel
 from shared.exceptions import ApiError
 from shared.jsonutils import read_map
@@ -202,9 +211,9 @@ def competency_overrides(decision):
     return effects_of(decision).get("competencies", {})
 
 
-def _refuse(message):
+def _refuse(message, field="effects"):
     # BORRADOR: texto nuevo del servidor, pendiente de la aprobación de Psicología (VD-23).
-    return ApiError("VALIDATION_ERROR", message, status.HTTP_400_BAD_REQUEST, field="effects")
+    return ApiError("VALIDATION_ERROR", message, status.HTTP_400_BAD_REQUEST, field=field)
 
 
 def validate_effects(raw, allowed_milestones=()):
@@ -268,3 +277,76 @@ def validate_effects(raw, allowed_milestones=()):
         if milestones:
             effects["milestones"] = list(dict.fromkeys(milestones))
     return effects
+
+
+# ─── el requisito y la reacción de una opción (DSL 2.1) ──────────────────────────────────────
+
+
+def requires_of(decision):
+    """El requisito de la opción: ``{}`` si no tiene, la condición si es válida, ``None`` si lo guardado está roto.
+
+    Lectura estricta a propósito: ``read_map`` convertiría un JSON roto en ``{}`` («sin requisito») y la opción
+    quedaría disponible con datos rotos. Quien la usa trata ``None`` como «no disponible».
+    """
+    raw = getattr(decision, "requires_json", None)
+    if raw is None or raw == "":
+        return None
+    try:
+        value = json.loads(raw)
+    except (TypeError, ValueError):
+        return None
+    if not isinstance(value, dict):
+        return None
+    if value == {}:
+        return {}
+    return value if conditions.is_valid(value, facts=True) else None
+
+
+def reaction_of(decision):
+    """La reacción guardada de la opción, o ``{}`` si no trae o está rota (lectura indulgente, como ``effects_of``)."""
+    return read_map(getattr(decision, "reaction_json", None))
+
+
+def validate_requires(raw):
+    """El requisito que manda el editor, estricto: la condición o 400 con ``field: requires``. ``None`` y ``{}`` limpian."""
+    if raw is None or raw == {}:
+        return {}
+    # BORRADOR: texto nuevo del servidor, pendiente de la aprobación de Psicología
+    if not isinstance(raw, dict) or not conditions.is_valid(raw, facts=True):
+        raise _refuse("El requisito no es una condición válida del vocabulario del caso.", "requires")
+    # BORRADOR: texto nuevo del servidor, pendiente de la aprobación de Psicología
+    if len(json.dumps(raw, ensure_ascii=False)) > REQUIRES_MAX_CHARS:
+        raise _refuse(f"El requisito es demasiado largo: el máximo es {REQUIRES_MAX_CHARS} caracteres.", "requires")
+    return raw
+
+
+def validate_reaction(raw, character_keys):
+    """La reacción que manda el editor, estricta: solo las claves no vacías, o 400 con ``field: reaction``.
+
+    ``None`` y ``{}`` limpian. ``character_keys`` son las claves de los personajes que declara el caso.
+    """
+    if raw is None or raw == {}:
+        return {}
+    # BORRADOR: texto nuevo del servidor, pendiente de la aprobación de Psicología
+    if not isinstance(raw, dict):
+        raise _refuse("La reacción debe ser un objeto con linea, emocion, gesto y personaje.", "reaction")
+    unknown = [key for key in raw if key not in REACTION_KEYS]
+    if unknown:
+        raise _refuse(f"La reacción no admite «{unknown[0]}»: solo {', '.join(REACTION_KEYS)}.", "reaction")
+    reaction = {}
+    for key in REACTION_KEYS:
+        value = raw.get(key)
+        if value is None or value == "":
+            continue
+        if not isinstance(value, str):
+            raise _refuse(f"«{key}» de la reacción debe ser un texto.", "reaction")
+        if key == "linea" and len(value) > REACTION_LINE_MAX:
+            raise _refuse(f"La línea de la reacción admite hasta {REACTION_LINE_MAX} caracteres.", "reaction")
+        if key == "emocion" and value not in EXPRESSIONS:
+            raise _refuse(f"La emoción «{value}» no existe: {', '.join(EXPRESSIONS)}.", "reaction")
+        if key == "gesto" and value not in GESTURES:
+            raise _refuse(f"El gesto «{value}» no existe: {', '.join(GESTURES)}.", "reaction")
+        if key == "personaje" and value not in character_keys:
+            raise _refuse(f"El caso no tiene el personaje «{value}».", "reaction")
+        reaction[key] = value
+    return reaction
