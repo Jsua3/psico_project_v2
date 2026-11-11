@@ -158,6 +158,63 @@ def test_reaction_character_picks_the_person_by_character(game):
 
 def test_no_person_and_no_line_means_no_reaction(db):
     decision = SimpleNamespace(
-        response_class="ACCEPTABLE", reaction_json="{}", source_node_id=-1, id=-1,
+        response_class="ACCEPTABLE", reaction_json="{}", source_node_id=-1, case_version_id=-1, id=-1,
     )
     assert reaction.resolve(decision, vocabulary.INITIAL_PERSONA) is None
+
+
+# ─── Ruling 10: reacciona la persona de la sala donde se decide, en el caso real ───
+def _real_case_attempt(actor):
+    """Siembra SIM-VBG-001 (2.1.0) y abre un intento; devuelve ``(attempt, token, version_id)``."""
+    from django.core.management import call_command
+
+    call_command("seed_caso_pdf")
+    version = CaseVersion.objects.get(simulation_case__code="SIM-VBG-001", status="PUBLISHED")
+    _assign_case_to_student(actor, version.id)
+    started = game_service.start_attempt(version.id, actor)
+    return SimulationAttempt.objects.get(pk=started["attemptId"]), started["attemptToken"], version.id
+
+
+def _grant_what_the_case_asks(attempt):
+    world_state = require_world_state(attempt)
+    flags = read_map(world_state.flags_json)
+    flags["viewedNpcKeys"] = ["enfermera-urgencias"]
+    world_state.flags_json = write_map(flags)
+    world_state.inventory_json = json.dumps(["PAP", "SPIKES", "RISK_METER"])
+    world_state.used_tool_keys_json = json.dumps(["PAP@familia-crisis", "RISK_METER@sobreviviente-consulta"])
+    world_state.save()
+
+
+def _go_to(attempt, map_key):
+    """Pone al estudiante en otro mapa del mundo sin mover el nodo (como al cruzar una puerta)."""
+    from apps.simulation.models import SceneMap
+
+    world_state = require_world_state(attempt)
+    world_state.scene_map = SceneMap.objects.get(case_version_id=attempt.case_version_id, map_key=map_key)
+    world_state.save()
+
+
+def test_h1_reacts_with_the_person_of_the_room_where_the_student_decides(actor, author):
+    attempt, token, version_id = _real_case_attempt(actor)
+    _grant_what_the_case_asks(attempt)
+    _go_to(attempt, "hospital-sala-escucha")
+    option = DecisionOption.objects.get(case_version_id=version_id, option_key="h1-pap-contencion")
+
+    response = game_service.choose_decision(attempt.id, token, option.id, actor)
+
+    assert response["reaction"]["objectKey"] == "familia-duelo"
+    assert response["reaction"]["line"].startswith("(La abuela respira un poco más despacio")
+    assert (response["reaction"]["emotion"], response["reaction"]["gesture"]) == ("triste", "se-acerca")
+
+
+def test_a_decision_without_written_reaction_still_gets_the_person_who_offers_it(actor, author):
+    attempt, token, version_id = _real_case_attempt(actor)
+    _grant_what_the_case_asks(attempt)
+    _go_to(attempt, "hospital-sala-escucha")
+    option = DecisionOption.objects.get(case_version_id=version_id, option_key="h1-noticia-sin-protocolo")
+    assert option.reaction_json in (None, "", "{}")
+
+    response = game_service.choose_decision(attempt.id, token, option.id, actor)  # contraindicada: reintento
+
+    assert response["reaction"]["objectKey"] == "familia-duelo"
+    assert response["reaction"]["gesture"] in ("se-aparta", "se-agita")

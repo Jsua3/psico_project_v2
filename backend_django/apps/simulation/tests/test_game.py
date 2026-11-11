@@ -11,7 +11,7 @@ from rest_framework.test import APIClient
 
 from apps.grupos.models import Grupo
 from apps.simulation.models import AttemptEvent, CaseVersion, DecisionOption, ReflectionJournal, SimulationAttempt
-from apps.simulation.services import attempt_report, case_state, crypto_service
+from apps.simulation.services import attempt_report, case_state, crypto_service, world_service
 from apps.simulation.services.game_service import RETRY_NEUTRAL_MESSAGE
 
 User = get_user_model()
@@ -35,6 +35,21 @@ def cl(user):
     c = APIClient()
     c.force_authenticate(user=user)
     return c
+
+
+def explore_what_the_case_asks(client, attempt):
+    """Deja en el mundo lo que piden los requisitos del caso (hablar con la enfermera, PAP, SPIKES, RISK_METER) y devuelve
+    el intento tal como lo ve el estudiante ahora (con las opciones que ya se ofrecen). Ver ``test_caso_pdf``."""
+    state, _ = world_service.resolve_world_state(SimulationAttempt.objects.get(pk=attempt["attemptId"]))
+    flags = json.loads(state.flags_json or "{}")
+    flags["viewedNpcKeys"] = ["enfermera-urgencias"]
+    state.flags_json = json.dumps(flags)
+    state.inventory_json = json.dumps(["PAP", "SPIKES", "RISK_METER"])
+    state.used_tool_keys_json = json.dumps(["PAP@familia-crisis", "RISK_METER@sobreviviente-consulta"])
+    state.save(force_insert=state._state.adding)
+    return client.get(
+        f"/api/simulation/attempts/{attempt['attemptId']}", HTTP_X_SIEP_ATTEMPT_TOKEN=attempt["attemptToken"]
+    ).data["data"]
 
 
 def attempt_headers(token):
@@ -102,6 +117,7 @@ def test_decision_override_persists_missing_evidence(estudiante, case_version_id
     attempt = c.post(
         "/api/simulation/attempts", {"caseVersionId": case_version_id}, format="json",
     ).data["data"]
+    attempt = explore_what_the_case_asks(c, attempt)
     option_id = next(
         option["id"] for option in attempt["currentNode"]["options"]
         if classification_of(option) == "ADEQUATE"
@@ -128,7 +144,7 @@ def test_decision_override_persists_missing_evidence(estudiante, case_version_id
 
     # T11.2: las etiquetas internas quedan solo en el evento; el jugador no las lee.
     shown = json.dumps(response.data["data"]).lower()
-    assert set(response.data["data"]) == {"attempt", "consequence"}
+    assert set(response.data["data"]) == {"attempt", "consequence", "reaction"}
     assert "override" not in shown
     assert "usar pap" not in shown
     assert "hablar con la familia" not in shown
@@ -147,6 +163,7 @@ def test_full_playthrough_reaches_terminal_and_locks_reflection(estudiante, case
     data = start.data["data"]
     token, attempt_id = data["attemptToken"], data["attemptId"]
     assert data["status"] == "IN_PROGRESS"
+    data = explore_what_the_case_asks(c, data)
 
     # Reflection at the start node -> encrypted at rest, unlocked while in progress.
     node_id = data["currentNode"]["id"]
@@ -175,7 +192,7 @@ def test_full_playthrough_reaches_terminal_and_locks_reflection(estudiante, case
         )
         assert resp.status_code == 200
         assert resp.data["message"] == "Decision procesada"
-        assert set(resp.data["data"]) == {"attempt", "consequence"}
+        assert set(resp.data["data"]) == {"attempt", "consequence", "reaction"}
         assert resp.data["data"]["consequence"]["text"]
         state = resp.data["data"]["attempt"]
 
@@ -207,6 +224,7 @@ def test_inadequate_decision_requires_retry_without_advancing(estudiante, case_v
     assign_case_to_student(estudiante, case_version_id, "SIM-RETRY")
     c = cl(estudiante)
     start = c.post("/api/simulation/attempts", {"caseVersionId": case_version_id}, format="json").data["data"]
+    start = explore_what_the_case_asks(c, start)
     attempt_id, token = start["attemptId"], start["attemptToken"]
     node_id = start["currentNode"]["id"]
     node_key = start["currentNode"]["key"]
@@ -224,7 +242,7 @@ def test_inadequate_decision_requires_retry_without_advancing(estudiante, case_v
         format="json",
     )
     assert retry.status_code == 200
-    assert set(retry.data["data"]) == {"attempt", "consequence", "retry"}
+    assert set(retry.data["data"]) == {"attempt", "consequence", "reaction", "retry"}
     assert retry.data["data"]["retry"] == {"allowed": True, "message": RETRY_NEUTRAL_MESSAGE}
     retry_state = retry.data["data"]["attempt"]
     assert retry_state["status"] == "IN_PROGRESS"
@@ -255,6 +273,7 @@ def test_risky_decision_requires_retry_without_advancing(estudiante, case_versio
     assign_case_to_student(estudiante, case_version_id, "SIM-RISKY")
     c = cl(estudiante)
     start = c.post("/api/simulation/attempts", {"caseVersionId": case_version_id}, format="json").data["data"]
+    start = explore_what_the_case_asks(c, start)
     attempt_id, token = start["attemptId"], start["attemptToken"]
 
     first_correct = DecisionOption.objects.filter(
@@ -284,7 +303,7 @@ def test_risky_decision_requires_retry_without_advancing(estudiante, case_versio
         format="json",
     )
     assert retry.status_code == 200
-    assert set(retry.data["data"]) == {"attempt", "consequence", "retry"}
+    assert set(retry.data["data"]) == {"attempt", "consequence", "reaction", "retry"}
     assert retry.data["data"]["retry"] == {"allowed": True, "message": RETRY_NEUTRAL_MESSAGE}
     retry_state = retry.data["data"]["attempt"]
     assert retry_state["status"] == "IN_PROGRESS"
@@ -434,6 +453,7 @@ def test_completion_report_of_an_unfinished_attempt_is_only_a_summary(estudiante
     c = cl(estudiante)
     attempt = c.post("/api/simulation/attempts",
                      {"caseVersionId": case_version_id, "forceNew": True}, format="json").data["data"]
+    attempt = explore_what_the_case_asks(c, attempt)
     attempt_id, token = attempt["attemptId"], attempt["attemptToken"]
     option_id = next(
         o for o in attempt["currentNode"]["options"] if classification_of(o) == "ADEQUATE"
@@ -458,6 +478,7 @@ def test_attempt_history_lists_own_attempts(estudiante, case_version_id):
     c = cl(estudiante)
     attempt = c.post("/api/simulation/attempts",
                      {"caseVersionId": case_version_id, "forceNew": True}, format="json").data["data"]
+    attempt = explore_what_the_case_asks(c, attempt)
     attempt_id, token = attempt["attemptId"], attempt["attemptToken"]
     option_id = next(
         o for o in attempt["currentNode"]["options"] if classification_of(o) == "ADEQUATE"
@@ -549,6 +570,7 @@ def test_node_options_only_expose_id_and_text(estudiante, case_version_id):
     assign_case_to_student(estudiante, case_version_id, "SIM-NODEJSON")
     c = cl(estudiante)
     start = c.post("/api/simulation/attempts", {"caseVersionId": case_version_id}, format="json").data["data"]
+    start = explore_what_the_case_asks(c, start)
 
     options = start["currentNode"]["options"]
     assert len(options) >= 2
@@ -571,7 +593,7 @@ def test_node_options_only_expose_id_and_text(estudiante, case_version_id):
         {"attemptToken": start["attemptToken"], "decisionOptionId": option["id"]},
         format="json",
     ).data["data"]
-    assert set(decided) == {"attempt", "consequence"}
+    assert set(decided) == {"attempt", "consequence", "reaction"}
     assert "classification" not in json.dumps(decided)
     assert "prohibitedConduct" not in json.dumps(decided)
 
@@ -600,6 +622,7 @@ def test_retries_do_not_lower_report_or_force_critical_ending(estudiante, case_v
     assign_case_to_student(estudiante, case_version_id, "SIM-RETRYEND")
     c = cl(estudiante)
     start = c.post("/api/simulation/attempts", {"caseVersionId": case_version_id}, format="json").data["data"]
+    start = explore_what_the_case_asks(c, start)
     attempt_id, token = start["attemptId"], start["attemptToken"]
     assert _world(c, attempt_id, token).status_code == 200  # materializa el estado del caso
 
@@ -639,6 +662,7 @@ def test_report_recommends_reviewing_a_reconsidered_answer_without_counting_it(e
     assign_case_to_student(estudiante, case_version_id, "SIM-RETRYREC")
     c = cl(estudiante)
     start = c.post("/api/simulation/attempts", {"caseVersionId": case_version_id}, format="json").data["data"]
+    start = explore_what_the_case_asks(c, start)
     attempt_id, token = start["attemptId"], start["attemptToken"]
     assert _world(c, attempt_id, token).status_code == 200
 
@@ -666,6 +690,7 @@ def test_report_recommendation_is_plural_and_replaces_the_generic_closing_one(es
     assign_case_to_student(estudiante, case_version_id, "SIM-RETRYPLURAL")
     c = cl(estudiante)
     start = c.post("/api/simulation/attempts", {"caseVersionId": case_version_id}, format="json").data["data"]
+    start = explore_what_the_case_asks(c, start)
     attempt_id, token = start["attemptId"], start["attemptToken"]
     assert _world(c, attempt_id, token).status_code == 200
 

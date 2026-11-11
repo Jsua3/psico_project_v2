@@ -57,7 +57,7 @@ def test_the_recommended_options_of_the_urgencias_scene_react_and_the_nurse_has_
         if option["clase"] != "RECOMMENDED":
             assert reaction is None
             continue
-        assert reaction["emocion"] == "triste" and reaction["gesto"] == "se-acerca"
+        assert reaction["emocion"] == "triste" and reaction["gesto"] == "se-acerca" and "personaje" not in reaction
         assert reaction["linea"].startswith("(La abuela respira un poco más despacio")
     npcs = scene["mapa"]["ambiente"]["ambientNpcs"]
     assert {n["key"]: n.get("label") for n in npcs}["enfermera-urgencias"] == "Enfermera de urgencias"

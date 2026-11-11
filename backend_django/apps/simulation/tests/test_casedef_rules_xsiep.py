@@ -98,3 +98,46 @@ def test_an_option_without_key_does_not_satisfy_ocl_12_by_accident(clave):
         for choice in dialog["elecciones"]:
             choice.pop("opcion", None)
     assert _states(document)["OCL-12"] == "INCUMPLE"
+
+
+# ─── Ruling 10: la sala es el mapa de la escena o cualquier mapa donde una PERSON ofrece la opción ───
+def _offer_from_another_map(document, character):
+    """Quita la oferta de la opción con requisito del mapa de su escena y la pone en una PERSON de otra escena."""
+    scene = _scene(document)
+    key = _gated(scene)["clave"]
+    for obj in scene["mapa"]["objetos"]:
+        if obj.get("opcion") == key:
+            obj["opcion"] = None
+    for dialog in scene["mapa"]["dialogos"]:
+        for choice in dialog["elecciones"]:
+            if choice.get("opcion") == key:
+                choice["opcion"] = None
+    other = next(s for s in document["x-siep"]["escenas"] if s is not scene)
+    other["mapa"]["objetos"].append(
+        {"clave": "persona-de-otro-mapa", "tipo": "PERSON", "personaje": character, "opcion": key, "visible": True}
+    )
+    return scene
+
+
+def test_an_option_offered_only_by_a_person_of_another_map_satisfies_ocl_12():
+    document = _doc()
+    scene = _offer_from_another_map(document, "otra-persona")
+    _gated(scene)["reaccion"].pop("personaje", None)
+    assert _states(document)["OCL-12"] == "CUMPLE"
+
+
+def test_a_character_standing_where_the_option_is_offered_satisfies_ocl_12():
+    document = _doc()
+    scene = _offer_from_another_map(document, "otra-persona")
+    _gated(scene)["reaccion"]["personaje"] = "otra-persona"
+    assert _states(document)["OCL-12"] == "CUMPLE"
+
+
+def test_a_character_of_a_map_that_does_not_offer_the_option_still_breaks_ocl_12():
+    document = _doc()
+    scene = _offer_from_another_map(document, "otra-persona")
+    third = next(s for s in document["x-siep"]["escenas"] if s is not scene and s["mapa"] is not None
+                 and not any(o["clave"] == "persona-de-otro-mapa" for o in s["mapa"]["objetos"]))
+    third["mapa"]["objetos"].append({"clave": "ajena", "tipo": "PERSON", "personaje": "ajena", "visible": True})
+    _gated(scene)["reaccion"]["personaje"] = "ajena"
+    assert _states(document)["OCL-12"] == "INCUMPLE"

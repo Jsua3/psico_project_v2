@@ -601,8 +601,7 @@
             "reaccion": {
               "emocion": "triste",
               "gesto": "se-acerca",
-              "linea": "(La abuela respira un poco más despacio y te sostiene la mirada.) Gracias por quedarse… nadie nos había explicado nada. Solo díganme la verdad cuando se pueda.",
-              "personaje": "familia-crisis"
+              "linea": "(La abuela respira un poco más despacio y te sostiene la mirada.) Gracias por quedarse… nadie nos había explicado nada. Solo díganme la verdad cuando se pueda."
             },
             "requiere": {
               "all": [

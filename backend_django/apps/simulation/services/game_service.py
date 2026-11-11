@@ -19,6 +19,7 @@ from apps.simulation.models import (
     RETRY_EVENT_TYPES,
     AttemptEvent,
     AttemptStatus,
+    AttemptWorldState,
     CaseVersion,
     DecisionOption,
     ReflectionJournal,
@@ -486,7 +487,13 @@ def _find_decision_replay(attempt, decision_option_id, request_id):
 RETRY_NEUTRAL_MESSAGE = "Puedes volver a elegir en esta escena."
 
 
-def _decision_response(attempt, attempt_token, decision, retry_required=False):
+def _world_map(attempt):
+    """El mapa donde está el estudiante según el estado del mundo, o ``None`` si todavía no hay (no consulta de más)."""
+    state = AttemptWorldState.objects.filter(attempt_id=attempt.id).select_related("scene_map").first()
+    return state.scene_map if state is not None else None
+
+
+def _decision_response(attempt, attempt_token, decision, retry_required=False, scene_map=None):
     """La respuesta de una decisión (C2): solo su consecuencia narrativa; lo evaluativo llega al cerrar.
 
     Una sola forma, siempre: ``{attempt, consequence}`` y, cuando se concede la segunda oportunidad,
@@ -498,7 +505,7 @@ def _decision_response(attempt, attempt_token, decision, retry_required=False):
         "attempt": _state(attempt, attempt_token),
         "consequence": None if retry_required else dto.consequence_dto(decision),
     }
-    response["reaction"] = reaction.resolve(decision, case_state.read(attempt).persona)
+    response["reaction"] = reaction.resolve(decision, case_state.read(attempt).persona, scene_map)
     if retry_required:
         response["retry"] = {"allowed": True, "message": RETRY_NEUTRAL_MESSAGE}
     return response
@@ -506,9 +513,11 @@ def _decision_response(attempt, attempt_token, decision, retry_required=False):
 
 def _replayed_decision_state(attempt, attempt_token, event):
     """La respuesta de una decisión ya procesada, reconstruida desde su evento y el estado actual."""
+    # En la repetición ya no se puede saber con certeza dónde estaba el estudiante al decidir: se usa el mapa del mundo
+    # actual (el estado del mundo solo se resincroniza con el nodo en el siguiente /world, así que casi siempre coincide).
     return _decision_response(
         attempt, attempt_token, event.decision_option,
-        retry_required=event.event_type in RETRY_EVENT_TYPES,
+        retry_required=event.event_type in RETRY_EVENT_TYPES, scene_map=_world_map(attempt),
     )
 
 
@@ -560,6 +569,8 @@ def choose_decision(
         # BORRADOR: texto nuevo del servidor, pendiente de la aprobación de Psicología
         raise ValidationError("Esa respuesta no está disponible todavía.")
 
+    # El mapa donde decide el estudiante, ANTES de que la decisión mueva el nodo (el mundo no cambia hasta el siguiente /world).
+    scene_map = _world_map(attempt)
     effects = response_effects.resolve(decision)
     rules = case_rules.rules_of(attempt.case_version)
     contraindicated = effects.response_class is ResponseClass.CONTRAINDICATED
@@ -584,7 +595,7 @@ def choose_decision(
                 attempt, event_type, decision.source_node, decision, RETRY_NEUTRAL_MESSAGE, request_id
             )
             attempt.save(update_fields=attempt_duration.ACTIVITY_FIELDS)  # el reintento también es actividad
-            return _decision_response(attempt, attempt_token, decision, retry_required=True)
+            return _decision_response(attempt, attempt_token, decision, retry_required=True, scene_map=scene_map)
 
     # Los hitos y el paso de la persona se escriben ANTES de avanzar el nodo: el estado del mundo sigue
     # sincronizado al nodo actual y el próximo /world hará el reset de sala que corresponda.
@@ -620,7 +631,7 @@ def choose_decision(
         # dentro de esta transacción, y robusta: un suscriptor que falla no rompe la decisión.
         attempt_completed.send_robust(sender=SimulationAttempt, attempt=attempt)
 
-    return _decision_response(attempt, attempt_token, decision)
+    return _decision_response(attempt, attempt_token, decision, scene_map=scene_map)
 
 
 @locked_attempt

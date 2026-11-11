@@ -196,42 +196,56 @@ def ocl_11_vocabulario_de_reaccion(doc):
     return Outcome(len(reacting), findings)
 
 
+def _people_of(mapa):
+    return [x for _, x in _objetos(mapa.get("objetos")) if x.get("tipo") == "PERSON" and _visible(x)]
+
+
+def _offers(mapa, key):
+    """¿Alguna PERSON visible del mapa ofrece la opción ``key``: por su ``opcion`` o por una elección de su diálogo?"""
+    people = _people_of(mapa)
+    if any(p.get("opcion") == key for p in people):
+        return True
+    keys = _strs(p.get("clave") for p in people)
+    for _, dialog in _objetos(mapa.get("dialogos")):
+        speaker = dialog.get("objeto")
+        if isinstance(speaker, str) and speaker in keys and any(
+            c.get("opcion") == key for _, c in _objetos(dialog.get("elecciones"))
+        ):
+            return True
+    return False
+
+
 @rule("OCL-12", "OCL")
 def ocl_12_quien_reacciona_esta_presente(doc):
     """OCL-12. Quien reacciona está presente en la sala de la escena.
 
     context Opcion
-    inv OCL12: self.reaccion.personaje->notEmpty() implies self.escena.mapa.personas->exists(p | p.personaje = self.reaccion.personaje)
+    inv OCL12: self.reaccion.personaje->notEmpty() implies self.salas()->exists(m | m.personas->exists(p | p.personaje = self.reaccion.personaje))
 
-    Sin personaje, la reacción es de quien ofrece la opción: algún personaje de la sala tiene que ofrecerla,
-    directamente o por una elección de su diálogo.
+    «La sala de la escena» es el mapa de la escena o cualquier mapa del documento donde una PERSON ofrece la opción:
+    el estudiante decide donde está quien la ofrece, que puede ser el mapa de otra escena. Sin personaje, la reacción
+    es de quien ofrece la opción: alguna PERSON de esos mapas tiene que ofrecerla, directamente o por una elección de
+    su diálogo. Con personaje, tiene que haber una PERSON visible con ese personaje en esos mapas.
     """
     reacting = _reacting(doc)
     if not reacting:
         return Outcome(no_aplica="ninguna opción declara reacción")
+    all_maps = [_map(scene) for _, scene in _scenes(doc)]
     findings = []
     for i, scene, j, option in reacting:
-        people = [x for x in _map_objects(scene) if x.get("tipo") == "PERSON" and _visible(x)]
         where = f"la reacción de la opción {_option_label(option)} de la escena {_label(scene)}"
+        key = option.get("clave")
+        # sin clave, nadie puede ofrecerla (y ``None == None`` no cuenta)
+        offering = [m for m in all_maps if isinstance(key, str) and key and _offers(m, key)]
         character = option["reaccion"].get("personaje")
         if isinstance(character, str) and character:
-            if not any(p.get("personaje") == character for p in people):
+            rooms = [_map(scene), *offering]
+            if not any(p.get("personaje") == character for m in rooms for p in _people_of(m)):
                 # BORRADOR: texto nuevo del servidor, pendiente de la aprobación de Psicología
-                message = f"En {where}, el personaje {character!r} no está en la sala de esa escena."
+                message = f"En {where}, el personaje {character!r} no está en la sala de esa escena ni donde se ofrece la opción."
                 findings.append(_h(f"Escena {_label(scene)}", _route(i, j, "reaccion.personaje"), message))
             continue
-        key = option.get("clave")
-        offered = False
-        if isinstance(key, str) and key:  # sin clave, nadie puede ofrecerla (y ``None == None`` no cuenta)
-            keys = _strs(p.get("clave") for p in people)
-            offered = any(p.get("opcion") == key for p in people)
-            for _, dialog in _objetos(_map(scene).get("dialogos")):
-                speaker = dialog.get("objeto")
-                if isinstance(speaker, str) and speaker in keys and any(
-                    c.get("opcion") == key for _, c in _objetos(dialog.get("elecciones"))
-                ):
-                    offered = True
-        if not offered:
+        if not offering:
             # BORRADOR: texto nuevo del servidor, pendiente de la aprobación de Psicología
             message = f"En {where}, ningún personaje de la sala ofrece esa opción, así que nadie podría reaccionar."
             findings.append(_h(f"Escena {_label(scene)}", _route(i, j, "reaccion"), message))
