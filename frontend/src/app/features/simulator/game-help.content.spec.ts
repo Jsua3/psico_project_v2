@@ -147,6 +147,9 @@ describe('game-help.content: pantalla permanente (F§5.8)', () => {
       expect(keys).toContain('flechas');
       expect(keys).toContain('Enter');
       expect(keys).toContain('Esc');
+      // Las opciones del diálogo no responden a flechas: se eligen con Tab y Enter, o con clic.
+      expect(keys).toContain('Elegir una opción: Tab y Enter, o clic');
+      expect(keys).not.toMatch(/flechas y Enter/);
     });
 
     it('la tarjeta de primera vez tampoco promete WASD ni E con el ajuste apagado', () => {

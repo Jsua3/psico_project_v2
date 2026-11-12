@@ -172,7 +172,7 @@ export function helpSections(options: HelpScreenOptions): readonly HelpSection[]
           'Mover: flechas',
           'Interactuar: Enter o Espacio',
           'Avanzar un diálogo: Enter o Espacio',
-          'Elegir una opción: flechas y Enter',
+          'Elegir una opción: Tab y Enter, o clic',
         ];
     if (safeExitPromise) keys.push('Salida segura: Esc');
     sections.push({ id: 'teclas', title: 'Teclas', text: keys.join(' · ') });
