@@ -11,7 +11,8 @@
  *   orienta proceso y lugar.
  */
 
-import { DECISION_TOTAL, ORIENTATION_COPY } from './orientation.config';
+import { DRAFT_COPY } from './draft-copy';
+import { ORIENTATION_COPY } from './orientation.config';
 
 /** Modalidad de puntero con la que se escribe el texto: teclado y ratón, o pantalla táctil. */
 export type HelpModality = 'keyboard' | 'touch';
@@ -31,8 +32,7 @@ export interface HelpCardOptions {
   safeExitPromise: boolean;
 }
 
-const WHAT_TO_DO_LINE =
-  'La tarjeta «Qué hacer» te dice el siguiente paso y dónde. Nunca marca cuál decisión es la adecuada: eso lo decides tú.';
+const WHAT_TO_DO_LINE = DRAFT_COPY.helpFirstCardGoal.text;
 
 const KEYBOARD_MOVE_LINE =
   'Muévete con las flechas o WASD. Acércate a una persona o un objeto: abajo aparece su nombre. Pulsa E para actuar.';
@@ -95,8 +95,7 @@ export function helpSections(options: HelpScreenOptions): readonly HelpSection[]
     {
       id: 'caso',
       title: 'El caso',
-      text:
-        `Acompañas una atención psicosocial en dos lugares: el hospital y la Comisaría de Familia. Tomarás ${DECISION_TOTAL} decisiones clínicas, una por etapa. Entre una y otra explorarás las salas, hablarás con las personas y reunirás información.`,
+      text: DRAFT_COPY.helpCaseSection.text,
     },
     {
       id: 'moverte',

@@ -578,6 +578,35 @@ export const DRAFT_COPY = {
     where: 'Ficha del objetivo: botón que pide una pista',
     text: 'Pedir una pista',
   },
+  /** Los dos avisos de exploración (4.3) y la ayuda que ya no nombra la lista «Qué hacer» ni el caso. */
+  noticeMoreToKnow: {
+    decision: 'DSL-3',
+    owner: 'Psicología',
+    review: 'validar',
+    where: 'Conversación con decisiones: aviso único cuando aún queda algo por conocer en la sala',
+    text: 'Puedes conocer más antes de responder.',
+  },
+  noticeNewOption: {
+    decision: 'DSL-3',
+    owner: 'Psicología',
+    review: 'validar',
+    where: 'Aviso breve (anunciado) cuando explorar abre otra forma de responder',
+    text: 'Ahora conoces algo más: hay otra forma de responder.',
+  },
+  helpFirstCardGoal: {
+    decision: 'DSL-3',
+    owner: 'Psicología',
+    review: 'validar',
+    where: 'Tarjeta de primera vez de la ayuda: dónde está el objetivo de la escena',
+    text: 'Arriba está el objetivo de la escena: ábrelo para ver qué hay en la sala o pedir una pista.',
+  },
+  helpCaseSection: {
+    decision: 'DSL-3',
+    owner: 'Psicología',
+    review: 'validar',
+    where: 'Ayuda, sección «El caso»: cómo se juega una escena',
+    text: 'En cada escena exploras la sala, conversas con las personas y, cuando lo decidas, respondes. Lo que descubres puede abrir otras formas de responder.',
+  },
   /** Nota de una conducta prohibida en «Tus decisiones»: se señala con cuidado, sin cifras (RN-08, ETH). */
   decisionProhibitedNote: {
     decision: 'RN-08',

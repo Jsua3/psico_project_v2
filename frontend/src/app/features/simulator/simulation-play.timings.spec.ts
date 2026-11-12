@@ -196,7 +196,7 @@ describe('SimulationPlayComponent: tiempos de la pantalla de juego (A-03b)', () 
 
     it('con el mundo cargado el fundido se retira a los 80 ms y los efectos de cámara llegan 320 ms después', () => {
       // Doble mínimo de la escena: aplicar un mundo también pide recalcular la escala (otro temporizador, de 0 ms).
-      const gameWorld = { playRevealEffects: vi.fn(), refreshScale: vi.fn(), updatePatientVisualState: vi.fn(), setPersonaState: vi.fn() };
+      const gameWorld = { playRevealEffects: vi.fn(), refreshScale: vi.fn(), updatePatientVisualState: vi.fn(), setPersonaState: vi.fn(), places: vi.fn(() => []) };
       internals().gameWorld = gameWorld;
       component.attempt.set(makeAttempt());
       component.fadeActive.set(true);
@@ -219,7 +219,7 @@ describe('SimulationPlayComponent: tiempos de la pantalla de juego (A-03b)', () 
     it('si el componente se destruye antes de los 80 ms, el fundido no se retira ni se piden efectos de cámara', () => {
       // El retiro del fundido toca `window` al dispararse: en las pruebas, un temporizador de un componente
       // que nadie destruyó se disparaba con el entorno ya desmontado («window is not defined», intermitente en CI).
-      const gameWorld = { playRevealEffects: vi.fn(), refreshScale: vi.fn(), updatePatientVisualState: vi.fn(), setPersonaState: vi.fn() };
+      const gameWorld = { playRevealEffects: vi.fn(), refreshScale: vi.fn(), updatePatientVisualState: vi.fn(), setPersonaState: vi.fn(), places: vi.fn(() => []) };
       internals().gameWorld = gameWorld;
       component.attempt.set(makeAttempt());
       component.fadeActive.set(true);

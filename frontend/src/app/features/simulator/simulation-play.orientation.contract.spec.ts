@@ -20,9 +20,9 @@ function rule(selector: string): string {
 
 const worldTag = source.match(/<app-game-world[\s\S]*?\/>/)?.[0] ?? '';
 
-describe('tarjeta «Qué hacer» (T9.1)', () => {
-  it('el envoltorio .objective-card contiene la tarjeta y no tiene role="status" (la tarjeta ya trae su región viva)', () => {
-    expect(source).toMatch(/<div class="objective-card">\s*(<!--[^>]*-->\s*)?<div class="objective-card__scroll">\s*<app-scene-checklist-card/);
+describe('ficha del objetivo (T9.1)', () => {
+  it('el envoltorio .objective-card contiene la ficha y no tiene role="status" (la ficha no trae región viva: anuncia el LiveRegionAnnouncer)', () => {
+    expect(source).toMatch(/<div class="objective-card">\s*(<!--[^>]*-->\s*)?<div class="objective-card__scroll">\s*<app-scene-goal-card/);
     expect(source).not.toMatch(/<div class="objective-card"[^>]*role=/);
   });
 
@@ -42,7 +42,8 @@ describe('tarjeta «Qué hacer» (T9.1)', () => {
     // Ya no está dentro de .objective-card (que se pliega a su chip) ni en el panel lateral: un único sitio.
     expect(source).not.toContain('objective-card__notice');
     expect(source).not.toContain('right-panel__warning');
-    expect(source).not.toMatch(/<div class="objective-card">[\s\S]*?sensitiveNotice\(\)[\s\S]*?<app-scene-checklist-card/);
+    expect(source).not.toMatch(/<div class="objective-card">[\s\S]*?sensitiveNotice\(\)[\s\S]*?<app-scene-goal-card/);
+    expect(source).not.toContain('app-scene-checklist-card');
   });
 
   it('el pliegue de la tarjeta (chip, «Ocultar pasos», compacto, móvil vertical) ya no toca el aviso ético', () => {
@@ -83,12 +84,12 @@ describe('tarjeta «Qué hacer» (T9.1)', () => {
   it('en compacto la tarjeta desplegada deja libre la cruz táctil y se sostiene a la derecha de ella', () => {
     const compact = source.slice(source.lastIndexOf('@media (max-height: 520px), (pointer: coarse) and (orientation: landscape)'));
     expect(compact).toMatch(
-      /\.objective-card:not\(:has\(app-scene-checklist-card\[data-collapsed='true'\]\)\) \{\s*left: 176px; right: auto; width: min\(640px, calc\(100% - 190px\)\);\s*flex-direction: row;/,
+      /\.objective-card:not\(:has\(app-scene-goal-card\[data-collapsed='true'\]\)\) \{\s*left: 176px; right: auto; width: min\(640px, calc\(100% - 190px\)\);\s*flex-direction: row;/,
     );
   });
 
-  it('la tarjeta arranca plegada en compacto y en móvil vertical (cardFolded)', () => {
-    expect(source).toMatch(/<app-scene-checklist-card \[state\]="log" \[compact\]="cardFolded\(\)"/);
+  it('la ficha recibe la guía, el intento y el pliegue compacto (cardFolded), y refresca la sala al abrirse', () => {
+    expect(source).toMatch(/<app-scene-goal-card \[guia\]="guide\(\)" \[hintAttempt\]="hintAttempt\(\)" \[compact\]="cardFolded\(\)"\s*\(opened\)="refreshGuide\(\)" \(consentRequired\)="requireConsentAgain\(\)"/);
     expect(source).toContain('readonly cardFolded = computed(() => this.compactMode() || this.narrowScreen());');
   });
 
@@ -98,7 +99,13 @@ describe('tarjeta «Qué hacer» (T9.1)', () => {
   });
 });
 
-describe('contador único (T9.2)', () => {
+describe('el HUD recibe el título de la escena (T9.2)', () => {
+  it('stageLabel es el título del nodo: sin contador de decisiones ni respaldo por escenarios', () => {
+    expect(source).toMatch(/readonly stageLabel = computed<string \| null>\(\(\) => this\.attempt\(\)\?\.currentNode\.title \?\? null\);/);
+    expect(source).not.toContain('getDecisionCounter');
+    expect(source).not.toContain('fallbackStageLabel');
+  });
+
   it('el HUD recibe stageLabel y no el contador «Escenario k de n» ni progressLabel', () => {
     expect(source).toMatch(/<app-simulation-hud[\s\S]*?\[stageLabel\]="stageLabel\(\)"/);
     expect(source).not.toContain('[progressLabel]');
@@ -106,7 +113,7 @@ describe('contador único (T9.2)', () => {
     expect(source).not.toMatch(/progressLabel\(\)\s*:\s*string/);
   });
 
-  it('el encabezado del panel lateral usa el mismo contador', () => {
+  it('el encabezado del panel lateral usa el mismo rótulo', () => {
     expect(source).toMatch(/<p class="right-panel__kicker">\{\{ stageLabel\(\) \}\}<\/p>/);
   });
 });
@@ -127,14 +134,11 @@ describe('barra contextual (T9.3, T9.5)', () => {
     expect(source).toContain(`[attr.aria-label]="'También: ' + also.verb.text"`);
   });
 
-  it('la línea «Ahora: …» tiene su clase propia y la leyenda conserva .context-bar__hint', () => {
-    expect(source).toMatch(/<p class="context-bar__now">\{\{ nowLine\(\) \}\}<\/p>/);
-    expect(source).toMatch(/<p class="context-bar__hint" aria-hidden="true">WASD mover/);
-  });
-
-  it('la leyenda de teclado solo se enciende con puntero fino y ancho >= 1150 px', () => {
-    expect(rule('.context-bar__hint')).toMatch(/display: none;/);
-    expect(source).toMatch(/@media \(hover: hover\) and \(pointer: fine\) and \(min-width: 1150px\) \{\s*\.context-bar__hint \{ display: block;/);
+  it('en reposo la barra solo trae la nota «No hay nada a tu alcance» (clase propia); ni línea «Ahora:» ni leyenda de teclas', () => {
+    expect(source).toMatch(/@if \(nothingNearbyNote\(\); as note\) \{\s*<p class="context-bar__now">\{\{ note \}\}<\/p>/);
+    expect(source).not.toContain('nowLine');
+    expect(source).not.toContain('context-bar__hint');
+    expect(source).not.toContain('WASD mover');
   });
 
   it('la <kbd> «E» del botón no se pinta en modo compacto ni sin puntero fino', () => {
@@ -208,7 +212,7 @@ describe('texto de la pantalla de juego (F6-3)', () => {
 
 describe('enlaces con el mundo (T9.5, T9.9)', () => {
   it('el mundo recibe destino, atenuados, puertas y modo compacto, y sus dos salidas nuevas están enlazadas', () => {
-    expect(worldTag).toContain('[nextTargetKey]="nextTargetKey()"');
+    expect(worldTag).toContain('[nextTargetKey]="null"');
     expect(worldTag).toContain('[dimmedKeys]="dimmedKeys()"');
     expect(worldTag).toContain('[doorStates]="doorStates()"');
     expect(worldTag).toContain('[compact]="compactMode()"');
@@ -283,9 +287,9 @@ describe('modo compacto (T10)', () => {
     expect(source.indexOf('@media (max-width: 760px) {')).toBeLessThan(start);
   });
 
-  it('el pie es de una sola fila y altura fija de 56 px, sin teclas ni leyenda', () => {
+  it('el pie es de una sola fila y altura fija de 56 px, sin teclas ni leyenda (la leyenda ya no existe)', () => {
     expect(compactCss).toMatch(/\.bottom-zone \{[^}]*flex-wrap: nowrap;[^}]*height: 56px;/);
-    expect(compactCss).toMatch(/\.context-bar__hint \{ display: none; \}/);
+    expect(compactCss).not.toContain('context-bar__hint');
     // «Salida segura» es el componente compartido (F6-6): en compacto va en su variante densa, sin la pista de tecla.
     expect(source).toMatch(/<app-safe-exit-button \[compact\]="compactMode\(\)" \[pausing\]="pausing\(\)" \(pause\)="pauseFromOverlay\(\)" \/>/);
   });

@@ -109,11 +109,12 @@ describe('SimulationPlayComponent: anuncios y avisos (F6-12)', () => {
       expect(document.querySelector('[aria-live="assertive"][role="status"]')).toBeNull();
     });
 
-    it('la barra de contexto no es una región viva: la línea de reposo y la pista de teclas no se anuncian', () => {
+    it('la barra de contexto no es una región viva: ni en reposo ni con la nota de «nada a tu alcance» dentro de una', () => {
       const bar = root().querySelector('.context-bar')!;
       expect(bar.hasAttribute('aria-live')).toBe(false);
+      component.showNothingNearby();
+      fixture.detectChanges();
       expect(root().querySelector('.context-bar__now')!.closest('[aria-live]')).toBeNull();
-      expect(root().querySelector('.context-bar__hint')!.closest('[aria-live]')).toBeNull();
     });
 
     it('una interacción cercana se anuncia una vez, con cortesía, y volver al reposo no anuncia la línea de reposo', () => {
@@ -127,8 +128,7 @@ describe('SimulationPlayComponent: anuncios y avisos (F6-12)', () => {
       component.nearbyInteraction.set(null);
       fixture.detectChanges();
       settle();
-      expect(root().querySelector('.context-bar__now')).not.toBeNull();
-      expect(region('polite').textContent).not.toContain(component.nowLine());
+      expect(root().querySelector('.context-bar__now')).toBeNull();
       expect(region('assertive').textContent).toBe('');
     });
 

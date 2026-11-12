@@ -27,6 +27,9 @@ export interface GuiaEscena {
   quedaPorConocer: boolean;
 }
 
+/** Antes de que haya escena: sin objetivo y sin nada por conocer. */
+export const GUIA_VACIA: GuiaEscena = { objetivo: '', enEstaSala: [], quedaPorConocer: false };
+
 const PREFIJO_NPC = 'npc:';
 
 export function armarGuia(e: EntradaGuia): GuiaEscena {

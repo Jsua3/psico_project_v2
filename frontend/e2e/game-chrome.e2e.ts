@@ -245,7 +245,7 @@ for (const viewport of [
       await exploreUntilNearby(page, input, /sala de escucha familiar/i);
       await waitUntilPlayerStill(page);
 
-      for (const selector of ['.hud-action', 'button.context-bar__interaction', '.tool-card', '[data-checklist-toggle]']) {
+      for (const selector of ['.hud-action', 'button.context-bar__interaction', '.tool-card', 'app-scene-goal-card .goal-card__toggle']) {
         const items = page.locator(selector);
         const count = await items.count();
         expect(count, `hay al menos un ${selector}`).toBeGreaterThan(0);
@@ -261,10 +261,10 @@ for (const viewport of [
         expect(measured, `${selector}: alguno visible que medir`).toBeGreaterThan(0);
       }
 
-      // Todo texto visible de la cabecera, la tarjeta «Qué hacer» y el pie, con su tamaño real calculado.
+      // Todo texto visible de la cabecera, la ficha del objetivo y el pie, con su tamaño real calculado.
       const small = await page.evaluate(() => {
         const found: string[] = [];
-        for (const root of Array.from(document.querySelectorAll('app-simulation-hud, app-scene-checklist-card, footer.bottom-zone'))) {
+        for (const root of Array.from(document.querySelectorAll('app-simulation-hud, app-scene-goal-card, footer.bottom-zone'))) {
           const walker = document.createTreeWalker(root, NodeFilter.SHOW_TEXT);
           for (let node = walker.nextNode(); node; node = walker.nextNode()) {
             const text = (node.textContent ?? '').trim();

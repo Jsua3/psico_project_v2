@@ -1,4 +1,5 @@
 import { readFileSync } from 'fs';
+import { DRAFT_COPY } from './draft-copy';
 import { join } from 'path';
 
 import {
@@ -28,10 +29,10 @@ function everyHelpText(): string[] {
 }
 
 describe('game-help.content: tarjeta de primera vez (F§5.8)', () => {
-  it('teclado: tres líneas con la tecla E, la tarjeta «Qué hacer» y la pausa con Esc', () => {
+  it('teclado: tres líneas con la tecla E, la ficha del objetivo y la pausa con Esc', () => {
     expect(firstTimeHelpLines({ modality: 'keyboard', compact: false, safeExitPromise: true })).toEqual([
       'Muévete con las flechas o WASD. Acércate a una persona o un objeto: abajo aparece su nombre. Pulsa E para actuar.',
-      'La tarjeta «Qué hacer» te dice el siguiente paso y dónde. Nunca marca cuál decisión es la adecuada: eso lo decides tú.',
+      'Arriba está el objetivo de la escena: ábrelo para ver qué hay en la sala o pedir una pista.',
       'Puedes pausar el caso en cualquier momento con «Salida segura» (con teclado, también Esc). Tu avance se guarda.',
     ]);
   });
@@ -39,7 +40,7 @@ describe('game-help.content: tarjeta de primera vez (F§5.8)', () => {
   it('táctil: las mismas líneas 2 y 3, esta última sin «con teclado, también Esc»', () => {
     expect(firstTimeHelpLines({ modality: 'touch', compact: false, safeExitPromise: true })).toEqual([
       'Mantén pulsada una flecha para caminar. Cuando algo tenga nombre cerca, toca «Interactuar».',
-      'La tarjeta «Qué hacer» te dice el siguiente paso y dónde. Nunca marca cuál decisión es la adecuada: eso lo decides tú.',
+      'Arriba está el objetivo de la escena: ábrelo para ver qué hay en la sala o pedir una pista.',
       'Puedes pausar el caso en cualquier momento con «Salida segura». Tu avance se guarda.',
     ]);
   });
@@ -126,9 +127,10 @@ describe('game-help.content: pantalla permanente (F§5.8)', () => {
     expect(text('touch', 'bitacora')).toBe('Escribe tus reflexiones cuando quieras con el botón de la cabecera.');
   });
 
-  it('el caso anuncia las 6 decisiones y la retroalimentación llega después de decidir', () => {
+  it('el caso no nombra lugares ni cuántas decisiones hay, y la retroalimentación llega después de decidir', () => {
     const all = helpSections({ modality: 'keyboard', safeExitPromise: true });
-    expect(all.find(s => s.id === 'caso')?.text).toContain('Tomarás 6 decisiones clínicas, una por etapa.');
+    expect(all.find(s => s.id === 'caso')?.text).toBe(DRAFT_COPY.helpCaseSection.text);
+    expect(all.find(s => s.id === 'caso')?.text).not.toMatch(/hospital|Comisar|[0-9]+ decisiones/i);
     expect(all.find(s => s.id === 'decidir')?.text).toContain('Ninguna opción está marcada como correcta');
     expect(all.find(s => s.id === 'decidir')?.text).toContain('No hay límite de tiempo.');
   });
@@ -177,7 +179,6 @@ describe('game-help.content: límites de producto y de redacción', () => {
     expect(joined).toContain('Cómo se juega');
     expect(joined).toContain('Más ayuda');
     expect(joined).toContain('Bitácora');
-    expect(joined).toContain('Comisaría de Familia');
     expect(joined).toContain('decisión');
   });
 

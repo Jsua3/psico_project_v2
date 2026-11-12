@@ -25,11 +25,12 @@ import { decorateDialogueState, otherStageDecisionKeys } from './dialogue-decora
 import { type CopyContext, evidenceNoticeText } from './evidence-copy.util';
 import { type DoorStatus, type DoorStatusContext, doorStateMap, doorStatus } from './door-status.util';
 import { type InteractionVerb, interactionVerb, readsLocally } from './interaction-verb.util';
-import { HIGHLIGHT_TOOL_TARGETS, NAME_TOOLS_IN_HINTS, ORIENTATION_COPY, RoomGroup, SAFE_EXIT_ALWAYS_REACHABLE } from './orientation.config';
+import { NAME_TOOLS_IN_HINTS, ORIENTATION_COPY, RoomGroup, SAFE_EXIT_ALWAYS_REACHABLE } from './orientation.config';
 import { GameHelpComponent } from './game-help.component';
 import { HELP_FIRST_CARD, markHelpSeen, readHelpSeen, resetHelpSeen } from './help-memory.util';
-import { SceneChecklistCardComponent } from './scene-checklist-card.component';
-import { SceneLogState, deriveSceneLog, diffDone, ringTargetKey, roomGroupOf, sceneLogInputFrom } from './scene-checklist.util';
+import { SceneGoalCardComponent } from './scene-goal-card.component';
+import { type GuiaEscena, GUIA_VACIA, armarGuia, opcionesNuevas } from './caso/guia';
+import { SceneLogState, deriveSceneLog, diffDone, roomGroupOf, sceneLogInputFrom } from './scene-checklist.util';
 import { clearVisitedRooms, markRoomVisited, readVisitedRooms } from './visited-rooms.util';
 import { DialoguePanelComponent } from './dialogue-panel.component';
 import { GameWorldComponent } from './game-world.component';
@@ -61,7 +62,7 @@ import { accessErrorMessage } from './case-access.util';
 import { CaseIntroSceneComponent } from './case-intro-scene.component';
 import { resolveViewMode, SimulationViewMode } from './simulation-view-mode.util';
 import { IntroGateStep, resolveIntroStep } from './intro-gate.util';
-import { getDecisionCounter, getSceneProgress, getStageTitle } from './scene-objectives.config';
+import { getSceneProgress, getStageTitle } from './scene-objectives.config';
 import { COARSE_POINTER_QUERY, matchesMedia, watchMedia } from './pointer-modality.util';
 import { UiButton } from '../../shared/ui/button/ui-button';
 import { loadingPhase } from '../../shared/ui/skeleton/loading-phase';
@@ -133,7 +134,7 @@ const CASE_INTRO_PARAGRAPHS = [
     A11yModule, CommonModule, RouterLink, MatIconModule,
     SimulationHudComponent, GameWorldComponent, DialoguePanelComponent,
     ToolInventoryComponent, JournalPanelComponent, AttemptOutcomeComponent, CaseIntroSceneComponent,
-    SafeExitButtonComponent, SceneChecklistCardComponent, GameHelpComponent, WorldPlacesListComponent,
+    SafeExitButtonComponent, SceneGoalCardComponent, GameHelpComponent, WorldPlacesListComponent,
     ReactionDirectorComponent, UiButton, UiErrorState, UiScopeNotice, UiSpinner
   ],
   template: `
@@ -360,13 +361,13 @@ const CASE_INTRO_PARAGRAPHS = [
         <div class="main-zone">
           <section class="canvas-zone" aria-label="Escena de la simulación"
             [attr.inert]="inputBlocked() ? '' : null" [attr.aria-hidden]="inputBlocked() ? 'true' : null">
-            @if (sceneLog(); as log) {
-              <!-- Sin role="status": la tarjeta ya trae su única región viva (si no, se anunciaría entera en cada cambio). -->
+            @if (world()) {
+              <!-- Sin role="status": la ficha no trae región viva (los avisos salen por el anunciador de la app). -->
               <div class="objective-card">
-                <!-- La lista se desplaza por dentro con tope de alto (no baja hasta las personas y objetos del suelo). -->
+                <!-- La ficha abierta se desplaza por dentro con tope de alto (no baja hasta las personas y objetos del suelo). -->
                 <div class="objective-card__scroll">
-                  <app-scene-checklist-card [state]="log" [compact]="cardFolded()"
-                    [reduceMotion]="reduceMotion()" [notice]="checklistNotice()" />
+                  <app-scene-goal-card [guia]="guide()" [hintAttempt]="hintAttempt()" [compact]="cardFolded()"
+                    (opened)="refreshGuide()" (consentRequired)="requireConsentAgain()" />
                 </div>
               </div>
             }
@@ -382,7 +383,7 @@ const CASE_INTRO_PARAGRAPHS = [
                 [activation]="attempt()?.persona?.activation ?? 'CALM'"
                 [intensity]="attempt()?.currentNode?.intensity ?? 'MEDIUM'"
                 [doorStates]="doorStates()"
-                [nextTargetKey]="nextTargetKey()" [dimmedKeys]="dimmedKeys()" [compact]="compactMode()"
+                [nextTargetKey]="null" [dimmedKeys]="dimmedKeys()" [compact]="compactMode()"
                 [showLoader]="false" (worldReady)="onWorldReady()" (patientVisual)="patientVisual.set($event)"
                 (proximity)="nearbyInteraction.set($event)" (proximityAlso)="nearbyAlso.set($event)"
                 (nothingNearby)="showNothingNearby()" (interact)="openInteraction($event)"
@@ -476,12 +477,8 @@ const CASE_INTRO_PARAGRAPHS = [
               }
             } @else {
               <div class="context-bar__idle">
-                <p class="context-bar__now">{{ nowLine() }}</p>
-                <!-- aria-hidden: es una pista visual; la ayuda ya dice las teclas por escrito. -->
-                @if (shortcuts.enabled()) {
-                  <p class="context-bar__hint" aria-hidden="true">WASD mover · <kbd>E</kbd> interactuar · <kbd>J</kbd> bitácora · <kbd>Esc</kbd> salida segura</p>
-                } @else {
-                  <p class="context-bar__hint" aria-hidden="true">Flechas mover · <kbd>Enter</kbd> interactuar · <kbd>Esc</kbd> salida segura</p>
+                @if (nothingNearbyNote(); as note) {
+                  <p class="context-bar__now">{{ note }}</p>
                 }
               </div>
             }
@@ -615,8 +612,7 @@ const CASE_INTRO_PARAGRAPHS = [
     .game-surface { position: absolute; inset: 0; }
     .world-skeleton { position: absolute; inset: 0; background: #0e1322; }
 
-    /* Envoltorio de la tarjeta «Qué hacer»: aporta posición, borde y fondo (la tarjeta no pinta superficie);
-       los contrastes de la tarjeta se miden contra este fondo (scene-checklist-card.component.spec). */
+    /* Envoltorio de la ficha del objetivo: aporta posición, borde y fondo casi opaco (la ficha no pinta superficie). */
     .objective-card {
       position: absolute;
       top: 10px;
@@ -641,18 +637,7 @@ const CASE_INTRO_PARAGRAPHS = [
       /* Más ancha, la lista y el aviso pierden líneas: con el tope de alto se ve entera (o casi) sin tapar el kit ni la Familia en crisis. */
       .objective-card { width: min(560px, 50%); }
     }
-    /* Plegada a su chip (modo compacto) la tarjeta se sostiene sola: sin caja alrededor. */
-    .objective-card:has(app-scene-checklist-card[data-collapsed='true']) {
-      right: auto;
-      width: auto;
-      padding: 0;
-      border: 0;
-      background: none;
-      box-shadow: none;
-      overflow: visible;
-    }
     .objective-card__scroll { min-height: 0; overflow-y: auto; overscroll-behavior: contain; scrollbar-width: thin; }
-    .objective-card:has(app-scene-checklist-card[data-collapsed='true']) .objective-card__scroll { overflow: visible; }
     /* Recordatorio ético del nodo sensible (ETH-01): franja bajo la cabecera, fuera de la tarjeta plegable. Legible (>= 12 px) y con
        contraste alto; ocupa su propio sitio (el mundo se reencuadra solo), así que no tapa al personaje ni los controles. */
     .sensitive-strip {
@@ -821,7 +806,7 @@ const CASE_INTRO_PARAGRAPHS = [
       min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: .75rem; color: #cdbcff;
     }
     .context-bar__also { flex-shrink: 0; font-size: .75rem; font-weight: 700; color: rgba(232,240,244,.78); }
-    /* Sin nada cerca: el siguiente paso arriba y, con teclado y espacio de sobra, la leyenda debajo. */
+    /* Sin nada cerca la barra queda en blanco; solo dice «No hay nada a tu alcance» mientras dure la nota. */
     .context-bar__idle { flex: 1; min-width: 0; display: grid; gap: 2px; align-content: center; text-align: left; }
     .context-bar__now {
       min-width: 0;
@@ -834,27 +819,6 @@ const CASE_INTRO_PARAGRAPHS = [
       display: -webkit-box;
       -webkit-line-clamp: 2;
       -webkit-box-orient: vertical;
-    }
-    /* Leyenda de teclado: solo donde hay teclado y espacio de sobra (puntero fino y ancho >= 1150 px). */
-    .context-bar__hint {
-      display: none;
-      margin: 0;
-      font-size: .75rem;
-      font-weight: 700;
-      letter-spacing: .04em;
-      color: rgba(232,240,244,.72);
-      white-space: nowrap;
-    }
-    @media (hover: hover) and (pointer: fine) and (min-width: 1150px) {
-      .context-bar__hint { display: block; }
-    }
-    .context-bar__hint kbd {
-      padding: 1px 5px;
-      border-radius: 4px;
-      background: rgba(124,77,255,.16);
-      font-family: 'JetBrains Mono', monospace;
-      font-size: .75rem;
-      color: #c9b8ff;
     }
 
     /* Advertencia de contenido (ETH-01): variante del card de intro. */
@@ -1131,7 +1095,6 @@ const CASE_INTRO_PARAGRAPHS = [
     @media (max-height: 520px), (pointer: coarse) and (orientation: landscape) {
       /* Pie de altura fija de una sola fila: sin teclas ni leyenda, y el mundo no cambia de tamaño al acercarte a algo. */
       .bottom-zone { flex-wrap: nowrap; align-items: center; height: 56px; padding: 4px 12px; gap: 8px; }
-      .context-bar__hint { display: none; }
       /* Las cinco herramientas conservan su sitio; la barra cede (elipsis) cuando el motivo de una puerta es largo. */
       .tool-dock { flex: 0 0 auto; }
       .context-bar { flex: 1 1 0; order: 0; height: 100%; justify-content: flex-end; }
@@ -1148,13 +1111,13 @@ const CASE_INTRO_PARAGRAPHS = [
 
       /* Desplegada, la tarjeta deja libre la cruz de movimiento (abajo a la izquierda) y se sostiene a la derecha de ella.
          Plegada (chip) sigue en la esquina. */
-      .objective-card:not(:has(app-scene-checklist-card[data-collapsed='true'])) {
+      .objective-card:not(:has(app-scene-goal-card[data-collapsed='true'])) {
         left: 176px; right: auto; width: min(640px, calc(100% - 190px));
         flex-direction: row; align-items: flex-start; gap: 10px;
         /* Sin el tope del escritorio: la tarjeta ya es ancha y baja, y la lista cabe con su paso siguiente. */
         max-height: calc(100% - 20px);
       }
-      .objective-card:not(:has(app-scene-checklist-card[data-collapsed='true'])) .objective-card__scroll {
+      .objective-card:not(:has(app-scene-goal-card[data-collapsed='true'])) .objective-card__scroll {
         flex: 1 1 0; min-width: 0;
       }
       /* La franja ética se compacta sin bajar de 12 px: el mundo pierde lo mínimo. */
@@ -1417,11 +1380,11 @@ export class SimulationPlayComponent implements OnInit, OnDestroy {
     }
   });
 
-  /** Contador único del caso («Decisión k de 6»); con un nodo sin etapa, el de respaldo por escenarios. */
-  readonly stageLabel = computed<string | null>(() => {
-    const key = this.attempt()?.currentNode.key;
-    return getDecisionCounter(key) ?? this.fallbackStageLabel();
-  });
+  /** El HUD nombra la escena (sin contador de decisiones: el número de pasos lo decide la docente, no la pantalla). */
+  readonly stageLabel = computed<string | null>(() => this.attempt()?.currentNode.title ?? null);
+
+  /** La guía de la escena: el objetivo del documento y lo que hay en la sala (la lista de lugares no es reactiva: se relee). */
+  readonly guide = signal<GuiaEscena>(GUIA_VACIA);
 
   /**
    * Un velo a pantalla completa (fundido de escena, nota de transición) cubre el pie: mientras dure, el pie sube por
@@ -1495,15 +1458,6 @@ export class SimulationPlayComponent implements OnInit, OnDestroy {
     && !this.showResumePrompt() && !this.showContentWarning() && !this.showIntroScene() && !this.showCaseIntro()
     && this.dialogue() === null && !this.journalOpen() && !this.helpOpen());
 
-  /** Línea «Ahora: …» de la barra cuando no hay nada cerca; sin lista, la invitación a explorar. */
-  readonly nowLine = computed(() =>
-    this.nothingNearbyNote()
-    || this.sceneLog()?.nextLine
-    || (this.coarsePointer() ? ORIENTATION_COPY.now.noListTouch : ORIENTATION_COPY.now.noList));
-
-  /** Destino de la lista: el mundo le pone el anillo (si está en otra sala, el de la puerta que hay que tomar). */
-  readonly nextTargetKey = computed(() => ringTargetKey(this.sceneLog(), HIGHLIGHT_TOOL_TARGETS));
-
   /** Objetos de decisión de otras etapas: el mundo los atenúa (alfa .55, sin anillo). Nunca marca la opción adecuada. */
   readonly dimmedKeys = computed<ReadonlySet<string>>(() =>
     otherStageDecisionKeys(this.world(), this.attempt()?.currentNode.options?.map(option => option.id) ?? null));
@@ -1574,6 +1528,13 @@ export class SimulationPlayComponent implements OnInit, OnDestroy {
     effect(() => {
       const next = this.sceneLog();
       untracked(() => this.queueNotesFor(next));
+    });
+    // La guía sigue a la escena y a la sala: el objetivo y «En esta sala» se releen cuando cambian.
+    effect(() => {
+      this.attempt()?.currentNode.key;
+      this.attempt()?.currentNode.goal;
+      this.world()?.map.key;
+      untracked(() => this.refreshGuide());
     });
     // El panel lateral encoge (o devuelve) el mundo: se vuelve a leer el contenedor cuando el diseño ya cambió.
     effect(() => {
@@ -1694,6 +1655,7 @@ export class SimulationPlayComponent implements OnInit, OnDestroy {
   onWorldReady(): void {
     perfEnd('decision-to-scene');
     this.worldRendered.set(true);
+    this.refreshGuide();
     // El mundo pintó después de que el plazo venciera: el error de ese arranque ya no es verdad y taparía el juego.
     if (this.bootFailureShown && this.error()) {
       this.error.set('');
@@ -2220,6 +2182,7 @@ export class SimulationPlayComponent implements OnInit, OnDestroy {
       world: this.world(),
       viewedNpcKeys: this.viewedNpcKeys(),
       copy: this.copyContext(),
+      notice: this.refreshGuide().quedaPorConocer ? DRAFT_COPY.noticeMoreToKnow.text : null,
     });
   }
 
@@ -2789,18 +2752,6 @@ export class SimulationPlayComponent implements OnInit, OnDestroy {
     )) {
       this.doorInteractionArmed = true;
     }
-  }
-
-  /**
-   * Contador de respaldo para un nodo sin etapa conocida (casos del editor): «Escenario k de n» del
-   * mapa de progreso. Sin mapa, sin chip. En el caso SIM-VBG-001 manda siempre «Decisión k de 6».
-   */
-  private fallbackStageLabel(): string | null {
-    const map = this.progressMap();
-    const currentKey = this.attempt()?.currentNode.key;
-    if (!map?.nodes.length || !currentKey) return null;
-    const index = map.nodes.findIndex(node => node.key === currentKey);
-    return index >= 0 ? `Escenario ${index + 1} de ${map.nodes.length}` : null;
   }
 
   visitedStageLabels(): string[] {
@@ -3456,10 +3407,37 @@ export class SimulationPlayComponent implements OnInit, OnDestroy {
    *  `decisionOptions`, esa lista (las ofrecidas ahora) reemplaza las del nodo actual. Sin la clave no se toca nada. */
   private applyDecisionOptions(world: SimulationWorldState): void {
     const offered = world.decisionOptions;
-    if (!offered) return;
-    this.attempt.update(game => game && game.status === 'IN_PROGRESS'
-      ? { ...game, currentNode: { ...game.currentNode, options: offered.map(option => ({ ...option })) } }
-      : game);
+    if (offered) {
+      const before = this.attempt()?.status === 'IN_PROGRESS' ? this.attempt()!.currentNode.options.map(option => option.id) : null;
+      this.attempt.update(game => game && game.status === 'IN_PROGRESS'
+        ? { ...game, currentNode: { ...game.currentNode, options: offered.map(option => ({ ...option })) } }
+        : game);
+      // Explorar abrió otra forma de responder: se avisa una vez (los mismos ids no vuelven a avisar) y la conversación abierta la muestra.
+      if (opcionesNuevas(before, offered.map(option => option.id)).length) {
+        this.showSoftNotice(DRAFT_COPY.noticeNewOption.text);
+        this.redecorateOpenDialogue();
+      }
+    }
+    this.refreshGuide(world);
+  }
+
+  /** Vuelve a decorar la conversación con decisiones que sigue abierta, desde el diálogo del objeto: así muestra la opción nueva. */
+  private redecorateOpenDialogue(): void {
+    const open = this.dialogue();
+    const raw = this.selectedInteraction()?.dialogue;
+    if (open?.choices.some(choice => choice.decisionOptionId != null) && raw?.key === open.key) this.dialogue.set(this.decorateDialogue(raw));
+  }
+
+  /** Relee la guía de la escena (objetivo del documento, lo que hay en la sala, si queda algo por conocer). */
+  refreshGuide(world: SimulationWorldState | null = this.world()): GuiaEscena {
+    const guide = armarGuia({
+      goal: this.attempt()?.currentNode.goal ?? '',
+      lugares: this.gameWorld?.places() ?? [],
+      inspeccionados: world?.inspectedObjectKeys ?? [],
+      hablados: collectViewedNpcKeys(world, this.viewedNpcKeys()),
+    });
+    this.guide.set(guide);
+    return guide;
   }
 
   private mergeViewedNpcKeysFromWorld(world: SimulationWorldState): void {

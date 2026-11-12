@@ -461,10 +461,10 @@ describe('SimulationPlayComponent — puerta de consentimiento (ETH-01)', () => 
       expect(component.journalOpen()).toBe(false);
     });
 
-    it('las pistas de tecla salen del ajuste: apagados prometen flechas y Enter, no WASD, E ni J', () => {
+    it('la barra en reposo ya no promete teclas (ni con los atajos apagados ni con ellos activos): están en la ayuda', () => {
       const source = readFileSync(join(__dirname, 'simulation-play.component.ts'), 'utf-8');
-      expect(source).toContain('Flechas mover · <kbd>Enter</kbd> interactuar · <kbd>Esc</kbd> salida segura');
-      expect(source).toContain('WASD mover · <kbd>E</kbd> interactuar · <kbd>J</kbd> bitácora · <kbd>Esc</kbd> salida segura');
+      expect(source).not.toContain('Flechas mover');
+      expect(source).not.toContain('WASD mover');
     });
   });
 
@@ -742,7 +742,7 @@ describe('SimulationPlayComponent — puerta de consentimiento (ETH-01)', () => 
     setup(makeAttempt());
     const persona = { bond: 'OPEN', activation: 'CALM', label: 'se muestra abierta y serena' };
     const updatePatientVisualState = vi.fn();
-    (component as any).gameWorld = { updatePatientVisualState, setPersonaState: vi.fn() };
+    (component as any).gameWorld = { updatePatientVisualState, setPersonaState: vi.fn(), places: vi.fn(() => []) };
     component.attempt.set(makeAttempt({ persona }));
 
     (component as any).applyLoadedWorld({

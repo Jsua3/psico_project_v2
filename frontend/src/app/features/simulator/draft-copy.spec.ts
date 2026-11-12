@@ -51,8 +51,9 @@ describe('draft-copy: textos en borrador pendientes de Psicología', () => {
     // (F10-4: «Tus decisiones», sus estados, las etiquetas y el marcador): son texto que ve la persona y se validan, no
     // solo se conocen; y los del cierre por hitos y competencias (VD-23: clases en palabras, hitos, competencias,
     // autoevaluación breve y últimos cierres del panel) y la nota «persona a atender» de la persona clave (P6-4); y los siete
-    // de la ficha del objetivo (DSL-2: rótulo, respaldo, «En esta sala», las tres marcas y «Pedir una pista»).
-    expect(list.filter(entry => entry.review === 'validar')).toHaveLength(64);
+    // de la ficha del objetivo (DSL-2: rótulo, respaldo, «En esta sala», las tres marcas y «Pedir una pista») y los cuatro de DSL-3 (los dos avisos
+    // de exploración y los dos textos de la ayuda).
+    expect(list.filter(entry => entry.review === 'validar')).toHaveLength(68);
   });
 
   // req: ETH-01, SIEP-RF-05 (S3-2b)
@@ -121,11 +122,10 @@ describe('draft-copy: textos en borrador pendientes de Psicología', () => {
     expect(hud).not.toContain('<span>Atajos de una tecla</span>');
   });
 
-  it('la pista de teclas con los atajos apagados es la del registro (la plantilla la repite con <kbd>)', () => {
+  it('la barra en reposo ya no repite las teclas: viven en la sección «Teclas» de la ayuda', () => {
     const template = readFileSync(join(__dirname, 'simulation-play.component.ts'), 'utf-8');
-    const hint = /<p class="context-bar__hint" aria-hidden="true">(Flechas mover[^<]*(?:<kbd>[^<]*<\/kbd>[^<]*)*)<\/p>/.exec(template);
-    expect(hint, 'la pista «Flechas mover…» está en la plantilla').not.toBeNull();
-    expect(hint![1].replace(/<\/?kbd>/g, '')).toBe(DRAFT_COPY.keysHintArrows.text);
+    expect(template).not.toContain('<p class="context-bar__hint"');
+    expect(template).not.toContain('Flechas mover');
   });
 
   it('las claves del registro son únicas y la lista las recorre todas', () => {

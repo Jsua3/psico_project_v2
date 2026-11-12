@@ -1,10 +1,8 @@
 import {
   DialogueChoiceState, DialogueLineState, DialogueState, MapObjectState, SimulationWorldState,
 } from '../../core/models/simulation.model';
-import { evidenceNoticeText, CopyContext } from './evidence-copy.util';
-import {
-  MissingItem, NodeEvidenceDef, choiceEvidence, mergeEvidence, missingEvidenceItems, unlockedExtraLines,
-} from './evidence-gating.config';
+import type { CopyContext } from './evidence-copy.util';
+import { NodeEvidenceDef, unlockedExtraLines } from './evidence-gating.config';
 import { ORIENTATION_COPY } from './orientation.config';
 
 /**
@@ -22,6 +20,8 @@ export interface DecorationCtx {
   world: SimulationWorldState | null;
   viewedNpcKeys: ReadonlySet<string>;
   copy: CopyContext;
+  /** El aviso único de una conversación con decisiones (p. ej. «puedes conocer más»); null si no hay. */
+  notice: string | null;
 }
 
 const isDecision = (choice: DialogueChoiceState): boolean => choice.decisionOptionId != null;
@@ -62,22 +62,6 @@ export function otherStageDecisionKeys(
   return keys;
 }
 
-function missingForDecisions(choices: readonly DialogueChoiceState[], ctx: DecorationCtx): MissingItem[] {
-  const seen = new Set<string>();
-  const items: MissingItem[] = [];
-  for (const choice of choices) {
-    const def = mergeEvidence(ctx.evidence, choiceEvidence(choice));
-    for (const item of missingEvidenceItems(def, ctx.world, ctx.viewedNpcKeys)) {
-      const id = `${item.kind}:${item.key}`;
-      if (!seen.has(id)) {
-        seen.add(id);
-        items.push(item);
-      }
-    }
-  }
-  return items;
-}
-
 export function decorateDialogueState(d: DialogueState, ctx: DecorationCtx): DialogueState {
   const ids = activeIds(ctx.nodeOptionIds);
   const hadDecision = d.choices.some(isDecision);
@@ -106,9 +90,9 @@ export function decorateDialogueState(d: DialogueState, ctx: DecorationCtx): Dia
     }
   }
 
-  // 3) Un solo aviso de evidencia para el conjunto de decisiones activas; ninguno por opción.
+  // 3) Un solo aviso para el conjunto de decisiones activas; ninguno por opción.
   const decisions = choices.filter(isDecision);
-  const notice = decisions.length ? evidenceNoticeText(missingForDecisions(decisions, ctx), ctx.copy) : null;
+  const notice = decisions.length ? ctx.notice : null;
 
   // 4) Herramienta que el jugador aún no tiene.
   const inventory = ctx.world?.inventory ?? null;

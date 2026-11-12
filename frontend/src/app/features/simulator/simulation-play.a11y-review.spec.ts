@@ -12,10 +12,10 @@ const source = readFileSync(join(__dirname, 'simulation-play.component.ts'), 'ut
  * pintando la plantilla; aquí quedan los contratos de forma que no se ven en el DOM de una pantalla sin mundo.
  */
 describe('F6: anuncios de las regiones vivas, una sola vez', () => {
-  it('la barra de contexto ya no es una región viva y la leyenda de teclado sigue fuera de la lectura', () => {
+  it('la barra de contexto no es una región viva y ya no trae leyenda de teclado (las teclas viven en la ayuda)', () => {
     expect(source).toMatch(/<div class="context-bar">/);
     expect(source).not.toMatch(/<div class="context-bar" aria-live/);
-    expect(source).toMatch(/<p class="context-bar__hint" aria-hidden="true">WASD mover/);
+    expect(source).not.toContain('context-bar__hint');
   });
 
   it('el aviso de puerta no es una región viva del juego: es un aviso del sistema que anuncia su anfitrión, una vez', () => {

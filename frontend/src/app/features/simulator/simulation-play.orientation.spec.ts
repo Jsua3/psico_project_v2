@@ -1,3 +1,5 @@
+import { readFileSync } from 'fs';
+import { join } from 'path';
 // Phaser inicializa un canvas WebGL al importarse, cosa que jsdom no soporta (mismo doble que el resto
 // de specs de instancia del juego): solo se evalúa `extends Phaser.Scene` al cargar el módulo.
 vi.mock('phaser', () => ({
@@ -147,45 +149,7 @@ describe('SimulationPlayComponent: orientación integrada', () => {
 
   const tick = (ms = 0) => { vi.advanceTimersByTime(ms); TestBed.tick(); };
 
-  describe('T9.1: tarjeta «Qué hacer»', () => {
-    it('sin mundo o sin intento no hay lista', () => {
-      expect(component.sceneLog()).toBeNull();
-      component.attempt.set(makeAttempt());
-      expect(component.sceneLog()).toBeNull();
-    });
-
-    it('en la etapa 1 la lista empieza por recoger el material y lo marca como siguiente', () => {
-      startInUrgencias();
-
-      const log = component.sceneLog();
-
-      expect(log?.number).toBe(1);
-      expect(log?.title).toBe('Urgencia vital y crisis');
-      expect(log?.next?.stepId).toBe('u1-recoger');
-      expect(log?.nextLine).toMatch(/^Ahora: Recoge el material de apoyo de la sala · /);
-    });
-
-    it('tras recoger el kit el siguiente paso es hablar con la familia', () => {
-      startInUrgencias();
-      component.world.set(makeWorld('hospital-urgencias', urgenciasObjects(true), { inventory: ['PAP'] }));
-
-      expect(component.sceneLog()?.next?.stepId).toBe('u1-familia');
-    });
-
-    it('un intento que no está en curso no tiene lista', () => {
-      startInUrgencias();
-      component.attempt.set(makeAttempt('hospital-urgencias', { status: 'PAUSED' }));
-
-      expect(component.sceneLog()).toBeNull();
-    });
-
-    it('un mundo con forma inesperada no tumba la pantalla: la lista se omite', () => {
-      component.attempt.set(makeAttempt());
-      component.world.set({ map: { key: 'hospital-urgencias' }, objects: [] } as unknown as SimulationWorldState);
-
-      expect(component.sceneLog()).toBeNull();
-    });
-
+  describe('T9.1: salas visitadas', () => {
     it('al cargar un mundo recuerda la sala en la señal y en sessionStorage', () => {
       component.attempt.set(makeAttempt());
 
@@ -246,18 +210,6 @@ describe('SimulationPlayComponent: orientación integrada', () => {
       expect(text).toMatch(/^Antes de decidir te falta: .*hablar con la Enfermera de urgencias/);
       expect(text).toContain('quedará registrada con información incompleta');
       expect(text).not.toMatch(SLUG);
-    });
-
-    it('es el mismo aviso que el de las opciones de la conversación', () => {
-      startInUrgencias();
-      const decorated = (component as any).decorateDialogue({
-        key: 'd', speakerName: 'Familia', portraitKey: null, emotion: 'neutral', lines: [],
-        choices: [{ key: 'o', text: 'Opción', decisionOptionId: 101, requiredToolCode: null, effect: {} }],
-      } as unknown as DialogueState) as DialogueState;
-      component.executeDecision(101);
-
-      expect(decorated.notice).toBeTruthy();
-      expect(component.dialogue()?.lines[0].text).toBe(decorated.notice);
     });
 
     it('con la evidencia completa no hay aviso y la decisión se registra', () => {
@@ -434,91 +386,6 @@ describe('SimulationPlayComponent: orientación integrada', () => {
       expect(audio['playSfx']).not.toHaveBeenCalledWith('item_pickup');
     });
 
-    it('«Anotado: …» espera a que se cierre el diálogo y sale una sola vez', () => {
-      startInUrgencias();
-      tick(); // primera evaluación de la lista: no anota nada
-      component.dialogue.set({
-        key: 'npc-enfermera-urgencias', speakerName: 'Enfermera de urgencias', portraitKey: null, emotion: 'neutral', lines: [], choices: [],
-      } as unknown as DialogueState);
-      (component as any).viewedNpcKeys.set(new Set(['enfermera-urgencias']));
-      tick();
-
-      expect(component.checklistNotice()).toBeNull();
-
-      component.closeDialogue();
-      tick();
-
-      expect(component.checklistNotice()).toBe('Anotado: hablaste con la Enfermera de urgencias.');
-      tick(4300);
-      expect(component.checklistNotice()).toBeNull();
-      tick(10_000);
-      expect(component.checklistNotice()).toBeNull();
-    });
-
-    it('usar la herramienta se anota con el nombre genérico, sin nombrar la técnica', () => {
-      startInUrgencias(makeWorld('hospital-urgencias', urgenciasObjects(true), { inventory: ['PAP'], inspectedObjectKeys: ['familia-crisis'] }));
-      tick();
-      component.world.set(makeWorld('hospital-urgencias', urgenciasObjects(true), {
-        inventory: ['PAP'], inspectedObjectKeys: ['familia-crisis'], usedToolKeys: ['PAP'],
-      }));
-      tick();
-
-      expect(component.checklistNotice()).toBe('Anotado: usaste el material de apoyo de la sala en la conversación.');
-      expect(component.checklistNotice()).not.toMatch(/PAP/);
-    });
-
-    it('una nota que un diálogo tapó antes de leerse vuelve a mostrarse completa cuando el diálogo se cierra', () => {
-      startInUrgencias();
-      tick();
-      (component as any).viewedNpcKeys.set(new Set(['enfermera-urgencias']));
-      tick();
-      expect(component.checklistNotice()).toBe('Anotado: hablaste con la Enfermera de urgencias.');
-
-      component.dialogue.set({ key: 'd', speakerName: 'A', portraitKey: null, emotion: 'neutral', lines: [], choices: [] } as unknown as DialogueState);
-      tick(); // el diálogo tapa la tarjeta
-      tick(10_000); // el jugador lee con calma: la nota no se consume por debajo
-      expect(component.checklistNotice()).toBe('Anotado: hablaste con la Enfermera de urgencias.');
-
-      component.closeDialogue();
-      tick();
-      expect(component.checklistNotice()).toBe('Anotado: hablaste con la Enfermera de urgencias.');
-      tick(4300);
-      expect(component.checklistNotice()).toBeNull();
-    });
-
-    it('una nota que ya se había leído y luego la cubre un diálogo no reaparece al cerrarlo', () => {
-      startInUrgencias();
-      tick();
-      (component as any).viewedNpcKeys.set(new Set(['enfermera-urgencias']));
-      tick();
-      expect(component.checklistNotice()).toBe('Anotado: hablaste con la Enfermera de urgencias.');
-
-      tick(2000); // el jugador la leyó
-      component.dialogue.set({ key: 'd', speakerName: 'A', portraitKey: null, emotion: 'neutral', lines: [], choices: [] } as unknown as DialogueState);
-      tick();
-      component.closeDialogue();
-      tick();
-
-      expect(component.checklistNotice()).toBeNull();
-    });
-
-    it('dos pasos hechos a la vez se anotan uno tras otro', () => {
-      startInUrgencias();
-      tick();
-      (component as any).viewedNpcKeys.set(new Set(['enfermera-urgencias']));
-      component.world.set(makeWorld('hospital-urgencias', urgenciasObjects(), { inspectedObjectKeys: ['familia-crisis'] }));
-      tick();
-
-      const first = component.checklistNotice();
-      tick(4300);
-      const second = component.checklistNotice();
-
-      expect([first, second].sort()).toEqual([
-        'Anotado: hablaste con la Enfermera de urgencias.',
-        'Anotado: hablaste con la Familia en crisis.',
-      ]);
-    });
-
     it('una pausa descarta las notas pendientes', () => {
       startInUrgencias();
       tick();
@@ -680,38 +547,23 @@ describe('SimulationPlayComponent: orientación integrada', () => {
 
       component.showNothingNearby();
 
-      expect(component.nowLine()).toBe('No hay nada a tu alcance. Acércate a una persona o un objeto.');
+      expect(component.nothingNearbyNote()).toBe('No hay nada a tu alcance. Acércate a una persona o un objeto.');
       expect(audio['playSfx']).not.toHaveBeenCalled();
       vi.advanceTimersByTime(2400);
-      expect(component.nowLine()).toBe('No hay nada a tu alcance. Acércate a una persona o un objeto.');
+      expect(component.nothingNearbyNote()).toBe('No hay nada a tu alcance. Acércate a una persona o un objeto.');
       vi.advanceTimersByTime(200);
-      expect(component.nowLine()).toMatch(/^Ahora: Recoge el material de apoyo de la sala/);
+      expect(component.nothingNearbyNote()).toBe('');
     });
 
-    it('sin lista (nodo sin ruta) la barra invita a explorar, sin prometer teclas en táctil', () => {
-      component.attempt.set(makeAttempt('nodo-del-editor', { currentNode: { key: 'nodo-del-editor', title: 'x', narrative: '', terminal: false } }));
-      component.world.set(makeWorld('mapa-del-editor', []));
-
-      expect(component.nowLine()).toBe('Explora la sala. Acércate a una persona o un objeto y pulsa E.');
-      component.coarsePointer.set(true);
-      expect(component.nowLine()).toBe('Explora la sala. Acércate a una persona o un objeto y toca «Interactuar».');
+    it('en reposo la barra no trae línea «Ahora:» ni leyenda de teclas: solo la nota mientras dure', () => {
+      const source = readFileSync(join(__dirname, 'simulation-play.component.ts'), 'utf-8');
+      expect(source).not.toContain('nowLine');
+      expect(source).not.toContain('context-bar__hint');
+      expect(source).toMatch(/<div class="context-bar__idle">\s*@if \(nothingNearbyNote\(\); as note\) \{\s*<p class="context-bar__now">\{\{ note \}\}<\/p>/);
     });
   });
 
-  describe('T9.9: destino y atenuados hacia el mundo', () => {
-    it('el anillo empieza en el maletín y pasa a la familia al recogerlo', () => {
-      startInUrgencias();
-      expect(component.nextTargetKey()).toBe('tool-pap');
-
-      component.world.set(makeWorld('hospital-urgencias', urgenciasObjects(true), { inventory: ['PAP'] }));
-
-      expect(component.nextTargetKey()).toBe('familia-crisis');
-    });
-
-    it('sin lista no hay anillo', () => {
-      expect(component.nextTargetKey()).toBeNull();
-    });
-
+  describe('T9.9: atenuados hacia el mundo', () => {
     it('los objetos de decisión de otras etapas se atenúan; el de esta etapa no', () => {
       const choice = (id: number) => ({ key: `o${id}`, text: 'x', decisionOptionId: id, requiredToolCode: null, effect: {} });
       const withChoices = (key: string, ids: number[]) => obj(key, key, 'OBJECT', 100, 100, {
@@ -1041,7 +893,7 @@ describe('SimulationPlayComponent: orientación integrada', () => {
       compact.world.set(makeWorld('hospital-urgencias', urgenciasObjects()));
 
       expect(compact.contextAction()).toBeNull();
-      expect(compact.nowLine()).toMatch(/^Ahora: /);
+      expect(compact.nothingNearbyNote()).toBe('');
       compact.nearbyInteraction.set(urgenciasObjects().find(o => o.key === 'tool-pap')!);
       expect(compact.contextAction()?.verb.text).toBe('Recoger Kit PAP');
       expect(compact.contextAlso()).toBeNull();
@@ -1049,27 +901,14 @@ describe('SimulationPlayComponent: orientación integrada', () => {
   });
 
   describe('T9.2: contador único y etapa nueva', () => {
-    it('el HUD recibe «Decisión k de 6» según la etapa', () => {
+    it('el HUD recibe el título de la escena, sin contador de decisiones', () => {
       component.attempt.set(makeAttempt('hospital-accion-etica'));
 
-      expect(component.stageLabel()).toBe('Decisión 3 de 6');
+      expect(component.stageLabel()).toBe('Título del nodo');
     });
 
-    it('en el nodo final dice «Caso cerrado»', () => {
-      component.attempt.set(makeAttempt('cierre-caso'));
-
-      expect(component.stageLabel()).toBe('Caso cerrado');
-    });
-
-    it('un nodo sin etapa usa el contador por escenarios solo si hay mapa de progreso; si no, no hay chip', () => {
-      component.attempt.set(makeAttempt('nodo-del-editor'));
+    it('sin intento no hay rótulo', () => {
       expect(component.stageLabel()).toBeNull();
-
-      component.progressMap.set({
-        currentNodeKey: 'nodo-del-editor', visitedNodeKeys: [],
-        nodes: [{ key: 'a' }, { key: 'nodo-del-editor' }],
-      } as never);
-      expect(component.stageLabel()).toBe('Escenario 2 de 2');
     });
 
     it('la «Trazabilidad» de la bitácora recibe los títulos completos de las etapas visitadas', () => {

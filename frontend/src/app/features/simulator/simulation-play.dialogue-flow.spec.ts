@@ -386,29 +386,18 @@ describe('SimulationPlayComponent: diálogo sin callejones', () => {
       expect(dialogue?.choices.map(c => c.key)).toEqual(['x']);
     });
 
-    it('el aviso de lo que falta llega una sola vez, en `notice`, y sin claves internas', () => {
+    it('el aviso de lo que queda por conocer llega una sola vez, en `notice`, y sin claves internas', () => {
       component.attempt.set(makeAttempt({
         currentNode: { key: 'hospital-urgencias', title: 'Urgencias', options: [{ id: 11, text: 'Opción' }] },
       }));
+      // Una persona de la sala con la que aún no se habló: queda algo por conocer.
+      (component as any).gameWorld = { places: () => [{ key: 'npc:enfermera', label: 'Enfermera', kind: 'person' }], playerPosition: () => undefined, focus: () => undefined };
 
       const dialogue = open(objectWith('sala', [choice('uno', 11)]));
 
-      expect(dialogue?.notice).toMatch(/^Antes de decidir te falta: /);
-      expect(dialogue?.notice).not.toMatch(/enfermera-urgencias|PAP|npc:|tool:/);
+      expect(dialogue?.notice).toBe('Puedes conocer más antes de responder.');
+      expect(dialogue?.notice).not.toMatch(/enfermera|PAP|npc:|tool:/);
       expect(dialogue?.choices.every(c => c.evidenceWarning === undefined)).toBe(true);
-    });
-
-    it('el aviso dice en qué sala está lo que falta cuando el estudiante está en otra', () => {
-      component.attempt.set(makeAttempt({
-        currentNode: { key: 'hospital-urgencias', title: 'Urgencias', options: [{ id: 11, text: 'Opción' }] },
-      }));
-      component.world.set({
-        ...(component.world() as object), map: { key: 'hospital-sala-escucha' },
-      } as unknown as SimulationWorldState);
-
-      const dialogue = open(objectWith('sala', [choice('uno', 11)]));
-
-      expect(dialogue?.notice).toContain('hablar con la Enfermera de urgencias (en Urgencias)');
     });
 
     it('marca la opción de herramienta cuyo material aún no se tiene', () => {

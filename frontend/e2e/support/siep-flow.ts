@@ -127,15 +127,9 @@ export async function canvasSize(page: Page): Promise<{ width: number; height: n
   return { width: box.width, height: box.height };
 }
 
-/** Tarjeta «Qué hacer»: su sección lleva data-next-step (id del siguiente paso) y data-stage. */
-export function checklistCard(page: Page): Locator {
-  return page.locator('app-scene-checklist-card section.checklist');
-}
-
-/** La tarjeta «Qué hacer» señala stepId (p. ej. 'u1-recoger') como el siguiente paso. */
-export async function expectNextStep(page: Page, stepId: string): Promise<void> {
-  await expect(checklistCard(page), `El siguiente paso de «Qué hacer» debería ser ${stepId}`)
-    .toHaveAttribute('data-next-step', stepId, { timeout: scaled(15_000) });
+/** La ficha del objetivo de la escena: el host lleva `data-goal` (el objetivo visible) y su botón la abre y la cierra. */
+export function goalCard(page: Page): Locator {
+  return page.locator('app-scene-goal-card');
 }
 
 export async function waitForWorldReady(page: Page, expectedMapKey?: string): Promise<void> {
@@ -176,11 +170,6 @@ export function nearbyAction(page: Page, label: RegExp): Locator {
 /** Solo el botón PRINCIPAL de la barra (el que actúa con la tecla E). */
 export function primaryNearbyAction(page: Page): Locator {
   return page.locator('button.context-bar__interaction:not(.context-bar__interaction--secondary)');
-}
-
-/** Línea «Ahora: …» del pie (`.context-bar__now`). */
-export function nowLine(page: Page): Locator {
-  return page.locator('.context-bar__now');
 }
 
 export interface WorldInputDriver {

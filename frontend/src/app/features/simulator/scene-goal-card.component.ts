@@ -21,7 +21,7 @@ import { type HintAttemptRef, SceneHintComponent } from './scene-hint.component'
   imports: [SceneHintComponent],
   host: {
     '[attr.data-goal]': 'guia().objetivo',
-    '[attr.data-open]': 'open()',
+    '[attr.data-collapsed]': '!open()',
   },
   template: `
     <section class="goal-card" [attr.aria-label]="copy.goalCardTitle.text" [class.goal-card--compact]="compact()">
