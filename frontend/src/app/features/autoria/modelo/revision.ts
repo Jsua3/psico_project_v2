@@ -243,14 +243,14 @@ function irALaFaltaDelDocumento(
   if (h.nodeId === undefined) return { ruta: '/editor' };
   const ruta = rutaDeEscena(h.nodeId);
   const path = h.path ?? '';
-  if (h.code === 'DSL.OCL-12') {
-    const comentario = /\.comentarios\[(\d+)\]/.exec(path);
-    return { ruta, ancla: comentario ? `comentario-${comentario[1]}` : 'comentarios-titulo' };
-  }
+  // se decide por el `path`: OCL-10, OCL-11 y OCL-12 valen tanto para respuestas como para comentarios
+  const comentario = /\.comentarios\[(\d+)\]/.exec(path);
+  if (comentario) return { ruta, ancla: `comentario-${comentario[1]}` };
   const opcion = /\.opciones\[(\d+)\]\.(requiere|reaccion)\b/.exec(path);
   const escena = caso.escenas.find((e) => e.id === String(h.nodeId));
   const respuesta = opcion && escena ? (respuestasGuardadas?.(escena.id) ?? respuestasConNumero(escena))[Number(opcion[1])] : undefined;
-  if (!opcion || !respuesta) return { ruta, ancla: 'respuestas-escena' };
+  if (!opcion) return { ruta, ancla: h.code === 'DSL.OCL-12' ? 'comentarios-titulo' : 'respuestas-escena' }; // sin ruta reconocible: el respaldo por código
+  if (!respuesta) return { ruta, ancla: 'respuestas-escena' };
   return { ruta, ancla: `${opcion[2] === 'requiere' ? 'aparece-si' : 'reaccion'}-${respuesta}` };
 }
 

@@ -211,6 +211,10 @@ describe('faltasDelServidor: las faltas de requisitos, reacciones y comentarios 
     ['DSL.OCL-10', 'x-siep.escenas[1].opciones[0].requiere.all[0]', 'aparece-si-12'],
     ['DSL.OCL-11', 'x-siep.escenas[1].opciones[0].reaccion.emocion', 'reaccion-12'],
     ['DSL.OCL-11', 'x-siep.escenas[1].opciones[1].reaccion', 'reaccion-31'],
+    ['DSL.OCL-12', 'x-siep.escenas[1].opciones[0].reaccion.personaje', 'reaccion-12'], // el servidor emite OCL-12 también para reacciones
+    ['DSL.OCL-12', 'x-siep.escenas[1].opciones[1].reaccion', 'reaccion-31'],
+    ['DSL.OCL-10', 'x-siep.escenas[1].comentarios[1].cuando', 'comentario-1'], // y OCL-10/11 también para comentarios
+    ['DSL.OCL-11', 'x-siep.escenas[1].comentarios[0].emocion', 'comentario-0'],
     ['DSL.OCL-12', 'x-siep.escenas[1].comentarios[2].personaje', 'comentario-2'],
     ['DSL.OCL-12', 'x-siep.escenas[1].comentarios[0]', 'comentario-0'],
   ])('%s (%s) lleva a la escena con el ancla %s y con el mensaje del servidor', (code, path, ancla) => {
