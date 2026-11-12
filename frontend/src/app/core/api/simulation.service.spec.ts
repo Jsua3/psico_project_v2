@@ -172,4 +172,34 @@ describe('SimulationService chooseDecision (C2: una sola forma de respuesta)', (
     });
     req.flush({ data: { attempt: { ...state }, consequence: null } });
   });
+
+  it('la respuesta de una decisión trae la reacción tal como la manda el servidor', () => {
+    let result: SimulationDecisionResult | undefined;
+    service.chooseDecision('a1', 't1', 41).subscribe(value => (result = value));
+
+    httpMock.expectOne(url).flush({ success: true, data: {
+      attempt: { ...state }, consequence: null,
+      reaction: { line: 'Gracias.', emotion: 'triste', gesture: 'se-acerca', objectKey: 'familia-duelo' },
+    } });
+
+    expect(result?.reaction).toEqual({ line: 'Gracias.', emotion: 'triste', gesture: 'se-acerca', objectKey: 'familia-duelo' });
+  });
+
+  it('sin reacción en la respuesta queda null (servidor anterior)', () => {
+    let result: SimulationDecisionResult | undefined;
+    service.chooseDecision('a1', 't1', 41).subscribe(value => (result = value));
+
+    httpMock.expectOne(url).flush({ success: true, data: { attempt: { ...state }, consequence: null } });
+
+    expect(result?.reaction).toBeNull();
+  });
+
+  it('getAttempt lee el intento con su token', () => {
+    service.getAttempt('a1', 'tok').subscribe();
+
+    const req = httpMock.expectOne('/api/simulation/attempts/a1');
+    expect(req.request.method).toBe('GET');
+    expect(req.request.headers.get('X-SIEP-Attempt-Token')).toBe('tok');
+    req.flush({ success: true, data: { ...state } });
+  });
 });

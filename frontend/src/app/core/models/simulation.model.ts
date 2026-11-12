@@ -244,6 +244,33 @@ export interface DecisionRetry {
 export interface SimulationDecisionResult extends SimulationAttemptState {
   consequence: DecisionConsequence | null;
   retry: DecisionRetry | null;
+  /** La reacción de la persona a lo elegido (contrato 2.1, §4.4); `null` si el servidor no la manda. */
+  reaction: DecisionReaction | null;
+}
+
+/** La reacción de la persona a la decisión: lo que dice, cómo se ve y qué hace (contrato 2.1, §4.4). */
+export interface DecisionReaction {
+  line: string;
+  emotion: string | null;
+  gesture: string;
+  objectKey: string | null;
+}
+
+/** Qué hizo falta explorar antes de una opción: hablar, inspeccionar, tener o usar algo (contrato 2.1, §4.5). */
+export type ExploredFactKind = 'talked' | 'inspected' | 'has' | 'used';
+
+export interface MissedFact {
+  kind: ExploredFactKind;
+  key: string;
+  label: string;
+}
+
+/** Una opción de la escena que el estudiante no vio abierta, con lo que le faltaba explorar (contrato 2.1, §4.5). */
+export interface MissedOption {
+  optionId: number;
+  text: string;
+  class: ResponseClass;
+  missing: MissedFact[];
 }
 
 /**
@@ -260,6 +287,8 @@ export interface DecisionReviewItem {
   class: ResponseClass;
   prohibited: boolean;
   reconsidered?: { firstOptionId: number; firstOptionText: string };
+  /** Opciones que no vio abiertas en esa escena; un informe anterior (v3) no lo trae. */
+  missed?: MissedOption[];
 }
 
 /**
@@ -295,6 +324,8 @@ export interface SimulationNodeState {
   terminal: boolean;
   /** Intensidad de la escena: la que decide el aviso previo (Tarea 4). */
   intensity: Intensity;
+  /** Lo que se busca lograr en la escena; una carga anterior no lo trae (se lee como ''). */
+  goal?: string;
   options: SimulationDecisionOption[];
 }
 

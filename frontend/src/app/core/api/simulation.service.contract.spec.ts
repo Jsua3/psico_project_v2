@@ -66,6 +66,7 @@ const CONTRACTS: Contract[] = [
   { method: 'getProgressMap', call: s => s.getProgressMap(ATTEMPT, TOKEN), verb: 'GET',
     url: `${att}/progress-map`, attemptToken: true },
   { method: 'getWorld', call: s => s.getWorld(ATTEMPT, TOKEN), verb: 'GET', url: `${att}/world`, attemptToken: true },
+  { method: 'getAttempt', call: s => s.getAttempt(ATTEMPT, TOKEN), verb: 'GET', url: att, attemptToken: true },
   { method: 'enterRoom', call: s => s.enterRoom(ATTEMPT, TOKEN, 'sala-b', 'puerta-a'), verb: 'POST',
     url: `${att}/enter-room`, body: { attemptToken: TOKEN, targetNodeKey: 'sala-b', doorKey: 'puerta-a' } },
   { method: 'updateWorldState', call: s => s.updateWorldState(ATTEMPT, TOKEN, 10, 20, 'mapa-1'), verb: 'PATCH',
@@ -326,13 +327,13 @@ describe('SimulationService contrato HTTP', () => {
 
     expect(publicMethods.filter(name => !documented.has(name))).toEqual([]);
     expect([...documented].filter(name => !publicMethods.includes(name))).toEqual([]);
-    expect(publicMethods).toHaveLength(79);
+    expect(publicMethods).toHaveLength(80);
   });
 
   it('cada método vive en una sola API y cada rol tiene el tamaño esperado', () => {
     const [player, authoring, instructor] = ROLE_CLASSES.map(publicMethodsOf);
-    expect(new Set([...player, ...authoring, ...instructor]).size).toBe(79);
-    expect([player.length, authoring.length, instructor.length]).toEqual([24, 50, 5]);
+    expect(new Set([...player, ...authoring, ...instructor]).size).toBe(80);
+    expect([player.length, authoring.length, instructor.length]).toEqual([25, 50, 5]);
     expect(instructor).toEqual(['recentAttempts', 'attemptTrace', 'rubric', 'replaceAttempt', 'saveRubric']);
   });
 

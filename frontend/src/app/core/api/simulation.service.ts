@@ -10,6 +10,7 @@ import {
   CaseBrief,
   CatalogItem,
   DecisionConsequence,
+  DecisionReaction,
   DecisionRetry,
   HintState,
   InteractionResult,
@@ -31,10 +32,11 @@ interface DecisionResponseWire {
   attempt: SimulationAttemptState;
   consequence: DecisionConsequence | null;
   retry?: DecisionRetry | null;
+  reaction?: DecisionReaction | null;
 }
 
 function toDecisionResult(data: DecisionResponseWire): SimulationDecisionResult {
-  return { ...data.attempt, consequence: data.consequence, retry: data.retry ?? null };
+  return { ...data.attempt, consequence: data.consequence, retry: data.retry ?? null, reaction: data.reaction ?? null };
 }
 
 /**
@@ -49,6 +51,12 @@ export class SimulationService {
 
   private attemptOptions(attemptToken: string) {
     return { headers: new HttpHeaders({ 'X-SIEP-Attempt-Token': attemptToken }) };
+  }
+
+  /** El intento tal como está ahora (contrato 2.1, §4.1); lo usa el ensayo para retomar el estado. */
+  getAttempt(attemptId: string, attemptToken: string) {
+    return this.http.get<ApiResponse<SimulationAttemptState>>(`${this.API}/attempts/${attemptId}`, this.attemptOptions(attemptToken))
+      .pipe(map(response => response.data));
   }
 
   listCases() {
