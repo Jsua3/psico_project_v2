@@ -23,8 +23,8 @@ import { AutoriaApiService } from '../api/autoria-api.service';
 export const ESCENAS_A_LA_VEZ = 2;
 /** Lo que se espera antes de releer cuando otra pestaña está haciendo esa parte. */
 export const ESPERA_SI_OCUPADA_MS = 5000;
-/** Relecturas seguidas sin ningún cambio antes de rendirse (24 × 5 s = 2 min). */
-export const RELECTURAS_SIN_CAMBIO = 24;
+/** Relecturas seguidas sin ningún cambio antes de rendirse (36 × 5 s = 3 min, más que los 150 s en que el servidor da una escena por abandonada). */
+export const RELECTURAS_SIN_CAMBIO = 36;
 
 export type EtapaVisible =
   | { tipo: 'esqueleto' }
@@ -151,16 +151,21 @@ export class GeneracionService {
     this.despertar();
     this.trabajando.set(true);
     this.error.set(null);
+    let ultima: Generation | null = null;
     try {
       let g = await this.leer(id);
+      ultima = g;
       let sinCambio = 0;
       while (this.vigente(mia)) {
+        ultima = g;
         this.generacion.set(g);
         if (this.terminal(g)) return;
         const paso = await this.paso(g, forzar, mia);
         if (!this.vigente(mia)) return;
         if (paso.tipo === 'error') {
-          this.error.set(paso.error);
+          // Se relee antes de publicar: la pantalla debe mostrar el estado de cada escena tal como quedó, no el de antes de pedirla.
+          await this.releerSiSePuede(id, mia);
+          if (this.vigente(mia)) this.error.set(paso.error);
           return;
         }
         if (paso.tipo === 'avanzo') {
@@ -179,7 +184,10 @@ export class GeneracionService {
         g = releida;
       }
     } catch (e) {
-      if (this.vigente(mia)) this.error.set(this.errorVisible(e, 'esqueleto'));
+      if (this.vigente(mia)) {
+        await this.releerSiSePuede(id, mia);
+        if (this.vigente(mia)) this.error.set(this.errorVisible(e, ultima ? this.parteEnCurso(ultima) : 'esqueleto'));
+      }
     } finally {
       if (this.vigente(mia)) this.trabajando.set(false);
     }
@@ -276,8 +284,23 @@ export class GeneracionService {
     return `${g.status}|${g.updatedAt}|${g.scenes.map((s) => s.state).join(',')}`;
   }
 
+  /** La parte que se estaba pidiendo según el estado de la generación. */
+  private parteEnCurso(g: Generation): Parte {
+    return g.status === 'created' ? 'esqueleto' : g.status === 'scenes_ready' ? 'ensamblado' : 'escena';
+  }
+
+  /** Relee la generación para que la pantalla no muestre estados viejos junto a un error; si la relectura falla, no importa. */
+  private async releerSiSePuede(id: string, mia: number): Promise<void> {
+    try {
+      const g = await this.leer(id);
+      if (this.vigente(mia)) this.generacion.set(g);
+    } catch {
+      // el error que ya se tiene es el que se muestra
+    }
+  }
+
   private errorDeEspera(g: Generation): ErrorVisible {
-    const parte: Parte = g.status === 'created' ? 'esqueleto' : g.status === 'scenes_ready' ? 'ensamblado' : 'escena';
+    const parte = this.parteEnCurso(g);
     const clave = parte === 'escena' ? g.scenes.find((s) => s.state === 'running')?.clave : undefined;
     return { mensaje: MENSAJE_TARDA_MUCHO, reintentable: true, parte, ...(clave ? { clave } : {}) };
   }

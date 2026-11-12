@@ -136,6 +136,46 @@ describe('GeneracionService: el orquestador de la generación', () => {
     expect(servicio.generacion()!.status).toBe('imported');
   });
 
+  it('al publicar un error de escena relee la generación: la pantalla ve cada escena como quedó', async () => {
+    const { g, servicio } = montar();
+    const id = await servicio.empezar('universidad', DESCRIPCION);
+    g.fallar('scene', 502, 'AI_PROVIDER_ERROR', 'malformed', 4);
+    await servicio.continuar(id);
+
+    expect(servicio.error()).toMatchObject({ parte: 'escena', clave: 'recepcion' });
+    const escenas = servicio.generacion()!.scenes;
+    expect(escenas.find((s) => s.clave === 'recepcion')!.state).toBe('error');
+    expect(escenas.find((s) => s.clave === 'consulta')!.state).toBe('error');
+  });
+
+  it('si la relectura del camino de error falla, el error se publica igual', async () => {
+    const { g, api, servicio } = montar();
+    const id = await servicio.empezar('universidad', DESCRIPCION);
+    g.fallar('skeleton', 422, 'AI_REFUSED');
+    const real = api.generation.bind(api);
+    let lecturas = 0;
+    vi.spyOn(api, 'generation').mockImplementation((i: string) =>
+      ++lecturas === 1 ? real(i) : throwError(() => new HttpErrorResponse({ status: 500 })));
+    await servicio.continuar(id);
+
+    expect(lecturas).toBe(2);
+    expect(servicio.error()).toEqual({ mensaje: MENSAJES['refusal'], reintentable: true, parte: 'esqueleto' });
+    expect(servicio.trabajando()).toBe(false);
+  });
+
+  it('una relectura fallida nombra la parte en curso, no siempre el esqueleto', async () => {
+    const { api, servicio } = montar();
+    const id = await servicio.empezar('universidad', DESCRIPCION);
+    await firstValueFrom(api.generationSkeleton(id));
+    const real = api.generation.bind(api);
+    let lecturas = 0;
+    vi.spyOn(api, 'generation').mockImplementation((i: string) =>
+      ++lecturas === 1 ? real(i) : throwError(() => new HttpErrorResponse({ status: 500 })));
+    await servicio.continuar(id);
+
+    expect(servicio.error()).toMatchObject({ parte: 'escena', reintentable: true });
+  });
+
   it('un refusal no se reintenta solo y muestra su mensaje', async () => {
     const { g, servicio } = montar();
     const id = await servicio.empezar('universidad', DESCRIPCION);
@@ -245,9 +285,10 @@ describe('GeneracionService: el orquestador de la generación', () => {
     expect(servicio.generacion()!.status).toBe('imported');
   });
 
-  it('una escena que corre en otra pestaña no se pide otra vez; tras 24 relecturas sin cambio pasa a error', async () => {
+  it('una escena que corre en otra pestaña no se pide otra vez; tras 36 relecturas sin cambio pasa a error', async () => {
     const { g, api, servicio } = montar();
-    expect(RELECTURAS_SIN_CAMBIO).toBe(24);
+    // 36 × 5 s = 180 s: por encima de los 150 s en que el servidor da una escena por abandonada
+    expect(RELECTURAS_SIN_CAMBIO).toBe(36);
     const id = await servicio.empezar('universidad', DESCRIPCION);
     await firstValueFrom(api.generationSkeleton(id));
     g.retener('scene', 'recepcion');
@@ -349,6 +390,13 @@ describe('GeneracionService: el orquestador de la generación', () => {
 
     // sin id ni generación: no hace nada
     await expect(servicio.cancelar()).resolves.toBeUndefined();
+  });
+
+  it('cancelar lanza ante un error que no es 409 ni 404, para que la pantalla lo muestre', async () => {
+    const { api, servicio } = montar();
+    const id = await servicio.empezar('universidad', DESCRIPCION);
+    vi.spyOn(api, 'cancelGeneration').mockImplementation(() => throwError(() => new HttpErrorResponse({ status: 500 })));
+    await expect(servicio.cancelar(id)).rejects.toBeInstanceOf(HttpErrorResponse);
   });
 
   it('cancelar una generación ya terminada no es un error', async () => {
