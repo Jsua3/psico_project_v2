@@ -38,7 +38,7 @@ it('el registro cubre todo el vocabulario', () => {
 });
 
 it('el módulo caso/ es puro: ni Angular ni Phaser', () => {
-  for (const file of ['vocabulario.ts', 'reaccion.ts', 'gestos.ts']) {
+  for (const file of ['vocabulario.ts', 'reaccion.ts', 'gestos.ts', 'guia.ts']) {
     const source = readFileSync(join(__dirname, file), 'utf-8');
     expect(source).not.toMatch(/from '@angular|from 'phaser'/);
   }
