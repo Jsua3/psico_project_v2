@@ -1,4 +1,4 @@
-import { FormativeLevel, MilestoneEntry, ResponseClass } from '../../core/models/simulation.model';
+import { FormativeLevel, MilestoneEntry, MissedFact, ResponseClass } from '../../core/models/simulation.model';
 import { DRAFT_COPY } from './draft-copy';
 
 /**
@@ -37,4 +37,23 @@ export function levelWord(level: string | null | undefined): string | null {
 /** La palabra «clave» para un hito que decide el final; nada para los demás. */
 export function milestoneMark(milestone: Pick<MilestoneEntry, 'decisive'>): string | null {
   return milestone.decisive ? DRAFT_COPY.milestoneKeyMark.text : null;
+}
+
+const MISSED_VERBS: Record<MissedFact['kind'], string> = {
+  talked: 'hablar con',
+  inspected: 'revisar',
+  has: 'tener',
+  used: 'usar',
+};
+
+/** Lo que faltó explorar, dicho como acción: «hablar con {label}», «revisar {label}», «tener {label}» o «usar {label}». */
+export function missedFactPhrase(fact: MissedFact): string {
+  return `${MISSED_VERBS[fact.kind]} ${fact.label}`;
+}
+
+/** Las frases de lo que faltó, unidas con comas y una «y» antes de la última; vacío si no hay ninguna. */
+export function missedFactsText(facts: readonly MissedFact[]): string {
+  const phrases = facts.map(missedFactPhrase);
+  if (phrases.length < 2) return phrases[0] ?? '';
+  return `${phrases.slice(0, -1).join(', ')} y ${phrases[phrases.length - 1]}`;
 }

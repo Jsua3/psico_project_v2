@@ -657,6 +657,34 @@ export const DRAFT_COPY = {
     where: 'Anuncio al continuar desde la tarjeta «Antes de comenzar»',
     text: 'Introducción completada. Comienza la escena.',
   },
+  missedTitle: {
+    decision: 'DSL-6',
+    owner: 'Psicología',
+    review: 'validar',
+    where: 'Resultado, en cada decisión: título del bloque de respuestas que no llegó a ver',
+    text: 'Respuestas que no llegaste a ver',
+  },
+  missedLead: {
+    decision: 'DSL-6',
+    owner: 'Psicología',
+    review: 'validar',
+    where: 'Resultado, en cada decisión: frase que introduce las respuestas no vistas',
+    text: 'Aparecían si conocías algo más de la sala.',
+  },
+  missedNeeded: {
+    decision: 'DSL-6',
+    owner: 'Psicología',
+    review: 'validar',
+    where: 'Resultado, en cada respuesta no vista: rótulo de lo que faltó explorar',
+    text: 'Te faltó:',
+  },
+  missedNoFacts: {
+    decision: 'DSL-6',
+    owner: 'Psicología',
+    review: 'validar',
+    where: 'Resultado, en una respuesta no vista sin hechos de exploración: explicación',
+    text: 'Dependía de cómo iba el caso hasta ese momento.',
+  },
   /** Nota de una conducta prohibida en «Tus decisiones»: se señala con cuidado, sin cifras (RN-08, ETH). */
   decisionProhibitedNote: {
     decision: 'RN-08',

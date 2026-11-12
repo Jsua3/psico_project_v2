@@ -12,7 +12,7 @@ import { fakeKitService } from '../character/kit/testing/kit-testing';
 import { HttpErrorResponse } from '@angular/common/http';
 import { of, throwError } from 'rxjs';
 import { SimulationService } from '../../core/api/simulation.service';
-import { DecisionReviewItem } from '../../core/models/simulation.model';
+import { DecisionReviewItem, MissedOption } from '../../core/models/simulation.model';
 import { RECONSIDERED_LABEL } from './reconsidered.util';
 
 /** El único servicio que la pantalla de resultado llama: «Tus decisiones» lee el reporte congelado del dueño (C2). */
@@ -761,5 +761,58 @@ describe('AttemptOutcomeComponent: tus decisiones y marcador (F10-4, C2)', () =>
     expect(host().querySelector('.oc-selfcheck')).toBeNull();
   });
 
+
+  describe('«Respuestas que no llegaste a ver» (DSL-6)', () => {
+    const missed = (overrides: Partial<MissedOption> = {}): MissedOption => ({
+      optionId: 41, text: 'Quedarse y explicar', class: 'RECOMMENDED',
+      missing: [
+        { kind: 'talked', key: 'enfermera', label: 'Enfermera de urgencias' },
+        { kind: 'used', key: 'PAP', label: 'Primeros auxilios psicológicos' },
+      ],
+      ...overrides,
+    });
+
+    it('lista por decisión las respuestas no vistas con lo que faltó explorar', async () => {
+      render({ items: [decision({ missed: [missed()] })] });
+      await settle();
+
+      const bloque = host().querySelector('.oc-decision .oc-missed')!;
+      expect(text(bloque)).toContain('Respuestas que no llegaste a ver');
+      expect(text(bloque)).toContain('Aparecían si conocías algo más de la sala.');
+      expect(text(bloque)).toContain('Quedarse y explicar');
+      expect(text(bloque)).toContain('Recomendada');
+      expect(text(bloque)).toContain('Te faltó: hablar con Enfermera de urgencias y usar Primeros auxilios psicológicos');
+    });
+
+    it('una respuesta retenida sin hechos de exploración lo dice sin inventar', async () => {
+      render({ items: [decision({ missed: [missed({ optionId: 42, text: 'Otra', class: 'RISKY', missing: [] })] })] });
+      await settle();
+
+      const bloque = host().querySelector('.oc-missed')!;
+      expect(text(bloque)).toContain('Dependía de cómo iba el caso hasta ese momento.');
+      expect(text(bloque)).not.toContain('Te faltó');
+    });
+
+    it('sin respuestas no vistas, o con un informe v3, no hay bloque', async () => {
+      render({ items: [decision({ missed: [] })] });
+      await settle();
+      expect(host().querySelector('.oc-missed')).toBeNull();
+      fixture.destroy();
+      TestBed.resetTestingModule();
+
+      render({ items: [decision()] });
+      await settle();
+      expect(host().querySelector('.oc-missed')).toBeNull();
+    });
+
+    it('el bloque vive dentro de su decisión y las opciones se leen como lista', async () => {
+      render({ items: [decision({ missed: [missed(), missed({ optionId: 43, text: 'Esperar', class: 'ACCEPTABLE', missing: [{ kind: 'has', key: 'k', label: 'Informe' }] })] })] });
+      await settle();
+
+      const bloque = host().querySelector('.oc-decision .oc-missed')!;
+      expect(bloque.querySelectorAll('li')).toHaveLength(2);
+      expect(text(bloque)).toContain('Te faltó: tener Informe');
+    });
+  });
 });
 

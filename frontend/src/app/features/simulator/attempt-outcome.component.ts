@@ -5,7 +5,7 @@ import { rxResource } from '@angular/core/rxjs-interop';
 import { RouterLink } from '@angular/router';
 import { EMPTY } from 'rxjs';
 import { SimulationService } from '../../core/api/simulation.service';
-import { AttemptCompletionReport, AttemptTimelineEntry, DecisionReviewItem, SimulationAttemptState } from '../../core/models/simulation.model';
+import { AttemptCompletionReport, AttemptTimelineEntry, DecisionReviewItem, MissedOption, SimulationAttemptState } from '../../core/models/simulation.model';
 import { UiScopeNotice } from '../../shared/ui/scope-notice/ui-scope-notice';
 import { UiSkeleton } from '../../shared/ui/skeleton/ui-skeleton';
 import { errorKindFromStatus, uiDataState } from '../../shared/ui/state/ui-data-state';
@@ -17,7 +17,7 @@ import { resolveCharacter } from '../character/kit/character-visual.resolver';
 import { KitFigureComponent } from '../character/kit/kit-figure.component';
 import { KitService } from '../character/kit/kit.service';
 import { DRAFT_COPY } from './draft-copy';
-import { levelWord, milestoneMark, responseClassWord } from './outcome-text.util';
+import { levelWord, milestoneMark, missedFactsText, responseClassWord } from './outcome-text.util';
 import { RECONSIDERED_LABEL, reconsideredChip } from './reconsidered.util';
 
 /**
@@ -231,6 +231,24 @@ import { RECONSIDERED_LABEL, reconsideredChip } from './reconsidered.util';
                         @if (item.feedback.theoryBasis) {
                           <p class="oc-decision__basis"><span class="oc-decision__k">{{ draft.decisionBasisLabel.text }}:</span> {{ item.feedback.theoryBasis }}</p>
                         }
+                        <!-- Las respuestas que no vio abiertas en esa escena y lo que le faltó explorar (DSL-6): solo al cierre. -->
+                        @if (item.missed?.length) {
+                          <div class="oc-missed">
+                            <p class="oc-missed__title">{{ draft.missedTitle.text }}</p>
+                            <p class="oc-missed__lead">{{ draft.missedLead.text }}</p>
+                            <ul class="oc-missed__list">
+                              @for (option of item.missed; track option.optionId) {
+                                <li>
+                                  <span class="oc-missed__text">{{ option.text }}</span>
+                                  @if (classWord(option.class); as word) {
+                                    <span class="oc-missed__class">{{ word }}</span>
+                                  }
+                                  <span class="oc-missed__needed">{{ missedNeededText(option) }}</span>
+                                </li>
+                              }
+                            </ul>
+                          </div>
+                        }
                       </li>
                     }
                   </ol>
@@ -363,6 +381,12 @@ import { RECONSIDERED_LABEL, reconsideredChip } from './reconsidered.util';
       font-size: var(--ds-type-caption-size); font-weight: 900; letter-spacing: .04em; text-transform: uppercase; opacity: .9;
     }
     .oc-decision__note { display: block; border-radius: 12px; }
+    .oc-missed { margin-top: 6px; padding-top: 8px; border-top: 1px dashed rgba(255,255,255,.16); display: grid; gap: 4px; }
+    .oc-missed__title { font-weight: 800; }
+    .oc-missed__lead { opacity: .7; }
+    .oc-missed__list { margin: 0; padding-left: 18px; display: grid; gap: 6px; }
+    .oc-missed__class { margin-left: 8px; opacity: .6; font-size: .86em; }
+    .oc-missed__needed { display: block; opacity: .86; }
     .oc-decision__empty { font-style: italic; opacity: .6; }
     .oc-actions { display: flex; flex-wrap: wrap; gap: 10px; justify-content: flex-end; margin-top: auto; padding-top: 6px; }
     .oc-btn {
@@ -539,6 +563,12 @@ export class AttemptOutcomeComponent {
 
   /** La clase de una decisión al cierre, en palabras (RN-08): nunca una cifra. */
   protected readonly classWord = responseClassWord;
+  /** «Te faltó: …» con lo que había que explorar, o el texto de respaldo si la opción dependía del rumbo del caso. */
+  protected missedNeededText(option: MissedOption): string {
+    return option.missing.length
+      ? `${DRAFT_COPY.missedNeeded.text} ${missedFactsText(option.missing)}`
+      : DRAFT_COPY.missedNoFacts.text;
+  }
   protected readonly levelWord = levelWord;
   protected readonly markOf = milestoneMark;
 
