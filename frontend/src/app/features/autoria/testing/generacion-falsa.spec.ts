@@ -109,6 +109,33 @@ describe('GeneracionFalsa: la generación de casos en memoria', () => {
     expect((await primero).status).toBe('skeleton_ready');
   });
 
+  it('una llamada retenida a la que nadie escucha sigue su curso al liberarla y no deja la clave colgada', async () => {
+    const creada = await firstValueFrom(api().startGeneration({ lugarId: 'universidad', descripcion: DESCRIPCION }));
+    await firstValueFrom(api().generationSkeleton(creada.id));
+    g.retener('scene', 'recepcion');
+    const suscripcion = api().generationScene(creada.id, 'recepcion').subscribe();
+    expect(g.actual(creada.id)!.scenes[0].state).toBe('running');
+    suscripcion.unsubscribe();
+
+    g.liberar('scene', 'recepcion');
+    expect(g.actual(creada.id)!.scenes[0]).toMatchObject({ state: 'done', error: null });
+    // la clave ya no está en curso: pedirla otra vez es un paso fuera de estado, no «ocupada»
+    expect((await fallo(api().generationScene(creada.id, 'recepcion'))).error.code).toBe('GENERATION_STATE');
+  });
+
+  it('cancelar con una llamada retenida: al liberarla no pisa el estado cancelled', async () => {
+    const creada = await firstValueFrom(api().startGeneration({ lugarId: 'universidad', descripcion: DESCRIPCION }));
+    g.retener('skeleton');
+    void firstValueFrom(api().generationSkeleton(creada.id));
+    await firstValueFrom(api().cancelGeneration(creada.id));
+
+    g.liberar('skeleton');
+    const tras = g.actual(creada.id)!;
+    expect(tras.status).toBe('cancelled');
+    expect(tras.skeleton).toBeNull();
+    expect(tras.scenes).toEqual([]);
+  });
+
   it('una etapa fuera de su estado da 409 GENERATION_STATE y no cambia nada', async () => {
     const creada = await firstValueFrom(api().startGeneration({ lugarId: 'universidad', descripcion: DESCRIPCION }));
     expect((await fallo(api().generationAssemble(creada.id))).error.code).toBe('GENERATION_STATE');

@@ -12,7 +12,7 @@
  */
 import { HttpErrorResponse } from '@angular/common/http';
 import { Observable, ReplaySubject, defer, of } from 'rxjs';
-import { map, take } from 'rxjs/operators';
+import { take } from 'rxjs/operators';
 
 import type {
   Generation, GenerationErrorKind, GenerationScene, GenerationStartRequest, GenerationStatus,
@@ -275,18 +275,24 @@ export class GeneracionFalsa {
     this.enCurso.add(llave);
     const terminar = (): Generation => {
       this.enCurso.delete(llave);
+      // Una generación cancelada mientras la llamada seguía en curso no se toca: el efecto llegaría tarde.
+      if (g.status === 'cancelled') return clonar(g);
       efecto();
       if (g.lastError?.stage === etapa && g.lastError.clave === clave) g.lastError = null;
       g.updatedAt = this.ahora();
       return clonar(g);
     };
     if (!this.porRetener.delete(parte)) return of(terminar());
+    // Como el servidor real, la petición termina aunque quien la pidió ya no escuche (`switchMap`, `detener()`): el efecto
+    // se suscribe a la puerta aquí, no en la suscripción del llamador, y el llamador solo recibe su resultado.
     const puerta = new ReplaySubject<void>(1);
+    const resultado = new ReplaySubject<Generation>(1);
     this.retenidas.set(parte, puerta);
-    return puerta.pipe(take(1), map(() => {
+    puerta.pipe(take(1)).subscribe(() => {
       this.retenidas.delete(parte);
-      return terminar();
-    }));
+      resultado.next(terminar());
+    });
+    return resultado.pipe(take(1));
   }
 
   private ensamblar(g: Generation): void {
