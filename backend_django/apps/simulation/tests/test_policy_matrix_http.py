@@ -25,7 +25,6 @@ ROLES = ("anon", "ESTUDIANTE", "PROFESOR", "ADMIN")
 #: Filas de la matriz que aún no tienen endpoint (se anota por qué, no se omite en silencio).
 NO_ROUTE_YET = {
     ("audit", "read"): "GET /api/admin/audit llega en E5-7 (C15)",
-    ("attempt", "rehearse"): "la ruta que abre el ensayo llega en la Tarea 7 del bloque A2; el juego del ensayo usa las rutas de play",
 }
 
 
@@ -94,6 +93,22 @@ def row_attempt_play(world):
         return _code(client.post("/api/simulation/attempts", {"caseVersionId": w.version.id}, format="json"))
 
     return statuses(world, call), {"anon": 401, "ESTUDIANTE": 200, "PROFESOR": 403, "ADMIN": 403}
+
+
+def row_attempt_rehearse(world):
+    from apps.simulation.models import SimulationNode
+
+    version_id = world.fresh_case()
+    SimulationNode.objects.create(
+        case_version_id=version_id, node_key="inicio", title="Inicio", narrative="Inicio.", start_node=True
+    )
+
+    def call(client, w):
+        return _code(client.post(f"/api/authoring/cases/{version_id}/rehearsal", {}, format="json"))
+
+    got = statuses(world, call)
+    got["foreign PROFESOR"] = _code(_client(world.foreign).post(f"/api/authoring/cases/{version_id}/rehearsal", {}, format="json"))
+    return got, {"anon": 401, "ESTUDIANTE": 403, "PROFESOR": 200, "ADMIN": 200, "foreign PROFESOR": 403}
 
 
 def row_attempt_review(world):
@@ -316,6 +331,7 @@ def row_account_self(world):
 
 ROWS = {
     ("attempt", "play"): row_attempt_play,
+    ("attempt", "rehearse"): row_attempt_rehearse,
     ("attempt", "review"): row_attempt_review,
     ("attempt", "report"): row_attempt_report,
     ("case", "author"): row_case_author,

@@ -352,6 +352,30 @@
       "audit": "ADMIN_PUBLISH_CASE"
     },
     {
+      "route": "api/admin/cases/<int:case_version_id>/rehearsal",
+      "method": "POST",
+      "exposure": "role:ADMIN,PROFESOR",
+      "body": "json-small",
+      "throttle": null,
+      "audit": "EXENTO: ensayo del borrador de su autora (docente dueña o ADMIN): un intento aparte que ningún informe, lista ni métrica cuenta y que nadie más lee; no son datos de estudiantes"
+    },
+    {
+      "route": "api/admin/cases/<int:case_version_id>/rehearsal/<uuid:attempt_id>",
+      "method": "GET",
+      "exposure": "role:ADMIN,PROFESOR",
+      "body": "none",
+      "throttle": null,
+      "audit": "EXENTO: ensayo del borrador de su autora (docente dueña o ADMIN): un intento aparte que ningún informe, lista ni métrica cuenta y que nadie más lee; no son datos de estudiantes"
+    },
+    {
+      "route": "api/admin/cases/<int:case_version_id>/rehearsal/<uuid:attempt_id>",
+      "method": "PATCH",
+      "exposure": "role:ADMIN,PROFESOR",
+      "body": "json-small",
+      "throttle": null,
+      "audit": "EXENTO: ensayo del borrador de su autora (docente dueña o ADMIN): un intento aparte que ningún informe, lista ni métrica cuenta y que nadie más lee; no son datos de estudiantes"
+    },
+    {
       "route": "api/admin/cases/<int:case_version_id>/rules/endings",
       "method": "PUT",
       "exposure": "role:ADMIN,PROFESOR",
@@ -914,6 +938,30 @@
       "body": "json-small",
       "throttle": null,
       "audit": "ADMIN_PUBLISH_CASE"
+    },
+    {
+      "route": "api/authoring/cases/<int:case_version_id>/rehearsal",
+      "method": "POST",
+      "exposure": "role:ADMIN,PROFESOR",
+      "body": "json-small",
+      "throttle": null,
+      "audit": "EXENTO: ensayo del borrador de su autora (docente dueña o ADMIN): un intento aparte que ningún informe, lista ni métrica cuenta y que nadie más lee; no son datos de estudiantes"
+    },
+    {
+      "route": "api/authoring/cases/<int:case_version_id>/rehearsal/<uuid:attempt_id>",
+      "method": "GET",
+      "exposure": "role:ADMIN,PROFESOR",
+      "body": "none",
+      "throttle": null,
+      "audit": "EXENTO: ensayo del borrador de su autora (docente dueña o ADMIN): un intento aparte que ningún informe, lista ni métrica cuenta y que nadie más lee; no son datos de estudiantes"
+    },
+    {
+      "route": "api/authoring/cases/<int:case_version_id>/rehearsal/<uuid:attempt_id>",
+      "method": "PATCH",
+      "exposure": "role:ADMIN,PROFESOR",
+      "body": "json-small",
+      "throttle": null,
+      "audit": "EXENTO: ensayo del borrador de su autora (docente dueña o ADMIN): un intento aparte que ningún informe, lista ni métrica cuenta y que nadie más lee; no son datos de estudiantes"
     },
     {
       "route": "api/authoring/cases/<int:case_version_id>/rules/endings",

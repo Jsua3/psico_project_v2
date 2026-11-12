@@ -759,6 +759,8 @@ export interface InvitationListEnvelope {
 
 export type IssueSeverityEnum = 'error' | 'warning';
 
+export type KindEnum = 'talked' | 'inspected' | 'has' | 'used';
+
 /** Los agregados de aprendizaje del alcance pedido. Cada bloque falta si no alcanza la celda mínima. */
 export interface LearningAnalytics {
   readonly acceptable?: AnalyticsAcceptable;
@@ -813,6 +815,14 @@ export interface PageCoverage {
   readonly total: number;
 }
 
+/** ``PATCH …/rehearsal/{attemptId}``: lo que se quiere cambiar del ensayo; el servicio valida cada parte y nombra el campo. */
+export interface PatchedRehearsalAdjustRequest {
+  readonly explorado?: unknown | null;
+  readonly hitos?: unknown | null;
+  readonly irA?: number | null;
+  readonly persona?: unknown | null;
+}
+
 /** La persona consultante en palabras: su vínculo y su activación en la ficción, sin cifras. */
 export interface PersonaState {
   readonly activation: ActivationEnum;
@@ -828,6 +838,108 @@ export interface PlayerPosition {
 }
 
 export type ReflectionDefinitionEnum = 'ANY' | 'PER_DECISION_SCENE';
+
+export interface RehearsalAdjusted {
+  readonly rehearsal: RehearsalBlock;
+}
+
+/** Sobre de éxito: `data` es `RehearsalAdjusted`. */
+export interface RehearsalAdjustedEnvelope {
+  readonly data: RehearsalAdjusted;
+  readonly message?: string;
+  /** Siempre `true` en una respuesta de éxito. */
+  readonly success: boolean;
+}
+
+/** El bloque del panel de la autora: solo viaja por las rutas del ensayo, nunca por las del juego. */
+export interface RehearsalBlock {
+  readonly comments: ReadonlyArray<RehearsalComment>;
+  /** Lo que `PATCH … explorado` admite en la escena actual. */
+  readonly explorable: ReadonlyArray<RehearsalMissing>;
+  /** Lo que cuenta hoy para la escena actual. */
+  readonly explored: RehearsalExplored;
+  readonly milestones: ReadonlyArray<string>;
+  readonly options: ReadonlyArray<RehearsalOption>;
+  readonly path: ReadonlyArray<RehearsalPathStep>;
+  readonly persona: PersonaState;
+  readonly sceneId: number;
+  readonly scenes: ReadonlyArray<RehearsalScene>;
+  readonly warnings: ReadonlyArray<string>;
+}
+
+export interface RehearsalComment {
+  /** Si el comentario se diría ahora. */
+  readonly due: boolean;
+  readonly index: number;
+  readonly line: string;
+  readonly missing: ReadonlyArray<RehearsalMissing>;
+  readonly personaje: string;
+}
+
+export interface RehearsalExplored {
+  readonly has: ReadonlyArray<string>;
+  readonly inspected: ReadonlyArray<string>;
+  readonly talked: ReadonlyArray<string>;
+  readonly used: ReadonlyArray<string>;
+}
+
+/** Lo que falta explorar, en la forma de ``decisionReview[].missed``: el tipo de hecho, su clave y su etiqueta. */
+export interface RehearsalMissing {
+  readonly key: string;
+  readonly kind: KindEnum;
+  readonly label: string;
+}
+
+export interface RehearsalOption {
+  readonly id: number;
+  readonly missing: ReadonlyArray<RehearsalMissing>;
+  readonly offered: boolean;
+  /** Por qué no se ofrece: `facts` (hechos sin explorar), `condition` (otra condición sin cumplir) o `broken` (requisito roto); nulo si se ofrece. */
+  readonly retainedBy: string | null;
+  readonly text: string;
+}
+
+export interface RehearsalPathStep {
+  readonly nodeId: number;
+  readonly title: string;
+}
+
+export interface RehearsalScene {
+  readonly id: number;
+  readonly key: string;
+  readonly start: boolean;
+  readonly terminal: boolean;
+  readonly title: string;
+}
+
+/** ``POST …/rehearsal``: la escena de la que se quiere empezar (la de inicio si falta). */
+export interface RehearsalStartRequest {
+  readonly desde?: number | null;
+}
+
+/** El estado del juego del ensayo (con su `attemptToken`, que este contrato no declara) más el bloque del panel. */
+export interface RehearsalStarted {
+  /** UUID del intento. */
+  readonly attemptId: string;
+  readonly caseTitle: string;
+  readonly caseVersionId: number;
+  /** El informe congelado (schemaVersion 4) de un intento completado; nulo mientras no lo está. Su forma (hitos, persona, final con su razón, revisión de decisiones, niveles con su evidencia) la fija `attempt_report`; tiparla campo a campo queda fuera de este contrato. */
+  readonly completionReport: Readonly<Record<string, unknown>> | null;
+  readonly currentNode: CurrentNode;
+  readonly persona: PersonaState;
+  readonly rehearsal: RehearsalBlock;
+  readonly status: AttemptStatusEnum;
+  /** Recursos de apoyo: solo si el intento está en pausa o salió de forma segura. */
+  readonly supportResources: ReadonlyArray<string>;
+}
+
+/** Sobre de éxito: `data` es `RehearsalStarted`. */
+export interface RehearsalStartedEnvelope {
+  readonly data: RehearsalStarted;
+  readonly message?: string;
+  /** Siempre `true` en una respuesta de éxito. */
+  readonly success: boolean;
+}
 
 /** Un intento del estudiante con sus tiempos y su n.º de intento en el caso. */
 export interface ReportAttempt {
@@ -989,6 +1101,8 @@ export interface OpenApiPaths {
   readonly '/api/admin/cases/{case_version_id}/objects/{object_id}': 'DELETE' | 'PUT';
   readonly '/api/admin/cases/{case_version_id}/objects/{object_id}/accept-ai': 'POST';
   readonly '/api/admin/cases/{case_version_id}/publish': 'POST';
+  readonly '/api/admin/cases/{case_version_id}/rehearsal': 'POST';
+  readonly '/api/admin/cases/{case_version_id}/rehearsal/{attempt_id}': 'GET' | 'PATCH';
   readonly '/api/admin/cases/{case_version_id}/rules/endings': 'PUT';
   readonly '/api/admin/cases/{case_version_id}/rules/milestones': 'PUT';
   readonly '/api/admin/cases/{case_version_id}/rules/risk': 'PUT';
@@ -1044,6 +1158,8 @@ export interface OpenApiPaths {
   readonly '/api/authoring/cases/{case_version_id}/objects/{object_id}': 'DELETE' | 'PUT';
   readonly '/api/authoring/cases/{case_version_id}/objects/{object_id}/accept-ai': 'POST';
   readonly '/api/authoring/cases/{case_version_id}/publish': 'POST';
+  readonly '/api/authoring/cases/{case_version_id}/rehearsal': 'POST';
+  readonly '/api/authoring/cases/{case_version_id}/rehearsal/{attempt_id}': 'GET' | 'PATCH';
   readonly '/api/authoring/cases/{case_version_id}/rules/endings': 'PUT';
   readonly '/api/authoring/cases/{case_version_id}/rules/milestones': 'PUT';
   readonly '/api/authoring/cases/{case_version_id}/rules/risk': 'PUT';

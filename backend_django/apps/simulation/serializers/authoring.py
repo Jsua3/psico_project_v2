@@ -321,3 +321,18 @@ class EndingsRequest(serializers.Serializer):
     """``PUT …/rules/endings``: la lista completa de finales, en orden de evaluación."""
 
     endings = serializers.ListField(child=serializers.JSONField())
+
+
+class RehearsalStartRequest(serializers.Serializer):
+    """``POST …/rehearsal``: la escena de la que se quiere empezar (la de inicio si falta)."""
+
+    desde = _number()
+
+
+class RehearsalAdjustRequest(serializers.Serializer):
+    """``PATCH …/rehearsal/{attemptId}``: lo que se quiere cambiar del ensayo; el servicio valida cada parte y nombra el campo."""
+
+    irA = _number()
+    explorado = serializers.JSONField(required=False, allow_null=True)
+    persona = serializers.JSONField(required=False, allow_null=True)
+    hitos = serializers.JSONField(required=False, allow_null=True)
