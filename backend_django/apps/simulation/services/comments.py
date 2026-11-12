@@ -84,3 +84,29 @@ def due_comments(attempt, node, world_state, context=None) -> list[dict]:
             "gesture": gesture if isinstance(gesture, str) and gesture in GESTURES else None,
         })
     return result
+
+
+def retained_by(attempt, node, world_state, context, due_ids) -> dict:
+    """``{posición: motivo}`` de los comentarios que NO se dicen ahora, con la misma evaluación que ``due_comments``: el
+    panel de la autora nunca discrepa del juego. Motivos: ``broken`` (``cuando`` mal formado), ``condition`` (``cuando``
+    válido sin cumplir; su ``missing`` dice qué falta) y ``absent`` (su personaje no es una PERSON visible de la sala).
+    Un comentario que sí se dice no aparece."""
+    comments = case_rules.comments_of(node)
+    pending = dict(_pending(comments))
+    conditional = [c["cuando"] for c in pending.values() if "cuando" in c]
+    if conditional and (not context or option_availability._mentions_count(conditional)):
+        context = option_availability.availability_context(
+            attempt, node, world_state, need_counts=option_availability._mentions_count(conditional)
+        )
+    retained = {}
+    for position in range(len(comments)):
+        if f"{node.id}-{position}" in due_ids:
+            continue
+        comment = pending.get(position)
+        if comment is None:
+            retained[position] = "broken"
+        elif "cuando" in comment and not is_available(comment["cuando"], context):
+            retained[position] = "condition"
+        else:
+            retained[position] = "absent"
+    return retained

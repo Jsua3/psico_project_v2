@@ -30,8 +30,6 @@ from .guards import require_version
 
 def rehearsed_to_end(case_version_id, actor):
     """¿``actor`` ya llevó un ensayo de esta versión hasta un final? Los de otras personas no cuentan."""
-    if actor is None:
-        return False
     return SimulationAttempt.all_objects.filter(
         case_version_id=case_version_id, is_rehearsal=True, student_id=actor.id, status=AttemptStatus.COMPLETED
     ).exists()
@@ -58,7 +56,7 @@ def editor(case_version_id, actor=None):
     latest = _latest_checklist(case_version_id)
     checklist = _ratio_of(latest)
 
-    return {
+    view = {
         "caseVersionId": version.id,
         "revision": version.version,
         "title": version.simulation_case.title,
@@ -92,8 +90,11 @@ def editor(case_version_id, actor=None):
         "checklistCompletion": checklist,
         "publishable": checklist >= 100,
         "checklist": checklist_view(case_version_id, latest),
-        "rehearsedToEnd": rehearsed_to_end(case_version_id, actor),
     }
+    if actor is not None:
+        # Solo el ``GET …/editor`` sabe quién pide; las mutaciones devuelven esta vista sin la clave (no un ``False`` falso).
+        view["rehearsedToEnd"] = rehearsed_to_end(case_version_id, actor)
+    return view
 
 
 def rules_state(version):

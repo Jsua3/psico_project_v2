@@ -157,6 +157,15 @@ def _foto(attempt_id):
 
 
 # ─── Abrir ─────────────────────────────────────────────────────────────────────────────────────────────────────────
+def test_abrir_y_ajustar_el_ensayo_llevan_el_limitador_pesado(mundo):
+    from apps.security.throttling import HeavyUserThrottle
+    from apps.simulation.views.authoring_views import RehearsalDetailView, RehearsalStartView
+
+    assert RehearsalStartView.throttle_classes == [HeavyUserThrottle]
+    (limitador,) = RehearsalDetailView.throttle_classes
+    assert issubclass(limitador, HeavyUserThrottle) and limitador.methods == ("PATCH",)
+
+
 def test_el_dueno_abre_el_ensayo_de_un_borrador_sin_sello_en_la_escena_pedida(mundo):
     assert mundo.version.status == "DRAFT"
 
@@ -183,6 +192,19 @@ def test_sin_desde_empieza_en_la_escena_de_inicio(mundo):
 
 def test_el_admin_tambien_ensaya_un_caso_ajeno(mundo):
     assert _ensayo(mundo, user=mundo.admin)["currentNode"]["id"] == mundo.inicio.id
+
+
+def test_abrir_un_ensayo_no_bloquea_la_fila_de_la_escena(mundo):
+    """``select_for_update`` con ``select_related`` bloquearía también el ``SimulationNode`` (``of=("self",)`` lo evita)."""
+    from django.db import connection
+    from django.test.utils import CaptureQueriesContext
+
+    _ensayo(mundo)
+    with CaptureQueriesContext(connection) as capturadas:
+        _ensayo(mundo)  # reemplaza el abierto: lo lee con FOR UPDATE
+
+    bloqueos = [q["sql"] for q in capturadas.captured_queries if "FOR UPDATE" in q["sql"]]
+    assert bloqueos and all("FOR UPDATE OF" in sql and '"simulation_attempts_v2"' in sql.split("FOR UPDATE OF")[1] for sql in bloqueos)
 
 
 def test_un_estudiante_recibe_403_y_un_docente_ajeno_403(mundo):
@@ -288,10 +310,42 @@ def test_block_trae_todos_los_comentarios_con_due_y_missing(mundo):
     assert [c["index"] for c in comments] == [0, 1]
     pedido, libre = comments
     assert pedido == {
-        "index": 0, "personaje": "abuela", "line": "Mira la foto.", "due": False,
+        "index": 0, "personaje": "abuela", "line": "Mira la foto.", "due": False, "retainedBy": "condition",
         "missing": [{"kind": "inspected", "key": "foto", "label": "Una foto"}],
     }
     assert libre["due"] is True and libre["missing"] == [] and libre["line"] == "Pasa, pasa."
+    assert libre["retainedBy"] is None
+
+
+def test_un_comentario_retenido_dice_por_que(mundo):
+    mundo.inicio.comments_json = json.dumps([
+        {"personaje": "nadie", "linea": "No hay quien lo diga."},
+        {"personaje": "abuela", "linea": "Cuando mal escrito.", "cuando": {"inventado": "x"}},
+        {"personaje": "abuela", "linea": "Pide explorar.", "cuando": {"inspected": "foto"}},
+        {"personaje": "abuela", "linea": "Se dice."},
+        {"personaje": "nadie", "linea": "Sin quien y con condición.", "cuando": {"inspected": "foto"}},
+    ])
+    mundo.inicio.save()
+
+    comments = _ensayo(mundo)["rehearsal"]["comments"]
+
+    assert [(c["due"], c["retainedBy"]) for c in comments] == [
+        (False, "absent"), (False, "broken"), (False, "condition"), (True, None), (False, "condition"),
+    ]
+    assert comments[2]["missing"] == [{"kind": "inspected", "key": "foto", "label": "Una foto"}]
+    assert comments[0]["missing"] == [] and comments[1]["missing"] == []
+
+
+def test_un_comentario_con_condicion_cumplida_pero_sin_persona_visible_dice_absent(mundo):
+    mundo.inicio.comments_json = json.dumps([{"personaje": "abuela", "linea": "Mira la foto.", "cuando": {"inspected": "foto"}}])
+    mundo.inicio.save()
+    MapObject.objects.filter(scene_map=mundo.mapa_inicio, object_key="abuela-obj").update(visible=False)
+    ensayo = _ensayo(mundo)
+
+    block = _ajustar(mundo, ensayo, {"explorado": {"inspected": ["foto"]}}).data["data"]["rehearsal"]
+
+    assert block["comments"][0]["due"] is False and block["comments"][0]["retainedBy"] == "absent"
+    assert block["comments"][0]["missing"] == []
 
 
 def test_block_persona_hitos_y_camino(mundo):
@@ -396,6 +450,17 @@ def test_patch_irA_mueve_la_escena_y_el_mundo_a_su_mapa(mundo):
     assert state.scene_map.node_id == mundo.segunda.id
     juego = _cliente(mundo.profesora).get(f"{GAME}/attempts/{attempt.id}", **{TOKEN_HEADER: ensayo["attemptToken"]})
     assert juego.data["data"]["currentNode"]["id"] == mundo.segunda.id
+
+
+def test_patch_irA_a_la_escena_actual_no_duplica_la_entrada_ni_el_camino(mundo):
+    ensayo = _ensayo(mundo)
+    eventos = AttemptEvent.objects.filter(attempt_id=ensayo["attemptId"], event_type="NODE_ENTERED").count()
+
+    response = _ajustar(mundo, ensayo, {"irA": mundo.inicio.id})
+
+    assert response.status_code == 200, response.data
+    assert [p["nodeId"] for p in response.data["data"]["rehearsal"]["path"]] == [mundo.inicio.id]
+    assert AttemptEvent.objects.filter(attempt_id=ensayo["attemptId"], event_type="NODE_ENTERED").count() == eventos
 
 
 def test_patch_irA_y_explorado_juntos_marcan_la_sala_nueva(mundo):

@@ -512,6 +512,8 @@ class WorldPreviewView(_AuthoringView):
 class RehearsalStartView(_AuthoringView):
     """``POST …/rehearsal``: abre el ensayo (cierra el anterior) y devuelve el estado del juego con su token y el bloque."""
 
+    throttle_classes = [HeavyUserThrottle]
+
     @extend_schema(
         request=inputs.RehearsalStartRequest,
         responses={200: envelope_of(RehearsalStartedSerializer), **error_responses(400, 401, 403, 404)},
@@ -522,8 +524,16 @@ class RehearsalStartView(_AuthoringView):
         return api_ok(rehearsal.start(version, request.user, body.get("desde")))
 
 
+class _HeavyOnPatchThrottle(HeavyUserThrottle):
+    """El mismo cupo pesado, pero solo cuenta el ``PATCH`` (recargar el bloque con ``GET`` no gasta)."""
+
+    methods = ("PATCH",)
+
+
 class RehearsalDetailView(_AuthoringView):
     """``GET`` recarga el bloque del ensayo; ``PATCH`` mueve la escena y marca lo explorado, la persona y los hitos."""
+
+    throttle_classes = [_HeavyOnPatchThrottle]
 
     @extend_schema(responses={200: envelope_of(RehearsalAdjustedSerializer), **error_responses(401, 403, 404, 409)})
     def get(self, request, case_version_id, attempt_id):

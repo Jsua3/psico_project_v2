@@ -240,7 +240,7 @@ def _hitos_del_grupo(case_version_id, student_ids):
     rows = (
         AttemptReport.objects.filter(
             attempt__case_version_id=case_version_id, attempt__student_id__in=student_ids,
-            attempt__status=AttemptStatus.COMPLETED,
+            attempt__status=AttemptStatus.COMPLETED, attempt__is_rehearsal=False,
         )
         .order_by("attempt__started_at", "attempt_id")
         .values_list("attempt__student_id", "report_json")

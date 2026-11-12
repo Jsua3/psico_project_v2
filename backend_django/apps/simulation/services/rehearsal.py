@@ -93,7 +93,8 @@ def start(version, actor, from_node_id):
     """Abre el ensayo de ``actor`` en ``from_node_id`` (o en la escena de inicio) y cierra el anterior."""
     node = _start_node(version, from_node_id)
     with transaction.atomic():
-        for old in _open_rehearsals(actor, version).select_for_update().select_related("current_node"):
+        # ``of=("self",)``: con ``select_related`` PostgreSQL bloquearía también la fila de la escena.
+        for old in _open_rehearsals(actor, version).select_for_update(of=("self",)).select_related("current_node"):
             replace_open_attempt(old, by=actor, reason=REPLACE_REASON)
         try:
             # Su propio punto de guardado: un choque con el índice único no rompe la transacción de afuera.
@@ -178,7 +179,7 @@ def _warnings(node, options, *, has_map):
         # BORRADOR: texto nuevo del servidor, pendiente de la aprobación de Psicología
         found.append("Esta escena no tiene respuestas ni es un final: el estudiante se quedaría aquí.")
     for option in options:
-        if option.target_node_id is None:
+        if option.target_node_id is None:  # Defensivo: ``target_node`` es NOT NULL; solo un objeto a medio armar llega aquí.
             # BORRADOR: texto nuevo del servidor, pendiente de la aprobación de Psicología
             found.append(
                 f"«{option.text}»: Esta respuesta aún no lleva a ninguna escena. En el caso real, el estudiante se quedaría aquí."
@@ -216,23 +217,24 @@ def block(attempt):
         option_rows.append(row)
 
     due_ids = {c["id"] for c in comments.due_comments(attempt, node, world, context)}
+    retained = comments.retained_by(attempt, node, world, context, due_ids)
     comment_rows = []
     for position, comment in enumerate(case_rules.comments_of(node)):
         due = f"{node.id}-{position}" in due_ids
-        when = comment.get("cuando")
+        why = retained.get(position)
         unmet = []
-        if not due and isinstance(when, dict) and when and conditions.is_valid(when, facts=True):
-            unmet = _unmet(when, context)
+        if why == "condition":
+            unmet = _unmet(comment["cuando"], context)
             wanted += unmet
         comment_rows.append({
-            "index": position, "personaje": comment["personaje"], "line": comment["linea"], "due": due, "_unmet": unmet,
+            "index": position, "personaje": comment["personaje"], "line": comment["linea"], "due": due,
+            "retainedBy": why, "_unmet": unmet,
         })
 
     explorable = _explorable_pairs(version_id, scene_map)
     explored_sets = context["explored"]
     explored = {kind: sorted(explored_sets[kind]) for kind in KINDS}
     labels = attempt_report.missed_labels(version_id, {node.id: [(None, wanted + [list(p) for p in explorable])]})
-    labels = {key: label for key, label in labels.items()}
 
     for row in option_rows:
         row["missing"] = [_item(k, key, labels, node.id) for k, key in row.pop("_unmet", [])]
@@ -279,7 +281,8 @@ def _plan(attempt, version, request):
         if node is None:
             # BORRADOR: texto nuevo del servidor, pendiente de la aprobación de Psicología
             raise _bad("irA", "La escena a la que se quiere ir no es de este caso.")
-        plan["node"] = node
+        if node.id != attempt.current_node_id:  # ir a la escena actual no es un movimiento: ni evento ni paso nuevo
+            plan["node"] = node
     scene_map = SceneMap.objects.filter(node_id=node.id).first()
     plan["scene_map"] = scene_map
 
@@ -328,7 +331,7 @@ def _plan(attempt, version, request):
                 raise _bad("hitos", f"El hito «{key}» no lo declara el caso.")
         plan["hitos"] = keys
 
-    needs_world = [f for f, p in (("explorado", "explorado"), ("persona", "persona"), ("hitos", "hitos")) if p in plan]
+    needs_world = [name for name in ("explorado", "persona", "hitos") if name in plan]
     if needs_world and scene_map is None and not AttemptWorldState.objects.filter(attempt_id=attempt.id).exists():
         # BORRADOR: texto nuevo del servidor, pendiente de la aprobación de Psicología
         raise _bad(needs_world[0], "Esta escena todavía no tiene sala: no hay dónde guardarlo.")
@@ -355,7 +358,8 @@ def _apply_explored(state, scene_map, wanted):
             DialogueTree.objects.filter(scene_map_id=scene_map.id, map_object__isnull=False)
             .values_list("map_object__object_key", "tree_key")
         )
-        viewed = [k for k in read_string_list(json.dumps(flags.get("viewedNpcKeys", []))) if k not in own]
+        seen = flags.get("viewedNpcKeys")
+        viewed = [k for k in (seen if isinstance(seen, list) else []) if isinstance(k, str) and k not in own]
         for key in wanted["talked"]:
             viewed += [key] + ([trees[key]] if key in trees else [])
         flags["viewedNpcKeys"] = list(dict.fromkeys(viewed))
