@@ -90,6 +90,11 @@ describe('imperativeMissing: nombra con lo que hay en el mundo', () => {
     expect(imperativeMissing([npc('ana'), owned('KIT'), npc('ana')], ctx)).toEqual(['habla con Ana', 'recoge algo de la sala']);
   });
 
+  it('dos requisitos distintos sin nombre conocido no repiten la misma frase', () => {
+    const ctx: CopyContext = { world: MUNDO, npcs: [] };
+    expect(imperativeMissing([inspected('nota-perdida'), inspected('otra-nota')], ctx)).toEqual(['revisa algo de la sala']);
+  });
+
   it('con cualquier mezcla nunca aparece una clave', () => {
     const ctx: CopyContext = { world: MUNDO, npcs: [] };
     for (const phrase of imperativeMissing([npc('enfermera-urgencias'), inspected('expediente-caso'), owned('SPIKES'), used('PAP@x')], ctx)) {

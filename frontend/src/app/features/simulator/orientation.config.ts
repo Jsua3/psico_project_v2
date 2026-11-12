@@ -7,6 +7,8 @@
  * Orienta PROCESO y LUGAR; jamás insinúa cuál opción de decisión es adecuada.
  */
 
+import { DRAFT_COPY } from './draft-copy';
+
 /**
  * «Salida segura» es alcanzable en todos los estados jugables (F§4.7): introducción, contexto, exploración, ajustes,
  * ayuda, diálogo con y sin opciones, supervisión, bitácora y pausa. Verificado jugando (T9.8); mientras sea cierto, la
@@ -40,6 +42,6 @@ export const ORIENTATION_COPY = {
   door: {
     before: (phrases: string): string => `Antes de pasar, ${phrases}.`,
     laterGate: 'Esta salida se abre más adelante en el caso.',
-    fallback: 'Antes de pasar, explora un poco más la sala.',
+    fallback: DRAFT_COPY.doorFallback.text,
   },
 } as const;

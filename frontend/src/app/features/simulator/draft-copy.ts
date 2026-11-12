@@ -695,6 +695,13 @@ export const DRAFT_COPY = {
     where: 'Puerta bloqueada: objeto o herramienta que pide la puerta y que no se halla en el mundo',
     text: 'algo de la sala',
   },
+  doorFallback: {
+    decision: 'DSL-8',
+    owner: 'Psicología',
+    review: 'validar',
+    where: 'Puerta bloqueada cuando el servidor no dice qué falta (reemplaza al respaldo que nombraba «Qué hacer»)',
+    text: 'Antes de pasar, explora un poco más la sala.',
+  },
   /** Nota de una conducta prohibida en «Tus decisiones»: se señala con cuidado, sin cifras (RN-08, ETH). */
   decisionProhibitedNote: {
     decision: 'RN-08',

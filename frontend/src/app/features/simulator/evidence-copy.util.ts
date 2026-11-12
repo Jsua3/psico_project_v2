@@ -58,17 +58,9 @@ function phraseFor(item: MissingItem, ctx: CopyContext): string {
   return text;
 }
 
-function uniqueItems(items: readonly MissingItem[]): MissingItem[] {
-  const seen = new Set<string>();
-  return items.filter(item => {
-    const id = `${item.kind}:${item.key}`;
-    if (seen.has(id)) return false;
-    seen.add(id);
-    return true;
-  });
-}
 
 /** Imperativo, para las puertas: «habla con Ana (en el extremo izquierdo, al frente)». */
 export function imperativeMissing(items: readonly MissingItem[], ctx: CopyContext): string[] {
-  return uniqueItems(items).map(item => phraseFor(item, ctx));
+  // Se deduplica por frase, no por clave: dos requisitos sin nombre conocido dirían lo mismo dos veces.
+  return [...new Set(items.map(item => phraseFor(item, ctx)))];
 }
