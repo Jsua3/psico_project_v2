@@ -18,6 +18,9 @@ def _pending(comments):
     """``[(posición, comentario)]`` de los que no traen ``cuando`` o lo traen bien formado, en el orden del documento."""
     pending = []
     for position, comment in enumerate(comments):
+        if comment.get("cuando") == {}:
+            # ``{}`` es «sin condición», igual que ausente (la misma gramática que ``requiere``).
+            comment = {key: value for key, value in comment.items() if key != "cuando"}
         if "cuando" in comment and not (
             isinstance(comment["cuando"], dict) and conditions.is_valid(comment["cuando"], facts=True)
         ):

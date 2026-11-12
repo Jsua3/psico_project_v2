@@ -118,7 +118,7 @@ def test_cuando_roto_o_personaje_ausente_no_sale_y_no_rompe(game):
     _set_comments(game, [
         {"personaje": "laura", "linea": "roto", "cuando": {"inventado": "x"}},
         {"personaje": "laura", "linea": "no es objeto", "cuando": "carpeta"},
-        {"personaje": "laura", "linea": "vacío", "cuando": {}},
+        {"personaje": "laura", "linea": "cuando vacío", "cuando": {}},
         {"personaje": "figurante", "linea": "sin persona en el mapa"},
         {"personaje": "fantasma", "linea": "no existe"},
         {"personaje": "laura", "linea": "bueno", "emocion": "inventada", "gesto": 7},
@@ -126,9 +126,10 @@ def test_cuando_roto_o_personaje_ausente_no_sale_y_no_rompe(game):
 
     world = _world(game)
 
-    assert _lines(world) == ["bueno"]
-    assert world["comments"][0]["id"] == f"{game.node.id}-5"  # la posición es la del documento
-    assert (world["comments"][0]["emotion"], world["comments"][0]["gesture"]) == (None, None)
+    # ``cuando: {}`` es «sin condición»: ese comentario sale; los demás rotos, no.
+    assert _lines(world) == ["cuando vacío", "bueno"]
+    assert [c["id"] for c in world["comments"]] == [f"{game.node.id}-2", f"{game.node.id}-5"]  # posición del documento
+    assert (world["comments"][1]["emotion"], world["comments"][1]["gesture"]) == (None, None)
     SimulationNode.objects.filter(pk=game.node.id).update(comments_json="no es json{")
     assert _world(game)["comments"] == []
 
