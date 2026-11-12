@@ -1,37 +1,17 @@
 import { ChangeDetectionStrategy, Component, computed, inject, input, linkedSignal, output, signal } from '@angular/core';
 
-import type { Gesto } from '../../../../core/models/simulation.model';
+import { GESTOS, type Gesto } from '../../../../core/models/simulation.model';
 import { CasoStore } from '../../estado/caso.store';
 import { rutaRetrato } from '../../modelo/biblioteca.service';
 import type { ClaseRespuesta, Escena, Reaccion, Respuesta } from '../../modelo/caso';
 import { EXPRESIONES } from '../../modelo/escenario';
+import { NOMBRE_GESTO, problemaDeLaFrase } from '../../modelo/frase';
 import { NOMBRE_EXPRESION } from '../../modelo/textos';
-
-const MAX_FRASE = 400;
-
-// BORRADOR: texto nuevo, pendiente de la aprobación de Psicología
-const GESTOS: ReadonlyArray<{ valor: Gesto; nombre: string }> = [
-  { valor: 'se-acerca', nombre: 'Se acerca' },
-  { valor: 'asiente', nombre: 'Asiente' },
-  { valor: 'se-aparta', nombre: 'Se aparta' },
-  { valor: 'baja-la-mirada', nombre: 'Baja la mirada' },
-  { valor: 'se-agita', nombre: 'Se agita' },
-];
 
 /** El gesto que hace el personaje si la docente no elige uno: el de la clase de la respuesta. */
 const GESTO_DE_CLASE: Record<ClaseRespuesta, Gesto> = {
   RECOMMENDED: 'se-acerca', ACCEPTABLE: 'asiente', RISKY: 'baja-la-mirada', CONTRAINDICATED: 'se-aparta',
 };
-
-/** Por qué una frase no se guarda; `null` si está bien. Una línea, hasta 400, sin enlaces ni HTML. */
-function problemaDeLaFrase(texto: string): string | null {
-  // BORRADOR: texto nuevo, pendiente de la aprobación de Psicología
-  if (/[\r\n]/.test(texto)) return 'No se guardó: la frase debe escribirse en una sola línea.';
-  if (texto.length > MAX_FRASE) return `No se guardó: la frase no puede pasar de ${MAX_FRASE} caracteres (tiene ${texto.length}).`;
-  if (/(https?:|www\.)/i.test(texto)) return 'No se guardó: la frase no puede llevar enlaces.';
-  if (/<[^>]*>/.test(texto)) return 'No se guardó: la frase debe ser texto plano, sin HTML.';
-  return null;
-}
 
 /**
  * «Cómo reacciona»: lo que hace el personaje cuando el estudiante elige una respuesta: una frase, su cara, su gesto y quién reacciona.
@@ -69,7 +49,7 @@ function problemaDeLaFrase(texto: string): string | null {
           <label [for]="idBase() + '-gesto'" class="etiqueta">Gesto</label>
           <select [id]="idBase() + '-gesto'" class="campo" (change)="elegirGesto($any($event.target).value)">
             <option value="" [selected]="!reaccion().gesto">{{ gestoPorDefecto() }}</option>
-            @for (g of gestos; track g.valor) { <option [value]="g.valor" [selected]="reaccion().gesto === g.valor">{{ g.nombre }}</option> }
+            @for (g of gestos; track g) { <option [value]="g" [selected]="reaccion().gesto === g">{{ nombreGesto[g] }}</option> }
           </select>
         </div>
         <div class="campo-col">
@@ -116,6 +96,7 @@ export class ReaccionComponent {
   protected readonly expresiones = EXPRESIONES;
   protected readonly nombreExpresion = NOMBRE_EXPRESION;
   protected readonly gestos = GESTOS;
+  protected readonly nombreGesto = NOMBRE_GESTO;
 
   protected readonly reaccion = computed<Reaccion>(() => this.respuesta().reaccion ?? {});
   /** Lo que hay en el campo de la frase; vuelve a lo guardado cuando cambia la respuesta. */
@@ -126,7 +107,7 @@ export class ReaccionComponent {
     const clase = this.respuesta().clase;
     // BORRADOR: texto nuevo, pendiente de la aprobación de Psicología
     if (!clase) return 'El de su clase';
-    const nombre = GESTOS.find((g) => g.valor === GESTO_DE_CLASE[clase])!.nombre.toLowerCase();
+    const nombre = NOMBRE_GESTO[GESTO_DE_CLASE[clase]].toLowerCase();
     return `El de su clase: ${nombre}`;
   });
 

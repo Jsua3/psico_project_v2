@@ -155,6 +155,11 @@ describe('ReaccionComponent', () => {
     expect(raiz.querySelector('[role=alert]')!.textContent).toContain('enlaces');
     await escribir(campo<HTMLTextAreaElement>('linea'), 'Hola <b>tú</b>');
     expect(raiz.querySelector('[role=alert]')!.textContent).toContain('HTML');
+    // La regla es la del servidor (compartida con los comentarios): otros esquemas y direcciones sin esquema también cuentan.
+    await escribir(campo<HTMLTextAreaElement>('linea'), 'Escribe a mailto:a@b.co');
+    expect(raiz.querySelector('[role=alert]')!.textContent).toContain('enlaces');
+    await escribir(campo<HTMLTextAreaElement>('linea'), 'Abre ftp://x.co');
+    expect(raiz.querySelector('[role=alert]')!.textContent).toContain('enlaces');
     expect(editar).not.toHaveBeenCalled();
   });
 
