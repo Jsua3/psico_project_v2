@@ -50,8 +50,9 @@ describe('draft-copy: textos en borrador pendientes de Psicología', () => {
     // aviso de contenido cambió de versión (S3-2b, ETH-01) y los del resultado con retroalimentación por decisión
     // (F10-4: «Tus decisiones», sus estados, las etiquetas y el marcador): son texto que ve la persona y se validan, no
     // solo se conocen; y los del cierre por hitos y competencias (VD-23: clases en palabras, hitos, competencias,
-    // autoevaluación breve y últimos cierres del panel) y la nota «persona a atender» de la persona clave (P6-4).
-    expect(list.filter(entry => entry.review === 'validar')).toHaveLength(57);
+    // autoevaluación breve y últimos cierres del panel) y la nota «persona a atender» de la persona clave (P6-4); y los siete
+    // de la ficha del objetivo (DSL-2: rótulo, respaldo, «En esta sala», las tres marcas y «Pedir una pista»).
+    expect(list.filter(entry => entry.review === 'validar')).toHaveLength(64);
   });
 
   // req: ETH-01, SIEP-RF-05 (S3-2b)

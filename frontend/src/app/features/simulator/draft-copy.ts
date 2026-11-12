@@ -528,6 +528,56 @@ export const DRAFT_COPY = {
     where: 'Franja de la reacción del personaje tras elegir',
     text: 'Enter para continuar',
   },
+  /** La ficha del objetivo de la escena (4.2): su rótulo, el texto de respaldo, la lista de la sala y las marcas en palabras. */
+  goalCardTitle: {
+    decision: 'DSL-2',
+    owner: 'Psicología',
+    review: 'validar',
+    where: 'Ficha del objetivo: rótulo sobre el objetivo de la escena',
+    text: 'Objetivo de la escena',
+  },
+  goalCardFallback: {
+    decision: 'DSL-2',
+    owner: 'Psicología',
+    review: 'validar',
+    where: 'Ficha del objetivo: cuando la escena no trae objetivo',
+    text: 'Explora la sala y conversa con las personas.',
+  },
+  roomListTitle: {
+    decision: 'DSL-2',
+    owner: 'Psicología',
+    review: 'validar',
+    where: 'Ficha del objetivo abierta: título de la lista de lo que hay en la sala',
+    text: 'En esta sala',
+  },
+  roomMarkTalked: {
+    decision: 'DSL-2',
+    owner: 'Psicología',
+    review: 'validar',
+    where: 'Ficha del objetivo: marca de una persona con la que ya se habló',
+    text: 'ya hablaste',
+  },
+  roomMarkReviewed: {
+    decision: 'DSL-2',
+    owner: 'Psicología',
+    review: 'validar',
+    where: 'Ficha del objetivo: marca de un objeto ya revisado',
+    text: 'ya revisaste',
+  },
+  roomMarkNotYet: {
+    decision: 'DSL-2',
+    owner: 'Psicología',
+    review: 'validar',
+    where: 'Ficha del objetivo: marca de lo que aún no se ha visto',
+    text: 'aún no',
+  },
+  hintAskLabel: {
+    decision: 'DSL-2',
+    owner: 'Psicología',
+    review: 'validar',
+    where: 'Ficha del objetivo: botón que pide una pista',
+    text: 'Pedir una pista',
+  },
   /** Nota de una conducta prohibida en «Tus decisiones»: se señala con cuidado, sin cifras (RN-08, ETH). */
   decisionProhibitedNote: {
     decision: 'RN-08',
