@@ -719,6 +719,7 @@ export class CasoStore {
         copia.titulo = `${original.titulo} (copia)`;
         copia.posicion = { x: original.posicion.x + 40, y: original.posicion.y + 40 };
         copia.marcaIa = false;
+        if (copia.pistas) copia.pistas = copia.pistas.map((p) => ({ ...p, id: nuevoId('pista') }));
         copia.lineas = copia.lineas.map((l) => ({ ...l, id: lineas.get(l.id) ?? lineas.set(l.id, nuevoId('linea')).get(l.id)! }));
         copia.respuestas = copia.respuestas.map((r) => ({
           ...r,
@@ -916,7 +917,8 @@ export class CasoStore {
       nombre: 'lo que dicen al acercarse',
       aplicar: (caso) => { this.escena(caso, escenaId).comentarios = structuredClone(comentarios); },
       enviar: (despues, sesion) => persistir.actualizarEscena(sesion, despues, escenaId),
-      fusion: `escena:${escenaId}`,
+      fusion: `comentarios:${escenaId}`, // propia: un 400 de comentarios no debe llevarse el objetivo ni el título
+
       resumen: comentarios.length
         ? comentarios.flatMap((c, i) => textoCompleto(`Comentario ${i + 1} al acercarse en la escena «${titulo}»`, c.linea))
         : [`Quitaste lo que dicen al acercarse en la escena «${titulo}»`],

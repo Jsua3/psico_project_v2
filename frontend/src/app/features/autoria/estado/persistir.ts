@@ -183,6 +183,8 @@ export async function crearEscena(s: SesionServidor, caso: CasoBorrador, escenaI
     };
     const solicitud = await armarSolicitudDeSala(s, caso, sala.id, previo);
     await s.guardarMundo(nodo.id, solicitud);
+    // Una escena que nace con pistas (la copia de otra, una propuesta de la IA) las guarda también: borrador y servidor coinciden.
+    await guardarPistas(s, caso, escenaId);
   } catch (error) {
     try {
       await s.borrarNodo(nodo.id); // se lleva su mapa: no queda una escena a medias

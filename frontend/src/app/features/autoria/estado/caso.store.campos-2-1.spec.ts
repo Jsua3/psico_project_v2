@@ -192,7 +192,7 @@ describe('CasoStore con la API · campos 2.1', () => {
     expect(servidor.llamadas).toHaveLength(llamadas);
   });
 
-  it('deshacer un cambio de comentarios vuelve al anterior y lo guarda', async () => {
+  it('volver a fijar la lista anterior de comentarios la guarda', async () => {
     const { servidor, store } = montar();
     await store.cargar(CASO);
     const consultorio = escenaDe(store, 'consultorio');
@@ -200,7 +200,7 @@ describe('CasoStore con la API · campos 2.1', () => {
     await store.sincronizado();
     servidor.llamadas.length = 0;
 
-    // «Deshacer» de la interfaz = volver a fijar la lista de antes: se ve al instante y se guarda como cualquier otro cambio.
+    // El historial del store solo cubre salas: volver a una lista anterior es fijarla otra vez, y se guarda como cualquier otro cambio.
     const anterior = structuredClone(escenaDe(store, 'consultorio').comentarios!);
     store.fijarComentarios(consultorio.id, [{ personaje: 'psicologa-bienestar', linea: 'Otra cosa.' }]);
     store.fijarComentarios(consultorio.id, anterior);
@@ -210,6 +210,49 @@ describe('CasoStore con la API · campos 2.1', () => {
     const ultimo = servidor.llamadasA('updateNode').at(-1)!.args[1] as NodeUpsertRequest;
     expect(ultimo.comments).toEqual([{ personaje: 'psicologa-bienestar', linea: 'Hola.' }]);
     expect(servidor.editor.nodes.find((n) => String(n.id) === consultorio.id)!.comments).toEqual([{ personaje: 'psicologa-bienestar', linea: 'Hola.' }]);
+  });
+
+  it('el 400 de los comentarios no se lleva el objetivo ni el título que esperaban en la cola', async () => {
+    const { servidor, store } = montar();
+    await store.cargar(CASO);
+    const consultorio = escenaDe(store, 'consultorio');
+    servidor.llamadas.length = 0;
+
+    // Tres cambios de la misma escena en la cola: el 1.º sale ya; el objetivo y los comentarios esperan, cada uno con su clave.
+    servidor.fallar('updateNode', 400, 'Un comentario no puede superar los 400 caracteres.', { campo: 'comments', saltar: 2 });
+    store.editarEscena(consultorio.id, { titulo: 'Consultorio nuevo' });
+    store.editarObjetivo(consultorio.id, 'Escuchar.');
+    store.fijarComentarios(consultorio.id, [{ personaje: 'psicologa-bienestar', linea: 'x'.repeat(401) }]);
+    await store.sincronizado();
+
+    expect(servidor.llamadasA('updateNode')).toHaveLength(3);
+    expect(escenaDe(store, 'consultorio').comentarios).toEqual([]);
+    expect(escenaDe(store, 'consultorio').objetivo).toBe('Escuchar.');
+    expect(escenaDe(store, 'consultorio').titulo).toBe('Consultorio nuevo');
+    expect(servidor.editor.nodes.find((n) => String(n.id) === consultorio.id)!.goal).toBe('Escuchar.');
+    expect(store.error()).toContain('Un comentario no puede superar los 400 caracteres.');
+  });
+
+  it('duplicar una escena con pistas las guarda en el servidor: borrador y servidor coinciden', async () => {
+    const { servidor, store } = montar();
+    await store.cargar(CASO);
+    const consultorio = escenaDe(store, 'consultorio');
+    store.fijarPistas(consultorio.id, ['Mira la carpeta.', 'Habla con calma.']);
+    await store.sincronizado();
+    const mapaOriginal = servidor.editor.maps.find((m) => String(m.nodeId) === consultorio.id)!;
+    servidor.llamadas.length = 0;
+
+    const copiaId = store.duplicarEscena(consultorio.id);
+    await store.sincronizado();
+    expect(store.error()).toBeNull();
+
+    const copia = borrador(store).escenas.find((e) => e.id === copiaId)!;
+    expect(copia.pistas!.map((p) => p.texto)).toEqual(['Mira la carpeta.', 'Habla con calma.']);
+    expect(copia.pistas!.map((p) => p.id)).not.toEqual(consultorio.pistas!.map((p) => p.id)); // ids propios
+    expect(servidor.metodos.filter((m) => m === 'createHint')).toHaveLength(2);
+    const mapaCopia = servidor.editor.maps.find((m) => m.id !== mapaOriginal.id && servidor.editor.hints.some((h) => h.mapId === m.id))!;
+    expect(servidor.editor.hints.filter((h) => h.mapId === mapaCopia.id).map((h) => h.text)).toEqual(['Mira la carpeta.', 'Habla con calma.']);
+    expect(servidor.editor.hints.filter((h) => h.mapId === mapaOriginal.id).map((h) => h.text)).toEqual(['Mira la carpeta.', 'Habla con calma.']);
   });
 
   it('un 400 con field comments revierte solo ese cambio y muestra el mensaje del servidor', async () => {
