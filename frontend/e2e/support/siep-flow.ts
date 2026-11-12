@@ -1,5 +1,6 @@
 import { expect } from '@playwright/test';
 import type { Locator, Page, Response } from '@playwright/test';
+import { captureApiBodies, readJson, readText } from './api-bodies';
 import { resetStudentConsent } from './consent';
 import type { SiepInputMode } from './required-viewports';
 import { scaled } from './time-scale';
@@ -17,7 +18,7 @@ type ApiData = Record<string, any>;
 
 async function requireOk(response: Response, context: string): Promise<void> {
   if (response.ok()) return;
-  const body = await response.text().catch(() => '<cuerpo no disponible>');
+  const body = await readText(response).catch(() => '<cuerpo no disponible>');
   throw new Error(`${context}: HTTP ${response.status()} ${response.url()} — ${body}`);
 }
 
@@ -42,6 +43,7 @@ export async function markFirstTimeHelpSeen(page: Page): Promise<void> {
 }
 
 export async function loginStudent(page: Page, options: { seedHelp?: boolean } = {}): Promise<void> {
+  await captureApiBodies(page);
   if (options.seedHelp !== false) await markFirstTimeHelpSeen(page);
   if (!/\/login$/.test(new URL(page.url()).pathname)) await page.goto('/login');
   await page.locator('input[type="email"]').last().fill(EMAIL);
@@ -466,7 +468,7 @@ export async function moveAndPersistPosition(
     while (Date.now() < deadline) {
       for (const response of saves) {
         await requireOk(response, 'Falló la persistencia de posición');
-        const data = (await response.json()).data as ApiData;
+        const data = (await readJson(response)).data as ApiData;
         if (data?.player?.x === final.x && data?.player?.y === final.y) return data;
       }
       await page.waitForTimeout(100);
@@ -513,8 +515,8 @@ export async function pauseWithPendingPosition(
     await requireOk(pauseResponse, 'Falló la pausa segura');
     expect(requestOrder).toEqual(['position', 'pause']);
     return {
-      positionWorld: (await positionResponse.json()).data as ApiData,
-      pausedAttempt: (await pauseResponse.json()).data as ApiData,
+      positionWorld: (await readJson(positionResponse)).data as ApiData,
+      pausedAttempt: (await readJson(pauseResponse)).data as ApiData,
     };
   } finally {
     page.off('request', captureOrder);
@@ -534,7 +536,7 @@ export async function reloadAndResumeAttempt(
   await page.reload();
   const activeResponse = await activePromise;
   await requireOk(activeResponse, 'Falló active-attempt tras recarga');
-  const activeAttempt = (await activeResponse.json()).data as ApiData;
+  const activeAttempt = (await readJson(activeResponse)).data as ApiData;
   expect(activeAttempt.status).toBe(expectedStatus);
 
   const buttonName = expectedStatus === 'PAUSED'
@@ -564,12 +566,12 @@ export async function reloadAndResumeAttempt(
   if (resumePromise) {
     const resumeResponse = await resumePromise;
     await requireOk(resumeResponse, 'Falló resume tras recarga');
-    resumedAttempt = (await resumeResponse.json()).data as ApiData;
+    resumedAttempt = (await readJson(resumeResponse)).data as ApiData;
   }
 
   const worldResponse = await worldPromise;
   await requireOk(worldResponse, 'Falló world tras reanudar');
-  const world = (await worldResponse.json()).data as ApiData;
+  const world = (await readJson(worldResponse)).data as ApiData;
   await waitForWorldReady(page, expectedMapKey);
   return { activeAttempt, resumedAttempt, world };
 }
@@ -608,7 +610,7 @@ export async function interactNearby(
   await action.click();
   const response = await responsePromise;
   await requireOk(response, `Falló la interacción ${label}`);
-  return (await response.json()).data as ApiData;
+  return (await readJson(response)).data as ApiData;
 }
 
 export async function enterDoor(
@@ -627,7 +629,7 @@ export async function enterDoor(
   await action.click();
   const response = await responsePromise;
   await requireOk(response, `Falló la puerta ${label}`);
-  const data = (await response.json()).data as ApiData;
+  const data = (await readJson(response)).data as ApiData;
   expect(data.map?.key).toBe(expectedMapKey);
   await waitForWorldReady(page, expectedMapKey);
   return data;
@@ -666,7 +668,7 @@ export async function seekNpcDialogue(
     const response = await responsePromise;
     await requireOk(response, 'Falló la interacción NPC');
     await expect(dialogue).toBeVisible({ timeout: scaled(10_000) });
-    return (await response.json()).data as ApiData;
+    return (await readJson(response)).data as ApiData;
   };
 
   // Por plazo y no por número de intentos: el NPC deambula en tiempo de
@@ -771,7 +773,7 @@ export async function chooseDecision(
   await requireOk(response, `Falló la decisión ${optionText}`);
   // C2: con FEEDBACK_AT_CLOSE_ONLY el estado del intento viene dentro de `attempt`; el resto del e2e lee el estado
   // plano, así que se aplana aquí conservando `consequence` y `retry`.
-  const body = (await response.json()).data as ApiData;
+  const body = (await readJson(response)).data as ApiData;
   return body.attempt ? { ...body.attempt, consequence: body.consequence ?? null, retry: body.retry ?? null } : body;
 }
 
@@ -792,7 +794,7 @@ export async function useToolChoice(
   await option.click();
   const response = await responsePromise;
   await requireOk(response, `Falló la aplicación ${optionText}`);
-  return (await response.json()).data as ApiData;
+  return (await readJson(response)).data as ApiData;
 }
 
 export async function openFamilyDialogue(page: Page, touch: boolean): Promise<Locator> {
