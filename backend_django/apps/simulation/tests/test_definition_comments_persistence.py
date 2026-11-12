@@ -97,7 +97,8 @@ def test_un_ensayo_abierto_y_un_intento_abierto_del_mismo_usuario_y_version_conv
     play = _attempt(actor, version, rehearsal=False)
     rehearsal = _attempt(actor, version, rehearsal=True)
     assert play.is_rehearsal is False and rehearsal.is_rehearsal is True
-    assert SimulationAttempt.objects.filter(student=actor, case_version=version).count() == 2
+    # El gestor por defecto oculta los ensayos (PlayableAttemptManager): para contar los dos hace falta ``all_objects``.
+    assert SimulationAttempt.all_objects.filter(student=actor, case_version=version).count() == 2
 
 
 def test_dos_ensayos_abiertos_del_mismo_autor_y_version_violan_la_restriccion(case, actor):
