@@ -127,6 +127,53 @@ describe('game-help.content: pantalla permanente (F§5.8)', () => {
     expect(text('touch', 'bitacora')).toBe('Escribe tus reflexiones cuando quieras con el botón de la cabecera.');
   });
 
+  it('«Qué hacer» describe la ficha del objetivo: dónde está, sin nombrar una tarjeta que ya no existe ni insinuar respuestas', () => {
+    for (const modality of MODALITIES) {
+      const text = helpSections({ modality, safeExitPromise: true }).find(s => s.id === 'que-hacer')?.text ?? '';
+      expect(text).toBe(DRAFT_COPY.helpGoalSection.text);
+      expect(text).toContain('arriba a la izquierda');
+      expect(text).not.toMatch(/tarjeta|se marca sola|siguiente paso|Antes de decidir/i);
+    }
+  });
+
+  describe('atajos de una tecla (F6-10): la ayuda sigue el ajuste', () => {
+    const KEY_LETTERS = /WASD|\bE\b|\bJ\b|1 a 4/;
+    const off = (extra: object = {}) => ({ modality: 'keyboard' as HelpModality, safeExitPromise: true, singleKeyShortcuts: false, ...extra });
+
+    it('apagados prometen flechas y Enter, no WASD, E, J ni los números', () => {
+      const texts = helpSections(off()).flatMap(s => [s.title, s.text]);
+      expect(texts.join(' | ')).not.toMatch(KEY_LETTERS);
+      const keys = helpSections(off()).find(s => s.id === 'teclas')?.text ?? '';
+      expect(keys).toContain('flechas');
+      expect(keys).toContain('Enter');
+      expect(keys).toContain('Esc');
+    });
+
+    it('la tarjeta de primera vez tampoco promete WASD ni E con el ajuste apagado', () => {
+      for (const compact of BOOLEANS) {
+        const lines = firstTimeHelpLines({ modality: 'keyboard', compact, safeExitPromise: true, singleKeyShortcuts: false });
+        expect(lines.join(' | ')).not.toMatch(KEY_LETTERS);
+        expect(lines[0]).toMatch(/flechas/);
+        expect(lines[0]).toMatch(/Enter/);
+      }
+    });
+
+    it('encendidos (y por defecto) conservan WASD, E y J', () => {
+      for (const options of [{ singleKeyShortcuts: true }, {}]) {
+        const keys = helpSections({ modality: 'keyboard', safeExitPromise: true, ...options }).find(s => s.id === 'teclas')?.text ?? '';
+        expect(keys).toMatch(/WASD/);
+        expect(keys).toMatch(/\bE\b/);
+        expect(keys).toMatch(/\bJ\b/);
+      }
+    });
+
+    it('la modalidad táctil no cambia con el ajuste', () => {
+      expect(helpSections({ modality: 'touch', safeExitPromise: true, singleKeyShortcuts: false })).toEqual(
+        helpSections({ modality: 'touch', safeExitPromise: true, singleKeyShortcuts: true }),
+      );
+    });
+  });
+
   it('el caso no nombra lugares ni cuántas decisiones hay, y la retroalimentación llega después de decidir', () => {
     const all = helpSections({ modality: 'keyboard', safeExitPromise: true });
     expect(all.find(s => s.id === 'caso')?.text).toBe(DRAFT_COPY.helpCaseSection.text);
@@ -179,7 +226,7 @@ describe('game-help.content: límites de producto y de redacción', () => {
     expect(joined).toContain('Cómo se juega');
     expect(joined).toContain('Más ayuda');
     expect(joined).toContain('Bitácora');
-    expect(joined).toContain('decisión');
+    expect(joined).toContain('retroalimentación');
   });
 
   it('ningún texto contiene un identificador interno del caso', () => {

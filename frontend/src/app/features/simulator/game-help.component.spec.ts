@@ -76,6 +76,22 @@ describe('GameHelpComponent: nota sobre los atajos fuera del bloque validado (F6
     expect(rendered).toEqual(helpSections({ modality: 'keyboard', safeExitPromise: true }).map(section => section.id));
   });
 
+  it('el ajuste «Atajos de una tecla» llega a la ayuda: apagado, la pantalla y la tarjeta no prometen WASD, E ni J', () => {
+    create('screen');
+    expect(host().textContent).toMatch(/WASD/);
+    fixture.destroy();
+    TestBed.resetTestingModule();
+    TestBed.configureTestingModule({ imports: [GameHelpComponent] });
+    fixture = TestBed.createComponent(GameHelpComponent);
+    writeInputSignal(fixture.componentInstance.view, 'screen');
+    writeInputSignal(fixture.componentInstance.safeExitPromise, true);
+    writeInputSignal(fixture.componentInstance.shortcuts, false);
+    fixture.detectChanges();
+    const sections = Array.from(host().querySelectorAll('[data-help-section]')).map(section => section.textContent ?? '').join(' | ');
+    expect(sections).not.toMatch(/WASD|\bE\b|\bJ\b/);
+    expect(sections).toMatch(/flechas/i);
+  });
+
   it('la tarjeta de primera vez no lleva la nota', () => {
     create('card');
     expect(host().querySelector('[data-help-draft]')).toBeNull();

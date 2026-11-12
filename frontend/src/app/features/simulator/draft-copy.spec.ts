@@ -53,7 +53,7 @@ describe('draft-copy: textos en borrador pendientes de Psicología', () => {
     // autoevaluación breve y últimos cierres del panel) y la nota «persona a atender» de la persona clave (P6-4); y los siete
     // de la ficha del objetivo (DSL-2: rótulo, respaldo, «En esta sala», las tres marcas y «Pedir una pista») y los cuatro de DSL-3 (los dos avisos
     // de exploración y los dos textos de la ayuda).
-    expect(list.filter(entry => entry.review === 'validar')).toHaveLength(68);
+    expect(list.filter(entry => entry.review === 'validar')).toHaveLength(69);
   });
 
   // req: ETH-01, SIEP-RF-05 (S3-2b)

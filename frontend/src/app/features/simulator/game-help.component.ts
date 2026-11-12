@@ -181,6 +181,8 @@ export class GameHelpComponent {
   readonly compact = input(false);
   /** Verdadero solo cuando «Salida segura» es alcanzable en todos los estados (F§6.3). */
   readonly safeExitPromise = input(false);
+  /** Ajuste «Atajos de una tecla» (F6-10): apagado, el texto de teclado no promete WASD, E, J ni los números. */
+  readonly shortcuts = input(true);
 
   /** «Entendido» en la tarjeta de primera vez. */
   readonly dismissed = output<void>();
@@ -198,9 +200,14 @@ export class GameHelpComponent {
       modality: this.modality(),
       compact: this.compact(),
       safeExitPromise: this.safeExitPromise(),
+      singleKeyShortcuts: this.shortcuts(),
     }),
   );
   protected readonly sections = computed(() =>
-    helpSections({ modality: this.modality(), safeExitPromise: this.safeExitPromise() }),
+    helpSections({
+      modality: this.modality(),
+      safeExitPromise: this.safeExitPromise(),
+      singleKeyShortcuts: this.shortcuts(),
+    }),
   );
 }

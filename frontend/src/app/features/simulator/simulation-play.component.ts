@@ -405,7 +405,7 @@ const CASE_INTRO_PARAGRAPHS = [
               <!-- Tarjeta de primera vez: no modal, sin temporizador, no roba el foco ni consume Esc. -->
               <div class="help-slot">
                 <app-game-help view="card" [modality]="helpModality()" [compact]="compactMode()"
-                  [safeExitPromise]="safeExitPromise"
+                  [safeExitPromise]="safeExitPromise" [shortcuts]="shortcuts.enabled()"
                   (dismissed)="markHelpCardSeen()" (openFull)="openHelp()" />
               </div>
             }
@@ -496,7 +496,7 @@ const CASE_INTRO_PARAGRAPHS = [
         @if (helpOpen()) {
           <!-- Pantalla «Cómo se juega»: encima del mundo pero sin cubrir la cabecera ni el pie, que siguen operables. -->
           <div class="help-layer">
-            <app-game-help view="screen" [modality]="helpModality()" [safeExitPromise]="safeExitPromise"
+            <app-game-help view="screen" [modality]="helpModality()" [safeExitPromise]="safeExitPromise" [shortcuts]="shortcuts.enabled()"
               (closed)="helpOpen.set(false)" />
           </div>
         }

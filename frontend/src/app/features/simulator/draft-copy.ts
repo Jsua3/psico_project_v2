@@ -600,6 +600,13 @@ export const DRAFT_COPY = {
     where: 'Tarjeta de primera vez de la ayuda: dónde está el objetivo de la escena',
     text: 'Arriba está el objetivo de la escena: ábrelo para ver qué hay en la sala o pedir una pista.',
   },
+  helpGoalSection: {
+    decision: 'DSL-3',
+    owner: 'Psicología',
+    review: 'validar',
+    where: 'Pantalla de ayuda, sección «Qué hacer»: dónde está la ficha del objetivo y qué ofrece',
+    text: 'La ficha del objetivo, arriba a la izquierda, te recuerda qué buscar en esta sala y quién o qué ya conoces. Ábrela cuando quieras; ahí también puedes pedir una pista.',
+  },
   helpCaseSection: {
     decision: 'DSL-3',
     owner: 'Psicología',
