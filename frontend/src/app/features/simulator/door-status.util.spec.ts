@@ -17,7 +17,7 @@ const door = (metadata: Record<string, unknown>, key = 'puerta-x') => obj(key, '
 function ctxFor(room: RoomGroup | null, over: Partial<DoorStatusContext> = {}, objects: MapObjectState[] = []): DoorStatusContext {
   const world = { inventory: [], inspectedObjectKeys: [], usedToolKeys: [], flags: {}, objects, ...over.world };
   const copy: CopyContext = { currentRoom: room, world, nameTools: false, npcs: [] };
-  return { nodeKey: 'hospital-urgencias', decisionNumber: 1, viewedNpcKeys: new Set(), copy, ...over, world };
+  return { nodeKey: 'hospital-urgencias', viewedNpcKeys: new Set(), copy, ...over, world };
 }
 
 const FAMILIA = obj('familia-crisis', 'PERSON', 190, 420, 'Familia en crisis');
@@ -81,39 +81,29 @@ describe('doorStatus: requisitos vivos', () => {
   });
 });
 
-describe('doorStatus: salida del hospital (requiresNodes)', () => {
-  const gate = { requiresNodes: ['hospital-cierre-bloque'] };
+describe('doorStatus: etapa exigida (requiresNodes)', () => {
+  const MUNDO = { inventory: [], inspectedObjectKeys: [], usedToolKeys: [], flags: {}, objects: [] };
+  const COPY: CopyContext = { currentRoom: null, world: MUNDO, nameTools: false, npcs: [] };
 
-  it.each([
-    [1, 'Esta salida se abre cuando termines las decisiones del hospital. Te quedan 3 decisiones.'],
-    [2, 'Esta salida se abre cuando termines las decisiones del hospital. Te quedan 2 decisiones.'],
-    [3, 'Esta salida se abre cuando termines las decisiones del hospital. Te queda 1 decisión.'],
-  ])('en la decisión %d: «%s»', (decisionNumber, expected) => {
-    const nodeKey = ['', 'hospital-urgencias', 'hospital-sala-escucha', 'hospital-accion-etica'][decisionNumber];
-    const status = doorStatus(door(gate, 'salida-institucional'), ctxFor('sala-escucha', { nodeKey, decisionNumber }));
-    expect(status).toMatchObject({ state: 'locked', stageLocked: true, missing: [], message: expected });
+  it('una puerta bloqueada por la etapa usa la frase general, sin contar decisiones de un caso', () => {
+    const status = doorStatus(door({ requiresNodes: ['otra-escena'] }), { nodeKey: 'esta-escena', world: MUNDO, viewedNpcKeys: new Set(), copy: COPY });
+    expect(status).toMatchObject({ state: 'locked', stageLocked: true, message: 'Esta salida se abre más adelante en el caso.' });
+  });
+
+  it('el contexto de las puertas ya no pide número de decisión', () => {
+    const ctx: DoorStatusContext = { nodeKey: 'x', world: MUNDO, viewedNpcKeys: new Set(), copy: COPY };
+    expect(doorStatus(door({}), ctx).state).toBe('open');
   });
 
   it('se abre cuando el nodo actual es el que la habilita', () => {
-    const status = doorStatus(door(gate), ctxFor('sala-escucha', { nodeKey: 'hospital-cierre-bloque', decisionNumber: 4 }));
+    const status = doorStatus(door({ requiresNodes: ['esta-escena'] }), ctxFor('sala-escucha', { nodeKey: 'esta-escena' }));
     expect(status).toEqual({ state: 'open', missing: [], stageLocked: false, message: null });
   });
 
-  it('sin número de decisión, o con uno que ya no cuenta, no inventa un contador', () => {
-    for (const decisionNumber of [null, 4, 5]) {
-      const status = doorStatus(door(gate), ctxFor('sala-escucha', { decisionNumber }));
-      expect(status.message).toBe('Esta salida se abre cuando termines las decisiones del hospital.');
-    }
-  });
-
-  it('otra etapa exigida usa una frase general; evidencia y etapa se suman en dos frases', () => {
-    expect(doorStatus(door({ requiresNodes: ['otro-nodo'] }), ctxFor('urgencias')).message)
-      .toBe('Esta salida se abre más adelante en el caso.');
-    const both = doorStatus(door({ ...gate, requiresNpcs: ['enfermera-urgencias'] }), ctxFor('urgencias', { decisionNumber: 3 }));
+  it('evidencia y etapa se suman en dos frases', () => {
+    const both = doorStatus(door({ requiresNodes: ['otro-nodo'], requiresNpcs: ['enfermera-urgencias'] }), ctxFor('urgencias'));
     expect(both).toMatchObject({ state: 'locked', stageLocked: true });
-    expect(both.message).toBe(
-      'Antes de pasar, habla con la Enfermera de urgencias. Esta salida se abre cuando termines las decisiones del hospital. Te queda 1 decisión.',
-    );
+    expect(both.message).toBe('Antes de pasar, habla con la Enfermera de urgencias. Esta salida se abre más adelante en el caso.');
   });
 });
 
@@ -159,16 +149,14 @@ describe('puertas del seed', () => {
         requiresTools: seedDoor.requiresTools, requiresNodes: seedDoor.requiresNodes,
       };
       for (const room of [null, 'urgencias', 'sala-escucha', 'recepcion', 'consultorio'] as const) {
-        for (const decisionNumber of [null, 1, 2, 3, 4]) {
-          const status = doorStatus(door(meta, seedDoor.key), ctxFor(room, { decisionNumber, nodeKey: 'hospital-urgencias' }));
-          const hasRequirement = Object.values(meta).some(list => list.length);
-          expect(status.state).toBe(hasRequirement ? 'locked' : 'open');
-          if (status.message === null) continue;
-          expect(status.message).toMatch(/^(Antes de pasar, |Esta salida se abre )/);
-          expect(status.message).not.toMatch(/[a-z]+-[a-z]+|npc:|tool:|@|PAP|SPIKES|RISK_METER|EPICEE/);
-          expect(status.message).not.toMatch(/orientación de ingreso|Completa la contención/);
-          expect(status.message).not.toMatch(/\b(accion|decision|informacion|psicologa|recepcion)\b/i);
-        }
+        const status = doorStatus(door(meta, seedDoor.key), ctxFor(room, { nodeKey: 'hospital-urgencias' }));
+        const hasRequirement = Object.values(meta).some(list => list.length);
+        expect(status.state).toBe(hasRequirement ? 'locked' : 'open');
+        if (status.message === null) continue;
+        expect(status.message).toMatch(/^(Antes de pasar, |Esta salida se abre )/);
+        expect(status.message).not.toMatch(/[a-z]+-[a-z]+|npc:|tool:|@|PAP|SPIKES|RISK_METER|EPICEE/);
+        expect(status.message).not.toMatch(/orientación de ingreso|Completa la contención/);
+        expect(status.message).not.toMatch(/\b(accion|decision|informacion|psicologa|recepcion)\b/i);
       }
     }
   });

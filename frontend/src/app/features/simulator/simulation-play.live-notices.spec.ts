@@ -328,11 +328,11 @@ describe('SimulationPlayComponent: anuncios y avisos (F6-12)', () => {
       expect(component.roomBanner()).toBe('');
     });
 
-    it('la etapa nueva se anuncia y se muestra 3 s', () => {
-      internals().announceNewStage({ title: 'Seguimiento', previousNumber: null });
+    it('la escena nueva se anuncia con su título y se muestra 3 s', () => {
+      internals().announceNewStage('Seguimiento');
       fixture.detectChanges();
       settle();
-      expect(region('polite').textContent).toBe(ORIENTATION_COPY.notices.newStage('Seguimiento'));
+      expect(region('polite').textContent).toBe('Seguimiento');
       vi.advanceTimersByTime(3000 - LIVE_WRITE_DELAY_MS - 1);
       expect(component.roomBanner()).not.toBe('');
       vi.advanceTimersByTime(1);

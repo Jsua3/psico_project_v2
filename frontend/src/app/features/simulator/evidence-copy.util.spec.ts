@@ -110,7 +110,7 @@ describe('imperativeMissing', () => {
         objects: [obj({ key: 'caja-azul', label: 'Caja azul', type: 'OBJECT' })] },
     });
     expect(imperativeMissing([npc('ana-visita')], ctx)).toEqual(['habla con Visita de Ana']);
-    expect(imperativeMissing([inspected('caja-azul')], ctx)).toEqual(['revisa Caja azul']);
+    expect(imperativeMissing([inspected('caja-azul')], ctx)).toEqual(['revisa Caja azul (en el extremo izquierdo, al fondo)']);
     const unknown = imperativeMissing([npc('x-y'), inspected('otro-z'), owned('NOPE'), used('NOPE')], ctxFor('urgencias'));
     expect(unknown).toEqual([
       'habla con alguien en otra sala', 'revisa algo en otra sala',

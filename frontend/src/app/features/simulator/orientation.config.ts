@@ -136,10 +136,6 @@ export const SAFE_EXIT_ALWAYS_REACHABLE: boolean = true;
 
 export const DECISION_TOTAL = 6;
 
-/** Etapa cuya puerta de salida del hospital espera la 4.ª decisión (n restantes = 4 − k). */
-export const HOSPITAL_GATE_NODE_KEY = 'hospital-cierre-bloque';
-export const HOSPITAL_GATE_STAGE_NUMBER = 4;
-
 /** Textos fijos (F§5.1, F§5.3-5.6). Funciones solo donde hay datos que intercalar. */
 export const ORIENTATION_COPY = {
   card: {

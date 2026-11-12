@@ -157,8 +157,8 @@ describe('SimulationPlayComponent: tiempos de la pantalla de juego (A-03b)', () 
     });
 
     it('el banner de etapa nueva se muestra 3000 ms', () => {
-      internals().announceNewStage({ title: 'Seguimiento', previousNumber: null });
-      const banner = ORIENTATION_COPY.notices.newStage('Seguimiento');
+      internals().announceNewStage('Seguimiento');
+      const banner = 'Seguimiento';
       expect(component.roomBanner()).toBe(banner);
 
       advance(2999);

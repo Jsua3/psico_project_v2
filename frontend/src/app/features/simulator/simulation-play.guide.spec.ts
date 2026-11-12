@@ -154,7 +154,6 @@ describe('SimulationPlayComponent: la sala ocupa la pantalla (guía genérica)',
     const el: HTMLElement = fixture.nativeElement;
     expect(el.querySelector('app-scene-goal-card')!.getAttribute('data-goal')).toBe('Contener a la familia');
     expect(el.textContent).not.toMatch(/Decisión \d+ de \d+|Ahora:/);
-    expect(el.querySelector('app-scene-checklist-card')).toBeNull();
   });
 
   it('el HUD nombra la escena', () => {

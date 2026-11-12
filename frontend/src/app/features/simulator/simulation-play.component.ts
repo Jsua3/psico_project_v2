@@ -23,14 +23,12 @@ import { decorateDialogueState, otherStageDecisionKeys } from './dialogue-decora
 import { type CopyContext } from './evidence-copy.util';
 import { type DoorStatus, type DoorStatusContext, doorStateMap, doorStatus } from './door-status.util';
 import { type InteractionVerb, interactionVerb, readsLocally } from './interaction-verb.util';
-import { NAME_TOOLS_IN_HINTS, ORIENTATION_COPY, RoomGroup, SAFE_EXIT_ALWAYS_REACHABLE } from './orientation.config';
+import { NAME_TOOLS_IN_HINTS, ORIENTATION_COPY, SAFE_EXIT_ALWAYS_REACHABLE } from './orientation.config';
 import { GameHelpComponent } from './game-help.component';
 import { HELP_FIRST_CARD, markHelpSeen, readHelpSeen, resetHelpSeen } from './help-memory.util';
 import { SceneGoalCardComponent } from './scene-goal-card.component';
 import { SensitiveNoticeComponent } from './sensitive-notice.component';
 import { type GuiaEscena, GUIA_VACIA, armarGuia, avisarOpcionNueva } from './caso/guia';
-import { SceneLogState, deriveSceneLog, diffDone, roomGroupOf, sceneLogInputFrom } from './scene-checklist.util';
-import { clearVisitedRooms, markRoomVisited, readVisitedRooms } from './visited-rooms.util';
 import { DialoguePanelComponent } from './dialogue-panel.component';
 import { GameWorldComponent } from './game-world.component';
 import { type EscenarioReaccion, type FinReaccion, ReactionDirectorComponent } from './reaction-director.component';
@@ -60,7 +58,6 @@ import { AttemptOutcomeComponent } from './attempt-outcome.component';
 import { accessErrorMessage } from './case-access.util';
 import { resolveViewMode, SimulationViewMode } from './simulation-view-mode.util';
 import { IntroGateStep, introCardLines, resolveIntroStep } from './intro-gate.util';
-import { getSceneProgress, getStageTitle } from './scene-objectives.config';
 import { COARSE_POINTER_QUERY, matchesMedia, watchMedia } from './pointer-modality.util';
 import { UiButton } from '../../shared/ui/button/ui-button';
 import { loadingPhase } from '../../shared/ui/skeleton/loading-phase';
@@ -80,10 +77,8 @@ import { DRAFT_COPY } from './draft-copy';
 const CONSENT_PRIME_TIMEOUT_MS = 3000;
 /** Duración de la transición CSS de `.scene-fade`; los efectos de cámara esperan a que termine. */
 const SCENE_FADE_MS = 320;
-/** Un aviso no esencial se apaga solo: lo que dice ya quedó escrito en la lista «Qué hacer». */
+/** Un aviso no esencial se apaga solo: lo que dice ya está en la pantalla o en la ficha del objetivo. */
 const NOTICE_MS = 4200;
-/** Una nota que estuvo a la vista al menos este tiempo se da por leída aunque un diálogo la cubra después. */
-const NOTE_SEEN_MS = 1500;
 /**
  * Espera tras activar el fundido de escena antes de seguir con la decisión o la puerta. Supera en 20 ms a la
  * transición CSS (`SCENE_FADE_MS`): son dos cosas distintas, y una no se reutiliza por la otra.
@@ -158,7 +153,7 @@ const QUEUED_PAUSE_SLOW_NOTICE = 'La acción en curso está tardando. Estamos pa
            del sistema (ui-toast-host, colocación del juego: arriba a la izquierda). Permanecen hasta cerrarse con
            «Cerrar», no mueven el foco y los anuncia ese anfitrión una vez (assertive solo el error). -->
       @if (softNotice()) {
-        <!-- Aviso breve (4,2 s): lo que dice ya se anunció y quedó escrito en la lista «Qué hacer»; nunca es la única
+        <!-- Aviso breve (4,2 s): lo que dice ya se anunció; nunca es la única
              fuente. Sin role: una región que nace con su texto no se anuncia de forma fiable. -->
         <div class="soft-notice">{{ softNotice() }}</div>
       }
@@ -340,7 +335,7 @@ const QUEUED_PAUSE_SLOW_NOTICE = 'La acción en curso está tardando. Estamos pa
                 [activation]="attempt()?.persona?.activation ?? 'CALM'"
                 [intensity]="attempt()?.currentNode?.intensity ?? 'MEDIUM'"
                 [doorStates]="doorStates()"
-                [nextTargetKey]="null" [dimmedKeys]="dimmedKeys()" [compact]="compactMode()"
+                [dimmedKeys]="dimmedKeys()" [compact]="compactMode()"
                 [showLoader]="false" (worldReady)="onWorldReady()" (patientVisual)="patientVisual.set($event)"
                 (proximity)="nearbyInteraction.set($event)" (proximityAlso)="nearbyAlso.set($event)"
                 (nothingNearby)="showNothingNearby()" (interact)="openInteraction($event)"
@@ -598,7 +593,7 @@ const QUEUED_PAUSE_SLOW_NOTICE = 'La acción en curso está tardando. Estamos pa
 
     /* Tarjeta de primera vez: sobre las cruces táctiles (48) para que sus botones siempre se puedan tocar, y bajo las
        tarjetas de introducción (380) y la pausa. El jugador empieza abajo al centro:
-       con sitio de sobra la tarjeta va arriba a la derecha, junto a «Qué hacer», para no taparlo. */
+       con sitio de sobra la tarjeta va arriba a la derecha, junto a la ficha del objetivo, para no taparlo. */
     .help-slot {
       position: absolute; left: 50%; bottom: 12px; transform: translateX(-50%); z-index: 60;
       width: min(560px, calc(100% - 24px));
@@ -607,7 +602,7 @@ const QUEUED_PAUSE_SLOW_NOTICE = 'La acción en curso está tardando. Estamos pa
       /* 380 px: más ancha tapaba la puerta del quirófano (acceso restringido) en el arranque de Urgencias. */
       .help-slot { top: 12px; bottom: auto; left: auto; right: 12px; transform: none; width: min(380px, calc(100% - 488px)); }
     }
-    /* Móvil vertical: las cruces táctiles ocupan abajo; la tarjeta va arriba, bajo el chip de «Qué hacer». */
+    /* Móvil vertical: las cruces táctiles ocupan abajo; la tarjeta va arriba, bajo el chip de la ficha del objetivo. */
     @media (max-width: 760px) {
       .help-slot { top: 52px; bottom: auto; }
     }
@@ -1172,7 +1167,7 @@ export class SimulationPlayComponent implements OnInit, OnDestroy {
    * o hasta que salga una petición nueva (VD-29). El anfitrión lo anuncia en assertive.
    */
   readonly actionError = computed(() => this.noticeText(this.actionErrorId()));
-  /** Aviso no esencial de 4,2 s («Obtuviste: …»). La lista «Qué hacer» conserva lo que dice. */
+  /** Aviso no esencial de 4,2 s («Obtuviste: …»). */
   readonly softNotice   = signal('');
   /** Nombre de la sala al entrar (1-2 s). */
   readonly roomBanner   = signal('');
@@ -1266,16 +1261,14 @@ export class SimulationPlayComponent implements OnInit, OnDestroy {
     holdOutcome: this.holdingOutcome(),
   }));
 
-  /** Salas del caso ya alcanzadas en este intento (refuerzo de la regla monótona de la lista; sessionStorage). */
-  readonly visitedRooms = signal<ReadonlySet<RoomGroup>>(new Set<RoomGroup>());
   /** Modo compacto: pantallas bajas o táctil horizontal. Tarjeta plegada, pie sin teclas, panel flotante. */
   readonly compactMode = signal(matchesMedia(COMPACT_QUERY));
   readonly narrowScreen = signal(matchesMedia(NARROW_QUERY));
-  /** La tarjeta «Qué hacer» arranca plegada a su chip en compacto y en móvil vertical: no tapa el mundo. */
+  /** La ficha del objetivo arranca plegada a su chip en compacto y en móvil vertical: no tapa el mundo. */
   readonly cardFolded = computed(() => this.compactMode() || this.narrowScreen());
   /**
    * Aviso ético de un nodo sensible («Este caso aborda…», `warningMessage` del nodo): franja fija bajo la cabecera,
-   * visible en todos los dispositivos mientras dure el nodo, plegada o no la tarjeta «Qué hacer». No cambia su redacción.
+   * visible en todos los dispositivos mientras dure el nodo, plegada o no la ficha del objetivo. No cambia su redacción.
    */
   readonly sensitiveNotice = computed<string | null>(() => {
     const node = this.attempt()?.currentNode;
@@ -1285,27 +1278,6 @@ export class SimulationPlayComponent implements OnInit, OnDestroy {
       ? 'Este momento permite salida segura: prioriza confidencialidad y rutas institucionales.'
       : null;
   });
-  /** Texto de la región viva de la tarjeta («Anotado: …», «Decisión k registrada»). */
-  readonly checklistNotice = signal<string | null>(null);
-
-  /** Lista «Qué hacer»: solo se recalcula cuando cambian el intento, el mundo, las personas habladas, las salas o el escenario. */
-  readonly sceneLog = computed<SceneLogState | null>(() => {
-    const input = sceneLogInputFrom({
-      attempt: this.attempt(),
-      world: this.world(),
-      viewedNpcKeys: this.viewedNpcKeys(),
-      visitedRooms: this.visitedRooms(),
-      scenarioNpcs: this.scenarioConfig()?.rooms.flatMap(room => room.npcs) ?? [],
-    });
-    if (!input) return null;
-    try {
-      return deriveSceneLog(input);
-    } catch {
-      // La guía es ayuda, no el juego: un mundo con una forma inesperada (payload antiguo) no debe tumbar la pantalla.
-      return null;
-    }
-  });
-
   /** El HUD nombra la escena (sin contador de decisiones: el número de pasos lo decide la docente, no la pantalla). */
   readonly stageLabel = computed<string | null>(() => this.attempt()?.currentNode.title ?? null);
 
@@ -1406,12 +1378,6 @@ export class SimulationPlayComponent implements OnInit, OnDestroy {
   private optionsNodeId: number | null = null;
   private readonly doorInteractionRearmDistance = 72;
 
-  /** Lista anterior: `diffDone` compara contra ella para anotar solo los pasos recién hechos. */
-  private previousSceneLog: SceneLogState | null = null;
-  /** Notas «Anotado: …» a la espera de que no haya un diálogo abierto (el servidor marca «hablado» al abrir). */
-  private readonly pendingNotes: string[] = [];
-  private noteTimer: number | null = null;
-  private noteShownAt = 0;
   private softNoticeTimer: number | null = null;
   private nothingNearbyTimer: number | null = null;
   private helpCardShown = false;
@@ -1432,7 +1398,7 @@ export class SimulationPlayComponent implements OnInit, OnDestroy {
   private resumeQueued = false;
   private stopCompactWatch: (() => void) | null = null;
   /** Cambio de etapa tras decidir: lo recoge `applyLoadedWorld` cuando ya está la sala nueva. */
-  private pendingStage: { title: string; previousNumber: number | null } | null = null;
+  private pendingStage: string | null = null;
 
   constructor() {
     // La salida segura pedida durante una petición espera a que `busy()` se suelte: no se fuerza
@@ -1451,11 +1417,6 @@ export class SimulationPlayComponent implements OnInit, OnDestroy {
     effect(() => {
       if (!this.supervisionHold() || this.holdingOutcome()) return;
       untracked(() => this.releaseHeldOutcome());
-    });
-    // Pasos recién hechos → notas «Anotado: …». Se evalúa solo cuando cambia la lista (F§7.1).
-    effect(() => {
-      const next = this.sceneLog();
-      untracked(() => this.queueNotesFor(next));
     });
     // La guía sigue a la escena y a la sala: el objetivo y «En esta sala» se releen cuando cambian.
     effect(() => {
@@ -1478,11 +1439,6 @@ export class SimulationPlayComponent implements OnInit, OnDestroy {
         if (visible) this.helpCardShown = true;
         else if (this.helpCardShown && covered) this.markHelpCardSeen();
       });
-    });
-    // Las notas encoladas salen cuando ya no hay diálogo, bitácora ni pantalla bloqueando la escena.
-    effect(() => {
-      this.inputBlocked();
-      untracked(() => this.flushNotes());
     });
     // La barra de contexto anuncia SOLO la interacción cercana (H-10): al volver al reposo no se lee la línea
     // «Ahora: …» ni la pista de teclas.
@@ -1512,7 +1468,7 @@ export class SimulationPlayComponent implements OnInit, OnDestroy {
     // Los avisos accionables son del sistema y viven en un anfitrión global: no se quedan en el resto de la app.
     this.dismissDoorNotice();
     this.dismissActionError();
-    for (const timer of [this.noteTimer, this.softNoticeTimer, this.roomBannerTimer, this.nothingNearbyTimer, this.pauseDeadlineTimer, this.transitionNoteTimer, this.worldRevealTimer, this.consentPrimeTimer]) {
+    for (const timer of [this.softNoticeTimer, this.roomBannerTimer, this.nothingNearbyTimer, this.pauseDeadlineTimer, this.transitionNoteTimer, this.worldRevealTimer, this.consentPrimeTimer]) {
       if (timer !== null) window.clearTimeout(timer);
     }
     this.audioDirector.stopIntroLament();
@@ -1632,10 +1588,7 @@ export class SimulationPlayComponent implements OnInit, OnDestroy {
     this.clearTransientOverlays();
     this.nearbyInteraction.set(null);
     this.endPausing();
-    // Las salas y las notas pendientes eran del intento anterior.
-    const previous = this.attempt() ?? this.pendingActiveAttempt();
-    if (previous) clearVisitedRooms(previous.caseVersionId, previous.attemptId);
-    this.visitedRooms.set(new Set<RoomGroup>());
+    // Los avisos pendientes eran del intento anterior.
     this.resetNotices();
     this.loading.set(true);
     this.beginAttempt(id, true);
@@ -1722,7 +1675,6 @@ export class SimulationPlayComponent implements OnInit, OnDestroy {
     this.sfxMuted.set(this.audioDirector.isSfxMuted());
     this.lastPersona = { attemptId: attempt.attemptId, persona: attempt.persona };
     this.viewedNpcKeys.set(this.restoreViewedNpcKeys(attempt));
-    this.visitedRooms.set(readVisitedRooms(attempt.caseVersionId, attempt.attemptId));
     this.loadProgressMap(attempt);
     this.loadWorld(attempt);
     this.applyAudioScene(attempt);
@@ -2112,18 +2064,17 @@ export class SimulationPlayComponent implements OnInit, OnDestroy {
     if (!game || !world) return null;
     return {
       nodeKey: game.currentNode.key,
-      decisionNumber: getSceneProgress(game.currentNode.key)?.step ?? null,
       world,
       viewedNpcKeys: collectViewedNpcKeys(world, this.viewedNpcKeys()),
       copy: this.copyContext(),
     };
   }
 
-  /** Contexto de redacción compartido por el aviso de evidencia, la lista «Qué hacer» y las puertas. */
+  /** Contexto de redacción de las puertas. */
   private copyContext(): CopyContext {
     const world = this.world();
     return {
-      currentRoom: roomGroupOf(world?.map.key),
+      currentRoom: null,
       world,
       nameTools: NAME_TOOLS_IN_HINTS,
       npcs: this.scenarioConfig()?.rooms.flatMap(room => room.npcs) ?? [],
@@ -2855,7 +2806,6 @@ export class SimulationPlayComponent implements OnInit, OnDestroy {
       // El aviso de una puerta de la sala anterior ya no dice nada de esta (permanece hasta cerrarse o cambiar de sala).
       this.dismissDoorNotice();
     }
-    this.rememberVisitedRoom(world);
     this.world.set(world);
     this.syncPersonaIcon(this.attempt());
     this.mergeViewedNpcKeysFromWorld(world);
@@ -3141,77 +3091,17 @@ export class SimulationPlayComponent implements OnInit, OnDestroy {
   /** La decisión llevó a otra etapa (aunque la sala sea la misma): se recuerda hasta que llegue su mundo. */
   private trackStageChange(previous: SimulationAttemptState, updated: SimulationAttemptState): void {
     if (updated.status !== 'IN_PROGRESS' || updated.currentNode.key === previous.currentNode.key) return;
-    this.pendingStage = {
-      title: getStageTitle(updated.currentNode.key) ?? updated.currentNode.title,
-      previousNumber: getSceneProgress(previous.currentNode.key)?.step ?? null,
-    };
+    this.pendingStage = updated.currentNode.title;
   }
 
-  /** Banner «Nueva etapa: …» y, en la tarjeta, «Decisión k registrada» (omitido sin decisión previa). */
-  private announceNewStage(stage: { title: string; previousNumber: number | null }): void {
-    const banner = ORIENTATION_COPY.notices.newStage(stage.title);
-    this.showRoomBanner(banner, STAGE_BANNER_MS);
-    this.announce(banner);
-    if (stage.previousNumber) {
-      this.pendingNotes.unshift(ORIENTATION_COPY.notices.decisionRegistered(stage.previousNumber));
-      this.flushNotes();
-    }
-  }
-
-  /** Recuerda la sala alcanzada (refuerzo de la regla monótona de la lista, solo en este navegador). */
-  private rememberVisitedRoom(world: SimulationWorldState): void {
-    const attempt = this.attempt();
-    const room = roomGroupOf(world.map.key);
-    if (!attempt || !room) return;
-    const next = markRoomVisited(attempt.caseVersionId, attempt.attemptId, room);
-    const previous = this.visitedRooms();
-    if (next.size !== previous.size || [...next].some(known => !previous.has(known))) this.visitedRooms.set(next);
-  }
-
-  /** Pasos recién hechos de la lista → notas «Anotado: …» (la primera evaluación y los cambios de etapa no anotan). */
-  private queueNotesFor(next: SceneLogState | null): void {
-    const previous = this.previousSceneLog;
-    this.previousSceneLog = next;
-    if (!next) return;
-    for (const step of diffDone(previous, next)) {
-      if (step.doneText) this.pendingNotes.push(step.doneText);
-    }
-    this.flushNotes();
-  }
-
-  /**
-   * Muestra la siguiente nota en la tarjeta si la escena está libre; las demás esperan su turno. Una nota que un
-   * diálogo tapó apenas se vio (menos de 1,5 s) vuelve a empezar sus 4,2 s cuando la escena queda libre; si ya
-   * se había leído, se da por leída (la lista conserva su marca).
-   */
-  private flushNotes(): void {
-    if (this.inputBlocked()) {
-      if (this.noteTimer !== null) {
-        window.clearTimeout(this.noteTimer);
-        this.noteTimer = null;
-        if (Date.now() - this.noteShownAt >= NOTE_SEEN_MS) this.checklistNotice.set(null);
-      }
-      return;
-    }
-    if (this.noteTimer !== null) return;
-    const note = this.checklistNotice() ?? this.pendingNotes.shift() ?? null;
-    if (note === null) return;
-    this.checklistNotice.set(note);
-    this.noteShownAt = Date.now();
-    this.noteTimer = window.setTimeout(() => {
-      this.noteTimer = null;
-      this.checklistNotice.set(null);
-      this.flushNotes();
-    }, NOTICE_MS);
+  /** Banner con el título de la escena nueva. */
+  private announceNewStage(title: string): void {
+    this.showRoomBanner(title, STAGE_BANNER_MS);
+    this.announce(title);
   }
 
   /** Descarta avisos pendientes y visibles (intento nuevo o pausa): eran de lo que se estaba haciendo. */
   private resetNotices(): void {
-    this.pendingNotes.length = 0;
-    this.previousSceneLog = null;
-    if (this.noteTimer !== null) window.clearTimeout(this.noteTimer);
-    this.noteTimer = null;
-    this.checklistNotice.set(null);
     if (this.softNoticeTimer !== null) window.clearTimeout(this.softNoticeTimer);
     this.softNoticeTimer = null;
     this.softNotice.set('');

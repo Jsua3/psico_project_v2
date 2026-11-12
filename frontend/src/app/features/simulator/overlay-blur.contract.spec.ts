@@ -19,7 +19,6 @@ describe('paneles del juego sin desenfoque caro', () => {
     ['journal-panel.component.ts', '.journal-modal'],
     ['simulation-hud.component.ts', '.hud-shell'],
     ['simulation-hud.component.ts', '.settings-menu'],
-    ['scene-checklist-card.component.ts', '.checklist'],
     ['game-help.component.ts', '.help-card'],
     ['game-help.component.ts', '.help-screen'],
   ];

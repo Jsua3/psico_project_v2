@@ -96,7 +96,6 @@ describe('HUD: cabecera (T7.1) y Ajustes (T7.2)', () => {
       expect(root.querySelector('.hud-step')).toBeNull();
       expect(root.textContent).not.toMatch(/Paso\s+\d/);
       expect(hudSource).not.toContain('sceneProgress');
-      expect(hudSource).not.toContain('getSceneProgress');
       expect(hudSource).not.toContain('hud-step');
     });
 

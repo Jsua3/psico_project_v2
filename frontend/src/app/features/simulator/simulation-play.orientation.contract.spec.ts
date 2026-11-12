@@ -52,7 +52,6 @@ describe('ficha del objetivo (T9.1)', () => {
     expect(source).not.toContain('objective-card__notice');
     expect(source).not.toContain('right-panel__warning');
     expect(source).not.toMatch(/<div class="objective-card">[\s\S]*?sensitiveNotice\(\)[\s\S]*?<app-scene-goal-card/);
-    expect(source).not.toContain('app-scene-checklist-card');
   });
 
   it('el pliegue de la tarjeta (chip, «Ocultar pasos», compacto, móvil vertical) ya no toca el aviso ético', () => {
@@ -112,7 +111,6 @@ describe('ficha del objetivo (T9.1)', () => {
 describe('el HUD recibe el título de la escena (T9.2)', () => {
   it('stageLabel es el título del nodo: sin contador de decisiones ni respaldo por escenarios', () => {
     expect(source).toMatch(/readonly stageLabel = computed<string \| null>\(\(\) => this\.attempt\(\)\?\.currentNode\.title \?\? null\);/);
-    expect(source).not.toContain('getDecisionCounter');
     expect(source).not.toContain('fallbackStageLabel');
   });
 
@@ -221,8 +219,8 @@ describe('texto de la pantalla de juego (F6-3)', () => {
 });
 
 describe('enlaces con el mundo (T9.5, T9.9)', () => {
-  it('el mundo recibe destino, atenuados, puertas y modo compacto, y sus dos salidas nuevas están enlazadas', () => {
-    expect(worldTag).toContain('[nextTargetKey]="null"');
+  it('el mundo recibe atenuados, puertas y modo compacto, y sus dos salidas nuevas están enlazadas', () => {
+    expect(worldTag).not.toContain('nextTargetKey');
     expect(worldTag).toContain('[dimmedKeys]="dimmedKeys()"');
     expect(worldTag).toContain('[doorStates]="doorStates()"');
     expect(worldTag).toContain('[compact]="compactMode()"');

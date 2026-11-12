@@ -183,7 +183,7 @@ describe('SimulationPlayComponent: salida segura (correcciones de la revisión)'
     const paused = () => makeAttempt({ status: 'PAUSED' });
 
     function showAllNotices(): void {
-      component.roomBanner.set('Nueva etapa: Marco normativo en salud');
+      component.roomBanner.set('Marco normativo en salud');
       // El aviso de puerta es un aviso del sistema (F6-12): se emite por su camino real.
       (component as unknown as { showDoorNotice(message: string): void }).showDoorNotice('Aún no puedes pasar.');
       component.transitionNote.set('Quince días después…');
@@ -210,7 +210,7 @@ describe('SimulationPlayComponent: salida segura (correcciones de la revisión)'
         showRoomBanner(text: string, ms: number): void;
         showDoorNotice(message: string): void;
       };
-      internals.showRoomBanner('Nueva etapa: Marco normativo en salud', 3000);
+      internals.showRoomBanner('Marco normativo en salud', 3000);
       internals.showDoorNotice('Aún no puedes pasar.');
 
       component.pauseFromOverlay();

@@ -149,45 +149,6 @@ describe('SimulationPlayComponent: orientación integrada', () => {
 
   const tick = (ms = 0) => { vi.advanceTimersByTime(ms); TestBed.tick(); };
 
-  describe('T9.1: salas visitadas', () => {
-    it('al cargar un mundo recuerda la sala en la señal y en sessionStorage', () => {
-      component.attempt.set(makeAttempt());
-
-      (component as any).applyLoadedWorld(makeWorld('hospital-urgencias', urgenciasObjects()));
-
-      expect([...component.visitedRooms()]).toEqual(['urgencias']);
-      expect(JSON.parse(sessionStorage.getItem(`siep_rooms_${CASE_VERSION_ID}_attempt-1`) ?? '[]')).toEqual(['urgencias']);
-    });
-
-    it('una sala que no es del caso no se recuerda', () => {
-      component.attempt.set(makeAttempt());
-
-      (component as any).applyLoadedWorld(makeWorld('mapa-del-editor', []));
-
-      expect(component.visitedRooms().size).toBe(0);
-    });
-
-    it('al arrancar el mundo recupera las salas que ya se habían visitado', () => {
-      sessionStorage.setItem(`siep_rooms_${CASE_VERSION_ID}_attempt-1`, JSON.stringify(['urgencias', 'sala-escucha']));
-
-      (component as any).startWorld(makeAttempt());
-
-      expect([...component.visitedRooms()].sort()).toEqual(['sala-escucha', 'urgencias']);
-    });
-
-    it('un intento nuevo olvida las salas y las notas del anterior', () => {
-      component.attempt.set(makeAttempt());
-      (component as any).applyLoadedWorld(makeWorld('hospital-urgencias', urgenciasObjects()));
-      (component as any).pendingNotes.push('Anotado: algo.');
-
-      component.startNewAttempt();
-
-      expect(component.visitedRooms().size).toBe(0);
-      expect(sessionStorage.getItem(`siep_rooms_${CASE_VERSION_ID}_attempt-1`)).toBeNull();
-      expect((component as any).pendingNotes).toEqual([]);
-    });
-  });
-
   describe('T9.4: puertas con una sola fuente', () => {
     const exit = () => urgenciasObjects().find(o => o.key === 'puerta-sala-escucha')!;
 
@@ -216,7 +177,7 @@ describe('SimulationPlayComponent: orientación integrada', () => {
 
       component.openInteraction(exit());
 
-      expect(component.doorNotice()).toBe('Antes de pasar, habla con la Familia en crisis (en el extremo izquierdo, al frente).');
+      expect(component.doorNotice()).toBe('Antes de pasar, habla con la Familia en crisis.');
       expect(component.doorNotice()).not.toMatch(/contenci[oó]n/i);
       expect(sim['enterRoom']).not.toHaveBeenCalled();
       expect(audio['playSfx']).toHaveBeenCalledWith('ui_cancel');
@@ -288,7 +249,7 @@ describe('SimulationPlayComponent: orientación integrada', () => {
       expect(component.actionError()).toBe('No pudimos cruzar la puerta.');
     });
 
-    it('la puerta de la etapa de hospital explica cuántas decisiones faltan', () => {
+    it('una puerta bloqueada por la etapa dice la frase general, sin contar decisiones de un caso', () => {
       const gate = door('salida-institucional', 'Salida institucional', 838, 440, {
         targetNodeKey: 'comisaria-recepcion', requiresNodes: ['hospital-cierre-bloque'],
       });
@@ -297,7 +258,7 @@ describe('SimulationPlayComponent: orientación integrada', () => {
 
       component.openInteraction(gate);
 
-      expect(component.doorNotice()).toBe('Esta salida se abre cuando termines las decisiones del hospital. Te queda 1 decisión.');
+      expect(component.doorNotice()).toBe('Esta salida se abre más adelante en el caso.');
     });
   });
 
@@ -342,20 +303,6 @@ describe('SimulationPlayComponent: orientación integrada', () => {
 
       expect(component.softNotice()).toBe('');
       expect(audio['playSfx']).not.toHaveBeenCalledWith('item_pickup');
-    });
-
-    it('una pausa descarta las notas pendientes', () => {
-      startInUrgencias();
-      tick();
-      component.dialogue.set({ key: 'd', speakerName: 'A', portraitKey: null, emotion: 'neutral', lines: [], choices: [] } as unknown as DialogueState);
-      (component as any).viewedNpcKeys.set(new Set(['enfermera-urgencias']));
-      tick();
-
-      (component as any).clearTransientOverlays();
-      tick();
-
-      expect(component.checklistNotice()).toBeNull();
-      expect((component as any).pendingNotes).toEqual([]);
     });
   });
 
@@ -415,9 +362,9 @@ describe('SimulationPlayComponent: orientación integrada', () => {
 
       expect(action?.verb.locked).toBe(true);
       expect(action?.verb.text).toBe('Pasar a Sala de escucha familiar');
-      expect(action?.verb.reason).toBe('Antes de pasar, habla con la Familia en crisis (en el extremo izquierdo, al frente).');
+      expect(action?.verb.reason).toBe('Antes de pasar, habla con la Familia en crisis.');
       expect(action?.ariaLabel).toBe(
-        'Interactuar: Pasar a Sala de escucha familiar, bloqueada: Antes de pasar, habla con la Familia en crisis (en el extremo izquierdo, al frente).');
+        'Interactuar: Pasar a Sala de escucha familiar, bloqueada: Antes de pasar, habla con la Familia en crisis.');
       expect(action?.title).toContain(action?.verb.reason ?? '');
     });
 
@@ -899,39 +846,28 @@ describe('SimulationPlayComponent: orientación integrada', () => {
         choices: [{ key: 'o', text: 'Opción', decisionOptionId: 101, requiredToolCode: null, effect: {} }],
       } as unknown as DialogueState);
       component.executeDecision(101);
-      // La compuerta blanda de la etapa avisa antes (nodos con evidencia): se decide igualmente.
-      if (component.dialogue()?.key.startsWith('evidence-gate')) component.executeDecision(101);
       tick(340); // fundido
       tick(100); // el mundo nuevo ya se ve
     }
 
-    it('al pasar a otra etapa con el mismo mapa hay banner «Nueva etapa: …» y la tarjeta anota «Decisión k registrada»', () => {
+    it('al pasar a otra etapa con el mismo mapa el banner dice el título de la escena nueva, sin «Nueva etapa» ni contador', () => {
       decideTo('hospital-accion-etica', 'hospital-sala-escucha', 'hospital-sala-escucha');
       tick();
 
-      expect(component.roomBanner()).toBe('Nueva etapa: Acción técnica y ética');
-      expect(component.checklistNotice()).toBe('Decisión 2 registrada');
+      expect(component.roomBanner()).toBe('Título del nodo');
     });
 
-    it('con la sala distinta el banner de etapa manda sobre el nombre de la sala', () => {
+    it('con la sala distinta el banner de la escena manda sobre el nombre de la sala', () => {
       decideTo('hospital-sala-escucha', 'hospital-sala-escucha', 'hospital-urgencias', 'hospital-urgencias');
 
-      expect(component.roomBanner()).toBe('Nueva etapa: Marco normativo en salud');
+      expect(component.roomBanner()).toBe('Título del nodo');
     });
 
-    it('la primera decisión se anota como «Decisión 1 registrada»', () => {
-      decideTo('hospital-sala-escucha', 'hospital-sala-escucha', 'hospital-urgencias', 'hospital-urgencias');
-      tick();
-
-      expect(component.checklistNotice()).toBe('Decisión 1 registrada');
-    });
-
-    it('si la decisión no cambia de etapa (primera respuesta mala) no hay banner ni nota', () => {
+    it('si la decisión no cambia de escena no hay banner', () => {
       decideTo('hospital-urgencias', 'hospital-urgencias', 'hospital-urgencias');
       tick();
 
       expect(component.roomBanner()).toBe('');
-      expect(component.checklistNotice()).toBeNull();
     });
 
     it('al recargar o reanudar con el mismo intento no reaparece el banner de etapa', () => {
@@ -943,7 +879,6 @@ describe('SimulationPlayComponent: orientación integrada', () => {
       tick(500);
 
       expect(component.roomBanner()).toBe('');
-      expect(component.checklistNotice()).toBeNull();
     });
   });
 });

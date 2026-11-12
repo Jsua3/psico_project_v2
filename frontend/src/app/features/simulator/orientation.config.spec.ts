@@ -1,7 +1,7 @@
 import * as fs from 'fs';
 import * as path from 'path';
 import {
-  DECISION_TOTAL, ENTITY_NAMES, HIGHLIGHT_TOOL_TARGETS, HOSPITAL_GATE_NODE_KEY, NAME_TOOLS_IN_HINTS, OPTIONAL_EXCLUDED_KEYS,
+  DECISION_TOTAL, ENTITY_NAMES, HIGHLIGHT_TOOL_TARGETS, NAME_TOOLS_IN_HINTS, OPTIONAL_EXCLUDED_KEYS,
   ORIENTATION_COPY, ROOM_GRAPH, ROOM_LABELS, ROUTE_ORDER, RoomGroup, SAFE_EXIT_ALWAYS_REACHABLE, TOOL_HINTS,
 } from './orientation.config';
 import { readSeed } from './orientation-seed.testing';
@@ -122,7 +122,6 @@ describe('orientation.config: nombres humanos contra el seed', () => {
     for (const door of seed.doors) {
       for (const key of [...door.requiresInspected, ...door.requiresNpcs]) expect(ENTITY_NAMES[key]).toBeDefined();
       for (const code of door.requiresTools) expect(TOOL_HINTS[code]).toBeDefined();
-      for (const node of door.requiresNodes) expect(node).toBe(HOSPITAL_GATE_NODE_KEY);
     }
     expect(seed.doors.some(d => d.requiresInspected.length)).toBe(true);
   });

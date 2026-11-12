@@ -1,11 +1,11 @@
 import { MapObjectState } from '../../core/models/simulation.model';
 import { CopyContext, imperativeMissing, joinSpanish } from './evidence-copy.util';
 import { MissingItem, missingEvidenceItems } from './evidence-gating.config';
-import { HOSPITAL_GATE_NODE_KEY, HOSPITAL_GATE_STAGE_NUMBER, ORIENTATION_COPY } from './orientation.config';
+import { ORIENTATION_COPY } from './orientation.config';
 
 /**
  * Estado de una puerta: única fuente de verdad para el rótulo del mundo, la barra
- * contextual, el intento de cruzar (tryOpenDoor) y el paso «puerta» de la lista (F§7.5).
+ * contextual y el intento de cruzar (tryOpenDoor) (F§7.5).
  * El mensaje se calcula de los requisitos VIVOS y sustituye al `lockedMessage` del seed
  * (que nombra temas de las decisiones o pide cosas que no se exigen) sin re-sembrar.
  */
@@ -20,8 +20,6 @@ export interface DoorStatus {
 export interface DoorStatusContext {
   /** Clave del nodo (etapa) actual del intento. */
   nodeKey: string;
-  /** Número de decisión actual (1..6); null si se desconoce. */
-  decisionNumber: number | null;
   world: NonNullable<CopyContext['world']>;
   viewedNpcKeys: ReadonlySet<string>;
   copy: CopyContext;
@@ -29,14 +27,6 @@ export interface DoorStatusContext {
 
 function stringList(value: unknown): string[] {
   return Array.isArray(value) ? value.filter((v): v is string => typeof v === 'string' && v.length > 0) : [];
-}
-
-function stageMessage(requiresNodes: readonly string[], decisionNumber: number | null): string {
-  if (!requiresNodes.includes(HOSPITAL_GATE_NODE_KEY)) return ORIENTATION_COPY.door.laterGate;
-  const remaining = decisionNumber == null ? 0 : HOSPITAL_GATE_STAGE_NUMBER - decisionNumber;
-  return remaining >= 1
-    ? `${ORIENTATION_COPY.door.hospitalGate} ${ORIENTATION_COPY.door.hospitalGateRemaining(remaining)}`
-    : ORIENTATION_COPY.door.hospitalGate;
 }
 
 export function doorStatus(door: MapObjectState, ctx: DoorStatusContext): DoorStatus {
@@ -53,7 +43,7 @@ export function doorStatus(door: MapObjectState, ctx: DoorStatusContext): DoorSt
 
   const parts: string[] = [];
   if (missing.length) parts.push(ORIENTATION_COPY.door.before(joinSpanish(imperativeMissing(missing, ctx.copy))));
-  if (stageLocked) parts.push(stageMessage(requiresNodes, ctx.decisionNumber));
+  if (stageLocked) parts.push(ORIENTATION_COPY.door.laterGate);
   return { state: 'locked', missing, stageLocked, message: parts.join(' ') };
 }
 
