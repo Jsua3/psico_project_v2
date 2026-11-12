@@ -59,6 +59,8 @@ interface SceneProbe {
   setPersonaState(text: string | null): void;
   buildKeyPersonIndicator(marker: FakeBox, object: MapObjectState): void;
   resetOrientationVisuals(): void;
+  endGestures(): void;
+  isGesturing(key: string): boolean;
 }
 
 interface Opciones { jugador?: { x: number; y: number }; reduceMotion?: boolean }
@@ -83,13 +85,15 @@ function escenaConPersona(key: string, at: { x: number; y: number }, opciones: O
   const tweens = {
     add: vi.fn((config: TweenConfig) => { pendientes.push(config); }),
     /** Termina los tramos uno tras otro (cada uno encadena el siguiente) dejando al marcador donde cada tramo lo manda. */
-    completarTodos: () => {
+    completarTodos: (desvio = 0) => {
       while (pendientes.length > 0) {
         const t = pendientes.shift()!;
-        t.targets.x = t.x; t.targets.y = t.y; t.targets.angle = t.angle;
+        t.targets.x = t.x + desvio; t.targets.y = t.y; t.targets.angle = t.angle;
         t.onComplete();
       }
     },
+    /** Como Phaser 4: `killAll` destruye los tweens sin emitir `stop` ni `complete`. */
+    killAll: vi.fn(() => { pendientes.length = 0; }),
   };
   scene.tweens = tweens;
 
@@ -157,7 +161,7 @@ describe('mundo: gesto', () => {
   it('el gesto anima al marcador y lo deja en su sitio', async () => {
     const { scene, marker, tweens } = escenaConPersona('familia', { x: 400, y: 300 });
     const done = scene.playGesture('familia', 'se-agita');
-    tweens.completarTodos();
+    tweens.completarTodos(7);   // el último tramo deja al marcador desviado: solo el ajuste final lo devuelve
     await done;
     expect(tweens.add).toHaveBeenCalled();
     expect({ x: marker.x, y: marker.y, angle: marker.angle }).toEqual({ x: 400, y: 300, angle: 0 });
@@ -177,12 +181,18 @@ describe('mundo: gesto', () => {
     await expect(scene.playGesture('nadie', 'asiente')).resolves.toBeUndefined();
   });
 
-  it('si el tramo se corta (repintado de la sala) la promesa igual resuelve', async () => {
+  it('un repintado de la sala a mitad del gesto lo termina: resuelve, la persona vuelve a su sitio y puede gesticular otra vez', async () => {
     const { scene, marker, tweens } = escenaConPersona('familia', { x: 400, y: 300 });
     const done = scene.playGesture('familia', 'asiente');
-    marker.destroy();
-    tweens.add.mock.calls[0][0].onStop();
+    marker.x = 405;
+    marker.angle = 3;
+    scene.endGestures();   // lo que hace `renderWorld` justo antes de `tweens.killAll()` (Phaser descarta los tweens sin avisar)
     await expect(done).resolves.toBeUndefined();
+    expect({ x: marker.x, y: marker.y, angle: marker.angle }).toEqual({ x: 400, y: 300, angle: 0 });
+    expect(scene.isGesturing('familia')).toBe(false);
+    const antes = tweens.add.mock.calls.length;
+    void scene.playGesture('familia', 'asiente');
+    expect(tweens.add.mock.calls.length).toBeGreaterThan(antes);
   });
 });
 
@@ -220,6 +230,16 @@ describe('componente: data-reaction', () => {
     expect(host.getAttribute('data-reaction')).toBe('asiente');
     completar();
     await done;
+    expect(host.hasAttribute('data-reaction')).toBe(false);
+  });
+
+  it('un segundo gesto sobre la misma persona (que no empieza) no retira la marca del primero', async () => {
+    const { component, host, completar } = componenteConEscena();
+    const primero = component.playGesture('familia', 'asiente');
+    await component.playGesture('familia', 'se-agita');
+    expect(host.getAttribute('data-reaction')).toBe('asiente');
+    completar();
+    await primero;
     expect(host.hasAttribute('data-reaction')).toBe(false);
   });
 });

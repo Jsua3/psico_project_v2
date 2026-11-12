@@ -246,11 +246,13 @@ export class DataDrivenWorldScene extends Phaser.Scene {
   /** La sala de la que son `personWalkers` y cómo iban al reconstruirse: si la sala es la misma, retoman (cada `world.set` la reconstruye). */
   private personWalkRoom = '';
   private savedPersonWalks: ReadonlyMap<string, PersonWalkState> | null = null;
-  /** Chevrón y nombre sobre la persona clave de la sala (a lo sumo uno). */
   /** Último estado en palabras de la persona clave: el indicador se recrea en cada render y lo vuelve a escribir. */
   private personaState: string | null = null;
   /** Personas en pleno gesto: su caminata se suspende hasta que vuelven a su sitio. */
   private readonly gesturing = new Set<string>();
+  /** Cierres de los gestos en curso: Phaser descarta los tweens en `killAll` sin avisar, así que se llaman a mano. */
+  private readonly gestureEnds = new Set<() => void>();
+  /** Chevrón y nombre sobre la persona clave de la sala (a lo sumo uno). */
   private keyPersonIndicator?: { key: string; container: Phaser.GameObjects.Container; tipOffsetY: number };
   /** Lo último que se avisó de dónde está la persona clave (se compara para avisar solo cuando cambia de píxel). */
   private lastKeyPersonPosition: { x: number; y: number } | null = null;
@@ -438,6 +440,7 @@ export class DataDrivenWorldScene extends Phaser.Scene {
 
   create() {
     this.pixelRender = new PixelRender(this).attach();
+    this.events.once('shutdown', () => this.endGestures());
     this.ready = true;
     // Phaser solo LEE las teclas: sin captura no llama a `preventDefault`, así el navegador
     // conserva Enter/Espacio en los botones y todas las teclas en el textarea de la bitácora.
@@ -967,6 +970,13 @@ export class DataDrivenWorldScene extends Phaser.Scene {
     this.tweens.add({ targets: target, scale: 1.16, duration: 140, yoyo: true, repeat: 2, ease: 'Sine.easeInOut' });
   }
 
+  /** Termina los gestos en curso: promesa resuelta y persona en su sitio. */
+  private endGestures(): void {
+    for (const end of [...this.gestureEnds]) end();
+  }
+
+  isGesturing(key: string): boolean { return this.gesturing.has(key); }
+
   /** El marcador (persona o NPC) de una clave del mundo. */
   private actorOf(key: string): Phaser.GameObjects.Container | undefined {
     return key.startsWith(NPC_KEY_PREFIX) ? this.npcMarkers.get(key.slice(NPC_KEY_PREFIX.length)) : this.markers.get(key);
@@ -1001,15 +1011,17 @@ export class DataDrivenWorldScene extends Phaser.Scene {
     this.gesturing.add(key);
     return new Promise<void>(resolve => {
       let done = false;
-      const finish = () => {
+      const finish = (): void => {
         if (done) return;
         done = true;
+        this.gestureEnds.delete(finish);
         this.gesturing.delete(key);
         if (actor.scene) {   // un repintado de la sala (o su cierre) ya pudo destruirla
           actor.setPosition(origin.x, origin.y).setAngle(origin.angle);
         }
         resolve();
       };
+      this.gestureEnds.add(finish);
       let x = origin.x, y = origin.y;
       const run = (i: number) => {
         if (i >= steps.length) { finish(); return; }
@@ -1123,6 +1135,7 @@ export class DataDrivenWorldScene extends Phaser.Scene {
 
     this.cameras.main.stopFollow();   // clear stale follow target before destroying children
     // Los pulsos repeat:-1 sobreviven a removeAll y se acumulaban en cada re-render.
+    this.endGestures();   // antes del killAll: Phaser descarta los tweens sin avisar y la promesa quedaría colgada
     this.tweens.killAll();
     this.children.removeAll(true);
     this.markers.clear();
@@ -1271,6 +1284,7 @@ export class DataDrivenWorldScene extends Phaser.Scene {
       : null;
 
     this.cameras.main.stopFollow();
+    this.endGestures();   // antes del killAll: Phaser descarta los tweens sin avisar y la promesa quedaría colgada
     this.tweens.killAll();
     this.children.removeAll(true);
     this.markers.clear();
@@ -3401,8 +3415,11 @@ export class GameWorldComponent implements OnChanges, OnDestroy {
   /** Marca el gesto en curso como `data-reaction` del host (contrato del e2e) mientras dura. Directo al DOM. */
   playGesture(key: string, gesto: Gesto): Promise<void> {
     const host = this.gameHost?.nativeElement;
+    const busy = this.scene?.isGesturing(key) ?? true;   // un gesto que no empieza no toca la marca del que sigue
+    const run = this.scene?.playGesture(key, gesto) ?? Promise.resolve();
+    if (busy) return run;
     host?.setAttribute('data-reaction', gesto);
-    return (this.scene?.playGesture(key, gesto) ?? Promise.resolve()).finally(() => host?.removeAttribute('data-reaction'));
+    return run.finally(() => host?.removeAttribute('data-reaction'));
   }
   setScenarioConfig(config: ScenarioConfig | null) { this.scene?.setScenarioConfig(config); }
   transitionToRoom(targetRoomKey: string, entryX: number, entryY: number) {
