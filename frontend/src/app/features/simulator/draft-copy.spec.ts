@@ -14,7 +14,7 @@ describe('draft-copy: textos en borrador pendientes de Psicología', () => {
     const entries = draftCopyList();
     expect(entries.length).toBeGreaterThan(0);
     for (const entry of entries) {
-      expect(entry.decision, entry.key).toMatch(/^(VD|RN|ETH|F6|F7|F10|P6)-\d+$/);
+      expect(entry.decision, entry.key).toMatch(/^(VD|RN|ETH|F6|F7|F10|P6|DSL)-\d+$/);
       expect(entry.owner, entry.key).toBe('Psicología');
       expect(entry.where.trim(), entry.key).not.toBe('');
       expect(entry.text.trim(), entry.key).not.toBe('');
@@ -42,7 +42,7 @@ describe('draft-copy: textos en borrador pendientes de Psicología', () => {
     const list = draftCopyList();
     for (const entry of list) expect(['validar', 'conocimiento'], entry.key).toContain(entry.review);
     expect(list.filter(entry => entry.review === 'conocimiento').map(entry => entry.key).sort()).toEqual(
-      ['briefPending', 'consentSaving', 'hintNoCostNote', 'journalSaveReason', 'keysHintArrows', 'placesButtonLabel', 'shortcutsSettingLabel'],
+      ['briefPending', 'consentSaving', 'hintNoCostNote', 'journalSaveReason', 'keysHintArrows', 'placesButtonLabel', 'reactionSkipHint', 'shortcutsSettingLabel'],
     );
     // Los diez de F6, los ocho de F7-4 (tres de vocabulario VD-24, el rótulo de la valoración formativa y los cuatro
     // nombres de nivel: las claves las fijó ED-2, la redacción visible la elige Psicología) y la consecuencia del

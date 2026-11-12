@@ -17,7 +17,7 @@ export interface DraftCopyEntry {
    * Decisión del plan visual (§9) o regla de negocio que lo origina; `F6-n` / `F7-n` cuando el texto nace de una
    * tarea del plan y no de una decisión.
    */
-  readonly decision: `VD-${number}` | `RN-${number}` | `ETH-${number}` | `F6-${number}` | `F7-${number}` | `F10-${number}` | `P6-${number}`;
+  readonly decision: `VD-${number}` | `RN-${number}` | `ETH-${number}` | `F6-${number}` | `F7-${number}` | `F10-${number}` | `P6-${number}` | `DSL-${number}`;
   /** Quién debe fijar la redacción definitiva. */
   readonly owner: 'Psicología';
   /** Qué se espera de Psicología; sin indicar, `validar`. */
@@ -519,6 +519,14 @@ export const DRAFT_COPY = {
     owner: 'Psicología',
     where: 'Panel del estudiante: sin cierres todavía',
     text: 'Aún sin cierres: aparecerán cuando completes un caso.',
+  },
+  /** Pista de la franja de la reacción: Enter o Espacio la saltan. */
+  reactionSkipHint: {
+    decision: 'DSL-1',
+    owner: 'Psicología',
+    review: 'conocimiento',
+    where: 'Franja de la reacción del personaje tras elegir',
+    text: 'Enter para continuar',
   },
   /** Nota de una conducta prohibida en «Tus decisiones»: se señala con cuidado, sin cifras (RN-08, ETH). */
   decisionProhibitedNote: {
