@@ -11,6 +11,7 @@ import { fraseDeRespuesta, pasoDeRespuesta } from '../../modelo/persona';
 import { EXPRESIONES } from '../../modelo/escenario';
 import { NOMBRE_CLASE, NOMBRE_EXPRESION, NOMBRE_INTENSIDAD } from '../../modelo/textos';
 import { RutasAutoria } from '../../rutas';
+import { ObjetivoPistasComponent } from './objetivo-pistas.component';
 
 const CLASIFICACIONES: { valor: ClaseRespuesta; nombre: string; simbolo: string }[] = [
   { valor: 'RECOMMENDED', nombre: NOMBRE_CLASE.RECOMMENDED, simbolo: '✓' },
@@ -35,7 +36,7 @@ const PASOS_ACTIVACION = [{ valor: -1, nombre: 'Se calma' }, { valor: 0, nombre:
  */
 @Component({
   selector: 'app-guion',
-  imports: [RouterLink],
+  imports: [RouterLink, ObjetivoPistasComponent],
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
     @if (escena(); as e) {
@@ -74,6 +75,7 @@ const PASOS_ACTIVACION = [{ valor: -1, nombre: 'Se calma' }, { valor: 0, nombre:
               }
             }
           </div>
+          <app-objetivo-pistas [escena]="e" />
           <div class="recursos" data-accion="recursos-de-apoyo">
             <label for="recursos-escena" class="etiqueta">Recursos de apoyo para el estudiante</label>
             <textarea id="recursos-escena" class="campo" rows="3" aria-describedby="recursos-escena-ayuda"
