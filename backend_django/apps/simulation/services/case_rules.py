@@ -30,6 +30,7 @@ from rest_framework import status
 
 from apps.simulation.casedef import conditions
 from apps.simulation.casedef.vocabulary import (
+    COMMENT_KEYS,
     EXPRESSIONS,
     GESTURES,
     REACTION_KEYS,
@@ -306,6 +307,31 @@ def requires_of(decision):
 def reaction_of(decision):
     """La reacción guardada de la opción, o ``{}`` si no trae o está rota (lectura indulgente, como ``effects_of``)."""
     return read_map(getattr(decision, "reaction_json", None))
+
+
+def comments_of(node):
+    """Los comentarios guardados de la escena como dicts con las claves del documento (``personaje``, ``linea`` y, si
+    están, ``cuando``, ``emocion``, ``gesto``). Lectura indulgente: salta lo que no trae ``personaje`` y ``linea`` de
+    texto y da ``[]`` si lo guardado está roto o no es una lista. Nunca lanza."""
+    raw = getattr(node, "comments_json", None)
+    if not raw:
+        return []
+    try:
+        value = json.loads(raw)
+    except (TypeError, ValueError):
+        return []
+    if not isinstance(value, list):
+        return []
+    result = []
+    for entry in value:
+        if not isinstance(entry, dict):
+            continue
+        if not isinstance(entry.get("personaje"), str) or not entry["personaje"]:
+            continue
+        if not isinstance(entry.get("linea"), str) or not entry["linea"]:
+            continue
+        result.append({key: entry[key] for key in COMMENT_KEYS if key in entry})
+    return result
 
 
 def validate_requires(raw):

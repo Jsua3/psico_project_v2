@@ -199,6 +199,8 @@ class SimulationNode(models.Model):
     decision_prompt = models.TextField(default="", db_default="")
     # El objetivo de la escena (x-siep 2.1): una frase para la docente; vacío = la escena no lo declara.
     goal = models.TextField(default="", db_default="")
+    # Los comentarios de los personajes de la escena (x-siep 2.1): lista JSON con las claves del documento; "[]" = ninguno.
+    comments_json = models.TextField(default="[]", db_default="[]")
     # Orden informativo con que el editor lista los nodos (E3-6, RF-08): no cambia el grafo.
     display_order = models.IntegerField(default=0, db_default=0)
     # La intensidad de la escena (modelo de respuesta): ``LOW`` | ``MEDIUM`` | ``HIGH``; ``HIGH`` por defecto en las

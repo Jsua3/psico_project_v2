@@ -73,6 +73,8 @@ class SimulationAttempt(models.Model):
     # WORLD_POSITION_UPDATED como fuente del tiempo (ver ``services/attempt_duration``).
     active_seconds = models.FloatField(default=0.0, db_default=0)
     last_activity_at = models.DateTimeField(null=True, blank=True)
+    # Ensayo del borrador para la docente (bloque A2): un intento de juego que no cuenta como intento de estudiante.
+    is_rehearsal = models.BooleanField(default=False, db_default=False)
 
     class Meta:
         db_table = "simulation_attempts_v2"
@@ -82,8 +84,14 @@ class SimulationAttempt(models.Model):
             # inicio (E1-1): dos POST simultáneos no pueden crear dos intentos abiertos.
             models.UniqueConstraint(
                 fields=["student", "case_version"],
-                condition=models.Q(status__in=OPEN_ATTEMPT_STATUSES),
+                condition=models.Q(status__in=OPEN_ATTEMPT_STATUSES, is_rehearsal=False),
                 name="uq_attempts_open_per_student_case",
+            ),
+            # Un ensayo abierto por autor y versión: dos pestañas no pueden abrir dos ensayos a la vez.
+            models.UniqueConstraint(
+                fields=["student", "case_version"],
+                condition=models.Q(status__in=OPEN_ATTEMPT_STATUSES, is_rehearsal=True),
+                name="uq_rehearsal_open_per_author_case",
             ),
         ]
         indexes = [
