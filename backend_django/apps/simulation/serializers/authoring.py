@@ -135,6 +135,8 @@ class NodeRequest(serializers.Serializer):
     decisionPrompt = _text()
     # El objetivo de la escena (DSL 2.1): texto plano con tope; ausente = no tocar.
     goal = _text()
+    # Comentarios de la escena (DSL 2.1): el servicio los valida; ausente = no tocar, ``null`` o ``[]`` los limpian.
+    comments = serializers.ListField(child=serializers.DictField(), required=False, allow_null=True)
     # Intensidad de la escena; ausente = no tocar (un nodo nuevo sensible nace en HIGH).
     intensity = serializers.ChoiceField(choices=[m.value for m in Intensity], required=False)
     # Sugerido por el asistente de IA y sin revisar (P5); ausente = no tocar (un nodo nuevo nace en falso).

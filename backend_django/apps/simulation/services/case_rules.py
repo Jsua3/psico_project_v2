@@ -31,6 +31,7 @@ from rest_framework import status
 from apps.simulation.casedef import conditions
 from apps.simulation.casedef.vocabulary import (
     COMMENT_KEYS,
+    COMMENTS_MAX,
     EXPRESSIONS,
     GESTURES,
     REACTION_KEYS,
@@ -334,17 +335,34 @@ def comments_of(node):
     return result
 
 
+def _checked_condition(raw, field, invalid_message, too_long_message):
+    """Una condición del documento (``requires`` de una opción, ``cuando`` de un comentario), estricta: el vocabulario
+    del caso y el tope de ``REQUIRES_MAX_CHARS``, o 400 con ``field``. Compartida por ambas para que no diverjan."""
+    if not isinstance(raw, dict) or not conditions.is_valid(raw, facts=True):
+        raise _refuse(invalid_message, field)
+    if len(json.dumps(raw, ensure_ascii=False)) > REQUIRES_MAX_CHARS:
+        raise _refuse(too_long_message, field)
+    return raw
+
+
+def _checked_expression(key, value, field):
+    """``emocion`` o ``gesto`` dentro del vocabulario cerrado, o 400 con ``field``; otras claves pasan sin tocar."""
+    if key == "emocion" and value not in EXPRESSIONS:
+        raise _refuse(f"La emoción «{value}» no existe: {', '.join(EXPRESSIONS)}.", field)
+    if key == "gesto" and value not in GESTURES:
+        raise _refuse(f"El gesto «{value}» no existe: {', '.join(GESTURES)}.", field)
+
+
 def validate_requires(raw):
     """El requisito que manda el editor, estricto: la condición o 400 con ``field: requires``. ``None`` y ``{}`` limpian."""
     if raw is None or raw == {}:
         return {}
     # BORRADOR: texto nuevo del servidor, pendiente de la aprobación de Psicología
-    if not isinstance(raw, dict) or not conditions.is_valid(raw, facts=True):
-        raise _refuse("El requisito no es una condición válida del vocabulario del caso.", "requires")
-    # BORRADOR: texto nuevo del servidor, pendiente de la aprobación de Psicología
-    if len(json.dumps(raw, ensure_ascii=False)) > REQUIRES_MAX_CHARS:
-        raise _refuse(f"El requisito es demasiado largo: el máximo es {REQUIRES_MAX_CHARS} caracteres.", "requires")
-    return raw
+    return _checked_condition(
+        raw, "requires",
+        "El requisito no es una condición válida del vocabulario del caso.",
+        f"El requisito es demasiado largo: el máximo es {REQUIRES_MAX_CHARS} caracteres.",
+    )
 
 
 def validate_reaction(raw, character_keys):
@@ -372,11 +390,59 @@ def validate_reaction(raw, character_keys):
             value = validate_plain_text(value, REACTION_LINE_MAX, "reaction", multiline=False)
             if not value:
                 continue
-        if key == "emocion" and value not in EXPRESSIONS:
-            raise _refuse(f"La emoción «{value}» no existe: {', '.join(EXPRESSIONS)}.", "reaction")
-        if key == "gesto" and value not in GESTURES:
-            raise _refuse(f"El gesto «{value}» no existe: {', '.join(GESTURES)}.", "reaction")
+        _checked_expression(key, value, "reaction")
         if key == "personaje" and value not in character_keys:
             raise _refuse(f"El caso no tiene el personaje «{value}».", "reaction")
         reaction[key] = value
     return reaction
+
+
+def validate_comments(raw, character_keys):
+    """Los comentarios de la escena que manda el editor, estrictos: la lista limpia o 400 con ``field: comments``.
+
+    ``None`` y ``[]`` limpian. Cada uno lleva ``personaje`` (de ``character_keys``) y ``linea``; ``cuando``, ``emocion``
+    y ``gesto`` son opcionales y se omiten si vienen vacíos. La línea, la emoción, el gesto y la condición se validan
+    con las mismas reglas que la reacción y el requisito de una opción.
+    """
+    if raw is None or raw == []:
+        return []
+    # BORRADOR: texto nuevo del servidor, pendiente de la aprobación de Psicología
+    if not isinstance(raw, list):
+        raise _refuse("Los comentarios deben ser una lista.", "comments")
+    if len(raw) > COMMENTS_MAX:
+        raise _refuse(f"Una escena admite hasta {COMMENTS_MAX} comentarios.", "comments")
+    return [_validated_comment(entry, character_keys) for entry in raw]
+
+
+def _validated_comment(entry, character_keys):
+    # BORRADOR: texto nuevo del servidor, pendiente de la aprobación de Psicología
+    if not isinstance(entry, dict):
+        raise _refuse("Cada comentario debe ser un objeto con personaje y linea.", "comments")
+    unknown = [key for key in entry if key not in COMMENT_KEYS]
+    if unknown:
+        raise _refuse(f"El comentario no admite «{unknown[0]}»: solo {', '.join(COMMENT_KEYS)}.", "comments")
+    comment = {}
+    for key in COMMENT_KEYS:
+        value = entry.get(key)
+        if value is None or value == "" or value == {}:
+            continue
+        if key == "cuando":
+            comment[key] = _checked_condition(
+                value, "comments",
+                "La condición del comentario no es válida en el vocabulario del caso.",
+                f"La condición del comentario es demasiado larga: el máximo es {REQUIRES_MAX_CHARS} caracteres.",
+            )
+            continue
+        if not isinstance(value, str):
+            raise _refuse(f"«{key}» del comentario debe ser un texto.", "comments")
+        if key == "linea":
+            value = validate_plain_text(value, REACTION_LINE_MAX, "comments", multiline=False)
+            if not value:
+                continue
+        _checked_expression(key, value, "comments")
+        if key == "personaje" and value not in character_keys:
+            raise _refuse(f"El caso no tiene el personaje «{value}».", "comments")
+        comment[key] = value
+    if "personaje" not in comment or "linea" not in comment:
+        raise _refuse("Cada comentario necesita personaje y linea.", "comments")
+    return comment

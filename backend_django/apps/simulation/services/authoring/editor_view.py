@@ -210,6 +210,7 @@ def node_editor_state(node):
         "positionY": node.position_y,
         "decisionPrompt": node.decision_prompt,
         "goal": node.goal,
+        "comments": case_rules.comments_of(node),
         "displayOrder": node.display_order,
         "intensity": node.intensity,
         "aiSuggested": node.ai_suggested,

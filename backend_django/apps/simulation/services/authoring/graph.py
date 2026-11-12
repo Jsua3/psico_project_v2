@@ -137,6 +137,12 @@ def _apply_node_request(node, request):
     # El objetivo de la escena (DSL 2.1): igual que el enunciado, texto plano con tope; ausente = no tocar.
     if "goal" in request:
         node.goal = validate_plain_text(request.get("goal"), GOAL_MAX, "goal", multiline=False)
+    # Los comentarios de la escena (DSL 2.1): ausente = no tocar; ``null`` o ``[]`` los limpian; lo roto es un 400.
+    if "comments" in request:
+        node.comments_json = json.dumps(
+            case_rules.validate_comments(request.get("comments"), _character_keys(node.case_version_id)),
+            ensure_ascii=False,
+        )
 
 
 # ─── Decision CRUD ──────────────────────────────────────────────────────────
@@ -225,12 +231,14 @@ def _apply_decision_request(decision, request, case_version_id, version):
     if "requires" in request:
         decision.requires_json = json.dumps(case_rules.validate_requires(request.get("requires")), ensure_ascii=False)
     if "reaction" in request:
-        characters = set(
-            CaseCharacter.objects.filter(case_version_id=case_version_id).values_list("character_key", flat=True)
-        )
         decision.reaction_json = json.dumps(
-            case_rules.validate_reaction(request.get("reaction"), characters), ensure_ascii=False
+            case_rules.validate_reaction(request.get("reaction"), _character_keys(case_version_id)), ensure_ascii=False
         )
+
+
+def _character_keys(case_version_id):
+    """Las claves de los personajes que declara el caso: contra ellas se valida el ``personaje`` de reacciones y comentarios."""
+    return set(CaseCharacter.objects.filter(case_version_id=case_version_id).values_list("character_key", flat=True))
 
 
 def _apply_response_class(decision, request):
