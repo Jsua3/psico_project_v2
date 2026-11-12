@@ -150,8 +150,6 @@ describe('SimulationPlayComponent: diálogo sin callejones', () => {
       component.selectedInteraction.set({ key: 'familia-crisis', type: 'PERSON' } as unknown as MapObjectState);
       component.nearbyInteraction.set({ key: 'familia-crisis', type: 'PERSON' } as unknown as MapObjectState);
       component.journalOpen.set(true);
-      (component as any).pendingEvidenceDecisionId = 11;
-      (component as any).pendingEvidenceMissing = ['npc:enfermera-urgencias'];
 
       component.startNewAttempt();
 
@@ -160,8 +158,6 @@ describe('SimulationPlayComponent: diálogo sin callejones', () => {
       expect(component.selectedInteraction()).toBeNull();
       expect(component.nearbyInteraction()).toBeNull();
       expect(component.journalOpen()).toBe(false);
-      expect((component as any).pendingEvidenceDecisionId).toBeNull();
-      expect((component as any).pendingEvidenceMissing).toEqual([]);
     });
   });
 
@@ -176,6 +172,18 @@ describe('SimulationPlayComponent: diálogo sin callejones', () => {
       expect(component.actionError()).toMatch(/otra etapa/i);
       expect(component.dialogueReleaseToken()).toBe(before + 1);
       expect(component.dialogue()).not.toBeNull();
+    });
+
+    it('elegir una opción la envía en el acto: no hay diálogo «Criterio profesional»', () => {
+      component.dialogue.set(decisionDialogue(11));
+
+      component.executeDecision(11);
+
+      expect(sim['chooseDecision']).toHaveBeenCalledTimes(1);
+      expect(sim['chooseDecision']).toHaveBeenCalledWith(
+        expect.any(String), expect.any(String), 11, false, [], expect.any(String),
+      );
+      expect(component.dialogue()).toBeNull();
     });
 
     it('con una petición en curso rechaza la elección sin dejarla bloqueada', () => {

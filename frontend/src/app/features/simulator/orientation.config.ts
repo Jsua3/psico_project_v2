@@ -1,7 +1,7 @@
 /**
  * Orientación del jugador (SIM-VBG-001): nombres, salas, grafo de puertas,
  * banderas de producto y textos fijos en un solo lugar. Todo es copy estático
- * del frontend (patrón NODE_EVIDENCE): los textos del seed que quedaron
+ * del frontend: los textos del seed que quedaron
  * imprecisos se sobrescriben aquí sin re-sembrar la base.
  *
  * Reglas de redacción (diseño F§5): tuteo, imperativo neutro, sin exclamaciones

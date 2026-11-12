@@ -102,18 +102,7 @@ function uniqueItems(items: readonly MissingItem[]): MissingItem[] {
   });
 }
 
-/** Infinitivo, para el aviso de evidencia: «hablar con la Enfermera de urgencias (en Urgencias)». */
-export function humanizeMissing(items: readonly MissingItem[], ctx: CopyContext): string[] {
-  return uniqueItems(items).map(item => phraseFor(item, 'infinitive', ctx));
-}
-
 /** Imperativo, para puertas y lista: «habla con la Familia en crisis (en el extremo izquierdo, al frente)». */
 export function imperativeMissing(items: readonly MissingItem[], ctx: CopyContext): string[] {
   return uniqueItems(items).map(item => phraseFor(item, 'imperative', ctx));
-}
-
-/** Aviso único de evidencia (F§5.5); null si no falta nada. */
-export function evidenceNoticeText(items: readonly MissingItem[], ctx: CopyContext): string | null {
-  const phrases = humanizeMissing(items, ctx);
-  return phrases.length ? ORIENTATION_COPY.evidence.notice(joinSpanish(phrases)) : null;
 }

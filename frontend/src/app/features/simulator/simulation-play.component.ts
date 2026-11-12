@@ -18,11 +18,9 @@ import {
 } from '../../core/models/simulation.model';
 import type { CharacterVisual } from '../character/kit/character-visual.resolver';
 import { personaChangeAnnouncement } from './persona-change.util';
-import {
-  choiceEvidence, mergeEvidence, type NodeEvidenceDef, collectViewedNpcKeys, missingEvidence, missingEvidenceItems, nodeEvidence,
-} from './evidence-gating.config';
+import { collectViewedNpcKeys } from './evidence-gating.config';
 import { decorateDialogueState, otherStageDecisionKeys } from './dialogue-decoration.util';
-import { type CopyContext, evidenceNoticeText } from './evidence-copy.util';
+import { type CopyContext } from './evidence-copy.util';
 import { type DoorStatus, type DoorStatusContext, doorStateMap, doorStatus } from './door-status.util';
 import { type InteractionVerb, interactionVerb, readsLocally } from './interaction-verb.util';
 import { NAME_TOOLS_IN_HINTS, ORIENTATION_COPY, RoomGroup, SAFE_EXIT_ALWAYS_REACHABLE } from './orientation.config';
@@ -1259,8 +1257,6 @@ export class SimulationPlayComponent implements OnInit, OnDestroy {
   private lastPersona: { attemptId: string; persona: Pick<Persona, 'bond' | 'activation'> } | null = null;
   /** NPCs de ScenarioConfig hablados en esta sesión (evidencia frontend, Fase 9). */
   protected readonly viewedNpcKeys = signal<ReadonlySet<string>>(new Set<string>());
-  private pendingEvidenceDecisionId: number | null = null;
-  private pendingEvidenceMissing: string[] = [];
 
   /** Estado de vista del gameplay — gobierna el layout vía [attr.data-mode]. */
   readonly viewMode = computed<SimulationViewMode>(() => resolveViewMode({
@@ -1727,7 +1723,6 @@ export class SimulationPlayComponent implements OnInit, OnDestroy {
     this.lastPersona = { attemptId: attempt.attemptId, persona: attempt.persona };
     this.viewedNpcKeys.set(this.restoreViewedNpcKeys(attempt));
     this.visitedRooms.set(readVisitedRooms(attempt.caseVersionId, attempt.attemptId));
-    this.pendingEvidenceDecisionId = null;
     this.loadProgressMap(attempt);
     this.loadWorld(attempt);
     this.applyAudioScene(attempt);
@@ -1875,17 +1870,6 @@ export class SimulationPlayComponent implements OnInit, OnDestroy {
   }
 
   handleFrontendChoice(key: string) {
-    if (key === 'frontend:cancel-evidence') {
-      this.pendingEvidenceDecisionId = null;
-      this.closeDialogue();
-      return;
-    }
-    if (key.startsWith('frontend:proceed-evidence:')) {
-      const id = Number(key.split(':')[2]);
-      this.dialogue.set(null);
-      if (Number.isFinite(id)) this.executeDecision(id);
-      return;
-    }
     if (key === 'frontend:cancel-restricted') {
       this.pendingRestrictedInteraction.set(null);
       this.closeDialogue();
@@ -2096,8 +2080,8 @@ export class SimulationPlayComponent implements OnInit, OnDestroy {
   }
 
   /**
-   * Fase 9 y F§7.6: decora la conversación antes de mostrarla (líneas desbloqueadas por evidencia,
-   * aviso único de lo que falta, herramienta ausente) y quita las decisiones que no son de esta
+   * F§7.6: decora la conversación antes de mostrarla (el
+   * aviso único de que se puede conocer más, herramienta ausente) y quita las decisiones que no son de esta
    * etapa: ningún objeto del mundo ofrece una decisión que `currentNode.options` no contiene (AC-3).
    * Las opciones no revelan su resultado pedagógico antes de responder.
    */
@@ -2107,7 +2091,6 @@ export class SimulationPlayComponent implements OnInit, OnDestroy {
     return decorateDialogueState(dialogue, {
       nodeKey: node?.key ?? null,
       nodeOptionIds: node?.options?.map(option => option.id) ?? null,
-      evidence: nodeEvidence(node?.key),
       world: this.world(),
       viewedNpcKeys: this.viewedNpcKeys(),
       copy: this.copyContext(),
@@ -2276,22 +2259,6 @@ export class SimulationPlayComponent implements OnInit, OnDestroy {
       this.releaseDialogue();
       return;
     }
-    const selectedChoice = this.dialogue()?.choices.find(choice => choice.decisionOptionId === decisionOptionId);
-    const evidenceDef = mergeEvidence(nodeEvidence(game.currentNode.key), choiceEvidence(selectedChoice));
-    const missing = missingEvidence(evidenceDef, this.world(), this.viewedNpcKeys());
-    if (evidenceDef && missing.length && this.pendingEvidenceDecisionId !== decisionOptionId) {
-      this.pendingEvidenceDecisionId = decisionOptionId;
-      this.pendingEvidenceMissing = [...missing];
-      const message = this.evidenceMissingMessage(evidenceDef);
-      // Sin announce(): el panel de diálogo anuncia esta misma línea al abrirse (con las dos se leía dos veces).
-      this.dialogue.set(this.buildEvidenceGateDialogue(message, decisionOptionId));
-      return;
-    }
-    const evidenceOverride = this.pendingEvidenceDecisionId === decisionOptionId
-      && this.pendingEvidenceMissing.length > 0;
-    const confirmedMissingEvidence = evidenceOverride ? this.pendingEvidenceMissing : [];
-    this.pendingEvidenceDecisionId = null;
-    this.pendingEvidenceMissing = [];
     const previousDialogue = this.dialogue();
     this.busy.set(true);
     perfStart('decision-to-scene');
@@ -2302,7 +2269,7 @@ export class SimulationPlayComponent implements OnInit, OnDestroy {
       const request = this.decisionRequestFor(decisionOptionId);
       this.simulationService.chooseDecision(
         game.attemptId, game.attemptToken, decisionOptionId,
-        evidenceOverride, confirmedMissingEvidence, request.requestId,
+        false, [], request.requestId,
       ).subscribe({
         next: updated => {
           this.pendingDecisionRequest = null;
@@ -2656,8 +2623,6 @@ export class SimulationPlayComponent implements OnInit, OnDestroy {
     this.placesOpen.set(false);
     this.showCaseIntro.set(false);
     this.helpOpen.set(false);
-    this.pendingEvidenceDecisionId = null;
-    this.pendingEvidenceMissing = [];
     this.pendingRestrictedInteraction.set(null);
     this.resetNotices();
     this.audioDirector.stopIntroLament();
@@ -2743,32 +2708,6 @@ export class SimulationPlayComponent implements OnInit, OnDestroy {
     const reduced = !this.reduceMotion();
     this.reduceMotion.set(reduced);
     this.announce(reduced ? 'Movimiento reducido activado.' : 'Movimiento reducido desactivado.');
-  }
-
-  /**
-   * Lo que falta antes de decidir, en las mismas frases que la lista y el aviso sobre las opciones
-   * (una sola fuente: `evidenceNoticeText`); nunca una clave interna. El texto del seed solo queda
-   * de respaldo para una evidencia que el copy no sepa nombrar.
-   */
-  private evidenceMissingMessage(def: NodeEvidenceDef): string {
-    const items = missingEvidenceItems(def, this.world(), this.viewedNpcKeys());
-    return evidenceNoticeText(items, this.copyContext()) ?? def.missingMessage;
-  }
-
-  /** Gate de evidencia (Fase 9): permite cancelar o decidir bajo registro. */
-  private buildEvidenceGateDialogue(message: string, decisionOptionId: number): DialogueState {
-    return {
-      key: `evidence-gate-${decisionOptionId}`,
-      speakerName: 'Criterio profesional', portraitKey: 'info', emotion: 'concerned',
-      // El aviso único ya dice que se puede decidir igualmente y que quedará registrado con información incompleta.
-      lines: [
-        { order: 1, speakerName: 'Criterio profesional', text: message, emotion: 'concerned' },
-      ],
-      choices: [
-        { key: 'frontend:cancel-evidence', text: 'Explorar primero', decisionOptionId: null, requiredToolCode: null, effect: {} },
-        { key: `frontend:proceed-evidence:${decisionOptionId}`, text: 'Decidir con información incompleta', decisionOptionId: null, requiredToolCode: null, effect: {} },
-      ],
-    };
   }
 
   /** Reutiliza el `requestId` de la misma opción si el envío anterior falló; si no, abre una intención nueva. */

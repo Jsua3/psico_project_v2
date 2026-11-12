@@ -46,7 +46,6 @@ export function doorStatus(door: MapObjectState, ctx: DoorStatusContext): DoorSt
     npcs: stringList(meta['requiresNpcs']),
     tools: stringList(meta['requiresTools']),
     inspected: stringList(meta['requiresInspected']),
-    missingMessage: '',
   }, ctx.world, ctx.viewedNpcKeys);
   const stageLocked = requiresNodes.length > 0 && !requiresNodes.includes(ctx.nodeKey);
 

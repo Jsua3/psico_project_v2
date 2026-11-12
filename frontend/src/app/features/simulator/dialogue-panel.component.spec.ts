@@ -1360,8 +1360,8 @@ describe('DialoguePanelComponent - pistas de la escena (F10-2)', () => {
   it('una confirmación de la interfaz (sin decisión ni herramienta) no ofrece pistas ni las pide', () => {
     writeInputSignal(component.hintAttempt, { attemptId: 'intento-1', attemptToken: 'token-1' });
     const root = openWith([
-      { key: 'frontend:cancel-evidence', text: 'Explorar primero', decisionOptionId: null, requiredToolCode: null, effect: {} },
-      { key: 'frontend:proceed-evidence:7', text: 'Decidir con información incompleta', decisionOptionId: null, requiredToolCode: null, effect: {} },
+      { key: 'frontend:cancel-restricted', text: 'Volver', decisionOptionId: null, requiredToolCode: null, effect: {} },
+      { key: 'frontend:proceed-restricted', text: 'Continuar', decisionOptionId: null, requiredToolCode: null, effect: {} },
     ]);
 
     expect(root.querySelector('.choices'), 'las opciones sí se ven').not.toBeNull();

@@ -818,16 +818,12 @@ describe('SimulationPlayComponent — puerta de consentimiento (ETH-01)', () => 
       expect(component.pausing()).toBe(false);
     });
 
-    it('descarta la evidencia y la restricción pendientes al pausar', () => {
-      (component as any).pendingEvidenceDecisionId = 11;
-      (component as any).pendingEvidenceMissing = ['npc:enfermera-urgencias'];
+    it('descarta la restricción pendiente al pausar', () => {
       (component as any).pendingRestrictedInteraction.set({ key: 'objeto-riesgoso' } as unknown as MapObjectState);
       sim.safeExit.mockReturnValue(of(makeAttempt({ status: 'PAUSED' })));
 
       component.pauseFromOverlay();
 
-      expect((component as any).pendingEvidenceDecisionId).toBeNull();
-      expect((component as any).pendingEvidenceMissing).toEqual([]);
       expect((component as any).pendingRestrictedInteraction()).toBeNull();
     });
 

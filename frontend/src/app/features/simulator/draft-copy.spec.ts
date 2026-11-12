@@ -34,7 +34,6 @@ describe('draft-copy: textos en borrador pendientes de Psicología', () => {
     expect(DRAFT_COPY.consentSaving).toMatchObject({ text: 'Registrando tu consentimiento…', decision: 'ETH-01', review: 'conocimiento' });
     expect(DRAFT_COPY.journalSaveReason).toMatchObject({ text: 'Escribe tu reflexión para guardar', decision: 'F6-5', review: 'conocimiento' });
     expect(DRAFT_COPY.shortcutsSettingLabel).toMatchObject({ text: 'Atajos de una tecla', decision: 'VD-18', review: 'conocimiento' });
-    expect(DRAFT_COPY.keysHintArrows).toMatchObject({ text: 'Flechas mover · Enter interactuar · Esc salida segura', decision: 'VD-18', review: 'conocimiento' });
     expect(DRAFT_COPY.placesButtonLabel).toMatchObject({ text: 'Ir a… personas y puertas de la sala', decision: 'VD-19', review: 'conocimiento' });
   });
 
@@ -42,7 +41,7 @@ describe('draft-copy: textos en borrador pendientes de Psicología', () => {
     const list = draftCopyList();
     for (const entry of list) expect(['validar', 'conocimiento'], entry.key).toContain(entry.review);
     expect(list.filter(entry => entry.review === 'conocimiento').map(entry => entry.key).sort()).toEqual(
-      ['briefPending', 'consentSaving', 'hintNoCostNote', 'journalSaveReason', 'keysHintArrows', 'placesButtonLabel', 'reactionSkipHint', 'shortcutsSettingLabel'],
+      ['briefPending', 'consentSaving', 'hintNoCostNote', 'journalSaveReason', 'placesButtonLabel', 'reactionSkipHint', 'shortcutsSettingLabel'],
     );
     // Los diez de F6, los ocho de F7-4 (tres de vocabulario VD-24, el rótulo de la valoración formativa y los cuatro
     // nombres de nivel: las claves las fijó ED-2, la redacción visible la elige Psicología) y la consecuencia del
@@ -52,8 +51,8 @@ describe('draft-copy: textos en borrador pendientes de Psicología', () => {
     // solo se conocen; y los del cierre por hitos y competencias (VD-23: clases en palabras, hitos, competencias,
     // autoevaluación breve y últimos cierres del panel) y la nota «persona a atender» de la persona clave (P6-4); y los siete
     // de la ficha del objetivo (DSL-2: rótulo, respaldo, «En esta sala», las tres marcas y «Pedir una pista») y los cuatro de DSL-3 (los dos avisos
-    // de exploración y los dos textos de la ayuda) el chip del aviso sensible (DSL-4) y los cinco de la tarjeta «Antes de comenzar» (DSL-5) y los cuatro de «Respuestas que no llegaste a ver» (DSL-6).
-    expect(list.filter(entry => entry.review === 'validar')).toHaveLength(79);
+    // de exploración y los dos textos de la ayuda) el chip del aviso sensible (DSL-4) y los cinco de la tarjeta «Antes de comenzar» (DSL-5) y los cuatro de «Respuestas que no llegaste a ver» (DSL-6) y «Por ahora no hay nada que decidir» (DSL-7).
+    expect(list.filter(entry => entry.review === 'validar')).toHaveLength(80);
   });
 
   // req: ETH-01, SIEP-RF-05 (S3-2b)

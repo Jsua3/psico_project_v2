@@ -185,17 +185,6 @@ export const DRAFT_COPY = {
     where: 'Ajustes del juego: nombre del ajuste que enciende o apaga J, E, WASD y los números',
     text: SHORTCUTS_SETTING_LABEL,
   },
-  /**
-   * Pista de teclas de la barra de contexto con los atajos apagados (F6-10). La plantilla la repite con <kbd> en las
-   * teclas; una prueba impide que las dos diverjan. Con los atajos activos la pista es la de siempre.
-   */
-  keysHintArrows: {
-    decision: 'VD-18',
-    owner: 'Psicología',
-    review: 'conocimiento',
-    where: 'Barra de contexto del juego: pista de teclas cuando los atajos de una tecla están apagados',
-    text: 'Flechas mover · Enter interactuar · Esc salida segura',
-  },
   /** Nombre accesible del botón de la cabecera que abre la lista «Ir a…» (F6-11). */
   placesButtonLabel: {
     decision: 'VD-19',
@@ -684,6 +673,13 @@ export const DRAFT_COPY = {
     review: 'validar',
     where: 'Resultado, en una respuesta no vista sin hechos de exploración: explicación',
     text: 'Dependía de cómo iba el caso hasta ese momento.',
+  },
+  noStepNow: {
+    decision: 'DSL-7',
+    owner: 'Psicología',
+    review: 'validar',
+    where: 'Conversación sin opciones de decisión en esta escena: línea final',
+    text: 'Por ahora no hay nada que decidir en esta conversación.',
   },
   /** Nota de una conducta prohibida en «Tus decisiones»: se señala con cuidado, sin cifras (RN-08, ETH). */
   decisionProhibitedNote: {

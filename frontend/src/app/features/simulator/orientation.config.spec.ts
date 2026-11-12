@@ -1,6 +1,5 @@
 import * as fs from 'fs';
 import * as path from 'path';
-import { NODE_EVIDENCE } from './evidence-gating.config';
 import {
   DECISION_TOTAL, ENTITY_NAMES, HIGHLIGHT_TOOL_TARGETS, HOSPITAL_GATE_NODE_KEY, NAME_TOOLS_IN_HINTS, OPTIONAL_EXCLUDED_KEYS,
   ORIENTATION_COPY, ROOM_GRAPH, ROOM_LABELS, ROUTE_ORDER, RoomGroup, SAFE_EXIT_ALWAYS_REACHABLE, TOOL_HINTS,
@@ -117,13 +116,6 @@ describe('orientation.config: nombres humanos contra el seed', () => {
       'marco-normativo-hospital': 'el', 'apoyo-psicosocial': 'el', 'madre-acompanante': 'la', 'puerta-consultorio': 'el',
     };
     for (const [key, article] of Object.entries(spot)) expect(ENTITY_NAMES[key].article).toBe(article);
-  });
-
-  it('cada clave de NODE_EVIDENCE tiene nombre humano (personas, objetos y herramientas)', () => {
-    for (const def of Object.values(NODE_EVIDENCE)) {
-      for (const key of [...(def.npcs ?? []), ...(def.inspected ?? [])]) expect(ENTITY_NAMES[key]).toBeDefined();
-      for (const code of [...(def.tools ?? []), ...(def.usedTools ?? [])]) expect(TOOL_HINTS[code]).toBeDefined();
-    }
   });
 
   it('cada requisito de puerta del seed tiene nombre humano; requiresNodes solo el que tiene copy', () => {

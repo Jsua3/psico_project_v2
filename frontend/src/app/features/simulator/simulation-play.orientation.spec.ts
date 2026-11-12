@@ -188,48 +188,6 @@ describe('SimulationPlayComponent: orientación integrada', () => {
     });
   });
 
-  describe('T9.7: evidencia con una sola fuente', () => {
-    const SLUG = /\b(npc:|tool:|inspected:)|enfermera-urgencias|familia-crisis|\bPAP\b|\bSPIKES\b|RISK_METER/;
-
-    function openGate(nodeKey: string, world: SimulationWorldState): DialogueState | null {
-      component.attempt.set(makeAttempt(nodeKey));
-      component.world.set(world);
-      component.dialogue.set({
-        key: 'd', speakerName: 'Familia', portraitKey: null, emotion: 'neutral', lines: [],
-        choices: [{ key: 'o', text: 'Opción', decisionOptionId: 101, requiredToolCode: null, effect: {} }],
-      } as unknown as DialogueState);
-      component.executeDecision(101);
-      return component.dialogue();
-    }
-
-    it('el diálogo «Criterio profesional» dice lo que falta con los nombres que ve el jugador, sin claves', () => {
-      const gate = openGate('hospital-urgencias', makeWorld('hospital-urgencias', urgenciasObjects()));
-
-      expect(gate?.speakerName).toBe('Criterio profesional');
-      const text = gate?.lines.map(line => line.text).join(' ') ?? '';
-      expect(text).toMatch(/^Antes de decidir te falta: .*hablar con la Enfermera de urgencias/);
-      expect(text).toContain('quedará registrada con información incompleta');
-      expect(text).not.toMatch(SLUG);
-    });
-
-    it('con la evidencia completa no hay aviso y la decisión se registra', () => {
-      const done = makeWorld('hospital-urgencias', urgenciasObjects(true), {
-        inventory: ['PAP'], usedToolKeys: ['PAP'], inspectedObjectKeys: ['familia-crisis'],
-        flags: { viewedNpcKeys: ['enfermera-urgencias'] },
-      });
-      const gate = openGate('hospital-urgencias', done);
-
-      expect(gate?.key.startsWith('evidence-gate')).toBeFalsy();
-      expect(sim['chooseDecision']).toHaveBeenCalledTimes(1); // sin fundido antes de responder (4.3.3)
-    });
-
-    it('el diálogo del aviso conserva «Explorar primero» y «Decidir con información incompleta»', () => {
-      const gate = openGate('hospital-urgencias', makeWorld('hospital-urgencias', urgenciasObjects()));
-
-      expect(gate?.choices.map(choice => choice.text)).toEqual(['Explorar primero', 'Decidir con información incompleta']);
-    });
-  });
-
   describe('T9.4: puertas con una sola fuente', () => {
     const exit = () => urgenciasObjects().find(o => o.key === 'puerta-sala-escucha')!;
 
