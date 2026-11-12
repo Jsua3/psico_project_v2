@@ -9,7 +9,7 @@ import {
 } from '../../modelo/efectos';
 import { fraseDeRespuesta, pasoDeRespuesta } from '../../modelo/persona';
 import { EXPRESIONES } from '../../modelo/escenario';
-import { NOMBRE_CLASE, NOMBRE_EXPRESION, NOMBRE_INTENSIDAD } from '../../modelo/textos';
+import { NOMBRE_CLASE, NOMBRE_EXPRESION, NOMBRE_INTENSIDAD, plural } from '../../modelo/textos';
 import { RutasAutoria } from '../../rutas';
 import { ComentariosComponent } from './comentarios.component';
 import { ObjetivoPistasComponent } from './objetivo-pistas.component';
@@ -56,7 +56,8 @@ const PASOS_ACTIVACION = [{ valor: -1, nombre: 'Se calma' }, { valor: 0, nombre:
           @if (e.marcaIa) {
             <div class="fila-titulo">
               <span class="pildora">Sugerido por la IA</span>
-              <button type="button" class="boton" (click)="aceptarEscena(e)">Aceptar escena</button>
+              <!-- BORRADOR: texto nuevo, pendiente de la aprobación de Psicología -->
+              <button type="button" class="boton" (click)="aceptarEscena(e)">Aceptar toda la escena ({{ plural(store.partesIaDeEscena(e.id), 'parte', 'partes') }})</button>
             </div>
           }
           <label for="en" class="etiqueta">Escena {{ numero(e) }} · Nombre</label>
@@ -367,6 +368,7 @@ export class GuionComponent {
   readonly escenaId = input.required<string>();
 
   protected readonly store = inject(CasoStore);
+  protected readonly plural = plural;
   private readonly router = inject(Router);
   protected readonly expresiones = EXPRESIONES;
   protected readonly nombreExpresion = NOMBRE_EXPRESION;
@@ -531,10 +533,13 @@ export class GuionComponent {
     });
   }
 
-  protected aceptarEscena(e: Escena): void {
-    this.store.aceptarIa({ escenaId: e.id });
-    this.anuncio.set('Escena aceptada.');
+  /** Acepta de una vez lo sugerido en la escena; solo si de verdad quedó todo aceptado se anuncia (si no, habla el aviso de lo que faltó). */
+  protected async aceptarEscena(e: Escena): Promise<void> {
+    this.store.aceptarEscenaIa(e.id);
     this.enfocarPrimero('#en');
+    await this.store.sincronizado();
+    // BORRADOR: texto nuevo, pendiente de la aprobación de Psicología
+    if (this.store.partesIaDeEscena(e.id) === 0) this.anuncio.set('Aceptaste todo lo sugerido en esta escena.');
   }
 
   protected aceptarLinea(e: Escena, l: Linea, i: number): void {

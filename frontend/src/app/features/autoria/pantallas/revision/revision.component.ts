@@ -271,7 +271,11 @@ export class RevisionComponent {
     const unicos = new Map(delServidor.map((h) => [`${h.code}|${h.message}`, h]));
     return [
       ...locales,
-      ...faltasDelServidor([...unicos.values()], caso, { respuestaDeOpcion: (clave) => this.store.respuestaDeOpcion(clave), faltasLocales: locales }),
+      ...faltasDelServidor([...unicos.values()], caso, {
+        respuestaDeOpcion: (clave) => this.store.respuestaDeOpcion(clave),
+        respuestasGuardadas: (escenaId) => this.store.respuestasGuardadasDe(escenaId),
+        faltasLocales: locales,
+      }),
     ];
   });
 

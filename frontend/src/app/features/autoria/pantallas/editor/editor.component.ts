@@ -46,7 +46,8 @@ import { RutasAutoria } from '../../rutas';
                 <h2 id="pe">{{ numero(e) }} · {{ e.titulo }}</h2>
                 @if (e.marcaIa) {
                   <p class="marca-ia"><span class="pildora">Sugerido por la IA</span> La creó el asistente; revísala y acéptala.</p>
-                  <button type="button" class="boton" data-accion="aceptar-ia" (click)="store.aceptarIa({ escenaId: e.id })">Aceptar escena</button>
+                  <!-- BORRADOR: texto nuevo, pendiente de la aprobación de Psicología -->
+                  <button type="button" class="boton" data-accion="aceptar-ia" (click)="aceptarEscena(e.id)">Aceptar toda la escena ({{ plural(store.partesIaDeEscena(e.id), 'parte', 'partes') }})</button>
                 }
                 <p class="texto-secundario">{{ nombreSala(e.salaId) }} · {{ plural(e.lineas.length, 'línea', 'líneas') }} · {{ plural(e.respuestas.length, 'respuesta', 'respuestas') }}</p>
                 <dl>
@@ -220,6 +221,14 @@ export class EditorComponent {
   protected readonly destino = signal<string | 'nueva' | null>(null);
   protected readonly borrando = signal<string | null>(null);
   protected readonly anuncio = signal('');
+
+  /** Acepta de una vez lo sugerido en la escena; solo si quedó todo aceptado se anuncia (si no, habla el aviso de lo que faltó). */
+  protected async aceptarEscena(id: string): Promise<void> {
+    this.store.aceptarEscenaIa(id);
+    await this.store.sincronizado();
+    // BORRADOR: texto nuevo, pendiente de la aprobación de Psicología
+    if (this.store.partesIaDeEscena(id) === 0) this.anuncio.set('Aceptaste todo lo sugerido en esta escena.');
+  }
 
   protected readonly avisos = computed<Aviso[]>(() => {
     const caso = this.store.caso();

@@ -73,6 +73,69 @@ export class BorradoAMedias extends Error {
   }
 }
 
+/** Se aceptaron algunas partes de una escena y otra falló: cuántas se alcanzaron a aceptar, de cuántas, y por qué paró. */
+export class AceptacionAMedias extends Error {
+  constructor(readonly hechas: number, readonly total: number, readonly causa: unknown) {
+    super('No se alcanzó a aceptar toda la escena.');
+  }
+}
+
+/** Lo sugerido por la IA en una escena y todavía sin aceptar: la escena misma, sus líneas, sus respuestas y las personas de su sala. */
+export interface PlanDeAceptacion {
+  escenaId: string;
+  escena: boolean;
+  lineas: number;
+  respuestas: string[];
+  salaId: string | null;
+  /** La clave de cada persona marcada; `undefined` si todavía no está en el servidor. */
+  personas: Array<string | undefined>;
+}
+
+export function planDeAceptacion(caso: CasoBorrador | null, escenaId: string): PlanDeAceptacion | null {
+  const escena = caso?.escenas.find((e) => e.id === escenaId);
+  if (!caso || !escena) return null;
+  const sala = caso.salas.find((s) => s.id === escena.salaId);
+  return {
+    escenaId,
+    escena: escena.marcaIa === true,
+    lineas: escena.lineas.filter((l) => l.marcaIa).length,
+    respuestas: escena.respuestas.filter((r) => r.marcaIa).map((r) => r.id),
+    salaId: sala?.id ?? null,
+    personas: (sala?.personajes ?? []).filter((p) => p.marcaIa).map((p) => p.clave),
+  };
+}
+
+export const partesPorAceptar = (plan: PlanDeAceptacion): number =>
+  (plan.escena ? 1 : 0) + plan.lineas + plan.respuestas.length + plan.personas.length;
+
+/**
+ * Acepta en el servidor todo lo del plan, una ruta tras otra y con la revisión que devuelve cada una: la escena, el guion (sus
+ * líneas viajan juntas), cada respuesta y cada persona. Aceptar lo ya aceptado no cambia nada, así que repetir completa. Si una
+ * ruta falla, lo aceptado queda y se lanza `AceptacionAMedias` con la cuenta.
+ */
+export async function aceptarEscena(s: SesionServidor, caso: CasoBorrador, plan: PlanDeAceptacion): Promise<void> {
+  const pasos: Array<{ partes: number; hacer: () => Promise<unknown> }> = [];
+  if (plan.escena) {
+    pasos.push({ partes: 1, hacer: async () => { const nodo = s.nodoDe(plan.escenaId); if (nodo !== undefined) await s.aceptarNodo(nodo); } });
+  }
+  if (plan.lineas > 0) pasos.push({ partes: plan.lineas, hacer: () => sincronizarGuion(s, caso, plan.escenaId) });
+  for (const id of plan.respuestas) {
+    pasos.push({ partes: 1, hacer: async () => { const decision = s.decisionDe(id); if (decision !== undefined) await s.aceptarDecision(decision); } });
+  }
+  for (const clave of plan.personas) {
+    pasos.push({ partes: 1, hacer: async () => { if (clave && plan.salaId) await aceptarPieza(s, caso, plan.salaId, clave); } });
+  }
+  let hechas = 0;
+  for (const paso of pasos) {
+    try {
+      await paso.hacer();
+    } catch (error) {
+      throw new AceptacionAMedias(hechas, partesPorAceptar(plan), error);
+    }
+    hechas += paso.partes;
+  }
+}
+
 /** Otra sesión cambió el caso: no se reintenta ni se da por perdido nada, lo trata el store. */
 const esConflicto = (error: unknown): boolean => error instanceof HttpErrorResponse && error.status === 409;
 

@@ -92,6 +92,36 @@ describe('GuionComponent', () => {
     expect(raiz.textContent).not.toContain('Sugerido por la IA');
   });
 
+  it('«Aceptar toda la escena» dice cuántas partes son, las baja todas y lo anuncia', async () => {
+    const { fixture, store, id, raiz, listo } = await montar();
+    const caso = structuredClone(store.caso()!);
+    const escena = caso.escenas.find((e) => e.id === id)!;
+    escena.marcaIa = true;
+    escena.lineas.push({ id: 'l-ia', personajeId: caso.personajes[0].id, texto: 'Hola', expresion: 'neutral', marcaIa: true });
+    escena.respuestas.push({ id: 'r-ia', texto: 'Cuéntame', clase: 'RECOMMENDED', razon: '', efectos: {}, retroalimentacion: 'Bien.', destinoId: null, marcaIa: true });
+    store.fijar(caso);
+    document.body.appendChild(fixture.nativeElement);
+    await listo();
+    expect([...raiz.querySelectorAll('button')].some((b) => b.textContent?.trim() === 'Aceptar escena')).toBe(false);
+    boton(raiz, 'Aceptar toda la escena (3 partes)').click();
+    await listo();
+    await new Promise((r) => setTimeout(r, 0));
+    const despues = store.caso()!.escenas.find((e) => e.id === id)!;
+    expect([despues.marcaIa, despues.lineas[0].marcaIa, despues.respuestas[0].marcaIa]).toEqual([false, false, false]);
+    expect(raiz.querySelector('[role="status"].solo-lector')!.textContent!.trim()).toBe('Aceptaste todo lo sugerido en esta escena.');
+    expect(raiz.textContent).not.toContain('Aceptar toda la escena');
+    fixture.nativeElement.remove();
+  });
+
+  it('con una sola parte sugerida el botón dice «1 parte»', async () => {
+    const { store, id, raiz, listo } = await montar();
+    const caso = structuredClone(store.caso()!);
+    caso.escenas.find((e) => e.id === id)!.marcaIa = true;
+    store.fijar(caso);
+    await listo();
+    expect(boton(raiz, 'Aceptar toda la escena (1 parte)')).toBeDefined();
+  });
+
   const enCuerpo = async (fixture: { nativeElement: HTMLElement }, listo: () => Promise<void>) => {
     document.body.appendChild(fixture.nativeElement);
     await listo();

@@ -1,6 +1,7 @@
 import { revisarCaminos } from './caminos';
 import type { CasoBorrador, Escena, Respuesta } from './caso';
-import { puedeEnviar, respuestasSinForma, sugerencias } from './revision';
+import type { ValidationIssue } from '../../../core/models/simulation.model';
+import { faltasDelServidor, puedeEnviar, respuestasSinForma, sugerencias } from './revision';
 
 const resp = (id: string, destinoId: string | null): Respuesta =>
   ({ id, texto: `Respuesta ${id}`, clase: 'RECOMMENDED', razon: '', efectos: {}, retroalimentacion: 'Bien.', destinoId, marcaIa: false });
@@ -190,5 +191,58 @@ describe('puedeEnviar', () => {
         'La escena «Escena d» tiene respuestas pero en su sala no hay nadie con quien hablar. Agrega una persona.',
       ]);
     });
+  });
+});
+
+describe('faltasDelServidor: las faltas de requisitos, reacciones y comentarios (OCL-09 a OCL-12) llevan a lo concreto', () => {
+  const issue = (code: string, path: string): ValidationIssue => ({ code, severity: 'error', message: `Mensaje del servidor para ${code}.`, nodeId: 7, path });
+  /** La escena 7 (la 2.ª del documento): tiene respuestas guardadas (números del servidor), una sin guardar en medio y comentarios. */
+  const casoCon = (respuestas: Respuesta[]): CasoBorrador => {
+    const caso = completo();
+    caso.escenas.push({ ...esc('7', respuestas), comentarios: [] });
+    return caso;
+  };
+  const llevar = (caso: CasoBorrador, code: string, path: string, extra: { respuestasGuardadas?: (escenaId: string) => string[] } = {}) =>
+    faltasDelServidor([issue(code, path)], caso, { respuestaDeOpcion: () => undefined, faltasLocales: [], ...extra })[0];
+
+  it.each([
+    ['DSL.OCL-09', 'x-siep.escenas[1].opciones', 'respuestas-escena'],
+    ['DSL.OCL-10', 'x-siep.escenas[1].opciones[1].requiere', 'aparece-si-31'],
+    ['DSL.OCL-10', 'x-siep.escenas[1].opciones[0].requiere.all[0]', 'aparece-si-12'],
+    ['DSL.OCL-11', 'x-siep.escenas[1].opciones[0].reaccion.emocion', 'reaccion-12'],
+    ['DSL.OCL-11', 'x-siep.escenas[1].opciones[1].reaccion', 'reaccion-31'],
+    ['DSL.OCL-12', 'x-siep.escenas[1].comentarios[2].personaje', 'comentario-2'],
+    ['DSL.OCL-12', 'x-siep.escenas[1].comentarios[0]', 'comentario-0'],
+  ])('%s (%s) lleva a la escena con el ancla %s y con el mensaje del servidor', (code, path, ancla) => {
+    // las dos guardadas llegan en desorden: la j-ésima es por su número de servidor (12 antes que 31)
+    const caso = casoCon([resp('31', 'b'), resp('12', 'b')]);
+    const falta = llevar(caso, code, path);
+    expect(falta).toEqual({ codigo: code, mensaje: `Mensaje del servidor para ${code}.`, ir: { ruta: '/editor/escena/7', ancla } });
+  });
+
+  it('con una respuesta sin guardar en la escena, el índice cuenta solo las guardadas', () => {
+    const caso = casoCon([resp('31', 'b'), resp('nueva-abc', 'b'), resp('12', 'b')]);
+    expect(llevar(caso, 'DSL.OCL-10', 'x-siep.escenas[1].opciones[1].requiere').ir.ancla).toBe('aparece-si-31'); // no 'nueva-abc'
+    expect(llevar(caso, 'DSL.OCL-11', 'x-siep.escenas[1].opciones[0].reaccion.linea').ir.ancla).toBe('reaccion-12');
+  });
+
+  it('si no se halla la respuesta, el ancla es la lista de respuestas', () => {
+    const caso = casoCon([resp('12', 'b'), resp('nueva-abc', 'b')]);
+    expect(llevar(caso, 'DSL.OCL-10', 'x-siep.escenas[1].opciones[1].requiere').ir.ancla).toBe('respuestas-escena');
+    expect(llevar(caso, 'DSL.OCL-11', 'x-siep.escenas[1].opciones[5].reaccion').ir.ancla).toBe('respuestas-escena');
+    expect(llevar(caso, 'DSL.OCL-10', 'sin-ruta-conocida').ir.ancla).toBe('respuestas-escena');
+  });
+
+  it('si quien llama sabe cuáles respuestas ya están en el servidor (incluidas las creadas en esta visita), usa ese orden', () => {
+    const caso = casoCon([resp('ab-local', 'b'), resp('12', 'b')]);
+    const respuestasGuardadas = (escenaId: string) => (escenaId === '7' ? ['12', 'ab-local'] : []);
+    expect(llevar(caso, 'DSL.OCL-10', 'x-siep.escenas[1].opciones[1].requiere', { respuestasGuardadas }).ir.ancla).toBe('aparece-si-ab-local');
+  });
+
+  it('un comentario sin posición en la ruta lleva al título de la sección y sin escena va al mapa', () => {
+    const caso = casoCon([resp('12', 'b')]);
+    expect(llevar(caso, 'DSL.OCL-12', 'x-siep.escenas[1].comentarios').ir).toEqual({ ruta: '/editor/escena/7', ancla: 'comentarios-titulo' });
+    const sinEscena = faltasDelServidor([{ code: 'DSL.OCL-12', severity: 'error', message: 'X.', path: 'x-siep.escenas[1].comentarios[0]' }], caso, { respuestaDeOpcion: () => undefined, faltasLocales: [] })[0];
+    expect(sinEscena.ir).toEqual({ ruta: '/editor' });
   });
 });

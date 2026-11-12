@@ -438,6 +438,10 @@ export class CasoStore {
   /** El mensaje de un cambio que no se guardó; dos casos dejan el caso a medias y lo dicen. */
   private mensajeDe(error: unknown, op: Operacion, aMedias = false): string {
     if (error instanceof persistir.SalaDesalineada) return 'Algunas escenas de esta sala pueden mostrarla distinta. Vuelve a guardarla.';
+    if (error instanceof persistir.AceptacionAMedias) {
+      // BORRADOR: texto nuevo, pendiente de la aprobación de Psicología
+      return `Se aceptaron ${error.hechas} de ${error.total} ${error.total === 1 ? 'parte' : 'partes'}. Vuelve a pulsar para terminar.`;
+    }
     if (error instanceof persistir.BorradoAMedias) {
       return 'Se quitaron los caminos que llevaban a esa escena, pero la escena no se pudo borrar. Vuelve a conectar esos caminos si hace falta.';
     }
@@ -1089,6 +1093,52 @@ export class CasoStore {
         if (nodo !== undefined) await sesion.aceptarNodo(nodo);
       },
     });
+  }
+
+  /** Cuántas partes sugeridas por la IA quedan por aceptar en la escena: ella, sus líneas, sus respuestas y las personas marcadas de su sala. */
+  partesIaDeEscena(escenaId: string): number {
+    const plan = persistir.planDeAceptacion(this.estado(), escenaId);
+    return plan ? persistir.partesPorAceptar(plan) : 0;
+  }
+
+  /**
+   * Acepta de una vez todo lo sugerido por la IA en la escena. En el servidor van varias rutas, una tras otra; si una falla, lo
+   * aceptado queda aceptado, el aviso dice cuántas faltan y volver a pulsar termina (aceptar lo aceptado no cambia nada).
+   */
+  aceptarEscenaIa(escenaId: string): void {
+    const plan = persistir.planDeAceptacion(this.estado(), escenaId);
+    if (!plan || persistir.partesPorAceptar(plan) === 0) return;
+    this.ejecutar({
+      nombre: 'la revisión',
+      resumen: ['Aceptaste todo lo sugerido por el asistente en una escena'],
+      aplicar: (caso) => {
+        const escena = this.escena(caso, escenaId);
+        escena.marcaIa = false;
+        for (const linea of escena.lineas) linea.marcaIa = false;
+        for (const respuesta of escena.respuestas) respuesta.marcaIa = false;
+        for (const persona of caso.salas.find((s) => s.id === escena.salaId)?.personajes ?? []) persona.marcaIa = false;
+      },
+      enviar: async (despues, sesion) => {
+        try {
+          await persistir.aceptarEscena(sesion, despues, plan);
+        } catch (error) {
+          // un choque de revisión no es «a medias»: lo trata el aviso de conflicto
+          if (error instanceof persistir.AceptacionAMedias && (revisionConflictOf(error.causa) || this.esCasoVencido(error.causa))) throw error.causa;
+          throw error;
+        }
+      },
+    });
+  }
+
+  /** Las respuestas de la escena que ya están en el servidor, en el orden de su número (el orden en que este exporta las opciones). */
+  respuestasGuardadasDe(escenaId: string): string[] {
+    const sesion = this.sesion;
+    const escena = this.estado()?.escenas.find((e) => e.id === escenaId);
+    if (!sesion || !escena) return [];
+    return escena.respuestas
+      .flatMap((r) => { const numero = sesion.decisionDe(r.id); return numero === undefined ? [] : [{ id: r.id, numero }]; })
+      .sort((a, b) => a.numero - b.numero)
+      .map((r) => r.id);
   }
 
   /**

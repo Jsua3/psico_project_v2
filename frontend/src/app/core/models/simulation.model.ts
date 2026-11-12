@@ -1240,6 +1240,8 @@ export interface ValidationIssue {
   milestoneKey?: string;
   endingKey?: string;
   competencyCode?: string;
+  /** Dónde del documento está la falta (`x-siep.escenas[i].opciones[j].requiere`, `….comentarios[k]`…); lo traen las reglas OCL del documento 2.1. */
+  path?: string;
 }
 
 export interface CaseValidation {

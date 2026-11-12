@@ -37,6 +37,30 @@ const boton = (raiz: HTMLElement, texto: string) =>
 const item = (texto: string) =>
   [...document.querySelectorAll<HTMLElement>('[role="menuitem"]')].find((m) => m.textContent!.replace(/s+/g, ' ').trim().startsWith(texto))!;
 
+describe('EditorComponent · aceptar toda la escena', () => {
+  afterEach(() => {
+    document.querySelectorAll('app-root, [ng-version]').forEach((n) => n.remove());
+  });
+
+  it('la tarjeta de la escena sugerida ofrece «Aceptar toda la escena (n partes)», baja todo y lo anuncia', async () => {
+    const { store, raiz, listo } = await montar();
+    const caso = structuredClone(store.caso()!);
+    const escena = caso.escenas.find((e) => e.id === caso.inicioId)!;
+    escena.marcaIa = true;
+    escena.lineas.push({ id: 'l-ia', personajeId: caso.personajes[0].id, texto: 'Hola', expresion: 'neutral', marcaIa: true });
+    store.fijar(caso);
+    await listo();
+    const aceptar = raiz.querySelector<HTMLButtonElement>('[data-accion="aceptar-ia"]')!;
+    expect(aceptar.textContent!.trim()).toBe('Aceptar toda la escena (2 partes)');
+    aceptar.click();
+    await listo();
+    const despues = store.caso()!.escenas.find((e) => e.id === caso.inicioId)!;
+    expect([despues.marcaIa, despues.lineas[0].marcaIa]).toEqual([false, false]);
+    expect(raiz.querySelector('[role="status"].solo-lector')!.textContent!.trim()).toBe('Aceptaste todo lo sugerido en esta escena.');
+    expect(raiz.querySelector('[data-accion="aceptar-ia"]')).toBeNull();
+  });
+});
+
 describe('EditorComponent · diálogos', () => {
   afterEach(() => {
     document.querySelectorAll('.cdk-overlay-container').forEach((o) => (o.innerHTML = ''));
