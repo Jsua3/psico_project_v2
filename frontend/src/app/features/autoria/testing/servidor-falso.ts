@@ -11,12 +11,14 @@ import { Observable, Subject, of, throwError } from 'rxjs';
 
 import type { AuthoringApi } from '../../../core/api/authoring.api';
 import type { AssistantProposeBody } from '../../../core/api/generated/openapi-contracts';
+import type { GenerationStartRequest } from '../../../core/models/generacion.model';
 import type {
   BriefUpdateRequest, CaseEditorView, CaseLifecycle, CaseReviewInfo, ChecklistUpdateRequest, CaseTransitionRequest, CaseValidation, CharacterUpsertRequest, ValidationIssue, DecisionOptionUpsertRequest, DialogueUpsertRequest, EndingRule, MapUpsertRequest,
   Milestone, NodeUpsertRequest, RiskLevel, WorldDefinition, WorldDialogueTree, WorldRoomSaveRequest,
 } from '../../../core/models/simulation.model';
 import type { Escenario } from '../modelo/escenario';
 import { type CasoApi, mundoVacio } from './caso-api';
+import { GeneracionFalsa } from './generacion-falsa';
 
 export interface Llamada {
   metodo: string;
@@ -62,11 +64,34 @@ export class ServidorFalso {
   ultimaRevision: CaseReviewInfo | undefined;
   /** Errores que un método devuelve: tras dejar pasar `saltar` llamadas, falla `veces` veces. */
   private readonly fallos = new Map<string, { error: HttpErrorResponse; saltar: number; veces: number }>();
+  /** La generación de casos con IA: un `imported` le entrega su caso a este servidor (`importarCaso`). */
+  readonly generaciones: GeneracionFalsa;
   private siguienteId = 5000;
 
   constructor(caso: CasoApi, private readonly lugar: Escenario | null = null) {
     this.editor = clonar(caso.editor);
     for (const mundo of caso.mundos) this.mundos.set(mundo.nodeId, clonar(mundo));
+    this.generaciones = new GeneracionFalsa((generado) => this.importarCaso(generado), () => this.id());
+  }
+
+  /** Lo que `rehearsedToEnd` dice desde ahora: si el autor tiene un ensayo de esta versión que llegó a un final. */
+  marcarEnsayado(valor = true): void {
+    this.editor.rehearsedToEnd = valor;
+  }
+
+  /** El caso que acaba de crear una generación pasa a ser el de este servidor: se reemplaza el editor y se arma el mundo vacío de cada sala. */
+  private importarCaso(caso: CaseEditorView): void {
+    for (const clave of Object.keys(this.editor)) delete (this.editor as unknown as Record<string, unknown>)[clave];
+    Object.assign(this.editor, clonar(caso));
+    this.mundos.clear();
+    const rooms = this.editor.maps.map((m) => ({ nodeId: m.nodeId, nodeKey: m.nodeKey, mapKey: m.key, title: m.title }));
+    for (const m of this.editor.maps) {
+      const mundo = mundoVacio(m.nodeId, {
+        id: m.id, key: m.key, title: m.title, width: m.width, height: m.height, theme: m.theme, spawnX: m.spawnX, spawnY: m.spawnY, ambient: {},
+      }, this.editor.revision, this.editor.caseVersionId);
+      mundo.rooms = rooms;
+      this.mundos.set(m.nodeId, mundo);
+    }
   }
 
   /** Que la próxima llamada a `metodo` falle con este error (o, con `opciones`, otra: tras `saltar` llamadas, `veces` veces). */
@@ -157,6 +182,7 @@ export class ServidorFalso {
           warningMessage: cuerpo.warningMessage, terminal: cuerpo.terminal, startNode: cuerpo.startNode, positionX: cuerpo.positionX,
           positionY: cuerpo.positionY, intensity: cuerpo.intensity ?? 'MEDIUM', decisionPrompt: '',
           displayOrder: this.editor.nodes.length, aiSuggested: cuerpo.aiSuggested === true,
+          goal: cuerpo.goal ?? '', comments: clonar(cuerpo.comments ?? []),
         });
       }),
     updateNode: (cv: number, nodeId: number, cuerpo: NodeUpsertRequest, revision?: number) =>
@@ -169,6 +195,8 @@ export class ServidorFalso {
           supportResources: cuerpo.supportResources ?? nodo.supportResources,
         });
         if (cuerpo.aiSuggested !== undefined) nodo.aiSuggested = cuerpo.aiSuggested; // como el servidor: ausente = no se toca
+        if (cuerpo.goal !== undefined) nodo.goal = cuerpo.goal;
+        if (cuerpo.comments !== undefined) nodo.comments = clonar(cuerpo.comments ?? []); // `null` y `[]` los quitan
       }),
     deleteNode: (cv: number, nodeId: number, revision?: number) =>
       this.escribir('deleteNode', revision, [nodeId], () => {
@@ -208,6 +236,7 @@ export class ServidorFalso {
           prohibitedConduct: cuerpo.responseClass === 'CONTRAINDICATED', prohibitionReason: cuerpo.prohibitionReason ?? null,
           immediateFeedback: cuerpo.immediateFeedback ?? '', effects: cuerpo.effects ?? {}, consequenceText: '', theoryBasis: '',
           feedbackText: cuerpo.feedbackText ?? '', aiSuggested: cuerpo.aiSuggested === true,
+          requires: clonar(cuerpo.requires ?? {}), reaction: clonar(cuerpo.reaction ?? {}),
         });
       }),
     updateDecision: (cv: number, decisionId: number, cuerpo: DecisionOptionUpsertRequest, revision?: number) =>
@@ -220,6 +249,8 @@ export class ServidorFalso {
           prohibitionReason: cuerpo.prohibitionReason ?? null, feedbackText: cuerpo.feedbackText ?? '', effects: cuerpo.effects ?? decision.effects,
         });
         if (cuerpo.aiSuggested !== undefined) decision.aiSuggested = cuerpo.aiSuggested;
+        if (cuerpo.requires !== undefined) decision.requires = clonar(cuerpo.requires ?? {}); // `null` y `{}` lo quitan
+        if (cuerpo.reaction !== undefined) decision.reaction = clonar(cuerpo.reaction ?? {});
       }),
     deleteDecision: (cv: number, decisionId: number, revision?: number) =>
       this.escribir('deleteDecision', revision, [decisionId], () => {
@@ -383,6 +414,15 @@ export class ServidorFalso {
       this.entrar('assistantStatus', undefined, [cv]);
       return of({ enabled: true, mode: 'connected' as const, remainingToday: 10 });
     },
+
+    // La generación por etapas vive en `generaciones` (con su propio registro de llamadas).
+    generationStatus: () => this.generaciones.generationStatus(),
+    startGeneration: (cuerpo: GenerationStartRequest) => this.generaciones.startGeneration(cuerpo),
+    generation: (id: string) => this.generaciones.generation(id),
+    generationSkeleton: (id: string) => this.generaciones.generationSkeleton(id),
+    generationScene: (id: string, clave: string, repair = false) => this.generaciones.generationScene(id, clave, repair),
+    generationAssemble: (id: string) => this.generaciones.generationAssemble(id),
+    cancelGeneration: (id: string) => this.generaciones.cancelGeneration(id),
   };
 
   private ciclo(): CaseLifecycle {

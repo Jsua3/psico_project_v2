@@ -27,6 +27,11 @@ import {
   WorldRoomSaveRequest,
   WorldValidationState
 } from '../models/simulation.model';
+import type {
+  Generation,
+  GenerationStartRequest,
+  GenerationStatus,
+} from '../models/generacion.model';
 import { ApiResponse } from './api-response';
 import type { AssistantGuide, AssistantGuideBody, AssistantProposeBody, AssistantResult, AssistantStatus } from './generated/openapi-contracts';
 import { CaseListCache } from './case-list-cache';
@@ -80,6 +85,8 @@ export class AuthoringApi {
   readonly caseChanges = this.caseChanged.asObservable();
   /** Espacio canónico de la autoría (ED-9); la ruta antigua bajo admin/cases sigue en el servidor como alias. */
   private readonly API = '/api/authoring/cases';
+  /** La generación de casos con IA por etapas (C1). */
+  private readonly API_GENERACION = '/api/authoring/generations';
   /** La biblioteca de lugares: de ahí sale lo que el editor ofrece al crear un caso y al agregar piezas. */
   private readonly API_LUGARES = '/api/biblioteca/lugares';
 
@@ -312,6 +319,51 @@ export class AuthoringApi {
   /** La guía («¿cómo hago X?»): elige una acción del catálogo que se le manda. */
   assistantGuide(caseVersionId: number, body: AssistantGuideBody) {
     return this.http.post<ApiResponse<AssistantGuide>>(`${this.API}/${caseVersionId}/assistant/guide`, body)
+      .pipe(map(r => r.data));
+  }
+
+  // ─── Generación de casos con IA, por etapas (C1) ─────────────────────────────
+  // Cada etapa devuelve la `Generation` completa. Apagada, todas menos `generationStatus` son un 404.
+
+  /** Si la generación está disponible, cuánto cupo le queda hoy a la docente y la que tiene en curso. */
+  generationStatus() {
+    return this.http.get<ApiResponse<GenerationStatus>>(`${this.API_GENERACION}/status`)
+      .pipe(map(r => r.data));
+  }
+
+  /** Abre una generación (`created`); 409 `GENERATION_IN_PROGRESS` si la docente ya tiene una en curso. */
+  startGeneration(body: GenerationStartRequest) {
+    return this.http.post<ApiResponse<Generation>>(this.API_GENERACION, body)
+      .pipe(map(r => r.data));
+  }
+
+  generation(id: string) {
+    return this.http.get<ApiResponse<Generation>>(`${this.API_GENERACION}/${encodeURIComponent(id)}`)
+      .pipe(map(r => r.data));
+  }
+
+  /** Pide el esqueleto (las escenas del caso). */
+  generationSkeleton(id: string) {
+    return this.http.post<ApiResponse<Generation>>(`${this.API_GENERACION}/${encodeURIComponent(id)}/skeleton`, {})
+      .pipe(map(r => r.data));
+  }
+
+  /** Pide una escena por su clave; con `repair` la vuelve a pedir en una ronda de reparación. */
+  generationScene(id: string, clave: string, repair = false) {
+    return this.http.post<ApiResponse<Generation>>(
+      `${this.API_GENERACION}/${encodeURIComponent(id)}/scenes/${encodeURIComponent(clave)}`, {},
+      repair ? { params: { repair: '1' } } : {})
+      .pipe(map(r => r.data));
+  }
+
+  /** Arma el documento con las escenas y lo importa como borrador (`imported`), pide reparar o falla. */
+  generationAssemble(id: string) {
+    return this.http.post<ApiResponse<Generation>>(`${this.API_GENERACION}/${encodeURIComponent(id)}/assemble`, {})
+      .pipe(map(r => r.data));
+  }
+
+  cancelGeneration(id: string) {
+    return this.http.delete<ApiResponse<Generation>>(`${this.API_GENERACION}/${encodeURIComponent(id)}`)
       .pipe(map(r => r.data));
   }
 

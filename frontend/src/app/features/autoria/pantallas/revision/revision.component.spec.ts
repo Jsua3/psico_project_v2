@@ -19,7 +19,7 @@ function casoLimpio() {
   datos.editor.decisions.push({
     id: 900, optionKey: 'opcion-1', sourceNodeId: a.id, sourceKey: a.key, targetNodeId: b.id, targetKey: b.key, text: 'Te escucho.',
     responseClass: 'RECOMMENDED', prohibitedConduct: false, prohibitionReason: null, immediateFeedback: '', feedbackText: 'Escuchar da seguridad.',
-    consequenceText: '', theoryBasis: '', aiSuggested: false, effects: { milestones: datos.editor.rules.milestones.map((m) => m.key) },
+    consequenceText: '', theoryBasis: '', aiSuggested: false, requires: {}, reaction: {}, effects: { milestones: datos.editor.rules.milestones.map((m) => m.key) },
   });
   return datos;
 }
