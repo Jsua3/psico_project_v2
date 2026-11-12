@@ -55,13 +55,16 @@ BACKEND = Path(__file__).resolve().parents[3]
 #: Tareas 7 y 8: aún no existen o no lo usan, y la prueba solo exige que quien lo use esté en la lista.
 #: El gestor se USA como atributo (``SimulationAttempt.all_objects``, ``Modelo.all_objects``): una variable local que se llame
 #: igual (``world_definition`` tiene una, de objetos del mapa) no es el gestor.
-USO_DEL_GESTOR = re.compile(r"\.all_objects(?![A-Za-z0-9_])")
+#: ``_base_manager`` también ve los ensayos (es el ``Manager`` simple): solo privacidad lo usa, a propósito.
+USO_DEL_GESTOR = re.compile(r"\.(?:all_objects|_base_manager)(?![A-Za-z0-9_])")
 LISTA_BLANCA = {
     "apps/simulation/models/attempt.py",
     "apps/simulation/services/game_service.py",
     "apps/simulation/services/attempt_lock.py",
     "apps/simulation/services/rehearsal.py",
     "apps/simulation/services/authoring/editor_view.py",
+    # Privacidad lee y suprime por ``_base_manager``: debe ver cada fila del titular, ensayos incluidos.
+    "apps/privacy/services.py",
 }
 
 
@@ -473,6 +476,8 @@ def test_ningun_lector_de_intentos_cuenta_un_ensayo(mundo, jugada):
             rubric_service.save_attempt_evaluation(id_ensayo, {"scores": []}, mundo.admin)
         with pytest.raises(NotFound):
             rubric_service.owner_evaluation_view(id_ensayo, mundo.estudiante)
+        with pytest.raises(NotFound):
+            game_service.get_student_report(id_ensayo, mundo.admin)
     assert instructor_service.trace(normal_id, mundo.admin) is not None  # control: el normal sí se traza
 
     # reportes: el tablero del docente y del ADMIN (intentos y conteo de decisiones), el reporte del grupo y el del estudiante.

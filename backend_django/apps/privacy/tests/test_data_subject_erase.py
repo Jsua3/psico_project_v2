@@ -349,6 +349,20 @@ def test_c_el_token_de_cada_intento_de_la_persona_queda_inutil(mundo):
     assert despues == f"suprimido-{mundo.attempt.pk}" != antes
 
 
+def test_c_el_ensayo_de_la_docente_tambien_se_anonimiza(mundo):
+    ensayo = SimulationAttempt.all_objects.create(
+        attempt_token_hash="hash-ensayo-" + mundo.m["correo"], case_version=mundo.entorno.version, student=mundo.persona,
+        current_node=mundo.entorno.nodo_inicial, is_rehearsal=True, status="REPLACED", replaced_by=mundo.persona,
+        replace_reason="Reemplazado por un ensayo nuevo",
+    )
+
+    _suprimir(mundo)
+
+    despues = SimulationAttempt.all_objects.get(pk=ensayo.pk)
+    assert despues.attempt_token_hash == f"suprimido-{ensayo.pk}"
+    assert despues.replace_reason == "Reemplazado por un ensayo nuevo"  # texto del sistema: se conserva por decisión
+
+
 # ── (d) No puede entrar y su token viejo da 401 ──────────────────────────────────────────────────────────────────
 
 
