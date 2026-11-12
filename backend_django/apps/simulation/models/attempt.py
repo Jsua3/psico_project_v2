@@ -41,8 +41,26 @@ def new_attempt_id():
     return uuid.uuid7() if hasattr(uuid, "uuid7") else uuid.uuid4()
 
 
+class PlayableAttemptManager(models.Manager):
+    """El gestor por defecto de los intentos: los de estudiantes, sin los ensayos de la docente (bloque A2).
+
+    Un ensayo existe para el juego (que lo encuentra por su token) y no para lo demás: informes, listas, métricas,
+    progresión, encuestas y evaluaciones leen ``SimulationAttempt.objects`` y nunca lo ven. Los gestores inversos
+    (``case_version.simulationattempt_set``) heredan el filtro; ``_base_manager`` sigue siendo el ``Manager`` simple, así
+    que guardar, releer y la clave de un evento (``event.attempt``) sí ven el ensayo.
+    """
+
+    def get_queryset(self):
+        return super().get_queryset().filter(is_rehearsal=False)
+
+
 class SimulationAttempt(models.Model):
     AttemptStatus = AttemptStatus
+
+    # El orden importa: el primero que se declara es el gestor por defecto.
+    objects = PlayableAttemptManager()
+    # Con los ensayos. Solo lo usan el juego (por su token) y el ensayo; una prueba de arquitectura fija la lista.
+    all_objects = models.Manager()
 
     id = models.UUIDField(primary_key=True, default=new_attempt_id, editable=False)
     attempt_token_hash = models.CharField(max_length=255, unique=True)

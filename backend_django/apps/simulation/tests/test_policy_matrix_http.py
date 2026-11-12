@@ -23,7 +23,10 @@ User = get_user_model()
 ROLES = ("anon", "ESTUDIANTE", "PROFESOR", "ADMIN")
 
 #: Filas de la matriz que aún no tienen endpoint (se anota por qué, no se omite en silencio).
-NO_ROUTE_YET = {("audit", "read"): "GET /api/admin/audit llega en E5-7 (C15)"}
+NO_ROUTE_YET = {
+    ("audit", "read"): "GET /api/admin/audit llega en E5-7 (C15)",
+    ("attempt", "rehearse"): "la ruta que abre el ensayo llega en la Tarea 7 del bloque A2; el juego del ensayo usa las rutas de play",
+}
 
 
 def _client(user=None):

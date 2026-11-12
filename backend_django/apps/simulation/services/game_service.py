@@ -106,7 +106,7 @@ def _require_published(case_version_id):
 
 
 def _require_attempt(attempt_id, attempt_token, actor, enforce_assignment=True, lock=False, enforce_consent=True):
-    """El intento del token, **solo para su dueño** (E2-2, D-11, RNF-04).
+    """El intento del token, **solo para su dueño** (E2-2, D-11, RNF-04); un ensayo, solo para su autor (A2).
 
     Un docente o el ADMIN no leen un intento ajeno por token: su vía es ``/api/instructor/**``
     y el reporte de finalización (``get_student_report``), que aplican el alcance.
@@ -125,12 +125,17 @@ def _require_attempt(attempt_id, attempt_token, actor, enforce_assignment=True, 
     para un intento que existe) y, si escribió el estado del mundo, el PATCH de posición lo pisaba con una copia
     vieja. Con el cerrojo ya en la mano, la lectura ve todo lo que esa orden confirmó (reparación de E5-1).
     """
+    # Las rutas del juego las abren a dos clases de persona: el estudiante (``play``) y la docente que ensaya (``rehearse``). Quien
+    # no tiene alcance en ``play`` no es un jugador: ante cualquier fallo (sin token, intento inexistente, intento ajeno) recibe 403
+    # y no se entera de nada más. El estudiante conserva los errores de siempre.
+    is_player = policies.has_role(actor, *policies.allowed_roles("attempt", "play"))
+    denied = PermissionDenied("No tiene acceso a este intento")
     if not attempt_token:
-        raise ValidationError("El token del intento es obligatorio")
+        raise ValidationError("El token del intento es obligatorio") if is_player else denied
     if lock:
         lock_attempt_row(attempt_id)
     attempt = (
-        SimulationAttempt.objects.filter(pk=attempt_id, attempt_token_hash=_hash_token(attempt_token))
+        SimulationAttempt.all_objects.filter(pk=attempt_id, attempt_token_hash=_hash_token(attempt_token))
         .select_related("case_version__simulation_case", "current_node", "student", "world_state__scene_map")
         # E1-4: la asignación vigente del dueño viaja en la misma consulta (sin un viaje más).
         .annotate(owner_has_assignment=assignments.assignment_exists(
@@ -139,10 +144,15 @@ def _require_attempt(attempt_id, attempt_token, actor, enforce_assignment=True, 
         .first()
     )
     if not attempt:
-        raise NotFound("Intento no encontrado")
+        raise NotFound("Intento no encontrado") if is_player else denied
+    if attempt.is_rehearsal:
+        # Un ensayo es de quien lo juega (su autor, docente o ADMIN) y de nadie más; no pasa por asignación ni consentimiento.
+        if not policies.can(actor, "attempt", "rehearse", owner_id=attempt.student_id):
+            raise denied
+        return attempt
     owner = attempt.student_id == actor.id
     if not policies.can(actor, "attempt", "play", owner_id=attempt.student_id):
-        raise PermissionDenied("No tiene acceso a este intento")
+        raise denied
     # Un estudiante al que ya no le asignaron el caso no continúa un intento abierto; uno
     # cerrado sigue siendo suyo y se puede leer. Una versión archivada o un caso dado de baja
     # NO bloquean: se deja terminar (Review Focus 2).
@@ -206,8 +216,8 @@ def _close_active_attempts(student, case_version_id, reason):
         replace_open_attempt(active, by=student, reason=reason)
 
 
-def _state(attempt, attempt_token, world_state=case_state.NOT_LOADED):
-    """El estado del intento; si está completado, con su reporte congelado (E1-8).
+def state_for(attempt, attempt_token, world_state=case_state.NOT_LOADED):
+    """El estado del intento; si está completado, con su reporte congelado (E1-8); el de un ensayo, calculado en el momento.
 
     No lleva retroalimentación: lo que se elige se responde con su consecuencia
     (``_decision_response``) y lo evaluativo llega al cerrar, por el reporte congelado. Un intento que no
@@ -219,8 +229,12 @@ def _state(attempt, attempt_token, world_state=case_state.NOT_LOADED):
     persona_dto = case_state.persona_dto(case_state.read(attempt, world_state).persona)
     if attempt.status == AttemptStatus.COMPLETED:
         # Es la vista del dueño del intento: un reporte v1/v2 sin las cifras del modelo viejo (``for_student``).
-        report = attempt_report.for_student(attempt_report.frozen_report_for(attempt.id))
-        return dto.attempt_state(attempt, attempt_token, persona_dto, completion_report=report)
+        # Un ensayo no congela nada al cerrar: su final y «respuestas que no llegaste a ver» se calculan en el momento.
+        report = (
+            attempt_report.build_report_payload(attempt, attempt_report.load_events(attempt.id))
+            if attempt.is_rehearsal else attempt_report.frozen_report_for(attempt.id)
+        )
+        return dto.attempt_state(attempt, attempt_token, persona_dto, completion_report=attempt_report.for_student(report))
     offered = None
     if attempt.status == AttemptStatus.IN_PROGRESS and not attempt.current_node.terminal_node:
         offered, _ = option_availability.split_options(attempt, world_state=world_state)
@@ -242,7 +256,7 @@ def _open_attempt_of(student_id, case_version_id):
 
 def _resumed_state(attempt):
     """El intento abierto con un token nuevo y ``resumed: true`` (C1)."""
-    state = _state(attempt, _reissue_token(attempt))
+    state = state_for(attempt, _reissue_token(attempt))
     state["resumed"] = True
     return state
 
@@ -320,9 +334,31 @@ def start_attempt(case_version_id, actor, force_new=False):
         return _resumed_state(winner)
     _save_event(attempt, "ATTEMPT_STARTED", start_node, None, "Intento iniciado")
     _save_event(attempt, "NODE_ENTERED", start_node, None, "Nodo inicial")
-    state = _state(attempt, raw_token)
+    state = state_for(attempt, raw_token)
     state["resumed"] = False
     return state
+
+
+def start_rehearsal_attempt(version, actor, node):
+    """Abre el ensayo de ``actor`` (la docente dueña del caso o el ADMIN) en ``node`` y devuelve ``(intento, token en claro)``.
+
+    Es un intento normal del juego con ``is_rehearsal=True``: no exige que la versión esté publicada, no pasa por asignación,
+    consentimiento, ventana ni progresión y no anuncia ``attempt_start_requested``. Quien abre el ensayo (``rehearsal.py``)
+    decide la política de quién puede ensayar y cierra los ensayos anteriores; aquí solo se crea, con sus dos eventos.
+    """
+    raw_token = _new_token()
+    attempt = SimulationAttempt.all_objects.create(
+        is_rehearsal=True,
+        attempt_token_hash=_hash_token(raw_token),
+        case_version=version,
+        student_id=actor.id,
+        current_node=node,
+        last_activity_at=timezone.now(),
+        status=lifecycle.INITIAL_STATUS,
+    )
+    _save_event(attempt, "ATTEMPT_STARTED", node, None, "Intento iniciado")
+    _save_event(attempt, "NODE_ENTERED", node, None, "Nodo inicial")
+    return attempt, raw_token
 
 
 def find_active_attempt(case_version_id, actor):
@@ -340,14 +376,14 @@ def find_active_attempt(case_version_id, actor):
         actor.id, case_version_id
     ):
         raise access_not_assigned()
-    state = _state(active, _reissue_token(active))
+    state = state_for(active, _reissue_token(active))
     state["resumed"] = True
     return state
 
 
 def get_attempt(attempt_id, attempt_token, actor):
     attempt = _require_attempt(attempt_id, attempt_token, actor)
-    return _state(attempt, attempt_token)
+    return state_for(attempt, attempt_token)
 
 
 def get_completion_report(attempt_id, attempt_token, actor):
@@ -355,6 +391,18 @@ def get_completion_report(attempt_id, attempt_token, actor):
     attempt = _require_attempt(attempt_id, attempt_token, actor, enforce_consent=False)
     if lifecycle.state_of(attempt).plays:
         raise ValidationError("El intento aún está en progreso")
+    return _report_by_token(attempt, actor)
+
+
+def _report_by_token(attempt, actor):
+    """El reporte que ve el dueño de un intento por su token. Un ensayo no congela ni deja constancia: se calcula en el momento."""
+    if attempt.is_rehearsal:
+        # Un ensayo completado nunca tiene fila congelada; uno que no terminó recibe el resumen, como cualquier intento.
+        if attempt.status == AttemptStatus.COMPLETED:
+            return attempt_report.for_student(
+                attempt_report.build_report_payload(attempt, attempt_report.load_events(attempt.id))
+            )
+        return attempt_report.for_student(attempt_report.report_for(attempt))
     attempt_report.record_feedback_viewed(attempt, actor)
     return attempt_report.for_student(attempt_report.report_for(attempt))  # por token: siempre su dueño
 
@@ -373,8 +421,7 @@ def get_attempt_report(attempt_id, attempt_token, actor):
             "El intento no está completado: aún no tiene reporte de cierre.",
             status.HTTP_409_CONFLICT,
         )
-    attempt_report.record_feedback_viewed(attempt, actor)
-    return attempt_report.for_student(attempt_report.report_for(attempt))  # por token: siempre su dueño
+    return _report_by_token(attempt, actor)
 
 
 def list_attempt_history(actor):
@@ -505,7 +552,7 @@ def _decision_response(attempt, attempt_token, decision, retry_required=False, s
     # El estado del mundo tal como quedó tras decidir: una sola lectura para el estado del intento y para la reacción.
     world_state = AttemptWorldState.objects.filter(attempt_id=attempt.id).select_related("scene_map").first()
     response = {
-        "attempt": _state(attempt, attempt_token, world_state),
+        "attempt": state_for(attempt, attempt_token, world_state),
         "consequence": None if retry_required else dto.consequence_dto(decision),
     }
     response["reaction"] = reaction.resolve(decision, case_state.read(attempt, world_state).persona, scene_map)
@@ -629,11 +676,14 @@ def choose_decision(
 
     if attempt.status == AttemptStatus.COMPLETED:
         _save_event(attempt, "ATTEMPT_COMPLETED", decision.target_node, None, "Intento finalizado")
-        # E1-8: el reporte queda congelado en la misma transacción que cierra el intento.
-        attempt_report.freeze_report(attempt)
-        # P-13: se anuncia el hecho; quien reacciona (progresión, hoy) se suscribe. Síncrona y
-        # dentro de esta transacción, y robusta: un suscriptor que falla no rompe la decisión.
-        attempt_completed.send_robust(sender=SimulationAttempt, attempt=attempt)
+        if not attempt.is_rehearsal:
+            # El ensayo de la docente muestra el final (calculado en el momento) y nada más: ni informe congelado, ni
+            # evaluación automática, ni aviso de que un intento se completó.
+            # E1-8: el reporte queda congelado en la misma transacción que cierra el intento.
+            attempt_report.freeze_report(attempt)
+            # P-13: se anuncia el hecho; quien reacciona (progresión, hoy) se suscribe. Síncrona y
+            # dentro de esta transacción, y robusta: un suscriptor que falla no rompe la decisión.
+            attempt_completed.send_robust(sender=SimulationAttempt, attempt=attempt)
 
     return _decision_response(attempt, attempt_token, decision, scene_map=scene_map)
 
@@ -693,13 +743,13 @@ def safe_exit(attempt_id, attempt_token, reason, actor):
     """
     attempt = _require_attempt(attempt_id, attempt_token, actor, enforce_assignment=False, enforce_consent=False)
     if not lifecycle.state_of(attempt).can(lifecycle.PAUSE):
-        return _state(attempt, attempt_token)
+        return state_for(attempt, attempt_token)
     attempt_duration.touch(attempt, timezone.now())  # suma hasta la pausa; lo que siga no cuenta
     lifecycle.apply(attempt, lifecycle.PAUSE)
     attempt.save()
     detail = reason.strip()[:SAFE_EXIT_REASON_MAX] if (reason and reason.strip()) else "Salida segura solicitada"
     _save_event(attempt, "SAFE_EXIT_REQUESTED", attempt.current_node, None, detail)
-    return _state(attempt, attempt_token)
+    return state_for(attempt, attempt_token)
 
 
 @locked_attempt
@@ -715,14 +765,14 @@ def resume_attempt(attempt_id, attempt_token, actor):
     attempt = _require_attempt(attempt_id, attempt_token, actor, enforce_consent=False)
     state = lifecycle.state_of(attempt)
     if state.plays:
-        return _state(attempt, attempt_token)
+        return state_for(attempt, attempt_token)
     if not state.can(lifecycle.RESUME):
         raise ValidationError("Solo un intento en pausa segura puede reanudarse")
     lifecycle.apply(attempt, lifecycle.RESUME)
     attempt_duration.reset_clock(attempt, timezone.now())  # el tiempo en pausa no es tiempo activo
     attempt.save()
     _save_event(attempt, "ATTEMPT_RESUMED", attempt.current_node, None, "Intento reanudado tras pausa segura")
-    return _state(attempt, attempt_token)
+    return state_for(attempt, attempt_token)
 
 
 def get_progress_map(attempt_id, attempt_token, actor):
