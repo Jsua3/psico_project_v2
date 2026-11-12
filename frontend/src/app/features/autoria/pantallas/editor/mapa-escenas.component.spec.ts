@@ -156,6 +156,32 @@ describe('MapaEscenasComponent', () => {
     expect(menuitems()).toContain('Marcar como final');
   });
 
+  // Axe (color-contrast) en un caso de solo lectura: el fieldset deshabilitado atenúa «Acciones», pero un aria-disabled="false"
+  // explícito decía lo contrario, y Axe y el lector de pantalla lo tomaban por habilitado.
+  it('«Acciones» nunca dice aria-disabled="false": sin escena elegida va deshabilitado y con escena no lo dice', async () => {
+    const { fixture, raiz } = await montar();
+    const acciones = raiz.querySelector<HTMLButtonElement>('button[data-accion~="marcar-final"]')!;
+    expect(acciones.getAttribute('aria-disabled')).toBe('true');
+    nodo(raiz, 0).click();
+    await fixture.whenStable();
+    fixture.detectChanges();
+    expect(acciones.hasAttribute('aria-disabled')).toBe(false);
+  });
+
+  // Axe (scrollable-region-focusable): en un caso de solo lectura las escenas están deshabilitadas y el mapa desplazable no
+  // tenía nada que alcanzar con el teclado; entonces el mapa mismo toma el foco (y se desplaza con las flechas).
+  it('en solo lectura el mapa desplazable se alcanza con Tab y dice qué es; editable, el foco va a las escenas', async () => {
+    const { fixture, raiz } = await montar();
+    const marco = raiz.querySelector<HTMLElement>('.marco')!;
+    expect(marco.hasAttribute('tabindex')).toBe(false);
+    fixture.componentRef.setInput('soloLectura', true);
+    await fixture.whenStable();
+    fixture.detectChanges();
+    expect(marco.getAttribute('tabindex')).toBe('0');
+    expect(marco.getAttribute('role')).toBe('region');
+    expect(marco.getAttribute('aria-label')).toMatch(/mapa del caso/i);
+  });
+
   it('el menú tiene Abrir guion, Abrir sala, Mover, Duplicar, Conectar con…, Marcar como final y Borrar', async () => {
     const { fixture, raiz } = await montar();
     nodo(raiz, 0).dispatchEvent(new KeyboardEvent('keydown', { key: 'F10', shiftKey: true, bubbles: true }));
