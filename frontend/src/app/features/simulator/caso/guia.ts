@@ -67,3 +67,18 @@ export function opcionesNuevas(antes: readonly number[] | null, despues: readonl
   const previas = new Set(antes);
   return despues.filter(id => !previas.has(id));
 }
+
+/**
+ * ¿Toca el aviso «hay otra forma de responder»? Solo si hay ids nuevos y el nodo es el mismo que en la lectura anterior:
+ * si el estudiante cambió de nodo, los ids que «aparecen» son de otro nodo y no los abrió explorar. Sin nodo previo
+ * registrado (primera lectura) no hay con qué comparar y se confía en la lista previa.
+ */
+export function avisarOpcionNueva(e: {
+  nodoAntes: number | null;
+  nodoDespues: number | null;
+  antes: readonly number[] | null;
+  despues: readonly number[];
+}): boolean {
+  if (e.nodoAntes !== null && e.nodoAntes !== e.nodoDespues) return false;
+  return opcionesNuevas(e.antes, e.despues).length > 0;
+}

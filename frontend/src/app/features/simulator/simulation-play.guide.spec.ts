@@ -220,6 +220,19 @@ describe('SimulationPlayComponent: la sala ocupa la pantalla (guía genérica)',
     expect(announcer.announce.mock.calls.filter(([t]) => String(t).startsWith('Ahora conoces')).length).toBe(1);
   });
 
+  it('si el nodo cambió entre una lectura y otra, la opción «nueva» es de otro nodo y no hay aviso', () => {
+    const { component, announcer } = montarConMundo({ options: [{ id: 1, text: 'A' }] });
+    (component as any).applyDecisionOptions(mundo({ decisionOptions: [{ id: 1, text: 'A' }] }));
+    // La decisión llevó al estudiante al nodo 2, que nace con la opción 1; la lectura siguiente ofrece la 1 y la 2.
+    component.attempt.update(game => ({ ...game!, currentNode: { ...game!.currentNode, id: 2, key: 'nodo-2', options: [{ id: 1, text: 'A' }] } }));
+    (component as any).applyDecisionOptions(mundo({ decisionOptions: [{ id: 1, text: 'A' }, { id: 2, text: 'B' }] }));
+    expect(component.softNotice()).toBe('');
+    expect(announcer.announce).not.toHaveBeenCalled();
+    // En el nodo 2, ya registrado, explorar sí avisa.
+    (component as any).applyDecisionOptions(mundo({ decisionOptions: [{ id: 1, text: 'A' }, { id: 2, text: 'B' }, { id: 3, text: 'C' }] }));
+    expect(component.softNotice()).toBe('Ahora conoces algo más: hay otra forma de responder.');
+  });
+
   it('ningún aviso dice cuál opción es la adecuada', () => {
     for (const texto of [DRAFT_COPY.noticeMoreToKnow.text, DRAFT_COPY.noticeNewOption.text]) {
       expect(texto).not.toMatch(/recomendad|correct|adecuad|mejor|riesgo/i);

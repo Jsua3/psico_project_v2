@@ -1,4 +1,4 @@
-import { armarGuia, opcionesNuevas } from './guia';
+import { armarGuia, avisarOpcionNueva, opcionesNuevas } from './guia';
 
 const LUGARES = [
   { key: 'puerta-sala', label: 'Sala de escucha', kind: 'door' },
@@ -54,4 +54,13 @@ it('las opciones nuevas son las que no estaban antes; en la primera carga ningun
   expect(opcionesNuevas([1, 2], [1, 2, 3])).toEqual([3]);
   expect(opcionesNuevas([1, 2], [2])).toEqual([]);
   expect(opcionesNuevas(null, [1, 2])).toEqual([]);
+});
+
+it('el aviso de respuesta nueva solo sale con opciones nuevas en el MISMO nodo', () => {
+  expect(avisarOpcionNueva({ nodoAntes: 1, nodoDespues: 1, antes: [1], despues: [1, 2] })).toBe(true);
+  expect(avisarOpcionNueva({ nodoAntes: 1, nodoDespues: 2, antes: [1], despues: [1, 2] })).toBe(false);
+  expect(avisarOpcionNueva({ nodoAntes: 1, nodoDespues: 1, antes: [1, 2], despues: [1, 2] })).toBe(false);
+  // Sin nodo previo registrado (primera lectura) o sin lista previa: nada es nuevo ni se compara.
+  expect(avisarOpcionNueva({ nodoAntes: null, nodoDespues: 1, antes: [1], despues: [1, 2] })).toBe(true);
+  expect(avisarOpcionNueva({ nodoAntes: 1, nodoDespues: 1, antes: null, despues: [1, 2] })).toBe(false);
 });

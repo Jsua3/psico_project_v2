@@ -29,7 +29,7 @@ import { NAME_TOOLS_IN_HINTS, ORIENTATION_COPY, RoomGroup, SAFE_EXIT_ALWAYS_REAC
 import { GameHelpComponent } from './game-help.component';
 import { HELP_FIRST_CARD, markHelpSeen, readHelpSeen, resetHelpSeen } from './help-memory.util';
 import { SceneGoalCardComponent } from './scene-goal-card.component';
-import { type GuiaEscena, GUIA_VACIA, armarGuia, opcionesNuevas } from './caso/guia';
+import { type GuiaEscena, GUIA_VACIA, armarGuia, avisarOpcionNueva } from './caso/guia';
 import { SceneLogState, deriveSceneLog, diffDone, roomGroupOf, sceneLogInputFrom } from './scene-checklist.util';
 import { clearVisitedRooms, markRoomVisited, readVisitedRooms } from './visited-rooms.util';
 import { DialoguePanelComponent } from './dialogue-panel.component';
@@ -1476,6 +1476,8 @@ export class SimulationPlayComponent implements OnInit, OnDestroy {
    * volver a cruzarla; evita que un evento residual rebote a la sala anterior.
    */
   private doorInteractionArmed = false;
+  /** Nodo de la última lectura de las opciones ofrecidas: el aviso de respuesta nueva no sale si el nodo cambió. */
+  private optionsNodeId: number | null = null;
   private readonly doorInteractionRearmDistance = 72;
 
   /** Lista anterior: `diffDone` compara contra ella para anotar solo los pasos recién hechos. */
@@ -3408,12 +3410,15 @@ export class SimulationPlayComponent implements OnInit, OnDestroy {
   private applyDecisionOptions(world: SimulationWorldState): void {
     const offered = world.decisionOptions;
     if (offered) {
-      const before = this.attempt()?.status === 'IN_PROGRESS' ? this.attempt()!.currentNode.options.map(option => option.id) : null;
+      const node = this.attempt()?.status === 'IN_PROGRESS' ? this.attempt()!.currentNode : null;
+      const before = node ? node.options.map(option => option.id) : null;
+      const nodeBefore = this.optionsNodeId;
+      this.optionsNodeId = node?.id ?? null;
       this.attempt.update(game => game && game.status === 'IN_PROGRESS'
         ? { ...game, currentNode: { ...game.currentNode, options: offered.map(option => ({ ...option })) } }
         : game);
       // Explorar abrió otra forma de responder: se avisa una vez (los mismos ids no vuelven a avisar) y la conversación abierta la muestra.
-      if (opcionesNuevas(before, offered.map(option => option.id)).length) {
+      if (avisarOpcionNueva({ nodoAntes: nodeBefore, nodoDespues: this.optionsNodeId, antes: before, despues: offered.map(option => option.id) })) {
         this.showSoftNotice(DRAFT_COPY.noticeNewOption.text);
         this.redecorateOpenDialogue();
       }
