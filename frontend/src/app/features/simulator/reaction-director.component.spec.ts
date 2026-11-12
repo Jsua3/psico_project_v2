@@ -125,3 +125,10 @@ it('pinta la franja con el nombre, la frase y la pista oculta a lectores mientra
   fixture.detectChanges();
   expect(el.querySelector('.reaction-strip')).toBeNull();
 });
+
+it('sin nombre se anuncia solo la frase, sin los dos puntos sueltos', async () => {
+  const { director, announcer } = montar({ reduceMotion: true });
+  director.play(ENTRADA, { nombre: '', visual: null });
+  await vi.runAllTimersAsync();
+  expect(announcer.announce).toHaveBeenCalledWith('Gracias por quedarse.', 'polite');
+});

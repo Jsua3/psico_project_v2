@@ -190,15 +190,67 @@ describe('SimulationPlayComponent: la reacción al elegir (4.3.3)', () => {
 
   it('pedir la salida segura durante la reacción la corta y pausa en el acto', () => {
     const { component, service } = montarConDialogoDeDecision();
+    service['chooseDecision'].mockReturnValue(of({ ...RESPUESTA_CON_REACCION, attemptToken: 'token-2' }));
     component.executeDecision(41);
     component.pauseFromOverlay();
     TestBed.tick();
     expect(director.cancel).toHaveBeenCalled();
     expect(service['safeExit']).toHaveBeenCalledTimes(1);
+    expect(service['safeExit']).toHaveBeenCalledWith('attempt-1', 'token-2', expect.any(String));
     expect(component.dialogue()?.speakerName).not.toBe('Consecuencia');
     // El cierre «cancelada» del director no reabre la secuencia.
     director.terminar('cancelada');
     expect(component.dialogue()?.speakerName).not.toBe('Consecuencia');
+  });
+
+  it('en la última decisión el resultado no se abre ni se pinta mientras dura la reacción', () => {
+    const { component, service } = montarConDialogoDeDecision();
+    service['chooseDecision'].mockReturnValue(of({ ...RESPUESTA_CON_REACCION, status: 'COMPLETED', completionReport: { ending: null } }));
+    component.executeDecision(41);
+    expect(component.attempt()?.status).toBe('COMPLETED');
+    expect(component.reacting()).toBe(true);
+    expect(component.viewMode()).not.toBe('outcome');
+    expect(component.reactingToLast()).toBe(true);
+    expect(component.inputBlocked()).toBe(false);
+    director.terminar('completa');
+    expect(component.reactingToLast()).toBe(false);
+    expect(component.holdingOutcome()).toBe(true);
+    expect(component.viewMode()).toBe('dialogue-cinematic');
+  });
+
+  it('«Salida segura» en la reacción de la última decisión la corta y abre el resultado, sin supervisión', () => {
+    const { component, service } = montarConDialogoDeDecision();
+    service['chooseDecision'].mockReturnValue(of({ ...RESPUESTA_CON_REACCION, status: 'COMPLETED', completionReport: { ending: null } }));
+    component.executeDecision(41);
+    component.pauseFromOverlay();
+    TestBed.tick();
+    expect(director.cancel).toHaveBeenCalled();
+    expect(audio['playResolution']).toHaveBeenCalled();
+    expect(service['getWorld']).toHaveBeenCalled();
+    expect(component.busy()).toBe(false);
+    expect(component.reacting()).toBe(false);
+    expect(component.dialogue()).toBeNull();
+    expect(component.viewMode()).toBe('outcome');
+    expect(service['safeExit']).not.toHaveBeenCalled();
+  });
+
+  it('la pausa durante la reacción no anuncia que se guardará al terminar: sale en el acto', () => {
+    const { component } = montarConDialogoDeDecision();
+    const announce = vi.spyOn(component as unknown as { announce(m: string, p?: string): void }, 'announce');
+    component.executeDecision(41);
+    component.pauseFromOverlay();
+    expect(announce).not.toHaveBeenCalledWith(expect.stringContaining('Se guardará'), expect.anything());
+  });
+
+  it('sin objectKey habla la persona clave de la sala', () => {
+    const { component, service } = montarConDialogoDeDecision();
+    component.world.set({
+      ...makeWorld(),
+      objects: [{ key: 'madre', type: 'PERSON', label: 'La madre', metadata: { personaClave: true } }],
+    } as unknown as SimulationWorldState);
+    service['chooseDecision'].mockReturnValue(of({ ...RESPUESTA_CON_REACCION, reaction: { ...REACTION, objectKey: null } }));
+    component.executeDecision(41);
+    expect(director.play.mock.calls[0][1].nombre).toBe('La madre');
   });
 
   it('una reacción null no rompe nada: sigue a la nota de supervisión', () => {

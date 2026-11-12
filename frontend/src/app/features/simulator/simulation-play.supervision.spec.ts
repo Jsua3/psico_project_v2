@@ -476,7 +476,7 @@ describe('simulation-play: contrato de la supervisión retenida', () => {
 
   it('el modo de vista recibe la retención y el resultado solo se pinta cuando no hay retención', () => {
     expect(source).toMatch(/resolveViewMode\(\{[^}]*holdOutcome: this\.holdingOutcome\(\),\s*\}\)/);
-    expect(source).toMatch(/@if \(!holdingOutcome\(\)\) \{\s*<app-attempt-outcome/);
+    expect(source).toMatch(/@if \(!holdingOutcome\(\) && !reactingToLast\(\)\) \{\s*<app-attempt-outcome/);
   });
 
   it('la retención solo vale con el intento COMPLETED y con el diálogo a la vista', () => {
@@ -487,7 +487,7 @@ describe('simulation-play: contrato de la supervisión retenida', () => {
 
   it('«Salida segura» con la supervisión retenida cierra el diálogo antes de mirar si hay algo que pausar', () => {
     expect(source).toMatch(
-      /pauseFromOverlay\(\): void \{[^}]*if \(this\.holdingOutcome\(\)\) \{\s*this\.closeDialogue\(\);\s*return;\s*\}\s*const game = this\.attempt\(\);/,
+      /pauseFromOverlay\(\): void \{[^}]*if \(this\.holdingOutcome\(\)\) \{\s*this\.closeDialogue\(\);\s*return;\s*\}\s*(?:\/\/[^\n]*\n\s*if \(this\.reactingToLast\(\)\) \{[^}]*\}\s*)?const game = this\.attempt\(\);/,
     );
   });
 

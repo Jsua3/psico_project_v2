@@ -79,7 +79,7 @@ export class ReactionDirectorComponent implements OnDestroy {
   private pasos: PasoReaccion[] = [];
   private token = 0;
   private timers = new Set<ReturnType<typeof setTimeout>>();
-  private wake: (() => void) | null = null;
+  private wakes = new Set<() => void>();
   private anunciada = false;
   private framed = false;
 
@@ -162,7 +162,8 @@ export class ReactionDirectorComponent implements OnDestroy {
     this.frase.set(texto);
     if (this.anunciada) return;
     this.anunciada = true;
-    this.announcer.announce(`${this.quien().nombre}: ${texto}`, 'polite');
+    const { nombre } = this.quien();
+    this.announcer.announce(nombre ? `${nombre}: ${texto}` : texto, 'polite');
   }
 
   private cerrar(): void {
@@ -175,15 +176,16 @@ export class ReactionDirectorComponent implements OnDestroy {
     this.token++;
     for (const t of this.timers) clearTimeout(t);
     this.timers.clear();
-    this.wake?.();
-    this.wake = null;
+    const pendientes = [...this.wakes];
+    this.wakes.clear();
+    for (const despierta of pendientes) despierta();
   }
 
   private esperar(ms: number): Promise<void> {
     return new Promise<void>(resolve => {
-      const t = setTimeout(() => { this.timers.delete(t); this.wake = null; resolve(); }, ms);
+      const t = setTimeout(() => { this.timers.delete(t); this.wakes.delete(resolve); resolve(); }, ms);
       this.timers.add(t);
-      this.wake = resolve;
+      this.wakes.add(resolve);
     });
   }
 }

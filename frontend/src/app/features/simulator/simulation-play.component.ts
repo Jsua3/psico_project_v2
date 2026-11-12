@@ -1,7 +1,7 @@
 import { A11yModule } from '@angular/cdk/a11y';
 import { perfCancel, perfEnd, perfEndNextPaint, perfStart } from '../../core/perf/perf-marks';
 import { CommonModule } from '@angular/common';
-import { Component, HostListener, Injector, OnDestroy, OnInit, ViewChild, afterNextRender, computed, effect, inject, signal, untracked, ChangeDetectionStrategy } from '@angular/core';
+import { Component, HostListener, Injector, OnDestroy, OnInit, ViewChild, afterNextRender, viewChild, computed, effect, inject, signal, untracked, ChangeDetectionStrategy } from '@angular/core';
 import { HttpErrorResponse } from '@angular/common/http';
 import { ActivatedRoute, Router, RouterLink } from '@angular/router';
 import { MatIconModule } from '@angular/material/icon';
@@ -534,7 +534,7 @@ const CASE_INTRO_PARAGRAPHS = [
           <div class="sr-only">Estado: {{ statusLabelA11y(game.status) }}. La persona usuaria {{ game.persona.label }}.</div>
         </section>
 
-        @if (!holdingOutcome()) {
+        @if (!holdingOutcome() && !reactingToLast()) {
           <app-attempt-outcome [report]="game.completionReport" [status]="game.status"
             [supportResources]="supportResources()"
             [reviewAttemptId]="game.status === 'COMPLETED' ? game.attemptId : null"
@@ -1371,7 +1371,7 @@ export class SimulationPlayComponent implements OnInit, OnDestroy {
 
   /** Estado de vista del gameplay — gobierna el layout vía [attr.data-mode]. */
   readonly viewMode = computed<SimulationViewMode>(() => resolveViewMode({
-    status: this.attempt()?.status ?? null,
+    status: this.reactingToLast() ? 'IN_PROGRESS' : (this.attempt()?.status ?? null),
     journalOpen: this.journalOpen(),
     dialogue: this.dialogue(),
     holdOutcome: this.holdingOutcome(),
@@ -1435,10 +1435,16 @@ export class SimulationPlayComponent implements OnInit, OnDestroy {
   readonly inputBlocked = computed(() =>
     this.showResumePrompt() || this.showContentWarning() || this.showIntroScene()
     || this.showCaseIntro() || this.dialogue() !== null || this.journalOpen() || this.placesOpen()
-    || (this.attempt()?.status ?? 'IN_PROGRESS') !== 'IN_PROGRESS');
+    || (!this.reactingToLast() && (this.attempt()?.status ?? 'IN_PROGRESS') !== 'IN_PROGRESS'));
 
   /** Con la pantalla de ayuda abierta el personaje no camina mientras se lee. */
   readonly worldMotionPaused = computed(() => this.inputBlocked() || this.helpOpen() || this.reacting());
+
+  /**
+   * Última decisión: el intento ya figura COMPLETED mientras el personaje reacciona, pero el resultado espera a la
+   * supervisión (RN-08, DLG-05): hasta que acabe la reacción no se pinta ni cuenta como vista de resultado.
+   */
+  readonly reactingToLast = computed(() => this.reacting() && this.attempt()?.status === 'COMPLETED');
 
   /** La reacción del personaje tras elegir está en curso: el mundo se congela, pero el pie con «Salida segura» sigue operable. */
   readonly reacting = signal(false);
@@ -1446,7 +1452,9 @@ export class SimulationPlayComponent implements OnInit, OnDestroy {
   private pendingAfterReaction: SimulationDecisionResult | null = null;
 
   /** La escena que el director de la reacción maneja (el mundo del juego; `gameWorld` es privado para la plantilla). */
-  protected reactionStage(): EscenarioReaccion | null { return this.gameWorld ?? null; }
+  protected reactionStage(): EscenarioReaccion | null { return this.gameWorldRef() ?? null; }
+  /** Solo para el binding de `reactionStage`: una consulta de señal no choca con NG0100 cuando `world()` crea el mundo. */
+  private readonly gameWorldRef = viewChild(GameWorldComponent);
 
   readonly contextualInteraction = computed(() => {
     const game = this.attempt();
@@ -2446,9 +2454,11 @@ export class SimulationPlayComponent implements OnInit, OnDestroy {
   /** Quién reacciona: el nombre en la sala actual y, si es la persona clave, su retrato. */
   private reactionActor(objectKey: string | null): { nombre: string; visual: CharacterVisual | null } {
     const world = this.world();
-    const object = objectKey ? world?.objects?.find(o => o.key === objectKey) : undefined;
+    const keyPerson = world ? resolveKeyPerson(world.objects ?? []) : null;
+    // Sin objectKey (o fuera de esta sala) habla la persona clave de la sala; sin ella, nadie con nombre.
+    const object = (objectKey ? world?.objects?.find(o => o.key === objectKey) : undefined) ?? keyPerson ?? undefined;
     if (!world || !object) return { nombre: '', visual: null };
-    const isKeyPerson = resolveKeyPerson(world.objects ?? [])?.key === object.key;
+    const isKeyPerson = keyPerson?.key === object.key;
     return { nombre: getSceneDisplayLabel(object, world.map.key), visual: isKeyPerson ? this.patientVisual() : null };
   }
 
@@ -2648,6 +2658,11 @@ export class SimulationPlayComponent implements OnInit, OnDestroy {
       this.closeDialogue();
       return;
     }
+    // Última decisión en plena reacción: igual que con la supervisión, «Salida segura» corta y abre el resultado.
+    if (this.reactingToLast()) {
+      this.cutReactionForPause();
+      return;
+    }
     const game = this.attempt();
     if (!game || game.status !== 'IN_PROGRESS') return;
     if (this.showResumePrompt() || this.showContentWarning()) return;
@@ -2655,7 +2670,7 @@ export class SimulationPlayComponent implements OnInit, OnDestroy {
     this.pausing.set(true);
     // Plazo de seguridad (F2): si la pausa no sale por la cola, se envía igualmente.
     this.pauseDeadlineTimer = window.setTimeout(() => this.forcePauseAtDeadline(), QUEUED_PAUSE_DEADLINE_MS);
-    if (this.busy()) {
+    if (this.busy() && !this.reacting()) {
       this.announce('Pausando el caso. Se guardará en cuanto termine la acción en curso.', 'assertive');
       return;
     }
