@@ -252,7 +252,7 @@ La reacción guardada solo conserva las claves **no vacías** (`""` y `null` se 
 
 **Lectura del editor.** `decisions[].requires` y `decisions[].reaction` salen siempre, como objeto (`{}` si no hay o si lo guardado está roto: la lectura del editor es indulgente, la del juego no). `nodes[].goal` sale siempre, `""` si no hay. `nodes[].comments` sale siempre, como lista: cada comentario con sus claves del documento (`personaje`, `linea` y, si están, `cuando`, `emocion`, `gesto`); `[]` si no hay, si lo guardado está roto o no es una lista, y se salta lo que no trae `personaje` y `linea` de texto.
 
-**`rehearsedToEnd`.** `GET …/editor` lleva en la raíz `rehearsedToEnd` (booleano): `true` si quien pide ya llevó **un ensayo de esta versión hasta un final** (un ensayo COMPLETADO suyo; los de otras personas no cuentan). Solo el `GET` lo calcula. Las respuestas de las mutaciones de autoría (nodos, decisiones, mapas, personajes, grafo…) devuelven la misma vista del editor pero **sin** saber quién pide: ahí `rehearsedToEnd` es siempre `false`. El cliente no debe leerlo de una mutación; tras mutar, vuelve a pedir el `GET` si lo necesita.
+**`rehearsedToEnd`.** `GET …/editor` lleva en la raíz `rehearsedToEnd` (booleano): `true` si quien pide ya llevó **un ensayo de esta versión hasta un final** (un ensayo COMPLETADO suyo; los de otras personas no cuentan). **La clave aparece solo en `GET …/editor`.** Las respuestas de las mutaciones de autoría (nodos, decisiones, mapas, personajes, grafo…) devuelven la misma vista del editor pero **sin** saber quién pide: ahí `rehearsedToEnd` **no viene** (no un `false` engañoso). El cliente no debe leerlo de una mutación; tras mutar, vuelve a pedir el `GET` si lo necesita.
 
 ## 6. Pendientes y borradores
 
@@ -287,9 +287,9 @@ Solo viaja por estas tres rutas; las del juego no lo llevan. Se calcula para la 
 |---|---|---|
 | `sceneId` | entero | la escena actual |
 | `options` | `[{id, text, offered, missing, retainedBy}]` | todas las respuestas de la escena. `offered`: si el estudiante la vería. `missing`: `[{kind, key, label}]` lo que falta explorar (como `decisionReview[].missed`, sección 4.5). `retainedBy`: `facts` (faltan hechos de exploración), `condition` (otra condición sin cumplir: hito, conteo o persona), `broken` (requisito ilegible) o `null` si se ofrece |
-| `comments` | `[{index, personaje, line, due, missing}]` | todos los comentarios de la escena, en orden. `index` es su posición; `due`: si se dirían ahora; `missing`: lo que falta para su `cuando` (vacío si ya se dice o no hay condición) |
+| `comments` | `[{index, personaje, line, due, retainedBy, missing}]` | todos los comentarios de la escena, en orden. `index` es su posición; `due`: si se dirían ahora; `retainedBy`: por qué no se dicen, con la misma evaluación del juego y en este orden: `broken` (su `cuando` está mal formado), `condition` (su `cuando` es válido y sigue sin cumplirse; `missing` dice qué falta) o `absent` (su personaje no es una PERSON visible de la sala actual); `null` si se dice ahora; `missing`: lo que falta para su `cuando` (vacío si ya se dice, si no hay condición o si no es `condition`) |
 | `warnings` | `[texto]` | lo que el estudiante vería roto: escena sin sala, sin respuestas y sin ser final, o una respuesta que no lleva a ninguna escena |
-| `persona` | `{bond, activation}` | el estado de la persona consultante |
+| `persona` | `{bond, activation, label}` | el estado de la persona consultante; `label` es su descripción en palabras (la misma que ve el juego) |
 | `milestones` | `[clave]` | los hitos cumplidos, en orden |
 | `path` | `[{nodeId, title}]` | las escenas por las que pasó el ensayo, en orden |
 | `explored` | `{talked, inspected, has, used}`, cada uno `[clave]` | **lo que cuenta hoy para la escena actual**: lo hablado e inspeccionado en la sala de la escena, y lo que tiene y lo que usó en todo el intento. Es lo que lee el servidor al evaluar `requiere` y `cuando`, no el registro de otra sala |
@@ -304,8 +304,8 @@ Se valida **todo** el pedido antes de escribir; un 400 no cambia nada. Todo es o
 
 | Campo | Forma | Efecto |
 |---|---|---|
-| `irA` | id de una escena del caso | cambia la escena actual (el ensayo queda registrado como «Escena elegida por la autora») |
-| `explorado` | `{talked?, inspected?, has?, used?}`, listas de claves | **reemplazo completo** de lo explorado: un tipo que se omite queda **vacío**. Cada clave tiene que estar en `explorable` de la escena a la que se va (`irA`, si viene; si no, la actual) |
+| `irA` | id de una escena del caso | cambia la escena actual (el ensayo queda registrado como «Escena elegida por la autora»). Ir a la escena en la que ya está no es un movimiento: no escribe otra entrada ni suma un paso a `path` |
+| `explorado` | `{talked?, inspected?, has?, used?}`, listas de claves | **reemplazo** de lo explorado: un tipo que se omite queda **vacío**. `has` y `used` reemplazan el inventario y las herramientas usadas de **todo el intento**; `talked` e `inspected` reemplazan solo los de **la sala de la escena destino** (los de otras salas se conservan). Cada clave tiene que estar en `explorable` de la escena a la que se va (`irA`, si viene; si no, la actual) |
 | `persona` | `{bond?, activation?}` | fija esas dimensiones de la persona (`bond` ∈ `WITHDRAWN`, `GUARDED`, `OPEN`; `activation` ∈ `CALM`, `TENSE`, `CRISIS`); la que no viene se queda como estaba. Un objeto vacío o con otra clave es 400 |
 | `hitos` | `[clave]` | **reemplazo completo** de los hitos cumplidos; cada clave tiene que estar declarada en `reglas.milestones` del caso |
 
@@ -320,6 +320,8 @@ Un 400 es `VALIDATION_ERROR` con `field` en la raíz: `irA`, `explorado`, `perso
 | `VALIDATION_ERROR` | 400 | `PATCH` o `POST` con datos que no cuadran (7.1 y 7.3), con `field` |
 
 Un estudiante, o una docente que no es dueña del caso, recibe 403/404 en estas rutas y nunca el juego. Un ensayo ajeno no se puede jugar con su token: el servicio del juego da 403 a quien no es su dueño.
+
+**Tras descartar un ensayo** (la docente borró una escena, una respuesta o un mapa), las rutas del panel responden 404 `REHEARSAL_GONE`, pero las **rutas del juego** responden **403**: un rol que no juega recibe 403 ante cualquier fallo (Ruling 3). El cliente (bloque C2) debe tratar un 403 en una ruta de juego de un ensayo como «ensayo perdido» y ofrecer abrir uno nuevo.
 
 **Política `("attempt", "rehearse")`** (`shared/policies.py`, `shared/policy-matrix.json`): `{ESTUDIANTE: ninguna, PROFESOR: OWN, ADMIN: OWN}`. Solo quien abrió el ensayo (docente o ADMIN) lo juega; `OWN` quiere decir «el dueño del intento».
 
