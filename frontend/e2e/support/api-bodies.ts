@@ -30,10 +30,15 @@ export function isApiUrl(url: URL): boolean {
 export async function fulfillFromNode(route: Route): Promise<void> {
   let response;
   try {
-    response = await route.fetch({ timeout: scaled(60_000) });
+    // maxRetries: Node reusa conexiones que el servidor de desarrollo ya cerró (ECONNRESET, la petición ni le llega).
+    // Chromium las reintenta solo; sin esto la app veía «No fue posible conectar» (consent-gate en local).
+    response = await route.fetch({ timeout: scaled(60_000), maxRetries: 2 });
   } catch {
-    // Sin respuesta (el servidor no contestó o la página ya no existe): el navegador ve un fallo de red, como sin captura.
-    await route.abort('failed').catch(() => undefined);
+    // Sin respuesta: una lectura (GET/HEAD) la pide el navegador por su cuenta, como sin captura, y solo se pierde el
+    // cuerpo en Node. Lo demás no se repite (podría duplicar un envío): el navegador ve un fallo de red.
+    const method = route.request().method();
+    if (method === 'GET' || method === 'HEAD') await route.continue().catch(() => undefined);
+    else await route.abort('failed').catch(() => undefined);
     return;
   }
   const body = await response.body();

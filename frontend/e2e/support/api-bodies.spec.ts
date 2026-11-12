@@ -4,18 +4,22 @@ import { captureApiBodies, fulfillFromNode, isApiUrl, readJson, readText } from 
 
 /** Una ruta falsa de Playwright: la petición, lo que devuelve `fetch` y lo que se entregó o abortó. */
 function fakeRoute(request: Request, fetched: { body: string } | Error, fulfill: () => Promise<void> = async () => undefined) {
-  const calls: { fulfilled?: { body: Buffer }; aborted?: string } = {};
+  const calls: { fulfilled?: { body: Buffer }; aborted?: string; continued?: boolean; fetchOptions?: { maxRetries?: number } } = {};
   const route = {
     request: () => request,
-    fetch: async () => {
+    fetch: async (options: { maxRetries?: number }) => {
+      calls.fetchOptions = options;
       if (fetched instanceof Error) throw fetched;
       return { body: async () => Buffer.from(fetched.body) };
     },
     fulfill: async (options: { body: Buffer }) => { calls.fulfilled = options; await fulfill(); },
     abort: async (code: string) => { calls.aborted = code; },
+    continue: async () => { calls.continued = true; },
   } as unknown as Route;
   return { route, calls };
 }
+
+const peticion = (method: string) => ({ method: () => method }) as unknown as Request;
 
 /** Una respuesta falsa cuyo cuerpo en Chromium no está (como el `ERR_ABORTED` del runner) o es `chromiumBody`. */
 function fakeResponse(request: Request, chromiumBody?: string): Response {
@@ -52,15 +56,35 @@ describe('api-bodies (cuerpos de la API leídos en Node, no en Chromium)', () =>
     await expect(readJson(fakeResponse({} as Request))).rejects.toThrow(/No data found/);
   });
 
-  it('si Node no obtiene respuesta, el navegador ve un fallo de red y no queda nada capturado', async () => {
-    const request = {} as Request;
+  it('reintenta las conexiones que el servidor ya cerró (ECONNRESET) antes de rendirse', async () => {
+    const { route, calls } = fakeRoute(peticion('GET'), { body: '{}' });
+
+    await fulfillFromNode(route);
+
+    expect(calls.fetchOptions?.maxRetries).toBeGreaterThanOrEqual(1);
+  });
+
+  it('si Node no obtiene respuesta de una lectura (GET), la pide el navegador por su cuenta y no queda nada capturado', async () => {
+    const request = peticion('GET');
+    const { route, calls } = fakeRoute(request, new Error('read ECONNRESET'));
+
+    await fulfillFromNode(route);
+
+    expect(calls.continued).toBe(true);
+    expect(calls.aborted).toBeUndefined();
+    expect(calls.fulfilled).toBeUndefined();
+    await expect(readJson(fakeResponse(request, '{"desde":"chromium"}'))).resolves.toEqual({ desde: 'chromium' });
+  });
+
+  it('si Node no obtiene respuesta de un envío (POST), no lo repite: el navegador ve un fallo de red', async () => {
+    const request = peticion('POST');
     const { route, calls } = fakeRoute(request, new Error('connect ECONNREFUSED'));
 
     await fulfillFromNode(route);
 
     expect(calls.aborted).toBe('failed');
+    expect(calls.continued).toBeUndefined();
     expect(calls.fulfilled).toBeUndefined();
-    await expect(readJson(fakeResponse(request, '{"desde":"chromium"}'))).resolves.toEqual({ desde: 'chromium' });
   });
 
   it('si la página recargó antes de entregar, no rompe la prueba y el cuerpo sigue legible', async () => {
