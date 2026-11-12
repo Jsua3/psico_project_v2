@@ -7,7 +7,7 @@ descripción, una escena que solo se alcanza por una puerta, una rúbrica sin cr
 completas y sin ``id``. Todas las listas siguen el orden del modelo. Dentro del mundo, las
 referencias van por la **clave del producto** (opción, personaje, herramienta, objeto).
 """
-from .vocabulary import CLASSIFICATION_OF_CLASS, ResponseClass
+from .vocabulary import CLASSIFICATION_OF_CLASS, COMMENT_KEYS, ResponseClass
 
 #: La versión base del documento: la 2.0 describe las respuestas por clase, hitos y persona (sin puntaje, estrés ni
 #: penalización). El importador aún lee la 1.0 y la convierte (``casedef.legacy``).
@@ -22,9 +22,9 @@ def _text(value):
 
 
 def version_of(definition):
-    """``"2.1"`` si alguna opción trae ``requires`` o ``reaction`` o alguna escena trae ``goal``; si no, ``"2.0"``."""
+    """``"2.1"`` si alguna opción trae ``requires`` o ``reaction`` o alguna escena trae ``goal`` o ``comments``; si no, ``"2.0"``."""
     for scene in definition.scenes:
-        if _text(scene.goal):
+        if _text(scene.goal) or scene.comments:
             return VERSION
         if any(option.requires or option.reaction for option in scene.options):
             return VERSION
@@ -86,6 +86,14 @@ def _option_entry(option, scene_key, ids):
     if option.reaction:
         entry["reaccion"] = option.reaction
     return entry
+
+
+def _comment_entry(comment):
+    values = {
+        "personaje": comment.character, "linea": comment.line, "cuando": comment.when,
+        "emocion": comment.emotion, "gesto": comment.gesture,
+    }
+    return {key: values[key] for key in COMMENT_KEYS if values[key]}
 
 
 def _object_entry(obj):
@@ -154,6 +162,8 @@ def _scene_entry(scene, ids):
         })
     if _text(scene.goal):
         entry["objetivo"] = scene.goal
+    if scene.comments:
+        entry["comentarios"] = [_comment_entry(comment) for comment in scene.comments]
     if scene.world is not None:
         entry["mapa"] = _world_entry(scene.world)
     return entry

@@ -463,6 +463,32 @@ def _requires_issues(document, siep, names):
     return collector.issues
 
 
+def _comment_conditions_issues(document, siep, names):
+    """El documento 2.1: el ``cuando`` de cada comentario, si lo hay, es una condición con hechos válida y acotada."""
+    collector = _Collector(document, names)
+    for position, entry in _items(siep.get("escenas")):
+        for c_position, comment in _items(entry.get("comentarios")):
+            when = comment.get("cuando")
+            if not when:
+                continue
+            route = (SIEP_KEY, "escenas", position, "comentarios", c_position, "cuando")
+            if conditions.is_valid(when, facts=True):
+                if len(json.dumps(when, ensure_ascii=False)) > vocabulary.REQUIRES_MAX_CHARS:
+                    # BORRADOR: texto nuevo del servidor, pendiente de la aprobación de Psicología
+                    collector.add(
+                        CONDITION, route,
+                        f"la condición del comentario es demasiado larga: el máximo es {vocabulary.REQUIRES_MAX_CHARS} caracteres.",
+                    )
+                continue
+            # BORRADOR: texto nuevo del servidor, pendiente de la aprobación de Psicología
+            collector.add(
+                CONDITION, route,
+                "la condición del comentario no es válida: solo admite all, any, not, milestone, count (por clase), "
+                f"persona, talked, inspected, has y used, hasta {conditions.MAX_DEPTH} niveles.",
+            )
+    return collector.issues
+
+
 def check(document, names=None):
     """Los hallazgos de ``x-siep``: ``DSL.SIEP_*`` (más los topes y textos largos que marca el esquema)."""
     if not isinstance(document, dict) or SIEP_KEY not in document:
@@ -475,4 +501,5 @@ def check(document, names=None):
         issues += _rules_issues(document, siep, names) if is_legacy(siep) else _milestone_issues(document, siep, names)
         if not is_legacy(siep):
             issues += _requires_issues(document, siep, names)
+            issues += _comment_conditions_issues(document, siep, names)
     return issues
