@@ -13,6 +13,7 @@ import {
   enterCaseAtContentWarning,
   enterDoor,
   finishCaseIntroduction,
+  goalCard,
   interactNearby,
   loginStudent,
   moveAndPersistPosition,
@@ -22,6 +23,7 @@ import {
   seekNpcDialogue,
   useToolChoice,
   waitForWorldReady,
+  watchReaction,
 } from './support/siep-flow';
 import { scaled } from './support/time-scale';
 
@@ -78,6 +80,11 @@ async function pauseAndResumeWithSafeExit(page: Page, attemptId: string): Promis
   expect(resumedBody.status).toBe('IN_PROGRESS');
   await expect(pauseDialog).toBeHidden({ timeout: scaled(30_000) });
   await waitForWorldReady(page);
+}
+
+/** La ficha muestra el objetivo de la escena actual (el de la docente o el de respaldo): nunca queda vacía. */
+async function expectGoalShown(page: Page, where: string): Promise<void> {
+  await expect(goalCard(page), `${where}: la ficha lleva el objetivo de la escena`).toHaveAttribute('data-goal', /\S/);
 }
 
 async function completeFullCase(
@@ -140,12 +147,19 @@ async function completeFullCase(
   // H1 — contención con PAP.
   await input.moveUntilNearby('ArrowUp', /familia en crisis/i);
   await interactNearby(page, /familia en crisis/i, /\/interactions\/familia-duelo$/);
+  await expectGoalShown(page, 'H1');
+  const reactionsSeen = await watchReaction(page);
   let decision = await chooseDecision(
     page,
     /abuela de la niña/i,
     /aplicar pap: contención emocional, acompañamiento en duelo/i,
   );
   expect(decision.currentNode.key).toBe('hospital-sala-escucha');
+  // La reacción del documento (E01, §1 del contrato): el gesto en el host y el comienzo de su frase en la franja.
+  expect(decision.reaction).toMatchObject({ gesture: 'se-acerca' });
+  expect(decision.reaction.line).toContain('La abuela respira un poco más despacio');
+  await expect.poll(reactionsSeen, { message: 'la abuela se acercó (data-reaction)', timeout: scaled(5_000) }).toContain('se-acerca');
+  await expect(page.locator('app-reaction-director')).toContainText('La abuela respira', { timeout: scaled(5_000) });
   await closeDialogue(page, /consecuencia/i);
   await waitForWorldReady(page);
 
@@ -188,6 +202,7 @@ async function completeFullCase(
   await input.moveUntilNearby('ArrowRight', /bitácora/i);
   await reachNearby(page, input, ['ArrowRight', 'ArrowRight', 'ArrowUp'], /marco normativo/i);
   await interactNearby(page, /marco normativo/i, /\/interactions\/marco-normativo-hospital$/);
+  await expectGoalShown(page, 'H2');
   decision = await chooseDecision(
     page,
     /marco normativo y técnico/i,
@@ -203,6 +218,7 @@ async function completeFullCase(
   expect(spikes.world.inventory).toContain('SPIKES');
   await reachNearby(page, input, ['ArrowRight', 'ArrowRight', 'ArrowDown'], /psicóloga hospitalaria/i);
   await interactNearby(page, /psicóloga hospitalaria/i, /\/interactions\/psicologa-acompanante$/);
+  await expectGoalShown(page, 'H3');
   decision = await chooseDecision(
     page,
     /psicóloga hospitalaria/i,
@@ -238,6 +254,7 @@ async function completeFullCase(
     .toContain('RISK_METER@sobreviviente-consulta');
   await closeDialogue(page, /herramienta pertinente/i);
   await interactNearby(page, /sobreviviente/i, /\/interactions\/sobreviviente-consulta$/);
+  await expectGoalShown(page, 'C1');
   if (route === 'recommended') {
     decision = await chooseDecision(
       page,
@@ -270,6 +287,7 @@ async function completeFullCase(
   await input.moveUntilNearby('ArrowRight', /ruta de protección/i);
   await reachNearby(page, input, ['ArrowRight', 'ArrowRight', 'ArrowRight', 'ArrowUp'], /marco normativo/i);
   await interactNearby(page, /marco normativo/i, /\/interactions\/marco-normativo-comisaria$/);
+  await expectGoalShown(page, 'C2');
   decision = await chooseDecision(
     page,
     /marco normativo y técnico/i,
@@ -291,6 +309,7 @@ async function completeFullCase(
   // Tampoco viajaron las claves del cierre (clase, conteos, final, hitos) ni el estado crudo del caso dentro de `flags`.
   expect(closeOnlyKeysIn(recorder.records), 'algo que solo se revela al cerrar viajó antes de la última decisión').toEqual([]);
 
+  await expectGoalShown(page, 'C3');
   decision = await chooseDecision(
     page,
     /profesional psicosocial/i,

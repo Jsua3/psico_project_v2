@@ -135,6 +135,24 @@ export function goalCard(page: Page): Locator {
   return page.locator('app-scene-goal-card');
 }
 
+/**
+ * Anota cada valor que toma `data-reaction` en el documento (el gesto dura ~400 ms: una espera por sondeo puede perderlo).
+ * Instálalo ANTES de elegir; devuelve una función que lee los valores vistos hasta ahora.
+ */
+export async function watchReaction(page: Page): Promise<() => Promise<string[]>> {
+  await page.evaluate(() => {
+    const seen: string[] = [];
+    (window as unknown as { __reacciones: string[] }).__reacciones = seen;
+    new MutationObserver(records => {
+      for (const record of records) {
+        const value = (record.target as Element).getAttribute('data-reaction');
+        if (value) seen.push(value);
+      }
+    }).observe(document.documentElement, { attributes: true, attributeFilter: ['data-reaction'], subtree: true });
+  });
+  return () => page.evaluate(() => [...((window as unknown as { __reacciones?: string[] }).__reacciones ?? [])]);
+}
+
 export async function waitForWorldReady(page: Page, expectedMapKey?: string): Promise<void> {
   const host = page.locator('app-game-world .phaser-host[data-world-ready="true"]');
   await expect(host).toBeVisible({ timeout: scaled(45_000) });
@@ -762,9 +780,9 @@ export async function chooseDecision(
   const response = await responsePromise;
   await requireOk(response, `Falló la decisión ${optionText}`);
   // C2: con FEEDBACK_AT_CLOSE_ONLY el estado del intento viene dentro de `attempt`; el resto del e2e lee el estado
-  // plano, así que se aplana aquí conservando `consequence` y `retry`.
+  // plano, así que se aplana aquí conservando `consequence`, `retry` y `reaction`.
   const body = (await response.json()).data as ApiData;
-  return body.attempt ? { ...body.attempt, consequence: body.consequence ?? null, retry: body.retry ?? null } : body;
+  return body.attempt ? { ...body.attempt, consequence: body.consequence ?? null, retry: body.retry ?? null, reaction: body.reaction ?? null } : body;
 }
 
 export async function useToolChoice(

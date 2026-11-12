@@ -235,6 +235,134 @@ export async function createPublishedCase(request: APIRequestContext, options: C
   return { caseVersionId: id, title: draft.title };
 }
 
+export interface ExplorationCaseOptions {
+  /**
+   * La escena inicial no cierra el caso: las dos opciones llevan a una escena de seguimiento (con sus dos opciones hacia el
+   * cierre). Así la reacción de Laura ocurre en una decisión que NO es la última y «Salida segura» abre la pausa de verdad
+   * (en la última decisión corta la reacción y abre el resultado).
+   */
+  followUp?: boolean;
+}
+
+/**
+ * Un caso de exploración (bloque B, Tarea 16): la escena inicial tiene objetivo («Escuchar a Laura») y su sala trae a
+ * Laura (PERSON, persona clave), una carpeta revisable sin opción y un archivo que ofrece `postergar`. La opción
+ * `escuchar` (Recomendada) exige haber revisado la carpeta y trae la reacción de Laura; `postergar` (Con riesgo) no pide
+ * nada. Laura y el archivo ofrecen su opción por un diálogo autorado (el servidor no arma una conversación para un objeto
+ * que solo apunta a una opción). Cumple OCL-09 a OCL-12: hay una opción sin requisito, la carpeta es visible en la sala y
+ * la PERSON ofrece la opción que reacciona. Molde: `buildPublishableDraft`.
+ */
+export async function buildExplorationDraft(
+  request: APIRequestContext, token: string, title: string, options: ExplorationCaseOptions = {},
+): Promise<{ id: number; title: string }> {
+  const base = '/api/authoring/cases';
+  const created = await send(request, token, 'post', base,
+    { title, description: 'Caso de prueba de exploración: una carpeta que abre otra forma de responder.' }, 'crear el caso');
+  const id: number = created['caseVersionId'];
+  const start = created['nodes'][0] as Json;
+  const startId: number = start['id'];
+  const withClosing = await send(request, token, 'post', `${base}/${id}/nodes`, {
+    ...NODE_BODY, nodeKey: 'cierre', title: 'Cierre del caso', narrative: 'Fin.', terminal: true, supportResources: [SUPPORT_RESOURCE],
+  }, 'escena final');
+  const closingId: number = withClosing['nodes'].find((node: Json) => node['key'] === 'cierre')['id'];
+  let middleId = closingId;
+  if (options.followUp) {
+    const withFollowUp = await send(request, token, 'post', `${base}/${id}/nodes`, {
+      ...NODE_BODY, nodeKey: 'seguimiento', title: 'Seguimiento', narrative: 'Unos días después.',
+    }, 'escena de seguimiento');
+    middleId = withFollowUp['nodes'].find((node: Json) => node['key'] === 'seguimiento')['id'];
+  }
+  // El objetivo de la escena inicial (§5 del contrato: `goal`); lo demás se manda como estaba.
+  await send(request, token, 'put', `${base}/${id}/nodes/${startId}`, {
+    nodeKey: start['key'], title: start['title'], narrative: start['narrative'], supportResources: start['supportResources'] ?? [],
+    requiredTools: start['requiredTools'] ?? [], sensitiveContent: start['sensitiveContent'] ?? false,
+    safeExitRequired: start['safeExitRequired'] ?? false, warningMessage: start['warningMessage'] ?? null,
+    terminal: start['terminal'] ?? false, startNode: start['startNode'] ?? true, positionX: start['positionX'], positionY: start['positionY'],
+    goal: 'Escuchar a Laura',
+  }, 'objetivo de la escena inicial');
+  await send(request, token, 'post', `${base}/${id}/decisions`, {
+    sourceNodeId: startId, targetNodeId: middleId, optionKey: 'escuchar', text: 'Escuchar a Laura sin interrumpirla',
+    responseClass: 'RECOMMENDED', prohibitedConduct: false, prohibitionReason: null,
+    immediateFeedback: 'Escuchar sin interrumpir le da espacio a Laura.',
+    requires: { inspected: 'carpeta' },
+    reaction: { linea: 'Gracias por escucharme.', emocion: 'triste', gesto: 'se-acerca' },
+  }, 'opción escuchar');
+  const withOptions = await send(request, token, 'post', `${base}/${id}/decisions`, {
+    sourceNodeId: startId, targetNodeId: middleId, optionKey: 'postergar', text: 'Dejar la conversación para después',
+    responseClass: 'RISKY', prohibitedConduct: false, prohibitionReason: null,
+    immediateFeedback: 'Postergar la conversación deja a Laura sin respuesta.',
+  }, 'opción postergar');
+  const optionId = (key: string): number =>
+    withOptions['decisions'].find((decision: Json) => decision['optionKey'] === key || decision['key'] === key)['id'];
+  await send(request, token, 'post', `${base}/${id}/maps`, {
+    nodeId: closingId, mapKey: 'sala-cierre', title: 'Sala de cierre', width: 960, height: 540, theme: 'clinical-soft', spawnX: 145, spawnY: 430,
+  }, 'mapa de la escena final');
+  const objectBase = {
+    width: 48, height: 48, colorHex: '#4FA3A5', icon: 'touch_app', collision: false, visible: true, toolCode: null, metadata: {},
+  };
+  const roomDialogue = (key: string, speaker: string, line: string, choice: Json, objectKey: string) => ({
+    key, mapObjectKey: objectKey, speakerName: speaker, portraitKey: null, emotion: 'neutral',
+    lines: [{ order: 1, speakerName: speaker, text: line, emotion: 'neutral' }],
+    choices: [{ ...choice, requiredToolCode: null, effect: {}, displayOrder: 1 }],
+  });
+  await send(request, token, 'put', `${base}/${id}/world?nodeId=${startId}`, {
+    objects: [
+      { ...objectBase, key: 'carpeta', label: 'Historia clínica', type: 'OBJECT', x: 260, y: 300, shortCode: 'HC',
+        interactionPrompt: 'Revisar', interactionText: 'La carpeta resume lo que se sabe de Laura.', decisionOptionId: null },
+      { ...objectBase, key: 'laura', label: 'Laura', type: 'PERSON', x: 480, y: 300, shortCode: 'LAU', icon: 'psychology',
+        interactionPrompt: 'Hablar', interactionText: '', decisionOptionId: optionId('escuchar'), metadata: { personaClave: true } },
+      { ...objectBase, key: 'archivo', label: 'Archivo de pendientes', type: 'OBJECT', x: 700, y: 300, shortCode: 'ARC',
+        interactionPrompt: 'Abrir', interactionText: '', decisionOptionId: optionId('postergar') },
+      { ...objectBase, key: 'salida', label: 'Salida segura', type: 'EXIT', x: 800, y: 440, shortCode: 'SAL', icon: 'exit_to_app',
+        interactionPrompt: 'Salir', interactionText: '', decisionOptionId: null },
+    ],
+    dialogues: [
+      roomDialogue('laura-habla', 'Laura', 'Laura te mira en silencio.',
+        { key: 'escuchar', text: 'Escuchar a Laura sin interrumpirla', decisionOptionId: optionId('escuchar') }, 'laura'),
+      roomDialogue('archivo-abre', 'Archivo', 'Hay una lista de asuntos pendientes.',
+        { key: 'postergar', text: 'Dejar la conversación para después', decisionOptionId: optionId('postergar') }, 'archivo'),
+    ],
+  }, 'sala de la escena inicial');
+  if (options.followUp) {
+    await send(request, token, 'post', `${base}/${id}/maps`, {
+      nodeId: middleId, mapKey: 'sala-seguimiento', title: 'Sala de seguimiento', width: 960, height: 540, theme: 'clinical-soft', spawnX: 145, spawnY: 430,
+    }, 'mapa de la escena de seguimiento');
+    const followUpIds: number[] = [];
+    for (const [optionKey, text, responseClass] of [['seguir', 'Acompañar el seguimiento', 'RECOMMENDED'], ['soltar', 'Soltar el seguimiento', 'RISKY']] as const) {
+      const view = await send(request, token, 'post', `${base}/${id}/decisions`, {
+        sourceNodeId: middleId, targetNodeId: closingId, optionKey, text, responseClass,
+        prohibitedConduct: false, prohibitionReason: null, immediateFeedback: `${text}: así queda registrado en este ejemplo.`,
+      }, `opción ${optionKey}`);
+      followUpIds.push(view['decisions'].find((decision: Json) => decision['optionKey'] === optionKey || decision['key'] === optionKey)['id']);
+    }
+    const followUpMap = (await readEditor(request, token, id))['maps'].find((map: Json) => map['nodeId'] === middleId);
+    for (const [index, optionId] of followUpIds.entries()) {
+      await send(request, token, 'post', `${base}/${id}/maps/${followUpMap['id']}/objects`, {
+        objectKey: `seguimiento-${index + 1}`, label: `Seguimiento ${index + 1}`, objectType: 'OBJECT', x: 200 + 100 * index, y: 300, width: 48, height: 48,
+        colorHex: '#4FA3A5', icon: 'touch_app', shortCode: `S${index + 1}`, collision: false, visible: true, interactionPrompt: 'Elegir',
+        interactionText: '', decisionOptionId: optionId, toolCode: null,
+      }, 'objeto que ofrece la opción de seguimiento');
+    }
+  }
+  await readEditor(request, token, id);
+  await send(request, token, 'put', `${base}/${id}/checklist`, {
+    contentOriginal: true, ethicsReviewed: true, safetyProtocols: true, noStigmatizing: true, triggerWarnings: true, accessibilityOk: true,
+    scopeEducational: true,
+  }, 'lista de publicación');
+  return { id, title: created['title'] };
+}
+
+/** Crea el caso de exploración (`buildExplorationDraft`), lo envía a revisión y lo publica. */
+export async function createExplorationCase(request: APIRequestContext, options: ExplorationCaseOptions = {}): Promise<CaseFixture> {
+  const admin = await apiToken(request, ADMIN);
+  const base = '/api/authoring/cases';
+  const stamp = `${Date.now().toString(36)}${Math.floor(Math.random() * 10_000)}`;
+  const draft = await buildExplorationDraft(request, admin, `Exploración e2e ${stamp}`, options);
+  await send(request, admin, 'post', `${base}/${draft.id}/lifecycle`, { action: 'submit' }, 'enviar a revisión');
+  await send(request, admin, 'post', `${base}/${draft.id}/lifecycle`, { action: 'approve', note: 'Caso de prueba e2e.', contentReview: contentReviewProof() }, 'aprobar y publicar');
+  return { caseVersionId: draft.id, title: draft.title };
+}
+
 /**
  * Clona una versión publicada (p. ej. la del caso demo, que se puede jugar de verdad), le pone las mismas pistas en TODAS
  * sus escenas y la publica. Sirve para probar la interfaz sobre un mundo completo con datos que la semilla no trae.
