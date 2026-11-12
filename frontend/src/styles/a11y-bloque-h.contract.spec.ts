@@ -147,6 +147,6 @@ describe('bloque H: semántica del HUD y de la tarjeta de contexto', () => {
     expect(hud).toMatch(/<div class="hud-persona"[^>]* role="group" \[attr\.aria-label\]="game\.persona\.label">/);
     expect(hud).not.toContain('hud-patient');
     expect(hud).not.toContain('Seguimiento formativo');
-    expect(play).toContain('<div class="case-intro-card__body" tabindex="0" role="region" aria-label="Contexto narrativo del caso">');
+    expect(play).toContain('<div class="case-intro-card__body" tabindex="0" role="region" aria-label="Datos de la primera escena">');
   });
 });

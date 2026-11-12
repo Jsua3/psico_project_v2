@@ -1620,7 +1620,7 @@ export class SimulationPlayComponent implements OnInit, OnDestroy {
         // Si se pausó desde la introducción sin haberla leído, reaparece (`resolveIntroStep` ya lo
         // decide); el consentimiento ya está dado en esta sesión y no se vuelve a pedir.
         const world = this.world();
-        if (world) this.maybeShowInitialCaseIntro(world);
+        if (world) this.maybeShowInitialCaseIntro();
         this.announce('Intento reanudado. Continúas exactamente donde quedaste.');
       },
       error: () => { this.showActionError('No pudimos reanudar el intento.'); this.busy.set(false); },
@@ -2939,7 +2939,7 @@ export class SimulationPlayComponent implements OnInit, OnDestroy {
       this.lastSyncedPosition = null;
       this.announceRoomChange(world, stage !== null);
     }
-    this.maybeShowInitialCaseIntro(world);
+    this.maybeShowInitialCaseIntro();
     // Al final, con la escena ya aplicada: si «Reanudar» llegó durante la recarga, se atiende ahora.
     this.finishWorldReload();
   }
@@ -2969,7 +2969,7 @@ export class SimulationPlayComponent implements OnInit, OnDestroy {
     if (message) this.announce(message);
   }
 
-  private maybeShowInitialCaseIntro(world: SimulationWorldState): void {
+  private maybeShowInitialCaseIntro(): void {
     const attempt = this.attempt();
     if (!attempt) return;
     this.applyIntroStep(this.resolveIntroStepFor(attempt));

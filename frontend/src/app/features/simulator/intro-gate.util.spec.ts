@@ -40,6 +40,14 @@ describe('introCardLines', () => {
     ]);
   });
 
+  it('sin título de sala no pinta «Empiezas en:» vacío', () => {
+    expect(introCardLines('Caso de prueba', 'Recepción', '')).toEqual([
+      'Caso: Caso de prueba',
+      'Escena: Recepción',
+      'El contexto del caso está en su ficha.',
+    ]);
+  });
+
   it('un título con «$&» o llaves se copia tal cual', () => {
     expect(introCardLines('A $& {x}', 'B', 'C')[0]).toBe('Caso: A $& {x}');
   });

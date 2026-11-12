@@ -33,7 +33,7 @@ export function introCardLines(caseTitle: string, nodeTitle: string, mapTitle: s
   return [
     fill(DRAFT_COPY.introCase.text, caseTitle),
     fill(DRAFT_COPY.introScene.text, nodeTitle),
-    fill(DRAFT_COPY.introRoom.text, mapTitle),
+    ...(mapTitle ? [fill(DRAFT_COPY.introRoom.text, mapTitle)] : []),
     DRAFT_COPY.introBriefNote.text,
   ];
 }
