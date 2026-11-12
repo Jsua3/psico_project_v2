@@ -6,7 +6,10 @@
  */
 import { type Gesto } from './vocabulario';
 
-/** Un tramo: desplazamiento relativo en px del mundo, inclinación en grados, si se voltea el sprite y cuánto dura. */
+/**
+ * Un tramo: `dx`/`dy` son el delta en px del mundo respecto del tramo anterior (la posición del tramo i es el origen
+ * más la suma de dx/dy hasta i); `angulo` es la inclinación absoluta en grados; si se voltea el sprite; cuánto dura.
+ */
 export interface GestoPaso {
   dx: number;
   dy: number;
@@ -50,7 +53,7 @@ export const ESTRATEGIAS_GESTO: Readonly<Record<Gesto, EstrategiaGesto>> = {
     pasos: () => [paso(0, 0, -6, 250), paso(0, 0, -6, 300), paso(0, 0, 0, 250)],
   },
   'se-agita': {
-    pasos: () => Array.from({ length: 8 }, (_, i) => paso(i % 2 === 0 ? 2 : -2, 0, 0, 50)),
+    pasos: () => [2, -4, 4, -4, 4, -4, 4, -2].map(dx => paso(dx, 0, 0, 50)),
   },
 };
 
