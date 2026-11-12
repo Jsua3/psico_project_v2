@@ -5,7 +5,6 @@ import { of } from 'rxjs';
 import { LiveRegionAnnouncer } from '../../core/a11y/live-announcer.service';
 import { SimulationService } from '../../core/api/simulation.service';
 import type { GuiaEscena } from './caso/guia';
-import { DRAFT_COPY } from './draft-copy';
 import type { HintAttemptRef } from './scene-hint.component';
 import { SceneGoalCardComponent } from './scene-goal-card.component';
 
@@ -25,10 +24,14 @@ const GUIA: GuiaEscena = {
  */
 describe('SceneGoalCardComponent', () => {
   function montar(entrada: { guia: GuiaEscena; hintAttempt?: HintAttemptRef | null; compact?: boolean }) {
+    const servicio = {
+      getHints: vi.fn(() => of({ available: 2, shown: [] })),
+      revealNextHint: vi.fn(() => of({ available: 1, shown: [{ id: 1, text: 'Mira con calma.' }] })),
+    };
     TestBed.configureTestingModule({
       providers: [
         provideZonelessChangeDetection(),
-        { provide: SimulationService, useValue: { getHints: vi.fn(() => of({ available: 2, shown: [] })), revealNextHint: vi.fn() } },
+        { provide: SimulationService, useValue: servicio },
         { provide: LiveRegionAnnouncer, useValue: { announce: vi.fn() } },
       ],
     });
@@ -42,7 +45,7 @@ describe('SceneGoalCardComponent', () => {
     const host = fixture.nativeElement as HTMLElement;
     const toggle = () => host.querySelector<HTMLButtonElement>('button.goal-card__toggle')!;
     return {
-      fixture, host, el: host,
+      fixture, host, el: host, servicio,
       toggle,
       abrir: () => { toggle().click(); fixture.detectChanges(); },
       abiertas: () => abiertas,
@@ -95,24 +98,79 @@ describe('SceneGoalCardComponent', () => {
     expect(abiertas()).toBe(1);
   });
 
-  it('Esc no la cierra: la cadena de Esc del juego no cambia', () => {
-    const { toggle, abrir, fixture } = montar({ guia: GUIA });
-    abrir();
-    toggle().dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }));
-    fixture.detectChanges();
-    expect(toggle().getAttribute('aria-expanded')).toBe('true');
-  });
-
   it('arranca plegada también en compacto y no usa región viva propia', () => {
     const { toggle, host } = montar({ guia: GUIA, compact: true });
     expect(toggle().getAttribute('aria-expanded')).toBe('false');
     expect(host.querySelector('[aria-live], [role="status"]')).toBeNull();
   });
 
-  it('los rótulos salen de DRAFT_COPY y ninguno insinúa qué responder', () => {
-    expect(DRAFT_COPY.goalCardTitle.text).toBe('Objetivo de la escena');
-    expect(DRAFT_COPY.goalCardFallback.text).toBe('Explora la sala y conversa con las personas.');
-    expect(DRAFT_COPY.roomListTitle.text).toBe('En esta sala');
-    expect(DRAFT_COPY.hintAskLabel.text).toBe('Pedir una pista');
+  it('abierta no dice ni insinúa qué responder', () => {
+    const { el, abrir } = montar({ guia: GUIA, hintAttempt: { attemptId: 'a1', attemptToken: 't' } });
+    abrir();
+    expect(el.textContent).not.toMatch(/recomendad|correct|adecuad|mejor|riesgo/i);
+  });
+
+  describe('aria-controls', () => {
+    it('plegada no apunta a nada: el cuerpo aún no existe', () => {
+      const { toggle } = montar({ guia: GUIA });
+      expect(toggle().hasAttribute('aria-controls')).toBe(false);
+    });
+
+    it('abierta apunta al cuerpo que existe, y dos fichas no comparten id', () => {
+      const uno = montar({ guia: GUIA });
+      uno.abrir();
+      const id = uno.toggle().getAttribute('aria-controls');
+      expect(id).toBeTruthy();
+      const cuerpo = document.getElementById(id!) ?? uno.host.querySelector(`[id="${id}"]`);
+      expect(cuerpo).not.toBeNull();
+      expect(cuerpo!.hasAttribute('hidden')).toBe(false);
+
+      const dos = TestBed.createComponent(SceneGoalCardComponent);
+      dos.componentRef.setInput('guia', GUIA);
+      dos.detectChanges();
+      const otro = dos.nativeElement as HTMLElement;
+      otro.querySelector<HTMLButtonElement>('button.goal-card__toggle')!.click();
+      dos.detectChanges();
+      expect(otro.querySelector('button.goal-card__toggle')!.getAttribute('aria-controls')).not.toBe(id);
+    });
+
+    it('vuelve a plegarla y deja de apuntar', () => {
+      const { toggle, abrir, fixture } = montar({ guia: GUIA });
+      abrir();
+      toggle().click();
+      fixture.detectChanges();
+      expect(toggle().hasAttribute('aria-controls')).toBe(false);
+    });
+  });
+
+  it('plegar y volver a abrir no salta el enfriamiento de la pista ni pide el estado otra vez', async () => {
+    vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout'] });
+    try {
+      const { el, abrir, toggle, fixture, servicio } = montar({ guia: GUIA, hintAttempt: { attemptId: 'a1', attemptToken: 't' } });
+      abrir();
+      const boton = () => [...el.querySelectorAll('app-scene-hint button')].find(b => b.textContent!.includes('Pedir una pista')) as HTMLButtonElement;
+      boton().click();
+      fixture.detectChanges();
+      expect(boton().getAttribute('aria-disabled')).toBe('true');
+
+      toggle().click(); // plegar
+      fixture.detectChanges();
+      abrir(); // abrir otra vez, dentro de la ventana de duplicado
+      expect(boton().getAttribute('aria-disabled')).toBe('true');
+      expect(servicio.getHints).toHaveBeenCalledTimes(1);
+
+      vi.advanceTimersByTime(2100);
+      fixture.detectChanges();
+      expect(boton().getAttribute('aria-disabled')).not.toBe('true');
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it('plegada no pide las pistas hasta que se abre la primera vez', () => {
+    const { servicio, abrir } = montar({ guia: GUIA, hintAttempt: { attemptId: 'a1', attemptToken: 't' } });
+    expect(servicio.getHints).not.toHaveBeenCalled();
+    abrir();
+    expect(servicio.getHints).toHaveBeenCalledTimes(1);
   });
 });

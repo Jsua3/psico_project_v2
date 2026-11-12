@@ -4,6 +4,8 @@ import type { ElementoSala, GuiaEscena } from './caso/guia';
 import { DRAFT_COPY } from './draft-copy';
 import { type HintAttemptRef, SceneHintComponent } from './scene-hint.component';
 
+let nextGoalCardId = 0;
+
 /**
  * La ficha del objetivo de la escena (4.2): reemplaza la lista «Qué hacer». Plegada es un solo botón con el objetivo que
  * escribió la docente (o un texto de respaldo si la escena no trae); abierta suma «En esta sala» —quién está y qué ya
@@ -25,7 +27,7 @@ import { type HintAttemptRef, SceneHintComponent } from './scene-hint.component'
   },
   template: `
     <section class="goal-card" [attr.aria-label]="copy.goalCardTitle.text" [class.goal-card--compact]="compact()">
-      <button type="button" class="goal-card__toggle" [attr.aria-expanded]="open()" aria-controls="goal-card-body" (click)="toggle()">
+      <button type="button" class="goal-card__toggle" [attr.aria-expanded]="open()" [attr.aria-controls]="open() ? bodyId : null" (click)="toggle()">
         <span class="goal-card__kicker">{{ copy.goalCardTitle.text }}</span>
         <span class="goal-card__goal">{{ visibleGoal() }}</span>
         <svg class="goal-card__chevron" [class.goal-card__chevron--open]="open()" viewBox="0 0 16 16" width="12" height="12" aria-hidden="true" focusable="false">
@@ -33,8 +35,9 @@ import { type HintAttemptRef, SceneHintComponent } from './scene-hint.component'
         </svg>
       </button>
 
-      @if (open()) {
-        <div class="goal-card__body" id="goal-card-body">
+      <!-- El cuerpo se crea al abrir por primera vez y después solo se oculta: así «Pedir una pista» conserva su enfriamiento y sus pistas. -->
+      @if (everOpened()) {
+        <div class="goal-card__body" [id]="bodyId" [hidden]="!open()">
           @if (guia().enEstaSala.length) {
             <h3 class="goal-card__list-title">{{ copy.roomListTitle.text }}</h3>
             <ul class="goal-card__list">
@@ -88,6 +91,8 @@ import { type HintAttemptRef, SceneHintComponent } from './scene-hint.component'
     }
 
     .goal-card__body { display: grid; gap: 6px; min-width: 0; }
+    /* «display: grid» pisa el estilo de «hidden»: plegada, el cuerpo sigue vivo (conserva el enfriamiento de la pista) pero no se ve. */
+    .goal-card__body[hidden] { display: none; }
     .goal-card__list-title { margin: 4px 0 0; font-size: .75rem; font-weight: 800; color: #cdbcff; }
     .goal-card__list { display: grid; gap: 2px; margin: 0; padding: 0; list-style: none; }
     .goal-card__item { font-size: .8rem; line-height: 1.35; color: rgba(232,240,244,.92); overflow-wrap: anywhere; }
@@ -99,6 +104,8 @@ import { type HintAttemptRef, SceneHintComponent } from './scene-hint.component'
 })
 export class SceneGoalCardComponent {
   protected readonly copy = DRAFT_COPY;
+  /** Id propio de cada ficha: `aria-controls` apunta a un cuerpo que existe y que no choca con el de otra instancia. */
+  protected readonly bodyId = `goal-card-body-${nextGoalCardId++}`;
 
   readonly guia = input.required<GuiaEscena>();
   readonly hintAttempt = input<HintAttemptRef | null>(null);
@@ -110,12 +117,16 @@ export class SceneGoalCardComponent {
   readonly consentRequired = output<void>();
 
   protected readonly open = signal(false);
+  protected readonly everOpened = signal(false);
   protected readonly visibleGoal = computed(() => this.guia().objetivo || DRAFT_COPY.goalCardFallback.text);
 
   protected toggle(): void {
     const next = !this.open();
     this.open.set(next);
-    if (next) this.opened.emit();
+    if (next) {
+      this.everOpened.set(true);
+      this.opened.emit();
+    }
   }
 
   /** La marca va en texto: una persona se «habla», un objeto se «revisa». */

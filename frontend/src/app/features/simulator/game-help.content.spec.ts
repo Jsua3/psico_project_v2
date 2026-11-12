@@ -219,7 +219,7 @@ describe('game-help.content: límites de producto y de redacción', () => {
 
   it('lleva tildes: ninguna palabra de uso común aparece sin ellas', () => {
     const missingTilde =
-      /\b(accion|decision|informacion|psicologa|bitacora|comisaria|recepcion|proteccion|atencion|tecnica|clinica|clinicas|clinico|exploraras|tomaras|recibiras|acercate|muevete|manten|mas ayuda)\b/i;
+      /\b(accion|decision|informacion|psicologa|bitacora|comisaria|recepcion|proteccion|atencion|tecnica|clinica|clinicas|clinico|exploraras|tomaras|recibiras|acercate|muevete|manten|mas ayuda|retroalimentacion)\b/i;
     for (const text of texts) expect(text).not.toMatch(missingTilde);
     // Y las que sí deben llevarla están escritas con ella.
     const joined = texts.join(' ');
