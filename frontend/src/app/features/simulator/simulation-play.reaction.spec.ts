@@ -11,6 +11,8 @@ vi.mock('phaser', () => ({
   },
 }));
 
+import { readFileSync } from 'fs';
+import { join } from 'path';
 import { TestBed } from '@angular/core/testing';
 import { ActivatedRoute, Router, convertToParamMap } from '@angular/router';
 import { EMPTY, of, throwError } from 'rxjs';
@@ -29,6 +31,7 @@ import type { Mock } from 'vitest';
  * después; el mundo de destino carga detrás de ella. Se ejercita la instancia con un director y un mundo falsos.
  */
 
+const source = readFileSync(join(__dirname, 'simulation-play.component.ts'), 'utf-8');
 const CASE_VERSION_ID = 7;
 const CONSEQUENCE = { text: 'La estudiante asiente y pregunta por su familia.', source: 'OPTION' };
 const REACTION = { line: 'Gracias por quedarse.', emotion: 'triste', gesture: 'se-acerca', objectKey: 'familia-duelo' };
@@ -230,6 +233,24 @@ describe('SimulationPlayComponent: la reacción al elegir (4.3.3)', () => {
     expect(component.busy()).toBe(false);
     expect(component.reacting()).toBe(false);
     expect(component.dialogue()).toBeNull();
+    expect(component.viewMode()).toBe('outcome');
+    expect(service['safeExit']).not.toHaveBeenCalled();
+  });
+
+  it('en la reacción de la última decisión «Salida segura» sigue a la vista y Esc (el manejador de teclado) corta y abre el resultado', () => {
+    const { component, service } = montarConDialogoDeDecision();
+    service['chooseDecision'].mockReturnValue(of({ ...RESPUESTA_CON_REACCION, status: 'COMPLETED', completionReport: { ending: null } }));
+    component.executeDecision(41);
+    component.worldStarted.set(true);
+    // El pie con el botón y el error de carga cuentan la salida como presente.
+    expect(component.footerExit()).toBe(true);
+    expect(source).toMatch(/@if \(game\.status === 'IN_PROGRESS' \|\| reactingToLast\(\)\) \{\s*<!--[^>]*-->\s*<app-safe-exit-button/);
+    const esc = new KeyboardEvent('keydown', { key: 'Escape', cancelable: true });
+    component.handleGlobalInteraction(esc);
+    TestBed.tick();
+    expect(esc.defaultPrevented).toBe(true);
+    expect(director.cancel).toHaveBeenCalled();
+    expect(component.reacting()).toBe(false);
     expect(component.viewMode()).toBe('outcome');
     expect(service['safeExit']).not.toHaveBeenCalled();
   });

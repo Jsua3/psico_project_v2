@@ -434,7 +434,7 @@ const CASE_INTRO_PARAGRAPHS = [
         <!-- REGLA-004: mientras el fundido de escena (o la nota de transición) espera al servidor, el pie queda por encima y «Salida segura» se ve y se toca. -->
         <footer class="bottom-zone" [class.bottom-zone--above-veils]="footerAboveVeils()"
           [attr.inert]="inputBlocked() ? '' : null" [attr.aria-hidden]="inputBlocked() ? 'true' : null">
-          @if (game.status === 'IN_PROGRESS') {
+          @if (game.status === 'IN_PROGRESS' || reactingToLast()) {
             <!-- La misma implementación que las superposiciones (F6-6, REGLA-004). Sin [disabled]: con una petición
                  en curso el toque se acepta y la pausa queda en cola (H-04), y el rótulo pasa a «Pausando…»
                  (aria-busy). Sin aria-label: el nombre accesible sale del texto visible (WCAG 2.5.3, axe
@@ -1317,7 +1317,7 @@ export class SimulationPlayComponent implements OnInit, OnDestroy {
   /** Visible a los 150 ms (una respuesta rápida no parpadea) y al menos 300 ms (una lenta no destella). */
   readonly bootVisible = computed(() => this.bootPhase() === 'skeleton');
   /** «Salida segura» del pie está a la vista: el error no repite la salida con un segundo botón. */
-  readonly footerExit = computed(() => this.worldStarted() && this.attempt()?.status === 'IN_PROGRESS');
+  readonly footerExit = computed(() => this.worldStarted() && (this.attempt()?.status === 'IN_PROGRESS' || this.reactingToLast()));
   readonly showIntroScene = signal(false);
   readonly showCaseIntro = signal(false);
   /** Pantalla «Cómo se juega»: no modal; Esc la cierra antes que cualquier otra cosa (F§7.8). */
@@ -1890,7 +1890,7 @@ export class SimulationPlayComponent implements OnInit, OnDestroy {
       if (this.helpOpen())    { event.preventDefault(); this.helpOpen.set(false); return; }
       if (this.journalOpen()) { event.preventDefault(); this.journalOpen.set(false); return; }
       if (this.dialogue())    { event.preventDefault(); this.closeDialogue(); return; }
-      if (this.attempt()?.status === 'IN_PROGRESS') { event.preventDefault(); this.pauseFromOverlay(); }
+      if (this.attempt()?.status === 'IN_PROGRESS' || this.reactingToLast()) { event.preventDefault(); this.pauseFromOverlay(); }
       return;
     }
 
