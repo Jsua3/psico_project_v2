@@ -11,6 +11,7 @@ import { fraseDeRespuesta, pasoDeRespuesta } from '../../modelo/persona';
 import { EXPRESIONES } from '../../modelo/escenario';
 import { NOMBRE_CLASE, NOMBRE_EXPRESION, NOMBRE_INTENSIDAD } from '../../modelo/textos';
 import { RutasAutoria } from '../../rutas';
+import { ComentariosComponent } from './comentarios.component';
 import { ObjetivoPistasComponent } from './objetivo-pistas.component';
 import { ReaccionComponent } from './reaccion.component';
 import { SelectorCondicionComponent } from './selector-condicion.component';
@@ -38,7 +39,7 @@ const PASOS_ACTIVACION = [{ valor: -1, nombre: 'Se calma' }, { valor: 0, nombre:
  */
 @Component({
   selector: 'app-guion',
-  imports: [RouterLink, ObjetivoPistasComponent, SelectorCondicionComponent, ReaccionComponent],
+  imports: [RouterLink, ComentariosComponent, ObjetivoPistasComponent, SelectorCondicionComponent, ReaccionComponent],
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
     @if (escena(); as e) {
@@ -145,6 +146,8 @@ const PASOS_ACTIVACION = [{ valor: -1, nombre: 'Se calma' }, { valor: 0, nombre:
               </ol>
               <button type="button" class="boton" data-accion="agregar-linea" (click)="agregarLinea(e)">Agregar una línea</button>
             </section>
+
+            <app-comentarios [escena]="e" />
 
             <section aria-labelledby="rh" class="bloque" id="respuestas-escena" tabindex="-1" data-accion="respuesta-a-escena-nueva">
               <h2 id="rh">Lo que puede responder el estudiante</h2>
