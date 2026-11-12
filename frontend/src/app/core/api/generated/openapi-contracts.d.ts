@@ -874,6 +874,8 @@ export interface RehearsalComment {
   readonly line: string;
   readonly missing: ReadonlyArray<RehearsalMissing>;
   readonly personaje: string;
+  /** Por qué no se dice: `absent` (su personaje no es una PERSON visible de la sala), `broken` (su `cuando` está mal formado) o `condition` (su `cuando` sigue sin cumplirse; `missing` dice qué falta); nulo si se dice ahora. */
+  readonly retainedBy: string | null;
 }
 
 export interface RehearsalExplored {
@@ -917,7 +919,7 @@ export interface RehearsalStartRequest {
   readonly desde?: number | null;
 }
 
-/** El estado del juego del ensayo (con su `attemptToken`, que este contrato no declara) más el bloque del panel. */
+/** El estado del juego del ensayo (con su `attemptToken`, que este contrato no declara a propósito: una credencial no se publica en el esquema, ``test_openapi_schema_never_exposes_prohibited_fields``) más el bloque del panel. */
 export interface RehearsalStarted {
   /** UUID del intento. */
   readonly attemptId: string;

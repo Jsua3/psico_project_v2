@@ -283,9 +283,12 @@ def ocl_12_quien_reacciona_esta_presente(doc):
         here = _people_of(_map(scene))
         if not isinstance(character, str) or not character or not any(p.get("personaje") == character for p in here):
             # BORRADOR: texto nuevo del servidor, pendiente de la aprobación de Psicología
-            message = (
-                f"En el comentario {k + 1} de la escena {_label(scene)}, quien comenta ({character!r}) "
-                "no es un personaje de la sala de esa escena."
-            )
+            if isinstance(character, str) and character:
+                message = (
+                    f"En el comentario {k + 1} de la escena {_label(scene)}, quien comenta ({character!r}) "
+                    "no es un personaje de la sala de esa escena."
+                )
+            else:
+                message = f"En el comentario {k + 1} de la escena {_label(scene)} falta el personaje que lo dice."
             findings.append(_h(f"Escena {_label(scene)}", _comment_route(i, k, "personaje"), message))
     return Outcome(len(reacting) + len(commenting), findings)

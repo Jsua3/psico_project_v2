@@ -212,6 +212,14 @@ def test_ocl11_emocion_de_comentario_fuera_del_vocabulario(field, value):
     assert _states(document)["OCL-11"] == "INCUMPLE"
 
 
+def test_ocl12_comentario_sin_personaje_dice_que_falta_y_no_imprime_none():
+    document = _doc_with_comments()
+    _commented(document)["comentarios"][0].pop("personaje", None)
+    found = _hallazgos(document, "OCL-12")
+    assert len(found) == 1
+    assert "falta el personaje" in found[0][1].message and "None" not in found[0][1].message
+
+
 def test_ocl12_quien_comenta_no_esta_en_la_sala_de_la_escena():
     document = _doc_with_comments()
     _commented(document)["comentarios"][0]["personaje"] = "nadie"

@@ -469,8 +469,7 @@ class RehearsalOptionSerializer(serializers.Serializer):
     text = serializers.CharField()
     offered = serializers.BooleanField()
     missing = RehearsalMissingSerializer(many=True)
-    retainedBy = serializers.ChoiceField(
-        choices=["facts", "condition", "broken"],
+    retainedBy = serializers.CharField(
         allow_null=True,
         help_text=(
             "Por qué no se ofrece: `facts` (hechos sin explorar), `condition` (otra condición sin cumplir) o `broken` "
@@ -484,8 +483,7 @@ class RehearsalCommentSerializer(serializers.Serializer):
     personaje = serializers.CharField()
     line = serializers.CharField()
     due = serializers.BooleanField(help_text="Si el comentario se diría ahora.")
-    retainedBy = serializers.ChoiceField(
-        choices=["absent", "broken", "condition"],
+    retainedBy = serializers.CharField(
         allow_null=True,
         help_text=(
             "Por qué no se dice: `absent` (su personaje no es una PERSON visible de la sala), `broken` (su `cuando` está mal "
@@ -535,7 +533,7 @@ class RehearsalAdjustedSerializer(serializers.Serializer):
 
 
 class RehearsalStartedSerializer(AttemptStateSerializer):
-    """El estado del juego del ensayo (con su `attemptToken`) más el bloque del panel."""
+    """El estado del juego del ensayo (con su `attemptToken`, que este contrato no declara a propósito: una credencial no
+    se publica en el esquema, ``test_openapi_schema_never_exposes_prohibited_fields``) más el bloque del panel."""
 
-    attemptToken = serializers.CharField(help_text="El token del ensayo, en claro: solo se entrega aquí.")
     rehearsal = RehearsalBlockSerializer()

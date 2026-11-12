@@ -356,7 +356,9 @@
       "method": "POST",
       "exposure": "role:ADMIN,PROFESOR",
       "body": "json-small",
-      "throttle": null,
+      "throttle": [
+        "heavy_user"
+      ],
       "audit": "EXENTO: ensayo del borrador de su autora (docente dueña o ADMIN): un intento aparte que ningún informe, lista ni métrica cuenta y que nadie más lee; no son datos de estudiantes"
     },
     {
@@ -364,7 +366,9 @@
       "method": "GET",
       "exposure": "role:ADMIN,PROFESOR",
       "body": "none",
-      "throttle": null,
+      "throttle": [
+        "heavy_user"
+      ],
       "audit": "EXENTO: ensayo del borrador de su autora (docente dueña o ADMIN): un intento aparte que ningún informe, lista ni métrica cuenta y que nadie más lee; no son datos de estudiantes"
     },
     {
@@ -372,7 +376,9 @@
       "method": "PATCH",
       "exposure": "role:ADMIN,PROFESOR",
       "body": "json-small",
-      "throttle": null,
+      "throttle": [
+        "heavy_user"
+      ],
       "audit": "EXENTO: ensayo del borrador de su autora (docente dueña o ADMIN): un intento aparte que ningún informe, lista ni métrica cuenta y que nadie más lee; no son datos de estudiantes"
     },
     {
@@ -944,7 +950,9 @@
       "method": "POST",
       "exposure": "role:ADMIN,PROFESOR",
       "body": "json-small",
-      "throttle": null,
+      "throttle": [
+        "heavy_user"
+      ],
       "audit": "EXENTO: ensayo del borrador de su autora (docente dueña o ADMIN): un intento aparte que ningún informe, lista ni métrica cuenta y que nadie más lee; no son datos de estudiantes"
     },
     {
@@ -952,7 +960,9 @@
       "method": "GET",
       "exposure": "role:ADMIN,PROFESOR",
       "body": "none",
-      "throttle": null,
+      "throttle": [
+        "heavy_user"
+      ],
       "audit": "EXENTO: ensayo del borrador de su autora (docente dueña o ADMIN): un intento aparte que ningún informe, lista ni métrica cuenta y que nadie más lee; no son datos de estudiantes"
     },
     {
@@ -960,7 +970,9 @@
       "method": "PATCH",
       "exposure": "role:ADMIN,PROFESOR",
       "body": "json-small",
-      "throttle": null,
+      "throttle": [
+        "heavy_user"
+      ],
       "audit": "EXENTO: ensayo del borrador de su autora (docente dueña o ADMIN): un intento aparte que ningún informe, lista ni métrica cuenta y que nadie más lee; no son datos de estudiantes"
     },
     {
