@@ -4,6 +4,7 @@
  */
 import type { DecisionReaction, Persona } from '../../../core/models/simulation.model';
 import { definitivePortrait } from '../persona-portrait.util';
+import { msDeGesto } from './gestos';
 import { type Emocion, type Gesto, esEmocion, esGesto } from './vocabulario';
 
 export type PasoReaccion =
@@ -28,7 +29,7 @@ const MS_ENCUADRE = 450;
 const MS_ETIQUETA = 500;
 const MS_FRASE_MIN = 1200;
 const MS_FRASE_MAX = 2000;
-const MS_GESTO = 900;
+
 
 /** La emoción escrita si es del vocabulario; si no, la cara que dice el estado de la persona. */
 export function caraDeReaccion(emotion: string | null, persona: Pick<Persona, 'bond' | 'activation'>): Emocion {
@@ -51,7 +52,7 @@ export function pasosDeReaccion(e: EntradaReaccion): PasoReaccion[] {
     if (objectKey && !e.reduceMotion) {
       pasos.push({ tipo: 'encuadrar', objectKey, ms: MS_ENCUADRE });
       if (esGesto(reaction.gesture)) {
-        pasos.push({ tipo: 'gesto', objectKey, gesto: reaction.gesture, ms: MS_GESTO });
+        pasos.push({ tipo: 'gesto', objectKey, gesto: reaction.gesture, ms: msDeGesto(reaction.gesture) });
       }
     }
     pasos.push({ tipo: 'cara', emocion: caraDeReaccion(reaction.emotion, e.personaDespues), ms: 0 });
