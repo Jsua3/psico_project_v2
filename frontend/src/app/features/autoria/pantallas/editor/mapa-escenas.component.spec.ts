@@ -129,6 +129,33 @@ describe('MapaEscenasComponent', () => {
     });
   }
 
+  // Linux y macOS mandan `contextmenu` al PULSAR el botón derecho (aún abajo) y el `auxclick` de soltarlo llega con el menú
+  // ya abierto: el CDK lo tomaba por un clic fuera y lo cerraba al instante (en Windows `contextmenu` llega al soltar).
+  it('clic derecho con el orden de Linux y macOS: el menú sigue abierto después de soltar el botón', async () => {
+    const { fixture, raiz } = await montar();
+    const escena = nodo(raiz, 0);
+    const base = { bubbles: true, cancelable: true, clientX: 10, clientY: 10, button: 2 };
+    escena.dispatchEvent(new MouseEvent('pointerdown', { ...base, buttons: 2 }));
+    escena.dispatchEvent(new MouseEvent('contextmenu', { ...base, buttons: 2 }));
+    escena.dispatchEvent(new MouseEvent('pointerup', { ...base, buttons: 0 }));
+    escena.dispatchEvent(new MouseEvent('mouseup', { ...base, buttons: 0 }));
+    escena.dispatchEvent(new MouseEvent('auxclick', { ...base, buttons: 0 }));
+    await new Promise((resolve) => setTimeout(resolve));
+    await fixture.whenStable();
+    expect(menuitems()).toContain('Marcar como final');
+    expect(document.activeElement?.getAttribute('role')).toBe('menuitem');
+  });
+
+  it('un clic derecho que el navegador cancela (pointercancel) no deja el menú esperando: se abre igual', async () => {
+    const { fixture, raiz } = await montar();
+    const escena = nodo(raiz, 0);
+    escena.dispatchEvent(new MouseEvent('contextmenu', { bubbles: true, cancelable: true, button: 2, buttons: 2 }));
+    escena.dispatchEvent(new MouseEvent('pointercancel', { bubbles: true }));
+    await new Promise((resolve) => setTimeout(resolve));
+    await fixture.whenStable();
+    expect(menuitems()).toContain('Marcar como final');
+  });
+
   it('el menú tiene Abrir guion, Abrir sala, Mover, Duplicar, Conectar con…, Marcar como final y Borrar', async () => {
     const { fixture, raiz } = await montar();
     nodo(raiz, 0).dispatchEvent(new KeyboardEvent('keydown', { key: 'F10', shiftKey: true, bubbles: true }));

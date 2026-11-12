@@ -396,7 +396,28 @@ export class MapaEscenasComponent {
 
   protected menuContextual(evento: MouseEvent, id: string): void {
     evento.preventDefault();
-    this.abrirMenu(id);
+    // Linux y macOS mandan `contextmenu` al PULSAR (con el botón aún abajo; en Windows llega al soltar). Abierto ahí, el
+    // `auxclick` (o el `click` de Ctrl+clic) de soltarlo cae sobre la escena, fuera del menú, y el CDK lo cierra en el acto.
+    // El `CdkContextMenuTrigger` del CDK se salta ese primer clic; este menú es un `CdkMenuTrigger` común, así que se abre
+    // al soltar, cuando ese clic ya pasó.
+    if (evento.buttons !== 0) this.abrirAlSoltar(id);
+    else this.abrirMenu(id);
+  }
+
+  private abrirAlSoltar(id: string): void {
+    const vista = this.raiz.ownerDocument.defaultView;
+    if (!vista) {
+      this.abrirMenu(id);
+      return;
+    }
+    const soltar = () => {
+      vista.removeEventListener('pointerup', soltar, true);
+      vista.removeEventListener('pointercancel', soltar, true);
+      // El `auxclick`/`click` llega en la misma tarea que el `pointerup`: se abre en la siguiente.
+      setTimeout(() => this.abrirMenu(id));
+    };
+    vista.addEventListener('pointerup', soltar, true);
+    vista.addEventListener('pointercancel', soltar, true);
   }
 
   private abrirMenu(id: string): void {
