@@ -189,4 +189,28 @@ describe('GuionComponent', () => {
     expect(store.caso()!.escenas.find((e) => e.id === id)!.respuestas[0]).toMatchObject({ clase: 'CONTRAINDICATED', razon: 'Apura a la persona.' });
     expect(raiz.textContent).not.toContain('Explica por qué esta respuesta');
   });
+
+  it('cada respuesta trae «Aparece si…» y «Cómo reacciona», y avisa si todas las respuestas tienen requisito', async () => {
+    const { store, id, raiz, listo } = await montar();
+    boton(raiz, 'Agregar una respuesta').click();
+    boton(raiz, 'Agregar una respuesta').click();
+    await listo();
+    const [a, b] = store.caso()!.escenas.find((e) => e.id === id)!.respuestas;
+    for (const r of [a, b]) {
+      expect(raiz.querySelector(`fieldset#aparece-si-${r.id} legend`)!.textContent).toBe('Aparece si…');
+      expect(raiz.querySelector(`fieldset#reaccion-${r.id} legend`)!.textContent).toBe('Cómo reacciona');
+    }
+    expect(raiz.querySelector('#aviso-todas-con-requisito')).toBeNull();
+
+    store.editarRequisito(id, a.id, { milestone: 'x' });
+    await listo();
+    expect(raiz.querySelector('#aviso-todas-con-requisito')).toBeNull(); // la otra aparece siempre
+    store.editarRequisito(id, b.id, { milestone: 'y' });
+    await listo();
+    expect(raiz.querySelector('#aviso-todas-con-requisito')!.textContent)
+      .toContain('Todas las respuestas tienen un requisito: deja al menos una que aparezca siempre.');
+    store.editarRequisito(id, b.id, {});
+    await listo();
+    expect(raiz.querySelector('#aviso-todas-con-requisito')).toBeNull();
+  });
 });

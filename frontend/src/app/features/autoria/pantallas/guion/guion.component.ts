@@ -12,6 +12,8 @@ import { EXPRESIONES } from '../../modelo/escenario';
 import { NOMBRE_CLASE, NOMBRE_EXPRESION, NOMBRE_INTENSIDAD } from '../../modelo/textos';
 import { RutasAutoria } from '../../rutas';
 import { ObjetivoPistasComponent } from './objetivo-pistas.component';
+import { ReaccionComponent } from './reaccion.component';
+import { SelectorCondicionComponent } from './selector-condicion.component';
 
 const CLASIFICACIONES: { valor: ClaseRespuesta; nombre: string; simbolo: string }[] = [
   { valor: 'RECOMMENDED', nombre: NOMBRE_CLASE.RECOMMENDED, simbolo: '✓' },
@@ -36,7 +38,7 @@ const PASOS_ACTIVACION = [{ valor: -1, nombre: 'Se calma' }, { valor: 0, nombre:
  */
 @Component({
   selector: 'app-guion',
-  imports: [RouterLink, ObjetivoPistasComponent],
+  imports: [RouterLink, ObjetivoPistasComponent, SelectorCondicionComponent, ReaccionComponent],
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
     @if (escena(); as e) {
@@ -225,6 +227,9 @@ const PASOS_ACTIVACION = [{ valor: -1, nombre: 'Se calma' }, { valor: 0, nombre:
                         <p class="texto-secundario nota">Este caso todavía no tiene hitos.</p>
                       }
                     </fieldset>
+                    <app-selector-condicion [condicion]="r.requiere" [salaId]="e.salaId" leyenda="Aparece si…" vacio="Siempre aparece."
+                                            [idBase]="'aparece-si-' + r.id" (cambio)="store.editarRequisito(e.id, r.id, $event)" />
+                    <app-reaccion [respuesta]="r" [escena]="e" [idBase]="'reaccion-' + r.id" (cambio)="store.editarReaccion(e.id, r.id, $event)" />
                     <fieldset class="competencias" [id]="'competencias-' + r.id" tabindex="-1">
                       <legend>Competencias que evidencia (una o dos)</legend>
                       @for (c of competencias(); track c.codigo) {
@@ -263,6 +268,10 @@ const PASOS_ACTIVACION = [{ valor: -1, nombre: 'Se calma' }, { valor: 0, nombre:
                   </li>
                 }
               </ol>
+              @if (todasConRequisito(e)) {
+                <!-- BORRADOR: texto nuevo, pendiente de la aprobación de Psicología -->
+                <p class="texto-secundario nota" id="aviso-todas-con-requisito"><span aria-hidden="true">▲</span> Todas las respuestas tienen un requisito: deja al menos una que aparezca siempre.</p>
+              }
               <button type="button" class="boton" data-accion="agregar-respuesta" (click)="agregarRespuesta(e)">Agregar una respuesta</button>
             </section>
           </div>
@@ -377,6 +386,11 @@ export class GuionComponent {
     const e = this.escena();
     return e?.lineas.find((l) => l.id === this.lineaVista()) ?? e?.lineas[0] ?? null;
   });
+
+  /** ¿Cada respuesta de la escena lleva un requisito? Entonces puede que ninguna aparezca. */
+  protected todasConRequisito(e: Escena): boolean {
+    return e.respuestas.length > 0 && e.respuestas.every((r) => Object.keys(r.requiere ?? {}).length > 0);
+  }
 
   protected numero(e: Escena): number {
     return this.escenas().indexOf(e) + 1;
