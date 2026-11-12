@@ -58,6 +58,8 @@ import { NO_WALK, WALK_GROUND_RADIUS_PX, WalkState, cancelWalkOnKeys, reachRadiu
 import { InputKind, nextInputKind, touchControlsVisible } from './world-input-kind.util';
 import { PlaceCandidate } from './world-places.util';
 import { DRAFT_COPY } from './draft-copy';
+import { pasosDeGesto } from './caso/gestos';
+import type { Gesto } from './caso/vocabulario';
 import {
   KEY_PERSON_CHEVRON, KEY_PERSON_COLOR, KEY_PERSON_COLOR_HEX, KEY_PERSON_HALO_HEX, KEY_PERSON_NAME_GAP_PX,
   isKeyPerson, keyPersonTipOffsetY, resolveKeyPerson,
@@ -245,6 +247,10 @@ export class DataDrivenWorldScene extends Phaser.Scene {
   private personWalkRoom = '';
   private savedPersonWalks: ReadonlyMap<string, PersonWalkState> | null = null;
   /** Chevrón y nombre sobre la persona clave de la sala (a lo sumo uno). */
+  /** Último estado en palabras de la persona clave: el indicador se recrea en cada render y lo vuelve a escribir. */
+  private personaState: string | null = null;
+  /** Personas en pleno gesto: su caminata se suspende hasta que vuelven a su sitio. */
+  private readonly gesturing = new Set<string>();
   private keyPersonIndicator?: { key: string; container: Phaser.GameObjects.Container; tipOffsetY: number };
   /** Lo último que se avisó de dónde está la persona clave (se compara para avisar solo cuando cambia de píxel). */
   private lastKeyPersonPosition: { x: number; y: number } | null = null;
@@ -959,6 +965,74 @@ export class DataDrivenWorldScene extends Phaser.Scene {
     const bag = m as unknown as Record<string, unknown>;
     const target = bag['__kitSprite'] === true || bag['__pixelSprite'] === true ? bag['__pulse'] : m;
     this.tweens.add({ targets: target, scale: 1.16, duration: 140, yoyo: true, repeat: 2, ease: 'Sine.easeInOut' });
+  }
+
+  /** El marcador (persona o NPC) de una clave del mundo. */
+  private actorOf(key: string): Phaser.GameObjects.Container | undefined {
+    return key.startsWith(NPC_KEY_PREFIX) ? this.npcMarkers.get(key.slice(NPC_KEY_PREFIX.length)) : this.markers.get(key);
+  }
+
+  /** Encuadra al jugador y a `key` (cámara al punto medio, mismo zoom entero). Sin movimiento reducido ni clave en la sala, nada. */
+  frameActors(key: string): void {
+    const feet = this.feetOf(key);
+    if (!feet || !this.player || this.callbacks.reduceMotion) return;
+    const cam = this.cameras.main;
+    cam.stopFollow();
+    cam.pan((this.player.x + feet.x) / 2, (this.player.y + feet.y) / 2, 450, 'Sine.easeInOut');
+  }
+
+  /** Vuelve a seguir al jugador (como `applyPixelCamera`). */
+  releaseFrame(): void {
+    const cam = this.cameras.main;
+    cam.panEffect?.reset();
+    if (this.player) cam.startFollow(this.player, true, 0.12, 0.12);
+  }
+
+  /** Reproduce los pasos del gesto sobre el marcador de `key` y lo deja en su sitio exacto; resuelve al terminar (o ya, sin pasos).
+   *  `voltear` no se aplica: game-world.kit.contract.spec.ts prohíbe espejar personas y ningún gesto lo pide. */
+  playGesture(key: string, gesto: Gesto): Promise<void> {
+    const actor = this.actorOf(key);
+    const toward = (a: number, b: number) => Math.sign(a - b) as -1 | 0 | 1;
+    const steps = actor ? pasosDeGesto(gesto, {
+      haciaJugador: { x: toward(this.player?.x ?? actor.x, actor.x), y: toward(this.player?.y ?? actor.y, actor.y) },
+    }, this.callbacks.reduceMotion) : [];
+    if (!actor || steps.length === 0 || this.gesturing.has(key)) return Promise.resolve();
+    const origin = { x: actor.x, y: actor.y, angle: actor.angle };
+    this.gesturing.add(key);
+    return new Promise<void>(resolve => {
+      let done = false;
+      const finish = () => {
+        if (done) return;
+        done = true;
+        this.gesturing.delete(key);
+        if (actor.scene) {   // un repintado de la sala (o su cierre) ya pudo destruirla
+          actor.setPosition(origin.x, origin.y).setAngle(origin.angle);
+        }
+        resolve();
+      };
+      let x = origin.x, y = origin.y;
+      const run = (i: number) => {
+        if (i >= steps.length) { finish(); return; }
+        const step = steps[i];
+        x += step.dx; y += step.dy;
+        this.tweens.add({
+          targets: actor, x, y, angle: step.angulo, duration: step.ms, ease: 'Sine.easeInOut',
+          onComplete: () => run(i + 1), onStop: finish,
+        });
+      };
+      run(0);
+    });
+  }
+
+  /** Una línea en palabras bajo el nombre de la persona clave (`null` la quita); la escena la recuerda entre renders. */
+  setPersonaState(text: string | null): void {
+    this.personaState = text;
+    const indicator = this.keyPersonIndicator;
+    const marker = indicator && this.markers.get(indicator.key);
+    const object = indicator && this.markerData.get(indicator.key);
+    if (!indicator || !marker || !object) return;
+    indicator.container.destroy();
+    this.buildKeyPersonIndicator(marker, object);
   }
 
   /** Fase 4: draws the authored per-room background image (world.map.ambient.backgroundImage)
@@ -2388,7 +2462,7 @@ export class DataDrivenWorldScene extends Phaser.Scene {
     const zone = walkableZone(this.world?.map.ambient);
     for (const walker of this.personWalkers.values()) {
       const marker = this.markers.get(walker.key);
-      if (!marker) continue;
+      if (!marker || this.gesturing.has(walker.key)) continue;
       const feet = walker.feetOffsetY;
       const bounds = personWalkBounds(
         this.world?.map.width || AUTHORED_ROOM_WIDTH, this.world?.map.height || AUTHORED_ROOM_HEIGHT, undefined, zone, feet,
@@ -2448,12 +2522,21 @@ export class DataDrivenWorldScene extends Phaser.Scene {
     chevron.lineStyle(2, KEY_PERSON_HALO_HEX, 0.9);
     chevron.strokeTriangle(-halfWidth, -height, halfWidth, -height, 0, 0);
     const label = getSceneDisplayLabel(object, this.world?.map.key);
-    const name = this.add.text(0, -(height + KEY_PERSON_NAME_GAP_PX), label, {
+    const state = this.personaState;
+    const stateHeight = state ? LABEL_BASE_FONT_PX + 8 : 0;
+    const name = this.add.text(0, -(height + KEY_PERSON_NAME_GAP_PX + stateHeight), label, {
       fontFamily: WORLD_FONT_FAMILY, fontSize: `${LABEL_BASE_FONT_PX}px`, color: KEY_PERSON_COLOR, fontStyle: 'bold',
       backgroundColor: 'rgba(8,12,18,.85)', padding: { x: 5, y: 3 }, align: 'center',
     }).setOrigin(0.5, 1);
     const tipOffsetY = keyPersonTipOffsetY(markerFeetOffsetY(object));
-    const container = this.add.container(marker.x, marker.y + tipOffsetY, [chevron, name])
+    const children: Phaser.GameObjects.GameObject[] = [chevron, name];
+    if (state) {
+      children.push(this.add.text(0, -(height + KEY_PERSON_NAME_GAP_PX), state, {
+        fontFamily: WORLD_FONT_FAMILY, fontSize: `${LABEL_BASE_FONT_PX}px`, color: '#e8f0f4',
+        backgroundColor: 'rgba(8,12,18,.85)', padding: { x: 5, y: 3 }, align: 'center',
+      }).setOrigin(0.5, 1));
+    }
+    const container = this.add.container(marker.x, marker.y + tipOffsetY, children)
       .setDepth(LABEL_DEPTH)
       .setScale(this.labelScale);
     this.keyPersonIndicator = { key: object.key, container, tipOffsetY };
@@ -3312,6 +3395,15 @@ export class GameWorldComponent implements OnChanges, OnDestroy {
 
   dismissLoadWarning(): void { this.criticalLoadFailed.set(false); }
   focus(key: string) { this.scene?.focus(key); }
+  frameActors(key: string) { this.scene?.frameActors(key); }
+  releaseFrame() { this.scene?.releaseFrame(); }
+  setPersonaState(text: string | null) { this.scene?.setPersonaState(text); }
+  /** Marca el gesto en curso como `data-reaction` del host (contrato del e2e) mientras dura. Directo al DOM. */
+  playGesture(key: string, gesto: Gesto): Promise<void> {
+    const host = this.gameHost?.nativeElement;
+    host?.setAttribute('data-reaction', gesto);
+    return (this.scene?.playGesture(key, gesto) ?? Promise.resolve()).finally(() => host?.removeAttribute('data-reaction'));
+  }
   setScenarioConfig(config: ScenarioConfig | null) { this.scene?.setScenarioConfig(config); }
   transitionToRoom(targetRoomKey: string, entryX: number, entryY: number) {
     this.scene?.transitionToRoom(targetRoomKey, entryX, entryY);
