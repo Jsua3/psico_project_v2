@@ -436,30 +436,37 @@ def _milestone_issues(document, siep, names):
     return collector.issues
 
 
+def _condition_issues(collector, route, condition, too_long, invalid):
+    """Una condición con hechos (``requiere`` o ``cuando``): válida y de hasta ``REQUIRES_MAX_CHARS`` caracteres.
+
+    ``too_long`` e ``invalid`` son el comienzo del mensaje de cada caso; el resto de ``invalid`` es el mismo vocabulario.
+    """
+    if conditions.is_valid(condition, facts=True):
+        # Mismo tope y mismo modo de serializar que ``case_rules.validate_requires`` (Ruling 13).
+        if len(json.dumps(condition, ensure_ascii=False)) > vocabulary.REQUIRES_MAX_CHARS:
+            # BORRADOR: texto nuevo del servidor, pendiente de la aprobación de Psicología
+            collector.add(CONDITION, route, f"{too_long}: el máximo es {vocabulary.REQUIRES_MAX_CHARS} caracteres.")
+        return
+    # BORRADOR: texto nuevo del servidor, pendiente de la aprobación de Psicología
+    collector.add(
+        CONDITION, route,
+        f"{invalid}: solo admite all, any, not, milestone, count (por clase), "
+        f"persona, talked, inspected, has y used, hasta {conditions.MAX_DEPTH} niveles.",
+    )
+
+
 def _requires_issues(document, siep, names):
     """El documento 2.x: el requisito de cada opción, si lo hay, es una condición con hechos válida."""
     collector = _Collector(document, names)
     for position, entry in _items(siep.get("escenas")):
         for o_position, option in _items(entry.get("opciones")):
             required = option.get("requiere")
-            if not required:
-                continue
-            route = (SIEP_KEY, "escenas", position, "opciones", o_position, "requiere")
-            if conditions.is_valid(required, facts=True):
-                # Mismo tope y mismo modo de serializar que ``case_rules.validate_requires`` (Ruling 13).
-                if len(json.dumps(required, ensure_ascii=False)) > vocabulary.REQUIRES_MAX_CHARS:
-                    # BORRADOR: texto nuevo del servidor, pendiente de la aprobación de Psicología
-                    collector.add(
-                        CONDITION, route,
-                        f"el requisito de la opción es demasiado largo: el máximo es {vocabulary.REQUIRES_MAX_CHARS} caracteres.",
-                    )
-                continue
-            # BORRADOR: texto nuevo del servidor, pendiente de la aprobación de Psicología
-            collector.add(
-                CONDITION, route,
-                "el requisito de la opción no es válido: solo admite all, any, not, milestone, count (por clase), "
-                f"persona, talked, inspected, has y used, hasta {conditions.MAX_DEPTH} niveles.",
-            )
+            if required:
+                route = (SIEP_KEY, "escenas", position, "opciones", o_position, "requiere")
+                _condition_issues(
+                    collector, route, required,
+                    "el requisito de la opción es demasiado largo", "el requisito de la opción no es válido",
+                )
     return collector.issues
 
 
@@ -469,23 +476,12 @@ def _comment_conditions_issues(document, siep, names):
     for position, entry in _items(siep.get("escenas")):
         for c_position, comment in _items(entry.get("comentarios")):
             when = comment.get("cuando")
-            if not when:
-                continue
-            route = (SIEP_KEY, "escenas", position, "comentarios", c_position, "cuando")
-            if conditions.is_valid(when, facts=True):
-                if len(json.dumps(when, ensure_ascii=False)) > vocabulary.REQUIRES_MAX_CHARS:
-                    # BORRADOR: texto nuevo del servidor, pendiente de la aprobación de Psicología
-                    collector.add(
-                        CONDITION, route,
-                        f"la condición del comentario es demasiado larga: el máximo es {vocabulary.REQUIRES_MAX_CHARS} caracteres.",
-                    )
-                continue
-            # BORRADOR: texto nuevo del servidor, pendiente de la aprobación de Psicología
-            collector.add(
-                CONDITION, route,
-                "la condición del comentario no es válida: solo admite all, any, not, milestone, count (por clase), "
-                f"persona, talked, inspected, has y used, hasta {conditions.MAX_DEPTH} niveles.",
-            )
+            if when:
+                route = (SIEP_KEY, "escenas", position, "comentarios", c_position, "cuando")
+                _condition_issues(
+                    collector, route, when,
+                    "la condición del comentario es demasiado larga", "la condición del comentario no es válida",
+                )
     return collector.issues
 
 
