@@ -1,5 +1,5 @@
 import { expect } from '@playwright/test';
-import type { Locator, Page, Response } from '@playwright/test';
+import type { Locator, Page, Request, Response } from '@playwright/test';
 import { captureApiBodies, readJson, readText } from './api-bodies';
 import { resetStudentConsent } from './consent';
 import type { SiepInputMode } from './required-viewports';
@@ -483,6 +483,12 @@ export async function moveAndPersistPosition(
  * Pausa con una posición recién movida y aún pendiente de guardar: la pausa
  * debe hacer flush de esa posición antes del safe-exit. Un solo empujón y
  * clic inmediato, para que el debounce no guarde antes por su cuenta.
+ *
+ * En el runner lento (E2E_TIME_SCALE=4) el empujón y el clic pueden tardar más
+ * que el debounce (550 ms) y el juego guarda una vez por su cuenta antes del
+ * flush: `['position', 'position', 'pause']`. Lo que se exige es lo que importa
+ * (REGLA-004): al menos un guardado, todos ANTES de la pausa, y el ÚLTIMO lleva
+ * la posición que la pausa deja guardada.
  */
 export async function pauseWithPendingPosition(
   page: Page,
@@ -490,17 +496,16 @@ export async function pauseWithPendingPosition(
   key: MovementKey,
 ): Promise<{ positionWorld: ApiData; pausedAttempt: ApiData }> {
   const requestOrder: string[] = [];
-  const captureOrder = (request: { method(): string; url(): string }) => {
+  const positionRequests: Request[] = [];
+  const captureOrder = (request: Request) => {
     const path = new URL(request.url()).pathname;
-    if (request.method() === 'PATCH' && /\/world-state$/.test(path)) requestOrder.push('position');
+    if (request.method() === 'PATCH' && /\/world-state$/.test(path)) {
+      requestOrder.push('position');
+      positionRequests.push(request);
+    }
     if (request.method() === 'POST' && /\/safe-exit$/.test(path)) requestOrder.push('pause');
   };
   page.on('request', captureOrder);
-  const positionPromise = page.waitForResponse(response =>
-    response.request().method() === 'PATCH'
-      && /\/api\/simulation\/attempts\/[^/]+\/world-state$/.test(new URL(response.url()).pathname),
-    { timeout: scaled(30_000) },
-  );
   const pausePromise = page.waitForResponse(response =>
     response.request().method() === 'POST'
       && /\/api\/simulation\/attempts\/[^/]+\/safe-exit$/.test(new URL(response.url()).pathname),
@@ -509,11 +514,14 @@ export async function pauseWithPendingPosition(
   try {
     await input.nudge(key);
     await page.getByRole('button', { name: /salida segura/i }).click();
-    const positionResponse = await positionPromise;
     const pauseResponse = await pausePromise;
+    const saves = requestOrder.indexOf('pause');
+    expect(saves, `la pausa sale después de guardar la posición: ${requestOrder.join(', ')}`).toBeGreaterThanOrEqual(1);
+    expect(requestOrder, 'ningún guardado de posición después de la pausa').toEqual([...Array(saves).fill('position'), 'pause']);
+    const positionResponse = await positionRequests[saves - 1].response();
+    if (!positionResponse) throw new Error('El guardado previo a la pausa no tuvo respuesta');
     await requireOk(positionResponse, 'Falló el flush previo a pausa');
     await requireOk(pauseResponse, 'Falló la pausa segura');
-    expect(requestOrder).toEqual(['position', 'pause']);
     return {
       positionWorld: (await readJson(positionResponse)).data as ApiData,
       pausedAttempt: (await readJson(pauseResponse)).data as ApiData,
