@@ -71,12 +71,44 @@ describe('ComentariosComponent', () => {
     ]);
   });
 
-  it('agregar crea el comentario con la clave del personaje (ref) y lo guarda', async () => {
-    const { raiz, pulsar, fijar, comentarios } = await montar();
+  it('agregar no toca el caso: el comentario nuevo espera en pantalla, con el foco en su frase, y nunca se guarda con la frase vacía', async () => {
+    const { raiz, pulsar, fijar, comentarios, campo, escribir, listo } = await montar();
     await pulsar(botonAgregar(raiz)[0]);
+    await listo();
+    expect(fijar).not.toHaveBeenCalled();
+    expect(comentarios()).toEqual([]);
+    expect(document.activeElement).toBe(campo(0, 'linea'));
+    await escribir(campo<HTMLInputElement>(0, 'linea'), '   '); // vacío: sigue esperando
+    expect(fijar).not.toHaveBeenCalled();
+    expect(comentarios()).toEqual([]);
+  });
+
+  it('con una frase válida el comentario entra al caso con la clave del personaje (ref), en la posición del documento, y el foco queda en su frase', async () => {
+    const { raiz, pulsar, fijar, comentarios, campo, escribir, listo } = await montar({ comentarios: [{ personaje: 'psicologa-bienestar', linea: 'Uno' }] });
+    await pulsar(botonAgregar(raiz)[0]);
+    await listo();
+    expect(raiz.querySelector('#comentario-1')).not.toBeNull(); // la posición que tendrá: la del servidor
+    await escribir(campo<HTMLInputElement>(1, 'linea'), '  Hola de nuevo ');
     expect(fijar).toHaveBeenCalledTimes(1);
-    expect(comentarios()).toEqual([{ personaje: 'psicologa-bienestar', linea: '' }]);
-    expect(raiz.querySelector('#comentario-0')).not.toBeNull();
+    expect(comentarios()).toEqual([{ personaje: 'psicologa-bienestar', linea: 'Uno' }, { personaje: 'psicologa-bienestar', linea: 'Hola de nuevo' }]);
+    await listo();
+    expect(document.activeElement).toBe(campo(1, 'linea'));
+    expect(campo<HTMLInputElement>(1, 'linea').value).toBe('Hola de nuevo');
+  });
+
+  it('una frase inválida en el comentario nuevo se queda con su alerta y no entra al caso; «Quitar» lo descarta y el foco vuelve a «Agregar»', async () => {
+    const { raiz, pulsar, fijar, comentarios, campo, escribir, listo } = await montar();
+    await pulsar(botonAgregar(raiz)[0]);
+    await escribir(campo<HTMLInputElement>(0, 'linea'), 'Mira https://x.co');
+    expect(raiz.querySelector('#comentario-0 [role=alert]')!.textContent).toContain('enlaces');
+    expect(campo(0, 'linea').getAttribute('aria-invalid')).toBe('true');
+    expect(fijar).not.toHaveBeenCalled();
+    expect(comentarios()).toEqual([]);
+    await pulsar([...raiz.querySelectorAll<HTMLButtonElement>('#comentario-0 button')].find((x) => x.textContent!.trim() === 'Quitar')!);
+    await listo();
+    expect(raiz.querySelector('#comentario-0')).toBeNull();
+    expect(document.activeElement).toBe(botonAgregar(raiz)[0]);
+    expect(fijar).not.toHaveBeenCalled();
   });
 
   it('agrupa por persona aunque en el documento estén mezclados, y cada ancla es su posición en el documento', async () => {
@@ -133,6 +165,64 @@ describe('ComentariosComponent', () => {
     });
     await pulsar(raiz.querySelector<HTMLButtonElement>('#comentario-0-quitar')!);
     expect(comentarios().map((c) => c.linea)).toEqual(['Dos']);
+  });
+
+  const tres: Comentario[] = [
+    { personaje: 'psicologa-bienestar', linea: 'Uno' }, { personaje: 'psicologa-bienestar', linea: 'Dos' }, { personaje: 'psicologa-bienestar', linea: 'Tres' },
+  ];
+
+  it('foco: tras subir o bajar sigue al comentario movido; tras quitar va al siguiente o, si no hay, a «Agregar»', async () => {
+    const { raiz, pulsar, listo, campo } = await montar({ comentarios: tres });
+    await pulsar(raiz.querySelector<HTMLButtonElement>('#comentario-2-subir')!);
+    await listo();
+    expect(document.activeElement!.id).toBe('comentario-1-subir'); // «Tres» ahora es el 2.º
+    await pulsar(raiz.querySelector<HTMLButtonElement>('#comentario-1-bajar')!);
+    await listo();
+    expect(document.activeElement!.id).toBe('comentario-2-bajar'); // y vuelve a ser el 3.º
+    await pulsar(raiz.querySelector<HTMLButtonElement>('#comentario-0-quitar')!);
+    await listo();
+    expect(document.activeElement).toBe(campo(0, 'linea')); // el que era el 2.º y ahora es el 1.º
+    await pulsar(raiz.querySelector<HTMLButtonElement>('#comentario-1-quitar')!); // el último: no hay siguiente
+    await listo();
+    expect(document.activeElement).toBe(botonAgregar(raiz)[0]);
+    await pulsar(raiz.querySelector<HTMLButtonElement>('#comentario-0-quitar')!); // el único
+    await listo();
+    expect(document.activeElement).toBe(botonAgregar(raiz)[0]);
+  });
+
+  it('una frase inválida con su alerta sigue a su comentario cuando otro sube, baja o se quita, y no se guarda', async () => {
+    const { raiz, pulsar, escribir, campo, comentarios, fijar, listo } = await montar({ comentarios: tres });
+    await escribir(campo<HTMLInputElement>(1, 'linea'), 'Mira https://x.co');
+    expect(campo(1, 'linea').getAttribute('aria-invalid')).toBe('true');
+    // «Tres» sube sobre «Dos»: lo inválido pasa a la posición 2 con su alerta y su texto
+    await pulsar(raiz.querySelector<HTMLButtonElement>('#comentario-2-subir')!);
+    expect(comentarios().map((c) => c.linea)).toEqual(['Uno', 'Tres', 'Dos']);
+    expect(campo<HTMLInputElement>(2, 'linea').value).toBe('Mira https://x.co');
+    expect(raiz.querySelector('#comentario-2 [role=alert]')!.textContent).toContain('enlaces');
+    expect(campo(2, 'linea').getAttribute('aria-invalid')).toBe('true');
+    expect(raiz.querySelector('#comentario-1 [role=alert]')).toBeNull();
+    expect(campo<HTMLInputElement>(1, 'linea').value).toBe('Tres');
+    // quitar el primero: lo inválido pasa a la posición 1
+    await pulsar(raiz.querySelector<HTMLButtonElement>('#comentario-0-quitar')!);
+    await listo();
+    expect(comentarios().map((c) => c.linea)).toEqual(['Tres', 'Dos']);
+    expect(campo<HTMLInputElement>(1, 'linea').value).toBe('Mira https://x.co');
+    expect(raiz.querySelector('#comentario-1 [role=alert]')).not.toBeNull();
+    expect(raiz.querySelector('#comentario-0 [role=alert]')).toBeNull();
+    expect(fijar).toHaveBeenCalledTimes(2); // la frase inválida nunca se mandó
+    // y corregirla la guarda y quita la alerta
+    await escribir(campo<HTMLInputElement>(1, 'linea'), 'Dos corregido');
+    expect(comentarios().map((c) => c.linea)).toEqual(['Tres', 'Dos corregido']);
+    expect(raiz.querySelector('#comentario-1 [role=alert]')).toBeNull();
+  });
+
+  it('quitar el comentario que tiene la frase inválida descarta también su alerta', async () => {
+    const { raiz, pulsar, escribir, campo, listo } = await montar({ comentarios: tres });
+    await escribir(campo<HTMLInputElement>(0, 'linea'), 'Hola <b>x</b>');
+    await pulsar(raiz.querySelector<HTMLButtonElement>('#comentario-0-quitar')!);
+    await listo();
+    expect(raiz.querySelectorAll('[role=alert]')).toHaveLength(0);
+    expect(campo<HTMLInputElement>(0, 'linea').value).toBe('Dos');
   });
 
   it('la frase se guarda recortada; con enlace, HTML o más de 400 no se guarda y dice por qué', async () => {

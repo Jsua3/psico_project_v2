@@ -1,4 +1,4 @@
-import { ChangeDetectionStrategy, Component, computed, inject, input, signal } from '@angular/core';
+import { ChangeDetectionStrategy, Component, ElementRef, Injector, afterNextRender, computed, inject, input, linkedSignal, signal } from '@angular/core';
 import { RouterLink } from '@angular/router';
 
 import { GESTOS, type Gesto } from '../../../../core/models/simulation.model';
@@ -25,6 +25,8 @@ interface ItemComentario {
   siguiente: number | null;
 }
 
+interface FraseInvalida { texto: string; problema: string }
+
 interface GrupoPersona {
   /** La clave del personaje (`ref`); `null` en el grupo de quienes ya no están en la sala. */
   ref: string | null;
@@ -44,7 +46,7 @@ interface GrupoPersona {
   template: `
     <section aria-labelledby="comentarios-titulo" aria-describedby="comentarios-ayuda" class="bloque">
       <!-- BORRADOR: texto nuevo, pendiente de la aprobación de Psicología -->
-      <h2 id="comentarios-titulo">Lo que dicen al acercarte</h2>
+      <h2 id="comentarios-titulo" tabindex="-1">Lo que dicen al acercarte</h2>
       <p id="comentarios-ayuda" class="texto-secundario nota">Frases cortas que un personaje dice cuando el estudiante se le acerca. No cambian la evaluación. Se dicen una vez, en este orden.</p>
 
       @if (grupos().length === 0) {
@@ -65,17 +67,19 @@ interface GrupoPersona {
           </h3>
           @for (it of g.items; track it.k) {
             <div class="tarjeta comentario" [id]="'comentario-' + it.k" tabindex="-1">
+              <!-- BORRADOR: texto nuevo, pendiente de la aprobación de Psicología -->
               <strong>Comentario {{ it.k + 1 }}</strong>
               @if (g.ref === null) {
                 <p class="texto-secundario nota aviso"><span aria-hidden="true">▲</span> {{ nombreDe(it.comentario.personaje) }} ya no está en esta sala: este comentario no se dirá.</p>
               }
 
+              <!-- BORRADOR: texto nuevo, pendiente de la aprobación de Psicología -->
               <label [for]="'comentario-' + it.k + '-linea'" class="etiqueta">Lo que dice {{ nombreDe(it.comentario.personaje) }}</label>
-              <input type="text" class="campo" [id]="'comentario-' + it.k + '-linea'" [value]="it.comentario.linea"
-                     [attr.aria-invalid]="problemas()[it.k] ? 'true' : null"
-                     [attr.aria-describedby]="problemas()[it.k] ? 'comentario-' + it.k + '-problema' : null"
+              <input type="text" class="campo" [id]="'comentario-' + it.k + '-linea'" [value]="invalidas()[it.k]?.texto ?? it.comentario.linea"
+                     [attr.aria-invalid]="invalidas()[it.k] ? 'true' : null"
+                     [attr.aria-describedby]="invalidas()[it.k] ? 'comentario-' + it.k + '-problema' : null"
                      (change)="guardarFrase(it.k, $any($event.target).value)" />
-              @if (problemas()[it.k]; as p) {
+              @if (invalidas()[it.k]?.problema; as p) {
                 <p [id]="'comentario-' + it.k + '-problema'" role="alert" class="texto-secundario nota problema"><span aria-hidden="true">✕</span> {{ p }}</p>
               } @else if (!it.comentario.linea) {
                 <!-- BORRADOR: texto nuevo, pendiente de la aprobación de Psicología -->
@@ -87,6 +91,7 @@ interface GrupoPersona {
 
               <div class="dos-campos">
                 <div class="campo-col">
+                  <!-- BORRADOR: texto nuevo, pendiente de la aprobación de Psicología -->
                   <label [for]="'comentario-' + it.k + '-cara'" class="etiqueta">Cara</label>
                   <select [id]="'comentario-' + it.k + '-cara'" class="campo" (change)="elegirCara(it.k, $any($event.target).value)">
                     <option value="" [selected]="!it.comentario.emocion">Según cómo quede la persona</option>
@@ -94,6 +99,7 @@ interface GrupoPersona {
                   </select>
                 </div>
                 <div class="campo-col">
+                  <!-- BORRADOR: texto nuevo, pendiente de la aprobación de Psicología -->
                   <label [for]="'comentario-' + it.k + '-gesto'" class="etiqueta">Gesto</label>
                   <select [id]="'comentario-' + it.k + '-gesto'" class="campo" (change)="elegirGesto(it.k, $any($event.target).value)">
                     <!-- BORRADOR: texto nuevo, pendiente de la aprobación de Psicología -->
@@ -105,6 +111,7 @@ interface GrupoPersona {
 
               <div class="vista" [id]="'comentario-' + it.k + '-vista'">
                 @if (it.comentario.emocion; as cara) {
+                  <!-- BORRADOR: texto nuevo, pendiente de la aprobación de Psicología -->
                   <img class="pixel" [src]="retrato(it.comentario)" [alt]="'Cara: ' + nombreCara(cara)" width="72" height="72" />
                 } @else {
                   <p class="texto-secundario nota">Su cara dependerá de cómo quede la persona</p>
@@ -112,17 +119,43 @@ interface GrupoPersona {
               </div>
 
               <div class="acciones">
+                <!-- BORRADOR: texto nuevo, pendiente de la aprobación de Psicología -->
                 <button type="button" class="boton" [id]="'comentario-' + it.k + '-subir'" [attr.aria-label]="'Subir el comentario ' + (it.k + 1)"
-                        [attr.aria-disabled]="it.esPrimero ? 'true' : null" (click)="!it.esPrimero && mover(it.k, it.anterior!)">Subir</button>
+                        [attr.aria-disabled]="it.esPrimero ? 'true' : null" (click)="!it.esPrimero && mover(it.k, it.anterior!, 'subir')">Subir</button>
+                <!-- BORRADOR: texto nuevo, pendiente de la aprobación de Psicología -->
                 <button type="button" class="boton" [id]="'comentario-' + it.k + '-bajar'" [attr.aria-label]="'Bajar el comentario ' + (it.k + 1)"
-                        [attr.aria-disabled]="it.esUltimo ? 'true' : null" (click)="!it.esUltimo && mover(it.k, it.siguiente!)">Bajar</button>
+                        [attr.aria-disabled]="it.esUltimo ? 'true' : null" (click)="!it.esUltimo && mover(it.k, it.siguiente!, 'bajar')">Bajar</button>
+                <!-- BORRADOR: texto nuevo, pendiente de la aprobación de Psicología -->
                 <button type="button" class="boton peligro" [id]="'comentario-' + it.k + '-quitar'" [attr.aria-label]="'Quitar el comentario ' + (it.k + 1)"
                         (click)="quitar(it.k)">Quitar</button>
               </div>
             </div>
           }
+          @if (g.ref !== null && pendiente()?.ref === g.ref) {
+            <!-- Un comentario nuevo vive aquí hasta que tiene una frase válida; entonces entra al caso. -->
+            <div class="tarjeta comentario" [id]="'comentario-' + nuevoK()" tabindex="-1">
+              <!-- BORRADOR: texto nuevo, pendiente de la aprobación de Psicología -->
+              <strong>Comentario {{ nuevoK() + 1 }}</strong>
+              <!-- BORRADOR: texto nuevo, pendiente de la aprobación de Psicología -->
+              <label [for]="'comentario-' + nuevoK() + '-linea'" class="etiqueta">Lo que dice {{ g.nombre }}</label>
+              <input type="text" class="campo" [id]="'comentario-' + nuevoK() + '-linea'"
+                     [attr.aria-invalid]="problemaNuevo() ? 'true' : null"
+                     [attr.aria-describedby]="problemaNuevo() ? 'comentario-' + nuevoK() + '-problema' : 'comentario-' + nuevoK() + '-nota'"
+                     (change)="guardarNuevo($any($event.target).value)" />
+              @if (problemaNuevo(); as p) {
+                <p [id]="'comentario-' + nuevoK() + '-problema'" role="alert" class="texto-secundario nota problema"><span aria-hidden="true">✕</span> {{ p }}</p>
+              } @else {
+                <!-- BORRADOR: texto nuevo, pendiente de la aprobación de Psicología -->
+                <p [id]="'comentario-' + nuevoK() + '-nota'" class="texto-secundario nota">Escribe lo que dice; se agrega al salir del campo.</p>
+              }
+              <div class="acciones">
+                <!-- BORRADOR: texto nuevo, pendiente de la aprobación de Psicología -->
+                <button type="button" class="boton peligro" [attr.aria-label]="'Quitar el comentario ' + (nuevoK() + 1)" (click)="descartarNuevo(gi)">Quitar</button>
+              </div>
+            </div>
+          }
           @if (g.ref !== null) {
-            <button type="button" class="boton" [attr.aria-disabled]="enElTope() ? 'true' : null"
+            <button type="button" class="boton" [id]="'comentarios-agregar-' + gi" [attr.aria-disabled]="enElTope() ? 'true' : null"
                     [attr.aria-describedby]="enElTope() ? 'comentarios-tope' : null" (click)="!enElTope() && agregar(g.ref)">Agregar lo que dice {{ g.nombre }}</button>
           }
         </div>
@@ -160,11 +193,24 @@ export class ComentariosComponent {
   protected readonly nombreGesto = NOMBRE_GESTO;
   protected readonly ayudaCuando = AYUDA_CUANDO;
 
-  /** Lo que no se pudo guardar de cada frase, por posición; se limpia en cuanto cambia la lista. */
-  protected readonly problemas = signal<Record<number, string>>({});
+  private readonly raiz = inject<ElementRef<HTMLElement>>(ElementRef);
+  private readonly injector = inject(Injector);
+  private readonly escenaId = computed(() => this.escena().id);
+
+  /**
+   * Las frases que no pasaron la validación, por posición: lo escrito (para que la docente lo corrija sin perderlo) y por qué no se
+   * guardó. Siguen a su comentario cuando otro sube, baja o se quita, y se vacían al cambiar de escena.
+   */
+  protected readonly invalidas = linkedSignal<Record<number, FraseInvalida>>(() => { this.escenaId(); return {}; });
+
+  /** El comentario que se está escribiendo y todavía no tiene frase válida: no entra al caso (ni con la frase vacía). */
+  protected readonly pendiente = linkedSignal<{ ref: string } | null>(() => { this.escenaId(); return null; });
+  protected readonly problemaNuevo = signal<string | null>(null);
 
   private readonly lista = computed<Comentario[]>(() => this.escena().comentarios ?? []);
   protected readonly enElTope = computed(() => this.lista().length >= MAX_COMENTARIOS);
+  /** La posición que tendrá el comentario nuevo en el documento: la misma que le pone el servidor. */
+  protected readonly nuevoK = computed(() => this.lista().length);
 
   /** Las personas de la sala (sin repetir, en el orden de la sala) y, al final, quienes ya no están pero aún tienen comentarios. */
   protected readonly grupos = computed<GrupoPersona[]>(() => {
@@ -199,29 +245,62 @@ export class ComentariosComponent {
   }
 
   protected agregar(ref: string): void {
+    if (this.pendiente()) { this.enfocar(`comentario-${this.nuevoK()}-linea`); return; }
     if (this.enElTope()) return;
-    this.guardar([...this.lista(), { personaje: ref, linea: '' }]);
+    this.problemaNuevo.set(null);
+    this.pendiente.set({ ref });
+    this.enfocar(`comentario-${this.nuevoK()}-linea`);
   }
 
+  /** La frase del comentario nuevo: solo cuando es válida entra al caso, con la frase ya escrita. */
+  protected guardarNuevo(valor: string): void {
+    const pendiente = this.pendiente();
+    if (!pendiente) return;
+    const texto = valor.trim();
+    if (!texto) { this.problemaNuevo.set(null); return; }
+    const problema = problemaDeLaFrase(texto);
+    this.problemaNuevo.set(problema);
+    if (problema) return; // el campo conserva lo escrito para que la docente lo corrija
+    const k = this.nuevoK();
+    this.pendiente.set(null);
+    this.guardar([...this.lista(), { personaje: pendiente.ref, linea: texto }]);
+    this.enfocar(`comentario-${k}-linea`);
+  }
+
+  protected descartarNuevo(gi: number): void {
+    this.pendiente.set(null);
+    this.problemaNuevo.set(null);
+    this.enfocar(`comentarios-agregar-${gi}`);
+  }
+
+  /** Saca el comentario; el foco va al siguiente de la misma persona o, si no hay, a su botón de agregar. */
   protected quitar(k: number): void {
+    const grupos = this.grupos();
+    const gi = grupos.findIndex((g) => g.items.some((it) => it.k === k));
+    const siguiente = grupos[gi]?.items.find((it) => it.k === k)?.siguiente ?? null;
+    this.invalidas.update((todas) => this.reubicar(todas, (pos) => (pos === k ? null : pos > k ? pos - 1 : pos)));
     this.guardar(this.lista().filter((_, i) => i !== k));
+    if (siguiente !== null) this.enfocar(`comentario-${siguiente - 1}-linea`);
+    else this.enfocar(grupos[gi]?.ref != null ? `comentarios-agregar-${gi}` : 'comentarios-titulo');
   }
 
-  /** Cambia de lugar dos comentarios de la misma persona; el resto del documento queda como estaba. */
-  protected mover(k: number, otro: number): void {
+  /** Cambia de lugar dos comentarios de la misma persona; el resto del documento queda como estaba. El foco sigue al movido. */
+  protected mover(k: number, otro: number, direccion: 'subir' | 'bajar'): void {
     const nueva = [...this.lista()];
     [nueva[k], nueva[otro]] = [nueva[otro], nueva[k]];
+    this.invalidas.update((todas) => this.reubicar(todas, (pos) => (pos === k ? otro : pos === otro ? k : pos)));
     this.guardar(nueva);
+    this.enfocar(`comentario-${otro}-${direccion}`);
   }
 
   protected guardarFrase(k: number, valor: string): void {
     const texto = valor.trim();
     const problema = problemaDeLaFrase(texto);
-    this.problemas.update((p) => {
-      const { [k]: _, ...resto } = p;
-      return problema ? { ...resto, [k]: problema } : resto;
-    });
-    if (problema) return; // el campo conserva lo escrito para que la docente lo corrija
+    if (problema) {
+      this.invalidas.update((todas) => ({ ...todas, [k]: { texto: valor, problema } }));
+      return; // el campo conserva lo escrito para que la docente lo corrija
+    }
+    this.invalidas.update((todas) => { const { [k]: _, ...resto } = todas; return resto; });
     if (texto !== this.lista()[k].linea) this.cambiar(k, { linea: texto });
   }
 
@@ -245,7 +324,21 @@ export class ComentariosComponent {
   }
 
   private guardar(lista: Comentario[]): void {
-    this.problemas.set({});
     this.store.fijarComentarios(this.escena().id, lista);
+  }
+
+  /** Lleva cada frase inválida a su nueva posición (`null` la descarta). */
+  private reubicar(todas: Record<number, FraseInvalida>, nueva: (pos: number) => number | null): Record<number, FraseInvalida> {
+    const salida: Record<number, FraseInvalida> = {};
+    for (const [pos, valor] of Object.entries(todas)) {
+      const destino = nueva(Number(pos));
+      if (destino !== null) salida[destino] = valor;
+    }
+    return salida;
+  }
+
+  /** Pone el foco cuando ya se dibujó el cambio. */
+  private enfocar(id: string): void {
+    afterNextRender(() => this.raiz.nativeElement.querySelector<HTMLElement>(`#${id}`)?.focus(), { injector: this.injector });
   }
 }
