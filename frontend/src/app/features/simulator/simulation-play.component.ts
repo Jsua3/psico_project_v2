@@ -29,6 +29,7 @@ import { NAME_TOOLS_IN_HINTS, ORIENTATION_COPY, RoomGroup, SAFE_EXIT_ALWAYS_REAC
 import { GameHelpComponent } from './game-help.component';
 import { HELP_FIRST_CARD, markHelpSeen, readHelpSeen, resetHelpSeen } from './help-memory.util';
 import { SceneGoalCardComponent } from './scene-goal-card.component';
+import { SensitiveNoticeComponent } from './sensitive-notice.component';
 import { type GuiaEscena, GUIA_VACIA, armarGuia, avisarOpcionNueva } from './caso/guia';
 import { SceneLogState, deriveSceneLog, diffDone, roomGroupOf, sceneLogInputFrom } from './scene-checklist.util';
 import { clearVisitedRooms, markRoomVisited, readVisitedRooms } from './visited-rooms.util';
@@ -135,7 +136,7 @@ const CASE_INTRO_PARAGRAPHS = [
     SimulationHudComponent, GameWorldComponent, DialoguePanelComponent,
     ToolInventoryComponent, JournalPanelComponent, AttemptOutcomeComponent, CaseIntroSceneComponent,
     SafeExitButtonComponent, SceneGoalCardComponent, GameHelpComponent, WorldPlacesListComponent,
-    ReactionDirectorComponent, UiButton, UiErrorState, UiScopeNotice, UiSpinner
+    ReactionDirectorComponent, SensitiveNoticeComponent, UiButton, UiErrorState, UiScopeNotice, UiSpinner
   ],
   template: `
     <div class="game-container" data-skin="game" id="main-content" tabindex="-1" [attr.data-mode]="viewMode()"
@@ -351,11 +352,9 @@ const CASE_INTRO_PARAGRAPHS = [
             (toggleSfx)="toggleSfxMute()"
             (toggleReduceMotion)="toggleReduceMotion()"
             (openHelp)="openHelp()" (helpReset)="resetHelpCard()" />
-          @if (sensitiveNotice(); as notice) {
-            <!-- Recordatorio ético del nodo sensible (ETH-01): franja fija bajo la cabecera, siempre a la vista en todos los dispositivos
-                 (no vive en la tarjeta «Qué hacer», que se pliega a su chip). Ocupa su propio sitio: no tapa al personaje ni los controles. -->
-            <p class="sensitive-strip">{{ notice }}</p>
-          }
+          <!-- Recordatorio ético del nodo sensible (ETH-01): franja bajo la cabecera, completa al entrar y plegada a un chip a los 8 s;
+               siempre a la vista en todos los dispositivos. Ocupa su propio sitio: no tapa al personaje ni los controles. -->
+          <app-sensitive-notice [text]="sensitiveNotice()" [sceneKey]="attempt()?.currentNode?.key ?? null" [reduceMotion]="reduceMotion()" />
         </header>
 
         <div class="main-zone">
@@ -638,18 +637,6 @@ const CASE_INTRO_PARAGRAPHS = [
       .objective-card { width: min(560px, 50%); }
     }
     .objective-card__scroll { min-height: 0; overflow-y: auto; overscroll-behavior: contain; scrollbar-width: thin; }
-    /* Recordatorio ético del nodo sensible (ETH-01): franja bajo la cabecera, fuera de la tarjeta plegable. Legible (>= 12 px) y con
-       contraste alto; ocupa su propio sitio (el mundo se reencuadra solo), así que no tapa al personaje ni los controles. */
-    .sensitive-strip {
-      margin: 0;
-      padding: 5px 14px;
-      background: rgba(8,12,18,.94);
-      border-bottom: 1px solid rgba(245,184,75,.28);
-      color: #f3dfb5;
-      font-size: .78rem;
-      line-height: 1.35;
-      text-align: center;
-    }
 
     /* Tarjeta de primera vez: sobre las cruces táctiles (48) para que sus botones siempre se puedan tocar, y bajo las
        tarjetas de introducción (380) y la pausa. El jugador empieza abajo al centro:
@@ -1120,8 +1107,6 @@ const CASE_INTRO_PARAGRAPHS = [
       .objective-card:not(:has(app-scene-goal-card[data-collapsed='true'])) .objective-card__scroll {
         flex: 1 1 0; min-width: 0;
       }
-      /* La franja ética se compacta sin bajar de 12 px: el mundo pierde lo mínimo. */
-      .sensitive-strip { padding: 3px 12px; font-size: .75rem; line-height: 1.3; }
 
       /* Decisión: hoja inferior flotante. El mundo conserva su tamaño (una sola columna) y el resumen de la etapa
          se oculta: las opciones 1 a 3 tienen que verse y tocarse sin desplazar (TOUCH-01). */

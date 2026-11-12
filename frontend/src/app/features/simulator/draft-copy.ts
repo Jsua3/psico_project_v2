@@ -614,6 +614,14 @@ export const DRAFT_COPY = {
     where: 'Ayuda, sección «El caso»: cómo se juega una escena',
     text: 'En cada escena exploras la sala, conversas con las personas y, cuando lo decidas, respondes. Lo que descubres puede abrir otras formas de responder.',
   },
+  /** Chip al que se pliega el aviso de contenido sensible a los 8 s; sigue siempre a la vista y lo despliega de nuevo. */
+  sensitiveChip: {
+    decision: 'DSL-4',
+    owner: 'Psicología',
+    review: 'validar',
+    where: 'Aviso de contenido sensible bajo la cabecera: chip en el que se pliega y que lo vuelve a desplegar',
+    text: 'Contenido sensible',
+  },
   /** Nota de una conducta prohibida en «Tus decisiones»: se señala con cuidado, sin cifras (RN-08, ETH). */
   decisionProhibitedNote: {
     decision: 'RN-08',

@@ -18,6 +18,15 @@ function rule(selector: string): string {
   return match[2];
 }
 
+/** La franja del aviso sensible vive en su propio componente (T10): sus reglas se leen de allí. */
+const noticeSource = readFileSync(join(__dirname, 'sensitive-notice.component.ts'), 'utf-8');
+function noticeRule(selector: string): string {
+  const escaped = selector.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+  const match = noticeSource.match(new RegExp(`(^|\\n)\\s*${escaped}\\s*\\{([^}]*)\\}`));
+  if (!match) throw new Error(`No se encontró la regla ${selector} en el aviso sensible`);
+  return match[2];
+}
+
 const worldTag = source.match(/<app-game-world[\s\S]*?\/>/)?.[0] ?? '';
 
 describe('ficha del objetivo (T9.1)', () => {
@@ -36,7 +45,7 @@ describe('ficha del objetivo (T9.1)', () => {
 
   it('el aviso de contenido sensible vive FUERA de la tarjeta plegable: franja bajo la cabecera, en todos los dispositivos (L-01)', () => {
     expect(source).toMatch(
-      /<app-simulation-hud[\s\S]*?\/>\s*@if \(sensitiveNotice\(\); as notice\) \{\s*(<!--[\s\S]*?-->\s*)?<p class="sensitive-strip">\{\{ notice \}\}<\/p>\s*\}\s*<\/header>/,
+      /<app-simulation-hud[\s\S]*?\/>\s*(<!--[\s\S]*?-->\s*)?<app-sensitive-notice \[text\]="sensitiveNotice\(\)" \[sceneKey\]="attempt\(\)\?\.currentNode\?\.key \?\? null"[^>]*\/>\s*<\/header>/,
     );
     expect(source).toContain('node.warningMessage');
     // Ya no está dentro de .objective-card (que se pliega a su chip) ni en el panel lateral: un único sitio.
@@ -53,25 +62,26 @@ describe('ficha del objetivo (T9.1)', () => {
     for (const foldRule of foldRules) {
       expect(foldRule).not.toMatch(/sensitive|notice/);
     }
-    expect(rule('.sensitive-strip')).not.toMatch(/display:\s*none/);
-    expect(source).not.toMatch(/\.sensitive-strip[^{]*\{[^}]*display:\s*none/);
+    expect(noticeSource).not.toMatch(/\.sensitive-strip[^{]*\{[^}]*display:\s*none/);
+    // El pliegue propio del aviso deja el texto en el DOM (clase sr-only), nunca lo quita.
+    expect(noticeSource).toContain("[class.sr-only]=\"!unfolded()\"");
   });
 
   it('el aviso es legible (>= 12 px, también en compacto), con contraste alto y sin desenfoque', () => {
-    const size = /font-size:\s*([\d.]+)rem/.exec(rule('.sensitive-strip'))?.[1];
+    const size = /font-size:\s*([\d.]+)rem/.exec(noticeRule('.sensitive-strip'))?.[1];
     expect(Number(size) * 16).toBeGreaterThanOrEqual(12);
-    const compact = source.slice(source.lastIndexOf('@media (max-height: 520px), (pointer: coarse) and (orientation: landscape)'));
+    const compact = noticeSource.slice(noticeSource.lastIndexOf('@media (max-height: 520px), (pointer: coarse) and (orientation: landscape)'));
     const compactSize = /\.sensitive-strip \{[^}]*font-size:\s*([\d.]+)rem/.exec(compact)?.[1];
     expect(Number(compactSize) * 16).toBeGreaterThanOrEqual(12);
-    expect(rule('.sensitive-strip')).toContain('color: #f3dfb5;');
-    expect(rule('.sensitive-strip')).toContain('background: rgba(8,12,18,.94);');
-    expect(rule('.sensitive-strip')).not.toMatch(/backdrop-filter/);
+    expect(noticeRule('.sensitive-strip')).toContain('color: #f3dfb5;');
+    expect(noticeRule('.sensitive-strip')).toContain('background: rgba(8,12,18,.94);');
+    expect(noticeRule('.sensitive-strip')).not.toMatch(/backdrop-filter/);
     // Fondo y color de la franja: razón de contraste >= 7:1 (AAA) sobre el peor fondo (opaco al 94 % sobre blanco).
     expect(contrastRatio('#f3dfb5', blend('#080c12', 0.94, '#ffffff'))).toBeGreaterThanOrEqual(7);
   });
 
   it('la franja ocupa su propio sitio en la cabecera (no es una capa flotante): no tapa al personaje ni los controles', () => {
-    expect(rule('.sensitive-strip')).not.toMatch(/position:\s*(absolute|fixed)/);
+    expect(noticeRule('.sensitive-strip')).not.toMatch(/position:\s*(absolute|fixed)/);
     expect(source).toMatch(/<header class="top-bar"[^>]*>\s*<app-simulation-hud/);
   });
 
