@@ -633,3 +633,87 @@ describe('solicitudDeSala: un objeto que ofrece una respuesta', () => {
     expect([movida.x, movida.y, movida.decisionOptionId]).toEqual([600, 400, 77]);
   });
 });
+
+describe('cuerpoNodo y cuerpoDecision: los campos 2.1 solo viajan si la docente los cambió', () => {
+  it('cuerpoNodo manda goal y comments solo si cambiaron o no había previo con ellos', () => {
+    const previo = casoSinLugar().editor.nodes[0];
+    previo.goal = 'Escuchar.';
+    previo.comments = [{ personaje: 'camila', linea: 'Hola.' }];
+    const igual = cuerpoNodo(escena({ objetivo: 'Escuchar.', comentarios: [{ personaje: 'camila', linea: 'Hola.' }] }), { esInicio: false, previo });
+    expect(igual).not.toHaveProperty('goal');
+    expect(igual).not.toHaveProperty('comments');
+    const ausentes = cuerpoNodo(escena(), { esInicio: false, previo });
+    expect(ausentes).not.toHaveProperty('goal');
+    expect(ausentes).not.toHaveProperty('comments');
+    const cambiado = cuerpoNodo(escena({ objetivo: 'Otro.', comentarios: [] }), { esInicio: false, previo });
+    expect(cambiado.goal).toBe('Otro.');
+    expect(cambiado.comments).toEqual([]);
+    const sinPrevio = cuerpoNodo(escena({ objetivo: 'Nuevo.' }), { nodeKey: 'x', esInicio: false });
+    expect(sinPrevio.goal).toBe('Nuevo.');
+    expect(sinPrevio).not.toHaveProperty('comments');
+  });
+
+  it('cuerpoNodo: el orden de las claves de un comentario no cuenta como cambio; otra emoción sí', () => {
+    const previo = casoSinLugar().editor.nodes[0];
+    previo.comments = [{ personaje: 'camila', linea: 'Hola.', emocion: 'triste', cuando: { talked: 'a' } }];
+    const mismo = cuerpoNodo(escena({ comentarios: [{ cuando: { talked: 'a' }, emocion: 'triste', linea: 'Hola.', personaje: 'camila' }] }), { esInicio: false, previo });
+    expect(mismo).not.toHaveProperty('comments');
+    const otro = cuerpoNodo(escena({ comentarios: [{ personaje: 'camila', linea: 'Hola.', emocion: 'alegre', cuando: { talked: 'a' } }] }), { esInicio: false, previo });
+    expect(otro.comments).toHaveLength(1);
+  });
+
+  it('hacia-api no manda requires ni reaction si no se los pasan', () => {
+    const previo = casoSinLugar().editor.decisions[0];
+    const cuerpo = cuerpoDecision(respuesta(), 1, { previo })!;
+    expect(cuerpo).not.toHaveProperty('requires');
+    expect(cuerpo).not.toHaveProperty('reaction');
+    expect(cuerpoDecision(respuesta(), 1, { optionKey: 'o' })).not.toHaveProperty('requires');
+  });
+
+  it('el requisito o la reacción que no cambiaron faltan del cuerpo; el que cambió, solo ese campo, y {} los quita', () => {
+    const previo = casoSinLugar().editor.decisions[0];
+    previo.requires = { all: [{ talked: 'camila' }, { milestone: 'x' }] };
+    previo.reaction = { linea: 'Gracias.', gesto: 'asiente' };
+    const sinCambio = cuerpoDecision(
+      respuesta({ requiere: { all: [{ talked: 'camila' }, { milestone: 'x' }] }, reaccion: { gesto: 'asiente', linea: 'Gracias.' } }), 1, { previo },
+    )!;
+    expect(sinCambio).not.toHaveProperty('requires');
+    expect(sinCambio).not.toHaveProperty('reaction');
+
+    const soloReaccion = cuerpoDecision(
+      respuesta({ requiere: previo.requires, reaccion: { linea: 'De nada.' } }), 1, { previo },
+    )!;
+    expect(soloReaccion).not.toHaveProperty('requires');
+    expect(soloReaccion.reaction).toEqual({ linea: 'De nada.' });
+
+    const quitado = cuerpoDecision(respuesta({ requiere: {}, reaccion: {} }), 1, { previo })!;
+    expect(quitado.requires).toEqual({});
+    expect(quitado.reaction).toEqual({});
+  });
+
+  it('un requisito que el editor no sabe armar no se pierde al cambiar otra cosa de la respuesta', () => {
+    const previo = casoSinLugar().editor.decisions[0];
+    previo.requires = { any: [{ milestone: 'a' }, { not: { inspected: 'b' } }] };
+    const cuerpo = cuerpoDecision(respuesta({ texto: 'Otro texto.', requiere: structuredClone(previo.requires) }), 1, { previo })!;
+    expect(cuerpo.text).toBe('Otro texto.');
+    expect(cuerpo).not.toHaveProperty('requires');
+  });
+
+  it('una respuesta nueva con requisito y reacción los manda', () => {
+    const cuerpo = cuerpoDecision(
+      respuesta({ requiere: { talked: 'camila' }, reaccion: { linea: 'Ok.' } }), 1, { optionKey: 'o' },
+    )!;
+    expect(cuerpo.requires).toEqual({ talked: 'camila' });
+    expect(cuerpo.reaction).toEqual({ linea: 'Ok.' });
+  });
+
+  it('un previo del servidor que aún no trae requires/reaction cuenta como vacío', () => {
+    const previo = { ...casoSinLugar().editor.decisions[0] } as Record<string, unknown>;
+    delete previo['requires'];
+    delete previo['reaction'];
+    const cuerpo = cuerpoDecision(respuesta({ requiere: {}, reaccion: {} }), 1, { previo: previo as never })!;
+    expect(cuerpo).not.toHaveProperty('requires');
+    expect(cuerpo).not.toHaveProperty('reaction');
+    expect(cuerpoDecision(respuesta({ requiere: { talked: 'a' } }), 1, { previo: previo as never })!.requires).toEqual({ talked: 'a' });
+  });
+});

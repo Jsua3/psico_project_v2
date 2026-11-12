@@ -4,7 +4,7 @@
  *
  * Los ids son los del servidor, como texto (`String(id)`), salvo los de lo que aún no se guardó (`escena-ab12…`).
  */
-import type { FormativeLevel, Intensity, ResponseClass, RiskLevel } from '../../../core/models/simulation.model';
+import type { FormativeLevel, Gesto, Intensity, ResponseClass, RiskLevel } from '../../../core/models/simulation.model';
 import type { Colocacion, ColocacionPersonaje, Escenario, Expresion, Puerta, Sala } from './escenario';
 
 /** En el caso, una puerta hacia una sala que no se eligió queda sin destino. */
@@ -21,6 +21,8 @@ export type ColocacionCaso = Colocacion & {
    * respuesta, sin una persona. Ausente si no ofrece ninguna. Se conserva al guardar la sala.
    */
   decisionOptionId?: number;
+  /** El código de la herramienta que entrega este objeto (la del caso); ausente si no entrega ninguna. Se conserva al guardar la sala. */
+  toolCode?: string;
   /** Lo puso o lo movió el asistente y el docente aún no lo acepta. Ausente = no está marcado. */
   marcaIa?: boolean;
 };
@@ -101,6 +103,36 @@ export interface Linea {
   marcaIa: boolean;
 }
 
+/** Cómo reacciona el personaje a una respuesta (2.1): todo opcional; `{}` = sin reacción. */
+export interface Reaccion {
+  linea?: string;
+  emocion?: Expresion;
+  gesto?: Gesto;
+  /** La clave del personaje que reacciona (la de `CasoBorrador.personajes`). */
+  personaje?: string;
+}
+
+/** Una ayuda de la escena: `id` es el del servidor como texto, o `pista-…` si aún no se guardó. */
+export interface Pista {
+  id: string;
+  texto: string;
+}
+
+/** Lo que dice un personaje al acercarse el jugador, con su condición opcional (`cuando`, el JSON del documento tal cual). */
+export interface Comentario {
+  personaje: string;
+  linea: string;
+  cuando?: Record<string, unknown>;
+  emocion?: Expresion;
+  gesto?: Gesto;
+}
+
+/** Una herramienta del caso (la que un objeto de alguna sala puede entregar). */
+export interface HerramientaDelCaso {
+  codigo: string;
+  nombre: string;
+}
+
 export interface Respuesta {
   id: string;
   texto: string;
@@ -112,6 +144,13 @@ export interface Respuesta {
   efectos: EfectosRespuesta;
   destinoId: string | null;
   marcaIa: boolean;
+  /**
+   * Cuándo aparece la respuesta: la condición del documento, el JSON tal cual (`{}` o ausente = siempre). Al guardar solo se manda
+   * si la docente la cambió.
+   */
+  requiere?: Record<string, unknown>;
+  /** Cómo reacciona el personaje al elegirla; ausente o `{}` = sin reacción. Al guardar solo se manda si cambió. */
+  reaccion?: Reaccion;
 }
 
 export interface Escena {
@@ -135,6 +174,12 @@ export interface Escena {
    * el servidor (un caso nuevo no los trae).
    */
   recursosApoyo?: string[];
+  /** El objetivo de la escena (hasta 200 caracteres); ausente o vacío = no lo declara. Al guardar solo se manda si cambió. */
+  objetivo?: string;
+  /** Las pistas de la sala de la escena (hasta 280 caracteres cada una), en su orden. */
+  pistas?: Pista[];
+  /** Lo que dicen los personajes al acercarse (hasta 6). Ausente = no se sabe; al guardar solo se manda si cambió. */
+  comentarios?: Comentario[];
   /** La escena la creó la IA y el docente aún no la acepta. */
   marcaIa?: boolean;
 }
@@ -236,6 +281,10 @@ export interface CasoBorrador {
   lista?: ListaVerificacion;
   /** El estado del caso en el servidor; ausente en un borrador que aún no está allí. */
   estado?: EstadoCaso;
+  /** Quien edita ya probó este caso hasta un final (el ensayo); ausente = no. */
+  probadoHastaElFinal?: boolean;
+  /** Las herramientas del caso (para avisar de las que ningún objeto entrega); ausente si el servidor no las trae. */
+  herramientas?: HerramientaDelCaso[];
   /** Personajes y catálogo del lugar, copiados al crear el caso (el caso no depende de la biblioteca). */
   personajes: Escenario['personajes'];
   catalogo: Escenario['catalogo'];

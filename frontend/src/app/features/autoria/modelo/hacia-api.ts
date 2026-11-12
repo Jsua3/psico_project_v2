@@ -79,6 +79,19 @@ export interface OpcionesNodo {
   previo?: NodeEditorState;
 }
 
+/** Igualdad de datos JSON, sin importar el orden de las claves ni las claves `undefined`. */
+function mismoJson(a: unknown, b: unknown): boolean {
+  const ordenado = (v: unknown): unknown => {
+    if (Array.isArray(v)) return v.map(ordenado);
+    if (typeof v === 'object' && v !== null) {
+      const entradas = Object.entries(v).filter(([, x]) => x !== undefined).sort(([x], [y]) => (x < y ? -1 : 1));
+      return Object.fromEntries(entradas.map(([k, x]) => [k, ordenado(x)]));
+    }
+    return v;
+  };
+  return JSON.stringify(ordenado(a)) === JSON.stringify(ordenado(b));
+}
+
 /** La escena como nodo. Lo que el editor no muestra (narración, herramientas, apoyos) sale de `previo`. */
 export function cuerpoNodo(escena: Escena, opciones: OpcionesNodo): NodeUpsertRequest {
   const { previo } = opciones;
@@ -99,6 +112,11 @@ export function cuerpoNodo(escena: Escena, opciones: OpcionesNodo): NodeUpsertRe
   };
   // Una escena que propuso o cambió la IA se marca (si el servidor aún no la tiene marcada); solo «Aceptar» (accept-ai) la baja.
   if (escena.marcaIa && !previo?.aiSuggested) cuerpo.aiSuggested = true;
+  // Ausente = no tocar: el objetivo y los comentarios solo viajan si la docente los cambió (o si la escena es nueva).
+  if (escena.objetivo !== undefined && (!previo || escena.objetivo !== (previo.goal ?? ''))) cuerpo.goal = escena.objetivo;
+  if (escena.comentarios !== undefined && (!previo || !mismoJson(escena.comentarios, previo.comments ?? []))) {
+    cuerpo.comments = structuredClone(escena.comentarios);
+  }
   return cuerpo;
 }
 
@@ -144,6 +162,13 @@ export function cuerpoDecision(
   };
   if (respuesta.clase) cuerpo.responseClass = respuesta.clase;
   if (respuesta.marcaIa && !previo?.aiSuggested) cuerpo.aiSuggested = true;
+  // Ausente = no tocar: el requisito y la reacción solo viajan si la docente los cambió (o si la opción es nueva).
+  if (respuesta.requiere !== undefined && (!previo || !mismoJson(respuesta.requiere, previo.requires ?? {}))) {
+    cuerpo.requires = structuredClone(respuesta.requiere);
+  }
+  if (respuesta.reaccion !== undefined && (!previo || !mismoJson(respuesta.reaccion, previo.reaction ?? {}))) {
+    cuerpo.reaction = { ...respuesta.reaccion };
+  }
   return cuerpo;
 }
 
