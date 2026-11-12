@@ -11,7 +11,7 @@ import {
 } from '../ia/propuestas';
 import { BibliotecaService } from '../modelo/biblioteca.service';
 import type {
-  CasoBorrador, ClaveFinalPlantilla, Escena, Final, Hito, Linea, MovimientoPersonaje, NivelRiesgo, Respuesta, SalaCaso,
+  CasoBorrador, ClaveFinalPlantilla, Comentario, Escena, Final, Hito, Linea, MovimientoPersonaje, NivelRiesgo, Reaccion, Respuesta, SalaCaso,
 } from '../modelo/caso';
 import { SEPARACION_ESCENAS } from '../modelo/copiar';
 import type { ColocacionPersonaje } from '../modelo/escenario';
@@ -100,6 +100,12 @@ const FALTA_POR_CAMPO: Record<string, string> = {
   intensity: 'Una escena de intensidad alta necesita su aviso.',
 };
 
+/** Campos 2.1 cuyo mensaje del servidor ya esta escrito para la docente (una sola linea, sin enlaces, topes...): se muestra tal cual. */
+const CAMPOS_CON_MENSAJE_DEL_SERVIDOR: ReadonlySet<string> = new Set(['goal', 'requires', 'reaction', 'comments']);
+
+/** Hasta cuantos comentarios de acercamiento lleva una escena. */
+export const MAX_COMENTARIOS = 6;
+
 /** Lo que se le dice al docente cuando un cambio no se pudo guardar: sin códigos ni palabras técnicas. */
 export function mensajeDeFallo(error: unknown, nombre: string, aMedias = false): string {
   const base = aMedias
@@ -111,6 +117,10 @@ export function mensajeDeFallo(error: unknown, nombre: string, aMedias = false):
   if (error.status === 404) return `${base} Esa parte del caso ya no existe; recarga el caso para verlo al día.`;
   if (error.status >= 500) return `${base} Hubo un problema al guardar; vuelve a intentarlo en un momento.`;
   const campo = (error.error as { field?: unknown } | null)?.field;
+  const delServidor = (error.error as { message?: unknown } | null)?.message;
+  if (typeof campo === 'string' && CAMPOS_CON_MENSAJE_DEL_SERVIDOR.has(campo) && typeof delServidor === 'string' && delServidor.trim()) {
+    return `${base} ${delServidor.trim()}`;
+  }
   const falta = typeof campo === 'string' ? FALTA_POR_CAMPO[campo] : undefined;
   return `${base} ${falta ?? 'Revisa lo que escribiste: así no se puede guardar.'}`;
 }
@@ -827,6 +837,89 @@ export class CasoStore {
         ...textoCompleto(`Aviso para el estudiante de la escena «${escena}»`, cambios.advertencia ?? undefined),
         ...(cambios.recursosApoyo ? [`Cambiaste los recursos de apoyo de la escena «${escena}»${cambios.recursosApoyo.length ? `: ${cambios.recursosApoyo.map((r) => `«${r}»`).join(', ')}` : ''}`] : []),
       ],
+    });
+  }
+
+  /** El objetivo de la escena (hasta 200 caracteres; el servidor lo valida). Vacío = no lo declara. */
+  editarObjetivo(escenaId: string, texto: string): void {
+    const titulo = this.tituloEscena(escenaId);
+    this.ejecutar({
+      nombre: 'el objetivo de la escena',
+      aplicar: (caso) => { this.escena(caso, escenaId).objetivo = texto; },
+      enviar: (despues, sesion) => persistir.actualizarEscena(sesion, despues, escenaId),
+      fusion: `escena:${escenaId}`,
+      resumen: texto.trim() ? textoCompleto(`Objetivo de la escena «${titulo}»`, texto) : [`Quitaste el objetivo de la escena «${titulo}»`],
+    });
+  }
+
+  /**
+   * Deja en la escena exactamente estas pistas, en este orden (crea, cambia o borra las del servidor para que coincidan). Las
+   * que ya estaban conservan su id; las nuevas nacen con uno propio. Una pista en blanco se queda en el borrador sin guardarse.
+   */
+  fijarPistas(escenaId: string, textos: string[]): void {
+    const titulo = this.tituloEscena(escenaId);
+    this.ejecutar({
+      nombre: 'las pistas',
+      aplicar: (caso) => {
+        const escena = this.escena(caso, escenaId);
+        const previas = escena.pistas ?? [];
+        escena.pistas = textos.map((texto, i) => ({ id: previas[i]?.id ?? nuevoId('pista'), texto }));
+      },
+      enviar: (despues, sesion) => persistir.guardarPistas(sesion, despues, escenaId),
+      fusion: `pistas:${escenaId}`,
+      resumen: textos.length
+        ? textos.flatMap((t, i) => textoCompleto(`Pista ${i + 1} de la escena «${titulo}»`, t))
+        : [`Quitaste las pistas de la escena «${titulo}»`],
+    });
+  }
+
+  /** Cuándo aparece una respuesta: la condición del documento tal cual (`{}` = siempre). */
+  editarRequisito(escenaId: string, respuestaId: string, condicion: Record<string, unknown>): void {
+    this.ejecutar({
+      nombre: 'el requisito de la respuesta',
+      aplicar: (caso) => {
+        const r = this.escena(caso, escenaId).respuestas.find((x) => x.id === respuestaId);
+        if (r) r.requiere = structuredClone(condicion);
+      },
+      enviar: (despues, sesion) => persistir.sincronizarRespuesta(sesion, despues, respuestaId),
+      fusion: `respuesta:${respuestaId}`,
+      resumen: [`Cambiaste cuándo aparece una respuesta de la escena «${this.tituloEscena(escenaId)}»`],
+    });
+  }
+
+  /** Cómo reacciona el personaje a una respuesta; las claves vacías no se guardan y `{}` quita la reacción. */
+  editarReaccion(escenaId: string, respuestaId: string, reaccion: Reaccion): void {
+    const limpia: Reaccion = {};
+    for (const [clave, valor] of Object.entries(reaccion)) {
+      if (valor !== undefined && valor !== null && valor !== '') (limpia as Record<string, unknown>)[clave] = valor;
+    }
+    const titulo = this.tituloEscena(escenaId);
+    this.ejecutar({
+      nombre: 'la reacción de la respuesta',
+      aplicar: (caso) => {
+        const r = this.escena(caso, escenaId).respuestas.find((x) => x.id === respuestaId);
+        if (r) r.reaccion = { ...limpia };
+      },
+      enviar: (despues, sesion) => persistir.sincronizarRespuesta(sesion, despues, respuestaId),
+      fusion: `respuesta:${respuestaId}`,
+      resumen: limpia.linea
+        ? textoCompleto(`Lo que dice el personaje al reaccionar a una respuesta de «${titulo}»`, limpia.linea)
+        : [`Cambiaste cómo reacciona el personaje a una respuesta de la escena «${titulo}»`],
+    });
+  }
+
+  /** Lo que dicen los personajes al acercarse el jugador (hasta 6). Con más, lanza y no cambia nada. */
+  fijarComentarios(escenaId: string, comentarios: Comentario[]): void {
+    if (comentarios.length > MAX_COMENTARIOS) throw new Error(`Una escena lleva hasta ${MAX_COMENTARIOS} comentarios.`);
+    const titulo = this.tituloEscena(escenaId);
+    this.ejecutar({
+      nombre: 'lo que dicen al acercarse',
+      aplicar: (caso) => { this.escena(caso, escenaId).comentarios = structuredClone(comentarios); },
+      enviar: (despues, sesion) => persistir.actualizarEscena(sesion, despues, escenaId),
+      fusion: `escena:${escenaId}`,
+      resumen: comentarios.length
+        ? comentarios.flatMap((c, i) => textoCompleto(`Comentario ${i + 1} al acercarse en la escena «${titulo}»`, c.linea))
+        : [`Quitaste lo que dicen al acercarse en la escena «${titulo}»`],
     });
   }
 

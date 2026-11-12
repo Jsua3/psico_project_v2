@@ -13,7 +13,7 @@ import type { AuthoringApi } from '../../../core/api/authoring.api';
 import type { AssistantProposeBody } from '../../../core/api/generated/openapi-contracts';
 import type { GenerationStartRequest } from '../../../core/models/generacion.model';
 import type {
-  BriefUpdateRequest, CaseEditorView, CaseLifecycle, CaseReviewInfo, ChecklistUpdateRequest, CaseTransitionRequest, CaseValidation, CharacterUpsertRequest, ValidationIssue, DecisionOptionUpsertRequest, DialogueUpsertRequest, EndingRule, MapUpsertRequest,
+  BriefUpdateRequest, CaseEditorView, CaseLifecycle, CaseReviewInfo, ChecklistUpdateRequest, CaseTransitionRequest, CaseValidation, CharacterUpsertRequest, ValidationIssue, DecisionOptionUpsertRequest, DialogueUpsertRequest, EndingRule, HintUpsertRequest, MapUpsertRequest,
   Milestone, NodeUpsertRequest, RiskLevel, WorldDefinition, WorldDialogueTree, WorldRoomSaveRequest,
 } from '../../../core/models/simulation.model';
 import type { Escenario } from '../modelo/escenario';
@@ -255,6 +255,24 @@ export class ServidorFalso {
     deleteDecision: (cv: number, decisionId: number, revision?: number) =>
       this.escribir('deleteDecision', revision, [decisionId], () => {
         this.editor.decisions = this.editor.decisions.filter((d) => d.id !== decisionId);
+      }),
+
+    createHint: (cv: number, mapId: number, cuerpo: HintUpsertRequest, revision?: number) =>
+      this.escribir('createHint', revision, [mapId, cuerpo], () => {
+        if (!this.editor.maps.some((m) => m.id === mapId)) throw new HttpErrorResponse({ status: 404 });
+        const delMapa = this.editor.hints.filter((h) => h.mapId === mapId);
+        this.editor.hints.push({ id: this.id(), mapId, order: cuerpo.hintOrder ?? delMapa.length + 1, text: cuerpo.text });
+      }),
+    updateHint: (cv: number, hintId: number, cuerpo: HintUpsertRequest, revision?: number) =>
+      this.escribir('updateHint', revision, [hintId, cuerpo], () => {
+        const pista = this.editor.hints.find((h) => h.id === hintId);
+        if (!pista) throw new HttpErrorResponse({ status: 404 });
+        pista.text = cuerpo.text;
+        if (cuerpo.hintOrder !== undefined) pista.order = cuerpo.hintOrder;
+      }),
+    deleteHint: (cv: number, hintId: number, revision?: number) =>
+      this.escribir('deleteHint', revision, [hintId], () => {
+        this.editor.hints = this.editor.hints.filter((h) => h.id !== hintId);
       }),
 
     createDialogue: (cv: number, mapId: number, cuerpo: DialogueUpsertRequest, revision?: number) =>

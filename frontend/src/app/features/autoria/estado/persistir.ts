@@ -193,7 +193,7 @@ export async function crearEscena(s: SesionServidor, caso: CasoBorrador, escenaI
   }
 }
 
-/** Pone al día título, posición, final, aviso e intensidad de la escena (y si es la de inicio). */
+/** Pone al día título, posición, final, aviso, intensidad, objetivo y comentarios de la escena (y si es la de inicio). */
 export async function actualizarEscena(s: SesionServidor, caso: CasoBorrador, escenaId: string): Promise<void> {
   const escena = escenaDe(caso, escenaId);
   const nodoId = s.nodoDe(escenaId);
@@ -204,10 +204,31 @@ export async function actualizarEscena(s: SesionServidor, caso: CasoBorrador, es
     && previo.title === cuerpo.title && previo.narrative === cuerpo.narrative && previo.terminal === cuerpo.terminal && previo.startNode === cuerpo.startNode
     && previo.positionX === cuerpo.positionX && previo.positionY === cuerpo.positionY && previo.intensity === cuerpo.intensity
     && (previo.warningMessage ?? null) === (cuerpo.warningMessage ?? null)
-    && JSON.stringify(previo.supportResources ?? []) === JSON.stringify(cuerpo.supportResources ?? [])) {
+    && JSON.stringify(previo.supportResources ?? []) === JSON.stringify(cuerpo.supportResources ?? [])
+    && !('goal' in cuerpo) && !('comments' in cuerpo)) { // el objetivo y los comentarios viajan solo si cambiaron
     return; // nada que decirle al servidor
   }
   await s.actualizarNodo(nodoId, cuerpo);
+}
+
+/**
+ * Deja en el mapa de la escena exactamente las pistas del borrador, en su orden: las que ya hay cambian de texto si hace falta,
+ * las que faltan se crean (al final) y las que sobran se borran. Una pista en blanco se queda en el borrador hasta que tenga
+ * texto (el servidor no la aceptaria). Una escena sin mapa en el servidor no tiene donde guardarlas: no se manda nada.
+ */
+export async function guardarPistas(s: SesionServidor, caso: CasoBorrador, escenaId: string): Promise<void> {
+  const escena = escenaDe(caso, escenaId);
+  const nodoId = s.nodoDe(escenaId);
+  const mapa = nodoId === undefined ? undefined : s.mapaDeNodo(nodoId);
+  if (!escena || !mapa) return;
+  const deseadas = (escena.pistas ?? []).map((p) => p.texto).filter((t) => t.trim() !== '');
+  const guardadas = s.pistasDeMapa(mapa.id);
+  for (let i = 0; i < deseadas.length; i++) {
+    const guardada = guardadas[i];
+    if (!guardada) await s.crearPista(mapa.id, { text: deseadas[i] });
+    else if (guardada.text !== deseadas[i]) await s.actualizarPista(guardada.id, { text: deseadas[i], hintOrder: guardada.order });
+  }
+  for (const sobra of guardadas.slice(deseadas.length)) await s.borrarPista(sobra.id);
 }
 
 /** Borra la escena del servidor, con las respuestas de otras escenas que llegaban a ella (el servidor no deja huérfanas). */

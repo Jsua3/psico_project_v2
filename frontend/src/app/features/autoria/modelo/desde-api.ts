@@ -67,7 +67,7 @@ const gestoDe = (valor: unknown): Reaccion['gesto'] => GESTOS.find((g) => g === 
 const emocionDe = (valor: unknown): Reaccion['emocion'] => EXPRESIONES.find((e) => e === valor);
 
 /** La reacción de una respuesta: solo lo que dice el servidor y entra en el vocabulario; `{}` = sin reacción. */
-function reaccionDesdeApi(r: ReactionState | undefined): Reaccion {
+export function reaccionDesdeApi(r: ReactionState | undefined): Reaccion {
   const reaccion: Reaccion = {};
   if (typeof r?.linea === 'string' && r.linea !== '') reaccion.linea = r.linea;
   const emocion = emocionDe(r?.emocion);
@@ -78,7 +78,7 @@ function reaccionDesdeApi(r: ReactionState | undefined): Reaccion {
   return reaccion;
 }
 
-function comentarioDesdeApi(c: CommentState): Comentario {
+export function comentarioDesdeApi(c: CommentState): Comentario {
   const comentario: Comentario = { personaje: c.personaje, linea: c.linea };
   if (c.cuando && Object.keys(c.cuando).length > 0) comentario.cuando = structuredClone(c.cuando);
   const emocion = emocionDe(c.emocion);

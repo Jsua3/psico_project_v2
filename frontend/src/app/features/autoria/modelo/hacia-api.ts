@@ -13,7 +13,7 @@ import type {
   WorldDialogueTree, WorldObject, WorldRoomSaveRequest,
 } from '../../../core/models/simulation.model';
 import type { CasoBorrador, EfectosRespuesta, Escena, Hito, Linea, ListaVerificacion, Respuesta, SalaCaso } from './caso';
-import { expresionDe } from './desde-api';
+import { comentarioDesdeApi, expresionDe, reaccionDesdeApi } from './desde-api';
 import { finalesDePlantilla, plantillaEditada } from './finales';
 import { mismoMovimiento, movimientoAMetadata, movimientoDeMetadata } from './movimiento';
 import type { Escenario, Personaje } from './escenario';
@@ -112,9 +112,10 @@ export function cuerpoNodo(escena: Escena, opciones: OpcionesNodo): NodeUpsertRe
   };
   // Una escena que propuso o cambió la IA se marca (si el servidor aún no la tiene marcada); solo «Aceptar» (accept-ai) la baja.
   if (escena.marcaIa && !previo?.aiSuggested) cuerpo.aiSuggested = true;
+  // Se compara contra el previo ya normalizado (lo que el borrador leyó), no contra el dato crudo del servidor.
   // Ausente = no tocar: el objetivo y los comentarios solo viajan si la docente los cambió (o si la escena es nueva).
   if (escena.objetivo !== undefined && (!previo || escena.objetivo !== (previo.goal ?? ''))) cuerpo.goal = escena.objetivo;
-  if (escena.comentarios !== undefined && (!previo || !mismoJson(escena.comentarios, previo.comments ?? []))) {
+  if (escena.comentarios !== undefined && (!previo || !mismoJson(escena.comentarios, (previo.comments ?? []).map(comentarioDesdeApi)))) {
     cuerpo.comments = structuredClone(escena.comentarios);
   }
   return cuerpo;
@@ -166,7 +167,7 @@ export function cuerpoDecision(
   if (respuesta.requiere !== undefined && (!previo || !mismoJson(respuesta.requiere, previo.requires ?? {}))) {
     cuerpo.requires = structuredClone(respuesta.requiere);
   }
-  if (respuesta.reaccion !== undefined && (!previo || !mismoJson(respuesta.reaccion, previo.reaction ?? {}))) {
+  if (respuesta.reaccion !== undefined && (!previo || !mismoJson(respuesta.reaccion, reaccionDesdeApi(previo.reaction)))) {
     cuerpo.reaction = { ...respuesta.reaccion };
   }
   return cuerpo;

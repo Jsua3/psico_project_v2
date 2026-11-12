@@ -128,19 +128,23 @@ export function casillasDe(piezas: PiezasDeSala): (h: Hecho) => boolean {
 
 // ─── En palabras ─────────────────────────────────────────────────────────────
 
-const AVISO_ROTO = 'un requisito que el editor no puede leer';
+const AVISO_ROTO = 'un requisito que el editor no puede leer'; // BORRADOR: texto nuevo, pendiente de la aprobación de Psicología
 
+// BORRADOR: texto nuevo, pendiente de la aprobación de Psicología
 const COMPARADORES: ReadonlyArray<readonly [string, string]> = [
   ['gte', 'al menos'], ['gt', 'más de'], ['lte', 'como mucho'], ['lt', 'menos de'], ['eq', 'exactamente'],
 ];
+// BORRADOR: texto nuevo, pendiente de la aprobación de Psicología
 const CLASE_EN_PLURAL: Record<string, string> = {
   recommended: 'recomendadas', acceptable: 'aceptables', risky: 'con riesgo', contraindicated: 'contraindicadas',
 };
+// BORRADOR: texto nuevo, pendiente de la aprobación de Psicología (los verbos de los hechos y las frases de abajo: «y», «alguna de estas», «no…», «cumplió el hito», «eligió… respuestas», «la persona usuaria quedó»)
 const VERBO_DE_HECHO: Record<TipoHecho, string> = { talked: 'habló con', inspected: 'revisó', has: 'tiene', used: 'usó' };
 
 type Nombres = (tipo: string, clave: string) => string;
 
 /** Una condición en palabras; `null` si no es una condición del vocabulario. */
+// BORRADOR: texto nuevo, pendiente de la aprobación de Psicología (todas las frases que arma: «y», «alguna de estas», «no ocurre que», «cumplió el hito», «eligió», «la persona usuaria quedó»)
 function palabras(c: unknown, nombres: Nombres, nivel: number): string | null {
   if (nivel > PROFUNDIDAD_MAXIMA || !esObjeto(c)) return null;
   const hecho = hechoDe(c);

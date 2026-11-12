@@ -699,6 +699,21 @@ describe('cuerpoNodo y cuerpoDecision: los campos 2.1 solo viajan si la docente 
     expect(cuerpo).not.toHaveProperty('requires');
   });
 
+  it('compara la reacción y los comentarios contra el previo normalizado: un valor fuera del vocabulario no cuenta como cambio', () => {
+    const caso = casoSinLugar();
+    const decision = caso.editor.decisions[0];
+    (decision as { reaction: unknown }).reaction = { linea: 'Gracias.', gesto: 'saluda', emocion: 'furiosa' };
+    const leida = casoDesdeApi(caso.editor, caso.mundos).escenas.flatMap((e) => e.respuestas).find((r) => r.id === String(decision.id))!;
+    expect(leida.reaccion).toEqual({ linea: 'Gracias.' });
+    expect(cuerpoDecision(leida, 1, { previo: decision })).not.toHaveProperty('reaction');
+
+    const nodo = caso.editor.nodes[0];
+    (nodo as { comments: unknown }).comments = [{ personaje: 'camila', linea: 'Hola.', gesto: 'saluda' }];
+    const escenaLeida = casoDesdeApi(caso.editor, caso.mundos).escenas.find((e) => e.id === String(nodo.id))!;
+    expect(escenaLeida.comentarios).toEqual([{ personaje: 'camila', linea: 'Hola.' }]);
+    expect(cuerpoNodo(escenaLeida, { esInicio: false, previo: nodo })).not.toHaveProperty('comments');
+  });
+
   it('una respuesta nueva con requisito y reacción los manda', () => {
     const cuerpo = cuerpoDecision(
       respuesta({ requiere: { talked: 'camila' }, reaccion: { linea: 'Ok.' } }), 1, { optionKey: 'o' },
