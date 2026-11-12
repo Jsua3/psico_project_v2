@@ -37,8 +37,16 @@ describe('contraste: simulador', () => {
     expect(contrast('#B69CFF', '#12182A')).toBeGreaterThanOrEqual(4.5);
   });
 
-  it('la ayuda de controles es legible', () => {
-    expect(play).toMatch(/\.context-bar__hint \{[^}]*font-size: \.75rem;[^}]*color: rgba\(232,240,244,\.72\);/);
+  // Las teclas ya no son una leyenda en la barra (Tarea 9): viven en la sección «Teclas» de la ayuda, que pinta
+  // `.help-section__text` dentro de `.help-screen` (texto claro al 92 % sobre fondo casi negro).
+  it('la ayuda de controles (sección «Teclas» de la ayuda) es legible', () => {
+    const help = source('../app/features/simulator/game-help.component.ts');
+    expect(play).not.toContain('context-bar__hint');
+    expect(help).toMatch(/\.help-screen \{[^}]*background: rgba\(8,12,18,\.97\);[^}]*color: rgba\(232,240,244,\.92\);/);
+    const size = /\.help-section__text \{[^}]*font-size: ([\d.]+)rem;/.exec(help)?.[1] ?? '0';
+    expect(parseFloat(size)).toBeGreaterThanOrEqual(0.75);
+    const bg = '#080C12';
+    expect(contrastRatio(blend('#E8F0F4', 0.92, bg), bg)).toBeGreaterThanOrEqual(7);
   });
 });
 
