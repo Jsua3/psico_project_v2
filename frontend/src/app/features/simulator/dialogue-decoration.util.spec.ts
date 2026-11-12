@@ -39,7 +39,7 @@ function object(key: string, type: MapObjectState['type'], dlg: DialogueState | 
 }
 
 function ctxWith(partial: Partial<DecorationCtx> = {}): DecorationCtx {
-  const copy: CopyContext = { currentRoom: 'sala-escucha', world: null, nameTools: false, npcs: [] };
+  const copy: CopyContext = { world: null, npcs: [] };
   return {
     nodeKey: 'hospital-urgencias', nodeOptionIds: [101, 102, 103], world: worldWith(),
     viewedNpcKeys: new Set(), copy, notice: null, ...partial,

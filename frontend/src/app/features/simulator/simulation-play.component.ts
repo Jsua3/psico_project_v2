@@ -23,7 +23,7 @@ import { decorateDialogueState, otherStageDecisionKeys } from './dialogue-decora
 import { type CopyContext } from './evidence-copy.util';
 import { type DoorStatus, type DoorStatusContext, doorStateMap, doorStatus } from './door-status.util';
 import { type InteractionVerb, interactionVerb, readsLocally } from './interaction-verb.util';
-import { NAME_TOOLS_IN_HINTS, ORIENTATION_COPY, SAFE_EXIT_ALWAYS_REACHABLE } from './orientation.config';
+import { ORIENTATION_COPY, SAFE_EXIT_ALWAYS_REACHABLE } from './orientation.config';
 import { GameHelpComponent } from './game-help.component';
 import { HELP_FIRST_CARD, markHelpSeen, readHelpSeen, resetHelpSeen } from './help-memory.util';
 import { SceneGoalCardComponent } from './scene-goal-card.component';
@@ -2074,9 +2074,7 @@ export class SimulationPlayComponent implements OnInit, OnDestroy {
   private copyContext(): CopyContext {
     const world = this.world();
     return {
-      currentRoom: null,
       world,
-      nameTools: NAME_TOOLS_IN_HINTS,
       npcs: this.scenarioConfig()?.rooms.flatMap(room => room.npcs) ?? [],
     };
   }

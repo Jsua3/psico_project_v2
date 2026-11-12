@@ -29,7 +29,7 @@ import { SimulationPlayComponent } from './simulation-play.component';
 import type { Mock } from 'vitest';
 
 /**
- * Integración de la orientación en la pantalla de juego (T9.1 a T9.11, T8.4): la tarjeta «Qué hacer»,
+ * Integración de la orientación en la pantalla de juego (T9.1 a T9.11, T8.4): la ficha del objetivo,
  * el contador único, la etapa nueva, las puertas, los avisos y las personas del mundo. Se ejercita la
  * instancia con las coordenadas y los nombres del seed, como el resto de specs de instancia del juego.
  */
@@ -177,7 +177,7 @@ describe('SimulationPlayComponent: orientación integrada', () => {
 
       component.openInteraction(exit());
 
-      expect(component.doorNotice()).toBe('Antes de pasar, habla con la Familia en crisis.');
+      expect(component.doorNotice()).toBe('Antes de pasar, habla con Familia en crisis (en el extremo izquierdo, al frente).');
       expect(component.doorNotice()).not.toMatch(/contenci[oó]n/i);
       expect(sim['enterRoom']).not.toHaveBeenCalled();
       expect(audio['playSfx']).toHaveBeenCalledWith('ui_cancel');
@@ -210,7 +210,7 @@ describe('SimulationPlayComponent: orientación integrada', () => {
       component.openInteraction(exit());
       tick(400);
 
-      expect(component.doorNotice()).toBe('Antes de pasar, revisa lo pendiente en «Qué hacer».');
+      expect(component.doorNotice()).toBe('Antes de pasar, explora un poco más la sala.');
       expect(component.actionError()).toBe('');
       expect(component.busy()).toBe(false);
       expect(component.fadeActive()).toBe(false);
@@ -362,9 +362,9 @@ describe('SimulationPlayComponent: orientación integrada', () => {
 
       expect(action?.verb.locked).toBe(true);
       expect(action?.verb.text).toBe('Pasar a Sala de escucha familiar');
-      expect(action?.verb.reason).toBe('Antes de pasar, habla con la Familia en crisis.');
+      expect(action?.verb.reason).toBe('Antes de pasar, habla con Familia en crisis (en el extremo izquierdo, al frente).');
       expect(action?.ariaLabel).toBe(
-        'Interactuar: Pasar a Sala de escucha familiar, bloqueada: Antes de pasar, habla con la Familia en crisis.');
+        'Interactuar: Pasar a Sala de escucha familiar, bloqueada: Antes de pasar, habla con Familia en crisis (en el extremo izquierdo, al frente).');
       expect(action?.title).toContain(action?.verb.reason ?? '');
     });
 
@@ -760,7 +760,7 @@ describe('SimulationPlayComponent: orientación integrada', () => {
       expect(compact.helpModality()).toBe('touch');
     });
 
-    it('un móvil vertical no es compacto, pero la tarjeta «Qué hacer» también arranca plegada', () => {
+    it('un móvil vertical no es compacto, pero la ficha del objetivo también arranca plegada', () => {
       mockMedia(['(max-width: 760px)', '(pointer: coarse)']);
       const phone = TestBed.runInInjectionContext(() => new SimulationPlayComponent());
 

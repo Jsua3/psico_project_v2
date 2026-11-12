@@ -681,6 +681,20 @@ export const DRAFT_COPY = {
     where: 'Conversación sin opciones de decisión en esta escena: línea final',
     text: 'Por ahora no hay nada que decidir en esta conversación.',
   },
+  unknownPerson: {
+    decision: 'DSL-8',
+    owner: 'Psicología',
+    review: 'conocimiento',
+    where: 'Puerta bloqueada: persona que pide la puerta y que no se halla en el mundo ni en el escenario',
+    text: 'alguien de la sala',
+  },
+  unknownThing: {
+    decision: 'DSL-8',
+    owner: 'Psicología',
+    review: 'conocimiento',
+    where: 'Puerta bloqueada: objeto o herramienta que pide la puerta y que no se halla en el mundo',
+    text: 'algo de la sala',
+  },
   /** Nota de una conducta prohibida en «Tus decisiones»: se señala con cuidado, sin cifras (RN-08, ETH). */
   decisionProhibitedNote: {
     decision: 'RN-08',
