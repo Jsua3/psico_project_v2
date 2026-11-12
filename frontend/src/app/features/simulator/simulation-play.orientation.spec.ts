@@ -268,9 +268,7 @@ describe('SimulationPlayComponent: orientación integrada', () => {
       const gate = openGate('hospital-urgencias', done);
 
       expect(gate?.key.startsWith('evidence-gate')).toBeFalsy();
-      expect(sim['chooseDecision']).toHaveBeenCalledTimes(0); // el fundido aún no terminó
-      tick(400);
-      expect(sim['chooseDecision']).toHaveBeenCalledTimes(1);
+      expect(sim['chooseDecision']).toHaveBeenCalledTimes(1); // sin fundido antes de responder (4.3.3)
     });
 
     it('el diálogo del aviso conserva «Explorar primero» y «Decidir con información incompleta»', () => {

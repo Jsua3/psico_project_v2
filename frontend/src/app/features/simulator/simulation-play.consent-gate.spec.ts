@@ -742,7 +742,7 @@ describe('SimulationPlayComponent — puerta de consentimiento (ETH-01)', () => 
     setup(makeAttempt());
     const persona = { bond: 'OPEN', activation: 'CALM', label: 'se muestra abierta y serena' };
     const updatePatientVisualState = vi.fn();
-    (component as any).gameWorld = { updatePatientVisualState };
+    (component as any).gameWorld = { updatePatientVisualState, setPersonaState: vi.fn() };
     component.attempt.set(makeAttempt({ persona }));
 
     (component as any).applyLoadedWorld({

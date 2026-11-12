@@ -248,6 +248,7 @@ describe('SimulationPlayComponent: diálogo sin callejones', () => {
 
       // El servidor ya avanzó el caso: la pausa debe usar el token del intento nuevo, no el viejo.
       decision$.next(makeAttempt({ attemptToken: 'token-2', currentNode: { key: FREE_NODE, title: 'Etapa 2', options: [] } }));
+      vi.advanceTimersByTime(340); // la sala de destino carga tras el fundido que sigue a la reacción
       TestBed.tick();
 
       expect(component.busy()).toBe(true); // la pausa ya está en vuelo

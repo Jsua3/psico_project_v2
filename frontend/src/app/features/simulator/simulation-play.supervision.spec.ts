@@ -172,7 +172,7 @@ describe('SimulationPlayComponent: supervisión de la última decisión (DLG-05)
       expect(audio['playSfx']).not.toHaveBeenCalledWith('session_complete');
     });
 
-    it('una decisión que no es la última sigue como antes: el intento sigue en curso y la supervisión llega a los 400 ms', () => {
+    it('una decisión que no es la última sigue en curso y la supervisión llega al terminar la reacción, sin espera de 400 ms', () => {
       component.attempt.set(makeAttempt());
       component.world.set(makeWorld());
       sim['chooseDecision'].mockReturnValue(of(decided(makeAttempt({}, 'hospital-accion'))));
@@ -184,8 +184,6 @@ describe('SimulationPlayComponent: supervisión de la última decisión (DLG-05)
       component.executeDecision(101);
       tick(340);
       tick(100);
-      expect(component.dialogue()).toBeNull();
-      tick(400);
 
       expect(component.holdingOutcome()).toBe(false);
       expect(component.dialogue()?.speakerName).toBe('Consecuencia');

@@ -33,6 +33,7 @@ import { SceneLogState, deriveSceneLog, diffDone, ringTargetKey, roomGroupOf, sc
 import { clearVisitedRooms, markRoomVisited, readVisitedRooms } from './visited-rooms.util';
 import { DialoguePanelComponent } from './dialogue-panel.component';
 import { GameWorldComponent } from './game-world.component';
+import { type EscenarioReaccion, type FinReaccion, ReactionDirectorComponent } from './reaction-director.component';
 import { JournalPanelComponent, JournalSaveState } from './journal-panel.component';
 import { isShortcutContext } from './keyboard-focus.util';
 import { SafeExitButtonComponent } from './safe-exit-button.component';
@@ -91,8 +92,6 @@ const NOTE_SEEN_MS = 1500;
 const FADE_OUT_MS = 340;
 /** Tras aplicar un mundo nuevo, espera antes de retirar el fundido de escena; luego corren los efectos de cámara. */
 const WORLD_REVEAL_DELAY_MS = 80;
-/** La consecuencia de una decisión que no es la última se abre tanto tiempo después de la respuesta (DLG-05). */
-const SUPERVISION_DELAY_MS = 400;
 /** Rótulo del diálogo que muestra la consecuencia narrativa justo tras decidir (RN-08; decisión del usuario 2026-10-18). */
 const CONSEQUENCE_SPEAKER = 'Consecuencia';
 /** Aviso de reintento al decidir: neutro, sin clasificación. El servidor puede mandar un mensaje evaluativo (forma heredada). */
@@ -135,7 +134,7 @@ const CASE_INTRO_PARAGRAPHS = [
     SimulationHudComponent, GameWorldComponent, DialoguePanelComponent,
     ToolInventoryComponent, JournalPanelComponent, AttemptOutcomeComponent, CaseIntroSceneComponent,
     SafeExitButtonComponent, SceneChecklistCardComponent, GameHelpComponent, WorldPlacesListComponent,
-    UiButton, UiErrorState, UiScopeNotice, UiSpinner
+    ReactionDirectorComponent, UiButton, UiErrorState, UiScopeNotice, UiSpinner
   ],
   template: `
     <div class="game-container" data-skin="game" id="main-content" tabindex="-1" [attr.data-mode]="viewMode()"
@@ -396,6 +395,10 @@ const CASE_INTRO_PARAGRAPHS = [
               <!-- Solo el fondo: el indicador de carga es .game-boot (un solo estado). #game-area existe siempre. -->
               <div id="game-area" class="world-skeleton" aria-hidden="true"></div>
             }
+
+            <!-- La reacción del personaje tras elegir: franja sobre el mundo, en la sala donde ocurrió (4.3.3). -->
+            <app-reaction-director #reaction [escenario]="reactionStage()" [reduceMotion]="reduceMotion()"
+              (finished)="afterReaction($event)" />
 
             @if (showHelpCard()) {
               <!-- Tarjeta de primera vez: no modal, sin temporizador, no roba el foco ni consume Esc. -->
@@ -1230,6 +1233,7 @@ export class SimulationPlayComponent implements OnInit, OnDestroy {
 
   @ViewChild('gameWorld')    private gameWorld?: GameWorldComponent;
   @ViewChild('journalPanel') private journalPanel?: JournalPanelComponent;
+  @ViewChild('reaction')     private reaction?: ReactionDirectorComponent;
 
   readonly attempt    = signal<SimulationAttemptState | null>(null);
   /** El intento al que piden las pistas de la escena las opciones de una decisión (F10-2, C9). */
@@ -1434,7 +1438,15 @@ export class SimulationPlayComponent implements OnInit, OnDestroy {
     || (this.attempt()?.status ?? 'IN_PROGRESS') !== 'IN_PROGRESS');
 
   /** Con la pantalla de ayuda abierta el personaje no camina mientras se lee. */
-  readonly worldMotionPaused = computed(() => this.inputBlocked() || this.helpOpen());
+  readonly worldMotionPaused = computed(() => this.inputBlocked() || this.helpOpen() || this.reacting());
+
+  /** La reacción del personaje tras elegir está en curso: el mundo se congela, pero el pie con «Salida segura» sigue operable. */
+  readonly reacting = signal(false);
+  /** La respuesta de la decisión, a la espera de que termine la reacción para abrir la supervisión y cargar la sala. */
+  private pendingAfterReaction: SimulationDecisionResult | null = null;
+
+  /** La escena que el director de la reacción maneja (el mundo del juego; `gameWorld` es privado para la plantilla). */
+  protected reactionStage(): EscenarioReaccion | null { return this.gameWorld ?? null; }
 
   readonly contextualInteraction = computed(() => {
     const game = this.attempt();
@@ -1538,6 +1550,11 @@ export class SimulationPlayComponent implements OnInit, OnDestroy {
     effect(() => {
       if (!this.pausing() || this.busy()) return;
       untracked(() => this.startQueuedPause());
+    });
+    // «Salida segura» durante la reacción la corta en el acto: sin encuadre, gesto ni nota de supervisión sobre la pausa.
+    effect(() => {
+      if (!this.pausing() || !this.reacting()) return;
+      untracked(() => this.cutReactionForPause());
     });
     // La supervisión de la última decisión dejó de estar a la vista (se cerró, «Salida segura», Esc o cualquier
     // otro camino): el resultado ya se ve y es el momento de su sonido y su foco.
@@ -1694,7 +1711,7 @@ export class SimulationPlayComponent implements OnInit, OnDestroy {
         this.busy.set(false);
         this.attempt.set(attempt);
         // Un diálogo que llegó tarde mientras el intento estaba en pausa (la supervisión se abre
-        // `SUPERVISION_DELAY_MS` después de la decisión) no debe reaparecer al reanudar.
+        // al terminar la reacción a la decisión) no debe reaparecer al reanudar.
         this.dialogue.set(null);
         this.trackPersona(attempt);
         this.applyAudioScene(attempt);
@@ -1820,6 +1837,8 @@ export class SimulationPlayComponent implements OnInit, OnDestroy {
     // con Escape en document:keydown), no reinterpretarla aquí: sin esta
     // guarda, un solo Escape cerraba el diálogo Y disparaba la salida segura.
     if (event.defaultPrevented) return;
+    // Durante la reacción solo Esc (salida segura) llega a la partida: nada abre interacciones ni mueve al jugador.
+    if (this.reacting() && event.key !== 'Escape') return;
     // Un Esc mantenido (temblor, pulsación larga) no encadena acciones: sin esto, una sola pulsación cerraba la ayuda,
     // la bitácora y el diálogo y además pausaba el caso (~30 eventos por segundo). Solo cuenta el primer evento.
     if (event.key === 'Escape' && event.repeat) return;
@@ -2378,7 +2397,8 @@ export class SimulationPlayComponent implements OnInit, OnDestroy {
     perfStart('decision-to-scene');
     this.dialogue.set(null);
     this.journalMessage.set('');
-    this.triggerFade(() => {
+    this.audioDirector.playSfx('dialogue_advance');   // el aviso de que la elección salió; ya no hay fundido aquí
+    {
       const request = this.decisionRequestFor(decisionOptionId);
       this.simulationService.chooseDecision(
         game.attemptId, game.attemptToken, decisionOptionId,
@@ -2391,27 +2411,25 @@ export class SimulationPlayComponent implements OnInit, OnDestroy {
           if (this.attempt()?.status === 'PAUSED') {
             perfCancel('decision-to-scene');
             this.busy.set(false);
-            this.fadeActive.set(false);
             return;
           }
           this.trackStageChange(game, updated);
           this.attempt.set(updated);
-          this.syncPersonaIcon(updated);
+          // La etiqueta nueva la dice la reacción en su paso (`afterReaction` la deja si no hubo): aquí solo el icono.
+          this.syncPersonaIcon(updated, false);
           this.trackPersona(updated);
           this.persistAttemptToken(updated);
           this.selectedInteraction.set(null);
           this.nearbyInteraction.set(null);
           this.journalPanel?.clear();
-          // Última decisión: la consecuencia se lee sobre la escena y el resultado se abre al cerrarla. Se arma antes
-          // de pedir el mundo: si este falla, su error suelta la retención. Sin consecuencia que mostrar, el resultado
-          // se abre ya y el cierre suena como siempre. Nada de esto mira la clasificación (RN-08).
-          const lastDecision = updated.status === 'COMPLETED';
-          if (lastDecision && !this.holdOutcomeForConsequence(updated)) this.playCompletionAudio();
-          this.loadProgressMap(updated);
-          this.loadWorld(updated);
-          this.applyAudioScene(updated);
-          const consequence = lastDecision ? null : this.buildConsequenceDialogue(updated);
-          if (consequence) window.setTimeout(() => this.dialogue.set(consequence), SUPERVISION_DELAY_MS);
+          // El personaje reacciona en su sala; la supervisión y la sala de destino siguen en `afterReaction`.
+          this.pendingAfterReaction = updated;
+          if (!this.reaction) { this.afterReaction(); return; }
+          this.reacting.set(true);
+          this.reaction.play(
+            { reaction: updated.reaction, personaAntes: game.persona, personaDespues: updated.persona, reduceMotion: this.reduceMotion() },
+            this.reactionActor(updated.reaction?.objectKey ?? null),
+          );
         },
         error: err => {
           perfCancel('decision-to-scene');
@@ -2420,10 +2438,54 @@ export class SimulationPlayComponent implements OnInit, OnDestroy {
           this.releaseDialogue();
           this.reportApiError(err, 'No pudimos registrar tu decisión. Inténtalo de nuevo.');
           this.busy.set(false);
-          this.fadeActive.set(false);
         }
       });
-    });
+    }
+  }
+
+  /** Quién reacciona: el nombre en la sala actual y, si es la persona clave, su retrato. */
+  private reactionActor(objectKey: string | null): { nombre: string; visual: CharacterVisual | null } {
+    const world = this.world();
+    const object = objectKey ? world?.objects?.find(o => o.key === objectKey) : undefined;
+    if (!world || !object) return { nombre: '', visual: null };
+    const isKeyPerson = resolveKeyPerson(world.objects ?? [])?.key === object.key;
+    return { nombre: getSceneDisplayLabel(object, world.map.key), visual: isKeyPerson ? this.patientVisual() : null };
+  }
+
+  /** Terminó la reacción (completa o saltada): nota de supervisión sobre la escena y, detrás de ella, la sala de destino. */
+  afterReaction(motivo: FinReaccion = 'completa'): void {
+    if (motivo === 'cancelada') return;   // la salida segura ya tomó la pantalla (`cutReactionForPause`)
+    const updated = this.pendingAfterReaction;
+    this.pendingAfterReaction = null;
+    this.reacting.set(false);
+    if (!updated) return;
+    // Última decisión: la consecuencia se lee sobre la escena y el resultado se abre al cerrarla. Se arma antes
+    // de pedir el mundo: si este falla, su error suelta la retención. Sin consecuencia que mostrar, el resultado
+    // se abre ya y el cierre suena como siempre. Nada de esto mira la clasificación (RN-08).
+    if (updated.status === 'COMPLETED') {
+      if (!this.holdOutcomeForConsequence(updated)) this.playCompletionAudio();
+    } else {
+      const consequence = this.buildConsequenceDialogue(updated);
+      if (consequence) this.dialogue.set(consequence);
+    }
+    this.loadProgressMap(updated);
+    this.applyAudioScene(updated);
+    this.triggerFade(() => this.loadWorld(updated), null);   // la elección ya sonó al enviarse
+  }
+
+  /** La pausa en cola corta la reacción en el acto. Si la decisión ya cerró el caso, el resultado se abre sin supervisión. */
+  private cutReactionForPause(): void {
+    const updated = this.pendingAfterReaction;
+    this.pendingAfterReaction = null;
+    this.reaction?.cancel();
+    this.reacting.set(false);
+    this.busy.set(false);
+    if (updated && updated.status !== 'IN_PROGRESS') {
+      this.playCompletionAudio();
+      this.loadProgressMap(updated);
+      this.applyAudioScene(updated);
+      this.loadWorld(updated);
+    }
   }
 
   useTool(toolCode: string) {
@@ -2882,8 +2944,8 @@ export class SimulationPlayComponent implements OnInit, OnDestroy {
     };
   }
 
-  private triggerFade(callback: () => void, sound: 'dialogue_advance' | 'door_open' = 'dialogue_advance'): void {
-    this.audioDirector.playSfx(sound);
+  private triggerFade(callback: () => void, sound: 'dialogue_advance' | 'door_open' | null = 'dialogue_advance'): void {
+    if (sound) this.audioDirector.playSfx(sound);
     this.fadeActive.set(true);
     window.setTimeout(callback, FADE_OUT_MS);
   }
@@ -2989,8 +3051,11 @@ export class SimulationPlayComponent implements OnInit, OnDestroy {
   }
 
   /** La persona de este intento sobre la cabeza de la paciente en el mundo (el icono nace con el último estado). */
-  private syncPersonaIcon(attempt: SimulationAttemptState | null): void {
-    if (attempt?.persona) this.gameWorld?.updatePatientVisualState(attempt.persona);
+  private syncPersonaIcon(attempt: SimulationAttemptState | null, withLabel = true): void {
+    if (!attempt?.persona) return;
+    this.gameWorld?.updatePatientVisualState(attempt.persona);
+    // El estado en palabras sobre la persona clave también fuera de la reacción (4.3.1).
+    if (withLabel) this.gameWorld?.setPersonaState(attempt.persona.label);
   }
 
   /** Música y viñeta siguen a la intensidad de la escena y a la activación de la persona, nunca a una cifra. */
