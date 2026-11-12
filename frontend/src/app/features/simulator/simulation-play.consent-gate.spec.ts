@@ -226,7 +226,7 @@ describe('SimulationPlayComponent — puerta de consentimiento (ETH-01)', () => 
     component.handleGlobalInteraction(new KeyboardEvent('keydown', { key: ' ', cancelable: true }));
 
     expect(component.showContentWarning()).toBe(true);
-    expect(component.showIntroScene()).toBe(false);
+    expect(component.showCaseIntro()).toBe(false);
     expect(component.worldStarted()).toBe(false);
     expect(audio.init).not.toHaveBeenCalled();
     expect(sim.getWorld).not.toHaveBeenCalled();
@@ -334,7 +334,7 @@ describe('SimulationPlayComponent — puerta de consentimiento (ETH-01)', () => 
 
     it('si Phaser cancela Enter o Espacio en window, el botón de la tarjeta se activa a mano', () => {
       setup(makeAttempt());
-      component.showIntroScene.set(true);
+      component.showCaseIntro.set(true);
       const button = document.createElement('button');
       const click = vi.spyOn(button, 'click');
 
@@ -347,7 +347,7 @@ describe('SimulationPlayComponent — puerta de consentimiento (ETH-01)', () => 
       }
 
       expect(click).toHaveBeenCalledTimes(2);
-      expect(component.showIntroScene()).toBe(true);
+      expect(component.showCaseIntro()).toBe(true);
     });
 
     it('si nadie cancela la tecla, el botón se activa solo (sin doble activación)', () => {
@@ -364,7 +364,7 @@ describe('SimulationPlayComponent — puerta de consentimiento (ETH-01)', () => 
 
     it('mantener la tecla pulsada no repite la activación', () => {
       setup(makeAttempt());
-      component.showIntroScene.set(true);
+      component.showCaseIntro.set(true);
       const button = document.createElement('button');
       const click = vi.spyOn(button, 'click');
 
@@ -799,8 +799,8 @@ describe('SimulationPlayComponent — puerta de consentimiento (ETH-01)', () => 
       expect(audio.playSfx).toHaveBeenCalledWith('ui_cancel');
     });
 
-    it('pausar desde la introducción limpia las superposiciones y detiene el tema', () => {
-      component.showIntroScene.set(true);
+    it('pausar desde la introducción limpia la tarjeta y las demás superposiciones y detiene el tema', () => {
+      component.showCaseIntro.set(true);
       component.journalOpen.set(true);
       component.dialogue.set(optionsDialogue);
       component.selectedInteraction.set({ key: 'familia-crisis', type: 'PERSON' } as unknown as MapObjectState);
@@ -809,7 +809,6 @@ describe('SimulationPlayComponent — puerta de consentimiento (ETH-01)', () => 
       component.pauseFromOverlay();
 
       expect(component.attempt()?.status).toBe('PAUSED');
-      expect(component.showIntroScene()).toBe(false);
       expect(component.showCaseIntro()).toBe(false);
       expect(component.journalOpen()).toBe(false);
       expect(component.helpOpen()).toBe(false);
@@ -817,16 +816,6 @@ describe('SimulationPlayComponent — puerta de consentimiento (ETH-01)', () => 
       expect(component.selectedInteraction()).toBeNull();
       expect(audio.stopIntroLament).toHaveBeenCalled();
       expect(component.pausing()).toBe(false);
-    });
-
-    it('pausar desde el contexto inicial limpia la tarjeta', () => {
-      component.showCaseIntro.set(true);
-      sim.safeExit.mockReturnValue(of(makeAttempt({ status: 'PAUSED' })));
-
-      component.pauseFromOverlay();
-
-      expect(component.showCaseIntro()).toBe(false);
-      expect(component.attempt()?.status).toBe('PAUSED');
     });
 
     it('descarta la evidencia y la restricción pendientes al pausar', () => {
@@ -862,12 +851,12 @@ describe('SimulationPlayComponent — puerta de consentimiento (ETH-01)', () => 
     });
 
     it('si el servidor falla la superposición sigue ahí y se puede reintentar', () => {
-      component.showIntroScene.set(true);
+      component.showCaseIntro.set(true);
       sim.safeExit.mockReturnValueOnce(throwError(() => new Error('sin red')));
 
       component.pauseFromOverlay();
 
-      expect(component.showIntroScene()).toBe(true);
+      expect(component.showCaseIntro()).toBe(true);
       expect(component.attempt()?.status).toBe('IN_PROGRESS');
       expect(component.busy()).toBe(false);
       expect(component.pausing()).toBe(false);
@@ -877,7 +866,7 @@ describe('SimulationPlayComponent — puerta de consentimiento (ETH-01)', () => 
       component.pauseFromOverlay();
 
       expect(sim.safeExit).toHaveBeenCalledTimes(2);
-      expect(component.showIntroScene()).toBe(false);
+      expect(component.showCaseIntro()).toBe(false);
     });
 
     it('no actúa bajo el aviso de contenido (ETH-01) ni bajo el aviso de reanudar', () => {
@@ -946,17 +935,7 @@ describe('SimulationPlayComponent — puerta de consentimiento (ETH-01)', () => 
     });
 
     describe('Esc', () => {
-      it('en la introducción animada pausa aunque el foco esté en un botón', () => {
-        component.showIntroScene.set(true);
-        const event = escapeOn(document.createElement('button'));
-
-        component.handleGlobalInteraction(event);
-
-        expect(event.defaultPrevented).toBe(true);
-        expect(sim.safeExit).toHaveBeenCalledTimes(1);
-      });
-
-      it('en el contexto inicial pausa aunque el foco esté en un botón', () => {
+      it('en la introducción pausa aunque el foco esté en un botón', () => {
         component.showCaseIntro.set(true);
         const event = escapeOn(document.createElement('button'));
 
@@ -967,7 +946,7 @@ describe('SimulationPlayComponent — puerta de consentimiento (ETH-01)', () => 
       });
 
       it('si otro manejador ya consumió Esc no se pausa por segunda vez', () => {
-        component.showIntroScene.set(true);
+        component.showCaseIntro.set(true);
         const event = escapeOn();
         event.preventDefault();
 
@@ -1039,23 +1018,22 @@ describe('SimulationPlayComponent — puerta de consentimiento (ETH-01)', () => 
       });
 
       it('la introducción sin leer reaparece (no queda la pausa tapada por la tarjeta)', () => {
-        component.showIntroScene.set(true);
+        component.showCaseIntro.set(true);
         component.reduceMotion.set(false);
 
         pauseThenResume();
 
         expect(component.attempt()?.status).toBe('IN_PROGRESS');
-        expect(component.showIntroScene()).toBe(true);
+        expect(component.showCaseIntro()).toBe(true);
         expect(audio.playIntroLament).toHaveBeenCalled();
       });
 
-      it('con movimiento reducido reaparece directamente el contexto inicial', () => {
+      it('con movimiento reducido la tarjeta reaparece igual', () => {
         component.showCaseIntro.set(true);
         component.reduceMotion.set(true);
 
         pauseThenResume();
 
-        expect(component.showIntroScene()).toBe(false);
         expect(component.showCaseIntro()).toBe(true);
       });
 
@@ -1078,17 +1056,15 @@ describe('SimulationPlayComponent — puerta de consentimiento (ETH-01)', () => 
 
         pauseThenResume();
 
-        expect(component.showIntroScene()).toBe(false);
         expect(component.showCaseIntro()).toBe(false);
       });
 
-      it('en otra sala del caso no reabre la introducción', () => {
-        component.world.set({ map: { key: 'hospital-sala-escucha' }, flags: {} } as unknown as SimulationWorldState);
+      it('la tarjeta sin leer sale en la escena donde se reanude, sea cual sea la sala', () => {
+        component.world.set({ map: { key: 'otra-sala' }, flags: {} } as unknown as SimulationWorldState);
 
         pauseThenResume();
 
-        expect(component.showIntroScene()).toBe(false);
-        expect(component.showCaseIntro()).toBe(false);
+        expect(component.showCaseIntro()).toBe(true);
       });
 
       describe('con el mundo recargándose tras la pausa', () => {

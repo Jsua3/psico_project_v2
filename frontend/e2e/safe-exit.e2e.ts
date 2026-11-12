@@ -114,20 +114,16 @@ async function assertSafeExitPauses(page: Page, state: string, viewport: { width
   ).toBe(true);
 }
 
-/** Tras reanudar desde la introducción o el contexto reaparece lo que no se había leído: se avanza hasta el mundo. */
+/** Tras reanudar desde la introducción reaparece la tarjeta si no se había leído: se avanza hasta el mundo. */
 async function advanceToWorld(page: Page): Promise<void> {
   const world = page.locator('app-game-world .phaser-host[data-world-ready="true"]');
-  const introVideo = page.getByRole('dialog').filter({ hasText: 'Antes de comenzar' });
-  const caseIntro = page.getByRole('dialog').filter({ hasText: 'Contexto inicial del caso' });
+  const caseIntro = page.getByRole('dialog').filter({ hasText: 'Antes de comenzar' });
   const deadline = Date.now() + scaled(60_000);
   while (Date.now() < deadline) {
-    if (await introVideo.isVisible().catch(() => false)) {
-      await introVideo.getByRole('button', { name: /saltar video|continuar/i }).click();
-    } else if (await caseIntro.isVisible().catch(() => false)) {
+    if (await caseIntro.isVisible().catch(() => false)) {
       await caseIntro.getByRole('button', { name: /^continuar$/i }).click();
     } else if (await world.isVisible().catch(() => false)
-      && await caseIntro.isHidden().catch(() => true)
-      && await introVideo.isHidden().catch(() => true)) {
+      && await caseIntro.isHidden().catch(() => true)) {
       return;
     }
     await page.waitForTimeout(250);

@@ -597,8 +597,7 @@ describe('SimulationPlayComponent: orientación integrada', () => {
 
     it.each([
       ['el aviso de contenido (ETH-01)', () => component.showContentWarning.set(true)],
-      ['la introducción', () => component.showIntroScene.set(true)],
-      ['el contexto inicial', () => component.showCaseIntro.set(true)],
+      ['la introducción', () => component.showCaseIntro.set(true)],
       ['el aviso de reanudar', () => component.showResumePrompt.set(true)],
       ['un diálogo abierto', () => component.dialogue.set({ key: 'd', speakerName: 'A', portraitKey: null, emotion: 'neutral', lines: [], choices: [] } as unknown as DialogueState)],
       ['la bitácora abierta', () => component.journalOpen.set(true)],

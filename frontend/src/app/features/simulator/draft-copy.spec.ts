@@ -52,8 +52,8 @@ describe('draft-copy: textos en borrador pendientes de Psicología', () => {
     // solo se conocen; y los del cierre por hitos y competencias (VD-23: clases en palabras, hitos, competencias,
     // autoevaluación breve y últimos cierres del panel) y la nota «persona a atender» de la persona clave (P6-4); y los siete
     // de la ficha del objetivo (DSL-2: rótulo, respaldo, «En esta sala», las tres marcas y «Pedir una pista») y los cuatro de DSL-3 (los dos avisos
-    // de exploración y los dos textos de la ayuda) y el chip del aviso sensible (DSL-4).
-    expect(list.filter(entry => entry.review === 'validar')).toHaveLength(70);
+    // de exploración y los dos textos de la ayuda) el chip del aviso sensible (DSL-4) y los cinco de la tarjeta «Antes de comenzar» (DSL-5).
+    expect(list.filter(entry => entry.review === 'validar')).toHaveLength(75);
   });
 
   // req: ETH-01, SIEP-RF-05 (S3-2b)

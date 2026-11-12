@@ -60,9 +60,8 @@ import {
 } from './scene-map-display.util';
 import { AttemptOutcomeComponent } from './attempt-outcome.component';
 import { accessErrorMessage } from './case-access.util';
-import { CaseIntroSceneComponent } from './case-intro-scene.component';
 import { resolveViewMode, SimulationViewMode } from './simulation-view-mode.util';
-import { IntroGateStep, resolveIntroStep } from './intro-gate.util';
+import { IntroGateStep, introCardLines, resolveIntroStep } from './intro-gate.util';
 import { getSceneProgress, getStageTitle } from './scene-objectives.config';
 import { COARSE_POINTER_QUERY, matchesMedia, watchMedia } from './pointer-modality.util';
 import { UiButton } from '../../shared/ui/button/ui-button';
@@ -118,23 +117,13 @@ const NARROW_QUERY = '(max-width: 760px)';
  */
 const QUEUED_PAUSE_DEADLINE_MS = 10_000;
 const QUEUED_PAUSE_SLOW_NOTICE = 'La acción en curso está tardando. Estamos pausando el caso igualmente.';
-const CASE_INTRO_TITLE = 'Contexto inicial del caso';
-const CASE_INTRO_PARAGRAPHS = [
-  'Son las 11 de la noche en un barrio con altas condiciones de vulnerabilidad: pobreza, violencias urbanas, robos, expendio de drogas, presencia de grupos armados ilegales y riñas callejeras entre vecinos.',
-  'Un hombre de aproximadamente 28 años entra a su domicilio, donde reside con su pareja actual, una mujer de 22 años. Ella tiene una hija de 3 años.',
-  'En horas de la tarde, el hombre había tenido un altercado verbal con su pareja. Hubo groserías, maltrato psicológico y chantaje emocional: le dijo que sin él no era nadie, que era una mujer mantenida y que estaba seguro de que ella le era infiel.',
-  'Esa noche, cuando él entra a la residencia, la mujer le reclama por llegar tarde y haberse perdido toda la tarde.',
-  'El hombre, sin mediar palabra, saca una navaja y hiere a la niña de 3 años, causándole la muerte de manera inmediata. Luego hiere a la mujer con 28 heridas de arma cortopunzante, dejándola gravemente herida.',
-  'Tu intervención inicia en urgencias. Lee el contexto con cuidado: cada conversación, herramienta y decisión puede cambiar el curso de la atención.'
-];
-
 @Component({
   selector: 'app-simulation-play',
   standalone: true,
   imports: [
     A11yModule, CommonModule, RouterLink, MatIconModule,
     SimulationHudComponent, GameWorldComponent, DialoguePanelComponent,
-    ToolInventoryComponent, JournalPanelComponent, AttemptOutcomeComponent, CaseIntroSceneComponent,
+    ToolInventoryComponent, JournalPanelComponent, AttemptOutcomeComponent,
     SafeExitButtonComponent, SceneGoalCardComponent, GameHelpComponent, WorldPlacesListComponent,
     ReactionDirectorComponent, SensitiveNoticeComponent, UiButton, UiErrorState, UiScopeNotice, UiSpinner
   ],
@@ -277,54 +266,25 @@ const CASE_INTRO_PARAGRAPHS = [
         }
 
         @if (worldStarted()) {
-        @if (showIntroScene()) {
-          <section class="case-intro-overlay" role="dialog" aria-modal="true" aria-labelledby="intro-scene-title">
-            <article class="case-intro-card case-intro-card--scene" cdkTrapFocus [cdkTrapFocusAutoCapture]="true">
-              <header class="case-intro-card__header">
-                <p class="psy-eyebrow">Introducción</p>
-                <h2 id="intro-scene-title">Antes de comenzar</h2>
-              </header>
-
-              <div class="case-intro-card__media">
-                <app-case-intro-scene [reduceMotion]="reduceMotion()" />
-              </div>
-
-              <footer class="case-intro-card__actions">
-                <button type="button" class="intro-music-toggle" [attr.aria-pressed]="musicMuted()" (click)="toggleMusicMute()">
-                  <mat-icon aria-hidden="true">{{ musicMuted() ? 'music_off' : 'music_note' }}</mat-icon>
-                  <span>Silenciar música</span>
-                </button>
-                <div class="case-intro-card__buttons">
-                  <app-safe-exit-button [pausing]="pausing()" (pause)="pauseFromOverlay()" />
-                  <button cdkFocusInitial class="psy-button psy-button--primary" type="button" (click)="continueFromIntroScene()">
-                    Continuar
-                  </button>
-                </div>
-              </footer>
-            </article>
-          </section>
-        }
-
         @if (showCaseIntro()) {
           <section class="case-intro-overlay" role="dialog" aria-modal="true" aria-labelledby="case-intro-title">
             <article class="case-intro-card" cdkTrapFocus [cdkTrapFocusAutoCapture]="true">
               <header class="case-intro-card__header">
                 <p class="psy-eyebrow">Primera escena</p>
-                <h2 id="case-intro-title">{{ caseIntroTitle }}</h2>
+                <h2 id="case-intro-title">Antes de comenzar</h2>
                 <button type="button" class="intro-music-toggle" [attr.aria-pressed]="musicMuted()" (click)="toggleMusicMute()">
                   <mat-icon aria-hidden="true">{{ musicMuted() ? 'music_off' : 'music_note' }}</mat-icon>
                   <span>Silenciar música</span>
                 </button>
               </header>
 
-              <div class="case-intro-card__body" tabindex="0" role="region" aria-label="Contexto narrativo del caso">
-                @for (paragraph of caseIntroParagraphs; track paragraph) {
-                  <p>{{ paragraph }}</p>
+              <div class="case-intro-card__body" tabindex="0" role="region" aria-label="Datos de la primera escena">
+                @for (line of introCardLines(game.caseTitle, game.currentNode.title, world()?.map?.title ?? ''); track line) {
+                  <p>{{ line }}</p>
                 }
               </div>
 
               <footer class="case-intro-card__actions">
-                <span>Lee el contexto completo antes de iniciar la intervención.</span>
                 <div class="case-intro-card__buttons">
                   <app-safe-exit-button [pausing]="pausing()" (pause)="pauseFromOverlay()" />
                   <button cdkFocusInitial class="psy-button psy-button--primary" type="button" (click)="continueFromCaseIntro()">
@@ -895,18 +855,6 @@ const CASE_INTRO_PARAGRAPHS = [
     @keyframes case-intro-rise { from { opacity: 0; transform: translateY(var(--ds-space-3)); } }
     /* Con movimiento reducido solo el fundido: nada se desplaza. */
     @media (prefers-reduced-motion: reduce) { .case-intro-card { animation-name: case-intro-fade; } }
-    .case-intro-card--scene { width: min(860px, 100%); max-height: min(88vh, 760px); }
-    .case-intro-card__media {
-      min-height: 0;
-      /* En pantallas bajas el escenario no cabe: recortado, nunca por encima del pie, donde están «Salida segura» y «Continuar». */
-      overflow: hidden;
-      display: grid;
-      /* Sin esto la pista «auto» crece al ancho del escenario (384 px) y en móvil no se recorta. */
-      grid-template-columns: minmax(0, 1fr);
-      place-items: center;
-      padding: 12px clamp(14px, 3vw, 24px);
-      background: #05080e;
-    }
     .case-intro-card__body {
       min-height: 0;
       overflow-y: auto;
@@ -1138,7 +1086,6 @@ const CASE_INTRO_PARAGRAPHS = [
       .case-intro-card__header .intro-music-toggle { grid-area: extra; }
       .case-intro-card__header .case-intro-card__chip { padding: 3px 9px; font-size: .75rem; }
       .case-intro-card__header .intro-music-toggle { min-height: 44px; }
-      .case-intro-card__media { padding: 4px 12px; }
       .case-intro-card__body { padding: 10px 16px 28px; }
       .case-intro-card__body p { margin-bottom: 8px; font-size: .86rem; line-height: 1.5; }
       .case-intro-card__actions { position: relative; }
@@ -1266,7 +1213,6 @@ export class SimulationPlayComponent implements OnInit, OnDestroy {
   readonly bootVisible = computed(() => this.bootPhase() === 'skeleton');
   /** «Salida segura» del pie está a la vista: el error no repite la salida con un segundo botón. */
   readonly footerExit = computed(() => this.worldStarted() && (this.attempt()?.status === 'IN_PROGRESS' || this.reactingToLast()));
-  readonly showIntroScene = signal(false);
   readonly showCaseIntro = signal(false);
   /** Pantalla «Cómo se juega»: no modal; Esc la cierra antes que cualquier otra cosa (F§7.8). */
   readonly helpOpen = signal(false);
@@ -1300,8 +1246,7 @@ export class SimulationPlayComponent implements OnInit, OnDestroy {
    */
   readonly holdingOutcome = computed(() =>
     this.supervisionHold() && this.dialogue() !== null && this.attempt()?.status === 'COMPLETED');
-  readonly caseIntroTitle = CASE_INTRO_TITLE;
-  readonly caseIntroParagraphs = CASE_INTRO_PARAGRAPHS;
+  protected readonly introCardLines = introCardLines;
   readonly musicMuted = signal(false);
   readonly sfxMuted = signal(false);
   readonly reduceMotion = signal(window.matchMedia?.('(prefers-reduced-motion: reduce)').matches ?? false);
@@ -1381,7 +1326,7 @@ export class SimulationPlayComponent implements OnInit, OnDestroy {
 
   /** El mundo se congela con diálogo, journal u outcome abiertos (Fase 5/13). */
   readonly inputBlocked = computed(() =>
-    this.showResumePrompt() || this.showContentWarning() || this.showIntroScene()
+    this.showResumePrompt() || this.showContentWarning()
     || this.showCaseIntro() || this.dialogue() !== null || this.journalOpen() || this.placesOpen()
     || (!this.reactingToLast() && (this.attempt()?.status ?? 'IN_PROGRESS') !== 'IN_PROGRESS'));
 
@@ -1440,7 +1385,7 @@ export class SimulationPlayComponent implements OnInit, OnDestroy {
   readonly showHelpCard = computed(() =>
     !this.helpCardSeen() && this.worldStarted() && this.world() !== null && !this.loading()
     && (this.attempt()?.status ?? null) === 'IN_PROGRESS'
-    && !this.showResumePrompt() && !this.showContentWarning() && !this.showIntroScene() && !this.showCaseIntro()
+    && !this.showResumePrompt() && !this.showContentWarning() && !this.showCaseIntro()
     && this.dialogue() === null && !this.journalOpen() && !this.helpOpen());
 
   /** Objetos de decisión de otras etapas: el mundo los atenúa (alfa .55, sin anillo). Nunca marca la opción adecuada. */
@@ -1810,7 +1755,7 @@ export class SimulationPlayComponent implements OnInit, OnDestroy {
       return;
     }
 
-    if (this.showIntroScene() || this.showCaseIntro()) {
+    if (this.showCaseIntro()) {
       // REGLA-004: Esc pausa también aquí. Va antes del chequeo de botones porque el foco de las
       // tarjetas siempre está en uno (`cdkFocusInitial`) y, sin este orden, Esc nunca llegaría.
       if (event.key === 'Escape') {
@@ -1823,10 +1768,7 @@ export class SimulationPlayComponent implements OnInit, OnDestroy {
         this.activateCardButtonIfCancelled(event);
         return;
       }
-      if (this.showIntroScene() && (event.key === 'Enter' || event.key === ' ')) {
-        event.preventDefault();
-        this.continueFromIntroScene();
-      } else if (this.showCaseIntro() && event.key === 'Enter') {
+      if (event.key === 'Enter') {
         event.preventDefault();
         this.continueFromCaseIntro();
       }
@@ -2712,7 +2654,6 @@ export class SimulationPlayComponent implements OnInit, OnDestroy {
     this.journalOpen.set(false);
     // «Ir a…» tiene su propia «Salida segura»: pausar desde ahí no la deja bajo la pantalla de pausa ni la trae de vuelta.
     this.placesOpen.set(false);
-    this.showIntroScene.set(false);
     this.showCaseIntro.set(false);
     this.helpOpen.set(false);
     this.pendingEvidenceDecisionId = null;
@@ -2786,7 +2727,7 @@ export class SimulationPlayComponent implements OnInit, OnDestroy {
     this.musicMuted.set(muted);
     if (!muted) {
       // Durante la intro vuelve su tema; en la partida, la música adaptativa del mapa.
-      if (this.showIntroScene() || this.showCaseIntro()) this.audioDirector.playIntroLament();
+      if (this.showCaseIntro()) this.audioDirector.playIntroLament();
       else this.applyAudioScene(this.attempt());
     }
     this.announce(muted ? 'Música silenciada.' : 'Música activada.');
@@ -3031,18 +2972,15 @@ export class SimulationPlayComponent implements OnInit, OnDestroy {
   private maybeShowInitialCaseIntro(world: SimulationWorldState): void {
     const attempt = this.attempt();
     if (!attempt) return;
-    this.applyIntroStep(this.resolveIntroStepFor(attempt, world.map.key));
+    this.applyIntroStep(this.resolveIntroStepFor(attempt));
   }
 
-  private resolveIntroStepFor(attempt: SimulationAttemptState, mapKey: string | null): IntroGateStep {
+  private resolveIntroStepFor(attempt: SimulationAttemptState): IntroGateStep {
     return resolveIntroStep({
       attemptStatus: attempt.status,
-      nodeKey: attempt.currentNode.key,
-      mapKey,
       // Una lectura que falla (modo privado, política) es «sin consentimiento» / «sin leer»: se vuelve a pedir.
       consentGiven: this.consentRecorder.isGiven(this.caseConsentStorageKey(attempt)),
       introRead: this.readStored(this.caseIntroStorageKey(attempt)) === 'read',
-      reduceMotion: this.reduceMotion(),
     });
   }
 
@@ -3051,12 +2989,7 @@ export class SimulationPlayComponent implements OnInit, OnDestroy {
       case 'consent':
         this.showContentWarning.set(true);
         return;
-      case 'scene':
-        this.showIntroScene.set(true);
-        // El tema acompaña la escena y sigue en la tarjeta del caso.
-        this.audioDirector.playIntroLament();
-        return;
-      case 'narrative':
+      case 'card':
         this.revealCaseIntro();
         return;
       default:
@@ -3184,11 +3117,6 @@ export class SimulationPlayComponent implements OnInit, OnDestroy {
     return consentStorageKey(attempt.caseVersionId, attempt.attemptId);
   }
 
-  continueFromIntroScene(): void {
-    this.showIntroScene.set(false);
-    this.revealCaseIntro();
-  }
-
   private revealCaseIntro(): void {
     this.showCaseIntro.set(true);
     this.audioDirector.playIntroLament();
@@ -3200,7 +3128,7 @@ export class SimulationPlayComponent implements OnInit, OnDestroy {
     this.showCaseIntro.set(false);
     this.audioDirector.stopIntroLament();
     this.applyAudioScene(attempt);
-    this.announce('Introducción completada. Inicia la intervención en urgencias.');
+    this.announce(DRAFT_COPY.introDone.text);
   }
 
   /** Lectura y escritura del almacenamiento de la sesión sin que un bloqueo (modo privado, cuota) rompa el juego. */

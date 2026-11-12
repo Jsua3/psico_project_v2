@@ -3,34 +3,37 @@
  *
  * Orden invariante: ningún contenido sensible (escena, narrativa, audio del
  * caso) puede mostrarse antes del consentimiento explícito del estudiante.
- * Tras consentir, se conserva el flujo previo: escena de intro (o narrativa
- * directa con reduce-motion) solo en el primer ingreso al nodo inicial.
+ * Tras consentir sale una sola tarjeta genérica por intento, en la escena
+ * donde se entre (sin depender de ningún caso concreto).
  */
 
-export type IntroGateStep = 'consent' | 'scene' | 'narrative' | 'none';
+import { DRAFT_COPY } from './draft-copy';
+
+export type IntroGateStep = 'consent' | 'card' | 'none';
 
 export interface IntroGateContext {
   /** Estado del intento (`IN_PROGRESS`, `COMPLETED`, `SAFE_EXITED`…) o null. */
   attemptStatus: string | null;
-  /** Nodo actual del intento. */
-  nodeKey: string | null;
-  /** Mapa del mundo recién cargado. */
-  mapKey: string | null;
   /** Consentimiento de contenido ya otorgado en esta sesión para este intento. */
   consentGiven: boolean;
-  /** Intro (escena + narrativa) ya completada en esta sesión para este intento. */
+  /** Tarjeta de introducción ya leída en esta sesión para este intento. */
   introRead: boolean;
-  /** `prefers-reduced-motion`: la intro salta la escena y va a la narrativa. */
-  reduceMotion: boolean;
 }
-
-/** Nodo/mapa donde vive la introducción del caso. */
-export const INTRO_NODE_KEY = 'hospital-urgencias';
 
 export function resolveIntroStep(ctx: IntroGateContext): IntroGateStep {
   if (ctx.attemptStatus !== 'IN_PROGRESS') return 'none';
   if (!ctx.consentGiven) return 'consent';
-  if (ctx.nodeKey !== INTRO_NODE_KEY || ctx.mapKey !== INTRO_NODE_KEY) return 'none';
   if (ctx.introRead) return 'none';
-  return ctx.reduceMotion ? 'narrative' : 'scene';
+  return 'card';
+}
+
+/** Las líneas de la tarjeta: el caso, la escena y la sala, y dónde se lee el contexto. Los {…} se rellenan aquí. */
+export function introCardLines(caseTitle: string, nodeTitle: string, mapTitle: string): string[] {
+  const fill = (template: string, value: string) => template.replace(/{[^}]+}/, () => value);
+  return [
+    fill(DRAFT_COPY.introCase.text, caseTitle),
+    fill(DRAFT_COPY.introScene.text, nodeTitle),
+    fill(DRAFT_COPY.introRoom.text, mapTitle),
+    DRAFT_COPY.introBriefNote.text,
+  ];
 }

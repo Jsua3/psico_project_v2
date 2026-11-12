@@ -107,13 +107,7 @@ describe('SimulationPlayComponent: una sola «Salida segura» operable por estad
     expect(operableExits()[0].closest('footer.bottom-zone')).not.toBeNull();
   });
 
-  it('introducción y contexto: la tarjeta trae el suyo y el pie, inerte, no cuenta', () => {
-    component.showIntroScene.set(true);
-    fixture.detectChanges();
-    expect(operableExits()).toHaveLength(1);
-    expect(operableExits()[0].closest('.case-intro-card')).not.toBeNull();
-
-    component.showIntroScene.set(false);
+  it('introducción: la tarjeta trae el suyo y el pie, inerte, no cuenta', () => {
     component.showCaseIntro.set(true);
     fixture.detectChanges();
     expect(operableExits()).toHaveLength(1);

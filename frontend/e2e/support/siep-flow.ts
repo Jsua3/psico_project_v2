@@ -92,16 +92,19 @@ export async function enterCaseAtContentWarning(page: Page): Promise<Locator> {
 
 export async function acceptContentWarning(page: Page, consent: Locator): Promise<Locator> {
   await consent.getByRole('button', { name: /^continuar$/i }).click();
-  const introVideo = page.getByRole('dialog').filter({ hasText: 'Antes de comenzar' });
-  await expect(introVideo).toBeVisible({ timeout: scaled(30_000) });
-  return introVideo;
+  const card = page.getByRole('dialog').filter({ hasText: 'Antes de comenzar' });
+  await expect(card).toBeVisible({ timeout: scaled(30_000) });
+  return card;
 }
 
-export async function finishCaseIntroduction(page: Page, introVideo: Locator): Promise<Locator> {
-  await introVideo.getByRole('button', { name: /saltar video|continuar/i }).click();
-  const caseIntro = page.getByRole('dialog').filter({ hasText: 'Contexto inicial del caso' });
-  await expect(caseIntro).toBeVisible({ timeout: scaled(30_000) });
-  return caseIntro;
+/**
+ * La tarjeta «Antes de comenzar» nombra el caso, la escena y la sala (no un texto fijo): se comprueba que trae el nombre de un
+ * caso y se devuelve sin pulsar nada; quien llama pulsa «Continuar» en lo que recibe.
+ */
+export async function finishCaseIntroduction(page: Page, card: Locator): Promise<Locator> {
+  await expect(card).toBeVisible({ timeout: scaled(30_000) });
+  await expect(card).toContainText(/Caso:\s*\S/);
+  return card;
 }
 
 /**

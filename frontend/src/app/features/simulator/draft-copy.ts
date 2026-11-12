@@ -622,6 +622,41 @@ export const DRAFT_COPY = {
     where: 'Aviso de contenido sensible bajo la cabecera: chip en el que se pliega y que lo vuelve a desplegar',
     text: 'Contenido sensible',
   },
+  introCase: {
+    decision: 'DSL-5',
+    owner: 'Psicología',
+    review: 'validar',
+    where: 'Tarjeta «Antes de comenzar»: nombre del caso',
+    text: 'Caso: {caso}',
+  },
+  introScene: {
+    decision: 'DSL-5',
+    owner: 'Psicología',
+    review: 'validar',
+    where: 'Tarjeta «Antes de comenzar»: nombre de la escena',
+    text: 'Escena: {escena}',
+  },
+  introRoom: {
+    decision: 'DSL-5',
+    owner: 'Psicología',
+    review: 'validar',
+    where: 'Tarjeta «Antes de comenzar»: sala donde empieza el estudiante',
+    text: 'Empiezas en: {sala}',
+  },
+  introBriefNote: {
+    decision: 'DSL-5',
+    owner: 'Psicología',
+    review: 'validar',
+    where: 'Tarjeta «Antes de comenzar»: dónde se lee el contexto del caso',
+    text: 'El contexto del caso está en su ficha.',
+  },
+  introDone: {
+    decision: 'DSL-5',
+    owner: 'Psicología',
+    review: 'validar',
+    where: 'Anuncio al continuar desde la tarjeta «Antes de comenzar»',
+    text: 'Introducción completada. Comienza la escena.',
+  },
   /** Nota de una conducta prohibida en «Tus decisiones»: se señala con cuidado, sin cifras (RN-08, ETH). */
   decisionProhibitedNote: {
     decision: 'RN-08',

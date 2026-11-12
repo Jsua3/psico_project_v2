@@ -162,7 +162,7 @@ describe('SimulationPlayComponent: salida segura (correcciones de la revisión)'
     });
 
     it('Esc mantenido en la introducción no repite la pausa y un Esc nuevo sí pausa', () => {
-      component.showIntroScene.set(true);
+      component.showCaseIntro.set(true);
 
       component.handleGlobalInteraction(escape(true));
       expect(component.pausing()).toBe(false);

@@ -4,34 +4,38 @@ import { join } from 'path';
 const source = readFileSync(join(__dirname, 'simulation-play.component.ts'), 'utf-8');
 
 describe('simulation-play: introducción', () => {
-  it('la intro es una escena animada en código, no un video', () => {
-    expect(source).toContain('<app-case-intro-scene [reduceMotion]="reduceMotion()" />');
+  it('la introducción es una tarjeta genérica: sin escena animada, sin video y sin texto de un caso', () => {
+    expect(source).not.toContain('app-case-intro-scene');
     expect(source).not.toContain('<video');
     expect(source).not.toContain('fondoHabitacion');
+    expect(source).not.toMatch(/28 heridas|Contexto inicial del caso|hospital-urgencias/);
     expect(existsSync(join(__dirname, '../../../assets/video/fondoHabitacion.mp4'))).toBe(false);
+    for (const gone of ['case-intro-scene.component.ts', 'intro-scene.util.ts']) {
+      expect(existsSync(join(__dirname, gone)), gone).toBe(false);
+    }
   });
 
   it('conserva el contrato de los e2e: «Antes de comenzar» con un botón «Continuar»', () => {
-    expect(source).toContain('<h2 id="intro-scene-title">Antes de comenzar</h2>');
-    expect(source).toMatch(/\(click\)="continueFromIntroScene\(\)">\s*Continuar\s*<\/button>/);
+    expect(source).toContain('<h2 id="case-intro-title">Antes de comenzar</h2>');
+    expect(source).toContain('<p class="psy-eyebrow">Primera escena</p>');
+    expect(source).toMatch(/\(click\)="continueFromCaseIntro\(\)">\s*Continuar\s*<\/button>/);
     expect(source).not.toContain('Saltar video');
+  });
+
+  it('la tarjeta nombra el caso, la escena y la sala desde el intento y el mundo', () => {
+    expect(source).toContain("introCardLines(game.caseTitle, game.currentNode.title, world()?.map?.title ?? '')");
   });
 
   it('ninguna tarjeta nombra la pista interna y ambas permiten silenciar la música', () => {
     expect(source).not.toContain('está sonando');
     expect(source).not.toContain('PsicoLament');
     const toggles = source.match(/class="intro-music-toggle" \[attr\.aria-pressed\]="musicMuted\(\)" \(click\)="toggleMusicMute\(\)"/g) ?? [];
-    expect(toggles).toHaveLength(2);
+    expect(toggles).toHaveLength(1);
   });
 
   it('los anuncios de música llevan tilde', () => {
     expect(source).toContain("'Música silenciada.'");
     expect(source).toContain("'Música activada.'");
-  });
-
-  it('en pantallas angostas la escena se recorta en vez de ensanchar la tarjeta', () => {
-    // Con la pista «auto» del grid el escenario (384 px) ensancharía la columna y no habría recorte.
-    expect(source).toMatch(/\.case-intro-card__media\s*\{[^}]*grid-template-columns:\s*minmax\(0,\s*1fr\)/);
   });
 
   it('«Simulación formativa con datos ficticios» conserva su estilo de chip con clase propia', () => {
@@ -48,17 +52,14 @@ describe('simulation-play: introducción', () => {
 });
 
 describe('simulation-play: salida segura alcanzable desde cada superposición (REGLA-004)', () => {
-  const introScene = source.slice(source.indexOf('id="intro-scene-title"'), source.indexOf('id="case-intro-title"'));
   const caseIntro = source.slice(source.indexOf('id="case-intro-title"'), source.indexOf('<header class="top-bar"'));
 
-  it('las dos tarjetas de la introducción ofrecen «Salida segura» a la izquierda de «Continuar»', () => {
-    const intoPause = /<app-safe-exit-button \[pausing\]="pausing\(\)" \(pause\)="pauseFromOverlay\(\)" \/>\s*<button cdkFocusInitial class="psy-button psy-button--primary" type="button" \(click\)="continueFrom(IntroScene|CaseIntro)\(\)">/;
-    expect(introScene).toMatch(intoPause);
+  it('la tarjeta de la introducción ofrece «Salida segura» a la izquierda de «Continuar»', () => {
+    const intoPause = /<app-safe-exit-button \[pausing\]="pausing\(\)" \(pause\)="pauseFromOverlay\(\)" \/>\s*<button cdkFocusInitial class="psy-button psy-button--primary" type="button" \(click\)="continueFromCaseIntro\(\)">/;
     expect(caseIntro).toMatch(intoPause);
   });
 
   it('el foco inicial de las tarjetas sigue en «Continuar», no en la salida', () => {
-    expect(introScene.match(/cdkFocusInitial/g)).toHaveLength(1);
     expect(caseIntro.match(/cdkFocusInitial/g)).toHaveLength(1);
   });
 

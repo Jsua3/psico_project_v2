@@ -279,8 +279,8 @@ export async function aprobarYPublicarPorApi(request: APIRequestContext, caseVer
 }
 
 /**
- * El estudiante de la semilla entra al primer caso de su lobby y llega a la primera sala. Un caso hecho en el editor no trae
- * video de introducción ni contexto inicial: si salen, se pasan; si no, el mundo aparece justo después del aviso de contenido.
+ * El estudiante de la semilla entra al primer caso de su lobby y llega a la primera sala. La tarjeta «Antes de comenzar»
+ * sale en toda partida nueva: se pasa y, si no sale, el mundo aparece justo después del aviso de contenido.
  */
 export async function entrarALaPrimeraSala(page: Page): Promise<void> {
   await page.goto('/login');
@@ -290,12 +290,10 @@ export async function entrarALaPrimeraSala(page: Page): Promise<void> {
   const consent = await enterCaseAtContentWarning(page);
   await consent.getByRole('button', { name: /^continuar$/i }).click();
   const mundo = page.locator('app-game-world .phaser-host[data-world-ready="true"]');
-  const video = page.getByRole('dialog').filter({ hasText: 'Antes de comenzar' });
-  const contexto = page.getByRole('dialog').filter({ hasText: 'Contexto inicial del caso' });
+  const tarjeta = page.getByRole('dialog').filter({ hasText: 'Antes de comenzar' });
   const limite = Date.now() + scaled(60_000);
   while (Date.now() < limite && !(await mundo.isVisible().catch(() => false))) {
-    if (await video.isVisible().catch(() => false)) await video.getByRole('button', { name: /saltar video|continuar/i }).click();
-    else if (await contexto.isVisible().catch(() => false)) await contexto.getByRole('button', { name: /^continuar$/i }).click();
+    if (await tarjeta.isVisible().catch(() => false)) await tarjeta.getByRole('button', { name: /^continuar$/i }).click();
     else await page.waitForTimeout(250);
   }
   await waitForWorldReady(page);
