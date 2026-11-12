@@ -13,6 +13,7 @@ from apps.simulation.models import (
     SceneMap,
     SimulationNode,
 )
+from apps.simulation.services import rehearsal
 from shared.jsonutils import coerce_int as _int, write_map as _write_map
 
 from .editor_view import editor
@@ -50,6 +51,7 @@ def update_map(case_version_id, map_id, request):
 def delete_map(case_version_id, map_id, revision=None):
     ensure_draft(case_version_id, revision)
     scene_map = in_version(SceneMap, map_id, case_version_id)
+    rehearsal.discard_for_version(case_version_id)
     scene_map.delete()
     bump_revision(case_version_id)
     return editor(case_version_id)

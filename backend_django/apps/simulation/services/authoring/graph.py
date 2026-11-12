@@ -9,7 +9,7 @@ from rest_framework.exceptions import ValidationError
 from apps.simulation.casedef.legacy import intensity_for
 from apps.simulation.casedef.vocabulary import CLASSIFICATION_OF_CLASS, GOAL_MAX, ResponseClass, legacy_class
 from apps.simulation.models import CaseCharacter, DecisionOption, SimulationNode
-from apps.simulation.services import case_rules
+from apps.simulation.services import case_rules, rehearsal
 from apps.simulation.services.text_rules import validate_plain_text
 from shared.exceptions import ApiError
 
@@ -96,6 +96,7 @@ def delete_node(case_version_id, node_id, revision=None):
             status.HTTP_400_BAD_REQUEST,
             incoming=incoming,
         )
+    rehearsal.discard_for_version(case_version_id)
     node.delete()
     bump_revision(case_version_id)
     return editor(case_version_id)
@@ -170,6 +171,7 @@ def update_decision(case_version_id, decision_id, request):
 def delete_decision(case_version_id, decision_id, revision=None):
     ensure_draft(case_version_id, revision)
     decision = in_version(DecisionOption, decision_id, case_version_id)
+    rehearsal.discard_for_version(case_version_id)
     decision.delete()
     bump_revision(case_version_id)
     return editor(case_version_id)

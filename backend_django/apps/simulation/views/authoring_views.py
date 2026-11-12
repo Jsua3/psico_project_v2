@@ -139,7 +139,7 @@ class CaseDefinitionView(_AuthoringView):
 class EditorView(_AuthoringView):
     def get(self, request, case_version_id):
         self.version_for(request, case_version_id, mutate=False)
-        return api_ok(svc.editor(case_version_id))
+        return api_ok(svc.editor(case_version_id, request.user))
 
 
 class PublishView(_AuthoringView):

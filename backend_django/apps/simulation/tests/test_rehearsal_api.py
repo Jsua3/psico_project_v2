@@ -559,3 +559,77 @@ def test_discard_for_version_borra_los_ensayos_y_sus_hijos(mundo):
     assert not AttemptWorldState.objects.filter(attempt_id=ensayo["attemptId"]).exists()
     assert SimulationAttempt.all_objects.filter(pk=del_otro["attemptId"]).exists()
     assert SimulationAttempt.objects.filter(pk=normal.pk).exists()
+
+
+# ─── Borrar en el editor y «ya se probó» ───────────────────────────────────────────────────────────────────────────
+def _borrar(mundo, ruta):
+    return _cliente(mundo.profesora).delete(f"{AUTHORING}/{mundo.version.id}/{ruta}")
+
+
+@pytest.mark.parametrize("borrar", ["nodo_actual", "respuesta_elegida", "mapa_actual"])
+def test_borrar_con_un_ensayo_abierto_funciona_y_el_ensayo_queda_gone(mundo, borrar):
+    aparte = SimulationNode.objects.create(
+        case_version=mundo.version, node_key="aparte", title="Aparte", narrative="Sola.", position_x=7, position_y=7
+    )
+    mapa_aparte = _mapa(mundo.version, aparte, "mapa-aparte", "sala-c")
+    if borrar == "nodo_actual":
+        ensayo = _ensayo(mundo, desde=aparte.id)
+        ruta = f"nodes/{aparte.id}"
+    elif borrar == "respuesta_elegida":
+        ensayo = _ensayo(mundo)
+        AttemptEvent.objects.create(
+            attempt_id=ensayo["attemptId"], event_type="DECISION", node=mundo.inicio, decision_option=mundo.libre
+        )
+        ruta = f"decisions/{mundo.libre.id}"
+    else:
+        ensayo = _ensayo(mundo, desde=aparte.id)
+        ruta = f"maps/{mapa_aparte.id}"
+
+    borrado = _borrar(mundo, ruta)
+
+    assert borrado.status_code == 200, borrado.data
+    assert not SimulationAttempt.all_objects.filter(pk=ensayo["attemptId"]).exists()
+    gone = _cliente(mundo.profesora).get(f"{AUTHORING}/{mundo.version.id}/rehearsal/{ensayo['attemptId']}")
+    assert gone.status_code == 404 and gone.data["code"] == "REHEARSAL_GONE"
+
+
+def test_borrar_no_toca_los_ensayos_de_otras_versiones(mundo):
+    otro_caso = _cliente(mundo.profesora).post(AUTHORING, {"title": "Otro"}, format="json").data["data"]["caseVersionId"]
+    del_otro = _ensayo(SimpleNamespace(version=SimpleNamespace(id=otro_caso), profesora=mundo.profesora))
+
+    assert _borrar(mundo, f"decisions/{mundo.libre.id}").status_code == 200
+
+    assert SimulationAttempt.all_objects.filter(pk=del_otro["attemptId"]).exists()
+
+
+def _editor(mundo, user=None):
+    response = _cliente(user or mundo.profesora).get(f"{AUTHORING}/{mundo.version.id}/editor")
+    assert response.status_code == 200, response.data
+    return response.data["data"]
+
+
+def test_rehearsedToEnd_es_falso_hasta_que_un_ensayo_del_autor_llega_a_un_final(mundo):
+    assert _editor(mundo)["rehearsedToEnd"] is False
+    ensayo = _ensayo(mundo)
+    assert _editor(mundo)["rehearsedToEnd"] is False
+
+    SimulationAttempt.all_objects.filter(pk=ensayo["attemptId"]).update(status="COMPLETED")
+
+    assert _editor(mundo)["rehearsedToEnd"] is True
+
+
+def test_rehearsedToEnd_no_cuenta_ensayos_de_otra_persona(mundo):
+    ensayo = _ensayo(mundo, user=mundo.admin)
+    SimulationAttempt.all_objects.filter(pk=ensayo["attemptId"]).update(status="COMPLETED")
+
+    assert _editor(mundo, mundo.admin)["rehearsedToEnd"] is True
+    assert _editor(mundo)["rehearsedToEnd"] is False
+
+
+def test_rehearsedToEnd_no_cuenta_el_intento_real_completado_de_un_estudiante(mundo):
+    SimulationAttempt.objects.create(
+        student=mundo.estudiante, case_version=mundo.version, current_node=mundo.inicio,
+        attempt_token_hash="h-real", status="COMPLETED",
+    )
+
+    assert _editor(mundo)["rehearsedToEnd"] is False

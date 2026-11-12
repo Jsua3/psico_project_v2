@@ -5,6 +5,7 @@ subsistema depende de este módulo.
 """
 from apps.simulation.casedef.vocabulary import ResponseClass
 from apps.simulation.models import (
+    AttemptStatus,
     CaseCharacter,
     CaseReview,
     ClinicalTool,
@@ -15,6 +16,7 @@ from apps.simulation.models import (
     RubricCriterion,
     SceneHint,
     SceneMap,
+    SimulationAttempt,
     SimulationNode,
 )
 from apps.simulation.services import case_rules
@@ -26,7 +28,16 @@ from . import ethics
 from .guards import require_version
 
 
-def editor(case_version_id):
+def rehearsed_to_end(case_version_id, actor):
+    """¿``actor`` ya llevó un ensayo de esta versión hasta un final? Los de otras personas no cuentan."""
+    if actor is None:
+        return False
+    return SimulationAttempt.all_objects.filter(
+        case_version_id=case_version_id, is_rehearsal=True, student_id=actor.id, status=AttemptStatus.COMPLETED
+    ).exists()
+
+
+def editor(case_version_id, actor=None):
     version = require_version(case_version_id)
     nodes = list(SimulationNode.objects.filter(case_version_id=case_version_id).order_by("id"))
     decisions = list(
@@ -81,6 +92,7 @@ def editor(case_version_id):
         "checklistCompletion": checklist,
         "publishable": checklist >= 100,
         "checklist": checklist_view(case_version_id, latest),
+        "rehearsedToEnd": rehearsed_to_end(case_version_id, actor),
     }
 
 
