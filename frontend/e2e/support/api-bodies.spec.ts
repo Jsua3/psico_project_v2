@@ -76,6 +76,39 @@ describe('api-bodies (cuerpos de la API leídos en Node, no en Chromium)', () =>
     await expect(readJson(fakeResponse(request, '{"desde":"chromium"}'))).resolves.toEqual({ desde: 'chromium' });
   });
 
+  // CI del #111 (corrida 43348416800): la página navegó o la prueba terminó con una petición en vuelo y leer el cuerpo
+  // lanzó «Response has been disposed»; el error salía del manejador y tumbaba la prueba.
+  it('si la respuesta de Node quedó desechada (la página navegó o la prueba terminó), no tumba la prueba', async () => {
+    const request = peticion('GET');
+    const calls: { continued?: boolean; fulfilled?: boolean } = {};
+    const desechada = () => Promise.reject(new Error('apiResponse.body: Response has been disposed'));
+    const cerrada = () => Promise.reject(new Error('Target page, context or browser has been closed'));
+    const route = {
+      request: () => request,
+      fetch: async () => ({ body: desechada }),
+      fulfill: async () => { calls.fulfilled = true; },
+      continue: async () => { calls.continued = true; return cerrada(); },
+      abort: cerrada,
+    } as unknown as Route;
+
+    await expect(fulfillFromNode(route)).resolves.toBeUndefined();
+    expect(calls.continued, 'una lectura se le devuelve al navegador').toBe(true);
+    expect(calls.fulfilled).toBeUndefined();
+  });
+
+  it('si la ruta ya no existe cuando Node falla (contexto cerrado), tampoco lanza', async () => {
+    const cerrada = () => Promise.reject(new Error('Target page, context or browser has been closed'));
+    const route = {
+      request: () => peticion('POST'),
+      fetch: cerrada,
+      fulfill: cerrada,
+      continue: cerrada,
+      abort: cerrada,
+    } as unknown as Route;
+
+    await expect(fulfillFromNode(route)).resolves.toBeUndefined();
+  });
+
   it('si Node no obtiene respuesta de un envío (POST), no lo repite: el navegador ve un fallo de red', async () => {
     const request = peticion('POST');
     const { route, calls } = fakeRoute(request, new Error('connect ECONNREFUSED'));

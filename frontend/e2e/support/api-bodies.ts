@@ -28,23 +28,38 @@ export function isApiUrl(url: URL): boolean {
 
 /** Atiende una petición de la API desde Node y deja su cuerpo a mano de `readJson`/`readText`. */
 export async function fulfillFromNode(route: Route): Promise<void> {
+  // La captura NUNCA tumba una prueba: un error que saliera de aquí Playwright lo cuenta como fallo de la prueba. Pasó en el
+  // CI (abuse-interface, consent-gate): la página navegó o la prueba terminó con una petición en vuelo, la respuesta de
+  // Node quedó desechada y `response.body()` lanzó «Response has been disposed».
   let response;
+  let body: Buffer;
   try {
     // maxRetries: Node reusa conexiones que el servidor de desarrollo ya cerró (ECONNRESET, la petición ni le llega).
     // Chromium las reintenta solo; sin esto la app veía «No fue posible conectar» (consent-gate en local).
     response = await route.fetch({ timeout: scaled(60_000), maxRetries: 2 });
+    body = await response.body();
   } catch {
-    // Sin respuesta: una lectura (GET/HEAD) la pide el navegador por su cuenta, como sin captura, y solo se pierde el
-    // cuerpo en Node. Lo demás no se repite (podría duplicar un envío): el navegador ve un fallo de red.
-    const method = route.request().method();
-    if (method === 'GET' || method === 'HEAD') await route.continue().catch(() => undefined);
-    else await route.abort('failed').catch(() => undefined);
+    await soltar(route);
     return;
   }
-  const body = await response.body();
   bodies.set(route.request(), body);
   // La página pudo recargar o cerrarse mientras tanto: entonces ya nadie espera esta respuesta.
   await route.fulfill({ response, body }).catch(() => undefined);
+}
+
+/**
+ * Sin respuesta o sin cuerpo en Node. Si la página o el contexto ya cerraron, todo esto falla en silencio (nadie espera la
+ * respuesta). Si siguen vivos: una lectura (GET/HEAD) la pide el navegador por su cuenta, como sin captura, y solo se pierde
+ * el cuerpo en Node; lo demás no se repite (podría duplicar un envío) y el navegador ve un fallo de red.
+ */
+async function soltar(route: Route): Promise<void> {
+  try {
+    const method = route.request().method();
+    if (method === 'GET' || method === 'HEAD') await route.continue();
+    else await route.abort('failed');
+  } catch {
+    // La ruta ya no existe: la página navegó, se cerró o la prueba terminó.
+  }
 }
 
 /**
