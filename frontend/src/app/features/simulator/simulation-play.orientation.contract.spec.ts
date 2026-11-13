@@ -121,8 +121,9 @@ describe('el HUD recibe el título de la escena (T9.2)', () => {
     expect(source).not.toMatch(/progressLabel\(\)\s*:\s*string/);
   });
 
-  it('el encabezado del panel lateral usa el mismo rótulo', () => {
-    expect(source).toMatch(/<p class="right-panel__kicker">\{\{ stageLabel\(\) \}\}<\/p>/);
+  it('el encabezado del panel lateral no repite el título de la escena encima del h2', () => {
+    expect(source).not.toContain('right-panel__kicker');
+    expect(source).toMatch(/<h2>\{\{ game\.currentNode\.title \}\}<\/h2>/);
   });
 });
 

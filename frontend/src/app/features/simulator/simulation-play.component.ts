@@ -367,7 +367,6 @@ const QUEUED_PAUSE_SLOW_NOTICE = 'La acción en curso está tardando. Estamos pa
           @if (viewMode() === 'dialogue-right') {
             <aside class="right-panel" aria-label="Decisión formativa en curso" (animationend)="refreshWorldScale()">
               <header class="right-panel__scene">
-                <p class="right-panel__kicker">{{ stageLabel() }}</p>
                 <h2>{{ game.currentNode.title }}</h2>
                 @if (game.currentNode.narrative) {
                   <p class="right-panel__narrative" tabindex="0" role="region"
@@ -637,15 +636,7 @@ const QUEUED_PAUSE_SLOW_NOTICE = 'La acción en curso está tardando. Estamos pa
       border-bottom: 1px solid var(--sim-border);
       background: rgba(124,77,255,.08);
     }
-    .right-panel__kicker {
-      margin: 0;
-      color: var(--sim-lavender);
-      font-size: .75rem;
-      font-weight: 900;
-      letter-spacing: .1em;
-      text-transform: uppercase;
-    }
-    .right-panel__scene h2 { margin: 4px 0 0; font-size: 1.02rem; line-height: 1.2; color: var(--sim-ink); }
+    .right-panel__scene h2 { margin: 0; font-size: 1.02rem; line-height: 1.2; color: var(--sim-ink); }
     .right-panel__narrative {
       margin: 8px 0 0;
       max-height: 88px;
