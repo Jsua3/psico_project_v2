@@ -86,9 +86,11 @@ def cliente(db, version):
 class Partida:
     """Un intento del estudiante sobre el caso, con las órdenes del juego que usan los recorridos."""
 
-    def __init__(self, client, version):
+    def __init__(self, client, version, data=None):
+        """Empieza un intento del estudiante o, si llega ``data``, usa el ensayo que la autora ya abrió."""
         self.client, self.version = client, version
-        data = client.post("/api/simulation/attempts", {"caseVersionId": version.id}, format="json").data["data"]
+        if data is None:
+            data = client.post("/api/simulation/attempts", {"caseVersionId": version.id}, format="json").data["data"]
         self.id, self.token = data["attemptId"], data["attemptToken"]
         self.url = f"/api/simulation/attempts/{self.id}"
         self.estado = data
@@ -103,7 +105,7 @@ class Partida:
 
     def _junto_a(self, clave):
         """Sincroniza el mundo con la escena actual y deja al jugador junto al objeto ``clave`` de la sala."""
-        estado = require_world_state(SimulationAttempt.objects.get(pk=self.id))
+        estado = require_world_state(SimulationAttempt.all_objects.get(pk=self.id))
         objeto = MapObject.objects.get(scene_map_id=estado.scene_map_id, object_key=clave)
         AttemptWorldState.objects.filter(pk=estado.pk).update(player_x=objeto.position_x, player_y=objeto.position_y)
 
@@ -151,10 +153,10 @@ class Partida:
         return self.estado
 
     def hitos(self):
-        return case_state.read(SimulationAttempt.objects.get(pk=self.id)).milestones
+        return case_state.read(SimulationAttempt.all_objects.get(pk=self.id)).milestones
 
     def vinculo(self):
-        return case_state.read(SimulationAttempt.objects.get(pk=self.id)).persona[0]
+        return case_state.read(SimulationAttempt.all_objects.get(pk=self.id)).persona[0]
 
     def final(self):
         assert self.estado["status"] == "COMPLETED"
@@ -320,6 +322,54 @@ def test_lo_hablado_en_la_sala_de_espera_vale_para_la_decision_siguiente(cliente
     partida.interactuar("enfermera")
     partida.decidir(MEJOR["O1"])
     assert "n2-sala-de-escucha" in partida.ofrecidas()
+
+
+# ─── El ensayo del borrador: así lo juega la docente antes de publicar ───────
+
+AUTORIA = "/api/authoring/cases"
+
+
+@pytest.fixture
+def ensayo(db):
+    """El documento importado por la ruta de autoría y un ensayo abierto por su dueña, sin publicar el caso."""
+    docente = User.objects.create_user(email="k1_doc@x.com", password="x", nombre="Do", apellido="K1", role="PROFESOR")
+    client = APIClient()
+    client.force_authenticate(user=docente)
+    importado = client.post(f"{AUTORIA}/import", DOCUMENTO.read_bytes(), content_type="application/json")
+    assert importado.status_code in (200, 201), importado.data
+    version = CaseVersion.objects.get(pk=importado.data["data"]["caseVersionId"])
+    abierto = client.post(f"{AUTORIA}/{version.id}/rehearsal", {}, format="json")
+    assert abierto.status_code in (200, 201), abierto.data
+    return Partida(client, version, abierto.data["data"])
+
+
+def _en_el_panel(partida, clave):
+    """Cómo ve el panel de la autora la respuesta ``clave`` en la escena actual del ensayo."""
+    bloque = partida.client.get(f"{AUTORIA}/{partida.version.id}/rehearsal/{partida.id}").data["data"]["rehearsal"]
+    return next(o for o in bloque["options"] if partida._claves[o["id"]] == clave)
+
+
+def test_el_borrador_se_ensaya_de_principio_a_fin_sin_publicar(ensayo):
+    assert ensayo.version.status != "PUBLISHED"
+    ensayo.jugar()
+    assert ensayo.final()["key"] == "protectora"
+    assert len(ensayo.hitos()) == 21
+
+
+def test_el_panel_del_ensayo_explica_por_que_no_aparece_la_mejor_respuesta(ensayo):
+    ensayo.jugar(hasta="N2")
+    retenida = _en_el_panel(ensayo, "n2-sala-de-escucha")
+    assert retenida["offered"] is False and retenida["retainedBy"] == "facts"
+    assert retenida["missing"] == [{"kind": "talked", "key": "enfermera", "label": "Enfermera de urgencias"}]
+
+    ensayo.interactuar("enfermera")
+    ofrecida = _en_el_panel(ensayo, "n2-sala-de-escucha")
+    assert ofrecida["offered"] is True and ofrecida["retainedBy"] is None
+
+    # N7 sin el acuerdo de N3: lo que falta es un hito, y el panel lo marca como otra condición (sin nada que explorar).
+    ensayo.jugar(desde="N2", hasta="N7", N3=_dos_veces("n3-que-lo-diga-el-medico"))
+    por_hito = _en_el_panel(ensayo, "n7-no-mentir-y-avisar")
+    assert por_hito["offered"] is False and por_hito["retainedBy"] == "condition" and por_hito["missing"] == []
 
 
 # ─── Objetos y salas ─────────────────────────────────────────────────────────
