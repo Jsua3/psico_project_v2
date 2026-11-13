@@ -922,15 +922,17 @@ const QUEUED_PAUSE_SLOW_NOTICE = 'La acción en curso está tardando. Estamos pa
       color: #f1a79f; font-size: .85rem; font-weight: 800; letter-spacing: .02em;
     }
     .pausing-notice mat-icon { font-size: 20px; width: 20px; height: 20px; }
+    /* Arriba a la derecha: la ficha del objetivo ocupa el lado izquierdo (hasta el 58 % del ancho) y el rótulo nunca la tapa. */
     .room-banner {
-      position: absolute; top: 96px; left: 50%; transform: translateX(-50%); z-index: 320;
-      padding: 10px 22px; border-radius: 999px;
+      position: absolute; top: 96px; right: 12px; left: auto; max-width: calc(42% - 24px); z-index: 320;
+      padding: 10px 22px; border-radius: 18px;
       background: rgba(18,24,42,.9); border: 1px solid var(--sim-border);
       color: var(--sim-ink); font-weight: 800; letter-spacing: .04em;
       animation: room-banner-in 260ms ease;
       pointer-events: none;
     }
-    @keyframes room-banner-in { from { opacity: 0; transform: translate(-50%, -8px); } }
+    @keyframes room-banner-in { from { opacity: 0; transform: translateY(-8px); } }
+    @keyframes room-banner-in-centered { from { opacity: 0; transform: translate(-50%, -8px); } }
     .transition-note {
       position: fixed; inset: 0; z-index: 340; display: grid; place-items: center;
       background: rgba(6,9,16,.92); pointer-events: none;
@@ -966,6 +968,8 @@ const QUEUED_PAUSE_SLOW_NOTICE = 'La acción en curso está tardando. Estamos pa
 
     /* ── Mobile: panel derecho como bottom sheet, dock scrolleable ───────── */
     @media (max-width: 760px) {
+      /* La ficha va plegada a un chip arriba a la izquierda: el rótulo vuelve al centro, bajo el chip. */
+      .room-banner { left: 50%; right: auto; transform: translateX(-50%); max-width: calc(100% - 24px); animation-name: room-banner-in-centered; }
       .main-zone { padding: 8px 8px 0; }
       .game-container[data-mode='dialogue-right'] .main-zone {
         grid-template-columns: minmax(0, 1fr);

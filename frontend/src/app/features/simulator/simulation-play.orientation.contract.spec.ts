@@ -108,6 +108,29 @@ describe('ficha del objetivo (T9.1)', () => {
   });
 });
 
+describe('el rótulo de la escena nueva no tapa la ficha del objetivo', () => {
+  it('en escritorio el rótulo va arriba a la derecha y deja libre el lado de la ficha (que va arriba a la izquierda)', () => {
+    const banner = rule('.room-banner');
+    expect(banner).toContain('right: 12px;');
+    expect(banner).toContain('left: auto;');
+    expect(banner).not.toContain('left: 50%');
+    expect(banner).not.toContain('translateX(-50%)');
+    // La ficha ocupa como mucho el 58 % del ancho: el rótulo se queda con el resto.
+    expect(banner).toMatch(/max-width:\s*calc\(42% - 24px\)/);
+    expect(rule('.objective-card')).toContain('left: 10px;');
+  });
+
+  it('su entrada anima en vertical (sin el desplazamiento horizontal del centrado)', () => {
+    expect(source).toMatch(/@keyframes room-banner-in \{ from \{ opacity: 0; transform: translateY\(-8px\); \} \}/);
+  });
+
+  it('en móvil vertical la ficha va plegada a un chip: el rótulo vuelve al centro, bajo el chip', () => {
+    const mobile = source.match(/@media \(max-width: 760px\) \{[^@]*?\.room-banner \{[^}]*\}/)?.[0] ?? '';
+    expect(mobile).toContain('left: 50%');
+    expect(mobile).toContain('translateX(-50%)');
+  });
+});
+
 describe('el HUD recibe el título de la escena (T9.2)', () => {
   it('stageLabel es el título del nodo: sin contador de decisiones ni respaldo por escenarios', () => {
     expect(source).toMatch(/readonly stageLabel = computed<string \| null>\(\(\) => this\.attempt\(\)\?\.currentNode\.title \?\? null\);/);
