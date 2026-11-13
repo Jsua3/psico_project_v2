@@ -29,6 +29,7 @@ from apps.simulation.models.rubric import AuditLog
 from apps.simulation.services import game_service
 from shared.testing import measure, purge_audit_rows, run_concurrently
 
+from .case_exploration import explore_what_the_case_asks_for
 from .test_world import _move, _start, case_version_id, cl, estudiante  # noqa: F401  (fixtures)
 
 pytestmark = [pytest.mark.req("RNF-08"), pytest.mark.req("TD-04")]
@@ -62,6 +63,7 @@ def _events(attempt_id, *types):
 
 def _begin(client, case_version_id):
     data = client.post(f"{BASE}/attempts", {"caseVersionId": case_version_id}, format="json").data["data"]
+    explore_what_the_case_asks_for(data["attemptId"])  # el caso 2.1 retiene las recomendadas hasta explorar
     return data["attemptId"], data["attemptToken"], data["currentNode"]
 
 
@@ -249,6 +251,13 @@ def committed_attempt(real_commits):
         student.delete()
 
 
+@pytest.fixture
+def explored_attempt(committed_attempt):
+    """El intento con commits reales, ya con lo que piden los requisitos del caso 2.1 (la recomendada se ofrece)."""
+    explore_what_the_case_asks_for(committed_attempt.attempt_id)
+    return committed_attempt
+
+
 def test_dos_hilos_con_la_misma_decision_riesgosa_registran_un_solo_reintento(committed_attempt):
     a = committed_attempt
     bad = _option(a.node["id"], "RISKY", "INADEQUATE")
@@ -265,8 +274,8 @@ def test_dos_hilos_con_la_misma_decision_riesgosa_registran_un_solo_reintento(co
     assert SimulationAttempt.objects.get(pk=a.attempt_id).current_node_id == a.node["id"]
 
 
-def test_dos_hilos_con_el_mismo_request_id_registran_una_sola_decision(committed_attempt):
-    a = committed_attempt
+def test_dos_hilos_con_el_mismo_request_id_registran_una_sola_decision(explored_attempt):
+    a = explored_attempt
     good = _option(a.node["id"], "ADEQUATE")
 
     def decide():
@@ -278,14 +287,14 @@ def test_dos_hilos_con_el_mismo_request_id_registran_una_sola_decision(committed
 
     assert [o.error for o in outcomes] == [None, None]
     assert outcomes[0].value["consequence"] == outcomes[1].value["consequence"]
-    assert set(outcomes[0].value) == set(outcomes[1].value) == {"attempt", "consequence"}
+    assert set(outcomes[0].value) == set(outcomes[1].value) == {"attempt", "consequence", "reaction"}
     assert len(_events(a.attempt_id, *REGISTERED)) == 1
 
 
-def test_dos_pestanas_con_la_misma_decision_avanzan_una_sola_vez(committed_attempt):
+def test_dos_pestanas_con_la_misma_decision_avanzan_una_sola_vez(explored_attempt):
     """Dos clientes (request_id distintos) eligen la misma opción a la vez: avanza una sola vez y
     ambos reciben la misma respuesta (la segunda se trata como un duplicado, no como un error)."""
-    a = committed_attempt
+    a = explored_attempt
     good = _option(a.node["id"], "ADEQUATE")
 
     def decide(request_id):

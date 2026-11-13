@@ -99,6 +99,37 @@ def step_persona(bond: Bond, activation: Activation, d_bond: int, d_act: int) ->
     return _step(_BOND_ORDER, bond, d_bond), _step(_ACTIVATION_ORDER, activation, d_act)
 
 
+#: Las seis expresiones del kit de personajes (vocabulario cerrado de la reacción).
+EXPRESSIONS = ("neutral", "alegre", "preocupada", "triste", "cautelosa", "en-crisis")
+#: Los cinco gestos de la reacción (vocabulario cerrado).
+GESTURES = ("se-acerca", "asiente", "se-aparta", "baja-la-mirada", "se-agita")
+#: Las claves de una reacción del personaje.
+REACTION_KEYS = ("linea", "emocion", "gesto", "personaje")
+#: Límites de texto: la línea de la reacción, el objetivo de una escena y el JSON de un requisito.
+REACTION_LINE_MAX = 400
+GOAL_MAX = 200
+REQUIRES_MAX_CHARS = 2000
+
+
+def default_gesture(response_class: ResponseClass | str | None, activation_after: Activation | str | None) -> str:
+    """El gesto por defecto de una reacción según la clase de la respuesta y la activación posterior.
+
+    Acepta el enum o su valor en texto (``"RECOMMENDED"``, ``"CRISIS"``, como sale de la base de datos): como
+    ``ResponseClass`` y ``Activation`` son ``str, Enum``, la comparación con ``==`` da el mismo resultado para ambos.
+    Solo una respuesta contraindicada en crisis cambia de gesto: ``se-agita`` en vez de ``se-aparta``.
+    Una clase desconocida, vacía o ``None`` cae en ``asiente`` (el gesto de la clase Aceptable), nunca en
+    ``se-aparta``: un dato ilegible no debe leerse como una contraindicación.
+    """
+    if response_class == ResponseClass.RECOMMENDED:
+        return "se-acerca"
+    if response_class == ResponseClass.RISKY:
+        return "baja-la-mirada"
+    if response_class == ResponseClass.CONTRAINDICATED:
+        return "se-agita" if activation_after == Activation.CRISIS else "se-aparta"
+    # ACCEPTABLE y cualquier valor no reconocido.
+    return "asiente"
+
+
 # Tabla de conversión de los datos antiguos (severidad y clasificación) a la clase de respuesta. La usa ``legacy_class``,
 # y ``legacy_class`` la importan las migraciones ``0030`` y ``0031`` (no la copian): cambiarla cambia lo que esas
 # migraciones hacen en una base NUEVA; las bases que ya las corrieron conservan lo que se calculó entonces.

@@ -48,7 +48,7 @@ from .vocabulary import ResponseClass, legacy_class
 MAX_BYTES = 1024 * 1024
 SIEP_KEY = "x-siep"
 #: La versión de ``x-siep`` que se lee tal cual y la que se convierte al leerla.
-CURRENT_VERSION, LEGACY_VERSION = "2.0", "1.0"
+SUPPORTED_VERSIONS, LEGACY_VERSION = ("2.1", "2.0"), "1.0"
 FORMA, LIMIT = PREFIX + "FORMA", PREFIX + "LIMIT_EXCEEDED"
 EXECUTION = PREFIX + "EXECUTION_NOT_IMPORTABLE"
 FEEDBACK_IGNORED = PREFIX + "FEEDBACK_ON_DECISION_IGNORED"
@@ -364,6 +364,7 @@ def _base_options(base_scene, entry, keys, feedback):
             immediate_feedback=_text(extra.get("retroalimentacionInmediata")), feedback_text=message,
             theory_basis=basis, response_class=_response_class(extra, classification, prohibited),
             effects=extra.get("efectos", {}),
+            requires=extra.get("requiere", {}), reaction=extra.get("reaccion", {}),
         ))
     return options
 
@@ -374,7 +375,7 @@ def _entry_options(entry):
             key=o["clave"], text=o["texto"], target=o["destino"], reason=o["motivo"], consequence=o["consecuencia"],
             immediate_feedback=o["retroalimentacionInmediata"], feedback_text=o["mensaje"],
             theory_basis=o["fundamento"], response_class=_response_class(o, o["clasificacion"], o["prohibida"]),
-            effects=o["efectos"],
+            effects=o["efectos"], requires=o.get("requiere", {}), reaction=o.get("reaccion", {}),
         )
         for o in _dicts(entry.get("opciones"))
     ]
@@ -437,6 +438,7 @@ def _scene(index, entry, base_scene, document, keys, feedback, characters):
         terminal=terminal, support=support, required_tools=required, safe_exit_required=safe_exit,
         intensity=intensity, x=x, y=y,
         prompt=prompt, hints=hints, options=tuple(options), world=world,
+        goal=_text((entry or {}).get("objetivo")),
     )
 
 
@@ -478,8 +480,8 @@ def to_definition(document):
     """
     caso = document["caso"]
     siep = document.get(SIEP_KEY) if isinstance(document.get(SIEP_KEY), dict) else {}
-    if siep and siep.get("version") not in (CURRENT_VERSION, LEGACY_VERSION):
-        raise ValueError(f"x-siep.version {siep.get('version')!r}: solo se lee la {CURRENT_VERSION} (y la {LEGACY_VERSION}, que se convierte).")
+    if siep and siep.get("version") not in (*SUPPORTED_VERSIONS, LEGACY_VERSION):
+        raise ValueError(f"x-siep.version {siep.get('version')!r}: solo se leen la {SUPPORTED_VERSIONS[0]} y la {SUPPORTED_VERSIONS[1]} (y la {LEGACY_VERSION}, que se convierte).")
     keys = _Keys(siep)
     feedback = _feedback(document)
     characters = _characters(document, siep)
@@ -492,7 +494,7 @@ def to_definition(document):
         _scene(index, entry, base, document, keys, feedback, characters) for index, (entry, base) in enumerate(specs)
     )
     rules = siep.get("reglas", {})
-    if siep.get("version") != CURRENT_VERSION:
+    if siep.get("version") not in SUPPORTED_VERSIONS:
         scenes, rules = _converted(scenes, rules, caso["id"])
     elif "escenas" not in siep:  # un 2.0 sin escenas no trae ni clase ni efectos por opción: se completan como en el 1.0
         scenes, _ = _converted(scenes, rules, caso["id"])

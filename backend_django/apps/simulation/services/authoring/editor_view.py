@@ -209,6 +209,7 @@ def node_editor_state(node):
         "positionX": node.position_x,
         "positionY": node.position_y,
         "decisionPrompt": node.decision_prompt,
+        "goal": node.goal,
         "displayOrder": node.display_order,
         "intensity": node.intensity,
         "aiSuggested": node.ai_suggested,
@@ -233,6 +234,8 @@ def decision_edge(d):
         "theoryBasis": d.theory_basis,
         "feedbackText": d.feedback_text,
         "effects": _read_map(d.effects),
+        "requires": _read_map(d.requires_json),
+        "reaction": case_rules.reaction_of(d),
         "aiSuggested": d.ai_suggested,
     }
 

@@ -66,18 +66,23 @@ def _persona_of(raw) -> tuple[Bond, Activation]:
     )
 
 
-def _raw_flags(attempt) -> dict:
-    state = AttemptWorldState.objects.filter(attempt_id=attempt.id).first()
+#: «No se ha cargado»: distinto de ``None`` (que significa que el intento no tiene estado del mundo).
+NOT_LOADED = object()
+
+
+def _raw_flags(attempt, world_state=NOT_LOADED) -> dict:
+    state = AttemptWorldState.objects.filter(attempt_id=attempt.id).first() if world_state is NOT_LOADED else world_state
     return _read_map(state.flags_json) if state is not None else {}
 
 
-def read(attempt) -> CaseState:
+def read(attempt, world_state=NOT_LOADED) -> CaseState:
     """El estado del intento tal como está guardado, sin crear el mundo.
 
     Sin estado guardado, o con claves ausentes o malformadas, parte de los valores iniciales: sin
-    hitos y con la persona ``INITIAL_PERSONA``. Nunca lanza.
+    hitos y con la persona ``INITIAL_PERSONA``. Nunca lanza. Quien ya tiene el estado del mundo del intento (o ``None``
+    si no lo tiene) lo pasa en ``world_state`` y se ahorra la consulta.
     """
-    raw = _raw_flags(attempt)
+    raw = _raw_flags(attempt, world_state)
     return CaseState(frozenset(_milestones_of(raw)), _persona_of(raw))
 
 

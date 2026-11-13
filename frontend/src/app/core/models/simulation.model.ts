@@ -317,6 +317,8 @@ export interface SimulationWorldState {
   viewedDialogueKeys: string[];
   usedToolKeys: string[];
   flags: Record<string, unknown>;
+  /** Opciones ofrecidas ahora para el nodo actual; solo las traen las respuestas de mundo del juego (no el acuse de PATCH). */
+  decisionOptions?: SimulationDecisionOption[];
 }
 
 export interface SceneMapState {

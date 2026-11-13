@@ -9,13 +9,26 @@ referencias van por la **clave del producto** (opción, personaje, herramienta, 
 """
 from .vocabulary import CLASSIFICATION_OF_CLASS, ResponseClass
 
-#: La versión del documento: la 2.0 describe las respuestas por clase, hitos y persona (sin puntaje, estrés ni
+#: La versión base del documento: la 2.0 describe las respuestas por clase, hitos y persona (sin puntaje, estrés ni
 #: penalización). El importador aún lee la 1.0 y la convierte (``casedef.legacy``).
-VERSION = "2.0"
+BASE_VERSION = "2.0"
+#: La 2.1 añade ``requiere`` y ``reaccion`` por opción y ``objetivo`` por escena. Solo se escribe si el caso los usa:
+#: un caso sin ellos se exporta igual que en la 2.0 (la huella sellada de las versiones publicadas no cambia).
+VERSION = "2.1"
 
 
 def _text(value):
     return value.strip() if isinstance(value, str) else ""
+
+
+def version_of(definition):
+    """``"2.1"`` si alguna opción trae ``requires`` o ``reaction`` o alguna escena trae ``goal``; si no, ``"2.0"``."""
+    for scene in definition.scenes:
+        if _text(scene.goal):
+            return VERSION
+        if any(option.requires or option.reaction for option in scene.options):
+            return VERSION
+    return BASE_VERSION
 
 
 def _character_entries(definition, ids):
@@ -68,6 +81,10 @@ def _option_entry(option, scene_key, ids):
             "prohibida": option.response_class == ResponseClass.CONTRAINDICATED, "motivo": option.reason, "consecuencia": option.consequence,
             "mensaje": option.feedback_text, "fundamento": option.theory_basis,
         })
+    if option.requires:
+        entry["requiere"] = option.requires
+    if option.reaction:
+        entry["reaccion"] = option.reaction
     return entry
 
 
@@ -135,6 +152,8 @@ def _scene_entry(scene, ids):
             "titulo": scene.title, "descripcion": scene.narrative, "sensible": scene.sensitive,
             "advertencia": scene.warning, "pregunta": scene.prompt, "pistas": list(scene.hints),
         })
+    if _text(scene.goal):
+        entry["objetivo"] = scene.goal
     if scene.world is not None:
         entry["mapa"] = _world_entry(scene.world)
     return entry
@@ -180,7 +199,7 @@ def _rubric_entries(definition, ids):
 def build(definition, ids):
     """La sección ``x-siep`` de ``definition`` (la base ya fijó los ``ids``)."""
     siep = {
-        "version": VERSION,
+        "version": version_of(definition),
         "mundoVersion": definition.world_schema_version,
         "reglas": definition.rules,
         "personajes": _character_entries(definition, ids),

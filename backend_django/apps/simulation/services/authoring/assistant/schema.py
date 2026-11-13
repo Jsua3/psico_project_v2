@@ -30,12 +30,10 @@ La condición ``when`` de ``add-ending`` viaja como texto: el JSON de una forma 
 si el final no tiene condición; ``proposals.validate`` la lee y la traduce a la gramática de las condiciones
 (``{all|any|not|milestone|count|persona}``).
 """
-from apps.simulation.casedef.vocabulary import Activation, Bond, Intensity, ResponseClass
+from apps.simulation.casedef.vocabulary import EXPRESSIONS, Activation, Bond, Intensity, ResponseClass
 from apps.simulation.services.authoring.rules import ENDING_TONES
 
 RESPONSE_CLASSES = tuple(member.value for member in ResponseClass)
-#: Las seis expresiones del kit de personajes.
-EXPRESSIONS = ("neutral", "alegre", "preocupada", "triste", "cautelosa", "en-crisis")
 INTENSITIES = tuple(member.value for member in Intensity)
 BONDS = tuple(member.value for member in Bond)
 ACTIVATIONS = tuple(member.value for member in Activation)

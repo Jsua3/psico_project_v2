@@ -26,7 +26,7 @@ from pathlib import Path
 
 import jsonschema
 
-from . import conditions, legacy, messages, text
+from . import conditions, legacy, messages, text, vocabulary
 from .report import ERROR, PREFIX, Issue
 
 SIEP_KEY = "x-siep"
@@ -436,6 +436,33 @@ def _milestone_issues(document, siep, names):
     return collector.issues
 
 
+def _requires_issues(document, siep, names):
+    """El documento 2.x: el requisito de cada opción, si lo hay, es una condición con hechos válida."""
+    collector = _Collector(document, names)
+    for position, entry in _items(siep.get("escenas")):
+        for o_position, option in _items(entry.get("opciones")):
+            required = option.get("requiere")
+            if not required:
+                continue
+            route = (SIEP_KEY, "escenas", position, "opciones", o_position, "requiere")
+            if conditions.is_valid(required, facts=True):
+                # Mismo tope y mismo modo de serializar que ``case_rules.validate_requires`` (Ruling 13).
+                if len(json.dumps(required, ensure_ascii=False)) > vocabulary.REQUIRES_MAX_CHARS:
+                    # BORRADOR: texto nuevo del servidor, pendiente de la aprobación de Psicología
+                    collector.add(
+                        CONDITION, route,
+                        f"el requisito de la opción es demasiado largo: el máximo es {vocabulary.REQUIRES_MAX_CHARS} caracteres.",
+                    )
+                continue
+            # BORRADOR: texto nuevo del servidor, pendiente de la aprobación de Psicología
+            collector.add(
+                CONDITION, route,
+                "el requisito de la opción no es válido: solo admite all, any, not, milestone, count (por clase), "
+                f"persona, talked, inspected, has y used, hasta {conditions.MAX_DEPTH} niveles.",
+            )
+    return collector.issues
+
+
 def check(document, names=None):
     """Los hallazgos de ``x-siep``: ``DSL.SIEP_*`` (más los topes y textos largos que marca el esquema)."""
     if not isinstance(document, dict) or SIEP_KEY not in document:
@@ -446,4 +473,6 @@ def check(document, names=None):
     if isinstance(siep, dict):
         issues += _links(document, siep, names)
         issues += _rules_issues(document, siep, names) if is_legacy(siep) else _milestone_issues(document, siep, names)
+        if not is_legacy(siep):
+            issues += _requires_issues(document, siep, names)
     return issues

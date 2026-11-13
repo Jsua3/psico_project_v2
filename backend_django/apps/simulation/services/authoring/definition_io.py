@@ -81,6 +81,7 @@ def _options_by_source(rows, node_keys):
                 theory_basis=_text(row.theory_basis),
                 response_class=row.response_class,
                 effects=read_map(row.effects),
+                requires=read_map(row.requires_json), reaction=read_map(row.reaction_json),
             )
         )
     return grouped
@@ -196,7 +197,7 @@ def load_definition(case_version_id):
             support=tuple(read_string_list(node.support_resources_json)),
             required_tools=tuple(read_string_list(node.required_tools_json)),
             safe_exit_required=node.safe_exit_required, intensity=node.intensity,
-            x=node.position_x or 0, y=node.position_y or 0, prompt=_text(node.decision_prompt),
+            x=node.position_x or 0, y=node.position_y or 0, prompt=_text(node.decision_prompt), goal=_text(node.goal),
             hints=tuple(hints.get(maps.get(node.id), ())),
             options=tuple(options.get(node.id, ())),
             world=worlds[maps[node.id]][1] if node.id in maps else None,
@@ -272,7 +273,7 @@ def _nodes(version, scenes):
             sensitive_content=scene.sensitive, safe_exit_required=scene.safe_exit_required,
             warning_message=scene.warning, start_node=scene.start, terminal_node=scene.terminal,
             position_x=scene.x, position_y=scene.y, decision_prompt=scene.prompt, display_order=position,
-            intensity=scene.intensity,
+            intensity=scene.intensity, goal=scene.goal,
         )
         for position, scene in enumerate(scenes)
     ])
@@ -287,6 +288,7 @@ def _option_row(version, scene, option, node_by_key):
         immediate_feedback=option.immediate_feedback, prohibition_reason=option.reason, consequence_text=option.consequence,
         theory_basis=option.theory_basis, feedback_text=option.feedback_text,
         effects=_dump(option.effects), response_class=option.response_class,
+        requires_json=_dump(option.requires), reaction_json=_dump(option.reaction),
     )
 
 

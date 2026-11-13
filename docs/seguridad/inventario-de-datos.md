@@ -6,11 +6,11 @@
 
 ## Resumen
 
-Tablas: 43. Columnas: 364.
+Tablas: 43. Columnas: 367.
 
 | Clasificación | Columnas |
 |---|---:|
-| PUBLIC | 144 |
+| PUBLIC | 147 |
 | PERSONAL | 39 |
 | SENSITIVE | 44 |
 | SECRET | 2 |
@@ -403,6 +403,8 @@ Todas las columnas heredan `PUBLIC`: la tabla no tiene datos personales ni sensi
 | `theory_basis` | PUBLIC | — |  |
 | `feedback_text` | PUBLIC | — |  |
 | `effects` | PUBLIC | — |  |
+| `requires_json` | PUBLIC | — |  |
+| `reaction_json` | PUBLIC | — |  |
 | `response_class` | PUBLIC | — |  |
 | `ai_suggested` | PUBLIC | — |  |
 
@@ -787,6 +789,7 @@ Todas las columnas heredan `PUBLIC`: la tabla no tiene datos personales ni sensi
 | `position_x` | PUBLIC | — |  |
 | `position_y` | PUBLIC | — |  |
 | `decision_prompt` | PUBLIC | — |  |
+| `goal` | PUBLIC | — |  |
 | `display_order` | PUBLIC | — |  |
 | `intensity` | PUBLIC | — |  |
 | `ai_suggested` | PUBLIC | — |  |

@@ -28,6 +28,8 @@ pytestmark = [pytest.mark.req("RF-12"), pytest.mark.req("RN-05")]
 DATA = Path(__file__).resolve().parents[1]
 SEEDED = DATA / "data" / "cases" / "SIM-VBG-001.dsl.json"
 LEGACY = DATA / "tests" / "fixtures" / "SIM-VBG-001.v1.dsl.json"
+#: Copia fija del documento 2.0.0 que se sembraba antes del bloque A: la sembrada de hoy es 2.1 (requisitos y reacciones).
+SEEDED_2_0 = DATA / "tests" / "fixtures" / "SIM-VBG-001.v2-0-0.dsl.json"
 RETIRED = {"puntaje", "estres", "penalizacion", "metrics", "severity", "flags"}
 User = get_user_model()
 
@@ -252,7 +254,7 @@ def test_another_x_siep_version_is_not_converted():
 
 # ─── el documento sembrado ────────────────────────────────────────────────────────────────────
 def test_the_seeded_document_is_2_0_without_the_retired_fields():
-    document = _load(SEEDED)
+    document = _load(SEEDED_2_0)
 
     assert document["x-siep"]["version"] == "2.0"
     assert not RETIRED & set(_keys(document))
@@ -278,7 +280,7 @@ def test_the_seeded_document_declares_its_milestones_in_proper_spanish():
 
 def test_the_seeded_document_is_the_conversion_of_the_1_0_one():
     """El 2.0 sembrado dice lo mismo que el 1.0 convertido: salvo los rótulos de los hitos, las reglas son iguales."""
-    seeded = import_.to_definition(_read(_load(SEEDED)))
+    seeded = import_.to_definition(_read(_load(SEEDED_2_0)))
     converted = import_.to_definition(_read(_load(LEGACY)))
 
     def signature(definition):

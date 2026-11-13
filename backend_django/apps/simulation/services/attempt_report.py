@@ -22,6 +22,12 @@ acompañamiento). Un reporte v1 o v2 cerrado no se recalcula ni se reescribe: su
 docente, el ADMIN y la analítica los leen tal cual. Al ESTUDIANTE se le sirve una proyección de solo lectura
 (``for_student``) sin las claves del modelo numérico viejo: la regla «ninguna cifra al estudiante» es del contrato HTTP
 (I-2, R-17).
+
+``schemaVersion 4`` (x-siep 2.1) añade a cada ``decisionReview[]`` la lista ``missed``: las respuestas de esa escena que no
+se ofrecieron al estudiante porque le faltaba explorar algo, cada una ``{optionId, text, class, missing[{kind, key,
+label}]}`` (lista vacía si se le ofrecieron todas). Sale del evento de contabilidad ``OPTIONS_NOT_OFFERED``, que el juego
+guarda justo antes de cada decisión registrada y que no aparece en la línea de tiempo. Un reporte v3 o anterior se lee
+tal cual, sin ``missed``.
 """
 import hashlib
 import json
@@ -48,17 +54,22 @@ from ..models import (
     CaseVersion,
     DecisionOption,
     FormativeLevel,
+    ClinicalTool,
+    MapObject,
     ReflectionJournal,
+    SceneMap,
     SimulationAttempt,
     SimulationNode,
 )
 from . import attempt_duration, case_rules, case_state
+from .option_availability import OPTIONS_NOT_OFFERED
 
 logger = logging.getLogger(__name__)
 
 #: 1 = E1-8; 2 = E6-1d (perfil por competencia, no recomendadas, cobertura, evidencia); 3 = modelo de métricas
-#: (hitos, persona, clases de respuesta; sin puntaje, estrés ni competencias heurísticas).
-REPORT_SCHEMA_VERSION = 3
+#: (hitos, persona, clases de respuesta; sin puntaje, estrés ni competencias heurísticas); 4 = x-siep 2.1 (lo que el
+#: estudiante no llegó a ver, ``decisionReview[].missed``).
+REPORT_SCHEMA_VERSION = 4
 
 
 #: Las claves del modelo numérico viejo (puntaje, estrés, métricas, estado clínico, deltas, conteos por severidad y el
@@ -155,8 +166,117 @@ def attempt_ordinal(attempt):
     ).count()
 
 
+def _read_not_offered(detail):
+    """``[(id de la opción, [(tipo, clave), …]), …]`` del detalle de un evento ``OPTIONS_NOT_OFFERED``; ilegible → ``[]``."""
+    try:
+        data = json.loads(detail or "")
+    except (TypeError, ValueError):
+        return []
+    entries = data.get("options") if isinstance(data, dict) else None
+    if not isinstance(entries, list):
+        return []
+    found = []
+    for entry in entries:
+        if not isinstance(entry, dict) or isinstance(entry.get("id"), bool) or not isinstance(entry.get("id"), int):
+            continue
+        raw = entry.get("unmet") if isinstance(entry.get("unmet"), list) else []
+        unmet = [
+            (fact[0], fact[1]) for fact in raw
+            if isinstance(fact, list) and len(fact) == 2 and all(isinstance(part, str) for part in fact)
+        ]
+        found.append((entry["id"], unmet))
+    return found
+
+
+def _missed_labels(version_id, pending):
+    """Las etiquetas de lo que faltó, ``{(nodo, tipo, clave): etiqueta}``: una consulta por tipo de entidad, no por opción.
+
+    ``pending`` es ``{nodo: [(id de opción, [(tipo, clave), …]), …]}``. Un objeto o una persona toma la etiqueta del objeto
+    del mapa del nodo, un personaje de ambiente su nombre y una herramienta su etiqueta; sin hallarla, la clave.
+    """
+    wanted = {(node_id, kind, key) for node_id, entries in pending.items() for _, unmet in entries for kind, key in unmet}
+    if not wanted:
+        return {}
+    nodes = {node_id for node_id, _, _ in wanted}
+    kinds = {kind for _, kind, _ in wanted}
+    object_labels, ambient_labels, tool_labels = {}, {}, {}
+    if kinds & {"inspected", "talked"}:
+        for node_id, key, label in MapObject.objects.filter(scene_map__node_id__in=nodes).values_list(
+            "scene_map__node_id", "object_key", "label"
+        ):
+            object_labels[(node_id, key)] = label
+    if "talked" in kinds:
+        for node_id, ambient in SceneMap.objects.filter(node_id__in=nodes).values_list("node_id", "ambient_json"):
+            npcs = read_map(ambient).get("ambientNpcs")
+            for npc in npcs if isinstance(npcs, list) else []:
+                if isinstance(npc, dict) and isinstance(npc.get("key"), str):
+                    name = next(
+                        (npc[f] for f in ("name", "label", "displayName") if isinstance(npc.get(f), str) and npc[f]), None
+                    )
+                    ambient_labels[(node_id, npc["key"])] = name or npc["key"]
+    if kinds & {"has", "used"}:
+        tool_labels = dict(
+            ClinicalTool.objects.filter(case_version_id=version_id).values_list("tool_code", "label")
+        )
+    labels = {}
+    for node_id, kind, key in wanted:
+        if kind == "inspected":
+            label = object_labels.get((node_id, key))
+        elif kind == "talked":
+            label = object_labels.get((node_id, key)) or ambient_labels.get((node_id, key))
+        else:  # has / used: herramientas
+            label = tool_labels.get(key)
+        labels[(node_id, kind, key)] = label or key
+    return labels
+
+
+def _missed_for(entries, options, labels):
+    """``missed`` de una decisión: las opciones no ofrecidas de su escena, con lo que faltó explorar."""
+    missed = []
+    for option_id, unmet in entries:
+        option = options.get(option_id)
+        if option is None:
+            continue
+        missed.append({
+            "optionId": option.id,
+            "text": option.text,
+            "class": case_state.response_class_of(option).value,
+            "missing": [
+                {"kind": kind, "key": key, "label": labels.get((option.source_node_id, kind, key), key)}
+                for kind, key in unmet
+            ],
+        })
+    return missed
+
+
+def _missed_by_decision(events):
+    """``{id del evento de la decisión: [(opción, faltas)]}``: a cada decisión registrada, lo que el último
+    ``OPTIONS_NOT_OFFERED`` anterior de su mismo nodo dijo que no se ofreció."""
+    pending = {}
+    claimed = {}
+    for ev in events:
+        if ev.event_type == OPTIONS_NOT_OFFERED and ev.node_id:
+            pending[ev.node_id] = _read_not_offered(ev.detail)
+        elif ev.decision_option_id and ev.event_type in REGISTERED_DECISION_EVENT_TYPES:
+            claimed[ev.id] = pending.pop(ev.node_id, [])
+    return claimed
+
+
 def build_decision_review(events):
-    """``decisionReview[]``: una entrada por decisión registrada, en el orden en que ocurrieron."""
+    """``decisionReview[]``: una entrada por decisión registrada, en el orden en que ocurrieron.
+
+    Cada una lleva ``missed``; sin evento ``OPTIONS_NOT_OFFERED`` (o con uno ilegible) es ``[]``.
+    """
+    claimed = _missed_by_decision(events)
+    option_ids = {option_id for entries in claimed.values() for option_id, _ in entries}
+    options = DecisionOption.objects.in_bulk(option_ids) if option_ids else {}
+    by_node = {}
+    version_id = None
+    for ev in events:
+        if claimed.get(ev.id):
+            by_node.setdefault(ev.node_id, []).extend(claimed[ev.id])
+            version_id = version_id or ev.node.case_version_id
+    labels = _missed_labels(version_id, by_node)
     review = []
     first_answers = {}  # nodo → primera respuesta que el juego no aplicó (reintento)
     for ev in events:
@@ -181,6 +301,7 @@ def build_decision_review(events):
             "feedback": feedback,
             "class": response_class.value,
             "prohibited": response_class == ResponseClass.CONTRAINDICATED,
+            "missed": _missed_for(claimed.get(ev.id, []), options, labels),
         }
         first = first_answers.pop(ev.node_id, None)
         if first is not None:

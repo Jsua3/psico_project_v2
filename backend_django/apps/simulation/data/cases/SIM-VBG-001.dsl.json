@@ -12,7 +12,7 @@
     ],
     "rubrica": "RUB-01",
     "titulo": "Violencia Familiar y Tentativa de Feminicidio",
-    "version": "2.0.0"
+    "version": "2.1.0"
   },
   "escenas": [
     {
@@ -312,6 +312,7 @@
               {
                 "interactionRadius": 60,
                 "key": "enfermera-urgencias",
+                "label": "Enfermera de urgencias",
                 "x": 560,
                 "y": 330
               },
@@ -568,6 +569,7 @@
           "tema": "hospital-urgencias",
           "titulo": "Hospital — Urgencias"
         },
+        "objetivo": "Entiende qué está viviendo la familia y qué necesita ahora, antes de decidir cómo acompañarla.",
         "opciones": [
           {
             "clase": "CONTRAINDICATED",
@@ -596,6 +598,21 @@
               }
             },
             "id": "OP02",
+            "reaccion": {
+              "emocion": "triste",
+              "gesto": "se-acerca",
+              "linea": "(La abuela respira un poco más despacio y te sostiene la mirada.) Gracias por quedarse… nadie nos había explicado nada. Solo díganme la verdad cuando se pueda."
+            },
+            "requiere": {
+              "all": [
+                {
+                  "talked": "enfermera-urgencias"
+                },
+                {
+                  "used": "PAP"
+                }
+              ]
+            },
             "retroalimentacionInmediata": "Los PAP son la primera línea en crisis: estabilizan, contienen y preparan a la familia para el proceso de duelo."
           },
           {
@@ -1084,6 +1101,7 @@
           "tema": "hospital-escucha",
           "titulo": "Hospital — Sala de escucha familiar"
         },
+        "objetivo": "Ubica qué te exige la norma en salud frente a un caso como este.",
         "opciones": [
           {
             "clase": "ACCEPTABLE",
@@ -1599,6 +1617,7 @@
           "tema": "hospital-escucha",
           "titulo": "Hospital — Sala de escucha familiar"
         },
+        "objetivo": "Decide cómo actuar con la familia con criterio técnico y ético.",
         "opciones": [
           {
             "clase": "RISKY",
@@ -1657,6 +1676,9 @@
               }
             },
             "id": "OP10",
+            "requiere": {
+              "has": "SPIKES"
+            },
             "retroalimentacionInmediata": "Intervención integral: contención, protocolo de noticia difícil, evaluación psicosocial e interdisciplina."
           }
         ],
@@ -1939,6 +1961,7 @@
           "tema": "hospital-escucha",
           "titulo": "Hospital — Sala de escucha familiar"
         },
+        "objetivo": "Valora el riesgo y define a dónde debe seguir la atención.",
         "opciones": [
           {
             "clase": "CONTRAINDICATED",
@@ -1968,6 +1991,9 @@
               }
             },
             "id": "OP12",
+            "requiere": {
+              "used": "RISK_METER"
+            },
             "retroalimentacionInmediata": "Prioridad correcta: valoración de riesgo, protección efectiva y enfoque de derechos."
           },
           {
@@ -2407,6 +2433,7 @@
           "tema": "comisaria-consultorio",
           "titulo": "Comisaría de Familia — Consultorio"
         },
+        "objetivo": "Identifica qué derechos hay que restablecer y con qué respaldo legal.",
         "opciones": [
           {
             "clase": "RECOMMENDED",
@@ -2873,6 +2900,7 @@
           "tema": "comisaria-consultorio",
           "titulo": "Comisaría de Familia — Consultorio"
         },
+        "objetivo": "Define la actuación de protección y cierra la atención.",
         "opciones": [
           {
             "clase": "RISKY",
@@ -2920,6 +2948,9 @@
               }
             },
             "id": "OP19",
+            "requiere": {
+              "used": "RISK_METER"
+            },
             "retroalimentacionInmediata": "Actuación integral: víctima y dependientes valorados, riesgos establecidos y rutas activadas."
           }
         ],
@@ -3320,6 +3351,7 @@
           "tema": "comisaria-recepcion",
           "titulo": "Comisaría de Familia — Recepción"
         },
+        "objetivo": "Reconoce cómo recibe la institución a la sobreviviente y qué necesita de ti.",
         "opciones": [],
         "pistas": [],
         "posicion": {
@@ -3632,6 +3664,6 @@
         "id": "RUB-01"
       }
     ],
-    "version": "2.0"
+    "version": "2.1"
   }
 }

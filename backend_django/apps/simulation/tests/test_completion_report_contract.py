@@ -180,7 +180,7 @@ def test_el_reporte_v3_tiene_las_claves_del_contrato_y_ninguna_de_las_retiradas(
     payload = _payload(attempt)
 
     assert set(payload) == V3_KEYS
-    assert payload["schemaVersion"] == 3
+    assert payload["schemaVersion"] == 4
     for retired in ("finalScore", "finalStress", "metrics", "competencies"):
         assert retired not in payload
     assert not RETIRED_KEYS & _all_keys(payload)

@@ -286,6 +286,8 @@ DATA_INVENTORY: dict[str, dict] = {
             "theory_basis": PUBLIC,
             "feedback_text": PUBLIC,
             "effects": PUBLIC,
+            "requires_json": PUBLIC,
+            "reaction_json": PUBLIC,
             "response_class": PUBLIC,
             "ai_suggested": PUBLIC,
         },

@@ -18,11 +18,11 @@ EXPORTED = {
     "SimulationNode": {
         "node_key", "title", "narrative", "support_resources_json", "required_tools_json",
         "sensitive_content", "safe_exit_required", "warning_message", "start_node", "terminal_node",
-        "position_x", "position_y", "decision_prompt", "display_order", "intensity",
+        "position_x", "position_y", "decision_prompt", "goal", "display_order", "intensity",
     },
     "DecisionOption": {
         "option_key", "source_node", "target_node", "text", "immediate_feedback",
-        "prohibition_reason", "consequence_text", "theory_basis", "feedback_text", "effects", "response_class",
+        "prohibition_reason", "consequence_text", "theory_basis", "feedback_text", "effects", "requires_json", "reaction_json", "response_class",
     },
     "SceneMap": {"node", "map_key", "title", "width", "height", "theme", "spawn_x", "spawn_y", "ambient_json"},
     "SceneHint": {"scene_map", "hint_order", "text"},

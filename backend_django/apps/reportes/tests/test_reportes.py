@@ -15,6 +15,7 @@ from rest_framework.test import APIClient
 
 from apps.grupos.models import Grupo
 from apps.simulation.models import CaseVersion, DecisionOption, SimulationAttempt, SimulationNode
+from apps.simulation.tests.case_exploration import explore_what_the_case_asks
 
 pytestmark = pytest.mark.usefixtures("fetch_raise")  # DJA-7: un acceso perezoso accidental lanza
 
@@ -155,7 +156,7 @@ def test_grupo_report_simulation_block(profesor, estudiante, case_version_id):
         "/api/simulation/attempts", {"caseVersionId": case_version_id}, format="json"
     ).data["data"]
     token, attempt_id = start["attemptToken"], start["attemptId"]
-    options = start["currentNode"]["options"]
+    options = explore_what_the_case_asks(c, start)["currentNode"]["options"]  # el caso 2.1 retiene las recomendadas hasta explorar
     # El JSON del nodo ya no trae la clasificación (T11.5): se consulta por id.
     option = next(
         (o for o in options if DecisionOption.objects.get(pk=o["id"]).response_class == "RECOMMENDED"),

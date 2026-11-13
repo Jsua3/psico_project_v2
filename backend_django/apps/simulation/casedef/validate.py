@@ -1,8 +1,8 @@
-"""El validador del documento: la forma y las 16 reglas del taller (E4-2a) y el documento completo (E4-2b).
+"""El validador del documento: la forma, las 16 reglas del taller y las 4 del servidor (E4-2a) y el documento completo (E4-2b).
 
 ``run_rules(documento)`` hace lo que el validador del taller (Fase 4): primero la **forma**, contra
 ``dsl-casos.schema.json`` (los errores que el esquema atribuye a ``OCL-01…08`` los evalúa la función de
-cada regla, no la forma), y después las ocho reglas ``OCL`` y las ocho ``PROP``, siempre todas. El
+cada regla, no la forma), y después las ocho reglas ``OCL`` y las ocho ``PROP`` del taller y ``OCL-09…12`` del servidor, siempre todas. El
 resultado es un ``RuleReport``, con los mensajes del taller y sus ids de DSL. La clave ``x-siep`` no es
 parte del DSL del taller: se quita antes de mirar la forma.
 
@@ -21,7 +21,7 @@ from . import form, limits, messages, siep_check, text_check
 from .messages import route_text
 from .report import CUMPLE, ERROR, INCUMPLE, NO_APLICA, PREFIX, WARNING, Finding, Issue, Outcome, RuleReport, RuleResult
 from .rules import REGISTRY
-from . import rules_ocl, rules_prop  # noqa: F401  (registran las reglas, en este orden)
+from . import rules_ocl, rules_prop, rules_xsiep  # noqa: F401  (registran las reglas, en este orden)
 
 logger = logging.getLogger("siep.casedef")
 
@@ -106,7 +106,7 @@ def _form_result(document, schema):
 
 
 def run_rules(document, schema=None):
-    """El ``RuleReport`` de ``document``: la forma y las 16 reglas del taller, todas."""
+    """El ``RuleReport`` de ``document``: la forma, las 16 reglas del taller y las del servidor, todas."""
     schema = schema or base_schema()
     results = [_form_result(document, schema)]
     subject = document if isinstance(document, dict) else {}

@@ -133,6 +133,8 @@ class NodeRequest(serializers.Serializer):
     positionY = _columna()
     # El servicio lo valida (plano y con tope) y lo nombra en el 400; ausente = no tocar (E3-6).
     decisionPrompt = _text()
+    # El objetivo de la escena (DSL 2.1): texto plano con tope; ausente = no tocar.
+    goal = _text()
     # Intensidad de la escena; ausente = no tocar (un nodo nuevo sensible nace en HIGH).
     intensity = serializers.ChoiceField(choices=[m.value for m in Intensity], required=False)
     # Sugerido por el asistente de IA y sin revisar (P5); ausente = no tocar (un nodo nuevo nace en falso).
@@ -167,6 +169,9 @@ class DecisionRequest(serializers.Serializer):
     feedbackText = _text()
     # Los efectos de la opción (E3-8): el servicio los valida con su forma y su campo.
     effects = serializers.DictField(required=False, allow_null=True)
+    # Requisito y reacción de la opción (DSL 2.1): el servicio los valida; ausente = no tocar, nulo o ``{}`` = limpiar.
+    requires = serializers.DictField(required=False, allow_null=True)
+    reaction = serializers.DictField(required=False, allow_null=True)
     aiSuggested = serializers.BooleanField(required=False)
 
 

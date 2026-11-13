@@ -36,6 +36,8 @@ GOVERNED = {
     ("x-siep", "escenas", "*", "opciones", "*", "consecuencia"): (1200, True),
     ("x-siep", "escenas", "*", "opciones", "*", "mensaje"): (1200, True),
     ("x-siep", "escenas", "*", "opciones", "*", "fundamento"): (1200, True),
+    ("x-siep", "escenas", "*", "opciones", "*", "reaccion", "linea"): (400, False),
+    ("x-siep", "escenas", "*", "objetivo"): (200, False),
 }
 
 #: Campos de la base que van a columnas de tamaño fijo y que el esquema del taller no acota (lo que
@@ -64,6 +66,8 @@ LABELS = {
     "contexto": "contexto del caso", "etiqueta": "etiqueta", "indicacion": "indicación",
     "hablante": "hablante", "retroalimentacionInmediata": "retroalimentación inmediata",
     "retrato": "retrato", "apoyo": "recurso de apoyo",
+    # BORRADOR: texto nuevo del servidor, pendiente de la aprobación de Psicología
+    "linea": "frase de la reacción", "objetivo": "objetivo de la escena",
 }
 
 

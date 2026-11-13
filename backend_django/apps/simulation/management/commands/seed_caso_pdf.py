@@ -37,7 +37,7 @@ class Command(BaseCommand):
 
     def add_arguments(self, parser):
         parser.add_argument("--case-code", default=CASE_CODE)
-        parser.add_argument("--semantic-version", default="2.0.0")
+        parser.add_argument("--semantic-version", default="2.1.0")
 
     def _admin(self):
         """Quién firma la siembra. Si la cuenta demo existe, se usa tal cual (sin tocar clave, rol ni estado).

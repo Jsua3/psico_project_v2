@@ -95,6 +95,7 @@ from apps.simulation.services import audit_service, game_service, instructor_ser
 from apps.simulation.services import hints as servicio_de_pistas
 from apps.simulation.services.authoring import graph as servicio_del_grafo
 from apps.simulation.tests import dsl_support
+from apps.simulation.tests.case_exploration import explore_what_the_case_asks_for
 from apps.simulation.views import instructor_views
 from apps.users import serializers as serializadores_de_cuentas
 from apps.users.models import AccessRequest
@@ -784,10 +785,13 @@ def ventana_larga(monkeypatch):
 
 
 def _opcion_adecuada(intento):
-    for opcion in intento["currentNode"]["options"]:
-        decision = DecisionOption.objects.get(pk=opcion["id"])
-        if decision.response_class == "RECOMMENDED":
-            return decision.id
+    # El caso 2.1 retiene la recomendada hasta explorar: se deja lo explorado y se elige por clase en la base.
+    explore_what_the_case_asks_for(intento["attemptId"])
+    decision = DecisionOption.objects.filter(
+        source_node_id=intento["currentNode"]["id"], response_class="RECOMMENDED"
+    ).order_by("id").first()
+    if decision is not None:
+        return decision.id
     raise AssertionError("la primera escena del caso sembrado no tiene una opción adecuada")
 
 

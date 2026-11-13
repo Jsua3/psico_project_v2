@@ -24,6 +24,7 @@ from apps.simulation.services import case_state
 from apps.simulation.services.case_rules import rules_of
 from apps.simulation.services.game_service import RETRY_NEUTRAL_MESSAGE
 
+from .case_exploration import explore_what_the_case_asks_for
 from .test_world import _start, case_version_id, cl, estudiante  # noqa: F401  (fixtures)
 
 pytestmark = [pytest.mark.req("RN-08"), pytest.mark.req("RF-17")]
@@ -61,6 +62,7 @@ def _set_rules(case_version_id, **rules):
 def _first_node(estudiante, case_version_id):
     client = cl(estudiante)
     attempt_id, token = _start(client, case_version_id)
+    explore_what_the_case_asks_for(attempt_id)  # el caso 2.1 retiene la recomendada hasta explorar
     node_id = SimulationAttempt.objects.get(pk=attempt_id).current_node_id
     return client, attempt_id, token, node_id
 
@@ -104,7 +106,7 @@ def test_la_respuesta_de_una_decision_registrada_es_attempt_y_consequence(
 
     data = response.data["data"]
     assert response.status_code == 200
-    assert set(data) == {"attempt", "consequence"}
+    assert set(data) == {"attempt", "consequence", "reaction"}
     assert data["attempt"]["currentNode"]["id"] != node_id
     assert data["consequence"]["source"] in ("OPTION", "NODE")
     _sin_nada_evaluativo(data)
@@ -145,7 +147,7 @@ def test_feedback_timing_de_la_version_no_cambia_la_respuesta(estudiante, case_v
 
     data = _decide(client, attempt_id, token, _option(node_id, "RECOMMENDED").id).data["data"]
 
-    assert set(data) == {"attempt", "consequence"}
+    assert set(data) == {"attempt", "consequence", "reaction"}
     _sin_nada_evaluativo(data)
 
 
@@ -159,7 +161,7 @@ def test_la_primera_respuesta_con_riesgo_concede_la_segunda_oportunidad_sin_deci
 
     data = _decide(client, attempt_id, token, bad.id).data["data"]
 
-    assert set(data) == {"attempt", "consequence", "retry"}
+    assert set(data) == {"attempt", "consequence", "reaction", "retry"}
     assert data["consequence"] is None
     assert data["retry"] == {"allowed": True, "message": RETRY_NEUTRAL_MESSAGE}
     assert data["attempt"]["currentNode"]["id"] == node_id
@@ -242,7 +244,7 @@ def test_una_opcion_recomendada_nunca_pide_reintento_aunque_su_dato_antiguo_sea_
 
     data = _decide(client, attempt_id, token, bad.id).data["data"]
 
-    assert set(data) == {"attempt", "consequence"}
+    assert set(data) == {"attempt", "consequence", "reaction"}
     assert data["attempt"]["currentNode"]["id"] != node_id
 
 
@@ -253,7 +255,7 @@ def test_sin_segunda_oportunidad_la_respuesta_mala_se_registra_de_inmediato(estu
 
     data = _decide(client, attempt_id, token, bad.id).data["data"]
 
-    assert set(data) == {"attempt", "consequence"}
+    assert set(data) == {"attempt", "consequence", "reaction"}
     assert data["attempt"]["currentNode"]["id"] != node_id
     assert AttemptEvent.objects.filter(attempt_id=attempt_id, event_type__in=RETRY).count() == 0
     assert AttemptEvent.objects.filter(attempt_id=attempt_id, event_type__in=REGISTERED).count() == 1
@@ -317,7 +319,7 @@ def test_una_respuesta_contraindicada_registrada_usa_el_evento_prohibido(estudia
 
     data = _decide(client, attempt_id, token, prohibited.id).data["data"]
 
-    assert set(data) == {"attempt", "consequence"}
+    assert set(data) == {"attempt", "consequence", "reaction"}
     assert AttemptEvent.objects.filter(
         attempt_id=attempt_id, event_type="PROHIBITED_DECISION_SELECTED", decision_option_id=prohibited.id
     ).exists()
@@ -345,7 +347,7 @@ def test_repetir_una_decision_devuelve_la_misma_forma_unica(estudiante, case_ver
     second = _decide(client, attempt_id, token, good.id, requestId="req-forma-unica-1")
 
     assert second.data["data"] == first.data["data"]
-    assert set(second.data["data"]) == {"attempt", "consequence"}
+    assert set(second.data["data"]) == {"attempt", "consequence", "reaction"}
     _sin_nada_evaluativo(second.data["data"])
 
 
@@ -358,7 +360,7 @@ def test_repetir_un_reintento_devuelve_el_mismo_aviso_neutro(estudiante, case_ve
     second = _decide(client, attempt_id, token, bad.id, requestId="req-reintento-1")
 
     assert second.data["data"] == first.data["data"]
-    assert set(second.data["data"]) == {"attempt", "consequence", "retry"}
+    assert set(second.data["data"]) == {"attempt", "consequence", "reaction", "retry"}
     assert second.data["data"]["retry"]["message"] == RETRY_NEUTRAL_MESSAGE
     assert AttemptEvent.objects.filter(attempt_id=attempt_id, event_type__in=RETRY).count() == 1
 

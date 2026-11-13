@@ -21,6 +21,7 @@ from rest_framework.test import APIClient
 from apps.grupos.models import Grupo, GrupoEstudiante
 from apps.simulation.models import CaseVersion, DecisionOption, Rubric, SimulationAttempt
 
+from .case_exploration import explore_what_the_case_asks_for
 from .publication_support import give_support_resource
 
 pytestmark = [pytest.mark.django_db, pytest.mark.req("RNF-07")]
@@ -106,13 +107,15 @@ def _start(world, version_id, **extra):
 
 def _adequate_option(started) -> int:
     """Una opción adecuada de la escena de inicio: la prohibida no se aplica (es un reintento) y no tiene consecuencia."""
-    options = started.data["data"]["currentNode"]["options"]
-    adequate = [o["id"] for o in options if DecisionOption.objects.get(pk=o["id"]).response_class == "RECOMMENDED"]
-    return (adequate or [options[0]["id"]])[0]
+    node_id = started.data["data"]["currentNode"]["id"]
+    # El caso 2.1 retiene la recomendada hasta explorar: se elige por clase en la base y ``_decide`` deja lo explorado.
+    adequate = DecisionOption.objects.filter(source_node_id=node_id, response_class="RECOMMENDED").order_by("id").first()
+    return adequate.id
 
 
 def _decide(world, started):
     data = started.data["data"]
+    explore_what_the_case_asks_for(data["attemptId"])
     return cl(world.student).post(
         f"/api/simulation/attempts/{data['attemptId']}/decisions",
         {"attemptToken": data["attemptToken"], "decisionOptionId": _adequate_option(started), "evidenceOverride": True},
@@ -215,7 +218,7 @@ def test_el_ciclo_completo_con_todas_las_banderas_estrictas(world, settings):
     decided = _decide(world, started)
     assert decided.status_code == 200, decided.data
     payload = decided.data["data"]
-    assert set(payload) == {"attempt", "consequence"}
+    assert set(payload) == {"attempt", "consequence", "reaction"}
     assert "feedback" not in payload["attempt"]
     assert payload["consequence"]["text"]
 

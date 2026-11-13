@@ -32,6 +32,7 @@ from . import rubric_service
 from .attempt_lock import lock_attempt_row
 from .attempt_replacement import replace_open_attempt
 from .audit_service import auditable
+from .option_availability import OPTIONS_NOT_OFFERED
 from .instructor_scope import student_ids_for_instructor
 
 DEFAULT_PAGE_SIZE = 50
@@ -263,7 +264,8 @@ def trace(attempt_id, instructor=None):
         "activeSeconds": report["activeSeconds"],
         "timeline": report["timeline"],
         "visitedNodeTitles": report["visitedNodeTitles"],
-        "events": [_to_trace_event(e) for e in events],
+        # ``OPTIONS_NOT_OFFERED`` es contabilidad del informe de cierre, no un hecho del recorrido.
+        "events": [_to_trace_event(e) for e in events if e.event_type != OPTIONS_NOT_OFFERED],
         "world": world_service.world_for_attempt(attempt),
         "reflections": [
             _bitacora_del_reporte(r)

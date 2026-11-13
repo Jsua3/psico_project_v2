@@ -37,6 +37,7 @@ from apps.simulation.models import (
     SimulationNode,
 )
 
+from .case_exploration import explore_what_the_case_asks_for
 from .test_attempt_report_frozen import _congelar_v2, _decide, cl, completed, estudiante  # noqa: F401  (fixtures)
 from .test_attempt_report_frozen import case_version_id as seeded_case_version_id  # noqa: F401  (fixture)
 from .test_world import _start
@@ -154,6 +155,7 @@ def run(completed, case_version_id, legacy_apps, capsys):
     frozen_before = list(AttemptReport.objects.filter(attempt_id=completed_id).values())
 
     open_id, token = _start(client, case_version_id)
+    explore_what_the_case_asks_for(open_id)  # el caso 2.1 retiene la recomendada hasta explorar
     for step in range(2):
         attempt = SimulationAttempt.objects.get(pk=open_id)
         option = DecisionOption.objects.filter(source_node_id=attempt.current_node_id, response_class="RECOMMENDED").first()

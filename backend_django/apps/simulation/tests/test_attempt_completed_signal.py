@@ -20,6 +20,8 @@ from apps.progression.models import StudentCaseCompletion
 from apps.simulation.models import AttemptEvent, CaseVersion, DecisionOption, SimulationAttempt
 from apps.simulation.signals import attempt_completed
 
+from .case_exploration import explore_what_the_case_asks_for
+
 User = get_user_model()
 
 
@@ -76,6 +78,10 @@ def _decide(api, state, adequate=True):
 
 def _play_to_completion(api, case_version_id):
     state = _start(api, case_version_id)
+    explore_what_the_case_asks_for(state["attemptId"])
+    state = api.get(
+        f"/api/simulation/attempts/{state['attemptId']}", HTTP_X_SIEP_ATTEMPT_TOKEN=state["attemptToken"]
+    ).data["data"]
     for _ in range(40):
         if state["status"] != "IN_PROGRESS":
             break

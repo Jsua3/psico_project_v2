@@ -103,7 +103,7 @@ def endings_of(rules: case_rules.CaseRules) -> tuple[Ending, ...]:
     return tuple(rules.endings) if rules.endings else build_template(rules)
 
 
-def _context(state: case_state.CaseState, decisions) -> dict:
+def condition_context(state: case_state.CaseState, decisions) -> dict:
     bond, activation = state.persona
     return {
         "milestones": set(state.milestones),
@@ -158,7 +158,7 @@ def compute_ending(attempt, events) -> dict | None:
         if event.decision_option_id and event.event_type in REGISTERED_DECISION_EVENT_TYPES
     ]
     state = case_state.read(attempt)
-    context = _context(state, decisions)
+    context = condition_context(state, decisions)
     for ending in endings_of(rules):
         if "when" in ending and not conditions.evaluate(ending["when"], context):
             continue

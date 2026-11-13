@@ -301,9 +301,14 @@ async function completeFullCase(
   expect(decision.status).toBe('COMPLETED');
   expect(decision.currentNode.key).toBe('cierre-caso');
 
-  // El reporte congelado v3: el final por hitos y clases, sin una sola clave del modelo numérico viejo.
+  // El reporte congelado v4: el final por hitos y clases, sin una sola clave del modelo numérico viejo.
   const report = decision.completionReport;
-  expect(report.schemaVersion).toBe(3);
+  expect(report.schemaVersion).toBe(4);
+  // v4: cada decisión trae `missed`; quien explora antes de decidir no deja respuestas sin ver.
+  expect(report.decisionReview.length).toBeGreaterThan(0);
+  for (const review of report.decisionReview) {
+    expect(review.missed, 'una respuesta quedó sin ver aunque el recorrido explora antes de decidir').toEqual([]);
+  }
   for (const key of RETIRED_REPORT_KEYS) {
     expect(report, `el reporte de cierre no trae «${key}»`).not.toHaveProperty(key);
   }

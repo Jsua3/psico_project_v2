@@ -13,6 +13,7 @@ from apps.grupos.models import Grupo, CaseAssignment, GrupoEstudiante
 from apps.simulation.models import CaseVersion, DecisionOption, SimulationAttempt, SimulationCase
 
 from .test_world import _start, case_version_id, cl, estudiante  # noqa: F401  (fixtures)
+from .case_exploration import explore_what_the_case_asks_for
 
 pytestmark = pytest.mark.req("RN-04")
 
@@ -79,6 +80,7 @@ def test_un_estudiante_sin_acceso_no_puede_continuar_ni_operar(estudiante, case_
 def test_una_version_archivada_se_deja_terminar(estudiante, case_version_id):
     c = cl(estudiante)
     attempt_id, token = _start(c, case_version_id)
+    explore_what_the_case_asks_for(attempt_id)  # el caso 2.1 retiene la recomendada hasta explorar
     node_id = SimulationAttempt.objects.get(pk=attempt_id).current_node_id
     option = DecisionOption.objects.filter(source_node_id=node_id, response_class="RECOMMENDED").first()
     CaseVersion.objects.filter(pk=case_version_id).update(status="ARCHIVED")

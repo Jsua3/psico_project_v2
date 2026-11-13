@@ -14,7 +14,7 @@ from apps.simulation.services import attempt_survey, game_service
 from shared.exceptions import ApiError
 from shared.testing import run_concurrently
 
-from .test_attempt_concurrency import _option, committed_attempt  # noqa: F401  (fixture)
+from .test_attempt_concurrency import _option, committed_attempt, explored_attempt  # noqa: F401  (fixtures)
 from .test_attempt_report_frozen import (  # noqa: F401  (fixtures y ayudantes)
     BASE,
     _reports,
@@ -258,10 +258,10 @@ def test_sin_sesion_es_un_401(completed, survey_on):
 
 
 # ─── carrera ──────────────────────────────────────────────────────────────────────────────────
-def test_dos_respuestas_simultaneas_dejan_una_sola_y_la_otra_es_un_409(committed_attempt, settings):
+def test_dos_respuestas_simultaneas_dejan_una_sola_y_la_otra_es_un_409(explored_attempt, settings):
     """Hilos con commits reales: la unicidad es de la base y la perdedora recibe el 409, no un 500."""
     settings.ATTEMPT_FEEDBACK_SURVEY = True
-    a = committed_attempt
+    a = explored_attempt
     for _ in range(12):
         attempt = SimulationAttempt.objects.get(pk=a.attempt_id)
         if attempt.status != "IN_PROGRESS":

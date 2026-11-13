@@ -22,6 +22,7 @@ from apps.simulation.models import (
 from shared.testing import measure
 
 from .test_world import _move, _start, case_version_id, cl, estudiante  # noqa: F401  (fixtures)
+from .case_exploration import explore_what_the_case_asks_for
 
 pytestmark = pytest.mark.req("RF-20")
 
@@ -35,6 +36,7 @@ def _world(client, attempt_id, token):
 
 def _advance(client, attempt_id, token):
     """Decide la opción adecuada del nodo actual: el intento pasa al nodo siguiente."""
+    explore_what_the_case_asks_for(attempt_id)  # el caso 2.1 retiene las recomendadas hasta explorar
     node_id = SimulationAttempt.objects.get(pk=attempt_id).current_node_id
     good = DecisionOption.objects.filter(source_node_id=node_id, response_class="RECOMMENDED").order_by("id").first()
     response = client.post(
