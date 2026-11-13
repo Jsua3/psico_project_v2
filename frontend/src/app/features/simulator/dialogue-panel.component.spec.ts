@@ -1101,9 +1101,31 @@ describe('DialoguePanelComponent - scroll, hoja y retrato (T4.4)', () => {
     const rect = (top: number, bottom: number) => ({ top, bottom, left: 0, right: 0, width: 0, height: bottom - top, x: 0, y: top, toJSON: () => ({}) });
     vi.spyOn(host().querySelector('.panel-head') as HTMLElement, 'getBoundingClientRect').mockReturnValue(rect(0, 80));
     vi.spyOn(host().querySelector('.dialogue-text') as HTMLElement, 'getBoundingClientRect').mockReturnValue(rect(56, 120));
+    vi.spyOn(strip(), 'getBoundingClientRect').mockReturnValue(rect(0, 600));
+    for (const button of Array.from(host().querySelectorAll<HTMLElement>('.choice-btn'))) {
+      vi.spyOn(button, 'getBoundingClientRect').mockReturnValue(rect(300, 364));
+    }
     strip().scrollTop = 200;
     component.ngAfterViewChecked();
     expect(strip().scrollTop).toBe(176);
+  });
+
+  it('el ajuste tiene tope: nunca saca de la vista las opciones 1 y 2 (TOUCH-01)', () => {
+    render(dialogue());
+    component.skipTypewriter();
+    fixture.detectChanges();
+    (component as unknown as { settled: boolean }).settled = false;
+    const rect = (top: number, bottom: number) => ({ top, bottom, left: 0, right: 0, width: 0, height: bottom - top, x: 0, y: top, toJSON: () => ({}) });
+    const buttons = Array.from(host().querySelectorAll<HTMLElement>('.choice-btn'));
+    expect(buttons.length, 'el diálogo de prueba ofrece opciones').toBeGreaterThan(0);
+    vi.spyOn(host().querySelector('.panel-head') as HTMLElement, 'getBoundingClientRect').mockReturnValue(rect(0, 80));
+    vi.spyOn(host().querySelector('.dialogue-text') as HTMLElement, 'getBoundingClientRect').mockReturnValue(rect(56, 120));
+    vi.spyOn(strip(), 'getBoundingClientRect').mockReturnValue(rect(0, 600));
+    // La opción que se protege (la 2, o la 1 si solo hay una) acaba en 590: solo caben 10 px de ajuste, no los 24 que pide el texto.
+    for (const button of buttons) vi.spyOn(button, 'getBoundingClientRect').mockReturnValue(rect(526, 590));
+    strip().scrollTop = 200;
+    component.ngAfterViewChecked();
+    expect(strip().scrollTop).toBe(190);
   });
 
   it('con movimiento reducido las opciones también se revelan una vez por línea nueva', () => {

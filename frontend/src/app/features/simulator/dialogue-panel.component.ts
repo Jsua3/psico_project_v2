@@ -814,20 +814,27 @@ export class DialoguePanelComponent implements AfterViewChecked, OnDestroy {
     if (!choices || typeof choices.scrollIntoView !== 'function') return;
     const headHeight = strip.querySelector<HTMLElement>('.panel-head')?.offsetHeight ?? 0;
     const fits = choices.offsetHeight <= strip.clientHeight - headHeight;
+    // La alineación por el inicio deja libre la cabecera fija que hay ahora (con o sin la nota de seguimiento), no una
+    // altura supuesta; sin medida (cabecera aún sin pintar) vale la del CSS.
+    if (headHeight > 0) choices.style.scrollMarginTop = `${headHeight}px`;
     choices.scrollIntoView({ block: fits ? 'nearest' : 'start' });
-    this.uncoverText(strip);
+    this.uncoverText(strip, choices);
   }
 
   /**
    * El desplazamiento que revela las opciones puede dejar la línea del personaje a medias bajo la cabecera fija
-   * («Decisión» + nota de seguimiento): se sube lo justo para que se lea entera; las opciones siguen a un gesto.
+   * («Decisión» + nota de seguimiento): se sube lo justo para que se lea entera, con tope: las opciones 1 y 2 nunca
+   * salen de la vista (TOUCH-01). Si no caben juntas con el texto, ganan las opciones y el texto queda a un gesto.
    */
-  private uncoverText(strip: HTMLElement): void {
+  private uncoverText(strip: HTMLElement, choices: HTMLElement): void {
     const head = strip.querySelector<HTMLElement>('.panel-head');
     if (!head) return;
     const blocks = Array.from(strip.querySelectorAll<HTMLElement>('.speaker-name, .dialogue-text, .stale-note, .choices-notice'))
       .map(el => el.getBoundingClientRect());
-    const shift = scrollShiftToUncoverText(head.getBoundingClientRect().bottom, blocks);
+    const buttons = choices.querySelectorAll<HTMLElement>('.choice-btn');
+    const protect = buttons.item(Math.min(1, buttons.length - 1));
+    const guard = protect ? { protect: protect.getBoundingClientRect(), viewBottom: strip.getBoundingClientRect().bottom } : undefined;
+    const shift = scrollShiftToUncoverText(head.getBoundingClientRect().bottom, blocks, guard);
     if (shift !== 0) strip.scrollTop += shift;
   }
 
