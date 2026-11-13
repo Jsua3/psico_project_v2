@@ -56,10 +56,42 @@ async function entrarAlCaso(page: Page): Promise<void> {
   await waitForWorldReady(page);
 }
 
+type Rumbo = Parameters<typeof reachNearby>[2];
+type Mando = ReturnType<typeof createWorldInputDriver>;
+
+/** Tras elegir: la nota de supervisión llega después de la reacción; al cerrarla, la ficha trae el objetivo nuevo. */
+async function cerrarNotaYEsperar(page: Page, objetivoNuevo: RegExp): Promise<void> {
+  const nota = page.getByRole('dialog', { name: /consecuencia/i });
+  await expect(nota, 'la nota de supervisión llega tras la reacción').toBeVisible({ timeout: scaled(30_000) });
+  await closeDialogue(page, /consecuencia/i);
+  await expect(goalCard(page), `la escena siguiente trae su objetivo (${objetivoNuevo})`)
+    .toHaveAttribute('data-goal', objetivoNuevo, { timeout: scaled(30_000) });
+}
+
+/** Camina hasta `quien`, abre su conversación, espera la opción (las opciones aparecen escalonadas), captura y elige. */
+async function decidir(
+  page: Page, input: Mando, quien: RegExp, clave: string, rumbo: Rumbo, opcion: RegExp, captura: () => Promise<unknown>,
+): Promise<void> {
+  await reachNearby(page, input, rumbo, quien);
+  await interactNearby(page, quien, new RegExp(`/interactions/${clave}$`));
+  const dialogo = await advanceDialogueToChoices(page, quien);
+  await expect(dialogo.getByRole('button', { name: opcion }), `${quien} ofrece la opción adecuada`).toBeVisible({ timeout: scaled(10_000) });
+  await page.waitForTimeout(1_000);
+  await captura();
+  await chooseDecision(page, quien, opcion);
+}
+
+/** Habla con alguien sin decidir (su conversación no tiene opciones): lee y cierra. */
+async function hablar(page: Page, input: Mando, quien: RegExp, clave: string, rumbo: Rumbo): Promise<void> {
+  await reachNearby(page, input, rumbo, quien);
+  await interactNearby(page, quien, new RegExp(`/interactions/${clave}$`));
+  await closeDialogue(page, quien);
+}
+
 test.use({ viewport: { width: KEYBOARD.width, height: KEYBOARD.height } });
 
-test('@demo-k1 SIM-VBG-002: entrar, caminar, hablar y tomar la primera decisión del capítulo 1', async ({ page }) => {
-  test.setTimeout(scaled(300_000));
+test('@demo-k1 SIM-VBG-002: entrar, caminar, hablar y jugar el capítulo 1 completo (cuatro decisiones)', async ({ page }) => {
+  test.setTimeout(scaled(600_000));
   mkdirSync(CAPTURAS, { recursive: true });
   const captura = (nombre: string) => page.screenshot({ path: join(CAPTURAS, nombre) });
 
@@ -98,11 +130,34 @@ test('@demo-k1 SIM-VBG-002: entrar, caminar, hablar y tomar la primera decisión
   await captura('04-reaccion-del-hermano.png');
   await expect.poll(reacciones, { message: 'el gesto se puso en el host', timeout: scaled(5_000) }).toContain('se-acerca');
 
-  // Tras la reacción llega la nota de supervisión; al cerrarla el caso sigue en la escena siguiente (E02).
-  const nota = page.getByRole('dialog', { name: /consecuencia/i });
-  await expect(nota, 'la nota de supervisión llega tras la reacción').toBeVisible({ timeout: scaled(30_000) });
-  await closeDialogue(page, /consecuencia/i);
-  await expect(goalCard(page), 'la escena siguiente trae su propio objetivo').not.toHaveAttribute('data-goal', /Mira qué está pasando en la entrada/, { timeout: scaled(30_000) });
+  // Tras la reacción llega la nota de supervisión; al cerrarla el caso sigue en la escena 2 (sala de espera).
+  await cerrarNotaYEsperar(page, /Entiende qué está viviendo la familia/);
   await page.waitForTimeout(800);
   await captura('05-escena-siguiente.png');
+
+  // Decisión 2 (sala de espera): la abuela ofrece contener antes de informar.
+  await decidir(page, input, /abuela/i, 'abuela', ['ArrowLeft', 'ArrowLeft', 'ArrowUp'], /contención emocional/i,
+    () => captura('06-decision-2.png'));
+  await cerrarNotaYEsperar(page, /Busca un lugar donde la familia pueda hablar/);
+
+  // Decisión 3 (un lugar para hablar): la sala de escucha pide haber hablado antes con la enfermera.
+  await hablar(page, input, /enfermera/i, 'enfermera', ['ArrowRight', 'ArrowRight', 'ArrowUp']);
+  await decidir(page, input, /abuela/i, 'abuela', ['ArrowLeft', 'ArrowLeft', 'ArrowUp'], /la sala de escucha/i,
+    () => captura('07-decision-3.png'));
+  await cerrarNotaYEsperar(page, /Aclara con el equipo médico/);
+
+  // Decisión 4 (estación de enfermería): acordar con el médico pide haber revisado la hoja de ingreso.
+  await reachNearby(page, input, ['ArrowRight', 'ArrowDown'], /hoja de ingreso/i);
+  await interactNearby(page, /hoja de ingreso/i, /\/interactions\/hoja-ingreso$/);
+  const hoja = page.getByRole('dialog', { name: /hoja de ingreso/i });
+  if (await hoja.isVisible({ timeout: scaled(2_000) }).catch(() => false)) await closeDialogue(page, /hoja de ingreso/i);
+  await decidir(page, input, /médico de guardia/i, 'medico-guardia', ['ArrowUp', 'ArrowLeft'], /acordar qué está confirmado/i,
+    () => captura('08-decision-4.png'));
+  const nota = page.getByRole('dialog', { name: /consecuencia/i });
+  await expect(nota, 'la nota de supervisión de la decisión 4').toBeVisible({ timeout: scaled(30_000) });
+  await closeDialogue(page, /consecuencia/i);
+  await expect(goalCard(page), 'el capítulo 2 trae su propio objetivo')
+    .not.toHaveAttribute('data-goal', /Aclara con el equipo médico/, { timeout: scaled(30_000) });
+  await page.waitForTimeout(800);
+  await captura('09-capitulo-2.png');
 });
