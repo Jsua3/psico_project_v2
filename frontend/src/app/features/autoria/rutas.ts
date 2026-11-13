@@ -7,13 +7,13 @@ export const RUTA_CASOS = '/portal/casos';
 
 /**
  * Traduce una dirección «del editor» a la del programa. Las pantallas del editor hablan de sus momentos con
- * direcciones cortas (`/editor`, `/editor/escena/<id>`, `/editor/finales`, `/probar`, `/revision`, `/lugar`, `/salas`, `/`);
+ * direcciones cortas (`/editor`, `/editor/escena/<id>`, `/editor/finales`, `/revision`, `/lugar`, `/salas`, `/`);
  * en el programa cuelgan de la lista de casos:
  *
  * - `/` → la lista de casos
  * - `/lugar` y `/salas` → los dos pasos de crear un caso (`/portal/casos/nuevo[/salas]`)
  * - `/generando/<id>` → la pantalla de avance de la generación (`/portal/casos/nuevo/generando/<id>`)
- * - `/editor…`, `/probar` y `/revision` → el editor del caso abierto (`/portal/casos/<caso>/editor[…]`)
+ * - `/editor…` y `/revision` → el editor del caso abierto (`/portal/casos/<caso>/editor[…]`)
  *
  * `casoId` es el caso abierto; sin caso, las direcciones del editor llevan a la lista.
  */
@@ -27,7 +27,7 @@ export function rutaDelEditor(destino: string, casoId: string | null): string {
   if (ruta.startsWith('/generando/')) return `${RUTA_CASOS}/nuevo${ruta}${consulta}`;
   if (casoId === null) return RUTA_CASOS;
   const base = `${RUTA_CASOS}/${encodeURIComponent(casoId)}/editor`;
-  if (ruta === '/probar' || ruta === '/revision') return `${base}${ruta}${consulta}`;
+  if (ruta === '/revision') return `${base}${ruta}${consulta}`;
   if (ruta === '/editor' || ruta.startsWith('/editor/')) return `${base}${ruta.slice('/editor'.length)}${consulta}`;
   return RUTA_CASOS;
 }

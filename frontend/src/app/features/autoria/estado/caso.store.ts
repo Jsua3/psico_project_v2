@@ -166,9 +166,6 @@ export class CasoStore {
     const estado = this.estado()?.estado;
     return estado !== undefined && estado !== 'DRAFT';
   });
-  /** Si en esta visita el docente ya llegó a un final probando como estudiante. */
-  private readonly probadoAhora = signal(false);
-  readonly probado = this.probadoAhora.asReadonly();
   readonly puedeDeshacer = computed(() => (this.version(), this.historial?.puedeDeshacer ?? false));
   readonly puedeRehacer = computed(() => (this.version(), this.historial?.puedeRehacer ?? false));
 
@@ -214,8 +211,23 @@ export class CasoStore {
    */
   readonly haySinGuardar = computed(() => this.guardandoAhora() || this.conflictoAhora() !== null || this.sinGuardar().length > 0);
 
-  marcarProbado(): void {
-    this.probadoAhora.set(true);
+  /**
+   * Relee del servidor si el ensayo de esta versión llegó a un final (`rehearsedToEnd`) y lo pone en `probadoHastaElFinal`, sin
+   * tocar nada más del borrador ni mandar nada. El ensayo corre en otra pestaña, así que la revisión lo pregunta al entrar y
+   * cuando su pestaña vuelve a estar a la vista. Si la lectura falla, queda lo que había.
+   */
+  async releerProbado(): Promise<void> {
+    const sesion = this.sesion;
+    if (!sesion) return;
+    try {
+      const vista = await firstValueFrom(sesion.api.caseEditor(sesion.caseVersionId));
+      if (this.sesion !== sesion) return;
+      const probado = vista.rehearsedToEnd === true;
+      this.estado.update((c) => (c ? { ...c, probadoHastaElFinal: probado } : c));
+      if (this.base) this.base = { ...this.base, probadoHastaElFinal: probado };
+    } catch {
+      // sin conexión o sin permiso: el aviso de la revisión sigue como estaba
+    }
   }
 
   private get servicio(): AutoriaApiService {
@@ -306,7 +318,6 @@ export class CasoStore {
   }
 
   private empezarCon(caso: CasoBorrador | null, sesion: SesionServidor | null): void {
-    this.probadoAhora.set(false);
     this.sesion = sesion;
     this.cola = [];
     this.base = caso;

@@ -29,7 +29,6 @@ const SECCIONES = [
   { ruta: '/editor', accion: null, largo: 'El caso', corto: 'El caso' },
   { ruta: '/editor/datos', accion: 'datos-del-caso', largo: 'Datos del caso', corto: 'Datos' },
   { ruta: '/editor/finales', accion: 'definir-finales', largo: 'Finales', corto: 'Finales' },
-  { ruta: '/probar', accion: 'probar', largo: 'Probar como estudiante', corto: 'Probar' },
   { ruta: '/revision', accion: 'enviar-revision', largo: 'Enviar a revisión', corto: 'Revisión' },
 ] as const;
 
@@ -213,10 +212,10 @@ export class AutoriaShellComponent implements CanLeave {
     this.router.events.pipe(filter((e) => e instanceof NavigationEnd), map(() => this.router.url)), { initialValue: this.router.url },
   );
   /**
-   * Las pantallas no se pueden cambiar si el caso ya no es un borrador. Siguen vivas probar como estudiante (no cambia nada), los
+   * Las pantallas no se pueden cambiar si el caso ya no es un borrador. Siguen vivos los
    * datos del caso (sus campos son de solo lectura, para poder leerlos con el teclado) y la revisión: en un caso que ya no es un borrador es donde se decide (aprobar, devolver, archivar) y se crea la versión nueva.
    */
-  protected readonly bloqueado = computed(() => this.store.soloLectura() && !/\/(probar|revision|datos)$/.test(this.direccion().split('?')[0]));
+  protected readonly bloqueado = computed(() => this.store.soloLectura() && !/\/(revision|datos)$/.test(this.direccion().split('?')[0]));
   /** «Probar» abre el borrador en el juego real, en otra pestaña, desde la escena de inicio. */
   protected readonly rutaEnsayo = computed(() => RUTA_ENSAYO(this.store.caso()?.id ?? ''));
   protected probar(evento: MouseEvent): void {

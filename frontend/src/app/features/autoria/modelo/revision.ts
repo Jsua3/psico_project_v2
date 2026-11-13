@@ -354,9 +354,10 @@ function avisosDeCompetencias(caso: CasoBorrador): Falta[] {
 }
 
 /** Cosas que conviene mirar pero no impiden enviar. */
-export function sugerencias(caso: CasoBorrador, probado: boolean): Falta[] {
+export function sugerencias(caso: CasoBorrador): Falta[] {
   const lista: Falta[] = [...avisosDeCompetencias(caso), ...avisosDeDialogoSinPersona(caso)];
-  if (!probado) lista.push({ mensaje: 'Todavía no probaste el caso completo como estudiante.', ir: { ruta: '/probar' } });
+  // BORRADOR: texto nuevo, pendiente de la aprobación de Psicología
+  if (caso.probadoHastaElFinal !== true) lista.push({ mensaje: 'Todavía no probaste el caso completo en el juego.', ir: { ruta: '/editor', accionId: 'probar' } });
   caso.escenas.forEach((e) => {
     const vaciasL = e.lineas.filter((l) => !l.texto.trim()).length;
     const vaciasR = e.respuestas.filter((r) => !r.texto.trim() || !r.retroalimentacion.trim()).length;

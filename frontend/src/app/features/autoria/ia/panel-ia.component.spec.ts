@@ -182,7 +182,7 @@ describe('contextoDeRuta', () => {
     expect(contextoDeRuta('/portal/casos/41/editor/escena/12?x=1')).toEqual({ pantalla: 'guion', seleccion: '12' });
     expect(contextoDeRuta('/portal/casos/41/editor/sala/consultorio')).toEqual({ pantalla: 'sala', seleccion: 'consultorio' });
     expect(contextoDeRuta('/portal/casos/41/editor/finales')).toEqual({ pantalla: 'finales', seleccion: null });
-    expect(contextoDeRuta('/portal/casos/41/editor/probar')).toEqual({ pantalla: 'probar', seleccion: null });
+    expect(contextoDeRuta('/portal/casos/41/editor/probar')).toEqual({ pantalla: 'mapa', seleccion: null }); // ya no es una pantalla del editor
     expect(contextoDeRuta('/portal/casos/nuevo')).toEqual({ pantalla: 'nuevo', seleccion: null });
   });
 });

@@ -155,7 +155,7 @@ describe('puedeEnviar', () => {
       caso.escenas[0].lineas = [{ id: 'l1', personajeId: 'x', texto: 'Hola.', expresion: 'neutral', marcaIa: false }];
       caso.escenas[1].esFinal = false;
       expect(puedeEnviar(caso).faltas.map((f) => f.mensaje)).not.toContain(expect.stringContaining('nadie'));
-      expect(sugerencias(caso, true).map((f) => [f.mensaje, f.ir.ruta])).toContainEqual([
+      expect(sugerencias({ ...caso, probadoHastaElFinal: true }).map((f) => [f.mensaje, f.ir.ruta])).toContainEqual([
         'La escena «Escena a» tiene diálogo pero en su sala no hay nadie que lo diga. Agrega una persona.', '/editor/sala/consultorio',
       ]);
     });
@@ -164,7 +164,7 @@ describe('puedeEnviar', () => {
       const caso = completo();
       caso.salas = [sala(1)];
       caso.escenas[0].lineas = [{ id: 'l1', personajeId: 'x', texto: 'Hola.', expresion: 'neutral', marcaIa: false }];
-      expect(sugerencias(caso, true).map((f) => f.mensaje).join(' ')).not.toContain('nadie que lo diga');
+      expect(sugerencias({ ...caso, probadoHastaElFinal: true }).map((f) => f.mensaje).join(' ')).not.toContain('nadie que lo diga');
     });
 
     it('con una persona en la sala no falta nada', () => {

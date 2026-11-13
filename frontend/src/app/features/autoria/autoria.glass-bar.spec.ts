@@ -129,11 +129,11 @@ describe('Editor de casos: la barra de vidrio (tableros 45–51)', () => {
     const secciones = raiz.querySelector('header .modulo-principal nav[aria-label="Secciones del caso"]')!;
     expect([...secciones.querySelectorAll('a')].map((a) => a.getAttribute('href'))).toEqual([
       '/portal/casos/41/editor', '/portal/casos/41/editor/datos', '/portal/casos/41/editor/finales',
-      '/portal/casos/41/editor/probar', '/portal/casos/41/editor/revision', '/portal/casos/41/ensayo',
+      '/portal/casos/41/editor/revision', '/portal/casos/41/ensayo',
     ]);
     // Cada sección se anuncia con su nombre completo, aunque por ancho se vea su rótulo corto.
     expect([...secciones.querySelectorAll('a')].map((a) => a.getAttribute('aria-label'))).toEqual([
-      'El caso', 'Datos del caso', 'Finales', 'Probar como estudiante', 'Enviar a revisión', 'Probar el caso en el juego (se abre en otra pestaña)',
+      'El caso', 'Datos del caso', 'Finales', 'Enviar a revisión', 'Probar el caso en el juego (se abre en otra pestaña)',
     ]);
     // La guía las encuentra por su acción.
     for (const accion of ['datos-del-caso', 'definir-finales', 'probar', 'enviar-revision']) expect(secciones.querySelector(`[data-accion~="${accion}"]`)).not.toBeNull();
@@ -184,5 +184,21 @@ describe('AutoriaShellComponent · el botón «Probar» de la barra', () => {
     expect(evento.defaultPrevented).toBe(true);
     expect(abrir).toHaveBeenCalledWith('about:blank', '_blank');
     await vi.waitFor(() => expect(pestana.location.href).toBe('/portal/casos/41/ensayo'));
+  });
+});
+
+describe('AutoriaShellComponent · «Probar» ya no es una pantalla del editor', () => {
+  afterEach(() => document.querySelectorAll('body > app-autoria-shell, body > [ng-version]').forEach((n) => n.remove()));
+
+  it('la barra no tiene la sección «Probar como estudiante» y sí el botón «Probar»', async () => {
+    const { raiz } = await irA('/portal/casos/41/editor');
+    const nombres = [...raiz.querySelectorAll('header nav[aria-label="Secciones del caso"] a')].map((a) => a.getAttribute('aria-label'));
+    expect(nombres).not.toContain('Probar como estudiante');
+    expect(nombres).toContain('Probar el caso en el juego (se abre en otra pestaña)');
+  });
+
+  it('/probar redirige a El caso', async () => {
+    const { raiz } = await irA('/portal/casos/41/editor/probar');
+    expect(raiz.querySelector('main h1')!.textContent).toContain('Escenas y caminos');
   });
 });

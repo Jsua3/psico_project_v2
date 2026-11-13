@@ -221,7 +221,7 @@ test('4 · sala del juego: la sala, la ficha, el aviso, la introducción y un ca
 
 // ── 5 · Editor del docente ───────────────────────────────────────────────────────────────────────
 
-test('5 · editor del docente: crear un caso desde la universidad y recorrer sus pantallas (mapa, guion, sala, finales, probar y revisión)', async ({ page, request }) => {
+test('5 · editor del docente: crear un caso desde la universidad y recorrer sus pantallas (mapa, guion, sala, finales y revisión)', async ({ page, request }) => {
   test.setTimeout(scaled(300_000));
   await runProbedFlow(page, 'editor del docente', async () => {
     await visitEditorTabs(page, request, async () => undefined);

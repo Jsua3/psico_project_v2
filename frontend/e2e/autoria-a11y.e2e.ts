@@ -9,7 +9,7 @@ import { scaled } from './support/time-scale';
 /**
  * Editor de casos (P6, tarea 7): accesibilidad de cada ruta de autoría contra el servidor REAL, con una docente del seed.
  * Se crea un caso desde la universidad y se recorren las pantallas —lugar, salas, mapa del caso, una sala, el guion de una
- * escena, los finales, probar y la revisión— con Axe (WCAG 2.2 AA, sin infracciones serias ni críticas) y se comprueba que
+ * escena, los finales y la revisión— con Axe (WCAG 2.2 AA, sin infracciones serias ni críticas) y se comprueba que
  * no haya desplazamiento horizontal a 1366 y a 1280. Además: la barra de vidrio del editor (una sola, con la ayuda a mano) en
  * su estado desplazado, y el buscador abierto.
  */
@@ -122,15 +122,11 @@ test.describe('@autoria accesibilidad de cada ruta del editor de casos', () => {
       await page.keyboard.press('Escape');
       await expect(page.locator('.pieza.atendida')).toHaveCount(0);
 
-      // 6. Finales, probar y revisión, con las secciones del caso, dentro de la barra.
+      // 6. Finales y revisión, con las secciones del caso, dentro de la barra («Probar» ya no es una pantalla: abre el ensayo en otra pestaña).
       const secciones = page.getByRole('navigation', { name: 'Secciones del caso' });
       await secciones.getByRole('link', { name: 'Finales' }).click();
       await expect(page.getByRole('heading', { level: 1 })).toBeVisible();
       await revisar(page, 'casos/:id/editor/finales');
-
-      await secciones.getByRole('link', { name: 'Probar como estudiante' }).click();
-      await expect(page.getByRole('heading', { level: 1, name: 'Probar como estudiante' })).toBeVisible({ timeout: scaled(30_000) });
-      await revisar(page, 'casos/:id/editor/probar');
 
       await secciones.getByRole('link', { name: 'Enviar a revisión' }).click();
       await expect(page.getByRole('heading', { level: 1 })).toBeVisible();

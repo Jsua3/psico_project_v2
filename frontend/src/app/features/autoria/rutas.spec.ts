@@ -11,7 +11,6 @@ describe('rutaDelEditor', () => {
     expect(rutaDelEditor('/editor/escena/12', '41')).toBe('/portal/casos/41/editor/escena/12');
     expect(rutaDelEditor('/editor/sala/sala-espera', '41')).toBe('/portal/casos/41/editor/sala/sala-espera');
     expect(rutaDelEditor('/editor/finales', '41')).toBe('/portal/casos/41/editor/finales');
-    expect(rutaDelEditor('/probar?desde=12', '41')).toBe('/portal/casos/41/editor/probar?desde=12');
     expect(rutaDelEditor('/revision', '41')).toBe('/portal/casos/41/editor/revision');
   });
 
@@ -30,6 +29,7 @@ describe('rutaDelEditor', () => {
   it('sin caso abierto, las direcciones del editor llevan a la lista; una desconocida también', () => {
     expect(rutaDelEditor('/editor/finales', null)).toBe('/portal/casos');
     expect(rutaDelEditor('/algo-raro', '41')).toBe('/portal/casos');
+    expect(rutaDelEditor('/probar?desde=12', '41')).toBe('/portal/casos'); // «probar» ya no es una pantalla del editor
   });
 
   it('un caso con caracteres raros en su identificador no rompe la dirección', () => {

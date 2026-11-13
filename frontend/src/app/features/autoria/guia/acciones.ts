@@ -27,7 +27,6 @@ export const PANTALLAS = {
   sala: 'Editar una sala',
   guion: 'Guion de una escena',
   finales: 'Finales del caso',
-  probar: 'Probar como estudiante',
   revision: 'Enviar a revisión',
   cabecera: 'Cualquier pantalla (arriba)',
 } as const;
