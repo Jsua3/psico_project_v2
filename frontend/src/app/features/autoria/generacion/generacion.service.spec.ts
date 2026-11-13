@@ -176,6 +176,24 @@ describe('GeneracionService: el orquestador de la generación', () => {
     expect(servicio.error()).toMatchObject({ parte: 'escena', reintentable: true });
   });
 
+  it('primera lectura fallida: «Reintentar» vuelve a pedir y avanza hasta el final', async () => {
+    const { api, servicio } = montar();
+    const id = await servicio.empezar('universidad', DESCRIPCION);
+    servicio.generacion.set(null);
+    const real = api.generation.bind(api);
+    let lecturas = 0;
+    vi.spyOn(api, 'generation').mockImplementation((i: string) =>
+      ++lecturas <= 2 ? throwError(() => new HttpErrorResponse({ status: 500 })) : real(i));
+    await servicio.continuar(id);
+
+    expect(servicio.generacion()).toBeNull();
+    expect(servicio.error()).toMatchObject({ reintentable: true, parte: 'esqueleto' });
+
+    await servicio.reintentar();
+    expect(servicio.error()).toBeNull();
+    expect(servicio.generacion()!.status).toBe('imported');
+  });
+
   it('un refusal no se reintenta solo y muestra su mensaje', async () => {
     const { g, servicio } = montar();
     const id = await servicio.empezar('universidad', DESCRIPCION);

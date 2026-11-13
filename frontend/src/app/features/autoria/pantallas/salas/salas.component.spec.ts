@@ -72,6 +72,19 @@ describe('SalasComponent', () => {
     expect(raiz.querySelector('#ideas')).toBeTruthy();
   });
 
+  it('con una generación en curso entra en «Describe tu caso» y se ve el aviso de retomar', async () => {
+    const { fixture, raiz } = await montar(undefined, {
+      enabled: true, remainingToday: 4,
+      inProgress: { id: 'g-7', lugarId: 'universidad', status: 'skeleton_ready', scenes: [] },
+    });
+    for (let i = 0; i < 5; i++) { await new Promise((r) => setTimeout(r, 0)); fixture.detectChanges(); }
+
+    expect(raiz.querySelector<HTMLInputElement>('input[value="describe"]')!.checked).toBe(true);
+    expect(raiz.querySelector('app-describir')).toBeTruthy();
+    expect(raiz.textContent).toContain('Tienes un caso a medio generar');
+    expect(raiz.querySelector('#ideas')).toBeNull();
+  });
+
   it('con la generación apagada, «Describe tu caso» queda apagada con su motivo', async () => {
     const { fixture, raiz } = await montar(undefined, { enabled: false, remainingToday: 0, inProgress: null });
     fixture.detectChanges();

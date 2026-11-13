@@ -90,6 +90,8 @@ export class GeneracionService {
 
   /** Cada corrida (y `detener`) la incrementa: una corrida vieja deja de pedir y de escribir al ver que ya no es la vigente. */
   private vuelta = 0;
+  /** La última generación que se corrió: `reintentar` la usa aunque la primera lectura haya fallado y no haya `generacion()`. */
+  private ultimoId: string | null = null;
   private espera: { temporizador: ReturnType<typeof setTimeout>; despertar: () => void } | null = null;
 
   estado(): Promise<GenerationStatus> {
@@ -115,7 +117,7 @@ export class GeneracionService {
 
   /** Vuelve a pedir la parte que falló; también las que figuran en curso, por si quedaron abandonadas. */
   async reintentar(): Promise<void> {
-    const id = this.generacion()?.id;
+    const id = this.ultimoId ?? this.generacion()?.id;
     const error = this.error();
     if (!id || (error && !error.reintentable)) return;
     await this.correr(id, true);
@@ -148,6 +150,7 @@ export class GeneracionService {
 
   private async correr(id: string, forzar: boolean): Promise<void> {
     const mia = ++this.vuelta;
+    this.ultimoId = id;
     this.despertar();
     this.trabajando.set(true);
     this.error.set(null);

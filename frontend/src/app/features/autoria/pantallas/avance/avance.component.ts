@@ -159,7 +159,7 @@ export class AvanceComponent implements OnInit, OnDestroy {
     const trabajando = this.generacion.trabajando();
     const items: ItemEtapa[] = [];
 
-    const esqueleto: EstadoEtapa = !g ? 'en-curso'
+    const esqueleto: EstadoEtapa = !g ? (error ? 'error' : 'en-curso')
       : g.status !== 'created' ? 'hecha'
       : error?.parte === 'esqueleto' ? 'error'
       : trabajando || etapa?.tipo === 'esqueleto' ? 'en-curso' : 'pendiente';

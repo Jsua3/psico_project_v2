@@ -1,7 +1,8 @@
 import { TestBed } from '@angular/core/testing';
 import { Router, provideRouter } from '@angular/router';
 import { RouterTestingHarness } from '@angular/router/testing';
-import { firstValueFrom } from 'rxjs';
+import { HttpErrorResponse } from '@angular/common/http';
+import { firstValueFrom, throwError } from 'rxjs';
 
 import { AuthoringApi } from '../../../../core/api/authoring.api';
 import { casoCopiadoDeLugar } from '../../testing/caso-api';
@@ -80,6 +81,24 @@ describe('AvanceComponent', () => {
     expect(alerta.textContent).toContain('La IA respondió algo que no pudimos usar. Vuelve a intentarlo.');
     expect(etapa(raiz(), 'Recepción')!.textContent).toMatch(/!.*Con error/s);
     expect(boton(raiz(), 'Cancelar y empezar de nuevo')).toBeTruthy();
+
+    boton(raiz(), 'Reintentar esta parte')!.click();
+    await hasta(() => !!boton(raiz(), 'Abrir mi caso'));
+    expect(raiz().querySelector('[role="alert"]')).toBeNull();
+  });
+
+  it('primera lectura fallida: no dice «En curso» y «Reintentar esta parte» vuelve a pedir y avanza', async () => {
+    const { raiz, hasta, ir } = await montar();
+    const api = TestBed.inject(AuthoringApi);
+    const real = api.generation.bind(api);
+    let lecturas = 0;
+    vi.spyOn(api, 'generation').mockImplementation((i: string) =>
+      ++lecturas <= 2 ? throwError(() => new HttpErrorResponse({ status: 500 })) : real(i));
+    await ir();
+    await hasta(() => !!boton(raiz(), 'Reintentar esta parte'));
+
+    expect(etapa(raiz(), 'Armando el esqueleto')!.textContent).toMatch(/!.*Con error/s);
+    expect(etapa(raiz(), 'Armando el esqueleto')!.textContent).not.toContain('En curso');
 
     boton(raiz(), 'Reintentar esta parte')!.click();
     await hasta(() => !!boton(raiz(), 'Abrir mi caso'));

@@ -282,7 +282,10 @@ export class SalasComponent {
 
   private async revisarGeneracion(): Promise<void> {
     try {
-      this.generacionApagada.set(!(await this.generacion.estado()).enabled);
+      const estado = await this.generacion.estado();
+      this.generacionApagada.set(!estado.enabled);
+      // Con una generación a medio hacer, el aviso de retomar debe verse sin que la docente adivine la opción.
+      if (estado.enabled && estado.inProgress) this.forma.set('describe');
     } catch {
       // Sin saberlo, la opción queda disponible: «Describe tu caso» dice por sí misma si no se pudo comprobar.
     }
