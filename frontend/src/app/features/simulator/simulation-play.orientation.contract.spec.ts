@@ -133,7 +133,7 @@ describe('el rótulo de la escena nueva no tapa la ficha del objetivo', () => {
 
 describe('el HUD recibe el título de la escena (T9.2)', () => {
   it('stageLabel es el título del nodo: sin contador de decisiones ni respaldo por escenarios', () => {
-    expect(source).toMatch(/readonly stageLabel = computed<string \| null>\(\(\) => this\.attempt\(\)\?\.currentNode\.title \?\? null\);/);
+    expect(source).toMatch(/readonly stageLabel = computed<string \| null>\(\(\) => this\.visibleNode\(\)\?\.title \?\? null\);/);
     expect(source).not.toContain('fallbackStageLabel');
   });
 

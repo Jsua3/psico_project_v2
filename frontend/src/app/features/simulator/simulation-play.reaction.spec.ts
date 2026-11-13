@@ -304,6 +304,58 @@ describe('SimulationPlayComponent: la reacción al elegir (4.3.3)', () => {
     expect(stage.setPersonaState).toHaveBeenCalledWith('se abre y está serena');
   });
 
+  describe('la escena siguiente no se anuncia antes de tiempo', () => {
+    const ESCENA_NUEVA = {
+      ...RESPUESTA_CON_REACCION,
+      currentNode: { id: 2, key: 'hospital-accion', title: 'Escena nueva', goal: 'Objetivo nuevo', narrative: '', terminal: false, options: [{ id: 42, text: 'Otra' }] },
+    } as unknown as SimulationAttemptState;
+
+    function montarEnEscenaAnterior() {
+      const montado = montarConDialogoDeDecision();
+      component.attempt.set(makeAttempt({
+        currentNode: { id: 1, key: 'hospital-seguimiento', title: 'Escena anterior', goal: 'Objetivo anterior', narrative: '', terminal: false, options: [{ id: 41, text: 'Opción' }] },
+      }));
+      montado.service['chooseDecision'].mockReturnValue(of(ESCENA_NUEVA));
+      return montado;
+    }
+
+    it('mientras reacciona, la barra y la ficha siguen en la escena anterior', () => {
+      montarEnEscenaAnterior();
+      component.executeDecision(41);
+      TestBed.tick();
+      expect(component.reacting()).toBe(true);
+      expect(component.stageLabel()).toBe('Escena anterior');
+      expect(component.refreshGuide().objetivo).toBe('Objetivo anterior');
+    });
+
+    it('al terminar la reacción cambian a la escena nueva', () => {
+      montarEnEscenaAnterior();
+      component.executeDecision(41);
+      director.terminar('completa');
+      TestBed.tick();
+      expect(component.stageLabel()).toBe('Escena nueva');
+      expect(component.refreshGuide().objetivo).toBe('Objetivo nuevo');
+    });
+
+    it('si la reacción se corta («Salida segura» o Esc), la escena nueva se muestra en el acto', () => {
+      montarEnEscenaAnterior();
+      component.executeDecision(41);
+      component.pauseFromOverlay();
+      TestBed.tick();
+      expect(component.reacting()).toBe(false);
+      expect(component.stageLabel()).toBe('Escena nueva');
+    });
+
+    it('si la decisión no cambia de escena, nada se retiene', () => {
+      const { service } = montarEnEscenaAnterior();
+      service['chooseDecision'].mockReturnValue(of({ ...ESCENA_NUEVA, currentNode: { ...ESCENA_NUEVA.currentNode, key: 'hospital-seguimiento', title: 'Escena anterior' } }));
+      component.executeDecision(41);
+      expect(component.stageLabel()).toBe('Escena anterior');
+      director.terminar('completa');
+      expect(component.stageLabel()).toBe('Escena anterior');
+    });
+  });
+
   it('en la decisión, la etiqueta nueva no se adelanta: la dice la reacción en su paso', () => {
     const { component } = montarConDialogoDeDecision();
     component.executeDecision(41);

@@ -14,7 +14,7 @@ import { NotificationService } from '../../core/notifications/notification.servi
 import {
   DialogueState, InteractionResult, MapObjectState, NpcConfig, Persona,
   ProgressMapState, SimulationAttemptState, ScenarioConfig, SimulationDecisionResult,
-  SimulationWorldState, ToolUseResult
+  SimulationNodeState, SimulationWorldState, ToolUseResult
 } from '../../core/models/simulation.model';
 import type { CharacterVisual } from '../character/kit/character-visual.resolver';
 import { personaChangeAnnouncement } from './persona-change.util';
@@ -28,6 +28,7 @@ import { GameHelpComponent } from './game-help.component';
 import { HELP_FIRST_CARD, markHelpSeen, readHelpSeen, resetHelpSeen } from './help-memory.util';
 import { SceneGoalCardComponent } from './scene-goal-card.component';
 import { SensitiveNoticeComponent } from './sensitive-notice.component';
+import { escenaRetenida } from './caso/escena-visible';
 import { type GuiaEscena, GUIA_VACIA, armarGuia, avisarOpcionNueva } from './caso/guia';
 import { DialoguePanelComponent } from './dialogue-panel.component';
 import { GameWorldComponent } from './game-world.component';
@@ -1274,7 +1275,13 @@ export class SimulationPlayComponent implements OnInit, OnDestroy {
       : null;
   });
   /** El HUD nombra la escena (sin contador de decisiones: el número de pasos lo decide la docente, no la pantalla). */
-  readonly stageLabel = computed<string | null>(() => this.attempt()?.currentNode.title ?? null);
+  readonly stageLabel = computed<string | null>(() => this.visibleNode()?.title ?? null);
+  /**
+   * La escena que la barra y la ficha del objetivo muestran: durante la reacción del personaje (4.3.3), la anterior,
+   * aunque la respuesta de la decisión ya traiga la siguiente; después, la actual.
+   */
+  readonly visibleNode = computed(() => this.heldNode() ?? this.attempt()?.currentNode ?? null);
+  private readonly heldNode = signal<SimulationNodeState | null>(null);
 
   /** La guía de la escena: el objetivo del documento y lo que hay en la sala (la lista de lugares no es reactiva: se relee). */
   readonly guide = signal<GuiaEscena>(GUIA_VACIA);
@@ -1415,8 +1422,8 @@ export class SimulationPlayComponent implements OnInit, OnDestroy {
     });
     // La guía sigue a la escena y a la sala: el objetivo y «En esta sala» se releen cuando cambian.
     effect(() => {
-      this.attempt()?.currentNode.key;
-      this.attempt()?.currentNode.goal;
+      this.visibleNode()?.key;
+      this.visibleNode()?.goal;
       this.world()?.map.key;
       untracked(() => this.refreshGuide());
     });
@@ -2236,6 +2243,7 @@ export class SimulationPlayComponent implements OnInit, OnDestroy {
           // El personaje reacciona en su sala; la supervisión y la sala de destino siguen en `afterReaction`.
           this.pendingAfterReaction = updated;
           if (!this.reaction) { this.afterReaction(); return; }
+          this.heldNode.set(escenaRetenida(game.currentNode, updated.currentNode));
           this.reacting.set(true);
           this.reaction.play(
             { reaction: updated.reaction, personaAntes: game.persona, personaDespues: updated.persona, reduceMotion: this.reduceMotion() },
@@ -2270,6 +2278,7 @@ export class SimulationPlayComponent implements OnInit, OnDestroy {
     if (motivo === 'cancelada') return;   // la salida segura ya tomó la pantalla (`cutReactionForPause`)
     const updated = this.pendingAfterReaction;
     this.pendingAfterReaction = null;
+    this.heldNode.set(null);
     this.reacting.set(false);
     if (!updated) return;
     // Última decisión: la consecuencia se lee sobre la escena y el resultado se abre al cerrarla. Se arma antes
@@ -2291,6 +2300,7 @@ export class SimulationPlayComponent implements OnInit, OnDestroy {
     const updated = this.pendingAfterReaction;
     this.pendingAfterReaction = null;
     this.reaction?.cancel();
+    this.heldNode.set(null);
     this.reacting.set(false);
     this.busy.set(false);
     if (updated && updated.status !== 'IN_PROGRESS') {
@@ -3171,7 +3181,7 @@ export class SimulationPlayComponent implements OnInit, OnDestroy {
   /** Relee la guía de la escena (objetivo del documento, lo que hay en la sala, si queda algo por conocer). */
   refreshGuide(world: SimulationWorldState | null = this.world()): GuiaEscena {
     const guide = armarGuia({
-      goal: this.attempt()?.currentNode.goal ?? '',
+      goal: this.visibleNode()?.goal ?? '',
       lugares: this.gameWorld?.places() ?? [],
       inspeccionados: world?.inspectedObjectKeys ?? [],
       hablados: collectViewedNpcKeys(world, this.viewedNpcKeys()),
