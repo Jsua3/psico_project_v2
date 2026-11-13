@@ -494,6 +494,16 @@ AI_AUTHORING_MONTHLY_LIMIT = int(os.environ.get("AI_AUTHORING_MONTHLY_LIMIT", "3
 # Cuánto espera el servidor al proveedor (segundos) y cuántos tokens de salida admite una propuesta (``propose``; la guía usa 600).
 AI_AUTHORING_TIMEOUT_SECONDS = int(os.environ.get("AI_AUTHORING_TIMEOUT_SECONDS", "60"))
 AI_AUTHORING_MAX_TOKENS_PROPOSE = int(os.environ.get("AI_AUTHORING_MAX_TOKENS_PROPOSE", "8000"))
+# Generación del caso por etapas (C1): modelo, esfuerzo por etapa, respaldo y topes. ``AI_AUTHORING_GENERATE_FALLBACKS=""`` apaga
+# el respaldo. Los valores por defecto son los de la medición real del 2026-11-12.
+AI_AUTHORING_MODEL_GENERATE = os.environ.get("AI_AUTHORING_MODEL_GENERATE", "claude-fable-5-2").strip()
+AI_AUTHORING_GENERATE_TIMEOUT_SECONDS = int(os.environ.get("AI_AUTHORING_GENERATE_TIMEOUT_SECONDS", "100"))
+AI_AUTHORING_GENERATIONS_PER_DAY = int(os.environ.get("AI_AUTHORING_GENERATIONS_PER_DAY", "5"))
+AI_AUTHORING_GENERATION_MAX_CALLS = int(os.environ.get("AI_AUTHORING_GENERATION_MAX_CALLS", "20"))
+AI_AUTHORING_GENERATE_MAX_TOKENS = int(os.environ.get("AI_AUTHORING_GENERATE_MAX_TOKENS", "16000"))
+AI_AUTHORING_GENERATE_EFFORT_SKELETON = os.environ.get("AI_AUTHORING_GENERATE_EFFORT_SKELETON", "high").strip()
+AI_AUTHORING_GENERATE_EFFORT_SCENE = os.environ.get("AI_AUTHORING_GENERATE_EFFORT_SCENE", "medium").strip()
+AI_AUTHORING_GENERATE_FALLBACKS = os.environ.get("AI_AUTHORING_GENERATE_FALLBACKS", "default").strip()
 
 ACCESS_REQUEST_NOTIFY_EMAILS = [
     email.strip()
