@@ -38,8 +38,8 @@ PISOS = {
                'b': dict(A=(182, 176, 166), B=(96, 92, 100), C=(182, 176, 166), junta=(80, 78, 86))},
     'adoquin': {'a': dict(A=(130, 126, 122), B=(118, 114, 112), C=(106, 104, 104), junta=(80, 78, 80)),
                 'b': dict(A=(152, 118, 92), B=(140, 106, 84), C=(126, 96, 76), junta=(94, 70, 56))},
-    'vinilo': {'a': dict(A=(142, 160, 160), B=(132, 150, 152), C=(156, 172, 170), junta=(114, 132, 136)),
-               'b': dict(A=(174, 164, 146), B=(164, 154, 138), C=(186, 176, 158), junta=(142, 132, 118))},
+    'vinilo': {'a': dict(A=(142, 160, 160), B=(132, 150, 152), C=(156, 172, 170), junta=(114, 132, 136), guia=((78, 142, 128), (80, 112, 156))),
+               'b': dict(A=(174, 164, 146), B=(164, 154, 138), C=(186, 176, 158), junta=(142, 132, 118), guia=((150, 112, 98), (100, 134, 126)))},
     'cemento': {'a': dict(A=(138, 136, 132), B=(130, 128, 126), C=(122, 120, 118), junta=(96, 94, 94)),
                 'b': dict(A=(108, 110, 118), B=(100, 102, 110), C=(94, 96, 104), junta=(72, 74, 82))},
 }
@@ -181,6 +181,10 @@ def _vinilo(d, p, s):
                 d.line([(x0, y + (k >> 12) % max(1, h)), (x0 + 8 + (k >> 16) % 22, y + (k >> 12) % max(1, h))], fill=p['C'])
     for bx in range(-720, M + 720, 240):
         d.line([(_x(bx, 0), 0), (_x(bx, g.FONDO), g.FONDO)], fill=p['junta'])
+    # Líneas de orientación incrustadas en el piso, como las que guían por un hospital: corren paralelas al muro del fondo.
+    for y0, alto, tinta in ((92, 6, p['guia'][0]), (101, 3, p['guia'][1])):
+        d.rectangle([0, y0, M, y0 + alto - 1], fill=tinta)
+        d.line([(0, y0), (M, y0)], fill=mezcla(tinta, (255, 255, 255), 0.22))
 
 
 def _cemento(d, p, s):
@@ -296,13 +300,14 @@ def _baja_azulejo(d, P, y0, y1):
     for f, y in enumerate(range(y1, y0, -12)):
         for n, x in enumerate(range(-(f % 2) * 9, M, 18)):
             k = azar(f, n, 29)
-            if k % 6 == 0:
-                d.rectangle([x + 1, y - 11, x + 17, y - 1], fill=osc(loza, 0.95))
-            elif k % 11 == 0:
-                d.rectangle([x + 1, y - 11, x + 17, y - 1], fill=mezcla(loza, (255, 255, 255), 0.12))
-            if k % 4 == 1:
+            arriba = max(y - 11, y0 + 5)                  # la hilada de arriba queda cortada por el listelo
+            if k % 6 == 0 and arriba < y:
+                d.rectangle([x + 1, arriba, x + 17, y - 1], fill=osc(loza, 0.95))
+            elif k % 11 == 0 and arriba < y:
+                d.rectangle([x + 1, arriba, x + 17, y - 1], fill=mezcla(loza, (255, 255, 255), 0.12))
+            if k % 4 == 1 and y - 10 >= y0 + 5:
                 d.line([(x + 2, y - 10), (x + 6, y - 10)], fill=mezcla(loza, (255, 255, 255), 0.3))
-            d.line([(x, y - 12), (x, y)], fill=junta)
+            d.line([(x, max(y - 12, y0)), (x, y)], fill=junta)
         d.line([(0, y), (M, y)], fill=junta)
     d.rectangle([0, y0, M, y0 + 4], fill=P['acento'])                    # listelo de remate
     d.line([(0, y0), (M, y0)], fill=mezcla(P['acento'], (255, 255, 255), 0.3))

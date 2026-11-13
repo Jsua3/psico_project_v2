@@ -103,7 +103,8 @@ def capas(sala, momento=None):
             encendida = {'siempre': True, 'nunca': False}.get(pz.get('encendida'))
             im = pm.cuadro_de(clave[0], clave[1], momento, encendida=encendida)
             ax, ay = pm.apoyo(*clave)
-            sprites.append(dict(id=nombre, tipo=clave[0], modelo=clave[1], capa='piso', x=pz['x'] - ax, y=pz['y'] - ay,
+            # `sobre`: px por encima del piso, para la lámpara que va encima de una mesa.
+            sprites.append(dict(id=nombre, tipo=clave[0], modelo=clave[1], capa='piso', x=pz['x'] - ax, y=pz['y'] - ay - pz.get('sobre', 0),
                                 z=pz['y'], cuadros=[im], cuadro=0, pie=(pz['x'], pz['y'])))
             continue
         if not valida(pz, nombre) or pz['muro'] not in F['muros']:
@@ -153,14 +154,28 @@ def capas(sala, momento=None):
 
 
 def componer_sala(sala, momento=None, abiertas=(), con_luz=True, extras=()):
-    """La sala como la pintaría el juego. `extras` son muebles o personajes: dict(im, x, y, z)."""
+    """La sala como la pintaría el juego. `extras` son muebles o personajes: dict(im, x, y, z) con (x, y) = esquina;
+    `sombra=False` les quita la sombra y `pie=(x, y)` la cambia por la de una persona, a sus pies."""
     c = capas(sala, momento)
     escena = c['fondo'].copy()
     orden = {'muro': 0, 'piso': 1, 'frente': 2}
     cosas = [(orden[s['capa']], s['z'], s['cuadros'][3 if s['id'] in abiertas and s['tipo'] == 'puerta' else s['cuadro']], s['x'], s['y'])
              for s in c['sprites']]
     cosas += [(1, e['z'], e['im'], e['x'], e['y']) for e in extras]
-    for _, _, im, x, y in sorted(cosas, key=lambda q: (q[0], q[1])):
+    cosas.sort(key=lambda q: (q[0], q[1]))
+    for _, _, im, x, y in [q for q in cosas if q[0] == 0]:
+        pegar(escena, im, x, y)
+    sombras = Image.new('RGBA', escena.size, (0, 0, 0, 0))
+    ds = ImageDraw.Draw(sombras)
+    for e in extras:
+        if e.get('pie'):
+            ds.ellipse([e['pie'][0] - 11, e['pie'][1] - 8, e['pie'][0] + 11, e['pie'][1] - 1], fill=(8, 6, 18, 86))
+        elif e.get('sombra', True):
+            w, h = e['im'].size                      # sombra de contacto: una elipse baja al pie del mueble
+            ry = max(3, min(9, w // 7))
+            ds.ellipse([e['x'] - 2, e['y'] + h - ry - 3, e['x'] + w + 4, e['y'] + h + ry - 2], fill=(8, 6, 18, 84))
+    escena = Image.alpha_composite(escena, sombras)
+    for _, _, im, x, y in [q for q in cosas if q[0] > 0]:
         pegar(escena, im, x, y)
     rgb = escena.convert('RGB')
     if con_luz:

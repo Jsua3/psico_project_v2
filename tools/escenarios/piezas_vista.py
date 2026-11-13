@@ -101,9 +101,15 @@ def exportar(sala, lugar, imgs, muebles=()):
     for m in muebles:
         im = m['im']
         mw, mh = im.size
-        caja = [m['x'] - mw // 2 + 2, m['y'] - min(mh, 20), m['x'] + mw // 2 - 2, m['y'] + 2] if m.get('choca', True) else None
-        datos['muebles'].append(dict(img=guardar(_clave('m-', im), im), x=m['x'] - mw // 2, y=m['y'] - mh, w=mw, h=mh, z=m.get('z', m['y']),
-                                     sombra=m.get('sombra', True), caja=caja))
+        x, y = m['x'] - mw // 2, m['y'] - mh
+        tira = g.tira(m['cuadros']) if len(m.get('cuadros', ())) > 1 else im
+        if m.get('persona'):
+            caja, sombra = [m['x'] - 10, m['y'] - 16, m['x'] + 10, m['y'] - 2], [m['x'], m['y'] - 5, 11, 4]
+        else:
+            caja = [x + 2, m['y'] - min(mh, 20), x + mw - 2, m['y'] + 2] if m.get('choca', True) else None
+            sombra = [x + mw / 2 + 1, m['y'] - 3, mw / 2 + 3, max(3, min(9, mw // 7))] if m.get('sombra', True) else None
+        datos['muebles'].append(dict(img=guardar(_clave('m-', tira), tira), x=x, y=y, w=mw, h=mh, z=m.get('z', m['y']),
+                                     n=len(m.get('cuadros', ())) or 1, fps=m.get('fps', 0), s=sombra, caja=caja))
     return datos
 
 
@@ -112,8 +118,8 @@ def exportar(sala, lugar, imgs, muebles=()):
 def _sala_casa():
     sala = copy.deepcopy(sl.CASA_SALA)
     sala['entrada'] = (480, 440)
-    destinos = {'puerta-comedor': ('comedor', 'p-sala', 'Pasar al comedor'), 'puerta-escalera': ('pasillo', 'p-sala', 'Pasar al pasillo'),
-                'puerta-fachada': ('pasillo', 'p-camara', 'Salir al pasillo')}
+    destinos = {'puerta-comedor': ('comedor', 'p-sala', 'Pasar al comedor'), 'puerta-escalera': ('galeria', 'p-sala', 'Pasar a la galería'),
+                'puerta-fachada': ('galeria', 'p-camara', 'Salir a la galería')}
     for p in sala['puertas']:
         p['hacia'], p['par'], p['etiqueta'] = destinos[p['id']]
     return sala
@@ -135,12 +141,12 @@ COMEDOR = {
     },
     'puertas': [
         {'id': 'p-sala', 'hacia': 'sala', 'par': 'puerta-comedor', 'muro': 'derecha', 'pos': 150, 'modelo': 'madera-ventanilla', 'etiqueta': 'Volver a la sala'},
-        {'id': 'p-pasillo', 'hacia': 'pasillo', 'par': 'p-comedor', 'muro': 'fondo', 'pos': 130, 'modelo': 'vidrio', 'etiqueta': 'Salir al pasillo'},
+        {'id': 'p-pasillo', 'hacia': 'galeria', 'par': 'p-comedor', 'muro': 'fondo', 'pos': 130, 'modelo': 'vidrio', 'etiqueta': 'Salir a la galería'},
     ],
 }
 
 PASILLO = {
-    'id': 'pasillo', 'nombre': 'Pasillo de las siete puertas', 'encuadre': 'tres-paredes', 'entrada': (840, 400),
+    'id': 'galeria', 'nombre': 'Galería de las siete puertas', 'encuadre': 'tres-paredes', 'entrada': (840, 400),
     'estructura': {
         'ancho': 1680, 'momento': 'dia',
         'acabados': {'piso': 'damero', 'variante': 'a', 'muro': 'azulejo', 'paleta': 'universidad'},

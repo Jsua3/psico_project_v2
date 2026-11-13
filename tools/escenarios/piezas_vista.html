@@ -268,9 +268,9 @@ button:focus-visible, canvas:focus-visible { outline: 3px solid var(--tinta); ou
 
     ctx.fillStyle = 'rgba(8, 6, 18, 0.30)';
     for (const m of S.muebles) {
-      if (!m.sombra) continue;
+      if (!m.s) continue;
       ctx.beginPath();
-      ctx.ellipse(m.x + m.w / 2 + 3 + dx, m.y + m.h / 2 + 2, m.w / 2 + 3, m.h / 2 + 2, 0, 0, Math.PI * 2);
+      ctx.ellipse(m.s[0] + dx, m.s[1], m.s[2], m.s[3], 0, 0, Math.PI * 2);
       ctx.fill();
     }
     ctx.beginPath();
@@ -284,7 +284,8 @@ button:focus-visible, canvas:focus-visible { outline: 3px solid var(--tinta); ou
     cosas.sort((a, b) => a.z - b.z);
     for (const c of cosas) {
       if (c.mueble) {
-        if (img[c.mueble.img]) ctx.drawImage(img[c.mueble.img], c.mueble.x + dx, c.mueble.y);
+        const m = c.mueble, f = m.n > 1 && m.fps && !reducido ? Math.floor(E.t * m.fps) % m.n : 0;
+        if (img[m.img]) ctx.drawImage(img[m.img], f * m.w, 0, m.w, m.h, m.x + dx, m.y, m.w, m.h);
       } else if (c.sprite) {
         pintarSprite(c.sprite, dx);
       } else {
