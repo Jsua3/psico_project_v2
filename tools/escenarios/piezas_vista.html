@@ -47,10 +47,17 @@ button:focus-visible, canvas:focus-visible { outline: 3px solid var(--tinta); ou
   color: var(--tinta); background: rgba(23, 20, 34, 0.94); border: 1px solid var(--acento); border-radius: 10px;
   min-height: 36px; padding: 4px 12px 4px 6px; cursor: pointer; display: inline-flex; align-items: center; gap: 8px;
 }
-.aviso kbd { font-family: var(--f-titulo); font-size: 15px; background: var(--acento); color: var(--acento-tinta); border-radius: 6px; padding: 1px 8px; }
+.aviso kbd { font-family: var(--f-texto); font-weight: 700; font-size: 15px; background: var(--acento); color: var(--acento-tinta); border-radius: 6px; padding: 1px 8px; }
 .pista {
   position: absolute; left: 50%; bottom: 10px; transform: translateX(-50%); padding: 4px 14px; border-radius: 999px; max-width: 94%;
   background: rgba(19, 17, 27, 0.82); border: 1px solid var(--borde); color: var(--tinta-suave); font-size: 14px; text-align: center; pointer-events: none;
+}
+.pista .corto { display: none; }
+@media (max-width: 640px) {
+  .pista { font-size: 13px; bottom: 6px; }
+  .pista .largo { display: none; }
+  .pista .corto { display: inline; }
+  .rotulo { font-size: 13px; left: 6px; top: 6px; padding: 0 8px; }
 }
 .carga { position: absolute; inset: 0; display: grid; place-items: center; color: var(--tinta-suave); font-family: var(--f-titulo); font-size: 18px; }
 
@@ -86,7 +93,7 @@ button:focus-visible, canvas:focus-visible { outline: 3px solid var(--tinta); ou
     <canvas id="lienzo" width="960" height="528" tabindex="0" aria-label="Sala del simulador. Camina con las flechas o con W, A, S y D; cruza una puerta con E."></canvas>
     <div class="rotulo" id="rotulo"></div>
     <button type="button" class="aviso" id="aviso" hidden><kbd>E</kbd><span id="aviso-texto"></span></button>
-    <div class="pista" id="pista">Flechas o WASD para caminar, o toca el piso · E para cruzar una puerta</div>
+    <div class="pista" id="pista"><span class="largo">Flechas o WASD para caminar, o toca el piso · E para cruzar una puerta</span><span class="corto">Toca el piso para caminar y el aviso para cruzar</span></div>
     <div class="carga" id="carga">Armando las salas…</div>
   </div>
 
@@ -123,7 +130,7 @@ button:focus-visible, canvas:focus-visible { outline: 3px solid var(--tinta); ou
   const reducido = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
   const img = {};
   const teclas = new Set();
-  const E = { sala: D.inicio, momento: 'dia', x: 0, y: 0, vista: 0, andando: false, destino: null, camX: 0, t: 0,
+  const E = { sala: D.inicio, momento: 'dia', x: 0, y: 0, vista: 0, andando: false, camino: null, camX: 0, t: 0,
               puertas: {}, activa: null, avisada: null, fundido: 0, cruce: null };
   const MIRADA = { fondo: 0, camara: 3, izquierda: 2, derecha: 1 };
   const limitar = (v, a, b) => Math.max(a, Math.min(b, v));
@@ -152,7 +159,7 @@ button:focus-visible, canvas:focus-visible { outline: 3px solid var(--tinta); ou
     E.sala = id;
     const S = sala();
     E.puertas = {};
-    E.destino = null;
+    E.camino = null;
     E.activa = null;
     const p = puerta ? S.sprites.find((s) => s.puerta && s.id === puerta) : null;
     if (p) {
@@ -176,6 +183,32 @@ button:focus-visible, canvas:focus-visible { outline: 3px solid var(--tinta); ou
     return !S.muebles.some((m) => m.caja && x > m.caja[0] && x < m.caja[2] && y > m.caja[1] && y < m.caja[3]);
   }
 
+  // Camino por una rejilla de 8 px que rodea los muebles: tocar el piso lleva hasta ahí aunque haya algo en medio.
+  // Si el punto tocado cae dentro de un mueble, llega hasta lo más cerca que se puede.
+  function ruta(desde, hasta) {
+    const q = (v) => Math.round(v / 8) * 8, clave = (p) => p[0] + ',' + p[1];
+    const ini = [q(desde[0]), q(desde[1])], fin = [q(hasta[0]), q(hasta[1])];
+    const previo = new Map([[clave(ini), null]]), cola = [ini];
+    let mejor = ini, menor = Infinity;
+    for (let i = 0; i < cola.length && i < 30000; i++) {
+      const p = cola[i], d = Math.hypot(p[0] - fin[0], p[1] - fin[1]);
+      if (d < menor) { menor = d; mejor = p; }
+      if (d === 0) break;
+      for (const [dx, dy] of [[8, 0], [-8, 0], [0, 8], [0, -8], [8, 8], [8, -8], [-8, 8], [-8, -8]]) {
+        const n = [p[0] + dx, p[1] + dy], k = clave(n);
+        if (previo.has(k) || !libre(n[0], n[1])) continue;
+        if (dx && dy && !(libre(p[0] + dx, p[1]) && libre(p[0], p[1] + dy))) continue;
+        previo.set(k, p);
+        cola.push(n);
+      }
+    }
+    const camino = [];
+    for (let p = mejor; p; p = previo.get(clave(p))) camino.unshift(p);
+    camino.shift();
+    if (menor === 0 && libre(hasta[0], hasta[1])) camino.push(hasta);
+    return camino;
+  }
+
   function cruzar() {
     if (!E.activa || E.cruce) return;
     const p = E.activa.puerta;
@@ -193,10 +226,15 @@ button:focus-visible, canvas:focus-visible { outline: 3px solid var(--tinta); ou
       if (teclas.has('w') || teclas.has('arrowup')) vy -= 1;
       if (teclas.has('s') || teclas.has('arrowdown')) vy += 1;
       if (vx || vy) {
-        E.destino = null;
-      } else if (E.destino) {
-        const dx = E.destino[0] - E.x, dy = E.destino[1] - E.y, d = Math.hypot(dx, dy);
-        if (d < 3) E.destino = null; else { vx = dx / d; vy = dy / d; }
+        E.camino = null;
+      } else if (E.camino) {
+        while (E.camino.length && Math.hypot(E.camino[0][0] - E.x, E.camino[0][1] - E.y) < 3) E.camino.shift();
+        if (E.camino.length) {
+          const dx = E.camino[0][0] - E.x, dy = E.camino[0][1] - E.y, d = Math.hypot(dx, dy);
+          vx = dx / d; vy = dy / d;
+        } else {
+          E.camino = null;
+        }
       }
       const n = Math.hypot(vx, vy);
       E.andando = false;
@@ -205,7 +243,8 @@ button:focus-visible, canvas:focus-visible { outline: 3px solid var(--tinta); ou
         const paso = 150 * dt;
         if (vx && libre(E.x + vx * paso, E.y)) { E.x += vx * paso; E.andando = true; }
         if (vy && libre(E.x, E.y + vy * paso)) { E.y += vy * paso; E.andando = true; }
-        if (!E.andando) E.destino = null;
+        if (!E.andando) E.camino = null;
+        else if (!$('pista').hidden) $('pista').hidden = true;      // la ayuda se va al dar el primer paso
         E.vista = Math.abs(vx) > Math.abs(vy) ? (vx < 0 ? 1 : 2) : (vy < 0 ? 3 : 0);
       }
     }
@@ -350,6 +389,8 @@ button:focus-visible, canvas:focus-visible { outline: 3px solid var(--tinta); ou
     requestAnimationFrame(cuadro);
   }
 
+  // Para las pruebas: el estado y las funciones del juego, sin atajos que el jugador no tenga.
+  window.__salas = { D, E, teclas, actualizar, pintar, cruzar, entrar, momento, ajustar, libre, ruta };
   window.addEventListener('resize', ajustar);
   window.addEventListener('keydown', (ev) => {
     const k = ev.key.toLowerCase();
@@ -363,7 +404,7 @@ button:focus-visible, canvas:focus-visible { outline: 3px solid var(--tinta); ou
   lienzo.addEventListener('pointerdown', (ev) => {
     const r = lienzo.getBoundingClientRect(), z = sala().zona;
     const x = (ev.clientX - r.left) / r.width * VW + E.camX, y = (ev.clientY - r.top) / r.height * VH;
-    E.destino = [limitar(x, z[0] + 2, z[0] + z[2] - 2), limitar(y, z[1] + 2, z[1] + z[3] - 2)];
+    E.camino = ruta([E.x, E.y], [limitar(x, z[0] + 2, z[0] + z[2] - 2), limitar(y, z[1] + 2, z[1] + z[3] - 2)]);
     lienzo.focus({ preventScroll: true });
   });
   aviso.addEventListener('click', cruzar);
