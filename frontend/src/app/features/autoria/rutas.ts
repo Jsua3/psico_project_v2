@@ -12,6 +12,7 @@ export const RUTA_CASOS = '/portal/casos';
  *
  * - `/` → la lista de casos
  * - `/lugar` y `/salas` → los dos pasos de crear un caso (`/portal/casos/nuevo[/salas]`)
+ * - `/generando/<id>` → la pantalla de avance de la generación (`/portal/casos/nuevo/generando/<id>`)
  * - `/editor…`, `/probar` y `/revision` → el editor del caso abierto (`/portal/casos/<caso>/editor[…]`)
  *
  * `casoId` es el caso abierto; sin caso, las direcciones del editor llevan a la lista.
@@ -23,6 +24,7 @@ export function rutaDelEditor(destino: string, casoId: string | null): string {
   if (ruta === '/' || ruta === '') return RUTA_CASOS;
   if (ruta === '/lugar') return `${RUTA_CASOS}/nuevo${consulta}`;
   if (ruta === '/salas') return `${RUTA_CASOS}/nuevo/salas${consulta}`;
+  if (ruta.startsWith('/generando/')) return `${RUTA_CASOS}/nuevo${ruta}${consulta}`;
   if (casoId === null) return RUTA_CASOS;
   const base = `${RUTA_CASOS}/${encodeURIComponent(casoId)}/editor`;
   if (ruta === '/probar' || ruta === '/revision') return `${base}${ruta}${consulta}`;

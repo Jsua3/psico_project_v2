@@ -21,6 +21,12 @@ describe('rutaDelEditor', () => {
     expect(rutaDelEditor('/salas?lugar=universidad', null)).toBe('/portal/casos/nuevo/salas?lugar=universidad');
   });
 
+  it('la pantalla de avance de la generación cuelga de crear un caso', () => {
+    expect(rutaDelEditor('/generando/g-1', null)).toBe('/portal/casos/nuevo/generando/g-1');
+    expect(rutaDelEditor('/generando/g-1', '41')).toBe('/portal/casos/nuevo/generando/g-1');
+    expect(rutaDelEditor('/generando/g%201', null)).toBe('/portal/casos/nuevo/generando/g%201');
+  });
+
   it('sin caso abierto, las direcciones del editor llevan a la lista; una desconocida también', () => {
     expect(rutaDelEditor('/editor/finales', null)).toBe('/portal/casos');
     expect(rutaDelEditor('/algo-raro', '41')).toBe('/portal/casos');

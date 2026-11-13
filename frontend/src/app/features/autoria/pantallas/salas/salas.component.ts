@@ -3,10 +3,12 @@ import { FormsModule } from '@angular/forms';
 import { ActivatedRoute, Router, RouterLink } from '@angular/router';
 
 import { CasoStore } from '../../estado/caso.store';
+import { GeneracionService } from '../../generacion/generacion.service';
 import { BibliotecaService, rutaArte } from '../../modelo/biblioteca.service';
 import type { Escenario, Recorrido, Sala } from '../../modelo/escenario';
 import { ENCUADRE_LEGIBLE, listaNumerada } from '../../modelo/textos';
 import { RutasAutoria, rutaDelEditor } from '../../rutas';
+import { DescribirComponent } from '../describir/describir.component';
 import { PasosCrearComponent } from '../pasos-crear.component';
 
 /**
@@ -15,7 +17,7 @@ import { PasosCrearComponent } from '../pasos-crear.component';
  */
 @Component({
   selector: 'app-salas',
-  imports: [FormsModule, RouterLink, PasosCrearComponent],
+  imports: [FormsModule, RouterLink, PasosCrearComponent, DescribirComponent],
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
     <div class="pagina con-barra">
@@ -26,6 +28,37 @@ import { PasosCrearComponent } from '../pasos-crear.component';
           <p class="texto-secundario">{{ e.nombre }} · {{ e.salas.length }} salas. Empieza con una idea o elige las salas una por una.</p>
         </div>
 
+        <!-- BORRADOR: los textos de las dos opciones son nuevos, pendientes de la aprobación de Psicología -->
+        <fieldset class="forma">
+          <legend>¿Cómo quieres empezar?</legend>
+          <div class="opciones">
+            <label class="tarjeta opcion" [class.elegida]="forma() === 'describe'" [class.apagada]="generacionApagada()">
+              <input type="radio" name="forma" value="describe" [checked]="forma() === 'describe'" [disabled]="generacionApagada()"
+                     aria-describedby="forma-describe-texto" (change)="forma.set('describe')" />
+              <span class="dato-opcion">
+                <span class="nombre">Describe tu caso</span>
+                <span id="forma-describe-texto" class="texto-secundario">
+                  La IA arma un borrador completo a partir de tu descripción. Tú lo revisas y lo cambias.
+                  @if (generacionApagada()) {
+                    <span class="motivo">La generación con IA no está disponible por ahora. Puedes elegir las salas a mano.</span>
+                  }
+                </span>
+              </span>
+            </label>
+            <label class="tarjeta opcion" [class.elegida]="forma() === 'a-mano'">
+              <input type="radio" name="forma" value="a-mano" [checked]="forma() === 'a-mano'"
+                     aria-describedby="forma-a-mano-texto" (change)="forma.set('a-mano')" />
+              <span class="dato-opcion">
+                <span class="nombre">Elegir salas a mano</span>
+                <span id="forma-a-mano-texto" class="texto-secundario">Eliges las salas y escribes tú cada escena.</span>
+              </span>
+            </label>
+          </div>
+        </fieldset>
+
+        @if (forma() === 'describe') {
+          <app-describir [lugarId]="lugarId" />
+        } @else {
         <section aria-labelledby="ideas" class="bloque">
           <h2 id="ideas">Ideas para empezar</h2>
           <div class="ideas">
@@ -137,6 +170,7 @@ import { PasosCrearComponent } from '../pasos-crear.component';
             </button>
           </div>
         </section>
+        }
       } @else if (error()) {
         <p role="alert">{{ error() }}</p>
       } @else {
@@ -146,6 +180,16 @@ import { PasosCrearComponent } from '../pasos-crear.component';
   `,
   styles: `
     .con-barra { padding-bottom: 220px; }
+    .forma { margin: 0; padding: 0; border: 0; min-width: 0; display: flex; flex-direction: column; gap: 8px; }
+    .forma legend { padding: 0; font-weight: 700; font-size: var(--autoria-texto-20); line-height: 28px; }
+    .opciones { display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 12px; }
+    .opcion { display: flex; gap: 10px; align-items: flex-start; padding: 12px; cursor: pointer; }
+    .opcion.elegida { border: 2px solid var(--primario); }
+    .opcion.apagada { cursor: not-allowed; }
+    .opcion input { width: 24px; height: 24px; margin: 2px 0 0; flex: none; accent-color: var(--primario); }
+    .dato-opcion { display: flex; flex-direction: column; gap: 2px; }
+    .dato-opcion .texto-secundario { font-size: var(--autoria-texto-16); line-height: 24px; }
+    .motivo { display: block; margin-top: 4px; font-weight: 700; }
     .titulo { display: flex; flex-direction: column; gap: 4px; }
     .titulo p { margin: 0; }
     .bloque { display: flex; flex-direction: column; gap: 12px; }
@@ -201,9 +245,14 @@ export class SalasComponent {
   private readonly biblioteca = inject(BibliotecaService);
   private readonly store = inject(CasoStore);
   private readonly router = inject(Router);
+  private readonly generacion = inject(GeneracionService);
   protected readonly rutas = inject(RutasAutoria);
-  private readonly lugarId = inject(ActivatedRoute).snapshot.queryParamMap.get('lugar') ?? 'universidad';
+  protected readonly lugarId = inject(ActivatedRoute).snapshot.queryParamMap.get('lugar') ?? 'universidad';
 
+  /** Cómo empieza la docente: describiendo el caso a la IA o eligiendo las salas ella misma (lo de siempre). */
+  protected readonly forma = signal<'describe' | 'a-mano'>('a-mano');
+  /** La generación con IA está apagada: la opción «Describe tu caso» queda apagada con su motivo. */
+  protected readonly generacionApagada = signal(false);
   protected readonly escenario = signal<Escenario | null>(null);
   protected readonly error = signal<string | null>(null);
   protected readonly elegidas = signal<string[]>([]);
@@ -221,6 +270,7 @@ export class SalasComponent {
   protected readonly resumenOrden = computed(() => listaNumerada(this.elegidas().map((id) => this.nombreSala(id))));
 
   constructor() {
+    void this.revisarGeneracion();
     this.biblioteca
       .escenario(this.lugarId)
       .then((e) => {
@@ -228,6 +278,14 @@ export class SalasComponent {
         if (!this.nombre()) this.nombre.set(`Caso nuevo en la ${e.nombre.toLowerCase()}`);
       })
       .catch(() => this.error.set('No se pudo abrir el lugar. Vuelve a intentarlo.'));
+  }
+
+  private async revisarGeneracion(): Promise<void> {
+    try {
+      this.generacionApagada.set(!(await this.generacion.estado()).enabled);
+    } catch {
+      // Sin saberlo, la opción queda disponible: «Describe tu caso» dice por sí misma si no se pudo comprobar.
+    }
   }
 
   protected cerrarVista(): void {

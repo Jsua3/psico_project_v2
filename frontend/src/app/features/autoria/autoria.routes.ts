@@ -2,6 +2,7 @@ import type { Routes } from '@angular/router';
 
 import { canLeaveGuard } from '../../core/navigation/can-leave.guard';
 import { AutoriaShellComponent } from './autoria-shell.component';
+import { AvanceComponent } from './pantallas/avance/avance.component';
 import { DatosComponent } from './pantallas/datos/datos.component';
 import { EditorComponent } from './pantallas/editor/editor.component';
 import { FinalesComponent } from './pantallas/finales/finales.component';
@@ -28,6 +29,7 @@ export const pantallasDelEditor: Routes = [
 export const pantallasNuevoCaso: Routes = [
   { path: '', component: LugarComponent, title: 'Elegir un lugar · Editor de casos' },
   { path: 'salas', component: SalasComponent, title: 'Elegir salas · Editor de casos' },
+  { path: 'generando/:generacionId', component: AvanceComponent, title: 'Armando tu caso · Editor de casos' },
   { path: '**', redirectTo: '' },
 ];
 
