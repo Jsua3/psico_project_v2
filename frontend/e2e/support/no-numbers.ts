@@ -1,5 +1,7 @@
 import type { Page, Response } from '@playwright/test';
 
+import { readJson } from './api-bodies';
+
 /**
  * «Ninguna cifra al estudiante» vista desde el navegador (modelo de métricas, Tarea 22).
  *
@@ -233,7 +235,7 @@ export function recordSimulationResponses(page: Page): SimulationRecorder {
     if (!(response.headers()['content-type'] ?? '').startsWith('application/json')) return;
     const where = `${response.request().method()} ${url.pathname}`;
     const status = response.status();
-    const task: Promise<void> = response.json().then(
+    const task: Promise<void> = readJson(response).then(
       body => { records.push({ where, status, body }); },
       () => undefined,
     ).finally(() => { pending.delete(task); });

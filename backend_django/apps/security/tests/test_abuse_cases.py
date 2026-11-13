@@ -49,6 +49,7 @@ import ipaddress
 import json
 import re
 import secrets
+import threading
 import xml.etree.ElementTree as ElementTreeEstandar
 from collections import namedtuple
 from contextlib import contextmanager
@@ -60,6 +61,7 @@ import pytest
 from django.conf import settings
 from django.contrib.auth import get_user_model
 from django.core.files.uploadedfile import SimpleUploadedFile
+from django.db import DEFAULT_DB_ALIAS, connections
 from django.test import override_settings
 from django.urls import Resolver404, resolve
 from rest_framework import serializers
@@ -1078,25 +1080,67 @@ def _cuerpo_de_1_1_mib(mundo):
     return _json_crudo(APIClient(), LOGIN, cuerpo)
 
 
-#: Python 3.13 corta el JSON anidado a ~1000 niveles (RecursionError); el 3.14 de la imagen lo aguanta hasta ~50 mil (corta por
-#: la pila de C): 100 mil niveles (200 KB, bajo el tope del cuerpo) revientan el analizador en las dos.
+#: Python 3.13 corta el JSON anidado por un contador (~1000 niveles, RecursionError); el 3.14 corta por la pila de C REAL del hilo.
+#: Con los 8 MiB de pila de un contenedor, 100 mil niveles revientan el decodificador, pero con una pila mayor o sin límite (la del
+#: runner de GitHub) se leen enteros: la fila se cumple por otro camino (raíz que no es objeto, campo inválido) y el control
+#: negativo deja de probar que corta el parser acotado. Por eso los cuerpos anidados viajan en un hilo con una pila FIJA de 4 MiB:
+#: ahí 100 mil niveles (200 KB, bajo el tope del cuerpo) revientan el decodificador en cualquier versión y en cualquier equipo.
 NIVELES_DE_ANIDADO = 100_000
+PILA_DEL_HILO_ANIDADO = 4 * MIB
+ARREGLO_ANIDADO = b"[" * NIVELES_DE_ANIDADO + b"]" * NIVELES_DE_ANIDADO
+OBJETO_ANIDADO = b'{"a":' * NIVELES_DE_ANIDADO + b"1" + b"}" * NIVELES_DE_ANIDADO
+
+
+def _en_un_hilo_de_pila_corta(funcion):
+    """Corre ``funcion()`` en un hilo con ``PILA_DEL_HILO_ANIDADO`` de pila; devuelve lo que devuelva o relanza lo que lance.
+
+    El hilo usa la MISMA conexión de la base que la prueba (y su transacción), como el hilo del servidor de
+    ``LiveServerTestCase``. ``threading.stack_size`` vale para los hilos que arrancan mientras está puesto: se restaura al
+    arrancar este.
+    """
+    conexion = connections[DEFAULT_DB_ALIAS]
+    salida = {}
+
+    def correr():
+        connections[DEFAULT_DB_ALIAS] = conexion
+        try:
+            salida["valor"] = funcion()
+        except BaseException as error:  # noqa: BLE001  (se relanza en el hilo de la prueba)
+            salida["error"] = error
+
+    hilo = threading.Thread(target=correr, name="cuerpo-anidado")
+    conexion.inc_thread_sharing()
+    try:
+        anterior = threading.stack_size(PILA_DEL_HILO_ANIDADO)
+        try:
+            hilo.start()
+        finally:
+            threading.stack_size(anterior)
+        hilo.join()
+    finally:
+        conexion.dec_thread_sharing()
+    if "error" in salida:
+        raise salida["error"]
+    return salida["valor"]
 
 
 def _anidado_en_un_arreglo(mundo):
-    return _json_crudo(APIClient(), LOGIN, b"[" * NIVELES_DE_ANIDADO + b"]" * NIVELES_DE_ANIDADO)
+    return _en_un_hilo_de_pila_corta(lambda: _json_crudo(APIClient(), LOGIN, ARREGLO_ANIDADO))
 
 
 def _anidado_en_un_objeto(mundo):
-    return _json_crudo(APIClient(), LOGIN, b'{"a":' * NIVELES_DE_ANIDADO + b"1" + b"}" * NIVELES_DE_ANIDADO)
+    return _en_un_hilo_de_pila_corta(lambda: _json_crudo(APIClient(), LOGIN, OBJETO_ANIDADO))
 
 
 def _anidado_dentro_de_un_campo(mundo):
-    return _json_crudo(APIClient(), "/api/auth/access-request", b'{"nombre": ' + b"[" * NIVELES_DE_ANIDADO + b"]" * NIVELES_DE_ANIDADO + b"}")
+    cuerpo = b'{"nombre": ' + ARREGLO_ANIDADO + b"}"
+    return _en_un_hilo_de_pila_corta(lambda: _json_crudo(APIClient(), "/api/auth/access-request", cuerpo))
 
 
 def _anidado_en_una_ruta_con_sesion(mundo):
-    return _json_crudo(mundo.docente_a.cliente(), "/api/grupos", b'{"nombre": ' + b"[" * NIVELES_DE_ANIDADO + b"]" * NIVELES_DE_ANIDADO + b"}")
+    cliente = mundo.docente_a.cliente()
+    cuerpo = b'{"nombre": ' + ARREGLO_ANIDADO + b"}"
+    return _en_un_hilo_de_pila_corta(lambda: _json_crudo(cliente, "/api/grupos", cuerpo))
 
 
 def _con_content_length(valor):
@@ -1185,6 +1229,16 @@ def test_control_negativo_sin_el_tope_del_cuerpo_la_peticion_hostil_llega_a_la_v
         lambda: _cuerpo_hostil_rechazado(mundo, construir, estado, codigo),
         _sin_el_tope_del_cuerpo,
     )
+
+
+@pytest.mark.req("RNF-002")
+@pytest.mark.parametrize("cuerpo", [pytest.param(ARREGLO_ANIDADO, id="arreglo"), pytest.param(OBJETO_ANIDADO, id="objeto")])
+def test_el_json_anidado_revienta_el_decodificador_en_el_hilo_de_pila_corta(cuerpo):
+    """Premisa de las filas anidadas y de su control negativo: en el hilo de ``PILA_DEL_HILO_ANIDADO`` el ``json`` de Python NO
+    puede leer el cuerpo. Si esto falla, el decodificador lee 100 mil niveles en esa pila y el parser acotado ya no es lo
+    que corta: hay que subir ``NIVELES_DE_ANIDADO`` (sin pasar del tope del cuerpo) o bajar la pila."""
+    with pytest.raises(RecursionError):
+        _en_un_hilo_de_pila_corta(lambda: json.loads(cuerpo))
 
 
 @pytest.mark.req("RNF-002")
