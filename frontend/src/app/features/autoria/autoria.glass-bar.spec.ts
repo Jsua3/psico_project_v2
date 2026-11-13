@@ -5,6 +5,7 @@ import { of } from 'rxjs';
 
 import { AuthoringApi } from '../../core/api/authoring.api';
 import { rutasEditorCaso, rutasNuevoCaso } from './autoria.routes';
+import { CasoStore } from './estado/caso.store';
 import { GuiaService } from './guia/guia.service';
 import { casoCopiadoDeLugar } from './testing/caso-api';
 import { ServidorFalso } from './testing/servidor-falso';
@@ -128,11 +129,11 @@ describe('Editor de casos: la barra de vidrio (tableros 45–51)', () => {
     const secciones = raiz.querySelector('header .modulo-principal nav[aria-label="Secciones del caso"]')!;
     expect([...secciones.querySelectorAll('a')].map((a) => a.getAttribute('href'))).toEqual([
       '/portal/casos/41/editor', '/portal/casos/41/editor/datos', '/portal/casos/41/editor/finales',
-      '/portal/casos/41/editor/probar', '/portal/casos/41/editor/revision',
+      '/portal/casos/41/editor/probar', '/portal/casos/41/editor/revision', '/portal/casos/41/ensayo',
     ]);
     // Cada sección se anuncia con su nombre completo, aunque por ancho se vea su rótulo corto.
     expect([...secciones.querySelectorAll('a')].map((a) => a.getAttribute('aria-label'))).toEqual([
-      'El caso', 'Datos del caso', 'Finales', 'Probar como estudiante', 'Enviar a revisión',
+      'El caso', 'Datos del caso', 'Finales', 'Probar como estudiante', 'Enviar a revisión', 'Probar el caso en el juego (se abre en otra pestaña)',
     ]);
     // La guía las encuentra por su acción.
     for (const accion of ['datos-del-caso', 'definir-finales', 'probar', 'enviar-revision']) expect(secciones.querySelector(`[data-accion~="${accion}"]`)).not.toBeNull();
@@ -155,5 +156,33 @@ describe('Editor de casos: la barra de vidrio (tableros 45–51)', () => {
   it('el contenido es el destino de «Saltar al contenido principal» de la aplicación (#main-content)', async () => {
     const { raiz } = await irA('/portal/casos/41/editor');
     expect(raiz.querySelector('main')!.id).toBe('main-content');
+  });
+});
+
+describe('AutoriaShellComponent · el botón «Probar» de la barra', () => {
+  afterEach(() => { vi.restoreAllMocks(); document.querySelectorAll('body > app-autoria-shell, body > [ng-version]').forEach((n) => n.remove()); });
+
+  it('es un enlace al ensayo del caso, que abre otra pestaña, y la guía lo encuentra como «probar»', async () => {
+    const { raiz } = await irA('/portal/casos/41/editor');
+    const enlace = raiz.querySelector<HTMLAnchorElement>('header nav[aria-label="Secciones del caso"] a.enlace-probar')!;
+    expect(enlace.getAttribute('href')).toBe('/portal/casos/41/ensayo');
+    expect(enlace.target).toBe('_blank');
+    expect(enlace.rel).toContain('noopener');
+    expect(enlace.getAttribute('aria-label')).toBe('Probar el caso en el juego (se abre en otra pestaña)');
+    expect(enlace.textContent?.trim()).toBe('Probar ↗');
+    expect(enlace.getAttribute('data-accion')).toBe('probar');
+  });
+
+  it('el clic abre la pestaña al instante y le pone el ensayo cuando lo pendiente se guardó', async () => {
+    const { raiz } = await irA('/portal/casos/41/editor');
+    const store = TestBed.inject(CasoStore);
+    const pestana = { opener: {}, location: { href: '' }, closed: false };
+    const abrir = vi.spyOn(window, 'open').mockReturnValue(pestana as unknown as Window);
+    vi.spyOn(store, 'sincronizado').mockResolvedValue();
+    const evento = new MouseEvent('click', { bubbles: true, cancelable: true });
+    raiz.querySelector<HTMLAnchorElement>('a.enlace-probar')!.dispatchEvent(evento);
+    expect(evento.defaultPrevented).toBe(true);
+    expect(abrir).toHaveBeenCalledWith('about:blank', '_blank');
+    await vi.waitFor(() => expect(pestana.location.href).toBe('/portal/casos/41/ensayo'));
   });
 });

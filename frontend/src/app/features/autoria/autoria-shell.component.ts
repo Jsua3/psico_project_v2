@@ -14,6 +14,7 @@ import { roleLabel } from '../../shared/ui/labels';
 import { UiMenu, UiMenuItem } from '../../shared/ui/menu/ui-menu';
 
 import { AvisosGuardadoComponent } from './avisos-guardado.component';
+import { RUTA_ENSAYO, alPulsarProbar } from './ensayo';
 import { CasoStore } from './estado/caso.store';
 import { BuscadorComponent } from './guia/buscador.component';
 import { FocoGuiaComponent } from './guia/foco-guia.component';
@@ -71,6 +72,9 @@ const SECCIONES = [
                 <span class="rotulo-largo" aria-hidden="true">{{ s.largo }}</span><span class="rotulo-corto" aria-hidden="true">{{ s.corto }}</span>
               </a>
             }
+            <!-- BORRADOR: texto nuevo, pendiente de la aprobación de Psicología -->
+            <a class="enlace-seccion enlace-probar" [attr.href]="rutaEnsayo()" target="_blank" rel="noopener" data-accion="probar"
+               aria-label="Probar el caso en el juego (se abre en otra pestaña)" (click)="probar($event)">Probar ↗</a>
           </nav>
         } @else {
           <a class="nav-enlace" [routerLink]="rutas.a('/')"><span aria-hidden="true">‹</span> Mis casos</a>
@@ -213,6 +217,11 @@ export class AutoriaShellComponent implements CanLeave {
    * datos del caso (sus campos son de solo lectura, para poder leerlos con el teclado) y la revisión: en un caso que ya no es un borrador es donde se decide (aprobar, devolver, archivar) y se crea la versión nueva.
    */
   protected readonly bloqueado = computed(() => this.store.soloLectura() && !/\/(probar|revision|datos)$/.test(this.direccion().split('?')[0]));
+  /** «Probar» abre el borrador en el juego real, en otra pestaña, desde la escena de inicio. */
+  protected readonly rutaEnsayo = computed(() => RUTA_ENSAYO(this.store.caso()?.id ?? ''));
+  protected probar(evento: MouseEvent): void {
+    void alPulsarProbar(evento, this.store);
+  }
   protected readonly iaAbierta = signal(false);
   protected readonly buscador = signal<'buscar' | 'preguntar' | null>(null);
   /** Con el buscador o la guía abiertos la barra se congela (DG-9): lo que la guía señala no salta 6 px al desplazarse. */

@@ -10,6 +10,7 @@ import {
 import { fraseDeRespuesta, pasoDeRespuesta } from '../../modelo/persona';
 import { EXPRESIONES } from '../../modelo/escenario';
 import { NOMBRE_CLASE, NOMBRE_EXPRESION, NOMBRE_INTENSIDAD, plural } from '../../modelo/textos';
+import { RUTA_ENSAYO, alPulsarProbar } from '../../ensayo';
 import { RutasAutoria } from '../../rutas';
 import { ComentariosComponent } from './comentarios.component';
 import { ObjetivoPistasComponent } from './objetivo-pistas.component';
@@ -90,7 +91,15 @@ const PASOS_ACTIVACION = [{ valor: -1, nombre: 'Se calma' }, { valor: 0, nombre:
             @if (e.salaId) {
               <a class="boton" [routerLink]="rutas.a('/editor/sala', e.salaId)">Abrir sala</a>
             }
-            <a class="boton" [routerLink]="rutas.a('/probar')" [queryParams]="{ desde: e.id }">Probar desde aquí</a>
+            @if (nodoParaProbar(); as nodo) {
+              <!-- BORRADOR: texto nuevo, pendiente de la aprobación de Psicología -->
+              <a class="boton" [attr.href]="rutaEnsayo(nodo)" target="_blank" rel="noopener" data-accion="probar"
+                 aria-label="Probar desde aquí, en el juego (se abre en otra pestaña)" (click)="probar($event, nodo)">Probar desde aquí ↗</a>
+            } @else {
+              <!-- BORRADOR: texto nuevo, pendiente de la aprobación de Psicología -->
+              <button type="button" class="boton" aria-disabled="true" aria-describedby="probar-aviso" data-accion="probar">Probar desde aquí ↗</button>
+              <span id="probar-aviso" class="texto-secundario nota">Guarda la escena para probarla.</span>
+            }
           </div>
         </section>
 
@@ -369,6 +378,12 @@ export class GuionComponent {
 
   protected readonly store = inject(CasoStore);
   protected readonly plural = plural;
+  /** El número que el servidor le dio a la escena: sin él (la escena aún no se guardó) no hay desde dónde probar. */
+  protected readonly nodoParaProbar = computed(() => (this.store.caso(), this.store.guardando(), this.store.nodoDeEscena(this.escenaId())));
+  protected readonly rutaEnsayo = (nodo: number): string => RUTA_ENSAYO(this.store.caso()!.id, nodo);
+  protected probar(evento: MouseEvent, nodo: number): void {
+    void alPulsarProbar(evento, this.store, nodo);
+  }
   private readonly router = inject(Router);
   protected readonly expresiones = EXPRESIONES;
   protected readonly nombreExpresion = NOMBRE_EXPRESION;

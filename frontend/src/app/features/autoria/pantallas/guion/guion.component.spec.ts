@@ -244,3 +244,50 @@ describe('GuionComponent', () => {
     expect(raiz.querySelector('#aviso-todas-con-requisito')).toBeNull();
   });
 });
+
+describe('GuionComponent · Probar desde aquí', () => {
+  it('es un enlace a la ruta del ensayo desde esa escena, que abre otra pestaña', async () => {
+    const { store, id, raiz, listo } = await montar();
+    vi.spyOn(store, 'nodoDeEscena').mockReturnValue(12);
+    store.fijar({ ...store.caso()!, id: '41' }); // el caso abierto es el 41
+    await listo();
+    const enlace = raiz.querySelector<HTMLAnchorElement>('a[data-accion="probar"]')!;
+    expect(enlace.getAttribute('href')).toBe('/portal/casos/41/ensayo?desde=12');
+    expect(enlace.target).toBe('_blank');
+    expect(enlace.rel).toContain('noopener');
+    expect(enlace.getAttribute('aria-label')).toBe('Probar desde aquí, en el juego (se abre en otra pestaña)');
+    expect(enlace.textContent?.trim()).toBe('Probar desde aquí ↗');
+    expect(id).toBeTruthy();
+  });
+
+  it('el clic primario guarda lo pendiente y abre; Ctrl+clic deja el enlace normal', async () => {
+    const { store, raiz, listo } = await montar();
+    vi.spyOn(store, 'nodoDeEscena').mockReturnValue(12);
+    store.fijar({ ...store.caso()!, id: '41' });
+    await listo();
+    const sincronizado = vi.spyOn(store, 'sincronizado').mockResolvedValue();
+    const pestana = { opener: {}, location: { href: '' }, closed: false };
+    const abrir = vi.spyOn(window, 'open').mockReturnValue(pestana as unknown as Window);
+    const enlace = raiz.querySelector<HTMLAnchorElement>('a[data-accion="probar"]')!;
+    const conCtrl = new MouseEvent('click', { bubbles: true, cancelable: true, ctrlKey: true });
+    enlace.dispatchEvent(conCtrl);
+    expect(conCtrl.defaultPrevented).toBe(false);
+    expect(abrir).not.toHaveBeenCalled();
+    const primario = new MouseEvent('click', { bubbles: true, cancelable: true });
+    enlace.dispatchEvent(primario);
+    expect(primario.defaultPrevented).toBe(true);
+    expect(abrir).toHaveBeenCalledTimes(1);
+    await vi.waitFor(() => expect(pestana.location.href).toBe('/portal/casos/41/ensayo?desde=12'));
+    expect(sincronizado).toHaveBeenCalled();
+    abrir.mockRestore();
+  });
+
+  it('una escena sin guardar no ofrece el enlace y dice por qué', async () => {
+    const { raiz } = await montar(); // un borrador en memoria: ninguna escena tiene número en el servidor
+    expect(raiz.querySelector('a[data-accion="probar"]')).toBeNull();
+    const boton = raiz.querySelector<HTMLButtonElement>('button[data-accion="probar"]')!;
+    expect(boton.getAttribute('aria-disabled')).toBe('true');
+    expect(raiz.querySelector('#probar-aviso')!.textContent).toContain('Guarda la escena para probarla.');
+    expect(boton.getAttribute('aria-describedby')).toBe('probar-aviso');
+  });
+});
