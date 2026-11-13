@@ -110,6 +110,7 @@ import {
 } from './world-characters.util';
 import { PERSONA_ICON_KINDS, personaIconImage, personaIconKey, personaIconKind, personaIconView } from './persona-icon.util';
 import { DOOR_FALLBACK_HEIGHT, DOOR_SPRITE_FEET_Y, doorHintY, staleSpriteSize, worldSpriteForTexture } from './world-scale.util';
+import { npcsDeLaSala } from './caso/npcs-de-sala';
 
 interface WorldCallbacks {
   onReady:       () => void;
@@ -1396,7 +1397,7 @@ export class DataDrivenWorldScene extends Phaser.Scene {
 
     // Los JSON de escenario traen coords de la sala autoría; spawnNpcs tiene la
     // red de seguridad (freeTileNear) si alguna cayera en colisión.
-    this.spawnNpcs(roomConfig.npcs);
+    this.spawnNpcs(npcsDeLaSala(roomConfig.npcs, this.world?.map.ambient));
     // Fase 10: enter_room persiste entryX/entryY en world.player. Esa autoridad
     // debe ganar incluso si el ScenarioConfig asíncrono dejó un actor transitorio
     // en el centro; el actor vivo solo respalda datos backend no jugables.
