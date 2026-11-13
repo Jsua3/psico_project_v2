@@ -129,6 +129,59 @@ describe('MapaEscenasComponent', () => {
     });
   }
 
+  // Linux y macOS mandan `contextmenu` al PULSAR el botón derecho (aún abajo) y el `auxclick` de soltarlo llega con el menú
+  // ya abierto: el CDK lo tomaba por un clic fuera y lo cerraba al instante (en Windows `contextmenu` llega al soltar).
+  it('clic derecho con el orden de Linux y macOS: el menú sigue abierto después de soltar el botón', async () => {
+    const { fixture, raiz } = await montar();
+    const escena = nodo(raiz, 0);
+    const base = { bubbles: true, cancelable: true, clientX: 10, clientY: 10, button: 2 };
+    escena.dispatchEvent(new MouseEvent('pointerdown', { ...base, buttons: 2 }));
+    escena.dispatchEvent(new MouseEvent('contextmenu', { ...base, buttons: 2 }));
+    escena.dispatchEvent(new MouseEvent('pointerup', { ...base, buttons: 0 }));
+    escena.dispatchEvent(new MouseEvent('mouseup', { ...base, buttons: 0 }));
+    escena.dispatchEvent(new MouseEvent('auxclick', { ...base, buttons: 0 }));
+    await new Promise((resolve) => setTimeout(resolve));
+    await fixture.whenStable();
+    expect(menuitems()).toContain('Marcar como final');
+    expect(document.activeElement?.getAttribute('role')).toBe('menuitem');
+  });
+
+  it('un clic derecho que el navegador cancela (pointercancel) no deja el menú esperando: se abre igual', async () => {
+    const { fixture, raiz } = await montar();
+    const escena = nodo(raiz, 0);
+    escena.dispatchEvent(new MouseEvent('contextmenu', { bubbles: true, cancelable: true, button: 2, buttons: 2 }));
+    escena.dispatchEvent(new MouseEvent('pointercancel', { bubbles: true }));
+    await new Promise((resolve) => setTimeout(resolve));
+    await fixture.whenStable();
+    expect(menuitems()).toContain('Marcar como final');
+  });
+
+  // Axe (color-contrast) en un caso de solo lectura: el fieldset deshabilitado atenúa «Acciones», pero un aria-disabled="false"
+  // explícito decía lo contrario, y Axe y el lector de pantalla lo tomaban por habilitado.
+  it('«Acciones» nunca dice aria-disabled="false": sin escena elegida va deshabilitado y con escena no lo dice', async () => {
+    const { fixture, raiz } = await montar();
+    const acciones = raiz.querySelector<HTMLButtonElement>('button[data-accion~="marcar-final"]')!;
+    expect(acciones.getAttribute('aria-disabled')).toBe('true');
+    nodo(raiz, 0).click();
+    await fixture.whenStable();
+    fixture.detectChanges();
+    expect(acciones.hasAttribute('aria-disabled')).toBe(false);
+  });
+
+  // Axe (scrollable-region-focusable): en un caso de solo lectura las escenas están deshabilitadas y el mapa desplazable no
+  // tenía nada que alcanzar con el teclado; entonces el mapa mismo toma el foco (y se desplaza con las flechas).
+  it('en solo lectura el mapa desplazable se alcanza con Tab y dice qué es; editable, el foco va a las escenas', async () => {
+    const { fixture, raiz } = await montar();
+    const marco = raiz.querySelector<HTMLElement>('.marco')!;
+    expect(marco.hasAttribute('tabindex')).toBe(false);
+    fixture.componentRef.setInput('soloLectura', true);
+    await fixture.whenStable();
+    fixture.detectChanges();
+    expect(marco.getAttribute('tabindex')).toBe('0');
+    expect(marco.getAttribute('role')).toBe('region');
+    expect(marco.getAttribute('aria-label')).toMatch(/mapa del caso/i);
+  });
+
   it('el menú tiene Abrir guion, Abrir sala, Mover, Duplicar, Conectar con…, Marcar como final y Borrar', async () => {
     const { fixture, raiz } = await montar();
     nodo(raiz, 0).dispatchEvent(new KeyboardEvent('keydown', { key: 'F10', shiftKey: true, bubbles: true }));

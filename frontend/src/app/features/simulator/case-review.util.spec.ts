@@ -1,4 +1,4 @@
-import { afterAll, beforeAll, describe, expect, it } from 'vitest';
+import { describe, expect, it } from 'vitest';
 
 import { shortDate, summarize } from './case-review.util';
 
@@ -6,16 +6,17 @@ import { shortDate, summarize } from './case-review.util';
  * Ayudas del panel «Revisión» (plan visual F10-6†): el titular de la validación y las fechas de la última revisión.
  * La fecha de la constancia llega como «AAAA-MM-DD» (un `date` del servidor, sin hora ni zona): se lee como el día
  * que es, nunca corrida por la zona horaria (`new Date('2026-10-10')` es medianoche UTC y en Bogotá cae el 9).
+ * Las pruebas corren en la zona de Bogotá en cualquier equipo: la fija `vitest-base.config.mts` antes de crear los hilos
+ * (dentro de la prueba, `process.env['TZ'] = …` no cambia la zona de un hilo de trabajo).
  */
 // req: RF-12, RF-13, CU-05
 describe('case-review.util', () => {
   describe('shortDate', () => {
-    const originalZone = process.env['TZ'];
-
-    beforeAll(() => { process.env['TZ'] = 'America/Bogota'; });
-    afterAll(() => {
-      if (originalZone === undefined) delete process.env['TZ'];
-      else process.env['TZ'] = originalZone;
+    it('las pruebas corren en la zona de Bogotá (la fija vitest-base.config.mts)', () => {
+      // Bogotá es UTC−5 todo el año (sin horario de verano). Si esto falla, las fechas de estas pruebas
+      // dependen otra vez de la zona del equipo: en el CI (UTC) «9 de oct» saldría «10 de oct».
+      expect(new Date('2026-10-10T02:00:00Z').getTimezoneOffset()).toBe(300);
+      expect(new Date('2026-01-15T12:00:00Z').getTimezoneOffset()).toBe(300);
     });
 
     it('un día sin hora («2026-10-10») es ese día en Bogotá, no el anterior', () => {

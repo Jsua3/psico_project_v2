@@ -8,10 +8,12 @@ import {
 import { assignCase, retireCase } from './support/case-fixtures';
 import type { AssignmentRecord } from './support/case-fixtures';
 import { measuresIn, measuresInText, recordSimulationResponses, retiredKeysIn, shapeOf } from './support/no-numbers';
+import type { RecordedResponse } from './support/no-numbers';
 import { loginAs } from './support/screen-tour';
 import {
-  chooseDecision, createWorldInputDriver, exploreUntilNearby, interactNearby, readPlayerPosition, waitForWorldReady,
+  chooseDecision, createWorldInputDriver, interactNearby, nearbyAction, readPlayerPosition, waitForWorldReady,
 } from './support/siep-flow';
+import type { WorldInputDriver } from './support/siep-flow';
 import { scaled } from './support/time-scale';
 
 /**
@@ -47,6 +49,45 @@ async function posicionDePersonaClave(page: Page): Promise<{ x: number; y: numbe
 }
 
 const atender = (nombre: string) => new RegExp(`${nombre.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}.*persona a atender`, 'i');
+
+interface Punto { x: number; y: number }
+interface ObjetoDelMundo extends Punto { label: string; height: number }
+
+/**
+ * Los objetos de la sala que se llaman `etiqueta`, del más cercano al más lejano, con su posición REAL: la del mundo que el
+ * servidor le mandó al estudiante (el último `GET …/world` que registró `recordSimulationResponses`). El juego pone el
+ * marcador del objeto en (x, y) y ofrece la interacción a menos de 74 px de ese punto (MARKER_INTERACT_RADIUS).
+ */
+function objetosDelMundo(registros: readonly RecordedResponse[], etiqueta: RegExp, desde: Punto): { cerca: ObjetoDelMundo[]; todos: string[] } {
+  const mundo = [...registros].reverse().find((r) => /^GET \/api\/simulation\/attempts\/[^/]+\/world$/.test(r.where));
+  const objetos = (mundo?.body as { data?: { objects?: ObjetoDelMundo[] } } | undefined)?.data?.objects ?? [];
+  const cerca = objetos.filter((o) => etiqueta.test(o.label))
+    .sort((a, b) => Math.hypot(a.x - desde.x, a.y - desde.y) - Math.hypot(b.x - desde.x, b.y - desde.y));
+  return { cerca, todos: objetos.map((o) => `${o.label} (${o.x}, ${o.y})`) };
+}
+
+/**
+ * Camina en lazo cerrado (`moveBy`) hasta un punto conocido y se detiene en cuanto la barra ofrece `etiqueta`: primero en
+ * horizontal y luego en vertical; si algo cierra el paso, en el otro orden. Sin barrido a ciegas: con WebGL por software
+ * el barrido no cubre la sala en su plazo (se quedaba siempre en la esquina derecha, en 919, 252).
+ */
+async function caminarHasta(page: Page, entrada: WorldInputDriver, destino: Punto, etiqueta: RegExp): Promise<void> {
+  const accion = nearbyAction(page, etiqueta);
+  const cerca = () => accion.isVisible().catch(() => false);
+  for (const orden of [['x', 'y'], ['y', 'x'], ['x', 'y']] as const) {
+    for (const eje of orden) {
+      if (await cerca()) return;
+      const ahora = await readPlayerPosition(page);
+      const delta = eje === 'x' ? destino.x - ahora.x : destino.y - ahora.y;
+      if (Math.abs(delta) <= 4) continue;
+      const tecla = eje === 'x' ? (delta > 0 ? 'ArrowRight' : 'ArrowLeft') : (delta > 0 ? 'ArrowDown' : 'ArrowUp');
+      await entrada.moveBy(tecla, Math.abs(delta)).catch(() => undefined);
+    }
+  }
+  const al = await readPlayerPosition(page);
+  await expect(accion, `caminando hasta (${destino.x}, ${destino.y}) no apareció ${etiqueta} (jugador en ${al.x}, ${al.y})`)
+    .toBeVisible({ timeout: scaled(5_000) });
+}
 
 // req: RF-12, RNF-004
 test('un estudiante juega la primera sala de un caso hecho en el editor: el objeto anima al acercarse y vuelve al reposo, y la persona a atender se resalta', async ({ page, request }) => {
@@ -108,7 +149,13 @@ test('un estudiante juega la primera sala de un caso hecho en el editor: el obje
 
     // ── Se acerca a un objeto: anima, y el cuadro avanza ─────────────────────────────────────────────────────────
     const entrada2 = createWorldInputDriver(page, 'keyboard');
-    await exploreUntilNearby(page, entrada2, /buzón de bienestar|afiche de servicios de bienestar/i);
+    const objetoCercano = /buzón de bienestar|afiche de servicios de bienestar/i;
+    await registro.settled();
+    const { cerca: candidatos, todos } = objetosDelMundo(registro.records, objetoCercano, await readPlayerPosition(page));
+    expect(candidatos.length, `el mundo del estudiante trae el buzón o el afiche; trae: ${todos.join(' · ')}`).toBeGreaterThan(0);
+    // Se para debajo del objeto, fuera de su caja (pegada a la pared) y dentro de los 74 px de alcance.
+    const objeto = candidatos[0];
+    await caminarHasta(page, entrada2, { x: objeto.x, y: objeto.y + Math.min(Math.round(objeto.height / 2) + 20, 56) }, objetoCercano);
     await expect.poll(async () => (await proximidad(page))?.playing ?? null, { timeout: scaled(15_000), message: 'el objeto cercano anima' }).not.toBeNull();
     const cercano = (await proximidad(page))!.playing!;
     expect(objetos, 'el que anima es uno de los de la sala').toContain(cercano);
@@ -150,7 +197,8 @@ test('un estudiante juega la primera sala de un caso hecho en el editor: el obje
 
     // ── La persona a atender habla y sus respuestas se pueden elegir (el guion cuelga de ella) ───────────────────────
     const nombre = new RegExp(persona.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'i');
-    await exploreUntilNearby(page, entrada2, new RegExp(`hablar con ${nombre.source}`, 'i'));
+    // Quieta en su sitio (reducir movimiento): se camina hasta la posición que publica el juego, a su lado (72 px de alcance).
+    await caminarHasta(page, entrada2, { x: quieta.x, y: quieta.y + 40 }, new RegExp(`hablar con ${nombre.source}`, 'i'));
     await interactNearby(page, new RegExp(`hablar con ${nombre.source}`, 'i'), /\/interactions\/[^/]+$/);
     const dialogo = page.getByRole('dialog', { name: nombre });
     await expect(dialogo).toContainText('Hola, ¿esta es la oficina de Bienestar?', { timeout: scaled(15_000) });

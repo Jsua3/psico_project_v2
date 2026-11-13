@@ -11,3 +11,18 @@
 
 # «"key": "npc_orientadora_01»: clave de un NPC en un documento de prompt (ya eliminado del árbol). Comprobado el 2026-10-18 (S5-3).
 355e4b216a8ea1209780a9c687d7a5e3e14b2616:docs/PROMPT_SIEP_2_5D_PIXEL_ART_COMPLETO.md:generic-api-key:1686
+
+# «ANTHROPIC_API_KEY=» VACÍO en el .env.example del sandbox del editor de casos (2026-10-24): gitleaks une la
+# línea vacía con la siguiente (IA_TOPE_PETICIONES_DIA=200) y toma «200» como clave. No hay ninguna clave en el
+# archivo, que además ya no existe en el árbol (se retiró al conectar el editor nuevo a la API de autoría).
+# Comprobado el 2026-11-11.
+0abfe681737929b8cb548c07bee7c6bf57cd91e3:sandbox/editor-casos/.env.example:generic-api-key:2
+
+# Contraseñas de PRUEBA del cambio de contraseña obligatorio (E2-9) en una prueba unitaria con HTTP simulado
+# (HttpTestingController): ninguna llega a un servidor. Las mismas cadenas se repiten en otras pruebas del
+# frontend y del e2e. Comprobado el 2026-11-11.
+e21c246a8aff267876cd7c6d2b23a5a860cd0b7c:frontend/src/app/core/auth/auth.service.spec.ts:generic-api-key:67
+
+# Valor de PRUEBA de IMPORTED_STUDENT_DEFAULT_PASSWORD que la prueba fija con monkeypatch para comprobar que el
+# comando detecta la contraseña compartida desplegada; solo existe en ese archivo de pruebas. Comprobado el 2026-11-11.
+34082ab9c6cab68d771c6873c9e885f6666f001f:backend_django/apps/users/tests/test_shared_password_command.py:generic-api-key:78
