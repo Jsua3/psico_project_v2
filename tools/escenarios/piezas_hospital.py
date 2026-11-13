@@ -299,7 +299,8 @@ def _mueble(ref):
     if ref not in MUEBLES:
         raise KeyError(f'mueble {ref!r} fuera del catálogo del hospital')
     ficha = MUEBLES[ref]
-    return tuple(ac.terminar_sprite(ficha['dibujar'](n), 24) for n in range(ficha.get('cuadros', 1)))
+    cuadros = [ac.terminar_sprite(ficha['dibujar'](n), 24) for n in range(ficha.get('cuadros', 1))]
+    return tuple(sl.g.recortar_juntos(cuadros, (0, 0))[0])          # sin filas vacías: la base del sprite es su pie
 
 
 def mueble(ref):
@@ -361,8 +362,8 @@ ENTRADA = _sala(
     'entrada-urgencias', 'Entrada de urgencias', 1200, 'baldosa', 'b', 'azulejo',
     descripcion='Vestíbulo de urgencias: por la corrediza se llega a la sala de espera; las camillas pasan por la doble batiente.',
     piezas=[
-        P('tubo-1', 'lampara', 'fondo', 250, 'tubo'), P('tubo-2', 'lampara', 'fondo', 720, 'tubo'),
-        P('cruz', 'cruz', 'fondo', 300), P('reloj', 'reloj', 'fondo', 362), P('gel', 'gel', 'fondo', 600), P('senal', 'senal', 'fondo', 640),
+        P('tubo-1', 'lampara', 'fondo', 250, 'tubo'), P('tubo-2', 'lampara', 'fondo', 690, 'tubo'),
+        P('cruz', 'cruz', 'fondo', 326), P('reloj', 'reloj', 'fondo', 378), P('gel', 'gel', 'fondo', 600), P('senal', 'senal', 'fondo', 640),
         P('extintor', 'extintor', 'fondo', 700), P('ventana', 'ventana', 'fondo', 808, 'alta'),
         P('ventanal', 'ventana', 'derecha', 150, 'ventanal'),
     ],

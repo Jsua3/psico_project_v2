@@ -68,11 +68,22 @@ def capas(sala, momento=None):
     fondo = Image.new('RGB', (ancho, g.ALTO), ps.VACIO)
     fondo.paste(ps.piso(acabados['piso'], acabados.get('variante', 'a'), ancho), (0, g.SEAM))
     d = ImageDraw.Draw(fondo)
+    if est.get('exterior'):            # al aire libre, sobre el muro se ve el cielo en vez del vacío
+        cielo = pm.NOCHE if momento == 'noche' else ((196, 214, 224), (182, 204, 218), (168, 194, 212), (154, 184, 206))
+        for k in range(4):
+            d.rectangle([0, k * (g.TOP - 6) // 4, ancho, (k + 1) * (g.TOP - 6) // 4], fill=cielo[k])
     for t in est.get('tapetes', []):
-        ps.tapete(d, ancho, *t['caja'])
+        ps.tapete(d, ancho, *t['caja'], t.get('colores'))
     muro, x = ps.muro_fondo(acabados['muro'], acabados['paleta'], encuadre, ancho)
     fondo.paste(muro, (x, g.TOP - 6))
     fondo = fondo.convert('RGBA')
+    for capa in est.get('propios', []):
+        # Lo propio de una sala convertida (una escalera, un mesón): capa fija ya dibujada, sobre el piso y el muro del fondo.
+        ruta = os.path.join(RAIZ, 'biblioteca', *capa['ruta'].split('/'))
+        if os.path.exists(ruta):
+            pegar(fondo, Image.open(ruta).convert('RGBA'), 0, 0)
+        else:
+            avisos.append(f'falta la capa propia {capa["ruta"]}')
     b = g.borde(ancho)
     if izq:
         fondo.alpha_composite(ps.muro_lado(acabados['muro'], acabados['paleta'], ancho, 'izquierda'), (0, 0))

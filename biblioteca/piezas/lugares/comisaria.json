@@ -1,0 +1,1122 @@
+{
+  "descripcion": "Comisaría de familia: recepción, sala de espera, orientación jurídica, despacho, consultorio psicosocial, sala de entrevista a niñas, niños y adolescentes, archivo y pasillo. Rutas de protección y medidas.",
+  "esquema": 3,
+  "id": "comisaria",
+  "nombre": "Comisaría de familia",
+  "salas": [
+    {
+      "convertidaDe": "escenarios/comisaria/escenario.json",
+      "descripcion": "Entrada de la comisaría de familia: fachada institucional, escudo sin texto y una banca en el andén.",
+      "encuadre": "una-pared",
+      "entrada": {
+        "x": 480,
+        "y": 440
+      },
+      "estructura": {
+        "acabados": {
+          "muro": "ladrillo",
+          "paleta": "comisaria",
+          "piso": "adoquin",
+          "variante": "a"
+        },
+        "ancho": 960,
+        "exterior": true,
+        "momento": "dia",
+        "piezas": [
+          {
+            "id": "alta-1",
+            "modelo": "alta",
+            "muro": "fondo",
+            "pos": 160,
+            "tipo": "ventana"
+          },
+          {
+            "id": "alta-2",
+            "modelo": "alta",
+            "muro": "fondo",
+            "pos": 312,
+            "tipo": "ventana"
+          },
+          {
+            "id": "alta-3",
+            "modelo": "alta",
+            "muro": "fondo",
+            "pos": 648,
+            "tipo": "ventana"
+          },
+          {
+            "id": "alta-4",
+            "modelo": "alta",
+            "muro": "fondo",
+            "pos": 800,
+            "tipo": "ventana"
+          }
+        ],
+        "propios": [
+          {
+            "ref": "comisaria/fachada",
+            "ruta": "piezas/propios/comisaria-fachada.png"
+          }
+        ]
+      },
+      "id": "fachada",
+      "muebles": [
+        {
+          "espejo": false,
+          "ref": "banca-exterior",
+          "x": 260,
+          "y": 380
+        },
+        {
+          "espejo": false,
+          "ref": "planta-oficina",
+          "x": 840,
+          "y": 300
+        }
+      ],
+      "nombre": "Fachada de la comisaría",
+      "objetos": [
+        {
+          "ref": "camara-seguridad",
+          "x": 700,
+          "y": 236
+        },
+        {
+          "ref": "cartel-linea-155",
+          "x": 300,
+          "y": 262
+        }
+      ],
+      "perdido": [
+        "franja de color en el muro",
+        "franja alta del muro",
+        "lo propio de la sala queda como una capa fija: no se puede mover ni cambia con la paleta"
+      ],
+      "personajes": [
+        {
+          "expresion": "neutral",
+          "mirando": "izquierda",
+          "ref": "policia-infancia",
+          "x": 620,
+          "y": 360
+        }
+      ],
+      "puertas": [
+        {
+          "etiqueta": "Entrar a la comisaría",
+          "hacia": "recepcion",
+          "id": "puerta-recepcion",
+          "modelo": "vidrio",
+          "muro": "fondo",
+          "par": "puerta-fachada",
+          "pos": 480
+        }
+      ]
+    },
+    {
+      "convertidaDe": "escenarios/comisaria/escenario.json",
+      "descripcion": "Mostrador de recepción donde se toma el turno y se orienta a quien llega.",
+      "encuadre": "tres-paredes",
+      "entrada": {
+        "x": 480,
+        "y": 440
+      },
+      "estructura": {
+        "acabados": {
+          "muro": "zocalo-alto",
+          "paleta": "comisaria",
+          "piso": "baldosa",
+          "variante": "b"
+        },
+        "ancho": 960,
+        "momento": "dia",
+        "piezas": [
+          {
+            "id": "reloj-1",
+            "modelo": "reloj",
+            "muro": "fondo",
+            "pos": 464,
+            "tipo": "reloj"
+          },
+          {
+            "id": "tubo-1",
+            "modelo": "tubo",
+            "muro": "fondo",
+            "pos": 384,
+            "tipo": "lampara"
+          }
+        ],
+        "propios": [
+          {
+            "ref": "comisaria/recepcion",
+            "ruta": "piezas/propios/comisaria-recepcion.png"
+          }
+        ]
+      },
+      "id": "recepcion",
+      "muebles": [
+        {
+          "espejo": false,
+          "ref": "mostrador-recepcion",
+          "x": 420,
+          "y": 304
+        },
+        {
+          "espejo": false,
+          "ref": "silla-giratoria",
+          "x": 420,
+          "y": 262
+        },
+        {
+          "espejo": false,
+          "ref": "cartelera-comisaria",
+          "x": 650,
+          "y": 236
+        },
+        {
+          "espejo": false,
+          "ref": "planta-oficina",
+          "x": 150,
+          "y": 300
+        },
+        {
+          "espejo": false,
+          "ref": "caneca-comisaria",
+          "x": 280,
+          "y": 262
+        }
+      ],
+      "nombre": "Recepción",
+      "objetos": [
+        {
+          "ref": "dispensador-turnos",
+          "x": 560,
+          "y": 262
+        },
+        {
+          "ref": "afiche-rutas-atencion",
+          "x": 760,
+          "y": 236
+        }
+      ],
+      "perdido": [
+        "franja de color en el muro",
+        "lo propio de la sala queda como una capa fija: no se puede mover ni cambia con la paleta"
+      ],
+      "personajes": [
+        {
+          "expresion": "neutral",
+          "mirando": "derecha",
+          "ref": "funcionaria-recepcion",
+          "x": 400,
+          "y": 262
+        },
+        {
+          "expresion": "cautelosa",
+          "mirando": "izquierda",
+          "ref": "persona-usuaria",
+          "x": 480,
+          "y": 400
+        },
+        {
+          "expresion": "preocupada",
+          "mirando": "izquierda",
+          "ref": "acompanante",
+          "x": 530,
+          "y": 410
+        }
+      ],
+      "puertas": [
+        {
+          "etiqueta": "Salir a la calle",
+          "hacia": "fachada",
+          "id": "puerta-fachada",
+          "modelo": "vidrio",
+          "muro": "camara",
+          "par": "puerta-recepcion",
+          "pos": 384
+        },
+        {
+          "etiqueta": "Pasar a la sala de espera",
+          "hacia": "sala-espera",
+          "id": "puerta-sala-espera",
+          "modelo": "paso",
+          "muro": "derecha",
+          "par": "puerta-recepcion",
+          "pos": 152
+        },
+        {
+          "etiqueta": "Ir al pasillo de atención",
+          "hacia": "pasillo",
+          "id": "puerta-pasillo",
+          "modelo": "paso",
+          "muro": "fondo",
+          "par": "puerta-recepcion",
+          "pos": 104
+        }
+      ]
+    },
+    {
+      "convertidaDe": "escenarios/comisaria/escenario.json",
+      "descripcion": "Filas de sillas, agua y un afiche con la ruta de atención.",
+      "encuadre": "tres-paredes",
+      "entrada": {
+        "x": 480,
+        "y": 440
+      },
+      "estructura": {
+        "acabados": {
+          "muro": "zocalo-alto",
+          "paleta": "comisaria",
+          "piso": "baldosa",
+          "variante": "b"
+        },
+        "ancho": 960,
+        "momento": "dia",
+        "piezas": [
+          {
+            "id": "persiana-1",
+            "modelo": "persiana",
+            "muro": "fondo",
+            "pos": 128,
+            "tipo": "ventana"
+          },
+          {
+            "id": "tubo-1",
+            "modelo": "tubo",
+            "muro": "fondo",
+            "pos": 384,
+            "tipo": "lampara"
+          }
+        ],
+        "propios": [
+          {
+            "ref": "comisaria/sala-espera",
+            "ruta": "piezas/propios/comisaria-sala-espera.png"
+          }
+        ]
+      },
+      "id": "sala-espera",
+      "muebles": [
+        {
+          "espejo": false,
+          "ref": "sillas-espera-comisaria",
+          "x": 300,
+          "y": 300
+        },
+        {
+          "espejo": false,
+          "ref": "sillas-espera-comisaria",
+          "x": 300,
+          "y": 400
+        },
+        {
+          "espejo": false,
+          "ref": "planta-oficina",
+          "x": 120,
+          "y": 300
+        },
+        {
+          "espejo": false,
+          "ref": "cartelera-comisaria",
+          "x": 480,
+          "y": 236
+        }
+      ],
+      "nombre": "Sala de espera",
+      "objetos": [
+        {
+          "ref": "dispensador-agua",
+          "x": 700,
+          "y": 262
+        },
+        {
+          "ref": "papelera",
+          "x": 780,
+          "y": 262
+        }
+      ],
+      "perdido": [
+        "franja de color en el muro",
+        "encuadre dos-paredes-derecha: pasa a tres-paredes para que la salida lateral tenga muro",
+        "lo propio de la sala queda como una capa fija: no se puede mover ni cambia con la paleta"
+      ],
+      "personajes": [
+        {
+          "expresion": "preocupada",
+          "mirando": "derecha",
+          "ref": "acompanante",
+          "x": 420,
+          "y": 420
+        },
+        {
+          "expresion": "triste",
+          "mirando": "izquierda",
+          "ref": "persona-usuaria",
+          "x": 360,
+          "y": 430
+        }
+      ],
+      "puertas": [
+        {
+          "etiqueta": "Volver a la recepción",
+          "hacia": "recepcion",
+          "id": "puerta-recepcion",
+          "modelo": "paso",
+          "muro": "izquierda",
+          "par": "puerta-sala-espera",
+          "pos": 152
+        },
+        {
+          "etiqueta": "Ir al pasillo de atención",
+          "hacia": "pasillo",
+          "id": "puerta-pasillo",
+          "modelo": "metalica",
+          "muro": "fondo",
+          "par": "puerta-sala-espera",
+          "pos": 504
+        }
+      ]
+    },
+    {
+      "convertidaDe": "escenarios/comisaria/escenario.json",
+      "descripcion": "Pasillo con las puertas de orientación jurídica, el despacho, el consultorio y la sala de entrevista.",
+      "encuadre": "tres-paredes",
+      "entrada": {
+        "x": 480,
+        "y": 440
+      },
+      "estructura": {
+        "acabados": {
+          "muro": "zocalo-alto",
+          "paleta": "comisaria",
+          "piso": "baldosa",
+          "variante": "b"
+        },
+        "ancho": 960,
+        "momento": "dia",
+        "piezas": [
+          {
+            "id": "reloj-1",
+            "modelo": "reloj",
+            "muro": "fondo",
+            "pos": 576,
+            "tipo": "reloj"
+          },
+          {
+            "id": "tubo-1",
+            "modelo": "tubo",
+            "muro": "fondo",
+            "pos": 384,
+            "tipo": "lampara"
+          }
+        ],
+        "propios": [
+          {
+            "ref": "comisaria/pasillo",
+            "ruta": "piezas/propios/comisaria-pasillo.png"
+          }
+        ]
+      },
+      "id": "pasillo",
+      "muebles": [
+        {
+          "espejo": false,
+          "ref": "sillas-espera-comisaria",
+          "x": 200,
+          "y": 430
+        },
+        {
+          "espejo": false,
+          "ref": "caneca-comisaria",
+          "x": 880,
+          "y": 262
+        },
+        {
+          "espejo": false,
+          "ref": "planta-oficina",
+          "x": 60,
+          "y": 300
+        }
+      ],
+      "nombre": "Pasillo de atención",
+      "objetos": [
+        {
+          "ref": "camara-seguridad",
+          "x": 480,
+          "y": 236
+        }
+      ],
+      "perdido": [
+        "franja de color en el muro",
+        "encuadre una-pared: pasa a tres-paredes para que la salida lateral tenga muro",
+        "lo propio de la sala queda como una capa fija: no se puede mover ni cambia con la paleta"
+      ],
+      "personajes": [],
+      "puertas": [
+        {
+          "etiqueta": "Volver a la sala de espera",
+          "hacia": "sala-espera",
+          "id": "puerta-sala-espera",
+          "modelo": "metalica",
+          "muro": "camara",
+          "par": "puerta-pasillo",
+          "pos": 384
+        },
+        {
+          "etiqueta": "Volver a la recepción",
+          "hacia": "recepcion",
+          "id": "puerta-recepcion",
+          "modelo": "paso",
+          "muro": "izquierda",
+          "par": "puerta-pasillo",
+          "pos": 152
+        },
+        {
+          "etiqueta": "Entrar a orientación jurídica",
+          "hacia": "orientacion-juridica",
+          "id": "puerta-orientacion",
+          "modelo": "metalica",
+          "muro": "fondo",
+          "par": "puerta-pasillo",
+          "pos": 64
+        },
+        {
+          "etiqueta": "Entrar al despacho de la comisaria de familia",
+          "hacia": "despacho-comisaria",
+          "id": "puerta-despacho",
+          "modelo": "metalica",
+          "muro": "fondo",
+          "par": "puerta-pasillo",
+          "pos": 232
+        },
+        {
+          "etiqueta": "Entrar al consultorio psicosocial",
+          "hacia": "consultorio-psicosocial",
+          "id": "puerta-consultorio",
+          "modelo": "metalica",
+          "muro": "fondo",
+          "par": "puerta-pasillo",
+          "pos": 464
+        },
+        {
+          "etiqueta": "Entrar a la sala de entrevista",
+          "hacia": "sala-entrevista-nna",
+          "id": "puerta-entrevista",
+          "modelo": "metalica",
+          "muro": "fondo",
+          "par": "puerta-pasillo",
+          "pos": 664
+        },
+        {
+          "etiqueta": "Ir al archivo",
+          "hacia": "archivo",
+          "id": "puerta-archivo",
+          "modelo": "paso",
+          "muro": "derecha",
+          "par": "puerta-pasillo",
+          "pos": 152
+        }
+      ]
+    },
+    {
+      "convertidaDe": "escenarios/comisaria/escenario.json",
+      "descripcion": "Escritorio de la orientadora, estantes con códigos y formatos de denuncia.",
+      "encuadre": "tres-paredes",
+      "entrada": {
+        "x": 480,
+        "y": 440
+      },
+      "estructura": {
+        "acabados": {
+          "muro": "zocalo-alto",
+          "paleta": "casa",
+          "piso": "baldosa",
+          "variante": "b"
+        },
+        "ancho": 960,
+        "momento": "dia",
+        "piezas": [
+          {
+            "id": "tubo-1",
+            "modelo": "tubo",
+            "muro": "fondo",
+            "pos": 384,
+            "tipo": "lampara"
+          }
+        ],
+        "propios": [
+          {
+            "ref": "comisaria/orientacion-juridica",
+            "ruta": "piezas/propios/comisaria-orientacion-juridica.png"
+          }
+        ]
+      },
+      "id": "orientacion-juridica",
+      "muebles": [
+        {
+          "espejo": false,
+          "ref": "escritorio-funcionario",
+          "x": 480,
+          "y": 300
+        },
+        {
+          "espejo": false,
+          "ref": "silla-giratoria",
+          "x": 480,
+          "y": 262
+        },
+        {
+          "espejo": false,
+          "ref": "silla-visitante-comisaria",
+          "x": 430,
+          "y": 350
+        },
+        {
+          "espejo": true,
+          "ref": "silla-visitante-comisaria",
+          "x": 530,
+          "y": 350
+        },
+        {
+          "espejo": false,
+          "ref": "estante-expedientes",
+          "x": 200,
+          "y": 252
+        },
+        {
+          "espejo": false,
+          "ref": "archivador-metalico",
+          "x": 760,
+          "y": 252
+        }
+      ],
+      "nombre": "Orientación jurídica",
+      "objetos": [
+        {
+          "ref": "boligrafo-formularios",
+          "x": 480,
+          "y": 282
+        },
+        {
+          "ref": "carpeta-medidas-proteccion",
+          "x": 760,
+          "y": 240
+        }
+      ],
+      "perdido": [
+        "lo propio de la sala queda como una capa fija: no se puede mover ni cambia con la paleta"
+      ],
+      "personajes": [
+        {
+          "expresion": "neutral",
+          "mirando": "izquierda",
+          "ref": "orientadora-juridica",
+          "x": 560,
+          "y": 280
+        }
+      ],
+      "puertas": [
+        {
+          "etiqueta": "Salir al pasillo",
+          "hacia": "pasillo",
+          "id": "puerta-pasillo",
+          "modelo": "metalica",
+          "muro": "camara",
+          "par": "puerta-orientacion",
+          "pos": 384
+        }
+      ]
+    },
+    {
+      "convertidaDe": "escenarios/comisaria/escenario.json",
+      "descripcion": "Despacho donde se firman las medidas de protección; bandera, escritorio y estantes.",
+      "encuadre": "tres-paredes",
+      "entrada": {
+        "x": 480,
+        "y": 440
+      },
+      "estructura": {
+        "acabados": {
+          "muro": "paneles",
+          "paleta": "comisaria",
+          "piso": "madera",
+          "variante": "b"
+        },
+        "ancho": 960,
+        "momento": "dia",
+        "piezas": [
+          {
+            "id": "persiana-1",
+            "modelo": "persiana",
+            "muro": "fondo",
+            "pos": 320,
+            "tipo": "ventana"
+          },
+          {
+            "id": "tubo-1",
+            "modelo": "tubo",
+            "muro": "fondo",
+            "pos": 424,
+            "tipo": "lampara"
+          }
+        ],
+        "propios": [
+          {
+            "ref": "comisaria/despacho-comisaria",
+            "ruta": "piezas/propios/comisaria-despacho-comisaria.png"
+          }
+        ]
+      },
+      "id": "despacho-comisaria",
+      "muebles": [
+        {
+          "espejo": false,
+          "ref": "escritorio-funcionario",
+          "x": 560,
+          "y": 300
+        },
+        {
+          "espejo": false,
+          "ref": "silla-giratoria",
+          "x": 560,
+          "y": 262
+        },
+        {
+          "espejo": false,
+          "ref": "silla-visitante-comisaria",
+          "x": 500,
+          "y": 350
+        },
+        {
+          "espejo": true,
+          "ref": "silla-visitante-comisaria",
+          "x": 620,
+          "y": 350
+        },
+        {
+          "espejo": false,
+          "ref": "bandera-asta",
+          "x": 820,
+          "y": 290
+        },
+        {
+          "espejo": false,
+          "ref": "estante-expedientes",
+          "x": 200,
+          "y": 252
+        },
+        {
+          "espejo": false,
+          "ref": "planta-oficina",
+          "x": 140,
+          "y": 300
+        }
+      ],
+      "nombre": "Despacho de la comisaria",
+      "objetos": [
+        {
+          "ref": "sello-tinta",
+          "x": 530,
+          "y": 282
+        },
+        {
+          "ref": "boligrafo-formularios",
+          "x": 590,
+          "y": 282
+        }
+      ],
+      "perdido": [
+        "lo propio de la sala queda como una capa fija: no se puede mover ni cambia con la paleta"
+      ],
+      "personajes": [
+        {
+          "expresion": "neutral",
+          "mirando": "izquierda",
+          "ref": "comisaria",
+          "x": 640,
+          "y": 290
+        }
+      ],
+      "puertas": [
+        {
+          "etiqueta": "Salir al pasillo",
+          "hacia": "pasillo",
+          "id": "puerta-pasillo",
+          "modelo": "metalica",
+          "muro": "camara",
+          "par": "puerta-despacho",
+          "pos": 384
+        }
+      ]
+    },
+    {
+      "convertidaDe": "escenarios/comisaria/escenario.json",
+      "descripcion": "Espacio de escucha del equipo psicosocial: dos sillas, una mesa baja y pañuelos a la mano.",
+      "encuadre": "tres-paredes",
+      "entrada": {
+        "x": 480,
+        "y": 440
+      },
+      "estructura": {
+        "acabados": {
+          "muro": "pintura",
+          "paleta": "universidad",
+          "piso": "madera",
+          "variante": "b"
+        },
+        "ancho": 960,
+        "momento": "dia",
+        "piezas": [
+          {
+            "id": "persiana-1",
+            "modelo": "persiana",
+            "muro": "fondo",
+            "pos": 232,
+            "tipo": "ventana"
+          },
+          {
+            "id": "tubo-1",
+            "modelo": "tubo",
+            "muro": "fondo",
+            "pos": 384,
+            "tipo": "lampara"
+          }
+        ],
+        "propios": [
+          {
+            "ref": "comisaria/consultorio-psicosocial",
+            "ruta": "piezas/propios/comisaria-consultorio-psicosocial.png"
+          }
+        ]
+      },
+      "id": "consultorio-psicosocial",
+      "muebles": [
+        {
+          "espejo": false,
+          "ref": "escritorio-funcionario",
+          "x": 700,
+          "y": 290
+        },
+        {
+          "espejo": false,
+          "ref": "silla-giratoria",
+          "x": 700,
+          "y": 256
+        },
+        {
+          "espejo": false,
+          "ref": "silla-visitante-comisaria",
+          "x": 300,
+          "y": 340
+        },
+        {
+          "espejo": true,
+          "ref": "silla-visitante-comisaria",
+          "x": 420,
+          "y": 340
+        },
+        {
+          "espejo": false,
+          "ref": "mesa-baja-nna",
+          "x": 360,
+          "y": 362
+        },
+        {
+          "espejo": false,
+          "ref": "planta-oficina",
+          "x": 140,
+          "y": 300
+        }
+      ],
+      "nombre": "Consultorio psicosocial",
+      "objetos": [
+        {
+          "ref": "caja-panuelos",
+          "x": 360,
+          "y": 350
+        },
+        {
+          "ref": "papelera",
+          "x": 760,
+          "y": 262
+        }
+      ],
+      "perdido": [
+        "lo propio de la sala queda como una capa fija: no se puede mover ni cambia con la paleta"
+      ],
+      "personajes": [
+        {
+          "expresion": "neutral",
+          "mirando": "izquierda",
+          "ref": "profesional-psicosocial",
+          "x": 520,
+          "y": 350
+        },
+        {
+          "expresion": "cautelosa",
+          "mirando": "derecha",
+          "ref": "persona-usuaria",
+          "x": 260,
+          "y": 410
+        }
+      ],
+      "puertas": [
+        {
+          "etiqueta": "Salir al pasillo",
+          "hacia": "pasillo",
+          "id": "puerta-pasillo",
+          "modelo": "metalica",
+          "muro": "camara",
+          "par": "puerta-consultorio",
+          "pos": 384
+        }
+      ]
+    },
+    {
+      "convertidaDe": "escenarios/comisaria/escenario.json",
+      "descripcion": "Cámara de Gesell: espejo en la pared, mesa baja, sillas pequeñas y juguetes.",
+      "encuadre": "dos-paredes-izquierda",
+      "entrada": {
+        "x": 480,
+        "y": 440
+      },
+      "estructura": {
+        "acabados": {
+          "muro": "pintura",
+          "paleta": "comisaria",
+          "piso": "vinilo",
+          "variante": "a"
+        },
+        "ancho": 960,
+        "momento": "dia",
+        "piezas": [
+          {
+            "id": "tubo-1",
+            "modelo": "tubo",
+            "muro": "fondo",
+            "pos": 384,
+            "tipo": "lampara"
+          }
+        ],
+        "propios": [
+          {
+            "ref": "comisaria/sala-entrevista-nna",
+            "ruta": "piezas/propios/comisaria-sala-entrevista-nna.png"
+          }
+        ],
+        "tapetes": [
+          {
+            "caja": [
+              166,
+              866,
+              270,
+              456
+            ],
+            "colores": {
+              "borde": [
+                87,
+                101,
+                88
+              ],
+              "campo": [
+                112,
+                130,
+                114
+              ],
+              "motivo": [
+                143,
+                155,
+                137
+              ],
+              "oscuro": [
+                69,
+                80,
+                70
+              ],
+              "ribete": [
+                102,
+                118,
+                104
+              ]
+            }
+          }
+        ]
+      },
+      "id": "sala-entrevista-nna",
+      "muebles": [
+        {
+          "espejo": false,
+          "ref": "mesa-baja-nna",
+          "x": 480,
+          "y": 360
+        },
+        {
+          "espejo": false,
+          "ref": "silla-pequena",
+          "x": 430,
+          "y": 320
+        },
+        {
+          "espejo": true,
+          "ref": "silla-pequena",
+          "x": 530,
+          "y": 400
+        },
+        {
+          "espejo": false,
+          "ref": "tapete-juegos",
+          "x": 720,
+          "y": 450
+        },
+        {
+          "espejo": false,
+          "ref": "estante-juguetes",
+          "x": 200,
+          "y": 252
+        }
+      ],
+      "nombre": "Sala de entrevista a niñas, niños y adolescentes",
+      "objetos": [
+        {
+          "ref": "caja-panuelos",
+          "x": 480,
+          "y": 350
+        }
+      ],
+      "perdido": [
+        "piso de alfombra: queda como vinilo con un tapete",
+        "lo propio de la sala queda como una capa fija: no se puede mover ni cambia con la paleta"
+      ],
+      "personajes": [
+        {
+          "expresion": "neutral",
+          "mirando": "izquierda",
+          "ref": "profesional-psicosocial",
+          "x": 620,
+          "y": 330
+        }
+      ],
+      "puertas": [
+        {
+          "etiqueta": "Salir al pasillo",
+          "hacia": "pasillo",
+          "id": "puerta-pasillo",
+          "modelo": "metalica",
+          "muro": "camara",
+          "par": "puerta-entrevista",
+          "pos": 384
+        }
+      ]
+    },
+    {
+      "convertidaDe": "escenarios/comisaria/escenario.json",
+      "descripcion": "Estantes y archivadores con los expedientes; cajas de archivo apiladas.",
+      "encuadre": "dos-paredes-izquierda",
+      "entrada": {
+        "x": 480,
+        "y": 440
+      },
+      "estructura": {
+        "acabados": {
+          "muro": "zocalo-alto",
+          "paleta": "comisaria",
+          "piso": "baldosa",
+          "variante": "b"
+        },
+        "ancho": 960,
+        "momento": "dia",
+        "piezas": [
+          {
+            "id": "alta-1",
+            "modelo": "alta",
+            "muro": "fondo",
+            "pos": 704,
+            "tipo": "ventana"
+          },
+          {
+            "id": "tubo-1",
+            "modelo": "tubo",
+            "muro": "fondo",
+            "pos": 384,
+            "tipo": "lampara"
+          }
+        ],
+        "propios": [
+          {
+            "ref": "comisaria/archivo",
+            "ruta": "piezas/propios/comisaria-archivo.png"
+          }
+        ]
+      },
+      "id": "archivo",
+      "muebles": [
+        {
+          "espejo": false,
+          "ref": "estante-expedientes",
+          "x": 180,
+          "y": 252
+        },
+        {
+          "espejo": false,
+          "ref": "estante-expedientes",
+          "x": 290,
+          "y": 252
+        },
+        {
+          "espejo": false,
+          "ref": "estante-expedientes",
+          "x": 400,
+          "y": 252
+        },
+        {
+          "espejo": false,
+          "ref": "archivador-metalico",
+          "x": 600,
+          "y": 252
+        },
+        {
+          "espejo": false,
+          "ref": "archivador-metalico",
+          "x": 660,
+          "y": 252
+        },
+        {
+          "espejo": false,
+          "ref": "caja-archivo",
+          "x": 780,
+          "y": 300
+        },
+        {
+          "espejo": false,
+          "ref": "caja-archivo",
+          "x": 800,
+          "y": 340
+        }
+      ],
+      "nombre": "Archivo",
+      "objetos": [
+        {
+          "ref": "camara-seguridad",
+          "x": 520,
+          "y": 236
+        }
+      ],
+      "perdido": [
+        "lo propio de la sala queda como una capa fija: no se puede mover ni cambia con la paleta"
+      ],
+      "personajes": [],
+      "puertas": [
+        {
+          "etiqueta": "Volver al pasillo",
+          "hacia": "pasillo",
+          "id": "puerta-pasillo",
+          "modelo": "paso",
+          "muro": "izquierda",
+          "par": "puerta-archivo",
+          "pos": 152
+        }
+      ]
+    }
+  ]
+}

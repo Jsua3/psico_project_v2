@@ -64,6 +64,8 @@ def test_el_manifiesto_lista_todo_png_bajo_biblioteca_con_sus_medidas():
         relativa = os.path.relpath(carpeta, BIBLIOTECA).replace(os.sep, '/')
         if 'node_modules' in relativa.split('/') or relativa.startswith('scripts/fixtures'):
             continue
+        if relativa.split('/')[0] == 'piezas':
+            continue        # las salas por piezas llevan su propio manifiesto (esquema 2): lo cubre test_piezas_sala.py
         for nombre in archivos:
             if nombre.endswith('.png') and not nombre.startswith('hoja-'):
                 esperados[(relativa + '/' + nombre)] = os.path.join(carpeta, nombre)

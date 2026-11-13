@@ -253,6 +253,7 @@ def piso(tipo, variante='a', ancho=960):
 def tapete(d, ancho, bx0, bx1, ya, yb, c=None):
     """Tapete en perspectiva: flecos en los extremos, cenefa, rombos y medallón. Coordenadas de sala."""
     c = c or dict(oscuro=(84, 40, 40), borde=(112, 52, 48), ribete=(214, 190, 140), campo=(146, 72, 60), motivo=(206, 150, 96))
+    c = {k: tuple(v) for k, v in c.items()}            # del JSON llegan como listas
     e = lambda bx, y: g.esp(ancho, bx, y)  # noqa: E731
 
     def cuadro(m, tinta):
