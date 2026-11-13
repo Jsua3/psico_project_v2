@@ -124,9 +124,12 @@ for (const viewport of [KEYBOARD, TOUCH]) {
 
     test(`@explorar revisar la carpeta abre una respuesta y Laura reacciona (${viewport.name})`, async ({ page, request }) => {
       test.setTimeout(scaled(240_000));
-      const fixture = await createExplorationCase(request);
-      const records: AssignmentRecord[] = [await assignCase(request, fixture.caseVersionId)];
+      // El caso se crea dentro del try: si la asignación falla, el caso publicado igual se retira.
+      let fixture: CaseFixture | undefined;
+      const records: AssignmentRecord[] = [];
       try {
+        fixture = await createExplorationCase(request);
+        records.push(await assignCase(request, fixture.caseVersionId));
         const input = createWorldInputDriver(page, viewport.inputMode);
         await entrarAlCaso(page, fixture.title);
 
@@ -150,14 +153,15 @@ for (const viewport of [KEYBOARD, TOUCH]) {
         const reactionsSeen = await watchReaction(page);
         const decision = await chooseDecision(page, /laura/i, /escuchar a laura/i);
         expect(decision.reaction, 'el servidor trae la reacción de Laura').toMatchObject({ line: 'Gracias por escucharme.', gesture: 'se-acerca', objectKey: 'laura' });
+        // La franja dura ~3 s: se audita antes de cualquier otra espera, y debe seguir a la vista al terminar la auditoría
+        // (si no, Axe habría revisado un contenedor vacío).
+        const strip = page.locator('app-reaction-director');
+        await expect(strip.locator('.reaction-strip'), 'la franja de la reacción aparece').toBeVisible({ timeout: scaled(5_000) });
+        await expect(strip).toContainText('Gracias por escucharme.');
+        await expectNoSeriousAxeViolations(page, `${viewport.name}: la franja de la reacción`, 'app-reaction-director');
+        expect(await strip.locator('.reaction-strip').count(), 'la franja seguía a la vista al terminar la auditoría').toBe(1);
         await expect.poll(reactionsSeen, { message: 'el gesto de Laura puso data-reaction en el host', timeout: scaled(5_000) })
           .toContain('se-acerca');
-        const strip = page.locator('app-reaction-director');
-        await expect(strip).toContainText('Gracias por escucharme.', { timeout: scaled(5_000) });
-        // La franja de la reacción a la vista, sin infracciones serias (se audita solo su subárbol: dura ~3 s).
-        if (await strip.locator('.reaction-strip').isVisible().catch(() => false)) {
-          await expectNoSeriousAxeViolations(page, `${viewport.name}: la franja de la reacción`, 'app-reaction-director');
-        }
         await expect(host(page)).not.toHaveAttribute('data-reaction', /.+/, { timeout: scaled(10_000) });
 
         // La nota de supervisión llega tras la reacción; la decisión fue la última y el informe no deja nada sin ver.
@@ -167,21 +171,23 @@ for (const viewport of [KEYBOARD, TOUCH]) {
         await expect(outcome.locator('.oc-decisions .oc-decision')).toHaveCount(1, { timeout: scaled(30_000) });
         await expect(outcome.locator('.oc-missed'), 'explorar antes de decidir no deja respuestas sin ver').toHaveCount(0);
       } finally {
-        await retireCase(request, fixture.caseVersionId, records);
+        if (fixture) await retireCase(request, fixture.caseVersionId, records);
       }
     });
 
     test(`@explorar no explorar deja una respuesta sin ver y el informe dice qué faltó (${viewport.name})`, async ({ page, request }) => {
       test.setTimeout(scaled(240_000));
-      const fixture = await createExplorationCase(request);
-      const records: AssignmentRecord[] = [await assignCase(request, fixture.caseVersionId)];
+      // El caso se crea dentro del try: si la asignación falla, el caso publicado igual se retira.
+      let fixture: CaseFixture | undefined;
+      const records: AssignmentRecord[] = [];
       try {
+        fixture = await createExplorationCase(request);
+        records.push(await assignCase(request, fixture.caseVersionId));
         const input = createWorldInputDriver(page, viewport.inputMode);
         await entrarAlCaso(page, fixture.title);
 
         await irA(page, input, /archivo de pendientes/i, 'archivo');
-        const dialogue = await advanceDialogueToChoices(page, /archivo/i);
-        await expect(dialogue.getByRole('button', { name: /escuchar a laura/i })).toHaveCount(0);
+        await advanceDialogueToChoices(page, /archivo/i);
         await chooseDecision(page, /archivo/i, /dejar la conversación para después/i);
         await closeDialogue(page, /consecuencia/i);
 
@@ -192,7 +198,7 @@ for (const viewport of [KEYBOARD, TOUCH]) {
         await expect(missed).toContainText('Respuestas que no llegaste a ver');
         await expect(missed).toContainText('Te faltó: revisar Historia clínica');
       } finally {
-        await retireCase(request, fixture.caseVersionId, records);
+        if (fixture) await retireCase(request, fixture.caseVersionId, records);
       }
     });
 
@@ -200,9 +206,12 @@ for (const viewport of [KEYBOARD, TOUCH]) {
     // última (hay una escena de seguimiento): en la última, «Salida segura» corta la reacción y abre el resultado, no la pausa.
     test(`@explorar «Salida segura» y Esc pausan durante la reacción (${viewport.name})`, async ({ page, request }) => {
       test.setTimeout(scaled(240_000));
-      const fixture: CaseFixture = await createExplorationCase(request, { followUp: true });
-      const records: AssignmentRecord[] = [await assignCase(request, fixture.caseVersionId)];
+      // El caso se crea dentro del try: si la asignación falla, el caso publicado igual se retira.
+      let fixture: CaseFixture | undefined;
+      const records: AssignmentRecord[] = [];
       try {
+        fixture = await createExplorationCase(request, { followUp: true });
+        records.push(await assignCase(request, fixture.caseVersionId));
         const input = createWorldInputDriver(page, viewport.inputMode);
         await entrarAlCaso(page, fixture.title);
         await revisarLaCarpeta(page, input);
@@ -210,19 +219,24 @@ for (const viewport of [KEYBOARD, TOUCH]) {
 
         const reactionsSeen = await watchReaction(page);
         const option = page.getByRole('dialog', { name: /laura/i }).getByRole('button', { name: /escuchar a laura/i });
-        await option.click();
-        // La espera fiable: el atributo del gesto y, sin soltar la mano, la salida (el gesto dura unos 400 ms; la franja, ~3 s).
-        await expect(host(page)).toHaveAttribute('data-reaction', 'se-acerca', { timeout: scaled(10_000) });
         const exit = page.getByRole('button', { name: /salida segura/i });
-        await expect(exit, 'un único «Salida segura» durante la reacción').toHaveCount(1);
-        await expect(exit).toBeVisible();
-        await expect(exit).toBeEnabled();
         const paused = page.waitForResponse(response =>
           response.request().method() === 'POST' && /\/api\/simulation\/attempts\/[^/]+\/safe-exit$/.test(new URL(response.url()).pathname),
         { timeout: scaled(30_000) });
+        await option.click();
+        // La espera fiable: el atributo del gesto (dura unos 400 ms; la franja, ~3 s). «Salida segura» se comprueba por su
+        // rol mientras la reacción sigue en curso, y justo antes de pulsar se confirma que la franja sigue a la vista: la
+        // pulsación no puede caer cuando la secuencia ya terminó sola.
+        await expect(host(page)).toHaveAttribute('data-reaction', 'se-acerca', { timeout: scaled(10_000) });
+        await expect(exit, 'un único «Salida segura» durante la reacción').toHaveCount(1);
+        await expect(exit).toBeVisible();
+        await expect(exit).toBeEnabled();
+        expect(await page.locator('app-reaction-director .reaction-strip').count(), 'al pulsar, la reacción sigue en curso').toBe(1);
         if (viewport.inputMode === 'keyboard') await page.keyboard.press('Escape');
         else await exit.tap({ timeout: scaled(3_000) });
 
+        // La pausa corta la reacción en el acto: la franja se va mucho antes de su final natural (~3 s).
+        await expect(page.locator('app-reaction-director .reaction-strip'), 'la pausa corta la franja en el acto').toHaveCount(0, { timeout: scaled(1_000) });
         expect((await paused).ok(), 'el servidor acepta la pausa en plena reacción').toBe(true);
         const pause = page.getByRole('alertdialog', { name: /pausa/i });
         await expect(pause).toBeVisible({ timeout: scaled(30_000) });
@@ -234,7 +248,7 @@ for (const viewport of [KEYBOARD, TOUCH]) {
         await page.getByRole('button', { name: /reanudar este intento/i }).click();
         await expect(pause).toBeHidden({ timeout: scaled(30_000) });
       } finally {
-        await retireCase(request, fixture.caseVersionId, records);
+        if (fixture) await retireCase(request, fixture.caseVersionId, records);
       }
     });
   });
