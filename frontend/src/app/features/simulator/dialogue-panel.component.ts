@@ -7,6 +7,7 @@ import { DialogueChoiceState, DialogueState, MapObjectState } from '../../core/m
 import { KitService } from '../character/kit/kit.service';
 import { AudioDirectorService } from './audio-director.service';
 import { digitIndex } from './dialogue-keys.util';
+import { scrollShiftToUncoverText } from './dialogue-scroll.util';
 import {
   activeDialogueLine,
   dialogueChoicesVisible,
@@ -814,6 +815,20 @@ export class DialoguePanelComponent implements AfterViewChecked, OnDestroy {
     const headHeight = strip.querySelector<HTMLElement>('.panel-head')?.offsetHeight ?? 0;
     const fits = choices.offsetHeight <= strip.clientHeight - headHeight;
     choices.scrollIntoView({ block: fits ? 'nearest' : 'start' });
+    this.uncoverText(strip);
+  }
+
+  /**
+   * El desplazamiento que revela las opciones puede dejar la línea del personaje a medias bajo la cabecera fija
+   * («Decisión» + nota de seguimiento): se sube lo justo para que se lea entera; las opciones siguen a un gesto.
+   */
+  private uncoverText(strip: HTMLElement): void {
+    const head = strip.querySelector<HTMLElement>('.panel-head');
+    if (!head) return;
+    const blocks = Array.from(strip.querySelectorAll<HTMLElement>('.speaker-name, .dialogue-text, .stale-note, .choices-notice'))
+      .map(el => el.getBoundingClientRect());
+    const shift = scrollShiftToUncoverText(head.getBoundingClientRect().bottom, blocks);
+    if (shift !== 0) strip.scrollTop += shift;
   }
 
   ngOnDestroy() {

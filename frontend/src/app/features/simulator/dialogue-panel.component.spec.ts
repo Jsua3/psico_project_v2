@@ -1093,6 +1093,19 @@ describe('DialoguePanelComponent - scroll, hoja y retrato (T4.4)', () => {
     expect(scrollIntoView).toHaveBeenCalledWith({ block: 'start' });
   });
 
+  it('tras revelar las opciones, la línea del personaje no queda cortada por la cabecera fija', () => {
+    render(dialogue());
+    component.skipTypewriter();
+    fixture.detectChanges();
+    (component as unknown as { settled: boolean }).settled = false;
+    const rect = (top: number, bottom: number) => ({ top, bottom, left: 0, right: 0, width: 0, height: bottom - top, x: 0, y: top, toJSON: () => ({}) });
+    vi.spyOn(host().querySelector('.panel-head') as HTMLElement, 'getBoundingClientRect').mockReturnValue(rect(0, 80));
+    vi.spyOn(host().querySelector('.dialogue-text') as HTMLElement, 'getBoundingClientRect').mockReturnValue(rect(56, 120));
+    strip().scrollTop = 200;
+    component.ngAfterViewChecked();
+    expect(strip().scrollTop).toBe(176);
+  });
+
   it('con movimiento reducido las opciones también se revelan una vez por línea nueva', () => {
     writeInputSignal(component.reduceMotion, true);
     render(dialogue('Primera'));
