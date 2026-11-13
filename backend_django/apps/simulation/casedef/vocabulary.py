@@ -109,6 +109,9 @@ REACTION_KEYS = ("linea", "emocion", "gesto", "personaje")
 REACTION_LINE_MAX = 400
 GOAL_MAX = 200
 REQUIRES_MAX_CHARS = 2000
+#: Las claves de un comentario de escena y cuántos admite una escena (documento 2.1).
+COMMENT_KEYS = ("personaje", "linea", "cuando", "emocion", "gesto")
+COMMENTS_MAX = 6
 
 
 def default_gesture(response_class: ResponseClass | str | None, activation_after: Activation | str | None) -> str:

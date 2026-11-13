@@ -19,6 +19,8 @@ EXPORTED = {
         "node_key", "title", "narrative", "support_resources_json", "required_tools_json",
         "sensitive_content", "safe_exit_required", "warning_message", "start_node", "terminal_node",
         "position_x", "position_y", "decision_prompt", "goal", "display_order", "intensity",
+        # Bloque A2: viaja como ``comentarios`` de la escena (x-siep 2.1).
+        "comments_json",
     },
     "DecisionOption": {
         "option_key", "source_node", "target_node", "text", "immediate_feedback",

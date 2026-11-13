@@ -438,9 +438,108 @@ for _prefix in ROUTE_FAMILIES:
     )
 
 
+def _seed_rehearsal_draft(world):
+    """Al borrador de la prueba le da una respuesta retenida y un comentario con condición: así el bloque trae todas sus partes."""
+    import json
+
+    from apps.simulation.models import DecisionOption, SimulationNode
+
+    start = SimulationNode.objects.get(case_version_id=world.draft_id, start_node=True)
+    other, _ = SimulationNode.objects.get_or_create(
+        case_version_id=world.draft_id, node_key="ensayo-destino", defaults={"title": "Destino", "narrative": "Destino."}
+    )
+    DecisionOption.objects.get_or_create(
+        case_version_id=world.draft_id, option_key="ensayo-retenida",
+        defaults=dict(
+            source_node=start, target_node=other, text="Una respuesta retenida", response_class="RECOMMENDED",
+            requires_json=json.dumps({"talked": "alguien"}),
+        ),
+    )
+    start.comments_json = json.dumps([{"personaje": "abuela", "linea": "Hola.", "cuando": {"inspected": "foto"}}])
+    start.save()
+
+
+def _rehearsal_errors():
+    """Cada error que documentan las rutas del ensayo, en las dos familias de prefijos."""
+    from apps.simulation.models import SimulationNode
+
+    rows = []
+    for prefix in ROUTE_FAMILIES:
+        start = f"{prefix}/{{case_version_id}}/rehearsal"
+        detail = f"{start}/{{attempt_id}}"
+
+        def base(w, prefix=prefix):
+            return f"{prefix}/{w.draft_id}/rehearsal"
+
+        def opened(w, prefix=prefix):
+            return cl(w.admin).post(base(w, prefix), {}, format="json").json()["data"]["attemptId"]
+
+        def closed(w, prefix=prefix):
+            first = opened(w, prefix)
+            opened(w, prefix)  # abrir otro cierra el primero
+            return first
+
+        def no_start(w, prefix=prefix):
+            SimulationNode.objects.filter(case_version_id=w.draft_id).update(start_node=False)
+            return cl(w.admin).post(base(w, prefix), {}, format="json")
+
+        gone = "6f1d9b7e-5c2a-4c1e-9d7b-0a3c2e1f4a55"
+        rows += [
+            ("ensayo sin sesión", start, "POST", lambda w, b=base: APIClient().post(b(w), {}, format="json"), 401, "UNAUTHENTICATED"),
+            ("ensayo como estudiante", start, "POST", lambda w, b=base: cl(w.student).post(b(w), {}, format="json"), 403, "FORBIDDEN"),
+            ("ensayo desde una escena ajena", start, "POST",
+             lambda w, b=base: cl(w.admin).post(b(w), {"desde": 999999}, format="json"), 400, "VALIDATION_ERROR"),
+            ("ensayo de un caso sin escena de inicio", start, "POST", no_start, 404, "NOT_FOUND"),
+            ("recargar el ensayo sin sesión", detail, "GET", lambda w, b=base: APIClient().get(f"{b(w)}/{gone}"), 401, "UNAUTHENTICATED"),
+            ("recargar el ensayo como estudiante", detail, "GET", lambda w, b=base: cl(w.student).get(f"{b(w)}/{gone}"), 403, "FORBIDDEN"),
+            ("recargar un ensayo que no existe", detail, "GET", lambda w, b=base: cl(w.admin).get(f"{b(w)}/{gone}"), 404, "REHEARSAL_GONE"),
+            ("recargar un ensayo cerrado", detail, "GET", lambda w, b=base, c=closed: cl(w.admin).get(f"{b(w)}/{c(w)}"), 409, "REHEARSAL_CLOSED"),
+            ("ajustar el ensayo sin sesión", detail, "PATCH",
+             lambda w, b=base: APIClient().patch(f"{b(w)}/{gone}", {}, format="json"), 401, "UNAUTHENTICATED"),
+            ("ajustar el ensayo como estudiante", detail, "PATCH",
+             lambda w, b=base: cl(w.student).patch(f"{b(w)}/{gone}", {}, format="json"), 403, "FORBIDDEN"),
+            ("ajustar un ensayo que no existe", detail, "PATCH",
+             lambda w, b=base: cl(w.admin).patch(f"{b(w)}/{gone}", {}, format="json"), 404, "REHEARSAL_GONE"),
+            ("ajustar un ensayo cerrado", detail, "PATCH",
+             lambda w, b=base, c=closed: cl(w.admin).patch(f"{b(w)}/{c(w)}", {}, format="json"), 409, "REHEARSAL_CLOSED"),
+            ("ajustar el ensayo con una escena ajena", detail, "PATCH",
+             lambda w, b=base, o=opened: cl(w.admin).patch(f"{b(w)}/{o(w)}", {"irA": 999999}, format="json"), 400, "VALIDATION_ERROR"),
+        ]
+    return rows
+
+
+def _rehearsal_call(world, prefix, method):
+    """Las rutas del ensayo del borrador (A2): ``POST`` abre, ``GET`` recarga el bloque y ``PATCH`` ajusta."""
+    client = cl(world.admin)
+    base = f"{prefix}/{world.draft_id}/rehearsal"
+    _seed_rehearsal_draft(world)
+    opened = client.post(base, {}, format="json")
+    if method == "POST":
+        return opened
+    url = f"{base}/{opened.json()['data']['attemptId']}"
+    if method == "GET":
+        return client.get(url)
+    return client.patch(url, {"explorado": {"talked": [], "inspected": []}, "hitos": []}, format="json")
+
+
+for _prefix in ROUTE_FAMILIES:
+    calls(f"{_prefix}/{{case_version_id}}/rehearsal", "POST")(
+        lambda world, _prefix=_prefix: _rehearsal_call(world, _prefix, "POST")
+    )
+    calls(f"{_prefix}/{{case_version_id}}/rehearsal/{{attempt_id}}", "GET")(
+        lambda world, _prefix=_prefix: _rehearsal_call(world, _prefix, "GET")
+    )
+    calls(f"{_prefix}/{{case_version_id}}/rehearsal/{{attempt_id}}", "PATCH")(
+        lambda world, _prefix=_prefix: _rehearsal_call(world, _prefix, "PATCH")
+    )
+
+
 #: Claves que la respuesta real trae y el documento NO publica a propósito (una credencial no se declara en el esquema:
 #: ``test_openapi_schema_never_exposes_prohibited_fields``). La prueba las exige presentes y las quita antes de comparar.
-UNDECLARED_ON_PURPOSE: dict[tuple[str, str], set[str]] = {(ATTEMPT, "GET"): {"attemptToken"}}
+UNDECLARED_ON_PURPOSE: dict[tuple[str, str], set[str]] = {
+    (ATTEMPT, "GET"): {"attemptToken"},
+    **{(f"{_family}/{{case_version_id}}/rehearsal", "POST"): {"attemptToken"} for _family in ROUTE_FAMILIES},
+}
 
 
 @pytest.mark.parametrize(("path", "method"), sorted(CALLS))
@@ -1027,6 +1126,7 @@ ERRORS = [
     ("reporte de un estudiante inexistente", STUDENT_REPORT, "GET",
      lambda w: cl(w.profesor).get("/api/reportes/estudiante/999999"), 404, "NOT_FOUND"),
     *_invitation_errors(),
+    *_rehearsal_errors(),
     ("auditoría sin sesión", "/api/admin/audit", "GET", lambda w: APIClient().get("/api/admin/audit"), 401, "UNAUTHENTICATED"),
     ("auditoría sin permiso", "/api/admin/audit", "GET", lambda w: cl(w.student).get("/api/admin/audit"), 403, "FORBIDDEN"),
     ("auditoría con parámetro inválido", "/api/admin/audit", "GET",

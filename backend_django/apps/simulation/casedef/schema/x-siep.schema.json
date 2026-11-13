@@ -197,6 +197,22 @@
         "preguntaDerivada": { "const": true },
         "pistas": { "type": "array", "maxItems": 50, "items": { "type": "string", "maxLength": 280 } },
         "objetivo": { "type": "string", "maxLength": 200 },
+        "comentarios": {
+          "type": "array",
+          "maxItems": 6,
+          "items": {
+            "type": "object",
+            "required": ["personaje", "linea"],
+            "additionalProperties": false,
+            "properties": {
+              "personaje": { "$ref": "#/$defs/clave" },
+              "linea": { "type": "string", "minLength": 1, "maxLength": 400 },
+              "cuando": { "$ref": "#/$defs/objeto_libre" },
+              "emocion": { "type": "string", "maxLength": 40 },
+              "gesto": { "type": "string", "maxLength": 40 }
+            }
+          }
+        },
         "inicial": { "type": "boolean" },
         "terminal": { "type": "boolean" },
         "salidaSeguraObligatoria": { "type": "boolean" },

@@ -34,6 +34,10 @@ from apps.simulation.services import (
 
 ATTEMPT_TOKEN_HEADER = "X-SIEP-Attempt-Token"
 
+#: La puerta de rol de las rutas que juegan un intento por su token: el estudiante (``play``) y la docente que ensaya su
+#: borrador (``rehearse``, bloque A2). A quién pertenece el intento lo decide ``game_service._require_attempt``.
+_CAN_PLAY_OR_REHEARSE = policy_permission("attempt", "play", also=("attempt", "rehearse"))
+
 
 def _attempt_token(request):
     return request.headers.get(ATTEMPT_TOKEN_HEADER)
@@ -100,7 +104,7 @@ class ActiveAttemptView(APIView):
 
 
 class AttemptView(APIView):
-    permission_classes = [policy_permission("attempt", "play")]
+    permission_classes = [_CAN_PLAY_OR_REHEARSE]
 
     @extend_schema(
         parameters=[OpenApiParameter(ATTEMPT_TOKEN_HEADER, str, OpenApiParameter.HEADER, required=True)],
@@ -115,7 +119,7 @@ class AttemptView(APIView):
 class HintStateView(APIView):
     """C9 · Las pistas de la escena actual: las que el intento ya pidió y cuántas quedan."""
 
-    permission_classes = [policy_permission("attempt", "play")]
+    permission_classes = [_CAN_PLAY_OR_REHEARSE]
 
     @extend_schema(
         parameters=[OpenApiParameter(ATTEMPT_TOKEN_HEADER, str, OpenApiParameter.HEADER, required=True)],
@@ -130,7 +134,7 @@ class HintStateView(APIView):
 class NextHintView(APIView):
     """C9 · Pedir la siguiente pista de la escena (sin costo, una sola vez por ``requestId``)."""
 
-    permission_classes = [policy_permission("attempt", "play")]
+    permission_classes = [_CAN_PLAY_OR_REHEARSE]
 
     @extend_schema(responses={200: envelope_of(HintStateSerializer), **error_responses(400, 401, 403, 404, 409)})
     def post(self, request, attempt_id):
@@ -160,7 +164,7 @@ class AttemptSurveyView(APIView):
 
 
 class CompletionReportView(APIView):
-    permission_classes = [policy_permission("attempt", "play")]
+    permission_classes = [_CAN_PLAY_OR_REHEARSE]
 
     def get(self, request, attempt_id):
         return _private_ok(game_service.get_completion_report(
@@ -171,7 +175,7 @@ class CompletionReportView(APIView):
 class AttemptReportView(APIView):
     """El reporte congelado de un intento completado (C2); 409 ``ATTEMPT_NOT_COMPLETED`` si no."""
 
-    permission_classes = [policy_permission("attempt", "play")]
+    permission_classes = [_CAN_PLAY_OR_REHEARSE]
 
     def get(self, request, attempt_id):
         return _private_ok(game_service.get_attempt_report(
@@ -203,7 +207,7 @@ class StudentReportView(APIView):
 
 
 class ProgressMapView(APIView):
-    permission_classes = [policy_permission("attempt", "play")]
+    permission_classes = [_CAN_PLAY_OR_REHEARSE]
 
     def get(self, request, attempt_id):
         return _private_ok(game_service.get_progress_map(
@@ -212,7 +216,7 @@ class ProgressMapView(APIView):
 
 
 class DecisionsView(APIView):
-    permission_classes = [policy_permission("attempt", "play")]
+    permission_classes = [_CAN_PLAY_OR_REHEARSE]
 
     def post(self, request, attempt_id):
         ser = SelectDecisionRequest(data=request.data)
@@ -228,7 +232,7 @@ class DecisionsView(APIView):
 
 
 class ReflectionsView(APIView):
-    permission_classes = [policy_permission("attempt", "play")]
+    permission_classes = [_CAN_PLAY_OR_REHEARSE]
 
     def post(self, request, attempt_id):
         ser = ReflectionRequest(data=request.data)
@@ -242,7 +246,7 @@ class ReflectionsView(APIView):
 
 
 class SafeExitView(APIView):
-    permission_classes = [policy_permission("attempt", "play")]
+    permission_classes = [_CAN_PLAY_OR_REHEARSE]
 
     def post(self, request, attempt_id):
         ser = SafeExitRequest(data=request.data)
@@ -255,7 +259,7 @@ class SafeExitView(APIView):
 
 
 class ResumeAttemptView(APIView):
-    permission_classes = [policy_permission("attempt", "play")]
+    permission_classes = [_CAN_PLAY_OR_REHEARSE]
 
     def post(self, request, attempt_id):
         ser = ResumeAttemptRequest(data=request.data)
@@ -268,7 +272,7 @@ class ResumeAttemptView(APIView):
 
 # ─── Explorable world (SimulationWorldService) ───────────────────────────────
 class WorldView(APIView):
-    permission_classes = [policy_permission("attempt", "play")]
+    permission_classes = [_CAN_PLAY_OR_REHEARSE]
 
     def get(self, request, attempt_id):
         return _private_ok(world_service.get_world(
@@ -277,7 +281,7 @@ class WorldView(APIView):
 
 
 class WorldStateView(APIView):
-    permission_classes = [policy_permission("attempt", "play")]
+    permission_classes = [_CAN_PLAY_OR_REHEARSE]
 
     @extend_schema(responses={200: envelope_of(WorldPatchAckSerializer), **error_responses(400, 401, 403, 404)})
     def patch(self, request, attempt_id):
@@ -295,7 +299,7 @@ class WorldStateView(APIView):
 
 
 class InteractionView(APIView):
-    permission_classes = [policy_permission("attempt", "play")]
+    permission_classes = [_CAN_PLAY_OR_REHEARSE]
 
     def post(self, request, attempt_id, interaction_key):
         result = world_service.open_interaction(
@@ -305,7 +309,7 @@ class InteractionView(APIView):
 
 
 class ToolUseView(APIView):
-    permission_classes = [policy_permission("attempt", "play")]
+    permission_classes = [_CAN_PLAY_OR_REHEARSE]
 
     def post(self, request, attempt_id):
         result = world_service.use_tool(
@@ -320,7 +324,7 @@ class ToolUseView(APIView):
 
 
 class NpcInteractionView(APIView):
-    permission_classes = [policy_permission("attempt", "play")]
+    permission_classes = [_CAN_PLAY_OR_REHEARSE]
 
     def post(self, request, attempt_id, npc_key):
         result = world_service.record_npc_interaction(
@@ -330,7 +334,7 @@ class NpcInteractionView(APIView):
 
 
 class EnterRoomView(APIView):
-    permission_classes = [policy_permission("attempt", "play")]
+    permission_classes = [_CAN_PLAY_OR_REHEARSE]
 
     def post(self, request, attempt_id):
         result = world_service.enter_room(

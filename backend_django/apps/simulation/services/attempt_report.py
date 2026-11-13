@@ -188,7 +188,7 @@ def _read_not_offered(detail):
     return found
 
 
-def _missed_labels(version_id, pending):
+def missed_labels(version_id, pending):
     """Las etiquetas de lo que faltó, ``{(nodo, tipo, clave): etiqueta}``: una consulta por tipo de entidad, no por opción.
 
     ``pending`` es ``{nodo: [(id de opción, [(tipo, clave), …]), …]}``. Un objeto o una persona toma la etiqueta del objeto
@@ -276,7 +276,7 @@ def build_decision_review(events):
         if claimed.get(ev.id):
             by_node.setdefault(ev.node_id, []).extend(claimed[ev.id])
             version_id = version_id or ev.node.case_version_id
-    labels = _missed_labels(version_id, by_node)
+    labels = missed_labels(version_id, by_node)
     review = []
     first_answers = {}  # nodo → primera respuesta que el juego no aplicó (reintento)
     for ev in events:

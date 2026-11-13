@@ -454,3 +454,86 @@ class AttemptStateSerializer(serializers.Serializer):
     supportResources = serializers.ListField(
         child=serializers.CharField(), help_text="Recursos de apoyo: solo si el intento está en pausa o salió de forma segura."
     )
+
+
+class RehearsalMissingSerializer(serializers.Serializer):
+    """Lo que falta explorar, en la forma de ``decisionReview[].missed``: el tipo de hecho, su clave y su etiqueta."""
+
+    kind = serializers.ChoiceField(choices=["talked", "inspected", "has", "used"])
+    key = serializers.CharField()
+    label = serializers.CharField()
+
+
+class RehearsalOptionSerializer(serializers.Serializer):
+    id = serializers.IntegerField()
+    text = serializers.CharField()
+    offered = serializers.BooleanField()
+    missing = RehearsalMissingSerializer(many=True)
+    retainedBy = serializers.CharField(
+        allow_null=True,
+        help_text=(
+            "Por qué no se ofrece: `facts` (hechos sin explorar), `condition` (otra condición sin cumplir) o `broken` "
+            "(requisito roto); nulo si se ofrece."
+        ),
+    )
+
+
+class RehearsalCommentSerializer(serializers.Serializer):
+    index = serializers.IntegerField()
+    personaje = serializers.CharField()
+    line = serializers.CharField()
+    due = serializers.BooleanField(help_text="Si el comentario se diría ahora.")
+    retainedBy = serializers.CharField(
+        allow_null=True,
+        help_text=(
+            "Por qué no se dice: `absent` (su personaje no es una PERSON visible de la sala), `broken` (su `cuando` está mal "
+            "formado) o `condition` (su `cuando` sigue sin cumplirse; `missing` dice qué falta); nulo si se dice ahora."
+        ),
+    )
+    missing = RehearsalMissingSerializer(many=True)
+
+
+class RehearsalExploredSerializer(serializers.Serializer):
+    talked = serializers.ListField(child=serializers.CharField())
+    inspected = serializers.ListField(child=serializers.CharField())
+    has = serializers.ListField(child=serializers.CharField())
+    used = serializers.ListField(child=serializers.CharField())
+
+
+class RehearsalPathStepSerializer(serializers.Serializer):
+    nodeId = serializers.IntegerField()
+    title = serializers.CharField()
+
+
+class RehearsalSceneSerializer(serializers.Serializer):
+    id = serializers.IntegerField()
+    key = serializers.CharField()
+    title = serializers.CharField()
+    start = serializers.BooleanField()
+    terminal = serializers.BooleanField()
+
+
+class RehearsalBlockSerializer(serializers.Serializer):
+    """El bloque del panel de la autora: solo viaja por las rutas del ensayo, nunca por las del juego."""
+
+    sceneId = serializers.IntegerField()
+    options = RehearsalOptionSerializer(many=True)
+    comments = RehearsalCommentSerializer(many=True)
+    warnings = serializers.ListField(child=serializers.CharField())
+    persona = PersonaStateSerializer()
+    milestones = serializers.ListField(child=serializers.CharField())
+    path = RehearsalPathStepSerializer(many=True)
+    explored = RehearsalExploredSerializer(help_text="Lo que cuenta hoy para la escena actual.")
+    explorable = RehearsalMissingSerializer(many=True, help_text="Lo que `PATCH … explorado` admite en la escena actual.")
+    scenes = RehearsalSceneSerializer(many=True)
+
+
+class RehearsalAdjustedSerializer(serializers.Serializer):
+    rehearsal = RehearsalBlockSerializer()
+
+
+class RehearsalStartedSerializer(AttemptStateSerializer):
+    """El estado del juego del ensayo (con su `attemptToken`, que este contrato no declara a propósito: una credencial no
+    se publica en el esquema, ``test_openapi_schema_never_exposes_prohibited_fields``) más el bloque del panel."""
+
+    rehearsal = RehearsalBlockSerializer()

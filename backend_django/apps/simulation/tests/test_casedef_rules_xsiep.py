@@ -150,3 +150,103 @@ def test_a_requirement_over_the_length_cap_is_a_condition_issue():
     assert len(issues) == 1
     assert "demasiado largo" in issues[0].message
     assert issues[0].path.endswith(".requiere")
+
+
+# --- OCL-10, 11 y 12 sobre los comentarios de cada escena -------------------------------------------------------------
+from apps.simulation.tests.definition_samples import sample_definition_with_comments
+
+
+def _doc_with_comments():
+    return to_document(sample_definition_with_comments())
+
+
+def _commented(document):
+    return next(s for s in document["x-siep"]["escenas"] if s.get("comentarios"))
+
+
+def _hallazgos(document, *rules):
+    return [(r.rule, f) for r in validate.run_rules(document).results if r.rule in rules for f in r.findings]
+
+
+def _route_of(finding):
+    return finding.path
+
+
+def test_comentarios_validos_no_dan_hallazgos():
+    assert _hallazgos(_doc_with_comments(), "OCL-10", "OCL-11", "OCL-12") == []
+
+
+def test_ocl10_comentario_que_pide_hablar_con_alguien_que_no_esta():
+    document = _doc_with_comments()
+    _commented(document)["comentarios"][1]["cuando"] = {"talked": "nadie"}
+    found = _hallazgos(document, "OCL-10")
+    assert [rule for rule, _ in found] == ["OCL-10"]
+    assert _route_of(found[0][1]).endswith(".comentarios[1].cuando")
+    assert "comentario 2" in found[0][1].message and "'nadie'" in found[0][1].message
+    assert _states(document)["OCL-10"] == "INCUMPLE"
+
+
+def test_ocl10_comentario_con_hito_no_declarado():
+    document = _doc_with_comments()
+    _commented(document)["comentarios"][1]["cuando"] = {"milestone": "hito_no_declarado"}
+    found = _hallazgos(document, "OCL-10")
+    assert len(found) == 1
+    assert _route_of(found[0][1]).endswith(".comentarios[1].cuando")
+    assert "hito_no_declarado" in found[0][1].message
+
+
+def test_ocl10_comentario_que_pide_inspeccionar_un_objeto_que_no_esta():
+    document = _doc_with_comments()
+    _commented(document)["comentarios"][1]["cuando"] = {"inspected": "no-existe"}
+    assert len(_hallazgos(document, "OCL-10")) == 1
+
+
+@pytest.mark.parametrize("field, value", [("emocion", "furiosa"), ("gesto", "saluda")])
+def test_ocl11_emocion_de_comentario_fuera_del_vocabulario(field, value):
+    document = _doc_with_comments()
+    _commented(document)["comentarios"][0][field] = value
+    found = _hallazgos(document, "OCL-11")
+    assert len(found) == 1
+    assert _route_of(found[0][1]).endswith(f".comentarios[0].{field}")
+    assert "comentario 1" in found[0][1].message and repr(value) in found[0][1].message
+    assert _states(document)["OCL-11"] == "INCUMPLE"
+
+
+def test_ocl12_comentario_sin_personaje_dice_que_falta_y_no_imprime_none():
+    document = _doc_with_comments()
+    _commented(document)["comentarios"][0].pop("personaje", None)
+    found = _hallazgos(document, "OCL-12")
+    assert len(found) == 1
+    assert "falta el personaje" in found[0][1].message and "None" not in found[0][1].message
+
+
+def test_ocl12_quien_comenta_no_esta_en_la_sala_de_la_escena():
+    document = _doc_with_comments()
+    _commented(document)["comentarios"][0]["personaje"] = "nadie"
+    found = _hallazgos(document, "OCL-12")
+    assert len(found) == 1
+    assert _route_of(found[0][1]).endswith(".comentarios[0].personaje")
+    assert "'nadie'" in found[0][1].message
+    assert _states(document)["OCL-12"] == "INCUMPLE"
+
+
+def test_ocl12_un_comentario_no_se_dice_desde_el_mapa_de_otra_escena():
+    document = _doc_with_comments()
+    scenes = document["x-siep"]["escenas"]
+    own = _commented(document)
+    other = next(s for s in scenes if s is not own)
+    other["mapa"]["objetos"].append({"clave": "visitante", "tipo": "PERSON", "personaje": "visitante", "x": 1, "y": 1})
+    own["comentarios"][0]["personaje"] = "visitante"
+    assert len(_hallazgos(document, "OCL-12")) == 1
+
+
+def test_no_aplica_solo_si_no_hay_requisitos_ni_comentarios():
+    results = {r.rule: r for r in validate.run_rules(to_document(sample_definition())).results}
+    # BORRADOR: texto nuevo del servidor, pendiente de la aprobación de Psicología
+    assert results["OCL-10"].reason == "ninguna opción declara requisito ni hay comentarios con condición"
+    assert results["OCL-11"].reason == results["OCL-12"].reason == "ninguna opción ni comentario declara reacción"
+    # un caso con comentarios (y sin opciones con requisito ni reacción) ya sí aplica
+    document = to_document(sample_definition())
+    document["x-siep"]["escenas"][0]["comentarios"] = [{"personaje": "laura", "linea": "Hola.", "cuando": {"inspected": "carpeta"}}]
+    states = _states(document)
+    assert [states[f"OCL-{n}"] for n in ("10", "11", "12")] != ["NO_APLICA"] * 3
