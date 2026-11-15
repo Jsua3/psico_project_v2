@@ -189,16 +189,7 @@ def componer_sala(sala, momento=None, abiertas=(), con_luz=True, extras=()):
     cosas.sort(key=lambda q: (q[0], q[1]))
     for _, _, im, x, y in [q for q in cosas if q[0] == 0]:
         pegar(escena, im, x, y)
-    sombras = Image.new('RGBA', escena.size, (0, 0, 0, 0))
-    ds = ImageDraw.Draw(sombras)
-    for e in extras:
-        if e.get('pie'):
-            ds.ellipse([e['pie'][0] - 11, e['pie'][1] - 8, e['pie'][0] + 11, e['pie'][1] - 1], fill=(8, 6, 18, 86))
-        elif e.get('sombra', True):
-            w, h = e['im'].size                      # sombra de contacto: una elipse baja al pie del mueble
-            ry = max(3, min(9, w // 7))
-            ds.ellipse([e['x'] - 2, e['y'] + h - ry - 3, e['x'] + w + 4, e['y'] + h + ry - 2], fill=(8, 6, 18, 84))
-    escena = Image.alpha_composite(escena, sombras)
+    # La sombra de contacto y la proyectada de cada mueble van en la luz (por escalones y con tramado), no aquí.
     for _, _, im, x, y in [q for q in cosas if q[0] > 0]:
         pegar(escena, im, x, y)
     rgb = escena.convert('RGB')

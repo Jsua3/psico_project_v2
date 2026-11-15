@@ -38,7 +38,7 @@ MOMENTOS = ('dia', 'noche')
 
 ANCHA = {
     'encuadre': 'dos-paredes-izquierda',
-    'estructura': {'ancho': 1920, 'piezas': [
+    'estructura': {'ancho': 1920, 'acabados': {'piso': 'damero'}, 'piezas': [
         {'id': 'ventanal', 'tipo': 'ventana', 'modelo': 'ventanal', 'muro': 'fondo', 'pos': 400},
         {'id': 'persiana', 'tipo': 'ventana', 'modelo': 'persiana', 'muro': 'fondo', 'pos': 1200},
         {'id': 'lateral', 'tipo': 'ventana', 'modelo': 'corrediza', 'muro': 'izquierda', 'pos': 150},
@@ -65,6 +65,8 @@ def _solo_luz(sala):
                                                     and pm.PIEZAS[(p['tipo'], p['modelo'])].get('luz')]}
     if est.get('exterior'):
         estructura['exterior'] = True
+    if est.get('acabados', {}).get('piso'):
+        estructura['acabados'] = {'piso': est['acabados']['piso']}
     return {'encuadre': sala['encuadre'], 'estructura': estructura,
             'puertas': [dict(id=p['id'], muro=p['muro'], pos=p['pos'], modelo=p['modelo']) for p in sala.get('puertas', [])]}
 
@@ -107,6 +109,7 @@ def catalogo(lista):
 def constantes():
     return dict(unidad=pl.U, minimo=pl.MINIMO, paso=pl.PASO, niveles=pl.NIVELES, uno=pl.UNO,
                 penumbra=dict(dia=pl.PENUMBRA, noche=pl.PENUMBRA_NOCHE, exteriorDia=pl.EXTERIOR, exteriorNoche=pl.EXTERIOR_NOCHE),
+                pulidos=list(pl.PULIDOS), reflejo=pl.REFLEJO, contacto=pl.CONTACTO, tablaAmbienteNoche=pl.TABLA_AMBIENTE_NOCHE.tolist(),
                 enSombra=pl.EN_SOMBRA, hazFondo=list(pl.HAZ_FONDO), hazLado=list(pl.HAZ_LADO), sombraMaxima=pl.SOMBRA_MAXIMA,
                 bayer=pl.BAYER.tolist(), tablaAmbiente=pl.TABLA_AMBIENTE.tolist(), tablaCalida=pl.TABLA_CALIDA.tolist(),
                 tablaFria=pl.TABLA_FRIA.tolist())

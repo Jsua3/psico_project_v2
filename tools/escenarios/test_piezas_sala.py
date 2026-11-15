@@ -48,7 +48,8 @@ def test_la_luz_es_entera_y_solo_usa_los_escalones(momento):
     ambiente, brillo = pl.calcular_luz(sala, momento)
     assert ambiente.size == brillo.size == (960, g.ALTO)
     tonos = {tuple(c) for c in np.unique(np.array(ambiente).reshape(-1, 3), axis=0)}
-    assert tonos <= {tuple(int(v) for v in fila) for fila in pl.TABLA_AMBIENTE}
+    tabla = pl.TABLA_AMBIENTE_NOCHE if momento == 'noche' else pl.TABLA_AMBIENTE
+    assert tonos <= {tuple(int(v) for v in fila) for fila in tabla}
 
 
 def test_sin_luces_la_sala_queda_en_penumbra_y_de_noche_mas_oscura():
@@ -374,14 +375,17 @@ def test_la_lampara_arroja_la_sombra_lejos_de_si_misma():
     libre = pl.niveles(_sala(piezas=[lampara]), 'noche')[0]
     tapada = pl.niveles(_sala(piezas=[lampara]), 'noche', cuerpos=[mesita])[0]
     ys, xs = np.nonzero(libre > tapada)
-    assert len(xs) > 100 and xs.min() >= mesita['x0'] and (tapada > libre).sum() == 0
+    assert len(xs) > 100 and xs.min() >= mesita['x0'] - 6 and (tapada > libre).sum() == 0
     assert xs.max() > mesita['x1'] + 20, 'la sombra sigue más allá del mueble, del lado opuesto a la lámpara'
 
 
 def test_el_tubo_de_techo_no_arroja_sombras():
+    """Bajo un tubo solo queda la sombra de contacto, pegada al mueble; nada proyectado."""
     sala = _sala(piezas=[TUBO])
-    for a, b in zip(pl.niveles(sala, 'noche'), pl.niveles(sala, 'noche', cuerpos=[SOFA])):
-        assert np.array_equal(a, b)
+    libre, con = pl.niveles(sala, 'noche'), pl.niveles(sala, 'noche', cuerpos=[SOFA])
+    ys, xs = np.nonzero(libre[0] != con[0])
+    assert SOFA['x0'] - 6 <= xs.min() and xs.max() <= SOFA['x1'] + 6 and SOFA['y0'] - 12 <= ys.min() and ys.max() <= SOFA['y1'] + 12
+    assert np.array_equal(libre[1], con[1]) and np.array_equal(libre[2], con[2])
 
 
 def test_al_aire_libre_el_sol_arroja_sombra():
@@ -397,3 +401,40 @@ def test_la_referencia_de_luz_esta_congelada():
     assert [c['id'] for c in datos['casos']] == ['casa-sala', 'hospital-pasillo', 'hospital-sala-escucha', 'hospital-entrada', 'casa-fachada', 'ancha-1920']
     assert len(imagenes) == 24
     assert lr.verificar() == []
+
+
+# ── forma del haz, reflejos del piso, sombra de contacto y noche ───────────────
+
+def test_la_noche_enfria_las_sombras_mas_que_el_dia():
+    dia, noche = pl.TABLA_AMBIENTE, pl.TABLA_AMBIENTE_NOCHE
+    assert tuple(noche[8]) == (255, 255, 255) and all(noche[n][0] < dia[n][0] and noche[n][2] >= dia[n][2] for n in range(8))
+
+
+def test_el_haz_lleva_la_forma_de_la_ventana():
+    def haz(modelo):
+        return pl.niveles(_sala(piezas=[dict(VENTANA, modelo=modelo, pos=384)]), 'dia')[1]
+    corrediza, persiana = haz('corrediza'), haz('persiana')
+    fila = corrediza[g.SEAM + 60]                               # un corte a lo ancho: luz, parteluz, luz
+    lleno = np.nonzero(fila == 3)[0]
+    assert len(lleno) > 40 and (np.diff(lleno) > 6).sum() == 1, 'un parteluz vertical parte el haz en dos'
+    columna = persiana[g.SEAM + 100:g.SEAM + 215, int(np.nonzero(persiana[g.SEAM + 150])[0].mean()) - 30]
+    assert (np.diff(columna.astype(int)) != 0).sum() >= 12, 'las lamas de la persiana rayan el haz'
+    assert pm.PIEZAS[('ventana', 'ventanal')]['luz']['parteluces'] == dict(verticales=[244, 500, 756], horizontales=[652])
+
+
+def test_un_piso_pulido_devuelve_la_luz_al_pie_del_muro():
+    def brillo(piso, momento, piezas):
+        sala = _sala(piezas=piezas)
+        sala['estructura']['acabados']['piso'] = piso
+        return pl.niveles(sala, momento)
+    zona = (slice(g.SEAM + 3, g.SEAM + 14), slice(96 + 384 - 20, 96 + 384 + 20))
+    assert brillo('vinilo', 'noche', [TUBO])[2][zona].sum() > brillo('madera', 'noche', [TUBO])[2][zona].sum()
+    lejos = (slice(g.SEAM + 3, g.SEAM + 14), slice(600, 700))
+    assert brillo('vinilo', 'dia', [dict(VENTANA, pos=560)])[1][lejos].sum() > brillo('madera', 'dia', [dict(VENTANA, pos=560)])[1][lejos].sum()
+
+
+def test_la_sombra_de_contacto_va_en_la_luz():
+    libre, con = pl.niveles(_sala(), 'dia')[0], pl.niveles(_sala(), 'dia', cuerpos=[SOFA])[0]
+    ys, xs = np.nonzero(libre > con)
+    assert len(xs) > 200 and SOFA['x0'] - 6 <= xs.min() and xs.max() <= SOFA['x1'] + 6
+    assert (libre - con).max() == pl.CONTACTO and (con > libre).sum() == 0

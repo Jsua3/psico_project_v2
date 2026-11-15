@@ -53,6 +53,9 @@
    "sala": {
     "encuadre": "tres-paredes",
     "estructura": {
+     "acabados": {
+      "piso": "madera"
+     },
      "ancho": 960,
      "piezas": [
       {
@@ -178,6 +181,9 @@
    "sala": {
     "encuadre": "tres-paredes",
     "estructura": {
+     "acabados": {
+      "piso": "vinilo"
+     },
      "ancho": 1680,
      "piezas": [
       {
@@ -331,6 +337,9 @@
    "sala": {
     "encuadre": "tres-paredes",
     "estructura": {
+     "acabados": {
+      "piso": "madera"
+     },
      "ancho": 960,
      "piezas": [
       {
@@ -444,6 +453,9 @@
    "sala": {
     "encuadre": "tres-paredes",
     "estructura": {
+     "acabados": {
+      "piso": "baldosa"
+     },
      "ancho": 1200,
      "piezas": [
       {
@@ -525,6 +537,9 @@
    "sala": {
     "encuadre": "una-pared",
     "estructura": {
+     "acabados": {
+      "piso": "adoquin"
+     },
      "ancho": 960,
      "exterior": true,
      "piezas": [
@@ -617,6 +632,9 @@
    "sala": {
     "encuadre": "dos-paredes-izquierda",
     "estructura": {
+     "acabados": {
+      "piso": "damero"
+     },
      "ancho": 1920,
      "piezas": [
       {
@@ -776,6 +794,12 @@
     "forma": "haz",
     "fuerza": 70,
     "momento": "dia",
+    "parteluces": {
+     "verticales": [
+      341,
+      683
+     ]
+    },
     "tono": "calido"
    }
   },
@@ -786,6 +810,14 @@
     "antepecho": 70,
     "forma": "haz",
     "momento": "dia",
+    "parteluces": {
+     "horizontales": [
+      512
+     ],
+     "verticales": [
+      512
+     ]
+    },
     "tono": "calido"
    }
   },
@@ -797,6 +829,16 @@
     "forma": "haz",
     "fuerza": 60,
     "momento": "dia",
+    "parteluces": {
+     "lamas": [
+      410,
+      1024,
+      8
+     ],
+     "verticales": [
+      512
+     ]
+    },
     "tono": "calido"
    }
   },
@@ -807,6 +849,16 @@
     "antepecho": 42,
     "forma": "haz",
     "momento": "dia",
+    "parteluces": {
+     "horizontales": [
+      652
+     ],
+     "verticales": [
+      244,
+      500,
+      756
+     ]
+    },
     "tono": "calido"
    }
   }
@@ -838,6 +890,7 @@
     5
    ]
   ],
+  "contacto": 2,
   "enSombra": 768,
   "hazFondo": [
    45,
@@ -856,6 +909,12 @@
    "exteriorNoche": 5100,
    "noche": 5800
   },
+  "pulidos": [
+   "vinilo",
+   "baldosa",
+   "damero"
+  ],
+  "reflejo": 600,
   "sombraMaxima": 72,
   "tablaAmbiente": [
    [
@@ -897,6 +956,53 @@
     234,
     235,
     240
+   ],
+   [
+    255,
+    255,
+    255
+   ]
+  ],
+  "tablaAmbienteNoche": [
+   [
+    90,
+    99,
+    130
+   ],
+   [
+    107,
+    116,
+    148
+   ],
+   [
+    126,
+    135,
+    166
+   ],
+   [
+    145,
+    153,
+    182
+   ],
+   [
+    165,
+    173,
+    198
+   ],
+   [
+    186,
+    192,
+    214
+   ],
+   [
+    208,
+    213,
+    228
+   ],
+   [
+    231,
+    234,
+    242
    ],
    [
     255,

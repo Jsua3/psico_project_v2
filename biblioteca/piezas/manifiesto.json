@@ -5370,6 +5370,12 @@
         "forma": "haz",
         "fuerza": 70,
         "momento": "dia",
+        "parteluces": {
+          "verticales": [
+            341,
+            683
+          ]
+        },
         "tono": "calido"
       },
       "muros": [
@@ -5454,6 +5460,14 @@
         "antepecho": 70,
         "forma": "haz",
         "momento": "dia",
+        "parteluces": {
+          "horizontales": [
+            512
+          ],
+          "verticales": [
+            512
+          ]
+        },
         "tono": "calido"
       },
       "muros": [
@@ -5539,6 +5553,16 @@
         "forma": "haz",
         "fuerza": 60,
         "momento": "dia",
+        "parteluces": {
+          "lamas": [
+            410,
+            1024,
+            8
+          ],
+          "verticales": [
+            512
+          ]
+        },
         "tono": "calido"
       },
       "muros": [
@@ -5623,6 +5647,16 @@
         "antepecho": 42,
         "forma": "haz",
         "momento": "dia",
+        "parteluces": {
+          "horizontales": [
+            652
+          ],
+          "verticales": [
+            244,
+            500,
+            756
+          ]
+        },
         "tono": "calido"
       },
       "muros": [

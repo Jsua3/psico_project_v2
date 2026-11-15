@@ -404,13 +404,13 @@ def _ficha(nombre, ancho, ocupa, dibujar, cuadros=1, muros=TRES, colores=24, mar
 
 PIEZAS = {
     ('ventana', 'corrediza'): _ficha('Ventana corrediza', 96, 128, _corrediza, 2, colores=32, antepecho=70, alto=60,
-                                     luz=dict(forma='haz', ancho=96, momento='dia', tono='calido')),
+                                     luz=dict(forma='haz', ancho=96, momento='dia', tono='calido', parteluces=dict(verticales=[512], horizontales=[512]))),
     ('ventana', 'persiana'): _ficha('Ventana con persiana', 88, 104, _persiana, 2, colores=32, antepecho=70, alto=60,
-                                    luz=dict(forma='haz', ancho=88, momento='dia', tono='calido', fuerza=60)),
+                                    luz=dict(forma='haz', ancho=88, momento='dia', tono='calido', fuerza=60, parteluces=dict(verticales=[512], lamas=[410, 1024, 8]))),
     ('ventana', 'alta'): _ficha('Ventana alta de hospital', 120, 136, _alta, 2, colores=32, antepecho=100, alto=32,
-                                luz=dict(forma='haz', ancho=120, momento='dia', tono='calido', fuerza=70)),
+                                luz=dict(forma='haz', ancho=120, momento='dia', tono='calido', fuerza=70, parteluces=dict(verticales=[341, 683]))),
     ('ventana', 'ventanal'): _ficha('Ventanal', 168, 184, _ventanal, 2, colores=32, antepecho=42, alto=88,
-                                    luz=dict(forma='haz', ancho=168, momento='dia', tono='calido')),
+                                    luz=dict(forma='haz', ancho=168, momento='dia', tono='calido', parteluces=dict(verticales=[244, 500, 756], horizontales=[652]))),
     ('cuadro', 'cuadro'): _ficha('Cuadro', 40, 56, _cuadro),
     ('reloj', 'reloj'): _ficha('Reloj con segundero', 26, 32, _reloj, 12, fps=1),
     ('cartelera', 'cartelera'): _ficha('Cartelera', 72, 80, _cartelera),

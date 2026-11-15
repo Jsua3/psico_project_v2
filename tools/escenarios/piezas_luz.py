@@ -36,18 +36,28 @@ EXTERIOR, EXTERIOR_NOCHE = 9300, 5100
 UNO = 1024                             # 1,0 en las mezclas
 EN_SOMBRA = 768                           # de la luz de una fuente, lo que se pierde a su sombra (3/4)
 HAZ_FONDO, HAZ_LADO = (45, 64), (64, 22)  # dirección en que viaja la luz de una ventana, en 64avos de px
+PULIDOS = ('vinilo', 'baldosa', 'damero')   # pisos que devuelven la luz
+REFLEJO = 600                             # de la luz de una fuente, lo que el piso pulido devuelve al brillo
+CONTACTO = 2                              # escalones que baja la luz en el centro de una sombra de contacto
+PARTELUZ_SIMPLE = {'verticales': [512]}   # la ventana que no declara su forma: un parteluz al medio
 SOMBRA_MAXIMA = 72                        # px que mide como mucho la sombra que arroja una lámpara
 BAYER = np.array([[0, 8, 2, 10], [12, 4, 14, 6], [3, 11, 1, 9], [15, 7, 13, 5]], dtype=np.int64)
 
 
-def _tabla_ambiente():
-    """Sombras frías y luces neutras: (r, v, a) por escalón, redondeado."""
+def _tabla_ambiente(noche=False):
+    """Sombras frías y luces neutras: (r, v, a) por escalón, redondeado. De noche la sombra es más azul: el día y la
+    noche se distinguen por el tono general, no solo por lo que está encendido."""
     filas = []
     for n in range(NIVELES + 1):
         v = MINIMO + PASO * n
-        r = (255 * v * (72 + n) + 400000) // 800000
-        ve = (255 * v * (744 + 7 * n) + 4000000) // 8000000
-        a = min(255, (255 * v * (88 - n) + 400000) // 800000)
+        if noche:
+            r = (255 * v * (64 + 2 * n) + 400000) // 800000
+            ve = (255 * v * (704 + 12 * n) + 4000000) // 8000000
+            a = min(255, (255 * v * (928 - 16 * n) + 4000000) // 8000000)
+        else:
+            r = (255 * v * (72 + n) + 400000) // 800000
+            ve = (255 * v * (744 + 7 * n) + 4000000) // 8000000
+            a = min(255, (255 * v * (88 - n) + 400000) // 800000)
         filas.append((r, ve, a))
     return np.array(filas, dtype=np.uint8)
 
@@ -57,6 +67,7 @@ def _tabla_brillo(color):
 
 
 TABLA_AMBIENTE = _tabla_ambiente()
+TABLA_AMBIENTE_NOCHE = _tabla_ambiente(noche=True)
 TABLA_CALIDA = _tabla_brillo((255, 206, 140))
 TABLA_FRIA = _tabla_brillo((150, 200, 255))
 
@@ -90,8 +101,10 @@ class _Sala:
         self.muro = (self.ys >= g.TOP) & (self.ys < g.SEAM) & (self.xs >= self.xl) & (self.xs < self.xr)
 
 
-def _haz_fondo(S, x0, ancho, y0, alto):
-    """Ventana del muro del fondo: (luz sobre el piso, halo sobre el muro), de 0 a 1024."""
+def _haz_fondo(S, x0, ancho, y0, alto, forma):
+    """Ventana del muro del fondo: (luz sobre el piso, halo sobre el muro), de 0 a 1024. El haz lleva la forma de la
+    ventana: cada parteluz vertical es una línea a lo largo del haz, cada travesaño una línea que lo cruza y las
+    lamas de la persiana, rayas en el tramo que cubren. Las fracciones van de 0 a 1024."""
     n = S.n
     esc = 16 * g.FONDO + 3 * n
     xi = S.cx + (x0 - 8 - S.cx) * esc // (16 * g.FONDO) + 170 * n // g.FONDO
@@ -99,21 +112,58 @@ def _haz_fondo(S, x0, ancho, y0, alto):
     t = n * 1000 // g.FONDO
     dentro = np.minimum(np.minimum(S.xs - xi, xd - S.xs), np.minimum((t - 15) * 700 // 1000, (740 - t) * 500 // 1000))
     luz = np.clip(dentro * 64, 0, UNO) * S.piso
-    parteluz = np.abs(2 * S.xs - (xi + xd)) < 6 + 10 * t // 1000
-    luz = np.where(parteluz, luz * 35 // 100, luz)
+    n0, n1 = 15 * g.FONDO // 1000, 740 * g.FONDO // 1000          # px de profundidad donde empieza y termina el haz
+    for f in forma.get('verticales', ()):
+        luz = np.where(np.abs(S.xs - (xi + (xd - xi) * f // UNO)) * 2 < 6 + 10 * t // 1000, luz * 35 // 100, luz)
+    for f in forma.get('horizontales', ()):
+        luz = np.where(np.abs(n - (n0 + (n1 - n0) * f // UNO)) * 2 < 5 + 4 * t // 1000, luz * 35 // 100, luz)
+    if forma.get('lamas'):
+        desde, hasta, paso = forma['lamas']
+        na, nb = n0 + (n1 - n0) * desde // UNO, n0 + (n1 - n0) * hasta // UNO
+        luz = np.where((n >= na) & (n <= nb) & ((n - na) % paso < paso // 2), luz * 35 // 100, luz)
     dx = np.maximum(np.maximum(x0 - S.xs, S.xs - (x0 + ancho)), 0)
     dy = np.maximum(np.maximum(y0 - S.ys, S.ys - (y0 + alto)), 0)
     halo = np.clip(UNO - _raiz(dx * dx + dy * dy) * UNO // 46, 0, UNO) * S.muro
     return luz, halo
 
 
-def _haz_lado(S, lado, yc, ancho):
+def _haz_lado(S, lado, yc, ancho, forma):
     """Ventana de un muro lateral: la luz cruza el piso y baja hacia la cámara mientras se aleja del muro."""
     dist = (S.xs - S.jl) if lado == 'izquierda' else (S.jr - S.xs)
     centro = yc + dist * 35 // 100
-    dentro = np.minimum(ancho // 2 + 4 - np.abs(S.ys - centro), dist)
+    medio = ancho // 2 + 4
+    dentro = np.minimum(medio - np.abs(S.ys - centro), dist)
     alcance = np.clip((460 - dist) * UNO // 180, 0, UNO)
-    return np.clip(dentro * 64, 0, UNO) * alcance // UNO * S.piso
+    luz = np.clip(dentro * 64, 0, UNO) * alcance // UNO * S.piso
+    a = S.ys - (centro - medio)                                   # posición a lo ancho del haz
+    for f in forma.get('verticales', ()):
+        luz = np.where(np.abs(a - 2 * medio * f // UNO) * 2 < 5, luz * 35 // 100, luz)
+    for f in forma.get('horizontales', ()):
+        luz = np.where(np.abs(dist - (40 + 300 * f // UNO)) * 2 < 7, luz * 35 // 100, luz)
+    if forma.get('lamas'):
+        desde, hasta, paso = forma['lamas']
+        da, db = 40 + 300 * desde // UNO, 40 + 300 * hasta // UNO
+        luz = np.where((dist >= da) & (dist <= db) & ((dist - da) % paso < paso // 2), luz * 35 // 100, luz)
+    return luz
+
+
+def _reflejo_piso(S, xa, xb, largo):
+    """Franja que un piso pulido devuelve bajo algo del muro del fondo que da luz (entre xa y xb): nace al pie del
+    muro, sigue la perspectiva del piso y se apaga a los `largo` px."""
+    esc = 16 * g.FONDO + 3 * S.n
+    xi = S.cx + (xa - S.cx) * esc // (16 * g.FONDO)
+    xd = S.cx + (xb - S.cx) * esc // (16 * g.FONDO)
+    dentro = np.minimum(S.xs - xi, xd - S.xs)
+    caida = np.clip((largo - S.n) * UNO // largo, 0, UNO)
+    return np.clip(dentro * 256 + 256, 0, UNO) * caida // UNO * (S.piso & (S.n >= 3))
+
+
+def _contacto(S, c):
+    """Sombra de contacto de un cuerpo: una elipse baja a sus pies, plena en el centro y deshecha en el borde."""
+    cx, cy = (c['x0'] + c['x1']) // 2, c['y1'] - 2
+    rx, ry = (c['x1'] - c['x0']) // 2 + 5, max(4, (c['y1'] - c['y0']) // 2 + 3)
+    ex, ey = np.abs(S.xs - cx) * UNO // rx, np.abs(S.ys - cy) * UNO // ry
+    return np.minimum(np.clip(UNO - _raiz(ex * ex + ey * ey), 0, UNO) * 2, UNO) * S.piso
 
 
 def _pozo(S, x, y, rx, ry):
@@ -209,6 +259,12 @@ def niveles(sala, momento=None, abiertas=(), cuerpos=()):
     L = np.full((g.ALTO, S.w), base, dtype=np.int64)
     tonos = {'calido': np.zeros((g.ALTO, S.w), np.int64), 'frio': np.zeros((g.ALTO, S.w), np.int64)}
 
+    pulido = est.get('acabados', {}).get('piso') in PULIDOS
+
+    def reflejar(mancha, fuerza, tono):
+        if pulido:
+            tonos[tono] = np.maximum(tonos[tono], mancha * fuerza // 100 * REFLEJO // UNO)
+
     def sumar(mancha, fuerza, tono, peso=UNO, color=UNO):
         nonlocal L
         L = np.maximum(L, base + ganancia * fuerza // 100 * peso // UNO * mancha // UNO)
@@ -228,14 +284,17 @@ def niveles(sala, momento=None, abiertas=(), cuerpos=()):
                 continue
             if muro == 'fondo':
                 x0 = S.xl + pz['pos'] - ficha['ancho'] // 2
-                piso, halo = _haz_fondo(S, x0, ficha['ancho'], g.SEAM - ficha['antepecho'] - ficha['alto'], ficha['alto'])
+                forma = luz.get('parteluces') or PARTELUZ_SIMPLE
+                piso, halo = _haz_fondo(S, x0, ficha['ancho'], g.SEAM - ficha['antepecho'] - ficha['alto'], ficha['alto'], forma)
                 piso = _a_la_sombra(piso, _sombra(S, cuerpos, HAZ_FONDO[0], HAZ_FONDO[1], [c['alto'] * 5 // 8 for c in cuerpos]))
                 sumar(piso, fuerza, tono)
                 sumar(halo, fuerza, tono, peso=UNO * 2 // 3, color=UNO // 2)
+                reflejar(_reflejo_piso(S, x0, x0 + ficha['ancho'], 90), fuerza, tono)
             elif muro in ('izquierda', 'derecha') and (S.izq if muro == 'izquierda' else S.der):
                 sentido = HAZ_LADO[0] if muro == 'izquierda' else -HAZ_LADO[0]
                 tapada = _sombra(S, cuerpos, sentido, HAZ_LADO[1], [c['alto'] * 3 // 4 for c in cuerpos])
-                sumar(_a_la_sombra(_haz_lado(S, muro, g.SEAM + pz['pos'], ficha['ancho']), tapada), fuerza, tono)
+                haz = _haz_lado(S, muro, g.SEAM + pz['pos'], ficha['ancho'], luz.get('parteluces') or PARTELUZ_SIMPLE)
+                sumar(_a_la_sombra(haz, tapada), fuerza, tono)
             continue
         if 'x' in pz:
             x, y = pz['x'], pz['y']
@@ -248,6 +307,9 @@ def niveles(sala, momento=None, abiertas=(), cuerpos=()):
         if luz['forma'] == 'pozo':
             pozo = _a_la_sombra(pozo, _sombra_de_lampara(S, cuerpos, x, y, luz.get('altura', 150) + pz.get('sobre', 0)))
         sumar(pozo, fuerza, tono, color=UNO * 9 // 10)
+        if muro == 'fondo' and 'x' not in pz:
+            medio = 26 if luz['forma'] == 'tubo' else 14
+            reflejar(_reflejo_piso(S, x - medio, x + medio, 70), fuerza, tono)
         if luz['forma'] == 'tubo':
             ancho = np.clip(UNO - np.abs(S.xs - x) * UNO // 190, 0, UNO) * S.muro
             sumar(ancho, fuerza, tono, peso=UNO * 8 // 10, color=UNO // 2)
@@ -261,6 +323,11 @@ def niveles(sala, momento=None, abiertas=(), cuerpos=()):
         dentro = np.minimum(medio - np.abs(S.xs - (S.xl + puerta['pos']) - S.n * 12 // 100), 54 - S.n)
         cuna = np.clip(dentro * 64, 0, UNO) * S.piso
         sumar(cuna, 100, 'calido', peso=UNO * 2 // 3 if momento == 'dia' else UNO * 4 // 10, color=UNO * 4 // 10)
+        vano = pp.MODELOS[puerta['modelo']]['ancho'] // 2 - 6
+        reflejar(_reflejo_piso(S, S.xl + puerta['pos'] - vano, S.xl + puerta['pos'] + vano, 60), 100, 'calido')
+
+    for c in cuerpos:
+        L = L - CONTACTO * PASO * _contacto(S, c) // UNO
 
     # Sombras de rincón al pie de los muros y viñeta.
     L = np.where(S.piso & (S.n < 18), L * (800 + 200 * S.n // 18) // 1000, L)
@@ -287,7 +354,8 @@ def niveles(sala, momento=None, abiertas=(), cuerpos=()):
 
 def calcular_luz(sala, momento=None, abiertas=(), cuerpos=()):
     """(ambiente RGB para multiplicar, brillo RGB para sumar)."""
+    momento = momento or sala['estructura'].get('momento', 'dia')
     nivel, calido, frio = niveles(sala, momento, abiertas, cuerpos)
-    ambiente = TABLA_AMBIENTE[nivel]
+    ambiente = (TABLA_AMBIENTE_NOCHE if momento == 'noche' else TABLA_AMBIENTE)[nivel]
     brillo = np.clip(TABLA_CALIDA[calido] + TABLA_FRIA[frio], 0, 255).astype(np.uint8)
     return Image.fromarray(ambiente, 'RGB'), Image.fromarray(brillo, 'RGB')

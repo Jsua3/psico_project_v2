@@ -173,6 +173,17 @@ def _motas(d, p, s, paso=10, tonos=None):
 def _vinilo(d, p, s):
     """Vinilo en rollos: liso, moteado, con el brillo del encerado y una soldadura cada 240 px."""
     d.rectangle([0, 0, M, g.FONDO], fill=p['A'])
+    tenue = mezcla(p['A'], p['junta'], 0.4)             # losetas de 60 px apenas marcadas: el vinilo no es un relleno plano
+    for y, y2, h, i in _filas(22):
+        d.line([(0, y2 - 1), (M, y2 - 1)], fill=tenue)
+        for j, bx in enumerate(range(-720, M + 720, 60)):
+            k = azar(i, j, 19 + s)
+            if k % 5 == 0:
+                d.polygon([(_x(bx, y), y), (_x(bx + 60, y), y), (_x(bx + 60, y2), y2), (_x(bx, y2), y2)], fill=mezcla(p['A'], p['B'], 0.5))
+            elif k % 7 == 0:
+                d.polygon([(_x(bx, y), y), (_x(bx + 60, y), y), (_x(bx + 60, y2), y2), (_x(bx, y2), y2)], fill=mezcla(p['A'], p['C'], 0.35))
+    for bx in range(-720, M + 720, 60):
+        d.line([(_x(bx, 0), 0), (_x(bx, g.FONDO), g.FONDO)], fill=tenue)
     _motas(d, p, s, paso=9)
     for y, y2, h, i in _filas(12):                       # brillos cortos del encerado
         for j, x in enumerate(range(-40, M, 96)):
