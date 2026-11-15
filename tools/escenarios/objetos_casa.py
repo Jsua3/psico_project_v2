@@ -452,7 +452,7 @@ def portarretrato(n=0):
 # ── catálogo de la casa ────────────────────────────────────────────────────────
 
 PIEZAS = {
-    'televisor': dict(nombre='Televisor encendido', tipo='objeto', dibujar=televisor, cuadros=12, sobre=12,
+    'televisor': dict(nombre='Televisor encendido', tipo='objeto', dibujar=televisor, cuadros=12, sobre=31,
                       huella=dict(ancho=30, fondo=12, alto=24), material='pantalla',
                       animaciones=dict(reposo=dict(de=0, hasta=7, fps=6, bucle=True),
                                        cerca=dict(de=8, hasta=11, fps=10, bucle=False, luego='reposo'),
@@ -460,7 +460,7 @@ PIEZAS = {
                       emite=dict(forma='pozo', radio=[52, 34], tono='frio', momento='siempre',
                                  niveles=[3, 3, 2, 3, 2, 2, 3, 3, 3, 1, 3, 3]),
                       reemplaza='escenarios/casa/arte/objetos/televisor.png'),
-    'portarretrato': dict(nombre='Portarretrato', tipo='objeto', dibujar=portarretrato, cuadros=6, sobre=12,
+    'portarretrato': dict(nombre='Portarretrato', tipo='objeto', dibujar=portarretrato, cuadros=6, sobre=31,
                           huella=dict(ancho=12, fondo=4, alto=14), material='vidrio',
                           animaciones=dict(reposo=dict(de=0, hasta=0, fps=1, bucle=True),
                                            cerca=dict(de=1, hasta=2, fps=8, bucle=False, sostener=True),

@@ -41,9 +41,14 @@ def armar(modulo, ref):
         tira = Image.fromarray(arr, 'RGBA')
         w = cuadros[0].width
         cuadros = [tira.crop((k * w, 0, (k + 1) * w, tira.height)) for k in range(len(cuadros))]
-    reflejo, emisivo = [], []
+    reflejo, emisivo, material = [], [], []
     hay_reflejo = hay_emisivo = False
     for L, refl, em in crudos:
+        gris = np.zeros((L.h, L.w), np.uint8)               # el gris de brillo de P1 según el material de cada píxel
+        for k, nombre in enumerate(L.nombres):
+            gris[L.mat == k] = gris_de_material(nombre)
+        gris[L.mat == -2] = 255                              # lo pintado directo bajo vidrio o en pantalla
+        material.append(gris[caja[1]:caja[3], caja[0]:caja[2]])
         dentro = L.opaco()
         lados = {}
         for lado in op.LADOS:
@@ -61,7 +66,46 @@ def armar(modulo, ref):
         emisivo.append(_mascara_img(e & dentro).crop(caja))
     w, h = cuadros[0].size
     return dict(ref=ref, modulo=modulo, cuadros=cuadros, ancho=w, alto=h, reflejo=reflejo if hay_reflejo else None,
-                emisivo=emisivo if hay_emisivo else None, ficha=ficha)
+                emisivo=emisivo if hay_emisivo else None, material=material, ficha=ficha)
+
+
+# Formato de brillo de P1: gris por material (255 vidrio y pantalla, 170 metal, 85 barniz).
+GRIS = {'vidrio': 255, 'pantalla': 255, 'agua': 255, 'cromo': 170, 'metal': 170, 'acero': 170, 'laton': 170,
+        'plastico-negro': 170, 'plastico-gris': 170, 'plastico-crema': 170, 'blanco-clinico': 170}
+
+
+def gris_de_material(nombre):
+    return GRIS.get(nombre, 85)
+
+
+def tira_brillo(pieza, lado='frente'):
+    """Tira en el formato de P1 para un lado: el gris del material donde mi máscara es fuerte, y un escalón menos
+    (mínimo 85) donde es suave. None si el objeto no brilla de ese lado."""
+    if not pieza['reflejo']:
+        return None
+    cuadros = []
+    for lados, gris in zip(pieza['reflejo'], pieza['material']):
+        m = np.array(lados[lado])[:, :, 0]
+        g = np.where(m == 255, gris, np.where(m == 128, np.maximum(85, gris.astype(int) - 85), 0)).astype(np.uint8)
+        g[(m > 0) & (g == 0)] = 85
+        arr = np.zeros(m.shape + (4,), np.uint8)
+        arr[..., 0] = arr[..., 1] = arr[..., 2] = g
+        arr[..., 3] = np.where(g > 0, 255, 0)
+        cuadros.append(Image.fromarray(arr, 'RGBA'))
+    tira = op.tira(cuadros)
+    return tira if np.array(tira)[..., 3].any() else None
+
+
+def tira_emisivo_color(pieza):
+    """Formato de P1: los píxeles que emiten, en su color final, el resto transparente."""
+    if not pieza['emisivo']:
+        return None
+    out = []
+    for c, m in zip(pieza['cuadros'], pieza['emisivo']):
+        q = Image.new('RGBA', c.size, (0, 0, 0, 0))
+        q.paste(c, (0, 0), m.getchannel('A'))
+        out.append(q)
+    return op.tira(out)
 
 
 def tira_reflejo(pieza):

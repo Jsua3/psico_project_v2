@@ -115,6 +115,31 @@ def test_destello():
     assert not np.array(cuadros[-1])[:, :, 3].any(), 'el último es la pausa'
 
 
+def test_catalogo_en_formato_de_p1():
+    """Brillo en los grises de P1, misma tira que el dibujo; emisivo y resplandor bien formados; lo versionado al día."""
+    import objetos_catalogo as cat
+    archivos, secciones = cat.generar()
+    imagenes = dict(archivos)
+    assert set(secciones) == {'muebles', 'objetos', 'herramientas'}
+    assert set(secciones['herramientas']) == {'PAP', 'SPIKES', 'RISK_METER', 'SAFETY_ROUTE', 'REFLECTION_JOURNAL'}
+    for seccion in secciones.values():
+        for clave, e in seccion.items():
+            tira = imagenes[e['ruta']]
+            assert tira.size == (e['ancho'] * e['cuadros'], e['alto']), clave
+            for k in ('brillo', 'brilloIzquierda', 'brilloDerecha', 'emisivo'):
+                if k in e:
+                    assert imagenes[e[k]].size == tira.size, (clave, k)
+            for k in ('brillo', 'brilloIzquierda', 'brilloDerecha'):
+                if k in e:
+                    v = np.array(imagenes[e[k]])
+                    assert set(np.unique(v[..., 0])) <= {0, 85, 170, 255}, (clave, k)
+            if 'resplandor' in e:
+                r = e['resplandor']
+                assert imagenes[r['ruta']].size == (r['ancho'] * 3, r['alto'])
+                assert len(r['parpadeo']) == e['cuadros'] and max(r['parpadeo']) <= 3
+    assert cat.verificar() == [], 'correr python tools/escenarios/objetos_catalogo.py'
+
+
 def test_espejo_no_cambia_colores():
     p = oc.armar('objetos_casa', 'sillon-casa')
     assert op.colores(ImageOps.mirror(p['cuadros'][0])) == op.colores(p['cuadros'][0])
