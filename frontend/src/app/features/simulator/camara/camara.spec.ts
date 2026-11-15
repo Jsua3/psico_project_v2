@@ -119,6 +119,14 @@ describe('camara: conversación, reacción y objeto', () => {
     expect(bordeLibre).toBeGreaterThanOrEqual(520);
   });
 
+  it('con el panel abajo no muestra vacío bajo la sala si los pies ya quedan libres', () => {
+    const v = vista(1366, 650, 1, 200);
+    const { centro, zoom } = hablar({ jugador: { x: 940, y: 440 }, momento: { tipo: 'conversacion', con: { x: 1000, y: 440 } }, vista: v });
+    const bordeDeVista = centro.y + v.alto / (2 * zoom);
+    expect(bordeDeVista).toBeLessThanOrEqual(440 + 8 + v.cubiertoAbajo / zoom);
+    expect(centro.y - v.alto / (2 * zoom) + (v.alto - v.cubiertoAbajo) / zoom).toBeGreaterThanOrEqual(440);
+  });
+
   it('si el panel lateral encoge el lienzo a mitad de la conversación, sigue dentro de la sala', () => {
     const { centro, zoom } = hablar({ vista: vista(984, 650) });
     expect(zoom).toBe(2);

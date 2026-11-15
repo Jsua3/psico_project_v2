@@ -31,6 +31,8 @@ export const MARGEN = 24;
 /** Medio ancho y alto del cuadro de un personaje del kit (48 × 72). */
 export const MEDIO_CUERPO = 24;
 export const ALTO_CUERPO = 72;
+/** Aire entre los pies más bajos y el borde superior del cuadro de diálogo. */
+export const MARGEN_PIES = 8;
 /** Suavidad de la maqueta: cada cuadro recorre 1 − e^(−TASA·dt) de lo que falta (dt en segundos). */
 export const TASA = 6;
 
@@ -113,8 +115,11 @@ export function objetivoCamara(e: EntradaCamara, previo: EstadoCamara | null): E
 
   let zoom = base;
   let foco: Punto;
+  // Los pies más bajos del encuadre: el cuadro de diálogo nunca debe taparlos.
+  let pies = jugador.y;
   if (momento.tipo === 'conversacion') {
     const otro = momento.con;
+    pies = Math.max(jugador.y, otro.y);
     foco = { x: (jugador.x + otro.x) / 2, y: (jugador.y + otro.y) / 2 - FOCO_PERSONA };
     if (e.acercarAuto) {
       const ancho = Math.abs(otro.x - jugador.x) + 2 * (MEDIO_CUERPO + MARGEN);
@@ -122,6 +127,7 @@ export function objetivoCamara(e: EntradaCamara, previo: EstadoCamara | null): E
       zoom = mayorQueCabe(cercano, base, ancho, alto, vista);
     }
   } else if (momento.tipo === 'objeto') {
+    pies = momento.en.y;
     foco = { x: momento.en.x, y: momento.en.y - FOCO_OBJETO };
     if (e.acercarAuto) zoom = cercano;
   } else {
@@ -140,10 +146,12 @@ export function objetivoCamara(e: EntradaCamara, previo: EstadoCamara | null): E
     y = seguir(previo.centro.y - tapado / 2, foco.y, (ZONA_MUERTA * (visibleAlto - tapado)) / 2) + tapado / 2;
   }
 
+  // La cámara se queda dentro de la sala; solo baja de su borde lo justo para que los pies queden sobre el panel.
+  const fondo = Math.max(sala.alto, pies + MARGEN_PIES + tapado);
   return {
     centro: {
       x: limitar(x, visibleAncho / 2, 0, sala.ancho),
-      y: limitar(y, visibleAlto / 2, 0, sala.alto + tapado),
+      y: limitar(y, visibleAlto / 2, 0, fondo),
     },
     zoom,
   };
