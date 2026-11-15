@@ -371,6 +371,26 @@
    "reemplaza": "escenarios/casa/arte/muebles/sofa-casa.png",
    "ruta": "piezas/muebles/casa/sofa-casa.png"
   },
+  "comisaria/caneca-comisaria": {
+   "alto": 33,
+   "ancho": 24,
+   "apoyo": [
+    12,
+    33
+   ],
+   "brillo": "piezas/muebles/comisaria/caneca-comisaria-brillo.png",
+   "brilloDerecha": "piezas/muebles/comisaria/caneca-comisaria-brillo-derecha.png",
+   "brilloIzquierda": "piezas/muebles/comisaria/caneca-comisaria-brillo-izquierda.png",
+   "cuadros": 1,
+   "huella": {
+    "alto": 30,
+    "ancho": 22,
+    "fondo": 10
+   },
+   "nombre": "Caneca",
+   "reemplaza": "escenarios/comisaria/arte/muebles/caneca-comisaria.png",
+   "ruta": "piezas/muebles/comisaria/caneca-comisaria.png"
+  },
   "comisaria/escritorio-funcionario": {
    "alto": 68,
    "ancho": 125,
@@ -426,6 +446,26 @@
    "nombre": "Mesa baja para niñas y niños",
    "reemplaza": "escenarios/comisaria/arte/muebles/mesa-baja-nna.png",
    "ruta": "piezas/muebles/comisaria/mesa-baja-nna.png"
+  },
+  "comisaria/mostrador-recepcion": {
+   "alto": 65,
+   "ancho": 183,
+   "apoyo": [
+    91,
+    65
+   ],
+   "brillo": "piezas/muebles/comisaria/mostrador-recepcion-brillo.png",
+   "brilloDerecha": "piezas/muebles/comisaria/mostrador-recepcion-brillo-derecha.png",
+   "brilloIzquierda": "piezas/muebles/comisaria/mostrador-recepcion-brillo-izquierda.png",
+   "cuadros": 1,
+   "huella": {
+    "alto": 44,
+    "ancho": 178,
+    "fondo": 16
+   },
+   "nombre": "Mostrador de recepción",
+   "reemplaza": "escenarios/comisaria/arte/muebles/mostrador-recepcion.png",
+   "ruta": "piezas/muebles/comisaria/mostrador-recepcion.png"
   },
   "comisaria/planta-oficina": {
    "alto": 54,
@@ -669,6 +709,36 @@
    "ruta": "piezas/objetos/comisaria/caja-panuelos.png",
    "sobre": 20
   },
+  "comisaria/camara-seguridad": {
+   "alto": 18,
+   "ancho": 28,
+   "animaciones": {
+    "reposo": {
+     "bucle": true,
+     "de": 0,
+     "fps": 1,
+     "hasta": 1
+    }
+   },
+   "apoyo": [
+    14,
+    18
+   ],
+   "brillo": "piezas/objetos/comisaria/camara-seguridad-brillo.png",
+   "brilloDerecha": "piezas/objetos/comisaria/camara-seguridad-brillo-derecha.png",
+   "brilloIzquierda": "piezas/objetos/comisaria/camara-seguridad-brillo-izquierda.png",
+   "cuadros": 2,
+   "emisivo": "piezas/objetos/comisaria/camara-seguridad-emisivo.png",
+   "fps": 1,
+   "huella": {
+    "alto": 14,
+    "ancho": 20,
+    "fondo": 4
+   },
+   "nombre": "Cámara de seguridad",
+   "reemplaza": "escenarios/comisaria/arte/objetos/camara-seguridad.png",
+   "ruta": "piezas/objetos/comisaria/camara-seguridad.png"
+  },
   "comisaria/carpeta-medidas-proteccion": {
    "alto": 22,
    "ancho": 29,
@@ -702,6 +772,43 @@
    "reemplaza": "escenarios/comisaria/arte/objetos/carpeta-medidas-proteccion.png",
    "ruta": "piezas/objetos/comisaria/carpeta-medidas-proteccion.png",
    "sobre": 24
+  },
+  "comisaria/dispensador-turnos": {
+   "alto": 44,
+   "ancho": 20,
+   "animaciones": {
+    "reposo": {
+     "bucle": true,
+     "de": 0,
+     "fps": 1,
+     "hasta": 1
+    },
+    "revisar": {
+     "bucle": false,
+     "de": 2,
+     "fps": 4,
+     "hasta": 3,
+     "sostener": true
+    }
+   },
+   "apoyo": [
+    10,
+    44
+   ],
+   "brillo": "piezas/objetos/comisaria/dispensador-turnos-brillo.png",
+   "brilloDerecha": "piezas/objetos/comisaria/dispensador-turnos-brillo-derecha.png",
+   "brilloIzquierda": "piezas/objetos/comisaria/dispensador-turnos-brillo-izquierda.png",
+   "cuadros": 4,
+   "emisivo": "piezas/objetos/comisaria/dispensador-turnos-emisivo.png",
+   "fps": 1,
+   "huella": {
+    "alto": 40,
+    "ancho": 16,
+    "fondo": 6
+   },
+   "nombre": "Dispensador de turnos",
+   "reemplaza": "escenarios/comisaria/arte/objetos/dispensador-turnos.png",
+   "ruta": "piezas/objetos/comisaria/dispensador-turnos.png"
   },
   "comisaria/papelera": {
    "alto": 30,

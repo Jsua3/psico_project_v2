@@ -321,8 +321,135 @@ def sillas_espera(n=0, tela='tela-azul'):
     return L, r, None
 
 
+def mostrador(n=0):
+    """Mostrador de recepción: frente de lámina, tablero laminado, vidrio de atención y el dispensador de turnos encima."""
+    L = Lienzo(184, 68, semilla=89)
+    L.rect(4, 2, 70, 3, 'acero', 1)                                                 # marco del vidrio
+    L.rect(4, 2, 5, 22, 'acero', 2)
+    L.rect(69, 2, 70, 22, 'acero', 2)
+    vidrio = L.caja_mascara(6, 4, 68, 22)
+    L.mascara(vidrio, 'vidrio', 3, tex=False)                                       # arriba, transparente: se ve oscuro
+    L.rect(6, 4, 68, 4, 'vidrio', 4, tex=False)                                     # sombra bajo el marco
+    L.rect(6, 14, 68, 22, 'vidrio', 1)                                              # abajo, esmerilado
+    L.rect(6, 14, 68, 14, 'vidrio', 0, tex=False)
+    L.rect(37, 4, 37, 22, 'acero', 2, tex=False)                                    # junta de los dos paños
+    for x in range(14, 23, 2):                                                      # rejilla para hablar
+        for y in (8, 10):
+            L.px(x + (y // 2) % 2, y, 'vidrio', 5)
+    L.rect(26, 19, 48, 22, 'vidrio', 5, tex=False)                                  # ventanilla
+    L.rect(26, 19, 48, 19, 'acero', 2, tex=False)
+    L.rect(96, 12, 120, 22, 'papel', 1)                                             # formularios y libro de registro
+    L.rect(96, 12, 120, 12, 'papel', 0, tex=False)
+    for y in (15, 18):
+        L.rect(98, y, 117, y, (150, 156, 170), tex=False)
+    L.rect(108, 12, 108, 22, 'papel', 3, tex=False)
+    L.rect(132, 14, 146, 22, 'plastico-negro', 2)                                   # teléfono
+    L.rect(133, 13, 145, 15, 'plastico-negro', 1)
+    L.bloque(1, 22, 181, 30, 'laminado', tapa=6)                                    # tablero
+    L.rect(2, 31, 180, 64, 'acero', 2, tex=False)                                   # frente
+    L.rect(2, 31, 180, 32, 'acero', 4, tex=False)
+    for x in range(30, 180, 30):                                                    # paneles
+        L.rect(x, 33, x, 62, 'acero', 4, tex=False)
+        L.rect(x + 1, 33, x + 1, 62, 'acero', 1, tex=False)
+    L.rect(2, 44, 180, 47, 'morado', 2, tex=False)                                  # franja institucional
+    L.rect(2, 44, 180, 44, 'morado', 1, tex=False)
+    L.rect(2, 62, 180, 64, 'acero', 4, tex=False)                                   # zócalo
+    r = _reflejos(L)
+    r['izquierda'].diagonal(8, 20, 9, 2, 2)
+    r['izquierda'].diagonal(18, 20, 6, 1, 1)
+    r['derecha'].diagonal(66, 20, 9, 2, 2, sentido=-1)
+    r['derecha'].diagonal(56, 20, 6, 1, 1, sentido=-1)
+    r['frente'].rect(10, 5, 62, 5, 1)
+    r['frente'].rect(28, 5, 40, 5, 2)
+    r['izquierda'].rect(3, 23, 50, 23, 2)
+    r['derecha'].rect(130, 23, 179, 23, 2)
+    r['frente'].rect(60, 27, 120, 27, 1)
+    return L, r, None
+
+
+def caneca(n=0):
+    L = Lienzo(28, 34, semilla=91)
+    L.poli([(4, 6), (23, 6), (21, 31), (6, 31)], 'plastico-gris', 2)
+    L.rect(3, 4, 24, 7, 'plastico-gris', 1)
+    L.rect(3, 4, 24, 4, 'plastico-gris', 0, tex=False)
+    L.rect(4, 8, 23, 8, 'plastico-gris', 4, tex=False)
+    L.rect(9, 0, 18, 3, 'plastico-gris', 2)                                         # tapa abatible
+    L.rect(9, 0, 18, 0, 'plastico-gris', 0, tex=False)
+    L.rect(8, 14, 19, 19, (82, 150, 96), tex=False)                                 # etiqueta de reciclaje
+    L.rect(12, 15, 15, 18, (226, 232, 238), tex=False)
+    L.rect(6, 30, 21, 31, 'plastico-gris', 4, tex=False)
+    r = _reflejos(L)
+    r['izquierda'].rect(5, 9, 5, 26, 1)
+    r['derecha'].rect(22, 9, 22, 26, 1)
+    r['frente'].rect(8, 4, 19, 4, 1)
+    return L, r, None
+
+
+def camara(n=0):
+    """Cámara de seguridad en su brazo: el piloto rojo parpadea (2 cuadros)."""
+    L = Lienzo(30, 22, semilla=93)
+    L.rect(2, 2, 6, 12, 'plastico-crema', 2)                                        # base en la pared
+    L.rect(2, 2, 6, 2, 'plastico-crema', 0, tex=False)
+    L.linea(6, 7, 11, 9, 'plastico-crema', 3)                                       # brazo
+    L.poli([(10, 6), (25, 9), (26, 16), (11, 13)], 'plastico-crema', 1)             # cuerpo inclinado hacia abajo
+    L.linea(11, 13, 26, 16, 'plastico-crema', 3)
+    L.elipse(22, 11, 27, 17, 'plastico-negro', 3)                                   # lente
+    L.elipse(23, 12, 26, 15, 'vidrio', 4, tex=False)
+    L.px(12, 8, (226, 64, 56) if n == 0 else (96, 40, 40))
+    em = np.zeros((L.h, L.w), bool)
+    em[8, 12] = n == 0
+    r = _reflejos(L)
+    for rr in r.values():
+        rr.px(24, 13, 2)
+    return L, r, em
+
+
+def dispensador_turnos(n=0):
+    """Dispensador de turnos con su pantalla: el número cambia (12 → 13) y sale un papelito al revisarlo."""
+    L = Lienzo(24, 44, semilla=95)
+    L.rect(10, 22, 13, 40, 'acero', 2)                                              # pedestal
+    L.rect(10, 22, 10, 40, 'acero', 1, tex=False)
+    L.elipse(4, 38, 19, 42, 'acero', 3)
+    L.bloque(3, 1, 20, 22, 'plastico-crema', tapa=2, base=1)                        # caja
+    L.rect(5, 4, 18, 10, 'plastico-negro', 4, tex=False)                            # pantalla
+    digitos = {0: ('1', '2'), 1: ('1', '2'), 2: ('1', '3'), 3: ('1', '3')}[n]
+    patron = {'1': ['.#', '##', '.#', '.#', '.#'], '2': ['##', '.#', '##', '#.', '##'], '3': ['##', '.#', '##', '.#', '##']}
+    for k, d in enumerate(digitos):
+        for yy, fila in enumerate(patron[d]):
+            for xx, ch in enumerate(fila):
+                if ch == '#':
+                    L.px(8 + k * 4 + xx, 5 + yy, (240, 110, 80))
+    L.rect(8, 13, 15, 14, 'plastico-negro', 3, tex=False)                           # ranura del papel
+    if n >= 3:
+        L.rect(9, 14, 14, 19, 'papel', 0, tex=False)
+        L.rect(10, 16, 13, 16, (150, 156, 170), tex=False)
+    L.rect(6, 17, 7, 18, (196, 84, 78), tex=False)                                  # botón
+    em = np.zeros((L.h, L.w), bool)
+    em[5:10, 8:16] = True
+    r = _reflejos(L)
+    r['izquierda'].rect(5, 4, 5, 9, 1)
+    r['derecha'].rect(18, 4, 18, 9, 1)
+    r['frente'].rect(6, 4, 17, 4, 1)
+    return L, r, em
+
+
 B = 'escenarios/comisaria/arte/'
 PIEZAS = {
+    'mostrador-recepcion': dict(nombre='Mostrador de recepción', tipo='mueble', dibujar=mostrador, cuadros=1,
+                                huella=dict(ancho=178, fondo=16, alto=44), material='acero, laminado y vidrio',
+                                reemplaza=B + 'muebles/mostrador-recepcion.png'),
+    'caneca-comisaria': dict(nombre='Caneca', tipo='mueble', dibujar=caneca, cuadros=1,
+                             huella=dict(ancho=22, fondo=10, alto=30), material='plástico',
+                             reemplaza=B + 'muebles/caneca-comisaria.png'),
+    'camara-seguridad': dict(nombre='Cámara de seguridad', tipo='objeto', dibujar=camara, cuadros=2,
+                             huella=dict(ancho=20, fondo=4, alto=14), material='plástico y vidrio',
+                             animaciones=dict(reposo=dict(de=0, hasta=1, fps=1, bucle=True)),
+                             reemplaza=B + 'objetos/camara-seguridad.png'),
+    'dispensador-turnos': dict(nombre='Dispensador de turnos', tipo='objeto', dibujar=dispensador_turnos, cuadros=4,
+                               huella=dict(ancho=16, fondo=6, alto=40), material='plástico',
+                               animaciones=dict(reposo=dict(de=0, hasta=1, fps=1, bucle=True),
+                                                revisar=dict(de=2, hasta=3, fps=4, bucle=False, sostener=True)),
+                               reemplaza=B + 'objetos/dispensador-turnos.png'),
     'escritorio-funcionario': dict(nombre='Escritorio', tipo='mueble', dibujar=escritorio, cuadros=6,
                                    huella=dict(ancho=120, fondo=16, alto=40), material='metal y laminado',
                                    animaciones=dict(reposo=dict(de=0, hasta=1, fps=2, bucle=True),
