@@ -33,6 +33,14 @@ def armar(modulo, ref):
     cajas = [im.getbbox() for im in imagenes]
     caja = (min(b[0] for b in cajas), min(b[1] for b in cajas), max(b[2] for b in cajas), max(b[3] for b in cajas))
     cuadros = [im.crop(caja) for im in imagenes]
+    tira = op.tira(cuadros)
+    if op.colores(tira) > op.MAX_COLORES:                    # funde los más parecidos (la regla de P1) en toda la tira
+        import piezas_geo
+        arr = np.array(tira)
+        arr = piezas_geo.limitar_colores(arr, arr[:, :, 3] > 0, op.MAX_COLORES)
+        tira = Image.fromarray(arr, 'RGBA')
+        w = cuadros[0].width
+        cuadros = [tira.crop((k * w, 0, (k + 1) * w, tira.height)) for k in range(len(cuadros))]
     reflejo, emisivo = [], []
     hay_reflejo = hay_emisivo = False
     for L, refl, em in crudos:
