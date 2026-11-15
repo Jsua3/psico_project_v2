@@ -48,7 +48,8 @@ MAX_HINT = 280
 MIN_ENDINGS = 2
 MAX_ENDINGS_GENERATED = min(4, MAX_ENDINGS)
 _OPTION_KEY = re.compile(r"[a-z0-9-]{1,40}")
-_CONDITION_KINDS = ("talked", "inspected", "milestone", "all", "any", "not")
+#: Las únicas hojas que admiten un requisito y la condición de un comentario (lista blanca); cualquier otra se rechaza.
+_LEAF_KINDS = ("talked", "inspected", "milestone")
 
 #: Todos los motivos posibles (``«»`` marca dónde va un nombre nuestro). ``is_fixed_motivo`` lo comprueba.
 _FIXED: set[str] = set()
@@ -296,8 +297,10 @@ def _hojas(cond) -> list[tuple[str, object]]:
             return [leaf for item in cond[group] for leaf in _hojas(item)]
     if "not" in cond:
         return _hojas(cond["not"])
-    kind = next(iter(cond))
-    return [(kind, cond[kind])]
+    for kind in _LEAF_KINDS:
+        if len(cond) == 1 and kind in cond:
+            return [(kind, cond[kind])]
+    return [("otra", cond)]  # un conteo, la persona, un hecho de herramienta...: no es una hoja admitida
 
 
 def _hitos_de(cond) -> list[str]:
@@ -343,7 +346,7 @@ def _requirement(c: _Collector, value, kind: str, room: dict, hitos: set[str], f
     people = {p["clave"] for p in room["personas"]}
     objects = {o["clave"] for o in room["objetos"]}
     for leaf_kind, leaf in _hojas(cond):
-        if leaf_kind in ("has", "used", "count", "persona"):
+        if leaf_kind not in _LEAF_KINDS:
             c.add(motivos["tool"])
         elif leaf_kind == "talked" and leaf not in people:
             c.add(motivos["person"])

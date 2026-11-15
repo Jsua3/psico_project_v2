@@ -440,3 +440,25 @@ def test_la_variante_de_reparar_trae_una_falta_editorial_que_python_no_ve_y_el_v
     hallazgos = text_check.check(documento)
     assert [(h.code, h.path) for h in hallazgos] == [("DSL.TEXT_LINK", "x-siep.escenas[0].descripcion")]
     assert not hallazgos[0].code.startswith("DSL.SCHEMA")
+
+
+@pytest.mark.parametrize("hoja", [
+    {"gte": 1, "count": "risky"},  # el comparador primero: el orden de las claves no decide
+    {"persona": {"bond": "OPEN"}},
+    {"used": "PAP"},
+    {"all": [{"lt": 2, "count": "risky"}]},
+    {"not": {"gte": 1, "count": "contraindicated"}},
+])
+def test_requisito_y_comentario_solo_admiten_hojas_talked_inspected_y_milestone(hoja, aula, sk, ctx):
+    aula["opciones"][1]["requiere"] = json.dumps(hoja)
+    assert "Un requisito usa algo que no se puede conseguir en este caso." in motivos_de(
+        lambda: checks.validate_scene(aula, sk, "aula", ctx)).motivos
+    aula["opciones"][1]["requiere"] = ""
+    aula["comentarios"][1]["cuando"] = json.dumps(hoja)
+    assert "Un comentario depende de algo que no se puede conseguir en este caso." in motivos_de(
+        lambda: checks.validate_scene(aula, sk, "aula", ctx)).motivos
+
+
+def test_una_hoja_de_tipo_desconocido_no_pasa_en_silencio(aula, sk, ctx):
+    aula["opciones"][1]["requiere"] = json.dumps({"talked": "docente", "otra": 1})
+    assert motivos_de(lambda: checks.validate_scene(aula, sk, "aula", ctx)).motivos == ["Un requisito no tiene la forma esperada."]
