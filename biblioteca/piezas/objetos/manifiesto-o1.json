@@ -1921,6 +1921,23 @@
    "reemplaza": "../frontend/src/assets/game/objects/object_acceso_restringido.png",
    "ruta": "piezas/objetos/hospital/zona-restringida.png"
   },
+  "universidad/afiche-bienestar": {
+   "alto": 47,
+   "ancho": 32,
+   "apoyo": [
+    16,
+    47
+   ],
+   "cuadros": 1,
+   "huella": {
+    "alto": 40,
+    "ancho": 24,
+    "fondo": 8
+   },
+   "nombre": "Afiche de bienestar",
+   "reemplaza": "escenarios/universidad/arte/objetos/afiche-bienestar.png",
+   "ruta": "piezas/objetos/universidad/afiche-bienestar.png"
+  },
   "universidad/botiquin": {
    "alto": 26,
    "ancho": 29,
@@ -1953,6 +1970,39 @@
    "nombre": "Botiquín",
    "reemplaza": "escenarios/universidad/arte/objetos/botiquin.png",
    "ruta": "piezas/objetos/universidad/botiquin.png"
+  },
+  "universidad/buzon-bienestar": {
+   "alto": 41,
+   "ancho": 20,
+   "animaciones": {
+    "cerca": {
+     "bucle": false,
+     "de": 1,
+     "fps": 4,
+     "hasta": 1,
+     "sostener": true
+    },
+    "reposo": {
+     "bucle": true,
+     "de": 0,
+     "fps": 1,
+     "hasta": 0
+    }
+   },
+   "apoyo": [
+    10,
+    41
+   ],
+   "cuadros": 2,
+   "fps": 1,
+   "huella": {
+    "alto": 38,
+    "ancho": 18,
+    "fondo": 8
+   },
+   "nombre": "Buzón de bienestar",
+   "reemplaza": "escenarios/universidad/arte/objetos/buzon-bienestar.png",
+   "ruta": "piezas/objetos/universidad/buzon-bienestar.png"
   },
   "universidad/caja-panuelos": {
    "alto": 22,
@@ -1994,6 +2044,47 @@
    "reemplaza": "escenarios/universidad/arte/objetos/caja-panuelos.png",
    "ruta": "piezas/objetos/universidad/caja-panuelos.png",
    "sobre": 20
+  },
+  "universidad/carne-estudiantil": {
+   "alto": 17,
+   "ancho": 24,
+   "apoyo": [
+    12,
+    17
+   ],
+   "brillo": "piezas/objetos/universidad/carne-estudiantil-brillo.png",
+   "brilloDerecha": "piezas/objetos/universidad/carne-estudiantil-brillo-derecha.png",
+   "brilloIzquierda": "piezas/objetos/universidad/carne-estudiantil-brillo-izquierda.png",
+   "cuadros": 1,
+   "huella": {
+    "alto": 4,
+    "ancho": 20,
+    "fondo": 6
+   },
+   "nombre": "Carné estudiantil",
+   "reemplaza": "escenarios/universidad/arte/objetos/carne-estudiantil.png",
+   "ruta": "piezas/objetos/universidad/carne-estudiantil.png",
+   "sobre": 24
+  },
+  "universidad/cartelera-horarios": {
+   "alto": 66,
+   "ancho": 68,
+   "apoyo": [
+    34,
+    66
+   ],
+   "brillo": "piezas/objetos/universidad/cartelera-horarios-brillo.png",
+   "brilloDerecha": "piezas/objetos/universidad/cartelera-horarios-brillo-derecha.png",
+   "brilloIzquierda": "piezas/objetos/universidad/cartelera-horarios-brillo-izquierda.png",
+   "cuadros": 1,
+   "huella": {
+    "alto": 60,
+    "ancho": 56,
+    "fondo": 8
+   },
+   "nombre": "Cartelera de horarios",
+   "reemplaza": "escenarios/universidad/arte/objetos/cartelera-horarios.png",
+   "ruta": "piezas/objetos/universidad/cartelera-horarios.png"
   },
   "universidad/celular": {
    "alto": 14,
@@ -2062,6 +2153,27 @@
    "nombre": "Computador de oficina",
    "reemplaza": "escenarios/universidad/arte/objetos/computador-oficina.png",
    "ruta": "piezas/objetos/universidad/computador-oficina.png",
+   "sobre": 24
+  },
+  "universidad/folleto-rutas": {
+   "alto": 27,
+   "ancho": 26,
+   "apoyo": [
+    13,
+    27
+   ],
+   "brillo": "piezas/objetos/universidad/folleto-rutas-brillo.png",
+   "brilloDerecha": "piezas/objetos/universidad/folleto-rutas-brillo-derecha.png",
+   "brilloIzquierda": "piezas/objetos/universidad/folleto-rutas-brillo-izquierda.png",
+   "cuadros": 1,
+   "huella": {
+    "alto": 24,
+    "ancho": 22,
+    "fondo": 8
+   },
+   "nombre": "Folletos de la ruta de atención",
+   "reemplaza": "escenarios/universidad/arte/objetos/folleto-rutas.png",
+   "ruta": "piezas/objetos/universidad/folleto-rutas.png",
    "sobre": 24
   },
   "universidad/lampara-escritorio": {
@@ -2150,6 +2262,26 @@
    "reemplaza": "escenarios/universidad/arte/objetos/mochila.png",
    "ruta": "piezas/objetos/universidad/mochila.png"
   },
+  "universidad/planilla-turnos": {
+   "alto": 32,
+   "ancho": 20,
+   "apoyo": [
+    10,
+    32
+   ],
+   "brillo": "piezas/objetos/universidad/planilla-turnos-brillo.png",
+   "brilloDerecha": "piezas/objetos/universidad/planilla-turnos-brillo-derecha.png",
+   "brilloIzquierda": "piezas/objetos/universidad/planilla-turnos-brillo-izquierda.png",
+   "cuadros": 1,
+   "huella": {
+    "alto": 28,
+    "ancho": 18,
+    "fondo": 4
+   },
+   "nombre": "Planilla de turnos",
+   "reemplaza": "escenarios/universidad/arte/objetos/planilla-turnos.png",
+   "ruta": "piezas/objetos/universidad/planilla-turnos.png"
+  },
   "universidad/planta-maceta": {
    "alto": 34,
    "ancho": 24,
@@ -2175,6 +2307,26 @@
    "nombre": "Planta en maceta",
    "reemplaza": "escenarios/universidad/arte/objetos/planta-maceta.png",
    "ruta": "piezas/objetos/universidad/planta-maceta.png"
+  },
+  "universidad/tablero-avisos": {
+   "alto": 76,
+   "ancho": 82,
+   "apoyo": [
+    41,
+    76
+   ],
+   "brillo": "piezas/objetos/universidad/tablero-avisos-brillo.png",
+   "brilloDerecha": "piezas/objetos/universidad/tablero-avisos-brillo-derecha.png",
+   "brilloIzquierda": "piezas/objetos/universidad/tablero-avisos-brillo-izquierda.png",
+   "cuadros": 1,
+   "huella": {
+    "alto": 70,
+    "ancho": 70,
+    "fondo": 8
+   },
+   "nombre": "Tablero de avisos",
+   "reemplaza": "escenarios/universidad/arte/objetos/tablero-avisos.png",
+   "ruta": "piezas/objetos/universidad/tablero-avisos.png"
   },
   "universidad/taza-cafe": {
    "alto": 19,

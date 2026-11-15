@@ -11,6 +11,7 @@ AQUI = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, AQUI)
 import objetos_comisaria as ocm  # noqa: E402  (registra acero, laminado, manila)
 import objetos_casa_b as ocb  # noqa: E402
+import objetos_herramientas  # noqa: E402,F401  (registra las tapas)
 import objetos_pixel as op  # noqa: E402
 from objetos_pixel import Lienzo, Reflejo  # noqa: E402
 
@@ -186,8 +187,99 @@ def libro_abierto(n=0):
     return L, _reflejos(L), None
 
 
+def buzon(n=0):
+    """Buzón de bienestar en su pedestal, con la ranura y una hoja doblada a medio entrar (al acercarse termina de entrar)."""
+    L = Lienzo(24, 44, semilla=207)
+    L.rect(10, 22, 13, 40, 'acero', 2)
+    L.elipse(4, 38, 19, 42, 'acero', 3)
+    L.bloque(3, 4, 20, 23, 'tapa-bitacora', tapa=3)
+    L.rect(7, 9, 16, 10, 'plastico-negro', 5, tex=False)                            # ranura
+    if n == 0:
+        L.rect(9, 5, 14, 9, 'papel', 0, tex=False)                                  # la hoja a medio entrar
+    L.rect(7, 14, 16, 19, 'papel', 1, tex=False)                                    # la etiqueta
+    L.rect(9, 16, 14, 17, (96, 170, 104), tex=False)
+    return L, _reflejos(L), None
+
+
+def carne(n=0):
+    """Carné estudiantil en su cordón, olvidado sobre la mesa."""
+    L = Lienzo(26, 18, semilla=209)
+    L.linea(2, 4, 10, 2, (70, 110, 160))                                             # cordón
+    L.linea(10, 2, 16, 5, (70, 110, 160))
+    L.linea(2, 5, 9, 3, (50, 80, 120))
+    L.rect(9, 6, 23, 16, 'plastico-crema', 1)                                       # la tarjeta
+    L.rect(9, 6, 23, 8, (176, 70, 64), tex=False)                                   # franja de la universidad
+    L.rect(11, 10, 14, 14, (176, 140, 110), tex=False)                              # la foto
+    L.rect(16, 10, 21, 11, (120, 124, 140), tex=False)
+    L.rect(16, 13, 20, 14, (120, 124, 140), tex=False)
+    r = _reflejos(L)
+    r['izquierda'].rect(10, 9, 10, 15, 1)
+    r['derecha'].rect(22, 9, 22, 15, 1)
+    r['frente'].rect(11, 9, 21, 9, 1)
+    return L, r, None
+
+
+def folletos(n=0):
+    """Exhibidor de acrílico con folletos de la ruta de atención, plegados en tres."""
+    L = Lienzo(28, 30, semilla=211)
+    L.bloque(2, 14, 25, 27, 'vidrio', tapa=2, base=1)                               # base de acrílico
+    for k, c in enumerate(((96, 170, 104), (70, 110, 160), (204, 84, 72))):          # tres folletos de pie
+        x = 4 + k * 7
+        L.rect(x, 3 + k, x + 5, 16, 'papel', 0)
+        L.rect(x, 3 + k, x + 5, 6 + k, c, tex=False)
+        L.rect(x + 1, 9 + k, x + 4, 9 + k, (120, 124, 140), tex=False)
+        L.rect(x + 3, 4 + k, x + 3, 16, 'papel', 2, tex=False)                      # el pliegue
+    vidrio = L.caja_mascara(2, 14, 25, 27)
+    r = _reflejos(L)
+    r['izquierda'].rect(3, 16, 3, 25, 2)
+    r['derecha'].rect(24, 16, 24, 25, 2)
+    r['frente'].rect(5, 15, 22, 15, 1)
+    for rr in r.values():
+        rr.m[(rr.m > 0) & ~vidrio] = 0
+    return L, r, None
+
+
+def planilla(n=0):
+    """Planilla de turnos en su tabla con pinza, colgada de un clavo."""
+    L = Lienzo(24, 32, semilla=213)
+    L.rect(3, 4, 20, 30, 'laminado', 2)
+    L.rect(5, 7, 18, 28, 'papel', 0)
+    for y in range(10, 27, 3):                                                      # filas de turnos
+        L.rect(6, y, 8, y + 1, (96, 170, 104) if y % 2 else (70, 110, 160), tex=False)
+        L.rect(10, y, 17, y + 1, (150, 156, 170), tex=False)
+    L.rect(8, 2, 15, 7, 'cromo', 2)                                                 # pinza
+    L.rect(8, 2, 15, 2, 'cromo', 0, tex=False)
+    L.px(11, 0, 'cromo', 3)
+    r = _reflejos(L)
+    r['izquierda'].px(8, 3, 2)
+    r['derecha'].px(15, 3, 2)
+    r['frente'].rect(10, 2, 13, 2, 2)
+    return L, r, None
+
+
 B = 'escenarios/universidad/arte/'
 PIEZAS = {
+    'buzon-bienestar': dict(nombre='Buzón de bienestar', tipo='objeto', dibujar=buzon, cuadros=2,
+                            huella=dict(ancho=18, fondo=8, alto=38), material='lámina',
+                            animaciones=dict(reposo=dict(de=0, hasta=0, fps=1, bucle=True),
+                                             cerca=dict(de=1, hasta=1, fps=4, bucle=False, sostener=True)),
+                            reemplaza=B + 'objetos/buzon-bienestar.png'),
+    'carne-estudiantil': dict(nombre='Carné estudiantil', tipo='objeto', dibujar=carne, cuadros=1, sobre=24,
+                              huella=dict(ancho=20, fondo=6, alto=4), material='plástico',
+                              reemplaza=B + 'objetos/carne-estudiantil.png'),
+    'folleto-rutas': dict(nombre='Folletos de la ruta de atención', tipo='objeto', dibujar=folletos, cuadros=1, sobre=24,
+                          huella=dict(ancho=22, fondo=8, alto=24), material='acrílico y papel',
+                          reemplaza=B + 'objetos/folleto-rutas.png'),
+    'planilla-turnos': dict(nombre='Planilla de turnos', tipo='objeto', dibujar=planilla, cuadros=1,
+                            huella=dict(ancho=18, fondo=4, alto=28), material='papel',
+                            reemplaza=B + 'objetos/planilla-turnos.png'),
+    'afiche-bienestar': dict(ocm.PIEZAS['afiche-rutas-atencion'], nombre='Afiche de bienestar', reemplaza=B + 'objetos/afiche-bienestar.png'),
+    'cartelera-horarios': dict(nombre='Cartelera de horarios', tipo='objeto', dibujar=__import__('objetos_hospital_c').cartelera_pasillo,
+                               cuadros=1, huella=dict(ancho=56, fondo=8, alto=60), material='tablero y cromo',
+                               reemplaza=B + 'objetos/cartelera-horarios.png'),
+    'tablero-avisos': dict(nombre='Tablero de avisos', tipo='objeto', dibujar=__import__('objetos_comisaria_b').cartelera,
+                           cuadros=1, huella=dict(ancho=70, fondo=8, alto=70), material='corcho',
+                           reemplaza=B + 'objetos/tablero-avisos.png'),
     'computador-oficina': dict(nombre='Computador de oficina', tipo='objeto', dibujar=computador, cuadros=2, sobre=24,
                                huella=dict(ancho=30, fondo=8, alto=22), material='plástico y pantalla',
                                animaciones=dict(reposo=dict(de=0, hasta=1, fps=2, bucle=True)),
