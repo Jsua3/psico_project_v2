@@ -572,6 +572,17 @@ const QUEUED_PAUSE_SLOW_NOTICE = 'La acción en curso está tardando. Estamos pa
     .game-container[data-mode='dialogue-right'] .main-zone {
       grid-template-columns: minmax(0, 1fr) clamp(340px, 28vw, 480px);
     }
+    /* Ensayo: el panel de autora es la última columna (fila 1); sin ella la rejilla lo pone primero y manda el mundo a una fila sin alto. */
+    .game-container[data-rehearsal] .main-zone {
+      grid-template-columns: minmax(0, 1fr) clamp(280px, 24vw, 340px);
+    }
+    .game-container[data-rehearsal][data-mode='dialogue-right'] .main-zone {
+      grid-template-columns: minmax(0, 1fr) clamp(340px, 28vw, 480px) clamp(280px, 24vw, 340px);
+    }
+    @media (max-width: 760px) {
+      .game-container[data-rehearsal] .main-zone,
+      .game-container[data-rehearsal][data-mode='dialogue-right'] .main-zone { grid-template-columns: minmax(0, 1fr); }
+    }
     .canvas-zone {
       position: relative;
       min-height: 0;

@@ -136,14 +136,17 @@ const SECCION_DE: Record<CampoError, string> = { irA: 'escena', explorado: 'expl
   `,
   styles: [`
     /* En la rejilla de la zona principal: siempre en la fila 1, a la derecha del mundo (y de la columna del diálogo, si hay). */
-    :host { display: block; min-height: 0; grid-row: 1; max-block-size: 100%; }
+    :host { display: block; min-height: 0; grid-row: 1; grid-column: -2 / -1; max-block-size: 100%; }
+    @media (max-width: 760px) {
+      :host { grid-column: 1; z-index: 60; }
+    }
     .rp { display: flex; flex-direction: column; max-block-size: 100%; inline-size: min(340px, 100%); color: var(--ds-text-1, #f4f7fb);
       background: var(--ds-surface-2, rgba(18,24,42,.96)); border: 1px solid var(--ds-border, rgba(182,156,255,.3)); border-radius: 12px; overflow: hidden; }
     .rp__toggle { text-align: start; padding: 8px 12px; background: transparent; color: inherit; border: 0; font: inherit; font-weight: 600; cursor: pointer; }
     .rp__body { overflow-y: auto; padding: 0 12px 12px; min-block-size: 0; }
     .rp__all { border: 0; margin: 0; padding: 0; min-inline-size: 0; }
     .rp__all[aria-busy='true'] { opacity: .6; }
-    h3 { margin: 12px 0 4px; font-size: .95rem; } h4 { margin: 8px 0 2px; font-size: .85rem; }
+    h3 { margin: 12px 0 4px; font-size: .95rem; color: inherit; } h4 { margin: 8px 0 2px; font-size: .85rem; }
     .rp__list { list-style: none; margin: 0; padding: 0; } .rp__list li { padding: 2px 0; }
     .rp__item, .rp__note { margin: 4px 0; font-size: .85rem; } .rp__note { color: var(--ds-text-2, rgba(244,247,251,.8)); }
     .rp__error { margin: 4px 0; font-size: .85rem; color: var(--ds-danger-text, #ffb4b4); }
