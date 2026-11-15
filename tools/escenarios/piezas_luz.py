@@ -186,11 +186,11 @@ def _emisores(sala, momento):
     for pz in sala['estructura'].get('piezas', []):
         ficha = pm.PIEZAS.get((pz.get('tipo'), pz.get('modelo')))
         luz = ficha.get('luz') if ficha else None
-        modo = pz.get('encendida', 'auto')
-        if not luz or modo == 'nunca':
+        modo = pz.get('encendida')            # booleano opcional: True la fuerza encendida y False apagada
+        if not luz or modo is False:
             continue
         propia = luz['momento'] == momento
-        if not propia and modo != 'siempre':
+        if not propia and modo is not True:
             continue
         yield pz, ficha, luz, luz.get('fuerza', 100) * (100 if propia else 60) // 100
 

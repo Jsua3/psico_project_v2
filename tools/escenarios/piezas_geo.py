@@ -95,27 +95,30 @@ def largo_muro(muro, encuadre, ancho):
     return FONDO if (izq if muro == 'izquierda' else der) else 0
 
 
+def redondear(n, d):
+    """Entero más cercano a n/d con las mitades hacia arriba: el redondeo del contrato x-siep 2.2 (nada de round())."""
+    return (2 * n + d) // (2 * d)
+
+
 def en_pantalla(muro, pos, encuadre, ancho):
-    """Punto de apoyo en pantalla de una pieza puesta en (muro, pos)."""
+    """Punto de apoyo en pantalla de una pieza puesta en (muro, pos): el `ancla` del contrato x-siep 2.2."""
     xl, _ = limites(encuadre, ancho)
     if muro == 'fondo':
         return xl + pos, SEAM
     if muro == 'camara':
-        return int(round(esp(ancho, xl + pos, ALTO))), ALTO
-    y = SEAM + pos
-    return int(round(junta(ancho, muro, y))), y
+        cx = ancho // 2
+        return cx + redondear((xl + pos - cx) * 19, 16), ALTO
+    b = borde(ancho)
+    x = b - redondear(pos * (b - MARGEN), FONDO)
+    return (x if muro == 'izquierda' else ancho - x), SEAM + pos
 
 
 def llegada(muro, pos, encuadre, ancho):
-    """Dónde queda parado el personaje al cruzar la puerta que está en (muro, pos)."""
+    """Umbral de la puerta que está en (muro, pos) y punto donde queda el personaje al cruzarla: su ancla traída
+    a la zona caminable con los márgenes del contrato (16 px a los lados; y entre 260 y 476)."""
     x, y = en_pantalla(muro, pos, encuadre, ancho)
     x0, y0, w, h = zona_caminable(encuadre, ancho)
-    if muro == 'izquierda':
-        x += 30
-    elif muro == 'derecha':
-        x -= 30
-    # La zona es un rectángulo y la base del muro lateral va en diagonal: el punto se trae adentro.
-    return min(max(x, x0 + 12), x0 + w - 12), min(max(y, y0 + 10), y0 + h - 10)
+    return min(max(x, x0 + 16), x0 + w - 16), min(max(y, y0 + 24), y0 + h - 10)
 
 
 # ── proyectores ────────────────────────────────────────────────────────────────

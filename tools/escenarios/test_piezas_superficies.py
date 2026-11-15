@@ -11,7 +11,7 @@ import piezas_muro as pm  # noqa: E402
 import piezas_superficies as ps  # noqa: E402
 
 PISOS = [(t, v) for t in ps.PISOS for v in ps.PISOS[t]]
-MUROS = [(a, p) for a in ps.ACABADOS for p in ps.PALETAS]
+MUROS = ps.muros_del_catalogo()
 
 
 def _colores(im):
@@ -22,7 +22,9 @@ def _colores(im):
 
 def test_hay_seis_pisos_en_dos_variantes():
     assert sorted(ps.PISOS) == ['adoquin', 'baldosa', 'cemento', 'damero', 'madera', 'vinilo']
-    assert all(sorted(v) == ['a', 'b'] for v in ps.PISOS.values())
+    assert all({'a', 'b'} <= set(v) for v in ps.PISOS.values())
+    assert sum(len(v) for v in ps.PISOS.values()) == 12 + 28, 'más el piso propio de cada sala de la biblioteca'
+    assert ps.PISOS['damero']['universidad-cafeteria']['A'] == (146, 136, 122)
 
 
 @pytest.mark.parametrize('tipo, variante', PISOS)
@@ -59,7 +61,19 @@ def test_un_piso_fuera_del_catalogo_se_rechaza():
 
 def test_hay_cinco_acabados_y_la_paleta_de_cada_lugar():
     assert list(ps.ACABADOS) == ['pintura', 'zocalo-alto', 'azulejo', 'ladrillo', 'paneles']
-    assert sorted(ps.PALETAS) == ['casa', 'comisaria', 'hospital', 'universidad']
+    assert sorted(ps.PALETAS_BASE) == ['casa', 'comisaria', 'hospital', 'universidad']
+
+
+def test_cada_sala_de_la_biblioteca_conserva_su_color_de_muro():
+    import arte_casa
+    import arte_universidad
+    assert len(ps.PALETAS) == 4 + 28 and len(ps.muros_del_catalogo()) == 20 + 28
+    for modulo, lugar, sala in ((arte_universidad, 'universidad', 'cafeteria'), (arte_casa, 'casa', 'cocina')):
+        P = ps.PALETAS[f'{lugar}-{sala}']
+        assert P['pared'] == tuple(modulo.SALAS[sala]['pared'])
+        px = np.array(ps.muro_maestro(P['acabado'], f'{lugar}-{sala}'))
+        assert (px[40:60] == np.array(P['pared'], dtype=np.uint8)).all(-1).mean() > 0.8, 'el muro es del color de la sala'
+    assert ps.PALETAS['comisaria-recepcion']['franja'][0] > 84, 'y conserva su franja de color'
 
 
 @pytest.mark.parametrize('acabado, paleta', MUROS)

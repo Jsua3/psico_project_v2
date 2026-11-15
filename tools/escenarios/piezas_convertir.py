@@ -102,24 +102,17 @@ def _ventana(lugar, tipo, ancho, alto):
     return 'corrediza' if lugar == 'casa' else 'persiana'
 
 
-def _acabados(lugar, p):
+def _acabados(lugar, sala_id, p):
     perdido = []
     tipo = p['piso']
     if tipo not in ps.PISOS:
-        perdido.append(f'piso de {tipo}: queda como vinilo con un tapete')
+        perdido.append(f'piso de {tipo}: queda como vinilo liso del mismo color')
         tipo = 'vinilo'
-    # La variante se elige por tono (qué tan gris o qué tan vivo) y por claridad, no por distancia cruda de color.
-    tono = lambda c: (2 * (max(c) - min(c)), sum(c) // 3)  # noqa: E731
-    variante = min(ps.PISOS[tipo], key=lambda v: sum(abs(x - y) for x, y in zip(tono(ps.PISOS[tipo][v]['A']), tono(p['pisoA']))))
-    muro = ('ladrillo' if p.get('ladrillo') else 'azulejo' if p.get('azulejo') else 'paneles' if p.get('paneles')
-            else 'zocalo-alto' if p.get('baja') else 'pintura')
-    for clave, nombre in (('franja', 'franja de color en el muro'), ('vetas', 'vetas del muro'), ('pared_alta', 'franja alta del muro')):
-        if p.get(clave):
-            perdido.append(nombre)
-    # La paleta es la del catálogo cuyo muro más se parece al de la sala: casi siempre la de su lugar, pero una
-    # cafetería de muros cálidos dentro de la universidad conserva su carácter.
-    paleta = min(ps.PALETAS, key=lambda n: _distancia(ps.PALETAS[n]['pared'], p['pared']) - (900 if n == lugar else 0))
-    return dict(piso=tipo, variante=variante, muro=muro, paleta=paleta), perdido
+    variante = f'{lugar}-{sala_id}'        # el piso conserva los colores de la sala
+    # Cada sala conserva el color de muro que la distinguía: su paleta propia (`<lugar>-<sala>`) va en el catálogo
+    # con su franja, sus vetas y su acabado.
+    paleta = f'{lugar}-{sala_id}'
+    return dict(piso=tipo, variante=variante, muro=ps.PALETAS[paleta]['acabado'], paleta=paleta), perdido
 
 
 def convertir_lugar(lugar):
@@ -158,7 +151,7 @@ def convertir_lugar(lugar):
         p = paletas[s['id']]
         encuadre = encuadres[s['id']]
         xl, xr = g.limites(encuadre, ANCHO)
-        acabados, perdido = _acabados(lugar, p)
+        acabados, perdido = _acabados(lugar, s['id'], p)
         if encuadre != s['encuadre']:
             perdido.append(f'encuadre {s["encuadre"]}: pasa a {encuadre} para que la salida lateral tenga muro')
         if propios.get(s['id']):
@@ -220,11 +213,6 @@ def convertir_lugar(lugar):
             estructura['exterior'] = True
         if propios.get(s['id']):
             estructura['propios'] = [dict(ref=f'{lugar}/{s["id"]}', ruta=f'piezas/propios/{lugar}-{s["id"]}.png')]
-        if p['piso'] not in ps.PISOS:
-            x0, y0, w, h = g.zona_caminable(encuadre, ANCHO)
-            estructura['tapetes'] = [dict(caja=[x0 + 70, x0 + w - 70, y0 + 34, y0 + h - 30],
-                                          colores=dict(oscuro=ps.osc(p['pisoA'], 0.62), borde=ps.osc(p['pisoA'], 0.78), ribete=p.get('pisoB', p['pisoA']),
-                                                       campo=p['pisoA'], motivo=ps.mezcla(p['pisoA'], (255, 244, 220), 0.22)))]
         sala = {k: v for k, v in s.items() if k not in ('fondo', 'puertas', 'encuadre')}
         sala.update(encuadre=encuadre, estructura=estructura, puertas=puertas, convertidaDe=f'escenarios/{lugar}/escenario.json')
         if perdido:
@@ -292,6 +280,10 @@ def escribir():
             os.makedirs(os.path.dirname(archivo), exist_ok=True)
             im.save(archivo, 'PNG', optimize=True)
         convertido = _json(convertir_lugar(lugar))
+        for ruta, im in ps.imagenes_de_tapetes(convertido).items():
+            archivo = os.path.join(RAIZ, 'biblioteca', *ruta.split('/'))
+            os.makedirs(os.path.dirname(archivo), exist_ok=True)
+            im.save(archivo, 'PNG', optimize=True)
         with open(os.path.join(carpeta, lugar + '.json'), 'w', encoding='utf-8', newline='') as f:
             f.write(pc.serializar(convertido))
         antes_y_despues(lugar, copy.deepcopy(convertido)).save(os.path.join(SALIDA, f'antes-despues-{lugar}.png'))

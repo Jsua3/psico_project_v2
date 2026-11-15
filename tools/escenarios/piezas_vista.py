@@ -72,6 +72,11 @@ def muebles_de_biblioteca(lugar, sala_id, dx=0):
     return lista
 
 
+def _entrada(sala, por_defecto):
+    e = sala.get('entrada') or por_defecto
+    return [e['x'], e['y']] if isinstance(e, dict) else list(e)
+
+
 def exportar(sala, lugar, imgs, muebles=()):
     """La sala como datos para la página; las imágenes van a `imgs` sin repetirse."""
     cuerpos = [sl.pl.cuerpo(m['x'], m['y'], m['im'].width, m['im'].height, persona=bool(m.get('persona'))) for m in muebles
@@ -88,7 +93,7 @@ def exportar(sala, lugar, imgs, muebles=()):
     datos = dict(nombre=sala['nombre'], lugar=lugar, ancho=dia['ancho'], zona=[x0, y0, w, h],
                  fondo=guardar('f-' + sid, dia['fondo'].convert('RGB')),
                  luz={m: [guardar(f'a-{sid}-{m}', c['ambiente']), guardar(f'b-{sid}-{m}', c['brillo'])] for m, c in (('dia', dia), ('noche', noche))},
-                 sprites=[], muebles=[], entrada=list(sala.get('entrada') or (x0 + w // 2, y0 + h * 2 // 3)), avisos=dia['avisos'])
+                 sprites=[], muebles=[], entrada=_entrada(sala, (x0 + w // 2, y0 + h * 2 // 3)), avisos=dia['avisos'])
     puertas = {p['id']: p for p in sala.get('puertas', [])}
     for sd, sn in zip(dia['sprites'], noche['sprites']):
         tira = g.tira(sd['cuadros'])

@@ -45,7 +45,7 @@ ANCHA = {
         {'id': 'colgante', 'tipo': 'lampara', 'modelo': 'colgante', 'muro': 'fondo', 'pos': 900},
         {'id': 'tubo', 'tipo': 'lampara', 'modelo': 'tubo', 'muro': 'fondo', 'pos': 1500},
         {'id': 'pie', 'tipo': 'lampara', 'modelo': 'pie', 'x': 700, 'y': 380},
-        {'id': 'mesa', 'tipo': 'lampara', 'modelo': 'mesa', 'x': 1300, 'y': 332, 'sobre': 18, 'encendida': 'siempre'},
+        {'id': 'mesa', 'tipo': 'lampara', 'modelo': 'mesa', 'x': 1300, 'y': 332, 'sobre': 18, 'encendida': True},
     ]},
     'puertas': [{'id': 'p-fondo', 'muro': 'fondo', 'pos': 700, 'modelo': 'madera'},
                 {'id': 'p-camara', 'muro': 'camara', 'pos': 900, 'modelo': 'urgencias'}],
@@ -174,7 +174,7 @@ La prueba del cliente debe dar esas imágenes píxel a píxel. La fuente es `too
 - `sala.estructura.piezas`: solo las que emiten. Cada una busca su ficha en `catalogo["<tipo>/<modelo>"].luz`
   (es la misma `luz` del manifiesto): `forma` (haz, pozo, tubo), `momento` en que emite, `tono` (calido, frio),
   `fuerza` (0 a 100, por defecto 100) y sus medidas (`ancho`, `antepecho` y `alto` en el haz; `radio` y `altura` en la lámpara).
-- `encendida` en la pieza: `nunca` no emite; `siempre` emite también fuera de su momento, al 60 % de su fuerza.
+- `encendida` en la pieza (booleano opcional): `false` no emite; `true` emite también fuera de su momento, al 60 % de su fuerza.
 - `sala.estructura.exterior`: sala al aire libre.
 - `abiertas`: ids de puertas abiertas (solo las del muro del fondo dejan la cuña de luz; su ancho es `catalogo["puerta/<modelo>"].ancho`).
 - `cuerpos`: muebles y personas sobre el piso, como `{x0, x1, y0, y1, alto}` (huella en px de sala y altura). Se
