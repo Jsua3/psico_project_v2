@@ -105,7 +105,8 @@ button:focus-visible, canvas:focus-visible { outline: 3px solid var(--tinta); ou
       <ul>
         <li><b>Las puertas son parte del muro:</b> marco, plintos que reciben el zócalo y umbral. Se abren en cuatro cuadros al acercarte.</li>
         <li><b>Hay siete tipos</b> y cada uno existe de frente, de lado y del lado de la cámara, donde solo asoman las jambas y la hoja gira sobre el tapete.</li>
-        <li><b>Día y noche:</b> de día cada ventana echa su haz; de noche la luz sale de las lámparas, cálida en la casa y fría en los tubos.</li>
+        <li><b>Día y noche:</b> de día cada ventana echa su haz, con sus parteluces y su persiana; de noche la luz sale de las lámparas, cálida en la sala de escucha y fría en los tubos.</li>
+        <li><b>Sombras y reflejos:</b> camina por un haz o junto a una lámpara y mira tu sombra; el vidrio y el metal brillan con la luz de la sala y se apagan con ella, y el piso pulido la devuelve al pie del muro.</li>
       </ul>
     </div>
     <div>
@@ -288,33 +289,91 @@ button:focus-visible, canvas:focus-visible { outline: 3px solid var(--tinta); ou
     }
   }
 
-  function pintarSprite(s, dx) {
-    const hoja = img[s.hoja];
-    if (!hoja) return;
-    let f = s.cuadro[E.momento];
-    if (s.puerta) f = Math.round(E.puertas[s.id] || 0);
-    else if (s.fps) f = Math.floor(E.t * s.fps) % s.n;
-    ctx.drawImage(hoja, f * s.w, 0, s.w, s.h, s.x + dx, s.y, s.w, s.h);
+  let capaR = null, capaA = null, capaB = null;
+  function lienzoAparte() {
+    const c = document.createElement('canvas');
+    c.width = VW; c.height = VH;
+    const x = c.getContext('2d');
+    x.imageSmoothingEnabled = false;
+    return x;
+  }
+
+  function cuadroDe(s) {
+    if (s.puerta) return Math.round(E.puertas[s.id] || 0);
+    if (s.fps) return Math.floor(E.t * s.fps) % s.n;
+    return s.cuadro[E.momento];
+  }
+
+  // Pinta un cuadro y lleva su brillo a la capa de reflejos: lo que queda delante tapa el brillo de lo de atrás.
+  function pintarCon(hoja, f, w, h, x, y, brillo) {
+    ctx.drawImage(hoja, f * w, 0, w, h, x, y, w, h);
+    capaR.globalCompositeOperation = 'destination-out';
+    capaR.drawImage(hoja, f * w, 0, w, h, x, y, w, h);
+    if (brillo) {
+      capaR.globalCompositeOperation = 'source-over';
+      capaR.drawImage(brillo, f * w, 0, w, h, x, y, w, h);
+    }
+  }
+
+  function casco(p) {
+    p.sort((a, b) => a[0] - b[0] || a[1] - b[1]);
+    const cruz = (o, a, b) => (a[0] - o[0]) * (b[1] - o[1]) - (a[1] - o[1]) * (b[0] - o[0]);
+    const abajo = [], arriba = [];
+    for (const q of p) { while (abajo.length >= 2 && cruz(abajo[abajo.length - 2], abajo[abajo.length - 1], q) <= 0) abajo.pop(); abajo.push(q); }
+    for (const q of p.slice().reverse()) { while (arriba.length >= 2 && cruz(arriba[arriba.length - 2], arriba[arriba.length - 1], q) <= 0) arriba.pop(); arriba.push(q); }
+    return abajo.slice(0, -1).concat(arriba.slice(0, -1));
+  }
+
+  // La sombra de quien camina: su huella barrida en la dirección de cada fuente de luz, con el largo que da cada una.
+  function sombrasDelJugador(S) {
+    const x0 = E.x - 9, x1 = E.x + 9, y0 = E.y - 10, y1 = E.y, lista = [];
+    for (const f of S.fuentes[E.momento]) {
+      let vx, vy;
+      if (f.t === 'd') {
+        const largo = Math.floor(60 * f.n / f.d);
+        vx = f.dx / 64 * largo; vy = f.dy / 64 * largo;
+      } else {
+        const ddx = E.x - f.x, ddy = E.y - 5 - f.y, n = Math.hypot(ddx, ddy);
+        if (n < 4) continue;
+        const largo = Math.min(Math.floor(60 * n / Math.max(f.h - 60, 16)), 72);
+        vx = ddx / n * largo; vy = ddy / n * largo;
+      }
+      lista.push(casco([[x0, y0], [x1, y0], [x1, y1], [x0, y1], [x0 + vx, y0 + vy], [x1 + vx, y0 + vy], [x1 + vx, y1 + vy], [x0 + vx, y1 + vy]]));
+    }
+    return lista;
+  }
+
+  function luzCon(capa, normal, enSombra, poligonos, dx) {
+    capa.globalCompositeOperation = 'copy';
+    capa.drawImage(normal, dx, 0);
+    capa.globalCompositeOperation = 'source-over';
+    if (!enSombra || !poligonos.length) return;
+    capa.save();
+    capa.beginPath();
+    for (const p of poligonos) {
+      capa.moveTo(p[0][0] + dx, p[0][1]);
+      for (let i = 1; i < p.length; i++) capa.lineTo(p[i][0] + dx, p[i][1]);
+      capa.closePath();
+    }
+    capa.clip();
+    capa.drawImage(enSombra, dx, 0);
+    capa.restore();
   }
 
   function pintar() {
     const S = sala(), dx = -E.camX;
+    if (!capaR || capaR.canvas.width !== VW) { capaR = lienzoAparte(); capaA = lienzoAparte(); capaB = lienzoAparte(); }
     ctx.globalCompositeOperation = 'source-over';
     ctx.fillStyle = '#0e1016';
     ctx.fillRect(0, 0, VW, VH);
+    capaR.globalCompositeOperation = 'source-over';
+    capaR.clearRect(0, 0, VW, VH);
     if (img[S.fondo]) ctx.drawImage(img[S.fondo], dx, 0);
-    for (const s of S.sprites) if (s.capa === 'muro') pintarSprite(s, dx);
-
-    ctx.fillStyle = 'rgba(8, 6, 18, 0.30)';
-    for (const m of S.muebles) {
-      if (!m.s) continue;
-      ctx.beginPath();
-      ctx.ellipse(m.s[0] + dx, m.s[1], m.s[2], m.s[3], 0, 0, Math.PI * 2);
-      ctx.fill();
-    }
-    ctx.beginPath();
-    ctx.ellipse(Math.round(E.x) + dx, Math.round(E.y) - 1, 11, 4, 0, 0, Math.PI * 2);
-    ctx.fill();
+    const pintaSprite = (s) => {
+      if (img[s.hoja]) pintarCon(img[s.hoja], cuadroDe(s), s.w, s.h, s.x + dx, s.y, s.brillo && img[s.brillo[E.momento]]);
+    };
+    for (const s of S.sprites) if (s.capa === 'muro') pintaSprite(s);
+    if (img['j-sombra']) ctx.drawImage(img['j-sombra'], Math.round(E.x) - 13 + dx, Math.round(E.y) - 7);
 
     const cosas = [];
     for (const m of S.muebles) cosas.push({ z: m.z, mueble: m });
@@ -324,23 +383,35 @@ button:focus-visible, canvas:focus-visible { outline: 3px solid var(--tinta); ou
     for (const c of cosas) {
       if (c.mueble) {
         const m = c.mueble, f = m.n > 1 && m.fps && !reducido ? Math.floor(E.t * m.fps) % m.n : 0;
-        if (img[m.img]) ctx.drawImage(img[m.img], f * m.w, 0, m.w, m.h, m.x + dx, m.y, m.w, m.h);
+        if (img[m.img]) pintarCon(img[m.img], f, m.w, m.h, m.x + dx, m.y, m.brillo && img[m.brillo[E.momento]]);
       } else if (c.sprite) {
-        pintarSprite(c.sprite, dx);
+        pintaSprite(c.sprite);
       } else {
         const hoja = img[E.andando ? D.jugador.walk : D.jugador.idle];
-        const n = E.andando ? 6 : 4;
-        const f = reducido ? 0 : Math.floor(E.t * (E.andando ? 10 : 4)) % n;
-        if (hoja) ctx.drawImage(hoja, f * 48, E.vista * 72, 48, 72, Math.round(E.x) - 24 + dx, Math.round(E.y) - 68, 48, 72);
+        const f = reducido ? 0 : Math.floor(E.t * (E.andando ? 10 : 4)) % (E.andando ? 6 : 4);
+        const px = Math.round(E.x) - 24 + dx, py = Math.round(E.y) - 68;
+        if (hoja) {
+          ctx.drawImage(hoja, f * 48, E.vista * 72, 48, 72, px, py, 48, 72);
+          capaR.globalCompositeOperation = 'destination-out';
+          capaR.drawImage(hoja, f * 48, E.vista * 72, 48, 72, px, py, 48, 72);
+        }
       }
     }
-    for (const s of S.sprites) if (s.capa === 'frente') pintarSprite(s, dx);
+    for (const s of S.sprites) if (s.capa === 'frente') pintaSprite(s);
 
-    const luz = S.luz[E.momento];
-    ctx.globalCompositeOperation = 'multiply';
-    if (img[luz[0]]) ctx.drawImage(img[luz[0]], dx, 0);
+    const luz = S.luz[E.momento], sombras = sombrasDelJugador(S);
+    if (img[luz[0]]) {
+      luzCon(capaA, img[luz[0]], img[luz[2]], sombras, dx);
+      ctx.globalCompositeOperation = 'multiply';
+      ctx.drawImage(capaA.canvas, 0, 0);
+    }
+    if (img[luz[1]]) {
+      luzCon(capaB, img[luz[1]], img[luz[3]], sombras, dx);
+      ctx.globalCompositeOperation = 'lighter';
+      ctx.drawImage(capaB.canvas, 0, 0);
+    }
     ctx.globalCompositeOperation = 'lighter';
-    if (img[luz[1]]) ctx.drawImage(img[luz[1]], dx, 0);
+    ctx.drawImage(capaR.canvas, 0, 0);
     ctx.globalCompositeOperation = 'source-over';
     if (E.fundido > 0) {
       ctx.fillStyle = 'rgba(8, 7, 14, ' + E.fundido.toFixed(3) + ')';
