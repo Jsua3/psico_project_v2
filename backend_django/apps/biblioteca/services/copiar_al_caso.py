@@ -180,11 +180,13 @@ def _muebles(escena, sala, catalogo, lugar_id, claves):
             collision=False, metadata=metadata,
         ))
         if choca:
-            # La caja de choque es la huella en el suelo: el punto de apoyo es su centro inferior.
+            # La caja de choque es la huella en el suelo: el punto de apoyo es su centro inferior. Con ``huella`` (esquema 3)
+            # es la base del mueble (ancho × fondo); sin ella, la caja entera del dibujo, como siempre.
+            huella = modelo.get("huella")
+            ancho, fondo = (huella["ancho"], huella["fondo"]) if isinstance(huella, dict) else (modelo["ancho"], modelo["alto"])
             zonas.append(CollisionZone(
                 scene_map=escena, zone_key=f"choque-{clave}", label=modelo["nombre"],
-                position_x=colocado["x"] - modelo["ancho"] // 2, position_y=colocado["y"] - modelo["alto"],
-                width=modelo["ancho"], height=modelo["alto"],
+                position_x=colocado["x"] - ancho // 2, position_y=colocado["y"] - fondo, width=ancho, height=fondo,
             ))
     return objetos, zonas
 
