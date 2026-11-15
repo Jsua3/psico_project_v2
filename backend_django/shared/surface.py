@@ -66,6 +66,14 @@ _ESTATICO = "plantilla o especificación estática: no lee datos de nadie"
 _INTENTO_PROPIO = (
     "estado de juego del propio intento: el hecho queda en la traza del intento (attempt_events), que se audita al leerla"
 )
+_POR_TOKEN = (
+    "lectura de un intento por su token: solo lo lee su dueño, el estudiante o la docente (o el ADMIN) que ensaya su borrador; "
+    "nadie lee el intento de otra persona por esta ruta (``_require_attempt``)"
+)
+_ENSAYO = (
+    "ensayo del borrador de su autora (docente dueña o ADMIN): un intento aparte que ningún informe, lista ni métrica cuenta y que "
+    "nadie más lee; no son datos de estudiantes"
+)
 _DOCUMENTACION = "documentación de la API: cerrada al ADMIN y apagada por defecto, sin datos de personas"
 # BORRADOR (E6-3): texto nuevo del servidor, pendiente de la aprobación de Psicología (VD-23).
 _ENCUESTA_PROPIA = (
@@ -91,6 +99,10 @@ _AUTORIA = {
     (f"{_CV}/assistant/status", "GET"): _exento(_PROPIO),
     (f"{_CV}/assistant/propose", "POST"): "AI_AUTHORING_PROPOSE",
     (f"{_CV}/assistant/guide", "POST"): "AI_AUTHORING_GUIDE",
+    # A2 · el ensayo del borrador: la docente (o el ADMIN) juega SU borrador; no es un intento de estudiante y no toca datos de personas.
+    (f"{_CV}/rehearsal", "POST"): _exento(_ENSAYO),
+    (f"{_CV}/rehearsal/<uuid:attempt_id>", "GET"): _exento(_ENSAYO),
+    (f"{_CV}/rehearsal/<uuid:attempt_id>", "PATCH"): _exento(_ENSAYO),
     (f"{_CV}/brief", "PUT"): "ADMIN_UPDATE_BRIEF",
     (f"{_CV}/characters", "POST"): "ADMIN_CREATE_CHARACTER",
     (f"{_CV}/characters/<int:character_id>", "PUT"): "ADMIN_UPDATE_CHARACTER",
@@ -256,6 +268,11 @@ AUDIT_BY_ROUTE: dict[tuple[str, str], str] = {
     ),
     # El dueño lee lo suyo (sin fila); el ADMIN o el docente lee el de otra persona (``reporte.leer``).
     ("api/simulation/attempts/<uuid:attempt_id>/student-report", "GET"): "REPORT_VIEWED",
+    # Las lecturas del juego por token se abren a la docente que ensaya (bloque A2): siguen siendo de su dueño.
+    **{
+        (f"api/simulation/attempts/<uuid:attempt_id>{sufijo}", "GET"): _exento(_POR_TOKEN)
+        for sufijo in ("", "/report", "/completion-report", "/progress-map", "/hints", "/world")
+    },
     ("api/simulation/cases", "GET"): _exento(_PROPIO),
     ("api/simulation/cases/<int:case_version_id>/brief", "GET"): _exento(_PROPIO),
     ("api/simulation/catalog", "GET"): _exento(_PROPIO),

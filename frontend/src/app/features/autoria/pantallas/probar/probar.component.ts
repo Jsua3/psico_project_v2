@@ -151,7 +151,9 @@ const CLASIFICACION: Record<NonNullable<Respuesta['clase']> | 'sin-clasificar', 
   styles: `
     .ancha { max-width: 1300px; }
     .dos-columnas { display: grid; grid-template-columns: minmax(0, 1fr) minmax(260px, 320px); gap: 16px; align-items: start; }
-    @media (max-width: 1000px) { .dos-columnas { grid-template-columns: 1fr; } }
+    /* «1fr» solo es minmax(auto, 1fr): la columna no bajaba del ancho mínimo de la vista del juego y la página desbordaba
+       en un teléfono (390 px). Con minmax(0, 1fr), como en dos columnas, cabe en el ancho que haya. */
+    @media (max-width: 1000px) { .dos-columnas { grid-template-columns: minmax(0, 1fr); } }
     .juego { display: flex; flex-direction: column; gap: 12px; padding: 16px; border-radius: 16px; background: var(--juego-fondo); color: var(--juego-texto); min-width: 0; }
     .juego :focus-visible { outline-color: var(--juego-acento-claro); }
     .cabeza-juego { display: flex; flex-wrap: wrap; justify-content: space-between; gap: 8px; font-size: var(--autoria-texto-16); }

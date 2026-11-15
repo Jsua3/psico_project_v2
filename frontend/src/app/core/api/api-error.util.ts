@@ -29,3 +29,13 @@ export function isConsentRequiredError(err: unknown): boolean {
   const body = err.error as { code?: unknown } | null;
   return body?.code === CONSENT_REQUIRED;
 }
+
+/** Código del 404 con el que el servidor dice que el ensayo ya no existe, no es de quien pide o es de otra versión. */
+export const REHEARSAL_GONE = 'REHEARSAL_GONE';
+
+/** ¿Es el 404 `REHEARSAL_GONE`? Se decide por el `code`, nunca por el texto del mensaje. */
+export function isRehearsalGoneError(err: unknown): boolean {
+  if (!(err instanceof HttpErrorResponse) || err.status !== 404) return false;
+  const body = err.error as { code?: unknown } | null;
+  return body?.code === REHEARSAL_GONE;
+}

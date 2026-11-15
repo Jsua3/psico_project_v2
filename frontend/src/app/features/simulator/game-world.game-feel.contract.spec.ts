@@ -12,9 +12,10 @@ describe('game-world: game feel del bloque B', () => {
     expect(source).not.toMatch(/stressLevel|setStressLevel/);
   });
 
-  it('las dos rutas de render pintan la viñeta de crisis, también en salas con luz pintada', () => {
-    // renderWorld (sala clásica), renderRoom y refitCamera (el lienzo cambió: se redibuja al nuevo rectángulo).
-    expect(source.match(/\n {4}this\.applyCrisisVignette\(\);/g) ?? []).toHaveLength(3);
+  it('las rutas de render pintan la viñeta de crisis, también en salas con luz pintada', () => {
+    // renderWorld (sala clásica), renderSalaPorPiezas (sala con `structure`, P2), renderRoom y refitCamera (el lienzo
+    // cambió: se redibuja al nuevo rectángulo).
+    expect(source.match(/\n {4}this\.applyCrisisVignette\(\);/g) ?? []).toHaveLength(4);
     expect(source).toMatch(/private refitCamera\(\): void \{[\s\S]*?this\.crisisVignette\?\.destroy\(\);\s*this\.applyCrisisVignette\(\);/);
   });
 

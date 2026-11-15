@@ -18,7 +18,7 @@ export const KEY_PERSON_HALO_HEX = 0x0b0f1a;
 /** Chevrón apuntando hacia abajo (a la cabeza): mitad del ancho y alto, en px del mundo. */
 export const KEY_PERSON_CHEVRON = { halfWidth: 7, height: 8 } as const;
 /** Alto del cuerpo del kit sobre los pies y holgura entre la cabeza y la punta del chevrón. */
-const KEY_PERSON_HEAD_PX = 64;
+export const KEY_PERSON_HEAD_PX = 64;
 const KEY_PERSON_GAP_PX = 2;
 /** Sombra de contacto del marcador de una persona: sus pies están así de bajo su centro. */
 export const KEY_PERSON_FEET_OFFSET_Y = 16;

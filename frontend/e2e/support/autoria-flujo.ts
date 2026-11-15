@@ -58,8 +58,11 @@ export async function abrirGuion(page: Page, numero: number): Promise<void> {
 
 /** Agrega una línea y la escribe (la última de la lista). */
 export async function escribirLinea(page: Page, texto: string): Promise<void> {
+  const lineas = page.locator('ol > li.linea');
+  const n = (await lineas.count()) + 1;
   await page.getByRole('button', { name: 'Agregar una línea' }).click();
-  const n = await page.locator('ol > li.linea').count();
+  // La línea nueva aparece cuando el servidor la crea: contarlas antes de eso escribiría sobre la anterior.
+  await expect(lineas).toHaveCount(n, { timeout: scaled(30_000) });
   const campo = page.getByLabel(`Lo que dice, línea ${n}`);
   await campo.fill(texto);
   await campo.blur();
@@ -80,9 +83,13 @@ export interface RespuestaEscrita {
 
 /** Agrega una respuesta y la escribe completa; devuelve su número. */
 export async function escribirRespuesta(page: Page, r: RespuestaEscrita): Promise<number> {
+  const respuestas = page.locator('li.respuesta');
+  const n = (await respuestas.count()) + 1;
   await page.getByRole('button', { name: 'Agregar una respuesta' }).click();
-  const n = await page.locator('li.respuesta').count();
-  const tarjeta = page.locator('li.respuesta').nth(n - 1);
+  // La respuesta nueva aparece cuando el servidor la crea. Si se cuenta antes, «la última» todavía es la anterior y se
+  // escribe encima: la escena queda con una sola opción y sin la recomendada (pasó en una corrida real).
+  await expect(respuestas).toHaveCount(n, { timeout: scaled(30_000) });
+  const tarjeta = respuestas.nth(n - 1);
   const campo = tarjeta.getByLabel(`Respuesta ${n}`, { exact: true });
   await campo.fill(r.texto);
   await campo.blur();

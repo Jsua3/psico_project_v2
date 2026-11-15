@@ -215,6 +215,20 @@ def test_un_intento_que_ella_misma_reemplazo_sale_una_sola_vez(mundo):
     assert fila["student_id"] == mundo.persona.pk and "attempt_token_hash" not in fila
 
 
+def test_el_ensayo_de_una_docente_sale_en_la_exportacion(mundo):
+    """``SimulationAttempt.objects`` oculta los ensayos; privacidad lee por ``_base_manager`` y los ve (con sus hijos)."""
+    ensayo = SimulationAttempt.all_objects.create(
+        attempt_token_hash="hash-ensayo-" + mundo.m["correo"], case_version=mundo.entorno.version, student=mundo.persona,
+        current_node=mundo.entorno.nodo_inicial, is_rehearsal=True,
+    )
+    assert not SimulationAttempt.objects.filter(pk=ensayo.pk).exists()
+
+    filas = services.export_person(mundo.persona)["tablas"]["simulation_attempts_v2"]
+
+    [fila] = [f for f in filas if f["id"] == str(ensayo.pk)]
+    assert fila["student_id"] == mundo.persona.pk and "attempt_token_hash" not in fila
+
+
 def test_exportar_no_escribe_nada(mundo):
     antes = volcado()
 

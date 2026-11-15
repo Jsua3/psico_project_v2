@@ -264,6 +264,46 @@ test('publishLibrary copia el manifiesto y sus PNG, borra lo que sobra y publish
   }
 });
 
+test('publishLibrary publica también el catálogo de piezas: su manifiesto, cada imagen que nombra y los lugares, sin la referencia de luz', () => {
+  const root = mkdtempSync(path.join(tmpdir(), 'manifiesto-piezas-'));
+  try {
+    const biblioteca = path.join(root, 'biblioteca');
+    const output = path.join(root, 'assets', 'biblioteca');
+    toyLibrary(biblioteca);
+    const piezas = path.join(biblioteca, 'piezas');
+    writePng(path.join(piezas, 'pisos', 'vinilo-a.png'), solid(4, 2));
+    writePng(path.join(piezas, 'puertas', 'madera-frente.png'), solid(8, 6));
+    writePng(path.join(piezas, 'luz', 'referencia', 'casa-sala-dia-ambiente.png'), solid(2, 2));
+    writePng(path.join(piezas, 'sin-usar.png'), solid(2, 2));
+    mkdirSync(path.join(piezas, 'lugares'), { recursive: true });
+    writeFileSync(path.join(piezas, 'lugares', 'hospital.json'), '{"esquema":3,"salas":[]}');
+    writeFileSync(path.join(piezas, 'manifiesto.json'), JSON.stringify({
+      esquema: 2, lugares: ['piezas/lugares/hospital.json'], pisos: { 'vinilo-a': { ruta: 'piezas/pisos/vinilo-a.png' } },
+      piezas: { 'puerta/madera': { vistas: { frente: { ruta: 'piezas/puertas/madera-frente.png' } } } },
+      luz: { casos: 'piezas/luz/casos.json', referencia: 'piezas/luz/LEEME.md' },
+    }));
+
+    assert.equal(publishLibrary({ biblioteca, output }), 8); // 3 PNG y el manifiesto general; 2 imágenes, un lugar y el manifiesto de piezas
+    assert.deepEqual(publishedFindings({ biblioteca, output }), []);
+    for (const key of ['piezas/manifiesto.json', 'piezas/pisos/vinilo-a.png', 'piezas/puertas/madera-frente.png', 'piezas/lugares/hospital.json']) {
+      assert.ok(existsSync(path.join(output, ...key.split('/'))), key);
+    }
+    assert.ok(!existsSync(path.join(output, 'piezas', 'sin-usar.png')), 'lo que el manifiesto no nombra no se publica');
+    assert.ok(!existsSync(path.join(output, 'piezas', 'luz')), 'la referencia de luz es de las pruebas, no del juego');
+
+    // Una pieza que P1 regeneró y no se volvió a publicar se nota.
+    writePng(path.join(piezas, 'pisos', 'vinilo-a.png'), solid(4, 2, [9, 9, 9, 255]));
+    assert.deepEqual(publishedFindings({ biblioteca, output }),
+      ['piezas/pisos/vinilo-a.png: la copia en src/assets/biblioteca no es igual a la biblioteca (npm run world-art:build)']);
+    // Un manifiesto de piezas que nombra una imagen que no existe falla antes de borrar nada.
+    rmSync(path.join(piezas, 'puertas', 'madera-frente.png'));
+    assert.throws(() => publishLibrary({ biblioteca, output }), /publishLibrary: .*madera-frente/);
+    assert.ok(existsSync(path.join(output, 'piezas', 'puertas', 'madera-frente.png')));
+  } finally {
+    rmSync(root, { recursive: true, force: true });
+  }
+});
+
 // Revisión final · C7: la salida nunca puede ser la propia biblioteca (publicar borra la carpeta de salida antes de copiar).
 test('publishLibrary se niega si la salida es la biblioteca, está dentro de ella o la contiene, y no borra nada', () => {
   const root = mkdtempSync(path.join(tmpdir(), 'manifiesto-salida-'));

@@ -1,6 +1,6 @@
 import { HttpErrorResponse } from '@angular/common/http';
 
-import { CONSENT_REQUIRED, apiErrorMessage, isConsentRequiredError } from './api-error.util';
+import { CONSENT_REQUIRED, REHEARSAL_GONE, apiErrorMessage, isConsentRequiredError, isRehearsalGoneError } from './api-error.util';
 
 function httpError(status: number, error: unknown): HttpErrorResponse {
   return new HttpErrorResponse({ status, error });
@@ -61,5 +61,16 @@ describe('apiErrorMessage', () => {
       expect(apiErrorMessage(httpError(status, { message: 'x' }), 'Respaldo')).toBeNull();
     }
     expect(apiErrorMessage(new Error('boom'), 'Respaldo')).toBeNull();
+  });
+});
+
+describe('isRehearsalGoneError', () => {
+  it('reconoce el 404 REHEARSAL_GONE y nada más', () => {
+    expect(REHEARSAL_GONE).toBe('REHEARSAL_GONE');
+    expect(isRehearsalGoneError(httpError(404, { code: 'REHEARSAL_GONE' }))).toBe(true);
+    expect(isRehearsalGoneError(httpError(404, { code: 'NOT_FOUND' }))).toBe(false);
+    expect(isRehearsalGoneError(httpError(403, { code: 'REHEARSAL_GONE' }))).toBe(false);
+    expect(isRehearsalGoneError(httpError(404, null))).toBe(false);
+    expect(isRehearsalGoneError(new Error('REHEARSAL_GONE'))).toBe(false);
   });
 });
