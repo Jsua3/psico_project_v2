@@ -27,11 +27,15 @@ def test_lee_las_piezas_con_muros_ocupa_y_franja():
 
 def test_lee_pisos_variantes_muros_paletas_y_propios():
     catalogo = catalogo_piezas.cargar_catalogo(FICHA)
-    assert "vinilo" in catalogo.pisos and catalogo.variantes["vinilo"] == frozenset({"a", "b"})
+    assert {"vinilo", "damero", "madera"} <= catalogo.pisos
+    assert catalogo.tiene_piso("vinilo", "a") and catalogo.tiene_piso("vinilo", "b")
+    assert catalogo.tiene_piso("damero", "universidad-cafeteria")
+    assert not catalogo.tiene_piso("vinilo", "z")
     assert catalogo.tiene_muro("zocalo-alto", "hospital")
     assert catalogo.tiene_muro("azulejo", "casa-cocina")
     assert not catalogo.tiene_muro("pintura", "marte")
     assert "piezas/propios/casa-cocina.png" in catalogo.propios
+    assert "piezas/tapetes/hospital-sala-escucha-1.png" in catalogo.tapetes
 
 
 def test_los_anchos_y_bordes_del_manifiesto_son_los_de_la_geometria():

@@ -46,10 +46,14 @@ class Catalogo:
     anchos: tuple
     bordes: dict
     piezas: dict
-    pisos: frozenset
-    variantes: dict
+    pisos: frozenset  # los tipos: "vinilo", "madera"…
+    claves_de_pisos: frozenset  # "<piso>-<variante>": "vinilo-a", "damero-universidad-cafeteria"…
     muros: frozenset  # "<acabado>/<paleta>"
     propios: frozenset
+    tapetes: frozenset
+
+    def tiene_piso(self, piso, variante="a"):
+        return f"{piso}-{variante}" in self.claves_de_pisos
 
     def tiene_muro(self, acabado, paleta):
         return f"{acabado}/{paleta}" in self.muros
@@ -68,28 +72,20 @@ def _pieza(clave, entrada):
     )
 
 
-def _variantes(pisos):
-    """``{"vinilo": {"a", "b"}}`` a partir de las claves ``"vinilo-a"``, ``"vinilo-b"``."""
-    resultado = {}
-    for clave in pisos:
-        base, _, variante = clave.rpartition("-")
-        if base:
-            resultado.setdefault(base, set()).add(variante)
-    return {base: frozenset(v) for base, v in resultado.items()}
-
-
 def _leer(ruta):
     datos = json.loads(Path(ruta).read_text(encoding="utf-8"))
     geometria = datos.get("geometria") or {}
-    variantes = _variantes(datos.get("pisos") or {})
+    claves_de_pisos = frozenset(datos.get("pisos") or ())
     return Catalogo(
         anchos=tuple(int(a) for a in geometria.get("anchos") or ()),
         bordes={int(a): int(b) for a, b in (geometria.get("borde") or {}).items()},
         piezas={clave: _pieza(clave, entrada) for clave, entrada in (datos.get("piezas") or {}).items()},
-        pisos=frozenset(variantes),
-        variantes=variantes,
+        # El tipo de piso no lleva guiones; la variante sí puede llevarlos (``universidad-cafeteria``).
+        pisos=frozenset(clave.partition("-")[0] for clave in claves_de_pisos),
+        claves_de_pisos=claves_de_pisos,
         muros=frozenset(datos.get("muros") or ()),
         propios=frozenset(datos.get("propios") or ()),
+        tapetes=frozenset(datos.get("tapetes") or ()),
     )
 
 

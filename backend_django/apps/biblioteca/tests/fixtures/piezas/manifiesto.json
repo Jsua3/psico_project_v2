@@ -390,12 +390,92 @@
    "ancho": 1920,
    "alto": 298
   },
+  "adoquin-casa-fachada": {
+   "nombre": "Adoquín",
+   "ancho": 1920,
+   "alto": 298
+  },
+  "adoquin-comisaria-fachada": {
+   "nombre": "Adoquín",
+   "ancho": 1920,
+   "alto": 298
+  },
+  "adoquin-universidad-entrada": {
+   "nombre": "Adoquín",
+   "ancho": 1920,
+   "alto": 298
+  },
   "baldosa-a": {
    "nombre": "Baldosa",
    "ancho": 1920,
    "alto": 298
   },
   "baldosa-b": {
+   "nombre": "Baldosa",
+   "ancho": 1920,
+   "alto": 298
+  },
+  "baldosa-casa-cocina": {
+   "nombre": "Baldosa",
+   "ancho": 1920,
+   "alto": 298
+  },
+  "baldosa-casa-comedor": {
+   "nombre": "Baldosa",
+   "ancho": 1920,
+   "alto": 298
+  },
+  "baldosa-casa-patio": {
+   "nombre": "Baldosa",
+   "ancho": 1920,
+   "alto": 298
+  },
+  "baldosa-comisaria-archivo": {
+   "nombre": "Baldosa",
+   "ancho": 1920,
+   "alto": 298
+  },
+  "baldosa-comisaria-orientacion-juridica": {
+   "nombre": "Baldosa",
+   "ancho": 1920,
+   "alto": 298
+  },
+  "baldosa-comisaria-pasillo": {
+   "nombre": "Baldosa",
+   "ancho": 1920,
+   "alto": 298
+  },
+  "baldosa-comisaria-recepcion": {
+   "nombre": "Baldosa",
+   "ancho": 1920,
+   "alto": 298
+  },
+  "baldosa-comisaria-sala-espera": {
+   "nombre": "Baldosa",
+   "ancho": 1920,
+   "alto": 298
+  },
+  "baldosa-universidad-aula": {
+   "nombre": "Baldosa",
+   "ancho": 1920,
+   "alto": 298
+  },
+  "baldosa-universidad-bienestar": {
+   "nombre": "Baldosa",
+   "ancho": 1920,
+   "alto": 298
+  },
+  "baldosa-universidad-enfermeria": {
+   "nombre": "Baldosa",
+   "ancho": 1920,
+   "alto": 298
+  },
+  "baldosa-universidad-pasillo": {
+   "nombre": "Baldosa",
+   "ancho": 1920,
+   "alto": 298
+  },
+  "baldosa-universidad-sala-espera": {
    "nombre": "Baldosa",
    "ancho": 1920,
    "alto": 298
@@ -420,6 +500,11 @@
    "ancho": 1920,
    "alto": 298
   },
+  "damero-universidad-cafeteria": {
+   "nombre": "Damero",
+   "ancho": 1920,
+   "alto": 298
+  },
   "madera-a": {
    "nombre": "Madera",
    "ancho": 1920,
@@ -430,12 +515,67 @@
    "ancho": 1920,
    "alto": 298
   },
+  "madera-casa-escalera": {
+   "nombre": "Madera",
+   "ancho": 1920,
+   "alto": 298
+  },
+  "madera-casa-habitacion-principal": {
+   "nombre": "Madera",
+   "ancho": 1920,
+   "alto": 298
+  },
+  "madera-casa-pasillo": {
+   "nombre": "Madera",
+   "ancho": 1920,
+   "alto": 298
+  },
+  "madera-casa-sala": {
+   "nombre": "Madera",
+   "ancho": 1920,
+   "alto": 298
+  },
+  "madera-comisaria-consultorio-psicosocial": {
+   "nombre": "Madera",
+   "ancho": 1920,
+   "alto": 298
+  },
+  "madera-comisaria-despacho-comisaria": {
+   "nombre": "Madera",
+   "ancho": 1920,
+   "alto": 298
+  },
+  "madera-universidad-consultorio": {
+   "nombre": "Madera",
+   "ancho": 1920,
+   "alto": 298
+  },
+  "madera-universidad-oficina-docente": {
+   "nombre": "Madera",
+   "ancho": 1920,
+   "alto": 298
+  },
   "vinilo-a": {
    "nombre": "Vinilo de hospital",
    "ancho": 1920,
    "alto": 298
   },
   "vinilo-b": {
+   "nombre": "Vinilo de hospital",
+   "ancho": 1920,
+   "alto": 298
+  },
+  "vinilo-casa-habitacion-ninos": {
+   "nombre": "Vinilo de hospital",
+   "ancho": 1920,
+   "alto": 298
+  },
+  "vinilo-comisaria-sala-entrevista-nna": {
+   "nombre": "Vinilo de hospital",
+   "ancho": 1920,
+   "alto": 298
+  },
+  "vinilo-universidad-biblioteca": {
    "nombre": "Vinilo de hospital",
    "ancho": 1920,
    "alto": 298
@@ -510,5 +650,8 @@
   "piezas/propios/comisaria-recepcion.png",
   "piezas/propios/comisaria-sala-entrevista-nna.png",
   "piezas/propios/comisaria-sala-espera.png"
+ ],
+ "tapetes": [
+  "piezas/tapetes/hospital-sala-escucha-1.png"
  ]
 }
