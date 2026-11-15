@@ -147,7 +147,8 @@ export function actualizarMirada(m: Mirada, dx: number, dy: number, deltaMs: num
   if (pedida === null) return { ...avanzada, candidata: null, candidataMs: 0, enMovimiento: false };
   if (pedida === m.destino) return { ...avanzada, candidata: null, candidataMs: 0, enMovimiento: true };
   if (separacion(m.destino, pedida) === 1 && m.enMovimiento) {
-    const pedidaMs = m.candidata === pedida ? m.candidataMs + delta : delta;
+    // El primer cuadro no cuenta: con cuadros lentos (equipo sin GPU) un solo cuadro con una tecla ya duraría el retardo.
+    const pedidaMs = m.candidata === pedida ? m.candidataMs + delta : 0;
     if (pedidaMs < retardo) return { ...avanzada, candidata: pedida, candidataMs: pedidaMs, enMovimiento: true };
   }
   return girar(avanzada, pedida, dx, reducir);

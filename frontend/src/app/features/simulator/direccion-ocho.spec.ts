@@ -92,11 +92,16 @@ describe('actualizarMirada', () => {
     expect(m.actual).toBe('down-left');
   });
 
-  it('una vecina sostenida el retardo se confirma; antes, no', () => {
+  it('una vecina sostenida el retardo después de su primer cuadro se confirma; antes, no', () => {
     expect(RETARDO_VECINA_MS).toBe(70);
     const base = recorrer(miradaInicial('down-left'), [[-1, 1, 16]]);
-    expect(recorrer(base, [[-1, 0, 35]]).actual).toBe('down-left');
-    expect(recorrer(base, [[-1, 0, 35], [-1, 0, 35]]).actual).toBe('left');
+    expect(recorrer(base, [[-1, 0, 35], [-1, 0, 35]]).actual).toBe('down-left');
+    expect(recorrer(base, [[-1, 0, 35], [-1, 0, 35], [-1, 0, 35]]).actual).toBe('left');
+  });
+
+  it('con cuadros lentos (10 fps), un solo cuadro con una tecla al soltar la diagonal no la confirma', () => {
+    const m = recorrer(miradaInicial('down'), [[-1, 1, 100], [-1, 1, 100], [-1, 0, 100], [0, 0, 100]]);
+    expect(m.actual).toBe('down-left');
   });
 
   it('un vector que oscila en la frontera entre dos vecinas no hace parpadear la vista', () => {
