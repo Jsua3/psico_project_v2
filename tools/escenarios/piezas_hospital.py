@@ -299,12 +299,24 @@ def _mueble(ref):
     if ref not in MUEBLES:
         raise KeyError(f'mueble {ref!r} fuera del catálogo del hospital')
     ficha = MUEBLES[ref]
-    cuadros = [ac.terminar_sprite(ficha['dibujar'](n), 24) for n in range(ficha.get('cuadros', 1))]
-    return tuple(sl.g.recortar_juntos(cuadros, (0, 0))[0])          # sin filas vacías: la base del sprite es su pie
+    partes = [sl.g.mapa_de_brillo(ficha['dibujar'](n), BRILLOS) for n in range(ficha.get('cuadros', 1))]
+    cuadros = [ac.terminar_sprite(base, 24) for base, _ in partes]
+    cuadros, _, mapas = sl.g.recortar_con(cuadros, (0, 0), [m for _, m in partes])   # sin filas vacías: la base del sprite es su pie
+    return tuple(cuadros), tuple(mapas)
+
+
+# Lo que brilla en el mobiliario: tubos y filos de metal, y el botellón de agua (apagado en el dibujo).
+BRILLOS = {METAL[0]: ('metal', None), (208, 232, 244): ('vidrio', (176, 214, 236)), (190, 220, 230): ('vidrio', (150, 190, 204))}
+
+
+def mueble_brillo(ref):
+    """Mapas de brillo de cada cuadro del mueble, o None si no tiene nada que brille."""
+    mapas = _mueble(ref)[1]
+    return list(mapas) if any(m.getbbox() for m in mapas) else None
 
 
 def mueble(ref):
-    return list(_mueble(ref))
+    return list(_mueble(ref)[0])
 
 
 # ── salas ──────────────────────────────────────────────────────────────────────
@@ -484,10 +496,11 @@ def muebles_de(sala):
     """Muebles y personajes de la sala: dict(im, cuadros, fps, x, y) con (x, y) = centro de la base."""
     lista = []
     for m in sala.get('muebles', []):
-        cuadros = mueble(m['ref'])
+        cuadros, mapas = mueble(m['ref']), mueble_brillo(m['ref'])
         if m.get('espejo'):
             cuadros = [ImageOps.mirror(c) for c in cuadros]
-        lista.append(dict(im=cuadros[0], cuadros=cuadros, fps=MUEBLES[m['ref']].get('fps', 0), x=m['x'], y=m['y'], ref=m['ref']))
+            mapas = [ImageOps.mirror(c) for c in mapas] if mapas else None
+        lista.append(dict(im=cuadros[0], cuadros=cuadros, fps=MUEBLES[m['ref']].get('fps', 0), x=m['x'], y=m['y'], ref=m['ref'], mapas=mapas))
     for p in sala.get('personajes', []):
         ruta = os.path.join(KIT, p['ref'], 'idle.png')
         if os.path.exists(ruta):
@@ -498,6 +511,7 @@ def muebles_de(sala):
 
 def componer(sala, momento='noche', abiertas=()):
     extras = [dict(im=m['im'], x=m['x'] - m['im'].width // 2, y=m['y'] - m['im'].height, z=m['y'], sombra=not m.get('persona'),
+                   mapa=m['mapas'][0] if m.get('mapas') else None,
                    pie=(m['x'], m['y']) if m.get('persona') else None) for m in muebles_de(sala)]
     return sl.componer_sala(sala, momento, abiertas, extras=extras)
 

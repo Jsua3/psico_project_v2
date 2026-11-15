@@ -65,6 +65,29 @@ La prueba del cliente debe dar esas imágenes píxel a píxel. La fuente es `too
    `escalon = clip(a // 1024 + ((a % 1024) * 16 > bayer * 1024), 0, 3)`;
    `brillo = min(255, tablaCalida[escalonCalido] + tablaFria[escalonFrio])` por canal.
 
+## Brillo: vidrio, metal y barniz
+
+Nada trae pintado un reflejo propio: lo que brilla va en el **mapa de brillo** del sprite (`brillo` en el manifiesto),
+una tira igual a la del dibujo con solo esos píxeles (gris 255 vidrio, 170 metal, 85 barniz), y se enciende con la
+luz de la sala.
+
+1. `reflejos(sala, momento, abiertas, cuerpos, puntos)` da para cada punto `(k, tono)`: sobre la luz de las fuentes
+   (antes de la sombra de contacto, las de rincón, la viñeta y el tramado), `k = clip((L − minimo) // paso − umbralReflejo, 0, 3)`
+   y `tono` = `frio` si el acumulador frío supera al cálido y vale 128 o más; si no, `calido` si el cálido vale 128 o
+   más; si no, `neutro`. `casos.json` trae en `reflejos` doce puntos por caso con su resultado de día y de noche.
+2. Dónde se mide: pieza del muro del fondo, 24 px delante de su ancla (`y = 254`); de un muro lateral, 24 px hacia
+   la sala; del lado de la cámara, en `y = 498`; mueble o lámpara de piso, en el centro de su base, 1 px arriba.
+3. Cada píxel del mapa suma `tablaReflejo[tono][clip(k − (3 − gris // 85), 0, 3)]`: el vidrio brilla con cualquier
+   luz, el metal pide un escalón más y el barniz dos.
+4. Lo que está delante tapa el brillo de lo de atrás: se pinta en una capa aparte, en el mismo orden que los
+   sprites (cada sprite borra su silueta y luego suma su mapa), y esa capa se suma al final, después de `brillo`.
+
+## La sombra de quien camina
+
+`calcular_luz(..., todo_en_sombra=True)` da las dos capas como quedarían si algo tapara cada ventana, cada lámpara
+y el sol en todo el piso. La sombra de un personaje es mostrar esas capas dentro del polígono que barre su huella
+(`x ± 9`, `y − 10 … y`, alto 60) en la dirección de cada fuente, con el largo de la regla 3 de «El cálculo».
+
 ## Para el juego
 
 La luz de la sala (con los muebles como cuerpos) se calcula una vez al entrar y al cambiar algo. La sombra de un

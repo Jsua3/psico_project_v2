@@ -245,7 +245,7 @@ def _emisores(sala, momento):
         yield pz, ficha, luz, luz.get('fuerza', 100) * (100 if propia else 60) // 100
 
 
-def niveles(sala, momento=None, abiertas=(), cuerpos=()):
+def niveles(sala, momento=None, abiertas=(), cuerpos=(), todo_en_sombra=False, crudo=False):
     """(escalón de ambiente 0–8, escalón cálido 0–3, escalón frío 0–3) por píxel."""
     est = sala['estructura']
     momento = momento or est.get('momento', 'dia')
@@ -258,6 +258,11 @@ def niveles(sala, momento=None, abiertas=(), cuerpos=()):
     ganancia = U - base
     L = np.full((g.ALTO, S.w), base, dtype=np.int64)
     tonos = {'calido': np.zeros((g.ALTO, S.w), np.int64), 'frio': np.zeros((g.ALTO, S.w), np.int64)}
+
+    def tapa(sombra):
+        # `todo_en_sombra` da la luz que quedaría si un cuerpo tapara cada fuente en todas partes: con ella el juego
+        # pinta la sombra de quien camina sin recalcular la sala (ver LEEME de la referencia).
+        return S.piso if todo_en_sombra else sombra
 
     pulido = est.get('acabados', {}).get('piso') in PULIDOS
 
@@ -275,7 +280,7 @@ def niveles(sala, momento=None, abiertas=(), cuerpos=()):
         corta = S.piso & (S.n < 34)
         L = np.where(corta, np.minimum(L, 7200 + 2100 * np.clip(S.n - 14, 0, 20) // 20), L)
         L = np.where(S.muro & (S.ys < g.TOP + 18), 7900, L)
-        sol = _sombra(S, cuerpos, HAZ_FONDO[0], HAZ_FONDO[1], [c['alto'] * 5 // 8 for c in cuerpos])
+        sol = tapa(_sombra(S, cuerpos, HAZ_FONDO[0], HAZ_FONDO[1], [c['alto'] * 5 // 8 for c in cuerpos]))
         L = np.where(sol, L - 2 * PASO, L)
     for pz, ficha, luz, fuerza in _emisores(sala, momento):
         muro, tono = pz.get('muro'), luz['tono']
@@ -286,13 +291,13 @@ def niveles(sala, momento=None, abiertas=(), cuerpos=()):
                 x0 = S.xl + pz['pos'] - ficha['ancho'] // 2
                 forma = luz.get('parteluces') or PARTELUZ_SIMPLE
                 piso, halo = _haz_fondo(S, x0, ficha['ancho'], g.SEAM - ficha['antepecho'] - ficha['alto'], ficha['alto'], forma)
-                piso = _a_la_sombra(piso, _sombra(S, cuerpos, HAZ_FONDO[0], HAZ_FONDO[1], [c['alto'] * 5 // 8 for c in cuerpos]))
+                piso = _a_la_sombra(piso, tapa(_sombra(S, cuerpos, HAZ_FONDO[0], HAZ_FONDO[1], [c['alto'] * 5 // 8 for c in cuerpos])))
                 sumar(piso, fuerza, tono)
                 sumar(halo, fuerza, tono, peso=UNO * 2 // 3, color=UNO // 2)
                 reflejar(_reflejo_piso(S, x0, x0 + ficha['ancho'], 90), fuerza, tono)
             elif muro in ('izquierda', 'derecha') and (S.izq if muro == 'izquierda' else S.der):
                 sentido = HAZ_LADO[0] if muro == 'izquierda' else -HAZ_LADO[0]
-                tapada = _sombra(S, cuerpos, sentido, HAZ_LADO[1], [c['alto'] * 3 // 4 for c in cuerpos])
+                tapada = tapa(_sombra(S, cuerpos, sentido, HAZ_LADO[1], [c['alto'] * 3 // 4 for c in cuerpos]))
                 haz = _haz_lado(S, muro, g.SEAM + pz['pos'], ficha['ancho'], luz.get('parteluces') or PARTELUZ_SIMPLE)
                 sumar(_a_la_sombra(haz, tapada), fuerza, tono)
             continue
@@ -305,7 +310,7 @@ def niveles(sala, momento=None, abiertas=(), cuerpos=()):
         rx, ry = luz['radio']
         pozo = _pozo(S, x, y, rx, ry)
         if luz['forma'] == 'pozo':
-            pozo = _a_la_sombra(pozo, _sombra_de_lampara(S, cuerpos, x, y, luz.get('altura', 150) + pz.get('sobre', 0)))
+            pozo = _a_la_sombra(pozo, tapa(_sombra_de_lampara(S, cuerpos, x, y, luz.get('altura', 150) + pz.get('sobre', 0))))
         sumar(pozo, fuerza, tono, color=UNO * 9 // 10)
         if muro == 'fondo' and 'x' not in pz:
             medio = 26 if luz['forma'] == 'tubo' else 14
@@ -326,6 +331,8 @@ def niveles(sala, momento=None, abiertas=(), cuerpos=()):
         vano = pp.MODELOS[puerta['modelo']]['ancho'] // 2 - 6
         reflejar(_reflejo_piso(S, S.xl + puerta['pos'] - vano, S.xl + puerta['pos'] + vano, 60), 100, 'calido')
 
+    if crudo:
+        return L, tonos['calido'], tonos['frio']
     for c in cuerpos:
         L = L - CONTACTO * PASO * _contacto(S, c) // UNO
 
@@ -352,10 +359,41 @@ def niveles(sala, momento=None, abiertas=(), cuerpos=()):
     return nivel, escalones[0], escalones[1]
 
 
-def calcular_luz(sala, momento=None, abiertas=(), cuerpos=()):
+def calcular_luz(sala, momento=None, abiertas=(), cuerpos=(), todo_en_sombra=False):
     """(ambiente RGB para multiplicar, brillo RGB para sumar)."""
     momento = momento or sala['estructura'].get('momento', 'dia')
-    nivel, calido, frio = niveles(sala, momento, abiertas, cuerpos)
+    nivel, calido, frio = niveles(sala, momento, abiertas, cuerpos, todo_en_sombra)
     ambiente = (TABLA_AMBIENTE_NOCHE if momento == 'noche' else TABLA_AMBIENTE)[nivel]
     brillo = np.clip(TABLA_CALIDA[calido] + TABLA_FRIA[frio], 0, 255).astype(np.uint8)
     return Image.fromarray(ambiente, 'RGB'), Image.fromarray(brillo, 'RGB')
+
+
+# ── brillo del vidrio, el metal y el barniz ────────────────────────────────────
+
+# Color que SUMA un píxel brillante según la luz que le llega: [tono][escalón de 0 a 3].
+TABLA_REFLEJO = {'neutro': ((0, 0, 0), (24, 24, 22), (48, 48, 44), (76, 76, 70)),
+                 'calido': ((0, 0, 0), (28, 23, 14), (54, 45, 28), (86, 72, 44)),
+                 'frio': ((0, 0, 0), (16, 23, 30), (32, 46, 58), (52, 72, 92))}
+UMBRAL_REFLEJO = 4          # escalones de luz por debajo de los cuales nada brilla
+
+
+def reflejos(sala, momento=None, abiertas=(), cuerpos=(), puntos=()):
+    """Por cada punto (x, y) del piso, (k, tono): cuánta luz le llega ahí a lo que brilla (k de 0 a 3) y de qué tono
+    (neutro, calido o frio). Se mide sobre la luz de las fuentes, antes de las sombras de contacto y de rincón y sin
+    tramado: k = clip((L − minimo) // paso − 4, 0, 3). De día en penumbra da 1; en un haz o bajo una lámpara, 3; de
+    noche sin lámpara, 0: el brillo se apaga con la luz."""
+    L, calido, frio = niveles(sala, momento, abiertas, cuerpos, crudo=True)
+    alto, ancho = L.shape
+    lista = []
+    for x, y in puntos:
+        x, y = min(max(int(x), 0), ancho - 1), min(max(int(y), 0), alto - 1)
+        k = int(min(max((int(L[y, x]) - MINIMO) // PASO - UMBRAL_REFLEJO, 0), 3))
+        c, f = int(calido[y, x]), int(frio[y, x])
+        lista.append((k, 'frio' if f > c and f >= 128 else 'calido' if c >= 128 else 'neutro'))
+    return lista
+
+
+def color_de_reflejo(k, tono, gris):
+    """Lo que suma un píxel del mapa de brillo (gris 255 vidrio, 170 metal, 85 barniz) con la luz (k, tono): el vidrio
+    brilla con cualquier luz, el metal necesita un escalón más y el barniz dos."""
+    return TABLA_REFLEJO[tono][min(max(k - (3 - gris // 85), 0), 3)]

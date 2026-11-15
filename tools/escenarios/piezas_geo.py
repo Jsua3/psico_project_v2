@@ -237,6 +237,32 @@ def recortar_juntos(cuadros, apoyo):
     return [c.crop((x0, y0, x1, y1)) for c in cuadros], (apoyo[0] - x0, apoyo[1] - y0)
 
 
+FUERZA_BRILLO = {'vidrio': 3, 'metal': 2, 'barniz': 1}     # en el mapa de brillo el gris vale fuerza × 85
+
+
+def mapa_de_brillo(cuadro, colores):
+    """Separa de un cuadro lo que brilla. `colores` = {rgb: (material, rgb apagado o None)}: cada píxel de esos colores
+    pasa al mapa (RGBA; gris = fuerza del material × 85) y, si tiene color apagado, en el cuadro queda con ese:
+    así el vidrio no trae pintado un reflejo que la luz de la sala no da. Devuelve (cuadro, mapa)."""
+    arr = np.array(cuadro.convert('RGBA'))
+    mapa = np.zeros_like(arr)
+    for rgb, (material, apagado) in colores.items():
+        donde = (arr[:, :, :3] == np.array(rgb, dtype=np.uint8)).all(-1) & (arr[:, :, 3] == 255)
+        if donde.any():
+            gris = FUERZA_BRILLO[material] * 85
+            mapa[donde] = (gris, gris, gris, 255)
+            if apagado:
+                arr[donde, :3] = apagado
+    return Image.fromarray(arr, 'RGBA'), Image.fromarray(mapa, 'RGBA')
+
+
+def recortar_con(cuadros, apoyo, mapas):
+    """Como recortar_juntos, pero recorta igual los mapas que acompañan a cada cuadro."""
+    cajas = [c.getbbox() for c in cuadros if c.getbbox()]
+    caja = (min(c[0] for c in cajas), min(c[1] for c in cajas), max(c[2] for c in cajas), max(c[3] for c in cajas))
+    return [c.crop(caja) for c in cuadros], (apoyo[0] - caja[0], apoyo[1] - caja[1]), [m.crop(caja) for m in mapas]
+
+
 def tira(cuadros):
     w, h = cuadros[0].size
     hoja = Image.new('RGBA', (w * len(cuadros), h), (0, 0, 0, 0))

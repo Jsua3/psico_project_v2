@@ -47,6 +47,11 @@ VETAS = ((5, 12, 58, 0), (10, 34, 88, 0), (16, 4, 42, 0), (21, 52, 90, 1), (26, 
          (37, 6, 32, 0), (41, 60, 90, 0), (13, 64, 84, 1), (29, 8, 28, 1), (35, 44, 58, 1))
 
 
+# Lo que brilla en una puerta: el reflejo del vidrio (que en el dibujo queda apagado) y los filos de metal y de barniz.
+BRILLOS = {VIDRIO[0]: ('vidrio', VIDRIO[1]), INOX[0]: ('metal', None), MARCO_ALUMINIO[0]: ('metal', None), MARCO_ACERO[0]: ('metal', None),
+           ACERO[0]: ('metal', None), MADERA[0]: ('barniz', None), MADERA_ROJA[0]: ('barniz', None), MARCO_MADERA[0]: ('barniz', None)}
+
+
 class Hoja:
     """Hoja que gira hacia la otra sala. Coordenadas locales: `a` de la bisagra al canto libre, v desde el piso.
     Al abrirse se estrecha, su canto libre sube (se aleja) y se oscurece."""
@@ -402,10 +407,11 @@ def _cuadros(modelo, vista, ancho_sala):
         crudos = [_camara(modelo, f) for f in range(CUADROS)]
     else:
         raise KeyError(f'vista {vista!r} desconocida')
-    listos, punto = g.recortar_juntos([g.terminar(im, 256) for im, _ in crudos], crudos[0][1])
+    partes = [g.mapa_de_brillo(g.terminar(im, 256), BRILLOS) for im, _ in crudos]
+    listos, punto, mapas = g.recortar_con([c for c, _ in partes], crudos[0][1], [m for _, m in partes])
     limitada = g.terminar(g.tira(listos), MAX_COLORES, contorno=False)
     w = listos[0].width
-    return tuple(limitada.crop((n * w, 0, n * w + w, limitada.height)) for n in range(CUADROS)), punto
+    return tuple(limitada.crop((n * w, 0, n * w + w, limitada.height)) for n in range(CUADROS)), punto, tuple(mapas)
 
 
 def cuadros(modelo, vista, ancho_sala=960):
@@ -414,6 +420,12 @@ def cuadros(modelo, vista, ancho_sala=960):
 
 def apoyo(modelo, vista, ancho_sala=960):
     return _cuadros(modelo, vista, ancho_sala if vista == 'lado' else 960)[1]
+
+
+def brillo(modelo, vista, ancho_sala=960):
+    """Los mapas de brillo de cada cuadro (vidrio, metal y barniz), o None si la puerta no tiene nada que brille."""
+    mapas = _cuadros(modelo, vista, ancho_sala if vista == 'lado' else 960)[2]
+    return list(mapas) if any(m.getbbox() for m in mapas) else None
 
 
 def hoja(modelo, vista, ancho_sala=960):
