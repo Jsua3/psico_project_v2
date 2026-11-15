@@ -76,6 +76,40 @@ for (const caso of CASOS_DE_LUZ.casos) {
   }
 }
 
+test('quien camina proyecta su sombra: moverlo rehace solo un trozo y da lo mismo que calcular la sala de cero', () => {
+  for (const caso of CASOS_DE_LUZ.casos) {
+    for (const momento of ['dia', 'noche']) {
+      const luz = prepararLuz(caso.sala, CASOS_DE_LUZ.catalogo, { momento, cuerpos: caso.cuerpos });
+      luz.abrir(caso.abiertas);
+      const ancho = caso.sala.estructura.ancho;
+      // De un lado a otro de la sala, por el haz de la ventana y junto a las lámparas.
+      for (const [x, y] of [[ancho / 2, 400], [Math.round(ancho * 0.3), 300], [Math.round(ancho * 0.7), 470], [ancho / 2, 400]]) {
+        const quien = cuerpo(x, y, 48, 72, true);
+        const zona = luz.moverCuerpo(quien);
+        assert.ok(zona === null || zona.w * zona.h < ancho * ALTO / 3, `${caso.id}: no rehace la sala entera`);
+        const directa = calcularLuz(caso.sala, CASOS_DE_LUZ.catalogo, { momento, abiertas: caso.abiertas, cuerpos: [...caso.cuerpos, quien] });
+        const distinto = primerPixelDistinto(luz.capas().ambiente, directa.ambiente, ancho);
+        assert.equal(distinto, null, distinto ? `${caso.id} de ${momento}, con quien juega en (${x}, ${y}): difiere en (${distinto.x}, ${distinto.y})` : '');
+        assert.equal(primerPixelDistinto(luz.capas().brillo, directa.brillo, ancho), null, `${caso.id} de ${momento}: brillo`);
+      }
+      assert.equal(luz.moverCuerpo(cuerpo(ancho / 2, 400, 48, 72, true)), null, 'quedarse quieto no rehace nada');
+      luz.moverCuerpo(null);
+      const sinNadie = leerPng(caso.salidas[momento].ambiente);
+      if (!caso.abiertas.length) assert.equal(primerPixelDistinto(luz.capas().ambiente, sinNadie.rgba, ancho), null, `${caso.id}: al irse, vuelve la luz congelada`);
+    }
+  }
+});
+
+test('mover a quien juega cuesta poco: menos de 8 ms por paso en la sala más ancha', () => {
+  const caso = CASOS_DE_LUZ.casos.find(c => c.id === 'ancha-1920');
+  const luz = prepararLuz(caso.sala, CASOS_DE_LUZ.catalogo, { momento: 'dia', cuerpos: caso.cuerpos });
+  luz.moverCuerpo(cuerpo(600, 380, 48, 72, true));
+  const inicio = performance.now();
+  for (let x = 600; x < 700; x += 2) luz.moverCuerpo(cuerpo(x, 380, 48, 72, true));
+  const porPaso = (performance.now() - inicio) / 50;
+  assert.ok(porPaso < 8, `${porPaso.toFixed(1)} ms por paso`);
+});
+
 test('los cuerpos cambian la luz: sin ellos la sala de la referencia sale distinta', () => {
   const caso = CASOS_DE_LUZ.casos.find(c => c.id === 'casa-sala');
   const con = calcularLuz(caso.sala, CASOS_DE_LUZ.catalogo, { momento: 'dia', cuerpos: caso.cuerpos });
