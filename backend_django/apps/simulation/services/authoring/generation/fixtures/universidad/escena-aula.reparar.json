@@ -1,5 +1,5 @@
 {
-  "narracion": "La clase terminó hace unos minutos y el aula se va quedando vacía. Daniela sigue en su pupitre, con la mochila junto a la silla y la mirada fija en el cuaderno cerrado. La docente recoge sus cosas en el escritorio y la mira de reojo, sin saber si acercarse. Tú, practicante de Bienestar, notas que a Daniela le tiemblan las manos.",
+  "narracion": "La clase terminó hace unos minutos y el aula se va quedando vacía. Daniela sigue en su pupitre, con la mochila junto a la silla y la mirada fija en el cuaderno cerrado. La docente recoge sus cosas en el escritorio y la mira de reojo, sin saber si acercarse. Sobre el escritorio queda abierto un documento con la ruta file:C:/Clases/Lista.docx. Tú, practicante de Bienestar, notas que a Daniela le tiemblan las manos.",
   "lineas": [
     {
       "personaje": "docente",
@@ -110,7 +110,7 @@
       "linea": "La vi muy callada desde que llegó. Yo no le pregunté nada delante del grupo; pensé que era mejor no exponerla.",
       "cuando": "",
       "emocion": "preocupada",
-      "gesto": "sonrie-con-calma"
+      "gesto": ""
     },
     {
       "personaje": "estudiante-consultante",

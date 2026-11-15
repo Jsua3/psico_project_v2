@@ -89,7 +89,7 @@ def test_el_esqueleto_del_falso_es_un_caso_de_cuatro_salas_distintas(falso, luga
     assert 2 <= len(finales) <= 4 and finales[-1]["cuando"] == ""
     assert len({f["clave"] for f in finales}) == len(finales)
     for final in finales:
-        assert re.fullmatch(r"[a-z0-9-]+", final["clave"])
+        assert re.fullmatch(r"[A-Za-z0-9_]+", final["clave"])  # case_rules.NAME: sin guiones
         if final["cuando"]:
             condicion = json.loads(final["cuando"])
             assert conditions.is_valid(condicion, facts=False)
@@ -183,9 +183,11 @@ def test_el_falso_con_reparar_da_la_variante_solo_la_primera_vez(falso):
 
     assert defectuosa != buena
     assert set(defectuosa) == set(SCENE["properties"])
-    # la falta es un gesto fuera del vocabulario: solo el ensamblado (OCL-11) la ve
+    # la falta es una ruta ``file:`` pegada en la narración: ``checks.py`` no la ve; solo el ensamblado (DSL.TEXT_LINK, en
+    # ``x-siep.escenas[i].descripcion``) la señala, y es editorial (no bloquea la importación)
+    assert "file:" in defectuosa["narracion"] and "file:" not in buena["narracion"]
     gestos = [c["gesto"] for c in defectuosa["comentarios"]] + [o["reaccionGesto"] for o in defectuosa["opciones"]]
-    assert any(g not in ("", *vocabulary.GESTURES) for g in gestos)
+    assert all(g in ("", *vocabulary.GESTURES) for g in gestos)
     assert reparada == buena
     # solo la primera escena tiene variante; sin la marca no hay variante nunca
     assert _escena(falso, esqueleto, otra) == _escena(falso, _esqueleto(falso), otra)

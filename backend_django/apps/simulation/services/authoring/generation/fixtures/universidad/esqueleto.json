@@ -68,28 +68,28 @@
   ],
   "finales": [
     {
-      "clave": "vinculo-roto",
+      "clave": "vinculo_roto",
       "titulo": "Daniela se cerró",
       "mensaje": "En algún momento Daniela dejó de sentirse segura contigo y se retiró de la conversación. Suele pasar cuando una respuesta suena a duda, a presión o a prisa. Vuelve sobre tus decisiones: fíjate en qué momento cambió su actitud y qué necesitaba escuchar ahí.",
       "tono": "critical",
       "cuando": "{\"any\":[{\"count\":\"contraindicated\",\"gte\":2},{\"persona\":{\"bond\":\"WITHDRAWN\"}},{\"persona\":{\"activation\":\"CRISIS\"}}]}"
     },
     {
-      "clave": "acompanamiento-completo",
+      "clave": "acompanamiento_completo",
       "titulo": "Acompañada y con ruta",
       "mensaje": "Escuchaste a Daniela antes de actuar, exploraste con ella el riesgo, le contaste sus derechos y aseguraste que llegara a la psicóloga. Sale de Bienestar sabiendo que no está sola y que las decisiones siguen siendo suyas.",
       "tono": "positive",
       "cuando": "{\"all\":[{\"milestone\":\"valorar_el_riesgo\"},{\"milestone\":\"informar_derechos\"},{\"milestone\":\"derivar_a_salud_mental\"},{\"count\":\"contraindicated\",\"eq\":0}]}"
     },
     {
-      "clave": "derivada-sin-valorar-riesgo",
+      "clave": "derivada_sin_valorar_riesgo",
       "titulo": "Llegó a la psicóloga, pero faltó algo",
       "mensaje": "Daniela quedó en manos de la psicóloga, y eso es valioso. Pero no exploraste con ella las señales de riesgo antes del relevo, así que el acompañamiento se decidió sin saber qué tan protegida está hoy. Repasa en qué momento podías haberlo preguntado con cuidado.",
       "tono": "warning",
       "cuando": "{\"all\":[{\"milestone\":\"derivar_a_salud_mental\"},{\"not\":{\"milestone\":\"valorar_el_riesgo\"}}]}"
     },
     {
-      "clave": "acompanamiento-incompleto",
+      "clave": "acompanamiento_incompleto",
       "titulo": "Un primer paso",
       "mensaje": "Acompañaste a Daniela una parte del camino, pero quedaron pasos pendientes: valorar el riesgo, informarle sus derechos o asegurar su remisión a salud mental. Revisa cuáles faltaron y vuelve a intentarlo: cada uno la cuida de una manera distinta.",
       "tono": "neutral",
