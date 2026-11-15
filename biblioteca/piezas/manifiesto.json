@@ -24,6 +24,278 @@
     "rejilla": 8,
     "tope": 84
   },
+  "herramientas": {
+    "PAP": {
+      "alto": 27,
+      "ancho": 36,
+      "animaciones": {
+        "gesto": {
+          "bucle": false,
+          "de": 6,
+          "fps": 10,
+          "hasta": 11,
+          "sostener": true
+        },
+        "nueva": {
+          "bucle": true,
+          "de": 1,
+          "fps": 8,
+          "hasta": 4
+        },
+        "reposo": {
+          "bucle": true,
+          "de": 0,
+          "fps": 1,
+          "hasta": 0
+        },
+        "usada": {
+          "bucle": true,
+          "de": 5,
+          "fps": 1,
+          "hasta": 5
+        }
+      },
+      "apoyo": [
+        18,
+        27
+      ],
+      "codigo": "PAP",
+      "cuadros": 12,
+      "estados": {
+        "disponible": 0,
+        "nueva": [
+          1,
+          4
+        ],
+        "usada": 5
+      },
+      "fps": 1,
+      "huella": {
+        "alto": 12,
+        "ancho": 28,
+        "fondo": 6
+      },
+      "nombre": "Primeros Auxilios Psicológicos",
+      "reemplaza": "../frontend/src/assets/game/objects/tool_pap.png",
+      "ruta": "piezas/herramientas/pap.png"
+    },
+    "REFLECTION_JOURNAL": {
+      "alto": 27,
+      "ancho": 36,
+      "animaciones": {
+        "gesto": {
+          "bucle": false,
+          "de": 6,
+          "fps": 10,
+          "hasta": 11,
+          "sostener": true
+        },
+        "nueva": {
+          "bucle": true,
+          "de": 1,
+          "fps": 8,
+          "hasta": 4
+        },
+        "reposo": {
+          "bucle": true,
+          "de": 0,
+          "fps": 1,
+          "hasta": 0
+        },
+        "usada": {
+          "bucle": true,
+          "de": 5,
+          "fps": 1,
+          "hasta": 5
+        }
+      },
+      "apoyo": [
+        18,
+        27
+      ],
+      "codigo": "REFLECTION_JOURNAL",
+      "cuadros": 12,
+      "estados": {
+        "disponible": 0,
+        "nueva": [
+          1,
+          4
+        ],
+        "usada": 5
+      },
+      "fps": 1,
+      "huella": {
+        "alto": 12,
+        "ancho": 28,
+        "fondo": 6
+      },
+      "nombre": "Bitácora reflexiva",
+      "reemplaza": "../frontend/src/assets/game/objects/tool_reflection_journal.png",
+      "ruta": "piezas/herramientas/reflection-journal.png"
+    },
+    "RISK_METER": {
+      "alto": 27,
+      "ancho": 36,
+      "animaciones": {
+        "gesto": {
+          "bucle": false,
+          "de": 6,
+          "fps": 10,
+          "hasta": 11,
+          "sostener": true
+        },
+        "nueva": {
+          "bucle": true,
+          "de": 1,
+          "fps": 8,
+          "hasta": 4
+        },
+        "reposo": {
+          "bucle": true,
+          "de": 0,
+          "fps": 1,
+          "hasta": 0
+        },
+        "usada": {
+          "bucle": true,
+          "de": 5,
+          "fps": 1,
+          "hasta": 5
+        }
+      },
+      "apoyo": [
+        18,
+        27
+      ],
+      "codigo": "RISK_METER",
+      "cuadros": 12,
+      "estados": {
+        "disponible": 0,
+        "nueva": [
+          1,
+          4
+        ],
+        "usada": 5
+      },
+      "fps": 1,
+      "huella": {
+        "alto": 12,
+        "ancho": 28,
+        "fondo": 6
+      },
+      "nombre": "Valoración de riesgo",
+      "reemplaza": "../frontend/src/assets/game/objects/tool_risk_meter.png",
+      "ruta": "piezas/herramientas/risk-meter.png"
+    },
+    "SAFETY_ROUTE": {
+      "alto": 27,
+      "ancho": 36,
+      "animaciones": {
+        "gesto": {
+          "bucle": false,
+          "de": 6,
+          "fps": 10,
+          "hasta": 11,
+          "sostener": true
+        },
+        "nueva": {
+          "bucle": true,
+          "de": 1,
+          "fps": 8,
+          "hasta": 4
+        },
+        "reposo": {
+          "bucle": true,
+          "de": 0,
+          "fps": 1,
+          "hasta": 0
+        },
+        "usada": {
+          "bucle": true,
+          "de": 5,
+          "fps": 1,
+          "hasta": 5
+        }
+      },
+      "apoyo": [
+        18,
+        27
+      ],
+      "codigo": "SAFETY_ROUTE",
+      "cuadros": 12,
+      "estados": {
+        "disponible": 0,
+        "nueva": [
+          1,
+          4
+        ],
+        "usada": 5
+      },
+      "fps": 1,
+      "huella": {
+        "alto": 12,
+        "ancho": 28,
+        "fondo": 6
+      },
+      "nombre": "Ruta de protección",
+      "reemplaza": "../frontend/src/assets/game/objects/tool_safety_route.png",
+      "ruta": "piezas/herramientas/safety-route.png"
+    },
+    "SPIKES": {
+      "alto": 27,
+      "ancho": 36,
+      "animaciones": {
+        "gesto": {
+          "bucle": false,
+          "de": 6,
+          "fps": 10,
+          "hasta": 11,
+          "sostener": true
+        },
+        "nueva": {
+          "bucle": true,
+          "de": 1,
+          "fps": 8,
+          "hasta": 4
+        },
+        "reposo": {
+          "bucle": true,
+          "de": 0,
+          "fps": 1,
+          "hasta": 0
+        },
+        "usada": {
+          "bucle": true,
+          "de": 5,
+          "fps": 1,
+          "hasta": 5
+        }
+      },
+      "apoyo": [
+        18,
+        27
+      ],
+      "codigo": "SPIKES",
+      "cuadros": 12,
+      "estados": {
+        "disponible": 0,
+        "nueva": [
+          1,
+          4
+        ],
+        "usada": 5
+      },
+      "fps": 1,
+      "huella": {
+        "alto": 12,
+        "ancho": 28,
+        "fondo": 6
+      },
+      "nombre": "Protocolo EPICEE/SPIKES",
+      "reemplaza": "../frontend/src/assets/game/objects/tool_spikes.png",
+      "ruta": "piezas/herramientas/spikes.png"
+    }
+  },
   "lugares": [
     "piezas/lugares/casa.json",
     "piezas/lugares/comisaria.json",
@@ -301,6 +573,285 @@
     "uno": 1024
   },
   "muebles": {
+    "casa/mesa-centro-casa": {
+      "alto": 31,
+      "ancho": 54,
+      "apoyo": [
+        27,
+        31
+      ],
+      "brillo": "piezas/muebles/casa/mesa-centro-casa-brillo.png",
+      "brilloDerecha": "piezas/muebles/casa/mesa-centro-casa-brillo-derecha.png",
+      "brilloIzquierda": "piezas/muebles/casa/mesa-centro-casa-brillo-izquierda.png",
+      "cuadros": 1,
+      "huella": {
+        "alto": 20,
+        "ancho": 52,
+        "fondo": 12
+      },
+      "nombre": "Mesa de centro",
+      "reemplaza": "escenarios/casa/arte/muebles/mesa-centro-casa.png",
+      "ruta": "piezas/muebles/casa/mesa-centro-casa.png"
+    },
+    "casa/mueble-tv": {
+      "alto": 37,
+      "ancho": 103,
+      "animaciones": {
+        "reposo": {
+          "bucle": true,
+          "de": 0,
+          "fps": 1,
+          "hasta": 1
+        },
+        "revisar": {
+          "bucle": false,
+          "de": 2,
+          "fps": 10,
+          "hasta": 5,
+          "sostener": true
+        }
+      },
+      "apoyo": [
+        51,
+        37
+      ],
+      "brillo": "piezas/muebles/casa/mueble-tv-brillo.png",
+      "brilloDerecha": "piezas/muebles/casa/mueble-tv-brillo-derecha.png",
+      "brilloIzquierda": "piezas/muebles/casa/mueble-tv-brillo-izquierda.png",
+      "cuadros": 6,
+      "emisivo": "piezas/muebles/casa/mueble-tv-emisivo.png",
+      "fps": 1,
+      "huella": {
+        "alto": 30,
+        "ancho": 100,
+        "fondo": 14
+      },
+      "nombre": "Mueble del televisor",
+      "reemplaza": "escenarios/casa/arte/muebles/mueble-tv.png",
+      "ruta": "piezas/muebles/casa/mueble-tv.png"
+    },
+    "casa/sillon-casa": {
+      "alto": 44,
+      "ancho": 48,
+      "apoyo": [
+        24,
+        44
+      ],
+      "brillo": "piezas/muebles/casa/sillon-casa-brillo.png",
+      "brilloDerecha": "piezas/muebles/casa/sillon-casa-brillo-derecha.png",
+      "brilloIzquierda": "piezas/muebles/casa/sillon-casa-brillo-izquierda.png",
+      "cuadros": 1,
+      "huella": {
+        "alto": 36,
+        "ancho": 46,
+        "fondo": 14
+      },
+      "nombre": "Sillón",
+      "reemplaza": "escenarios/casa/arte/muebles/sillon-casa.png",
+      "ruta": "piezas/muebles/casa/sillon-casa.png"
+    },
+    "casa/sofa-casa": {
+      "alto": 47,
+      "ancho": 94,
+      "apoyo": [
+        47,
+        47
+      ],
+      "brillo": "piezas/muebles/casa/sofa-casa-brillo.png",
+      "brilloDerecha": "piezas/muebles/casa/sofa-casa-brillo-derecha.png",
+      "brilloIzquierda": "piezas/muebles/casa/sofa-casa-brillo-izquierda.png",
+      "cuadros": 1,
+      "huella": {
+        "alto": 40,
+        "ancho": 90,
+        "fondo": 16
+      },
+      "nombre": "Sofá de la sala",
+      "reemplaza": "escenarios/casa/arte/muebles/sofa-casa.png",
+      "ruta": "piezas/muebles/casa/sofa-casa.png"
+    },
+    "comisaria/caneca-comisaria": {
+      "alto": 33,
+      "ancho": 24,
+      "apoyo": [
+        12,
+        33
+      ],
+      "brillo": "piezas/muebles/comisaria/caneca-comisaria-brillo.png",
+      "brilloDerecha": "piezas/muebles/comisaria/caneca-comisaria-brillo-derecha.png",
+      "brilloIzquierda": "piezas/muebles/comisaria/caneca-comisaria-brillo-izquierda.png",
+      "cuadros": 1,
+      "huella": {
+        "alto": 30,
+        "ancho": 22,
+        "fondo": 10
+      },
+      "nombre": "Caneca",
+      "reemplaza": "escenarios/comisaria/arte/muebles/caneca-comisaria.png",
+      "ruta": "piezas/muebles/comisaria/caneca-comisaria.png"
+    },
+    "comisaria/escritorio-funcionario": {
+      "alto": 68,
+      "ancho": 125,
+      "animaciones": {
+        "reposo": {
+          "bucle": true,
+          "de": 0,
+          "fps": 2,
+          "hasta": 1
+        },
+        "revisar": {
+          "bucle": false,
+          "de": 2,
+          "fps": 10,
+          "hasta": 5,
+          "sostener": true
+        }
+      },
+      "apoyo": [
+        62,
+        68
+      ],
+      "brillo": "piezas/muebles/comisaria/escritorio-funcionario-brillo.png",
+      "brilloDerecha": "piezas/muebles/comisaria/escritorio-funcionario-brillo-derecha.png",
+      "brilloIzquierda": "piezas/muebles/comisaria/escritorio-funcionario-brillo-izquierda.png",
+      "cuadros": 6,
+      "emisivo": "piezas/muebles/comisaria/escritorio-funcionario-emisivo.png",
+      "fps": 2,
+      "huella": {
+        "alto": 40,
+        "ancho": 120,
+        "fondo": 16
+      },
+      "nombre": "Escritorio",
+      "reemplaza": "escenarios/comisaria/arte/muebles/escritorio-funcionario.png",
+      "ruta": "piezas/muebles/comisaria/escritorio-funcionario.png"
+    },
+    "comisaria/mesa-baja-nna": {
+      "alto": 35,
+      "ancho": 64,
+      "apoyo": [
+        32,
+        35
+      ],
+      "brilloDerecha": "piezas/muebles/comisaria/mesa-baja-nna-brillo-derecha.png",
+      "brilloIzquierda": "piezas/muebles/comisaria/mesa-baja-nna-brillo-izquierda.png",
+      "cuadros": 1,
+      "huella": {
+        "alto": 20,
+        "ancho": 60,
+        "fondo": 12
+      },
+      "nombre": "Mesa baja para niñas y niños",
+      "reemplaza": "escenarios/comisaria/arte/muebles/mesa-baja-nna.png",
+      "ruta": "piezas/muebles/comisaria/mesa-baja-nna.png"
+    },
+    "comisaria/mostrador-recepcion": {
+      "alto": 65,
+      "ancho": 183,
+      "apoyo": [
+        91,
+        65
+      ],
+      "brillo": "piezas/muebles/comisaria/mostrador-recepcion-brillo.png",
+      "brilloDerecha": "piezas/muebles/comisaria/mostrador-recepcion-brillo-derecha.png",
+      "brilloIzquierda": "piezas/muebles/comisaria/mostrador-recepcion-brillo-izquierda.png",
+      "cuadros": 1,
+      "huella": {
+        "alto": 44,
+        "ancho": 178,
+        "fondo": 16
+      },
+      "nombre": "Mostrador de recepción",
+      "reemplaza": "escenarios/comisaria/arte/muebles/mostrador-recepcion.png",
+      "ruta": "piezas/muebles/comisaria/mostrador-recepcion.png"
+    },
+    "comisaria/planta-oficina": {
+      "alto": 54,
+      "ancho": 40,
+      "animaciones": {
+        "reposo": {
+          "bucle": true,
+          "de": 0,
+          "fps": 2,
+          "hasta": 3
+        }
+      },
+      "apoyo": [
+        20,
+        54
+      ],
+      "cuadros": 4,
+      "fps": 2,
+      "huella": {
+        "alto": 46,
+        "ancho": 22,
+        "fondo": 10
+      },
+      "nombre": "Planta de oficina",
+      "reemplaza": "escenarios/comisaria/arte/muebles/planta-oficina.png",
+      "ruta": "piezas/muebles/comisaria/planta-oficina.png"
+    },
+    "comisaria/silla-giratoria": {
+      "alto": 44,
+      "ancho": 30,
+      "apoyo": [
+        15,
+        44
+      ],
+      "brillo": "piezas/muebles/comisaria/silla-giratoria-brillo.png",
+      "brilloDerecha": "piezas/muebles/comisaria/silla-giratoria-brillo-derecha.png",
+      "brilloIzquierda": "piezas/muebles/comisaria/silla-giratoria-brillo-izquierda.png",
+      "cuadros": 1,
+      "huella": {
+        "alto": 36,
+        "ancho": 24,
+        "fondo": 12
+      },
+      "nombre": "Silla giratoria",
+      "reemplaza": "escenarios/comisaria/arte/muebles/silla-giratoria.png",
+      "ruta": "piezas/muebles/comisaria/silla-giratoria.png"
+    },
+    "comisaria/silla-visitante-comisaria": {
+      "alto": 39,
+      "ancho": 24,
+      "apoyo": [
+        12,
+        39
+      ],
+      "brillo": "piezas/muebles/comisaria/silla-visitante-comisaria-brillo.png",
+      "brilloDerecha": "piezas/muebles/comisaria/silla-visitante-comisaria-brillo-derecha.png",
+      "brilloIzquierda": "piezas/muebles/comisaria/silla-visitante-comisaria-brillo-izquierda.png",
+      "cuadros": 1,
+      "huella": {
+        "alto": 30,
+        "ancho": 22,
+        "fondo": 12
+      },
+      "nombre": "Silla para visitante",
+      "reemplaza": "escenarios/comisaria/arte/muebles/silla-visitante-comisaria.png",
+      "ruta": "piezas/muebles/comisaria/silla-visitante-comisaria.png"
+    },
+    "comisaria/sillas-espera-comisaria": {
+      "alto": 40,
+      "ancho": 122,
+      "apoyo": [
+        61,
+        40
+      ],
+      "brillo": "piezas/muebles/comisaria/sillas-espera-comisaria-brillo.png",
+      "brilloDerecha": "piezas/muebles/comisaria/sillas-espera-comisaria-brillo-derecha.png",
+      "brilloIzquierda": "piezas/muebles/comisaria/sillas-espera-comisaria-brillo-izquierda.png",
+      "cuadros": 1,
+      "huella": {
+        "alto": 32,
+        "ancho": 118,
+        "fondo": 14
+      },
+      "nombre": "Fila de sillas de espera",
+      "reemplaza": "escenarios/comisaria/arte/muebles/sillas-espera-comisaria.png",
+      "ruta": "piezas/muebles/comisaria/sillas-espera-comisaria.png"
+    },
     "hospital/archivador-clinico": {
       "alto": 73,
       "ancho": 52,
@@ -3932,6 +4483,469 @@
         }
       },
       "nombre": "Zócalo alto"
+    }
+  },
+  "objetos": {
+    "casa/portarretrato": {
+      "alto": 23,
+      "ancho": 20,
+      "animaciones": {
+        "cerca": {
+          "bucle": false,
+          "de": 1,
+          "fps": 8,
+          "hasta": 2,
+          "sostener": true
+        },
+        "reposo": {
+          "bucle": true,
+          "de": 0,
+          "fps": 1,
+          "hasta": 0
+        },
+        "revisar": {
+          "bucle": false,
+          "de": 3,
+          "fps": 8,
+          "hasta": 5,
+          "sostener": true
+        }
+      },
+      "apoyo": [
+        10,
+        23
+      ],
+      "brillo": "piezas/objetos/casa/portarretrato-brillo.png",
+      "brilloDerecha": "piezas/objetos/casa/portarretrato-brillo-derecha.png",
+      "brilloIzquierda": "piezas/objetos/casa/portarretrato-brillo-izquierda.png",
+      "cuadros": 6,
+      "fps": 1,
+      "huella": {
+        "alto": 14,
+        "ancho": 12,
+        "fondo": 4
+      },
+      "nombre": "Portarretrato",
+      "reemplaza": "escenarios/casa/arte/objetos/portarretrato.png",
+      "ruta": "piezas/objetos/casa/portarretrato.png",
+      "sobre": 31
+    },
+    "casa/televisor": {
+      "alto": 40,
+      "ancho": 34,
+      "animaciones": {
+        "cerca": {
+          "bucle": false,
+          "de": 8,
+          "fps": 10,
+          "hasta": 11,
+          "luego": "reposo"
+        },
+        "reposo": {
+          "bucle": true,
+          "de": 0,
+          "fps": 6,
+          "hasta": 7
+        },
+        "revisar": {
+          "bucle": false,
+          "de": 8,
+          "fps": 10,
+          "hasta": 11,
+          "luego": "reposo"
+        }
+      },
+      "apoyo": [
+        17,
+        40
+      ],
+      "brillo": "piezas/objetos/casa/televisor-brillo.png",
+      "brilloDerecha": "piezas/objetos/casa/televisor-brillo-derecha.png",
+      "brilloIzquierda": "piezas/objetos/casa/televisor-brillo-izquierda.png",
+      "cuadros": 12,
+      "emisivo": "piezas/objetos/casa/televisor-emisivo.png",
+      "fps": 6,
+      "huella": {
+        "alto": 24,
+        "ancho": 30,
+        "fondo": 12
+      },
+      "nombre": "Televisor encendido",
+      "reemplaza": "escenarios/casa/arte/objetos/televisor.png",
+      "resplandor": {
+        "alto": 121,
+        "ancho": 65,
+        "cuadros": 3,
+        "momento": "siempre",
+        "parpadeo": [
+          3,
+          3,
+          2,
+          3,
+          2,
+          2,
+          3,
+          3,
+          3,
+          1,
+          3,
+          3
+        ],
+        "ruta": "piezas/objetos/casa/televisor-resplandor.png",
+        "tono": "frio",
+        "x": -32,
+        "y": -56
+      },
+      "ruta": "piezas/objetos/casa/televisor.png",
+      "sobre": 31
+    },
+    "comisaria/caja-panuelos": {
+      "alto": 22,
+      "ancho": 24,
+      "animaciones": {
+        "cerca": {
+          "bucle": false,
+          "de": 1,
+          "fps": 6,
+          "hasta": 3,
+          "luego": "reposo"
+        },
+        "reposo": {
+          "bucle": true,
+          "de": 0,
+          "fps": 1,
+          "hasta": 0
+        },
+        "revisar": {
+          "bucle": false,
+          "de": 4,
+          "fps": 8,
+          "hasta": 5,
+          "sostener": true
+        }
+      },
+      "apoyo": [
+        12,
+        22
+      ],
+      "cuadros": 6,
+      "fps": 1,
+      "huella": {
+        "alto": 12,
+        "ancho": 22,
+        "fondo": 6
+      },
+      "nombre": "Caja de pañuelos",
+      "reemplaza": "escenarios/comisaria/arte/objetos/caja-panuelos.png",
+      "ruta": "piezas/objetos/comisaria/caja-panuelos.png",
+      "sobre": 20
+    },
+    "comisaria/camara-seguridad": {
+      "alto": 18,
+      "ancho": 28,
+      "animaciones": {
+        "reposo": {
+          "bucle": true,
+          "de": 0,
+          "fps": 1,
+          "hasta": 1
+        }
+      },
+      "apoyo": [
+        14,
+        18
+      ],
+      "brillo": "piezas/objetos/comisaria/camara-seguridad-brillo.png",
+      "brilloDerecha": "piezas/objetos/comisaria/camara-seguridad-brillo-derecha.png",
+      "brilloIzquierda": "piezas/objetos/comisaria/camara-seguridad-brillo-izquierda.png",
+      "cuadros": 2,
+      "emisivo": "piezas/objetos/comisaria/camara-seguridad-emisivo.png",
+      "fps": 1,
+      "huella": {
+        "alto": 14,
+        "ancho": 20,
+        "fondo": 4
+      },
+      "nombre": "Cámara de seguridad",
+      "reemplaza": "escenarios/comisaria/arte/objetos/camara-seguridad.png",
+      "ruta": "piezas/objetos/comisaria/camara-seguridad.png"
+    },
+    "comisaria/carpeta-medidas-proteccion": {
+      "alto": 22,
+      "ancho": 29,
+      "animaciones": {
+        "reposo": {
+          "bucle": true,
+          "de": 0,
+          "fps": 1,
+          "hasta": 0
+        },
+        "revisar": {
+          "bucle": false,
+          "de": 1,
+          "fps": 8,
+          "hasta": 3,
+          "sostener": true
+        }
+      },
+      "apoyo": [
+        14,
+        22
+      ],
+      "cuadros": 4,
+      "fps": 1,
+      "huella": {
+        "alto": 14,
+        "ancho": 24,
+        "fondo": 6
+      },
+      "nombre": "Carpeta de medidas de protección",
+      "reemplaza": "escenarios/comisaria/arte/objetos/carpeta-medidas-proteccion.png",
+      "ruta": "piezas/objetos/comisaria/carpeta-medidas-proteccion.png",
+      "sobre": 24
+    },
+    "comisaria/dispensador-turnos": {
+      "alto": 44,
+      "ancho": 20,
+      "animaciones": {
+        "reposo": {
+          "bucle": true,
+          "de": 0,
+          "fps": 1,
+          "hasta": 1
+        },
+        "revisar": {
+          "bucle": false,
+          "de": 2,
+          "fps": 4,
+          "hasta": 3,
+          "sostener": true
+        }
+      },
+      "apoyo": [
+        10,
+        44
+      ],
+      "brillo": "piezas/objetos/comisaria/dispensador-turnos-brillo.png",
+      "brilloDerecha": "piezas/objetos/comisaria/dispensador-turnos-brillo-derecha.png",
+      "brilloIzquierda": "piezas/objetos/comisaria/dispensador-turnos-brillo-izquierda.png",
+      "cuadros": 4,
+      "emisivo": "piezas/objetos/comisaria/dispensador-turnos-emisivo.png",
+      "fps": 1,
+      "huella": {
+        "alto": 40,
+        "ancho": 16,
+        "fondo": 6
+      },
+      "nombre": "Dispensador de turnos",
+      "reemplaza": "escenarios/comisaria/arte/objetos/dispensador-turnos.png",
+      "ruta": "piezas/objetos/comisaria/dispensador-turnos.png"
+    },
+    "comisaria/papelera": {
+      "alto": 30,
+      "ancho": 22,
+      "apoyo": [
+        11,
+        30
+      ],
+      "brillo": "piezas/objetos/comisaria/papelera-brillo.png",
+      "brilloDerecha": "piezas/objetos/comisaria/papelera-brillo-derecha.png",
+      "brilloIzquierda": "piezas/objetos/comisaria/papelera-brillo-izquierda.png",
+      "cuadros": 1,
+      "huella": {
+        "alto": 24,
+        "ancho": 18,
+        "fondo": 8
+      },
+      "nombre": "Papelera",
+      "reemplaza": "escenarios/comisaria/arte/objetos/papelera.png",
+      "ruta": "piezas/objetos/comisaria/papelera.png"
+    },
+    "comun/destello": {
+      "alto": 9,
+      "ancho": 9,
+      "animaciones": {
+        "reposo": {
+          "bucle": true,
+          "de": 0,
+          "fps": 9,
+          "hasta": 7
+        }
+      },
+      "cuadros": 8,
+      "fps": 9,
+      "nombre": "Destello: falta por revisar",
+      "ruta": "piezas/objetos/comun/destello.png"
+    },
+    "hospital/agua-panuelos": {
+      "alto": 36,
+      "ancho": 42,
+      "animaciones": {
+        "cerca": {
+          "bucle": false,
+          "de": 1,
+          "fps": 6,
+          "hasta": 3,
+          "luego": "reposo"
+        },
+        "reposo": {
+          "bucle": true,
+          "de": 0,
+          "fps": 1,
+          "hasta": 0
+        },
+        "revisar": {
+          "bucle": false,
+          "de": 4,
+          "fps": 8,
+          "hasta": 4,
+          "sostener": true
+        }
+      },
+      "apoyo": [
+        21,
+        36
+      ],
+      "brillo": "piezas/objetos/hospital/agua-panuelos-brillo.png",
+      "brilloDerecha": "piezas/objetos/hospital/agua-panuelos-brillo-derecha.png",
+      "brilloIzquierda": "piezas/objetos/hospital/agua-panuelos-brillo-izquierda.png",
+      "cuadros": 5,
+      "fps": 1,
+      "huella": {
+        "alto": 30,
+        "ancho": 38,
+        "fondo": 10
+      },
+      "nombre": "Agua y pañuelos",
+      "ruta": "piezas/objetos/hospital/agua-panuelos.png"
+    },
+    "hospital/hoja-ingreso": {
+      "alto": 39,
+      "ancho": 26,
+      "animaciones": {
+        "reposo": {
+          "bucle": true,
+          "de": 0,
+          "fps": 1,
+          "hasta": 0
+        },
+        "revisar": {
+          "bucle": false,
+          "de": 1,
+          "fps": 8,
+          "hasta": 3,
+          "sostener": true
+        }
+      },
+      "apoyo": [
+        13,
+        39
+      ],
+      "brillo": "piezas/objetos/hospital/hoja-ingreso-brillo.png",
+      "brilloDerecha": "piezas/objetos/hospital/hoja-ingreso-brillo-derecha.png",
+      "brilloIzquierda": "piezas/objetos/hospital/hoja-ingreso-brillo-izquierda.png",
+      "cuadros": 4,
+      "fps": 1,
+      "huella": {
+        "alto": 36,
+        "ancho": 16,
+        "fondo": 6
+      },
+      "nombre": "Hoja de ingreso",
+      "reemplaza": "../frontend/src/assets/game/objects/object_registro.png",
+      "ruta": "piezas/objetos/hospital/hoja-ingreso.png"
+    },
+    "hospital/marco-normativo": {
+      "alto": 33,
+      "ancho": 30,
+      "animaciones": {
+        "reposo": {
+          "bucle": true,
+          "de": 0,
+          "fps": 1,
+          "hasta": 0
+        },
+        "revisar": {
+          "bucle": false,
+          "de": 1,
+          "fps": 8,
+          "hasta": 2,
+          "sostener": true
+        }
+      },
+      "apoyo": [
+        15,
+        33
+      ],
+      "brilloDerecha": "piezas/objetos/hospital/marco-normativo-brillo-derecha.png",
+      "brilloIzquierda": "piezas/objetos/hospital/marco-normativo-brillo-izquierda.png",
+      "cuadros": 3,
+      "fps": 1,
+      "huella": {
+        "alto": 26,
+        "ancho": 28,
+        "fondo": 8
+      },
+      "nombre": "Marco normativo",
+      "reemplaza": "../frontend/src/assets/game/objects/object_marco_normativo.png",
+      "ruta": "piezas/objetos/hospital/marco-normativo.png"
+    },
+    "hospital/timbre-llamado": {
+      "alto": 44,
+      "ancho": 18,
+      "animaciones": {
+        "cerca": {
+          "bucle": true,
+          "de": 1,
+          "fps": 3,
+          "hasta": 2
+        },
+        "reposo": {
+          "bucle": true,
+          "de": 0,
+          "fps": 1,
+          "hasta": 0
+        },
+        "revisar": {
+          "bucle": false,
+          "de": 3,
+          "fps": 8,
+          "hasta": 5,
+          "sostener": true
+        }
+      },
+      "apoyo": [
+        9,
+        44
+      ],
+      "cuadros": 6,
+      "emisivo": "piezas/objetos/hospital/timbre-llamado-emisivo.png",
+      "fps": 1,
+      "huella": {
+        "alto": 40,
+        "ancho": 14,
+        "fondo": 6
+      },
+      "nombre": "Timbre de llamado",
+      "resplandor": {
+        "alto": 43,
+        "ancho": 25,
+        "cuadros": 3,
+        "momento": "siempre",
+        "parpadeo": [
+          0,
+          1,
+          0,
+          0,
+          2,
+          2
+        ],
+        "ruta": "piezas/objetos/hospital/timbre-llamado-resplandor.png",
+        "tono": "calido",
+        "x": -12,
+        "y": -32
+      },
+      "ruta": "piezas/objetos/hospital/timbre-llamado.png"
     }
   },
   "piezas": {

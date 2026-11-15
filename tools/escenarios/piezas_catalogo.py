@@ -42,6 +42,7 @@ import sys
 AQUI = os.path.dirname(os.path.abspath(__file__))
 RAIZ = os.path.normpath(os.path.join(AQUI, '..', '..'))
 sys.path.insert(0, AQUI)
+import objetos_catalogo as oc  # noqa: E402
 import piezas_geo as g  # noqa: E402
 import piezas_hospital as ph  # noqa: E402
 import piezas_luz as pl  # noqa: E402
@@ -159,12 +160,19 @@ def _completar(datos, biblioteca):
     datos['lugares'] = _listar(biblioteca, 'lugares', '.json')
     datos['propios'] = _listar(biblioteca, 'propios', '.png')
     datos['tapetes'] = _listar(biblioteca, 'tapetes', '.png')
+    # Los muebles, objetos y herramientas redibujados por el bloque O1 entran al mismo manifiesto: un solo catálogo.
+    for seccion, fichas in oc.entradas().items():
+        repetidas = set(fichas) & set(datos.get(seccion, {}))
+        if repetidas:
+            raise SystemExit(f'{seccion}: claves repetidas entre piezas_catalogo y objetos_catalogo: {sorted(repetidas)}')
+        datos.setdefault(seccion, {}).update(fichas)
     return datos
 
 
 def escribir(biblioteca=BIBLIOTECA):
     datos, imagenes = generar()
     imagenes.update(ps.imagenes_de_tapetes(ph.LUGAR))
+    oc.entradas(escribir=True)
     for ruta, im in imagenes.items():
         archivo = os.path.join(biblioteca, *ruta.split('/'))
         os.makedirs(os.path.dirname(archivo), exist_ok=True)
