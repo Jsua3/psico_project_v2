@@ -13,6 +13,10 @@ La prueba del cliente debe dar esas imágenes píxel a píxel. La fuente es `too
   `fuerza` (0 a 100, por defecto 100) y sus medidas (`ancho`, `antepecho` y `alto` en el haz; `radio` y `altura` en la lámpara).
 - `encendida` en la pieza (booleano opcional): `false` no emite; `true` emite también fuera de su momento, al 60 % de su fuerza.
 - `sala.estructura.exterior`: sala al aire libre.
+- `sala.estructura.acabados.piso`: si es uno de `pulidos` (vinilo, baldosa, damero), el piso devuelve la luz.
+- `luz.parteluces` de cada ventana: la forma del haz, en fracciones de 0 a 1024. `verticales`: parteluces a lo ancho
+  del haz; `horizontales`: travesaños a lo largo (0 = junto al muro); `lamas`: `[desde, hasta, paso]`, el tramo que
+  cubre la persiana y cada cuántos px se repite una lama. Sin `parteluces` vale `{verticales: [512]}`.
 - `abiertas`: ids de puertas abiertas (solo las del muro del fondo dejan la cuña de luz; su ancho es `catalogo["puerta/<modelo>"].ancho`).
 - `cuerpos`: muebles y personas sobre el piso, como `{x0, x1, y0, y1, alto}` (huella en px de sala y altura). Se
   construyen con `cuerpo(x, y, ancho, alto, persona)` a partir del sprite: para un mueble apoyado en (x, y),
@@ -35,10 +39,14 @@ La prueba del cliente debe dar esas imágenes píxel a píxel. La fuente es `too
    `L = max(L, base + ganancia * fuerza // 100 * peso // 1024 * mancha // 1024)` y
    `tono = max(tono, mancha * fuerza // 100 * color // 1024)` (dos acumuladores: cálido y frío).
    - Haz de una ventana del fondo (`_haz_fondo`): mancha sobre el piso y halo sobre el muro (peso 2/3, color 1/2).
+     Cada parteluz, travesaño o lama deja la mancha al 35 % (`luz * 35 // 100`) en su línea.
    - Haz de una ventana lateral (`_haz_lado`).
    - Pozo de una lámpara (`_pozo`, color 9/10) más un halo en el muro (peso 1/2, color 4/10).
    - Tubo: el mismo pozo más una franja en el muro (peso 8/10, color 1/2).
    - Cuña de la puerta abierta del fondo (peso 2/3 de día y 4/10 de noche, color 4/10).
+   - Piso pulido (`_reflejo_piso`): bajo cada ventana del fondo que emite (largo 90), bajo cada tubo o colgante del
+     fondo (ancho ±26 o ±14, largo 70) y bajo cada puerta abierta del fondo (largo 60) el piso suma brillo, sin
+     subir L: `tono = max(tono, mancha * fuerza // 100 * reflejo // 1024)` con `reflejo` 600.
 3. Sombras de los cuerpos (`_sombra`): antes de combinar, la mancha de un haz o de un pozo pierde 3/4
    (`enSombra` 768/1024) donde un cuerpo tapa la luz: `mancha − mancha * sombra * 768 // 1024`.
    - Ventana del fondo: dirección `hazFondo` (45, 64) y largo `alto * 5 // 8`.
@@ -47,10 +55,13 @@ La prueba del cliente debe dar esas imágenes píxel a píxel. La fuente es `too
      normalizada a 64avos con divisiones enteras; largo `min(alto * n // max(altura − alto, 16), sombraMaxima)`.
      Se salta el cuerpo que tiene la lámpara encima. El tubo no arroja sombra.
    - Al aire libre y de día, la sombra del sol baja la luz dos escalones (`L − 2 * paso`).
-4. Sombras de rincón al pie del muro del fondo y de los laterales, y viñeta (multiplican L).
+4. Sombra de contacto (`_contacto`): por cada cuerpo, una elipse a sus pies (centro en el medio de la huella y
+   `y1 − 2`; radios `ancho_huella // 2 + 5` y `max(4, fondo_huella // 2 + 3)`): `L −= contacto * paso * m // 1024`,
+   con `m = min(2 * clip(1024 − r, 0, 1024), 1024)` y r la distancia normalizada. Va después de las fuentes.
+   Luego las sombras de rincón al pie del muro del fondo y de los laterales, y la viñeta (multiplican L).
 5. Cuantización con Bayer 4×4: `q = clip(L − minimo, 0, paso * niveles)`,
    `nivel = clip(q // paso + ((q % paso) * 16 > bayer[y % 4][x % 4] * paso), 0, niveles)`.
-   `ambiente = tablaAmbiente[nivel]`. Para cada tono: `a = tono * 3`,
+   `ambiente = tablaAmbiente[nivel]` de día y `tablaAmbienteNoche[nivel]` de noche. Para cada tono: `a = tono * 3`,
    `escalon = clip(a // 1024 + ((a % 1024) * 16 > bayer * 1024), 0, 3)`;
    `brillo = min(255, tablaCalida[escalonCalido] + tablaFria[escalonFrio])` por canal.
 
