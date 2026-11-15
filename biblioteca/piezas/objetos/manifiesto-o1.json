@@ -1920,6 +1920,179 @@
    "nombre": "Zona restringida",
    "reemplaza": "../frontend/src/assets/game/objects/object_acceso_restringido.png",
    "ruta": "piezas/objetos/hospital/zona-restringida.png"
+  },
+  "universidad/caja-panuelos": {
+   "alto": 22,
+   "ancho": 24,
+   "animaciones": {
+    "cerca": {
+     "bucle": false,
+     "de": 1,
+     "fps": 6,
+     "hasta": 3,
+     "luego": "reposo"
+    },
+    "reposo": {
+     "bucle": true,
+     "de": 0,
+     "fps": 1,
+     "hasta": 0
+    },
+    "revisar": {
+     "bucle": false,
+     "de": 4,
+     "fps": 8,
+     "hasta": 5,
+     "sostener": true
+    }
+   },
+   "apoyo": [
+    12,
+    22
+   ],
+   "cuadros": 6,
+   "fps": 1,
+   "huella": {
+    "alto": 12,
+    "ancho": 22,
+    "fondo": 6
+   },
+   "nombre": "Caja de pañuelos",
+   "reemplaza": "escenarios/universidad/arte/objetos/caja-panuelos.png",
+   "ruta": "piezas/objetos/universidad/caja-panuelos.png",
+   "sobre": 20
+  },
+  "universidad/celular": {
+   "alto": 14,
+   "ancho": 20,
+   "animaciones": {
+    "cerca": {
+     "bucle": false,
+     "de": 1,
+     "fps": 6,
+     "hasta": 3,
+     "sostener": true
+    },
+    "reposo": {
+     "bucle": true,
+     "de": 0,
+     "fps": 1,
+     "hasta": 0
+    }
+   },
+   "apoyo": [
+    10,
+    14
+   ],
+   "brillo": "piezas/objetos/universidad/celular-brillo.png",
+   "brilloDerecha": "piezas/objetos/universidad/celular-brillo-derecha.png",
+   "brilloIzquierda": "piezas/objetos/universidad/celular-brillo-izquierda.png",
+   "cuadros": 4,
+   "emisivo": "piezas/objetos/universidad/celular-emisivo.png",
+   "fps": 1,
+   "huella": {
+    "alto": 4,
+    "ancho": 18,
+    "fondo": 6
+   },
+   "nombre": "Celular",
+   "reemplaza": "escenarios/universidad/arte/objetos/celular.png",
+   "ruta": "piezas/objetos/universidad/celular.png",
+   "sobre": 24
+  },
+  "universidad/mochila": {
+   "alto": 31,
+   "ancho": 26,
+   "apoyo": [
+    13,
+    31
+   ],
+   "cuadros": 1,
+   "huella": {
+    "alto": 26,
+    "ancho": 22,
+    "fondo": 8
+   },
+   "nombre": "Mochila",
+   "reemplaza": "escenarios/universidad/arte/objetos/mochila.png",
+   "ruta": "piezas/objetos/universidad/mochila.png"
+  },
+  "universidad/planta-maceta": {
+   "alto": 34,
+   "ancho": 24,
+   "animaciones": {
+    "reposo": {
+     "bucle": true,
+     "de": 0,
+     "fps": 2,
+     "hasta": 1
+    }
+   },
+   "apoyo": [
+    12,
+    34
+   ],
+   "cuadros": 2,
+   "fps": 2,
+   "huella": {
+    "alto": 30,
+    "ancho": 18,
+    "fondo": 8
+   },
+   "nombre": "Planta en maceta",
+   "reemplaza": "escenarios/universidad/arte/objetos/planta-maceta.png",
+   "ruta": "piezas/objetos/universidad/planta-maceta.png"
+  },
+  "universidad/taza-cafe": {
+   "alto": 19,
+   "ancho": 15,
+   "animaciones": {
+    "reposo": {
+     "bucle": true,
+     "de": 0,
+     "fps": 4,
+     "hasta": 3
+    }
+   },
+   "apoyo": [
+    7,
+    19
+   ],
+   "brillo": "piezas/objetos/universidad/taza-cafe-brillo.png",
+   "brilloDerecha": "piezas/objetos/universidad/taza-cafe-brillo-derecha.png",
+   "brilloIzquierda": "piezas/objetos/universidad/taza-cafe-brillo-izquierda.png",
+   "cuadros": 4,
+   "fps": 4,
+   "huella": {
+    "alto": 10,
+    "ancho": 12,
+    "fondo": 4
+   },
+   "nombre": "Taza de café",
+   "reemplaza": "escenarios/universidad/arte/objetos/taza-cafe.png",
+   "ruta": "piezas/objetos/universidad/taza-cafe.png",
+   "sobre": 24
+  },
+  "universidad/vaso-agua": {
+   "alto": 18,
+   "ancho": 10,
+   "apoyo": [
+    5,
+    18
+   ],
+   "brillo": "piezas/objetos/universidad/vaso-agua-brillo.png",
+   "brilloDerecha": "piezas/objetos/universidad/vaso-agua-brillo-derecha.png",
+   "brilloIzquierda": "piezas/objetos/universidad/vaso-agua-brillo-izquierda.png",
+   "cuadros": 1,
+   "huella": {
+    "alto": 14,
+    "ancho": 8,
+    "fondo": 4
+   },
+   "nombre": "Vaso de agua",
+   "reemplaza": "escenarios/universidad/arte/objetos/vaso-agua.png",
+   "ruta": "piezas/objetos/universidad/vaso-agua.png",
+   "sobre": 24
   }
  }
 }

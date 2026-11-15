@@ -13,7 +13,7 @@ import objetos_comun as oc  # noqa: E402
 import objetos_pixel as op  # noqa: E402
 import objetos_reflejo as orf  # noqa: E402
 
-MODULOS = ['objetos_casa', 'objetos_comisaria', 'objetos_hospital', 'objetos_herramientas']
+MODULOS = ['objetos_casa', 'objetos_comisaria', 'objetos_hospital', 'objetos_universidad', 'objetos_herramientas']
 TODAS = [(m, ref) for m in MODULOS for ref in importlib.import_module(m).PIEZAS]
 
 
