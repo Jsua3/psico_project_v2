@@ -6,15 +6,20 @@ import { expect, test, type Page } from '@playwright/test';
 import { llegada, zonaCaminable } from '../src/app/features/simulator/sala/geometria';
 import type { Encuadre, Muro } from '../src/app/features/simulator/sala/geometria';
 import { entrarALaPrimeraSala } from './support/autoria-flujo';
+import { createWorldInputDriver, readPlayerPosition, waitUntilPlayerStill } from './support/siep-flow';
 
 /**
- * Captura del juego real con una sala del hospital por piezas (bloque P2, diseño 4.3-4.4).
+ * El juego real con las salas del hospital por piezas (bloque P2, diseño 4.3-4.4): capturas y cruce de puertas.
  *
- * El servidor de esta rama todavía no entrega `map.structure` (es del bloque P3, contrato x-siep 2.2): mientras tanto la prueba
- * intercepta cada respuesta que trae el mundo y le pone, para la primera sala del caso, la estructura de la entrada de
- * urgencias del hospital de P1 (`biblioteca/piezas/lugares/hospital.json`), las paredes que deduce el servidor (contrato
- * 1.6) y el muro, la posición y el modelo de sus puertas, con su umbral `x, y` (contrato 3.2). Lo demás del mundo es real.
- * Cuando P3 esté fusionado se quita `ponerHospital` y la prueba usa el dato real.
+ * El servidor de esta rama todavía no entrega `map.structure` (es del bloque P3, contrato x-siep 2.2). Mientras tanto la
+ * prueba hace de servidor para la sala, con lo que el contrato dice que mandará:
+ * - al mundo que llega del servidor (`/world`, y el que devuelven las acciones) le pone la sala del hospital de P1 en la
+ *   que está el jugador (`biblioteca/piezas/lugares/hospital.json`): `map.structure`, el encuadre, las paredes que deduce
+ *   el servidor (contrato 1.6) y un EXIT por puerta con su muro, posición y modelo, en su umbral `x, y` (contrato 3.2);
+ * - `enter-room` por una puerta de pieza responde con la sala de destino y el jugador en la puerta recíproca (`par`);
+ * - `world-state` (guardar la posición) responde con la sala actual sin tocar el servidor, que no la conoce.
+ * Lo demás (intento, consentimiento, personas de la primera escena) es real. Cuando P3 esté fusionado, la prueba se
+ * corre sin este doble y con un caso sembrado con `estructura`.
  *
  * Se corre contra la pila de P2 (`.superpowers/scripts/levantar-p2.ps1`):
  *   E2E_BASE_URL=http://localhost:4381 npx playwright test e2e/salas-por-piezas-captura.e2e.ts
@@ -24,15 +29,22 @@ const CARPETA = process.env['P2_CAPTURAS']
   ?? path.resolve(__dirname, '..', '..', '..', '..', '.superpowers', 'noche-2026-11-14', 'capturas-p2');
 const HOSPITAL = JSON.parse(readFileSync(path.resolve(__dirname, '..', '..', 'biblioteca', 'piezas', 'lugares', 'hospital.json'), 'utf8'));
 
+type Momento = 'dia' | 'noche';
+
+interface Puerta { id: string; muro: Muro; pos: number; modelo: string; par?: string; hacia?: string; etiqueta?: string }
 interface Sala {
   id: string;
   encuadre: Encuadre;
   estructura: { ancho: number; momento?: string };
-  entrada?: [number, number] | { x: number; y: number };
-  puertas: { id: string; muro: Muro; pos: number; modelo: string; par?: string; etiqueta?: string }[];
+  entrada?: { x: number; y: number };
+  puertas: Puerta[];
 }
 
 type Mundo = Record<string, any>;
+
+const SALAS: Sala[] = HOSPITAL.salas;
+const salaPorId = (id: string): Sala => SALAS.find(s => s.id === id)!;
+const claveDeMapa = (sala: Sala) => `hospital-${sala.id}`;
 
 /** Paredes que el servidor deduce de la geometría (contrato 1.6). */
 function paredes(sala: Sala) {
@@ -47,94 +59,198 @@ function paredes(sala: Sala) {
   ];
 }
 
-/** Le pone al mundo la sala por piezas que le toca a su mapa (la primera sala del caso → la entrada de urgencias). */
-function ponerHospital(mundo: Mundo, salasPorMapa: Map<string, Sala>): void {
-  const mapa = mundo['map'];
-  if (!mapa?.key || !Array.isArray(mundo['objects'])) return;
-  if (!salasPorMapa.has(mapa.key)) salasPorMapa.set(mapa.key, HOSPITAL.salas[Math.min(salasPorMapa.size, HOSPITAL.salas.length - 1)]);
-  const sala = salasPorMapa.get(mapa.key)!;
+/**
+ * El rótulo de un EXIT es el nombre del lugar («Sala de escucha familiar», como en el caso): el verbo lo pone la barra
+ * («Pasar a …»). La `etiqueta` de la puerta en `hospital.json` ya trae el verbo; se le quita.
+ */
+function nombreDelLugar(puerta: Puerta): string {
+  const sinVerbo = (puerta.etiqueta ?? puerta.hacia ?? puerta.id).replace(/^(pasar|salir|volver|ir)\s+(a la|al|a)\s+/i, '');
+  return sinVerbo.charAt(0).toUpperCase() + sinVerbo.slice(1);
+}
+
+/** Un EXIT de puerta de pieza con la forma de `MapObjectState`. */
+function exitDePuerta(sala: Sala, puerta: Puerta, cerradas: Record<string, Record<string, string[]>>) {
+  const [x, y] = llegada(puerta.muro, puerta.pos, sala.encuadre, sala.estructura.ancho);
+  const lugar = nombreDelLugar(puerta);
+  return {
+    key: puerta.id, label: lugar, type: 'EXIT', x, y, width: 32, height: 32,
+    color: '#ffffff', icon: 'door', shortCode: '', collision: false,
+    interactionPrompt: `Entrar: ${lugar}`, interactionText: '', decisionOptionId: null, toolCode: null, dialogue: null,
+    facing: 'down', movementPattern: {},
+    metadata: { muro: puerta.muro, pos: puerta.pos, modelo: puerta.modelo, par: puerta.par, targetNodeKey: puerta.hacia,
+      ...(cerradas[`${sala.id}/${puerta.id}`] ?? {}) },
+  };
+}
+
+interface Doble {
+  sala: Sala;
+  momento: Momento;
+  /** Requisitos por puerta (`sala/puerta` → `{ requiresTools: […] }`): la puerta queda cerrada y dice qué falta. */
+  cerradas: Record<string, Record<string, string[]>>;
+  /** Las personas de la primera escena del caso: solo en la sala donde empieza. */
+  personas: unknown[] | null;
+  salaInicial: Sala;
+}
+
+/** Le pone al mundo la sala por piezas en la que está el jugador. */
+function ponerSala(mundo: Mundo, doble: Doble, jugador?: { x: number; y: number }): void {
+  const { sala } = doble;
   const ancho = sala.estructura.ancho;
-  mapa.structure = sala.estructura;
+  const mapa = mundo['map'];
+  if (doble.personas === null) doble.personas = (mundo['objects'] as Mundo[]).filter(o => o['type'] !== 'EXIT');
+  mapa.key = claveDeMapa(sala);
+  mapa.title = sala === doble.salaInicial && mapa.title ? mapa.title : `Hospital — ${sala.id.replace(/-/g, ' ')}`;
+  mapa.structure = { ...sala.estructura, momento: doble.momento };
   mapa.width = ancho;
   mapa.height = 528;
   mapa.ambient = { ...(mapa.ambient ?? {}), encuadre: sala.encuadre, lugarId: 'hospital', salaId: sala.id };
   delete mapa.ambient.backgroundImage;
-  if (Array.isArray(mundo['collisions'])) mundo['collisions'] = paredes(sala);
-  let n = 0;
-  for (const objeto of mundo['objects']) {
-    if (objeto.type !== 'EXIT' || n >= sala.puertas.length) continue;
-    const puerta = sala.puertas[n++];
-    const [x, y] = llegada(puerta.muro, puerta.pos, sala.encuadre, ancho);
-    objeto.x = x;
-    objeto.y = y;
-    objeto.metadata = { ...(objeto.metadata ?? {}), muro: puerta.muro, pos: puerta.pos, modelo: puerta.modelo };
-    delete objeto.metadata.pintada;
-  }
-  // Las puertas que el mapa del caso no trae (sus salidas vivían en el ScenarioConfig del legado) se añaden como las
-  // mandará el servidor de P3: un EXIT por puerta, con su umbral. Cruzarlas pide al servidor una clave que no conoce:
-  // la prueba solo las mira (abrirse, rótulo), no las cruza.
-  for (const puerta of sala.puertas.slice(n)) {
-    const [x, y] = llegada(puerta.muro, puerta.pos, sala.encuadre, ancho);
-    n++;
-    mundo['objects'].push({   // forma de `MapObjectState`
-      key: puerta.id, label: puerta.etiqueta ?? puerta.id, type: 'EXIT', x, y, width: 32, height: 32,
-      color: '#ffffff', icon: 'door', shortCode: '', collision: false,
-      interactionPrompt: puerta.etiqueta ?? '', interactionText: '', decisionOptionId: null, toolCode: null, dialogue: null,
-      facing: 'down', movementPattern: {},
-      metadata: { muro: puerta.muro, pos: puerta.pos, modelo: puerta.modelo, par: puerta.par, targetNodeKey: (puerta as { hacia?: string }).hacia },
-    });
-  }
+  mundo['collisions'] = paredes(sala);
+  const personas = sala === doble.salaInicial ? (doble.personas as Mundo[]) : [];
+  mundo['objects'] = [...personas, ...sala.puertas.map(p => exitDePuerta(sala, p, doble.cerradas))];
   const [zx, zy, zw, zh] = zonaCaminable(sala.encuadre, ancho);
-  const jugador = mundo['player'];
-  if (jugador && (jugador.x < zx || jugador.x > zx + zw || jugador.y < zy || jugador.y > zy + zh)) {
-    const entrada = Array.isArray(sala.entrada) ? { x: sala.entrada[0], y: sala.entrada[1] } : sala.entrada ?? { x: ancho / 2, y: 420 };
-    jugador.x = entrada.x;
-    jugador.y = entrada.y;
-  }
+  const actual = mundo['player'] ?? {};
+  const dentro = (p: { x: number; y: number }) => p.x >= zx && p.x <= zx + zw && p.y >= zy && p.y <= zy + zh;
+  const destino = jugador ?? (dentro(actual) ? actual : sala.entrada ?? { x: ancho / 2, y: 420 });
+  mundo['player'] = { ...actual, x: destino.x, y: destino.y, mapKey: mapa.key };
 }
 
-/** Busca, dentro de una respuesta, cada objeto que es un mundo (trae `map` y `objects`) y lo transforma. */
-function recorrer(valor: unknown, salasPorMapa: Map<string, Sala>): void {
-  if (!valor || typeof valor !== 'object') return;
+/** Busca, dentro de una respuesta, cada objeto que es un mundo (trae `map` y `objects`). */
+function mundosDe(valor: unknown, encontrados: Mundo[] = []): Mundo[] {
+  if (!valor || typeof valor !== 'object') return encontrados;
   const objeto = valor as Mundo;
-  if (objeto['map'] && Array.isArray(objeto['objects'])) ponerHospital(objeto, salasPorMapa);
-  for (const hijo of Object.values(objeto)) recorrer(hijo, salasPorMapa);
+  if (objeto['map'] && Array.isArray(objeto['objects'])) encontrados.push(objeto);
+  for (const hijo of Object.values(objeto)) mundosDe(hijo, encontrados);
+  return encontrados;
 }
 
-async function interceptarMundo(page: Page): Promise<void> {
-  const salasPorMapa = new Map<string, Sala>();
+async function hacerDeServidor(page: Page, doble: Doble): Promise<void> {
+  let ultimo: Mundo | null = null;   // el último cuerpo con mundo que mandó el servidor de verdad
   await page.route('**/api/**', async route => {
+    const peticion = route.request();
+    const ruta = new URL(peticion.url()).pathname;
+    if (ultimo && peticion.method() === 'POST' && /\/enter-room$/.test(ruta)) {
+      const { doorKey } = peticion.postDataJSON() as { doorKey: string };
+      const puerta = doble.sala.puertas.find(p => p.id === doorKey);
+      if (puerta?.hacia) {
+        const destino = salaPorId(puerta.hacia);
+        const reciproca = destino.puertas.find(p => p.id === puerta.par);
+        doble.sala = destino;
+        const cuerpo = structuredClone(ultimo);
+        const [x, y] = reciproca ? llegada(reciproca.muro, reciproca.pos, destino.encuadre, destino.estructura.ancho) : [0, 0];
+        for (const mundo of mundosDe(cuerpo)) ponerSala(mundo, doble, reciproca ? { x, y } : undefined);
+        return route.fulfill({ status: 200, json: cuerpo });
+      }
+    }
+    if (ultimo && peticion.method() === 'PATCH' && /\/world-state$/.test(ruta)) {
+      const { playerX, playerY } = peticion.postDataJSON() as { playerX: number; playerY: number };
+      const cuerpo = structuredClone(ultimo);
+      for (const mundo of mundosDe(cuerpo)) ponerSala(mundo, doble, { x: playerX, y: playerY });
+      return route.fulfill({ status: 200, json: cuerpo });
+    }
     const respuesta = await route.fetch();
     if (!(respuesta.headers()['content-type'] ?? '').includes('json')) return route.fulfill({ response: respuesta });
     const cuerpo = await respuesta.json().catch(() => null);
-    if (cuerpo === null) return route.fulfill({ response: respuesta });
-    recorrer(cuerpo, salasPorMapa);
+    const mundos = cuerpo === null ? [] : mundosDe(cuerpo);
+    if (mundos.length === 0) return route.fulfill({ response: respuesta });
+    ultimo = structuredClone(cuerpo);
+    for (const mundo of mundos) ponerSala(mundo, doble);
     return route.fulfill({ response: respuesta, json: cuerpo });
   });
 }
 
-test.describe('salas por piezas en el juego real (captura)', () => {
-  test.setTimeout(180_000);
+async function capturar(page: Page, nombre: string): Promise<void> {
+  const { width, height } = page.viewportSize()!;
+  await page.screenshot({ path: path.join(CARPETA, `juego-real-${nombre}-${width}x${height}.png`) });
+}
+
+type Input = ReturnType<typeof createWorldInputDriver>;
+
+/** Camina hasta el umbral de una puerta (en lazo cerrado sobre data-player-x/y): primero en x, luego en y. */
+async function caminarAlUmbral(page: Page, input: Input, sala: Sala, puertaId: string): Promise<void> {
+  const puerta = sala.puertas.find(p => p.id === puertaId)!;
+  const [x, y] = llegada(puerta.muro, puerta.pos, sala.encuadre, sala.estructura.ancho);
+  for (let vuelta = 0; vuelta < 3; vuelta++) {
+    const p = await readPlayerPosition(page);
+    if (Math.abs(x - p.x) > 4) await input.moveBy(x > p.x ? 'ArrowRight' : 'ArrowLeft', Math.abs(x - p.x));
+    const q = await readPlayerPosition(page);
+    if (Math.abs(y - q.y) > 4) await input.moveBy(y > q.y ? 'ArrowDown' : 'ArrowUp', Math.abs(y - q.y));
+    const r = await readPlayerPosition(page);
+    if (Math.hypot(x - r.x, y - r.y) <= 12) return;
+  }
+}
+
+const mapaPintado = (page: Page, sala: Sala) => expect(page.locator('app-game-world .phaser-host[data-world-ready="true"]'))
+  .toHaveAttribute('data-rendered-map-key', claveDeMapa(sala), { timeout: 30_000 });
+
+async function empezar(page: Page, salaInicial: Sala, momento: Momento, cerradas: Doble['cerradas'] = {}): Promise<Doble> {
+  mkdirSync(CARPETA, { recursive: true });
+  page.on('pageerror', e => console.log('[pageerror]', e.message));
+  const doble: Doble = { sala: salaInicial, salaInicial, momento, cerradas, personas: null };
+  await hacerDeServidor(page, doble);
+  await entrarALaPrimeraSala(page);
+  await mapaPintado(page, salaInicial);
+  await page.waitForTimeout(3200);   // el rótulo del capítulo y el fundido de entrada
+  return doble;
+}
+
+test.describe('salas por piezas en el juego real', () => {
+  test.describe.configure({ timeout: 240_000 });
 
   for (const [ancho, alto] of [[1366, 768], [1920, 1080]] as const) {
-    test(`entrada de urgencias por piezas a ${ancho} × ${alto}`, async ({ page }) => {
-      mkdirSync(CARPETA, { recursive: true });
-      await page.setViewportSize({ width: ancho, height: alto });
-      page.on('pageerror', e => console.log('[pageerror]', e.message, e.stack?.split('\n').slice(0, 4).join(' | ')));
-      page.on('console', m => { if (m.type() === 'error') console.log('[console]', m.text().slice(0, 300)); });
-      page.on('requestfailed', r => console.log('[requestfailed]', r.url()));
-      await interceptarMundo(page);
-      await entrarALaPrimeraSala(page);
-      const mundo = page.locator('app-game-world .phaser-host[data-world-ready="true"]');
-      await expect(mundo).toBeVisible({ timeout: 60_000 });
-      await page.waitForTimeout(1500);
-      await page.screenshot({ path: path.join(CARPETA, `juego-real-entrada-urgencias-noche-${ancho}x${alto}.png`) });
-      // Hacia la corrediza del fondo: se abre y aparece su rótulo.
-      await page.keyboard.down('w');
-      await page.waitForTimeout(1600);
-      await page.keyboard.up('w');
-      await page.waitForTimeout(500);
-      await page.screenshot({ path: path.join(CARPETA, `juego-real-entrada-urgencias-puerta-${ancho}x${alto}.png`) });
-    });
+    for (const momento of ['noche', 'dia'] as const) {
+      test(`cruzar puertas a ${ancho} × ${alto} de ${momento}`, async ({ page }) => {
+        await page.setViewportSize({ width: ancho, height: alto });
+        const entrada = salaPorId('entrada-urgencias');
+        const espera = salaPorId('sala-espera');
+        // La puerta del fondo de la sala de espera queda cerrada: le falta una herramienta.
+        await empezar(page, entrada, momento, { 'sala-espera/a-pasillo': { requiresTools: ['protocolo-epa'] } });
+        await capturar(page, `entrada-urgencias-${momento}`);
+
+        // Acercarse a la corrediza del fondo: se abre y la barra ofrece pasar.
+        const input = createWorldInputDriver(page, 'keyboard');
+        await caminarAlUmbral(page, input, entrada, 'a-espera');
+        const pasar = page.locator('button.context-bar__interaction').filter({ hasText: /sala de espera/i }).first();
+        await waitUntilPlayerStill(page);
+        await page.waitForTimeout(500);
+        await capturar(page, `entrada-urgencias-puerta-${momento}`);
+
+        // E cruza: fundido y la sala de espera, con el jugador en su puerta recíproca (la de la cámara).
+        await expect(pasar).toBeVisible();
+        await page.keyboard.press('e');
+        await mapaPintado(page, espera);
+        await page.waitForTimeout(3200);   // el rótulo del capítulo y el fundido de llegada
+        const llegado = await readPlayerPosition(page);
+        const [rx, ry] = llegada('camara', 586, espera.encuadre, espera.estructura.ancho);
+        expect(Math.abs(llegado.x - rx)).toBeLessThanOrEqual(2);
+        expect(Math.abs(llegado.y - ry)).toBeLessThanOrEqual(2);
+        await capturar(page, `sala-espera-llegada-${momento}`);
+
+        // La puerta del fondo está cerrada: E la sacude y el aviso dice qué falta (door-status.util, sin cambios).
+        await caminarAlUmbral(page, input, espera, 'a-pasillo');
+        const cerrada = page.locator('button.context-bar__interaction').filter({ hasText: /pasillo/i }).first();
+        await waitUntilPlayerStill(page);
+        await expect(cerrada).toBeVisible();
+        await page.keyboard.press('e');
+        await page.waitForTimeout(250);
+        await capturar(page, `sala-espera-puerta-cerrada-${momento}`);
+        await expect(page.locator('app-game-world .phaser-host')).toHaveAttribute('data-rendered-map-key', claveDeMapa(espera));
+      });
+    }
+  }
+
+  // Cada sala del hospital vista en el juego real, de noche y de día, a los dos tamaños.
+  for (const sala of SALAS) {
+    for (const momento of ['noche', 'dia'] as const) {
+      test(`sala ${sala.id} de ${momento}`, async ({ page }) => {
+        await page.setViewportSize({ width: 1366, height: 768 });
+        await empezar(page, sala, momento);
+        await capturar(page, `${sala.id}-${momento}`);
+        await page.setViewportSize({ width: 1920, height: 1080 });
+        await page.waitForTimeout(2500);
+        await capturar(page, `${sala.id}-${momento}`);
+      });
+    }
   }
 });
+
