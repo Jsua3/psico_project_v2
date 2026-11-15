@@ -82,6 +82,11 @@ export interface VistaDePieza {
   ancho: number;
   alto: number;
   apoyo: [number, number];
+  /**
+   * Mapa de brillo: tira igual a la del dibujo, transparente salvo lo que brilla, en gris 255 (vidrio, pantalla), 170 (metal)
+   * u 85 (barniz). Se tiñe con la luz que le llega a la pieza y se suma encima de la luz.
+   */
+  brillo?: string;
 }
 
 export interface FichaDePieza {
@@ -125,6 +130,8 @@ export interface MuebleDeCatalogo extends ImagenDeCatalogo {
   fps?: number;
   /** Lo que ocupa en el piso (centrado en su apoyo, `fondo` px hacia atrás) y su altura: de ahí sale la sombra que arroja. */
   huella?: { ancho: number; fondo: number; alto: number };
+  /** Mapa de brillo del mueble (ver `VistaDePieza.brillo`). */
+  brillo?: string;
 }
 
 export interface ManifiestoDePiezas {
@@ -167,6 +174,31 @@ export interface LuzDePieza {
   radio: [number, number];
   /** Del pozo: px sobre el piso a los que está la luz; de ahí sale el largo de las sombras que arroja. */
   altura: number;
+  /**
+   * Del haz: la forma de la ventana que el haz lleva al piso, en 1024avos. `verticales` (parteluces a lo largo del haz),
+   * `horizontales` (travesaños que lo cruzan) y `lamas` ([desde, hasta, paso] de la persiana). Sin forma, un parteluz al medio.
+   */
+  parteluces: FormaDeVentana;
+}
+
+export interface FormaDeVentana {
+  verticales?: number[];
+  horizontales?: number[];
+  lamas?: [number, number, number];
+}
+
+const PARTELUZ_SIMPLE: FormaDeVentana = { verticales: [512] };
+
+function formaDeVentana(x: unknown): FormaDeVentana {
+  const f = x && typeof x === 'object' && !Array.isArray(x) ? x as Record<string, unknown> : null;
+  if (!f) return PARTELUZ_SIMPLE;
+  const lista = (v: unknown) => (Array.isArray(v) && v.every(n => typeof n === 'number' && Number.isFinite(n)) ? v as number[] : undefined);
+  const lamas = lista(f['lamas']);
+  const forma: FormaDeVentana = {};
+  if (lista(f['verticales'])) forma.verticales = lista(f['verticales']);
+  if (lista(f['horizontales'])) forma.horizontales = lista(f['horizontales']);
+  if (lamas && lamas.length === 3 && lamas[2] > 0) forma.lamas = [lamas[0], lamas[1], lamas[2]];
+  return forma;
 }
 
 /**
@@ -197,6 +229,8 @@ export function luzDePieza(catalogo: CatalogoDeLuz, tipo: string, modelo: string
     alto: numero(luz['alto'], 0),
     radio: [numero(rx, 0), numero(ry, 0)],
     altura: numero(luz['altura'], 150),
+    // `parteluces` puede faltar o ser null: entonces el haz lleva un parteluz al medio, como en Python.
+    parteluces: formaDeVentana(luz['parteluces']),
   };
   // Un haz sin ancho o una lámpara sin radio no dibujan nada y dividirían por cero.
   if (forma === 'haz' ? ficha.ancho <= 0 : ficha.radio[0] <= 0 || ficha.radio[1] <= 0) return null;

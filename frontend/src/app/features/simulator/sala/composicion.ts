@@ -71,6 +71,19 @@ export interface SpriteDeSala {
   muro?: Muro;
   pos?: number;
   puerta?: PuertaDelPlan;
+  /** Mapa de brillo (misma tira, mismos cuadros) y punto del piso donde se mide la luz que le llega. */
+  brillo?: string;
+  punto: [number, number];
+}
+
+/** Dónde se mide la luz que le llega a lo que brilla de una pieza: un poco delante de ella, sobre el piso. */
+function puntoDeMedida(muro: Muro | 'suelo', ancla: [number, number]): [number, number] {
+  const [ax, ay] = ancla;
+  if (muro === 'fondo') return [ax, SEAM + 24];
+  if (muro === 'izquierda') return [ax + 24, ay];
+  if (muro === 'derecha') return [ax - 24, ay];
+  if (muro === 'camara') return [ax, ALTO - 30];
+  return [ax, ay - 1];
 }
 
 export interface PlanDeSala {
@@ -201,7 +214,7 @@ export function planDeSala(sala: SalaPorPiezas, manifiesto: ManifiestoDePiezas, 
       sprites.push({
         id: nombre, tipo: pieza.tipo, modelo: pieza.modelo, capa: 'piso', ruta: vista.ruta, w: vista.ancho, h: vista.alto,
         cuadros: ficha.cuadros, cuadro, x: pieza.x - vista.apoyo[0], y: pieza.y - vista.apoyo[1] - (pieza.sobre ?? 0), z: pieza.y,
-        espejo: false,
+        espejo: false, brillo: vista.brillo, punto: puntoDeMedida('suelo', [pieza.x, pieza.y]),
       });
       continue;
     }
@@ -215,6 +228,7 @@ export function planDeSala(sala: SalaPorPiezas, manifiesto: ManifiestoDePiezas, 
     const sprite: SpriteDeSala = {
       id: nombre, tipo: pieza.tipo, modelo: pieza.modelo, capa: 'muro', ruta: sitio.vista.ruta, w: sitio.vista.ancho, h: sitio.vista.alto,
       cuadros: ficha.cuadros, cuadro, x: sitio.x, y: sitio.y, z: 0, espejo: sitio.espejo, muro: pieza.muro, pos: pieza.pos,
+      brillo: sitio.vista.brillo, punto: puntoDeMedida(pieza.muro, sitio.ancla),
     };
     if (ficha.fps) sprite.fps = ficha.fps;
     sprites.push(sprite);
@@ -234,7 +248,7 @@ export function planDeSala(sala: SalaPorPiezas, manifiesto: ManifiestoDePiezas, 
     sprites.push({
       id: nombre, tipo: 'puerta', modelo: puerta.modelo, capa: deCamara ? 'frente' : 'muro', ruta: sitio.vista.ruta,
       w: sitio.vista.ancho, h: sitio.vista.alto, cuadros: ficha.cuadros, cuadro: 0, x: sitio.x, y: sitio.y, z: deCamara ? ALTO : 0,
-      espejo: sitio.espejo, muro: puerta.muro, pos: puerta.pos,
+      espejo: sitio.espejo, muro: puerta.muro, pos: puerta.pos, brillo: sitio.vista.brillo, punto: puntoDeMedida(puerta.muro, sitio.ancla),
       puerta: {
         hacia: puerta.hacia, par: puerta.par, etiqueta: puerta.etiqueta ?? '', muro: puerta.muro, ancla: sitio.ancla,
         llegada: llegada(puerta.muro, puerta.pos, encuadre, ancho),
@@ -251,7 +265,8 @@ export function planDeSala(sala: SalaPorPiezas, manifiesto: ManifiestoDePiezas, 
   };
 }
 
-/** Las imágenes que el plan necesita cargadas, sin repetir. */
+/** Las imágenes que el plan necesita cargadas, sin repetir: fondo, piezas y sus mapas de brillo. */
 export function rutasDelPlan(plan: PlanDeSala): string[] {
-  return [...new Set([...plan.fondo.map(r => r.ruta), ...plan.sprites.map(s => s.ruta)])];
+  const brillos = plan.sprites.flatMap(s => (s.brillo ? [s.brillo] : []));
+  return [...new Set([...plan.fondo.map(r => r.ruta), ...plan.sprites.map(s => s.ruta), ...brillos])];
 }

@@ -100,14 +100,14 @@ test('quien camina proyecta su sombra: moverlo rehace solo un trozo y da lo mism
   }
 });
 
-test('mover a quien juega cuesta poco: menos de 8 ms por paso en la sala más ancha', () => {
+test('mover a quien juega cuesta poco: menos de 12 ms por paso en la sala más ancha (se rehace como mucho cada 33 ms)', () => {
   const caso = CASOS_DE_LUZ.casos.find(c => c.id === 'ancha-1920');
   const luz = prepararLuz(caso.sala, CASOS_DE_LUZ.catalogo, { momento: 'dia', cuerpos: caso.cuerpos });
   luz.moverCuerpo(cuerpo(600, 380, 48, 72, true));
   const inicio = performance.now();
   for (let x = 600; x < 700; x += 2) luz.moverCuerpo(cuerpo(x, 380, 48, 72, true));
   const porPaso = (performance.now() - inicio) / 50;
-  assert.ok(porPaso < 8, `${porPaso.toFixed(1)} ms por paso`);
+  assert.ok(porPaso < 12, `${porPaso.toFixed(1)} ms por paso`);
 });
 
 test('los cuerpos cambian la luz: sin ellos la sala de la referencia sale distinta', () => {

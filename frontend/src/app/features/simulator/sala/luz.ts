@@ -18,7 +18,7 @@
  * Sin dependencias y con sintaxis borrable: lo cargan el navegador y las pruebas en Node.
  */
 import { encendidaForzada, luzDePieza, vanoDePuerta } from './catalogo';
-import type { CatalogoDeLuz, SalaPorPiezas } from './catalogo';
+import type { CatalogoDeLuz, FormaDeVentana, SalaPorPiezas } from './catalogo';
 import { ALTO, FONDO, MARGEN, SEAM, TOP, borde, laterales, limites } from './geometria';
 import type { Momento } from './geometria';
 
@@ -41,6 +41,13 @@ const HAZ_FONDO = [45, 64];
 const HAZ_LADO = [64, 22];
 /** px que mide como mucho la sombra que arroja una lámpara. */
 const SOMBRA_MAXIMA = 72;
+/** Pisos que devuelven la luz, y cuánto de la luz de una fuente devuelven al brillo. */
+const PULIDOS = ['vinilo', 'baldosa', 'damero'];
+const REFLEJO = 600;
+/** Escalones que baja la luz en el centro de una sombra de contacto. */
+const CONTACTO = 2;
+/** Hasta dónde llega, desde el muro, la franja que el piso pulido devuelve bajo una puerta abierta. */
+const REFLEJO_PUERTA = 60;
 /** Hasta dónde llega la cuña de una puerta abierta: px de piso desde el muro y px a cada lado del eje de la puerta. */
 const CUNA_FONDO = 54;
 const CUNA_LADO = 100;
@@ -51,6 +58,7 @@ export const CONSTANTES_DE_LUZ = {
   penumbra: { dia: PENUMBRA, noche: PENUMBRA_NOCHE, exteriorDia: EXTERIOR, exteriorNoche: EXTERIOR_NOCHE },
   bayer: [BAYER.slice(0, 4), BAYER.slice(4, 8), BAYER.slice(8, 12), BAYER.slice(12, 16)],
   enSombra: EN_SOMBRA, hazFondo: HAZ_FONDO, hazLado: HAZ_LADO, sombraMaxima: SOMBRA_MAXIMA,
+  pulidos: PULIDOS, reflejo: REFLEJO, contacto: CONTACTO,
 };
 
 function piso(a: number, b: number): number {
@@ -65,16 +73,25 @@ function limitar(v: number, minimo: number, maximo: number): number {
   return v < minimo ? minimo : v > maximo ? maximo : v;
 }
 
-/** Sombras frías y luces neutras: (r, v, a) por escalón, redondeado. */
-function tablaAmbiente(): number[][] {
+/**
+ * Sombras frías y luces neutras: (r, v, a) por escalón, redondeado. De noche la sombra es más azul: el día y la noche se
+ * distinguen por el tono general, no solo por lo que está encendido.
+ */
+function tablaAmbiente(noche = false): number[][] {
   const filas: number[][] = [];
   for (let n = 0; n <= NIVELES; n++) {
     const v = MINIMO + PASO * n;
-    filas.push([
-      piso(255 * v * (72 + n) + 400000, 800000),
-      piso(255 * v * (744 + 7 * n) + 4000000, 8000000),
-      Math.min(255, piso(255 * v * (88 - n) + 400000, 800000)),
-    ]);
+    filas.push(noche
+      ? [
+        piso(255 * v * (64 + 2 * n) + 400000, 800000),
+        piso(255 * v * (704 + 12 * n) + 4000000, 8000000),
+        Math.min(255, piso(255 * v * (928 - 16 * n) + 4000000, 8000000)),
+      ]
+      : [
+        piso(255 * v * (72 + n) + 400000, 800000),
+        piso(255 * v * (744 + 7 * n) + 4000000, 8000000),
+        Math.min(255, piso(255 * v * (88 - n) + 400000, 800000)),
+      ]);
   }
   return filas;
 }
@@ -84,6 +101,22 @@ function tablaBrillo(color: readonly number[]): number[][] {
 }
 
 export const TABLA_AMBIENTE: number[][] = tablaAmbiente();
+export const TABLA_AMBIENTE_NOCHE: number[][] = tablaAmbiente(true);
+export type TonoDeReflejo = 'neutro' | 'calido' | 'frio';
+/** Color que SUMA un píxel brillante según la luz que le llega: [tono][escalón de 0 a 3]. */
+export const TABLA_REFLEJO: Record<TonoDeReflejo, number[][]> = {
+  neutro: [[0, 0, 0], [24, 24, 22], [48, 48, 44], [76, 76, 70]],
+  calido: [[0, 0, 0], [28, 23, 14], [54, 45, 28], [86, 72, 44]],
+  frio: [[0, 0, 0], [16, 23, 30], [32, 46, 58], [52, 72, 92]],
+};
+/** Escalones de luz por debajo de los cuales nada brilla. */
+const UMBRAL_REFLEJO = 4;
+
+/** Lo que suma un píxel del mapa de brillo (gris 255 vidrio, 170 metal, 85 barniz): el metal necesita un escalón más y el barniz dos. */
+export function colorDeReflejo(k: number, tono: TonoDeReflejo, gris: number): number[] {
+  return TABLA_REFLEJO[tono][limitar(k - (3 - piso(gris, 85)), 0, 3)];
+}
+
 export const TABLA_CALIDA: number[][] = tablaBrillo([255, 206, 140]);
 export const TABLA_FRIA: number[][] = tablaBrillo([150, 200, 255]);
 
@@ -176,6 +209,10 @@ export class LuzDeSala {
   private tapada: Uint8Array | null;
   /** Rectángulo [x0, x1) × [y0, y1) al que se limitan los emisores: la sala entera, salvo al rehacer un trozo. */
   private recorte: { x0: number; y0: number; x1: number; y1: number };
+  /** El piso devuelve la luz (vinilo, baldosa, damero). */
+  private readonly pulido: boolean;
+  /** Por píxel: cuánto bajan la luz las sombras de contacto de los cuerpos quietos. La de quien camina se suma al terminar. */
+  private readonly contacto: Int32Array;
 
   constructor(sala: SalaPorPiezas, catalogo: CatalogoDeLuz, opciones: OpcionesDeLuz = {}) {
     const est = sala.estructura;
@@ -216,6 +253,14 @@ export class LuzDeSala {
     this.ambiente = new Uint8ClampedArray(total * 4);
     this.brillo = new Uint8ClampedArray(total * 4);
     this.niveles = new Uint8Array(total);
+    this.pulido = PULIDOS.includes(est.acabados?.piso);
+    this.contacto = new Int32Array(total);
+    for (const c of cuerpos) {
+      for (let y = Math.max(SEAM, c.y1 - 2 - 40); y < Math.min(ALTO, c.y1 + 40); y++) {
+        const [pa, pb] = [izq ? this.jl[y] : 0, der ? this.jr[y] : w - 1];
+        for (let x = Math.max(pa, c.x0 - 40); x <= Math.min(pb, c.x1 + 40); x++) this.contacto[y * w + x] += this.contactoDe(c, x, y);
+      }
+    }
 
     // Solo hace falta si hay cuerpos; `moverCuerpo` la crea si llega uno después.
     this.tapada = cuerpos.length > 0 ? new Uint8Array(total) : null;
@@ -232,6 +277,19 @@ export class LuzDeSala {
 
   capas(): CapasDeLuz {
     return { ancho: this.ancho, alto: ALTO, ambiente: this.ambiente, brillo: this.brillo };
+  }
+
+  /**
+   * Cuánta luz le llega en (x, y) a lo que brilla (k de 0 a 3) y de qué tono: se mide sobre la luz de las fuentes, antes de
+   * las cuñas de las puertas, de las sombras de contacto y de rincón, y sin tramado (`piezas_luz.reflejos` de Python).
+   * De día en penumbra da 1; en un haz o bajo una lámpara, 3; de noche sin lámpara, 0: el brillo se apaga con la luz.
+   */
+  reflejoEn(x: number, y: number): { k: number; tono: TonoDeReflejo } {
+    const px = limitar(Math.trunc(x), 0, this.ancho - 1), py = limitar(Math.trunc(y), 0, ALTO - 1);
+    const i = py * this.ancho + px;
+    const k = limitar(piso(this.luz[i] - MINIMO, PASO) - UMBRAL_REFLEJO, 0, 3);
+    const c = this.calido[i], f = this.frio[i];
+    return { k, tono: f > c && f >= 128 ? 'frio' : c >= 128 ? 'calido' : 'neutro' };
   }
 
   /** Escalones por píxel, para las pruebas: nivel de ambiente (bits 0-3), cálido (bits 4-5) y frío (bits 6-7). */
@@ -258,7 +316,7 @@ export class LuzDeSala {
     }
     const zona = todo
       ? { x: 0, y: 0, w: this.ancho, h: ALTO }
-      : { x: Math.max(0, x0), y: SEAM, w: Math.min(this.ancho, x1) - Math.max(0, x0), h: CUNA_FONDO };
+      : { x: Math.max(0, x0), y: SEAM, w: Math.min(this.ancho, x1) - Math.max(0, x0), h: Math.max(CUNA_FONDO, this.pulido ? REFLEJO_PUERTA : 0) };
     this.terminar(zona.x, zona.y, zona.x + zona.w, zona.y + zona.h);
     return zona;
   }
@@ -462,19 +520,20 @@ export class LuzDeSala {
             this.limpiarTapada();
             this.sombra(cuerpos, HAZ_FONDO[0], HAZ_FONDO[1], cuerpos.map(c => piso(c.alto * 5, 8)), tapada);
           }
-          this.hazDelFondo(x0, ancho, conSombra(sumar(fuerza, luz.tono)));
+          this.hazDelFondo(x0, ancho, luz.parteluces, conSombra(sumar(fuerza, luz.tono)));
           const halo = sumar(fuerza, luz.tono, piso(UNO * 2, 3), piso(UNO, 2));
           enMuro(x0, SEAM - luz.antepecho - alto, 46, (i, dx, dy) => {
             const v = UNO - piso(raiz(dx * dx + dy * dy) * UNO, 46);
             if (v > 0) halo(i, v);
           }, ancho, alto);
+          if (this.pulido) this.reflejoDelPiso(x0, x0 + ancho, 90, fuerza, luz.tono === 'calido' ? this.calido : this.frio);
         } else if ((pieza.muro === 'izquierda' && this.izq) || (pieza.muro === 'derecha' && this.der)) {
           if (tapada) {
             this.limpiarTapada();
             const sentido = pieza.muro === 'izquierda' ? HAZ_LADO[0] : -HAZ_LADO[0];
             this.sombra(cuerpos, sentido, HAZ_LADO[1], cuerpos.map(c => piso(c.alto * 3, 4)), tapada);
           }
-          this.hazDelLado(pieza.muro, SEAM + pieza.pos, ancho, conSombra(sumar(fuerza, luz.tono)));
+          this.hazDelLado(pieza.muro, SEAM + pieza.pos, ancho, luz.parteluces, conSombra(sumar(fuerza, luz.tono)));
         }
         continue;
       }
@@ -499,6 +558,10 @@ export class LuzDeSala {
       } else {
         this.pozo(x, y, rx, ry, enPozo);
       }
+      if (this.pulido && pieza.muro === 'fondo' && pieza.x === undefined) {
+        const medio = luz.forma === 'tubo' ? 26 : 14;
+        this.reflejoDelPiso(x - medio, x + medio, 70, fuerza, luz.tono === 'calido' ? this.calido : this.frio);
+      }
       if (luz.forma === 'tubo') {
         const banda = sumar(fuerza, luz.tono, piso(UNO * 8, 10), piso(UNO, 2));
         for (let py = Math.max(TOP, r.y0); py < Math.min(SEAM, r.y1); py++) {
@@ -518,9 +581,15 @@ export class LuzDeSala {
     return sumo;
   }
 
-  /** Ventana del muro del fondo: el haz que cae sobre el piso, con la sombra del parteluz en el centro. */
-  private hazDelFondo(x0: number, ancho: number, aplicar: Aplicar): void {
+  /**
+   * Ventana del muro del fondo: el haz que cae sobre el piso, con la forma de la ventana: cada parteluz vertical es una
+   * línea a lo largo del haz, cada travesaño una línea que lo cruza y las lamas de la persiana, rayas en su tramo.
+   */
+  private hazDelFondo(x0: number, ancho: number, forma: FormaDeVentana, aplicar: Aplicar): void {
     const w = this.ancho, cx = this.cx, r = this.recorte;
+    const n0 = piso(15 * FONDO, 1000), n1 = piso(740 * FONDO, 1000);   // profundidad donde empieza y termina el haz
+    const verticales = forma.verticales ?? [], horizontales = forma.horizontales ?? [];
+    const lamas = forma.lamas ? [n0 + piso((n1 - n0) * forma.lamas[0], UNO), n0 + piso((n1 - n0) * forma.lamas[1], UNO), forma.lamas[2]] : null;
     for (let y = Math.max(SEAM, r.y0); y < r.y1; y++) {
       const n = this.n[y];
       const esc = 16 * FONDO + 3 * n;
@@ -529,31 +598,76 @@ export class LuzDeSala {
       const t = piso(n * 1000, FONDO);
       const enFondo = Math.min(piso((t - 15) * 700, 1000), piso((740 - t) * 500, 1000));
       if (enFondo <= 0) continue;
-      const parteluz = 6 + piso(10 * t, 1000);
+      const gruesoV = 6 + piso(10 * t, 1000), gruesoH = 5 + piso(4 * t, 1000);
+      // Lo que cruza toda la fila (travesaños y lamas) se decide una vez por fila; cada uno oscurece de nuevo.
+      let veces = 0;
+      for (const f of horizontales) if (Math.abs(n - (n0 + piso((n1 - n0) * f, UNO))) * 2 < gruesoH) veces += 1;
+      if (lamas && n >= lamas[0] && n <= lamas[1] && (n - lamas[0]) % lamas[2] < piso(lamas[2], 2)) veces += 1;
       const [xa, xb] = this.pisoDe(y);
       for (let x = Math.max(xa, r.x0, xi + 1); x <= Math.min(xb, r.x1 - 1, xd - 1); x++) {
         let luz = Math.min(Math.min(x - xi, xd - x, enFondo) * 64, UNO);
-        if (Math.abs(2 * x - (xi + xd)) < parteluz) luz = piso(luz * 35, 100);
+        for (const f of verticales) if (Math.abs(x - (xi + piso((xd - xi) * f, UNO))) * 2 < gruesoV) luz = piso(luz * 35, 100);
+        for (let k = 0; k < veces; k++) luz = piso(luz * 35, 100);
         aplicar(y * w + x, luz);
       }
     }
   }
 
-  /** Ventana de un muro lateral: la luz cruza el piso y baja hacia la cámara mientras se aleja del muro. */
-  private hazDelLado(lado: 'izquierda' | 'derecha', yc: number, ancho: number, aplicar: Aplicar): void {
+  /** Ventana de un muro lateral: la luz cruza el piso y baja hacia la cámara mientras se aleja del muro, con su forma. */
+  private hazDelLado(lado: 'izquierda' | 'derecha', yc: number, ancho: number, forma: FormaDeVentana, aplicar: Aplicar): void {
     const w = this.ancho, r = this.recorte;
     const medio = piso(ancho, 2) + 4;
+    const verticales = forma.verticales ?? [], horizontales = forma.horizontales ?? [];
+    const lamas = forma.lamas ? [40 + piso(300 * forma.lamas[0], UNO), 40 + piso(300 * forma.lamas[1], UNO), forma.lamas[2]] : null;
     for (let y = Math.max(SEAM, r.y0); y < r.y1; y++) {
       const [xa, xb] = this.pisoDe(y);
       for (let x = Math.max(xa, r.x0); x <= Math.min(xb, r.x1 - 1); x++) {
         const dist = lado === 'izquierda' ? x - this.jl[y] : this.jr[y] - x;
-        const dentro = Math.min(medio - Math.abs(y - (yc + piso(dist * 35, 100))), dist);
+        const centro = yc + piso(dist * 35, 100);
+        const dentro = Math.min(medio - Math.abs(y - centro), dist);
         if (dentro <= 0) continue;
         const alcance = limitar(piso((460 - dist) * UNO, 180), 0, UNO);
-        const v = piso(Math.min(dentro * 64, UNO) * alcance, UNO);
+        let v = piso(Math.min(dentro * 64, UNO) * alcance, UNO);
+        const a = y - (centro - medio);                                // posición a lo ancho del haz
+        for (const f of verticales) if (Math.abs(a - piso(2 * medio * f, UNO)) * 2 < 5) v = piso(v * 35, 100);
+        for (const f of horizontales) if (Math.abs(dist - (40 + piso(300 * f, UNO))) * 2 < 7) v = piso(v * 35, 100);
+        if (lamas && dist >= lamas[0] && dist <= lamas[1] && (dist - lamas[0]) % lamas[2] < piso(lamas[2], 2)) v = piso(v * 35, 100);
         if (v > 0) aplicar(y * w + x, v);
       }
     }
+  }
+
+  /**
+   * Franja que un piso pulido devuelve bajo algo del muro del fondo que da luz (entre xa y xb): nace al pie del muro, sigue
+   * la perspectiva del piso y se apaga a los `largo` px. Suma al tono (al brillo), no a la luz.
+   */
+  private reflejoDelPiso(xa: number, xb: number, largo: number, fuerza: number, tonos: Int32Array): void {
+    const w = this.ancho, cx = this.cx, r = this.recorte;
+    for (let y = Math.max(SEAM, r.y0); y < r.y1; y++) {
+      const n = this.n[y];
+      if (n < 3) continue;
+      const caida = limitar(piso((largo - n) * UNO, largo), 0, UNO);
+      if (caida <= 0) break;
+      const esc = 16 * FONDO + 3 * n;
+      const xi = cx + piso((xa - cx) * esc, 16 * FONDO), xd = cx + piso((xb - cx) * esc, 16 * FONDO);
+      const [pa, pb] = this.pisoDe(y);
+      for (let x = Math.max(pa, r.x0, xi); x <= Math.min(pb, r.x1 - 1, xd); x++) {
+        const m = piso(limitar(Math.min(x - xi, xd - x) * 256 + 256, 0, UNO) * caida, UNO);
+        const v = piso(piso(m * fuerza, 100) * REFLEJO, UNO);
+        const i = y * w + x;
+        if (v > tonos[i]) tonos[i] = v;
+      }
+    }
+  }
+
+  /** Cuánto baja la luz (en diezmilésimas) la sombra de contacto de un cuerpo en (x, y): plena al centro, deshecha al borde. */
+  private contactoDe(c: Cuerpo, x: number, y: number): number {
+    const cx = piso(c.x0 + c.x1, 2), cy = c.y1 - 2;
+    const rx = piso(c.x1 - c.x0, 2) + 5, ry = Math.max(4, piso(c.y1 - c.y0, 2) + 3);
+    if (Math.abs(x - cx) > rx || Math.abs(y - cy) > ry) return 0;
+    const ex = piso(Math.abs(x - cx) * UNO, rx), ey = piso(Math.abs(y - cy) * UNO, ry);
+    const m = Math.min(limitar(UNO - raiz(ex * ex + ey * ey), 0, UNO) * 2, UNO);
+    return piso(CONTACTO * PASO * m, UNO);
   }
 
   /** Pozo de luz de una lámpara sobre el piso: una elipse que cae como p·(3 − p)/2. */
@@ -588,6 +702,7 @@ export class LuzDeSala {
     const colorCuna = piso(UNO * 4, 10);
     const radioX = piso(600 * w, 960);
     const vinetaMax = this.exterior ? 100 : 200;
+    const tablaAmbiente = dia ? TABLA_AMBIENTE : TABLA_AMBIENTE_NOCHE;
 
     for (let y = y0; y < y1; y++) {
       const n = this.n[y];
@@ -610,6 +725,24 @@ export class LuzDeSala {
               calido = Math.max(calido, piso(piso(mancha * 100, 100) * colorCuna, UNO));
             }
           }
+          // El piso pulido devuelve también la luz de la puerta abierta.
+          if (this.pulido && enPiso && n >= 3 && n < REFLEJO_PUERTA) {
+            const caida = piso((REFLEJO_PUERTA - n) * UNO, REFLEJO_PUERTA);
+            const esc = 16 * FONDO + 3 * n;
+            for (const puerta of abiertas) {
+              const vano = piso(puerta.vano, 2) - 6;
+              const xi = cx + piso((puerta.eje - vano - cx) * esc, 16 * FONDO), xd = cx + piso((puerta.eje + vano - cx) * esc, 16 * FONDO);
+              if (x < xi || x > xd) continue;
+              const m = piso(limitar(Math.min(x - xi, xd - x) * 256 + 256, 0, UNO) * caida, UNO);
+              calido = Math.max(calido, piso(m * REFLEJO, UNO));
+            }
+          }
+        }
+
+        // Sombras de contacto de los cuerpos quietos y de quien camina.
+        if (enPiso) {
+          l -= this.contacto[i];
+          if (this.movil) l -= this.contactoDe(this.movil, x, y);
         }
 
         // Sombras de rincón al pie de los muros.
@@ -633,7 +766,7 @@ export class LuzDeSala {
 
         this.niveles[i] = nivel | (escCalido << 4) | (escFrio << 6);
         const o = i * 4;
-        const am = TABLA_AMBIENTE[nivel], ca = TABLA_CALIDA[escCalido], fr = TABLA_FRIA[escFrio];
+        const am = tablaAmbiente[nivel], ca = TABLA_CALIDA[escCalido], fr = TABLA_FRIA[escFrio];
         this.ambiente[o] = am[0];
         this.ambiente[o + 1] = am[1];
         this.ambiente[o + 2] = am[2];

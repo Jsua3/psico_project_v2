@@ -12,7 +12,7 @@ import Phaser from 'phaser';
 import { DEPTH, actorDepth } from '../../src/app/features/simulator/depth-sort.util';
 import { MANIFIESTO_DE_PIEZAS_URL, esManifiestoDePiezas, urlDePieza } from '../../src/app/features/simulator/sala/catalogo';
 import type { ManifiestoDePiezas, SalaPorPiezas } from '../../src/app/features/simulator/sala/catalogo';
-import { EscenaDeSala, PROFUNDIDAD } from '../../src/app/features/simulator/sala/escena-de-sala';
+import { EscenaDeSala } from '../../src/app/features/simulator/sala/escena-de-sala';
 import type { Momento } from '../../src/app/features/simulator/sala/geometria';
 import { cuerpo } from '../../src/app/features/simulator/sala/luz';
 import type { Cuerpo } from '../../src/app/features/simulator/sala/luz';
@@ -45,25 +45,8 @@ const VELOCIDAD = 110;
 const KIT = '/assets/characters/kit';
 const $ = (id: string) => document.getElementById(id)!;
 
-/** Sombra de contacto: elipse del tono oscuro de la sala, con el borde tramado (nada de difuminado). */
-function texturaDeSombra(escena: Phaser.Scene, rx: number, ry: number): string {
-  const nombre = `arnes:sombra-${rx}-${ry}`;
-  if (escena.textures.exists(nombre)) return nombre;
-  const w = rx * 2 + 1, h = ry * 2 + 1;
-  const lienzo = escena.textures.createCanvas(nombre, w, h)!;
-  const ctx = lienzo.getContext();
-  const datos = ctx.createImageData(w, h);
-  for (let y = 0; y < h; y++) {
-    for (let x = 0; x < w; x++) {
-      const dx = (x - rx) / (rx + 0.5), dy = (y - ry) / (ry + 0.5), d = dx * dx + dy * dy;
-      const dentro = d <= 0.55 || (d <= 1 && (x + y) % 2 === 0);
-      if (dentro) datos.data.set([8, 6, 18, 92], (y * w + x) * 4);
-    }
-  }
-  ctx.putImageData(datos, 0, 0);
-  lienzo.refresh();
-  return nombre;
-}
+// La sombra de contacto de muebles, personas y quien camina va dentro de la luz (P1, `piezas_luz._contacto`): por escalones
+// y con el tramado de la casa. El arnés ya no dibuja elipses propias.
 
 type Plan = NonNullable<ReturnType<typeof EscenaDeSala.planear>>;
 
@@ -78,7 +61,6 @@ class ArnesDeSala extends Phaser.Scene {
   private animados: { objeto: Phaser.GameObjects.Sprite; cuadros: number; fps: number; fila: number }[] = [];
   private choques: Cuerpo[] = [];
   private jugador!: Phaser.GameObjects.Sprite;
-  private sombraJugador!: Phaser.GameObjects.Image;
   private pos = { x: 480, y: 400 };
   private vista = 0;
   private anda = false;
@@ -119,7 +101,6 @@ class ArnesDeSala extends Phaser.Scene {
     // Con el ratón o el dedo: tocar el piso lleva hasta ahí (en línea recta, hasta donde no choque).
     this.input.on('pointerdown', (p: Phaser.Input.Pointer) => { this.meta = { x: p.worldX, y: p.worldY }; });
     this.jugador = this.add.sprite(0, 0, 'kit:valentina:idle', 0).setOrigin(24 / 48, 68 / 72);
-    this.sombraJugador = this.add.image(0, 0, texturaDeSombra(this, 11, 4)).setDepth(PROFUNDIDAD.sombras);
     this.velo = this.add.rectangle(0, 0, 4000, 4000, 0x0b0a12, 1).setOrigin(0, 0).setScrollFactor(0).setDepth(DEPTH.UI - 1).setAlpha(0);
     this.scale.on('resize', () => this.encuadrar());
     const x = Number(params.get('x')), y = Number(params.get('y'));
@@ -177,9 +158,7 @@ class ArnesDeSala extends Phaser.Scene {
       if (!ficha || !this.textures.exists(`mueble:${m.ref}`)) continue;
       const objeto = this.add.sprite(m.x - Math.floor(ficha.ancho / 2), m.y - ficha.alto, `mueble:${m.ref}`, 0)
         .setOrigin(0, 0).setFlipX(m.espejo === true).setDepth(actorDepth(m.y));
-      const rx = Math.floor(ficha.ancho / 2) + 3, ry = Math.min(9, Math.max(3, Math.floor(ficha.ancho / 7)));
-      const sombra = this.add.image(m.x + 1, m.y - 3, texturaDeSombra(this, rx, ry)).setDepth(PROFUNDIDAD.sombras);
-      this.extras.push(objeto, sombra);
+      this.extras.push(objeto);
       if (ficha.cuadros > 1 && ficha.fps) this.animados.push({ objeto, cuadros: ficha.cuadros, fps: ficha.fps, fila: 0 });
       const c = cuerpo(m.x, m.y, ficha.ancho, ficha.alto);
       cuerpos.push(c);
@@ -189,8 +168,7 @@ class ArnesDeSala extends Phaser.Scene {
       if (!this.textures.exists(`kit:${p.ref}:idle`)) continue;
       const fila = FILA[p.mirando ?? 'abajo'] ?? 0;
       const objeto = this.add.sprite(p.x, p.y + 4, `kit:${p.ref}:idle`, fila * 4).setOrigin(24 / 48, 68 / 72).setDepth(actorDepth(p.y + 4));
-      const sombra = this.add.image(p.x, p.y, texturaDeSombra(this, 11, 4)).setDepth(PROFUNDIDAD.sombras);
-      this.extras.push(objeto, sombra);
+      this.extras.push(objeto);
       this.animados.push({ objeto, cuadros: 4, fps: 4, fila });
       const c = cuerpo(p.x, p.y + 4, 48, 72, true);
       cuerpos.push(c);
@@ -319,7 +297,6 @@ class ArnesDeSala extends Phaser.Scene {
     const cuadros = this.anda ? 6 : 4, fps = this.anda ? 10 : 4;
     const col = this.reducido ? 0 : Math.floor((this.tiempo / 1000) * fps) % cuadros;
     this.jugador.setTexture(hoja, this.vista * cuadros + col).setPosition(x, y).setDepth(actorDepth(y));
-    this.sombraJugador.setPosition(x, y - 4);
   }
 
   private pintarAviso(activa: string | null): void {

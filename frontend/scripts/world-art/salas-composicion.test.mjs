@@ -10,7 +10,7 @@ import { MANIFIESTO, REF, huellaRgb, leerPng, salaDe } from './salas-apoyo.mjs';
 
 const { CIELO_DE_NOCHE, VACIO, planDeSala, rutasDelPlan } = await import('../../src/app/features/simulator/sala/composicion.ts');
 const { componerSala, pintarFondo } = await import('../../src/app/features/simulator/sala/pintor.ts');
-const { calcularLuz } = await import('../../src/app/features/simulator/sala/luz.ts');
+const { calcularLuz, prepararLuz } = await import('../../src/app/features/simulator/sala/luz.ts');
 
 const imagenesDe = plan => new Map(rutasDelPlan(plan).map(ruta => [ruta, leerPng(ruta)]));
 
@@ -56,7 +56,10 @@ for (const caso of REF.composicion) {
     assert.equal(huellaRgb(pintarFondo(plan, imagenes).rgba), caso.fondo, `${caso.id}: fondo (piso, muros y sombra de lo que cuelga)`);
     assert.equal(huellaRgb(componerSala(plan, imagenes, null, caso.abiertas).rgba), caso.sinLuz, `${caso.id}: con las piezas, sin luz`);
     const luz = calcularLuz(sala, MANIFIESTO.piezas, { momento: caso.momento, abiertas: caso.abiertas });
-    assert.equal(huellaRgb(componerSala(plan, imagenes, luz, caso.abiertas).rgba), caso.conLuz, `${caso.id}: con luz`);
+    // El brillo de cada pieza se mide sobre la luz de la sala sin las puertas abiertas, como en `piezas_sala.capas`.
+    const medida = prepararLuz(sala, MANIFIESTO.piezas, { momento: caso.momento });
+    const conLuz = componerSala(plan, imagenes, luz, caso.abiertas, (x, y) => medida.reflejoEn(x, y));
+    assert.equal(huellaRgb(conLuz.rgba), caso.conLuz, `${caso.id}: con luz y brillo`);
   });
 }
 

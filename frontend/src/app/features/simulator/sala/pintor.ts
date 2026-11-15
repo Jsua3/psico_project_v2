@@ -13,7 +13,8 @@
 import type { PlanDeSala, SpriteDeSala } from './composicion';
 import { VACIO } from './composicion';
 import { SEAM, TOP } from './geometria';
-import type { CapasDeLuz } from './luz';
+import { colorDeReflejo } from './luz';
+import type { CapasDeLuz, TonoDeReflejo } from './luz';
 
 export interface Imagen {
   ancho: number;
@@ -147,19 +148,62 @@ export function aplicarLuz(escena: Imagen, luz: CapasDeLuz): void {
   }
 }
 
+export type MedidaDeReflejo = (x: number, y: number) => { k: number; tono: TonoDeReflejo };
+
+/**
+ * El brillo de un sprite en la capa de brillo: primero borra lo que tapa (su silueta), después pone, donde su mapa brilla, el
+ * color que suma con la luz que le llega. Así cada pieza tapa el brillo de lo que tiene detrás.
+ */
+function brilloDeSprite(capa: Uint8ClampedArray, ancho: number, alto: number, imagenes: Imagenes, sprite: SpriteDeSala, cuadro: number,
+  reflejo: { k: number; tono: TonoDeReflejo } | null): void {
+  const hoja = imagenes.get(sprite.ruta), mapa = sprite.brillo ? imagenes.get(sprite.brillo) : undefined;
+  if (!hoja) return;
+  const colores = reflejo ? [85, 170, 255].map(gris => colorDeReflejo(reflejo.k, reflejo.tono, gris)) : null;
+  for (let j = 0; j < sprite.h; j++) {
+    const y = sprite.y + j;
+    if (y < 0 || y >= alto) continue;
+    for (let i = 0; i < sprite.w; i++) {
+      const x = sprite.x + i;
+      if (x < 0 || x >= ancho) continue;
+      const fx = cuadro * sprite.w + (sprite.espejo ? sprite.w - 1 - i : i);
+      const p = (y * ancho + x) * 3;
+      if (fx < hoja.ancho && j < hoja.alto && hoja.rgba[(j * hoja.ancho + fx) * 4 + 3] === 255) capa.fill(0, p, p + 3);
+      if (!mapa || !colores || fx >= mapa.ancho || j >= mapa.alto) continue;
+      const o = (j * mapa.ancho + fx) * 4;
+      if (mapa.rgba[o + 3] !== 255) continue;
+      const nivel = [85, 170, 255].indexOf(mapa.rgba[o]);
+      const color = nivel >= 0 ? colores[nivel] : null;
+      if (color && (color[0] || color[1] || color[2])) capa.set(color, p);
+    }
+  }
+}
+
 /**
  * La sala entera como la pintaría el juego sin muebles ni personas: fondo, piezas de muro, piezas de piso por `z`, lo del
- * lado de la cámara y, si se pasa, la luz. Las puertas de `abiertas` van en su último cuadro.
+ * lado de la cámara y, si se pasa, la luz y el brillo de vidrio, metal y barniz (medido con `reflejo`). Las puertas de
+ * `abiertas` van en su último cuadro.
  */
-export function componerSala(plan: PlanDeSala, imagenes: Imagenes, luz: CapasDeLuz | null, abiertas: readonly string[] = []): Imagen {
+export function componerSala(plan: PlanDeSala, imagenes: Imagenes, luz: CapasDeLuz | null, abiertas: readonly string[] = [],
+  reflejo: MedidaDeReflejo | null = null): Imagen {
   const escena = pintarFondo(plan, imagenes);
   const orden = { muro: 0, piso: 1, frente: 2 };
   const cosas = plan.sprites
     .map((sprite, n) => ({ sprite, n }))
     .sort((a, b) => orden[a.sprite.capa] - orden[b.sprite.capa] || a.sprite.z - b.sprite.z || a.n - b.n);
+  const brillos = new Uint8ClampedArray(plan.ancho * plan.alto * 3);
   for (const { sprite } of cosas) {
-    pegarSprite(escena, imagenes, sprite, sprite.puerta && abiertas.includes(sprite.id) ? CUADRO_ABIERTA : sprite.cuadro);
+    const cuadro = sprite.puerta && abiertas.includes(sprite.id) ? CUADRO_ABIERTA : sprite.cuadro;
+    pegarSprite(escena, imagenes, sprite, cuadro);
+    brilloDeSprite(brillos, plan.ancho, plan.alto, imagenes, sprite, cuadro, reflejo ? reflejo(sprite.punto[0], sprite.punto[1]) : null);
   }
-  if (luz) aplicarLuz(escena, luz);
+  if (luz) {
+    aplicarLuz(escena, luz);
+    const d = escena.rgba;
+    for (let p = 0, q = 0; p < d.length; p += 4, q += 3) {
+      d[p] = Math.min(255, d[p] + brillos[q]);
+      d[p + 1] = Math.min(255, d[p + 1] + brillos[q + 1]);
+      d[p + 2] = Math.min(255, d[p + 2] + brillos[q + 2]);
+    }
+  }
   return escena;
 }

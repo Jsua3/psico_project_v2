@@ -10,13 +10,17 @@ const c = await import('../../src/app/features/simulator/sala/catalogo.ts');
 
 test('la luz de cada pieza se lee del manifiesto, con sus valores por defecto', () => {
   assert.deepEqual(c.luzDePieza(MANIFIESTO.piezas, 'ventana', 'alta'),
-    { forma: 'haz', momento: 'dia', tono: 'calido', fuerza: 70, ancho: 120, antepecho: 100, alto: 32, radio: [0, 0], altura: 150 });
+    { forma: 'haz', momento: 'dia', tono: 'calido', fuerza: 70, ancho: 120, antepecho: 100, alto: 32, radio: [0, 0], altura: 150,
+      parteluces: { verticales: [341, 683] } });
   assert.deepEqual(c.luzDePieza(MANIFIESTO.piezas, 'ventana', 'corrediza'),
-    { forma: 'haz', momento: 'dia', tono: 'calido', fuerza: 100, ancho: 96, antepecho: 70, alto: 60, radio: [0, 0], altura: 150 });
+    { forma: 'haz', momento: 'dia', tono: 'calido', fuerza: 100, ancho: 96, antepecho: 70, alto: 60, radio: [0, 0], altura: 150,
+      parteluces: { verticales: [512], horizontales: [512] } });
   assert.deepEqual(c.luzDePieza(MANIFIESTO.piezas, 'lampara', 'pie'),
-    { forma: 'pozo', momento: 'noche', tono: 'calido', fuerza: 100, ancho: 0, antepecho: 0, alto: 0, radio: [124, 48], altura: 58 });
+    { forma: 'pozo', momento: 'noche', tono: 'calido', fuerza: 100, ancho: 0, antepecho: 0, alto: 0, radio: [124, 48], altura: 58,
+      parteluces: { verticales: [512] } });
   assert.deepEqual(c.luzDePieza(MANIFIESTO.piezas, 'lampara', 'tubo'),
-    { forma: 'tubo', momento: 'noche', tono: 'frio', fuerza: 100, ancho: 0, antepecho: 0, alto: 0, radio: [250, 120], altura: 150 });
+    { forma: 'tubo', momento: 'noche', tono: 'frio', fuerza: 100, ancho: 0, antepecho: 0, alto: 0, radio: [250, 120], altura: 150,
+      parteluces: { verticales: [512] } });
   let emiten = 0;
   for (const [clave, ficha] of Object.entries(MANIFIESTO.piezas)) {
     const [tipo, modelo] = clave.split('/');
@@ -32,6 +36,14 @@ test('el catálogo de la referencia congelada de P1 se lee igual que el manifies
     assert.deepEqual(c.luzDePieza(CASOS_DE_LUZ.catalogo, tipo, modelo), c.luzDePieza(MANIFIESTO.piezas, tipo, modelo), clave);
     if (tipo === 'puerta') assert.equal(c.vanoDePuerta(CASOS_DE_LUZ.catalogo, modelo), c.vanoDePuerta(MANIFIESTO.piezas, modelo), clave);
   }
+});
+
+test('la forma de la ventana: la persiana trae lamas; sin forma, o con una que no se entiende, un parteluz al medio', () => {
+  assert.deepEqual(c.luzDePieza(MANIFIESTO.piezas, 'ventana', 'persiana').parteluces, { verticales: [512], lamas: [410, 1024, 8] });
+  const rara = { 'ventana/rara': { luz: { forma: 'haz', momento: 'dia', tono: 'calido', ancho: 90, parteluces: { lamas: [1, 2, 0], verticales: 'x' } } } };
+  assert.deepEqual(c.luzDePieza(rara, 'ventana', 'rara').parteluces, {});
+  const sin = { 'ventana/sin': { luz: { forma: 'haz', momento: 'dia', tono: 'calido', ancho: 90 } } };
+  assert.deepEqual(c.luzDePieza(sin, 'ventana', 'sin').parteluces, { verticales: [512] });
 });
 
 test('una ficha de luz que no se entiende cuenta como «no emite»', () => {
