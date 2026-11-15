@@ -517,6 +517,45 @@ def rasgos(im, receta):
                 ancho_boca=(max(x for x, _ in boca) - min(x for x, _ in boca) + 1) if boca else 0)
 
 
+RESERVA = ((104, 96, 132, 255), (74, 67, 102, 255), (54, 48, 78, 255))      # luz, base y sombra: los tonos de la placa
+RECURSOS = os.path.join(RAIZ, 'frontend', 'src', 'assets', 'game', 'dialogo')
+
+
+def retrato_reserva():
+    """El retrato de quien no tiene receta en el kit (una voz del sistema, un personaje nuevo): un busto sin rasgos con
+    la misma cabeza, el mismo volumen (luz arriba a la izquierda) y el mismo contorno de un píxel que los demás, en los
+    tonos de la placa para que no parezca nadie en particular."""
+    luz, base, sombra = RESERVA
+    im = Image.new('RGBA', (N, N), VACIO)
+    px = im.load()
+    cuerpo = set()
+    for y in range(14, N):
+        for x in range(N):
+            cabeza = y < MANDIBULA[1] and abs(x - CX) <= (_craneo(y) if y < MANDIBULA[0] else _medio_ancho(y))
+            cuello = 66 <= y < 82 and abs(x - CX) <= 9
+            hombros = y >= 74 and ((x - CX) / 41.0) ** 2 + ((y - 99) / 25.0) ** 2 <= 1
+            if cabeza or cuello or hombros:
+                cuerpo.add((x, y))
+    for x, y in cuerpo:
+        en_cabeza = y < MANDIBULA[1] and abs(x - CX) <= (_craneo(y) if y < MANDIBULA[0] else _medio_ancho(y))
+        derecha = any((x + d, y) not in cuerpo for d in range(1, 7))
+        izquierda = any((x - d, y) not in cuerpo for d in range(1, 4))
+        arriba = any((x, y - d) not in cuerpo for d in range(1, 3))
+        bajo_barbilla = not en_cabeza and y < 80 and abs(x - CX) <= 9
+        px[x, y] = sombra if derecha or bajo_barbilla else luz if (izquierda or (arriba and x < CX)) else base
+    for x, y in cuerpo:
+        if any((xx, yy) not in cuerpo and yy < N for xx, yy in ((x + 1, y), (x - 1, y), (x, y - 1))):
+            px[x, y] = CONTORNO
+    return im
+
+
+def exportar_reserva(destino=RECURSOS):
+    os.makedirs(destino, exist_ok=True)
+    ruta = os.path.join(destino, 'retrato-reserva.png')
+    retrato_reserva().save(ruta, optimize=True)
+    return ruta
+
+
 def hoja(receta):
     tira = Image.new('RGBA', (N * len(ESTADOS), N * 2), VACIO)
     for n, estado in enumerate(ESTADOS):
@@ -544,3 +583,4 @@ if __name__ == '__main__':
     destino = os.path.join(RAIZ, 'maqueta-visual', 'dialogo', 'retrato-fino.png')
     lamina(receta).save(destino)
     print(destino)
+    print(exportar_reserva())

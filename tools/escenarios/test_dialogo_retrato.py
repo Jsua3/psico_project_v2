@@ -92,3 +92,16 @@ def test_el_parpadeo_cierra_los_ojos():
         abierto, cerrado = dr.retrato_fino(RECETA, estado), dr.retrato_fino(RECETA, estado, cerrado=True)
         assert any(abierto.getpixel(p) == c['blanco'] for p in OJOS), estado
         assert not any(cerrado.getpixel(p) in (c['blanco'], dr.BRILLO) for p in OJOS), estado
+
+
+def test_el_retrato_de_reserva_es_un_busto_sin_rasgos_al_mismo_oficio():
+    im = dr.retrato_reserva()
+    assert im.size == (96, 96)
+    assert {a for *_, a in im.getdata()} <= {0, 255}
+    colores = {c for _, c in im.getcolors(256) if c[3]}
+    assert colores == set(dr.RESERVA) | {dr.CONTORNO}            # tres tonos de la placa y el contorno: sin cara
+    px = im.load()
+    lleno = {(x, y) for y in range(96) for x in range(96) if px[x, y][3]}
+    assert all((95 - x, y) in lleno for x, y in lleno)            # la silueta es simétrica
+    assert (47, 20) in lleno and (47, 60) in lleno and (20, 90) in lleno and (75, 90) in lleno   # cabeza y hombros
+    assert (10, 30) not in lleno and (47, 8) not in lleno
