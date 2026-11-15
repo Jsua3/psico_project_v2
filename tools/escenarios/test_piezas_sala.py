@@ -57,12 +57,48 @@ def test_sin_luces_la_sala_queda_en_penumbra_y_de_noche_mas_oscura():
     assert dia[380, 480] in (4, 5) and noche[380, 480] < dia[380, 480]
 
 
-def test_de_dia_la_ventana_echa_su_haz_y_de_noche_no_emite():
+def test_de_dia_la_ventana_echa_su_haz_y_de_noche_deja_entrar_la_luna():
     con, sin = _sala(piezas=[VENTANA]), _sala()
-    assert pl.niveles(con, 'dia')[0].sum() > pl.niveles(sin, 'dia')[0].sum()
-    assert pl.niveles(con, 'dia')[1].max() == 3
-    for a, b in zip(pl.niveles(con, 'noche'), pl.niveles(sin, 'noche')):
-        assert np.array_equal(a, b)
+    sol = pl.niveles(con, 'dia')[0] - pl.niveles(sin, 'dia')[0]
+    assert sol.sum() > 0 and pl.niveles(con, 'dia')[1].max() == 3
+    nivel, calido, frio = pl.niveles(con, 'noche')
+    luna = nivel - pl.niveles(sin, 'noche')[0]
+    assert luna.sum() > 0, 'de noche el piso lejos de las lámparas no queda parejo'
+    assert calido.max() == 0 and frio.max() == 1, 'la luna es fría y apenas tiñe'
+    assert luna.max() <= 2 < sol.max(), 'y es mucho más débil que el sol'
+    apagada = _sala(piezas=[dict(VENTANA, encendida=False)])
+    for a, b in zip(pl.niveles(apagada, 'noche'), pl.niveles(sin, 'noche')):
+        assert np.array_equal(a, b), 'una ventana tapada no deja entrar nada'
+
+
+def test_el_vidrio_de_una_puerta_cerrada_se_refleja_solo_en_el_piso_pulido():
+    def frio(piso, modelo='vidrio', abiertas=()):
+        puerta = dict(id='p', hacia='y', muro='fondo', pos=384, modelo=modelo, etiqueta='Pasar')
+        sala = _sala(puertas=[puerta])
+        sala['estructura']['acabados']['piso'] = piso
+        return pl.niveles(sala, 'dia', abiertas=abiertas)[2]
+    pulido = frio('vinilo')
+    ys, xs = np.nonzero(pulido)
+    assert 1 <= pulido.max() <= 2, 'reflejo suave: nunca a plena fuerza'
+    assert ys.min() >= g.SEAM and ys.max() <= g.SEAM + 70, 'cae en el piso, al pie de la puerta, y se apaga pronto'
+    assert abs(xs.mean() - (g.borde(960) + 384)) < 4, 'justo bajo la puerta'
+    assert frio('madera').max() == 0, 'la madera no devuelve la luz'
+    assert frio('vinilo', modelo='metalica').max() == 0, 'una puerta sin vidrio no refleja'
+    assert frio('vinilo', abiertas=('p',)).max() == 0, 'abierta, lo que cae es la cuña cálida de la sala vecina'
+    assert set(pl.VIDRIADAS) <= set(pp.MODELOS)
+
+
+def test_los_tubos_del_hospital_alumbran_tambien_de_dia_y_el_dia_sigue_siendo_mas_claro():
+    for sala in ph.SALAS:
+        tubos = [p for p in sala['estructura']['piezas'] if p['modelo'] == 'tubo']
+        assert all(p.get('encendida') is True for p in tubos), sala['id']
+        dia, noche = pl.niveles(sala, 'dia')[0], pl.niveles(sala, 'noche')[0]
+        assert dia.mean() > noche.mean() + 1, f"{sala['id']}: el día y la noche se distinguen de un vistazo"
+        if tubos:
+            apagada = copy.deepcopy(sala)
+            for p in apagada['estructura']['piezas']:
+                p.pop('encendida', None)
+            assert dia.sum() > pl.niveles(apagada, 'dia')[0].sum(), sala['id']
 
 
 def test_mover_la_ventana_mueve_el_haz():
@@ -236,7 +272,7 @@ def test_de_noche_el_hospital_se_alumbra_con_tubos_y_la_sala_de_escucha_con_luz_
     _, calido, frio = pl.niveles(ph.PASILLO, 'noche')
     assert frio.max() == 3 and calido.max() == 0
     _, calido, frio = pl.niveles(ph.ESCUCHA, 'noche')
-    assert calido.max() == 3 and frio.max() == 0
+    assert calido.max() == 3 and frio.max() == 1, 'de frío solo entra la luna por la ventana, apenas'
 
 
 def test_el_mobiliario_nuevo_del_hospital_cumple_el_contrato():
@@ -438,3 +474,48 @@ def test_la_sombra_de_contacto_va_en_la_luz():
     ys, xs = np.nonzero(libre > con)
     assert len(xs) > 200 and SOFA['x0'] - 6 <= xs.min() and xs.max() <= SOFA['x1'] + 6
     assert (libre - con).max() == pl.CONTACTO and (con > libre).sum() == 0
+
+
+# ── luz propia y objetos redibujados ───────────────────────────────────────────
+
+def _cuadrado(color, lado=12):
+    from PIL import Image
+    return Image.new('RGBA', (lado, lado), color + (255,))
+
+
+def test_lo_que_emite_luz_propia_se_pinta_encima_de_la_luz_y_lo_que_esta_delante_lo_tapa():
+    from PIL import Image
+    pantalla = (20, 240, 90)
+    emisivo = Image.new('RGBA', (12, 12), (0, 0, 0, 0))
+    emisivo.paste(pantalla + (255,), (4, 4, 8, 8))
+    cosa = dict(im=_cuadrado((200, 200, 200)), x=474, y=380, z=392, sombra=False, emisivo=emisivo)
+    escena = sl.componer_sala(_sala(), 'noche', extras=[cosa]).convert('RGB')
+    assert escena.getpixel((479, 385)) == pantalla, 'la pantalla conserva su color aunque la sala esté a oscuras'
+    r, v, a = escena.getpixel((475, 381))
+    assert max(r, v, a) < 200, 'el resto del objeto sí se oscurece con la sala'
+    delante = dict(im=_cuadrado((90, 60, 40)), x=474, y=380, z=400, sombra=False)
+    tapada = sl.componer_sala(_sala(), 'noche', extras=[cosa, delante]).convert('RGB')
+    assert tapada.getpixel((479, 385)) != pantalla, 'lo que está delante tapa la pantalla'
+
+
+def test_las_piezas_del_catalogo_con_emisivo_lo_llevan_a_las_capas():
+    con = [s for s in sl.capas(ph.HABITACION, 'noche')['sprites'] if s.get('emisivos')]
+    for s in con:
+        assert len(s['emisivos']) in (1, len(s['cuadros'])) and s['emisivos'][0].size == s['cuadros'][0].size, s['id']
+    assert all(m.get('emisivos') is None or len(m['emisivos']) == len(m['cuadros']) for m in ph.muebles_de(ph.HABITACION))
+    assert any(m.get('emisivos') for m in ph.muebles_de(ph.HABITACION)), 'el monitor de signos alumbra por su cuenta'
+
+
+def test_la_sala_de_la_casa_usa_los_muebles_y_objetos_que_redibujo_o1():
+    import piezas_vista as pv
+    lista = pv.muebles_de_biblioteca('casa', 'sala')
+    nuevas = [m for m in lista if 'cuadros' in m]
+    assert len(nuevas) >= 4, 'sofá, sillón, mesa de centro y televisor salen del catálogo nuevo'
+    for m in nuevas:
+        assert m['im'] is m['cuadros'][0] and (m['fps'] > 0) == (len(m['cuadros']) > 1), m['ref']
+        for clave in ('mapas', 'emisivos'):
+            assert m[clave] is None or [c.size for c in m[clave]] == [c.size for c in m['cuadros']], (m['ref'], clave)
+    tele = next(m for m in lista if m.get('resplandor'))
+    r = tele['resplandor']
+    assert tele['emisivos'] and r['tira'].size == (r['w'] * r['n'], r['h']) and max(r['seq']) <= r['n']
+    assert pv.muebles_de_biblioteca('casa', 'sala', dx=240)[0]['x'] == lista[0]['x'] + 240

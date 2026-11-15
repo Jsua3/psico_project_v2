@@ -142,7 +142,7 @@ def generar():
                tablaFria=pl.TABLA_FRIA.tolist(), enSombra=pl.EN_SOMBRA, hazFondo=list(pl.HAZ_FONDO), hazLado=list(pl.HAZ_LADO),
                sombraMaxima=pl.SOMBRA_MAXIMA, tablaReflejo={t: [list(c) for c in v] for t, v in pl.TABLA_REFLEJO.items()},
                umbralReflejo=pl.UMBRAL_REFLEJO, grisBrillo={m: f * 85 for m, f in g.FUERZA_BRILLO.items()},
-               tablaAmbienteNoche=pl.TABLA_AMBIENTE_NOCHE.tolist(), pulidos=list(pl.PULIDOS), reflejo=pl.REFLEJO, contacto=pl.CONTACTO, referencia='piezas/luz/LEEME.md', casos='piezas/luz/casos.json')
+               tablaAmbienteNoche=pl.TABLA_AMBIENTE_NOCHE.tolist(), pulidos=list(pl.PULIDOS), reflejo=pl.REFLEJO, luna=pl.LUNA, vidriadas=dict(pl.VIDRIADAS), contacto=pl.CONTACTO, referencia='piezas/luz/LEEME.md', casos='piezas/luz/casos.json')
     return dict(esquema=2, geometria=geometria, luz=luz, piezas=piezas, pisos=pisos, muros=muros, muebles=muebles, lugares=[]), imagenes
 
 

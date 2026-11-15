@@ -144,7 +144,7 @@
      ],
      [
       0,
-      "neutro"
+      "frio"
      ],
      [
       0,
@@ -342,7 +342,7 @@
      ],
      [
       1,
-      "neutro"
+      "frio"
      ],
      [
       3,
@@ -354,7 +354,15 @@
      ],
      [
       1,
-      "neutro"
+      "frio"
+     ],
+     [
+      2,
+      "frio"
+     ],
+     [
+      1,
+      "frio"
      ],
      [
       1,
@@ -362,23 +370,15 @@
      ],
      [
       1,
-      "neutro"
+      "frio"
      ],
      [
       1,
-      "neutro"
+      "frio"
      ],
      [
       1,
-      "neutro"
-     ],
-     [
-      1,
-      "neutro"
-     ],
-     [
-      1,
-      "neutro"
+      "frio"
      ]
     ],
     "noche": [
@@ -396,7 +396,7 @@
      ],
      [
       0,
-      "neutro"
+      "frio"
      ],
      [
       0,
@@ -491,6 +491,7 @@
      "ancho": 1680,
      "piezas": [
       {
+       "encendida": true,
        "id": "tubo-1",
        "modelo": "tubo",
        "muro": "fondo",
@@ -498,6 +499,7 @@
        "tipo": "lampara"
       },
       {
+       "encendida": true,
        "id": "tubo-2",
        "modelo": "tubo",
        "muro": "fondo",
@@ -505,6 +507,7 @@
        "tipo": "lampara"
       },
       {
+       "encendida": true,
        "id": "tubo-3",
        "modelo": "tubo",
        "muro": "fondo",
@@ -512,6 +515,7 @@
        "tipo": "lampara"
       },
       {
+       "encendida": true,
        "id": "tubo-4",
        "modelo": "tubo",
        "muro": "fondo",
@@ -716,7 +720,7 @@
      ],
      [
       0,
-      "neutro"
+      "frio"
      ],
      [
       0,
@@ -732,7 +736,7 @@
      ],
      [
       0,
-      "neutro"
+      "frio"
      ],
      [
       0,
@@ -918,7 +922,7 @@
      ],
      [
       1,
-      "neutro"
+      "frio"
      ],
      [
       1,
@@ -929,12 +933,12 @@
       "neutro"
      ],
      [
-      1,
-      "neutro"
+      2,
+      "frio"
      ],
      [
-      1,
-      "neutro"
+      2,
+      "frio"
      ],
      [
       3,
@@ -946,11 +950,11 @@
      ],
      [
       1,
-      "neutro"
+      "frio"
      ],
      [
       1,
-      "neutro"
+      "frio"
      ],
      [
       3,
@@ -988,7 +992,7 @@
      ],
      [
       0,
-      "neutro"
+      "frio"
      ],
      [
       0,
@@ -1004,7 +1008,7 @@
      ],
      [
       0,
-      "neutro"
+      "frio"
      ]
     ],
     "puntos": [
@@ -1067,6 +1071,7 @@
      "ancho": 1200,
      "piezas": [
       {
+       "encendida": true,
        "id": "tubo-1",
        "modelo": "tubo",
        "muro": "fondo",
@@ -1074,6 +1079,7 @@
        "tipo": "lampara"
       },
       {
+       "encendida": true,
        "id": "tubo-2",
        "modelo": "tubo",
        "muro": "fondo",
@@ -1475,7 +1481,7 @@
      ],
      [
       0,
-      "neutro"
+      "frio"
      ],
      [
       0,
@@ -1812,6 +1818,7 @@
    64,
    22
   ],
+  "luna": 22,
   "minimo": 4400,
   "niveles": 8,
   "paso": 700,
@@ -1826,7 +1833,7 @@
    "baldosa",
    "damero"
   ],
-  "reflejo": 600,
+  "reflejo": 900,
   "sombraMaxima": 72,
   "tablaAmbiente": [
    [
@@ -2036,7 +2043,13 @@
   },
   "umbralReflejo": 4,
   "unidad": 10000,
-  "uno": 1024
+  "uno": 1024,
+  "vidriadas": {
+   "corrediza": 80,
+   "madera-ventanilla": 30,
+   "urgencias": 40,
+   "vidrio": 70
+  }
  },
  "version": 1
 }

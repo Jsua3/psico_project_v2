@@ -109,7 +109,7 @@ def catalogo(lista):
 def constantes():
     return dict(unidad=pl.U, minimo=pl.MINIMO, paso=pl.PASO, niveles=pl.NIVELES, uno=pl.UNO,
                 penumbra=dict(dia=pl.PENUMBRA, noche=pl.PENUMBRA_NOCHE, exteriorDia=pl.EXTERIOR, exteriorNoche=pl.EXTERIOR_NOCHE),
-                pulidos=list(pl.PULIDOS), reflejo=pl.REFLEJO, contacto=pl.CONTACTO, tablaAmbienteNoche=pl.TABLA_AMBIENTE_NOCHE.tolist(),
+                pulidos=list(pl.PULIDOS), reflejo=pl.REFLEJO, luna=pl.LUNA, vidriadas=dict(pl.VIDRIADAS), contacto=pl.CONTACTO, tablaAmbienteNoche=pl.TABLA_AMBIENTE_NOCHE.tolist(),
                 tablaReflejo={t: [list(c) for c in v] for t, v in pl.TABLA_REFLEJO.items()}, umbralReflejo=pl.UMBRAL_REFLEJO,
                 enSombra=pl.EN_SOMBRA, hazFondo=list(pl.HAZ_FONDO), hazLado=list(pl.HAZ_LADO), sombraMaxima=pl.SOMBRA_MAXIMA,
                 bayer=pl.BAYER.tolist(), tablaAmbiente=pl.TABLA_AMBIENTE.tolist(), tablaCalida=pl.TABLA_CALIDA.tolist(),
@@ -216,9 +216,14 @@ La prueba del cliente debe dar esas imágenes píxel a píxel. La fuente es `too
    - Pozo de una lámpara (`_pozo`, color 9/10) más un halo en el muro (peso 1/2, color 4/10).
    - Tubo: el mismo pozo más una franja en el muro (peso 8/10, color 1/2).
    - Cuña de la puerta abierta del fondo (peso 2/3 de día y 4/10 de noche, color 4/10).
-   - Piso pulido (`_reflejo_piso`): bajo cada ventana del fondo que emite (largo 90), bajo cada tubo o colgante del
-     fondo (ancho ±26 o ±14, largo 70) y bajo cada puerta abierta del fondo (largo 60) el piso suma brillo, sin
-     subir L: `tono = max(tono, mancha * fuerza // 100 * reflejo // 1024)` con `reflejo` 600.
+   - Luna: de noche, cada ventana (haz del fondo o lateral) que no esté `encendida: false` emite con la misma
+     forma de su haz, `fuerza = luna` (22) y tono `frio`, sea cual sea su tono de día. Arroja las mismas sombras.
+   - Piso pulido (`_reflejo_piso`): el piso suma brillo, sin subir L, bajo cada ventana del fondo que emite
+     (largo 110), bajo cada tubo o colgante del fondo (ancho ±26 o ±14, largo 90), bajo cada puerta ABIERTA del
+     fondo (largo 60, fuerza 100, cálido) y bajo cada puerta CERRADA del fondo cuyo modelo esté en `vidriadas`
+     (`ancho // 2 − 6` a cada lado de su centro, largo 70, fuerza `vidriadas[modelo]`, tono frío, de día y de
+     noche): `tono = max(tono, mancha * fuerza // 100 * reflejo // 1024)` con `reflejo` 900. Los bordes laterales
+     de la franja se deshacen en 10 px: `clip(dentro * 96 + 192, 0, 1024) * caida // 1024`.
 3. Sombras de los cuerpos (`_sombra`): antes de combinar, la mancha de un haz o de un pozo pierde 3/4
    (`enSombra` 768/1024) donde un cuerpo tapa la luz: `mancha − mancha * sombra * 768 // 1024`.
    - Ventana del fondo: dirección `hazFondo` (45, 64) y largo `alto * 5 // 8`.

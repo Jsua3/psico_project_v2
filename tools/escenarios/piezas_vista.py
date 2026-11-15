@@ -53,23 +53,77 @@ def _clave(prefijo, im):
     return prefijo + hashlib.md5(im.tobytes() + str(im.size).encode()).hexdigest()[:12]
 
 
+_REEMPLAZOS = None
+
+
+def _reemplazos():
+    """Los muebles y objetos que el bloque O1 redibujó, por el arte de la biblioteca de hoy que reemplazan."""
+    global _REEMPLAZOS
+    if _REEMPLAZOS is None:
+        with open(os.path.join(RAIZ, 'biblioteca', 'piezas', 'manifiesto.json'), encoding='utf-8') as f:
+            datos = json.load(f)
+        _REEMPLAZOS = {v['reemplaza']: v for seccion in ('muebles', 'objetos') for v in datos.get(seccion, {}).values() if v.get('reemplaza')}
+    return _REEMPLAZOS
+
+
+def _cuadros_de(ruta, ancho, n):
+    tira = Image.open(os.path.join(RAIZ, 'biblioteca', *ruta.split('/'))).convert('RGBA')
+    return [tira.crop((i * ancho, 0, i * ancho + ancho, tira.height)) for i in range(n)]
+
+
+def _pieza_nueva(nueva, espejo):
+    """Un mueble u objeto de O1 listo para colocar: sus cuadros de reposo, su brillo, su emisivo y su resplandor."""
+    n, ancho = nueva.get('cuadros', 1), nueva['ancho']
+    reposo = nueva.get('animaciones', {}).get('reposo')
+    de, hasta = (reposo['de'], reposo['hasta'] + 1) if reposo else (0, n)
+
+    def tira(clave):
+        if not nueva.get(clave):
+            return None
+        lista = _cuadros_de(nueva[clave], ancho, n)[de:hasta]
+        return [ImageOps.mirror(c) for c in lista] if espejo else lista
+    cuadros = tira('ruta')
+    datos = dict(im=cuadros[0], cuadros=cuadros, fps=(reposo or nueva).get('fps', 4) if len(cuadros) > 1 else 0, mapas=tira('brillo'),
+                 emisivos=tira('emisivo'))
+    if nueva.get('resplandor'):
+        r = nueva['resplandor']
+        datos['resplandor'] = dict(tira=Image.open(os.path.join(RAIZ, 'biblioteca', *r['ruta'].split('/'))).convert('RGBA'), w=r['ancho'],
+                                   h=r['alto'], n=r['cuadros'], x=r['x'], y=r['y'], seq=r.get('parpadeo') or [r['cuadros']])
+    return datos
+
+
 def muebles_de_biblioteca(lugar, sala_id, dx=0):
-    """Muebles y objetos de una sala de la biblioteca de hoy, corridos dx px (para salas más anchas)."""
+    """Muebles y objetos de una sala de la biblioteca, corridos dx px (para salas más anchas). Lo que el bloque O1 ya
+    redibujó sale del catálogo nuevo, con su brillo y su emisivo; lo demás, del arte de hoy."""
     base = os.path.join(RAIZ, 'biblioteca', 'escenarios', lugar)
     with open(os.path.join(base, 'escenario.json'), encoding='utf-8') as f:
         esc = json.load(f)
     sala = next(s for s in esc['salas'] if s['id'] == sala_id)
     cat = esc['catalogo']
     lista = []
-    for m in sala['muebles']:
-        ficha = next(c for c in cat['muebles'] if c['id'] == m['ref'])
-        im = Image.open(os.path.join(base, ficha['arte'])).convert('RGBA')
-        lista.append(dict(im=ImageOps.mirror(im) if m.get('espejo') else im, x=m['x'] + dx, y=m['y']))
-    for o in sala['objetos']:
-        ficha = next(c for c in cat['objetos'] if c['id'] == o['ref'])
-        lista.append(dict(im=Image.open(os.path.join(base, ficha['arte'])).convert('RGBA'), x=o['x'] + dx, y=o['y'], z=o['y'] + 30,
-                          sombra=False, choca=False))
+    for seccion, extra in (('muebles', {}), ('objetos', dict(sombra=False, choca=False))):
+        for m in sala[seccion]:
+            ficha = next(c for c in cat[seccion] if c['id'] == m['ref'])
+            nueva = _reemplazos().get(f'escenarios/{lugar}/{ficha["arte"]}')
+            if nueva:
+                pieza = _pieza_nueva(nueva, m.get('espejo'))
+            else:
+                im = Image.open(os.path.join(base, ficha['arte'])).convert('RGBA')
+                pieza = dict(im=ImageOps.mirror(im) if m.get('espejo') else im)
+            z = dict(z=m['y'] + 30) if seccion == 'objetos' else {}
+            lista.append(dict(pieza, x=m['x'] + dx, y=m['y'], ref=m['ref'], **z, **extra))
     return lista
+
+
+def _tira_de(cuadros, guardar, prefijo):
+    if not cuadros or not any(c.getbbox() for c in cuadros):
+        return None
+    tira = g.tira(cuadros)
+    return guardar(_clave(prefijo, tira), tira)
+
+
+def _resplandor(r, guardar):
+    return dict(img=guardar(_clave('g-', r['tira']), r['tira']), w=r['w'], h=r['h'], n=r['n'], x=r['x'], y=r['y'], seq=r['seq']) if r else None
 
 
 def _brillo(mapas, reflejo, guardar):
@@ -156,6 +210,8 @@ def exportar(sala, lugar, imgs, muebles=()):
             s['fps'] = sd['fps']
         if sd.get('mapas'):
             s['brillo'] = {m: _brillo(c['mapas'], c['reflejo'], guardar) for m, c in (('dia', sd), ('noche', sn))}
+        if sd.get('emisivos'):
+            s['emisivo'] = {m: _tira_de(c['emisivos'], guardar, 'e-') for m, c in (('dia', sd), ('noche', sn))}
         if sd['tipo'] == 'puerta':
             pu = puertas[sd['id']]
             s['puerta'] = dict(hacia=pu.get('hacia'), par=pu.get('par'), etiqueta=pu.get('etiqueta', 'Pasar'), muro=sd['muro'], llegada=list(sd['llegada']))
@@ -173,7 +229,8 @@ def exportar(sala, lugar, imgs, muebles=()):
             caja = [x + 2, m['y'] - min(mh, 20), x + mw - 2, m['y'] + 2] if m.get('choca', True) else None
         datos['muebles'].append(dict(img=guardar(_clave('m-', tira), tira), x=x, y=y, w=mw, h=mh, z=m.get('z', m['y']),
                                      n=len(m.get('cuadros', ())) or 1, fps=m.get('fps', 0), caja=caja,
-                                     brillo={mo: _brillo(m['mapas'], luces[mo][n_mueble], guardar) for mo in luces} if m.get('mapas') else None))
+                                     brillo={mo: _brillo(m['mapas'], luces[mo][n_mueble], guardar) for mo in luces} if m.get('mapas') else None,
+                                     emisivo=_tira_de(m.get('emisivos'), guardar, 'e-'), resplandor=_resplandor(m.get('resplandor'), guardar)))
     return datos
 
 

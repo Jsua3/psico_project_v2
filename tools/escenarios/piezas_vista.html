@@ -289,7 +289,7 @@ button:focus-visible, canvas:focus-visible { outline: 3px solid var(--tinta); ou
     }
   }
 
-  let capaR = null, capaA = null, capaB = null;
+  let capaR = null, capaA = null, capaB = null, capaE = null;
   function lienzoAparte() {
     const c = document.createElement('canvas');
     c.width = VW; c.height = VH;
@@ -305,13 +305,15 @@ button:focus-visible, canvas:focus-visible { outline: 3px solid var(--tinta); ou
   }
 
   // Pinta un cuadro y lleva su brillo a la capa de reflejos: lo que queda delante tapa el brillo de lo de atrás.
-  function pintarCon(hoja, f, w, h, x, y, brillo) {
+  function pintarCon(hoja, f, w, h, x, y, brillo, emisivo) {
     ctx.drawImage(hoja, f * w, 0, w, h, x, y, w, h);
-    capaR.globalCompositeOperation = 'destination-out';
-    capaR.drawImage(hoja, f * w, 0, w, h, x, y, w, h);
-    if (brillo) {
-      capaR.globalCompositeOperation = 'source-over';
-      capaR.drawImage(brillo, f * w, 0, w, h, x, y, w, h);
+    for (const [capa, mapa] of [[capaR, brillo], [capaE, emisivo]]) {
+      capa.globalCompositeOperation = 'destination-out';
+      capa.drawImage(hoja, f * w, 0, w, h, x, y, w, h);
+      if (mapa) {
+        capa.globalCompositeOperation = 'source-over';
+        capa.drawImage(mapa, f * w, 0, w, h, x, y, w, h);
+      }
     }
   }
 
@@ -362,15 +364,17 @@ button:focus-visible, canvas:focus-visible { outline: 3px solid var(--tinta); ou
 
   function pintar() {
     const S = sala(), dx = -E.camX;
-    if (!capaR || capaR.canvas.width !== VW) { capaR = lienzoAparte(); capaA = lienzoAparte(); capaB = lienzoAparte(); }
+    if (!capaR || capaR.canvas.width !== VW) { capaR = lienzoAparte(); capaA = lienzoAparte(); capaB = lienzoAparte(); capaE = lienzoAparte(); }
     ctx.globalCompositeOperation = 'source-over';
     ctx.fillStyle = '#0e1016';
     ctx.fillRect(0, 0, VW, VH);
     capaR.globalCompositeOperation = 'source-over';
     capaR.clearRect(0, 0, VW, VH);
+    capaE.globalCompositeOperation = 'source-over';
+    capaE.clearRect(0, 0, VW, VH);
     if (img[S.fondo]) ctx.drawImage(img[S.fondo], dx, 0);
     const pintaSprite = (s) => {
-      if (img[s.hoja]) pintarCon(img[s.hoja], cuadroDe(s), s.w, s.h, s.x + dx, s.y, s.brillo && img[s.brillo[E.momento]]);
+      if (img[s.hoja]) pintarCon(img[s.hoja], cuadroDe(s), s.w, s.h, s.x + dx, s.y, s.brillo && img[s.brillo[E.momento]], s.emisivo && img[s.emisivo[E.momento]]);
     };
     for (const s of S.sprites) if (s.capa === 'muro') pintaSprite(s);
     if (img['j-sombra']) ctx.drawImage(img['j-sombra'], Math.round(E.x) - 13 + dx, Math.round(E.y) - 7);
@@ -383,7 +387,7 @@ button:focus-visible, canvas:focus-visible { outline: 3px solid var(--tinta); ou
     for (const c of cosas) {
       if (c.mueble) {
         const m = c.mueble, f = m.n > 1 && m.fps && !reducido ? Math.floor(E.t * m.fps) % m.n : 0;
-        if (img[m.img]) pintarCon(img[m.img], f, m.w, m.h, m.x + dx, m.y, m.brillo && img[m.brillo[E.momento]]);
+        if (img[m.img]) pintarCon(img[m.img], f, m.w, m.h, m.x + dx, m.y, m.brillo && img[m.brillo[E.momento]], m.emisivo && img[m.emisivo]);
       } else if (c.sprite) {
         pintaSprite(c.sprite);
       } else {
@@ -394,6 +398,8 @@ button:focus-visible, canvas:focus-visible { outline: 3px solid var(--tinta); ou
           ctx.drawImage(hoja, f * 48, E.vista * 72, 48, 72, px, py, 48, 72);
           capaR.globalCompositeOperation = 'destination-out';
           capaR.drawImage(hoja, f * 48, E.vista * 72, 48, 72, px, py, 48, 72);
+          capaE.globalCompositeOperation = 'destination-out';
+          capaE.drawImage(hoja, f * 48, E.vista * 72, 48, 72, px, py, 48, 72);
         }
       }
     }
@@ -412,7 +418,16 @@ button:focus-visible, canvas:focus-visible { outline: 3px solid var(--tinta); ou
     }
     ctx.globalCompositeOperation = 'lighter';
     ctx.drawImage(capaR.canvas, 0, 0);
+    if (E.momento === 'noche') {          // lo que alumbra por su cuenta (el televisor): resplandor que parpadea
+      for (const m of S.muebles) {
+        const r = m.resplandor;
+        if (!r || !img[r.img]) continue;
+        const nivel = r.seq[reducido ? 0 : Math.floor(E.t * 6) % r.seq.length];
+        if (nivel > 0) ctx.drawImage(img[r.img], Math.min(nivel, r.n) * r.w - r.w, 0, r.w, r.h, Math.round(m.x + m.w / 2) + r.x + dx, m.y + m.h + r.y, r.w, r.h);
+      }
+    }
     ctx.globalCompositeOperation = 'source-over';
+    ctx.drawImage(capaE.canvas, 0, 0);       // lo que emite luz propia va encima de la luz, sin oscurecerse
     if (E.fundido > 0) {
       ctx.fillStyle = 'rgba(8, 7, 14, ' + E.fundido.toFixed(3) + ')';
       ctx.fillRect(0, 0, VW, VH);

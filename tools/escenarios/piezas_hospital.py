@@ -361,8 +361,8 @@ PASILLO = _sala(
     'pasillo', 'Pasillo', 1680, 'vinilo', 'a', 'zocalo-alto',
     descripcion='Pasillo de urgencias: todas las salas del hospital dan a él.',
     piezas=[
-        P('tubo-1', 'lampara', 'fondo', 325, 'tubo'), P('tubo-2', 'lampara', 'fondo', 615, 'tubo'),
-        P('tubo-3', 'lampara', 'fondo', 905, 'tubo'), P('tubo-4', 'lampara', 'fondo', 1170, 'tubo'),
+        P('tubo-1', 'lampara', 'fondo', 325, 'tubo', encendida=True), P('tubo-2', 'lampara', 'fondo', 615, 'tubo', encendida=True),
+        P('tubo-3', 'lampara', 'fondo', 905, 'tubo', encendida=True), P('tubo-4', 'lampara', 'fondo', 1170, 'tubo', encendida=True),
         P('gel-1', 'gel', 'fondo', 250), P('cartelera', 'cartelera', 'fondo', 325), P('reloj', 'reloj', 'fondo', 560),
         P('senal', 'senal', 'fondo', 660), P('extintor', 'extintor', 'fondo', 880), P('cuadro', 'cuadro', 'fondo', 940),
         P('gel-2', 'gel', 'fondo', 1130), P('ventana', 'ventana', 'fondo', 1294, 'alta'),
@@ -386,7 +386,7 @@ ENTRADA = _sala(
     'entrada-urgencias', 'Entrada de urgencias', 1200, 'baldosa', 'b', 'azulejo',
     descripcion='Vestíbulo de urgencias: por la corrediza se llega a la sala de espera; las camillas pasan por la doble batiente.',
     piezas=[
-        P('tubo-1', 'lampara', 'fondo', 250, 'tubo'), P('tubo-2', 'lampara', 'fondo', 690, 'tubo'),
+        P('tubo-1', 'lampara', 'fondo', 250, 'tubo', encendida=True), P('tubo-2', 'lampara', 'fondo', 690, 'tubo', encendida=True),
         P('cruz', 'cruz', 'fondo', 326), P('reloj', 'reloj', 'fondo', 378), P('gel', 'gel', 'fondo', 600), P('senal', 'senal', 'fondo', 640),
         P('extintor', 'extintor', 'fondo', 700), P('ventana', 'ventana', 'fondo', 808, 'alta'),
         P('ventanal', 'ventana', 'derecha', 150, 'ventanal'),
@@ -404,7 +404,7 @@ ESPERA = _sala(
     'sala-espera', 'Sala de espera', 1440, 'vinilo', 'b', 'zocalo-alto',
     descripcion='Sala de espera de urgencias, con máquina de café y dispensador de agua.',
     piezas=[
-        P('tubo-1', 'lampara', 'fondo', 440, 'tubo'), P('tubo-2', 'lampara', 'fondo', 720, 'tubo'), P('tubo-3', 'lampara', 'fondo', 1084, 'tubo'),
+        P('tubo-1', 'lampara', 'fondo', 440, 'tubo', encendida=True), P('tubo-2', 'lampara', 'fondo', 720, 'tubo', encendida=True), P('tubo-3', 'lampara', 'fondo', 1084, 'tubo', encendida=True),
         P('ventanal-1', 'ventana', 'fondo', 260, 'ventanal'), P('cartelera', 'cartelera', 'fondo', 430), P('reloj', 'reloj', 'fondo', 506),
         P('gel', 'gel', 'fondo', 650), P('cuadro', 'cuadro', 'fondo', 710), P('ventanal-2', 'ventana', 'fondo', 890, 'ventanal'),
         P('senal', 'senal', 'fondo', 1040), P('extintor', 'extintor', 'fondo', 1136),
@@ -423,7 +423,7 @@ TRIAJE = _sala(
     'triaje', 'Triaje', 960, 'vinilo', 'a', 'azulejo',
     descripcion='Consultorio de triaje: camilla, monitor y escritorio de la enfermera.',
     piezas=[
-        P('tubo', 'lampara', 'fondo', 384, 'tubo'), P('cruz', 'cruz', 'fondo', 120), P('cartelera', 'cartelera', 'fondo', 240),
+        P('tubo', 'lampara', 'fondo', 384, 'tubo', encendida=True), P('cruz', 'cruz', 'fondo', 120), P('cartelera', 'cartelera', 'fondo', 240),
         P('reloj', 'reloj', 'fondo', 400), P('ventana', 'ventana', 'fondo', 560, 'alta'), P('gel', 'gel', 'fondo', 700),
     ],
     puertas=[PU('a-pasillo', 'pasillo', 'a-triaje', 'camara', 384, 'vidrio', 'Volver al pasillo')],
@@ -437,7 +437,7 @@ ENFERMERIA = _sala(
     'estacion-enfermeria', 'Estación de enfermería', 1200, 'vinilo', 'a', 'paneles',
     descripcion='Estación de enfermería: mostrador, historias clínicas y tablero de turnos.',
     piezas=[
-        P('tubo-1', 'lampara', 'fondo', 300, 'tubo'), P('tubo-2', 'lampara', 'fondo', 760, 'tubo'),
+        P('tubo-1', 'lampara', 'fondo', 300, 'tubo', encendida=True), P('tubo-2', 'lampara', 'fondo', 760, 'tubo', encendida=True),
         P('tablero', 'tablero', 'fondo', 300), P('reloj', 'reloj', 'fondo', 420), P('cruz', 'cruz', 'fondo', 480),
         P('ventana', 'ventana', 'fondo', 620, 'alta'), P('cartelera', 'cartelera', 'fondo', 800), P('gel', 'gel', 'fondo', 900),
     ],
@@ -467,7 +467,7 @@ TRABAJO_SOCIAL = _sala(
     'trabajo-social', 'Oficina de trabajo social', 960, 'vinilo', 'b', 'paneles',
     descripcion='Oficina de trabajo social: escritorio, archivo y sillas para la familia.',
     piezas=[
-        P('tubo', 'lampara', 'fondo', 384, 'tubo'), P('cartelera', 'cartelera', 'fondo', 200), P('reloj', 'reloj', 'fondo', 300),
+        P('tubo', 'lampara', 'fondo', 384, 'tubo', encendida=True), P('cartelera', 'cartelera', 'fondo', 200), P('reloj', 'reloj', 'fondo', 300),
         P('ventana', 'ventana', 'fondo', 560, 'persiana'), P('cuadro', 'cuadro', 'fondo', 690),
         dict(id='lampara-mesa', tipo='lampara', modelo='mesa', x=436, y=312, sobre=42),
     ],
@@ -481,7 +481,7 @@ HABITACION = _sala(
     'habitacion-recuperacion', 'Habitación de recuperación', 1200, 'vinilo', 'b', 'zocalo-alto',
     descripcion='Habitación de recuperación con dos camas separadas por una cortina.',
     piezas=[
-        P('tubo-1', 'lampara', 'fondo', 300, 'tubo'), P('tubo-2', 'lampara', 'fondo', 874, 'tubo'),
+        P('tubo-1', 'lampara', 'fondo', 300, 'tubo', encendida=True), P('tubo-2', 'lampara', 'fondo', 874, 'tubo', encendida=True),
         P('gel', 'gel', 'fondo', 120), P('reloj', 'reloj', 'fondo', 470), P('cuadro', 'cuadro', 'fondo', 540),
         P('ventana', 'ventana', 'fondo', 700, 'corrediza'), P('espejo', 'espejo', 'fondo', 880),
     ],
@@ -508,11 +508,12 @@ def muebles_de(sala):
     """Muebles y personajes de la sala: dict(im, cuadros, fps, x, y) con (x, y) = centro de la base."""
     lista = []
     for m in sala.get('muebles', []):
-        cuadros, mapas = mueble(m['ref']), mueble_brillo(m['ref'])
+        cuadros, mapas, emisivos = mueble(m['ref']), mueble_brillo(m['ref']), mueble_emisivo(m['ref'])
         if m.get('espejo'):
             cuadros = [ImageOps.mirror(c) for c in cuadros]
             mapas = [ImageOps.mirror(c) for c in mapas] if mapas else None
-        lista.append(dict(im=cuadros[0], cuadros=cuadros, fps=MUEBLES[m['ref']].get('fps', 0), x=m['x'], y=m['y'], ref=m['ref'], mapas=mapas))
+            emisivos = [ImageOps.mirror(c) for c in emisivos] if emisivos else None
+        lista.append(dict(im=cuadros[0], cuadros=cuadros, fps=MUEBLES[m['ref']].get('fps', 0), x=m['x'], y=m['y'], ref=m['ref'], mapas=mapas, emisivos=emisivos))
     for p in sala.get('personajes', []):
         ruta = os.path.join(KIT, p['ref'], 'idle.png')
         if os.path.exists(ruta):
@@ -523,7 +524,7 @@ def muebles_de(sala):
 
 def componer(sala, momento='noche', abiertas=()):
     extras = [dict(im=m['im'], x=m['x'] - m['im'].width // 2, y=m['y'] - m['im'].height, z=m['y'], sombra=not m.get('persona'),
-                   mapa=m['mapas'][0] if m.get('mapas') else None,
+                   mapa=m['mapas'][0] if m.get('mapas') else None, emisivo=m['emisivos'][0] if m.get('emisivos') else None,
                    pie=(m['x'], m['y']) if m.get('persona') else None) for m in muebles_de(sala)]
     return sl.componer_sala(sala, momento, abiertas, extras=extras)
 

@@ -37,7 +37,9 @@ UNO = 1024                             # 1,0 en las mezclas
 EN_SOMBRA = 768                           # de la luz de una fuente, lo que se pierde a su sombra (3/4)
 HAZ_FONDO, HAZ_LADO = (45, 64), (64, 22)  # dirección en que viaja la luz de una ventana, en 64avos de px
 PULIDOS = ('vinilo', 'baldosa', 'damero')   # pisos que devuelven la luz
-REFLEJO = 600                             # de la luz de una fuente, lo que el piso pulido devuelve al brillo
+LUNA = 22                                 # fuerza (de 100) con que una ventana deja entrar la luna de noche, fría
+REFLEJO = 900                             # de la luz de una fuente, lo que el piso pulido devuelve al brillo
+VIDRIADAS = {'corrediza': 80, 'vidrio': 70, 'urgencias': 40, 'madera-ventanilla': 30}   # fuerza con que el vidrio de una puerta cerrada del fondo se refleja en el piso pulido
 CONTACTO = 2                              # escalones que baja la luz en el centro de una sombra de contacto
 PARTELUZ_SIMPLE = {'verticales': [512]}   # la ventana que no declara su forma: un parteluz al medio
 SOMBRA_MAXIMA = 72                        # px que mide como mucho la sombra que arroja una lámpara
@@ -155,7 +157,7 @@ def _reflejo_piso(S, xa, xb, largo):
     xd = S.cx + (xb - S.cx) * esc // (16 * g.FONDO)
     dentro = np.minimum(S.xs - xi, xd - S.xs)
     caida = np.clip((largo - S.n) * UNO // largo, 0, UNO)
-    return np.clip(dentro * 256 + 256, 0, UNO) * caida // UNO * (S.piso & (S.n >= 3))
+    return np.clip(dentro * 96 + 192, 0, UNO) * caida // UNO * (S.piso & (S.n >= 3))      # bordes deshechos en 10 px
 
 
 def _contacto(S, c):
@@ -239,6 +241,11 @@ def _emisores(sala, momento):
         modo = pz.get('encendida')            # booleano opcional: True la fuerza encendida y False apagada
         if not luz or modo is False:
             continue
+        if luz['forma'] == 'haz' and momento == 'noche':
+            # De noche la ventana deja entrar la luna: poca luz y fría, con la misma forma del haz. Así el piso lejos
+            # de las lámparas no queda parejo.
+            yield pz, ficha, dict(luz, tono='frio'), LUNA
+            continue
         propia = luz['momento'] == momento
         if not propia and modo is not True:
             continue
@@ -294,7 +301,7 @@ def niveles(sala, momento=None, abiertas=(), cuerpos=(), todo_en_sombra=False, c
                 piso = _a_la_sombra(piso, tapa(_sombra(S, cuerpos, HAZ_FONDO[0], HAZ_FONDO[1], [c['alto'] * 5 // 8 for c in cuerpos])))
                 sumar(piso, fuerza, tono)
                 sumar(halo, fuerza, tono, peso=UNO * 2 // 3, color=UNO // 2)
-                reflejar(_reflejo_piso(S, x0, x0 + ficha['ancho'], 90), fuerza, tono)
+                reflejar(_reflejo_piso(S, x0, x0 + ficha['ancho'], 110), fuerza, tono)
             elif muro in ('izquierda', 'derecha') and (S.izq if muro == 'izquierda' else S.der):
                 sentido = HAZ_LADO[0] if muro == 'izquierda' else -HAZ_LADO[0]
                 tapada = tapa(_sombra(S, cuerpos, sentido, HAZ_LADO[1], [c['alto'] * 3 // 4 for c in cuerpos]))
@@ -314,7 +321,7 @@ def niveles(sala, momento=None, abiertas=(), cuerpos=(), todo_en_sombra=False, c
         sumar(pozo, fuerza, tono, color=UNO * 9 // 10)
         if muro == 'fondo' and 'x' not in pz:
             medio = 26 if luz['forma'] == 'tubo' else 14
-            reflejar(_reflejo_piso(S, x - medio, x + medio, 70), fuerza, tono)
+            reflejar(_reflejo_piso(S, x - medio, x + medio, 90), fuerza, tono)
         if luz['forma'] == 'tubo':
             ancho = np.clip(UNO - np.abs(S.xs - x) * UNO // 190, 0, UNO) * S.muro
             sumar(ancho, fuerza, tono, peso=UNO * 8 // 10, color=UNO // 2)
@@ -322,7 +329,14 @@ def niveles(sala, momento=None, abiertas=(), cuerpos=(), todo_en_sombra=False, c
             sumar(_halo_muro(S, x, g.SEAM - 36, 96), fuerza, tono, peso=UNO // 2, color=UNO * 4 // 10)
     for puerta in sala.get('puertas', []):
         # La puerta abierta deja caer en el piso una cuña de la luz de la sala vecina.
-        if puerta['id'] not in abiertas or puerta.get('muro') != 'fondo':
+        if puerta.get('muro') != 'fondo':
+            continue
+        if puerta['id'] not in abiertas:
+            # Cerrada, su vidrio deja pasar algo de la luz de la sala vecina: el piso pulido la devuelve al pie.
+            vidrio = VIDRIADAS.get(puerta['modelo'])
+            if vidrio:
+                vano = pp.MODELOS[puerta['modelo']]['ancho'] // 2 - 6
+                reflejar(_reflejo_piso(S, S.xl + puerta['pos'] - vano, S.xl + puerta['pos'] + vano, 70), vidrio, 'frio')
             continue
         medio = pp.MODELOS[puerta['modelo']]['ancho'] // 2 - 6 + S.n * 30 // 100
         dentro = np.minimum(medio - np.abs(S.xs - (S.xl + puerta['pos']) - S.n * 12 // 100), 54 - S.n)

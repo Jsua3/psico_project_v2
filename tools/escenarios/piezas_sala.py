@@ -172,6 +172,16 @@ def capas(sala, momento=None, cuerpos=()):
             mapas = [ImageOps.mirror(m) for m in mapas]
         ax, ay = s.get('pie') or g.en_pantalla(muro, s['pos'], encuadre, ancho)
         s['mapas'] = mapas
+        if s['tipo'] == 'puerta':
+            emisivos = pp.emisivo(s['modelo'], _vista(muro), ancho)
+        elif muro == 'suelo':
+            todos = pm.emisivo(s['tipo'], s['modelo'])
+            emisivos = [todos[[id(c) for c in lista].index(id(s['cuadros'][0]))]] if todos else None
+        else:
+            emisivos = pm.emisivo(s['tipo'], s['modelo'], _vista(muro), ancho)
+        if emisivos and muro == 'derecha':
+            emisivos = [ImageOps.mirror(m) for m in emisivos]
+        s['emisivos'] = emisivos
         s['punto'] = {'fondo': (ax, g.SEAM + 24), 'izquierda': (ax + 24, ay), 'derecha': (ax - 24, ay),
                       'camara': (ax, g.ALTO - 30)}.get(muro, (ax, ay - 1))
     for s, r in zip(sprites, pl.reflejos(sala, momento, (), cuerpos, [s['punto'] for s in sprites])):
@@ -215,15 +225,20 @@ def componer_sala(sala, momento=None, abiertas=(), con_luz=True, extras=()):
     for s in c['sprites']:
         n = 3 if s['id'] in abiertas and s['tipo'] == 'puerta' else s['cuadro']
         mapa = s['mapas'][min(n, len(s['mapas']) - 1)] if s['mapas'] else None
-        cosas.append((orden[s['capa']], s['z'], s['cuadros'][n], s['x'], s['y'], mapa, s['reflejo']))
+        emisivo = s['emisivos'][min(n, len(s['emisivos']) - 1)] if s.get('emisivos') else None
+        cosas.append((orden[s['capa']], s['z'], s['cuadros'][n], s['x'], s['y'], mapa, s['reflejo'], emisivo))
     puntos = [(e['x'] + e['im'].width // 2, e['y'] + e['im'].height - 1) for e in extras]
     for e, r in zip(extras, pl.reflejos(sala, c['momento'], abiertas, cuerpos, puntos)):
-        cosas.append((1, e['z'], e['im'], e['x'], e['y'], e.get('mapa'), r))
+        cosas.append((1, e['z'], e['im'], e['x'], e['y'], e.get('mapa'), r, e.get('emisivo')))
     cosas.sort(key=lambda q: (q[0], q[1]))
     # Las sombras de contacto y las proyectadas van en la luz (por escalones y con tramado), no aquí. Lo que sí se
     # lleva aparte es el brillo: cada sprite tapa el de lo que tiene detrás y suma el suyo según la luz que le llega.
     reflejos = Image.new('RGB', escena.size, (0, 0, 0))
-    for _, _, im, x, y, mapa, reflejo in cosas:
+    propios = Image.new('RGBA', escena.size, (0, 0, 0, 0))      # lo que emite luz propia: va encima de la luz
+    for _, _, im, x, y, mapa, reflejo, emisivo in cosas:
+        propios.paste((0, 0, 0, 0), (x, y), im)
+        if emisivo is not None:
+            propios.paste(emisivo, (x, y), emisivo)
         pegar(escena, im, x, y)
         reflejos.paste((0, 0, 0), (x, y), im)
         brillo = tenir(mapa, *reflejo) if mapa is not None else None
@@ -234,6 +249,7 @@ def componer_sala(sala, momento=None, abiertas=(), con_luz=True, extras=()):
         if abiertas:
             c['ambiente'], c['brillo'] = pl.calcular_luz(sala, c['momento'], abiertas, cuerpos)
         rgb = ImageChops.add(ImageChops.add(ImageChops.multiply(rgb, c['ambiente']), c['brillo']), reflejos)
+        rgb.paste(propios, (0, 0), propios)
     return rgb
 
 
@@ -262,17 +278,14 @@ CASA_SALA = {
 
 
 def casa_sala(momento='dia', abiertas=()):
-    """Casa · Sala por piezas, con los muebles, los objetos y las dos personas de la maqueta."""
-    import vivo
-    lugar, sala, muebles, objetos = vivo.leer_escena()
-    base = componer_sala(CASA_SALA, momento, abiertas, con_luz=False)
-    tv = next(o for o in objetos if o['id'] == 'televisor')
-    personas = [dict(receta='sobreviviente', x=560, y=360, vista='left'), dict(receta='valentina', x=470, y=372, vista='right')]
-    cuerpos = ([pl.cuerpo(m['x'], m['y'], m['ancho'], m['alto']) for m in muebles]
-               + [pl.cuerpo(q['x'], q['y'], 48, 72, persona=True) for q in personas])
-    ambiente, brillo = pl.calcular_luz(CASA_SALA, momento, abiertas, cuerpos)
-    return vivo.componer(base, muebles, objetos, personas, ambiente, brillo, vivo.brillo_tv(tv['x'], tv['y']), sombras=True,
-                         emote=(vivo.emotes(), 'duda', (560, 360 - 66)))
+    """Casa · Sala por piezas, con los muebles y objetos redibujados por el bloque O1 y las dos personas de la maqueta."""
+    import piezas_hospital as ph
+    import piezas_vista as pv
+    extras = [dict(im=m['im'], x=m['x'] - m['im'].width // 2, y=m['y'] - m['im'].height, z=m.get('z', m['y']), sombra=m.get('sombra', True),
+                   mapa=(m.get('mapas') or [None])[0], emisivo=(m.get('emisivos') or [None])[0]) for m in pv.muebles_de_biblioteca('casa', 'sala')]
+    for receta, x, y, mira in (('sobreviviente', 560, 360, 'izquierda'), ('valentina', 470, 372, 'derecha')):
+        extras.append(dict(im=ph._personaje(receta, mira)[0], x=x - 24, y=y - 68, z=y, pie=(x, y)))
+    return componer_sala(CASA_SALA, momento, abiertas, extras=extras)
 
 
 if __name__ == '__main__':
