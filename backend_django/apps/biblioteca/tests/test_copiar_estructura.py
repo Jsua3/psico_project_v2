@@ -48,7 +48,7 @@ def _sala(id_, nombre, estructura, entrada, puertas, personajes=()):
 
 HOSPITAL = {
     "esquema": 3, "id": "hospital", "nombre": "Hospital", "descripcion": "Urgencias de un hospital.",
-    "temas": ["violencia-genero"], "completo": True, "arteProvisional": False, "nivelRiesgoPorDefecto": "ALTO",
+    "temas": ["violencia-genero"], "completo": True, "arteProvisional": False, "nivelRiesgoPorDefecto": "SEVERE",
     "hitos": [], "recorridosSugeridos": [],
     "catalogo": {"muebles": [], "objetos": [], "herramientas": []},
     "personajes": [{"id": "abuela", "nombre": "Abuela", "rol": "Familiar", "recipeId": "abuela-1"}],

@@ -48,7 +48,7 @@ from apps.simulation.models import (
     SceneMap,
     SimulationNode,
 )
-from apps.simulation.services import case_rules, rubric_service
+from apps.simulation.services import case_rules, estructura_salas, rubric_service
 from shared.jsonutils import read_map, read_string_list
 
 
@@ -162,6 +162,7 @@ def _worlds(version_id, option_keys, character_keys):
             theme=scene_map.theme, spawn_x=scene_map.spawn_x, spawn_y=scene_map.spawn_y,
             ambient=read_map(scene_map.ambient_json), collisions=tuple(collisions.get(scene_map.id, ())),
             objects=tuple(objects.get(scene_map.id, ())), dialogues=tuple(trees.get(scene_map.id, ())),
+            structure=scene_map.structure if isinstance(scene_map.structure, dict) else None,
         ))
     return worlds
 
@@ -333,6 +334,7 @@ def _world_rows(version, scenes, node_by_key, option_by_key, character_by_key):
             case_version=version, node=node_by_key[scene.key], map_key=scene.world.key, title=scene.world.title,
             width=scene.world.width, height=scene.world.height, theme=scene.world.theme,
             spawn_x=scene.world.spawn_x, spawn_y=scene.world.spawn_y, ambient_json=_dump(scene.world.ambient),
+            structure=scene.world.structure,
         )
         for scene in with_world
     ])
@@ -440,6 +442,8 @@ def write_definition(definition, *, case, actor):
     option_by_key = {option.option_key: option for option in _options(version, definition.scenes, node_by_key)}
     character_by_key = {character.character_key: character for character in characters}
     _world_rows(version, definition.scenes, node_by_key, option_by_key, character_by_key)
+    # Una sala por piezas no guarda a mano su ancho, sus paredes ni sus puertas: salen de la estructura (x-siep 2.2, §3.4).
+    estructura_salas.recalcular_salas(version)
     # Las rúbricas son de quien autora el caso: si las dejara a nombre de un ADMIN que importa, las vería todo docente.
     _rubric_rows(version, definition.rubrics, case.created_by or actor)
     # Un borrador nace con las ponderaciones que la evaluación usará: así su hash es el que tendría al publicarse.

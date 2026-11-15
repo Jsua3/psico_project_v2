@@ -58,6 +58,23 @@ def _validator(name=SCHEMA_NAME):
     return jsonschema.Draft202012Validator(schema)
 
 
+@functools.lru_cache(maxsize=1)
+def _structure_validator():
+    schema = _validator().schema
+    return jsonschema.Draft202012Validator({"$ref": "#/$defs/estructura", "$defs": schema["$defs"]})
+
+
+def structure_errors(value):
+    """Los problemas de forma de una ``estructura`` (x-siep 2.2) suelta, como textos; ``[]`` si está bien.
+
+    Es la misma forma que exige el esquema del documento: la usa el guardado del editor, que no pasa por el documento.
+    """
+    return [
+        f"{'/'.join(str(p) for p in error.absolute_path) or 'estructura'}: {error.message}"
+        for error in sorted(_structure_validator().iter_errors(value), key=lambda e: [str(p) for p in e.absolute_path])
+    ][:MAX_SCHEMA_ERRORS]
+
+
 def is_legacy(siep):
     """¿``x-siep`` es de la versión 1.0 (puntaje, estrés, métricas y banderas), que el importador aún convierte?"""
     return isinstance(siep, dict) and siep.get("version") == LEGACY_VERSION
