@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "kitSha256": "308c183cda40afa34dde6f5d31c82b7ac1d79207de10eee4d4901c6394bf6a0e",
+  "kitSha256": "b1a4231f3c395e7f56f3abe2c16d6502de325a047866fb847fb85d4bb1b0938f",
   "characters": {
     "abuela-familia": {
       "displayName": "Abuela de la niña",
@@ -262,13 +262,13 @@
           "path": "andres/idle.png",
           "width": 192,
           "height": 576,
-          "pixelSha256": "79be19a378ea613792d483d9b318990c75080c882b1a99f7cbc4ecb034dc894d"
+          "pixelSha256": "8b68f1cbb64110c29776e12eba205a123037453678999920547eb1ad93d3b8e1"
         },
         "walk": {
           "path": "andres/walk.png",
           "width": 288,
           "height": 576,
-          "pixelSha256": "56bdcd607b089e93dbb57d65082a87b14797194509da99fcc6149a819f6c27bb"
+          "pixelSha256": "8e47e377e8e366e367084dbcfa5a287958fc2aa4e180841402074426024716db"
         },
         "portrait-neutral": {
           "path": "andres/portrait-neutral.png",
@@ -357,13 +357,13 @@
               "path": "andres/bata/idle.png",
               "width": 192,
               "height": 576,
-              "pixelSha256": "69a24ed8fa31ca5c6d83fcc421aca5fa096b622388c9128340dfdd3ddcd0a436"
+              "pixelSha256": "375e121e0715f1da919bf525a346b3da411ca399bef602740ce6871b37762eab"
             },
             "walk": {
               "path": "andres/bata/walk.png",
               "width": 288,
               "height": 576,
-              "pixelSha256": "c2c880ce5c6841ac667183a07a330ba2d692689aacefe40df09f318788871b9d"
+              "pixelSha256": "2f5d76c9c8790dc41eaae7d9f7ba73d54a238232ee5a1c4eb81722197b56ff1a"
             },
             "portrait-neutral": {
               "path": "andres/bata/portrait-neutral.png",
@@ -461,13 +461,13 @@
           "path": "camila/idle.png",
           "width": 192,
           "height": 576,
-          "pixelSha256": "1071595b7b0dbe5d7a2d3ce8da9fd86a2f338ada735c470b1ceda37b09ce9f8b"
+          "pixelSha256": "008f37bbe2acbe38686b50f4c2e9b880c694b033666cbe745cd731843beb3ff4"
         },
         "walk": {
           "path": "camila/walk.png",
           "width": 288,
           "height": 576,
-          "pixelSha256": "e2e8c549cf5f2cf39e60aa25b5874e0c9cae38436f49074667417d302d584b4a"
+          "pixelSha256": "94c5ca1a2c02a9e2bbe82b87139f4004a899136543915cf83af20366cd169ebe"
         },
         "portrait-neutral": {
           "path": "camila/portrait-neutral.png",
@@ -556,13 +556,13 @@
               "path": "camila/bata/idle.png",
               "width": 192,
               "height": 576,
-              "pixelSha256": "6d5403a4cff211429853879d336c3c28cc16b5c5d386372b3701675ce27eb4f6"
+              "pixelSha256": "b84a6c6a5a098385f745465f784822d01138fc10ebd510a03168141ab338e077"
             },
             "walk": {
               "path": "camila/bata/walk.png",
               "width": 288,
               "height": 576,
-              "pixelSha256": "579de943a4cbe1425b64602d49a600185b9f171e324a23fa85a93c3558273d1e"
+              "pixelSha256": "86f17014939ec38c10f94a5b4bc94541744db231fa89c3c09c7c6d046ca10bf3"
             },
             "portrait-neutral": {
               "path": "camila/bata/portrait-neutral.png",
@@ -864,13 +864,13 @@
           "path": "daniela/idle.png",
           "width": 192,
           "height": 576,
-          "pixelSha256": "d0ce71dd14376a1adb54c046c9ae925b473fb6a9d8420b5fed769d9f4b58283b"
+          "pixelSha256": "e7cddbc78c94314e504298c739740f996cf12cf783f6f6ec6b44bf8d733afb32"
         },
         "walk": {
           "path": "daniela/walk.png",
           "width": 288,
           "height": 576,
-          "pixelSha256": "8a63bb73f5c607fe934e5da7faa0954721811b67285edb358f85c1f12a1a4e5a"
+          "pixelSha256": "db9f1eb69fd8056c512793af0bcc6ca0fd013aa5e642cc289ff5c5926ca03eaf"
         },
         "portrait-neutral": {
           "path": "daniela/portrait-neutral.png",
@@ -959,13 +959,13 @@
               "path": "daniela/bata/idle.png",
               "width": 192,
               "height": 576,
-              "pixelSha256": "672ccaa141b05933e45bfcfdf2d85693c65fed659e30ed45a5238dc8f250a0d8"
+              "pixelSha256": "9d2494b1736f6fbf3c5a84e9b090186adec98b769e53c30590ef0333fde5d68d"
             },
             "walk": {
               "path": "daniela/bata/walk.png",
               "width": 288,
               "height": 576,
-              "pixelSha256": "43742df8622cc5d690c16729c116ac6dafb7949e0530ba29473468e5628c41c6"
+              "pixelSha256": "abfb482f99c2e5be415bbb8846122899fc66aa507e724619ee7332d29604c1f8"
             },
             "portrait-neutral": {
               "path": "daniela/bata/portrait-neutral.png",
@@ -1063,13 +1063,13 @@
           "path": "david/idle.png",
           "width": 192,
           "height": 576,
-          "pixelSha256": "a9290d4ca771da123f71228aeacedb740eefe07ab2b181eb63461ad30a953e70"
+          "pixelSha256": "b17fb07c1aa7c5b02e7f7f92c338f384ee5ce97314629c944e1d40b5c9037ea3"
         },
         "walk": {
           "path": "david/walk.png",
           "width": 288,
           "height": 576,
-          "pixelSha256": "0a920b1785c0d1036e403167959091084ab52cb390d159d590834482652d0175"
+          "pixelSha256": "52ebe250bb7cc11897833f9562061b6b312fc79a81333ba41ebb15d6c54fc3a4"
         },
         "portrait-neutral": {
           "path": "david/portrait-neutral.png",
@@ -1158,13 +1158,13 @@
               "path": "david/bata/idle.png",
               "width": 192,
               "height": 576,
-              "pixelSha256": "e134fa23cee45037ef32554353bb619a284bbf8d1120b564d9f4661a0f307e16"
+              "pixelSha256": "a8ab66910013576cc8974682c6402101cb4cabc594da390334de23ea7224f3b4"
             },
             "walk": {
               "path": "david/bata/walk.png",
               "width": 288,
               "height": 576,
-              "pixelSha256": "c4fb3b0b3acc6814eba1cc4cfd4b9353f59d0ccec030021ac375cfd0c90605f1"
+              "pixelSha256": "d3e8da63a8c66ba7eac6e802d7010a0fe864502389db6954dad079c7f02c6b26"
             },
             "portrait-neutral": {
               "path": "david/bata/portrait-neutral.png",
@@ -1568,13 +1568,13 @@
           "path": "felipe/idle.png",
           "width": 192,
           "height": 576,
-          "pixelSha256": "19883827e03d422cb2b70d9586ea091206a06158684d606e902b2811e89080f8"
+          "pixelSha256": "83f009fcbd1676683dc7d11991d0f3ea667dee0266457844b76d5030e9e7e352"
         },
         "walk": {
           "path": "felipe/walk.png",
           "width": 288,
           "height": 576,
-          "pixelSha256": "655dc09dc9a7ddf0173ed0ae1d8c98ed4b930b62ba900e12d9d8a2c11931bab4"
+          "pixelSha256": "ee596a0197aa19df4656039f191a87312f1c92e48bcc10553522c506bbe4b81b"
         },
         "portrait-neutral": {
           "path": "felipe/portrait-neutral.png",
@@ -1663,13 +1663,13 @@
               "path": "felipe/bata/idle.png",
               "width": 192,
               "height": 576,
-              "pixelSha256": "62ae9a4fdc7795b206dc0c538b56dae389e6b7158a9b15bcebd17523986d7eb6"
+              "pixelSha256": "11125fcb231ee3a86eeb94a8ada1e6869b0dd03292b4da9b0978f588fffca0e0"
             },
             "walk": {
               "path": "felipe/bata/walk.png",
               "width": 288,
               "height": 576,
-              "pixelSha256": "b8c55f72d4134146448faaeee9e540633c61dc4d5a9ce09a40b12065813e023e"
+              "pixelSha256": "f38f0aee304536a62d884d272625514cbd337cac5bde31282ec6945aa18fc827"
             },
             "portrait-neutral": {
               "path": "felipe/bata/portrait-neutral.png",
@@ -1869,13 +1869,13 @@
           "path": "jorge/idle.png",
           "width": 192,
           "height": 576,
-          "pixelSha256": "02af3ff5bcf34fcc564a76aaa4b8b3eb6ef6a89d0f298927fc9cb00593c4fb9d"
+          "pixelSha256": "e1f9044ec31b8efde7f5c9fa61ad48cf25f3c0c3d5ada686d11b6f6b803b0f3f"
         },
         "walk": {
           "path": "jorge/walk.png",
           "width": 288,
           "height": 576,
-          "pixelSha256": "2db9ef917f9927746c9318914d98f178d1e7b54015e559f6aa366ddfebd11dda"
+          "pixelSha256": "37b91e7d620f3157e69dd110c61046d3b7688bac8d7c915a513544d85a54a050"
         },
         "portrait-neutral": {
           "path": "jorge/portrait-neutral.png",
@@ -1964,13 +1964,13 @@
               "path": "jorge/bata/idle.png",
               "width": 192,
               "height": 576,
-              "pixelSha256": "6d66207473464e5b32a766e04ba2610c861ed9c286cbfce1bafb017f35425f86"
+              "pixelSha256": "e6cb963434f5a19811e1fc1e54b8966413bf52fa859f5f9d8e49c4c1ca763b9d"
             },
             "walk": {
               "path": "jorge/bata/walk.png",
               "width": 288,
               "height": 576,
-              "pixelSha256": "5ccad50a8df0996eb72d84e5415acfd15fc58a020cdc6c6e85cbe74ab1c5de9f"
+              "pixelSha256": "4062abc86f534417bd39d10ed5d66238735e98060270ab0fd92188056091be97"
             },
             "portrait-neutral": {
               "path": "jorge/bata/portrait-neutral.png",
@@ -2068,13 +2068,13 @@
           "path": "luisa/idle.png",
           "width": 192,
           "height": 576,
-          "pixelSha256": "a7e5290fb0ef351a3b4566c8282f9af692dac110468b06fca42a4fdffed2ce1d"
+          "pixelSha256": "09f8fd39b18d2789943f3905e78f84830da3b40136e0a2a230c2eb077347354c"
         },
         "walk": {
           "path": "luisa/walk.png",
           "width": 288,
           "height": 576,
-          "pixelSha256": "38313dec461ea16798e1f8345385e40504d05c6f4a13e5cf0f7e9135d19d634d"
+          "pixelSha256": "dbbd11a58addc677e32a78d9a24ce524d16edbdd05342a7217da9c7807dcf16a"
         },
         "portrait-neutral": {
           "path": "luisa/portrait-neutral.png",
@@ -2163,13 +2163,13 @@
               "path": "luisa/bata/idle.png",
               "width": 192,
               "height": 576,
-              "pixelSha256": "7314018b34f0466f3e39987c0b25296f3158f09f418c46b41712ed0320132016"
+              "pixelSha256": "67bb2e8b981dba63a1958bea2a1b556db1b7905f94ee8b0aaca784f5a452832d"
             },
             "walk": {
               "path": "luisa/bata/walk.png",
               "width": 288,
               "height": 576,
-              "pixelSha256": "007562e03c809d92b1d004755c990e7a78ebef60ec269e28e311ce01322ef0e6"
+              "pixelSha256": "877be942a0aa6c3c861b091439da779a3ff72fab65e9fbc80e5f4e336dffe8c8"
             },
             "portrait-neutral": {
               "path": "luisa/bata/portrait-neutral.png",
@@ -2369,13 +2369,13 @@
           "path": "mariana/idle.png",
           "width": 192,
           "height": 576,
-          "pixelSha256": "2c772a26c48a15e558b2f6e3ade7f4c05ff74f68e8f47e42abe9bb1239b533d2"
+          "pixelSha256": "2ffb23d24da7625a76c427d3ef344cbd2c2c9a32746539c0ac36e1c8ec8b3898"
         },
         "walk": {
           "path": "mariana/walk.png",
           "width": 288,
           "height": 576,
-          "pixelSha256": "fb3e403f65259006750a93211100eb5f3ab1367761b41f7f4f98aad684d7a3d2"
+          "pixelSha256": "70e6cbd2f2b253d7d91a4ae176bcbf51e0f1d8c22dc9e1adb38d6bed61c946c4"
         },
         "portrait-neutral": {
           "path": "mariana/portrait-neutral.png",
@@ -2464,13 +2464,13 @@
               "path": "mariana/bata/idle.png",
               "width": 192,
               "height": 576,
-              "pixelSha256": "de190e90a162b14352ab31120e8df6811f85cd717863a5ec6f407cb01cae2118"
+              "pixelSha256": "7bd72630588db751569109c1a47e3660da3704183bf29021e1804f4e931fb15f"
             },
             "walk": {
               "path": "mariana/bata/walk.png",
               "width": 288,
               "height": 576,
-              "pixelSha256": "1ca461cce08dac1e378a72df4575f61bc497524c467bdc9ea19bc51c4a5df565"
+              "pixelSha256": "8db2e1e1aca576e062e3a90f4279e7694299cf96383531da4aa80b3a570e10b0"
             },
             "portrait-neutral": {
               "path": "mariana/bata/portrait-neutral.png",
@@ -2568,13 +2568,13 @@
           "path": "mateo/idle.png",
           "width": 192,
           "height": 576,
-          "pixelSha256": "ea1687078b85b8967ed7d6f5b17f70b259bbceade0b9c696ed410d412a5096c7"
+          "pixelSha256": "b11283232041aa2a7f9caedd74285ba35df8d2a3869b6f7307475f34694b6a32"
         },
         "walk": {
           "path": "mateo/walk.png",
           "width": 288,
           "height": 576,
-          "pixelSha256": "f6af509772157e2497f092d9b1d3ce9f713760265b408811cafdd7a3b917ed78"
+          "pixelSha256": "008ac01b8fea5eb00b85a95bbc3575964b62b4c77a5c3abb0187ed8fd9beedb1"
         },
         "portrait-neutral": {
           "path": "mateo/portrait-neutral.png",
@@ -2663,13 +2663,13 @@
               "path": "mateo/bata/idle.png",
               "width": 192,
               "height": 576,
-              "pixelSha256": "42f1cc16e9ed36adce6e5528840b019e3aafbdbe96dfbc61b2753b98e2d7d4a9"
+              "pixelSha256": "182c3b4ae38f885c00eaa844d4e0c730d671e6bc6657a718e6eec4adc5660b3f"
             },
             "walk": {
               "path": "mateo/bata/walk.png",
               "width": 288,
               "height": 576,
-              "pixelSha256": "4305c43c449c71496bc1857d205f5eec1deae50fe14ad7ba1c81fe57a30be8ec"
+              "pixelSha256": "d3de58d770c58bae72e716c0a44230ba931cebfa9e409c33cf7264b5a97563c8"
             },
             "portrait-neutral": {
               "path": "mateo/bata/portrait-neutral.png",
@@ -2767,13 +2767,13 @@
           "path": "medico-guardia/idle.png",
           "width": 192,
           "height": 576,
-          "pixelSha256": "9875cf6f63021ff89bd8b2c49027a7fc65f830119afae7b8b9afc93421ff85d3"
+          "pixelSha256": "c21f3550f0909c828fa398ebf69d5a6742977846780ccd4b463cf89b17b015b2"
         },
         "walk": {
           "path": "medico-guardia/walk.png",
           "width": 288,
           "height": 576,
-          "pixelSha256": "251b4dcce9febd2b669017b71d07f46ce78d3ca4cd981df3f20d1f4d591e0f7b"
+          "pixelSha256": "0bfcc2780edbaf91fc3d17cea0a7e5fbd37734e2e6c17ffd98fe7da600583e5b"
         },
         "portrait-neutral": {
           "path": "medico-guardia/portrait-neutral.png",
@@ -3175,13 +3175,13 @@
           "path": "paula/idle.png",
           "width": 192,
           "height": 576,
-          "pixelSha256": "df284f61dc491a5305ee030274c338c84c30a2665e1cfd60d1765f2a606acc5c"
+          "pixelSha256": "316fa2077beb9fa907417d2250db04d5a7900c2fb1a6f683f54e6d92b7ae3fb8"
         },
         "walk": {
           "path": "paula/walk.png",
           "width": 288,
           "height": 576,
-          "pixelSha256": "6d228aaa732c4b44fd8a9380f1761451c4bc17170a8fd85e8d3c8061ee50e882"
+          "pixelSha256": "ccd625377668bcb0cdcacee7a5c1ddaa1f9d4248744b1b65c8f5693c6ef4a720"
         },
         "portrait-neutral": {
           "path": "paula/portrait-neutral.png",
@@ -3270,13 +3270,13 @@
               "path": "paula/bata/idle.png",
               "width": 192,
               "height": 576,
-              "pixelSha256": "cc4efc020bf6f902094cf6def7bb05ea9d3a61ee602b008bc5cfab7b0a5a46a1"
+              "pixelSha256": "7346eaaaa1976ccb8c8883426a63eeb34f579635c6c637230c2453d7cabe9a67"
             },
             "walk": {
               "path": "paula/bata/walk.png",
               "width": 288,
               "height": 576,
-              "pixelSha256": "8e62ad2815d2a766ff678b1568a56cf84eef42df6b64c087d4de9a72ec3908d4"
+              "pixelSha256": "9c92a6c3e21fc62cea004c1cb14f875f7e9655c457abedf71fbc10f8e29b968b"
             },
             "portrait-neutral": {
               "path": "paula/bata/portrait-neutral.png",
@@ -3680,13 +3680,13 @@
           "path": "samuel/idle.png",
           "width": 192,
           "height": 576,
-          "pixelSha256": "10a155369feb1a868fcbc7b1efc62472f81c50f7ff174b7bc53d02f2a6c784e4"
+          "pixelSha256": "bf5d1ce57ef37e0db6aad7816cf5f0f87f7fe2767283067b36e7efbf2657081b"
         },
         "walk": {
           "path": "samuel/walk.png",
           "width": 288,
           "height": 576,
-          "pixelSha256": "329e13ef758119ff8d987b6fe760eb6a23a13fba4e46720554a24237bf04f222"
+          "pixelSha256": "af36722771ef2d4c69c655d59d7aaacf3dded80de0d9618d8636249235482433"
         },
         "portrait-neutral": {
           "path": "samuel/portrait-neutral.png",
@@ -3775,13 +3775,13 @@
               "path": "samuel/bata/idle.png",
               "width": 192,
               "height": 576,
-              "pixelSha256": "31a94201e9b6dea2fc746d777ff5342314652385aa4b4dfa55ac71d3d660f795"
+              "pixelSha256": "dce169bd760b1e1dea205b469348c005bcdcb448488aa0803232e3adc61fc703"
             },
             "walk": {
               "path": "samuel/bata/walk.png",
               "width": 288,
               "height": 576,
-              "pixelSha256": "d5cf9cff5fb1c9ebb05371561a98b0aef0d9c8a2425d96c8e3fac57a23c0d773"
+              "pixelSha256": "c6a430b324d5e6badf6c445d878def1510c21fbea90283c38990fe85d6a94bd2"
             },
             "portrait-neutral": {
               "path": "samuel/bata/portrait-neutral.png",
@@ -4287,13 +4287,13 @@
           "path": "valentina/idle.png",
           "width": 192,
           "height": 576,
-          "pixelSha256": "072162a875c896eb66cff130e010e15427d27d4ebf65cb58db1f3c55bb22419f"
+          "pixelSha256": "61a74049502fbfdfa0b71f18ec74393d22d1ada2fd4c22fcf3ef770b9f873acd"
         },
         "walk": {
           "path": "valentina/walk.png",
           "width": 288,
           "height": 576,
-          "pixelSha256": "06be0f35900ef03209dc5e59c656d824f858ca0ed7aea7b3aed8dc8e218d9f5a"
+          "pixelSha256": "627f52ac3d1f244e03bae69e6ef212e23eef31a5b34ffcf6ec21a2a89f57d0e0"
         },
         "portrait-neutral": {
           "path": "valentina/portrait-neutral.png",
@@ -4382,13 +4382,13 @@
               "path": "valentina/bata/idle.png",
               "width": 192,
               "height": 576,
-              "pixelSha256": "0637710c0daa14717b1e0aa27915187df2d45dd77d7e4ea43bcc05f1b3a57d42"
+              "pixelSha256": "066aa83d7e6c22b1b7a2262c27d6f7c8bf4470bf2ab51790f01b44e01e160d8c"
             },
             "walk": {
               "path": "valentina/bata/walk.png",
               "width": 288,
               "height": 576,
-              "pixelSha256": "8b89f444d3cf672335b1f6743ee2d9a139d01989999ba3246d28b56403081f92"
+              "pixelSha256": "d6369dbad123961720563b1a12726b18565e5cbb9844b48129cb3ebc332a7986"
             },
             "portrait-neutral": {
               "path": "valentina/bata/portrait-neutral.png",

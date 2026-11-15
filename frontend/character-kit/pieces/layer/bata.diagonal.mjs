@@ -1,165 +1,97 @@
 /**
- * Vistas diagonales (tres cuartos) de layer:bata.
- * Nacieron de un borrador (scripts/character-kit/borrador-diagonal.mjs) y se
- * corrigen a mano aquí: este archivo es la autoría.
+ * Vistas diagonales (tres cuartos) de layer:bata, dibujadas a mano.
+ * La abertura y el escote se corren hacia donde mira el personaje (x 21); el bolsillo lejano
+ * queda en escorzo (2 px) y el cercano entero. De espalda, la abertura del faldón queda en x 27.
+ * El ancho (x 16-31) cubre las dos complexiones. Las vistas derechas salen del espejo.
  */
+
+const LEGEND = {
+  L: { mat: 'layer' },
+  X: { mat: 'layer', tone: 3 },
+  K: { mat: 'layer', tone: 2 },
+  t: { mat: 'top' },
+};
+
 export const DIAGONAL = {
   'down-left': [
     {
-      anchor: 'T', mode: 'repaint', legend: {L: {mat: 'layer'}, X: {mat: 'layer', tone: 3}, K: {mat: 'layer', tone: 2}, t: {mat: 'top'}}, at: [16, 23],
+      anchor: 'T', at: [16, 23], mode: 'repaint', legend: LEGEND,
       grid: `
-        LLL....LLL.....L
-        LLLX..XLLL.....L
-        LLLLXXLLLL.....L
-        LLLLLXLLLL.....L
-        LLLLLXLLLL.....L
-        LLLLLXLLLL.....L
-        LLLLLXLLLL.....L
-        LLLLLXLLLL.....L
-        LLLLLXLLLL.....L
-        LLLLLXLLLL.....L
-        LLLLLXLLLL.....L
-        LLLLLXLLLL.....L
-        LLLLLXLLLL.....L
-        LLLLLXLLLL.....L
-        LLLLLXLLLL.....L
+        LLL.....LLLLLLLL
+        LLLX...XLLLLLLLL
+        LLLLX.XLLLLLLLLL
+        LLLLLXLLLLLLLLLL
+        LLLLLXLLLLLLLLLL
+        LLLLLXLLLLLLLLLL
+        LLLLLXLLLLLLLLLL
+        LLLLLXLLLLLLLLLL
+        LLLLLXLLLLLLLLLL
+        LLLLLXLLLLLLLLLL
+        LLLLLXLLLLLLLLLL
+        LLLLLXLLLLLLLLLL
+        LLLLLXLLLLLLLLLL
+        LLLLLXLLLLLLLLLL
+        LLLLLXLLLLLLLLLL
       `,
     },
     {
-      anchor: 'T', mode: 'paint', legend: {L: {mat: 'layer'}, X: {mat: 'layer', tone: 3}, K: {mat: 'layer', tone: 2}, t: {mat: 'top'}}, at: [19, 23],
+      anchor: 'T', at: [19, 23], mode: 'paint', legend: LEGEND,
       grid: `
-        tttt
-        .tt.
-        ..t.
+        ttttt
+        .ttt.
+        ..t..
       `,
     },
     {
-      anchor: 'P', mode: 'cover', legend: {L: {mat: 'layer'}, X: {mat: 'layer', tone: 3}, K: {mat: 'layer', tone: 2}, t: {mat: 'top'}}, at: [16, 38],
+      anchor: 'P', at: [16, 38], mode: 'cover', legend: LEGEND,
       grid: `
-        LLLLLXLLLL.....L
-        LLLLLXLLLL.....L
-        LKLLLXLLLK.....L
-        LLLLLXLLLL.....L
-        LLLLLXLLLL.....L
-        LLLLLXLLLL.....L
-        LLLLXXLLLL.....L
-        LLLLXXLLLL.....L
-        LLLLXXLLLL.....L
-        .LLLXXLLLL......
-      `,
-    },
-    {
-      anchor: 'T', mode: 'repaint', legend: {L: {mat: 'layer'}, X: {mat: 'layer', tone: 3}, K: {mat: 'layer', tone: 2}, t: {mat: 'top'}}, at: [26, 23],
-      grid: `
-        ..LLL
-        .XLLL
-        XLLLL
-        LLLLL
-        LLLLL
-        LLLLL
-        LLLLL
-        LLLLL
-        LLLLL
-        LLLLL
-        LLLLL
-        LLLLL
-        LLLLL
-        LLLLL
-        LLLLL
-      `,
-    },
-    {
-      anchor: 'T', mode: 'paint', legend: {L: {mat: 'layer'}, X: {mat: 'layer', tone: 3}, K: {mat: 'layer', tone: 2}, t: {mat: 'top'}}, at: [26, 23],
-      grid: `
-        tt
-        t.
-      `,
-    },
-    {
-      anchor: 'P', mode: 'cover', legend: {L: {mat: 'layer'}, X: {mat: 'layer', tone: 3}, K: {mat: 'layer', tone: 2}, t: {mat: 'top'}}, at: [26, 38],
-      grid: `
-        XLLLL
-        XLLLL
-        XLKKL
-        XLLLL
-        XLLLL
-        XLLLL
-        XLLLL
-        XLLLL
-        XLLLL
-        .XLLL
+        LLLLLXLLLLLLLLLL
+        LLLLLXLLLLLLLLLL
+        LKKLLXLLLKKKLLLL
+        LLLLLXLLLLLLLLLL
+        LLLLLXLLLLLLLLLL
+        LLLLLXLLLLLLLLLL
+        LLLLX.XLLLLLLLLL
+        LLLLX.XLLLLLLLLL
+        LLLLX.XLLLLLLLLL
+        .LLLX.XLLLLLLLL.
       `,
     },
   ],
   'up-left': [
     {
-      anchor: 'T', mode: 'repaint', legend: {L: {mat: 'layer'}, X: {mat: 'layer', tone: 3}, K: {mat: 'layer', tone: 2}, t: {mat: 'top'}}, at: [16, 23],
+      anchor: 'T', at: [16, 23], mode: 'repaint', legend: LEGEND,
       grid: `
-        L.....LLLLLLLLLL
-        L.....LLLLLLLLLL
-        L.....LLLLLLLLLL
-        L.....LLLLLLLLLL
-        L.....LLLLLLLLLL
-        L.....LLLLLLLLLL
-        L.....LLLLLLLLLL
-        L.....LLLLLLLLLL
-        L.....LLLLLLLLLL
-        L.....LLLLLLLLLL
-        L.....LLLLLLLLLL
-        L.....LLLLLLLLLL
-        L.....LLLLLLLLLL
-        L.....LLLLLLLLLL
-        L.....LLLLLLLLLL
+        LLLLLLLLLLLLLLLL
+        LLLLLLLLLLLLLLLL
+        LLLLLLLLLLLLLLLL
+        LLLLLLLLLLLLLLLL
+        LLLLLLLLLLLLLLLL
+        LLLLLLLLLLLLLLLL
+        LLLLLLLLLLLLLLLL
+        LLLLLLLLLLLLLLLL
+        LLLLLLLLLLLLLLLL
+        LLLLLLLLLLLLLLLL
+        LLLLLLLLLLLLLLLL
+        LLLLLLLLLLLLLLLL
+        LLLLLLLLLLLLLLLL
+        LLLLLLLLLLLLLLLL
+        LLLLLLLLLLLLLLLL
       `,
     },
     {
-      anchor: 'P', mode: 'cover', legend: {L: {mat: 'layer'}, X: {mat: 'layer', tone: 3}, K: {mat: 'layer', tone: 2}, t: {mat: 'top'}}, at: [16, 38],
+      anchor: 'P', at: [16, 38], mode: 'cover', legend: LEGEND,
       grid: `
-        L.....LLLLLLLLLL
-        L.....LLLLLLLLLL
-        L.....LLLLLLLLLL
-        L.....LLLLLLLLLL
-        L.....LLLLLLLLLL
-        L.....LLLLLLLLLL
-        L.....LLLLXLLLLL
-        L.....LLLLXLLLLL
-        L.....LLLLXLLLLL
-        ......LLLLXLLLL.
-      `,
-    },
-    {
-      anchor: 'T', mode: 'repaint', legend: {L: {mat: 'layer'}, X: {mat: 'layer', tone: 3}, K: {mat: 'layer', tone: 2}, t: {mat: 'top'}}, at: [17, 23],
-      grid: `
-        LLLLL
-        LLLLL
-        LLLLL
-        LLLLL
-        LLLLL
-        LLLLL
-        LLLLL
-        LLLLL
-        LLLLL
-        LLLLL
-        LLLLL
-        LLLLL
-        LLLLL
-        LLLLL
-        LLLLL
-      `,
-    },
-    {
-      anchor: 'P', mode: 'cover', legend: {L: {mat: 'layer'}, X: {mat: 'layer', tone: 3}, K: {mat: 'layer', tone: 2}, t: {mat: 'top'}}, at: [17, 38],
-      grid: `
-        LLLLL
-        LLLLL
-        KLLLL
-        LLLLL
-        LLLLL
-        LLLLL
-        LLLLL
-        LLLLL
-        LLLLL
-        LLLLL
+        LLLLLLLLLLLLLLLL
+        LLLLLLLLLLLLLLLL
+        LLLLLLLLLLLLLLLL
+        LLLLLLLLLLLLLLLL
+        LLLLLLLLLLLLLLLL
+        LLLLLLLLLLLLLLLL
+        LLLLLLLLLLLXLLLL
+        LLLLLLLLLLLXLLLL
+        LLLLLLLLLLLXLLLL
+        .LLLLLLLLLLXLLL.
       `,
     },
   ],

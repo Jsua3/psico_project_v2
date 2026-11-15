@@ -1,25 +1,36 @@
 /**
- * Vistas diagonales (tres cuartos) de top:uniforme-psicologia.
- * Nacieron de un borrador (scripts/character-kit/borrador-diagonal.mjs) y se
- * corrigen a mano aquí: este archivo es la autoría.
+ * Vistas diagonales (tres cuartos) de top:uniforme-psicologia, dibujadas a mano.
+ * El bordado va en el pecho y la manga IZQUIERDOS de quien la lleva. Mirando a la izquierda ese
+ * lado es el cercano: marca en el pecho (x 25-26) y en la manga del brazo cercano (`a`).
+ * Mirando a la derecha es el lejano: la marca queda al fondo del pecho y en el brazo lejano (`A`).
+ * Pieza asimétrica: las cuatro diagonales se dibujan.
  */
+
+const LEGEND = {
+  j: { mat: 'top' },
+  h: { mat: 'top', tone: 0 },
+  J: { mat: 'top', tone: 3 },
+  K: { mat: 'top', tone: 2 },
+  f: { mat: 'accent', tone: 1 },
+};
+
 export const DIAGONAL = {
   'down-left': [
     {
-      anchor: 'T', mode: 'cover', legend: {j: {mat: 'top'}, h: {mat: 'top', tone: 0}, J: {mat: 'top', tone: 3}, K: {mat: 'top', tone: 2}, f: {mat: 'accent', tone: 1}}, at: [18, 22],
+      anchor: 'T', at: [20, 22], mode: 'cover', legend: LEGEND,
       grid: `
-        hhhhhh
+        hh.hhhhh
       `,
     },
     {
-      anchor: 'T', mode: 'paint', legend: {j: {mat: 'top'}, h: {mat: 'top', tone: 0}, J: {mat: 'top', tone: 3}, K: {mat: 'top', tone: 2}, f: {mat: 'accent', tone: 1}}, at: [17, 23],
+      anchor: 'T', at: [18, 23], mode: 'paint', legend: LEGEND,
       grid: `
-        ....J....
-        ....J....
-        ....h....
-        ....J....
-        ....h....
-        ....J....
+        ...J.....
+        ...J.....
+        ...h.....
+        ...J.....
+        ...h.....
+        ...J.....
         .........
         .........
         .........
@@ -29,104 +40,43 @@ export const DIAGONAL = {
       `,
     },
     {
-      anchor: 'T', mode: 'paint', legend: {j: {mat: 'top'}, h: {mat: 'top', tone: 0}, J: {mat: 'top', tone: 3}, K: {mat: 'top', tone: 2}, f: {mat: 'accent', tone: 1}}, at: [23, 26],
+      anchor: 'T', at: [25, 26], mode: 'paint', legend: LEGEND,
       grid: `
         ff
         ff
       `,
     },
     {
-      anchor: 'T', mode: 'paint', legend: {j: {mat: 'top'}, h: {mat: 'top', tone: 0}, J: {mat: 'top', tone: 3}, K: {mat: 'top', tone: 2}, f: {mat: 'accent', tone: 1}}, parts: ['A'], at: [31, 27],
+      anchor: 'T', at: [30, 27], mode: 'paint', legend: LEGEND, parts: ['a'],
       grid: `
         f
         f
       `,
     },
     {
-      anchor: 'P', mode: 'paint', legend: {j: {mat: 'top'}, h: {mat: 'top', tone: 0}, J: {mat: 'top', tone: 3}, K: {mat: 'top', tone: 2}, f: {mat: 'accent', tone: 1}}, at: [17, 38],
+      anchor: 'P', at: [17, 38], mode: 'paint', legend: LEGEND,
       grid: `
-        jjjjjjjjj
-        KKKKKKKKK
-      `,
-    },
-    {
-      anchor: 'T', mode: 'cover', legend: {j: {mat: 'top'}, h: {mat: 'top', tone: 0}, J: {mat: 'top', tone: 3}, K: {mat: 'top', tone: 2}, f: {mat: 'accent', tone: 1}}, at: [29, 22],
-      grid: `
-        hh
-      `,
-    },
-    {
-      anchor: 'T', mode: 'paint', legend: {j: {mat: 'top'}, h: {mat: 'top', tone: 0}, J: {mat: 'top', tone: 3}, K: {mat: 'top', tone: 2}, f: {mat: 'accent', tone: 1}}, at: [27, 34],
-      grid: `
-        JJJ
-      `,
-    },
-    {
-      anchor: 'P', mode: 'paint', legend: {j: {mat: 'top'}, h: {mat: 'top', tone: 0}, J: {mat: 'top', tone: 3}, K: {mat: 'top', tone: 2}, f: {mat: 'accent', tone: 1}}, at: [26, 38],
-      grid: `
-        jjjjj
-        KKKKK
-      `,
-    },
-    {
-      anchor: 'T', mode: 'paint', legend: {j: {mat: 'top'}, h: {mat: 'top', tone: 0}, J: {mat: 'top', tone: 3}, K: {mat: 'top', tone: 2}, f: {mat: 'accent', tone: 1}}, at: [27, 26],
-      grid: `
-        ff
-        ff
-      `,
-    },
-  ],
-  'up-left': [
-    {
-      anchor: 'T', mode: 'cover', legend: {j: {mat: 'top'}, h: {mat: 'top', tone: 0}, J: {mat: 'top', tone: 3}, K: {mat: 'top', tone: 2}, f: {mat: 'accent', tone: 1}}, at: [25, 22],
-      grid: `
-        hhhh
-      `,
-    },
-    {
-      anchor: 'P', mode: 'paint', legend: {j: {mat: 'top'}, h: {mat: 'top', tone: 0}, J: {mat: 'top', tone: 3}, K: {mat: 'top', tone: 2}, f: {mat: 'accent', tone: 1}}, at: [22, 38],
-      grid: `
-        jjjjjjjjj
-        KKKKKKKKK
-      `,
-    },
-    {
-      anchor: 'T', mode: 'cover', legend: {j: {mat: 'top'}, h: {mat: 'top', tone: 0}, J: {mat: 'top', tone: 3}, K: {mat: 'top', tone: 2}, f: {mat: 'accent', tone: 1}}, at: [17, 22],
-      grid: `
-        hhhh
-      `,
-    },
-    {
-      anchor: 'P', mode: 'paint', legend: {j: {mat: 'top'}, h: {mat: 'top', tone: 0}, J: {mat: 'top', tone: 3}, K: {mat: 'top', tone: 2}, f: {mat: 'accent', tone: 1}}, at: [17, 38],
-      grid: `
-        jjjjj
-        KKKKK
-      `,
-    },
-    {
-      anchor: 'T', mode: 'paint', legend: {j: {mat: 'top'}, h: {mat: 'top', tone: 0}, J: {mat: 'top', tone: 3}, K: {mat: 'top', tone: 2}, f: {mat: 'accent', tone: 1}}, parts: ['a'], at: [18, 27],
-      grid: `
-        f
-        f
+        jjjjjjjjjjjjjj
+        KKKKKKKKKKKKKK
       `,
     },
   ],
   'down-right': [
     {
-      anchor: 'T', mode: 'cover', legend: {j: {mat: 'top'}, h: {mat: 'top', tone: 0}, J: {mat: 'top', tone: 3}, K: {mat: 'top', tone: 2}, f: {mat: 'accent', tone: 1}}, at: [25, 22],
+      anchor: 'T', at: [21, 22], mode: 'cover', legend: LEGEND,
       grid: `
-        hhhhhh
+        hhhhh.hh
       `,
     },
     {
-      anchor: 'T', mode: 'paint', legend: {j: {mat: 'top'}, h: {mat: 'top', tone: 0}, J: {mat: 'top', tone: 3}, K: {mat: 'top', tone: 2}, f: {mat: 'accent', tone: 1}}, at: [23, 23],
+      anchor: 'T', at: [22, 23], mode: 'paint', legend: LEGEND,
       grid: `
-        ....J....
-        ....J....
-        ....h....
-        ....J....
-        ....h....
-        ....J....
+        .....J...
+        .....J...
+        .....h...
+        .....J...
+        .....h...
+        .....J...
         .........
         .........
         .........
@@ -136,71 +86,54 @@ export const DIAGONAL = {
       `,
     },
     {
-      anchor: 'T', mode: 'paint', legend: {j: {mat: 'top'}, h: {mat: 'top', tone: 0}, J: {mat: 'top', tone: 3}, K: {mat: 'top', tone: 2}, f: {mat: 'accent', tone: 1}}, at: [30, 26],
+      anchor: 'T', at: [29, 26], mode: 'paint', legend: LEGEND,
+      grid: `
+        ff
+        ff
+      `,
+    },
+    {
+      anchor: 'T', at: [32, 27], mode: 'paint', legend: LEGEND, parts: ['A'],
       grid: `
         f
         f
       `,
     },
     {
-      anchor: 'T', mode: 'paint', legend: {j: {mat: 'top'}, h: {mat: 'top', tone: 0}, J: {mat: 'top', tone: 3}, K: {mat: 'top', tone: 2}, f: {mat: 'accent', tone: 1}}, parts: ['A'], at: [32, 27],
+      anchor: 'P', at: [18, 38], mode: 'paint', legend: LEGEND,
       grid: `
-        f
-        f
+        jjjjjjjjjjjjjj
+        KKKKKKKKKKKKKK
+      `,
+    },
+  ],
+  'up-left': [
+    {
+      anchor: 'T', at: [23, 22], mode: 'cover', legend: LEGEND,
+      grid: `
+        hhhhh
       `,
     },
     {
-      anchor: 'P', mode: 'paint', legend: {j: {mat: 'top'}, h: {mat: 'top', tone: 0}, J: {mat: 'top', tone: 3}, K: {mat: 'top', tone: 2}, f: {mat: 'accent', tone: 1}}, at: [23, 38],
+      anchor: 'P', at: [17, 38], mode: 'paint', legend: LEGEND,
       grid: `
-        jjjjjjjjj
-        KKKKKKKKK
-      `,
-    },
-    {
-      anchor: 'T', mode: 'cover', legend: {j: {mat: 'top'}, h: {mat: 'top', tone: 0}, J: {mat: 'top', tone: 3}, K: {mat: 'top', tone: 2}, f: {mat: 'accent', tone: 1}}, at: [18, 22],
-      grid: `
-        hh
-      `,
-    },
-    {
-      anchor: 'T', mode: 'paint', legend: {j: {mat: 'top'}, h: {mat: 'top', tone: 0}, J: {mat: 'top', tone: 3}, K: {mat: 'top', tone: 2}, f: {mat: 'accent', tone: 1}}, at: [19, 34],
-      grid: `
-        JJJ
-      `,
-    },
-    {
-      anchor: 'P', mode: 'paint', legend: {j: {mat: 'top'}, h: {mat: 'top', tone: 0}, J: {mat: 'top', tone: 3}, K: {mat: 'top', tone: 2}, f: {mat: 'accent', tone: 1}}, at: [18, 38],
-      grid: `
-        jjjjj
-        KKKKK
+        jjjjjjjjjjjjjj
+        KKKKKKKKKKKKKK
       `,
     },
   ],
   'up-right': [
     {
-      anchor: 'T', mode: 'cover', legend: {j: {mat: 'top'}, h: {mat: 'top', tone: 0}, J: {mat: 'top', tone: 3}, K: {mat: 'top', tone: 2}, f: {mat: 'accent', tone: 1}}, at: [20, 22],
+      anchor: 'T', at: [21, 22], mode: 'cover', legend: LEGEND,
       grid: `
-        hhhh
+        hhhhh
       `,
     },
     {
-      anchor: 'P', mode: 'paint', legend: {j: {mat: 'top'}, h: {mat: 'top', tone: 0}, J: {mat: 'top', tone: 3}, K: {mat: 'top', tone: 2}, f: {mat: 'accent', tone: 1}}, at: [18, 38],
+      anchor: 'P', at: [18, 38], mode: 'paint', legend: LEGEND,
       grid: `
-        jjjjjjjjj
-        KKKKKKKKK
-      `,
-    },
-    {
-      anchor: 'T', mode: 'cover', legend: {j: {mat: 'top'}, h: {mat: 'top', tone: 0}, J: {mat: 'top', tone: 3}, K: {mat: 'top', tone: 2}, f: {mat: 'accent', tone: 1}}, at: [28, 22],
-      grid: `
-        hhhh
-      `,
-    },
-    {
-      anchor: 'P', mode: 'paint', legend: {j: {mat: 'top'}, h: {mat: 'top', tone: 0}, J: {mat: 'top', tone: 3}, K: {mat: 'top', tone: 2}, f: {mat: 'accent', tone: 1}}, at: [27, 38],
-      grid: `
-        jjjjj
-        KKKKK
+        jjjjjjjjjjjjjj
+        KKKKKKKKKKKKKK
       `,
     },
   ],
