@@ -10,6 +10,8 @@ import type { CharacterVisual } from '../character/kit/character-visual.resolver
 import { KitFigureComponent } from '../character/kit/kit-figure.component';
 import type { PortraitState } from '../character/kit/kit-engine';
 import { type EntradaReaccion, type PasoReaccion, pasosDeReaccion } from './caso/reaccion';
+import { tramos } from './caso/ritmo-texto';
+import { variablesDeArte } from './dialogo-arte';
 import { type Emocion, type Gesto } from './caso/vocabulario';
 import { DRAFT_COPY } from './draft-copy';
 
@@ -29,32 +31,62 @@ export type FinReaccion = 'completa' | 'saltada' | 'cancelada';
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
     @if (activa()) {
-      <div class="reaction-strip">
-        @if (quien().visual; as visual) {
-          <app-kit-figure class="reaction-face" [visual]="visual" [portrait]="portrait()" [scale]="2" />
-        }
-        <div class="reaction-text">
-          <span class="reaction-name">{{ quien().nombre }}</span>
-          @if (frase(); as texto) {
-            <p class="reaction-line">{{ texto }}</p>
+      <!-- La placa de quien reacciona (bloque I1): el mismo marco de pixel que la del diálogo, con su retrato asomado. -->
+      <div class="reaction-strip" [style]="arte">
+        <span class="reaction-name">{{ quien().nombre }}</span>
+        <div class="reaction-body">
+          @if (quien().visual; as visual) {
+            <div class="reaction-portrait"><app-kit-figure class="reaction-face" [visual]="visual" [portrait]="portrait()" [scale]="escalaRetrato" /></div>
           }
+          <div class="reaction-text">
+            @if (frase(); as texto) {
+              <p class="reaction-line">@for (t of tramosDe(texto); track $index) {<span [class.acot]="t.acotacion">{{ t.texto }}</span>}</p>
+            }
+            <span class="reaction-hint" aria-hidden="true">{{ hint }}</span>
+          </div>
         </div>
-        <span class="reaction-hint" aria-hidden="true">{{ hint }}</span>
       </div>
     }
   `,
   styles: [`
     :host { display: contents; }
     .reaction-strip {
-      position: absolute; left: 0; right: 0; bottom: 0; z-index: 60;
-      display: flex; align-items: center; gap: 14px; padding: 12px 16px;
-      background: #0f1720; color: #f4f7fa; border-top: 2px solid #3b4a5a;
+      --px: 2px; --retrato: 192px;
+      position: absolute; left: calc(8 * var(--px)); bottom: calc(10 * var(--px)); z-index: 60;
+      width: min(46em, calc(100% - 16 * var(--px))); display: flex; flex-direction: column; align-items: flex-start;
+      color: #f2ecdf; font-family: 'Poppins', system-ui, -apple-system, 'Segoe UI', sans-serif; font-size: 17px; line-height: 1.45;
+    }
+    @media (min-width: 1800px) { .reaction-strip { --px: 3px; --retrato: 288px; font-size: 20px; } }
+    @media (max-width: 560px) { .reaction-strip { --retrato: 96px; font-size: 16px; left: calc(4 * var(--px)); width: calc(100% - 8 * var(--px)); } }
+    .reaction-name, .reaction-body, .reaction-portrait {
+      border-style: solid; border-width: calc(4 * var(--px)); border-radius: 0; image-rendering: pixelated;
+      background-clip: padding-box; background-origin: padding-box; background-size: calc(8 * var(--px));
+    }
+    .reaction-name {
+      position: relative; z-index: 1; margin: 0 0 calc(-1 * var(--px)) calc(var(--retrato) + 18 * var(--px));
+      border-bottom-width: 0; border-image: var(--marco-rotulo) 4 / calc(4 * var(--px)) stretch;
+      background-color: #1b1826; background-image: var(--trama-placa);
+      padding: 1px calc(4 * var(--px)) calc(2 * var(--px));
+      font-family: 'JetBrains Mono', ui-monospace, monospace; font-weight: 700; font-size: 1.1em; line-height: 1.2; color: #ffcd82;
+    }
+    .reaction-body {
+      position: relative; align-self: stretch; display: grid; grid-template-columns: auto minmax(0, 1fr); gap: calc(6 * var(--px));
+      padding: calc(4 * var(--px)) calc(5 * var(--px)) calc(3 * var(--px)) calc(4 * var(--px));
+      border-image: var(--marco-placa) 4 / calc(4 * var(--px)) stretch; background-color: #1b1826; background-image: var(--trama-placa);
+    }
+    .reaction-body::after {
+      content: ''; position: absolute; left: calc(-2 * var(--px)); right: calc(-2 * var(--px)); bottom: calc(-6 * var(--px));
+      height: calc(2 * var(--px)); background-image: var(--sombra); background-size: calc(2 * var(--px)); image-rendering: pixelated;
+    }
+    .reaction-portrait {
+      align-self: end; margin-top: calc(-14 * var(--px)); line-height: 0;
+      border-image: var(--marco-ficha) 4 / calc(4 * var(--px)) stretch; background-color: #262238;
     }
     .reaction-face { flex: none; }
-    .reaction-text { flex: 1; min-width: 0; }
-    .reaction-name { display: block; font-weight: 700; font-size: 0.85rem; color: #c9d6e2; }
-    .reaction-line { margin: 2px 0 0; font-size: 1rem; line-height: 1.4; }
-    .reaction-hint { flex: none; font-size: 0.8rem; color: #c9d6e2; }
+    .reaction-text { min-width: 0; display: flex; flex-direction: column; justify-content: space-between; gap: calc(3 * var(--px)); padding-top: var(--px); }
+    .reaction-line { margin: 0; overflow-wrap: break-word; }
+    .reaction-line .acot { font-style: italic; color: #c3bccf; }
+    .reaction-hint { align-self: flex-end; font-size: .82em; color: #c3bccf; }
   `],
 })
 export class ReactionDirectorComponent implements OnDestroy {
@@ -65,6 +97,11 @@ export class ReactionDirectorComponent implements OnDestroy {
   readonly finished = output<FinReaccion>();
 
   protected readonly hint = DRAFT_COPY.reactionSkipHint.text;
+  /** El arte de pixel de la interfaz de diálogo, como variables CSS. */
+  protected readonly arte = variablesDeArte('noche');
+  /** El retrato a ×6 (192 px, múltiplo de 96: sirve también para un retrato fino) y a ×3 en pantallas angostas. */
+  protected readonly escalaRetrato = typeof window !== 'undefined' && (window.matchMedia?.('(max-width: 560px)')?.matches ?? false) ? 3 : 6;
+  protected readonly tramosDe = tramos;
   private readonly _activa = signal(false);
   readonly activa = this._activa.asReadonly();
   protected readonly quien = signal<{ nombre: string; visual: CharacterVisual | null }>({ nombre: '', visual: null });
