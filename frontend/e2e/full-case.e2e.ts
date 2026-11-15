@@ -1,6 +1,7 @@
 import { expect, test } from '@playwright/test';
 import type { Locator, Page, TestInfo } from '@playwright/test';
 
+import { readJson } from './support/api-bodies';
 import { assertNoUnexpectedConsoleOrPageErrors, KNOWN_CONSOLE_PATTERNS } from './support/console-gate';
 import { classValuesIn, closeOnlyKeysIn, measuresIn, measuresInText, recordSimulationResponses, retiredKeysIn, shapeOf } from './support/no-numbers';
 import { assertQualityState } from './support/quality-gates';
@@ -60,7 +61,7 @@ async function pauseAndResumeWithSafeExit(page: Page, attemptId: string): Promis
       && /\/api\/simulation\/attempts\/[^/]+\/safe-exit$/.test(new URL(response.url()).pathname),
   { timeout: scaled(30_000) });
   await exit.click({ timeout: scaled(10_000) });
-  const pausedBody = (await (await paused).json()).data;
+  const pausedBody = (await readJson(await paused)).data;
   expect(pausedBody.attemptId).toBe(attemptId);
   expect(pausedBody.status).toBe('PAUSED');
   const pauseDialog = page.getByRole('alertdialog', { name: /pausa/i });
@@ -73,7 +74,7 @@ async function pauseAndResumeWithSafeExit(page: Page, attemptId: string): Promis
       && /\/api\/simulation\/attempts\/[^/]+\/resume$/.test(new URL(response.url()).pathname),
   { timeout: scaled(30_000) });
   await page.getByRole('button', { name: /reanudar este intento/i }).click();
-  const resumedBody = (await (await resumed).json()).data;
+  const resumedBody = (await readJson(await resumed)).data;
   expect(resumedBody.attemptId).toBe(attemptId);
   expect(resumedBody.status).toBe('IN_PROGRESS');
   await expect(pauseDialog).toBeHidden({ timeout: scaled(30_000) });

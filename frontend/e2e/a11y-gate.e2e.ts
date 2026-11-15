@@ -22,6 +22,17 @@ const seriousOf = (where: string, results: Awaited<ReturnType<typeof runAxe>>): 
   .filter(violation => violation.impact === 'serious' || violation.impact === 'critical')
   .map(violation => `${where}: ${violation.id} [${violation.impact}] ×${violation.nodes.length} ${violation.nodes[0]?.target.join(' ')}`);
 
+/**
+ * EXCEPCIÓN DOCUMENTADA (decisión del usuario, 2026-11-12): un solo nodo y una sola regla. El mapa del editor en un caso
+ * de solo lectura (`.marco` con «Mapa del caso (solo lectura)») y `scrollable-region-focusable`. Es un falso positivo de
+ * Axe: su `focusDisabled` (axe-core 4.14, axe.js:19995) trata como no enfocable TODO lo que está dentro de un
+ * `fieldset disabled`, y el editor bloquea así los casos que ya no son borrador; pero el mapa sí recibe el foco con Tab
+ * (tabindex="0", comprobado en Chromium) y se desplaza con el teclado. El arreglo de fondo (sacar la pantalla del mapa del
+ * fieldset y resolver el solo lectura en el propio editor) queda pendiente para cuando el Bloque C2 termine de tocar el editor.
+ */
+const esMapaDeSoloLectura = (ruleId: string, html: string): boolean =>
+  ruleId === 'scrollable-region-focusable' && /class="marco"/.test(html) && /aria-label="Mapa del caso \(solo lectura\)/.test(html);
+
 interface ScanRow { key: string; smallText: number; smallTargets: number; touchTargets: number; samples: string[] }
 const rows: ScanRow[] = [];
 
@@ -43,7 +54,9 @@ for (const role of ['publico', 'estudiante', 'profesor', 'admin'] as TourRole[])
         const results = await runAxe(page, { tags: TAGS, resultTypes: ['violations'] });
         for (const violation of results.violations) {
           if (violation.impact !== 'serious' && violation.impact !== 'critical') continue;
-          blocking.push(`${role}/${screen.id}@${viewport.width}: ${violation.id} [${violation.impact}] ×${violation.nodes.length} ${violation.nodes[0]?.target.join(' ')}`);
+          const nodes = violation.nodes.filter(node => !esMapaDeSoloLectura(violation.id, node.html));
+          if (nodes.length === 0) continue;
+          blocking.push(`${role}/${screen.id}@${viewport.width}: ${violation.id} [${violation.impact}] ×${nodes.length} ${nodes[0]?.target.join(' ')}`);
         }
         if (REPORT) {
           const scan = await scanUi(page);

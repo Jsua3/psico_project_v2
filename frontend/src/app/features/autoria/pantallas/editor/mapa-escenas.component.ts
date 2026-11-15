@@ -52,7 +52,7 @@ const PASO_MOVER = 24;
         <button type="button" class="boton" data-accion="conectar-escenas marcar-final" [cdkMenuTriggerFor]="elegidaEscena() ? menu : null"
                 #trigger="cdkMenuTriggerFor" (click)="!elegidaEscena() && pista.set('Primero elige una escena en el mapa.')"
                 [attr.aria-label]="elegidaEscena() ? 'Acciones de la escena ' + elegidaEscena()!.titulo : 'Acciones de la escena'"
-                [attr.aria-disabled]="!elegidaEscena()">Acciones</button>
+                [attr.aria-disabled]="elegidaEscena() ? null : 'true'">Acciones</button>
         <div role="group" aria-label="Zoom del mapa" class="acciones">
           <button type="button" class="boton cuadrado" aria-label="Alejar" (click)="zoomar(-0.1)">−</button>
           <span class="zoom">{{ porcentaje() }} %</span>
@@ -79,7 +79,10 @@ const PASO_MOVER = 24;
       </div>
     }
 
-    <div class="marco" #marco (wheel)="rueda($event)" (keydown.escape)="vista.set(null)">
+    <!-- En solo lectura las escenas quedan deshabilitadas (fieldset del editor): el mapa mismo toma el foco para desplazarlo con el teclado. -->
+    <div class="marco" #marco (wheel)="rueda($event)" (keydown.escape)="vista.set(null)"
+         [attr.tabindex]="soloLectura() ? 0 : null" [attr.role]="soloLectura() ? 'region' : null"
+         [attr.aria-label]="soloLectura() ? 'Mapa del caso (solo lectura): desplázalo con las flechas' : null">
       <div class="plano" role="group" aria-label="Mapa del caso" aria-describedby="mapa-ayuda"
            [style.width.px]="limites().ancho * zoom()" [style.height.px]="limites().alto * zoom()">
         <div class="escala" [style.transform]="'scale(' + zoom() + ')'" [style.width.px]="limites().ancho" [style.height.px]="limites().alto">
@@ -233,6 +236,8 @@ const PASO_MOVER = 24;
 })
 export class MapaEscenasComponent {
   readonly caso = input.required<CasoBorrador>();
+  /** El caso ya no es un borrador: el editor deshabilita las escenas y el mapa tiene que poder desplazarse con el teclado. */
+  readonly soloLectura = input(false);
   readonly avisos = input<Aviso[]>([]);
   /** Escena elegida desde fuera (por ejemplo, «Llévame ahí»). */
   readonly elegidaInicial = input<string | null>(null);
@@ -396,7 +401,28 @@ export class MapaEscenasComponent {
 
   protected menuContextual(evento: MouseEvent, id: string): void {
     evento.preventDefault();
-    this.abrirMenu(id);
+    // Linux y macOS mandan `contextmenu` al PULSAR (con el botón aún abajo; en Windows llega al soltar). Abierto ahí, el
+    // `auxclick` (o el `click` de Ctrl+clic) de soltarlo cae sobre la escena, fuera del menú, y el CDK lo cierra en el acto.
+    // El `CdkContextMenuTrigger` del CDK se salta ese primer clic; este menú es un `CdkMenuTrigger` común, así que se abre
+    // al soltar, cuando ese clic ya pasó.
+    if (evento.buttons !== 0) this.abrirAlSoltar(id);
+    else this.abrirMenu(id);
+  }
+
+  private abrirAlSoltar(id: string): void {
+    const vista = this.raiz.ownerDocument.defaultView;
+    if (!vista) {
+      this.abrirMenu(id);
+      return;
+    }
+    const soltar = () => {
+      vista.removeEventListener('pointerup', soltar, true);
+      vista.removeEventListener('pointercancel', soltar, true);
+      // El `auxclick`/`click` llega en la misma tarea que el `pointerup`: se abre en la siguiente.
+      setTimeout(() => this.abrirMenu(id));
+    };
+    vista.addEventListener('pointerup', soltar, true);
+    vista.addEventListener('pointercancel', soltar, true);
   }
 
   private abrirMenu(id: string): void {
