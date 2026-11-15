@@ -274,6 +274,65 @@
   }
  },
  "muebles": {
+  "casa/estufa": {
+   "alto": 63,
+   "ancho": 56,
+   "animaciones": {
+    "reposo": {
+     "bucle": true,
+     "de": 0,
+     "fps": 4,
+     "hasta": 3
+    }
+   },
+   "apoyo": [
+    28,
+    63
+   ],
+   "brillo": "piezas/muebles/casa/estufa-brillo.png",
+   "brilloDerecha": "piezas/muebles/casa/estufa-brillo-derecha.png",
+   "brilloIzquierda": "piezas/muebles/casa/estufa-brillo-izquierda.png",
+   "cuadros": 4,
+   "emisivo": "piezas/muebles/casa/estufa-emisivo.png",
+   "fps": 4,
+   "huella": {
+    "alto": 40,
+    "ancho": 52,
+    "fondo": 16
+   },
+   "nombre": "Estufa",
+   "reemplaza": "escenarios/casa/arte/muebles/estufa.png",
+   "ruta": "piezas/muebles/casa/estufa.png"
+  },
+  "casa/lavaplatos": {
+   "alto": 49,
+   "ancho": 52,
+   "animaciones": {
+    "reposo": {
+     "bucle": true,
+     "de": 0,
+     "fps": 3,
+     "hasta": 3
+    }
+   },
+   "apoyo": [
+    26,
+    49
+   ],
+   "brillo": "piezas/muebles/casa/lavaplatos-brillo.png",
+   "brilloDerecha": "piezas/muebles/casa/lavaplatos-brillo-derecha.png",
+   "brilloIzquierda": "piezas/muebles/casa/lavaplatos-brillo-izquierda.png",
+   "cuadros": 4,
+   "fps": 3,
+   "huella": {
+    "alto": 34,
+    "ancho": 48,
+    "fondo": 16
+   },
+   "nombre": "Lavaplatos",
+   "reemplaza": "escenarios/casa/arte/muebles/lavaplatos.png",
+   "ruta": "piezas/muebles/casa/lavaplatos.png"
+  },
   "casa/mesa-centro-casa": {
    "alto": 31,
    "ancho": 54,
@@ -314,6 +373,26 @@
    "reemplaza": "escenarios/casa/arte/muebles/mesa-comedor.png",
    "ruta": "piezas/muebles/casa/mesa-comedor.png"
   },
+  "casa/meson-cocina": {
+   "alto": 57,
+   "ancho": 122,
+   "apoyo": [
+    61,
+    57
+   ],
+   "brillo": "piezas/muebles/casa/meson-cocina-brillo.png",
+   "brilloDerecha": "piezas/muebles/casa/meson-cocina-brillo-derecha.png",
+   "brilloIzquierda": "piezas/muebles/casa/meson-cocina-brillo-izquierda.png",
+   "cuadros": 1,
+   "huella": {
+    "alto": 36,
+    "ancho": 118,
+    "fondo": 16
+   },
+   "nombre": "Mesón de la cocina",
+   "reemplaza": "escenarios/casa/arte/muebles/meson-cocina.png",
+   "ruta": "piezas/muebles/casa/meson-cocina.png"
+  },
   "casa/mueble-tv": {
    "alto": 37,
    "ancho": 103,
@@ -350,6 +429,26 @@
    "nombre": "Mueble del televisor",
    "reemplaza": "escenarios/casa/arte/muebles/mueble-tv.png",
    "ruta": "piezas/muebles/casa/mueble-tv.png"
+  },
+  "casa/nevera": {
+   "alto": 75,
+   "ancho": 46,
+   "apoyo": [
+    23,
+    75
+   ],
+   "brillo": "piezas/muebles/casa/nevera-brillo.png",
+   "brilloDerecha": "piezas/muebles/casa/nevera-brillo-derecha.png",
+   "brilloIzquierda": "piezas/muebles/casa/nevera-brillo-izquierda.png",
+   "cuadros": 1,
+   "huella": {
+    "alto": 70,
+    "ancho": 42,
+    "fondo": 16
+   },
+   "nombre": "Nevera",
+   "reemplaza": "escenarios/casa/arte/muebles/nevera.png",
+   "ruta": "piezas/muebles/casa/nevera.png"
   },
   "casa/silla-comedor": {
    "alto": 38,

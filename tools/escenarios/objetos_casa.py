@@ -541,6 +541,20 @@ PIEZAS.update({
     'vitrina-comedor': dict(nombre='Vitrina del comedor', tipo='mueble', dibujar=cm.vitrina, cuadros=1,
                             huella=dict(ancho=58, fondo=14, alto=74), material='madera y vidrio',
                             reemplaza='escenarios/casa/arte/muebles/vitrina-comedor.png'),
+    'nevera': dict(nombre='Nevera', tipo='mueble', dibujar=cm.nevera, cuadros=1,
+                   huella=dict(ancho=42, fondo=16, alto=70), material='esmalte y cromo',
+                   reemplaza='escenarios/casa/arte/muebles/nevera.png'),
+    'estufa': dict(nombre='Estufa', tipo='mueble', dibujar=cm.estufa, cuadros=4,
+                   huella=dict(ancho=52, fondo=16, alto=40), material='esmalte y acero',
+                   animaciones=dict(reposo=dict(de=0, hasta=3, fps=4, bucle=True)),
+                   reemplaza='escenarios/casa/arte/muebles/estufa.png'),
+    'meson-cocina': dict(nombre='Mesón de la cocina', tipo='mueble', dibujar=cm.meson, cuadros=1,
+                         huella=dict(ancho=118, fondo=16, alto=36), material='fórmica y madera',
+                         reemplaza='escenarios/casa/arte/muebles/meson-cocina.png'),
+    'lavaplatos': dict(nombre='Lavaplatos', tipo='mueble', dibujar=cm.lavaplatos, cuadros=4,
+                       huella=dict(ancho=48, fondo=16, alto=34), material='acero y madera',
+                       animaciones=dict(reposo=dict(de=0, hasta=3, fps=3, bucle=True)),
+                       reemplaza='escenarios/casa/arte/muebles/lavaplatos.png'),
 })
 
 
