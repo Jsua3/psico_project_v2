@@ -31,11 +31,6 @@ const ANILLO: readonly ViewId[] = Object.freeze(['right', 'down-right', 'down', 
 const SECTOR = 45;
 const NULO = 1e-6;
 
-const ESPANOL: Readonly<Record<string, ViewId>> = Object.freeze({
-  abajo: 'down', 'abajo-izquierda': 'down-left', izquierda: 'left', 'arriba-izquierda': 'up-left',
-  arriba: 'up', 'arriba-derecha': 'up-right', derecha: 'right', 'abajo-derecha': 'down-right',
-});
-
 const mod8 = (n: number): number => ((n % 8) + 8) % 8;
 
 /** Distancia entre dos ángulos en grados, de 0 a 180. */
@@ -168,9 +163,10 @@ export function mirarHacia(m: Mirada, vista: ViewId, opciones: OpcionesMirada = 
   return { ...girar(m, vista, dx, opciones.reducirMovimiento === true), enMovimiento: false };
 }
 
-/** Orientación escrita en un dato (documento del caso, biblioteca): las 8 vistas del kit o su nombre en español; lo demás, de frente. */
+/**
+ * Orientación escrita en un dato (`facing` del mundo, `orientacion` del documento): una de las 8 vistas del kit; lo demás,
+ * de frente. Solo los ids del kit, como guarda el servidor (la biblioteca traduce su «mirando» al copiar la sala).
+ */
 export function orientacionDeDato(raw: unknown): ViewId {
-  if (typeof raw !== 'string') return 'down';
-  if ((ANILLO as readonly string[]).includes(raw)) return raw as ViewId;
-  return ESPANOL[raw] ?? 'down';
+  return typeof raw === 'string' && (ANILLO as readonly string[]).includes(raw) ? (raw as ViewId) : 'down';
 }

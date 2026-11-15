@@ -180,13 +180,7 @@ describe('orientacionDeDato', () => {
     for (const vista of VIEW_ROWS) expect(orientacionDeDato(vista)).toBe(vista);
   });
 
-  it('acepta los nombres en español de la biblioteca', () => {
-    expect(orientacionDeDato('arriba-derecha')).toBe('up-right');
-    expect(orientacionDeDato('izquierda')).toBe('left');
-    expect(orientacionDeDato('abajo')).toBe('down');
-  });
-
-  it('lo desconocido o vacío mira de frente', () => {
-    for (const raro of ['norte', '', null, undefined, 3, { x: 1 }]) expect(orientacionDeDato(raro)).toBe('down');
+  it('lo desconocido o vacío mira de frente, también un nombre en español (el dato guarda los ids del kit)', () => {
+    for (const raro of ['norte', 'arriba', 'arriba-derecha', '', null, undefined, 3, { x: 1 }]) expect(orientacionDeDato(raro)).toBe('down');
   });
 });
