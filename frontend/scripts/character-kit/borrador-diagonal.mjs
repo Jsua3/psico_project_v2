@@ -164,11 +164,16 @@ const literal = value => JSON.stringify(value).replace(/"([A-Za-z_][A-Za-z0-9_]*
 export function archivoDiagonal(piece) {
   const vistas = objetivosDe(piece).map(objetivo => [objetivo, borradorDiagonal(piece, objetivo)]);
   if (vistas.every(([, lista]) => lista.length === 0)) return null;
+  return textoDiagonal(piece, vistas);
+}
+
+/** Texto de un `<id>.diagonal.mjs` con las superposiciones dadas: pares [vista, lista], grillas una fila por línea. */
+export function textoDiagonal(piece, vistas) {
   const cuerpo = vistas.map(([objetivo, lista]) => {
     const items = lista.map(o => {
       const { grid, ...campos } = o;
       const props = Object.entries(campos).map(([k, v]) => `${k}: ${literal(v)}`).join(', ');
-      const filas = grid.split('\n').map(f => `        ${f}`).join('\n');
+      const filas = parseGrid(grid).map(f => `        ${f}`).join('\n');
       return `    {\n      ${props},\n      grid: \`\n${filas}\n      \`,\n    },`;
     }).join('\n');
     return `  '${objetivo}': [\n${items}\n  ],`;

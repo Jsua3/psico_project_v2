@@ -6,9 +6,16 @@
 export const DIAGONAL = {
   'down-left': [
     {
-      anchor: 'T', mode: 'cover', legend: {j: {mat: 'top'}, J: {mat: 'top', tone: 3}, K: {mat: 'top', tone: 2}, f: {mat: 'accent'}, F: {mat: 'accent', tone: 2}}, at: [18, 22],
+      anchor: 'T', at: [20, 22], mode: 'cover', legend: {j: {mat: 'top'}, J: {mat: 'top', tone: 3}, K: {mat: 'top', tone: 2}, f: {mat: 'accent'}, F: {mat: 'accent', tone: 2}},
       grid: `
-        ffffff
+        fffffff
+      `,
+    },
+    {
+      anchor: 'T', at: [28, 21], mode: 'cover', legend: {j: {mat: 'top'}, J: {mat: 'top', tone: 3}, K: {mat: 'top', tone: 2}, f: {mat: 'accent'}, F: {mat: 'accent', tone: 2}},
+      grid: `
+        jj.
+        jjj
       `,
     },
     {
@@ -63,14 +70,6 @@ export const DIAGONAL = {
       anchor: 'P', mode: 'paint', legend: {j: {mat: 'top'}, J: {mat: 'top', tone: 3}, K: {mat: 'top', tone: 2}, f: {mat: 'accent'}, F: {mat: 'accent', tone: 2}}, at: [22, 38],
       grid: `
         KKKKKKKKK
-      `,
-    },
-    {
-      anchor: 'T', mode: 'cover', legend: {j: {mat: 'top'}, J: {mat: 'top', tone: 3}, K: {mat: 'top', tone: 2}, f: {mat: 'accent'}, F: {mat: 'accent', tone: 2}}, at: [20, 20],
-      grid: `
-        .j
-        jj
-        jj
       `,
     },
     {

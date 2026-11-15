@@ -6,9 +6,9 @@
 export const DIAGONAL = {
   'down-left': [
     {
-      anchor: 'T', mode: 'cover', legend: {j: {mat: 'top'}, J: {mat: 'top', tone: 3}, K: {mat: 'top', tone: 2}, i: {mat: 'inner'}}, at: [18, 22],
+      anchor: 'T', at: [20, 22], mode: 'cover', legend: {j: {mat: 'top'}, J: {mat: 'top', tone: 3}, K: {mat: 'top', tone: 2}, i: {mat: 'inner'}},
       grid: `
-        ii..ii
+        ii..iiiii
       `,
     },
     {
@@ -22,12 +22,6 @@ export const DIAGONAL = {
       anchor: 'P', mode: 'paint', legend: {j: {mat: 'top'}, J: {mat: 'top', tone: 3}, K: {mat: 'top', tone: 2}, i: {mat: 'inner'}}, at: [17, 38],
       grid: `
         KKKKKKKKK
-      `,
-    },
-    {
-      anchor: 'T', mode: 'cover', legend: {j: {mat: 'top'}, J: {mat: 'top', tone: 3}, K: {mat: 'top', tone: 2}, i: {mat: 'inner'}}, at: [28, 22],
-      grid: `
-        iii
       `,
     },
     {
@@ -46,9 +40,9 @@ export const DIAGONAL = {
   ],
   'up-left': [
     {
-      anchor: 'T', mode: 'cover', legend: {j: {mat: 'top'}, J: {mat: 'top', tone: 3}, K: {mat: 'top', tone: 2}, i: {mat: 'inner'}}, at: [25, 22],
+      anchor: 'T', at: [21, 22], mode: 'cover', legend: {j: {mat: 'top'}, J: {mat: 'top', tone: 3}, K: {mat: 'top', tone: 2}, i: {mat: 'inner'}},
       grid: `
-        iiii
+        iiiiiii
       `,
     },
     {
@@ -61,12 +55,6 @@ export const DIAGONAL = {
       anchor: 'P', mode: 'paint', legend: {j: {mat: 'top'}, J: {mat: 'top', tone: 3}, K: {mat: 'top', tone: 2}, i: {mat: 'inner'}}, at: [22, 38],
       grid: `
         KKKKKKKKK
-      `,
-    },
-    {
-      anchor: 'T', mode: 'cover', legend: {j: {mat: 'top'}, J: {mat: 'top', tone: 3}, K: {mat: 'top', tone: 2}, i: {mat: 'inner'}}, at: [17, 22],
-      grid: `
-        iii
       `,
     },
     {

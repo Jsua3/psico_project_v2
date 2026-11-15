@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "kitSha256": "b1a4231f3c395e7f56f3abe2c16d6502de325a047866fb847fb85d4bb1b0938f",
+  "kitSha256": "13841cda4214ccef62cac8838e36bdec77df9ce12614a12316a2ceb5720bf1e9",
   "characters": {
     "abuela-familia": {
       "displayName": "Abuela de la niña",
@@ -660,13 +660,13 @@
           "path": "comisaria-familia/idle.png",
           "width": 192,
           "height": 576,
-          "pixelSha256": "31f68ec3bcbccb0a352f4f46cb1ff0d7d7472b974e7c02ce2937bcf15cf57171"
+          "pixelSha256": "d497fb94431abdb186c8009c0f3e6e23791c6f9d74f771459d547b2be8fd93d4"
         },
         "walk": {
           "path": "comisaria-familia/walk.png",
           "width": 288,
           "height": 576,
-          "pixelSha256": "fce42558658ab773e5bd82b691c64f75e15400658691f28a99e71899fa4c5991"
+          "pixelSha256": "b543413fcd6ff26be9110f368e275372f47dbd12dc111a1e8168fe47857c9ce3"
         },
         "portrait-neutral": {
           "path": "comisaria-familia/portrait-neutral.png",
@@ -762,13 +762,13 @@
           "path": "companera-clase/idle.png",
           "width": 192,
           "height": 576,
-          "pixelSha256": "9c2b0be167382e76e4641f707cea403802aba497d6e42c13d4fc62cd4cfe2800"
+          "pixelSha256": "5059bcbd6f1ba327f6d28bb036bc9186db010eff11d24ae224aceba1363434bb"
         },
         "walk": {
           "path": "companera-clase/walk.png",
           "width": 288,
           "height": 576,
-          "pixelSha256": "cab4d1bb1a259665e191e89367477a4e7d8f96253013f02e1af0be2ad73c11db"
+          "pixelSha256": "a33ea99fe5c7bbc704a354f3a5f094f60a8c9a1c46514a9534dd0015716b3f52"
         },
         "portrait-neutral": {
           "path": "companera-clase/portrait-neutral.png",
@@ -1262,13 +1262,13 @@
           "path": "docente-universidad/idle.png",
           "width": 192,
           "height": 576,
-          "pixelSha256": "998e1520f29b4d1809ad566d821e9c1dc3bb09b2eeb27e33dcd5552df3b51e5b"
+          "pixelSha256": "175891d6e1b30304e60cdc87b24a2bcecd927aba5daf52a4ab5beb75b66364fd"
         },
         "walk": {
           "path": "docente-universidad/walk.png",
           "width": 288,
           "height": 576,
-          "pixelSha256": "45498438d58f9f50d4e2134ec78e4b3f2b08ed07a0695d6901e1baf4b2123ea6"
+          "pixelSha256": "fc2458cf0fcca9aefe8ee1759d63dd2effcd24a627cc170aa6acb45dd493d4f4"
         },
         "portrait-neutral": {
           "path": "docente-universidad/portrait-neutral.png",
@@ -1466,13 +1466,13 @@
           "path": "estudiante-consultante/idle.png",
           "width": 192,
           "height": 576,
-          "pixelSha256": "9a30359b3e4fca029904d11b9bbeb1fe57886ec87bb8fad70ae67bf46b586ae2"
+          "pixelSha256": "6b6bd4cfdab63e4cf89dc466d217c21186b1fbbef90a9d76b2fda151cbb345c8"
         },
         "walk": {
           "path": "estudiante-consultante/walk.png",
           "width": 288,
           "height": 576,
-          "pixelSha256": "d105d5574fd91fb5c91c1ed8db69953c27e7d207d14a1a0fa82fd0ce8d689a7f"
+          "pixelSha256": "4cedb6bb6339d2c69e96f01cb92bf93a5795c0afdf219aebd56251892cf93a81"
         },
         "portrait-neutral": {
           "path": "estudiante-consultante/portrait-neutral.png",
@@ -1767,13 +1767,13 @@
           "path": "funcionaria-recepcion/idle.png",
           "width": 192,
           "height": 576,
-          "pixelSha256": "6f034df54b0f9314815660d0b8eb3d6f22568b0b8c377ce0a0ca4604de3050c8"
+          "pixelSha256": "1377e8b7c99a92d699980bc9070e6cc382cacbfd2f4425c5fefca00455b997bf"
         },
         "walk": {
           "path": "funcionaria-recepcion/walk.png",
           "width": 288,
           "height": 576,
-          "pixelSha256": "e095e707ee47568ce2a27defa506d1eb75c3863d1a5c4344aa64bc84d743e172"
+          "pixelSha256": "2ad63a4894f9852e6585eb99792c78219c8f25237b59659169bfd26e8b3d8768"
         },
         "portrait-neutral": {
           "path": "funcionaria-recepcion/portrait-neutral.png",
@@ -2767,13 +2767,13 @@
           "path": "medico-guardia/idle.png",
           "width": 192,
           "height": 576,
-          "pixelSha256": "c21f3550f0909c828fa398ebf69d5a6742977846780ccd4b463cf89b17b015b2"
+          "pixelSha256": "38f204c8311de4878507c0a755cd92dae813db6d8cdc7e6d056aa76f236f1ac3"
         },
         "walk": {
           "path": "medico-guardia/walk.png",
           "width": 288,
           "height": 576,
-          "pixelSha256": "0bfcc2780edbaf91fc3d17cea0a7e5fbd37734e2e6c17ffd98fe7da600583e5b"
+          "pixelSha256": "c84e323797e2f4df3b9165cfc6eaa9a3c04815945fd2e7eb64fde9984d66f1aa"
         },
         "portrait-neutral": {
           "path": "medico-guardia/portrait-neutral.png",
@@ -2971,13 +2971,13 @@
           "path": "orientadora-juridica/idle.png",
           "width": 192,
           "height": 576,
-          "pixelSha256": "e8874857bc1ed584a5a6803e728004e4a3c107ba3d20fce46e16fa201413c820"
+          "pixelSha256": "e4ef6f76ad04ecde798cfe30c898b946c6eae62e6d070b80e04a71238902b3df"
         },
         "walk": {
           "path": "orientadora-juridica/walk.png",
           "width": 288,
           "height": 576,
-          "pixelSha256": "42ed9a3bca46b3c5388ee73bb4e85dfec6afc281d9d0264e3a42459e848b019d"
+          "pixelSha256": "fc030525b5ce7b84f94c0e34a5fd55e6e7601486d70243666dda73b54a1bb15a"
         },
         "portrait-neutral": {
           "path": "orientadora-juridica/portrait-neutral.png",
@@ -3073,13 +3073,13 @@
           "path": "paciente-espera/idle.png",
           "width": 192,
           "height": 576,
-          "pixelSha256": "4ae86f2caf0b87d973e614eaeff99ffe559495f2a2ee859c9a60ac44fd353be3"
+          "pixelSha256": "4087edf6c19300c02de56e9069e3f4fd6188033fa82c21d05ac3cc19f46c0f51"
         },
         "walk": {
           "path": "paciente-espera/walk.png",
           "width": 288,
           "height": 576,
-          "pixelSha256": "35ccadcc1e027963573b2ce944f281d4480a4d20927ab0578e2a5e286285b78b"
+          "pixelSha256": "2df795d391813a040f50c38f10bb996e34cde6f7af0a89df5b55028434630f6e"
         },
         "portrait-neutral": {
           "path": "paciente-espera/portrait-neutral.png",
@@ -3374,13 +3374,13 @@
           "path": "policia-infancia/idle.png",
           "width": 192,
           "height": 576,
-          "pixelSha256": "2ada540b1da224411c3feb7c02fd68b2487adfe568945302993eae072c9d88cb"
+          "pixelSha256": "0d52aab2d834af12d48bb15a3109079bfb31a871296e069cd8d0083227211469"
         },
         "walk": {
           "path": "policia-infancia/walk.png",
           "width": 288,
           "height": 576,
-          "pixelSha256": "083f10b733476c97691ea65cb7119be4b15d4d720c89e49589de250e11d8b1a8"
+          "pixelSha256": "335b2efc54bab067c1fa9370c57336a193fc311159bf7a6952b719f15aec7a23"
         },
         "portrait-neutral": {
           "path": "policia-infancia/portrait-neutral.png",
@@ -3476,13 +3476,13 @@
           "path": "profesional-psicosocial/idle.png",
           "width": 192,
           "height": 576,
-          "pixelSha256": "c08f935034b5cf019fd56f1b9fa6e338fb077acbaa833d40e6e8e6b5a6580f59"
+          "pixelSha256": "2d2576190cf47f30a378427a0804e019f73fa696f38c52c91c817c7e48bf9a95"
         },
         "walk": {
           "path": "profesional-psicosocial/walk.png",
           "width": 288,
           "height": 576,
-          "pixelSha256": "6852fd8ae6d8462ce6ab79525df93ea8e655b3d0b7d7d7fc660a93241f9a7d54"
+          "pixelSha256": "1837211af66ad769e6d1f94b2cffdbce473afa28207e5be1b8c5bf7c134e8ac7"
         },
         "portrait-neutral": {
           "path": "profesional-psicosocial/portrait-neutral.png",
@@ -3578,13 +3578,13 @@
           "path": "psicologa-hospitalaria/idle.png",
           "width": 192,
           "height": 576,
-          "pixelSha256": "0abdf80361932c6e1d7e30b488ba5e880d2c87078b2acfa075fc4e079cebbe51"
+          "pixelSha256": "2baa9ee1bf4cb05dc4b43775175d36085cbce2fba6fe389bfc1928c0aef530ee"
         },
         "walk": {
           "path": "psicologa-hospitalaria/walk.png",
           "width": 288,
           "height": 576,
-          "pixelSha256": "152566920c231241be8315471ad5907f1dd1d125f873067f9389af032b814dc8"
+          "pixelSha256": "1998c2c24a12e8b6d63d9a0f6d794a4693683e5d5487e3c5f7cd4e94d6993b25"
         },
         "portrait-neutral": {
           "path": "psicologa-hospitalaria/portrait-neutral.png",
@@ -3879,13 +3879,13 @@
           "path": "seguridad/idle.png",
           "width": 192,
           "height": 576,
-          "pixelSha256": "93cc274ee97fe0189dfd53b70a3e488720895fb8f6af381eb8a1035cb08e57b6"
+          "pixelSha256": "fd39815e376ac1d68e4b2f20dee650c99d5bb3ae4554d685cf30f8f2bb151cbd"
         },
         "walk": {
           "path": "seguridad/walk.png",
           "width": 288,
           "height": 576,
-          "pixelSha256": "5099537b253d1228857b5625665f89001273566eeb8012f058b4e1951b094628"
+          "pixelSha256": "3f90bbfc6a4b2e54b6081cafcbd156a0950d731fb264e4ede0f9871bbcbfbe8c"
         },
         "portrait-neutral": {
           "path": "seguridad/portrait-neutral.png",
@@ -3981,13 +3981,13 @@
           "path": "sobreviviente/idle.png",
           "width": 192,
           "height": 576,
-          "pixelSha256": "f921ad58b8c3fff83ce194ee15cdc154974a7c0b9dd5f7b67fab41a1af2c30a8"
+          "pixelSha256": "504a1709e26534f819b305f2bd9614dd4506275709bab38839c59e55bc8d3c7b"
         },
         "walk": {
           "path": "sobreviviente/walk.png",
           "width": 288,
           "height": 576,
-          "pixelSha256": "889ad2f3c9ac9cc17231768275a44b27ec354a13de81f18a18130be86640a558"
+          "pixelSha256": "2df3135592b0adee72a0265e9460663a2a32c507fa4ed0de10e5aa639c204c14"
         },
         "portrait-neutral": {
           "path": "sobreviviente/portrait-neutral.png",
@@ -4083,13 +4083,13 @@
           "path": "supervisor-clinico/idle.png",
           "width": 192,
           "height": 576,
-          "pixelSha256": "db1efb7269a89061a2a032bd1bba0a19e46965c6c611a126e9c209ee7120cd52"
+          "pixelSha256": "691f7699b6f754297547ecde567c5fc9847e0a8289d732468da9852dad875837"
         },
         "walk": {
           "path": "supervisor-clinico/walk.png",
           "width": 288,
           "height": 576,
-          "pixelSha256": "ea51ce3b990bea879753e11c9da02ff4aa116232e6645fa0660e82a4b3eb92bb"
+          "pixelSha256": "f54c279fc5206fed67cdc7a18dcc76292d76e83453e5ef0a9d2a2ba693b6a145"
         },
         "portrait-neutral": {
           "path": "supervisor-clinico/portrait-neutral.png",
@@ -4185,13 +4185,13 @@
           "path": "trabajadora-social/idle.png",
           "width": 192,
           "height": 576,
-          "pixelSha256": "c77e2236c891253ff9dcb163566d343ec87e91db8daf6748b61d57233459330e"
+          "pixelSha256": "784c88e6f9cd195766d576b485f173a179da893bc23d1fe8162db492446964de"
         },
         "walk": {
           "path": "trabajadora-social/walk.png",
           "width": 288,
           "height": 576,
-          "pixelSha256": "b1efdc1c69bccf5fa38dff9286725bdf5b3a2abec02cfc709bc892e266080912"
+          "pixelSha256": "585ec67e60250a7ff231d1b87f91a683ba6426053dd7afa0c2c7acde66aa7c07"
         },
         "portrait-neutral": {
           "path": "trabajadora-social/portrait-neutral.png",
@@ -4486,13 +4486,13 @@
           "path": "vecina/idle.png",
           "width": 192,
           "height": 576,
-          "pixelSha256": "42176020636200774c61e44594f3df061d009f8c72f3cc4923ab9295e9243c16"
+          "pixelSha256": "54bdfb1952fbcfb3e25f8e92d35e734ed0556425f8e0a0f913e0beee0007ec4a"
         },
         "walk": {
           "path": "vecina/walk.png",
           "width": 288,
           "height": 576,
-          "pixelSha256": "d740172c2a35d5762e3f973be2dd449cbaee266db8dff70cf77250fbcd07530a"
+          "pixelSha256": "5c95a3a5230d3a0184abfc6ab8ccd600b111e7113e6395a9ce564d56439d30cd"
         },
         "portrait-neutral": {
           "path": "vecina/portrait-neutral.png",

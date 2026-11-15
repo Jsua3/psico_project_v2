@@ -1,38 +1,34 @@
 /**
- * Vistas diagonales (tres cuartos) de accessory:gafete.
- * Nacieron de un borrador (scripts/character-kit/borrador-diagonal.mjs) y se
- * corrigen a mano aquí: este archivo es la autoría.
+ * Vistas diagonales (tres cuartos) de accessory:gafete, dibujadas a mano.
+ * La cinta baja de los dos lados del cuello y la tarjeta cuelga sobre la línea media del pecho,
+ * que en tres cuartos queda en x 21. De espalda solo se ve la cinta en la nuca.
+ * Las vistas derechas salen del espejo.
  */
+
+const LEGEND = {
+  c: { literal: 'gafeteCinta' },
+  w: { literal: 'gafete' },
+};
+
 export const DIAGONAL = {
   'down-left': [
     {
-      anchor: 'T', mode: 'paint', legend: {c: {literal: 'gafeteCinta'}, w: {literal: 'gafete'}}, at: [19, 24],
+      anchor: 'T', at: [19, 24], mode: 'paint', legend: LEGEND,
       grid: `
-        c..c
-        c..c
-        .cc.
-        .cc.
-        .ww.
-        .ww.
-      `,
-    },
-    {
-      anchor: 'T', mode: 'paint', legend: {c: {literal: 'gafeteCinta'}, w: {literal: 'gafete'}}, at: [26, 24],
-      grid: `
-        .c
-        c.
-        c.
-        c.
-        w.
-        w.
+        c...c
+        c...c
+        .c.c.
+        .ccc.
+        .www.
+        .www.
       `,
     },
   ],
   'up-left': [
     {
-      anchor: 'T', mode: 'paint', legend: {c: {literal: 'gafeteCinta'}, w: {literal: 'gafete'}}, at: [25, 23],
+      anchor: 'T', at: [23, 23], mode: 'paint', legend: LEGEND,
       grid: `
-        cccc
+        ccccc
       `,
     },
   ],
