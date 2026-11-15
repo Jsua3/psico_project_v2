@@ -8,6 +8,7 @@ import {
   actualizarMirada,
   direccionDeVector,
   miradaInicial,
+  mirarHacia,
   orientacionDeDato,
   pasosDeGiro,
 } from './direccion-ocho';
@@ -145,6 +146,32 @@ describe('actualizarMirada', () => {
     const copia = structuredClone(m);
     actualizarMirada(m, 1, 0, 16);
     expect(m).toEqual(copia);
+  });
+});
+
+describe('mirarHacia', () => {
+  it('se vuelve hacia una vista dada pasando por las de en medio, y el giro avanza con actualizarMirada', () => {
+    let m = mirarHacia(miradaInicial('left'), 'right');
+    expect(m.actual).toBe('down-left');
+    expect(m.destino).toBe('right');
+    m = actualizarMirada(m, 0, 0, 1000);
+    expect(m.actual).toBe('right');
+  });
+
+  it('a la vista en la que ya está no cambia nada; con movimiento reducido llega de una vez', () => {
+    const m = miradaInicial('up');
+    expect(mirarHacia(m, 'up')).toEqual(m);
+    expect(mirarHacia(m, 'down', { reducirMovimiento: true }).actual).toBe('down');
+  });
+
+  it('elige el lado de la media vuelta por el objetivo', () => {
+    expect(mirarHacia(miradaInicial('up'), 'down', {}, -3).actual).toBe('up-left');
+    expect(mirarHacia(miradaInicial('up'), 'down', {}, 3).actual).toBe('up-right');
+  });
+
+  it('el siguiente movimiento no espera el retardo: quien se volvió estaba quieto', () => {
+    const m = actualizarMirada(mirarHacia(miradaInicial('down'), 'down-left', { reducirMovimiento: true }), -1, 0, 16);
+    expect(m.actual).toBe('left');
   });
 });
 

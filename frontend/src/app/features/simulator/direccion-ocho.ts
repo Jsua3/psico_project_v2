@@ -158,6 +158,16 @@ export function actualizarMirada(m: Mirada, dx: number, dy: number, deltaMs: num
   return girar(avanzada, pedida, dx, reducir);
 }
 
+/**
+ * Se vuelve hacia `vista` (el ancla de un NPC, la flecha de la cruceta, la orientación de un dato): el giro sale de la
+ * vista que se ve y sigue avanzando con `actualizarMirada`. `dx` elige el lado de una media vuelta de arriba a abajo.
+ * Queda como quieta, así que el siguiente movimiento no espera el retardo de la vecina.
+ */
+export function mirarHacia(m: Mirada, vista: ViewId, opciones: OpcionesMirada = {}, dx = 0): Mirada {
+  if (vista === m.destino) return m;
+  return { ...girar(m, vista, dx, opciones.reducirMovimiento === true), enMovimiento: false };
+}
+
 /** Orientación escrita en un dato (documento del caso, biblioteca): las 8 vistas del kit o su nombre en español; lo demás, de frente. */
 export function orientacionDeDato(raw: unknown): ViewId {
   if (typeof raw !== 'string') return 'down';
