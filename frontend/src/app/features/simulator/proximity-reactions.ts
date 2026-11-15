@@ -17,7 +17,8 @@ export const MIRAR_LO_REVISADO = true;
 /** Lo que esta clase necesita del mundo del juego (lo cumple `GameWorldComponent` más `isPerson`). */
 export interface MundoCercania {
   faceTowards(key: string, target: 'player' | string): void;
-  playGesture(key: string, gesto: Gesto): Promise<void>;
+  /** El gesto automático al acercarse pasa `{ mark: false }`: `data-reaction` es solo de la reacción a una decisión. */
+  playGesture(key: string, gesto: Gesto, options?: { mark?: boolean }): Promise<void>;
   peopleNear(key: string, r: number): string[];
   isKeyPerson(key: string): boolean;
   /** ¿Es una persona (marcador PERSON o `npc:`)? Los objetos no reaccionan. */
@@ -91,7 +92,9 @@ export class ProximityReactions {
   dispose(): void {
     if (this.temporizador !== null) this.reloj.clearTimeout(this.temporizador);
     this.temporizador = null;
+    if (!this.burbuja) return;
     this.burbuja = null;
+    this.alCambiar(null);   // quien la pintaba (la señal de la pantalla) no puede quedarse con la vieja
   }
 
   private intentar(): void {
@@ -112,7 +115,7 @@ export class ProximityReactions {
     }
     const reaccion = comentario ? conComentario(base, comentario) : base;
     if (reaccion.mirar) this.mundo.faceTowards(key, 'player');
-    if (reaccion.gesto) void this.mundo.playGesture(key, reaccion.gesto);
+    if (reaccion.gesto) void this.mundo.playGesture(key, reaccion.gesto, { mark: false });
   }
 
   private abrirBurbuja(b: BurbujaVisible): void {

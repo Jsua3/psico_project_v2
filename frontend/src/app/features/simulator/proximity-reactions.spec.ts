@@ -67,7 +67,7 @@ describe('ProximityReactions', () => {
     expect(burbujas.at(-1)).toBeNull();
     r.onProximity('abuela');
     expect(burbujas.at(-1)).toMatchObject({ comment: { id: '7-1' } });
-    expect(mundo.playGesture).toHaveBeenCalledWith('abuela', 'baja-la-mirada');
+    expect(mundo.playGesture).toHaveBeenCalledWith('abuela', 'baja-la-mirada', { mark: false });
   });
 
   it('un comentario por acercamiento: seguir junto a ella no abre el siguiente', () => {
@@ -86,7 +86,7 @@ describe('ProximityReactions', () => {
   it('la consultante en crisis se agita y no voltea', () => {
     const { r, mundo } = montar({ comments: [], consultante: 'abuela', activation: 'CRISIS' });
     r.onProximity('abuela');
-    expect(mundo.playGesture).toHaveBeenCalledWith('abuela', 'se-agita');
+    expect(mundo.playGesture).toHaveBeenCalledWith('abuela', 'se-agita', { mark: false });
     expect(mundo.faceTowards).not.toHaveBeenCalled();
   });
 
@@ -94,7 +94,7 @@ describe('ProximityReactions', () => {
     const { r, mundo } = montar({ comments: [{ ...COMENT_ABUELA_SIN_GESTO, gesture: 'asiente' }], consultante: 'abuela', activation: 'TENSE' });
     r.onProximity('abuela');
     expect(mundo.playGesture).toHaveBeenCalledTimes(1);
-    expect(mundo.playGesture).toHaveBeenCalledWith('abuela', 'asiente');
+    expect(mundo.playGesture).toHaveBeenCalledWith('abuela', 'asiente', { mark: false });
   });
 
   it('los objetos no reaccionan; los NPC del escenario sí', () => {
@@ -164,6 +164,16 @@ describe('ProximityReactions', () => {
     r.onProximity('abuela');
     r.dispose();
     expect(reloj.pendientes()).toBe(0);
+  });
+
+  it('dispose con la burbuja a la vista avisa que ya no hay burbuja', () => {
+    const { r, burbujas } = montar({ comments: [COMENT_ABUELA_SIN_GESTO] });
+    r.onProximity('abuela');
+    r.dispose();
+    expect(burbujas.at(-1)).toBeNull();
+    const avisos = burbujas.length;
+    r.dispose();   // sin burbuja no avisa de nuevo
+    expect(burbujas).toHaveLength(avisos);
   });
 });
 

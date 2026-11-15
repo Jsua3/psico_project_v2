@@ -170,6 +170,24 @@ describe('SimulationPlayComponent: reacciones al acercarse (4.3.7)', () => {
     expect((component as unknown as { bubble(): unknown }).bubble()).toBeNull();
   });
 
+  it('el gesto automático al acercarse pide no marcar data-reaction (eso es solo de las decisiones)', () => {
+    component.world.set(makeWorld([{ ...COMENT_ABUELA_SIN_GESTO, gesture: 'asiente' }]));
+    component.onWorldReady();
+    (interno()['reactions'] as { onProximity(key: string | null): void }).onProximity('abuela');
+    expect(mundo['playGesture']).toHaveBeenCalledWith('abuela', 'asiente', { mark: false });
+  });
+
+  it('al cambiar de intento con una burbuja a la vista, la burbuja vieja se retira', () => {
+    component.world.set(makeWorld([COMENT_ABUELA_SIN_GESTO]));
+    component.onWorldReady();
+    (interno()['reactions'] as { onProximity(key: string | null): void }).onProximity('abuela');
+    const bubble = () => (component as unknown as { bubble(): unknown }).bubble();
+    expect(bubble()).not.toBeNull();
+    component.attempt.set({ ...makeAttempt(), attemptId: 'attempt-2' } as SimulationAttemptState);
+    component.onWorldReady();
+    expect(bubble()).toBeNull();
+  });
+
   it('abrir un diálogo con la burbuja a la vista la retira', () => {
     component.world.set(makeWorld([COMENT_ABUELA_SIN_GESTO]));
     component.onWorldReady();

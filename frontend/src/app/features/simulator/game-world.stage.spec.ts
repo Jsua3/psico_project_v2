@@ -234,6 +234,19 @@ describe('componente: data-reaction', () => {
     expect(host.hasAttribute('data-reaction')).toBe(false);
   });
 
+  it('un gesto con {mark: false} (el automático al acercarse) no toca data-reaction, pero sí gesticula', async () => {
+    const { component, host, completar } = componenteConEscena();
+    const done = component.playGesture('familia', 'asiente', { mark: false });
+    expect(host.hasAttribute('data-reaction')).toBe(false);
+    completar();
+    await done;
+    expect(host.hasAttribute('data-reaction')).toBe(false);
+    const decision = component.playGesture('familia', 'asiente');   // el de una decisión sigue marcando
+    expect(host.getAttribute('data-reaction')).toBe('asiente');
+    completar();
+    await decision;
+  });
+
   it('un segundo gesto sobre la misma persona (que no empieza) no retira la marca del primero', async () => {
     const { component, host, completar } = componenteConEscena();
     const primero = component.playGesture('familia', 'asiente');
@@ -500,5 +513,40 @@ describe('mundo: lecturas de la persona', () => {
     const probe = scene as unknown as MirarProbe;
     expect(probe.isKeyPerson('abuela')).toBe(true);
     expect(probe.isKeyPerson('otra')).toBe(false);
+  });
+});
+
+interface NpcQueSeMueveProbe extends MirarProbe {
+  npcMovers: Map<string, unknown>;
+  motionPaused: boolean;
+  wouldCollide: (x: number, y: number) => boolean;
+  registerNpcMover(npc: unknown, pos: { x: number; y: number }): void;
+  updateNpcMovers(time: number, delta: number): void;
+}
+
+describe('mundo: la mirada de un NPC que se mueve', () => {
+  it.each(['attentive', 'subtle-wander'] as const)('un NPC «%s» que mira hacia algo no lo pisa su movimiento mientras dura la mirada', behavior => {
+    const { scene: base, reloj } = escenaConVarias({ vecino: { x: 360, y: 300, npc: true }, abuela: { x: 360, y: 400 } });
+    const scene = base as unknown as NpcQueSeMueveProbe;
+    const contenedor = scene.npcMarkers.get('vecino')!;
+    const sprite = conSprite(contenedor);
+    const bag = contenedor as unknown as Record<string, unknown>;
+    bag['__npcSprite'] = sprite;
+    bag['__npcVisual'] = VISUAL;
+    scene.motionPaused = false;
+    scene.wouldCollide = () => false;
+    scene.player = caja(300, 300);   // junto a él, a su izquierda: el «attentive» lo giraría hacia ahí
+    scene.registerNpcMover({ key: 'vecino', facing: 'left', motion: { behavior, radius: 40, startDelayMs: 0 } }, { x: 360, y: 300 });
+
+    scene.faceTowards('npc:vecino', 'abuela', 1000);   // mira hacia abajo
+    expect(sprite.play).toHaveBeenLastCalledWith('v-abuela-idle-down', true);
+    const llamadas = sprite.play.mock.calls.length;
+    for (let i = 0; i < 10; i++) scene.updateNpcMovers(i * 16, 16);
+    expect(sprite.play.mock.calls).toHaveLength(llamadas);   // sin la línea que salta a quien está en `gesturing`, giraría o caminaría
+    expect([contenedor.x, contenedor.y]).toEqual([360, 300]);
+
+    reloj.avanzar(1000);   // vence la mirada: el movimiento vuelve a mandar
+    scene.updateNpcMovers(500, 16);
+    expect(sprite.play.mock.calls.length).toBeGreaterThan(llamadas);
   });
 });

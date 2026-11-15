@@ -1594,7 +1594,7 @@ export class SimulationPlayComponent implements OnInit, OnDestroy {
     this.reactionsAttemptId = attempt.attemptId;
     const mundo: MundoCercania = {
       faceTowards: (key, target) => this.gameWorld?.faceTowards(key, target),
-      playGesture: (key, gesto) => this.gameWorld?.playGesture(key, gesto) ?? Promise.resolve(),
+      playGesture: (key, gesto, options) => this.gameWorld?.playGesture(key, gesto, options) ?? Promise.resolve(),
       peopleNear: (key, radius) => this.gameWorld?.peopleNear(key, radius) ?? [],
       isKeyPerson: key => this.gameWorld?.isKeyPerson(key) ?? false,
       isPerson: key => this.world()?.objects?.some(o => o.key === key && o.type === 'PERSON') ?? false,

@@ -3540,12 +3540,12 @@ export class GameWorldComponent implements OnChanges, OnDestroy {
   screenAnchorOf(key: string): { x: number; y: number } | null { return this.scene?.screenAnchorOf(key) ?? null; }
   characterVisualOf(key: string): CharacterVisual | null { return this.scene?.characterVisualOf(key) ?? null; }
   isKeyPerson(key: string): boolean { return this.scene?.isKeyPerson(key) ?? false; }
-  /** Marca el gesto en curso como `data-reaction` del host (contrato del e2e) mientras dura. Directo al DOM. */
-  playGesture(key: string, gesto: Gesto): Promise<void> {
+  /** Marca el gesto en curso como `data-reaction` del host (contrato del e2e: solo la reacción a una decisión) mientras dura; `{ mark: false }` gesticula sin marcar. Directo al DOM. */
+  playGesture(key: string, gesto: Gesto, options: { mark?: boolean } = {}): Promise<void> {
     const host = this.gameHost?.nativeElement;
     const busy = this.scene?.isGesturing(key) ?? true;   // un gesto que no empieza no toca la marca del que sigue
     const run = this.scene?.playGesture(key, gesto) ?? Promise.resolve();
-    if (busy) return run;
+    if (busy || options.mark === false) return run;
     host?.setAttribute('data-reaction', gesto);
     return run.finally(() => host?.removeAttribute('data-reaction'));
   }
