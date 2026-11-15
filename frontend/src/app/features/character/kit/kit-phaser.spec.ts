@@ -65,10 +65,13 @@ describe('kit-phaser', () => {
     const { scene, anims } = fakeScene();
     queueCharacterSheets(scene, valentina, canvas);
     expect(ensureCharacterAnims(scene, valentina)).toBe(true);
-    expect(anims.size).toBe(8);
-    expect(anims.get('kit-valentina-walk-right')).toMatchObject({ frames: { start: 12, end: 17 }, frameRate: 10, repeat: -1 });
-    expect(anims.get('kit-valentina-idle-up')).toMatchObject({ frames: { start: 12, end: 15 }, frameRate: 4, repeat: -1 });
-    expect(kitFrameIndex('walk', 'left', 3)).toBe(9);
+    // 2 hojas × 8 vistas: abajo, abajo-izquierda, izquierda, arriba-izquierda, arriba y sus tres derechas.
+    expect(anims.size).toBe(16);
+    expect(anims.get('kit-valentina-walk-right')).toMatchObject({ frames: { start: 36, end: 41 }, frameRate: 10, repeat: -1 });
+    expect(anims.get('kit-valentina-idle-up')).toMatchObject({ frames: { start: 16, end: 19 }, frameRate: 4, repeat: -1 });
+    expect(anims.get('kit-valentina-walk-down-left')).toMatchObject({ frames: { start: 6, end: 11 }, frameRate: 10, repeat: -1 });
+    expect(anims.get('kit-valentina-idle-up-right')).toMatchObject({ frames: { start: 20, end: 23 }, frameRate: 4, repeat: -1 });
+    expect(kitFrameIndex('walk', 'left', 3)).toBe(15);
   });
 
   it('no repite texturas ni animaciones', () => {
@@ -78,7 +81,7 @@ describe('kit-phaser', () => {
     ensureCharacterAnims(scene, valentina);
     ensureCharacterAnims(scene, valentina);
     expect(raw.load.spritesheet).toHaveBeenCalledTimes(2);
-    expect(raw.anims.create).toHaveBeenCalledTimes(8);
+    expect(raw.anims.create).toHaveBeenCalledTimes(16);
   });
 
   it('la pose: caminata o reposo de la vista; con movimiento reducido, cuadro fijo', () => {
@@ -89,6 +92,8 @@ describe('kit-phaser', () => {
     expect(sprite.play).toHaveBeenLastCalledWith('kit-valentina-idle-down', true);
     playKitPose(sprite as never, valentina, 'up', true, true);
     expect(sprite.anims.stop).toHaveBeenCalled();
-    expect(sprite.setTexture).toHaveBeenLastCalledWith('kit-valentina-idle', 12);
+    expect(sprite.setTexture).toHaveBeenLastCalledWith('kit-valentina-idle', 16);
+    playKitPose(sprite as never, valentina, 'down-right', true, false);
+    expect(sprite.play).toHaveBeenLastCalledWith('kit-valentina-walk-down-right', true);
   });
 });
