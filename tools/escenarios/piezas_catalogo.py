@@ -13,7 +13,7 @@ otro esquema (`frontend/scripts/world-art/build.mjs`). Este vive aparte hasta qu
                                     "vistas": {"frente": V, "camara"?: V, "suelo"?: V, "lado"?: {ancho: V}}}},
      "pisos": {"<tipo>-<variante>": {"ruta", "ancho", "alto"}},
      "muros": {"<acabado>/<paleta>": {"fondo": {...}, "lado": {ancho: {"izquierda": {...}, "derecha": {...}}}}},
-     "muebles": {"hospital/<ref>": {"ruta", "ancho", "alto", "cuadros", "fps"?}},
+     "muebles": {"hospital/<ref>": {"ruta", "ancho", "alto", "cuadros", "fps"?, "huella": {"ancho", "fondo", "alto"}}},
      "lugares": ["piezas/lugares/hospital.json", …],
      "propios": ["piezas/propios/casa-escalera.png", …]}   capas fijas de 960 × 528 de las salas convertidas
 
@@ -25,6 +25,8 @@ otro esquema (`frontend/scripts/world-art/build.mjs`). Este vive aparte hasta qu
 - `ocupa` es el ancho en px que la pieza toma a lo largo del muro; `franja` es [de, hasta] en px de altura sobre el
   piso: dos piezas solo se estorban si se cruzan a lo largo del muro Y en la franja (un tubo de techo no choca con una puerta).
 - La vista `lado` es la del muro izquierdo; la del derecho es su espejo (el apoyo pasa a `ancho − x`).
+- `huella` de un mueble: el rectángulo que ocupa en el piso (centrado en su apoyo, `fondo` px hacia atrás) y su altura;
+  con eso se dibuja su sombra de contacto y se proyecta la que arroja (ver `piezas/luz/LEEME.md`).
 - `luz` dice cómo emite: `forma` (haz, pozo o tubo), `momento` (dia o noche), `tono` (calido o frio) y sus medidas.
 """
 import argparse
@@ -109,7 +111,9 @@ def generar():
         cuadros = ph.mueble(ref)
         ruta = f'piezas/muebles/hospital/{ref}.png'
         imagenes[ruta] = g.tira(cuadros)
-        muebles['hospital/' + ref] = dict(nombre=F['nombre'], ruta=ruta, ancho=cuadros[0].width, alto=cuadros[0].height, cuadros=len(cuadros))
+        c = pl.cuerpo(0, 0, cuadros[0].width, cuadros[0].height)
+        muebles['hospital/' + ref] = dict(nombre=F['nombre'], ruta=ruta, ancho=cuadros[0].width, alto=cuadros[0].height, cuadros=len(cuadros),
+                                          huella=dict(ancho=c['x1'] - c['x0'], fondo=c['y1'] - c['y0'], alto=c['alto']))
         if F.get('fps'):
             muebles['hospital/' + ref]['fps'] = F['fps']
     geometria = dict(alto=g.ALTO, piso=g.SEAM, tope=g.TOP, k=[3, 16], anchos=list(g.ANCHOS), rejilla=g.REJILLA,
@@ -117,7 +121,8 @@ def generar():
     luz = dict(unidad=pl.U, minimo=pl.MINIMO, paso=pl.PASO, niveles=pl.NIVELES, uno=pl.UNO,
                penumbra=dict(dia=pl.PENUMBRA, noche=pl.PENUMBRA_NOCHE, exteriorDia=pl.EXTERIOR, exteriorNoche=pl.EXTERIOR_NOCHE),
                bayer=pl.BAYER.tolist(), tablaAmbiente=pl.TABLA_AMBIENTE.tolist(), tablaCalida=pl.TABLA_CALIDA.tolist(),
-               tablaFria=pl.TABLA_FRIA.tolist(), referencia='piezas/luz/LEEME.md')
+               tablaFria=pl.TABLA_FRIA.tolist(), enSombra=pl.EN_SOMBRA, hazFondo=list(pl.HAZ_FONDO), hazLado=list(pl.HAZ_LADO),
+               sombraMaxima=pl.SOMBRA_MAXIMA, referencia='piezas/luz/LEEME.md', casos='piezas/luz/casos.json')
     return dict(esquema=2, geometria=geometria, luz=luz, piezas=piezas, pisos=pisos, muros=muros, muebles=muebles, lugares=[]), imagenes
 
 

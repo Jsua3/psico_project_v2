@@ -74,7 +74,9 @@ def muebles_de_biblioteca(lugar, sala_id, dx=0):
 
 def exportar(sala, lugar, imgs, muebles=()):
     """La sala como datos para la página; las imágenes van a `imgs` sin repetirse."""
-    dia, noche = sl.capas(sala, 'dia'), sl.capas(sala, 'noche')
+    cuerpos = [sl.pl.cuerpo(m['x'], m['y'], m['im'].width, m['im'].height, persona=bool(m.get('persona'))) for m in muebles
+               if m.get('sombra', True)]
+    dia, noche = sl.capas(sala, 'dia', cuerpos), sl.capas(sala, 'noche', cuerpos)
     sid = sala['id']
 
     def guardar(clave, im):

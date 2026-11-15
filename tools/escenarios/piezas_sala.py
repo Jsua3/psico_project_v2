@@ -56,7 +56,7 @@ def _colocar(cuadros, punto, muro, pos, encuadre, ancho):
     return cuadros, int(round(px - punto[0])), int(round(py - punto[1]))
 
 
-def capas(sala, momento=None):
+def capas(sala, momento=None, cuerpos=()):
     est = sala['estructura']
     ancho, encuadre = g.comprobar_ancho(est['ancho']), sala['encuadre']
     momento = momento or est.get('momento', 'dia')
@@ -159,15 +159,28 @@ def capas(sala, momento=None):
     arr[sombra, :3] = (arr[sombra, :3].astype(np.int32) * SOMBRA_MURO // 100).astype(np.uint8)
     fondo = Image.fromarray(arr, 'RGBA')
 
-    ambiente, brillo = pl.calcular_luz(sala, momento)
+    ambiente, brillo = pl.calcular_luz(sala, momento, (), cuerpos)
     return dict(ancho=ancho, alto=g.ALTO, momento=momento, fondo=fondo, sprites=sprites, ambiente=ambiente, brillo=brillo,
                 avisos=avisos, zona=g.zona_caminable(encuadre, ancho))
+
+
+def cuerpos_de(extras):
+    """Los muebles y las personas de `extras` como cuerpos que arrojan sombra (lo que va con sombra=False no arroja)."""
+    cuerpos = []
+    for e in extras:
+        w, h = e['im'].size
+        if e.get('pie'):
+            cuerpos.append(pl.cuerpo(e['pie'][0], e['pie'][1], w, h, persona=True))
+        elif e.get('sombra', True):
+            cuerpos.append(pl.cuerpo(e['x'] + w // 2, e['y'] + h, w, h))
+    return cuerpos
 
 
 def componer_sala(sala, momento=None, abiertas=(), con_luz=True, extras=()):
     """La sala como la pintaría el juego. `extras` son muebles o personajes: dict(im, x, y, z) con (x, y) = esquina;
     `sombra=False` les quita la sombra y `pie=(x, y)` la cambia por la de una persona, a sus pies."""
-    c = capas(sala, momento)
+    cuerpos = cuerpos_de(extras)
+    c = capas(sala, momento, cuerpos)
     escena = c['fondo'].copy()
     orden = {'muro': 0, 'piso': 1, 'frente': 2}
     cosas = [(orden[s['capa']], s['z'], s['cuadros'][3 if s['id'] in abiertas and s['tipo'] == 'puerta' else s['cuadro']], s['x'], s['y'])
@@ -191,7 +204,7 @@ def componer_sala(sala, momento=None, abiertas=(), con_luz=True, extras=()):
     rgb = escena.convert('RGB')
     if con_luz:
         if abiertas:
-            c['ambiente'], c['brillo'] = pl.calcular_luz(sala, c['momento'], abiertas)
+            c['ambiente'], c['brillo'] = pl.calcular_luz(sala, c['momento'], abiertas, cuerpos)
         rgb = ImageChops.add(ImageChops.multiply(rgb, c['ambiente']), c['brillo'])
     return rgb
 
@@ -225,9 +238,11 @@ def casa_sala(momento='dia', abiertas=()):
     import vivo
     lugar, sala, muebles, objetos = vivo.leer_escena()
     base = componer_sala(CASA_SALA, momento, abiertas, con_luz=False)
-    ambiente, brillo = pl.calcular_luz(CASA_SALA, momento, abiertas)
     tv = next(o for o in objetos if o['id'] == 'televisor')
     personas = [dict(receta='sobreviviente', x=560, y=360, vista='left'), dict(receta='valentina', x=470, y=372, vista='right')]
+    cuerpos = ([pl.cuerpo(m['x'], m['y'], m['ancho'], m['alto']) for m in muebles]
+               + [pl.cuerpo(q['x'], q['y'], 48, 72, persona=True) for q in personas])
+    ambiente, brillo = pl.calcular_luz(CASA_SALA, momento, abiertas, cuerpos)
     return vivo.componer(base, muebles, objetos, personas, ambiente, brillo, vivo.brillo_tv(tv['x'], tv['y']), sombras=True,
                          emote=(vivo.emotes(), 'duda', (560, 360 - 66)))
 
