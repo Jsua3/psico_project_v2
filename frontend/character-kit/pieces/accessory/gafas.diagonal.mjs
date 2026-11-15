@@ -1,34 +1,30 @@
 /**
- * Vistas diagonales (tres cuartos) de accessory:gafas.
- * Nacieron de un borrador (scripts/character-kit/borrador-diagonal.mjs) y se
- * corrigen a mano aquí: este archivo es la autoría.
+ * Vistas diagonales (tres cuartos) de accessory:gafas, dibujadas a mano.
+ * Aro lejano en escorzo (4 px), puente, aro cercano de 5 px y patilla hasta la oreja.
+ * De espalda solo asoma la punta de la patilla delante de la oreja.
+ * La cabeza girada ocupa x 17-32; la oreja cercana queda en x 29-30 (de frente)
+ * y en x 18-19 (de espalda). Las vistas derechas salen del espejo.
  */
+
+const LEGEND = { g: { literal: 'gafas' } };
+
 export const DIAGONAL = {
   'down-left': [
     {
-      anchor: 'H', mode: 'paint', legend: {g: {literal: 'gafas'}}, at: [17, 12],
+      anchor: 'H', at: [17, 12], mode: 'paint', legend: LEGEND,
       grid: `
-        .gg..ggg.
-        g..gg...g
-        g..gg...g
-        .gg..ggg.
-      `,
-    },
-    {
-      anchor: 'H', mode: 'paint', legend: {g: {literal: 'gafas'}}, at: [27, 12],
-      grid: `
-        gg....
-        g.gggg
-        g.....
-        gg....
+        .gg...ggg...
+        g..ggg...ggg
+        g..g.g...g..
+        .gg...ggg...
       `,
     },
   ],
   'up-left': [
     {
-      anchor: 'H', mode: 'paint', legend: {g: {literal: 'gafas'}}, at: [17, 13],
+      anchor: 'H', at: [17, 13], mode: 'paint', legend: LEGEND,
       grid: `
-        gg
+        g
       `,
     },
   ],

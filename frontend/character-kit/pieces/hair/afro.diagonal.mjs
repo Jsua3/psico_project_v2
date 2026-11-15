@@ -1,88 +1,55 @@
 /**
- * Vistas diagonales (tres cuartos) de hair:afro.
- * Nacieron de un borrador (scripts/character-kit/borrador-diagonal.mjs) y se
- * corrigen a mano aquí: este archivo es la autoría.
+ * Vistas diagonales (tres cuartos) de hair:afro, dibujadas a mano.
+ * Esfera de volumen (3 px del lado lejano, 4 del cercano): de frente deja ver el rostro y tapa la oreja;
+ * de espalda lo cubre todo. Las vistas derechas salen del espejo.
+ * La cabeza girada ocupa x 17-32; la oreja cercana queda en x 29-30 (de frente)
+ * y en x 18-19 (de espalda).
  */
+
+const LEGEND = { R: { mat: 'hair' }, r: { mat: 'hair', tone: 3 }, h: { mat: 'hair', tone: 0 } };
+
 export const DIAGONAL = {
   'down-left': [
     {
-      anchor: 'H', mode: 'cover', legend: {R: {mat: 'hair'}, r: {mat: 'hair', tone: 3}, h: {mat: 'hair', tone: 0}}, at: [14, 4],
+      anchor: 'H', at: [14, 4], mode: 'cover', legend: LEGEND,
       grid: `
-        ...RRRhRRRRR..........
-        ...RhRRRRhRRR.........
-        ...RRRRhRRRRR.........
-        ..RRhRRRRRRRR......R..
-        .RRhRRRhRRRRR......RR.
-        RRhRRhRRRRRRR......rRR
-        RRR................RRR
-        RRh................RRR
-        hRR................RRr
-        RRR................rRR
-        .hR................RR.
-        ..R................R..
-        ..R................R..
-      `,
-    },
-    {
-      anchor: 'H', mode: 'cover', legend: {R: {mat: 'hair'}, r: {mat: 'hair', tone: 3}, h: {mat: 'hair', tone: 0}}, at: [27, 4],
-      grid: `
-        ...RhR
-        .RhRRR
-        RRRRRh
-        RRRhRR
-        hRRRRh
-        ....hR
-        ....RR
-        ....hR
-        .....R
-        .....R
-        .....R
-        .....R
-        .....R
-        .....R
-        .....R
+        ......RRRRhRRRRRR......
+        ....RRRhRRRRRRhRRRR....
+        ...RRhRRRRRhRRRRRRrR...
+        ..RRRRRRhRRRRRRRRRRRR..
+        .RRRRhRRRRRRRhRRRRRRRR.
+        RRRhRRRRRhRRRRRRRRRRrRR
+        RRR.........RRRRRRRRRrR
+        RhR..........RRRRRRRRRR
+        RRR..........RRhRRRRRRR
+        RRR..........RRRRRRRrRR
+        .RR..........RRRRRRRRR.
+        .RR..........RRRRRRRR..
+        ..R..........RRRrRRR...
+        ..............RRRRR....
+        ..............RRR......
       `,
     },
   ],
   'up-left': [
     {
-      anchor: 'H', mode: 'cover', legend: {R: {mat: 'hair'}, r: {mat: 'hair', tone: 3}, h: {mat: 'hair', tone: 0}}, at: [14, 4],
+      anchor: 'H', at: [14, 4], mode: 'cover', legend: LEGEND,
       grid: `
-        ..........RRRRhRRRR...
-        .........RRhRRRRRhR...
-        .........RRRRRhRRRR...
-        ..R......RRRhRRRRRRR..
-        .RR......hRRRRRhRRRRR.
-        RRh......RRRRhRRRRRrRR
-        RRR......RhRRRRRRRrRRR
-        RRh......RRRRRRRRrRRRR
-        hRR......RRhRRRRRRRRRr
-        RRR......RRRRRRRRRRrRR
-        .hR......RRRRRRRRRrRR.
-        ..R......hRRRRRRrRRR..
-        .........RRRRRrRRRR...
-        .........RRrRRRRRRR...
-        ..........RRRRRRRrR...
-      `,
-    },
-    {
-      anchor: 'H', mode: 'cover', legend: {R: {mat: 'hair'}, r: {mat: 'hair', tone: 3}, h: {mat: 'hair', tone: 0}}, at: [17, 4],
-      grid: `
-        hRRRRR
-        RRRhRR
-        RhRRRR
-        RRRRRR
-        RhRRRR
-        hRRRRR
-        RRRRRR
-        hRRrRR
-        .RRRRR
-        .RRRRR
-        .RRRRr
-        .RrRRR
-        .RRRRR
-        .RRRRR
-        .RRRrR
+        ......RRRRhRRRRRR......
+        ....RRRhRRRRRRhRRRR....
+        ...RRhRRRRRhRRRRRRrR...
+        ..RRRRRRhRRRRRRRRRRRR..
+        .RRRRhRRRRRRRhRRRRRRRR.
+        RRRhRRRRRhRRRRRRRRRRrRR
+        RRRRRRhRRRRRRRRRRrRRRRR
+        RRhRRRRRRRRRRRrRRRRRRRR
+        RRRRRRRhRRRRRRRRRRRRRrR
+        RRRhRRRRRRRRRRRRRRRrRRR
+        .RhRRRRRRRRRRRRRrRRRRR.
+        ..RRRhRRRRRRRrRRRRRRR..
+        ..RRRRRRRRrRRRRRRRRR...
+        ....RRRrRRRRRRRRRRr....
+        ......RRRRRRRRRrR......
       `,
     },
   ],

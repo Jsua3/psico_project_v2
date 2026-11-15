@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "kitSha256": "b676027f4fefcdb2bdc70f28446d8169d19328cff07fa3ef195783d2a5a59215",
+  "kitSha256": "308c183cda40afa34dde6f5d31c82b7ac1d79207de10eee4d4901c6394bf6a0e",
   "characters": {
     "abuela-familia": {
       "displayName": "Abuela de la niña",
@@ -16,20 +16,40 @@
           "headWidth": 19,
           "shoulderWidth": 23
         },
+        "down-left": {
+          "opaqueHeight": 64,
+          "headWidth": 21,
+          "shoulderWidth": 18
+        },
         "left": {
           "opaqueHeight": 64,
           "headWidth": 21,
           "torsoDepth": 14
+        },
+        "up-left": {
+          "opaqueHeight": 64,
+          "headWidth": 20,
+          "shoulderWidth": 18
+        },
+        "up": {
+          "opaqueHeight": 64,
+          "headWidth": 19,
+          "shoulderWidth": 23
+        },
+        "up-right": {
+          "opaqueHeight": 64,
+          "headWidth": 20,
+          "shoulderWidth": 18
         },
         "right": {
           "opaqueHeight": 64,
           "headWidth": 21,
           "torsoDepth": 14
         },
-        "up": {
+        "down-right": {
           "opaqueHeight": 64,
-          "headWidth": 19,
-          "shoulderWidth": 23
+          "headWidth": 21,
+          "shoulderWidth": 18
         }
       },
       "retouched": [],
@@ -37,14 +57,14 @@
         "idle": {
           "path": "abuela-familia/idle.png",
           "width": 192,
-          "height": 288,
-          "pixelSha256": "756b5f36c638d6432979e4d1190976b76d63b477b6468cd1f96a5a64fc9c9a4f"
+          "height": 576,
+          "pixelSha256": "5b5748c77f53cf6f96bb4f4233293c9e7f6fdf15980fb0353b8395ea732760f4"
         },
         "walk": {
           "path": "abuela-familia/walk.png",
           "width": 288,
-          "height": 288,
-          "pixelSha256": "4656a8552cb6ecf06ed8fad24eafeb740422f1272dd6a18f088a07c898b4b1bf"
+          "height": 576,
+          "pixelSha256": "4314f049f1ab5fc71e4285d2e6cb1f59a7b8433f125df44547aa3a5b7f549edf"
         },
         "portrait-neutral": {
           "path": "abuela-familia/portrait-neutral.png",
@@ -98,20 +118,40 @@
           "headWidth": 21,
           "shoulderWidth": 23
         },
+        "down-left": {
+          "opaqueHeight": 64,
+          "headWidth": 21,
+          "shoulderWidth": 21
+        },
         "left": {
           "opaqueHeight": 64,
           "headWidth": 20,
           "torsoDepth": 16
+        },
+        "up-left": {
+          "opaqueHeight": 64,
+          "headWidth": 21,
+          "shoulderWidth": 21
+        },
+        "up": {
+          "opaqueHeight": 64,
+          "headWidth": 21,
+          "shoulderWidth": 23
+        },
+        "up-right": {
+          "opaqueHeight": 64,
+          "headWidth": 21,
+          "shoulderWidth": 21
         },
         "right": {
           "opaqueHeight": 64,
           "headWidth": 20,
           "torsoDepth": 16
         },
-        "up": {
+        "down-right": {
           "opaqueHeight": 64,
           "headWidth": 21,
-          "shoulderWidth": 23
+          "shoulderWidth": 21
         }
       },
       "retouched": [],
@@ -119,14 +159,14 @@
         "idle": {
           "path": "adolescente/idle.png",
           "width": 192,
-          "height": 288,
-          "pixelSha256": "4af8fbc63f11c81ea55cf5ad8b6061961466596bc388e28670d10e59e99d41c7"
+          "height": 576,
+          "pixelSha256": "123a9a1af84752e8161400fa146752a120dbf2ae7f631e2179ffb8a43545d425"
         },
         "walk": {
           "path": "adolescente/walk.png",
           "width": 288,
-          "height": 288,
-          "pixelSha256": "e3665952ba24966d977214f5f9d9f1bfd4cb7ad4e8fb9fca8e47fea2c5669425"
+          "height": 576,
+          "pixelSha256": "6c7a105f915e6f32fad6f9efea4e9e6f871f7f18954bd20d8bd56e5dbcc8550d"
         },
         "portrait-neutral": {
           "path": "adolescente/portrait-neutral.png",
@@ -180,20 +220,40 @@
           "headWidth": 19,
           "shoulderWidth": 25
         },
+        "down-left": {
+          "opaqueHeight": 64,
+          "headWidth": 20,
+          "shoulderWidth": 20
+        },
         "left": {
           "opaqueHeight": 64,
           "headWidth": 19,
           "torsoDepth": 15
+        },
+        "up-left": {
+          "opaqueHeight": 64,
+          "headWidth": 20,
+          "shoulderWidth": 21
+        },
+        "up": {
+          "opaqueHeight": 64,
+          "headWidth": 19,
+          "shoulderWidth": 25
+        },
+        "up-right": {
+          "opaqueHeight": 64,
+          "headWidth": 20,
+          "shoulderWidth": 21
         },
         "right": {
           "opaqueHeight": 64,
           "headWidth": 19,
           "torsoDepth": 15
         },
-        "up": {
+        "down-right": {
           "opaqueHeight": 64,
-          "headWidth": 19,
-          "shoulderWidth": 25
+          "headWidth": 20,
+          "shoulderWidth": 20
         }
       },
       "retouched": [],
@@ -201,14 +261,14 @@
         "idle": {
           "path": "andres/idle.png",
           "width": 192,
-          "height": 288,
-          "pixelSha256": "c9d0df64d6da9fa9fe96b22457e42fcce3d23ab6541557b2b840c89bf42c5d40"
+          "height": 576,
+          "pixelSha256": "79be19a378ea613792d483d9b318990c75080c882b1a99f7cbc4ecb034dc894d"
         },
         "walk": {
           "path": "andres/walk.png",
           "width": 288,
-          "height": 288,
-          "pixelSha256": "3696e42be9321337bbb4ae411d23a14c6cd1492e51b0d1cb9ca74ffbaccb3115"
+          "height": 576,
+          "pixelSha256": "56bdcd607b089e93dbb57d65082a87b14797194509da99fcc6149a819f6c27bb"
         },
         "portrait-neutral": {
           "path": "andres/portrait-neutral.png",
@@ -255,20 +315,40 @@
               "headWidth": 19,
               "shoulderWidth": 25
             },
+            "down-left": {
+              "opaqueHeight": 64,
+              "headWidth": 20,
+              "shoulderWidth": 20
+            },
             "left": {
               "opaqueHeight": 64,
               "headWidth": 19,
               "torsoDepth": 15
+            },
+            "up-left": {
+              "opaqueHeight": 64,
+              "headWidth": 20,
+              "shoulderWidth": 21
+            },
+            "up": {
+              "opaqueHeight": 64,
+              "headWidth": 19,
+              "shoulderWidth": 25
+            },
+            "up-right": {
+              "opaqueHeight": 64,
+              "headWidth": 20,
+              "shoulderWidth": 21
             },
             "right": {
               "opaqueHeight": 64,
               "headWidth": 19,
               "torsoDepth": 15
             },
-            "up": {
+            "down-right": {
               "opaqueHeight": 64,
-              "headWidth": 19,
-              "shoulderWidth": 25
+              "headWidth": 20,
+              "shoulderWidth": 20
             }
           },
           "retouched": [],
@@ -276,14 +356,14 @@
             "idle": {
               "path": "andres/bata/idle.png",
               "width": 192,
-              "height": 288,
-              "pixelSha256": "f68c92bc78a3fd4c28b4bd7fa6a2faa4e00a70e4184249d5032c7bf373bb2f06"
+              "height": 576,
+              "pixelSha256": "69a24ed8fa31ca5c6d83fcc421aca5fa096b622388c9128340dfdd3ddcd0a436"
             },
             "walk": {
               "path": "andres/bata/walk.png",
               "width": 288,
-              "height": 288,
-              "pixelSha256": "9e2b4d1c6930f88cff49e6746eb8c0da904ad7600acca5233096463cab04d5fa"
+              "height": 576,
+              "pixelSha256": "c2c880ce5c6841ac667183a07a330ba2d692689aacefe40df09f318788871b9d"
             },
             "portrait-neutral": {
               "path": "andres/bata/portrait-neutral.png",
@@ -339,20 +419,40 @@
           "headWidth": 21,
           "shoulderWidth": 23
         },
+        "down-left": {
+          "opaqueHeight": 64,
+          "headWidth": 21,
+          "shoulderWidth": 21
+        },
         "left": {
           "opaqueHeight": 64,
           "headWidth": 20,
           "torsoDepth": 18
+        },
+        "up-left": {
+          "opaqueHeight": 64,
+          "headWidth": 21,
+          "shoulderWidth": 21
+        },
+        "up": {
+          "opaqueHeight": 64,
+          "headWidth": 21,
+          "shoulderWidth": 23
+        },
+        "up-right": {
+          "opaqueHeight": 64,
+          "headWidth": 21,
+          "shoulderWidth": 21
         },
         "right": {
           "opaqueHeight": 64,
           "headWidth": 20,
           "torsoDepth": 18
         },
-        "up": {
+        "down-right": {
           "opaqueHeight": 64,
           "headWidth": 21,
-          "shoulderWidth": 23
+          "shoulderWidth": 21
         }
       },
       "retouched": [],
@@ -360,14 +460,14 @@
         "idle": {
           "path": "camila/idle.png",
           "width": 192,
-          "height": 288,
-          "pixelSha256": "3828acdc440f2c4374ee87b02403452d2eff685d78ce30a77652057d9109daf8"
+          "height": 576,
+          "pixelSha256": "1071595b7b0dbe5d7a2d3ce8da9fd86a2f338ada735c470b1ceda37b09ce9f8b"
         },
         "walk": {
           "path": "camila/walk.png",
           "width": 288,
-          "height": 288,
-          "pixelSha256": "6e0df3818be6f601ff9b1d91ad757c83d25d48ae0907b59a26bc97e66cb11a27"
+          "height": 576,
+          "pixelSha256": "e2e8c549cf5f2cf39e60aa25b5874e0c9cae38436f49074667417d302d584b4a"
         },
         "portrait-neutral": {
           "path": "camila/portrait-neutral.png",
@@ -414,20 +514,40 @@
               "headWidth": 21,
               "shoulderWidth": 23
             },
+            "down-left": {
+              "opaqueHeight": 64,
+              "headWidth": 21,
+              "shoulderWidth": 21
+            },
             "left": {
               "opaqueHeight": 64,
               "headWidth": 20,
               "torsoDepth": 18
+            },
+            "up-left": {
+              "opaqueHeight": 64,
+              "headWidth": 21,
+              "shoulderWidth": 21
+            },
+            "up": {
+              "opaqueHeight": 64,
+              "headWidth": 21,
+              "shoulderWidth": 23
+            },
+            "up-right": {
+              "opaqueHeight": 64,
+              "headWidth": 21,
+              "shoulderWidth": 21
             },
             "right": {
               "opaqueHeight": 64,
               "headWidth": 20,
               "torsoDepth": 18
             },
-            "up": {
+            "down-right": {
               "opaqueHeight": 64,
               "headWidth": 21,
-              "shoulderWidth": 23
+              "shoulderWidth": 21
             }
           },
           "retouched": [],
@@ -435,14 +555,14 @@
             "idle": {
               "path": "camila/bata/idle.png",
               "width": 192,
-              "height": 288,
-              "pixelSha256": "85d1e3a493853408e81d802fadd064649e22baec9b6c3253309c1b0628a6fd64"
+              "height": 576,
+              "pixelSha256": "6d5403a4cff211429853879d336c3c28cc16b5c5d386372b3701675ce27eb4f6"
             },
             "walk": {
               "path": "camila/bata/walk.png",
               "width": 288,
-              "height": 288,
-              "pixelSha256": "a95c23fdad43af572f861dd75689a3743e1657a6834b5746b215319824ccd6a2"
+              "height": 576,
+              "pixelSha256": "579de943a4cbe1425b64602d49a600185b9f171e324a23fa85a93c3558273d1e"
             },
             "portrait-neutral": {
               "path": "camila/bata/portrait-neutral.png",
@@ -498,20 +618,40 @@
           "headWidth": 21,
           "shoulderWidth": 23
         },
+        "down-left": {
+          "opaqueHeight": 64,
+          "headWidth": 21,
+          "shoulderWidth": 21
+        },
         "left": {
           "opaqueHeight": 64,
           "headWidth": 20,
           "torsoDepth": 16
+        },
+        "up-left": {
+          "opaqueHeight": 64,
+          "headWidth": 21,
+          "shoulderWidth": 21
+        },
+        "up": {
+          "opaqueHeight": 64,
+          "headWidth": 21,
+          "shoulderWidth": 23
+        },
+        "up-right": {
+          "opaqueHeight": 64,
+          "headWidth": 21,
+          "shoulderWidth": 21
         },
         "right": {
           "opaqueHeight": 64,
           "headWidth": 20,
           "torsoDepth": 16
         },
-        "up": {
+        "down-right": {
           "opaqueHeight": 64,
           "headWidth": 21,
-          "shoulderWidth": 23
+          "shoulderWidth": 21
         }
       },
       "retouched": [],
@@ -519,14 +659,14 @@
         "idle": {
           "path": "comisaria-familia/idle.png",
           "width": 192,
-          "height": 288,
-          "pixelSha256": "610bc60f7c00fbf15b898dab1e995e01819b793357aabe51120dbcc89f5fb29c"
+          "height": 576,
+          "pixelSha256": "31f68ec3bcbccb0a352f4f46cb1ff0d7d7472b974e7c02ce2937bcf15cf57171"
         },
         "walk": {
           "path": "comisaria-familia/walk.png",
           "width": 288,
-          "height": 288,
-          "pixelSha256": "e2e8241de33905d36abd8447c7d9b987629786a7685bfbb746f35e37bf3a16bd"
+          "height": 576,
+          "pixelSha256": "fce42558658ab773e5bd82b691c64f75e15400658691f28a99e71899fa4c5991"
         },
         "portrait-neutral": {
           "path": "comisaria-familia/portrait-neutral.png",
@@ -580,20 +720,40 @@
           "headWidth": 20,
           "shoulderWidth": 23
         },
+        "down-left": {
+          "opaqueHeight": 64,
+          "headWidth": 20,
+          "shoulderWidth": 18
+        },
         "left": {
           "opaqueHeight": 64,
           "headWidth": 19,
           "torsoDepth": 14
+        },
+        "up-left": {
+          "opaqueHeight": 64,
+          "headWidth": 20,
+          "shoulderWidth": 18
+        },
+        "up": {
+          "opaqueHeight": 64,
+          "headWidth": 19,
+          "shoulderWidth": 23
+        },
+        "up-right": {
+          "opaqueHeight": 64,
+          "headWidth": 20,
+          "shoulderWidth": 18
         },
         "right": {
           "opaqueHeight": 64,
           "headWidth": 19,
           "torsoDepth": 14
         },
-        "up": {
+        "down-right": {
           "opaqueHeight": 64,
-          "headWidth": 19,
-          "shoulderWidth": 23
+          "headWidth": 20,
+          "shoulderWidth": 18
         }
       },
       "retouched": [],
@@ -601,14 +761,14 @@
         "idle": {
           "path": "companera-clase/idle.png",
           "width": 192,
-          "height": 288,
-          "pixelSha256": "fb4d2497fcba4ec3a1e7c5e7e1ac0f2969e7451aaa9f789a77c94a7cd8805daa"
+          "height": 576,
+          "pixelSha256": "9c2b0be167382e76e4641f707cea403802aba497d6e42c13d4fc62cd4cfe2800"
         },
         "walk": {
           "path": "companera-clase/walk.png",
           "width": 288,
-          "height": 288,
-          "pixelSha256": "7bdaaf996ad17848750fcb2f19fd264756ad777d4feb7c26be965e631bb487c2"
+          "height": 576,
+          "pixelSha256": "cab4d1bb1a259665e191e89367477a4e7d8f96253013f02e1af0be2ad73c11db"
         },
         "portrait-neutral": {
           "path": "companera-clase/portrait-neutral.png",
@@ -662,20 +822,40 @@
           "headWidth": 19,
           "shoulderWidth": 23
         },
+        "down-left": {
+          "opaqueHeight": 64,
+          "headWidth": 20,
+          "shoulderWidth": 18
+        },
         "left": {
           "opaqueHeight": 64,
           "headWidth": 21,
           "torsoDepth": 14
+        },
+        "up-left": {
+          "opaqueHeight": 64,
+          "headWidth": 20,
+          "shoulderWidth": 18
+        },
+        "up": {
+          "opaqueHeight": 64,
+          "headWidth": 19,
+          "shoulderWidth": 23
+        },
+        "up-right": {
+          "opaqueHeight": 64,
+          "headWidth": 20,
+          "shoulderWidth": 18
         },
         "right": {
           "opaqueHeight": 64,
           "headWidth": 21,
           "torsoDepth": 14
         },
-        "up": {
+        "down-right": {
           "opaqueHeight": 64,
-          "headWidth": 19,
-          "shoulderWidth": 23
+          "headWidth": 20,
+          "shoulderWidth": 18
         }
       },
       "retouched": [],
@@ -683,14 +863,14 @@
         "idle": {
           "path": "daniela/idle.png",
           "width": 192,
-          "height": 288,
-          "pixelSha256": "ef23a470af1e4eac3219ce02ef08dca30ba504d5b1586b182ee5af16f5357e28"
+          "height": 576,
+          "pixelSha256": "d0ce71dd14376a1adb54c046c9ae925b473fb6a9d8420b5fed769d9f4b58283b"
         },
         "walk": {
           "path": "daniela/walk.png",
           "width": 288,
-          "height": 288,
-          "pixelSha256": "bd09ce61c2dcc1622ee53f4e02399a472e910abf33988699a6655e6d25edaaab"
+          "height": 576,
+          "pixelSha256": "8a63bb73f5c607fe934e5da7faa0954721811b67285edb358f85c1f12a1a4e5a"
         },
         "portrait-neutral": {
           "path": "daniela/portrait-neutral.png",
@@ -737,20 +917,40 @@
               "headWidth": 19,
               "shoulderWidth": 23
             },
+            "down-left": {
+              "opaqueHeight": 64,
+              "headWidth": 20,
+              "shoulderWidth": 18
+            },
             "left": {
               "opaqueHeight": 64,
               "headWidth": 21,
               "torsoDepth": 14
+            },
+            "up-left": {
+              "opaqueHeight": 64,
+              "headWidth": 20,
+              "shoulderWidth": 18
+            },
+            "up": {
+              "opaqueHeight": 64,
+              "headWidth": 19,
+              "shoulderWidth": 23
+            },
+            "up-right": {
+              "opaqueHeight": 64,
+              "headWidth": 20,
+              "shoulderWidth": 18
             },
             "right": {
               "opaqueHeight": 64,
               "headWidth": 21,
               "torsoDepth": 14
             },
-            "up": {
+            "down-right": {
               "opaqueHeight": 64,
-              "headWidth": 19,
-              "shoulderWidth": 23
+              "headWidth": 20,
+              "shoulderWidth": 18
             }
           },
           "retouched": [],
@@ -758,14 +958,14 @@
             "idle": {
               "path": "daniela/bata/idle.png",
               "width": 192,
-              "height": 288,
-              "pixelSha256": "c985d0041aac22139d10072c95592f352a2bb4a6dec9fa62dbc7a7c77f1635b3"
+              "height": 576,
+              "pixelSha256": "672ccaa141b05933e45bfcfdf2d85693c65fed659e30ed45a5238dc8f250a0d8"
             },
             "walk": {
               "path": "daniela/bata/walk.png",
               "width": 288,
-              "height": 288,
-              "pixelSha256": "4e8bb0662e9402a5892d50c1a72d68081c4adb01a7a5807ecb5a0abfe1b90b8f"
+              "height": 576,
+              "pixelSha256": "43742df8622cc5d690c16729c116ac6dafb7949e0530ba29473468e5628c41c6"
             },
             "portrait-neutral": {
               "path": "daniela/bata/portrait-neutral.png",
@@ -821,20 +1021,40 @@
           "headWidth": 19,
           "shoulderWidth": 25
         },
+        "down-left": {
+          "opaqueHeight": 64,
+          "headWidth": 20,
+          "shoulderWidth": 20
+        },
         "left": {
           "opaqueHeight": 64,
           "headWidth": 19,
           "torsoDepth": 15
+        },
+        "up-left": {
+          "opaqueHeight": 64,
+          "headWidth": 20,
+          "shoulderWidth": 21
+        },
+        "up": {
+          "opaqueHeight": 64,
+          "headWidth": 19,
+          "shoulderWidth": 25
+        },
+        "up-right": {
+          "opaqueHeight": 64,
+          "headWidth": 20,
+          "shoulderWidth": 21
         },
         "right": {
           "opaqueHeight": 64,
           "headWidth": 19,
           "torsoDepth": 15
         },
-        "up": {
+        "down-right": {
           "opaqueHeight": 64,
-          "headWidth": 19,
-          "shoulderWidth": 25
+          "headWidth": 20,
+          "shoulderWidth": 20
         }
       },
       "retouched": [],
@@ -842,14 +1062,14 @@
         "idle": {
           "path": "david/idle.png",
           "width": 192,
-          "height": 288,
-          "pixelSha256": "0daed7ca5da22f4efceba2b69689aed78e10434eba4bb3d03eafb9f30d9cb26f"
+          "height": 576,
+          "pixelSha256": "a9290d4ca771da123f71228aeacedb740eefe07ab2b181eb63461ad30a953e70"
         },
         "walk": {
           "path": "david/walk.png",
           "width": 288,
-          "height": 288,
-          "pixelSha256": "abddb5130ed21bcb3e394d1520b044665531b542d04e2d4b2e8b898a649ba119"
+          "height": 576,
+          "pixelSha256": "0a920b1785c0d1036e403167959091084ab52cb390d159d590834482652d0175"
         },
         "portrait-neutral": {
           "path": "david/portrait-neutral.png",
@@ -896,20 +1116,40 @@
               "headWidth": 19,
               "shoulderWidth": 25
             },
+            "down-left": {
+              "opaqueHeight": 64,
+              "headWidth": 20,
+              "shoulderWidth": 20
+            },
             "left": {
               "opaqueHeight": 64,
               "headWidth": 19,
               "torsoDepth": 15
+            },
+            "up-left": {
+              "opaqueHeight": 64,
+              "headWidth": 20,
+              "shoulderWidth": 21
+            },
+            "up": {
+              "opaqueHeight": 64,
+              "headWidth": 19,
+              "shoulderWidth": 25
+            },
+            "up-right": {
+              "opaqueHeight": 64,
+              "headWidth": 20,
+              "shoulderWidth": 21
             },
             "right": {
               "opaqueHeight": 64,
               "headWidth": 19,
               "torsoDepth": 15
             },
-            "up": {
+            "down-right": {
               "opaqueHeight": 64,
-              "headWidth": 19,
-              "shoulderWidth": 25
+              "headWidth": 20,
+              "shoulderWidth": 20
             }
           },
           "retouched": [],
@@ -917,14 +1157,14 @@
             "idle": {
               "path": "david/bata/idle.png",
               "width": 192,
-              "height": 288,
-              "pixelSha256": "2041d8856c23112982eda3a6c5d9497480cd21a954115cfb2649d1f545b89a93"
+              "height": 576,
+              "pixelSha256": "e134fa23cee45037ef32554353bb619a284bbf8d1120b564d9f4661a0f307e16"
             },
             "walk": {
               "path": "david/bata/walk.png",
               "width": 288,
-              "height": 288,
-              "pixelSha256": "4b5e98a95daa5e0ad5fc9130ee0ca2458f41f7482905332a1802a5260267539e"
+              "height": 576,
+              "pixelSha256": "c4fb3b0b3acc6814eba1cc4cfd4b9353f59d0ccec030021ac375cfd0c90605f1"
             },
             "portrait-neutral": {
               "path": "david/bata/portrait-neutral.png",
@@ -980,20 +1220,40 @@
           "headWidth": 21,
           "shoulderWidth": 23
         },
+        "down-left": {
+          "opaqueHeight": 64,
+          "headWidth": 21,
+          "shoulderWidth": 21
+        },
         "left": {
           "opaqueHeight": 64,
           "headWidth": 20,
           "torsoDepth": 16
+        },
+        "up-left": {
+          "opaqueHeight": 64,
+          "headWidth": 21,
+          "shoulderWidth": 21
+        },
+        "up": {
+          "opaqueHeight": 64,
+          "headWidth": 21,
+          "shoulderWidth": 23
+        },
+        "up-right": {
+          "opaqueHeight": 64,
+          "headWidth": 21,
+          "shoulderWidth": 21
         },
         "right": {
           "opaqueHeight": 64,
           "headWidth": 20,
           "torsoDepth": 16
         },
-        "up": {
+        "down-right": {
           "opaqueHeight": 64,
           "headWidth": 21,
-          "shoulderWidth": 23
+          "shoulderWidth": 21
         }
       },
       "retouched": [],
@@ -1001,14 +1261,14 @@
         "idle": {
           "path": "docente-universidad/idle.png",
           "width": 192,
-          "height": 288,
-          "pixelSha256": "9e3a5db86f81959dd8ef49c4037a1b1283d8a1809f93369ce263482e96e01b7e"
+          "height": 576,
+          "pixelSha256": "998e1520f29b4d1809ad566d821e9c1dc3bb09b2eeb27e33dcd5552df3b51e5b"
         },
         "walk": {
           "path": "docente-universidad/walk.png",
           "width": 288,
-          "height": 288,
-          "pixelSha256": "90db853087f97c94e8dff9fc6d747e89c9df8786d73fe7329f9d259d9215a50e"
+          "height": 576,
+          "pixelSha256": "45498438d58f9f50d4e2134ec78e4b3f2b08ed07a0695d6901e1baf4b2123ea6"
         },
         "portrait-neutral": {
           "path": "docente-universidad/portrait-neutral.png",
@@ -1062,20 +1322,40 @@
           "headWidth": 19,
           "shoulderWidth": 23
         },
+        "down-left": {
+          "opaqueHeight": 64,
+          "headWidth": 20,
+          "shoulderWidth": 18
+        },
         "left": {
           "opaqueHeight": 64,
           "headWidth": 21,
           "torsoDepth": 14
+        },
+        "up-left": {
+          "opaqueHeight": 64,
+          "headWidth": 20,
+          "shoulderWidth": 18
+        },
+        "up": {
+          "opaqueHeight": 64,
+          "headWidth": 19,
+          "shoulderWidth": 23
+        },
+        "up-right": {
+          "opaqueHeight": 64,
+          "headWidth": 20,
+          "shoulderWidth": 18
         },
         "right": {
           "opaqueHeight": 64,
           "headWidth": 21,
           "torsoDepth": 14
         },
-        "up": {
+        "down-right": {
           "opaqueHeight": 64,
-          "headWidth": 19,
-          "shoulderWidth": 23
+          "headWidth": 20,
+          "shoulderWidth": 18
         }
       },
       "retouched": [],
@@ -1083,14 +1363,14 @@
         "idle": {
           "path": "enfermera-urgencias/idle.png",
           "width": 192,
-          "height": 288,
-          "pixelSha256": "6a10fd160ac9b020ba3c52a8205482b6bf14551d9dfa4b0aeb923ad45d5100be"
+          "height": 576,
+          "pixelSha256": "2bd4c923a63f0ae1c42e1dbd46d1fe4c4dfac910cf24c4f069dd94e144d3a5e2"
         },
         "walk": {
           "path": "enfermera-urgencias/walk.png",
           "width": 288,
-          "height": 288,
-          "pixelSha256": "2693b789baabbfb1c8fe88cf97f480bbe726a5478331ebd47c192834df9ef7a1"
+          "height": 576,
+          "pixelSha256": "8811195c9f76abc2dd9815dce32f422398fd8dd174fa53138b6c0f4bf46f8982"
         },
         "portrait-neutral": {
           "path": "enfermera-urgencias/portrait-neutral.png",
@@ -1144,20 +1424,40 @@
           "headWidth": 25,
           "shoulderWidth": 25
         },
+        "down-left": {
+          "opaqueHeight": 65,
+          "headWidth": 25,
+          "shoulderWidth": 20
+        },
         "left": {
           "opaqueHeight": 65,
           "headWidth": 22,
           "torsoDepth": 15
+        },
+        "up-left": {
+          "opaqueHeight": 65,
+          "headWidth": 25,
+          "shoulderWidth": 21
+        },
+        "up": {
+          "opaqueHeight": 65,
+          "headWidth": 25,
+          "shoulderWidth": 25
+        },
+        "up-right": {
+          "opaqueHeight": 65,
+          "headWidth": 25,
+          "shoulderWidth": 21
         },
         "right": {
           "opaqueHeight": 65,
           "headWidth": 22,
           "torsoDepth": 15
         },
-        "up": {
+        "down-right": {
           "opaqueHeight": 65,
           "headWidth": 25,
-          "shoulderWidth": 25
+          "shoulderWidth": 20
         }
       },
       "retouched": [],
@@ -1165,14 +1465,14 @@
         "idle": {
           "path": "estudiante-consultante/idle.png",
           "width": 192,
-          "height": 288,
-          "pixelSha256": "15fd5108e3fc79d31097aee75e7f273633f08785ca0e703f106ecb857807fd0e"
+          "height": 576,
+          "pixelSha256": "9a30359b3e4fca029904d11b9bbeb1fe57886ec87bb8fad70ae67bf46b586ae2"
         },
         "walk": {
           "path": "estudiante-consultante/walk.png",
           "width": 288,
-          "height": 288,
-          "pixelSha256": "08d6f30701acfae6c4f10d99310e4dbd62ddbaedc33eacc9f705e606440f04ca"
+          "height": 576,
+          "pixelSha256": "d105d5574fd91fb5c91c1ed8db69953c27e7d207d14a1a0fa82fd0ce8d689a7f"
         },
         "portrait-neutral": {
           "path": "estudiante-consultante/portrait-neutral.png",
@@ -1226,20 +1526,40 @@
           "headWidth": 21,
           "shoulderWidth": 25
         },
+        "down-left": {
+          "opaqueHeight": 65,
+          "headWidth": 22,
+          "shoulderWidth": 20
+        },
         "left": {
           "opaqueHeight": 65,
           "headWidth": 20,
           "torsoDepth": 15
+        },
+        "up-left": {
+          "opaqueHeight": 65,
+          "headWidth": 22,
+          "shoulderWidth": 21
+        },
+        "up": {
+          "opaqueHeight": 65,
+          "headWidth": 21,
+          "shoulderWidth": 25
+        },
+        "up-right": {
+          "opaqueHeight": 65,
+          "headWidth": 22,
+          "shoulderWidth": 21
         },
         "right": {
           "opaqueHeight": 65,
           "headWidth": 20,
           "torsoDepth": 15
         },
-        "up": {
+        "down-right": {
           "opaqueHeight": 65,
-          "headWidth": 21,
-          "shoulderWidth": 25
+          "headWidth": 22,
+          "shoulderWidth": 20
         }
       },
       "retouched": [],
@@ -1247,14 +1567,14 @@
         "idle": {
           "path": "felipe/idle.png",
           "width": 192,
-          "height": 288,
-          "pixelSha256": "9991f0020321a9c4811d82651cc34e5b6d7c5f5c7feeaecd28443849ea56bfd3"
+          "height": 576,
+          "pixelSha256": "19883827e03d422cb2b70d9586ea091206a06158684d606e902b2811e89080f8"
         },
         "walk": {
           "path": "felipe/walk.png",
           "width": 288,
-          "height": 288,
-          "pixelSha256": "d1c3b60098d224baa094ea1c70718988ab66b2d518667560ae886e8cad72352d"
+          "height": 576,
+          "pixelSha256": "655dc09dc9a7ddf0173ed0ae1d8c98ed4b930b62ba900e12d9d8a2c11931bab4"
         },
         "portrait-neutral": {
           "path": "felipe/portrait-neutral.png",
@@ -1301,20 +1621,40 @@
               "headWidth": 21,
               "shoulderWidth": 25
             },
+            "down-left": {
+              "opaqueHeight": 65,
+              "headWidth": 22,
+              "shoulderWidth": 20
+            },
             "left": {
               "opaqueHeight": 65,
               "headWidth": 20,
               "torsoDepth": 15
+            },
+            "up-left": {
+              "opaqueHeight": 65,
+              "headWidth": 22,
+              "shoulderWidth": 21
+            },
+            "up": {
+              "opaqueHeight": 65,
+              "headWidth": 21,
+              "shoulderWidth": 25
+            },
+            "up-right": {
+              "opaqueHeight": 65,
+              "headWidth": 22,
+              "shoulderWidth": 21
             },
             "right": {
               "opaqueHeight": 65,
               "headWidth": 20,
               "torsoDepth": 15
             },
-            "up": {
+            "down-right": {
               "opaqueHeight": 65,
-              "headWidth": 21,
-              "shoulderWidth": 25
+              "headWidth": 22,
+              "shoulderWidth": 20
             }
           },
           "retouched": [],
@@ -1322,14 +1662,14 @@
             "idle": {
               "path": "felipe/bata/idle.png",
               "width": 192,
-              "height": 288,
-              "pixelSha256": "5dd843a2ff9a813a4aa2c3d2a0821d8d91941fcfae015d582a1fe1cf5d98f771"
+              "height": 576,
+              "pixelSha256": "62ae9a4fdc7795b206dc0c538b56dae389e6b7158a9b15bcebd17523986d7eb6"
             },
             "walk": {
               "path": "felipe/bata/walk.png",
               "width": 288,
-              "height": 288,
-              "pixelSha256": "fc24adfafe2389af287ef76b3473cf7bbec2dbe16e89c15125a904ee3fbac3e0"
+              "height": 576,
+              "pixelSha256": "b8c55f72d4134146448faaeee9e540633c61dc4d5a9ce09a40b12065813e023e"
             },
             "portrait-neutral": {
               "path": "felipe/bata/portrait-neutral.png",
@@ -1385,20 +1725,40 @@
           "headWidth": 21,
           "shoulderWidth": 23
         },
+        "down-left": {
+          "opaqueHeight": 64,
+          "headWidth": 21,
+          "shoulderWidth": 21
+        },
         "left": {
           "opaqueHeight": 64,
           "headWidth": 20,
           "torsoDepth": 16
+        },
+        "up-left": {
+          "opaqueHeight": 64,
+          "headWidth": 21,
+          "shoulderWidth": 21
+        },
+        "up": {
+          "opaqueHeight": 64,
+          "headWidth": 21,
+          "shoulderWidth": 23
+        },
+        "up-right": {
+          "opaqueHeight": 64,
+          "headWidth": 21,
+          "shoulderWidth": 21
         },
         "right": {
           "opaqueHeight": 64,
           "headWidth": 20,
           "torsoDepth": 16
         },
-        "up": {
+        "down-right": {
           "opaqueHeight": 64,
           "headWidth": 21,
-          "shoulderWidth": 23
+          "shoulderWidth": 21
         }
       },
       "retouched": [],
@@ -1406,14 +1766,14 @@
         "idle": {
           "path": "funcionaria-recepcion/idle.png",
           "width": 192,
-          "height": 288,
-          "pixelSha256": "753e803095ce75bd1cda9fdbc9443039d4568d7c78adaf5450e219cf84222d92"
+          "height": 576,
+          "pixelSha256": "6f034df54b0f9314815660d0b8eb3d6f22568b0b8c377ce0a0ca4604de3050c8"
         },
         "walk": {
           "path": "funcionaria-recepcion/walk.png",
           "width": 288,
-          "height": 288,
-          "pixelSha256": "619560af1f9cbac34c70af915594d8d05dce5e79e275b9455ba9017f75999387"
+          "height": 576,
+          "pixelSha256": "e095e707ee47568ce2a27defa506d1eb75c3863d1a5c4344aa64bc84d743e172"
         },
         "portrait-neutral": {
           "path": "funcionaria-recepcion/portrait-neutral.png",
@@ -1467,20 +1827,40 @@
           "headWidth": 19,
           "shoulderWidth": 25
         },
+        "down-left": {
+          "opaqueHeight": 64,
+          "headWidth": 20,
+          "shoulderWidth": 20
+        },
         "left": {
           "opaqueHeight": 64,
           "headWidth": 19,
           "torsoDepth": 15
+        },
+        "up-left": {
+          "opaqueHeight": 64,
+          "headWidth": 20,
+          "shoulderWidth": 21
+        },
+        "up": {
+          "opaqueHeight": 64,
+          "headWidth": 19,
+          "shoulderWidth": 25
+        },
+        "up-right": {
+          "opaqueHeight": 64,
+          "headWidth": 20,
+          "shoulderWidth": 21
         },
         "right": {
           "opaqueHeight": 64,
           "headWidth": 19,
           "torsoDepth": 15
         },
-        "up": {
+        "down-right": {
           "opaqueHeight": 64,
-          "headWidth": 19,
-          "shoulderWidth": 25
+          "headWidth": 20,
+          "shoulderWidth": 20
         }
       },
       "retouched": [],
@@ -1488,14 +1868,14 @@
         "idle": {
           "path": "jorge/idle.png",
           "width": 192,
-          "height": 288,
-          "pixelSha256": "fb0c7872e4501566dedd918d951cff89756d0c55e177d832c981459d32b338dc"
+          "height": 576,
+          "pixelSha256": "02af3ff5bcf34fcc564a76aaa4b8b3eb6ef6a89d0f298927fc9cb00593c4fb9d"
         },
         "walk": {
           "path": "jorge/walk.png",
           "width": 288,
-          "height": 288,
-          "pixelSha256": "e704f2dbad2e48b436dccfed952573f0b93bb702ea0da5441faba07c64befc61"
+          "height": 576,
+          "pixelSha256": "2db9ef917f9927746c9318914d98f178d1e7b54015e559f6aa366ddfebd11dda"
         },
         "portrait-neutral": {
           "path": "jorge/portrait-neutral.png",
@@ -1542,20 +1922,40 @@
               "headWidth": 19,
               "shoulderWidth": 25
             },
+            "down-left": {
+              "opaqueHeight": 64,
+              "headWidth": 20,
+              "shoulderWidth": 20
+            },
             "left": {
               "opaqueHeight": 64,
               "headWidth": 19,
               "torsoDepth": 15
+            },
+            "up-left": {
+              "opaqueHeight": 64,
+              "headWidth": 20,
+              "shoulderWidth": 21
+            },
+            "up": {
+              "opaqueHeight": 64,
+              "headWidth": 19,
+              "shoulderWidth": 25
+            },
+            "up-right": {
+              "opaqueHeight": 64,
+              "headWidth": 20,
+              "shoulderWidth": 21
             },
             "right": {
               "opaqueHeight": 64,
               "headWidth": 19,
               "torsoDepth": 15
             },
-            "up": {
+            "down-right": {
               "opaqueHeight": 64,
-              "headWidth": 19,
-              "shoulderWidth": 25
+              "headWidth": 20,
+              "shoulderWidth": 20
             }
           },
           "retouched": [],
@@ -1563,14 +1963,14 @@
             "idle": {
               "path": "jorge/bata/idle.png",
               "width": 192,
-              "height": 288,
-              "pixelSha256": "3fdf83cbe8449b9d59e68bb098ed6912df5904c93b989572fe64efcb3c8e1e2f"
+              "height": 576,
+              "pixelSha256": "6d66207473464e5b32a766e04ba2610c861ed9c286cbfce1bafb017f35425f86"
             },
             "walk": {
               "path": "jorge/bata/walk.png",
               "width": 288,
-              "height": 288,
-              "pixelSha256": "7db3ec8ec8c3f39bad8147b7428603b7f63b2271bc5c6fa985319dc767ee6b46"
+              "height": 576,
+              "pixelSha256": "5ccad50a8df0996eb72d84e5415acfd15fc58a020cdc6c6e85cbe74ab1c5de9f"
             },
             "portrait-neutral": {
               "path": "jorge/bata/portrait-neutral.png",
@@ -1626,20 +2026,40 @@
           "headWidth": 21,
           "shoulderWidth": 21
         },
+        "down-left": {
+          "opaqueHeight": 65,
+          "headWidth": 22,
+          "shoulderWidth": 18
+        },
         "left": {
           "opaqueHeight": 65,
           "headWidth": 20,
           "torsoDepth": 14
+        },
+        "up-left": {
+          "opaqueHeight": 65,
+          "headWidth": 22,
+          "shoulderWidth": 18
+        },
+        "up": {
+          "opaqueHeight": 65,
+          "headWidth": 21,
+          "shoulderWidth": 21
+        },
+        "up-right": {
+          "opaqueHeight": 65,
+          "headWidth": 22,
+          "shoulderWidth": 18
         },
         "right": {
           "opaqueHeight": 65,
           "headWidth": 20,
           "torsoDepth": 14
         },
-        "up": {
+        "down-right": {
           "opaqueHeight": 65,
-          "headWidth": 21,
-          "shoulderWidth": 21
+          "headWidth": 22,
+          "shoulderWidth": 18
         }
       },
       "retouched": [],
@@ -1647,14 +2067,14 @@
         "idle": {
           "path": "luisa/idle.png",
           "width": 192,
-          "height": 288,
-          "pixelSha256": "f1e3c7ab3e7987db96443654efa66af92066cd1d343ea1a816675b97fd41a9c2"
+          "height": 576,
+          "pixelSha256": "a7e5290fb0ef351a3b4566c8282f9af692dac110468b06fca42a4fdffed2ce1d"
         },
         "walk": {
           "path": "luisa/walk.png",
           "width": 288,
-          "height": 288,
-          "pixelSha256": "1d32066fef3a9b805115146bb2044eb1664aad393092f986a8dcc71b903058af"
+          "height": 576,
+          "pixelSha256": "38313dec461ea16798e1f8345385e40504d05c6f4a13e5cf0f7e9135d19d634d"
         },
         "portrait-neutral": {
           "path": "luisa/portrait-neutral.png",
@@ -1701,20 +2121,40 @@
               "headWidth": 21,
               "shoulderWidth": 21
             },
+            "down-left": {
+              "opaqueHeight": 65,
+              "headWidth": 22,
+              "shoulderWidth": 18
+            },
             "left": {
               "opaqueHeight": 65,
               "headWidth": 20,
               "torsoDepth": 14
+            },
+            "up-left": {
+              "opaqueHeight": 65,
+              "headWidth": 22,
+              "shoulderWidth": 18
+            },
+            "up": {
+              "opaqueHeight": 65,
+              "headWidth": 21,
+              "shoulderWidth": 21
+            },
+            "up-right": {
+              "opaqueHeight": 65,
+              "headWidth": 22,
+              "shoulderWidth": 18
             },
             "right": {
               "opaqueHeight": 65,
               "headWidth": 20,
               "torsoDepth": 14
             },
-            "up": {
+            "down-right": {
               "opaqueHeight": 65,
-              "headWidth": 21,
-              "shoulderWidth": 21
+              "headWidth": 22,
+              "shoulderWidth": 18
             }
           },
           "retouched": [],
@@ -1722,14 +2162,14 @@
             "idle": {
               "path": "luisa/bata/idle.png",
               "width": 192,
-              "height": 288,
-              "pixelSha256": "6fc894b9efd2739e7bc700d609cf123bbe387d2f8cf372a8dbe4fc1043277e05"
+              "height": 576,
+              "pixelSha256": "7314018b34f0466f3e39987c0b25296f3158f09f418c46b41712ed0320132016"
             },
             "walk": {
               "path": "luisa/bata/walk.png",
               "width": 288,
-              "height": 288,
-              "pixelSha256": "02bf066182207b4cdfd4263085b8490d5b2a055172555ee98d81860c160ba766"
+              "height": 576,
+              "pixelSha256": "007562e03c809d92b1d004755c990e7a78ebef60ec269e28e311ce01322ef0e6"
             },
             "portrait-neutral": {
               "path": "luisa/bata/portrait-neutral.png",
@@ -1785,20 +2225,40 @@
           "headWidth": 21,
           "shoulderWidth": 23
         },
+        "down-left": {
+          "opaqueHeight": 64,
+          "headWidth": 21,
+          "shoulderWidth": 21
+        },
         "left": {
           "opaqueHeight": 64,
           "headWidth": 20,
           "torsoDepth": 16
+        },
+        "up-left": {
+          "opaqueHeight": 64,
+          "headWidth": 21,
+          "shoulderWidth": 21
+        },
+        "up": {
+          "opaqueHeight": 64,
+          "headWidth": 21,
+          "shoulderWidth": 23
+        },
+        "up-right": {
+          "opaqueHeight": 64,
+          "headWidth": 21,
+          "shoulderWidth": 21
         },
         "right": {
           "opaqueHeight": 64,
           "headWidth": 20,
           "torsoDepth": 16
         },
-        "up": {
+        "down-right": {
           "opaqueHeight": 64,
           "headWidth": 21,
-          "shoulderWidth": 23
+          "shoulderWidth": 21
         }
       },
       "retouched": [],
@@ -1806,14 +2266,14 @@
         "idle": {
           "path": "madre-acompanante/idle.png",
           "width": 192,
-          "height": 288,
-          "pixelSha256": "9fa0697f3b5be62b5cc2c29bbe5db607b00beef35c593138e3826e0b93aa95ec"
+          "height": 576,
+          "pixelSha256": "3c6458eac55ac16816ebaf252f97d4efc89a836280e0600bbe0cecec1ad91e4e"
         },
         "walk": {
           "path": "madre-acompanante/walk.png",
           "width": 288,
-          "height": 288,
-          "pixelSha256": "48d94bfef4d7ae5e058f1eb53280dfbb302aa947d64f0c76b6bf0c3a64d27abd"
+          "height": 576,
+          "pixelSha256": "cba47ee82fcd69dc97df75691c8717933d0c8679fc9c3e6d6b8d0ee989d5fd38"
         },
         "portrait-neutral": {
           "path": "madre-acompanante/portrait-neutral.png",
@@ -1867,20 +2327,40 @@
           "headWidth": 20,
           "shoulderWidth": 23
         },
+        "down-left": {
+          "opaqueHeight": 64,
+          "headWidth": 20,
+          "shoulderWidth": 18
+        },
         "left": {
           "opaqueHeight": 64,
           "headWidth": 19,
           "torsoDepth": 14
+        },
+        "up-left": {
+          "opaqueHeight": 64,
+          "headWidth": 20,
+          "shoulderWidth": 18
+        },
+        "up": {
+          "opaqueHeight": 64,
+          "headWidth": 19,
+          "shoulderWidth": 23
+        },
+        "up-right": {
+          "opaqueHeight": 64,
+          "headWidth": 20,
+          "shoulderWidth": 18
         },
         "right": {
           "opaqueHeight": 64,
           "headWidth": 19,
           "torsoDepth": 14
         },
-        "up": {
+        "down-right": {
           "opaqueHeight": 64,
-          "headWidth": 19,
-          "shoulderWidth": 23
+          "headWidth": 20,
+          "shoulderWidth": 18
         }
       },
       "retouched": [],
@@ -1888,14 +2368,14 @@
         "idle": {
           "path": "mariana/idle.png",
           "width": 192,
-          "height": 288,
-          "pixelSha256": "5e3b2cfacbff8aaa8d588775387452b998faa7f5a10696c65fe3ae17f5e28688"
+          "height": 576,
+          "pixelSha256": "2c772a26c48a15e558b2f6e3ade7f4c05ff74f68e8f47e42abe9bb1239b533d2"
         },
         "walk": {
           "path": "mariana/walk.png",
           "width": 288,
-          "height": 288,
-          "pixelSha256": "c5316fa5a3a2404c12e47876b8d1515b87872f5022cbef2a93c6d1597b493e96"
+          "height": 576,
+          "pixelSha256": "fb3e403f65259006750a93211100eb5f3ab1367761b41f7f4f98aad684d7a3d2"
         },
         "portrait-neutral": {
           "path": "mariana/portrait-neutral.png",
@@ -1942,20 +2422,40 @@
               "headWidth": 20,
               "shoulderWidth": 23
             },
+            "down-left": {
+              "opaqueHeight": 64,
+              "headWidth": 20,
+              "shoulderWidth": 18
+            },
             "left": {
               "opaqueHeight": 64,
               "headWidth": 19,
               "torsoDepth": 14
+            },
+            "up-left": {
+              "opaqueHeight": 64,
+              "headWidth": 20,
+              "shoulderWidth": 18
+            },
+            "up": {
+              "opaqueHeight": 64,
+              "headWidth": 19,
+              "shoulderWidth": 23
+            },
+            "up-right": {
+              "opaqueHeight": 64,
+              "headWidth": 20,
+              "shoulderWidth": 18
             },
             "right": {
               "opaqueHeight": 64,
               "headWidth": 19,
               "torsoDepth": 14
             },
-            "up": {
+            "down-right": {
               "opaqueHeight": 64,
-              "headWidth": 19,
-              "shoulderWidth": 23
+              "headWidth": 20,
+              "shoulderWidth": 18
             }
           },
           "retouched": [],
@@ -1963,14 +2463,14 @@
             "idle": {
               "path": "mariana/bata/idle.png",
               "width": 192,
-              "height": 288,
-              "pixelSha256": "cd0719d9b8cf6a774ce70daea9f83ff9d6ad43c45244d8ca73547845953919b0"
+              "height": 576,
+              "pixelSha256": "de190e90a162b14352ab31120e8df6811f85cd717863a5ec6f407cb01cae2118"
             },
             "walk": {
               "path": "mariana/bata/walk.png",
               "width": 288,
-              "height": 288,
-              "pixelSha256": "a5f55ce4e7f54aa3c7c34f54f19386b38e36f24ea5e25416c140fc0e1db00508"
+              "height": 576,
+              "pixelSha256": "1ca461cce08dac1e378a72df4575f61bc497524c467bdc9ea19bc51c4a5df565"
             },
             "portrait-neutral": {
               "path": "mariana/bata/portrait-neutral.png",
@@ -2026,20 +2526,40 @@
           "headWidth": 21,
           "shoulderWidth": 25
         },
+        "down-left": {
+          "opaqueHeight": 65,
+          "headWidth": 22,
+          "shoulderWidth": 20
+        },
         "left": {
           "opaqueHeight": 65,
           "headWidth": 20,
           "torsoDepth": 15
+        },
+        "up-left": {
+          "opaqueHeight": 65,
+          "headWidth": 22,
+          "shoulderWidth": 21
+        },
+        "up": {
+          "opaqueHeight": 65,
+          "headWidth": 21,
+          "shoulderWidth": 25
+        },
+        "up-right": {
+          "opaqueHeight": 65,
+          "headWidth": 22,
+          "shoulderWidth": 21
         },
         "right": {
           "opaqueHeight": 65,
           "headWidth": 20,
           "torsoDepth": 15
         },
-        "up": {
+        "down-right": {
           "opaqueHeight": 65,
-          "headWidth": 21,
-          "shoulderWidth": 25
+          "headWidth": 22,
+          "shoulderWidth": 20
         }
       },
       "retouched": [],
@@ -2047,14 +2567,14 @@
         "idle": {
           "path": "mateo/idle.png",
           "width": 192,
-          "height": 288,
-          "pixelSha256": "0887d7a50e80784db3bb01f1b2fa4385baec971a7678ba19bf008f006e55ebe6"
+          "height": 576,
+          "pixelSha256": "ea1687078b85b8967ed7d6f5b17f70b259bbceade0b9c696ed410d412a5096c7"
         },
         "walk": {
           "path": "mateo/walk.png",
           "width": 288,
-          "height": 288,
-          "pixelSha256": "b00306c0d36a4754876ccc998dd4194804ec138cad581475527cd8bb1d1e6ee1"
+          "height": 576,
+          "pixelSha256": "f6af509772157e2497f092d9b1d3ce9f713760265b408811cafdd7a3b917ed78"
         },
         "portrait-neutral": {
           "path": "mateo/portrait-neutral.png",
@@ -2101,20 +2621,40 @@
               "headWidth": 21,
               "shoulderWidth": 25
             },
+            "down-left": {
+              "opaqueHeight": 65,
+              "headWidth": 22,
+              "shoulderWidth": 20
+            },
             "left": {
               "opaqueHeight": 65,
               "headWidth": 20,
               "torsoDepth": 15
+            },
+            "up-left": {
+              "opaqueHeight": 65,
+              "headWidth": 22,
+              "shoulderWidth": 21
+            },
+            "up": {
+              "opaqueHeight": 65,
+              "headWidth": 21,
+              "shoulderWidth": 25
+            },
+            "up-right": {
+              "opaqueHeight": 65,
+              "headWidth": 22,
+              "shoulderWidth": 21
             },
             "right": {
               "opaqueHeight": 65,
               "headWidth": 20,
               "torsoDepth": 15
             },
-            "up": {
+            "down-right": {
               "opaqueHeight": 65,
-              "headWidth": 21,
-              "shoulderWidth": 25
+              "headWidth": 22,
+              "shoulderWidth": 20
             }
           },
           "retouched": [],
@@ -2122,14 +2662,14 @@
             "idle": {
               "path": "mateo/bata/idle.png",
               "width": 192,
-              "height": 288,
-              "pixelSha256": "c1b34e6b8ce93951bf91bcfb0f0cd631f323ee7dc9329a31190c76b0d0fd2aab"
+              "height": 576,
+              "pixelSha256": "42f1cc16e9ed36adce6e5528840b019e3aafbdbe96dfbc61b2753b98e2d7d4a9"
             },
             "walk": {
               "path": "mateo/bata/walk.png",
               "width": 288,
-              "height": 288,
-              "pixelSha256": "4ba5221bda000b12c7e55515d7467d3eb0eb80fbeb01990634e88e262199c0e2"
+              "height": 576,
+              "pixelSha256": "4305c43c449c71496bc1857d205f5eec1deae50fe14ad7ba1c81fe57a30be8ec"
             },
             "portrait-neutral": {
               "path": "mateo/bata/portrait-neutral.png",
@@ -2185,20 +2725,40 @@
           "headWidth": 19,
           "shoulderWidth": 25
         },
+        "down-left": {
+          "opaqueHeight": 64,
+          "headWidth": 20,
+          "shoulderWidth": 20
+        },
         "left": {
           "opaqueHeight": 64,
           "headWidth": 19,
           "torsoDepth": 15
+        },
+        "up-left": {
+          "opaqueHeight": 64,
+          "headWidth": 20,
+          "shoulderWidth": 21
+        },
+        "up": {
+          "opaqueHeight": 64,
+          "headWidth": 19,
+          "shoulderWidth": 25
+        },
+        "up-right": {
+          "opaqueHeight": 64,
+          "headWidth": 20,
+          "shoulderWidth": 21
         },
         "right": {
           "opaqueHeight": 64,
           "headWidth": 19,
           "torsoDepth": 15
         },
-        "up": {
+        "down-right": {
           "opaqueHeight": 64,
-          "headWidth": 19,
-          "shoulderWidth": 25
+          "headWidth": 20,
+          "shoulderWidth": 20
         }
       },
       "retouched": [],
@@ -2206,14 +2766,14 @@
         "idle": {
           "path": "medico-guardia/idle.png",
           "width": 192,
-          "height": 288,
-          "pixelSha256": "1dd590da51cae63361db198acd75afef64c9f4273dcfdc71257821325f0b6e31"
+          "height": 576,
+          "pixelSha256": "9875cf6f63021ff89bd8b2c49027a7fc65f830119afae7b8b9afc93421ff85d3"
         },
         "walk": {
           "path": "medico-guardia/walk.png",
           "width": 288,
-          "height": 288,
-          "pixelSha256": "8804f3b87cff50087f73d612df2f8cde32b5680156f3b9d53f787a647db99751"
+          "height": 576,
+          "pixelSha256": "251b4dcce9febd2b669017b71d07f46ce78d3ca4cd981df3f20d1f4d591e0f7b"
         },
         "portrait-neutral": {
           "path": "medico-guardia/portrait-neutral.png",
@@ -2267,20 +2827,40 @@
           "headWidth": 20,
           "shoulderWidth": 23
         },
+        "down-left": {
+          "opaqueHeight": 64,
+          "headWidth": 20,
+          "shoulderWidth": 18
+        },
         "left": {
           "opaqueHeight": 64,
           "headWidth": 19,
           "torsoDepth": 14
+        },
+        "up-left": {
+          "opaqueHeight": 64,
+          "headWidth": 20,
+          "shoulderWidth": 18
+        },
+        "up": {
+          "opaqueHeight": 64,
+          "headWidth": 19,
+          "shoulderWidth": 23
+        },
+        "up-right": {
+          "opaqueHeight": 64,
+          "headWidth": 20,
+          "shoulderWidth": 18
         },
         "right": {
           "opaqueHeight": 64,
           "headWidth": 19,
           "torsoDepth": 14
         },
-        "up": {
+        "down-right": {
           "opaqueHeight": 64,
-          "headWidth": 19,
-          "shoulderWidth": 23
+          "headWidth": 20,
+          "shoulderWidth": 18
         }
       },
       "retouched": [],
@@ -2288,14 +2868,14 @@
         "idle": {
           "path": "nina-casa/idle.png",
           "width": 192,
-          "height": 288,
-          "pixelSha256": "336fdff43a4af5050684f6f2e05076ec2035f21ce363b06c9d0bb7c2aa907a63"
+          "height": 576,
+          "pixelSha256": "95fb1382699a0ba69c2d100d7de16e4c4302a6b499abea197ca46d3a031fedec"
         },
         "walk": {
           "path": "nina-casa/walk.png",
           "width": 288,
-          "height": 288,
-          "pixelSha256": "8a5cc654e52d78636755d2aec3e4a5657a9a45f2360ddf3d436c72bcf1d94468"
+          "height": 576,
+          "pixelSha256": "5ee6aa3bc37151702e896c5bbec61b95d1b42e67fa9d7b3f476f80ff63f3c3ff"
         },
         "portrait-neutral": {
           "path": "nina-casa/portrait-neutral.png",
@@ -2349,20 +2929,40 @@
           "headWidth": 19,
           "shoulderWidth": 23
         },
+        "down-left": {
+          "opaqueHeight": 64,
+          "headWidth": 21,
+          "shoulderWidth": 18
+        },
         "left": {
           "opaqueHeight": 64,
           "headWidth": 21,
           "torsoDepth": 14
+        },
+        "up-left": {
+          "opaqueHeight": 64,
+          "headWidth": 20,
+          "shoulderWidth": 18
+        },
+        "up": {
+          "opaqueHeight": 64,
+          "headWidth": 19,
+          "shoulderWidth": 23
+        },
+        "up-right": {
+          "opaqueHeight": 64,
+          "headWidth": 20,
+          "shoulderWidth": 18
         },
         "right": {
           "opaqueHeight": 64,
           "headWidth": 21,
           "torsoDepth": 14
         },
-        "up": {
+        "down-right": {
           "opaqueHeight": 64,
-          "headWidth": 19,
-          "shoulderWidth": 23
+          "headWidth": 21,
+          "shoulderWidth": 18
         }
       },
       "retouched": [],
@@ -2370,14 +2970,14 @@
         "idle": {
           "path": "orientadora-juridica/idle.png",
           "width": 192,
-          "height": 288,
-          "pixelSha256": "804ffb366d421c70c8635ae8acc752bca3f133811a582397a32380926d28f134"
+          "height": 576,
+          "pixelSha256": "e8874857bc1ed584a5a6803e728004e4a3c107ba3d20fce46e16fa201413c820"
         },
         "walk": {
           "path": "orientadora-juridica/walk.png",
           "width": 288,
-          "height": 288,
-          "pixelSha256": "a9297c0a4f1d7f87db9ce6fe889e84e027c782e5261a2169abe6b0132dfbcf9c"
+          "height": 576,
+          "pixelSha256": "42ed9a3bca46b3c5388ee73bb4e85dfec6afc281d9d0264e3a42459e848b019d"
         },
         "portrait-neutral": {
           "path": "orientadora-juridica/portrait-neutral.png",
@@ -2431,20 +3031,40 @@
           "headWidth": 19,
           "shoulderWidth": 25
         },
+        "down-left": {
+          "opaqueHeight": 64,
+          "headWidth": 20,
+          "shoulderWidth": 20
+        },
         "left": {
           "opaqueHeight": 64,
           "headWidth": 19,
           "torsoDepth": 15
+        },
+        "up-left": {
+          "opaqueHeight": 64,
+          "headWidth": 20,
+          "shoulderWidth": 21
+        },
+        "up": {
+          "opaqueHeight": 64,
+          "headWidth": 19,
+          "shoulderWidth": 25
+        },
+        "up-right": {
+          "opaqueHeight": 64,
+          "headWidth": 20,
+          "shoulderWidth": 21
         },
         "right": {
           "opaqueHeight": 64,
           "headWidth": 19,
           "torsoDepth": 15
         },
-        "up": {
+        "down-right": {
           "opaqueHeight": 64,
-          "headWidth": 19,
-          "shoulderWidth": 25
+          "headWidth": 20,
+          "shoulderWidth": 20
         }
       },
       "retouched": [],
@@ -2452,14 +3072,14 @@
         "idle": {
           "path": "paciente-espera/idle.png",
           "width": 192,
-          "height": 288,
-          "pixelSha256": "928faa544d8fde173d77e01cccca6db85301e803761a231357663d9f4eaa6e8d"
+          "height": 576,
+          "pixelSha256": "4ae86f2caf0b87d973e614eaeff99ffe559495f2a2ee859c9a60ac44fd353be3"
         },
         "walk": {
           "path": "paciente-espera/walk.png",
           "width": 288,
-          "height": 288,
-          "pixelSha256": "955505b548d9b7911095c930c8dfb1bfa79b1211048b6b3661db7e1478646328"
+          "height": 576,
+          "pixelSha256": "35ccadcc1e027963573b2ce944f281d4480a4d20927ab0578e2a5e286285b78b"
         },
         "portrait-neutral": {
           "path": "paciente-espera/portrait-neutral.png",
@@ -2513,20 +3133,40 @@
           "headWidth": 21,
           "shoulderWidth": 23
         },
+        "down-left": {
+          "opaqueHeight": 64,
+          "headWidth": 21,
+          "shoulderWidth": 21
+        },
         "left": {
           "opaqueHeight": 64,
           "headWidth": 20,
           "torsoDepth": 18
+        },
+        "up-left": {
+          "opaqueHeight": 64,
+          "headWidth": 21,
+          "shoulderWidth": 21
+        },
+        "up": {
+          "opaqueHeight": 64,
+          "headWidth": 21,
+          "shoulderWidth": 23
+        },
+        "up-right": {
+          "opaqueHeight": 64,
+          "headWidth": 21,
+          "shoulderWidth": 21
         },
         "right": {
           "opaqueHeight": 64,
           "headWidth": 20,
           "torsoDepth": 18
         },
-        "up": {
+        "down-right": {
           "opaqueHeight": 64,
           "headWidth": 21,
-          "shoulderWidth": 23
+          "shoulderWidth": 21
         }
       },
       "retouched": [],
@@ -2534,14 +3174,14 @@
         "idle": {
           "path": "paula/idle.png",
           "width": 192,
-          "height": 288,
-          "pixelSha256": "b4f11e05c92cae43f33c2ac7ee4fd5fc36f93b26fd6d956b1f653efd10d5302a"
+          "height": 576,
+          "pixelSha256": "df284f61dc491a5305ee030274c338c84c30a2665e1cfd60d1765f2a606acc5c"
         },
         "walk": {
           "path": "paula/walk.png",
           "width": 288,
-          "height": 288,
-          "pixelSha256": "9ff7fc83463b7ece2dda5ddf2517b834c7cf7d17df2a5e93dbd140694c218b58"
+          "height": 576,
+          "pixelSha256": "6d228aaa732c4b44fd8a9380f1761451c4bc17170a8fd85e8d3c8061ee50e882"
         },
         "portrait-neutral": {
           "path": "paula/portrait-neutral.png",
@@ -2588,20 +3228,40 @@
               "headWidth": 21,
               "shoulderWidth": 23
             },
+            "down-left": {
+              "opaqueHeight": 64,
+              "headWidth": 21,
+              "shoulderWidth": 21
+            },
             "left": {
               "opaqueHeight": 64,
               "headWidth": 20,
               "torsoDepth": 18
+            },
+            "up-left": {
+              "opaqueHeight": 64,
+              "headWidth": 21,
+              "shoulderWidth": 21
+            },
+            "up": {
+              "opaqueHeight": 64,
+              "headWidth": 21,
+              "shoulderWidth": 23
+            },
+            "up-right": {
+              "opaqueHeight": 64,
+              "headWidth": 21,
+              "shoulderWidth": 21
             },
             "right": {
               "opaqueHeight": 64,
               "headWidth": 20,
               "torsoDepth": 18
             },
-            "up": {
+            "down-right": {
               "opaqueHeight": 64,
               "headWidth": 21,
-              "shoulderWidth": 23
+              "shoulderWidth": 21
             }
           },
           "retouched": [],
@@ -2609,14 +3269,14 @@
             "idle": {
               "path": "paula/bata/idle.png",
               "width": 192,
-              "height": 288,
-              "pixelSha256": "2144e399d7f7e1de06dc547b116b9fa86c24ea6f78b412a2d22a0c88a2017a97"
+              "height": 576,
+              "pixelSha256": "cc4efc020bf6f902094cf6def7bb05ea9d3a61ee602b008bc5cfab7b0a5a46a1"
             },
             "walk": {
               "path": "paula/bata/walk.png",
               "width": 288,
-              "height": 288,
-              "pixelSha256": "26674ddf6fd0b25ba9164d06f131c87dd7084fd866a92cd5a964b22441251654"
+              "height": 576,
+              "pixelSha256": "8e62ad2815d2a766ff678b1568a56cf84eef42df6b64c087d4de9a72ec3908d4"
             },
             "portrait-neutral": {
               "path": "paula/bata/portrait-neutral.png",
@@ -2672,20 +3332,40 @@
           "headWidth": 19,
           "shoulderWidth": 25
         },
+        "down-left": {
+          "opaqueHeight": 64,
+          "headWidth": 20,
+          "shoulderWidth": 20
+        },
         "left": {
           "opaqueHeight": 64,
           "headWidth": 19,
           "torsoDepth": 15
+        },
+        "up-left": {
+          "opaqueHeight": 64,
+          "headWidth": 20,
+          "shoulderWidth": 21
+        },
+        "up": {
+          "opaqueHeight": 64,
+          "headWidth": 19,
+          "shoulderWidth": 25
+        },
+        "up-right": {
+          "opaqueHeight": 64,
+          "headWidth": 20,
+          "shoulderWidth": 21
         },
         "right": {
           "opaqueHeight": 64,
           "headWidth": 19,
           "torsoDepth": 15
         },
-        "up": {
+        "down-right": {
           "opaqueHeight": 64,
-          "headWidth": 19,
-          "shoulderWidth": 25
+          "headWidth": 20,
+          "shoulderWidth": 20
         }
       },
       "retouched": [],
@@ -2693,14 +3373,14 @@
         "idle": {
           "path": "policia-infancia/idle.png",
           "width": 192,
-          "height": 288,
-          "pixelSha256": "dc5c0e77032cc7ad880446ae18d4b240cbcf356902f4a69f6db5fbaf2cd69f88"
+          "height": 576,
+          "pixelSha256": "2ada540b1da224411c3feb7c02fd68b2487adfe568945302993eae072c9d88cb"
         },
         "walk": {
           "path": "policia-infancia/walk.png",
           "width": 288,
-          "height": 288,
-          "pixelSha256": "0c37e8403929dd2118c31029f4ffbdd1818c7615c6adb0af10ee7f23ebc01905"
+          "height": 576,
+          "pixelSha256": "083f10b733476c97691ea65cb7119be4b15d4d720c89e49589de250e11d8b1a8"
         },
         "portrait-neutral": {
           "path": "policia-infancia/portrait-neutral.png",
@@ -2754,20 +3434,40 @@
           "headWidth": 21,
           "shoulderWidth": 23
         },
+        "down-left": {
+          "opaqueHeight": 64,
+          "headWidth": 21,
+          "shoulderWidth": 18
+        },
         "left": {
           "opaqueHeight": 64,
           "headWidth": 20,
           "torsoDepth": 14
+        },
+        "up-left": {
+          "opaqueHeight": 64,
+          "headWidth": 21,
+          "shoulderWidth": 18
+        },
+        "up": {
+          "opaqueHeight": 64,
+          "headWidth": 21,
+          "shoulderWidth": 23
+        },
+        "up-right": {
+          "opaqueHeight": 64,
+          "headWidth": 21,
+          "shoulderWidth": 18
         },
         "right": {
           "opaqueHeight": 64,
           "headWidth": 19,
           "torsoDepth": 14
         },
-        "up": {
+        "down-right": {
           "opaqueHeight": 64,
           "headWidth": 21,
-          "shoulderWidth": 23
+          "shoulderWidth": 18
         }
       },
       "retouched": [],
@@ -2775,14 +3475,14 @@
         "idle": {
           "path": "profesional-psicosocial/idle.png",
           "width": 192,
-          "height": 288,
-          "pixelSha256": "d05598039d382e8ca6d43515d6fdf5ac8ef966b5903a43e2a4298e4779f40bc5"
+          "height": 576,
+          "pixelSha256": "c08f935034b5cf019fd56f1b9fa6e338fb077acbaa833d40e6e8e6b5a6580f59"
         },
         "walk": {
           "path": "profesional-psicosocial/walk.png",
           "width": 288,
-          "height": 288,
-          "pixelSha256": "8ed40e931445de800e58143fdc96a440e6416b5b3d0bade4fd345a8ee5dbfe21"
+          "height": 576,
+          "pixelSha256": "6852fd8ae6d8462ce6ab79525df93ea8e655b3d0b7d7d7fc660a93241f9a7d54"
         },
         "portrait-neutral": {
           "path": "profesional-psicosocial/portrait-neutral.png",
@@ -2836,20 +3536,40 @@
           "headWidth": 19,
           "shoulderWidth": 23
         },
+        "down-left": {
+          "opaqueHeight": 64,
+          "headWidth": 21,
+          "shoulderWidth": 18
+        },
         "left": {
           "opaqueHeight": 64,
           "headWidth": 21,
           "torsoDepth": 14
+        },
+        "up-left": {
+          "opaqueHeight": 64,
+          "headWidth": 20,
+          "shoulderWidth": 18
+        },
+        "up": {
+          "opaqueHeight": 64,
+          "headWidth": 19,
+          "shoulderWidth": 23
+        },
+        "up-right": {
+          "opaqueHeight": 64,
+          "headWidth": 20,
+          "shoulderWidth": 18
         },
         "right": {
           "opaqueHeight": 64,
           "headWidth": 21,
           "torsoDepth": 14
         },
-        "up": {
+        "down-right": {
           "opaqueHeight": 64,
-          "headWidth": 19,
-          "shoulderWidth": 23
+          "headWidth": 21,
+          "shoulderWidth": 18
         }
       },
       "retouched": [],
@@ -2857,14 +3577,14 @@
         "idle": {
           "path": "psicologa-hospitalaria/idle.png",
           "width": 192,
-          "height": 288,
-          "pixelSha256": "5914ef1bf3626284537e7abd13e2b7793d8ce8a38246989151403f8d86b13b1f"
+          "height": 576,
+          "pixelSha256": "0abdf80361932c6e1d7e30b488ba5e880d2c87078b2acfa075fc4e079cebbe51"
         },
         "walk": {
           "path": "psicologa-hospitalaria/walk.png",
           "width": 288,
-          "height": 288,
-          "pixelSha256": "bece25eb5a7f0ffdd2b83ddb80787184f2c6ccbf2ee514044cab4c3bd1de5878"
+          "height": 576,
+          "pixelSha256": "152566920c231241be8315471ad5907f1dd1d125f873067f9389af032b814dc8"
         },
         "portrait-neutral": {
           "path": "psicologa-hospitalaria/portrait-neutral.png",
@@ -2918,20 +3638,40 @@
           "headWidth": 19,
           "shoulderWidth": 25
         },
+        "down-left": {
+          "opaqueHeight": 64,
+          "headWidth": 20,
+          "shoulderWidth": 20
+        },
         "left": {
           "opaqueHeight": 64,
           "headWidth": 18,
           "torsoDepth": 15
+        },
+        "up-left": {
+          "opaqueHeight": 64,
+          "headWidth": 20,
+          "shoulderWidth": 21
+        },
+        "up": {
+          "opaqueHeight": 64,
+          "headWidth": 19,
+          "shoulderWidth": 25
+        },
+        "up-right": {
+          "opaqueHeight": 64,
+          "headWidth": 20,
+          "shoulderWidth": 21
         },
         "right": {
           "opaqueHeight": 64,
           "headWidth": 18,
           "torsoDepth": 15
         },
-        "up": {
+        "down-right": {
           "opaqueHeight": 64,
-          "headWidth": 19,
-          "shoulderWidth": 25
+          "headWidth": 20,
+          "shoulderWidth": 20
         }
       },
       "retouched": [],
@@ -2939,14 +3679,14 @@
         "idle": {
           "path": "samuel/idle.png",
           "width": 192,
-          "height": 288,
-          "pixelSha256": "4240dbbf8443d02dab74f3b330a16c806a8029c8cfc5a62e218acbb3d25da795"
+          "height": 576,
+          "pixelSha256": "10a155369feb1a868fcbc7b1efc62472f81c50f7ff174b7bc53d02f2a6c784e4"
         },
         "walk": {
           "path": "samuel/walk.png",
           "width": 288,
-          "height": 288,
-          "pixelSha256": "54b83c6b1bf532a7e59e8df1d5a6c0c8eb5f265db300ee71d886cf4432101f24"
+          "height": 576,
+          "pixelSha256": "329e13ef758119ff8d987b6fe760eb6a23a13fba4e46720554a24237bf04f222"
         },
         "portrait-neutral": {
           "path": "samuel/portrait-neutral.png",
@@ -2993,20 +3733,40 @@
               "headWidth": 19,
               "shoulderWidth": 25
             },
+            "down-left": {
+              "opaqueHeight": 64,
+              "headWidth": 20,
+              "shoulderWidth": 20
+            },
             "left": {
               "opaqueHeight": 64,
               "headWidth": 18,
               "torsoDepth": 15
+            },
+            "up-left": {
+              "opaqueHeight": 64,
+              "headWidth": 20,
+              "shoulderWidth": 21
+            },
+            "up": {
+              "opaqueHeight": 64,
+              "headWidth": 19,
+              "shoulderWidth": 25
+            },
+            "up-right": {
+              "opaqueHeight": 64,
+              "headWidth": 20,
+              "shoulderWidth": 21
             },
             "right": {
               "opaqueHeight": 64,
               "headWidth": 18,
               "torsoDepth": 15
             },
-            "up": {
+            "down-right": {
               "opaqueHeight": 64,
-              "headWidth": 19,
-              "shoulderWidth": 25
+              "headWidth": 20,
+              "shoulderWidth": 20
             }
           },
           "retouched": [],
@@ -3014,14 +3774,14 @@
             "idle": {
               "path": "samuel/bata/idle.png",
               "width": 192,
-              "height": 288,
-              "pixelSha256": "5661e4f5441cee2f741f7230919cd6c352d14238760f7812b83697384891bbdd"
+              "height": 576,
+              "pixelSha256": "31a94201e9b6dea2fc746d777ff5342314652385aa4b4dfa55ac71d3d660f795"
             },
             "walk": {
               "path": "samuel/bata/walk.png",
               "width": 288,
-              "height": 288,
-              "pixelSha256": "36d40abb9a079337eecd2c35eb6a0bc1c4bff4060816beaf174fa0cee12982cc"
+              "height": 576,
+              "pixelSha256": "d5cf9cff5fb1c9ebb05371561a98b0aef0d9c8a2425d96c8e3fac57a23c0d773"
             },
             "portrait-neutral": {
               "path": "samuel/bata/portrait-neutral.png",
@@ -3077,20 +3837,40 @@
           "headWidth": 19,
           "shoulderWidth": 25
         },
+        "down-left": {
+          "opaqueHeight": 64,
+          "headWidth": 20,
+          "shoulderWidth": 20
+        },
         "left": {
           "opaqueHeight": 64,
           "headWidth": 18,
           "torsoDepth": 15
+        },
+        "up-left": {
+          "opaqueHeight": 64,
+          "headWidth": 20,
+          "shoulderWidth": 21
+        },
+        "up": {
+          "opaqueHeight": 64,
+          "headWidth": 19,
+          "shoulderWidth": 25
+        },
+        "up-right": {
+          "opaqueHeight": 64,
+          "headWidth": 20,
+          "shoulderWidth": 21
         },
         "right": {
           "opaqueHeight": 64,
           "headWidth": 18,
           "torsoDepth": 15
         },
-        "up": {
+        "down-right": {
           "opaqueHeight": 64,
-          "headWidth": 19,
-          "shoulderWidth": 25
+          "headWidth": 20,
+          "shoulderWidth": 20
         }
       },
       "retouched": [],
@@ -3098,14 +3878,14 @@
         "idle": {
           "path": "seguridad/idle.png",
           "width": 192,
-          "height": 288,
-          "pixelSha256": "deeb1f646b13a8fe08ea0c000847e8e7172fc710a7bf92fae09b444298915462"
+          "height": 576,
+          "pixelSha256": "93cc274ee97fe0189dfd53b70a3e488720895fb8f6af381eb8a1035cb08e57b6"
         },
         "walk": {
           "path": "seguridad/walk.png",
           "width": 288,
-          "height": 288,
-          "pixelSha256": "7600130ccd27385269894823c3114ca6eddfe0a9bf5e3e75beceb3d914a62193"
+          "height": 576,
+          "pixelSha256": "5099537b253d1228857b5625665f89001273566eeb8012f058b4e1951b094628"
         },
         "portrait-neutral": {
           "path": "seguridad/portrait-neutral.png",
@@ -3159,20 +3939,40 @@
           "headWidth": 21,
           "shoulderWidth": 23
         },
+        "down-left": {
+          "opaqueHeight": 64,
+          "headWidth": 21,
+          "shoulderWidth": 21
+        },
         "left": {
           "opaqueHeight": 64,
           "headWidth": 20,
           "torsoDepth": 18
+        },
+        "up-left": {
+          "opaqueHeight": 64,
+          "headWidth": 21,
+          "shoulderWidth": 21
+        },
+        "up": {
+          "opaqueHeight": 64,
+          "headWidth": 21,
+          "shoulderWidth": 23
+        },
+        "up-right": {
+          "opaqueHeight": 64,
+          "headWidth": 21,
+          "shoulderWidth": 21
         },
         "right": {
           "opaqueHeight": 64,
           "headWidth": 20,
           "torsoDepth": 18
         },
-        "up": {
+        "down-right": {
           "opaqueHeight": 64,
           "headWidth": 21,
-          "shoulderWidth": 23
+          "shoulderWidth": 21
         }
       },
       "retouched": [],
@@ -3180,14 +3980,14 @@
         "idle": {
           "path": "sobreviviente/idle.png",
           "width": 192,
-          "height": 288,
-          "pixelSha256": "1e55097a5869b62ad9987f71ff0e927638d11f3e035e4876c4c4c86506b0a2ea"
+          "height": 576,
+          "pixelSha256": "f921ad58b8c3fff83ce194ee15cdc154974a7c0b9dd5f7b67fab41a1af2c30a8"
         },
         "walk": {
           "path": "sobreviviente/walk.png",
           "width": 288,
-          "height": 288,
-          "pixelSha256": "2688b82e3eb1ecbcee6e4607c1d2d3a7ddd723a3d958694eba06ef6149cc3989"
+          "height": 576,
+          "pixelSha256": "889ad2f3c9ac9cc17231768275a44b27ec354a13de81f18a18130be86640a558"
         },
         "portrait-neutral": {
           "path": "sobreviviente/portrait-neutral.png",
@@ -3241,20 +4041,40 @@
           "headWidth": 19,
           "shoulderWidth": 25
         },
+        "down-left": {
+          "opaqueHeight": 64,
+          "headWidth": 20,
+          "shoulderWidth": 20
+        },
         "left": {
           "opaqueHeight": 64,
           "headWidth": 19,
           "torsoDepth": 15
+        },
+        "up-left": {
+          "opaqueHeight": 64,
+          "headWidth": 20,
+          "shoulderWidth": 21
+        },
+        "up": {
+          "opaqueHeight": 64,
+          "headWidth": 19,
+          "shoulderWidth": 25
+        },
+        "up-right": {
+          "opaqueHeight": 64,
+          "headWidth": 20,
+          "shoulderWidth": 21
         },
         "right": {
           "opaqueHeight": 64,
           "headWidth": 19,
           "torsoDepth": 15
         },
-        "up": {
+        "down-right": {
           "opaqueHeight": 64,
-          "headWidth": 19,
-          "shoulderWidth": 25
+          "headWidth": 20,
+          "shoulderWidth": 20
         }
       },
       "retouched": [],
@@ -3262,14 +4082,14 @@
         "idle": {
           "path": "supervisor-clinico/idle.png",
           "width": 192,
-          "height": 288,
-          "pixelSha256": "02dff3f7c74196490b46cc7d2ed21b95fe41a7b3e7754d1ddcf4c66f2aa26c0c"
+          "height": 576,
+          "pixelSha256": "db1efb7269a89061a2a032bd1bba0a19e46965c6c611a126e9c209ee7120cd52"
         },
         "walk": {
           "path": "supervisor-clinico/walk.png",
           "width": 288,
-          "height": 288,
-          "pixelSha256": "76ece9a099c6b4c355a60bac04c78c543e56754bbbb1c012c0ec53daa9b98d9a"
+          "height": 576,
+          "pixelSha256": "ea51ce3b990bea879753e11c9da02ff4aa116232e6645fa0660e82a4b3eb92bb"
         },
         "portrait-neutral": {
           "path": "supervisor-clinico/portrait-neutral.png",
@@ -3323,20 +4143,40 @@
           "headWidth": 21,
           "shoulderWidth": 21
         },
+        "down-left": {
+          "opaqueHeight": 65,
+          "headWidth": 22,
+          "shoulderWidth": 18
+        },
         "left": {
           "opaqueHeight": 65,
           "headWidth": 20,
           "torsoDepth": 14
+        },
+        "up-left": {
+          "opaqueHeight": 65,
+          "headWidth": 22,
+          "shoulderWidth": 18
+        },
+        "up": {
+          "opaqueHeight": 65,
+          "headWidth": 21,
+          "shoulderWidth": 21
+        },
+        "up-right": {
+          "opaqueHeight": 65,
+          "headWidth": 22,
+          "shoulderWidth": 18
         },
         "right": {
           "opaqueHeight": 65,
           "headWidth": 20,
           "torsoDepth": 14
         },
-        "up": {
+        "down-right": {
           "opaqueHeight": 65,
-          "headWidth": 21,
-          "shoulderWidth": 21
+          "headWidth": 22,
+          "shoulderWidth": 18
         }
       },
       "retouched": [],
@@ -3344,14 +4184,14 @@
         "idle": {
           "path": "trabajadora-social/idle.png",
           "width": 192,
-          "height": 288,
-          "pixelSha256": "546a2c15c284c95232712073fece63f2480ec129491b716b453e051b237051ce"
+          "height": 576,
+          "pixelSha256": "c77e2236c891253ff9dcb163566d343ec87e91db8daf6748b61d57233459330e"
         },
         "walk": {
           "path": "trabajadora-social/walk.png",
           "width": 288,
-          "height": 288,
-          "pixelSha256": "1d9e8317102d45a72dac96ea9ae5ef815da2cb232b852681a25d3c05585e464d"
+          "height": 576,
+          "pixelSha256": "b1efdc1c69bccf5fa38dff9286725bdf5b3a2abec02cfc709bc892e266080912"
         },
         "portrait-neutral": {
           "path": "trabajadora-social/portrait-neutral.png",
@@ -3405,20 +4245,40 @@
           "headWidth": 21,
           "shoulderWidth": 23
         },
+        "down-left": {
+          "opaqueHeight": 64,
+          "headWidth": 21,
+          "shoulderWidth": 18
+        },
         "left": {
           "opaqueHeight": 64,
           "headWidth": 20,
           "torsoDepth": 14
+        },
+        "up-left": {
+          "opaqueHeight": 64,
+          "headWidth": 21,
+          "shoulderWidth": 18
+        },
+        "up": {
+          "opaqueHeight": 64,
+          "headWidth": 21,
+          "shoulderWidth": 23
+        },
+        "up-right": {
+          "opaqueHeight": 64,
+          "headWidth": 21,
+          "shoulderWidth": 18
         },
         "right": {
           "opaqueHeight": 64,
           "headWidth": 19,
           "torsoDepth": 14
         },
-        "up": {
+        "down-right": {
           "opaqueHeight": 64,
           "headWidth": 21,
-          "shoulderWidth": 23
+          "shoulderWidth": 18
         }
       },
       "retouched": [],
@@ -3426,14 +4286,14 @@
         "idle": {
           "path": "valentina/idle.png",
           "width": 192,
-          "height": 288,
-          "pixelSha256": "9c2cbd12d3ac9b61b11b67a35b9d21cff63c5c9b176ff0e263011083ad52f05b"
+          "height": 576,
+          "pixelSha256": "072162a875c896eb66cff130e010e15427d27d4ebf65cb58db1f3c55bb22419f"
         },
         "walk": {
           "path": "valentina/walk.png",
           "width": 288,
-          "height": 288,
-          "pixelSha256": "2da0b49a052cfed4021a6a06e6546d65368ae64ef1b140ea82ee168f54f96a61"
+          "height": 576,
+          "pixelSha256": "06be0f35900ef03209dc5e59c656d824f858ca0ed7aea7b3aed8dc8e218d9f5a"
         },
         "portrait-neutral": {
           "path": "valentina/portrait-neutral.png",
@@ -3480,20 +4340,40 @@
               "headWidth": 21,
               "shoulderWidth": 23
             },
+            "down-left": {
+              "opaqueHeight": 64,
+              "headWidth": 21,
+              "shoulderWidth": 18
+            },
             "left": {
               "opaqueHeight": 64,
               "headWidth": 20,
               "torsoDepth": 14
+            },
+            "up-left": {
+              "opaqueHeight": 64,
+              "headWidth": 21,
+              "shoulderWidth": 18
+            },
+            "up": {
+              "opaqueHeight": 64,
+              "headWidth": 21,
+              "shoulderWidth": 23
+            },
+            "up-right": {
+              "opaqueHeight": 64,
+              "headWidth": 21,
+              "shoulderWidth": 18
             },
             "right": {
               "opaqueHeight": 64,
               "headWidth": 19,
               "torsoDepth": 14
             },
-            "up": {
+            "down-right": {
               "opaqueHeight": 64,
               "headWidth": 21,
-              "shoulderWidth": 23
+              "shoulderWidth": 18
             }
           },
           "retouched": [],
@@ -3501,14 +4381,14 @@
             "idle": {
               "path": "valentina/bata/idle.png",
               "width": 192,
-              "height": 288,
-              "pixelSha256": "3ffd3a3c6eaa1e907a6c4effa72adc2f72900fdf10723136821724f8c950de58"
+              "height": 576,
+              "pixelSha256": "0637710c0daa14717b1e0aa27915187df2d45dd77d7e4ea43bcc05f1b3a57d42"
             },
             "walk": {
               "path": "valentina/bata/walk.png",
               "width": 288,
-              "height": 288,
-              "pixelSha256": "bd3ffb158b3150445cfd83db1910a7ff80659e654457e9127bbb22c49e0778f4"
+              "height": 576,
+              "pixelSha256": "8b89f444d3cf672335b1f6743ee2d9a139d01989999ba3246d28b56403081f92"
             },
             "portrait-neutral": {
               "path": "valentina/bata/portrait-neutral.png",
@@ -3564,20 +4444,40 @@
           "headWidth": 21,
           "shoulderWidth": 25
         },
+        "down-left": {
+          "opaqueHeight": 65,
+          "headWidth": 22,
+          "shoulderWidth": 20
+        },
         "left": {
           "opaqueHeight": 65,
           "headWidth": 20,
           "torsoDepth": 15
+        },
+        "up-left": {
+          "opaqueHeight": 65,
+          "headWidth": 22,
+          "shoulderWidth": 21
+        },
+        "up": {
+          "opaqueHeight": 65,
+          "headWidth": 21,
+          "shoulderWidth": 25
+        },
+        "up-right": {
+          "opaqueHeight": 65,
+          "headWidth": 22,
+          "shoulderWidth": 21
         },
         "right": {
           "opaqueHeight": 65,
           "headWidth": 20,
           "torsoDepth": 15
         },
-        "up": {
+        "down-right": {
           "opaqueHeight": 65,
-          "headWidth": 21,
-          "shoulderWidth": 25
+          "headWidth": 22,
+          "shoulderWidth": 20
         }
       },
       "retouched": [],
@@ -3585,14 +4485,14 @@
         "idle": {
           "path": "vecina/idle.png",
           "width": 192,
-          "height": 288,
-          "pixelSha256": "9b16e9e2ad2816ec7165a08120f4be114b28c01895f80950834033220e623e31"
+          "height": 576,
+          "pixelSha256": "42176020636200774c61e44594f3df061d009f8c72f3cc4923ab9295e9243c16"
         },
         "walk": {
           "path": "vecina/walk.png",
           "width": 288,
-          "height": 288,
-          "pixelSha256": "2edd86be20fb7ab841a738df2af5e146d41bc75d4bfab4f1a1db269f4dda0268"
+          "height": 576,
+          "pixelSha256": "d740172c2a35d5762e3f973be2dd449cbaee266db8dff70cf77250fbcd07530a"
         },
         "portrait-neutral": {
           "path": "vecina/portrait-neutral.png",
