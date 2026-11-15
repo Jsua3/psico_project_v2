@@ -256,6 +256,17 @@ def mapa_de_brillo(cuadro, colores):
     return Image.fromarray(arr, 'RGBA'), Image.fromarray(mapa, 'RGBA')
 
 
+def mapa_emisivo(cuadro, colores):
+    """Máscara de lo que emite luz propia: los píxeles de esos colores, con su color. El juego los pinta encima de
+    la luz, sin multiplicar por el ambiente, para que una pantalla o un foco no se apaguen con la sala."""
+    arr = np.array(cuadro.convert('RGBA'))
+    sale = np.zeros_like(arr)
+    for rgb in colores:
+        donde = (arr[:, :, :3] == np.array(rgb, dtype=np.uint8)).all(-1) & (arr[:, :, 3] == 255)
+        sale[donde] = arr[donde]
+    return Image.fromarray(sale, 'RGBA')
+
+
 def recortar_con(cuadros, apoyo, mapas):
     """Como recortar_juntos, pero recorta igual los mapas que acompañan a cada cuadro."""
     cajas = [c.getbbox() for c in cuadros if c.getbbox()]

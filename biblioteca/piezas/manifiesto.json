@@ -318,6 +318,7 @@
       "ancho": 108,
       "brillo": "piezas/muebles/hospital/cama-recuperacion-brillo.png",
       "cuadros": 1,
+      "emisivo": "piezas/muebles/hospital/cama-recuperacion-emisivo.png",
       "huella": {
         "alto": 49,
         "ancho": 104,
@@ -433,6 +434,7 @@
       "alto": 80,
       "ancho": 44,
       "cuadros": 4,
+      "emisivo": "piezas/muebles/hospital/maquina-cafe-emisivo.png",
       "fps": 3,
       "huella": {
         "alto": 76,
@@ -459,6 +461,7 @@
       "ancho": 32,
       "brillo": "piezas/muebles/hospital/monitor-brillo.png",
       "cuadros": 4,
+      "emisivo": "piezas/muebles/hospital/monitor-emisivo.png",
       "fps": 4,
       "huella": {
         "alto": 61,
@@ -498,6 +501,7 @@
       "ancho": 26,
       "brillo": "piezas/muebles/hospital/portasuero-brillo.png",
       "cuadros": 1,
+      "emisivo": "piezas/muebles/hospital/portasuero-emisivo.png",
       "huella": {
         "alto": 65,
         "ancho": 22,
@@ -4422,6 +4426,7 @@
             18,
             147
           ],
+          "emisivo": "piezas/lamparas/colgante-frente-emisivo.png",
           "ruta": "piezas/lamparas/colgante-frente.png"
         },
         "lado": {
@@ -4432,6 +4437,7 @@
               6,
               165
             ],
+            "emisivo": "piezas/lamparas/colgante-lado-1200-emisivo.png",
             "ruta": "piezas/lamparas/colgante-lado-1200.png"
           },
           "1440": {
@@ -4441,6 +4447,7 @@
               8,
               165
             ],
+            "emisivo": "piezas/lamparas/colgante-lado-1440-emisivo.png",
             "ruta": "piezas/lamparas/colgante-lado-1440.png"
           },
           "1680": {
@@ -4450,6 +4457,7 @@
               9,
               165
             ],
+            "emisivo": "piezas/lamparas/colgante-lado-1680-emisivo.png",
             "ruta": "piezas/lamparas/colgante-lado-1680.png"
           },
           "1920": {
@@ -4459,6 +4467,7 @@
               10,
               165
             ],
+            "emisivo": "piezas/lamparas/colgante-lado-1920-emisivo.png",
             "ruta": "piezas/lamparas/colgante-lado-1920.png"
           },
           "960": {
@@ -4468,6 +4477,7 @@
               5,
               165
             ],
+            "emisivo": "piezas/lamparas/colgante-lado-960-emisivo.png",
             "ruta": "piezas/lamparas/colgante-lado-960.png"
           }
         }
@@ -4506,6 +4516,7 @@
             9,
             24
           ],
+          "emisivo": "piezas/lamparas/mesa-emisivo.png",
           "ruta": "piezas/lamparas/mesa.png"
         }
       }
@@ -4543,6 +4554,7 @@
             10,
             60
           ],
+          "emisivo": "piezas/lamparas/pie-emisivo.png",
           "ruta": "piezas/lamparas/pie.png"
         }
       }
@@ -4582,6 +4594,7 @@
             147
           ],
           "brillo": "piezas/lamparas/tubo-frente-brillo.png",
+          "emisivo": "piezas/lamparas/tubo-frente-emisivo.png",
           "ruta": "piezas/lamparas/tubo-frente.png"
         },
         "lado": {
@@ -4593,6 +4606,7 @@
               194
             ],
             "brillo": "piezas/lamparas/tubo-lado-1200-brillo.png",
+            "emisivo": "piezas/lamparas/tubo-lado-1200-emisivo.png",
             "ruta": "piezas/lamparas/tubo-lado-1200.png"
           },
           "1440": {
@@ -4603,6 +4617,7 @@
               194
             ],
             "brillo": "piezas/lamparas/tubo-lado-1440-brillo.png",
+            "emisivo": "piezas/lamparas/tubo-lado-1440-emisivo.png",
             "ruta": "piezas/lamparas/tubo-lado-1440.png"
           },
           "1680": {
@@ -4613,6 +4628,7 @@
               194
             ],
             "brillo": "piezas/lamparas/tubo-lado-1680-brillo.png",
+            "emisivo": "piezas/lamparas/tubo-lado-1680-emisivo.png",
             "ruta": "piezas/lamparas/tubo-lado-1680.png"
           },
           "1920": {
@@ -4623,6 +4639,7 @@
               194
             ],
             "brillo": "piezas/lamparas/tubo-lado-1920-brillo.png",
+            "emisivo": "piezas/lamparas/tubo-lado-1920-emisivo.png",
             "ruta": "piezas/lamparas/tubo-lado-1920.png"
           },
           "960": {
@@ -4633,6 +4650,7 @@
               194
             ],
             "brillo": "piezas/lamparas/tubo-lado-960-brillo.png",
+            "emisivo": "piezas/lamparas/tubo-lado-960-emisivo.png",
             "ruta": "piezas/lamparas/tubo-lado-960.png"
           }
         }
@@ -4674,6 +4692,7 @@
             109
           ],
           "brillo": "piezas/puertas/corrediza-frente-brillo.png",
+          "emisivo": "piezas/puertas/corrediza-frente-emisivo.png",
           "ruta": "piezas/puertas/corrediza-frente.png"
         },
         "lado": {
@@ -4685,6 +4704,7 @@
               183
             ],
             "brillo": "piezas/puertas/corrediza-lado-1200-brillo.png",
+            "emisivo": "piezas/puertas/corrediza-lado-1200-emisivo.png",
             "ruta": "piezas/puertas/corrediza-lado-1200.png"
           },
           "1440": {
@@ -4695,6 +4715,7 @@
               183
             ],
             "brillo": "piezas/puertas/corrediza-lado-1440-brillo.png",
+            "emisivo": "piezas/puertas/corrediza-lado-1440-emisivo.png",
             "ruta": "piezas/puertas/corrediza-lado-1440.png"
           },
           "1680": {
@@ -4705,6 +4726,7 @@
               183
             ],
             "brillo": "piezas/puertas/corrediza-lado-1680-brillo.png",
+            "emisivo": "piezas/puertas/corrediza-lado-1680-emisivo.png",
             "ruta": "piezas/puertas/corrediza-lado-1680.png"
           },
           "1920": {
@@ -4715,6 +4737,7 @@
               183
             ],
             "brillo": "piezas/puertas/corrediza-lado-1920-brillo.png",
+            "emisivo": "piezas/puertas/corrediza-lado-1920-emisivo.png",
             "ruta": "piezas/puertas/corrediza-lado-1920.png"
           },
           "960": {
@@ -4725,6 +4748,7 @@
               183
             ],
             "brillo": "piezas/puertas/corrediza-lado-960-brillo.png",
+            "emisivo": "piezas/puertas/corrediza-lado-960-emisivo.png",
             "ruta": "piezas/puertas/corrediza-lado-960.png"
           }
         }
@@ -5618,6 +5642,7 @@
             136
           ],
           "brillo": "piezas/ventanas/alta-frente-brillo.png",
+          "emisivo": "piezas/ventanas/alta-frente-emisivo.png",
           "ruta": "piezas/ventanas/alta-frente.png"
         },
         "lado": {
@@ -5629,6 +5654,7 @@
               206
             ],
             "brillo": "piezas/ventanas/alta-lado-1200-brillo.png",
+            "emisivo": "piezas/ventanas/alta-lado-1200-emisivo.png",
             "ruta": "piezas/ventanas/alta-lado-1200.png"
           },
           "1440": {
@@ -5639,6 +5665,7 @@
               206
             ],
             "brillo": "piezas/ventanas/alta-lado-1440-brillo.png",
+            "emisivo": "piezas/ventanas/alta-lado-1440-emisivo.png",
             "ruta": "piezas/ventanas/alta-lado-1440.png"
           },
           "1680": {
@@ -5649,6 +5676,7 @@
               206
             ],
             "brillo": "piezas/ventanas/alta-lado-1680-brillo.png",
+            "emisivo": "piezas/ventanas/alta-lado-1680-emisivo.png",
             "ruta": "piezas/ventanas/alta-lado-1680.png"
           },
           "1920": {
@@ -5659,6 +5687,7 @@
               206
             ],
             "brillo": "piezas/ventanas/alta-lado-1920-brillo.png",
+            "emisivo": "piezas/ventanas/alta-lado-1920-emisivo.png",
             "ruta": "piezas/ventanas/alta-lado-1920.png"
           },
           "960": {
@@ -5669,6 +5698,7 @@
               206
             ],
             "brillo": "piezas/ventanas/alta-lado-960-brillo.png",
+            "emisivo": "piezas/ventanas/alta-lado-960-emisivo.png",
             "ruta": "piezas/ventanas/alta-lado-960.png"
           }
         }
@@ -5716,6 +5746,7 @@
             139
           ],
           "brillo": "piezas/ventanas/corrediza-frente-brillo.png",
+          "emisivo": "piezas/ventanas/corrediza-frente-emisivo.png",
           "ruta": "piezas/ventanas/corrediza-frente.png"
         },
         "lado": {
@@ -5727,6 +5758,7 @@
               209
             ],
             "brillo": "piezas/ventanas/corrediza-lado-1200-brillo.png",
+            "emisivo": "piezas/ventanas/corrediza-lado-1200-emisivo.png",
             "ruta": "piezas/ventanas/corrediza-lado-1200.png"
           },
           "1440": {
@@ -5737,6 +5769,7 @@
               209
             ],
             "brillo": "piezas/ventanas/corrediza-lado-1440-brillo.png",
+            "emisivo": "piezas/ventanas/corrediza-lado-1440-emisivo.png",
             "ruta": "piezas/ventanas/corrediza-lado-1440.png"
           },
           "1680": {
@@ -5747,6 +5780,7 @@
               209
             ],
             "brillo": "piezas/ventanas/corrediza-lado-1680-brillo.png",
+            "emisivo": "piezas/ventanas/corrediza-lado-1680-emisivo.png",
             "ruta": "piezas/ventanas/corrediza-lado-1680.png"
           },
           "1920": {
@@ -5757,6 +5791,7 @@
               209
             ],
             "brillo": "piezas/ventanas/corrediza-lado-1920-brillo.png",
+            "emisivo": "piezas/ventanas/corrediza-lado-1920-emisivo.png",
             "ruta": "piezas/ventanas/corrediza-lado-1920.png"
           },
           "960": {
@@ -5767,6 +5802,7 @@
               209
             ],
             "brillo": "piezas/ventanas/corrediza-lado-960-brillo.png",
+            "emisivo": "piezas/ventanas/corrediza-lado-960-emisivo.png",
             "ruta": "piezas/ventanas/corrediza-lado-960.png"
           }
         }
@@ -5816,6 +5852,7 @@
             53,
             135
           ],
+          "emisivo": "piezas/ventanas/persiana-frente-emisivo.png",
           "ruta": "piezas/ventanas/persiana-frente.png"
         },
         "lado": {
@@ -5826,6 +5863,7 @@
               17,
               192
             ],
+            "emisivo": "piezas/ventanas/persiana-lado-1200-emisivo.png",
             "ruta": "piezas/ventanas/persiana-lado-1200.png"
           },
           "1440": {
@@ -5835,6 +5873,7 @@
               20,
               192
             ],
+            "emisivo": "piezas/ventanas/persiana-lado-1440-emisivo.png",
             "ruta": "piezas/ventanas/persiana-lado-1440.png"
           },
           "1680": {
@@ -5844,6 +5883,7 @@
               24,
               192
             ],
+            "emisivo": "piezas/ventanas/persiana-lado-1680-emisivo.png",
             "ruta": "piezas/ventanas/persiana-lado-1680.png"
           },
           "1920": {
@@ -5853,6 +5893,7 @@
               27,
               192
             ],
+            "emisivo": "piezas/ventanas/persiana-lado-1920-emisivo.png",
             "ruta": "piezas/ventanas/persiana-lado-1920.png"
           },
           "960": {
@@ -5862,6 +5903,7 @@
               13,
               192
             ],
+            "emisivo": "piezas/ventanas/persiana-lado-960-emisivo.png",
             "ruta": "piezas/ventanas/persiana-lado-960.png"
           }
         }
@@ -5910,6 +5952,7 @@
             92,
             135
           ],
+          "emisivo": "piezas/ventanas/ventanal-frente-emisivo.png",
           "ruta": "piezas/ventanas/ventanal-frente.png"
         },
         "lado": {
@@ -5920,6 +5963,7 @@
               28,
               228
             ],
+            "emisivo": "piezas/ventanas/ventanal-lado-1200-emisivo.png",
             "ruta": "piezas/ventanas/ventanal-lado-1200.png"
           },
           "1440": {
@@ -5929,6 +5973,7 @@
               35,
               228
             ],
+            "emisivo": "piezas/ventanas/ventanal-lado-1440-emisivo.png",
             "ruta": "piezas/ventanas/ventanal-lado-1440.png"
           },
           "1680": {
@@ -5938,6 +5983,7 @@
               41,
               228
             ],
+            "emisivo": "piezas/ventanas/ventanal-lado-1680-emisivo.png",
             "ruta": "piezas/ventanas/ventanal-lado-1680.png"
           },
           "1920": {
@@ -5947,6 +5993,7 @@
               46,
               228
             ],
+            "emisivo": "piezas/ventanas/ventanal-lado-1920-emisivo.png",
             "ruta": "piezas/ventanas/ventanal-lado-1920.png"
           },
           "960": {
@@ -5956,6 +6003,7 @@
               23,
               228
             ],
+            "emisivo": "piezas/ventanas/ventanal-lado-960-emisivo.png",
             "ruta": "piezas/ventanas/ventanal-lado-960.png"
           }
         }

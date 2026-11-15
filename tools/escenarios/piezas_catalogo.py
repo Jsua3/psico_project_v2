@@ -29,6 +29,9 @@ otro esquema (`frontend/scripts/world-art/build.mjs`). Este vive aparte hasta qu
   con eso se dibuja su sombra de contacto y se proyecta la que arroja (ver `piezas/luz/LEEME.md`).
 - `brillo` (en una vista o en un mueble): ruta del mapa de brillo, una tira igual a la del dibujo donde solo están los
   píxeles que brillan (gris 255 vidrio, 170 metal, 85 barniz). Cómo se pinta: `piezas/luz/LEEME.md`, sección «Brillo».
+- `emisivo` (en una vista o en un mueble): ruta de la máscara de lo que emite luz propia (pantallas, pilotos, focos
+  encendidos, el cielo de día por la ventana), una tira igual a la del dibujo con esos píxeles en su color. Se pinta
+  encima de la luz, sin multiplicar por `ambiente`, después de `brillo` y con la misma oclusión que el brillo.
 - `luz` dice cómo emite: `forma` (haz, pozo o tubo), `momento` (dia o noche), `tono` (calido o frio) y sus medidas.
 """
 import argparse
@@ -51,12 +54,15 @@ CARPETA = {'ventana': 'ventanas', 'lampara': 'lamparas'}
 ESTADOS = {'ventana': ['dia', 'noche'], 'lampara': ['apagada', 'encendida']}
 
 
-def _vista(cuadros, punto, ruta, imagenes, mapas=None):
+def _vista(cuadros, punto, ruta, imagenes, mapas=None, emisivos=None):
     imagenes[ruta] = g.tira(cuadros)
     vista = dict(ruta=ruta, ancho=cuadros[0].width, alto=cuadros[0].height, apoyo=[int(round(punto[0])), int(round(punto[1]))])
     if mapas:                       # mapa de brillo: misma tira, gris 255 vidrio, 170 metal, 85 barniz
         vista['brillo'] = ruta[:-4] + '-brillo.png'
         imagenes[vista['brillo']] = g.tira(mapas)
+    if emisivos:                    # lo que emite luz propia, en su color: se pinta encima de la luz
+        vista['emisivo'] = ruta[:-4] + '-emisivo.png'
+        imagenes[vista['emisivo']] = g.tira(emisivos)
     return vista
 
 
@@ -65,20 +71,20 @@ def generar():
     imagenes, piezas = {}, {}
     for modelo, M in pp.MODELOS.items():
         base = f'piezas/puertas/{modelo}'
-        vistas = dict(frente=_vista(pp.cuadros(modelo, 'frente'), pp.apoyo(modelo, 'frente'), base + '-frente.png', imagenes, pp.brillo(modelo, 'frente')),
-                      camara=_vista(pp.cuadros(modelo, 'camara'), pp.apoyo(modelo, 'camara'), base + '-camara.png', imagenes, pp.brillo(modelo, 'camara')),
-                      lado={str(a): _vista(pp.cuadros(modelo, 'lado', a), pp.apoyo(modelo, 'lado', a), f'{base}-lado-{a}.png', imagenes, pp.brillo(modelo, 'lado', a))
+        vistas = dict(frente=_vista(pp.cuadros(modelo, 'frente'), pp.apoyo(modelo, 'frente'), base + '-frente.png', imagenes, pp.brillo(modelo, 'frente'), pp.emisivo(modelo, 'frente')),
+                      camara=_vista(pp.cuadros(modelo, 'camara'), pp.apoyo(modelo, 'camara'), base + '-camara.png', imagenes, pp.brillo(modelo, 'camara'), pp.emisivo(modelo, 'camara')),
+                      lado={str(a): _vista(pp.cuadros(modelo, 'lado', a), pp.apoyo(modelo, 'lado', a), f'{base}-lado-{a}.png', imagenes, pp.brillo(modelo, 'lado', a), pp.emisivo(modelo, 'lado', a))
                             for a in g.ANCHOS})
         piezas['puerta/' + modelo] = dict(nombre=M['nombre'], ocupa=M['ocupa'], ancho=M['ancho'], alto=M['alto'], muros=list(g.MUROS), cuadros=pp.CUADROS,
                                           franja=[0, vistas['frente']['apoyo'][1]], hojas=M['hojas'], vistas=vistas)
     for (tipo, modelo), F in pm.PIEZAS.items():
         base = f'piezas/{CARPETA.get(tipo, "muro")}/{modelo}'
         if 'suelo' in F['muros']:
-            vistas = dict(suelo=_vista(pm.cuadros(tipo, modelo), pm.apoyo(tipo, modelo), base + '.png', imagenes, pm.brillo(tipo, modelo)))
+            vistas = dict(suelo=_vista(pm.cuadros(tipo, modelo), pm.apoyo(tipo, modelo), base + '.png', imagenes, pm.brillo(tipo, modelo), pm.emisivo(tipo, modelo)))
             franja = [0, vistas['suelo']['alto']]
         else:
-            vistas = dict(frente=_vista(pm.cuadros(tipo, modelo), pm.apoyo(tipo, modelo), base + '-frente.png', imagenes, pm.brillo(tipo, modelo)),
-                          lado={str(a): _vista(pm.cuadros(tipo, modelo, 'lado', a), pm.apoyo(tipo, modelo, 'lado', a), f'{base}-lado-{a}.png', imagenes, pm.brillo(tipo, modelo, 'lado', a))
+            vistas = dict(frente=_vista(pm.cuadros(tipo, modelo), pm.apoyo(tipo, modelo), base + '-frente.png', imagenes, pm.brillo(tipo, modelo), pm.emisivo(tipo, modelo)),
+                          lado={str(a): _vista(pm.cuadros(tipo, modelo, 'lado', a), pm.apoyo(tipo, modelo, 'lado', a), f'{base}-lado-{a}.png', imagenes, pm.brillo(tipo, modelo, 'lado', a), pm.emisivo(tipo, modelo, 'lado', a))
                                 for a in g.ANCHOS})
             frente = vistas['frente']
             franja = [frente['apoyo'][1] - frente['alto'], frente['apoyo'][1]]
@@ -124,6 +130,9 @@ def generar():
         if ph.mueble_brillo(ref):
             muebles['hospital/' + ref]['brillo'] = ruta[:-4] + '-brillo.png'
             imagenes[ruta[:-4] + '-brillo.png'] = g.tira(ph.mueble_brillo(ref))
+        if ph.mueble_emisivo(ref):
+            muebles['hospital/' + ref]['emisivo'] = ruta[:-4] + '-emisivo.png'
+            imagenes[ruta[:-4] + '-emisivo.png'] = g.tira(ph.mueble_emisivo(ref))
     geometria = dict(alto=g.ALTO, piso=g.SEAM, tope=g.TOP, k=[3, 16], anchos=list(g.ANCHOS), rejilla=g.REJILLA,
                      borde={str(a): g.borde(a) for a in g.ANCHOS})
     luz = dict(unidad=pl.U, minimo=pl.MINIMO, paso=pl.PASO, niveles=pl.NIVELES, uno=pl.UNO,
