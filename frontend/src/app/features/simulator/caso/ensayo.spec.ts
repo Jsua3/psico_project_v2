@@ -2,21 +2,39 @@ import { readFileSync } from 'fs';
 import { join } from 'path';
 
 import type { Milestone, RehearsalBlock, RehearsalComment, RehearsalOption } from '../../../core/models/simulation.model';
-import { armarPanel, cuerpoExplorado, escenaDesde, estadoComentario, palabraDeActivacion, palabraDeVinculo, porQueNoAparece, puedeSerEnsayoPerdido } from './ensayo';
+import { armarPanel, cuerpoExplorado, escenaDesde, debeConfirmarEnsayo, estadoComentario, palabraDeActivacion, palabraDeVinculo, porQueNoAparece, reintentarSinDesde, veredictoDeLectura } from './ensayo';
 
 describe('escenaDesde', () => {
   it.each([['33', 33], ['1', 1], [null, null], [undefined, null], ['', null], ['abc', null], ['0', null], ['-2', null], ['3.5', null]] as const)(
     '«%s» da %s', (raw, esperado) => expect(escenaDesde(raw)).toBe(esperado));
 });
 
-describe('puedeSerEnsayoPerdido', () => {
-  it('un 403 o un 404 de una ruta del juego puede ser un ensayo descartado; lo demás, no', () => {
-    expect(puedeSerEnsayoPerdido({ status: 403 })).toBe(true);
-    expect(puedeSerEnsayoPerdido({ status: 404 })).toBe(true);
-    expect(puedeSerEnsayoPerdido({ status: 500 })).toBe(false);
-    expect(puedeSerEnsayoPerdido({ status: 0 })).toBe(false);
-    expect(puedeSerEnsayoPerdido(new Error('x'))).toBe(false);
-    expect(puedeSerEnsayoPerdido(null)).toBe(false);
+describe('debeConfirmarEnsayo', () => {
+  it('solo en modo ensayo y ante un 403, 404 o 409', () => {
+    for (const status of [403, 404, 409]) expect(debeConfirmarEnsayo('rehearsal', { status })).toBe(true);
+    for (const status of [0, 400, 500]) expect(debeConfirmarEnsayo('rehearsal', { status })).toBe(false);
+    expect(debeConfirmarEnsayo('student', { status: 403 })).toBe(false);
+    expect(debeConfirmarEnsayo('rehearsal', new Error('x'))).toBe(false);
+    expect(debeConfirmarEnsayo('rehearsal', null)).toBe(false);
+  });
+});
+
+describe('veredictoDeLectura', () => {
+  it('distingue el ensayo descartado del cerrado, por el código y no por el texto', () => {
+    expect(veredictoDeLectura({ status: 404, error: { code: 'REHEARSAL_GONE' } })).toBe('perdido');
+    expect(veredictoDeLectura({ status: 409, error: { code: 'REHEARSAL_CLOSED' } })).toBe('cerrado');
+    expect(veredictoDeLectura({ status: 404, error: {} })).toBeNull();
+    expect(veredictoDeLectura({ status: 403, error: { code: 'REHEARSAL_GONE' } })).toBeNull();
+    expect(veredictoDeLectura({ status: 409, error: null })).toBeNull();
+    expect(veredictoDeLectura(null)).toBeNull();
+  });
+});
+
+describe('reintentarSinDesde', () => {
+  it('solo un 400 con una escena pedida', () => {
+    expect(reintentarSinDesde(33, { status: 400 })).toBe(true);
+    expect(reintentarSinDesde(null, { status: 400 })).toBe(false);
+    expect(reintentarSinDesde(33, { status: 500 })).toBe(false);
   });
 });
 

@@ -8,7 +8,7 @@ import { MatIconModule } from '@angular/material/icon';
 import { toSignal } from '@angular/core/rxjs-interop';
 import { ShortcutSettings } from '../../core/a11y/shortcut-settings.service';
 import { AnnouncePoliteness, LiveRegionAnnouncer } from '../../core/a11y/live-announcer.service';
-import { apiErrorMessage, isConsentRequiredError, isRehearsalGoneError } from '../../core/api/api-error.util';
+import { apiErrorMessage, isConsentRequiredError } from '../../core/api/api-error.util';
 import { RehearsalApi } from '../../core/api/rehearsal.api';
 import { SimulationService } from '../../core/api/simulation.service';
 import { NotificationService } from '../../core/notifications/notification.service';
@@ -29,11 +29,12 @@ import { GameHelpComponent } from './game-help.component';
 import { HELP_FIRST_CARD, markHelpSeen, readHelpSeen, resetHelpSeen } from './help-memory.util';
 import { SceneGoalCardComponent } from './scene-goal-card.component';
 import { SensitiveNoticeComponent } from './sensitive-notice.component';
-import { escenaDesde, puedeSerEnsayoPerdido } from './caso/ensayo';
+import { debeConfirmarEnsayo, escenaDesde, reintentarSinDesde, veredictoDeLectura } from './caso/ensayo';
 import { escenaRetenida } from './caso/escena-visible';
 import { memoriaDeComentarios } from './caso/comentarios';
 import { BurbujaVisible, MundoCercania, ProximityReactions, RELOJ_DE_VENTANA, acotarAncla } from './proximity-reactions';
 import { CommentBubbleComponent } from './comment-bubble.component';
+import { RehearsalGoneComponent } from './rehearsal-gone.component';
 import { RehearsalPanelComponent } from './rehearsal-panel.component';
 import { type GuiaEscena, GUIA_VACIA, armarGuia, avisarOpcionNueva } from './caso/guia';
 import { DialoguePanelComponent } from './dialogue-panel.component';
@@ -125,7 +126,7 @@ const QUEUED_PAUSE_SLOW_NOTICE = 'La acción en curso está tardando. Estamos pa
     SimulationHudComponent, GameWorldComponent, DialoguePanelComponent,
     ToolInventoryComponent, JournalPanelComponent, AttemptOutcomeComponent,
     SafeExitButtonComponent, SceneGoalCardComponent, GameHelpComponent, WorldPlacesListComponent,
-    ReactionDirectorComponent, CommentBubbleComponent, RehearsalPanelComponent, SensitiveNoticeComponent, UiButton, UiErrorState, UiScopeNotice, UiSpinner
+    ReactionDirectorComponent, CommentBubbleComponent, RehearsalGoneComponent, RehearsalPanelComponent, SensitiveNoticeComponent, UiButton, UiErrorState, UiScopeNotice, UiSpinner
   ],
   template: `
     <div class="game-container" data-skin="game" id="main-content" tabindex="-1" [attr.data-mode]="viewMode()"
@@ -146,12 +147,7 @@ const QUEUED_PAUSE_SLOW_NOTICE = 'La acción en curso está tardando. Estamos pa
         </div>
       }
       @if (rehearsalGone()) {
-        <!-- Ensayo descartado (7.4): el servidor lo cerró porque el caso cambió. Se dice con su salida, nunca una pantalla en blanco. «Salida segura» sigue en el pie. -->
-        <div class="game-failure rehearsal-gone" role="alert">
-          <p #goneText class="rehearsal-gone__text" tabindex="-1">{{ draft.rehearsalGone.text }}</p>
-          <button ui-button class="restart" type="button" variant="primary" (click)="restartRehearsalHere()">{{ draft.rehearsalRestart.text }}</button>
-          <a ui-button variant="secondary" [routerLink]="['/portal/casos', attempt()?.caseVersionId, 'editor']">{{ draft.rehearsalBackToEditor.text }}</a>
-        </div>
+        <app-rehearsal-gone class="game-failure" [motivo]="rehearsalWhy()" [caseVersionId]="attempt()?.caseVersionId ?? 0" (restart)="restartRehearsalHere()" />
       }
       @if (error()) {
         <!-- Un fallo nunca se traga: mensaje, reintento (vuelve a pedir lo que falló) y una salida. Con un intento en
@@ -305,9 +301,7 @@ const QUEUED_PAUSE_SLOW_NOTICE = 'La acción en curso está tardando. Estamos pa
         }
 
         <header class="top-bar" [attr.inert]="inputBlocked() ? '' : null" [attr.aria-hidden]="inputBlocked() ? 'true' : null">
-          @if (mode() === 'rehearsal') {
-            <p class="rehearsal-banner" role="note">{{ draft.rehearsalBanner.text }}</p>
-          }
+          @if (mode() === 'rehearsal') { <p class="rehearsal-banner" role="note">{{ draft.rehearsalBanner.text }}</p> }
           <app-simulation-hud
             [attempt]="game"
             [patientVisual]="patientVisual()"
@@ -330,7 +324,7 @@ const QUEUED_PAUSE_SLOW_NOTICE = 'La acción en curso está tardando. Estamos pa
 
         <div class="main-zone">
           <section #canvasZone class="canvas-zone" aria-label="Escena de la simulación"
-            [attr.inert]="inputBlocked() ? '' : null" [attr.aria-hidden]="inputBlocked() ? 'true' : null">
+            [attr.inert]="inputBlocked() || rehearsalGone() ? '' : null" [attr.aria-hidden]="inputBlocked() || rehearsalGone() ? 'true' : null">
             @if (world()) {
               <!-- Sin role="status": la ficha no trae región viva (los avisos salen por el anunciador de la app). -->
               <div class="objective-card">
@@ -403,9 +397,8 @@ const QUEUED_PAUSE_SLOW_NOTICE = 'La acción en curso está tardando. Estamos pa
                 (frontendChoice)="handleFrontendChoice($event)" (consentRequired)="requireConsentAgain()" />
             </aside>
           }
-          @if (mode() === 'rehearsal' && rehearsal(); as block) {
-            <!-- Panel de autora del ensayo (Tarea 24): columna derecha de la zona principal; Alt+A lo pliega. -->
-            <app-rehearsal-panel class="rehearsal-slot" [caseVersionId]="game.caseVersionId" [attemptId]="game.attemptId"
+          @if (mode() === 'rehearsal' && !rehearsalGone() && rehearsal(); as block) {
+            <app-rehearsal-panel [caseVersionId]="game.caseVersionId" [attemptId]="game.attemptId"
               [block]="block" [world]="world()" (adjusted)="reloadRehearsal($event)" (gone)="showRehearsalGone()" />
           }
         </div>
@@ -579,12 +572,6 @@ const QUEUED_PAUSE_SLOW_NOTICE = 'La acción en curso está tardando. Estamos pa
     .game-container[data-mode='dialogue-right'] .main-zone {
       grid-template-columns: minmax(0, 1fr) clamp(340px, 28vw, 480px);
     }
-    /* Ensayo: una columna más, a la derecha, para el panel de autora. */
-    .game-container[data-rehearsal='true'] .main-zone { grid-template-columns: minmax(0, 1fr) auto; }
-    .game-container[data-rehearsal='true'][data-mode='dialogue-right'] .main-zone {
-      grid-template-columns: minmax(0, 1fr) clamp(340px, 28vw, 480px) auto;
-    }
-    .rehearsal-slot { min-height: 0; max-block-size: 100%; }
     .canvas-zone {
       position: relative;
       min-height: 0;
@@ -940,7 +927,6 @@ const QUEUED_PAUSE_SLOW_NOTICE = 'La acción en curso está tardando. Estamos pa
     .game-boot p { margin: 0; color: var(--ds-text-2); font-size: .95rem; }
     .game-failure ui-error-state { max-inline-size: 28rem; }
     .rehearsal-banner { margin: 0; padding: 4px 12px; font-size: .85rem; text-align: center; background: var(--ds-surface-2, rgba(18,24,42,.9)); color: var(--ds-text-1); border-block-end: 1px solid var(--ds-border, rgba(182,156,255,.3)); }
-    .rehearsal-gone__text { margin: 0; max-inline-size: 28rem; font-size: 1.05rem; }
     /* Aviso no esencial («Obtuviste: …»): quieto, sin animación, sobre el pie. */
     .soft-notice {
       position: absolute; bottom: 84px; left: 50%; transform: translateX(-50%); z-index: 310;
@@ -1207,16 +1193,15 @@ export class SimulationPlayComponent implements OnInit, OnDestroy {
   readonly transitionNote = signal('');
   /** Advertencia de contenido: ETH-01 — precede a la escena, la narrativa y el gameplay. */
   readonly showContentWarning = signal(false);
-  /** `rehearsal`: la docente ensaya su borrador (ruta `casos/:id/ensayo`); sin consentimiento, introducción ni informe del estudiante. */
+  /** `rehearsal`: la docente ensaya su borrador (ruta `casos/:id/ensayo`). */
   readonly mode = signal<'student' | 'rehearsal'>(this.route.snapshot.data?.['mode'] === 'rehearsal' ? 'rehearsal' : 'student');
-  /** El bloque `rehearsal` del servidor (opciones retenidas, comentarios, avisos…): lo lee el panel de autora. */
+  /** El bloque `rehearsal` del servidor, que lee el panel de autora; `rehearsalGone`: el servidor descartó o cerró el ensayo. */
   readonly rehearsal = signal<RehearsalBlock | null>(null);
-  /** El servidor descartó el ensayo (la docente borró una escena, una respuesta o un mapa). */
   readonly rehearsalGone = signal(false);
   protected readonly draft = DRAFT_COPY;
-  /** La escena con la que se abrió el ensayo (`?desde=`): «Empezar de nuevo» tras un final vuelve a ella. */
+  /** La escena con que se abrió (`?desde=`) y por qué ya no sigue: descartado (404) o cerrado (409). */
   private rehearsalFrom: number | null = null;
-  @ViewChild('goneText') private set goneText(el: ElementRef<HTMLElement> | undefined) { el?.nativeElement.focus({ preventScroll: true }); }
+  protected readonly rehearsalWhy = signal<'gone' | 'closed'>('gone');
   /** Registro del consentimiento (ETH-01): `saving` mientras guarda; `error` si el almacenamiento falló. */
   readonly consentState = signal<'idle' | 'saving' | 'error'>('idle');
   /** Qué dice el recuadro de error del aviso: el de siempre, o «hay una versión nueva del aviso» (S3-2b). */
@@ -1343,12 +1328,12 @@ export class SimulationPlayComponent implements OnInit, OnDestroy {
 
   /** El mundo se congela con diálogo, journal u outcome abiertos (Fase 5/13). */
   readonly inputBlocked = computed(() =>
-    this.showResumePrompt() || this.showContentWarning() || this.rehearsalGone()
+    this.showResumePrompt() || this.showContentWarning()
     || this.showCaseIntro() || this.dialogue() !== null || this.journalOpen() || this.placesOpen()
     || (!this.reactingToLast() && (this.attempt()?.status ?? 'IN_PROGRESS') !== 'IN_PROGRESS'));
 
   /** Con la pantalla de ayuda abierta el personaje no camina mientras se lee. */
-  readonly worldMotionPaused = computed(() => this.inputBlocked() || this.helpOpen() || this.reacting());
+  readonly worldMotionPaused = computed(() => this.inputBlocked() || this.helpOpen() || this.reacting() || this.rehearsalGone());
 
   /**
    * Última decisión: el intento ya figura COMPLETED mientras el personaje reacciona, pero el resultado espera a la
@@ -1473,7 +1458,7 @@ export class SimulationPlayComponent implements OnInit, OnDestroy {
     });
     // Con una superposición, la secuencia de la reacción o una pausa nadie reacciona al acercarse y la burbuja se va (4.3.7).
     effect(() => {
-      const blocked = this.inputBlocked() || this.reacting();
+      const blocked = this.inputBlocked() || this.reacting() || this.rehearsalGone();
       const activation = this.attempt()?.persona.activation;
       untracked(() => {
         this.reactions?.setBlocked(blocked);
@@ -1558,8 +1543,7 @@ export class SimulationPlayComponent implements OnInit, OnDestroy {
     const id = Number(this.route.snapshot.paramMap.get('caseVersionId'));
     if (!id) { this.fail('Caso no encontrado.', null, null); return; }
     if (this.mode() === 'rehearsal') {
-      this.rehearsalFrom = escenaDesde(this.route.snapshot.queryParamMap?.get('desde'));
-      this.beginRehearsal(id, this.rehearsalFrom);
+      this.beginRehearsal(id, this.rehearsalFrom = escenaDesde(this.route.snapshot.queryParamMap?.get('desde')));
       return;
     }
 
@@ -1715,14 +1699,10 @@ export class SimulationPlayComponent implements OnInit, OnDestroy {
     this.beginAttempt(id, true);
   }
 
-  /**
-   * Abre (o reabre) el ensayo: `POST rehearsal` cierra el anterior y devuelve el estado del juego con su token. Se va directo
-   * al mundo: el servidor no exige consentimiento a un ensayo (4.2.1) ni hay tarjeta de introducción. No se guarda el token
-   * en la pestaña. Una escena `desde` que ya no existe (400) se reintenta desde el inicio.
-   */
+  /** Abre (o reabre) el ensayo: `POST rehearsal` cierra el anterior; sin consentimiento ni introducción (4.2.1) y sin guardar el token. */
   private beginRehearsal(caseVersionId: number, desde: number | null): void {
     this.rehearsalGone.set(false);
-    this.clearTransientOverlays();
+    this.clearTransientOverlays();   // incluye los avisos pendientes (resetNotices)
     this.nearbyInteraction.set(null);
     this.endPausing();
     this.error.set('');
@@ -1733,12 +1713,12 @@ export class SimulationPlayComponent implements OnInit, OnDestroy {
         this.attempt.set(attempt);
         this.viewedNpcKeys.set(new Set());
         this.busy.set(false);
-        this.worldStarted.set(false);   // un arranque limpio: el mundo anterior (si lo hubo) se vuelve a montar
+        this.worldStarted.set(false);   // arranque limpio: el mundo anterior se vuelve a montar
         this.startWorld(attempt);
       },
       error: cause => {
-        if (desde !== null && cause instanceof HttpErrorResponse && cause.status === 400) this.beginRehearsal(caseVersionId, null);
-        else this.fail('No pudimos abrir el ensayo.', cause, () => this.beginRehearsal(caseVersionId, desde));
+        if (reintentarSinDesde(desde, cause)) this.beginRehearsal(caseVersionId, null);
+        else this.fail(DRAFT_COPY.rehearsalOpenFailed.text, cause, () => this.beginRehearsal(caseVersionId, desde));
       },
     });
   }
@@ -1748,46 +1728,44 @@ export class SimulationPlayComponent implements OnInit, OnDestroy {
     const attempt = this.attempt();
     if (!attempt) return;
     this.rehearsal.set(block);
+    this.clearTransientOverlays();   // nada del juego anterior sobrevive al ajuste
+    this.busy.set(true);
     this.viewedNpcKeys.set(new Set());   // lo hablado lo dice el mundo recién leído
     this.simulationService.getAttempt(attempt.attemptId, attempt.attemptToken).subscribe({
-      next: fresh => {
-        this.attempt.set(fresh);
-        this.loadWorld(fresh);
+      next: fresh => { this.attempt.set(fresh); this.loadWorld(fresh); },
+      error: cause => {
+        this.busy.set(false);
+        this.orRehearsalGone(cause, () => this.fail(DRAFT_COPY.rehearsalReloadFailed.text, cause, () => this.reloadRehearsal(block)));
       },
-      error: cause => this.orRehearsalGone(cause, () => this.fail('No pudimos recargar el ensayo.', cause, () => this.reloadRehearsal(block))),
     });
   }
 
-  /** El servidor descartó el ensayo: se corta la secuencia y la burbuja y se ofrece abrir uno nuevo. */
-  showRehearsalGone(): void {
+  /** El ensayo se descartó o cerró: se corta la secuencia y la burbuja y se ofrece abrir otro. Se dice una sola vez. */
+  showRehearsalGone(why: 'gone' | 'closed' = 'gone'): void {
+    if (this.rehearsalGone()) return;
+    this.rehearsalWhy.set(why);
     this.reaction?.cancel();
     this.pendingAfterReaction = null;
     this.reactions?.dispose();
-    this.reacting.set(false);
-    this.busy.set(false);
-    this.loading.set(false);
-    this.fadeActive.set(false);
+    this.reacting.set(false); this.busy.set(false); this.loading.set(false); this.fadeActive.set(false);
     this.dismissActionError();
     this.rehearsalGone.set(true);
-    this.announce(DRAFT_COPY.rehearsalGone.text, 'assertive');
+    this.announce((why === 'closed' ? DRAFT_COPY.rehearsalClosed : DRAFT_COPY.rehearsalGone).text, 'assertive');
   }
+
+  /** Ensayo perdido: nada que pausar en el servidor; «Salida segura» y Esc llevan al editor (REGLA-004). */
+  private leaveRehearsal(): void { void this.router.navigate(['/portal/casos', this.attempt()?.caseVersionId, 'editor']); }
 
   /** «Empezar de nuevo» tras perder el ensayo: otro ensayo en la escena en la que estaba. */
-  restartRehearsalHere(): void {
-    const id = Number(this.route.snapshot.paramMap.get('caseVersionId'));
-    if (id) this.beginRehearsal(id, this.rehearsal()?.sceneId ?? this.rehearsalFrom);
-  }
+  restartRehearsalHere(): void { this.beginRehearsal(Number(this.route.snapshot.paramMap.get('caseVersionId')), this.rehearsal()?.sceneId ?? this.rehearsalFrom); }
 
-  /**
-   * En ensayo, un 403 o un 404 de las rutas del juego puede ser un ensayo descartado (7.4: el juego responde 403, el panel
-   * 404): se confirma con la lectura del bloque. Si el ensayo ya no existe se dice; si no, sigue su camino (`otherwise`).
-   */
+  /** En ensayo, un 403/404/409 de las rutas del juego se confirma con la lectura del bloque (7.4); si no es un ensayo perdido o cerrado, sigue su camino. */
   private orRehearsalGone(cause: unknown, otherwise: () => void): void {
     const attempt = this.attempt();
-    if (this.mode() !== 'rehearsal' || !attempt || !puedeSerEnsayoPerdido(cause)) { otherwise(); return; }
+    if (!attempt || !debeConfirmarEnsayo(this.mode(), cause)) { otherwise(); return; }
     this.rehearsalApi.read(attempt.caseVersionId, attempt.attemptId).subscribe({
       next: () => otherwise(),
-      error: check => (isRehearsalGoneError(check) || (check as { status?: number })?.status === 404) ? this.showRehearsalGone() : otherwise(),
+      error: check => { const v = veredictoDeLectura(check); if (v) this.showRehearsalGone(v === 'cerrado' ? 'closed' : 'gone'); else otherwise(); },
     });
   }
 
@@ -1883,6 +1861,7 @@ export class SimulationPlayComponent implements OnInit, OnDestroy {
     // con Escape en document:keydown), no reinterpretarla aquí: sin esta
     // guarda, un solo Escape cerraba el diálogo Y disparaba la salida segura.
     if (event.defaultPrevented) return;
+    if (this.rehearsalGone() && event.key !== 'Escape') return;   // ensayo perdido: el mundo no atiende teclas; Esc sigue
     // Durante la reacción solo Esc (salida segura) llega a la partida: nada abre interacciones ni mueve al jugador.
     if (this.reacting() && event.key !== 'Escape') return;
     // Un Esc mantenido (temblor, pulsación larga) no encadena acciones: sin esto, una sola pulsación cerraba la ayuda,
@@ -2663,6 +2642,7 @@ export class SimulationPlayComponent implements OnInit, OnDestroy {
    * - Con una petición en curso la deja en cola: se ejecuta cuando `busy()` se suelta.
    */
   pauseFromOverlay(): void {
+    if (this.rehearsalGone()) return this.leaveRehearsal();
     // Con la última supervisión a la vista el intento ya terminó: no hay nada que pausar. «Salida segura»
     // hace lo mismo que «Continuar»: cierra la supervisión y abre el resultado, donde están las salidas.
     if (this.holdingOutcome()) {
@@ -3327,7 +3307,7 @@ export class SimulationPlayComponent implements OnInit, OnDestroy {
   }
 
   private persistAttemptToken(attempt: SimulationAttemptState) {
-    if (this.mode() === 'rehearsal') return;   // un ensayo no se reanuda: su token no se guarda en la pestaña
+    if (this.mode() === 'rehearsal') return;   // un ensayo no se reanuda: sin token en la pestaña
     this.writeStored(`siep_attempt_${attempt.caseVersionId}`, JSON.stringify({
       attemptId: attempt.attemptId,
       attemptToken: attempt.attemptToken,

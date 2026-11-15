@@ -4,6 +4,7 @@ import { provideRouter } from '@angular/router';
 import { Subject, of } from 'rxjs';
 import type { Mock } from 'vitest';
 
+import { LiveRegionAnnouncer } from '../../core/a11y/live-announcer.service';
 import { AuthoringApi } from '../../core/api/authoring.api';
 import { RehearsalApi } from '../../core/api/rehearsal.api';
 import type { RehearsalBlock } from '../../core/models/simulation.model';
@@ -97,15 +98,15 @@ describe('RehearsalPanelComponent', () => {
     expect(el.querySelector('a[href="/portal/casos/9/editor/escena/7"]')).not.toBeNull();
   });
 
-  it('marcar una casilla manda lo explorado completo, avisa al juego y desactiva los controles mientras tanto', () => {
+  it('marcar una casilla manda lo explorado completo, avisa al juego y queda ocupado (aria-busy) mientras tanto', () => {
     (el.querySelector('input[type=checkbox][value="inspected:carpeta"]') as HTMLInputElement).click();
     fixture.detectChanges();
     expect(api.adjust).toHaveBeenCalledWith(9, 'a1', { explorado: { talked: ['enfermera'], inspected: ['carpeta'], has: [], used: [] } });
-    expect((el.querySelector('fieldset') as HTMLFieldSetElement).disabled).toBe(true);
+    expect(el.querySelector('fieldset')!.getAttribute('aria-busy')).toBe('true');
     envio.next(BLOQUE_NUEVO);
     fixture.detectChanges();
     expect(adjusted).toEqual([BLOQUE_NUEVO]);
-    expect((el.querySelector('fieldset') as HTMLFieldSetElement).disabled).toBe(false);
+    expect(el.querySelector('fieldset')!.getAttribute('aria-busy')).toBe('false');
   });
 
   it('«Ir a esta escena» manda irA con la escena elegida', () => {
@@ -145,10 +146,10 @@ describe('RehearsalPanelComponent', () => {
     (el.querySelector('input[type=checkbox][value="inspected:carpeta"]') as HTMLInputElement).click();
     envio.error(new HttpErrorResponse({ status: 400, error: { message: 'El hito no está declarado.', field: 'hitos' } }));
     fixture.detectChanges();
-    const alerta = el.querySelector('[data-section="hitos"] [role="alert"]');
+    const alerta = el.querySelector('[data-section="hitos"] .rp__error');
     expect(alerta?.textContent).toContain('El hito no está declarado.');
     expect(adjusted).toEqual([]);
-    expect((el.querySelector('fieldset') as HTMLFieldSetElement).disabled).toBe(false);
+    expect(el.querySelector('fieldset')!.getAttribute('aria-busy')).toBe('false');
 
     envio = new Subject<RehearsalBlock>();
     api.adjust.mockReturnValue(envio);
@@ -187,5 +188,76 @@ describe('RehearsalPanelComponent', () => {
     fixture.componentRef.setInput('block', BLOQUE_NUEVO);
     fixture.detectChanges();
     expect(TestBed.inject(AuthoringApi).caseEditor).toHaveBeenCalledTimes(1);
+  });
+
+  it('un rechazo devuelve la casilla a su valor y no cambia nada', () => {
+    const casilla = el.querySelector('input[type=checkbox][value="inspected:carpeta"]') as HTMLInputElement;
+    expect(casilla.checked).toBe(false);
+    casilla.click();
+    expect(casilla.checked).toBe(true);
+    envio.error(new HttpErrorResponse({ status: 400, error: { message: 'No existe.', field: 'explorado' } }));
+    expect(casilla.checked).toBe(false);
+    const hito = el.querySelector('input[type=checkbox][value="hito:remision"]') as HTMLInputElement;
+    envio = new Subject<RehearsalBlock>();
+    api.adjust.mockReturnValue(envio);
+    hito.click();
+    envio.error(new HttpErrorResponse({ status: 400, error: { message: 'No.', field: 'hitos' } }));
+    expect(hito.checked).toBe(false);
+  });
+
+  it('el foco se queda en el control tras un PATCH (acierte o falle) y el resultado se anuncia con cortesía', () => {
+    const anunciar = vi.spyOn(TestBed.inject(LiveRegionAnnouncer), 'announce');
+    const casilla = el.querySelector('input[type=checkbox][value="inspected:carpeta"]') as HTMLInputElement;
+    document.body.appendChild(el);
+    casilla.focus();
+    casilla.click();
+    fixture.detectChanges();
+    expect(document.activeElement).toBe(casilla);
+    envio.next(BLOQUE_NUEVO);
+    fixture.detectChanges();
+    expect(document.activeElement).toBe(casilla);
+    expect(anunciar).toHaveBeenLastCalledWith('Ensayo actualizado.', 'polite');
+
+    envio = new Subject<RehearsalBlock>();
+    api.adjust.mockReturnValue(envio);
+    casilla.click();
+    envio.error(new HttpErrorResponse({ status: 400, error: { message: 'El hito no está declarado.', field: 'hitos' } }));
+    fixture.detectChanges();
+    expect(document.activeElement).toBe(casilla);
+    expect(anunciar).toHaveBeenLastCalledWith('El hito no está declarado.', 'polite');
+    el.remove();
+  });
+
+  it('un cambio en vuelo no pisa el bloque de otro ensayo ni llega tras destruir el panel', () => {
+    (el.querySelector('input[type=checkbox][value="inspected:carpeta"]') as HTMLInputElement).click();
+    fixture.componentRef.setInput('attemptId', 'a2');   // se abrió otro ensayo mientras tanto
+    envio.next(BLOQUE_NUEVO);
+    expect(adjusted).toEqual([]);
+
+    envio = new Subject<RehearsalBlock>();
+    api.adjust.mockReturnValue(envio);
+    fixture.detectChanges();
+    (el.querySelector('input[type=checkbox][value="inspected:carpeta"]') as HTMLInputElement).click();
+    fixture.destroy();
+    envio.next(BLOQUE_NUEVO);
+    expect(adjusted).toEqual([]);
+  });
+
+  it('plegar con Alt+A solo mueve el foco al botón si estaba dentro del panel', () => {
+    document.body.appendChild(el);
+    const fuera = document.createElement('button');
+    document.body.appendChild(fuera);
+    fuera.focus();
+    document.dispatchEvent(new KeyboardEvent('keydown', { key: 'a', altKey: true, bubbles: true, cancelable: true }));
+    fixture.detectChanges();
+    expect(document.activeElement).toBe(fuera);
+    document.dispatchEvent(new KeyboardEvent('keydown', { key: 'a', altKey: true, bubbles: true, cancelable: true }));
+    fixture.detectChanges();
+    (el.querySelector('input[type=checkbox]') as HTMLInputElement).focus();
+    document.dispatchEvent(new KeyboardEvent('keydown', { key: 'a', altKey: true, bubbles: true, cancelable: true }));
+    fixture.detectChanges();
+    expect(document.activeElement).toBe(el.querySelector('.rp__toggle'));
+    fuera.remove();
+    el.remove();
   });
 });

@@ -17,12 +17,26 @@ export function escenaDesde(raw: string | null | undefined): number | null {
 }
 
 /**
- * Las rutas del juego de un ensayo descartado responden 403 (Ruling 3, 7.4) y las del panel 404: ante cualquiera de los dos
- * hay que confirmar con la lectura del bloque antes de decir «ya no existe».
+ * ¿Hay que confirmar con la lectura del bloque si el ensayo sigue vivo? Solo en modo ensayo y ante un 403/404 (las rutas del
+ * juego de un ensayo descartado responden 403, Ruling 3, 7.4; las del panel, 404) o un 409 (ensayo ya cerrado).
  */
-export function puedeSerEnsayoPerdido(err: unknown): boolean {
+export function debeConfirmarEnsayo(modo: 'student' | 'rehearsal', err: unknown): boolean {
+  if (modo !== 'rehearsal') return false;
   const status = (err as { status?: unknown } | null)?.status;
-  return status === 403 || status === 404;
+  return status === 403 || status === 404 || status === 409;
+}
+
+/** Lo que dice la lectura del bloque cuando falla: el ensayo se descartó (404 `REHEARSAL_GONE`), se cerró (409 `REHEARSAL_CLOSED`) o es otra cosa (`null`). */
+export function veredictoDeLectura(err: unknown): 'perdido' | 'cerrado' | null {
+  const e = err as { status?: unknown; error?: { code?: unknown } | null } | null;
+  if (e?.status === 404 && e.error?.code === 'REHEARSAL_GONE') return 'perdido';
+  if (e?.status === 409 && e.error?.code === 'REHEARSAL_CLOSED') return 'cerrado';
+  return null;
+}
+
+/** Una escena `desde` que ya no existe (400 al abrir el ensayo) se reintenta desde el inicio. */
+export function reintentarSinDesde(desde: number | null, err: unknown): boolean {
+  return desde !== null && (err as { status?: unknown } | null)?.status === 400;
 }
 
 export interface CasillaExplorado { kind: ExploredFactKind; key: string; label: string; marcada: boolean }

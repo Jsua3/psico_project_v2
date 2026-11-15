@@ -3,6 +3,7 @@ import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { RouterLink } from '@angular/router';
 import { Observable } from 'rxjs';
 
+import { LiveRegionAnnouncer } from '../../core/a11y/live-announcer.service';
 import { isRehearsalGoneError } from '../../core/api/api-error.util';
 import { AuthoringApi } from '../../core/api/authoring.api';
 import { RehearsalApi } from '../../core/api/rehearsal.api';
@@ -38,10 +39,10 @@ const SECCION_DE: Record<CampoError, string> = { irA: 'escena', explorado: 'expl
       @if (open()) {
         <div id="rehearsal-panel-body" class="rp__body">
           @if (error(); as e) {
-            @if (e.field === 'general') { <p role="alert" class="rp__error">{{ e.message }}</p> }
+            @if (e.field === 'general') { <p class="rp__error">{{ e.message }}</p> }
           }
-          <!-- Mientras un PATCH está en vuelo, todo queda desactivado: un cambio a la vez. -->
-          <fieldset class="rp__all" [disabled]="busy()">
+          <!-- Mientras un PATCH está en vuelo: aria-busy y un cambio a la vez (sin disabled, que haría perder el foco). -->
+          <fieldset class="rp__all" [attr.aria-busy]="busy()">
             <legend class="sr-only">{{ draft.rehearsalPanelTitle.text }}</legend>
 
             <section data-section="escena">
@@ -52,7 +53,7 @@ const SECCION_DE: Record<CampoError, string> = { irA: 'escena', explorado: 'expl
                 }
               </select>
               <button type="button" data-action="irA" (click)="send({ irA: destino() })">{{ draft.rehearsalGoTo.text }}</button>
-              @if (errorOf('irA'); as message) { <p role="alert" class="rp__error">{{ message }}</p> }
+              @if (errorOf('irA'); as message) { <p class="rp__error">{{ message }}</p> }
             </section>
 
             <section data-section="explorado">
@@ -68,7 +69,7 @@ const SECCION_DE: Record<CampoError, string> = { irA: 'escena', explorado: 'expl
                   <li><label><input type="checkbox" [value]="c.kind + ':' + c.key" [checked]="c.marcada" (change)="toggleExplorado(c, $event)"> {{ frase(c) }}</label></li>
                 }
               </ul>
-              @if (errorOf('explorado'); as message) { <p role="alert" class="rp__error">{{ message }}</p> }
+              @if (errorOf('explorado'); as message) { <p class="rp__error">{{ message }}</p> }
             </section>
 
             <section data-section="persona">
@@ -84,7 +85,7 @@ const SECCION_DE: Record<CampoError, string> = { irA: 'escena', explorado: 'expl
                 </select>
               </label>
               <p class="rp__note">{{ panel().persona.label }}</p>
-              @if (errorOf('persona'); as message) { <p role="alert" class="rp__error">{{ message }}</p> }
+              @if (errorOf('persona'); as message) { <p class="rp__error">{{ message }}</p> }
             </section>
 
             <section data-section="hitos">
@@ -94,7 +95,7 @@ const SECCION_DE: Record<CampoError, string> = { irA: 'escena', explorado: 'expl
                   <li><label><input type="checkbox" [value]="'hito:' + h.key" [checked]="h.cumplido" (change)="toggleHito(h.key, $event)"> {{ h.label }}</label></li>
                 }
               </ul>
-              @if (errorOf('hitos'); as message) { <p role="alert" class="rp__error">{{ message }}</p> }
+              @if (errorOf('hitos'); as message) { <p class="rp__error">{{ message }}</p> }
             </section>
 
             <section data-section="ocultas">
@@ -134,12 +135,14 @@ const SECCION_DE: Record<CampoError, string> = { irA: 'escena', explorado: 'expl
     </aside>
   `,
   styles: [`
-    :host { display: block; min-height: 0; }
+    /* En la rejilla de la zona principal: siempre en la fila 1, a la derecha del mundo (y de la columna del diálogo, si hay). */
+    :host { display: block; min-height: 0; grid-row: 1; max-block-size: 100%; }
     .rp { display: flex; flex-direction: column; max-block-size: 100%; inline-size: min(340px, 100%); color: var(--ds-text-1, #f4f7fb);
       background: var(--ds-surface-2, rgba(18,24,42,.96)); border: 1px solid var(--ds-border, rgba(182,156,255,.3)); border-radius: 12px; overflow: hidden; }
     .rp__toggle { text-align: start; padding: 8px 12px; background: transparent; color: inherit; border: 0; font: inherit; font-weight: 600; cursor: pointer; }
     .rp__body { overflow-y: auto; padding: 0 12px 12px; min-block-size: 0; }
     .rp__all { border: 0; margin: 0; padding: 0; min-inline-size: 0; }
+    .rp__all[aria-busy='true'] { opacity: .6; }
     h3 { margin: 12px 0 4px; font-size: .95rem; } h4 { margin: 8px 0 2px; font-size: .85rem; }
     .rp__list { list-style: none; margin: 0; padding: 0; } .rp__list li { padding: 2px 0; }
     .rp__item, .rp__note { margin: 4px 0; font-size: .85rem; } .rp__note { color: var(--ds-text-2, rgba(244,247,251,.8)); }
@@ -165,6 +168,7 @@ export class RehearsalPanelComponent implements OnInit {
   private readonly authoring = inject(AuthoringApi);
   private readonly host = inject<ElementRef<HTMLElement>>(ElementRef);
   private readonly destroyRef = inject(DestroyRef);
+  private readonly announcer = inject(LiveRegionAnnouncer);
 
   protected readonly draft = DRAFT_COPY;
   protected readonly vinculos = VINCULOS_EN_ORDEN;
@@ -199,8 +203,9 @@ export class RehearsalPanelComponent implements OnInit {
   }
 
   protected toggle(): void {
-    // Si el foco estaba dentro del cuerpo que se va, pasa al botón: nunca queda en <body> (WCAG 2.4.3).
-    if (this.open()) this.host.nativeElement.querySelector<HTMLElement>('.rp__toggle')?.focus();
+    // Solo si el foco estaba dentro del cuerpo que se va pasa al botón (nunca queda en <body>, WCAG 2.4.3); si estaba fuera, no se toca.
+    const body = this.host.nativeElement.querySelector('.rp__body');
+    if (this.open() && body?.contains(document.activeElement)) this.host.nativeElement.querySelector<HTMLElement>('.rp__toggle')?.focus();
     this.open.update(v => !v);
   }
 
@@ -236,18 +241,26 @@ export class RehearsalPanelComponent implements OnInit {
 
   private run(request: Observable<RehearsalBlock>, undo?: () => void): void {
     if (this.busy()) { undo?.(); return; }
+    const sent = this.attemptId();
     this.busy.set(true);
     this.error.set(null);
-    request.subscribe({
-      next: block => { this.busy.set(false); this.adjusted.emit(block); },
+    request.pipe(takeUntilDestroyed(this.destroyRef)).subscribe({
+      next: block => {
+        this.busy.set(false);
+        if (this.attemptId() !== sent) return;   // se abrió otro ensayo mientras tanto: este bloque ya no es suyo
+        this.announcer.announce(DRAFT_COPY.rehearsalAdjusted.text, 'polite');
+        this.adjusted.emit(block);
+      },
       error: cause => {
         this.busy.set(false);
         undo?.();
+        if (this.attemptId() !== sent) return;
         if (isRehearsalGoneError(cause)) { this.gone.emit(); return; }
         const body = (cause as { error?: { message?: unknown; field?: unknown } } | null)?.error;
         const field = (['irA', 'explorado', 'persona', 'hitos'] as const).find(f => f === body?.field) ?? 'general';
         const message = typeof body?.message === 'string' && body.message.trim() ? body.message.trim() : DRAFT_COPY.rehearsalAdjustFailed.text;
         this.error.set({ field, message });
+        this.announcer.announce(message, 'polite');
       },
     });
   }

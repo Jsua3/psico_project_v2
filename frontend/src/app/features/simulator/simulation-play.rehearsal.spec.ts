@@ -14,7 +14,7 @@ vi.mock('phaser', () => ({
 import { HttpErrorResponse } from '@angular/common/http';
 import { ComponentFixture, TestBed } from '@angular/core/testing';
 import { By } from '@angular/platform-browser';
-import { ActivatedRoute, convertToParamMap, provideRouter } from '@angular/router';
+import { ActivatedRoute, Router, convertToParamMap, provideRouter } from '@angular/router';
 import { EMPTY, of, throwError } from 'rxjs';
 import type { Mock } from 'vitest';
 
@@ -155,12 +155,12 @@ describe('SimulationPlayComponent: modo ensayo (tarea 23)', () => {
     expect(component().rehearsalGone()).toBe(false);
   });
 
-  it('también un 404 al confirmar cuenta como ensayo perdido', () => {
+  it('un 404 sin el código REHEARSAL_GONE no es un ensayo perdido', () => {
     montar();
     service['openInteraction'].mockReturnValue(throwError(() => new HttpErrorResponse({ status: 403 })));
     rehearsalApi['read'].mockReturnValue(throwError(() => new HttpErrorResponse({ status: 404 })));
     component().openInteraction(OBJETO);
-    expect(component().rehearsalGone()).toBe(true);
+    expect(component().rehearsalGone()).toBe(false);
   });
 
   it('un 403 con el ensayo vivo es un permiso y sigue su camino (no «ya no existe»)', () => {
@@ -203,13 +203,6 @@ describe('SimulationPlayComponent: modo ensayo (tarea 23)', () => {
     expect(component().attempt()!.currentNode.id).toBe(40);
   });
 
-  it('REGLA-004: con el ensayo perdido Esc sigue pidiendo la salida segura', () => {
-    montar();
-    component().showRehearsalGone();
-    component().handleGlobalInteraction(new KeyboardEvent('keydown', { key: 'Escape', cancelable: true }));
-    expect(service['safeExit']).toHaveBeenCalledTimes(1);
-  });
-
   it('el panel de autora se monta a un lado del juego solo en ensayo y sus salidas llegan a la pantalla', () => {
     montar();
     const panel = fixture.debugElement.query(By.directive(RehearsalPanelComponent));
@@ -231,10 +224,90 @@ describe('SimulationPlayComponent: modo ensayo (tarea 23)', () => {
     expect(fixture.debugElement.query(By.directive(RehearsalPanelComponent))).toBeNull();
   });
 
-  it('con el ensayo perdido el juego queda congelado', () => {
+  describe('con el ensayo perdido (REGLA-004)', () => {
+    const perder = () => { montar(); component().showRehearsalGone(); fixture.detectChanges(); };
+
+    it('la cabecera y el pie NO quedan inertes ni ocultos al lector, y «Salida segura» está habilitada', () => {
+      perder();
+      for (const selector of ['.top-bar', '.bottom-zone']) {
+        const zona = el.querySelector(selector)!;
+        expect(zona.hasAttribute('inert'), selector).toBe(false);
+        expect(zona.hasAttribute('aria-hidden'), selector).toBe(false);
+      }
+      const salida = el.querySelector('.bottom-zone app-safe-exit-button button') as HTMLButtonElement;
+      expect(salida).not.toBeNull();
+      expect(salida.disabled).toBe(false);
+      expect(component().inputBlocked()).toBe(false);
+    });
+
+    it('el mundo queda congelado, inerte y sin el panel de autora; las teclas del mundo no hacen nada', () => {
+      perder();
+      expect(component().worldMotionPaused()).toBe(true);
+      expect(el.querySelector('.canvas-zone')!.hasAttribute('inert')).toBe(true);
+      expect(el.querySelector('app-rehearsal-panel')).toBeNull();
+      component().nearbyInteraction.set(OBJETO);
+      service['openInteraction'].mockClear();
+      component().handleGlobalInteraction(new KeyboardEvent('keydown', { key: 'e', cancelable: true }));
+      expect(service['openInteraction']).not.toHaveBeenCalled();
+    });
+
+    it('Esc y «Salida segura» llevan al editor sin pedir la pausa al servidor ni repetir el aviso', () => {
+      perder();
+      const navegar = vi.spyOn(TestBed.inject(Router), 'navigate').mockResolvedValue(true);
+      rehearsalApi['read'].mockClear();
+      component().handleGlobalInteraction(new KeyboardEvent('keydown', { key: 'Escape', cancelable: true }));
+      expect(navegar).toHaveBeenCalledWith(['/portal/casos', 9, 'editor']);
+      (el.querySelector('.bottom-zone app-safe-exit-button button') as HTMLButtonElement).click();
+      expect(navegar).toHaveBeenCalledTimes(2);
+      expect(service['safeExit']).not.toHaveBeenCalled();
+      expect(rehearsalApi['read']).not.toHaveBeenCalled();
+    });
+
+    it('se anuncia una sola vez, por el anunciador, y el aviso no es un role=alert', () => {
+      montar();
+      const anunciar = vi.spyOn(TestBed.inject(LiveRegionAnnouncer), 'announce');
+      component().showRehearsalGone();
+      fixture.detectChanges();
+      expect(anunciar).toHaveBeenCalledTimes(1);
+      expect(el.querySelector('app-rehearsal-gone [role="alert"]')).toBeNull();
+    });
+  });
+
+  it('un 409 REHEARSAL_CLOSED al confirmar dice que el ensayo ya terminó, con «Empezar de nuevo»', () => {
     montar();
-    component().world.set(MUNDO);
-    component().showRehearsalGone();
-    expect(component().inputBlocked()).toBe(true);
+    service['openInteraction'].mockReturnValue(throwError(() => new HttpErrorResponse({ status: 403 })));
+    rehearsalApi['read'].mockReturnValue(throwError(() => new HttpErrorResponse({ status: 409, error: { code: 'REHEARSAL_CLOSED' } })));
+    component().openInteraction(OBJETO);
+    fixture.detectChanges();
+    expect(component().rehearsalGone()).toBe(true);
+    expect(el.textContent).toContain('Este ensayo ya terminó');
+    (el.querySelector('button.restart') as HTMLButtonElement).click();
+    expect(rehearsalApi['start']).toHaveBeenCalledTimes(2);
+  });
+
+  it('un 400 con «desde» reintenta desde el inicio, y los fallos de abrir y recargar usan los textos del borrador', () => {
+    montar({ query: { desde: '33' } });
+    rehearsalApi['start'].mockReset();
+    rehearsalApi['start'].mockReturnValueOnce(throwError(() => new HttpErrorResponse({ status: 400 }))).mockReturnValue(of(INICIO));
+    component().restartRehearsalHere();
+    expect(rehearsalApi['start']).toHaveBeenNthCalledWith(1, 9, 33);
+    expect(rehearsalApi['start']).toHaveBeenNthCalledWith(2, 9, null);
+    rehearsalApi['start'].mockReturnValue(throwError(() => new HttpErrorResponse({ status: 500 })));
+    component().restartRehearsalHere();
+    expect(component().error()).toBe('No pudimos abrir el ensayo.');
+    service['getAttempt'].mockReturnValue(throwError(() => new HttpErrorResponse({ status: 500 })));
+    component().error.set('');
+    component().reloadRehearsal(BLOQUE);
+    expect(component().error()).toBe('No pudimos recargar el ensayo.');
+  });
+
+  it('reloadRehearsal cierra lo abierto (bitácora, selección) y marca ocupado mientras relee', () => {
+    montar();
+    component().journalOpen.set(true);
+    component().selectedInteraction.set(OBJETO);
+    component().reloadRehearsal(BLOQUE);   // getAttempt devuelve EMPTY: queda en vuelo
+    expect(component().journalOpen()).toBe(false);
+    expect(component().selectedInteraction()).toBeNull();
+    expect(component().busy()).toBe(true);
   });
 });
