@@ -62,7 +62,7 @@ import { pasosDeGesto } from './caso/gestos';
 import type { Gesto } from './caso/vocabulario';
 import {
   KEY_PERSON_CHEVRON, KEY_PERSON_COLOR, KEY_PERSON_COLOR_HEX, KEY_PERSON_HALO_HEX, KEY_PERSON_NAME_GAP_PX,
-  isKeyPerson, keyPersonTipOffsetY, resolveKeyPerson,
+  KEY_PERSON_HEAD_PX, isKeyPerson, keyPersonTipOffsetY, resolveKeyPerson,
 } from './key-person.util';
 import {
   PERSON_PAUSE_MIN_MS, PersonWalkEnv, PersonWalkState, bodyBlocks, parsePersonMovement, personFacing, personWalkBounds, resumePersonWalk,
@@ -1047,6 +1047,61 @@ export class DataDrivenWorldScene extends Phaser.Scene {
     indicator.container.destroy();
     this.buildKeyPersonIndicator(marker, object);
   }
+
+  /** Pone a la persona (o NPC) mirando hacia el jugador o hacia otra clave, sin caminar. Quien camina retoma su rumbo en su siguiente paso. */
+  faceTowards(key: string, target: 'player' | string): void {
+    const actor = this.actorOf(key);
+    const to = target === 'player' ? (this.player ? { x: this.player.x, y: this.player.y } : null) : this.feetOf(target);
+    if (!actor || !to) return;
+    const dx = to.x - actor.x, dy = to.y - actor.y;
+    const direction: PlayerDirection = Math.abs(dx) >= Math.abs(dy) ? (dx < 0 ? 'left' : 'right') : (dy < 0 ? 'up' : 'down');
+    const walker = this.personWalkers.get(key);
+    if (walker) { this.applyPersonPose(walker, actor, direction, false); return; }
+    if (key.startsWith(NPC_KEY_PREFIX)) { this.applyNpcFacing(actor, direction); return; }
+    const bag = actor as unknown as Record<string, unknown>;
+    const sprite = bag['__personSprite'] as Phaser.GameObjects.Sprite | undefined;
+    const visual = bag['__personVisual'] as CharacterVisual | undefined;
+    if (sprite && visual) playKitPose(sprite, visual, direction, false, this.callbacks.reduceMotion);
+  }
+
+  /** Claves de las personas (marcadores PERSON y `npc:{clave}`) cuyos pies están a menos de `radiusPx` de los pies del objeto `key`. */
+  peopleNear(key: string, radiusPx: number): string[] {
+    const from = this.feetOf(key);
+    if (!from) return [];
+    const near: string[] = [];
+    const check = (candidate: string): void => {
+      const feet = candidate === key ? null : this.feetOf(candidate);
+      if (feet && Math.hypot(feet.x - from.x, feet.y - from.y) < radiusPx) near.push(candidate);
+    };
+    for (const [other, object] of this.markerData) if (object.type === 'PERSON' && this.markers.has(other)) check(other);
+    for (const npcKey of this.npcMarkers.keys()) check(NPC_KEY_PREFIX + npcKey);
+    return near;
+  }
+
+  /** La cabeza de la persona en px CSS relativos al host (cámara, zoom y escala del lienzo); `null` si no está en la sala. Sin asignaciones por llamada salvo el resultado. */
+  screenAnchorOf(key: string): { x: number; y: number } | null {
+    const actor = this.actorOf(key);
+    const object = this.markerData.get(key);
+    if (!actor) return null;
+    const footY = actor.y + (key.startsWith(NPC_KEY_PREFIX) || !object ? 0 : markerFeetOffsetY(object));
+    const cam = this.cameras.main;
+    const view = cam.worldView;
+    const zoom = cam.zoom || 1;
+    const scale = this.scale?.displayScale;
+    return {
+      x: ((actor.x - view.x) * zoom) / (scale?.x || 1),
+      y: (((footY - KEY_PERSON_HEAD_PX) - view.y) * zoom) / (scale?.y || 1),
+    };
+  }
+
+  /** El aspecto con el que se dibuja a la persona o al NPC de `key`. */
+  characterVisualOf(key: string): CharacterVisual | null {
+    const bag = this.actorOf(key) as unknown as Record<string, unknown> | undefined;
+    return (bag?.['__personVisual'] ?? bag?.['__npcVisual'] ?? null) as CharacterVisual | null;
+  }
+
+  /** ¿Es `key` la persona clave de la sala? */
+  isKeyPerson(key: string): boolean { return this.keyPersonKey() === key; }
 
   /** Fase 4: draws the authored per-room background image (world.map.ambient.backgroundImage)
    *  over the procedural floor. No-op if none; safe on load failure (procedural floor remains). */
@@ -3413,6 +3468,11 @@ export class GameWorldComponent implements OnChanges, OnDestroy {
   frameActors(key: string) { this.scene?.frameActors(key); }
   releaseFrame() { this.scene?.releaseFrame(); }
   setPersonaState(text: string | null) { this.scene?.setPersonaState(text); }
+  faceTowards(key: string, target: 'player' | string) { this.scene?.faceTowards(key, target); }
+  peopleNear(key: string, radiusPx: number): string[] { return this.scene?.peopleNear(key, radiusPx) ?? []; }
+  screenAnchorOf(key: string): { x: number; y: number } | null { return this.scene?.screenAnchorOf(key) ?? null; }
+  characterVisualOf(key: string): CharacterVisual | null { return this.scene?.characterVisualOf(key) ?? null; }
+  isKeyPerson(key: string): boolean { return this.scene?.isKeyPerson(key) ?? false; }
   /** Marca el gesto en curso como `data-reaction` del host (contrato del e2e) mientras dura. Directo al DOM. */
   playGesture(key: string, gesto: Gesto): Promise<void> {
     const host = this.gameHost?.nativeElement;

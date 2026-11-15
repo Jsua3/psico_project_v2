@@ -243,3 +243,133 @@ describe('componente: data-reaction', () => {
     expect(host.hasAttribute('data-reaction')).toBe(false);
   });
 });
+
+/**
+ * Órdenes del mundo para mirar y anclar la burbuja (bloque B, tarea 20): solo lecturas y poses; quién reacciona lo decide
+ * quien llama.
+ */
+interface MirarProbe extends SceneProbe {
+  scale: { displayScale: { x: number; y: number } };
+  personWalkers: Map<string, unknown>;
+  faceTowards(key: string, target: 'player' | string): void;
+  peopleNear(key: string, radiusPx: number): string[];
+  screenAnchorOf(key: string): { x: number; y: number } | null;
+  characterVisualOf(key: string): { key: string } | null;
+  isKeyPerson(key: string): boolean;
+}
+
+const VISUAL = { key: 'v-abuela' };
+
+function conSprite(marker: FakeBox) {
+  const sprite = { play: vi.fn(), anims: { stop: vi.fn() }, setTexture: vi.fn() };
+  const bag = marker as unknown as Record<string, unknown>;
+  bag['__personSprite'] = sprite;
+  bag['__personVisual'] = VISUAL;
+  return sprite;
+}
+
+function escenaConVarias(gente: Record<string, { x: number; y: number; type?: string; npc?: boolean }>) {
+  const base = escenaConPersona('relleno', { x: 0, y: 0 });
+  const scene = base.scene as unknown as MirarProbe;
+  scene.markers = new Map();
+  scene.markerData = new Map();
+  scene.npcMarkers = new Map();
+  const objetos: MapObjectState[] = [];
+  for (const [key, def] of Object.entries(gente)) {
+    if (def.npc) { scene.npcMarkers.set(key, caja(def.x, def.y)); continue; }
+    const objeto = persona(key, def.x, def.y, { type: (def.type ?? 'PERSON') as MapObjectState['type'], metadata: {} });
+    objetos.push(objeto);
+    scene.markers.set(key, caja(def.x, def.y));
+    scene.markerData.set(key, objeto);
+  }
+  scene.world = { ...scene.world, objects: objetos } as SimulationWorldState;
+  return { scene };
+}
+
+describe('mundo: mirar', () => {
+  it('faceTowards voltea a la persona hacia el jugador sin moverla', () => {
+    const { scene, marker } = escenaConPersona('abuela', { x: 400, y: 300 }, { jugador: { x: 200, y: 300 } });
+    const sprite = conSprite(marker);
+    (scene as unknown as MirarProbe).faceTowards('abuela', 'player');
+    expect(sprite.play).toHaveBeenLastCalledWith('v-abuela-idle-left', true);
+    expect({ x: marker.x, y: marker.y }).toEqual({ x: 400, y: 300 });
+  });
+
+  it('elige el eje dominante, también hacia otra clave', () => {
+    const { scene } = escenaConVarias({ abuela: { x: 400, y: 300 }, medico: { x: 420, y: 100 } });
+    const sprite = conSprite(scene.markers.get('abuela')!);
+    (scene as unknown as MirarProbe).faceTowards('abuela', 'medico');
+    expect(sprite.play).toHaveBeenLastCalledWith('v-abuela-idle-up', true);
+  });
+
+  it('una persona que camina mira y retoma: la pose recordada cambia para que el paso siguiente la reponga', () => {
+    const { scene, marker } = escenaConPersona('abuela', { x: 400, y: 300 }, { jugador: { x: 400, y: 500 } });
+    const sprite = conSprite(marker);
+    const walker = { key: 'abuela', state: { direction: 'left' }, feetOffsetY: 16, lastPose: { direction: 'left', walking: true } };
+    (scene as unknown as MirarProbe).personWalkers = new Map([['abuela', walker]]);
+    (scene as unknown as MirarProbe).faceTowards('abuela', 'player');
+    expect(sprite.play).toHaveBeenLastCalledWith('v-abuela-idle-down', true);
+    expect(walker.lastPose).toEqual({ direction: 'down', walking: false });
+  });
+
+  it('con una clave que no está no hace nada', () => {
+    const { scene } = escenaConPersona('abuela', { x: 400, y: 300 }, { jugador: { x: 200, y: 300 } });
+    expect(() => (scene as unknown as MirarProbe).faceTowards('nadie', 'player')).not.toThrow();
+  });
+});
+
+describe('mundo: gente cerca', () => {
+  it('peopleNear encuentra solo a las personas cercanas al objeto', () => {
+    const { scene } = escenaConVarias({
+      carpeta: { x: 300, y: 300, type: 'OBJECT' }, abuela: { x: 340, y: 300 }, medico: { x: 800, y: 300 },
+    });
+    expect(scene.peopleNear('carpeta', 160)).toEqual(['abuela']);
+  });
+
+  it('cuenta también a los NPC (con su prefijo) y no a la persona misma', () => {
+    const { scene } = escenaConVarias({ abuela: { x: 340, y: 300 }, vecino: { x: 360, y: 320, npc: true }, lejano: { x: 900, y: 900, npc: true } });
+    expect(scene.peopleNear('abuela', 160)).toEqual(['npc:vecino']);
+  });
+});
+
+describe('mundo: cabeza en pantalla', () => {
+  it('screenAnchorOf traduce la cabeza a px del host y es null fuera de la sala', () => {
+    const { scene } = escenaConPersona('abuela', { x: 400, y: 300 });
+    const probe = scene as unknown as MirarProbe;
+    probe.cameras = { main: { worldView: { x: 0, y: 0 }, zoom: 2 } } as never;
+    probe.scale = { displayScale: { x: 2, y: 2 } };   // 2 px del juego por px CSS
+    const ancla = probe.screenAnchorOf('abuela')!;
+    expect(ancla.x).toBe(400);
+    expect(ancla.y).toBeLessThan(300 + 16);   // la cabeza queda por encima de los pies
+    expect(probe.screenAnchorOf('nadie')).toBeNull();
+  });
+
+  it('descuenta el desplazamiento de la cámara', () => {
+    const { scene } = escenaConPersona('abuela', { x: 400, y: 300 });
+    const probe = scene as unknown as MirarProbe;
+    probe.cameras = { main: { worldView: { x: 100, y: 50 }, zoom: 1 } } as never;
+    probe.scale = { displayScale: { x: 1, y: 1 } };
+    expect(probe.screenAnchorOf('abuela')).toEqual({ x: 300, y: 300 + 16 - 64 - 50 });
+  });
+});
+
+describe('mundo: lecturas de la persona', () => {
+  it('characterVisualOf lee el visual de la persona o del NPC; null si no está', () => {
+    const { scene, marker } = escenaConPersona('abuela', { x: 400, y: 300 });
+    conSprite(marker);
+    const probe = scene as unknown as MirarProbe;
+    const npc = caja(10, 10);
+    (npc as unknown as Record<string, unknown>)['__npcVisual'] = { key: 'v-npc' };
+    probe.npcMarkers = new Map([['vecino', npc]]);
+    expect(probe.characterVisualOf('abuela')).toBe(VISUAL);
+    expect(probe.characterVisualOf('npc:vecino')).toEqual({ key: 'v-npc' });
+    expect(probe.characterVisualOf('nadie')).toBeNull();
+  });
+
+  it('isKeyPerson dice si la clave es la persona clave de la sala', () => {
+    const { scene } = escenaConPersona('abuela', { x: 400, y: 300 });
+    const probe = scene as unknown as MirarProbe;
+    expect(probe.isKeyPerson('abuela')).toBe(true);
+    expect(probe.isKeyPerson('otra')).toBe(false);
+  });
+});
