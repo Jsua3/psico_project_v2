@@ -20,6 +20,7 @@ import { RETOUCH_ROOT, checkRetouchLayer } from './retouch-lib.mjs';
 import { REPO_ROOT, checkCatalogKeys, checkCatalogRecipes, checkScenarioRecipes, editorSamples } from './coverage.mjs';
 import { checkSourceMinimums, referencedKeys } from './coverage-sources.mjs';
 import { sampleRecipes } from './muestras.mjs';
+import { checkApoyo, checkGiro } from './silueta.mjs';
 
 export function loadPalette() {
   const palette = JSON.parse(readFileSync(path.join(KIT_ROOT, 'palette.v2.json'), 'utf8'));
@@ -100,10 +101,12 @@ export function runCheck({ outDir = DEFAULT_OUT, retouchRoot = RETOUCH_ROOT } = 
       }
     }
     errors.push(...checkCharacter(composed, { name: id, palette, outline: OUTLINE, volume: isVolume(bundle, recipe) }));
+    errors.push(...checkGiro(composed, id), ...checkApoyo(composed, id));
   }
   for (const recipe of sampleRecipes(bundle)) {
     const composed = composeCharacter(bundle, recipe, { keepDressed: true });
     errors.push(...checkCharacter(composed, { name: recipe.id, palette, outline: OUTLINE, volume: isVolume(bundle, recipe) }));
+    errors.push(...checkGiro(composed, recipe.id), ...checkApoyo(composed, recipe.id));
   }
   const refs = referencedKeys(REPO_ROOT);
   errors.push(...checkCatalogKeys(bundle.catalog, refs));
