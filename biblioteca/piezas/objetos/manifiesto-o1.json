@@ -1069,6 +1069,25 @@
    "nombre": "Agua y pañuelos",
    "ruta": "piezas/objetos/hospital/agua-panuelos.png"
   },
+  "hospital/cartelera-pasillo": {
+   "alto": 66,
+   "ancho": 68,
+   "apoyo": [
+    34,
+    66
+   ],
+   "brillo": "piezas/objetos/hospital/cartelera-pasillo-brillo.png",
+   "brilloDerecha": "piezas/objetos/hospital/cartelera-pasillo-brillo-derecha.png",
+   "brilloIzquierda": "piezas/objetos/hospital/cartelera-pasillo-brillo-izquierda.png",
+   "cuadros": 1,
+   "huella": {
+    "alto": 60,
+    "ancho": 56,
+    "fondo": 8
+   },
+   "nombre": "Cartelera del pasillo",
+   "ruta": "piezas/objetos/hospital/cartelera-pasillo.png"
+  },
   "hospital/cierre-resumen": {
    "alto": 23,
    "ancho": 34,
@@ -1211,6 +1230,41 @@
    "reemplaza": "../frontend/src/assets/game/objects/object_marco_normativo.png",
    "ruta": "piezas/objetos/hospital/marco-normativo.png"
   },
+  "hospital/puerta-cerrada": {
+   "alto": 36,
+   "ancho": 28,
+   "animaciones": {
+    "cerca": {
+     "bucle": false,
+     "de": 1,
+     "fps": 6,
+     "hasta": 2,
+     "luego": "reposo"
+    },
+    "reposo": {
+     "bucle": true,
+     "de": 0,
+     "fps": 1,
+     "hasta": 0
+    }
+   },
+   "apoyo": [
+    14,
+    36
+   ],
+   "brillo": "piezas/objetos/hospital/puerta-cerrada-brillo.png",
+   "brilloDerecha": "piezas/objetos/hospital/puerta-cerrada-brillo-derecha.png",
+   "brilloIzquierda": "piezas/objetos/hospital/puerta-cerrada-brillo-izquierda.png",
+   "cuadros": 3,
+   "fps": 1,
+   "huella": {
+    "alto": 34,
+    "ancho": 24,
+    "fondo": 8
+   },
+   "nombre": "Puerta de la sala de escucha (cerrada)",
+   "ruta": "piezas/objetos/hospital/puerta-cerrada.png"
+  },
   "hospital/registro": {
    "alto": 39,
    "ancho": 39,
@@ -1245,6 +1299,22 @@
    },
    "nombre": "Libro de registro",
    "ruta": "piezas/objetos/hospital/registro.png"
+  },
+  "hospital/sillas-escucha": {
+   "alto": 35,
+   "ancho": 58,
+   "apoyo": [
+    29,
+    35
+   ],
+   "cuadros": 1,
+   "huella": {
+    "alto": 30,
+    "ancho": 58,
+    "fondo": 14
+   },
+   "nombre": "Sillas de la sala de escucha",
+   "ruta": "piezas/objetos/hospital/sillas-escucha.png"
   },
   "hospital/timbre-llamado": {
    "alto": 44,

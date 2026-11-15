@@ -228,6 +228,19 @@ PIEZAS.update({
                            reemplaza=G + 'object_cierre.png'),
 })
 
+import objetos_hospital_c as hc  # noqa: E402
+
+PIEZAS.update({
+    'puerta-cerrada': dict(nombre='Puerta de la sala de escucha (cerrada)', tipo='objeto', dibujar=hc.puerta_cerrada, cuadros=3,
+                           huella=dict(ancho=24, fondo=8, alto=34), material='aviso y latón',
+                           animaciones=dict(reposo=dict(de=0, hasta=0, fps=1, bucle=True),
+                                            cerca=dict(de=1, hasta=2, fps=6, bucle=False, luego='reposo'))),
+    'cartelera-pasillo': dict(nombre='Cartelera del pasillo', tipo='objeto', dibujar=hc.cartelera_pasillo, cuadros=1,
+                              huella=dict(ancho=56, fondo=8, alto=60), material='tablero y cromo'),
+    'sillas-escucha': dict(nombre='Sillas de la sala de escucha', tipo='objeto', dibujar=hc.sillas_escucha, cuadros=1,
+                           huella=dict(ancho=58, fondo=14, alto=30), material='tela'),
+})
+
 
 if __name__ == '__main__':
     import objetos_hoja
