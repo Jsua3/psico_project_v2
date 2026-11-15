@@ -30,6 +30,137 @@
     "piezas/lugares/hospital.json",
     "piezas/lugares/universidad.json"
   ],
+  "luz": {
+    "bayer": [
+      [
+        0,
+        8,
+        2,
+        10
+      ],
+      [
+        12,
+        4,
+        14,
+        6
+      ],
+      [
+        3,
+        11,
+        1,
+        9
+      ],
+      [
+        15,
+        7,
+        13,
+        5
+      ]
+    ],
+    "minimo": 4400,
+    "niveles": 8,
+    "paso": 700,
+    "penumbra": {
+      "dia": 7900,
+      "exteriorDia": 9300,
+      "exteriorNoche": 5100,
+      "noche": 5800
+    },
+    "referencia": "piezas/luz/LEEME.md",
+    "tablaAmbiente": [
+      [
+        101,
+        104,
+        123
+      ],
+      [
+        119,
+        122,
+        141
+      ],
+      [
+        137,
+        140,
+        159
+      ],
+      [
+        155,
+        158,
+        176
+      ],
+      [
+        174,
+        177,
+        193
+      ],
+      [
+        194,
+        196,
+        209
+      ],
+      [
+        214,
+        215,
+        225
+      ],
+      [
+        234,
+        235,
+        240
+      ],
+      [
+        255,
+        255,
+        255
+      ]
+    ],
+    "tablaCalida": [
+      [
+        0,
+        0,
+        0
+      ],
+      [
+        13,
+        10,
+        7
+      ],
+      [
+        26,
+        21,
+        14
+      ],
+      [
+        38,
+        31,
+        21
+      ]
+    ],
+    "tablaFria": [
+      [
+        0,
+        0,
+        0
+      ],
+      [
+        8,
+        10,
+        13
+      ],
+      [
+        15,
+        20,
+        26
+      ],
+      [
+        23,
+        30,
+        38
+      ]
+    ],
+    "unidad": 10000,
+    "uno": 1024
+  },
   "muebles": {
     "hospital/archivador-clinico": {
       "alto": 73,
@@ -2260,6 +2391,8 @@
       }
     },
     "puerta/corrediza": {
+      "alto": 96,
+      "ancho": 136,
       "cuadros": 4,
       "franja": [
         0,
@@ -2343,6 +2476,8 @@
       }
     },
     "puerta/madera": {
+      "alto": 92,
+      "ancho": 56,
       "cuadros": 4,
       "franja": [
         0,
@@ -2426,6 +2561,8 @@
       }
     },
     "puerta/madera-ventanilla": {
+      "alto": 92,
+      "ancho": 56,
       "cuadros": 4,
       "franja": [
         0,
@@ -2509,6 +2646,8 @@
       }
     },
     "puerta/metalica": {
+      "alto": 92,
+      "ancho": 58,
       "cuadros": 4,
       "franja": [
         0,
@@ -2592,6 +2731,8 @@
       }
     },
     "puerta/paso": {
+      "alto": 96,
+      "ancho": 72,
       "cuadros": 4,
       "franja": [
         0,
@@ -2675,6 +2816,8 @@
       }
     },
     "puerta/urgencias": {
+      "alto": 94,
+      "ancho": 86,
       "cuadros": 4,
       "franja": [
         0,
@@ -2758,6 +2901,8 @@
       }
     },
     "puerta/vidrio": {
+      "alto": 92,
+      "ancho": 56,
       "cuadros": 4,
       "franja": [
         0,
@@ -3140,7 +3285,9 @@
         136
       ],
       "luz": {
+        "alto": 32,
         "ancho": 120,
+        "antepecho": 100,
         "forma": "haz",
         "fuerza": 70,
         "momento": "dia",
@@ -3223,7 +3370,9 @@
         139
       ],
       "luz": {
+        "alto": 60,
         "ancho": 96,
+        "antepecho": 70,
         "forma": "haz",
         "momento": "dia",
         "tono": "calido"
@@ -3305,7 +3454,9 @@
         135
       ],
       "luz": {
+        "alto": 60,
         "ancho": 88,
+        "antepecho": 70,
         "forma": "haz",
         "fuerza": 60,
         "momento": "dia",
@@ -3388,7 +3539,9 @@
         135
       ],
       "luz": {
+        "alto": 88,
         "ancho": 168,
+        "antepecho": 42,
         "forma": "haz",
         "momento": "dia",
         "tono": "calido"

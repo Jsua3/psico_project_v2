@@ -8,6 +8,7 @@ otro esquema (`frontend/scripts/world-art/build.mjs`). Este vive aparte hasta qu
 
     {"esquema": 2,
      "geometria": {"alto", "piso", "tope", "k", "anchos", "borde": {ancho: px}},
+     "luz": {"unidad", "minimo", "paso", "niveles", "penumbra", "bayer", "tablaAmbiente", "tablaCalida", "tablaFria"},
      "piezas": {"<tipo>/<modelo>": {"nombre", "ocupa", "muros", "cuadros", "franja", "estados"?, "fps"?, "luz"?,
                                     "vistas": {"frente": V, "camara"?: V, "suelo"?: V, "lado"?: {ancho: V}}}},
      "pisos": {"<tipo>-<variante>": {"ruta", "ancho", "alto"}},
@@ -36,6 +37,7 @@ RAIZ = os.path.normpath(os.path.join(AQUI, '..', '..'))
 sys.path.insert(0, AQUI)
 import piezas_geo as g  # noqa: E402
 import piezas_hospital as ph  # noqa: E402
+import piezas_luz as pl  # noqa: E402
 import piezas_muro as pm  # noqa: E402
 import piezas_puertas as pp  # noqa: E402
 import piezas_superficies as ps  # noqa: E402
@@ -59,7 +61,7 @@ def generar():
                       camara=_vista(pp.cuadros(modelo, 'camara'), pp.apoyo(modelo, 'camara'), base + '-camara.png', imagenes),
                       lado={str(a): _vista(pp.cuadros(modelo, 'lado', a), pp.apoyo(modelo, 'lado', a), f'{base}-lado-{a}.png', imagenes)
                             for a in g.ANCHOS})
-        piezas['puerta/' + modelo] = dict(nombre=M['nombre'], ocupa=M['ocupa'], muros=list(g.MUROS), cuadros=pp.CUADROS,
+        piezas['puerta/' + modelo] = dict(nombre=M['nombre'], ocupa=M['ocupa'], ancho=M['ancho'], alto=M['alto'], muros=list(g.MUROS), cuadros=pp.CUADROS,
                                           franja=[0, vistas['frente']['apoyo'][1]], hojas=M['hojas'], vistas=vistas)
     for (tipo, modelo), F in pm.PIEZAS.items():
         base = f'piezas/{CARPETA.get(tipo, "muro")}/{modelo}'
@@ -75,9 +77,11 @@ def generar():
         ficha = dict(nombre=F['nombre'], ocupa=F['ocupa'], muros=list(F['muros']), cuadros=F['cuadros'], franja=franja, vistas=vistas)
         if tipo in ESTADOS:
             ficha['estados'] = ESTADOS[tipo]
-        for clave in ('fps', 'luz'):
-            if F.get(clave):
-                ficha[clave] = F[clave]
+        if F.get('fps'):
+            ficha['fps'] = F['fps']
+        if F.get('luz'):
+            # La ventana lleva además su antepecho y su alto: la luz los usa para el halo en el muro.
+            ficha['luz'] = dict(F['luz'], **{k: F[k] for k in ('antepecho', 'alto') if k in F})
         piezas[f'{tipo}/{modelo}'] = ficha
 
     pisos = {}
@@ -110,7 +114,11 @@ def generar():
             muebles['hospital/' + ref]['fps'] = F['fps']
     geometria = dict(alto=g.ALTO, piso=g.SEAM, tope=g.TOP, k=[3, 16], anchos=list(g.ANCHOS), rejilla=g.REJILLA,
                      borde={str(a): g.borde(a) for a in g.ANCHOS})
-    return dict(esquema=2, geometria=geometria, piezas=piezas, pisos=pisos, muros=muros, muebles=muebles, lugares=[]), imagenes
+    luz = dict(unidad=pl.U, minimo=pl.MINIMO, paso=pl.PASO, niveles=pl.NIVELES, uno=pl.UNO,
+               penumbra=dict(dia=pl.PENUMBRA, noche=pl.PENUMBRA_NOCHE, exteriorDia=pl.EXTERIOR, exteriorNoche=pl.EXTERIOR_NOCHE),
+               bayer=pl.BAYER.tolist(), tablaAmbiente=pl.TABLA_AMBIENTE.tolist(), tablaCalida=pl.TABLA_CALIDA.tolist(),
+               tablaFria=pl.TABLA_FRIA.tolist(), referencia='piezas/luz/LEEME.md')
+    return dict(esquema=2, geometria=geometria, luz=luz, piezas=piezas, pisos=pisos, muros=muros, muebles=muebles, lugares=[]), imagenes
 
 
 def serializar(datos):
