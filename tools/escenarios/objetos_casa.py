@@ -483,6 +483,27 @@ PIEZAS = {
 }
 
 
+import objetos_casa_b as cb  # noqa: E402
+
+PIEZAS.update({
+    'telefono-fijo': dict(nombre='Teléfono fijo', tipo='objeto', dibujar=cb.telefono, cuadros=3,
+                          huella=dict(ancho=24, fondo=6, alto=12), material='plástico',
+                          animaciones=dict(reposo=dict(de=0, hasta=0, fps=1, bucle=True),
+                                           cerca=dict(de=1, hasta=2, fps=8, bucle=True)),
+                          reemplaza='escenarios/casa/arte/objetos/telefono-fijo.png'),
+    'peluche': dict(nombre='Peluche', tipo='objeto', dibujar=cb.peluche, cuadros=3,
+                    huella=dict(ancho=18, fondo=6, alto=20), material='peluche',
+                    animaciones=dict(reposo=dict(de=0, hasta=0, fps=1, bucle=True),
+                                     cerca=dict(de=1, hasta=2, fps=4, bucle=False, luego='reposo')),
+                    reemplaza='escenarios/casa/arte/objetos/peluche.png'),
+    'cuaderno-escolar': dict(nombre='Cuaderno escolar', tipo='objeto', dibujar=cb.cuaderno, cuadros=3,
+                             huella=dict(ancho=30, fondo=8, alto=6), material='papel',
+                             animaciones=dict(reposo=dict(de=0, hasta=0, fps=1, bucle=True),
+                                              revisar=dict(de=1, hasta=2, fps=8, bucle=False, sostener=True)),
+                             reemplaza='escenarios/casa/arte/objetos/cuaderno-escolar.png'),
+})
+
+
 if __name__ == '__main__':
     import objetos_hoja
     objetos_hoja.hoja_lugar('casa', PIEZAS)

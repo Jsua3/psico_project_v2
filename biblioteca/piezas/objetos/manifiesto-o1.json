@@ -575,6 +575,72 @@
   }
  },
  "objetos": {
+  "casa/cuaderno-escolar": {
+   "alto": 17,
+   "ancho": 34,
+   "animaciones": {
+    "reposo": {
+     "bucle": true,
+     "de": 0,
+     "fps": 1,
+     "hasta": 0
+    },
+    "revisar": {
+     "bucle": false,
+     "de": 1,
+     "fps": 8,
+     "hasta": 2,
+     "sostener": true
+    }
+   },
+   "apoyo": [
+    17,
+    17
+   ],
+   "cuadros": 3,
+   "fps": 1,
+   "huella": {
+    "alto": 6,
+    "ancho": 30,
+    "fondo": 8
+   },
+   "nombre": "Cuaderno escolar",
+   "reemplaza": "escenarios/casa/arte/objetos/cuaderno-escolar.png",
+   "ruta": "piezas/objetos/casa/cuaderno-escolar.png"
+  },
+  "casa/peluche": {
+   "alto": 26,
+   "ancho": 22,
+   "animaciones": {
+    "cerca": {
+     "bucle": false,
+     "de": 1,
+     "fps": 4,
+     "hasta": 2,
+     "luego": "reposo"
+    },
+    "reposo": {
+     "bucle": true,
+     "de": 0,
+     "fps": 1,
+     "hasta": 0
+    }
+   },
+   "apoyo": [
+    11,
+    26
+   ],
+   "cuadros": 3,
+   "fps": 1,
+   "huella": {
+    "alto": 20,
+    "ancho": 18,
+    "fondo": 6
+   },
+   "nombre": "Peluche",
+   "reemplaza": "escenarios/casa/arte/objetos/peluche.png",
+   "ruta": "piezas/objetos/casa/peluche.png"
+  },
   "casa/portarretrato": {
    "alto": 23,
    "ancho": 20,
@@ -618,6 +684,41 @@
    "reemplaza": "escenarios/casa/arte/objetos/portarretrato.png",
    "ruta": "piezas/objetos/casa/portarretrato.png",
    "sobre": 31
+  },
+  "casa/telefono-fijo": {
+   "alto": 22,
+   "ancho": 30,
+   "animaciones": {
+    "cerca": {
+     "bucle": true,
+     "de": 1,
+     "fps": 8,
+     "hasta": 2
+    },
+    "reposo": {
+     "bucle": true,
+     "de": 0,
+     "fps": 1,
+     "hasta": 0
+    }
+   },
+   "apoyo": [
+    15,
+    22
+   ],
+   "brillo": "piezas/objetos/casa/telefono-fijo-brillo.png",
+   "brilloDerecha": "piezas/objetos/casa/telefono-fijo-brillo-derecha.png",
+   "brilloIzquierda": "piezas/objetos/casa/telefono-fijo-brillo-izquierda.png",
+   "cuadros": 3,
+   "fps": 1,
+   "huella": {
+    "alto": 12,
+    "ancho": 24,
+    "fondo": 6
+   },
+   "nombre": "Teléfono fijo",
+   "reemplaza": "escenarios/casa/arte/objetos/telefono-fijo.png",
+   "ruta": "piezas/objetos/casa/telefono-fijo.png"
   },
   "casa/televisor": {
    "alto": 40,
