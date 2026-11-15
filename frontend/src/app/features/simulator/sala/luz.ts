@@ -1,7 +1,7 @@
 /**
  * Luz de una sala por piezas, calculada en el cliente desde su estructura con aritmética entera.
  *
- *     calcularLuz(sala, momento?, abiertas?) -> { ambiente, brillo }
+ *     calcularLuz(sala, catalogo, { momento, abiertas, cuerpos }) -> { ambiente, brillo }
  *
  * `ambiente` se MULTIPLICA sobre la escena y `brillo` se SUMA. Es el espejo de `tools/escenarios/piezas_luz.py` y debe dar
  * los mismos píxeles: lo comprueba `scripts/world-art/salas-luz.test.mjs`. Por eso cada operación repite la de Python, en
@@ -11,11 +11,14 @@
  * - De día cada ventana proyecta un haz sobre el piso y un halo en su muro. De noche la luz sale de las lámparas.
  * - Varias luces se combinan con el máximo ANTES de cuantizar: al cruzarse no rompen los escalones.
  * - La puerta abierta del muro del fondo deja caer una cuña de luz de la sala vecina.
+ * - `cuerpos` son los muebles y las personas que hay en el piso: cada uno le tapa la luz a lo que tiene detrás. La ventana
+ *   arroja la sombra en la dirección de su haz y la lámpara lejos de sí misma; a la sombra queda un cuarto de esa luz.
  *
+ * Las reglas del porte están en `biblioteca/piezas/luz/LEEME.md`, con seis salas de referencia congeladas.
  * Sin dependencias y con sintaxis borrable: lo cargan el navegador y las pruebas en Node.
  */
-import { luzDePieza, vanoDePuerta } from './catalogo';
-import type { SalaPorPiezas } from './catalogo';
+import { encendidaForzada, luzDePieza, vanoDePuerta } from './catalogo';
+import type { CatalogoDeLuz, SalaPorPiezas } from './catalogo';
 import { ALTO, FONDO, MARGEN, SEAM, TOP, borde, laterales, limites } from './geometria';
 import type { Momento } from './geometria';
 
@@ -31,9 +34,24 @@ const EXTERIOR_NOCHE = 5100;
 /** 1,0 en las mezclas. */
 const UNO = 1024;
 const BAYER = [0, 8, 2, 10, 12, 4, 14, 6, 3, 11, 1, 9, 15, 7, 13, 5];
+/** De la luz de una fuente, lo que se pierde a su sombra (3/4). */
+const EN_SOMBRA = 768;
+/** Dirección en que viaja la luz de una ventana, en 64avos de px: la del fondo y la de un muro lateral. */
+const HAZ_FONDO = [45, 64];
+const HAZ_LADO = [64, 22];
+/** px que mide como mucho la sombra que arroja una lámpara. */
+const SOMBRA_MAXIMA = 72;
 /** Hasta dónde llega la cuña de una puerta abierta: px de piso desde el muro y px a cada lado del eje de la puerta. */
 const CUNA_FONDO = 54;
 const CUNA_LADO = 100;
+
+/** Las constantes del motor, para comprobarlas contra las que publica el manifiesto (`luz`). */
+export const CONSTANTES_DE_LUZ = {
+  unidad: U, minimo: MINIMO, paso: PASO, niveles: NIVELES, uno: UNO,
+  penumbra: { dia: PENUMBRA, noche: PENUMBRA_NOCHE, exteriorDia: EXTERIOR, exteriorNoche: EXTERIOR_NOCHE },
+  bayer: [BAYER.slice(0, 4), BAYER.slice(4, 8), BAYER.slice(8, 12), BAYER.slice(12, 16)],
+  enSombra: EN_SOMBRA, hazFondo: HAZ_FONDO, hazLado: HAZ_LADO, sombraMaxima: SOMBRA_MAXIMA,
+};
 
 function piso(a: number, b: number): number {
   return Math.floor(a / b);
@@ -78,6 +96,29 @@ export interface CapasDeLuz {
   brillo: Uint8ClampedArray;
 }
 
+/** Un mueble o una persona sobre el piso: su huella en px de sala y su altura. Le tapa la luz a lo que tiene detrás. */
+export interface Cuerpo {
+  x0: number;
+  x1: number;
+  y0: number;
+  y1: number;
+  alto: number;
+}
+
+/** Huella y altura de algo apoyado en (x, y), el centro de su base, a partir del tamaño de su sprite. */
+export function cuerpo(x: number, y: number, ancho: number, alto: number, persona = false): Cuerpo {
+  if (persona) return { x0: x - 9, x1: x + 9, y0: y - 10, y1: y, alto: 60 };
+  const fondo = Math.max(8, Math.min(16, piso(ancho, 5)));
+  return { x0: x - piso(ancho, 2) + 2, x1: x + piso(ancho, 2) - 2, y0: y - fondo, y1: y, alto: Math.max(8, alto - piso(fondo, 2)) };
+}
+
+export interface OpcionesDeLuz {
+  /** Por omisión, el de la estructura. */
+  momento?: Momento;
+  /** Muebles y personas que arrojan sombra. */
+  cuerpos?: readonly Cuerpo[];
+}
+
 export interface Rectangulo {
   x: number;
   y: number;
@@ -91,6 +132,8 @@ interface PuertaAbrible {
   eje: number;
   vano: number;
 }
+
+type Aplicar = (i: number, mancha: number) => void;
 
 /**
  * La luz de una sala en un momento, lista para abrir y cerrar puertas sin recalcularlo todo: guarda la luz de los emisores
@@ -114,7 +157,7 @@ export class LuzDeSala {
   private readonly luz: Int32Array;
   private readonly calido: Int32Array;
   private readonly frio: Int32Array;
-  /** Quedan píxeles bajo la base (la sombra corta del exterior, de día, sin ningún emisor): la primera cuña los sube todos. */
+  /** Quedan píxeles bajo la base (las sombras del exterior, de día, sin ningún emisor): la primera cuña los sube todos. */
   private readonly bajoBase: boolean;
   private readonly puertas: PuertaAbrible[];
   private readonly ambiente: Uint8ClampedArray;
@@ -122,14 +165,15 @@ export class LuzDeSala {
   private readonly niveles: Uint8Array;
   private abiertas: PuertaAbrible[] = [];
 
-  constructor(sala: SalaPorPiezas, momento?: Momento) {
+  constructor(sala: SalaPorPiezas, catalogo: CatalogoDeLuz, opciones: OpcionesDeLuz = {}) {
     const est = sala.estructura;
+    const cuerpos = opciones.cuerpos ?? [];
     const w = est.ancho;
     const b = borde(w);   // rechaza un ancho fuera del catálogo
     const [izq, der] = laterales(sala.encuadre);
     const [xl, xr] = limites(sala.encuadre, w);
     this.ancho = w;
-    this.momento = momento ?? est.momento ?? 'dia';
+    this.momento = opciones.momento ?? est.momento ?? 'dia';
     this.izq = izq;
     this.der = der;
     this.exterior = est.exterior === true;
@@ -155,13 +199,15 @@ export class LuzDeSala {
     this.brillo = new Uint8ClampedArray(total * 4);
     this.niveles = new Uint8Array(total);
 
-    if (this.exterior && dia) this.sombraDeExterior(xl, xr);
-    const sumo = this.emisores(sala, xl, xr);
+    // Dónde los cuerpos tapan la luz del emisor que se está sumando. Solo hace falta si hay cuerpos.
+    const tapada = cuerpos.length > 0 ? new Uint8Array(total) : null;
+    if (this.exterior && dia) this.sombraDeExterior(xl, xr, cuerpos, tapada);
+    const sumo = this.emisores(sala, catalogo, xl, xr, cuerpos, tapada);
     this.bajoBase = this.exterior && dia && !sumo;
 
     this.puertas = [];
     for (const puerta of sala.puertas ?? []) {
-      const vano = vanoDePuerta(puerta.modelo);
+      const vano = vanoDePuerta(catalogo, puerta.modelo);
       if (puerta.muro === 'fondo' && vano !== null) this.puertas.push({ id: puerta.id, eje: xl + puerta.pos, vano });
     }
     this.terminar(0, 0, w, ALTO);
@@ -207,8 +253,8 @@ export class LuzDeSala {
     return [this.izq ? this.jl[y] : 0, this.der ? this.jr[y] : this.ancho - 1];
   }
 
-  /** Luz de día al aire libre: el muro echa una sombra corta sobre el suelo y el alero sobre el muro. */
-  private sombraDeExterior(xl: number, xr: number): void {
+  /** Luz de día al aire libre: el muro echa una sombra corta sobre el suelo, el alero sobre el muro y el sol a cada cuerpo. */
+  private sombraDeExterior(xl: number, xr: number, cuerpos: readonly Cuerpo[], tapada: Uint8Array | null): void {
     const w = this.ancho;
     for (let y = SEAM; y < ALTO; y++) {
       const n = this.n[y];
@@ -220,15 +266,81 @@ export class LuzDeSala {
     for (let y = TOP; y < Math.min(SEAM, TOP + 18); y++) {
       for (let x = xl, i = y * w + xl; x < xr; x++, i++) this.luz[i] = 7900;
     }
+    // La sombra que el sol le saca a cada cuerpo baja la luz dos escalones.
+    if (tapada && this.sombra(cuerpos, HAZ_FONDO[0], HAZ_FONDO[1], cuerpos.map(c => piso(c.alto * 5, 8)), tapada)) {
+      for (let i = SEAM * w; i < tapada.length; i++) if (tapada[i]) this.luz[i] -= 2 * PASO;
+    }
+  }
+
+  /**
+   * Marca en `mascara` dónde algún cuerpo tapa la luz que viaja en la dirección (dx, dy)/64: un punto p queda a la sombra
+   * de un cuerpo si p − t·(dx, dy)/64 cae en su huella para algún t entre 0 y su largo de sombra. Todo se compara
+   * multiplicado por |dx|·|dy|, así no hay ninguna división. Devuelve si marcó algo. No borra lo ya marcado.
+   */
+  private sombra(cuerpos: readonly Cuerpo[], dx: number, dy: number, largos: readonly number[], mascara: Uint8Array): boolean {
+    const w = this.ancho;
+    const ax = Math.abs(dx) || 1, ay = Math.abs(dy) || 1;
+    let alguna = false;
+    cuerpos.forEach((c, k) => {
+      const largo = largos[k];
+      if (largo <= 0) return;
+      // Caja que contiene la huella barrida a lo largo de la sombra.
+      const correX = Math.ceil((largo * Math.abs(dx)) / 64) + 1, correY = Math.ceil((largo * Math.abs(dy)) / 64) + 1;
+      const xa = Math.max(0, dx < 0 ? c.x0 - correX : c.x0), xb = Math.min(w - 1, dx > 0 ? c.x1 + correX : c.x1);
+      const ya = Math.max(SEAM, dy < 0 ? c.y0 - correY : c.y0), yb = Math.min(ALTO - 1, dy > 0 ? c.y1 + correY : c.y1);
+      for (let y = ya; y <= yb; y++) {
+        const [pa, pb] = this.pisoDe(y);
+        for (let x = Math.max(xa, pa); x <= Math.min(xb, pb); x++) {
+          let lo = 0, hi = largo * ax * ay, dentro = true;
+          if (dx > 0) {
+            lo = Math.max(lo, 64 * (x - c.x1) * ay);
+            hi = Math.min(hi, 64 * (x - c.x0) * ay);
+          } else if (dx < 0) {
+            lo = Math.max(lo, 64 * (c.x0 - x) * ay);
+            hi = Math.min(hi, 64 * (c.x1 - x) * ay);
+          } else {
+            dentro = x >= c.x0 && x <= c.x1;
+          }
+          if (dy > 0) {
+            lo = Math.max(lo, 64 * (y - c.y1) * ax);
+            hi = Math.min(hi, 64 * (y - c.y0) * ax);
+          } else if (dy < 0) {
+            lo = Math.max(lo, 64 * (c.y0 - y) * ax);
+            hi = Math.min(hi, 64 * (c.y1 - y) * ax);
+          } else {
+            dentro = dentro && y >= c.y0 && y <= c.y1;
+          }
+          if (dentro && lo <= hi) {
+            mascara[y * w + x] = 1;
+            alguna = true;
+          }
+        }
+      }
+    });
+    return alguna;
+  }
+
+  /** Sombras que arroja una lámpara puesta en (x, y) a `altura` px del piso: cada cuerpo, lejos de ella. */
+  private sombraDeLampara(cuerpos: readonly Cuerpo[], x: number, y: number, altura: number, mascara: Uint8Array): void {
+    for (const c of cuerpos) {
+      if (c.x0 - 8 <= x && x <= c.x1 + 8 && c.y0 - 8 <= y && y <= c.y1 + 8) continue;   // la lámpara está encima de ese mueble
+      const ddx = piso(c.x0 + c.x1, 2) - x, ddy = piso(c.y0 + c.y1, 2) - y;
+      const n = raiz(ddx * ddx + ddy * ddy);
+      if (n < 4) continue;
+      const largo = Math.min(piso(c.alto * n, Math.max(altura - c.alto, 16)), SOMBRA_MAXIMA);
+      this.sombra([c], piso(ddx * 64, n), piso(ddy * 64, n), [largo], mascara);
+    }
   }
 
   /** Suma la luz de cada pieza que emite en este momento. Devuelve si alguna sumó. */
-  private emisores(sala: SalaPorPiezas, xl: number, xr: number): boolean {
+  private emisores(
+    sala: SalaPorPiezas, catalogo: CatalogoDeLuz, xl: number, xr: number, cuerpos: readonly Cuerpo[], tapada: Uint8Array | null,
+  ): boolean {
     const w = this.ancho;
     const ganancia = U - this.base;
     let sumo = false;
     // sumar(mancha, fuerza, tono, peso, color) de Python: devuelve cómo aplicar una mancha de 0 a 1024 en un píxel.
-    const sumar = (fuerza: number, tono: 'calido' | 'frio', peso = UNO, color = UNO) => {
+    const sumar = (fuerza: number, tono: 'calido' | 'frio', peso = UNO, color = UNO): Aplicar => {
       if (!sumo) {
         // np.maximum(L, base + …) recorre toda la imagen: donde la mancha es 0, deja al menos la base.
         for (let i = 0; i < this.luz.length; i++) if (this.luz[i] < this.base) this.luz[i] = this.base;
@@ -236,15 +348,19 @@ export class LuzDeSala {
       }
       const k = piso(piso(ganancia * fuerza, 100) * peso, UNO);
       const tonos = tono === 'calido' ? this.calido : this.frio;
-      return (i: number, mancha: number) => {
+      return (i, mancha) => {
         const l = this.base + piso(k * mancha, UNO);
         if (l > this.luz[i]) this.luz[i] = l;
         const t = piso(piso(mancha * fuerza, 100) * color, UNO);
         if (t > tonos[i]) tonos[i] = t;
       };
     };
+    // A la sombra de un cuerpo queda un cuarto de la luz de esa fuente.
+    const conSombra = (aplicar: Aplicar): Aplicar => !tapada
+      ? aplicar
+      : (i, mancha) => aplicar(i, tapada[i] ? mancha - piso(mancha * EN_SOMBRA, UNO) : mancha);
+    // Recorre el muro del fondo alrededor del rectángulo (x, y, ancho, alto), hasta `radio` px de él.
     const enMuro = (x: number, y: number, radio: number, pintar: (i: number, dx: number, dy: number) => void, ancho = 0, alto = 0) => {
-      // Recorre el muro del fondo alrededor del rectángulo (x, y, ancho, alto), hasta `radio` px de él.
       const ya = Math.max(TOP, y - radio), yb = Math.min(SEAM - 1, y + alto + radio);
       const xa = Math.max(xl, x - radio), xb = Math.min(xr - 1, x + ancho + radio);
       for (let py = ya; py <= yb; py++) {
@@ -254,26 +370,35 @@ export class LuzDeSala {
     };
 
     for (const pieza of sala.estructura.piezas ?? []) {
-      const luz = luzDePieza(pieza.tipo, pieza.modelo);
-      const modo = pieza.encendida ?? 'auto';
-      if (!luz || modo === 'nunca') continue;
+      const luz = luzDePieza(catalogo, pieza.tipo, pieza.modelo);
+      const forzada = encendidaForzada(pieza);
+      if (!luz || forzada === false) continue;
       const propia = luz.momento === this.momento;
-      if (!propia && modo !== 'siempre') continue;
+      if (!propia && forzada !== true) continue;
       const fuerza = piso(luz.fuerza * (propia ? 100 : 60), 100);
 
       if (luz.forma === 'haz') {
-        const ancho = luz.ancho ?? 0, alto = luz.alto ?? 0;
+        const ancho = luz.ancho, alto = luz.alto;
         if (this.exterior || pieza.pos === undefined) continue;
         if (pieza.muro === 'fondo') {
           const x0 = xl + pieza.pos - piso(ancho, 2);
-          this.hazDelFondo(x0, ancho, sumar(fuerza, luz.tono));
+          if (tapada) {
+            tapada.fill(0);
+            this.sombra(cuerpos, HAZ_FONDO[0], HAZ_FONDO[1], cuerpos.map(c => piso(c.alto * 5, 8)), tapada);
+          }
+          this.hazDelFondo(x0, ancho, conSombra(sumar(fuerza, luz.tono)));
           const halo = sumar(fuerza, luz.tono, piso(UNO * 2, 3), piso(UNO, 2));
-          enMuro(x0, SEAM - (luz.antepecho ?? 0) - alto, 46, (i, dx, dy) => {
+          enMuro(x0, SEAM - luz.antepecho - alto, 46, (i, dx, dy) => {
             const v = UNO - piso(raiz(dx * dx + dy * dy) * UNO, 46);
             if (v > 0) halo(i, v);
           }, ancho, alto);
         } else if ((pieza.muro === 'izquierda' && this.izq) || (pieza.muro === 'derecha' && this.der)) {
-          this.hazDelLado(pieza.muro, SEAM + pieza.pos, ancho, sumar(fuerza, luz.tono));
+          if (tapada) {
+            tapada.fill(0);
+            const sentido = pieza.muro === 'izquierda' ? HAZ_LADO[0] : -HAZ_LADO[0];
+            this.sombra(cuerpos, sentido, HAZ_LADO[1], cuerpos.map(c => piso(c.alto * 3, 4)), tapada);
+          }
+          this.hazDelLado(pieza.muro, SEAM + pieza.pos, ancho, conSombra(sumar(fuerza, luz.tono)));
         }
         continue;
       }
@@ -288,8 +413,16 @@ export class LuzDeSala {
       } else {
         continue;
       }
-      const [rx, ry] = luz.radio ?? [1, 1];
-      this.pozo(x, y, rx, ry, sumar(fuerza, luz.tono, UNO, piso(UNO * 9, 10)));
+      const [rx, ry] = luz.radio;
+      const enPozo = sumar(fuerza, luz.tono, UNO, piso(UNO * 9, 10));
+      if (tapada && luz.forma === 'pozo') {
+        // El tubo de techo no arroja sombra.
+        tapada.fill(0);
+        this.sombraDeLampara(cuerpos, x, y, luz.altura + (pieza.sobre ?? 0), tapada);
+        this.pozo(x, y, rx, ry, conSombra(enPozo));
+      } else {
+        this.pozo(x, y, rx, ry, enPozo);
+      }
       if (luz.forma === 'tubo') {
         const banda = sumar(fuerza, luz.tono, piso(UNO * 8, 10), piso(UNO, 2));
         for (let py = TOP; py < SEAM; py++) {
@@ -310,7 +443,7 @@ export class LuzDeSala {
   }
 
   /** Ventana del muro del fondo: el haz que cae sobre el piso, con la sombra del parteluz en el centro. */
-  private hazDelFondo(x0: number, ancho: number, aplicar: (i: number, mancha: number) => void): void {
+  private hazDelFondo(x0: number, ancho: number, aplicar: Aplicar): void {
     const w = this.ancho, cx = this.cx;
     for (let y = SEAM; y < ALTO; y++) {
       const n = this.n[y];
@@ -331,7 +464,7 @@ export class LuzDeSala {
   }
 
   /** Ventana de un muro lateral: la luz cruza el piso y baja hacia la cámara mientras se aleja del muro. */
-  private hazDelLado(lado: 'izquierda' | 'derecha', yc: number, ancho: number, aplicar: (i: number, mancha: number) => void): void {
+  private hazDelLado(lado: 'izquierda' | 'derecha', yc: number, ancho: number, aplicar: Aplicar): void {
     const w = this.ancho;
     const medio = piso(ancho, 2) + 4;
     for (let y = SEAM; y < ALTO; y++) {
@@ -348,7 +481,7 @@ export class LuzDeSala {
   }
 
   /** Pozo de luz de una lámpara sobre el piso: una elipse que cae como p·(3 − p)/2. */
-  private pozo(cx: number, cy: number, rx: number, ry: number, aplicar: (i: number, mancha: number) => void): void {
+  private pozo(cx: number, cy: number, rx: number, ry: number, aplicar: Aplicar): void {
     const w = this.ancho;
     for (let y = Math.max(SEAM, cy - ry); y <= Math.min(ALTO - 1, cy + ry); y++) {
       const ey = piso(Math.abs(y - cy) * UNO, ry);
@@ -439,13 +572,15 @@ export class LuzDeSala {
 }
 
 /** La luz de la sala lista para abrir y cerrar puertas. Lanza si el ancho no es del catálogo. */
-export function prepararLuz(sala: SalaPorPiezas, momento?: Momento): LuzDeSala {
-  return new LuzDeSala(sala, momento);
+export function prepararLuz(sala: SalaPorPiezas, catalogo: CatalogoDeLuz, opciones: OpcionesDeLuz = {}): LuzDeSala {
+  return new LuzDeSala(sala, catalogo, opciones);
 }
 
 /** Las dos capas de luz de la sala, con las puertas `abiertas` (ids) dejando pasar la luz de la sala vecina. */
-export function calcularLuz(sala: SalaPorPiezas, momento?: Momento, abiertas: readonly string[] = []): CapasDeLuz {
-  const luz = new LuzDeSala(sala, momento);
-  luz.abrir(abiertas);
+export function calcularLuz(
+  sala: SalaPorPiezas, catalogo: CatalogoDeLuz, opciones: OpcionesDeLuz & { abiertas?: readonly string[] } = {},
+): CapasDeLuz {
+  const luz = new LuzDeSala(sala, catalogo, opciones);
+  luz.abrir(opciones.abiertas ?? []);
   return luz.capas();
 }

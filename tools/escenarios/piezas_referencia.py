@@ -9,7 +9,7 @@ El JSON lleva cuatro secciones, y las pruebas `frontend/scripts/world-art/salas-
 
 - `geometria`: `piezas_geo` en cada encuadre y ancho. De `en_pantalla` y `llegada` va la huella de todas las posiciones enteras
   de cada muro y una muestra para ubicar una diferencia.
-- `tablas`: las tablas de `piezas_luz`, la luz de cada pieza del catálogo y el vano de cada puerta.
+- `tablas`: las tablas y constantes de `piezas_luz` (la luz de cada pieza y el vano de cada puerta van en el manifiesto).
 - `luz`: huella SHA-256 de `ambiente` y de `brillo` (bytes RGB) por sala y momento, y una muestra de los escalones cada 48 × 33 px.
 - `composicion`: lo que `piezas_sala.capas` coloca (sprites y su sitio) y la huella de la sala pintada, sin luz y con luz.
 
@@ -30,7 +30,6 @@ sys.path.insert(0, AQUI)
 import piezas_geo as g  # noqa: E402
 import piezas_luz as pl  # noqa: E402
 import piezas_muro as pm  # noqa: E402
-import piezas_puertas as pp  # noqa: E402
 import piezas_sala as sl  # noqa: E402
 import piezas_superficies as ps  # noqa: E402
 
@@ -135,20 +134,12 @@ def geometria():
 # ── tablas ─────────────────────────────────────────────────────────────────────
 
 def tablas():
-    luz = {}
-    for (tipo, modelo), F in pm.PIEZAS.items():
-        if not F.get('luz'):
-            continue
-        ficha = dict(F['luz'])
-        ficha.setdefault('fuerza', 100)
-        if ficha['forma'] == 'haz':
-            ficha.update(ancho=F['ancho'], antepecho=F['antepecho'], alto=F['alto'])
-        luz[f'{tipo}/{modelo}'] = ficha
-    return dict(ambiente=pl.TABLA_AMBIENTE.tolist(), calida=pl.TABLA_CALIDA.tolist(), fria=pl.TABLA_FRIA.tolist(), luz=luz,
-                vanos={modelo: M['ancho'] for modelo, M in pp.MODELOS.items()},
+    """Las tablas y constantes de `piezas_luz`. La luz de cada pieza y el vano de cada puerta ya van en el manifiesto."""
+    return dict(ambiente=pl.TABLA_AMBIENTE.tolist(), calida=pl.TABLA_CALIDA.tolist(), fria=pl.TABLA_FRIA.tolist(),
                 constantes=dict(u=pl.U, minimo=pl.MINIMO, paso=pl.PASO, niveles=pl.NIVELES, penumbra=pl.PENUMBRA,
                                 penumbraNoche=pl.PENUMBRA_NOCHE, exterior=pl.EXTERIOR, exteriorNoche=pl.EXTERIOR_NOCHE,
-                                uno=pl.UNO, bayer=pl.BAYER.tolist()))
+                                uno=pl.UNO, bayer=pl.BAYER.tolist(), enSombra=pl.EN_SOMBRA, hazFondo=list(pl.HAZ_FONDO),
+                                hazLado=list(pl.HAZ_LADO), sombraMaxima=pl.SOMBRA_MAXIMA))
 
 
 # ── luz ────────────────────────────────────────────────────────────────────────

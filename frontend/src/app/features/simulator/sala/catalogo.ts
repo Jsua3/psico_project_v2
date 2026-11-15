@@ -1,6 +1,6 @@
 /**
  * Catálogo de las «salas por piezas»: la forma de una sala (`estructura`), la del manifiesto de piezas que publica
- * `tools/escenarios/piezas_catalogo.py` (esquema 2) y los datos de luz de cada pieza.
+ * `tools/escenarios/piezas_catalogo.py` (esquema 2) y la lectura de la luz de cada pieza.
  *
  * Sin dependencias y con sintaxis borrable: lo cargan el navegador y las pruebas en Node.
  */
@@ -27,7 +27,8 @@ export interface PiezaDeSala {
   y?: number;
   /** px por encima del piso, para la lámpara que va encima de una mesa. */
   sobre?: number;
-  encendida?: 'auto' | 'siempre' | 'nunca';
+  /** La biblioteca de P1 escribe `siempre` o `nunca`; el contrato 2.2 del servidor, un booleano. Valen los dos. */
+  encendida?: 'auto' | 'siempre' | 'nunca' | boolean;
 }
 
 export interface PuertaDeSala {
@@ -66,6 +67,13 @@ export interface SalaPorPiezas {
   puertas?: PuertaDeSala[];
 }
 
+/** `encendida` de una pieza, en la forma de P1 o en la del contrato 2.2: true o false si se fuerza, null si sigue al momento. */
+export function encendidaForzada(pieza: Pick<PiezaDeSala, 'encendida'>): boolean | null {
+  if (pieza.encendida === true || pieza.encendida === 'siempre') return true;
+  if (pieza.encendida === false || pieza.encendida === 'nunca') return false;
+  return null;
+}
+
 // ── el manifiesto ───────────────────────────────────────────────────────────────
 
 /** Una tira de cuadros de una pieza: `ancho` y `alto` son los de UN cuadro y `apoyo` es su punto de apoyo dentro de él. */
@@ -85,6 +93,10 @@ export interface FichaDePieza {
   estados?: string[];
   fps?: number;
   hojas?: string;
+  /** En una puerta: ancho y alto del vano. */
+  ancho?: number;
+  alto?: number;
+  /** Solo si la pieza emite luz: ver `luzDePieza`. */
   luz?: Record<string, unknown>;
   vistas: {
     frente?: VistaDePieza;
@@ -111,10 +123,14 @@ export interface MuroDeCatalogo {
 export interface MuebleDeCatalogo extends ImagenDeCatalogo {
   cuadros: number;
   fps?: number;
+  /** Lo que ocupa en el piso (centrado en su apoyo, `fondo` px hacia atrás) y su altura: de ahí sale la sombra que arroja. */
+  huella?: { ancho: number; fondo: number; alto: number };
 }
 
 export interface ManifiestoDePiezas {
   esquema: 2;
+  /** Constantes y tablas de la luz, para comprobar que el motor del cliente usa las mismas. */
+  luz?: Record<string, unknown>;
   piezas: Record<string, FichaDePieza>;
   pisos: Record<string, ImagenDeCatalogo>;
   muros: Record<string, MuroDeCatalogo>;
@@ -144,48 +160,52 @@ export interface LuzDePieza {
   /** De 0 a 100. */
   fuerza: number;
   /** Del haz: el vidrio de la ventana (ancho, altura del antepecho y alto), en px del muro. */
-  ancho?: number;
-  antepecho?: number;
-  alto?: number;
+  ancho: number;
+  antepecho: number;
+  alto: number;
   /** Del pozo y del tubo: radios de la mancha sobre el piso. */
-  radio?: [number, number];
+  radio: [number, number];
+  /** Del pozo: px sobre el piso a los que está la luz; de ahí sale el largo de las sombras que arroja. */
+  altura: number;
 }
 
 /**
- * La luz de cada pieza, copiada de `piezas_muro.PIEZAS`. El manifiesto publica `luz`, pero sin el antepecho ni el alto del
- * vidrio; `scripts/world-art/salas-catalogo.test.mjs` exige que esta tabla coincida con Python y con el manifiesto.
+ * Lo que la luz lee del catálogo: la ficha `luz` de cada pieza que emite y el `ancho` del vano de cada puerta.
+ * Es la forma de `piezas` del manifiesto (y la de `catalogo` en `biblioteca/piezas/luz/casos.json`).
  */
-const LUZ: Record<string, LuzDePieza> = {
-  'ventana/corrediza': { forma: 'haz', momento: 'dia', tono: 'calido', fuerza: 100, ancho: 96, antepecho: 70, alto: 60 },
-  'ventana/persiana': { forma: 'haz', momento: 'dia', tono: 'calido', fuerza: 60, ancho: 88, antepecho: 70, alto: 60 },
-  'ventana/alta': { forma: 'haz', momento: 'dia', tono: 'calido', fuerza: 70, ancho: 120, antepecho: 100, alto: 32 },
-  'ventana/ventanal': { forma: 'haz', momento: 'dia', tono: 'calido', fuerza: 100, ancho: 168, antepecho: 42, alto: 88 },
-  'lampara/tubo': { forma: 'tubo', momento: 'noche', tono: 'frio', fuerza: 100, radio: [250, 120] },
-  'lampara/colgante': { forma: 'pozo', momento: 'noche', tono: 'calido', fuerza: 100, radio: [150, 58] },
-  'lampara/pie': { forma: 'pozo', momento: 'noche', tono: 'calido', fuerza: 100, radio: [124, 48] },
-  'lampara/mesa': { forma: 'pozo', momento: 'noche', tono: 'calido', fuerza: 100, radio: [92, 38] },
-};
+export type CatalogoDeLuz = Readonly<Record<string, { luz?: unknown; ancho?: unknown } | undefined>>;
 
-/** Ancho del vano de cada modelo de puerta (`piezas_puertas.MODELOS`): lo usa la cuña de luz de la puerta abierta. */
-const VANOS: Record<string, number> = {
-  madera: 56,
-  'madera-ventanilla': 56,
-  vidrio: 56,
-  corrediza: 136,
-  urgencias: 86,
-  metalica: 58,
-  paso: 72,
-};
+function numero(x: unknown, porDefecto: number): number {
+  return typeof x === 'number' && Number.isFinite(x) ? x : porDefecto;
+}
 
-export function luzDePieza(tipo: string, modelo: string): LuzDePieza | null {
+/** La luz de una pieza según el catálogo, con sus valores por defecto; null si no emite o si su ficha no se entiende. */
+export function luzDePieza(catalogo: CatalogoDeLuz, tipo: string, modelo: string): LuzDePieza | null {
   const clave = `${tipo}/${modelo}`;
-  return Object.hasOwn(LUZ, clave) ? LUZ[clave] : null;
+  const luz = Object.hasOwn(catalogo, clave) ? (catalogo[clave]?.luz as Record<string, unknown> | undefined) : undefined;
+  if (!luz || typeof luz !== 'object') return null;
+  const forma = luz['forma'], momento = luz['momento'], tono = luz['tono'], radio = luz['radio'];
+  if (forma !== 'haz' && forma !== 'pozo' && forma !== 'tubo') return null;
+  if (momento !== 'dia' && momento !== 'noche') return null;
+  if (tono !== 'calido' && tono !== 'frio') return null;
+  const [rx, ry] = Array.isArray(radio) ? radio : [];
+  const ficha: LuzDePieza = {
+    forma, momento, tono,
+    fuerza: numero(luz['fuerza'], 100),
+    ancho: numero(luz['ancho'], 0),
+    antepecho: numero(luz['antepecho'], 0),
+    alto: numero(luz['alto'], 0),
+    radio: [numero(rx, 0), numero(ry, 0)],
+    altura: numero(luz['altura'], 150),
+  };
+  // Un haz sin ancho o una lámpara sin radio no dibujan nada y dividirían por cero.
+  if (forma === 'haz' ? ficha.ancho <= 0 : ficha.radio[0] <= 0 || ficha.radio[1] <= 0) return null;
+  return ficha;
 }
 
-export function piezasConLuz(): string[] {
-  return Object.keys(LUZ);
-}
-
-export function vanoDePuerta(modelo: string): number | null {
-  return Object.hasOwn(VANOS, modelo) ? VANOS[modelo] : null;
+/** Ancho del vano de un modelo de puerta: lo usa la cuña de luz de la puerta abierta. null si el catálogo no lo trae. */
+export function vanoDePuerta(catalogo: CatalogoDeLuz, modelo: string): number | null {
+  const clave = `puerta/${modelo}`;
+  const ancho = Object.hasOwn(catalogo, clave) ? catalogo[clave]?.ancho : undefined;
+  return typeof ancho === 'number' && ancho > 0 ? ancho : null;
 }
