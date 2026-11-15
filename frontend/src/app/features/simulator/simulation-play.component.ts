@@ -38,6 +38,7 @@ import { GameWorldComponent } from './game-world.component';
 import { type EscenarioReaccion, type FinReaccion, ReactionDirectorComponent } from './reaction-director.component';
 import { JournalPanelComponent, JournalSaveState } from './journal-panel.component';
 import { isShortcutContext } from './keyboard-focus.util';
+import { salaDelMundo } from './sala/mundo-a-sala';
 import { SafeExitButtonComponent } from './safe-exit-button.component';
 import { WorldPlacesListComponent } from './world-places-list.component';
 import { PlaceCandidate, selectPlaces } from './world-places.util';
@@ -2853,6 +2854,13 @@ export class SimulationPlayComponent implements OnInit, OnDestroy {
 
   /** Carga el ScenarioConfig que corresponde al mapa del mundo y aplica ambos. */
   private applyWorldWithScenario(world: SimulationWorldState): void {
+    // P2 (contrato x-siep 2.2): una sala por piezas se arma con lo que manda el servidor; el ScenarioConfig del legado
+    // que comparta su clave de mapa dibujaría otra sala encima.
+    if (salaDelMundo(world.map as unknown as Record<string, unknown>, world.objects)) {
+      this.scenarioConfig.set(null);
+      this.applyLoadedWorld(world);
+      return;
+    }
     this.simulationService.getScenarioConfig(world.map.key).subscribe({
       next: config => {
         this.scenarioConfig.set(config);
