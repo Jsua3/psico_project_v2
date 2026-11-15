@@ -34,15 +34,15 @@ const PORTRAIT_LEGEND = { ...LEGEND, b: { mat: 'hair', tone: 1 }, s: { mat: 'hai
 const PORTRAIT = [{
   anchor: 'H', at: [8, 2], mode: 'cover', legend: PORTRAIT_LEGEND,
   grid: `
-    ......hhRs......
-    .....hhRRss.....
+    ......hbsr......
+    .....hhbssr.....
     .....RRssrr.....
-    ...Rhhssssssr...
-    .Rhhhbsbbbsssrr.
-    .Rhbbsbbbbbsssr.
-    Rbbbsbbbbbbbssrr
-    Rbs..........ssr
-    bs............sr
+    ...Rhhssrrrrr...
+    .Rhhhbsbbsssrrr.
+    .Rhbbsbbbbsssrr.
+    Rbbbsbbbbbbssrrr
+    Rbs..........srr
+    bs............rr
     s..............r
     r..............r
   `,

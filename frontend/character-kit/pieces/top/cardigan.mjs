@@ -19,24 +19,14 @@ const LEGEND = {
   i: { mat: 'inner' },
 };
 
-/**
- * Retrato: la cabeza da sombra sobre los hombros, más del lado contrario a la luz (ahí llega al tono profundo), y
- * cada hombro lleva su pliegue en la costura de la manga: en sombra del lado de la luz, profundo del otro.
- */
-const PORTRAIT_SHADE = new Set(['10,25', '11,26', '21,26', '22,26', '19,27', '20,27', '21,27', '19,28', '7,27', '6,28']);
-const PORTRAIT_DEEP = new Set(['21,25', '20,26', '24,27', '25,28', '26,29']);
-
 const PORTRAIT = [{
   anchor: 'T', at: [0, 0], mode: 'paint', legend: LEGEND,
   grid: gridFrom(32, 32, (x, y) => {
     if (y < 25) return '.';
     // V que se cierra hacia abajo.
     const half = Math.max(0, 4 - (y - 25) * 0.8);
-    const key = `${x},${y}`;
     if (Math.abs(x - 15.5) <= half) return 'i';
     if (Math.abs(x - 15.5) <= half + 1) return 'x';
-    if (PORTRAIT_DEEP.has(key)) return 'J';
-    if (PORTRAIT_SHADE.has(key)) return 'K';
     return '.';
   }),
 }];
