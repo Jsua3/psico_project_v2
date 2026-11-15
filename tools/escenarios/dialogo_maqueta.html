@@ -67,7 +67,7 @@ h1 { font-family: var(--f-titulo); font-weight: 700; font-size: 34px; line-heigh
 .tecla {
   --m: var(--marco-tecla); display: inline-grid; place-items: center; min-width: 1.7em; min-height: 1.7em; padding: 0 .3em calc(1 * var(--px));
   border-style: solid; border-width: calc(4 * var(--px)); border-image: var(--m) 4 / calc(4 * var(--px)) stretch; image-rendering: pixelated;
-  background: #3a3454 padding-box; color: var(--tinta); font-family: var(--f-titulo); font-weight: 700; font-size: var(--tam-nombre); line-height: 1;
+  background: #3a3454 padding-box; color: var(--tinta); font-family: var(--f-titulo); font-weight: 500; font-size: calc(var(--tam-nombre) * 1.1); line-height: 1;
 }
 .tecla.chica { font-size: calc(var(--tam-nombre) * .8); }
 
@@ -176,9 +176,14 @@ h1 { font-family: var(--f-titulo); font-weight: 700; font-size: 34px; line-heigh
   .ficha:hover { --m: var(--marco-ficha-sobre); --t: var(--trama-ficha-sobre); transform: translateY(calc(-1 * var(--px))); }
   .ficha:hover .tecla { --m: var(--marco-tecla-encendida); background-color: var(--luz); color: var(--acento-tinta); }
 }
-.ficha:focus-visible { --m: var(--marco-ficha-foco); --t: var(--trama-ficha-sobre); transform: translateY(calc(-1 * var(--px))); }
-.ficha:focus-visible .tecla { --m: var(--marco-tecla-encendida); background-color: var(--luz); color: var(--acento-tinta); }
-.ficha:focus-visible .cursor { display: block; animation: senala 700ms steps(1) infinite; }
+.ficha.es-sobre { --m: var(--marco-ficha-sobre); --t: var(--trama-ficha-sobre); transform: translateY(calc(-1 * var(--px))); }
+.ficha.es-sobre .tecla { --m: var(--marco-tecla-encendida); background-color: var(--luz); color: var(--acento-tinta); }
+.ficha:focus-visible, .ficha.es-foco { --m: var(--marco-ficha-foco); --t: var(--trama-ficha-sobre); transform: translateY(calc(-1 * var(--px))); }
+.ficha:focus-visible .tecla, .ficha.es-foco .tecla { --m: var(--marco-tecla-encendida); background-color: var(--luz); color: var(--acento-tinta); }
+.ficha:focus-visible .cursor, .ficha.es-foco .cursor { display: block; animation: senala 700ms steps(1) infinite; }
+.ficha.es-foco { outline: var(--px) solid var(--luz); outline-offset: var(--px); }
+.ficha .rotulo-estado { display: none; position: absolute; right: calc(2 * var(--px)); top: calc(-9 * var(--px)); font-family: var(--f-titulo); font-size: calc(var(--tam-nombre) * .7); color: var(--luz); background: #1b1826; padding: 0 6px; }
+.fichas.muestra .rotulo-estado { display: block; }
 @keyframes senala { 0%, 100% { transform: translateX(0); } 50% { transform: translateX(var(--px)); } }
 .ficha:active, .ficha.pulsada { --m: var(--marco-ficha-pulsada); --t: var(--trama-ficha-pulsada); transform: translateY(var(--px)); }
 .ficha:active::after, .ficha.pulsada::after { display: none; }
@@ -280,6 +285,7 @@ kbd { font-family: var(--f-titulo); background: var(--panel-alto); border: 1px s
       <button type="button" class="suelto" id="ver-comentario">Comentario</button>
       <button type="button" class="suelto" id="ver-habla">Habla</button>
       <button type="button" class="suelto" id="ver-opciones">Opciones</button>
+      <button type="button" class="suelto" id="ver-estados">Estados</button>
       <button type="button" class="suelto" id="ver-reaccion">Reacción</button>
       <button type="button" class="suelto" id="ver-nota">Nota</button>
     </div>
@@ -640,11 +646,23 @@ function ladoDeLuz(p) {
   for (const f of fuentes) if (Math.abs(f - p.x) < Math.abs(mejor - p.x)) mejor = f;
   return mejor < p.x ? -1 : 1;
 }
-function pintarCara(lienzoCara, p, expresion, cerrado, conLuz) {
-  const x = lienzoCara.getContext('2d', { willReadFrequently: true }), n = Math.max(0, D.estados.indexOf(expresion)), hoja = I['cara-' + p.receta];
+const BAYER = [0, 8, 2, 10, 12, 4, 14, 6, 3, 11, 1, 9, 15, 7, 13, 5];
+const taller = document.createElement('canvas'); taller.width = taller.height = 32;
+function pintarCara(destino, p, expresion, cerrado, conLuz) {
+  const n = Math.max(0, D.estados.indexOf(expresion)), hoja = I['cara-' + p.receta], iluminar = conLuz && !hoy();
+  const x = (iluminar ? taller : destino).getContext('2d', { willReadFrequently: true });
   x.globalCompositeOperation = 'source-over'; x.clearRect(0, 0, 32, 32); x.imageSmoothingEnabled = false;
   x.drawImage(hoja, n * 32, cerrado ? 32 : 0, 32, 32, 0, 0, 32, 32);
-  if (!conLuz || hoy() || !p.x) return;
+  if (!iluminar) return;
+  const final = () => {                                  // fondo por escalones con el tono de la sala y, encima, el busto
+    const dx = destino.getContext('2d'), t = tono(p), f = dx.createImageData(32, 32), niveles = [0.21, 0.245, 0.28];
+    for (let yy = 0; yy < 32; yy++) for (let xx = 0; xx < 32; xx++) {
+      const v = yy / 31 * 2, k = Math.min(2, Math.floor(v) + (v - Math.floor(v) > (BAYER[(yy % 4) * 4 + (xx % 4)] + 0.5) / 16 ? 1 : 0)), i = (yy * 32 + xx) * 4;
+      for (let q = 0; q < 3; q++) f.data[i + q] = Math.round(t[q] * niveles[k] + 10); f.data[i + 3] = 255;
+    }
+    dx.putImageData(f, 0, 0); dx.imageSmoothingEnabled = false; dx.drawImage(taller, 0, 0);
+  };
+  if (!p.x) return final();
   const t = tono(p);
   x.globalCompositeOperation = 'multiply'; x.fillStyle = 'rgb(' + t.join(',') + ')'; x.fillRect(0, 0, 32, 32);
   x.globalCompositeOperation = 'destination-in'; x.drawImage(hoja, n * 32, cerrado ? 32 : 0, 32, 32, 0, 0, 32, 32);
@@ -656,6 +674,7 @@ function pintarCara(lienzoCara, p, expresion, cerrado, conLuz) {
     if (orig[i + 3] && !orig[i + lado * 4 + 3]) { const dentro = i - lado * 4; if (orig[dentro + 3]) for (let k = 0; k < 3; k++) d[dentro + k] = Math.round(orig[dentro + k] * 0.5 + luz[k] * 0.5); }
   }
   x.putImageData(im, 0, 0);
+  final();
 }
 const R = { p: null, expresion: 'neutral', cerrado: false, sube: 0, salto: 0, proximo: 2, respT: 0 };
 function ponerRetrato(p, expresion) {
@@ -788,7 +807,7 @@ function avanzar() {
   else if (E.fase === 'nota') terminar();
 }
 function armarFichas(opciones) {
-  const f = el('fichas'); f.textContent = '';
+  const f = el('fichas'); f.textContent = ''; f.classList.remove('muestra');
   f.classList.toggle('una', opciones.length < 2 || (E.texto === 'largo' && escenario.clientWidth < 1500));
   opciones.forEach((o, n) => {
     const b = document.createElement('button'); b.type = 'button'; b.className = 'ficha marco con-sombra'; b.id = 'opcion-' + o.letra; b.dataset.n = n; b.style.setProperty('--n', n);
@@ -863,6 +882,11 @@ function ver(que, opcion) {
   const q = E.quieto; E.quieto = true; elegir(opcion || 0); completar(); if (que === 'nota') { nota(); completar(); } E.quieto = q;
 }
 
+function verEstados() {
+  ver('opciones'); const fichas = [...el('fichas').children], nombres = ['Reposo', 'Sobre', 'Foco', 'Pulsada'], clases = ['', 'es-sobre', 'es-foco', 'pulsada'];
+  el('fichas').classList.add('muestra');
+  fichas.forEach((b, i) => { b.classList.remove('entra'); if (clases[i]) b.classList.add(clases[i]); const r = document.createElement('span'); r.className = 'rotulo-estado'; r.textContent = nombres[i] || ''; r.setAttribute('aria-hidden', 'true'); b.appendChild(r); });
+}
 function fijar(grupo, activo) { for (const [id, v] of Object.entries(grupo)) el(id).setAttribute('aria-pressed', String(v === activo)); }
 function modo(nombre) { E.modo = nombre; fijar({ 'modo-hoy': 'hoy', 'modo-nueva': 'nueva' }, nombre); vestir(); medir(); iniciarEscena(E.esc, true); }
 function momento(nombre) { E.momento = nombre; fijar({ 'luz-noche': 'noche', 'luz-dia': 'dia' }, nombre); vestir(); if (R.p) ponerRetrato(R.p, R.expresion); }
@@ -913,6 +937,7 @@ el('texto-corto').addEventListener('click', () => largoTexto('corto'));
 el('texto-largo').addEventListener('click', () => largoTexto('largo'));
 el('quieto').addEventListener('change', ev => { E.quieto = ev.target.checked; });
 for (const que of ['comentario', 'habla', 'opciones', 'reaccion', 'nota']) el('ver-' + que).addEventListener('click', () => ver(que));
+el('ver-estados').addEventListener('click', verEstados);
 new ResizeObserver(() => { medir(); if (E.dlg && E.fase === 'habla') { const n = T.n; reservarLineas(); T.tramos = tramos(el('linea-completa').textContent); revelar(n); } }).observe(escenario);
 
 let antes = 0;
@@ -929,7 +954,7 @@ cargar().then(() => {
   });
   if (location.hash === '#solo') el('pagina').classList.add('solo');
   vestir(); medir(); iniciarEscena(0);
-  window.__dialogo = { D, E, R, T, ver, modo, momento, largoTexto, iniciarEscena, completar, avanzar, elegir, abrirDialogo, junto, per, listo: true };
+  window.__dialogo = { D, E, R, T, ver, verEstados, modo, momento, largoTexto, iniciarEscena, completar, avanzar, elegir, abrirDialogo, junto, per, listo: true };
   requestAnimationFrame(ciclo);
 }).catch(err => { el('rotulo-sala').textContent = 'No se pudieron cargar las imágenes de la maqueta.'; console.error(err); });
 </script>

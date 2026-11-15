@@ -61,8 +61,8 @@ const caja = (page, sel) => page.evaluate((s) => { const r = document.querySelec
   await page.keyboard.press('ArrowRight');
   await page.keyboard.press('ArrowDown');
   ok('las flechas recorren la rejilla', await page.evaluate(() => document.activeElement.id) === 'opcion-D');
-  await foto(page, 'foco-1366');
   await asentar(page, 600);
+  await foto(page, 'foco-1366');
   await page.keyboard.press('Enter');
   await page.waitForFunction(() => window.__dialogo.E.fase === 'reaccion', null, { timeout: 4000 });
   ok('elegir lleva a la reacción', true);
@@ -79,6 +79,14 @@ const caja = (page, sel) => page.evaluate((s) => { const r = document.querySelec
   await page.waitForFunction(() => window.__dialogo.E.fase === 'reaccion', null, { timeout: 4000 });
   ok('la letra elige y la persona cambia de estado', await page.evaluate(() => !document.getElementById('estado').hidden && document.getElementById('estado-texto').textContent.startsWith('Se muestra')));
   ok('sin errores en el recorrido', R.errores.length === 0, R.errores);
+  await page.context().close();
+}
+
+// ── movimiento reducido: la línea aparece entera, sin máquina de escribir ──
+{
+  const page = await abrir({ width: 1366, height: 768 }, { quieto: true });
+  await page.evaluate(() => { const d = window.__dialogo; d.junto('psicologa-hospital'); d.abrirDialogo('psicologa-hospital'); });
+  ok('con movimiento reducido el texto sale de una vez', await page.evaluate(() => { const d = window.__dialogo; return d.T.total > 0 && d.T.n === d.T.total && !document.querySelector('#linea .falta'); }));
   await page.context().close();
 }
 
@@ -109,6 +117,7 @@ if (FOTOS) {
       await ver(page, 'opciones'); await asentar(page); await foto(page, `${nombre}-${modo}-3-opciones`);
       await page.evaluate(() => window.__dialogo.largoTexto('largo')); await asentar(page); await foto(page, `${nombre}-${modo}-4-opciones-largas`);
       await page.evaluate(() => window.__dialogo.largoTexto('corto'));
+      if (modo === 'nueva') { await page.evaluate(() => window.__dialogo.verEstados()); await asentar(page, 400); await foto(page, `${nombre}-${modo}-4b-estados`); }
       await ver(page, 'reaccion', 3); await asentar(page); await foto(page, `${nombre}-${modo}-5-reaccion`);
       await ver(page, 'nota', 3); await asentar(page); await foto(page, `${nombre}-${modo}-6-nota`);
       await page.evaluate(() => { window.__dialogo.iniciarEscena(1); });
