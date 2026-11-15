@@ -820,7 +820,7 @@ def _to_world_state(attempt, state, *, estudiante=True):
         "flags": _flags_for(state, estudiante=estudiante),
         "decisionOptions": options,
         "comments": comments,
-        # x-siep 2.2 (§5.2): el plano del lugar, sin objetos ni personajes.
+        # x-siep 2.2 (§5.2): el plano del lugar, sin objetos ni personajes; ``None`` en una sala de imagen fija.
         "layout": world_layout.layout_para(attempt, scene_map),
     }
 

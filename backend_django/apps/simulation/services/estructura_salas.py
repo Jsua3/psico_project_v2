@@ -1,7 +1,7 @@
 """Lo que el servidor deduce de una sala armada por piezas (contrato x-siep 2.2, secciones 1.5, 1.6 y 3).
 
 Un mapa con ``structure`` no guarda a mano ni su ancho, ni sus paredes, ni dónde están sus puertas: todo sale de la
-estructura con la geometría de ``apps.biblioteca.services.geometria``. ``recalcular_salas`` lo fija tras copiar una sala
+estructura con la geometría de ``apps.simulation.casedef.geometria``. ``recalcular_salas`` lo fija tras copiar una sala
 de la biblioteca, importar un documento 2.2 o guardar el mapa en el editor, y lo que el cliente haya mandado en esos
 campos se reemplaza:
 
@@ -15,7 +15,7 @@ La lógica de recorrido del servidor (``enter_room``) no cambia: sigue leyendo `
 import json
 from collections import defaultdict
 
-from apps.biblioteca.services import geometria
+from apps.simulation.casedef import geometria
 from apps.simulation.models import CollisionZone, MapObject, SceneMap
 from shared.jsonutils import read_map
 

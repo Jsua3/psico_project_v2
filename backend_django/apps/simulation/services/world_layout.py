@@ -11,7 +11,7 @@ publicada); ``layout_para`` lo recorta al lugar de la sala actual y marca la act
 from collections import deque
 from dataclasses import dataclass, field
 
-from apps.biblioteca.services import geometria
+from apps.simulation.casedef import geometria
 from apps.simulation.models import AttemptEvent, MapObject, SceneMap
 from shared.jsonutils import read_map
 
@@ -82,6 +82,7 @@ def _salas_de_version(case_version_id):
         ambiente = read_map(mapa.ambient_json)
         clave = _sala_de(mapa, ambiente)
         sala_de_escena[mapa.node.node_key] = clave
+        sala_de_escena[mapa.node_id] = clave  # también por id de nodo: así el intento no tiene que leer su escena
         if mapa.node.start_node and inicial is None:
             inicial = clave
         if clave in salas:
@@ -289,10 +290,14 @@ def recortar(plano, escena_actual, visitadas):
 
 
 def layout_para(attempt, scene_map):
-    """El ``layout`` del mundo del intento en el mapa ``scene_map`` (contrato 5.2)."""
-    if scene_map is None:
+    """El ``layout`` del mundo del intento en el mapa ``scene_map`` (contrato 5.2), o ``None`` si la sala es de imagen fija.
+
+    Solo una sala armada por piezas lleva plano: un caso de antes (``SIM-VBG-001``) se ve y se juega igual que siempre (M10)
+    y su mundo no gasta consultas de más. Las escenas se nombran por id de nodo (``sceneRooms`` tiene los dos): ni la escena
+    actual ni los eventos piden otra consulta.
+    """
+    if scene_map is None or not isinstance(scene_map.structure, dict):
         return None
     plano = _plano_en_cache(attempt.case_version)
-    eventos = AttemptEvent.objects.filter(attempt_id=attempt.id).values_list("event_type", "node__node_key", "detail")
-    escena = scene_map.node.node_key
-    return recortar(plano, escena, salas_visitadas(plano, eventos, escena))
+    eventos = AttemptEvent.objects.filter(attempt_id=attempt.id).values_list("event_type", "node_id", "detail")
+    return recortar(plano, scene_map.node_id, salas_visitadas(plano, eventos, scene_map.node_id))

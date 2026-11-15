@@ -11,9 +11,9 @@ vigila ``siep_check``). Solo miran los mapas que traen ``estructura`` y sus puer
 - OCL-17: desde la aparición se alcanza, caminando por una rejilla de 8 px, toda puerta, persona y objeto interactivo.
 - OCL-18: ancho, acabados y modelos están en el catálogo de piezas.
 """
-from apps.biblioteca.services import catalogo_piezas, geometria
-
 # Las reglas se registran en el orden en que se importan: las de antes van primero aunque alguien importe este módulo solo.
+from . import catalogo as catalogo_piezas
+from . import geometria
 from . import rules_ocl, rules_prop, rules_xsiep  # noqa: F401, I001
 from .doc import _objetos, _texto_id
 from .report import Finding as _h
@@ -125,7 +125,7 @@ def ocl_13_piezas_sobre_un_muro_existente(doc):
     salas = _salas(doc)
     if not salas:
         return Outcome(no_aplica=SIN_ESTRUCTURA)
-    catalogo = catalogo_piezas.catalogo_vigente()
+    catalogo = catalogo_piezas.vigente()
     hallazgos, evaluados = [], 0
     for sala in salas:
         if sala.ancho is None:
@@ -178,7 +178,7 @@ def ocl_14_piezas_sin_solaparse(doc):
     salas = _salas(doc)
     if not salas:
         return Outcome(no_aplica=SIN_ESTRUCTURA)
-    catalogo = catalogo_piezas.catalogo_vigente()
+    catalogo = catalogo_piezas.vigente()
     hallazgos, evaluados = [], 0
     for sala in salas:
         en_muros = []
@@ -414,7 +414,7 @@ def ocl_18_todo_del_catalogo(doc):
     salas = _salas(doc)
     if not salas:
         return Outcome(no_aplica=SIN_ESTRUCTURA)
-    catalogo = catalogo_piezas.catalogo_vigente()
+    catalogo = catalogo_piezas.vigente()
     if catalogo is None:
         return Outcome(len(salas), [_h(
             "Caso", f"{SIEP}.escenas", "El catálogo de piezas de la biblioteca no está disponible: no se pueden revisar las salas por piezas.",
