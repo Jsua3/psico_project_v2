@@ -6,11 +6,11 @@
 
 ## Resumen
 
-Tablas: 43. Columnas: 369.
+Tablas: 43. Columnas: 370.
 
 | Clasificación | Columnas |
 |---|---:|
-| PUBLIC | 148 |
+| PUBLIC | 149 |
 | PERSONAL | 39 |
 | SENSITIVE | 44 |
 | SECRET | 2 |
@@ -717,6 +717,7 @@ Todas las columnas heredan `PUBLIC`: la tabla no tiene datos personales ni sensi
 | `spawn_x` | PUBLIC | — |  |
 | `spawn_y` | PUBLIC | — |  |
 | `ambient_json` | PUBLIC | — |  |
+| `structure` | PUBLIC | — |  |
 | `created_at` | PUBLIC | — |  |
 | `updated_at` | PUBLIC | — |  |
 

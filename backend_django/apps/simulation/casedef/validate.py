@@ -22,6 +22,7 @@ from .messages import route_text
 from .report import CUMPLE, ERROR, INCUMPLE, NO_APLICA, PREFIX, WARNING, Finding, Issue, Outcome, RuleReport, RuleResult
 from .rules import REGISTRY
 from . import rules_ocl, rules_prop, rules_xsiep  # noqa: F401  (registran las reglas, en este orden)
+from . import rules_estructura  # noqa: F401, I001  (OCL-13…18, después de las de x-siep 2.1)
 
 logger = logging.getLogger("siep.casedef")
 

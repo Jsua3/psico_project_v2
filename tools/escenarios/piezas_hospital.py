@@ -291,6 +291,11 @@ MUEBLES = {
     'lavamanos': dict(nombre='Lavamanos', dibujar=_de_arte_comun(ac.lavamanos), existente=True),
     'caneca': dict(nombre='Caneca', dibujar=_de_arte_comun(ac.caneca), existente=True),
 }
+# Lo que emite luz propia: la pantalla y los pilotos. Va en la máscara `emisivo` para que no se apague con la sala.
+MUEBLES['monitor']['emisivo'] = (VERDE, CIAN, ROJO, (14, 26, 30), (90, 40, 40))
+MUEBLES['maquina-cafe']['emisivo'] = (VERDE, (24, 52, 44))
+MUEBLES['cama-recuperacion']['emisivo'] = (VERDE,)
+MUEBLES['portasuero']['emisivo'] = (VERDE,)
 NUEVOS = [ref for ref, ficha in MUEBLES.items() if not ficha.get('existente')]
 
 
@@ -301,12 +306,19 @@ def _mueble(ref):
     ficha = MUEBLES[ref]
     partes = [sl.g.mapa_de_brillo(ficha['dibujar'](n), BRILLOS) for n in range(ficha.get('cuadros', 1))]
     cuadros = [ac.terminar_sprite(base, 24) for base, _ in partes]
+    emisivos = sl.g.recortar_con(cuadros, (0, 0), [sl.g.mapa_emisivo(base, ficha.get('emisivo', ())) for base, _ in partes])[2]
     cuadros, _, mapas = sl.g.recortar_con(cuadros, (0, 0), [m for _, m in partes])   # sin filas vacías: la base del sprite es su pie
-    return tuple(cuadros), tuple(mapas)
+    return tuple(cuadros), tuple(mapas), tuple(emisivos)
 
 
 # Lo que brilla en el mobiliario: tubos y filos de metal, y el botellón de agua (apagado en el dibujo).
 BRILLOS = {METAL[0]: ('metal', None), (208, 232, 244): ('vidrio', (176, 214, 236)), (190, 220, 230): ('vidrio', (150, 190, 204))}
+
+
+def mueble_emisivo(ref):
+    """Máscaras de lo que emite luz propia en el mueble (pantalla del monitor, pilotos), o None."""
+    mapas = _mueble(ref)[2]
+    return list(mapas) if any(m.getbbox() for m in mapas) else None
 
 
 def mueble_brillo(ref):
