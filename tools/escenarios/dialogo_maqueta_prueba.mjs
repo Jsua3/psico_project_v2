@@ -35,6 +35,8 @@ const caja = (page, sel) => page.evaluate((s) => { const r = document.querySelec
 {
   const page = await abrir({ width: 1366, height: 768 });
   ok('carga sin errores', R.errores.length === 0, R.errores);
+  ok('arranca en la escena donde habla la abuela', await page.evaluate(() => window.__dialogo.E.esc) === 1);
+  await page.evaluate(() => window.__dialogo.iniciarEscena(0));
   await page.evaluate(() => { const d = window.__dialogo; d.junto('abuela'); });
   await page.waitForFunction(() => !document.getElementById('burbuja').hidden, null, { timeout: 4000 }).catch(() => {});
   ok('al acercarse, la abuela comenta', await page.evaluate(() => !document.getElementById('burbuja').hidden && document.getElementById('burbuja-linea').textContent.length > 10));

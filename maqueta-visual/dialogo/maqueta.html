@@ -1019,7 +1019,7 @@ cargar().then(() => {
     b.addEventListener('click', () => iniciarEscena(n)); el('escenas').appendChild(b);
   });
   if (location.hash === '#solo') el('pagina').classList.add('solo');
-  vestir(); medir(); iniciarEscena(0);
+  vestir(); medir(); iniciarEscena(Math.max(0, D.escenas.findIndex(es => es.hablante === CONSULTANTE)));   // arranca donde habla la abuela: su retrato es el nuevo
   compararRetratos();
   window.__dialogo = { D, E, R, T, ver, verEstados, probar, retrato, modo, momento, largoTexto, iniciarEscena, completar, avanzar, elegir, abrirDialogo, junto, per, listo: true };
   requestAnimationFrame(ciclo);
