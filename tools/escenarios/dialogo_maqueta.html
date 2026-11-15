@@ -323,8 +323,8 @@ kbd { font-family: var(--f-titulo); background: var(--panel-alto); border: 1px s
     </div>
     <div class="campo"><span>Retrato</span>
       <div class="grupo" role="group" aria-label="Qué retrato se ve">
-        <button type="button" id="retrato-kit" aria-pressed="true">Del kit</button>
-        <button type="button" id="retrato-fina" aria-pressed="false">Muestra fina</button>
+        <button type="button" id="retrato-fina" aria-pressed="true">Nuevo</button>
+        <button type="button" id="retrato-kit" aria-pressed="false">Del kit (hoy)</button>
       </div>
     </div>
     <label><input type="checkbox" id="quieto"> Reducir movimiento</label>
@@ -394,12 +394,12 @@ kbd { font-family: var(--f-titulo); background: var(--panel-alto); border: 1px s
   </div>
 
   <div class="compara">
-    <h2>Retrato: el de hoy y una muestra más fina</h2>
-    <p>Hoy el retrato es el del kit, de 32 píxeles, ampliado: cada píxel suyo mide tres veces el de la sala. La muestra tiene 96 píxeles, el mismo tamaño de píxel que la sala, y dibuja de nuevo ojos, cejas y boca. Solo existe para la abuela; con «Retrato: Muestra fina» se ve dentro de la conversación.</p>
-    <h3>Del kit (32 px)</h3>
-    <div class="fila" id="compara-kit"></div>
-    <h3>Muestra (96 px)</h3>
+    <h2>Retrato: el nuevo y el de hoy</h2>
+    <p>El retrato nuevo tiene 96 píxeles, el mismo tamaño de píxel que la sala. La cara, la cabeza y el pelo se dibujan de nuevo; la ropa viene del kit, suavizada. Por ahora solo existe para la abuela (escena E07): los demás personajes siguen con el retrato del kit hasta tener el visto bueno de esta muestra. Con «Retrato» se cambia entre los dos dentro de la conversación.</p>
+    <h3>Nuevo (96 px)</h3>
     <div class="fila" id="compara-fina"></div>
+    <h3>Del kit, hoy (32 px ampliado)</h3>
+    <div class="fila" id="compara-kit"></div>
   </div>
 </div>
 
@@ -421,7 +421,7 @@ const CONSULTANTE = 'abuela';
 const SUPERVISION = { nombre: 'Supervisión clínica', receta: 'supervisor-clinico' };
 
 const E = {
-  modo: 'nueva', momento: 'noche', texto: 'corto', retrato: 'kit', quieto: matchMedia('(prefers-reduced-motion: reduce)').matches, t: 0, esc: 0,
+  modo: 'nueva', momento: 'noche', texto: 'corto', retrato: 'fina', quieto: matchMedia('(prefers-reduced-motion: reduce)').matches, t: 0, esc: 0,
   cam: { x: 0, y: 0, z: 1 }, zN: 1, zC: 1, teclas: {}, cercano: null, fase: 'sala', dlg: null, pers: [], persona: D.persona.inicial.slice(),
   jug: { x: 0, y: 0, dir: 'up', anda: false, meta: null }, dijo: {}, hablo: {}, burbuja: null, burbujaT: 0, avisoT: 0, avisoDe: null, opcionesDesde: 0,
 };

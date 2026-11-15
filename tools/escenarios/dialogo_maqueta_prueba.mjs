@@ -162,7 +162,9 @@ if (FOTOS) {
     await ver(page, 'reaccion', 0); await asentar(page); await foto(page, `${nombre}-nueva-dia-9-abuela-reaccion`);
     await page.evaluate(() => { window.__dialogo.momento('noche'); window.__dialogo.retrato('fina'); window.__dialogo.iniciarEscena(1); });
     await ver(page, 'reaccion', 1); await asentar(page); await foto(page, `${nombre}-nueva-9b-abuela-retrato-fino`);
-    await page.evaluate(() => window.__dialogo.retrato('kit'));
+    await page.evaluate(() => { window.__dialogo.retrato('kit'); window.__dialogo.iniciarEscena(1); });
+    await ver(page, 'reaccion', 1); await asentar(page); await foto(page, `${nombre}-nueva-9c-abuela-retrato-kit`);
+    await page.evaluate(() => window.__dialogo.retrato('fina'));
     await page.context().close();
   }
   const page = await abrir({ width: 1366, height: 900 }, { pagina: true });

@@ -141,6 +141,118 @@ def _ampliar(im):
     return g
 
 
+# ── 1b. el pelo, dibujado a 96 px (no ampliado del kit) ───────────────────────────────────────────────────────────
+#
+# Cada peinado conserva la silueta y el color del que camina por la sala, pero se dibuja de nuevo: volumen por tonos con
+# la luz arriba a la izquierda, mechones que siguen la dirección del peinado, raíces en la línea del pelo, una banda de
+# brillo y pelos sueltos que rompen el borde. El brillo de la lámpara de la sala lo pone la interfaz sobre el canto.
+
+def _craneo(y):
+    """Medio ancho del cráneo sobre los pómulos: una elipse que cierra arriba en y = 14."""
+    if y >= 40:
+        return 24.0
+    t = (40 - y) / 26.0
+    return 24.0 * math.sqrt(max(0.0, 1 - t * t))
+
+
+def _trazo(px, puntos, color, solo=None):
+    """Una línea de un píxel entre puntos consecutivos; con `solo`, únicamente sobre esos colores."""
+    for (x0, y0), (x1, y1) in zip(puntos, puntos[1:]):
+        pasos = int(max(abs(x1 - x0), abs(y1 - y0))) or 1
+        for i in range(pasos + 1):
+            x, y = int(round(x0 + (x1 - x0) * i / pasos)), int(round(y0 + (y1 - y0) * i / pasos))
+            if 0 <= x < N and 0 <= y < N and (solo is None or px[x, y] in solo):
+                px[x, y] = color
+
+
+def _pelo_mono(px, c):
+    """Recogido hacia atrás con un moño arriba (la abuela): el pelo va pegado al cráneo y sube hacia el moño."""
+    luz, base, sombra, hondo = c['pelo']
+    tonos = (luz, base, sombra, hondo)
+
+    def linea(x):                                  # la línea del pelo en la frente: alta al centro, baja a las sienes
+        d = abs(x - CX) / 23.0
+        return 24 + 15 * d ** 2.3
+
+    def casquete(x, y):                            # hasta dónde llega el pelo por fuera del cráneo
+        if y > 45:
+            return False
+        if y >= 38:
+            return abs(x - CX) <= 27.5 - (y - 38) * 0.45
+        t = (38 - y) / 28.0
+        return t <= 1 and abs(x - CX) <= 27.5 * math.sqrt(1 - t * t)
+
+    pelo = set()
+    for y in range(8, 46):
+        for x in range(N):
+            if casquete(x, y) and (y < linea(x) or abs(x - CX) > 22.5):
+                pelo.add((x, y))
+    for x, y in pelo:                              # volumen: de la luz (arriba a la izquierda) a la sombra
+        v = 0.5 * (x - (CX - 14)) / 28.0 + 0.8 * (y - 12) / 30.0
+        borde = any((x + dx, y + dy) not in pelo and not (y + dy >= linea(x + dx) and abs(x + dx - CX) <= 22.5)
+                    for dx, dy in ((2, 0), (0, -1)))
+        tono = 0 if v < 0.2 else 1 if v < 0.62 else 2 if v < 0.98 else 3
+        px[x, y] = tonos[min(3, tono + (1 if borde and x > CX else 0))]
+    for x, y in pelo:                              # banda de brillo: un arco claro en el hombro izquierdo del casquete
+        r = math.hypot((x - (CX + 4)) / 27.0, (y - 40) / 27.0)
+        if 0.66 <= r <= 0.76 and x < CX + 6 and y < linea(x) - 3 and px[x, y] == base:
+            px[x, y] = luz
+    # Mechones: del nacimiento del pelo hacia el moño, alternando hebras oscuras y claras.
+    for n, xh in enumerate(range(22, 74, 4)):
+        yh = linea(xh) - 1
+        fin = (CX + (xh - CX) * 0.3, 15)
+        medio = ((xh + fin[0]) / 2 + (xh - CX) * 0.12, (yh + fin[1]) / 2 - 2)
+        actual = {tonos[0]: tonos[1], tonos[1]: tonos[2], tonos[2]: tonos[3]} if n % 2 == 0 else {tonos[1]: tonos[0], tonos[2]: tonos[1], tonos[3]: tonos[2]}
+        for (x0, y0), (x1, y1) in (((xh, yh), medio), (medio, fin)):
+            pasos = int(max(abs(x1 - x0), abs(y1 - y0))) or 1
+            for i in range(pasos + 1):
+                x, y = int(round(x0 + (x1 - x0) * i / pasos)), int(round(y0 + (y1 - y0) * i / pasos))
+                if (x, y) in pelo and px[x, y] in actual and (i + n) % 7 != 0:
+                    px[x, y] = actual[px[x, y]]
+    for x in range(22, 74):                        # raíces: el nacimiento del pelo es más oscuro, e irregular
+        y = int(linea(x)) - 1
+        if (x, y) in pelo:
+            px[x, y] = hondo if x % 3 else sombra
+        if x % 5 == 1 and (x, y + 1) not in pelo and 26 <= x <= 69:
+            px[x, y + 1] = sombra                  # un pelito que baja sobre la frente
+    for lado in (-1, 1):                           # mechón suelto en la sien, delante de la oreja
+        xs = CX + lado * 25.5
+        _trazo(px, [(xs, 43), (xs - lado * 0.6, 48)], sombra)
+    # El moño: una bola arriba, con la luz en su hombro izquierdo, la vuelta del pelo y la sombra donde se apoya.
+    mx, my, rx, ry = CX + 1, 9.0, 12.0, 7.5
+    bola = {(x, y) for y in range(0, 20) for x in range(N) if ((x - mx) / rx) ** 2 + ((y - my) / ry) ** 2 <= 1}
+    for x, y in bola:
+        v = 0.55 * (x - (mx - 6)) / rx + 0.9 * (y - (my - 3)) / ry
+        px[x, y] = tonos[0 if v < 0.22 else 1 if v < 0.8 else 2 if v < 1.2 else 3]
+    for dx, dy in ((-7, 1), (-5, -2), (-2, -4), (2, -4), (5, -2)):         # la vuelta del pelo en el moño
+        _trazo(px, [(mx + dx, my + dy), (mx + dx + 3, my + dy + 4), (mx + dx + 4, my + dy + 7)], sombra, solo={luz, base})
+    for x in range(int(mx - rx) + 2, int(mx + rx) - 1):                    # sombra del moño sobre la cabeza
+        for y in range(15, 19):
+            if (x, y) in pelo and (x, y) not in bola and (x, y - 2) in bola:
+                px[x, y] = hondo if y < 17 else sombra
+    for x, y in ((mx - 13, 6), (mx + 13, 11), (mx + 12, 5)):               # pelos que se escapan del moño
+        px[int(x), int(y)] = sombra
+
+
+PEINADOS = {'mono': _pelo_mono}
+
+
+def _repeinar(g, c, peinado):
+    """Quita el pelo ampliado del kit, completa el cráneo que tapaba y dibuja el peinado a 96 px."""
+    px = g.load()
+    pelo = set(c['pelo'])
+    for y in range(N):
+        for x in range(N):
+            if px[x, y] in pelo and y < 76:
+                px[x, y] = VACIO
+    for y in range(14, MANDIBULA[0]):
+        for x in range(N):
+            if px[x, y][3] == 0 and abs(x - CX) <= _craneo(y):
+                px[x, y] = c['piel']
+    PEINADOS[peinado](px, c)
+    return g
+
+
 # ── 2. la cabeza ───────────────────────────────────────────────────────────────────────────────────────────────────
 
 def _medio_ancho(y):
@@ -158,7 +270,7 @@ def _en_cara(x, y):
     return abs(x - CX) <= _medio_ancho(y)
 
 
-def _cabeza(g, c):
+def _cabeza(g, c, mechones=True):
     px = g.load()
     piel = c['piel']
     pelo = set(c['pelo'])
@@ -199,7 +311,7 @@ def _cabeza(g, c):
             px[x, y] = c['sombra']
 
     oscuro = c['pelo'][2]
-    for y in range(4, N):                                         # mechones: el pelo no es una mancha lisa
+    for y in range(4, N if mechones else 0):                      # mechones del pelo ampliado del kit (el dibujado trae los suyos)
         for x in range(N):
             if px[x, y] == c['pelo'][1] and (x * 3 + y * 5) % 19 == 0:
                 for d in range(4):
@@ -366,7 +478,12 @@ def _cara(g, estado, cerrado, c):
 
 @functools.lru_cache(maxsize=None)
 def _base(receta):
-    return _cabeza(_ampliar(_busto_limpio(receta)), colores_de(receta))
+    c = colores_de(receta)
+    g = _ampliar(_busto_limpio(receta))
+    peinado = _kit()['recipes'][receta]['pieces'].get('hair')
+    if peinado in PEINADOS:
+        return _cabeza(_repeinar(g, c, peinado), c, mechones=False)
+    return _cabeza(g, c)
 
 
 def retrato_fino(receta, estado='neutral', cerrado=False):
@@ -383,7 +500,10 @@ def rasgos(im, receta):
     iris = [x for x, y in caja if x < CX and px[x, y] == c['ojo'] and OJO_Y - 1 <= y <= OJO_Y + 1 and abs(x - OJOS[0]) < 6]
     mirada = (sum(iris) / len(iris) - (OJOS[0] - 0.5)) if iris and blancos else 0.0
     ceja = c['pelo'][3]
-    izq = [(x, y) for x in range(OJOS[0] - 8, OJOS[0] + 7) for y in range(CEJA_Y - 6, CEJA_Y + 7) if px[x, y] == ceja]
+    pieles = set(c['pieles'])
+    # Una ceja tiene piel encima; las raíces del pelo (del mismo color) tienen pelo encima y no cuentan.
+    izq = [(x, y) for x in range(OJOS[0] - 8, OJOS[0] + 7) for y in range(CEJA_Y - 6, CEJA_Y + 7)
+           if px[x, y] == ceja and any(px[x, y - d] in pieles for d in (1, 2, 3))]
     afuera = [y for x, y in izq if x < OJOS[0] - 2]
     adentro = [y for x, y in izq if x > OJOS[0] + 2]
     pendiente = (sum(afuera) / len(afuera) - sum(adentro) / len(adentro)) if afuera and adentro else 0.0
