@@ -73,6 +73,21 @@ def test_el_parpadeo_deja_igual_una_cara_que_ya_tiene_los_ojos_cerrados():
     assert list(da.parpadeo(alegre).getdata()) == list(alegre.getdata())
 
 
+def test_las_letras_de_las_fichas_se_distinguen_de_un_vistazo():
+    letras = {ch: da.letra(ch) for ch in 'ABCD'}
+    for ch, im in letras.items():
+        assert im.size == (7, 9), ch
+        assert {a for *_, a in im.getdata()} <= {0, 255}
+    lleno = {ch: {(x, y) for y in range(9) for x in range(7) if im.getpixel((x, y))[3]} for ch, im in letras.items()}
+    for a in 'ABCD':
+        for b in 'ABCD':
+            if a < b:
+                assert len(lleno[a] ^ lleno[b]) >= 12, (a, b, len(lleno[a] ^ lleno[b]))
+    # la C queda abierta a la derecha (no es un 0) y la B tiene cintura (no es un 8)
+    assert not any((x, y) in lleno['C'] for x in (5, 6) for y in range(2, 7))
+    assert (6, 4) not in lleno['B'] and (0, 4) in lleno['B'] and all((0, y) in lleno['B'] for y in range(9))
+
+
 def test_el_pulso_tiene_cuatro_cuadros_y_cada_estado_es_distinto():
     tiras = {estado: da.pulso(estado) for estado in da.PULSOS}
     for estado, tira in tiras.items():

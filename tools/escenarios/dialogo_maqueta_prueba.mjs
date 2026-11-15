@@ -51,7 +51,7 @@ const caja = (page, sel) => page.evaluate((s) => { const r = document.querySelec
   await page.keyboard.press('Enter');              // línea 2
   await page.keyboard.press('Enter');              // la completa: salen las fichas
   await page.waitForFunction(() => window.__dialogo.E.fase === 'opciones');
-  ok('salen cuatro fichas A a D', await page.evaluate(() => [...document.querySelectorAll('#fichas .ficha .letra')].map((n) => n.textContent).join('')) === 'ABCD');
+  ok('salen cuatro fichas A a D', await page.evaluate(() => [...document.querySelectorAll('#fichas .ficha .glifo')].map((n) => n.dataset.letra).join('')) === 'ABCD');
   const conFichas = await caja(page, '#cuerpo');
   ok('la placa no se mueve al salir las fichas', conFichas.join() === despues.join(), { despues, conFichas });
   await page.keyboard.press('Enter');              // Enter mantenido no debe elegir
@@ -104,6 +104,36 @@ const caja = (page, sel) => page.evaluate((s) => { const r = document.querySelec
   await page.context().close();
 }
 
+// ── todas las decisiones del caso, con texto corto y largo, a los tres tamaños: nada se corta ni salta ──
+for (const [nombre, viewport, extra] of [['1366', { width: 1366, height: 768 }, {}], ['1920', { width: 1920, height: 1080 }, {}], ['390', { width: 390, height: 844 }, { tactil: true }]]) {
+  const page = await abrir(viewport, extra);
+  const total = await page.evaluate(() => window.__dialogo.D.decisiones.length);
+  const fallos = []; let tapa = 0; const desplazan = [];
+  for (let i = 0; i < total; i++) for (const largo of [false, true]) {
+    await page.evaluate(([n, l]) => window.__dialogo.probar(n, l), [i, largo]);
+    await page.waitForTimeout(40);
+    const r = await page.evaluate(() => {
+      const esc = document.getElementById('escenario'), er = esc.getBoundingClientRect(), cont = document.getElementById('fichas');
+      const fichas = [...cont.children].filter((b) => !b.hidden).map((b) => b.getBoundingClientRect());
+      const cortado = [...document.querySelectorAll('.ficha-texto')].some((t) => t.scrollHeight > t.clientHeight + 1 || t.scrollWidth > t.clientWidth + 1);
+      const fuera = fichas.some((q) => q.left < er.left - 1 || q.right > er.right + 1);
+      const ab = fichas.slice(0, 2).every((q) => q.top >= er.top && q.bottom <= er.bottom + 1);
+      let orden = true;
+      for (let k = 1; k < fichas.length; k++) { const a = fichas[k - 1], b = fichas[k]; if (!((Math.abs(a.top - b.top) < 2 && b.left > a.left) || b.top > a.top + 2)) orden = false; }
+      const dos = !cont.classList.contains('una') && !esc.classList.contains('apilada');
+      const iguales = !dos || new Set(fichas.map((q) => Math.round(q.height))).size === 1;
+      const arriba = Math.min(...fichas.map((q) => q.top), document.getElementById('retrato').getBoundingClientRect().top);
+      return { cortado, fuera, ab, orden, iguales, desplaza: cont.scrollHeight > cont.clientHeight + 2, tapa: Math.round(((er.bottom - arriba) / er.height) * 100) };
+    });
+    const id = await page.evaluate((n) => window.__dialogo.D.decisiones[n].id, i);
+    tapa = Math.max(tapa, r.tapa);
+    if (r.desplaza) desplazan.push(id + (largo ? ' largo' : ' corto'));
+    if (r.cortado || r.fuera || !r.ab || !r.orden || !r.iguales) fallos.push({ id, largo, ...r });
+  }
+  ok(`las ${total} decisiones del caso caben a ${nombre} (la interfaz tapa como mucho el ${tapa} %; se desplazan: ${desplazan.join(', ') || 'ninguna'})`, fallos.length === 0, fallos.slice(0, 3));
+  await page.context().close();
+}
+
 // ── capturas ──
 if (FOTOS) {
   const tamanos = [['1366', { width: 1366, height: 768 }, {}], ['1920', { width: 1920, height: 1080 }, {}], ['390', { width: 390, height: 844 }, { dpr: 3, tactil: true }]];
@@ -118,6 +148,7 @@ if (FOTOS) {
       await page.evaluate(() => window.__dialogo.largoTexto('largo')); await asentar(page); await foto(page, `${nombre}-${modo}-4-opciones-largas`);
       await page.evaluate(() => window.__dialogo.largoTexto('corto'));
       if (modo === 'nueva') { await page.evaluate(() => window.__dialogo.verEstados()); await asentar(page, 400); await foto(page, `${nombre}-${modo}-4b-estados`); }
+      if (modo === 'nueva') { await page.evaluate(() => { const d = window.__dialogo; d.probar(d.D.decisiones.findIndex((q) => q.id === 'E10'), true); }); await asentar(page, 500); await foto(page, `${nombre}-${modo}-4c-las-mas-largas`); }
       await ver(page, 'reaccion', 3); await asentar(page); await foto(page, `${nombre}-${modo}-5-reaccion`);
       await ver(page, 'nota', 3); await asentar(page); await foto(page, `${nombre}-${modo}-6-nota`);
       await page.evaluate(() => { window.__dialogo.iniciarEscena(1); });
@@ -129,6 +160,9 @@ if (FOTOS) {
     await ver(page, 'opciones'); await asentar(page); await foto(page, `${nombre}-nueva-dia-3-opciones`);
     await page.evaluate(() => { window.__dialogo.iniciarEscena(1); });
     await ver(page, 'reaccion', 0); await asentar(page); await foto(page, `${nombre}-nueva-dia-9-abuela-reaccion`);
+    await page.evaluate(() => { window.__dialogo.momento('noche'); window.__dialogo.retrato('fina'); window.__dialogo.iniciarEscena(1); });
+    await ver(page, 'reaccion', 1); await asentar(page); await foto(page, `${nombre}-nueva-9b-abuela-retrato-fino`);
+    await page.evaluate(() => window.__dialogo.retrato('kit'));
     await page.context().close();
   }
   const page = await abrir({ width: 1366, height: 900 }, { pagina: true });

@@ -149,6 +149,22 @@ def seguir(momento='noche'):
     return _figura(['#######', '#lllll#', '.#lll#.', '..#l#..', '...#...'], {'#': TINTA, 'l': LUZ[momento]})
 
 
+# Las letras de las fichas se dibujan aquí: son el nombre de la respuesta (el estudiante las dice y las pulsa) y a
+# este tamaño una fuente de píxel confunde la C con el 0 y la B con el 8. Trazo de 2 px, 7 x 9, cada una con su rasgo:
+# la A tiene pico y travesaño, la B cintura, la C queda abierta a la derecha y la D es recta a la izquierda y curva a la derecha.
+LETRAS = {
+    'A': ['..###..', '.##.##.', '##...##', '##...##', '#######', '#######', '##...##', '##...##', '##...##'],
+    'B': ['######.', '##..###', '##...##', '##..##.', '#####..', '##..##.', '##...##', '##..###', '######.'],
+    'C': ['.#####.', '###..##', '##.....', '##.....', '##.....', '##.....', '##.....', '###..##', '.#####.'],
+    'D': ['#####..', '##.###.', '##..###', '##...##', '##...##', '##...##', '##..###', '##.###.', '#####..'],
+}
+
+
+def letra(ch, tinta=CLARO):
+    """La letra de una ficha, de 7 x 9, en un solo color."""
+    return _figura(LETRAS[ch], {'#': tuple(tinta)})
+
+
 PULSOS = ('CALM', 'TENSE', 'CRISIS')
 _COLOR_PULSO = {'CALM': (143, 207, 154), 'TENSE': (240, 196, 110), 'CRISIS': (236, 150, 132)}
 
