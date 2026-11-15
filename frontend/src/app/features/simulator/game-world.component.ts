@@ -3697,8 +3697,18 @@ export class GameWorldComponent implements OnChanges, OnDestroy {
   frameActors(key: string) { this.scene?.frameActors(key); }
   releaseFrame() { this.scene?.releaseFrame(); }
   /** Cámara (bloque M1): momento que pide la pantalla y alto (px CSS) que el cuadro de diálogo tapa abajo del lienzo. */
-  setCameraMoment(moment: CameraMoment, coveredCss = 0) { this.scene?.setCameraMoment(moment, coveredCss); }
-  setCameraOptions(options: CameraOptions) { this.scene?.setCameraOptions(options); }
+  private cameraOptions: CameraOptions = { cercana: false, acercarAuto: true };
+  private cameraMoment: CameraMoment = { tipo: 'explorar' };
+  private cameraCoveredCss = 0;
+  setCameraMoment(moment: CameraMoment, coveredCss = 0) {
+    this.cameraMoment = moment;
+    this.cameraCoveredCss = coveredCss;
+    this.scene?.setCameraMoment(moment, coveredCss);
+  }
+  setCameraOptions(options: CameraOptions) {
+    this.cameraOptions = options;
+    this.scene?.setCameraOptions(options);
+  }
   setCameraFrozen(frozen: boolean) { this.scene?.setCameraFrozen(frozen); }
   setPersonaState(text: string | null) { this.scene?.setPersonaState(text); }
   faceTowards(key: string, target: 'player' | string) { this.scene?.faceTowards(key, target); }
@@ -3794,6 +3804,9 @@ export class GameWorldComponent implements OnChanges, OnDestroy {
         sfxMuted: this.sfxMuted(),
       });
       this.scene.setPersonaScene(this.activation(), this.intensity());
+      // La cámara recibe lo que la pantalla pidió antes de que existiera la escena (bloque M1).
+      this.scene.setCameraOptions(this.cameraOptions);
+      this.scene.setCameraMoment(this.cameraMoment, this.cameraCoveredCss);
       this.armBootWatchdog();
       this.phaserGame = new Phaser.Game({
         // PHA-5 (E5-8): se mantiene Phaser.AUTO (WebGL preferido con caída a Canvas 2D) para soportar equipos de aula

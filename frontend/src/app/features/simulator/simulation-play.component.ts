@@ -34,7 +34,8 @@ import { BurbujaVisible, MundoCercania, ProximityReactions, RELOJ_DE_VENTANA, ac
 import { CommentBubbleComponent } from './comment-bubble.component';
 import { type GuiaEscena, GUIA_VACIA, armarGuia, avisarOpcionNueva } from './caso/guia';
 import { DialoguePanelComponent } from './dialogue-panel.component';
-import { GameWorldComponent } from './game-world.component';
+import { CameraMoment, GameWorldComponent } from './game-world.component';
+import { CameraSettings } from './camara/camera-settings.service';
 import { type EscenarioReaccion, type FinReaccion, ReactionDirectorComponent } from './reaction-director.component';
 import { JournalPanelComponent, JournalSaveState } from './journal-panel.component';
 import { isShortcutContext } from './keyboard-focus.util';
@@ -1154,6 +1155,19 @@ export class SimulationPlayComponent implements OnInit, OnDestroy {
   private readonly injector = inject(Injector);
   /** «Atajos de una tecla» (F6-10, WCAG 2.1.4): J, E, WASD, números del diálogo y A/D/E del lobby; apagables. */
   readonly shortcuts = inject(ShortcutSettings);
+  /** Vista cercana (Z) y acercamiento automático (bloque M1). */
+  readonly cameraSettings = inject(CameraSettings);
+  /**
+   * Momento de la cámara (bloque M1): mientras el diálogo de una persona está abierto (hablar y decidir), la cámara
+   * encuadra a los dos de cerca; con el de un objeto (lo que se encontró al revisar), se acerca al objeto. La reacción
+   * a una respuesta la encuadra el director con `frameActors`.
+   */
+  readonly cameraMoment = computed<CameraMoment>(() => {
+    const interaction = this.selectedInteraction();
+    if (!this.dialogue() || !interaction) return { tipo: 'explorar' };
+    const persona = interaction.type === 'PERSON' || interaction.key.startsWith('npc:');
+    return { tipo: persona ? 'conversacion' : 'objeto', clave: interaction.key };
+  });
   readonly fadeActive   = signal(false);
   /** Avisos del sistema visibles (el anfitrión `ui-toast-host` los pinta y anuncia). */
   private readonly systemNotices = toSignal(this.notifications.messages$, { initialValue: [] });
@@ -1427,6 +1441,17 @@ export class SimulationPlayComponent implements OnInit, OnDestroy {
   private pendingStage: string | null = null;
 
   constructor() {
+    // Cámara (bloque M1): ajustes y momento a la escena. El alto que tapa el cuadro de diálogo se mide del DOM después
+    // de pintarlo (el panel aparece en el mismo ciclo que cambia el momento).
+    effect(() => {
+      const moment = this.cameraMoment();
+      const mode = this.viewMode();
+      const options = { cercana: this.cameraSettings.cercana(), acercarAuto: this.cameraSettings.acercarAuto() };
+      untracked(() => {
+        this.gameWorld?.setCameraOptions(options);
+        requestAnimationFrame(() => this.gameWorld?.setCameraMoment(moment, this.dialogueCoverCss(mode)));
+      });
+    });
     // La salida segura pedida durante una petición espera a que `busy()` se suelte: no se fuerza
     // una pausa en medio de una decisión o de un cruce de puerta (F§7.8, H-04).
     effect(() => {
@@ -1826,9 +1851,17 @@ export class SimulationPlayComponent implements OnInit, OnDestroy {
     // Atajos de una letra (F6-10; WCAG 2.1.4): apagables, y solo actúan con el foco en el juego, en el cuerpo o en un
     // botón de la interfaz (nunca en un campo, una región con scroll ni un diálogo). Enter y Espacio no dependen del
     // ajuste. El destino de un keydown sintético puede ser el documento, que no es un elemento.
-    const isLetterShortcut = event.key === 'j' || event.key === 'J' || event.key === 'e' || event.key === 'E';
+    const isLetterShortcut = event.key === 'j' || event.key === 'J' || event.key === 'e' || event.key === 'E'
+      || event.key === 'z' || event.key === 'Z';
     const focusTarget = event.target instanceof Element ? event.target : null;
     if (isLetterShortcut && (!this.shortcuts.enabled() || !isShortcutContext(focusTarget))) return;
+
+    // Vista cercana (bloque M1): la cámara sigue al personaje de cerca, para quien ve poco. Se recuerda.
+    if (event.key === 'z' || event.key === 'Z') {
+      event.preventDefault();
+      if (!event.repeat) this.cameraSettings.toggleCercana();
+      return;
+    }
 
     if (event.key === 'j' || event.key === 'J') {
       event.preventDefault();
@@ -1857,6 +1890,15 @@ export class SimulationPlayComponent implements OnInit, OnDestroy {
     if (button?.tagName !== 'BUTTON' || event.repeat) return;
     if (event.key !== 'Enter' && event.key !== ' ') return;
     window.setTimeout(() => { if (event.defaultPrevented) button.click(); });
+  }
+
+  /** Alto (px CSS) del cuadro de diálogo de abajo que tapa el lienzo; 0 si el diálogo va al costado o no hay. */
+  private dialogueCoverCss(mode: string): number {
+    if (mode !== 'dialogue-cinematic' || typeof document === 'undefined') return 0;
+    const panel = document.querySelector('app-dialogue-panel.dialogue-cinematic');
+    const host = this.canvasZone()?.nativeElement;
+    if (!panel || !host) return 0;
+    return Math.max(0, Math.round(host.getBoundingClientRect().bottom - panel.getBoundingClientRect().top));
   }
 
   openInteraction(interaction: MapObjectState) {
