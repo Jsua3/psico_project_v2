@@ -529,6 +529,20 @@ PIEZAS.update({
                     reemplaza='escenarios/casa/arte/objetos/ventana.png'),
 })
 
+import objetos_casa_muebles as cm  # noqa: E402
+
+PIEZAS.update({
+    'mesa-comedor': dict(nombre='Mesa del comedor', tipo='mueble', dibujar=cm.mesa_comedor, cuadros=1,
+                         huella=dict(ancho=108, fondo=16, alto=30), material='madera barnizada',
+                         reemplaza='escenarios/casa/arte/muebles/mesa-comedor.png'),
+    'silla-comedor': dict(nombre='Silla del comedor', tipo='mueble', dibujar=cm.silla_comedor, cuadros=1,
+                          huella=dict(ancho=20, fondo=10, alto=34), material='madera y esterilla',
+                          reemplaza='escenarios/casa/arte/muebles/silla-comedor.png'),
+    'vitrina-comedor': dict(nombre='Vitrina del comedor', tipo='mueble', dibujar=cm.vitrina, cuadros=1,
+                            huella=dict(ancho=58, fondo=14, alto=74), material='madera y vidrio',
+                            reemplaza='escenarios/casa/arte/muebles/vitrina-comedor.png'),
+})
+
 
 if __name__ == '__main__':
     import objetos_hoja
