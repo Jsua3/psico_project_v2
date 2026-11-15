@@ -56,7 +56,9 @@ export function dialogueKeyAction(
     return choiceCount > 0 ? 'none' : 'close';
   }
 
-  const digit = /^[1-9]$/.test(key) ? Number(key) : null;
+  // La opción se nombra por su letra (A a D, como en el documento del caso) o por su número.
+  const letter = /^[a-dA-D]$/.test(key) ? 'abcd'.indexOf(key.toLowerCase()) + 1 : null;
+  const digit = /^[1-9]$/.test(key) ? Number(key) : letter;
   if (typingComplete && finalLine && digit !== null && digit <= choiceCount) {
     return 'choose';
   }
