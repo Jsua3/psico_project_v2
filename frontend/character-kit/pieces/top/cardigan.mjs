@@ -27,6 +27,8 @@ const PORTRAIT = [{
     const half = Math.max(0, 4 - (y - 25) * 0.8);
     if (Math.abs(x - 15.5) <= half) return 'i';
     if (Math.abs(x - 15.5) <= half + 1) return 'x';
+    // La cabeza da sombra sobre los hombros, a los dos lados del cuello.
+    if (y <= 26 && Math.abs(x - 15.5) <= half + 3) return 'K';
     return '.';
   }),
 }];

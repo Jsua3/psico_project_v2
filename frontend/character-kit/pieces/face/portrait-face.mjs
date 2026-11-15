@@ -75,8 +75,14 @@ const STATES = {
   'en-crisis': { eyes: 'wide', brows: 'high', mouth: 'open', blush: false, tension: true },
 };
 
+/**
+ * Volumen de la cara, en sombra de piel: el costado contrario a la luz se redondea hacia la mandíbula
+ * (la luz del kit ya sombrea 2 px del borde derecho, la fila bajo el pelo y el mentón).
+ */
+const VOLUME = [[22, 18], [21, 19], [20, 20], [19, 21], [18, 22]];
+
 /** Superposición de retrato del rostro en un estado. */
-export function facePortrait(state, { mature = false } = {}) {
+export function facePortrait(state, { mature = false, volume = false } = {}) {
   const s = STATES[state];
   const cells = [
     ...EYES_X.flatMap(EYES[s.eyes]),
@@ -85,6 +91,7 @@ export function facePortrait(state, { mature = false } = {}) {
     ...(s.blush ? BLUSH : []),
     ...(s.tension ? TENSION_LINES : []),
     ...(mature ? MATURE_LINES : []),
+    ...(volume ? VOLUME : []),
   ];
   return [{ anchor: 'H', at: [0, 0], mode: 'paint', legend: FACE_LEGEND, grid: stamp(gridFrom(32, 32, () => '.'), cells) }];
 }

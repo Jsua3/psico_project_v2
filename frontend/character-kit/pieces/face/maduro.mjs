@@ -20,8 +20,8 @@ const LEGEND = {
 export default {
   id: 'maduro',
   kind: 'face',
-  portrait: facePortrait('neutral', { mature: true }),
-  expressions: faceExpressions({ mature: true }),
+  portrait: facePortrait('neutral', { mature: true, volume: true }),
+  expressions: faceExpressions({ mature: true, volume: true }),
   views: {
     ...DIAGONAL,
     down: [{
