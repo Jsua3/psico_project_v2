@@ -17,6 +17,7 @@ export const FACE_LEGEND = {
   q: { literal: 'blush' },
   m: { mat: 'skin', tone: 3 },
   w: { mat: 'skin', tone: 2 },
+  n: { mat: 'skin', tone: 1 },
 };
 
 /** Columna izquierda de cada ojo. */
@@ -76,24 +77,36 @@ const STATES = {
 };
 
 /**
- * Volumen de la cara, en sombra de piel: el costado contrario a la luz se redondea hacia la mandíbula
- * (la luz del kit ya sombrea 2 px del borde derecho, la fila bajo el pelo y el mentón).
+ * Volumen de la cara. La luz del kit ya sombrea 2 px del borde derecho, la fila bajo el pelo y el mentón; aquí el
+ * lado contrario a la luz gana un tercer píxel de sombra de la sien al pómulo, y su contorno (del pómulo al mentón),
+ * el tono profundo. La mandíbula no se ensancha: ahí caen las líneas de edad y la boca.
+ * Va ANTES del rubor y de los rasgos: nunca los pisa.
  */
-const VOLUME = [[22, 18], [21, 19], [20, 20], [19, 21], [18, 22]];
+const VOLUME = [
+  ...[[20, 10], [21, 10], [21, 11], [22, 11], [21, 12], [22, 12], [22, 14], [22, 15], [22, 16], [22, 17], [22, 18]].map(([x, y]) => [x, y, 'w']),
+  ...[[24, 15], [24, 16], [24, 17], [24, 18], [23, 19], [22, 20], [21, 21], [20, 22], [19, 23], [17, 24], [18, 24]].map(([x, y]) => [x, y, 'm']),
+];
+/** Orejas: la del lado de la luz baja de tono hacia el lóbulo (se despega del borde de la cara); la otra, en sombra con el lóbulo profundo. */
+const EAR_SHADE = [[6, 16, 'n'], [6, 17, 'n'], [6, 18, 'w'], [25, 15, 'w'], [25, 16, 'w'], [25, 17, 'm'], [25, 18, 'm']];
+/** Cuello: la sombra del mentón (la fila de arriba ya la da la luz del kit) cae en cuña hacia el lado contrario a la luz. */
+const NECK_SHADE = [[16, 26, 'w'], [17, 26, 'w'], [18, 26, 'w'], [18, 27, 'w']];
+const shadeOverlay = (parts, cells) => ({ anchor: 'H', at: [0, 0], mode: 'paint', parts, legend: FACE_LEGEND, grid: stamp(gridFrom(32, 32, () => '.'), cells) });
 
 /** Superposición de retrato del rostro en un estado. */
 export function facePortrait(state, { mature = false, volume = false } = {}) {
   const s = STATES[state];
   const cells = [
+    ...(volume ? VOLUME : []),
     ...EYES_X.flatMap(EYES[s.eyes]),
     ...BROWS[s.brows],
     ...MOUTHS[s.mouth],
     ...(s.blush ? BLUSH : []),
     ...(s.tension ? TENSION_LINES : []),
     ...(mature ? MATURE_LINES : []),
-    ...(volume ? VOLUME : []),
   ];
-  return [{ anchor: 'H', at: [0, 0], mode: 'paint', legend: FACE_LEGEND, grid: stamp(gridFrom(32, 32, () => '.'), cells) }];
+  const overlays = [{ anchor: 'H', at: [0, 0], mode: 'paint', legend: FACE_LEGEND, grid: stamp(gridFrom(32, 32, () => '.'), cells) }];
+  if (volume) overlays.push(shadeOverlay(['e', 'E'], EAR_SHADE), shadeOverlay(['N'], NECK_SHADE));
+  return overlays;
 }
 
 /** Las cinco expresiones distintas del neutral. */

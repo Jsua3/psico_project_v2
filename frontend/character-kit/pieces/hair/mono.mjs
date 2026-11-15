@@ -10,7 +10,6 @@
  * Leyenda: R pelo (la luz decide) · r borde del moño y raya (profundo) · h brillo.
  */
 
-import { gridFrom } from '../../raster.mjs';
 import { DIAGONAL } from './mono.diagonal.mjs';
 
 const LEGEND = {
@@ -22,41 +21,32 @@ const LEGEND = {
 // ── Retrato 32×32: pelo recogido hacia atrás con el moño arriba ───────────────
 //
 // Misma silueta de la cabeza que antes; el casco con raya al medio pasa a ser pelo
-// tirante: el moño asoma sobre la coronilla (su sombra cae sobre el casco), una
-// banda de brillo a la izquierda, de donde viene la luz, y dos mechones que suben
-// hacia el moño. La luz del kit pone el resto (borde derecho y nacimiento en sombra).
+// tirante. El moño es una bola sobre la coronilla (luz arriba a la izquierda, tono
+// profundo abajo a la derecha) y su sombra cae sobre el casco. Una banda de brillo
+// del lado de la luz y tres zonas de tono (luz, base, sombra) que separan dos mechones
+// en diagonal hacia el moño; el tono más oscuro, junto a las orejas y en el borde
+// contrario a la luz.
+//
+// Leyenda: R pelo (la luz decide) · h brillo · b base · s sombra · r profundo.
 
-const PORTRAIT_LEGEND = { ...LEGEND, s: { mat: 'hair', tone: 2 } };
+const PORTRAIT_LEGEND = { ...LEGEND, b: { mat: 'hair', tone: 1 }, s: { mat: 'hair', tone: 2 } };
 
-/** Tramos de pelo por fila: [desde, hasta] inclusive. */
-const PORTRAIT_ROWS = {
-  2: [[14, 17]],
-  3: [[13, 18]],
-  4: [[13, 18]],
-  5: [[11, 20]],
-  6: [[9, 22]],
-  7: [[9, 22]],
-  8: [[8, 23]],
-  // Nacimiento redondeado en las sienes y bandas hasta la oreja.
-  9: [[8, 10], [21, 23]],
-  10: [[8, 9], [22, 23]],
-  11: [[8, 8], [23, 23]],
-  12: [[8, 8], [23, 23]],
-};
-const PORTRAIT_MARKS = {
-  // Sombra del moño sobre el casco.
-  s: [[13, 5], [14, 5], [15, 5], [16, 5], [17, 5], [18, 5],
-    // Dos mechones que suben hacia el moño.
-    [14, 6], [13, 7], [18, 6], [19, 7]],
-  // Banda de brillo del lado de la luz.
-  h: [[10, 6], [11, 6], [12, 6], [10, 7], [11, 7]],
-};
-const portraitChar = (x, y) => {
-  if (!(PORTRAIT_ROWS[y] ?? []).some(([from, to]) => x >= from && x <= to)) return '.';
-  for (const [ch, cells] of Object.entries(PORTRAIT_MARKS)) if (cells.some(([cx, cy]) => cx === x && cy === y)) return ch;
-  return 'R';
-};
-const PORTRAIT = [{ anchor: 'H', at: [0, 0], mode: 'cover', legend: PORTRAIT_LEGEND, grid: gridFrom(32, 32, portraitChar) }];
+const PORTRAIT = [{
+  anchor: 'H', at: [8, 2], mode: 'cover', legend: PORTRAIT_LEGEND,
+  grid: `
+    ......hhRs......
+    .....hhRRss.....
+    .....RRssrr.....
+    ...Rhhssssssr...
+    .Rhhhbsbbbsssrr.
+    .Rhbbsbbbbbsssr.
+    Rbbbsbbbbbbbssrr
+    Rbs..........ssr
+    bs............sr
+    s..............r
+    r..............r
+  `,
+}];
 
 export default {
   id: 'mono',
