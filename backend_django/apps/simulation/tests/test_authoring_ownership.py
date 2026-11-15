@@ -159,6 +159,10 @@ FOREIGN_ROUTES = [
     ("get", "<int:case_version_id>/assistant/status", None, 403),
     ("post", "<int:case_version_id>/assistant/propose", {"peticion": "x", "pantalla": "p"}, 403),
     ("post", "<int:case_version_id>/assistant/guide", {"pregunta": "x", "acciones": []}, 403),
+    # El ensayo del borrador (A2): abrirlo muta (403); el ensayo es de su autora, así que la ruta de un ensayo ajeno también es 403.
+    ("post", "<int:case_version_id>/rehearsal", {}, 403),
+    ("get", "<int:case_version_id>/rehearsal/<uuid:attempt_id>", None, 403),
+    ("patch", "<int:case_version_id>/rehearsal/<uuid:attempt_id>", {"hitos": []}, 403),
     # Importar no apunta a un caso por su id: el caso ajeno se decide por ``caso.id`` dentro del documento
     # (403 ``CASE_NOT_OWNED``, en ``test_definition_import``); un cuerpo vacío es un 400 para cualquiera.
     ("post", "import", {}, 400),
@@ -177,9 +181,11 @@ def test_the_foreign_route_table_covers_every_authoring_route():
 def _path(pattern, case_version_id, ids):
     def fill(match):
         name = match.group(1)
+        if name == "attempt_id":
+            return "6f1d9b7e-5c2a-4c1e-9d7b-0a3c2e1f4a55"
         return str(case_version_id if name == "case_version_id" else ids.get(name, 1))
 
-    return re.sub(r"<int:(\w+)>", fill, pattern)
+    return re.sub(r"<(?:int|uuid):(\w+)>", fill, pattern)
 
 
 @pytest.mark.parametrize("method,pattern,body,expected", FOREIGN_ROUTES)

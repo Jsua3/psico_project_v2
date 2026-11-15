@@ -702,6 +702,13 @@ export const DRAFT_COPY = {
     where: 'Puerta bloqueada cuando el servidor no dice qué falta (reemplaza al respaldo que nombraba «Qué hacer»)',
     text: 'Antes de pasar, explora un poco más la sala.',
   },
+  commentBubbleLabel: {
+    decision: 'DSL-9',
+    owner: 'Psicología',
+    review: 'conocimiento',
+    where: 'Burbuja de comentario de un personaje: nombre accesible de su región',
+    text: 'Comentario de {nombre}',
+  },
   /** Nota de una conducta prohibida en «Tus decisiones»: se señala con cuidado, sin cifras (RN-08, ETH). */
   decisionProhibitedNote: {
     decision: 'RN-08',

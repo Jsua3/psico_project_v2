@@ -47,8 +47,10 @@ def test_published_world_caches_static_part_after_first_load(estudiante, case_ve
     # La primera llena el caché (9 consultas); la segunda no relee objetos, diálogos, colisiones ni herramientas (3 consultas).
     # Bloque A: +1 en cada una, las opciones de la escena (``decisionOptions``): son filas por intento y requisito, no
     # parte estática del mundo, así que no entran al caché.
-    assert first_cost.queries == 9
-    assert second_cost.queries == 3
+    # Bloque A2: +1 en cada una, las personas de los comentarios de la escena (una consulta agrupada); dependen del mapa del
+    # estudiante, así que tampoco entran al caché.
+    assert first_cost.queries == 10
+    assert second_cost.queries == 4
 
 
 def test_draft_version_is_never_cached(estudiante, case_version_id):
@@ -65,8 +67,9 @@ def test_draft_version_is_never_cached(estudiante, case_version_id):
     )
     second_resp, second_cost = measure(lambda: c.get(url, **attempt_headers(token)))
 
-    assert first_cost.queries == 9  # las 8 de siempre + las opciones de la escena (bloque A)
-    assert second_cost.queries == 9
+    # las 8 de siempre + las opciones de la escena (bloque A) + las personas de los comentarios (bloque A2)
+    assert first_cost.queries == 10
+    assert second_cost.queries == 10
     labels = {o["key"]: o["label"] for o in second_resp.data["data"]["objects"]}
     assert labels["familia-crisis"] == "Familia editada en borrador"
 

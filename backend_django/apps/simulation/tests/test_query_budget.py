@@ -42,14 +42,18 @@ QUERY_BUDGETS = {
     # Bloque A: 8 → 9 a propósito. El mundo ahora trae ``decisionOptions`` y eso es UNA consulta nueva e inherente: las filas de
     # ``decision_options`` de la escena. El contexto de disponibilidad no suma nada: el estado del mundo ya está cargado y las
     # decisiones del intento solo se leen si algún requisito cuenta respuestas (los de SIM-VBG-001 no).
-    "get_world": 9,  # (0) era 14; antes de E1-6 era 16 con 2 escrituras (D-15)
+    # Bloque A2: 9 → 10 a propósito. SIM-VBG-001 trae comentarios en E01: el mundo arma ``comments`` y eso es UNA consulta
+    # nueva, agrupada (las PERSON visibles de todos los personajes de los comentarios con ``__in``), no una por comentario.
+    # Depende del mapa del estudiante, así que no entra al caché estático. Sin comentarios en la escena no se consulta nada.
+    "get_world": 10,  # (0) era 14; antes de E1-6 era 16 con 2 escrituras (D-15)
     # E5-1: acuse mínimo + cerrojo en la lectura del intento + INSERT directo del estado inicial. Reparación de
     # E5-1: 6 → 7, porque el estado del mundo se lee DESPUÉS del cerrojo (en la misma sentencia llegaba viejo y el
     # PATCH pisaba lo que otra orden acababa de confirmar: test_world_patch_race.py). Sigue siendo 21 → 7.
     "patch_world_state": 7,  # (2) era 21 (4)
     # Bloque A: 13 → 15 a propósito. El mundo que devuelve trae ``decisionOptions``: +1 las opciones de la escena y +1 el mapa
     # de la escena de decisión (no el de la sala a la que entra), de donde salen los hechos de exploración de sus requisitos.
-    "enter_room": 15,  # (3) era 26
+    # Bloque A2: 15 → 16, la misma consulta de los comentarios de la escena que en ``get_world``.
+    "enter_room": 16,  # (3) era 26
     # era 9 (4) sin mundo: +1 cerrojo y +1 búsqueda de repetición (E1-3), +1 lectura y +1 UPDATE del
     # estado del mundo por los efectos del caso, que la medición anterior omitía por no tener mundo.
     # Tarea 5 (modelo de métricas): 12 → 11. La decisión ya no llama a ``decision_effects`` ni a ``case_effects``: los

@@ -35,7 +35,7 @@ import { RutasAutoria } from '../../rutas';
         }
 
         <div class="dos-columnas">
-          <app-mapa-escenas #mapa [caso]="caso" [avisos]="avisos()" [elegidaInicial]="irA()"
+          <app-mapa-escenas #mapa [caso]="caso" [avisos]="avisos()" [elegidaInicial]="irA()" [soloLectura]="store.soloLectura()"
                             (seleccion)="elegida.set($event)" (abrirGuion)="abrirGuion($event)" (abrirSala)="abrirSala($event)"
                             (accion)="accion($event)" />
 

@@ -296,6 +296,23 @@
       {
         "apoyo": [],
         "clave": "hospital-urgencias",
+        "comentarios": [
+          {
+            "emocion": "preocupada",
+            "gesto": "se-acerca",
+            "linea": "Nadie nos dice nada… solo queremos saber si ellas están bien.",
+            "personaje": "familia-crisis"
+          },
+          {
+            "cuando": {
+              "inspected": "zona-restringida"
+            },
+            "emocion": "en-crisis",
+            "gesto": "se-agita",
+            "linea": "Dicen que no podemos pasar por ahí… ¿qué es lo que no nos quieren decir?",
+            "personaje": "familia-crisis"
+          }
+        ],
         "herramientasRequeridas": [],
         "id": "E01",
         "inicial": true,
@@ -640,6 +657,23 @@
       {
         "apoyo": [],
         "clave": "hospital-sala-escucha",
+        "comentarios": [
+          {
+            "emocion": "triste",
+            "gesto": "baja-la-mirada",
+            "linea": "Sigo sin entender qué pasó… solo quiero que alguien me explique con calma.",
+            "personaje": "familia-duelo"
+          },
+          {
+            "cuando": {
+              "inspected": "marco-normativo-hospital"
+            },
+            "emocion": "cautelosa",
+            "gesto": "se-acerca",
+            "linea": "Si hay normas para esto, ¿alguien las va a cumplir por nosotras?",
+            "personaje": "familia-duelo"
+          }
+        ],
         "herramientasRequeridas": [],
         "id": "E02",
         "inicial": false,
@@ -2021,6 +2055,23 @@
       {
         "apoyo": [],
         "clave": "comisaria-consultorio",
+        "comentarios": [
+          {
+            "emocion": "cautelosa",
+            "gesto": "baja-la-mirada",
+            "linea": "No sé por dónde empezar… solo quiero estar segura.",
+            "personaje": "sobreviviente-consulta"
+          },
+          {
+            "cuando": {
+              "inspected": "marco-normativo-comisaria"
+            },
+            "emocion": "cautelosa",
+            "gesto": "se-acerca",
+            "linea": "¿Eso que usted está leyendo me protege a mí también?",
+            "personaje": "sobreviviente-consulta"
+          }
+        ],
         "herramientasRequeridas": [],
         "id": "E05",
         "inicial": false,

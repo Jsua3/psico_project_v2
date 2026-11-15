@@ -55,7 +55,8 @@ def _append(raw_json, key):
 
 def explore_what_the_case_asks_for(attempt_id):
     """Deja explorado en el mundo del intento lo que piden los requisitos de sus opciones recomendadas."""
-    attempt = SimulationAttempt.objects.get(pk=attempt_id)
+    # También el ensayo de una docente (``is_rehearsal``), que el gestor por defecto no ve.
+    attempt = SimulationAttempt.all_objects.get(pk=attempt_id)
     # La lectura del mundo no lo guarda (E1-6): se resuelve el que tendría y se persiste con lo explorado.
     state, _ = world_service.resolve_world_state(attempt)
     own_map = state.scene_map

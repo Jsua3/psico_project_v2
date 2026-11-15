@@ -77,3 +77,26 @@ def test_seeding_publishes_2_1_0_and_keeps_2_0_0(db):
     assert versions == {"2.0.0": "ARCHIVED", "2.1.0": "PUBLISHED"}
     kept = CaseVersion.objects.get(pk=old.pk)
     assert (kept.definition_hash, kept.validated_at) == (old.definition_hash, old.validated_at)
+
+
+def test_sim_vbg_001_tiene_comentarios_y_pasa_las_reglas():
+    """Dos escenas con decisión o más: un comentario siempre y otro tras inspeccionar algo de su propia sala.
+
+    El contenido es un borrador que Psicología debe confirmar. Lo dice la persona que el estudiante atiende en la sala.
+    """
+    document = json.loads(DOCUMENT.read_text(encoding="utf-8"))
+    scenes = [s for s in document["x-siep"]["escenas"] if s["opciones"] and s.get("comentarios")]
+    assert len(scenes) >= 2
+    for scene in scenes:
+        comments = scene["comentarios"]
+        assert 2 <= len(comments) <= 6
+        assert any("cuando" not in c for c in comments), scene["clave"]
+        things = {o["clave"] for o in scene["mapa"]["objetos"] if o.get("visible") is not False}
+        people = {o["personaje"] for o in scene["mapa"]["objetos"] if o["tipo"] == "PERSON" and o.get("personaje")}
+        assert any("cuando" in c and set(c["cuando"]) == {"inspected"} and c["cuando"]["inspected"] in things
+                   for c in comments), scene["clave"]
+        for comment in comments:
+            assert comment["personaje"] in people and "\n" not in comment["linea"] and len(comment["linea"]) <= 400
+    assert [i for i in validate.validate_document(document) if i.severity == report.ERROR] == []
+    states = {r.rule: r.state for r in validate.run_rules(document).results}
+    assert [states[f"OCL-{n}"] for n in ("10", "11", "12")] == ["CUMPLE"] * 3

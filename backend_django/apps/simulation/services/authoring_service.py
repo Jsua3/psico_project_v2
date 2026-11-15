@@ -56,8 +56,8 @@ def create_case(request, actor):
     return cases.create_case(request, actor)
 
 
-def editor(case_version_id):
-    return editor_view.editor(case_version_id)
+def editor(case_version_id, actor=None):
+    return editor_view.editor(case_version_id, actor)
 
 
 def definition_of(case_version_id):
