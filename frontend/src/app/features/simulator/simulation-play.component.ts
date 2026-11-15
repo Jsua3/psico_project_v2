@@ -916,6 +916,9 @@ const QUEUED_PAUSE_SLOW_NOTICE = 'La acción en curso está tardando. Estamos pa
 
     /* ── Overlays ────────────────────────────────────────────────────────── */
     .dialogue-cinematic { position: absolute; bottom: 0; left: 0; right: 0; z-index: 60; }
+    /* Ensayo: el cuadro sobre el mundo termina antes de la columna de autora (su ancho más el hueco y el margen de la rejilla). */
+    .game-container[data-rehearsal] .dialogue-cinematic { right: calc(clamp(280px, 24vw, 340px) + 22px); }
+    @media (max-width: 760px) { .game-container[data-rehearsal] .dialogue-cinematic { right: 0; } }
     .overlay-backdrop {
       position: absolute; inset: 0; z-index: 95;
       background: rgba(8,12,18,.62);

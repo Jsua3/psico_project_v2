@@ -43,6 +43,7 @@ const STALE_NOTE = 'Esta conversación corresponde a otro momento del caso.';
         [class.strip--supervisory]="activeSpeakerName(d) === 'Supervisión clínica'"
         [class.strip--quieto]="reduceMotion()"
         [class.strip--sin-retrato]="!portraitSrc(d)"
+        [class.strip--con-opciones]="hasChoices(d)"
         [style]="arte()"
         [attr.data-momento]="momento()"
         role="dialog"
@@ -231,8 +232,12 @@ const STALE_NOTE = 'Esta conversación corresponde a otro momento del caso.';
       gap: calc(8 * var(--px));
       align-items: end;
     }
-    .strip-main:not(:has(.choices)) { grid-template-columns: minmax(0, min(46em, 100%)); }
-    .strip-main:not(:has(.choices)) .strip-body { display: none; }
+    /* Sin opciones, la placa sola. Con opciones, la columna de las fichas se reserva desde la primera línea: nada salta al
+       aparecer y la cámara (M1) mide un solo alto durante toda la conversación. */
+    .dialogue-strip:not(.strip--con-opciones) .strip-main { grid-template-columns: minmax(0, min(46em, 100%)); }
+    .dialogue-strip:not(.strip--con-opciones) .strip-body { display: none; }
+    /* Sobre el mundo, el cuadro incluye el retrato que asoma: el borde superior de app-dialogue-panel es lo que tapa. */
+    .dialogue-strip:not(.dialogue-strip--side) { padding-top: calc(16 * var(--px)); }
 
     /* Cabecera fija del panel: «Volver al mapa» y «Salida segura» siempre a mano. */
     .panel-head {
@@ -243,8 +248,9 @@ const STALE_NOTE = 'Esta conversación corresponde a otro momento del caso.';
       gap: calc(3 * var(--px));
       justify-items: end;
     }
-    /* Sobre el mundo, «Volver» y «Salida segura» van juntos en la esquina de abajo a la derecha, no flotando sobre la sala. */
-    .dialogue-strip:not(.dialogue-strip--side) .panel-head {
+    /* Sobre el mundo y sin opciones, «Volver» y «Salida segura» van juntos en la esquina de abajo a la derecha, no flotando
+       sobre la sala. Con opciones van arriba de las fichas, con la nota de la decisión. */
+    .dialogue-strip:not(.dialogue-strip--side):not(.strip--con-opciones) .panel-head {
       position: absolute;
       right: calc(8 * var(--px));
       bottom: calc(10 * var(--px));
