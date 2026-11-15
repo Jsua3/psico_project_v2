@@ -6,8 +6,11 @@
 3. El documento del caso es 2.2 y cumple OCL-13 a OCL-18 con el catálogo real de P1.
 4. Un ensayo del caso recibe del servidor ``map.structure`` y ``layout`` en el mundo, como el estudiante.
 """
+import io
+
 import pytest
 from django.contrib.auth import get_user_model
+from django.core.management import call_command
 from rest_framework.test import APIClient
 
 from apps.biblioteca.services import catalogo_piezas, lugares
@@ -74,6 +77,14 @@ def test_el_documento_del_hospital_cumple_las_reglas_de_las_salas_por_piezas(ver
     hallazgos = {regla: [f.message for f in r.findings] for regla, r in resultados.items() if r.findings}
     assert hallazgos == {}
     assert {regla: r.state for regla, r in resultados.items()} == {regla: "CUMPLE" for regla in REGLAS}
+
+
+def test_el_comando_de_siembra_crea_el_hospital_por_piezas(profesor):
+    salida = io.StringIO()
+    call_command("crear_caso_desde_lugar", "--autor", profesor.email, stdout=salida)
+    assert "8 salas" in salida.getvalue()
+    version = CaseVersion.objects.filter(simulation_case__created_by=profesor).latest("id")
+    assert SceneMap.objects.filter(case_version=version, structure__isnull=False).count() == 8
 
 
 def test_el_ensayo_recibe_la_estructura_y_el_plano(version, profesor):
