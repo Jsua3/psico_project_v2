@@ -11,6 +11,8 @@
     "src/app/features/simulator/world-scale.util.ts",
     "src/app/features/simulator/sala/geometria.ts",
     "src/app/features/simulator/sala/catalogo.ts",
-    "src/app/features/simulator/sala/luz.ts"
+    "src/app/features/simulator/sala/luz.ts",
+    "src/app/features/simulator/sala/composicion.ts",
+    "src/app/features/simulator/sala/pintor.ts"
   ]
 }
