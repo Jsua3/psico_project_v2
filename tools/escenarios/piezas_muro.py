@@ -75,13 +75,30 @@ def disco(pl, cu, cv, r, c):
         pl.q(cu - medio, cv + dv, cu + medio, cv + dv + 1, c)
 
 
-def cielo(pl, u0, v0, u1, v1, noche, semilla=0, luna=False, reflejo=True):
+def cielo(pl, u0, v0, u1, v1, noche, semilla=0, luna=False, reflejo=True, lejos=True):
     """Vidrio en cuatro franjas (sin degradado). De noche, estrellas; de día, un reflejo en diagonal."""
     tonos = NOCHE if noche else DIA
     alto = v1 - v0
     cortes = [v1 - alto * k // 4 for k in range(5)]
     for k in range(4):
         pl.q(u0, cortes[k + 1], u1, cortes[k], tonos[k])
+    if lejos:                                   # por la ventana se ve algo: techos a lo lejos, una nube, luces de noche
+        tono, u = ((30, 34, 58) if noche else (128, 150, 166)), u0
+        for i in range(24):
+            k = azar(i, semilla, 61)
+            tramo, altura = 7 + k % 10, 4 + (k >> 5) % max(3, alto // 4)
+            if u >= u1:
+                break
+            pl.q(u, v0, min(u + tramo, u1), v0 + altura, tono)
+            if noche and k % 3 == 0 and u + 3 < u1:
+                pl.q(u + 2, v0 + altura - 3, u + 3, v0 + altura - 1, (226, 222, 196))
+            elif not noche:
+                pl.q(u, v0 + altura - 1, min(u + tramo, u1), v0 + altura, mezcla(tono, BLANCO, 0.14))
+            u += tramo
+        if not noche and u1 - u0 >= 30:
+            nube, cu, cv = mezcla(DIA[0], BLANCO, 0.5), u0 + (u1 - u0) * 3 // 5, v1 - max(6, alto // 3)
+            pl.q(cu, cv, min(cu + 14, u1), cv + 2, nube)
+            pl.q(cu + 3, cv + 2, min(cu + 11, u1), cv + 4, nube)
     if noche:
         for i in range(max(2, (u1 - u0) * alto // 300)):
             k = azar(i, semilla, 5)
@@ -156,7 +173,7 @@ def _alta(pl, n):
 def _ventanal(pl, n):
     w, v0, h, m = 168, 42, 88, MARCO_OSCURO
     marco_rect(pl, -4, v0 - 4, w + 4, v0 + h + 4, m)
-    cielo(pl, 0, v0, w, v0 + h, n, semilla=3, luna=True, reflejo=False)
+    cielo(pl, 0, v0, w, v0 + h, n, semilla=3, luna=True, reflejo=False, lejos=False)
     lejos = (30, 34, 58) if n else (128, 150, 166)
     u = 0
     for i in range(40):                                   # la ciudad a lo lejos
