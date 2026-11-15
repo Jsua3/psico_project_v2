@@ -308,7 +308,7 @@ const QUEUED_PAUSE_SLOW_NOTICE = 'La acción en curso está tardando. Estamos pa
             (openHelp)="openHelp()" (helpReset)="resetHelpCard()" />
           <!-- Recordatorio ético del nodo sensible (ETH-01): franja bajo la cabecera, completa al entrar y plegada a un chip a los 8 s;
                siempre a la vista en todos los dispositivos. Ocupa su propio sitio: no tapa al personaje ni los controles. -->
-          <app-sensitive-notice [text]="sensitiveNotice()" [sceneKey]="attempt()?.currentNode?.key ?? null" [reduceMotion]="reduceMotion()" />
+          <app-sensitive-notice [text]="sensitiveNotice()" [sceneKey]="visibleNode()?.key ?? null" [reduceMotion]="reduceMotion()" />
         </header>
 
         <div class="main-zone">
@@ -1267,7 +1267,8 @@ export class SimulationPlayComponent implements OnInit, OnDestroy {
    * visible en todos los dispositivos mientras dure el nodo, plegada o no la ficha del objetivo. No cambia su redacción.
    */
   readonly sensitiveNotice = computed<string | null>(() => {
-    const node = this.attempt()?.currentNode;
+    // La escena visible: durante la reacción (4.3.3) el aviso de la escena siguiente no se adelanta.
+    const node = this.visibleNode();
     if (!node) return null;
     if (node.warningMessage) return node.warningMessage;
     return node.safeExitRequired
