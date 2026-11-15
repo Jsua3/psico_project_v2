@@ -99,21 +99,21 @@ export default {
           RRRRRRRRRRRRRRRRRRR
           RRRRRRRRRRRRRRRRRRR
           RRRRRRRRRRRRRRRRRRR
+          RRRhhhRRRRRRRRRRRRR
+          RRRRRRhhRRRRRRRRRRR
+          RRRRRRRRRRRRRRRRRRR
           RRRRRrRRRRRRRrRRRRR
           RRRRRrRRRRRRRrRRRRR
-          RRRRRRRRRRRRRRRRRRR
-          RRRRRRRRRRRRRRRRRRR
-          RRRRRRRRRRRRRRRRRRR
-          RRRRRRRRRRRRRRRRRRR
+          RRRRRrRRRRRRRrRRRRR
         `,
       },
       {
         anchor: 'T', at: [15, 21], mode: 'cover', legend: LEGEND,
         grid: `
-          RRRRRRRRRRRRRRRRRRR
-          RRRRRRRRRRRRRRRRRRR
+          RRRRRrRRRRRRRrRRRRR
+          RRRRRrRRRRRRRrRRRRR
           .RRRRrRRRRRRRrRRRR.
-          .RRRRRRRRRRRRRRRRR.
+          .RRRRrRRRrRRRrRRRR.
           ..RRRRRRRRRRRRRRR..
         `,
       },

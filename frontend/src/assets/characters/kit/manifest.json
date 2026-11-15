@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "kitSha256": "13841cda4214ccef62cac8838e36bdec77df9ce12614a12316a2ceb5720bf1e9",
+  "kitSha256": "a9a818d20d8995958e8237ae9d740386532f64de96cf1431b33d6473f3d3bd2e",
   "characters": {
     "abuela-familia": {
       "displayName": "Abuela de la niña",
@@ -160,13 +160,13 @@
           "path": "adolescente/idle.png",
           "width": 192,
           "height": 576,
-          "pixelSha256": "123a9a1af84752e8161400fa146752a120dbf2ae7f631e2179ffb8a43545d425"
+          "pixelSha256": "12c1c71fa75a7e2a2198d4d148da48cf597d991a4c880e885641a8b1706a9898"
         },
         "walk": {
           "path": "adolescente/walk.png",
           "width": 288,
           "height": 576,
-          "pixelSha256": "6c7a105f915e6f32fad6f9efea4e9e6f871f7f18954bd20d8bd56e5dbcc8550d"
+          "pixelSha256": "37783e8f5a8abc1daa1cf32ae227cb9ad229b383b9cf0cff6d85336cfe086467"
         },
         "portrait-neutral": {
           "path": "adolescente/portrait-neutral.png",
@@ -461,13 +461,13 @@
           "path": "camila/idle.png",
           "width": 192,
           "height": 576,
-          "pixelSha256": "008f37bbe2acbe38686b50f4c2e9b880c694b033666cbe745cd731843beb3ff4"
+          "pixelSha256": "1dd8e6b97173b849978ffa1637af0132fef2def65b9071186c07daa9071ff41c"
         },
         "walk": {
           "path": "camila/walk.png",
           "width": 288,
           "height": 576,
-          "pixelSha256": "94c5ca1a2c02a9e2bbe82b87139f4004a899136543915cf83af20366cd169ebe"
+          "pixelSha256": "4abd8440007a70e0e95e6266843809a6fdf1d5353e467bc03807e6039bb90391"
         },
         "portrait-neutral": {
           "path": "camila/portrait-neutral.png",
@@ -556,13 +556,13 @@
               "path": "camila/bata/idle.png",
               "width": 192,
               "height": 576,
-              "pixelSha256": "b84a6c6a5a098385f745465f784822d01138fc10ebd510a03168141ab338e077"
+              "pixelSha256": "0f39446a69928a33aa0f196608a0593797a384973bab69aa0762d09762c4cce9"
             },
             "walk": {
               "path": "camila/bata/walk.png",
               "width": 288,
               "height": 576,
-              "pixelSha256": "86f17014939ec38c10f94a5b4bc94541744db231fa89c3c09c7c6d046ca10bf3"
+              "pixelSha256": "bd1ad3088fa202b89726ab4dc444245d65abb0d4ff3f6c28dd81304dceda21af"
             },
             "portrait-neutral": {
               "path": "camila/bata/portrait-neutral.png",
@@ -660,13 +660,13 @@
           "path": "comisaria-familia/idle.png",
           "width": 192,
           "height": 576,
-          "pixelSha256": "d497fb94431abdb186c8009c0f3e6e23791c6f9d74f771459d547b2be8fd93d4"
+          "pixelSha256": "f3d2e6329bb871c09c22d171c5f480ceb8eb7beda1c24cf50a495c098538e303"
         },
         "walk": {
           "path": "comisaria-familia/walk.png",
           "width": 288,
           "height": 576,
-          "pixelSha256": "b543413fcd6ff26be9110f368e275372f47dbd12dc111a1e8168fe47857c9ce3"
+          "pixelSha256": "c8307a51a2de65d20f7b86dadefbfbf58f29c1b9a2ec98e9c404f4460cd2d851"
         },
         "portrait-neutral": {
           "path": "comisaria-familia/portrait-neutral.png",
@@ -1262,13 +1262,13 @@
           "path": "docente-universidad/idle.png",
           "width": 192,
           "height": 576,
-          "pixelSha256": "175891d6e1b30304e60cdc87b24a2bcecd927aba5daf52a4ab5beb75b66364fd"
+          "pixelSha256": "78763b3d2759f315e305eef1df88cccc0e29692bcd88a6fd9f544816161e2ed1"
         },
         "walk": {
           "path": "docente-universidad/walk.png",
           "width": 288,
           "height": 576,
-          "pixelSha256": "fc2458cf0fcca9aefe8ee1759d63dd2effcd24a627cc170aa6acb45dd493d4f4"
+          "pixelSha256": "ce6e95883f11afd0425e27c1e9dae9572c186ea3b956c943081c86f1908fa8ce"
         },
         "portrait-neutral": {
           "path": "docente-universidad/portrait-neutral.png",
@@ -1767,13 +1767,13 @@
           "path": "funcionaria-recepcion/idle.png",
           "width": 192,
           "height": 576,
-          "pixelSha256": "1377e8b7c99a92d699980bc9070e6cc382cacbfd2f4425c5fefca00455b997bf"
+          "pixelSha256": "bd0af7b4f16a801414ec3c79e5f6980fe4602afabaac918e716e773340ce4801"
         },
         "walk": {
           "path": "funcionaria-recepcion/walk.png",
           "width": 288,
           "height": 576,
-          "pixelSha256": "2ad63a4894f9852e6585eb99792c78219c8f25237b59659169bfd26e8b3d8768"
+          "pixelSha256": "9a9f3f7bd65cd707a7046de6f35d6068f6b98256e9be5047ec01cf6d8cc61b79"
         },
         "portrait-neutral": {
           "path": "funcionaria-recepcion/portrait-neutral.png",
@@ -2267,13 +2267,13 @@
           "path": "madre-acompanante/idle.png",
           "width": 192,
           "height": 576,
-          "pixelSha256": "3c6458eac55ac16816ebaf252f97d4efc89a836280e0600bbe0cecec1ad91e4e"
+          "pixelSha256": "e326f6906e8e59b57f4d20030514fb1a7e794a10887060781847b3c777a8d4b4"
         },
         "walk": {
           "path": "madre-acompanante/walk.png",
           "width": 288,
           "height": 576,
-          "pixelSha256": "cba47ee82fcd69dc97df75691c8717933d0c8679fc9c3e6d6b8d0ee989d5fd38"
+          "pixelSha256": "f095f773c38c28a2c5e6f32d1a4d8cbcc90fae1840deb5949ebb1821ad5ba9ca"
         },
         "portrait-neutral": {
           "path": "madre-acompanante/portrait-neutral.png",
@@ -3175,13 +3175,13 @@
           "path": "paula/idle.png",
           "width": 192,
           "height": 576,
-          "pixelSha256": "316fa2077beb9fa907417d2250db04d5a7900c2fb1a6f683f54e6d92b7ae3fb8"
+          "pixelSha256": "8092300d7146836066af381c5ae9898e65286b5156f8eccfa89b759834a88fe9"
         },
         "walk": {
           "path": "paula/walk.png",
           "width": 288,
           "height": 576,
-          "pixelSha256": "ccd625377668bcb0cdcacee7a5c1ddaa1f9d4248744b1b65c8f5693c6ef4a720"
+          "pixelSha256": "c26d14186cba41f86369dfafa2c88f71afaa701484faa67b7b655e5d8a29a00d"
         },
         "portrait-neutral": {
           "path": "paula/portrait-neutral.png",
@@ -3270,13 +3270,13 @@
               "path": "paula/bata/idle.png",
               "width": 192,
               "height": 576,
-              "pixelSha256": "7346eaaaa1976ccb8c8883426a63eeb34f579635c6c637230c2453d7cabe9a67"
+              "pixelSha256": "cb8d9d0b3653f64dc7e891bd064824d52b51771ff6bf91dc514b1a8d73e8647a"
             },
             "walk": {
               "path": "paula/bata/walk.png",
               "width": 288,
               "height": 576,
-              "pixelSha256": "9c92a6c3e21fc62cea004c1cb14f875f7e9655c457abedf71fbc10f8e29b968b"
+              "pixelSha256": "503d0baf563f21934970f3a9b6ee7d512a601b2e66a450b77b110052f1c4bc90"
             },
             "portrait-neutral": {
               "path": "paula/bata/portrait-neutral.png",
@@ -3981,13 +3981,13 @@
           "path": "sobreviviente/idle.png",
           "width": 192,
           "height": 576,
-          "pixelSha256": "504a1709e26534f819b305f2bd9614dd4506275709bab38839c59e55bc8d3c7b"
+          "pixelSha256": "c0fca1f73a746f5883e694ac6995748371513a319a30b1c00aae2c06c50476d5"
         },
         "walk": {
           "path": "sobreviviente/walk.png",
           "width": 288,
           "height": 576,
-          "pixelSha256": "2df3135592b0adee72a0265e9460663a2a32c507fa4ed0de10e5aa639c204c14"
+          "pixelSha256": "0f6faf02d35bc8cd43583c2034954cf33bf663ffd3fbcd6dc5c6f9ca9d54e74d"
         },
         "portrait-neutral": {
           "path": "sobreviviente/portrait-neutral.png",
