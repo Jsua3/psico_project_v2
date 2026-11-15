@@ -97,8 +97,115 @@ def vaso_agua(n=0):
     return L, r, None
 
 
+def computador(n=0):
+    """Computador de oficina: monitor con una ventana abierta (el cursor parpadea), teclado y ratón."""
+    L = Lienzo(36, 30, semilla=199)
+    L.rect(4, 1, 31, 18, 'plastico-gris', 2)                                        # monitor
+    L.rect(4, 1, 31, 1, 'plastico-gris', 0, tex=False)
+    pantalla = L.caja_mascara(6, 3, 29, 16)
+    L.mascara(pantalla, (70, 110, 160), tex=False)
+    L.rect(6, 3, 29, 4, (40, 70, 116), tex=False)
+    L.rect(9, 6, 25, 14, (226, 232, 238), tex=False)                                # documento
+    L.rect(11, 8, 20, 9, (150, 160, 176), tex=False)
+    L.rect(11, 11, 17, 12, (150, 160, 176), tex=False)
+    if n == 0:
+        L.rect(18, 11, 18, 12, (30, 40, 60), tex=False)                             # cursor
+    L.rect(15, 19, 20, 21, 'plastico-gris', 3, tex=False)                           # pie
+    L.rect(11, 21, 24, 22, 'plastico-gris', 2, tex=False)
+    L.rect(4, 24, 27, 27, 'plastico-gris', 1)                                       # teclado
+    for x in range(5, 27, 2):
+        L.px(x, 25, 'plastico-gris', 3)
+    L.rect(30, 24, 33, 27, 'plastico-gris', 1)                                      # ratón
+    em = pantalla.copy()
+    r = _reflejos(L)
+    r['izquierda'].diagonal(7, 15, 5, 1, 2)
+    r['derecha'].diagonal(28, 15, 5, 1, 2, sentido=-1)
+    r['frente'].rect(8, 3, 26, 3, 1)
+    return L, r, em
+
+
+def lampara_escritorio(n=0):
+    """Lámpara de escritorio articulada, encendida: la pantalla brilla por dentro."""
+    L = Lienzo(24, 30, semilla=201)
+    L.elipse(3, 25, 18, 29, 'metal', 3)                                             # base
+    L.rect(4, 26, 17, 26, 'metal', 1, tex=False)
+    L.linea(10, 26, 6, 15, 'metal', 2)                                              # brazos
+    L.linea(6, 15, 14, 6, 'metal', 2)
+    L.elipse(5, 14, 7, 16, 'metal', 4, tex=False)                                   # articulación
+    L.poli([(12, 3), (21, 6), (19, 11), (11, 8)], 'metal', 1)                       # pantalla
+    L.rect(13, 9, 19, 11, (255, 236, 176), tex=False)                               # la bombilla encendida
+    em = L.caja_mascara(13, 9, 19, 11)
+    r = _reflejos(L)
+    r['izquierda'].rect(12, 4, 14, 4, 2)
+    r['derecha'].rect(18, 5, 20, 5, 2)
+    r['frente'].rect(14, 4, 18, 4, 1)
+    for rr in r.values():
+        rr.px(5, 15, 1)
+    return L, r, em
+
+
+BOTIQUIN = (0, 2, 5, 4)                # 0 cerrado · 1-3 la tapa se abre, se pasa y se asienta (revisar)
+
+
+def botiquin(n=0):
+    """Botiquín blanco de pared con la cruz roja. Al revisarlo, la puerta se abre y se ven vendas y frascos."""
+    L = Lienzo(30, 28, semilla=203)
+    L.bloque(2, 2, 27, 25, 'blanco-clinico', tapa=2, base=1)
+    abre = BOTIQUIN[n]
+    if abre:
+        L.rect(4, 5, 25, 23, 'blanco-clinico', 4, tex=False)                        # interior
+        L.rect(4, 13, 25, 13, 'blanco-clinico', 2, tex=False)                       # repisa
+        L.rect(6, 8, 10, 12, 'papel', 0, tex=False)                                 # vendas
+        L.rect(13, 7, 15, 12, (196, 140, 96), tex=False)                            # frascos
+        L.rect(17, 8, 19, 12, (120, 170, 200), tex=False)
+        L.rect(7, 16, 18, 21, (230, 220, 200), tex=False)                           # caja de gasas
+        L.rect(25, 4, 25 + abre, 24, 'blanco-clinico', 1)                           # la puerta abierta, de canto
+    else:
+        L.rect(11, 8, 18, 19, ROJO, tex=False)                                      # la cruz
+        L.rect(8, 11, 21, 16, ROJO, tex=False)
+        L.rect(24, 12, 25, 15, 'cromo', 2, tex=False)                               # cierre
+    return L, _reflejos(L), None
+
+
+HOJA_LIBRO = (0, 1, 2)
+
+
+def libro_abierto(n=0):
+    """Libro de consulta abierto sobre la mesa. Al revisarlo, pasa una hoja (el último queda)."""
+    L = Lienzo(32, 18, semilla=205)
+    L.poli([(2, 4), (30, 4), (31, 15), (1, 15)], (60, 92, 140), tex=False)          # tapas
+    L.rect(3, 2, 15, 14, 'papel', 0)                                                # páginas
+    L.rect(17, 2, 29, 14, 'papel', 1)
+    L.rect(16, 2, 16, 14, 'papel', 4, tex=False)
+    for y in range(4, 13, 2):
+        L.rect(5, y, 13, y, (150, 156, 170), tex=False)
+        L.rect(19, y, 27 - (y % 4), y, (150, 156, 170), tex=False)
+    if n == 1:
+        L.poli([(16, 2), (24, 0), (24, 12), (16, 14)], 'papel', 0)                  # la hoja en el aire
+    L.rect(5, 7, 9, 9, (230, 192, 86), tex=False)                                   # un subrayado
+    return L, _reflejos(L), None
+
+
 B = 'escenarios/universidad/arte/'
 PIEZAS = {
+    'computador-oficina': dict(nombre='Computador de oficina', tipo='objeto', dibujar=computador, cuadros=2, sobre=24,
+                               huella=dict(ancho=30, fondo=8, alto=22), material='plástico y pantalla',
+                               animaciones=dict(reposo=dict(de=0, hasta=1, fps=2, bucle=True)),
+                               reemplaza=B + 'objetos/computador-oficina.png'),
+    'lampara-escritorio': dict(nombre='Lámpara de escritorio', tipo='objeto', dibujar=lampara_escritorio, cuadros=1, sobre=24,
+                               huella=dict(ancho=16, fondo=6, alto=26), material='metal',
+                               emite=dict(forma='pozo', radio=[26, 12], tono='calido', momento='siempre', niveles=[2]),
+                               reemplaza=B + 'objetos/lampara-escritorio.png'),
+    'botiquin': dict(nombre='Botiquín', tipo='objeto', dibujar=botiquin, cuadros=4,
+                     huella=dict(ancho=24, fondo=4, alto=22), material='lámina esmaltada',
+                     animaciones=dict(reposo=dict(de=0, hasta=0, fps=1, bucle=True),
+                                      revisar=dict(de=1, hasta=3, fps=10, bucle=False, sostener=True)),
+                     reemplaza=B + 'objetos/botiquin.png'),
+    'libro-abierto': dict(nombre='Libro abierto', tipo='objeto', dibujar=libro_abierto, cuadros=3, sobre=24,
+                          huella=dict(ancho=28, fondo=8, alto=6), material='papel',
+                          animaciones=dict(reposo=dict(de=0, hasta=0, fps=1, bucle=True),
+                                           revisar=dict(de=1, hasta=2, fps=8, bucle=False, sostener=True)),
+                          reemplaza=B + 'objetos/libro-abierto.png'),
     'celular': dict(nombre='Celular', tipo='objeto', dibujar=celular, cuadros=4, sobre=24,
                     huella=dict(ancho=18, fondo=6, alto=4), material='pantalla',
                     animaciones=dict(reposo=dict(de=0, hasta=0, fps=1, bucle=True),

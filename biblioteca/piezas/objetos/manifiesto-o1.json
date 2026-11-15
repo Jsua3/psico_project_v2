@@ -1921,6 +1921,39 @@
    "reemplaza": "../frontend/src/assets/game/objects/object_acceso_restringido.png",
    "ruta": "piezas/objetos/hospital/zona-restringida.png"
   },
+  "universidad/botiquin": {
+   "alto": 26,
+   "ancho": 29,
+   "animaciones": {
+    "reposo": {
+     "bucle": true,
+     "de": 0,
+     "fps": 1,
+     "hasta": 0
+    },
+    "revisar": {
+     "bucle": false,
+     "de": 1,
+     "fps": 10,
+     "hasta": 3,
+     "sostener": true
+    }
+   },
+   "apoyo": [
+    14,
+    26
+   ],
+   "cuadros": 4,
+   "fps": 1,
+   "huella": {
+    "alto": 22,
+    "ancho": 24,
+    "fondo": 4
+   },
+   "nombre": "Botiquín",
+   "reemplaza": "escenarios/universidad/arte/objetos/botiquin.png",
+   "ruta": "piezas/objetos/universidad/botiquin.png"
+  },
   "universidad/caja-panuelos": {
    "alto": 22,
    "ancho": 24,
@@ -1998,6 +2031,106 @@
    "nombre": "Celular",
    "reemplaza": "escenarios/universidad/arte/objetos/celular.png",
    "ruta": "piezas/objetos/universidad/celular.png",
+   "sobre": 24
+  },
+  "universidad/computador-oficina": {
+   "alto": 29,
+   "ancho": 32,
+   "animaciones": {
+    "reposo": {
+     "bucle": true,
+     "de": 0,
+     "fps": 2,
+     "hasta": 1
+    }
+   },
+   "apoyo": [
+    16,
+    29
+   ],
+   "brillo": "piezas/objetos/universidad/computador-oficina-brillo.png",
+   "brilloDerecha": "piezas/objetos/universidad/computador-oficina-brillo-derecha.png",
+   "brilloIzquierda": "piezas/objetos/universidad/computador-oficina-brillo-izquierda.png",
+   "cuadros": 2,
+   "emisivo": "piezas/objetos/universidad/computador-oficina-emisivo.png",
+   "fps": 2,
+   "huella": {
+    "alto": 22,
+    "ancho": 30,
+    "fondo": 8
+   },
+   "nombre": "Computador de oficina",
+   "reemplaza": "escenarios/universidad/arte/objetos/computador-oficina.png",
+   "ruta": "piezas/objetos/universidad/computador-oficina.png",
+   "sobre": 24
+  },
+  "universidad/lampara-escritorio": {
+   "alto": 28,
+   "ancho": 21,
+   "apoyo": [
+    10,
+    28
+   ],
+   "brillo": "piezas/objetos/universidad/lampara-escritorio-brillo.png",
+   "brilloDerecha": "piezas/objetos/universidad/lampara-escritorio-brillo-derecha.png",
+   "brilloIzquierda": "piezas/objetos/universidad/lampara-escritorio-brillo-izquierda.png",
+   "cuadros": 1,
+   "emisivo": "piezas/objetos/universidad/lampara-escritorio-emisivo.png",
+   "huella": {
+    "alto": 26,
+    "ancho": 16,
+    "fondo": 6
+   },
+   "nombre": "Lámpara de escritorio",
+   "reemplaza": "escenarios/universidad/arte/objetos/lampara-escritorio.png",
+   "resplandor": {
+    "alto": 63,
+    "ancho": 33,
+    "cuadros": 3,
+    "momento": "siempre",
+    "parpadeo": [
+     2
+    ],
+    "ruta": "piezas/objetos/universidad/lampara-escritorio-resplandor.png",
+    "tono": "calido",
+    "x": -16,
+    "y": -26
+   },
+   "ruta": "piezas/objetos/universidad/lampara-escritorio.png",
+   "sobre": 24
+  },
+  "universidad/libro-abierto": {
+   "alto": 17,
+   "ancho": 32,
+   "animaciones": {
+    "reposo": {
+     "bucle": true,
+     "de": 0,
+     "fps": 1,
+     "hasta": 0
+    },
+    "revisar": {
+     "bucle": false,
+     "de": 1,
+     "fps": 8,
+     "hasta": 2,
+     "sostener": true
+    }
+   },
+   "apoyo": [
+    16,
+    17
+   ],
+   "cuadros": 3,
+   "fps": 1,
+   "huella": {
+    "alto": 6,
+    "ancho": 28,
+    "fondo": 8
+   },
+   "nombre": "Libro abierto",
+   "reemplaza": "escenarios/universidad/arte/objetos/libro-abierto.png",
+   "ruta": "piezas/objetos/universidad/libro-abierto.png",
    "sobre": 24
   },
   "universidad/mochila": {
