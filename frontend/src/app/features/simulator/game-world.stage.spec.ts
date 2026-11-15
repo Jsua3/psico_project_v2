@@ -77,6 +77,7 @@ function escenaConPersona(key: string, at: { x: number; y: number }, opciones: O
   scene.npcMarkers = new Map();
   scene.labelScale = 1;
   if (opciones.jugador) scene.player = caja(opciones.jugador.x, opciones.jugador.y);
+  const reloj = relojDeEscena(scene);   // mirar sostiene la mirada con un aviso de reloj
 
   const camera = { stopFollow: vi.fn(), pan: vi.fn(), startFollow: vi.fn() };
   scene.cameras = { main: camera };
@@ -112,7 +113,7 @@ function escenaConPersona(key: string, at: { x: number; y: number }, opciones: O
     }),
     container: vi.fn((x: number, y: number) => caja(x, y)),
   };
-  return { scene, camera, tweens, marker, textos: () => textos };
+  return { scene, camera, tweens, marker, reloj, textos: () => textos };
 }
 
 /** La sala se repinta: el indicador anterior desaparece (`resetOrientationVisuals`) y se vuelve a crear con la escena. */
@@ -251,7 +252,7 @@ describe('componente: data-reaction', () => {
 interface MirarProbe extends SceneProbe {
   scale: { displayScale: { x: number; y: number } };
   personWalkers: Map<string, unknown>;
-  faceTowards(key: string, target: 'player' | string): void;
+  faceTowards(key: string, target: 'player' | string, holdMs?: number): void;
   peopleNear(key: string, radiusPx: number): string[];
   screenAnchorOf(key: string): { x: number; y: number } | null;
   characterVisualOf(key: string): { key: string } | null;
@@ -283,7 +284,7 @@ function escenaConVarias(gente: Record<string, { x: number; y: number; type?: st
     scene.markerData.set(key, objeto);
   }
   scene.world = { ...scene.world, objects: objetos } as SimulationWorldState;
-  return { scene };
+  return { scene, reloj: base.reloj };
 }
 
 describe('mundo: mirar', () => {
@@ -296,9 +297,10 @@ describe('mundo: mirar', () => {
   });
 
   it('elige el eje dominante, también hacia otra clave', () => {
-    const { scene } = escenaConVarias({ abuela: { x: 400, y: 300 }, medico: { x: 420, y: 100 } });
+    const { scene, reloj } = escenaConVarias({ abuela: { x: 400, y: 300 }, medico: { x: 420, y: 100 } });
     const sprite = conSprite(scene.markers.get('abuela')!);
     (scene as unknown as MirarProbe).faceTowards('abuela', 'medico');
+    reloj.avanzar(120);   // de frente a arriba es media vuelta: pasa por una dirección intermedia
     expect(sprite.play).toHaveBeenLastCalledWith('v-abuela-idle-up', true);
   });
 
@@ -318,7 +320,134 @@ describe('mundo: mirar', () => {
   });
 });
 
+interface TimerFake { at: number; fn: () => void; remove(): void }
+
+/** Reloj de la escena a mano: `delayedCall` guarda el aviso y `avanzar` lo dispara en orden. */
+function relojDeEscena(scene: unknown) {
+  let ahora = 0;
+  let pendientes: TimerFake[] = [];
+  (scene as { time: unknown }).time = {
+    now: 0,
+    delayedCall: (ms: number, fn: () => void) => {
+      const timer: TimerFake = { at: ahora + ms, fn, remove() { pendientes = pendientes.filter(t => t !== timer); } };
+      pendientes.push(timer);
+      return timer;
+    },
+  };
+  return {
+    avanzar(ms: number) {
+      ahora += ms;
+      for (;;) {
+        const due = pendientes.filter(t => t.at <= ahora).sort((a, b) => a.at - b.at)[0];
+        if (!due) return;
+        pendientes = pendientes.filter(t => t !== due);
+        due.fn();
+      }
+    },
+  };
+}
+
+interface CaminanteProbe extends MirarProbe {
+  updatePersonWalkers(delta: number): void;
+  wouldCollide: (x: number, y: number, ignore?: string) => boolean;
+  motionPaused: boolean;
+}
+
+/** Una persona que camina hacia la izquierda (va-y-viene) y un jugador a su derecha. */
+function escenaConCaminante() {
+  const base = escenaConPersona('abuela', { x: 400, y: 300 }, { jugador: { x: 700, y: 300 } });
+  const scene = base.scene as unknown as CaminanteProbe;
+  const sprite = conSprite(base.marker);
+  scene.motionPaused = false;
+  scene.wouldCollide = () => false;
+  const walker = {
+    key: 'abuela', feetOffsetY: 16, lastPose: { direction: 'left', walking: true },
+    state: {
+      movement: { tipo: 'va-y-viene', hasta: { x: 100, y: 300 } }, origin: { x: 400, y: 300 }, x: 400, y: 300,
+      target: { x: 100, y: 300 }, pauseMs: 0, stuckMs: 0, toFar: true, direction: 'left', walking: true,
+    },
+  };
+  scene.personWalkers = new Map([['abuela', walker]]);
+  return { scene, sprite, walker, marker: base.marker, reloj: relojDeEscena(scene) };
+}
+
+describe('mundo: la mirada se sostiene', () => {
+  it('quien camina sigue mirando al jugador tras varios cuadros y retoma su rumbo al vencer', () => {
+    const { scene, sprite, walker, reloj } = escenaConCaminante();
+    scene.faceTowards('abuela', 'player', 1000);
+    reloj.avanzar(130);   // pasó el paso intermedio
+    const mirando = sprite.play.mock.calls.length;
+    for (let i = 0; i < 10; i++) scene.updatePersonWalkers(16);
+    expect(sprite.play).toHaveBeenLastCalledWith('v-abuela-idle-right', true);
+    expect(sprite.play.mock.calls).toHaveLength(mirando);   // el paseo no la pisó
+    expect(walker.lastPose).toEqual({ direction: 'right', walking: false });
+    reloj.avanzar(1000);
+    scene.updatePersonWalkers(16);
+    expect(sprite.play).toHaveBeenLastCalledWith('v-abuela-walk-left', true);
+  });
+
+  it('una media vuelta pasa por una dirección intermedia unos 120 ms antes de quedar de frente', () => {
+    const { scene, sprite, reloj } = escenaConCaminante();
+    scene.faceTowards('abuela', 'player');
+    expect(sprite.play).toHaveBeenLastCalledWith('v-abuela-idle-down', true);
+    reloj.avanzar(119);
+    expect(sprite.play).toHaveBeenLastCalledWith('v-abuela-idle-down', true);
+    reloj.avanzar(1);
+    expect(sprite.play).toHaveBeenLastCalledWith('v-abuela-idle-right', true);
+  });
+
+  it('con movimiento reducido gira de una vez al estado final', () => {
+    const base = escenaConPersona('abuela', { x: 400, y: 300 }, { jugador: { x: 700, y: 300 }, reduceMotion: true });
+    const sprite = conSprite(base.marker);
+    const scene = base.scene as unknown as MirarProbe;
+    scene.personWalkers = new Map([['abuela', { key: 'abuela', state: { direction: 'left' }, feetOffsetY: 16, lastPose: { direction: 'left', walking: false } }]]);
+    relojDeEscena(scene);
+    scene.faceTowards('abuela', 'player');
+    expect(sprite.setTexture).toHaveBeenCalledTimes(1);   // sin paso intermedio: la cara final de una vez
+    expect(sprite.play).not.toHaveBeenCalled();
+  });
+
+  it('un gesto durante la mirada la suelta y gesticula (no queda ocupada)', () => {
+    const { scene, marker, reloj } = escenaConCaminante();
+    scene.faceTowards('abuela', 'player');
+    expect(scene.isGesturing('abuela')).toBe(false);   // mirar no es gesticular: el componente marca solo los gestos
+    void scene.playGesture('abuela', 'asiente');
+    expect(scene.isGesturing('abuela')).toBe(true);
+    reloj.avanzar(5000);
+    expect(marker.x).toBe(400);
+  });
+
+  it('un repintado de la sala (endGestures) suelta la mirada', () => {
+    const { scene, sprite, reloj } = escenaConCaminante();
+    scene.faceTowards('abuela', 'player');
+    scene.endGestures();
+    reloj.avanzar(10_000);   // los avisos pendientes ya no hacen nada
+    scene.updatePersonWalkers(16);
+    expect(sprite.play).toHaveBeenLastCalledWith('v-abuela-walk-left', true);
+  });
+
+  it('el NPC que mira recupera su orientación al vencer', () => {
+    const { scene } = escenaConVarias({ vecino: { x: 360, y: 300, npc: true } });
+    const reloj = relojDeEscena(scene);
+    const contenedor = scene.npcMarkers.get('vecino')!;
+    const sprite = conSprite(contenedor);
+    (contenedor as unknown as Record<string, unknown>)['__npcSprite'] = sprite;
+    (contenedor as unknown as Record<string, unknown>)['__npcVisual'] = VISUAL;
+    scene.player = caja(100, 300);
+    (scene as unknown as MirarProbe).faceTowards('npc:vecino', 'player', 500);
+    expect(sprite.play).toHaveBeenLastCalledWith('v-abuela-idle-left', true);
+    reloj.avanzar(500);
+    expect(sprite.play).toHaveBeenLastCalledWith('v-abuela-idle-down', true);
+  });
+});
+
 describe('mundo: gente cerca', () => {
+  it('peopleNear y el objetivo usan la posición viva de la persona, no la de reposo del dato', () => {
+    const { scene } = escenaConVarias({ carpeta: { x: 300, y: 300, type: 'OBJECT' }, abuela: { x: 900, y: 300 } });
+    scene.markers.get('abuela')!.setPosition(340, 300);   // caminó hasta junto a la carpeta
+    expect(scene.peopleNear('carpeta', 160)).toEqual(['abuela']);
+  });
+
   it('peopleNear encuentra solo a las personas cercanas al objeto', () => {
     const { scene } = escenaConVarias({
       carpeta: { x: 300, y: 300, type: 'OBJECT' }, abuela: { x: 340, y: 300 }, medico: { x: 800, y: 300 },
