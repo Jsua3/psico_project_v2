@@ -1,0 +1,525 @@
+<meta name="claude:viewport-fit-sides" content="cover">
+<title>SIEP Sala Viva</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Pixelify+Sans:wght@500;700&family=Atkinson+Hyperlegible:wght@400;700&display=swap">
+<style>
+/* Composición: el escenario manda y ocupa el ancho; arriba, el nombre y el interruptor Hoy / Renovada; abajo, cómo se usa y qué mirar. */
+:root {
+  color-scheme: dark;
+  --fondo: #13111b; --escena: #0b0a12; --panel: #1d1a29; --panel-alto: #2a2540; --borde: #3b3552;
+  --tinta: #f2ecdf; --tinta-suave: #b4adc4; --acento: #b9a4f5; --acento-tinta: #1b1530;
+  --calma: #8fcf9a; --tension: #e39a8b;
+  --f-titulo: 'Pixelify Sans', 'Courier New', monospace;
+  --f-texto: 'Atkinson Hyperlegible', system-ui, -apple-system, 'Segoe UI', sans-serif;
+}
+* { box-sizing: border-box; }
+[hidden] { display: none !important; }
+body {
+  background: var(--fondo); color: var(--tinta); font-family: var(--f-texto); font-size: 16px; line-height: 1.5;
+  padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px));
+  padding-block: 20px 40px;
+}
+.pagina { max-width: 1180px; margin: 0 auto; display: flex; flex-direction: column; gap: 16px; }
+.cabeza { display: flex; flex-wrap: wrap; align-items: flex-end; justify-content: space-between; gap: 12px 24px; }
+.cabeza > div { min-width: 0; }
+h1 { font-family: var(--f-titulo); font-weight: 700; font-size: 34px; line-height: 1.05; margin: 0; letter-spacing: 0.01em; text-wrap: balance; }
+.bajada { margin: 4px 0 0; color: var(--tinta-suave); max-width: 62ch; }
+.modos { display: inline-flex; padding: 4px; gap: 4px; background: var(--panel); border: 1px solid var(--borde); border-radius: 12px; }
+.modos button {
+  font: inherit; font-weight: 700; color: var(--tinta-suave); background: transparent; border: 0; border-radius: 8px;
+  min-height: 44px; padding: 0 18px; cursor: pointer;
+}
+.modos button[aria-pressed="true"] { background: var(--acento); color: var(--acento-tinta); }
+button:focus-visible { outline: 3px solid var(--tinta); outline-offset: 2px; }
+
+.escenario {
+  position: relative; width: 100%; max-width: 100%; aspect-ratio: 960 / 528; background: var(--escena);
+  border: 1px solid var(--borde); border-radius: 12px; overflow: hidden; touch-action: none; user-select: none;
+}
+@media (max-width: 640px) { .escenario { aspect-ratio: 4 / 3; } h1 { font-size: 28px; } }
+.escenario canvas { position: absolute; inset: 0; width: 100%; height: 100%; display: block; image-rendering: pixelated; cursor: pointer; }
+.rotulo {
+  position: absolute; left: 10px; top: 10px; padding: 2px 10px; border-radius: 999px; background: rgba(19, 17, 27, 0.78);
+  color: var(--tinta); font-family: var(--f-titulo); font-size: 15px; pointer-events: none;
+}
+.globo {
+  position: absolute; transform: translate(-50%, -100%); max-width: min(260px, 72%); padding: 8px 12px; border-radius: 12px;
+  background: var(--tinta); color: #241b2c; font-size: 15px; line-height: 1.35; box-shadow: 0 2px 0 #241b2c; pointer-events: none;
+}
+.globo small { display: block; font-weight: 700; color: #5a4a78; }
+.pista {
+  position: absolute; left: 50%; bottom: 12px; transform: translateX(-50%); padding: 6px 14px; border-radius: 999px;
+  background: rgba(19, 17, 27, 0.86); border: 1px solid var(--borde); color: var(--tinta); font-size: 15px; white-space: nowrap; pointer-events: none;
+}
+.pista kbd { font-family: var(--f-titulo); background: var(--acento); color: var(--acento-tinta); border-radius: 5px; padding: 0 7px; margin-right: 6px; }
+.aviso {
+  position: absolute; left: 50%; top: 12px; transform: translateX(-50%); max-width: min(520px, 88%); padding: 8px 14px; border-radius: 10px;
+  background: var(--panel-alto); border: 1px solid var(--borde); font-size: 15px; text-align: center;
+}
+.dialogo {
+  position: absolute; left: 10px; right: 10px; bottom: 10px; display: flex; gap: 14px; align-items: flex-start; padding: 12px 14px;
+  background: rgba(23, 20, 34, 0.95); border: 1px solid var(--borde); border-radius: 12px;
+}
+.retrato { flex: none; width: 104px; height: 104px; border-radius: 10px; background: var(--panel-alto); border: 2px solid var(--borde); display: grid; place-items: center; overflow: hidden; }
+.retrato.calma { border-color: var(--calma); }
+.retrato.tension { border-color: var(--tension); }
+.retrato canvas { position: static; width: 96px; height: 96px; image-rendering: pixelated; cursor: default; }
+.retrato.vivo canvas { animation: respira 2.6s steps(2, jump-none) infinite; }
+.retrato.cambio canvas { animation: salta 0.22s ease-out; }
+@keyframes respira { 0%, 100% { transform: translateY(0); } 50% { transform: translateY(-3px); } }
+@keyframes salta { 0% { transform: scale(1.16); } 100% { transform: scale(1); } }
+.habla { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 8px; }
+.habla .quien { font-family: var(--f-titulo); font-size: 17px; color: var(--acento); margin: 0; }
+.habla .estado { font-size: 14px; color: var(--tinta-suave); margin: 0; }
+.habla .linea { margin: 0; font-size: 17px; min-height: 2.9em; }
+.opciones { display: flex; flex-direction: column; gap: 6px; }
+.opciones button, .boton {
+  font: inherit; text-align: left; color: var(--tinta); background: var(--panel-alto); border: 1px solid var(--borde); border-radius: 10px;
+  min-height: 44px; padding: 8px 12px; cursor: pointer;
+}
+.opciones button b { font-family: var(--f-titulo); color: var(--acento); margin-right: 8px; }
+.opciones button:hover, .boton:hover { border-color: var(--acento); }
+@media (max-width: 640px) {
+  .dialogo { gap: 10px; padding: 10px; } .retrato { width: 72px; height: 72px; } .retrato canvas { width: 64px; height: 64px; }
+  .habla .linea { font-size: 15px; } .opciones button { font-size: 14px; }
+}
+
+.pie { display: grid; grid-template-columns: minmax(0, 5fr) minmax(0, 7fr); gap: 16px 32px; }
+@media (max-width: 760px) { .pie { grid-template-columns: minmax(0, 1fr); } }
+.pie h2 { font-family: var(--f-titulo); font-weight: 500; font-size: 20px; margin: 0 0 6px; color: var(--acento); }
+.pie p { margin: 0 0 10px; max-width: 62ch; }
+.pie ul { margin: 0; padding-left: 20px; display: flex; flex-direction: column; gap: 4px; max-width: 68ch; }
+.boton[disabled] { opacity: 0.5; cursor: default; }
+.nota { color: var(--tinta-suave); font-size: 14px; }
+@media (prefers-reduced-motion: reduce) { .retrato.vivo canvas, .retrato.cambio canvas { animation: none; } }
+</style>
+
+<div class="pagina">
+  <div class="cabeza">
+    <div>
+      <h1>Sala viva</h1>
+      <p class="bajada">La misma sala de la biblioteca de casos, con el arte de hoy y con la renovación propuesta. Es una maqueta: todavía no está dentro del juego.</p>
+    </div>
+    <div class="modos" role="group" aria-label="Qué versión se ve">
+      <button type="button" id="modo-hoy" aria-pressed="false">Hoy</button>
+      <button type="button" id="modo-renovada" aria-pressed="true">Renovada</button>
+    </div>
+  </div>
+
+  <div class="escenario" id="escenario">
+    <canvas id="lienzo" aria-label="Sala de la casa. Una psicóloga camina por la sala; hay una mujer, un televisor y un portarretrato."></canvas>
+    <span class="rotulo" id="rotulo"></span>
+    <div class="globo" id="globo" hidden></div>
+    <div class="aviso" id="aviso" role="status" hidden></div>
+    <div class="pista" id="pista" hidden></div>
+    <div class="dialogo" id="dialogo" hidden>
+      <div class="retrato vivo" id="retrato"><canvas id="cara" width="32" height="32"></canvas></div>
+      <div class="habla">
+        <p class="quien" id="quien"></p>
+        <p class="linea" id="linea" aria-live="polite"></p>
+        <p class="estado" id="estado" hidden></p>
+        <div class="opciones" id="opciones"></div>
+      </div>
+    </div>
+  </div>
+
+  <div class="pie">
+    <div>
+      <h2>Cómo se usa</h2>
+      <p>Camina con las flechas o tocando el piso. Acércate a la mujer, al televisor y al portarretrato, y pulsa <strong>E</strong> o el botón.</p>
+      <button type="button" class="boton" id="accion" disabled>Acércate a algo</button>
+      <p class="nota" style="margin-top:10px">Prueba primero a hablarle, y después revisa el portarretrato y vuelve a acercarte.</p>
+    </div>
+    <div>
+      <h2>Qué cambia en la versión renovada</h2>
+      <ul>
+        <li>La ventana y la lámpara iluminan el piso y a quien pase por ahí; el resto queda en penumbra.</li>
+        <li>La cámara se acerca y sigue a tu personaje, así se leen las caras y los gestos.</li>
+        <li>El televisor parpadea solo y lo que falta por revisar suelta un destello.</li>
+        <li>La mujer te nota al acercarte: voltea, muestra lo que siente y comenta lo que ya exploraste.</li>
+        <li>Al responder, reacciona con el cuerpo: se acerca o se aparta.</li>
+        <li>La sala tiene tablas con veta, tapete, papel de pared y sombras.</li>
+      </ul>
+      <p class="nota" style="margin-top:10px">Los personajes, los muebles y los objetos son los mismos dibujos de hoy.</p>
+    </div>
+  </div>
+</div>
+
+<script>
+const D = /*__DATOS__*/;
+const W = D.sala.w, H = D.sala.h, SEAM = D.sala.seam;
+const FW = 48, FH = 72, PX = 24, PY = 68, FILAS = { down: 0, left: 1, right: 2, up: 3 };
+const quieto = matchMedia('(prefers-reduced-motion: reduce)').matches;
+const el = id => document.getElementById(id);
+const lienzo = el('lienzo'), c = lienzo.getContext('2d');
+const mundo = document.createElement('canvas'); mundo.width = W; mundo.height = H;
+const g = mundo.getContext('2d');
+const I = {}, SIL = {};
+
+const GUION = {
+  linea: 'No sé si puedo contarle esto a alguien…',
+  opciones: [
+    { texto: 'Estoy aquí para escucharla, sin afán. Usted decide qué contar.', gesto: 'se-acerca', emote: 'brote', expresion: 'neutral',
+      reaccion: '(Respira más despacio.) Gracias… nadie me había dicho eso.', estado: 'Se muestra más tranquila', tono: 'calma' },
+    { texto: 'Necesito que me diga ya qué pasó, con todos los detalles.', gesto: 'se-aparta', emote: 'crisis', expresion: 'en-crisis',
+      reaccion: '(Se encoge y mira hacia la puerta.) Yo… mejor no.', estado: 'Se muestra a la defensiva', tono: 'tension' },
+  ],
+};
+
+const E = {
+  modo: 'renovada', t: 0, cam: { x: 0, y: 0, z: 1 }, teclas: {}, cercano: null, dialogo: null, vioFoto: false, tvA: 1, tvT: 0, motas: [],
+  jug: { x: D.jugador.x, y: D.jugador.y - 6, dir: 'up', anda: false, meta: null },
+  per: { x: D.persona.x, y: D.persona.y, gx: 0, gy: 0, gxT: 0, gyT: 0, dir: 'left', emote: null, emoteT: 0, expresion: 'cautelosa',
+         notada: false, dijo: {}, tiembla: 0 },
+  objs: D.objetos.map(o => Object.assign({}, o, { visto: false, cerca: false, tic: 0, proxTic: 2 + Math.random() * 4, salto: 0 })),
+  globoT: 0, avisoT: 0,
+};
+
+function cargar() {
+  return Promise.all(Object.entries(D.imgs).map(([k, src]) => new Promise((ok, mal) => {
+    const im = new Image(); im.onload = () => { I[k] = im; ok(); }; im.onerror = mal; im.src = src;
+  })));
+}
+function silueta(img) {
+  const s = document.createElement('canvas'); s.width = img.width; s.height = img.height;
+  const x = s.getContext('2d'); x.drawImage(img, 0, 0); x.globalCompositeOperation = 'source-in'; x.fillStyle = '#fff3c4'; x.fillRect(0, 0, s.width, s.height);
+  return s;
+}
+const juntaIzq = y => 96 - (y - SEAM) * 72 / (H - SEAM), juntaDer = y => W - juntaIzq(y);
+const renovada = () => E.modo === 'renovada';
+const limitar = (v, a, b) => Math.max(a, Math.min(b, v));
+
+function libre(x, y) {
+  if (y < 246 || y > 486) return false;
+  if (x < juntaIzq(y) + 12 || x > juntaDer(y) - 12) return false;
+  for (const m of D.muebles) {
+    if (m.nuevo && !renovada()) continue;
+    if (Math.abs(x - m.x) < m.ancho / 2 + 8 && y > m.y - m.alto - 3 && y < m.y + 5) return false;
+  }
+  return Math.hypot(x - E.per.x, (y - E.per.y) * 1.6) >= 16;
+}
+
+function decir(texto, quien, segundos) {
+  const b = el('globo'); b.innerHTML = '';
+  if (quien) { const s = document.createElement('small'); s.textContent = quien; b.appendChild(s); }
+  b.appendChild(document.createTextNode(texto)); b.hidden = false; E.globoT = segundos || 5;
+}
+function avisar(texto) { const a = el('aviso'); a.textContent = texto; a.hidden = false; E.avisoT = 4; }
+function emote(nombre) { E.per.emote = nombre; E.per.emoteT = 0; }
+
+function notar() {
+  const p = E.per;
+  if (E.vioFoto && !p.dijo.foto) {
+    p.dijo.foto = true; p.expresion = 'triste'; emote('pena');
+    decir('Ya vio la foto, ¿cierto? Ahí todavía estábamos todos.', D.persona.nombre, 6);
+  } else if (!p.dijo.hola) {
+    p.dijo.hola = true; emote('duda');
+    decir('¿Usted es la psicóloga? Nadie nos dice nada.', D.persona.nombre, 5);
+  } else {
+    emote(p.expresion === 'en-crisis' ? 'crisis' : p.expresion === 'triste' ? 'pena' : p.expresion === 'neutral' ? 'brote' : 'duda');
+  }
+}
+
+function mirarA(desde, hacia) {
+  const dx = hacia.x - desde.x, dy = hacia.y - desde.y;
+  return Math.abs(dx) > Math.abs(dy) * 1.2 ? (dx < 0 ? 'left' : 'right') : (dy < 0 ? 'up' : 'down');
+}
+
+function actualizar(dt) {
+  E.t += dt;
+  const j = E.jug, p = E.per;
+  let dx = 0, dy = 0;
+  if (!E.dialogo) {
+    if (E.teclas.ArrowLeft || E.teclas.a) dx -= 1;
+    if (E.teclas.ArrowRight || E.teclas.d) dx += 1;
+    if (E.teclas.ArrowUp || E.teclas.w) dy -= 1;
+    if (E.teclas.ArrowDown || E.teclas.s) dy += 1;
+    if (dx || dy) j.meta = null;
+    else if (j.meta) {
+      const mx = j.meta.x - j.x, my = j.meta.y - j.y, dist = Math.hypot(mx, my);
+      if (dist < 3) j.meta = null; else { dx = mx / dist; dy = my / dist; }
+    }
+  }
+  const largo = Math.hypot(dx, dy);
+  j.anda = false;
+  if (largo > 0) {
+    const paso = 92 * dt, vx = dx / largo * paso, vy = dy / largo * paso * 0.8;
+    let movio = false;
+    if (libre(j.x + vx, j.y)) { j.x += vx; movio = true; }
+    if (libre(j.x, j.y + vy)) { j.y += vy; movio = true; }
+    if (!movio) j.meta = null;
+    j.anda = movio;
+    j.dir = Math.abs(dx) > Math.abs(dy) ? (dx < 0 ? 'left' : 'right') : (dy < 0 ? 'up' : 'down');
+  }
+
+  // qué queda al alcance
+  let cercano = null, mejor = 54;
+  const dp = Math.hypot(j.x - p.x, (j.y - p.y) * 1.3);
+  if (dp < 50) { cercano = { tipo: 'persona' }; mejor = dp * 0.7; }
+  for (const o of E.objs) {
+    const d = Math.hypot(j.x - o.x, j.y - (o.y + 14));
+    if (d < mejor) { mejor = d; cercano = { tipo: 'objeto', o }; }
+  }
+  E.cercano = E.dialogo ? null : cercano;
+  for (const o of E.objs) {
+    const era = o.cerca;
+    o.cerca = !!(E.cercano && E.cercano.o === o);
+    if (o.cerca && !era && renovada() && !quieto) o.salto = 0.22;
+    o.salto = Math.max(0, o.salto - dt);
+    if (o.tic > 0) o.tic = Math.max(0, o.tic - dt);
+    else if (renovada() && !quieto && !o.cerca) { o.proxTic -= dt; if (o.proxTic <= 0) { o.tic = o.cuadros / o.fps * 2; o.proxTic = 3.5 + Math.random() * 5; } }
+  }
+
+  // la persona nota a quien se acerca
+  if (renovada()) {
+    if (dp < 96) { if (!E.dialogo || !E.dialogo.aparta) p.dir = mirarA(p, j); if (!p.notada) { p.notada = true; notar(); } }
+    else if (dp > 150) p.notada = false;
+  }
+  if (p.emote) { p.emoteT += dt; if (p.emoteT > 3.4 && !E.dialogo) p.emote = null; }
+  const k = quieto ? 1 : 1 - Math.exp(-dt * 9);
+  p.gx += (p.gxT - p.gx) * k; p.gy += (p.gyT - p.gy) * k;
+  p.tiembla = Math.max(0, p.tiembla - dt);
+
+  if (E.globoT > 0) { E.globoT -= dt; if (E.globoT <= 0) el('globo').hidden = true; }
+  if (E.avisoT > 0) { E.avisoT -= dt; if (E.avisoT <= 0) el('aviso').hidden = true; }
+  E.tvT -= dt; if (E.tvT <= 0) { E.tvA = quieto ? 0.8 : [0.5, 0.75, 1][Math.floor(Math.random() * 3)]; E.tvT = 0.08 + Math.random() * 0.16; }
+
+  // motas de polvo en la luz de la ventana
+  if (renovada() && !quieto) {
+    while (E.motas.length < 30) E.motas.push(nuevaMota());
+    for (const m of E.motas) { m.x += m.vx * dt; m.y += m.vy * dt; m.vida += dt; }
+    E.motas = E.motas.filter(m => m.vida < m.max && enLuz(m.x, m.y));
+  }
+  camara(dt);
+}
+
+function enLuz(x, y) {
+  const q = D.luz.ventana; let dentro = false;
+  for (let i = 0, k = q.length - 1; i < q.length; k = i++) {
+    if ((q[i][1] > y) !== (q[k][1] > y) && x < (q[k][0] - q[i][0]) * (y - q[i][1]) / (q[k][1] - q[i][1]) + q[i][0]) dentro = !dentro;
+  }
+  return dentro;
+}
+function nuevaMota() {
+  const q = D.luz.ventana, xs = q.map(v => v[0]), ys = q.map(v => v[1]);
+  for (let n = 0; n < 20; n++) {
+    const x = Math.min(...xs) + Math.random() * (Math.max(...xs) - Math.min(...xs));
+    const y = Math.min(...ys) + Math.random() * (Math.max(...ys) - Math.min(...ys));
+    if (enLuz(x, y)) return { x, y: y - Math.random() * 60, y0: y, vx: 3 + Math.random() * 5, vy: -1 - Math.random() * 3, vida: 0, max: 3 + Math.random() * 5 };
+  }
+  return { x: q[0][0] + 20, y: q[0][1] + 20, vx: 4, vy: -2, vida: 0, max: 3 };
+}
+
+function zoomBase(cw, ch) {
+  const ajuste = Math.min(cw / W, ch / H);
+  if (!renovada()) return ajuste;
+  return Math.max(ajuste, cw >= 860 ? 2 : cw >= 560 ? 1.5 : 1.15);
+}
+function camara(dt) {
+  const cw = lienzo.clientWidth, ch = lienzo.clientHeight, j = E.jug, p = E.per;
+  const enfoque = E.dialogo && renovada();
+  const z = zoomBase(cw, ch) * (enfoque ? 1.4 : 1);
+  const cx = enfoque ? (j.x + p.x) / 2 : j.x, cy = (enfoque ? (j.y + p.y) / 2 : j.y) - 34;
+  const k = quieto || E.cam.z === 1 && E.t < 0.2 ? 1 : 1 - Math.exp(-dt * 6);
+  E.cam.z += (z - E.cam.z) * k;
+  const vw = cw / E.cam.z, vh = ch / E.cam.z;
+  const tx = vw >= W ? (W - vw) / 2 : limitar(cx - vw / 2, 0, W - vw);
+  const ty = vh >= H ? (H - vh) / 2 : limitar(cy - vh / 2, 0, H - vh);
+  E.cam.x += (tx - E.cam.x) * k; E.cam.y += (ty - E.cam.y) * k;
+}
+
+function cuadroObjeto(o) {
+  if (o.cerca) return 1 + Math.floor(E.t * o.fps) % o.cuadros;
+  if (o.tic > 0) return 1 + Math.floor((o.cuadros / o.fps * 2 - o.tic) * o.fps) % o.cuadros;
+  return 0;
+}
+function pintarObjeto(o, ren) {
+  const n = cuadroObjeto(o), img = n === 0 ? I[o.img] : I[o.hoja], sx = n === 0 ? 0 : (n - 1) * 32;
+  const x = Math.round(o.x - 16), y = Math.round(o.y - 32 - (o.salto > 0 ? Math.sin(Math.PI * (1 - o.salto / 0.22)) * 3 : 0));
+  if (ren && o.cerca) {
+    const s = n === 0 ? SIL[o.img] : SIL[o.hoja];
+    for (const [ox, oy] of [[-1, 0], [1, 0], [0, -1], [0, 1]]) g.drawImage(s, sx, 0, 32, 32, x + ox, y + oy, 32, 32);
+  }
+  g.drawImage(img, sx, 0, 32, 32, x, y, 32, 32);
+}
+function pintarPersonaje(hoja, cuadros, fps, dir, x, y) {
+  const n = Math.floor(E.t * fps) % cuadros;
+  g.drawImage(hoja, n * FW, FILAS[dir] * FH, FW, FH, Math.round(x - PX), Math.round(y - PY), FW, FH);
+}
+
+function pintar() {
+  const ren = renovada(), j = E.jug, p = E.per;
+  g.globalCompositeOperation = 'source-over'; g.globalAlpha = 1; g.imageSmoothingEnabled = false;
+  g.drawImage(ren ? I.fondo : I.fondoHoy, 0, 0);
+  const px = p.x + p.gx + (p.tiembla > 0 && !quieto ? Math.round(Math.sin(E.t * 60)) : 0), py = p.y + p.gy;
+  const piezas = [];
+  for (const m of D.muebles) if (ren || !m.nuevo) piezas.push({ y: m.y, m });
+  for (const o of E.objs) piezas.push({ y: o.y + 30, o });
+  piezas.push({ y: py, p: true }, { y: j.y, j: true });
+  piezas.sort((a, b) => a.y - b.y);
+  if (ren) {
+    g.fillStyle = 'rgba(8, 6, 18, 0.32)';
+    for (const q of piezas) {
+      g.beginPath();
+      if (q.m) g.ellipse(q.m.x + 3, q.m.y - q.m.alto / 2 + 2, q.m.ancho / 2 + 3, q.m.alto / 2 + 2, 0, 0, Math.PI * 2);
+      else if (q.p) g.ellipse(px, py - 1, 11, 4, 0, 0, Math.PI * 2);
+      else if (q.j) g.ellipse(j.x, j.y - 1, 11, 4, 0, 0, Math.PI * 2);
+      g.fill();
+    }
+  }
+  for (const q of piezas) {
+    if (q.m) {
+      const img = I[q.m.img];
+      if (q.m.espejo) { g.save(); g.translate(q.m.x, 0); g.scale(-1, 1); g.drawImage(img, -Math.round(img.width / 2), q.m.y - img.height); g.restore(); }
+      else g.drawImage(img, Math.round(q.m.x - img.width / 2), q.m.y - img.height);
+    } else if (q.o) pintarObjeto(q.o, ren);
+    else if (q.p) pintarPersonaje(I.personaIdle, 4, 4, p.dir, px, py);
+    else pintarPersonaje(j.anda ? I.jugadorWalk : I.jugadorIdle, j.anda ? 6 : 4, j.anda ? 10 : 4, j.dir, j.x, j.y);
+  }
+  if (!ren) return;
+  g.globalCompositeOperation = 'multiply'; g.drawImage(I.ambiente, 0, 0);
+  g.globalCompositeOperation = 'lighter'; g.drawImage(I.brillo, 0, 0);
+  g.globalAlpha = E.tvA; g.drawImage(I.brilloTv, 0, 0); g.globalAlpha = 1;
+  for (const m of E.motas) {
+    const a = Math.sin(Math.PI * m.vida / m.max) * 0.5;
+    g.fillStyle = 'rgba(255, 236, 190, ' + a.toFixed(2) + ')'; g.fillRect(Math.round(m.x), Math.round(m.y), 1, 1);
+  }
+  g.globalCompositeOperation = 'source-over';
+  for (const o of E.objs) {
+    if (o.visto || o.cerca || quieto) continue;
+    const f = (E.t + o.x * 0.013) % 2.6;
+    if (f > 0.5) continue;
+    const r = f < 0.14 || f > 0.36 ? 1 : 2, sx = o.x + 11, sy = o.y - 30;
+    g.fillStyle = '#fff3c4'; g.fillRect(sx - r, sy, r * 2 + 1, 1); g.fillRect(sx, sy - r, 1, r * 2 + 1);
+  }
+  if (p.emote) {
+    const n = D.emotes.indexOf(p.emote), s = quieto ? 1 : Math.min(1, p.emoteT / 0.15);
+    g.globalAlpha = s;
+    g.drawImage(I.emotes, n * 16, 0, 16, 16, Math.round(px) - 8, Math.round(py) - 84 + Math.round((1 - s) * 6) - (quieto ? 0 : Math.round(Math.sin(E.t * 3))), 16, 16);
+    g.globalAlpha = 1;
+  }
+}
+
+function presentar() {
+  const dpr = Math.min(window.devicePixelRatio || 1, 3), cw = lienzo.clientWidth, ch = lienzo.clientHeight;
+  const bw = Math.round(cw * dpr), bh = Math.round(ch * dpr);
+  if (lienzo.width !== bw || lienzo.height !== bh) { lienzo.width = bw; lienzo.height = bh; }
+  c.setTransform(1, 0, 0, 1, 0, 0); c.fillStyle = '#0b0a12'; c.fillRect(0, 0, bw, bh);
+  c.imageSmoothingEnabled = false;
+  const s = E.cam.z * dpr;
+  c.setTransform(s, 0, 0, s, Math.round(-E.cam.x * s), Math.round(-E.cam.y * s));
+  c.drawImage(mundo, 0, 0);
+
+  // lo que va encima del lienzo
+  const b = el('globo');
+  if (!b.hidden) {
+    b.style.left = limitar((E.per.x + E.per.gx - E.cam.x) * E.cam.z, 120, cw - 120) + 'px';
+    b.style.top = Math.max(64, (E.per.y - 88 - E.cam.y) * E.cam.z) + 'px';
+  }
+  const pista = el('pista'), boton = el('accion');
+  let texto = '';
+  if (E.cercano) texto = E.cercano.tipo === 'persona' ? 'Hablar con ella' : E.cercano.o.accion + ': ' + E.cercano.o.nombre.toLowerCase();
+  pista.hidden = !texto;
+  if (texto) pista.innerHTML = '<kbd>E</kbd>' + texto;
+  boton.disabled = !texto; boton.textContent = texto || 'Acércate a algo';
+}
+
+// ── diálogo ──
+let tecleo = null;
+function escribir(texto, alTerminar) {
+  const l = el('linea'); clearInterval(tecleo);
+  if (quieto) { l.textContent = texto; if (alTerminar) alTerminar(); return; }
+  let n = 0; l.textContent = '';
+  tecleo = setInterval(() => { n += 1; l.textContent = texto.slice(0, n); if (n >= texto.length) { clearInterval(tecleo); if (alTerminar) alTerminar(); } }, 26);
+}
+function cara(expresion, tono) {
+  const im = new Image(), r = el('retrato'), x = el('cara').getContext('2d');
+  im.onload = () => { x.clearRect(0, 0, 32, 32); x.imageSmoothingEnabled = false; x.drawImage(im, 0, 0); };
+  im.src = D.persona.retratos[expresion];
+  r.classList.remove('calma', 'tension', 'cambio'); if (tono) r.classList.add(tono);
+  void r.offsetWidth; r.classList.add('cambio'); setTimeout(() => r.classList.remove('cambio'), 240);
+}
+function abrirDialogo() {
+  E.dialogo = { fase: 'pregunta' }; E.jug.meta = null; el('globo').hidden = true;
+  el('dialogo').hidden = false; el('quien').textContent = D.persona.nombre; el('estado').hidden = true;
+  E.jug.dir = mirarA(E.jug, E.per); if (renovada()) E.per.dir = mirarA(E.per, E.jug);
+  cara(E.per.expresion);
+  const ops = el('opciones'); ops.innerHTML = '';
+  escribir(GUION.linea, () => {
+    GUION.opciones.forEach((o, i) => {
+      const b = document.createElement('button'); b.type = 'button'; b.id = 'opcion-' + (i + 1);
+      const letra = document.createElement('b'); letra.textContent = 'AB'[i]; b.appendChild(letra); b.appendChild(document.createTextNode(o.texto));
+      b.addEventListener('click', () => elegir(i)); ops.appendChild(b);
+    });
+    if (ops.firstChild) ops.firstChild.focus({ preventScroll: true });
+  });
+}
+function elegir(i) {
+  if (!E.dialogo || E.dialogo.fase !== 'pregunta' || !el('opciones').children.length) return;
+  const o = GUION.opciones[i], p = E.per, j = E.jug;
+  E.dialogo.fase = 'reaccion';
+  p.expresion = o.expresion; cara(o.expresion, o.tono);
+  if (renovada()) {
+    const dx = j.x - p.x, dy = j.y - p.y, d = Math.hypot(dx, dy) || 1;
+    if (o.gesto === 'se-acerca') { p.gxT = dx / d * 8; p.gyT = dy / d * 5; }
+    else { p.gxT = -dx / d * 12; p.gyT = -dy / d * 6; p.dir = mirarA(j, p); p.tiembla = 0.5; E.dialogo.aparta = true; }
+    emote(o.emote);
+  }
+  const ops = el('opciones'); ops.innerHTML = '';
+  escribir(o.reaccion, () => {
+    const e = el('estado'); e.textContent = o.estado + '.'; e.hidden = false;
+    const b = document.createElement('button'); b.type = 'button'; b.id = 'seguir'; b.textContent = 'Seguir';
+    b.addEventListener('click', cerrarDialogo); ops.appendChild(b); b.focus({ preventScroll: true });
+  });
+}
+function cerrarDialogo() {
+  clearInterval(tecleo); el('dialogo').hidden = true; E.dialogo = null;
+  setTimeout(() => { E.per.gxT = 0; E.per.gyT = 0; }, 1800);
+}
+function accion() {
+  if (E.dialogo || !E.cercano) return;
+  if (E.cercano.tipo === 'persona') return abrirDialogo();
+  const o = E.cercano.o; o.visto = true; avisar(o.nombre + ': ' + o.texto);
+  if (o.id === 'portarretrato') E.vioFoto = true;
+}
+
+function modo(nombre) {
+  E.modo = nombre;
+  el('modo-hoy').setAttribute('aria-pressed', String(nombre === 'hoy'));
+  el('modo-renovada').setAttribute('aria-pressed', String(nombre === 'renovada'));
+  el('rotulo').textContent = D.sala.nombre + (nombre === 'hoy' ? ' · hoy' : ' · renovada');
+  if (nombre === 'hoy') { el('globo').hidden = true; E.per.emote = null; E.per.gxT = 0; E.per.gyT = 0; E.per.dir = 'left'; E.motas = []; }
+  if (!libre(E.jug.x, E.jug.y)) { E.jug.x = D.jugador.x; E.jug.y = D.jugador.y - 6; }
+}
+
+addEventListener('keydown', ev => {
+  const k = ev.key.length === 1 ? ev.key.toLowerCase() : ev.key;
+  if (['ArrowLeft', 'ArrowRight', 'ArrowUp', 'ArrowDown'].includes(k) && !E.dialogo) ev.preventDefault();
+  E.teclas[k] = true;
+  if (k === 'e' && !ev.repeat) accion();
+  if (E.dialogo && E.dialogo.fase === 'pregunta' && (k === '1' || k === 'a')) elegir(0);
+  if (E.dialogo && E.dialogo.fase === 'pregunta' && (k === '2' || k === 'b')) elegir(1);
+  if (k === 'Escape' && E.dialogo) cerrarDialogo();
+});
+addEventListener('keyup', ev => { E.teclas[ev.key.length === 1 ? ev.key.toLowerCase() : ev.key] = false; });
+addEventListener('blur', () => { E.teclas = {}; });
+lienzo.addEventListener('pointerdown', ev => {
+  if (E.dialogo) return;
+  const r = lienzo.getBoundingClientRect();
+  E.jug.meta = { x: E.cam.x + (ev.clientX - r.left) / E.cam.z, y: limitar(E.cam.y + (ev.clientY - r.top) / E.cam.z, 248, 484) };
+});
+el('modo-hoy').addEventListener('click', () => modo('hoy'));
+el('modo-renovada').addEventListener('click', () => modo('renovada'));
+el('accion').addEventListener('click', accion);
+
+let antes = 0;
+function ciclo(ahora) {
+  const dt = Math.min(0.05, (ahora - antes) / 1000 || 0); antes = ahora;
+  actualizar(dt); pintar(); presentar();
+  requestAnimationFrame(ciclo);
+}
+cargar().then(() => {
+  for (const o of D.objetos) { SIL[o.img] = silueta(I[o.img]); SIL[o.hoja] = silueta(I[o.hoja]); }
+  modo('renovada'); E.cam.z = zoomBase(lienzo.clientWidth, lienzo.clientHeight);
+  requestAnimationFrame(ciclo);
+}).catch(() => { el('aviso').textContent = 'No se pudieron cargar las imágenes de la maqueta.'; el('aviso').hidden = false; });
+</script>
