@@ -27,6 +27,18 @@ interface SalaDeLugar extends SalaPorPiezas {
   personajes?: { ref: string; x: number; y: number; mirando?: string }[];
 }
 
+/**
+ * Configuración que puede dejar la página antes de cargar el arnés: el contenedor del juego y, para una página que no tiene
+ * servidor (la vista previa publicada), los recursos incrustados (URL → `data:` de cada imagen, o el JSON como texto).
+ */
+const CONFIG = ((window as unknown as Record<string, unknown>)['__ARNES'] ?? {}) as { contenedor?: string; recursos?: Record<string, string>; momento?: Momento };
+const RECURSOS = CONFIG.recursos;
+const recurso = (url: string) => RECURSOS?.[url] ?? url;
+async function traerJson(url: string): Promise<unknown> {
+  if (RECURSOS?.[url] !== undefined) return JSON.parse(RECURSOS[url]);
+  return fetch(url).then(r => r.json());
+}
+
 const params = new URLSearchParams(location.search);
 const FILA: Record<string, number> = { abajo: 0, izquierda: 1, derecha: 2, arriba: 3, down: 0, left: 1, right: 2, up: 3 };
 const VELOCIDAD = 110;
@@ -58,7 +70,7 @@ type Plan = NonNullable<ReturnType<typeof EscenaDeSala.planear>>;
 class ArnesDeSala extends Phaser.Scene {
   private sala: EscenaDeSala | null = null;
   private salaDatos: SalaDeLugar | null = null;
-  private momento: Momento = (params.get('momento') as Momento) || 'dia';
+  private momento: Momento = (params.get('momento') as Momento) || CONFIG.momento || 'dia';
   private readonly reducido = params.get('reducido') === '1';
   private readonly bloqueadas = new Set((params.get('bloqueadas') ?? '').split(',').filter(Boolean));
   private readonly zoomPedido = Number(params.get('z')) || 0;
@@ -77,9 +89,20 @@ class ArnesDeSala extends Phaser.Scene {
   private cruzando: { hacia: string; par?: string; umbral: [number, number]; ancla: [number, number]; lista: boolean } | null = null;
   private cargando = false;
   private listo = false;
+  private meta: { x: number; y: number } | null = null;
 
   constructor(private readonly manifiesto: ManifiestoDePiezas, private readonly salas: SalaDeLugar[]) {
     super('arnes');
+  }
+
+  init(): void {
+    if (!RECURSOS) return;
+    // Sin servidor: cada URL que pide la escena (también las que pide `EscenaDeSala`) se cambia por su recurso incrustado.
+    const cargador = this.load as unknown as Record<string, (clave: string, url: string, ...resto: unknown[]) => unknown>;
+    for (const metodo of ['image', 'spritesheet']) {
+      const original = cargador[metodo].bind(this.load);
+      cargador[metodo] = (clave, url, ...resto) => original(clave, recurso(url), ...resto);
+    }
   }
 
   preload(): void {
@@ -93,6 +116,8 @@ class ArnesDeSala extends Phaser.Scene {
     this.input.keyboard!.on('keydown-E', () => this.intentarCruzar());
     this.input.keyboard!.on('keydown-N', () => this.ir(this.salaDatos!.id, this.momento === 'dia' ? 'noche' : 'dia', this.pos.x, this.pos.y));
     $('aviso').addEventListener('click', () => this.intentarCruzar());
+    // Con el ratón o el dedo: tocar el piso lleva hasta ahí (en línea recta, hasta donde no choque).
+    this.input.on('pointerdown', (p: Phaser.Input.Pointer) => { this.meta = { x: p.worldX, y: p.worldY }; });
     this.jugador = this.add.sprite(0, 0, 'kit:valentina:idle', 0).setOrigin(24 / 48, 68 / 72);
     this.sombraJugador = this.add.image(0, 0, texturaDeSombra(this, 11, 4)).setDepth(PROFUNDIDAD.sombras);
     this.velo = this.add.rectangle(0, 0, 4000, 4000, 0x0b0a12, 1).setOrigin(0, 0).setScrollFactor(0).setDepth(DEPTH.UI - 1).setAlpha(0);
@@ -258,14 +283,22 @@ class ArnesDeSala extends Phaser.Scene {
       const t = this.teclas;
       let vx = (t['A'].isDown || t['LEFT'].isDown ? -1 : 0) + (t['D'].isDown || t['RIGHT'].isDown ? 1 : 0);
       let vy = (t['W'].isDown || t['UP'].isDown ? -1 : 0) + (t['S'].isDown || t['DOWN'].isDown ? 1 : 0);
+      if (vx || vy) {
+        this.meta = null;
+      } else if (this.meta) {
+        const dx = this.meta.x - this.pos.x, dy = this.meta.y - this.pos.y;
+        if (Math.hypot(dx, dy) < 3) this.meta = null;
+        else { vx = dx; vy = dy; }
+      }
       this.anda = false;
       if (vx || vy) {
         const n = Math.hypot(vx, vy);
         vx /= n;
         vy /= n;
-        const paso = (VELOCIDAD * dt) / 1000;
+        const paso = Math.min((VELOCIDAD * dt) / 1000, this.meta ? Math.hypot(this.meta.x - this.pos.x, this.meta.y - this.pos.y) : Infinity);
         if (vx && this.libre(this.pos.x + vx * paso, this.pos.y)) { this.pos.x += vx * paso; this.anda = true; }
         if (vy && this.libre(this.pos.x, this.pos.y + vy * paso)) { this.pos.y += vy * paso; this.anda = true; }
+        if (!this.anda) this.meta = null;
         this.vista = Math.abs(vx) > Math.abs(vy) ? (vx < 0 ? 1 : 2) : (vy < 0 ? 3 : 0);
       }
     }
@@ -341,19 +374,20 @@ class ArnesDeSala extends Phaser.Scene {
 async function arrancar(): Promise<void> {
   const lugar = params.get('lugar') ?? 'hospital';
   const [manifiesto, datosDelLugar] = await Promise.all([
-    fetch(MANIFIESTO_DE_PIEZAS_URL).then(r => r.json()),
-    fetch(urlDePieza(`piezas/lugares/${lugar}.json`)).then(r => r.json()),
+    traerJson(MANIFIESTO_DE_PIEZAS_URL),
+    traerJson(urlDePieza(`piezas/lugares/${lugar}.json`)) as Promise<{ salas: SalaDeLugar[] }>,
   ]);
   if (!esManifiestoDePiezas(manifiesto)) throw new Error('el manifiesto de piezas no es de esquema 2');
   await document.fonts.ready;
   const escena = new ArnesDeSala(manifiesto, datosDelLugar.salas);
+  const contenedor = $(CONFIG.contenedor ?? 'juego');
   const juego = new Phaser.Game({
     type: Phaser.WEBGL,
-    parent: 'juego',
+    parent: contenedor,
     backgroundColor: '#0b0a12',
     pixelArt: true,
     roundPixels: true,
-    scale: { mode: Phaser.Scale.RESIZE, width: window.innerWidth, height: window.innerHeight },
+    scale: { mode: Phaser.Scale.RESIZE, width: contenedor.clientWidth, height: contenedor.clientHeight },
     scene: escena,
   });
   (window as unknown as Record<string, unknown>)['__arnes'] = { juego, escena };

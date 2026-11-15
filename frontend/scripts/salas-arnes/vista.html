@@ -1,0 +1,186 @@
+<title>Hospital por piezas</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Pixelify+Sans:wght@500;700&family=Poppins:wght@400;600&family=Atkinson+Hyperlegible:wght@400;700&display=swap">
+<style>
+/* Composición: el escenario del juego manda y ocupa el ancho; arriba el nombre y el interruptor de día y noche; debajo las
+   ocho salas y qué mirar. Un solo mundo, oscuro a propósito: es la pantalla de un juego, con la madera y el ámbar del aviso. */
+:root {
+  color-scheme: dark;
+  --fondo: #110e16; --escena: #0b0a12; --panel: #1b1420; --panel-alto: #2a1f2c; --borde: #3d2f36; --madera: #281c18;
+  --tinta: #f6ecd6; --tinta-suave: #c4b69d; --acento: #f2c46b; --acento-sombra: #b8863a;
+  --f-titulo: 'Pixelify Sans', 'Courier New', monospace;
+  --f-texto: 'Atkinson Hyperlegible', system-ui, -apple-system, 'Segoe UI', sans-serif;
+  --f-juego: Poppins, 'Segoe UI', system-ui, sans-serif;
+}
+* { box-sizing: border-box; }
+body {
+  background: var(--fondo); color: var(--tinta); font: 16px/1.5 var(--f-texto);
+  padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px));
+  padding-block: 20px 40px;
+}
+.pagina { max-width: 1180px; margin: 0 auto; display: flex; flex-direction: column; gap: 16px; }
+.cabeza { display: flex; flex-wrap: wrap; align-items: flex-end; justify-content: space-between; gap: 12px 24px; }
+.cabeza > div { min-width: 0; }
+h1 { font: 700 34px/1.05 var(--f-titulo); margin: 0; letter-spacing: 0.01em; text-wrap: balance; }
+h2 { font: 500 20px/1.2 var(--f-titulo); margin: 0 0 6px; }
+.bajada { margin: 4px 0 0; color: var(--tinta-suave); max-width: 66ch; }
+.modos { display: inline-flex; padding: 4px; gap: 4px; background: var(--panel); box-shadow: 0 0 0 2px var(--borde); }
+.modos button {
+  font: 700 15px var(--f-texto); color: var(--tinta-suave); background: transparent; border: 0; min-height: 44px; padding: 0 18px; cursor: pointer;
+}
+.modos button[aria-pressed="true"] { background: var(--acento); color: var(--madera); box-shadow: inset 0 -3px 0 var(--acento-sombra); }
+button:focus-visible, .escenario:focus-visible { outline: 3px solid var(--tinta); outline-offset: 2px; }
+
+.escenario {
+  position: relative; width: 100%; max-width: 100%; aspect-ratio: 960 / 528; background: var(--escena);
+  box-shadow: 0 0 0 2px var(--borde), 0 0 0 4px var(--madera); overflow: hidden; touch-action: none; user-select: none;
+}
+@media (max-width: 640px) { .escenario { aspect-ratio: 4 / 3; } h1 { font-size: 28px; } }
+#juego { position: absolute; inset: 0; }
+#juego canvas { display: block; image-rendering: pixelated; }
+#rotulo {
+  position: absolute; left: 10px; top: 10px; z-index: 2; padding: 2px 10px; background: rgba(27, 20, 32, 0.86);
+  box-shadow: 0 0 0 2px var(--madera); font: 600 14px var(--f-juego); pointer-events: none;
+}
+.carga { position: absolute; inset: 0; display: grid; place-items: center; color: var(--tinta-suave); font: 500 18px var(--f-titulo); }
+.pista {
+  position: absolute; left: 50%; bottom: 10px; transform: translateX(-50%); z-index: 2; padding: 4px 14px; max-width: 94%;
+  background: rgba(17, 14, 22, 0.86); box-shadow: 0 0 0 2px var(--madera); color: var(--tinta-suave); font-size: 14px; text-align: center; pointer-events: none;
+}
+
+/* El aviso de la puerta, igual que en el juego. */
+.aviso {
+  position: fixed; transform: translate(-50%, -100%); z-index: 3;
+  display: inline-flex; align-items: center; gap: 8px; min-height: 40px; padding: 5px 12px 5px 6px;
+  font: 600 15px/1.2 var(--f-juego); color: var(--tinta); white-space: nowrap; cursor: pointer; background: var(--panel); border: 0;
+  box-shadow: 0 0 0 2px #5c4436, 0 0 0 4px var(--madera), 4px 4px 0 4px rgba(8, 6, 18, 0.45);
+  clip-path: polygon(0 4px, 4px 4px, 4px 0, calc(100% - 4px) 0, calc(100% - 4px) 4px, 100% 4px, 100% calc(100% - 4px),
+    calc(100% - 4px) calc(100% - 4px), calc(100% - 4px) 100%, 4px 100%, 4px calc(100% - 4px), 0 calc(100% - 4px));
+}
+.aviso-cola { position: fixed; z-index: 3; width: 10px; height: 6px; transform: translate(-50%, 0); background: #5c4436; clip-path: polygon(0 0, 100% 0, 50% 100%); }
+.aviso kbd {
+  font: 600 14px/1 var(--f-juego); min-width: 26px; height: 26px; display: inline-grid; place-items: center;
+  color: var(--madera); background: var(--acento); box-shadow: inset 0 -3px 0 var(--acento-sombra), 0 0 0 2px var(--madera);
+}
+.aviso .sep { color: var(--tinta-suave); }
+.aviso .candado { width: 14px; height: 16px; }
+.aviso .falta { font-weight: 400; color: var(--tinta-suave); }
+
+.salas { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
+.salas .grupo { font: 500 15px var(--f-titulo); color: var(--tinta-suave); margin-right: 4px; }
+.salas button {
+  font: 15px var(--f-texto); color: var(--tinta); background: var(--panel); border: 0; box-shadow: 0 0 0 2px var(--borde);
+  min-height: 40px; padding: 0 14px; cursor: pointer;
+}
+.salas button:hover { box-shadow: 0 0 0 2px var(--acento-sombra); }
+.salas button[aria-current="true"] { background: var(--panel-alto); box-shadow: 0 0 0 2px var(--acento); color: var(--acento); font-weight: 700; }
+.salas .ancho { color: var(--tinta-suave); font-variant-numeric: tabular-nums; font-size: 13px; margin-left: 6px; }
+.notas { display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 16px 28px; }
+.notas > div { min-width: 0; }
+.notas ul { margin: 0; padding-left: 18px; color: var(--tinta-suave); }
+.notas li + li { margin-top: 4px; }
+.notas b { color: var(--tinta); }
+.oculto { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); }
+</style>
+
+<div class="pagina">
+  <header class="cabeza">
+    <div>
+      <h1>Hospital por piezas</h1>
+      <p class="bajada">Las ocho salas del hospital armadas dentro del motor del juego, con la luz y las sombras calculadas en el navegador. Camina, acércate a una puerta y cruza con E.</p>
+    </div>
+    <div class="modos" role="group" aria-label="Momento del día">
+      <button type="button" id="modo-dia" aria-pressed="false">Día</button>
+      <button type="button" id="modo-noche" aria-pressed="true">Noche</button>
+    </div>
+  </header>
+
+  <div class="escenario" id="escenario" tabindex="0" role="application"
+    aria-label="Sala del hospital. Camina con las flechas o con W, A, S y D, o toca el piso; cruza una puerta con E.">
+    <div id="juego"></div>
+    <div id="rotulo"></div>
+    <div class="pista" id="pista">Flechas o WASD para caminar, o toca el piso · E para cruzar · N para día o noche</div>
+    <div class="carga" id="carga">Armando el hospital…</div>
+  </div>
+
+  <nav class="salas" id="salas" aria-label="Ir a una sala"><span class="grupo">Hospital</span></nav>
+
+  <section class="notas">
+    <div>
+      <h2>Qué mirar</h2>
+      <ul>
+        <li><b>Una sola luz por sala.</b> De día cada ventana echa su haz con los parteluces; de noche la luz sale de los tubos, fría, y de las lámparas, cálida.</li>
+        <li><b>Sombras.</b> Muebles y personas tapan la luz de cada fuente en su dirección. Pasa por un haz: te iluminas y arrojas sombra.</li>
+        <li><b>Puertas en el muro.</b> Se abren al acercarte, arrancando despacio y con un rebote al tope. La abierta deja caer luz de la sala vecina. La del lado de la cámara se señala con una flecha en el piso.</li>
+      </ul>
+    </div>
+    <div>
+      <h2>Cómo está hecho</h2>
+      <ul>
+        <li>Es el mismo código que usará la escena del juego: el motor de luz da los mismos píxeles que la referencia de arte en Python, comprobado sala por sala.</li>
+        <li>Píxeles iguales: la escena solo se agranda por factores enteros.</li>
+        <li>Con movimiento reducido la puerta cambia de una vez y el cruce no tiene fundido.</li>
+      </ul>
+    </div>
+  </section>
+</div>
+
+<button type="button" id="aviso" class="aviso" hidden>
+  <kbd aria-hidden="true">E</kbd><span class="sep" aria-hidden="true">·</span>
+  <svg class="candado" id="candado" viewBox="0 0 7 8" shape-rendering="crispEdges" aria-hidden="true" hidden>
+    <path fill="#f6ecd6" d="M1 3h5v5H1zM2 1h3v1H2zM1 2h1v1H1zM5 2h1v1H5z"/><path fill="#281c18" d="M3 5h1v2H3z"/>
+  </svg>
+  <span id="aviso-texto"></span><span class="falta" id="aviso-falta"></span>
+</button>
+<div id="aviso-cola" class="aviso-cola" hidden></div>
+<div id="vivo" class="oculto" aria-live="polite"></div>
+
+<script>
+window.__ARNES = { contenedor: 'juego', momento: 'noche', recursos: /*__RECURSOS__*/ };
+</script>
+<script>/*__ARNES_JS__*/</script>
+<script>
+(function () {
+  const SALAS = /*__SALAS__*/;
+  const $ = (id) => document.getElementById(id);
+  const nav = $('salas');
+  for (const s of SALAS) {
+    const b = document.createElement('button');
+    b.type = 'button';
+    b.dataset.sala = s.id;
+    b.append(s.nombre);
+    const ancho = document.createElement('span');
+    ancho.className = 'ancho';
+    ancho.textContent = s.ancho + ' px';
+    b.append(ancho);
+    b.addEventListener('click', () => { const a = window.__arnes; if (a) a.escena.ir(s.id, a.escena.estado().momento); $('escenario').focus({ preventScroll: true }); });
+    nav.append(b);
+  }
+  function momento(m) {
+    const a = window.__arnes;
+    if (!a) return;
+    const e = a.escena.estado();
+    if (e.momento !== m) a.escena.ir(e.sala, m, e.x, e.y);
+  }
+  $('modo-dia').addEventListener('click', () => momento('dia'));
+  $('modo-noche').addEventListener('click', () => momento('noche'));
+  $('escenario').addEventListener('pointerdown', () => { $('escenario').focus({ preventScroll: true }); $('pista').hidden = true; });
+  window.addEventListener('keydown', () => { $('pista').hidden = true; }, { once: true });
+  let antes = '';
+  (function vigilar() {
+    const a = window.__arnes;
+    if (a) {
+      const e = a.escena.estado();
+      if (e.listo) $('carga').hidden = true;
+      const firma = e.sala + '|' + e.momento;
+      if (firma !== antes) {
+        antes = firma;
+        nav.querySelectorAll('button').forEach((b) => b.setAttribute('aria-current', b.dataset.sala === e.sala ? 'true' : 'false'));
+        $('modo-dia').setAttribute('aria-pressed', e.momento === 'dia' ? 'true' : 'false');
+        $('modo-noche').setAttribute('aria-pressed', e.momento === 'noche' ? 'true' : 'false');
+      }
+    }
+    setTimeout(vigilar, 200);
+  })();
+})();
+</script>
