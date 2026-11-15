@@ -109,6 +109,160 @@ def vitrina(n=0):
     return L, r, None
 
 
+# ── habitaciones ───────────────────────────────────────────────────────────────
+
+op.material('cobija', (120, 92, 140), op.tex_grano(0.05, claras=0.0), luz=0.42, sombra=0.55)
+op.material('cobija-nina', (210, 150, 90), op.tex_grano(0.05, claras=0.0), luz=0.42, sombra=0.55)
+op.material('sabana', (230, 228, 220), op.tex_grano(0.02), luz=0.3, sombra=0.45)
+
+
+def _cama(L, x0, x1, y_cabecero, y_pie, cobija, almohadas):
+    """Cama vista desde arriba y de frente: cabecero atrás, colchón con la cobija, almohadas y el canto del pie."""
+    L.rect(x0, y_cabecero, x1, y_cabecero + 12, 'nogal', 2)                         # cabecero
+    L.rect(x0, y_cabecero, x1, y_cabecero, 'nogal', 0, tex=False)
+    L.rect(x0 + 3, y_cabecero + 3, x1 - 3, y_cabecero + 10, 'nogal', 3, tex=False)
+    L.rect(x0 + 1, y_cabecero + 12, x1 - 1, y_pie, 'sabana', 1)                     # sábana
+    for ax in almohadas:                                                            # almohadas
+        L.cojin(ax, y_cabecero + 13, ax + 18, y_cabecero + 20, 'sabana', r=3, arriba=0.3, abajo=0.3)
+    L.rect(x0 + 1, y_cabecero + 23, x1 - 1, y_pie, cobija, 1)                       # cobija doblada sobre el colchón
+    L.rect(x0 + 1, y_cabecero + 23, x1 - 1, y_cabecero + 25, 'sabana', 0, tex=False)   # el doblez de la sábana
+    for yy in range(y_cabecero + 26, y_pie, 7):                                     # retazos: cuadros por escalones
+        for xx in range(x0 + 2, x1 - 2, 9):
+            if ((xx - x0) // 9 + (yy - y_cabecero) // 7) % 2:
+                L.rect(xx, yy, min(xx + 8, x1 - 2), min(yy + 6, y_pie), cobija, 2, tex=False)
+            L.rect(xx, yy, xx, min(yy + 6, y_pie), cobija, 3, tex=False)            # costura
+    L.rect(x0 + 1, y_pie - 3, x1 - 1, y_pie, cobija, 3, tex=False)                  # la cobija se curva hacia el pie
+    for ax in almohadas:                                                            # canto de las almohadas sobre la sábana
+        L.rect(ax + 1, y_cabecero + 21, ax + 17, y_cabecero + 21, 'sabana', 4, tex=False)
+    L.rect(x0 + 1, y_pie + 1, x1 - 1, y_pie + 6, cobija, 3)                         # la cobija cae por el pie
+    L.rect(x0 + 1, y_pie + 6, x1 - 1, y_pie + 6, cobija, 4, tex=False)
+    L.rect(x0, y_pie + 7, x1, y_pie + 11, 'nogal', 2)                               # canto del pie de la cama
+    L.rect(x0, y_pie + 11, x1, y_pie + 11, 'nogal', 4, tex=False)
+    for x in (x0, x1 - 3):
+        L.rect(x, y_pie + 12, x + 3, y_pie + 14, 'nogal', 4, tex=False)
+
+
+def cama_doble(n=0):
+    L = Lienzo(112, 70, semilla=171)
+    _cama(L, 1, 110, 1, 52, 'cobija', (20, 72))
+    r = _reflejos(L)
+    r['izquierda'].rect(2, 1, 40, 1, 1)
+    r['derecha'].rect(70, 1, 108, 1, 1)
+    return L, r, None
+
+
+def cama_sencilla(n=0):
+    L = Lienzo(62, 62, semilla=173)
+    _cama(L, 1, 60, 1, 44, 'cobija-nina', (22,))
+    L.elipse(38, 30, 46, 37, 'peluche', 2)                                          # un peluche sobre la cobija
+    L.elipse(39, 26, 45, 31, 'peluche', 1)
+    r = _reflejos(L)
+    r['izquierda'].rect(2, 1, 22, 1, 1)
+    r['derecha'].rect(40, 1, 58, 1, 1)
+    return L, r, None
+
+
+CAJON_NOCHE = (0, -1, 3, 5, 4)
+
+
+def mesa_noche(n=0):
+    """Mesa de noche con una lámpara pequeña y un cajón que se abre al revisarla (el último queda)."""
+    abierto = CAJON_NOCHE[n]
+    L = Lienzo(32, 44, semilla=175)
+    L.bloque(2, 14, 29, 41, 'nogal', tapa=4)
+    L.rect(9, 1, 16, 7, (226, 210, 160), tex=False)                                 # pantalla de la lámpara
+    L.rect(11, 8, 13, 15, 'laton', 2, tex=False)
+    L.rect(8, 14, 16, 15, 'laton', 3, tex=False)
+    L.rect(19, 12, 25, 16, 'papel', 1, tex=False)                                   # un libro
+    if abierto > 0:
+        L.rect(5, 21, 26, 21 + abierto - 1, 'nogal', 5, tex=False)
+        L.rect(9, 21, 15, 21 + abierto - 1, 'papel', 1, tex=False)
+    y0 = 21 + max(abierto, 0) - (1 if abierto < 0 else 0)
+    L.rect(4, y0, 27, y0 + 7, 'nogal', 2)                                           # frente del cajón
+    L.rect(4, y0, 27, y0, 'nogal', 1, tex=False)
+    L.rect(4, y0 + 7, 27, y0 + 7, 'nogal', 4, tex=False)
+    L.rect(14, y0 + 3, 17, y0 + 4, 'laton', 2, tex=False)
+    L.rect(4, 31, 27, 38, 'nogal', 3, tex=False)                                    # repisa abierta abajo
+    r = _reflejos(L)
+    for rr, x0 in ((r['izquierda'], 3), (r['derecha'], 18), (r['frente'], 10)):
+        rr.rect(x0, 15, x0 + 10, 15, 1)
+        rr.px(15, y0 + 3, 2)
+    return L, r, None
+
+
+def armario(n=0):
+    """Armario de dos puertas con espejo en una y la ropa que asoma por la otra, entreabierta."""
+    L = Lienzo(72, 96, semilla=177)
+    L.bloque(1, 1, 70, 92, 'nogal', tapa=4)
+    L.rect(4, 8, 34, 86, 'nogal', 3, tex=False)                                     # puerta izquierda con espejo
+    L.rect(8, 14, 30, 80, 'vidrio', 4, tex=False)                                   # el espejo devuelve la pieza en penumbra
+    L.rect(8, 56, 30, 80, 'nogal', 4, tex=False)                                    # el piso reflejado
+    for y in (62, 70):
+        L.rect(8, y, 30, y, 'nogal', 5, tex=False)
+    L.rect(14, 30, 22, 56, 'vidrio', 5, tex=False)                                  # el marco de una puerta reflejada
+    L.rect(8, 14, 30, 15, 'vidrio', 5, tex=False)
+    L.rect(37, 8, 67, 86, 'nogal', 2)                                               # puerta derecha entreabierta
+    L.rect(37, 8, 39, 86, 'nogal', 5, tex=False)                                    # la rendija
+    for k, c in enumerate(('tela-azul', 'lino-rojo', 'tela-gris')):                 # ropa que asoma
+        L.rect(38, 24 + k * 14, 39, 32 + k * 14, c, 1, tex=False)
+    for x in (32, 41):                                                              # tiradores
+        L.rect(x, 44, x + 1, 50, 'laton', 2, tex=False)
+    L.rect(4, 88, 67, 91, 'nogal', 4, tex=False)
+    espejo = L.caja_mascara(8, 14, 30, 80)
+    r = _reflejos(L)
+    r['izquierda'].diagonal(9, 70, 18, 3, 2)
+    r['derecha'].diagonal(29, 70, 18, 3, 2, sentido=-1)
+    r['frente'].rect(10, 16, 28, 16, 1)
+    for rr in r.values():
+        rr.m[(rr.m > 0) & ~espejo] = 0
+        rr.rect(2, 2, 69, 2, 1)
+        rr.px(32, 45, 2)
+        rr.px(41, 45, 2)
+    return L, r, None
+
+
+def escritorio_infantil(n=0):
+    """Escritorio de la niña o el niño: dibujos pegados, colores en un vaso y un cuaderno abierto."""
+    L = Lienzo(72, 50, semilla=179)
+    for x in (4, 63):
+        L.rect(x, 18, x + 3, 47, 'pino', 3)
+    L.bloque(1, 12, 70, 20, 'pino', tapa=6)
+    L.rect(10, 8, 26, 16, 'papel', 0, tex=False)                                    # cuaderno abierto
+    L.rect(18, 8, 18, 16, 'papel', 3, tex=False)
+    L.rect(12, 10, 16, 11, (90, 84, 100), tex=False)
+    L.rect(44, 6, 49, 15, 'ceramica', 1)                                            # vaso de colores
+    for k, c in enumerate((ROJO, (70, 110, 160), (96, 170, 104), (230, 192, 86))):
+        L.rect(44 + k, 2 + (k % 2), 44 + k, 6, c, tex=False)
+    L.rect(52, 0, 66, 10, 'papel', 1, tex=False)                                    # dibujo pegado a la pared
+    L.rect(54, 6, 64, 9, (96, 170, 104), tex=False)
+    L.rect(57, 2, 60, 5, (230, 192, 86), tex=False)
+    L.rect(8, 21, 36, 34, 'pino', 2)                                                # cajonera
+    L.rect(8, 27, 36, 27, 'pino', 4, tex=False)
+    L.rect(20, 23, 24, 24, ROJO, tex=False)
+    L.rect(20, 30, 24, 31, (70, 110, 160), tex=False)
+    r = _reflejos(L)
+    r['izquierda'].rect(2, 13, 30, 13, 1)
+    r['derecha'].rect(40, 13, 69, 13, 1)
+    return L, r, None
+
+
+def caja_juguetes(n=0):
+    """Caja de juguetes de madera, abierta: asoman una pelota, un carrito y la oreja de un muñeco."""
+    L = Lienzo(42, 34, semilla=181)
+    L.bloque(2, 12, 39, 31, 'pino', tapa=3)
+    L.rect(4, 13, 37, 15, 'pino', 5, tex=False)                                     # boca de la caja
+    L.elipse(6, 4, 15, 13, ROJO, tex=False)                                         # pelota
+    L.rect(8, 6, 10, 7, (236, 150, 140), tex=False)
+    L.rect(18, 9, 30, 13, (70, 110, 160), tex=False)                                # carrito
+    L.rect(19, 12, 21, 14, 'plastico-negro', 4, tex=False)
+    L.rect(27, 12, 29, 14, 'plastico-negro', 4, tex=False)
+    L.elipse(31, 5, 36, 12, 'peluche', 2)                                           # oreja de muñeco
+    L.rect(10, 20, 31, 25, 'pino', 3, tex=False)                                    # letrero tallado
+    for x in range(12, 30, 5):
+        L.rect(x, 22, x + 2, 23, (70, 110, 160) if x % 2 else ROJO, tex=False)
+    return L, _reflejos(L), None
+
+
 # ── cocina ─────────────────────────────────────────────────────────────────────
 
 op.material('esmalte', (226, 224, 214), op.tex_grano(0.02), luz=0.35, sombra=0.5)

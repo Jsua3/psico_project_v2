@@ -274,6 +274,100 @@
   }
  },
  "muebles": {
+  "casa/armario": {
+   "alto": 94,
+   "ancho": 72,
+   "apoyo": [
+    36,
+    94
+   ],
+   "brillo": "piezas/muebles/casa/armario-brillo.png",
+   "brilloDerecha": "piezas/muebles/casa/armario-brillo-derecha.png",
+   "brilloIzquierda": "piezas/muebles/casa/armario-brillo-izquierda.png",
+   "cuadros": 1,
+   "huella": {
+    "alto": 88,
+    "ancho": 68,
+    "fondo": 16
+   },
+   "nombre": "Armario",
+   "reemplaza": "escenarios/casa/arte/muebles/armario.png",
+   "ruta": "piezas/muebles/casa/armario.png"
+  },
+  "casa/caja-juguetes": {
+   "alto": 30,
+   "ancho": 40,
+   "apoyo": [
+    20,
+    30
+   ],
+   "cuadros": 1,
+   "huella": {
+    "alto": 26,
+    "ancho": 38,
+    "fondo": 12
+   },
+   "nombre": "Caja de juguetes",
+   "reemplaza": "escenarios/casa/arte/muebles/caja-juguetes.png",
+   "ruta": "piezas/muebles/casa/caja-juguetes.png"
+  },
+  "casa/cama-doble": {
+   "alto": 68,
+   "ancho": 112,
+   "apoyo": [
+    56,
+    68
+   ],
+   "brilloDerecha": "piezas/muebles/casa/cama-doble-brillo-derecha.png",
+   "brilloIzquierda": "piezas/muebles/casa/cama-doble-brillo-izquierda.png",
+   "cuadros": 1,
+   "huella": {
+    "alto": 24,
+    "ancho": 108,
+    "fondo": 56
+   },
+   "nombre": "Cama doble",
+   "reemplaza": "escenarios/casa/arte/muebles/cama-doble.png",
+   "ruta": "piezas/muebles/casa/cama-doble.png"
+  },
+  "casa/cama-sencilla": {
+   "alto": 60,
+   "ancho": 62,
+   "apoyo": [
+    31,
+    60
+   ],
+   "brilloDerecha": "piezas/muebles/casa/cama-sencilla-brillo-derecha.png",
+   "brilloIzquierda": "piezas/muebles/casa/cama-sencilla-brillo-izquierda.png",
+   "cuadros": 1,
+   "huella": {
+    "alto": 24,
+    "ancho": 58,
+    "fondo": 46
+   },
+   "nombre": "Cama sencilla",
+   "reemplaza": "escenarios/casa/arte/muebles/cama-sencilla.png",
+   "ruta": "piezas/muebles/casa/cama-sencilla.png"
+  },
+  "casa/escritorio-infantil": {
+   "alto": 49,
+   "ancho": 72,
+   "apoyo": [
+    36,
+    49
+   ],
+   "brilloDerecha": "piezas/muebles/casa/escritorio-infantil-brillo-derecha.png",
+   "brilloIzquierda": "piezas/muebles/casa/escritorio-infantil-brillo-izquierda.png",
+   "cuadros": 1,
+   "huella": {
+    "alto": 36,
+    "ancho": 68,
+    "fondo": 14
+   },
+   "nombre": "Escritorio infantil",
+   "reemplaza": "escenarios/casa/arte/muebles/escritorio-infantil.png",
+   "ruta": "piezas/muebles/casa/escritorio-infantil.png"
+  },
   "casa/estufa": {
    "alto": 63,
    "ancho": 56,
@@ -372,6 +466,42 @@
    "nombre": "Mesa del comedor",
    "reemplaza": "escenarios/casa/arte/muebles/mesa-comedor.png",
    "ruta": "piezas/muebles/casa/mesa-comedor.png"
+  },
+  "casa/mesa-noche": {
+   "alto": 43,
+   "ancho": 30,
+   "animaciones": {
+    "reposo": {
+     "bucle": true,
+     "de": 0,
+     "fps": 1,
+     "hasta": 0
+    },
+    "revisar": {
+     "bucle": false,
+     "de": 1,
+     "fps": 10,
+     "hasta": 4,
+     "sostener": true
+    }
+   },
+   "apoyo": [
+    15,
+    43
+   ],
+   "brillo": "piezas/muebles/casa/mesa-noche-brillo.png",
+   "brilloDerecha": "piezas/muebles/casa/mesa-noche-brillo-derecha.png",
+   "brilloIzquierda": "piezas/muebles/casa/mesa-noche-brillo-izquierda.png",
+   "cuadros": 5,
+   "fps": 1,
+   "huella": {
+    "alto": 40,
+    "ancho": 28,
+    "fondo": 12
+   },
+   "nombre": "Mesa de noche",
+   "reemplaza": "escenarios/casa/arte/muebles/mesa-noche.png",
+   "ruta": "piezas/muebles/casa/mesa-noche.png"
   },
   "casa/meson-cocina": {
    "alto": 57,
