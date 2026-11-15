@@ -42,6 +42,8 @@ import { isShortcutContext } from './keyboard-focus.util';
 import { salaDelMundo } from './sala/mundo-a-sala';
 import { SafeExitButtonComponent } from './safe-exit-button.component';
 import { WorldPlacesListComponent } from './world-places-list.component';
+import { MinimapaComponent, PlanoCompletoComponent } from './plano/minimapa.component';
+import { normalizarLayout } from './plano/plano';
 import { PlaceCandidate, selectPlaces } from './world-places.util';
 import { keyPersonAccessibleName, resolveKeyPerson } from './key-person.util';
 import { SimulationHudComponent } from './simulation-hud.component';
@@ -124,6 +126,7 @@ const QUEUED_PAUSE_SLOW_NOTICE = 'La acción en curso está tardando. Estamos pa
     SimulationHudComponent, GameWorldComponent, DialoguePanelComponent,
     ToolInventoryComponent, JournalPanelComponent, AttemptOutcomeComponent,
     SafeExitButtonComponent, SceneGoalCardComponent, GameHelpComponent, WorldPlacesListComponent,
+    MinimapaComponent, PlanoCompletoComponent,
     ReactionDirectorComponent, CommentBubbleComponent, SensitiveNoticeComponent, UiButton, UiErrorState, UiScopeNotice, UiSpinner
   ],
   template: `
@@ -350,6 +353,8 @@ const QUEUED_PAUSE_SLOW_NOTICE = 'La acción en curso está tardando. Estamos pa
                 (roomExit)="onRoomExit($event)"
                 (enterRoom)="onDoorTrigger($event)"
                 (positionChange)="rememberPosition($event.x, $event.y)" />
+              <!-- Minimapa (bloque M1, §5.3): esquina del mundo; abre el plano completo (también con M). -->
+              <app-minimapa [plano]="placePlan()" [actual]="placeRoom()" (abrir)="openPlan()" />
             } @else {
               <!-- Solo el fondo: el indicador de carga es .game-boot (un solo estado). #game-area existe siempre. -->
               <div id="game-area" class="world-skeleton" aria-hidden="true"></div>
@@ -470,6 +475,12 @@ const QUEUED_PAUSE_SLOW_NOTICE = 'La acción en curso está tardando. Estamos pa
           <div class="overlay-backdrop" aria-hidden="true" (click)="closePlaces()"></div>
           <app-world-places-list [places]="placeOptions()" [pausing]="pausing()"
             (choose)="choosePlace($event)" (closed)="closePlaces()" (safeExit)="pauseFromOverlay()" />
+        }
+        @if (planOpen() && placePlan(); as plano) {
+          <!-- Plano del lugar (bloque M1): modal como «Ir a…»; el mundo queda en pausa y la cámara quieta. -->
+          <div class="overlay-backdrop" aria-hidden="true" (click)="closePlan()"></div>
+          <app-plano-completo [plano]="plano" [actual]="placeRoom()" [pausing]="pausing()"
+            (closed)="closePlan()" (safeExit)="pauseFromOverlay()" />
         }
         <app-journal-panel #journalPanel class="journal-layer" [open]="journalOpen()"
           [disabled]="game.status !== 'IN_PROGRESS' || busy()" [message]="journalMessage()"
@@ -1162,6 +1173,11 @@ export class SimulationPlayComponent implements OnInit, OnDestroy {
    * encuadra a los dos de cerca; con el de un objeto (lo que se encontró al revisar), se acerca al objeto. La reacción
    * a una respuesta la encuadra el director con `frameActors`.
    */
+  /** Plano del lugar (bloque M1): el `layout` del mundo validado; null en casos sin él (no hay minimapa). */
+  readonly placePlan = computed(() => normalizarLayout(this.world()?.layout));
+  readonly placeRoom = computed(() => this.placePlan()?.actual ?? '');
+  readonly planOpen = signal(false);
+
   readonly cameraMoment = computed<CameraMoment>(() => {
     const interaction = this.selectedInteraction();
     if (!this.dialogue() || !interaction) return { tipo: 'explorar' };
@@ -1320,7 +1336,7 @@ export class SimulationPlayComponent implements OnInit, OnDestroy {
   /** El mundo se congela con diálogo, journal u outcome abiertos (Fase 5/13). */
   readonly inputBlocked = computed(() =>
     this.showResumePrompt() || this.showContentWarning()
-    || this.showCaseIntro() || this.dialogue() !== null || this.journalOpen() || this.placesOpen()
+    || this.showCaseIntro() || this.dialogue() !== null || this.journalOpen() || this.placesOpen() || this.planOpen()
     || (!this.reactingToLast() && (this.attempt()?.status ?? 'IN_PROGRESS') !== 'IN_PROGRESS'));
 
   /** Con la pantalla de ayuda abierta el personaje no camina mientras se lee. */
@@ -1447,8 +1463,10 @@ export class SimulationPlayComponent implements OnInit, OnDestroy {
       const moment = this.cameraMoment();
       const mode = this.viewMode();
       const options = { cercana: this.cameraSettings.cercana(), acercarAuto: this.cameraSettings.acercarAuto() };
+      const frozen = this.planOpen();
       untracked(() => {
         this.gameWorld?.setCameraOptions(options);
+        this.gameWorld?.setCameraFrozen(frozen);
         requestAnimationFrame(() => this.gameWorld?.setCameraMoment(moment, this.dialogueCoverCss(mode)));
       });
     });
@@ -1852,7 +1870,7 @@ export class SimulationPlayComponent implements OnInit, OnDestroy {
     // botón de la interfaz (nunca en un campo, una región con scroll ni un diálogo). Enter y Espacio no dependen del
     // ajuste. El destino de un keydown sintético puede ser el documento, que no es un elemento.
     const isLetterShortcut = event.key === 'j' || event.key === 'J' || event.key === 'e' || event.key === 'E'
-      || event.key === 'z' || event.key === 'Z';
+      || event.key === 'z' || event.key === 'Z' || event.key === 'm' || event.key === 'M';
     const focusTarget = event.target instanceof Element ? event.target : null;
     if (isLetterShortcut && (!this.shortcuts.enabled() || !isShortcutContext(focusTarget))) return;
 
@@ -1860,6 +1878,14 @@ export class SimulationPlayComponent implements OnInit, OnDestroy {
     if (event.key === 'z' || event.key === 'Z') {
       event.preventDefault();
       if (!event.repeat) this.cameraSettings.toggleCercana();
+      return;
+    }
+
+    // Plano del lugar (bloque M1): M lo abre; con él abierto, M y Esc los atiende el propio plano.
+    if (event.key === 'm' || event.key === 'M') {
+      if (!this.placePlan()) return;
+      event.preventDefault();
+      if (!event.repeat) this.openPlan();
       return;
     }
 
@@ -3087,6 +3113,22 @@ export class SimulationPlayComponent implements OnInit, OnDestroy {
   }
 
   /** Cierra la lista y devuelve el foco a su acceso: la cabecera estaba inerte mientras estuvo abierta. */
+  /** Abre el plano completo (bloque M1): solo con plano y con el mundo libre (sin diálogo, bitácora ni otra capa). */
+  openPlan(): void {
+    if (!this.placePlan() || this.inputBlocked()) return;
+    this.planOpen.set(true);
+  }
+
+  /** Cierra el plano y devuelve el foco al minimapa (o al mundo si está oculto). */
+  closePlan(): void {
+    if (!this.planOpen()) return;
+    this.planOpen.set(false);
+    afterNextRender(() => {
+      const target = document.querySelector<HTMLElement>('[data-minimapa-abrir]') ?? document.getElementById('game-area');
+      target?.focus();
+    }, { injector: this.injector });
+  }
+
   closePlaces(): void {
     if (!this.placesOpen()) return;
     this.placesOpen.set(false);
