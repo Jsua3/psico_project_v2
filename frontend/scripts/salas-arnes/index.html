@@ -1,0 +1,57 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Arnés de salas por piezas</title>
+<style>
+@font-face { font-family: 'Poppins'; font-weight: 600; font-display: block; src: url('/assets/fonts/poppins-latin-600-normal.woff2') format('woff2'); }
+@font-face { font-family: 'Poppins'; font-weight: 400; font-display: block; src: url('/assets/fonts/poppins-latin-400-normal.woff2') format('woff2'); }
+:root {
+  --tinta: #f6ecd6; --tinta-suave: #c9bba0; --madera: #281c18; --borde: #5c4436; --panel: #1b1420; --acento: #f2c46b;
+}
+* { box-sizing: border-box; }
+html, body { margin: 0; height: 100%; background: #0b0a12; overflow: hidden; }
+#juego { position: fixed; inset: 0; }
+#juego canvas { display: block; image-rendering: pixelated; }
+
+/* El aviso de la puerta: un cartelito del mismo mundo, con borde de dos tonos y esquinas en escalón, y una cola que señala la puerta. */
+.aviso {
+  position: fixed; transform: translate(-50%, -100%); z-index: 2;
+  display: inline-flex; align-items: center; gap: 8px; min-height: 36px; padding: 5px 12px 5px 6px;
+  font: 600 15px/1.2 Poppins, 'Segoe UI', system-ui, sans-serif; color: var(--tinta); white-space: nowrap; cursor: pointer;
+  background: var(--panel); border: 0;
+  box-shadow: 0 0 0 2px var(--borde), 0 0 0 4px var(--madera), 4px 4px 0 4px rgba(8, 6, 18, 0.45);
+  clip-path: polygon(0 4px, 4px 4px, 4px 0, calc(100% - 4px) 0, calc(100% - 4px) 4px, 100% 4px, 100% calc(100% - 4px),
+    calc(100% - 4px) calc(100% - 4px), calc(100% - 4px) 100%, 4px 100%, 4px calc(100% - 4px), 0 calc(100% - 4px));
+}
+.aviso-cola { position: fixed; z-index: 2; width: 10px; height: 6px; transform: translate(-50%, 0);
+  background: var(--borde); clip-path: polygon(0 0, 100% 0, 50% 100%); }
+.aviso kbd {
+  font: 600 14px/1 Poppins, sans-serif; min-width: 26px; height: 26px; display: inline-grid; place-items: center;
+  color: var(--madera); background: var(--acento); box-shadow: inset 0 -3px 0 #b8863a, 0 0 0 2px var(--madera);
+}
+.aviso .sep { color: var(--tinta-suave); }
+.aviso .candado { width: 14px; height: 16px; }
+.aviso.bloqueada .falta { font-weight: 400; color: var(--tinta-suave); }
+.aviso:focus-visible { outline: 3px solid var(--tinta); outline-offset: 4px; }
+[hidden] { display: none !important; }
+#rotulo { position: fixed; left: 12px; top: 10px; z-index: 2; font: 600 14px Poppins, sans-serif; color: var(--tinta);
+  background: rgba(27, 20, 32, 0.82); padding: 3px 10px; box-shadow: 0 0 0 2px var(--madera); }
+</style>
+</head>
+<body>
+<div id="juego" aria-label="Sala del simulador. Camina con las flechas o con W, A, S y D; cruza una puerta con E." role="application"></div>
+<div id="rotulo"></div>
+<button type="button" id="aviso" class="aviso" hidden>
+  <kbd aria-hidden="true">E</kbd><span class="sep" aria-hidden="true">·</span>
+  <svg class="candado" id="candado" viewBox="0 0 7 8" shape-rendering="crispEdges" aria-hidden="true" hidden>
+    <path fill="#f6ecd6" d="M1 3h5v5H1zM2 1h3v1H2zM1 2h1v1H1zM5 2h1v1H5z"/><path fill="#281c18" d="M3 5h1v2H3z"/>
+  </svg>
+  <span id="aviso-texto"></span><span class="falta" id="aviso-falta"></span>
+</button>
+<div id="aviso-cola" class="aviso-cola" hidden></div>
+<div id="vivo" aria-live="polite" style="position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0)"></div>
+<script src="/arnes.js"></script>
+</body>
+</html>

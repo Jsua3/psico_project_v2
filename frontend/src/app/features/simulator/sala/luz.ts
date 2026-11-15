@@ -91,9 +91,9 @@ export interface CapasDeLuz {
   ancho: number;
   alto: number;
   /** RGBA, alfa 255. Se multiplica sobre la escena. */
-  ambiente: Uint8ClampedArray;
+  ambiente: Uint8ClampedArray<ArrayBuffer>;
   /** RGBA, alfa 255. Se suma sobre la escena. */
-  brillo: Uint8ClampedArray;
+  brillo: Uint8ClampedArray<ArrayBuffer>;
 }
 
 /** Un mueble o una persona sobre el piso: su huella en px de sala y su altura. Le tapa la luz a lo que tiene detrás. */
@@ -160,8 +160,8 @@ export class LuzDeSala {
   /** Quedan píxeles bajo la base (las sombras del exterior, de día, sin ningún emisor): la primera cuña los sube todos. */
   private readonly bajoBase: boolean;
   private readonly puertas: PuertaAbrible[];
-  private readonly ambiente: Uint8ClampedArray;
-  private readonly brillo: Uint8ClampedArray;
+  private readonly ambiente: Uint8ClampedArray<ArrayBuffer>;
+  private readonly brillo: Uint8ClampedArray<ArrayBuffer>;
   private readonly niveles: Uint8Array;
   private abiertas: PuertaAbrible[] = [];
   /** Para rehacer un trozo: la sala, su catálogo, los extremos del muro del fondo y los cuerpos quietos. */
