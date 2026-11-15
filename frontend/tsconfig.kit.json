@@ -9,6 +9,8 @@
   "files": [
     "src/app/features/character/kit/kit-engine.ts",
     "src/app/features/simulator/world-scale.util.ts",
-    "src/app/features/simulator/sala/geometria.ts"
+    "src/app/features/simulator/sala/geometria.ts",
+    "src/app/features/simulator/sala/catalogo.ts",
+    "src/app/features/simulator/sala/luz.ts"
   ]
 }
