@@ -35,6 +35,32 @@ COSAS = [
     ('objetos_casa', 'portarretrato', 694, 263, 31, False),
 ]
 PERSONAS = [dict(receta='sobreviviente', x=560, y=360, vista='left'), dict(receta='valentina', x=470, y=372, vista='right')]
+
+
+def _sala_de_p1(lugar, sala_id):
+    import json
+    with open(os.path.join(RAIZ, 'biblioteca', 'piezas', 'lugares', lugar + '.json'), encoding='utf-8') as f:
+        return next(s for s in json.load(f)['salas'] if s['id'] == sala_id)
+
+
+# Comisaría · consultorio psicosocial de P1 (persiana y tubo), con lo que pone SIM-VBG-002 en el capítulo 3.
+SALA_COMISARIA = _sala_de_p1('comisaria', 'consultorio-psicosocial')
+COSAS_COMISARIA = [
+    ('objetos_comisaria', 'afiche-rutas-atencion', 214, 268, 0, False),
+    ('objetos_comisaria', 'cartelera-comisaria', 560, 258, 0, False),
+    ('objetos_comisaria', 'silla-giratoria', 700, 256, 0, False),
+    ('objetos_comisaria', 'papelera', 776, 262, 0, False),
+    ('objetos_comisaria', 'dispensador-agua', 836, 270, 0, False),
+    ('objetos_comisaria', 'escritorio-funcionario', 700, 290, 0, False),
+    ('objetos_comisaria', 'carpeta-medidas-proteccion', 676, 291, 37, False),
+    ('objetos_comisaria', 'planta-oficina', 140, 300, 0, False),
+    ('objetos_comisaria', 'silla-visitante-comisaria', 300, 340, 0, False),
+    ('objetos_comisaria', 'silla-visitante-comisaria', 420, 340, 0, True),
+    ('objetos_comisaria', 'mesa-baja-nna', 360, 362, 0, False),
+    ('objetos_comisaria', 'caja-panuelos', 378, 363, 24, False),
+]
+PERSONAS_COMISARIA = [dict(receta='profesional-psicosocial', x=520, y=350, vista='left'),
+                      dict(receta='abuela-familia', x=262, y=410, vista='right')]
 VISTAS = ('down', 'left', 'right', 'up')
 
 
@@ -89,7 +115,7 @@ def sombras_de_contacto(tam, cosas, personas):
 def escena(momento, cuadros=None, personas=PERSONAS, sala=SALA, cosas=COSAS):
     cosas = colocadas(cuadros, cosas)
     base = sl.componer_sala(sala, momento, con_luz=False).convert('RGBA')
-    base = Image.alpha_composite(base, sombras_de_contacto(base.size, cosas, personas))
+    # La sombra de contacto ya la pone la luz de P1 (`contacto` en calcular_luz) a partir de los cuerpos: sin óvalos.
     orden = [(c['y'] + (1 if c['sobre'] else 0), 'cosa', c) for c in cosas]
     orden += [(q['y'], 'persona', q) for q in personas]
     for _, tipo, c in sorted(orden, key=lambda t: t[0]):
