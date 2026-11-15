@@ -384,12 +384,12 @@ def test_la_sala_de_escucha_esta_cerrada_hasta_que_la_enfermera_la_abre(cliente,
     partida.interactuar("enfermera")
     abierta = partida.cruzar("puerta-sala-escucha", "c1-sala-escucha")
     assert abierta.status_code == 200, abierta.data
-    assert abierta.data["data"]["map"]["key"] == "hospital-sala-escucha-vacia"
+    assert abierta.data["data"]["map"]["key"] == "hosp-sala-escucha-c1"
     assert "pañuelos" in partida.interactuar("agua-panuelos")["interaction"]["interactionText"]
 
     regreso = partida.cruzar("puerta-sala-espera", "c1-lugar-para-hablar")
     assert regreso.status_code == 200, regreso.data
-    assert regreso.data["data"]["map"]["key"] == "hospital-sala-escucha-espera-2"
+    assert regreso.data["data"]["map"]["key"] == "hosp-sala-espera-2"
     # Entrar y salir no avanza el caso; la mejor respuesta sigue ofrecida.
     assert partida.ofrecidas() >= {"n2-sala-de-escucha"}
     partida.decidir("n2-sala-de-escucha")

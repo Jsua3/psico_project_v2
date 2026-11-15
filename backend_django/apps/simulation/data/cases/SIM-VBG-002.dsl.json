@@ -678,82 +678,99 @@
        "numero": 1,
        "titulo": "La llegada"
       },
+      "encuadre": "tres-paredes",
+      "lugarId": "hospital",
       "mood": "clinical-urgent",
       "music": "none",
       "salaId": "entrada-urgencias",
-      "salaProvisional": "urgencias",
       "transitionText": "Capítulo 1 · La llegada. Hospital, 11 de la noche."
      },
-     "ancho": 960,
+     "ancho": 1200,
      "aparicion": {
-      "x": 480,
-      "y": 430
+      "x": 600,
+      "y": 440
      },
-     "clave": "hospital-urgencias",
+     "clave": "hosp-entrada-urgencias",
      "colisiones": [
       {
        "alto": 236,
-       "ancho": 960,
+       "ancho": 1200,
        "clave": "pared-fondo",
-       "etiqueta": "pared-fondo",
+       "etiqueta": "Pared del fondo",
        "x": 0,
        "y": 0
       },
       {
+       "alto": 250,
+       "ancho": 115,
+       "clave": "pared-izquierda",
+       "etiqueta": "Pared izquierda",
+       "x": 0,
+       "y": 236
+      },
+      {
+       "alto": 250,
+       "ancho": 115,
+       "clave": "pared-derecha",
+       "etiqueta": "Pared derecha",
+       "x": 1085,
+       "y": 236
+      },
+      {
        "alto": 42,
-       "ancho": 960,
-       "clave": "borde-frontal",
-       "etiqueta": "borde-frontal",
+       "ancho": 1200,
+       "clave": "borde-delantero",
+       "etiqueta": "Borde delantero",
        "x": 0,
        "y": 486
       },
       {
-       "alto": 528,
-       "ancho": 96,
-       "clave": "pared-izquierda",
-       "etiqueta": "pared-izquierda",
-       "x": 0,
-       "y": 0
-      },
-      {
-       "alto": 528,
-       "ancho": 96,
-       "clave": "pared-derecha",
-       "etiqueta": "pared-derecha",
-       "x": 864,
-       "y": 0
-      },
-      {
-       "alto": 56,
-       "ancho": 220,
-       "clave": "mostrador-triage",
-       "etiqueta": "Mostrador de triage",
-       "x": 380,
-       "y": 252
-      },
-      {
-       "alto": 38,
-       "ancho": 150,
-       "clave": "sillas-espera",
-       "etiqueta": "Sillas de espera",
-       "x": 120,
-       "y": 308
-      },
-      {
-       "alto": 46,
-       "ancho": 110,
-       "clave": "camilla",
+       "alto": 16,
+       "ancho": 94,
+       "clave": "choque-camilla",
        "etiqueta": "Camilla",
-       "x": 700,
-       "y": 300
+       "x": 253,
+       "y": 284
       },
       {
-       "alto": 40,
-       "ancho": 44,
-       "clave": "planta-urgencias",
+       "alto": 8,
+       "ancho": 36,
+       "clave": "choque-silla-ruedas",
+       "etiqueta": "Silla de ruedas",
+       "x": 882,
+       "y": 288
+      },
+      {
+       "alto": 8,
+       "ancho": 36,
+       "clave": "choque-silla-ruedas-2",
+       "etiqueta": "Silla de ruedas",
+       "x": 926,
+       "y": 296
+      },
+      {
+       "alto": 8,
+       "ancho": 30,
+       "clave": "choque-planta",
        "etiqueta": "Planta",
-       "x": 800,
-       "y": 380
+       "x": 1025,
+       "y": 254
+      },
+      {
+       "alto": 8,
+       "ancho": 20,
+       "clave": "choque-caneca",
+       "etiqueta": "Caneca",
+       "x": 750,
+       "y": 254
+      },
+      {
+       "alto": 8,
+       "ancho": 22,
+       "clave": "choque-portasuero",
+       "etiqueta": "Portasuero",
+       "x": 225,
+       "y": 282
       }
      ],
      "dialogos": [
@@ -918,7 +935,250 @@
        "retrato": null
       }
      ],
+     "estructura": {
+      "acabados": {
+       "muro": "azulejo",
+       "paleta": "hospital",
+       "piso": "baldosa",
+       "variante": "b"
+      },
+      "ancho": 1200,
+      "momento": "noche",
+      "piezas": [
+       {
+        "id": "tubo-1",
+        "modelo": "tubo",
+        "muro": "fondo",
+        "pos": 250,
+        "tipo": "lampara"
+       },
+       {
+        "id": "tubo-2",
+        "modelo": "tubo",
+        "muro": "fondo",
+        "pos": 690,
+        "tipo": "lampara"
+       },
+       {
+        "id": "cruz",
+        "modelo": "cruz",
+        "muro": "fondo",
+        "pos": 326,
+        "tipo": "cruz"
+       },
+       {
+        "id": "reloj",
+        "modelo": "reloj",
+        "muro": "fondo",
+        "pos": 378,
+        "tipo": "reloj"
+       },
+       {
+        "id": "gel",
+        "modelo": "gel",
+        "muro": "fondo",
+        "pos": 600,
+        "tipo": "gel"
+       },
+       {
+        "id": "senal",
+        "modelo": "senal",
+        "muro": "fondo",
+        "pos": 640,
+        "tipo": "senal"
+       },
+       {
+        "id": "extintor",
+        "modelo": "extintor",
+        "muro": "fondo",
+        "pos": 700,
+        "tipo": "extintor"
+       },
+       {
+        "id": "ventana",
+        "modelo": "alta",
+        "muro": "fondo",
+        "pos": 808,
+        "tipo": "ventana"
+       },
+       {
+        "id": "ventanal",
+        "modelo": "ventanal",
+        "muro": "derecha",
+        "pos": 150,
+        "tipo": "ventana"
+       }
+      ]
+     },
      "objetos": [
+      {
+       "alto": 44,
+       "ancho": 98,
+       "clave": "camilla",
+       "codigoCorto": "MUE",
+       "colision": false,
+       "color": "#7FB3D5",
+       "desbloqueo": {},
+       "etiqueta": "Camilla",
+       "herramienta": null,
+       "icono": "chair",
+       "indicacion": "",
+       "metadatos": {
+        "apoyo": "pies",
+        "arte": "/assets/biblioteca/piezas/muebles/hospital/camilla.png",
+        "colision": true
+       },
+       "movimiento": {},
+       "opcion": null,
+       "orientacion": "",
+       "personaje": null,
+       "texto": "",
+       "tipo": "PROP",
+       "visible": true,
+       "x": 300,
+       "y": 300,
+       "z": 0
+      },
+      {
+       "alto": 44,
+       "ancho": 40,
+       "clave": "silla-ruedas",
+       "codigoCorto": "MUE",
+       "colision": false,
+       "color": "#7FB3D5",
+       "desbloqueo": {},
+       "etiqueta": "Silla de ruedas",
+       "herramienta": null,
+       "icono": "chair",
+       "indicacion": "",
+       "metadatos": {
+        "apoyo": "pies",
+        "arte": "/assets/biblioteca/piezas/muebles/hospital/silla-ruedas.png",
+        "colision": true
+       },
+       "movimiento": {},
+       "opcion": null,
+       "orientacion": "",
+       "personaje": null,
+       "texto": "",
+       "tipo": "PROP",
+       "visible": true,
+       "x": 900,
+       "y": 296,
+       "z": 0
+      },
+      {
+       "alto": 44,
+       "ancho": 40,
+       "clave": "silla-ruedas-2",
+       "codigoCorto": "MUE",
+       "colision": false,
+       "color": "#7FB3D5",
+       "desbloqueo": {},
+       "etiqueta": "Silla de ruedas",
+       "herramienta": null,
+       "icono": "chair",
+       "indicacion": "",
+       "metadatos": {
+        "apoyo": "pies",
+        "arte": "/assets/biblioteca/piezas/muebles/hospital/silla-ruedas.png",
+        "colision": true
+       },
+       "movimiento": {},
+       "opcion": null,
+       "orientacion": "",
+       "personaje": null,
+       "texto": "",
+       "tipo": "PROP",
+       "visible": true,
+       "x": 944,
+       "y": 304,
+       "z": 0
+      },
+      {
+       "alto": 47,
+       "ancho": 35,
+       "clave": "planta",
+       "codigoCorto": "MUE",
+       "colision": false,
+       "color": "#7FB3D5",
+       "desbloqueo": {},
+       "etiqueta": "Planta",
+       "herramienta": null,
+       "icono": "chair",
+       "indicacion": "",
+       "metadatos": {
+        "apoyo": "pies",
+        "arte": "/assets/biblioteca/piezas/muebles/hospital/planta.png",
+        "colision": true
+       },
+       "movimiento": {},
+       "opcion": null,
+       "orientacion": "",
+       "personaje": null,
+       "texto": "",
+       "tipo": "PROP",
+       "visible": true,
+       "x": 1040,
+       "y": 262,
+       "z": 0
+      },
+      {
+       "alto": 34,
+       "ancho": 24,
+       "clave": "caneca",
+       "codigoCorto": "MUE",
+       "colision": false,
+       "color": "#7FB3D5",
+       "desbloqueo": {},
+       "etiqueta": "Caneca",
+       "herramienta": null,
+       "icono": "chair",
+       "indicacion": "",
+       "metadatos": {
+        "apoyo": "pies",
+        "arte": "/assets/biblioteca/piezas/muebles/hospital/caneca.png",
+        "colision": true
+       },
+       "movimiento": {},
+       "opcion": null,
+       "orientacion": "",
+       "personaje": null,
+       "texto": "",
+       "tipo": "PROP",
+       "visible": true,
+       "x": 760,
+       "y": 262,
+       "z": 0
+      },
+      {
+       "alto": 69,
+       "ancho": 26,
+       "clave": "portasuero",
+       "codigoCorto": "MUE",
+       "colision": false,
+       "color": "#7FB3D5",
+       "desbloqueo": {},
+       "etiqueta": "Portasuero",
+       "herramienta": null,
+       "icono": "chair",
+       "indicacion": "",
+       "metadatos": {
+        "apoyo": "pies",
+        "arte": "/assets/biblioteca/piezas/muebles/hospital/portasuero.png",
+        "colision": true
+       },
+       "movimiento": {},
+       "opcion": null,
+       "orientacion": "",
+       "personaje": null,
+       "texto": "",
+       "tipo": "PROP",
+       "visible": true,
+       "x": 236,
+       "y": 290,
+       "z": 0
+      },
       {
        "alto": 48,
        "ancho": 48,
@@ -932,7 +1192,9 @@
        "icono": "person",
        "indicacion": "Hablar con el vigilante",
        "metadatos": {
+        "apoyo": "pies",
         "expresion": "cautelosa",
+        "movimiento": "quieto",
         "recipeId": "seguridad"
        },
        "movimiento": {},
@@ -942,8 +1204,8 @@
        "texto": "El vigilante cuida el acceso a cirugía.",
        "tipo": "PERSON",
        "visible": true,
-       "x": 660,
-       "y": 390,
+       "x": 240,
+       "y": 360,
        "z": 0
       },
       {
@@ -959,7 +1221,9 @@
        "icono": "person",
        "indicacion": "Hablar con el hermano",
        "metadatos": {
+        "apoyo": "pies",
         "expresion": "en-crisis",
+        "movimiento": "quieto",
         "recipeId": "samuel"
        },
        "movimiento": {},
@@ -969,8 +1233,8 @@
        "texto": "Uno de los hermanos discute con el vigilante.",
        "tipo": "PERSON",
        "visible": true,
-       "x": 590,
-       "y": 410,
+       "x": 310,
+       "y": 380,
        "z": 0
       },
       {
@@ -986,7 +1250,9 @@
        "icono": "person",
        "indicacion": "Acercarte a la madre",
        "metadatos": {
+        "apoyo": "pies",
         "expresion": "triste",
+        "movimiento": "quieto",
         "recipeId": "abuela-familia"
        },
        "movimiento": {},
@@ -996,8 +1262,8 @@
        "texto": "La madre de la sobreviviente llora en las sillas de espera.",
        "tipo": "PERSON",
        "visible": true,
-       "x": 190,
-       "y": 420,
+       "x": 860,
+       "y": 400,
        "z": 0
       },
       {
@@ -1013,7 +1279,9 @@
        "icono": "person",
        "indicacion": "Acercarte al hermano menor",
        "metadatos": {
+        "apoyo": "pies",
         "expresion": "triste",
+        "movimiento": "quieto",
         "recipeId": "adolescente"
        },
        "movimiento": {},
@@ -1023,8 +1291,8 @@
        "texto": "El hermano menor no se separa de su madre.",
        "tipo": "PERSON",
        "visible": true,
-       "x": 250,
-       "y": 440,
+       "x": 920,
+       "y": 420,
        "z": 0
       },
       {
@@ -1040,7 +1308,9 @@
        "icono": "person",
        "indicacion": "Hablar con la enfermera",
        "metadatos": {
+        "apoyo": "pies",
         "expresion": "preocupada",
+        "movimiento": "quieto",
         "recipeId": "enfermera-urgencias"
        },
        "movimiento": {},
@@ -1050,8 +1320,8 @@
        "texto": "La enfermera atiende el triaje.",
        "tipo": "PERSON",
        "visible": true,
-       "x": 540,
-       "y": 330,
+       "x": 700,
+       "y": 310,
        "z": 0
       },
       {
@@ -1074,8 +1344,8 @@
        "texto": "Acceso restringido: la sobreviviente está en cirugía (28 heridas con arma cortopunzante). El personal pide manejar la información con prudencia: la niña de 3 años falleció y la familia aún no lo sabe con certeza.",
        "tipo": "OBJECT",
        "visible": true,
-       "x": 660,
-       "y": 268,
+       "x": 170,
+       "y": 300,
        "z": 0
       },
       {
@@ -1098,12 +1368,82 @@
        "texto": "Primeros Auxilios Psicológicos: contención, estabilización y enlace.",
        "tipo": "TOOL",
        "visible": true,
-       "x": 318,
-       "y": 428,
+       "x": 520,
+       "y": 452,
+       "z": 0
+      },
+      {
+       "alto": 40,
+       "ancho": 24,
+       "clave": "a-espera",
+       "codigoCorto": "EXIT",
+       "colision": false,
+       "color": "#B69CFF",
+       "desbloqueo": {},
+       "etiqueta": "Pasar a la sala de espera",
+       "herramienta": null,
+       "icono": "door_front",
+       "indicacion": "Pasar a la sala de espera",
+       "metadatos": {
+        "entryX": 720,
+        "entryY": 476,
+        "label": "Pasar a la sala de espera",
+        "modelo": "corrediza",
+        "muro": "fondo",
+        "par": "a-entrada",
+        "pos": 485,
+        "targetNodeKey": "c1-sala-espera"
+       },
+       "movimiento": {},
+       "opcion": null,
+       "orientacion": "",
+       "personaje": null,
+       "texto": "Pasar a la sala de espera",
+       "tipo": "EXIT",
+       "visible": true,
+       "x": 600,
+       "y": 260,
+       "z": 0
+      },
+      {
+       "alto": 40,
+       "ancho": 24,
+       "clave": "a-pasillo",
+       "codigoCorto": "EXIT",
+       "colision": false,
+       "color": "#B69CFF",
+       "desbloqueo": {},
+       "etiqueta": "Pasar al pasillo de urgencias",
+       "herramienta": null,
+       "icono": "door_front",
+       "indicacion": "Pasar al pasillo de urgencias",
+       "metadatos": {
+        "entryX": 1511,
+        "entryY": 390,
+        "label": "Pasar al pasillo de urgencias",
+        "lockedMessage": "Acceso restringido: solo personal de salud.",
+        "modelo": "urgencias",
+        "muro": "izquierda",
+        "par": "a-entrada",
+        "pos": 160,
+        "requiresNodes": [
+         "cierre-caso"
+        ],
+        "targetNodeKey": "c2-pasillo"
+       },
+       "movimiento": {},
+       "opcion": null,
+       "orientacion": "",
+       "personaje": null,
+       "texto": "Pasar al pasillo de urgencias",
+       "tipo": "EXIT",
+       "visible": true,
+       "x": 131,
+       "y": 390,
        "z": 0
       }
      ],
-     "tema": "hospital-urgencias",
+     "tema": "clinical-soft",
      "titulo": "Hospital — Entrada de urgencias"
     },
     "objetivo": "Mira qué está pasando en la entrada y quién necesita qué, antes de acercarte a alguien.",
@@ -1220,81 +1560,130 @@
      "ambiente": {
       "ambientNpcKeys": [],
       "ambientNpcs": [],
+      "encuadre": "tres-paredes",
+      "lugarId": "hospital",
       "mood": "warm-private",
       "music": "none",
-      "salaId": "sala-de-espera",
-      "salaProvisional": "sala-escucha"
+      "salaId": "sala-espera"
      },
-     "ancho": 960,
+     "ancho": 1440,
      "aparicion": {
-      "x": 480,
-      "y": 430
+      "x": 720,
+      "y": 440
      },
-     "clave": "hospital-sala-escucha-espera-1",
+     "clave": "hosp-sala-espera-1",
      "colisiones": [
       {
        "alto": 236,
-       "ancho": 960,
+       "ancho": 1440,
        "clave": "pared-fondo",
-       "etiqueta": "pared-fondo",
+       "etiqueta": "Pared del fondo",
        "x": 0,
        "y": 0
       },
       {
+       "alto": 250,
+       "ancho": 134,
+       "clave": "pared-izquierda",
+       "etiqueta": "Pared izquierda",
+       "x": 0,
+       "y": 236
+      },
+      {
+       "alto": 250,
+       "ancho": 134,
+       "clave": "pared-derecha",
+       "etiqueta": "Pared derecha",
+       "x": 1306,
+       "y": 236
+      },
+      {
        "alto": 42,
-       "ancho": 960,
-       "clave": "borde-frontal",
-       "etiqueta": "borde-frontal",
+       "ancho": 1440,
+       "clave": "borde-delantero",
+       "etiqueta": "Borde delantero",
        "x": 0,
        "y": 486
       },
       {
-       "alto": 528,
-       "ancho": 96,
-       "clave": "pared-izquierda",
-       "etiqueta": "pared-izquierda",
-       "x": 0,
-       "y": 0
+       "alto": 8,
+       "ancho": 30,
+       "clave": "choque-planta",
+       "etiqueta": "Planta",
+       "x": 235,
+       "y": 254
       },
       {
-       "alto": 528,
-       "ancho": 96,
-       "clave": "pared-derecha",
-       "etiqueta": "pared-derecha",
-       "x": 864,
-       "y": 0
+       "alto": 16,
+       "ancho": 86,
+       "clave": "choque-sillas-espera",
+       "etiqueta": "Sillas de espera",
+       "x": 307,
+       "y": 244
       },
       {
-       "alto": 64,
-       "ancho": 130,
-       "clave": "sofa-escucha",
-       "etiqueta": "Sofá de escucha",
-       "x": 130,
-       "y": 300
+       "alto": 16,
+       "ancho": 86,
+       "clave": "choque-sillas-espera-2",
+       "etiqueta": "Sillas de espera",
+       "x": 401,
+       "y": 244
       },
       {
-       "alto": 36,
-       "ancho": 90,
-       "clave": "mesa-centro",
+       "alto": 16,
+       "ancho": 86,
+       "clave": "choque-sillas-espera-3",
+       "etiqueta": "Sillas de espera",
+       "x": 937,
+       "y": 244
+      },
+      {
+       "alto": 16,
+       "ancho": 86,
+       "clave": "choque-sillas-espera-4",
+       "etiqueta": "Sillas de espera",
+       "x": 1031,
+       "y": 244
+      },
+      {
+       "alto": 8,
+       "ancho": 20,
+       "clave": "choque-dispensador-agua",
+       "etiqueta": "Dispensador de agua",
+       "x": 1230,
+       "y": 252
+      },
+      {
+       "alto": 8,
+       "ancho": 20,
+       "clave": "choque-caneca",
+       "etiqueta": "Caneca",
+       "x": 1270,
+       "y": 254
+      },
+      {
+       "alto": 16,
+       "ancho": 86,
+       "clave": "choque-sillas-espera-5",
+       "etiqueta": "Sillas de espera",
+       "x": 477,
+       "y": 394
+      },
+      {
+       "alto": 10,
+       "ancho": 46,
+       "clave": "choque-mesa-centro",
        "etiqueta": "Mesa de centro",
-       "x": 280,
-       "y": 370
+       "x": 697,
+       "y": 390
       },
       {
-       "alto": 44,
-       "ancho": 150,
-       "clave": "estante-protocolos",
-       "etiqueta": "Estante de protocolos",
-       "x": 600,
-       "y": 256
-      },
-      {
-       "alto": 36,
-       "ancho": 56,
-       "clave": "silla-profesional",
-       "etiqueta": "Silla",
-       "x": 680,
-       "y": 330
+       "alto": 16,
+       "ancho": 86,
+       "clave": "choque-sillas-espera-6",
+       "etiqueta": "Sillas de espera",
+       "x": 877,
+       "y": 394
       }
      ],
      "dialogos": [
@@ -1430,7 +1819,376 @@
        "retrato": null
       }
      ],
+     "estructura": {
+      "acabados": {
+       "muro": "zocalo-alto",
+       "paleta": "hospital",
+       "piso": "vinilo",
+       "variante": "b"
+      },
+      "ancho": 1440,
+      "momento": "noche",
+      "piezas": [
+       {
+        "id": "tubo-1",
+        "modelo": "tubo",
+        "muro": "fondo",
+        "pos": 440,
+        "tipo": "lampara"
+       },
+       {
+        "id": "tubo-2",
+        "modelo": "tubo",
+        "muro": "fondo",
+        "pos": 720,
+        "tipo": "lampara"
+       },
+       {
+        "id": "tubo-3",
+        "modelo": "tubo",
+        "muro": "fondo",
+        "pos": 1084,
+        "tipo": "lampara"
+       },
+       {
+        "id": "ventanal-1",
+        "modelo": "ventanal",
+        "muro": "fondo",
+        "pos": 260,
+        "tipo": "ventana"
+       },
+       {
+        "id": "cartelera",
+        "modelo": "cartelera",
+        "muro": "fondo",
+        "pos": 430,
+        "tipo": "cartelera"
+       },
+       {
+        "id": "reloj",
+        "modelo": "reloj",
+        "muro": "fondo",
+        "pos": 506,
+        "tipo": "reloj"
+       },
+       {
+        "id": "gel",
+        "modelo": "gel",
+        "muro": "fondo",
+        "pos": 650,
+        "tipo": "gel"
+       },
+       {
+        "id": "cuadro",
+        "modelo": "cuadro",
+        "muro": "fondo",
+        "pos": 710,
+        "tipo": "cuadro"
+       },
+       {
+        "id": "ventanal-2",
+        "modelo": "ventanal",
+        "muro": "fondo",
+        "pos": 890,
+        "tipo": "ventana"
+       },
+       {
+        "id": "senal",
+        "modelo": "senal",
+        "muro": "fondo",
+        "pos": 1040,
+        "tipo": "senal"
+       },
+       {
+        "id": "extintor",
+        "modelo": "extintor",
+        "muro": "fondo",
+        "pos": 1136,
+        "tipo": "extintor"
+       }
+      ]
+     },
      "objetos": [
+      {
+       "alto": 47,
+       "ancho": 35,
+       "clave": "planta",
+       "codigoCorto": "MUE",
+       "colision": false,
+       "color": "#7FB3D5",
+       "desbloqueo": {},
+       "etiqueta": "Planta",
+       "herramienta": null,
+       "icono": "chair",
+       "indicacion": "",
+       "metadatos": {
+        "apoyo": "pies",
+        "arte": "/assets/biblioteca/piezas/muebles/hospital/planta.png",
+        "colision": true
+       },
+       "movimiento": {},
+       "opcion": null,
+       "orientacion": "",
+       "personaje": null,
+       "texto": "",
+       "tipo": "PROP",
+       "visible": true,
+       "x": 250,
+       "y": 262,
+       "z": 0
+      },
+      {
+       "alto": 42,
+       "ancho": 90,
+       "clave": "sillas-espera",
+       "codigoCorto": "MUE",
+       "colision": false,
+       "color": "#7FB3D5",
+       "desbloqueo": {},
+       "etiqueta": "Sillas de espera",
+       "herramienta": null,
+       "icono": "chair",
+       "indicacion": "",
+       "metadatos": {
+        "apoyo": "pies",
+        "arte": "/assets/biblioteca/piezas/muebles/hospital/sillas-espera.png",
+        "colision": true
+       },
+       "movimiento": {},
+       "opcion": null,
+       "orientacion": "",
+       "personaje": null,
+       "texto": "",
+       "tipo": "PROP",
+       "visible": true,
+       "x": 350,
+       "y": 260,
+       "z": 0
+      },
+      {
+       "alto": 42,
+       "ancho": 90,
+       "clave": "sillas-espera-2",
+       "codigoCorto": "MUE",
+       "colision": false,
+       "color": "#7FB3D5",
+       "desbloqueo": {},
+       "etiqueta": "Sillas de espera",
+       "herramienta": null,
+       "icono": "chair",
+       "indicacion": "",
+       "metadatos": {
+        "apoyo": "pies",
+        "arte": "/assets/biblioteca/piezas/muebles/hospital/sillas-espera.png",
+        "colision": true
+       },
+       "movimiento": {},
+       "opcion": null,
+       "orientacion": "",
+       "personaje": null,
+       "texto": "",
+       "tipo": "PROP",
+       "visible": true,
+       "x": 444,
+       "y": 260,
+       "z": 0
+      },
+      {
+       "alto": 42,
+       "ancho": 90,
+       "clave": "sillas-espera-3",
+       "codigoCorto": "MUE",
+       "colision": false,
+       "color": "#7FB3D5",
+       "desbloqueo": {},
+       "etiqueta": "Sillas de espera",
+       "herramienta": null,
+       "icono": "chair",
+       "indicacion": "",
+       "metadatos": {
+        "apoyo": "pies",
+        "arte": "/assets/biblioteca/piezas/muebles/hospital/sillas-espera.png",
+        "colision": true
+       },
+       "movimiento": {},
+       "opcion": null,
+       "orientacion": "",
+       "personaje": null,
+       "texto": "",
+       "tipo": "PROP",
+       "visible": true,
+       "x": 980,
+       "y": 260,
+       "z": 0
+      },
+      {
+       "alto": 42,
+       "ancho": 90,
+       "clave": "sillas-espera-4",
+       "codigoCorto": "MUE",
+       "colision": false,
+       "color": "#7FB3D5",
+       "desbloqueo": {},
+       "etiqueta": "Sillas de espera",
+       "herramienta": null,
+       "icono": "chair",
+       "indicacion": "",
+       "metadatos": {
+        "apoyo": "pies",
+        "arte": "/assets/biblioteca/piezas/muebles/hospital/sillas-espera.png",
+        "colision": true
+       },
+       "movimiento": {},
+       "opcion": null,
+       "orientacion": "",
+       "personaje": null,
+       "texto": "",
+       "tipo": "PROP",
+       "visible": true,
+       "x": 1074,
+       "y": 260,
+       "z": 0
+      },
+      {
+       "alto": 63,
+       "ancho": 24,
+       "clave": "dispensador-agua",
+       "codigoCorto": "MUE",
+       "colision": false,
+       "color": "#7FB3D5",
+       "desbloqueo": {},
+       "etiqueta": "Dispensador de agua",
+       "herramienta": null,
+       "icono": "chair",
+       "indicacion": "",
+       "metadatos": {
+        "apoyo": "pies",
+        "arte": "/assets/biblioteca/piezas/muebles/hospital/dispensador-agua.png",
+        "colision": true
+       },
+       "movimiento": {},
+       "opcion": null,
+       "orientacion": "",
+       "personaje": null,
+       "texto": "",
+       "tipo": "PROP",
+       "visible": true,
+       "x": 1240,
+       "y": 260,
+       "z": 0
+      },
+      {
+       "alto": 34,
+       "ancho": 24,
+       "clave": "caneca",
+       "codigoCorto": "MUE",
+       "colision": false,
+       "color": "#7FB3D5",
+       "desbloqueo": {},
+       "etiqueta": "Caneca",
+       "herramienta": null,
+       "icono": "chair",
+       "indicacion": "",
+       "metadatos": {
+        "apoyo": "pies",
+        "arte": "/assets/biblioteca/piezas/muebles/hospital/caneca.png",
+        "colision": true
+       },
+       "movimiento": {},
+       "opcion": null,
+       "orientacion": "",
+       "personaje": null,
+       "texto": "",
+       "tipo": "PROP",
+       "visible": true,
+       "x": 1280,
+       "y": 262,
+       "z": 0
+      },
+      {
+       "alto": 42,
+       "ancho": 90,
+       "clave": "sillas-espera-5",
+       "codigoCorto": "MUE",
+       "colision": false,
+       "color": "#7FB3D5",
+       "desbloqueo": {},
+       "etiqueta": "Sillas de espera",
+       "herramienta": null,
+       "icono": "chair",
+       "indicacion": "",
+       "metadatos": {
+        "apoyo": "pies",
+        "arte": "/assets/biblioteca/piezas/muebles/hospital/sillas-espera.png",
+        "colision": true
+       },
+       "movimiento": {},
+       "opcion": null,
+       "orientacion": "",
+       "personaje": null,
+       "texto": "",
+       "tipo": "PROP",
+       "visible": true,
+       "x": 520,
+       "y": 410,
+       "z": 0
+      },
+      {
+       "alto": 22,
+       "ancho": 50,
+       "clave": "mesa-centro",
+       "codigoCorto": "MUE",
+       "colision": false,
+       "color": "#7FB3D5",
+       "desbloqueo": {},
+       "etiqueta": "Mesa de centro",
+       "herramienta": null,
+       "icono": "chair",
+       "indicacion": "",
+       "metadatos": {
+        "apoyo": "pies",
+        "arte": "/assets/biblioteca/piezas/muebles/hospital/mesa-centro.png",
+        "colision": true
+       },
+       "movimiento": {},
+       "opcion": null,
+       "orientacion": "",
+       "personaje": null,
+       "texto": "",
+       "tipo": "PROP",
+       "visible": true,
+       "x": 720,
+       "y": 400,
+       "z": 0
+      },
+      {
+       "alto": 42,
+       "ancho": 90,
+       "clave": "sillas-espera-6",
+       "codigoCorto": "MUE",
+       "colision": false,
+       "color": "#7FB3D5",
+       "desbloqueo": {},
+       "etiqueta": "Sillas de espera",
+       "herramienta": null,
+       "icono": "chair",
+       "indicacion": "",
+       "metadatos": {
+        "apoyo": "pies",
+        "arte": "/assets/biblioteca/piezas/muebles/hospital/sillas-espera.png",
+        "colision": true
+       },
+       "movimiento": {},
+       "opcion": null,
+       "orientacion": "",
+       "personaje": null,
+       "texto": "",
+       "tipo": "PROP",
+       "visible": true,
+       "x": 920,
+       "y": 410,
+       "z": 0
+      },
       {
        "alto": 48,
        "ancho": 48,
@@ -1444,7 +2202,9 @@
        "icono": "person",
        "indicacion": "Hablar con la abuela",
        "metadatos": {
+        "apoyo": "pies",
         "expresion": "en-crisis",
+        "movimiento": "quieto",
         "recipeId": "abuela-familia"
        },
        "movimiento": {},
@@ -1454,8 +2214,8 @@
        "texto": "La abuela de la niña exige verla.",
        "tipo": "PERSON",
        "visible": true,
-       "x": 168,
-       "y": 408,
+       "x": 640,
+       "y": 330,
        "z": 0
       },
       {
@@ -1471,7 +2231,9 @@
        "icono": "person",
        "indicacion": "Hablar con el hermano mayor",
        "metadatos": {
+        "apoyo": "pies",
         "expresion": "preocupada",
+        "movimiento": "quieto",
         "recipeId": "samuel"
        },
        "movimiento": {},
@@ -1481,8 +2243,8 @@
        "texto": "El hermano mayor espera una respuesta.",
        "tipo": "PERSON",
        "visible": true,
-       "x": 240,
-       "y": 440,
+       "x": 570,
+       "y": 340,
        "z": 0
       },
       {
@@ -1498,7 +2260,9 @@
        "icono": "person",
        "indicacion": "Acercarte al hermano menor",
        "metadatos": {
+        "apoyo": "pies",
         "expresion": "triste",
+        "movimiento": "quieto",
         "recipeId": "adolescente"
        },
        "movimiento": {},
@@ -1508,7 +2272,7 @@
        "texto": "El hermano menor acompaña a su madre.",
        "tipo": "PERSON",
        "visible": true,
-       "x": 300,
+       "x": 700,
        "y": 330,
        "z": 0
       },
@@ -1525,7 +2289,9 @@
        "icono": "person",
        "indicacion": "Hablar con la enfermera",
        "metadatos": {
+        "apoyo": "pies",
         "expresion": "neutral",
+        "movimiento": "quieto",
         "recipeId": "enfermera-urgencias"
        },
        "movimiento": {},
@@ -1535,8 +2301,8 @@
        "texto": "La enfermera pasa por la sala de espera.",
        "tipo": "PERSON",
        "visible": true,
-       "x": 740,
-       "y": 400,
+       "x": 1110,
+       "y": 330,
        "z": 0
       },
       {
@@ -1559,8 +2325,8 @@
        "texto": "Sala de escucha familiar. Cerrada con llave. Un letrero pegado dice: «Pedir la llave en enfermería».",
        "tipo": "OBJECT",
        "visible": true,
-       "x": 800,
-       "y": 300,
+       "x": 720,
+       "y": 252,
        "z": 0
       },
       {
@@ -1583,12 +2349,45 @@
        "texto": "Primeros Auxilios Psicológicos: contención, estabilización y enlace.",
        "tipo": "TOOL",
        "visible": true,
-       "x": 318,
-       "y": 430,
+       "x": 860,
+       "y": 452,
+       "z": 0
+      },
+      {
+       "alto": 40,
+       "ancho": 24,
+       "clave": "a-entrada",
+       "codigoCorto": "EXIT",
+       "colision": false,
+       "color": "#B69CFF",
+       "desbloqueo": {},
+       "etiqueta": "Volver a la entrada de urgencias",
+       "herramienta": null,
+       "icono": "door_front",
+       "indicacion": "Volver a la entrada de urgencias",
+       "metadatos": {
+        "entryX": 600,
+        "entryY": 260,
+        "label": "Volver a la entrada de urgencias",
+        "modelo": "corrediza",
+        "muro": "camara",
+        "par": "a-espera",
+        "pos": 586,
+        "targetNodeKey": "c1-entrada"
+       },
+       "movimiento": {},
+       "opcion": null,
+       "orientacion": "",
+       "personaje": null,
+       "texto": "Volver a la entrada de urgencias",
+       "tipo": "EXIT",
+       "visible": true,
+       "x": 720,
+       "y": 476,
        "z": 0
       }
      ],
-     "tema": "hospital-escucha",
+     "tema": "clinical-soft",
      "titulo": "Hospital — Sala de espera"
     },
     "objetivo": "Entiende qué está viviendo la familia y qué necesita ahora, antes de decidir cómo acompañarla.",
@@ -1695,81 +2494,130 @@
      "ambiente": {
       "ambientNpcKeys": [],
       "ambientNpcs": [],
+      "encuadre": "tres-paredes",
+      "lugarId": "hospital",
       "mood": "warm-private",
       "music": "none",
-      "salaId": "sala-de-espera",
-      "salaProvisional": "sala-escucha"
+      "salaId": "sala-espera"
      },
-     "ancho": 960,
+     "ancho": 1440,
      "aparicion": {
-      "x": 480,
-      "y": 430
+      "x": 720,
+      "y": 440
      },
-     "clave": "hospital-sala-escucha-espera-2",
+     "clave": "hosp-sala-espera-2",
      "colisiones": [
       {
        "alto": 236,
-       "ancho": 960,
+       "ancho": 1440,
        "clave": "pared-fondo",
-       "etiqueta": "pared-fondo",
+       "etiqueta": "Pared del fondo",
        "x": 0,
        "y": 0
       },
       {
+       "alto": 250,
+       "ancho": 134,
+       "clave": "pared-izquierda",
+       "etiqueta": "Pared izquierda",
+       "x": 0,
+       "y": 236
+      },
+      {
+       "alto": 250,
+       "ancho": 134,
+       "clave": "pared-derecha",
+       "etiqueta": "Pared derecha",
+       "x": 1306,
+       "y": 236
+      },
+      {
        "alto": 42,
-       "ancho": 960,
-       "clave": "borde-frontal",
-       "etiqueta": "borde-frontal",
+       "ancho": 1440,
+       "clave": "borde-delantero",
+       "etiqueta": "Borde delantero",
        "x": 0,
        "y": 486
       },
       {
-       "alto": 528,
-       "ancho": 96,
-       "clave": "pared-izquierda",
-       "etiqueta": "pared-izquierda",
-       "x": 0,
-       "y": 0
+       "alto": 8,
+       "ancho": 30,
+       "clave": "choque-planta",
+       "etiqueta": "Planta",
+       "x": 235,
+       "y": 254
       },
       {
-       "alto": 528,
-       "ancho": 96,
-       "clave": "pared-derecha",
-       "etiqueta": "pared-derecha",
-       "x": 864,
-       "y": 0
+       "alto": 16,
+       "ancho": 86,
+       "clave": "choque-sillas-espera",
+       "etiqueta": "Sillas de espera",
+       "x": 307,
+       "y": 244
       },
       {
-       "alto": 64,
-       "ancho": 130,
-       "clave": "sofa-escucha",
-       "etiqueta": "Sofá de escucha",
-       "x": 130,
-       "y": 300
+       "alto": 16,
+       "ancho": 86,
+       "clave": "choque-sillas-espera-2",
+       "etiqueta": "Sillas de espera",
+       "x": 401,
+       "y": 244
       },
       {
-       "alto": 36,
-       "ancho": 90,
-       "clave": "mesa-centro",
+       "alto": 16,
+       "ancho": 86,
+       "clave": "choque-sillas-espera-3",
+       "etiqueta": "Sillas de espera",
+       "x": 937,
+       "y": 244
+      },
+      {
+       "alto": 16,
+       "ancho": 86,
+       "clave": "choque-sillas-espera-4",
+       "etiqueta": "Sillas de espera",
+       "x": 1031,
+       "y": 244
+      },
+      {
+       "alto": 8,
+       "ancho": 20,
+       "clave": "choque-dispensador-agua",
+       "etiqueta": "Dispensador de agua",
+       "x": 1230,
+       "y": 252
+      },
+      {
+       "alto": 8,
+       "ancho": 20,
+       "clave": "choque-caneca",
+       "etiqueta": "Caneca",
+       "x": 1270,
+       "y": 254
+      },
+      {
+       "alto": 16,
+       "ancho": 86,
+       "clave": "choque-sillas-espera-5",
+       "etiqueta": "Sillas de espera",
+       "x": 477,
+       "y": 394
+      },
+      {
+       "alto": 10,
+       "ancho": 46,
+       "clave": "choque-mesa-centro",
        "etiqueta": "Mesa de centro",
-       "x": 280,
-       "y": 370
+       "x": 697,
+       "y": 390
       },
       {
-       "alto": 44,
-       "ancho": 150,
-       "clave": "estante-protocolos",
-       "etiqueta": "Estante de protocolos",
-       "x": 600,
-       "y": 256
-      },
-      {
-       "alto": 36,
-       "ancho": 56,
-       "clave": "silla-profesional",
-       "etiqueta": "Silla",
-       "x": 680,
-       "y": 330
+       "alto": 16,
+       "ancho": 86,
+       "clave": "choque-sillas-espera-6",
+       "etiqueta": "Sillas de espera",
+       "x": 877,
+       "y": 394
       }
      ],
      "dialogos": [
@@ -1875,7 +2723,376 @@
        "retrato": null
       }
      ],
+     "estructura": {
+      "acabados": {
+       "muro": "zocalo-alto",
+       "paleta": "hospital",
+       "piso": "vinilo",
+       "variante": "b"
+      },
+      "ancho": 1440,
+      "momento": "noche",
+      "piezas": [
+       {
+        "id": "tubo-1",
+        "modelo": "tubo",
+        "muro": "fondo",
+        "pos": 440,
+        "tipo": "lampara"
+       },
+       {
+        "id": "tubo-2",
+        "modelo": "tubo",
+        "muro": "fondo",
+        "pos": 720,
+        "tipo": "lampara"
+       },
+       {
+        "id": "tubo-3",
+        "modelo": "tubo",
+        "muro": "fondo",
+        "pos": 1084,
+        "tipo": "lampara"
+       },
+       {
+        "id": "ventanal-1",
+        "modelo": "ventanal",
+        "muro": "fondo",
+        "pos": 260,
+        "tipo": "ventana"
+       },
+       {
+        "id": "cartelera",
+        "modelo": "cartelera",
+        "muro": "fondo",
+        "pos": 430,
+        "tipo": "cartelera"
+       },
+       {
+        "id": "reloj",
+        "modelo": "reloj",
+        "muro": "fondo",
+        "pos": 506,
+        "tipo": "reloj"
+       },
+       {
+        "id": "gel",
+        "modelo": "gel",
+        "muro": "fondo",
+        "pos": 650,
+        "tipo": "gel"
+       },
+       {
+        "id": "cuadro",
+        "modelo": "cuadro",
+        "muro": "fondo",
+        "pos": 710,
+        "tipo": "cuadro"
+       },
+       {
+        "id": "ventanal-2",
+        "modelo": "ventanal",
+        "muro": "fondo",
+        "pos": 890,
+        "tipo": "ventana"
+       },
+       {
+        "id": "senal",
+        "modelo": "senal",
+        "muro": "fondo",
+        "pos": 1040,
+        "tipo": "senal"
+       },
+       {
+        "id": "extintor",
+        "modelo": "extintor",
+        "muro": "fondo",
+        "pos": 1136,
+        "tipo": "extintor"
+       }
+      ]
+     },
      "objetos": [
+      {
+       "alto": 47,
+       "ancho": 35,
+       "clave": "planta",
+       "codigoCorto": "MUE",
+       "colision": false,
+       "color": "#7FB3D5",
+       "desbloqueo": {},
+       "etiqueta": "Planta",
+       "herramienta": null,
+       "icono": "chair",
+       "indicacion": "",
+       "metadatos": {
+        "apoyo": "pies",
+        "arte": "/assets/biblioteca/piezas/muebles/hospital/planta.png",
+        "colision": true
+       },
+       "movimiento": {},
+       "opcion": null,
+       "orientacion": "",
+       "personaje": null,
+       "texto": "",
+       "tipo": "PROP",
+       "visible": true,
+       "x": 250,
+       "y": 262,
+       "z": 0
+      },
+      {
+       "alto": 42,
+       "ancho": 90,
+       "clave": "sillas-espera",
+       "codigoCorto": "MUE",
+       "colision": false,
+       "color": "#7FB3D5",
+       "desbloqueo": {},
+       "etiqueta": "Sillas de espera",
+       "herramienta": null,
+       "icono": "chair",
+       "indicacion": "",
+       "metadatos": {
+        "apoyo": "pies",
+        "arte": "/assets/biblioteca/piezas/muebles/hospital/sillas-espera.png",
+        "colision": true
+       },
+       "movimiento": {},
+       "opcion": null,
+       "orientacion": "",
+       "personaje": null,
+       "texto": "",
+       "tipo": "PROP",
+       "visible": true,
+       "x": 350,
+       "y": 260,
+       "z": 0
+      },
+      {
+       "alto": 42,
+       "ancho": 90,
+       "clave": "sillas-espera-2",
+       "codigoCorto": "MUE",
+       "colision": false,
+       "color": "#7FB3D5",
+       "desbloqueo": {},
+       "etiqueta": "Sillas de espera",
+       "herramienta": null,
+       "icono": "chair",
+       "indicacion": "",
+       "metadatos": {
+        "apoyo": "pies",
+        "arte": "/assets/biblioteca/piezas/muebles/hospital/sillas-espera.png",
+        "colision": true
+       },
+       "movimiento": {},
+       "opcion": null,
+       "orientacion": "",
+       "personaje": null,
+       "texto": "",
+       "tipo": "PROP",
+       "visible": true,
+       "x": 444,
+       "y": 260,
+       "z": 0
+      },
+      {
+       "alto": 42,
+       "ancho": 90,
+       "clave": "sillas-espera-3",
+       "codigoCorto": "MUE",
+       "colision": false,
+       "color": "#7FB3D5",
+       "desbloqueo": {},
+       "etiqueta": "Sillas de espera",
+       "herramienta": null,
+       "icono": "chair",
+       "indicacion": "",
+       "metadatos": {
+        "apoyo": "pies",
+        "arte": "/assets/biblioteca/piezas/muebles/hospital/sillas-espera.png",
+        "colision": true
+       },
+       "movimiento": {},
+       "opcion": null,
+       "orientacion": "",
+       "personaje": null,
+       "texto": "",
+       "tipo": "PROP",
+       "visible": true,
+       "x": 980,
+       "y": 260,
+       "z": 0
+      },
+      {
+       "alto": 42,
+       "ancho": 90,
+       "clave": "sillas-espera-4",
+       "codigoCorto": "MUE",
+       "colision": false,
+       "color": "#7FB3D5",
+       "desbloqueo": {},
+       "etiqueta": "Sillas de espera",
+       "herramienta": null,
+       "icono": "chair",
+       "indicacion": "",
+       "metadatos": {
+        "apoyo": "pies",
+        "arte": "/assets/biblioteca/piezas/muebles/hospital/sillas-espera.png",
+        "colision": true
+       },
+       "movimiento": {},
+       "opcion": null,
+       "orientacion": "",
+       "personaje": null,
+       "texto": "",
+       "tipo": "PROP",
+       "visible": true,
+       "x": 1074,
+       "y": 260,
+       "z": 0
+      },
+      {
+       "alto": 63,
+       "ancho": 24,
+       "clave": "dispensador-agua",
+       "codigoCorto": "MUE",
+       "colision": false,
+       "color": "#7FB3D5",
+       "desbloqueo": {},
+       "etiqueta": "Dispensador de agua",
+       "herramienta": null,
+       "icono": "chair",
+       "indicacion": "",
+       "metadatos": {
+        "apoyo": "pies",
+        "arte": "/assets/biblioteca/piezas/muebles/hospital/dispensador-agua.png",
+        "colision": true
+       },
+       "movimiento": {},
+       "opcion": null,
+       "orientacion": "",
+       "personaje": null,
+       "texto": "",
+       "tipo": "PROP",
+       "visible": true,
+       "x": 1240,
+       "y": 260,
+       "z": 0
+      },
+      {
+       "alto": 34,
+       "ancho": 24,
+       "clave": "caneca",
+       "codigoCorto": "MUE",
+       "colision": false,
+       "color": "#7FB3D5",
+       "desbloqueo": {},
+       "etiqueta": "Caneca",
+       "herramienta": null,
+       "icono": "chair",
+       "indicacion": "",
+       "metadatos": {
+        "apoyo": "pies",
+        "arte": "/assets/biblioteca/piezas/muebles/hospital/caneca.png",
+        "colision": true
+       },
+       "movimiento": {},
+       "opcion": null,
+       "orientacion": "",
+       "personaje": null,
+       "texto": "",
+       "tipo": "PROP",
+       "visible": true,
+       "x": 1280,
+       "y": 262,
+       "z": 0
+      },
+      {
+       "alto": 42,
+       "ancho": 90,
+       "clave": "sillas-espera-5",
+       "codigoCorto": "MUE",
+       "colision": false,
+       "color": "#7FB3D5",
+       "desbloqueo": {},
+       "etiqueta": "Sillas de espera",
+       "herramienta": null,
+       "icono": "chair",
+       "indicacion": "",
+       "metadatos": {
+        "apoyo": "pies",
+        "arte": "/assets/biblioteca/piezas/muebles/hospital/sillas-espera.png",
+        "colision": true
+       },
+       "movimiento": {},
+       "opcion": null,
+       "orientacion": "",
+       "personaje": null,
+       "texto": "",
+       "tipo": "PROP",
+       "visible": true,
+       "x": 520,
+       "y": 410,
+       "z": 0
+      },
+      {
+       "alto": 22,
+       "ancho": 50,
+       "clave": "mesa-centro",
+       "codigoCorto": "MUE",
+       "colision": false,
+       "color": "#7FB3D5",
+       "desbloqueo": {},
+       "etiqueta": "Mesa de centro",
+       "herramienta": null,
+       "icono": "chair",
+       "indicacion": "",
+       "metadatos": {
+        "apoyo": "pies",
+        "arte": "/assets/biblioteca/piezas/muebles/hospital/mesa-centro.png",
+        "colision": true
+       },
+       "movimiento": {},
+       "opcion": null,
+       "orientacion": "",
+       "personaje": null,
+       "texto": "",
+       "tipo": "PROP",
+       "visible": true,
+       "x": 720,
+       "y": 400,
+       "z": 0
+      },
+      {
+       "alto": 42,
+       "ancho": 90,
+       "clave": "sillas-espera-6",
+       "codigoCorto": "MUE",
+       "colision": false,
+       "color": "#7FB3D5",
+       "desbloqueo": {},
+       "etiqueta": "Sillas de espera",
+       "herramienta": null,
+       "icono": "chair",
+       "indicacion": "",
+       "metadatos": {
+        "apoyo": "pies",
+        "arte": "/assets/biblioteca/piezas/muebles/hospital/sillas-espera.png",
+        "colision": true
+       },
+       "movimiento": {},
+       "opcion": null,
+       "orientacion": "",
+       "personaje": null,
+       "texto": "",
+       "tipo": "PROP",
+       "visible": true,
+       "x": 920,
+       "y": 410,
+       "z": 0
+      },
       {
        "alto": 48,
        "ancho": 48,
@@ -1889,7 +3106,9 @@
        "icono": "person",
        "indicacion": "Hablar con la abuela",
        "metadatos": {
+        "apoyo": "pies",
         "expresion": "triste",
+        "movimiento": "quieto",
         "recipeId": "abuela-familia"
        },
        "movimiento": {},
@@ -1899,8 +3118,8 @@
        "texto": "La abuela quiere hablar, pero no aquí.",
        "tipo": "PERSON",
        "visible": true,
-       "x": 168,
-       "y": 408,
+       "x": 640,
+       "y": 330,
        "z": 0
       },
       {
@@ -1916,7 +3135,9 @@
        "icono": "person",
        "indicacion": "Hablar con el hermano mayor",
        "metadatos": {
+        "apoyo": "pies",
         "expresion": "preocupada",
+        "movimiento": "quieto",
         "recipeId": "samuel"
        },
        "movimiento": {},
@@ -1926,8 +3147,8 @@
        "texto": "El hermano mayor sostiene a su madre del brazo.",
        "tipo": "PERSON",
        "visible": true,
-       "x": 240,
-       "y": 440,
+       "x": 570,
+       "y": 340,
        "z": 0
       },
       {
@@ -1943,7 +3164,9 @@
        "icono": "person",
        "indicacion": "Acercarte al hermano menor",
        "metadatos": {
+        "apoyo": "pies",
         "expresion": "triste",
+        "movimiento": "quieto",
         "recipeId": "adolescente"
        },
        "movimiento": {},
@@ -1953,7 +3176,7 @@
        "texto": "El hermano menor mira hacia la puerta de cirugía.",
        "tipo": "PERSON",
        "visible": true,
-       "x": 300,
+       "x": 700,
        "y": 330,
        "z": 0
       },
@@ -1970,7 +3193,9 @@
        "icono": "person",
        "indicacion": "Pedirle la llave a la enfermera",
        "metadatos": {
+        "apoyo": "pies",
         "expresion": "neutral",
+        "movimiento": "quieto",
         "recipeId": "enfermera-urgencias"
        },
        "movimiento": {},
@@ -1980,13 +3205,13 @@
        "texto": "La enfermera tiene la llave de la sala de escucha.",
        "tipo": "PERSON",
        "visible": true,
-       "x": 740,
-       "y": 400,
+       "x": 1110,
+       "y": 330,
        "z": 0
       },
       {
-       "alto": 48,
-       "ancho": 36,
+       "alto": 40,
+       "ancho": 24,
        "clave": "puerta-sala-escucha",
        "codigoCorto": "EXIT",
        "colision": false,
@@ -1995,12 +3220,16 @@
        "etiqueta": "Sala de escucha familiar",
        "herramienta": null,
        "icono": "door_front",
-       "indicacion": "Entrar: Sala de escucha familiar",
+       "indicacion": "Sala de escucha familiar",
        "metadatos": {
-        "entryX": 160,
-        "entryY": 452,
+        "entryX": 480,
+        "entryY": 476,
         "label": "Sala de escucha familiar",
         "lockedMessage": "La sala de escucha está cerrada con llave. La llave la tiene la enfermera.",
+        "modelo": "vidrio",
+        "muro": "fondo",
+        "par": "puerta-sala-espera",
+        "pos": 586,
         "requiresInspected": [
          "enfermera"
         ],
@@ -2013,12 +3242,12 @@
        "texto": "Sala de escucha familiar",
        "tipo": "EXIT",
        "visible": true,
-       "x": 838,
-       "y": 440,
+       "x": 720,
+       "y": 260,
        "z": 0
       }
      ],
-     "tema": "hospital-escucha",
+     "tema": "clinical-soft",
      "titulo": "Hospital — Sala de espera"
     },
     "objetivo": "Busca un lugar donde la familia pueda hablar y sentarse con privacidad.",
@@ -2130,81 +3359,114 @@
      "ambiente": {
       "ambientNpcKeys": [],
       "ambientNpcs": [],
-      "mood": "warm-private",
+      "encuadre": "tres-paredes",
+      "lugarId": "hospital",
+      "mood": "clinical-urgent",
       "music": "none",
-      "salaId": "estacion-enfermeria",
-      "salaProvisional": "sala-escucha"
+      "salaId": "estacion-enfermeria"
      },
-     "ancho": 960,
+     "ancho": 1200,
      "aparicion": {
-      "x": 480,
-      "y": 430
+      "x": 700,
+      "y": 440
      },
-     "clave": "hospital-sala-escucha-enfermeria",
+     "clave": "hosp-estacion-enfermeria",
      "colisiones": [
       {
        "alto": 236,
-       "ancho": 960,
+       "ancho": 1200,
        "clave": "pared-fondo",
-       "etiqueta": "pared-fondo",
+       "etiqueta": "Pared del fondo",
        "x": 0,
        "y": 0
       },
       {
+       "alto": 250,
+       "ancho": 115,
+       "clave": "pared-izquierda",
+       "etiqueta": "Pared izquierda",
+       "x": 0,
+       "y": 236
+      },
+      {
+       "alto": 250,
+       "ancho": 115,
+       "clave": "pared-derecha",
+       "etiqueta": "Pared derecha",
+       "x": 1085,
+       "y": 236
+      },
+      {
        "alto": 42,
-       "ancho": 960,
-       "clave": "borde-frontal",
-       "etiqueta": "borde-frontal",
+       "ancho": 1200,
+       "clave": "borde-delantero",
+       "etiqueta": "Borde delantero",
        "x": 0,
        "y": 486
       },
       {
-       "alto": 528,
-       "ancho": 96,
-       "clave": "pared-izquierda",
-       "etiqueta": "pared-izquierda",
-       "x": 0,
-       "y": 0
+       "alto": 10,
+       "ancho": 48,
+       "clave": "choque-archivador-clinico",
+       "etiqueta": "Archivador clínico",
+       "x": 176,
+       "y": 254
       },
       {
-       "alto": 528,
-       "ancho": 96,
-       "clave": "pared-derecha",
-       "etiqueta": "pared-derecha",
-       "x": 864,
-       "y": 0
+       "alto": 10,
+       "ancho": 48,
+       "clave": "choque-archivador-clinico-2",
+       "etiqueta": "Archivador clínico",
+       "x": 232,
+       "y": 254
       },
       {
-       "alto": 64,
-       "ancho": 130,
-       "clave": "sofa-escucha",
-       "etiqueta": "Sofá de escucha",
-       "x": 130,
-       "y": 300
+       "alto": 8,
+       "ancho": 30,
+       "clave": "choque-planta",
+       "etiqueta": "Planta",
+       "x": 315,
+       "y": 254
       },
       {
-       "alto": 36,
-       "ancho": 90,
-       "clave": "mesa-centro",
-       "etiqueta": "Mesa de centro",
-       "x": 280,
-       "y": 370
+       "alto": 16,
+       "ancho": 180,
+       "clave": "choque-mostrador-enfermeria",
+       "etiqueta": "Mostrador de enfermería",
+       "x": 470,
+       "y": 356
       },
       {
-       "alto": 44,
-       "ancho": 150,
-       "clave": "estante-protocolos",
-       "etiqueta": "Estante de protocolos",
-       "x": 600,
-       "y": 256
+       "alto": 8,
+       "ancho": 20,
+       "clave": "choque-silla-oficina",
+       "etiqueta": "Silla de oficina",
+       "x": 510,
+       "y": 328
       },
       {
-       "alto": 36,
-       "ancho": 56,
-       "clave": "silla-profesional",
-       "etiqueta": "Silla",
-       "x": 680,
-       "y": 330
+       "alto": 9,
+       "ancho": 42,
+       "clave": "choque-carro-curaciones",
+       "etiqueta": "Carro de curaciones",
+       "x": 839,
+       "y": 287
+      },
+      {
+       "alto": 8,
+       "ancho": 20,
+       "clave": "choque-dispensador-agua",
+       "etiqueta": "Dispensador de agua",
+       "x": 980,
+       "y": 254
+      },
+      {
+       "alto": 8,
+       "ancho": 36,
+       "clave": "choque-silla-ruedas",
+       "etiqueta": "Silla de ruedas",
+       "x": 222,
+       "y": 412
       }
      ],
      "dialogos": [
@@ -2294,7 +3556,299 @@
        "retrato": null
       }
      ],
+     "estructura": {
+      "acabados": {
+       "muro": "paneles",
+       "paleta": "hospital",
+       "piso": "vinilo",
+       "variante": "a"
+      },
+      "ancho": 1200,
+      "momento": "noche",
+      "piezas": [
+       {
+        "id": "tubo-1",
+        "modelo": "tubo",
+        "muro": "fondo",
+        "pos": 300,
+        "tipo": "lampara"
+       },
+       {
+        "id": "tubo-2",
+        "modelo": "tubo",
+        "muro": "fondo",
+        "pos": 760,
+        "tipo": "lampara"
+       },
+       {
+        "id": "tablero",
+        "modelo": "tablero",
+        "muro": "fondo",
+        "pos": 300,
+        "tipo": "tablero"
+       },
+       {
+        "id": "reloj",
+        "modelo": "reloj",
+        "muro": "fondo",
+        "pos": 420,
+        "tipo": "reloj"
+       },
+       {
+        "id": "cruz",
+        "modelo": "cruz",
+        "muro": "fondo",
+        "pos": 480,
+        "tipo": "cruz"
+       },
+       {
+        "id": "ventana",
+        "modelo": "alta",
+        "muro": "fondo",
+        "pos": 620,
+        "tipo": "ventana"
+       },
+       {
+        "id": "cartelera",
+        "modelo": "cartelera",
+        "muro": "fondo",
+        "pos": 800,
+        "tipo": "cartelera"
+       },
+       {
+        "id": "gel",
+        "modelo": "gel",
+        "muro": "fondo",
+        "pos": 900,
+        "tipo": "gel"
+       }
+      ]
+     },
      "objetos": [
+      {
+       "alto": 73,
+       "ancho": 52,
+       "clave": "archivador-clinico",
+       "codigoCorto": "MUE",
+       "colision": false,
+       "color": "#7FB3D5",
+       "desbloqueo": {},
+       "etiqueta": "Archivador clínico",
+       "herramienta": null,
+       "icono": "chair",
+       "indicacion": "",
+       "metadatos": {
+        "apoyo": "pies",
+        "arte": "/assets/biblioteca/piezas/muebles/hospital/archivador-clinico.png",
+        "colision": true
+       },
+       "movimiento": {},
+       "opcion": null,
+       "orientacion": "",
+       "personaje": null,
+       "texto": "",
+       "tipo": "PROP",
+       "visible": true,
+       "x": 200,
+       "y": 264,
+       "z": 0
+      },
+      {
+       "alto": 73,
+       "ancho": 52,
+       "clave": "archivador-clinico-2",
+       "codigoCorto": "MUE",
+       "colision": false,
+       "color": "#7FB3D5",
+       "desbloqueo": {},
+       "etiqueta": "Archivador clínico",
+       "herramienta": null,
+       "icono": "chair",
+       "indicacion": "",
+       "metadatos": {
+        "apoyo": "pies",
+        "arte": "/assets/biblioteca/piezas/muebles/hospital/archivador-clinico.png",
+        "colision": true
+       },
+       "movimiento": {},
+       "opcion": null,
+       "orientacion": "",
+       "personaje": null,
+       "texto": "",
+       "tipo": "PROP",
+       "visible": true,
+       "x": 256,
+       "y": 264,
+       "z": 0
+      },
+      {
+       "alto": 47,
+       "ancho": 35,
+       "clave": "planta",
+       "codigoCorto": "MUE",
+       "colision": false,
+       "color": "#7FB3D5",
+       "desbloqueo": {},
+       "etiqueta": "Planta",
+       "herramienta": null,
+       "icono": "chair",
+       "indicacion": "",
+       "metadatos": {
+        "apoyo": "pies",
+        "arte": "/assets/biblioteca/piezas/muebles/hospital/planta.png",
+        "colision": true
+       },
+       "movimiento": {},
+       "opcion": null,
+       "orientacion": "",
+       "personaje": null,
+       "texto": "",
+       "tipo": "PROP",
+       "visible": true,
+       "x": 330,
+       "y": 262,
+       "z": 0
+      },
+      {
+       "alto": 61,
+       "ancho": 184,
+       "clave": "mostrador-enfermeria",
+       "codigoCorto": "MUE",
+       "colision": false,
+       "color": "#7FB3D5",
+       "desbloqueo": {},
+       "etiqueta": "Mostrador de enfermería",
+       "herramienta": null,
+       "icono": "chair",
+       "indicacion": "",
+       "metadatos": {
+        "apoyo": "pies",
+        "arte": "/assets/biblioteca/piezas/muebles/hospital/mostrador-enfermeria.png",
+        "colision": true
+       },
+       "movimiento": {},
+       "opcion": null,
+       "orientacion": "",
+       "personaje": null,
+       "texto": "",
+       "tipo": "PROP",
+       "visible": true,
+       "x": 560,
+       "y": 372,
+       "z": 0
+      },
+      {
+       "alto": 40,
+       "ancho": 24,
+       "clave": "silla-oficina",
+       "codigoCorto": "MUE",
+       "colision": false,
+       "color": "#7FB3D5",
+       "desbloqueo": {},
+       "etiqueta": "Silla de oficina",
+       "herramienta": null,
+       "icono": "chair",
+       "indicacion": "",
+       "metadatos": {
+        "apoyo": "pies",
+        "arte": "/assets/biblioteca/piezas/muebles/hospital/silla-oficina.png",
+        "colision": true
+       },
+       "movimiento": {},
+       "opcion": null,
+       "orientacion": "",
+       "personaje": null,
+       "texto": "",
+       "tipo": "PROP",
+       "visible": true,
+       "x": 520,
+       "y": 336,
+       "z": 0
+      },
+      {
+       "alto": 56,
+       "ancho": 46,
+       "clave": "carro-curaciones",
+       "codigoCorto": "MUE",
+       "colision": false,
+       "color": "#7FB3D5",
+       "desbloqueo": {},
+       "etiqueta": "Carro de curaciones",
+       "herramienta": null,
+       "icono": "chair",
+       "indicacion": "",
+       "metadatos": {
+        "apoyo": "pies",
+        "arte": "/assets/biblioteca/piezas/muebles/hospital/carro-curaciones.png",
+        "colision": true
+       },
+       "movimiento": {},
+       "opcion": null,
+       "orientacion": "",
+       "personaje": null,
+       "texto": "",
+       "tipo": "PROP",
+       "visible": true,
+       "x": 860,
+       "y": 296,
+       "z": 0
+      },
+      {
+       "alto": 63,
+       "ancho": 24,
+       "clave": "dispensador-agua",
+       "codigoCorto": "MUE",
+       "colision": false,
+       "color": "#7FB3D5",
+       "desbloqueo": {},
+       "etiqueta": "Dispensador de agua",
+       "herramienta": null,
+       "icono": "chair",
+       "indicacion": "",
+       "metadatos": {
+        "apoyo": "pies",
+        "arte": "/assets/biblioteca/piezas/muebles/hospital/dispensador-agua.png",
+        "colision": true
+       },
+       "movimiento": {},
+       "opcion": null,
+       "orientacion": "",
+       "personaje": null,
+       "texto": "",
+       "tipo": "PROP",
+       "visible": true,
+       "x": 990,
+       "y": 262,
+       "z": 0
+      },
+      {
+       "alto": 44,
+       "ancho": 40,
+       "clave": "silla-ruedas",
+       "codigoCorto": "MUE",
+       "colision": false,
+       "color": "#7FB3D5",
+       "desbloqueo": {},
+       "etiqueta": "Silla de ruedas",
+       "herramienta": null,
+       "icono": "chair",
+       "indicacion": "",
+       "metadatos": {
+        "apoyo": "pies",
+        "arte": "/assets/biblioteca/piezas/muebles/hospital/silla-ruedas.png",
+        "colision": true
+       },
+       "movimiento": {},
+       "opcion": null,
+       "orientacion": "",
+       "personaje": null,
+       "texto": "",
+       "tipo": "PROP",
+       "visible": true,
+       "x": 240,
+       "y": 420,
+       "z": 0
+      },
       {
        "alto": 48,
        "ancho": 48,
@@ -2308,7 +3862,9 @@
        "icono": "person",
        "indicacion": "Hablar con el médico de guardia",
        "metadatos": {
+        "apoyo": "pies",
         "expresion": "preocupada",
+        "movimiento": "quieto",
         "recipeId": "medico-guardia"
        },
        "movimiento": {},
@@ -2318,8 +3874,8 @@
        "texto": "El médico de guardia sale un momento de cirugía.",
        "tipo": "PERSON",
        "visible": true,
-       "x": 480,
-       "y": 300,
+       "x": 800,
+       "y": 410,
        "z": 0
       },
       {
@@ -2335,7 +3891,9 @@
        "icono": "person",
        "indicacion": "Hablar con la enfermera",
        "metadatos": {
+        "apoyo": "pies",
         "expresion": "neutral",
+        "movimiento": "quieto",
         "recipeId": "enfermera-urgencias"
        },
        "movimiento": {},
@@ -2345,8 +3903,8 @@
        "texto": "La enfermera organiza la estación.",
        "tipo": "PERSON",
        "visible": true,
-       "x": 660,
-       "y": 320,
+       "x": 600,
+       "y": 338,
        "z": 0
       },
       {
@@ -2369,8 +3927,8 @@
        "texto": "Hoja de ingreso de la paciente y de la niña, con lo que se le ha informado a la familia.",
        "tipo": "OBJECT",
        "visible": true,
-       "x": 560,
-       "y": 430,
+       "x": 470,
+       "y": 392,
        "z": 0
       },
       {
@@ -2393,12 +3951,49 @@
        "texto": "Protocolo EPICEE (SPIKES): comunicación de noticias difíciles por etapas.",
        "tipo": "TOOL",
        "visible": true,
-       "x": 318,
-       "y": 430,
+       "x": 940,
+       "y": 452,
+       "z": 0
+      },
+      {
+       "alto": 40,
+       "ancho": 24,
+       "clave": "a-pasillo",
+       "codigoCorto": "EXIT",
+       "colision": false,
+       "color": "#B69CFF",
+       "desbloqueo": {},
+       "etiqueta": "Volver al pasillo",
+       "herramienta": null,
+       "icono": "door_front",
+       "indicacion": "Volver al pasillo",
+       "metadatos": {
+        "entryX": 169,
+        "entryY": 390,
+        "label": "Volver al pasillo",
+        "lockedMessage": "Por ahora te necesitan en esta sala.",
+        "modelo": "paso",
+        "muro": "derecha",
+        "par": "a-enfermeria",
+        "pos": 160,
+        "requiresNodes": [
+         "cierre-caso"
+        ],
+        "targetNodeKey": "c2-pasillo"
+       },
+       "movimiento": {},
+       "opcion": null,
+       "orientacion": "",
+       "personaje": null,
+       "texto": "Volver al pasillo",
+       "tipo": "EXIT",
+       "visible": true,
+       "x": 1069,
+       "y": 390,
        "z": 0
       }
      ],
-     "tema": "hospital-escucha",
+     "tema": "clinical-soft",
      "titulo": "Hospital — Estación de enfermería"
     },
     "objetivo": "Aclara con el equipo médico qué se sabe con certeza y quién lo va a comunicar.",
@@ -2505,82 +4100,115 @@
        "numero": 2,
        "titulo": "La noticia"
       },
+      "encuadre": "tres-paredes",
+      "lugarId": "hospital",
       "mood": "warm-private",
       "music": "none",
       "salaId": "trabajo-social",
-      "salaProvisional": "sala-escucha",
       "transitionText": "Capítulo 2 · La noticia. Hospital, madrugada."
      },
      "ancho": 960,
      "aparicion": {
       "x": 480,
-      "y": 430
+      "y": 440
      },
-     "clave": "hospital-sala-escucha-trabajo-social",
+     "clave": "hosp-trabajo-social",
      "colisiones": [
       {
        "alto": 236,
        "ancho": 960,
        "clave": "pared-fondo",
-       "etiqueta": "pared-fondo",
+       "etiqueta": "Pared del fondo",
        "x": 0,
        "y": 0
+      },
+      {
+       "alto": 250,
+       "ancho": 96,
+       "clave": "pared-izquierda",
+       "etiqueta": "Pared izquierda",
+       "x": 0,
+       "y": 236
+      },
+      {
+       "alto": 250,
+       "ancho": 96,
+       "clave": "pared-derecha",
+       "etiqueta": "Pared derecha",
+       "x": 864,
+       "y": 236
       },
       {
        "alto": 42,
        "ancho": 960,
-       "clave": "borde-frontal",
-       "etiqueta": "borde-frontal",
+       "clave": "borde-delantero",
+       "etiqueta": "Borde delantero",
        "x": 0,
        "y": 486
       },
       {
-       "alto": 528,
-       "ancho": 96,
-       "clave": "pared-izquierda",
-       "etiqueta": "pared-izquierda",
-       "x": 0,
-       "y": 0
+       "alto": 10,
+       "ancho": 48,
+       "clave": "choque-archivador-clinico",
+       "etiqueta": "Archivador clínico",
+       "x": 126,
+       "y": 254
       },
       {
-       "alto": 528,
-       "ancho": 96,
-       "clave": "pared-derecha",
-       "etiqueta": "pared-derecha",
-       "x": 864,
-       "y": 0
+       "alto": 12,
+       "ancho": 58,
+       "clave": "choque-estante",
+       "etiqueta": "Estante",
+       "x": 771,
+       "y": 250
       },
       {
-       "alto": 64,
-       "ancho": 130,
-       "clave": "sofa-escucha",
-       "etiqueta": "Sofá de escucha",
-       "x": 130,
-       "y": 300
+       "alto": 8,
+       "ancho": 20,
+       "clave": "choque-silla-oficina",
+       "etiqueta": "Silla de oficina",
+       "x": 470,
+       "y": 274
       },
       {
-       "alto": 36,
-       "ancho": 90,
-       "clave": "mesa-centro",
-       "etiqueta": "Mesa de centro",
-       "x": 280,
-       "y": 370
+       "alto": 16,
+       "ancho": 118,
+       "clave": "choque-escritorio",
+       "etiqueta": "Escritorio",
+       "x": 421,
+       "y": 296
       },
       {
-       "alto": 44,
-       "ancho": 150,
-       "clave": "estante-protocolos",
-       "etiqueta": "Estante de protocolos",
-       "x": 600,
+       "alto": 8,
+       "ancho": 18,
+       "clave": "choque-silla-visitante",
+       "etiqueta": "Silla de visitante",
+       "x": 431,
+       "y": 358
+      },
+      {
+       "alto": 8,
+       "ancho": 18,
+       "clave": "choque-silla-visitante-2",
+       "etiqueta": "Silla de visitante",
+       "x": 515,
+       "y": 358
+      },
+      {
+       "alto": 8,
+       "ancho": 30,
+       "clave": "choque-planta",
+       "etiqueta": "Planta",
+       "x": 285,
        "y": 256
       },
       {
-       "alto": 36,
-       "ancho": 56,
-       "clave": "silla-profesional",
-       "etiqueta": "Silla",
-       "x": 680,
-       "y": 330
+       "alto": 8,
+       "ancho": 20,
+       "clave": "choque-dispensador-agua",
+       "etiqueta": "Dispensador de agua",
+       "x": 710,
+       "y": 254
       }
      ],
      "dialogos": [
@@ -2654,7 +4282,286 @@
        "retrato": null
       }
      ],
+     "estructura": {
+      "acabados": {
+       "muro": "paneles",
+       "paleta": "hospital",
+       "piso": "vinilo",
+       "variante": "b"
+      },
+      "ancho": 960,
+      "momento": "noche",
+      "piezas": [
+       {
+        "id": "tubo",
+        "modelo": "tubo",
+        "muro": "fondo",
+        "pos": 384,
+        "tipo": "lampara"
+       },
+       {
+        "id": "cartelera",
+        "modelo": "cartelera",
+        "muro": "fondo",
+        "pos": 200,
+        "tipo": "cartelera"
+       },
+       {
+        "id": "reloj",
+        "modelo": "reloj",
+        "muro": "fondo",
+        "pos": 300,
+        "tipo": "reloj"
+       },
+       {
+        "id": "ventana",
+        "modelo": "persiana",
+        "muro": "fondo",
+        "pos": 560,
+        "tipo": "ventana"
+       },
+       {
+        "id": "cuadro",
+        "modelo": "cuadro",
+        "muro": "fondo",
+        "pos": 690,
+        "tipo": "cuadro"
+       },
+       {
+        "id": "lampara-mesa",
+        "modelo": "mesa",
+        "sobre": 42,
+        "tipo": "lampara",
+        "x": 436,
+        "y": 312
+       }
+      ]
+     },
      "objetos": [
+      {
+       "alto": 73,
+       "ancho": 52,
+       "clave": "archivador-clinico",
+       "codigoCorto": "MUE",
+       "colision": false,
+       "color": "#7FB3D5",
+       "desbloqueo": {},
+       "etiqueta": "Archivador clínico",
+       "herramienta": null,
+       "icono": "chair",
+       "indicacion": "",
+       "metadatos": {
+        "apoyo": "pies",
+        "arte": "/assets/biblioteca/piezas/muebles/hospital/archivador-clinico.png",
+        "colision": true
+       },
+       "movimiento": {},
+       "opcion": null,
+       "orientacion": "",
+       "personaje": null,
+       "texto": "",
+       "tipo": "PROP",
+       "visible": true,
+       "x": 150,
+       "y": 264,
+       "z": 0
+      },
+      {
+       "alto": 74,
+       "ancho": 62,
+       "clave": "estante",
+       "codigoCorto": "MUE",
+       "colision": false,
+       "color": "#7FB3D5",
+       "desbloqueo": {},
+       "etiqueta": "Estante",
+       "herramienta": null,
+       "icono": "chair",
+       "indicacion": "",
+       "metadatos": {
+        "apoyo": "pies",
+        "arte": "/assets/biblioteca/piezas/muebles/hospital/estante.png",
+        "colision": true
+       },
+       "movimiento": {},
+       "opcion": null,
+       "orientacion": "",
+       "personaje": null,
+       "texto": "",
+       "tipo": "PROP",
+       "visible": true,
+       "x": 800,
+       "y": 262,
+       "z": 0
+      },
+      {
+       "alto": 40,
+       "ancho": 24,
+       "clave": "silla-oficina",
+       "codigoCorto": "MUE",
+       "colision": false,
+       "color": "#7FB3D5",
+       "desbloqueo": {},
+       "etiqueta": "Silla de oficina",
+       "herramienta": null,
+       "icono": "chair",
+       "indicacion": "",
+       "metadatos": {
+        "apoyo": "pies",
+        "arte": "/assets/biblioteca/piezas/muebles/hospital/silla-oficina.png",
+        "colision": true
+       },
+       "movimiento": {},
+       "opcion": null,
+       "orientacion": "",
+       "personaje": null,
+       "texto": "",
+       "tipo": "PROP",
+       "visible": true,
+       "x": 480,
+       "y": 282,
+       "z": 0
+      },
+      {
+       "alto": 57,
+       "ancho": 122,
+       "clave": "escritorio",
+       "codigoCorto": "MUE",
+       "colision": false,
+       "color": "#7FB3D5",
+       "desbloqueo": {},
+       "etiqueta": "Escritorio",
+       "herramienta": null,
+       "icono": "chair",
+       "indicacion": "",
+       "metadatos": {
+        "apoyo": "pies",
+        "arte": "/assets/biblioteca/piezas/muebles/hospital/escritorio.png",
+        "colision": true
+       },
+       "movimiento": {},
+       "opcion": null,
+       "orientacion": "",
+       "personaje": null,
+       "texto": "",
+       "tipo": "PROP",
+       "visible": true,
+       "x": 480,
+       "y": 312,
+       "z": 0
+      },
+      {
+       "alto": 34,
+       "ancho": 22,
+       "clave": "silla-visitante",
+       "codigoCorto": "MUE",
+       "colision": false,
+       "color": "#7FB3D5",
+       "desbloqueo": {},
+       "etiqueta": "Silla de visitante",
+       "herramienta": null,
+       "icono": "chair",
+       "indicacion": "",
+       "metadatos": {
+        "apoyo": "pies",
+        "arte": "/assets/biblioteca/piezas/muebles/hospital/silla-visitante.png",
+        "colision": true
+       },
+       "movimiento": {},
+       "opcion": null,
+       "orientacion": "",
+       "personaje": null,
+       "texto": "",
+       "tipo": "PROP",
+       "visible": true,
+       "x": 440,
+       "y": 366,
+       "z": 0
+      },
+      {
+       "alto": 34,
+       "ancho": 22,
+       "clave": "silla-visitante-2",
+       "codigoCorto": "MUE",
+       "colision": false,
+       "color": "#7FB3D5",
+       "desbloqueo": {},
+       "etiqueta": "Silla de visitante",
+       "herramienta": null,
+       "icono": "chair",
+       "indicacion": "",
+       "metadatos": {
+        "apoyo": "pies",
+        "arte": "/assets/biblioteca/piezas/muebles/hospital/silla-visitante.png",
+        "colision": true
+       },
+       "movimiento": {},
+       "opcion": null,
+       "orientacion": "",
+       "personaje": null,
+       "texto": "",
+       "tipo": "PROP",
+       "visible": true,
+       "x": 524,
+       "y": 366,
+       "z": 0
+      },
+      {
+       "alto": 47,
+       "ancho": 35,
+       "clave": "planta",
+       "codigoCorto": "MUE",
+       "colision": false,
+       "color": "#7FB3D5",
+       "desbloqueo": {},
+       "etiqueta": "Planta",
+       "herramienta": null,
+       "icono": "chair",
+       "indicacion": "",
+       "metadatos": {
+        "apoyo": "pies",
+        "arte": "/assets/biblioteca/piezas/muebles/hospital/planta.png",
+        "colision": true
+       },
+       "movimiento": {},
+       "opcion": null,
+       "orientacion": "",
+       "personaje": null,
+       "texto": "",
+       "tipo": "PROP",
+       "visible": true,
+       "x": 300,
+       "y": 264,
+       "z": 0
+      },
+      {
+       "alto": 63,
+       "ancho": 24,
+       "clave": "dispensador-agua",
+       "codigoCorto": "MUE",
+       "colision": false,
+       "color": "#7FB3D5",
+       "desbloqueo": {},
+       "etiqueta": "Dispensador de agua",
+       "herramienta": null,
+       "icono": "chair",
+       "indicacion": "",
+       "metadatos": {
+        "apoyo": "pies",
+        "arte": "/assets/biblioteca/piezas/muebles/hospital/dispensador-agua.png",
+        "colision": true
+       },
+       "movimiento": {},
+       "opcion": null,
+       "orientacion": "",
+       "personaje": null,
+       "texto": "",
+       "tipo": "PROP",
+       "visible": true,
+       "x": 720,
+       "y": 262,
+       "z": 0
+      },
       {
        "alto": 48,
        "ancho": 48,
@@ -2668,7 +4575,9 @@
        "icono": "person",
        "indicacion": "Hablar con la trabajadora social",
        "metadatos": {
+        "apoyo": "pies",
         "expresion": "neutral",
+        "movimiento": "quieto",
         "recipeId": "trabajadora-social"
        },
        "movimiento": {},
@@ -2678,8 +4587,8 @@
        "texto": "La trabajadora social prepara la atención del caso.",
        "tipo": "PERSON",
        "visible": true,
-       "x": 660,
-       "y": 320,
+       "x": 480,
+       "y": 290,
        "z": 0
       },
       {
@@ -2702,7 +4611,7 @@
        "texto": "Protocolos y normas disponibles en el servicio de urgencias.",
        "tipo": "OBJECT",
        "visible": true,
-       "x": 800,
+       "x": 640,
        "y": 300,
        "z": 0
       },
@@ -2726,8 +4635,8 @@
        "texto": "Protocolo EPICEE (SPIKES): comunicación de noticias difíciles por etapas.",
        "tipo": "TOOL",
        "visible": true,
-       "x": 318,
-       "y": 430,
+       "x": 300,
+       "y": 440,
        "z": 0
       },
       {
@@ -2750,12 +4659,49 @@
        "texto": "Registra una reflexión breve del bloque hospitalario.",
        "tipo": "TOOL",
        "visible": true,
-       "x": 560,
-       "y": 430,
+       "x": 660,
+       "y": 452,
+       "z": 0
+      },
+      {
+       "alto": 40,
+       "ancho": 24,
+       "clave": "a-pasillo",
+       "codigoCorto": "EXIT",
+       "colision": false,
+       "color": "#B69CFF",
+       "desbloqueo": {},
+       "etiqueta": "Volver al pasillo",
+       "herramienta": null,
+       "icono": "door_front",
+       "indicacion": "Volver al pasillo",
+       "metadatos": {
+        "entryX": 913,
+        "entryY": 260,
+        "label": "Volver al pasillo",
+        "lockedMessage": "Por ahora te necesitan en esta sala.",
+        "modelo": "metalica",
+        "muro": "camara",
+        "par": "a-trabajo-social",
+        "pos": 384,
+        "requiresNodes": [
+         "cierre-caso"
+        ],
+        "targetNodeKey": "c2-pasillo"
+       },
+       "movimiento": {},
+       "opcion": null,
+       "orientacion": "",
+       "personaje": null,
+       "texto": "Volver al pasillo",
+       "tipo": "EXIT",
+       "visible": true,
+       "x": 480,
+       "y": 476,
        "z": 0
       }
      ],
-     "tema": "hospital-escucha",
+     "tema": "clinical-soft",
      "titulo": "Hospital — Oficina de trabajo social"
     },
     "objetivo": "Ubica qué te exige la norma en salud frente a un caso como este.",
@@ -2866,81 +4812,106 @@
      "ambiente": {
       "ambientNpcKeys": [],
       "ambientNpcs": [],
+      "encuadre": "tres-paredes",
+      "lugarId": "hospital",
       "mood": "warm-private",
       "music": "none",
-      "salaId": "sala-de-escucha",
-      "salaProvisional": "sala-escucha"
+      "salaId": "sala-escucha"
      },
      "ancho": 960,
      "aparicion": {
       "x": 480,
-      "y": 430
+      "y": 440
      },
-     "clave": "hospital-sala-escucha-c2-1",
+     "clave": "hosp-sala-escucha-c2-1",
      "colisiones": [
       {
        "alto": 236,
        "ancho": 960,
        "clave": "pared-fondo",
-       "etiqueta": "pared-fondo",
+       "etiqueta": "Pared del fondo",
        "x": 0,
        "y": 0
+      },
+      {
+       "alto": 250,
+       "ancho": 96,
+       "clave": "pared-izquierda",
+       "etiqueta": "Pared izquierda",
+       "x": 0,
+       "y": 236
+      },
+      {
+       "alto": 250,
+       "ancho": 96,
+       "clave": "pared-derecha",
+       "etiqueta": "Pared derecha",
+       "x": 864,
+       "y": 236
       },
       {
        "alto": 42,
        "ancho": 960,
-       "clave": "borde-frontal",
-       "etiqueta": "borde-frontal",
+       "clave": "borde-delantero",
+       "etiqueta": "Borde delantero",
        "x": 0,
        "y": 486
       },
       {
-       "alto": 528,
-       "ancho": 96,
-       "clave": "pared-izquierda",
-       "etiqueta": "pared-izquierda",
-       "x": 0,
-       "y": 0
+       "alto": 12,
+       "ancho": 58,
+       "clave": "choque-estante",
+       "etiqueta": "Estante",
+       "x": 131,
+       "y": 250
       },
       {
-       "alto": 528,
-       "ancho": 96,
-       "clave": "pared-derecha",
-       "etiqueta": "pared-derecha",
-       "x": 864,
-       "y": 0
+       "alto": 9,
+       "ancho": 42,
+       "clave": "choque-sillon",
+       "etiqueta": "Sillón",
+       "x": 379,
+       "y": 327
       },
       {
-       "alto": 64,
-       "ancho": 130,
-       "clave": "sofa-escucha",
-       "etiqueta": "Sofá de escucha",
-       "x": 130,
-       "y": 300
+       "alto": 9,
+       "ancho": 42,
+       "clave": "choque-sillon-2",
+       "etiqueta": "Sillón",
+       "x": 539,
+       "y": 327
       },
       {
-       "alto": 36,
-       "ancho": 90,
-       "clave": "mesa-centro",
+       "alto": 10,
+       "ancho": 46,
+       "clave": "choque-mesa-centro",
        "etiqueta": "Mesa de centro",
-       "x": 280,
-       "y": 370
+       "x": 457,
+       "y": 374
       },
       {
-       "alto": 44,
-       "ancho": 150,
-       "clave": "estante-protocolos",
-       "etiqueta": "Estante de protocolos",
-       "x": 600,
+       "alto": 10,
+       "ancho": 46,
+       "clave": "choque-mesa-centro-2",
+       "etiqueta": "Mesa de centro",
+       "x": 693,
+       "y": 312
+      },
+      {
+       "alto": 8,
+       "ancho": 30,
+       "clave": "choque-planta",
+       "etiqueta": "Planta",
+       "x": 795,
        "y": 256
       },
       {
-       "alto": 36,
-       "ancho": 56,
-       "clave": "silla-profesional",
-       "etiqueta": "Silla",
-       "x": 680,
-       "y": 330
+       "alto": 8,
+       "ancho": 18,
+       "clave": "choque-silla-visitante",
+       "etiqueta": "Silla de visitante",
+       "x": 631,
+       "y": 392
       }
      ],
      "dialogos": [
@@ -3070,7 +5041,272 @@
        "retrato": null
       }
      ],
+     "estructura": {
+      "acabados": {
+       "muro": "pintura",
+       "paleta": "hospital",
+       "piso": "madera",
+       "variante": "a"
+      },
+      "ancho": 960,
+      "momento": "noche",
+      "piezas": [
+       {
+        "id": "reloj",
+        "modelo": "reloj",
+        "muro": "fondo",
+        "pos": 110,
+        "tipo": "reloj"
+       },
+       {
+        "id": "cuadro-1",
+        "modelo": "cuadro",
+        "muro": "fondo",
+        "pos": 200,
+        "tipo": "cuadro"
+       },
+       {
+        "id": "ventana",
+        "modelo": "corrediza",
+        "muro": "fondo",
+        "pos": 384,
+        "tipo": "ventana"
+       },
+       {
+        "id": "repisa",
+        "modelo": "repisa",
+        "muro": "fondo",
+        "pos": 620,
+        "tipo": "repisa"
+       },
+       {
+        "id": "lampara-pie",
+        "modelo": "pie",
+        "tipo": "lampara",
+        "x": 250,
+        "y": 312
+       },
+       {
+        "id": "lampara-mesa",
+        "modelo": "mesa",
+        "sobre": 18,
+        "tipo": "lampara",
+        "x": 716,
+        "y": 324
+       }
+      ],
+      "tapetes": [
+       {
+        "caja": [
+         300,
+         660,
+         300,
+         424
+        ],
+        "ruta": "piezas/tapetes/hospital-sala-escucha-1.png",
+        "x": 274,
+        "y": 300
+       }
+      ]
+     },
      "objetos": [
+      {
+       "alto": 74,
+       "ancho": 62,
+       "clave": "estante",
+       "codigoCorto": "MUE",
+       "colision": false,
+       "color": "#7FB3D5",
+       "desbloqueo": {},
+       "etiqueta": "Estante",
+       "herramienta": null,
+       "icono": "chair",
+       "indicacion": "",
+       "metadatos": {
+        "apoyo": "pies",
+        "arte": "/assets/biblioteca/piezas/muebles/hospital/estante.png",
+        "colision": true
+       },
+       "movimiento": {},
+       "opcion": null,
+       "orientacion": "",
+       "personaje": null,
+       "texto": "",
+       "tipo": "PROP",
+       "visible": true,
+       "x": 160,
+       "y": 262,
+       "z": 0
+      },
+      {
+       "alto": 40,
+       "ancho": 46,
+       "clave": "sillon",
+       "codigoCorto": "MUE",
+       "colision": false,
+       "color": "#7FB3D5",
+       "desbloqueo": {},
+       "etiqueta": "Sillón",
+       "herramienta": null,
+       "icono": "chair",
+       "indicacion": "",
+       "metadatos": {
+        "apoyo": "pies",
+        "arte": "/assets/biblioteca/piezas/muebles/hospital/sillon.png",
+        "colision": true
+       },
+       "movimiento": {},
+       "opcion": null,
+       "orientacion": "",
+       "personaje": null,
+       "texto": "",
+       "tipo": "PROP",
+       "visible": true,
+       "x": 400,
+       "y": 336,
+       "z": 0
+      },
+      {
+       "alto": 40,
+       "ancho": 46,
+       "clave": "sillon-2",
+       "codigoCorto": "MUE",
+       "colision": false,
+       "color": "#7FB3D5",
+       "desbloqueo": {},
+       "etiqueta": "Sillón",
+       "herramienta": null,
+       "icono": "chair",
+       "indicacion": "",
+       "metadatos": {
+        "apoyo": "pies",
+        "arte": "/assets/biblioteca/piezas/muebles/hospital/sillon.png",
+        "colision": true,
+        "espejo": true
+       },
+       "movimiento": {},
+       "opcion": null,
+       "orientacion": "",
+       "personaje": null,
+       "texto": "",
+       "tipo": "PROP",
+       "visible": true,
+       "x": 560,
+       "y": 336,
+       "z": 0
+      },
+      {
+       "alto": 22,
+       "ancho": 50,
+       "clave": "mesa-centro",
+       "codigoCorto": "MUE",
+       "colision": false,
+       "color": "#7FB3D5",
+       "desbloqueo": {},
+       "etiqueta": "Mesa de centro",
+       "herramienta": null,
+       "icono": "chair",
+       "indicacion": "",
+       "metadatos": {
+        "apoyo": "pies",
+        "arte": "/assets/biblioteca/piezas/muebles/hospital/mesa-centro.png",
+        "colision": true
+       },
+       "movimiento": {},
+       "opcion": null,
+       "orientacion": "",
+       "personaje": null,
+       "texto": "",
+       "tipo": "PROP",
+       "visible": true,
+       "x": 480,
+       "y": 384,
+       "z": 0
+      },
+      {
+       "alto": 22,
+       "ancho": 50,
+       "clave": "mesa-centro-2",
+       "codigoCorto": "MUE",
+       "colision": false,
+       "color": "#7FB3D5",
+       "desbloqueo": {},
+       "etiqueta": "Mesa de centro",
+       "herramienta": null,
+       "icono": "chair",
+       "indicacion": "",
+       "metadatos": {
+        "apoyo": "pies",
+        "arte": "/assets/biblioteca/piezas/muebles/hospital/mesa-centro.png",
+        "colision": true
+       },
+       "movimiento": {},
+       "opcion": null,
+       "orientacion": "",
+       "personaje": null,
+       "texto": "",
+       "tipo": "PROP",
+       "visible": true,
+       "x": 716,
+       "y": 322,
+       "z": 0
+      },
+      {
+       "alto": 47,
+       "ancho": 35,
+       "clave": "planta",
+       "codigoCorto": "MUE",
+       "colision": false,
+       "color": "#7FB3D5",
+       "desbloqueo": {},
+       "etiqueta": "Planta",
+       "herramienta": null,
+       "icono": "chair",
+       "indicacion": "",
+       "metadatos": {
+        "apoyo": "pies",
+        "arte": "/assets/biblioteca/piezas/muebles/hospital/planta.png",
+        "colision": true
+       },
+       "movimiento": {},
+       "opcion": null,
+       "orientacion": "",
+       "personaje": null,
+       "texto": "",
+       "tipo": "PROP",
+       "visible": true,
+       "x": 810,
+       "y": 264,
+       "z": 0
+      },
+      {
+       "alto": 34,
+       "ancho": 22,
+       "clave": "silla-visitante",
+       "codigoCorto": "MUE",
+       "colision": false,
+       "color": "#7FB3D5",
+       "desbloqueo": {},
+       "etiqueta": "Silla de visitante",
+       "herramienta": null,
+       "icono": "chair",
+       "indicacion": "",
+       "metadatos": {
+        "apoyo": "pies",
+        "arte": "/assets/biblioteca/piezas/muebles/hospital/silla-visitante.png",
+        "colision": true
+       },
+       "movimiento": {},
+       "opcion": null,
+       "orientacion": "",
+       "personaje": null,
+       "texto": "",
+       "tipo": "PROP",
+       "visible": true,
+       "x": 640,
+       "y": 400,
+       "z": 0
+      },
       {
        "alto": 48,
        "ancho": 48,
@@ -3084,7 +5320,9 @@
        "icono": "person",
        "indicacion": "Definir la actuación con la psicóloga",
        "metadatos": {
+        "apoyo": "pies",
         "expresion": "neutral",
+        "movimiento": "quieto",
         "recipeId": "psicologa-hospitalaria"
        },
        "movimiento": {},
@@ -3094,8 +5332,8 @@
        "texto": "La psicóloga hospitalaria coordina la propuesta de intervención.",
        "tipo": "PERSON",
        "visible": true,
-       "x": 740,
-       "y": 400,
+       "x": 660,
+       "y": 290,
        "z": 0
       },
       {
@@ -3111,7 +5349,9 @@
        "icono": "person",
        "indicacion": "Acompañar a la abuela",
        "metadatos": {
+        "apoyo": "pies",
         "expresion": "preocupada",
+        "movimiento": "quieto",
         "recipeId": "abuela-familia"
        },
        "movimiento": {},
@@ -3121,8 +5361,8 @@
        "texto": "La abuela de la niña espera noticias.",
        "tipo": "PERSON",
        "visible": true,
-       "x": 168,
-       "y": 408,
+       "x": 330,
+       "y": 360,
        "z": 0
       },
       {
@@ -3138,7 +5378,9 @@
        "icono": "person",
        "indicacion": "Acompañar al hermano mayor",
        "metadatos": {
+        "apoyo": "pies",
         "expresion": "preocupada",
+        "movimiento": "quieto",
         "recipeId": "samuel"
        },
        "movimiento": {},
@@ -3148,8 +5390,8 @@
        "texto": "El hermano mayor no se sienta.",
        "tipo": "PERSON",
        "visible": true,
-       "x": 240,
-       "y": 440,
+       "x": 780,
+       "y": 400,
        "z": 0
       },
       {
@@ -3165,7 +5407,9 @@
        "icono": "person",
        "indicacion": "Acompañar al hermano menor",
        "metadatos": {
+        "apoyo": "pies",
         "expresion": "triste",
+        "movimiento": "quieto",
         "recipeId": "adolescente"
        },
        "movimiento": {},
@@ -3175,8 +5419,8 @@
        "texto": "El hermano menor está junto a su madre.",
        "tipo": "PERSON",
        "visible": true,
-       "x": 300,
-       "y": 330,
+       "x": 290,
+       "y": 420,
        "z": 0
       },
       {
@@ -3199,8 +5443,8 @@
        "texto": "Una jarra de agua, vasos y una caja de pañuelos. Se dejan al alcance de la familia, sin ofrecerlos de golpe.",
        "tipo": "OBJECT",
        "visible": true,
-       "x": 400,
-       "y": 300,
+       "x": 480,
+       "y": 372,
        "z": 0
       },
       {
@@ -3223,8 +5467,8 @@
        "texto": "Protocolo EPICEE (SPIKES): comunicación de noticias difíciles por etapas.",
        "tipo": "TOOL",
        "visible": true,
-       "x": 480,
-       "y": 300,
+       "x": 700,
+       "y": 452,
        "z": 0
       },
       {
@@ -3247,12 +5491,49 @@
        "texto": "Registra una reflexión breve del bloque hospitalario.",
        "tipo": "TOOL",
        "visible": true,
-       "x": 560,
-       "y": 430,
+       "x": 780,
+       "y": 452,
+       "z": 0
+      },
+      {
+       "alto": 40,
+       "ancho": 24,
+       "clave": "a-pasillo",
+       "codigoCorto": "EXIT",
+       "colision": false,
+       "color": "#B69CFF",
+       "desbloqueo": {},
+       "etiqueta": "Volver al pasillo",
+       "herramienta": null,
+       "icono": "door_front",
+       "indicacion": "Volver al pasillo",
+       "metadatos": {
+        "entryX": 623,
+        "entryY": 260,
+        "label": "Volver al pasillo",
+        "lockedMessage": "Por ahora te necesitan en esta sala.",
+        "modelo": "madera",
+        "muro": "camara",
+        "par": "a-escucha",
+        "pos": 384,
+        "requiresNodes": [
+         "cierre-caso"
+        ],
+        "targetNodeKey": "c2-pasillo"
+       },
+       "movimiento": {},
+       "opcion": null,
+       "orientacion": "",
+       "personaje": null,
+       "texto": "Volver al pasillo",
+       "tipo": "EXIT",
+       "visible": true,
+       "x": 480,
+       "y": 476,
        "z": 0
       }
      ],
-     "tema": "hospital-escucha",
+     "tema": "clinical-soft",
      "titulo": "Hospital — Sala de escucha familiar"
     },
     "objetivo": "Decide cómo actuar con la familia con criterio técnico y ético.",
@@ -3380,81 +5661,106 @@
      "ambiente": {
       "ambientNpcKeys": [],
       "ambientNpcs": [],
+      "encuadre": "tres-paredes",
+      "lugarId": "hospital",
       "mood": "warm-private",
       "music": "none",
-      "salaId": "sala-de-escucha",
-      "salaProvisional": "sala-escucha"
+      "salaId": "sala-escucha"
      },
      "ancho": 960,
      "aparicion": {
       "x": 480,
-      "y": 430
+      "y": 440
      },
-     "clave": "hospital-sala-escucha-c2-2",
+     "clave": "hosp-sala-escucha-c2-2",
      "colisiones": [
       {
        "alto": 236,
        "ancho": 960,
        "clave": "pared-fondo",
-       "etiqueta": "pared-fondo",
+       "etiqueta": "Pared del fondo",
        "x": 0,
        "y": 0
+      },
+      {
+       "alto": 250,
+       "ancho": 96,
+       "clave": "pared-izquierda",
+       "etiqueta": "Pared izquierda",
+       "x": 0,
+       "y": 236
+      },
+      {
+       "alto": 250,
+       "ancho": 96,
+       "clave": "pared-derecha",
+       "etiqueta": "Pared derecha",
+       "x": 864,
+       "y": 236
       },
       {
        "alto": 42,
        "ancho": 960,
-       "clave": "borde-frontal",
-       "etiqueta": "borde-frontal",
+       "clave": "borde-delantero",
+       "etiqueta": "Borde delantero",
        "x": 0,
        "y": 486
       },
       {
-       "alto": 528,
-       "ancho": 96,
-       "clave": "pared-izquierda",
-       "etiqueta": "pared-izquierda",
-       "x": 0,
-       "y": 0
+       "alto": 12,
+       "ancho": 58,
+       "clave": "choque-estante",
+       "etiqueta": "Estante",
+       "x": 131,
+       "y": 250
       },
       {
-       "alto": 528,
-       "ancho": 96,
-       "clave": "pared-derecha",
-       "etiqueta": "pared-derecha",
-       "x": 864,
-       "y": 0
+       "alto": 9,
+       "ancho": 42,
+       "clave": "choque-sillon",
+       "etiqueta": "Sillón",
+       "x": 379,
+       "y": 327
       },
       {
-       "alto": 64,
-       "ancho": 130,
-       "clave": "sofa-escucha",
-       "etiqueta": "Sofá de escucha",
-       "x": 130,
-       "y": 300
+       "alto": 9,
+       "ancho": 42,
+       "clave": "choque-sillon-2",
+       "etiqueta": "Sillón",
+       "x": 539,
+       "y": 327
       },
       {
-       "alto": 36,
-       "ancho": 90,
-       "clave": "mesa-centro",
+       "alto": 10,
+       "ancho": 46,
+       "clave": "choque-mesa-centro",
        "etiqueta": "Mesa de centro",
-       "x": 280,
-       "y": 370
+       "x": 457,
+       "y": 374
       },
       {
-       "alto": 44,
-       "ancho": 150,
-       "clave": "estante-protocolos",
-       "etiqueta": "Estante de protocolos",
-       "x": 600,
+       "alto": 10,
+       "ancho": 46,
+       "clave": "choque-mesa-centro-2",
+       "etiqueta": "Mesa de centro",
+       "x": 693,
+       "y": 312
+      },
+      {
+       "alto": 8,
+       "ancho": 30,
+       "clave": "choque-planta",
+       "etiqueta": "Planta",
+       "x": 795,
        "y": 256
       },
       {
-       "alto": 36,
-       "ancho": 56,
-       "clave": "silla-profesional",
-       "etiqueta": "Silla",
-       "x": 680,
-       "y": 330
+       "alto": 8,
+       "ancho": 18,
+       "clave": "choque-silla-visitante",
+       "etiqueta": "Silla de visitante",
+       "x": 631,
+       "y": 392
       }
      ],
      "dialogos": [
@@ -3570,7 +5876,272 @@
        "retrato": null
       }
      ],
+     "estructura": {
+      "acabados": {
+       "muro": "pintura",
+       "paleta": "hospital",
+       "piso": "madera",
+       "variante": "a"
+      },
+      "ancho": 960,
+      "momento": "noche",
+      "piezas": [
+       {
+        "id": "reloj",
+        "modelo": "reloj",
+        "muro": "fondo",
+        "pos": 110,
+        "tipo": "reloj"
+       },
+       {
+        "id": "cuadro-1",
+        "modelo": "cuadro",
+        "muro": "fondo",
+        "pos": 200,
+        "tipo": "cuadro"
+       },
+       {
+        "id": "ventana",
+        "modelo": "corrediza",
+        "muro": "fondo",
+        "pos": 384,
+        "tipo": "ventana"
+       },
+       {
+        "id": "repisa",
+        "modelo": "repisa",
+        "muro": "fondo",
+        "pos": 620,
+        "tipo": "repisa"
+       },
+       {
+        "id": "lampara-pie",
+        "modelo": "pie",
+        "tipo": "lampara",
+        "x": 250,
+        "y": 312
+       },
+       {
+        "id": "lampara-mesa",
+        "modelo": "mesa",
+        "sobre": 18,
+        "tipo": "lampara",
+        "x": 716,
+        "y": 324
+       }
+      ],
+      "tapetes": [
+       {
+        "caja": [
+         300,
+         660,
+         300,
+         424
+        ],
+        "ruta": "piezas/tapetes/hospital-sala-escucha-1.png",
+        "x": 274,
+        "y": 300
+       }
+      ]
+     },
      "objetos": [
+      {
+       "alto": 74,
+       "ancho": 62,
+       "clave": "estante",
+       "codigoCorto": "MUE",
+       "colision": false,
+       "color": "#7FB3D5",
+       "desbloqueo": {},
+       "etiqueta": "Estante",
+       "herramienta": null,
+       "icono": "chair",
+       "indicacion": "",
+       "metadatos": {
+        "apoyo": "pies",
+        "arte": "/assets/biblioteca/piezas/muebles/hospital/estante.png",
+        "colision": true
+       },
+       "movimiento": {},
+       "opcion": null,
+       "orientacion": "",
+       "personaje": null,
+       "texto": "",
+       "tipo": "PROP",
+       "visible": true,
+       "x": 160,
+       "y": 262,
+       "z": 0
+      },
+      {
+       "alto": 40,
+       "ancho": 46,
+       "clave": "sillon",
+       "codigoCorto": "MUE",
+       "colision": false,
+       "color": "#7FB3D5",
+       "desbloqueo": {},
+       "etiqueta": "Sillón",
+       "herramienta": null,
+       "icono": "chair",
+       "indicacion": "",
+       "metadatos": {
+        "apoyo": "pies",
+        "arte": "/assets/biblioteca/piezas/muebles/hospital/sillon.png",
+        "colision": true
+       },
+       "movimiento": {},
+       "opcion": null,
+       "orientacion": "",
+       "personaje": null,
+       "texto": "",
+       "tipo": "PROP",
+       "visible": true,
+       "x": 400,
+       "y": 336,
+       "z": 0
+      },
+      {
+       "alto": 40,
+       "ancho": 46,
+       "clave": "sillon-2",
+       "codigoCorto": "MUE",
+       "colision": false,
+       "color": "#7FB3D5",
+       "desbloqueo": {},
+       "etiqueta": "Sillón",
+       "herramienta": null,
+       "icono": "chair",
+       "indicacion": "",
+       "metadatos": {
+        "apoyo": "pies",
+        "arte": "/assets/biblioteca/piezas/muebles/hospital/sillon.png",
+        "colision": true,
+        "espejo": true
+       },
+       "movimiento": {},
+       "opcion": null,
+       "orientacion": "",
+       "personaje": null,
+       "texto": "",
+       "tipo": "PROP",
+       "visible": true,
+       "x": 560,
+       "y": 336,
+       "z": 0
+      },
+      {
+       "alto": 22,
+       "ancho": 50,
+       "clave": "mesa-centro",
+       "codigoCorto": "MUE",
+       "colision": false,
+       "color": "#7FB3D5",
+       "desbloqueo": {},
+       "etiqueta": "Mesa de centro",
+       "herramienta": null,
+       "icono": "chair",
+       "indicacion": "",
+       "metadatos": {
+        "apoyo": "pies",
+        "arte": "/assets/biblioteca/piezas/muebles/hospital/mesa-centro.png",
+        "colision": true
+       },
+       "movimiento": {},
+       "opcion": null,
+       "orientacion": "",
+       "personaje": null,
+       "texto": "",
+       "tipo": "PROP",
+       "visible": true,
+       "x": 480,
+       "y": 384,
+       "z": 0
+      },
+      {
+       "alto": 22,
+       "ancho": 50,
+       "clave": "mesa-centro-2",
+       "codigoCorto": "MUE",
+       "colision": false,
+       "color": "#7FB3D5",
+       "desbloqueo": {},
+       "etiqueta": "Mesa de centro",
+       "herramienta": null,
+       "icono": "chair",
+       "indicacion": "",
+       "metadatos": {
+        "apoyo": "pies",
+        "arte": "/assets/biblioteca/piezas/muebles/hospital/mesa-centro.png",
+        "colision": true
+       },
+       "movimiento": {},
+       "opcion": null,
+       "orientacion": "",
+       "personaje": null,
+       "texto": "",
+       "tipo": "PROP",
+       "visible": true,
+       "x": 716,
+       "y": 322,
+       "z": 0
+      },
+      {
+       "alto": 47,
+       "ancho": 35,
+       "clave": "planta",
+       "codigoCorto": "MUE",
+       "colision": false,
+       "color": "#7FB3D5",
+       "desbloqueo": {},
+       "etiqueta": "Planta",
+       "herramienta": null,
+       "icono": "chair",
+       "indicacion": "",
+       "metadatos": {
+        "apoyo": "pies",
+        "arte": "/assets/biblioteca/piezas/muebles/hospital/planta.png",
+        "colision": true
+       },
+       "movimiento": {},
+       "opcion": null,
+       "orientacion": "",
+       "personaje": null,
+       "texto": "",
+       "tipo": "PROP",
+       "visible": true,
+       "x": 810,
+       "y": 264,
+       "z": 0
+      },
+      {
+       "alto": 34,
+       "ancho": 22,
+       "clave": "silla-visitante",
+       "codigoCorto": "MUE",
+       "colision": false,
+       "color": "#7FB3D5",
+       "desbloqueo": {},
+       "etiqueta": "Silla de visitante",
+       "herramienta": null,
+       "icono": "chair",
+       "indicacion": "",
+       "metadatos": {
+        "apoyo": "pies",
+        "arte": "/assets/biblioteca/piezas/muebles/hospital/silla-visitante.png",
+        "colision": true
+       },
+       "movimiento": {},
+       "opcion": null,
+       "orientacion": "",
+       "personaje": null,
+       "texto": "",
+       "tipo": "PROP",
+       "visible": true,
+       "x": 640,
+       "y": 400,
+       "z": 0
+      },
       {
        "alto": 48,
        "ancho": 48,
@@ -3584,7 +6155,9 @@
        "icono": "person",
        "indicacion": "Hablar con la abuela",
        "metadatos": {
+        "apoyo": "pies",
         "expresion": "preocupada",
+        "movimiento": "quieto",
         "recipeId": "abuela-familia"
        },
        "movimiento": {},
@@ -3594,8 +6167,8 @@
        "texto": "La abuela de la niña espera, sentada, con las manos juntas.",
        "tipo": "PERSON",
        "visible": true,
-       "x": 168,
-       "y": 408,
+       "x": 330,
+       "y": 360,
        "z": 0
       },
       {
@@ -3611,7 +6184,9 @@
        "icono": "person",
        "indicacion": "Acompañar al hermano mayor",
        "metadatos": {
+        "apoyo": "pies",
         "expresion": "preocupada",
+        "movimiento": "quieto",
         "recipeId": "samuel"
        },
        "movimiento": {},
@@ -3621,8 +6196,8 @@
        "texto": "El hermano mayor se quedó de pie.",
        "tipo": "PERSON",
        "visible": true,
-       "x": 240,
-       "y": 440,
+       "x": 780,
+       "y": 400,
        "z": 0
       },
       {
@@ -3638,7 +6213,9 @@
        "icono": "person",
        "indicacion": "Acompañar al hermano menor",
        "metadatos": {
+        "apoyo": "pies",
         "expresion": "triste",
+        "movimiento": "quieto",
         "recipeId": "adolescente"
        },
        "movimiento": {},
@@ -3648,8 +6225,8 @@
        "texto": "El hermano menor tiene a su madre de la mano.",
        "tipo": "PERSON",
        "visible": true,
-       "x": 300,
-       "y": 330,
+       "x": 290,
+       "y": 420,
        "z": 0
       },
       {
@@ -3665,7 +6242,9 @@
        "icono": "person",
        "indicacion": "Hablar con el médico",
        "metadatos": {
+        "apoyo": "pies",
         "expresion": "preocupada",
+        "movimiento": "quieto",
         "recipeId": "medico-guardia"
        },
        "movimiento": {},
@@ -3675,8 +6254,8 @@
        "texto": "El médico de guardia te acompaña para dar la noticia.",
        "tipo": "PERSON",
        "visible": true,
-       "x": 480,
-       "y": 380,
+       "x": 660,
+       "y": 290,
        "z": 0
       },
       {
@@ -3699,12 +6278,49 @@
        "texto": "Una jarra de agua, vasos y una caja de pañuelos. Se dejan al alcance de la familia, sin ofrecerlos de golpe.",
        "tipo": "OBJECT",
        "visible": true,
-       "x": 400,
-       "y": 300,
+       "x": 480,
+       "y": 372,
+       "z": 0
+      },
+      {
+       "alto": 40,
+       "ancho": 24,
+       "clave": "a-pasillo",
+       "codigoCorto": "EXIT",
+       "colision": false,
+       "color": "#B69CFF",
+       "desbloqueo": {},
+       "etiqueta": "Volver al pasillo",
+       "herramienta": null,
+       "icono": "door_front",
+       "indicacion": "Volver al pasillo",
+       "metadatos": {
+        "entryX": 623,
+        "entryY": 260,
+        "label": "Volver al pasillo",
+        "lockedMessage": "Por ahora te necesitan en esta sala.",
+        "modelo": "madera",
+        "muro": "camara",
+        "par": "a-escucha",
+        "pos": 384,
+        "requiresNodes": [
+         "cierre-caso"
+        ],
+        "targetNodeKey": "c2-pasillo"
+       },
+       "movimiento": {},
+       "opcion": null,
+       "orientacion": "",
+       "personaje": null,
+       "texto": "Volver al pasillo",
+       "tipo": "EXIT",
+       "visible": true,
+       "x": 480,
+       "y": 476,
        "z": 0
       }
      ],
-     "tema": "hospital-escucha",
+     "tema": "clinical-soft",
      "titulo": "Hospital — Sala de escucha familiar"
     },
     "objetivo": "Averigua qué sabe la familia y cómo quiere recibir la información, antes de darla.",
@@ -3842,81 +6458,106 @@
      "ambiente": {
       "ambientNpcKeys": [],
       "ambientNpcs": [],
+      "encuadre": "tres-paredes",
+      "lugarId": "hospital",
       "mood": "warm-private",
       "music": "none",
-      "salaId": "sala-de-escucha",
-      "salaProvisional": "sala-escucha"
+      "salaId": "sala-escucha"
      },
      "ancho": 960,
      "aparicion": {
       "x": 480,
-      "y": 430
+      "y": 440
      },
-     "clave": "hospital-sala-escucha-c2-3",
+     "clave": "hosp-sala-escucha-c2-3",
      "colisiones": [
       {
        "alto": 236,
        "ancho": 960,
        "clave": "pared-fondo",
-       "etiqueta": "pared-fondo",
+       "etiqueta": "Pared del fondo",
        "x": 0,
        "y": 0
+      },
+      {
+       "alto": 250,
+       "ancho": 96,
+       "clave": "pared-izquierda",
+       "etiqueta": "Pared izquierda",
+       "x": 0,
+       "y": 236
+      },
+      {
+       "alto": 250,
+       "ancho": 96,
+       "clave": "pared-derecha",
+       "etiqueta": "Pared derecha",
+       "x": 864,
+       "y": 236
       },
       {
        "alto": 42,
        "ancho": 960,
-       "clave": "borde-frontal",
-       "etiqueta": "borde-frontal",
+       "clave": "borde-delantero",
+       "etiqueta": "Borde delantero",
        "x": 0,
        "y": 486
       },
       {
-       "alto": 528,
-       "ancho": 96,
-       "clave": "pared-izquierda",
-       "etiqueta": "pared-izquierda",
-       "x": 0,
-       "y": 0
+       "alto": 12,
+       "ancho": 58,
+       "clave": "choque-estante",
+       "etiqueta": "Estante",
+       "x": 131,
+       "y": 250
       },
       {
-       "alto": 528,
-       "ancho": 96,
-       "clave": "pared-derecha",
-       "etiqueta": "pared-derecha",
-       "x": 864,
-       "y": 0
+       "alto": 9,
+       "ancho": 42,
+       "clave": "choque-sillon",
+       "etiqueta": "Sillón",
+       "x": 379,
+       "y": 327
       },
       {
-       "alto": 64,
-       "ancho": 130,
-       "clave": "sofa-escucha",
-       "etiqueta": "Sofá de escucha",
-       "x": 130,
-       "y": 300
+       "alto": 9,
+       "ancho": 42,
+       "clave": "choque-sillon-2",
+       "etiqueta": "Sillón",
+       "x": 539,
+       "y": 327
       },
       {
-       "alto": 36,
-       "ancho": 90,
-       "clave": "mesa-centro",
+       "alto": 10,
+       "ancho": 46,
+       "clave": "choque-mesa-centro",
        "etiqueta": "Mesa de centro",
-       "x": 280,
-       "y": 370
+       "x": 457,
+       "y": 374
       },
       {
-       "alto": 44,
-       "ancho": 150,
-       "clave": "estante-protocolos",
-       "etiqueta": "Estante de protocolos",
-       "x": 600,
+       "alto": 10,
+       "ancho": 46,
+       "clave": "choque-mesa-centro-2",
+       "etiqueta": "Mesa de centro",
+       "x": 693,
+       "y": 312
+      },
+      {
+       "alto": 8,
+       "ancho": 30,
+       "clave": "choque-planta",
+       "etiqueta": "Planta",
+       "x": 795,
        "y": 256
       },
       {
-       "alto": 36,
-       "ancho": 56,
-       "clave": "silla-profesional",
-       "etiqueta": "Silla",
-       "x": 680,
-       "y": 330
+       "alto": 8,
+       "ancho": 18,
+       "clave": "choque-silla-visitante",
+       "etiqueta": "Silla de visitante",
+       "x": 631,
+       "y": 392
       }
      ],
      "dialogos": [
@@ -4032,7 +6673,272 @@
        "retrato": null
       }
      ],
+     "estructura": {
+      "acabados": {
+       "muro": "pintura",
+       "paleta": "hospital",
+       "piso": "madera",
+       "variante": "a"
+      },
+      "ancho": 960,
+      "momento": "noche",
+      "piezas": [
+       {
+        "id": "reloj",
+        "modelo": "reloj",
+        "muro": "fondo",
+        "pos": 110,
+        "tipo": "reloj"
+       },
+       {
+        "id": "cuadro-1",
+        "modelo": "cuadro",
+        "muro": "fondo",
+        "pos": 200,
+        "tipo": "cuadro"
+       },
+       {
+        "id": "ventana",
+        "modelo": "corrediza",
+        "muro": "fondo",
+        "pos": 384,
+        "tipo": "ventana"
+       },
+       {
+        "id": "repisa",
+        "modelo": "repisa",
+        "muro": "fondo",
+        "pos": 620,
+        "tipo": "repisa"
+       },
+       {
+        "id": "lampara-pie",
+        "modelo": "pie",
+        "tipo": "lampara",
+        "x": 250,
+        "y": 312
+       },
+       {
+        "id": "lampara-mesa",
+        "modelo": "mesa",
+        "sobre": 18,
+        "tipo": "lampara",
+        "x": 716,
+        "y": 324
+       }
+      ],
+      "tapetes": [
+       {
+        "caja": [
+         300,
+         660,
+         300,
+         424
+        ],
+        "ruta": "piezas/tapetes/hospital-sala-escucha-1.png",
+        "x": 274,
+        "y": 300
+       }
+      ]
+     },
      "objetos": [
+      {
+       "alto": 74,
+       "ancho": 62,
+       "clave": "estante",
+       "codigoCorto": "MUE",
+       "colision": false,
+       "color": "#7FB3D5",
+       "desbloqueo": {},
+       "etiqueta": "Estante",
+       "herramienta": null,
+       "icono": "chair",
+       "indicacion": "",
+       "metadatos": {
+        "apoyo": "pies",
+        "arte": "/assets/biblioteca/piezas/muebles/hospital/estante.png",
+        "colision": true
+       },
+       "movimiento": {},
+       "opcion": null,
+       "orientacion": "",
+       "personaje": null,
+       "texto": "",
+       "tipo": "PROP",
+       "visible": true,
+       "x": 160,
+       "y": 262,
+       "z": 0
+      },
+      {
+       "alto": 40,
+       "ancho": 46,
+       "clave": "sillon",
+       "codigoCorto": "MUE",
+       "colision": false,
+       "color": "#7FB3D5",
+       "desbloqueo": {},
+       "etiqueta": "Sillón",
+       "herramienta": null,
+       "icono": "chair",
+       "indicacion": "",
+       "metadatos": {
+        "apoyo": "pies",
+        "arte": "/assets/biblioteca/piezas/muebles/hospital/sillon.png",
+        "colision": true
+       },
+       "movimiento": {},
+       "opcion": null,
+       "orientacion": "",
+       "personaje": null,
+       "texto": "",
+       "tipo": "PROP",
+       "visible": true,
+       "x": 400,
+       "y": 336,
+       "z": 0
+      },
+      {
+       "alto": 40,
+       "ancho": 46,
+       "clave": "sillon-2",
+       "codigoCorto": "MUE",
+       "colision": false,
+       "color": "#7FB3D5",
+       "desbloqueo": {},
+       "etiqueta": "Sillón",
+       "herramienta": null,
+       "icono": "chair",
+       "indicacion": "",
+       "metadatos": {
+        "apoyo": "pies",
+        "arte": "/assets/biblioteca/piezas/muebles/hospital/sillon.png",
+        "colision": true,
+        "espejo": true
+       },
+       "movimiento": {},
+       "opcion": null,
+       "orientacion": "",
+       "personaje": null,
+       "texto": "",
+       "tipo": "PROP",
+       "visible": true,
+       "x": 560,
+       "y": 336,
+       "z": 0
+      },
+      {
+       "alto": 22,
+       "ancho": 50,
+       "clave": "mesa-centro",
+       "codigoCorto": "MUE",
+       "colision": false,
+       "color": "#7FB3D5",
+       "desbloqueo": {},
+       "etiqueta": "Mesa de centro",
+       "herramienta": null,
+       "icono": "chair",
+       "indicacion": "",
+       "metadatos": {
+        "apoyo": "pies",
+        "arte": "/assets/biblioteca/piezas/muebles/hospital/mesa-centro.png",
+        "colision": true
+       },
+       "movimiento": {},
+       "opcion": null,
+       "orientacion": "",
+       "personaje": null,
+       "texto": "",
+       "tipo": "PROP",
+       "visible": true,
+       "x": 480,
+       "y": 384,
+       "z": 0
+      },
+      {
+       "alto": 22,
+       "ancho": 50,
+       "clave": "mesa-centro-2",
+       "codigoCorto": "MUE",
+       "colision": false,
+       "color": "#7FB3D5",
+       "desbloqueo": {},
+       "etiqueta": "Mesa de centro",
+       "herramienta": null,
+       "icono": "chair",
+       "indicacion": "",
+       "metadatos": {
+        "apoyo": "pies",
+        "arte": "/assets/biblioteca/piezas/muebles/hospital/mesa-centro.png",
+        "colision": true
+       },
+       "movimiento": {},
+       "opcion": null,
+       "orientacion": "",
+       "personaje": null,
+       "texto": "",
+       "tipo": "PROP",
+       "visible": true,
+       "x": 716,
+       "y": 322,
+       "z": 0
+      },
+      {
+       "alto": 47,
+       "ancho": 35,
+       "clave": "planta",
+       "codigoCorto": "MUE",
+       "colision": false,
+       "color": "#7FB3D5",
+       "desbloqueo": {},
+       "etiqueta": "Planta",
+       "herramienta": null,
+       "icono": "chair",
+       "indicacion": "",
+       "metadatos": {
+        "apoyo": "pies",
+        "arte": "/assets/biblioteca/piezas/muebles/hospital/planta.png",
+        "colision": true
+       },
+       "movimiento": {},
+       "opcion": null,
+       "orientacion": "",
+       "personaje": null,
+       "texto": "",
+       "tipo": "PROP",
+       "visible": true,
+       "x": 810,
+       "y": 264,
+       "z": 0
+      },
+      {
+       "alto": 34,
+       "ancho": 22,
+       "clave": "silla-visitante",
+       "codigoCorto": "MUE",
+       "colision": false,
+       "color": "#7FB3D5",
+       "desbloqueo": {},
+       "etiqueta": "Silla de visitante",
+       "herramienta": null,
+       "icono": "chair",
+       "indicacion": "",
+       "metadatos": {
+        "apoyo": "pies",
+        "arte": "/assets/biblioteca/piezas/muebles/hospital/silla-visitante.png",
+        "colision": true
+       },
+       "movimiento": {},
+       "opcion": null,
+       "orientacion": "",
+       "personaje": null,
+       "texto": "",
+       "tipo": "PROP",
+       "visible": true,
+       "x": 640,
+       "y": 400,
+       "z": 0
+      },
       {
        "alto": 48,
        "ancho": 48,
@@ -4046,7 +6952,9 @@
        "icono": "person",
        "indicacion": "Quedarte con la abuela",
        "metadatos": {
+        "apoyo": "pies",
         "expresion": "triste",
+        "movimiento": "quieto",
         "recipeId": "abuela-familia"
        },
        "movimiento": {},
@@ -4056,8 +6964,8 @@
        "texto": "La abuela de la niña acaba de recibir la noticia.",
        "tipo": "PERSON",
        "visible": true,
-       "x": 168,
-       "y": 408,
+       "x": 330,
+       "y": 360,
        "z": 0
       },
       {
@@ -4073,7 +6981,9 @@
        "icono": "person",
        "indicacion": "Acompañar al hermano mayor",
        "metadatos": {
+        "apoyo": "pies",
         "expresion": "en-crisis",
+        "movimiento": "quieto",
         "recipeId": "samuel"
        },
        "movimiento": {},
@@ -4083,8 +6993,8 @@
        "texto": "El hermano mayor se apartó hacia la pared.",
        "tipo": "PERSON",
        "visible": true,
-       "x": 240,
-       "y": 440,
+       "x": 820,
+       "y": 300,
        "z": 0
       },
       {
@@ -4100,7 +7010,9 @@
        "icono": "person",
        "indicacion": "Acompañar al hermano menor",
        "metadatos": {
+        "apoyo": "pies",
         "expresion": "triste",
+        "movimiento": "quieto",
         "recipeId": "adolescente"
        },
        "movimiento": {},
@@ -4110,8 +7022,8 @@
        "texto": "El hermano menor llora en silencio.",
        "tipo": "PERSON",
        "visible": true,
-       "x": 300,
-       "y": 330,
+       "x": 290,
+       "y": 420,
        "z": 0
       },
       {
@@ -4127,7 +7039,9 @@
        "icono": "person",
        "indicacion": "Hablar con el médico",
        "metadatos": {
+        "apoyo": "pies",
         "expresion": "preocupada",
+        "movimiento": "quieto",
         "recipeId": "medico-guardia"
        },
        "movimiento": {},
@@ -4137,8 +7051,8 @@
        "texto": "El médico de guardia debe volver al quirófano.",
        "tipo": "PERSON",
        "visible": true,
-       "x": 480,
-       "y": 380,
+       "x": 660,
+       "y": 290,
        "z": 0
       },
       {
@@ -4161,12 +7075,49 @@
        "texto": "Una jarra de agua, vasos y una caja de pañuelos. Se dejan al alcance de la familia, sin ofrecerlos de golpe.",
        "tipo": "OBJECT",
        "visible": true,
-       "x": 400,
-       "y": 300,
+       "x": 480,
+       "y": 372,
+       "z": 0
+      },
+      {
+       "alto": 40,
+       "ancho": 24,
+       "clave": "a-pasillo",
+       "codigoCorto": "EXIT",
+       "colision": false,
+       "color": "#B69CFF",
+       "desbloqueo": {},
+       "etiqueta": "Volver al pasillo",
+       "herramienta": null,
+       "icono": "door_front",
+       "indicacion": "Volver al pasillo",
+       "metadatos": {
+        "entryX": 623,
+        "entryY": 260,
+        "label": "Volver al pasillo",
+        "lockedMessage": "Por ahora te necesitan en esta sala.",
+        "modelo": "madera",
+        "muro": "camara",
+        "par": "a-escucha",
+        "pos": 384,
+        "requiresNodes": [
+         "cierre-caso"
+        ],
+        "targetNodeKey": "c2-pasillo"
+       },
+       "movimiento": {},
+       "opcion": null,
+       "orientacion": "",
+       "personaje": null,
+       "texto": "Volver al pasillo",
+       "tipo": "EXIT",
+       "visible": true,
+       "x": 480,
+       "y": 476,
        "z": 0
       }
      ],
-     "tema": "hospital-escucha",
+     "tema": "clinical-soft",
      "titulo": "Hospital — Sala de escucha familiar"
     },
     "objetivo": "Acompaña la reacción de la abuela sin apurarla ni decirle cómo debe sentirse.",
@@ -4280,81 +7231,106 @@
      "ambiente": {
       "ambientNpcKeys": [],
       "ambientNpcs": [],
+      "encuadre": "tres-paredes",
+      "lugarId": "hospital",
       "mood": "warm-private",
       "music": "none",
-      "salaId": "pasillo-hospital",
-      "salaProvisional": "sala-escucha"
+      "salaId": "pasillo"
      },
-     "ancho": 960,
+     "ancho": 1680,
      "aparicion": {
-      "x": 480,
-      "y": 430
+      "x": 840,
+      "y": 420
      },
-     "clave": "hospital-sala-escucha-pasillo",
+     "clave": "hosp-pasillo",
      "colisiones": [
       {
        "alto": 236,
-       "ancho": 960,
+       "ancho": 1680,
        "clave": "pared-fondo",
-       "etiqueta": "pared-fondo",
+       "etiqueta": "Pared del fondo",
        "x": 0,
        "y": 0
       },
       {
+       "alto": 250,
+       "ancho": 153,
+       "clave": "pared-izquierda",
+       "etiqueta": "Pared izquierda",
+       "x": 0,
+       "y": 236
+      },
+      {
+       "alto": 250,
+       "ancho": 153,
+       "clave": "pared-derecha",
+       "etiqueta": "Pared derecha",
+       "x": 1527,
+       "y": 236
+      },
+      {
        "alto": 42,
-       "ancho": 960,
-       "clave": "borde-frontal",
-       "etiqueta": "borde-frontal",
+       "ancho": 1680,
+       "clave": "borde-delantero",
+       "etiqueta": "Borde delantero",
        "x": 0,
        "y": 486
       },
       {
-       "alto": 528,
-       "ancho": 96,
-       "clave": "pared-izquierda",
-       "etiqueta": "pared-izquierda",
-       "x": 0,
-       "y": 0
+       "alto": 16,
+       "ancho": 86,
+       "clave": "choque-sillas-espera",
+       "etiqueta": "Sillas de espera",
+       "x": 435,
+       "y": 244
       },
       {
-       "alto": 528,
-       "ancho": 96,
-       "clave": "pared-derecha",
-       "etiqueta": "pared-derecha",
-       "x": 864,
-       "y": 0
+       "alto": 8,
+       "ancho": 20,
+       "clave": "choque-dispensador-agua",
+       "etiqueta": "Dispensador de agua",
+       "x": 762,
+       "y": 252
       },
       {
-       "alto": 64,
-       "ancho": 130,
-       "clave": "sofa-escucha",
-       "etiqueta": "Sofá de escucha",
-       "x": 130,
-       "y": 300
+       "alto": 8,
+       "ancho": 30,
+       "clave": "choque-planta",
+       "etiqueta": "Planta",
+       "x": 1045,
+       "y": 254
       },
       {
-       "alto": 36,
-       "ancho": 90,
-       "clave": "mesa-centro",
-       "etiqueta": "Mesa de centro",
-       "x": 280,
-       "y": 370
+       "alto": 16,
+       "ancho": 94,
+       "clave": "choque-camilla",
+       "etiqueta": "Camilla",
+       "x": 1357,
+       "y": 284
       },
       {
-       "alto": 44,
-       "ancho": 150,
-       "clave": "estante-protocolos",
-       "etiqueta": "Estante de protocolos",
-       "x": 600,
-       "y": 256
+       "alto": 8,
+       "ancho": 22,
+       "clave": "choque-portasuero",
+       "etiqueta": "Portasuero",
+       "x": 1319,
+       "y": 284
       },
       {
-       "alto": 36,
-       "ancho": 56,
-       "clave": "silla-profesional",
-       "etiqueta": "Silla",
-       "x": 680,
-       "y": 330
+       "alto": 8,
+       "ancho": 36,
+       "clave": "choque-silla-ruedas",
+       "etiqueta": "Silla de ruedas",
+       "x": 312,
+       "y": 416
+      },
+      {
+       "alto": 9,
+       "ancho": 42,
+       "clave": "choque-carro-curaciones",
+       "etiqueta": "Carro de curaciones",
+       "x": 1269,
+       "y": 431
       }
      ],
      "dialogos": [
@@ -4482,7 +7458,313 @@
        "retrato": null
       }
      ],
+     "estructura": {
+      "acabados": {
+       "muro": "zocalo-alto",
+       "paleta": "hospital",
+       "piso": "vinilo",
+       "variante": "a"
+      },
+      "ancho": 1680,
+      "momento": "noche",
+      "piezas": [
+       {
+        "id": "tubo-1",
+        "modelo": "tubo",
+        "muro": "fondo",
+        "pos": 325,
+        "tipo": "lampara"
+       },
+       {
+        "id": "tubo-2",
+        "modelo": "tubo",
+        "muro": "fondo",
+        "pos": 615,
+        "tipo": "lampara"
+       },
+       {
+        "id": "tubo-3",
+        "modelo": "tubo",
+        "muro": "fondo",
+        "pos": 905,
+        "tipo": "lampara"
+       },
+       {
+        "id": "tubo-4",
+        "modelo": "tubo",
+        "muro": "fondo",
+        "pos": 1170,
+        "tipo": "lampara"
+       },
+       {
+        "id": "gel-1",
+        "modelo": "gel",
+        "muro": "fondo",
+        "pos": 250,
+        "tipo": "gel"
+       },
+       {
+        "id": "cartelera",
+        "modelo": "cartelera",
+        "muro": "fondo",
+        "pos": 325,
+        "tipo": "cartelera"
+       },
+       {
+        "id": "reloj",
+        "modelo": "reloj",
+        "muro": "fondo",
+        "pos": 560,
+        "tipo": "reloj"
+       },
+       {
+        "id": "senal",
+        "modelo": "senal",
+        "muro": "fondo",
+        "pos": 660,
+        "tipo": "senal"
+       },
+       {
+        "id": "extintor",
+        "modelo": "extintor",
+        "muro": "fondo",
+        "pos": 880,
+        "tipo": "extintor"
+       },
+       {
+        "id": "cuadro",
+        "modelo": "cuadro",
+        "muro": "fondo",
+        "pos": 940,
+        "tipo": "cuadro"
+       },
+       {
+        "id": "gel-2",
+        "modelo": "gel",
+        "muro": "fondo",
+        "pos": 1130,
+        "tipo": "gel"
+       },
+       {
+        "id": "ventana",
+        "modelo": "alta",
+        "muro": "fondo",
+        "pos": 1294,
+        "tipo": "ventana"
+       },
+       {
+        "id": "cruz",
+        "modelo": "cruz",
+        "muro": "izquierda",
+        "pos": 60,
+        "tipo": "cruz"
+       },
+       {
+        "id": "senal-lado",
+        "modelo": "senal",
+        "muro": "derecha",
+        "pos": 60,
+        "tipo": "senal"
+       }
+      ]
+     },
      "objetos": [
+      {
+       "alto": 42,
+       "ancho": 90,
+       "clave": "sillas-espera",
+       "codigoCorto": "MUE",
+       "colision": false,
+       "color": "#7FB3D5",
+       "desbloqueo": {},
+       "etiqueta": "Sillas de espera",
+       "herramienta": null,
+       "icono": "chair",
+       "indicacion": "",
+       "metadatos": {
+        "apoyo": "pies",
+        "arte": "/assets/biblioteca/piezas/muebles/hospital/sillas-espera.png",
+        "colision": true
+       },
+       "movimiento": {},
+       "opcion": null,
+       "orientacion": "",
+       "personaje": null,
+       "texto": "",
+       "tipo": "PROP",
+       "visible": true,
+       "x": 478,
+       "y": 260,
+       "z": 0
+      },
+      {
+       "alto": 63,
+       "ancho": 24,
+       "clave": "dispensador-agua",
+       "codigoCorto": "MUE",
+       "colision": false,
+       "color": "#7FB3D5",
+       "desbloqueo": {},
+       "etiqueta": "Dispensador de agua",
+       "herramienta": null,
+       "icono": "chair",
+       "indicacion": "",
+       "metadatos": {
+        "apoyo": "pies",
+        "arte": "/assets/biblioteca/piezas/muebles/hospital/dispensador-agua.png",
+        "colision": true
+       },
+       "movimiento": {},
+       "opcion": null,
+       "orientacion": "",
+       "personaje": null,
+       "texto": "",
+       "tipo": "PROP",
+       "visible": true,
+       "x": 772,
+       "y": 260,
+       "z": 0
+      },
+      {
+       "alto": 47,
+       "ancho": 35,
+       "clave": "planta",
+       "codigoCorto": "MUE",
+       "colision": false,
+       "color": "#7FB3D5",
+       "desbloqueo": {},
+       "etiqueta": "Planta",
+       "herramienta": null,
+       "icono": "chair",
+       "indicacion": "",
+       "metadatos": {
+        "apoyo": "pies",
+        "arte": "/assets/biblioteca/piezas/muebles/hospital/planta.png",
+        "colision": true
+       },
+       "movimiento": {},
+       "opcion": null,
+       "orientacion": "",
+       "personaje": null,
+       "texto": "",
+       "tipo": "PROP",
+       "visible": true,
+       "x": 1060,
+       "y": 262,
+       "z": 0
+      },
+      {
+       "alto": 44,
+       "ancho": 98,
+       "clave": "camilla",
+       "codigoCorto": "MUE",
+       "colision": false,
+       "color": "#7FB3D5",
+       "desbloqueo": {},
+       "etiqueta": "Camilla",
+       "herramienta": null,
+       "icono": "chair",
+       "indicacion": "",
+       "metadatos": {
+        "apoyo": "pies",
+        "arte": "/assets/biblioteca/piezas/muebles/hospital/camilla.png",
+        "colision": true
+       },
+       "movimiento": {},
+       "opcion": null,
+       "orientacion": "",
+       "personaje": null,
+       "texto": "",
+       "tipo": "PROP",
+       "visible": true,
+       "x": 1404,
+       "y": 300,
+       "z": 0
+      },
+      {
+       "alto": 69,
+       "ancho": 26,
+       "clave": "portasuero",
+       "codigoCorto": "MUE",
+       "colision": false,
+       "color": "#7FB3D5",
+       "desbloqueo": {},
+       "etiqueta": "Portasuero",
+       "herramienta": null,
+       "icono": "chair",
+       "indicacion": "",
+       "metadatos": {
+        "apoyo": "pies",
+        "arte": "/assets/biblioteca/piezas/muebles/hospital/portasuero.png",
+        "colision": true
+       },
+       "movimiento": {},
+       "opcion": null,
+       "orientacion": "",
+       "personaje": null,
+       "texto": "",
+       "tipo": "PROP",
+       "visible": true,
+       "x": 1330,
+       "y": 292,
+       "z": 0
+      },
+      {
+       "alto": 44,
+       "ancho": 40,
+       "clave": "silla-ruedas",
+       "codigoCorto": "MUE",
+       "colision": false,
+       "color": "#7FB3D5",
+       "desbloqueo": {},
+       "etiqueta": "Silla de ruedas",
+       "herramienta": null,
+       "icono": "chair",
+       "indicacion": "",
+       "metadatos": {
+        "apoyo": "pies",
+        "arte": "/assets/biblioteca/piezas/muebles/hospital/silla-ruedas.png",
+        "colision": true
+       },
+       "movimiento": {},
+       "opcion": null,
+       "orientacion": "",
+       "personaje": null,
+       "texto": "",
+       "tipo": "PROP",
+       "visible": true,
+       "x": 330,
+       "y": 424,
+       "z": 0
+      },
+      {
+       "alto": 56,
+       "ancho": 46,
+       "clave": "carro-curaciones",
+       "codigoCorto": "MUE",
+       "colision": false,
+       "color": "#7FB3D5",
+       "desbloqueo": {},
+       "etiqueta": "Carro de curaciones",
+       "herramienta": null,
+       "icono": "chair",
+       "indicacion": "",
+       "metadatos": {
+        "apoyo": "pies",
+        "arte": "/assets/biblioteca/piezas/muebles/hospital/carro-curaciones.png",
+        "colision": true
+       },
+       "movimiento": {},
+       "opcion": null,
+       "orientacion": "",
+       "personaje": null,
+       "texto": "",
+       "tipo": "PROP",
+       "visible": true,
+       "x": 1290,
+       "y": 440,
+       "z": 0
+      },
       {
        "alto": 48,
        "ancho": 48,
@@ -4496,7 +7778,9 @@
        "icono": "person",
        "indicacion": "Hablar con el hermano mayor",
        "metadatos": {
+        "apoyo": "pies",
         "expresion": "preocupada",
+        "movimiento": "quieto",
         "recipeId": "samuel"
        },
        "movimiento": {},
@@ -4506,8 +7790,8 @@
        "texto": "El hermano mayor te alcanza en el pasillo.",
        "tipo": "PERSON",
        "visible": true,
-       "x": 480,
-       "y": 380,
+       "x": 840,
+       "y": 360,
        "z": 0
       },
       {
@@ -4523,7 +7807,9 @@
        "icono": "person",
        "indicacion": "Acompañar a la abuela",
        "metadatos": {
+        "apoyo": "pies",
         "expresion": "triste",
+        "movimiento": "quieto",
         "recipeId": "abuela-familia"
        },
        "movimiento": {},
@@ -4533,8 +7819,8 @@
        "texto": "La abuela se sentó cerca de la puerta de cirugía.",
        "tipo": "PERSON",
        "visible": true,
-       "x": 168,
-       "y": 408,
+       "x": 1370,
+       "y": 380,
        "z": 0
       },
       {
@@ -4550,7 +7836,9 @@
        "icono": "person",
        "indicacion": "Acompañar al hermano menor",
        "metadatos": {
+        "apoyo": "pies",
         "expresion": "triste",
+        "movimiento": "quieto",
         "recipeId": "adolescente"
        },
        "movimiento": {},
@@ -4560,8 +7848,8 @@
        "texto": "El hermano menor no se aparta de su madre.",
        "tipo": "PERSON",
        "visible": true,
-       "x": 300,
-       "y": 330,
+       "x": 1430,
+       "y": 400,
        "z": 0
       },
       {
@@ -4577,7 +7865,9 @@
        "icono": "person",
        "indicacion": "Hablar con la trabajadora social",
        "metadatos": {
+        "apoyo": "pies",
         "expresion": "neutral",
+        "movimiento": "quieto",
         "recipeId": "trabajadora-social"
        },
        "movimiento": {},
@@ -4587,8 +7877,8 @@
        "texto": "La trabajadora social sigue de turno.",
        "tipo": "PERSON",
        "visible": true,
-       "x": 740,
-       "y": 400,
+       "x": 600,
+       "y": 330,
        "z": 0
       },
       {
@@ -4611,8 +7901,8 @@
        "texto": "Cartelera: horarios de visita, capilla en el primer piso, cafetería y la extensión de trabajo social.",
        "tipo": "OBJECT",
        "visible": true,
-       "x": 800,
-       "y": 300,
+       "x": 478,
+       "y": 290,
        "z": 0
       },
       {
@@ -4635,12 +7925,197 @@
        "texto": "Registra una reflexión breve del bloque hospitalario.",
        "tipo": "TOOL",
        "visible": true,
-       "x": 560,
-       "y": 430,
+       "x": 1000,
+       "y": 452,
+       "z": 0
+      },
+      {
+       "alto": 40,
+       "ancho": 24,
+       "clave": "a-escucha",
+       "codigoCorto": "EXIT",
+       "colision": false,
+       "color": "#B69CFF",
+       "desbloqueo": {},
+       "etiqueta": "Pasar a la sala de escucha",
+       "herramienta": null,
+       "icono": "door_front",
+       "indicacion": "Pasar a la sala de escucha",
+       "metadatos": {
+        "entryX": 480,
+        "entryY": 476,
+        "label": "Pasar a la sala de escucha",
+        "lockedMessage": "Por ahora te necesitan en esta sala.",
+        "modelo": "madera",
+        "muro": "fondo",
+        "par": "a-pasillo",
+        "pos": 470,
+        "requiresNodes": [
+         "cierre-caso"
+        ],
+        "targetNodeKey": "c2-tras-el-silencio"
+       },
+       "movimiento": {},
+       "opcion": null,
+       "orientacion": "",
+       "personaje": null,
+       "texto": "Pasar a la sala de escucha",
+       "tipo": "EXIT",
+       "visible": true,
+       "x": 623,
+       "y": 260,
+       "z": 0
+      },
+      {
+       "alto": 40,
+       "ancho": 24,
+       "clave": "a-trabajo-social",
+       "codigoCorto": "EXIT",
+       "colision": false,
+       "color": "#B69CFF",
+       "desbloqueo": {},
+       "etiqueta": "Pasar a trabajo social",
+       "herramienta": null,
+       "icono": "door_front",
+       "indicacion": "Pasar a trabajo social",
+       "metadatos": {
+        "entryX": 480,
+        "entryY": 476,
+        "label": "Pasar a trabajo social",
+        "lockedMessage": "Por ahora te necesitan en esta sala.",
+        "modelo": "metalica",
+        "muro": "fondo",
+        "par": "a-pasillo",
+        "pos": 760,
+        "requiresNodes": [
+         "cierre-caso"
+        ],
+        "targetNodeKey": "c2-trabajo-social"
+       },
+       "movimiento": {},
+       "opcion": null,
+       "orientacion": "",
+       "personaje": null,
+       "texto": "Pasar a trabajo social",
+       "tipo": "EXIT",
+       "visible": true,
+       "x": 913,
+       "y": 260,
+       "z": 0
+      },
+      {
+       "alto": 40,
+       "ancho": 24,
+       "clave": "a-habitacion",
+       "codigoCorto": "EXIT",
+       "colision": false,
+       "color": "#B69CFF",
+       "desbloqueo": {},
+       "etiqueta": "Pasar a la habitación de recuperación",
+       "herramienta": null,
+       "icono": "door_front",
+       "indicacion": "Pasar a la habitación de recuperación",
+       "metadatos": {
+        "entryX": 600,
+        "entryY": 476,
+        "label": "Pasar a la habitación de recuperación",
+        "lockedMessage": "La paciente sigue en recuperación.",
+        "modelo": "madera-ventanilla",
+        "muro": "fondo",
+        "par": "a-pasillo",
+        "pos": 1050,
+        "requiresNodes": [
+         "cierre-caso"
+        ],
+        "targetNodeKey": "c2-habitacion"
+       },
+       "movimiento": {},
+       "opcion": null,
+       "orientacion": "",
+       "personaje": null,
+       "texto": "Pasar a la habitación de recuperación",
+       "tipo": "EXIT",
+       "visible": true,
+       "x": 1203,
+       "y": 260,
+       "z": 0
+      },
+      {
+       "alto": 40,
+       "ancho": 24,
+       "clave": "a-enfermeria",
+       "codigoCorto": "EXIT",
+       "colision": false,
+       "color": "#B69CFF",
+       "desbloqueo": {},
+       "etiqueta": "Pasar a la estación de enfermería",
+       "herramienta": null,
+       "icono": "door_front",
+       "indicacion": "Pasar a la estación de enfermería",
+       "metadatos": {
+        "entryX": 1069,
+        "entryY": 390,
+        "label": "Pasar a la estación de enfermería",
+        "lockedMessage": "Por ahora te necesitan en esta sala.",
+        "modelo": "paso",
+        "muro": "izquierda",
+        "par": "a-pasillo",
+        "pos": 160,
+        "requiresNodes": [
+         "cierre-caso"
+        ],
+        "targetNodeKey": "c1-enfermeria"
+       },
+       "movimiento": {},
+       "opcion": null,
+       "orientacion": "",
+       "personaje": null,
+       "texto": "Pasar a la estación de enfermería",
+       "tipo": "EXIT",
+       "visible": true,
+       "x": 169,
+       "y": 390,
+       "z": 0
+      },
+      {
+       "alto": 40,
+       "ancho": 24,
+       "clave": "a-entrada",
+       "codigoCorto": "EXIT",
+       "colision": false,
+       "color": "#B69CFF",
+       "desbloqueo": {},
+       "etiqueta": "Salir a la entrada de urgencias",
+       "herramienta": null,
+       "icono": "door_front",
+       "indicacion": "Salir a la entrada de urgencias",
+       "metadatos": {
+        "entryX": 131,
+        "entryY": 390,
+        "label": "Salir a la entrada de urgencias",
+        "lockedMessage": "Por ahora te necesitan en esta sala.",
+        "modelo": "urgencias",
+        "muro": "derecha",
+        "par": "a-pasillo",
+        "pos": 160,
+        "requiresNodes": [
+         "cierre-caso"
+        ],
+        "targetNodeKey": "c1-entrada"
+       },
+       "movimiento": {},
+       "opcion": null,
+       "orientacion": "",
+       "personaje": null,
+       "texto": "Salir a la entrada de urgencias",
+       "tipo": "EXIT",
+       "visible": true,
+       "x": 1511,
+       "y": 390,
        "z": 0
       }
      ],
-     "tema": "hospital-escucha",
+     "tema": "clinical-soft",
      "titulo": "Hospital — Pasillo"
     },
     "objetivo": "Ayuda a la familia a saber qué sigue esta noche y con quién cuenta.",
@@ -4759,81 +8234,106 @@
      "ambiente": {
       "ambientNpcKeys": [],
       "ambientNpcs": [],
+      "encuadre": "tres-paredes",
+      "lugarId": "hospital",
       "mood": "warm-private",
       "music": "none",
-      "salaId": "habitacion-recuperacion",
-      "salaProvisional": "sala-escucha"
+      "salaId": "habitacion-recuperacion"
      },
-     "ancho": 960,
+     "ancho": 1200,
      "aparicion": {
-      "x": 480,
-      "y": 430
+      "x": 600,
+      "y": 440
      },
-     "clave": "hospital-sala-escucha-habitacion",
+     "clave": "hosp-habitacion-recuperacion",
      "colisiones": [
       {
        "alto": 236,
-       "ancho": 960,
+       "ancho": 1200,
        "clave": "pared-fondo",
-       "etiqueta": "pared-fondo",
+       "etiqueta": "Pared del fondo",
        "x": 0,
        "y": 0
       },
       {
+       "alto": 250,
+       "ancho": 115,
+       "clave": "pared-izquierda",
+       "etiqueta": "Pared izquierda",
+       "x": 0,
+       "y": 236
+      },
+      {
+       "alto": 250,
+       "ancho": 115,
+       "clave": "pared-derecha",
+       "etiqueta": "Pared derecha",
+       "x": 1085,
+       "y": 236
+      },
+      {
        "alto": 42,
-       "ancho": 960,
-       "clave": "borde-frontal",
-       "etiqueta": "borde-frontal",
+       "ancho": 1200,
+       "clave": "borde-delantero",
+       "etiqueta": "Borde delantero",
        "x": 0,
        "y": 486
       },
       {
-       "alto": 528,
-       "ancho": 96,
-       "clave": "pared-izquierda",
-       "etiqueta": "pared-izquierda",
-       "x": 0,
-       "y": 0
+       "alto": 8,
+       "ancho": 36,
+       "clave": "choque-lavamanos",
+       "etiqueta": "Lavamanos",
+       "x": 172,
+       "y": 254
       },
       {
-       "alto": 528,
-       "ancho": 96,
-       "clave": "pared-derecha",
-       "etiqueta": "pared-derecha",
-       "x": 864,
-       "y": 0
+       "alto": 8,
+       "ancho": 22,
+       "clave": "choque-portasuero",
+       "etiqueta": "Portasuero",
+       "x": 259,
+       "y": 292
       },
       {
-       "alto": 64,
-       "ancho": 130,
-       "clave": "sofa-escucha",
-       "etiqueta": "Sofá de escucha",
-       "x": 130,
-       "y": 300
+       "alto": 16,
+       "ancho": 104,
+       "clave": "choque-cama-recuperacion",
+       "etiqueta": "Cama de recuperación",
+       "x": 298,
+       "y": 308
       },
       {
-       "alto": 36,
-       "ancho": 90,
-       "clave": "mesa-centro",
+       "alto": 16,
+       "ancho": 104,
+       "clave": "choque-cama-recuperacion-2",
+       "etiqueta": "Cama de recuperación",
+       "x": 688,
+       "y": 308
+      },
+      {
+       "alto": 8,
+       "ancho": 22,
+       "clave": "choque-portasuero-2",
+       "etiqueta": "Portasuero",
+       "x": 815,
+       "y": 290
+      },
+      {
+       "alto": 9,
+       "ancho": 42,
+       "clave": "choque-sillon",
+       "etiqueta": "Sillón",
+       "x": 939,
+       "y": 321
+      },
+      {
+       "alto": 10,
+       "ancho": 46,
+       "clave": "choque-mesa-centro",
        "etiqueta": "Mesa de centro",
-       "x": 280,
-       "y": 370
-      },
-      {
-       "alto": 44,
-       "ancho": 150,
-       "clave": "estante-protocolos",
-       "etiqueta": "Estante de protocolos",
-       "x": 600,
-       "y": 256
-      },
-      {
-       "alto": 36,
-       "ancho": 56,
-       "clave": "silla-profesional",
-       "etiqueta": "Silla",
-       "x": 680,
-       "y": 330
+       "x": 1017,
+       "y": 290
       }
      ],
      "dialogos": [
@@ -4929,7 +8429,265 @@
        "retrato": null
       }
      ],
+     "estructura": {
+      "acabados": {
+       "muro": "zocalo-alto",
+       "paleta": "hospital",
+       "piso": "vinilo",
+       "variante": "b"
+      },
+      "ancho": 1200,
+      "momento": "noche",
+      "piezas": [
+       {
+        "id": "tubo-1",
+        "modelo": "tubo",
+        "muro": "fondo",
+        "pos": 300,
+        "tipo": "lampara"
+       },
+       {
+        "id": "tubo-2",
+        "modelo": "tubo",
+        "muro": "fondo",
+        "pos": 874,
+        "tipo": "lampara"
+       },
+       {
+        "id": "gel",
+        "modelo": "gel",
+        "muro": "fondo",
+        "pos": 120,
+        "tipo": "gel"
+       },
+       {
+        "id": "reloj",
+        "modelo": "reloj",
+        "muro": "fondo",
+        "pos": 470,
+        "tipo": "reloj"
+       },
+       {
+        "id": "cuadro",
+        "modelo": "cuadro",
+        "muro": "fondo",
+        "pos": 540,
+        "tipo": "cuadro"
+       },
+       {
+        "id": "ventana",
+        "modelo": "corrediza",
+        "muro": "fondo",
+        "pos": 700,
+        "tipo": "ventana"
+       },
+       {
+        "id": "espejo",
+        "modelo": "espejo",
+        "muro": "fondo",
+        "pos": 880,
+        "tipo": "espejo"
+       }
+      ]
+     },
      "objetos": [
+      {
+       "alto": 45,
+       "ancho": 40,
+       "clave": "lavamanos",
+       "codigoCorto": "MUE",
+       "colision": false,
+       "color": "#7FB3D5",
+       "desbloqueo": {},
+       "etiqueta": "Lavamanos",
+       "herramienta": null,
+       "icono": "chair",
+       "indicacion": "",
+       "metadatos": {
+        "apoyo": "pies",
+        "arte": "/assets/biblioteca/piezas/muebles/hospital/lavamanos.png",
+        "colision": true
+       },
+       "movimiento": {},
+       "opcion": null,
+       "orientacion": "",
+       "personaje": null,
+       "texto": "",
+       "tipo": "PROP",
+       "visible": true,
+       "x": 190,
+       "y": 262,
+       "z": 0
+      },
+      {
+       "alto": 69,
+       "ancho": 26,
+       "clave": "portasuero",
+       "codigoCorto": "MUE",
+       "colision": false,
+       "color": "#7FB3D5",
+       "desbloqueo": {},
+       "etiqueta": "Portasuero",
+       "herramienta": null,
+       "icono": "chair",
+       "indicacion": "",
+       "metadatos": {
+        "apoyo": "pies",
+        "arte": "/assets/biblioteca/piezas/muebles/hospital/portasuero.png",
+        "colision": true
+       },
+       "movimiento": {},
+       "opcion": null,
+       "orientacion": "",
+       "personaje": null,
+       "texto": "",
+       "tipo": "PROP",
+       "visible": true,
+       "x": 270,
+       "y": 300,
+       "z": 0
+      },
+      {
+       "alto": 57,
+       "ancho": 108,
+       "clave": "cama-recuperacion",
+       "codigoCorto": "MUE",
+       "colision": false,
+       "color": "#7FB3D5",
+       "desbloqueo": {},
+       "etiqueta": "Cama de recuperación",
+       "herramienta": null,
+       "icono": "chair",
+       "indicacion": "",
+       "metadatos": {
+        "apoyo": "pies",
+        "arte": "/assets/biblioteca/piezas/muebles/hospital/cama-recuperacion.png",
+        "colision": true
+       },
+       "movimiento": {},
+       "opcion": null,
+       "orientacion": "",
+       "personaje": null,
+       "texto": "",
+       "tipo": "PROP",
+       "visible": true,
+       "x": 350,
+       "y": 324,
+       "z": 0
+      },
+      {
+       "alto": 57,
+       "ancho": 108,
+       "clave": "cama-recuperacion-2",
+       "codigoCorto": "MUE",
+       "colision": false,
+       "color": "#7FB3D5",
+       "desbloqueo": {},
+       "etiqueta": "Cama de recuperación",
+       "herramienta": null,
+       "icono": "chair",
+       "indicacion": "",
+       "metadatos": {
+        "apoyo": "pies",
+        "arte": "/assets/biblioteca/piezas/muebles/hospital/cama-recuperacion.png",
+        "colision": true
+       },
+       "movimiento": {},
+       "opcion": null,
+       "orientacion": "",
+       "personaje": null,
+       "texto": "",
+       "tipo": "PROP",
+       "visible": true,
+       "x": 740,
+       "y": 324,
+       "z": 0
+      },
+      {
+       "alto": 69,
+       "ancho": 26,
+       "clave": "portasuero-2",
+       "codigoCorto": "MUE",
+       "colision": false,
+       "color": "#7FB3D5",
+       "desbloqueo": {},
+       "etiqueta": "Portasuero",
+       "herramienta": null,
+       "icono": "chair",
+       "indicacion": "",
+       "metadatos": {
+        "apoyo": "pies",
+        "arte": "/assets/biblioteca/piezas/muebles/hospital/portasuero.png",
+        "colision": true
+       },
+       "movimiento": {},
+       "opcion": null,
+       "orientacion": "",
+       "personaje": null,
+       "texto": "",
+       "tipo": "PROP",
+       "visible": true,
+       "x": 826,
+       "y": 298,
+       "z": 0
+      },
+      {
+       "alto": 40,
+       "ancho": 46,
+       "clave": "sillon",
+       "codigoCorto": "MUE",
+       "colision": false,
+       "color": "#7FB3D5",
+       "desbloqueo": {},
+       "etiqueta": "Sillón",
+       "herramienta": null,
+       "icono": "chair",
+       "indicacion": "",
+       "metadatos": {
+        "apoyo": "pies",
+        "arte": "/assets/biblioteca/piezas/muebles/hospital/sillon.png",
+        "colision": true,
+        "espejo": true
+       },
+       "movimiento": {},
+       "opcion": null,
+       "orientacion": "",
+       "personaje": null,
+       "texto": "",
+       "tipo": "PROP",
+       "visible": true,
+       "x": 960,
+       "y": 330,
+       "z": 0
+      },
+      {
+       "alto": 22,
+       "ancho": 50,
+       "clave": "mesa-centro",
+       "codigoCorto": "MUE",
+       "colision": false,
+       "color": "#7FB3D5",
+       "desbloqueo": {},
+       "etiqueta": "Mesa de centro",
+       "herramienta": null,
+       "icono": "chair",
+       "indicacion": "",
+       "metadatos": {
+        "apoyo": "pies",
+        "arte": "/assets/biblioteca/piezas/muebles/hospital/mesa-centro.png",
+        "colision": true
+       },
+       "movimiento": {},
+       "opcion": null,
+       "orientacion": "",
+       "personaje": null,
+       "texto": "",
+       "tipo": "PROP",
+       "visible": true,
+       "x": 1040,
+       "y": 300,
+       "z": 0
+      },
       {
        "alto": 48,
        "ancho": 48,
@@ -4943,7 +8701,9 @@
        "icono": "person",
        "indicacion": "Acercarte a la cama",
        "metadatos": {
+        "apoyo": "pies",
         "expresion": "preocupada",
+        "movimiento": "quieto",
         "recipeId": "sobreviviente"
        },
        "movimiento": {},
@@ -4953,8 +8713,8 @@
        "texto": "La sobreviviente despierta de la anestesia.",
        "tipo": "PERSON",
        "visible": true,
-       "x": 168,
-       "y": 408,
+       "x": 430,
+       "y": 360,
        "z": 0
       },
       {
@@ -4970,7 +8730,9 @@
        "icono": "person",
        "indicacion": "Hablar con la enfermera",
        "metadatos": {
+        "apoyo": "pies",
         "expresion": "preocupada",
+        "movimiento": "quieto",
         "recipeId": "enfermera-urgencias"
        },
        "movimiento": {},
@@ -4980,7 +8742,7 @@
        "texto": "La enfermera de la noche vigila la recuperación.",
        "tipo": "PERSON",
        "visible": true,
-       "x": 740,
+       "x": 880,
        "y": 400,
        "z": 0
       },
@@ -5007,9 +8769,46 @@
        "x": 300,
        "y": 330,
        "z": 0
+      },
+      {
+       "alto": 40,
+       "ancho": 24,
+       "clave": "a-pasillo",
+       "codigoCorto": "EXIT",
+       "colision": false,
+       "color": "#B69CFF",
+       "desbloqueo": {},
+       "etiqueta": "Volver al pasillo",
+       "herramienta": null,
+       "icono": "door_front",
+       "indicacion": "Volver al pasillo",
+       "metadatos": {
+        "entryX": 1203,
+        "entryY": 260,
+        "label": "Volver al pasillo",
+        "lockedMessage": "Por ahora te necesitan en esta sala.",
+        "modelo": "madera-ventanilla",
+        "muro": "camara",
+        "par": "a-habitacion",
+        "pos": 485,
+        "requiresNodes": [
+         "cierre-caso"
+        ],
+        "targetNodeKey": "c2-pasillo"
+       },
+       "movimiento": {},
+       "opcion": null,
+       "orientacion": "",
+       "personaje": null,
+       "texto": "Volver al pasillo",
+       "tipo": "EXIT",
+       "visible": true,
+       "x": 600,
+       "y": 476,
+       "z": 0
       }
      ],
-     "tema": "hospital-escucha",
+     "tema": "clinical-soft",
      "titulo": "Hospital — Habitación de recuperación"
     },
     "objetivo": "Acompáñala sin mentir y sin decidir a solas lo que le corresponde al equipo.",
@@ -5156,7 +8955,7 @@
       },
       "encuadre": "tres-paredes",
       "lugarId": "comisaria",
-      "salaId": "recepcion",
+      "salaId": "comisaria-recepcion",
       "transitionText": "Quince días después, tras el alta médica, inicia la ruta de restablecimiento de derechos."
      },
      "ancho": 960,
@@ -5743,7 +9542,7 @@
       "backgroundImage": "/assets/biblioteca/escenarios/comisaria/arte/salas/consultorio-psicosocial.png",
       "encuadre": "tres-paredes",
       "lugarId": "comisaria",
-      "salaId": "consultorio-psicosocial"
+      "salaId": "comisaria-consultorio-psicosocial"
      },
      "ancho": 960,
      "aparicion": {
@@ -6393,7 +10192,7 @@
       "backgroundImage": "/assets/biblioteca/escenarios/comisaria/arte/salas/consultorio-psicosocial.png",
       "encuadre": "tres-paredes",
       "lugarId": "comisaria",
-      "salaId": "consultorio-psicosocial"
+      "salaId": "comisaria-consultorio-psicosocial"
      },
      "ancho": 960,
      "aparicion": {
@@ -7100,7 +10899,7 @@
       "backgroundImage": "/assets/biblioteca/escenarios/comisaria/arte/salas/pasillo.png",
       "encuadre": "una-pared",
       "lugarId": "comisaria",
-      "salaId": "pasillo"
+      "salaId": "comisaria-pasillo"
      },
      "ancho": 960,
      "aparicion": {
@@ -7606,7 +11405,7 @@
       "backgroundImage": "/assets/biblioteca/escenarios/comisaria/arte/salas/sala-espera.png",
       "encuadre": "dos-paredes-derecha",
       "lugarId": "comisaria",
-      "salaId": "sala-espera"
+      "salaId": "comisaria-sala-espera"
      },
      "ancho": 960,
      "aparicion": {
@@ -8050,7 +11849,7 @@
       "backgroundImage": "/assets/biblioteca/escenarios/comisaria/arte/salas/consultorio-psicosocial.png",
       "encuadre": "tres-paredes",
       "lugarId": "comisaria",
-      "salaId": "consultorio-psicosocial"
+      "salaId": "comisaria-consultorio-psicosocial"
      },
      "ancho": 960,
      "aparicion": {
@@ -8678,7 +12477,7 @@
       "backgroundImage": "/assets/biblioteca/escenarios/comisaria/arte/salas/consultorio-psicosocial.png",
       "encuadre": "tres-paredes",
       "lugarId": "comisaria",
-      "salaId": "consultorio-psicosocial"
+      "salaId": "comisaria-consultorio-psicosocial"
      },
      "ancho": 960,
      "aparicion": {
@@ -9071,81 +12870,106 @@
      "ambiente": {
       "ambientNpcKeys": [],
       "ambientNpcs": [],
+      "encuadre": "tres-paredes",
+      "lugarId": "hospital",
       "mood": "warm-private",
       "music": "none",
-      "salaId": "sala-de-escucha",
-      "salaProvisional": "sala-escucha"
+      "salaId": "sala-escucha"
      },
      "ancho": 960,
      "aparicion": {
       "x": 480,
-      "y": 430
+      "y": 440
      },
-     "clave": "hospital-sala-escucha-vacia",
+     "clave": "hosp-sala-escucha-c1",
      "colisiones": [
       {
        "alto": 236,
        "ancho": 960,
        "clave": "pared-fondo",
-       "etiqueta": "pared-fondo",
+       "etiqueta": "Pared del fondo",
        "x": 0,
        "y": 0
+      },
+      {
+       "alto": 250,
+       "ancho": 96,
+       "clave": "pared-izquierda",
+       "etiqueta": "Pared izquierda",
+       "x": 0,
+       "y": 236
+      },
+      {
+       "alto": 250,
+       "ancho": 96,
+       "clave": "pared-derecha",
+       "etiqueta": "Pared derecha",
+       "x": 864,
+       "y": 236
       },
       {
        "alto": 42,
        "ancho": 960,
-       "clave": "borde-frontal",
-       "etiqueta": "borde-frontal",
+       "clave": "borde-delantero",
+       "etiqueta": "Borde delantero",
        "x": 0,
        "y": 486
       },
       {
-       "alto": 528,
-       "ancho": 96,
-       "clave": "pared-izquierda",
-       "etiqueta": "pared-izquierda",
-       "x": 0,
-       "y": 0
+       "alto": 12,
+       "ancho": 58,
+       "clave": "choque-estante",
+       "etiqueta": "Estante",
+       "x": 131,
+       "y": 250
       },
       {
-       "alto": 528,
-       "ancho": 96,
-       "clave": "pared-derecha",
-       "etiqueta": "pared-derecha",
-       "x": 864,
-       "y": 0
+       "alto": 9,
+       "ancho": 42,
+       "clave": "choque-sillon",
+       "etiqueta": "Sillón",
+       "x": 379,
+       "y": 327
       },
       {
-       "alto": 64,
-       "ancho": 130,
-       "clave": "sofa-escucha",
-       "etiqueta": "Sofá de escucha",
-       "x": 130,
-       "y": 300
+       "alto": 9,
+       "ancho": 42,
+       "clave": "choque-sillon-2",
+       "etiqueta": "Sillón",
+       "x": 539,
+       "y": 327
       },
       {
-       "alto": 36,
-       "ancho": 90,
-       "clave": "mesa-centro",
+       "alto": 10,
+       "ancho": 46,
+       "clave": "choque-mesa-centro",
        "etiqueta": "Mesa de centro",
-       "x": 280,
-       "y": 370
+       "x": 457,
+       "y": 374
       },
       {
-       "alto": 44,
-       "ancho": 150,
-       "clave": "estante-protocolos",
-       "etiqueta": "Estante de protocolos",
-       "x": 600,
+       "alto": 10,
+       "ancho": 46,
+       "clave": "choque-mesa-centro-2",
+       "etiqueta": "Mesa de centro",
+       "x": 693,
+       "y": 312
+      },
+      {
+       "alto": 8,
+       "ancho": 30,
+       "clave": "choque-planta",
+       "etiqueta": "Planta",
+       "x": 795,
        "y": 256
       },
       {
-       "alto": 36,
-       "ancho": 56,
-       "clave": "silla-profesional",
-       "etiqueta": "Silla",
-       "x": 680,
-       "y": 330
+       "alto": 8,
+       "ancho": 18,
+       "clave": "choque-silla-visitante",
+       "etiqueta": "Silla de visitante",
+       "x": 631,
+       "y": 392
       }
      ],
      "dialogos": [
@@ -9182,7 +13006,272 @@
        "retrato": null
       }
      ],
+     "estructura": {
+      "acabados": {
+       "muro": "pintura",
+       "paleta": "hospital",
+       "piso": "madera",
+       "variante": "a"
+      },
+      "ancho": 960,
+      "momento": "noche",
+      "piezas": [
+       {
+        "id": "reloj",
+        "modelo": "reloj",
+        "muro": "fondo",
+        "pos": 110,
+        "tipo": "reloj"
+       },
+       {
+        "id": "cuadro-1",
+        "modelo": "cuadro",
+        "muro": "fondo",
+        "pos": 200,
+        "tipo": "cuadro"
+       },
+       {
+        "id": "ventana",
+        "modelo": "corrediza",
+        "muro": "fondo",
+        "pos": 384,
+        "tipo": "ventana"
+       },
+       {
+        "id": "repisa",
+        "modelo": "repisa",
+        "muro": "fondo",
+        "pos": 620,
+        "tipo": "repisa"
+       },
+       {
+        "id": "lampara-pie",
+        "modelo": "pie",
+        "tipo": "lampara",
+        "x": 250,
+        "y": 312
+       },
+       {
+        "id": "lampara-mesa",
+        "modelo": "mesa",
+        "sobre": 18,
+        "tipo": "lampara",
+        "x": 716,
+        "y": 324
+       }
+      ],
+      "tapetes": [
+       {
+        "caja": [
+         300,
+         660,
+         300,
+         424
+        ],
+        "ruta": "piezas/tapetes/hospital-sala-escucha-1.png",
+        "x": 274,
+        "y": 300
+       }
+      ]
+     },
      "objetos": [
+      {
+       "alto": 74,
+       "ancho": 62,
+       "clave": "estante",
+       "codigoCorto": "MUE",
+       "colision": false,
+       "color": "#7FB3D5",
+       "desbloqueo": {},
+       "etiqueta": "Estante",
+       "herramienta": null,
+       "icono": "chair",
+       "indicacion": "",
+       "metadatos": {
+        "apoyo": "pies",
+        "arte": "/assets/biblioteca/piezas/muebles/hospital/estante.png",
+        "colision": true
+       },
+       "movimiento": {},
+       "opcion": null,
+       "orientacion": "",
+       "personaje": null,
+       "texto": "",
+       "tipo": "PROP",
+       "visible": true,
+       "x": 160,
+       "y": 262,
+       "z": 0
+      },
+      {
+       "alto": 40,
+       "ancho": 46,
+       "clave": "sillon",
+       "codigoCorto": "MUE",
+       "colision": false,
+       "color": "#7FB3D5",
+       "desbloqueo": {},
+       "etiqueta": "Sillón",
+       "herramienta": null,
+       "icono": "chair",
+       "indicacion": "",
+       "metadatos": {
+        "apoyo": "pies",
+        "arte": "/assets/biblioteca/piezas/muebles/hospital/sillon.png",
+        "colision": true
+       },
+       "movimiento": {},
+       "opcion": null,
+       "orientacion": "",
+       "personaje": null,
+       "texto": "",
+       "tipo": "PROP",
+       "visible": true,
+       "x": 400,
+       "y": 336,
+       "z": 0
+      },
+      {
+       "alto": 40,
+       "ancho": 46,
+       "clave": "sillon-2",
+       "codigoCorto": "MUE",
+       "colision": false,
+       "color": "#7FB3D5",
+       "desbloqueo": {},
+       "etiqueta": "Sillón",
+       "herramienta": null,
+       "icono": "chair",
+       "indicacion": "",
+       "metadatos": {
+        "apoyo": "pies",
+        "arte": "/assets/biblioteca/piezas/muebles/hospital/sillon.png",
+        "colision": true,
+        "espejo": true
+       },
+       "movimiento": {},
+       "opcion": null,
+       "orientacion": "",
+       "personaje": null,
+       "texto": "",
+       "tipo": "PROP",
+       "visible": true,
+       "x": 560,
+       "y": 336,
+       "z": 0
+      },
+      {
+       "alto": 22,
+       "ancho": 50,
+       "clave": "mesa-centro",
+       "codigoCorto": "MUE",
+       "colision": false,
+       "color": "#7FB3D5",
+       "desbloqueo": {},
+       "etiqueta": "Mesa de centro",
+       "herramienta": null,
+       "icono": "chair",
+       "indicacion": "",
+       "metadatos": {
+        "apoyo": "pies",
+        "arte": "/assets/biblioteca/piezas/muebles/hospital/mesa-centro.png",
+        "colision": true
+       },
+       "movimiento": {},
+       "opcion": null,
+       "orientacion": "",
+       "personaje": null,
+       "texto": "",
+       "tipo": "PROP",
+       "visible": true,
+       "x": 480,
+       "y": 384,
+       "z": 0
+      },
+      {
+       "alto": 22,
+       "ancho": 50,
+       "clave": "mesa-centro-2",
+       "codigoCorto": "MUE",
+       "colision": false,
+       "color": "#7FB3D5",
+       "desbloqueo": {},
+       "etiqueta": "Mesa de centro",
+       "herramienta": null,
+       "icono": "chair",
+       "indicacion": "",
+       "metadatos": {
+        "apoyo": "pies",
+        "arte": "/assets/biblioteca/piezas/muebles/hospital/mesa-centro.png",
+        "colision": true
+       },
+       "movimiento": {},
+       "opcion": null,
+       "orientacion": "",
+       "personaje": null,
+       "texto": "",
+       "tipo": "PROP",
+       "visible": true,
+       "x": 716,
+       "y": 322,
+       "z": 0
+      },
+      {
+       "alto": 47,
+       "ancho": 35,
+       "clave": "planta",
+       "codigoCorto": "MUE",
+       "colision": false,
+       "color": "#7FB3D5",
+       "desbloqueo": {},
+       "etiqueta": "Planta",
+       "herramienta": null,
+       "icono": "chair",
+       "indicacion": "",
+       "metadatos": {
+        "apoyo": "pies",
+        "arte": "/assets/biblioteca/piezas/muebles/hospital/planta.png",
+        "colision": true
+       },
+       "movimiento": {},
+       "opcion": null,
+       "orientacion": "",
+       "personaje": null,
+       "texto": "",
+       "tipo": "PROP",
+       "visible": true,
+       "x": 810,
+       "y": 264,
+       "z": 0
+      },
+      {
+       "alto": 34,
+       "ancho": 22,
+       "clave": "silla-visitante",
+       "codigoCorto": "MUE",
+       "colision": false,
+       "color": "#7FB3D5",
+       "desbloqueo": {},
+       "etiqueta": "Silla de visitante",
+       "herramienta": null,
+       "icono": "chair",
+       "indicacion": "",
+       "metadatos": {
+        "apoyo": "pies",
+        "arte": "/assets/biblioteca/piezas/muebles/hospital/silla-visitante.png",
+        "colision": true
+       },
+       "movimiento": {},
+       "opcion": null,
+       "orientacion": "",
+       "personaje": null,
+       "texto": "",
+       "tipo": "PROP",
+       "visible": true,
+       "x": 640,
+       "y": 400,
+       "z": 0
+      },
       {
        "alto": 48,
        "ancho": 48,
@@ -9203,8 +13292,8 @@
        "texto": "Una jarra de agua, vasos y una caja de pañuelos. Se dejan al alcance de la familia, sin ofrecerlos de golpe.",
        "tipo": "OBJECT",
        "visible": true,
-       "x": 318,
-       "y": 430,
+       "x": 480,
+       "y": 372,
        "z": 0
       },
       {
@@ -9228,40 +13317,44 @@
        "tipo": "OBJECT",
        "visible": true,
        "x": 480,
-       "y": 300,
+       "y": 322,
        "z": 0
       },
       {
-       "alto": 48,
-       "ancho": 36,
+       "alto": 40,
+       "ancho": 24,
        "clave": "puerta-sala-espera",
        "codigoCorto": "EXIT",
        "colision": false,
        "color": "#B69CFF",
        "desbloqueo": {},
-       "etiqueta": "Sala de espera",
+       "etiqueta": "Volver a la sala de espera",
        "herramienta": null,
        "icono": "door_front",
-       "indicacion": "Entrar: Sala de espera",
+       "indicacion": "Volver a la sala de espera",
        "metadatos": {
-        "entryX": 786,
-        "entryY": 440,
-        "label": "Sala de espera",
+        "entryX": 720,
+        "entryY": 260,
+        "label": "Volver a la sala de espera",
+        "modelo": "madera",
+        "muro": "camara",
+        "par": "puerta-sala-escucha",
+        "pos": 384,
         "targetNodeKey": "c1-lugar-para-hablar"
        },
        "movimiento": {},
        "opcion": null,
        "orientacion": "",
        "personaje": null,
-       "texto": "Sala de espera",
+       "texto": "Volver a la sala de espera",
        "tipo": "EXIT",
        "visible": true,
-       "x": 122,
-       "y": 460,
+       "x": 480,
+       "y": 476,
        "z": 0
       }
      ],
-     "tema": "hospital-escucha",
+     "tema": "clinical-soft",
      "titulo": "Hospital — Sala de escucha familiar"
     },
     "objetivo": "Mira si este lugar sirve para la conversación que viene.",
@@ -9809,6 +13902,6 @@
     "id": "RUB-01"
    }
   ],
-  "version": "2.1"
+  "version": "2.2"
  }
 }

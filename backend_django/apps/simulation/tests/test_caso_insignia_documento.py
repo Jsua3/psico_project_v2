@@ -76,14 +76,16 @@ def _personas(mapa):
     return {o["personaje"] for o in mapa["objetos"] if o["tipo"] == "PERSON" and o["visible"] and o["personaje"]}
 
 
-def test_el_documento_es_2_1_y_no_tiene_ni_un_hallazgo():
+def test_el_documento_es_2_2_y_no_tiene_ni_un_hallazgo():
+    """Con las salas del hospital por piezas el documento es 2.2 y cumple también OCL-13 a OCL-18 (contrato x-siep 2.2)."""
     documento = _leer(DOCUMENTO)
     assert documento["caso"]["id"] == "SIM-VBG-002"
-    assert documento["x-siep"]["version"] == "2.1"
+    assert documento["x-siep"]["version"] == "2.2"
     assert validate.validate_document(documento) == []  # ni errores ni avisos
     estados = {r.rule: r.state for r in validate.run_rules(documento).results}
     assert report.INCUMPLE not in estados.values()
-    assert [estados[f"OCL-{n}"] for n in ("09", "10", "11", "12")] == ["CUMPLE"] * 4
+    reglas = ("09", "10", "11", "12", "13", "14", "15", "16", "17", "18")
+    assert [estados[f"OCL-{n}"] for n in reglas] == ["CUMPLE"] * len(reglas)
 
 
 def test_dieciseis_decisiones_en_el_orden_del_diseno_y_un_final():
@@ -243,16 +245,27 @@ def test_mismas_herramientas_rubrica_objetivos_y_contexto_que_el_caso_original()
     assert entregadas == {h["codigo"] for h in documento["x-siep"]["herramientas"]}
 
 
-def test_las_salas_dicen_cual_es_provisional():
-    """Capítulos 1 y 2: mapas del hospital del legado (provisionales). Capítulo 3: la comisaría de la biblioteca."""
+#: Las 8 salas del hospital por piezas de P1 (`biblioteca/piezas/lugares/hospital.json`).
+SALAS_DEL_HOSPITAL = {
+    "entrada-urgencias", "sala-espera", "pasillo", "triaje", "estacion-enfermeria", "sala-escucha", "trabajo-social",
+    "habitacion-recuperacion",
+}
+
+
+def test_capitulos_1_y_2_en_el_hospital_por_piezas_y_3_en_la_comisaria_de_hoy():
+    """Capítulos 1 y 2: salas del hospital por piezas con su estructura. Capítulo 3: la comisaría de imagen fija (provisional)."""
     for clave, (_, x) in _escenas(_leer(DOCUMENTO)).items():
         mapa, ambiente = x["mapa"], x["mapa"]["ambiente"]
         assert ambiente["salaId"], clave
         if clave.startswith(("c1-", "c2-")):
-            assert ambiente["salaProvisional"] in ("urgencias", "sala-escucha"), clave
-            # El cliente elige el arte del legado por la clave del mapa.
-            assert mapa["clave"] == "hospital-urgencias" or mapa["clave"].startswith("hospital-sala-escucha-"), clave
+            assert ambiente["lugarId"] == "hospital" and ambiente["salaId"] in SALAS_DEL_HOSPITAL, clave
+            assert mapa["estructura"]["ancho"] == mapa["ancho"] and "backgroundImage" not in ambiente, clave
+            # Ninguna clave cae en las salas del legado que el cliente dibuja y colisiona por su cuenta.
+            assert mapa["clave"] != "hospital-urgencias" and not mapa["clave"].startswith("hospital-sala-escucha"), clave
+            puertas = [o for o in mapa["objetos"] if o["tipo"] == "EXIT"]
+            assert puertas and all({"muro", "pos", "modelo"} <= set(p["metadatos"]) for p in puertas), clave
         else:
+            assert "estructura" not in mapa and ambiente["salaId"].startswith("comisaria-"), clave
             assert "salaProvisional" not in ambiente and ambiente["lugarId"] == "comisaria", clave
             assert ambiente["backgroundImage"].startswith("/assets/biblioteca/escenarios/comisaria/"), clave
             # Ninguna clave del capítulo 3 cae en las salas que el cliente dibuja y colisiona por su cuenta.
