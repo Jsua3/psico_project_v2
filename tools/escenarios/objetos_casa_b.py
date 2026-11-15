@@ -71,6 +71,70 @@ def peluche(n=0):
     return L, _reflejos(L), None
 
 
+op.material('maleta', (92, 104, 132), op.tex_grano(0.05, claras=0.0), luz=0.42, sombra=0.55)
+op.material('barro', (176, 100, 74), op.tex_grano(0.05), luz=0.45)
+
+
+def maleta(n=0):
+    """Maleta abierta en el piso con ropa doblada de prisa. Al revisarla, una manga cae por el borde (el último queda)."""
+    L = Lienzo(44, 30, semilla=137)
+    L.poli([(4, 2), (40, 2), (38, 11), (6, 11)], 'maleta', 3)                       # tapa abierta, de pie atrás
+    L.rect(8, 4, 36, 9, 'maleta', 4, tex=False)                                     # bolsillo de la tapa
+    L.bloque(2, 11, 41, 27, 'maleta', tapa=2, base=2)                               # cuerpo
+    L.rect(5, 13, 38, 19, 'maleta', 5, tex=False)                                   # adentro, en sombra
+    prendas = [(6, 12, 17, 18, 'lino-rojo'), (16, 13, 27, 18, 'crochet'), (26, 12, 37, 18, 'tela-azul')]
+    for x0, y0, x1, y1, tela in prendas:                                            # ropa doblada a la carrera
+        L.rect(x0, y0, x1, y1, tela, 1)
+        L.rect(x0, y0, x1, y0, tela, 0, tex=False)
+        L.rect(x0, y1, x1, y1, tela, 3, tex=False)
+    L.rect(9, 15, 15, 15, 'lino-rojo', 3, tex=False)                                # un pliegue torcido
+    if n >= 1:                                                                      # una manga cae por el borde
+        caida = 4 if n == 1 else 6
+        L.rect(31, 18, 34, 18 + caida, 'tela-azul', 2)
+        L.rect(31, 18 + caida, 34, 18 + caida, 'tela-azul', 3, tex=False)
+    L.rect(19, 21, 24, 23, 'cromo', 2, tex=False)                                   # cierre
+    L.rect(3, 26, 40, 27, 'maleta', 4, tex=False)
+    r = _reflejos(L)
+    r['izquierda'].px(19, 21, 2)
+    r['derecha'].px(24, 21, 2)
+    r['frente'].rect(20, 21, 23, 21, 1)
+    return L, r, None
+
+
+def planta_maceta(n=0):
+    """Planta de la casa en maceta de barro, con su platico aún mojado. Las hojas de arriba se mecen (2 cuadros)."""
+    L = Lienzo(26, 34, semilla=139)
+    L.elipse(3, 29, 22, 33, 'ceramica', 3)                                          # platico
+    L.rect(6, 30, 19, 31, (120, 160, 190), tex=False)                               # agua en el plato
+    L.poli([(6, 20), (19, 20), (17, 31), (8, 31)], 'barro', 2)                      # maceta
+    L.rect(5, 18, 20, 21, 'barro', 1)
+    L.rect(5, 18, 20, 18, 'barro', 0, tex=False)
+    L.rect(6, 22, 19, 22, 'barro', 4, tex=False)
+    L.rect(6, 18, 19, 19, 'tierra', 3)                                              # tierra húmeda, oscura
+    meneo = (0, 1)[n]
+    hojas = [(12, 1, 6, 8, 0), (5, 5, 6, 6, 1), (19, 5, 6, 6, 1), (9, 9, 6, 6, 2), (16, 9, 6, 6, 2), (12, 11, 5, 5, 3)]
+    for cx, cy, rx, ry, capa in hojas:
+        dx = meneo if capa < 2 else 0
+        L.elipse(cx - rx // 2 + dx, cy, cx + rx // 2 + dx, cy + ry, 'hoja', 1 + (capa // 2))
+        L.rect(cx - 1 + dx, cy, cx + dx, cy, 'hoja', 0, tex=False)
+    return L, _reflejos(L), None
+
+
+def papelera_casa(n=0):
+    """Papelera de mimbre vacía."""
+    L = Lienzo(22, 24, semilla=141)
+    L.poli([(3, 4), (18, 4), (16, 22), (5, 22)], 'roble', 2)
+    for y in range(6, 22, 3):                                                       # tejido de mimbre
+        L.rect(4 + (y - 6) // 8, y, 17 - (y - 6) // 8, y, 'roble', 3, tex=False)
+    for x in range(6, 17, 3):
+        L.rect(x, 7, x, 20, 'roble', 1, tex=False)
+    L.rect(2, 3, 19, 5, 'roble', 1)
+    L.rect(2, 3, 19, 3, 'roble', 0, tex=False)
+    L.rect(4, 4, 17, 5, 'roble', 5, tex=False)                                      # boca vacía, en sombra
+    L.rect(5, 21, 16, 22, 'roble', 4, tex=False)
+    return L, _reflejos(L), None
+
+
 def cuaderno(n=0):
     """Cuaderno escolar abierto con la tarea a medias y un lápiz. Revisar: se pasa la hoja (el último queda)."""
     L = Lienzo(34, 18, semilla=135)

@@ -608,6 +608,59 @@
    "reemplaza": "escenarios/casa/arte/objetos/cuaderno-escolar.png",
    "ruta": "piezas/objetos/casa/cuaderno-escolar.png"
   },
+  "casa/maleta": {
+   "alto": 28,
+   "ancho": 42,
+   "animaciones": {
+    "reposo": {
+     "bucle": true,
+     "de": 0,
+     "fps": 1,
+     "hasta": 0
+    },
+    "revisar": {
+     "bucle": false,
+     "de": 1,
+     "fps": 8,
+     "hasta": 2,
+     "sostener": true
+    }
+   },
+   "apoyo": [
+    21,
+    28
+   ],
+   "brillo": "piezas/objetos/casa/maleta-brillo.png",
+   "brilloDerecha": "piezas/objetos/casa/maleta-brillo-derecha.png",
+   "brilloIzquierda": "piezas/objetos/casa/maleta-brillo-izquierda.png",
+   "cuadros": 3,
+   "fps": 1,
+   "huella": {
+    "alto": 20,
+    "ancho": 40,
+    "fondo": 12
+   },
+   "nombre": "Maleta",
+   "reemplaza": "escenarios/casa/arte/objetos/maleta.png",
+   "ruta": "piezas/objetos/casa/maleta.png"
+  },
+  "casa/papelera": {
+   "alto": 22,
+   "ancho": 20,
+   "apoyo": [
+    10,
+    22
+   ],
+   "cuadros": 1,
+   "huella": {
+    "alto": 20,
+    "ancho": 16,
+    "fondo": 8
+   },
+   "nombre": "Papelera de mimbre",
+   "reemplaza": "escenarios/casa/arte/objetos/papelera.png",
+   "ruta": "piezas/objetos/casa/papelera.png"
+  },
   "casa/peluche": {
    "alto": 26,
    "ancho": 22,
@@ -640,6 +693,32 @@
    "nombre": "Peluche",
    "reemplaza": "escenarios/casa/arte/objetos/peluche.png",
    "ruta": "piezas/objetos/casa/peluche.png"
+  },
+  "casa/planta-maceta": {
+   "alto": 34,
+   "ancho": 24,
+   "animaciones": {
+    "reposo": {
+     "bucle": true,
+     "de": 0,
+     "fps": 2,
+     "hasta": 1
+    }
+   },
+   "apoyo": [
+    12,
+    34
+   ],
+   "cuadros": 2,
+   "fps": 2,
+   "huella": {
+    "alto": 30,
+    "ancho": 18,
+    "fondo": 8
+   },
+   "nombre": "Planta en maceta",
+   "reemplaza": "escenarios/casa/arte/objetos/planta-maceta.png",
+   "ruta": "piezas/objetos/casa/planta-maceta.png"
   },
   "casa/portarretrato": {
    "alto": 23,

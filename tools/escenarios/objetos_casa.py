@@ -501,6 +501,18 @@ PIEZAS.update({
                              animaciones=dict(reposo=dict(de=0, hasta=0, fps=1, bucle=True),
                                               revisar=dict(de=1, hasta=2, fps=8, bucle=False, sostener=True)),
                              reemplaza='escenarios/casa/arte/objetos/cuaderno-escolar.png'),
+    'maleta': dict(nombre='Maleta', tipo='objeto', dibujar=cb.maleta, cuadros=3,
+                   huella=dict(ancho=40, fondo=12, alto=20), material='tela',
+                   animaciones=dict(reposo=dict(de=0, hasta=0, fps=1, bucle=True),
+                                    revisar=dict(de=1, hasta=2, fps=8, bucle=False, sostener=True)),
+                   reemplaza='escenarios/casa/arte/objetos/maleta.png'),
+    'planta-maceta': dict(nombre='Planta en maceta', tipo='objeto', dibujar=cb.planta_maceta, cuadros=2,
+                          huella=dict(ancho=18, fondo=8, alto=30), material='hojas y barro',
+                          animaciones=dict(reposo=dict(de=0, hasta=1, fps=2, bucle=True)),
+                          reemplaza='escenarios/casa/arte/objetos/planta-maceta.png'),
+    'papelera': dict(nombre='Papelera de mimbre', tipo='objeto', dibujar=cb.papelera_casa, cuadros=1,
+                     huella=dict(ancho=16, fondo=8, alto=20), material='mimbre',
+                     reemplaza='escenarios/casa/arte/objetos/papelera.png'),
 })
 
 
