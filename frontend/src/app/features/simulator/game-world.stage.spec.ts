@@ -51,7 +51,7 @@ function caja(x: number, y: number): FakeBox {
 interface SceneProbe {
   world: SimulationWorldState; player?: FakeBox;
   markers: Map<string, FakeBox>; markerData: Map<string, MapObjectState>; npcMarkers: Map<string, FakeBox>;
-  add: Record<string, Mock>; tweens: unknown; cameras: { main: Record<string, Mock> };
+  add: Record<string, Mock>; tweens: unknown; cameras: { main: Record<string, unknown> };
   labelScale: number;
   frameActors(key: string): void;
   releaseFrame(): void;
@@ -79,7 +79,12 @@ function escenaConPersona(key: string, at: { x: number; y: number }, opciones: O
   if (opciones.jugador) scene.player = caja(opciones.jugador.x, opciones.jugador.y);
   const reloj = relojDeEscena(scene);   // mirar sostiene la mirada con un aviso de reloj
 
-  const camera = { stopFollow: vi.fn(), pan: vi.fn(), startFollow: vi.fn() };
+  // Lienzo de 1366×650 a dpr 1: zoom normal 1 y cercano 2 en una sala de 960 (bloque M1).
+  const camera = {
+    stopFollow: vi.fn(), pan: vi.fn(), startFollow: vi.fn(), removeBounds: vi.fn(), centerOn: vi.fn(),
+    width: 1366, height: 650, zoom: 1, fadeEffect: { isRunning: false },
+    setZoom: vi.fn(function (this: { zoom: number }, k: number) { this.zoom = k; }),
+  };
   scene.cameras = { main: camera };
 
   const pendientes: TweenConfig[] = [];
@@ -129,24 +134,42 @@ function escenaConPersonaClave(key: string) {
 }
 
 describe('mundo: encuadre', () => {
-  it('frameActors deja de seguir al jugador y lleva la cámara entre él y la persona', () => {
-    const { scene, camera } = escenaConPersona('familia', { x: 400, y: 300 }, { jugador: { x: 200, y: 300 } });
+  // Bloque M1: la cámara la decide el controlador cada cuadro (`stepCamera`); el encuadre es un momento, no un `pan`.
+  const cuadro = (scene: unknown) => (scene as { stepCamera(delta: number): void }).stepCamera(16);
+
+  it('frameActors acerca la cámara entre el jugador y la persona que reacciona', () => {
+    const { scene, camera } = escenaConPersona('familia', { x: 480, y: 300 }, { jugador: { x: 400, y: 300 } });
     scene.frameActors('familia');
-    expect(camera.stopFollow).toHaveBeenCalled();
-    expect(camera.pan).toHaveBeenCalledWith(300, expect.any(Number), 450, expect.any(String));
-  });
-
-  it('con una clave que no está en la sala no toca la cámara', () => {
-    const { scene, camera } = escenaConPersona('familia', { x: 400, y: 300 }, { jugador: { x: 200, y: 300 } });
-    scene.frameActors('nadie');
-    expect(camera.stopFollow).not.toHaveBeenCalled();
+    cuadro(scene);
+    expect(camera.setZoom).toHaveBeenLastCalledWith(2);
+    expect(camera.centerOn).toHaveBeenLastCalledWith(440, expect.any(Number));
     expect(camera.pan).not.toHaveBeenCalled();
+    expect(camera.startFollow).not.toHaveBeenCalled();
   });
 
-  it('releaseFrame vuelve a seguir al jugador', () => {
-    const { scene, camera } = escenaConPersona('familia', { x: 400, y: 300 }, { jugador: { x: 200, y: 300 } });
+  it('con una clave que no está en la sala la cámara sigue explorando', () => {
+    const { scene, camera } = escenaConPersona('familia', { x: 480, y: 300 }, { jugador: { x: 400, y: 300 } });
+    scene.frameActors('nadie');
+    cuadro(scene);
+    expect(camera.zoom).toBe(1);
+  });
+
+  it('releaseFrame devuelve la cámara a la vista normal', () => {
+    const { scene, camera } = escenaConPersona('familia', { x: 480, y: 300 }, { jugador: { x: 400, y: 300 }, reduceMotion: true });
+    scene.frameActors('familia');
+    cuadro(scene);
+    expect(camera.zoom).toBe(2);
     scene.releaseFrame();
-    expect(camera.startFollow).toHaveBeenCalledWith(scene.player, true, 0.12, 0.12);
+    cuadro(scene);
+    expect(camera.zoom).toBe(1);
+  });
+
+  it('durante un fundido de puerta la cámara no cambia de zoom', () => {
+    const { scene, camera } = escenaConPersona('familia', { x: 480, y: 300 }, { jugador: { x: 400, y: 300 } });
+    camera.fadeEffect.isRunning = true;
+    scene.frameActors('familia');
+    cuadro(scene);
+    expect(camera.setZoom).not.toHaveBeenCalled();
   });
 });
 

@@ -11,9 +11,12 @@ describe('game-world: render a escala entera (spec §8.3)', () => {
   });
 
   it('la cámara usa el zoom entero y se recalcula al cambiar el lienzo', () => {
-    expect(source).toMatch(/private applyPixelCamera\(roomWidth: number, roomHeight: number\): void \{[\s\S]*?integerZoom\(cam\.width, cam\.height, roomWidth, roomHeight\)[\s\S]*?cameraBounds\(/);
+    // Bloque M1: el zoom entero lo decide `camara/camara.ts` (`zoomNormal` usa `integerZoom`); la escena pide un corte
+    // al pintar una sala o cambiar el lienzo y aplica el resultado cada cuadro, sin el seguimiento de Phaser.
+    expect(source).toMatch(/private applyPixelCamera\(roomWidth: number, roomHeight: number\): void \{[\s\S]*?this\.camCut = true;[\s\S]*?this\.stepCamera\(0\);/);
+    expect(source).toMatch(/private stepCamera\(delta: number\): void \{[\s\S]*?objetivoCamara\([\s\S]*?avanzarCamara\(/);
     expect(source).toContain("this.scale.on('resize', () => this.refitCamera());");
-    expect(source).not.toMatch(/cameraZoom/);
+    expect(source).not.toMatch(/startFollow\(/);
     expect(source.match(/\.setZoom\(/g) ?? []).toHaveLength(1);
   });
 
