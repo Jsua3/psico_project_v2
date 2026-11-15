@@ -72,7 +72,6 @@ def exportar():
                  momentos={}, cosas=[], quieta={}, alumna={}, destello=img(op.tira(oc.destello())))
     for momento in ('dia', 'noche'):
         base = sl.componer_sala(sala, momento, con_luz=False).convert('RGBA')
-        base = Image.alpha_composite(base, os_.sombras_de_contacto(base.size, cosas, [QUIETA]))
         ambiente, brillo = pl.calcular_luz(sala, momento, (), os_.cuerpos(cosas, [QUIETA]))
         datos['momentos'][momento] = dict(base=img(base.convert('RGB')), ambiente=img(ambiente), brillo=img(brillo))
     for c in cosas:
@@ -119,6 +118,14 @@ def exportar():
         if clave == 'alumna':
             hoja['walk'] = img(Image.open(os.path.join(os_.KIT, q['receta'], 'walk.png')).convert('RGBA'))
         datos[clave] = hoja
+    galeria = []                                                       # la comisaría de SIM-VBG-002 y las herramientas
+    for momento, titulo in (('dia', 'Comisaría · consultorio psicosocial, de día'), ('noche', 'Comisaría · consultorio psicosocial, de noche')):
+        im = os_.escena(momento, personas=os_.PERSONAS_COMISARIA, sala=os_.SALA_COMISARIA, cosas=os_.COSAS_COMISARIA)
+        galeria.append(dict(titulo=titulo, img=img(im), w=im.width, h=im.height))
+    hoja = Image.open(os.path.join(RAIZ, 'maqueta-visual', 'objetos', 'herramientas-x3.png')).convert('RGB')
+    hoja = hoja.resize((hoja.width // 3, hoja.height // 3), Image.Resampling.NEAREST)
+    galeria.append(dict(titulo='Herramientas del caso: disponible, nueva (4), usada y el gesto al usarlas (6)', img=img(hoja), w=hoja.width, h=hoja.height))
+    datos['galeria'] = galeria
     datos['imagenes'] = img.todas
     return datos
 
