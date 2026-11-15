@@ -391,6 +391,26 @@
    "reemplaza": "escenarios/comisaria/arte/muebles/caneca-comisaria.png",
    "ruta": "piezas/muebles/comisaria/caneca-comisaria.png"
   },
+  "comisaria/cartelera-comisaria": {
+   "alto": 76,
+   "ancho": 82,
+   "apoyo": [
+    41,
+    76
+   ],
+   "brillo": "piezas/muebles/comisaria/cartelera-comisaria-brillo.png",
+   "brilloDerecha": "piezas/muebles/comisaria/cartelera-comisaria-brillo-derecha.png",
+   "brilloIzquierda": "piezas/muebles/comisaria/cartelera-comisaria-brillo-izquierda.png",
+   "cuadros": 1,
+   "huella": {
+    "alto": 70,
+    "ancho": 70,
+    "fondo": 8
+   },
+   "nombre": "Cartelera institucional",
+   "reemplaza": "escenarios/comisaria/arte/muebles/cartelera-comisaria.png",
+   "ruta": "piezas/muebles/comisaria/cartelera-comisaria.png"
+  },
   "comisaria/escritorio-funcionario": {
    "alto": 68,
    "ancho": 125,
@@ -668,6 +688,23 @@
    "ruta": "piezas/objetos/casa/televisor.png",
    "sobre": 31
   },
+  "comisaria/afiche-rutas-atencion": {
+   "alto": 47,
+   "ancho": 32,
+   "apoyo": [
+    16,
+    47
+   ],
+   "cuadros": 1,
+   "huella": {
+    "alto": 40,
+    "ancho": 24,
+    "fondo": 8
+   },
+   "nombre": "Afiche de rutas de atención",
+   "reemplaza": "escenarios/comisaria/arte/objetos/afiche-rutas-atencion.png",
+   "ruta": "piezas/objetos/comisaria/afiche-rutas-atencion.png"
+  },
   "comisaria/caja-panuelos": {
    "alto": 22,
    "ancho": 24,
@@ -772,6 +809,49 @@
    "reemplaza": "escenarios/comisaria/arte/objetos/carpeta-medidas-proteccion.png",
    "ruta": "piezas/objetos/comisaria/carpeta-medidas-proteccion.png",
    "sobre": 24
+  },
+  "comisaria/dispensador-agua": {
+   "alto": 65,
+   "ancho": 24,
+   "animaciones": {
+    "cerca": {
+     "bucle": false,
+     "de": 1,
+     "fps": 6,
+     "hasta": 4,
+     "luego": "reposo"
+    },
+    "reposo": {
+     "bucle": true,
+     "de": 0,
+     "fps": 1,
+     "hasta": 0
+    },
+    "revisar": {
+     "bucle": false,
+     "de": 5,
+     "fps": 4,
+     "hasta": 6,
+     "sostener": true
+    }
+   },
+   "apoyo": [
+    12,
+    65
+   ],
+   "brillo": "piezas/objetos/comisaria/dispensador-agua-brillo.png",
+   "brilloDerecha": "piezas/objetos/comisaria/dispensador-agua-brillo-derecha.png",
+   "brilloIzquierda": "piezas/objetos/comisaria/dispensador-agua-brillo-izquierda.png",
+   "cuadros": 7,
+   "fps": 1,
+   "huella": {
+    "alto": 62,
+    "ancho": 22,
+    "fondo": 10
+   },
+   "nombre": "Dispensador de agua",
+   "reemplaza": "escenarios/comisaria/arte/objetos/dispensador-agua.png",
+   "ruta": "piezas/objetos/comisaria/dispensador-agua.png"
   },
   "comisaria/dispensador-turnos": {
    "alto": 44,
@@ -888,6 +968,77 @@
    "nombre": "Agua y pañuelos",
    "ruta": "piezas/objetos/hospital/agua-panuelos.png"
   },
+  "hospital/cierre-resumen": {
+   "alto": 23,
+   "ancho": 34,
+   "animaciones": {
+    "reposo": {
+     "bucle": true,
+     "de": 0,
+     "fps": 1,
+     "hasta": 0
+    },
+    "revisar": {
+     "bucle": false,
+     "de": 1,
+     "fps": 8,
+     "hasta": 2,
+     "sostener": true
+    }
+   },
+   "apoyo": [
+    17,
+    23
+   ],
+   "brillo": "piezas/objetos/hospital/cierre-resumen-brillo.png",
+   "brilloDerecha": "piezas/objetos/hospital/cierre-resumen-brillo-derecha.png",
+   "brilloIzquierda": "piezas/objetos/hospital/cierre-resumen-brillo-izquierda.png",
+   "cuadros": 3,
+   "fps": 1,
+   "huella": {
+    "alto": 16,
+    "ancho": 30,
+    "fondo": 8
+   },
+   "nombre": "Cierre del caso",
+   "reemplaza": "../frontend/src/assets/game/objects/object_cierre.png",
+   "ruta": "piezas/objetos/hospital/cierre-resumen.png"
+  },
+  "hospital/expediente": {
+   "alto": 33,
+   "ancho": 34,
+   "animaciones": {
+    "reposo": {
+     "bucle": true,
+     "de": 0,
+     "fps": 1,
+     "hasta": 0
+    },
+    "revisar": {
+     "bucle": false,
+     "de": 1,
+     "fps": 8,
+     "hasta": 2,
+     "sostener": true
+    }
+   },
+   "apoyo": [
+    17,
+    33
+   ],
+   "brilloDerecha": "piezas/objetos/hospital/expediente-brillo-derecha.png",
+   "brilloIzquierda": "piezas/objetos/hospital/expediente-brillo-izquierda.png",
+   "cuadros": 3,
+   "fps": 1,
+   "huella": {
+    "alto": 26,
+    "ancho": 30,
+    "fondo": 8
+   },
+   "nombre": "Expediente clínico",
+   "reemplaza": "../frontend/src/assets/game/objects/object_expediente.png",
+   "ruta": "piezas/objetos/hospital/expediente.png"
+  },
   "hospital/hoja-ingreso": {
    "alto": 39,
    "ancho": 26,
@@ -959,6 +1110,41 @@
    "reemplaza": "../frontend/src/assets/game/objects/object_marco_normativo.png",
    "ruta": "piezas/objetos/hospital/marco-normativo.png"
   },
+  "hospital/registro": {
+   "alto": 39,
+   "ancho": 39,
+   "animaciones": {
+    "reposo": {
+     "bucle": true,
+     "de": 0,
+     "fps": 1,
+     "hasta": 0
+    },
+    "revisar": {
+     "bucle": false,
+     "de": 1,
+     "fps": 8,
+     "hasta": 2,
+     "sostener": true
+    }
+   },
+   "apoyo": [
+    19,
+    39
+   ],
+   "brillo": "piezas/objetos/hospital/registro-brillo.png",
+   "brilloDerecha": "piezas/objetos/hospital/registro-brillo-derecha.png",
+   "brilloIzquierda": "piezas/objetos/hospital/registro-brillo-izquierda.png",
+   "cuadros": 3,
+   "fps": 1,
+   "huella": {
+    "alto": 34,
+    "ancho": 20,
+    "fondo": 8
+   },
+   "nombre": "Libro de registro",
+   "ruta": "piezas/objetos/hospital/registro.png"
+  },
   "hospital/timbre-llamado": {
    "alto": 44,
    "ancho": 18,
@@ -1015,6 +1201,26 @@
     "y": -32
    },
    "ruta": "piezas/objetos/hospital/timbre-llamado.png"
+  },
+  "hospital/zona-restringida": {
+   "alto": 36,
+   "ancho": 48,
+   "apoyo": [
+    24,
+    36
+   ],
+   "brillo": "piezas/objetos/hospital/zona-restringida-brillo.png",
+   "brilloDerecha": "piezas/objetos/hospital/zona-restringida-brillo-derecha.png",
+   "brilloIzquierda": "piezas/objetos/hospital/zona-restringida-brillo-izquierda.png",
+   "cuadros": 1,
+   "huella": {
+    "alto": 30,
+    "ancho": 44,
+    "fondo": 8
+   },
+   "nombre": "Zona restringida",
+   "reemplaza": "../frontend/src/assets/game/objects/object_acceso_restringido.png",
+   "ruta": "piezas/objetos/hospital/zona-restringida.png"
   }
  }
 }
