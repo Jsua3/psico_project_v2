@@ -5,6 +5,7 @@ subsistema depende de este módulo.
 """
 from apps.simulation.casedef.vocabulary import ResponseClass
 from apps.simulation.models import (
+    AttemptStatus,
     CaseCharacter,
     CaseReview,
     ClinicalTool,
@@ -15,6 +16,7 @@ from apps.simulation.models import (
     RubricCriterion,
     SceneHint,
     SceneMap,
+    SimulationAttempt,
     SimulationNode,
 )
 from apps.simulation.services import case_rules
@@ -26,7 +28,14 @@ from . import ethics
 from .guards import require_version
 
 
-def editor(case_version_id):
+def rehearsed_to_end(case_version_id, actor):
+    """¿``actor`` ya llevó un ensayo de esta versión hasta un final? Los de otras personas no cuentan."""
+    return SimulationAttempt.all_objects.filter(
+        case_version_id=case_version_id, is_rehearsal=True, student_id=actor.id, status=AttemptStatus.COMPLETED
+    ).exists()
+
+
+def editor(case_version_id, actor=None):
     version = require_version(case_version_id)
     nodes = list(SimulationNode.objects.filter(case_version_id=case_version_id).order_by("id"))
     decisions = list(
@@ -47,7 +56,7 @@ def editor(case_version_id):
     latest = _latest_checklist(case_version_id)
     checklist = _ratio_of(latest)
 
-    return {
+    view = {
         "caseVersionId": version.id,
         "revision": version.version,
         "title": version.simulation_case.title,
@@ -82,6 +91,10 @@ def editor(case_version_id):
         "publishable": checklist >= 100,
         "checklist": checklist_view(case_version_id, latest),
     }
+    if actor is not None:
+        # Solo el ``GET …/editor`` sabe quién pide; las mutaciones devuelven esta vista sin la clave (no un ``False`` falso).
+        view["rehearsedToEnd"] = rehearsed_to_end(case_version_id, actor)
+    return view
 
 
 def rules_state(version):
@@ -210,6 +223,7 @@ def node_editor_state(node):
         "positionY": node.position_y,
         "decisionPrompt": node.decision_prompt,
         "goal": node.goal,
+        "comments": case_rules.comments_of(node),
         "displayOrder": node.display_order,
         "intensity": node.intensity,
         "aiSuggested": node.ai_suggested,

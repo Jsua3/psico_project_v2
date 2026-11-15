@@ -33,6 +33,9 @@ MEMBER = "member"
 MATRIX: dict[tuple[str, str], dict[str, str]] = {
     # Intento propio: jugar, pausar, bitácora y reporte. Nadie más lo lee por token (D-11).
     ("attempt", "play"): {ESTUDIANTE: OWN},
+    # Ensayo del borrador (bloque A2): quien puede editar el caso (su dueño o el ADMIN) lo juega en el juego real. Es un intento
+    # que nunca cuenta como de estudiante; su dueño es quien lo juega. Un estudiante nunca.
+    ("attempt", "rehearse"): {PROFESOR: OWN, ADMIN: OWN},
     # Intento ajeno: traza y evaluación. El profesor solo de estudiantes con membresía ACTIVE.
     ("attempt", "review"): {PROFESOR: MEMBER, ADMIN: ALL},
     # Reporte de finalización (sin el token del intento): su dueño o quien puede revisarlo.

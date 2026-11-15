@@ -27,6 +27,9 @@ import {
 } from './scene-motion.util';
 import { nextAmbientStep, npcMotionStrategyFor } from './motion-strategies';
 import { DEPTH, actorDepth, tiledLayerDepth } from './depth-sort.util';
+import { MANIFIESTO_DE_PIEZAS_URL, esManifiestoDePiezas } from './sala/catalogo';
+import { EscenaDeSala } from './sala/escena-de-sala';
+import { puertaDelObjeto, salaDelMundo } from './sala/mundo-a-sala';
 import {
   AUTHORED_CLINICAL_COLLISIONS,
   AUTHORED_PLAYER_SPAWN,
@@ -62,8 +65,9 @@ import { pasosDeGesto } from './caso/gestos';
 import type { Gesto } from './caso/vocabulario';
 import {
   KEY_PERSON_CHEVRON, KEY_PERSON_COLOR, KEY_PERSON_COLOR_HEX, KEY_PERSON_HALO_HEX, KEY_PERSON_NAME_GAP_PX,
-  isKeyPerson, keyPersonTipOffsetY, resolveKeyPerson,
+  KEY_PERSON_HEAD_PX, isKeyPerson, keyPersonTipOffsetY, resolveKeyPerson,
 } from './key-person.util';
+import { GAZE_HOLD_MS, GAZE_TURN_STEP_MS, directionTowards, turnStepBetween } from './gaze.util';
 import {
   PERSON_PAUSE_MIN_MS, PersonWalkEnv, PersonWalkState, bodyBlocks, parsePersonMovement, personFacing, personWalkBounds, resumePersonWalk,
   randomPersonPause, startPersonWalk, tickPersonWalk,
@@ -110,6 +114,7 @@ import {
 } from './world-characters.util';
 import { PERSONA_ICON_KINDS, personaIconImage, personaIconKey, personaIconKind, personaIconView } from './persona-icon.util';
 import { DOOR_FALLBACK_HEIGHT, DOOR_SPRITE_FEET_Y, doorHintY, staleSpriteSize, worldSpriteForTexture } from './world-scale.util';
+import { npcsDeLaSala } from './caso/npcs-de-sala';
 
 interface WorldCallbacks {
   onReady:       () => void;
@@ -189,6 +194,9 @@ const LABEL_DEPTH = DEPTH.UI - 1;
 const NPC_KEY_PREFIX = 'npc:';
 /** Plazo máximo para el primer cuadro del mundo (F6-8): pasado, el anfitrión ofrece reintentar. */
 const BOOT_WATCHDOG_MS = 25_000;
+
+/** Una mirada sostenida: cómo miraba antes, cómo mira ahora, sus avisos pendientes y cómo se suelta (`restore`: volver a como miraba). */
+interface Gaze { base: PlayerDirection; current: PlayerDirection; timers: Array<{ remove(): void }>; end: (restore?: boolean) => void }
 const NO_KEYS: ReadonlySet<string> = new Set<string>();
 /** El informe de cercanía cuando ningún objeto tiene hoja: lo que se publica al quedarse sin animaciones. */
 const NO_PROXIMITY_REPORT = JSON.stringify({ playing: null, frames: {} });
@@ -252,6 +260,8 @@ export class DataDrivenWorldScene extends Phaser.Scene {
   private readonly gesturing = new Set<string>();
   /** Cierres de los gestos en curso: Phaser descarta los tweens en `killAll` sin avisar, así que se llaman a mano. */
   private readonly gestureEnds = new Set<() => void>();
+  /** Miradas sostenidas (`faceTowards`): entran en `gesturing` para que ningún paseo las pise mientras duran. */
+  private readonly gazes = new Map<string, Gaze>();
   /** Chevrón y nombre sobre la persona clave de la sala (a lo sumo uno). */
   private keyPersonIndicator?: { key: string; container: Phaser.GameObjects.Container; tipOffsetY: number };
   /** Lo último que se avisó de dónde está la persona clave (se compara para avisar solo cuando cambia de píxel). */
@@ -608,6 +618,9 @@ export class DataDrivenWorldScene extends Phaser.Scene {
     for (const container of this.npcMarkers.values()) this.ysort(container);
     this.checkExitTriggers();
     this.checkDbDoorTriggers();
+    // P2: la sala por piezas abre la puerta a la que se acerca quien juega y rehace su luz (sombra incluida).
+    this.salaPorPiezas?.actualizar(delta, this.player ? { x: this.player.x, y: this.player.y } : null,
+      new Set(Object.keys(this.doorStates).filter(clave => this.doorStates[clave] === 'locked')), this.callbacks.reduceMotion);
   }
 
   setWorld(world: SimulationWorldState) {
@@ -975,7 +988,8 @@ export class DataDrivenWorldScene extends Phaser.Scene {
     for (const end of [...this.gestureEnds]) end();
   }
 
-  isGesturing(key: string): boolean { return this.gesturing.has(key); }
+  /** ¿Hay un gesto en curso? Mirar hacia algo (`faceTowards`) no cuenta. */
+  isGesturing(key: string): boolean { return this.gesturing.has(key) && !this.gazes.has(key); }
 
   /** El marcador (persona o NPC) de una clave del mundo. */
   private actorOf(key: string): Phaser.GameObjects.Container | undefined {
@@ -1001,6 +1015,7 @@ export class DataDrivenWorldScene extends Phaser.Scene {
   /** Reproduce los pasos del gesto sobre el marcador de `key` y lo deja en su sitio exacto; resuelve al terminar (o ya, sin pasos).
    *  `voltear` no se aplica: game-world.kit.contract.spec.ts prohíbe espejar personas y ningún gesto lo pide. */
   playGesture(key: string, gesto: Gesto): Promise<void> {
+    this.gazes.get(key)?.end();   // un gesto manda sobre la mirada
     const actor = this.actorOf(key);
     const toward = (a: number, b: number) => Math.sign(a - b) as -1 | 0 | 1;
     const steps = actor ? pasosDeGesto(gesto, {
@@ -1046,6 +1061,120 @@ export class DataDrivenWorldScene extends Phaser.Scene {
     indicator.container.destroy();
     this.buildKeyPersonIndicator(marker, object);
   }
+
+  /** Pone a la persona (o NPC) mirando hacia el jugador o hacia otra clave, sin caminar, y SOSTIENE la mirada `holdMs`: el paseo no la pisa y al vencer retoma. De media vuelta pasa antes por una dirección intermedia (con movimiento reducido, de una vez). */
+  faceTowards(key: string, target: 'player' | string, holdMs: number = GAZE_HOLD_MS): void {
+    const actor = this.actorOf(key);
+    const from = this.liveFeetOf(key);
+    const to = target === 'player' ? (this.player ? { x: this.player.x, y: this.player.y } : null) : this.liveFeetOf(target);
+    if (!actor || !from || !to || (this.gesturing.has(key) && !this.gazes.has(key))) return;
+    const dx = to.x - from.x;
+    const direction = directionTowards(dx, to.y - from.y);
+    const gaze = this.holdGaze(key, actor, holdMs);
+    const step = this.callbacks.reduceMotion ? null : turnStepBetween(gaze.current, direction, dx);
+    if (!step) { this.poseFacing(key, actor, direction); gaze.current = direction; return; }
+    this.poseFacing(key, actor, step);
+    gaze.current = step;
+    gaze.timers.push(this.time.delayedCall(GAZE_TURN_STEP_MS, () => { gaze.current = direction; this.poseFacing(key, actor, direction); }));
+  }
+
+  /** Registra (o renueva) la mirada sostenida de `key`: queda en `gesturing` hasta vencer, hasta un gesto o hasta que la sala se repinte. */
+  private holdGaze(key: string, actor: Phaser.GameObjects.Container, holdMs: number): Gaze {
+    const previous = this.gazes.get(key);
+    const base = previous?.base ?? this.facingOf(key);
+    previous?.end();
+    const gaze: Gaze = { base, current: previous?.current ?? base, timers: [], end: () => undefined };
+    gaze.end = (restore = false): void => {
+      for (const timer of gaze.timers) timer.remove();
+      gaze.timers.length = 0;
+      if (this.gazes.get(key) !== gaze) return;
+      this.gazes.delete(key);
+      this.gesturing.delete(key);
+      this.gestureEnds.delete(gaze.end);
+      // Quien camina retoma su rumbo en su siguiente paso; el resto vuelve a como miraba.
+      if (restore && actor.scene && !this.personWalkers.has(key)) this.poseFacing(key, actor, gaze.base);
+    };
+    this.gazes.set(key, gaze);
+    this.gesturing.add(key);
+    this.gestureEnds.add(gaze.end);
+    gaze.timers.push(this.time.delayedCall(holdMs, () => gaze.end(true)));
+    return gaze;
+  }
+
+  /** Hacia dónde mira ahora la persona (o NPC) de `key`. */
+  private facingOf(key: string): PlayerDirection {
+    const walker = this.personWalkers.get(key);
+    if (walker) return walker.lastPose.direction ?? walker.state.direction;
+    if (key.startsWith(NPC_KEY_PREFIX)) {
+      const name = key.slice(NPC_KEY_PREFIX.length);
+      const mover = this.npcMovers.get(name);
+      const config = (this.npcMarkers.get(name) as unknown as Record<string, unknown> | undefined)?.['__npcConfig'] as NpcConfig | undefined;
+      return mover?.lastPose.direction ?? (config?.facing as PlayerDirection | undefined) ?? 'down';
+    }
+    return personFacing(this.markerData.get(key)?.facing);
+  }
+
+  /** Pone la pose de reposo de `key` mirando a `direction` (por el camino que cada tipo de persona ya tiene). */
+  private poseFacing(key: string, actor: Phaser.GameObjects.Container, direction: PlayerDirection): void {
+    const walker = this.personWalkers.get(key);
+    if (walker) { this.applyPersonPose(walker, actor, direction, false); return; }
+    if (key.startsWith(NPC_KEY_PREFIX)) {
+      const mover = this.npcMovers.get(key.slice(NPC_KEY_PREFIX.length));
+      if (mover) this.applyNpcPose(mover, actor, direction, false); else this.applyNpcFacing(actor, direction);
+      return;
+    }
+    const bag = actor as unknown as Record<string, unknown>;
+    const sprite = bag['__personSprite'] as Phaser.GameObjects.Sprite | undefined;
+    const visual = bag['__personVisual'] as CharacterVisual | undefined;
+    if (sprite && visual) playKitPose(sprite, visual, direction, false, this.callbacks.reduceMotion);
+  }
+
+  /** Dónde pisa ahora `key`: el contenedor VIVO (camina o flota) más el contacto con el piso; no la posición de reposo del dato. */
+  private liveFeetOf(key: string): { x: number; y: number } | null {
+    const actor = this.actorOf(key);
+    if (!actor) return null;
+    const object = this.markerData.get(key);
+    return { x: actor.x, y: actor.y + (key.startsWith(NPC_KEY_PREFIX) || !object ? 0 : markerFeetOffsetY(object)) };
+  }
+
+  /** Claves de las personas (marcadores PERSON y `npc:{clave}`) cuyos pies están a menos de `radiusPx` de los pies del objeto `key` (posiciones vivas). */
+  peopleNear(key: string, radiusPx: number): string[] {
+    const from = this.liveFeetOf(key);
+    if (!from) return [];
+    const near: string[] = [];
+    const check = (candidate: string): void => {
+      const feet = candidate === key ? null : this.liveFeetOf(candidate);
+      if (feet && Math.hypot(feet.x - from.x, feet.y - from.y) < radiusPx) near.push(candidate);
+    };
+    for (const [other, object] of this.markerData) if (object.type === 'PERSON' && this.markers.has(other)) check(other);
+    for (const npcKey of this.npcMarkers.keys()) check(NPC_KEY_PREFIX + npcKey);
+    return near;
+  }
+
+  /** La cabeza de la persona en px CSS relativos al host (cámara, zoom y escala del lienzo); `null` si no está en la sala. Sin asignaciones por llamada salvo el resultado. */
+  screenAnchorOf(key: string): { x: number; y: number } | null {
+    const actor = this.actorOf(key);
+    const object = this.markerData.get(key);
+    if (!actor) return null;
+    const footY = actor.y + (key.startsWith(NPC_KEY_PREFIX) || !object ? 0 : markerFeetOffsetY(object));
+    const cam = this.cameras.main;
+    const view = cam.worldView;
+    const zoom = cam.zoom || 1;
+    const scale = this.scale?.displayScale;
+    return {
+      x: ((actor.x - view.x) * zoom) / (scale?.x || 1),
+      y: (((footY - KEY_PERSON_HEAD_PX) - view.y) * zoom) / (scale?.y || 1),
+    };
+  }
+
+  /** El aspecto con el que se dibuja a la persona o al NPC de `key`. */
+  characterVisualOf(key: string): CharacterVisual | null {
+    const bag = this.actorOf(key) as unknown as Record<string, unknown> | undefined;
+    return (bag?.['__personVisual'] ?? bag?.['__npcVisual'] ?? null) as CharacterVisual | null;
+  }
+
+  /** ¿Es `key` la persona clave de la sala? */
+  isKeyPerson(key: string): boolean { return this.keyPersonKey() === key; }
 
   /** Fase 4: draws the authored per-room background image (world.map.ambient.backgroundImage)
    *  over the procedural floor. No-op if none; safe on load failure (procedural floor remains). */
@@ -1119,6 +1248,50 @@ export class DataDrivenWorldScene extends Phaser.Scene {
     return true;
   }
 
+  /** P2: la sala por piezas que se está mostrando (null en las salas de imagen fija o de Tiled). */
+  private salaPorPiezas: EscenaDeSala | null = null;
+  private manifiestoDePiezasPedido = false;
+
+  /**
+   * P2 (contrato x-siep 2.2): si el mapa trae `structure`, la sala se arma con piezas, con su luz y sus puertas, y aquí se
+   * monta lo demás del juego como siempre. Devuelve false si la sala no es por piezas (o no se puede armar): entonces
+   * `renderWorld` sigue por el camino de hoy. Mientras llegan el manifiesto o las imágenes devuelve true y repinta al llegar.
+   */
+  private renderSalaPorPiezas(mapW: number, mapH: number): boolean {
+    const sala = this.world ? salaDelMundo(this.world.map as unknown as Record<string, unknown>, this.world.objects) : null;
+    if (!sala || !this.world) return false;
+    const manifiesto = this.cache.json.get('sala:manifiesto-de-piezas') as unknown;
+    if (!esManifiestoDePiezas(manifiesto)) {
+      if (this.manifiestoDePiezasPedido) return false;   // no cargó: la sala sigue por el camino de hoy
+      this.manifiestoDePiezasPedido = true;
+      this.load.json('sala:manifiesto-de-piezas', MANIFIESTO_DE_PIEZAS_URL);
+      this.load.once(Phaser.Loader.Events.COMPLETE, () => { if (this.ready) this.renderWorld(); });
+      this.load.start();
+      return true;
+    }
+    const plan = EscenaDeSala.planear(sala, manifiesto);
+    if (!plan) return false;
+    if (EscenaDeSala.pedirTexturas(this, plan)) {
+      this.load.once(Phaser.Loader.Events.COMPLETE, () => { if (this.ready) this.renderWorld(); });
+      this.load.start();
+      return true;
+    }
+    this.salaPorPiezas = new EscenaDeSala(this, sala, plan, manifiesto, { reducido: this.callbacks.reduceMotion });
+    // Las puertas de pieza ya están en el muro: su marcador no lleva sprite, solo el rótulo y el área para cruzar.
+    const dePieza = new Set((sala.puertas ?? []).map(p => p.id));
+    this.renderableWorldObjects()
+      .map(obj => (dePieza.has(obj.key) ? { ...obj, metadata: { ...(obj.metadata ?? {}), pintada: true } } : obj))
+      .forEach(obj => this.createMarker(obj));
+    this.createPlayer(this.world.player.x, this.world.player.y);
+    this.applyPixelCamera(mapW, mapH);
+    this.refreshMarkerStates();
+    this.updateNearestInteraction(true);
+    this.applyCrisisVignette();
+    this.playIntroFade();
+    this.callbacks.onReady();
+    return true;
+  }
+
   private renderWorld() {
     if (!this.world) return;
     // El arte de la biblioteca que aún no está cargado se pide primero; el mundo se pinta de nuevo al llegar.
@@ -1136,6 +1309,8 @@ export class DataDrivenWorldScene extends Phaser.Scene {
     this.cameras.main.stopFollow();   // clear stale follow target before destroying children
     // Los pulsos repeat:-1 sobreviven a removeAll y se acumulaban en cada re-render.
     this.endGestures();   // antes del killAll: Phaser descarta los tweens sin avisar y la promesa quedaría colgada
+    this.salaPorPiezas?.destruir();   // P2: sus texturas de lienzo no las borra removeAll
+    this.salaPorPiezas = null;
     this.tweens.killAll();
     this.children.removeAll(true);
     this.markers.clear();
@@ -1157,6 +1332,9 @@ export class DataDrivenWorldScene extends Phaser.Scene {
     const mapKey  = this.world.map.key;
     const { width: mapW, height: mapH } = this.world.map;
     this.cameras.main.setBackgroundColor('#0e141a');
+
+    // P2: una sala con `structure` se arma por piezas; sin ella, todo sigue como hoy.
+    if (this.renderSalaPorPiezas(mapW, mapH)) return;
 
     // ── Fase C: registry de renderers también en modo sala única ───────────
     // Si hay renderer para este mapa, él pinta todas las capas visuales y aquí
@@ -1396,7 +1574,7 @@ export class DataDrivenWorldScene extends Phaser.Scene {
 
     // Los JSON de escenario traen coords de la sala autoría; spawnNpcs tiene la
     // red de seguridad (freeTileNear) si alguna cayera en colisión.
-    this.spawnNpcs(roomConfig.npcs);
+    this.spawnNpcs(npcsDeLaSala(roomConfig.npcs, this.world?.map.ambient));
     // Fase 10: enter_room persiste entryX/entryY en world.player. Esa autoridad
     // debe ganar incluso si el ScenarioConfig asíncrono dejó un actor transitorio
     // en el centro; el actor vivo solo respalda datos backend no jugables.
@@ -1485,6 +1663,7 @@ export class DataDrivenWorldScene extends Phaser.Scene {
     let nearestDist = Infinity;
     for (const obj of this.world.objects) {
       if ((obj.type || '').toUpperCase() !== 'EXIT') continue;
+      if (puertaDelObjeto(obj)) continue;   // P2: una puerta de pieza se cruza con E, no al pisarla (diseño 4.4)
       const meta = obj.metadata as { targetNodeKey?: string; entryX?: number; entryY?: number } | undefined;
       const target = meta?.targetNodeKey;
       if (!target) continue;
@@ -1549,7 +1728,7 @@ export class DataDrivenWorldScene extends Phaser.Scene {
     if (this.motionPaused || this.npcMovers.size === 0) return;
     for (const mover of this.npcMovers.values()) {
       const container = this.npcMarkers.get(mover.key);
-      if (!container) continue;
+      if (!container || this.gesturing.has(this.npcKeyOf(mover.key))) continue;   // mirando hacia algo o en pleno gesto
       const behavior = effectiveNpcBehavior(mover.cfg.behavior, this.callbacks.reduceMotion);
       const lastDir = mover.lastPose.direction ?? 'down';
 
@@ -3412,12 +3591,17 @@ export class GameWorldComponent implements OnChanges, OnDestroy {
   frameActors(key: string) { this.scene?.frameActors(key); }
   releaseFrame() { this.scene?.releaseFrame(); }
   setPersonaState(text: string | null) { this.scene?.setPersonaState(text); }
-  /** Marca el gesto en curso como `data-reaction` del host (contrato del e2e) mientras dura. Directo al DOM. */
-  playGesture(key: string, gesto: Gesto): Promise<void> {
+  faceTowards(key: string, target: 'player' | string) { this.scene?.faceTowards(key, target); }
+  peopleNear(key: string, radiusPx: number): string[] { return this.scene?.peopleNear(key, radiusPx) ?? []; }
+  screenAnchorOf(key: string): { x: number; y: number } | null { return this.scene?.screenAnchorOf(key) ?? null; }
+  characterVisualOf(key: string): CharacterVisual | null { return this.scene?.characterVisualOf(key) ?? null; }
+  isKeyPerson(key: string): boolean { return this.scene?.isKeyPerson(key) ?? false; }
+  /** Marca el gesto en curso como `data-reaction` del host (contrato del e2e: solo la reacción a una decisión) mientras dura; `{ mark: false }` gesticula sin marcar. Directo al DOM. */
+  playGesture(key: string, gesto: Gesto, options: { mark?: boolean } = {}): Promise<void> {
     const host = this.gameHost?.nativeElement;
     const busy = this.scene?.isGesturing(key) ?? true;   // un gesto que no empieza no toca la marca del que sigue
     const run = this.scene?.playGesture(key, gesto) ?? Promise.resolve();
-    if (busy) return run;
+    if (busy || options.mark === false) return run;
     host?.setAttribute('data-reaction', gesto);
     return run.finally(() => host?.removeAttribute('data-reaction'));
   }

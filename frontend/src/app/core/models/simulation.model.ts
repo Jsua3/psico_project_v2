@@ -350,6 +350,85 @@ export interface SimulationWorldState {
   flags: Record<string, unknown>;
   /** Opciones ofrecidas ahora para el nodo actual; solo las traen las respuestas de mundo del juego (no el acuse de PATCH). */
   decisionOptions?: SimulationDecisionOption[];
+  /** Comentarios de la escena que se dicen ahora (contrato 2.1, 4.6); la condición nunca viaja. */
+  comments?: WorldComment[];
+}
+
+/** Un comentario de la escena que se dice ahora (contrato 2.1, 4.6): `emotion` y `gesture` son `null` si no son del vocabulario. */
+export interface WorldComment {
+  id: string;
+  objectKey: string;
+  line: string;
+  emotion: string | null;
+  gesture: string | null;
+}
+
+/** Lo que falta explorar para una respuesta o un comentario (la misma forma que `MissedFact`). */
+export interface RehearsalMissing {
+  kind: ExploredFactKind;
+  key: string;
+  label: string;
+}
+
+export interface RehearsalOption {
+  id: number;
+  text: string;
+  offered: boolean;
+  missing: RehearsalMissing[];
+  retainedBy: 'facts' | 'condition' | 'broken' | null;
+}
+
+export interface RehearsalComment {
+  index: number;
+  personaje: string;
+  line: string;
+  due: boolean;
+  /** El servidor lo manda (contrato 2.1, 7.2): por qué no se dice ahora. */
+  retainedBy: 'broken' | 'condition' | 'absent' | null;
+  missing: RehearsalMissing[];
+}
+
+export interface RehearsalExplored {
+  talked: string[];
+  inspected: string[];
+  has: string[];
+  used: string[];
+}
+
+export interface RehearsalScene {
+  id: number;
+  key: string;
+  title: string;
+  start: boolean;
+  terminal: boolean;
+}
+
+/** El bloque `rehearsal` del ensayo (contrato 2.1, 7.2); solo viaja por las rutas de autoría del ensayo. */
+export interface RehearsalBlock {
+  sceneId: number;
+  options: RehearsalOption[];
+  comments: RehearsalComment[];
+  warnings: string[];
+  persona: { bond: Bond; activation: Activation; label: string };
+  milestones: string[];
+  path: { nodeId: number; title: string }[];
+  /** Lo que cuenta hoy para la escena actual: es lo que lee el servidor al evaluar `requiere` y `cuando`. */
+  explored: RehearsalExplored;
+  /** Lo único que `PATCH explorado` admite en la escena actual. */
+  explorable: RehearsalMissing[];
+  /** Todas las escenas del caso, en el orden del editor, para elegir a cuál ir. */
+  scenes: RehearsalScene[];
+}
+
+export interface RehearsalStart extends SimulationAttemptState {
+  rehearsal: RehearsalBlock;
+}
+
+export interface RehearsalAdjustBody {
+  irA?: number;
+  explorado?: RehearsalExplored;
+  persona?: { bond?: Bond; activation?: Activation };
+  hitos?: string[];
 }
 
 export interface SceneMapState {

@@ -45,7 +45,7 @@ describe('ficha del objetivo (T9.1)', () => {
 
   it('el aviso de contenido sensible vive FUERA de la tarjeta plegable: franja bajo la cabecera, en todos los dispositivos (L-01)', () => {
     expect(source).toMatch(
-      /<app-simulation-hud[\s\S]*?\/>\s*(<!--[\s\S]*?-->\s*)?<app-sensitive-notice \[text\]="sensitiveNotice\(\)" \[sceneKey\]="attempt\(\)\?\.currentNode\?\.key \?\? null"[^>]*\/>\s*<\/header>/,
+      /<app-simulation-hud[\s\S]*?\/>\s*(<!--[\s\S]*?-->\s*)?<app-sensitive-notice \[text\]="sensitiveNotice\(\)" \[sceneKey\]="visibleNode\(\)\?\.key \?\? null"[^>]*\/>\s*<\/header>/,
     );
     expect(source).toContain('node.warningMessage');
     // Ya no está dentro de .objective-card (que se pliega a su chip) ni en el panel lateral: un único sitio.

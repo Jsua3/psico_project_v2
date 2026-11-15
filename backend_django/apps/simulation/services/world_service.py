@@ -25,6 +25,7 @@ from ..models import (
     MapObject,
     SceneMap,
 )
+from . import comments as comments_service
 from . import attempt_duration, attempt_lifecycle as lifecycle, door_chain, game_service, option_availability
 from .attempt_lock import locked_attempt
 from .world_state import (
@@ -775,13 +776,15 @@ def _flags_for(state, *, estudiante):
     return {key: flags[key] for key in STUDENT_FLAG_KEYS if key in flags}
 
 
-def _decision_options(attempt, state, *, estudiante):
-    """Las opciones que se ofrecen ahora (``id`` y ``text``): solo al estudiante y con el intento en juego."""
+def _decision_options_and_comments(attempt, state, *, estudiante):
+    """``(opciones, comentarios)`` que se ofrecen ahora: solo al estudiante y con el intento en juego y la escena no terminal.
+    El contexto de las condiciones se arma una vez y lo comparten las opciones y los comentarios."""
     node = attempt.current_node
     if not estudiante or attempt.status != AttemptStatus.IN_PROGRESS or node.terminal_node:
-        return []
-    offered, _ = option_availability.split_options(attempt, node, world_state=state)
-    return [{"id": o.id, "text": o.text} for o in offered]
+        return [], []
+    offered, _, context = option_availability.evaluate_options(attempt, node, world_state=state)
+    comments = comments_service.due_comments(attempt, node, state, context)
+    return [{"id": o.id, "text": o.text} for o in offered], comments
 
 
 def _to_world_state(attempt, state, *, estudiante=True):
@@ -795,6 +798,7 @@ def _to_world_state(attempt, state, *, estudiante=True):
     inventory_set = set(inventory)
     static = _static_world_for(attempt, scene_map)
     mapa = _mapa_para_estudiante(static["map"]) if estudiante else static["map"]
+    options, comments = _decision_options_and_comments(attempt, state, estudiante=estudiante)
     return {
         "attemptId": str(attempt.id),
         "status": attempt.status,
@@ -811,7 +815,8 @@ def _to_world_state(attempt, state, *, estudiante=True):
         "viewedDialogueKeys": _read_string_list(state.viewed_dialogue_keys_json),
         "usedToolKeys": _read_string_list(state.used_tool_keys_json),
         "flags": _flags_for(state, estudiante=estudiante),
-        "decisionOptions": _decision_options(attempt, state, estudiante=estudiante),
+        "decisionOptions": options,
+        "comments": comments,
     }
 
 

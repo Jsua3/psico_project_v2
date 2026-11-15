@@ -1,6 +1,7 @@
 import { expect, test } from '@playwright/test';
 import type { Page } from '@playwright/test';
 
+import { readJson } from './support/api-bodies';
 import { probeStudentConsent } from './support/consent';
 import { GUIDED_VIEWPORTS } from './support/guided-viewports';
 import {
@@ -416,11 +417,11 @@ test('con el consentimiento exigido y retirado en otra pestaña, «Salida segura
 
   const positionResponse = await position;
   expect(positionResponse.status()).toBe(403);
-  expect((await positionResponse.json()).code).toBe('CONSENT_REQUIRED');
+  expect((await readJson(positionResponse)).code).toBe('CONSENT_REQUIRED');
   // …pero la pausa sale igual (REGLA-004): 200 y el intento queda en pausa.
   const pauseResponse = await pause;
   expect(pauseResponse.status(), 'la salida segura no depende del consentimiento').toBe(200);
-  expect((await pauseResponse.json()).data.status).toBe('PAUSED');
+  expect((await readJson(pauseResponse)).data.status).toBe('PAUSED');
   const attemptId = /attempts\/([^/]+)\/safe-exit/.exec(pauseResponse.url())![1];
   const history = (await (await request.get('/api/simulation/attempts/history', { headers: probe.headers })).json()).data as Array<{ attemptId: string; status: string }>;
   expect(history.find(row => row.attemptId === attemptId)?.status).toBe('PAUSED');

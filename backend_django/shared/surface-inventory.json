@@ -352,6 +352,36 @@
       "audit": "ADMIN_PUBLISH_CASE"
     },
     {
+      "route": "api/admin/cases/<int:case_version_id>/rehearsal",
+      "method": "POST",
+      "exposure": "role:ADMIN,PROFESOR",
+      "body": "json-small",
+      "throttle": [
+        "heavy_user"
+      ],
+      "audit": "EXENTO: ensayo del borrador de su autora (docente dueña o ADMIN): un intento aparte que ningún informe, lista ni métrica cuenta y que nadie más lee; no son datos de estudiantes"
+    },
+    {
+      "route": "api/admin/cases/<int:case_version_id>/rehearsal/<uuid:attempt_id>",
+      "method": "GET",
+      "exposure": "role:ADMIN,PROFESOR",
+      "body": "none",
+      "throttle": [
+        "heavy_user"
+      ],
+      "audit": "EXENTO: ensayo del borrador de su autora (docente dueña o ADMIN): un intento aparte que ningún informe, lista ni métrica cuenta y que nadie más lee; no son datos de estudiantes"
+    },
+    {
+      "route": "api/admin/cases/<int:case_version_id>/rehearsal/<uuid:attempt_id>",
+      "method": "PATCH",
+      "exposure": "role:ADMIN,PROFESOR",
+      "body": "json-small",
+      "throttle": [
+        "heavy_user"
+      ],
+      "audit": "EXENTO: ensayo del borrador de su autora (docente dueña o ADMIN): un intento aparte que ningún informe, lista ni métrica cuenta y que nadie más lee; no son datos de estudiantes"
+    },
+    {
       "route": "api/admin/cases/<int:case_version_id>/rules/endings",
       "method": "PUT",
       "exposure": "role:ADMIN,PROFESOR",
@@ -916,6 +946,36 @@
       "audit": "ADMIN_PUBLISH_CASE"
     },
     {
+      "route": "api/authoring/cases/<int:case_version_id>/rehearsal",
+      "method": "POST",
+      "exposure": "role:ADMIN,PROFESOR",
+      "body": "json-small",
+      "throttle": [
+        "heavy_user"
+      ],
+      "audit": "EXENTO: ensayo del borrador de su autora (docente dueña o ADMIN): un intento aparte que ningún informe, lista ni métrica cuenta y que nadie más lee; no son datos de estudiantes"
+    },
+    {
+      "route": "api/authoring/cases/<int:case_version_id>/rehearsal/<uuid:attempt_id>",
+      "method": "GET",
+      "exposure": "role:ADMIN,PROFESOR",
+      "body": "none",
+      "throttle": [
+        "heavy_user"
+      ],
+      "audit": "EXENTO: ensayo del borrador de su autora (docente dueña o ADMIN): un intento aparte que ningún informe, lista ni métrica cuenta y que nadie más lee; no son datos de estudiantes"
+    },
+    {
+      "route": "api/authoring/cases/<int:case_version_id>/rehearsal/<uuid:attempt_id>",
+      "method": "PATCH",
+      "exposure": "role:ADMIN,PROFESOR",
+      "body": "json-small",
+      "throttle": [
+        "heavy_user"
+      ],
+      "audit": "EXENTO: ensayo del borrador de su autora (docente dueña o ADMIN): un intento aparte que ningún informe, lista ni métrica cuenta y que nadie más lee; no son datos de estudiantes"
+    },
+    {
       "route": "api/authoring/cases/<int:case_version_id>/rules/endings",
       "method": "PUT",
       "exposure": "role:ADMIN,PROFESOR",
@@ -1440,23 +1500,23 @@
     {
       "route": "api/simulation/attempts/<uuid:attempt_id>",
       "method": "GET",
-      "exposure": "role:ESTUDIANTE",
+      "exposure": "role:ADMIN,ESTUDIANTE,PROFESOR",
       "body": "none",
       "throttle": null,
-      "audit": null
+      "audit": "EXENTO: lectura de un intento por su token: solo lo lee su dueño, el estudiante o la docente (o el ADMIN) que ensaya su borrador; nadie lee el intento de otra persona por esta ruta (``_require_attempt``)"
     },
     {
       "route": "api/simulation/attempts/<uuid:attempt_id>/completion-report",
       "method": "GET",
-      "exposure": "role:ESTUDIANTE",
+      "exposure": "role:ADMIN,ESTUDIANTE,PROFESOR",
       "body": "none",
       "throttle": null,
-      "audit": null
+      "audit": "EXENTO: lectura de un intento por su token: solo lo lee su dueño, el estudiante o la docente (o el ADMIN) que ensaya su borrador; nadie lee el intento de otra persona por esta ruta (``_require_attempt``)"
     },
     {
       "route": "api/simulation/attempts/<uuid:attempt_id>/decisions",
       "method": "POST",
-      "exposure": "role:ESTUDIANTE",
+      "exposure": "role:ADMIN,ESTUDIANTE,PROFESOR",
       "body": "json-small",
       "throttle": null,
       "audit": "DECISION_SELECTED"
@@ -1464,7 +1524,7 @@
     {
       "route": "api/simulation/attempts/<uuid:attempt_id>/enter-room",
       "method": "POST",
-      "exposure": "role:ESTUDIANTE",
+      "exposure": "role:ADMIN,ESTUDIANTE,PROFESOR",
       "body": "json-small",
       "throttle": null,
       "audit": "EXENTO: estado de juego del propio intento: el hecho queda en la traza del intento (attempt_events), que se audita al leerla"
@@ -1496,15 +1556,15 @@
     {
       "route": "api/simulation/attempts/<uuid:attempt_id>/hints",
       "method": "GET",
-      "exposure": "role:ESTUDIANTE",
+      "exposure": "role:ADMIN,ESTUDIANTE,PROFESOR",
       "body": "none",
       "throttle": null,
-      "audit": null
+      "audit": "EXENTO: lectura de un intento por su token: solo lo lee su dueño, el estudiante o la docente (o el ADMIN) que ensaya su borrador; nadie lee el intento de otra persona por esta ruta (``_require_attempt``)"
     },
     {
       "route": "api/simulation/attempts/<uuid:attempt_id>/hints/next",
       "method": "POST",
-      "exposure": "role:ESTUDIANTE",
+      "exposure": "role:ADMIN,ESTUDIANTE,PROFESOR",
       "body": "json-small",
       "throttle": null,
       "audit": "EXENTO: estado de juego del propio intento: el hecho queda en la traza del intento (attempt_events), que se audita al leerla"
@@ -1512,7 +1572,7 @@
     {
       "route": "api/simulation/attempts/<uuid:attempt_id>/interactions/<str:interaction_key>",
       "method": "POST",
-      "exposure": "role:ESTUDIANTE",
+      "exposure": "role:ADMIN,ESTUDIANTE,PROFESOR",
       "body": "json-small",
       "throttle": null,
       "audit": "EXENTO: estado de juego del propio intento: el hecho queda en la traza del intento (attempt_events), que se audita al leerla"
@@ -1520,7 +1580,7 @@
     {
       "route": "api/simulation/attempts/<uuid:attempt_id>/npcs/<str:npc_key>",
       "method": "POST",
-      "exposure": "role:ESTUDIANTE",
+      "exposure": "role:ADMIN,ESTUDIANTE,PROFESOR",
       "body": "json-small",
       "throttle": null,
       "audit": "EXENTO: estado de juego del propio intento: el hecho queda en la traza del intento (attempt_events), que se audita al leerla"
@@ -1528,15 +1588,15 @@
     {
       "route": "api/simulation/attempts/<uuid:attempt_id>/progress-map",
       "method": "GET",
-      "exposure": "role:ESTUDIANTE",
+      "exposure": "role:ADMIN,ESTUDIANTE,PROFESOR",
       "body": "none",
       "throttle": null,
-      "audit": null
+      "audit": "EXENTO: lectura de un intento por su token: solo lo lee su dueño, el estudiante o la docente (o el ADMIN) que ensaya su borrador; nadie lee el intento de otra persona por esta ruta (``_require_attempt``)"
     },
     {
       "route": "api/simulation/attempts/<uuid:attempt_id>/reflections",
       "method": "POST",
-      "exposure": "role:ESTUDIANTE",
+      "exposure": "role:ADMIN,ESTUDIANTE,PROFESOR",
       "body": "json-small",
       "throttle": null,
       "audit": "REFLECTION_SAVED"
@@ -1544,15 +1604,15 @@
     {
       "route": "api/simulation/attempts/<uuid:attempt_id>/report",
       "method": "GET",
-      "exposure": "role:ESTUDIANTE",
+      "exposure": "role:ADMIN,ESTUDIANTE,PROFESOR",
       "body": "none",
       "throttle": null,
-      "audit": null
+      "audit": "EXENTO: lectura de un intento por su token: solo lo lee su dueño, el estudiante o la docente (o el ADMIN) que ensaya su borrador; nadie lee el intento de otra persona por esta ruta (``_require_attempt``)"
     },
     {
       "route": "api/simulation/attempts/<uuid:attempt_id>/resume",
       "method": "POST",
-      "exposure": "role:ESTUDIANTE",
+      "exposure": "role:ADMIN,ESTUDIANTE,PROFESOR",
       "body": "json-small",
       "throttle": null,
       "audit": "ATTEMPT_RESUMED"
@@ -1560,7 +1620,7 @@
     {
       "route": "api/simulation/attempts/<uuid:attempt_id>/safe-exit",
       "method": "POST",
-      "exposure": "role:ESTUDIANTE",
+      "exposure": "role:ADMIN,ESTUDIANTE,PROFESOR",
       "body": "json-small",
       "throttle": null,
       "audit": "SAFE_EXIT_REQUESTED"
@@ -1576,7 +1636,7 @@
     {
       "route": "api/simulation/attempts/<uuid:attempt_id>/tools/use",
       "method": "POST",
-      "exposure": "role:ESTUDIANTE",
+      "exposure": "role:ADMIN,ESTUDIANTE,PROFESOR",
       "body": "json-small",
       "throttle": null,
       "audit": "EXENTO: estado de juego del propio intento: el hecho queda en la traza del intento (attempt_events), que se audita al leerla"
@@ -1584,15 +1644,15 @@
     {
       "route": "api/simulation/attempts/<uuid:attempt_id>/world",
       "method": "GET",
-      "exposure": "role:ESTUDIANTE",
+      "exposure": "role:ADMIN,ESTUDIANTE,PROFESOR",
       "body": "none",
       "throttle": null,
-      "audit": null
+      "audit": "EXENTO: lectura de un intento por su token: solo lo lee su dueño, el estudiante o la docente (o el ADMIN) que ensaya su borrador; nadie lee el intento de otra persona por esta ruta (``_require_attempt``)"
     },
     {
       "route": "api/simulation/attempts/<uuid:attempt_id>/world-state",
       "method": "PATCH",
-      "exposure": "role:ESTUDIANTE",
+      "exposure": "role:ADMIN,ESTUDIANTE,PROFESOR",
       "body": "json-small",
       "throttle": null,
       "audit": "EXENTO: posición del jugador en su propio intento: cientos de escrituras por partida sin valor probatorio; el juego jamás se frena"
