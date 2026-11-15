@@ -176,11 +176,11 @@ def tabla_dorada():
 def escribir_tabla_dorada():
     """Regenera ``geometria-salas.json`` y su copia en TS (``geometria-salas.fixture.ts``)."""
     texto = json.dumps(tabla_dorada(), ensure_ascii=False, separators=(",", ":"))
-    TABLA_DORADA.write_text(texto + "\n", encoding="utf-8")
+    TABLA_DORADA.write_text(texto + "\n", encoding="utf-8", newline="\n")
     ts = TABLA_DORADA.parents[2] / "frontend" / "src" / "app" / "features" / "autoria" / "modelo" / "geometria-salas.fixture.ts"
     ts.write_text(
         "/**\n * Tabla dorada de la geometría de las salas (contrato x-siep 2.2, sección 1). NO SE EDITA A MANO: la escribe\n"
         " * `geometria.escribir_tabla_dorada()` del servidor, igual que `biblioteca/esquema/geometria-salas.json`.\n */\n"
         f"export const GEOMETRIA_SALAS = {texto} as const;\n",
-        encoding="utf-8",
+        encoding="utf-8", newline="\n",
     )
