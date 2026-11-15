@@ -294,6 +294,26 @@
    "reemplaza": "escenarios/casa/arte/muebles/mesa-centro-casa.png",
    "ruta": "piezas/muebles/casa/mesa-centro-casa.png"
   },
+  "casa/mesa-comedor": {
+   "alto": 45,
+   "ancho": 112,
+   "apoyo": [
+    56,
+    45
+   ],
+   "brillo": "piezas/muebles/casa/mesa-comedor-brillo.png",
+   "brilloDerecha": "piezas/muebles/casa/mesa-comedor-brillo-derecha.png",
+   "brilloIzquierda": "piezas/muebles/casa/mesa-comedor-brillo-izquierda.png",
+   "cuadros": 1,
+   "huella": {
+    "alto": 30,
+    "ancho": 108,
+    "fondo": 16
+   },
+   "nombre": "Mesa del comedor",
+   "reemplaza": "escenarios/casa/arte/muebles/mesa-comedor.png",
+   "ruta": "piezas/muebles/casa/mesa-comedor.png"
+  },
   "casa/mueble-tv": {
    "alto": 37,
    "ancho": 103,
@@ -330,6 +350,25 @@
    "nombre": "Mueble del televisor",
    "reemplaza": "escenarios/casa/arte/muebles/mueble-tv.png",
    "ruta": "piezas/muebles/casa/mueble-tv.png"
+  },
+  "casa/silla-comedor": {
+   "alto": 38,
+   "ancho": 22,
+   "apoyo": [
+    11,
+    38
+   ],
+   "brilloDerecha": "piezas/muebles/casa/silla-comedor-brillo-derecha.png",
+   "brilloIzquierda": "piezas/muebles/casa/silla-comedor-brillo-izquierda.png",
+   "cuadros": 1,
+   "huella": {
+    "alto": 34,
+    "ancho": 20,
+    "fondo": 10
+   },
+   "nombre": "Silla del comedor",
+   "reemplaza": "escenarios/casa/arte/muebles/silla-comedor.png",
+   "ruta": "piezas/muebles/casa/silla-comedor.png"
   },
   "casa/sillon-casa": {
    "alto": 44,
@@ -370,6 +409,26 @@
    "nombre": "Sofá de la sala",
    "reemplaza": "escenarios/casa/arte/muebles/sofa-casa.png",
    "ruta": "piezas/muebles/casa/sofa-casa.png"
+  },
+  "casa/vitrina-comedor": {
+   "alto": 79,
+   "ancho": 62,
+   "apoyo": [
+    31,
+    79
+   ],
+   "brillo": "piezas/muebles/casa/vitrina-comedor-brillo.png",
+   "brilloDerecha": "piezas/muebles/casa/vitrina-comedor-brillo-derecha.png",
+   "brilloIzquierda": "piezas/muebles/casa/vitrina-comedor-brillo-izquierda.png",
+   "cuadros": 1,
+   "huella": {
+    "alto": 74,
+    "ancho": 58,
+    "fondo": 14
+   },
+   "nombre": "Vitrina del comedor",
+   "reemplaza": "escenarios/casa/arte/muebles/vitrina-comedor.png",
+   "ruta": "piezas/muebles/casa/vitrina-comedor.png"
   },
   "comisaria/caneca-comisaria": {
    "alto": 33,
