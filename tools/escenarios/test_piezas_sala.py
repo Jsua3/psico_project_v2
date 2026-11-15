@@ -85,8 +85,8 @@ def test_de_noche_el_tubo_da_luz_fria_y_la_lampara_de_pie_calida():
     _, calido, frio = pl.niveles(_sala(piezas=[PIE]), 'noche')
     assert calido[340, 300] == 3 and frio.max() == 0
     assert pl.niveles(_sala(piezas=[PIE]), 'dia')[1].max() == 0, 'de día está apagada'
-    assert pl.niveles(_sala(piezas=[dict(PIE, encendida='siempre')]), 'dia')[1].max() > 0
-    assert pl.niveles(_sala(piezas=[dict(PIE, encendida='nunca')]), 'noche')[1].max() == 0
+    assert pl.niveles(_sala(piezas=[dict(PIE, encendida=True)]), 'dia')[1].max() > 0
+    assert pl.niveles(_sala(piezas=[dict(PIE, encendida=False)]), 'noche')[1].max() == 0
 
 
 def test_dos_luces_que_se_cruzan_no_rompen_los_escalones():
@@ -132,7 +132,7 @@ def test_la_sala_de_muestra_no_tiene_avisos_y_trae_sus_piezas():
     assert c['avisos'] == []
     assert {s['id'] for s in c['sprites']} == {'ventana', 'cuadro', 'repisa', 'reloj', 'lampara', 'puerta-comedor', 'puerta-escalera', 'puerta-fachada'}
     puerta = next(s for s in c['sprites'] if s['id'] == 'puerta-comedor')
-    assert len(puerta['cuadros']) == 4 and puerta['capa'] == 'muro' and puerta['llegada'] == (200, 246)
+    assert len(puerta['cuadros']) == 4 and puerta['capa'] == 'muro' and puerta['llegada'] == (200, 260)
     assert next(s for s in c['sprites'] if s['id'] == 'puerta-fachada')['capa'] == 'frente'
 
 
@@ -259,7 +259,7 @@ def test_el_manifiesto_declara_cada_pieza_con_su_contrato():
     datos, imagenes = pc.generar()
     assert datos['esquema'] == 2
     assert len([c for c in datos['piezas'] if c.startswith('puerta/')]) == 7
-    assert len(datos['pisos']) == 12 and len(datos['muros']) == 20
+    assert len(datos['pisos']) == 12 + 28 and len(datos['muros']) == 20 + 28, 'el catálogo más el piso y el muro propios de cada sala'
     for clave, ficha in datos['piezas'].items():
         assert ficha['ocupa'] % 8 == 0 and ficha['muros'] and ficha['cuadros'] >= 1 and len(ficha['franja']) == 2, clave
         vistas = ficha['vistas']

@@ -63,7 +63,7 @@
        "tipo": "ventana"
       },
       {
-       "encendida": "siempre",
+       "encendida": true,
        "id": "lampara",
        "modelo": "pie",
        "tipo": "lampara",
@@ -662,7 +662,7 @@
        "y": 380
       },
       {
-       "encendida": "siempre",
+       "encendida": true,
        "id": "mesa",
        "modelo": "mesa",
        "sobre": 18,

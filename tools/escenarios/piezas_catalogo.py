@@ -93,19 +93,18 @@ def generar():
             imagenes[ruta] = ps.piso_maestro(tipo, variante)
             pisos[f'{tipo}-{variante}'] = dict(ruta=ruta, ancho=ps.M, alto=g.FONDO, nombre=ps.NOMBRE_PISO[tipo])
     muros = {}
-    for acabado in ps.ACABADOS:
-        for paleta in ps.PALETAS:
-            base = f'piezas/muros/{acabado}-{paleta}'
-            imagenes[base + '-fondo.png'] = ps.muro_maestro(acabado, paleta)
-            lado = {}
-            for a in g.ANCHOS:
-                lado[str(a)] = {}
-                for nombre in ('izquierda', 'derecha'):
-                    im = ps.muro_lado(acabado, paleta, a, nombre)
-                    imagenes[f'{base}-lado-{a}-{nombre}.png'] = im
-                    lado[str(a)][nombre] = dict(ruta=f'{base}-lado-{a}-{nombre}.png', ancho=im.width, alto=im.height)
-            muros[f'{acabado}/{paleta}'] = dict(nombre=ps.NOMBRE_ACABADO[acabado], fondo=dict(ruta=base + '-fondo.png', ancho=ps.M, alto=ps.ALTO_MAESTRA_MURO),
-                                                lado=lado)
+    for acabado, paleta in ps.muros_del_catalogo():
+        base = f'piezas/muros/{acabado}-{paleta}'
+        imagenes[base + '-fondo.png'] = ps.muro_maestro(acabado, paleta)
+        lado = {}
+        for a in g.ANCHOS:
+            lado[str(a)] = {}
+            for nombre in ('izquierda', 'derecha'):
+                im = ps.muro_lado(acabado, paleta, a, nombre)
+                imagenes[f'{base}-lado-{a}-{nombre}.png'] = im
+                lado[str(a)][nombre] = dict(ruta=f'{base}-lado-{a}-{nombre}.png', ancho=im.width, alto=im.height)
+        muros[f'{acabado}/{paleta}'] = dict(nombre=ps.NOMBRE_ACABADO[acabado], fondo=dict(ruta=base + '-fondo.png', ancho=ps.M, alto=ps.ALTO_MAESTRA_MURO),
+                                            lado=lado)
     muebles = {}
     for ref, F in ph.MUEBLES.items():
         cuadros = ph.mueble(ref)
@@ -139,11 +138,13 @@ def _completar(datos, biblioteca):
     """Lo que no dibuja este módulo sino la conversión: los lugares y las capas propias de sus salas."""
     datos['lugares'] = _listar(biblioteca, 'lugares', '.json')
     datos['propios'] = _listar(biblioteca, 'propios', '.png')
+    datos['tapetes'] = _listar(biblioteca, 'tapetes', '.png')
     return datos
 
 
 def escribir(biblioteca=BIBLIOTECA):
     datos, imagenes = generar()
+    imagenes.update(ps.imagenes_de_tapetes(ph.LUGAR))
     for ruta, im in imagenes.items():
         archivo = os.path.join(biblioteca, *ruta.split('/'))
         os.makedirs(os.path.dirname(archivo), exist_ok=True)

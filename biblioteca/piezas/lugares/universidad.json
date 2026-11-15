@@ -15,9 +15,9 @@
       "estructura": {
         "acabados": {
           "muro": "ladrillo",
-          "paleta": "universidad",
+          "paleta": "universidad-entrada",
           "piso": "adoquin",
-          "variante": "a"
+          "variante": "universidad-entrada"
         },
         "ancho": 960,
         "exterior": true,
@@ -127,9 +127,9 @@
       "estructura": {
         "acabados": {
           "muro": "zocalo-alto",
-          "paleta": "universidad",
+          "paleta": "universidad-pasillo",
           "piso": "baldosa",
-          "variante": "b"
+          "variante": "universidad-pasillo"
         },
         "ancho": 960,
         "momento": "dia",
@@ -204,7 +204,6 @@
         }
       ],
       "perdido": [
-        "vetas del muro",
         "encuadre una-pared: pasa a tres-paredes para que la salida lateral tenga muro"
       ],
       "personajes": [
@@ -293,9 +292,9 @@
       "estructura": {
         "acabados": {
           "muro": "zocalo-alto",
-          "paleta": "universidad",
+          "paleta": "universidad-aula",
           "piso": "baldosa",
-          "variante": "b"
+          "variante": "universidad-aula"
         },
         "ancho": 960,
         "momento": "dia",
@@ -423,9 +422,9 @@
       "estructura": {
         "acabados": {
           "muro": "pintura",
-          "paleta": "casa",
+          "paleta": "universidad-oficina-docente",
           "piso": "madera",
-          "variante": "b"
+          "variante": "universidad-oficina-docente"
         },
         "ancho": 960,
         "momento": "dia",
@@ -544,9 +543,9 @@
       "estructura": {
         "acabados": {
           "muro": "pintura",
-          "paleta": "universidad",
+          "paleta": "universidad-sala-espera",
           "piso": "baldosa",
-          "variante": "b"
+          "variante": "universidad-sala-espera"
         },
         "ancho": 960,
         "momento": "dia",
@@ -634,9 +633,6 @@
           "y": 262
         }
       ],
-      "perdido": [
-        "franja de color en el muro"
-      ],
       "personajes": [
         {
           "expresion": "preocupada",
@@ -678,9 +674,9 @@
       "estructura": {
         "acabados": {
           "muro": "pintura",
-          "paleta": "universidad",
+          "paleta": "universidad-bienestar",
           "piso": "baldosa",
-          "variante": "b"
+          "variante": "universidad-bienestar"
         },
         "ancho": 960,
         "momento": "dia",
@@ -771,9 +767,6 @@
           "y": 280
         }
       ],
-      "perdido": [
-        "franja de color en el muro"
-      ],
       "personajes": [
         {
           "expresion": "alegre",
@@ -815,9 +808,9 @@
       "estructura": {
         "acabados": {
           "muro": "pintura",
-          "paleta": "universidad",
+          "paleta": "universidad-consultorio",
           "piso": "madera",
-          "variante": "b"
+          "variante": "universidad-consultorio"
         },
         "ancho": 960,
         "momento": "dia",
@@ -948,9 +941,9 @@
       "estructura": {
         "acabados": {
           "muro": "azulejo",
-          "paleta": "universidad",
+          "paleta": "universidad-enfermeria",
           "piso": "baldosa",
-          "variante": "b"
+          "variante": "universidad-enfermeria"
         },
         "ancho": 960,
         "momento": "dia",
@@ -1063,9 +1056,9 @@
       "estructura": {
         "acabados": {
           "muro": "zocalo-alto",
-          "paleta": "casa",
+          "paleta": "universidad-cafeteria",
           "piso": "damero",
-          "variante": "a"
+          "variante": "universidad-cafeteria"
         },
         "ancho": 960,
         "momento": "dia",
@@ -1199,9 +1192,9 @@
       "estructura": {
         "acabados": {
           "muro": "paneles",
-          "paleta": "casa",
+          "paleta": "universidad-biblioteca",
           "piso": "vinilo",
-          "variante": "a"
+          "variante": "universidad-biblioteca"
         },
         "ancho": 960,
         "momento": "dia",
@@ -1226,43 +1219,6 @@
             "muro": "fondo",
             "pos": 608,
             "tipo": "ventana"
-          }
-        ],
-        "tapetes": [
-          {
-            "caja": [
-              166,
-              794,
-              270,
-              456
-            ],
-            "colores": {
-              "borde": [
-                59,
-                74,
-                63
-              ],
-              "campo": [
-                76,
-                96,
-                82
-              ],
-              "motivo": [
-                115,
-                129,
-                112
-              ],
-              "oscuro": [
-                47,
-                59,
-                50
-              ],
-              "ribete": [
-                66,
-                84,
-                72
-              ]
-            }
           }
         ]
       },
@@ -1319,7 +1275,7 @@
         }
       ],
       "perdido": [
-        "piso de alfombra: queda como vinilo con un tapete",
+        "piso de alfombra: queda como vinilo liso del mismo color",
         "Tubo de techo: no cabe en el muro del fondo"
       ],
       "personajes": [],

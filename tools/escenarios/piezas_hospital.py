@@ -328,8 +328,8 @@ def N(ref, x, y, mirando='abajo'):
 def _sala(id, nombre, ancho, piso, variante, muro, piezas, puertas, muebles, personajes=(), entrada=None, tapetes=(), descripcion=''):
     estructura = dict(ancho=ancho, momento='noche', acabados=dict(piso=piso, variante=variante, muro=muro, paleta='hospital'), piezas=piezas)
     if tapetes:
-        estructura['tapetes'] = list(tapetes)
-    return dict(id=id, nombre=nombre, descripcion=descripcion, encuadre='tres-paredes', entrada=entrada, estructura=estructura,
+        estructura['tapetes'] = [sl.ps.tapete_ficha('hospital', id, n + 1, ancho, t['caja'], t.get('colores')) for n, t in enumerate(tapetes)]
+    return dict(id=id, nombre=nombre, descripcion=descripcion, encuadre='tres-paredes', entrada=dict(x=entrada[0], y=entrada[1]), estructura=estructura,
                 puertas=puertas, muebles=muebles, personajes=list(personajes))
 
 

@@ -15,9 +15,9 @@
       "estructura": {
         "acabados": {
           "muro": "ladrillo",
-          "paleta": "comisaria",
+          "paleta": "comisaria-fachada",
           "piso": "adoquin",
-          "variante": "a"
+          "variante": "comisaria-fachada"
         },
         "ancho": 960,
         "exterior": true,
@@ -88,8 +88,6 @@
         }
       ],
       "perdido": [
-        "franja de color en el muro",
-        "franja alta del muro",
         "lo propio de la sala queda como una capa fija: no se puede mover ni cambia con la paleta"
       ],
       "personajes": [
@@ -124,9 +122,9 @@
       "estructura": {
         "acabados": {
           "muro": "zocalo-alto",
-          "paleta": "comisaria",
+          "paleta": "comisaria-recepcion",
           "piso": "baldosa",
-          "variante": "b"
+          "variante": "comisaria-recepcion"
         },
         "ancho": 960,
         "momento": "dia",
@@ -200,7 +198,6 @@
         }
       ],
       "perdido": [
-        "franja de color en el muro",
         "lo propio de la sala queda como una capa fija: no se puede mover ni cambia con la paleta"
       ],
       "personajes": [
@@ -267,9 +264,9 @@
       "estructura": {
         "acabados": {
           "muro": "zocalo-alto",
-          "paleta": "comisaria",
+          "paleta": "comisaria-sala-espera",
           "piso": "baldosa",
-          "variante": "b"
+          "variante": "comisaria-sala-espera"
         },
         "ancho": 960,
         "momento": "dia",
@@ -337,7 +334,6 @@
         }
       ],
       "perdido": [
-        "franja de color en el muro",
         "encuadre dos-paredes-derecha: pasa a tres-paredes para que la salida lateral tenga muro",
         "lo propio de la sala queda como una capa fija: no se puede mover ni cambia con la paleta"
       ],
@@ -389,9 +385,9 @@
       "estructura": {
         "acabados": {
           "muro": "zocalo-alto",
-          "paleta": "comisaria",
+          "paleta": "comisaria-pasillo",
           "piso": "baldosa",
-          "variante": "b"
+          "variante": "comisaria-pasillo"
         },
         "ancho": 960,
         "momento": "dia",
@@ -448,7 +444,6 @@
         }
       ],
       "perdido": [
-        "franja de color en el muro",
         "encuadre una-pared: pasa a tres-paredes para que la salida lateral tenga muro",
         "lo propio de la sala queda como una capa fija: no se puede mover ni cambia con la paleta"
       ],
@@ -530,9 +525,9 @@
       "estructura": {
         "acabados": {
           "muro": "zocalo-alto",
-          "paleta": "casa",
+          "paleta": "comisaria-orientacion-juridica",
           "piso": "baldosa",
-          "variante": "b"
+          "variante": "comisaria-orientacion-juridica"
         },
         "ancho": 960,
         "momento": "dia",
@@ -639,9 +634,9 @@
       "estructura": {
         "acabados": {
           "muro": "paneles",
-          "paleta": "comisaria",
+          "paleta": "comisaria-despacho-comisaria",
           "piso": "madera",
-          "variante": "b"
+          "variante": "comisaria-despacho-comisaria"
         },
         "ancho": 960,
         "momento": "dia",
@@ -761,9 +756,9 @@
       "estructura": {
         "acabados": {
           "muro": "pintura",
-          "paleta": "universidad",
+          "paleta": "comisaria-consultorio-psicosocial",
           "piso": "madera",
-          "variante": "b"
+          "variante": "comisaria-consultorio-psicosocial"
         },
         "ancho": 960,
         "momento": "dia",
@@ -884,9 +879,9 @@
       "estructura": {
         "acabados": {
           "muro": "pintura",
-          "paleta": "comisaria",
+          "paleta": "comisaria-sala-entrevista-nna",
           "piso": "vinilo",
-          "variante": "a"
+          "variante": "comisaria-sala-entrevista-nna"
         },
         "ancho": 960,
         "momento": "dia",
@@ -903,43 +898,6 @@
           {
             "ref": "comisaria/sala-entrevista-nna",
             "ruta": "piezas/propios/comisaria-sala-entrevista-nna.png"
-          }
-        ],
-        "tapetes": [
-          {
-            "caja": [
-              166,
-              866,
-              270,
-              456
-            ],
-            "colores": {
-              "borde": [
-                87,
-                101,
-                88
-              ],
-              "campo": [
-                112,
-                130,
-                114
-              ],
-              "motivo": [
-                143,
-                155,
-                137
-              ],
-              "oscuro": [
-                69,
-                80,
-                70
-              ],
-              "ribete": [
-                102,
-                118,
-                104
-              ]
-            }
           }
         ]
       },
@@ -985,7 +943,7 @@
         }
       ],
       "perdido": [
-        "piso de alfombra: queda como vinilo con un tapete",
+        "piso de alfombra: queda como vinilo liso del mismo color",
         "lo propio de la sala queda como una capa fija: no se puede mover ni cambia con la paleta"
       ],
       "personajes": [
@@ -1020,9 +978,9 @@
       "estructura": {
         "acabados": {
           "muro": "zocalo-alto",
-          "paleta": "comisaria",
+          "paleta": "comisaria-archivo",
           "piso": "baldosa",
-          "variante": "b"
+          "variante": "comisaria-archivo"
         },
         "ancho": 960,
         "momento": "dia",

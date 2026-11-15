@@ -15,9 +15,9 @@
       "estructura": {
         "acabados": {
           "muro": "zocalo-alto",
-          "paleta": "casa",
+          "paleta": "casa-fachada",
           "piso": "adoquin",
-          "variante": "a"
+          "variante": "casa-fachada"
         },
         "ancho": 960,
         "exterior": true,
@@ -108,9 +108,9 @@
       "estructura": {
         "acabados": {
           "muro": "zocalo-alto",
-          "paleta": "casa",
+          "paleta": "casa-sala",
           "piso": "madera",
-          "variante": "a"
+          "variante": "casa-sala"
         },
         "ancho": 960,
         "momento": "dia",
@@ -244,9 +244,9 @@
       "estructura": {
         "acabados": {
           "muro": "paneles",
-          "paleta": "casa",
+          "paleta": "casa-comedor",
           "piso": "baldosa",
-          "variante": "a"
+          "variante": "casa-comedor"
         },
         "ancho": 960,
         "momento": "dia",
@@ -372,9 +372,9 @@
       "estructura": {
         "acabados": {
           "muro": "azulejo",
-          "paleta": "universidad",
+          "paleta": "casa-cocina",
           "piso": "baldosa",
-          "variante": "b"
+          "variante": "casa-cocina"
         },
         "ancho": 960,
         "momento": "dia",
@@ -485,9 +485,9 @@
       "estructura": {
         "acabados": {
           "muro": "pintura",
-          "paleta": "casa",
+          "paleta": "casa-escalera",
           "piso": "madera",
-          "variante": "a"
+          "variante": "casa-escalera"
         },
         "ancho": 960,
         "momento": "dia",
@@ -573,9 +573,9 @@
       "estructura": {
         "acabados": {
           "muro": "zocalo-alto",
-          "paleta": "casa",
+          "paleta": "casa-pasillo",
           "piso": "madera",
-          "variante": "a"
+          "variante": "casa-pasillo"
         },
         "ancho": 960,
         "momento": "dia",
@@ -657,9 +657,9 @@
       "estructura": {
         "acabados": {
           "muro": "zocalo-alto",
-          "paleta": "casa",
+          "paleta": "casa-habitacion-principal",
           "piso": "madera",
-          "variante": "a"
+          "variante": "casa-habitacion-principal"
         },
         "ancho": 960,
         "momento": "dia",
@@ -735,9 +735,9 @@
       "estructura": {
         "acabados": {
           "muro": "pintura",
-          "paleta": "comisaria",
+          "paleta": "casa-habitacion-ninos",
           "piso": "vinilo",
-          "variante": "a"
+          "variante": "casa-habitacion-ninos"
         },
         "ancho": 960,
         "momento": "dia",
@@ -754,43 +754,6 @@
           {
             "ref": "casa/habitacion-ninos",
             "ruta": "piezas/propios/casa-habitacion-ninos.png"
-          }
-        ],
-        "tapetes": [
-          {
-            "caja": [
-              94,
-              794,
-              270,
-              456
-            ],
-            "colores": {
-              "borde": [
-                95,
-                102,
-                84
-              ],
-              "campo": [
-                122,
-                132,
-                108
-              ],
-              "motivo": [
-                151,
-                157,
-                133
-              ],
-              "oscuro": [
-                75,
-                81,
-                66
-              ],
-              "ribete": [
-                110,
-                122,
-                98
-              ]
-            }
           }
         ]
       },
@@ -824,7 +787,7 @@
         }
       ],
       "perdido": [
-        "piso de alfombra: queda como vinilo con un tapete",
+        "piso de alfombra: queda como vinilo liso del mismo color",
         "lo propio de la sala queda como una capa fija: no se puede mover ni cambia con la paleta"
       ],
       "personajes": [
@@ -859,9 +822,9 @@
       "estructura": {
         "acabados": {
           "muro": "ladrillo",
-          "paleta": "casa",
+          "paleta": "casa-patio",
           "piso": "baldosa",
-          "variante": "b"
+          "variante": "casa-patio"
         },
         "ancho": 960,
         "exterior": true,

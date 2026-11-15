@@ -13,7 +13,7 @@
      "puertas": [{"id": "p1", "hacia": "comedor", "muro": "fondo", "pos": 104, "modelo": "madera", "etiqueta": "…"}]}
 
 Extensiones propias sobre el diseño: `variante` del piso (a o b), `tapetes`, `exterior`, y las lámparas de
-pie y de mesa, que no van en un muro sino en el piso (`x`, `y`) y aceptan `encendida`: auto, siempre o nunca.
+pie y de mesa, que no van en un muro sino en el piso (`x`, `y`) y aceptan `encendida` (booleano): True la deja siempre encendida y False siempre apagada.
 
     python tools/escenarios/piezas_sala.py     # escribe maqueta-visual/piezas/casa-sala*.png
 """
@@ -111,7 +111,7 @@ def capas(sala, momento=None, cuerpos=()):
             if 'x' not in pz:
                 avisos.append(f'{nombre}: una lámpara de piso se ubica con x e y')
                 continue
-            encendida = {'siempre': True, 'nunca': False}.get(pz.get('encendida'))
+            encendida = pz.get('encendida')
             im = pm.cuadro_de(clave[0], clave[1], momento, encendida=encendida)
             ax, ay = pm.apoyo(*clave)
             # `sobre`: px por encima del piso, para la lámpara que va encima de una mesa.
@@ -123,7 +123,7 @@ def capas(sala, momento=None, cuerpos=()):
                 avisos.append(f'{nombre}: {F["nombre"]} no va en el muro {pz["muro"]}')
             continue
         vista = _vista(pz['muro'])
-        encendida = {'siempre': True, 'nunca': False}.get(pz.get('encendida'))
+        encendida = pz.get('encendida')
         lista = pm.cuadros(clave[0], clave[1], vista, ancho)
         indice = lista.index(pm.cuadro_de(clave[0], clave[1], momento, vista, ancho, encendida)) if F['cuadros'] <= 2 else 0
         lista, x, y = _colocar(lista, pm.apoyo(clave[0], clave[1], vista, ancho), pz['muro'], pz['pos'], encuadre, ancho)
@@ -221,7 +221,7 @@ CASA_SALA = {
             {'id': 'cuadro', 'tipo': 'cuadro', 'modelo': 'cuadro', 'muro': 'fondo', 'pos': 198},
             {'id': 'repisa', 'tipo': 'repisa', 'modelo': 'repisa', 'muro': 'fondo', 'pos': 534},
             {'id': 'reloj', 'tipo': 'reloj', 'modelo': 'reloj', 'muro': 'fondo', 'pos': 420},
-            {'id': 'lampara', 'tipo': 'lampara', 'modelo': 'pie', 'x': 236, 'y': 326, 'encendida': 'siempre'},
+            {'id': 'lampara', 'tipo': 'lampara', 'modelo': 'pie', 'x': 236, 'y': 326, 'encendida': True},
         ],
         'tapetes': [{'caja': [236, 548, 318, 420]}],
     },

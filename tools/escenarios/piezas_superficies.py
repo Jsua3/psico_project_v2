@@ -11,6 +11,7 @@
     python tools/escenarios/piezas_superficies.py   # escribe maqueta-visual/piezas/superficies.png
 """
 import functools
+import importlib
 import os
 import sys
 
@@ -182,7 +183,7 @@ def _vinilo(d, p, s):
     for bx in range(-720, M + 720, 240):
         d.line([(_x(bx, 0), 0), (_x(bx, g.FONDO), g.FONDO)], fill=p['junta'])
     # Líneas de orientación incrustadas en el piso, como las que guían por un hospital: corren paralelas al muro del fondo.
-    for y0, alto, tinta in ((92, 6, p['guia'][0]), (101, 3, p['guia'][1])):
+    for y0, alto, tinta in (((92, 6, p['guia'][0]), (101, 3, p['guia'][1])) if p.get('guia') else ()):
         d.rectangle([0, y0, M, y0 + alto - 1], fill=tinta)
         d.line([(0, y0), (M, y0)], fill=mezcla(tinta, (255, 255, 255), 0.22))
 
@@ -226,7 +227,7 @@ def piso_maestro(tipo, variante='a'):
     p = PISOS[tipo][variante]
     im = Image.new('RGB', (M, g.FONDO), p['A'])
     d = ImageDraw.Draw(im)
-    s = 0 if variante == 'a' else 7
+    s = {'a': 0, 'b': 7}.get(variante, 3 + sum(map(ord, variante)) % 89)     # cada variante, su propio azar
     if tipo == 'madera':
         _madera(d, p, s)
     elif tipo == 'vinilo':
@@ -278,6 +279,29 @@ def tapete(d, ancho, bx0, bx1, ya, yb, c=None):
         d.polygon([(mx, my - ry), (mx + rx, my), (mx, my + ry), (mx - rx, my)], fill=c[nombre])
 
 
+def tapete_imagen(ancho, caja, colores=None):
+    """El tapete como lo carga el juego: (imagen RGBA recortada, x, y de su esquina en la sala). Alfa binario."""
+    lienzo = Image.new('RGBA', (ancho, g.ALTO), (0, 0, 0, 0))
+    tapete(ImageDraw.Draw(lienzo), ancho, *caja, colores)
+    x0, y0, x1, y1 = lienzo.getbbox()
+    return lienzo.crop((x0, y0, x1, y1)), x0, y0
+
+
+def tapete_ficha(lugar, sala, n, ancho, caja, colores=None):
+    """La entrada de `estructura.tapetes`: la caja y los colores con que se dibuja, y la imagen ya hecha con su sitio."""
+    _, x, y = tapete_imagen(ancho, caja, colores)
+    ficha = dict(caja=list(caja), ruta=f'piezas/tapetes/{lugar}-{sala}-{n}.png', x=x, y=y)
+    if colores:
+        ficha['colores'] = colores
+    return ficha
+
+
+def imagenes_de_tapetes(lugar):
+    """{ruta: imagen} de todos los tapetes de un lugar en esquema 3."""
+    return {t['ruta']: tapete_imagen(s['estructura']['ancho'], t['caja'], t.get('colores'))[0]
+            for s in lugar['salas'] for t in s['estructura'].get('tapetes', [])}
+
+
 # ── muro del fondo ─────────────────────────────────────────────────────────────
 
 def _baja_tablas(d, P, y0, y1):
@@ -321,7 +345,8 @@ def _baja_paneles(d, P, y0, y1):
     for n, x in enumerate(range(6, M, 56)):
         k = azar(n, 37)
         a, b, c, e = x, y0 + 9, x + 46, y1 - 12
-        d.rectangle([a, b, c, e], fill=osc(base, 0.93 if k % 4 else 0.89))
+        tablero = tuple(P['panel']) if P.get('panel') else osc(base, 0.93)
+        d.rectangle([a, b, c, e], fill=tablero if k % 4 else osc(tablero, 0.96))
         d.line([(a, b), (c, b)], fill=osc(base, 0.72))
         d.line([(a, b), (a, e)], fill=osc(base, 0.72))
         d.line([(a, e), (c, e)], fill=mezcla(base, (255, 240, 214), 0.18))
@@ -345,6 +370,11 @@ def _ladrillo(d, P, y0, y1):
 def _pintura(d, P, y0, y1):
     """Pintura lisa con las huellas del uso; en la casa, papel con florecitas."""
     pared = P['pared']
+    if P.get('pared_alta'):
+        d.rectangle([0, y0, M, y0 + P['pared_alta'][0]], fill=tuple(P['pared_alta'][1]))
+    if P.get('vetas'):
+        for x in range(40, M, 80):
+            d.rectangle([x, y0 + 10, x + 1, y1 - 20], fill=osc(pared, 0.9))
     if P.get('papel'):
         flor = mezcla(pared, (255, 244, 220), 0.10)
         for fila, gy in enumerate(range(y0 + 34, y1 - 10, 16)):
@@ -379,6 +409,9 @@ def muro_maestro(acabado, paleta):
                 d.rectangle([0, y0 - 3, M, y0 + 1], fill=P['moldura'])
                 d.line([(0, y0 - 3), (M, y0 - 3)], fill=mezcla(P['moldura'], (255, 244, 224), 0.3))
                 d.line([(0, y0 + 1), (M, y0 + 1)], fill=osc(P['moldura'], 0.74))
+    if P.get('franja'):                      # franja de color de la sala, a la altura que tenía
+        yf = P['franja'][0] - (g.TOP - 6)
+        d.rectangle([0, yf, M, yf + 8], fill=tuple(P['franja'][1]))
     # Sombra bajo el techo: 6 px densos, 14 de media sombra y 6 de tramado (damero) que la disuelven.
     arr = np.array(im).astype(np.int32)
     ys, xs = np.mgrid[0:alto, 0:M]
@@ -442,6 +475,11 @@ def muro_lado(acabado, paleta, ancho, lado='izquierda'):
                 pl.q(u, 12, u + 46, baja - 9, L(osc(P['baja'], 0.9)))
         if acabado != 'azulejo':
             pl.q(0, baja - 1, largo, baja + 3, L(P['moldura']))
+    if P.get('pared_alta'):
+        pl.q(0, alto - P['pared_alta'][0], largo, alto, L(P['pared_alta'][1]))
+    if P.get('franja'):
+        v = g.SEAM - P['franja'][0] - 8
+        pl.q(0, v, largo, v + 8, L(P['franja'][1]))
     pl.q(0, alto - 20, largo, alto, L(osc(P['pared'], 0.88)) if acabado != 'ladrillo' else L(osc(P['mortero'], 0.8)))
     pl.q(0, alto - 6, largo, alto, L(osc(P['pared'], 0.72)))
     pl.q(0, 0, 8, alto, L(osc(P['pared'], 0.85)))             # rincón con el muro del fondo
@@ -450,6 +488,76 @@ def muro_lado(acabado, paleta, ancho, lado='izquierda'):
     pl.q(0, alto, largo, alto + 6, P['canto'] if lado == 'izquierda' else osc(P['canto'], 0.92))
     d.polygon([(0, g.ALTO - 1), (g.MARGEN, g.ALTO - 1), (g.MARGEN, tope_camara - 8), (0, tope_camara - 8)], fill=VACIO + (255,))
     return im if lado == 'izquierda' else ImageOps.mirror(im)
+
+
+# ── la paleta propia de cada sala de la biblioteca ─────────────────────────────
+
+PALETAS_BASE = tuple(PALETAS)
+LUGARES_CON_ARTE = {'universidad': 'arte_universidad', 'casa': 'arte_casa', 'comisaria': 'arte_comisaria'}
+
+
+def paleta_de_sala(lugar, p):
+    """La paleta con que una sala de la biblioteca conserva su color: sale de su paleta de arte (`arte_<lugar>.SALAS`).
+    Lleva además `acabado`, el del catálogo que le corresponde, y lo que la distinguía (franja, vetas, franja alta)."""
+    base, pared = PALETAS[lugar], tuple(p['pared'])
+    acabado = ('ladrillo' if p.get('ladrillo') else 'azulejo' if p.get('azulejo') else 'paneles' if p.get('paneles')
+               else 'zocalo-alto' if p.get('baja') else 'pintura')
+    baja = tuple(p['baja'][1]) if p.get('baja') else osc(pared, 0.9)
+    # Una sala sin muros laterales no declara `lado` ni, a veces, `canto`: se deducen del muro del fondo.
+    lado = tuple(p['lado']) if p.get('lado') else osc(pared, 0.85)
+    canto = tuple(p['canto']) if p.get('canto') else mezcla(pared, (255, 255, 255), 0.3)
+    zocalo = tuple(p['zocalo']) if p.get('zocalo') else osc(pared, 0.55)
+    P = dict(acabado=acabado, pared=pared, lado=lado, canto=canto, zocalo=zocalo, baja=baja,
+             moldura=tuple(p['moldura']) if p.get('moldura') else mezcla(baja, (255, 240, 214), 0.18),
+             azulejo=(baja, tuple(p['azulejo'])) if p.get('azulejo') else base['azulejo'],
+             acento=tuple(p['franja'][1]) if p.get('franja') else base['acento'],
+             ladrillo=tuple(tuple(c) for c in p['ladrillo']) + (osc(p['ladrillo'][1], 0.86),) if p.get('ladrillo') else base['ladrillo'],
+             mortero=pared if p.get('ladrillo') else base['mortero'],
+             papel=lugar == 'casa' and not (p.get('ladrillo') or p.get('vetas') or p.get('cielo')))
+    if p.get('franja'):
+        P['franja'] = (p['franja'][0], tuple(p['franja'][1]))
+    if p.get('pared_alta'):
+        P['pared_alta'] = (p['pared_alta'][0], tuple(p['pared_alta'][1]))
+    if p.get('vetas'):
+        P['vetas'] = True
+    if p.get('paneles'):
+        P['panel'] = tuple(p['paneles'])
+    return P
+
+
+def _paletas_de_salas():
+    extra = {}
+    for lugar, modulo in LUGARES_CON_ARTE.items():
+        for sala, p in importlib.import_module(modulo).SALAS.items():
+            extra[f'{lugar}-{sala}'] = paleta_de_sala(lugar, p)
+    return extra
+
+
+PALETAS.update(_paletas_de_salas())
+
+
+def _pisos_de_salas():
+    """El piso de cada sala de la biblioteca como variante propia (`<lugar>-<sala>`) de su tipo, con sus colores.
+    La alfombra, que no está en el catálogo, queda como vinilo liso del color de la alfombra."""
+    for lugar, modulo in LUGARES_CON_ARTE.items():
+        for sala, p in importlib.import_module(modulo).SALAS.items():
+            A = tuple(p['pisoA'])
+            if p['piso'] in PISOS:
+                colores = dict(A=A, B=tuple(p.get('pisoB', A)), C=tuple(p.get('pisoC', A)), junta=tuple(p.get('junta', osc(A, 0.78))))
+                PISOS[p['piso']][f'{lugar}-{sala}'] = colores
+            else:
+                PISOS['vinilo'][f'{lugar}-{sala}'] = dict(A=A, B=osc(A, 0.93), C=mezcla(A, CLARO, 0.06), junta=osc(A, 0.9))
+
+
+VARIANTES_BASE = ('a', 'b')
+_pisos_de_salas()
+
+
+def muros_del_catalogo():
+    """Los pares (acabado, paleta) que se exportan: las cuatro paletas de lugar en los cinco acabados, y la paleta
+    propia de cada sala solo en su acabado."""
+    return ([(a, n) for a in ACABADOS for n in PALETAS_BASE]
+            + [(P['acabado'], n) for n, P in PALETAS.items() if n not in PALETAS_BASE])
 
 
 # ── hoja de contacto ───────────────────────────────────────────────────────────

@@ -65,6 +65,31 @@ def test_el_punto_de_llegada_de_una_puerta_cae_en_la_zona_caminable():
                     assert x0 <= x <= x0 + w and y0 <= y <= y0 + h, (encuadre, ancho, muro, pos)
 
 
+def test_la_geometria_reproduce_la_tabla_dorada_del_contrato():
+    """`biblioteca/esquema/geometria-salas.json` la genera el servidor (bloque P3): cada copia de la geometría la reproduce."""
+    import json
+    tabla = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))), 'biblioteca', 'esquema', 'geometria-salas.json')
+    if not os.path.exists(tabla):
+        pytest.skip('la tabla dorada llega con la rama del bloque P3')
+    with open(tabla, encoding='utf-8') as f:
+        datos = json.load(f)
+    assert datos['anchos'] == list(g.ANCHOS) and datos['alto'] == g.ALTO
+    for sala in datos['salas']:
+        ancho, encuadre = sala['ancho'], sala['encuadre']
+        assert g.borde(ancho) == sala['borde']
+        assert list(g.zona_caminable(encuadre, ancho)) == sala['zona'] and list(g.limites(encuadre, ancho)) == sala['limites']
+        assert {m: g.largo_muro(m, encuadre, ancho) for m in g.MUROS} == sala['largos']
+        for muro, pos, ax, ay, lx, ly in sala['muestras']:
+            assert tuple(g.en_pantalla(muro, pos, encuadre, ancho)) == (ax, ay), (ancho, encuadre, muro, pos)
+            assert tuple(g.llegada(muro, pos, encuadre, ancho)) == (lx, ly), (ancho, encuadre, muro, pos)
+
+
+def test_el_redondeo_es_el_del_contrato():
+    assert [g.redondear(n, 2) for n in (-3, -1, 1, 3, 5)] == [-1, 0, 1, 2, 3], 'las mitades van hacia arriba'
+    assert g.llegada('fondo', 200, 'tres-paredes', 960) == (296, 260) and g.llegada('camara', 384, 'tres-paredes', 960) == (480, 476)
+    assert g.llegada('izquierda', 149, 'tres-paredes', 960) == (112, 379), 'en un muro lateral, 16 px dentro de la zona'
+
+
 # ── puertas ────────────────────────────────────────────────────────────────────
 
 VISTAS = [('frente', 960), ('camara', 960)] + [('lado', a) for a in g.ANCHOS]

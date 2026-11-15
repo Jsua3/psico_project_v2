@@ -500,6 +500,76 @@
       },
       "nombre": "Azulejo"
     },
+    "azulejo/casa-cocina": {
+      "fondo": {
+        "alto": 152,
+        "ancho": 1920,
+        "ruta": "piezas/muros/azulejo-casa-cocina-fondo.png"
+      },
+      "lado": {
+        "1200": {
+          "derecha": {
+            "alto": 528,
+            "ancho": 115,
+            "ruta": "piezas/muros/azulejo-casa-cocina-lado-1200-derecha.png"
+          },
+          "izquierda": {
+            "alto": 528,
+            "ancho": 115,
+            "ruta": "piezas/muros/azulejo-casa-cocina-lado-1200-izquierda.png"
+          }
+        },
+        "1440": {
+          "derecha": {
+            "alto": 528,
+            "ancho": 134,
+            "ruta": "piezas/muros/azulejo-casa-cocina-lado-1440-derecha.png"
+          },
+          "izquierda": {
+            "alto": 528,
+            "ancho": 134,
+            "ruta": "piezas/muros/azulejo-casa-cocina-lado-1440-izquierda.png"
+          }
+        },
+        "1680": {
+          "derecha": {
+            "alto": 528,
+            "ancho": 153,
+            "ruta": "piezas/muros/azulejo-casa-cocina-lado-1680-derecha.png"
+          },
+          "izquierda": {
+            "alto": 528,
+            "ancho": 153,
+            "ruta": "piezas/muros/azulejo-casa-cocina-lado-1680-izquierda.png"
+          }
+        },
+        "1920": {
+          "derecha": {
+            "alto": 528,
+            "ancho": 172,
+            "ruta": "piezas/muros/azulejo-casa-cocina-lado-1920-derecha.png"
+          },
+          "izquierda": {
+            "alto": 528,
+            "ancho": 172,
+            "ruta": "piezas/muros/azulejo-casa-cocina-lado-1920-izquierda.png"
+          }
+        },
+        "960": {
+          "derecha": {
+            "alto": 528,
+            "ancho": 96,
+            "ruta": "piezas/muros/azulejo-casa-cocina-lado-960-derecha.png"
+          },
+          "izquierda": {
+            "alto": 528,
+            "ancho": 96,
+            "ruta": "piezas/muros/azulejo-casa-cocina-lado-960-izquierda.png"
+          }
+        }
+      },
+      "nombre": "Azulejo"
+    },
     "azulejo/comisaria": {
       "fondo": {
         "alto": 152,
@@ -710,6 +780,76 @@
       },
       "nombre": "Azulejo"
     },
+    "azulejo/universidad-enfermeria": {
+      "fondo": {
+        "alto": 152,
+        "ancho": 1920,
+        "ruta": "piezas/muros/azulejo-universidad-enfermeria-fondo.png"
+      },
+      "lado": {
+        "1200": {
+          "derecha": {
+            "alto": 528,
+            "ancho": 115,
+            "ruta": "piezas/muros/azulejo-universidad-enfermeria-lado-1200-derecha.png"
+          },
+          "izquierda": {
+            "alto": 528,
+            "ancho": 115,
+            "ruta": "piezas/muros/azulejo-universidad-enfermeria-lado-1200-izquierda.png"
+          }
+        },
+        "1440": {
+          "derecha": {
+            "alto": 528,
+            "ancho": 134,
+            "ruta": "piezas/muros/azulejo-universidad-enfermeria-lado-1440-derecha.png"
+          },
+          "izquierda": {
+            "alto": 528,
+            "ancho": 134,
+            "ruta": "piezas/muros/azulejo-universidad-enfermeria-lado-1440-izquierda.png"
+          }
+        },
+        "1680": {
+          "derecha": {
+            "alto": 528,
+            "ancho": 153,
+            "ruta": "piezas/muros/azulejo-universidad-enfermeria-lado-1680-derecha.png"
+          },
+          "izquierda": {
+            "alto": 528,
+            "ancho": 153,
+            "ruta": "piezas/muros/azulejo-universidad-enfermeria-lado-1680-izquierda.png"
+          }
+        },
+        "1920": {
+          "derecha": {
+            "alto": 528,
+            "ancho": 172,
+            "ruta": "piezas/muros/azulejo-universidad-enfermeria-lado-1920-derecha.png"
+          },
+          "izquierda": {
+            "alto": 528,
+            "ancho": 172,
+            "ruta": "piezas/muros/azulejo-universidad-enfermeria-lado-1920-izquierda.png"
+          }
+        },
+        "960": {
+          "derecha": {
+            "alto": 528,
+            "ancho": 96,
+            "ruta": "piezas/muros/azulejo-universidad-enfermeria-lado-960-derecha.png"
+          },
+          "izquierda": {
+            "alto": 528,
+            "ancho": 96,
+            "ruta": "piezas/muros/azulejo-universidad-enfermeria-lado-960-izquierda.png"
+          }
+        }
+      },
+      "nombre": "Azulejo"
+    },
     "ladrillo/casa": {
       "fondo": {
         "alto": 152,
@@ -780,6 +920,76 @@
       },
       "nombre": "Ladrillo"
     },
+    "ladrillo/casa-patio": {
+      "fondo": {
+        "alto": 152,
+        "ancho": 1920,
+        "ruta": "piezas/muros/ladrillo-casa-patio-fondo.png"
+      },
+      "lado": {
+        "1200": {
+          "derecha": {
+            "alto": 528,
+            "ancho": 115,
+            "ruta": "piezas/muros/ladrillo-casa-patio-lado-1200-derecha.png"
+          },
+          "izquierda": {
+            "alto": 528,
+            "ancho": 115,
+            "ruta": "piezas/muros/ladrillo-casa-patio-lado-1200-izquierda.png"
+          }
+        },
+        "1440": {
+          "derecha": {
+            "alto": 528,
+            "ancho": 134,
+            "ruta": "piezas/muros/ladrillo-casa-patio-lado-1440-derecha.png"
+          },
+          "izquierda": {
+            "alto": 528,
+            "ancho": 134,
+            "ruta": "piezas/muros/ladrillo-casa-patio-lado-1440-izquierda.png"
+          }
+        },
+        "1680": {
+          "derecha": {
+            "alto": 528,
+            "ancho": 153,
+            "ruta": "piezas/muros/ladrillo-casa-patio-lado-1680-derecha.png"
+          },
+          "izquierda": {
+            "alto": 528,
+            "ancho": 153,
+            "ruta": "piezas/muros/ladrillo-casa-patio-lado-1680-izquierda.png"
+          }
+        },
+        "1920": {
+          "derecha": {
+            "alto": 528,
+            "ancho": 172,
+            "ruta": "piezas/muros/ladrillo-casa-patio-lado-1920-derecha.png"
+          },
+          "izquierda": {
+            "alto": 528,
+            "ancho": 172,
+            "ruta": "piezas/muros/ladrillo-casa-patio-lado-1920-izquierda.png"
+          }
+        },
+        "960": {
+          "derecha": {
+            "alto": 528,
+            "ancho": 96,
+            "ruta": "piezas/muros/ladrillo-casa-patio-lado-960-derecha.png"
+          },
+          "izquierda": {
+            "alto": 528,
+            "ancho": 96,
+            "ruta": "piezas/muros/ladrillo-casa-patio-lado-960-izquierda.png"
+          }
+        }
+      },
+      "nombre": "Ladrillo"
+    },
     "ladrillo/comisaria": {
       "fondo": {
         "alto": 152,
@@ -845,6 +1055,76 @@
             "alto": 528,
             "ancho": 96,
             "ruta": "piezas/muros/ladrillo-comisaria-lado-960-izquierda.png"
+          }
+        }
+      },
+      "nombre": "Ladrillo"
+    },
+    "ladrillo/comisaria-fachada": {
+      "fondo": {
+        "alto": 152,
+        "ancho": 1920,
+        "ruta": "piezas/muros/ladrillo-comisaria-fachada-fondo.png"
+      },
+      "lado": {
+        "1200": {
+          "derecha": {
+            "alto": 528,
+            "ancho": 115,
+            "ruta": "piezas/muros/ladrillo-comisaria-fachada-lado-1200-derecha.png"
+          },
+          "izquierda": {
+            "alto": 528,
+            "ancho": 115,
+            "ruta": "piezas/muros/ladrillo-comisaria-fachada-lado-1200-izquierda.png"
+          }
+        },
+        "1440": {
+          "derecha": {
+            "alto": 528,
+            "ancho": 134,
+            "ruta": "piezas/muros/ladrillo-comisaria-fachada-lado-1440-derecha.png"
+          },
+          "izquierda": {
+            "alto": 528,
+            "ancho": 134,
+            "ruta": "piezas/muros/ladrillo-comisaria-fachada-lado-1440-izquierda.png"
+          }
+        },
+        "1680": {
+          "derecha": {
+            "alto": 528,
+            "ancho": 153,
+            "ruta": "piezas/muros/ladrillo-comisaria-fachada-lado-1680-derecha.png"
+          },
+          "izquierda": {
+            "alto": 528,
+            "ancho": 153,
+            "ruta": "piezas/muros/ladrillo-comisaria-fachada-lado-1680-izquierda.png"
+          }
+        },
+        "1920": {
+          "derecha": {
+            "alto": 528,
+            "ancho": 172,
+            "ruta": "piezas/muros/ladrillo-comisaria-fachada-lado-1920-derecha.png"
+          },
+          "izquierda": {
+            "alto": 528,
+            "ancho": 172,
+            "ruta": "piezas/muros/ladrillo-comisaria-fachada-lado-1920-izquierda.png"
+          }
+        },
+        "960": {
+          "derecha": {
+            "alto": 528,
+            "ancho": 96,
+            "ruta": "piezas/muros/ladrillo-comisaria-fachada-lado-960-derecha.png"
+          },
+          "izquierda": {
+            "alto": 528,
+            "ancho": 96,
+            "ruta": "piezas/muros/ladrillo-comisaria-fachada-lado-960-izquierda.png"
           }
         }
       },
@@ -990,6 +1270,76 @@
       },
       "nombre": "Ladrillo"
     },
+    "ladrillo/universidad-entrada": {
+      "fondo": {
+        "alto": 152,
+        "ancho": 1920,
+        "ruta": "piezas/muros/ladrillo-universidad-entrada-fondo.png"
+      },
+      "lado": {
+        "1200": {
+          "derecha": {
+            "alto": 528,
+            "ancho": 115,
+            "ruta": "piezas/muros/ladrillo-universidad-entrada-lado-1200-derecha.png"
+          },
+          "izquierda": {
+            "alto": 528,
+            "ancho": 115,
+            "ruta": "piezas/muros/ladrillo-universidad-entrada-lado-1200-izquierda.png"
+          }
+        },
+        "1440": {
+          "derecha": {
+            "alto": 528,
+            "ancho": 134,
+            "ruta": "piezas/muros/ladrillo-universidad-entrada-lado-1440-derecha.png"
+          },
+          "izquierda": {
+            "alto": 528,
+            "ancho": 134,
+            "ruta": "piezas/muros/ladrillo-universidad-entrada-lado-1440-izquierda.png"
+          }
+        },
+        "1680": {
+          "derecha": {
+            "alto": 528,
+            "ancho": 153,
+            "ruta": "piezas/muros/ladrillo-universidad-entrada-lado-1680-derecha.png"
+          },
+          "izquierda": {
+            "alto": 528,
+            "ancho": 153,
+            "ruta": "piezas/muros/ladrillo-universidad-entrada-lado-1680-izquierda.png"
+          }
+        },
+        "1920": {
+          "derecha": {
+            "alto": 528,
+            "ancho": 172,
+            "ruta": "piezas/muros/ladrillo-universidad-entrada-lado-1920-derecha.png"
+          },
+          "izquierda": {
+            "alto": 528,
+            "ancho": 172,
+            "ruta": "piezas/muros/ladrillo-universidad-entrada-lado-1920-izquierda.png"
+          }
+        },
+        "960": {
+          "derecha": {
+            "alto": 528,
+            "ancho": 96,
+            "ruta": "piezas/muros/ladrillo-universidad-entrada-lado-960-derecha.png"
+          },
+          "izquierda": {
+            "alto": 528,
+            "ancho": 96,
+            "ruta": "piezas/muros/ladrillo-universidad-entrada-lado-960-izquierda.png"
+          }
+        }
+      },
+      "nombre": "Ladrillo"
+    },
     "paneles/casa": {
       "fondo": {
         "alto": 152,
@@ -1060,6 +1410,76 @@
       },
       "nombre": "Paneles"
     },
+    "paneles/casa-comedor": {
+      "fondo": {
+        "alto": 152,
+        "ancho": 1920,
+        "ruta": "piezas/muros/paneles-casa-comedor-fondo.png"
+      },
+      "lado": {
+        "1200": {
+          "derecha": {
+            "alto": 528,
+            "ancho": 115,
+            "ruta": "piezas/muros/paneles-casa-comedor-lado-1200-derecha.png"
+          },
+          "izquierda": {
+            "alto": 528,
+            "ancho": 115,
+            "ruta": "piezas/muros/paneles-casa-comedor-lado-1200-izquierda.png"
+          }
+        },
+        "1440": {
+          "derecha": {
+            "alto": 528,
+            "ancho": 134,
+            "ruta": "piezas/muros/paneles-casa-comedor-lado-1440-derecha.png"
+          },
+          "izquierda": {
+            "alto": 528,
+            "ancho": 134,
+            "ruta": "piezas/muros/paneles-casa-comedor-lado-1440-izquierda.png"
+          }
+        },
+        "1680": {
+          "derecha": {
+            "alto": 528,
+            "ancho": 153,
+            "ruta": "piezas/muros/paneles-casa-comedor-lado-1680-derecha.png"
+          },
+          "izquierda": {
+            "alto": 528,
+            "ancho": 153,
+            "ruta": "piezas/muros/paneles-casa-comedor-lado-1680-izquierda.png"
+          }
+        },
+        "1920": {
+          "derecha": {
+            "alto": 528,
+            "ancho": 172,
+            "ruta": "piezas/muros/paneles-casa-comedor-lado-1920-derecha.png"
+          },
+          "izquierda": {
+            "alto": 528,
+            "ancho": 172,
+            "ruta": "piezas/muros/paneles-casa-comedor-lado-1920-izquierda.png"
+          }
+        },
+        "960": {
+          "derecha": {
+            "alto": 528,
+            "ancho": 96,
+            "ruta": "piezas/muros/paneles-casa-comedor-lado-960-derecha.png"
+          },
+          "izquierda": {
+            "alto": 528,
+            "ancho": 96,
+            "ruta": "piezas/muros/paneles-casa-comedor-lado-960-izquierda.png"
+          }
+        }
+      },
+      "nombre": "Paneles"
+    },
     "paneles/comisaria": {
       "fondo": {
         "alto": 152,
@@ -1125,6 +1545,76 @@
             "alto": 528,
             "ancho": 96,
             "ruta": "piezas/muros/paneles-comisaria-lado-960-izquierda.png"
+          }
+        }
+      },
+      "nombre": "Paneles"
+    },
+    "paneles/comisaria-despacho-comisaria": {
+      "fondo": {
+        "alto": 152,
+        "ancho": 1920,
+        "ruta": "piezas/muros/paneles-comisaria-despacho-comisaria-fondo.png"
+      },
+      "lado": {
+        "1200": {
+          "derecha": {
+            "alto": 528,
+            "ancho": 115,
+            "ruta": "piezas/muros/paneles-comisaria-despacho-comisaria-lado-1200-derecha.png"
+          },
+          "izquierda": {
+            "alto": 528,
+            "ancho": 115,
+            "ruta": "piezas/muros/paneles-comisaria-despacho-comisaria-lado-1200-izquierda.png"
+          }
+        },
+        "1440": {
+          "derecha": {
+            "alto": 528,
+            "ancho": 134,
+            "ruta": "piezas/muros/paneles-comisaria-despacho-comisaria-lado-1440-derecha.png"
+          },
+          "izquierda": {
+            "alto": 528,
+            "ancho": 134,
+            "ruta": "piezas/muros/paneles-comisaria-despacho-comisaria-lado-1440-izquierda.png"
+          }
+        },
+        "1680": {
+          "derecha": {
+            "alto": 528,
+            "ancho": 153,
+            "ruta": "piezas/muros/paneles-comisaria-despacho-comisaria-lado-1680-derecha.png"
+          },
+          "izquierda": {
+            "alto": 528,
+            "ancho": 153,
+            "ruta": "piezas/muros/paneles-comisaria-despacho-comisaria-lado-1680-izquierda.png"
+          }
+        },
+        "1920": {
+          "derecha": {
+            "alto": 528,
+            "ancho": 172,
+            "ruta": "piezas/muros/paneles-comisaria-despacho-comisaria-lado-1920-derecha.png"
+          },
+          "izquierda": {
+            "alto": 528,
+            "ancho": 172,
+            "ruta": "piezas/muros/paneles-comisaria-despacho-comisaria-lado-1920-izquierda.png"
+          }
+        },
+        "960": {
+          "derecha": {
+            "alto": 528,
+            "ancho": 96,
+            "ruta": "piezas/muros/paneles-comisaria-despacho-comisaria-lado-960-derecha.png"
+          },
+          "izquierda": {
+            "alto": 528,
+            "ancho": 96,
+            "ruta": "piezas/muros/paneles-comisaria-despacho-comisaria-lado-960-izquierda.png"
           }
         }
       },
@@ -1270,6 +1760,76 @@
       },
       "nombre": "Paneles"
     },
+    "paneles/universidad-biblioteca": {
+      "fondo": {
+        "alto": 152,
+        "ancho": 1920,
+        "ruta": "piezas/muros/paneles-universidad-biblioteca-fondo.png"
+      },
+      "lado": {
+        "1200": {
+          "derecha": {
+            "alto": 528,
+            "ancho": 115,
+            "ruta": "piezas/muros/paneles-universidad-biblioteca-lado-1200-derecha.png"
+          },
+          "izquierda": {
+            "alto": 528,
+            "ancho": 115,
+            "ruta": "piezas/muros/paneles-universidad-biblioteca-lado-1200-izquierda.png"
+          }
+        },
+        "1440": {
+          "derecha": {
+            "alto": 528,
+            "ancho": 134,
+            "ruta": "piezas/muros/paneles-universidad-biblioteca-lado-1440-derecha.png"
+          },
+          "izquierda": {
+            "alto": 528,
+            "ancho": 134,
+            "ruta": "piezas/muros/paneles-universidad-biblioteca-lado-1440-izquierda.png"
+          }
+        },
+        "1680": {
+          "derecha": {
+            "alto": 528,
+            "ancho": 153,
+            "ruta": "piezas/muros/paneles-universidad-biblioteca-lado-1680-derecha.png"
+          },
+          "izquierda": {
+            "alto": 528,
+            "ancho": 153,
+            "ruta": "piezas/muros/paneles-universidad-biblioteca-lado-1680-izquierda.png"
+          }
+        },
+        "1920": {
+          "derecha": {
+            "alto": 528,
+            "ancho": 172,
+            "ruta": "piezas/muros/paneles-universidad-biblioteca-lado-1920-derecha.png"
+          },
+          "izquierda": {
+            "alto": 528,
+            "ancho": 172,
+            "ruta": "piezas/muros/paneles-universidad-biblioteca-lado-1920-izquierda.png"
+          }
+        },
+        "960": {
+          "derecha": {
+            "alto": 528,
+            "ancho": 96,
+            "ruta": "piezas/muros/paneles-universidad-biblioteca-lado-960-derecha.png"
+          },
+          "izquierda": {
+            "alto": 528,
+            "ancho": 96,
+            "ruta": "piezas/muros/paneles-universidad-biblioteca-lado-960-izquierda.png"
+          }
+        }
+      },
+      "nombre": "Paneles"
+    },
     "pintura/casa": {
       "fondo": {
         "alto": 152,
@@ -1340,6 +1900,146 @@
       },
       "nombre": "Pintura"
     },
+    "pintura/casa-escalera": {
+      "fondo": {
+        "alto": 152,
+        "ancho": 1920,
+        "ruta": "piezas/muros/pintura-casa-escalera-fondo.png"
+      },
+      "lado": {
+        "1200": {
+          "derecha": {
+            "alto": 528,
+            "ancho": 115,
+            "ruta": "piezas/muros/pintura-casa-escalera-lado-1200-derecha.png"
+          },
+          "izquierda": {
+            "alto": 528,
+            "ancho": 115,
+            "ruta": "piezas/muros/pintura-casa-escalera-lado-1200-izquierda.png"
+          }
+        },
+        "1440": {
+          "derecha": {
+            "alto": 528,
+            "ancho": 134,
+            "ruta": "piezas/muros/pintura-casa-escalera-lado-1440-derecha.png"
+          },
+          "izquierda": {
+            "alto": 528,
+            "ancho": 134,
+            "ruta": "piezas/muros/pintura-casa-escalera-lado-1440-izquierda.png"
+          }
+        },
+        "1680": {
+          "derecha": {
+            "alto": 528,
+            "ancho": 153,
+            "ruta": "piezas/muros/pintura-casa-escalera-lado-1680-derecha.png"
+          },
+          "izquierda": {
+            "alto": 528,
+            "ancho": 153,
+            "ruta": "piezas/muros/pintura-casa-escalera-lado-1680-izquierda.png"
+          }
+        },
+        "1920": {
+          "derecha": {
+            "alto": 528,
+            "ancho": 172,
+            "ruta": "piezas/muros/pintura-casa-escalera-lado-1920-derecha.png"
+          },
+          "izquierda": {
+            "alto": 528,
+            "ancho": 172,
+            "ruta": "piezas/muros/pintura-casa-escalera-lado-1920-izquierda.png"
+          }
+        },
+        "960": {
+          "derecha": {
+            "alto": 528,
+            "ancho": 96,
+            "ruta": "piezas/muros/pintura-casa-escalera-lado-960-derecha.png"
+          },
+          "izquierda": {
+            "alto": 528,
+            "ancho": 96,
+            "ruta": "piezas/muros/pintura-casa-escalera-lado-960-izquierda.png"
+          }
+        }
+      },
+      "nombre": "Pintura"
+    },
+    "pintura/casa-habitacion-ninos": {
+      "fondo": {
+        "alto": 152,
+        "ancho": 1920,
+        "ruta": "piezas/muros/pintura-casa-habitacion-ninos-fondo.png"
+      },
+      "lado": {
+        "1200": {
+          "derecha": {
+            "alto": 528,
+            "ancho": 115,
+            "ruta": "piezas/muros/pintura-casa-habitacion-ninos-lado-1200-derecha.png"
+          },
+          "izquierda": {
+            "alto": 528,
+            "ancho": 115,
+            "ruta": "piezas/muros/pintura-casa-habitacion-ninos-lado-1200-izquierda.png"
+          }
+        },
+        "1440": {
+          "derecha": {
+            "alto": 528,
+            "ancho": 134,
+            "ruta": "piezas/muros/pintura-casa-habitacion-ninos-lado-1440-derecha.png"
+          },
+          "izquierda": {
+            "alto": 528,
+            "ancho": 134,
+            "ruta": "piezas/muros/pintura-casa-habitacion-ninos-lado-1440-izquierda.png"
+          }
+        },
+        "1680": {
+          "derecha": {
+            "alto": 528,
+            "ancho": 153,
+            "ruta": "piezas/muros/pintura-casa-habitacion-ninos-lado-1680-derecha.png"
+          },
+          "izquierda": {
+            "alto": 528,
+            "ancho": 153,
+            "ruta": "piezas/muros/pintura-casa-habitacion-ninos-lado-1680-izquierda.png"
+          }
+        },
+        "1920": {
+          "derecha": {
+            "alto": 528,
+            "ancho": 172,
+            "ruta": "piezas/muros/pintura-casa-habitacion-ninos-lado-1920-derecha.png"
+          },
+          "izquierda": {
+            "alto": 528,
+            "ancho": 172,
+            "ruta": "piezas/muros/pintura-casa-habitacion-ninos-lado-1920-izquierda.png"
+          }
+        },
+        "960": {
+          "derecha": {
+            "alto": 528,
+            "ancho": 96,
+            "ruta": "piezas/muros/pintura-casa-habitacion-ninos-lado-960-derecha.png"
+          },
+          "izquierda": {
+            "alto": 528,
+            "ancho": 96,
+            "ruta": "piezas/muros/pintura-casa-habitacion-ninos-lado-960-izquierda.png"
+          }
+        }
+      },
+      "nombre": "Pintura"
+    },
     "pintura/comisaria": {
       "fondo": {
         "alto": 152,
@@ -1405,6 +2105,146 @@
             "alto": 528,
             "ancho": 96,
             "ruta": "piezas/muros/pintura-comisaria-lado-960-izquierda.png"
+          }
+        }
+      },
+      "nombre": "Pintura"
+    },
+    "pintura/comisaria-consultorio-psicosocial": {
+      "fondo": {
+        "alto": 152,
+        "ancho": 1920,
+        "ruta": "piezas/muros/pintura-comisaria-consultorio-psicosocial-fondo.png"
+      },
+      "lado": {
+        "1200": {
+          "derecha": {
+            "alto": 528,
+            "ancho": 115,
+            "ruta": "piezas/muros/pintura-comisaria-consultorio-psicosocial-lado-1200-derecha.png"
+          },
+          "izquierda": {
+            "alto": 528,
+            "ancho": 115,
+            "ruta": "piezas/muros/pintura-comisaria-consultorio-psicosocial-lado-1200-izquierda.png"
+          }
+        },
+        "1440": {
+          "derecha": {
+            "alto": 528,
+            "ancho": 134,
+            "ruta": "piezas/muros/pintura-comisaria-consultorio-psicosocial-lado-1440-derecha.png"
+          },
+          "izquierda": {
+            "alto": 528,
+            "ancho": 134,
+            "ruta": "piezas/muros/pintura-comisaria-consultorio-psicosocial-lado-1440-izquierda.png"
+          }
+        },
+        "1680": {
+          "derecha": {
+            "alto": 528,
+            "ancho": 153,
+            "ruta": "piezas/muros/pintura-comisaria-consultorio-psicosocial-lado-1680-derecha.png"
+          },
+          "izquierda": {
+            "alto": 528,
+            "ancho": 153,
+            "ruta": "piezas/muros/pintura-comisaria-consultorio-psicosocial-lado-1680-izquierda.png"
+          }
+        },
+        "1920": {
+          "derecha": {
+            "alto": 528,
+            "ancho": 172,
+            "ruta": "piezas/muros/pintura-comisaria-consultorio-psicosocial-lado-1920-derecha.png"
+          },
+          "izquierda": {
+            "alto": 528,
+            "ancho": 172,
+            "ruta": "piezas/muros/pintura-comisaria-consultorio-psicosocial-lado-1920-izquierda.png"
+          }
+        },
+        "960": {
+          "derecha": {
+            "alto": 528,
+            "ancho": 96,
+            "ruta": "piezas/muros/pintura-comisaria-consultorio-psicosocial-lado-960-derecha.png"
+          },
+          "izquierda": {
+            "alto": 528,
+            "ancho": 96,
+            "ruta": "piezas/muros/pintura-comisaria-consultorio-psicosocial-lado-960-izquierda.png"
+          }
+        }
+      },
+      "nombre": "Pintura"
+    },
+    "pintura/comisaria-sala-entrevista-nna": {
+      "fondo": {
+        "alto": 152,
+        "ancho": 1920,
+        "ruta": "piezas/muros/pintura-comisaria-sala-entrevista-nna-fondo.png"
+      },
+      "lado": {
+        "1200": {
+          "derecha": {
+            "alto": 528,
+            "ancho": 115,
+            "ruta": "piezas/muros/pintura-comisaria-sala-entrevista-nna-lado-1200-derecha.png"
+          },
+          "izquierda": {
+            "alto": 528,
+            "ancho": 115,
+            "ruta": "piezas/muros/pintura-comisaria-sala-entrevista-nna-lado-1200-izquierda.png"
+          }
+        },
+        "1440": {
+          "derecha": {
+            "alto": 528,
+            "ancho": 134,
+            "ruta": "piezas/muros/pintura-comisaria-sala-entrevista-nna-lado-1440-derecha.png"
+          },
+          "izquierda": {
+            "alto": 528,
+            "ancho": 134,
+            "ruta": "piezas/muros/pintura-comisaria-sala-entrevista-nna-lado-1440-izquierda.png"
+          }
+        },
+        "1680": {
+          "derecha": {
+            "alto": 528,
+            "ancho": 153,
+            "ruta": "piezas/muros/pintura-comisaria-sala-entrevista-nna-lado-1680-derecha.png"
+          },
+          "izquierda": {
+            "alto": 528,
+            "ancho": 153,
+            "ruta": "piezas/muros/pintura-comisaria-sala-entrevista-nna-lado-1680-izquierda.png"
+          }
+        },
+        "1920": {
+          "derecha": {
+            "alto": 528,
+            "ancho": 172,
+            "ruta": "piezas/muros/pintura-comisaria-sala-entrevista-nna-lado-1920-derecha.png"
+          },
+          "izquierda": {
+            "alto": 528,
+            "ancho": 172,
+            "ruta": "piezas/muros/pintura-comisaria-sala-entrevista-nna-lado-1920-izquierda.png"
+          }
+        },
+        "960": {
+          "derecha": {
+            "alto": 528,
+            "ancho": 96,
+            "ruta": "piezas/muros/pintura-comisaria-sala-entrevista-nna-lado-960-derecha.png"
+          },
+          "izquierda": {
+            "alto": 528,
+            "ancho": 96,
+            "ruta": "piezas/muros/pintura-comisaria-sala-entrevista-nna-lado-960-izquierda.png"
           }
         }
       },
@@ -1550,6 +2390,286 @@
       },
       "nombre": "Pintura"
     },
+    "pintura/universidad-bienestar": {
+      "fondo": {
+        "alto": 152,
+        "ancho": 1920,
+        "ruta": "piezas/muros/pintura-universidad-bienestar-fondo.png"
+      },
+      "lado": {
+        "1200": {
+          "derecha": {
+            "alto": 528,
+            "ancho": 115,
+            "ruta": "piezas/muros/pintura-universidad-bienestar-lado-1200-derecha.png"
+          },
+          "izquierda": {
+            "alto": 528,
+            "ancho": 115,
+            "ruta": "piezas/muros/pintura-universidad-bienestar-lado-1200-izquierda.png"
+          }
+        },
+        "1440": {
+          "derecha": {
+            "alto": 528,
+            "ancho": 134,
+            "ruta": "piezas/muros/pintura-universidad-bienestar-lado-1440-derecha.png"
+          },
+          "izquierda": {
+            "alto": 528,
+            "ancho": 134,
+            "ruta": "piezas/muros/pintura-universidad-bienestar-lado-1440-izquierda.png"
+          }
+        },
+        "1680": {
+          "derecha": {
+            "alto": 528,
+            "ancho": 153,
+            "ruta": "piezas/muros/pintura-universidad-bienestar-lado-1680-derecha.png"
+          },
+          "izquierda": {
+            "alto": 528,
+            "ancho": 153,
+            "ruta": "piezas/muros/pintura-universidad-bienestar-lado-1680-izquierda.png"
+          }
+        },
+        "1920": {
+          "derecha": {
+            "alto": 528,
+            "ancho": 172,
+            "ruta": "piezas/muros/pintura-universidad-bienestar-lado-1920-derecha.png"
+          },
+          "izquierda": {
+            "alto": 528,
+            "ancho": 172,
+            "ruta": "piezas/muros/pintura-universidad-bienestar-lado-1920-izquierda.png"
+          }
+        },
+        "960": {
+          "derecha": {
+            "alto": 528,
+            "ancho": 96,
+            "ruta": "piezas/muros/pintura-universidad-bienestar-lado-960-derecha.png"
+          },
+          "izquierda": {
+            "alto": 528,
+            "ancho": 96,
+            "ruta": "piezas/muros/pintura-universidad-bienestar-lado-960-izquierda.png"
+          }
+        }
+      },
+      "nombre": "Pintura"
+    },
+    "pintura/universidad-consultorio": {
+      "fondo": {
+        "alto": 152,
+        "ancho": 1920,
+        "ruta": "piezas/muros/pintura-universidad-consultorio-fondo.png"
+      },
+      "lado": {
+        "1200": {
+          "derecha": {
+            "alto": 528,
+            "ancho": 115,
+            "ruta": "piezas/muros/pintura-universidad-consultorio-lado-1200-derecha.png"
+          },
+          "izquierda": {
+            "alto": 528,
+            "ancho": 115,
+            "ruta": "piezas/muros/pintura-universidad-consultorio-lado-1200-izquierda.png"
+          }
+        },
+        "1440": {
+          "derecha": {
+            "alto": 528,
+            "ancho": 134,
+            "ruta": "piezas/muros/pintura-universidad-consultorio-lado-1440-derecha.png"
+          },
+          "izquierda": {
+            "alto": 528,
+            "ancho": 134,
+            "ruta": "piezas/muros/pintura-universidad-consultorio-lado-1440-izquierda.png"
+          }
+        },
+        "1680": {
+          "derecha": {
+            "alto": 528,
+            "ancho": 153,
+            "ruta": "piezas/muros/pintura-universidad-consultorio-lado-1680-derecha.png"
+          },
+          "izquierda": {
+            "alto": 528,
+            "ancho": 153,
+            "ruta": "piezas/muros/pintura-universidad-consultorio-lado-1680-izquierda.png"
+          }
+        },
+        "1920": {
+          "derecha": {
+            "alto": 528,
+            "ancho": 172,
+            "ruta": "piezas/muros/pintura-universidad-consultorio-lado-1920-derecha.png"
+          },
+          "izquierda": {
+            "alto": 528,
+            "ancho": 172,
+            "ruta": "piezas/muros/pintura-universidad-consultorio-lado-1920-izquierda.png"
+          }
+        },
+        "960": {
+          "derecha": {
+            "alto": 528,
+            "ancho": 96,
+            "ruta": "piezas/muros/pintura-universidad-consultorio-lado-960-derecha.png"
+          },
+          "izquierda": {
+            "alto": 528,
+            "ancho": 96,
+            "ruta": "piezas/muros/pintura-universidad-consultorio-lado-960-izquierda.png"
+          }
+        }
+      },
+      "nombre": "Pintura"
+    },
+    "pintura/universidad-oficina-docente": {
+      "fondo": {
+        "alto": 152,
+        "ancho": 1920,
+        "ruta": "piezas/muros/pintura-universidad-oficina-docente-fondo.png"
+      },
+      "lado": {
+        "1200": {
+          "derecha": {
+            "alto": 528,
+            "ancho": 115,
+            "ruta": "piezas/muros/pintura-universidad-oficina-docente-lado-1200-derecha.png"
+          },
+          "izquierda": {
+            "alto": 528,
+            "ancho": 115,
+            "ruta": "piezas/muros/pintura-universidad-oficina-docente-lado-1200-izquierda.png"
+          }
+        },
+        "1440": {
+          "derecha": {
+            "alto": 528,
+            "ancho": 134,
+            "ruta": "piezas/muros/pintura-universidad-oficina-docente-lado-1440-derecha.png"
+          },
+          "izquierda": {
+            "alto": 528,
+            "ancho": 134,
+            "ruta": "piezas/muros/pintura-universidad-oficina-docente-lado-1440-izquierda.png"
+          }
+        },
+        "1680": {
+          "derecha": {
+            "alto": 528,
+            "ancho": 153,
+            "ruta": "piezas/muros/pintura-universidad-oficina-docente-lado-1680-derecha.png"
+          },
+          "izquierda": {
+            "alto": 528,
+            "ancho": 153,
+            "ruta": "piezas/muros/pintura-universidad-oficina-docente-lado-1680-izquierda.png"
+          }
+        },
+        "1920": {
+          "derecha": {
+            "alto": 528,
+            "ancho": 172,
+            "ruta": "piezas/muros/pintura-universidad-oficina-docente-lado-1920-derecha.png"
+          },
+          "izquierda": {
+            "alto": 528,
+            "ancho": 172,
+            "ruta": "piezas/muros/pintura-universidad-oficina-docente-lado-1920-izquierda.png"
+          }
+        },
+        "960": {
+          "derecha": {
+            "alto": 528,
+            "ancho": 96,
+            "ruta": "piezas/muros/pintura-universidad-oficina-docente-lado-960-derecha.png"
+          },
+          "izquierda": {
+            "alto": 528,
+            "ancho": 96,
+            "ruta": "piezas/muros/pintura-universidad-oficina-docente-lado-960-izquierda.png"
+          }
+        }
+      },
+      "nombre": "Pintura"
+    },
+    "pintura/universidad-sala-espera": {
+      "fondo": {
+        "alto": 152,
+        "ancho": 1920,
+        "ruta": "piezas/muros/pintura-universidad-sala-espera-fondo.png"
+      },
+      "lado": {
+        "1200": {
+          "derecha": {
+            "alto": 528,
+            "ancho": 115,
+            "ruta": "piezas/muros/pintura-universidad-sala-espera-lado-1200-derecha.png"
+          },
+          "izquierda": {
+            "alto": 528,
+            "ancho": 115,
+            "ruta": "piezas/muros/pintura-universidad-sala-espera-lado-1200-izquierda.png"
+          }
+        },
+        "1440": {
+          "derecha": {
+            "alto": 528,
+            "ancho": 134,
+            "ruta": "piezas/muros/pintura-universidad-sala-espera-lado-1440-derecha.png"
+          },
+          "izquierda": {
+            "alto": 528,
+            "ancho": 134,
+            "ruta": "piezas/muros/pintura-universidad-sala-espera-lado-1440-izquierda.png"
+          }
+        },
+        "1680": {
+          "derecha": {
+            "alto": 528,
+            "ancho": 153,
+            "ruta": "piezas/muros/pintura-universidad-sala-espera-lado-1680-derecha.png"
+          },
+          "izquierda": {
+            "alto": 528,
+            "ancho": 153,
+            "ruta": "piezas/muros/pintura-universidad-sala-espera-lado-1680-izquierda.png"
+          }
+        },
+        "1920": {
+          "derecha": {
+            "alto": 528,
+            "ancho": 172,
+            "ruta": "piezas/muros/pintura-universidad-sala-espera-lado-1920-derecha.png"
+          },
+          "izquierda": {
+            "alto": 528,
+            "ancho": 172,
+            "ruta": "piezas/muros/pintura-universidad-sala-espera-lado-1920-izquierda.png"
+          }
+        },
+        "960": {
+          "derecha": {
+            "alto": 528,
+            "ancho": 96,
+            "ruta": "piezas/muros/pintura-universidad-sala-espera-lado-960-derecha.png"
+          },
+          "izquierda": {
+            "alto": 528,
+            "ancho": 96,
+            "ruta": "piezas/muros/pintura-universidad-sala-espera-lado-960-izquierda.png"
+          }
+        }
+      },
+      "nombre": "Pintura"
+    },
     "zocalo-alto/casa": {
       "fondo": {
         "alto": 152,
@@ -1620,6 +2740,286 @@
       },
       "nombre": "Zócalo alto"
     },
+    "zocalo-alto/casa-fachada": {
+      "fondo": {
+        "alto": 152,
+        "ancho": 1920,
+        "ruta": "piezas/muros/zocalo-alto-casa-fachada-fondo.png"
+      },
+      "lado": {
+        "1200": {
+          "derecha": {
+            "alto": 528,
+            "ancho": 115,
+            "ruta": "piezas/muros/zocalo-alto-casa-fachada-lado-1200-derecha.png"
+          },
+          "izquierda": {
+            "alto": 528,
+            "ancho": 115,
+            "ruta": "piezas/muros/zocalo-alto-casa-fachada-lado-1200-izquierda.png"
+          }
+        },
+        "1440": {
+          "derecha": {
+            "alto": 528,
+            "ancho": 134,
+            "ruta": "piezas/muros/zocalo-alto-casa-fachada-lado-1440-derecha.png"
+          },
+          "izquierda": {
+            "alto": 528,
+            "ancho": 134,
+            "ruta": "piezas/muros/zocalo-alto-casa-fachada-lado-1440-izquierda.png"
+          }
+        },
+        "1680": {
+          "derecha": {
+            "alto": 528,
+            "ancho": 153,
+            "ruta": "piezas/muros/zocalo-alto-casa-fachada-lado-1680-derecha.png"
+          },
+          "izquierda": {
+            "alto": 528,
+            "ancho": 153,
+            "ruta": "piezas/muros/zocalo-alto-casa-fachada-lado-1680-izquierda.png"
+          }
+        },
+        "1920": {
+          "derecha": {
+            "alto": 528,
+            "ancho": 172,
+            "ruta": "piezas/muros/zocalo-alto-casa-fachada-lado-1920-derecha.png"
+          },
+          "izquierda": {
+            "alto": 528,
+            "ancho": 172,
+            "ruta": "piezas/muros/zocalo-alto-casa-fachada-lado-1920-izquierda.png"
+          }
+        },
+        "960": {
+          "derecha": {
+            "alto": 528,
+            "ancho": 96,
+            "ruta": "piezas/muros/zocalo-alto-casa-fachada-lado-960-derecha.png"
+          },
+          "izquierda": {
+            "alto": 528,
+            "ancho": 96,
+            "ruta": "piezas/muros/zocalo-alto-casa-fachada-lado-960-izquierda.png"
+          }
+        }
+      },
+      "nombre": "Zócalo alto"
+    },
+    "zocalo-alto/casa-habitacion-principal": {
+      "fondo": {
+        "alto": 152,
+        "ancho": 1920,
+        "ruta": "piezas/muros/zocalo-alto-casa-habitacion-principal-fondo.png"
+      },
+      "lado": {
+        "1200": {
+          "derecha": {
+            "alto": 528,
+            "ancho": 115,
+            "ruta": "piezas/muros/zocalo-alto-casa-habitacion-principal-lado-1200-derecha.png"
+          },
+          "izquierda": {
+            "alto": 528,
+            "ancho": 115,
+            "ruta": "piezas/muros/zocalo-alto-casa-habitacion-principal-lado-1200-izquierda.png"
+          }
+        },
+        "1440": {
+          "derecha": {
+            "alto": 528,
+            "ancho": 134,
+            "ruta": "piezas/muros/zocalo-alto-casa-habitacion-principal-lado-1440-derecha.png"
+          },
+          "izquierda": {
+            "alto": 528,
+            "ancho": 134,
+            "ruta": "piezas/muros/zocalo-alto-casa-habitacion-principal-lado-1440-izquierda.png"
+          }
+        },
+        "1680": {
+          "derecha": {
+            "alto": 528,
+            "ancho": 153,
+            "ruta": "piezas/muros/zocalo-alto-casa-habitacion-principal-lado-1680-derecha.png"
+          },
+          "izquierda": {
+            "alto": 528,
+            "ancho": 153,
+            "ruta": "piezas/muros/zocalo-alto-casa-habitacion-principal-lado-1680-izquierda.png"
+          }
+        },
+        "1920": {
+          "derecha": {
+            "alto": 528,
+            "ancho": 172,
+            "ruta": "piezas/muros/zocalo-alto-casa-habitacion-principal-lado-1920-derecha.png"
+          },
+          "izquierda": {
+            "alto": 528,
+            "ancho": 172,
+            "ruta": "piezas/muros/zocalo-alto-casa-habitacion-principal-lado-1920-izquierda.png"
+          }
+        },
+        "960": {
+          "derecha": {
+            "alto": 528,
+            "ancho": 96,
+            "ruta": "piezas/muros/zocalo-alto-casa-habitacion-principal-lado-960-derecha.png"
+          },
+          "izquierda": {
+            "alto": 528,
+            "ancho": 96,
+            "ruta": "piezas/muros/zocalo-alto-casa-habitacion-principal-lado-960-izquierda.png"
+          }
+        }
+      },
+      "nombre": "Zócalo alto"
+    },
+    "zocalo-alto/casa-pasillo": {
+      "fondo": {
+        "alto": 152,
+        "ancho": 1920,
+        "ruta": "piezas/muros/zocalo-alto-casa-pasillo-fondo.png"
+      },
+      "lado": {
+        "1200": {
+          "derecha": {
+            "alto": 528,
+            "ancho": 115,
+            "ruta": "piezas/muros/zocalo-alto-casa-pasillo-lado-1200-derecha.png"
+          },
+          "izquierda": {
+            "alto": 528,
+            "ancho": 115,
+            "ruta": "piezas/muros/zocalo-alto-casa-pasillo-lado-1200-izquierda.png"
+          }
+        },
+        "1440": {
+          "derecha": {
+            "alto": 528,
+            "ancho": 134,
+            "ruta": "piezas/muros/zocalo-alto-casa-pasillo-lado-1440-derecha.png"
+          },
+          "izquierda": {
+            "alto": 528,
+            "ancho": 134,
+            "ruta": "piezas/muros/zocalo-alto-casa-pasillo-lado-1440-izquierda.png"
+          }
+        },
+        "1680": {
+          "derecha": {
+            "alto": 528,
+            "ancho": 153,
+            "ruta": "piezas/muros/zocalo-alto-casa-pasillo-lado-1680-derecha.png"
+          },
+          "izquierda": {
+            "alto": 528,
+            "ancho": 153,
+            "ruta": "piezas/muros/zocalo-alto-casa-pasillo-lado-1680-izquierda.png"
+          }
+        },
+        "1920": {
+          "derecha": {
+            "alto": 528,
+            "ancho": 172,
+            "ruta": "piezas/muros/zocalo-alto-casa-pasillo-lado-1920-derecha.png"
+          },
+          "izquierda": {
+            "alto": 528,
+            "ancho": 172,
+            "ruta": "piezas/muros/zocalo-alto-casa-pasillo-lado-1920-izquierda.png"
+          }
+        },
+        "960": {
+          "derecha": {
+            "alto": 528,
+            "ancho": 96,
+            "ruta": "piezas/muros/zocalo-alto-casa-pasillo-lado-960-derecha.png"
+          },
+          "izquierda": {
+            "alto": 528,
+            "ancho": 96,
+            "ruta": "piezas/muros/zocalo-alto-casa-pasillo-lado-960-izquierda.png"
+          }
+        }
+      },
+      "nombre": "Zócalo alto"
+    },
+    "zocalo-alto/casa-sala": {
+      "fondo": {
+        "alto": 152,
+        "ancho": 1920,
+        "ruta": "piezas/muros/zocalo-alto-casa-sala-fondo.png"
+      },
+      "lado": {
+        "1200": {
+          "derecha": {
+            "alto": 528,
+            "ancho": 115,
+            "ruta": "piezas/muros/zocalo-alto-casa-sala-lado-1200-derecha.png"
+          },
+          "izquierda": {
+            "alto": 528,
+            "ancho": 115,
+            "ruta": "piezas/muros/zocalo-alto-casa-sala-lado-1200-izquierda.png"
+          }
+        },
+        "1440": {
+          "derecha": {
+            "alto": 528,
+            "ancho": 134,
+            "ruta": "piezas/muros/zocalo-alto-casa-sala-lado-1440-derecha.png"
+          },
+          "izquierda": {
+            "alto": 528,
+            "ancho": 134,
+            "ruta": "piezas/muros/zocalo-alto-casa-sala-lado-1440-izquierda.png"
+          }
+        },
+        "1680": {
+          "derecha": {
+            "alto": 528,
+            "ancho": 153,
+            "ruta": "piezas/muros/zocalo-alto-casa-sala-lado-1680-derecha.png"
+          },
+          "izquierda": {
+            "alto": 528,
+            "ancho": 153,
+            "ruta": "piezas/muros/zocalo-alto-casa-sala-lado-1680-izquierda.png"
+          }
+        },
+        "1920": {
+          "derecha": {
+            "alto": 528,
+            "ancho": 172,
+            "ruta": "piezas/muros/zocalo-alto-casa-sala-lado-1920-derecha.png"
+          },
+          "izquierda": {
+            "alto": 528,
+            "ancho": 172,
+            "ruta": "piezas/muros/zocalo-alto-casa-sala-lado-1920-izquierda.png"
+          }
+        },
+        "960": {
+          "derecha": {
+            "alto": 528,
+            "ancho": 96,
+            "ruta": "piezas/muros/zocalo-alto-casa-sala-lado-960-derecha.png"
+          },
+          "izquierda": {
+            "alto": 528,
+            "ancho": 96,
+            "ruta": "piezas/muros/zocalo-alto-casa-sala-lado-960-izquierda.png"
+          }
+        }
+      },
+      "nombre": "Zócalo alto"
+    },
     "zocalo-alto/comisaria": {
       "fondo": {
         "alto": 152,
@@ -1685,6 +3085,356 @@
             "alto": 528,
             "ancho": 96,
             "ruta": "piezas/muros/zocalo-alto-comisaria-lado-960-izquierda.png"
+          }
+        }
+      },
+      "nombre": "Zócalo alto"
+    },
+    "zocalo-alto/comisaria-archivo": {
+      "fondo": {
+        "alto": 152,
+        "ancho": 1920,
+        "ruta": "piezas/muros/zocalo-alto-comisaria-archivo-fondo.png"
+      },
+      "lado": {
+        "1200": {
+          "derecha": {
+            "alto": 528,
+            "ancho": 115,
+            "ruta": "piezas/muros/zocalo-alto-comisaria-archivo-lado-1200-derecha.png"
+          },
+          "izquierda": {
+            "alto": 528,
+            "ancho": 115,
+            "ruta": "piezas/muros/zocalo-alto-comisaria-archivo-lado-1200-izquierda.png"
+          }
+        },
+        "1440": {
+          "derecha": {
+            "alto": 528,
+            "ancho": 134,
+            "ruta": "piezas/muros/zocalo-alto-comisaria-archivo-lado-1440-derecha.png"
+          },
+          "izquierda": {
+            "alto": 528,
+            "ancho": 134,
+            "ruta": "piezas/muros/zocalo-alto-comisaria-archivo-lado-1440-izquierda.png"
+          }
+        },
+        "1680": {
+          "derecha": {
+            "alto": 528,
+            "ancho": 153,
+            "ruta": "piezas/muros/zocalo-alto-comisaria-archivo-lado-1680-derecha.png"
+          },
+          "izquierda": {
+            "alto": 528,
+            "ancho": 153,
+            "ruta": "piezas/muros/zocalo-alto-comisaria-archivo-lado-1680-izquierda.png"
+          }
+        },
+        "1920": {
+          "derecha": {
+            "alto": 528,
+            "ancho": 172,
+            "ruta": "piezas/muros/zocalo-alto-comisaria-archivo-lado-1920-derecha.png"
+          },
+          "izquierda": {
+            "alto": 528,
+            "ancho": 172,
+            "ruta": "piezas/muros/zocalo-alto-comisaria-archivo-lado-1920-izquierda.png"
+          }
+        },
+        "960": {
+          "derecha": {
+            "alto": 528,
+            "ancho": 96,
+            "ruta": "piezas/muros/zocalo-alto-comisaria-archivo-lado-960-derecha.png"
+          },
+          "izquierda": {
+            "alto": 528,
+            "ancho": 96,
+            "ruta": "piezas/muros/zocalo-alto-comisaria-archivo-lado-960-izquierda.png"
+          }
+        }
+      },
+      "nombre": "Zócalo alto"
+    },
+    "zocalo-alto/comisaria-orientacion-juridica": {
+      "fondo": {
+        "alto": 152,
+        "ancho": 1920,
+        "ruta": "piezas/muros/zocalo-alto-comisaria-orientacion-juridica-fondo.png"
+      },
+      "lado": {
+        "1200": {
+          "derecha": {
+            "alto": 528,
+            "ancho": 115,
+            "ruta": "piezas/muros/zocalo-alto-comisaria-orientacion-juridica-lado-1200-derecha.png"
+          },
+          "izquierda": {
+            "alto": 528,
+            "ancho": 115,
+            "ruta": "piezas/muros/zocalo-alto-comisaria-orientacion-juridica-lado-1200-izquierda.png"
+          }
+        },
+        "1440": {
+          "derecha": {
+            "alto": 528,
+            "ancho": 134,
+            "ruta": "piezas/muros/zocalo-alto-comisaria-orientacion-juridica-lado-1440-derecha.png"
+          },
+          "izquierda": {
+            "alto": 528,
+            "ancho": 134,
+            "ruta": "piezas/muros/zocalo-alto-comisaria-orientacion-juridica-lado-1440-izquierda.png"
+          }
+        },
+        "1680": {
+          "derecha": {
+            "alto": 528,
+            "ancho": 153,
+            "ruta": "piezas/muros/zocalo-alto-comisaria-orientacion-juridica-lado-1680-derecha.png"
+          },
+          "izquierda": {
+            "alto": 528,
+            "ancho": 153,
+            "ruta": "piezas/muros/zocalo-alto-comisaria-orientacion-juridica-lado-1680-izquierda.png"
+          }
+        },
+        "1920": {
+          "derecha": {
+            "alto": 528,
+            "ancho": 172,
+            "ruta": "piezas/muros/zocalo-alto-comisaria-orientacion-juridica-lado-1920-derecha.png"
+          },
+          "izquierda": {
+            "alto": 528,
+            "ancho": 172,
+            "ruta": "piezas/muros/zocalo-alto-comisaria-orientacion-juridica-lado-1920-izquierda.png"
+          }
+        },
+        "960": {
+          "derecha": {
+            "alto": 528,
+            "ancho": 96,
+            "ruta": "piezas/muros/zocalo-alto-comisaria-orientacion-juridica-lado-960-derecha.png"
+          },
+          "izquierda": {
+            "alto": 528,
+            "ancho": 96,
+            "ruta": "piezas/muros/zocalo-alto-comisaria-orientacion-juridica-lado-960-izquierda.png"
+          }
+        }
+      },
+      "nombre": "Zócalo alto"
+    },
+    "zocalo-alto/comisaria-pasillo": {
+      "fondo": {
+        "alto": 152,
+        "ancho": 1920,
+        "ruta": "piezas/muros/zocalo-alto-comisaria-pasillo-fondo.png"
+      },
+      "lado": {
+        "1200": {
+          "derecha": {
+            "alto": 528,
+            "ancho": 115,
+            "ruta": "piezas/muros/zocalo-alto-comisaria-pasillo-lado-1200-derecha.png"
+          },
+          "izquierda": {
+            "alto": 528,
+            "ancho": 115,
+            "ruta": "piezas/muros/zocalo-alto-comisaria-pasillo-lado-1200-izquierda.png"
+          }
+        },
+        "1440": {
+          "derecha": {
+            "alto": 528,
+            "ancho": 134,
+            "ruta": "piezas/muros/zocalo-alto-comisaria-pasillo-lado-1440-derecha.png"
+          },
+          "izquierda": {
+            "alto": 528,
+            "ancho": 134,
+            "ruta": "piezas/muros/zocalo-alto-comisaria-pasillo-lado-1440-izquierda.png"
+          }
+        },
+        "1680": {
+          "derecha": {
+            "alto": 528,
+            "ancho": 153,
+            "ruta": "piezas/muros/zocalo-alto-comisaria-pasillo-lado-1680-derecha.png"
+          },
+          "izquierda": {
+            "alto": 528,
+            "ancho": 153,
+            "ruta": "piezas/muros/zocalo-alto-comisaria-pasillo-lado-1680-izquierda.png"
+          }
+        },
+        "1920": {
+          "derecha": {
+            "alto": 528,
+            "ancho": 172,
+            "ruta": "piezas/muros/zocalo-alto-comisaria-pasillo-lado-1920-derecha.png"
+          },
+          "izquierda": {
+            "alto": 528,
+            "ancho": 172,
+            "ruta": "piezas/muros/zocalo-alto-comisaria-pasillo-lado-1920-izquierda.png"
+          }
+        },
+        "960": {
+          "derecha": {
+            "alto": 528,
+            "ancho": 96,
+            "ruta": "piezas/muros/zocalo-alto-comisaria-pasillo-lado-960-derecha.png"
+          },
+          "izquierda": {
+            "alto": 528,
+            "ancho": 96,
+            "ruta": "piezas/muros/zocalo-alto-comisaria-pasillo-lado-960-izquierda.png"
+          }
+        }
+      },
+      "nombre": "Zócalo alto"
+    },
+    "zocalo-alto/comisaria-recepcion": {
+      "fondo": {
+        "alto": 152,
+        "ancho": 1920,
+        "ruta": "piezas/muros/zocalo-alto-comisaria-recepcion-fondo.png"
+      },
+      "lado": {
+        "1200": {
+          "derecha": {
+            "alto": 528,
+            "ancho": 115,
+            "ruta": "piezas/muros/zocalo-alto-comisaria-recepcion-lado-1200-derecha.png"
+          },
+          "izquierda": {
+            "alto": 528,
+            "ancho": 115,
+            "ruta": "piezas/muros/zocalo-alto-comisaria-recepcion-lado-1200-izquierda.png"
+          }
+        },
+        "1440": {
+          "derecha": {
+            "alto": 528,
+            "ancho": 134,
+            "ruta": "piezas/muros/zocalo-alto-comisaria-recepcion-lado-1440-derecha.png"
+          },
+          "izquierda": {
+            "alto": 528,
+            "ancho": 134,
+            "ruta": "piezas/muros/zocalo-alto-comisaria-recepcion-lado-1440-izquierda.png"
+          }
+        },
+        "1680": {
+          "derecha": {
+            "alto": 528,
+            "ancho": 153,
+            "ruta": "piezas/muros/zocalo-alto-comisaria-recepcion-lado-1680-derecha.png"
+          },
+          "izquierda": {
+            "alto": 528,
+            "ancho": 153,
+            "ruta": "piezas/muros/zocalo-alto-comisaria-recepcion-lado-1680-izquierda.png"
+          }
+        },
+        "1920": {
+          "derecha": {
+            "alto": 528,
+            "ancho": 172,
+            "ruta": "piezas/muros/zocalo-alto-comisaria-recepcion-lado-1920-derecha.png"
+          },
+          "izquierda": {
+            "alto": 528,
+            "ancho": 172,
+            "ruta": "piezas/muros/zocalo-alto-comisaria-recepcion-lado-1920-izquierda.png"
+          }
+        },
+        "960": {
+          "derecha": {
+            "alto": 528,
+            "ancho": 96,
+            "ruta": "piezas/muros/zocalo-alto-comisaria-recepcion-lado-960-derecha.png"
+          },
+          "izquierda": {
+            "alto": 528,
+            "ancho": 96,
+            "ruta": "piezas/muros/zocalo-alto-comisaria-recepcion-lado-960-izquierda.png"
+          }
+        }
+      },
+      "nombre": "Zócalo alto"
+    },
+    "zocalo-alto/comisaria-sala-espera": {
+      "fondo": {
+        "alto": 152,
+        "ancho": 1920,
+        "ruta": "piezas/muros/zocalo-alto-comisaria-sala-espera-fondo.png"
+      },
+      "lado": {
+        "1200": {
+          "derecha": {
+            "alto": 528,
+            "ancho": 115,
+            "ruta": "piezas/muros/zocalo-alto-comisaria-sala-espera-lado-1200-derecha.png"
+          },
+          "izquierda": {
+            "alto": 528,
+            "ancho": 115,
+            "ruta": "piezas/muros/zocalo-alto-comisaria-sala-espera-lado-1200-izquierda.png"
+          }
+        },
+        "1440": {
+          "derecha": {
+            "alto": 528,
+            "ancho": 134,
+            "ruta": "piezas/muros/zocalo-alto-comisaria-sala-espera-lado-1440-derecha.png"
+          },
+          "izquierda": {
+            "alto": 528,
+            "ancho": 134,
+            "ruta": "piezas/muros/zocalo-alto-comisaria-sala-espera-lado-1440-izquierda.png"
+          }
+        },
+        "1680": {
+          "derecha": {
+            "alto": 528,
+            "ancho": 153,
+            "ruta": "piezas/muros/zocalo-alto-comisaria-sala-espera-lado-1680-derecha.png"
+          },
+          "izquierda": {
+            "alto": 528,
+            "ancho": 153,
+            "ruta": "piezas/muros/zocalo-alto-comisaria-sala-espera-lado-1680-izquierda.png"
+          }
+        },
+        "1920": {
+          "derecha": {
+            "alto": 528,
+            "ancho": 172,
+            "ruta": "piezas/muros/zocalo-alto-comisaria-sala-espera-lado-1920-derecha.png"
+          },
+          "izquierda": {
+            "alto": 528,
+            "ancho": 172,
+            "ruta": "piezas/muros/zocalo-alto-comisaria-sala-espera-lado-1920-izquierda.png"
+          }
+        },
+        "960": {
+          "derecha": {
+            "alto": 528,
+            "ancho": 96,
+            "ruta": "piezas/muros/zocalo-alto-comisaria-sala-espera-lado-960-derecha.png"
+          },
+          "izquierda": {
+            "alto": 528,
+            "ancho": 96,
+            "ruta": "piezas/muros/zocalo-alto-comisaria-sala-espera-lado-960-izquierda.png"
           }
         }
       },
@@ -1825,6 +3575,216 @@
             "alto": 528,
             "ancho": 96,
             "ruta": "piezas/muros/zocalo-alto-universidad-lado-960-izquierda.png"
+          }
+        }
+      },
+      "nombre": "Zócalo alto"
+    },
+    "zocalo-alto/universidad-aula": {
+      "fondo": {
+        "alto": 152,
+        "ancho": 1920,
+        "ruta": "piezas/muros/zocalo-alto-universidad-aula-fondo.png"
+      },
+      "lado": {
+        "1200": {
+          "derecha": {
+            "alto": 528,
+            "ancho": 115,
+            "ruta": "piezas/muros/zocalo-alto-universidad-aula-lado-1200-derecha.png"
+          },
+          "izquierda": {
+            "alto": 528,
+            "ancho": 115,
+            "ruta": "piezas/muros/zocalo-alto-universidad-aula-lado-1200-izquierda.png"
+          }
+        },
+        "1440": {
+          "derecha": {
+            "alto": 528,
+            "ancho": 134,
+            "ruta": "piezas/muros/zocalo-alto-universidad-aula-lado-1440-derecha.png"
+          },
+          "izquierda": {
+            "alto": 528,
+            "ancho": 134,
+            "ruta": "piezas/muros/zocalo-alto-universidad-aula-lado-1440-izquierda.png"
+          }
+        },
+        "1680": {
+          "derecha": {
+            "alto": 528,
+            "ancho": 153,
+            "ruta": "piezas/muros/zocalo-alto-universidad-aula-lado-1680-derecha.png"
+          },
+          "izquierda": {
+            "alto": 528,
+            "ancho": 153,
+            "ruta": "piezas/muros/zocalo-alto-universidad-aula-lado-1680-izquierda.png"
+          }
+        },
+        "1920": {
+          "derecha": {
+            "alto": 528,
+            "ancho": 172,
+            "ruta": "piezas/muros/zocalo-alto-universidad-aula-lado-1920-derecha.png"
+          },
+          "izquierda": {
+            "alto": 528,
+            "ancho": 172,
+            "ruta": "piezas/muros/zocalo-alto-universidad-aula-lado-1920-izquierda.png"
+          }
+        },
+        "960": {
+          "derecha": {
+            "alto": 528,
+            "ancho": 96,
+            "ruta": "piezas/muros/zocalo-alto-universidad-aula-lado-960-derecha.png"
+          },
+          "izquierda": {
+            "alto": 528,
+            "ancho": 96,
+            "ruta": "piezas/muros/zocalo-alto-universidad-aula-lado-960-izquierda.png"
+          }
+        }
+      },
+      "nombre": "Zócalo alto"
+    },
+    "zocalo-alto/universidad-cafeteria": {
+      "fondo": {
+        "alto": 152,
+        "ancho": 1920,
+        "ruta": "piezas/muros/zocalo-alto-universidad-cafeteria-fondo.png"
+      },
+      "lado": {
+        "1200": {
+          "derecha": {
+            "alto": 528,
+            "ancho": 115,
+            "ruta": "piezas/muros/zocalo-alto-universidad-cafeteria-lado-1200-derecha.png"
+          },
+          "izquierda": {
+            "alto": 528,
+            "ancho": 115,
+            "ruta": "piezas/muros/zocalo-alto-universidad-cafeteria-lado-1200-izquierda.png"
+          }
+        },
+        "1440": {
+          "derecha": {
+            "alto": 528,
+            "ancho": 134,
+            "ruta": "piezas/muros/zocalo-alto-universidad-cafeteria-lado-1440-derecha.png"
+          },
+          "izquierda": {
+            "alto": 528,
+            "ancho": 134,
+            "ruta": "piezas/muros/zocalo-alto-universidad-cafeteria-lado-1440-izquierda.png"
+          }
+        },
+        "1680": {
+          "derecha": {
+            "alto": 528,
+            "ancho": 153,
+            "ruta": "piezas/muros/zocalo-alto-universidad-cafeteria-lado-1680-derecha.png"
+          },
+          "izquierda": {
+            "alto": 528,
+            "ancho": 153,
+            "ruta": "piezas/muros/zocalo-alto-universidad-cafeteria-lado-1680-izquierda.png"
+          }
+        },
+        "1920": {
+          "derecha": {
+            "alto": 528,
+            "ancho": 172,
+            "ruta": "piezas/muros/zocalo-alto-universidad-cafeteria-lado-1920-derecha.png"
+          },
+          "izquierda": {
+            "alto": 528,
+            "ancho": 172,
+            "ruta": "piezas/muros/zocalo-alto-universidad-cafeteria-lado-1920-izquierda.png"
+          }
+        },
+        "960": {
+          "derecha": {
+            "alto": 528,
+            "ancho": 96,
+            "ruta": "piezas/muros/zocalo-alto-universidad-cafeteria-lado-960-derecha.png"
+          },
+          "izquierda": {
+            "alto": 528,
+            "ancho": 96,
+            "ruta": "piezas/muros/zocalo-alto-universidad-cafeteria-lado-960-izquierda.png"
+          }
+        }
+      },
+      "nombre": "Zócalo alto"
+    },
+    "zocalo-alto/universidad-pasillo": {
+      "fondo": {
+        "alto": 152,
+        "ancho": 1920,
+        "ruta": "piezas/muros/zocalo-alto-universidad-pasillo-fondo.png"
+      },
+      "lado": {
+        "1200": {
+          "derecha": {
+            "alto": 528,
+            "ancho": 115,
+            "ruta": "piezas/muros/zocalo-alto-universidad-pasillo-lado-1200-derecha.png"
+          },
+          "izquierda": {
+            "alto": 528,
+            "ancho": 115,
+            "ruta": "piezas/muros/zocalo-alto-universidad-pasillo-lado-1200-izquierda.png"
+          }
+        },
+        "1440": {
+          "derecha": {
+            "alto": 528,
+            "ancho": 134,
+            "ruta": "piezas/muros/zocalo-alto-universidad-pasillo-lado-1440-derecha.png"
+          },
+          "izquierda": {
+            "alto": 528,
+            "ancho": 134,
+            "ruta": "piezas/muros/zocalo-alto-universidad-pasillo-lado-1440-izquierda.png"
+          }
+        },
+        "1680": {
+          "derecha": {
+            "alto": 528,
+            "ancho": 153,
+            "ruta": "piezas/muros/zocalo-alto-universidad-pasillo-lado-1680-derecha.png"
+          },
+          "izquierda": {
+            "alto": 528,
+            "ancho": 153,
+            "ruta": "piezas/muros/zocalo-alto-universidad-pasillo-lado-1680-izquierda.png"
+          }
+        },
+        "1920": {
+          "derecha": {
+            "alto": 528,
+            "ancho": 172,
+            "ruta": "piezas/muros/zocalo-alto-universidad-pasillo-lado-1920-derecha.png"
+          },
+          "izquierda": {
+            "alto": 528,
+            "ancho": 172,
+            "ruta": "piezas/muros/zocalo-alto-universidad-pasillo-lado-1920-izquierda.png"
+          }
+        },
+        "960": {
+          "derecha": {
+            "alto": 528,
+            "ancho": 96,
+            "ruta": "piezas/muros/zocalo-alto-universidad-pasillo-lado-960-derecha.png"
+          },
+          "izquierda": {
+            "alto": 528,
+            "ancho": 96,
+            "ruta": "piezas/muros/zocalo-alto-universidad-pasillo-lado-960-izquierda.png"
           }
         }
       },
@@ -3745,6 +5705,24 @@
       "nombre": "Adoquín",
       "ruta": "piezas/pisos/adoquin-b.png"
     },
+    "adoquin-casa-fachada": {
+      "alto": 298,
+      "ancho": 1920,
+      "nombre": "Adoquín",
+      "ruta": "piezas/pisos/adoquin-casa-fachada.png"
+    },
+    "adoquin-comisaria-fachada": {
+      "alto": 298,
+      "ancho": 1920,
+      "nombre": "Adoquín",
+      "ruta": "piezas/pisos/adoquin-comisaria-fachada.png"
+    },
+    "adoquin-universidad-entrada": {
+      "alto": 298,
+      "ancho": 1920,
+      "nombre": "Adoquín",
+      "ruta": "piezas/pisos/adoquin-universidad-entrada.png"
+    },
     "baldosa-a": {
       "alto": 298,
       "ancho": 1920,
@@ -3756,6 +5734,84 @@
       "ancho": 1920,
       "nombre": "Baldosa",
       "ruta": "piezas/pisos/baldosa-b.png"
+    },
+    "baldosa-casa-cocina": {
+      "alto": 298,
+      "ancho": 1920,
+      "nombre": "Baldosa",
+      "ruta": "piezas/pisos/baldosa-casa-cocina.png"
+    },
+    "baldosa-casa-comedor": {
+      "alto": 298,
+      "ancho": 1920,
+      "nombre": "Baldosa",
+      "ruta": "piezas/pisos/baldosa-casa-comedor.png"
+    },
+    "baldosa-casa-patio": {
+      "alto": 298,
+      "ancho": 1920,
+      "nombre": "Baldosa",
+      "ruta": "piezas/pisos/baldosa-casa-patio.png"
+    },
+    "baldosa-comisaria-archivo": {
+      "alto": 298,
+      "ancho": 1920,
+      "nombre": "Baldosa",
+      "ruta": "piezas/pisos/baldosa-comisaria-archivo.png"
+    },
+    "baldosa-comisaria-orientacion-juridica": {
+      "alto": 298,
+      "ancho": 1920,
+      "nombre": "Baldosa",
+      "ruta": "piezas/pisos/baldosa-comisaria-orientacion-juridica.png"
+    },
+    "baldosa-comisaria-pasillo": {
+      "alto": 298,
+      "ancho": 1920,
+      "nombre": "Baldosa",
+      "ruta": "piezas/pisos/baldosa-comisaria-pasillo.png"
+    },
+    "baldosa-comisaria-recepcion": {
+      "alto": 298,
+      "ancho": 1920,
+      "nombre": "Baldosa",
+      "ruta": "piezas/pisos/baldosa-comisaria-recepcion.png"
+    },
+    "baldosa-comisaria-sala-espera": {
+      "alto": 298,
+      "ancho": 1920,
+      "nombre": "Baldosa",
+      "ruta": "piezas/pisos/baldosa-comisaria-sala-espera.png"
+    },
+    "baldosa-universidad-aula": {
+      "alto": 298,
+      "ancho": 1920,
+      "nombre": "Baldosa",
+      "ruta": "piezas/pisos/baldosa-universidad-aula.png"
+    },
+    "baldosa-universidad-bienestar": {
+      "alto": 298,
+      "ancho": 1920,
+      "nombre": "Baldosa",
+      "ruta": "piezas/pisos/baldosa-universidad-bienestar.png"
+    },
+    "baldosa-universidad-enfermeria": {
+      "alto": 298,
+      "ancho": 1920,
+      "nombre": "Baldosa",
+      "ruta": "piezas/pisos/baldosa-universidad-enfermeria.png"
+    },
+    "baldosa-universidad-pasillo": {
+      "alto": 298,
+      "ancho": 1920,
+      "nombre": "Baldosa",
+      "ruta": "piezas/pisos/baldosa-universidad-pasillo.png"
+    },
+    "baldosa-universidad-sala-espera": {
+      "alto": 298,
+      "ancho": 1920,
+      "nombre": "Baldosa",
+      "ruta": "piezas/pisos/baldosa-universidad-sala-espera.png"
     },
     "cemento-a": {
       "alto": 298,
@@ -3781,6 +5837,12 @@
       "nombre": "Damero",
       "ruta": "piezas/pisos/damero-b.png"
     },
+    "damero-universidad-cafeteria": {
+      "alto": 298,
+      "ancho": 1920,
+      "nombre": "Damero",
+      "ruta": "piezas/pisos/damero-universidad-cafeteria.png"
+    },
     "madera-a": {
       "alto": 298,
       "ancho": 1920,
@@ -3793,6 +5855,54 @@
       "nombre": "Madera",
       "ruta": "piezas/pisos/madera-b.png"
     },
+    "madera-casa-escalera": {
+      "alto": 298,
+      "ancho": 1920,
+      "nombre": "Madera",
+      "ruta": "piezas/pisos/madera-casa-escalera.png"
+    },
+    "madera-casa-habitacion-principal": {
+      "alto": 298,
+      "ancho": 1920,
+      "nombre": "Madera",
+      "ruta": "piezas/pisos/madera-casa-habitacion-principal.png"
+    },
+    "madera-casa-pasillo": {
+      "alto": 298,
+      "ancho": 1920,
+      "nombre": "Madera",
+      "ruta": "piezas/pisos/madera-casa-pasillo.png"
+    },
+    "madera-casa-sala": {
+      "alto": 298,
+      "ancho": 1920,
+      "nombre": "Madera",
+      "ruta": "piezas/pisos/madera-casa-sala.png"
+    },
+    "madera-comisaria-consultorio-psicosocial": {
+      "alto": 298,
+      "ancho": 1920,
+      "nombre": "Madera",
+      "ruta": "piezas/pisos/madera-comisaria-consultorio-psicosocial.png"
+    },
+    "madera-comisaria-despacho-comisaria": {
+      "alto": 298,
+      "ancho": 1920,
+      "nombre": "Madera",
+      "ruta": "piezas/pisos/madera-comisaria-despacho-comisaria.png"
+    },
+    "madera-universidad-consultorio": {
+      "alto": 298,
+      "ancho": 1920,
+      "nombre": "Madera",
+      "ruta": "piezas/pisos/madera-universidad-consultorio.png"
+    },
+    "madera-universidad-oficina-docente": {
+      "alto": 298,
+      "ancho": 1920,
+      "nombre": "Madera",
+      "ruta": "piezas/pisos/madera-universidad-oficina-docente.png"
+    },
     "vinilo-a": {
       "alto": 298,
       "ancho": 1920,
@@ -3804,6 +5914,24 @@
       "ancho": 1920,
       "nombre": "Vinilo de hospital",
       "ruta": "piezas/pisos/vinilo-b.png"
+    },
+    "vinilo-casa-habitacion-ninos": {
+      "alto": 298,
+      "ancho": 1920,
+      "nombre": "Vinilo de hospital",
+      "ruta": "piezas/pisos/vinilo-casa-habitacion-ninos.png"
+    },
+    "vinilo-comisaria-sala-entrevista-nna": {
+      "alto": 298,
+      "ancho": 1920,
+      "nombre": "Vinilo de hospital",
+      "ruta": "piezas/pisos/vinilo-comisaria-sala-entrevista-nna.png"
+    },
+    "vinilo-universidad-biblioteca": {
+      "alto": 298,
+      "ancho": 1920,
+      "nombre": "Vinilo de hospital",
+      "ruta": "piezas/pisos/vinilo-universidad-biblioteca.png"
     }
   },
   "propios": [
@@ -3825,5 +5953,8 @@
     "piezas/propios/comisaria-recepcion.png",
     "piezas/propios/comisaria-sala-entrevista-nna.png",
     "piezas/propios/comisaria-sala-espera.png"
+  ],
+  "tapetes": [
+    "piezas/tapetes/hospital-sala-escucha-1.png"
   ]
 }
