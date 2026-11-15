@@ -47,6 +47,13 @@ it('muestra la línea con data-comment y se anuncia una sola vez', () => {
   expect(announcer.announce).toHaveBeenCalledWith('Abuela: ¿Usted es la psicóloga?', 'polite');
 });
 
+it('el mismo comentario llegando como un objeto nuevo (mismo id) no se anuncia de nuevo', () => {
+  const { announcer, poner } = montar();
+  poner({ comment: COMENTARIO, speaker: { nombre: 'Abuela', visual: null }, anchor: { x: 120, y: 80 } });
+  poner({ comment: { ...COMENTARIO }, speaker: { nombre: 'Abuela', visual: null }, anchor: { x: 120, y: 80 } });
+  expect(announcer.announce).toHaveBeenCalledTimes(1);
+});
+
 it('un comentario distinto se anuncia de nuevo', () => {
   const { announcer, poner } = montar();
   poner({ comment: COMENTARIO, speaker: { nombre: 'Abuela', visual: null }, anchor: null });
