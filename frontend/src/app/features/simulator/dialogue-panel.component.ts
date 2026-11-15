@@ -236,6 +236,8 @@ const STALE_NOTE = 'Esta conversación corresponde a otro momento del caso.';
        aparecer y la cámara (M1) mide un solo alto durante toda la conversación. */
     .dialogue-strip:not(.strip--con-opciones) .strip-main { grid-template-columns: minmax(0, min(46em, 100%)); }
     .dialogue-strip:not(.strip--con-opciones) .strip-body { display: none; }
+    /* Una sola opción ocupa todo el ancho de su columna, no media. */
+    .choices:not(:has(.choice-btn + .choice-btn)) { grid-template-columns: minmax(0, 1fr); }
     /* Sobre el mundo, el cuadro incluye el retrato que asoma: el borde superior de app-dialogue-panel es lo que tapa. */
     .dialogue-strip:not(.dialogue-strip--side) { padding-top: calc(16 * var(--px)); }
 
