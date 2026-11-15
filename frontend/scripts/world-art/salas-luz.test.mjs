@@ -155,15 +155,18 @@ test('lo que la estructura trae mal no rompe la luz', () => {
   assert.throws(() => calcularLuz({ ...sala, estructura: { ...sala.estructura, ancho: 1000 } }, CATALOGO), /fuera del catálogo/);
 });
 
-test('encendida como booleano (contrato 2.2) da la misma luz que siempre y nunca', () => {
-  const sala = salaDe('sintetica/ancha');
-  const conBooleanos = structuredClone(sala);
-  for (const pieza of conBooleanos.estructura.piezas) {
-    if (pieza.encendida === 'siempre') pieza.encendida = true;
-    if (pieza.encendida === 'nunca') pieza.encendida = false;
+test('encendida como siempre y nunca (la forma vieja de la biblioteca) da la misma luz que el booleano del contrato 2.2', () => {
+  const conPalabras = salaDe('sintetica/ancha');
+  let cambiadas = 0;
+  for (const pieza of conPalabras.estructura.piezas) {
+    if (pieza.encendida === true) pieza.encendida = 'siempre';
+    else if (pieza.encendida === false) pieza.encendida = 'nunca';
+    else continue;
+    cambiadas += 1;
   }
+  assert.equal(cambiadas, 2);
   for (const momento of ['dia', 'noche']) {
-    assert.equal(huellaRgb(calcularLuz(conBooleanos, CATALOGO, { momento }).ambiente), REF.luz.find(c => c.id === `sintetica/ancha@${momento}`).ambiente);
+    assert.equal(huellaRgb(calcularLuz(conPalabras, CATALOGO, { momento }).ambiente), REF.luz.find(c => c.id === `sintetica/ancha@${momento}`).ambiente);
   }
 });
 

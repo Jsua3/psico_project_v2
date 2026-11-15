@@ -49,10 +49,10 @@ SINTETICAS = {
                 {'id': 'v-der', 'tipo': 'ventana', 'modelo': 'persiana', 'muro': 'derecha', 'pos': 120},
                 {'id': 'v-fondo', 'tipo': 'ventana', 'modelo': 'corrediza', 'muro': 'fondo', 'pos': 400},
                 {'id': 'colgante', 'tipo': 'lampara', 'modelo': 'colgante', 'muro': 'fondo', 'pos': 900},
-                {'id': 'apagada', 'tipo': 'lampara', 'modelo': 'colgante', 'muro': 'fondo', 'pos': 1100, 'encendida': 'nunca'},
+                {'id': 'apagada', 'tipo': 'lampara', 'modelo': 'colgante', 'muro': 'fondo', 'pos': 1100, 'encendida': False},
                 {'id': 'tubo', 'tipo': 'lampara', 'modelo': 'tubo', 'muro': 'fondo', 'pos': 1300},
                 {'id': 'tubo-lado', 'tipo': 'lampara', 'modelo': 'tubo', 'muro': 'izquierda', 'pos': 240},
-                {'id': 'pie', 'tipo': 'lampara', 'modelo': 'pie', 'x': 600, 'y': 380, 'encendida': 'siempre'},
+                {'id': 'pie', 'tipo': 'lampara', 'modelo': 'pie', 'x': 600, 'y': 380, 'encendida': True},
                 {'id': 'mesa', 'tipo': 'lampara', 'modelo': 'mesa', 'x': 1500, 'y': 330, 'sobre': 22},
                 {'id': 'reloj', 'tipo': 'reloj', 'modelo': 'reloj', 'muro': 'derecha', 'pos': 220},
                 {'id': 'cartelera', 'tipo': 'cartelera', 'modelo': 'cartelera', 'muro': 'fondo', 'pos': 700},
@@ -158,9 +158,18 @@ def luz_de(clave, momento, abiertas):
 # ── composición ────────────────────────────────────────────────────────────────
 
 def sala_sin_tapetes(clave):
-    """El tapete lo dibuja Pillow con polígonos y el cliente lo recibe como imagen: la referencia se compara sin él."""
+    """El cliente pinta el tapete desde su imagen (`ruta`, que P1 exporta con `tapete_imagen`); Python lo dibuja con polígonos
+    y da los mismos píxeles. Un tapete sin imagen el cliente no lo puede pintar: la referencia se compara sin él."""
     sala = sala_de(clave)
-    return sala, sala['estructura'].pop('tapetes', None) is not None
+    tapetes = sala['estructura'].get('tapetes', [])
+    con_imagen = [t for t in tapetes if t.get('ruta') and os.path.exists(os.path.join(RAIZ, 'biblioteca', *t['ruta'].split('/')))]
+    if len(con_imagen) == len(tapetes):
+        return sala, False
+    if con_imagen:
+        sala['estructura']['tapetes'] = con_imagen
+    else:
+        sala['estructura'].pop('tapetes')
+    return sala, True
 
 
 def composicion_de(clave, momento, abiertas):

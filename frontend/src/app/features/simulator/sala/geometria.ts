@@ -32,9 +32,6 @@ export const ANCHO_MAESTRA = 1920;
 /** Alto de la maestra del muro del fondo: el muro más 6 px de canto, pegada en y = TOP − 6. */
 export const ALTO_MAESTRA_MURO = ALTO_MURO + 6;
 
-/** Cuánto crece la escala del fondo a la cámara. */
-const K = 3 / 16;
-
 const ENCUADRES: Record<Encuadre, readonly [boolean, boolean]> = {
   'tres-paredes': [true, true],
   'dos-paredes-izquierda': [true, false],
@@ -55,13 +52,9 @@ function comprobarAncho(ancho: number): number {
   return ancho;
 }
 
-/** `round()` de Python: al entero más cercano y, en el medio exacto, al par. */
-export function redondearPy(x: number): number {
-  const piso = Math.floor(x);
-  const resto = x - piso;
-  if (resto < 0.5) return piso;
-  if (resto > 0.5) return piso + 1;
-  return piso % 2 === 0 ? piso : piso + 1;
+/** Entero más cercano a n/d, con las mitades hacia arriba: el redondeo del contrato x-siep 2.2 (sección 1.2). */
+export function redondear(n: number, d: number): number {
+  return Math.floor((2 * n + d) / (2 * d));
 }
 
 /** x donde un muro lateral se junta con el del fondo: 96 a 960 px, 172 a 1920 px. */
@@ -88,23 +81,6 @@ export function recorteDeMaestra(ancho: number): [number, number] {
   return [ANCHO_MAESTRA / 2 - mitad, ANCHO_MAESTRA / 2 + mitad];
 }
 
-function escala(y: number): number {
-  return 1 + (K * (y - SEAM)) / FONDO;
-}
-
-/** x en pantalla, a la altura y, de la línea del piso que en el fondo está en bx. */
-function esp(ancho: number, bx: number, y: number): number {
-  const cx = ancho / 2;
-  return cx + (bx - cx) * escala(y);
-}
-
-/** x de la unión del muro lateral con el piso a la altura y. */
-function junta(ancho: number, lado: 'izquierda' | 'derecha', y: number): number {
-  const b = borde(ancho);
-  const x = b - (y - SEAM) * ((b - MARGEN) / FONDO);
-  return lado === 'izquierda' ? x : ancho - x;
-}
-
 /** [x, y, ancho, alto] de la zona caminable. */
 export function zonaCaminable(encuadre: Encuadre, ancho: number): [number, number, number, number] {
   const [izquierda, derecha] = ENCUADRES[encuadre];
@@ -124,23 +100,25 @@ export function largoMuro(muro: Muro, encuadre: Encuadre, ancho: number): number
   return (muro === 'izquierda' ? izquierda : derecha) ? FONDO : 0;
 }
 
-/** Punto de apoyo en pantalla de una pieza puesta en (muro, pos). */
+/** Punto de apoyo en pantalla de una pieza puesta en (muro, pos): el `ancla` del contrato x-siep 2.2 (sección 1.4). */
 export function enPantalla(muro: Muro, pos: number, encuadre: Encuadre, ancho: number): [number, number] {
   const [xl] = limites(encuadre, ancho);
   if (muro === 'fondo') return [xl + pos, SEAM];
-  if (muro === 'camara') return [redondearPy(esp(ancho, xl + pos, ALTO)), ALTO];
-  const y = SEAM + pos;
-  return [redondearPy(junta(ancho, muro, y)), y];
+  if (muro === 'camara') {
+    const cx = Math.floor(ancho / 2);
+    return [cx + redondear((xl + pos - cx) * 19, 16), ALTO];   // 19/16: la escala crece de 1 en el fondo a 1 + 3/16 en la cámara
+  }
+  const b = borde(ancho);
+  const x = b - redondear(pos * (b - MARGEN), FONDO);
+  return [muro === 'izquierda' ? x : ancho - x, SEAM + pos];
 }
 
-/** Dónde queda parado el personaje al cruzar la puerta que está en (muro, pos). */
+/**
+ * Umbral de la puerta que está en (muro, pos): su ancla traída a la zona caminable con los márgenes del contrato
+ * (16 px a los lados; y entre 260 y 476, sección 1.5). Ahí mide el juego la cercanía y ahí queda parado quien llega por ella.
+ */
 export function llegada(muro: Muro, pos: number, encuadre: Encuadre, ancho: number): [number, number] {
-  let [x, y] = enPantalla(muro, pos, encuadre, ancho);
+  const [x, y] = enPantalla(muro, pos, encuadre, ancho);
   const [x0, y0, w, h] = zonaCaminable(encuadre, ancho);
-  if (muro === 'izquierda') x += 30;
-  else if (muro === 'derecha') x -= 30;
-  // La zona es un rectángulo y la base del muro lateral va en diagonal: el punto se trae adentro.
-  x = Math.min(Math.max(x, x0 + 12), x0 + w - 12);
-  y = Math.min(Math.max(y, y0 + 10), y0 + h - 10);
-  return [x, y];
+  return [Math.min(Math.max(x, x0 + 16), x0 + w - 16), Math.min(Math.max(y, y0 + 24), y0 + h - 10)];
 }

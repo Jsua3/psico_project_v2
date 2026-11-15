@@ -51,8 +51,24 @@ test('el punto de apoyo y la llegada coinciden en todas las posiciones enteras d
   }
 });
 
-test('redondearPy redondea al par en el medio exacto, como round() de Python', () => {
-  assert.deepEqual([0.5, 1.5, 2.5, -0.5, -1.5, 2.4999, 2.5001, 7].map(g.redondearPy), [0, 2, 2, 0, -2, 2, 3, 7]);
+test('redondear lleva las mitades hacia arriba, como pide el contrato 2.2', () => {
+  assert.deepEqual([[1, 2], [3, 2], [5, 2], [-1, 2], [-3, 2], [7, 3], [8, 3], [-7, 3]].map(([n, d]) => g.redondear(n, d)), [1, 2, 3, 0, -1, 2, 3, -2]);
+});
+
+test('umbral y ancla de los ejemplos del contrato 2.2 (secciones 7 y 8)', () => {
+  // Sala de espera del hospital, 1440, tres paredes.
+  assert.deepEqual(g.enPantalla('izquierda', 176, 'tres-paredes', 1440), [69, 406]);
+  assert.deepEqual(g.llegada('izquierda', 176, 'tres-paredes', 1440), [150, 406]);
+  assert.deepEqual(g.llegada('fondo', 1136, 'tres-paredes', 1440), [1270, 260]);
+  assert.deepEqual(g.enPantalla('camara', 584, 'tres-paredes', 1440), [718, 528]);
+  assert.deepEqual(g.llegada('camara', 584, 'tres-paredes', 1440), [718, 476]);
+  // Pasillo del hospital, 1680: la tabla de la sección 8.2.
+  const pasillo = [['fondo', 160, [313, 230], [313, 260]], ['izquierda', 160, [84, 390], [169, 390]],
+    ['derecha', 160, [1596, 390], [1511, 390]], ['camara', 344, [433, 528], [433, 476]], ['camara', 1032, [1250, 528], [1250, 476]]];
+  for (const [muro, pos, ancla, umbral] of pasillo) {
+    assert.deepEqual(g.enPantalla(muro, pos, 'tres-paredes', 1680), ancla, `${muro} ${pos}: ancla`);
+    assert.deepEqual(g.llegada(muro, pos, 'tres-paredes', 1680), umbral, `${muro} ${pos}: umbral`);
+  }
 });
 
 test('un ancho fuera del catálogo se rechaza', () => {
