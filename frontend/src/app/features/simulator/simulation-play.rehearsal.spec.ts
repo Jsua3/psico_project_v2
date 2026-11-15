@@ -213,8 +213,10 @@ describe('SimulationPlayComponent: modo ensayo (tarea 23)', () => {
     service['getAttempt'].mockReturnValue(of({ ...INICIO, rehearsal: undefined }));
     panel.componentInstance.adjusted.emit(nuevo);
     expect(component().rehearsal()).toBe(nuevo);
-    panel.componentInstance.gone.emit();
+    panel.componentInstance.gone.emit('closed');
     expect(component().rehearsalGone()).toBe(true);
+    fixture.detectChanges();
+    expect(el.textContent).toContain('Este ensayo ya terminó');
     fixture.destroy();
     TestBed.resetTestingModule();
 
@@ -261,6 +263,35 @@ describe('SimulationPlayComponent: modo ensayo (tarea 23)', () => {
       expect(navegar).toHaveBeenCalledTimes(2);
       expect(service['safeExit']).not.toHaveBeenCalled();
       expect(rehearsalApi['read']).not.toHaveBeenCalled();
+    });
+
+    it('Esc saca a la persona aunque el estado local ya no sea IN_PROGRESS (409 tras terminar)', () => {
+      for (const status of ['COMPLETED', 'PAUSED'] as const) {
+        perder();
+        component().attempt.set({ ...INICIO, status } as never);
+        const navegar = vi.spyOn(TestBed.inject(Router), 'navigate').mockResolvedValue(true);
+        const esc = new KeyboardEvent('keydown', { key: 'Escape', cancelable: true });
+        component().handleGlobalInteraction(esc);
+        expect(navegar, status).toHaveBeenCalledWith(['/portal/casos', 9, 'editor']);
+        expect(esc.defaultPrevented, status).toBe(true);
+        fixture.destroy();
+        TestBed.resetTestingModule();
+      }
+    });
+
+    it('si el intento no trae caseVersionId, la salida usa el de la ruta', () => {
+      perder();
+      component().attempt.set({ ...INICIO, caseVersionId: undefined } as never);
+      const navegar = vi.spyOn(TestBed.inject(Router), 'navigate').mockResolvedValue(true);
+      component().pauseFromOverlay();
+      expect(navegar).toHaveBeenCalledWith(['/portal/casos', 9, 'editor']);
+    });
+
+    it('«Empezar de nuevo» sin id de caso en la ruta no abre nada', () => {
+      montar({ params: {} });
+      rehearsalApi['start'].mockClear();
+      component().restartRehearsalHere();
+      expect(rehearsalApi['start']).not.toHaveBeenCalled();
     });
 
     it('se anuncia una sola vez, por el anunciador, y el aviso no es un role=alert', () => {

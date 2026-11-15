@@ -9,7 +9,7 @@ import { AuthoringApi } from '../../core/api/authoring.api';
 import { RehearsalApi } from '../../core/api/rehearsal.api';
 import type { Activation, Bond, Milestone, RehearsalAdjustBody, RehearsalBlock, SimulationWorldState } from '../../core/models/simulation.model';
 import {
-  ACTIVACIONES_EN_ORDEN, CasillaExplorado, VINCULOS_EN_ORDEN, armarPanel, cuerpoExplorado, palabraDeActivacion, palabraDeVinculo,
+  ACTIVACIONES_EN_ORDEN, CasillaExplorado, VINCULOS_EN_ORDEN, armarPanel, cuerpoExplorado, palabraDeActivacion, palabraDeVinculo, veredictoDeLectura,
 } from './caso/ensayo';
 import { DRAFT_COPY } from './draft-copy';
 import { missedFactsText } from './outcome-text.util';
@@ -162,7 +162,7 @@ export class RehearsalPanelComponent implements OnInit {
   /** El servidor aceptó un cambio (o recargó): el bloque nuevo, para que el juego se relea. */
   readonly adjusted = output<RehearsalBlock>();
   /** El ensayo ya no existe (`REHEARSAL_GONE`). */
-  readonly gone = output<void>();
+  readonly gone = output<'gone' | 'closed'>();
 
   private readonly rehearsal = inject(RehearsalApi);
   private readonly authoring = inject(AuthoringApi);
@@ -255,7 +255,8 @@ export class RehearsalPanelComponent implements OnInit {
         this.busy.set(false);
         undo?.();
         if (this.attemptId() !== sent) return;
-        if (isRehearsalGoneError(cause)) { this.gone.emit(); return; }
+        if (veredictoDeLectura(cause) === 'cerrado') { this.gone.emit('closed'); return; }
+        if (isRehearsalGoneError(cause)) { this.gone.emit('gone'); return; }
         const body = (cause as { error?: { message?: unknown; field?: unknown } } | null)?.error;
         const field = (['irA', 'explorado', 'persona', 'hitos'] as const).find(f => f === body?.field) ?? 'general';
         const message = typeof body?.message === 'string' && body.message.trim() ? body.message.trim() : DRAFT_COPY.rehearsalAdjustFailed.text;

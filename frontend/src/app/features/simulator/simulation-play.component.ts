@@ -399,7 +399,7 @@ const QUEUED_PAUSE_SLOW_NOTICE = 'La acción en curso está tardando. Estamos pa
           }
           @if (mode() === 'rehearsal' && !rehearsalGone() && rehearsal(); as block) {
             <app-rehearsal-panel [caseVersionId]="game.caseVersionId" [attemptId]="game.attemptId"
-              [block]="block" [world]="world()" (adjusted)="reloadRehearsal($event)" (gone)="showRehearsalGone()" />
+              [block]="block" [world]="world()" (adjusted)="reloadRehearsal($event)" (gone)="showRehearsalGone($event)" />
           }
         </div>
 
@@ -1754,10 +1754,10 @@ export class SimulationPlayComponent implements OnInit, OnDestroy {
   }
 
   /** Ensayo perdido: nada que pausar en el servidor; «Salida segura» y Esc llevan al editor (REGLA-004). */
-  private leaveRehearsal(): void { void this.router.navigate(['/portal/casos', this.attempt()?.caseVersionId, 'editor']); }
+  private leaveRehearsal(): void { void this.router.navigate(['/portal/casos', this.attempt()?.caseVersionId ?? Number(this.route.snapshot.paramMap.get('caseVersionId')), 'editor']); }
 
   /** «Empezar de nuevo» tras perder el ensayo: otro ensayo en la escena en la que estaba. */
-  restartRehearsalHere(): void { this.beginRehearsal(Number(this.route.snapshot.paramMap.get('caseVersionId')), this.rehearsal()?.sceneId ?? this.rehearsalFrom); }
+  restartRehearsalHere(): void { const id = Number(this.route.snapshot.paramMap.get('caseVersionId')); if (id) this.beginRehearsal(id, this.rehearsal()?.sceneId ?? this.rehearsalFrom); }
 
   /** En ensayo, un 403/404/409 de las rutas del juego se confirma con la lectura del bloque (7.4); si no es un ensayo perdido o cerrado, sigue su camino. */
   private orRehearsalGone(cause: unknown, otherwise: () => void): void {
@@ -1904,7 +1904,7 @@ export class SimulationPlayComponent implements OnInit, OnDestroy {
       if (this.helpOpen())    { event.preventDefault(); this.helpOpen.set(false); return; }
       if (this.journalOpen()) { event.preventDefault(); this.journalOpen.set(false); return; }
       if (this.dialogue())    { event.preventDefault(); this.closeDialogue(); return; }
-      if (this.attempt()?.status === 'IN_PROGRESS' || this.reactingToLast()) { event.preventDefault(); this.pauseFromOverlay(); }
+      if (this.rehearsalGone() || this.attempt()?.status === 'IN_PROGRESS' || this.reactingToLast()) { event.preventDefault(); this.pauseFromOverlay(); }
       return;
     }
 

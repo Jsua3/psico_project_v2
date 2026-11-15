@@ -158,6 +158,16 @@ describe('RehearsalPanelComponent', () => {
     expect(gone).toBe(1);
   });
 
+  it('un 409 REHEARSAL_CLOSED del panel avisa al juego con el motivo «closed»', () => {
+    const motivos: string[] = [];
+    fixture.componentInstance.gone.subscribe(m => motivos.push(m));
+    (el.querySelector('input[type=checkbox][value="inspected:carpeta"]') as HTMLInputElement).click();
+    envio.error(new HttpErrorResponse({ status: 409, error: { code: 'REHEARSAL_CLOSED' } }));
+    fixture.detectChanges();
+    expect(motivos).toEqual(['closed']);
+    expect(el.querySelector('.rp__error')).toBeNull();
+  });
+
   it('un error sin mensaje dice algo útil en vez de callar', () => {
     (el.querySelector('input[type=checkbox][value="inspected:carpeta"]') as HTMLInputElement).click();
     envio.error(new HttpErrorResponse({ status: 500 }));
