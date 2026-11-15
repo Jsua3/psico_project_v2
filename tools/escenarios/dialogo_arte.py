@@ -234,7 +234,38 @@ def lamina(momento='noche', escala=6):
     return hoja.resize((hoja.width * escala, hoja.height * escala), Image.NEAREST)
 
 
+RECURSOS = os.path.join(RAIZ, 'frontend', 'src', 'assets', 'game', 'dialogo')
+
+
+def exportar_recursos(destino=RECURSOS):
+    """El arte que usa el cliente del juego, como PNG sueltos: marcos y tramas por momento, letras, cursor, cola,
+    sombra y pulso. Los nombres los lee `dialogo-arte.ts`."""
+    os.makedirs(destino, exist_ok=True)
+    escritos = []
+
+    def guardar(nombre, im):
+        im.save(os.path.join(destino, nombre + '.png'), optimize=True)
+        escritos.append(nombre)
+
+    for momento in MOMENTOS:
+        for nombre in MARCOS:
+            guardar(f'marco-{nombre}-{momento}', marco(nombre, momento))
+        for nombre in TRAMAS:
+            guardar(f'trama-{nombre}-{momento}', trama(nombre, momento))
+        guardar(f'cursor-{momento}', cursor(momento))
+        guardar(f'seguir-{momento}', seguir(momento))
+    for ch in LETRAS:
+        guardar(f'letra-{ch}-clara', letra(ch, CLARO))
+        guardar(f'letra-{ch}-oscura', letra(ch, OSCURO))
+    guardar('cola', cola_burbuja())
+    guardar('sombra', sombra_de_contacto())
+    for estado in PULSOS:
+        guardar('pulso-' + estado, pulso(estado))
+    return escritos
+
+
 if __name__ == '__main__':
+    print(len(exportar_recursos()), 'recursos en', RECURSOS)
     destino = os.path.join(RAIZ, 'maqueta-visual', 'dialogo')
     os.makedirs(destino, exist_ok=True)
     noche, dia = lamina('noche'), lamina('dia')
