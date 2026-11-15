@@ -37,6 +37,7 @@ for (const sala of lugar.salas) {
   for (const m of sala.muebles ?? []) {
     const ficha = manifiesto.muebles[`${LUGAR}/${m.ref}`];
     if (ficha) recursos[urlDePieza(ficha.ruta)] ??= png(path.join(BIBLIOTECA, ...ficha.ruta.split('/')));
+    if (ficha?.brillo) recursos[urlDePieza(ficha.brillo)] ??= png(path.join(BIBLIOTECA, ...ficha.brillo.split('/')));
   }
   for (const p of sala.personajes ?? []) kit.add(`${p.ref}:idle`);
 }

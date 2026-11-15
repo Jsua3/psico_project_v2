@@ -19,8 +19,8 @@ import type { ManifiestoDePiezas, SalaPorPiezas } from './catalogo';
 import { planDeSala, rutasDelPlan } from './composicion';
 import type { PlanDeSala, SpriteDeSala } from './composicion';
 import type { Momento, Muro } from './geometria';
-import { cuerpo, prepararLuz } from './luz';
-import type { Cuerpo, LuzDeSala, Rectangulo } from './luz';
+import { colorDeReflejo, cuerpo, prepararLuz } from './luz';
+import type { Cuerpo, LuzDeSala, Rectangulo, TonoDeReflejo } from './luz';
 import { brilloDeSprite, pintarFondo } from './pintor';
 import type { Imagen } from './pintor';
 import {
@@ -336,6 +336,45 @@ export class EscenaDeSala {
       }
     }
     return this.activa;
+  }
+
+  /** Cuánta luz le llega a lo que brilla en (x, y) y de qué tono (para los muebles y objetos que dibuja la escena). */
+  reflejoEn(x: number, y: number) {
+    return this.luz.reflejoEn(x, y);
+  }
+
+  /**
+   * Textura con el brillo de un mueble u objeto ya teñido para la luz (k, tono): misma tira y mismos cuadros que su mapa
+   * `-brillo.png`, transparente salvo lo que brilla. null si con esa luz no brilla nada o si el mapa no está cargado
+   * (se pide con `EscenaDeSala.pedirBrillo`). Se dibuja encima del mueble con mezcla ADD.
+   */
+  brilloTenido(ruta: string, ancho: number, alto: number, k: number, tono: TonoDeReflejo): string | null {
+    const mapa = pixelesDe(this.escena, ruta);
+    if (!mapa) return null;
+    const nombre = `sala:brillo:${ruta}:${k}:${tono}`;
+    if (this.escena.textures.exists(nombre)) return nombre;
+    const colores = [85, 170, 255].map(gris => colorDeReflejo(k, tono, gris));
+    if (colores.every(c => !c[0] && !c[1] && !c[2])) return null;
+    const datos = new Uint8ClampedArray(mapa.ancho * mapa.alto * 4);
+    for (let o = 0; o < datos.length; o += 4) {
+      const nivel = mapa.rgba[o + 3] === 255 ? [85, 170, 255].indexOf(mapa.rgba[o]) : -1;
+      const color = nivel >= 0 ? colores[nivel] : null;
+      if (!color || (!color[0] && !color[1] && !color[2])) continue;
+      datos.set([color[0], color[1], color[2], 255], o);
+    }
+    const lienzo = document.createElement('canvas');
+    lienzo.width = mapa.ancho;
+    lienzo.height = mapa.alto;
+    lienzo.getContext('2d')?.putImageData(new ImageData(datos, mapa.ancho, mapa.alto), 0, 0);
+    this.escena.textures.addSpriteSheet(nombre, lienzo as unknown as HTMLImageElement, { frameWidth: ancho, frameHeight: alto });
+    return nombre;
+  }
+
+  /** Pide el mapa de brillo de un mueble u objeto. true si hay que esperar la carga. */
+  static pedirBrillo(escena: Phaser.Scene, ruta: string): boolean {
+    if (escena.textures.exists(clave(ruta))) return false;
+    escena.load.image(clave(ruta), urlDePieza(ruta));
+    return true;
   }
 
   /** Intento de cruzar una puerta cerrada con llave: traquetea. */

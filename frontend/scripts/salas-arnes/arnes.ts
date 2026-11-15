@@ -59,6 +59,9 @@ class ArnesDeSala extends Phaser.Scene {
   private readonly zoomPedido = Number(params.get('z')) || 0;
   private extras: Phaser.GameObjects.GameObject[] = [];
   private animados: { objeto: Phaser.GameObjects.Sprite; cuadros: number; fps: number; fila: number }[] = [];
+  private brillosDeMuebles: {
+    mueble: Phaser.GameObjects.Sprite; brillo: Phaser.GameObjects.Sprite; ruta: string; ancho: number; alto: number; punto: [number, number];
+  }[] = [];
   private choques: Cuerpo[] = [];
   private jugador!: Phaser.GameObjects.Sprite;
   private pos = { x: 480, y: 400 };
@@ -123,6 +126,7 @@ class ArnesDeSala extends Phaser.Scene {
         this.load.spritesheet(`mueble:${m.ref}`, urlDePieza(ficha.ruta), { frameWidth: ficha.ancho, frameHeight: ficha.alto });
         pidio = true;
       }
+      if (ficha?.brillo) pidio = EscenaDeSala.pedirBrillo(this, ficha.brillo) || pidio;
     }
     for (const p of datos.personajes ?? []) {
       if (!this.textures.exists(`kit:${p.ref}:idle`)) {
@@ -149,6 +153,7 @@ class ArnesDeSala extends Phaser.Scene {
     for (const objeto of this.extras) objeto.destroy();
     this.extras = [];
     this.animados = [];
+    this.brillosDeMuebles = [];
     this.choques = [];
     this.salaDatos = datos;
 
@@ -160,6 +165,13 @@ class ArnesDeSala extends Phaser.Scene {
         .setOrigin(0, 0).setFlipX(m.espejo === true).setDepth(actorDepth(m.y));
       this.extras.push(objeto);
       if (ficha.cuadros > 1 && ficha.fps) this.animados.push({ objeto, cuadros: ficha.cuadros, fps: ficha.fps, fila: 0 });
+      if (ficha.brillo) {
+        // El brillo del metal y el vidrio del mueble, teñido con la luz que le llega a sus pies; lo tapa quien pasa delante.
+        const brillo = this.add.sprite(objeto.x, objeto.y, '__MISSING').setOrigin(0, 0).setFlipX(m.espejo === true)
+          .setDepth(actorDepth(m.y) + 0.01).setBlendMode(Phaser.BlendModes.ADD).setVisible(false);
+        this.extras.push(brillo);
+        this.brillosDeMuebles.push({ mueble: objeto, brillo, ruta: ficha.brillo, ancho: ficha.ancho, alto: ficha.alto, punto: [m.x, m.y - 1] });
+      }
       const c = cuerpo(m.x, m.y, ficha.ancho, ficha.alto);
       cuerpos.push(c);
       this.choques.push(c);
@@ -286,6 +298,12 @@ class ArnesDeSala extends Phaser.Scene {
     }
     if (this.cargando) return;
     const activa = this.sala.actualizar(dt, this.pos, this.bloqueadas);
+    for (const b of this.brillosDeMuebles) {
+      const r = this.sala.reflejoEn(b.punto[0], b.punto[1]);
+      const textura = this.sala.brilloTenido(b.ruta, b.ancho, b.alto, r.k, r.tono);
+      if (textura) b.brillo.setTexture(textura, Number(b.mueble.frame.name) || 0).setVisible(true);
+      else b.brillo.setVisible(false);
+    }
     this.pintarJugador();
     this.seguir();
     this.pintarAviso(activa);
