@@ -274,14 +274,6 @@ h1 { font-family: var(--f-titulo); font-weight: 700; font-size: 34px; line-heigh
 .pie p { margin: 0 0 10px; max-width: 62ch; }
 .pie ul { margin: 0; padding-left: 20px; display: flex; flex-direction: column; gap: 4px; max-width: 62ch; }
 .nota { color: var(--tinta-suave); font-size: 14px; }
-.compara { display: flex; flex-direction: column; gap: 10px; }
-.compara h2 { font-family: var(--f-titulo); font-weight: 500; font-size: 20px; margin: 0; color: var(--acento); }
-.compara p { margin: 0; max-width: 72ch; }
-.compara .fila { display: flex; flex-wrap: wrap; gap: 10px; }
-.compara figure { margin: 0; background: var(--panel-alto); border: 1px solid var(--borde); border-radius: 8px; padding: 6px 6px 4px; }
-.compara canvas { display: block; width: 144px; height: 144px; image-rendering: pixelated; }
-.compara figcaption { font-size: 13px; color: var(--tinta-suave); text-align: center; }
-.compara h3 { font-family: var(--f-texto); font-size: 15px; font-weight: 700; margin: 6px 0 0; }
 kbd { font-family: var(--f-titulo); background: var(--panel-alto); border: 1px solid var(--borde); border-radius: 5px; padding: 0 6px; }
 </style>
 
@@ -319,12 +311,6 @@ kbd { font-family: var(--f-titulo); background: var(--panel-alto); border: 1px s
       <div class="grupo" role="group" aria-label="Largo del texto de las opciones">
         <button type="button" id="texto-corto" aria-pressed="true">Corto</button>
         <button type="button" id="texto-largo" aria-pressed="false">Largo</button>
-      </div>
-    </div>
-    <div class="campo"><span>Retrato</span>
-      <div class="grupo" role="group" aria-label="Qué retrato se ve">
-        <button type="button" id="retrato-fina" aria-pressed="true">Nuevo</button>
-        <button type="button" id="retrato-kit" aria-pressed="false">Del kit (hoy)</button>
       </div>
     </div>
     <label><input type="checkbox" id="quieto"> Reducir movimiento</label>
@@ -393,14 +379,6 @@ kbd { font-family: var(--f-titulo); background: var(--panel-alto); border: 1px s
     </div>
   </div>
 
-  <div class="compara">
-    <h2>Retrato: el nuevo y el de hoy</h2>
-    <p>El retrato nuevo tiene 96 píxeles, el mismo tamaño de píxel que la sala. La cara, la cabeza y el pelo se dibujan de nuevo; la ropa viene del kit, suavizada. Por ahora solo existe para la abuela (escena E07): los demás personajes siguen con el retrato del kit hasta tener el visto bueno de esta muestra. Con «Retrato» se cambia entre los dos dentro de la conversación.</p>
-    <h3>Nuevo (96 px)</h3>
-    <div class="fila" id="compara-fina"></div>
-    <h3>Del kit, hoy (32 px ampliado)</h3>
-    <div class="fila" id="compara-kit"></div>
-  </div>
 </div>
 
 <script>
@@ -421,7 +399,7 @@ const CONSULTANTE = 'abuela';
 const SUPERVISION = { nombre: 'Supervisión clínica', receta: 'supervisor-clinico' };
 
 const E = {
-  modo: 'nueva', momento: 'noche', texto: 'corto', retrato: 'fina', quieto: matchMedia('(prefers-reduced-motion: reduce)').matches, t: 0, esc: 0,
+  modo: 'nueva', momento: 'noche', texto: 'corto', quieto: matchMedia('(prefers-reduced-motion: reduce)').matches, t: 0, esc: 0,
   cam: { x: 0, y: 0, z: 1 }, zN: 1, zC: 1, teclas: {}, cercano: null, fase: 'sala', dlg: null, pers: [], persona: D.persona.inicial.slice(),
   jug: { x: 0, y: 0, dir: 'up', anda: false, meta: null }, dijo: {}, hablo: {}, burbuja: null, burbujaT: 0, avisoT: 0, avisoDe: null, opcionesDesde: 0,
 };
@@ -682,8 +660,7 @@ function ladoDeLuz(p) {
 const BAYER = [0, 8, 2, 10, 12, 4, 14, 6, 3, 11, 1, 9, 15, 7, 13, 5];
 const taller = document.createElement('canvas'); taller.width = taller.height = 32;
 function pintarCara(destino, p, expresion, cerrado, conLuz) {
-  const fina = conLuz && E.retrato === 'fina' && !hoy() ? I['fina-' + p.receta] : null;
-  const N = fina ? 96 : 32, hoja = fina || I['cara-' + p.receta], n = Math.max(0, D.estados.indexOf(expresion)), iluminar = conLuz && !hoy();
+  const N = 32, hoja = I['cara-' + p.receta], n = Math.max(0, D.estados.indexOf(expresion)), iluminar = conLuz && !hoy();
   if (destino.width !== N) destino.width = destino.height = N;
   if (iluminar && taller.width !== N) taller.width = taller.height = N;
   const x = (iluminar ? taller : destino).getContext('2d', { willReadFrequently: true }), sx = n * N, sy = cerrado ? N : 0;
@@ -942,21 +919,9 @@ function probar(n, largo) {
 function fijar(grupo, activo) { for (const [id, v] of Object.entries(grupo)) el(id).setAttribute('aria-pressed', String(v === activo)); }
 function modo(nombre) { E.modo = nombre; fijar({ 'modo-hoy': 'hoy', 'modo-nueva': 'nueva' }, nombre); vestir(); medir(); iniciarEscena(E.esc, true); }
 function momento(nombre) { E.momento = nombre; fijar({ 'luz-noche': 'noche', 'luz-dia': 'dia' }, nombre); vestir(); if (R.p) ponerRetrato(R.p, R.expresion); }
-function retrato(nombre) { E.retrato = nombre; fijar({ 'retrato-kit': 'kit', 'retrato-fina': 'fina' }, nombre); if (R.p) ponerRetrato(R.p, R.expresion); }
 function largoTexto(nombre) {
   E.texto = nombre; fijar({ 'texto-corto': 'corto', 'texto-largo': 'largo' }, nombre);
   if (E.dlg && E.dlg.d.opciones.length && E.dlg.elegida === null) { armarFichas(E.dlg.d.opciones); if (E.fase === 'opciones') mostrarOpciones(); }
-}
-/* Al pie: el retrato de hoy y la muestra, cara por cara y al mismo tamaño en pantalla. */
-function compararRetratos() {
-  const receta = D.finas[0], nombres = { neutral: 'Neutral', preocupada: 'Preocupada', triste: 'Triste', alegre: 'Alegre', cautelosa: 'Cautelosa', 'en-crisis': 'En crisis' };
-  for (const [id, clave, N] of [['compara-kit', 'cara-' + receta, 32], ['compara-fina', 'fina-' + receta, 96]]) {
-    D.estados.forEach((estado, n) => {
-      const fig = document.createElement('figure'), cv = document.createElement('canvas'), cap = document.createElement('figcaption');
-      cv.width = cv.height = N; const x = cv.getContext('2d'); x.imageSmoothingEnabled = false; x.drawImage(I[clave], n * N, 0, N, N, 0, 0, N, N);
-      cv.setAttribute('role', 'img'); cv.setAttribute('aria-label', nombres[estado]); cap.textContent = nombres[estado]; fig.append(cv, cap); el(id).appendChild(fig);
-    });
-  }
 }
 
 addEventListener('keydown', ev => {
@@ -999,8 +964,6 @@ el('luz-noche').addEventListener('click', () => momento('noche'));
 el('luz-dia').addEventListener('click', () => momento('dia'));
 el('texto-corto').addEventListener('click', () => largoTexto('corto'));
 el('texto-largo').addEventListener('click', () => largoTexto('largo'));
-el('retrato-kit').addEventListener('click', () => retrato('kit'));
-el('retrato-fina').addEventListener('click', () => retrato('fina'));
 el('quieto').addEventListener('change', ev => { E.quieto = ev.target.checked; });
 for (const que of ['comentario', 'habla', 'opciones', 'reaccion', 'nota']) el('ver-' + que).addEventListener('click', () => ver(que));
 el('ver-estados').addEventListener('click', verEstados);
@@ -1019,9 +982,8 @@ cargar().then(() => {
     b.addEventListener('click', () => iniciarEscena(n)); el('escenas').appendChild(b);
   });
   if (location.hash === '#solo') el('pagina').classList.add('solo');
-  vestir(); medir(); iniciarEscena(Math.max(0, D.escenas.findIndex(es => es.hablante === CONSULTANTE)));   // arranca donde habla la abuela: su retrato es el nuevo
-  compararRetratos();
-  window.__dialogo = { D, E, R, T, ver, verEstados, probar, retrato, modo, momento, largoTexto, iniciarEscena, completar, avanzar, elegir, abrirDialogo, junto, per, listo: true };
+  vestir(); medir(); iniciarEscena(0);
+  window.__dialogo = { D, E, R, T, ver, verEstados, probar, modo, momento, largoTexto, iniciarEscena, completar, avanzar, elegir, abrirDialogo, junto, per, listo: true };
   requestAnimationFrame(ciclo);
 }).catch(err => { el('rotulo-sala').textContent = 'No se pudieron cargar las imágenes de la maqueta.'; console.error(err); });
 </script>

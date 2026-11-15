@@ -22,9 +22,6 @@ AQUI = os.path.dirname(os.path.abspath(__file__))
 RAIZ = os.path.normpath(os.path.join(AQUI, '..', '..'))
 sys.path.insert(0, AQUI)
 import dialogo_arte as da  # noqa: E402
-import dialogo_retrato as dr  # noqa: E402
-
-RETRATOS_FINOS = ('abuela-familia',)      # muestra a la densidad de la sala: una sola receta, para decidir
 
 KIT = os.path.join(RAIZ, 'frontend', 'src', 'assets', 'characters', 'kit')
 PLANTILLA = os.path.join(AQUI, 'dialogo_maqueta.html')
@@ -199,8 +196,6 @@ def construir(p1, caso, destino=SALIDA):
     for ch in 'ABCD':
         guardar(f'letra-{ch}-clara', da.letra(ch, da.CLARO))
         guardar(f'letra-{ch}-oscura', da.letra(ch, da.OSCURO))
-    for receta in RETRATOS_FINOS:
-        guardar('fina-' + receta, dr.hoja(receta))
     # Todas las decisiones del caso, solo sus textos: con ellas el recorrido comprueba que ninguna opción se corta.
     decisiones = []
     for e in doc['escenas']:
@@ -222,7 +217,7 @@ def construir(p1, caso, destino=SALIDA):
         caso=dict(id=doc['caso']['id'], titulo=doc['caso']['titulo']),
         sala=dict(nombre='Hospital · ' + sala['nombre'], w=noche['ancho'], h=noche['alto'], zona=[x0, y0, w, h]),
         imgs=imgs, luz=luz, sprites=sprites, muebles=lista_muebles, escenas=escenas, estados=list(ESTADOS),
-        emotes=list(vivo.ORDEN_EMOTES), jugadora=JUGADORA, decisiones=decisiones, finas=list(RETRATOS_FINOS),
+        emotes=list(vivo.ORDEN_EMOTES), jugadora=JUGADORA, decisiones=decisiones,
         persona=dict(inicial=list(PERSONA_INICIAL), etiquetas=etiquetas, bond=list(BOND), activation=list(ACTIVATION)),
         luzColor={m: '#%02x%02x%02x' % da.LUZ[m] for m in da.MOMENTOS})
     with open(PLANTILLA, encoding='utf-8') as f:

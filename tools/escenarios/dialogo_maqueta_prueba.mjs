@@ -35,8 +35,6 @@ const caja = (page, sel) => page.evaluate((s) => { const r = document.querySelec
 {
   const page = await abrir({ width: 1366, height: 768 });
   ok('carga sin errores', R.errores.length === 0, R.errores);
-  ok('arranca en la escena donde habla la abuela', await page.evaluate(() => window.__dialogo.E.esc) === 1);
-  await page.evaluate(() => window.__dialogo.iniciarEscena(0));
   await page.evaluate(() => { const d = window.__dialogo; d.junto('abuela'); });
   await page.waitForFunction(() => !document.getElementById('burbuja').hidden, null, { timeout: 4000 }).catch(() => {});
   ok('al acercarse, la abuela comenta', await page.evaluate(() => !document.getElementById('burbuja').hidden && document.getElementById('burbuja-linea').textContent.length > 10));
@@ -162,11 +160,6 @@ if (FOTOS) {
     await ver(page, 'opciones'); await asentar(page); await foto(page, `${nombre}-nueva-dia-3-opciones`);
     await page.evaluate(() => { window.__dialogo.iniciarEscena(1); });
     await ver(page, 'reaccion', 0); await asentar(page); await foto(page, `${nombre}-nueva-dia-9-abuela-reaccion`);
-    await page.evaluate(() => { window.__dialogo.momento('noche'); window.__dialogo.retrato('fina'); window.__dialogo.iniciarEscena(1); });
-    await ver(page, 'reaccion', 1); await asentar(page); await foto(page, `${nombre}-nueva-9b-abuela-retrato-fino`);
-    await page.evaluate(() => { window.__dialogo.retrato('kit'); window.__dialogo.iniciarEscena(1); });
-    await ver(page, 'reaccion', 1); await asentar(page); await foto(page, `${nombre}-nueva-9c-abuela-retrato-kit`);
-    await page.evaluate(() => window.__dialogo.retrato('fina'));
     await page.context().close();
   }
   const page = await abrir({ width: 1366, height: 900 }, { pagina: true });
