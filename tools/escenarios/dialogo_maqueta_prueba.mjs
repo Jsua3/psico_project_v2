@@ -87,7 +87,7 @@ const caja = (page, sel) => page.evaluate((s) => { const r = document.querySelec
 // ── movimiento reducido: la línea aparece entera, sin máquina de escribir ──
 {
   const page = await abrir({ width: 1366, height: 768 }, { quieto: true });
-  await page.evaluate(() => { const d = window.__dialogo; d.junto('psicologa-hospital'); d.abrirDialogo('psicologa-hospital'); });
+  await page.evaluate(() => { const d = window.__dialogo; d.iniciarEscena(0); d.junto('psicologa-hospital'); d.abrirDialogo('psicologa-hospital'); });
   ok('con movimiento reducido el texto sale de una vez', await page.evaluate(() => { const d = window.__dialogo; return d.T.total > 0 && d.T.n === d.T.total && !document.querySelector('#linea .falta'); }));
   await page.context().close();
 }
