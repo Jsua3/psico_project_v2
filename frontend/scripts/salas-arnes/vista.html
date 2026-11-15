@@ -13,6 +13,8 @@
   --f-juego: Poppins, 'Segoe UI', system-ui, sans-serif;
 }
 * { box-sizing: border-box; }
+/* Las clases de abajo ponen `display`: sin esta regla el atributo `hidden` no ocultaría el aviso, el candado ni la carga. */
+[hidden] { display: none !important; }
 body {
   background: var(--fondo); color: var(--tinta); font: 16px/1.5 var(--f-texto);
   padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px));
@@ -35,7 +37,15 @@ button:focus-visible, .escenario:focus-visible { outline: 3px solid var(--tinta)
   position: relative; width: 100%; max-width: 100%; aspect-ratio: 960 / 528; background: var(--escena);
   box-shadow: 0 0 0 2px var(--borde), 0 0 0 4px var(--madera); overflow: hidden; touch-action: none; user-select: none;
 }
-@media (max-width: 640px) { .escenario { aspect-ratio: 4 / 3; } h1 { font-size: 28px; } }
+.pista .corto { display: none; }
+@media (max-width: 640px) {
+  .escenario { aspect-ratio: 4 / 3; }
+  h1 { font-size: 28px; }
+  .pista { font-size: 13px; bottom: 6px; padding: 2px 10px; }
+  .pista .largo { display: none; }
+  .pista .corto { display: inline; }
+  #rotulo { font-size: 12px; left: 6px; top: 6px; padding: 0 8px; }
+}
 #juego { position: absolute; inset: 0; }
 #juego canvas { display: block; image-rendering: pixelated; }
 #rotulo {
@@ -99,7 +109,7 @@ button:focus-visible, .escenario:focus-visible { outline: 3px solid var(--tinta)
     aria-label="Sala del hospital. Camina con las flechas o con W, A, S y D, o toca el piso; cruza una puerta con E.">
     <div id="juego"></div>
     <div id="rotulo"></div>
-    <div class="pista" id="pista">Flechas o WASD para caminar, o toca el piso · E para cruzar · N para día o noche</div>
+    <div class="pista" id="pista"><span class="largo">Flechas o WASD para caminar, o toca el piso · E para cruzar · N para día o noche</span><span class="corto">Toca el piso para caminar y el aviso para cruzar</span></div>
     <div class="carga" id="carga">Armando el hospital…</div>
   </div>
 
