@@ -26,7 +26,10 @@ import { RETOUCH_ROOT } from './retouch-lib.mjs';
 
 const REPO_ROOT = path.resolve(FRONTEND_ROOT, '..');
 export const LAMINAS_DIR = path.join(REPO_ROOT, 'docs', 'visual', 'kit-personajes');
-const VIEW_NAMES = { down: 'Frente', left: 'Izquierda', right: 'Derecha', up: 'Espalda' };
+const VIEW_NAMES = {
+  down: 'Frente', 'down-left': 'Frente-izq.', left: 'Izquierda', 'up-left': 'Espalda-izq.',
+  up: 'Espalda', 'up-right': 'Espalda-der.', right: 'Derecha', 'down-right': 'Frente-der.',
+};
 
 /** Recorta el cuadro (col, row) de una hoja y lo devuelve como data URI PNG. */
 export function frameUri(image, col, row, fw = FRAME.width, fh = FRAME.height) {
@@ -60,10 +63,10 @@ export function characterSection(title, composed, k) {
     <h3>Caminata (6 cuadros, 10 fps; contactos en 0 y 3)</h3>${sheetRows('walk')}</section>`;
 }
 
-/** Fila compacta: 4 vistas, la caminata de perfil y los retratos (piezas y elenco). */
+/** Fila compacta: las 8 vistas, la caminata de perfil y los retratos (piezas y elenco). */
 export function compactRow(label, composed, k) {
   const views = VIEW_ROWS.map((v, row) => sprite(composed.idle, 0, row, k, VIEW_NAMES[v])).join('');
-  const walk = Array.from({ length: SHEETS.walk.frames }, (_, col) => sprite(composed.walk, col, 1, k, `cam. ${col}`)).join('');
+  const walk = Array.from({ length: SHEETS.walk.frames }, (_, col) => sprite(composed.walk, col, VIEW_ROWS.indexOf('left'), k, `cam. ${col}`)).join('');
   const portraits = Object.entries(composed.portraits).map(([state, image]) => portrait(image, k, state)).join('');
   return `<div class="row ground"><span class="tag">${esc(label)}</span>${views}<span class="gap"></span>${walk}<span class="gap"></span>${portraits}</div>`;
 }
@@ -93,7 +96,7 @@ function headLabel() {
 }
 
 /** Piezas del maniquí desnudo: cada región con un material neutro y sin pelo ni rostro. */
-function mannequinBundle() {
+export function mannequinBundle() {
   const bundle = buildBundle();
   const extra = [
     { id: 'maniqui', kind: 'top', coverage: { T: 'top', a: 'top', b: 'top', A: 'top', B: 'top' }, views: {} },
@@ -104,6 +107,15 @@ function mannequinBundle() {
   ];
   for (const piece of extra) bundle.pieces[`${piece.kind}:${piece.id}`] = compilePiece(piece);
   return bundle;
+}
+
+/** Receta del maniquí desnudo de una complexión (sobre `mannequinBundle()`). */
+export function mannequinRecipe(complexion) {
+  return {
+    id: `maniqui-${complexion}`, complexion,
+    colors: { skin: 'piel-1', top: 'gris-claro', bottom: 'gris-claro', shoes: 'carbon' },
+    pieces: { hair: 'ninguno', face: 'ninguno', top: 'maniqui', bottom: 'maniqui', shoes: 'maniqui' },
+  };
 }
 
 /** Personaje fijo con sus retoques aplicados (como se publica) y la etiqueta que lo dice. */
@@ -151,11 +163,7 @@ export function buildLamina(args) {
   }
   if (args.maniqui) {
     const bundle = mannequinBundle();
-    const colors = { skin: 'piel-1', top: 'gris-claro', bottom: 'gris-claro', shoes: 'carbon' };
-    const body = Object.keys(bundle.complexions).sort().map(c => characterSection(`Complexión ${c.toUpperCase()}`, composeCharacter(bundle, {
-      id: `maniqui-${c}`, complexion: c, colors,
-      pieces: { hair: 'ninguno', face: 'ninguno', top: 'maniqui', bottom: 'maniqui', shoes: 'maniqui' },
-    }), k)).join('');
+    const body = Object.keys(bundle.complexions).sort().map(c => characterSection(`Complexión ${c.toUpperCase()}`, composeCharacter(bundle, mannequinRecipe(c)), k)).join('');
     return { name: 'maniqui', html: pageHtml(args.titulo ?? 'Maniquíes del kit', sub('Maniquí con la luz del kit'), body) };
   }
   throw new Error('uso: laminas.mjs --receta <ids> | --piezas <claves> | --elenco | --maniqui [--escala k] [--salida png] [--titulo texto]');

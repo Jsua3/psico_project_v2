@@ -2,7 +2,7 @@ import { HttpClient } from '@angular/common/http';
 import { Injectable, inject, signal } from '@angular/core';
 import { firstValueFrom } from 'rxjs';
 
-import type { KitBundle } from './kit-engine';
+import { type KitBundle, VIEW_ROWS } from './kit-engine';
 
 export const KIT_BUNDLE_URL = '/assets/characters/kit/kit.json';
 
@@ -13,8 +13,11 @@ export const KIT_BUNDLE_URL = '/assets/characters/kit/kit.json';
 function isKitBundle(x: unknown): x is KitBundle {
   const bundle = x as Partial<KitBundle> | null;
   if (!bundle || typeof bundle !== 'object' || bundle.schemaVersion !== 1) return false;
-  const { catalog, recipes } = bundle;
-  return !!catalog && !!recipes && !!recipes[catalog.defaultRecipe] && !!recipes[catalog.extras];
+  const { catalog, recipes, complexions } = bundle;
+  if (!catalog || !recipes || !recipes[catalog.defaultRecipe] || !recipes[catalog.extras]) return false;
+  // Un paquete de antes de las diagonales trae 4 vistas por complexión: con él las filas de las hojas no coinciden.
+  const bodies = Object.values(complexions ?? {});
+  return bodies.length > 0 && bodies.every(views => !!views && VIEW_ROWS.every(view => !!views[view]));
 }
 
 /**

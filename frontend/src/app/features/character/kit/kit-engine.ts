@@ -13,14 +13,18 @@
  *   - La LUZ se calcula después de componer (y después de reflejar), siempre
  *     desde arriba-izquierda en pantalla. Por eso la vista derecha puede salir
  *     del espejo de la izquierda sin heredar una luz al revés.
+ *   - Hay OCHO vistas y cinco se dibujan: frente, tres cuartos de frente,
+ *     perfil, tres cuartos de espalda y espalda. Las tres del lado derecho son
+ *     el espejo de su izquierda (`MIRROR_OF`).
  *   - Los DETALLES (ojos, mechones, cremallera) se pintan con tono explícito y
  *     el CONTORNO de 1 px se añade al final por fuera de la silueta.
  */
 
 // ── Contrato de hojas ─────────────────────────────────────────────────────────
 
-export type ViewId = 'down' | 'left' | 'right' | 'up';
-export type ViewKind = 'front' | 'back' | 'side';
+export type ViewId = 'down' | 'down-left' | 'left' | 'up-left' | 'up' | 'up-right' | 'right' | 'down-right';
+/** `front34` y `back34`: tres cuartos de frente y de espalda (las diagonales). */
+export type ViewKind = 'front' | 'back' | 'side' | 'front34' | 'back34';
 export type SheetId = 'idle' | 'walk';
 export type PieceKind = 'hair' | 'face' | 'top' | 'layer' | 'bottom' | 'shoes' | 'accessory';
 export type PortraitState = 'neutral' | 'preocupada' | 'triste' | 'alegre' | 'cautelosa' | 'en-crisis';
@@ -33,7 +37,12 @@ export const SHEETS: Readonly<Record<SheetId, { readonly frames: number; readonl
   walk: Object.freeze({ frames: 6, fps: 10 }),
 });
 export const SHEET_IDS: readonly SheetId[] = Object.freeze(['idle', 'walk']);
-export const VIEW_ROWS: readonly ViewId[] = Object.freeze(['down', 'left', 'right', 'up']);
+/** Filas de cada hoja, en orden de giro: abajo, abajo-izquierda, izquierda, arriba-izquierda, arriba y sus tres derechas. */
+export const VIEW_ROWS: readonly ViewId[] = Object.freeze(['down', 'down-left', 'left', 'up-left', 'up', 'up-right', 'right', 'down-right']);
+/** Vistas que se dibujan; el resto sale de `MIRROR_OF`. */
+export const AUTHORED_VIEWS: readonly ViewId[] = Object.freeze(['down', 'down-left', 'left', 'up-left', 'up']);
+/** Vista derecha → la izquierda de la que es espejo (con la luz recalculada después de reflejar). */
+export const MIRROR_OF: Readonly<Partial<Record<ViewId, ViewId>>> = Object.freeze({ right: 'left', 'down-right': 'down-left', 'up-right': 'up-left' });
 /** Seis estados: los cuatro de 2026-10 más cautelosa (vínculo GUARDED) y en-crisis (activación CRISIS). */
 export const PORTRAIT_STATES: readonly PortraitState[] = Object.freeze(['neutral', 'preocupada', 'triste', 'alegre', 'cautelosa', 'en-crisis']);
 export const OUTLINE = '#15131d';
@@ -347,19 +356,31 @@ export function mirrorFrame(frame: Frame, pivotX: number): Frame {
 
 // ── Mapas de etiquetas del maniquí ────────────────────────────────────────────
 
-/** Profundidad por etiqueta (sombras proyectadas). Las vistas de espalda usan `front`. */
-export const LABEL_Z: Readonly<Record<'front' | 'side', Readonly<Record<string, number>>>> = Object.freeze({
+/**
+ * Profundidad por etiqueta (sombras proyectadas). Las vistas de espalda usan
+ * `front`; los tres cuartos, `quarter`: como en el perfil, minúscula = miembro
+ * cercano (delante del torso) y mayúscula = lejano (detrás).
+ */
+export const LABEL_Z: Readonly<Record<'front' | 'side' | 'quarter', Readonly<Record<string, number>>>> = Object.freeze({
   // La pelvis comparte profundidad con los muslos: la unión no es un borde.
   front: Object.freeze({ H: 5, e: 5, E: 5, N: 2.5, T: 3, P: 1, a: 4, b: 4, c: 4.2, A: 4, B: 4, C: 4.2, l: 1, m: 1, o: 0.9, L: 1, M: 1, O: 0.9 }),
   // Perfil: todo lo lejano queda detrás de lo cercano (brazo lejano el más al fondo).
   side: Object.freeze({ H: 5, e: 5.1, N: 2.5, T: 3, P: 1, a: 4, b: 4, c: 4.2, A: 0.5, B: 0.5, C: 0.55, l: 1, m: 1, o: 0.9, L: 0.7, M: 0.7, O: 0.65 }),
+  // Tres cuartos: el brazo cercano cuelga delante del torso; el lejano asoma por detrás.
+  quarter: Object.freeze({ H: 5, e: 5.1, N: 2.5, T: 3, P: 1, a: 4, b: 4, c: 4.2, A: 0.5, B: 0.5, C: 0.55, l: 1, m: 1, o: 0.9, L: 0.7, M: 0.7, O: 0.65 }),
 });
 
-/** Miembros lejanos en perfil: un tono más oscuro. */
+/** Miembros lejanos (perfil y tres cuartos): un tono más oscuro. */
 export const FAR_LABELS: ReadonlySet<string> = new Set(['A', 'B', 'C', 'L', 'M', 'O']);
 
+/** ¿La vista distingue miembro cercano y lejano? Perfil y tres cuartos sí; de frente y de espalda son izquierdo y derecho. */
+export function hasFarLimbs(kind: ViewKind): boolean {
+  return kind === 'side' || kind === 'front34' || kind === 'back34';
+}
+
 export function labelZ(kind: ViewKind, label: string): number {
-  return LABEL_Z[kind === 'side' ? 'side' : 'front'][label] ?? 0;
+  const map = kind === 'side' ? 'side' : kind === 'front34' || kind === 'back34' ? 'quarter' : 'front';
+  return LABEL_Z[map][label] ?? 0;
 }
 
 export function encodeLabelFrame(frame: Frame): EncodedFrame {
@@ -377,7 +398,7 @@ export function decodeLabelFrame(encoded: EncodedFrame, kind: ViewKind, width: n
     if (ch === '.') continue;
     frame.part[i] = ch;
     frame.z[i] = labelZ(kind, ch);
-    frame.far[i] = kind === 'side' && FAR_LABELS.has(ch) ? 1 : 0;
+    frame.far[i] = hasFarLimbs(kind) && FAR_LABELS.has(ch) ? 1 : 0;
   }
   return frame;
 }
@@ -572,11 +593,12 @@ function resolveOverlay(o: Overlay, mirrored: boolean, pivotX: number): Resolved
   return { anchor: o.anchor, at: o.at, mode: o.mode, parts: o.parts, legend: o.legend, rows: gridRows(o.grid), mirrored, pivotX };
 }
 
-/** Superposiciones de una pieza para una vista; `right` sin dibujo propio = espejo de `left`. */
+/** Superposiciones de una pieza para una vista; una vista derecha sin dibujo propio = espejo de su izquierda (`MIRROR_OF`). */
 export function overlaysFor(piece: Piece, view: ViewId, ctx: OverlayContext): ResolvedOverlay[] {
   const own = piece.views[view];
-  const mirrored = !own && view === 'right';
-  const list = own ?? (mirrored ? piece.views.left : undefined) ?? [];
+  const source = own ? undefined : MIRROR_OF[view];
+  const mirrored = source !== undefined;
+  const list = own ?? (source ? piece.views[source] : undefined) ?? [];
   return list
     .filter(o => overlayApplies(o, ctx.complexion, ctx.sheet, ctx.frame))
     .map(o => resolveOverlay(o, mirrored, ctx.pivotX));
@@ -833,8 +855,8 @@ export function composePortrait(bundle: KitBundle, recipe: Recipe, state: Portra
 }
 
 /**
- * Hojas `idle` (192×288) y `walk` (288×288), filas abajo/izquierda/derecha/arriba,
- * y los retratos de `recipe.portraits` (por defecto, solo el neutral).
+ * Hojas `idle` (192×576) y `walk` (288×576), una fila por vista en el orden de
+ * `VIEW_ROWS`, y los retratos de `recipe.portraits` (por defecto, solo el neutral).
  */
 export function composeCharacter(bundle: KitBundle, recipe: Recipe, options: { keepDressed?: boolean } = {}): ComposedCharacter {
   if (!bundle.complexions[recipe.complexion]) throw new Error(`${recipeLabel(recipe)}: complexión desconocida ${recipe.complexion}`);
@@ -844,7 +866,8 @@ export function composeCharacter(bundle: KitBundle, recipe: Recipe, options: { k
     if (!materials[slot]) throw new Error(`${recipeLabel(recipe)}: falta el color de la ranura «${slot}» (la usa ${owner})`);
   }
   const literals = { ...bundle.literals, ...(recipe.literals ?? {}) };
-  const keepFor = (): Record<ViewId, Frame[]> | null => (options.keepDressed ? { down: [], left: [], right: [], up: [] } : null);
+  const keepFor = (): Record<ViewId, Frame[]> | null =>
+    (options.keepDressed ? Object.fromEntries(VIEW_ROWS.map(view => [view, [] as Frame[]])) as Record<ViewId, Frame[]> : null);
   const keepIdle = keepFor();
   const keepWalk = keepFor();
   const result: ComposedCharacter = {
