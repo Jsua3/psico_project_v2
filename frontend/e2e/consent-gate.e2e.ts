@@ -1,5 +1,6 @@
 import { test, expect, Page } from '@playwright/test';
 
+import { captureApiBodies, readJson } from './support/api-bodies';
 import { probeStudentConsent, readConsentState, resetStudentConsent } from './support/consent';
 import { createWorldInputDriver, finishCaseIntroduction, leaveBrief, waitForWorldReady } from './support/siep-flow';
 import { scaled } from './support/time-scale';
@@ -24,6 +25,7 @@ const PASSWORD = process.env.E2E_STUDENT_PASSWORD ?? 'Estudiante123!';
 const SENSITIVE_MEDIA = /assets\/(video|game\/audio)\//;
 
 async function login(page: Page) {
+  await captureApiBodies(page);
   await page.goto('/login');
   // La página tiene DOS formularios (solicitar acceso + login): el email del
   // login no tiene label con "correo", así que se resuelve por tipo/orden.
@@ -272,7 +274,7 @@ test('quien ya aceptó el aviso en otro navegador entra sin verlo de nuevo: el s
     );
     await resume.click({ timeout: scaled(30_000) });
 
-    expect((await (await asked).json()).data.accepted, 'el servidor dice que ya aceptó').toBe(true);
+    expect((await readJson(await asked)).data.accepted, 'el servidor dice que ya aceptó').toBe(true);
     await expect(second.getByRole('dialog').filter({ hasText: 'Antes de comenzar' }), 'entra directo a la introducción')
       .toBeVisible({ timeout: scaled(30_000) });
     await expect(consentDialog(second)).toHaveCount(0);

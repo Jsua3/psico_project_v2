@@ -28,8 +28,11 @@ from ..serializers.contracts import (
     CaseLifecycleSerializer,
     CaseValidationSerializer,
     ImportRejectedEnvelopeSerializer,
+    RehearsalAdjustedSerializer,
+    RehearsalStartedSerializer,
 )
 from ..services import authoring_service as svc
+from ..services import rehearsal
 from ..services.authoring import guards, importing, lifecycle
 
 REVISION_HEADER = "X-Case-Revision"
@@ -136,7 +139,7 @@ class CaseDefinitionView(_AuthoringView):
 class EditorView(_AuthoringView):
     def get(self, request, case_version_id):
         self.version_for(request, case_version_id, mutate=False)
-        return api_ok(svc.editor(case_version_id))
+        return api_ok(svc.editor(case_version_id, request.user))
 
 
 class PublishView(_AuthoringView):
@@ -503,3 +506,45 @@ class WorldPreviewView(_AuthoringView):
         self.version_for(request, case_version_id, mutate=False)
         node_id = _opt_long(request.query_params.get("nodeId"))
         return api_ok(svc.world_preview(case_version_id, node_id))
+
+
+# ─── El ensayo del borrador (A2) ─────────────────────────────────────────────
+class RehearsalStartView(_AuthoringView):
+    """``POST …/rehearsal``: abre el ensayo (cierra el anterior) y devuelve el estado del juego con su token y el bloque."""
+
+    throttle_classes = [HeavyUserThrottle]
+
+    @extend_schema(
+        request=inputs.RehearsalStartRequest,
+        responses={200: envelope_of(RehearsalStartedSerializer), **error_responses(400, 401, 403, 404)},
+    )
+    def post(self, request, case_version_id):
+        version = self.version_for(request, case_version_id, mutate=True)
+        body = self.payload(request, inputs.RehearsalStartRequest)
+        return api_ok(rehearsal.start(version, request.user, body.get("desde")))
+
+
+class _HeavyOnPatchThrottle(HeavyUserThrottle):
+    """El mismo cupo pesado, pero solo cuenta el ``PATCH`` (recargar el bloque con ``GET`` no gasta)."""
+
+    methods = ("PATCH",)
+
+
+class RehearsalDetailView(_AuthoringView):
+    """``GET`` recarga el bloque del ensayo; ``PATCH`` mueve la escena y marca lo explorado, la persona y los hitos."""
+
+    throttle_classes = [_HeavyOnPatchThrottle]
+
+    @extend_schema(responses={200: envelope_of(RehearsalAdjustedSerializer), **error_responses(401, 403, 404, 409)})
+    def get(self, request, case_version_id, attempt_id):
+        version = self.version_for(request, case_version_id, mutate=True)
+        return api_ok(rehearsal.read(version, request.user, attempt_id))
+
+    @extend_schema(
+        request=inputs.RehearsalAdjustRequest,
+        responses={200: envelope_of(RehearsalAdjustedSerializer), **error_responses(400, 401, 403, 404, 409)},
+    )
+    def patch(self, request, case_version_id, attempt_id):
+        version = self.version_for(request, case_version_id, mutate=True)
+        body = self.payload(request, inputs.RehearsalAdjustRequest)
+        return api_ok(rehearsal.adjust(version, request.user, attempt_id, body))

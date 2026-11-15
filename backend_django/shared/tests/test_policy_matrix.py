@@ -35,6 +35,15 @@ EXPECTED = [
     ("attempt", "play", PROFESOR, {"owner_id": ME}, False),
     ("attempt", "play", ADMIN, {"owner_id": ME}, False),
     # Intento ajeno: traza y evaluación → profesor solo con alcance (membresía ACTIVE); ADMIN todos.
+    # Ensayo del borrador (A2): quien lo juega es su dueño (docente o ADMIN); un estudiante nunca.
+    ("attempt", "rehearse", PROFESOR, {"owner_id": ME}, True),
+    ("attempt", "rehearse", PROFESOR, {"owner_id": 99}, False),
+    ("attempt", "rehearse", PROFESOR, {"member": True}, False),
+    ("attempt", "rehearse", ADMIN, {"owner_id": ME}, True),
+    ("attempt", "rehearse", ADMIN, {"owner_id": 99}, False),
+    ("attempt", "rehearse", ADMIN, {"member": True}, False),
+    ("attempt", "rehearse", ESTUDIANTE, {"owner_id": ME}, False),
+    ("attempt", "rehearse", ESTUDIANTE, {"owner_id": 99}, False),
     ("attempt", "review", ESTUDIANTE, {"member": True}, False),
     ("attempt", "review", PROFESOR, {"member": True}, True),
     ("attempt", "review", PROFESOR, {"member": False}, False),
@@ -170,6 +179,7 @@ def test_allowed_roles_lists_the_roles_with_some_scope():
     assert policies.allowed_roles("case", "publish") == frozenset({ADMIN})
     assert policies.allowed_roles("group", "manage") == frozenset({PROFESOR})
     assert policies.allowed_roles("attempt", "play") == frozenset({ESTUDIANTE})
+    assert policies.allowed_roles("attempt", "rehearse") == frozenset({PROFESOR, ADMIN})
 
 
 def test_committed_evidence_matches_the_executable_matrix():
@@ -212,3 +222,36 @@ def test_scope_of_exposes_the_role_scope_for_filtering_lists():
     assert policies.scope_of(actor(ADMIN), "case", "author") == "all"
     assert policies.scope_of(actor(ESTUDIANTE), "case", "author") is None
     assert policies.scope_of(None, "case", "author") is None
+
+
+# ─── La puerta de las rutas que sirven a dos políticas (juego del estudiante y ensayo de la docente) ──────────────────
+class _PlayOrRehearseView(APIView):
+    permission_classes = [policy_permission("attempt", "play", also=("attempt", "rehearse"))]
+
+    def get(self, request):
+        return Response({"ok": True})
+
+
+@pytest.mark.parametrize(
+    "role,expected",
+    [(ADMIN, 200), (PROFESOR, 200), (ESTUDIANTE, 200)],
+)
+def test_policy_permission_with_also_admits_the_roles_of_both_policies(role, expected):
+    request = APIRequestFactory().get("/x")
+    force_authenticate(request, user=actor(role))
+    assert _PlayOrRehearseView.as_view()(request).status_code == expected
+
+
+def test_policy_permission_with_also_still_denies_anonymous_and_unknown_roles():
+    anonymous = APIRequestFactory().get("/x")
+    assert _PlayOrRehearseView.as_view()(anonymous).status_code in (401, 403)
+    ghost = APIRequestFactory().get("/x")
+    force_authenticate(ghost, user=SimpleNamespace(id=ME, role="ROOT", is_authenticated=True))
+    assert _PlayOrRehearseView.as_view()(ghost).status_code == 403
+
+
+def test_policy_permission_without_also_is_unchanged_by_the_rehearsal_policy():
+    assert policy_permission("attempt", "play").roles == frozenset({ESTUDIANTE})
+    assert policy_permission("attempt", "play", also=("attempt", "rehearse")).roles == frozenset(
+        {ESTUDIANTE, PROFESOR, ADMIN}
+    )

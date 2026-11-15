@@ -6,15 +6,15 @@
 
 ## Resumen
 
-Tablas: 43. Columnas: 367.
+Tablas: 43. Columnas: 369.
 
 | Clasificación | Columnas |
 |---|---:|
-| PUBLIC | 147 |
+| PUBLIC | 148 |
 | PERSONAL | 39 |
 | SENSITIVE | 44 |
 | SECRET | 2 |
-| TECHNICAL | 135 |
+| TECHNICAL | 136 |
 
 ## Tablas
 
@@ -742,6 +742,7 @@ Todas las columnas heredan `PUBLIC`: la tabla no tiene datos personales ni sensi
 | `replace_reason` | SENSITIVE | ninguna (uso interno) | motivo escrito para sustituir el intento |
 | `active_seconds` | SENSITIVE | api | tiempo activo del estudiante en el intento |
 | `last_activity_at` | SENSITIVE | ninguna (uso interno) | última actividad del estudiante (sirve al cronómetro) |
+| `is_rehearsal` | TECHNICAL | — | marca de ensayo del borrador de una docente (bloque A2); no identifica a la persona |
 
 Nunca sale por: `attempt_token_hash`: api, csv, reporte, correo, registro.
 
@@ -790,6 +791,7 @@ Todas las columnas heredan `PUBLIC`: la tabla no tiene datos personales ni sensi
 | `position_y` | PUBLIC | — |  |
 | `decision_prompt` | PUBLIC | — |  |
 | `goal` | PUBLIC | — |  |
+| `comments_json` | PUBLIC | — |  |
 | `display_order` | PUBLIC | — |  |
 | `intensity` | PUBLIC | — |  |
 | `ai_suggested` | PUBLIC | — |  |

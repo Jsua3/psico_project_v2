@@ -28,6 +28,7 @@ from dataclasses import replace
 from . import export, legacy, scaffold
 from .limits import MAX_DEPTH
 from .model import (
+    Comment,
     CaseDefinition,
     Character,
     CollisionZone,
@@ -369,6 +370,18 @@ def _base_options(base_scene, entry, keys, feedback):
     return options
 
 
+def _comments(entry):
+    """Los comentarios de la escena; lo que no es un objeto se descarta y los campos ilegibles quedan vacíos."""
+    return tuple(
+        Comment(
+            character=_text(item.get("personaje")), line=_text(item.get("linea")),
+            when=item["cuando"] if isinstance(item.get("cuando"), dict) else {},
+            emotion=_text(item.get("emocion")), gesture=_text(item.get("gesto")),
+        )
+        for item in _dicts((entry or {}).get("comentarios"))
+    )
+
+
 def _entry_options(entry):
     return [
         Option(
@@ -438,7 +451,7 @@ def _scene(index, entry, base_scene, document, keys, feedback, characters):
         terminal=terminal, support=support, required_tools=required, safe_exit_required=safe_exit,
         intensity=intensity, x=x, y=y,
         prompt=prompt, hints=hints, options=tuple(options), world=world,
-        goal=_text((entry or {}).get("objetivo")),
+        goal=_text((entry or {}).get("objetivo")), comments=_comments(entry),
     )
 
 

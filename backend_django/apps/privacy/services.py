@@ -148,6 +148,8 @@ def _filas_de(tabla, modelo, pertenencia, consulta):
     ]
 
 
+# Privacidad lee y suprime por ``_base_manager`` (el ``Manager`` simple): ve TODAS las filas aunque el gestor por defecto de un
+# modelo filtre (``SimulationAttempt.objects`` oculta los ensayos de la docente, que también son datos suyos).
 def export_person(person) -> dict:
     """TODO lo que el inventario marca como de ``person`` y sale de ``PERSON_SCOPE``, listo para escribirlo como JSON.
 
@@ -163,7 +165,7 @@ def export_person(person) -> dict:
         ya_exportado = Q()
         for pertenencia in pertenencias:
             alcance = pertenencia.filas(person)
-            consulta = modelo.objects.filter(alcance)
+            consulta = modelo._base_manager.filter(alcance)
             if ya_exportado:
                 consulta = consulta.exclude(ya_exportado)  # una fila que cae en dos papeles se exporta una sola vez
             filas.extend(_filas_de(tabla, modelo, pertenencia, consulta))
@@ -248,7 +250,7 @@ def _limpiar_json(tabla, modelo, filas, campo, funcion, simulacro):
             continue
         cambiadas.add(pk)
         if not simulacro:
-            _escribir(tabla, modelo.objects.filter(pk=pk), {campo.attname: nuevo})
+            _escribir(tabla, modelo._base_manager.filter(pk=pk), {campo.attname: nuevo})
     return cambiadas
 
 
@@ -333,11 +335,11 @@ def _suprimir_en_la_transaccion(person, ejecutor, simulacro):
     for tabla in _orden_de_supresion():
         modelo = data_subject.modelo_de(tabla)
         por_papel = plan[tabla]
-        todas = modelo.objects.filter(_o(por_papel.values()))
+        todas = modelo._base_manager.filter(_o(por_papel.values()))
         en_alcance = todas.count()
         cambiadas, borradas = set(), 0
         for papeles, columnas in _grupos_de_reglas(tabla, reglas).items():
-            filas = modelo.objects.filter(_o(por_papel[papel] for papel in (papeles or por_papel)))
+            filas = modelo._base_manager.filter(_o(por_papel[papel] for papel in (papeles or por_papel)))
             hechas, quitadas = _aplicar_grupo(tabla, modelo, filas, columnas, persona, simulacro)
             cambiadas, borradas = cambiadas | hechas, borradas + quitadas
         if tabla == "users" and cambiadas and not simulacro:

@@ -159,6 +159,17 @@ class Option:
 
 
 @dataclass(frozen=True)
+class Comment:
+    """Un comentario de un personaje presente en la sala de la escena (documento 2.1)."""
+    character: str
+    line: str
+    #: Condición con hechos para que el comentario se diga; ``{}`` = siempre.
+    when: dict = field(default_factory=dict)
+    emotion: str = ""
+    gesture: str = ""
+
+
+@dataclass(frozen=True)
 class Scene:
     key: str
     title: str
@@ -183,6 +194,8 @@ class Scene:
     world: World | None = None
     #: Lo que el estudiante debe lograr en la escena, en una frase; vacío = la escena no lo declara (documento 2.1).
     goal: str = ""
+    #: Lo que los personajes comentan en la sala de la escena (documento 2.1).
+    comments: tuple[Comment, ...] = ()
 
 
 @dataclass(frozen=True)

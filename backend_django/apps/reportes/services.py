@@ -109,10 +109,10 @@ def get_dashboard(usuario):
     """Tablero del docente: solo los estudiantes de sus grupos (RF-25). El ADMIN ve todo."""
     student_ids = student_ids_for_instructor(usuario)
     attempts = SimulationAttempt.objects.all()
-    events = AttemptEvent.objects.all()
     if student_ids is not None:
         attempts = attempts.filter(student_id__in=student_ids)
-        events = events.filter(attempt__student_id__in=student_ids)
+    # Los eventos de los intentos del alcance: por la unión con la tabla, un ensayo (que ``attempts`` excluye) entraría.
+    events = AttemptEvent.objects.filter(attempt__in=attempts.values("pk"))
 
     start_of_day = datetime.combine(timezone.now().date(), time.min)
 
@@ -240,7 +240,7 @@ def _hitos_del_grupo(case_version_id, student_ids):
     rows = (
         AttemptReport.objects.filter(
             attempt__case_version_id=case_version_id, attempt__student_id__in=student_ids,
-            attempt__status=AttemptStatus.COMPLETED,
+            attempt__status=AttemptStatus.COMPLETED, attempt__is_rehearsal=False,
         )
         .order_by("attempt__started_at", "attempt_id")
         .values_list("attempt__student_id", "report_json")
