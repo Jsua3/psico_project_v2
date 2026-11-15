@@ -7,6 +7,7 @@ import sys
 
 AQUI = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, AQUI)
+import objetos_comisaria  # noqa: E402,F401  (registra acero, laminado y manila)
 import objetos_pixel as op  # noqa: E402
 from objetos_pixel import Lienzo, Reflejo  # noqa: E402
 
@@ -260,6 +261,70 @@ def caja_juguetes(n=0):
     L.rect(10, 20, 31, 25, 'pino', 3, tex=False)                                    # letrero tallado
     for x in range(12, 30, 5):
         L.rect(x, 22, x + 2, 23, (70, 110, 160) if x % 2 else ROJO, tex=False)
+    return L, _reflejos(L), None
+
+
+# ── patio ──────────────────────────────────────────────────────────────────────
+
+MECE = (0, 1, 0, -1)
+
+
+def tendedero(n=0):
+    """Tendedero de dos postes con ropa colgada que se mece con el viento (4 cuadros)."""
+    L = Lienzo(92, 64, semilla=183)
+    for x in (4, 85):                                                               # postes
+        L.rect(x, 4, x + 2, 60, 'acero', 2)
+        L.rect(x, 4, x, 60, 'acero', 1, tex=False)
+        L.rect(x - 3, 59, x + 5, 61, 'acero', 4, tex=False)
+    L.rect(4, 6, 87, 6, 'acero', 3, tex=False)                                      # cuerda
+    prendas = [(10, 'tela-azul', 14, 22), (28, 'lino-rojo', 12, 16), (44, 'sabana', 18, 26), (66, 'cobija-nina', 12, 18)]
+    for k, (x, tela, w, h) in enumerate(prendas):
+        dx = MECE[(n + k) % 4]
+        L.poli([(x, 6), (x + w, 6), (x + w + dx, 6 + h), (x + dx, 6 + h)], tela, 1)
+        L.rect(x + dx, 6 + h, x + w + dx, 6 + h, tela, 3, tex=False)                # el ruedo en sombra
+        L.rect(x + w // 2, 7, x + w // 2 + dx // 2, 6 + h - 2, tela, 2, tex=False)  # el pliegue del medio
+        L.rect(x + 1, 5, x + 2, 7, 'pino', 3, tex=False)                            # ganchos de ropa
+        L.rect(x + w - 2, 5, x + w - 1, 7, 'pino', 3, tex=False)
+    return L, _reflejos(L), None
+
+
+def materas(n=0):
+    """Materas de barro con flores: geranios rojos, una sábila y una albahaca."""
+    L = Lienzo(62, 42, semilla=185)
+    for x0, alto, flor in ((2, 18, ROJO), (22, 22, None), (42, 16, (236, 220, 120))):
+        L.poli([(x0 + 2, 42 - alto), (x0 + 16, 42 - alto), (x0 + 14, 40), (x0 + 4, 40)], 'barro', 2)
+        L.rect(x0 + 1, 40 - alto, x0 + 17, 42 - alto + 1, 'barro', 1)
+        L.rect(x0 + 1, 40 - alto, x0 + 17, 40 - alto, 'barro', 0, tex=False)
+        L.rect(x0 + 2, 41 - alto + 2, x0 + 16, 41 - alto + 2, 'barro', 4, tex=False)
+        top = 40 - alto
+        if flor is None:                                                            # sábila: hojas en punta
+            for k, dx in enumerate((-5, -2, 1, 4)):
+                L.poli([(x0 + 8 + dx, top), (x0 + 10 + dx, top), (x0 + 9 + dx + dx // 2, top - 12 + abs(dx))], 'hoja', 1 + k % 2)
+        else:
+            L.elipse(x0 + 1, top - 12, x0 + 17, top + 1, 'hoja', 2)
+            L.elipse(x0 + 4, top - 10, x0 + 14, top - 3, 'hoja', 1)
+            for fx, fy in ((4, -9), (9, -12), (13, -7), (7, -5)):
+                L.rect(x0 + fx, top + fy, x0 + fx + 1, top + fy + 1, flor, tex=False)
+    return L, _reflejos(L), None
+
+
+def banco_patio(n=0):
+    """Banco de madera del patio, gastado por el sol, con un cojín olvidado."""
+    L = Lienzo(82, 38, semilla=187)
+    L.rect(4, 1, 77, 8, 'pino', 2)                                                  # espaldar de listones
+    for y in (1, 5):
+        L.rect(4, y, 77, y, 'pino', 1, tex=False)
+        L.rect(4, y + 3, 77, y + 3, 'pino', 4, tex=False)
+    for x in (8, 72):
+        L.rect(x, 1, x + 2, 34, 'pino', 3)
+    L.rect(2, 14, 79, 18, 'pino', 1)                                                # asiento
+    L.rect(2, 16, 79, 16, 'pino', 3, tex=False)
+    L.rect(2, 18, 79, 20, 'pino', 3, tex=False)
+    L.rect(6, 21, 75, 21, 'pino', 4, tex=False)
+    L.cojin(52, 8, 68, 16, 'lino-rojo', r=3, arriba=0.3, abajo=0.3)                 # cojín olvidado
+    for x in (6, 72):
+        L.rect(x, 22, x + 3, 35, 'pino', 3)
+        L.rect(x, 34, x + 3, 35, 'pino', 4, tex=False)
     return L, _reflejos(L), None
 
 

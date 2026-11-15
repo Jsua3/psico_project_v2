@@ -575,6 +575,16 @@ PIEZAS.update({
     'caja-juguetes': dict(nombre='Caja de juguetes', tipo='mueble', dibujar=cm.caja_juguetes, cuadros=1,
                           huella=dict(ancho=38, fondo=12, alto=26), material='madera',
                           reemplaza='escenarios/casa/arte/muebles/caja-juguetes.png'),
+    'tendedero': dict(nombre='Tendedero', tipo='mueble', dibujar=cm.tendedero, cuadros=4,
+                      huella=dict(ancho=86, fondo=8, alto=56), material='acero y ropa',
+                      animaciones=dict(reposo=dict(de=0, hasta=3, fps=3, bucle=True)),
+                      reemplaza='escenarios/casa/arte/muebles/tendedero.png'),
+    'materas': dict(nombre='Materas', tipo='mueble', dibujar=cm.materas, cuadros=1,
+                    huella=dict(ancho=58, fondo=12, alto=36), material='barro y hojas',
+                    reemplaza='escenarios/casa/arte/muebles/materas.png'),
+    'banco-patio': dict(nombre='Banco del patio', tipo='mueble', dibujar=cm.banco_patio, cuadros=1,
+                        huella=dict(ancho=78, fondo=12, alto=34), material='madera',
+                        reemplaza='escenarios/casa/arte/muebles/banco-patio.png'),
 })
 
 

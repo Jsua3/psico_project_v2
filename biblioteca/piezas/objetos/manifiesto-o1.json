@@ -294,6 +294,23 @@
    "reemplaza": "escenarios/casa/arte/muebles/armario.png",
    "ruta": "piezas/muebles/casa/armario.png"
   },
+  "casa/banco-patio": {
+   "alto": 37,
+   "ancho": 80,
+   "apoyo": [
+    40,
+    37
+   ],
+   "cuadros": 1,
+   "huella": {
+    "alto": 34,
+    "ancho": 78,
+    "fondo": 12
+   },
+   "nombre": "Banco del patio",
+   "reemplaza": "escenarios/casa/arte/muebles/banco-patio.png",
+   "ruta": "piezas/muebles/casa/banco-patio.png"
+  },
   "casa/caja-juguetes": {
    "alto": 30,
    "ancho": 40,
@@ -426,6 +443,23 @@
    "nombre": "Lavaplatos",
    "reemplaza": "escenarios/casa/arte/muebles/lavaplatos.png",
    "ruta": "piezas/muebles/casa/lavaplatos.png"
+  },
+  "casa/materas": {
+   "alto": 36,
+   "ancho": 59,
+   "apoyo": [
+    29,
+    36
+   ],
+   "cuadros": 1,
+   "huella": {
+    "alto": 36,
+    "ancho": 58,
+    "fondo": 12
+   },
+   "nombre": "Materas",
+   "reemplaza": "escenarios/casa/arte/muebles/materas.png",
+   "ruta": "piezas/muebles/casa/materas.png"
   },
   "casa/mesa-centro-casa": {
    "alto": 31,
@@ -638,6 +672,32 @@
    "nombre": "Sofá de la sala",
    "reemplaza": "escenarios/casa/arte/muebles/sofa-casa.png",
    "ruta": "piezas/muebles/casa/sofa-casa.png"
+  },
+  "casa/tendedero": {
+   "alto": 60,
+   "ancho": 92,
+   "animaciones": {
+    "reposo": {
+     "bucle": true,
+     "de": 0,
+     "fps": 3,
+     "hasta": 3
+    }
+   },
+   "apoyo": [
+    46,
+    60
+   ],
+   "cuadros": 4,
+   "fps": 3,
+   "huella": {
+    "alto": 56,
+    "ancho": 86,
+    "fondo": 8
+   },
+   "nombre": "Tendedero",
+   "reemplaza": "escenarios/casa/arte/muebles/tendedero.png",
+   "ruta": "piezas/muebles/casa/tendedero.png"
   },
   "casa/vitrina-comedor": {
    "alto": 79,
