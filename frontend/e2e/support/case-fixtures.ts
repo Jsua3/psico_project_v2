@@ -364,6 +364,20 @@ export async function createExplorationCase(request: APIRequestContext, options:
 }
 
 /**
+ * Clona una versión publicada a un BORRADOR (sin publicarlo) y lee su editor: el arranque de `cloneAndPublishCase`. Devuelve
+ * el id del borrador y sus escenas, para ensayarlo (`/portal/casos/<id>/ensayo`) o editarlo por la API.
+ */
+export async function cloneDraft(
+  request: APIRequestContext, source: number,
+): Promise<{ id: number; nodes: { id: number; key: string; title: string }[] }> {
+  const admin = await apiToken(request, ADMIN);
+  const cloned = await send(request, admin, 'post', `/api/authoring/cases/${source}/clone-version`, {}, 'clonar la versión');
+  const id: number = cloned['caseVersionId'];
+  const view = await readEditor(request, admin, id);
+  return { id, nodes: (view['nodes'] as Json[]).map(n => ({ id: n['id'], key: n['key'], title: n['title'] })) };
+}
+
+/**
  * Clona una versión publicada (p. ej. la del caso demo, que se puede jugar de verdad), le pone las mismas pistas en TODAS
  * sus escenas y la publica. Sirve para probar la interfaz sobre un mundo completo con datos que la semilla no trae.
  */

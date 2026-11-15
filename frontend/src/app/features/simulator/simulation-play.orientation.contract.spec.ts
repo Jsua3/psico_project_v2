@@ -81,7 +81,7 @@ describe('ficha del objetivo (T9.1)', () => {
 
   it('la franja ocupa su propio sitio en la cabecera (no es una capa flotante): no tapa al personaje ni los controles', () => {
     expect(noticeRule('.sensitive-strip')).not.toMatch(/position:\s*(absolute|fixed)/);
-    expect(source).toMatch(/<header class="top-bar"[^>]*>\s*<app-simulation-hud/);
+    expect(source).toMatch(/<header class="top-bar"[^>]*>\s*(@if \(mode\(\) === 'rehearsal'\) \{[\s\S]*?<\/p>\s*\}\s*)?<app-simulation-hud/);
   });
 
   it('la tarjeta desplegada tiene tope de alto y se desplaza por dentro: no baja sobre el kit ni la Familia en crisis', () => {

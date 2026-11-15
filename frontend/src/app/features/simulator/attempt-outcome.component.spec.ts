@@ -478,6 +478,8 @@ describe('AttemptOutcomeComponent: tus decisiones y marcador (F10-4, C2)', () =>
     reviewAttemptId?: string | null;
     /** La respuesta de decidir ya trae el reporte con sus decisiones (la ruta normal) o no (la de respaldo). */
     reportHasDecisions?: boolean;
+    mode?: 'student' | 'rehearsal';
+    caseVersionId?: number | null;
   } = {}): void {
     TestBed.configureTestingModule({
       imports: [AttemptOutcomeComponent],
@@ -504,6 +506,8 @@ describe('AttemptOutcomeComponent: tus decisiones y marcador (F10-4, C2)', () =>
       ? makeReport({ status: 'COMPLETED', decisionReview: items })
       : makeReport({ status: 'COMPLETED' }));
     writeInputSignal(component.reviewAttemptId, options.reviewAttemptId === undefined ? 'a1' : options.reviewAttemptId);
+    if (options.mode) writeInputSignal(component.mode, options.mode);
+    if (options.caseVersionId !== undefined) writeInputSignal(component.caseVersionId, options.caseVersionId);
     fixture.detectChanges();
   }
 
@@ -812,6 +816,46 @@ describe('AttemptOutcomeComponent: tus decisiones y marcador (F10-4, C2)', () =>
       const bloque = host().querySelector('.oc-decision .oc-missed')!;
       expect(bloque.querySelectorAll('li')).toHaveLength(2);
       expect(text(bloque)).toContain('Te faltó: tener Informe');
+    });
+  });
+
+describe('modo ensayo (DSL-10)', () => {
+    it('el final de un ensayo ofrece empezar de nuevo y volver al editor, sin pedir el informe del estudiante ni la autoevaluación', async () => {
+      // El reporte no trae decisionReview y hay id de intento: en modo estudiante eso pediría el informe congelado.
+      render({ mode: 'rehearsal', caseVersionId: 9 });
+      await settle();
+
+      const botones = Array.from(host().querySelectorAll('footer.oc-actions button, footer.oc-actions a')).map(el => text(el));
+      expect(botones).toEqual(['Empezar de nuevo', 'Volver al editor']);
+      expect(host().querySelector('footer.oc-actions a')!.getAttribute('href')).toBe('/portal/casos/9/editor');
+      expect(simulation.studentReport).not.toHaveBeenCalled();
+      expect(host().querySelector('.oc-selfcheck')).toBeNull();
+    });
+
+    it('«Empezar de nuevo» emite retry', async () => {
+      render({ mode: 'rehearsal', caseVersionId: 9 });
+      const reintentos: unknown[] = [];
+      component.retry.subscribe(() => reintentos.push(1));
+      (host().querySelector('footer.oc-actions button') as HTMLButtonElement).click();
+      expect(reintentos).toHaveLength(1);
+    });
+
+    it('sin id de caso el enlace lleva a la lista de casos (nunca un href roto)', async () => {
+      render({ mode: 'rehearsal', caseVersionId: null });
+      expect(host().querySelector('footer.oc-actions a')!.getAttribute('href')).toBe('/portal/casos');
+    });
+
+    it('en pausa, el ensayo ofrece volver al editor en lugar del catálogo de estudiantes', async () => {
+      render({ mode: 'rehearsal', caseVersionId: 9, status: 'PAUSED', reviewAttemptId: null });
+      const enlaces = Array.from(host().querySelectorAll('a')).map(el => el.getAttribute('href'));
+      expect(enlaces).toContain('/portal/casos/9/editor');
+      expect(enlaces).not.toContain('/portal/simulador');
+    });
+
+    it('el modo estudiante no cambia: reintentar y volver al simulador', async () => {
+      render({ reviewAttemptId: null });
+      const botones = Array.from(host().querySelectorAll('footer.oc-actions button, footer.oc-actions a')).map(el => text(el));
+      expect(botones).toEqual(['Reintentar caso', 'Volver al simulador', 'Volver al portal']);
     });
   });
 });

@@ -85,7 +85,7 @@ const caja = (page, sel) => page.evaluate((s) => { const r = document.querySelec
 // ── movimiento reducido: la línea aparece entera, sin máquina de escribir ──
 {
   const page = await abrir({ width: 1366, height: 768 }, { quieto: true });
-  await page.evaluate(() => { const d = window.__dialogo; d.junto('psicologa-hospital'); d.abrirDialogo('psicologa-hospital'); });
+  await page.evaluate(() => { const d = window.__dialogo; d.iniciarEscena(0); d.junto('psicologa-hospital'); d.abrirDialogo('psicologa-hospital'); });
   ok('con movimiento reducido el texto sale de una vez', await page.evaluate(() => { const d = window.__dialogo; return d.T.total > 0 && d.T.n === d.T.total && !document.querySelector('#linea .falta'); }));
   await page.context().close();
 }
@@ -160,9 +160,6 @@ if (FOTOS) {
     await ver(page, 'opciones'); await asentar(page); await foto(page, `${nombre}-nueva-dia-3-opciones`);
     await page.evaluate(() => { window.__dialogo.iniciarEscena(1); });
     await ver(page, 'reaccion', 0); await asentar(page); await foto(page, `${nombre}-nueva-dia-9-abuela-reaccion`);
-    await page.evaluate(() => { window.__dialogo.momento('noche'); window.__dialogo.retrato('fina'); window.__dialogo.iniciarEscena(1); });
-    await ver(page, 'reaccion', 1); await asentar(page); await foto(page, `${nombre}-nueva-9b-abuela-retrato-fino`);
-    await page.evaluate(() => window.__dialogo.retrato('kit'));
     await page.context().close();
   }
   const page = await abrir({ width: 1366, height: 900 }, { pagina: true });

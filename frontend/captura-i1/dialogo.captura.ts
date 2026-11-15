@@ -33,7 +33,7 @@ const TAMANOS = [
 ];
 
 async function foto(page: Page, nombre: string): Promise<void> {
-  await page.screenshot({ path: `${DESTINO}/juego-real-${nombre}.png` });
+  await page.screenshot({ path: `${DESTINO}/${process.env.CAPTURA_PREFIJO ?? 'juego-real'}-${nombre}.png` });
 }
 
 async function entrarAlCaso(page: Page, title: string): Promise<void> {
