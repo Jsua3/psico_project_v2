@@ -7,6 +7,8 @@
  * Leyenda: J cinturón (profundo) · h hebilla (luz).
  */
 
+import { DIAGONAL } from './pantalon.diagonal.mjs';
+
 const LEGEND = {
   J: { mat: 'bottom', tone: 3 },
   h: { mat: 'bottom', tone: 0 },
@@ -19,6 +21,7 @@ export default {
   coverage: { P: 'bottom', l: 'bottom', m: 'bottom', L: 'bottom', M: 'bottom' },
   edges: [{ labels: ['m', 'M'], edge: 'bottom', tone: 3 }],
   views: {
+    ...DIAGONAL,
     down: [{ anchor: 'P', at: [17, 38], mode: 'paint', legend: LEGEND, grid: 'JJJJJJJhJJJJJJJ' }],
     up: [{ anchor: 'P', at: [17, 38], mode: 'paint', legend: LEGEND, grid: 'JJJJJJJJJJJJJJJ' }],
     left: [{ anchor: 'P', at: [18, 38], mode: 'paint', legend: LEGEND, grid: '..hJJJJJJJJJJ' }],

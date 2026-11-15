@@ -11,6 +11,7 @@
 
 import { gridFrom } from '../../raster.mjs';
 import { headHalfWidth } from '../../busts/bust-a.mjs';
+import { DIAGONAL } from './corto-rizado.diagonal.mjs';
 
 const LEGEND = {
   R: { mat: 'hair' },
@@ -48,6 +49,7 @@ export default {
   z: 6,
   portrait: PORTRAIT,
   views: {
+    ...DIAGONAL,
     down: [{
       anchor: 'H', at: [15, 4], mode: 'cover', legend: LEGEND,
       grid: `

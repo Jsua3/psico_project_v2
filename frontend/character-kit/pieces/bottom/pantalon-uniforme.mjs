@@ -6,6 +6,8 @@
  * Leyenda: K banda de cintura (sombra) · h cordón (luz).
  */
 
+import { DIAGONAL } from './pantalon-uniforme.diagonal.mjs';
+
 const LEGEND = {
   K: { mat: 'bottom', tone: 2 },
   h: { mat: 'bottom', tone: 0 },
@@ -18,6 +20,7 @@ export default {
   coverage: { P: 'bottom', l: 'bottom', m: 'bottom', L: 'bottom', M: 'bottom' },
   edges: [{ labels: ['m', 'M'], edge: 'bottom', tone: 2 }],
   views: {
+    ...DIAGONAL,
     down: [{
       anchor: 'P', at: [17, 38], mode: 'paint', legend: LEGEND,
       grid: `

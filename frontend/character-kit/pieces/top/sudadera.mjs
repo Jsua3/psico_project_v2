@@ -9,6 +9,7 @@
  */
 
 import { gridFrom } from '../../raster.mjs';
+import { DIAGONAL } from './sudadera.diagonal.mjs';
 
 const LEGEND = {
   j: { mat: 'top' },
@@ -36,6 +37,7 @@ export default {
   coverage: { T: 'top', a: 'top', b: 'top', A: 'top', B: 'top' },
   edges: [{ labels: ['b', 'B'], edge: 'bottom', tone: 2 }],
   views: {
+    ...DIAGONAL,
     down: [
       { anchor: 'T', at: [19, 22], mode: 'cover', legend: LEGEND, grid: `
         ..fffffff..

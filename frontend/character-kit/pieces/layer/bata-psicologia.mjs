@@ -13,6 +13,7 @@
 
 import { gridFrom, mirrorOverlay } from '../../raster.mjs';
 import bata from './bata.mjs';
+import { DIAGONAL } from './bata-psicologia.diagonal.mjs';
 
 const LEGEND = {
   L: { mat: 'layer' },
@@ -33,6 +34,7 @@ export default {
     { anchor: 'T', at: [20, 28], mode: 'paint', legend: LEGEND, grid: 'ff\nff' },
   ],
   views: {
+    ...DIAGONAL,
     down: [...bata.views.down, SLEEVES, mark(27, 26)],
     up: [...bata.views.up, SLEEVES],
     left: [...bata.views.left, SLEEVES, mark(20, 26)],
