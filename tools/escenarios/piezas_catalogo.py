@@ -27,6 +27,8 @@ otro esquema (`frontend/scripts/world-art/build.mjs`). Este vive aparte hasta qu
 - La vista `lado` es la del muro izquierdo; la del derecho es su espejo (el apoyo pasa a `ancho − x`).
 - `huella` de un mueble: el rectángulo que ocupa en el piso (centrado en su apoyo, `fondo` px hacia atrás) y su altura;
   con eso se dibuja su sombra de contacto y se proyecta la que arroja (ver `piezas/luz/LEEME.md`).
+- `brillo` (en una vista o en un mueble): ruta del mapa de brillo, una tira igual a la del dibujo donde solo están los
+  píxeles que brillan (gris 255 vidrio, 170 metal, 85 barniz). Cómo se pinta: `piezas/luz/LEEME.md`, sección «Brillo».
 - `luz` dice cómo emite: `forma` (haz, pozo o tubo), `momento` (dia o noche), `tono` (calido o frio) y sus medidas.
 """
 import argparse
@@ -49,9 +51,13 @@ CARPETA = {'ventana': 'ventanas', 'lampara': 'lamparas'}
 ESTADOS = {'ventana': ['dia', 'noche'], 'lampara': ['apagada', 'encendida']}
 
 
-def _vista(cuadros, punto, ruta, imagenes):
+def _vista(cuadros, punto, ruta, imagenes, mapas=None):
     imagenes[ruta] = g.tira(cuadros)
-    return dict(ruta=ruta, ancho=cuadros[0].width, alto=cuadros[0].height, apoyo=[int(round(punto[0])), int(round(punto[1]))])
+    vista = dict(ruta=ruta, ancho=cuadros[0].width, alto=cuadros[0].height, apoyo=[int(round(punto[0])), int(round(punto[1]))])
+    if mapas:                       # mapa de brillo: misma tira, gris 255 vidrio, 170 metal, 85 barniz
+        vista['brillo'] = ruta[:-4] + '-brillo.png'
+        imagenes[vista['brillo']] = g.tira(mapas)
+    return vista
 
 
 def generar():
@@ -59,20 +65,20 @@ def generar():
     imagenes, piezas = {}, {}
     for modelo, M in pp.MODELOS.items():
         base = f'piezas/puertas/{modelo}'
-        vistas = dict(frente=_vista(pp.cuadros(modelo, 'frente'), pp.apoyo(modelo, 'frente'), base + '-frente.png', imagenes),
-                      camara=_vista(pp.cuadros(modelo, 'camara'), pp.apoyo(modelo, 'camara'), base + '-camara.png', imagenes),
-                      lado={str(a): _vista(pp.cuadros(modelo, 'lado', a), pp.apoyo(modelo, 'lado', a), f'{base}-lado-{a}.png', imagenes)
+        vistas = dict(frente=_vista(pp.cuadros(modelo, 'frente'), pp.apoyo(modelo, 'frente'), base + '-frente.png', imagenes, pp.brillo(modelo, 'frente')),
+                      camara=_vista(pp.cuadros(modelo, 'camara'), pp.apoyo(modelo, 'camara'), base + '-camara.png', imagenes, pp.brillo(modelo, 'camara')),
+                      lado={str(a): _vista(pp.cuadros(modelo, 'lado', a), pp.apoyo(modelo, 'lado', a), f'{base}-lado-{a}.png', imagenes, pp.brillo(modelo, 'lado', a))
                             for a in g.ANCHOS})
         piezas['puerta/' + modelo] = dict(nombre=M['nombre'], ocupa=M['ocupa'], ancho=M['ancho'], alto=M['alto'], muros=list(g.MUROS), cuadros=pp.CUADROS,
                                           franja=[0, vistas['frente']['apoyo'][1]], hojas=M['hojas'], vistas=vistas)
     for (tipo, modelo), F in pm.PIEZAS.items():
         base = f'piezas/{CARPETA.get(tipo, "muro")}/{modelo}'
         if 'suelo' in F['muros']:
-            vistas = dict(suelo=_vista(pm.cuadros(tipo, modelo), pm.apoyo(tipo, modelo), base + '.png', imagenes))
+            vistas = dict(suelo=_vista(pm.cuadros(tipo, modelo), pm.apoyo(tipo, modelo), base + '.png', imagenes, pm.brillo(tipo, modelo)))
             franja = [0, vistas['suelo']['alto']]
         else:
-            vistas = dict(frente=_vista(pm.cuadros(tipo, modelo), pm.apoyo(tipo, modelo), base + '-frente.png', imagenes),
-                          lado={str(a): _vista(pm.cuadros(tipo, modelo, 'lado', a), pm.apoyo(tipo, modelo, 'lado', a), f'{base}-lado-{a}.png', imagenes)
+            vistas = dict(frente=_vista(pm.cuadros(tipo, modelo), pm.apoyo(tipo, modelo), base + '-frente.png', imagenes, pm.brillo(tipo, modelo)),
+                          lado={str(a): _vista(pm.cuadros(tipo, modelo, 'lado', a), pm.apoyo(tipo, modelo, 'lado', a), f'{base}-lado-{a}.png', imagenes, pm.brillo(tipo, modelo, 'lado', a))
                                 for a in g.ANCHOS})
             frente = vistas['frente']
             franja = [frente['apoyo'][1] - frente['alto'], frente['apoyo'][1]]
@@ -115,13 +121,18 @@ def generar():
                                           huella=dict(ancho=c['x1'] - c['x0'], fondo=c['y1'] - c['y0'], alto=c['alto']))
         if F.get('fps'):
             muebles['hospital/' + ref]['fps'] = F['fps']
+        if ph.mueble_brillo(ref):
+            muebles['hospital/' + ref]['brillo'] = ruta[:-4] + '-brillo.png'
+            imagenes[ruta[:-4] + '-brillo.png'] = g.tira(ph.mueble_brillo(ref))
     geometria = dict(alto=g.ALTO, piso=g.SEAM, tope=g.TOP, k=[3, 16], anchos=list(g.ANCHOS), rejilla=g.REJILLA,
                      borde={str(a): g.borde(a) for a in g.ANCHOS})
     luz = dict(unidad=pl.U, minimo=pl.MINIMO, paso=pl.PASO, niveles=pl.NIVELES, uno=pl.UNO,
                penumbra=dict(dia=pl.PENUMBRA, noche=pl.PENUMBRA_NOCHE, exteriorDia=pl.EXTERIOR, exteriorNoche=pl.EXTERIOR_NOCHE),
                bayer=pl.BAYER.tolist(), tablaAmbiente=pl.TABLA_AMBIENTE.tolist(), tablaCalida=pl.TABLA_CALIDA.tolist(),
                tablaFria=pl.TABLA_FRIA.tolist(), enSombra=pl.EN_SOMBRA, hazFondo=list(pl.HAZ_FONDO), hazLado=list(pl.HAZ_LADO),
-               sombraMaxima=pl.SOMBRA_MAXIMA, referencia='piezas/luz/LEEME.md', casos='piezas/luz/casos.json')
+               sombraMaxima=pl.SOMBRA_MAXIMA, tablaReflejo={t: [list(c) for c in v] for t, v in pl.TABLA_REFLEJO.items()},
+               umbralReflejo=pl.UMBRAL_REFLEJO, grisBrillo={m: f * 85 for m, f in g.FUERZA_BRILLO.items()},
+               tablaAmbienteNoche=pl.TABLA_AMBIENTE_NOCHE.tolist(), pulidos=list(pl.PULIDOS), reflejo=pl.REFLEJO, contacto=pl.CONTACTO, referencia='piezas/luz/LEEME.md', casos='piezas/luz/casos.json')
     return dict(esquema=2, geometria=geometria, luz=luz, piezas=piezas, pisos=pisos, muros=muros, muebles=muebles, lugares=[]), imagenes
 
 

@@ -41,6 +41,12 @@ METAL = ((176, 184, 192), (136, 144, 156), (100, 106, 118), (72, 76, 86))
 ROJO = ((214, 92, 80), (186, 62, 56), (140, 44, 44))
 
 
+# Lo que brilla en una pieza: el reflejo del espejo y del frasco (apagados en el dibujo) y los filos de metal y barniz.
+# El reflejo de las ventanas de día no va aquí: es el cielo que se ve por ellas y de noche no existe.
+BRILLOS = {(198, 218, 222): ('vidrio', (160, 186, 194)), (176, 200, 206): ('vidrio', (156, 182, 190)), (232, 240, 246): ('vidrio', (150, 190, 224)),
+           MARCO_ALU[0]: ('metal', None), METAL[0]: ('metal', None), ROJO[0]: ('metal', None), MADERA[0]: ('barniz', None)}
+
+
 # ── utilidades de dibujo ───────────────────────────────────────────────────────
 
 def marco_rect(pl, u0, v0, u1, v1, m):
@@ -69,13 +75,30 @@ def disco(pl, cu, cv, r, c):
         pl.q(cu - medio, cv + dv, cu + medio, cv + dv + 1, c)
 
 
-def cielo(pl, u0, v0, u1, v1, noche, semilla=0, luna=False, reflejo=True):
+def cielo(pl, u0, v0, u1, v1, noche, semilla=0, luna=False, reflejo=True, lejos=True):
     """Vidrio en cuatro franjas (sin degradado). De noche, estrellas; de día, un reflejo en diagonal."""
     tonos = NOCHE if noche else DIA
     alto = v1 - v0
     cortes = [v1 - alto * k // 4 for k in range(5)]
     for k in range(4):
         pl.q(u0, cortes[k + 1], u1, cortes[k], tonos[k])
+    if lejos:                                   # por la ventana se ve algo: techos a lo lejos, una nube, luces de noche
+        tono, u = ((30, 34, 58) if noche else (128, 150, 166)), u0
+        for i in range(24):
+            k = azar(i, semilla, 61)
+            tramo, altura = 7 + k % 10, 4 + (k >> 5) % max(3, alto // 4)
+            if u >= u1:
+                break
+            pl.q(u, v0, min(u + tramo, u1), v0 + altura, tono)
+            if noche and k % 3 == 0 and u + 3 < u1:
+                pl.q(u + 2, v0 + altura - 3, u + 3, v0 + altura - 1, (226, 222, 196))
+            elif not noche:
+                pl.q(u, v0 + altura - 1, min(u + tramo, u1), v0 + altura, mezcla(tono, BLANCO, 0.14))
+            u += tramo
+        if not noche and u1 - u0 >= 30:
+            nube, cu, cv = mezcla(DIA[0], BLANCO, 0.5), u0 + (u1 - u0) * 3 // 5, v1 - max(6, alto // 3)
+            pl.q(cu, cv, min(cu + 14, u1), cv + 2, nube)
+            pl.q(cu + 3, cv + 2, min(cu + 11, u1), cv + 4, nube)
     if noche:
         for i in range(max(2, (u1 - u0) * alto // 300)):
             k = azar(i, semilla, 5)
@@ -150,7 +173,7 @@ def _alta(pl, n):
 def _ventanal(pl, n):
     w, v0, h, m = 168, 42, 88, MARCO_OSCURO
     marco_rect(pl, -4, v0 - 4, w + 4, v0 + h + 4, m)
-    cielo(pl, 0, v0, w, v0 + h, n, semilla=3, luna=True, reflejo=False)
+    cielo(pl, 0, v0, w, v0 + h, n, semilla=3, luna=True, reflejo=False, lejos=False)
     lejos = (30, 34, 58) if n else (128, 150, 166)
     u = 0
     for i in range(40):                                   # la ciudad a lo lejos
@@ -404,13 +427,13 @@ def _ficha(nombre, ancho, ocupa, dibujar, cuadros=1, muros=TRES, colores=24, mar
 
 PIEZAS = {
     ('ventana', 'corrediza'): _ficha('Ventana corrediza', 96, 128, _corrediza, 2, colores=32, antepecho=70, alto=60,
-                                     luz=dict(forma='haz', ancho=96, momento='dia', tono='calido')),
+                                     luz=dict(forma='haz', ancho=96, momento='dia', tono='calido', parteluces=dict(verticales=[512], horizontales=[512]))),
     ('ventana', 'persiana'): _ficha('Ventana con persiana', 88, 104, _persiana, 2, colores=32, antepecho=70, alto=60,
-                                    luz=dict(forma='haz', ancho=88, momento='dia', tono='calido', fuerza=60)),
+                                    luz=dict(forma='haz', ancho=88, momento='dia', tono='calido', fuerza=60, parteluces=dict(verticales=[512], lamas=[410, 1024, 8]))),
     ('ventana', 'alta'): _ficha('Ventana alta de hospital', 120, 136, _alta, 2, colores=32, antepecho=100, alto=32,
-                                luz=dict(forma='haz', ancho=120, momento='dia', tono='calido', fuerza=70)),
+                                luz=dict(forma='haz', ancho=120, momento='dia', tono='calido', fuerza=70, parteluces=dict(verticales=[341, 683]))),
     ('ventana', 'ventanal'): _ficha('Ventanal', 168, 184, _ventanal, 2, colores=32, antepecho=42, alto=88,
-                                    luz=dict(forma='haz', ancho=168, momento='dia', tono='calido')),
+                                    luz=dict(forma='haz', ancho=168, momento='dia', tono='calido', parteluces=dict(verticales=[244, 500, 756], horizontales=[652]))),
     ('cuadro', 'cuadro'): _ficha('Cuadro', 40, 56, _cuadro),
     ('reloj', 'reloj'): _ficha('Reloj con segundero', 26, 32, _reloj, 12, fps=1),
     ('cartelera', 'cartelera'): _ficha('Cartelera', 72, 80, _cartelera),
@@ -454,10 +477,11 @@ def _cuadros(tipo, modelo, vista, ancho_sala):
             crudos.append((im, pl.punto_suelo(w / 2, 0)))
         else:
             raise KeyError(f'vista {vista!r} desconocida')
-    listos, punto = g.recortar_juntos([g.terminar(im, 256) for im, _ in crudos], crudos[0][1])
+    partes = [g.mapa_de_brillo(g.terminar(im, 256), BRILLOS) for im, _ in crudos]
+    listos, punto, mapas = g.recortar_con([c for c, _ in partes], crudos[0][1], [m for _, m in partes])
     limitada = g.terminar(g.tira(listos), F['colores'], contorno=False)
     ancho = listos[0].width
-    return tuple(limitada.crop((n * ancho, 0, n * ancho + ancho, limitada.height)) for n in range(len(listos))), punto
+    return tuple(limitada.crop((n * ancho, 0, n * ancho + ancho, limitada.height)) for n in range(len(listos))), punto, tuple(mapas)
 
 
 def _clave(tipo, modelo, vista, ancho_sala):
@@ -471,6 +495,12 @@ def cuadros(tipo, modelo, vista='frente', ancho_sala=960):
 
 def apoyo(tipo, modelo, vista='frente', ancho_sala=960):
     return _cuadros(*_clave(tipo, modelo, vista, ancho_sala))[1]
+
+
+def brillo(tipo, modelo, vista='frente', ancho_sala=960):
+    """Los mapas de brillo de cada cuadro, o None si la pieza no tiene nada que brille."""
+    mapas = _cuadros(*_clave(tipo, modelo, vista, ancho_sala))[2]
+    return list(mapas) if any(m.getbbox() for m in mapas) else None
 
 
 def hoja(tipo, modelo, vista='frente', ancho_sala=960):

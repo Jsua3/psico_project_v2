@@ -58,7 +58,13 @@
       ]
     ],
     "casos": "piezas/luz/casos.json",
+    "contacto": 2,
     "enSombra": 768,
+    "grisBrillo": {
+      "barniz": 85,
+      "metal": 170,
+      "vidrio": 255
+    },
     "hazFondo": [
       45,
       64
@@ -76,7 +82,13 @@
       "exteriorNoche": 5100,
       "noche": 5800
     },
+    "pulidos": [
+      "vinilo",
+      "baldosa",
+      "damero"
+    ],
     "referencia": "piezas/luz/LEEME.md",
+    "reflejo": 600,
     "sombraMaxima": 72,
     "tablaAmbiente": [
       [
@@ -118,6 +130,53 @@
         234,
         235,
         240
+      ],
+      [
+        255,
+        255,
+        255
+      ]
+    ],
+    "tablaAmbienteNoche": [
+      [
+        90,
+        99,
+        130
+      ],
+      [
+        107,
+        116,
+        148
+      ],
+      [
+        126,
+        135,
+        166
+      ],
+      [
+        145,
+        153,
+        182
+      ],
+      [
+        165,
+        173,
+        198
+      ],
+      [
+        186,
+        192,
+        214
+      ],
+      [
+        208,
+        213,
+        228
+      ],
+      [
+        231,
+        234,
+        242
       ],
       [
         255,
@@ -169,6 +228,75 @@
         38
       ]
     ],
+    "tablaReflejo": {
+      "calido": [
+        [
+          0,
+          0,
+          0
+        ],
+        [
+          28,
+          23,
+          14
+        ],
+        [
+          54,
+          45,
+          28
+        ],
+        [
+          86,
+          72,
+          44
+        ]
+      ],
+      "frio": [
+        [
+          0,
+          0,
+          0
+        ],
+        [
+          16,
+          23,
+          30
+        ],
+        [
+          32,
+          46,
+          58
+        ],
+        [
+          52,
+          72,
+          92
+        ]
+      ],
+      "neutro": [
+        [
+          0,
+          0,
+          0
+        ],
+        [
+          24,
+          24,
+          22
+        ],
+        [
+          48,
+          48,
+          44
+        ],
+        [
+          76,
+          76,
+          70
+        ]
+      ]
+    },
+    "umbralReflejo": 4,
     "unidad": 10000,
     "uno": 1024
   },
@@ -188,6 +316,7 @@
     "hospital/cama-recuperacion": {
       "alto": 57,
       "ancho": 108,
+      "brillo": "piezas/muebles/hospital/cama-recuperacion-brillo.png",
       "cuadros": 1,
       "huella": {
         "alto": 49,
@@ -200,6 +329,7 @@
     "hospital/camilla": {
       "alto": 44,
       "ancho": 98,
+      "brillo": "piezas/muebles/hospital/camilla-brillo.png",
       "cuadros": 1,
       "huella": {
         "alto": 36,
@@ -224,6 +354,7 @@
     "hospital/carro-curaciones": {
       "alto": 56,
       "ancho": 46,
+      "brillo": "piezas/muebles/hospital/carro-curaciones-brillo.png",
       "cuadros": 1,
       "huella": {
         "alto": 52,
@@ -236,6 +367,7 @@
     "hospital/cortina": {
       "alto": 96,
       "ancho": 90,
+      "brillo": "piezas/muebles/hospital/cortina-brillo.png",
       "cuadros": 4,
       "fps": 2,
       "huella": {
@@ -249,6 +381,7 @@
     "hospital/dispensador-agua": {
       "alto": 63,
       "ancho": 24,
+      "brillo": "piezas/muebles/hospital/dispensador-agua-brillo.png",
       "cuadros": 1,
       "huella": {
         "alto": 59,
@@ -261,6 +394,7 @@
     "hospital/escritorio": {
       "alto": 57,
       "ancho": 122,
+      "brillo": "piezas/muebles/hospital/escritorio-brillo.png",
       "cuadros": 1,
       "huella": {
         "alto": 49,
@@ -285,6 +419,7 @@
     "hospital/lavamanos": {
       "alto": 45,
       "ancho": 40,
+      "brillo": "piezas/muebles/hospital/lavamanos-brillo.png",
       "cuadros": 1,
       "huella": {
         "alto": 41,
@@ -322,6 +457,7 @@
     "hospital/monitor": {
       "alto": 65,
       "ancho": 32,
+      "brillo": "piezas/muebles/hospital/monitor-brillo.png",
       "cuadros": 4,
       "fps": 4,
       "huella": {
@@ -335,6 +471,7 @@
     "hospital/mostrador-enfermeria": {
       "alto": 61,
       "ancho": 184,
+      "brillo": "piezas/muebles/hospital/mostrador-enfermeria-brillo.png",
       "cuadros": 1,
       "huella": {
         "alto": 53,
@@ -359,6 +496,7 @@
     "hospital/portasuero": {
       "alto": 69,
       "ancho": 26,
+      "brillo": "piezas/muebles/hospital/portasuero-brillo.png",
       "cuadros": 1,
       "huella": {
         "alto": 65,
@@ -407,6 +545,7 @@
     "hospital/sillas-espera": {
       "alto": 42,
       "ancho": 90,
+      "brillo": "piezas/muebles/hospital/sillas-espera-brillo.png",
       "cuadros": 1,
       "huella": {
         "alto": 34,
@@ -3813,6 +3952,7 @@
             40,
             118
           ],
+          "brillo": "piezas/muro/cartelera-frente-brillo.png",
           "ruta": "piezas/muro/cartelera-frente.png"
         },
         "lado": {
@@ -3823,6 +3963,7 @@
               13,
               165
             ],
+            "brillo": "piezas/muro/cartelera-lado-1200-brillo.png",
             "ruta": "piezas/muro/cartelera-lado-1200.png"
           },
           "1440": {
@@ -3832,6 +3973,7 @@
               16,
               165
             ],
+            "brillo": "piezas/muro/cartelera-lado-1440-brillo.png",
             "ruta": "piezas/muro/cartelera-lado-1440.png"
           },
           "1680": {
@@ -3841,6 +3983,7 @@
               17,
               165
             ],
+            "brillo": "piezas/muro/cartelera-lado-1680-brillo.png",
             "ruta": "piezas/muro/cartelera-lado-1680.png"
           },
           "1920": {
@@ -3850,6 +3993,7 @@
               20,
               165
             ],
+            "brillo": "piezas/muro/cartelera-lado-1920-brillo.png",
             "ruta": "piezas/muro/cartelera-lado-1920.png"
           },
           "960": {
@@ -3859,6 +4003,7 @@
               10,
               165
             ],
+            "brillo": "piezas/muro/cartelera-lado-960-brillo.png",
             "ruta": "piezas/muro/cartelera-lado-960.png"
           }
         }
@@ -4029,6 +4174,7 @@
             19,
             120
           ],
+          "brillo": "piezas/muro/espejo-frente-brillo.png",
           "ruta": "piezas/muro/espejo-frente.png"
         },
         "lado": {
@@ -4039,6 +4185,7 @@
               6,
               148
             ],
+            "brillo": "piezas/muro/espejo-lado-1200-brillo.png",
             "ruta": "piezas/muro/espejo-lado-1200.png"
           },
           "1440": {
@@ -4048,6 +4195,7 @@
               7,
               148
             ],
+            "brillo": "piezas/muro/espejo-lado-1440-brillo.png",
             "ruta": "piezas/muro/espejo-lado-1440.png"
           },
           "1680": {
@@ -4057,6 +4205,7 @@
               9,
               148
             ],
+            "brillo": "piezas/muro/espejo-lado-1680-brillo.png",
             "ruta": "piezas/muro/espejo-lado-1680.png"
           },
           "1920": {
@@ -4066,6 +4215,7 @@
               10,
               148
             ],
+            "brillo": "piezas/muro/espejo-lado-1920-brillo.png",
             "ruta": "piezas/muro/espejo-lado-1920.png"
           },
           "960": {
@@ -4075,6 +4225,7 @@
               5,
               148
             ],
+            "brillo": "piezas/muro/espejo-lado-960-brillo.png",
             "ruta": "piezas/muro/espejo-lado-960.png"
           }
         }
@@ -4101,6 +4252,7 @@
             9,
             89
           ],
+          "brillo": "piezas/muro/extintor-frente-brillo.png",
           "ruta": "piezas/muro/extintor-frente.png"
         },
         "lado": {
@@ -4111,6 +4263,7 @@
               3,
               105
             ],
+            "brillo": "piezas/muro/extintor-lado-1200-brillo.png",
             "ruta": "piezas/muro/extintor-lado-1200.png"
           },
           "1440": {
@@ -4120,6 +4273,7 @@
               4,
               105
             ],
+            "brillo": "piezas/muro/extintor-lado-1440-brillo.png",
             "ruta": "piezas/muro/extintor-lado-1440.png"
           },
           "1680": {
@@ -4129,6 +4283,7 @@
               4,
               105
             ],
+            "brillo": "piezas/muro/extintor-lado-1680-brillo.png",
             "ruta": "piezas/muro/extintor-lado-1680.png"
           },
           "1920": {
@@ -4138,6 +4293,7 @@
               5,
               105
             ],
+            "brillo": "piezas/muro/extintor-lado-1920-brillo.png",
             "ruta": "piezas/muro/extintor-lado-1920.png"
           },
           "960": {
@@ -4147,6 +4303,7 @@
               3,
               105
             ],
+            "brillo": "piezas/muro/extintor-lado-960-brillo.png",
             "ruta": "piezas/muro/extintor-lado-960.png"
           }
         }
@@ -4173,6 +4330,7 @@
             8,
             89
           ],
+          "brillo": "piezas/muro/gel-frente-brillo.png",
           "ruta": "piezas/muro/gel-frente.png"
         },
         "lado": {
@@ -4183,6 +4341,7 @@
               3,
               104
             ],
+            "brillo": "piezas/muro/gel-lado-1200-brillo.png",
             "ruta": "piezas/muro/gel-lado-1200.png"
           },
           "1440": {
@@ -4192,6 +4351,7 @@
               3,
               104
             ],
+            "brillo": "piezas/muro/gel-lado-1440-brillo.png",
             "ruta": "piezas/muro/gel-lado-1440.png"
           },
           "1680": {
@@ -4201,6 +4361,7 @@
               4,
               104
             ],
+            "brillo": "piezas/muro/gel-lado-1680-brillo.png",
             "ruta": "piezas/muro/gel-lado-1680.png"
           },
           "1920": {
@@ -4210,6 +4371,7 @@
               5,
               104
             ],
+            "brillo": "piezas/muro/gel-lado-1920-brillo.png",
             "ruta": "piezas/muro/gel-lado-1920.png"
           },
           "960": {
@@ -4219,6 +4381,7 @@
               2,
               104
             ],
+            "brillo": "piezas/muro/gel-lado-960-brillo.png",
             "ruta": "piezas/muro/gel-lado-960.png"
           }
         }
@@ -4418,6 +4581,7 @@
             45,
             147
           ],
+          "brillo": "piezas/lamparas/tubo-frente-brillo.png",
           "ruta": "piezas/lamparas/tubo-frente.png"
         },
         "lado": {
@@ -4428,6 +4592,7 @@
               15,
               194
             ],
+            "brillo": "piezas/lamparas/tubo-lado-1200-brillo.png",
             "ruta": "piezas/lamparas/tubo-lado-1200.png"
           },
           "1440": {
@@ -4437,6 +4602,7 @@
               17,
               194
             ],
+            "brillo": "piezas/lamparas/tubo-lado-1440-brillo.png",
             "ruta": "piezas/lamparas/tubo-lado-1440.png"
           },
           "1680": {
@@ -4446,6 +4612,7 @@
               20,
               194
             ],
+            "brillo": "piezas/lamparas/tubo-lado-1680-brillo.png",
             "ruta": "piezas/lamparas/tubo-lado-1680.png"
           },
           "1920": {
@@ -4455,6 +4622,7 @@
               23,
               194
             ],
+            "brillo": "piezas/lamparas/tubo-lado-1920-brillo.png",
             "ruta": "piezas/lamparas/tubo-lado-1920.png"
           },
           "960": {
@@ -4464,6 +4632,7 @@
               11,
               194
             ],
+            "brillo": "piezas/lamparas/tubo-lado-960-brillo.png",
             "ruta": "piezas/lamparas/tubo-lado-960.png"
           }
         }
@@ -4494,6 +4663,7 @@
             78,
             41
           ],
+          "brillo": "piezas/puertas/corrediza-camara-brillo.png",
           "ruta": "piezas/puertas/corrediza-camara.png"
         },
         "frente": {
@@ -4503,6 +4673,7 @@
             69,
             109
           ],
+          "brillo": "piezas/puertas/corrediza-frente-brillo.png",
           "ruta": "piezas/puertas/corrediza-frente.png"
         },
         "lado": {
@@ -4513,6 +4684,7 @@
               22,
               183
             ],
+            "brillo": "piezas/puertas/corrediza-lado-1200-brillo.png",
             "ruta": "piezas/puertas/corrediza-lado-1200.png"
           },
           "1440": {
@@ -4522,6 +4694,7 @@
               26,
               183
             ],
+            "brillo": "piezas/puertas/corrediza-lado-1440-brillo.png",
             "ruta": "piezas/puertas/corrediza-lado-1440.png"
           },
           "1680": {
@@ -4531,6 +4704,7 @@
               31,
               183
             ],
+            "brillo": "piezas/puertas/corrediza-lado-1680-brillo.png",
             "ruta": "piezas/puertas/corrediza-lado-1680.png"
           },
           "1920": {
@@ -4540,6 +4714,7 @@
               35,
               183
             ],
+            "brillo": "piezas/puertas/corrediza-lado-1920-brillo.png",
             "ruta": "piezas/puertas/corrediza-lado-1920.png"
           },
           "960": {
@@ -4549,6 +4724,7 @@
               18,
               183
             ],
+            "brillo": "piezas/puertas/corrediza-lado-960-brillo.png",
             "ruta": "piezas/puertas/corrediza-lado-960.png"
           }
         }
@@ -4579,6 +4755,7 @@
             38,
             44
           ],
+          "brillo": "piezas/puertas/madera-camara-brillo.png",
           "ruta": "piezas/puertas/madera-camara.png"
         },
         "frente": {
@@ -4588,6 +4765,7 @@
             31,
             101
           ],
+          "brillo": "piezas/puertas/madera-frente-brillo.png",
           "ruta": "piezas/puertas/madera-frente.png"
         },
         "lado": {
@@ -4598,6 +4776,7 @@
               10,
               137
             ],
+            "brillo": "piezas/puertas/madera-lado-1200-brillo.png",
             "ruta": "piezas/puertas/madera-lado-1200.png"
           },
           "1440": {
@@ -4607,6 +4786,7 @@
               12,
               137
             ],
+            "brillo": "piezas/puertas/madera-lado-1440-brillo.png",
             "ruta": "piezas/puertas/madera-lado-1440.png"
           },
           "1680": {
@@ -4616,6 +4796,7 @@
               14,
               137
             ],
+            "brillo": "piezas/puertas/madera-lado-1680-brillo.png",
             "ruta": "piezas/puertas/madera-lado-1680.png"
           },
           "1920": {
@@ -4625,6 +4806,7 @@
               16,
               137
             ],
+            "brillo": "piezas/puertas/madera-lado-1920-brillo.png",
             "ruta": "piezas/puertas/madera-lado-1920.png"
           },
           "960": {
@@ -4634,6 +4816,7 @@
               8,
               137
             ],
+            "brillo": "piezas/puertas/madera-lado-960-brillo.png",
             "ruta": "piezas/puertas/madera-lado-960.png"
           }
         }
@@ -4664,6 +4847,7 @@
             38,
             44
           ],
+          "brillo": "piezas/puertas/madera-ventanilla-camara-brillo.png",
           "ruta": "piezas/puertas/madera-ventanilla-camara.png"
         },
         "frente": {
@@ -4673,6 +4857,7 @@
             31,
             101
           ],
+          "brillo": "piezas/puertas/madera-ventanilla-frente-brillo.png",
           "ruta": "piezas/puertas/madera-ventanilla-frente.png"
         },
         "lado": {
@@ -4683,6 +4868,7 @@
               10,
               137
             ],
+            "brillo": "piezas/puertas/madera-ventanilla-lado-1200-brillo.png",
             "ruta": "piezas/puertas/madera-ventanilla-lado-1200.png"
           },
           "1440": {
@@ -4692,6 +4878,7 @@
               12,
               137
             ],
+            "brillo": "piezas/puertas/madera-ventanilla-lado-1440-brillo.png",
             "ruta": "piezas/puertas/madera-ventanilla-lado-1440.png"
           },
           "1680": {
@@ -4701,6 +4888,7 @@
               14,
               137
             ],
+            "brillo": "piezas/puertas/madera-ventanilla-lado-1680-brillo.png",
             "ruta": "piezas/puertas/madera-ventanilla-lado-1680.png"
           },
           "1920": {
@@ -4710,6 +4898,7 @@
               16,
               137
             ],
+            "brillo": "piezas/puertas/madera-ventanilla-lado-1920-brillo.png",
             "ruta": "piezas/puertas/madera-ventanilla-lado-1920.png"
           },
           "960": {
@@ -4719,6 +4908,7 @@
               8,
               137
             ],
+            "brillo": "piezas/puertas/madera-ventanilla-lado-960-brillo.png",
             "ruta": "piezas/puertas/madera-ventanilla-lado-960.png"
           }
         }
@@ -4749,6 +4939,7 @@
             39,
             44
           ],
+          "brillo": "piezas/puertas/metalica-camara-brillo.png",
           "ruta": "piezas/puertas/metalica-camara.png"
         },
         "frente": {
@@ -4758,6 +4949,7 @@
             30,
             101
           ],
+          "brillo": "piezas/puertas/metalica-frente-brillo.png",
           "ruta": "piezas/puertas/metalica-frente.png"
         },
         "lado": {
@@ -4768,6 +4960,7 @@
               10,
               135
             ],
+            "brillo": "piezas/puertas/metalica-lado-1200-brillo.png",
             "ruta": "piezas/puertas/metalica-lado-1200.png"
           },
           "1440": {
@@ -4777,6 +4970,7 @@
               11,
               135
             ],
+            "brillo": "piezas/puertas/metalica-lado-1440-brillo.png",
             "ruta": "piezas/puertas/metalica-lado-1440.png"
           },
           "1680": {
@@ -4786,6 +4980,7 @@
               13,
               135
             ],
+            "brillo": "piezas/puertas/metalica-lado-1680-brillo.png",
             "ruta": "piezas/puertas/metalica-lado-1680.png"
           },
           "1920": {
@@ -4795,6 +4990,7 @@
               16,
               135
             ],
+            "brillo": "piezas/puertas/metalica-lado-1920-brillo.png",
             "ruta": "piezas/puertas/metalica-lado-1920.png"
           },
           "960": {
@@ -4804,6 +5000,7 @@
               8,
               135
             ],
+            "brillo": "piezas/puertas/metalica-lado-960-brillo.png",
             "ruta": "piezas/puertas/metalica-lado-960.png"
           }
         }
@@ -4834,6 +5031,7 @@
             46,
             41
           ],
+          "brillo": "piezas/puertas/paso-camara-brillo.png",
           "ruta": "piezas/puertas/paso-camara.png"
         },
         "frente": {
@@ -4919,6 +5117,7 @@
             53,
             41
           ],
+          "brillo": "piezas/puertas/urgencias-camara-brillo.png",
           "ruta": "piezas/puertas/urgencias-camara.png"
         },
         "frente": {
@@ -4928,6 +5127,7 @@
             44,
             103
           ],
+          "brillo": "piezas/puertas/urgencias-frente-brillo.png",
           "ruta": "piezas/puertas/urgencias-frente.png"
         },
         "lado": {
@@ -4938,6 +5138,7 @@
               14,
               152
             ],
+            "brillo": "piezas/puertas/urgencias-lado-1200-brillo.png",
             "ruta": "piezas/puertas/urgencias-lado-1200.png"
           },
           "1440": {
@@ -4947,6 +5148,7 @@
               17,
               152
             ],
+            "brillo": "piezas/puertas/urgencias-lado-1440-brillo.png",
             "ruta": "piezas/puertas/urgencias-lado-1440.png"
           },
           "1680": {
@@ -4956,6 +5158,7 @@
               19,
               152
             ],
+            "brillo": "piezas/puertas/urgencias-lado-1680-brillo.png",
             "ruta": "piezas/puertas/urgencias-lado-1680.png"
           },
           "1920": {
@@ -4965,6 +5168,7 @@
               23,
               152
             ],
+            "brillo": "piezas/puertas/urgencias-lado-1920-brillo.png",
             "ruta": "piezas/puertas/urgencias-lado-1920.png"
           },
           "960": {
@@ -4974,6 +5178,7 @@
               12,
               152
             ],
+            "brillo": "piezas/puertas/urgencias-lado-960-brillo.png",
             "ruta": "piezas/puertas/urgencias-lado-960.png"
           }
         }
@@ -5004,6 +5209,7 @@
             38,
             44
           ],
+          "brillo": "piezas/puertas/vidrio-camara-brillo.png",
           "ruta": "piezas/puertas/vidrio-camara.png"
         },
         "frente": {
@@ -5013,6 +5219,7 @@
             29,
             101
           ],
+          "brillo": "piezas/puertas/vidrio-frente-brillo.png",
           "ruta": "piezas/puertas/vidrio-frente.png"
         },
         "lado": {
@@ -5023,6 +5230,7 @@
               9,
               133
             ],
+            "brillo": "piezas/puertas/vidrio-lado-1200-brillo.png",
             "ruta": "piezas/puertas/vidrio-lado-1200.png"
           },
           "1440": {
@@ -5032,6 +5240,7 @@
               12,
               133
             ],
+            "brillo": "piezas/puertas/vidrio-lado-1440-brillo.png",
             "ruta": "piezas/puertas/vidrio-lado-1440.png"
           },
           "1680": {
@@ -5041,6 +5250,7 @@
               13,
               133
             ],
+            "brillo": "piezas/puertas/vidrio-lado-1680-brillo.png",
             "ruta": "piezas/puertas/vidrio-lado-1680.png"
           },
           "1920": {
@@ -5050,6 +5260,7 @@
               15,
               133
             ],
+            "brillo": "piezas/puertas/vidrio-lado-1920-brillo.png",
             "ruta": "piezas/puertas/vidrio-lado-1920.png"
           },
           "960": {
@@ -5059,6 +5270,7 @@
               8,
               133
             ],
+            "brillo": "piezas/puertas/vidrio-lado-960-brillo.png",
             "ruta": "piezas/puertas/vidrio-lado-960.png"
           }
         }
@@ -5158,6 +5370,7 @@
             71,
             115
           ],
+          "brillo": "piezas/muro/repisa-frente-brillo.png",
           "ruta": "piezas/muro/repisa-frente.png"
         },
         "lado": {
@@ -5168,6 +5381,7 @@
               23,
               177
             ],
+            "brillo": "piezas/muro/repisa-lado-1200-brillo.png",
             "ruta": "piezas/muro/repisa-lado-1200.png"
           },
           "1440": {
@@ -5177,6 +5391,7 @@
               27,
               177
             ],
+            "brillo": "piezas/muro/repisa-lado-1440-brillo.png",
             "ruta": "piezas/muro/repisa-lado-1440.png"
           },
           "1680": {
@@ -5186,6 +5401,7 @@
               32,
               177
             ],
+            "brillo": "piezas/muro/repisa-lado-1680-brillo.png",
             "ruta": "piezas/muro/repisa-lado-1680.png"
           },
           "1920": {
@@ -5195,6 +5411,7 @@
               36,
               177
             ],
+            "brillo": "piezas/muro/repisa-lado-1920-brillo.png",
             "ruta": "piezas/muro/repisa-lado-1920.png"
           },
           "960": {
@@ -5204,6 +5421,7 @@
               18,
               177
             ],
+            "brillo": "piezas/muro/repisa-lado-960-brillo.png",
             "ruta": "piezas/muro/repisa-lado-960.png"
           }
         }
@@ -5302,6 +5520,7 @@
             64,
             122
           ],
+          "brillo": "piezas/muro/tablero-frente-brillo.png",
           "ruta": "piezas/muro/tablero-frente.png"
         },
         "lado": {
@@ -5312,6 +5531,7 @@
               21,
               192
             ],
+            "brillo": "piezas/muro/tablero-lado-1200-brillo.png",
             "ruta": "piezas/muro/tablero-lado-1200.png"
           },
           "1440": {
@@ -5321,6 +5541,7 @@
               24,
               192
             ],
+            "brillo": "piezas/muro/tablero-lado-1440-brillo.png",
             "ruta": "piezas/muro/tablero-lado-1440.png"
           },
           "1680": {
@@ -5330,6 +5551,7 @@
               28,
               192
             ],
+            "brillo": "piezas/muro/tablero-lado-1680-brillo.png",
             "ruta": "piezas/muro/tablero-lado-1680.png"
           },
           "1920": {
@@ -5339,6 +5561,7 @@
               32,
               192
             ],
+            "brillo": "piezas/muro/tablero-lado-1920-brillo.png",
             "ruta": "piezas/muro/tablero-lado-1920.png"
           },
           "960": {
@@ -5348,6 +5571,7 @@
               17,
               192
             ],
+            "brillo": "piezas/muro/tablero-lado-960-brillo.png",
             "ruta": "piezas/muro/tablero-lado-960.png"
           }
         }
@@ -5370,6 +5594,12 @@
         "forma": "haz",
         "fuerza": 70,
         "momento": "dia",
+        "parteluces": {
+          "verticales": [
+            341,
+            683
+          ]
+        },
         "tono": "calido"
       },
       "muros": [
@@ -5387,6 +5617,7 @@
             66,
             136
           ],
+          "brillo": "piezas/ventanas/alta-frente-brillo.png",
           "ruta": "piezas/ventanas/alta-frente.png"
         },
         "lado": {
@@ -5397,6 +5628,7 @@
               21,
               206
             ],
+            "brillo": "piezas/ventanas/alta-lado-1200-brillo.png",
             "ruta": "piezas/ventanas/alta-lado-1200.png"
           },
           "1440": {
@@ -5406,6 +5638,7 @@
               25,
               206
             ],
+            "brillo": "piezas/ventanas/alta-lado-1440-brillo.png",
             "ruta": "piezas/ventanas/alta-lado-1440.png"
           },
           "1680": {
@@ -5415,6 +5648,7 @@
               29,
               206
             ],
+            "brillo": "piezas/ventanas/alta-lado-1680-brillo.png",
             "ruta": "piezas/ventanas/alta-lado-1680.png"
           },
           "1920": {
@@ -5424,6 +5658,7 @@
               33,
               206
             ],
+            "brillo": "piezas/ventanas/alta-lado-1920-brillo.png",
             "ruta": "piezas/ventanas/alta-lado-1920.png"
           },
           "960": {
@@ -5433,6 +5668,7 @@
               17,
               206
             ],
+            "brillo": "piezas/ventanas/alta-lado-960-brillo.png",
             "ruta": "piezas/ventanas/alta-lado-960.png"
           }
         }
@@ -5454,6 +5690,14 @@
         "antepecho": 70,
         "forma": "haz",
         "momento": "dia",
+        "parteluces": {
+          "horizontales": [
+            512
+          ],
+          "verticales": [
+            512
+          ]
+        },
         "tono": "calido"
       },
       "muros": [
@@ -5471,6 +5715,7 @@
             63,
             139
           ],
+          "brillo": "piezas/ventanas/corrediza-frente-brillo.png",
           "ruta": "piezas/ventanas/corrediza-frente.png"
         },
         "lado": {
@@ -5481,6 +5726,7 @@
               20,
               209
             ],
+            "brillo": "piezas/ventanas/corrediza-lado-1200-brillo.png",
             "ruta": "piezas/ventanas/corrediza-lado-1200.png"
           },
           "1440": {
@@ -5490,6 +5736,7 @@
               24,
               209
             ],
+            "brillo": "piezas/ventanas/corrediza-lado-1440-brillo.png",
             "ruta": "piezas/ventanas/corrediza-lado-1440.png"
           },
           "1680": {
@@ -5499,6 +5746,7 @@
               28,
               209
             ],
+            "brillo": "piezas/ventanas/corrediza-lado-1680-brillo.png",
             "ruta": "piezas/ventanas/corrediza-lado-1680.png"
           },
           "1920": {
@@ -5508,6 +5756,7 @@
               32,
               209
             ],
+            "brillo": "piezas/ventanas/corrediza-lado-1920-brillo.png",
             "ruta": "piezas/ventanas/corrediza-lado-1920.png"
           },
           "960": {
@@ -5517,6 +5766,7 @@
               16,
               209
             ],
+            "brillo": "piezas/ventanas/corrediza-lado-960-brillo.png",
             "ruta": "piezas/ventanas/corrediza-lado-960.png"
           }
         }
@@ -5539,6 +5789,16 @@
         "forma": "haz",
         "fuerza": 60,
         "momento": "dia",
+        "parteluces": {
+          "lamas": [
+            410,
+            1024,
+            8
+          ],
+          "verticales": [
+            512
+          ]
+        },
         "tono": "calido"
       },
       "muros": [
@@ -5623,6 +5883,16 @@
         "antepecho": 42,
         "forma": "haz",
         "momento": "dia",
+        "parteluces": {
+          "horizontales": [
+            652
+          ],
+          "verticales": [
+            244,
+            500,
+            756
+          ]
+        },
         "tono": "calido"
       },
       "muros": [

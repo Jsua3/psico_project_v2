@@ -21,7 +21,7 @@ import os
 import sys
 
 import numpy as np
-from PIL import Image, ImageChops, ImageDraw
+from PIL import Image, ImageChops, ImageDraw, ImageOps
 
 AQUI = os.path.dirname(os.path.abspath(__file__))
 RAIZ = os.path.normpath(os.path.join(AQUI, '..', '..'))
@@ -159,9 +159,37 @@ def capas(sala, momento=None, cuerpos=()):
     arr[sombra, :3] = (arr[sombra, :3].astype(np.int32) * SOMBRA_MURO // 100).astype(np.uint8)
     fondo = Image.fromarray(arr, 'RGBA')
 
+    for s in sprites:                 # qué brilla en cada sprite y dónde se mide la luz que le llega
+        muro = s.get('muro', 'suelo')
+        if s['tipo'] == 'puerta':
+            mapas = pp.brillo(s['modelo'], _vista(muro), ancho)
+        elif muro == 'suelo':
+            todos, lista = pm.brillo(s['tipo'], s['modelo']), pm.cuadros(s['tipo'], s['modelo'])
+            mapas = [todos[[id(c) for c in lista].index(id(s['cuadros'][0]))]] if todos else None
+        else:
+            mapas = pm.brillo(s['tipo'], s['modelo'], _vista(muro), ancho)
+        if mapas and muro == 'derecha':
+            mapas = [ImageOps.mirror(m) for m in mapas]
+        ax, ay = s.get('pie') or g.en_pantalla(muro, s['pos'], encuadre, ancho)
+        s['mapas'] = mapas
+        s['punto'] = {'fondo': (ax, g.SEAM + 24), 'izquierda': (ax + 24, ay), 'derecha': (ax - 24, ay),
+                      'camara': (ax, g.ALTO - 30)}.get(muro, (ax, ay - 1))
+    for s, r in zip(sprites, pl.reflejos(sala, momento, (), cuerpos, [s['punto'] for s in sprites])):
+        s['reflejo'] = r
     ambiente, brillo = pl.calcular_luz(sala, momento, (), cuerpos)
     return dict(ancho=ancho, alto=g.ALTO, momento=momento, fondo=fondo, sprites=sprites, ambiente=ambiente, brillo=brillo,
                 avisos=avisos, zona=g.zona_caminable(encuadre, ancho))
+
+
+def tenir(mapa, k, tono):
+    """El mapa de brillo de un sprite con el color que suma bajo la luz (k, tono); None si con esa luz no brilla."""
+    arr = np.array(mapa.convert('RGBA'))
+    sale = np.zeros_like(arr)
+    for gris in (85, 170, 255):
+        color = pl.color_de_reflejo(k, tono, gris)
+        if any(color):
+            sale[(arr[:, :, 0] == gris) & (arr[:, :, 3] == 255)] = tuple(color) + (255,)
+    return Image.fromarray(sale, 'RGBA') if sale[:, :, 3].any() else None
 
 
 def cuerpos_de(extras):
@@ -183,29 +211,29 @@ def componer_sala(sala, momento=None, abiertas=(), con_luz=True, extras=()):
     c = capas(sala, momento, cuerpos)
     escena = c['fondo'].copy()
     orden = {'muro': 0, 'piso': 1, 'frente': 2}
-    cosas = [(orden[s['capa']], s['z'], s['cuadros'][3 if s['id'] in abiertas and s['tipo'] == 'puerta' else s['cuadro']], s['x'], s['y'])
-             for s in c['sprites']]
-    cosas += [(1, e['z'], e['im'], e['x'], e['y']) for e in extras]
+    cosas = []
+    for s in c['sprites']:
+        n = 3 if s['id'] in abiertas and s['tipo'] == 'puerta' else s['cuadro']
+        mapa = s['mapas'][min(n, len(s['mapas']) - 1)] if s['mapas'] else None
+        cosas.append((orden[s['capa']], s['z'], s['cuadros'][n], s['x'], s['y'], mapa, s['reflejo']))
+    puntos = [(e['x'] + e['im'].width // 2, e['y'] + e['im'].height - 1) for e in extras]
+    for e, r in zip(extras, pl.reflejos(sala, c['momento'], abiertas, cuerpos, puntos)):
+        cosas.append((1, e['z'], e['im'], e['x'], e['y'], e.get('mapa'), r))
     cosas.sort(key=lambda q: (q[0], q[1]))
-    for _, _, im, x, y in [q for q in cosas if q[0] == 0]:
+    # Las sombras de contacto y las proyectadas van en la luz (por escalones y con tramado), no aquí. Lo que sí se
+    # lleva aparte es el brillo: cada sprite tapa el de lo que tiene detrás y suma el suyo según la luz que le llega.
+    reflejos = Image.new('RGB', escena.size, (0, 0, 0))
+    for _, _, im, x, y, mapa, reflejo in cosas:
         pegar(escena, im, x, y)
-    sombras = Image.new('RGBA', escena.size, (0, 0, 0, 0))
-    ds = ImageDraw.Draw(sombras)
-    for e in extras:
-        if e.get('pie'):
-            ds.ellipse([e['pie'][0] - 11, e['pie'][1] - 8, e['pie'][0] + 11, e['pie'][1] - 1], fill=(8, 6, 18, 86))
-        elif e.get('sombra', True):
-            w, h = e['im'].size                      # sombra de contacto: una elipse baja al pie del mueble
-            ry = max(3, min(9, w // 7))
-            ds.ellipse([e['x'] - 2, e['y'] + h - ry - 3, e['x'] + w + 4, e['y'] + h + ry - 2], fill=(8, 6, 18, 84))
-    escena = Image.alpha_composite(escena, sombras)
-    for _, _, im, x, y in [q for q in cosas if q[0] > 0]:
-        pegar(escena, im, x, y)
+        reflejos.paste((0, 0, 0), (x, y), im)
+        brillo = tenir(mapa, *reflejo) if mapa is not None else None
+        if brillo is not None:
+            reflejos.paste(brillo, (x, y), brillo)
     rgb = escena.convert('RGB')
     if con_luz:
         if abiertas:
             c['ambiente'], c['brillo'] = pl.calcular_luz(sala, c['momento'], abiertas, cuerpos)
-        rgb = ImageChops.add(ImageChops.multiply(rgb, c['ambiente']), c['brillo'])
+        rgb = ImageChops.add(ImageChops.add(ImageChops.multiply(rgb, c['ambiente']), c['brillo']), reflejos)
     return rgb
 
 

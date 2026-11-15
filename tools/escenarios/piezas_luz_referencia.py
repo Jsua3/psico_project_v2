@@ -38,7 +38,7 @@ MOMENTOS = ('dia', 'noche')
 
 ANCHA = {
     'encuadre': 'dos-paredes-izquierda',
-    'estructura': {'ancho': 1920, 'piezas': [
+    'estructura': {'ancho': 1920, 'acabados': {'piso': 'damero'}, 'piezas': [
         {'id': 'ventanal', 'tipo': 'ventana', 'modelo': 'ventanal', 'muro': 'fondo', 'pos': 400},
         {'id': 'persiana', 'tipo': 'ventana', 'modelo': 'persiana', 'muro': 'fondo', 'pos': 1200},
         {'id': 'lateral', 'tipo': 'ventana', 'modelo': 'corrediza', 'muro': 'izquierda', 'pos': 150},
@@ -65,6 +65,8 @@ def _solo_luz(sala):
                                                     and pm.PIEZAS[(p['tipo'], p['modelo'])].get('luz')]}
     if est.get('exterior'):
         estructura['exterior'] = True
+    if est.get('acabados', {}).get('piso'):
+        estructura['acabados'] = {'piso': est['acabados']['piso']}
     return {'encuadre': sala['encuadre'], 'estructura': estructura,
             'puertas': [dict(id=p['id'], muro=p['muro'], pos=p['pos'], modelo=p['modelo']) for p in sala.get('puertas', [])]}
 
@@ -107,6 +109,8 @@ def catalogo(lista):
 def constantes():
     return dict(unidad=pl.U, minimo=pl.MINIMO, paso=pl.PASO, niveles=pl.NIVELES, uno=pl.UNO,
                 penumbra=dict(dia=pl.PENUMBRA, noche=pl.PENUMBRA_NOCHE, exteriorDia=pl.EXTERIOR, exteriorNoche=pl.EXTERIOR_NOCHE),
+                pulidos=list(pl.PULIDOS), reflejo=pl.REFLEJO, contacto=pl.CONTACTO, tablaAmbienteNoche=pl.TABLA_AMBIENTE_NOCHE.tolist(),
+                tablaReflejo={t: [list(c) for c in v] for t, v in pl.TABLA_REFLEJO.items()}, umbralReflejo=pl.UMBRAL_REFLEJO,
                 enSombra=pl.EN_SOMBRA, hazFondo=list(pl.HAZ_FONDO), hazLado=list(pl.HAZ_LADO), sombraMaxima=pl.SOMBRA_MAXIMA,
                 bayer=pl.BAYER.tolist(), tablaAmbiente=pl.TABLA_AMBIENTE.tolist(), tablaCalida=pl.TABLA_CALIDA.tolist(),
                 tablaFria=pl.TABLA_FRIA.tolist())
@@ -122,6 +126,11 @@ def generar():
             rutas = {capa: f'{CARPETA}/referencia/{caso["id"]}-{momento}-{capa}.png' for capa in ('ambiente', 'brillo')}
             imagenes[rutas['ambiente']], imagenes[rutas['brillo']] = ambiente, brillo
             caso['salidas'][momento] = rutas
+        # Brillo del vidrio y el metal: en cada punto de muestra, (k, tono) de día y de noche.
+        ancho = caso['sala']['estructura']['ancho']
+        puntos = [[x, y] for y in (254, 330, 420) for x in range(ancho // 8, ancho, ancho // 4)]
+        caso['reflejos'] = dict(puntos=puntos, **{m: [list(r) for r in pl.reflejos(caso['sala'], m, caso['abiertas'], caso['cuerpos'], puntos)]
+                                                  for m in MOMENTOS})
     return dict(version=1, constantes=constantes(), catalogo=catalogo(lista), casos=lista), imagenes
 
 
@@ -176,6 +185,10 @@ La prueba del cliente debe dar esas imágenes píxel a píxel. La fuente es `too
   `fuerza` (0 a 100, por defecto 100) y sus medidas (`ancho`, `antepecho` y `alto` en el haz; `radio` y `altura` en la lámpara).
 - `encendida` en la pieza (booleano opcional): `false` no emite; `true` emite también fuera de su momento, al 60 % de su fuerza.
 - `sala.estructura.exterior`: sala al aire libre.
+- `sala.estructura.acabados.piso`: si es uno de `pulidos` (vinilo, baldosa, damero), el piso devuelve la luz.
+- `luz.parteluces` de cada ventana: la forma del haz, en fracciones de 0 a 1024. `verticales`: parteluces a lo ancho
+  del haz; `horizontales`: travesaños a lo largo (0 = junto al muro); `lamas`: `[desde, hasta, paso]`, el tramo que
+  cubre la persiana y cada cuántos px se repite una lama. Sin `parteluces` vale `{verticales: [512]}`.
 - `abiertas`: ids de puertas abiertas (solo las del muro del fondo dejan la cuña de luz; su ancho es `catalogo["puerta/<modelo>"].ancho`).
 - `cuerpos`: muebles y personas sobre el piso, como `{x0, x1, y0, y1, alto}` (huella en px de sala y altura). Se
   construyen con `cuerpo(x, y, ancho, alto, persona)` a partir del sprite: para un mueble apoyado en (x, y),
@@ -198,10 +211,14 @@ La prueba del cliente debe dar esas imágenes píxel a píxel. La fuente es `too
    `L = max(L, base + ganancia * fuerza // 100 * peso // 1024 * mancha // 1024)` y
    `tono = max(tono, mancha * fuerza // 100 * color // 1024)` (dos acumuladores: cálido y frío).
    - Haz de una ventana del fondo (`_haz_fondo`): mancha sobre el piso y halo sobre el muro (peso 2/3, color 1/2).
+     Cada parteluz, travesaño o lama deja la mancha al 35 % (`luz * 35 // 100`) en su línea.
    - Haz de una ventana lateral (`_haz_lado`).
    - Pozo de una lámpara (`_pozo`, color 9/10) más un halo en el muro (peso 1/2, color 4/10).
    - Tubo: el mismo pozo más una franja en el muro (peso 8/10, color 1/2).
    - Cuña de la puerta abierta del fondo (peso 2/3 de día y 4/10 de noche, color 4/10).
+   - Piso pulido (`_reflejo_piso`): bajo cada ventana del fondo que emite (largo 90), bajo cada tubo o colgante del
+     fondo (ancho ±26 o ±14, largo 70) y bajo cada puerta abierta del fondo (largo 60) el piso suma brillo, sin
+     subir L: `tono = max(tono, mancha * fuerza // 100 * reflejo // 1024)` con `reflejo` 600.
 3. Sombras de los cuerpos (`_sombra`): antes de combinar, la mancha de un haz o de un pozo pierde 3/4
    (`enSombra` 768/1024) donde un cuerpo tapa la luz: `mancha − mancha * sombra * 768 // 1024`.
    - Ventana del fondo: dirección `hazFondo` (45, 64) y largo `alto * 5 // 8`.
@@ -210,12 +227,38 @@ La prueba del cliente debe dar esas imágenes píxel a píxel. La fuente es `too
      normalizada a 64avos con divisiones enteras; largo `min(alto * n // max(altura − alto, 16), sombraMaxima)`.
      Se salta el cuerpo que tiene la lámpara encima. El tubo no arroja sombra.
    - Al aire libre y de día, la sombra del sol baja la luz dos escalones (`L − 2 * paso`).
-4. Sombras de rincón al pie del muro del fondo y de los laterales, y viñeta (multiplican L).
+4. Sombra de contacto (`_contacto`): por cada cuerpo, una elipse a sus pies (centro en el medio de la huella y
+   `y1 − 2`; radios `ancho_huella // 2 + 5` y `max(4, fondo_huella // 2 + 3)`): `L −= contacto * paso * m // 1024`,
+   con `m = min(2 * clip(1024 − r, 0, 1024), 1024)` y r la distancia normalizada. Va después de las fuentes.
+   Luego las sombras de rincón al pie del muro del fondo y de los laterales, y la viñeta (multiplican L).
 5. Cuantización con Bayer 4×4: `q = clip(L − minimo, 0, paso * niveles)`,
    `nivel = clip(q // paso + ((q % paso) * 16 > bayer[y % 4][x % 4] * paso), 0, niveles)`.
-   `ambiente = tablaAmbiente[nivel]`. Para cada tono: `a = tono * 3`,
+   `ambiente = tablaAmbiente[nivel]` de día y `tablaAmbienteNoche[nivel]` de noche. Para cada tono: `a = tono * 3`,
    `escalon = clip(a // 1024 + ((a % 1024) * 16 > bayer * 1024), 0, 3)`;
    `brillo = min(255, tablaCalida[escalonCalido] + tablaFria[escalonFrio])` por canal.
+
+## Brillo: vidrio, metal y barniz
+
+Nada trae pintado un reflejo propio: lo que brilla va en el **mapa de brillo** del sprite (`brillo` en el manifiesto),
+una tira igual a la del dibujo con solo esos píxeles (gris 255 vidrio, 170 metal, 85 barniz), y se enciende con la
+luz de la sala.
+
+1. `reflejos(sala, momento, abiertas, cuerpos, puntos)` da para cada punto `(k, tono)`: sobre la luz de las fuentes
+   (antes de la sombra de contacto, las de rincón, la viñeta y el tramado), `k = clip((L − minimo) // paso − umbralReflejo, 0, 3)`
+   y `tono` = `frio` si el acumulador frío supera al cálido y vale 128 o más; si no, `calido` si el cálido vale 128 o
+   más; si no, `neutro`. `casos.json` trae en `reflejos` doce puntos por caso con su resultado de día y de noche.
+2. Dónde se mide: pieza del muro del fondo, 24 px delante de su ancla (`y = 254`); de un muro lateral, 24 px hacia
+   la sala; del lado de la cámara, en `y = 498`; mueble o lámpara de piso, en el centro de su base, 1 px arriba.
+3. Cada píxel del mapa suma `tablaReflejo[tono][clip(k − (3 − gris // 85), 0, 3)]`: el vidrio brilla con cualquier
+   luz, el metal pide un escalón más y el barniz dos.
+4. Lo que está delante tapa el brillo de lo de atrás: se pinta en una capa aparte, en el mismo orden que los
+   sprites (cada sprite borra su silueta y luego suma su mapa), y esa capa se suma al final, después de `brillo`.
+
+## La sombra de quien camina
+
+`calcular_luz(..., todo_en_sombra=True)` da las dos capas como quedarían si algo tapara cada ventana, cada lámpara
+y el sol en todo el piso. La sombra de un personaje es mostrar esas capas dentro del polígono que barre su huella
+(`x ± 9`, `y − 10 … y`, alto 60) en la dirección de cada fuente, con el largo de la regla 3 de «El cálculo».
 
 ## Para el juego
 

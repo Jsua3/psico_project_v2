@@ -72,6 +72,57 @@ def muebles_de_biblioteca(lugar, sala_id, dx=0):
     return lista
 
 
+def _brillo(mapas, reflejo, guardar):
+    """Tira con el brillo de un sprite ya teñido para la luz que le llega; None si con esa luz no brilla."""
+    vacio = Image.new('RGBA', mapas[0].size, (0, 0, 0, 0))
+    cuadros = [sl.tenir(m, *reflejo) or vacio for m in mapas]
+    if all(c is vacio for c in cuadros):
+        return None
+    tira = g.tira(cuadros)
+    return guardar(_clave('r-', tira), tira)
+
+
+def _en_sombra(sala, momento, cuerpos, sid, guardar):
+    """Las dos capas de luz con todas las fuentes tapadas: lo que se ve dentro de la sombra de quien camina."""
+    ambiente, brillo = sl.pl.calcular_luz(sala, momento, (), cuerpos, todo_en_sombra=True)
+    return [guardar(f'as-{sid}-{momento}', ambiente), guardar(f'bs-{sid}-{momento}', brillo)]
+
+
+def _fuentes(sala, momento):
+    """De dónde viene la luz que arroja sombras: direcciones (ventanas, sol) y lámparas con su altura."""
+    est, pl = sala['estructura'], sl.pl
+    izq, der = g.laterales(sala['encuadre'])
+    xl = g.limites(sala['encuadre'], est['ancho'])[0]
+    lista = []
+    if est.get('exterior'):
+        return [dict(t='d', dx=pl.HAZ_FONDO[0], dy=pl.HAZ_FONDO[1], n=5, d=8)] if momento == 'dia' else []
+    for pz, ficha, luz, _ in pl._emisores(sala, momento):
+        if luz['forma'] == 'haz' and pz.get('muro') == 'fondo':
+            f = dict(t='d', dx=pl.HAZ_FONDO[0], dy=pl.HAZ_FONDO[1], n=5, d=8)
+        elif luz['forma'] == 'haz' and ((pz.get('muro') == 'izquierda' and izq) or (pz.get('muro') == 'derecha' and der)):
+            f = dict(t='d', dx=pl.HAZ_LADO[0] if pz['muro'] == 'izquierda' else -pl.HAZ_LADO[0], dy=pl.HAZ_LADO[1], n=3, d=4)
+        elif luz['forma'] == 'pozo' and ('x' in pz or pz.get('muro') == 'fondo'):
+            x, y = (pz['x'], pz['y']) if 'x' in pz else (xl + pz['pos'], g.SEAM + 64)
+            f = dict(t='p', x=x, y=y, h=luz.get('altura', 150) + pz.get('sobre', 0))
+        else:
+            continue
+        if f not in lista:
+            lista.append(f)
+    return lista
+
+
+def _sombra_de_pie():
+    """Sombra de contacto de quien camina: una elipse deshecha con el tramado de la casa, sin transparencias."""
+    bayer = sl.pl.BAYER
+    im = Image.new('RGBA', (26, 10), (0, 0, 0, 0))
+    for y in range(10):
+        for x in range(26):
+            r2 = ((x - 12.5) / 13) ** 2 + ((y - 4.5) / 5) ** 2
+            if r2 < 1 and (1 - r2) * 22 > bayer[y % 4, x % 4]:
+                im.putpixel((x, y), (22, 24, 44, 255))
+    return im
+
+
 def _entrada(sala, por_defecto):
     e = sala.get('entrada') or por_defecto
     return [e['x'], e['y']] if isinstance(e, dict) else list(e)
@@ -92,7 +143,9 @@ def exportar(sala, lugar, imgs, muebles=()):
     x0, y0, w, h = dia['zona']
     datos = dict(nombre=sala['nombre'], lugar=lugar, ancho=dia['ancho'], zona=[x0, y0, w, h],
                  fondo=guardar('f-' + sid, dia['fondo'].convert('RGB')),
-                 luz={m: [guardar(f'a-{sid}-{m}', c['ambiente']), guardar(f'b-{sid}-{m}', c['brillo'])] for m, c in (('dia', dia), ('noche', noche))},
+                 luz={m: [guardar(f'a-{sid}-{m}', c['ambiente']), guardar(f'b-{sid}-{m}', c['brillo'])] + _en_sombra(sala, m, cuerpos, sid, guardar)
+                      for m, c in (('dia', dia), ('noche', noche))},
+                 fuentes={m: _fuentes(sala, m) for m in ('dia', 'noche')},
                  sprites=[], muebles=[], entrada=_entrada(sala, (x0 + w // 2, y0 + h * 2 // 3)), avisos=dia['avisos'])
     puertas = {p['id']: p for p in sala.get('puertas', [])}
     for sd, sn in zip(dia['sprites'], noche['sprites']):
@@ -101,22 +154,26 @@ def exportar(sala, lugar, imgs, muebles=()):
                  hoja=guardar(_clave('h-', tira), tira), n=len(sd['cuadros']), cuadro=dict(dia=sd['cuadro'], noche=sn['cuadro']), z=sd['z'])
         if sd.get('fps'):
             s['fps'] = sd['fps']
+        if sd.get('mapas'):
+            s['brillo'] = {m: _brillo(c['mapas'], c['reflejo'], guardar) for m, c in (('dia', sd), ('noche', sn))}
         if sd['tipo'] == 'puerta':
             pu = puertas[sd['id']]
             s['puerta'] = dict(hacia=pu.get('hacia'), par=pu.get('par'), etiqueta=pu.get('etiqueta', 'Pasar'), muro=sd['muro'], llegada=list(sd['llegada']))
         datos['sprites'].append(s)
-    for m in muebles:
+    puntos = [(m['x'], m['y'] - 1) for m in muebles]
+    luces = {mo: sl.pl.reflejos(sala, mo, (), cuerpos, puntos) for mo in ('dia', 'noche')}
+    for n_mueble, m in enumerate(muebles):
         im = m['im']
         mw, mh = im.size
         x, y = m['x'] - mw // 2, m['y'] - mh
         tira = g.tira(m['cuadros']) if len(m.get('cuadros', ())) > 1 else im
         if m.get('persona'):
-            caja, sombra = [m['x'] - 10, m['y'] - 16, m['x'] + 10, m['y'] - 2], [m['x'], m['y'] - 5, 11, 4]
+            caja = [m['x'] - 10, m['y'] - 16, m['x'] + 10, m['y'] - 2]
         else:
             caja = [x + 2, m['y'] - min(mh, 20), x + mw - 2, m['y'] + 2] if m.get('choca', True) else None
-            sombra = [x + mw / 2 + 1, m['y'] - 3, mw / 2 + 3, max(3, min(9, mw // 7))] if m.get('sombra', True) else None
         datos['muebles'].append(dict(img=guardar(_clave('m-', tira), tira), x=x, y=y, w=mw, h=mh, z=m.get('z', m['y']),
-                                     n=len(m.get('cuadros', ())) or 1, fps=m.get('fps', 0), s=sombra, caja=caja))
+                                     n=len(m.get('cuadros', ())) or 1, fps=m.get('fps', 0), caja=caja,
+                                     brillo={mo: _brillo(m['mapas'], luces[mo][n_mueble], guardar) for mo in luces} if m.get('mapas') else None))
     return datos
 
 
@@ -208,6 +265,7 @@ def construir(destino=SALIDA):
                 avisos.append(f'{sid}/{sp["id"]}: lleva a {p["hacia"]}/{p["par"]}, que no existe')
     imgs['j-idle'] = uri(os.path.join(KIT, 'valentina', 'idle.png'))
     imgs['j-walk'] = uri(os.path.join(KIT, 'valentina', 'walk.png'))
+    imgs['j-sombra'] = uri(_sombra_de_pie())
     datos = dict(inicio=orden[0], orden=orden, salas=salas, imgs=imgs, jugador=dict(idle='j-idle', walk='j-walk'))
     with open(os.path.join(AQUI, 'piezas_vista.html'), encoding='utf-8') as f:
         plantilla = f.read()
