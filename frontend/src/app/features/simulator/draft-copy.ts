@@ -709,6 +709,34 @@ export const DRAFT_COPY = {
     where: 'Burbuja de comentario de un personaje: nombre accesible de su región',
     text: 'Comentario de {nombre}',
   },
+  rehearsalBanner: {
+    decision: 'DSL-10',
+    owner: 'Psicología',
+    review: 'conocimiento',
+    where: 'Ensayo del borrador: franja bajo la cabecera del juego',
+    text: 'Ensayo del borrador: nada de esto cuenta para estudiantes ni informes.',
+  },
+  rehearsalGone: {
+    decision: 'DSL-10',
+    owner: 'Psicología',
+    review: 'conocimiento',
+    where: 'Ensayo: aviso cuando el servidor descartó el ensayo',
+    text: 'Este ensayo ya no existe: el caso cambió mientras ensayabas.',
+  },
+  rehearsalRestart: {
+    decision: 'DSL-10',
+    owner: 'Psicología',
+    review: 'conocimiento',
+    where: 'Ensayo: botón del aviso de ensayo perdido y del final del ensayo',
+    text: 'Empezar de nuevo',
+  },
+  rehearsalBackToEditor: {
+    decision: 'DSL-10',
+    owner: 'Psicología',
+    review: 'conocimiento',
+    where: 'Ensayo: enlace del final y de la pausa del ensayo',
+    text: 'Volver al editor',
+  },
   /** Nota de una conducta prohibida en «Tus decisiones»: se señala con cuidado, sin cifras (RN-08, ETH). */
   decisionProhibitedNote: {
     decision: 'RN-08',

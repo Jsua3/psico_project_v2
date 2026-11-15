@@ -8,12 +8,13 @@ import { MatIconModule } from '@angular/material/icon';
 import { toSignal } from '@angular/core/rxjs-interop';
 import { ShortcutSettings } from '../../core/a11y/shortcut-settings.service';
 import { AnnouncePoliteness, LiveRegionAnnouncer } from '../../core/a11y/live-announcer.service';
-import { apiErrorMessage, isConsentRequiredError } from '../../core/api/api-error.util';
+import { apiErrorMessage, isConsentRequiredError, isRehearsalGoneError } from '../../core/api/api-error.util';
+import { RehearsalApi } from '../../core/api/rehearsal.api';
 import { SimulationService } from '../../core/api/simulation.service';
 import { NotificationService } from '../../core/notifications/notification.service';
 import {
   DialogueState, InteractionResult, MapObjectState, NpcConfig, Persona,
-  ProgressMapState, SimulationAttemptState, ScenarioConfig, SimulationDecisionResult,
+  ProgressMapState, RehearsalBlock, SimulationAttemptState, ScenarioConfig, SimulationDecisionResult,
   SimulationNodeState, SimulationWorldState, ToolUseResult
 } from '../../core/models/simulation.model';
 import type { CharacterVisual } from '../character/kit/character-visual.resolver';
@@ -28,6 +29,7 @@ import { GameHelpComponent } from './game-help.component';
 import { HELP_FIRST_CARD, markHelpSeen, readHelpSeen, resetHelpSeen } from './help-memory.util';
 import { SceneGoalCardComponent } from './scene-goal-card.component';
 import { SensitiveNoticeComponent } from './sensitive-notice.component';
+import { escenaDesde, puedeSerEnsayoPerdido } from './caso/ensayo';
 import { escenaRetenida } from './caso/escena-visible';
 import { memoriaDeComentarios } from './caso/comentarios';
 import { BurbujaVisible, MundoCercania, ProximityReactions, RELOJ_DE_VENTANA, acotarAncla } from './proximity-reactions';
@@ -126,7 +128,7 @@ const QUEUED_PAUSE_SLOW_NOTICE = 'La acción en curso está tardando. Estamos pa
   ],
   template: `
     <div class="game-container" data-skin="game" id="main-content" tabindex="-1" [attr.data-mode]="viewMode()"
-      [class.game-container--reduce-motion]="reduceMotion()">
+      [class.game-container--reduce-motion]="reduceMotion()" [attr.data-rehearsal]="mode() === 'rehearsal' ? 'true' : null">
       <!-- Sin región viva propia (F6-12): todo anuncio sale por las dos regiones persistentes de la app
            (LiveRegionAnnouncer), que ya existen antes de que cambie su texto. -->
       <!-- Un h1 por pantalla (plan visual F3-6): el nombre del caso, visualmente oculto (el juego es a sangre). -->
@@ -140,6 +142,14 @@ const QUEUED_PAUSE_SLOW_NOTICE = 'La acción en curso está tardando. Estamos pa
         <div class="game-boot" aria-hidden="true">
           <ui-spinner [size]="32" />
           <p>{{ bootLabel() }}</p>
+        </div>
+      }
+      @if (rehearsalGone()) {
+        <!-- Ensayo descartado (7.4): el servidor lo cerró porque el caso cambió. Se dice con su salida, nunca una pantalla en blanco. «Salida segura» sigue en el pie. -->
+        <div class="game-failure rehearsal-gone" role="alert">
+          <p #goneText class="rehearsal-gone__text" tabindex="-1">{{ draft.rehearsalGone.text }}</p>
+          <button ui-button class="restart" type="button" variant="primary" (click)="restartRehearsalHere()">{{ draft.rehearsalRestart.text }}</button>
+          <a ui-button variant="secondary" [routerLink]="['/portal/casos', attempt()?.caseVersionId, 'editor']">{{ draft.rehearsalBackToEditor.text }}</a>
         </div>
       }
       @if (error()) {
@@ -294,6 +304,9 @@ const QUEUED_PAUSE_SLOW_NOTICE = 'La acción en curso está tardando. Estamos pa
         }
 
         <header class="top-bar" [attr.inert]="inputBlocked() ? '' : null" [attr.aria-hidden]="inputBlocked() ? 'true' : null">
+          @if (mode() === 'rehearsal') {
+            <p class="rehearsal-banner" role="note">{{ draft.rehearsalBanner.text }}</p>
+          }
           <app-simulation-hud
             [attempt]="game"
             [patientVisual]="patientVisual()"
@@ -493,7 +506,8 @@ const QUEUED_PAUSE_SLOW_NOTICE = 'La acción en curso está tardando. Estamos pa
         @if (!holdingOutcome() && !reactingToLast()) {
           <app-attempt-outcome [report]="game.completionReport" [status]="game.status"
             [supportResources]="supportResources()"
-            [reviewAttemptId]="game.status === 'COMPLETED' ? game.attemptId : null"
+            [mode]="mode()" [caseVersionId]="game.caseVersionId"
+            [reviewAttemptId]="game.status === 'COMPLETED' && mode() !== 'rehearsal' ? game.attemptId : null"
             (retry)="startNewAttempt()" (resume)="resumeCurrentAttempt()" />
         }
 
@@ -913,6 +927,8 @@ const QUEUED_PAUSE_SLOW_NOTICE = 'La acción en curso está tardando. Estamos pa
     }
     .game-boot p { margin: 0; color: var(--ds-text-2); font-size: .95rem; }
     .game-failure ui-error-state { max-inline-size: 28rem; }
+    .rehearsal-banner { margin: 0; padding: 4px 12px; font-size: .85rem; text-align: center; background: var(--ds-surface-2, rgba(18,24,42,.9)); color: var(--ds-text-1); border-block-end: 1px solid var(--ds-border, rgba(182,156,255,.3)); }
+    .rehearsal-gone__text { margin: 0; max-inline-size: 28rem; font-size: 1.05rem; }
     /* Aviso no esencial («Obtuviste: …»): quieto, sin animación, sobre el pie. */
     .soft-notice {
       position: absolute; bottom: 84px; left: 50%; transform: translateX(-50%); z-index: 310;
@@ -1121,6 +1137,7 @@ export class SimulationPlayComponent implements OnInit, OnDestroy {
   private readonly notifications = inject(NotificationService);
   private readonly consentRecorder = inject(CONSENT_RECORDER);
   private readonly dialog = inject(UiDialog);
+  private readonly rehearsalApi = inject(RehearsalApi);
 
   @ViewChild('gameWorld')    private gameWorld?: GameWorldComponent;
   @ViewChild('journalPanel') private journalPanel?: JournalPanelComponent;
@@ -1178,6 +1195,16 @@ export class SimulationPlayComponent implements OnInit, OnDestroy {
   readonly transitionNote = signal('');
   /** Advertencia de contenido: ETH-01 — precede a la escena, la narrativa y el gameplay. */
   readonly showContentWarning = signal(false);
+  /** `rehearsal`: la docente ensaya su borrador (ruta `casos/:id/ensayo`); sin consentimiento, introducción ni informe del estudiante. */
+  readonly mode = signal<'student' | 'rehearsal'>(this.route.snapshot.data?.['mode'] === 'rehearsal' ? 'rehearsal' : 'student');
+  /** El bloque `rehearsal` del servidor (opciones retenidas, comentarios, avisos…): lo lee el panel de autora. */
+  readonly rehearsal = signal<RehearsalBlock | null>(null);
+  /** El servidor descartó el ensayo (la docente borró una escena, una respuesta o un mapa). */
+  readonly rehearsalGone = signal(false);
+  protected readonly draft = DRAFT_COPY;
+  /** La escena con la que se abrió el ensayo (`?desde=`): «Empezar de nuevo» tras un final vuelve a ella. */
+  private rehearsalFrom: number | null = null;
+  @ViewChild('goneText') private set goneText(el: ElementRef<HTMLElement> | undefined) { el?.nativeElement.focus({ preventScroll: true }); }
   /** Registro del consentimiento (ETH-01): `saving` mientras guarda; `error` si el almacenamiento falló. */
   readonly consentState = signal<'idle' | 'saving' | 'error'>('idle');
   /** Qué dice el recuadro de error del aviso: el de siempre, o «hay una versión nueva del aviso» (S3-2b). */
@@ -1304,7 +1331,7 @@ export class SimulationPlayComponent implements OnInit, OnDestroy {
 
   /** El mundo se congela con diálogo, journal u outcome abiertos (Fase 5/13). */
   readonly inputBlocked = computed(() =>
-    this.showResumePrompt() || this.showContentWarning()
+    this.showResumePrompt() || this.showContentWarning() || this.rehearsalGone()
     || this.showCaseIntro() || this.dialogue() !== null || this.journalOpen() || this.placesOpen()
     || (!this.reactingToLast() && (this.attempt()?.status ?? 'IN_PROGRESS') !== 'IN_PROGRESS'));
 
@@ -1518,6 +1545,11 @@ export class SimulationPlayComponent implements OnInit, OnDestroy {
     this.stopCompactWatch = () => { stopCompact(); stopCoarse(); stopNarrow(); };
     const id = Number(this.route.snapshot.paramMap.get('caseVersionId'));
     if (!id) { this.fail('Caso no encontrado.', null, null); return; }
+    if (this.mode() === 'rehearsal') {
+      this.rehearsalFrom = escenaDesde(this.route.snapshot.queryParamMap?.get('desde'));
+      this.beginRehearsal(id, this.rehearsalFrom);
+      return;
+    }
 
     this.simulationService.getActiveAttempt(id).subscribe({
       next: active => {
@@ -1658,6 +1690,7 @@ export class SimulationPlayComponent implements OnInit, OnDestroy {
   startNewAttempt() {
     const id = Number(this.route.snapshot.paramMap.get('caseVersionId'));
     if (!id) return;
+    if (this.mode() === 'rehearsal') { this.beginRehearsal(id, this.rehearsalFrom); return; }
     this.showResumePrompt.set(false);
     // Nada del intento anterior sobrevive: ni su diálogo o selección, ni la bitácora abierta, ni una
     // decisión que esperaba confirmación de evidencia (las opciones se repiten entre intentos).
@@ -1668,6 +1701,82 @@ export class SimulationPlayComponent implements OnInit, OnDestroy {
     this.resetNotices();
     this.loading.set(true);
     this.beginAttempt(id, true);
+  }
+
+  /**
+   * Abre (o reabre) el ensayo: `POST rehearsal` cierra el anterior y devuelve el estado del juego con su token. Se va directo
+   * al mundo: el servidor no exige consentimiento a un ensayo (4.2.1) ni hay tarjeta de introducción. No se guarda el token
+   * en la pestaña. Una escena `desde` que ya no existe (400) se reintenta desde el inicio.
+   */
+  private beginRehearsal(caseVersionId: number, desde: number | null): void {
+    this.rehearsalGone.set(false);
+    this.clearTransientOverlays();
+    this.nearbyInteraction.set(null);
+    this.endPausing();
+    this.error.set('');
+    this.loading.set(true);
+    this.rehearsalApi.start(caseVersionId, desde).subscribe({
+      next: ({ rehearsal, ...attempt }) => {
+        this.rehearsal.set(rehearsal);
+        this.attempt.set(attempt);
+        this.viewedNpcKeys.set(new Set());
+        this.busy.set(false);
+        this.worldStarted.set(false);   // un arranque limpio: el mundo anterior (si lo hubo) se vuelve a montar
+        this.startWorld(attempt);
+      },
+      error: cause => {
+        if (desde !== null && cause instanceof HttpErrorResponse && cause.status === 400) this.beginRehearsal(caseVersionId, null);
+        else this.fail('No pudimos abrir el ensayo.', cause, () => this.beginRehearsal(caseVersionId, desde));
+      },
+    });
+  }
+
+  /** El panel de autora cambió algo: guarda el bloque nuevo y relee el juego (mismo token) para que el mundo lo muestre. */
+  reloadRehearsal(block: RehearsalBlock): void {
+    const attempt = this.attempt();
+    if (!attempt) return;
+    this.rehearsal.set(block);
+    this.viewedNpcKeys.set(new Set());   // lo hablado lo dice el mundo recién leído
+    this.simulationService.getAttempt(attempt.attemptId, attempt.attemptToken).subscribe({
+      next: fresh => {
+        this.attempt.set(fresh);
+        this.loadWorld(fresh);
+      },
+      error: cause => this.orRehearsalGone(cause, () => this.fail('No pudimos recargar el ensayo.', cause, () => this.reloadRehearsal(block))),
+    });
+  }
+
+  /** El servidor descartó el ensayo: se corta la secuencia y la burbuja y se ofrece abrir uno nuevo. */
+  showRehearsalGone(): void {
+    this.reaction?.cancel();
+    this.pendingAfterReaction = null;
+    this.reactions?.dispose();
+    this.reacting.set(false);
+    this.busy.set(false);
+    this.loading.set(false);
+    this.fadeActive.set(false);
+    this.dismissActionError();
+    this.rehearsalGone.set(true);
+    this.announce(DRAFT_COPY.rehearsalGone.text, 'assertive');
+  }
+
+  /** «Empezar de nuevo» tras perder el ensayo: otro ensayo en la escena en la que estaba. */
+  restartRehearsalHere(): void {
+    const id = Number(this.route.snapshot.paramMap.get('caseVersionId'));
+    if (id) this.beginRehearsal(id, this.rehearsal()?.sceneId ?? this.rehearsalFrom);
+  }
+
+  /**
+   * En ensayo, un 403 o un 404 de las rutas del juego puede ser un ensayo descartado (7.4: el juego responde 403, el panel
+   * 404): se confirma con la lectura del bloque. Si el ensayo ya no existe se dice; si no, sigue su camino (`otherwise`).
+   */
+  private orRehearsalGone(cause: unknown, otherwise: () => void): void {
+    const attempt = this.attempt();
+    if (this.mode() !== 'rehearsal' || !attempt || !puedeSerEnsayoPerdido(cause)) { otherwise(); return; }
+    this.rehearsalApi.read(attempt.caseVersionId, attempt.attemptId).subscribe({
+      next: () => otherwise(),
+      error: check => (isRehearsalGoneError(check) || (check as { status?: number })?.status === 404) ? this.showRehearsalGone() : otherwise(),
+    });
   }
 
   private beginAttempt(caseVersionId: number, forceNew: boolean) {
@@ -1736,7 +1845,7 @@ export class SimulationPlayComponent implements OnInit, OnDestroy {
   }
 
   private hasContentConsent(attempt: SimulationAttemptState): boolean {
-    return this.consentRecorder.isGiven(this.caseConsentStorageKey(attempt));
+    return this.mode() === 'rehearsal' || this.consentRecorder.isGiven(this.caseConsentStorageKey(attempt));
   }
 
   /** Arranque real (post-consentimiento). Idempotente ante dobles llamadas. */
@@ -2261,8 +2370,10 @@ export class SimulationPlayComponent implements OnInit, OnDestroy {
       this.requireConsentAgain();
       return;
     }
-    const message = apiErrorMessage(err, fallback);
-    if (message) this.showActionError(message);
+    this.orRehearsalGone(err, () => {
+      const message = apiErrorMessage(err, fallback);
+      if (message) this.showActionError(message);
+    });
   }
 
   /** Suelta la opción que el panel de diálogo tenía marcada como elegida. */
@@ -2633,10 +2744,10 @@ export class SimulationPlayComponent implements OnInit, OnDestroy {
         this.worldReloadPending = true;
         this.loadWorld(updated);
       },
-      error: () => {
+      error: cause => {
         this.pauseSent = false;
         this.endPausing();
-        this.showActionError('No pudimos registrar la salida segura.');
+        this.orRehearsalGone(cause, () => this.showActionError('No pudimos registrar la salida segura.'));
         this.busy.set(false);
       },
     });
@@ -2838,7 +2949,7 @@ export class SimulationPlayComponent implements OnInit, OnDestroy {
       error: cause => {
         // S3-2b: sin consentimiento el servidor no entrega el mundo. No es un fallo de carga (sin «Reintentar»): vuelve el aviso.
         if (isConsentRequiredError(cause)) this.requireConsentAgain();
-        else this.fail('No pudimos cargar el mapa del caso.', cause, () => this.loadWorld(attempt));
+        else this.orRehearsalGone(cause, () => this.fail('No pudimos cargar el mapa del caso.', cause, () => this.loadWorld(attempt)));
         this.worldReloadPending = false;
         this.resumeQueued = false;
         // Sin mapa no hay escena sobre la que leer la supervisión: el resultado no puede quedar retenido.
@@ -2946,8 +3057,8 @@ export class SimulationPlayComponent implements OnInit, OnDestroy {
     return resolveIntroStep({
       attemptStatus: attempt.status,
       // Una lectura que falla (modo privado, política) es «sin consentimiento» / «sin leer»: se vuelve a pedir.
-      consentGiven: this.consentRecorder.isGiven(this.caseConsentStorageKey(attempt)),
-      introRead: this.readStored(this.caseIntroStorageKey(attempt)) === 'read',
+      consentGiven: this.hasContentConsent(attempt),
+      introRead: this.mode() === 'rehearsal' || this.readStored(this.caseIntroStorageKey(attempt)) === 'read',
     });
   }
 
@@ -3204,6 +3315,7 @@ export class SimulationPlayComponent implements OnInit, OnDestroy {
   }
 
   private persistAttemptToken(attempt: SimulationAttemptState) {
+    if (this.mode() === 'rehearsal') return;   // un ensayo no se reanuda: su token no se guarda en la pestaña
     this.writeStored(`siep_attempt_${attempt.caseVersionId}`, JSON.stringify({
       attemptId: attempt.attemptId,
       attemptToken: attempt.attemptToken,
@@ -3286,7 +3398,7 @@ export class SimulationPlayComponent implements OnInit, OnDestroy {
 
   private persistViewedNpcKeys(keys: ReadonlySet<string> = this.viewedNpcKeys()): void {
     const attempt = this.attempt();
-    if (!attempt) return;
+    if (!attempt || this.mode() === 'rehearsal') return;
     this.writeStored(`siep_attempt_${attempt.caseVersionId}`, JSON.stringify({
       attemptId: attempt.attemptId,
       attemptToken: attempt.attemptToken,
