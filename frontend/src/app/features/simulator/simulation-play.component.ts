@@ -1,7 +1,7 @@
 import { A11yModule } from '@angular/cdk/a11y';
 import { perfCancel, perfEnd, perfEndNextPaint, perfStart } from '../../core/perf/perf-marks';
 import { CommonModule } from '@angular/common';
-import { Component, HostListener, Injector, OnDestroy, OnInit, ViewChild, afterNextRender, viewChild, computed, effect, inject, signal, untracked, ChangeDetectionStrategy } from '@angular/core';
+import { Component, ElementRef, HostListener, Injector, OnDestroy, OnInit, ViewChild, afterNextRender, viewChild, computed, effect, inject, signal, untracked, ChangeDetectionStrategy } from '@angular/core';
 import { HttpErrorResponse } from '@angular/common/http';
 import { ActivatedRoute, Router, RouterLink } from '@angular/router';
 import { MatIconModule } from '@angular/material/icon';
@@ -29,6 +29,9 @@ import { HELP_FIRST_CARD, markHelpSeen, readHelpSeen, resetHelpSeen } from './he
 import { SceneGoalCardComponent } from './scene-goal-card.component';
 import { SensitiveNoticeComponent } from './sensitive-notice.component';
 import { escenaRetenida } from './caso/escena-visible';
+import { memoriaDeComentarios } from './caso/comentarios';
+import { BurbujaVisible, MundoCercania, ProximityReactions, RELOJ_DE_VENTANA, acotarAncla } from './proximity-reactions';
+import { CommentBubbleComponent } from './comment-bubble.component';
 import { type GuiaEscena, GUIA_VACIA, armarGuia, avisarOpcionNueva } from './caso/guia';
 import { DialoguePanelComponent } from './dialogue-panel.component';
 import { GameWorldComponent } from './game-world.component';
@@ -119,7 +122,7 @@ const QUEUED_PAUSE_SLOW_NOTICE = 'La acción en curso está tardando. Estamos pa
     SimulationHudComponent, GameWorldComponent, DialoguePanelComponent,
     ToolInventoryComponent, JournalPanelComponent, AttemptOutcomeComponent,
     SafeExitButtonComponent, SceneGoalCardComponent, GameHelpComponent, WorldPlacesListComponent,
-    ReactionDirectorComponent, SensitiveNoticeComponent, UiButton, UiErrorState, UiScopeNotice, UiSpinner
+    ReactionDirectorComponent, CommentBubbleComponent, SensitiveNoticeComponent, UiButton, UiErrorState, UiScopeNotice, UiSpinner
   ],
   template: `
     <div class="game-container" data-skin="game" id="main-content" tabindex="-1" [attr.data-mode]="viewMode()"
@@ -312,7 +315,7 @@ const QUEUED_PAUSE_SLOW_NOTICE = 'La acción en curso está tardando. Estamos pa
         </header>
 
         <div class="main-zone">
-          <section class="canvas-zone" aria-label="Escena de la simulación"
+          <section #canvasZone class="canvas-zone" aria-label="Escena de la simulación"
             [attr.inert]="inputBlocked() ? '' : null" [attr.aria-hidden]="inputBlocked() ? 'true' : null">
             @if (world()) {
               <!-- Sin role="status": la ficha no trae región viva (los avisos salen por el anunciador de la app). -->
@@ -338,7 +341,7 @@ const QUEUED_PAUSE_SLOW_NOTICE = 'La acción en curso está tardando. Estamos pa
                 [doorStates]="doorStates()"
                 [dimmedKeys]="dimmedKeys()" [compact]="compactMode()"
                 [showLoader]="false" (worldReady)="onWorldReady()" (patientVisual)="patientVisual.set($event)"
-                (proximity)="nearbyInteraction.set($event)" (proximityAlso)="nearbyAlso.set($event)"
+                (proximity)="nearbyInteraction.set($event); reactions?.onProximity($event?.key ?? null)" (proximityAlso)="nearbyAlso.set($event)"
                 (nothingNearby)="showNothingNearby()" (interact)="openInteraction($event)"
                 (npcInteract)="openNpcDialogue($event)" (walkEnded)="onWalkEnded($event)"
                 (bootFailed)="onWorldBootFailed()"
@@ -353,6 +356,10 @@ const QUEUED_PAUSE_SLOW_NOTICE = 'La acción en curso está tardando. Estamos pa
             <!-- La reacción del personaje tras elegir: franja sobre el mundo, en la sala donde ocurrió (4.3.3). -->
             <app-reaction-director #reaction [escenario]="reactionStage()" [reduceMotion]="reduceMotion()"
               (finished)="afterReaction($event)" />
+
+            <!-- Lo que dice un personaje al acercarse (4.6): sobre su cabeza, sin foco ni teclas; se anuncia por el anunciador de la app. -->
+            <app-comment-bubble [comment]="bubble()?.comment ?? null" [speaker]="bubbleSpeaker()" [anchor]="bubbleAnchor()"
+              [persona]="attempt()?.persona ?? null" [reduceMotion]="reduceMotion()" />
 
             @if (showHelpCard()) {
               <!-- Tarjeta de primera vez: no modal, sin temporizador, no roba el foco ni consume Esc. -->
@@ -1319,6 +1326,21 @@ export class SimulationPlayComponent implements OnInit, OnDestroy {
   protected reactionStage(): EscenarioReaccion | null { return this.gameWorldRef() ?? null; }
   /** Solo para el binding de `reactionStage`: una consulta de señal no choca con NG0100 cuando `world()` crea el mundo. */
   private readonly gameWorldRef = viewChild(GameWorldComponent);
+  private readonly canvasZone = viewChild<ElementRef<HTMLElement>>('canvasZone');
+
+  /** Reacciones al acercarse y al explorar (4.3.7): nacen con el mundo y el intento (`onWorldReady`). */
+  protected reactions: ProximityReactions | null = null;
+  private reactionsAttemptId: string | null = null;
+  /** El comentario a la vista y dónde está la cabeza de quien lo dice, en px del lienzo (se refresca por cuadro solo mientras hay burbuja). */
+  protected readonly bubble = signal<BurbujaVisible | null>(null);
+  protected readonly bubbleAnchor = signal<{ x: number; y: number } | null>(null);
+  protected readonly bubbleSpeaker = computed(() => {
+    const key = this.bubble()?.objectKey;
+    if (!key) return null;
+    const nombre = key.startsWith('npc:') ? this.scenarioNpc(key)?.displayName ?? '' : this.reactionActor(key).nombre;
+    return { nombre, visual: this.gameWorld?.characterVisualOf(key) ?? null };
+  });
+  private bubbleFrame = 0;
 
   readonly contextualInteraction = computed(() => {
     const game = this.attempt();
@@ -1410,6 +1432,15 @@ export class SimulationPlayComponent implements OnInit, OnDestroy {
       if (!this.pausing() || this.busy()) return;
       untracked(() => this.startQueuedPause());
     });
+    // Con una superposición, la secuencia de la reacción o una pausa nadie reacciona al acercarse y la burbuja se va (4.3.7).
+    effect(() => {
+      const blocked = this.inputBlocked() || this.reacting();
+      const activation = this.attempt()?.persona.activation;
+      untracked(() => {
+        this.reactions?.setBlocked(blocked);
+        if (activation) this.reactions?.setActivation(activation);
+      });
+    });
     // «Salida segura» durante la reacción la corta en el acto: sin encuadre, gesto ni nota de supervisión sobre la pausa.
     effect(() => {
       if (!this.pausing() || !this.reacting()) return;
@@ -1468,6 +1499,8 @@ export class SimulationPlayComponent implements OnInit, OnDestroy {
   ngOnDestroy(): void {
     this.destroyed = true;
     this.stopCompactWatch?.();
+    this.reactions?.dispose();
+    if (this.bubbleFrame) cancelAnimationFrame(this.bubbleFrame);
     // Los avisos accionables son del sistema y viven en un anfitrión global: no se quedan en el resto de la app.
     this.dismissDoorNotice();
     this.dismissActionError();
@@ -1550,7 +1583,47 @@ export class SimulationPlayComponent implements OnInit, OnDestroy {
       this.retryAction.set(null);
     }
     this.bootFailureShown = false;
+    this.ensureReactions();
   }
+
+  /** Crea las reacciones al acercarse con el mundo y el intento (una vez por intento) y las pone al día. */
+  private ensureReactions(): void {
+    const attempt = this.attempt();
+    if (!attempt || !this.gameWorld || this.reactionsAttemptId === attempt.attemptId) return;
+    this.reactions?.dispose();
+    this.reactionsAttemptId = attempt.attemptId;
+    const mundo: MundoCercania = {
+      faceTowards: (key, target) => this.gameWorld?.faceTowards(key, target),
+      playGesture: (key, gesto, options) => this.gameWorld?.playGesture(key, gesto, options) ?? Promise.resolve(),
+      peopleNear: (key, radius) => this.gameWorld?.peopleNear(key, radius) ?? [],
+      isKeyPerson: key => this.gameWorld?.isKeyPerson(key) ?? false,
+      isPerson: key => this.world()?.objects?.some(o => o.key === key && o.type === 'PERSON') ?? false,
+    };
+    this.reactions = new ProximityReactions(mundo, memoriaDeComentarios(attempt.attemptId), RELOJ_DE_VENTANA, b => this.showBubble(b));
+    this.reactions.setComments(this.world()?.comments ?? []);
+    this.reactions.setActivation(attempt.persona.activation);
+    this.reactions.setBlocked(this.inputBlocked() || this.reacting());
+  }
+
+  private showBubble(b: BurbujaVisible | null): void {
+    this.bubble.set(b);
+    if (b) { if (!this.bubbleFrame) this.followBubble(); return; }
+    if (this.bubbleFrame) cancelAnimationFrame(this.bubbleFrame);
+    this.bubbleFrame = 0;
+    this.bubbleAnchor.set(null);
+  }
+
+  /** Sigue la cabeza de quien habla por cuadro, acotada al lienzo; para sola cuando la burbuja se va. */
+  private readonly followBubble = (): void => {
+    const b = this.bubble();
+    if (!b || this.destroyed) { this.bubbleFrame = 0; return; }
+    const raw = this.gameWorld?.screenAnchorOf(b.objectKey) ?? null;
+    const zone = this.canvasZone()?.nativeElement;
+    const next = raw && zone ? acotarAncla(raw, { ancho: zone.clientWidth, alto: zone.clientHeight }) : raw;
+    const prev = this.bubbleAnchor();
+    if (next?.x !== prev?.x || next?.y !== prev?.y) this.bubbleAnchor.set(next);
+    this.bubbleFrame = requestAnimationFrame(this.followBubble);
+  };
 
   /** Reanudación desde el overlay de pausa (outcome), con el mundo ya cargado. */
   resumeCurrentAttempt(): void {
@@ -1922,6 +1995,7 @@ export class SimulationPlayComponent implements OnInit, OnDestroy {
         this.selectedInteraction.set(result.interaction);
         this.dialogue.set(this.decorateDialogue(result.dialogue ?? result.interaction.dialogue));
         this.announcePickup(result);
+        if (interaction.type !== 'PERSON') this.reactions?.onInspected(interaction.key);
         this.busy.set(false);
       },
       error: err => {
@@ -3154,6 +3228,7 @@ export class SimulationPlayComponent implements OnInit, OnDestroy {
   /** El servidor oculta las opciones cuyo requisito de exploración no se cumple: cuando la respuesta del mundo trae
    *  `decisionOptions`, esa lista (las ofrecidas ahora) reemplaza las del nodo actual. Sin la clave no se toca nada. */
   private applyDecisionOptions(world: SimulationWorldState): void {
+    this.reactions?.setComments(world.comments ?? []);
     const offered = world.decisionOptions;
     if (offered) {
       const node = this.attempt()?.status === 'IN_PROGRESS' ? this.attempt()!.currentNode : null;
