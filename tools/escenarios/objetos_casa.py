@@ -513,6 +513,20 @@ PIEZAS.update({
     'papelera': dict(nombre='Papelera de mimbre', tipo='objeto', dibujar=cb.papelera_casa, cuadros=1,
                      huella=dict(ancho=16, fondo=8, alto=20), material='mimbre',
                      reemplaza='escenarios/casa/arte/objetos/papelera.png'),
+    'cerrojo-puerta': dict(nombre='Cerrojo de la puerta', tipo='objeto', dibujar=cb.cerrojo, cuadros=3,
+                           huella=dict(ancho=18, fondo=4, alto=36), material='madera y latón',
+                           animaciones=dict(reposo=dict(de=0, hasta=0, fps=1, bucle=True),
+                                            revisar=dict(de=1, hasta=2, fps=6, bucle=False, luego='reposo')),
+                           reemplaza='escenarios/casa/arte/objetos/cerrojo-puerta.png'),
+    'nevera-notas': dict(nombre='Notas en la nevera', tipo='objeto', dibujar=cb.nevera_notas, cuadros=3,
+                         huella=dict(ancho=26, fondo=4, alto=36), material='esmalte y papel',
+                         animaciones=dict(reposo=dict(de=0, hasta=0, fps=1, bucle=True),
+                                          revisar=dict(de=1, hasta=2, fps=8, bucle=False, sostener=True)),
+                         reemplaza='escenarios/casa/arte/objetos/nevera-notas.png'),
+    'ventana': dict(nombre='Ventana con lluvia', tipo='objeto', dibujar=cb.ventana_lluvia, cuadros=4,
+                    huella=dict(ancho=30, fondo=4, alto=28), material='vidrio y madera',
+                    animaciones=dict(reposo=dict(de=0, hasta=3, fps=4, bucle=True)),
+                    reemplaza='escenarios/casa/arte/objetos/ventana.png'),
 })
 
 

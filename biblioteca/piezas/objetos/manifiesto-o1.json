@@ -575,6 +575,42 @@
   }
  },
  "objetos": {
+  "casa/cerrojo-puerta": {
+   "alto": 40,
+   "ancho": 20,
+   "animaciones": {
+    "reposo": {
+     "bucle": true,
+     "de": 0,
+     "fps": 1,
+     "hasta": 0
+    },
+    "revisar": {
+     "bucle": false,
+     "de": 1,
+     "fps": 6,
+     "hasta": 2,
+     "luego": "reposo"
+    }
+   },
+   "apoyo": [
+    10,
+    40
+   ],
+   "brillo": "piezas/objetos/casa/cerrojo-puerta-brillo.png",
+   "brilloDerecha": "piezas/objetos/casa/cerrojo-puerta-brillo-derecha.png",
+   "brilloIzquierda": "piezas/objetos/casa/cerrojo-puerta-brillo-izquierda.png",
+   "cuadros": 3,
+   "fps": 1,
+   "huella": {
+    "alto": 36,
+    "ancho": 18,
+    "fondo": 4
+   },
+   "nombre": "Cerrojo de la puerta",
+   "reemplaza": "escenarios/casa/arte/objetos/cerrojo-puerta.png",
+   "ruta": "piezas/objetos/casa/cerrojo-puerta.png"
+  },
   "casa/cuaderno-escolar": {
    "alto": 17,
    "ancho": 34,
@@ -643,6 +679,42 @@
    "nombre": "Maleta",
    "reemplaza": "escenarios/casa/arte/objetos/maleta.png",
    "ruta": "piezas/objetos/casa/maleta.png"
+  },
+  "casa/nevera-notas": {
+   "alto": 40,
+   "ancho": 30,
+   "animaciones": {
+    "reposo": {
+     "bucle": true,
+     "de": 0,
+     "fps": 1,
+     "hasta": 0
+    },
+    "revisar": {
+     "bucle": false,
+     "de": 1,
+     "fps": 8,
+     "hasta": 2,
+     "sostener": true
+    }
+   },
+   "apoyo": [
+    15,
+    40
+   ],
+   "brillo": "piezas/objetos/casa/nevera-notas-brillo.png",
+   "brilloDerecha": "piezas/objetos/casa/nevera-notas-brillo-derecha.png",
+   "brilloIzquierda": "piezas/objetos/casa/nevera-notas-brillo-izquierda.png",
+   "cuadros": 3,
+   "fps": 1,
+   "huella": {
+    "alto": 36,
+    "ancho": 26,
+    "fondo": 4
+   },
+   "nombre": "Notas en la nevera",
+   "reemplaza": "escenarios/casa/arte/objetos/nevera-notas.png",
+   "ruta": "piezas/objetos/casa/nevera-notas.png"
   },
   "casa/papelera": {
    "alto": 22,
@@ -867,6 +939,35 @@
    },
    "ruta": "piezas/objetos/casa/televisor.png",
    "sobre": 31
+  },
+  "casa/ventana": {
+   "alto": 32,
+   "ancho": 34,
+   "animaciones": {
+    "reposo": {
+     "bucle": true,
+     "de": 0,
+     "fps": 4,
+     "hasta": 3
+    }
+   },
+   "apoyo": [
+    17,
+    32
+   ],
+   "brillo": "piezas/objetos/casa/ventana-brillo.png",
+   "brilloDerecha": "piezas/objetos/casa/ventana-brillo-derecha.png",
+   "brilloIzquierda": "piezas/objetos/casa/ventana-brillo-izquierda.png",
+   "cuadros": 4,
+   "fps": 4,
+   "huella": {
+    "alto": 28,
+    "ancho": 30,
+    "fondo": 4
+   },
+   "nombre": "Ventana con lluvia",
+   "reemplaza": "escenarios/casa/arte/objetos/ventana.png",
+   "ruta": "piezas/objetos/casa/ventana.png"
   },
   "comisaria/afiche-rutas-atencion": {
    "alto": 47,

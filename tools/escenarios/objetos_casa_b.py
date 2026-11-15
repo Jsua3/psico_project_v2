@@ -135,6 +135,93 @@ def papelera_casa(n=0):
     return L, _reflejos(L), None
 
 
+op.material('blanco-nevera', (222, 222, 214), op.tex_grano(0.02), luz=0.35, sombra=0.5)
+
+
+def cerrojo(n=0):
+    """Canto de la puerta con un pasador y una cadena por dentro. Al revisarlo, la cadena se mece (2 cuadros)."""
+    L = Lienzo(22, 40, semilla=143)
+    L.rect(2, 1, 19, 38, 'nogal', 2)                                                # tramo de la hoja de la puerta
+    L.rect(2, 1, 2, 38, 'nogal', 3, tex=False)
+    L.rect(19, 1, 19, 38, 'nogal', 4, tex=False)
+    L.rect(6, 6, 16, 34, 'nogal', 3)                                                # tablero en relieve
+    L.rect(6, 6, 16, 6, 'nogal', 4, tex=False)
+    L.rect(6, 34, 16, 34, 'nogal', 1, tex=False)
+    L.rect(9, 10, 17, 14, 'laton', 2)                                               # pasador
+    L.rect(9, 10, 17, 10, 'laton', 0, tex=False)
+    L.rect(11, 11, 19, 12, 'laton', 1, tex=False)
+    L.rect(12, 8, 13, 10, 'laton', 3, tex=False)                                    # perilla del pasador
+    caida = (0, 1, -1)[n]
+    L.rect(13, 18, 16, 20, 'laton', 2)                                              # placa de la cadena
+    for k in range(5):                                                              # eslabones gruesos
+        x = 14 + (k * caida) // 2
+        L.rect(x, 21 + k * 2, x + 1, 22 + k * 2, 'cromo', 2 + (k % 2))
+    L.rect(9, 26, 12, 29, 'laton', 1)                                               # chapa
+    L.px(10, 28, 'laton', 5)
+    r = _reflejos(L)
+    r['izquierda'].rect(9, 11, 11, 11, 2)
+    r['derecha'].rect(15, 11, 17, 11, 2)
+    r['frente'].rect(12, 11, 14, 11, 2)
+    for rr in r.values():
+        rr.px(10, 27, 1)
+    return L, r, None
+
+
+def nevera_notas(n=0):
+    """La puerta de la nevera con imanes: la lista de mercado y la tarjeta de una cita médica. Revisar: la tarjeta se levanta."""
+    L = Lienzo(30, 40, semilla=145)
+    L.rect(1, 1, 28, 38, 'blanco-nevera', 1)                                        # puerta
+    L.rect(1, 1, 28, 1, 'blanco-nevera', 0, tex=False)
+    L.rect(1, 38, 28, 38, 'blanco-nevera', 3, tex=False)
+    L.rect(25, 8, 27, 26, 'cromo', 3)                                               # manija
+    L.rect(4, 5, 15, 26, 'papel', 0)                                                # lista de mercado
+    for y in range(9, 25, 3):
+        L.rect(6, y, 13 - (y % 2) * 2, y + 1, (110, 120, 150), tex=False)
+    L.rect(8, 3, 11, 6, ROJO, tex=False)                                            # imán rojo
+    alza = (0, 2, 1)[n]
+    L.rect(14, 27 - alza, 24, 34 - alza, (196, 222, 236), tex=False)                # tarjeta de la cita
+    L.rect(14, 27 - alza, 24, 28 - alza, (70, 110, 160), tex=False)
+    L.rect(16, 31 - alza, 21, 32 - alza, (110, 120, 150), tex=False)
+    if alza:
+        L.rect(14, 35 - alza, 24, 35, 'blanco-nevera', 3, tex=False)                # sombra bajo la tarjeta levantada
+    L.rect(18, 25 - alza, 20, 27 - alza, (230, 192, 86), tex=False)                 # imán amarillo
+    L.rect(19, 11, 22, 14, (96, 170, 104), tex=False)                               # un imán de fruta
+    r = _reflejos(L)
+    r['izquierda'].rect(25, 9, 25, 24, 2)
+    r['derecha'].rect(27, 9, 27, 24, 2)
+    r['frente'].rect(26, 9, 26, 14, 1)
+    return L, r, None
+
+
+def ventana_lluvia(n=0):
+    """Ventana pequeña con la lluvia que cae despacio afuera (4 cuadros)."""
+    L = Lienzo(34, 34, semilla=147)
+    L.rect(1, 1, 32, 30, 'roble', 2)                                                # marco
+    L.rect(1, 1, 32, 1, 'roble', 0, tex=False)
+    L.rect(4, 4, 29, 26, (92, 112, 132), tex=False)                                 # cielo nublado
+    L.rect(4, 4, 29, 9, (112, 130, 148), tex=False)
+    L.rect(4, 20, 29, 26, (70, 86, 96), tex=False)                                  # tejados de enfrente
+    L.rect(8, 17, 14, 20, (60, 74, 84), tex=False)
+    L.rect(19, 15, 26, 20, (60, 74, 84), tex=False)
+    for k in range(7):                                                              # gotas que bajan
+        x = 6 + k * 4
+        y = 5 + (k * 5 + n * 4) % 20
+        L.rect(x, y, x, y + 2, (176, 196, 214), tex=False)
+    L.rect(16, 4, 17, 26, 'roble', 2, tex=False)                                    # parteluz
+    L.rect(4, 15, 29, 15, 'roble', 2, tex=False)
+    L.rect(0, 27, 33, 30, 'roble', 1)                                               # alféizar
+    L.rect(0, 27, 33, 27, 'roble', 0, tex=False)
+    L.rect(0, 30, 33, 30, 'roble', 4, tex=False)
+    vidrio = L.caja_mascara(4, 4, 29, 26)
+    r = _reflejos(L)
+    r['izquierda'].diagonal(5, 13, 6, 2, 2)
+    r['derecha'].diagonal(28, 13, 6, 2, 2, sentido=-1)
+    r['frente'].rect(6, 5, 14, 5, 1)
+    for rr in r.values():
+        rr.m[(rr.m > 0) & ~vidrio] = 0
+    return L, r, None
+
+
 def cuaderno(n=0):
     """Cuaderno escolar abierto con la tarea a medias y un lápiz. Revisar: se pasa la hoja (el último queda)."""
     L = Lienzo(34, 18, semilla=135)
