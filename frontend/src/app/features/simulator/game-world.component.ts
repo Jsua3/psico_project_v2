@@ -5,6 +5,7 @@ import Phaser from 'phaser';
 import { Activation, CollisionZoneState, Intensity, MapObjectState, NpcConfig, Persona, RoomConfig, ScenarioConfig, SimulationWorldState } from '../../core/models/simulation.model';
 import { backgroundImage, walkableZone } from './room-ambient.util';
 import { LEGACY_FEET_OFFSET_Y, isPaintedDoor, markerFeetOffsetY, markerLabelOffsetY, standsOnFeet } from './object-anchor.util';
+import { ALTO_DE_PERSONA_PX, type Caja, cajaDelCuerpo, cajaDelRotulo, yDelRotulo } from './rotulo-sin-pisar.util';
 import { KenneyDungeonFrames } from './kenney-frames.constants';
 import {
   HOSPITAL_COLLISIONS,
@@ -1919,8 +1920,26 @@ export class DataDrivenWorldScene extends Phaser.Scene {
     if (!marker || !label || !obj) return;
     const moving = this.markerMoves(key);
     const x = moving ? marker.x : obj.x;
-    const y = (moving ? marker.y : obj.y) + markerLabelOffsetY(obj);
+    // P2: bajo los pies como siempre; si ahí pisa a otra persona o un rótulo visible, sobre la cabeza (rotulo-sin-pisar).
+    const pies = (moving ? marker.y : obj.y) + markerFeetOffsetY(obj);
+    const y = yDelRotulo(x, pies, label.displayWidth, label.displayHeight,
+      obj.type === 'PERSON' ? ALTO_DE_PERSONA_PX : 0, this.cajasOcupadas(key));
     if (label.x !== x || label.y !== y) label.setPosition(x, y);
+  }
+
+  /** P2: los cuerpos de las demás personas y los rótulos visibles de los demás, para que un rótulo no los pise. */
+  private cajasOcupadas(propia: string): Caja[] {
+    const cajas: Caja[] = [];
+    this.markers.forEach((m, key) => {
+      if (key === propia) return;
+      const obj = this.markerData.get(key);
+      if (!obj) return;
+      const moving = this.markerMoves(key);
+      if (obj.type === 'PERSON') cajas.push(cajaDelCuerpo(moving ? m.x : obj.x, (moving ? m.y : obj.y) + markerFeetOffsetY(obj)));
+      const otro = this.markerLabels.get(key);
+      if (otro && otro.alpha > 0) cajas.push(cajaDelRotulo(otro.x, otro.y, otro.displayWidth, otro.displayHeight));
+    });
+    return cajas;
   }
 
   /**
