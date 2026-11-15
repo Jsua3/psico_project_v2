@@ -34,6 +34,7 @@ import { escenaRetenida } from './caso/escena-visible';
 import { memoriaDeComentarios } from './caso/comentarios';
 import { BurbujaVisible, MundoCercania, ProximityReactions, RELOJ_DE_VENTANA, acotarAncla } from './proximity-reactions';
 import { CommentBubbleComponent } from './comment-bubble.component';
+import { RehearsalPanelComponent } from './rehearsal-panel.component';
 import { type GuiaEscena, GUIA_VACIA, armarGuia, avisarOpcionNueva } from './caso/guia';
 import { DialoguePanelComponent } from './dialogue-panel.component';
 import { GameWorldComponent } from './game-world.component';
@@ -124,7 +125,7 @@ const QUEUED_PAUSE_SLOW_NOTICE = 'La acción en curso está tardando. Estamos pa
     SimulationHudComponent, GameWorldComponent, DialoguePanelComponent,
     ToolInventoryComponent, JournalPanelComponent, AttemptOutcomeComponent,
     SafeExitButtonComponent, SceneGoalCardComponent, GameHelpComponent, WorldPlacesListComponent,
-    ReactionDirectorComponent, CommentBubbleComponent, SensitiveNoticeComponent, UiButton, UiErrorState, UiScopeNotice, UiSpinner
+    ReactionDirectorComponent, CommentBubbleComponent, RehearsalPanelComponent, SensitiveNoticeComponent, UiButton, UiErrorState, UiScopeNotice, UiSpinner
   ],
   template: `
     <div class="game-container" data-skin="game" id="main-content" tabindex="-1" [attr.data-mode]="viewMode()"
@@ -402,6 +403,11 @@ const QUEUED_PAUSE_SLOW_NOTICE = 'La acción en curso está tardando. Estamos pa
                 (frontendChoice)="handleFrontendChoice($event)" (consentRequired)="requireConsentAgain()" />
             </aside>
           }
+          @if (mode() === 'rehearsal' && rehearsal(); as block) {
+            <!-- Panel de autora del ensayo (Tarea 24): columna derecha de la zona principal; Alt+A lo pliega. -->
+            <app-rehearsal-panel class="rehearsal-slot" [caseVersionId]="game.caseVersionId" [attemptId]="game.attemptId"
+              [block]="block" [world]="world()" (adjusted)="reloadRehearsal($event)" (gone)="showRehearsalGone()" />
+          }
         </div>
 
         <!-- REGLA-004: mientras el fundido de escena (o la nota de transición) espera al servidor, el pie queda por encima y «Salida segura» se ve y se toca. -->
@@ -573,6 +579,12 @@ const QUEUED_PAUSE_SLOW_NOTICE = 'La acción en curso está tardando. Estamos pa
     .game-container[data-mode='dialogue-right'] .main-zone {
       grid-template-columns: minmax(0, 1fr) clamp(340px, 28vw, 480px);
     }
+    /* Ensayo: una columna más, a la derecha, para el panel de autora. */
+    .game-container[data-rehearsal='true'] .main-zone { grid-template-columns: minmax(0, 1fr) auto; }
+    .game-container[data-rehearsal='true'][data-mode='dialogue-right'] .main-zone {
+      grid-template-columns: minmax(0, 1fr) clamp(340px, 28vw, 480px) auto;
+    }
+    .rehearsal-slot { min-height: 0; max-block-size: 100%; }
     .canvas-zone {
       position: relative;
       min-height: 0;

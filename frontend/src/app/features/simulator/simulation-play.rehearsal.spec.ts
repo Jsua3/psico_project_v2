@@ -13,11 +13,13 @@ vi.mock('phaser', () => ({
 
 import { HttpErrorResponse } from '@angular/common/http';
 import { ComponentFixture, TestBed } from '@angular/core/testing';
+import { By } from '@angular/platform-browser';
 import { ActivatedRoute, convertToParamMap, provideRouter } from '@angular/router';
 import { EMPTY, of, throwError } from 'rxjs';
 import type { Mock } from 'vitest';
 
 import { LiveRegionAnnouncer } from '../../core/a11y/live-announcer.service';
+import { AuthoringApi } from '../../core/api/authoring.api';
 import { RehearsalApi } from '../../core/api/rehearsal.api';
 import { SimulationService } from '../../core/api/simulation.service';
 import { AuthService } from '../../core/auth/auth.service';
@@ -27,6 +29,7 @@ import { KitService } from '../character/kit/kit.service';
 import { fakeKitService } from '../character/kit/testing/kit-testing';
 import { AudioDirectorService } from './audio-director.service';
 import { CONSENT_RECORDER, SessionConsentRecorder } from './consent-recorder';
+import { RehearsalPanelComponent } from './rehearsal-panel.component';
 import { SimulationPlayComponent } from './simulation-play.component';
 
 /**
@@ -79,6 +82,7 @@ describe('SimulationPlayComponent: modo ensayo (tarea 23)', () => {
         provideRouter([]),
         { provide: SimulationService, useValue: service },
         { provide: RehearsalApi, useValue: rehearsalApi },
+        { provide: AuthoringApi, useValue: { caseEditor: vi.fn(() => EMPTY) } },
         { provide: AudioDirectorService, useValue: audio },
         { provide: AuthService, useValue: {} },
         { provide: KitService, useValue: fakeKitService() },
@@ -204,6 +208,27 @@ describe('SimulationPlayComponent: modo ensayo (tarea 23)', () => {
     component().showRehearsalGone();
     component().handleGlobalInteraction(new KeyboardEvent('keydown', { key: 'Escape', cancelable: true }));
     expect(service['safeExit']).toHaveBeenCalledTimes(1);
+  });
+
+  it('el panel de autora se monta a un lado del juego solo en ensayo y sus salidas llegan a la pantalla', () => {
+    montar();
+    const panel = fixture.debugElement.query(By.directive(RehearsalPanelComponent));
+    expect(panel).not.toBeNull();
+    expect(panel.componentInstance.caseVersionId()).toBe(9);
+    expect(panel.componentInstance.attemptId()).toBe('ens-1');
+    const nuevo = { ...BLOQUE, sceneId: 40 } as RehearsalBlock;
+    service['getAttempt'].mockReturnValue(of({ ...INICIO, rehearsal: undefined }));
+    panel.componentInstance.adjusted.emit(nuevo);
+    expect(component().rehearsal()).toBe(nuevo);
+    panel.componentInstance.gone.emit();
+    expect(component().rehearsalGone()).toBe(true);
+    fixture.destroy();
+    TestBed.resetTestingModule();
+
+    montar({ data: {} });
+    component().attempt.set({ ...INICIO, rehearsal: undefined } as never);
+    fixture.detectChanges();
+    expect(fixture.debugElement.query(By.directive(RehearsalPanelComponent))).toBeNull();
   });
 
   it('con el ensayo perdido el juego queda congelado', () => {
