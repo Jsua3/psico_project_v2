@@ -21,7 +21,7 @@ import type { PlanDeSala, SpriteDeSala } from './composicion';
 import type { Momento, Muro } from './geometria';
 import { cuerpo, prepararLuz } from './luz';
 import type { Cuerpo, LuzDeSala, Rectangulo } from './luz';
-import { pintarFondo } from './pintor';
+import { brilloDeSprite, pintarFondo } from './pintor';
 import type { Imagen } from './pintor';
 import {
   PUERTA_ABIERTA, PUERTA_CERRADA, abiertaDelTodo, avanzarPuerta, cuadroVisible, desvioDeSacudida, puertaActiva, sacudir,
@@ -35,6 +35,9 @@ export const PROFUNDIDAD = {
   sombras: DEPTH.ENVIRONMENT,
   flechas: DEPTH.LIGHTING_FLOOR,
   frente: DEPTH.PROPS_FRONT,
+  /** El brillo de vidrio y metal va justo encima de su pieza: así quien pasa por delante lo tapa. */
+  brilloMuro: DEPTH.WALLS + 0.5,
+  brilloFrente: DEPTH.PROPS_FRONT + 0.5,
   ambiente: DEPTH.LIGHTING - 2,
   brillo: DEPTH.LIGHTING - 1,
 } as const;
@@ -131,6 +134,10 @@ export class EscenaDeSala {
   private abiertas = '';
   private jugador: Cuerpo | null = null;
   private desdeSombra = MS_ENTRE_SOMBRAS;
+  /** Brillo de vidrio y metal: lo del muro (bajo los actores) y lo del lado de la cámara (sobre ellos). */
+  private readonly brillos: { lienzo: Phaser.Textures.CanvasTexture; rgb: Uint8ClampedArray; capas: string[] }[] = [];
+  private readonly imagenesDeBrillo = new Map<string, Imagen>();
+  private firmaDeBrillo = '';
 
   /** El plan de dibujo de la sala, o null si su estructura no se puede armar (ancho fuera del catálogo, por ejemplo). */
   static planear(sala: SalaPorPiezas, manifiesto: ManifiestoDePiezas | null, momento?: Momento): PlanDeSala | null {
@@ -219,6 +226,51 @@ export class EscenaDeSala {
     } else {
       this.lienzos = null;
     }
+
+    // Brillo de vidrio, metal y barniz: solo si alguna pieza trae su mapa.
+    for (const s of plan.sprites) {
+      for (const ruta of s.brillo ? [s.ruta, s.brillo] : []) {
+        const px = pixelesDe(escena, ruta);
+        if (px) this.imagenesDeBrillo.set(ruta, px);
+      }
+    }
+    if (plan.sprites.some(s => s.brillo && this.imagenesDeBrillo.has(s.brillo))) {
+      for (const [nombre, capas, profundidad] of [['muro', ['muro', 'piso'], PROFUNDIDAD.brilloMuro], ['frente', ['frente'], PROFUNDIDAD.brilloFrente]] as const) {
+        const lienzo = escena.textures.createCanvas(`sala:brillo-${nombre}-${sufijo}`, plan.ancho, plan.alto);
+        if (!lienzo) continue;
+        this.texturasPropias.push(lienzo.key);
+        this.objetos.push(escena.add.image(0, 0, lienzo.key).setOrigin(0, 0).setDepth(profundidad).setBlendMode(Phaser.BlendModes.ADD));
+        this.brillos.push({ lienzo, rgb: new Uint8ClampedArray(plan.ancho * plan.alto * 3), capas: [...capas] });
+      }
+      this.pintarBrillos();
+    }
+  }
+
+  /**
+   * Repinta el brillo de las piezas con el cuadro que muestra cada una y la luz que le llega ahora (igual que
+   * `piezas_sala.componer_sala`). Va en su propia capa, que suma, justo encima de las piezas.
+   */
+  private pintarBrillos(): void {
+    if (!this.brillos.length) return;
+    const { ancho, alto } = this.plan;
+    for (const capa of this.brillos) {
+      capa.rgb.fill(0);
+      for (const vivo of this.vivos) {
+        if (!capa.capas.includes(vivo.plan.capa)) continue;
+        const cuadro = vivo.plan.puerta ? cuadroVisible(vivo.estado, vivo.hojas) : vivo.plan.cuadro;
+        const [x, y] = vivo.plan.punto;
+        brilloDeSprite(capa.rgb, ancho, alto, this.imagenesDeBrillo, vivo.plan, cuadro, this.luz.reflejoEn(x, y));
+      }
+      const rgba = new Uint8ClampedArray(ancho * alto * 4);
+      for (let p = 0, q = 0; q < capa.rgb.length; p += 4, q += 3) {
+        rgba[p] = capa.rgb[q];
+        rgba[p + 1] = capa.rgb[q + 1];
+        rgba[p + 2] = capa.rgb[q + 2];
+        rgba[p + 3] = 255;
+      }
+      capa.lienzo.getContext().putImageData(new ImageData(rgba, ancho, alto), 0, 0);
+      capa.lienzo.refresh();
+    }
   }
 
   /** Las puertas de la sala, con su umbral. */
@@ -273,6 +325,15 @@ export class EscenaDeSala {
     } else if (this.jugador) {
       this.jugador = null;
       this.pintarLuz(this.luz.moverCuerpo(null));
+    }
+    // El brillo cambia con el cuadro de cada puerta y con la luz que le llega a cada pieza (la sombra de quien camina).
+    if (this.brillos.length) {
+      const firma = this.vivos.map(v => (v.plan.puerta ? cuadroVisible(v.estado, v.hojas) : '') + ':'
+        + (v.plan.brillo ? this.luz.reflejoEn(v.plan.punto[0], v.plan.punto[1]).k : '')).join('|');
+      if (firma !== this.firmaDeBrillo) {
+        this.firmaDeBrillo = firma;
+        this.pintarBrillos();
+      }
     }
     return this.activa;
   }

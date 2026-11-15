@@ -154,7 +154,7 @@ export type MedidaDeReflejo = (x: number, y: number) => { k: number; tono: TonoD
  * El brillo de un sprite en la capa de brillo: primero borra lo que tapa (su silueta), después pone, donde su mapa brilla, el
  * color que suma con la luz que le llega. Así cada pieza tapa el brillo de lo que tiene detrás.
  */
-function brilloDeSprite(capa: Uint8ClampedArray, ancho: number, alto: number, imagenes: Imagenes, sprite: SpriteDeSala, cuadro: number,
+export function brilloDeSprite(capa: Uint8ClampedArray, ancho: number, alto: number, imagenes: Imagenes, sprite: SpriteDeSala, cuadro: number,
   reflejo: { k: number; tono: TonoDeReflejo } | null): void {
   const hoja = imagenes.get(sprite.ruta), mapa = sprite.brillo ? imagenes.get(sprite.brillo) : undefined;
   if (!hoja) return;
