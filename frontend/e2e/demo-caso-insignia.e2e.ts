@@ -24,9 +24,9 @@ import {
 import { scaled } from './support/time-scale';
 
 /**
- * Comprobación de la pila local de demostración (rama demo/local-k1, `.superpowers/scripts/levantar-demo.ps1`): el caso
- * insignia SIM-VBG-002, ya importado, publicado y asignado, se juega en el cliente del bloque B hasta la primera decisión
- * del capítulo 1. No crea ni borra datos: corre contra la pila viva (`E2E_BASE_URL`), no contra la pila de pruebas.
+ * Comprobación de la pila local de demostración por piezas (rama demo/local-piezas,
+ * `.superpowers/scripts/levantar-demo-piezas.ps1`): el caso insignia SIM-VBG-002, ya importado, publicado y asignado, se
+ * juega en el cliente del bloque B, en las salas del hospital por piezas (P1, P2 y P3), por todo el capítulo 1. No crea ni borra datos: corre contra la pila viva (`E2E_BASE_URL`), no contra la pila de pruebas.
  * Las capturas van a `DEMO_CAPTURAS_DIR`.
  */
 const TITULO = 'Violencia Familiar y Tentativa de Feminicidio';
@@ -90,7 +90,7 @@ async function hablar(page: Page, input: Mando, quien: RegExp, clave: string, ru
 
 test.use({ viewport: { width: KEYBOARD.width, height: KEYBOARD.height } });
 
-test('@demo-k1 SIM-VBG-002: entrar, caminar, hablar y jugar el capítulo 1 completo (cuatro decisiones)', async ({ page }) => {
+test('@demo-k1 @demo-piezas SIM-VBG-002: entrar, caminar, hablar y jugar el capítulo 1 completo (cuatro decisiones)', async ({ page }) => {
   test.setTimeout(scaled(600_000));
   mkdirSync(CAPTURAS, { recursive: true });
   const captura = (nombre: string) => page.screenshot({ path: join(CAPTURAS, nombre) });
@@ -100,9 +100,9 @@ test('@demo-k1 SIM-VBG-002: entrar, caminar, hablar y jugar el capítulo 1 compl
   await page.waitForTimeout(800); // que el mundo termine de pintarse antes de la captura
   await captura('01-entrada-de-urgencias.png');
 
-  // Caminar hasta la abuela (a la izquierda de la aparición) y hablar con ella.
+  // Caminar hasta la abuela (a la derecha de la aparición, junto a las sillas de ruedas) y hablar con ella.
   const input = createWorldInputDriver(page, 'keyboard');
-  await reachNearby(page, input, ['ArrowLeft', 'ArrowLeft', 'ArrowDown'], /abuela/i);
+  await reachNearby(page, input, ['ArrowRight', 'ArrowRight', 'ArrowUp'], /abuela/i);
   await interactNearby(page, /abuela/i, /\/interactions\/abuela$/);
   const abuela = page.getByRole('dialog', { name: /abuela/i });
   await expect(abuela, 'la abuela habla').toContainText('La niña venía con ella', { timeout: scaled(15_000) });
@@ -112,7 +112,7 @@ test('@demo-k1 SIM-VBG-002: entrar, caminar, hablar y jugar el capítulo 1 compl
   await expect(abuela).toBeHidden({ timeout: scaled(10_000) });
 
   // El vigilante ofrece la decisión 1; se elige la adecuada y el hermano mayor reacciona.
-  await reachNearby(page, input, ['ArrowRight', 'ArrowRight', 'ArrowUp'], /vigilante/i);
+  await reachNearby(page, input, ['ArrowLeft', 'ArrowLeft', 'ArrowUp'], /vigilante/i);
   await interactNearby(page, /vigilante/i, /\/interactions\/vigilante$/);
   const dialogo = await advanceDialogueToChoices(page, /vigilante/i);
   await expect(dialogo.getByRole('button', { name: /mirar primero/i }), 'la opción adecuada de la decisión 1').toBeVisible();
@@ -136,22 +136,22 @@ test('@demo-k1 SIM-VBG-002: entrar, caminar, hablar y jugar el capítulo 1 compl
   await captura('05-escena-siguiente.png');
 
   // Decisión 2 (sala de espera): la abuela ofrece contener antes de informar.
-  await decidir(page, input, /abuela/i, 'abuela', ['ArrowLeft', 'ArrowLeft', 'ArrowUp'], /contención emocional/i,
+  await decidir(page, input, /abuela/i, 'abuela', ['ArrowLeft', 'ArrowUp', 'ArrowUp'], /contención emocional/i,
     () => captura('06-decision-2.png'));
   await cerrarNotaYEsperar(page, /Busca un lugar donde la familia pueda hablar/);
 
   // Decisión 3 (un lugar para hablar): la sala de escucha pide haber hablado antes con la enfermera.
   await hablar(page, input, /enfermera/i, 'enfermera', ['ArrowRight', 'ArrowRight', 'ArrowUp']);
-  await decidir(page, input, /abuela/i, 'abuela', ['ArrowLeft', 'ArrowLeft', 'ArrowUp'], /la sala de escucha/i,
+  await decidir(page, input, /abuela/i, 'abuela', ['ArrowLeft', 'ArrowUp', 'ArrowUp'], /la sala de escucha/i,
     () => captura('07-decision-3.png'));
   await cerrarNotaYEsperar(page, /Aclara con el equipo médico/);
 
   // Decisión 4 (estación de enfermería): acordar con el médico pide haber revisado la hoja de ingreso.
-  await reachNearby(page, input, ['ArrowRight', 'ArrowDown'], /hoja de ingreso/i);
+  await reachNearby(page, input, ['ArrowLeft', 'ArrowLeft', 'ArrowUp'], /hoja de ingreso/i);
   await interactNearby(page, /hoja de ingreso/i, /\/interactions\/hoja-ingreso$/);
   const hoja = page.getByRole('dialog', { name: /hoja de ingreso/i });
   if (await hoja.isVisible({ timeout: scaled(2_000) }).catch(() => false)) await closeDialogue(page, /hoja de ingreso/i);
-  await decidir(page, input, /médico de guardia/i, 'medico-guardia', ['ArrowUp', 'ArrowLeft'], /acordar qué está confirmado/i,
+  await decidir(page, input, /médico de guardia/i, 'medico-guardia', ['ArrowRight', 'ArrowRight', 'ArrowDown'], /acordar qué está confirmado/i,
     () => captura('08-decision-4.png'));
   const nota = page.getByRole('dialog', { name: /consecuencia/i });
   await expect(nota, 'la nota de supervisión de la decisión 4').toBeVisible({ timeout: scaled(30_000) });
