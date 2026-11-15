@@ -290,7 +290,8 @@ export class EscenaDeSala {
    * Avanza `dtMs`: anima el reloj y lo que se mueve solo, abre la puerta a la que se acerca quien juega y cierra las demás,
    * y rehace la luz donde cambió (la cuña de la puerta abierta y la sombra de quien juega). Devuelve la puerta activa.
    */
-  actualizar(dtMs: number, jugador: { x: number; y: number } | null, bloqueadas: ReadonlySet<string> = new Set()): string | null {
+  actualizar(dtMs: number, jugador: { x: number; y: number } | null, bloqueadas: ReadonlySet<string> = new Set(), reducido?: boolean): string | null {
+    if (reducido !== undefined) this.reducido = reducido;
     this.tiempo += dtMs;
     this.activa = jugador ? puertaActiva(this.puertas(), jugador, this.activa) : null;
     const abiertas: string[] = [];

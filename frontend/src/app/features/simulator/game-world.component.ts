@@ -27,6 +27,9 @@ import {
 } from './scene-motion.util';
 import { nextAmbientStep, npcMotionStrategyFor } from './motion-strategies';
 import { DEPTH, actorDepth, tiledLayerDepth } from './depth-sort.util';
+import { MANIFIESTO_DE_PIEZAS_URL, esManifiestoDePiezas } from './sala/catalogo';
+import { EscenaDeSala } from './sala/escena-de-sala';
+import { puertaDelObjeto, salaDelMundo } from './sala/mundo-a-sala';
 import {
   AUTHORED_CLINICAL_COLLISIONS,
   AUTHORED_PLAYER_SPAWN,
@@ -615,6 +618,9 @@ export class DataDrivenWorldScene extends Phaser.Scene {
     for (const container of this.npcMarkers.values()) this.ysort(container);
     this.checkExitTriggers();
     this.checkDbDoorTriggers();
+    // P2: la sala por piezas abre la puerta a la que se acerca quien juega y rehace su luz (sombra incluida).
+    this.salaPorPiezas?.actualizar(delta, this.player ? { x: this.player.x, y: this.player.y } : null,
+      new Set(Object.keys(this.doorStates).filter(clave => this.doorStates[clave] === 'locked')), this.callbacks.reduceMotion);
   }
 
   setWorld(world: SimulationWorldState) {
@@ -1242,6 +1248,50 @@ export class DataDrivenWorldScene extends Phaser.Scene {
     return true;
   }
 
+  /** P2: la sala por piezas que se está mostrando (null en las salas de imagen fija o de Tiled). */
+  private salaPorPiezas: EscenaDeSala | null = null;
+  private manifiestoDePiezasPedido = false;
+
+  /**
+   * P2 (contrato x-siep 2.2): si el mapa trae `structure`, la sala se arma con piezas, con su luz y sus puertas, y aquí se
+   * monta lo demás del juego como siempre. Devuelve false si la sala no es por piezas (o no se puede armar): entonces
+   * `renderWorld` sigue por el camino de hoy. Mientras llegan el manifiesto o las imágenes devuelve true y repinta al llegar.
+   */
+  private renderSalaPorPiezas(mapW: number, mapH: number): boolean {
+    const sala = this.world ? salaDelMundo(this.world.map as unknown as Record<string, unknown>, this.world.objects) : null;
+    if (!sala || !this.world) return false;
+    const manifiesto = this.cache.json.get('sala:manifiesto-de-piezas') as unknown;
+    if (!esManifiestoDePiezas(manifiesto)) {
+      if (this.manifiestoDePiezasPedido) return false;   // no cargó: la sala sigue por el camino de hoy
+      this.manifiestoDePiezasPedido = true;
+      this.load.json('sala:manifiesto-de-piezas', MANIFIESTO_DE_PIEZAS_URL);
+      this.load.once(Phaser.Loader.Events.COMPLETE, () => { if (this.ready) this.renderWorld(); });
+      this.load.start();
+      return true;
+    }
+    const plan = EscenaDeSala.planear(sala, manifiesto);
+    if (!plan) return false;
+    if (EscenaDeSala.pedirTexturas(this, plan)) {
+      this.load.once(Phaser.Loader.Events.COMPLETE, () => { if (this.ready) this.renderWorld(); });
+      this.load.start();
+      return true;
+    }
+    this.salaPorPiezas = new EscenaDeSala(this, sala, plan, manifiesto, { reducido: this.callbacks.reduceMotion });
+    // Las puertas de pieza ya están en el muro: su marcador no lleva sprite, solo el rótulo y el área para cruzar.
+    const dePieza = new Set((sala.puertas ?? []).map(p => p.id));
+    this.renderableWorldObjects()
+      .map(obj => (dePieza.has(obj.key) ? { ...obj, metadata: { ...(obj.metadata ?? {}), pintada: true } } : obj))
+      .forEach(obj => this.createMarker(obj));
+    this.createPlayer(this.world.player.x, this.world.player.y);
+    this.applyPixelCamera(mapW, mapH);
+    this.refreshMarkerStates();
+    this.updateNearestInteraction(true);
+    this.applyCrisisVignette();
+    this.playIntroFade();
+    this.callbacks.onReady();
+    return true;
+  }
+
   private renderWorld() {
     if (!this.world) return;
     // El arte de la biblioteca que aún no está cargado se pide primero; el mundo se pinta de nuevo al llegar.
@@ -1259,6 +1309,8 @@ export class DataDrivenWorldScene extends Phaser.Scene {
     this.cameras.main.stopFollow();   // clear stale follow target before destroying children
     // Los pulsos repeat:-1 sobreviven a removeAll y se acumulaban en cada re-render.
     this.endGestures();   // antes del killAll: Phaser descarta los tweens sin avisar y la promesa quedaría colgada
+    this.salaPorPiezas?.destruir();   // P2: sus texturas de lienzo no las borra removeAll
+    this.salaPorPiezas = null;
     this.tweens.killAll();
     this.children.removeAll(true);
     this.markers.clear();
@@ -1280,6 +1332,9 @@ export class DataDrivenWorldScene extends Phaser.Scene {
     const mapKey  = this.world.map.key;
     const { width: mapW, height: mapH } = this.world.map;
     this.cameras.main.setBackgroundColor('#0e141a');
+
+    // P2: una sala con `structure` se arma por piezas; sin ella, todo sigue como hoy.
+    if (this.renderSalaPorPiezas(mapW, mapH)) return;
 
     // ── Fase C: registry de renderers también en modo sala única ───────────
     // Si hay renderer para este mapa, él pinta todas las capas visuales y aquí
@@ -1608,6 +1663,7 @@ export class DataDrivenWorldScene extends Phaser.Scene {
     let nearestDist = Infinity;
     for (const obj of this.world.objects) {
       if ((obj.type || '').toUpperCase() !== 'EXIT') continue;
+      if (puertaDelObjeto(obj)) continue;   // P2: una puerta de pieza se cruza con E, no al pisarla (diseño 4.4)
       const meta = obj.metadata as { targetNodeKey?: string; entryX?: number; entryY?: number } | undefined;
       const target = meta?.targetNodeKey;
       if (!target) continue;
