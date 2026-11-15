@@ -1,4 +1,6 @@
-import { PLAYER_HITBOX, PLAYER_MAX_FRAME_DELTA_MS, PlayerDirection, playerHitbox, rectsIntersect, resolveDirection, splitFrameDelta } from './player-motion.util';
+import type { ViewId } from '../character/kit/kit-engine';
+import { MS_POR_PASO_DE_MIRADA, Mirada, actualizarMirada, miradaInicial, orientacionDeDato } from './direccion-ocho';
+import { PLAYER_HITBOX, PLAYER_MAX_FRAME_DELTA_MS, playerHitbox, rectsIntersect, splitFrameDelta } from './player-motion.util';
 import { stepToward } from './scene-motion.util';
 import { WALK_STUCK_MS, WalkPoint } from './world-walk.util';
 
@@ -73,7 +75,10 @@ export interface PersonWalkState {
   readonly stuckMs: number;
   /** va-y-viene: el siguiente tramo va al punto lejano (true) o de vuelta a la ida (false). */
   readonly toFar: boolean;
-  readonly direction: PlayerDirection;
+  /** La vista que se dibuja (8 direcciones): `mirada.actual`. */
+  readonly direction: ViewId;
+  /** Hacia dónde mira, con el margen que evita el parpadeo y el giro por las vistas de en medio (`direccion-ocho.ts`). */
+  readonly mirada: Mirada;
   readonly walking: boolean;
 }
 
@@ -97,9 +102,9 @@ export function parsePersonMovement(raw: unknown): PersonMovement {
   return QUIETO;
 }
 
-/** Mirada inicial: la del dato si es válida; si no, de frente. */
-export function personFacing(raw: unknown): PlayerDirection {
-  return raw === 'up' || raw === 'down' || raw === 'left' || raw === 'right' ? raw : 'down';
+/** Mirada inicial: la del dato si es una de las 8 vistas del kit; si no, de frente. */
+export function personFacing(raw: unknown): ViewId {
+  return orientacionDeDato(raw);
 }
 
 /** Zona caminable del encuadre de la sala, en px de sala (la de `autoria/modelo/geometria.ts`). */
@@ -135,12 +140,12 @@ export function personWalkBounds(
 export function startPersonWalk(
   movement: PersonMovement,
   origin: WalkPoint,
-  direction: PlayerDirection = 'down',
+  direction: ViewId = 'down',
   initialPauseMs = 0,
 ): PersonWalkState {
   return {
     movement, origin: { x: origin.x, y: origin.y }, x: origin.x, y: origin.y,
-    target: null, pauseMs: initialPauseMs, stuckMs: 0, toFar: true, direction, walking: false,
+    target: null, pauseMs: initialPauseMs, stuckMs: 0, toFar: true, direction, mirada: miradaInicial(direction), walking: false,
   };
 }
 
@@ -251,7 +256,8 @@ function stepOnce(state: PersonWalkState, deltaMs: number, env: PersonWalkEnv): 
   }
   if (!moved) return { ...current, stuckMs, walking: false };
 
-  const direction = resolveDirection(moved.x - here.x, moved.y - here.y, current.direction);
+  // La mirada la decide `tickPersonWalk` con el avance real de cada sub-paso (8 direcciones, sin parpadeo).
+  const direction = current.direction;
   if (Math.hypot(target.x - moved.x, target.y - moved.y) <= PERSON_ARRIVE_PX) {
     // Llegó: se coloca exactamente en el destino (si está libre), espera y (va-y-viene) emprende el tramo de vuelta.
     const exact = !isBlocked(env, target.x, target.y, moved) ? target : moved;
@@ -272,7 +278,11 @@ export function tickPersonWalk(state: PersonWalkState, deltaMs: number, env: Per
   if (state.movement.tipo === 'quieto') return state;
   let current = state;
   for (const part of splitFrameDelta(Math.min(deltaMs, PLAYER_MAX_FRAME_DELTA_MS))) {
+    const before = current;
     current = stepOnce(current, part, env);
+    // Mira hacia donde avanzó de verdad (también deslizando por una pared); en pausa, un giro empezado termina.
+    const mirada = actualizarMirada(before.mirada ?? miradaInicial(before.direction), current.x - before.x, current.y - before.y, part, { msPorPaso: MS_POR_PASO_DE_MIRADA });
+    current = { ...current, mirada, direction: mirada.actual };
   }
   return current;
 }

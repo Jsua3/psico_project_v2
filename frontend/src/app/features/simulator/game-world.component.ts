@@ -68,7 +68,8 @@ import {
   KEY_PERSON_CHEVRON, KEY_PERSON_COLOR, KEY_PERSON_COLOR_HEX, KEY_PERSON_HALO_HEX, KEY_PERSON_NAME_GAP_PX,
   KEY_PERSON_HEAD_PX, isKeyPerson, keyPersonTipOffsetY, resolveKeyPerson,
 } from './key-person.util';
-import { GAZE_HOLD_MS, GAZE_TURN_STEP_MS, directionTowards, turnStepBetween } from './gaze.util';
+import { GAZE_HOLD_MS } from './gaze.util';
+import { MS_POR_PASO_DE_MIRADA, Mirada, actualizarMirada, direccionDeVector, miradaInicial, mirarHacia, orientacionDeDato, pasosDeGiro } from './direccion-ocho';
 import {
   PERSON_PAUSE_MIN_MS, PersonWalkEnv, PersonWalkState, bodyBlocks, parsePersonMovement, personFacing, personWalkBounds, resumePersonWalk,
   randomPersonPause, startPersonWalk, tickPersonWalk,
@@ -82,7 +83,6 @@ import {
   computePlayerStep,
   playerHitbox,
   rectsIntersect,
-  resolveDirection,
   splitFrameDelta,
 } from './player-motion.util';
 import { EmittedPosition, shouldEmitPosition } from './position-emit.util';
@@ -101,7 +101,7 @@ import {
 } from './proximity-animation.util';
 import { AVATAR_STORAGE_KEY } from '../character/avatar.store';
 import { NpcMotionConfig, NpcMovementZone } from '../../core/models/simulation.model';
-import type { KitBundle } from '../character/kit/kit-engine';
+import type { KitBundle, ViewId } from '../character/kit/kit-engine';
 import { CharacterRef, CharacterVisual, resolveCharacter } from '../character/kit/character-visual.resolver';
 import {
   KIT_ORIGIN_X, KIT_ORIGIN_Y, addComposedSheets, addRgbaTexture, ensureCharacterAnims, kitFrameIndex, kitSheetKey,
@@ -182,7 +182,7 @@ interface PersonWalker {
   state: PersonWalkState;
   /** Cuánto bajo su marcador pisa (0 si el marcador es su punto de apoyo, `metadata.apoyo = "pies"`; 16 en los casos de antes). */
   feetOffsetY: number;
-  lastPose: { direction: PlayerDirection | null; walking: boolean };
+  lastPose: { direction: ViewId | null; walking: boolean };
 }
 
 interface NpcMover {
@@ -192,7 +192,9 @@ interface NpcMover {
   target: { x: number; y: number } | null;
   anchorIdx: number;
   pauseUntil: number;
-  lastPose: { direction: PlayerDirection | null; walking: boolean };
+  /** Hacia dónde mira el NPC (8 direcciones, con margen y giro por las vistas de en medio). */
+  mirada: Mirada;
+  lastPose: { direction: ViewId | null; walking: boolean };
 }
 
 
@@ -204,7 +206,7 @@ const NPC_KEY_PREFIX = 'npc:';
 const BOOT_WATCHDOG_MS = 25_000;
 
 /** Una mirada sostenida: cómo miraba antes, cómo mira ahora, sus avisos pendientes y cómo se suelta (`restore`: volver a como miraba). */
-interface Gaze { base: PlayerDirection; current: PlayerDirection; timers: Array<{ remove(): void }>; end: (restore?: boolean) => void }
+interface Gaze { base: ViewId; current: ViewId; timers: Array<{ remove(): void }>; end: (restore?: boolean) => void }
 const NO_KEYS: ReadonlySet<string> = new Set<string>();
 /** El informe de cercanía cuando ningún objeto tiene hoja: lo que se publica al quedarse sin animaciones. */
 const NO_PROXIMITY_REPORT = JSON.stringify({ playing: null, frames: {} });
@@ -229,8 +231,10 @@ export class DataDrivenWorldScene extends Phaser.Scene {
   /** Las hojas y animaciones del jugador están listas (si no, marcador geométrico). */
   private playerKitReady = false;
   private lastDirection: PlayerDirection = 'down';
+  /** Hacia dónde mira el jugador (8 direcciones): la decide la entrada, con margen y giro por las vistas de en medio. */
+  private mirada: Mirada = miradaInicial('down');
   /** Última pose aplicada — la animación solo cambia si dirección, caminar o movimiento reducido cambiaron. */
-  private lastPose: { direction: PlayerDirection | null; walking: boolean; reduce: boolean } = { direction: null, walking: false, reduce: false };
+  private lastPose: { direction: ViewId | null; walking: boolean; reduce: boolean } = { direction: null, walking: false, reduce: false };
   private cursors?: Phaser.Types.Input.Keyboard.CursorKeys;
   private keys?: Record<string, Phaser.Input.Keyboard.Key>;
   private wallsLayer?: Phaser.Tilemaps.TilemapLayer;
@@ -568,6 +572,8 @@ export class DataDrivenWorldScene extends Phaser.Scene {
     // Helper puro (player-motion.util): normaliza diagonal, limita delta y
     // resuelve dirección estable (sin parpadeo diagonal).
     const step = computePlayerStep(input, this.lastDirection, delta);
+    // Hacia dónde mira (8 direcciones, sin parpadeo entre vecinas): la entrada, no el paso, para que contra la pared mire hacia la tecla.
+    this.mirada = actualizarMirada(this.mirada, Number(input.right) - Number(input.left), Number(input.down) - Number(input.up), delta, { reducirMovimiento: this.callbacks.reduceMotion });
 
     if (step.moving) {
       // Sub-pasos con colisión: misma velocidad real a cualquier fps.
@@ -579,7 +585,7 @@ export class DataDrivenWorldScene extends Phaser.Scene {
       this.lastDirection = step.direction;
       if (moved) {
         this.emitPosition();
-        this.applyPlayerPose(step.direction, true);
+        this.applyPlayerPose(this.mirada.actual, true);
         // ── Footstep audio: one random variant every STEP_INTERVAL ms ────────
         if (!this.callbacks.reduceMotion && !this.callbacks.sfxMuted) {
           this.stepTimer += delta;
@@ -592,12 +598,12 @@ export class DataDrivenWorldScene extends Phaser.Scene {
         // Bloqueado del todo contra pared/mueble: sin avance real no debe
         // correr la animación de caminata (ni sonar pasos).
         this.flushPosition();
-        this.applyPlayerPose(step.direction, false);
+        this.applyPlayerPose(this.mirada.actual, false);
       }
     } else {
       this.stepTimer = this.STEP_INTERVAL; // prime timer: first step fires on frame 1 of movement, not after a full interval
       this.flushPosition();
-      this.applyPlayerPose(this.lastDirection, false);
+      this.applyPlayerPose(this.mirada.actual, false);
     }
 
     this.interactionCooldown = Math.max(0, this.interactionCooldown - delta);
@@ -766,7 +772,8 @@ export class DataDrivenWorldScene extends Phaser.Scene {
       moved = true;
     }
     this.lastDirection = direction;
-    this.applyPlayerPose(direction, moved); // el update() del frame siguiente vuelve a idle
+    this.mirada = mirarHacia(this.mirada, direction, { reducirMovimiento: this.callbacks.reduceMotion });
+    this.applyPlayerPose(this.mirada.actual, moved); // el update() del frame siguiente vuelve a idle
     if (moved) {
       // Cada toque es un paso discreto: se avisa siempre, sin esperar el intervalo.
       this.emitPosition(true);
@@ -1167,13 +1174,15 @@ export class DataDrivenWorldScene extends Phaser.Scene {
     const to = target === 'player' ? (this.player ? { x: this.player.x, y: this.player.y } : null) : this.liveFeetOf(target);
     if (!actor || !from || !to || (this.gesturing.has(key) && !this.gazes.has(key))) return;
     const dx = to.x - from.x;
-    const direction = directionTowards(dx, to.y - from.y);
     const gaze = this.holdGaze(key, actor, holdMs);
-    const step = this.callbacks.reduceMotion ? null : turnStepBetween(gaze.current, direction, dx);
-    if (!step) { this.poseFacing(key, actor, direction); gaze.current = direction; return; }
-    this.poseFacing(key, actor, step);
-    gaze.current = step;
-    gaze.timers.push(this.time.delayedCall(GAZE_TURN_STEP_MS, () => { gaze.current = direction; this.poseFacing(key, actor, direction); }));
+    const direction = direccionDeVector(dx, to.y - from.y, null) ?? gaze.current;
+    // Gira por las vistas de en medio, una cada MS_POR_PASO_DE_MIRADA (con movimiento reducido, de una vez).
+    const pasos = this.callbacks.reduceMotion ? [direction] : pasosDeGiro(gaze.current, direction, dx);
+    if (!pasos.length) { this.poseFacing(key, actor, direction); gaze.current = direction; return; }
+    pasos.forEach((vista, k) => {
+      const poner = (): void => { gaze.current = vista; this.poseFacing(key, actor, vista); };
+      if (k === 0) poner(); else gaze.timers.push(this.time.delayedCall(k * MS_POR_PASO_DE_MIRADA, poner));
+    });
   }
 
   /** Registra (o renueva) la mirada sostenida de `key`: queda en `gesturing` hasta vencer, hasta un gesto o hasta que la sala se repinte. */
@@ -1200,24 +1209,31 @@ export class DataDrivenWorldScene extends Phaser.Scene {
   }
 
   /** Hacia dónde mira ahora la persona (o NPC) de `key`. */
-  private facingOf(key: string): PlayerDirection {
+  private facingOf(key: string): ViewId {
     const walker = this.personWalkers.get(key);
     if (walker) return walker.lastPose.direction ?? walker.state.direction;
     if (key.startsWith(NPC_KEY_PREFIX)) {
       const name = key.slice(NPC_KEY_PREFIX.length);
       const mover = this.npcMovers.get(name);
       const config = (this.npcMarkers.get(name) as unknown as Record<string, unknown> | undefined)?.['__npcConfig'] as NpcConfig | undefined;
-      return mover?.lastPose.direction ?? (config?.facing as PlayerDirection | undefined) ?? 'down';
+      return mover?.lastPose.direction ?? orientacionDeDato(config?.facing);
     }
     return personFacing(this.markerData.get(key)?.facing);
   }
 
   /** Pone la pose de reposo de `key` mirando a `direction` (por el camino que cada tipo de persona ya tiene). */
-  private poseFacing(key: string, actor: Phaser.GameObjects.Container, direction: PlayerDirection): void {
+  private poseFacing(key: string, actor: Phaser.GameObjects.Container, direction: ViewId): void {
     const walker = this.personWalkers.get(key);
-    if (walker) { this.applyPersonPose(walker, actor, direction, false); return; }
+    if (walker) {
+      // Su mirada queda donde se le puso: al retomar el paseo gira desde aquí, no salta.
+      const mirada = mirarHacia(walker.state.mirada ?? miradaInicial(walker.state.direction), direction, { reducirMovimiento: true });
+      walker.state = { ...walker.state, mirada, direction };
+      this.applyPersonPose(walker, actor, direction, false);
+      return;
+    }
     if (key.startsWith(NPC_KEY_PREFIX)) {
       const mover = this.npcMovers.get(key.slice(NPC_KEY_PREFIX.length));
+      if (mover) mover.mirada = mirarHacia(mover.mirada ?? miradaInicial(mover.lastPose.direction ?? 'down'), direction, { reducirMovimiento: true });
       if (mover) this.applyNpcPose(mover, actor, direction, false); else this.applyNpcFacing(actor, direction);
       return;
     }
@@ -1807,12 +1823,13 @@ export class DataDrivenWorldScene extends Phaser.Scene {
       target: null,
       anchorIdx: 0,
       pauseUntil: this.time.now + (npc.motion.startDelayMs ?? 600),
-      lastPose: { direction: (npc.facing ?? 'down') as PlayerDirection, walking: false },
+      mirada: miradaInicial(orientacionDeDato(npc.facing)),
+      lastPose: { direction: orientacionDeDato(npc.facing), walking: false },
     });
   }
 
   /** Pose del NPC (dirección + caminando) solo si cambió — como el jugador. */
-  private applyNpcPose(mover: NpcMover, container: Phaser.GameObjects.Container, direction: PlayerDirection, walking: boolean): void {
+  private applyNpcPose(mover: NpcMover, container: Phaser.GameObjects.Container, direction: ViewId, walking: boolean): void {
     if (mover.lastPose.direction === direction && mover.lastPose.walking === walking) return;
     mover.lastPose = { direction, walking };
     this.playNpc(container, direction, walking);
@@ -1824,23 +1841,27 @@ export class DataDrivenWorldScene extends Phaser.Scene {
       const container = this.npcMarkers.get(mover.key);
       if (!container || this.gesturing.has(this.npcKeyOf(mover.key))) continue;   // mirando hacia algo o en pleno gesto
       const behavior = effectiveNpcBehavior(mover.cfg.behavior, this.callbacks.reduceMotion);
-      const lastDir = mover.lastPose.direction ?? 'down';
+      const opts = { msPorPaso: MS_POR_PASO_DE_MIRADA, reducirMovimiento: this.callbacks.reduceMotion };
+      mover.mirada ??= miradaInicial(mover.lastPose.direction ?? 'down');
+      // Quieto o en pausa: un giro empezado termina (8 direcciones, `direccion-ocho.ts`).
+      const mirarQuieto = (): void => {
+        mover.mirada = actualizarMirada(mover.mirada, 0, 0, delta, opts);
+        this.applyNpcPose(mover, container, mover.mirada.actual, false);
+      };
 
-      if (behavior === 'idle') { this.applyNpcPose(mover, container, lastDir, false); continue; }
+      if (behavior === 'idle') { mirarQuieto(); continue; }
 
       if (behavior === 'attentive') {
-        // Gira hacia el jugador cuando está cerca; nunca se traslada.
-        if (this.player) {
-          const d = Phaser.Math.Distance.Between(this.player.x, this.player.y, container.x, container.y);
-          if (d <= 110) {
-            const dir = resolveDirection(this.player.x - container.x, this.player.y - container.y, lastDir);
-            this.applyNpcPose(mover, container, dir, false);
-          }
-        }
+        // Gira hacia el jugador cuando está cerca, sin parpadear entre vecinas; nunca se traslada.
+        const cerca = !!this.player && Phaser.Math.Distance.Between(this.player.x, this.player.y, container.x, container.y) <= 110;
+        const vx = cerca && this.player ? this.player.x - container.x : 0;
+        const vy = cerca && this.player ? this.player.y - container.y : 0;
+        mover.mirada = actualizarMirada(mover.mirada, vx, vy, delta, opts);
+        this.applyNpcPose(mover, container, mover.mirada.actual, false);
         continue;
       }
 
-      if (time < mover.pauseUntil) { this.applyNpcPose(mover, container, lastDir, false); continue; }
+      if (time < mover.pauseUntil) { mirarQuieto(); continue; }
 
       if (!mover.target) {
         mover.target = this.nextNpcTarget(mover, container);
@@ -1848,28 +1869,28 @@ export class DataDrivenWorldScene extends Phaser.Scene {
       }
 
       const next = stepToward(container, mover.target, npcSpeed(mover.cfg) * (delta / 1000));
-      const dir = resolveDirection(next.x - container.x, next.y - container.y, lastDir);
-      if (!this.wouldCollide(next.x, next.y)) {
-        container.setPosition(next.x, next.y);
-        this.applyNpcPose(mover, container, dir, true);
-      } else if (!this.wouldCollide(next.x, container.y)) {
-        container.setPosition(next.x, container.y);
-        this.applyNpcPose(mover, container, dir, true);
-      } else if (!this.wouldCollide(container.x, next.y)) {
-        container.setPosition(container.x, next.y);
-        this.applyNpcPose(mover, container, dir, true);
-      } else {
+      const desde = { x: container.x, y: container.y };
+      let avanza = true;
+      if (!this.wouldCollide(next.x, next.y)) container.setPosition(next.x, next.y);
+      else if (!this.wouldCollide(next.x, container.y)) container.setPosition(next.x, container.y);
+      else if (!this.wouldCollide(container.x, next.y)) container.setPosition(container.x, next.y);
+      else avanza = false;
+      // Mira hacia donde avanzó de verdad (también deslizando por una pared).
+      mover.mirada = actualizarMirada(mover.mirada, container.x - desde.x, container.y - desde.y, delta, opts);
+      if (!avanza) {
         // Bloqueado del todo: nuevo objetivo después, nunca caminar en el sitio.
         mover.target = null;
         mover.pauseUntil = time + 900;
-        this.applyNpcPose(mover, container, dir, false);
+        this.applyNpcPose(mover, container, mover.mirada.actual, false);
         continue;
       }
+      this.applyNpcPose(mover, container, mover.mirada.actual, true);
 
       if (reached(container, mover.target, 2)) {
         const anchors = mover.cfg.anchors ?? [];
         const anchor = anchors.length ? anchors[mover.anchorIdx] : null;
-        this.applyNpcPose(mover, container, (anchor?.face as PlayerDirection | undefined) ?? dir, false);
+        if (anchor?.face) mover.mirada = mirarHacia(mover.mirada, orientacionDeDato(anchor.face), opts);
+        this.applyNpcPose(mover, container, mover.mirada.actual, false);
         mover.pauseUntil = time + npcPause(mover.cfg, anchor);
         mover.anchorIdx = npcMotionStrategyFor(mover.cfg.behavior).anchorAfterArrival(mover.anchorIdx, anchors.length);
         mover.target = null;
@@ -1890,11 +1911,11 @@ export class DataDrivenWorldScene extends Phaser.Scene {
   }
 
   /** Reposo del NPC mirando a `direction` (las 4 filas del kit son reales). */
-  private applyNpcFacing(container: Phaser.GameObjects.Container, direction: PlayerDirection): void {
+  private applyNpcFacing(container: Phaser.GameObjects.Container, direction: ViewId): void {
     this.playNpc(container, direction, false);
   }
 
-  private playNpc(container: Phaser.GameObjects.Container, direction: PlayerDirection, walking: boolean): void {
+  private playNpc(container: Phaser.GameObjects.Container, direction: ViewId, walking: boolean): void {
     const bag = container as unknown as Record<string, unknown>;
     const sprite = bag['__npcSprite'] as Phaser.GameObjects.Sprite | undefined;
     const visual = bag['__npcVisual'] as CharacterVisual | undefined;
@@ -1932,7 +1953,7 @@ export class DataDrivenWorldScene extends Phaser.Scene {
         bag['__npcSprite'] = figure;
         bag['__npcVisual'] = visual;
       }
-      this.applyNpcFacing(container, npc.facing ?? 'down');
+      this.applyNpcFacing(container, orientacionDeDato(npc.facing));
       this.registerNpcMover(npc, pos);
     }
   }
@@ -2276,7 +2297,7 @@ export class DataDrivenWorldScene extends Phaser.Scene {
    * Aplica la pose SOLO si cambió (dirección, caminar o movimiento reducido): la animación no
    * se reinicia en cada update y el reposo es inmediato al soltar teclas o chocar con una pared.
    */
-  private applyPlayerPose(direction: PlayerDirection, walking: boolean): void {
+  private applyPlayerPose(direction: ViewId, walking: boolean): void {
     const reduce = this.callbacks.reduceMotion;
     if (this.lastPose.direction === direction && this.lastPose.walking === walking && this.lastPose.reduce === reduce) return;
     this.lastPose = { direction, walking, reduce };
@@ -2787,7 +2808,7 @@ export class DataDrivenWorldScene extends Phaser.Scene {
   }
 
   /** Pose de la persona (dirección + caminando) solo si cambió, como el jugador y las personas del escenario. */
-  private applyPersonPose(walker: PersonWalker, marker: Phaser.GameObjects.Container, direction: PlayerDirection, walking: boolean): void {
+  private applyPersonPose(walker: PersonWalker, marker: Phaser.GameObjects.Container, direction: ViewId, walking: boolean): void {
     if (walker.lastPose.direction === direction && walker.lastPose.walking === walking) return;
     walker.lastPose = { direction, walking };
     const bag = marker as unknown as Record<string, unknown>;

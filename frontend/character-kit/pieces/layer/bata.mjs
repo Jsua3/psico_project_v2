@@ -13,6 +13,7 @@
  */
 
 import { gridFrom } from '../../raster.mjs';
+import { DIAGONAL } from './bata.diagonal.mjs';
 
 const LEGEND = {
   L: { mat: 'layer' },
@@ -79,6 +80,7 @@ export default {
   coverage: { T: 'layer', a: 'layer', b: 'layer', A: 'layer', B: 'layer' },
   edges: [{ labels: ['b', 'B'], edge: 'bottom', tone: 2 }],
   views: {
+    ...DIAGONAL,
     down: [
       { anchor: 'T', at: [16, 23], mode: 'repaint', legend: LEGEND, grid: FRONT_BODY },
       {

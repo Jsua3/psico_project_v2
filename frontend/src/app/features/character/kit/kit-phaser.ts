@@ -1,7 +1,7 @@
 /**
  * Hojas del kit en Phaser: texturas, animaciones de reposo y caminata por vista y la
- * pose de un actor. Sin escalas ni espejos: las 4 filas son reales y el zoom entero
- * lo pone la cámara (spec §8.2-8.3).
+ * pose de un actor. Sin escalas ni espejos: las 8 filas son reales (una por dirección)
+ * y el zoom entero lo pone la cámara (spec §8.2-8.3).
  */
 import type Phaser from 'phaser';
 

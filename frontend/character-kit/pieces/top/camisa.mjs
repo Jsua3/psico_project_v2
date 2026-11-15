@@ -7,6 +7,7 @@
  */
 
 import { gridFrom } from '../../raster.mjs';
+import { DIAGONAL } from './camisa.diagonal.mjs';
 
 const LEGEND = {
   j: { mat: 'top' },
@@ -33,6 +34,7 @@ export default {
   coverage: { T: 'top', a: 'top', b: 'top', A: 'top', B: 'top' },
   edges: [{ labels: ['b', 'B'], edge: 'bottom', tone: 3 }],
   views: {
+    ...DIAGONAL,
     down: [
       { anchor: 'T', at: [20, 22], mode: 'cover', legend: LEGEND, grid: '.hh...hh.' },
       {
