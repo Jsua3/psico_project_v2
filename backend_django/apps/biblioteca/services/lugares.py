@@ -77,9 +77,15 @@ def listar_lugares():
             "temas": list(entrada.get("temas", lugar.get("temas", []))),
             "hitos": entrada.get("hitos", len(lugar.get("hitos") or [])),
             "nivelRiesgoPorDefecto": lugar.get("nivelRiesgoPorDefecto"),
-            "portada": url_de_arte(lugar["id"], salas[0]["fondo"]) if salas else None,
+            "portada": _portada(lugar["id"], salas),
         })
     return resultado
+
+
+def _portada(lugar_id, salas):
+    """La URL del fondo de la primera sala de imagen fija; una sala por piezas (esquema 3) no tiene imagen propia."""
+    fondo = next((sala["fondo"] for sala in salas if isinstance(sala.get("fondo"), str)), None)
+    return url_de_arte(lugar_id, fondo) if fondo else None
 
 
 def cargar_lugar(lugar_id):
@@ -103,7 +109,8 @@ def lugar_publico(lugar):
     publico = copy.deepcopy(lugar)
     lugar_id = publico["id"]
     for sala in publico.get("salas", []):
-        sala["fondo"] = url_de_arte(lugar_id, sala["fondo"])
+        if isinstance(sala.get("fondo"), str):  # una sala por piezas trae ``estructura`` en vez de ``fondo``
+            sala["fondo"] = url_de_arte(lugar_id, sala["fondo"])
     catalogo = publico.get("catalogo", {})
     for grupo in ("muebles", "objetos", "herramientas"):
         for elemento in catalogo.get(grupo, []):
