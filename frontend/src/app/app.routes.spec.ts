@@ -1,4 +1,11 @@
+// Phaser toca canvas/WebGL al importarse y jsdom no lo soporta: la ruta del ensayo carga la pantalla del juego.
+vi.mock('phaser', () => ({
+  __esModule: true,
+  default: { Scene: class {}, AUTO: 0, Scale: { FIT: 0, CENTER_BOTH: 0 }, Math: { Clamp: (v: number) => v }, Input: { Keyboard: { JustDown: () => false } }, Game: class {} },
+}));
+
 import { TestBed } from '@angular/core/testing';
+import { SimulationPlayComponent } from './features/simulator/simulation-play.component';
 import { Router } from '@angular/router';
 
 import { routes } from './app.routes';
@@ -22,9 +29,17 @@ import { OfflineComponent } from './features/public/offline.component';
 describe('app.routes: cromo del portal', () => {
   const hijos = () => routes.find(route => route.path === 'portal')!.children ?? [];
 
-  it('jugar y simulador/:caseVersionId ocultan la barra; ninguna otra ruta del portal', () => {
+  it('jugar, simulador/:caseVersionId y el ensayo del caso ocultan la barra; ninguna otra ruta del portal', () => {
     const hidden = hijos().filter(child => child.data?.['chrome'] === 'hidden').map(child => child.path);
-    expect(hidden).toEqual(['jugar', 'simulador/:caseVersionId']);
+    expect(hidden).toEqual(['jugar', 'simulador/:caseVersionId', 'casos/:caseVersionId/ensayo']);
+  });
+
+  it('la ruta del ensayo es de docentes y administradores, oculta la barra y usa la pantalla del juego', async () => {
+    const ensayo = hijos().find(c => c.path === 'casos/:caseVersionId/ensayo')!;
+    expect(ensayo.data).toMatchObject({ chrome: 'hidden', mode: 'rehearsal' });
+    expect(await (ensayo.loadComponent as () => Promise<unknown>)()).toBe(SimulationPlayComponent);
+    const pos = (path: string) => hijos().findIndex(c => c.path === path);
+    expect(pos('casos/:caseVersionId/ensayo')).toBeLessThan(pos('casos/:caseVersionId/editor'));
   });
 
   it('crear un caso y el editor de casos traen su propia barra (chrome: propio)', () => {
@@ -55,7 +70,7 @@ describe('app.routes: editor de casos', () => {
   });
 
   it('las dos llevan la guardia de rol de «casos»: docentes y administradores pasan; el estudiante, no', () => {
-    for (const path of ['casos/nuevo', 'casos/:caseVersionId/editor']) {
+    for (const path of ['casos/nuevo', 'casos/:caseVersionId/editor', 'casos/:caseVersionId/ensayo']) {
       const decide = (role: string) => {
         const auth = { getToken: () => 'x', isTokenMalformed: () => false, isTokenExpired: () => false, clearSession: () => undefined,
           hasRole: (...roles: string[]) => roles.includes(role) };
