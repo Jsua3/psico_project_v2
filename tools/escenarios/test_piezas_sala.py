@@ -270,7 +270,9 @@ def test_el_manifiesto_declara_cada_pieza_con_su_contrato():
         if 'lado' in vistas:
             assert sorted(vistas['lado']) == sorted(str(a) for a in g.ANCHOS)
     assert datos['piezas']['puerta/corrediza']['vistas'].keys() == {'frente', 'camara', 'lado'}
-    assert datos['piezas']['ventana/corrediza']['luz'] == pm.PIEZAS[('ventana', 'corrediza')]['luz']
+    assert datos['piezas']['ventana/corrediza']['luz'] == dict(pm.PIEZAS[('ventana', 'corrediza')]['luz'], antepecho=70, alto=60)
+    assert datos['piezas']['puerta/corrediza']['ancho'] == 136, 'el vano: lo usa la cuña de luz de la puerta abierta'
+    assert datos['luz']['tablaAmbiente'] == pl.TABLA_AMBIENTE.tolist() and datos['luz']['minimo'] == 4400
     assert datos['piezas']['lampara/tubo']['luz']['forma'] == 'tubo' and 'luz' not in datos['piezas']['cuadro/cuadro']
     assert datos['piezas']['lampara/tubo']['franja'][0] > datos['piezas']['puerta/madera']['franja'][1], 'el tubo va por encima de la puerta'
     assert set(datos['piezas']['puerta/madera']['muros']) == set(g.MUROS) and len(pp.MODELOS) == 7
@@ -345,3 +347,53 @@ def test_en_una_sala_convertida_nada_se_solapa(lugar, sala):
 def test_los_lugares_convertidos_versionados_estan_al_dia(lugar):
     with open(os.path.join(pc.BIBLIOTECA, 'piezas', 'lugares', lugar + '.json'), encoding='utf-8') as f:
         assert json.load(f) == CONVERTIDOS[lugar]
+
+
+# ── sombras proyectadas y referencia congelada ─────────────────────────────────
+
+SOFA = pl.cuerpo(430, 330, 88, 44)
+
+
+def test_un_cuerpo_tiene_su_huella_centrada_en_el_apoyo():
+    assert SOFA == dict(x0=388, x1=472, y0=314, y1=330, alto=36)
+    assert pl.cuerpo(500, 400, 48, 72, persona=True) == dict(x0=491, x1=509, y0=390, y1=400, alto=60)
+
+
+def test_un_mueble_en_el_haz_de_la_ventana_arroja_sombra_hacia_donde_viaja_la_luz():
+    sala = _sala(piezas=[VENTANA])
+    libre, tapada = pl.niveles(sala, 'dia')[1], pl.niveles(sala, 'dia', cuerpos=[SOFA])[1]
+    menos = libre > tapada
+    assert menos.sum() > 300 and (tapada > libre).sum() == 0
+    ys, xs = np.nonzero(menos)
+    assert ys.min() >= SOFA['y0'] and ys.max() <= SOFA['y1'] + SOFA['alto'] * 5 // 8 + 1, 'la sombra cae hacia la cámara'
+    assert xs.max() > SOFA['x1'], 'y hacia la derecha, como el haz'
+
+
+def test_la_lampara_arroja_la_sombra_lejos_de_si_misma():
+    lampara, mesita = dict(PIE, x=300, y=330), pl.cuerpo(350, 330, 26, 40)
+    libre = pl.niveles(_sala(piezas=[lampara]), 'noche')[0]
+    tapada = pl.niveles(_sala(piezas=[lampara]), 'noche', cuerpos=[mesita])[0]
+    ys, xs = np.nonzero(libre > tapada)
+    assert len(xs) > 100 and xs.min() >= mesita['x0'] and (tapada > libre).sum() == 0
+    assert xs.max() > mesita['x1'] + 20, 'la sombra sigue más allá del mueble, del lado opuesto a la lámpara'
+
+
+def test_el_tubo_de_techo_no_arroja_sombras():
+    sala = _sala(piezas=[TUBO])
+    for a, b in zip(pl.niveles(sala, 'noche'), pl.niveles(sala, 'noche', cuerpos=[SOFA])):
+        assert np.array_equal(a, b)
+
+
+def test_al_aire_libre_el_sol_arroja_sombra():
+    sala = _sala(encuadre='una-pared', exterior=True)
+    libre, tapada = pl.niveles(sala, 'dia')[0], pl.niveles(sala, 'dia', cuerpos=[SOFA])[0]
+    assert (libre > tapada).sum() > 300
+
+
+def test_la_referencia_de_luz_esta_congelada():
+    """Seis salas, de día y de noche: lo versionado es exactamente lo que calcula piezas_luz.py."""
+    import piezas_luz_referencia as lr
+    datos, imagenes = lr.generar()
+    assert [c['id'] for c in datos['casos']] == ['casa-sala', 'hospital-pasillo', 'hospital-sala-escucha', 'hospital-entrada', 'casa-fachada', 'ancha-1920']
+    assert len(imagenes) == 24
+    assert lr.verificar() == []

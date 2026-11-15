@@ -424,11 +424,11 @@ PIEZAS = {
     ('lampara', 'tubo'): _ficha('Tubo de techo', 88, 96, _tubo, 2,
                                 luz=dict(forma='tubo', radio=[250, 120], momento='noche', tono='frio')),
     ('lampara', 'colgante'): _ficha('Lámpara colgante', 34, 40, _colgante, 2,
-                                    luz=dict(forma='pozo', radio=[150, 58], momento='noche', tono='calido')),
+                                    luz=dict(forma='pozo', radio=[150, 58], altura=150, momento='noche', tono='calido')),
     ('lampara', 'pie'): _ficha('Lámpara de pie', 22, 24, _pie, 2, muros=('suelo',),
-                               luz=dict(forma='pozo', radio=[124, 48], momento='noche', tono='calido')),
+                               luz=dict(forma='pozo', radio=[124, 48], altura=58, momento='noche', tono='calido')),
     ('lampara', 'mesa'): _ficha('Lámpara de mesa', 18, 24, _mesa, 2, muros=('suelo',),
-                                luz=dict(forma='pozo', radio=[92, 38], momento='noche', tono='calido')),
+                                luz=dict(forma='pozo', radio=[92, 38], altura=24, momento='noche', tono='calido')),
 }
 
 

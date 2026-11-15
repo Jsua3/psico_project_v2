@@ -8,11 +8,12 @@ otro esquema (`frontend/scripts/world-art/build.mjs`). Este vive aparte hasta qu
 
     {"esquema": 2,
      "geometria": {"alto", "piso", "tope", "k", "anchos", "borde": {ancho: px}},
+     "luz": {"unidad", "minimo", "paso", "niveles", "penumbra", "bayer", "tablaAmbiente", "tablaCalida", "tablaFria"},
      "piezas": {"<tipo>/<modelo>": {"nombre", "ocupa", "muros", "cuadros", "franja", "estados"?, "fps"?, "luz"?,
                                     "vistas": {"frente": V, "camara"?: V, "suelo"?: V, "lado"?: {ancho: V}}}},
      "pisos": {"<tipo>-<variante>": {"ruta", "ancho", "alto"}},
      "muros": {"<acabado>/<paleta>": {"fondo": {...}, "lado": {ancho: {"izquierda": {...}, "derecha": {...}}}}},
-     "muebles": {"hospital/<ref>": {"ruta", "ancho", "alto", "cuadros", "fps"?}},
+     "muebles": {"hospital/<ref>": {"ruta", "ancho", "alto", "cuadros", "fps"?, "huella": {"ancho", "fondo", "alto"}}},
      "lugares": ["piezas/lugares/hospital.json", …],
      "propios": ["piezas/propios/casa-escalera.png", …]}   capas fijas de 960 × 528 de las salas convertidas
 
@@ -24,6 +25,8 @@ otro esquema (`frontend/scripts/world-art/build.mjs`). Este vive aparte hasta qu
 - `ocupa` es el ancho en px que la pieza toma a lo largo del muro; `franja` es [de, hasta] en px de altura sobre el
   piso: dos piezas solo se estorban si se cruzan a lo largo del muro Y en la franja (un tubo de techo no choca con una puerta).
 - La vista `lado` es la del muro izquierdo; la del derecho es su espejo (el apoyo pasa a `ancho − x`).
+- `huella` de un mueble: el rectángulo que ocupa en el piso (centrado en su apoyo, `fondo` px hacia atrás) y su altura;
+  con eso se dibuja su sombra de contacto y se proyecta la que arroja (ver `piezas/luz/LEEME.md`).
 - `luz` dice cómo emite: `forma` (haz, pozo o tubo), `momento` (dia o noche), `tono` (calido o frio) y sus medidas.
 """
 import argparse
@@ -36,6 +39,7 @@ RAIZ = os.path.normpath(os.path.join(AQUI, '..', '..'))
 sys.path.insert(0, AQUI)
 import piezas_geo as g  # noqa: E402
 import piezas_hospital as ph  # noqa: E402
+import piezas_luz as pl  # noqa: E402
 import piezas_muro as pm  # noqa: E402
 import piezas_puertas as pp  # noqa: E402
 import piezas_superficies as ps  # noqa: E402
@@ -59,7 +63,7 @@ def generar():
                       camara=_vista(pp.cuadros(modelo, 'camara'), pp.apoyo(modelo, 'camara'), base + '-camara.png', imagenes),
                       lado={str(a): _vista(pp.cuadros(modelo, 'lado', a), pp.apoyo(modelo, 'lado', a), f'{base}-lado-{a}.png', imagenes)
                             for a in g.ANCHOS})
-        piezas['puerta/' + modelo] = dict(nombre=M['nombre'], ocupa=M['ocupa'], muros=list(g.MUROS), cuadros=pp.CUADROS,
+        piezas['puerta/' + modelo] = dict(nombre=M['nombre'], ocupa=M['ocupa'], ancho=M['ancho'], alto=M['alto'], muros=list(g.MUROS), cuadros=pp.CUADROS,
                                           franja=[0, vistas['frente']['apoyo'][1]], hojas=M['hojas'], vistas=vistas)
     for (tipo, modelo), F in pm.PIEZAS.items():
         base = f'piezas/{CARPETA.get(tipo, "muro")}/{modelo}'
@@ -75,9 +79,11 @@ def generar():
         ficha = dict(nombre=F['nombre'], ocupa=F['ocupa'], muros=list(F['muros']), cuadros=F['cuadros'], franja=franja, vistas=vistas)
         if tipo in ESTADOS:
             ficha['estados'] = ESTADOS[tipo]
-        for clave in ('fps', 'luz'):
-            if F.get(clave):
-                ficha[clave] = F[clave]
+        if F.get('fps'):
+            ficha['fps'] = F['fps']
+        if F.get('luz'):
+            # La ventana lleva además su antepecho y su alto: la luz los usa para el halo en el muro.
+            ficha['luz'] = dict(F['luz'], **{k: F[k] for k in ('antepecho', 'alto') if k in F})
         piezas[f'{tipo}/{modelo}'] = ficha
 
     pisos = {}
@@ -105,12 +111,19 @@ def generar():
         cuadros = ph.mueble(ref)
         ruta = f'piezas/muebles/hospital/{ref}.png'
         imagenes[ruta] = g.tira(cuadros)
-        muebles['hospital/' + ref] = dict(nombre=F['nombre'], ruta=ruta, ancho=cuadros[0].width, alto=cuadros[0].height, cuadros=len(cuadros))
+        c = pl.cuerpo(0, 0, cuadros[0].width, cuadros[0].height)
+        muebles['hospital/' + ref] = dict(nombre=F['nombre'], ruta=ruta, ancho=cuadros[0].width, alto=cuadros[0].height, cuadros=len(cuadros),
+                                          huella=dict(ancho=c['x1'] - c['x0'], fondo=c['y1'] - c['y0'], alto=c['alto']))
         if F.get('fps'):
             muebles['hospital/' + ref]['fps'] = F['fps']
     geometria = dict(alto=g.ALTO, piso=g.SEAM, tope=g.TOP, k=[3, 16], anchos=list(g.ANCHOS), rejilla=g.REJILLA,
                      borde={str(a): g.borde(a) for a in g.ANCHOS})
-    return dict(esquema=2, geometria=geometria, piezas=piezas, pisos=pisos, muros=muros, muebles=muebles, lugares=[]), imagenes
+    luz = dict(unidad=pl.U, minimo=pl.MINIMO, paso=pl.PASO, niveles=pl.NIVELES, uno=pl.UNO,
+               penumbra=dict(dia=pl.PENUMBRA, noche=pl.PENUMBRA_NOCHE, exteriorDia=pl.EXTERIOR, exteriorNoche=pl.EXTERIOR_NOCHE),
+               bayer=pl.BAYER.tolist(), tablaAmbiente=pl.TABLA_AMBIENTE.tolist(), tablaCalida=pl.TABLA_CALIDA.tolist(),
+               tablaFria=pl.TABLA_FRIA.tolist(), enSombra=pl.EN_SOMBRA, hazFondo=list(pl.HAZ_FONDO), hazLado=list(pl.HAZ_LADO),
+               sombraMaxima=pl.SOMBRA_MAXIMA, referencia='piezas/luz/LEEME.md', casos='piezas/luz/casos.json')
+    return dict(esquema=2, geometria=geometria, luz=luz, piezas=piezas, pisos=pisos, muros=muros, muebles=muebles, lugares=[]), imagenes
 
 
 def serializar(datos):

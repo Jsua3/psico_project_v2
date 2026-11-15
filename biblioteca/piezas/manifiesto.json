@@ -30,11 +30,158 @@
     "piezas/lugares/hospital.json",
     "piezas/lugares/universidad.json"
   ],
+  "luz": {
+    "bayer": [
+      [
+        0,
+        8,
+        2,
+        10
+      ],
+      [
+        12,
+        4,
+        14,
+        6
+      ],
+      [
+        3,
+        11,
+        1,
+        9
+      ],
+      [
+        15,
+        7,
+        13,
+        5
+      ]
+    ],
+    "casos": "piezas/luz/casos.json",
+    "enSombra": 768,
+    "hazFondo": [
+      45,
+      64
+    ],
+    "hazLado": [
+      64,
+      22
+    ],
+    "minimo": 4400,
+    "niveles": 8,
+    "paso": 700,
+    "penumbra": {
+      "dia": 7900,
+      "exteriorDia": 9300,
+      "exteriorNoche": 5100,
+      "noche": 5800
+    },
+    "referencia": "piezas/luz/LEEME.md",
+    "sombraMaxima": 72,
+    "tablaAmbiente": [
+      [
+        101,
+        104,
+        123
+      ],
+      [
+        119,
+        122,
+        141
+      ],
+      [
+        137,
+        140,
+        159
+      ],
+      [
+        155,
+        158,
+        176
+      ],
+      [
+        174,
+        177,
+        193
+      ],
+      [
+        194,
+        196,
+        209
+      ],
+      [
+        214,
+        215,
+        225
+      ],
+      [
+        234,
+        235,
+        240
+      ],
+      [
+        255,
+        255,
+        255
+      ]
+    ],
+    "tablaCalida": [
+      [
+        0,
+        0,
+        0
+      ],
+      [
+        13,
+        10,
+        7
+      ],
+      [
+        26,
+        21,
+        14
+      ],
+      [
+        38,
+        31,
+        21
+      ]
+    ],
+    "tablaFria": [
+      [
+        0,
+        0,
+        0
+      ],
+      [
+        8,
+        10,
+        13
+      ],
+      [
+        15,
+        20,
+        26
+      ],
+      [
+        23,
+        30,
+        38
+      ]
+    ],
+    "unidad": 10000,
+    "uno": 1024
+  },
   "muebles": {
     "hospital/archivador-clinico": {
       "alto": 73,
       "ancho": 52,
       "cuadros": 1,
+      "huella": {
+        "alto": 68,
+        "ancho": 48,
+        "fondo": 10
+      },
       "nombre": "Archivador clínico",
       "ruta": "piezas/muebles/hospital/archivador-clinico.png"
     },
@@ -42,6 +189,11 @@
       "alto": 57,
       "ancho": 108,
       "cuadros": 1,
+      "huella": {
+        "alto": 49,
+        "ancho": 104,
+        "fondo": 16
+      },
       "nombre": "Cama de recuperación",
       "ruta": "piezas/muebles/hospital/cama-recuperacion.png"
     },
@@ -49,6 +201,11 @@
       "alto": 44,
       "ancho": 98,
       "cuadros": 1,
+      "huella": {
+        "alto": 36,
+        "ancho": 94,
+        "fondo": 16
+      },
       "nombre": "Camilla",
       "ruta": "piezas/muebles/hospital/camilla.png"
     },
@@ -56,6 +213,11 @@
       "alto": 34,
       "ancho": 24,
       "cuadros": 1,
+      "huella": {
+        "alto": 30,
+        "ancho": 20,
+        "fondo": 8
+      },
       "nombre": "Caneca",
       "ruta": "piezas/muebles/hospital/caneca.png"
     },
@@ -63,6 +225,11 @@
       "alto": 56,
       "ancho": 46,
       "cuadros": 1,
+      "huella": {
+        "alto": 52,
+        "ancho": 42,
+        "fondo": 9
+      },
       "nombre": "Carro de curaciones",
       "ruta": "piezas/muebles/hospital/carro-curaciones.png"
     },
@@ -71,6 +238,11 @@
       "ancho": 90,
       "cuadros": 4,
       "fps": 2,
+      "huella": {
+        "alto": 88,
+        "ancho": 86,
+        "fondo": 16
+      },
       "nombre": "Cortina",
       "ruta": "piezas/muebles/hospital/cortina.png"
     },
@@ -78,6 +250,11 @@
       "alto": 63,
       "ancho": 24,
       "cuadros": 1,
+      "huella": {
+        "alto": 59,
+        "ancho": 20,
+        "fondo": 8
+      },
       "nombre": "Dispensador de agua",
       "ruta": "piezas/muebles/hospital/dispensador-agua.png"
     },
@@ -85,6 +262,11 @@
       "alto": 57,
       "ancho": 122,
       "cuadros": 1,
+      "huella": {
+        "alto": 49,
+        "ancho": 118,
+        "fondo": 16
+      },
       "nombre": "Escritorio",
       "ruta": "piezas/muebles/hospital/escritorio.png"
     },
@@ -92,6 +274,11 @@
       "alto": 74,
       "ancho": 62,
       "cuadros": 1,
+      "huella": {
+        "alto": 68,
+        "ancho": 58,
+        "fondo": 12
+      },
       "nombre": "Estante",
       "ruta": "piezas/muebles/hospital/estante.png"
     },
@@ -99,6 +286,11 @@
       "alto": 45,
       "ancho": 40,
       "cuadros": 1,
+      "huella": {
+        "alto": 41,
+        "ancho": 36,
+        "fondo": 8
+      },
       "nombre": "Lavamanos",
       "ruta": "piezas/muebles/hospital/lavamanos.png"
     },
@@ -107,6 +299,11 @@
       "ancho": 44,
       "cuadros": 4,
       "fps": 3,
+      "huella": {
+        "alto": 76,
+        "ancho": 40,
+        "fondo": 8
+      },
       "nombre": "Máquina de café",
       "ruta": "piezas/muebles/hospital/maquina-cafe.png"
     },
@@ -114,6 +311,11 @@
       "alto": 22,
       "ancho": 50,
       "cuadros": 1,
+      "huella": {
+        "alto": 17,
+        "ancho": 46,
+        "fondo": 10
+      },
       "nombre": "Mesa de centro",
       "ruta": "piezas/muebles/hospital/mesa-centro.png"
     },
@@ -122,6 +324,11 @@
       "ancho": 32,
       "cuadros": 4,
       "fps": 4,
+      "huella": {
+        "alto": 61,
+        "ancho": 28,
+        "fondo": 8
+      },
       "nombre": "Monitor de signos",
       "ruta": "piezas/muebles/hospital/monitor.png"
     },
@@ -129,6 +336,11 @@
       "alto": 61,
       "ancho": 184,
       "cuadros": 1,
+      "huella": {
+        "alto": 53,
+        "ancho": 180,
+        "fondo": 16
+      },
       "nombre": "Mostrador de enfermería",
       "ruta": "piezas/muebles/hospital/mostrador-enfermeria.png"
     },
@@ -136,6 +348,11 @@
       "alto": 47,
       "ancho": 35,
       "cuadros": 1,
+      "huella": {
+        "alto": 43,
+        "ancho": 30,
+        "fondo": 8
+      },
       "nombre": "Planta",
       "ruta": "piezas/muebles/hospital/planta.png"
     },
@@ -143,6 +360,11 @@
       "alto": 69,
       "ancho": 26,
       "cuadros": 1,
+      "huella": {
+        "alto": 65,
+        "ancho": 22,
+        "fondo": 8
+      },
       "nombre": "Portasuero",
       "ruta": "piezas/muebles/hospital/portasuero.png"
     },
@@ -150,6 +372,11 @@
       "alto": 40,
       "ancho": 24,
       "cuadros": 1,
+      "huella": {
+        "alto": 36,
+        "ancho": 20,
+        "fondo": 8
+      },
       "nombre": "Silla de oficina",
       "ruta": "piezas/muebles/hospital/silla-oficina.png"
     },
@@ -157,6 +384,11 @@
       "alto": 44,
       "ancho": 40,
       "cuadros": 1,
+      "huella": {
+        "alto": 40,
+        "ancho": 36,
+        "fondo": 8
+      },
       "nombre": "Silla de ruedas",
       "ruta": "piezas/muebles/hospital/silla-ruedas.png"
     },
@@ -164,6 +396,11 @@
       "alto": 34,
       "ancho": 22,
       "cuadros": 1,
+      "huella": {
+        "alto": 30,
+        "ancho": 18,
+        "fondo": 8
+      },
       "nombre": "Silla de visitante",
       "ruta": "piezas/muebles/hospital/silla-visitante.png"
     },
@@ -171,6 +408,11 @@
       "alto": 42,
       "ancho": 90,
       "cuadros": 1,
+      "huella": {
+        "alto": 34,
+        "ancho": 86,
+        "fondo": 16
+      },
       "nombre": "Sillas de espera",
       "ruta": "piezas/muebles/hospital/sillas-espera.png"
     },
@@ -178,6 +420,11 @@
       "alto": 40,
       "ancho": 46,
       "cuadros": 1,
+      "huella": {
+        "alto": 36,
+        "ancho": 42,
+        "fondo": 9
+      },
       "nombre": "Sillón",
       "ruta": "piezas/muebles/hospital/sillon.png"
     }
@@ -2028,6 +2275,7 @@
         147
       ],
       "luz": {
+        "altura": 150,
         "forma": "pozo",
         "momento": "noche",
         "radio": [
@@ -2113,6 +2361,7 @@
         26
       ],
       "luz": {
+        "altura": 24,
         "forma": "pozo",
         "momento": "noche",
         "radio": [
@@ -2149,6 +2398,7 @@
         63
       ],
       "luz": {
+        "altura": 58,
         "forma": "pozo",
         "momento": "noche",
         "radio": [
@@ -2260,6 +2510,8 @@
       }
     },
     "puerta/corrediza": {
+      "alto": 96,
+      "ancho": 136,
       "cuadros": 4,
       "franja": [
         0,
@@ -2343,6 +2595,8 @@
       }
     },
     "puerta/madera": {
+      "alto": 92,
+      "ancho": 56,
       "cuadros": 4,
       "franja": [
         0,
@@ -2426,6 +2680,8 @@
       }
     },
     "puerta/madera-ventanilla": {
+      "alto": 92,
+      "ancho": 56,
       "cuadros": 4,
       "franja": [
         0,
@@ -2509,6 +2765,8 @@
       }
     },
     "puerta/metalica": {
+      "alto": 92,
+      "ancho": 58,
       "cuadros": 4,
       "franja": [
         0,
@@ -2592,6 +2850,8 @@
       }
     },
     "puerta/paso": {
+      "alto": 96,
+      "ancho": 72,
       "cuadros": 4,
       "franja": [
         0,
@@ -2675,6 +2935,8 @@
       }
     },
     "puerta/urgencias": {
+      "alto": 94,
+      "ancho": 86,
       "cuadros": 4,
       "franja": [
         0,
@@ -2758,6 +3020,8 @@
       }
     },
     "puerta/vidrio": {
+      "alto": 92,
+      "ancho": 56,
       "cuadros": 4,
       "franja": [
         0,
@@ -3140,7 +3404,9 @@
         136
       ],
       "luz": {
+        "alto": 32,
         "ancho": 120,
+        "antepecho": 100,
         "forma": "haz",
         "fuerza": 70,
         "momento": "dia",
@@ -3223,7 +3489,9 @@
         139
       ],
       "luz": {
+        "alto": 60,
         "ancho": 96,
+        "antepecho": 70,
         "forma": "haz",
         "momento": "dia",
         "tono": "calido"
@@ -3305,7 +3573,9 @@
         135
       ],
       "luz": {
+        "alto": 60,
         "ancho": 88,
+        "antepecho": 70,
         "forma": "haz",
         "fuerza": 60,
         "momento": "dia",
@@ -3388,7 +3658,9 @@
         135
       ],
       "luz": {
+        "alto": 88,
         "ancho": 168,
+        "antepecho": 42,
         "forma": "haz",
         "momento": "dia",
         "tono": "calido"
