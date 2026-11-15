@@ -42,6 +42,7 @@ const STALE_NOTE = 'Esta conversación corresponde a otro momento del caso.';
         [class.strip--warning]="interaction()?.type === 'WARNING'"
         [class.strip--supervisory]="activeSpeakerName(d) === 'Supervisión clínica'"
         [class.strip--quieto]="reduceMotion()"
+        [class.strip--sin-retrato]="!portraitSrc(d)"
         [style]="arte()"
         [attr.data-momento]="momento()"
         role="dialog"
@@ -242,6 +243,12 @@ const STALE_NOTE = 'Esta conversación corresponde a otro momento del caso.';
       gap: calc(3 * var(--px));
       justify-items: end;
     }
+    /* Sobre el mundo, «Volver» y «Salida segura» van juntos en la esquina de abajo a la derecha, no flotando sobre la sala. */
+    .dialogue-strip:not(.dialogue-strip--side) .panel-head {
+      position: absolute;
+      right: calc(8 * var(--px));
+      bottom: calc(10 * var(--px));
+    }
     .panel-head__row {
       display: flex;
       align-items: center;
@@ -370,7 +377,10 @@ const STALE_NOTE = 'Esta conversación corresponde a otro momento del caso.';
       overflow: hidden;
       background-color: #262238;
     }
-    .portrait-svg { color: #b69cff; align-self: center; }
+    .portrait-svg { color: #b69cff; align-self: center; width: 66%; height: 66%; }
+    /* Una voz sin retrato del kit (la supervisión, un personaje sin receta): ventanilla chica con la silueta, no un hueco. */
+    .strip--sin-retrato { --retrato: 96px; }
+    @media (min-width: 1800px) { .strip--sin-retrato { --retrato: 96px; } }
     .portrait-img {
       display: block;
       width: var(--retrato);
