@@ -196,6 +196,7 @@ async function empezar(page: Page, salaInicial: Sala, momento: Momento, cerradas
 
 test.describe('salas por piezas en el juego real', () => {
   test.describe.configure({ timeout: 240_000 });
+  test.beforeEach(() => test.setTimeout(240_000));
 
   for (const [ancho, alto] of [[1366, 768], [1920, 1080]] as const) {
     for (const momento of ['noche', 'dia'] as const) {
@@ -234,10 +235,61 @@ test.describe('salas por piezas en el juego real', () => {
         await page.keyboard.press('e');
         await page.waitForTimeout(250);
         await capturar(page, `sala-espera-puerta-cerrada-${momento}`);
+        await expect(page.getByText(/Antes de pasar, recoge algo de la sala/).first()).toBeVisible();
         await expect(page.locator('app-game-world .phaser-host')).toHaveAttribute('data-rendered-map-key', claveDeMapa(espera));
       });
     }
   }
+
+  test('cruzar ida y vuelta con movimiento reducido', async ({ page }) => {
+    // El juego lee `prefers-reduced-motion` al abrir: la puerta queda abierta del todo sin animarse y la flecha, quieta.
+    await page.emulateMedia({ reducedMotion: 'reduce' });
+    await page.setViewportSize({ width: 1366, height: 768 });
+    const entrada = salaPorId('entrada-urgencias');
+    const espera = salaPorId('sala-espera');
+    await empezar(page, entrada, 'noche');
+    const input = createWorldInputDriver(page, 'keyboard');
+    await caminarAlUmbral(page, input, entrada, 'a-espera');
+    await capturar(page, 'reducido-entrada-puerta');   // sin esperar: abierta ya, sin cuadros intermedios
+    await expect(page.locator('button.context-bar__interaction').filter({ hasText: /sala de espera/i }).first()).toBeVisible();
+    await page.keyboard.press('e');
+    await mapaPintado(page, espera);
+    await page.waitForTimeout(3200);
+    await capturar(page, 'reducido-sala-espera-llegada');
+
+    // De vuelta por la misma puerta (antes, unos pasos dentro: `doorInteractionArmed`): aparece en la corrediza del fondo.
+    await input.moveBy('ArrowUp', 120);   // el juego exige alejarse 72 px de toda puerta antes de volver a cruzar
+    await caminarAlUmbral(page, input, espera, 'a-entrada');
+    await waitUntilPlayerStill(page);
+    await expect(page.locator('button.context-bar__interaction').filter({ hasText: /entrada de urgencias/i }).first()).toBeVisible();
+    await page.keyboard.press('e');
+    await mapaPintado(page, entrada);
+    await page.waitForTimeout(3200);
+    const vuelta = await readPlayerPosition(page);
+    const [vx, vy] = llegada('fondo', 485, entrada.encuadre, entrada.estructura.ancho);
+    expect(Math.abs(vuelta.x - vx)).toBeLessThanOrEqual(2);
+    expect(Math.abs(vuelta.y - vy)).toBeLessThanOrEqual(2);
+    await capturar(page, 'reducido-entrada-vuelta');
+  });
+
+  test('una sala de 1920 px: la cámara la recorre de punta a punta', async ({ page }) => {
+    await page.setViewportSize({ width: 1366, height: 768 });
+    const pasillo = salaPorId('pasillo');
+    const ancha: Sala = { ...pasillo, estructura: { ...pasillo.estructura, ancho: 1920 }, entrada: { x: 960, y: 420 } };
+    await empezar(page, ancha, 'dia');
+    const input = createWorldInputDriver(page, 'keyboard');
+    const [x0, , w] = zonaCaminable(ancha.encuadre, 1920);
+    await input.moveBy('ArrowLeft', 1000);
+    const izquierda = await readPlayerPosition(page);
+    expect(izquierda.x).toBeLessThanOrEqual(x0 + 24);
+    await page.waitForTimeout(700);
+    await capturar(page, 'sala-1920-izquierda');
+    await input.moveBy('ArrowRight', 1800);
+    const derecha = await readPlayerPosition(page);
+    expect(derecha.x).toBeGreaterThanOrEqual(x0 + w - 24);
+    await page.waitForTimeout(700);
+    await capturar(page, 'sala-1920-derecha');
+  });
 
   // Cada sala del hospital vista en el juego real, de noche y de día, a los dos tamaños.
   for (const sala of SALAS) {
