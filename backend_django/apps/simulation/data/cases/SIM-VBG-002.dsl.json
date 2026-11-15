@@ -1204,8 +1204,8 @@
        "texto": "El vigilante cuida el acceso a cirugía.",
        "tipo": "PERSON",
        "visible": true,
-       "x": 200,
-       "y": 330,
+       "x": 300,
+       "y": 320,
        "z": 0
       },
       {
@@ -1224,7 +1224,7 @@
         "apoyo": "pies",
         "expresion": "en-crisis",
         "movimiento": "quieto",
-        "recipeId": "samuel"
+        "recipeId": "estudiante-consultante"
        },
        "movimiento": {},
        "opcion": null,
@@ -1233,8 +1233,8 @@
        "texto": "Uno de los hermanos discute con el vigilante.",
        "tipo": "PERSON",
        "visible": true,
-       "x": 340,
-       "y": 360,
+       "x": 440,
+       "y": 350,
        "z": 0
       },
       {
@@ -1282,7 +1282,7 @@
         "apoyo": "pies",
         "expresion": "triste",
         "movimiento": "quieto",
-        "recipeId": "mateo"
+        "recipeId": "adolescente"
        },
        "movimiento": {},
        "opcion": null,
@@ -2234,7 +2234,7 @@
         "apoyo": "pies",
         "expresion": "preocupada",
         "movimiento": "quieto",
-        "recipeId": "samuel"
+        "recipeId": "estudiante-consultante"
        },
        "movimiento": {},
        "opcion": null,
@@ -2243,7 +2243,7 @@
        "texto": "El hermano mayor espera una respuesta.",
        "tipo": "PERSON",
        "visible": true,
-       "x": 570,
+       "x": 500,
        "y": 340,
        "z": 0
       },
@@ -2263,7 +2263,7 @@
         "apoyo": "pies",
         "expresion": "triste",
         "movimiento": "quieto",
-        "recipeId": "mateo"
+        "recipeId": "adolescente"
        },
        "movimiento": {},
        "opcion": null,
@@ -2272,7 +2272,7 @@
        "texto": "El hermano menor acompaña a su madre.",
        "tipo": "PERSON",
        "visible": true,
-       "x": 700,
+       "x": 780,
        "y": 330,
        "z": 0
       },
@@ -3138,7 +3138,7 @@
         "apoyo": "pies",
         "expresion": "preocupada",
         "movimiento": "quieto",
-        "recipeId": "samuel"
+        "recipeId": "estudiante-consultante"
        },
        "movimiento": {},
        "opcion": null,
@@ -3147,7 +3147,7 @@
        "texto": "El hermano mayor sostiene a su madre del brazo.",
        "tipo": "PERSON",
        "visible": true,
-       "x": 570,
+       "x": 500,
        "y": 340,
        "z": 0
       },
@@ -3167,7 +3167,7 @@
         "apoyo": "pies",
         "expresion": "triste",
         "movimiento": "quieto",
-        "recipeId": "mateo"
+        "recipeId": "adolescente"
        },
        "movimiento": {},
        "opcion": null,
@@ -3176,7 +3176,7 @@
        "texto": "El hermano menor mira hacia la puerta de cirugía.",
        "tipo": "PERSON",
        "visible": true,
-       "x": 700,
+       "x": 780,
        "y": 330,
        "z": 0
       },
@@ -5381,7 +5381,7 @@
         "apoyo": "pies",
         "expresion": "preocupada",
         "movimiento": "quieto",
-        "recipeId": "samuel"
+        "recipeId": "estudiante-consultante"
        },
        "movimiento": {},
        "opcion": null,
@@ -5410,7 +5410,7 @@
         "apoyo": "pies",
         "expresion": "triste",
         "movimiento": "quieto",
-        "recipeId": "mateo"
+        "recipeId": "adolescente"
        },
        "movimiento": {},
        "opcion": null,
@@ -6187,7 +6187,7 @@
         "apoyo": "pies",
         "expresion": "preocupada",
         "movimiento": "quieto",
-        "recipeId": "samuel"
+        "recipeId": "estudiante-consultante"
        },
        "movimiento": {},
        "opcion": null,
@@ -6216,7 +6216,7 @@
         "apoyo": "pies",
         "expresion": "triste",
         "movimiento": "quieto",
-        "recipeId": "mateo"
+        "recipeId": "adolescente"
        },
        "movimiento": {},
        "opcion": null,
@@ -6984,7 +6984,7 @@
         "apoyo": "pies",
         "expresion": "en-crisis",
         "movimiento": "quieto",
-        "recipeId": "samuel"
+        "recipeId": "estudiante-consultante"
        },
        "movimiento": {},
        "opcion": null,
@@ -7013,7 +7013,7 @@
         "apoyo": "pies",
         "expresion": "triste",
         "movimiento": "quieto",
-        "recipeId": "mateo"
+        "recipeId": "adolescente"
        },
        "movimiento": {},
        "opcion": null,
@@ -7781,7 +7781,7 @@
         "apoyo": "pies",
         "expresion": "preocupada",
         "movimiento": "quieto",
-        "recipeId": "samuel"
+        "recipeId": "estudiante-consultante"
        },
        "movimiento": {},
        "opcion": null,
@@ -7839,7 +7839,7 @@
         "apoyo": "pies",
         "expresion": "triste",
         "movimiento": "quieto",
-        "recipeId": "mateo"
+        "recipeId": "adolescente"
        },
        "movimiento": {},
        "opcion": null,

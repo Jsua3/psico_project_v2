@@ -68,7 +68,9 @@ const CARRIL_Y = 440;
  * antes de caminar (50 ms por vista) y un empujón de 100 ms tras cambiar de tecla se va casi entero en el giro.
  * Las posiciones son las del documento del caso (constructor de SIM-VBG-002).
  */
-async function caminarHasta(page: Page, input: Mando, x: number, y: number, quien: RegExp): Promise<void> {
+async function caminarHasta(
+  page: Page, input: Mando, x: number, y: number, quien: RegExp, alLado = 46,
+): Promise<void> {
   const ir = async (eje: 'x' | 'y', destino: number) => {
     const p = await readPlayerPosition(page);
     const d = destino - p[eje];
@@ -76,9 +78,10 @@ async function caminarHasta(page: Page, input: Mando, x: number, y: number, quie
     const tecla = eje === 'x' ? (d < 0 ? 'ArrowLeft' : 'ArrowRight') : (d < 0 ? 'ArrowUp' : 'ArrowDown');
     await input.moveBy(tecla, Math.abs(d));
   };
+  // Se para AL LADO (a la derecha) y casi a su altura: delante taparía a la persona en la captura.
   await ir('y', CARRIL_Y);
-  await ir('x', x);
-  await ir('y', Math.min(CARRIL_Y, y + 40));
+  await ir('x', x + alLado);
+  await ir('y', Math.min(CARRIL_Y, y + (alLado ? 12 : 40)));
   await reachNearby(page, input, ['ArrowUp'], quien);
 }
 
@@ -124,6 +127,14 @@ test('@demo-k1 @demo-piezas SIM-VBG-002: entrar, caminar, hablar y jugar el cap�
   await page.waitForTimeout(800); // que el mundo termine de pintarse antes de la captura
   await captura('01-entrada-de-urgencias.png');
 
+  // Caminata en diagonal (G1): arriba e izquierda a la vez; la captura sale con el personaje en tres cuartos de espalda.
+  await page.keyboard.down('ArrowLeft');
+  await page.keyboard.down('ArrowUp');
+  await page.waitForTimeout(450);
+  await captura('01b-caminata-en-diagonal.png');
+  await page.keyboard.up('ArrowUp');
+  await page.keyboard.up('ArrowLeft');
+
   // Caminar hasta la abuela (a la derecha de la aparición, junto a las sillas de ruedas) y hablar con ella.
   const input = createWorldInputDriver(page, 'keyboard');
   await caminarHasta(page, input, 860, 400, /abuela/i);
@@ -136,7 +147,7 @@ test('@demo-k1 @demo-piezas SIM-VBG-002: entrar, caminar, hablar y jugar el cap�
   await expect(abuela).toBeHidden({ timeout: scaled(10_000) });
 
   // El vigilante ofrece la decisión 1; se elige la adecuada y el hermano mayor reacciona.
-  await caminarHasta(page, input, 200, 330, /vigilante/i);
+  await caminarHasta(page, input, 300, 320, /vigilante/i);
   await interactNearby(page, /vigilante/i, /\/interactions\/vigilante$/);
   const dialogo = await advanceDialogueToChoices(page, /vigilante/i);
   await expect(dialogo.getByRole('button', { name: /mirar primero/i }), 'la opción adecuada de la decisión 1').toBeVisible();
@@ -171,7 +182,7 @@ test('@demo-k1 @demo-piezas SIM-VBG-002: entrar, caminar, hablar y jugar el cap�
   await cerrarNotaYEsperar(page, /Aclara con el equipo médico/);
 
   // Decisión 4 (estación de enfermería): acordar con el médico pide haber revisado la hoja de ingreso.
-  await caminarHasta(page, input, 470, 440, /hoja de ingreso/i);
+  await caminarHasta(page, input, 470, 440, /hoja de ingreso/i, 0);
   await interactNearby(page, /hoja de ingreso/i, /\/interactions\/hoja-ingreso$/);
   const hoja = page.getByRole('dialog', { name: /hoja de ingreso/i });
   if (await hoja.isVisible({ timeout: scaled(2_000) }).catch(() => false)) await closeDialogue(page, /hoja de ingreso/i);
