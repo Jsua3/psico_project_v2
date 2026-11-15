@@ -59,7 +59,9 @@ let nextNoticeId = 0;
       font-weight: 700;
       cursor: pointer;
     }
-    .sensitive-strip__chip:hover { background: rgba(245,184,75,.14); }
+    @media (hover: hover) and (pointer: fine) {
+      .sensitive-strip__chip:hover { background: rgba(245,184,75,.14); }
+    }
     .sensitive-strip--still { animation: none; }
     @keyframes sensitive-strip-in { from { opacity: .4; } to { opacity: 1; } }
     @media (prefers-reduced-motion: reduce) { .sensitive-strip { animation: none; } }

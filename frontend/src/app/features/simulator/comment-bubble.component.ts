@@ -42,7 +42,8 @@ const PERSONA_NEUTRA: Pick<Persona, 'bond' | 'activation'> = { bond: 'GUARDED', 
   styles: [`
     /* Bloque I1: papel con marco de pixel art (assets/game/dialogo), cola de pixel y el nombre de quien comenta. */
     :host { display: contents; }
-    .bubble-layer { position: absolute; inset: 0; z-index: 55; pointer-events: none; overflow: hidden; --px: 2px; }
+    /* Capa de la burbuja: sobre el mundo y bajo la franja de la reacción (--capa-reaccion: 60). */
+    .bubble-layer { --capa-burbuja: 55; position: absolute; inset: 0; z-index: var(--capa-burbuja); pointer-events: none; overflow: hidden; --px: 2px; }
     @media (min-width: 1800px) { .bubble-layer { --px: 3px; } }
     .bubble {
       position: absolute; max-width: min(21em, 78%); width: max-content; display: flex; align-items: center; gap: calc(3 * var(--px));

@@ -52,7 +52,9 @@ export type FinReaccion = 'completa' | 'saltada' | 'cancelada';
     :host { display: contents; }
     .reaction-strip {
       --px: 2px; --retrato: 192px;
-      position: absolute; left: calc(8 * var(--px)); bottom: calc(10 * var(--px)); z-index: 60;
+      /* Capas: la franja va sobre la burbuja de comentario (--capa-burbuja: 55); la pestaña del nombre, sobre la placa. */
+      --capa-reaccion: 60; --capa-pestana: 1;
+      position: absolute; left: calc(8 * var(--px)); bottom: calc(10 * var(--px)); z-index: var(--capa-reaccion);
       width: min(46em, calc(100% - 16 * var(--px))); display: flex; flex-direction: column; align-items: flex-start;
       color: #f2ecdf; font-family: 'Poppins', system-ui, -apple-system, 'Segoe UI', sans-serif; font-size: 17px; line-height: 1.45;
     }
@@ -63,7 +65,7 @@ export type FinReaccion = 'completa' | 'saltada' | 'cancelada';
       background-clip: padding-box; background-origin: padding-box; background-size: calc(8 * var(--px));
     }
     .reaction-name {
-      position: relative; z-index: 1; margin: 0 0 calc(-1 * var(--px)) calc(var(--retrato) + 18 * var(--px));
+      position: relative; z-index: var(--capa-pestana); margin: 0 0 calc(-1 * var(--px)) calc(var(--retrato) + 18 * var(--px));
       border-bottom-width: 0; border-image: var(--marco-rotulo) 4 / calc(4 * var(--px)) stretch;
       background-color: #1b1826; background-image: var(--trama-placa);
       padding: 1px calc(4 * var(--px)) calc(2 * var(--px));

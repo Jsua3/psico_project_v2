@@ -187,6 +187,8 @@ const STALE_NOTE = 'Esta conversación corresponde a otro momento del caso.';
     :host { display: block; }
     .dialogue-strip {
       --px: 2px; --tam: 17px; --retrato: 192px;
+      /* Capas del panel: la pestaña del nombre tapa el canto de la placa; la cabecera fija va sobre lo que se desplaza. */
+      --capa-pestana: 1; --capa-cabecera: 3;
       --tinta: #f2ecdf; --tinta-suave: #c3bccf; --tinta-oscura: #1b1530; --penumbra: #1b1826;
       --f-nombre: 'JetBrains Mono', ui-monospace, monospace;
       --f-texto: 'Poppins', system-ui, -apple-system, 'Segoe UI', sans-serif;
@@ -235,7 +237,7 @@ const STALE_NOTE = 'Esta conversación corresponde a otro momento del caso.';
     .panel-head {
       position: sticky;
       top: 0;
-      z-index: 3;
+      z-index: var(--capa-cabecera);
       display: grid;
       gap: calc(3 * var(--px));
       justify-items: end;
@@ -308,7 +310,7 @@ const STALE_NOTE = 'Esta conversación corresponde a otro momento del caso.';
       --m: var(--marco-rotulo); --t: var(--trama-placa);
       align-self: flex-start;
       position: relative;
-      z-index: 1;
+      z-index: var(--capa-pestana);
       margin: 0 0 calc(-1 * var(--px)) calc(var(--retrato) + 18 * var(--px));
       border-bottom-width: 0;
       padding: 1px calc(4 * var(--px)) calc(2 * var(--px));
@@ -374,7 +376,8 @@ const STALE_NOTE = 'Esta conversación corresponde a otro momento del caso.';
       width: var(--retrato);
       height: var(--retrato);
       image-rendering: pixelated;
-      animation: respira 2.6s steps(1) infinite;
+      /* Finito: 70 ciclos (unos 3 minutos) cubren cualquier conversación; después queda quieto. */
+      animation: respira 2.6s steps(1) 70;
     }
     .portrait-base {
       position: absolute; left: 0; right: 0; bottom: 0; height: calc(2 * var(--px));
@@ -403,7 +406,7 @@ const STALE_NOTE = 'Esta conversación corresponde a otro momento del caso.';
       height: calc(8 * var(--px));
       background: var(--pulso-TENSE) 0 0 / calc(64 * var(--px)) calc(8 * var(--px)) no-repeat;
       image-rendering: pixelated;
-      animation: pulso 1s steps(4) infinite;
+      animation: pulso 1s steps(4) 180;
     }
     .pulso[data-activation="CALM"] { background-image: var(--pulso-CALM); animation-duration: 2s; }
     .pulso[data-activation="CRISIS"] { background-image: var(--pulso-CRISIS); animation-duration: .5s; }
@@ -442,7 +445,9 @@ const STALE_NOTE = 'Esta conversación corresponde a otro momento del caso.';
       font-size: .9em;
       font-weight: 600;
     }
-    .dialogue-strip .close-btn:hover { background: transparent; color: var(--luz); }
+    @media (hover: hover) and (pointer: fine) {
+      .dialogue-strip .close-btn:hover { background: transparent; color: var(--luz); }
+    }
 
     /* Las fichas de respuesta. */
     .strip-body { min-width: 0; display: flex; flex-direction: column; gap: calc(4 * var(--px)); }
@@ -491,8 +496,8 @@ const STALE_NOTE = 'Esta conversación corresponde a otro momento del caso.';
     /* Confirmación: la ficha elegida se enciende y las demás ceden. */
     .choices--locked .choice-btn { pointer-events: none; }
     .choices--locked .choice-btn:not(.choice-btn--chosen) { opacity: .45; }
-    .choice-btn--chosen {
-      --m: var(--marco-ficha-elegida) !important; --t: var(--trama-ficha-elegida) !important;
+    .choices .choice-btn.choice-btn--chosen {
+      --m: var(--marco-ficha-elegida); --t: var(--trama-ficha-elegida);
       color: var(--tinta-oscura);
       animation: choice-confirm 170ms steps(2);
     }
