@@ -89,7 +89,7 @@ import { EmittedPosition, shouldEmitPosition } from './position-emit.util';
 import { heldInput } from './touch-hold.util';
 import { attachScrollKeyGuard, isScrollRegionTarget, isShortcutContext, isTextEntryTarget, resolveInteractPress } from './keyboard-focus.util';
 import { isCriticalAsset } from './asset-criticality.util';
-import { cameraBounds, integerZoom } from './pixel-scale.util';
+import { EstadoCamara, Momento, avanzarCamara, objetivoCamara } from './camara/camara';
 import { fitGameToHost, pixelScaleConfig, watchHostSize } from './pixel-canvas';
 import { PixelRender } from './pixel-render';
 import { doorFacing, doorSpriteSpecs, resolveDoorSideTextureKey, resolveDoorTextureKey } from './door-sprite.util';
@@ -117,6 +117,11 @@ import { PERSONA_ICON_KINDS, personaIconImage, personaIconKey, personaIconKind, 
 import { DOOR_FALLBACK_HEIGHT, DOOR_SPRITE_FEET_Y, doorHintY, staleSpriteSize, worldSpriteForTexture } from './world-scale.util';
 import { npcsDeLaSala } from './caso/npcs-de-sala';
 
+/** Lo que la pantalla le pide a la cámara (bloque M1): explorar, o encuadrar la conversación o el objeto `clave`. */
+export type CameraMoment = { tipo: 'explorar' } | { tipo: 'conversacion' | 'objeto'; clave: string };
+export interface CameraOptions { cercana: boolean; acercarAuto: boolean }
+export interface CameraReport { zoom: number; momento: Momento['tipo']; x: number; y: number }
+
 interface WorldCallbacks {
   onReady:       () => void;
   /** Candidato PRINCIPAL en rango (un NPC va como MapObjectState sintético con key `npc:{clave}`); null si no hay. */
@@ -140,6 +145,8 @@ interface WorldCallbacks {
   onKeyPersonIndicator?: (name: string | null) => void;
   /** Para la prueba de extremo a extremo: dónde está ahora la persona a atender (redondeada), o `null` si no hay; solo se avisa al cambiar. */
   onKeyPersonPosition?: (position: { x: number; y: number } | null) => void;
+  /** Cámara (bloque M1): zoom entero asentado, momento y centro redondeado; solo se avisa al cambiar. */
+  onCamera?: (camera: CameraReport) => void;
   /** Terminó una caminata pedida con «Ir a…» (F6-11): llegó, o no pudo (muro, mueble, servidor). */
   onWalkEnded?:  (key: string, label: string, outcome: 'arrived' | 'blocked') => void;
   /** Progreso de la precarga, 0-100 (solo la carga inicial). */
@@ -329,6 +336,18 @@ export class DataDrivenWorldScene extends Phaser.Scene {
   private crisisVignette?: Phaser.GameObjects.Image;
   /** Sala que encuadra la cámara: el zoom entero se recalcula con ella al cambiar el lienzo. */
   private roomSize = { width: AUTHORED_ROOM_WIDTH, height: AUTHORED_ROOM_HEIGHT };
+  /** Cámara (bloque M1): la decide `camara/camara.ts`; aquí solo su estado, lo pedido y el último aviso. */
+  private camState: EstadoCamara | null = null;
+  private camCut = true;
+  private camMoment: CameraMoment = { tipo: 'explorar' };
+  /** Persona que reacciona (`frameActors`): manda sobre el momento mientras dura la reacción. */
+  private camFrameKey: string | null = null;
+  private camOptions: CameraOptions = { cercana: false, acercarAuto: true };
+  /** Alto (px CSS) que el cuadro de diálogo tapa abajo del lienzo. */
+  private camCoveredCss = 0;
+  private camFrozen = false;
+  private camSettledZoom = 0;
+  private camReport = '';
   /** Viñeta de tono de la sala actual (se redibuja al rectángulo visible si cambia el lienzo). */
   private toneVignette?: Phaser.GameObjects.Image;
   /** Textura vigente de cada viñeta (tono o crisis): al cambiar el tamaño se retira la anterior (F6-8). */
@@ -474,6 +493,8 @@ export class DataDrivenWorldScene extends Phaser.Scene {
     // Al cambiar el tamaño o el dpr del lienzo: nuevo zoom entero y rótulos de ≥ 12 px de pantalla.
     this.scale.on('resize', () => this.refitCamera());
     this.scale.on('resize', this.onScaleResize, this);
+    // La cámara se mueve después de que el jugador se movió en el cuadro (bloque M1).
+    this.events.on(Phaser.Scenes.Events.POST_UPDATE, (_time: number, delta: number) => this.stepCamera(delta));
     this.onScaleResize();
     this.renderWorld();
   }
@@ -997,20 +1018,96 @@ export class DataDrivenWorldScene extends Phaser.Scene {
     return key.startsWith(NPC_KEY_PREFIX) ? this.npcMarkers.get(key.slice(NPC_KEY_PREFIX.length)) : this.markers.get(key);
   }
 
-  /** Encuadra al jugador y a `key` (cámara al punto medio, mismo zoom entero). Sin movimiento reducido ni clave en la sala, nada. */
+  /**
+   * La reacción de `key` a una respuesta: la cámara encuadra al jugador y a esa persona, de cerca, hasta `releaseFrame`
+   * (bloque M1). Con movimiento reducido es un corte. Sin la clave en la sala, nada.
+   */
   frameActors(key: string): void {
-    const feet = this.feetOf(key);
-    if (!feet || !this.player || this.callbacks.reduceMotion) return;
-    const cam = this.cameras.main;
-    cam.stopFollow();
-    cam.pan((this.player.x + feet.x) / 2, (this.player.y + feet.y) / 2, 450, 'Sine.easeInOut');
+    if (!this.feetOf(key)) return;
+    this.camFrameKey = key;
   }
 
-  /** Vuelve a seguir al jugador (como `applyPixelCamera`). */
+  /** Terminó la reacción: la cámara vuelve al momento que pide la pantalla. */
   releaseFrame(): void {
-    const cam = this.cameras.main;
-    cam.panEffect?.reset();
-    if (this.player) cam.startFollow(this.player, true, 0.12, 0.12);
+    this.camFrameKey = null;
+  }
+
+  /** Lo que la pantalla pide (bloque M1): explorar, hablar con `clave` o revisar `clave`; y cuánto tapa el cuadro de diálogo abajo. */
+  setCameraMoment(moment: CameraMoment, coveredCss: number): void {
+    this.camMoment = moment;
+    this.camCoveredCss = Math.max(0, coveredCss);
+  }
+
+  setCameraOptions(options: CameraOptions): void {
+    this.camOptions = { ...options };
+  }
+
+  /** Con el plano abierto la cámara no se mueve ni cambia de zoom. */
+  setCameraFrozen(frozen: boolean): void {
+    this.camFrozen = frozen;
+  }
+
+  private cameraMomentNow(): Momento {
+    const key = this.camFrameKey ?? (this.camMoment.tipo === 'explorar' ? null : this.camMoment.clave);
+    const feet = key ? this.feetOf(key) : null;
+    if (!feet) return { tipo: 'explorar' };
+    if (this.camFrameKey || this.camMoment.tipo === 'conversacion') return { tipo: 'conversacion', con: feet };
+    return { tipo: 'objeto', en: feet };
+  }
+
+  /**
+   * Un cuadro de cámara (bloque M1): `objetivoCamara` decide adónde y con qué zoom; `avanzarCamara` lo acerca con
+   * suavidad (corte con movimiento reducido o tras pintar una sala). Quieta durante un fundido y con el plano abierto.
+   */
+  private stepCamera(delta: number): void {
+    const cam = this.cameras?.main;
+    if (!cam || !this.player || this.camFrozen || cam.fadeEffect.isRunning) return;
+    const dpr = typeof window !== 'undefined' ? window.devicePixelRatio || 1 : 1;
+    const momento = this.cameraMomentNow();
+    const objetivo = objetivoCamara({
+      jugador: { x: this.player.x, y: this.player.y },
+      sala: { ancho: this.roomSize.width, alto: this.roomSize.height },
+      vista: { ancho: cam.width, alto: cam.height, dpr, cubiertoAbajo: this.camCoveredCss * dpr },
+      momento,
+      cercana: this.camOptions.cercana,
+      acercarAuto: this.camOptions.acercarAuto,
+    }, this.camCut ? null : this.camState);
+    const next = this.camCut || !this.camState ? objetivo : avanzarCamara(this.camState, objetivo, delta, this.callbacks.reduceMotion);
+    this.camCut = false;
+    this.camState = next;
+    if (cam.zoom !== next.zoom) cam.setZoom(next.zoom);
+    cam.centerOn(next.centro.x, next.centro.y);
+    if (Number.isInteger(next.zoom) && next.zoom !== this.camSettledZoom) {
+      this.camSettledZoom = next.zoom;
+      this.onCameraZoomSettled();
+    }
+    const report: CameraReport = {
+      zoom: this.camSettledZoom, momento: momento.tipo, x: Math.round(next.centro.x), y: Math.round(next.centro.y),
+    };
+    const key = `${report.zoom}|${report.momento}|${report.x}|${report.y}`;
+    if (key !== this.camReport) {
+      this.camReport = key;
+      this.callbacks.onCamera?.(report);
+    }
+  }
+
+  /**
+   * La cámara llegó a un zoom entero nuevo: rótulos de ≥ 12 px de pantalla, textos a esa resolución y viñetas al nuevo
+   * rectángulo visible (como `refitCamera`). Una vez por cambio de zoom, nunca por cuadro. Las viñetas solo se rehacen
+   * si ya existen: al pintar una sala, `renderWorld` las crea después con el zoom ya puesto.
+   */
+  private onCameraZoomSettled(): void {
+    this.pixelRender?.refreshTexts(this.camSettledZoom);
+    if (this.syncLabelScale() && this.world) this.refreshMarkerStates();
+    if (!this.ready) return;
+    if (this.toneVignette) {
+      this.toneVignette.destroy();
+      this.applyLightingOverlay();
+    }
+    if (this.crisisVignette) {
+      this.crisisVignette.destroy();
+      this.applyCrisisVignette();
+    }
   }
 
   /** Reproduce los pasos del gesto sobre el marcador de `key` y lo deja en su sitio exacto; resuelve al terminar (o ya, sin pasos).
@@ -1608,21 +1705,17 @@ export class DataDrivenWorldScene extends Phaser.Scene {
   }
 
   /**
-   * Zoom entero de cámara (spec §8.3): el mayor k que deja ver el 80 % de la sala. La
-   * cámara sigue a la jugadora y se limita a la sala; si la vista es mayor, la centra.
+   * Sala nueva o lienzo nuevo (bloque M1): la cámara la decide `camara/camara.ts` cada cuadro (zoom entero de spec §8.3
+   * con un ancho de referencia de 960, zona muerta, límites de la sala). Aquí solo se pide un corte: ni seguimiento de
+   * Phaser ni límites de cámara, que pelearían con el controlador.
    */
   private applyPixelCamera(roomWidth: number, roomHeight: number): void {
     this.roomSize = { width: roomWidth, height: roomHeight };
     const cam = this.cameras.main;
-    const k = integerZoom(cam.width, cam.height, roomWidth, roomHeight);
-    cam.setZoom(k);
-    this.pixelRender?.refreshTexts(k);
-    const bounds = cameraBounds(roomWidth, roomHeight, cam.width / k, cam.height / k);
-    cam.setBounds(bounds.x, bounds.y, bounds.width, bounds.height);
-    if (this.player) {
-      cam.startFollow(this.player, true, 0.12, 0.12);
-      cam.centerOn(this.player.x, this.player.y);
-    }
+    cam.stopFollow();
+    cam.removeBounds();
+    this.camCut = true;
+    this.stepCamera(0);
   }
 
   /** El lienzo cambió de tamaño o de dpr: nuevo zoom entero y viñetas al nuevo rectángulo visible. */
@@ -3399,6 +3492,8 @@ export class GameWorldComponent implements OnChanges, OnDestroy {
   readonly assetsReady = signal(false);
   /** Faltó un mapa o tileset: la sala se ve en paneles planos. */
   readonly criticalLoadFailed = signal(false);
+  /** Zoom entero de la cámara en reposo (bloque M1): los marcos del diálogo se dibujan a este mismo factor (I1). */
+  readonly cameraZoom = signal(1);
   private scene?: DataDrivenWorldScene;
   private phaserGame?: Phaser.Game;
   private bootWatchdog?: number;
@@ -3564,6 +3659,17 @@ export class GameWorldComponent implements OnChanges, OnDestroy {
     else host.setAttribute('data-key-person', name);
   }
 
+  /** Cámara como `data-camera-zoom/moment/x/y` del host (contrato del e2e del bloque M1) y zoom asentado como señal. Directo al DOM. */
+  private writeCamera(camera: CameraReport): void {
+    if (camera.zoom > 0 && camera.zoom !== this.cameraZoom()) this.cameraZoom.set(camera.zoom);
+    const host = this.gameHost?.nativeElement;
+    if (!host) return;
+    host.setAttribute('data-camera-zoom', String(camera.zoom));
+    host.setAttribute('data-camera-moment', camera.momento);
+    host.setAttribute('data-camera-x', String(camera.x));
+    host.setAttribute('data-camera-y', String(camera.y));
+  }
+
   /** Dónde está ahora la persona a atender, como `data-key-person-x/y` del host (contrato del e2e, igual que `data-player-x/y`). Directo al DOM. */
   private writeKeyPersonPosition(position: { x: number; y: number } | null): void {
     const host = this.gameHost?.nativeElement;
@@ -3609,6 +3715,20 @@ export class GameWorldComponent implements OnChanges, OnDestroy {
   focus(key: string) { this.scene?.focus(key); }
   frameActors(key: string) { this.scene?.frameActors(key); }
   releaseFrame() { this.scene?.releaseFrame(); }
+  /** Cámara (bloque M1): momento que pide la pantalla y alto (px CSS) que el cuadro de diálogo tapa abajo del lienzo. */
+  private cameraOptions: CameraOptions = { cercana: false, acercarAuto: true };
+  private cameraMoment: CameraMoment = { tipo: 'explorar' };
+  private cameraCoveredCss = 0;
+  setCameraMoment(moment: CameraMoment, coveredCss = 0) {
+    this.cameraMoment = moment;
+    this.cameraCoveredCss = coveredCss;
+    this.scene?.setCameraMoment(moment, coveredCss);
+  }
+  setCameraOptions(options: CameraOptions) {
+    this.cameraOptions = options;
+    this.scene?.setCameraOptions(options);
+  }
+  setCameraFrozen(frozen: boolean) { this.scene?.setCameraFrozen(frozen); }
   setPersonaState(text: string | null) { this.scene?.setPersonaState(text); }
   faceTowards(key: string, target: 'player' | string) { this.scene?.faceTowards(key, target); }
   peopleNear(key: string, radiusPx: number): string[] { return this.scene?.peopleNear(key, radiusPx) ?? []; }
@@ -3686,6 +3806,7 @@ export class GameWorldComponent implements OnChanges, OnDestroy {
         onProximityAnimation: report => this.writeProximityAnimation(report),
         onKeyPersonIndicator: name => this.writeKeyPerson(name),
         onKeyPersonPosition: position => this.writeKeyPersonPosition(position),
+        onCamera: camera => this.writeCamera(camera),
         onWalkEnded:   (key, label, outcome) => this.zone.run(() => this.walkEnded.emit({ key, label, outcome })),
         onLoadProgress: percent => this.zone.run(() => {
           this.loadPercent.set(percent);
@@ -3702,6 +3823,9 @@ export class GameWorldComponent implements OnChanges, OnDestroy {
         sfxMuted: this.sfxMuted(),
       });
       this.scene.setPersonaScene(this.activation(), this.intensity());
+      // La cámara recibe lo que la pantalla pidió antes de que existiera la escena (bloque M1).
+      this.scene.setCameraOptions(this.cameraOptions);
+      this.scene.setCameraMoment(this.cameraMoment, this.cameraCoveredCss);
       this.armBootWatchdog();
       this.phaserGame = new Phaser.Game({
         // PHA-5 (E5-8): se mantiene Phaser.AUTO (WebGL preferido con caída a Canvas 2D) para soportar equipos de aula

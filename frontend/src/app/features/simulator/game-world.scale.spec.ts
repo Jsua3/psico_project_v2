@@ -203,10 +203,17 @@ describe('game-world: rótulos legibles en cualquier tamaño (T5.3)', () => {
     const scene = new DataDrivenWorldScene({} as never) as unknown as {
       cameras: { main: Record<string, unknown> };
       pixelRender: { refreshTexts: Mock };
+      player: { x: number; y: number };
+      callbacks: { reduceMotion: boolean };
       applyPixelCamera(width: number, height: number): void;
     };
-    const cam = { width: 1920, height: 1080, zoom: 1, setZoom: vi.fn((k: number) => { cam.zoom = k; }), setBounds: vi.fn() };
+    const cam = {
+      width: 1920, height: 1080, zoom: 1, setZoom: vi.fn((k: number) => { cam.zoom = k; }),
+      stopFollow: vi.fn(), removeBounds: vi.fn(), centerOn: vi.fn(), fadeEffect: { isRunning: false },
+    };
     scene.cameras = { main: cam };
+    scene.player = { x: 480, y: 300 };
+    scene.callbacks = { reduceMotion: false };
     scene.pixelRender = { refreshTexts: vi.fn() };
     scene.applyPixelCamera(960, 540);
     expect(cam.setZoom).toHaveBeenCalledWith(2);
