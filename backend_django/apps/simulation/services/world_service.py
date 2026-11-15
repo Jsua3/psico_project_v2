@@ -27,6 +27,7 @@ from ..models import (
 )
 from . import comments as comments_service
 from . import attempt_duration, attempt_lifecycle as lifecycle, door_chain, game_service, option_availability
+from . import world_layout
 from .attempt_lock import locked_attempt
 from .world_state import (
     require_world_state,
@@ -711,6 +712,8 @@ def _build_static_world(scene_map, case_version_id):
             "spawnX": scene_map.spawn_x,
             "spawnY": scene_map.spawn_y,
             "ambient": _read_map(scene_map.ambient_json),
+            # x-siep 2.2: la sala armada por piezas; ``None`` en una sala de imagen fija.
+            "structure": scene_map.structure if isinstance(scene_map.structure, dict) else None,
         },
         "objects": [
             _to_map_object(o, dialogue=dialogues.get(o.id))
@@ -817,6 +820,8 @@ def _to_world_state(attempt, state, *, estudiante=True):
         "flags": _flags_for(state, estudiante=estudiante),
         "decisionOptions": options,
         "comments": comments,
+        # x-siep 2.2 (§5.2): el plano del lugar, sin objetos ni personajes.
+        "layout": world_layout.layout_para(attempt, scene_map),
     }
 
 
