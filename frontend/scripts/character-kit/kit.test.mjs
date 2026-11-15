@@ -61,7 +61,7 @@ function legacyRows(image) {
   return out;
 }
 
-test('Valentina sale idéntica a lo aprobado: hojas de la prueba (76e6171) y retrato 32×32 (2026-10-03)', () => {
+test('Valentina sale idéntica a lo aprobado: hojas de la prueba (76e6171) y retrato 32×32 (con el volumen del retrato, 2026-11-15)', () => {
   const bundle = buildBundle();
   const out = composeCharacter(bundle, TRIAL);
   assert.equal(sha(legacyRows(out.idle)), golden.idle);
