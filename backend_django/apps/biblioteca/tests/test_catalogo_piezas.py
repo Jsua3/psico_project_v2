@@ -29,7 +29,7 @@ def test_lee_pisos_variantes_muros_paletas_y_propios():
     catalogo = catalogo_piezas.cargar_catalogo(FICHA)
     assert "vinilo" in catalogo.pisos and catalogo.variantes["vinilo"] == frozenset({"a", "b"})
     assert catalogo.tiene_muro("zocalo-alto", "hospital")
-    assert catalogo.tiene_muro("pintura", "casa-cocina")
+    assert catalogo.tiene_muro("azulejo", "casa-cocina")
     assert not catalogo.tiene_muro("pintura", "marte")
     assert "piezas/propios/casa-cocina.png" in catalogo.propios
 
