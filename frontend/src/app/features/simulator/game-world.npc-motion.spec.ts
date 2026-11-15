@@ -150,7 +150,8 @@ describe('movimiento de personas (NPC): subtle-wander', () => {
 
     expect(mover.target).toEqual({ x: 120, y: 100 });
     expect([container.x, container.y]).toEqual([109, 100]); // 18 px/s × 0,5 s = 9 px
-    expect(mover.lastPose).toEqual({ direction: 'right', walking: true });
+    // Nace de frente y echa a andar a la derecha: el giro pasa por la vista de en medio (8 direcciones).
+    expect(mover.lastPose).toEqual({ direction: 'down-right', walking: true });
   });
 
   it('respeta la espera inicial: antes de pauseUntil no pide destino ni se mueve', () => {
@@ -176,6 +177,8 @@ describe('movimiento de personas (NPC): subtle-wander', () => {
     expect(container.x).toBe(109);
     expect(mover.target).toBeNull();
     expect(mover.pauseUntil).toBe(2400);
+    expect(mover.lastPose).toEqual({ direction: 'down-right', walking: false });
+    scene.updateNpcMovers(100, 100);   // en la pausa termina el giro
     expect(mover.lastPose).toEqual({ direction: 'right', walking: false });
   });
 
@@ -249,6 +252,7 @@ describe('movimiento de personas (NPC): pace y patrol por anclas', () => {
     expect(mover.anchorIdx).toBe(1);
     expect(mover.pauseUntil).toBe(1000);
     expect(mover.target).toBeNull();
+    scene.updateNpcMovers(100, 300);   // en la pausa gira hacia su `face` pasando por las vistas de en medio
     expect(mover.lastPose).toEqual({ direction: 'up', walking: false });
   });
 
@@ -306,6 +310,7 @@ describe('movimiento de personas (NPC): pace y patrol por anclas', () => {
     scene.updateNpcMovers(0, 100);
 
     expect([container.x, container.y]).toEqual([110, 100]); // fue a su destino aleatorio, no al ancla
+    scene.updateNpcMovers(100, 300);   // en la pausa gira hacia la cara del ancla
     expect(mover.lastPose).toEqual({ direction: 'left', walking: false });
     expect(mover.pauseUntil).toBe(333);
     expect(mover.anchorIdx).toBe(0); // no avanza: solo pace y patrol ciclan
@@ -384,6 +389,7 @@ describe('movimiento de personas (NPC): quietas y movimiento reducido', () => {
     const { mover, container } = addNpc(scene, { behavior: 'attentive' });
 
     scene.updateNpcMovers(0, 500);
+    scene.updateNpcMovers(500, 100);   // de frente a la derecha: el giro pasa por la vista de en medio
 
     expect(mover.lastPose).toEqual({ direction: 'right', walking: false });
     expect([container.x, container.y]).toEqual([100, 100]);
