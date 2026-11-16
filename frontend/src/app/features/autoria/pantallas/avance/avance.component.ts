@@ -1,6 +1,6 @@
 import {
   ChangeDetectionStrategy, Component, ElementRef, Injector, OnDestroy, OnInit, afterNextRender, computed, effect, inject, linkedSignal,
-  signal, viewChild,
+  signal, untracked, viewChild,
 } from '@angular/core';
 import { NgTemplateOutlet } from '@angular/common';
 import { ActivatedRoute, Router, RouterLink } from '@angular/router';
@@ -399,6 +399,11 @@ export class AvanceComponent implements OnInit, OnDestroy {
       if (!this.enCurso().length) return;
       const reloj = setInterval(() => this.ahora.set(Date.now()), 1000);
       alLimpiar(() => clearInterval(reloj));
+    });
+    // Lo que pidió «Reintentar» vale hasta que la corrida publica su etapa: desde ahí la etapa dice qué está en curso.
+    effect(() => {
+      this.generacion.etapa();
+      untracked(() => this.reintentando.set(null));
     });
   }
 

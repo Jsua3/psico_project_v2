@@ -203,6 +203,11 @@ test.describe('@autoria la pantalla de avance de la generación con IA', () => {
     await expect(page.getByRole('button', { name: 'Empezar un caso nuevo' })).toBeVisible();
     await expect(page.getByRole('button', { name: 'Reintentar esta parte' })).toHaveCount(0);
     await expect(page.getByText('Usaste 20 de 20 intentos con la IA.')).toBeVisible();
+    // La pantalla lo dice y lo anuncia junto a la parte: ni un aviso flotante ni las regiones vivas globales lo repiten.
+    await page.waitForTimeout(500);
+    await expect(page.locator('.ui-toast')).toHaveCount(0);
+    await expect(page.locator('#siep-live-assertive')).not.toContainText(SIN_INTENTOS);
+    await expect(page.locator('#siep-live-polite')).not.toContainText(SIN_INTENTOS);
     await revisarEstado(page, 'sin-intentos');
   });
 

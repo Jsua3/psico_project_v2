@@ -122,9 +122,12 @@ export function partesDeLaGeneracion({ g, error, etapa, trabajando, reintentando
     }));
   }
 
+  // La revisión solo puede estar en curso con la generación lista para revisarse: un reintento o una etapa de revisión que
+  // ya terminó en `needs_repair` no la dejan «Revisándose» junto a la corrección.
+  const revisable = g?.status === 'scenes_ready';
   const reglas: EstadoParte = g?.status === 'imported' ? 'hecha'
     : g?.status === 'failed' ? 'error'
-    : reintento === 'reglas' || (activa && etapa?.tipo === 'reglas') ? 'en-curso'
+    : revisable && (reintento === 'reglas' || (activa && etapa?.tipo === 'reglas')) ? 'en-curso'
     : error?.parte === 'ensamblado' ? 'error'
     : 'pendiente';
   const terminada = g?.status === 'imported' || g?.status === 'failed';

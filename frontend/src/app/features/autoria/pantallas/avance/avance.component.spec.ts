@@ -313,6 +313,26 @@ describe('AvanceComponent', () => {
     });
   });
 
+  it('reintentar la revisión que pide corregir: solo la corrección queda en curso, con un solo reloj', async () => {
+    const { g, raiz, hasta, ir } = await montar();
+    g.fallar('assemble', 502, 'AI_PROVIDER_ERROR', 'http', 2); // falla y también su reintento automático
+    await ir();
+    await hasta(() => !!parte(raiz(), 'Revisión de las reglas del caso')?.querySelector('[role="alert"]'));
+
+    g.resultadoDelEnsamblado('needs_repair');
+    g.retener('scene', 'consulta');
+    boton(raiz(), 'Reintentar esta parte')!.click();
+    await hasta(() => anuncio(raiz()) === 'Corrigiendo 1 escena (ronda 1 de 2)');
+
+    expect(parte(raiz(), 'Revisión de las reglas del caso')!.getAttribute('data-estado')).toBe('pendiente');
+    expect(parte(raiz(), 'Corrección de 1 escena (ronda 1 de 2)')!.getAttribute('data-estado')).toBe('en-curso');
+    expect(raiz().querySelectorAll('li.parte[data-estado="en-curso"]')).toHaveLength(1);
+    expect(raiz().querySelectorAll('li.parte .tiempo')).toHaveLength(1);
+
+    g.liberar('scene', 'consulta');
+    await hasta(() => !!boton(raiz(), 'Abrir mi caso'));
+  });
+
   it('reparación: una parte propia con la ronda, las escenas y lo que encontró la revisión, en palabras', async () => {
     const { g, id, raiz, hasta, ir } = await montar();
     const api = TestBed.inject(AuthoringApi);
