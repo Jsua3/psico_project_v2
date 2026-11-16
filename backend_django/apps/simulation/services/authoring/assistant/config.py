@@ -3,6 +3,8 @@ from dataclasses import dataclass
 
 from django.conf import settings
 
+from apps.simulation.services.ai_providers import PROVIDERS
+
 
 @dataclass(frozen=True)
 class AuthoringAssistantConfig:
@@ -24,11 +26,15 @@ class AuthoringAssistantConfig:
     generate_effort_skeleton: str = "high"
     generate_effort_scene: str = "medium"
     generate_fallbacks: str = "default"
+    generations_global_per_day: int = 30
 
     @property
     def generation_ready(self) -> bool:
-        """La generación está encendida y tiene con qué llamar: clave, o el proveedor falso (que no usa ninguna)."""
-        return self.enabled and bool(self.api_key or self.provider == "fake")
+        """Encendida, con un proveedor que sabe generar por etapas y con qué llamar (clave, o el falso, que no usa ninguna)."""
+        provider = (self.provider or "").strip().lower()
+        if not self.enabled or not hasattr(PROVIDERS.get(provider), "complete_structured"):
+            return False
+        return bool(self.api_key or provider == "fake")
 
     def __repr__(self) -> str:
         """Igual que el repr de un dataclass, pero con la clave enmascarada: nunca se imprime."""
@@ -61,4 +67,5 @@ def current() -> AuthoringAssistantConfig:
         generate_effort_skeleton=getattr(settings, "AI_AUTHORING_GENERATE_EFFORT_SKELETON", "high"),
         generate_effort_scene=getattr(settings, "AI_AUTHORING_GENERATE_EFFORT_SCENE", "medium"),
         generate_fallbacks=getattr(settings, "AI_AUTHORING_GENERATE_FALLBACKS", "default"),
+        generations_global_per_day=int(getattr(settings, "AI_AUTHORING_GENERATIONS_GLOBAL_PER_DAY", 30)),
     )
