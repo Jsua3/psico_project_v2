@@ -10,13 +10,16 @@ import {
   type Cambio, type ResolverIds, type Tocados, aplicarPropuesta as aplicarCambiosIa, resolverLocal,
 } from '../ia/propuestas';
 import { BibliotecaService } from '../modelo/biblioteca.service';
+import { primerHueco } from '../modelo/arrastre-en-muro';
+import type { EstructuraDeSala } from '../../simulator/sala/catalogo';
 import type {
   CasoBorrador, ClaveFinalPlantilla, Comentario, Escena, Final, Hito, Linea, MovimientoPersonaje, NivelRiesgo, Reaccion, Respuesta, SalaCaso,
 } from '../modelo/caso';
 import { SEPARACION_ESCENAS } from '../modelo/copiar';
 import type { ColocacionPersonaje } from '../modelo/escenario';
 import { nuevaRespuesta } from '../modelo/fabricas';
-import { centroDeZona, limitarAZona, zonaCaminable } from '../modelo/geometria';
+import { centroDeZona, largoMuro, llegada, limitarAZona, zonaCaminable } from '../modelo/geometria';
+import type { Muro } from '../modelo/geometria';
 import { claveLibre, cuerpoCrearCaso } from '../modelo/hacia-api';
 import { nuevoId } from '../modelo/ids';
 import { revisarPuntoDeIda } from '../modelo/movimiento';
@@ -79,6 +82,16 @@ function clavesDeSala(sala: SalaCaso): Set<string> {
   const claves = new Set<string>(sala.puertas.map((p) => p.id));
   for (const c of [...sala.muebles, ...sala.objetos, ...sala.personajes]) if (c.clave) claves.add(c.clave);
   return claves;
+}
+
+type LugarDePieza = { muro: Muro; pos: number } | { x: number; y: number };
+type FichaDeOcupacion = { ocupa: number; franja: readonly [number, number] };
+
+function idDePieza(sala: SalaCaso, tipo: string): string {
+  const usadas = new Set([...sala.puertas.map((p) => p.id), ...(sala.estructura?.piezas ?? []).map((p) => p.id)]);
+  let n = 1;
+  while (usadas.has(`${tipo}-${n}`)) n++;
+  return `${tipo}-${n}`;
 }
 
 /** `Prefijo: «texto»`, completo (el docente lo puede copiar); nada si no hay texto. */
@@ -562,14 +575,121 @@ export class CasoStore {
 
   // ─── Sala ───────────────────────────────────────────────────────────────────
 
-  private cambiarSala(salaId: string, que: string, cambio: (caso: CasoBorrador, sala: SalaCaso) => void): void {
+  private cambiarSala(
+    salaId: string, que: string, cambio: (caso: CasoBorrador, sala: SalaCaso) => void, otraSalaId?: string,
+  ): void {
     this.ejecutar({
       nombre: 'la sala',
       resumen: [`${que} en la sala «${this.nombreSala(salaId)}»`],
       aplicar: (caso) => cambio(caso, this.sala(caso, salaId)),
-      enviar: (despues, sesion) => persistir.guardarSala(sesion, despues, salaId),
-      fusion: `sala:${salaId}`,
+      enviar: async (despues, sesion) => {
+        await persistir.guardarSala(sesion, despues, salaId);
+        if (otraSalaId && otraSalaId !== salaId) await persistir.guardarSala(sesion, despues, otraSalaId);
+      },
+      fusion: otraSalaId ? undefined : `sala:${salaId}`,
     }, { sala: true });
+  }
+
+  cambiarEstructura(salaId: string, resumen: string, cambio: (e: EstructuraDeSala) => void): void {
+    if (!this.estado()?.salas.find((s) => s.id === salaId)?.estructura) return;
+    this.cambiarSala(salaId, resumen, (_caso, sala) => { if (sala.estructura) cambio(sala.estructura); });
+  }
+
+  moverPiezaDeMuro(salaId: string, piezaId: string, destino: LugarDePieza): void {
+    // BORRADOR: texto nuevo, pendiente de la aprobación de Psicología
+    this.cambiarEstructura(salaId, 'Moviste una pieza', (estructura) => {
+      const pieza = estructura.piezas?.find((p) => p.id === piezaId);
+      if (!pieza) return;
+      delete pieza.muro; delete pieza.pos; delete pieza.x; delete pieza.y;
+      Object.assign(pieza, destino);
+    });
+  }
+
+  agregarPiezaDeMuro(salaId: string, tipo: string, modelo: string, lugar: LugarDePieza): string {
+    const sala = this.estado()?.salas.find((s) => s.id === salaId);
+    if (!sala?.estructura || this.soloLectura()) return '';
+    const id = idDePieza(sala, tipo);
+    // BORRADOR: texto nuevo, pendiente de la aprobación de Psicología
+    this.cambiarEstructura(salaId, 'Agregaste una pieza', (e) => {
+      (e.piezas ??= []).push({ id, tipo, modelo, ...lugar });
+    });
+    return id;
+  }
+
+  quitarPiezaDeMuro(salaId: string, piezaId: string): void {
+    // BORRADOR: texto nuevo, pendiente de la aprobación de Psicología
+    this.cambiarEstructura(salaId, 'Quitaste una pieza', (e) => {
+      if (e.piezas) e.piezas = e.piezas.filter((p) => p.id !== piezaId);
+    });
+  }
+
+  moverPuerta(salaId: string, puertaId: string, muro: Muro, pos: number): void {
+    // BORRADOR: texto nuevo, pendiente de la aprobación de Psicología
+    this.cambiarSala(salaId, 'Moviste una puerta', (_caso, sala) => {
+      const puerta = sala.puertas.find((p) => p.id === puertaId);
+      if (puerta) Object.assign(puerta, { muro, pos, ...llegada(muro, pos, sala.encuadre, sala.estructura?.ancho) });
+    });
+  }
+
+  agregarPuerta(salaId: string, modelo: string, muro: Muro, pos: number): string {
+    const sala = this.estado()?.salas.find((s) => s.id === salaId);
+    if (!sala || this.soloLectura()) return '';
+    const id = idDePieza(sala, 'puerta');
+    // BORRADOR: texto nuevo, pendiente de la aprobación de Psicología
+    this.cambiarSala(salaId, 'Agregaste una puerta', (_caso, s) => {
+      s.puertas.push({ id, modelo, muro, pos, hacia: null, etiqueta: '', ...llegada(muro, pos, s.encuadre, s.estructura?.ancho) });
+    });
+    return id;
+  }
+
+  quitarPuerta(salaId: string, puertaId: string): void {
+    // BORRADOR: texto nuevo, pendiente de la aprobación de Psicología
+    this.cambiarSala(salaId, 'Quitaste una puerta', (_caso, sala) => {
+      sala.puertas = sala.puertas.filter((p) => p.id !== puertaId);
+    });
+  }
+
+  fijarDestinoDePuerta(salaId: string, puertaId: string, hacia: string): void {
+    if (!this.estado()?.salas.some((s) => s.id === hacia)) return;
+    // BORRADOR: texto nuevo, pendiente de la aprobación de Psicología
+    this.cambiarSala(salaId, 'Cambiaste a dónde lleva una puerta', (caso, sala) => {
+      const puerta = sala.puertas.find((p) => p.id === puertaId);
+      if (puerta) { puerta.hacia = hacia; puerta.etiqueta = this.sala(caso, hacia).nombre; }
+    });
+  }
+
+  crearPuertaDeRegreso(salaId: string, puertaId: string, fichaDe: (clave: string) => FichaDeOcupacion | null): string {
+    const origen = this.estado()?.salas.find((s) => s.id === salaId);
+    const puerta = origen?.puertas.find((p) => p.id === puertaId);
+    const destino = this.estado()?.salas.find((s) => s.id === puerta?.hacia);
+    if (!origen || !puerta || !destino || this.soloLectura()) return '';
+    const id = idDePieza(destino, 'puerta');
+    const opuestos: Record<Muro, Muro> = { fondo: 'camara', camara: 'fondo', izquierda: 'derecha', derecha: 'izquierda' };
+    const modelo = puerta.modelo ?? '';
+    const propuesto = opuestos[puerta.muro ?? 'fondo'];
+    const ancho = destino.estructura?.ancho;
+    const muro = largoMuro(propuesto, destino.encuadre, ancho) ? propuesto : 'fondo';
+    const largo = largoMuro(muro, destino.encuadre, ancho);
+    const ficha = (clave: string): FichaDeOcupacion => fichaDe(clave) ?? { ocupa: 0, franja: [0, 0] };
+    const ocupadas = [
+      ...(destino.estructura?.piezas ?? []).filter((p) => p.muro === muro && p.pos !== undefined)
+        .map((p) => ({ ...ficha(`${p.tipo}/${p.modelo}`), esPuerta: false, pos: p.pos! })),
+      ...destino.puertas.filter((p) => p.muro === muro && p.pos !== undefined)
+        .map((p) => ({ ...ficha(`puerta/${p.modelo ?? ''}`), esPuerta: true, pos: p.pos! })),
+    ];
+    const pos = primerHueco(muro, { ...ficha(`puerta/${modelo}`), esPuerta: true }, ocupadas, largo) ?? Math.floor(largo / 2);
+    // BORRADOR: texto nuevo, pendiente de la aprobación de Psicología
+    this.cambiarSala(salaId, 'Agregaste la puerta de regreso', (caso, sala) => {
+      const original = sala.puertas.find((p) => p.id === puertaId);
+      if (!original) return;
+      const otra = this.sala(caso, destino.id);
+      original.par = id;
+      otra.puertas.push({
+        id, modelo, muro, pos, hacia: salaId, par: puertaId, etiqueta: sala.nombre,
+        ...llegada(muro, pos, otra.encuadre, otra.estructura?.ancho),
+      });
+    }, destino.id);
+    return id;
   }
 
   moverElemento(salaId: string, tipo: TipoElemento, indice: number, x: number, y: number): void {
