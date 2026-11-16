@@ -13,6 +13,7 @@
  */
 
 import { TOP_CHAQUETA_PORTRAIT } from './chaqueta-capucha.portrait.mjs';
+import { DIAGONAL } from './chaqueta-capucha.diagonal.mjs';
 
 const LEGEND = {
   i: { mat: 'inner' },
@@ -31,6 +32,7 @@ export default {
   /** Puños: la última fila del antebrazo en tono profundo. */
   edges: [{ labels: ['b', 'B'], edge: 'bottom', tone: 3 }],
   views: {
+    ...DIAGONAL,
     down: [
       {
         anchor: 'T', at: [17, 23], mode: 'paint', legend: LEGEND,

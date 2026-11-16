@@ -15,8 +15,12 @@
  * Cada vista declara grillas fijas (cabeza, cuello, torso, pelvis), sprites de
  * mano y pie, y un rig por cuadro: `bob` (sube/baja el cuerpo sobre la cadera),
  * `breath` (respiración: hombros y cabeza suben 1 px) y articulaciones de
- * brazos y piernas. La vista derecha NO se dibuja: sale del espejo de la
+ * brazos y piernas. Las vistas derechas NO se dibujan: salen del espejo de su
  * izquierda y la luz se recalcula después.
+ *
+ * Tres cuartos (`down-left`, `up-left`): como en el perfil, minúscula = miembro
+ * CERCANO y mayúscula = LEJANO. Mirando abajo-izquierda el lado cercano queda a
+ * la derecha de la pantalla; mirando arriba-izquierda, a la izquierda.
  */
 
 export const FRAME = { width: 48, height: 72, pivotX: 24, pivotY: 68 };
@@ -277,6 +281,180 @@ const SIDE_ARM_PHASES = [
   { elbow: [0, 9], wrist: [0, 18] },
 ];
 
+// ── Tres cuartos (diagonales) ─────────────────────────────────────────────────
+
+/**
+ * Cabeza girada 45° mirando a la izquierda: el mentón se corre hacia donde mira
+ * y la nuca abulta a la derecha. Vale de frente y de espalda: la silueta de un
+ * cráneo girado es la misma vista por delante que por detrás. 16 px (frente 17
+ * con orejas, perfil 16).
+ */
+export const HEAD_QUARTER = {
+  at: [16, 6],
+  grid: `
+    ....HHHHHHHHHH...
+    ..HHHHHHHHHHHHH..
+    .HHHHHHHHHHHHHHH.
+    .HHHHHHHHHHHHHHHH
+    .HHHHHHHHHHHHHHHH
+    .HHHHHHHHHHHHHHHH
+    .HHHHHHHHHHHHHHHH
+    .HHHHHHHHHHHHHHHH
+    .HHHHHHHHHHHHHHHH
+    .HHHHHHHHHHHHHHH.
+    .HHHHHHHHHHHHHHH.
+    ..HHHHHHHHHHHHH..
+    ..HHHHHHHHHHHH...
+    ...HHHHHHHHH.....
+    ....HHHHHH.......
+  `,
+};
+
+/** De frente se ve la oreja del lado cercano (derecha de la pantalla), dentro de la silueta. */
+export const EAR_QUARTER_FRONT = { at: [29, 12], grid: `
+    ee
+    ee
+    ee
+    e.
+  ` };
+
+/** De espalda la oreja cercana queda a la izquierda, vista desde atrás. */
+export const EAR_QUARTER_BACK = { at: [18, 12], grid: `
+    ee
+    ee
+    ee
+    .e
+  ` };
+
+/** Cuello bajo el centro del cráneo: el mentón queda por delante (a la izquierda). */
+export const NECK_QUARTER = { at: [22, 20], grid: `
+    ...NNN
+    NNNNNN
+    NNNNNN
+  ` };
+
+/** Torso de 14 px (frente 15, perfil 12): pecho hacia donde mira, cintura recogida. */
+const TORSO_QUARTER = {
+  at: [17, 23],
+  /** Misma fila de cintura que de frente (y = 33): las superposiciones se desplazan igual. */
+  stretchRow: 10,
+  grid: `
+    ...TTTTTTTT...
+    ..TTTTTTTTTT..
+    .TTTTTTTTTTTT.
+    TTTTTTTTTTTTTT
+    TTTTTTTTTTTTTT
+    TTTTTTTTTTTTTT
+    TTTTTTTTTTTTTT
+    TTTTTTTTTTTTTT
+    TTTTTTTTTTTTTT
+    .TTTTTTTTTTTT.
+    .TTTTTTTTTTTT.
+    .TTTTTTTTTTTT.
+    .TTTTTTTTTTTT.
+    .TTTTTTTTTTTT.
+    .TTTTTTTTTTTT.
+  `,
+};
+
+const PELVIS_QUARTER = {
+  at: [17, 38],
+  grid: `
+    .PPPPPPPPPPPP.
+    PPPPPPPPPPPPPP
+    PPPPPPPPPPPPPP
+    PPPPPPPPPPPPPP
+    PPPPPPPPPPPPPP
+    .PPPPPPPPPPPP.
+  `,
+};
+
+/** Pies de tres cuartos de frente: la punta mira abajo-izquierda. */
+const FOOT_QUARTER_FRONT = {
+  flat: { anchor: [-3, 1], grid: `
+    ...oooo
+    .oooooo
+    ooooooo
+    oooooo.
+  ` },
+  /** Despegue: talón arriba, se apoya la punta. */
+  heel: { anchor: [-3, 1], grid: `
+    ...oooo
+    .oooooo
+    oooooo.
+  ` },
+  lifted: { anchor: [-3, 1], grid: `
+    ...oooo
+    .oooooo
+    ooooooo
+  ` },
+};
+
+/** Pies de tres cuartos de espalda: el talón queda hacia la cámara y la punta se aleja arriba-izquierda. */
+const FOOT_QUARTER_BACK = {
+  flat: { anchor: [-2, 1], grid: `
+    .ooooo.
+    oooooo.
+    ooooooo
+    ..ooooo
+  ` },
+  heel: { anchor: [-2, 1], grid: `
+    .ooooo.
+    oooooo.
+    ..ooooo
+  ` },
+  lifted: { anchor: [-2, 1], grid: `
+    .ooooo.
+    oooooo.
+    .oooooo
+  ` },
+};
+
+/**
+ * Fases de la pierna cercana en tres cuartos: desplazamiento del tobillo
+ * respecto al reposo, flexión de la rodilla y pie. La lejana es la misma con 3
+ * cuadros de desfase. Avanzar es ir hacia donde mira el personaje: de frente,
+ * abajo-izquierda (el pie que avanza baja 1 px, como en la vista de frente); de
+ * espalda, arriba-izquierda (el pie que avanza sube). El vaivén lateral es
+ * corto a propósito: con más, las piernas se cruzan y a este tamaño se funden.
+ */
+export const QUARTER_FRONT_LEG_PHASES = [
+  { ankle: [-1.5, 1], bend: 0.5, foot: 'flat' },
+  { ankle: [-1, 1], bend: 1, foot: 'flat' },
+  { ankle: [0, 0], bend: 0, foot: 'flat' },
+  { ankle: [1, -1], bend: 0.5, foot: 'heel' },
+  { ankle: [1, -3], bend: 2.5, foot: 'lifted' },
+  { ankle: [0, -4], bend: 3, foot: 'lifted' },
+];
+
+export const QUARTER_BACK_LEG_PHASES = [
+  { ankle: [-1.5, -1], bend: 0.5, foot: 'flat' },
+  { ankle: [-1, 0], bend: 1, foot: 'flat' },
+  { ankle: [0, 0], bend: 0, foot: 'flat' },
+  { ankle: [1, 1], bend: 0, foot: 'heel' },
+  { ankle: [1, -2], bend: 2, foot: 'lifted' },
+  { ankle: [0, -4], bend: 3, foot: 'lifted' },
+];
+
+/** Braceo del brazo cercano por fase de su pierna: el brazo va atrás cuando la pierna avanza. */
+export const QUARTER_FRONT_ARM_PHASES = [
+  { elbow: [1, 0], wrist: [2, -1] },
+  { elbow: [1, 0], wrist: [1.5, -1] },
+  { elbow: [0, 0], wrist: [0, 0] },
+  { elbow: [-1, 0], wrist: [-2.5, 1] },
+  { elbow: [-1, 0], wrist: [-1.5, 1] },
+  { elbow: [0, 0], wrist: [0, 0] },
+];
+
+export const QUARTER_BACK_ARM_PHASES = [
+  { elbow: [1, 0], wrist: [2, 1] },
+  { elbow: [1, 0], wrist: [1.5, 1] },
+  { elbow: [0, 0], wrist: [0, 0] },
+  { elbow: [-1, 0], wrist: [-2.5, -1] },
+  { elbow: [-1, 0], wrist: [-1.5, -1] },
+  { elbow: [0, 0], wrist: [0, 0] },
+];
+
 export const COMPLEXION_A = {
   id: 'a',
   frame: FRAME,
@@ -317,6 +495,32 @@ export const COMPLEXION_A = {
       farOffset: 1,
       legPhases: SIDE_LEG_PHASES,
       armPhases: SIDE_ARM_PHASES,
+    },
+    'down-left': {
+      kind: 'front34',
+      head: HEAD_QUARTER, ear: EAR_QUARTER_FRONT, neck: NECK_QUARTER, torso: TORSO_QUARTER, pelvis: PELVIS_QUARTER,
+      hand: HAND_FRONT, feet: FOOT_QUARTER_FRONT,
+      armNear: { shoulder: [29.5, 24], elbow: [30, 33], wrist: [29.5, 42] },
+      armFar: { shoulder: [17.5, 24], elbow: [16.5, 33], wrist: [16.5, 42] },
+      legNear: { hip: [27, 44], ankle: [26.5, 62] },
+      legFar: { hip: [21, 44], ankle: [22, 61] },
+      kneeDir: [-0.6, 0],
+      farArmSwing: 0.5,
+      legPhases: QUARTER_FRONT_LEG_PHASES,
+      armPhases: QUARTER_FRONT_ARM_PHASES,
+    },
+    'up-left': {
+      kind: 'back34',
+      head: HEAD_QUARTER, ear: EAR_QUARTER_BACK, neck: NECK_QUARTER, torso: TORSO_QUARTER, pelvis: PELVIS_QUARTER,
+      hand: HAND_FRONT, feet: FOOT_QUARTER_BACK,
+      armNear: { shoulder: [18, 24], elbow: [17.5, 33], wrist: [18, 42] },
+      armFar: { shoulder: [30.5, 24], elbow: [31.5, 33], wrist: [31.5, 42] },
+      legNear: { hip: [21, 44], ankle: [21.5, 62] },
+      legFar: { hip: [27, 44], ankle: [26, 61] },
+      kneeDir: [-0.4, 0],
+      farArmSwing: 0.5,
+      legPhases: QUARTER_BACK_LEG_PHASES,
+      armPhases: QUARTER_BACK_ARM_PHASES,
     },
   },
   sheets: {

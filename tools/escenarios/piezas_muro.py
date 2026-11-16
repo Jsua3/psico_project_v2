@@ -41,6 +41,12 @@ METAL = ((176, 184, 192), (136, 144, 156), (100, 106, 118), (72, 76, 86))
 ROJO = ((214, 92, 80), (186, 62, 56), (140, 44, 44))
 
 
+# Lo que emite luz propia: el cielo de día y las luces lejanas de noche que se ven por la ventana, y el foco, el tubo
+# y la pantalla de una lámpara encendida.
+EMISIVOS = tuple(DIA) + (mezcla(DIA[0], BLANCO, 0.42), mezcla(DIA[0], BLANCO, 0.2), mezcla(DIA[0], BLANCO, 0.3), mezcla(DIA[0], BLANCO, 0.5),
+                         (128, 150, 166), mezcla((128, 150, 166), BLANCO, 0.14), (226, 222, 196), (150, 172, 204), (198, 206, 224),
+                         (226, 226, 208), FOCO[1], (244, 250, 250), (214, 232, 240), PANTALLA[0], PANTALLA[1])
+
 # Lo que brilla en una pieza: el reflejo del espejo y del frasco (apagados en el dibujo) y los filos de metal y barniz.
 # El reflejo de las ventanas de día no va aquí: es el cielo que se ve por ellas y de noche no existe.
 BRILLOS = {(198, 218, 222): ('vidrio', (160, 186, 194)), (176, 200, 206): ('vidrio', (156, 182, 190)), (232, 240, 246): ('vidrio', (150, 190, 224)),
@@ -479,9 +485,10 @@ def _cuadros(tipo, modelo, vista, ancho_sala):
             raise KeyError(f'vista {vista!r} desconocida')
     partes = [g.mapa_de_brillo(g.terminar(im, 256), BRILLOS) for im, _ in crudos]
     listos, punto, mapas = g.recortar_con([c for c, _ in partes], crudos[0][1], [m for _, m in partes])
+    emisivos = g.recortar_con([c for c, _ in partes], crudos[0][1], [g.mapa_emisivo(c, EMISIVOS) for c, _ in partes])[2]
     limitada = g.terminar(g.tira(listos), F['colores'], contorno=False)
     ancho = listos[0].width
-    return tuple(limitada.crop((n * ancho, 0, n * ancho + ancho, limitada.height)) for n in range(len(listos))), punto, tuple(mapas)
+    return tuple(limitada.crop((n * ancho, 0, n * ancho + ancho, limitada.height)) for n in range(len(listos))), punto, tuple(mapas), tuple(emisivos)
 
 
 def _clave(tipo, modelo, vista, ancho_sala):
@@ -500,6 +507,12 @@ def apoyo(tipo, modelo, vista='frente', ancho_sala=960):
 def brillo(tipo, modelo, vista='frente', ancho_sala=960):
     """Los mapas de brillo de cada cuadro, o None si la pieza no tiene nada que brille."""
     mapas = _cuadros(*_clave(tipo, modelo, vista, ancho_sala))[2]
+    return list(mapas) if any(m.getbbox() for m in mapas) else None
+
+
+def emisivo(tipo, modelo, vista='frente', ancho_sala=960):
+    """Las máscaras de lo que emite luz propia en cada cuadro (va encima de la luz, sin multiplicar), o None."""
+    mapas = _cuadros(*_clave(tipo, modelo, vista, ancho_sala))[3]
     return list(mapas) if any(m.getbbox() for m in mapas) else None
 
 

@@ -4,7 +4,7 @@
  * vestidos; devuelven listas de errores legibles (vacía = cumple).
  */
 
-import { FRAME, PORTRAIT_FRAME, SHEETS, SHEET_IDS, VIEW_ROWS, decodeRle } from '../../src/app/features/character/kit/kit-engine.ts';
+import { FRAME, MIRROR_OF, PORTRAIT_FRAME, SHEETS, SHEET_IDS, VIEW_ROWS, decodeRle } from '../../src/app/features/character/kit/kit-engine.ts';
 
 export const RULES = Object.freeze({
   axisX: 24,
@@ -13,7 +13,7 @@ export const RULES = Object.freeze({
   /** Primeras 18 filas del cuerpo: ancho del tramo que cruza x = 24. */
   head: { from: 0, to: 17, width: [18, 21], volumeWidth: [18, 25], consecutive: 6, total: 8 },
   /** Diez filas siguientes: hombros de frente/espalda, fondo del torso en perfil. */
-  shoulders: { from: 18, to: 27, front: [20, 27], side: [10, 16], consecutive: 3, total: 4 },
+  shoulders: { from: 18, to: 27, front: [20, 27], side: [10, 16], quarter: [14, 25], consecutive: 3, total: 4 },
   /** Cráneo (etiqueta H) con contorno, de frente: el de la complexión A. */
   skullWidth: 17,
   stanceTolerance: 6,
@@ -21,6 +21,14 @@ export const RULES = Object.freeze({
 });
 
 const SIDE_VIEWS = new Set(['left', 'right']);
+const QUARTER_VIEWS = new Set(['down-left', 'down-right', 'up-left', 'up-right']);
+
+/** Banda de hombros de una vista: rango admitido, nombre de la medida y clave en la geometría. */
+function shoulderBand(view) {
+  if (SIDE_VIEWS.has(view)) return { range: RULES.shoulders.side, label: 'fondo del torso', key: 'torsoDepth' };
+  if (QUARTER_VIEWS.has(view)) return { range: RULES.shoulders.quarter, label: 'hombros en tres cuartos', key: 'shoulderWidth' };
+  return { range: RULES.shoulders.front, label: 'hombros', key: 'shoulderWidth' };
+}
 
 function hex(rgba, i) {
   return `#${[rgba[i], rgba[i + 1], rgba[i + 2]].map(v => v.toString(16).padStart(2, '0')).join('')}`;
@@ -153,8 +161,8 @@ export function checkSpriteFrame(image, col, row, { name, view, dressed, volume 
   const [h0, h1] = RULES.opaqueHeight;
   if (height < h0 || height > h1) errors.push(`${where}: altura opaca ${height}; debe estar entre ${h0} y ${h1}`);
   errors.push(...bandErrors(body, c.fw, RULES.head, volume ? RULES.head.volumeWidth : RULES.head.width, `${where} cabeza`));
-  const side = SIDE_VIEWS.has(view);
-  errors.push(...bandErrors(body, c.fw, RULES.shoulders, side ? RULES.shoulders.side : RULES.shoulders.front, `${where} ${side ? 'fondo del torso' : 'hombros'}`));
+  const band = shoulderBand(view);
+  errors.push(...bandErrors(body, c.fw, RULES.shoulders, band.range, `${where} ${band.label}`));
   if (dressed) {
     const f = feet(dressed);
     const center = (f.minX + f.maxX) / 2;
@@ -207,13 +215,18 @@ function isMirror(image, col, leftRow, rightRow, shift) {
   return true;
 }
 
-/** La derecha no puede ser el espejo exacto de la izquierda (ni con eje 47−x ni 48−x). */
+/** Ninguna vista derecha puede ser el espejo exacto de su izquierda (ni con eje 47−x ni 48−x): la luz se recalcula. */
 export function checkMirror(image, name, sheet) {
   const errors = [];
   const cols = image.width / FRAME.width;
-  for (let col = 0; col < cols; col++) {
-    for (const shift of [FRAME.width - 1, FRAME.width]) {
-      if (isMirror(image, col, 1, 2, shift)) errors.push(`${name} ${sheet} [${col}]: la derecha es el espejo exacto de la izquierda`);
+  for (const [right, left] of Object.entries(MIRROR_OF)) {
+    const leftRow = VIEW_ROWS.indexOf(left);
+    const rightRow = VIEW_ROWS.indexOf(right);
+    const what = right === 'right' ? 'la derecha es el espejo exacto de la izquierda' : `${right} es el espejo exacto de ${left}`;
+    for (let col = 0; col < cols; col++) {
+      for (const shift of [FRAME.width - 1, FRAME.width]) {
+        if (isMirror(image, col, leftRow, rightRow, shift)) errors.push(`${name} ${sheet} [${col}]: ${what}`);
+      }
     }
   }
   return errors;
@@ -229,7 +242,7 @@ export function geometry(composed) {
     out[view] = {
       opaqueHeight: body.bottom - body.top + 1,
       headWidth: widest(RULES.head.from, RULES.head.to),
-      [SIDE_VIEWS.has(view) ? 'torsoDepth' : 'shoulderWidth']: widest(RULES.shoulders.from, RULES.shoulders.to),
+      [shoulderBand(view).key]: widest(RULES.shoulders.from, RULES.shoulders.to),
     };
   });
   return out;

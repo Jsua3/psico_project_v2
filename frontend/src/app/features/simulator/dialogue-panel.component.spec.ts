@@ -85,6 +85,12 @@ describe('DialoguePanelComponent - contrato de progresion narrativa', () => {
     expect(dialogueKeyAction('1', true, false, 1, false)).toBe('none');
     expect(dialogueKeyAction('1', true, true, 1, false)).toBe('choose');
     expect(dialogueKeyAction('2', true, true, 1, false)).toBe('none');
+    // Las opciones se nombran A a D: la letra elige igual que el número, con las mismas guardas.
+    expect(dialogueKeyAction('a', true, true, 1, false)).toBe('choose');
+    expect(dialogueKeyAction('B', true, true, 2, false)).toBe('choose');
+    expect(dialogueKeyAction('b', true, true, 1, false)).toBe('none');
+    expect(dialogueKeyAction('a', true, false, 1, false)).toBe('none');
+    expect(dialogueKeyAction('e', true, true, 4, false)).toBe('none');
     expect(isFinalDialogueLine(MULTI_LINE_DIALOGUE, 0)).toBe(false);
     expect(isFinalDialogueLine(MULTI_LINE_DIALOGUE, 1)).toBe(true);
   });
@@ -617,7 +623,7 @@ describe('DialoguePanelComponent - sin decisión accidental (T4.3, DLG-03)', () 
   it('apagados, la pista de teclado no promete los números; activos sí', () => {
     const settings = TestBed.inject(ShortcutSettings);
     try {
-      expect(component.keyboardHint(component.dialogue()!)).toBe('Enter: continuar · 1 a 2: elegir · Esc: volver al mapa');
+      expect(component.keyboardHint(component.dialogue()!)).toBe('Enter: continuar · A a B: elegir · Esc: volver al mapa');
       settings.set(false);
       expect(component.keyboardHint(component.dialogue()!)).toBe('Enter: continuar · Esc: volver al mapa');
     } finally {
@@ -718,15 +724,16 @@ describe('DialoguePanelComponent - aviso, subtítulos y chips (T4.5)', () => {
       expect(text(chip)).toBe('Aún no tienes esta herramienta. Recógela en la sala.');
       // WCAG 2.5.3 (Axe label-content-name-mismatch, nivel A): el texto visible —el aviso también— forma parte del nombre
       // accesible. Como ya está en el nombre, no se repite como descripción (un lector lo leería dos veces).
-      expect(toolBtn.getAttribute('aria-label')).toBe('1. Aplicar el material de apoyo. Aún no tienes esta herramienta. Recógela en la sala.');
+      expect(toolBtn.getAttribute('aria-label')).toBe('A. Aplicar el material de apoyo. Aún no tienes esta herramienta. Recógela en la sala.');
       expect(toolBtn.hasAttribute('aria-describedby')).toBe(false);
       expect(chip.hasAttribute('aria-hidden')).toBe(false);
       // Axe junta el texto visible de los hijos TAL CUAL: sin un espacio entre la etiqueta y el aviso queda «apoyoAún» y no
       // coincide con el nombre accesible (el e2e de las pistas lo midió en el navegador).
       expect(toolBtn.textContent).toMatch(/apoyo\s+Aún/);
-      // Y lo mismo entre el número y la etiqueta, en cualquier opción: «2Escuchar» tampoco coincide con «2. Escuchar».
-      expect(toolBtn.textContent).toMatch(/^\s*1\s+Aplicar/);
-      expect(decisionBtn.textContent).toMatch(/^\s*2\s+Escuchar/);
+      // Y lo mismo entre la letra y la etiqueta, en cualquier opción: «BEscuchar» tampoco coincide con «B. Escuchar».
+      // (Bloque I1: las opciones se nombran A a D; la letra se dibuja en pixel art y sigue como texto al principio.)
+      expect(toolBtn.textContent).toMatch(/^\s*A\s+Aplicar/);
+      expect(decisionBtn.textContent).toMatch(/^\s*B\s+Escuchar/);
 
       vi.advanceTimersByTime(600);
       fixture.detectChanges();
@@ -813,7 +820,7 @@ describe('DialoguePanelComponent - aviso, subtítulos y chips (T4.5)', () => {
 
   it('la pista de teclado nombra el rango real de opciones y solo se pinta con puntero fino', () => {
     render(dialogueWith([decision(1, 'Escuchar'), decision(2, 'Aconsejar'), decision(3, 'Derivar')]));
-    expect(text(host().querySelector('.keyboard-hint'))).toBe('Enter: continuar · 1 a 3: elegir · Esc: volver al mapa');
+    expect(text(host().querySelector('.keyboard-hint'))).toBe('Enter: continuar · A a C: elegir · Esc: volver al mapa');
     render(dialogueWith([]));
     expect(text(host().querySelector('.keyboard-hint'))).toBe('Enter: continuar · Esc: volver al mapa');
     expect(source).toMatch(/\.keyboard-hint \{ display: none;/);
@@ -1142,11 +1149,17 @@ describe('DialoguePanelComponent - scroll, hoja y retrato (T4.4)', () => {
     expect(scrollIntoView).toHaveBeenCalledTimes(2);
   });
 
-  it('el retrato lateral mide 96 px (×3) y 64 px (×2) en pantallas bajas, y el panel lateral es lo único que se desplaza', () => {
-    expect(source).toMatch(/\.dialogue-strip--side \.portrait-img \{ width: 96px; height: 96px; \}/);
+  // Bloque I1: el retrato mide siempre un múltiplo de 96 (y de 32): sirve igual para el retrato del kit (32 px) y para
+  // uno fino de 96 px, sin escalar a un factor no entero. En pantallas bajas ya no baja a 64 px (no es múltiplo de 96).
+  it('el retrato mide 96, 192 o 288 px según el espacio, y el panel lateral es lo único que se desplaza', () => {
+    const tamanos = [...source.matchAll(/--retrato: (\d+)px/g)].map(m => Number(m[1]));
+    expect(tamanos.length).toBeGreaterThan(3);
+    for (const t of tamanos) expect(t % 96, `${t} px`).toBe(0);
+    expect(source).toMatch(/\.dialogue-strip--side \{\s*--retrato: 96px;/);
     const compact = mediaBlocks(source, '(max-height: 520px)');
     expect(compact.length).toBeGreaterThan(0);
-    expect(compact.some(block => block.includes('.dialogue-strip--side .portrait-img { width: 64px; height: 64px; }'))).toBe(true);
+    expect(compact.some(block => block.includes('--retrato: 96px'))).toBe(true);
+    expect(source).toMatch(/\.portrait-img \{[^}]*width: var\(--retrato\);[^}]*image-rendering: pixelated;/);
     expect(source).not.toContain('clamp(48px, 12vh, 64px)');
     expect(source).toMatch(/\.dialogue-strip--side \{[^}]*overflow-y: auto;/);
     // Ya no se ancla al fondo en cada ciclo de detección.
@@ -1164,35 +1177,38 @@ describe('DialoguePanelComponent - contraste de lo nuevo (WCAG 1.4.3, T4.1/T4.5)
   };
   const hexOf = (body: string, property: string): string => body.match(new RegExp(`${property}: (#[0-9A-Fa-f]{6})`))?.[1] ?? '';
 
-  it('el aviso de evidencia, el chip de herramienta ausente y el chip «Decisión» llegan a 4,5:1', () => {
-    const notice = hexOf(rule('.choices-notice'), 'color');
-    expect(contrastRatio(notice, blend('#F5B84B', 0.10, SIDE_BG))).toBeGreaterThanOrEqual(4.5);
-    expect(contrastRatio(notice, blend('#F5B84B', 0.10, CINEMATIC_BG))).toBeGreaterThanOrEqual(4.5);
-    const hint = hexOf(rule('.choice-btn__hint'), 'color');
-    expect(contrastRatio(hint, blend('#FFFFFF', 0.06, SIDE_BG))).toBeGreaterThanOrEqual(4.5);
-    const chip = hexOf(rule('.panel-chip'), 'color');
-    expect(contrastRatio(chip, blend('#7C4DFF', 0.16, '#121A2B'))).toBeGreaterThanOrEqual(4.5);
-    const subtitle = hexOf(rule('.choices-subtitle'), 'color');
-    expect(contrastRatio(subtitle, SIDE_BG)).toBeGreaterThanOrEqual(4.5);
+  // Bloque I1: el texto va sobre las tramas de pixel del panel (dialogo_arte.py), no sobre vidrio con transparencia.
+  // Superficies: el tono más claro de cada trama (penumbra de la placa y pizarra de la ficha), más el canto de luz.
+  const PLACA = ['#1B1826', '#211E2E', '#171421'];
+  const FICHA = ['#28243C', '#2F2B45', '#231F35', '#302B46', '#383350', '#2A263E'];
+  const TODO = [...PLACA, ...FICHA];
+  const hexOfRule = (selector: string) => hexOf(rule(selector), 'color');
+
+  it('el aviso de evidencia, el chip de herramienta ausente, el chip «Decisión» y los subtítulos llegan a 4,5:1', () => {
+    for (const surface of PLACA) {
+      expect(contrastRatio(hexOfRule('.choices-notice'), surface)).toBeGreaterThanOrEqual(4.5);
+      expect(contrastRatio(hexOfRule('.panel-chip'), surface)).toBeGreaterThanOrEqual(4.5);
+      expect(contrastRatio(hexOfRule('.choices-subtitle'), surface)).toBeGreaterThanOrEqual(4.5);
+    }
+    expect(contrastRatio(hexOf(rule('.choice-btn__hint'), 'color'), hexOf(rule('.choice-btn__hint'), 'background'))).toBeGreaterThanOrEqual(4.5);
   });
 
-  it('el texto de «Volver al mapa» y la cabecera sólida llegan a 4,5:1', () => {
-    const text = hexOf(rule('.panel-back'), 'color');
-    expect(contrastRatio(text, blend('#7C4DFF', 0.12, '#121A2B'))).toBeGreaterThanOrEqual(4.5);
-    expect(contrastRatio(text, blend('#7C4DFF', 0.12, '#080C12'))).toBeGreaterThanOrEqual(4.5);
-    // La cabecera es opaca: nada de lo que se desplaza se transparenta debajo de los botones.
-    expect(rule('.panel-head')).toMatch(/background: #[0-9A-Fa-f]{6};/);
+  it('el texto de «Volver al mapa» llega a 4,5:1 y la cabecera del panel lateral es opaca', () => {
+    for (const surface of PLACA) expect(contrastRatio(hexOfRule('.panel-back'), surface)).toBeGreaterThanOrEqual(4.5);
+    // En el panel lateral lo que se desplaza no se transparenta debajo de los botones.
     expect(source).toMatch(/\.dialogue-strip--side \.panel-head \{ background: #[0-9A-Fa-f]{6}; \}/);
   });
 
-  it('la pista de teclado, la nota de cabecera y la línea de otro momento (texto claro con alfa) llegan a 4,5:1', () => {
-    for (const [selector, surface] of [['.keyboard-hint', SIDE_BG], ['.panel-head__note', '#121A2B'], ['.stale-note', SIDE_BG]] as const) {
-      const alpha = Number(rule(selector).match(/color: rgba\(232,240,244,\.(\d+)\)/)?.[1]);
-      expect(alpha).toBeGreaterThan(0);
-      expect(contrastRatio(blend('#E8F0F4', Number(`0.${alpha}`), surface), surface)).toBeGreaterThanOrEqual(4.5);
+  it('la pista de teclado, la nota de cabecera, la línea de otro momento y el texto de las fichas llegan a 4,5:1', () => {
+    for (const selector of ['.keyboard-hint', '.panel-head__note', '.stale-note']) {
+      for (const surface of PLACA) expect(contrastRatio(hexOfRule(selector), surface), selector).toBeGreaterThanOrEqual(4.5);
     }
-    const hintAlpha = Number(`0.${rule('.keyboard-hint').match(/rgba\(232,240,244,\.(\d+)\)/)?.[1]}`);
-    expect(contrastRatio(blend('#E8F0F4', hintAlpha, CINEMATIC_BG), CINEMATIC_BG)).toBeGreaterThanOrEqual(4.5);
+    const tinta = source.match(/--tinta: (#[0-9a-f]{6})/)?.[1] ?? '';
+    const suave = source.match(/--tinta-suave: (#[0-9a-f]{6})/)?.[1] ?? '';
+    for (const surface of TODO) {
+      expect(contrastRatio(tinta, surface)).toBeGreaterThanOrEqual(4.5);
+      expect(contrastRatio(suave, surface)).toBeGreaterThanOrEqual(4.5);
+    }
   });
 });
 
@@ -1308,7 +1324,7 @@ describe('DialoguePanelComponent - anuncio de la línea activa (F6-12)', () => {
   it('el panel ya no lleva una región viva propia: el texto queda para el cursor de lectura, sin role', () => {
     render(MULTI_LINE_DIALOGUE);
 
-    const text = fixture.nativeElement.querySelector('.strip-body > .visually-hidden') as HTMLElement;
+    const text = fixture.nativeElement.querySelector('.placa-habla > .visually-hidden') as HTMLElement;
     expect(text.textContent?.trim()).toBe('Primera');
     expect(text.hasAttribute('role')).toBe(false);
     expect(text.hasAttribute('aria-live')).toBe(false);

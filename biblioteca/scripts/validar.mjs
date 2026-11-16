@@ -19,6 +19,7 @@ import {
   ANCHO_SALA,
   cajaCentrada,
   cajaDeMueble,
+  llegada,
   muebleEnZona,
   puntoEnZona,
   rectIntersecta,
@@ -185,7 +186,7 @@ export async function validarEscenario(dir, { kitDir = KIT_POR_DEFECTO, catalogo
     }
     return { errores, avisos };
   }
-  if (escenario.esquema !== ESQUEMA_ACTUAL) {
+  if (escenario.esquema < ESQUEMA_ACTUAL) { // el 3 (salas por piezas) convive con el 2: no es «antiguo» ni «nuevo»
     aviso('esquema-antiguo', 'escenario', `El archivo usa el esquema ${escenario.esquema}; el actual es el ${ESQUEMA_ACTUAL} (hitos, nivel de riesgo y modelos compartidos).`);
   }
 
@@ -259,7 +260,8 @@ export async function validarEscenario(dir, { kitDir = KIT_POR_DEFECTO, catalogo
 
   // Arte en disco: que exista, que sea PNG y, si es un fondo, que mida lo que mide una sala.
   const revisarArte = async (ruta, donde, tamano) => {
-    const completa = path.join(dir, ruta);
+    // `piezas/…` (esquema 3) es del catálogo de piezas, relativo a biblioteca/; `arte/…`, de la carpeta del lugar.
+    const completa = ruta.startsWith('piezas/') ? path.join(RAIZ_BIBLIOTECA, ruta) : path.join(dir, ruta);
     if (!(await existe(completa))) {
       error('arte-faltante', donde, `No se encuentra la imagen "${ruta}".`);
       return;
@@ -272,7 +274,7 @@ export async function validarEscenario(dir, { kitDir = KIT_POR_DEFECTO, catalogo
     }
   };
   for (const sala of escenario.salas) {
-    await revisarArte(sala.fondo, `sala "${sala.id}" › fondo`, { ancho: ANCHO_SALA, alto: ALTO_SALA });
+    if (sala.fondo) await revisarArte(sala.fondo, `sala "${sala.id}" › fondo`, { ancho: ANCHO_SALA, alto: ALTO_SALA });
   }
   for (const m of escenario.catalogo.muebles) await revisarArte(m.arte, `mueble "${m.id}"`);
   // La hoja de cercanía mide lo mismo de alto que el reposo y `cuadros` veces su ancho.
@@ -321,7 +323,8 @@ export async function validarEscenario(dir, { kitDir = KIT_POR_DEFECTO, catalogo
   // Cada sala.
   for (const sala of escenario.salas) {
     const enSala = `sala "${sala.id}"`;
-    const zona = zonaCaminable(sala.encuadre);
+    const ancho = sala.estructura?.ancho ?? ANCHO_SALA;
+    const zona = zonaCaminable(sala.encuadre, ancho);
     const conColision = [];
 
     if (!puntoEnZona(zona, sala.entrada.x, sala.entrada.y)) {
@@ -339,7 +342,11 @@ export async function validarEscenario(dir, { kitDir = KIT_POR_DEFECTO, catalogo
       if (!muebleEnZona(zona, caja)) {
         error('fuera-de-la-zona', donde, `El mueble "${mueble.nombre}" se sale del suelo de la sala o queda contra una pared que este encuadre no tiene.`);
       }
-      if (mueble.colision) conColision.push({ caja, nombre: mueble.nombre });
+      // Con `huella` (esquema 3) choca la base en el piso, no la caja del dibujo, igual que en el servidor.
+      const choque = mueble.huella
+        ? { x: colocado.x - mueble.huella.ancho / 2, y: colocado.y - mueble.huella.fondo, ancho: mueble.huella.ancho, alto: mueble.huella.fondo }
+        : caja;
+      if (mueble.colision) conColision.push({ caja: choque, nombre: mueble.nombre });
     });
 
     sala.objetos.forEach((colocado, i) => {
@@ -367,17 +374,19 @@ export async function validarEscenario(dir, { kitDir = KIT_POR_DEFECTO, catalogo
 
     for (const puerta of sala.puertas) {
       const donde = `${enSala} › puerta "${puerta.id}"`;
-      if (!puntoEnZona(zona, puerta.x, puerta.y)) {
+      // Una puerta en el muro (esquema 3) se juzga en su umbral: la llegada de su (muro, pos).
+      const umbral = puerta.muro ? llegada(puerta.muro, puerta.pos, sala.encuadre, ancho) : { x: puerta.x, y: puerta.y };
+      if (!puntoEnZona(zona, umbral.x, umbral.y)) {
         error('fuera-de-la-zona', donde, `La puerta "${puerta.etiqueta}" queda fuera del suelo de la sala: nadie podría llegar a ella.`);
       }
       if (puerta.hacia === sala.id) {
         error('puerta-a-si-misma', donde, `La puerta "${puerta.id}" lleva a la misma sala en la que está.`);
       } else if (!salas.has(puerta.hacia)) {
         error('sala-inexistente', donde, `La puerta "${puerta.id}" lleva a una sala que no existe: "${puerta.hacia}".`);
-      } else if (!salas.get(puerta.hacia).puertas.some((p) => p.hacia === sala.id)) {
+      } else if (!puerta.sentidoUnico && !salas.get(puerta.hacia).puertas.some((p) => p.hacia === sala.id)) {
         aviso('puerta-sin-vuelta', donde, `Se puede ir de "${sala.id}" a "${puerta.hacia}", pero no hay puerta para volver.`);
       }
-      for (const tapa of libre(puerta.x, puerta.y)) {
+      for (const tapa of libre(umbral.x, umbral.y)) {
         error('entrada-bloqueada', donde, `El mueble "${tapa.nombre}" tapa la puerta "${puerta.etiqueta}".`);
       }
     }

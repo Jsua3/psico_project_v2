@@ -34,6 +34,12 @@ export default {
   ],
   views: {
     down: [...bata.views.down, SLEEVES, mark(27, 26)],
+    // Tres cuartos: el lado izquierdo de quien la lleva es el cercano mirando a la izquierda (marca en x 25-26)
+    // y el lejano mirando a la derecha (marca al fondo del pecho, x 29-30).
+    'down-left': [...bata.views['down-left'], SLEEVES, mark(25, 26)],
+    'down-right': [...bata.views['down-left'].map(o => mirrorOverlay(o)), SLEEVES, mark(29, 26)],
+    'up-left': [...bata.views['up-left'], SLEEVES],
+    'up-right': [...bata.views['up-left'].map(o => mirrorOverlay(o)), SLEEVES],
     up: [...bata.views.up, SLEEVES],
     left: [...bata.views.left, SLEEVES, mark(20, 26)],
     right: [...bata.views.left.map(o => mirrorOverlay(o)), SLEEVES],

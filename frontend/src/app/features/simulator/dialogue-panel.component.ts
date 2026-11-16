@@ -3,10 +3,12 @@ import { A11yModule } from '@angular/cdk/a11y';
 import { AfterRenderRef, AfterViewChecked, Component, ElementRef, HostListener, Injector, OnDestroy, afterNextRender, computed, effect, inject, input, output, signal, untracked, ChangeDetectionStrategy } from '@angular/core';
 import { LiveRegionAnnouncer } from '../../core/a11y/live-announcer.service';
 import { ShortcutSettings } from '../../core/a11y/shortcut-settings.service';
-import { DialogueChoiceState, DialogueState, MapObjectState } from '../../core/models/simulation.model';
+import { DialogueChoiceState, DialogueState, MapObjectState, Persona } from '../../core/models/simulation.model';
 import { KitService } from '../character/kit/kit.service';
 import { AudioDirectorService } from './audio-director.service';
-import { digitIndex } from './dialogue-keys.util';
+import { MS_POR_CARACTER, pausaTras, tramos } from './caso/ritmo-texto';
+import { choiceIndex } from './dialogue-keys.util';
+import { MomentoDelDia, letraDe, variablesDeArte } from './dialogo-arte';
 import { scrollShiftToUncoverText } from './dialogue-scroll.util';
 import {
   activeDialogueLine,
@@ -21,8 +23,6 @@ import { isSystemVoice, resolvePortraitAsset } from './portrait-resolver.util';
 import { SafeExitButtonComponent } from './safe-exit-button.component';
 import { HintAttemptRef, SceneHintComponent } from './scene-hint.component';
 
-const CHARS_PER_SEC = 22;
-const TYPEWRITER_INTERVAL_MS = Math.round(1000 / CHARS_PER_SEC); // ~45ms
 /** Ventana tras mostrar las opciones en la que se ignora un clic por teclado (Enter/Espacio mantenido). */
 const CHOICE_ACTIVATION_GUARD_MS = 500;
 /** Texto de la línea informativa de una conversación que pertenece a otra etapa. */
@@ -41,6 +41,11 @@ const STALE_NOTE = 'Esta conversación corresponde a otro momento del caso.';
         [class.dialogue-strip--side]="mode() === 'side'"
         [class.strip--warning]="interaction()?.type === 'WARNING'"
         [class.strip--supervisory]="activeSpeakerName(d) === 'Supervisión clínica'"
+        [class.strip--quieto]="reduceMotion()"
+        [class.strip--sin-retrato]="!portraitSrc(d)"
+        [class.strip--con-opciones]="hasChoices(d)"
+        [style]="arte()"
+        [attr.data-momento]="momento()"
         role="dialog"
         aria-modal="true"
         [attr.aria-label]="'Diálogo con ' + activeSpeakerName(d)">
@@ -63,255 +68,375 @@ const STALE_NOTE = 'Esta conversación corresponde a otro momento del caso.';
         </header>
 
         <div class="strip-main">
-        <div class="portrait" aria-hidden="true" [style.color]="showsEmotionCue(d) ? emotionColor(activeEmotion(d)) : null">
-          @if (portraitSrc(d); as src) {
-            <img class="portrait-img" [src]="src" alt="" width="96" height="96" (error)="onPortraitError(src)" />
-          } @else {
-            <svg viewBox="0 0 48 48" class="portrait-svg" width="40" height="40">
-              <circle cx="24" cy="18" r="9" fill="currentColor"/>
-              <path d="M8 44 C8 33 15 28 24 28 C33 28 40 33 40 44 Z" fill="currentColor"/>
-            </svg>
-          }
-          @if (showsEmotionCue(d) && activeEmotion(d) !== 'neutral') {
-            <span class="emotion-chip" [attr.data-emotion]="activeEmotion(d)"></span>
-          }
-        </div>
-
-        <!-- Text area -->
-        <div class="strip-body">
-          <p class="speaker-name">{{ activeSpeakerName(d) }}
-            @if (showsEmotionCue(d) && emotionLabel(activeEmotion(d)); as em) {
-              <span class="emotion-tag" [style.color]="emotionColor(activeEmotion(d))">{{ em }}</span>
-            }
-          </p>
-          <p class="dialogue-text" aria-hidden="true">{{ displayedText() }}<span class="cursor" [class.cursor--done]="isTypingComplete()">▋</span></p>
-          <!-- Texto completo de la línea para el cursor de lectura. Sin role ni aria-live (H-09): una región que
-               nace dentro del @if con su texto no se anuncia; la línea la anuncia el servicio de regiones vivas. -->
-          <p class="visually-hidden">{{ fullText() }}</p>
-
-          @if (staleNote(d); as note) {
-            <p class="stale-note" role="note">{{ note }}</p>
-          }
-
-          @if (choicesVisible() && !d.stale) {
-            @let notice = noticeText(d);
-            @if (notice) {
-              <p class="choices-notice" id="choices-notice" role="note">{{ notice }}</p>
-            }
-            <!-- La pista acompaña a quien decide: una confirmación de la interfaz («Explorar primero») no la ofrece. -->
-            @if (offersHints(d) && hintAttempt(); as attemptRef) {
-              <app-scene-hint [attemptId]="attemptRef.attemptId" [attemptToken]="attemptRef.attemptToken"
-                (consentRequired)="consentRequired.emit()" />
-            }
-            <div class="choices" role="group" aria-label="Opciones de intervención" tabindex="-1" cdkFocusInitial
-              [attr.aria-describedby]="notice ? 'choices-notice' : null"
-              [class.choices--locked]="chosenKey() !== null">
-              @for (choice of d.choices; track choice.key; let i = $index) {
-                @if (subtitleBefore(d, i); as subtitle) {
-                  <p class="choices-subtitle">{{ subtitle }}</p>
-                }
-                <button
-                  type="button"
-                  class="choice-btn"
-                  [class.choice-btn--chosen]="chosenKey() === choice.key"
-                  [class.choice-btn--unavailable]="choice.toolMissing"
-                  [style.--stagger]="i"
-                  [attr.aria-label]="(i + 1) + '. ' + choice.text + (choice.toolMissing ? '. ' + toolMissingHint : '')"
-                  [attr.aria-disabled]="choice.toolMissing ? 'true' : null"
-                  (focus)="onChoiceFocus($event)"
-                  (click)="onChoiceClick($event, choice)">
-                  <span class="choice-num" aria-hidden="true">{{ i + 1 }}</span>{{ ' ' }}<span class="choice-btn__icon" aria-hidden="true"></span>
-                  <span class="choice-btn__body">
-                    <span class="choice-btn__label">{{ choice.text }}</span>
-                    @if (choice.toolMissing) {
-                      {{ ' ' }}<span class="choice-btn__hint" [id]="'choice-hint-' + i">{{ toolMissingHint }}</span>
-                    }
-                  </span>
-                </button>
+          <!-- La placa de quien habla: nombre en su pestaña, retrato que asoma sobre el marco, estado y la línea. -->
+          <section class="placa">
+            <p class="speaker-name">{{ activeSpeakerName(d) }}
+              @if (showsEmotionCue(d) && emotionLabel(activeEmotion(d)); as em) {
+                <span class="emotion-tag" [style.color]="emotionColor(activeEmotion(d))">{{ em }}</span>
               }
+            </p>
+            <div class="placa-cuerpo">
+              <div class="portrait" aria-hidden="true" [style.color]="showsEmotionCue(d) ? emotionColor(activeEmotion(d)) : null">
+                @if (portraitSrc(d); as src) {
+                  <img class="portrait-img" [src]="src" alt="" width="96" height="96" (error)="onPortraitError(src)" />
+                } @else {
+                  <svg viewBox="0 0 48 48" class="portrait-svg" width="40" height="40">
+                    <circle cx="24" cy="18" r="9" fill="currentColor"/>
+                    <path d="M8 44 C8 33 15 28 24 28 C33 28 40 33 40 44 Z" fill="currentColor"/>
+                  </svg>
+                }
+                @if (showsEmotionCue(d) && activeEmotion(d) !== 'neutral') {
+                  <span class="emotion-chip" [attr.data-emotion]="activeEmotion(d)"></span>
+                }
+                @if (estadoPersona(d); as e) {
+                  <i class="portrait-base" [attr.data-activation]="e.activation"></i>
+                }
+              </div>
+
+              <div class="placa-habla">
+                @if (estadoPersona(d); as e) {
+                  <p class="persona-state"><i class="pulso" [attr.data-activation]="e.activation" aria-hidden="true"></i>{{ e.texto }}</p>
+                }
+                <!-- La línea se maqueta entera desde el principio (lo que falta va invisible): ninguna palabra salta de renglón. -->
+                <p class="dialogue-text" aria-hidden="true">@for (t of piezas(); track $index) {<span [class.acot]="t.acotacion" [class.falta]="t.oculto">{{ t.texto }}</span>}</p>
+                <!-- Texto completo de la línea para el cursor de lectura. Sin role ni aria-live (H-09): una región que
+                     nace dentro del @if con su texto no se anuncia; la línea la anuncia el servicio de regiones vivas. -->
+                <p class="visually-hidden">{{ fullText() }}</p>
+
+                @if (staleNote(d); as note) {
+                  <p class="stale-note" role="note">{{ note }}</p>
+                }
+
+                <div class="placa-pie">
+                  @if (!isTypingComplete()) {
+                    <button type="button" class="close-btn" ui-button variant="primary" cdkFocusInitial
+                      (click)="skipTypewriter()"
+                      aria-label="Saltar animación de texto">
+                      Saltar <span aria-hidden="true">▶</span>
+                    </button>
+                  }
+                  @if (isTypingComplete() && !isLastLine()) {
+                    <button type="button" class="close-btn" ui-button variant="primary" cdkFocusInitial
+                      (click)="advanceLine()"
+                      aria-label="Mostrar siguiente intervención">
+                      Siguiente <span aria-hidden="true">▶</span>
+                    </button>
+                  }
+                  @if (isTypingComplete() && isLastLine() && !hasChoices(d)) {
+                    <button type="button" class="close-btn" ui-button variant="primary" cdkFocusInitial
+                      (click)="close.emit()">
+                      Continuar <span aria-hidden="true">▶</span>
+                    </button>
+                  }
+                </div>
+              </div>
             </div>
-          }
+          </section>
 
-          @if (!isTypingComplete()) {
-            <button type="button" class="close-btn" ui-button variant="primary" cdkFocusInitial
-              (click)="skipTypewriter()"
-              aria-label="Saltar animación de texto">
-              Saltar <span aria-hidden="true">▶</span>
-            </button>
-          }
-          @if (isTypingComplete() && !isLastLine()) {
-            <button type="button" class="close-btn" ui-button variant="primary" cdkFocusInitial
-              (click)="advanceLine()"
-              aria-label="Mostrar siguiente intervención">
-              Siguiente <span aria-hidden="true">▶</span>
-            </button>
-          }
-          @if (isTypingComplete() && isLastLine() && !hasChoices(d)) {
-            <button type="button" class="close-btn" ui-button variant="primary" cdkFocusInitial
-              (click)="close.emit()">
-              Continuar <span aria-hidden="true">▶</span>
-            </button>
-          }
+          <!-- Las fichas de respuesta, A a D. -->
+          <div class="strip-body">
+            @if (choicesVisible() && !d.stale) {
+              @let notice = noticeText(d);
+              @if (notice) {
+                <p class="choices-notice" id="choices-notice" role="note">{{ notice }}</p>
+              }
+              <!-- La pista acompaña a quien decide: una confirmación de la interfaz («Explorar primero») no la ofrece. -->
+              @if (offersHints(d) && hintAttempt(); as attemptRef) {
+                <app-scene-hint [attemptId]="attemptRef.attemptId" [attemptToken]="attemptRef.attemptToken"
+                  (consentRequired)="consentRequired.emit()" />
+              }
+              <div class="choices" role="group" aria-label="Opciones de intervención" tabindex="-1" cdkFocusInitial
+                [attr.aria-describedby]="notice ? 'choices-notice' : null"
+                [class.choices--locked]="chosenKey() !== null">
+                @for (choice of d.choices; track choice.key; let i = $index) {
+                  @if (subtitleBefore(d, i); as subtitle) {
+                    <p class="choices-subtitle">{{ subtitle }}</p>
+                  }
+                  <button
+                    type="button"
+                    class="choice-btn"
+                    [class.choice-btn--chosen]="chosenKey() === choice.key"
+                    [class.choice-btn--unavailable]="choice.toolMissing"
+                    [style.--stagger]="i"
+                    [attr.aria-label]="letra(i) + '. ' + choice.text + (choice.toolMissing ? '. ' + toolMissingHint : '')"
+                    [attr.aria-disabled]="choice.toolMissing ? 'true' : null"
+                    (focus)="onChoiceFocus($event)"
+                    (click)="onChoiceClick($event, choice)">
+                    <!-- La letra se dibuja en pixel art; como texto queda solo para que el texto visible empiece por ella (WCAG 2.5.3). -->
+                    <span class="choice-num" aria-hidden="true" [attr.data-letra]="letra(i)"><span class="choice-num__txt" [class.choice-num__txt--ver]="i > 3">{{ letra(i) }}</span></span>{{ ' ' }}<span class="choice-btn__body">
+                      <span class="choice-btn__label">{{ choice.text }}</span>
+                      @if (choice.toolMissing) {
+                        {{ ' ' }}<span class="choice-btn__hint" [id]="'choice-hint-' + i">{{ toolMissingHint }}</span>
+                      }
+                    </span>
+                    <i class="choice-btn__cursor" aria-hidden="true"></i>
+                  </button>
+                }
+              </div>
+            }
 
-          <p class="keyboard-hint">{{ keyboardHint(d) }}</p>
-        </div>
+            <p class="keyboard-hint">{{ keyboardHint(d) }}</p>
+          </div>
         </div>
       </div>
     }
   `,
   changeDetection: ChangeDetectionStrategy.Eager,
   styles: [`
+    /* Hecho de la sala (bloque I1): la placa de quien habla y las fichas de respuesta son pixel art a la misma escala
+       que el mundo, con la luz de la sala (canto cálido de lámpara de noche, claro de día). Los marcos, tramas y letras
+       son PNG de assets/game/dialogo (tools/escenarios/dialogo_arte.py) que llegan como variables CSS (dialogo-arte.ts). */
+    :host { display: block; }
     .dialogue-strip {
+      --px: 2px; --tam: 17px; --retrato: 192px;
+      /* Capas del panel: la pestaña del nombre tapa el canto de la placa; la cabecera fija va sobre lo que se desplaza. */
+      --capa-pestana: 1; --capa-cabecera: 3;
+      --tinta: #f2ecdf; --tinta-suave: #c3bccf; --tinta-oscura: #1b1530; --penumbra: #1b1826;
+      --f-nombre: 'JetBrains Mono', ui-monospace, monospace;
+      --f-texto: 'Poppins', system-ui, -apple-system, 'Segoe UI', sans-serif;
+      position: relative;
       width: 100%;
-      min-height: 180px;
       display: flex;
       flex-direction: column;
       align-items: stretch;
-      gap: 0;
-      padding: 0;
+      gap: calc(4 * var(--px));
+      padding: calc(4 * var(--px)) calc(8 * var(--px)) calc(10 * var(--px));
       max-height: 78vh;
       overflow-y: auto;
-      background: rgba(8,12,18,.95);
-      border-top: 2px solid rgba(182,156,255,.4);
-      animation: strip-rise 160ms cubic-bezier(.2,.8,.2,1) both;
+      background: transparent;
+      color: var(--tinta);
+      font-family: var(--f-texto);
+      font-size: var(--tam);
+      line-height: 1.45;
+      animation: strip-rise 160ms steps(3, jump-none) both;
     }
-    .strip--warning {
-      border-top-color: rgba(168,80,98,.6);
-    }
-    .strip--supervisory {
-      border-top-color: rgba(79,163,100,.6);
-      background: rgba(8,14,10,.95);
+    @media (min-width: 1800px) { .dialogue-strip { --px: 3px; --tam: 20px; --retrato: 288px; } }
+
+    /* Marco de pixel art: borde de 4 px de mundo por lado y relleno con trama, sin esquinas suavizadas. */
+    .placa-cuerpo, .speaker-name, .panel-back, .panel-head__note, .choice-btn, .stale-note, .choices-notice, .choices-subtitle, .keyboard-hint, .portrait {
+      border-style: solid;
+      border-width: calc(4 * var(--px));
+      border-image: var(--m) 4 / calc(4 * var(--px)) stretch;
+      border-radius: 0;
+      background-color: var(--penumbra);
+      background-image: var(--t);
+      background-size: calc(8 * var(--px));
+      background-clip: padding-box;
+      background-origin: padding-box;
+      image-rendering: pixelated;
     }
 
-    .strip-main { display: flex; align-items: flex-start; flex: 1 1 auto; min-width: 0; }
+    .strip-main {
+      display: grid;
+      grid-template-columns: minmax(0, 11fr) minmax(0, 14fr);
+      gap: calc(8 * var(--px));
+      align-items: end;
+    }
+    /* Sin opciones, la placa sola. Con opciones, la columna de las fichas se reserva desde la primera línea: nada salta al
+       aparecer y la cámara (M1) mide un solo alto durante toda la conversación. */
+    .dialogue-strip:not(.strip--con-opciones) .strip-main { grid-template-columns: minmax(0, min(46em, 100%)); }
+    .dialogue-strip:not(.strip--con-opciones) .strip-body { display: none; }
+    /* Una sola opción ocupa todo el ancho de su columna, no media. */
+    .choices:not(:has(.choice-btn + .choice-btn)) { grid-template-columns: minmax(0, 1fr); }
+    /* Sobre el mundo, el cuadro incluye el retrato que asoma: el borde superior de app-dialogue-panel es lo que tapa. */
+    .dialogue-strip:not(.dialogue-strip--side) { padding-top: calc(16 * var(--px)); }
 
     /* Cabecera fija del panel: «Volver al mapa» y «Salida segura» siempre a mano. */
     .panel-head {
       position: sticky;
       top: 0;
-      z-index: 3;
+      z-index: var(--capa-cabecera);
       display: grid;
-      gap: 4px;
-      padding: 6px 12px;
-      border-bottom: 1px solid rgba(182,156,255,.18);
-      background: #080c12;
+      gap: calc(3 * var(--px));
+      justify-items: end;
+    }
+    /* Sobre el mundo y sin opciones, «Volver» y «Salida segura» van juntos en la esquina de abajo a la derecha, no flotando
+       sobre la sala. Con opciones van arriba de las fichas, con la nota de la decisión. */
+    .dialogue-strip:not(.dialogue-strip--side):not(.strip--con-opciones) .panel-head {
+      position: absolute;
+      right: calc(8 * var(--px));
+      bottom: calc(10 * var(--px));
     }
     .panel-head__row {
       display: flex;
       align-items: center;
-      justify-content: space-between;
-      gap: 10px;
+      justify-content: flex-end;
+      gap: calc(4 * var(--px));
+      flex-wrap: wrap;
     }
     .panel-head__note {
-      margin: 0;
-      display: flex;
-      align-items: center;
-      flex-wrap: wrap;
-      gap: 4px 8px;
-      font-size: .75rem;
-      line-height: 1.35;
-      color: rgba(232,240,244,.78);
-    }
-    .panel-chip {
-      padding: 2px 8px;
-      border-radius: 999px;
-      border: 1px solid rgba(182,156,255,.5);
-      background: rgba(124,77,255,.16);
-      color: #d6c6ff;
-      font-size: .75rem;
-      font-weight: 800;
-      letter-spacing: .04em;
-    }
-    .panel-back {
-      display: inline-flex;
-      align-items: center;
-      gap: 8px;
-      min-height: 44px;
-      padding: 6px 14px;
-      border: 1px solid rgba(182,156,255,.4);
-      border-radius: 12px;
-      background: rgba(124,77,255,.12);
-      color: #e8f0f4;
-      font: inherit;
-      font-size: .8rem;
-      font-weight: 800;
-      cursor: pointer;
-    }
-    @media (hover: hover) and (pointer: fine) {
-      .panel-back:hover { border-color: rgba(182,156,255,.75); background: rgba(124,77,255,.22); }
-    }
-    .panel-back:active { transform: translateY(1px); }
-    .panel-back__arrow { font-size: .75rem; }
-
-    .portrait {
-      position: relative;
-      flex-shrink: 0;
-      width: 112px;
-      min-height: 180px;
-      display: grid;
-      place-items: center;
-      border-right: 1px solid rgba(182,156,255,.2);
-      background: rgba(124,77,255,.08);
-    }
-    .portrait-svg {
-      color: #B69CFF;
-    }
-    .portrait-img {
-      width: 96px;
-      height: 96px;
-      image-rendering: pixelated;
-      filter: drop-shadow(0 2px 4px rgba(0,0,0,.35));
-    }
-    .emotion-chip {
-      position: absolute;
-      bottom: 12px;
-      right: 12px;
-      width: 10px;
-      height: 10px;
-      background: #B69CFF;
-      border: 2px solid rgba(8,12,18,.92);
-      border-radius: 50%;
-    }
-
-    .strip-body {
-      flex: 1;
-      padding: 16px 22px 16px 18px;
-      display: flex;
-      flex-direction: column;
-      gap: 12px;
-      min-width: 0;
-    }
-    .speaker-name {
+      --m: var(--marco-placa); --t: var(--trama-placa);
       margin: 0;
       display: flex;
       align-items: baseline;
-      gap: 8px;
-      font-size: .75rem;
-      font-weight: 900;
-      letter-spacing: .12em;
-      text-transform: uppercase;
-      color: #B69CFF;
+      flex-wrap: wrap;
+      gap: 2px 12px;
+      padding: 1px 10px 3px;
+      font-size: .8em;
+      line-height: 1.35;
+      color: #c3bccf;
     }
-    .strip--supervisory .speaker-name { color: #5d9278; }
-    .strip--warning .speaker-name { color: #d9798e; }
+    .panel-chip {
+      font-family: var(--f-nombre);
+      font-weight: 700;
+      font-size: 1.05em;
+      letter-spacing: .02em;
+      color: #ffcd82;
+    }
+    .panel-back {
+      --m: var(--marco-placa); --t: var(--trama-placa);
+      display: inline-flex;
+      align-items: center;
+      gap: 10px;
+      min-height: 44px;
+      padding: 0 12px 1px 8px;
+      color: #f2ecdf;
+      font: inherit;
+      font-size: .82em;
+      font-weight: 600;
+      cursor: pointer;
+    }
+    .panel-back::before, .close-btn::before {
+      content: 'Esc';
+      display: none;
+      padding: 1px 6px calc(2 * var(--px));
+      border-style: solid;
+      border-width: calc(4 * var(--px));
+      border-image: var(--marco-tecla) 4 / calc(4 * var(--px)) stretch;
+      background: #3a3454 padding-box;
+      image-rendering: pixelated;
+      font-family: var(--f-nombre);
+      font-size: .82em;
+      font-weight: 700;
+      line-height: 1;
+      color: var(--tinta);
+    }
+    .close-btn::before { content: 'Enter'; }
+    @media (hover: hover) and (pointer: fine) {
+      .panel-back:hover { color: #ffcd82; }
+      .panel-back::before, .close-btn::before { display: inline-block; }
+    }
+    .panel-back:active { transform: translateY(var(--px)); }
+    .panel-back__arrow { font-size: .75em; }
+
+    /* La placa. */
+    .placa { min-width: 0; display: flex; flex-direction: column; }
+    .speaker-name {
+      --m: var(--marco-rotulo); --t: var(--trama-placa);
+      align-self: flex-start;
+      position: relative;
+      z-index: var(--capa-pestana);
+      margin: 0 0 calc(-1 * var(--px)) calc(var(--retrato) + 18 * var(--px));
+      border-bottom-width: 0;
+      padding: 1px calc(4 * var(--px)) calc(2 * var(--px));
+      display: flex;
+      align-items: baseline;
+      gap: 8px;
+      font-family: var(--f-nombre);
+      font-weight: 700;
+      font-size: 1.1em;
+      line-height: 1.2;
+      letter-spacing: .01em;
+      color: var(--luz);
+    }
+    .strip--supervisory .speaker-name { color: #9fd9a8; }
+    .strip--warning .speaker-name { color: #f0a3b2; }
     .emotion-tag {
-      font-size: .75rem;
+      opacity: 1;
+      font-size: .7em;
       font-weight: 800;
       letter-spacing: .08em;
       text-transform: lowercase;
-      opacity: 1;
     }
     .emotion-tag::before { content: '· '; opacity: .6; }
 
+    .placa-cuerpo {
+      --m: var(--marco-placa); --t: var(--trama-placa);
+      position: relative;
+      display: grid;
+      grid-template-columns: auto minmax(0, 1fr);
+      gap: calc(6 * var(--px));
+      padding: calc(4 * var(--px)) calc(5 * var(--px)) calc(3 * var(--px)) calc(4 * var(--px));
+    }
+    .placa-cuerpo::after, .choice-btn::after {
+      content: '';
+      position: absolute;
+      left: calc(-2 * var(--px));
+      right: calc(-2 * var(--px));
+      bottom: calc(-6 * var(--px));
+      height: calc(2 * var(--px));
+      background-image: var(--sombra);
+      background-size: calc(2 * var(--px));
+      image-rendering: pixelated;
+      pointer-events: none;
+    }
+
+    /* El retrato asoma sobre el marco. Mide un múltiplo de 96: ya recibe un retrato fino de 96 px sin cambiar nada. */
+    .portrait {
+      --m: var(--marco-ficha); --t: none;
+      --rp: calc(var(--retrato) / 32);
+      position: relative;
+      align-self: end;
+      margin-top: calc(-14 * var(--px));
+      width: calc(var(--retrato) + 8 * var(--px));
+      height: calc(var(--retrato) + 8 * var(--px));
+      display: grid;
+      place-items: end center;
+      overflow: hidden;
+      background-color: #262238;
+    }
+    .portrait-svg { color: #b69cff; align-self: center; width: 66%; height: 66%; }
+    /* Una voz sin retrato del kit (la supervisión, un personaje sin receta): ventanilla chica con la silueta, no un hueco. */
+    .strip--sin-retrato { --retrato: 96px; }
+    @media (min-width: 1800px) { .strip--sin-retrato { --retrato: 96px; } }
+    .portrait-img {
+      display: block;
+      width: var(--retrato);
+      height: var(--retrato);
+      image-rendering: pixelated;
+      /* Finito: 70 ciclos (unos 3 minutos) cubren cualquier conversación; después queda quieto. */
+      animation: respira 2.6s steps(1) 70;
+    }
+    .portrait-base {
+      position: absolute; left: 0; right: 0; bottom: 0; height: calc(2 * var(--px));
+      background: #f0c46e;
+    }
+    .portrait-base[data-activation="CALM"] { background: #8fcf9a; }
+    .portrait-base[data-activation="CRISIS"] { background: #ec9684; }
+    .emotion-chip {
+      position: absolute;
+      top: calc(2 * var(--px));
+      right: calc(2 * var(--px));
+      width: calc(5 * var(--px));
+      height: calc(5 * var(--px));
+      background: #b69cff;
+      box-shadow: 0 0 0 var(--px) #15131d;
+    }
+    .emotion-chip[data-emotion="positive"] { background: #6ec67a; }
+    .emotion-chip[data-emotion="concerned"] { background: #f5b84b; }
+    .emotion-chip[data-emotion="danger"] { background: #e25a4f; }
+
+    .placa-habla { min-width: 0; display: flex; flex-direction: column; gap: calc(3 * var(--px)); padding-top: var(--px); }
+    .persona-state { margin: 0; display: flex; align-items: center; gap: calc(4 * var(--px)); font-size: .84em; color: var(--tinta-suave); }
+    .pulso {
+      flex: none;
+      width: calc(16 * var(--px));
+      height: calc(8 * var(--px));
+      background: var(--pulso-TENSE) 0 0 / calc(64 * var(--px)) calc(8 * var(--px)) no-repeat;
+      image-rendering: pixelated;
+      animation: pulso 1s steps(4) 180;
+    }
+    .pulso[data-activation="CALM"] { background-image: var(--pulso-CALM); animation-duration: 2s; }
+    .pulso[data-activation="CRISIS"] { background-image: var(--pulso-CRISIS); animation-duration: .5s; }
     .dialogue-text {
       margin: 0;
-      font-size: .97rem;
-      line-height: 1.65;
-      letter-spacing: .01em;
-      color: rgba(232,240,244,.92);
-      min-height: 1.6em;
+      min-height: 4.35em;
       white-space: pre-line;
+      overflow-wrap: break-word;
+      color: var(--tinta);
     }
+    .dialogue-text .acot { font-style: italic; color: var(--tinta-suave); }
+    .dialogue-text .falta { visibility: hidden; }
     .visually-hidden {
       position: absolute;
       width: 1px;
@@ -323,216 +448,224 @@ const STALE_NOTE = 'Esta conversación corresponde a otro momento del caso.';
       white-space: nowrap;
       border: 0;
     }
-    .cursor {
-      display: inline-block;
-      /* Finito: el cursor se oculta al terminar de escribir (.cursor--done); 30 ciclos (18 s) cubren cualquier línea. */
-      animation: blink .6s step-end 30;
-      color: #B69CFF;
-      margin-left: 1px;
+    .placa-pie { display: flex; justify-content: flex-end; align-items: center; min-height: 44px; }
+    .dialogue-strip .close-btn {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      min-height: 44px;
+      padding: 0 2px;
+      border: 0;
+      background: transparent;
+      box-shadow: none;
+      color: var(--tinta);
+      font: inherit;
+      font-size: .9em;
+      font-weight: 600;
     }
-    .cursor--done { display: none; }
+    @media (hover: hover) and (pointer: fine) {
+      .dialogue-strip .close-btn:hover { background: transparent; color: var(--luz); }
+    }
 
+    /* Las fichas de respuesta. */
+    .strip-body { min-width: 0; display: flex; flex-direction: column; gap: calc(4 * var(--px)); }
     .choices {
       display: grid;
-      grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
-      gap: 10px;
-      margin-top: 4px;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      grid-auto-rows: 1fr;
+      gap: calc(5 * var(--px));
       /* Deja libre la cabecera fija cuando scrollIntoView alinea el inicio de la lista. */
       scroll-margin-top: 72px;
+      padding-left: calc(10 * var(--px));
+      margin-left: calc(-10 * var(--px));
       outline: none;
     }
     .choice-btn {
+      --m: var(--marco-ficha); --t: var(--trama-ficha);
+      position: relative;
       display: grid;
-      grid-template-columns: auto auto minmax(0, 1fr);
-      gap: 10px;
+      grid-template-columns: auto minmax(0, 1fr);
+      gap: calc(5 * var(--px));
       align-items: start;
-      min-height: 64px;
-      padding: 11px 12px;
-      border-radius: 14px;
-      border: 1px solid rgba(182,156,255,.3);
-      background: rgba(255,255,255,.06);
-      color: rgba(232,240,244,.9);
+      min-height: 48px;
+      padding: calc(2 * var(--px)) calc(4 * var(--px)) calc(3 * var(--px)) calc(3 * var(--px));
+      color: var(--tinta);
       font: inherit;
-      font-size: .82rem;
+      font-size: .94em;
       line-height: 1.35;
       text-align: left;
       cursor: pointer;
-      box-shadow: 0 14px 34px -22px rgba(124,77,255,.5);
-      transition: border-color 150ms ease, background-color 150ms ease, opacity 150ms ease, transform 160ms var(--psy-ease-out);
+      transition: border-color 150ms ease, background-color 150ms ease, opacity 240ms steps(3), transform 120ms steps(2);
     }
     @media (hover: hover) and (pointer: fine) {
-      .choice-btn:hover {
-        border-color: rgba(182,156,255,.7);
-        background: rgba(124,77,255,.16);
-      }
+      .choice-btn:hover { --m: var(--marco-ficha-sobre); --t: var(--trama-ficha-sobre); }
+      .choice-btn:hover .choice-num { border-image-source: var(--marco-tecla-encendida); background-color: var(--luz); --lt: var(--lo); }
     }
-    .choice-btn:active {
-      transform: scale(.97);
-    }
-    /* Entrada escalonada de opciones (sutil, una sola vez). */
+    .choice-btn:focus-visible { --m: var(--marco-ficha-foco); --t: var(--trama-ficha-sobre); }
+    .choice-btn:focus-visible .choice-num { border-image-source: var(--marco-tecla-encendida); background-color: var(--luz); --lt: var(--lo); }
+    .choice-btn:focus-visible .choice-btn__cursor { display: block; }
+    .choice-btn:active { transform: translateY(var(--px)); --m: var(--marco-ficha-pulsada); --t: var(--trama-ficha-pulsada); }
+    .choice-btn:active::after { display: none; }
+    /* Entrada escalonada de las fichas (por pasos, una sola vez). */
     .choice-btn {
-      animation: choice-in 200ms var(--psy-ease-out) backwards;
-      animation-delay: calc(var(--stagger, 0) * 45ms);
+      animation: choice-in 150ms steps(3, jump-none) backwards;
+      animation-delay: calc(var(--stagger, 0) * 55ms);
     }
-    /* Confirmación: la card elegida se resalta y las demás ceden. */
+    /* Confirmación: la ficha elegida se enciende y las demás ceden. */
     .choices--locked .choice-btn { pointer-events: none; }
     .choices--locked .choice-btn:not(.choice-btn--chosen) { opacity: .45; }
-    .choice-btn--chosen {
-      border-color: rgba(232,240,244,.85) !important;
-      background: rgba(124,77,255,.3);
-      animation: choice-confirm 170ms ease;
+    .choices .choice-btn.choice-btn--chosen {
+      --m: var(--marco-ficha-elegida); --t: var(--trama-ficha-elegida);
+      color: var(--tinta-oscura);
+      animation: choice-confirm 170ms steps(2);
     }
+    .choice-btn--chosen .choice-num { border-image-source: var(--marco-tecla-encendida); background-color: var(--luz); --lt: var(--lo); }
     @keyframes choice-in {
-      from { opacity: 0; transform: translateY(8px); }
+      from { opacity: 0; transform: translateY(calc(3 * var(--px))); }
       to   { opacity: 1; transform: translateY(0); }
     }
     @keyframes choice-confirm {
-      0%   { transform: scale(1); }
-      45%  { transform: scale(.985); }
-      100% { transform: scale(1); }
+      0%   { transform: translateY(var(--px)); }
+      100% { transform: translateY(0); }
     }
+    /* La letra de la ficha es pixel art propio: la C abierta, la B con cintura (no 0 ni 8). */
     .choice-num {
-      display: grid; place-items: center; width: 22px; height: 22px; flex-shrink: 0;
-      border-radius: 7px; border: 1px solid rgba(182,156,255,.5);
-      background: rgba(124,77,255,.16); color: #cdbcff;
-      font-family: 'JetBrains Mono', monospace; font-weight: 900; font-size: .76rem;
-    }
-    .choice-btn__icon {
+      --lc: none; --lo: none; --lt: var(--lc);
       display: grid;
       place-items: center;
-      width: 30px;
-      height: 30px;
-      border-radius: 9px;
-      background: rgba(124,77,255,.14);
-      color: #cdbcff;
+      min-width: calc(15 * var(--px));
+      min-height: calc(17 * var(--px));
+      margin-top: 1px;
+      border-width: calc(4 * var(--px));
+      border-style: solid;
+      border-image: var(--marco-tecla) 4 / calc(4 * var(--px)) stretch;
+      background: #3a3454 padding-box;
+      image-rendering: pixelated;
+      font-family: var(--f-nombre);
+      font-weight: 700;
+      color: var(--tinta);
     }
-    .choice-btn__icon::before {
+    .choice-num::after {
       content: '';
-      width: 10px;
-      height: 10px;
-      border: 2px solid currentColor;
-      border-radius: 50%;
+      width: calc(7 * var(--px));
+      height: calc(9 * var(--px));
+      background: var(--lt) 0 0 / 100% 100% no-repeat;
+      image-rendering: pixelated;
     }
-    .choice-btn__body { display: grid; gap: 5px; min-width: 0; }
+    .choice-num__txt { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0, 0, 0, 0); white-space: nowrap; }
+    .choice-num__txt--ver { position: static; width: auto; height: auto; clip: auto; }
+    .choice-num:has(.choice-num__txt--ver)::after { display: none; }
+    .choice-num[data-letra="A"] { --lc: var(--letra-A-clara); --lo: var(--letra-A-oscura); }
+    .choice-num[data-letra="B"] { --lc: var(--letra-B-clara); --lo: var(--letra-B-oscura); }
+    .choice-num[data-letra="C"] { --lc: var(--letra-C-clara); --lo: var(--letra-C-oscura); }
+    .choice-num[data-letra="D"] { --lc: var(--letra-D-clara); --lo: var(--letra-D-oscura); }
+    .choice-btn__cursor {
+      display: none;
+      position: absolute;
+      left: calc(-11 * var(--px));
+      top: 50%;
+      width: calc(6 * var(--px));
+      height: calc(7 * var(--px));
+      margin-top: calc(-3.5 * var(--px));
+      background: var(--cursor) 0 0 / 100% 100% no-repeat;
+      image-rendering: pixelated;
+    }
+    .choice-btn__body { display: grid; gap: 5px; min-width: 0; padding-top: .1em; overflow-wrap: break-word; }
     .choice-btn__label { display: block; }
     .choice-btn__hint {
       width: fit-content;
       max-width: 100%;
-      padding: 2px 8px;
-      border-radius: 8px;
-      border: 1px solid rgba(245,184,75,.6);
+      padding: 1px 6px;
+      background: #3b2a12;
       color: #f5d49b;
-      font-size: .75rem;
+      font-size: .8em;
       font-weight: 700;
       line-height: 1.3;
     }
-    .choice-btn--unavailable { cursor: not-allowed; opacity: .72; box-shadow: none; }
+    .choice-btn--unavailable { cursor: not-allowed; opacity: .72; }
     .choice-btn--unavailable:active { transform: none; }
     /* Aviso único de evidencia sobre las opciones (nunca por opción): informa, no bloquea. */
     .choices-notice {
+      --m: var(--marco-placa); --t: var(--trama-placa);
       margin: 0;
-      padding: 8px 12px;
-      border-left: 3px solid #f5b84b;
-      border-radius: 6px;
-      background: rgba(245,184,75,.1);
+      padding: 2px 10px 4px;
       color: #f5e3c0;
-      font-size: .8rem;
+      font-size: .84em;
       line-height: 1.45;
     }
     .choices-subtitle {
+      --m: var(--marco-placa); --t: var(--trama-placa);
       grid-column: 1 / -1;
+      justify-self: start;
       margin: 4px 0 0;
-      color: #cdbcff;
-      font-size: .75rem;
-      font-weight: 900;
-      letter-spacing: .08em;
-      text-transform: uppercase;
+      padding: 0 8px 1px;
+      color: #ffcd82;
+      font-family: var(--f-nombre);
+      font-size: .8em;
+      font-weight: 700;
     }
     .stale-note {
+      --m: var(--marco-placa); --t: var(--trama-placa);
       margin: 0;
-      padding: 8px 12px;
-      border-left: 3px solid rgba(182,156,255,.6);
-      border-radius: 6px;
-      background: rgba(124,77,255,.1);
-      color: rgba(232,240,244,.88);
-      font-size: .82rem;
+      padding: 2px 10px 4px;
+      color: #f2ecdf;
+      font-size: .86em;
       line-height: 1.45;
     }
     /* La pista de teclado solo existe donde hay teclado y puntero fino. */
-    .keyboard-hint { display: none; margin: 0; font-size: .75rem; color: rgba(232,240,244,.72); }
+    .keyboard-hint { display: none; --m: var(--marco-placa); --t: var(--trama-placa); align-self: flex-start; margin: 0; padding: 0 8px 1px; font-size: .78em; color: #c3bccf; }
     @media (hover: hover) and (pointer: fine) {
       .keyboard-hint { display: block; }
     }
-    .close-btn { align-self: flex-end; }
 
     @keyframes strip-rise {
-      from { transform: translateY(100%); opacity: 0; }
+      from { transform: translateY(calc(6 * var(--px))); opacity: 0; }
       to   { transform: translateY(0);    opacity: 1; }
     }
-    @keyframes blink {
-      0%, 100% { opacity: 1; }
-      50%       { opacity: 0; }
+    @keyframes respira {
+      0%, 49% { transform: translateY(0); }
+      50%, 100% { transform: translateY(calc(-1 * var(--rp))); }
     }
-    /* ── Modo lateral (panel derecho del HUD redesign) ──────────────────── */
+    @keyframes pulso { to { background-position: calc(-64 * var(--px)) 0; } }
+
+    /* ── Modo lateral (panel derecho del HUD): la placa arriba y las fichas debajo, en una columna. ───────── */
     .dialogue-strip--side {
-      flex-direction: column;
+      --retrato: 96px;
+      --tam: 16px;
       min-height: 0;
       height: 100%;
-      border-top: none;
-      background: transparent;
-      backdrop-filter: none;
-      animation: none;
       overflow-y: auto;
+      padding: calc(4 * var(--px)) calc(6 * var(--px)) calc(8 * var(--px));
+      animation: none;
     }
-    .dialogue-strip--side .strip-main { flex-direction: column; align-items: stretch; flex: 0 0 auto; }
-    .dialogue-strip--side .panel-head { background: #121a2b; }
-    .dialogue-strip--side .portrait {
-      flex-direction: row;
-      width: 100%;
-      min-height: 0;
-      padding: 10px 16px;
-      display: flex;
-      align-items: center;
-      gap: 10px;
-      justify-content: flex-start;
-      border-right: none;
-      border-bottom: 1px solid rgba(182,156,255,.18);
-    }
-    .dialogue-strip--side .portrait-svg { width: 30px; height: 30px; }
-    .dialogue-strip--side .portrait-img { width: 96px; height: 96px; }
-    .dialogue-strip--side .emotion-chip { position: static; }
-    .dialogue-strip--side .strip-body {
-      padding: 12px 16px 16px;
-      gap: 10px;
-    }
-    .dialogue-strip--side .dialogue-text { font-size: .88rem; line-height: 1.55; }
-    .dialogue-strip--side .choices { grid-template-columns: minmax(0, 1fr); }
-    .dialogue-strip--side .choice-btn { min-height: 56px; }
+    .dialogue-strip--side .panel-head { background: #15131d; }
+    .dialogue-strip--side .panel-head { padding: calc(2 * var(--px)) 0 calc(3 * var(--px)); justify-items: stretch; }
+    .dialogue-strip--side .strip-main { grid-template-columns: minmax(0, 1fr); align-items: stretch; }
+    .dialogue-strip--side .choices { grid-template-columns: minmax(0, 1fr); grid-auto-rows: auto; }
+    .dialogue-strip--side .portrait { margin-top: calc(-8 * var(--px)); }
+    .dialogue-strip--side .speaker-name { margin-left: calc(var(--retrato) + 14 * var(--px)); }
+    .dialogue-strip--side .dialogue-text { min-height: 2.9em; }
+    @media (min-width: 1800px) { .dialogue-strip--side { --retrato: 192px; --tam: 19px; } }
 
     /* Pantallas bajas (844x390 táctil): todo más denso y las opciones a la vista. */
     @media (max-height: 520px) {
-      .dialogue-strip { min-height: 0; }
-      .portrait { min-height: 0; }
-      .panel-head { padding: 0 10px; }
+      .dialogue-strip { --retrato: 96px; padding-top: 0; }
       .panel-head__note { display: none; }
-      .choices { scroll-margin-top: 52px; gap: 8px; }
-      .strip-body { padding: 8px 14px 10px; gap: 8px; }
-      .dialogue-text { font-size: .86rem; line-height: 1.45; }
-      .dialogue-strip--side .portrait { padding: 6px 12px; }
-      .dialogue-strip--side .portrait-img { width: 64px; height: 64px; }
-      .dialogue-strip--side .strip-body { padding: 8px 12px 12px; gap: 8px; }
-      .dialogue-strip--side .choice-btn { min-height: 44px; padding: 6px 10px; gap: 8px; }
-      .dialogue-strip--side .choice-btn__icon { display: none; }
-      .dialogue-strip--side .choice-btn { grid-template-columns: auto minmax(0, 1fr); }
+      .choices { scroll-margin-top: 52px; gap: calc(3 * var(--px)); }
+      .dialogue-text { min-height: 0; }
+      .choice-btn { min-height: 44px; }
     }
     @media (max-width: 560px) {
-      .portrait { width: 104px; min-height: 180px; }
-      .dialogue-strip--side .portrait { width: 100%; min-height: 0; }
-      .strip-body { padding: 12px 14px; }
+      .dialogue-strip { --retrato: 96px; padding-left: calc(4 * var(--px)); padding-right: calc(4 * var(--px)); }
+      .strip-main { grid-template-columns: minmax(0, 1fr); }
+      .choices { grid-template-columns: minmax(0, 1fr); grid-auto-rows: auto; }
+      .speaker-name { margin-left: calc(var(--retrato) + 14 * var(--px)); }
     }
+    .strip--quieto, .strip--quieto .portrait-img, .strip--quieto .pulso, .strip--quieto .choice-btn, .strip--quieto .choice-btn--chosen { animation: none; }
+    .strip--quieto .choice-btn:active { transform: none; }
     @media (prefers-reduced-motion: reduce) {
       .dialogue-strip { animation: none; }
-      .cursor { animation: none; }
+      .portrait-img, .pulso { animation: none; }
       .choice-btn, .choice-btn--chosen { animation: none; }
       .choice-btn:active { transform: none; }
     }
@@ -560,6 +693,13 @@ export class DialoguePanelComponent implements AfterViewChecked, OnDestroy {
   readonly releaseToken = input(0);
   /** Hay una salida segura pedida que espera: el botón «Salida segura» del panel dice «Pausando…» (F6-6). */
   readonly pausing = input(false);
+  /** Momento del día de la sala: los marcos toman su luz (cálida de lámpara de noche, clara de sol de día). */
+  readonly momento = input<MomentoDelDia>('noche');
+  /**
+   * La persona consultante, solo cuando quien habla es ella: su estado se lee en un pulso dibujado y en palabras
+   * («Se muestra cautelosa y tensa»), sin cifras. Sin ella, la placa no muestra estado.
+   */
+  readonly persona = input<Pick<Persona, 'bond' | 'activation' | 'label'> | null>(null);
 
   readonly close   = output<void>();
   /** Vocabulario educativo en borrador (VD-24): el chip de la cabecera sale del registro de borradores. */
@@ -585,10 +725,27 @@ export class DialoguePanelComponent implements AfterViewChecked, OnDestroy {
   ));
   /** Opción ya elegida: pausa breve de confirmación antes de ejecutar. */
   readonly chosenKey = signal<string | null>(null);
+  /** El arte de pixel del momento del día, como variables CSS del elemento raíz. */
+  protected readonly arte = computed(() => variablesDeArte(this.momento()));
+  /** La línea entera en tramos (acotación o no) y, de cada uno, lo ya escrito y lo que falta (invisible, ocupa su sitio). */
+  protected readonly piezas = computed(() => {
+    const texto = this.activeLine()?.text ?? '';
+    const visto = this.displayedText().length;
+    const lista: { texto: string; acotacion: boolean; oculto: boolean }[] = [];
+    let desde = 0;
+    for (const t of tramos(texto)) {
+      const hasta = desde + t.texto.length;
+      const corte = Math.max(desde, Math.min(hasta, visto));
+      if (corte > desde) lista.push({ texto: texto.slice(desde, corte), acotacion: t.acotacion, oculto: false });
+      if (hasta > corte) lista.push({ texto: texto.slice(corte, hasta), acotacion: t.acotacion, oculto: true });
+      desde = hasta;
+    }
+    return lista;
+  });
   /** Retrato cuya carga falló: cae a la silueta SVG (spike de retratos NPC). */
   private readonly failedPortrait = signal<string | null>(null);
 
-  private typewriterHandle: ReturnType<typeof setInterval> | null = null;
+  private typewriterHandle: ReturnType<typeof setTimeout> | null = null;
   private confirmHandle: ReturnType<typeof setTimeout> | null = null;
   /** Instante en que aparecieron las opciones: base de la guarda contra la decisión accidental. */
   private choicesShownAt = 0;
@@ -705,6 +862,19 @@ export class DialoguePanelComponent implements AfterViewChecked, OnDestroy {
     return !d.stale && d.choices.some(choice => choice.decisionOptionId != null || choice.requiredToolCode != null);
   }
 
+  /** La letra de la opción en la posición `i` (A a D, como en el documento del caso). */
+  letra(i: number): string {
+    return letraDe(i);
+  }
+
+  /** El estado de la persona consultante en palabras y su activación (para el pulso); nunca para una voz de sistema. */
+  estadoPersona(d: DialogueState): { texto: string; activation: string } | null {
+    const persona = this.persona();
+    const label = persona?.label?.trim();
+    if (!persona || !label || isSystemVoice(this.activeSpeakerName(d))) return null;
+    return { texto: label.charAt(0).toUpperCase() + label.slice(1), activation: persona.activation };
+  }
+
   /** Solo las voces de sistema llevan chip y etiqueta de emoción; las personas no (duelo, límite 2). */
   showsEmotionCue(d: DialogueState): boolean {
     return isSystemVoice(this.activeSpeakerName(d));
@@ -740,7 +910,7 @@ export class DialoguePanelComponent implements AfterViewChecked, OnDestroy {
   keyboardHint(d: DialogueState): string {
     const count = this.hasChoices(d) ? d.choices.length : 0;
     if (count === 0 || !this.shortcuts.enabled()) return 'Enter: continuar · Esc: volver al mapa';
-    const range = count === 1 ? '1' : `1 a ${count}`;
+    const range = count === 1 ? letraDe(0) : `${letraDe(0)} a ${letraDe(count - 1)}`;
     return `Enter: continuar · ${range}: elegir · Esc: volver al mapa`;
   }
 
@@ -782,7 +952,7 @@ export class DialoguePanelComponent implements AfterViewChecked, OnDestroy {
     } else if (action === 'advance') {
       this.advanceLine();
     } else if (action === 'choose') {
-      const idx = digitIndex(e.key);
+      const idx = choiceIndex(e.key);
       if (idx !== null && idx < d.choices.length) this.handleChoice(d.choices[idx]);
     }
   }
@@ -918,21 +1088,25 @@ export class DialoguePanelComponent implements AfterViewChecked, OnDestroy {
     this.displayedText.set('');
     this.isTypingComplete.set(false);
     this.requestDialogueFocus();
+    // Ritmo de la línea (caso/ritmo-texto): 30 caracteres por segundo y una pausa breve en la puntuación.
     let pos = 0;
-    this.typewriterHandle = setInterval(() => {
+    const paso = () => {
       pos++;
       this.displayedText.set(text.slice(0, pos));
       if (pos >= text.length) {
-        this.stopTypewriter();
+        this.typewriterHandle = null;
         this.isTypingComplete.set(true);
         this.requestDialogueFocus();
+        return;
       }
-    }, TYPEWRITER_INTERVAL_MS);
+      this.typewriterHandle = setTimeout(paso, MS_POR_CARACTER + pausaTras(text[pos - 1], text[pos]));
+    };
+    this.typewriterHandle = setTimeout(paso, MS_POR_CARACTER);
   }
 
   private stopTypewriter() {
     if (this.typewriterHandle !== null) {
-      clearInterval(this.typewriterHandle);
+      clearTimeout(this.typewriterHandle);
       this.typewriterHandle = null;
     }
   }

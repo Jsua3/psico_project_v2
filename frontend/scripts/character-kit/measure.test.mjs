@@ -2,7 +2,7 @@ import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { test } from 'node:test';
 
-import { FRAME, OUTLINE, composeCharacter, decodeRle, encodeRle } from '../../src/app/features/character/kit/kit-engine.ts';
+import { FRAME, OUTLINE, VIEW_ROWS, composeCharacter, decodeRle, encodeRle } from '../../src/app/features/character/kit/kit-engine.ts';
 import { buildBundle } from './bundle.mjs';
 import { checkCharacter, checkMirror, checkSharedHead, geometry } from './measure.mjs';
 
@@ -23,12 +23,20 @@ test('Valentina cumple todo el contrato', () => {
 });
 
 test('geometría de Valentina para el manifiesto', () => {
-  assert.deepEqual(geometry(valentina()), {
+  const g = geometry(valentina());
+  assert.deepEqual(Object.keys(g), [...VIEW_ROWS]);
+  // Las cuatro vistas de siempre no cambian con las diagonales.
+  assert.deepEqual({ down: g.down, left: g.left, right: g.right, up: g.up }, {
     down: { opaqueHeight: 64, headWidth: 21, shoulderWidth: 23 },
     left: { opaqueHeight: 64, headWidth: 20, torsoDepth: 14 },
     right: { opaqueHeight: 64, headWidth: 19, torsoDepth: 14 },
     up: { opaqueHeight: 64, headWidth: 21, shoulderWidth: 23 },
   });
+  // Tres cuartos: misma altura y un ancho de hombros entre el fondo del perfil y los hombros de frente.
+  for (const view of ['down-left', 'up-left', 'up-right', 'down-right']) {
+    assert.equal(g[view].opaqueHeight, 64, view);
+    assert.ok(g[view].shoulderWidth > g.left.torsoDepth && g[view].shoulderWidth < g.down.shoulderWidth, `${view}: hombros ${g[view].shoulderWidth}`);
+  }
 });
 
 test('detecta un píxel opaco en el borde del cuadro', () => {
@@ -57,8 +65,8 @@ test('detecta la derecha como espejo exacto de la izquierda', () => {
   for (let col = 0; col < 6; col++) {
     for (let y = 0; y < FRAME.height; y++) {
       for (let x = 0; x < FRAME.width; x++) {
-        const src = ((FRAME.height + y) * walk.width + col * FRAME.width + x) * 4;
-        const dst = ((2 * FRAME.height + y) * walk.width + col * FRAME.width + (FRAME.width - 1 - x)) * 4;
+        const src = ((VIEW_ROWS.indexOf('left') * FRAME.height + y) * walk.width + col * FRAME.width + x) * 4;
+        const dst = ((VIEW_ROWS.indexOf('right') * FRAME.height + y) * walk.width + col * FRAME.width + (FRAME.width - 1 - x)) * 4;
         copy.rgba.set(walk.rgba.subarray(src, src + 4), dst);
       }
     }

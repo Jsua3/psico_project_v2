@@ -32,9 +32,10 @@ describe('resolveViewMode', () => {
       .toBe('journal');
   });
 
-  it('dialogue-right cuando el diálogo activo tiene opciones de decisión', () => {
+  // Bloque I1: las decisiones van sobre el mundo, como en la maqueta; el panel lateral ya no se pide.
+  it('dialogue-cinematic también cuando el diálogo activo tiene opciones de decisión', () => {
     expect(resolveViewMode({ status: 'IN_PROGRESS', journalOpen: false, dialogue: dialogueWith([choice]) }))
-      .toBe('dialogue-right');
+      .toBe('dialogue-cinematic');
   });
 
   it('dialogue-cinematic cuando el diálogo es informativo (sin opciones)', () => {
@@ -71,7 +72,7 @@ describe('resolveViewMode', () => {
 
     it('no altera el intento en curso: holdOutcome es irrelevante con IN_PROGRESS', () => {
       expect(resolveViewMode({ status: 'IN_PROGRESS', journalOpen: false, dialogue: dialogueWith([choice]), holdOutcome: true }))
-        .toBe('dialogue-right');
+        .toBe('dialogue-cinematic');
       expect(resolveViewMode({ status: 'IN_PROGRESS', journalOpen: false, dialogue: dialogueWith([]), holdOutcome: true }))
         .toBe('dialogue-cinematic');
       expect(resolveViewMode({ status: 'IN_PROGRESS', journalOpen: true, dialogue: null, holdOutcome: true }))

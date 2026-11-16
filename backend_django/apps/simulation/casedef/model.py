@@ -135,6 +135,8 @@ class World:
     collisions: tuple[CollisionZone, ...] = ()
     objects: tuple[WorldObject, ...] = ()
     dialogues: tuple[DialogueTree, ...] = ()
+    #: La sala armada por piezas (``SceneMap.structure``, x-siep 2.2); ``None`` en una sala de imagen fija.
+    structure: dict | None = None
 
 
 @dataclass(frozen=True)

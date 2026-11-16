@@ -8,6 +8,7 @@
  */
 
 import { faceExpressions, facePortrait } from './portrait-face.mjs';
+import { DIAGONAL } from './maduro.diagonal.mjs';
 
 const LEGEND = {
   b: { mat: 'hair', tone: 3 },
@@ -22,6 +23,7 @@ export default {
   portrait: facePortrait('neutral', { mature: true }),
   expressions: faceExpressions({ mature: true }),
   views: {
+    ...DIAGONAL,
     down: [{
       anchor: 'H', at: [16, 11], mode: 'paint', legend: LEGEND,
       grid: `

@@ -248,15 +248,17 @@ describe('person-walk: va-y-viene', () => {
   it('siempre va sobre la línea entre los dos puntos y mira hacia donde camina', () => {
     const env = mundo([], semilla(8));
     let s = startPersonWalk({ tipo: 'va-y-viene', hasta: VUELTA }, IDA, 'down', 0);
-    const miradas = new Set<string>();
+    const miradas: string[] = [];
     for (let i = 0; i < 1500; i++) {
       s = camina(s, 16, env);
       expect(s.y).toBe(200);
       expect(s.x).toBeGreaterThanOrEqual(IDA.x - 0.001);
       expect(s.x).toBeLessThanOrEqual(VUELTA.x + 0.001);
-      if (s.walking) miradas.add(s.direction);
+      if (s.walking) miradas.push(s.direction);
     }
-    expect([...miradas].sort()).toEqual(['left', 'right']);
+    // Camina mirando a izquierda o derecha; al dar la vuelta pasa de frente por las vistas de en medio (80 ms cada una).
+    expect(new Set(miradas)).toEqual(new Set(['left', 'right', 'down-left', 'down', 'down-right']));
+    expect(miradas.filter(v => v === 'left' || v === 'right').length / miradas.length).toBeGreaterThan(0.9);
   });
 
   it('espera 1 a 3 segundos en cada extremo', () => {

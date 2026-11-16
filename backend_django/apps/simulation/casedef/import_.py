@@ -49,7 +49,7 @@ from .vocabulary import ResponseClass, legacy_class
 MAX_BYTES = 1024 * 1024
 SIEP_KEY = "x-siep"
 #: La versión de ``x-siep`` que se lee tal cual y la que se convierte al leerla.
-SUPPORTED_VERSIONS, LEGACY_VERSION = ("2.1", "2.0"), "1.0"
+SUPPORTED_VERSIONS, LEGACY_VERSION = ("2.2", "2.1", "2.0"), "1.0"
 FORMA, LIMIT = PREFIX + "FORMA", PREFIX + "LIMIT_EXCEEDED"
 EXECUTION = PREFIX + "EXECUTION_NOT_IMPORTABLE"
 FEEDBACK_IGNORED = PREFIX + "FEEDBACK_ON_DECISION_IGNORED"
@@ -295,6 +295,7 @@ def _world(mapa):
     return World(
         key=mapa["clave"], title=mapa["titulo"], width=mapa["ancho"], height=mapa["alto"], theme=mapa["tema"],
         spawn_x=mapa["aparicion"]["x"], spawn_y=mapa["aparicion"]["y"], ambient=mapa["ambiente"],
+        structure=mapa.get("estructura"),
         collisions=tuple(
             CollisionZone(key=z["clave"], label=z["etiqueta"], x=z["x"], y=z["y"], width=z["ancho"], height=z["alto"])
             for z in _dicts(mapa["colisiones"])
@@ -494,7 +495,7 @@ def to_definition(document):
     caso = document["caso"]
     siep = document.get(SIEP_KEY) if isinstance(document.get(SIEP_KEY), dict) else {}
     if siep and siep.get("version") not in (*SUPPORTED_VERSIONS, LEGACY_VERSION):
-        raise ValueError(f"x-siep.version {siep.get('version')!r}: solo se leen la {SUPPORTED_VERSIONS[0]} y la {SUPPORTED_VERSIONS[1]} (y la {LEGACY_VERSION}, que se convierte).")
+        raise ValueError(f"x-siep.version {siep.get('version')!r}: solo se leen la {', la '.join(SUPPORTED_VERSIONS)} (y la {LEGACY_VERSION}, que se convierte).")
     keys = _Keys(siep)
     feedback = _feedback(document)
     characters = _characters(document, siep)

@@ -7,7 +7,7 @@
  * materiales (`mat`) los pone después la receta (vestir).
  */
 
-import { FAR_LABELS, createFrame, inside, isEmptyChar, labelZ, mirrorFrame, parseGrid } from '../../src/app/features/character/kit/kit-engine.ts';
+import { FAR_LABELS, MIRROR_OF, createFrame, hasFarLimbs, inside, isEmptyChar, labelZ, mirrorFrame, parseGrid } from '../../src/app/features/character/kit/kit-engine.ts';
 
 function stampGrid(frame, gridSpec, dx, dy, kind, opts = {}) {
   const rows = parseGrid(gridSpec.grid);
@@ -52,7 +52,7 @@ function put(frame, x, y, label, kind) {
   if (frame.part[i] !== null && frame.z[i] > z) return;
   frame.part[i] = label;
   frame.z[i] = z;
-  frame.far[i] = kind === 'side' && FAR_LABELS.has(label) ? 1 : 0;
+  frame.far[i] = hasFarLimbs(kind) && FAR_LABELS.has(label) ? 1 : 0;
 }
 
 /** Izquierda del tramo de ancho `w` centrado en `cx` (en índices de píxel). */
@@ -184,22 +184,133 @@ function buildSideFrame(m, view, sheet, f) {
   return frame;
 }
 
+/** Huecos encerrados de hasta este tamaño se cierran (uno mayor es una abertura de verdad, p. ej. entre las piernas al dar el paso). */
+const PINHOLE_MAX = 8;
+
 /**
- * Cuadros etiquetados del maniquí para las 4 vistas. `right` es el espejo de
- * `left` (la luz se calcula más tarde, ya reflejada).
+ * Cierra los huecos pequeños entre dos partes del cuerpo (pierna con pierna,
+ * brazo lejano con tronco): los de 1 px de ancho y los encerrados de hasta
+ * `PINHOLE_MAX` celdas. A este tamaño un hueco suelto se llena de contorno y
+ * se lee como ruido. Lo rellena la parte vecina que queda más atrás.
+ */
+function closePinholes(frame) {
+  const { width, height } = frame;
+  const copy = (i, from) => {
+    frame.part[i] = frame.part[from];
+    frame.z[i] = frame.z[from];
+    frame.far[i] = frame.far[from];
+  };
+  const narrow = [];
+  for (let y = 0; y < height; y++) {
+    for (let x = 1; x < width - 1; x++) {
+      const i = y * width + x;
+      if (frame.part[i] !== null || frame.part[i - 1] === null || frame.part[i + 1] === null) continue;
+      narrow.push([i, frame.z[i - 1] <= frame.z[i + 1] ? i - 1 : i + 1]);
+    }
+  }
+  for (const [i, from] of narrow) copy(i, from);
+
+  // Regiones vacías que no tocan el borde del cuadro = encerradas por el cuerpo.
+  const seen = new Uint8Array(width * height);
+  for (let start = 0; start < width * height; start++) {
+    if (frame.part[start] !== null || seen[start]) continue;
+    const region = [];
+    const around = new Set();
+    let open = false;
+    const stack = [start];
+    seen[start] = 1;
+    while (stack.length) {
+      const i = stack.pop();
+      region.push(i);
+      const x = i % width;
+      const y = (i - x) / width;
+      if (x === 0 || y === 0 || x === width - 1 || y === height - 1) open = true;
+      for (const [nx, ny] of [[x - 1, y], [x + 1, y], [x, y - 1], [x, y + 1]]) {
+        if (nx < 0 || ny < 0 || nx >= width || ny >= height) continue;
+        const j = ny * width + nx;
+        if (frame.part[j] !== null) around.add(j);
+        else if (!seen[j]) { seen[j] = 1; stack.push(j); }
+      }
+    }
+    if (open || region.length > PINHOLE_MAX) continue;
+    let back = -1;
+    for (const j of around) if (back < 0 || frame.z[j] < frame.z[back]) back = j;
+    // `around` ya no cambia: se copia de una celda del cuerpo, no de otra del hueco.
+    const source = { part: frame.part[back], z: frame.z[back], far: frame.far[back] };
+    for (const i of region) { frame.part[i] = source.part; frame.z[i] = source.z; frame.far[i] = source.far; }
+  }
+}
+
+/**
+ * Tres cuartos (de frente o de espalda): como el perfil, distingue miembro
+ * cercano y lejano, pero cada uno tiene su hombro y su cadera (el cuerpo está
+ * girado 45°, no de canto). El braceo y el paso se dan como desplazamientos
+ * sobre la pose de reposo; la rodilla se dobla hacia `kneeDir`.
+ */
+function buildQuarterFrame(m, view, sheet, f) {
+  const { width, height } = m.frame;
+  const frame = createFrame(width, height);
+  const kind = view.kind;
+  const walk = sheet === 'walk';
+  const bob = walk ? m.sheets.walk.bob[f] : 0;
+  const breath = walk ? 0 : m.sheets.idle.breath[f];
+  const upper = bob + breath;
+
+  stampGrid(frame, view.head, 0, upper, kind);
+  if (view.ear) stampGrid(frame, view.ear, 0, upper, kind);
+  stampGrid(frame, view.neck, 0, upper, kind);
+  stampGrid(frame, view.torso, 0, upper, kind, { stretchRow: view.torso.stretchRow, lowerDy: bob });
+  stampGrid(frame, view.pelvis, 0, bob, kind);
+
+  const n = view.legPhases.length;
+  for (const near of [true, false]) {
+    const phaseIndex = walk ? (near ? f : (f + n / 2) % n) : 2;
+
+    const rest = near ? view.armNear : view.armFar;
+    const swing = view.armPhases[phaseIndex];
+    // El brazo lejano bracea menos: casi todo queda tras el tronco y, si se abre, deja un hueco negro.
+    const k = near ? 1 : view.farArmSwing ?? 1;
+    const arm = [
+      add(rest.shoulder, 0, upper),
+      add(rest.elbow, swing.elbow[0] * k, upper + swing.elbow[1]),
+      add(rest.wrist, swing.wrist[0] * k, upper + swing.wrist[1]),
+    ];
+    limb(frame, arm, [m.widths.upperArm, m.widths.forearm], near ? ['a', 'b'] : ['A', 'B'], view.hand, kind, near ? 'c' : 'C');
+
+    const base = near ? view.legNear : view.legFar;
+    const leg = view.legPhases[phaseIndex];
+    const hip = [base.hip[0], base.hip[1] + bob];
+    const ankle = add(base.ankle, leg.ankle[0], leg.ankle[1]);
+    const knee = [(hip[0] + ankle[0]) / 2 + leg.bend * view.kneeDir[0], (hip[1] + ankle[1]) / 2 + leg.bend * view.kneeDir[1]];
+    limb(frame, [hip, knee, ankle], [m.widths.thighFront, m.widths.shinFront], near ? ['l', 'm'] : ['L', 'M'], view.feet[leg.foot], kind, near ? 'o' : 'O');
+  }
+  closePinholes(frame);
+  frame.motion = { upper, bob, waistY: view.torso.at[1] + view.torso.stretchRow };
+  return frame;
+}
+
+const BUILDERS = { front: buildFrontFrame, back: buildFrontFrame, side: buildSideFrame, front34: buildQuarterFrame, back34: buildQuarterFrame };
+
+/**
+ * Cuadros etiquetados del maniquí para las 8 vistas. Las tres derechas son el
+ * espejo de su izquierda (la luz se calcula más tarde, ya reflejada).
  */
 export function rasterizeMannequin(m) {
   const out = {};
   for (const [name, view] of Object.entries(m.views)) {
-    const build = view.kind === 'side' ? buildSideFrame : buildFrontFrame;
+    const build = BUILDERS[view.kind];
+    if (!build) throw new Error(`complexión ${m.id}: vista ${name} de tipo desconocido «${view.kind}»`);
     out[name] = {};
     for (const [sheet, spec] of Object.entries(m.sheets)) {
       out[name][sheet] = Array.from({ length: spec.frames }, (_, f) => build(m, view, sheet, f));
     }
   }
-  out.right = {};
-  for (const [sheet, frames] of Object.entries(out.left)) {
-    out.right[sheet] = frames.map(fr => mirrorFrame(fr, m.frame.pivotX));
+  for (const [right, left] of Object.entries(MIRROR_OF)) {
+    if (!out[left]) throw new Error(`complexión ${m.id}: falta la vista ${left}`);
+    out[right] = {};
+    for (const [sheet, frames] of Object.entries(out[left])) {
+      out[right][sheet] = frames.map(fr => mirrorFrame(fr, m.frame.pivotX));
+    }
   }
   return out;
 }

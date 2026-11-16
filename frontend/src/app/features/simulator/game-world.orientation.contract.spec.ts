@@ -132,6 +132,16 @@ describe('game-world: ratón (F6-7, VD-5)', () => {
     expect(update).toContain('this.movePlayer(part.dx, part.dy)');
   });
 
+  it('el jugador mira en ocho direcciones: la mirada sale de la entrada en cada cuadro (con margen) y todas las poses la usan', () => {
+    const update = bodyOf(/\n  override update\(time: number, delta: number\) \{/, /\n  setWorld\(/);
+    expect(update).toContain('this.mirada = actualizarMirada(this.mirada, Number(input.right) - Number(input.left), Number(input.down) - Number(input.up), delta');
+    expect(update.indexOf('actualizarMirada(')).toBeLessThan(update.indexOf('this.applyPlayerPose('));
+    expect(update.match(/this\.applyPlayerPose\(this\.mirada\.actual, (true|false)\)/g) ?? []).toHaveLength(3);
+    expect(source).not.toMatch(/applyPlayerPose\((step\.direction|this\.lastDirection|direction), /);
+    // Las personas y los NPC tampoco deciden su mirada en 4 direcciones.
+    expect(source).not.toMatch(/\bresolveDirection\(|\bdirectionTowards\(|\bturnStepBetween\(/);
+  });
+
   it('un paso de la cruceta suelta la caminata y una sala nueva no la arrastra', () => {
     const nudge = bodyOf(/\n  nudge\(direction: 'up' \| 'down' \| 'left' \| 'right'\) \{\n    if \(!this\.player\) return;/, /\n  \/\*\* Punto de pies/);
     expect(nudge).toContain('this.walk = NO_WALK;');

@@ -42,14 +42,21 @@ export async function markFirstTimeHelpSeen(page: Page): Promise<void> {
   }, [HELP_MEMORY_KEY, HELP_MEMORY_SEEN]).catch(() => undefined);
 }
 
-export async function loginStudent(page: Page, options: { seedHelp?: boolean } = {}): Promise<void> {
+export interface Login { email: string; password: string }
+
+/** El formulario de ingreso con las credenciales dadas (la docente que ensaya, el administrador…); termina dentro del portal. */
+export async function loginAs(page: Page, who: Login, options: { seedHelp?: boolean } = {}): Promise<void> {
   await captureApiBodies(page);
   if (options.seedHelp !== false) await markFirstTimeHelpSeen(page);
   if (!/\/login$/.test(new URL(page.url()).pathname)) await page.goto('/login');
-  await page.locator('input[type="email"]').last().fill(EMAIL);
-  await page.locator('input[type="password"]').last().fill(PASSWORD);
+  await page.locator('input[type="email"]').last().fill(who.email);
+  await page.locator('input[type="password"]').last().fill(who.password);
   await page.getByRole('button', { name: /^ingresar$/i }).click();
   await page.waitForURL(/\/portal\//, { timeout: scaled(30_000) });
+}
+
+export async function loginStudent(page: Page, options: { seedHelp?: boolean } = {}): Promise<void> {
+  await loginAs(page, { email: EMAIL, password: PASSWORD }, options);
 }
 
 /**

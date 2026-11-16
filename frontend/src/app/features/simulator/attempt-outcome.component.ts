@@ -55,7 +55,11 @@ import { RECONSIDERED_LABEL, reconsideredChip } from './reconsidered.util';
           <div class="oc-actions oc-actions--pause">
             <!-- Pausa reanudable real: mismo intento, sin crear uno nuevo. -->
             <button type="button" class="oc-btn oc-btn--go" cdkFocusInitial (click)="resume.emit()">Reanudar este intento</button>
-            <a class="oc-btn oc-btn--line" routerLink="/portal/simulador">Volver al catálogo</a>
+            @if (mode() === 'rehearsal') {
+              <a class="oc-btn oc-btn--line" [routerLink]="editorLink()">{{ draft.rehearsalBackToEditor.text }}</a>
+            } @else {
+              <a class="oc-btn oc-btn--line" routerLink="/portal/simulador">Volver al catálogo</a>
+            }
           </div>
           @if (supportResources().length) {
             <div class="oc-block oc-support">
@@ -74,7 +78,11 @@ import { RECONSIDERED_LABEL, reconsideredChip } from './reconsidered.util';
         } @else {
           <ng-container [ngTemplateOutlet]="board" />
           <footer class="oc-actions">
-            @if (status() === 'REPLACED') {
+            @if (mode() === 'rehearsal') {
+              <!-- Ensayo (DSL-10): se repite o se vuelve al editor; nada de catálogo ni de portal de estudiantes. -->
+              <button type="button" class="oc-btn oc-btn--go" (click)="retry.emit()">{{ draft.rehearsalRestart.text }}</button>
+              <a class="oc-btn oc-btn--line" [routerLink]="editorLink()">{{ draft.rehearsalBackToEditor.text }}</a>
+            } @else if (status() === 'REPLACED') {
               <!-- Ya existe un intento más nuevo: «reintentar» (forceNew) también lo reemplazaría. -->
               <a class="oc-btn oc-btn--go" routerLink="/portal/simulador">Volver al catálogo</a>
             } @else if (status() === 'SAFE_EXITED') {
@@ -85,7 +93,9 @@ import { RECONSIDERED_LABEL, reconsideredChip } from './reconsidered.util';
               <button type="button" class="oc-btn oc-btn--go" (click)="retry.emit()">Reintentar caso</button>
               <a class="oc-btn oc-btn--line" routerLink="/portal/simulador">Volver al simulador</a>
             }
-            <a class="oc-btn oc-btn--line" routerLink="/portal/dashboard">Volver al portal</a>
+            @if (mode() !== 'rehearsal') {
+              <a class="oc-btn oc-btn--line" routerLink="/portal/dashboard">Volver al portal</a>
+            }
           </footer>
         }
 
@@ -111,7 +121,7 @@ import { RECONSIDERED_LABEL, reconsideredChip } from './reconsidered.util';
             </div>
           }
 
-          @if (status() === 'COMPLETED') {
+          @if (status() === 'COMPLETED' && mode() !== 'rehearsal') {
             <!-- Autoevaluación breve (R-6): va ANTES de la revisión; vive solo aquí, no se envía ni se guarda. -->
             <section class="oc-block oc-selfcheck" aria-labelledby="oc-selfcheck-title">
               <p class="oc-label" id="oc-selfcheck-title">{{ draft.selfAssessTitle.text }}</p>
@@ -500,6 +510,14 @@ export class AttemptOutcomeComponent {
   readonly report = input<AttemptCompletionReport | null>(null);
   readonly status = input.required<SimulationAttemptState['status']>();
   readonly retry = output<void>();
+  /** `rehearsal`: la docente ensaya su borrador; no hay informe del estudiante ni autoevaluación y las salidas llevan al editor. */
+  readonly mode = input<'student' | 'rehearsal'>('student');
+  /** El caso que se ensaya, para el enlace «Volver al editor». */
+  readonly caseVersionId = input<number | null>(null);
+  protected readonly editorLink = computed(() => {
+    const id = this.caseVersionId();
+    return id === null ? '/portal/casos' : `/portal/casos/${id}/editor`;
+  });
   /** Pausa reanudable (ETH-02 A): reanuda el MISMO intento, no crea uno nuevo. */
   readonly resume = output<void>();
   /** Recursos de apoyo que se muestran en la pausa (opcional; los aporta quien conoce el caso). */
@@ -539,7 +557,7 @@ export class AttemptOutcomeComponent {
    * ruta normal `decisionReview` ya viaja en el reporte congelado de esa respuesta (una petición menos al cerrar).
    */
   private readonly decisionsResource = rxResource<AttemptCompletionReport, string | undefined>({
-    params: () => (this.report()?.decisionReview === undefined ? this.reviewAttemptId() ?? undefined : undefined),
+    params: () => (this.mode() !== 'rehearsal' && this.report()?.decisionReview === undefined ? this.reviewAttemptId() ?? undefined : undefined),
     stream: ({ params }) => (params === undefined ? EMPTY : this.simulation.studentReport(params)),
   });
   protected readonly decisions = computed<DecisionReviewItem[]>(() => {

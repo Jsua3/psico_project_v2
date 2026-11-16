@@ -14,6 +14,7 @@
  */
 
 import { gridFrom, mirrorOverlay } from '../../raster.mjs';
+import { DIAGONAL } from './uniforme-psicologia.diagonal.mjs';
 
 const LEGEND = {
   j: { mat: 'top' },
@@ -76,6 +77,7 @@ export default {
   coverage: { T: 'top', a: 'top', A: 'top', b: 'skin', B: 'skin' },
   edges: [{ labels: ['a', 'A'], edge: 'bottom', tone: 3 }],
   views: {
+    ...DIAGONAL,
     down: [
       cover(21, 22, 'hhh.hhh'),
       at('T', 18, 23, `

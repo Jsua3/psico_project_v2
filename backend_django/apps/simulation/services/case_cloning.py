@@ -64,7 +64,7 @@ DECISION = CopySpec(DecisionOption, (
 ))
 
 MAP = CopySpec(SceneMap, (
-    "map_key", "title", "width", "height", "theme", "spawn_x", "spawn_y", "ambient_json",
+    "map_key", "title", "width", "height", "theme", "spawn_x", "spawn_y", "ambient_json", "structure",
 ))
 
 COLLISION_ZONE = CopySpec(CollisionZone, (

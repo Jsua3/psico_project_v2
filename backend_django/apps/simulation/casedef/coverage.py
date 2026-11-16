@@ -26,7 +26,8 @@ EXPORTED = {
         "option_key", "source_node", "target_node", "text", "immediate_feedback",
         "prohibition_reason", "consequence_text", "theory_basis", "feedback_text", "effects", "requires_json", "reaction_json", "response_class",
     },
-    "SceneMap": {"node", "map_key", "title", "width", "height", "theme", "spawn_x", "spawn_y", "ambient_json"},
+    # Bloque P3: ``structure`` viaja como ``mapa.estructura`` (x-siep 2.2).
+    "SceneMap": {"node", "map_key", "title", "width", "height", "theme", "spawn_x", "spawn_y", "ambient_json", "structure"},
     "SceneHint": {"scene_map", "hint_order", "text"},
     "CaseCharacter": {
         "character_key", "display_name", "role_label", "portrait_key", "show_in_brief", "display_order",

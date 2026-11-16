@@ -55,8 +55,8 @@ describe('resolveCharacter', () => {
     expect(visual.recipeId).toBeNull();
     expect(visual.key).toMatch(/^kit-avatar-[0-9a-f]{8}$/);
     if (visual.idle.kind !== 'rgba' || visual.walk.kind !== 'rgba') throw new Error('se esperaban hojas compuestas');
-    expect([visual.idle.image.width, visual.idle.image.height]).toEqual([192, 288]);
-    expect([visual.walk.image.width, visual.walk.image.height]).toEqual([288, 288]);
+    expect([visual.idle.image.width, visual.idle.image.height]).toEqual([192, 576]);
+    expect([visual.walk.image.width, visual.walk.image.height]).toEqual([288, 576]);
     const portrait = visual.portraits.neutral;
     expect(portrait?.kind === 'rgba' && [portrait.image.width, portrait.image.height]).toEqual([32, 32]);
     expect(resolveCharacter(bundle, { kind: 'jugador', avatar: { ...custom } })).toBe(visual);
