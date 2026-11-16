@@ -114,7 +114,8 @@ CONSULTORIO = _sala(
     'consultorio-psicosocial', 'Consultorio psicosocial', 960, 'madera', 'pintura',
     descripcion='Espacio de escucha del equipo psicosocial: dos sillas, una mesa baja y pañuelos a la mano.',
     piezas=[
-        P('cuadro', 'cuadro', 'fondo', 56), P('ventana', 'ventana', 'fondo', 232, 'persiana'), P('reloj', 'reloj', 'fondo', 600),
+        P('cuadro', 'cuadro', 'fondo', 56), P('ventana', 'ventana', 'fondo', 232, 'persiana'), P('repisa', 'repisa', 'fondo', 400),
+        P('reloj', 'reloj', 'fondo', 600),
         P('cuadro-2', 'cuadro', 'fondo', 704),
         dict(id='lampara-pie', tipo='lampara', modelo='pie', x=226, y=330),
         dict(id='lampara-mesa', tipo='lampara', modelo='mesa', x=748, y=290, sobre=36),
@@ -124,7 +125,7 @@ CONSULTORIO = _sala(
              M('escritorio-funcionario', 700, 290), M('silla-visitante-comisaria', 300, 340),
              M('silla-visitante-comisaria', 420, 340, True), M('mesa-baja-nna', 360, 362)],
     objetos=[O('afiche-rutas-atencion', 214, 268), O('papelera', 776, 262), O('dispensador-agua', 836, 270),
-             O('carpeta-medidas-proteccion', 676, 291, 37), O('caja-panuelos', 378, 363, 24)],
+             O('carpeta-medidas-proteccion', 676, 291, 37), O('caja-panuelos', 368, 363, 24)],
     personajes=[N('profesional-psicosocial', 520, 352, 'izquierda'), N('sobreviviente', 262, 404, 'derecha')],
     tapetes=[dict(caja=[250, 480, 318, 404])],
     entrada=(480, 440))

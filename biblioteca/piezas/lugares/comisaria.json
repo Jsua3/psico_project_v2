@@ -951,6 +951,13 @@
             "tipo": "ventana"
           },
           {
+            "id": "repisa",
+            "modelo": "repisa",
+            "muro": "fondo",
+            "pos": 400,
+            "tipo": "repisa"
+          },
+          {
             "id": "reloj",
             "modelo": "reloj",
             "muro": "fondo",
@@ -1065,7 +1072,7 @@
         {
           "ref": "caja-panuelos",
           "sobre": 24,
-          "x": 378,
+          "x": 368,
           "y": 363
         }
       ],
