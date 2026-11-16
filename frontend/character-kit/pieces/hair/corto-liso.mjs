@@ -14,6 +14,7 @@
 import { gridFrom, stamp } from '../../raster.mjs';
 import { headHalfWidth } from '../../busts/bust-a.mjs';
 import { DIAGONAL } from './corto-liso.diagonal.mjs';
+import { hairVolume } from './portrait-volume.mjs';
 
 const LEGEND = {
   R: { mat: 'hair' },
@@ -47,7 +48,7 @@ export default {
   kind: 'hair',
   part: 'hair',
   z: 6,
-  portrait: PORTRAIT,
+  portrait: hairVolume('corto-liso', PORTRAIT),
   views: {
     ...DIAGONAL,
     down: [{

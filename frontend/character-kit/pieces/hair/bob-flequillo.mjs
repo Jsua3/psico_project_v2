@@ -13,6 +13,7 @@
 
 import { HAIR_BOB_PORTRAIT } from './bob-flequillo.portrait.mjs';
 import { DIAGONAL } from './bob-flequillo.diagonal.mjs';
+import { hairVolume } from './portrait-volume.mjs';
 
 const LEGEND = {
   R: { mat: 'hair' },
@@ -27,7 +28,7 @@ export default {
   asymmetric: true,
   part: 'hair',
   z: 6,
-  portrait: HAIR_BOB_PORTRAIT,
+  portrait: hairVolume('bob-flequillo', HAIR_BOB_PORTRAIT),
   views: {
     ...DIAGONAL,
     down: [{
