@@ -644,6 +644,129 @@ export interface ErrorEnvelope {
 
 export type FormativeLevelEnum = 'EN_INICIO' | 'EN_PROCESO' | 'LOGRADO' | 'DESTACADO';
 
+/** Una generación por etapas. No trae el documento guardado ni texto del modelo salvo los títulos del esqueleto. */
+export interface Generation {
+  readonly callsLimit: number;
+  readonly callsUsed: number;
+  /** El borrador creado, solo con `imported`. */
+  readonly caseVersionId: number | null;
+  /** UTC, ISO 8601 con `Z`. */
+  readonly createdAt: string;
+  readonly descripcion: string;
+  readonly id: string;
+  /** Con `imported`: lo que queda por resolver; con `failed`: lo que impidió importar. */
+  readonly issues: ReadonlyArray<ValidationIssue>;
+  readonly lastError: GenerationError | null;
+  readonly lugarId: string;
+  readonly repair: GenerationRepair | null;
+  /** Las rondas ya abiertas. */
+  readonly repairRounds: number;
+  readonly scenes: ReadonlyArray<GenerationSceneState>;
+  /** Nulo hasta que el esqueleto esté listo. */
+  readonly skeleton: GenerationSkeleton | null;
+  readonly status: GenerationStatusEnum;
+  /** UTC, ISO 8601 con `Z`. */
+  readonly updatedAt: string;
+}
+
+/** Sobre de éxito: `data` es `Generation`. */
+export interface GenerationEnvelope {
+  readonly data: Generation;
+  readonly message?: string;
+  /** Siempre `true` en una respuesta de éxito. */
+  readonly success: boolean;
+}
+
+/** El último fallo de una etapa; se borra cuando esa misma etapa sale bien. */
+export interface GenerationError {
+  readonly clave: string | null;
+  readonly kind: GenerationErrorKindEnum;
+  /** Texto fijo del servidor; nunca cita lo que dijo el modelo. */
+  readonly message: string;
+  readonly stage: StageEnum;
+}
+
+/** El 409, 429 y 502 de la generación. Cada motivo suma su campo en la raíz: `GENERATION_IN_PROGRESS` → `generationId` (la que sigue abierta); `AI_LIMIT_EXCEEDED` → `scope` (`daily`); `AI_PROVIDER_ERROR` → `kind` (`timeout`, `http` o `malformed`). */
+export interface GenerationErrorEnvelope {
+  readonly code: string;
+  /** El primer campo que falló la validación. */
+  readonly field?: string;
+  /** Solo en `GENERATION_IN_PROGRESS`. */
+  readonly generationId?: string;
+  /** Solo en `AI_PROVIDER_ERROR`: `timeout`, `http` o `malformed`. */
+  readonly kind?: string;
+  readonly message: string;
+  /** El motivo corto (fijo) de un 422 `AI_PROPOSAL_INVALID`. */
+  readonly motivo?: string;
+  /** Solo en `AI_LIMIT_EXCEEDED`: `daily`. */
+  readonly scope?: string;
+  /** Siempre `false` en un error. */
+  readonly success: boolean;
+}
+
+export type GenerationErrorKindEnum = 'timeout' | 'http' | 'malformed' | 'refusal';
+
+/** La ronda de reparación abierta: qué escenas se rehacen y las faltas de cada una (solo con `needs_repair`). */
+export interface GenerationRepair {
+  readonly issues: Readonly<Record<string, ReadonlyArray<ValidationIssue>>>;
+  readonly round: number;
+  readonly scenes: ReadonlyArray<string>;
+}
+
+export interface GenerationSceneError {
+  readonly kind: GenerationErrorKindEnum;
+  /** Texto fijo del servidor; nunca cita lo que dijo el modelo. */
+  readonly message: string;
+}
+
+/** Una escena del esqueleto con su avance. */
+export interface GenerationSceneState {
+  readonly clave: string;
+  readonly error: GenerationSceneError | null;
+  readonly state: GenerationSceneStateStateEnum;
+  readonly titulo: string;
+}
+
+export type GenerationSceneStateStateEnum = 'pending' | 'running' | 'done' | 'error';
+
+/** El esqueleto del caso: su título y las escenas en orden (la primera es la de inicio). */
+export interface GenerationSkeleton {
+  readonly escenas: ReadonlyArray<GenerationSkeletonScene>;
+  readonly titulo: string;
+}
+
+export interface GenerationSkeletonScene {
+  /** El id de la sala donde pasa la escena. */
+  readonly clave: string;
+  readonly final: boolean;
+  readonly titulo: string;
+}
+
+/** Solo describe el cuerpo para el esquema: el servicio valida ``lugarId`` y ``descripcion`` con mensajes fijos. */
+export interface GenerationStartBody {
+  /** Entre 40 y 2000 caracteres, texto plano y sin datos personales. */
+  readonly descripcion: string;
+  /** El lugar donde pasa el caso. */
+  readonly lugarId: string;
+}
+
+/** Si la generación con IA está disponible, cuántas le quedan hoy a la docente y la generación en curso. */
+export interface GenerationStatus {
+  readonly enabled: boolean;
+  readonly inProgress: Generation | null;
+  readonly remainingToday: number;
+}
+
+export type GenerationStatusEnum = 'created' | 'skeleton_ready' | 'scenes_ready' | 'needs_repair' | 'imported' | 'failed' | 'cancelled';
+
+/** Sobre de éxito: `data` es `GenerationStatus`. */
+export interface GenerationStatusEnvelope {
+  readonly data: GenerationStatus;
+  readonly message?: string;
+  /** Siempre `true` en una respuesta de éxito. */
+  readonly success: boolean;
+}
+
 /** El estado mínimo del servicio. No devuelve nada interno: ni versiones ni el texto del error de la base. */
 export interface Health {
   readonly db: HealthDbEnum;
@@ -758,8 +881,6 @@ export interface InvitationListEnvelope {
 }
 
 export type IssueSeverityEnum = 'error' | 'warning';
-
-export type KindEnum = 'talked' | 'inspected' | 'has' | 'used';
 
 /** Los agregados de aprendizaje del alcance pedido. Cada bloque falta si no alcanza la celda mínima. */
 export interface LearningAnalytics {
@@ -888,9 +1009,11 @@ export interface RehearsalExplored {
 /** Lo que falta explorar, en la forma de ``decisionReview[].missed``: el tipo de hecho, su clave y su etiqueta. */
 export interface RehearsalMissing {
   readonly key: string;
-  readonly kind: KindEnum;
+  readonly kind: RehearsalMissingKindEnum;
   readonly label: string;
 }
+
+export type RehearsalMissingKindEnum = 'talked' | 'inspected' | 'has' | 'used';
 
 export interface RehearsalOption {
   readonly id: number;
@@ -989,6 +1112,8 @@ export interface ShownHint {
   readonly order: number;
   readonly text: string;
 }
+
+export type StageEnum = 'skeleton' | 'scene' | 'assemble';
 
 /** El reporte de un estudiante para su docente (C3): los intentos más recientes y cuántos hay en total. */
 export interface StudentReport {
@@ -1172,6 +1297,12 @@ export interface OpenApiPaths {
   readonly '/api/authoring/cases/{case_version_id}/world-editor': 'GET';
   readonly '/api/authoring/cases/{case_version_id}/world-preview': 'GET';
   readonly '/api/authoring/cases/{case_version_id}/world/validate': 'POST';
+  readonly '/api/authoring/generations': 'POST';
+  readonly '/api/authoring/generations/status': 'GET';
+  readonly '/api/authoring/generations/{gen_id}': 'DELETE' | 'GET';
+  readonly '/api/authoring/generations/{gen_id}/assemble': 'POST';
+  readonly '/api/authoring/generations/{gen_id}/scenes/{clave}': 'POST';
+  readonly '/api/authoring/generations/{gen_id}/skeleton': 'POST';
   readonly '/api/biblioteca/lugares': 'GET';
   readonly '/api/biblioteca/lugares/{lugar_id}': 'GET';
   readonly '/api/competencies': 'GET' | 'POST';

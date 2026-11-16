@@ -570,6 +570,7 @@ SPECTACULAR_SETTINGS = {
         "AssistantStatusModeEnum": "apps.simulation.serializers.contracts.ASSISTANT_STATUS_MODES",
         "AssistantGuideModeEnum": "apps.simulation.serializers.contracts.ASSISTANT_GUIDE_MODES",
         "HintReasonEnum": "apps.simulation.serializers.contracts.HINT_REASONS",
+        "GenerationErrorKindEnum": "apps.simulation.serializers.contracts.GENERATION_ERROR_KINDS",
         "LifecycleActionEnum": "apps.simulation.serializers.contracts.LIFECYCLE_ACTIONS",
         "MembershipStatusEnum": "apps.grupos.models.MembershipStatus",
         "ReviewDecisionEnum": "apps.simulation.models.case.ReviewDecision",

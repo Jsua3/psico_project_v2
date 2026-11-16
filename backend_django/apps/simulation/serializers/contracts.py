@@ -546,6 +546,18 @@ GENERATION_ERROR_KINDS = ("timeout", "http", "malformed", "refusal")
 GENERATION_STAGES = ("skeleton", "scene", "assemble")
 
 
+class GenerationErrorEnvelopeSerializer(ErrorEnvelopeSerializer):
+    """El 409, 429 y 502 de la generación. Cada motivo suma su campo en la raíz:
+
+    `GENERATION_IN_PROGRESS` → `generationId` (la que sigue abierta); `AI_LIMIT_EXCEEDED` → `scope` (`daily`);
+    `AI_PROVIDER_ERROR` → `kind` (`timeout`, `http` o `malformed`).
+    """
+
+    generationId = serializers.UUIDField(required=False, help_text="Solo en `GENERATION_IN_PROGRESS`.")
+    scope = serializers.CharField(required=False, help_text="Solo en `AI_LIMIT_EXCEEDED`: `daily`.")
+    kind = serializers.CharField(required=False, help_text="Solo en `AI_PROVIDER_ERROR`: `timeout`, `http` o `malformed`.")
+
+
 class GenerationSkeletonSceneSerializer(serializers.Serializer):
     clave = serializers.CharField(help_text="El id de la sala donde pasa la escena.")
     titulo = serializers.CharField()
