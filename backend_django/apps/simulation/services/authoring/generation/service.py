@@ -320,9 +320,20 @@ def _context_for(gen: CaseGeneration) -> dict:
     return context.del_lugar(lugares.cargar_lugar(gen.lugar_id), context.competencias_por_defecto())
 
 
+#: Dónde vive la salida rechazada del esqueleto mientras no hay esqueleto: dentro de ``scenes_json`` (``view`` solo lee ahí las
+#: salas del esqueleto, y sus claves, ``[a-z0-9-]``, nunca chocan con esta). Al aceptarse el esqueleto ``scenes_json`` se
+#: reescribe entero y la entrada desaparece.
+SKELETON_REJECTED_KEY = "__skeleton__"
+
+
 def _plan_skeleton(gen, config, ctx, token) -> _Plan:
+    rejected = _loads(gen.scenes_json, {}).get(SKELETON_REJECTED_KEY)
+    reparar = None
+    if isinstance(rejected, dict) and rejected.get("rejected") is not None:
+        # La salida rechazada por ``checks`` se reintenta como una reparación: el modelo corrige en vez de empezar de cero.
+        reparar = {"anterior": rejected["rejected"], "faltas": list(rejected.get("motivos", []))}
     return _Plan(
-        messages=prompts.skeleton_messages(ctx, gen.description), schema_=schema.SKELETON, effort=config.generate_effort_skeleton,
+        messages=prompts.skeleton_messages(ctx, gen.description, reparar), schema_=schema.SKELETON, effort=config.generate_effort_skeleton,
         validate=lambda raw: checks.validate_skeleton(raw, ctx), token=token, stage="skeleton", clave=None,
         model=config.model_generate,
     )
@@ -452,6 +463,9 @@ def _save(gen_id, actor, plan: _Plan, draft, kind, rejected, motivos, tokens: tu
                     ensure_ascii=False,
                 )
                 gen.status = GenerationStatus.SKELETON_READY
+            elif rejected is not None:  # solo para reintentar como reparación; la API nunca lo devuelve
+                scenes[SKELETON_REJECTED_KEY] = {"rejected": rejected, "motivos": motivos}
+                gen.scenes_json = json.dumps(scenes, ensure_ascii=False)
         else:
             entry = scenes[plan.clave]
             entry["started_at"] = None
@@ -496,6 +510,12 @@ def _run_stage(gen_id, actor, transition: str, clave: str | None) -> dict:
     try:
         draft, kind, rejected, motivos = _call(plan, config, meta)
         tokens = _usage(meta)
+        if motivos:
+            # Los motivos son textos fijos de ``checks.FIXED_MOTIVOS``: nunca texto del modelo ni de la descripción.
+            logger.warning(
+                "generation_stage_rejected generation=%s stage=%s clave=%s motivos=%s", gen_id, plan.stage, plan.clave, motivos,
+                extra={"fields": {"generation_id": str(gen_id), "stage": plan.stage, "clave": plan.clave, "motivos": motivos}},
+            )
     except BaseException as exc:
         # Cualquier fallo antes del guardado dejaría la etapa «en curso» (409 ocupado hasta 150 s): se suelta como error.
         logger.error("generation_stage_unexpected", extra={"fields": {"stage": plan.stage, "error_class": type(exc).__name__}})

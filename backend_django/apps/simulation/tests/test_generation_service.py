@@ -385,6 +385,117 @@ def test_una_escena_rechazada_por_checks_se_reintenta_como_reparacion(db, docent
     assert "rejected" not in final and "motivos" not in final and final["data"]["narracion"]
 
 
+# ─── un esqueleto que `checks` rechaza se guarda, se registra y se reintenta como reparación ───────
+
+MARCADOR_MODELO = "MARCADOR-DEL-TEXTO-DEL-MODELO"
+
+
+def _esqueleto_invalido():
+    malo = leer("esqueleto.json")
+    malo["titulo"] = ""  # checks: «título» no puede quedar vacío
+    malo["contexto"] = MARCADOR_MODELO
+    return malo
+
+
+def _proveedor_que_rechaza_el_esqueleto_una_vez(monkeypatch, mensajes):
+    original = FakeProvider.complete_structured
+    primera = [True]
+
+    def invalido_una_vez(self, system, messages, schema, model, *args, **kwargs):
+        texto = FakeProvider._ultimo_texto(messages)
+        if "Etapa: esqueleto" in texto:
+            mensajes.append(texto)
+            if primera:
+                primera.pop()
+                return _esqueleto_invalido()
+        return original(self, system, messages, schema, model, *args, **kwargs)
+
+    monkeypatch.setattr(FakeProvider, "complete_structured", invalido_una_vez)
+
+
+def test_un_esqueleto_rechazado_por_checks_se_guarda_y_el_reintento_lo_repara(db, docente, monkeypatch):
+    gid = crear(docente)
+    mensajes = []
+    _proveedor_que_rechaza_el_esqueleto_una_vez(monkeypatch, mensajes)
+
+    with pytest.raises(service.AiProviderFailed) as error:
+        service.run_skeleton(docente, gid)
+    assert error.value.extra["kind"] == "malformed"
+    guardado = json.loads(CaseGeneration.objects.get(pk=gid).scenes_json)["__skeleton__"]
+    assert guardado["rejected"]["contexto"] == MARCADOR_MODELO and guardado["motivos"]
+    assert all(motivo in checks.FIXED_MOTIVOS or checks.is_fixed_motivo(motivo) for motivo in guardado["motivos"])
+    vista = service.get(docente, gid)
+    assert vista["status"] == "created" and vista["scenes"] == []
+    assert "__skeleton__" not in json.dumps(vista) and MARCADOR_MODELO not in json.dumps(vista)
+
+    vista = service.run_skeleton(docente, gid)
+
+    assert "Esqueleto anterior (JSON):" not in mensajes[0]
+    assert "Esqueleto anterior (JSON):" in mensajes[1] and "Faltas que corregir:" in mensajes[1]
+    assert checks.EMPTY.replace("«»", "«título»") in mensajes[1] and MARCADOR_MODELO in mensajes[1]
+    assert vista["status"] == "skeleton_ready" and vista["callsUsed"] == 2
+    assert "__skeleton__" not in json.loads(CaseGeneration.objects.get(pk=gid).scenes_json)  # aceptado: se borra
+
+
+def test_un_fallo_del_proveedor_tras_un_esqueleto_rechazado_conserva_la_reparacion(db, docente, monkeypatch):
+    gid = crear(docente)
+    mensajes = []
+    _proveedor_que_rechaza_el_esqueleto_una_vez(monkeypatch, mensajes)
+    with pytest.raises(service.AiProviderFailed):
+        service.run_skeleton(docente, gid)
+    original = FakeProvider.complete_structured
+    fallo = [True]
+
+    def cae_una_vez(self, system, messages, schema, model, *args, **kwargs):
+        if fallo and "Etapa: esqueleto" in FakeProvider._ultimo_texto(messages):
+            fallo.pop()
+            raise ProviderError("timeout", "interno")
+        return original(self, system, messages, schema, model, *args, **kwargs)
+
+    monkeypatch.setattr(FakeProvider, "complete_structured", cae_una_vez)
+    with pytest.raises(service.AiProviderFailed):
+        service.run_skeleton(docente, gid)
+    assert "__skeleton__" in json.loads(CaseGeneration.objects.get(pk=gid).scenes_json)
+
+    service.run_skeleton(docente, gid)
+
+    assert "Esqueleto anterior (JSON):" in mensajes[-1]
+
+
+def test_los_motivos_del_esqueleto_rechazado_se_registran_sin_texto_del_modelo(db, docente, monkeypatch, caplog):
+    gid = crear(docente)
+    _proveedor_que_rechaza_el_esqueleto_una_vez(monkeypatch, [])
+
+    with caplog.at_level("WARNING"), pytest.raises(service.AiProviderFailed):
+        service.run_skeleton(docente, gid)
+
+    motivo = checks.EMPTY.replace("«»", "«título»")
+    assert motivo in caplog.text and str(gid) in caplog.text and "skeleton" in caplog.text
+    assert MARCADOR_MODELO not in caplog.text and SECRETO not in caplog.text
+
+
+def test_los_motivos_de_una_escena_rechazada_se_registran_con_su_clave_sin_texto_del_modelo(db, docente, monkeypatch, caplog):
+    gid, _ = con_esqueleto(docente)
+    original = FakeProvider.complete_structured
+    mala = leer("escena-aula.json")
+    mala["narracion"] = ""
+    mala["pistas"] = [MARCADOR_MODELO]
+
+    def invalida(self, system, messages, schema, model, *args, **kwargs):
+        if "Etapa: escena aula" in FakeProvider._ultimo_texto(messages):
+            return copy.deepcopy(mala)
+        return original(self, system, messages, schema, model, *args, **kwargs)
+
+    monkeypatch.setattr(FakeProvider, "complete_structured", invalida)
+
+    with caplog.at_level("WARNING"), pytest.raises(service.AiProviderFailed):
+        service.run_scene(docente, gid, "aula", repair=False)
+
+    assert checks.EMPTY.replace("«»", "«narración»") in caplog.text
+    assert str(gid) in caplog.text and "scene" in caplog.text and "aula" in caplog.text
+    assert MARCADOR_MODELO not in caplog.text and SECRETO not in caplog.text
+
+
 # ─── la reparación ────────────────────────────────────────────────────────────────────────────────
 
 
