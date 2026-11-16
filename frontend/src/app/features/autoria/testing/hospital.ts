@@ -28,12 +28,12 @@ const puertas: DatosPuerta[][] = [
     ['a-triaje', 'triaje', 'fondo', 1136, 'vidrio', 'Pasar a triaje', { entryX: 480, entryY: 476 }],
     ['a-entrada', 'entrada-urgencias', 'camara', 584, 'corrediza', 'Volver a la entrada de urgencias', { entryX: 600, entryY: 260 }] ],
   [ ['a-triaje', 'triaje', 'fondo', 160, 'madera-ventanilla', 'Pasar a triaje'],
-    ['a-enfermeria', 'estacion-enfermeria', 'fondo', 480, 'madera-ventanilla', 'Pasar a enfermer?a'],
+    ['a-enfermeria', 'estacion-enfermeria', 'fondo', 480, 'madera-ventanilla', 'Pasar a enfermería'],
     ['a-escucha', 'sala-escucha', 'fondo', 800, 'madera', 'Pasar a escucha'],
     ['a-trabajo-social', 'trabajo-social', 'fondo', 1120, 'madera', 'Pasar a trabajo social'],
     ['a-entrada', 'entrada-urgencias', 'izquierda', 160, 'urgencias', 'Volver a urgencias'],
     ['a-sala-espera', 'sala-espera', 'derecha', 160, 'vidrio', 'Pasar a la sala de espera', { par: 'a-pasillo', entryX: 150, entryY: 406 }],
-    ['a-recuperacion', 'habitacion-recuperacion', 'camara', 344, 'metalica', 'Pasar a recuperaci?n'],
+    ['a-recuperacion', 'habitacion-recuperacion', 'camara', 344, 'metalica', 'Pasar a recuperación'],
     ['a-servicio', 'entrada-urgencias', 'camara', 1032, 'paso', 'Salida de servicio', { sentidoUnico: true }] ],
 ];
 export const MUNDO_HOSPITAL: WorldDefinition[] = fuente.editor.maps.map((mapa, i) => {

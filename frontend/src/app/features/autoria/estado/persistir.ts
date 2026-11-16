@@ -12,7 +12,7 @@ import type {
   ChecklistUpdateRequest, WorldDefinition, WorldDialogueChoice, WorldDialogueTree, WorldObject, WorldRoomSaveRequest,
 } from '../../../core/models/simulation.model';
 import type { CasoBorrador, Escena, Respuesta } from '../modelo/caso';
-import { arbolDeGuion } from '../modelo/desde-api';
+import { arbolDeGuion, salaPorClaveDeNodoDe } from '../modelo/desde-api';
 import {
   claveLibre, cuerpoDecision, cuerpoLista, cuerpoGuion, cuerpoNodo, finalesAApi, hitosAApi, solicitudDeSala,
 } from '../modelo/hacia-api';
@@ -44,14 +44,10 @@ async function armarSolicitudDeSala(
 ): Promise<Omit<WorldRoomSaveRequest, 'revision'>> {
   const sala = caso.salas.find((x) => x.id === salaId);
   if (!sala) throw new Error(`La sala «${salaId}» no está en el caso.`);
+  const salaPorNodo = salaPorClaveDeNodoDe(s.vista.maps, [...s.mundos.values()]);
   const nodosPorSala = new Map<string, string>();
-  const salaPorNodo = new Map<string, string>();
-  for (const mapa of s.vista.maps) {
-    const escena = caso.escenas.find((e) => s.nodoDe(e.id) === mapa.nodeId);
-    if (escena?.salaId) {
-      salaPorNodo.set(mapa.nodeKey, escena.salaId);
-      if (!nodosPorSala.has(escena.salaId)) nodosPorSala.set(escena.salaId, mapa.nodeKey);
-    }
+  for (const [nodo, sala] of salaPorNodo) {
+    if (!nodosPorSala.has(sala)) nodosPorSala.set(sala, nodo);
   }
   for (let intento = 0; intento < 2; intento++) {
     const { solicitud, faltanPersonajes } = solicitudDeSala(

@@ -37,6 +37,12 @@ export function salaIdDeMapa(mapa: Pick<SceneMapDefinition, 'key' | 'ambient'>):
   return texto(mapa.ambient?.['salaId']) ?? mapa.key;
 }
 
+/** Relaciona cada nodo con la sala de su mapa, en el orden del editor. */
+export function salaPorClaveDeNodoDe(mapas: CaseEditorView['maps'], mundos: WorldDefinition[]): Map<string, string> {
+  const mundoPorNodo = new Map(mundos.map((m) => [m.nodeId, m]));
+  return new Map(mapas.map((mapa) => [mapa.nodeKey, salaIdDeMapa(mundoPorNodo.get(mapa.nodeId)?.map ?? { key: mapa.key, ambient: {} })]));
+}
+
 function lugarIdDeMapa(mapa: Pick<SceneMapDefinition, 'ambient'>): string | null {
   return texto(mapa.ambient?.['lugarId']);
 }
@@ -261,13 +267,8 @@ export function casoDesdeApi(editor: CaseEditorView, mundos: WorldDefinition[], 
   const lugarId = mapas.map(({ mapa, mundo }) => lugarIdDeMapa(definicion(mapa, mundo))).find((id) => id !== null) ?? null;
   const catalogo = lugar && lugar.id === lugarId ? lugar.catalogo : CATALOGO_VACIO;
 
-  const salaPorClaveDeNodo = new Map<string, string>();
-  const salaPorNodo = new Map<number, string>();
-  for (const { mapa, mundo } of mapas) {
-    const salaId = salaIdDeMapa(definicion(mapa, mundo));
-    salaPorClaveDeNodo.set(mapa.nodeKey, salaId);
-    salaPorNodo.set(mapa.nodeId, salaId);
-  }
+  const salaPorClaveDeNodo = salaPorClaveDeNodoDe(editor.maps, mundos);
+  const salaPorNodo = new Map(mapas.map(({ mapa }) => [mapa.nodeId, salaPorClaveDeNodo.get(mapa.nodeKey)!]));
   const ctx: Contexto = {
     editor, catalogo, salaPorClaveDeNodo, personajePorId: new Map(editor.characters.map((c) => [c.id, c])),
   };

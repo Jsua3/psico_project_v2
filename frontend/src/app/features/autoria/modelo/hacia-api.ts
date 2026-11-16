@@ -227,6 +227,7 @@ export interface SolicitudDeSala {
   solicitud: WorldRoomSaveRequest;
   /** Personajes puestos en la sala que el caso aún no tiene: hay que darlos de alta antes de guardar la sala. */
   faltanPersonajes: string[];
+  puertasSinGuardar: string[];
 }
 
 const COLOR_OBJETO = '#4FA3A5';
@@ -314,6 +315,7 @@ export function solicitudDeSala(sala: SalaCaso, contexto: ContextoSala, previo: 
   const personajeDelCaso = new Map(contexto.personajesDelCaso.map((p) => [p.key, p]));
   const previos = new Map(previo.objects.map((o) => [o.key, o]));
   const faltanPersonajes: string[] = [];
+  const puertasSinGuardar: string[] = [];
 
   // Lo que la sala dice que existe, por clave de objeto.
   type Edicion = (base: WorldObject) => WorldObject;
@@ -383,15 +385,20 @@ export function solicitudDeSala(sala: SalaCaso, contexto: ContextoSala, previo: 
   }
 
   for (const puerta of sala.puertas) {
-    if (puerta.hacia === null) continue;
-    const base = previos.get(puerta.id);
+    const encontrado = previos.get(puerta.id);
+    const base = encontrado?.type === 'EXIT' ? encontrado : undefined;
     const anterior = base?.metadata['targetNodeKey'];
-    const destino = typeof anterior === 'string' && contexto.salaPorNodo?.get(anterior) === puerta.hacia
-      ? anterior : contexto.nodosPorSala
-        ? contexto.nodosPorSala.get(puerta.hacia)
-        : typeof anterior === 'string' ? anterior : undefined;
-    if (!destino) continue;
-    const metadata: Record<string, unknown> = { ...(base?.metadata ?? {}), targetNodeKey: destino };
+    let destino = typeof anterior === 'string' ? anterior : undefined;
+    if (puerta.hacia !== null && (!base || (contexto.salaPorNodo && contexto.salaPorNodo.get(destino ?? '') !== puerta.hacia))) {
+      const nuevoDestino = contexto.nodosPorSala?.get(puerta.hacia);
+      if (nuevoDestino) destino = nuevoDestino;
+      else puertasSinGuardar.push(puerta.id);
+    } else if (!base && puerta.hacia === null) {
+      puertasSinGuardar.push(puerta.id);
+    }
+    if (!base && !destino) continue;
+    const metadata: Record<string, unknown> = { ...(base?.metadata ?? {}) };
+    if (destino !== undefined) metadata['targetNodeKey'] = destino;
     for (const campo of ['muro', 'pos', 'modelo', 'par', 'sentidoUnico'] as const) {
       if (puerta[campo] === undefined) delete metadata[campo];
       else metadata[campo] = puerta[campo];
@@ -437,6 +444,7 @@ export function solicitudDeSala(sala: SalaCaso, contexto: ContextoSala, previo: 
       collisionZones,
     },
     faltanPersonajes,
+    puertasSinGuardar,
   };
 }
 
