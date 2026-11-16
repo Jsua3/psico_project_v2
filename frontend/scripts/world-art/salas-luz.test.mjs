@@ -43,6 +43,34 @@ test('las tablas y las constantes de la luz son las de Python y las del manifies
   assert.deepEqual(CASOS_DE_LUZ.constantes.hazFondo, CONSTANTES_DE_LUZ.hazFondo);
 });
 
+test('la fuente que domina donde pisa una figura da el rumbo y el largo de su silueta', () => {
+  const catalogo = MANIFIESTO.piezas;
+  const barrer = (luz, y) => {
+    const vistos = [];
+    for (let x = 0; x < luz.ancho; x += 4) vistos.push(luz.fuenteDeSombra(x, y));
+    return vistos;
+  };
+  // De día, en el haz de la ventana alta del fondo de la entrada: HAZ_FONDO y 5/8 del alto.
+  const dia = prepararLuz(salaDe('hospital/entrada-urgencias'), catalogo, { momento: 'dia' });
+  const enHaz = barrer(dia, 300).filter(f => f && f.dx === CONSTANTES_DE_LUZ.hazFondo[0] && f.dy === CONSTANTES_DE_LUZ.hazFondo[1]);
+  assert.ok(enHaz.length > 0, 'algún punto del piso cae en el haz de la ventana');
+  assert.equal(enHaz[0].largo, Math.floor((60 * 5) / 8));
+  // De noche, con solo tubos: sombra corta y radial (lejos del tubo).
+  const noche = prepararLuz(salaDe('hospital/entrada-urgencias'), catalogo, { momento: 'noche' });
+  const deTubo = barrer(noche, 350).filter(Boolean);   // la fila del tubo sobre el piso (SEAM + 120)
+  assert.ok(deTubo.length > 0);
+  assert.ok(deTubo.some(f => f.largo < 10), 'bajo el tubo, la sombra es corta');
+  assert.ok(deTubo.some(f => f.dx < 0) && deTubo.some(f => f.dx > 0), 'y radial: a cada lado del tubo, hacia afuera');
+  assert.ok(deTubo.every(f => f.largo <= CONSTANTES_DE_LUZ.sombraMaxima));
+  // De noche, junto a la lámpara de pie de la sala de escucha: más larga que la del tubo.
+  const escucha = prepararLuz(salaDe('hospital/sala-escucha'), catalogo, { momento: 'noche' });
+  const dePozo = [];
+  for (let y = 250; y < 480; y += 6) dePozo.push(...barrer(escucha, y).filter(Boolean));
+  assert.ok(Math.max(...dePozo.map(f => f.largo)) > 20, 'una lámpara baja da una sombra larga');
+  // Fuera del piso, nada.
+  assert.equal(dia.fuenteDeSombra(100, 40), null);
+});
+
 test('la huella de un cuerpo sale del tamaño de su sprite, como en Python', () => {
   assert.deepEqual(cuerpo(300, 300, 98, 44), { x0: 253, x1: 347, y0: 284, y1: 300, alto: 36 });   // la camilla del manifiesto
   assert.deepEqual(cuerpo(100, 200, 24, 34), { x0: 90, x1: 110, y0: 192, y1: 200, alto: 30 });
