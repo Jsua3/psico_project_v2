@@ -96,12 +96,12 @@ interface Doble {
 
 /**
  * Los muebles de la sala (`hospital.json`) como los copia el servidor de P3: un objeto PROP con su arte de la biblioteca,
- * apoyado en sus pies. Solo los de un cuadro (el juego carga el arte de un objeto como una imagen).
+ * apoyado en sus pies (el juego reconoce la pieza por su arte y la dibuja con su hoja y su animación).
  */
 function mueblesDeSala(sala: Sala) {
   return (sala.muebles ?? []).flatMap((m, n) => {
     const ficha = MANIFIESTO.muebles?.[`hospital/${m.ref}`];
-    if (!ficha || (ficha.cuadros ?? 1) > 1) return [];
+    if (!ficha) return [];
     return [{
       key: `mueble-${n}-${m.ref}`, label: ficha.nombre ?? m.ref, type: 'PROP', x: m.x, y: m.y, width: ficha.ancho, height: ficha.alto,
       color: '#ffffff', icon: '', shortCode: '', collision: false, interactionPrompt: '', interactionText: '',

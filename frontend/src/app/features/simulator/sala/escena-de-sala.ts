@@ -15,7 +15,9 @@ import Phaser from 'phaser';
 
 import { DEPTH, actorDepth } from '../depth-sort.util';
 import { urlDePieza } from './catalogo';
-import type { ManifiestoDePiezas, SalaPorPiezas } from './catalogo';
+import type { ManifiestoDePiezas, MuebleDeCatalogo, SalaPorPiezas } from './catalogo';
+import { clipsDe, cuadroDelClip } from './mueble-vivo';
+import type { Clip } from './mueble-vivo';
 import { planDeSala, rutasDelPlan } from './composicion';
 import type { PlanDeSala, SpriteDeSala } from './composicion';
 import type { Momento, Muro } from './geometria';
@@ -63,6 +65,8 @@ export interface PuertaDeEscena {
 export interface OpcionesDeEscena {
   momento?: Momento;
   reducido: boolean;
+  /** Muebles y objetos de la biblioteca de piezas que dibuja la escena (con su animación, su brillo y su luz propia). */
+  muebles?: readonly MuebleDeSala[];
   /** Muebles y personas quietos de la sala: arrojan sombra. */
   cuerpos?: readonly Cuerpo[];
 }
@@ -141,6 +145,27 @@ function texturaDeFlecha(escena: Phaser.Scene): string {
   return nombre;
 }
 
+/** Un mueble u objeto de la biblioteca de piezas puesto en la sala: (x, y) es donde pisa. */
+export interface MuebleDeSala {
+  id: string;
+  clave: string;
+  ficha: MuebleDeCatalogo;
+  x: number;
+  y: number;
+  espejo: boolean;
+}
+
+interface MuebleVivo {
+  id: string;
+  sprite: Phaser.GameObjects.Sprite;
+  extras: Phaser.GameObjects.Sprite[];
+  clips: Record<string, Clip>;
+  clip: string;
+  desde: number;
+}
+
+const texturaDeMueble = (clave: string) => `sala:mueble:${clave}`;
+
 export class EscenaDeSala {
   readonly plan: PlanDeSala;
   private readonly escena: Phaser.Scene;
@@ -157,6 +182,8 @@ export class EscenaDeSala {
   /** Brillo de vidrio y metal: lo del muro (bajo los actores) y lo del lado de la cámara (sobre ellos). */
   private readonly brillos: { lienzo: Phaser.Textures.CanvasTexture; rgb: Uint8ClampedArray; capas: string[] }[] = [];
   private readonly imagenesDeBrillo = new Map<string, Imagen>();
+  private readonly mueblesVivos: MuebleVivo[] = [];
+  private cercano: string | null = null;
   /** La capa de luz propia de las piezas del muro y el cuadro de cada puerta con la que se pintó. */
   private lienzoEmisivo: Phaser.Textures.CanvasTexture | null = null;
   private firmaDeEmisivo = '';
@@ -254,8 +281,23 @@ export class EscenaDeSala {
       this.flechas.push({ objeto, y: f.y });
     }
 
+    // Muebles y objetos de la biblioteca de piezas: su hoja, su animación y su silueta para la sombra.
+    const cuerpos: Cuerpo[] = [...(opciones.cuerpos ?? [])];
+    for (const m of opciones.muebles ?? []) {
+      const hoja = texturaDeMueble(m.clave);
+      if (!escena.textures.exists(hoja)) continue;
+      const clips = clipsDe(m.ficha);
+      const apoyo = (m.ficha as { apoyo?: [number, number] }).apoyo ?? [Math.floor(m.ficha.ancho / 2), m.ficha.alto];
+      const sprite = escena.add.sprite(m.x, m.y, hoja, clips['reposo'].de)
+        .setOrigin(apoyo[0] / m.ficha.ancho, apoyo[1] / m.ficha.alto).setFlipX(m.espejo).setDepth(actorDepth(m.y));
+      this.objetos.push(sprite);
+      this.mueblesVivos.push({ id: m.id, sprite, extras: [], clips, clip: 'reposo', desde: 0 });
+      const cuerpo = EscenaDeSala.cuerpoDeSprite(sprite, 0, 0);
+      if (cuerpo) cuerpos.push(cuerpo);
+    }
+
     // Luz.
-    this.luz = prepararLuz(sala, manifiesto.piezas, { momento: plan.momento, cuerpos: opciones.cuerpos ?? [] });
+    this.luz = prepararLuz(sala, manifiesto.piezas, { momento: plan.momento, cuerpos });
     const capas = this.luz.capas();
     const ambiente = escena.textures.createCanvas(`sala:ambiente-${sufijo}`, plan.ancho, plan.alto);
     const brillo = escena.textures.createCanvas(`sala:brillo-${sufijo}`, plan.ancho, plan.alto);
@@ -290,6 +332,28 @@ export class EscenaDeSala {
         this.brillos.push({ lienzo, rgb: new Uint8ClampedArray(plan.ancho * plan.alto * 3), capas: [...capas] });
       }
       this.pintarBrillos();
+    }
+
+    // Brillo y luz propia de cada mueble: hojas iguales a la suya, encima de él y en su mismo cuadro (lo tapa quien pasa).
+    const fichas = new Map((opciones.muebles ?? []).map(m => [m.id, m]));
+    for (const vivo of this.mueblesVivos) {
+      const m = fichas.get(vivo.id);
+      if (!m) continue;
+      const reflejo = this.luz.reflejoEn(m.x, m.y - 1);
+      const tenido = m.ficha.brillo ? this.brilloTenido(m.ficha.brillo, m.ficha.ancho, m.ficha.alto, reflejo.k, reflejo.tono) : null;
+      const propio = m.ficha.emisivo && escena.textures.exists(clave(m.ficha.emisivo)) ? `sala:emisivo:${m.ficha.emisivo}:${m.ficha.ancho}x${m.ficha.alto}` : null;
+      if (propio && m.ficha.emisivo && !escena.textures.exists(propio)) {
+        escena.textures.addSpriteSheet(propio, escena.textures.get(clave(m.ficha.emisivo)).getSourceImage() as HTMLImageElement,
+          { frameWidth: m.ficha.ancho, frameHeight: m.ficha.alto });
+      }
+      for (const [textura, mezcla, encima] of [[tenido, Phaser.BlendModes.ADD, 0.005], [propio, Phaser.BlendModes.NORMAL, 0.01]] as const) {
+        if (!textura) continue;
+        const extra = escena.add.sprite(vivo.sprite.x, vivo.sprite.y, textura, vivo.sprite.frame.name)
+          .setOrigin(vivo.sprite.originX, vivo.sprite.originY).setFlipX(vivo.sprite.flipX)
+          .setDepth(vivo.sprite.depth + encima).setBlendMode(mezcla);
+        this.objetos.push(extra);
+        vivo.extras.push(extra);
+      }
     }
 
     // Luz propia (`emisivo`): la de las piezas del muro va en una capa encima de la luz, con la oclusión de P1 (cada pieza
@@ -399,6 +463,18 @@ export class EscenaDeSala {
         vivo.objeto.setFrame(this.reducido ? s.cuadro : Math.floor((this.tiempo / 1000) * s.fps) % s.cuadros);
       }
       vivo.emisivo?.setFrame(vivo.objeto.frame.name);
+    }
+    for (const m of this.mueblesVivos) {
+      const clip = m.clips[m.clip] ?? m.clips['reposo'];
+      const { cuadro, termino } = cuadroDelClip(clip, this.tiempo - m.desde, this.reducido);
+      if (termino && !clip.sostener) {
+        m.clip = clip.luego && m.clips[clip.luego] ? clip.luego : 'reposo';
+        m.desde = this.tiempo;
+      }
+      if (String(m.sprite.frame.name) !== String(cuadro)) {
+        m.sprite.setFrame(cuadro);
+        for (const e of m.extras) e.setFrame(cuadro);
+      }
     }
     if (this.lienzoEmisivo) {
       const firma = this.vivos.map(v => (v.plan.puerta && v.plan.capa === 'muro' ? cuadroVisible(v.estado, v.hojas) : '')).join('|');
@@ -560,11 +636,52 @@ export class EscenaDeSala {
     return nombre;
   }
 
+  /**
+   * Pide las hojas de los muebles (cada cuadro de `ancho × alto`) y sus mapas de brillo y de luz propia, salvo lo que ya
+   * falló (`fallidas`, claves del cargador). true si pidió algo: hay que esperar.
+   */
+  static pedirMuebles(escena: Phaser.Scene, muebles: readonly MuebleDeSala[], fallidas: ReadonlySet<string> = new Set()): boolean {
+    let pidio = false;
+    for (const m of muebles) {
+      const hoja = texturaDeMueble(m.clave);
+      if (!escena.textures.exists(hoja) && !fallidas.has(hoja)) {
+        escena.load.spritesheet(hoja, urlDePieza(m.ficha.ruta), { frameWidth: m.ficha.ancho, frameHeight: m.ficha.alto });
+        pidio = true;
+      }
+      for (const mapa of [m.ficha.brillo, m.ficha.emisivo]) {
+        if (mapa && !escena.textures.exists(clave(mapa)) && !fallidas.has(clave(mapa))) {
+          escena.load.image(clave(mapa), urlDePieza(mapa));
+          pidio = true;
+        }
+      }
+    }
+    return pidio;
+  }
+
   /** Pide el mapa de brillo de un mueble u objeto. true si hay que esperar la carga. */
   static pedirBrillo(escena: Phaser.Scene, ruta: string): boolean {
     if (escena.textures.exists(clave(ruta))) return false;
     escena.load.image(clave(ruta), urlDePieza(ruta));
     return true;
+  }
+
+  /** Quien juega está cerca de este objeto (null: de ninguno): si el mueble tiene clip `cerca`, lo hace una vez. */
+  cerca(id: string | null): void {
+    if (id === this.cercano) return;
+    this.cercano = id;
+    this.empezarClip(id, 'cerca');
+  }
+
+  /** Quien juega revisa este objeto: si el mueble tiene clip `revisar`, lo hace (y se queda si el clip lo sostiene). */
+  revisar(id: string): void {
+    this.empezarClip(id, 'revisar');
+  }
+
+  private empezarClip(id: string | null, nombre: string): void {
+    const m = id ? this.mueblesVivos.find(v => v.id === id) : undefined;
+    if (!m || !m.clips[nombre]) return;
+    m.clip = nombre;
+    m.desde = this.tiempo;
   }
 
   /** Intento de cruzar una puerta cerrada con llave: traquetea. */
