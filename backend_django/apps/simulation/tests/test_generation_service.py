@@ -397,7 +397,7 @@ def test_la_reparacion_cuenta_rondas_en_el_servidor(db, docente, monkeypatch):
     gid, vista = a_needs_repair(docente)
     assert vista["status"] == "needs_repair" and vista["repairRounds"] == 1 and vista["caseVersionId"] is None
     assert vista["repair"]["round"] == 1 and vista["repair"]["scenes"] == ["aula"]
-    assert vista["repair"]["issues"]["aula"] and vista["issues"]
+    assert vista["repair"]["issues"]["aula"] and vista["issues"] == []  # issues: solo con imported y failed
     assert next(e for e in vista["scenes"] if e["clave"] == "aula")["state"] == "pending"
     assert not SimulationCase.objects.filter(title__icontains="Daniela").exists()  # nada a medias
 
@@ -656,3 +656,63 @@ def test_la_auditoria_de_la_etapa_que_falla_no_lleva_texto_del_modelo(db, docent
 
     todo = json.dumps(service.get(docente, gid)) + "".join(f.context_json for f in filas())
     assert "TEXTO-DEL-MODELO-RECHAZADO" not in todo
+
+
+# ─── fallos inesperados: la etapa se suelta, sin texto en el registro ─────────────────────────────
+
+
+def test_un_fallo_inesperado_no_registra_el_mensaje_y_deja_la_etapa_retomable(db, docente, monkeypatch, caplog):
+    gid, _ = con_esqueleto(docente)
+
+    def explota(self, *args, **kwargs):
+        raise RuntimeError("MARCADOR-DEL-MENSAJE con texto del modelo")
+
+    monkeypatch.setattr(FakeProvider, "complete_structured", explota)
+    with caplog.at_level("DEBUG"):
+        with pytest.raises(service.AiProviderFailed) as error:
+            service.run_scene(docente, gid, "aula", repair=False)
+
+    assert error.value.extra["kind"] == "http"
+    assert "MARCADOR-DEL-MENSAJE" not in caplog.text and all(r.exc_info is None for r in caplog.records)
+    assert any(getattr(r, "fields", {}).get("error_class") == "RuntimeError" for r in caplog.records)
+
+
+def test_si_falla_la_construccion_del_proveedor_la_etapa_se_puede_pedir_de_inmediato(db, docente, monkeypatch):
+    gid, _ = con_esqueleto(docente)
+
+    def sin_proveedor(nombre):
+        raise RuntimeError("no se pudo construir")
+
+    monkeypatch.setattr(service, "provider_class", sin_proveedor)
+    with pytest.raises(service.AiProviderFailed):
+        service.run_scene(docente, gid, "aula", repair=False)
+    assert json.loads(CaseGeneration.objects.get(pk=gid).scenes_json)["aula"]["started_at"] is None
+
+    monkeypatch.undo()  # el proveedor vuelve: la escena se pide enseguida, sin 409 ocupado
+    monkeypatch.setattr(context, "competencias_por_defecto", lambda: COMPETENCIAS)
+    vista = service.run_scene(docente, gid, "aula", repair=False)
+    assert next(e for e in vista["scenes"] if e["clave"] == "aula")["state"] == "done"
+
+
+def test_un_fallo_de_tokens_no_deja_la_etapa_colgada(db, docente, monkeypatch):
+    gid = crear(docente)
+    monkeypatch.setattr(service, "_usage", lambda meta: (_ for _ in ()).throw(RuntimeError("x")))
+    with pytest.raises(RuntimeError):
+        service.run_skeleton(docente, gid)
+    assert CaseGeneration.objects.get(pk=gid).skeleton_started_at is None
+
+
+def test_un_operationalerror_que_no_es_de_cerrojo_no_se_vuelve_ocupado(db, docente, monkeypatch):
+    from django.db import OperationalError
+
+    gid, _ = con_escenas(docente)
+    original = service._owned
+
+    def cae(gen_id, actor, *, lock=False, nowait=False):
+        if nowait:
+            raise OperationalError("conexión caída")
+        return original(gen_id, actor, lock=lock, nowait=nowait)
+
+    monkeypatch.setattr(service, "_owned", cae)
+    with pytest.raises(OperationalError):
+        service.run_assemble(docente, gid)

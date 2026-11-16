@@ -42,6 +42,8 @@ from .checks import GenerationInvalid, SkeletonDraft
 
 logger = logging.getLogger(__name__)
 
+#: ``lock_not_available`` de PostgreSQL: lo que devuelve ``FOR UPDATE NOWAIT`` cuando otra transacción tiene la fila.
+LOCK_NOT_AVAILABLE = "55P03"
 MIN_DESCRIPTION = 40
 MAX_DESCRIPTION = prompts.MAX_DESCRIPTION
 
@@ -169,7 +171,8 @@ def view(gen: CaseGeneration) -> dict:
         ),
         "lastError": last_error or None,
         "caseVersionId": gen.case_version_id if gen.status == GenerationStatus.IMPORTED else None,
-        "issues": _loads(gen.report_json, []),
+        # Solo con ``imported`` y ``failed``; en ``needs_repair`` las faltas por escena viven en ``repair.issues``.
+        "issues": _loads(gen.report_json, []) if gen.status in (GenerationStatus.IMPORTED, GenerationStatus.FAILED) else [],
         "callsUsed": gen.calls,
         "callsLimit": assistant_config.current().generation_max_calls,
         "createdAt": _stamp(gen.created_at),
@@ -396,16 +399,19 @@ def _parse(value) -> datetime | None:
 
 
 def _usage(meta: dict) -> tuple[int, int]:
-    usage = meta.get("usage") or {}
-    tokens_in = sum(int(usage.get(k) or 0) for k in ("input_tokens", "cache_read_input_tokens", "cache_creation_input_tokens"))
-    return tokens_in, int(usage.get("output_tokens") or 0)
+    try:
+        usage = meta.get("usage") or {}
+        tokens_in = sum(int(usage.get(k) or 0) for k in ("input_tokens", "cache_read_input_tokens", "cache_creation_input_tokens"))
+        return tokens_in, int(usage.get("output_tokens") or 0)
+    except (TypeError, ValueError, AttributeError):
+        return 0, 0
 
 
 def _call(plan: _Plan, config, meta: dict):
     """Pasos 2 y 3: la llamada (sin transacción) y la validación. Devuelve ``(borrador, kind, rechazado, motivos)``."""
-    provider = provider_class(config.provider)(config.api_key, config.model_generate)
     raw = None
     try:
+        provider = provider_class(config.provider)(config.api_key, config.model_generate)
         raw = provider.complete_structured(
             prompts.SYSTEM_GENERATE, plan.messages, plan.schema, config.model_generate,
             max_tokens=config.generate_max_tokens, timeout=config.generate_timeout_seconds,
@@ -416,8 +422,9 @@ def _call(plan: _Plan, config, meta: dict):
         return None, exc.kind if exc.kind in MESSAGES else "http", None, None
     except GenerationInvalid as exc:
         return None, "malformed", raw, list(exc.motivos)
-    except Exception:  # noqa: BLE001 - un fallo inesperado deja la etapa retomable en vez de colgada en «en curso»
-        logger.error("generation_stage_unexpected", exc_info=True, extra={"fields": {"stage": plan.stage}})
+    except Exception as exc:  # noqa: BLE001 - un fallo inesperado deja la etapa retomable en vez de colgada en «en curso»
+        # Solo la clase y la etapa: el mensaje de la excepción podría traer texto del modelo o de la docente.
+        logger.error("generation_stage_unexpected", extra={"fields": {"stage": plan.stage, "error_class": type(exc).__name__}})
         return None, "http", None, None
 
 
@@ -486,8 +493,14 @@ def _run_stage(gen_id, actor, transition: str, clave: str | None) -> dict:
     plan = _reserve(gen_id, actor, transition, clave, config)
     started = time.monotonic()
     meta: dict = {}
-    draft, kind, rejected, motivos = _call(plan, config, meta)
-    tokens = _usage(meta)
+    try:
+        draft, kind, rejected, motivos = _call(plan, config, meta)
+        tokens = _usage(meta)
+    except BaseException as exc:
+        # Cualquier fallo antes del guardado dejaría la etapa «en curso» (409 ocupado hasta 150 s): se suelta como error.
+        logger.error("generation_stage_unexpected", extra={"fields": {"stage": plan.stage, "error_class": type(exc).__name__}})
+        _save(gen_id, actor, plan, None, "http", None, None, (0, 0))
+        raise
     outcome = _save(gen_id, actor, plan, draft, kind, rejected, motivos, tokens)
     model = meta.get("model") or config.model_generate
     _audit(
@@ -525,7 +538,9 @@ def run_assemble(actor, gen_id) -> dict:
     with transaction.atomic():
         try:
             gen = _owned(gen_id, actor, lock=True, nowait=True)
-        except OperationalError:
+        except OperationalError as exc:
+            if getattr(getattr(exc, "__cause__", None), "sqlstate", None) != LOCK_NOT_AVAILABLE:
+                raise  # caída de conexión, interbloqueo…: no es «ocupado»
             raise GenerationBusy() from None
         if not lifecycle.can(gen.status, "assemble"):
             raise GenerationState()
