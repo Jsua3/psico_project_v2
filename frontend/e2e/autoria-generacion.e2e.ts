@@ -94,6 +94,8 @@ test.describe('@generacion la docente describe un caso y la IA lo arma con el pr
       await expect(avance.getByRole('status')).toHaveText('Escribiendo las escenas 1 y 2 de 4', { timeout: scaled(60_000) });
       await expect(page.locator('li.parte[data-parte="esqueleto"]')).toContainText(/✓.*Hecha/s);
       await expect(page.locator('li.parte[data-parte="escena-aula"]')).toContainText(/Escribiéndose/);
+      await expect(page.locator('li.parte[data-parte="escena-bienestar"]')).toContainText(/Escribiéndose/);
+      await expect(page.locator('li.parte[data-parte="escena-sala-espera"]')).toContainText(/Pendiente/);
       await expect(page.locator('li.parte[data-parte="escena-consultorio"]')).toContainText(/Pendiente/);
       await expect(page.getByText('1 de 6 partes hechas')).toBeVisible();
       await sinInfraccionesGraves(page, 'el avance a mitad de la generación');

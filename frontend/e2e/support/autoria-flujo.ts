@@ -354,11 +354,14 @@ export async function retenerEscenas(page: Page): Promise<{ soltar: () => Promis
   let abrir!: () => void;
   const puerta = new Promise<void>((resolver) => { abrir = resolver; });
   const patron = '**/api/authoring/generations/*/scenes/*';
-  await page.route(patron, async (ruta) => {
-    await puerta;
-    await ruta.continue().catch(() => undefined);
+  const retenidas: Promise<void>[] = [];
+  await page.route(patron, (ruta) => {
+    const sigue = puerta.then(() => ruta.continue()).catch(() => undefined);
+    retenidas.push(sigue);
+    return sigue;
   });
-  return { soltar: async () => { abrir(); await page.waitForTimeout(100); await page.unroute(patron).catch(() => undefined); } };
+  // Al soltar se espera a que cada petición retenida haya seguido su camino (sin una espera fija) y luego se quita la ruta.
+  return { soltar: async () => { abrir(); await Promise.all(retenidas); await page.unroute(patron).catch(() => undefined); } };
 }
 
 /** La pantalla de avance llegó a «listo»: el título lo dice y trae «Abrir mi caso». */
