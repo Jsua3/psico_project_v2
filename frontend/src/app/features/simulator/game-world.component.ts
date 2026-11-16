@@ -31,6 +31,9 @@ import { DEPTH, actorDepth, tiledLayerDepth } from './depth-sort.util';
 import { AvisoDePuertaComponent } from './sala/aviso-de-puerta.component';
 import { MANIFIESTO_DE_PIEZAS_URL, esManifiestoDePiezas } from './sala/catalogo';
 import { EscenaDeSala } from './sala/escena-de-sala';
+import type { MuebleDeSala } from './sala/escena-de-sala';
+import { piezaDelObjeto } from './sala/mueble-vivo';
+import type { ManifiestoDePiezas } from './sala/catalogo';
 import type { Cuerpo } from './sala/luz';
 import { puertaDelObjeto, salaDelMundo } from './sala/mundo-a-sala';
 import {
@@ -695,6 +698,7 @@ export class DataDrivenWorldScene extends Phaser.Scene {
         new Set(Object.keys(this.doorStates).filter(clave => this.doorStates[clave] === 'locked')), this.callbacks.reduceMotion);
       this.sombrasConSilueta(this.salaPorPiezas);
       this.avisoDePuerta(activa);
+      this.salaPorPiezas.cerca(this.nearestKey);
     } else {
       this.avisoDePuerta(null);
     }
@@ -879,7 +883,7 @@ export class DataDrivenWorldScene extends Phaser.Scene {
         if (npc) { this.callbacks.onNpcInteract(npc); return; }
       } else {
         const obj = this.proximityObjectFor(key);
-        if (obj) { this.callbacks.onInteract(obj); return; }
+        if (obj) { this.salaPorPiezas?.revisar(obj.key); this.callbacks.onInteract(obj); return; }
       }
     }
     this.callbacks.onNothingNearby();
@@ -1593,6 +1597,21 @@ export class DataDrivenWorldScene extends Phaser.Scene {
     return cuerpos;
   }
 
+  /**
+   * P2: los objetos del caso cuyo arte es una pieza de la biblioteca (un mueble, un objeto o una herramienta de P1 y O1, por
+   * su ruta o por el arte viejo que reemplaza): los dibuja la escena de la sala, con su animación, su brillo y su luz propia.
+   */
+  private mueblesDeLaSala(manifiesto: ManifiestoDePiezas): MuebleDeSala[] {
+    return this.renderableWorldObjects().flatMap(obj => {
+      if (obj.type === 'EXIT' || obj.type === 'PERSON') return [];
+      const pieza = piezaDelObjeto(obj.metadata?.['arte'], manifiesto);
+      return pieza ? [{
+        id: obj.key, clave: pieza.clave, ficha: pieza.ficha, x: obj.x, y: obj.y + markerFeetOffsetY(obj),
+        espejo: obj.metadata?.['espejo'] === true,
+      }] : [];
+    });
+  }
+
   /** P2: ¿el mundo de ahora es una sala por piezas (`map.structure` válida)? Manda sobre el ScenarioConfig del legado. */
   private esSalaPorPiezas(): boolean {
     return !!this.world && salaDelMundo(this.world.map as unknown as Record<string, unknown>, this.world.objects) !== null;
@@ -1624,6 +1643,7 @@ export class DataDrivenWorldScene extends Phaser.Scene {
     }
     const plan = EscenaDeSala.planear(sala, manifiesto);
     if (!plan) return false;
+    const muebles = this.mueblesDeLaSala(manifiesto);
     const estado = EscenaDeSala.estadoDeTexturas(plan, clave => this.textures.exists(clave), this.piezasFallidas);
     if (estado === 'fallo') {
       // Una pieza no cargó: la sala no se arma a medias ni se vuelve a pedir; sigue por el camino de imagen fija y se avisa.
@@ -1634,10 +1654,11 @@ export class DataDrivenWorldScene extends Phaser.Scene {
       }
       return false;
     }
-    if (estado === 'pedir') {
+    const faltanMuebles = EscenaDeSala.pedirMuebles(this, muebles, this.piezasFallidas);
+    if (estado === 'pedir' || faltanMuebles) {
       const alFallar = (archivo: Phaser.Loader.File) => { this.piezasFallidas.add(archivo.key); };
       this.load.on(Phaser.Loader.Events.FILE_LOAD_ERROR, alFallar);
-      EscenaDeSala.pedirTexturas(this, plan, this.piezasFallidas);
+      if (estado === 'pedir') EscenaDeSala.pedirTexturas(this, plan, this.piezasFallidas);
       this.load.once(Phaser.Loader.Events.COMPLETE, () => {
         this.load.off(Phaser.Loader.Events.FILE_LOAD_ERROR, alFallar);
         if (this.ready) this.renderWorld();
@@ -1646,12 +1667,15 @@ export class DataDrivenWorldScene extends Phaser.Scene {
       return true;
     }
     // Las puertas de pieza ya están en el muro: su marcador no lleva sprite, solo el rótulo y el área para cruzar.
-    const dePieza = new Set((sala.puertas ?? []).map(p => p.id));
+    // Los muebles y objetos de la biblioteca de piezas los dibuja la escena (con su animación); su marcador, solo el rótulo.
+    const dePieza = new Set([...(sala.puertas ?? []).map(p => p.id), ...muebles.map(m => m.id)]);
     this.renderableWorldObjects()
       .map(obj => (dePieza.has(obj.key) ? { ...obj, metadata: { ...(obj.metadata ?? {}), pintada: true, dePieza: true } } : obj))
       .forEach(obj => this.createMarker(obj));
     // Los muebles y objetos del caso con arte arrojan su silueta en la luz de la sala (las personas, la suya al caminar).
-    this.salaPorPiezas = new EscenaDeSala(this, sala, plan, manifiesto, { reducido: this.callbacks.reduceMotion, cuerpos: this.cuerposDeLaSala() });
+    this.salaPorPiezas = new EscenaDeSala(this, sala, plan, manifiesto, {
+      reducido: this.callbacks.reduceMotion, cuerpos: this.cuerposDeLaSala(), muebles,
+    });
     this.createPlayer(this.world.player.x, this.world.player.y);
     // Cámara (M1): la sala compuesta mide `plan.ancho × plan.alto` (528 de alto, contrato 2.2); el `height` del mapa del
     // servidor puede ser mayor y la cámara mostraba el vacío bajo la sala en el plano general.
@@ -2721,14 +2745,15 @@ export class DataDrivenWorldScene extends Phaser.Scene {
     // Dónde pisa el objeto dentro de su marcador: 0 si su posición es su punto de apoyo (`metadata.apoyo`), 16 como siempre si no.
     const feetY = markerFeetOffsetY(object);
     // Una puerta que ya está pintada en el fondo no lleva sprite encima: solo la pista y el área para cruzar.
-    const painted = isPaintedDoor(object);
+    // Una puerta pintada en el fondo o una pieza que dibuja la sala por piezas (P2): sin sprite propio, solo rótulo y área.
+    const painted = isPaintedDoor(object) || object.metadata?.['dePieza'] === true;
     let personVisual: CharacterVisual | null = null;
     let personSpriteForWalk: Phaser.GameObjects.Sprite | null = null;
     let doorSprite: Phaser.GameObjects.Image | null = null;
 
     // Un marcador con sprite de pixel art nunca se escala (markerEmphasis, focus): spec §1.1.2.
     let pixelSprite = false;
-    const art = this.assetsLoaded && !isExit ? this.buildArtSprite(object) : null;
+    const art = this.assetsLoaded && !isExit && !painted ? this.buildArtSprite(object) : null;
     if (painted) {
       main = this.add.container(0, 0);
     } else if (this.assetsLoaded) {

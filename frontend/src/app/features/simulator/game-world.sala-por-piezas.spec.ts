@@ -29,7 +29,8 @@ describe('sala por piezas en la escena (P2)', () => {
   it('2. la escena anota cada pieza que falla, no la vuelve a pedir y avisa una sola vez por sala', () => {
     expect(source).toContain("const estado = EscenaDeSala.estadoDeTexturas(plan, clave => this.textures.exists(clave), this.piezasFallidas);");
     expect(source).toMatch(/if \(estado === 'fallo'\) \{[\s\S]*?this\.callbacks\.onSalaIncompleta\?\.\(\);[\s\S]*?return false;/);
-    expect(source).toMatch(/this\.load\.on\(Phaser\.Loader\.Events\.FILE_LOAD_ERROR, alFallar\);\s*EscenaDeSala\.pedirTexturas\(this, plan, this\.piezasFallidas\);/);
+    expect(source).toMatch(/this\.load\.on\(Phaser\.Loader\.Events\.FILE_LOAD_ERROR, alFallar\);\s*if \(estado === 'pedir'\) EscenaDeSala\.pedirTexturas\(this, plan, this\.piezasFallidas\);/);
+    expect(source).toContain('const faltanMuebles = EscenaDeSala.pedirMuebles(this, muebles, this.piezasFallidas);');
     expect(source).toContain('this.load.off(Phaser.Loader.Events.FILE_LOAD_ERROR, alFallar);');
     expect(source).toContain('if (this.salaIncompletaAvisada !== this.world.map.key) {');
   });
@@ -48,8 +49,15 @@ describe('sala por piezas en la escena (P2)', () => {
     expect(source).toContain("if (isExit && object.metadata?.['dePieza'] !== true) {");
     expect(source).toContain('pintada: true, dePieza: true');
     // Con el mundo en pausa no hay aviso; solo se avisa a Angular cuando cambia.
-    expect(source).toMatch(/this\.avisoDePuerta\(activa\);\s*\} else \{\s*this\.avisoDePuerta\(null\);/);
+    expect(source).toMatch(/this\.avisoDePuerta\(activa\);\s*this\.salaPorPiezas\.cerca\(this\.nearestKey\);\s*\} else \{\s*this\.avisoDePuerta\(null\);/);
     expect(source).toContain('if (firma === this.firmaDelAviso) return;');
+  });
+
+  it('los muebles y objetos de la biblioteca de piezas los dibuja la escena; su marcador queda sin sprite, solo rótulo y área', () => {
+    expect(source).toContain("const painted = isPaintedDoor(object) || object.metadata?.['dePieza'] === true;");
+    expect(source).toContain('const art = this.assetsLoaded && !isExit && !painted ? this.buildArtSprite(object) : null;');
+    expect(source).toContain("const pieza = piezaDelObjeto(obj.metadata?.['arte'], manifiesto);");
+    expect(source).toContain('if (obj) { this.salaPorPiezas?.revisar(obj.key); this.callbacks.onInteract(obj); return; }');
   });
 
   it('6. la sala por piezas se suelta en el camino de ScenarioConfig y al apagar la escena', () => {
