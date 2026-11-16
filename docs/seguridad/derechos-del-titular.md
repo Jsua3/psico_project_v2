@@ -89,6 +89,7 @@ Esta tabla la comprueba una prueba contra las reglas del código: si una regla c
 | `attempt_world_states` | Estado del mundo de cada intento | se conserva |
 | `student_case_completion` | Casos que completó | se conserva |
 | `authoring_assistant_usage` | Cuántas veces usó el asistente de IA de autoría cada día (sin el texto de las peticiones) | se conserva |
+| `authoring_generations` | La descripción que escribió para generar un caso con IA y lo que la IA escribió a partir de ella | se borra la fila |
 | `rubric_evaluations` | Evaluaciones docentes que recibió o dio | se conserva |
 | `criterion_scores` | Puntaje y comentario de cada criterio | se conserva |
 | `audit_logs` | Auditoría de sus acciones | se anula y se limpia el texto escrito por la persona; el resto se conserva |

@@ -249,6 +249,16 @@ AUDIT_BY_ROUTE: dict[tuple[str, str], str] = {
     # ── La biblioteca de lugares del editor de casos (P6) ──
     ("api/biblioteca/lugares", "GET"): _exento(_CATALOGO),
     ("api/biblioteca/lugares/<str:lugar_id>", "GET"): _exento(_CATALOGO),
+    # ── C1 · la generación de casos por etapas (docente dueña, sin alias en /api/admin) ──
+    # Crear, esqueleto, escena, ensamblar y cancelar dejan una fila ``asistente_autoria.generar`` (con la etapa en el contexto);
+    # leer el estado o la generación propia no son datos de otra persona.
+    ("api/authoring/generations/status", "GET"): _exento(_PROPIO),
+    ("api/authoring/generations", "POST"): "AI_AUTHORING_GENERATE",
+    ("api/authoring/generations/<uuid:gen_id>", "GET"): _exento(_PROPIO),
+    ("api/authoring/generations/<uuid:gen_id>", "DELETE"): "AI_AUTHORING_GENERATE",
+    ("api/authoring/generations/<uuid:gen_id>/skeleton", "POST"): "AI_AUTHORING_GENERATE",
+    ("api/authoring/generations/<uuid:gen_id>/scenes/<slug:clave>", "POST"): "AI_AUTHORING_GENERATE",
+    ("api/authoring/generations/<uuid:gen_id>/assemble", "POST"): "AI_AUTHORING_GENERATE",
     # ── El juego del estudiante ──
     ("api/simulation/ai-assistant", "POST"): "AI_ASSISTANT_QUERY",
     ("api/simulation/attempts", "POST"): "ATTEMPT_STARTED",

@@ -7,6 +7,7 @@ documento dice, clave por clave y tipo por tipo (``shared.contract_testing``). T
 su caso en ``CALLS`` hace fallar la prueba del registro, la de ``test_openapi_contract`` impide que el número de
 contratos tipados baje y cada error que un contrato documenta tiene que tener su caso en ``ERRORS``.
 """
+import contextlib
 import copy
 import json
 import re
@@ -30,6 +31,7 @@ from apps.simulation.models import (
     AttemptHintView,
     AuditLog,
     CaseCharacter,
+    CaseGeneration,
     CaseReview,
     CaseVersion,
     Rubric,
@@ -532,6 +534,257 @@ for _prefix in ROUTE_FAMILIES:
     calls(f"{_prefix}/{{case_version_id}}/rehearsal/{{attempt_id}}", "PATCH")(
         lambda world, _prefix=_prefix: _rehearsal_call(world, _prefix, "PATCH")
     )
+
+
+
+# ─── …/api/authoring/generations/* (la generación de un caso por etapas, C1) ───
+# Todo con el proveedor falso (``AI_AUTHORING_PROVIDER="fake"``): ninguna llamada toca la red. La dueña es el ADMIN del mundo.
+GENERATION = "/api/authoring/generations"
+GENERATION_STATUS = f"{GENERATION}/status"
+GENERATION_ONE = f"{GENERATION}/{{gen_id}}"
+GENERATION_SKELETON = f"{GENERATION}/{{gen_id}}/skeleton"
+GENERATION_SCENE = f"{GENERATION}/{{gen_id}}/scenes/{{clave}}"
+GENERATION_ASSEMBLE = f"{GENERATION}/{{gen_id}}/assemble"
+GENERATION_DESCRIPTION = "Una estudiante de segundo semestre se queda sola después de clase y necesita que la acompañen con calma."
+GENERATION_GONE = "6f1d9b7e-5c2a-4c1e-9d7b-0a3c2e1f4a56"
+
+
+@contextlib.contextmanager
+def _generation_on(**ajustes):
+    """La generación encendida con el proveedor falso y las cinco competencias por defecto (como ``test_generation_api``)."""
+    from unittest import mock
+
+    from apps.simulation.services.authoring.generation import context
+
+    competencias = [
+        {"codigo": codigo, "nombre": codigo.title()}
+        for codigo in ("PAP", "COMUNICACION_EMPATIA", "DECISION_RUTA", "COMPRENSION_SITUACION", "REFLEXION")
+    ]
+    config = dict(
+        AI_AUTHORING_ENABLED=True, AI_AUTHORING_PROVIDER="fake", AI_AUTHORING_GENERATIONS_PER_DAY=5,
+        AI_AUTHORING_GENERATION_MAX_CALLS=20,
+    )
+    config.update(ajustes)
+    with override_settings(**config), mock.patch.object(context, "competencias_por_defecto", lambda: competencias):
+        yield
+
+
+@contextlib.contextmanager
+def _provider_fails(kind):
+    """Todo lo que pida el servicio al proveedor falso falla con ``kind``; el detalle interno no debe llegar al cliente."""
+    from unittest import mock
+
+    from apps.simulation.services.ai_providers import FakeProvider
+
+    def fails(self, *args, **kwargs):
+        raise ProviderError(kind, "detalle interno del proveedor")
+
+    with mock.patch.object(FakeProvider, "complete_structured", fails):
+        yield
+
+
+def _g_start(world, descripcion=GENERATION_DESCRIPTION, lugar="universidad"):
+    return cl(world.admin).post(GENERATION, {"lugarId": lugar, "descripcion": descripcion}, format="json")
+
+
+def _g_created(world, descripcion=GENERATION_DESCRIPTION):
+    return _g_start(world, descripcion).json()["data"]["id"]
+
+
+def _g_with_skeleton(world, descripcion=GENERATION_DESCRIPTION):
+    gid = _g_created(world, descripcion)
+    return gid, cl(world.admin).post(f"{GENERATION}/{gid}/skeleton")
+
+
+def _g_with_scenes(world, descripcion=GENERATION_DESCRIPTION):
+    gid, skeleton = _g_with_skeleton(world, descripcion)
+    for escena in skeleton.json()["data"]["skeleton"]["escenas"]:
+        assert cl(world.admin).post(f"{GENERATION}/{gid}/scenes/{escena['clave']}").status_code == 200
+    return gid
+
+
+def _g_first_scene(world, gid):
+    return cl(world.admin).get(f"{GENERATION}/{gid}").json()["data"]["skeleton"]["escenas"][0]["clave"]
+
+
+@calls(GENERATION_STATUS, "GET")
+def _generation_status(world):
+    with _generation_on():
+        return cl(world.admin).get(GENERATION_STATUS)
+
+
+@calls(GENERATION, "POST", 201)
+def _generation_started(world):
+    with _generation_on():
+        return _g_start(world)
+
+
+@calls(GENERATION_ONE, "GET")
+def _generation_read(world):
+    with _generation_on():
+        gid, _ = _g_with_skeleton(world)
+        return cl(world.admin).get(f"{GENERATION}/{gid}")
+
+
+@calls(GENERATION_ONE, "DELETE")
+def _generation_cancelled(world):
+    with _generation_on():
+        return cl(world.admin).delete(f"{GENERATION}/{_g_created(world)}")
+
+
+@calls(GENERATION_SKELETON, "POST")
+def _generation_skeleton(world):
+    with _generation_on():
+        return _g_with_skeleton(world)[1]
+
+
+@calls(GENERATION_SCENE, "POST")
+def _generation_scene(world):
+    with _generation_on():
+        gid, _ = _g_with_skeleton(world)
+        return cl(world.admin).post(f"{GENERATION}/{gid}/scenes/{_g_first_scene(world, gid)}")
+
+
+@calls(GENERATION_ASSEMBLE, "POST")
+def _generation_assembled(world):
+    with _generation_on():
+        return cl(world.admin).post(f"{GENERATION}/{_g_with_scenes(world)}/assemble")
+
+
+@pytest.mark.parametrize("estado", ["created", "needs_repair", "imported", "cancelled", "failed_scene"])
+def test_una_generacion_en_cada_estado_coincide_con_el_documento(estado, document, world):
+    """El ``GET`` de una generación en cada estado: así el documento ve ``repair``, ``lastError``, el error de una escena y las faltas."""
+    with _generation_on():
+        if estado == "created":
+            gid = _g_created(world)
+        elif estado == "needs_repair":
+            gid = _g_with_scenes(world, f"{GENERATION_DESCRIPTION} [falso:reparar]")
+            assert cl(world.admin).post(f"{GENERATION}/{gid}/assemble").json()["data"]["status"] == "needs_repair"
+        elif estado == "imported":
+            gid = _g_with_scenes(world)
+            assert cl(world.admin).post(f"{GENERATION}/{gid}/assemble").json()["data"]["status"] == "imported"
+        elif estado == "cancelled":
+            gid = _g_created(world)
+            assert cl(world.admin).delete(f"{GENERATION}/{gid}").status_code == 200
+        else:
+            gid, _ = _g_with_skeleton(world)
+            with _provider_fails("timeout"):
+                assert cl(world.admin).post(f"{GENERATION}/{gid}/scenes/{_g_first_scene(world, gid)}").status_code == 502
+        response = cl(world.admin).get(f"{GENERATION}/{gid}")
+
+    assert response.status_code == 200, response.content
+    body = response.json()
+    if estado == "needs_repair":
+        assert body["data"]["repair"]["issues"]
+    if estado == "failed_scene":
+        assert body["data"]["lastError"]["kind"] == "timeout" and body["data"]["scenes"][0]["error"]["kind"] == "timeout"
+    assert_matches(body, response_schema(document, GENERATION_ONE, "GET", "200"), document)
+
+
+def _generation_errors():
+    """Cada error que documentan las siete rutas de la generación, con su caso real."""
+    rows = []
+    seven = [
+        (GENERATION_STATUS, "GET", lambda c: c.get(GENERATION_STATUS)),
+        (GENERATION, "POST", lambda c: c.post(GENERATION, {"lugarId": "universidad", "descripcion": "x"}, format="json")),
+        (GENERATION_ONE, "GET", lambda c: c.get(f"{GENERATION}/{GENERATION_GONE}")),
+        (GENERATION_ONE, "DELETE", lambda c: c.delete(f"{GENERATION}/{GENERATION_GONE}")),
+        (GENERATION_SKELETON, "POST", lambda c: c.post(f"{GENERATION}/{GENERATION_GONE}/skeleton")),
+        (GENERATION_SCENE, "POST", lambda c: c.post(f"{GENERATION}/{GENERATION_GONE}/scenes/aula")),
+        (GENERATION_ASSEMBLE, "POST", lambda c: c.post(f"{GENERATION}/{GENERATION_GONE}/assemble")),
+    ]
+    for path, method, send in seven:
+        rows.append(("generación sin sesión", path, method, lambda w, s=send: s(APIClient()), 401, "UNAUTHENTICATED"))
+        rows.append(("generación como estudiante", path, method, lambda w, s=send: s(cl(w.student)), 403, "FORBIDDEN"))
+
+    def on(call, **ajustes):
+        def run(w):
+            with _generation_on(**ajustes):
+                return call(w)
+
+        return run
+
+    def stage_url(w, *, scene):
+        gid, _ = _g_with_skeleton(w) if scene else (_g_created(w), None)
+        return gid, (f"{GENERATION}/{gid}/scenes/{_g_first_scene(w, gid)}" if scene else f"{GENERATION}/{gid}/skeleton")
+
+    def stage_fails(kind, *, scene):
+        def run(w):
+            with _generation_on():
+                _, url = stage_url(w, scene=scene)
+                with _provider_fails(kind):
+                    return cl(w.admin).post(url)
+
+        return run
+
+    def exhausted(w, *, scene):
+        gid, url = stage_url(w, scene=scene)
+        CaseGeneration.objects.filter(pk=gid).update(calls=20)
+        return cl(w.admin).post(url)
+
+    def cancelled_twice(w):
+        gid = _g_created(w)
+        cl(w.admin).delete(f"{GENERATION}/{gid}")
+        return cl(w.admin).delete(f"{GENERATION}/{gid}")
+
+    def daily_limit(w):
+        gid = _g_created(w)
+        cl(w.admin).delete(f"{GENERATION}/{gid}")
+        return _g_start(w)
+
+    def skeleton_twice(w):
+        gid, _ = _g_with_skeleton(w)
+        return cl(w.admin).post(f"{GENERATION}/{gid}/skeleton")
+
+    def scene_twice(w):
+        gid, _ = _g_with_skeleton(w)
+        clave = _g_first_scene(w, gid)
+        cl(w.admin).post(f"{GENERATION}/{gid}/scenes/{clave}")
+        return cl(w.admin).post(f"{GENERATION}/{gid}/scenes/{clave}")
+
+    def assemble_too_soon(w):
+        return cl(w.admin).post(f"{GENERATION}/{_g_created(w)}/assemble")
+
+    def gone(method, suffix=""):
+        return on(lambda w: getattr(cl(w.admin), method)(f"{GENERATION}/{GENERATION_GONE}{suffix}"))
+
+    rows += [
+        ("generación con descripción corta", GENERATION, "POST", on(lambda w: _g_start(w, "corta")), 400, "VALIDATION_ERROR"),
+        ("generación en un lugar que no existe", GENERATION, "POST",
+         on(lambda w: _g_start(w, lugar="no-existe")), 404, "NOT_FOUND"),
+        ("generación con otra en curso", GENERATION, "POST",
+         on(lambda w: (_g_start(w), _g_start(w))[1]), 409, "GENERATION_IN_PROGRESS"),
+        ("generación sobre el tope diario", GENERATION, "POST",
+         on(daily_limit, AI_AUTHORING_GENERATIONS_PER_DAY=1), 429, "AI_LIMIT_EXCEEDED"),
+        ("leer una generación que no existe", GENERATION_ONE, "GET", gone("get"), 404, "NOT_FOUND"),
+        ("cancelar una generación que no existe", GENERATION_ONE, "DELETE", gone("delete"), 404, "NOT_FOUND"),
+        ("cancelar una generación ya cancelada", GENERATION_ONE, "DELETE", on(cancelled_twice), 409, "GENERATION_STATE"),
+        ("esqueleto de una generación que no existe", GENERATION_SKELETON, "POST",
+         gone("post", "/skeleton"), 404, "NOT_FOUND"),
+        ("esqueleto pedido dos veces", GENERATION_SKELETON, "POST", on(skeleton_twice), 409, "GENERATION_STATE"),
+        ("esqueleto que la IA se niega a escribir", GENERATION_SKELETON, "POST",
+         stage_fails("refusal", scene=False), 422, "AI_REFUSED"),
+        ("esqueleto sin intentos con la IA", GENERATION_SKELETON, "POST",
+         on(lambda w: exhausted(w, scene=False)), 429, "GENERATION_CALLS_EXHAUSTED"),
+        ("esqueleto con el proveedor caído", GENERATION_SKELETON, "POST",
+         stage_fails("http", scene=False), 502, "AI_PROVIDER_ERROR"),
+        ("escena de una generación que no existe", GENERATION_SCENE, "POST",
+         gone("post", "/scenes/aula"), 404, "NOT_FOUND"),
+        ("escena con un repair que no es 1", GENERATION_SCENE, "POST",
+         on(lambda w: (lambda gid: cl(w.admin).post(f"{GENERATION}/{gid}/scenes/{_g_first_scene(w, gid)}?repair=si"))(
+             _g_with_skeleton(w)[0])), 400, "VALIDATION_ERROR"),
+        ("escena pedida dos veces", GENERATION_SCENE, "POST", on(scene_twice), 409, "GENERATION_STATE"),
+        ("escena que la IA se niega a escribir", GENERATION_SCENE, "POST",
+         stage_fails("refusal", scene=True), 422, "AI_REFUSED"),
+        ("escena sin intentos con la IA", GENERATION_SCENE, "POST",
+         on(lambda w: exhausted(w, scene=True)), 429, "GENERATION_CALLS_EXHAUSTED"),
+        ("escena con el proveedor caído", GENERATION_SCENE, "POST",
+         stage_fails("http", scene=True), 502, "AI_PROVIDER_ERROR"),
+        ("ensamblar una generación que no existe", GENERATION_ASSEMBLE, "POST",
+         gone("post", "/assemble"), 404, "NOT_FOUND"),
+        ("ensamblar sin las escenas", GENERATION_ASSEMBLE, "POST", on(assemble_too_soon), 409, "GENERATION_STATE"),
+    ]
+    return rows
 
 
 #: Claves que la respuesta real trae y el documento NO publica a propósito (una credencial no se declara en el esquema:
@@ -1241,6 +1494,7 @@ ERRORS = [
     ("retirar de una versión inexistente", CONSENT, "DELETE",
      lambda w: cl(w.student).delete(_consent_url(w, 999999)), 404, "NOT_FOUND"),
     *[row for prefix in ROUTE_FAMILIES for row in _case_route_errors(prefix)],
+    *_generation_errors(),
 ]
 #: Estados documentados que no son un ``ErrorEnvelope`` y tienen su propio caso arriba.
 OTHER_DOCUMENTED = {("/api/health", "GET"): {503}}
@@ -1331,6 +1585,8 @@ NEVER_SEEN: dict[str, str] = {
     "ImportRejectedEnvelope.field": "el 400 de una importación rechazada lleva `issues`, no `field` (ese es de ErrorEnvelope)",
     "CaseConflictEnvelope.field": "los 409 de una transición se explican con `code` y sus campos propios, nunca con `field`",
     "MembershipConflictEnvelope.field": "los 409 de una invitación se explican con `code` y `status`, nunca con `field`",
+    "GenerationErrorEnvelope.field": "los 409, 429 y 502 de la generación se explican con `code` y su campo propio, nunca con `field`",
+    "GenerationErrorEnvelope.motivo": "`motivo` es solo del 422 AI_PROPOSAL_INVALID del asistente",
     "ImportRejectedEnvelope.motivo": "`motivo` es solo del 422 AI_PROPOSAL_INVALID del asistente",
     "CaseConflictEnvelope.motivo": "`motivo` es solo del 422 AI_PROPOSAL_INVALID del asistente",
     "MembershipConflictEnvelope.motivo": "`motivo` es solo del 422 AI_PROPOSAL_INVALID del asistente",
