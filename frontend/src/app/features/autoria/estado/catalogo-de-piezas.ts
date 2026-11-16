@@ -21,6 +21,16 @@ export class CatalogoDePiezas {
   readonly error = this.errorEstado.asReadonly();
 
   constructor() {
+    this.cargar();
+  }
+
+  reintentar(): void {
+    if (!this.errorEstado()) return;
+    this.errorEstado.set(false);
+    this.cargar();
+  }
+
+  private cargar(): void {
     void this.api.manifiestoDePiezas().then((manifiesto) => {
       const reglas = catalogoDeReglas(manifiesto);
       this.manifiestoEstado.set(manifiesto);

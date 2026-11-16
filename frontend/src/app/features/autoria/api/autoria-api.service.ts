@@ -34,11 +34,14 @@ export class AutoriaApiService {
   private readonly http = inject(HttpClient);
   private manifiestoPendiente: Promise<ManifiestoDePiezas> | null = null;
 
-  /** Comparte incluso el fallo: hay una sola petición durante la vida del servicio. */
+  /** Comparte la petición en curso y conserva el resultado; un fallo permite volver a intentarlo. */
   manifiestoDePiezas(): Promise<ManifiestoDePiezas> {
     return this.manifiestoPendiente ??= firstValueFrom(this.http.get<unknown>(MANIFIESTO_DE_PIEZAS_URL)).then((datos) => {
       if (!esManifiestoDePiezas(datos)) throw new Error('Manifiesto de piezas inválido');
       return datos;
+    }).catch((error: unknown) => {
+      this.manifiestoPendiente = null;
+      throw error;
     });
   }
 

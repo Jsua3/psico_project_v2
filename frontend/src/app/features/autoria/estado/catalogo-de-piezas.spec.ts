@@ -45,6 +45,39 @@ describe('CatalogoDePiezas', () => {
     http.expectNone(MANIFIESTO_DE_PIEZAS_URL);
   });
 
+  it('tras un fallo, la siguiente llamada vuelve a pedir el manifiesto', async () => {
+    const api = TestBed.inject(AutoriaApiService);
+    const primera = api.manifiestoDePiezas();
+    http.expectOne(MANIFIESTO_DE_PIEZAS_URL).flush('Error', { status: 503, statusText: 'No disponible' });
+    await expect(primera).rejects.toBeDefined();
+    const segunda = api.manifiestoDePiezas();
+    http.expectOne(MANIFIESTO_DE_PIEZAS_URL).flush(manifiesto);
+    await expect(segunda).resolves.toEqual(manifiesto);
+    await api.manifiestoDePiezas();
+    http.expectNone(MANIFIESTO_DE_PIEZAS_URL);
+  });
+
+  it('reintentar después de un fallo carga el catálogo y apaga el error', async () => {
+    const catalogo = TestBed.inject(CatalogoDePiezas);
+    const primera = TestBed.inject(AutoriaApiService).manifiestoDePiezas();
+    http.expectOne(MANIFIESTO_DE_PIEZAS_URL).flush('Error', { status: 503, statusText: 'No disponible' });
+    await primera.catch(() => undefined);
+    await Promise.resolve();
+    expect(catalogo.error()).toBe(true);
+    expect(catalogo.reglas()).toBeNull();
+    catalogo.reintentar();
+    expect(catalogo.error()).toBe(false);
+    const segunda = TestBed.inject(AutoriaApiService).manifiestoDePiezas();
+    http.expectOne(MANIFIESTO_DE_PIEZAS_URL).flush(manifiesto);
+    await segunda;
+    await Promise.resolve();
+    expect(catalogo.error()).toBe(false);
+    expect(catalogo.manifiesto()).toEqual(manifiesto);
+    expect(catalogo.reglas()?.clavesDePisos).toEqual(Object.keys(manifiesto.pisos));
+    catalogo.reintentar();
+    http.expectNone(MANIFIESTO_DE_PIEZAS_URL);
+  });
+
   it('arma las cinco categorías con los nombres del manifiesto', async () => {
     const catalogo = TestBed.inject(CatalogoDePiezas);
     http.expectOne(MANIFIESTO_DE_PIEZAS_URL).flush(manifiesto);
@@ -77,8 +110,10 @@ describe('CatalogoDePiezas', () => {
 
   it('un manifiesto que no valida deja error en true y reglas en null', async () => {
     const catalogo = TestBed.inject(CatalogoDePiezas);
+    const solicitud = TestBed.inject(AutoriaApiService).manifiestoDePiezas();
     http.expectOne(MANIFIESTO_DE_PIEZAS_URL).flush({ esquema: 1 });
-    await TestBed.inject(AutoriaApiService).manifiestoDePiezas().catch(() => undefined);
+    await solicitud.catch(() => undefined);
+    await Promise.resolve();
     expect(catalogo.error()).toBe(true);
     expect(catalogo.manifiesto()).toBeNull();
     expect(catalogo.reglas()).toBeNull();
