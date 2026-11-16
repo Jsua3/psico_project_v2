@@ -139,10 +139,13 @@ def generar():
     luz = dict(unidad=pl.U, minimo=pl.MINIMO, paso=pl.PASO, niveles=pl.NIVELES, uno=pl.UNO,
                penumbra=dict(dia=pl.PENUMBRA, noche=pl.PENUMBRA_NOCHE, exteriorDia=pl.EXTERIOR, exteriorNoche=pl.EXTERIOR_NOCHE),
                bayer=pl.BAYER.tolist(), tablaAmbiente=pl.TABLA_AMBIENTE.tolist(), tablaCalida=pl.TABLA_CALIDA.tolist(),
-               tablaFria=pl.TABLA_FRIA.tolist(), enSombra=pl.EN_SOMBRA, hazFondo=list(pl.HAZ_FONDO), hazLado=list(pl.HAZ_LADO),
+               tablaFria=pl.TABLA_FRIA.tolist(), enSombra=dict(pl.EN_SOMBRA), sombraPropia=pl.SOMBRA_PROPIA, sombraAlSol=pl.SOMBRA_AL_SOL, alturaTubo=pl.ALTURA_TUBO,
+               topeSombra=dict(pl.TOPE_SOMBRA), umbralDominio=pl.UMBRAL_DOMINIO, cenital=list(pl.CENITAL),
+               matrizHaz={k: list(v) for k, v in pl.MATRIZ_HAZ.items()}, senosHaz={k: list(v) for k, v in pl.SENOS_HAZ.items()},
+               direcciones=[list(d) for d in pl.DIRECCIONES],
                sombraMaxima=pl.SOMBRA_MAXIMA, tablaReflejo={t: [list(c) for c in v] for t, v in pl.TABLA_REFLEJO.items()},
                umbralReflejo=pl.UMBRAL_REFLEJO, grisBrillo={m: f * 85 for m, f in g.FUERZA_BRILLO.items()},
-               tablaAmbienteNoche=pl.TABLA_AMBIENTE_NOCHE.tolist(), pulidos=list(pl.PULIDOS), reflejo=pl.REFLEJO, contacto=pl.CONTACTO, referencia='piezas/luz/LEEME.md', casos='piezas/luz/casos.json')
+               tablaAmbienteNoche=pl.TABLA_AMBIENTE_NOCHE.tolist(), pulidos=list(pl.PULIDOS), reflejo=pl.REFLEJO, luna=pl.LUNA, vidriadas=dict(pl.VIDRIADAS), contacto=pl.CONTACTO, referencia='piezas/luz/LEEME.md', casos='piezas/luz/casos.json')
     return dict(esquema=2, geometria=geometria, luz=luz, piezas=piezas, pisos=pisos, muros=muros, muebles=muebles, lugares=[]), imagenes
 
 

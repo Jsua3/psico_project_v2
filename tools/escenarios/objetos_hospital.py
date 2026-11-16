@@ -206,6 +206,42 @@ PIEZAS = {
 }
 
 
+import objetos_hospital_b as hb  # noqa: E402
+
+PIEZAS.update({
+    'expediente': dict(nombre='Expediente clínico', tipo='objeto', dibujar=hb.expediente, cuadros=3,
+                       huella=dict(ancho=30, fondo=8, alto=26), material='cartulina y papel',
+                       animaciones=dict(reposo=dict(de=0, hasta=0, fps=1, bucle=True),
+                                        revisar=dict(de=1, hasta=2, fps=8, bucle=False, sostener=True)),
+                       reemplaza=G + 'object_expediente.png'),
+    'registro': dict(nombre='Libro de registro', tipo='objeto', dibujar=hb.registro, cuadros=3,
+                     huella=dict(ancho=20, fondo=8, alto=34), material='papel y cromo',
+                     animaciones=dict(reposo=dict(de=0, hasta=0, fps=1, bucle=True),
+                                      revisar=dict(de=1, hasta=2, fps=8, bucle=False, sostener=True))),
+    'zona-restringida': dict(nombre='Zona restringida', tipo='objeto', dibujar=hb.zona_restringida, cuadros=1,
+                             huella=dict(ancho=44, fondo=8, alto=30), material='cromo y cinta',
+                             reemplaza=G + 'object_acceso_restringido.png'),
+    'cierre-resumen': dict(nombre='Cierre del caso', tipo='objeto', dibujar=hb.cierre, cuadros=3,
+                           huella=dict(ancho=30, fondo=8, alto=16), material='papel y sello',
+                           animaciones=dict(reposo=dict(de=0, hasta=0, fps=1, bucle=True),
+                                            revisar=dict(de=1, hasta=2, fps=8, bucle=False, sostener=True)),
+                           reemplaza=G + 'object_cierre.png'),
+})
+
+import objetos_hospital_c as hc  # noqa: E402
+
+PIEZAS.update({
+    'puerta-cerrada': dict(nombre='Puerta de la sala de escucha (cerrada)', tipo='objeto', dibujar=hc.puerta_cerrada, cuadros=3,
+                           huella=dict(ancho=24, fondo=8, alto=34), material='aviso y latón',
+                           animaciones=dict(reposo=dict(de=0, hasta=0, fps=1, bucle=True),
+                                            cerca=dict(de=1, hasta=2, fps=6, bucle=False, luego='reposo'))),
+    'cartelera-pasillo': dict(nombre='Cartelera del pasillo', tipo='objeto', dibujar=hc.cartelera_pasillo, cuadros=1,
+                              huella=dict(ancho=56, fondo=8, alto=60), material='tablero y cromo'),
+    'sillas-escucha': dict(nombre='Sillas de la sala de escucha', tipo='objeto', dibujar=hc.sillas_escucha, cuadros=1,
+                           huella=dict(ancho=58, fondo=14, alto=30), material='tela'),
+})
+
+
 if __name__ == '__main__':
     import objetos_hoja
     objetos_hoja.hoja_lugar('hospital', PIEZAS)

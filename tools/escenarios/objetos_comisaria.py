@@ -488,6 +488,25 @@ PIEZAS = {
 }
 
 
+import objetos_hospital  # noqa: E402,F401  (registra blanco-clinico y agua)
+import objetos_comisaria_b as cb  # noqa: E402
+
+PIEZAS.update({
+    'cartelera-comisaria': dict(nombre='Cartelera institucional', tipo='mueble', dibujar=cb.cartelera, cuadros=1,
+                                huella=dict(ancho=70, fondo=8, alto=70), material='corcho y laminado',
+                                reemplaza=B + 'muebles/cartelera-comisaria.png'),
+    'dispensador-agua': dict(nombre='Dispensador de agua', tipo='objeto', dibujar=cb.dispensador_agua, cuadros=7,
+                             huella=dict(ancho=22, fondo=10, alto=62), material='plástico y agua',
+                             animaciones=dict(reposo=dict(de=0, hasta=0, fps=1, bucle=True),
+                                              cerca=dict(de=1, hasta=4, fps=6, bucle=False, luego='reposo'),
+                                              revisar=dict(de=5, hasta=6, fps=4, bucle=False, sostener=True)),
+                             reemplaza=B + 'objetos/dispensador-agua.png'),
+    'afiche-rutas-atencion': dict(nombre='Afiche de rutas de atención', tipo='objeto', dibujar=cb.afiche_rutas, cuadros=1,
+                                  huella=dict(ancho=24, fondo=8, alto=40), material='papel y madera',
+                                  reemplaza=B + 'objetos/afiche-rutas-atencion.png'),
+})
+
+
 if __name__ == '__main__':
     import objetos_hoja
     objetos_hoja.hoja_lugar('comisaria', PIEZAS)

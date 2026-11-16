@@ -45,6 +45,10 @@ header p { margin: 4px 0 0; color: var(--tenue); max-width: 62ch; }
 .cuadro .lado { display: flex; gap: 12px; align-items: center; flex-wrap: wrap; justify-content: flex-end; }
 .cuadro .cuenta { font-family: var(--display); color: var(--tenue); font-size: 15px; font-variant-numeric: tabular-nums; }
 .reiniciar { font: inherit; color: var(--texto); background: transparent; border: 2px solid var(--borde); padding: 6px 12px; min-height: 44px; cursor: pointer; }
+.galeria { display: grid; gap: 16px; }
+.galeria figure { margin: 0; display: grid; gap: 6px; min-width: 0; }
+.galeria figcaption { font-family: var(--display); color: var(--texto); font-size: 15px; }
+.galeria img { display: block; image-rendering: pixelated; image-rendering: crisp-edges; max-width: 100%; border: 2px solid var(--borde); }
 .notas { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 12px 24px; color: var(--tenue); }
 .notas h2 { font-family: var(--display); font-size: 15px; color: var(--texto); margin: 0 0 2px; letter-spacing: 0.04em; text-transform: uppercase; }
 .notas p { margin: 0; max-width: 62ch; }
@@ -74,6 +78,7 @@ kbd { font-family: var(--display); border: 1px solid var(--borde); padding: 0 5p
       <button type="button" class="reiniciar" id="reiniciar">Volver a empezar</button>
     </div>
   </section>
+  <section class="galeria" id="galeria" aria-label="Más objetos dentro de su sala"></section>
   <section class="notas">
     <div><h2>Una sola luz</h2><p>De día manda la ventana: el barniz, el vidrio del televisor y el del portarretrato brillan del lado de la ventana. De noche manda la lámpara junto al sofá y, a la derecha, el televisor, que alumbra el muro, el piso y el vidrio de la foto.</p></div>
     <div><h2>Sombras</h2><p>Sombra de contacto bajo cada cosa y sombra proyectada desde el haz y desde la lámpara, calculadas con la función de luz de P1 a partir de la huella de cada mueble.</p></div>
@@ -291,6 +296,21 @@ kbd { font-family: var(--display); border: 1px solid var(--borde); padding: 0 5p
       alumna.meta = [toque.x, toque.y + 22]; alumna.revisarAlLlegar = toque;
     } else { alumna.meta = [x, y]; alumna.revisarAlLlegar = null; }
   });
+  const galeria = document.getElementById('galeria');
+  for (const g of (D.galeria || [])) {
+    const fig = document.createElement('figure');
+    const cap = document.createElement('figcaption'); cap.textContent = g.titulo;
+    const im = document.createElement('img'); im.src = D.imagenes[g.img]; im.alt = g.titulo; im.width = g.w; im.height = g.h;
+    fig.append(cap, im); galeria.append(fig);
+  }
+  function escalarGaleria() {
+    for (const im of galeria.querySelectorAll('img')) {
+      const disp = galeria.clientWidth, w = Number(im.getAttribute('width'));
+      im.style.width = (disp >= w ? w * Math.max(1, Math.floor(disp / w)) : disp) + 'px'; im.style.height = 'auto';
+    }
+  }
+  window.addEventListener('resize', escalarGaleria);
+  escalarGaleria();
   window.addEventListener('resize', escalar);
   cargar().then(() => { escalar(); contar(); requestAnimationFrame(t => { antes = t; paso(t); }); });
 })();

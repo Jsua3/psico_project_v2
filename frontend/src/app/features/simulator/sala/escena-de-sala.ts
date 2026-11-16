@@ -19,9 +19,10 @@ import type { ManifiestoDePiezas, SalaPorPiezas } from './catalogo';
 import { planDeSala, rutasDelPlan } from './composicion';
 import type { PlanDeSala, SpriteDeSala } from './composicion';
 import type { Momento, Muro } from './geometria';
-import { colorDeReflejo, cuerpo, prepararLuz } from './luz';
+import { colorDeReflejo, prepararLuz } from './luz';
 import type { Cuerpo, LuzDeSala, Rectangulo, TonoDeReflejo } from './luz';
 import { brilloDeSprite, pintarFondo } from './pintor';
+import { pintarSilueta, rumboDiscreto, tenderSilueta } from './sombra-de-figura';
 import type { Imagen } from './pintor';
 import {
   PUERTA_ABIERTA, PUERTA_CERRADA, abiertaDelTodo, avanzarPuerta, cuadroVisible, desvioDeSacudida, puertaActiva, sacudir,
@@ -42,8 +43,13 @@ export const PROFUNDIDAD = {
   brillo: DEPTH.LIGHTING - 1,
 } as const;
 
-/** Cada cuánto, como mucho, se rehace la sombra de quien juega mientras camina (ms). */
-const MS_ENTRE_SOMBRAS = 33;
+/**
+ * Los dos escalones de la sombra con silueta, en MULTIPLY sobre el piso ya iluminado: oscuro cerca de los pies, claro
+ * lejos, con un poco de azul (el tono de la sombra de la casa). Parámetro hasta que P1 publique la regla de la silueta.
+ */
+const TONO_DE_SOMBRA = { oscuro: [168, 172, 190] as const, claro: [206, 209, 222] as const };
+/** Siluetas guardadas como mucho (cada una, unos pocos KB). */
+const MAX_SILUETAS = 240;
 /** Flecha del lado de la cámara: periodo del vaivén y cuánto sube. */
 const FLECHA_PERIODO_MS = 1200;
 const FLECHA_SUBE = 2;
@@ -132,11 +138,12 @@ export class EscenaDeSala {
   private tiempo = 0;
   private activa: string | null = null;
   private abiertas = '';
-  private jugador: Cuerpo | null = null;
-  private desdeSombra = MS_ENTRE_SOMBRAS;
   /** Brillo de vidrio y metal: lo del muro (bajo los actores) y lo del lado de la cámara (sobre ellos). */
   private readonly brillos: { lienzo: Phaser.Textures.CanvasTexture; rgb: Uint8ClampedArray; capas: string[] }[] = [];
   private readonly imagenesDeBrillo = new Map<string, Imagen>();
+  /** Sombra con silueta de cada figura (por id) y dónde quedan los pies en cada silueta guardada. */
+  private readonly sombras = new Map<string, Phaser.GameObjects.Image>();
+  private readonly origenesDeSombra = new Map<string, { x: number; y: number }>();
   private firmaDeBrillo = '';
 
   /** El plan de dibujo de la sala, o null si su estructura no se puede armar (ancho fuera del catálogo, por ejemplo). */
@@ -149,12 +156,27 @@ export class EscenaDeSala {
     }
   }
 
-  /** Pide las imágenes que el plan necesita y no están cargadas. true si pidió alguna: hay que esperar a que lleguen. */
-  static pedirTexturas(escena: Phaser.Scene, plan: PlanDeSala): boolean {
+  /**
+   * Qué falta para armar el plan: 'listo' si todo está cargado, 'pedir' si falta algo que aún no ha fallado y 'fallo' si
+   * alguna imagen ya falló al cargar (`fallidas`, claves del cargador): entonces la sala no se arma a medias ni se vuelve
+   * a pedir sin fin; quien la monta sigue por el camino de imagen fija y lo avisa.
+   */
+  static estadoDeTexturas(plan: PlanDeSala, existe: (clave: string) => boolean, fallidas: ReadonlySet<string>): 'listo' | 'pedir' | 'fallo' {
+    let pedir = false;
+    for (const ruta of rutasDelPlan(plan)) {
+      if (existe(clave(ruta))) continue;
+      if (fallidas.has(clave(ruta))) return 'fallo';
+      pedir = true;
+    }
+    return pedir ? 'pedir' : 'listo';
+  }
+
+  /** Pide las imágenes que el plan necesita, no están cargadas y no han fallado. true si pidió alguna: hay que esperar. */
+  static pedirTexturas(escena: Phaser.Scene, plan: PlanDeSala, fallidas: ReadonlySet<string> = new Set()): boolean {
     let pidio = false;
     const enFondo = new Set(plan.fondo.map(r => r.ruta));
     for (const ruta of rutasDelPlan(plan)) {
-      if (escena.textures.exists(clave(ruta))) continue;
+      if (escena.textures.exists(clave(ruta)) || fallidas.has(clave(ruta))) continue;
       const sprite = enFondo.has(ruta) ? undefined : plan.sprites.find(s => s.ruta === ruta);
       if (sprite) escena.load.spritesheet(clave(ruta), urlDePieza(ruta), { frameWidth: sprite.w, frameHeight: sprite.h });
       else escena.load.image(clave(ruta), urlDePieza(ruta));
@@ -315,18 +337,8 @@ export class EscenaDeSala {
       const fase = this.reducido ? 0 : Math.floor(((this.tiempo % FLECHA_PERIODO_MS) / FLECHA_PERIODO_MS) * 4);
       f.objeto.y = f.y - [0, 1, FLECHA_SUBE, 1][fase];
     }
-    this.desdeSombra += dtMs;
-    if (jugador) {
-      const nuevo = cuerpo(Math.round(jugador.x), Math.round(jugador.y), 48, 72, true);
-      if (this.desdeSombra >= MS_ENTRE_SOMBRAS && (!this.jugador || nuevo.x0 !== this.jugador.x0 || nuevo.y0 !== this.jugador.y0)) {
-        this.jugador = nuevo;
-        this.desdeSombra = 0;
-        this.pintarLuz(this.luz.moverCuerpo(nuevo));
-      }
-    } else if (this.jugador) {
-      this.jugador = null;
-      this.pintarLuz(this.luz.moverCuerpo(null));
-    }
+    // La sombra de quien camina ya no se rehace en la luz de la sala (era una mancha con la huella): la pinta
+    // `sombraDeFigura`, con la silueta del cuadro que se ve, como capa propia de cada figura.
     // El brillo cambia con el cuadro de cada puerta y con la luz que le llega a cada pieza (la sombra de quien camina).
     if (this.brillos.length) {
       const firma = this.vivos.map(v => (v.plan.puerta ? cuadroVisible(v.estado, v.hojas) : '') + ':'
@@ -337,6 +349,88 @@ export class EscenaDeSala {
       }
     }
     return this.activa;
+  }
+
+  /**
+   * Sombra con silueta de una figura que se mueve (quien juega, las personas del caso): el cuadro que se está viendo de su
+   * `sprite`, tendido sobre el piso desde (piesX, piesY) según la fuente que domina ahí (`LuzDeSala.fuenteDeSombra`), en
+   * dos escalones con el tramado de la casa (`sombra-de-figura`). Una imagen por `id`, en el piso y en MULTIPLY, bajo los
+   * actores; no toca la luz de la sala. Cada silueta se hace una vez por cuadro, rumbo y largo (de 4 en 4 px) y se guarda.
+   */
+  sombraDeFigura(id: string, sprite: Phaser.GameObjects.Sprite | null | undefined, piesX: number, piesY: number): void {
+    const imagen = this.sombras.get(id);
+    const x = Math.round(piesX), y = Math.round(piesY);
+    const fuente = sprite?.visible && sprite.frame ? this.luz.fuenteDeSombra(x, y) : null;
+    if (!sprite || !fuente || fuente.largo < 2) {
+      imagen?.setVisible(false);
+      return;
+    }
+    const [rx, ry] = rumboDiscreto(fuente.dx, fuente.dy);
+    const largo = Math.max(4, Math.round(fuente.largo / 4) * 4);
+    const frame = sprite.frame;
+    const nombre = `sala:sombra:${frame.texture.key}:${frame.name}:${sprite.flipX ? 1 : 0}:${rx},${ry}:${largo}`;
+    const origen = this.origenesDeSombra.get(nombre) ?? this.crearSombra(nombre, sprite, [rx, ry], largo);
+    if (!origen) {
+      imagen?.setVisible(false);
+      return;
+    }
+    let sombra = imagen;
+    if (!sombra) {
+      sombra = this.escena.add.image(0, 0, nombre).setOrigin(0, 0).setDepth(PROFUNDIDAD.sombras + 0.1)
+        .setBlendMode(Phaser.BlendModes.MULTIPLY);
+      this.sombras.set(id, sombra);
+      this.objetos.push(sombra);
+    } else if (sombra.texture.key !== nombre) {
+      sombra.setTexture(nombre);
+    }
+    sombra.setPosition(x - origen.x, y - origen.y).setVisible(true);
+  }
+
+  /** Quita la sombra de una figura que ya no está. */
+  quitarSombra(id: string): void {
+    const sombra = this.sombras.get(id);
+    if (!sombra) return;
+    sombra.destroy();
+    this.sombras.delete(id);
+  }
+
+  private crearSombra(nombre: string, sprite: Phaser.GameObjects.Sprite, rumbo: [number, number], largo: number): { x: number; y: number } | null {
+    const frame = sprite.frame;
+    const w = frame.cutWidth, h = frame.cutHeight;
+    const fuente = frame.source.image as HTMLImageElement | HTMLCanvasElement;
+    if (!w || !h || !fuente) return null;
+    const lienzo = document.createElement('canvas');
+    lienzo.width = w;
+    lienzo.height = h;
+    const ctx = lienzo.getContext('2d', { willReadFrequently: true });
+    if (!ctx) return null;
+    ctx.drawImage(fuente, frame.cutX, frame.cutY, w, h, 0, 0, w, h);
+    const datos = ctx.getImageData(0, 0, w, h).data;
+    const alfa = new Uint8Array(w * h);
+    for (let i = 0; i < alfa.length; i++) alfa[i] = datos[i * 4 + 3];
+    const piesX = Math.round(sprite.originX * w), piesY = Math.max(0, Math.min(h - 1, Math.round(sprite.originY * h) - 1));
+    const silueta = tenderSilueta(alfa, w, h, piesX, piesY, rumbo, largo, sprite.flipX);
+    const textura = this.escena.textures.createCanvas(nombre, silueta.ancho, silueta.alto);
+    if (!textura) return null;
+    textura.getContext().putImageData(new ImageData(pintarSilueta(silueta, TONO_DE_SOMBRA.oscuro, TONO_DE_SOMBRA.claro), silueta.ancho, silueta.alto), 0, 0);
+    textura.refresh();
+    const origen = { x: silueta.origenX, y: silueta.origenY };
+    this.origenesDeSombra.set(nombre, origen);
+    this.texturasPropias.push(nombre);
+    this.podarSombras();
+    return origen;
+  }
+
+  /** Tope de siluetas guardadas: se retiran las más viejas que ninguna figura está mostrando. */
+  private podarSombras(): void {
+    if (this.origenesDeSombra.size <= MAX_SILUETAS) return;
+    const enUso = new Set([...this.sombras.values()].map(s => s.texture.key));
+    for (const nombre of this.origenesDeSombra.keys()) {
+      if (this.origenesDeSombra.size <= MAX_SILUETAS - 40) break;
+      if (enUso.has(nombre)) continue;
+      this.origenesDeSombra.delete(nombre);
+      if (this.escena.textures.exists(nombre)) this.escena.textures.remove(nombre);
+    }
   }
 
   /** Cuánta luz le llega a lo que brilla en (x, y) y de qué tono (para los muebles y objetos que dibuja la escena). */

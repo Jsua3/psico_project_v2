@@ -28,6 +28,7 @@ import {
 } from './scene-motion.util';
 import { nextAmbientStep, npcMotionStrategyFor } from './motion-strategies';
 import { DEPTH, actorDepth, tiledLayerDepth } from './depth-sort.util';
+import { AvisoDePuertaComponent } from './sala/aviso-de-puerta.component';
 import { MANIFIESTO_DE_PIEZAS_URL, esManifiestoDePiezas } from './sala/catalogo';
 import { EscenaDeSala } from './sala/escena-de-sala';
 import { puertaDelObjeto, salaDelMundo } from './sala/mundo-a-sala';
@@ -124,8 +125,21 @@ export type CameraMoment = { tipo: 'explorar' } | { tipo: 'conversacion' | 'obje
 export interface CameraOptions { cercana: boolean; acercarAuto: boolean }
 export interface CameraReport { zoom: number; momento: Momento['tipo']; x: number; y: number; viajando: boolean }
 
+/** P2: el aviso de una puerta de pieza, en px del contenedor del juego. */
+interface AvisoDePuertaEnPantalla {
+  id: string;
+  texto: string;
+  bloqueada: boolean;
+  x: number;
+  y: number;
+}
+
 interface WorldCallbacks {
   onReady:       () => void;
+  /** P2: una sala por piezas no pudo armarse (alguna pieza no cargó) y se muestra por el camino de imagen fija. */
+  onSalaIncompleta?: () => void;
+  /** P2: el aviso de la puerta de pieza activa, o null si no hay ninguna (o el mundo está en pausa). */
+  onAvisoDePuerta?: (aviso: AvisoDePuertaEnPantalla | null) => void;
   /** Candidato PRINCIPAL en rango (un NPC va como MapObjectState sintético con key `npc:{clave}`); null si no hay. */
   onProximity:   (obj: MapObjectState | null) => void;
   /** Candidato secundario (otra persona u objeto también en rango); null si no hay. */
@@ -487,6 +501,7 @@ export class DataDrivenWorldScene extends Phaser.Scene {
   create() {
     this.pixelRender = new PixelRender(this).attach();
     this.events.once('shutdown', () => this.endGestures());
+    this.events.once('shutdown', () => this.soltarSalaPorPiezas());   // P2
     this.ready = true;
     // Phaser solo LEE las teclas: sin captura no llama a `preventDefault`, así el navegador
     // conserva Enter/Espacio en los botones y todas las teclas en el textarea de la bitácora.
@@ -661,8 +676,45 @@ export class DataDrivenWorldScene extends Phaser.Scene {
     this.checkExitTriggers();
     this.checkDbDoorTriggers();
     // P2: la sala por piezas abre la puerta a la que se acerca quien juega y rehace su luz (sombra incluida).
-    this.salaPorPiezas?.actualizar(delta, this.player ? { x: this.player.x, y: this.player.y } : null,
-      new Set(Object.keys(this.doorStates).filter(clave => this.doorStates[clave] === 'locked')), this.callbacks.reduceMotion);
+    // P2: con una capa encima (plano, diálogo, bitácora) las puertas de pieza no se abren ni se cierran: quedan como estaban.
+    if (this.salaPorPiezas && !this.motionPaused) {
+      const activa = this.salaPorPiezas.actualizar(delta, this.player ? { x: this.player.x, y: this.player.y } : null,
+        new Set(Object.keys(this.doorStates).filter(clave => this.doorStates[clave] === 'locked')), this.callbacks.reduceMotion);
+      this.sombrasConSilueta(this.salaPorPiezas);
+      this.avisoDePuerta(activa);
+    } else {
+      this.avisoDePuerta(null);
+    }
+  }
+
+  /**
+   * P2: el aviso de la puerta de pieza activa («E · Pasar a …»), un botón de Angular sobre el lienzo, en px del contenedor
+   * (posición de `posicionDelAviso` por la cámara y el devicePixelRatio). Solo avisa a Angular cuando cambia.
+   */
+  private avisoDePuerta(id: string | null): void {
+    let aviso: AvisoDePuertaEnPantalla | null = null;
+    const p = id ? this.salaPorPiezas?.posicionDelAviso(id) : null;
+    const obj = id ? this.markerData.get(id) : undefined;
+    if (id && p && obj) {
+      const cam = this.cameras.main, dpr = 1 / (this.scale.zoom || 1);
+      aviso = {
+        id, texto: `Pasar a ${obj.label}`, bloqueada: this.doorStates[id] === 'locked',
+        x: Math.round(((p.x - cam.worldView.x) * cam.zoom) / dpr), y: Math.round(((p.y - cam.worldView.y) * cam.zoom) / dpr),
+      };
+    }
+    const firma = aviso ? `${aviso.id}|${aviso.x}|${aviso.y}|${aviso.bloqueada}` : '';
+    if (firma === this.firmaDelAviso) return;
+    this.firmaDelAviso = firma;
+    this.callbacks.onAvisoDePuerta?.(aviso);
+  }
+
+  /** P2: la sombra con silueta de quien juega y de cada persona del caso, en una sala por piezas (regla 3 de calidad). */
+  private sombrasConSilueta(sala: EscenaDeSala): void {
+    if (this.player) sala.sombraDeFigura('jugador', this.playerSprite, this.player.x, this.player.y);
+    for (const [key, m] of this.markers) {
+      const sprite = (m as unknown as Record<string, unknown>)['__personSprite'] as Phaser.GameObjects.Sprite | undefined;
+      if (sprite) sala.sombraDeFigura(key, sprite, m.x + sprite.x, m.y + sprite.y);
+    }
   }
 
   setWorld(world: SimulationWorldState) {
@@ -1475,6 +1527,22 @@ export class DataDrivenWorldScene extends Phaser.Scene {
   /** P2: la sala por piezas que se está mostrando (null en las salas de imagen fija o de Tiled). */
   private salaPorPiezas: EscenaDeSala | null = null;
   private manifiestoDePiezasPedido = false;
+  /** P2: claves de piezas que fallaron al cargar: no se vuelven a pedir (hallazgo 2 de la revisión de Codex). */
+  private readonly piezasFallidas = new Set<string>();
+  private salaIncompletaAvisada: string | null = null;
+  private firmaDelAviso = '';
+
+  /** P2: ¿el mundo de ahora es una sala por piezas (`map.structure` válida)? Manda sobre el ScenarioConfig del legado. */
+  private esSalaPorPiezas(): boolean {
+    return !!this.world && salaDelMundo(this.world.map as unknown as Record<string, unknown>, this.world.objects) !== null;
+  }
+
+  /** P2: suelta la sala por piezas (sprites, texturas propias y capas de luz) al cambiar de camino o al apagar la escena. */
+  private soltarSalaPorPiezas(): void {
+    this.salaPorPiezas?.destruir();
+    this.salaPorPiezas = null;
+    this.avisoDePuerta(null);
+  }
 
   /**
    * P2 (contrato x-siep 2.2): si el mapa trae `structure`, la sala se arma con piezas, con su luz y sus puertas, y aquí se
@@ -1495,8 +1563,24 @@ export class DataDrivenWorldScene extends Phaser.Scene {
     }
     const plan = EscenaDeSala.planear(sala, manifiesto);
     if (!plan) return false;
-    if (EscenaDeSala.pedirTexturas(this, plan)) {
-      this.load.once(Phaser.Loader.Events.COMPLETE, () => { if (this.ready) this.renderWorld(); });
+    const estado = EscenaDeSala.estadoDeTexturas(plan, clave => this.textures.exists(clave), this.piezasFallidas);
+    if (estado === 'fallo') {
+      // Una pieza no cargó: la sala no se arma a medias ni se vuelve a pedir; sigue por el camino de imagen fija y se avisa.
+      if (this.salaIncompletaAvisada !== this.world.map.key) {   // una vez por sala, no en cada repintado
+        this.salaIncompletaAvisada = this.world.map.key;
+        console.error('[sala por piezas] no cargaron:', [...this.piezasFallidas].join(', '));
+        this.callbacks.onSalaIncompleta?.();
+      }
+      return false;
+    }
+    if (estado === 'pedir') {
+      const alFallar = (archivo: Phaser.Loader.File) => { this.piezasFallidas.add(archivo.key); };
+      this.load.on(Phaser.Loader.Events.FILE_LOAD_ERROR, alFallar);
+      EscenaDeSala.pedirTexturas(this, plan, this.piezasFallidas);
+      this.load.once(Phaser.Loader.Events.COMPLETE, () => {
+        this.load.off(Phaser.Loader.Events.FILE_LOAD_ERROR, alFallar);
+        if (this.ready) this.renderWorld();
+      });
       this.load.start();
       return true;
     }
@@ -1504,7 +1588,7 @@ export class DataDrivenWorldScene extends Phaser.Scene {
     // Las puertas de pieza ya están en el muro: su marcador no lleva sprite, solo el rótulo y el área para cruzar.
     const dePieza = new Set((sala.puertas ?? []).map(p => p.id));
     this.renderableWorldObjects()
-      .map(obj => (dePieza.has(obj.key) ? { ...obj, metadata: { ...(obj.metadata ?? {}), pintada: true } } : obj))
+      .map(obj => (dePieza.has(obj.key) ? { ...obj, metadata: { ...(obj.metadata ?? {}), pintada: true, dePieza: true } } : obj))
       .forEach(obj => this.createMarker(obj));
     this.createPlayer(this.world.player.x, this.world.player.y);
     this.applyPixelCamera(mapW, mapH);
@@ -1522,7 +1606,8 @@ export class DataDrivenWorldScene extends Phaser.Scene {
     if (this.queueMissingArt()) return;
 
     // Multi-room mode: delegate to renderRoom() when a ScenarioConfig is loaded
-    if (this.scenarioConfig) {
+    // (P2: salvo que el mundo sea una sala por piezas: ella manda, aunque haya llegado una configuración del legado).
+    if (this.scenarioConfig && !this.esSalaPorPiezas()) {
       const room = this.roomForCurrentWorld()
         ?? this.scenarioConfig.rooms.find(r => r.key === this.scenarioConfig!.startRoomKey)
         ?? this.scenarioConfig.rooms[0];
@@ -1687,6 +1772,7 @@ export class DataDrivenWorldScene extends Phaser.Scene {
 
     this.cameras.main.stopFollow();
     this.endGestures();   // antes del killAll: Phaser descarta los tweens sin avisar y la promesa quedaría colgada
+    this.soltarSalaPorPiezas();   // P2: si la sala anterior era por piezas, sus texturas y su luz no quedan vivas
     this.tweens.killAll();
     this.children.removeAll(true);
     this.markers.clear();
@@ -2660,7 +2746,8 @@ export class DataDrivenWorldScene extends Phaser.Scene {
     this.applyAmbientLife(marker, object);
     this.buildKeyPersonIndicator(marker, object);
 
-    if (isExit) {
+    // La puerta de pieza no lleva esta pista de Phaser: la avisa `app-aviso-de-puerta` sobre el lienzo (P2).
+    if (isExit && object.metadata?.['dePieza'] !== true) {
       const hintTx = this.add.text(0, 0, this.doorHintText(object.label), {
         fontFamily: WORLD_FONT_FAMILY, fontSize: `${LABEL_BASE_FONT_PX}px`, color: '#4fa3a5', fontStyle: 'bold'
       }).setOrigin(.5);
@@ -3375,7 +3462,7 @@ export class DataDrivenWorldScene extends Phaser.Scene {
 @Component({
   selector: 'app-game-world',
   standalone: true,
-  imports: [CommonModule, MatIconModule],
+  imports: [CommonModule, MatIconModule, AvisoDePuertaComponent],
   host: { '[class.touch-input]': 'touchInput()' },
   template: `
     <div #gameHost class="phaser-host" role="application"
@@ -3384,6 +3471,10 @@ export class DataDrivenWorldScene extends Phaser.Scene {
       [attr.data-rendered-scenario-key]="renderedScenarioKey()"
       [attr.aria-label]="worldLabel()">
     </div>
+    @if (avisoDePuerta(); as aviso) {
+      <app-aviso-de-puerta [texto]="aviso.texto" [bloqueada]="aviso.bloqueada" [conTecla]="!touchInput()"
+        [x]="aviso.x" [y]="aviso.y" (cruzar)="cruzarPorAviso(aviso.id)" />
+    }
     @if (!assetsReady() && showLoader()) {
       <div class="world-loading">
         <p class="world-loading__label" role="status">Preparando la escena…</p>
@@ -3623,6 +3714,16 @@ export class GameWorldComponent implements OnChanges, OnDestroy {
   readonly npcInteract = output<NpcConfig>();
   /** Phaser no pintó ni un cuadro en `BOOT_WATCHDOG_MS` (contexto perdido, recurso colgado): quien lo aloja ofrece reintentar. */
   readonly bootFailed = output<void>();
+  /** P2: una sala por piezas no cargó entera y se muestra en su versión simple (el anfitrión lo avisa). */
+  readonly salaIncompleta = output<void>();
+  /** P2: el aviso de la puerta de pieza activa sobre el lienzo (null: ninguno). */
+  readonly avisoDePuerta = signal<AvisoDePuertaEnPantalla | null>(null);
+
+  /** P2: pulsar el aviso es lo mismo que E junto a esa puerta: el anfitrión decide si se cruza o dice qué falta. */
+  cruzarPorAviso(id: string): void {
+    const puerta = this.world()?.objects.find(o => o.key === id);
+    if (puerta) this.interact.emit(puerta);
+  }
   /** Terminó la caminata pedida con «Ir a…» (F6-11): llegó o no pudo. */
   readonly walkEnded = output<{ key: string; label: string; outcome: 'arrived' | 'blocked' }>();
   readonly renderReady = signal(false);
@@ -3936,6 +4037,8 @@ export class GameWorldComponent implements OnChanges, OnDestroy {
           this.renderReady.set(true);
           this.worldReady.emit();
         }),
+        onSalaIncompleta: () => this.zone.run(() => this.salaIncompleta.emit()),
+        onAvisoDePuerta: aviso => this.zone.run(() => this.avisoDePuerta.set(aviso)),
         onProximity:   i => this.zone.run(() => this.proximity.emit(i)),
         onProximityAlso: i => this.zone.run(() => this.proximityAlso.emit(i)),
         onNothingNearby: () => this.zone.run(() => this.nothingNearby.emit()),

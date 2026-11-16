@@ -41,6 +41,11 @@ const HAZ_FONDO = [45, 64];
 const HAZ_LADO = [64, 22];
 /** px que mide como mucho la sombra que arroja una lámpara. */
 const SOMBRA_MAXIMA = 72;
+/**
+ * Alto del tubo del techo para la sombra de las figuras (`fuenteDeSombra`): alto, así la sombra es corta. Parámetro de P2
+ * hasta que P1 publique la regla de la silueta; la luz de la sala no lo usa (el tubo no le arroja sombra a nadie).
+ */
+const ALTURA_DEL_TUBO = 240;
 /** Pisos que devuelven la luz, y cuánto de la luz de una fuente devuelven al brillo. */
 const PULIDOS = ['vinilo', 'baldosa', 'damero'];
 const REFLEJO = 600;
@@ -451,6 +456,96 @@ export class LuzDeSala {
       }
     });
     return alguna;
+  }
+
+  /**
+   * La fuente que domina en (x, y), el punto donde pisa algo de `alto` px, y la sombra que le saca: rumbo en 1/64 (hacia
+   * donde se tiende, lejos de la fuente) y largo en px. Usa la misma regla que la luz de la sala: el haz de una ventana del
+   * fondo tiende HAZ_FONDO con 5/8 del alto, el de una del lado HAZ_LADO con 3/4, y una lámpara de pozo, radial y más
+   * larga cuanto más baja cuelga. El tubo del techo, que en la luz no arroja sombra, da aquí una corta y radial desde lo
+   * alto (ALTURA_DEL_TUBO): sin ella, de noche nadie tendría silueta en las salas con solo tubos. Gana la que más luz da en
+   * ese punto; si ninguna lo alcanza, la más cercana (lejos de su pozo o de su haz). null solo fuera del piso o sin
+   * ninguna fuente encendida. Para la sombra de la figura (`sombra-de-figura`), sin tocar la luz de la sala.
+   */
+  fuenteDeSombra(x: number, y: number, alto = 60): { dx: number; dy: number; largo: number } | null {
+    let mejor: { dx: number; dy: number; largo: number } | null = null;
+    let peso = 0;
+    // Si ninguna fuente alcanza el punto, la sombra la da la más cercana (lejos de su pozo o de su haz).
+    let cercana: { dx: number; dy: number; largo: number } | null = null;
+    let distancia = Infinity;
+    const proponer = (p: number, dx: number, dy: number, largo: number) => {
+      if (p > peso) {
+        peso = p;
+        mejor = { dx, dy, largo: Math.min(largo, SOMBRA_MAXIMA) };
+      }
+    };
+    const deLejos = (d: number, dx: number, dy: number, largo: number) => {
+      if (d < distancia) {
+        distancia = d;
+        cercana = { dx, dy, largo: Math.min(largo, SOMBRA_MAXIMA) };
+      }
+    };
+    const radial = (fx: number, fy: number, rx: number, ry: number, altura: number, fuerza: number) => {
+      const ddx = x - fx, ddy = y - fy;
+      const n = raiz(ddx * ddx + ddy * ddy);
+      const largo = piso(alto * n, Math.max(altura - alto, 16));
+      if (ddx * ddx * ry * ry + ddy * ddy * rx * rx >= rx * rx * ry * ry) {   // fuera del pozo
+        deLejos(n, piso(ddx * 64, Math.max(n, 1)), piso(ddy * 64, Math.max(n, 1)), largo);
+        return;
+      }
+      const cerca = UNO - piso(n * UNO, Math.max(rx, ry));
+      if (n < 4) proponer(fuerza * cerca, 0, 64, 0);
+      else proponer(fuerza * cerca, piso(ddx * 64, n), piso(ddy * 64, n), largo);
+    };
+    if (y < SEAM || y >= ALTO) return null;
+    if (this.exterior) return this.momento === 'dia' ? { dx: HAZ_FONDO[0], dy: HAZ_FONDO[1], largo: piso(alto * 5, 8) } : null;
+    for (const pieza of this.sala.estructura.piezas ?? []) {
+      const luz = luzDePieza(this.catalogo, pieza.tipo, pieza.modelo);
+      const forzada = encendidaForzada(pieza);
+      if (!luz || forzada === false) continue;
+      const propia = luz.momento === this.momento;
+      if (!propia && forzada !== true) continue;
+      const fuerza = piso(luz.fuerza * (propia ? 100 : 60), 100);
+      if (luz.forma === 'haz') {
+        if (pieza.pos === undefined) continue;
+        if (pieza.muro === 'fondo') {
+          // El mismo borde que `hazDelFondo` en esta fila.
+          const x0 = this.xl + pieza.pos - piso(luz.ancho, 2), n = this.n[y], cx = this.cx;
+          const esc = 16 * FONDO + 3 * n;
+          const xi = cx + piso((x0 - 8 - cx) * esc, 16 * FONDO) + piso(170 * n, FONDO);
+          const xd = cx + piso((x0 + luz.ancho + 8 - cx) * esc, 16 * FONDO) + piso(250 * n, FONDO);
+          const t = piso(n * 1000, FONDO);
+          if (x >= xi && x <= xd && Math.min(piso((t - 15) * 700, 1000), piso((740 - t) * 500, 1000)) > 0) {
+            proponer(fuerza * UNO, HAZ_FONDO[0], HAZ_FONDO[1], piso(alto * 5, 8));
+          } else {
+            deLejos(Math.abs(x - piso(xi + xd, 2)), HAZ_FONDO[0], HAZ_FONDO[1], piso(alto * 5, 8));
+          }
+        } else if ((pieza.muro === 'izquierda' && this.izq) || (pieza.muro === 'derecha' && this.der)) {
+          // El mismo haz que `hazDelLado`.
+          const dist = pieza.muro === 'izquierda' ? x - this.jl[y] : this.jr[y] - x;
+          const centro = SEAM + pieza.pos + piso(dist * 35, 100);
+          const dentro = Math.min(piso(luz.ancho, 2) + 4 - Math.abs(y - centro), dist);
+          const alcance = limitar(piso((460 - dist) * UNO, 180), 0, UNO);
+          const sentido = pieza.muro === 'izquierda' ? HAZ_LADO[0] : -HAZ_LADO[0];
+          if (dentro > 0 && alcance > 0) proponer(fuerza * alcance, sentido, HAZ_LADO[1], piso(alto * 3, 4));
+          else deLejos(Math.abs(y - centro) + Math.max(0, dist), sentido, HAZ_LADO[1], piso(alto * 3, 4));
+        }
+        continue;
+      }
+      let fx: number, fy: number;
+      if (pieza.x !== undefined && pieza.y !== undefined) {
+        fx = pieza.x;
+        fy = pieza.y;
+      } else if (pieza.muro === 'fondo' && pieza.pos !== undefined) {
+        fx = this.xl + pieza.pos;
+        fy = SEAM + (luz.forma === 'tubo' ? 120 : 64);
+      } else {
+        continue;
+      }
+      if (luz.forma === 'pozo') radial(fx, fy, luz.radio[0], luz.radio[1], luz.altura + (pieza.sobre ?? 0), fuerza);
+      else if (luz.forma === 'tubo') radial(fx, fy, luz.radio[0], luz.radio[1], ALTURA_DEL_TUBO, fuerza);
+    }
+    return mejor ?? cercana;
   }
 
   /** Sombras que arroja una lámpara puesta en (x, y) a `altura` px del piso: cada cuerpo, lejos de ella. */

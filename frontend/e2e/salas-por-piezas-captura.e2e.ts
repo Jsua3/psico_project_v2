@@ -272,6 +272,27 @@ test.describe('salas por piezas en el juego real', () => {
     await capturar(page, 'reducido-entrada-vuelta');
   });
 
+  // Regla 3 de calidad: la sombra proyectada es la silueta de quien la proyecta y camina con él.
+  for (const [salaId, momento, pasos] of [
+    ['sala-escucha', 'noche', [['ArrowLeft', 140], ['ArrowUp', 60]]],
+    ['sala-escucha', 'dia', [['ArrowUp', 120]]],
+    ['entrada-urgencias', 'dia', [['ArrowRight', 160], ['ArrowUp', 90]]],
+  ] as const) {
+    test(`sombras con silueta en ${salaId} de ${momento}`, async ({ page }) => {
+      await page.setViewportSize({ width: 1366, height: 768 });
+      const sala = salaPorId(salaId);
+      await empezar(page, sala, momento);
+      const input = createWorldInputDriver(page, 'keyboard');
+      for (const [tecla, px] of pasos) await input.moveBy(tecla, px);
+      await waitUntilPlayerStill(page);
+      await page.waitForTimeout(400);
+      await capturar(page, `sombras-${salaId}-${momento}`);
+      await page.setViewportSize({ width: 1920, height: 1080 });
+      await page.waitForTimeout(2500);
+      await capturar(page, `sombras-${salaId}-${momento}`);
+    });
+  }
+
   test('una sala de 1920 px: la cámara la recorre de punta a punta', async ({ page }) => {
     await page.setViewportSize({ width: 1366, height: 768 });
     const pasillo = salaPorId('pasillo');

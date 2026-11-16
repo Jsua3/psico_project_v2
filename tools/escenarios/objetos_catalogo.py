@@ -36,7 +36,7 @@ import objetos_comun as oc  # noqa: E402
 import objetos_pixel as op  # noqa: E402
 import objetos_reflejo as orf  # noqa: E402
 
-MODULOS = (('objetos_casa', 'casa'), ('objetos_comisaria', 'comisaria'), ('objetos_hospital', 'hospital'),
+MODULOS = (('objetos_casa', 'casa'), ('objetos_comisaria', 'comisaria'), ('objetos_hospital', 'hospital'), ('objetos_universidad', 'universidad'),
            ('objetos_herramientas', 'herramientas'))
 SIDECAR = os.path.join(BIB, 'piezas', 'objetos', 'manifiesto-o1.json')
 SECCION = {'mueble': 'muebles', 'objeto': 'objetos', 'herramienta': 'herramientas'}
