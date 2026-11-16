@@ -180,13 +180,15 @@ _PHONE = (
     re.compile(r"(?<!\d)\(?60[1-8]\)?[\s.\-]?\d{3}[\s.\-]?\d{4}(?!\d)"),
 )
 _DOCUMENT_KEYWORD = (
-    r"(?:(?i:c[eé]dula|documento|pasaporte|identificaci[oó]n)|C\.\s?C\.?|CC|T\.\s?I\.?|TI|NIT|nit)"
+    r"(?i:c[eé]dula|documento|pasaporte|identificaci[oó]n|c\.\s?c\.?|cc|t\.\s?i\.?|ti|nit)"
 )
+# Sin repeticiones anidadas ni alternativas que se solapen (evita el retroceso exponencial con entradas hostiles): el prefijo
+# «n.º / número» es opcional y una sola vez, y los separadores van en un único cuantificador a cada lado.
 _DOCUMENT_AFTER_KEYWORD = re.compile(
     rf"(?<![\w.]){_DOCUMENT_KEYWORD}(?![^\W\d])"
     r"(?:\s+de\s+(?i:ciudadan[ií]a|extranjer[ií]a|identidad))?"
-    r"(?:[\s:#.]*(?i:n\.?\s?[º°o]\.?|no\.?|n[uú]mero|num\.?))*"
-    r"[\s:#.]*(\d[\d. ]*\d)(?!\d)"
+    r"[\s:#.]*(?:(?i:n\.?\s?[º°o]\.?|n[uú]mero|num\.?)[\s:#.]*)?"
+    r"(\d[\d. ]*\d)(?!\d)"
 )
 _BARE_NUMBER = re.compile(r"(?<![\d.])(?:\d{8,10}|\d{1,3}(?:\.\d{3}){2,3})(?![\d])")
 _PERSONAL_DATA_KINDS = ("email", "phone", "document")

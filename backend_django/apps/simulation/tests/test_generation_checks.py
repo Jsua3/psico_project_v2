@@ -490,6 +490,11 @@ CEDULA = "1023456789"
     ("CC 52123456", "document"),
     ("C.C. 123456", "document"),
     ("T.I. 98765", "document"),
+    ("cc 1234567", "document"),
+    ("c.c. 123456", "document"),
+    ("Nit 9001234", "document"),
+    ("t.i. 1234567", "document"),
+    ("cedula 123456", "document"),
     ("T.I. No. 1023456789", "document"),
     ("TI 1023456789", "document"),
     ("Pasaporte n.º 12345678", "document"),
@@ -546,3 +551,23 @@ def test_el_motivo_de_datos_personales_no_cita_el_dato():
 def test_el_motivo_de_datos_personales_es_un_motivo_fijo():
     assert checks.PERSONAL_DATA_MOTIVO in checks.FIXED_MOTIVOS
     assert checks.is_fixed_motivo(checks.PERSONAL_DATA_MOTIVO)
+
+
+HOSTILES = {
+    "email": ["a" * 2000, "a.b" * 700, "a@" + "b." * 1000, "a@b" + ".c" * 1000 + "!"],
+    "phone": ["+" + "1 " * 1000, "+1" + "-1" * 1000 + "x", "(60" + "1" * 2000, "57" + " 3" * 1000, "3" * 2000],
+    "document": [
+        "CC " + "no. " * 500, "CC " + "no" * 1000 + "x", "cédula " + "n.º " * 500, "CC" + " " * 2000 + "x",
+        "CC " + "1 " * 1000 + "x", "documento de identidad " * 90, "CC " + "1." * 1000, "1." * 1000, "1" * 2000,
+    ],
+}
+
+
+@pytest.mark.parametrize("familia", sorted(HOSTILES))
+def test_las_entradas_hostiles_no_cuelgan_la_busqueda(familia):
+    import time
+
+    for texto in HOSTILES[familia]:
+        inicio = time.perf_counter()
+        checks.personal_data_kinds(texto)
+        assert time.perf_counter() - inicio < 1.0, (familia, texto[:30])
