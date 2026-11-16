@@ -205,7 +205,7 @@ export class ComentariosComponent {
 
   /** El comentario que se está escribiendo y todavía no tiene frase válida: no entra al caso (ni con la frase vacía). */
   protected readonly pendiente = linkedSignal<{ ref: string } | null>(() => { this.escenaId(); return null; });
-  protected readonly problemaNuevo = signal<string | null>(null);
+  protected readonly problemaNuevo = linkedSignal<string | null>(() => { this.escenaId(); return null; });
 
   private readonly lista = computed<Comentario[]>(() => this.escena().comentarios ?? []);
   protected readonly enElTope = computed(() => this.lista().length >= MAX_COMENTARIOS);

@@ -937,7 +937,6 @@ export class CasoStore {
       aplicar: (caso) => { this.escena(caso, escenaId).comentarios = structuredClone(comentarios); },
       enviar: (despues, sesion) => persistir.actualizarEscena(sesion, despues, escenaId),
       fusion: `comentarios:${escenaId}`, // propia: un 400 de comentarios no debe llevarse el objetivo ni el título
-
       resumen: comentarios.length
         ? comentarios.flatMap((c, i) => textoCompleto(`Comentario ${i + 1} al acercarse en la escena «${titulo}»`, c.linea))
         : [`Quitaste lo que dicen al acercarse en la escena «${titulo}»`],
