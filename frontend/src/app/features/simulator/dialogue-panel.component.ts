@@ -688,6 +688,9 @@ const STALE_NOTE = 'Esta conversación corresponde a otro momento del caso.';
       .speaker-name { margin-left: calc(var(--retrato) + 14 * var(--px)); }
       .dialogue-text { min-height: 2.9em; }
       .dialogue-strip:not(.dialogue-strip--side).strip--con-opciones .panel-head { margin-left: 0; }
+      /* En el teléfono la placa ocupa todo el ancho: «Volver» y «Salida segura» no pueden ir en la esquina de abajo, donde
+         taparían el texto y «Siguiente»; van arriba, dentro del cuadro. */
+      .dialogue-strip:not(.dialogue-strip--side):not(.strip--con-opciones) .panel-head { position: static; }
       .dialogue-strip:not(.dialogue-strip--side).strip--con-opciones .panel-head__note {
         position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip: rect(0, 0, 0, 0); white-space: nowrap; border: 0;
       }
