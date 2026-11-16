@@ -79,16 +79,20 @@ describe('HUD: cabecera (T7.1) y Ajustes (T7.2)', () => {
     else delete (window as { matchMedia?: unknown }).matchMedia;
   });
 
-  describe('chip de etapa', () => {
-    it('muestra la entrada stageLabel («Decisión k de 6») en el chip central', () => {
+  // Bloque U1, variante B (placas en las esquinas): el HUD es el grupo de la derecha (caso, persona y teclas); la etapa va
+  // en la pestaña de la ficha del objetivo y la sala en la del plano (pruebas en simulation-play).
+  describe('grupo de la derecha', () => {
+    it('la etapa ya no se pinta aquí: la lleva la pestaña de la ficha del objetivo', () => {
       const root = mount(false, { stageLabel: 'Decisión 2 de 6' });
-      const chip = root.querySelector('.hud-zone--center .hud-stage-chip');
-      expect(chip?.textContent?.trim()).toBe('Decisión 2 de 6');
+      expect(root.querySelector('.hud-stage-chip')).toBeNull();
+      expect(root.textContent).not.toContain('Decisión 2 de 6');
     });
 
-    it('sin stageLabel (null) no pinta ningún chip', () => {
-      const root = mount(false, { stageLabel: null });
-      expect(root.querySelector('.hud-stage-chip')).toBeNull();
+    it('el caso va en la pestaña de pixel sobre la placa de la persona y las teclas', () => {
+      const root = mount();
+      expect(root.querySelector('.hud-case.u-rotulo')).not.toBeNull();
+      expect(root.querySelector('.hud-strip.u-placa .hud-persona')).not.toBeNull();
+      expect(root.querySelectorAll('.hud-strip .hud-action.u-tecla--icono').length).toBe(5);
     });
 
     it('el contador antiguo «Paso k (k/6)» ya no existe: ni bloque ni cálculo', () => {
@@ -99,10 +103,6 @@ describe('HUD: cabecera (T7.1) y Ajustes (T7.2)', () => {
       expect(hudSource).not.toContain('hud-step');
     });
 
-    it('el nombre de la sala sigue visible junto al chip', () => {
-      const root = mount(false, { stageLabel: 'Decisión 1 de 6', locationLabel: 'Urgencias' });
-      expect(root.querySelector('.hud-scene')?.textContent).toContain('Urgencias');
-    });
   });
 
   describe('atajos de una tecla (F6-10, WCAG 2.1.4)', () => {
@@ -147,7 +147,10 @@ describe('HUD: cabecera (T7.1) y Ajustes (T7.2)', () => {
       expect(places).not.toBeNull();
       expect(places.getAttribute('aria-label')).toBe('Ir a… personas y puertas de la sala');
       expect(places.getAttribute('title')).toBe('Ir a…');
-      expect(places.querySelector('mat-icon')?.textContent?.trim()).toBe('near_me');
+      // Icono de pixel (U1): la flecha de «ir a», decorativa.
+      expect(places.querySelector('app-pixel-icono[aria-hidden="true"]')).not.toBeNull();
+      expect(hudSource).toContain('data-hud-places (click)="openPlaces.emit()"');
+      expect(hudSource).toContain('<app-pixel-icono nombre="ir-a" />');
       expect(hudSource).toMatch(/readonly openPlaces = output<void>\(\);/);
     });
   });
@@ -158,7 +161,8 @@ describe('HUD: cabecera (T7.1) y Ajustes (T7.2)', () => {
       const help = button(root, 'Abrir cómo se juega');
       expect(help).not.toBeNull();
       expect(help?.getAttribute('title')).toBe('Cómo se juega');
-      expect(help?.querySelector('mat-icon')?.textContent?.trim()).toBe('help');
+      expect(help?.querySelector('app-pixel-icono')).not.toBeNull();
+      expect(hudSource).toContain('<app-pixel-icono nombre="ayuda" />');
       const emitted = vi.fn();
       hud.openHelp.subscribe(emitted);
       help!.click();
@@ -210,7 +214,10 @@ describe('HUD: cabecera (T7.1) y Ajustes (T7.2)', () => {
       const root = mount();
       const home = root.querySelector('a[aria-label="Volver al catálogo de simulaciones"]');
       expect(home).not.toBeNull();
-      expect(home?.querySelector('mat-icon')?.textContent?.trim()).toBe('home');
+      // La casa de pixel (U1), no la puerta de «Salida segura».
+      expect(home?.querySelector('app-pixel-icono')).not.toBeNull();
+      expect(hudSource).toContain('<app-pixel-icono nombre="inicio" />');
+      expect(hudSource).not.toContain('nombre="salida"');
       expect(root.textContent).not.toContain('logout');
       expect(root.textContent).not.toContain('exit_to_app');
     });
@@ -376,31 +383,25 @@ describe('HUD: cabecera (T7.1) y Ajustes (T7.2)', () => {
 
   describe('contratos de fuente (CSS)', () => {
     it('el nombre del caso solo se muestra con ancho de sobra: antes la sala se colapsaba a 35 px a 1200', () => {
-      expect(hudSource).toMatch(/@media \(max-width: 1359px\) \{\s*\.hud-zone--case \{ display: none; \}/);
+      expect(hudSource).toMatch(/@media \(max-width: 1359px\) \{\s*\.hud-case \{ display: none; \}/);
     });
 
-    /** Todos los `font-size` de texto del HUD (se omiten los iconos de Material: se miden en px de glifo). */
-    function textSizesInPx(): { selector: string; px: number }[] {
-      const styles = hudSource.slice(hudSource.indexOf('styles: [`'), hudSource.indexOf('`]\n})'));
-      const out: { selector: string; px: number }[] = [];
-      for (const chunk of styles.split('}')) {
-        const [selector, body] = chunk.split('{');
-        if (!body || /mat-icon|\.heart|@media|@keyframes/.test(selector)) continue;
-        const match = body.match(/font-size:\s*([\d.]+)(rem|px)/);
-        if (match) out.push({ selector: selector.trim(), px: match[2] === 'rem' ? Number(match[1]) * 16 : Number(match[1]) });
-      }
-      return out;
-    }
-
+    // Bloque U1: los tamaños del HUD salen de las fichas de pixel (tokens/_pixel.scss), que no bajan de 12 px.
     it('ningún texto del HUD baja de 12 px', () => {
-      const sizes = textSizesInPx();
-      expect(sizes.length).toBeGreaterThan(8);
-      expect(sizes.filter(s => s.px < 12)).toEqual([]);
+      const styles = hudSource.slice(hudSource.indexOf('styles: [`'), hudSource.indexOf('`]\n})'));
+      const tamanos = [...styles.matchAll(/font-size:\s*([^;]+);/g)].map(m => m[1].trim())
+        .filter(valor => !/^18px$/.test(valor)); // los iconos de Material de las filas de Ajustes
+      expect(tamanos.length).toBeGreaterThan(4);
+      expect(tamanos.filter(valor => !/^var\(--pixel-(tam|letra-chica|letra-media)\)$/.test(valor))).toEqual([]);
+      const fichas = readFileSync(join(__dirname, '../../../styles/tokens/_pixel.scss'), 'utf-8');
+      expect(fichas).toContain('--pixel-letra-chica: max(12px, 0.8em);');
+      expect(fichas).toContain('--pixel-letra-media: max(12px, 0.88em);');
+      for (const base of fichas.matchAll(/--pixel-tam: (\d+)px;/g)) expect(Number(base[1])).toBeGreaterThanOrEqual(13);
     });
 
-    it('en compacto la cabecera mide 44 px', () => {
+    it('en compacto el grupo de la esquina mide lo que sus teclas de 44 px y su marco', () => {
       expect(hudSource).toMatch(
-        /@media \(max-height: 520px\), \(pointer: coarse\) and \(orientation: landscape\) \{[\s\S]*?\.hud-strip \{ height: 44px; \}/,
+        /@media \(max-height: 520px\), \(pointer: coarse\) and \(orientation: landscape\) \{[\s\S]*?\.hud-strip \{ padding: 0; \}[\s\S]*?\.hud-case \{ display: none; \}/,
       );
     });
 
@@ -434,9 +435,10 @@ describe('HUD: cabecera (T7.1) y Ajustes (T7.2)', () => {
       expect(hudSource).toMatch(/\.settings-menu__header \{ grid-column: 1 \/ -1; \}/);
     });
 
-    it('la zona central no desborda sobre sus vecinos (HUD-10)', () => {
-      expect(hudSource).toMatch(/\.hud-zone--center \{[^}]*min-width: 0;[^}]*overflow: hidden;/);
-      expect(hudSource).toMatch(/\.hud-scene \{[^}]*min-width: 0;/);
+    // Bloque U1: sin zona central; lo único que puede crecer es la frase de la persona, que se recorta antes de empujar las teclas.
+    it('nada del grupo de la derecha desborda sobre sus vecinos (HUD-10)', () => {
+      expect(hudSource).toMatch(/\.hud-persona-label \{[^}]*min-width: 0;[^}]*overflow: hidden;[^}]*text-overflow: ellipsis;/);
+      expect(hudSource).toMatch(/\.hud-persona \{[^}]*min-width: 0;/);
     });
   });
 });

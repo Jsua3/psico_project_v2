@@ -43,8 +43,9 @@
   // Letra: JetBrains Mono para nombres, pestañas y teclas; Poppins para el texto (las mismas del cuadro).
   --pixel-f-nombre: 'JetBrains Mono', ui-monospace, monospace;
   --pixel-f-texto: 'Poppins', system-ui, -apple-system, 'Segoe UI', sans-serif;
-  --pixel-letra-chica: 0.8em;
-  --pixel-letra-media: 0.88em;
+  // Ningún texto del juego baja de 12 px, tampoco en el teléfono (13 px de base).
+  --pixel-letra-chica: max(12px, 0.8em);
+  --pixel-letra-media: max(12px, 0.88em);
 
   @media (min-width: 1800px) {
     --pixel-tam: 16px;

@@ -7,6 +7,7 @@ import { CharacterVisual } from '../character/kit/character-visual.resolver';
 import { KitFigureComponent } from '../character/kit/kit-figure.component';
 import type { PortraitState } from '../character/kit/kit-engine';
 import { DRAFT_COPY } from './draft-copy';
+import { PixelIconoComponent } from './pixel/pixel-icono.component';
 import { COARSE_POINTER_QUERY, matchesMedia, watchMedia } from './pointer-modality.util';
 import { portraitStateForPersona } from './persona-portrait.util';
 
@@ -16,7 +17,7 @@ const HELP_MEMORY_KEY = 'siep.ayuda.v1';
 @Component({
   selector: 'app-simulation-hud',
   standalone: true,
-  imports: [CommonModule, RouterLink, MatIconModule, KitFigureComponent],
+  imports: [CommonModule, RouterLink, MatIconModule, KitFigureComponent, PixelIconoComponent],
   template: `
     @if (attempt(); as game) {
       <div class="hud-shell"
@@ -25,42 +26,22 @@ const HELP_MEMORY_KEY = 'siep.ayuda.v1';
         [class.hud--tense]="game.persona.activation === 'TENSE'"
         [class.hud--crisis]="game.persona.activation === 'CRISIS'">
 
-        <div class="hud-strip">
-          <div class="hud-brand" aria-hidden="true">
-            <svg viewBox="0 0 24 24" class="brand-glyph" width="20" height="20">
-              <path d="M9 3a3 3 0 0 0-3 3 3 3 0 0 0-1.8 5.4A3 3 0 0 0 6 17a3 3 0 0 0 3 3V3z" fill="currentColor" opacity=".85"/>
-              <path d="M15 3a3 3 0 0 1 3 3 3 3 0 0 1 1.8 5.4A3 3 0 0 1 18 17a3 3 0 0 1-3 3V3z" fill="currentColor" opacity=".55"/>
-              <circle cx="9" cy="9" r="1.1" fill="#0e1322"/>
-              <circle cx="12" cy="13" r="1.1" fill="#0e1322"/>
-              <circle cx="15" cy="9" r="1.1" fill="#0e1322"/>
-            </svg>
-            <span class="brand-word">SIEP</span>
-          </div>
-
-          <!-- Caso (solo con ancho de sobra) -->
-          <div class="hud-zone hud-zone--case">
-            <span class="hud-case" [title]="game.caseTitle">{{ game.caseTitle }}</span>
-          </div>
-
-          <!-- CENTRO: sala + contador único de decisión (lo calcula quien integra el HUD) -->
-          <div class="hud-zone hud-zone--center">
-            <div class="hud-scene">
-              <mat-icon aria-hidden="true">location_on</mat-icon>
-              <span>{{ locationLabel() || game.currentNode.title }}</span>
-            </div>
-            @if (stageLabel(); as stage) {
-              <span class="hud-stage-chip">{{ stage }}</span>
-            }
-          </div>
-
-          <!-- RIGHT: vitals + actions -->
+        <!-- Bloque U1, variante B (placas en las esquinas): el grupo de la derecha es la pestaña con el caso sobre una placa con
+             la persona y las teclas. La etapa va en la pestaña de la ficha del objetivo y el lugar en la del plano. -->
+        <p class="hud-case u-rotulo u-rotulo--suave" [title]="game.caseTitle"><span class="u-rotulo__texto">SIEP · {{ game.caseTitle }}</span></p>
+        <div class="hud-strip u-placa u-sombra">
           <div class="hud-zone hud-zone--right">
-            <!-- La persona en palabras (sin cifras): su cara según el vínculo y la activación, y la frase del servidor. -->
+            <!-- La persona en palabras (sin cifras): su cara según el vínculo y la activación, su pulso y la frase del servidor. -->
             <div class="hud-persona" [class.hud-persona--text-only]="!patientVisual()" role="group" [attr.aria-label]="game.persona.label">
               @if (patientVisual(); as visual) {
-                <app-kit-figure class="hud-persona-face" [visual]="visual" [portrait]="portraitState()" [scale]="1" />
+                <span class="hud-persona-ventanilla" aria-hidden="true">
+                  <app-kit-figure class="hud-persona-face" [visual]="visual" [portrait]="portraitState()" [scale]="2" />
+                </span>
               }
-              <span class="hud-persona-label" [title]="game.persona.label">{{ game.persona.label }}</span>
+              <span class="hud-persona-copy">
+                <i class="hud-persona-pulso" [attr.data-activation]="game.persona.activation" aria-hidden="true"></i>
+                <span class="hud-persona-label" [title]="game.persona.label">{{ game.persona.label }}</span>
+              </span>
             </div>
 
             @switch (scoreMarker()) {
@@ -76,26 +57,26 @@ const HELP_MEMORY_KEY = 'siep.ayuda.v1';
             }
 
             <div class="hud-actions">
-              <button type="button" class="hud-action" data-hud-places (click)="openPlaces.emit()"
+              <button type="button" class="hud-action u-tecla u-tecla--icono" data-hud-places (click)="openPlaces.emit()"
                 [attr.aria-label]="placesLabel" [attr.title]="placesTitle">
-                <mat-icon aria-hidden="true">near_me</mat-icon>
+                <app-pixel-icono nombre="ir-a" />
               </button>
-              <button type="button" class="hud-action" (click)="openHelp.emit()"
+              <button type="button" class="hud-action u-tecla u-tecla--icono" (click)="openHelp.emit()"
                 aria-label="Abrir cómo se juega" title="Cómo se juega">
-                <mat-icon aria-hidden="true">help</mat-icon>
+                <app-pixel-icono nombre="ayuda" />
               </button>
-              <button type="button" class="hud-action" [class.hud-action--active]="journalOpen()"
+              <button type="button" class="hud-action u-tecla u-tecla--icono" [class.hud-action--active]="journalOpen()"
                 (click)="toggleJournal.emit()"
                 [attr.aria-label]="journalKey() ? 'Abrir bitácora reflexiva (J)' : 'Abrir bitácora reflexiva'"
                 [title]="journalKey() ? 'Bitácora (J)' : 'Bitácora'">
-                <mat-icon aria-hidden="true">menu_book</mat-icon>
+                <app-pixel-icono nombre="bitacora" />
               </button>
-              <button #settingsTrigger type="button" class="hud-action" [class.hud-action--active]="settingsOpen()"
+              <button #settingsTrigger type="button" class="hud-action u-tecla u-tecla--icono" [class.hud-action--active]="settingsOpen()"
                 (click)="settingsOpen.set(!settingsOpen())"
                 aria-label="Abrir ajustes del juego" title="Ajustes"
                 [attr.aria-expanded]="settingsOpen()"
                 [attr.aria-controls]="settingsOpen() ? 'game-settings-menu' : null">
-                <mat-icon aria-hidden="true">settings</mat-icon>
+                <app-pixel-icono nombre="ajustes" />
               </button>
               @if (settingsOpen()) {
                 <div #settingsMenu id="game-settings-menu" class="settings-menu" popover="manual"
@@ -151,9 +132,9 @@ const HELP_MEMORY_KEY = 'siep.ayuda.v1';
                   </a>
                 </div>
               }
-              <a class="hud-action hud-action--home" routerLink="/portal/simulador"
+              <a class="hud-action hud-action--home u-tecla u-tecla--icono" routerLink="/portal/simulador"
                 aria-label="Volver al catálogo de simulaciones" title="Volver al catálogo">
-                <mat-icon aria-hidden="true">home</mat-icon>
+                <app-pixel-icono nombre="inicio" />
               </a>
             </div>
           </div>
@@ -163,260 +144,158 @@ const HELP_MEMORY_KEY = 'siep.ayuda.v1';
   `,
   changeDetection: ChangeDetectionStrategy.OnPush,
   styles: [`
+    /* Bloque U1, variante B: el grupo de la derecha de la pantalla del juego, en las piezas del cuadro de diálogo (hoja común
+       src/styles/components/_pixel.scss): pestaña con el caso, placa con la persona y las teclas. Sin vidrio ni desenfoque. */
+    :host { display: block; }
     .hud-shell {
       display: flex;
       flex-direction: column;
-      background: linear-gradient(180deg, rgba(22,18,42,.92), rgba(8,12,18,.9));
-      border-bottom: 1px solid rgba(182,156,255,.2);
-      box-shadow: inset 0 -1px 0 rgba(8,12,18,.9);
-      color: rgba(232,240,244,.9);
-      transition: border-color var(--psy-motion-ui);
+      align-items: flex-end;
+      color: var(--pixel-tinta);
+      font-family: var(--pixel-f-texto);
+      font-size: var(--pixel-tam);
+      line-height: 1.3;
     }
-    .hud--tense  { border-color: rgba(212,160,80,.4); }
-    .hud--crisis { border-color: rgba(168,80,98,.5); }
+    .hud-case { margin: 0 calc(6 * var(--pixel-px)) calc(-1 * var(--pixel-px)) 0; max-width: min(36em, 100%); }
 
-    .hud-strip {
-      display: flex;
-      align-items: center;
-      gap: 14px;
-      height: 48px;
-      padding: 0 14px;
-    }
+    .hud-strip { display: flex; align-items: center; gap: calc(4 * var(--pixel-px)); padding: calc(2 * var(--pixel-px)) calc(2 * var(--pixel-px)) calc(2 * var(--pixel-px)) calc(3 * var(--pixel-px)); }
     .hud-zone { display: flex; align-items: center; }
-    .hud-zone--case { gap: 10px; min-width: 0; flex-shrink: 1; }
-    /* overflow: hidden + min-width: 0 en la zona y en la sala: nada del centro se derrama sobre el
-       caso ni sobre la persona (HUD-10: entre 961 y 1200 px se encimaban y la sala quedaba en 0 px). */
-    .hud-zone--center { flex: 1; min-width: 0; overflow: hidden; gap: 10px; justify-content: center; }
-    .hud-zone--right { flex-shrink: 0; gap: 12px; margin-left: auto; }
+    .hud-zone--right { gap: calc(4 * var(--pixel-px)); min-width: 0; }
 
-    .hud-brand { display: flex; align-items: center; gap: 6px; flex-shrink: 0; padding-right: 10px; border-right: 1px solid rgba(182,156,255,.18); }
-    .brand-glyph { color: #B69CFF; flex-shrink: 0; }
-    .brand-word { font-family: 'Poppins', system-ui, sans-serif; font-weight: 900; font-size: .82rem; letter-spacing: .12em; color: #E7DDFF; }
+    .hud-persona { display: flex; align-items: center; gap: calc(4 * var(--pixel-px)); flex: 0 1 auto; min-width: 0; }
+    /* La cara del kit a ×2 (el punto de mundo), recortada a la cabeza en una ventanilla del tono del retrato del cuadro. */
+    .hud-persona-ventanilla {
+      position: relative; flex: none; overflow: hidden;
+      width: calc(24 * var(--pixel-px)); height: calc(21 * var(--pixel-px));
+      background: var(--pixel-ventanilla); box-shadow: 0 0 0 var(--pixel-px) var(--pixel-contorno);
+    }
+    .hud-persona-face { position: absolute; left: calc(-4 * var(--pixel-px)); top: calc(-5 * var(--pixel-px)); }
+    .hud-persona-copy { display: flex; align-items: center; gap: calc(3 * var(--pixel-px)); min-width: 0; }
+    /* El pulso de la persona del cuadro (pulso-*.png de I1): tenso por defecto, calmo lento y en crisis rápido. Finito. */
+    .hud-persona-pulso {
+      flex: none; width: calc(16 * var(--pixel-px)); height: calc(8 * var(--pixel-px));
+      background: var(--pulso-TENSE) 0 0 / calc(64 * var(--pixel-px)) calc(8 * var(--pixel-px)) no-repeat;
+      image-rendering: pixelated; animation: hud-pulso 1s steps(4) 180;
+    }
+    .hud-persona-pulso[data-activation='CALM'] { background-image: var(--pulso-CALM); animation-duration: 2s; }
+    .hud-persona-pulso[data-activation='CRISIS'] { background-image: var(--pulso-CRISIS); animation-duration: .5s; }
+    @keyframes hud-pulso { to { background-position: calc(-64 * var(--pixel-px)) 0; } }
+    .hud-persona-label { min-width: 0; max-width: 16em; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-weight: 600; color: var(--pixel-tinta); }
 
-    .hud-case {
-      max-width: clamp(160px, 20vw, 320px);
-      overflow: hidden;
-      text-overflow: ellipsis;
-      white-space: nowrap;
-      font-weight: 800;
-      font-size: .84rem;
-      color: rgba(244,247,251,.92);
-    }
-    .hud-stage-chip {
-      flex: 0 0 auto;
-      min-width: 0;
-      overflow: hidden;
-      text-overflow: ellipsis;
-      padding: 3px 9px;
-      border-radius: 999px;
-      border: 1px solid rgba(182,156,255,.3);
-      background: rgba(124,77,255,.14);
-      font-size: .75rem;
-      font-weight: 800;
-      color: #cdbcff;
-      white-space: nowrap;
-    }
+    .hud-score { display: flex; align-items: center; gap: calc(2 * var(--pixel-px)); flex-shrink: 0; font-family: var(--pixel-f-nombre); }
+    .hud-score mat-icon { display: none; }
+    .hud-score--progress span { font-size: var(--pixel-letra-chica); font-weight: 700; white-space: nowrap; color: var(--luz); }
 
-    .hud-score { display: flex; align-items: center; gap: 5px; flex-shrink: 0; }
-    .hud-score mat-icon { color: #B69CFF; font-size: 18px; width: 18px; height: 18px; }
-    .hud-score--progress span { font-size: .75rem; font-weight: 800; white-space: nowrap; }
+    .hud-actions { position: relative; display: flex; align-items: center; gap: calc(2 * var(--pixel-px)); padding-left: calc(3 * var(--pixel-px)); border-left: var(--pixel-px) solid var(--pixel-separador); }
+    /* La tecla de la hoja común, a 44 px con cualquier puntero (RNF-04, BLOQUE-H). */
+    .hud-action { width: 44px; height: 44px; text-decoration: none; }
+    /* Bitácora abierta y Ajustes abiertos: la tecla queda encendida, como al enfocarla. */
+    .hud-action--active { --m: var(--marco-tecla-encendida); background-color: var(--luz); color: var(--pixel-tinta-oscura); }
 
-    .hud-persona { display: flex; align-items: center; gap: 8px; flex: 0 1 auto; min-width: 0; }
-    .hud-persona-face { flex: 0 0 auto; }
-    .hud-persona-label {
-      min-width: 0;
-      max-width: 220px;
-      overflow: hidden;
-      text-overflow: ellipsis;
-      white-space: nowrap;
-      color: rgba(232,240,244,.84);
-      font-size: .78rem;
-      font-weight: 800;
-    }
-
-    .hud-scene { display: flex; align-items: center; gap: 5px; min-width: 0; overflow: hidden; }
-    .hud-scene mat-icon { color: #B69CFF; font-size: 15px; width: 15px; height: 15px; flex-shrink: 0; }
-    .hud-scene span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: .8rem; color: rgba(232,240,244,.7); }
-
-    .hud-actions {
-      position: relative;
-      display: flex;
-      align-items: center;
-      gap: 6px;
-      padding-left: 12px;
-      border-left: 1px solid rgba(182,156,255,.16);
-    }
-    .hud-action {
-      display: grid;
-      place-items: center;
-      width: 44px;
-      height: 44px;
-      border: 1px solid rgba(182,156,255,.28);
-      border-radius: 9px;
-      background: rgba(8,12,18,.5);
-      color: rgba(182,156,255,.65);
-      cursor: pointer;
-      text-decoration: none;
-      transition: border-color 160ms, color 160ms, background 160ms;
-    }
-    /* El anillo de foco lo da la piel del juego (--ds-focus): sin anillo propio. */
-    @media (hover: hover) and (pointer: fine) {
-      .hud-action:hover { border-color: rgba(182,156,255,.6); color: #B69CFF; background: rgba(124,77,255,.1); }
-    }
-    .hud-action:active { transform: translateY(1px); }
-    .hud-action--active { border-color: rgba(182,156,255,.8); color: #B69CFF; background: rgba(124,77,255,.18); }
-    .hud-action mat-icon { font-size: 22px; width: 22px; height: 22px; }
-    /* popover="manual": el menú vive en la capa superior del navegador, por encima de los controles
-       táctiles del mundo (z 48), que si no lo tapaban. Sin soporte de popover se ve igual, fijo y con z-index. */
+    /* popover="manual": el menú vive en la capa superior del navegador, por encima de los controles táctiles del mundo.
+       Es una placa con filas de placa-botón. */
     .settings-menu {
       position: fixed;
       inset: auto 8px auto auto;
       top: var(--hud-menu-top, 53px);
       margin: 0;
-      z-index: 80;
-      width: min(280px, calc(100vw - 24px));
-      /* Con las filas de ayuda el menú ya no cabe en un móvil horizontal: se desplaza dentro de sí mismo. */
+      z-index: var(--ds-z-cubierta);
+      width: min(300px, calc(100vw - 24px));
       max-height: calc(100vh - var(--hud-menu-top, 53px) - 12px);
       max-height: calc(100dvh - var(--hud-menu-top, 53px) - 12px);
       overflow-y: auto;
       overscroll-behavior: contain;
       display: grid;
-      gap: 6px;
-      padding: 10px;
-      border: 1px solid rgba(182,156,255,.32);
-      border-radius: 12px;
-      background: rgb(13,18,30);
-      box-shadow: 0 18px 50px -28px rgba(124,77,255,.8);
+      gap: calc(2 * var(--pixel-px));
+      padding: calc(3 * var(--pixel-px));
+      border-style: solid;
+      border-width: calc(4 * var(--pixel-px));
+      border-image: var(--marco-placa) 4 / calc(4 * var(--pixel-px)) stretch;
+      background: var(--pixel-penumbra) var(--trama-placa) 0 0 / calc(8 * var(--pixel-px)) padding-box;
+      image-rendering: pixelated;
+      color: var(--pixel-tinta);
+      font-family: var(--pixel-f-texto);
+      font-size: var(--pixel-tam);
     }
     /* Fija arriba: en un móvil horizontal el menú se desplaza y el «x» no debe perderse de vista. */
     .settings-menu__header {
       position: sticky;
-      top: -10px;
-      z-index: 1;
+      top: calc(-3 * var(--pixel-px));
+      z-index: var(--ds-z-elevado);
       display: flex;
       align-items: center;
       justify-content: space-between;
-      margin: -10px -10px 0;
-      padding: 10px 12px 6px;
-      border-radius: 12px 12px 0 0;
-      background: rgb(13,18,30);
-      border-bottom: 1px solid rgba(182,156,255,.16);
-      color: #e7ddff;
-      font-size: .78rem;
-      letter-spacing: .06em;
-      text-transform: uppercase;
+      padding: 0 0 0 calc(2 * var(--pixel-px));
+      background: var(--pixel-penumbra);
+      color: var(--luz);
+      font-family: var(--pixel-f-nombre);
+      font-size: var(--pixel-letra-media);
+      letter-spacing: .04em;
     }
-    .settings-menu__header button,
-    .settings-menu button,
-    .settings-menu a {
-      color: inherit;
-      font: inherit;
-    }
+    .settings-menu__header button, .settings-menu button, .settings-menu a { color: inherit; font: inherit; }
     .settings-menu__header button {
-      display: grid;
-      place-items: center;
-      width: 44px;
-      height: 44px;
-      border: 0;
-      border-radius: 8px;
-      background: transparent;
-      color: rgba(232,240,244,.7);
-      cursor: pointer;
+      display: grid; place-items: center; width: 44px; height: 44px; padding: 0; cursor: pointer;
+      border-style: solid; border-width: calc(4 * var(--pixel-px)); border-image: var(--marco-tecla) 4 / calc(4 * var(--pixel-px)) stretch;
+      background: var(--pixel-tecla) padding-box; image-rendering: pixelated; color: var(--pixel-tinta);
     }
+    .settings-menu__header button:active { border-image-source: var(--marco-tecla-hundida); transform: translateY(var(--pixel-px)); }
     @media (hover: hover) and (pointer: fine) {
-      .settings-menu__header button:hover { background: rgba(255,255,255,.08); color: #fff; }
+      .settings-menu__header button:hover { border-image-source: var(--marco-tecla-encendida); background-color: var(--luz); color: var(--pixel-tinta-oscura); }
     }
     .settings-menu > button,
     .settings-menu > a {
       display: grid;
       grid-template-columns: 24px minmax(0, 1fr) 34px;
       align-items: center;
-      gap: 9px;
+      gap: calc(4 * var(--pixel-px));
       min-height: 44px;
-      padding: 7px 8px;
-      border: 1px solid rgba(182,156,255,.14);
-      border-radius: 9px;
-      background: rgba(255,255,255,.045);
+      padding: 0 calc(4 * var(--pixel-px));
+      border-style: solid;
+      border-width: calc(4 * var(--pixel-px));
+      border-image: var(--marco-placa) 4 / calc(4 * var(--pixel-px)) stretch;
+      background: var(--pixel-penumbra) var(--trama-placa) 0 0 / calc(8 * var(--pixel-px)) padding-box;
+      image-rendering: pixelated;
       text-align: left;
       text-decoration: none;
       cursor: pointer;
     }
-    /* Responde al presionar: todas las filas de Ajustes (botones y el enlace al catálogo). */
-    .settings-menu > button:active,
-    .settings-menu > a:active { transform: translateY(1px); }
+    .settings-menu > button:focus-visible, .settings-menu > a:focus-visible { border-image-source: var(--marco-placa-foco); background-color: var(--pixel-penumbra-alzada); }
+    .settings-menu > button:active, .settings-menu > a:active { border-image-source: var(--marco-placa-pulsada); background-color: var(--pixel-penumbra-hundida); transform: translateY(var(--pixel-px)); }
     @media (hover: hover) and (pointer: fine) {
-      .settings-menu > button:hover,
-      .settings-menu > a:hover {
-        border-color: rgba(182,156,255,.38);
-        background: rgba(124,77,255,.12);
-      }
+      .settings-menu > button:hover, .settings-menu > a:hover { border-image-source: var(--marco-placa-sobre); background-color: var(--pixel-penumbra-alzada); }
     }
-    .settings-menu mat-icon { color: #B69CFF; font-size: 18px; width: 18px; height: 18px; }
-    .settings-menu span {
-      min-width: 0;
-      color: rgba(232,240,244,.84);
-      font-size: .78rem;
-      font-weight: 800;
-      white-space: nowrap;
-      overflow: hidden;
-      text-overflow: ellipsis;
-    }
-    .settings-menu button strong,
-    .settings-menu a strong {
-      color: rgba(232,240,244,.55);
-      font-family: 'JetBrains Mono', monospace;
-      font-size: .75rem;
-      text-align: right;
-    }
+    .settings-menu mat-icon { color: var(--luz); font-size: 18px; width: 18px; height: 18px; }
+    .settings-menu span { min-width: 0; color: var(--pixel-tinta); font-size: var(--pixel-letra-media); font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .settings-menu button strong, .settings-menu a strong { color: var(--luz); font-family: var(--pixel-f-nombre); font-size: var(--pixel-letra-chica); text-align: right; }
     /* Región viva del menú: anuncia el reinicio de la ayuda sin ocupar sitio. */
-    .settings-menu .settings-menu__status {
-      position: absolute;
-      width: 1px;
-      height: 1px;
-      margin: -1px;
-      padding: 0;
-      overflow: hidden;
-      clip: rect(0 0 0 0);
-      white-space: nowrap;
-      border: 0;
-    }
+    .settings-menu .settings-menu__status { position: absolute; width: 1px; height: 1px; margin: -1px; padding: 0; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; border: 0; }
 
-    /* Sin ancho de sobra primero se va el nombre del caso; después la sala y la frase de la persona.
-       El chip «Decisión k de 6» se queda siempre: es el único contador. */
+    /* Sin ancho de sobra primero se va el nombre del caso y después la frase de la persona (queda su cara y su pulso). */
     @media (max-width: 1359px) {
-      .hud-zone--case { display: none; }
+      .hud-case { display: none; }
     }
     @media (max-width: 960px) {
-      .hud-scene { display: none; }
       .hud-persona-label { display: none; }
-      .hud-persona--text-only { display: none; }
-      /* Sin sala que ceda, el chip puede acortarse antes que recortarse. */
-      .hud-stage-chip { flex-shrink: 1; }
-    }
-    @media (max-width: 720px) {
-      .hud-strip { gap: 4px; min-width: 0; padding: 0 6px; }
-      .hud-zone--right { min-width: 0; gap: 6px; }
-      .hud-brand { display: none; }
-      .hud-actions { min-width: 0; gap: 4px; padding-left: 6px; }
+      .hud-persona--text-only .hud-persona-copy { display: none; }
     }
     /* Teléfono en vertical: el catálogo sigue a un toque en Ajustes («Catálogo»). */
     @media (max-width: 480px) {
       .hud-action--home { display: none; }
     }
-    /* Pantallas mínimas (320 px): el contador manda sobre el avance. */
     @media (max-width: 380px) {
       .hud-score { display: none; }
     }
-    /* Modo compacto (mismo criterio que el resto del simulador): cabecera de 44 px. */
+    /* Modo compacto: Ajustes en dos columnas (las siete filas caben en 390 px de alto sin desplazarse). */
     @media (max-height: 520px), (pointer: coarse) and (orientation: landscape) {
-      .hud-strip { height: 44px; }
-      /* Ajustes en dos columnas: las siete filas caben en 390 px de alto sin desplazarse. */
+      /* Compacto: el grupo de la esquina mide lo que sus teclas de 44 px y su marco; el caso se va. */
+      .hud-strip { padding: 0; }
+      .hud-case { display: none; }
       .settings-menu { grid-template-columns: repeat(2, minmax(0, 1fr)); width: min(560px, calc(100vw - 16px)); }
       .settings-menu__header { grid-column: 1 / -1; }
     }
-    /* Las acciones de la cabecera y de Ajustes miden 44 px con cualquier puntero (no solo con dedo): HUD-17, F6-3. */
     @media (prefers-reduced-motion: reduce) {
-      .hud-action:active { transform: none; }
+      .hud-persona-pulso { animation: none; }
+      .settings-menu > button:active, .settings-menu > a:active, .settings-menu__header button:active { transform: none; }
     }
   `]
 })
