@@ -724,6 +724,7 @@ export class CasoStore {
     const nueva = nuevoId('escena');
     const lineas = new Map<string, string>();
     const respuestas = new Map<string, string>();
+    const pistas = new Map<string, string>();
     this.ejecutar({
       nombre: 'la copia de la escena',
       resumen: [`Duplicaste la escena «${this.tituloEscena(id)}»`],
@@ -734,7 +735,7 @@ export class CasoStore {
         copia.titulo = `${original.titulo} (copia)`;
         copia.posicion = { x: original.posicion.x + 40, y: original.posicion.y + 40 };
         copia.marcaIa = false;
-        if (copia.pistas) copia.pistas = copia.pistas.map((p) => ({ ...p, id: nuevoId('pista') }));
+        if (copia.pistas) copia.pistas = copia.pistas.map((p) => ({ ...p, id: pistas.get(p.id) ?? pistas.set(p.id, nuevoId('pista')).get(p.id)! }));
         copia.lineas = copia.lineas.map((l) => ({ ...l, id: lineas.get(l.id) ?? lineas.set(l.id, nuevoId('linea')).get(l.id)! }));
         copia.respuestas = copia.respuestas.map((r) => ({
           ...r,
@@ -874,12 +875,15 @@ export class CasoStore {
    */
   fijarPistas(escenaId: string, textos: string[]): void {
     const titulo = this.tituloEscena(escenaId);
+    // La cola reaplica el cambio al guardarlo y al recomponer el borrador: la pista nueva tiene que nacer con el mismo id
+    // todas las veces, o su campo se rehace y se pierde lo que la docente está escribiendo.
+    const nuevas = new Map<number, string>();
     this.ejecutar({
       nombre: 'las pistas',
       aplicar: (caso) => {
         const escena = this.escena(caso, escenaId);
         const previas = escena.pistas ?? [];
-        escena.pistas = textos.map((texto, i) => ({ id: previas[i]?.id ?? nuevoId('pista'), texto }));
+        escena.pistas = textos.map((texto, i) => ({ id: previas[i]?.id ?? nuevas.get(i) ?? nuevas.set(i, nuevoId('pista')).get(i)!, texto }));
       },
       enviar: (despues, sesion) => persistir.guardarPistas(sesion, despues, escenaId),
       fusion: `pistas:${escenaId}`,

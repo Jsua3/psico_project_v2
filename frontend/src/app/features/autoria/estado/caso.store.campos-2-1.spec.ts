@@ -171,6 +171,20 @@ describe('CasoStore con la API · campos 2.1', () => {
     expect(store.error()).toBeNull();
   });
 
+  it('una pista nueva conserva su id mientras su cambio espera en la cola y después de guardarse', async () => {
+    // El campo de la pista se identifica por su id: si el id cambia al guardar, el campo se rehace y se pierde lo que la
+    // docente estaba escribiendo (solo se guarda al salir del campo).
+    const { store } = montar();
+    await store.cargar(CASO);
+    const consultorio = escenaDe(store, 'consultorio');
+    store.editarObjetivo(consultorio.id, 'Que el estudiante escuche antes de orientar.'); // otro cambio en vuelo
+    store.fijarPistas(consultorio.id, ['Mira la carpeta.', '']);
+    const ids = escenaDe(store, 'consultorio').pistas!.map((p) => p.id);
+    await store.sincronizado();
+    expect(escenaDe(store, 'consultorio').pistas!.map((p) => p.id)).toEqual(ids);
+    expect(store.error()).toBeNull();
+  });
+
   it('fijarComentarios manda comments, y con 7 lanza y no cambia el borrador', async () => {
     const { servidor, store } = montar();
     await store.cargar(CASO);
@@ -243,12 +257,14 @@ describe('CasoStore con la API · campos 2.1', () => {
     servidor.llamadas.length = 0;
 
     const copiaId = store.duplicarEscena(consultorio.id);
+    const idsAlDuplicar = borrador(store).escenas.find((e) => e.id === copiaId)!.pistas!.map((p) => p.id);
     await store.sincronizado();
     expect(store.error()).toBeNull();
 
     const copia = borrador(store).escenas.find((e) => e.id === copiaId)!;
     expect(copia.pistas!.map((p) => p.texto)).toEqual(['Mira la carpeta.', 'Habla con calma.']);
     expect(copia.pistas!.map((p) => p.id)).not.toEqual(consultorio.pistas!.map((p) => p.id)); // ids propios
+    expect(copia.pistas!.map((p) => p.id)).toEqual(idsAlDuplicar); // y los mismos que tuvo al duplicarse (la cola reaplica el cambio)
     expect(servidor.metodos.filter((m) => m === 'createHint')).toHaveLength(2);
     const mapaCopia = servidor.editor.maps.find((m) => m.id !== mapaOriginal.id && servidor.editor.hints.some((h) => h.mapId === m.id))!;
     expect(servidor.editor.hints.filter((h) => h.mapId === mapaCopia.id).map((h) => h.text)).toEqual(['Mira la carpeta.', 'Habla con calma.']);
