@@ -234,6 +234,40 @@ def lamina(momento='noche', escala=6):
     return hoja.resize((hoja.width * escala, hoja.height * escala), Image.NEAREST)
 
 
+# El retrato de quien no tiene receta en el kit: un busto sin rasgos de 32 x 32, con el mismo contorno, la misma luz
+# (arriba a la izquierda) y la misma silueta de cabeza y hombros que los retratos del kit, en grises violáceos neutros.
+RESERVA = {'luz': (189, 184, 210), 'base': (154, 148, 180), 'sombra': (119, 113, 143), 'honda': (89, 83, 111)}
+
+
+def retrato_reserva():
+    n = 32
+    def cabeza(x, y):
+        return ((x - 15.5) / 8.6) ** 2 + ((y - 13.5) / 10.2) ** 2 <= 1 and 3 <= y <= 23
+    def cuello(x, y):
+        return 13 <= x <= 18 and 21 <= y <= 26
+    def hombros(x, y):
+        return ((x - 15.5) / 14.2) ** 2 + ((y - 34.5) / 9.6) ** 2 <= 1 and y <= 29
+    lleno = {(x, y) for y in range(n) for x in range(n) if cabeza(x, y) or cuello(x, y) or hombros(x, y)}
+    im = Image.new('RGBA', (n, n), (0, 0, 0, 0))
+    px = im.load()
+    for x, y in lleno:
+        fuera = lambda dx, dy: (x + dx, y + dy) not in lleno
+        if cuello(x, y) and not cabeza(x, y) and (cabeza(x, y - 1) or cabeza(x, y - 2)):
+            tono = 'honda'                                  # la barbilla le da sombra al cuello
+        elif fuera(1, 0) or fuera(2, 0) or (fuera(0, 1) and y < 29):
+            tono = 'sombra'
+        elif fuera(-1, 0) or fuera(0, -1):
+            tono = 'luz'
+        else:
+            tono = 'base'
+        px[x, y] = RESERVA[tono] + (255,)
+    for y in range(n):                                      # contorno de un píxel, por fuera, como en el kit
+        for x in range(n):
+            if (x, y) not in lleno and y <= 30 and any((x + dx, y + dy) in lleno for dx, dy in ((1, 0), (-1, 0), (0, 1), (0, -1))):
+                px[x, y] = TINTA + (255,)
+    return im
+
+
 RECURSOS = os.path.join(RAIZ, 'frontend', 'src', 'assets', 'game', 'dialogo')
 
 
@@ -261,6 +295,7 @@ def exportar_recursos(destino=RECURSOS):
     guardar('sombra', sombra_de_contacto())
     for estado in PULSOS:
         guardar('pulso-' + estado, pulso(estado))
+    guardar('retrato-reserva', retrato_reserva())
     return escritos
 
 

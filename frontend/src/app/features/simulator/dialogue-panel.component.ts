@@ -80,10 +80,8 @@ const STALE_NOTE = 'Esta conversación corresponde a otro momento del caso.';
                 @if (portraitSrc(d); as src) {
                   <img class="portrait-img" [src]="src" alt="" width="96" height="96" (error)="onPortraitError(src)" />
                 } @else {
-                  <svg viewBox="0 0 48 48" class="portrait-svg" width="40" height="40">
-                    <circle cx="24" cy="18" r="9" fill="currentColor"/>
-                    <path d="M8 44 C8 33 15 28 24 28 C33 28 40 33 40 44 Z" fill="currentColor"/>
-                  </svg>
+                  <!-- Sin retrato del kit: el busto de reserva, sin rasgos, al mismo oficio (32 x 32, contorno y luz del kit). -->
+                  <img class="portrait-svg" src="assets/game/dialogo/retrato-reserva.png" alt="" width="32" height="32" />
                 }
                 @if (showsEmotionCue(d) && activeEmotion(d) !== 'neutral') {
                   <span class="emotion-chip" [attr.data-emotion]="activeEmotion(d)"></span>
@@ -385,7 +383,7 @@ const STALE_NOTE = 'Esta conversación corresponde a otro momento del caso.';
       overflow: hidden;
       background-color: #6c6589;
     }
-    .portrait-svg { color: #b69cff; align-self: center; width: 66%; height: 66%; }
+    .portrait-svg { display: block; width: var(--retrato); height: var(--retrato); image-rendering: pixelated; }
     /* Una voz sin retrato del kit (la supervisión, un personaje sin receta): ventanilla chica con la silueta, no un hueco. */
     .strip--sin-retrato { --retrato: 96px; }
     @media (min-width: 1800px) { .strip--sin-retrato { --retrato: 96px; } }
