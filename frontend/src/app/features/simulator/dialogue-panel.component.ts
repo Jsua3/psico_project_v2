@@ -5,6 +5,9 @@ import { LiveRegionAnnouncer } from '../../core/a11y/live-announcer.service';
 import { ShortcutSettings } from '../../core/a11y/shortcut-settings.service';
 import { DialogueChoiceState, DialogueState, MapObjectState, Persona } from '../../core/models/simulation.model';
 import { KitService } from '../character/kit/kit.service';
+import type { CharacterVisual } from '../character/kit/character-visual.resolver';
+import type { PortraitState } from '../character/kit/kit-engine';
+import { KitFigureComponent } from '../character/kit/kit-figure.component';
 import { AudioDirectorService } from './audio-director.service';
 import { MS_POR_CARACTER, pausaTras, tramos } from './caso/ritmo-texto';
 import { choiceIndex } from './dialogue-keys.util';
@@ -31,7 +34,7 @@ const STALE_NOTE = 'Esta conversación corresponde a otro momento del caso.';
 @Component({
   selector: 'app-dialogue-panel',
   standalone: true,
-  imports: [A11yModule, CommonModule, SafeExitButtonComponent, SceneHintComponent, UiButton],
+  imports: [A11yModule, CommonModule, KitFigureComponent, SafeExitButtonComponent, SceneHintComponent, UiButton],
   template: `
     @if (dialogue(); as d) {
       <div #dialogueBox
@@ -42,7 +45,7 @@ const STALE_NOTE = 'Esta conversación corresponde a otro momento del caso.';
         [class.strip--warning]="interaction()?.type === 'WARNING'"
         [class.strip--supervisory]="activeSpeakerName(d) === 'Supervisión clínica'"
         [class.strip--quieto]="reduceMotion()"
-        [class.strip--sin-retrato]="!portraitSrc(d)"
+        [class.strip--sin-retrato]="!portraitSrc(d) && !visualDeHablante(d)"
         [class.strip--con-opciones]="hasChoices(d)"
         [style]="arte()"
         [attr.data-momento]="momento()"
@@ -79,6 +82,9 @@ const STALE_NOTE = 'Esta conversación corresponde a otro momento del caso.';
               <div class="portrait" aria-hidden="true" [style.color]="showsEmotionCue(d) ? emotionColor(activeEmotion(d)) : null">
                 @if (portraitSrc(d); as src) {
                   <img class="portrait-img" [src]="src" alt="" width="96" height="96" (error)="onPortraitError(src)" />
+                } @else if (visualDeHablante(d); as visual) {
+                  <!-- Sin retrato por nombre, la cara del personaje que está en la sala (la misma que usa la reacción). -->
+                  <app-kit-figure class="portrait-kit" [visual]="visual" [portrait]="caraDeKit(d, visual)" [scale]="escalaKit()" />
                 } @else {
                   <!-- Sin retrato del kit: el busto de reserva, sin rasgos, al mismo oficio (32 x 32, contorno y luz del kit). -->
                   <img class="portrait-svg" src="assets/game/dialogo/retrato-reserva.png" alt="" width="32" height="32" />
@@ -734,6 +740,18 @@ export class DialoguePanelComponent implements AfterViewChecked, OnDestroy {
    * («Se muestra cautelosa y tensa»), sin cifras. Sin ella, la placa no muestra estado.
    */
   readonly persona = input<Pick<Persona, 'bond' | 'activation' | 'label'> | null>(null);
+  /**
+   * El personaje de la sala con quien se habla (lo da la pantalla, como a la reacción). Si el retrato no se resuelve por
+   * receta ni por nombre (el kit solo conoce algunos nombres), el panel dibuja su cara con él.
+   */
+  readonly speakerVisual = input<CharacterVisual | null>(null);
+  /** La escala entera del retrato del kit: 32 px por la del panel (96, 192 o 288; 64 en el teléfono). */
+  protected readonly escalaKit = computed(() => {
+    const ancho = typeof window === 'undefined' ? 1366 : window.innerWidth;
+    if (ancho <= 560) return 2;
+    if (this.mode() === 'side') return ancho >= 1800 ? 6 : 3;
+    return ancho >= 1800 ? 9 : 6;
+  });
 
   readonly close   = output<void>();
   /** Vocabulario educativo en borrador (VD-24): el chip de la cabecera sale del registro de borradores. */
@@ -894,6 +912,20 @@ export class DialoguePanelComponent implements AfterViewChecked, OnDestroy {
    */
   offersHints(d: DialogueState): boolean {
     return !d.stale && d.choices.some(choice => choice.decisionOptionId != null || choice.requiredToolCode != null);
+  }
+
+  /** El visual de quien habla, solo si la línea es suya (en una conversación con varias voces no se le presta la cara a otra). */
+  visualDeHablante(d: DialogueState): CharacterVisual | null {
+    const linea = this.activeLine()?.speakerName?.trim() || null;
+    const arbol = d.speakerName?.trim() || null;
+    if (isSystemVoice(this.activeSpeakerName(d)) || (linea && linea !== arbol)) return null;
+    return this.speakerVisual();
+  }
+
+  /** La cara del kit para la emoción de la línea, si el personaje la tiene; si no, la neutra. */
+  caraDeKit(d: DialogueState, visual: CharacterVisual): PortraitState {
+    const cara = (this.kit.bundle()?.catalog.emotionToPortrait?.[this.activeEmotion(d)] ?? 'neutral') as PortraitState;
+    return cara in visual.portraits ? cara : 'neutral';
   }
 
   /** La letra de la opción en la posición `i` (A a D, como en el documento del caso). */

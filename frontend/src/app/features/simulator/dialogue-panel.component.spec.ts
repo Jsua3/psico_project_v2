@@ -1492,3 +1492,33 @@ describe('Dialogue typewriter timing', () => {
     expect(INTERVAL_MS).toBeLessThanOrEqual(46);
   });
 });
+
+// Bloque I1: el vigilante y el hermano mayor salían con la silueta porque el kit no conoce su nombre; el panel usa la
+// cara del personaje de la sala (la misma que la reacción) cuando el retrato no se resuelve.
+describe('DialoguePanelComponent - cara del personaje de la sala', () => {
+  it('presta la cara de la sala solo a la voz de quien habla, nunca a una voz de sistema ni a otro hablante', async () => {
+    await TestBed.configureTestingModule({
+      imports: [DialoguePanelComponent],
+      providers: [{ provide: AudioDirectorService, useValue: { playSfx: vi.fn() } }, { provide: KitService, useValue: fakeKitService() }],
+    }).compileComponents();
+    const fixture = TestBed.createComponent(DialoguePanelComponent);
+    const c = fixture.componentInstance;
+    const visual = { portraits: {} } as never;
+    writeInputSignal(c.speakerVisual, visual);
+    const vigilante: DialogueState = { key: 'v', speakerName: 'Vigilante', portraitKey: null, emotion: 'neutral', choices: [],
+      lines: [{ order: 1, speakerName: 'Vigilante', text: 'Buenas noches.', emotion: 'neutral' }] };
+    writeInputSignal(c.dialogue, vigilante);
+    TestBed.flushEffects();
+    expect(c.visualDeHablante(vigilante)).toBe(visual);
+    const otraVoz = { ...vigilante, lines: [{ order: 1, speakerName: 'Enfermera', text: 'Ahora no.', emotion: 'neutral' }] };
+    writeInputSignal(c.dialogue, otraVoz);
+    TestBed.flushEffects();
+    expect(c.visualDeHablante(otraVoz)).toBeNull();
+    const sistema = { ...vigilante, speakerName: 'Supervisión clínica', lines: [{ order: 1, speakerName: 'Supervisión clínica', text: 'Nota.', emotion: 'neutral' }] };
+    writeInputSignal(c.dialogue, sistema);
+    TestBed.flushEffects();
+    expect(c.visualDeHablante(sistema)).toBeNull();
+    fixture.destroy();
+    TestBed.resetTestingModule();
+  });
+});
