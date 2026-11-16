@@ -49,6 +49,10 @@ MAX_HINT = 280
 MIN_ENDINGS = 2
 MAX_ENDINGS_GENERATED = min(4, MAX_ENDINGS)
 _OPTION_KEY = re.compile(r"[a-z0-9-]{1,40}")
+#: Los textos de encuadre (esqueleto, narración, retroalimentación, pistas) enseñan nombrando lo que no se hace
+#: («evitar mediar con el agresor», el hito ``no_mediar_con_el_agresor``): el filtro de revictimización, que es léxico y
+#: no ve la negación, solo aplica a lo que dicen la persona estudiante y los personajes. El de violencia gráfica, a todo.
+_ENCUADRE = True
 #: Las únicas hojas que admiten un requisito y la condición de un comentario (lista blanca); cualquier otra se rechaza.
 _LEAF_KINDS = ("talked", "inspected", "milestone")
 
@@ -451,7 +455,7 @@ def _outline(c: _Collector, raw, position: int, ctx_rooms: dict) -> SceneOutline
     elif room is not None and persona not in {p["clave"] for p in room["personas"]}:
         c.add(_named(NO_PERSON, name))
     intensidad = c.enum(raw["intensidad"], tuple(member.value for member in Intensity), "intensidad")
-    advertencia = c.text(raw["advertencia"], MAX_WARNING, "advertencia")
+    advertencia = c.text(raw["advertencia"], MAX_WARNING, "advertencia", revictimizing=_ENCUADRE)
     if intensidad == Intensity.HIGH.value and not advertencia:
         c.add(HIGH_NEEDS_WARNING)
     if not isinstance(raw["final"], bool):
@@ -459,8 +463,8 @@ def _outline(c: _Collector, raw, position: int, ctx_rooms: dict) -> SceneOutline
     siguientes = c.strings(raw["siguientes"], "escenas")
     return SceneOutline(
         sala=sala,
-        titulo=c.text(raw["titulo"], MAX_TITLE, "título de la escena", required=True),
-        objetivo=c.text(raw["objetivo"], GOAL_MAX, "objetivo de la escena", required=True),
+        titulo=c.text(raw["titulo"], MAX_TITLE, "título de la escena", required=True, revictimizing=_ENCUADRE),
+        objetivo=c.text(raw["objetivo"], GOAL_MAX, "objetivo de la escena", required=True, revictimizing=_ENCUADRE),
         persona=persona if isinstance(persona, str) else "",
         intensidad=intensidad, advertencia=advertencia,
         final=raw["final"] is True, siguientes=tuple(siguientes),
@@ -518,6 +522,13 @@ def _reachable(edges: dict[str, list[str]], start: str) -> list[str]:
     return seen
 
 
+def _normalize_option_key(key):
+    """La clave de una respuesta en minúsculas, sin tildes y con guiones: el modelo suele escribirla en snake_case."""
+    key = "".join(ch for ch in unicodedata.normalize("NFKD", key) if not unicodedata.combining(ch))
+    key = re.sub(r"[_\s.]", "-", key.strip().lower())
+    return re.sub(r"-+", "-", key).strip("-")
+
+
 def _normalize_ending_key(key):
     """La clave de un final en minúsculas, sin tildes y con guion bajo: el modelo suele escribirla en kebab-case."""
     if not isinstance(key, str):
@@ -545,8 +556,8 @@ def _endings(c: _Collector, raw, milestones: set[str]) -> list[dict]:
             keys.append(key)
         ending = {
             "key": key if isinstance(key, str) else "",
-            "title": c.text(item["titulo"], MAX_TITLE, "título del final", required=True),
-            "message": c.text(item["mensaje"], MAX_ENDING_MESSAGE, "mensaje del final", required=True, multiline=True),
+            "title": c.text(item["titulo"], MAX_TITLE, "título del final", required=True, revictimizing=_ENCUADRE),
+            "message": c.text(item["mensaje"], MAX_ENDING_MESSAGE, "mensaje del final", required=True, multiline=True, revictimizing=_ENCUADRE),
             "tone": c.enum(item["tono"], ENDING_TONES, "tono"),
         }
         when = item["cuando"]
@@ -575,13 +586,13 @@ def validate_skeleton(raw: dict, ctx: dict) -> SkeletonDraft:
     if not c.obj(raw, schema.SKELETON["required"], "esqueleto"):
         c.raise_if_any()
     rooms = _rooms(ctx)
-    titulo = c.text(raw["titulo"], MAX_TITLE, "título", required=True)
-    contexto = c.text(raw["contexto"], MAX_CONTEXT, "contexto", required=True, multiline=True)
+    titulo = c.text(raw["titulo"], MAX_TITLE, "título", required=True, revictimizing=_ENCUADRE)
+    contexto = c.text(raw["contexto"], MAX_CONTEXT, "contexto", required=True, multiline=True, revictimizing=_ENCUADRE)
     objectives_raw = c.items(raw["objetivosAprendizaje"], "objetivosAprendizaje")
     if not 1 <= len(objectives_raw) <= MAX_OBJECTIVES:
         c.add(OBJECTIVE_COUNT)
     objetivos = [
-        c.text(item, MAX_OBJECTIVE, "objetivo de aprendizaje", required=True) for item in objectives_raw[:MAX_OBJECTIVES + 1]
+        c.text(item, MAX_OBJECTIVE, "objetivo de aprendizaje", required=True, revictimizing=_ENCUADRE) for item in objectives_raw[:MAX_OBJECTIVES + 1]
     ]
 
     scenes_raw = c.items(raw["escenas"], "escenas")
@@ -662,11 +673,12 @@ def _option(c: _Collector, raw, room: dict, sk: SkeletonDraft, competencies: set
     if not isinstance(destination, str):
         c.shape("opciones")
     return {
-        "clave": key if isinstance(key, str) else "",
+        "clave": _normalize_option_key(key) if isinstance(key, str) else "",
         "texto": c.text(raw["texto"], MAX_OPTION_TEXT, "respuesta", required=True, multiline=True, revictimizing=free),
         "clase": clase,
+        # La retroalimentación enseña: nombra lo que daña (p. ej. «mediar con el agresor») para que se aprenda.
         "retroalimentacion": c.text(
-            raw["retroalimentacion"], MAX_FEEDBACK, "retroalimentación", required=True, multiline=True, revictimizing=free,
+            raw["retroalimentacion"], MAX_FEEDBACK, "retroalimentación", required=True, multiline=True, revictimizing=True,
         ),
         "razonProhibicion": reason,
         "destino": destination if isinstance(destination, str) else "",
@@ -748,13 +760,13 @@ def validate_scene(raw: dict, sk: SkeletonDraft, clave: str, ctx: dict) -> Scene
         c.raise_if_any(clave)
     competencies = {comp["codigo"] for comp in ctx.get("competencias", [])}
 
-    narracion = c.text(raw["narracion"], MAX_NARRATION, "narración", required=True, multiline=True)
+    narracion = c.text(raw["narracion"], MAX_NARRATION, "narración", required=True, multiline=True, revictimizing=_ENCUADRE)
     lines = _lines(c, raw["lineas"], room)
     options = _options(c, raw["opciones"], outline, room, sk, competencies)
     hints = c.strings(raw["pistas"], "pistas")
     if len(hints) > schema.MAX_HINTS:
         c.add(HINTS_MAX)
-    hints = [c.text(hint, MAX_HINT, "pista", required=True) for hint in hints[:schema.MAX_HINTS + 1]]
+    hints = [c.text(hint, MAX_HINT, "pista", required=True, revictimizing=_ENCUADRE) for hint in hints[:schema.MAX_HINTS + 1]]
     comments = _comments(c, raw["comentarios"], room, set(sk.hitos))
 
     c.raise_if_any(clave)
