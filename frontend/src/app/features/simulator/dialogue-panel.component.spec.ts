@@ -765,18 +765,21 @@ describe('DialoguePanelComponent - aviso, subtítulos y chips (T4.5)', () => {
   });
 
   // req: RNF-04, RN-01 (VD-24: vocabulario educativo en borrador; el texto sale de draft-copy.ts)
-  it('muestra «Usar una herramienta» y «Decisión» solo cuando conviven, sin reordenar', () => {
+  // I1: la etiqueta va dentro de la ficha de herramienta; sin subtítulos sueltos ni un segundo «Decisión».
+  it('marca «Usar una herramienta» en su ficha solo cuando conviven, sin reordenar ni repetir «Decisión»', () => {
     render(dialogueWith([tool('PAP', 'Aplicar material'), decision(1, 'Escuchar'), decision(2, 'Aconsejar')]));
     const children = Array.from(host().querySelector('.choices')!.children).map(el =>
-      el.classList.contains('choices-subtitle') ? `# ${text(el)}` : text(el.querySelector('.choice-btn__label')));
-    expect(children).toEqual(['# Usar una herramienta', 'Aplicar material', '# Decisión', 'Escuchar', 'Aconsejar']);
+      `${text(el.querySelector('.choice-btn__tag') ?? document.createElement('i'))}|${text(el.querySelector('.choice-btn__label'))}`);
+    expect(children).toEqual(['Usar una herramienta|Aplicar material', '|Escuchar', '|Aconsejar']);
+    expect(host().querySelector('.choices-subtitle')).toBeNull();
+    expect(host().querySelector('.choice-btn')!.getAttribute('aria-label')).toBe('A. Usar una herramienta: Aplicar material');
   });
 
-  it('sin mezcla de herramienta y decisión no hay subtítulos', () => {
+  it('sin mezcla de herramienta y decisión no hay etiquetas', () => {
     render(dialogueWith([decision(1, 'Escuchar'), decision(2, 'Aconsejar')]));
-    expect(host().querySelector('.choices-subtitle')).toBeNull();
+    expect(host().querySelector('.choice-btn__tag')).toBeNull();
     render(dialogueWith([tool('PAP', 'Aplicar material')]));
-    expect(host().querySelector('.choices-subtitle')).toBeNull();
+    expect(host().querySelector('.choice-btn__tag')).toBeNull();
   });
 
   it('una conversación de otra etapa (stale) muestra la línea informativa, ninguna decisión y «Continuar»', () => {
@@ -1031,11 +1034,26 @@ describe('DialoguePanelComponent - scroll, hoja y retrato (T4.4)', () => {
     else delete (Element.prototype as unknown as Record<string, unknown>)['scrollIntoView'];
   });
 
-  function render(d: DialogueState): void {
+  // El cuadro entero solo se desplaza en el panel lateral; sobre el mundo se desplaza la lista de fichas (ver abajo).
+  function render(d: DialogueState, mode: 'cinematic' | 'side' = 'side'): void {
+    writeInputSignal(component.mode, mode);
     writeInputSignal(component.dialogue, d);
     TestBed.flushEffects();
     fixture.detectChanges();
   }
+
+  it('sobre el mundo no desplaza el cuadro: la lista de fichas vuelve arriba (A y B a la vista)', () => {
+    render(dialogue(), 'cinematic');
+    component.skipTypewriter();
+    fixture.detectChanges();
+    const choices = host().querySelector('.choices') as HTMLElement;
+    choices.scrollTop = 40;
+    strip().scrollTop = 0;
+    component.ngAfterViewChecked();
+    expect(scrollIntoView).not.toHaveBeenCalled();
+    expect(choices.scrollTop).toBe(0);
+    expect(strip().scrollTop).toBe(0);
+  });
 
   // ts-jest corre sin zone.js: `fixture.detectChanges()` no invoca ngAfterViewChecked si solo cambian
   // señales internas. En el navegador Angular lo llama en cada ciclo; aquí se invoca a mano.
@@ -1189,8 +1207,9 @@ describe('DialoguePanelComponent - contraste de lo nuevo (WCAG 1.4.3, T4.1/T4.5)
     for (const surface of PLACA) {
       expect(contrastRatio(hexOfRule('.choices-notice'), surface)).toBeGreaterThanOrEqual(4.5);
       expect(contrastRatio(hexOfRule('.panel-chip'), surface)).toBeGreaterThanOrEqual(4.5);
-      expect(contrastRatio(hexOfRule('.choices-subtitle'), surface)).toBeGreaterThanOrEqual(4.5);
     }
+    // La etiqueta de la ficha de herramienta va sobre la trama de la ficha.
+    for (const surface of FICHA) expect(contrastRatio(hexOfRule('.choice-btn__tag'), surface)).toBeGreaterThanOrEqual(4.5);
     expect(contrastRatio(hexOf(rule('.choice-btn__hint'), 'color'), hexOf(rule('.choice-btn__hint'), 'background'))).toBeGreaterThanOrEqual(4.5);
   });
 
@@ -1532,11 +1551,83 @@ describe('DialoguePanelComponent - respaldo de las letras', () => {
   });
 });
 
+// Bloque I1 (pedido de K1): el aviso breve de la pantalla flotaba encima de las fichas; ahora el cuadro le da su sitio.
+describe('DialoguePanelComponent - el aviso breve va dentro del cuadro', () => {
+  let fixture: ComponentFixture<DialoguePanelComponent>;
+  let component: DialoguePanelComponent;
+  const AVISO = 'Ahora conoces algo más: hay otra forma de responder.';
+  const host = () => fixture.nativeElement as HTMLElement;
+  const conversacion = (choices: DialogueState['choices']): DialogueState => ({
+    key: 'aviso', speakerName: 'Laura', portraitKey: null, emotion: 'neutral', notice: 'Puedes conocer más antes de responder.',
+    lines: [{ order: 1, speakerName: 'Laura', text: 'Hola.', emotion: 'neutral' }],
+    choices,
+  });
+
+  beforeEach(async () => {
+    await TestBed.configureTestingModule({
+      imports: [DialoguePanelComponent],
+      providers: [{ provide: AudioDirectorService, useValue: { playSfx: vi.fn() } }],
+    }).compileComponents();
+    fixture = TestBed.createComponent(DialoguePanelComponent);
+    component = fixture.componentInstance;
+  });
+  afterEach(() => { fixture.destroy(); TestBed.resetTestingModule(); });
+
+  function render(d: DialogueState): void {
+    writeInputSignal(component.dialogue, d);
+    writeInputSignal(component.avisoBreve, AVISO);
+    TestBed.flushEffects();
+    fixture.detectChanges();
+    component.skipTypewriter();
+    fixture.detectChanges();
+  }
+
+  it('sin fichas, el aviso va en la cabecera del cuadro, sobre «Volver al mapa»', () => {
+    render(conversacion([]));
+    const aviso = host().querySelector('.panel-head > .panel-head__aviso');
+    expect(aviso?.textContent?.trim()).toBe(AVISO);
+    expect(aviso?.nextElementSibling?.classList.contains('panel-head__row')).toBe(true);
+  });
+
+  it('con las fichas a la vista, el aviso ocupa la fila del de la decisión mientras dura, no encima de las opciones', () => {
+    render(conversacion([
+      { key: 'a', text: 'Uno', decisionOptionId: 1, requiredToolCode: null, effect: {} },
+      { key: 'b', text: 'Dos', decisionOptionId: 2, requiredToolCode: null, effect: {} },
+    ]));
+    expect(host().querySelector('.panel-head__aviso')).toBeNull();
+    const fila = host().querySelector('.strip-body > .choices-notice');
+    expect(fila?.textContent?.trim()).toBe(AVISO);
+    writeInputSignal(component.avisoBreve, '');
+    fixture.detectChanges();
+    expect(host().querySelector('.strip-body > .choices-notice')?.textContent?.trim()).toBe('Puedes conocer más antes de responder.');
+    expect(fila?.nextElementSibling?.matches('.choices, app-scene-hint')).toBe(true);
+  });
+
+  it('la pantalla no pinta el aviso suelto mientras hay un diálogo sobre el mundo: se lo pasa al cuadro', () => {
+    const pantalla = readFileSync(join(__dirname, 'simulation-play.component.ts'), 'utf-8');
+    expect(pantalla).toContain("@if (softNotice() && viewMode() !== 'dialogue-cinematic') {");
+    expect(pantalla).toMatch(/<app-dialogue-panel class="dialogue-cinematic"[^>]*\[avisoBreve\]="softNotice\(\)"/);
+  });
+});
+
 // Bloque I1: sobre el mundo el cuadro tiene un alto acotado y lo publica para la cámara.
 describe('DialoguePanelComponent - alto acotado sobre el mundo', () => {
   it('el cuadro no pasa de --dialogo-alto-max y publica data-alto-ocupado', () => {
     expect(source).toContain('.dialogue-strip:not(.dialogue-strip--side) { --dialogo-alto-max: min(340px, 46vh); max-height: var(--dialogo-alto-max); }');
     expect(source).toContain("--dialogo-alto-max: min(480px, 46vh);");
     expect(source).toContain("anfitrion.dataset['altoOcupado']");
+  });
+
+  it('con opciones es una banda que no se desplaza entera: la placa a todo el alto y solo la lista de fichas se desplaza', () => {
+    const banda = '.dialogue-strip:not(.dialogue-strip--side).strip--con-opciones';
+    expect(source).toMatch(new RegExp(`${banda.replace(/[.()]/g, '\\$&')} \\{[^}]*display: grid;[^}]*height: var\\(--dialogo-alto-max\\);[^}]*grid-template-rows: minmax\\(0, 1fr\\) auto minmax\\(0, auto\\);[^}]*overflow: clip;`));
+    expect(source).toContain(`${banda} .placa { grid-column: 1; grid-row: 1 / -1; align-self: end;`);
+    expect(source).toContain(`${banda} .strip-main { display: contents; }`);
+    // Las filas de fichas nunca más bajas que su texto: con la lista acotada, 1fr y el min-height las dejaban en 48 px.
+    expect(source).toContain('grid-auto-rows: minmax(min-content, 1fr);');
+    expect(source).toContain(`${banda} .placa { grid-column: 1; grid-row: 1 / -1; align-self: end;`);
+    expect(source).toMatch(new RegExp(`${banda.replace(/[.()]/g, '\\$&')} \\.choices \\{[^}]*min-height: 0;[^}]*overflow-y: auto;`));
+    // La cabecera («Volver», «Salida segura», la nota de la decisión) va dentro de la banda, en la columna de las fichas.
+    expect(source).toMatch(new RegExp(`${banda.replace(/[.()]/g, '\\$&')} \\.panel-head \\{[^}]*grid-column: 2;[^}]*position: static;`));
   });
 });

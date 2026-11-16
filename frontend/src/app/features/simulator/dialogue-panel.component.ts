@@ -57,6 +57,11 @@ const STALE_NOTE = 'Esta conversación corresponde a otro momento del caso.';
         <!-- Cabecera fija (REGLA-004, P5): el panel nunca atrapa, con o sin opciones y en ambos modos.
              Clases propias: los e2e pulsan «button.close-btn» para avanzar y cerrar diálogos. -->
         <header class="panel-head">
+          @if (avisoBreve() && !(hasChoices(d) && choicesVisible() && !d.stale)) {
+            <!-- El aviso breve de la pantalla (lo que se obtuvo, una forma nueva de responder) va dentro del cuadro, en un
+                 sitio propio: nunca flota encima de las fichas ni del texto. Ya se anunció; aquí solo se ve. -->
+            <p class="panel-head__aviso">{{ avisoBreve() }}</p>
+          }
           <div class="panel-head__row">
             <button type="button" class="panel-back" (click)="close.emit()">
               <span class="panel-back__arrow" aria-hidden="true">◀</span> Volver al mapa
@@ -141,7 +146,7 @@ const STALE_NOTE = 'Esta conversación corresponde a otro momento del caso.';
           <!-- Las fichas de respuesta, A a D. -->
           <div class="strip-body">
             @if (choicesVisible() && !d.stale) {
-              @let notice = noticeText(d);
+              @let notice = avisoDeOpciones(d);
               @if (notice) {
                 <p class="choices-notice" id="choices-notice" role="note">{{ notice }}</p>
               }
@@ -154,21 +159,22 @@ const STALE_NOTE = 'Esta conversación corresponde a otro momento del caso.';
                 [attr.aria-describedby]="notice ? 'choices-notice' : null"
                 [class.choices--locked]="chosenKey() !== null">
                 @for (choice of d.choices; track choice.key; let i = $index) {
-                  @if (subtitleBefore(d, i); as subtitle) {
-                    <p class="choices-subtitle">{{ subtitle }}</p>
-                  }
+                  @let etiqueta = etiquetaDeFicha(d, i);
                   <button
                     type="button"
                     class="choice-btn"
                     [class.choice-btn--chosen]="chosenKey() === choice.key"
                     [class.choice-btn--unavailable]="choice.toolMissing"
                     [style.--stagger]="i"
-                    [attr.aria-label]="letra(i) + '. ' + choice.text + (choice.toolMissing ? '. ' + toolMissingHint : '')"
+                    [attr.aria-label]="letra(i) + '. ' + (etiqueta ? etiqueta + ': ' : '') + choice.text + (choice.toolMissing ? '. ' + toolMissingHint : '')"
                     [attr.aria-disabled]="choice.toolMissing ? 'true' : null"
                     (focus)="onChoiceFocus($event)"
                     (click)="onChoiceClick($event, choice)">
                     <!-- La letra se dibuja en pixel art; como texto queda solo para que el texto visible empiece por ella (WCAG 2.5.3). -->
                     <span class="choice-num" aria-hidden="true" [attr.data-letra]="letra(i)"><span class="choice-num__txt" [class.choice-num__txt--ver]="i > 3">{{ letra(i) }}</span></span>{{ ' ' }}<span class="choice-btn__body">
+                      @if (etiqueta) {
+                        <span class="choice-btn__tag">{{ etiqueta }}</span>{{ ' ' }}
+                      }
                       <span class="choice-btn__label">{{ choice.text }}</span>
                       @if (choice.toolMissing) {
                         {{ ' ' }}<span class="choice-btn__hint" [id]="'choice-hint-' + i">{{ toolMissingHint }}</span>
@@ -218,7 +224,7 @@ const STALE_NOTE = 'Esta conversación corresponde a otro momento del caso.';
     @media (min-width: 1800px) { .dialogue-strip { --px: 3px; --tam: 20px; --retrato: 288px; } }
 
     /* Marco de pixel art: borde de 4 px de mundo por lado y relleno con trama, sin esquinas suavizadas. */
-    .placa-cuerpo, .speaker-name, .panel-back, .panel-head__note, .choice-btn, .stale-note, .choices-notice, .choices-subtitle, .keyboard-hint, .portrait {
+    .placa-cuerpo, .speaker-name, .panel-back, .panel-head__note, .panel-head__aviso, .choice-btn, .stale-note, .choices-notice, .keyboard-hint, .portrait {
       border-style: solid;
       border-width: calc(4 * var(--px));
       border-image: var(--m) 4 / calc(4 * var(--px)) stretch;
@@ -249,6 +255,55 @@ const STALE_NOTE = 'Esta conversación corresponde a otro momento del caso.';
     @media (min-width: 1800px) { .dialogue-strip:not(.dialogue-strip--side) { --dialogo-alto-max: min(480px, 46vh); } }
     /* Sobre el mundo, el cuadro incluye el retrato que asoma: el borde superior de app-dialogue-panel es lo que tapa. */
     .dialogue-strip:not(.dialogue-strip--side) { padding-top: calc(16 * var(--px)); }
+    /* Sobre el mundo y con opciones, el cuadro es una banda de alto fijo que nunca se desplaza entera (así cortaba el
+       retrato y dejaba la D fuera de la vista): la placa ocupa todo el alto a la izquierda y a la derecha van, de arriba
+       abajo, la cabecera, el aviso con la pista, las fichas y la pista de teclado. Si las fichas no caben, se desplaza
+       solo su lista, que empieza arriba: A y B siempre a la vista. Nada de la cabecera sube por encima de la banda.
+       El alto es fijo (el tope): con solo un máximo, la fila de las fichas crecía y la banda las recortaba. Lo que sobra
+       queda arriba, de modo que la cabecera, el aviso y las fichas van juntos y al pie, como la placa. */
+    .dialogue-strip:not(.dialogue-strip--side).strip--con-opciones {
+      display: grid;
+      height: var(--dialogo-alto-max);
+      grid-template-columns: minmax(0, 11fr) minmax(0, 14fr);
+      grid-template-rows: minmax(0, 1fr) auto minmax(0, auto);
+      column-gap: calc(8 * var(--px));
+      row-gap: calc(4 * var(--px));
+      padding-top: calc(4 * var(--px));
+      overflow: clip;
+    }
+    .dialogue-strip:not(.dialogue-strip--side).strip--con-opciones .strip-main { display: contents; }
+    .dialogue-strip:not(.dialogue-strip--side).strip--con-opciones .placa { grid-column: 1; grid-row: 1 / -1; align-self: end; min-width: 0; }
+    .dialogue-strip:not(.dialogue-strip--side).strip--con-opciones .strip-body {
+      grid-column: 2;
+      grid-row: 3;
+      min-height: 0;
+      grid-template-rows: auto minmax(0, auto) auto;
+      align-content: start;
+    }
+    .dialogue-strip:not(.dialogue-strip--side).strip--con-opciones .strip-body > .choices-notice[role],
+    .dialogue-strip:not(.dialogue-strip--side).strip--con-opciones .strip-body > app-scene-hint { grid-row: 1; }
+    .dialogue-strip:not(.dialogue-strip--side).strip--con-opciones .strip-body > .keyboard-hint:last-child { grid-row: 3; }
+    .dialogue-strip:not(.dialogue-strip--side).strip--con-opciones .choices {
+      grid-row: 2;
+      align-self: stretch;
+      min-height: 0;
+      /* Filas nunca más bajas que su texto (con 1fr y el min-height de la ficha, al acotar la lista se encogían a 48 px y el
+         texto se salía del marco); si sobra sitio, las filas se igualan. */
+      grid-auto-rows: minmax(min-content, 1fr);
+      align-content: start;
+      overflow-y: auto;
+      overscroll-behavior: contain;
+      scrollbar-width: thin;
+      scrollbar-color: #ffcd82 #1b1826;
+      /* El cursor de la ficha enfocada asoma a la izquierda y la ficha pulsada baja un punto: caben sin recortarse. */
+      padding-top: var(--px);
+      padding-bottom: calc(2 * var(--px));
+    }
+    /* Con poco alto (1366 x 768, teléfono), la pista de teclado le cede su renglón a las fichas: la letra va en cada ficha
+       y «Esc» en «Volver al mapa». */
+    @media (max-height: 900px), (max-width: 560px) {
+      .dialogue-strip:not(.dialogue-strip--side).strip--con-opciones .strip-body > .keyboard-hint:last-child { display: none; }
+    }
 
     /* Cabecera fija del panel: «Volver al mapa» y «Salida segura» siempre a mano. */
     .panel-head {
@@ -285,6 +340,8 @@ const STALE_NOTE = 'Esta conversación corresponde a otro momento del caso.';
       line-height: 1.35;
       color: #c3bccf;
     }
+    /* El aviso breve de la pantalla, dentro del cuadro: sobre «Volver» sin fichas (viste como el aviso de las fichas). */
+    .panel-head__aviso { grid-column: 1 / -1; max-width: 26em; }
     .panel-chip {
       font-family: var(--f-nombre);
       font-weight: 700;
@@ -488,16 +545,15 @@ const STALE_NOTE = 'Esta conversación corresponde a otro momento del caso.';
     .strip-body > * { grid-column: 1 / -1; }
     .strip-body > .choices-notice[role] { grid-column: 1; }
     .strip-body > app-scene-hint { grid-column: 2; justify-self: end; }
-    /* Con subtítulos («Usar una herramienta», «Decisión») las filas no pueden ser todas iguales: el subtítulo es un rótulo,
-       no una ficha. Las fichas de una misma fila siguen igualándose. */
-    .choices:has(.choices-subtitle) { grid-auto-rows: auto; }
     /* Sobre el mundo y con opciones, la cabecera es un solo renglón: la nota de la decisión a la izquierda y «Volver» y
        «Salida segura» a la derecha, pegados a las fichas. */
     .dialogue-strip:not(.dialogue-strip--side).strip--con-opciones .panel-head {
+      grid-column: 2;
+      grid-row: 2;
+      position: static;
       grid-template-columns: minmax(0, 1fr) auto;
       align-items: center;
       justify-items: stretch;
-      margin-left: calc(44% + 4 * var(--px));
     }
     .dialogue-strip:not(.dialogue-strip--side).strip--con-opciones .panel-head__note { grid-row: 1; grid-column: 1; }
     .dialogue-strip:not(.dialogue-strip--side).strip--con-opciones .panel-head__row { grid-row: 1; grid-column: 2; flex-wrap: nowrap; }
@@ -621,7 +677,7 @@ const STALE_NOTE = 'Esta conversación corresponde a otro momento del caso.';
     .choice-btn--unavailable { cursor: not-allowed; opacity: .72; }
     .choice-btn--unavailable:active { transform: none; }
     /* Aviso único de evidencia sobre las opciones (nunca por opción): informa, no bloquea. */
-    .choices-notice {
+    .panel-head__aviso, .choices-notice {
       --m: var(--marco-placa); --t: var(--trama-placa);
       margin: 0;
       padding: 2px 10px 4px;
@@ -629,13 +685,11 @@ const STALE_NOTE = 'Esta conversación corresponde a otro momento del caso.';
       font-size: .84em;
       line-height: 1.45;
     }
-    .choices-subtitle {
-      --m: var(--marco-placa); --t: var(--trama-placa);
-      grid-column: 1 / -1;
+    /* La etiqueta de la ficha de herramienta, cuando conviven herramientas y decisiones: antes era un subtítulo aparte que
+       repetía «Decisión» (ya está en la cabecera) y le quitaba una fila entera a las fichas. */
+    .choice-btn__tag {
+      display: block;
       justify-self: start;
-      align-self: end;
-      margin: 4px 0 0;
-      padding: 0 8px 1px;
       color: #ffcd82;
       font-family: var(--f-nombre);
       font-size: .8em;
@@ -702,7 +756,19 @@ const STALE_NOTE = 'Esta conversación corresponde a otro momento del caso.';
       .choices { grid-template-columns: minmax(0, 1fr); grid-auto-rows: auto; gap: calc(3 * var(--px)); }
       .speaker-name { margin-left: calc(var(--retrato) + 14 * var(--px)); }
       .dialogue-text { min-height: 2.9em; }
-      .dialogue-strip:not(.dialogue-strip--side).strip--con-opciones .panel-head { margin-left: 0; }
+      /* Con opciones, una sola columna: la cabecera, la placa y debajo las fichas, que se desplazan dentro del cuadro. */
+      /* El alto del teléfono es justo: margen de abajo y separaciones al mínimo y letra de 16 px, para que A y B quepan. */
+      .dialogue-strip:not(.dialogue-strip--side).strip--con-opciones {
+        --tam: 16px;
+        grid-template-columns: minmax(0, 1fr);
+        grid-template-rows: minmax(0, 1fr) auto auto minmax(0, auto);
+        row-gap: calc(3 * var(--px));
+        padding-bottom: calc(4 * var(--px));
+      }
+      .dialogue-strip:not(.dialogue-strip--side).strip--con-opciones .panel-head { grid-column: 1; grid-row: 2; }
+      .dialogue-strip:not(.dialogue-strip--side).strip--con-opciones .placa { grid-column: 1; grid-row: 3; }
+      .dialogue-strip:not(.dialogue-strip--side).strip--con-opciones .strip-body { grid-column: 1; grid-row: 4; }
+      .dialogue-strip:not(.dialogue-strip--side).strip--con-opciones .choices { grid-auto-rows: minmax(min-content, auto); }
       /* En el teléfono la placa ocupa todo el ancho: «Volver» y «Salida segura» no pueden ir en la esquina de abajo, donde
          taparían el texto y «Siguiente»; van arriba, dentro del cuadro. */
       .dialogue-strip:not(.dialogue-strip--side):not(.strip--con-opciones) .panel-head { position: static; }
@@ -725,6 +791,8 @@ export class DialoguePanelComponent implements AfterViewChecked, OnDestroy {
   readonly interaction = input<MapObjectState | null>(null);
   /** 'cinematic' = franja inferior a lo ancho; 'side' = columna en panel derecho. */
   readonly mode        = input<'cinematic' | 'side'>('cinematic');
+  /** El aviso breve de la pantalla (VD-29) mientras el cuadro está sobre el mundo: el cuadro le da su sitio. */
+  readonly avisoBreve  = input<string>('');
   /** Movimiento reducido del juego (interruptor del HUD o preferencia del sistema): la línea aparece completa, sin máquina de escribir. */
   readonly reduceMotion = input(false);
   /**
@@ -978,6 +1046,12 @@ export class DialoguePanelComponent implements AfterViewChecked, OnDestroy {
    * Aviso único sobre las opciones. Llega ya decorado en `notice`; el respaldo lee la advertencia
    * heredada por opción (misma frase repetida) para no perder el aviso mientras el anfitrión migra.
    */
+  /** El aviso sobre las fichas: el breve de la pantalla mientras dura (es la novedad; en el teléfono los dos juntos le
+   *  quitaban a las fichas el sitio de la B) y, si no hay, el de la decisión. */
+  avisoDeOpciones(d: DialogueState): string | null {
+    return this.avisoBreve() || this.noticeText(d);
+  }
+
   noticeText(d: DialogueState): string | null {
     return d.notice || d.choices.find(choice => choice.evidenceWarning)?.evidenceWarning || null;
   }
@@ -988,16 +1062,15 @@ export class DialoguePanelComponent implements AfterViewChecked, OnDestroy {
     return d.lines.some(line => line.text.includes(STALE_NOTE)) ? null : STALE_NOTE;
   }
 
-  /** Subtítulo de grupo (solo cuando conviven herramientas y decisiones; sin reordenar). */
-  subtitleBefore(d: DialogueState, index: number): string | null {
+  /** Etiqueta de la ficha de herramienta, solo cuando conviven herramientas y decisiones (sin reordenar). Las decisiones
+   *  no llevan rótulo propio: «Decisión» ya va en la cabecera del cuadro. Una herramienta que falta tampoco: ya lo dice
+   *  su aviso («Aún no tienes esta herramienta»), y la línea de más le quitaba a la B su sitio en el teléfono. */
+  etiquetaDeFicha(d: DialogueState, index: number): string | null {
     const isTool = (c: DialogueChoiceState) => c.decisionOptionId == null && c.requiredToolCode != null;
     const isDecision = (c: DialogueChoiceState) => c.decisionOptionId != null;
-    const firstTool = d.choices.findIndex(isTool);
-    const firstDecision = d.choices.findIndex(isDecision);
-    if (firstTool < 0 || firstDecision < 0) return null;
-    if (index === firstTool) return 'Usar una herramienta';
-    if (index === firstDecision) return DRAFT_COPY.decisionLabel.text;
-    return null;
+    if (!d.choices.some(isTool) || !d.choices.some(isDecision)) return null;
+    const c = d.choices[index];
+    return isTool(c) && !c.toolMissing ? 'Usar una herramienta' : null;
   }
 
   /** Pista de teclado (solo se pinta con puntero fino); sin los atajos de una tecla no promete los números. */
@@ -1075,7 +1148,13 @@ export class DialoguePanelComponent implements AfterViewChecked, OnDestroy {
    */
   private revealChoices(strip: HTMLElement): void {
     const choices = strip.querySelector<HTMLElement>('.choices');
-    if (!choices || typeof choices.scrollIntoView !== 'function') return;
+    if (!choices) return;
+    // Sobre el mundo el cuadro no se desplaza: la lista de fichas es la que se desplaza y empieza arriba (A y B a la vista).
+    if (!strip.classList.contains('dialogue-strip--side')) {
+      choices.scrollTop = 0;
+      return;
+    }
+    if (typeof choices.scrollIntoView !== 'function') return;
     const headHeight = strip.querySelector<HTMLElement>('.panel-head')?.offsetHeight ?? 0;
     const fits = choices.offsetHeight <= strip.clientHeight - headHeight;
     // La alineación por el inicio deja libre la cabecera fija que hay ahora (con o sin la nota de seguimiento), no una

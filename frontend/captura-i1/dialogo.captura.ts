@@ -26,18 +26,18 @@ import { scaled } from '../e2e/support/time-scale';
  * `explorar-y-reaccion.e2e.ts`: el caso de exploración de dos escenas (Laura, la carpeta y el archivo). Deja las imágenes
  * en `CAPTURA_DIR` como `juego-real-<ancho>-<momento>.png`.
  */
-const DESTINO = process.env.CAPTURA_DIR ?? 'D:/Sua_Files/IdeaProjects/psico_project_v3/.superpowers/noche-2026-11-14/capturas-i1';
+const DESTINO = process.env['CAPTURA_DIR'] ?? 'D:/Sua_Files/IdeaProjects/psico_project_v3/.superpowers/noche-2026-11-14/capturas-i1';
 const TODOS = [
   { nombre: '1366', width: 1366, height: 768 },
   { nombre: '1920', width: 1920, height: 1080 },
   { nombre: '390', width: 390, height: 844 },
 ];
 // CAPTURA_TAMANOS=390 (o «1366,1920») elige cuáles; sin la variable, 1366 y 1920.
-const PEDIDOS = (process.env.CAPTURA_TAMANOS ?? '1366,1920').split(',');
+const PEDIDOS = (process.env['CAPTURA_TAMANOS'] ?? '1366,1920').split(',');
 const TAMANOS = TODOS.filter(t => PEDIDOS.includes(t.nombre));
 
 async function foto(page: Page, nombre: string): Promise<void> {
-  await page.screenshot({ path: `${DESTINO}/${process.env.CAPTURA_PREFIJO ?? 'juego-real'}-${nombre}.png` });
+  await page.screenshot({ path: `${DESTINO}/${process.env['CAPTURA_PREFIJO'] ?? 'juego-real'}-${nombre}.png` });
 }
 
 async function entrarAlCaso(page: Page, title: string): Promise<void> {

@@ -1,0 +1,249 @@
+import { readFileSync, writeFileSync } from 'node:fs';
+import { join } from 'node:path';
+
+import { expect, test } from '@playwright/test';
+import type { Page } from '@playwright/test';
+
+import { assignCase, createExplorationCase, retireCase } from '../e2e/support/case-fixtures';
+import type { AssignmentRecord, CaseFixture } from '../e2e/support/case-fixtures';
+import { resetStudentConsent } from '../e2e/support/consent';
+import {
+  acceptContentWarning,
+  advanceDialogueToChoices,
+  createWorldInputDriver,
+  finishCaseIntroduction,
+  interactNearby,
+  leaveBrief,
+  loginStudent,
+  reachNearby,
+  startFreshAttempt,
+  waitForWorldReady,
+} from '../e2e/support/siep-flow';
+import { scaled } from '../e2e/support/time-scale';
+
+/**
+ * Bloque I1: las 16 decisiones del caso insignia (SIM-VBG-002) caben en la pantalla, en el juego real, a 1366 × 768,
+ * 1920 × 1080 y 390 px. El juego abre una conversación de verdad (cuadro sobre el mundo, pista y salida segura) y a ese
+ * mismo panel se le da cada decisión tal como la arma el caso: quien habla, sus líneas y las fichas con el texto del
+ * mapa, en el peor caso (herramienta que aún no se tiene y aviso de «puedes conocer más»). Para cada una comprueba:
+ *  - el cuadro entero queda dentro de la pantalla, y nada de él (retrato, rótulo, cabecera, aviso, pistas) queda cortado;
+ *  - A y B se ven enteras sin tocar nada, y cada ficha se puede ver entera desplazando solo la lista de fichas;
+ *  - ninguna franja (cabecera, aviso, pista de teclado) tapa el rótulo de quien habla, ninguna pieza del cuadro se monta
+ *    sobre otra y nada de la pantalla las tapa;
+ *  - lo mismo con el aviso breve «hay otra forma de responder» en pantalla, que antes flotaba sobre las fichas.
+ * Los estados salen de `tools/escenarios/decisiones_para_prueba.py`. Se corre con la pila aislada:
+ *   SIEP_TEST_DB_PORT=5664 SIEP_E2E_API_PORT=8184 SIEP_E2E_WEB_PORT=4384 \
+ *     node scripts/test-e2e.mjs --config=captura-i1/playwright.config.ts decisiones-caben
+ * Deja las medidas y tres capturas por tamaño en `CAPTURA_DIR`.
+ */
+const DESTINO = process.env['CAPTURA_DIR'] ?? 'D:/Sua_Files/IdeaProjects/psico_project_v3/.superpowers/noche-2026-11-14/capturas-i1';
+const TODOS = [
+  { nombre: '1366', width: 1366, height: 768 },
+  { nombre: '1920', width: 1920, height: 1080 },
+  { nombre: '390', width: 390, height: 844 },
+];
+const PEDIDOS = (process.env['CAPTURA_TAMANOS'] ?? '1366,1920,390').split(',');
+const TAMANOS = TODOS.filter(t => PEDIDOS.includes(t.nombre));
+// Las que más piden: la de la herramienta con tres decisiones, la de cuatro decisiones y la ficha más larga.
+const FOTOS = ['prueba-c1-sala-espera-abuela', 'prueba-c2-accion-tecnica-psicologa-hospital', 'prueba-c3-pasillo-sobreviviente'];
+
+interface Estado { key: string; speakerName: string; choices: unknown[] }
+const { decisiones } = JSON.parse(readFileSync(join(__dirname, 'decisiones-sim-vbg-002.json'), 'utf-8')) as { decisiones: Estado[] };
+
+async function entrarAlCaso(page: Page, title: string): Promise<void> {
+  await page.goto('/login');
+  await loginStudent(page);
+  await resetStudentConsent(page);
+  await page.goto('/portal/simulador');
+  const card = page.locator('.case-card').filter({ hasText: title });
+  await expect(card).toBeVisible({ timeout: scaled(30_000) });
+  await card.locator('.case-card__actions button').first().click();
+  await page.waitForURL(/\/portal\/simulador\/\d+/, { timeout: scaled(30_000) });
+  await leaveBrief(page);
+  const consent = page.getByRole('dialog').filter({ hasText: 'Antes de entrar al caso' });
+  const startFresh = page.getByRole('button', { name: /iniciar nuevo intento/i });
+  await expect(consent.or(startFresh).first()).toBeVisible({ timeout: scaled(30_000) });
+  if (await startFresh.isVisible().catch(() => false)) await startFreshAttempt(page, startFresh);
+  await expect(consent).toBeVisible({ timeout: scaled(30_000) });
+  const intro = await acceptContentWarning(page, consent);
+  const card2 = await finishCaseIntroduction(page, intro);
+  await card2.getByRole('button', { name: /^continuar$/i }).click();
+  await waitForWorldReady(page);
+}
+
+/** Le da al panel del juego el estado de diálogo de una decisión (la misma señal que llena la respuesta del servidor). */
+async function ponerDecision(page: Page, estado: Estado): Promise<void> {
+  await page.evaluate((e) => {
+    const ng = (window as unknown as { ng?: { getComponent(el: Element): unknown } }).ng;
+    const anfitrion = document.querySelector('app-simulation-play');
+    if (!ng || !anfitrion) throw new Error('Sin la API de depuración de Angular (ng serve en desarrollo) o sin el juego');
+    (ng.getComponent(anfitrion) as { dialogue: { set(v: unknown): void } }).dialogue.set(e);
+  }, estado);
+}
+
+/** Mide el cuadro y devuelve lo que no cumple (vacío si todo cabe). */
+async function medir(page: Page): Promise<{ fallas: string[]; medidas: Record<string, unknown> }> {
+  return page.evaluate(() => {
+    type Caja = { top: number; bottom: number; left: number; right: number };
+    const T = 0.5;
+    const caja = (el: Element): Caja => { const r = el.getBoundingClientRect(); return { top: r.top, bottom: r.bottom, left: r.left, right: r.right }; };
+    const dentro = (a: Caja, b: Caja) => a.top >= b.top - T && a.bottom <= b.bottom + T && a.left >= b.left - T && a.right <= b.right + T;
+    const cruce = (a: Caja, b: Caja) => a.left < b.right - T && b.left < a.right - T && a.top < b.bottom - T && b.top < a.bottom - T;
+    const corte = (a: Caja, b: Caja): Caja => ({ top: Math.max(a.top, b.top), bottom: Math.min(a.bottom, b.bottom), left: Math.max(a.left, b.left), right: Math.min(a.right, b.right) });
+    const txt = (c: Caja) => `[${Math.round(c.left)},${Math.round(c.top)} → ${Math.round(c.right)},${Math.round(c.bottom)}]`;
+    const oculto = (el: Element) => {
+      const s = getComputedStyle(el);
+      return el.getBoundingClientRect().height < 2 || s.display === 'none' || s.visibility === 'hidden' || s.clip === 'rect(0px, 0px, 0px, 0px)';
+    };
+    const fallas: string[] = [];
+    const pantalla: Caja = { top: 0, left: 0, right: innerWidth, bottom: innerHeight };
+    const anfitrion = document.querySelector('app-dialogue-panel.dialogue-cinematic');
+    const tira = anfitrion?.querySelector('.dialogue-strip');
+    if (!anfitrion || !tira) return { fallas: ['no hay cuadro de diálogo sobre el mundo'], medidas: {} };
+    const cTira = caja(tira);
+    if (!dentro(caja(anfitrion), pantalla)) fallas.push(`el cuadro sale de la pantalla ${txt(caja(anfitrion))}`);
+    if (!dentro(cTira, pantalla)) fallas.push(`la banda sale de la pantalla ${txt(cTira)}`);
+    const visible = corte(cTira, pantalla);
+    // Lo que nunca se desplaza tiene que verse entero: retrato, rótulo, texto, cabecera, aviso, pistas.
+    const fijos: Record<string, string> = {
+      retrato: '.portrait', rotulo: '.speaker-name', placa: '.placa-cuerpo', cabecera: '.panel-head', volver: '.panel-back',
+      salida: 'app-safe-exit-button', nota: '.panel-head__note', aviso: '.choices-notice', pista: 'app-scene-hint',
+      teclado: '.keyboard-hint',
+    };
+    const medidas: Record<string, unknown> = { tira: txt(cTira) };
+    for (const [nombre, sel] of Object.entries(fijos)) {
+      const el = tira.querySelector(sel);
+      if (!el || oculto(el)) continue;
+      const c = caja(el);
+      medidas[nombre] = txt(c);
+      if (!dentro(c, visible)) fallas.push(`${nombre} queda cortado o fuera ${txt(c)} (visible ${txt(visible)})`);
+    }
+    // Ninguna franja tapa el rótulo de quien habla.
+    const rotulo = tira.querySelector('.speaker-name');
+    if (rotulo) {
+      for (const sel of ['.panel-head', '.choices-notice', 'app-scene-hint', '.keyboard-hint', '.choices']) {
+        const el = tira.querySelector(sel);
+        if (el && !oculto(el) && cruce(caja(el), caja(rotulo))) fallas.push(`${sel} tapa el rótulo de quien habla`);
+      }
+    }
+    // Las fichas: A y B enteras de entrada; cada una, entera desplazando solo su lista.
+    const lista = tira.querySelector<HTMLElement>('.choices');
+    if (!lista) return { fallas: [...fallas, 'no hay fichas'], medidas };
+    const ventana = corte(caja(lista), visible);
+    medidas['lista'] = `${txt(caja(lista))} desplazable ${lista.scrollHeight - lista.clientHeight}px`;
+    const fichas = Array.from(lista.querySelectorAll<HTMLElement>('.choice-btn'));
+    fichas.slice(0, 2).forEach((f, i) => {
+      if (!dentro(caja(f), ventana)) fallas.push(`la ${'AB'[i]} no se ve entera sin desplazar ${txt(caja(f))} (lista ${txt(ventana)})`);
+    });
+    fichas.forEach((f, i) => {
+      const antes = caja(f);
+      if (antes.bottom > ventana.bottom) lista.scrollTop += antes.bottom - ventana.bottom + 1;
+      if (antes.top < ventana.top) lista.scrollTop -= ventana.top - antes.top + 1;
+      const c = caja(f);
+      if (!dentro(c, ventana)) fallas.push(`la ficha ${'ABCDEF'[i]} no se puede ver entera ${txt(c)} (lista ${txt(ventana)})`);
+      const cuerpo = f.querySelector<HTMLElement>('.choice-btn__body');
+      if (cuerpo && cuerpo.scrollWidth > cuerpo.clientWidth + 1) fallas.push(`el texto de la ficha ${'ABCDEF'[i]} se corta a lo ancho`);
+      // El texto (y el aviso de herramienta) dentro del marco de la ficha, no saliéndose por abajo sobre el canto.
+      const borde = parseFloat(getComputedStyle(f).borderBottomWidth) || 0;
+      if (cuerpo && caja(cuerpo).bottom > c.bottom - borde + 1) {
+        fallas.push(`el texto de la ficha ${'ABCDEF'[i]} se sale de su marco por abajo ${txt(caja(cuerpo))} (ficha ${txt(c)})`);
+      }
+    });
+    lista.scrollTop = 0;
+
+    // Nada tapa a nada: las piezas del cuadro no se montan unas sobre otras, ningún aviso flota encima, y lo que hay en
+    // cada pieza es la pieza misma (no otra capa de la pantalla).
+    const sueltas = ['.speaker-name', '.portrait', '.placa-habla', '.panel-head__aviso', '.panel-head__note', '.panel-back',
+      'app-safe-exit-button', '.choices-notice', 'app-scene-hint', '.keyboard-hint']
+      .map(sel => tira.querySelector(sel)).filter((el): el is Element => !!el && !oculto(el));
+    const piezas: Element[] = [...sueltas, ...fichas.filter(f => dentro(caja(f), ventana))];
+    const nombre = (el: Element) => el.classList[0] ?? el.tagName.toLowerCase();
+    for (let i = 0; i < piezas.length; i++) {
+      for (let j = i + 1; j < piezas.length; j++) {
+        const [a, b] = [piezas[i], piezas[j]];
+        if (a.contains(b) || b.contains(a)) continue;
+        if (cruce(caja(a), caja(b))) fallas.push(`${nombre(a)} y ${nombre(b)} se montan ${txt(caja(a))} ${txt(caja(b))}`);
+      }
+    }
+    for (const el of piezas) {
+      const c = caja(el);
+      const m = Math.min(5, (c.right - c.left) / 4, (c.bottom - c.top) / 4);
+      const puntos = [[(c.left + c.right) / 2, (c.top + c.bottom) / 2], [c.left + m, c.top + m], [c.right - m, c.top + m],
+        [c.left + m, c.bottom - m], [c.right - m, c.bottom - m]];
+      for (const [x, y] of puntos) {
+        const encima = document.elementFromPoint(x, y);
+        // La pestaña del nombre tapa a propósito el canto de la placa (un punto de mundo).
+        if (encima && !el.contains(encima) && !encima.closest('.speaker-name')) {
+          fallas.push(`${nombre(encima)} tapa ${nombre(el)} en (${Math.round(x)}, ${Math.round(y)})`);
+          break;
+        }
+      }
+    }
+    // Los avisos sueltos de la pantalla no pasan por el sitio del cuadro (no reciben el puntero: se miden aparte).
+    for (const aviso of Array.from(document.querySelectorAll('.soft-notice, .pausing-notice, .room-banner'))) {
+      if (!oculto(aviso) && cruce(caja(aviso), cTira)) fallas.push(`${nombre(aviso)} flota encima del cuadro ${txt(caja(aviso))}`);
+    }
+    return { fallas, medidas };
+  });
+}
+
+/** Un aviso breve de la pantalla (VD-29) con la decisión abierta: el que salía encima de las opciones. */
+async function ponerAvisoBreve(page: Page, texto: string): Promise<void> {
+  await page.evaluate((t) => {
+    const ng = (window as unknown as { ng: { getComponent(el: Element): unknown } }).ng;
+    (ng.getComponent(document.querySelector('app-simulation-play')!) as { softNotice: { set(v: string): void } }).softNotice.set(t);
+  }, texto);
+}
+
+for (const tamano of TAMANOS) {
+  test.describe(`decisiones-${tamano.nombre}`, () => {
+    test.use({ viewport: { width: tamano.width, height: tamano.height } });
+
+    test(`las 16 decisiones del caso caben en la pantalla (${tamano.nombre})`, async ({ page, request }) => {
+      test.setTimeout(scaled(360_000));
+      expect(decisiones).toHaveLength(16);
+      let fixture: CaseFixture | undefined;
+      const records: AssignmentRecord[] = [];
+      const informe: Record<string, unknown> = {};
+      const todas: string[] = [];
+      try {
+        fixture = await createExplorationCase(request);
+        records.push(await assignCase(request, fixture.caseVersionId));
+        const input = createWorldInputDriver(page, 'keyboard');
+        await entrarAlCaso(page, fixture.title);
+        // Una conversación de verdad: el juego monta el cuadro sobre el mundo con su pista y su salida segura.
+        await reachNearby(page, input, ['ArrowRight', 'ArrowRight', 'ArrowUp'], /laura/i);
+        await interactNearby(page, /laura/i, /\/interactions\/laura$/);
+        await expect(page.getByRole('dialog', { name: /laura/i })).toBeVisible({ timeout: scaled(30_000) });
+
+        for (const estado of decisiones) {
+          await ponerDecision(page, estado);
+          const nombre = new RegExp(estado.speakerName.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'i');
+          const cuadro = await advanceDialogueToChoices(page, nombre);
+          await expect(cuadro.locator('.choice-btn')).toHaveCount(estado.choices.length);
+          await page.waitForTimeout(450); // entrada escalonada de las fichas
+          const { fallas, medidas } = await medir(page);
+          informe[estado.key] = { fallas, medidas };
+          todas.push(...fallas.map(f => `${estado.key}: ${f}`));
+          if (FOTOS.includes(estado.key)) {
+            await page.screenshot({ path: `${DESTINO}/decisiones-caben-${tamano.nombre}-${estado.key.replace(/^prueba-/, '')}.png` });
+          }
+          // Lo mismo con el aviso de «hay otra forma de responder» en pantalla (antes flotaba sobre la A y la C).
+          await ponerAvisoBreve(page, 'Ahora conoces algo más: hay otra forma de responder.');
+          await page.waitForTimeout(150);
+          const conAviso = await medir(page);
+          informe[`${estado.key} (con aviso breve)`] = conAviso;
+          todas.push(...conAviso.fallas.map(f => `${estado.key} con aviso breve: ${f}`));
+          if (estado.key === FOTOS[0]) {
+            await page.screenshot({ path: `${DESTINO}/decisiones-caben-${tamano.nombre}-con-aviso-breve.png` });
+          }
+          await ponerAvisoBreve(page, '');
+        }
+      } finally {
+        writeFileSync(`${DESTINO}/decisiones-caben-${tamano.nombre}.json`, JSON.stringify(informe, null, 1));
+        if (fixture) await retireCase(request, fixture.caseVersionId, records);
+      }
+      expect(todas).toEqual([]);
+    });
+  });
+}
