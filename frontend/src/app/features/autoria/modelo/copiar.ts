@@ -29,6 +29,7 @@ export function copiarEscenarioAlCaso(e: Escenario, salaIds: string[], titulo: s
     const copia = structuredClone(sala);
     return {
       ...copia,
+      estructura: null, choques: {},
       puertas: copia.puertas.map((p) => ({ ...p, hacia: elegidas.has(p.hacia) ? p.hacia : null })),
       origen: { lugarId: e.id, salaId: sala.id },
     };

@@ -13,6 +13,7 @@ import type {
   WorldDialogueTree, WorldObject, WorldRoomSaveRequest,
 } from '../../../core/models/simulation.model';
 import type { CasoBorrador, EfectosRespuesta, Escena, Hito, Linea, ListaVerificacion, Respuesta, SalaCaso } from './caso';
+import { llegada } from './geometria';
 import { comentarioDesdeApi, expresionDe, reaccionDesdeApi } from './desde-api';
 import { finalesDePlantilla, plantillaEditada } from './finales';
 import { mismoMovimiento, movimientoAMetadata, movimientoDeMetadata } from './movimiento';
@@ -218,6 +219,8 @@ export interface ContextoSala {
   personajes: Personaje[];
   /** Los personajes que el caso ya tiene (`editor.characters`). */
   personajesDelCaso: CharacterEditorState[];
+  nodosPorSala?: ReadonlyMap<string, string>;
+  salaPorNodo?: ReadonlyMap<string, string>;
 }
 
 export interface SolicitudDeSala {
@@ -379,12 +382,33 @@ export function solicitudDeSala(sala: SalaCaso, contexto: ContextoSala, previo: 
     ));
   }
 
-  const puertas = new Set(sala.puertas.map((p) => p.id));
+  for (const puerta of sala.puertas) {
+    if (puerta.hacia === null) continue;
+    const base = previos.get(puerta.id);
+    const anterior = base?.metadata['targetNodeKey'];
+    const destino = typeof anterior === 'string' && contexto.salaPorNodo?.get(anterior) === puerta.hacia
+      ? anterior : contexto.nodosPorSala
+        ? contexto.nodosPorSala.get(puerta.hacia)
+        : typeof anterior === 'string' ? anterior : undefined;
+    if (!destino) continue;
+    const metadata: Record<string, unknown> = { ...(base?.metadata ?? {}), targetNodeKey: destino };
+    for (const campo of ['muro', 'pos', 'modelo', 'par', 'sentidoUnico'] as const) {
+      if (puerta[campo] === undefined) delete metadata[campo];
+      else metadata[campo] = puerta[campo];
+    }
+    if (base?.type === 'EXIT') {
+      existentes.set(puerta.id, (original) => ({ ...original, label: puerta.etiqueta, metadata }));
+    } else {
+      const punto = puerta.muro !== undefined && puerta.pos !== undefined
+        ? llegada(puerta.muro, puerta.pos, sala.encuadre, sala.estructura?.ancho ?? previo.map.width)
+        : { x: puerta.x, y: puerta.y };
+      nuevos.push(objetoNuevo(claveDeNuevo(puerta.id, puerta.id, usadas), puerta.etiqueta, 'EXIT', punto.x, punto.y, 24, 40, { metadata }));
+    }
+  }
   const objects: WorldObject[] = [];
   for (const base of previo.objects) {
     const edicion = existentes.get(base.key);
     if (edicion) objects.push(edicion(base));
-    else if (puertas.has(base.key)) objects.push(base); // las puertas no se editan aquí
   }
   objects.push(...nuevos);
 
@@ -401,14 +425,14 @@ export function solicitudDeSala(sala: SalaCaso, contexto: ContextoSala, previo: 
     const antes = previos.get(duenoClave);
     if (!dueno) continue; // el mueble ya no está: su huella tampoco
     const seMovio = !antes || antes.x !== dueno.x || antes.y !== dueno.y;
-    collisionZones.push(seMovio ? huella(duenoClave, zona.label ?? dueno.label, dueno.x, dueno.y, dueno.width, dueno.height, zona.id) : zona);
+    collisionZones.push(seMovio && antes ? { ...zona, x: zona.x + dueno.x - antes.x, y: zona.y + dueno.y - antes.y } : zona);
   }
   collisionZones.push(...zonasNuevas);
 
   return {
     solicitud: {
       revision: contexto.revision,
-      map: { ...previo.map, spawnX: sala.entrada.x, spawnY: sala.entrada.y },
+      map: { ...previo.map, spawnX: sala.entrada.x, spawnY: sala.entrada.y, ...(sala.estructura != null || previo.map.structure !== undefined ? { structure: sala.estructura ?? previo.map.structure ?? null } : {}) },
       objects,
       collisionZones,
     },

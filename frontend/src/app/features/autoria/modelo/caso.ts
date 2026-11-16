@@ -5,10 +5,12 @@
  * Los ids son los del servidor, como texto (`String(id)`), salvo los de lo que aún no se guardó (`escena-ab12…`).
  */
 import type { FormativeLevel, Gesto, Intensity, ResponseClass, RiskLevel } from '../../../core/models/simulation.model';
+import type { EstructuraDeSala } from '../../simulator/sala/catalogo';
+import type { Muro, Zona } from './geometria';
 import type { Colocacion, ColocacionPersonaje, Escenario, Expresion, Puerta, Sala } from './escenario';
 
 /** En el caso, una puerta hacia una sala que no se eligió queda sin destino. */
-export type PuertaCaso = Omit<Puerta, 'hacia'> & { hacia: string | null };
+export type PuertaCaso = Omit<Puerta, 'hacia'> & { hacia: string | null; muro?: Muro; pos?: number; modelo?: string; par?: string; sentidoUnico?: boolean };
 
 /**
  * Un mueble u objeto colocado en una sala del caso. `clave` es la del objeto en el mapa (la que lo identifica al
@@ -49,6 +51,8 @@ export type SalaCaso = Omit<Sala, 'puertas' | 'muebles' | 'objetos' | 'personaje
   objetos: ColocacionCaso[];
   personajes: ColocacionPersonajeCaso[];
   puertas: PuertaCaso[];
+  estructura: EstructuraDeSala | null;
+  choques: Record<string, Zona>;
   /** El lugar y la sala de la biblioteca de los que se copió; `null` en una sala creada a mano o de un caso sin lugar. */
   origen: { lugarId: string; salaId: string } | null;
 };

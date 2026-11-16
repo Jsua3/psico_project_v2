@@ -40,7 +40,7 @@ describe('puedeEnviar', () => {
   it('A7 · una persona o un mueble que la IA puso o movió sin aceptar bloquea el envío y lleva a su sala', () => {
     const caso = completo();
     caso.salas = [{
-      id: 'consultorio', nombre: 'Consultorio', descripcion: '', encuadre: 'tres-paredes', fondo: '', entrada: { x: 0, y: 0 }, puertas: [], origen: null,
+      id: 'consultorio', nombre: 'Consultorio', descripcion: '', encuadre: 'tres-paredes', fondo: '', entrada: { x: 0, y: 0 }, puertas: [], origen: null, estructura: null, choques: {},
       muebles: [{ ref: 'silla', x: 1, y: 1, marcaIa: true }], objetos: [], personajes: [{ ref: 'camila', x: 2, y: 2, mirando: 'izquierda', expresion: 'neutral', marcaIa: true }],
     }];
     caso.escenas[0].marcaIa = true;
@@ -93,7 +93,7 @@ describe('puedeEnviar', () => {
   describe('una escena con respuestas en una sala sin nadie con quien hablar', () => {
     const sala = (personajes: number) => ({
       id: 'consultorio', nombre: 'Consultorio', descripcion: '', encuadre: 'tres-paredes' as const, fondo: '', entrada: { x: 480, y: 440 },
-      muebles: [], objetos: [], puertas: [], origen: null,
+      muebles: [], objetos: [], puertas: [], origen: null, estructura: null, choques: {},
       personajes: Array.from({ length: personajes }, (_, i) => ({ ref: `p${i}`, x: 300, y: 300, mirando: 'derecha' as const, expresion: 'neutral' as const })),
     });
 

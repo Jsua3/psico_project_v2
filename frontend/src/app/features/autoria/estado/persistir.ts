@@ -44,10 +44,19 @@ async function armarSolicitudDeSala(
 ): Promise<Omit<WorldRoomSaveRequest, 'revision'>> {
   const sala = caso.salas.find((x) => x.id === salaId);
   if (!sala) throw new Error(`La sala «${salaId}» no está en el caso.`);
+  const nodosPorSala = new Map<string, string>();
+  const salaPorNodo = new Map<string, string>();
+  for (const mapa of s.vista.maps) {
+    const escena = caso.escenas.find((e) => s.nodoDe(e.id) === mapa.nodeId);
+    if (escena?.salaId) {
+      salaPorNodo.set(mapa.nodeKey, escena.salaId);
+      if (!nodosPorSala.has(escena.salaId)) nodosPorSala.set(escena.salaId, mapa.nodeKey);
+    }
+  }
   for (let intento = 0; intento < 2; intento++) {
     const { solicitud, faltanPersonajes } = solicitudDeSala(
       sala,
-      { revision: s.revision, catalogo: caso.catalogo, personajes: caso.personajes, personajesDelCaso: s.vista.characters },
+      { revision: s.revision, catalogo: caso.catalogo, personajes: caso.personajes, personajesDelCaso: s.vista.characters, nodosPorSala, salaPorNodo },
       previo,
     );
     if (faltanPersonajes.length === 0) return solicitud;
