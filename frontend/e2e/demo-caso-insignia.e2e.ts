@@ -71,12 +71,17 @@ const CARRIL_Y = 440;
 async function caminarHasta(
   page: Page, input: Mando, x: number, y: number, quien: RegExp, alLado = 46,
 ): Promise<void> {
+  // Con la máquina cargada, moveBy puede pasarse de largo: se corrige hasta quedar a menos de 6 px (o contra un mueble).
   const ir = async (eje: 'x' | 'y', destino: number) => {
-    const p = await readPlayerPosition(page);
-    const d = destino - p[eje];
-    if (Math.abs(d) < 6) return;
-    const tecla = eje === 'x' ? (d < 0 ? 'ArrowLeft' : 'ArrowRight') : (d < 0 ? 'ArrowUp' : 'ArrowDown');
-    await input.moveBy(tecla, Math.abs(d));
+    for (let intento = 0; intento < 4; intento += 1) {
+      const p = await readPlayerPosition(page);
+      const d = destino - p[eje];
+      if (Math.abs(d) < 6) return;
+      const tecla = eje === 'x' ? (d < 0 ? 'ArrowLeft' : 'ArrowRight') : (d < 0 ? 'ArrowUp' : 'ArrowDown');
+      await input.moveBy(tecla, Math.abs(d));
+      const q = await readPlayerPosition(page);
+      if (Math.abs(q[eje] - p[eje]) < 2) return;   // no avanzó: un mueble o el muro; seguir así
+    }
   };
   // Se para AL LADO (a la derecha) y casi a su altura: delante taparía a la persona en la captura.
   await ir('y', CARRIL_Y);
