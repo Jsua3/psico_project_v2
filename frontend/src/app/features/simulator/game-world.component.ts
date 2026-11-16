@@ -122,7 +122,11 @@ import { npcsDeLaSala } from './caso/npcs-de-sala';
 /** Lo que la pantalla le pide a la cámara (bloque M1): explorar, o encuadrar la conversación o el objeto `clave`. */
 export type CameraMoment = { tipo: 'explorar' } | { tipo: 'conversacion' | 'objeto'; clave: string };
 export interface CameraOptions { cercana: boolean; acercarAuto: boolean }
-export interface CameraReport { zoom: number; momento: Momento['tipo']; x: number; y: number; viajando: boolean }
+export interface CameraReport {
+  zoom: number; momento: Momento['tipo']; x: number; y: number; viajando: boolean;
+  /** Lo que la interfaz tapa (px CSS) abajo y arriba, tal como lo recibe la cámara. */
+  abajo: number; arriba: number;
+}
 
 interface WorldCallbacks {
   onReady:       () => void;
@@ -1190,9 +1194,9 @@ export class DataDrivenWorldScene extends Phaser.Scene {
     }
     const report: CameraReport = {
       zoom: this.camSettledZoom, momento: momento.tipo, x: Math.round(next.centro.x), y: Math.round(next.centro.y),
-      viajando: this.camTravel !== null,
+      viajando: this.camTravel !== null, abajo: Math.round(this.camCoveredCss), arriba: Math.round(this.camCoveredTopCss),
     };
-    const key = `${report.zoom}|${report.momento}|${report.x}|${report.y}|${report.viajando}`;
+    const key = `${report.zoom}|${report.momento}|${report.x}|${report.y}|${report.viajando}|${report.abajo}|${report.arriba}`;
     if (key !== this.camReport) {
       this.camReport = key;
       this.callbacks.onCamera?.(report);
@@ -1540,7 +1544,9 @@ export class DataDrivenWorldScene extends Phaser.Scene {
       .map(obj => (dePieza.has(obj.key) ? { ...obj, metadata: { ...(obj.metadata ?? {}), pintada: true } } : obj))
       .forEach(obj => this.createMarker(obj));
     this.createPlayer(this.world.player.x, this.world.player.y);
-    this.applyPixelCamera(mapW, mapH);
+    // Cámara (M1): la sala compuesta mide `plan.ancho × plan.alto` (528 de alto, contrato 2.2); el `height` del mapa del
+    // servidor puede ser mayor y la cámara mostraba el vacío bajo la sala en el plano general.
+    this.applyPixelCamera(plan.ancho || mapW, plan.alto || mapH);
     this.refreshMarkerStates();
     this.updateNearestInteraction(true);
     this.applyCrisisVignette();
@@ -3847,6 +3853,7 @@ export class GameWorldComponent implements OnChanges, OnDestroy {
     host.setAttribute('data-camera-x', String(camera.x));
     host.setAttribute('data-camera-y', String(camera.y));
     host.setAttribute('data-camera-travel', camera.viajando ? 'true' : 'false');
+    host.setAttribute('data-camera-cover', `${camera.abajo},${camera.arriba}`);
   }
 
   /** Dónde está ahora la persona a atender, como `data-key-person-x/y` del host (contrato del e2e, igual que `data-player-x/y`). Directo al DOM. */
