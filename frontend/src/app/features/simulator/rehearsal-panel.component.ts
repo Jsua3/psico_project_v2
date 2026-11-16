@@ -160,7 +160,7 @@ const SECCION_DE: Record<CampoError, string> = { irA: 'escena', explorado: 'expl
     .rp__error { margin: 4px 0; font-size: .85rem; color: var(--ds-danger-text, #ffb4b4); }
     .rp__actions { display: flex; flex-direction: column; gap: 6px; margin-top: 12px; }
     .rp__actions a { color: inherit; }
-    select, button:not(.rp__toggle) { font: inherit; min-block-size: 32px; }
+    select, button:not(.rp__toggle) { font: inherit; min-block-size: 44px; }
     .sr-only { position: absolute; inline-size: 1px; block-size: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
   `],
 })
