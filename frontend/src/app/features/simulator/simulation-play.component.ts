@@ -692,6 +692,10 @@ const QUEUED_PAUSE_SLOW_NOTICE = 'La acción en curso está tardando. Estamos pa
     .objective-card__etapa { flex: none; }
     /* Decisión con franjas de cine: la franja de arriba queda limpia (el HUD sigue). */
     .game-container--cine .objective-card { visibility: hidden; }
+    /* Con franjas, la fila de arriba se pega al borde y el grupo de la derecha deja la pestaña del caso: cabe en la franja
+       negra (8 % del alto) sin bajar sobre la sala. Las teclas siguen, con la misma conducta. */
+    .game-container--cine .top-bar__fila { padding-top: 0; }
+    .game-container--cine .top-bar__derecha ::ng-deep .hud-case { display: none; }
     .objective-card__scroll { min-height: 0; overflow-y: auto; overscroll-behavior: contain; scrollbar-width: thin; }
 
     /* Tarjeta de primera vez: sobre las cruces táctiles (48) para que sus botones siempre se puedan tocar, y bajo las
