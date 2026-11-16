@@ -9,7 +9,7 @@ import type { Generation } from '../../../../core/models/generacion.model';
 import { GeneracionService } from '../../generacion/generacion.service';
 import { rutaDelEditor } from '../../rutas';
 import { anuncioDeLasPartes, esNegativa, parteConError, partesDeLaGeneracion } from './avance-partes';
-import { ParteAvanceComponent } from './parte-avance.component';
+import { ParteAvanceComponent, cuantoLleva } from './parte-avance.component';
 
 /** Desde qué parte del tope de llamadas se le dice a la docente cuántos intentos con la IA lleva. */
 const AVISO_DE_INTENTOS = 0.75;
@@ -41,7 +41,7 @@ type Modo = 'generando' | 'listo' | 'fallo' | 'fatal' | 'cancelada';
           }
           @case ('listo') {
             <p class="entrada">Lo marcado «Sugerido por la IA» espera tu revisión.</p>
-            <p class="entrada">{{ textoPorResolver() }}</p>
+            <p class="entrada destacada">{{ textoPorResolver() }}</p>
             <div class="acciones">
               <button type="button" class="boton boton-primario" (click)="abrirMiCaso()">Abrir mi caso</button>
             </div>
@@ -90,7 +90,7 @@ type Modo = 'generando' | 'listo' | 'fallo' | 'fatal' | 'cancelada';
           @if (modo() === 'generando') {
             <div class="medidor">
               <div class="cuenta-fila">
-                <p class="cuenta">{{ textoCuenta() }}</p>
+                <p class="cuenta" [class.por-saber]="!cuenta()">{{ textoCuenta() }}</p>
                 @if (textoIntentos(); as intentos) {
                   <p class="intentos">{{ intentos }}</p>
                 }
@@ -108,6 +108,10 @@ type Modo = 'generando' | 'listo' | 'fallo' | 'fatal' | 'cancelada';
                   <span class="detenido"><span aria-hidden="true">! </span>Se detuvo en «{{ donde }}».</span>
                 }
                 <span role="status">{{ anuncio() }}</span>
+                <!-- Cuánto lleva lo de ahora: se ve sin bajar, pero fuera de la región viva (no se anuncia cada segundo). -->
+                @if (anuncio() && llevaAhora(); as lleva) {
+                  <span class="lleva" aria-hidden="true">· {{ lleva }}</span>
+                }
               </p>
               @if (error() && !errorEn()) {
                 <ng-container *ngTemplateOutlet="problema" />
@@ -177,6 +181,7 @@ type Modo = 'generando' | 'listo' | 'fallo' | 'fatal' | 'cancelada';
     .encabezado h1:focus { outline: 3px solid var(--foco); outline-offset: 4px; }
     .encabezado p { margin: 0; }
     .entrada { font-size: var(--autoria-texto-18); line-height: 1.75rem; color: var(--texto-secundario); }
+    .entrada.destacada { color: var(--tinta); font-weight: 600; }
     .acciones { display: flex; flex-wrap: wrap; gap: 0.5rem 1rem; align-items: center; }
     .aviso-error { display: flex; flex-direction: column; gap: 0.75rem; margin: 0; border: 2px solid var(--peligro); background: var(--peligro-tinte); }
     .aviso-error p { margin: 0; }
@@ -202,6 +207,7 @@ type Modo = 'generando' | 'listo' | 'fallo' | 'fatal' | 'cancelada';
     }
     .cuenta-fila { display: flex; flex-wrap: wrap; align-items: baseline; justify-content: space-between; gap: 0.25rem 1rem; }
     .cuenta { font-size: var(--autoria-texto-20); font-weight: 700; line-height: 1.75rem; font-variant-numeric: tabular-nums; }
+    .cuenta.por-saber { color: var(--texto-secundario); font-size: var(--autoria-texto-16); font-weight: 600; line-height: 1.5rem; }
     .intentos { color: var(--aviso-texto); font-size: var(--autoria-texto-16); font-weight: 700; }
     .barra {
       position: relative;
@@ -224,9 +230,10 @@ type Modo = 'generando' | 'listo' | 'fallo' | 'fatal' | 'cancelada';
       min-block-size: 1.75rem; font-size: var(--autoria-texto-16); line-height: 1.5rem;
     }
     .ahora .rotulo { display: inline; }
+    .lleva { color: var(--primario-oscuro); font-weight: 600; font-variant-numeric: tabular-nums; }
     .detenido { color: var(--peligro); font-weight: 700; }
 
-    .partes { display: flex; flex-direction: column; margin: 0; padding: 0; list-style: none; }
+    .partes { --hueco: 0.25rem; display: flex; flex-direction: column; gap: var(--hueco); margin: 0; padding: 0; list-style: none; }
 
     .problema { display: flex; flex-direction: column; gap: 0.75rem; margin-block-start: 0.5rem; }
     .problema .mensaje { color: var(--peligro); font-size: var(--autoria-texto-16); font-weight: 700; line-height: 1.5rem; }
@@ -237,6 +244,7 @@ type Modo = 'generando' | 'listo' | 'fallo' | 'fatal' | 'cancelada';
 
     @media (max-width: 40rem) {
       .panel { padding: 1rem 0.75rem; }
+      .partes { --sangria: 0.375rem; }
       .acciones .boton { flex: 1 1 100%; }
     }
   `,
@@ -334,7 +342,7 @@ export class AvanceComponent implements OnInit, OnDestroy {
   protected readonly textoCuenta = computed(() => {
     const c = this.cuenta();
     if (c) return `${c.hechas} de ${c.total} partes hechas`;
-    return this.g() || this.error() ? 'Primero, el esqueleto: ahí sabremos cuántas escenas tendrá tu caso.' : 'Leyendo el avance de tu caso…';
+    return this.g() || this.error() ? 'Aún no sabemos cuántas partes tendrá tu caso.' : 'Leyendo el avance de tu caso…';
   });
   protected readonly textoValor = computed(() => {
     const c = this.cuenta();
@@ -401,6 +409,13 @@ export class AvanceComponent implements OnInit, OnDestroy {
   ngOnDestroy(): void {
     this.generacion.detener();
   }
+
+  /** «lleva 40 s» de la primera parte en curso, para la línea «Ahora». */
+  protected readonly llevaAhora = computed(() => {
+    const clave = this.enCurso()[0];
+    const s = clave ? this.segundos(clave) : null;
+    return s === null ? null : cuantoLleva(s);
+  });
 
   protected segundos(clave: string): number | null {
     const inicio = this.inicios()[clave];

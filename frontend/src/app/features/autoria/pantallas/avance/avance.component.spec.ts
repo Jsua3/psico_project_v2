@@ -65,19 +65,24 @@ describe('AvanceComponent', () => {
       expect(raiz().textContent).toContain('La IA escribe tu borrador parte por parte. Cada parte puede tardar un par de minutos.');
       const esqueleto = () => parte(raiz(), 'El esqueleto del caso')!;
       expect(esqueleto().getAttribute('data-estado')).toBe('en-curso');
-      expect(esqueleto().textContent).toMatch(/….*Escribiéndose/s);
+      expect(esqueleto().textContent).toMatch(/Escribiéndose/);
       expect(esqueleto().textContent).toContain('Acaba de empezar · puede tardar un par de minutos');
       // Sin esqueleto no se sabe cuántas partes habrá: la barra no inventa un total y lo dice en palabras.
       expect(barra(raiz()).hasAttribute('aria-valuenow')).toBe(false);
       expect(barra(raiz()).getAttribute('aria-valuetext')).toBe('Armando el esqueleto: todavía no sabemos cuántas partes tendrá el caso');
-      expect(raiz().textContent).toContain('Primero, el esqueleto: ahí sabremos cuántas escenas tendrá tu caso.');
+      expect(raiz().querySelector('.cuenta')!.textContent!.trim()).toBe('Aún no sabemos cuántas partes tendrá tu caso.');
+      // La parte en curso lleva su propio indicador de actividad (el «…» del símbolo), sin otro igual al lado.
+      expect(esqueleto().querySelectorAll('.simbolo .punto')).toHaveLength(3);
+      expect(esqueleto().querySelector('.tiempo .punto')).toBeNull();
       expect(parte(raiz(), 'Las escenas')!.textContent).toMatch(/○.*Pendiente.*Aparecerán aquí en cuanto el esqueleto esté listo\./s);
       expect(parte(raiz(), 'Revisión de las reglas del caso')!.textContent).toMatch(/○.*Pendiente/s);
 
       vi.advanceTimersByTime(40_000);
       harness.fixture.detectChanges();
       expect(esqueleto().textContent).toContain('Lleva 40 s · puede tardar un par de minutos');
-      // El contador vive fuera de la región viva, y la región sigue diciendo lo mismo: no se anuncia cada segundo.
+      // Arriba, junto a «Ahora», también se ve cuánto lleva; pero fuera de la región viva, que sigue diciendo lo mismo.
+      expect(raiz().querySelector('.ahora')!.textContent).toContain('lleva 40 s');
+      expect(raiz().querySelector('[role="status"]')!.textContent).not.toContain('lleva');
       expect(raiz().querySelector('[role="status"]')!.contains(esqueleto())).toBe(false);
       expect(anuncio(raiz())).toBe('Armando el esqueleto del caso');
 
@@ -92,14 +97,17 @@ describe('AvanceComponent', () => {
       g.retener('scene', 'recepcion');
       g.retener('scene', 'consulta');
       await ir();
-      await hasta(() => anuncio(raiz()) === 'Escribiendo las escenas 1 y 2 de 4: Recepción y Primera escucha');
+      // Con dos escenas a la vez, el anuncio no repite sus títulos (están en la lista).
+      await hasta(() => anuncio(raiz()) === 'Escribiendo las escenas 1 y 2 de 4');
 
       const esqueleto = parte(raiz(), 'El esqueleto del caso')!;
       expect(esqueleto.textContent).toMatch(/✓.*Hecha/s);
-      expect(esqueleto.textContent).toContain('«Caso de universidad», con 4 escenas');
+      // El título ya está arriba, en grande: el esqueleto dice qué trajo sin repetirlo.
+      expect(esqueleto.textContent).toContain('Trajo el título y 4 escenas, 1 final.');
+      expect(esqueleto.textContent).not.toContain('«Caso de universidad»');
       expect(raiz().querySelector('.caso')!.textContent).toContain('«Caso de universidad»');
-      expect(parte(raiz(), 'Escena 1 de 4: Recepción')!.textContent).toMatch(/….*Escribiéndose/s);
-      expect(parte(raiz(), 'Escena 2 de 4: Primera escucha')!.textContent).toMatch(/….*Escribiéndose/s);
+      expect(parte(raiz(), 'Escena 1 de 4: Recepción')!.textContent).toMatch(/Escribiéndose/);
+      expect(parte(raiz(), 'Escena 2 de 4: Primera escucha')!.textContent).toMatch(/Escribiéndose/);
       expect(parte(raiz(), 'Escena 3 de 4: Orientación')!.textContent).toMatch(/○.*Pendiente/s);
       // La escena final lo dice en palabras, desde que el esqueleto la da.
       expect(parte(raiz(), 'Escena 4 de 4: Cierre')!.querySelector('.final')!.textContent).toContain('Final');
@@ -121,7 +129,7 @@ describe('AvanceComponent', () => {
       g.retener('scene', 'cierre');
       g.liberar('scene', 'recepcion');
       g.liberar('scene', 'consulta');
-      await hasta(() => anuncio(raiz()) === 'Escribiendo las escenas 3 y 4 de 4: Orientación y Cierre');
+      await hasta(() => anuncio(raiz()) === 'Escribiendo las escenas 3 y 4 de 4');
       expect(parte(raiz(), 'Escena 1 de 4: Recepción')!.textContent).toMatch(/✓.*Hecha/s);
       expect(parte(raiz(), 'Escena 2 de 4: Primera escucha')!.textContent).toMatch(/✓.*Hecha/s);
       expect(barra(raiz()).getAttribute('aria-valuetext')).toBe('3 de 6 partes hechas');
@@ -162,8 +170,9 @@ describe('AvanceComponent', () => {
       expect(recepcion.contains(alertas(raiz())[0])).toBe(true);
       expect(alertas(raiz())[0].textContent).toContain('La IA respondió algo que no pudimos usar. Vuelve a intentarlo.');
       expect(boton(recepcion, 'Reintentar esta parte')).toBeTruthy();
-      // La otra escena del lote también falló: dice por qué, sin repetir la alerta.
+      // La otra escena del lote también falló: dice por qué y cómo se vuelve a pedir, sin repetir la alerta.
       expect(parte(raiz(), 'Escena 2 de 4: Primera escucha')!.textContent).toMatch(/!.*Con error.*La IA respondió algo que no pudimos usar/s);
+      expect(parte(raiz(), 'Escena 2 de 4: Primera escucha')!.textContent).toContain('Se vuelve a pedir con «Reintentar esta parte».');
       expect(raiz().textContent).toContain('Se detuvo en «Escena 1 de 4: Recepción».');
       expect(anuncio(raiz())).toBe('');
       expect(boton(raiz(), 'Cancelar y empezar de nuevo')).toBeTruthy();
@@ -176,6 +185,28 @@ describe('AvanceComponent', () => {
 
       g.liberar('scene', 'recepcion');
       await hasta(() => !!boton(raiz(), 'Abrir mi caso'));
+    });
+
+    it('una escena con error mientras se escriben otras dice cuándo podrá reintentarse', async () => {
+      const { g, id, raiz, hasta, ir } = await montar();
+      const api = TestBed.inject(AuthoringApi);
+      await firstValueFrom(api.generationSkeleton(id));
+      g.fallar('scene', 422, 'AI_REFUSED');
+      await firstValueFrom(api.generationScene(id, 'recepcion')).catch(() => undefined);
+      g.retener('scene', 'consulta');
+      g.retener('scene', 'orientacion');
+      await ir();
+      await hasta(() => anuncio(raiz()) === 'Escribiendo las escenas 2 y 3 de 4');
+
+      const recepcion = parte(raiz(), 'Escena 1 de 4: Recepción')!;
+      expect(recepcion.textContent).toMatch(/!.*Con error/s);
+      expect(recepcion.textContent).toContain(
+        'La IA no quiso escribir esta parte. Prueba a describir el caso con otras palabras. Podrás reintentarla cuando terminen las demás.',
+      );
+      expect(alertas(raiz())).toHaveLength(0);
+      TestBed.inject(GeneracionService).detener();
+      g.liberar('scene', 'consulta');
+      g.liberar('scene', 'orientacion');
     });
 
     it('si la IA se negó, sugiere describir el caso con otras palabras y cómo hacerlo', async () => {
@@ -294,7 +325,7 @@ describe('AvanceComponent', () => {
     await hasta(() => anuncio(raiz()) === 'Corrigiendo 1 escena (ronda 1 de 2)');
 
     const reparacion = () => parte(raiz(), 'Corrección de 1 escena (ronda 1 de 2)')!;
-    expect(reparacion().textContent).toMatch(/….*Corrigiéndose/s);
+    expect(reparacion().textContent).toMatch(/Corrigiéndose/);
     expect(reparacion().textContent).toContain('La revisión pidió corregir «Primera escucha».');
     expect(reparacion().textContent).toContain('Una respuesta no tiene reacción.');
     expect(raiz().textContent).not.toContain('DSL.');

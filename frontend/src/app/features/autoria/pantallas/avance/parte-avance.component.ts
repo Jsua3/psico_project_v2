@@ -20,6 +20,12 @@ const NORMAL_SIN_IA_S = 30;
 /** Menos que esto se lee «Acaba de empezar», no «Lleva 0 s». */
 const RECIEN_EMPEZADA_S = 3;
 
+/** «acaba de empezar», «lleva 40 s», «lleva 2 min 5 s». */
+export function cuantoLleva(segundos: number): string {
+  // BORRADOR: textos nuevos, pendientes de la aprobación de Psicología
+  return segundos < RECIEN_EMPEZADA_S ? 'acaba de empezar' : `lleva ${textoDuracion(segundos)}`;
+}
+
 /** «40 s», «2 min», «2 min 5 s». */
 export function textoDuracion(segundos: number): string {
   const s = Math.max(0, Math.floor(segundos));
@@ -31,8 +37,8 @@ export function textoDuracion(segundos: number): string {
 
 /**
  * Una fila de la lista de partes de la generación (`<li appParteAvance>`): el símbolo del estado sobre una línea que une las
- * partes, el nombre, el estado en texto, el tiempo que lleva si está en curso (con un indicador de actividad sutil que el
- * movimiento reducido deja quieto) y lo que salió. Lo que la docente puede hacer con un error llega proyectado desde la pantalla.
+ * partes, el nombre, el estado en texto, el tiempo que lleva si está en curso y lo que salió. En la parte en curso, el «…» del
+ * símbolo es el indicador de actividad: sus tres puntos se encienden por turnos y el movimiento reducido los deja quietos. Lo que la docente puede hacer con un error llega proyectado desde la pantalla.
  * El tiempo no está en ninguna región viva: se ve cambiar, pero no se anuncia.
  */
 @Component({
@@ -45,20 +51,24 @@ export function textoDuracion(segundos: number): string {
     '[attr.data-parte]': 'parte().clave',
   },
   template: `
-    <span class="simbolo" aria-hidden="true">{{ simbolo() }}</span>
+    <span class="simbolo" aria-hidden="true">
+      @if (parte().estado === 'en-curso') {
+        <span class="punto"></span><span class="punto"></span><span class="punto"></span>
+      } @else {
+        {{ simbolo() }}
+      }
+    </span>
     <div class="cuerpo">
       <p class="cabeza">
         <span class="nombre">{{ parte().nombre }}</span>
         @if (parte().final) {
           <span class="pildora final">Final</span>
         }
-        <span class="pildora estado">{{ textoEstado() }}</span>
+        <!-- Solo lo que pide atención (en curso o con error) va en píldora; hecha y pendiente, en texto quieto. -->
+        <span class="estado" [class.pildora]="destacada()">{{ textoEstado() }}</span>
       </p>
       @if (textoTiempo(); as tiempo) {
-        <p class="tiempo">
-          <span class="actividad" aria-hidden="true"><span></span><span></span><span></span></span>
-          <span>{{ tiempo }}</span>
-        </p>
+        <p class="tiempo">{{ tiempo }}</p>
       }
       @if (parte().detalle) {
         <p class="detalle">{{ parte().detalle }}</p>
@@ -79,23 +89,29 @@ export function textoDuracion(segundos: number): string {
       display: grid;
       grid-template-columns: 2rem minmax(0, 1fr);
       column-gap: 0.875rem;
-      padding: 0.75rem;
+      padding: 0.75rem var(--sangria, 0.75rem);
       border: 2px solid transparent;
       border-radius: var(--radio-control);
       container-type: inline-size;
     }
-    /* La línea que une las partes pasa por detrás de los símbolos (que van posicionados y después en el orden). */
+    /*
+     * La línea que une las partes pasa por detrás de los símbolos (que van posicionados y después en el orden). Cruza el borde
+     * transparente y la mitad del hueco entre filas, así es continua; en una fila resaltada (en curso o con error) no se dibuja:
+     * la línea llega hasta la tarjeta en vez de tacharle el borde.
+     */
     :host::before {
       content: '';
       position: absolute;
-      inset-block: 0;
-      inset-inline-start: calc(0.75rem + 1rem - 1px);
+      inset-block: calc(-2px - var(--hueco, 0px) / 2);
+      inset-inline-start: calc(var(--sangria, 0.75rem) + 1rem - 1px);
       inline-size: 2px;
       background: var(--linea);
     }
     :host(:first-child)::before { inset-block-start: 1.75rem; }
     :host(:last-child)::before { inset-block-end: calc(100% - 1.75rem); }
-    :host(:only-child)::before { display: none; }
+    :host(:only-child)::before,
+    :host([data-estado='en-curso'])::before,
+    :host([data-estado='error'])::before { display: none; }
     :host(:focus) { outline: none; }
     :host(:focus-visible) { outline: 3px solid var(--foco); outline-offset: 2px; }
 
@@ -126,15 +142,24 @@ export function textoDuracion(segundos: number): string {
     }
     .pildora { flex: none; }
     /* El estado ocupa siempre el mismo ancho: pasar de «Pendiente» a «Escribiéndose» no mueve el nombre. */
-    .estado { justify-content: center; min-inline-size: 9.5rem; }
+    .estado {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      min-inline-size: 9.5rem;
+      min-block-size: 2rem;
+      font-size: var(--autoria-texto-16);
+      font-weight: 700;
+    }
+    /* En una columna angosta el estado sigue al nombre en la misma línea, sin una fila propia. */
     @container (max-width: 30rem) {
-      .nombre { flex-basis: 100%; }
-      .estado { min-inline-size: 0; }
+      .cabeza { display: block; }
+      .cabeza > * { vertical-align: middle; }
+      .final, .estado { margin-inline-start: 0.375rem; }
+      .estado { min-inline-size: 0; min-block-size: 0; }
+      .estado.pildora { min-block-size: 1.75rem; }
     }
     .tiempo {
-      display: flex;
-      align-items: center;
-      gap: 0.5rem;
       color: var(--primario-oscuro);
       font-size: var(--autoria-texto-16);
       font-weight: 600;
@@ -145,28 +170,28 @@ export function textoDuracion(segundos: number): string {
     .detalle { color: var(--texto-secundario); }
     .faltas { margin: 0; padding-inline-start: 1.25rem; color: var(--tinta); }
 
-    /* Actividad: tres puntos que se encienden por turnos con curvas de 240 ms. Con movimiento reducido quedan quietos. */
-    .actividad { display: inline-flex; gap: 0.25rem; flex: none; }
-    .actividad span {
-      inline-size: 0.375rem;
-      block-size: 0.375rem;
+    /* Actividad: los tres puntos del «…» se encienden por turnos con curvas de 240 ms. Con movimiento reducido quedan quietos. */
+    .simbolo:has(.punto) { display: flex; gap: 0.1875rem; justify-content: center; align-items: center; }
+    .punto {
+      inline-size: 0.3125rem;
+      block-size: 0.3125rem;
       border-radius: 999px;
-      background: var(--primario);
-      opacity: 0.3;
+      background: currentColor;
+      opacity: 0.45;
       animation: progress-actividad 1200ms var(--ds-ease-out) infinite;
     }
-    .actividad span:nth-child(2) { animation-delay: 200ms; }
-    .actividad span:nth-child(3) { animation-delay: 400ms; }
+    .punto:nth-child(2) { animation-delay: 200ms; }
+    .punto:nth-child(3) { animation-delay: 400ms; }
     @keyframes progress-actividad {
-      0%, 40%, 100% { opacity: 0.3; }
+      0%, 40%, 100% { opacity: 0.45; }
       20% { opacity: 1; }
     }
     @media (prefers-reduced-motion: reduce) {
-      .actividad span { animation: none; opacity: 1; }
+      .punto { animation: none; opacity: 1; }
     }
 
     :host([data-estado='hecha']) .simbolo { border-color: var(--adecuada-borde); background: var(--adecuada-tinte); color: var(--adecuada); }
-    :host([data-estado='hecha']) .estado { border-color: var(--adecuada-borde); background: var(--adecuada-tinte); color: var(--adecuada); }
+    :host([data-estado='hecha']) .estado { color: var(--adecuada); }
 
     :host([data-estado='en-curso']) { border-color: var(--primario); background: var(--primario-tinte); }
     :host([data-estado='en-curso']) .simbolo { border-color: var(--primario); background: var(--primario); color: var(--sobre-primario); }
@@ -187,6 +212,7 @@ export class ParteAvanceComponent {
   readonly segundos = input<number | null>(null);
 
   protected readonly simbolo = computed(() => SIMBOLO[this.parte().estado]);
+  protected readonly destacada = computed(() => this.parte().estado === 'en-curso' || this.parte().estado === 'error');
   protected readonly textoEstado = computed(() => {
     const p = this.parte();
     return p.estado === 'en-curso' ? EN_CURSO[p.tipo] : TEXTO_ESTADO[p.estado];
@@ -199,7 +225,7 @@ export class ParteAvanceComponent {
     if (p.estado !== 'en-curso' || s === null) return null;
     const conIa = p.tipo !== 'reglas';
     // BORRADOR: textos nuevos, pendientes de la aprobación de Psicología
-    const lleva = s < RECIEN_EMPEZADA_S ? 'Acaba de empezar' : `Lleva ${textoDuracion(s)}`;
+    const lleva = cuantoLleva(s).replace(/^./, (letra) => letra.toUpperCase());
     // BORRADOR: textos nuevos, pendientes de la aprobación de Psicología
     const espera = s >= (conIa ? NORMAL_CON_IA_S : NORMAL_SIN_IA_S) ? 'está tardando más de lo normal'
       : conIa ? 'puede tardar un par de minutos' : 'suele tardar unos segundos';

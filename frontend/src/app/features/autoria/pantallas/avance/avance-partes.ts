@@ -68,9 +68,11 @@ export function partesDeLaGeneracion({ g, error, etapa, trabajando, reintentando
     : error && (error.parte === 'esqueleto' || !g) ? 'error'
     : 'pendiente';
   const totalEscenas = g?.scenes.length ?? 0;
+  const finales = g?.skeleton?.escenas.filter((e) => e.final).length ?? 0;
   partes.push(nueva({
     clave: 'esqueleto', tipo: 'esqueleto', nombre: 'El esqueleto del caso', estado: esqueleto,
-    detalle: g?.skeleton ? `«${g.skeleton.titulo}», con ${escenas(totalEscenas)}` : null,
+    // El título ya se ve arriba, en grande: aquí basta con decir qué trajo.
+    detalle: g?.skeleton ? `Trajo el título y ${escenas(totalEscenas)}${finales ? `, ${plural(finales, 'final', 'finales')}` : ''}.` : null,
   }));
 
   if (!g || totalEscenas === 0) {
@@ -88,11 +90,13 @@ export function partesDeLaGeneracion({ g, error, etapa, trabajando, reintentando
         : reintento === clave || lote.includes(s.clave) ? 'en-curso'
         : s.state === 'error' || conLaAlerta ? 'error'
         : s.state === 'running' ? 'en-curso' : 'pendiente';
+      // Una escena con error que no trae la alerta dice por qué y cuándo se vuelve a pedir: mientras se escriben otras, se
+      // ofrece después; con la alerta en otra parte, «Reintentar esta parte» la pide también.
+      const cuando = activa ? ' Podrás reintentarla cuando terminen las demás.' : error ? ' Se vuelve a pedir con «Reintentar esta parte».' : '';
       partes.push(nueva({
         clave, tipo: 'escena', nombre: `Escena ${i + 1} de ${totalEscenas}: ${s.titulo}`, estado,
         final: g.skeleton?.escenas.find((e) => e.clave === s.clave)?.final ?? false,
-        // El porqué de una escena con error que no trae la alerta (la otra del mismo lote).
-        detalle: estado === 'error' && s.error && !conLaAlerta ? s.error.message : null,
+        detalle: estado === 'error' && s.error && !conLaAlerta ? `${s.error.message}${cuando}` : null,
       }));
     });
   }
@@ -168,8 +172,8 @@ export function anuncioDeLasPartes(g: Generation, partes: Parte[]): string {
       const total = g.scenes.length;
       const escritas = enCurso.filter((p) => p.tipo === 'escena').map((p) => g.scenes.findIndex((s) => `escena-${s.clave}` === p.clave));
       const numeros = enumerar(escritas.map((i) => String(i + 1)));
-      const titulos = enumerar(escritas.map((i) => g.scenes[i].titulo));
-      return escritas.length > 1 ? `Escribiendo las escenas ${numeros} de ${total}: ${titulos}` : `Escribiendo la escena ${numeros} de ${total}: ${titulos}`;
+      // Con varias a la vez no se leen sus títulos (están en la lista): el anuncio queda corto.
+      return escritas.length > 1 ? `Escribiendo las escenas ${numeros} de ${total}` : `Escribiendo la escena ${numeros} de ${total}: ${g.scenes[escritas[0]].titulo}`;
     }
     default: return '';
   }
