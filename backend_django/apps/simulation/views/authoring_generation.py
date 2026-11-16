@@ -8,6 +8,7 @@ from drf_spectacular.utils import OpenApiResponse, extend_schema
 from rest_framework import serializers
 from rest_framework.views import APIView
 
+from shared.exceptions import ApiError
 from shared.openapi import envelope_of, error_responses
 from shared.permissions import policy_permission
 from shared.response import api_ok
@@ -19,6 +20,8 @@ from ..serializers.contracts import (
 )
 from ..services.authoring.generation import service
 
+# BORRADOR: texto nuevo del servidor, pendiente de la aprobación de Psicología
+REPAIR_MESSAGE = "El parámetro repair solo admite 1."
 _STAGE_ERRORS = (404, 409, 422, 429, 502)
 _CONFLICT = OpenApiResponse(GenerationErrorEnvelopeSerializer, description="Choca con el estado actual (`GENERATION_STATE`, `GENERATION_BUSY`, `GENERATION_IN_PROGRESS`).")
 _LIMIT = OpenApiResponse(GenerationErrorEnvelopeSerializer, description="Se agotó un límite de uso (`AI_LIMIT_EXCEEDED`, `GENERATION_CALLS_EXHAUSTED`).")
@@ -86,15 +89,25 @@ class GenerationSkeletonView(_GenerationView):
         return api_ok(service.run_skeleton(request.user, gen_id))
 
 
+def _repair_flag(request) -> bool:
+    """``?repair=1`` o ``?repair=true`` pide la reparación; sin el parámetro, la escena normal; otro valor es un 400."""
+    value = request.query_params.get("repair")
+    if value is None or value == "":
+        return False
+    if value in ("1", "true"):
+        return True
+    raise ApiError("VALIDATION_ERROR", REPAIR_MESSAGE, 400, field="repair")
+
+
 class GenerationSceneView(_GenerationView):
     """``POST …/generations/{id}/scenes/{clave}``: escribe una escena; con ``?repair=1`` la rehace en una ronda de reparación."""
 
     @extend_schema(
         request=None,
-        responses={200: envelope_of(GenerationSerializer), **_errors(401, 403, *_STAGE_ERRORS)},
+        responses={200: envelope_of(GenerationSerializer), **_errors(400, 401, 403, *_STAGE_ERRORS)},
     )
     def post(self, request, gen_id, clave):
-        return api_ok(service.run_scene(request.user, gen_id, clave, repair=request.query_params.get("repair") == "1"))
+        return api_ok(service.run_scene(request.user, gen_id, clave, repair=_repair_flag(request)))
 
 
 class GenerationAssembleView(_GenerationView):

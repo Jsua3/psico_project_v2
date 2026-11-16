@@ -654,7 +654,7 @@ export interface Generation {
   readonly createdAt: string;
   readonly descripcion: string;
   readonly id: string;
-  /** Con `imported`: lo que queda por resolver; con `failed`: lo que impidió importar. */
+  /** Con `imported`: lo que queda por resolver; con `failed`: lo que impidió importar. Solo faltas de severidad `error`: los avisos no se incluyen. */
   readonly issues: ReadonlyArray<ValidationIssue>;
   readonly lastError: GenerationError | null;
   readonly lugarId: string;

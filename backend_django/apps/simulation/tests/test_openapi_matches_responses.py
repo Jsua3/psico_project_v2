@@ -770,6 +770,9 @@ def _generation_errors():
          stage_fails("http", scene=False), 502, "AI_PROVIDER_ERROR"),
         ("escena de una generación que no existe", GENERATION_SCENE, "POST",
          gone("post", "/scenes/aula"), 404, "NOT_FOUND"),
+        ("escena con un repair que no es 1", GENERATION_SCENE, "POST",
+         on(lambda w: (lambda gid: cl(w.admin).post(f"{GENERATION}/{gid}/scenes/{_g_first_scene(w, gid)}?repair=si"))(
+             _g_with_skeleton(w)[0])), 400, "VALIDATION_ERROR"),
         ("escena pedida dos veces", GENERATION_SCENE, "POST", on(scene_twice), 409, "GENERATION_STATE"),
         ("escena que la IA se niega a escribir", GENERATION_SCENE, "POST",
          stage_fails("refusal", scene=True), 422, "AI_REFUSED"),

@@ -615,11 +615,11 @@ class GenerationSerializer(serializers.Serializer):
     repair = GenerationRepairSerializer(allow_null=True)
     lastError = GenerationErrorSerializer(allow_null=True)
     caseVersionId = serializers.IntegerField(allow_null=True, help_text="El borrador creado, solo con `imported`.")
-    issues = ValidationIssueSerializer(many=True, help_text="Con `imported`: lo que queda por resolver; con `failed`: lo que impidió importar.")
+    issues = ValidationIssueSerializer(many=True, help_text="Con `imported`: lo que queda por resolver; con `failed`: lo que impidió importar. Solo faltas de severidad `error`: los avisos no se incluyen.")
     callsUsed = serializers.IntegerField()
     callsLimit = serializers.IntegerField()
-    createdAt = serializers.CharField(help_text="UTC, ISO 8601 con `Z`.")
-    updatedAt = serializers.CharField(help_text="UTC, ISO 8601 con `Z`.")
+    createdAt = serializers.DateTimeField(format="%Y-%m-%dT%H:%M:%SZ", help_text="UTC, ISO 8601 con `Z`.")
+    updatedAt = serializers.DateTimeField(format="%Y-%m-%dT%H:%M:%SZ", help_text="UTC, ISO 8601 con `Z`.")
 
 
 class GenerationStatusSerializer(serializers.Serializer):
