@@ -155,12 +155,18 @@ describe('mundo: encuadre', () => {
     expect(camera.zoom).toBe(2);
   });
 
-  it('releaseFrame devuelve la cámara al plano de caminar', () => {
+  it('releaseFrame sostiene un momento el plano (sin amagar) y después vuelve al de caminar', () => {
     const { scene, camera } = escenaConPersona('familia', { x: 480, y: 300 }, { jugador: { x: 400, y: 300 }, reduceMotion: true });
+    const probe = scene as unknown as { time: { now: number } };
+    probe.time = { now: 0 };
     scene.frameActors('familia');
     cuadro(scene);
     expect(camera.zoom).toBe(3);
     scene.releaseFrame();
+    probe.time.now = 100;
+    cuadro(scene);
+    expect(camera.zoom).toBe(3);
+    probe.time.now = 500;
     cuadro(scene);
     expect(camera.zoom).toBe(2);
   });

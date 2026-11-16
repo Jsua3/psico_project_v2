@@ -204,6 +204,8 @@ interface NpcMover {
 const LABEL_DEPTH = DEPTH.UI - 1;
 /** Prefijo de la clave con la que una persona del escenario sale como candidato de proximidad. */
 const NPC_KEY_PREFIX = 'npc:';
+/** Cuánto se sostiene el último plano cercano al soltarse (entre la decisión y la reacción, bloque M1). */
+const RETENER_PLANO_MS = 400;
 /** Plazo máximo para el primer cuadro del mundo (F6-8): pasado, el anfitrión ofrece reintentar. */
 const BOOT_WATCHDOG_MS = 25_000;
 
@@ -364,6 +366,8 @@ export class DataDrivenWorldScene extends Phaser.Scene {
   private readonly camRoomsSeen = new Set<string>();
   /** Escala CSS del lienzo ya compuesto durante un viaje (1 en reposo). */
   private camDrawScale = 1;
+  /** El último plano cercano, sostenido un momento al soltarse (ver `cameraMomentNow`). */
+  private camRetenido: { momento: Momento; hasta: number } | null = null;
   /** Viñeta de tono de la sala actual (se redibuja al rectángulo visible si cambia el lienzo). */
   private toneVignette?: Phaser.GameObjects.Image;
   /** Textura vigente de cada viñeta (tono o crisis): al cambiar el tamaño se retira la anterior (F6-8). */
@@ -1081,14 +1085,15 @@ export class DataDrivenWorldScene extends Phaser.Scene {
    * entrar a una sala, el plano general hasta que pasa su espera o el personaje se mueve; si no, caminar.
    */
   private cameraMomentNow(ahora: number): Momento {
-    if (this.camFrameKey) {
-      const de = this.feetOf(this.camFrameKey);
-      if (de) return { tipo: 'reaccion', de };
+    const cercano = this.closeMomentNow();
+    if (cercano) {
+      this.camRetenido = { momento: cercano, hasta: ahora + RETENER_PLANO_MS };
+      return cercano;
     }
-    if (this.camMoment.tipo !== 'explorar') {
-      const feet = this.feetOf(this.camMoment.clave);
-      if (feet) return this.camMoment.tipo === 'conversacion' ? { tipo: 'conversacion', con: feet } : { tipo: 'objeto', en: feet };
-    }
+    // Entre la decisión y la reacción el diálogo se cierra un instante antes de que empiece la reacción: el plano se
+    // sostiene un momento para que la cámara no amague con volver a caminar y dé la vuelta.
+    if (this.camRetenido && ahora < this.camRetenido.hasta) return this.camRetenido.momento;
+    this.camRetenido = null;
     const entrada = this.camEntrada;
     if (entrada && this.player) {
       if (entrada.x === null || entrada.y === null) { entrada.x = this.player.x; entrada.y = this.player.y; }
@@ -1097,6 +1102,19 @@ export class DataDrivenWorldScene extends Phaser.Scene {
       this.camEntrada = null;
     }
     return { tipo: 'explorar' };
+  }
+
+  /** La reacción, la conversación o el objeto en curso, con los pies de quien corresponda; null si no hay. */
+  private closeMomentNow(): Momento | null {
+    if (this.camFrameKey) {
+      const de = this.feetOf(this.camFrameKey);
+      if (de) return { tipo: 'reaccion', de };
+    }
+    if (this.camMoment.tipo !== 'explorar') {
+      const feet = this.feetOf(this.camMoment.clave);
+      if (feet) return this.camMoment.tipo === 'conversacion' ? { tipo: 'conversacion', con: feet } : { tipo: 'objeto', en: feet };
+    }
+    return null;
   }
 
   /**
@@ -1109,6 +1127,8 @@ export class DataDrivenWorldScene extends Phaser.Scene {
     const cam = this.cameras?.main;
     if (!cam || !this.player || this.camFrozen || cam.fadeEffect.isRunning) return;
     const ahora = this.camNow();
+    // El plano general de una sala nueva cuenta solo cuando se ve: detrás de una nota o un diálogo, espera.
+    if (this.camEntrada && this.motionPaused) this.camEntrada.hasta += Math.max(0, delta);
     const dpr = typeof window !== 'undefined' ? window.devicePixelRatio || 1 : 1;
     const momento = this.cameraMomentNow(ahora);
     const objetivo = objetivoCamara({
@@ -1848,15 +1868,19 @@ export class DataDrivenWorldScene extends Phaser.Scene {
       const yaVisitada = this.camRoomsSeen.has(sala);
       this.camRoomsSeen.add(sala);
       this.camEntrada = this.callbacks.reduceMotion ? null : { hasta: this.camNow() + esperaDelGeneral(yaVisitada), x: null, y: null };
+      // Solo una sala nueva es un corte: repintar la misma sala (cada respuesta del servidor) no corta el viaje en curso.
+      this.camCut = true;
+      this.camTravel = null;
     }
-    this.camCut = true;
-    this.camTravel = null;
     this.stepCamera(0);
   }
 
   /** El lienzo cambió de tamaño o de dpr: nuevo zoom entero y viñetas al nuevo rectángulo visible. */
   private refitCamera(): void {
     if (!this.ready || !this.player) return;
+    // El lienzo cambió: corte al plano que toca con el zoom nuevo.
+    this.camCut = true;
+    this.camTravel = null;
     this.applyPixelCamera(this.roomSize.width, this.roomSize.height);
     if (this.toneVignette) {
       this.toneVignette.destroy();
