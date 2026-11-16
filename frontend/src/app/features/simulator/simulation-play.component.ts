@@ -82,6 +82,7 @@ import { UiScopeNotice } from '../../shared/ui/scope-notice/ui-scope-notice';
 import { CONSENT_RECORDER, ConsentNoticeStaleError, consentStorageKey } from './consent-recorder';
 import { DRAFT_COPY } from './draft-copy';
 import { variablesDeArte } from './dialogo-arte';
+import { PixelIconoComponent } from './pixel/pixel-icono.component';
 
 /**
  * Plazo máximo de la precarga del consentimiento (S3-2b): antes de decidir si se pide el aviso se pregunta al servidor si la
@@ -131,7 +132,7 @@ const QUEUED_PAUSE_SLOW_NOTICE = 'La acción en curso está tardando. Estamos pa
     A11yModule, CommonModule, RouterLink, MatIconModule,
     SimulationHudComponent, GameWorldComponent, DialoguePanelComponent,
     ToolInventoryComponent, JournalPanelComponent, AttemptOutcomeComponent,
-    SafeExitButtonComponent, SceneGoalCardComponent, GameHelpComponent, WorldPlacesListComponent,
+    SafeExitButtonComponent, PixelIconoComponent, SceneGoalCardComponent, GameHelpComponent, WorldPlacesListComponent,
     MinimapaComponent, PlanoCompletoComponent,
     ReactionDirectorComponent, CommentBubbleComponent, RehearsalGoneComponent, RehearsalPanelComponent, SensitiveNoticeComponent, UiButton, UiErrorState, UiScopeNotice, UiSpinner
   ],
@@ -171,21 +172,13 @@ const QUEUED_PAUSE_SLOW_NOTICE = 'La acción en curso está tardando. Estamos pa
            del sistema (ui-toast-host, colocación del juego: arriba a la izquierda). Permanecen hasta cerrarse con
            «Cerrar», no mueven el foco y los anuncia ese anfitrión una vez (assertive solo el error). -->
       <!-- Con un diálogo sobre el mundo el aviso no flota encima del cuadro: el cuadro lo muestra en su sitio (avisoBreve). -->
-      @if (softNotice() && viewMode() !== 'dialogue-cinematic') {
-        <!-- Aviso breve (4,2 s): lo que dice ya se anunció; nunca es la única
-             fuente. Sin role: una región que nace con su texto no se anuncia de forma fiable. -->
-        <div class="soft-notice">{{ softNotice() }}</div>
-      }
       @if (pausing()) {
         <!-- Acuse visible de la salida segura pedida: con una superposición abierta el pie queda oculto.
              Los lectores de pantalla ya reciben el aviso por la región viva. -->
-        <div class="pausing-notice" aria-hidden="true">
-          <mat-icon aria-hidden="true">pause_circle</mat-icon>
+        <div class="pausing-notice u-placa u-sombra" aria-hidden="true">
+          <app-pixel-icono nombre="pausa" />
           <span>{{ pausingSlow() ? slowPauseNotice : 'Pausando el caso…' }}</span>
         </div>
-      }
-      @if (roomBanner() && !fadeActive()) {
-        <div class="room-banner">{{ roomBanner() }}</div>
       }
       @if (transitionNote()) {
         <div class="transition-note">
@@ -310,24 +303,39 @@ const QUEUED_PAUSE_SLOW_NOTICE = 'La acción en curso está tardando. Estamos pa
 
         <header class="top-bar" [attr.inert]="inputBlocked() ? '' : null" [attr.aria-hidden]="inputBlocked() ? 'true' : null">
           @if (mode() === 'rehearsal') { <p class="rehearsal-banner" role="note">{{ draft.rehearsalBanner.text }}</p> }
-          <app-simulation-hud
-            [attempt]="game"
-            [patientVisual]="patientVisual()"
-            [stageLabel]="stageLabel()"
-            [locationLabel]="world()?.map?.title ?? ''"
-            [journalOpen]="journalOpen()"
-            [musicMuted]="musicMuted()"
-            [sfxMuted]="sfxMuted()"
-            [reduceMotion]="reduceMotion()"
-            (toggleJournal)="journalOpen.set(!journalOpen())" (openPlaces)="openPlaces()"
-            [shortcuts]="shortcuts.enabled()" (toggleShortcuts)="shortcuts.toggle()"
-            (toggleMusic)="toggleMusicMute()"
-            (toggleSfx)="toggleSfxMute()"
-            (toggleReduceMotion)="toggleReduceMotion()"
-            (openHelp)="openHelp()" (helpReset)="resetHelpCard()" />
-          <!-- Recordatorio ético del nodo sensible (ETH-01): franja bajo la cabecera, completa al entrar y plegada a un chip a los 8 s;
-               siempre a la vista en todos los dispositivos. Ocupa su propio sitio: no tapa al personaje ni los controles. -->
-          <app-sensitive-notice [text]="sensitiveNotice()" [sceneKey]="visibleNode()?.key ?? null" [reduceMotion]="reduceMotion()" />
+          <!-- Bloque U1, variante B: una fila sobre el mundo. A la izquierda, el hueco de la ficha del objetivo (que vive en el
+               lienzo); en medio, el carril de avisos; a la derecha, el grupo del caso, la persona y las teclas. -->
+          <div class="top-bar__fila">
+            <span class="top-bar__hueco" aria-hidden="true"></span>
+            <div class="carril">
+            <!-- Recordatorio ético del nodo sensible (ETH-01): franja bajo la cabecera, completa al entrar y plegada a un chip a los 8 s;
+                 siempre a la vista en todos los dispositivos. Ocupa su propio sitio: no tapa al personaje ni los controles. -->
+            <app-sensitive-notice [text]="sensitiveNotice()" [sceneKey]="visibleNode()?.key ?? null" [reduceMotion]="reduceMotion()" />
+              @if (softNotice() && viewMode() !== 'dialogue-cinematic') {
+                <!-- Aviso breve (4,2 s): lo que dice ya se anunció; nunca es la única
+                     fuente. Sin role: una región que nace con su texto no se anuncia de forma fiable. -->
+                <div class="soft-notice u-placa u-sombra"><app-pixel-icono nombre="hecho" /><span>{{ softNotice() }}</span></div>
+              }
+              @if (roomBanner() && !fadeActive()) {
+                <div class="room-banner u-placa u-sombra">{{ roomBanner() }}</div>
+              }
+            </div>
+            <app-simulation-hud
+              [attempt]="game"
+              [patientVisual]="patientVisual()"
+              [stageLabel]="stageLabel()"
+              [locationLabel]="world()?.map?.title ?? ''"
+              [journalOpen]="journalOpen()"
+              [musicMuted]="musicMuted()"
+              [sfxMuted]="sfxMuted()"
+              [reduceMotion]="reduceMotion()"
+              (toggleJournal)="journalOpen.set(!journalOpen())" (openPlaces)="openPlaces()"
+              [shortcuts]="shortcuts.enabled()" (toggleShortcuts)="shortcuts.toggle()"
+              (toggleMusic)="toggleMusicMute()"
+              (toggleSfx)="toggleSfxMute()"
+              (toggleReduceMotion)="toggleReduceMotion()"
+              (openHelp)="openHelp()" (helpReset)="resetHelpCard()" />
+          </div>
         </header>
 
         <div class="main-zone">
@@ -337,6 +345,10 @@ const QUEUED_PAUSE_SLOW_NOTICE = 'La acción en curso está tardando. Estamos pa
               <!-- Sin role="status": la ficha no trae región viva (los avisos salen por el anunciador de la app). -->
               <div class="objective-card">
                 <!-- La ficha abierta se desplaza por dentro con tope de alto (no baja hasta las personas y objetos del suelo). -->
+                @if (stageLabel(); as etapa) {
+                  <!-- La etapa es la pestaña de la ficha, como el nombre de quien habla sobre su placa (U1). -->
+                  <p class="objective-card__etapa u-rotulo"><span class="u-rotulo__texto">{{ etapa }}</span></p>
+                }
                 <div class="objective-card__scroll">
                   <app-scene-goal-card [guia]="guide()" [hintAttempt]="hintAttempt()" [compact]="cardFolded()"
                     (opened)="refreshGuide()" (consentRequired)="requireConsentAgain()" />
@@ -432,7 +444,7 @@ const QUEUED_PAUSE_SLOW_NOTICE = 'La acción en curso está tardando. Estamos pa
                  en curso el toque se acepta y la pausa queda en cola (H-04), y el rótulo pasa a «Pausando…»
                  (aria-busy). Sin aria-label: el nombre accesible sale del texto visible (WCAG 2.5.3, axe
                  label-content-name-mismatch); la tecla Esc es aria-hidden. -->
-            <app-safe-exit-button [compact]="compactMode()" [pausing]="pausing()" (pause)="pauseFromOverlay()" />
+            <app-safe-exit-button variante="placa" [compact]="compactMode()" [pausing]="pausing()" (pause)="pauseFromOverlay()" />
           }
 
           <app-tool-inventory class="tool-dock" [tools]="world()?.tools ?? []"
@@ -562,7 +574,8 @@ const QUEUED_PAUSE_SLOW_NOTICE = 'La acción en curso está tardando. Estamos pa
       position: fixed;
       inset: 0;
       display: grid;
-      grid-template-rows: auto minmax(0, 1fr) auto;
+      /* Bloque U1, variante B: el mundo a sangre; la cabecera y el pie son capas sobre él (misma celda de la rejilla). */
+      grid-template-rows: minmax(0, 1fr);
       /* La columna explícita clampa el track al viewport: sin ella, el
          min-content de la bottom-zone (dock + salida segura) ensancha el track
          implícito y desborda canvas + objective-card en mobile. */
@@ -579,7 +592,15 @@ const QUEUED_PAUSE_SLOW_NOTICE = 'La acción en curso está tardando. Estamos pa
     .game-container .psy-eyebrow { color: var(--ds-primary); }
 
     /* ── Top bar ─────────────────────────────────────────────────────────── */
-    .top-bar { z-index: 40; }
+    .top-bar, .main-zone, .bottom-zone { grid-row: 1; grid-column: 1; }
+    .top-bar { z-index: var(--ds-z-cabecera); align-self: start; pointer-events: none; }
+    .top-bar > .rehearsal-banner { pointer-events: auto; }
+    .top-bar__fila { display: flex; align-items: flex-start; gap: var(--pixel-borde); padding: var(--pixel-borde); }
+    .top-bar__fila > app-simulation-hud { flex: none; pointer-events: auto; }
+    /* El hueco mide lo que la ficha del objetivo: el carril nunca cae sobre ella (antes el aviso de puerta la tapaba). */
+    .top-bar__hueco { flex: none; width: min(440px, 33%); }
+    .carril { flex: 1; min-width: 0; display: flex; flex-direction: column; align-items: center; gap: calc(3 * var(--pixel-px)); pointer-events: none; }
+    .carril > * { pointer-events: auto; max-width: 100%; }
     /* Cabecera y pie bajo una capa o un diálogo lateral (inert): se ven apagados, no «vivos pero muertos» (F6-1).
        El mundo no se atenúa con un diálogo lateral abierto: sigue siendo el contexto de lo que se decide. */
     .top-bar[inert], .bottom-zone[inert] {
@@ -594,7 +615,7 @@ const QUEUED_PAUSE_SLOW_NOTICE = 'La acción en curso está tardando. Estamos pa
       grid-template-columns: minmax(0, 1fr);
       gap: 10px;
       min-height: 0;
-      padding: 10px 12px 0;
+      padding: 0;
     }
     .game-container[data-mode='dialogue-right'] .main-zone {
       grid-template-columns: minmax(0, 1fr) clamp(340px, 28vw, 480px);
@@ -613,11 +634,8 @@ const QUEUED_PAUSE_SLOW_NOTICE = 'La acción en curso está tardando. Estamos pa
     .canvas-zone {
       position: relative;
       min-height: 0;
-      border: 1px solid rgba(182,156,255,.18);
-      border-radius: 16px;
       overflow: hidden;
-      background: #0e1322;
-      box-shadow: var(--sim-glow);
+      background: var(--pixel-cine);
     }
     .game-surface { position: absolute; inset: 0; }
     /* Franjas de cine (bloque M1): se deslizan desde los bordes; no reciben el puntero ni escalan con la cámara. */
@@ -634,31 +652,22 @@ const QUEUED_PAUSE_SLOW_NOTICE = 'La acción en curso está tardando. Estamos pa
     @media (prefers-reduced-motion: reduce) { .cine { transition: none; } }
     .world-skeleton { position: absolute; inset: 0; background: #0e1322; }
 
-    /* Envoltorio de la ficha del objetivo: aporta posición, borde y fondo casi opaco (la ficha no pinta superficie). */
+    /* Envoltorio de la ficha del objetivo (U1): solo posición y tope de alto; la pestaña de la etapa y la placa la pintan
+       las piezas de la hoja común. Arriba a la izquierda, del ancho del hueco de la cabecera. */
     .objective-card {
       position: absolute;
-      top: 10px;
-      left: 10px;
-      z-index: 20;
-      width: min(380px, 58%);
+      top: var(--pixel-borde);
+      left: var(--pixel-borde);
+      z-index: var(--ds-z-pegajoso);
+      width: min(440px, 33%);
       /* Tope de alto: sin él la lista desplegada bajaba sobre el kit y la Familia en crisis, que nacen en el tercio inferior. */
-      max-height: min(calc(100% - 20px), 66%);
+      max-height: min(calc(100% - 24px), 66%);
       display: flex;
       flex-direction: column;
+      align-items: stretch;
       overflow: hidden;
-      padding: 8px 11px;
-      border: 1px solid rgba(182,156,255,.32);
-      border-radius: 10px;
-      background: rgba(8,12,18,.88);
-      /* Marco doble: línea interna oscura — acabado pixel-art sobrio. */
-      box-shadow:
-        inset 0 0 0 1px rgba(8,12,18,.95),
-        0 12px 30px -22px rgba(124,77,255,.55);
     }
-    @media (min-width: 1100px) {
-      /* Más ancha, la lista y el aviso pierden líneas: con el tope de alto se ve entera (o casi) sin tapar el kit ni la Familia en crisis. */
-      .objective-card { width: min(560px, 50%); }
-    }
+    .objective-card__etapa { flex: none; }
     .objective-card__scroll { min-height: 0; overflow-y: auto; overscroll-behavior: contain; scrollbar-width: thin; }
 
     /* Tarjeta de primera vez: sobre las cruces táctiles (48) para que sus botones siempre se puedan tocar, y bajo las
@@ -720,15 +729,20 @@ const QUEUED_PAUSE_SLOW_NOTICE = 'La acción en curso está tardando. Estamos pa
 
     /* ── Bottom zone: salida segura + dock + contexto ────────────────────── */
     /* Altura FIJA: acercarte a algo cambia el texto del pie, nunca su tamaño (el mundo no salta; TOUCH-04). */
+    /* El pie es una capa sobre el mundo (U1): «Salida segura» y las herramientas a la izquierda, la acción cercana a la
+       derecha; en medio se ve la sala y el puntero pasa al mundo. */
     .bottom-zone {
+      align-self: end;
       display: flex;
-      align-items: stretch;
-      gap: 10px;
+      align-items: flex-end;
+      gap: calc(4 * var(--pixel-px));
       box-sizing: border-box;
-      height: 64px;
-      padding: 8px 12px 10px;
-      z-index: 30;
+      padding: var(--pixel-borde);
+      z-index: var(--ds-z-cabecera);
+      pointer-events: none;
+      --alto-boton: calc(28 * var(--pixel-px));
     }
+    .bottom-zone > * { pointer-events: auto; }
     /* Con el fundido de escena (z 200) o la nota de transición (z 340) a pantalla completa, el pie sube por encima:
        «Salida segura» nunca queda tapada mientras una puerta o una decisión esperan al servidor (REGLA-004). */
     .bottom-zone--above-veils { z-index: 350; }
@@ -985,31 +999,21 @@ const QUEUED_PAUSE_SLOW_NOTICE = 'La acción en curso está tardando. Estamos pa
     .game-failure ui-error-state { max-inline-size: 28rem; }
     .rehearsal-banner { margin: 0; padding: 4px 12px; font-size: .85rem; text-align: center; background: var(--ds-surface-2, rgba(18,24,42,.9)); color: var(--ds-text-1); border-block-end: 1px solid var(--ds-border, rgba(182,156,255,.3)); }
     /* Aviso no esencial («Obtuviste: …»): quieto, sin animación, sobre el pie. */
-    .soft-notice {
-      position: absolute; bottom: 84px; left: 50%; transform: translateX(-50%); z-index: 310;
-      max-width: min(92vw, 520px); padding: 9px 16px; border-radius: 12px;
-      background: rgba(18,24,42,.96); border: 1px solid rgba(182,156,255,.45);
-      color: #f4f7fb; font-size: .86rem; font-weight: 700; line-height: 1.35; text-align: center;
-      pointer-events: none;
+    .soft-notice, .room-banner {
+      display: flex; align-items: center; gap: calc(4 * var(--pixel-px)); min-height: 44px;
+      padding: var(--pixel-px) calc(5 * var(--pixel-px)) calc(2 * var(--pixel-px));
+      font-size: var(--pixel-tam); font-weight: 600; line-height: 1.35; pointer-events: none;
     }
+    /* Acuse de la salida segura con una capa abierta: placa con la tinta de la brasa, arriba al centro (carril). */
     .pausing-notice {
-      position: absolute; bottom: 14px; left: 50%; transform: translateX(-50%); z-index: 420;
-      display: flex; align-items: center; gap: 8px;
-      width: max-content; max-width: min(92vw, 520px);
-      padding: 8px 16px; border-radius: 18px;
-      background: rgba(24,30,46,.96); border: 1px solid rgba(241,167,159,.5);
-      color: #f1a79f; font-size: .85rem; font-weight: 800; letter-spacing: .02em;
+      position: absolute; top: var(--pixel-borde); left: 50%; transform: translateX(-50%); z-index: var(--ds-z-maximo);
+      display: flex; align-items: center; gap: calc(4 * var(--pixel-px));
+      width: max-content; max-width: min(92vw, 520px); min-height: 44px;
+      padding: var(--pixel-px) calc(5 * var(--pixel-px)) calc(2 * var(--pixel-px));
+      color: var(--pixel-brasa-tinta); font-size: var(--pixel-tam); font-weight: 700; letter-spacing: .02em;
     }
-    .pausing-notice mat-icon { font-size: 20px; width: 20px; height: 20px; }
-    /* Arriba a la derecha: la ficha del objetivo ocupa el lado izquierdo (hasta el 58 % del ancho) y el rótulo nunca la tapa. */
-    .room-banner {
-      position: absolute; top: 96px; right: 12px; left: auto; max-width: calc(42% - 24px); z-index: 320;
-      padding: 10px 22px; border-radius: 18px;
-      background: rgba(18,24,42,.9); border: 1px solid var(--sim-border);
-      color: var(--sim-ink); font-weight: 800; letter-spacing: .04em;
-      animation: room-banner-in 260ms ease;
-      pointer-events: none;
-    }
+    /* El rótulo de la sala al entrar, en el carril: la etapa en la letra de las pestañas, con la luz de la sala. */
+    .room-banner { font-family: var(--pixel-f-nombre); font-weight: 700; color: var(--luz); animation: room-banner-in 260ms ease; }
     @keyframes room-banner-in { from { opacity: 0; transform: translateY(-8px); } }
     @keyframes room-banner-in-centered { from { opacity: 0; transform: translate(-50%, -8px); } }
     .transition-note {
@@ -1048,8 +1052,7 @@ const QUEUED_PAUSE_SLOW_NOTICE = 'La acción en curso está tardando. Estamos pa
     /* ── Mobile: panel derecho como bottom sheet, dock scrolleable ───────── */
     @media (max-width: 760px) {
       /* La ficha va plegada a un chip arriba a la izquierda: el rótulo vuelve al centro, bajo el chip. */
-      .room-banner { left: 50%; right: auto; transform: translateX(-50%); max-width: calc(100% - 24px); animation-name: room-banner-in-centered; }
-      .main-zone { padding: 8px 8px 0; }
+      .main-zone { padding: 0; }
       .game-container[data-mode='dialogue-right'] .main-zone {
         grid-template-columns: minmax(0, 1fr);
       }
@@ -1107,9 +1110,6 @@ const QUEUED_PAUSE_SLOW_NOTICE = 'La acción en curso está tardando. Estamos pa
       .context-bar__idle { text-align: left; }
       .context-bar__now { font-size: .78rem; line-height: 1.25; }
       /* Avisos por encima del pie más bajo, sin tapar la mitad del mundo. */
-      .soft-notice { bottom: 62px; max-width: min(86vw, 460px); padding: 7px 14px; font-size: .8rem; }
-      .room-banner { top: 56px; padding: 7px 18px; font-size: .85rem; }
-      .pausing-notice { bottom: 8px; }
 
       /* Desplegada, la tarjeta deja libre la cruz de movimiento (abajo a la izquierda) y se sostiene a la derecha de ella.
          Plegada (chip) sigue en la esquina. */

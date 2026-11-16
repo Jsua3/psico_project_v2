@@ -8,7 +8,8 @@ import { blend, contrastRatio } from '../../../styles/contrast.util';
  * lo que la plantilla y el CSS tienen que seguir diciendo aunque Jest no renderice la plantilla.
  * Las regex usan `\s*` entre líneas (el checkout es LF).
  */
-const source = readFileSync(join(__dirname, 'simulation-play.component.ts'), 'utf-8');
+// Los fines de línea se normalizan: con `core.autocrlf=true` el árbol de trabajo sale en CRLF y varios cortes de abajo buscan `\n`.
+const source = readFileSync(join(__dirname, 'simulation-play.component.ts'), 'utf-8').replace(/\r\n/g, '\n');
 
 /** Cuerpo de la primera regla cuyo selector es exactamente `selector`. */
 function rule(selector: string): string {
@@ -30,9 +31,11 @@ function noticeRule(selector: string): string {
 const worldTag = source.match(/<app-game-world[\s\S]*?\/>/)?.[0] ?? '';
 
 describe('ficha del objetivo (T9.1)', () => {
+  // Bloque U1 (variante B): ahora el envoltorio lleva también la pestaña de la etapa antes del desplazable con la ficha.
   it('el envoltorio .objective-card contiene la ficha y no tiene role="status" (la ficha no trae región viva: anuncia el LiveRegionAnnouncer)', () => {
-    expect(source).toMatch(/<div class="objective-card">\s*(<!--[^>]*-->\s*)?<div class="objective-card__scroll">\s*<app-scene-goal-card/);
+    expect(source).toMatch(/<div class="objective-card">\s*(<!--[\s\S]*?-->\s*)?(@if \(stageLabel\(\); as etapa\) \{[\s\S]*?objective-card__etapa[\s\S]*?\}\s*)?<div class="objective-card__scroll">\s*<app-scene-goal-card/);
     expect(source).not.toMatch(/<div class="objective-card"[^>]*role=/);
+    expect(source).not.toMatch(/<p class="objective-card__etapa[^>]*role=/);
   });
 
   it('ya no se muestra el objetivo antiguo ni su ayuda visual', () => {
@@ -43,10 +46,14 @@ describe('ficha del objetivo (T9.1)', () => {
     expect(source).not.toMatch(/<strong>Objetivo<\/strong>/);
   });
 
-  it('el aviso de contenido sensible vive FUERA de la tarjeta plegable: franja bajo la cabecera, en todos los dispositivos (L-01)', () => {
+  // Bloque U1 (variante B): el aviso ya no es una franja bajo la cabecera sino la primera pieza del carril de arriba al centro, entre la ficha y el HUD.
+  it('el aviso de contenido sensible vive FUERA de la tarjeta plegable: carril de la cabecera, siempre a la vista en todos los dispositivos (L-01)', () => {
     expect(source).toMatch(
-      /<app-simulation-hud[\s\S]*?\/>\s*(<!--[\s\S]*?-->\s*)?<app-sensitive-notice \[text\]="sensitiveNotice\(\)" \[sceneKey\]="visibleNode\(\)\?\.key \?\? null"[^>]*\/>\s*<\/header>/,
+      /<header class="top-bar"[\s\S]*?<span class="top-bar__hueco"[^>]*><\/span>\s*<div class="carril">\s*(<!--[\s\S]*?-->\s*)?<app-sensitive-notice \[text\]="sensitiveNotice\(\)" \[sceneKey\]="visibleNode\(\)\?\.key \?\? null"[^>]*\/>[\s\S]*?<app-simulation-hud[\s\S]*?\/>\s*<\/div>\s*<\/header>/,
     );
+    // Siempre a la vista: ninguna condición del juego (modo de vista, fundido, sala) envuelve al aviso sensible.
+    const carril = source.slice(source.indexOf('<div class="carril">'), source.indexOf('<app-simulation-hud'));
+    expect(carril.slice(0, carril.indexOf('<app-sensitive-notice'))).not.toMatch(/@if/);
     expect(source).toContain('node.warningMessage');
     // Ya no está dentro de .objective-card (que se pliega a su chip) ni en el panel lateral: un único sitio.
     expect(source).not.toContain('objective-card__notice');
@@ -66,27 +73,48 @@ describe('ficha del objetivo (T9.1)', () => {
     expect(noticeSource).toContain("[class.sr-only]=\"!unfolded()\"");
   });
 
+  // Bloque U1 (variante B): el aviso es una placa de pixel con la tinta y el tamaño de las fichas, ya no una franja con colores propios.
   it('el aviso es legible (>= 12 px, también en compacto), con contraste alto y sin desenfoque', () => {
-    const size = /font-size:\s*([\d.]+)rem/.exec(noticeRule('.sensitive-strip'))?.[1];
-    expect(Number(size) * 16).toBeGreaterThanOrEqual(12);
-    const compact = noticeSource.slice(noticeSource.lastIndexOf('@media (max-height: 520px), (pointer: coarse) and (orientation: landscape)'));
-    const compactSize = /\.sensitive-strip \{[^}]*font-size:\s*([\d.]+)rem/.exec(compact)?.[1];
-    expect(Number(compactSize) * 16).toBeGreaterThanOrEqual(12);
-    expect(noticeRule('.sensitive-strip')).toContain('color: #f3dfb5;');
-    expect(noticeRule('.sensitive-strip')).toContain('background: rgba(8,12,18,.94);');
-    expect(noticeRule('.sensitive-strip')).not.toMatch(/backdrop-filter/);
-    // Fondo y color de la franja: razón de contraste >= 7:1 (AAA) sobre el peor fondo (opaco al 94 % sobre blanco).
-    expect(contrastRatio('#f3dfb5', blend('#080c12', 0.94, '#ffffff'))).toBeGreaterThanOrEqual(7);
+    // El tamaño sale de `--pixel-tam` (14 px; 13 en móvil; 16 en pantalla grande) y no hay un tamaño propio más pequeño en el aviso.
+    const pixelTokens = readFileSync(join(__dirname, '../../../styles/tokens/_pixel.scss'), 'utf-8');
+    const sizes = [...pixelTokens.matchAll(/--pixel-tam:\s*(\d+)px;/g)].map(match => Number(match[1]));
+    expect(sizes.length).toBeGreaterThanOrEqual(3);
+    expect(Math.min(...sizes)).toBeGreaterThanOrEqual(12);
+    expect(noticeRule('.sensitive-strip')).toMatch(/font-size:\s*var\(--pixel-tam, 14px\);/);
+    expect([...noticeSource.matchAll(/font-size:\s*([\d.]+)(rem|px)/g)].filter(match => Number(match[1]) * (match[2] === 'rem' ? 16 : 1) < 12)).toEqual([]);
+    // Tinta de la placa y del chip sobre la penumbra opaca de las piezas: razón de contraste >= 7:1 (AAA).
+    const token = (name: string) => new RegExp(`--${name}:\\s*(#[0-9a-fA-F]{6});`).exec(pixelTokens)?.[1] ?? '';
+    expect(noticeRule('.sensitive-strip')).toContain('color: var(--pixel-tinta);');
+    expect(noticeRule('.sensitive-strip__chip')).toContain('color: var(--pixel-ambar);');
+    for (const ink of ['pixel-tinta', 'pixel-ambar']) {
+      expect(contrastRatio(token(ink), token('pixel-penumbra'))).toBeGreaterThanOrEqual(7);
+    }
+    // Sin desenfoque: ni el aviso ni la superficie de las piezas de pixel (opaca, con trama) lo usan.
+    expect(noticeSource).not.toMatch(/backdrop-filter/);
+    const piezas = readFileSync(join(__dirname, '../../../styles/components/_pixel.scss'), 'utf-8');
+    expect(piezas).not.toMatch(/backdrop-filter/);
+    expect(piezas).toMatch(/background-color:\s*var\(--pixel-penumbra\);/);
+    expect(noticeSource).toContain('[class.u-placa]="unfolded()"');
   });
 
-  it('la franja ocupa su propio sitio en la cabecera (no es una capa flotante): no tapa al personaje ni los controles', () => {
+  // Bloque U1 (variante B): «su propio sitio» ahora es el carril de la cabecera, que va en flujo entre el hueco de la ficha y el HUD.
+  it('el aviso ocupa su propio sitio en el carril de la cabecera (no es una capa flotante): no tapa al personaje, a la ficha ni los controles', () => {
     expect(noticeRule('.sensitive-strip')).not.toMatch(/position:\s*(absolute|fixed)/);
-    expect(source).toMatch(/<header class="top-bar"[^>]*>\s*(@if \(mode\(\) === 'rehearsal'\) \{[\s\S]*?<\/p>\s*\}\s*)?<app-simulation-hud/);
+    expect(rule('.carril')).not.toMatch(/position:\s*(absolute|fixed)/);
+    expect(rule('.carril')).toMatch(/flex:\s*1;\s*min-width:\s*0;/);
+    expect(source).toMatch(/<div class="top-bar__fila">\s*<span class="top-bar__hueco" aria-hidden="true"><\/span>\s*<div class="carril">/);
+    // El carril no cae sobre la ficha: el hueco mide lo mismo que ella.
+    expect(rule('.top-bar__hueco')).toContain('width: min(440px, 33%);');
+    expect(rule('.objective-card')).toContain('width: min(440px, 33%);');
+    // La cabecera es una capa que deja pasar el puntero al mundo; solo el carril y el HUD lo reciben.
+    expect(rule('.top-bar')).toContain('pointer-events: none;');
+    expect(rule('.carril > *')).toContain('pointer-events: auto;');
   });
 
+  // Bloque U1 (variante B): el tope baja a 24 px de margen porque el envoltorio queda a `--pixel-borde` (12 px) de los bordes.
   it('la tarjeta desplegada tiene tope de alto y se desplaza por dentro: no baja sobre el kit ni la Familia en crisis', () => {
-    expect(rule('.objective-card')).toContain('max-height: min(calc(100% - 20px), 66%);');
-    expect(rule('.objective-card')).toMatch(/display: flex;\s*flex-direction: column;\s*overflow: hidden;/);
+    expect(rule('.objective-card')).toContain('max-height: min(calc(100% - 24px), 66%);');
+    expect(rule('.objective-card')).toMatch(/display: flex;\s*flex-direction: column;\s*(align-items: stretch;\s*)?overflow: hidden;/);
     expect(rule('.objective-card__scroll')).toMatch(/min-height: 0;\s*overflow-y: auto;/);
   });
 
@@ -102,22 +130,30 @@ describe('ficha del objetivo (T9.1)', () => {
     expect(source).toContain('readonly cardFolded = computed(() => this.compactMode() || this.narrowScreen());');
   });
 
-  it('el envoltorio conserva fondo casi opaco y sin desenfoque (contrato de la tarjeta)', () => {
-    expect(rule('.objective-card')).toContain('background: rgba(8,12,18,.88);');
-    expect(rule('.objective-card')).not.toMatch(/backdrop-filter/);
+  // Bloque U1 (variante B): el envoltorio ya no pinta fondo; la superficie opaca la ponen las piezas de pixel (pestaña y ficha), sin desenfoque.
+  it('el envoltorio no pinta fondo ni desenfoque: la superficie opaca es de las piezas de pixel de la ficha', () => {
+    expect(rule('.objective-card')).not.toMatch(/backdrop-filter|background|box-shadow|border/);
+    expect(source).toContain('class="objective-card__etapa u-rotulo"');
+    const goalCard = readFileSync(join(__dirname, 'scene-goal-card.component.ts'), 'utf-8');
+    expect(goalCard).toContain('goal-card__toggle u-boton');
+    expect(goalCard).toContain('goal-card__body u-placa');
+    expect(goalCard).not.toMatch(/backdrop-filter/);
   });
 });
 
 describe('el rótulo de la escena nueva no tapa la ficha del objetivo', () => {
-  it('en escritorio el rótulo va arriba a la derecha y deja libre el lado de la ficha (que va arriba a la izquierda)', () => {
+  // Bloque U1 (variante B): el rótulo ya no es una capa absoluta arriba a la derecha sino una placa del carril, que deja libre el hueco de la ficha.
+  it('en escritorio el rótulo va en el carril de la cabecera, en flujo, y deja libre el lado de la ficha (que va arriba a la izquierda)', () => {
     const banner = rule('.room-banner');
-    expect(banner).toContain('right: 12px;');
-    expect(banner).toContain('left: auto;');
+    expect(banner).not.toMatch(/position:\s*(absolute|fixed)/);
     expect(banner).not.toContain('left: 50%');
     expect(banner).not.toContain('translateX(-50%)');
-    // La ficha ocupa como mucho el 58 % del ancho: el rótulo se queda con el resto.
-    expect(banner).toMatch(/max-width:\s*calc\(42% - 24px\)/);
-    expect(rule('.objective-card')).toContain('left: 10px;');
+    expect(source).toMatch(/<div class="carril">[\s\S]*?<div class="room-banner u-placa u-sombra">\{\{ roomBanner\(\) \}\}<\/div>[\s\S]*?<\/div>\s*<app-simulation-hud/);
+    // El carril empieza donde acaba el hueco de la ficha: el rótulo nunca cae sobre ella.
+    expect(source).toMatch(/<span class="top-bar__hueco" aria-hidden="true"><\/span>\s*<div class="carril">/);
+    expect(rule('.top-bar__hueco')).toContain('width: min(440px, 33%);');
+    expect(rule('.objective-card')).toContain('width: min(440px, 33%);');
+    expect(rule('.objective-card')).toContain('left: var(--pixel-borde);');
   });
 
   it('su entrada anima en vertical (sin el desplazamiento horizontal del centrado)', () => {
@@ -183,9 +219,16 @@ describe('barra contextual (T9.3, T9.5)', () => {
     expect(source).toMatch(/context-bar__interaction--secondary"[\s\S]*?\[class\.context-bar__interaction--locked\]="also\.verb\.locked"[\s\S]*?@if \(also\.verb\.locked\) \{ <mat-icon class="context-bar__lock"/);
   });
 
-  it('el pie tiene altura fija: el mundo no cambia de tamaño al acercarte a algo', () => {
-    expect(rule('.bottom-zone')).toMatch(/height: 64px;/);
-    expect(rule('.bottom-zone')).not.toMatch(/min-height/);
+  // Bloque U1 (variante B): el pie ya no tiene alto fijo; es una capa en la misma celda que el mundo, así que el mundo no se redimensiona.
+  it('el pie es una capa sobre el mundo (misma celda de la rejilla): el mundo no cambia de tamaño al acercarte a algo', () => {
+    expect(source).toMatch(/\.top-bar, \.main-zone, \.bottom-zone \{ grid-row: 1; grid-column: 1; \}/);
+    expect(source).toMatch(/grid-template-rows: minmax\(0, 1fr\);/);
+    expect(rule('.bottom-zone')).toMatch(/align-self: end;/);
+    // Capa: deja pasar el puntero al mundo y solo sus piezas lo reciben; sin altura ni alto mínimo que empuje al lienzo.
+    expect(rule('.bottom-zone')).toMatch(/pointer-events: none;/);
+    expect(rule('.bottom-zone > *')).toMatch(/pointer-events: auto;/);
+    expect(rule('.bottom-zone')).not.toMatch(/(^|[\s;])(min-|max-)?height:/);
+    expect(rule('.main-zone')).not.toMatch(/padding:\s*[1-9]/);
   });
 
   // req: RNF-04, BLOQUE-H
@@ -319,11 +362,12 @@ describe('modo compacto (T10)', () => {
     expect(source.indexOf('@media (max-width: 760px) {')).toBeLessThan(start);
   });
 
+  // Bloque U1 (variante B): «Salida segura» del pie es ahora la variante «placa» del mismo componente compartido.
   it('el pie es de una sola fila y altura fija de 56 px, sin teclas ni leyenda (la leyenda ya no existe)', () => {
     expect(compactCss).toMatch(/\.bottom-zone \{[^}]*flex-wrap: nowrap;[^}]*height: 56px;/);
     expect(compactCss).not.toContain('context-bar__hint');
     // «Salida segura» es el componente compartido (F6-6): en compacto va en su variante densa, sin la pista de tecla.
-    expect(source).toMatch(/<app-safe-exit-button \[compact\]="compactMode\(\)" \[pausing\]="pausing\(\)" \(pause\)="pauseFromOverlay\(\)" \/>/);
+    expect(source).toMatch(/<app-safe-exit-button variante="placa" \[compact\]="compactMode\(\)" \[pausing\]="pausing\(\)" \(pause\)="pauseFromOverlay\(\)" \/>/);
   });
 
   it('los controles del pie miden al menos 44 px', () => {
@@ -331,6 +375,9 @@ describe('modo compacto (T10)', () => {
     expect(readFileSync(join(__dirname, 'safe-exit-button.component.ts'), 'utf-8'))
       .toMatch(/\.safe-exit-btn \{[^}]*min-height: 44px;/);
     expect(compactCss).toMatch(/\.context-bar__interaction \{[^}]*min-height: 44px;/);
+    // Bloque U1 (variante B): la placa de «Salida segura» toma su alto de `--alto-boton` del pie (28 puntos de mundo = 56 px >= 44).
+    expect(rule('.bottom-zone')).toContain('--alto-boton: calc(28 * var(--pixel-px));');
+    expect(readFileSync(join(__dirname, 'safe-exit-button.component.ts'), 'utf-8')).toContain('min-height: var(--alto-boton, 44px);');
   });
 
   it('el panel de decisión es una hoja flotante: una columna, sin resumen de etapa y sin reencuadrar el mundo', () => {

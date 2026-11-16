@@ -121,10 +121,15 @@ describe('SimulationPlayComponent: salida segura (correcciones de la revisión)'
       expect(source).toMatch(/<footer class="bottom-zone" \[class\.bottom-zone--above-veils\]="footerAboveVeils\(\)"\s*\[attr\.inert\]="inputBlocked\(\)/);
     });
 
-    it('el z-index del pie elevado supera al fundido (200) y a la nota de transición (340), y no al aviso de pausa (420)', () => {
+    // Bloque U1 (variante B): el aviso de pausa ya no trae un número sino `var(--ds-z-maximo)` (1000): se resuelve su valor en la escala de capas.
+    it('el z-index del pie elevado supera al fundido (200) y a la nota de transición (340), y no al aviso de pausa (z máximo)', () => {
+      const scale = readFileSync(join(__dirname, '../../../styles/tokens/_scale.scss'), 'utf-8');
+      const maximo = Number(/\$z:\s*\([^)]*\bmaximo:\s*(\d+)\)/.exec(scale)?.[1]);
+      expect(rule('.pausing-notice')).toContain('z-index: var(--ds-z-maximo);');
+      expect(maximo).toBeGreaterThan(0);
       expect(zIndex('.bottom-zone--above-veils')).toBeGreaterThan(zIndex('.scene-fade'));
       expect(zIndex('.bottom-zone--above-veils')).toBeGreaterThan(zIndex('.transition-note'));
-      expect(zIndex('.bottom-zone--above-veils')).toBeLessThan(zIndex('.pausing-notice'));
+      expect(zIndex('.bottom-zone--above-veils')).toBeLessThan(maximo);
     });
 
     it('el fundido sigue a pantalla completa y capturando punteros: el mundo y la cabecera no se tocan mientras dura', () => {
