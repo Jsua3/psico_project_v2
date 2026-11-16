@@ -36,8 +36,24 @@ describe('MinimapaComponent', () => {
   beforeEach(() => localStorage.clear());
   afterEach(() => { vi.restoreAllMocks(); localStorage.clear(); });
 
-  it('sin plano (caso sin layout) no pinta nada', () => {
-    expect(minimapa(null).el.querySelector('button')).toBeNull();
+  it('sin plano (caso sin layout) no pinta el plano, pero sí el botón de la vista cercana', () => {
+    const { el } = minimapa(null);
+    expect(el.querySelector('[data-minimapa-abrir]')).toBeNull();
+    expect(el.querySelector('[data-vista-cercana]')).not.toBeNull();
+  });
+
+  it('la vista cercana tiene botón (hallazgo 7): anuncia su estado y avisa al pulsarlo', () => {
+    const { fixture, el } = minimapa();
+    const alternar = vi.fn();
+    fixture.componentInstance.alternarCercana.subscribe(alternar);
+    const boton = el.querySelector<HTMLButtonElement>('[data-vista-cercana]')!;
+    expect(boton.textContent!.trim()).toBe('Vista cercana (Z)');
+    expect(boton.getAttribute('aria-pressed')).toBe('false');
+    boton.click();
+    expect(alternar).toHaveBeenCalledTimes(1);
+    fixture.componentRef.setInput('cercana', true);
+    fixture.detectChanges();
+    expect(boton.getAttribute('aria-pressed')).toBe('true');
   });
 
   it('el minimapa es un botón que abre el plano y dice dónde está el estudiante', () => {

@@ -137,31 +137,49 @@ describe('mundo: encuadre', () => {
   // Bloque M1: la cámara la decide el controlador cada cuadro (`stepCamera`); el encuadre es un momento, no un `pan`.
   const cuadro = (scene: unknown) => (scene as { stepCamera(delta: number): void }).stepCamera(16);
 
-  it('frameActors acerca la cámara entre el jugador y la persona que reacciona', () => {
+  // A 1366×650 en una sala de 960: plano general ×1, caminar ×2 y cercano ×3 (regla 7).
+  it('en la reacción la cámara va a quien reacciona, de cerca', () => {
     const { scene, camera } = escenaConPersona('familia', { x: 480, y: 300 }, { jugador: { x: 400, y: 300 } });
     scene.frameActors('familia');
     cuadro(scene);
-    expect(camera.setZoom).toHaveBeenLastCalledWith(2);
-    expect(camera.centerOn).toHaveBeenLastCalledWith(440, expect.any(Number));
+    expect(camera.setZoom).toHaveBeenLastCalledWith(3);
+    expect(camera.centerOn).toHaveBeenLastCalledWith(480, expect.any(Number));
     expect(camera.pan).not.toHaveBeenCalled();
     expect(camera.startFollow).not.toHaveBeenCalled();
   });
 
-  it('con una clave que no está en la sala la cámara sigue explorando', () => {
+  it('con una clave que no está en la sala la cámara sigue en el plano de caminar', () => {
     const { scene, camera } = escenaConPersona('familia', { x: 480, y: 300 }, { jugador: { x: 400, y: 300 } });
     scene.frameActors('nadie');
     cuadro(scene);
-    expect(camera.zoom).toBe(1);
+    expect(camera.zoom).toBe(2);
   });
 
-  it('releaseFrame devuelve la cámara a la vista normal', () => {
+  it('releaseFrame devuelve la cámara al plano de caminar', () => {
     const { scene, camera } = escenaConPersona('familia', { x: 480, y: 300 }, { jugador: { x: 400, y: 300 }, reduceMotion: true });
     scene.frameActors('familia');
     cuadro(scene);
-    expect(camera.zoom).toBe(2);
+    expect(camera.zoom).toBe(3);
     scene.releaseFrame();
     cuadro(scene);
-    expect(camera.zoom).toBe(1);
+    expect(camera.zoom).toBe(2);
+  });
+
+  it('entre un plano y otro viaja: pasa por un zoom intermedio dibujado al entero de abajo y llega exacto', () => {
+    const { scene, camera } = escenaConPersona('familia', { x: 480, y: 300 }, { jugador: { x: 400, y: 300 } });
+    const probe = scene as unknown as { camNow(): number; time: { now: number } };
+    probe.time = { now: 0 };
+    cuadro(scene);                                   // corte al plano de caminar (×2)
+    expect(camera.zoom).toBe(2);
+    scene.frameActors('familia');
+    probe.time.now = 1;
+    cuadro(scene);                                   // empieza el viaje (700 ms)
+    probe.time.now = 350;
+    cuadro(scene);                                   // a mitad: zoom entre 2 y 3, la escena dibuja a ×2
+    expect(camera.zoom).toBe(2);
+    probe.time.now = 800;
+    cuadro(scene);                                   // llegó: ×3 exacto
+    expect(camera.zoom).toBe(3);
   });
 
   it('durante un fundido de puerta la cámara no cambia de zoom', () => {

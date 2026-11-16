@@ -38,6 +38,9 @@ function leerOculto(): boolean {
         {{ oculto() ? 'Mostrar plano' : 'Ocultar plano' }}
       </button>
     }
+    <!-- Vista cercana (Z) también con botón, para quien no usa teclado o usa lector de pantalla. -->
+    <button type="button" class="minimapa__alternar" data-vista-cercana [attr.aria-pressed]="cercana()"
+      (click)="alternarCercana.emit()">Vista cercana (Z)</button>
   `,
   styles: [`
     :host {
@@ -69,7 +72,10 @@ export class MinimapaComponent {
   readonly plano = input<PlanoDelLugar | null>(null);
   readonly actual = input('');
   readonly visitadas = input<ReadonlySet<string>>(new Set());
+  /** La vista cercana está puesta (su botón lo anuncia con `aria-pressed`). */
+  readonly cercana = input(false);
   readonly abrir = output<void>();
+  readonly alternarCercana = output<void>();
 
   protected readonly oculto = signal(leerOculto());
   protected readonly nombre = computed(() => {
