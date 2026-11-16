@@ -17,6 +17,9 @@ import { ObjetivoPistasComponent } from './objetivo-pistas.component';
 import { ReaccionComponent } from './reaccion.component';
 import { SelectorCondicionComponent } from './selector-condicion.component';
 
+/** El juego muestra las opciones de una decisión como A, B, C y D. */
+const MAX_RESPUESTAS = 4;
+
 const CLASIFICACIONES: { valor: ClaseRespuesta; nombre: string; simbolo: string }[] = [
   { valor: 'RECOMMENDED', nombre: NOMBRE_CLASE.RECOMMENDED, simbolo: '✓' },
   { valor: 'ACCEPTABLE', nombre: NOMBRE_CLASE.ACCEPTABLE, simbolo: '✓' },
@@ -285,7 +288,16 @@ const PASOS_ACTIVACION = [{ valor: -1, nombre: 'Se calma' }, { valor: 0, nombre:
                 <!-- BORRADOR: texto nuevo, pendiente de la aprobación de Psicología -->
                 <p class="texto-secundario nota" id="aviso-todas-con-requisito"><span aria-hidden="true">▲</span> Todas las respuestas tienen un requisito: deja al menos una que aparezca siempre.</p>
               }
-              <button type="button" class="boton" data-accion="agregar-respuesta" (click)="agregarRespuesta(e)">Agregar una respuesta</button>
+              <button type="button" class="boton" data-accion="agregar-respuesta" [attr.aria-disabled]="enElTopeDeRespuestas(e)"
+                      [attr.aria-describedby]="describedbyAgregarRespuesta(e)" (click)="agregarRespuesta(e)">Agregar una respuesta</button>
+              @if (enElTopeDeRespuestas(e)) {
+                <!-- BORRADOR: texto nuevo, pendiente de la aprobación de Psicología -->
+                <p id="respuestas-tope" class="texto-secundario nota"><span aria-hidden="true">▲</span> Una decisión tiene hasta 4 respuestas (A, B, C y D).</p>
+              }
+              @if (e.respuestas.length > maximoRespuestas) {
+                <!-- BORRADOR: texto nuevo, pendiente de la aprobación de Psicología -->
+                <p id="respuestas-exceso" class="texto-secundario nota"><span aria-hidden="true">▲</span> Esta escena tiene {{ e.respuestas.length }} respuestas y el juego solo muestra 4 (A, B, C y D). Quita las que sobren.</p>
+              }
             </section>
           </div>
 
@@ -500,7 +512,20 @@ export class GuionComponent {
     this.enfocar(`lt${this.escena()!.lineas.length - 1}`);
   }
 
+  /** El juego muestra las opciones como A–D: el tope solo impide agregar, nunca borra las que ya haya. */
+  protected readonly maximoRespuestas = MAX_RESPUESTAS;
+
+  protected enElTopeDeRespuestas(e: Escena): boolean {
+    return e.respuestas.length >= MAX_RESPUESTAS;
+  }
+
+  protected describedbyAgregarRespuesta(e: Escena): string | null {
+    if (!this.enElTopeDeRespuestas(e)) return null;
+    return e.respuestas.length > MAX_RESPUESTAS ? 'respuestas-tope respuestas-exceso' : 'respuestas-tope';
+  }
+
   protected agregarRespuesta(e: Escena): void {
+    if (this.enElTopeDeRespuestas(e)) return;
     this.store.agregarRespuesta(e.id);
     this.enfocar(`rt${this.escena()!.respuestas.length - 1}`);
   }
