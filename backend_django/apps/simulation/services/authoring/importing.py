@@ -80,10 +80,23 @@ def _case_for(definition, actor):
     return case
 
 
-def import_document(document, actor):
-    """Valida ``document`` y crea el borrador; devuelve ``{caseVersionId, caseId, issues}`` (los avisos)."""
+#: Las faltas de las reglas del taller (``OCL``, ``PROP``) y de texto (``TEXT_``): son del contenido, no de la forma del documento.
+#: Con ``allow_rule_faults`` no bloquean la importación (el borrador las trae y la docente las resuelve en el editor).
+RULE_FAULT_PREFIXES = ("DSL.OCL-", "DSL.PROP-", "DSL.TEXT_")
+
+
+def import_document(document, actor, *, allow_rule_faults=False):
+    """Valida ``document`` y crea el borrador; devuelve ``{caseVersionId, caseId, issues}`` (los avisos).
+
+    Con ``allow_rule_faults=True`` los errores ``DSL.OCL-*``, ``DSL.PROP-*`` y ``DSL.TEXT_*`` no bloquean y se devuelven en
+    ``issues``; los demás errores bloquean igual. Sin el parámetro, nada cambia.
+    """
     issues = validate_document(document) + import_.import_issues(document)
-    if any(issue.severity == ERROR for issue in issues):
+    blocking = (
+        issue for issue in issues
+        if issue.severity == ERROR and not (allow_rule_faults and issue.code.startswith(RULE_FAULT_PREFIXES))
+    )
+    if any(True for _ in blocking):
         raise invalid(issues)
     try:
         definition = import_.to_definition(document)
