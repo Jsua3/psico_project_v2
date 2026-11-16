@@ -93,6 +93,26 @@ function pixelesDe(escena: Phaser.Scene, ruta: string): Imagen | null {
   return imagen;
 }
 
+/** El alfa (0 a 255) del cuadro que muestra un sprite, ya volteado si lo está. null si no tiene imagen. */
+function alfaDelCuadro(sprite: Phaser.GameObjects.Image | Phaser.GameObjects.Sprite): { datos: Uint8Array; w: number; h: number } | null {
+  const frame = sprite.frame;
+  const w = frame?.cutWidth ?? 0, h = frame?.cutHeight ?? 0;
+  const fuente = frame?.source?.image as HTMLImageElement | HTMLCanvasElement | undefined;
+  if (!w || !h || !fuente) return null;
+  const lienzo = document.createElement('canvas');
+  lienzo.width = w;
+  lienzo.height = h;
+  const ctx = lienzo.getContext('2d', { willReadFrequently: true });
+  if (!ctx) return null;
+  ctx.drawImage(fuente, frame.cutX, frame.cutY, w, h, 0, 0, w, h);
+  const rgba = ctx.getImageData(0, 0, w, h).data;
+  const datos = new Uint8Array(w * h);
+  for (let f = 0; f < h; f++) {
+    for (let col = 0; col < w; col++) datos[f * w + (sprite.flipX ? w - 1 - col : col)] = rgba[(f * w + col) * 4 + 3];
+  }
+  return { datos, w, h };
+}
+
 /** Galón de 9 × 6 px que apunta hacia la cámara, con su contorno: la flecha de la puerta que no se ve. */
 function texturaDeFlecha(escena: Phaser.Scene): string {
   const nombre = 'sala:flecha-camara';
@@ -418,28 +438,29 @@ export class EscenaDeSala {
     this.firmasDeSombra.delete(id);
   }
 
+  /**
+   * El cuerpo de un mueble u objeto dibujado por `sprite` (hijo de un contenedor en `cx`, `cy`): su silueta es el alfa del
+   * cuadro que muestra y se apoya en el centro de su base (`cuerpoDe`). null si no tiene dibujo.
+   */
+  static cuerpoDeSprite(sprite: Phaser.GameObjects.Image | Phaser.GameObjects.Sprite, cx: number, cy: number): Cuerpo | null {
+    const alfa = alfaDelCuadro(sprite);
+    if (!alfa) return null;
+    const izquierda = Math.round(cx + sprite.x - sprite.originX * alfa.w), arriba = Math.round(cy + sprite.y - sprite.originY * alfa.h);
+    const c = cuerpoDe(alfa.datos, alfa.w, alfa.h, izquierda, arriba);
+    return c.mascara ? c : null;
+  }
+
   /** La silueta del cuadro que muestra el sprite (alfa ≥ 128), con su apoyo: columna de los pies y fila tras la última opaca. */
   private siluetaDe(sprite: Phaser.GameObjects.Sprite): { mascara: Mascara; px: number; py: number; alto: number } | null {
     const frame = sprite.frame;
     const clave = `${frame.texture.key}:${frame.name}:${sprite.flipX ? 1 : 0}`;
     const guardada = this.siluetas.get(clave);
     if (guardada) return guardada;
-    const w = frame.cutWidth, h = frame.cutHeight;
-    const fuente = frame.source.image as HTMLImageElement | HTMLCanvasElement;
-    if (!w || !h || !fuente) return null;
-    const lienzo = document.createElement('canvas');
-    lienzo.width = w;
-    lienzo.height = h;
-    const ctx = lienzo.getContext('2d', { willReadFrequently: true });
-    if (!ctx) return null;
-    ctx.drawImage(fuente, frame.cutX, frame.cutY, w, h, 0, 0, w, h);
-    const rgba = ctx.getImageData(0, 0, w, h).data;
-    const alfa = new Uint8Array(w * h);
-    for (let f = 0; f < h; f++) {
-      for (let col = 0; col < w; col++) alfa[f * w + (sprite.flipX ? w - 1 - col : col)] = rgba[(f * w + col) * 4 + 3];
-    }
+    const alfa = alfaDelCuadro(sprite);
+    if (!alfa) return null;
+    const { w, h } = alfa;
     const piesX = Math.round(sprite.originX * w), piesY = Math.round(sprite.originY * h);
-    const c = cuerpoDe(alfa, w, h, 0, 0, [piesX, piesY]);
+    const c = cuerpoDe(alfa.datos, w, h, 0, 0, [piesX, piesY]);
     if (!c.mascara || c.px === undefined || c.py === undefined) return null;
     const silueta = { mascara: c.mascara as Mascara, px: c.px, py: c.py, alto: c.alto };
     this.siluetas.set(clave, silueta);
