@@ -67,12 +67,6 @@ def test_la_clave_de_un_final_se_normaliza(escrita, normalizada, esqueleto, ctx)
     assert checks.validate_skeleton(esqueleto, ctx).finales[0]["key"] == normalizada
 
 
-def test_una_clave_de_final_con_letras_fuera_de_ascii_se_rechaza(esqueleto, ctx):
-    esqueleto["finales"][0]["clave"] = "Acompañamiento Completo"
-    error = motivos_de(lambda: checks.validate_skeleton(esqueleto, ctx))
-    assert "La clave de un final no es válida o está repetida." in error.motivos
-
-
 def test_dos_claves_que_chocan_al_normalizar_se_rechazan(esqueleto, ctx):
     esqueleto["finales"][0]["clave"] = "vinculo-roto"
     esqueleto["finales"][1]["clave"] = "vinculo_roto"
@@ -191,7 +185,7 @@ def test_esqueleto_con_otras_reglas_rotas(esqueleto, ctx):
     (inalcanzable, "Una escena no se alcanza desde la primera."),
     (lambda e: e["hitos"].clear(), "El esqueleto necesita al menos un hito."),
     (lambda e: e["finales"].__setitem__(slice(None), e["finales"][-1:]), "El caso necesita de 2 a 4 finales."),
-    (lambda e: e["finales"][0].update(clave="con ñ"), "La clave de un final no es válida o está repetida."),
+    (lambda e: e["finales"][0].update(clave="con$"), "La clave de un final no es válida o está repetida."),
     (lambda e: e["finales"][0].update(cuando=""), "Solo el último final puede quedar sin condición."),
     (lambda e: e["finales"][0].update(cuando=json.dumps({"milestone": "hito_raro"})),
      "La condición de un final nombra un hito que el esqueleto no usa."),
@@ -208,6 +202,20 @@ def test_esqueleto_con_otras_reglas_rotas(esqueleto, ctx):
 def test_esqueleto_otras_reglas(cambio, motivo, esqueleto, ctx):
     cambio(esqueleto)
     assert motivo in motivos_de(lambda: checks.validate_skeleton(esqueleto, ctx)).motivos
+
+
+@pytest.mark.parametrize("clave, esperada", [
+    ("vínculo-roto", "vinculo_roto"), ("acompañamiento", "acompanamiento"), ("Cierre Cálido.", "cierre_calido"),
+])
+def test_la_clave_de_un_final_pierde_las_tildes_al_normalizarse(clave, esperada, esqueleto, ctx):
+    esqueleto["finales"][0]["clave"] = clave
+    assert checks.validate_skeleton(esqueleto, ctx).finales[0]["key"] == esperada
+
+
+@pytest.mark.parametrize("clave", ["con😀", "漢字", "a$b"])
+def test_una_clave_de_final_con_otros_caracteres_se_rechaza(clave, esqueleto, ctx):
+    esqueleto["finales"][0]["clave"] = clave
+    assert "La clave de un final no es válida o está repetida." in motivos_de(lambda: checks.validate_skeleton(esqueleto, ctx)).motivos
 
 
 @pytest.mark.parametrize("raw", [None, [], "texto", 7, {}, {"titulo": "solo"}])

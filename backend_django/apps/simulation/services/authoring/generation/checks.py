@@ -14,6 +14,7 @@ condiciones ya como ``dict`` y claves vacías quitadas en los comentarios. ``as_
 """
 import json
 import re
+import unicodedata
 from dataclasses import asdict, dataclass
 
 from apps.simulation.casedef import conditions
@@ -518,9 +519,11 @@ def _reachable(edges: dict[str, list[str]], start: str) -> list[str]:
 
 
 def _normalize_ending_key(key):
-    """La clave de un final en minúsculas con guion bajo: el modelo suele escribirla en kebab-case."""
+    """La clave de un final en minúsculas, sin tildes y con guion bajo: el modelo suele escribirla en kebab-case."""
     if not isinstance(key, str):
         return key
+    # Sin tildes: ``vínculo-roto`` → ``vinculo_roto``; lo que siga fuera de ``[A-Za-z0-9_]`` se rechaza después.
+    key = "".join(ch for ch in unicodedata.normalize("NFKD", key) if not unicodedata.combining(ch))
     key = re.sub(r"[-\s.]", "_", key.strip().lower())
     return re.sub(r"_+", "_", key).strip("_")
 
