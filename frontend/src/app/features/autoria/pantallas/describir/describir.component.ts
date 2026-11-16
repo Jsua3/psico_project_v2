@@ -273,6 +273,8 @@ export class DescribirComponent {
       await this.generacion.cancelar(id);
       this.retomable.set(null);
       await this.cargar();
+      // El botón pulsado desaparece con el aviso de retomar: el foco va al cuadro de la descripción.
+      afterNextRender(() => this.campoDescripcion()?.nativeElement.focus(), { injector: this.injector });
     } catch {
       // BORRADOR: texto nuevo, pendiente de la aprobación de Psicología
       this.errorAlCancelar.set('No pudimos cancelar el caso. Vuelve a intentarlo.');

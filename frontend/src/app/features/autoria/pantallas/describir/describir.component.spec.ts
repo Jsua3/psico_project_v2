@@ -123,6 +123,9 @@ describe('DescribirComponent', () => {
     expect(g.llamadas.some((l) => l.metodo === 'cancelGeneration')).toBe(true);
     expect(raiz.textContent).not.toContain('Tienes un caso a medio generar');
     fixture.detectChanges();
+    // El botón pulsado desaparece con el aviso: el foco va al cuadro de la descripción, no al cuerpo de la página.
+    await hasta(() => document.activeElement === raiz.querySelector('textarea'));
+    expect(document.activeElement).toBe(raiz.querySelector('textarea'));
   });
 
   it('si cancelar falla lo dice y deja las dos opciones', async () => {

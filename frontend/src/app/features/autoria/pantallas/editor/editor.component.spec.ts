@@ -58,6 +58,8 @@ describe('EditorComponent · aceptar toda la escena', () => {
     expect([despues.marcaIa, despues.lineas[0].marcaIa]).toEqual([false, false]);
     expect(raiz.querySelector('[role="status"].solo-lector')!.textContent!.trim()).toBe('Aceptaste todo lo sugerido en esta escena.');
     expect(raiz.querySelector('[data-accion="aceptar-ia"]')).toBeNull();
+    // El botón desaparece: el foco no puede caer al cuerpo de la página, va al título de la escena.
+    expect(document.activeElement?.id).toBe('pe');
   });
 });
 

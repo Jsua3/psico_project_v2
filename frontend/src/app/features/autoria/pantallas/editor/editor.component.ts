@@ -43,7 +43,7 @@ import { RutasAutoria } from '../../rutas';
             <section aria-labelledby="pe" class="tarjeta">
               <p class="texto-secundario">Escena elegida</p>
               @if (escenaElegida(); as e) {
-                <h2 id="pe">{{ numero(e) }} · {{ e.titulo }}</h2>
+                <h2 id="pe" tabindex="-1">{{ numero(e) }} · {{ e.titulo }}</h2>
                 @if (e.marcaIa) {
                   <p class="marca-ia"><span class="pildora">Sugerido por la IA</span> La creó el asistente; revísala y acéptala.</p>
                   <!-- BORRADOR: texto nuevo, pendiente de la aprobación de Psicología -->
@@ -228,6 +228,8 @@ export class EditorComponent {
     await this.store.sincronizado();
     // BORRADOR: texto nuevo, pendiente de la aprobación de Psicología
     if (this.store.partesIaDeEscena(id) === 0) this.anuncio.set('Aceptaste todo lo sugerido en esta escena.');
+    this.enfocar('#pe'); // el botón pulsado desaparece: el foco no cae al cuerpo de la página
+
   }
 
   protected readonly avisos = computed<Aviso[]>(() => {
