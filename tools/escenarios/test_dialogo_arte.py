@@ -57,6 +57,29 @@ def test_el_texto_contrasta_con_todo_relleno():
                 assert contraste(tinta, color) >= 4.5, (nombre, momento, color)
 
 
+def test_los_iconos_de_las_placas_son_de_pixel_y_la_bombilla_apagada_se_distingue():
+    for momento in da.MOMENTOS:
+        encendida = da.bombilla(True, momento)
+        assert encendida.size == (9, 11)
+        assert {a for *_, a in encendida.getdata()} <= {0, 255}
+    apagada = da.bombilla(False)
+    # El vidrio encendido es la luz de la sala; el apagado, un gris que no la recuerda.
+    assert da.LUZ['noche'] in {c[:3] for c in da.bombilla(True, 'noche').getdata()}
+    assert da.LUZ['noche'] not in {c[:3] for c in apagada.getdata()}
+    puerta = da.puerta_salida()
+    assert puerta.size == (11, 9)
+    assert {a for *_, a in puerta.getdata()} <= {0, 255}
+
+
+def test_el_texto_apagado_y_el_de_salida_llegan_a_4_5():
+    for momento in da.MOMENTOS:
+        for color in {c[:3] for c in da.trama('placa', momento).getdata()}:
+            assert contraste(da.APAGADA, color) >= 4.5, (momento, color)
+        for nombre in ('salida', 'salida-sobre', 'salida-pulsada'):
+            for color in {c[:3] for c in da.trama(nombre, momento).getdata()}:
+                assert contraste(da.CALIDA, color) >= 4.5, (nombre, momento, color)
+
+
 def test_el_parpadeo_cierra_los_ojos_y_no_toca_nada_mas():
     for receta in ('abuela-familia', 'psicologa-hospitalaria', 'samuel', 'adolescente', 'medico-guardia'):
         for estado in ('neutral', 'preocupada', 'triste', 'cautelosa', 'en-crisis'):

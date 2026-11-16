@@ -58,6 +58,8 @@ export class SceneHintComponent implements OnInit {
   readonly attemptToken = input.required<string>();
   /** Rótulo del botón que pide la pista: el panel de diálogo conserva «Ver pista»; la ficha del objetivo pone el suyo. */
   readonly buttonLabel = input('Ver pista');
+  /** Aspecto: «placa» es la placa de pixel del cuadro de diálogo del juego (bloque I1); fuera del cuadro, el de siempre. */
+  readonly variante = input<'base' | 'placa'>('base');
   /**
    * El servidor respondió 403 `CONSENT_REQUIRED` (S3-2b, ETH-01): el consentimiento al aviso de contenido se retiró o el aviso
    * cambió. No es un fallo de pistas: se lo dice a la pantalla de juego, que vuelve al aviso previo como con cualquier otra orden.
