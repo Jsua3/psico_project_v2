@@ -12,6 +12,7 @@
 import { gridFrom } from '../../raster.mjs';
 import { headHalfWidth } from '../../busts/bust-a.mjs';
 import { DIAGONAL } from './media-melena.diagonal.mjs';
+import { hairVolume } from './portrait-volume.mjs';
 
 const LEGEND = {
   R: { mat: 'hair' },
@@ -49,7 +50,7 @@ export default {
   kind: 'hair',
   part: 'hair',
   z: 6,
-  portrait: PORTRAIT,
+  portrait: hairVolume('media-melena', PORTRAIT),
   views: {
     ...DIAGONAL,
     down: [
