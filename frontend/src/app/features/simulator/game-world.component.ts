@@ -622,6 +622,16 @@ export class DataDrivenWorldScene extends Phaser.Scene {
     // P2: la sala por piezas abre la puerta a la que se acerca quien juega y rehace su luz (sombra incluida).
     this.salaPorPiezas?.actualizar(delta, this.player ? { x: this.player.x, y: this.player.y } : null,
       new Set(Object.keys(this.doorStates).filter(clave => this.doorStates[clave] === 'locked')), this.callbacks.reduceMotion);
+    if (this.salaPorPiezas) this.sombrasConSilueta(this.salaPorPiezas);
+  }
+
+  /** P2: la sombra con silueta de quien juega y de cada persona del caso, en una sala por piezas (regla 3 de calidad). */
+  private sombrasConSilueta(sala: EscenaDeSala): void {
+    if (this.player) sala.sombraDeFigura('jugador', this.playerSprite, this.player.x, this.player.y);
+    for (const [key, m] of this.markers) {
+      const sprite = (m as unknown as Record<string, unknown>)['__personSprite'] as Phaser.GameObjects.Sprite | undefined;
+      if (sprite) sala.sombraDeFigura(key, sprite, m.x + sprite.x, m.y + sprite.y);
+    }
   }
 
   setWorld(world: SimulationWorldState) {
