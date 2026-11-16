@@ -80,6 +80,14 @@ let nextGoalCardId = 0;
       .goal-card__toggle:hover .goal-card__goal { color: var(--pixel-tinta); }
     }
 
+    /* Teléfono (≤ 560 px): más sala a la vista. Sin el kicker, y plegada la ficha lleva el objetivo en una línea con puntos
+       suspensivos (el texto sigue entero en el DOM y la ficha se abre al tocar; abierta lo muestra completo). */
+    @media (max-width: 560px) {
+      .goal-card__kicker { display: none; }
+      .goal-card__toggle { grid-template-areas: 'goal chevron'; }
+      :host([data-collapsed='true']) .goal-card__goal { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    }
+
     .goal-card__body { display: grid; gap: calc(3 * var(--pixel-px)); min-width: 0; margin-top: calc(-1 * var(--pixel-px)); padding: calc(3 * var(--pixel-px)) calc(5 * var(--pixel-px)) calc(4 * var(--pixel-px)); }
     /* «display: grid» pisa el estilo de «hidden»: plegada, el cuerpo sigue vivo (conserva el enfriamiento de la pista) pero no se ve. */
     .goal-card__body[hidden] { display: none; }

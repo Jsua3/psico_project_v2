@@ -49,7 +49,8 @@ describe('ficha del objetivo (T9.1)', () => {
   // Bloque U1 (variante B): el aviso ya no es una franja bajo la cabecera sino la primera pieza del carril de arriba al centro, entre la ficha y el HUD.
   it('el aviso de contenido sensible vive FUERA de la tarjeta plegable: carril de la cabecera, siempre a la vista en todos los dispositivos (L-01)', () => {
     expect(source).toMatch(
-      /<header class="top-bar"[\s\S]*?<span class="top-bar__hueco"[^>]*><\/span>\s*<div class="carril">\s*(<!--[\s\S]*?-->\s*)?<app-sensitive-notice \[text\]="sensitiveNotice\(\)" \[sceneKey\]="visibleNode\(\)\?\.key \?\? null"[^>]*\/>[\s\S]*?<app-simulation-hud[\s\S]*?\/>\s*<\/div>\s*<\/header>/,
+      // Bloque U1 (variante B): el HUD va en .top-bar__derecha y el minimapa debajo de él, dentro de la misma fila de la cabecera.
+      /<header class="top-bar"[\s\S]*?<span class="top-bar__hueco"[^>]*><\/span>\s*<div class="carril">\s*(<!--[\s\S]*?-->\s*)?<app-sensitive-notice \[text\]="sensitiveNotice\(\)" \[sceneKey\]="visibleNode\(\)\?\.key \?\? null"[^>]*\/>[\s\S]*?<div class="top-bar__derecha"[^>]*>\s*<app-simulation-hud[\s\S]*?\/>\s*@if \(world\(\) && !cinemaBars\(\)\) \{\s*(<!--[\s\S]*?-->\s*)?<app-minimapa[\s\S]*?\/>\s*\}\s*<\/div>\s*<\/div>\s*<\/header>/,
     );
     // Siempre a la vista: ninguna condición del juego (modo de vista, fundido, sala) envuelve al aviso sensible.
     const carril = source.slice(source.indexOf('<div class="carril">'), source.indexOf('<app-simulation-hud'));
@@ -148,7 +149,8 @@ describe('el rótulo de la escena nueva no tapa la ficha del objetivo', () => {
     expect(banner).not.toMatch(/position:\s*(absolute|fixed)/);
     expect(banner).not.toContain('left: 50%');
     expect(banner).not.toContain('translateX(-50%)');
-    expect(source).toMatch(/<div class="carril">[\s\S]*?<div class="room-banner u-placa u-sombra">\{\{ roomBanner\(\) \}\}<\/div>[\s\S]*?<\/div>\s*<app-simulation-hud/);
+    // Bloque U1 (variante B): entre el carril y el HUD está ahora el grupo de la derecha, que también aloja el minimapa.
+    expect(source).toMatch(/<div class="carril">[\s\S]*?<div class="room-banner u-placa u-sombra">\{\{ roomBanner\(\) \}\}<\/div>[\s\S]*?<\/div>\s*(<!--[\s\S]*?-->\s*)?<div class="top-bar__derecha"[^>]*>\s*<app-simulation-hud/);
     // El carril empieza donde acaba el hueco de la ficha: el rótulo nunca cae sobre ella.
     expect(source).toMatch(/<span class="top-bar__hueco" aria-hidden="true"><\/span>\s*<div class="carril">/);
     expect(rule('.top-bar__hueco')).toContain('width: min(440px, 33%);');
@@ -160,10 +162,49 @@ describe('el rótulo de la escena nueva no tapa la ficha del objetivo', () => {
     expect(source).toMatch(/@keyframes room-banner-in \{ from \{ opacity: 0; transform: translateY\(-8px\); \} \}/);
   });
 
-  it('en móvil vertical la ficha va plegada a un chip: el rótulo vuelve al centro, bajo el chip', () => {
-    const mobile = source.match(/@media \(max-width: 760px\) \{[^@]*?\.room-banner \{[^}]*\}/)?.[0] ?? '';
-    expect(mobile).toContain('left: 50%');
-    expect(mobile).toContain('translateX(-50%)');
+  // Bloque U1 (variante B): ya no hay chip ni rótulo absoluto. Bajo 760 px la ficha pasa a lo ancho pero el hueco de la
+  // cabecera no, así que el carril y el HUD caían sobre ella: ahora la cabecera se apila (el grupo de la derecha primero),
+  // el hueco mide lo que la ficha (--alto-objetivo) y la ficha baja bajo el HUD (--alto-hud); las dos alturas las mide un
+  // ResizeObserver que se desconecta al destruir.
+  it('bajo 760 px el hueco mide lo que la ficha del objetivo y la ficha baja bajo el HUD: el carril y el HUD no caen sobre ella', () => {
+    const mobile = source.split('@media (max-width: 760px) {').slice(1).find(bloque => bloque.includes('.top-bar__hueco')) ?? '';
+    expect(mobile).toMatch(/\.top-bar__fila \{ flex-direction: column; align-items: stretch; \}/);
+    expect(mobile).toMatch(/\.top-bar__derecha \{ order: -1; width: 100%; \}/);
+    expect(mobile).toContain('.top-bar__hueco { width: 100%; height: var(--alto-objetivo, 0px); }');
+    const ficha = mobile.match(/\.objective-card \{([^}]*)\}/)?.[1] ?? '';
+    expect(ficha).toContain('top: calc(2 * var(--pixel-borde) + var(--alto-hud, 0px));');
+    expect(ficha).toContain('left: var(--pixel-borde);');
+    expect(ficha).toContain('right: var(--pixel-borde);');
+    expect(ficha).toContain('width: auto;');
+    // Las alturas se miden y se publican en el contenedor; el observador se desconecta al destruir (o al rehacerse).
+    expect(source).toContain("[style.--alto-hud]=\"altoHud() + 'px'\"");
+    expect(source).toContain("[style.--alto-objetivo]=\"altoObjetivo() + 'px'\"");
+    expect(source).toMatch(/new ResizeObserver\(/);
+    expect(source).toMatch(/onCleanup\(\(\) => observador\.disconnect\(\)\)/);
+  });
+
+  // Bloque U1 (variante B): el teléfono (≤ 560 px) ve más sala. Una sola copia del chip sensible es visible a la vez
+  // (display: none la saca del árbol de accesibilidad), el minimapa deja sus dos botones y la ficha pierde el kicker.
+  it('en teléfono (≤ 560 px) el chip sensible baja al pie junto a «Salida segura» y solo una copia queda a la vista', () => {
+    expect(source).toMatch(/<app-safe-exit-button variante="placa"[^>]*\/>\s*\}\s*(<!--[\s\S]*?-->\s*)?<app-sensitive-notice class="notice-pie" \[text\]="sensitiveNotice\(\)" \[sceneKey\]="visibleNode\(\)\?\.key \?\? null"[^>]*\/>/);
+    expect(rule('.notice-pie')).toContain('display: none;');
+    const phone = source.match(/@media \(max-width: 560px\) \{[\s\S]*?\n    \}/)?.[0] ?? '';
+    expect(phone).toContain('.carril > app-sensitive-notice { display: none; }');
+    expect(phone).toMatch(/\.notice-pie \{ display: block;/);
+    // Bloque U1 (variante B): en el teléfono el plano no se oculta (sin tecla M es la única forma de abrirlo con el dedo); solo la pestaña del lugar.
+    expect(phone).toContain('.top-bar__derecha ::ng-deep .minimapa__lugar { display: none; }');
+    expect(phone).not.toMatch(/\.minimapa__abrir[^{]*\{ display: none; \}/);
+    const goalCard = readFileSync(join(__dirname, 'scene-goal-card.component.ts'), 'utf-8');
+    expect(goalCard).toMatch(/@media \(max-width: 560px\) \{\s*\.goal-card__kicker \{ display: none; \}/);
+    expect(goalCard).toContain('text-overflow: ellipsis; white-space: nowrap;');
+  });
+
+  // Bloque U1 (variante B): el minimapa subió a la cabecera, bajo el HUD; ya no vive en el lienzo.
+  it('el minimapa va bajo el HUD, en la cabecera, y con las franjas de cine se va; el foco del plano sigue volviendo a su botón', () => {
+    const canvas = source.slice(source.indexOf('<section #canvasZone'), source.indexOf('<app-reaction-director'));
+    expect(canvas).not.toContain('<app-minimapa');
+    expect(source).toMatch(/@if \(world\(\) && !cinemaBars\(\)\) \{\s*(<!--[\s\S]*?-->\s*)?<app-minimapa \[plano\]="placePlan\(\)" \[actual\]="placeRoom\(\)" \[cercana\]="cameraSettings\.cercana\(\)"\s*\[lugar\]="world\(\)\?\.map\?\.title \?\? ''"/);
+    expect(source).toContain("document.querySelector<HTMLElement>('[data-minimapa-abrir]')");
   });
 });
 
@@ -188,14 +229,15 @@ describe('el HUD recibe el título de la escena (T9.2)', () => {
 
 describe('barra contextual (T9.3, T9.5)', () => {
   it('el botón principal conserva button.context-bar__interaction con su <strong> y el nombre «Interactuar: …»', () => {
-    expect(source).toMatch(/<button type="button" class="context-bar__interaction"/);
+    // Bloque U1 (variante B): las acciones son fichas del cuadro de diálogo (u-ficha u-sombra).
+    expect(source).toMatch(/<button type="button" class="context-bar__interaction u-ficha u-sombra"/);
     expect(source).toMatch(/<strong>\{\{ action\.verb\.text \}\}<\/strong>/);
     expect(source).toContain('`Interactuar: ${verb.text}');
     expect(source).not.toContain('atajo E');
   });
 
   it('el botón secundario usa context-bar__interaction--secondary y también lleva <strong>', () => {
-    expect(source).toMatch(/class="context-bar__interaction context-bar__interaction--secondary"[\s\S]*?<strong>\{\{ also\.verb\.text \}\}<\/strong>/);
+    expect(source).toMatch(/class="context-bar__interaction context-bar__interaction--secondary u-ficha u-sombra"[\s\S]*?<strong>\{\{ also\.verb\.text \}\}<\/strong>/);
   });
 
   it('el secundario conserva «También:» en su nombre accesible aunque el modo compacto lo oculte a la vista', () => {
@@ -203,7 +245,8 @@ describe('barra contextual (T9.3, T9.5)', () => {
   });
 
   it('en reposo la barra solo trae la nota «No hay nada a tu alcance» (clase propia); ni línea «Ahora:» ni leyenda de teclas', () => {
-    expect(source).toMatch(/@if \(nothingNearbyNote\(\); as note\) \{\s*<p class="context-bar__now">\{\{ note \}\}<\/p>/);
+    // Bloque U1 (variante B): la nota de reposo es una placa (u-placa).
+    expect(source).toMatch(/@if \(nothingNearbyNote\(\); as note\) \{\s*<p class="context-bar__now u-placa">\{\{ note \}\}<\/p>/);
     expect(source).not.toContain('nowLine');
     expect(source).not.toContain('context-bar__hint');
     expect(source).not.toContain('WASD mover');
@@ -211,12 +254,13 @@ describe('barra contextual (T9.3, T9.5)', () => {
 
   it('la <kbd> «E» del botón no se pinta en modo compacto ni sin puntero fino', () => {
     // La tecla que se rotula sale del ajuste «Atajos de una tecla» (F6-10): E con ellos activos, Enter sin ellos.
-    expect(source).toMatch(/@if \(!compactMode\(\)\) \{ <kbd aria-hidden="true">\{\{ shortcuts\.enabled\(\) \? 'E' : 'Enter' \}\}<\/kbd> \}/);
+    // Bloque U1 (variante B): la tecla es la u-tecla de letra del cuadro de diálogo.
+    expect(source).toMatch(/@if \(!compactMode\(\)\) \{ <kbd class="u-tecla u-tecla--letra" aria-hidden="true">\{\{ shortcuts\.enabled\(\) \? 'E' : 'Enter' \}\}<\/kbd> \}/);
     expect(source).toMatch(/@media not all and \(hover: hover\) and \(pointer: fine\) \{\s*\.context-bar__interaction kbd \{ display: none; \}/);
   });
 
   it('una puerta bloqueada también marca candado cuando es el botón secundario', () => {
-    expect(source).toMatch(/context-bar__interaction--secondary"[\s\S]*?\[class\.context-bar__interaction--locked\]="also\.verb\.locked"[\s\S]*?@if \(also\.verb\.locked\) \{ <mat-icon class="context-bar__lock"/);
+    expect(source).toMatch(/context-bar__interaction--secondary u-ficha u-sombra"[\s\S]*?\[class\.context-bar__interaction--locked\]="also\.verb\.locked"[\s\S]*?@if \(also\.verb\.locked\) \{ <app-pixel-icono class="context-bar__lock" nombre="candado" \/> \}/);
   });
 
   // Bloque U1 (variante B): el pie ya no tiene alto fijo; es una capa en la misma celda que el mundo, así que el mundo no se redimensiona.
@@ -312,7 +356,9 @@ describe('ayuda (T9.8)', () => {
   });
 
   it('la pantalla de ayuda deja libres la cabecera y el pie (no se pone inert)', () => {
-    expect(rule('.help-layer')).toMatch(/top: 52px;/);
+    // Bloque U1 (variante B): ya no hay cabecera de 52 px ni pie de 68 px fijos sino capas; se dejan libres el HUD (120 px) y el pie (96 px).
+    expect(rule('.help-layer')).toMatch(/top: 120px;/);
+    expect(rule('.help-layer')).toMatch(/bottom: 96px;/);
     expect(rule('.help-layer')).toMatch(/pointer-events: none;/);
     expect(source).toMatch(/<footer class="bottom-zone"[^>]*\[attr\.inert\]="inputBlocked\(\)/);
   });

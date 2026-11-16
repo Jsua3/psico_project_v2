@@ -1,7 +1,7 @@
 import { A11yModule } from '@angular/cdk/a11y';
 import { perfCancel, perfEnd, perfEndNextPaint, perfStart } from '../../core/perf/perf-marks';
 import { CommonModule } from '@angular/common';
-import { Component, ElementRef, HostListener, Injector, OnDestroy, OnInit, ViewChild, afterNextRender, viewChild, computed, effect, inject, signal, untracked, ChangeDetectionStrategy } from '@angular/core';
+import { Component, ElementRef, HostListener, Injector, OnDestroy, OnInit, ViewChild, afterNextRender, afterRenderEffect, viewChild, computed, effect, inject, signal, untracked, ChangeDetectionStrategy } from '@angular/core';
 import { HttpErrorResponse } from '@angular/common/http';
 import { ActivatedRoute, Router, RouterLink } from '@angular/router';
 import { MatIconModule } from '@angular/material/icon';
@@ -28,6 +28,7 @@ import { ORIENTATION_COPY, SAFE_EXIT_ALWAYS_REACHABLE } from './orientation.conf
 import { GameHelpComponent } from './game-help.component';
 import { HELP_FIRST_CARD, markHelpSeen, readHelpSeen, resetHelpSeen } from './help-memory.util';
 import { SceneGoalCardComponent } from './scene-goal-card.component';
+import { partirNotaDeTransicion } from './nota-transicion';
 import { SensitiveNoticeComponent } from './sensitive-notice.component';
 import { debeConfirmarEnsayo, escenaDesde, reintentarSinDesde, veredictoDeLectura } from './caso/ensayo';
 import { escenaRetenida } from './caso/escena-visible';
@@ -125,6 +126,7 @@ const NARROW_QUERY = '(max-width: 760px)';
  */
 const QUEUED_PAUSE_DEADLINE_MS = 10_000;
 const QUEUED_PAUSE_SLOW_NOTICE = 'La acción en curso está tardando. Estamos pausando el caso igualmente.';
+
 @Component({
   selector: 'app-simulation-play',
   standalone: true,
@@ -138,7 +140,9 @@ const QUEUED_PAUSE_SLOW_NOTICE = 'La acción en curso está tardando. Estamos pa
   ],
   template: `
     <div class="game-container pixel-juego" data-skin="game" id="main-content" tabindex="-1" [attr.data-mode]="viewMode()" [style]="arteJuego"
-      [class.game-container--reduce-motion]="reduceMotion()" [attr.data-rehearsal]="mode() === 'rehearsal' ? 'true' : null">
+      [class.game-container--reduce-motion]="reduceMotion()" [class.game-container--cine]="cinemaBars()"
+      [style.--alto-hud]="altoHud() + 'px'" [style.--alto-objetivo]="altoObjetivo() + 'px'"
+      [attr.data-rehearsal]="mode() === 'rehearsal' ? 'true' : null">
       <!-- Sin región viva propia (F6-12): todo anuncio sale por las dos regiones persistentes de la app
            (LiveRegionAnnouncer), que ya existen antes de que cambie su texto. -->
       <!-- Un h1 por pantalla (plan visual F3-6): el nombre del caso, visualmente oculto (el juego es a sangre). -->
@@ -181,8 +185,14 @@ const QUEUED_PAUSE_SLOW_NOTICE = 'La acción en curso está tardando. Estamos pa
         </div>
       }
       @if (transitionNote()) {
+        <!-- Bloque U1: la pestaña del capítulo sobre la placa del texto (como el nombre de quien habla sobre su placa). -->
         <div class="transition-note">
-          <p>{{ transitionNote() }}</p>
+          <div class="transition-note__bloque">
+            @if (transitionParts().capitulo; as capitulo) {
+              <p class="transition-note__capitulo u-rotulo">{{ capitulo }}</p>
+            }
+            <p class="transition-note__texto u-placa u-sombra">{{ transitionParts().texto }}</p>
+          </div>
         </div>
       }
 
@@ -320,6 +330,8 @@ const QUEUED_PAUSE_SLOW_NOTICE = 'La acción en curso está tardando. Estamos pa
                 <div class="room-banner u-placa u-sombra">{{ roomBanner() }}</div>
               }
             </div>
+            <!-- Bloque U1: el HUD y, debajo de él, el minimapa (antes en la esquina del lienzo). Un solo grupo a la derecha. -->
+            <div class="top-bar__derecha" #derecha>
             <app-simulation-hud
               [attempt]="game"
               [patientVisual]="patientVisual()"
@@ -335,6 +347,13 @@ const QUEUED_PAUSE_SLOW_NOTICE = 'La acción en curso está tardando. Estamos pa
               (toggleSfx)="toggleSfxMute()"
               (toggleReduceMotion)="toggleReduceMotion()"
               (openHelp)="openHelp()" (helpReset)="resetHelpCard()" />
+            @if (world() && !cinemaBars()) {
+              <!-- Minimapa (bloque M1, §5.3): abre el plano completo (también con M). Con las franjas de cine se va. -->
+              <app-minimapa [plano]="placePlan()" [actual]="placeRoom()" [cercana]="cameraSettings.cercana()"
+                [lugar]="world()?.map?.title ?? ''"
+                (abrir)="openPlan()" (alternarCercana)="cameraSettings.toggleCercana()" />
+            }
+            </div>
           </div>
         </header>
 
@@ -377,11 +396,6 @@ const QUEUED_PAUSE_SLOW_NOTICE = 'La acción en curso está tardando. Estamos pa
                 (enterRoom)="onDoorTrigger($event)"
                 (salaIncompleta)="onSalaIncompleta()"
                 (positionChange)="rememberPosition($event.x, $event.y)" />
-              <!-- Minimapa (bloque M1, §5.3): esquina del mundo; abre el plano completo (también con M). -->
-              @if (!cinemaBars()) {
-                <app-minimapa [plano]="placePlan()" [actual]="placeRoom()" [cercana]="cameraSettings.cercana()"
-                  (abrir)="openPlan()" (alternarCercana)="cameraSettings.toggleCercana()" />
-              }
               <!-- Franjas de cine (bloque M1, regla 7): entran en la decisión y en la reacción; la de abajo aloja el cuadro de diálogo. -->
               <div class="cine cine--arriba" aria-hidden="true" [class.cine--dentro]="cinemaBars()"></div>
               <div class="cine cine--abajo" aria-hidden="true" [class.cine--dentro]="cinemaBars()"
@@ -446,6 +460,10 @@ const QUEUED_PAUSE_SLOW_NOTICE = 'La acción en curso está tardando. Estamos pa
                  label-content-name-mismatch); la tecla Esc es aria-hidden. -->
             <app-safe-exit-button variante="placa" [compact]="compactMode()" [pausing]="pausing()" (pause)="pauseFromOverlay()" />
           }
+          <!-- Teléfono (≤ 560 px, bloque U1): el chip de contenido sensible baja junto a «Salida segura» y deja más sala a la vista.
+               Con ≤ 560 px se oculta el del carril y con más se oculta este (display: none lo saca del árbol de accesibilidad:
+               queda uno solo, visible y legible a la vez). -->
+          <app-sensitive-notice class="notice-pie" [text]="sensitiveNotice()" [sceneKey]="visibleNode()?.key ?? null" [reduceMotion]="reduceMotion()" />
 
           <app-tool-inventory class="tool-dock" [tools]="world()?.tools ?? []"
             [inventory]="world()?.inventory ?? []"
@@ -457,12 +475,12 @@ const QUEUED_PAUSE_SLOW_NOTICE = 'La acción en curso está tardando. Estamos pa
           <div class="context-bar">
             @if (contextAction(); as action) {
               <!-- Un solo botón principal, una línea y altura fija: el mundo no cambia de tamaño al acercarte a algo. -->
-              <button type="button" class="context-bar__interaction"
+              <button type="button" class="context-bar__interaction u-ficha u-sombra"
                 [class.context-bar__interaction--exit]="action.obj.type === 'EXIT'"
                 [class.context-bar__interaction--locked]="action.verb.locked"
                 (click)="openInteraction(action.obj)" [attr.aria-label]="action.ariaLabel" [attr.title]="action.title">
-                @if (!compactMode()) { <kbd aria-hidden="true">{{ shortcuts.enabled() ? 'E' : 'Enter' }}</kbd> }
-                @if (action.verb.locked) { <mat-icon class="context-bar__lock" aria-hidden="true">lock</mat-icon> }
+                @if (!compactMode()) { <kbd class="u-tecla u-tecla--letra" aria-hidden="true">{{ shortcuts.enabled() ? 'E' : 'Enter' }}</kbd> }
+                @if (action.verb.locked) { <app-pixel-icono class="context-bar__lock" nombre="candado" /> }
                 <span class="context-bar__copy">
                   <strong>{{ action.verb.text }}</strong>
                   @if (action.verb.locked && action.verb.reason) {
@@ -471,10 +489,10 @@ const QUEUED_PAUSE_SLOW_NOTICE = 'La acción en curso está tardando. Estamos pa
                 </span>
               </button>
               @if (contextAlso(); as also) {
-                <button type="button" class="context-bar__interaction context-bar__interaction--secondary"
+                <button type="button" class="context-bar__interaction context-bar__interaction--secondary u-ficha u-sombra"
                   [class.context-bar__interaction--locked]="also.verb.locked"
                   (click)="openInteraction(also.obj)" [attr.title]="also.title" [attr.aria-label]="'También: ' + also.verb.text">
-                  @if (also.verb.locked) { <mat-icon class="context-bar__lock" aria-hidden="true">lock</mat-icon> }
+                  @if (also.verb.locked) { <app-pixel-icono class="context-bar__lock" nombre="candado" /> }
                   <span class="context-bar__also">También:</span>
                   <strong>{{ also.verb.text }}</strong>
                 </button>
@@ -482,7 +500,7 @@ const QUEUED_PAUSE_SLOW_NOTICE = 'La acción en curso está tardando. Estamos pa
             } @else {
               <div class="context-bar__idle">
                 @if (nothingNearbyNote(); as note) {
-                  <p class="context-bar__now">{{ note }}</p>
+                  <p class="context-bar__now u-placa">{{ note }}</p>
                 }
               </div>
             }
@@ -596,7 +614,11 @@ const QUEUED_PAUSE_SLOW_NOTICE = 'La acción en curso está tardando. Estamos pa
     .top-bar { z-index: var(--ds-z-cabecera); align-self: start; pointer-events: none; }
     .top-bar > .rehearsal-banner { pointer-events: auto; }
     .top-bar__fila { display: flex; align-items: flex-start; gap: var(--pixel-borde); padding: var(--pixel-borde); }
-    .top-bar__fila > app-simulation-hud { flex: none; pointer-events: auto; }
+    /* El grupo de la derecha: el HUD y, debajo, el minimapa. La capa deja pasar el puntero; solo sus hijos lo reciben. */
+    .top-bar__derecha { flex: none; display: flex; flex-direction: column; align-items: flex-end; gap: calc(2 * var(--pixel-px)); pointer-events: none; }
+    .top-bar__derecha > * { pointer-events: auto; }
+    /* El chip de contenido sensible del pie solo existe en teléfono (≤ 560 px): en el resto, el del carril. */
+    .notice-pie { display: none; }
     /* El hueco mide lo que la ficha del objetivo: el carril nunca cae sobre ella (antes el aviso de puerta la tapaba). */
     .top-bar__hueco { flex: none; width: min(440px, 33%); }
     .carril { flex: 1; min-width: 0; display: flex; flex-direction: column; align-items: center; gap: calc(3 * var(--pixel-px)); pointer-events: none; }
@@ -668,6 +690,8 @@ const QUEUED_PAUSE_SLOW_NOTICE = 'La acción en curso está tardando. Estamos pa
       overflow: hidden;
     }
     .objective-card__etapa { flex: none; }
+    /* Decisión con franjas de cine: la franja de arriba queda limpia (el HUD sigue). */
+    .game-container--cine .objective-card { visibility: hidden; }
     .objective-card__scroll { min-height: 0; overflow-y: auto; overscroll-behavior: contain; scrollbar-width: thin; }
 
     /* Tarjeta de primera vez: sobre las cruces táctiles (48) para que sus botones siempre se puedan tocar, y bajo las
@@ -678,25 +702,27 @@ const QUEUED_PAUSE_SLOW_NOTICE = 'La acción en curso está tardando. Estamos pa
       width: min(560px, calc(100% - 24px));
     }
     @media (min-width: 1100px) {
-      /* 380 px: más ancha tapaba la puerta del quirófano (acceso restringido) en el arranque de Urgencias. */
-      .help-slot { top: 12px; bottom: auto; left: auto; right: 12px; transform: none; width: min(380px, calc(100% - 488px)); }
+      /* Arriba al centro, bajo el carril: a la derecha están ahora el HUD y el plano. 380 px como máximo: más ancha tapaba
+         la puerta del quirófano (acceso restringido) en el arranque de Urgencias. */
+      .help-slot { top: calc(var(--pixel-borde) + 64px); bottom: auto; left: 50%; transform: translateX(-50%); width: min(380px, 30%); }
     }
-    /* Móvil vertical: las cruces táctiles ocupan abajo; la tarjeta va arriba, bajo el chip de la ficha del objetivo. */
+    /* Móvil vertical: las cruces táctiles ocupan abajo; la tarjeta va arriba, bajo el HUD y la ficha del objetivo. */
     @media (max-width: 760px) {
-      .help-slot { top: 52px; bottom: auto; }
+      .help-slot { top: calc(3 * var(--pixel-borde) + var(--alto-hud, 0px) + var(--alto-objetivo, 0px)); bottom: auto; }
     }
     @media (max-height: 520px), (pointer: coarse) and (orientation: landscape) {
       /* Entre las bandas de las cruces táctiles (≈ 150 px a cada lado): sus botones quedan a la vista y se pueden tocar. */
       .help-slot { top: 8px; bottom: auto; left: 50%; right: auto; transform: translateX(-50%); width: min(460px, calc(100% - 300px)); }
     }
-    /* Pantalla de ayuda: deja libres la cabecera (48 px) y el pie (64 px); la capa no captura toques fuera de la hoja. */
+    /* Pantalla de ayuda: cabecera y pie ya no son franjas fijas sino capas sobre el mundo (U1). Deja libres el HUD de
+       arriba (120 px) y el pie de abajo (96 px), que siguen operables; la capa no captura toques fuera de la hoja. */
     .help-layer {
-      position: absolute; left: 0; right: 0; top: 52px; bottom: 68px; z-index: 90;
+      position: absolute; left: 0; right: 0; top: 120px; bottom: 96px; z-index: 90;
       display: grid; place-items: center; padding: 8px 12px; pointer-events: none;
     }
     .help-layer app-game-help { width: min(640px, 100%); max-height: 100%; pointer-events: auto; }
     /* La hoja de ayuda trae su propio tope (78vh / 92vh): aquí no puede pasar de la capa, o taparía el pie. */
-    .help-layer ::ng-deep .help-screen { max-height: min(560px, calc(100vh - 136px)); }
+    .help-layer ::ng-deep .help-screen { max-height: min(560px, calc(100vh - 232px)); }
 
     /* ── Right panel (solo en dialogue-right) ────────────────────────────── */
     .right-panel {
@@ -753,92 +779,87 @@ const QUEUED_PAUSE_SLOW_NOTICE = 'La acción en curso está tardando. Estamos pa
     /* «Salida segura» del pie es app-safe-exit-button (F6-6): su forma vive en el componente; aquí solo su sitio. */
     .bottom-zone > app-safe-exit-button { flex-shrink: 0; }
     .tool-dock { display: block; min-width: 0; flex: 0 1 auto; }
+    /* La acción cercana (U1): fichas del cuadro de diálogo, una principal y, más baja, la secundaria. La barra deja pasar el
+       puntero al mundo; solo sus fichas lo reciben. */
     .context-bar {
       flex: 1;
       display: flex;
       align-items: center;
       justify-content: flex-end;
-      gap: 8px;
+      gap: calc(4 * var(--pixel-px));
       min-width: 0;
       min-height: 0;
+      font-family: var(--pixel-f-texto);
+      font-size: var(--pixel-tam);
+      pointer-events: none;
     }
+    .context-bar > * { pointer-events: auto; }
+    /* Sin overflow: la sombra de tramado de la ficha cuelga por debajo; el recorte con elipsis lo hace cada texto. */
     .context-bar__interaction {
+      box-sizing: border-box;
       display: flex;
       align-items: center;
-      gap: 10px;
+      gap: calc(4 * var(--pixel-px));
       min-width: 0;
       max-width: 100%;
       max-height: 100%;
       min-height: 44px;
-      padding: 5px 14px;
-      border: 1px solid rgba(182,156,255,.35);
-      border-radius: 12px;
-      background: rgba(8,12,18,.88);
-      color: inherit;
-      font: inherit;
+      padding: calc(2 * var(--pixel-px)) calc(6 * var(--pixel-px)) calc(3 * var(--pixel-px)) calc(4 * var(--pixel-px));
       text-align: left;
-      cursor: pointer;
-      overflow: hidden;
     }
-    .context-bar__interaction--exit { border-color: rgba(182,156,255,.65); }
-    /* Puerta bloqueada: forma, no solo color (borde discontinuo y candado). */
-    .context-bar__interaction--locked { border-style: dashed; border-color: rgba(245,184,75,.7); }
-    .context-bar__interaction kbd {
-      flex-shrink: 0;
-      padding: 3px 9px;
-      border-radius: 6px;
-      background: rgba(124,77,255,.22);
-      border: 1px solid rgba(124,77,255,.4);
-      font-size: .8rem;
-      font-family: 'JetBrains Mono', monospace;
-      font-weight: 800;
-      color: #c9b8ff;
-    }
-    .context-bar__lock { flex-shrink: 0; width: 18px; height: 18px; font-size: 18px; color: #F5B84B; }
+    /* La puerta bloqueada se dice con el candado y el motivo (forma y texto, no solo color); la de salida, con su verbo. */
+    .context-bar__interaction--exit, .context-bar__interaction--locked { font-weight: 700; }
     /* La tecla E solo se rotula con teclado y puntero fino: en táctil el botón basta. */
     @media not all and (hover: hover) and (pointer: fine) {
       .context-bar__interaction kbd { display: none; }
     }
-    .context-bar__copy { display: grid; min-width: 0; }
+    .context-bar__lock { flex: none; color: var(--pixel-ambar); }
+    .context-bar__copy { display: grid; gap: var(--pixel-px); justify-items: start; min-width: 0; }
     .context-bar__copy strong {
       min-width: 0;
+      max-width: 100%;
       overflow: hidden;
       text-overflow: ellipsis;
       white-space: nowrap;
-      font-size: .8rem;
-      color: #cdbcff;
+      font-weight: 700;
       line-height: 1.25;
     }
+    /* El motivo de la puerta bloqueada: ámbar sobre su fondo, como el aviso de ficha «Aún no tienes esta herramienta». */
     .context-bar__reason {
       min-width: 0;
+      max-width: 100%;
       overflow: hidden;
       text-overflow: ellipsis;
       white-space: nowrap;
-      font-size: .75rem;
+      padding: var(--pixel-px) calc(2 * var(--pixel-px));
+      background: var(--pixel-ambar-fondo);
+      color: var(--pixel-ambar);
+      font-size: var(--pixel-letra-chica);
+      font-weight: 700;
       line-height: 1.3;
-      color: #ffe2ae;
     }
-    /* Segundo candidato en rango: más pequeño; la tecla E siempre actúa sobre el principal. */
+    /* Segundo candidato en rango: una ficha más baja; la tecla E siempre actúa sobre el principal. */
     .context-bar__interaction--secondary {
-      flex: 0 1 40%; min-width: 96px; gap: 6px; padding: 4px 10px; border-color: rgba(182,156,255,.25);
+      flex: 0 1 40%; min-width: 96px; gap: calc(3 * var(--pixel-px));
+      padding: var(--pixel-px) calc(4 * var(--pixel-px)) calc(2 * var(--pixel-px));
     }
     .context-bar__interaction--secondary strong {
-      min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: .75rem; color: #cdbcff;
+      min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: var(--pixel-letra-chica); font-weight: 600;
     }
-    .context-bar__also { flex-shrink: 0; font-size: .75rem; font-weight: 700; color: rgba(232,240,244,.78); }
-    /* Sin nada cerca la barra queda en blanco; solo dice «No hay nada a tu alcance» mientras dure la nota. */
-    .context-bar__idle { flex: 1; min-width: 0; display: grid; gap: 2px; align-content: center; text-align: left; }
+    .context-bar__also { flex: none; font-size: var(--pixel-letra-chica); font-weight: 700; color: var(--pixel-tinta-suave); }
+    /* Sin nada cerca la barra queda en blanco; solo dice «No hay nada a tu alcance» mientras dure la nota (una placa que no se toca). */
+    .context-bar__idle { flex: 1; min-width: 0; display: grid; gap: 2px; justify-items: start; align-content: center; text-align: left; pointer-events: none; }
     .context-bar__now {
       min-width: 0;
       margin: 0;
+      padding: calc(2 * var(--pixel-px)) calc(5 * var(--pixel-px)) calc(3 * var(--pixel-px));
       overflow: hidden;
-      font-size: .84rem;
       font-weight: 700;
       line-height: 1.3;
-      color: rgba(244,247,251,.94);
       display: -webkit-box;
       -webkit-line-clamp: 2;
       -webkit-box-orient: vertical;
+      pointer-events: none;
     }
 
     /* Advertencia de contenido (ETH-01): variante del card de intro. */
@@ -1016,15 +1037,20 @@ const QUEUED_PAUSE_SLOW_NOTICE = 'La acción en curso está tardando. Estamos pa
     .room-banner { font-family: var(--pixel-f-nombre); font-weight: 700; color: var(--luz); animation: room-banner-in 260ms ease; }
     @keyframes room-banner-in { from { opacity: 0; transform: translateY(-8px); } }
     @keyframes room-banner-in-centered { from { opacity: 0; transform: translate(-50%, -8px); } }
+    /* Tarjeta de capítulo (U1): el velo fuerte de la paleta y, al centro, la pestaña del capítulo sobre la placa del texto.
+       El pie sube por encima del velo (REGLA-004, .bottom-zone--above-veils). */
     .transition-note {
       position: fixed; inset: 0; z-index: 340; display: grid; place-items: center;
-      background: rgba(6,9,16,.92); pointer-events: none;
+      background: var(--pixel-velo-fuerte); pointer-events: none;
       animation: transition-note-in 420ms ease;
     }
-    .transition-note p {
-      max-width: min(88vw, 640px); margin: 0; padding: 0 24px; text-align: center;
-      color: #f4f7fb; font-size: clamp(1.05rem, 2.4vw, 1.45rem); font-weight: 600;
-      line-height: 1.6; letter-spacing: .02em; font-style: italic;
+    .transition-note__bloque { display: grid; justify-items: start; width: min(88vw, 640px); }
+    .transition-note__capitulo { margin-bottom: calc(-1 * var(--pixel-px)); }
+    .transition-note__texto {
+      box-sizing: border-box; width: 100%; margin: 0;
+      padding: calc(8 * var(--pixel-px)) calc(12 * var(--pixel-px)) calc(9 * var(--pixel-px));
+      text-align: center; font-family: var(--pixel-f-texto); font-size: calc(var(--pixel-tam) * 1.5); font-weight: 600; font-style: italic;
+      line-height: 1.6; letter-spacing: .02em;
     }
     @keyframes transition-note-in { from { opacity: 0; } }
     /* «Reanudar» es la misma entrada que las otras tres (F6-2): por encima de ellas y sin el CSS propio que tenía. */
@@ -1051,8 +1077,14 @@ const QUEUED_PAUSE_SLOW_NOTICE = 'La acción en curso está tardando. Estamos pa
 
     /* ── Mobile: panel derecho como bottom sheet, dock scrolleable ───────── */
     @media (max-width: 760px) {
-      /* La ficha va plegada a un chip arriba a la izquierda: el rótulo vuelve al centro, bajo el chip. */
+      /* Bloque U1 (variante B): la ficha del objetivo pasa a lo ancho y baja bajo el HUD (--alto-hud); la cabecera se
+         apila (HUD y minimapa primero, el hueco igual de alto que la ficha, el carril centrado debajo) para que ni el
+         carril ni el HUD caigan sobre ella. Las alturas las mide un ResizeObserver y las publica .game-container. */
       .main-zone { padding: 0; }
+      .top-bar__fila { flex-direction: column; align-items: stretch; }
+      .top-bar__derecha { order: -1; width: 100%; }
+      .top-bar__hueco { width: 100%; height: var(--alto-objetivo, 0px); }
+      .carril { flex: none; }
       .game-container[data-mode='dialogue-right'] .main-zone {
         grid-template-columns: minmax(0, 1fr);
       }
@@ -1068,10 +1100,10 @@ const QUEUED_PAUSE_SLOW_NOTICE = 'La acción en curso está tardando. Estamos pa
         animation: sheet-up 200ms cubic-bezier(.2,.8,.2,1) both;
       }
       .objective-card {
-        left: 8px;
-        right: 8px;
+        top: calc(2 * var(--pixel-borde) + var(--alto-hud, 0px));
+        left: var(--pixel-borde);
+        right: var(--pixel-borde);
         width: auto;
-        padding: 7px 10px;
       }
       /* En vertical el pie tiene dos filas de altura fija (salida y herramientas; mensaje): tampoco crece. */
       .bottom-zone { flex-wrap: wrap; height: auto; padding: 6px 8px 8px; }
@@ -1089,6 +1121,16 @@ const QUEUED_PAUSE_SLOW_NOTICE = 'La acción en curso está tardando. Estamos pa
       .case-intro-card__actions .psy-button { width: 100%; }
       /* El principal arriba y «Salida segura» debajo, cada uno en su fila. */
       .case-intro-card__buttons { flex-direction: column-reverse; align-items: stretch; }
+    }
+    /* Teléfono (≤ 560 px, U1): más sala a la vista. El chip de contenido sensible baja al pie (junto a «Salida segura»);
+       del minimapa quedan sus dos botones (sin la imagen ni la pestaña del lugar); la ficha del objetivo, sin kicker. */
+    @media (max-width: 560px) {
+      .carril > app-sensitive-notice { display: none; }
+      .notice-pie { display: block; flex: 0 1 auto; min-width: 0; max-width: 100%; }
+      /* El plano sigue a la vista y se abre con el dedo (en el teléfono no hay tecla M); solo se va la pestaña del lugar,
+         como hoy el HUD no muestra el lugar bajo 960 px. */
+      .top-bar__derecha ::ng-deep .minimapa__lugar { display: none; }
+      .top-bar__derecha ::ng-deep .minimapa__abrir { width: 120px; }
     }
     @keyframes sheet-up {
       from { transform: translateY(40px); opacity: 0; }
@@ -1108,7 +1150,7 @@ const QUEUED_PAUSE_SLOW_NOTICE = 'La acción en curso está tardando. Estamos pa
       .context-bar__interaction--secondary { flex-basis: 30%; min-width: 110px; }
       .context-bar__also { display: none; }
       .context-bar__idle { text-align: left; }
-      .context-bar__now { font-size: .78rem; line-height: 1.25; }
+      .context-bar__now { font-size: var(--pixel-letra-chica); line-height: 1.25; }
       /* Avisos por encima del pie más bajo, sin tapar la mitad del mundo. */
 
       /* Desplegada, la tarjeta deja libre la cruz de movimiento (abajo a la izquierda) y se sostiene a la derecha de ella.
@@ -1270,6 +1312,11 @@ export class SimulationPlayComponent implements OnInit, OnDestroy {
   readonly roomBanner   = signal('');
   /** Salto temporal / texto de transición autorado (map.ambient.transitionText). */
   readonly transitionNote = signal('');
+  /** La nota partida en pestaña de capítulo y texto (bloque U1). */
+  protected readonly transitionParts = computed(() => partirNotaDeTransicion(this.transitionNote()));
+  /** Alto (px) del grupo de la derecha y de la ficha del objetivo: bajo 760 px la ficha baja bajo el HUD y su hueco la iguala. */
+  protected readonly altoHud = signal(0);
+  protected readonly altoObjetivo = signal(0);
   /** Advertencia de contenido: ETH-01 — precede a la escena, la narrativa y el gameplay. */
   readonly showContentWarning = signal(false);
   /** `rehearsal`: la docente ensaya su borrador (ruta `casos/:id/ensayo`). */
@@ -1437,6 +1484,28 @@ export class SimulationPlayComponent implements OnInit, OnDestroy {
   /** Solo para el binding de `reactionStage`: una consulta de señal no choca con NG0100 cuando `world()` crea el mundo. */
   private readonly gameWorldRef = viewChild(GameWorldComponent);
   private readonly canvasZone = viewChild<ElementRef<HTMLElement>>('canvasZone');
+  private readonly derecha = viewChild<ElementRef<HTMLElement>>('derecha');
+  /**
+   * Bloque U1 (variante B): mide el alto del grupo HUD + minimapa y el de la ficha del objetivo y los publica como
+   * `--alto-hud` y `--alto-objetivo` en `.game-container`. Bajo 760 px la ficha baja bajo el HUD y el hueco de la cabecera
+   * mide lo que ella, así el carril de avisos no cae encima. Se desconecta solo al destruir el componente o al rehacerse.
+   */
+  private readonly medirAltos = afterRenderEffect(onCleanup => {
+    const hud = this.derecha()?.nativeElement;
+    this.world(); // la ficha nace con el mundo: se vuelve a buscar cuando aparece
+    const objetivo = this.canvasZone()?.nativeElement.querySelector<HTMLElement>('.objective-card');
+    if (typeof ResizeObserver === 'undefined') return;
+    const observador = new ResizeObserver(entradas => {
+      for (const entrada of entradas) {
+        const alto = Math.round((entrada.target as HTMLElement).offsetHeight);
+        const destino = entrada.target === hud ? this.altoHud : this.altoObjetivo;
+        if (destino() !== alto) destino.set(alto);
+      }
+    });
+    if (hud) observador.observe(hud);
+    if (objetivo) observador.observe(objetivo);
+    onCleanup(() => observador.disconnect());
+  });
 
   /** Reacciones al acercarse y al explorar (4.3.7): nacen con el mundo y el intento (`onWorldReady`). */
   protected reactions: ProximityReactions | null = null;
