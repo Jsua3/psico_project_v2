@@ -21,7 +21,7 @@ import type { PlanDeSala, SpriteDeSala } from './composicion';
 import type { Momento, Muro } from './geometria';
 import { colorDeReflejo, cuerpoDe, prepararLuz } from './luz';
 import type { Cuerpo, LuzDeSala, Mascara, Rectangulo, TonoDeReflejo } from './luz';
-import { brilloDeSprite, pintarFondo } from './pintor';
+import { brilloDeSprite, emisivoDeSprite, pintarFondo } from './pintor';
 import type { Imagen } from './pintor';
 import {
   PUERTA_ABIERTA, PUERTA_CERRADA, abiertaDelTodo, avanzarPuerta, cuadroVisible, desvioDeSacudida, puertaActiva, sacudir,
@@ -40,6 +40,8 @@ export const PROFUNDIDAD = {
   brilloFrente: DEPTH.PROPS_FRONT + 0.5,
   ambiente: DEPTH.LIGHTING - 2,
   brillo: DEPTH.LIGHTING - 1,
+  /** La luz propia de las piezas del muro: encima de la luz, sin multiplicar por ambiente (regla de P1). */
+  emisivo: DEPTH.LIGHTING - 0.5,
 } as const;
 
 /** Flecha del lado de la cámara: periodo del vaivén y cuánto sube. */
@@ -70,6 +72,8 @@ interface SpriteVivo {
   objeto: Phaser.GameObjects.Sprite;
   hojas: Hojas;
   estado: EstadoDePuerta;
+  /** Su luz propia, si es una pieza del piso o del lado de la cámara con mapa `emisivo`: sigue su cuadro. */
+  emisivo?: Phaser.GameObjects.Sprite;
 }
 
 const clave = (ruta: string) => `sala:${ruta}`;
@@ -153,6 +157,9 @@ export class EscenaDeSala {
   /** Brillo de vidrio y metal: lo del muro (bajo los actores) y lo del lado de la cámara (sobre ellos). */
   private readonly brillos: { lienzo: Phaser.Textures.CanvasTexture; rgb: Uint8ClampedArray; capas: string[] }[] = [];
   private readonly imagenesDeBrillo = new Map<string, Imagen>();
+  /** La capa de luz propia de las piezas del muro y el cuadro de cada puerta con la que se pintó. */
+  private lienzoEmisivo: Phaser.Textures.CanvasTexture | null = null;
+  private firmaDeEmisivo = '';
   /** Sombra con silueta de cada figura (por id) y dónde quedan los pies en cada silueta guardada. */
   private readonly sombras = new Map<string, Phaser.GameObjects.Image>();
   /** La silueta de cada cuadro (textura:cuadro:volteo), sacada una vez de su alfa. */
@@ -284,6 +291,52 @@ export class EscenaDeSala {
       }
       this.pintarBrillos();
     }
+
+    // Luz propia (`emisivo`): la de las piezas del muro va en una capa encima de la luz, con la oclusión de P1 (cada pieza
+    // borra su silueta y pega su mapa); la de las piezas del piso y del lado de la cámara va justo encima de su pieza, así
+    // quien pasa delante la tapa (diferencia aceptada: ahí la multiplica el ambiente, que al pie de una lámpara es casi 1).
+    if (plan.sprites.some(s => s.emisivo)) {
+      for (const s of plan.sprites) {
+        for (const r of s.capa === 'muro' || s.emisivo ? [s.ruta, ...(s.emisivo ? [s.emisivo] : [])] : []) {
+          const px = pixelesDe(escena, r);
+          if (px) this.imagenesDeBrillo.set(r, px);
+        }
+      }
+      if (plan.sprites.some(s => s.capa === 'muro' && s.emisivo && this.imagenesDeBrillo.has(s.emisivo))) {
+        const lienzo = escena.textures.createCanvas(`sala:emisivo-${sufijo}`, plan.ancho, plan.alto);
+        if (lienzo) {
+          this.lienzoEmisivo = lienzo;
+          this.texturasPropias.push(lienzo.key);
+          this.objetos.push(escena.add.image(0, 0, lienzo.key).setOrigin(0, 0).setDepth(PROFUNDIDAD.emisivo));
+          this.pintarEmisivo();
+        }
+      }
+      for (const vivo of this.vivos) {
+        const p = vivo.plan;
+        if (p.capa === 'muro' || !p.emisivo || !escena.textures.exists(clave(p.emisivo))) continue;
+        const nombre = `sala:emisivo:${p.emisivo}:${p.w}x${p.h}`;
+        if (!escena.textures.exists(nombre)) {
+          escena.textures.addSpriteSheet(nombre, escena.textures.get(clave(p.emisivo)).getSourceImage() as HTMLImageElement, { frameWidth: p.w, frameHeight: p.h });
+        }
+        const propio = escena.add.sprite(p.x, p.y, nombre, p.cuadro).setOrigin(0, 0).setFlipX(p.espejo).setDepth(vivo.objeto.depth + 0.01);
+        this.objetos.push(propio);
+        vivo.emisivo = propio;
+      }
+    }
+  }
+
+  /** Repinta la capa de luz propia de las piezas del muro con el cuadro que muestra cada una (`componer_sala`). */
+  private pintarEmisivo(): void {
+    if (!this.lienzoEmisivo) return;
+    const { ancho, alto } = this.plan;
+    const rgba = new Uint8ClampedArray(ancho * alto * 4);
+    for (const vivo of this.vivos) {
+      if (vivo.plan.capa !== 'muro') continue;
+      const cuadro = vivo.plan.puerta ? cuadroVisible(vivo.estado, vivo.hojas) : vivo.plan.cuadro;
+      emisivoDeSprite(rgba, ancho, alto, this.imagenesDeBrillo, vivo.plan, cuadro);
+    }
+    this.lienzoEmisivo.getContext().putImageData(new ImageData(rgba, ancho, alto), 0, 0);
+    this.lienzoEmisivo.refresh();
   }
 
   /**
@@ -344,6 +397,14 @@ export class EscenaDeSala {
         if (abiertaDelTodo(vivo.estado)) abiertas.push(s.id);
       } else if (s.fps && s.cuadros > 2) {
         vivo.objeto.setFrame(this.reducido ? s.cuadro : Math.floor((this.tiempo / 1000) * s.fps) % s.cuadros);
+      }
+      vivo.emisivo?.setFrame(vivo.objeto.frame.name);
+    }
+    if (this.lienzoEmisivo) {
+      const firma = this.vivos.map(v => (v.plan.puerta && v.plan.capa === 'muro' ? cuadroVisible(v.estado, v.hojas) : '')).join('|');
+      if (firma !== this.firmaDeEmisivo) {
+        this.firmaDeEmisivo = firma;
+        this.pintarEmisivo();
       }
     }
     const firma = abiertas.join('|');
