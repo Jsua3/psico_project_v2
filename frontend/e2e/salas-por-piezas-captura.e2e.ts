@@ -1,7 +1,8 @@
-import { mkdirSync, readFileSync } from 'node:fs';
+import { mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import path from 'node:path';
 
 import { expect, test, type Page } from '@playwright/test';
+import { PNG } from 'pngjs';
 
 import { llegada, zonaCaminable } from '../src/app/features/simulator/sala/geometria';
 import type { Encuadre, Muro } from '../src/app/features/simulator/sala/geometria';
@@ -92,6 +93,8 @@ interface Doble {
   /** Las personas de la primera escena del caso: solo en la sala donde empieza. */
   personas: unknown[] | null;
   salaInicial: Sala;
+  /** Si se da, quien juega empieza junto al objeto del caso cuyo rótulo casa (para medir el revisar). */
+  junto?: RegExp;
 }
 
 /**
@@ -130,7 +133,9 @@ function ponerSala(mundo: Mundo, doble: Doble, jugador?: { x: number; y: number 
   const [zx, zy, zw, zh] = zonaCaminable(sala.encuadre, ancho);
   const actual = mundo['player'] ?? {};
   const dentro = (p: { x: number; y: number }) => p.x >= zx && p.x <= zx + zw && p.y >= zy && p.y <= zy + zh;
-  const destino = jugador ?? (dentro(actual) ? actual : sala.entrada ?? { x: ancho / 2, y: 420 });
+  const objeto = doble.junto && !jugador ? (personas as Mundo[]).find(o => doble.junto!.test(String(o['label'] ?? ''))) : undefined;
+  const destino = jugador ?? (objeto ? { x: Number(objeto['x']) + 26, y: Number(objeto['y']) + 4 }
+    : dentro(actual) ? actual : sala.entrada ?? { x: ancho / 2, y: 420 });
   mundo['player'] = { ...actual, x: destino.x, y: destino.y, mapKey: mapa.key };
 }
 
@@ -328,6 +333,88 @@ test.describe('salas por piezas en el juego real', () => {
       await capturar(page, `sombras-muebles-${momento}`);
     });
   }
+
+  // Rendimiento (ventana V2): tiempo de cuadro al caminar y tirón al revisar un objeto, con la CPU frenada ×4.
+  test('medir: cuadro al caminar y tirón al revisar, CPU ×4', async ({ page }) => {
+    await page.setViewportSize({ width: 1366, height: 768 });
+    const sala = salaPorId('habitacion-recuperacion');
+    mkdirSync(CARPETA, { recursive: true });
+    const doble: Doble = { sala, salaInicial: sala, momento: 'noche', cerradas: {}, personas: null, junto: /kit/i };
+    await hacerDeServidor(page, doble);
+    await entrarALaPrimeraSala(page);
+    await mapaPintado(page, sala);
+    await page.waitForTimeout(3500);
+    const cdp = await page.context().newCDPSession(page);
+    await cdp.send('Emulation.setCPUThrottlingRate', { rate: 4 });
+    const grabar = () => page.evaluate(() => {
+      const w = window as unknown as { __cuadros: number[]; __grabando: boolean };
+      w.__cuadros = [];
+      w.__grabando = true;
+      let t = performance.now();
+      const paso = (n: number) => { w.__cuadros.push(n - t); t = n; if (w.__grabando) requestAnimationFrame(paso); };
+      requestAnimationFrame(paso);
+    });
+    const leer = () => page.evaluate(() => {
+      const w = window as unknown as { __cuadros: number[]; __grabando: boolean };
+      w.__grabando = false;
+      return w.__cuadros.slice(1);
+    });
+    const resumen = (c: number[]) => {
+      const o = [...c].sort((a, b) => a - b);
+      const p = (q: number) => o[Math.min(o.length - 1, Math.floor(q * o.length))] ?? 0;
+      return { cuadros: c.length, p50: Math.round(p(0.5) * 10) / 10, p95: Math.round(p(0.95) * 10) / 10, max: Math.round((o[o.length - 1] ?? 0) * 10) / 10 };
+    };
+    await grabar();
+    await page.keyboard.down('ArrowLeft');
+    await page.waitForTimeout(1500);
+    await page.keyboard.up('ArrowLeft');
+    const caminar = resumen(await leer());
+    await page.keyboard.down('ArrowRight');
+    await page.waitForTimeout(1500);
+    await page.keyboard.up('ArrowRight');
+    await page.waitForTimeout(800);
+    await grabar();
+    const respuesta = page.waitForResponse(r => r.request().method() === 'POST' && r.url().includes('/interactions/'), { timeout: 15_000 }).catch(() => null);
+    await page.keyboard.press('e');
+    const r = await respuesta;
+    await page.waitForTimeout(3000);
+    const revisar = resumen(await leer());
+    console.log('[medida]', JSON.stringify({ caminar, revisar, interaccion: r ? new URL(r.url()).pathname : null }));
+    await cdp.send('Emulation.setCPUThrottlingRate', { rate: 1 });
+  });
+
+  // V2: revisar un objeto ya no rearma la sala; la imagen del lienzo antes y después debe ser la misma salvo lo que cambió
+  // de verdad (el objeto recogido y su rótulo). Con movimiento reducido, para que nada se mueva entre las dos tomas.
+  test('la sala se ve igual tras revisar un objeto (movimiento reducido)', async ({ page }) => {
+    await page.emulateMedia({ reducedMotion: 'reduce' });
+    await page.setViewportSize({ width: 1366, height: 768 });
+    const sala = salaPorId('habitacion-recuperacion');
+    mkdirSync(CARPETA, { recursive: true });
+    const doble: Doble = { sala, salaInicial: sala, momento: 'noche', cerradas: {}, personas: null, junto: /kit/i };
+    await hacerDeServidor(page, doble);
+    await entrarALaPrimeraSala(page);
+    await mapaPintado(page, sala);
+    await page.waitForTimeout(3500);
+    const lienzo = page.locator('app-game-world canvas').first();
+    const antes = PNG.sync.read(await lienzo.screenshot());
+    const respuesta = page.waitForResponse(r => r.request().method() === 'POST' && r.url().includes('/interactions/'), { timeout: 15_000 });
+    await page.keyboard.press('e');
+    await respuesta;
+    await page.waitForTimeout(2500);
+    const despues = PNG.sync.read(await lienzo.screenshot());
+    let distintos = 0, x0 = Infinity, y0 = Infinity, x1 = -1, y1 = -1;
+    for (let y = 0; y < antes.height; y++) {
+      for (let x = 0; x < antes.width; x++) {
+        const i = (y * antes.width + x) * 4;
+        if (antes.data[i] !== despues.data[i] || antes.data[i + 1] !== despues.data[i + 1] || antes.data[i + 2] !== despues.data[i + 2]) {
+          distintos++; x0 = Math.min(x0, x); y0 = Math.min(y0, y); x1 = Math.max(x1, x); y1 = Math.max(y1, y);
+        }
+      }
+    }
+    console.log('[igual]', JSON.stringify({ distintos, caja: distintos ? [x0, y0, x1, y1] : null, total: antes.width * antes.height }));
+    writeFileSync(path.join(CARPETA, 'v2-antes-revisar.png'), PNG.sync.write(antes));
+    writeFileSync(path.join(CARPETA, 'v2-despues-revisar.png'), PNG.sync.write(despues));
+  });
 
   test('una sala de 1920 px: la cámara la recorre de punta a punta', async ({ page }) => {
     await page.setViewportSize({ width: 1366, height: 768 });
