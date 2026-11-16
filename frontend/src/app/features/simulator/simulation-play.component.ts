@@ -40,6 +40,7 @@ import { type GuiaEscena, GUIA_VACIA, armarGuia, avisarOpcionNueva } from './cas
 import { DialoguePanelComponent } from './dialogue-panel.component';
 import { CameraMoment, GameWorldComponent } from './game-world.component';
 import { CameraSettings } from './camara/camera-settings.service';
+import { altoTapado } from './camara/cubierta';
 import { type EscenarioReaccion, type FinReaccion, ReactionDirectorComponent } from './reaction-director.component';
 import { JournalPanelComponent, JournalSaveState } from './journal-panel.component';
 import { isShortcutContext } from './keyboard-focus.util';
@@ -1520,7 +1521,7 @@ export class SimulationPlayComponent implements OnInit, OnDestroy {
   constructor() {
     // Cámara (bloque M1): ajustes y momento a la escena. El alto que tapa el cuadro de diálogo se mide del DOM después
     // de pintarlo (el panel aparece en el mismo ciclo que cambia el momento).
-    effect(() => {
+    effect(onCleanup => {
       const moment = this.cameraMoment();
       const mode = this.viewMode();
       const options = { cercana: this.cameraSettings.cercana(), acercarAuto: this.cameraSettings.acercarAuto() };
@@ -1541,6 +1542,11 @@ export class SimulationPlayComponent implements OnInit, OnDestroy {
         };
         requestAnimationFrame(medir);
         setTimeout(medir, 450);
+        // Con un diálogo o una reacción en pantalla, en vivo: las opciones entran escalonadas y el aviso aparece después.
+        if (moment.tipo !== 'explorar' || bars) {
+          const vivo = setInterval(medir, 250);
+          onCleanup(() => clearInterval(vivo));
+        }
       });
     });
     // La salida segura pedida durante una petición espera a que `busy()` se suelte: no se fuerza
@@ -2078,14 +2084,18 @@ export class SimulationPlayComponent implements OnInit, OnDestroy {
     const host = this.canvasZone()?.nativeElement;
     if (!host || typeof document === 'undefined') return 0;
     // Lo que tapa abajo: el cuadro de diálogo y, durante la reacción, la franja con lo que dice quien reacciona.
-    // La franja de la reacción vive en el DOM aunque no se vea: solo cuenta durante la reacción y si tiene tamaño.
-    const cuadros = [
+    // El cuadro y TODO lo que se le monta encima (aviso, ficha «Decisión», «Volver al mapa», «Ver pista»: se dibujan
+    // fuera de su caja). La franja de la reacción vive en el DOM aunque no se vea: solo cuenta durante la reacción.
+    const raices = [
       mode === 'dialogue-cinematic' ? document.querySelector('app-dialogue-panel.dialogue-cinematic') : null,
       this.reacting() ? document.querySelector('app-reaction-director .reaction-strip') : null,
-    ];
-    const visibles = cuadros.map(c => c?.getBoundingClientRect()).filter(r => !!r && r.height > 0 && r.width > 0);
-    const arriba = Math.min(...visibles.map(r => r!.top));
-    return Number.isFinite(arriba) ? Math.max(0, Math.round(host.getBoundingClientRect().bottom - arriba)) : 0;
+    ].filter((r): r is Element => r !== null);
+    const visible = (el: Element) => (el as Element & { checkVisibility?: (o?: object) => boolean })
+      .checkVisibility?.({ opacityProperty: true, visibilityProperty: true }) ?? true;
+    const cajas = raices.flatMap(r => [r, ...Array.from(r.querySelectorAll('*'))])
+      .filter(visible)
+      .map(el => el.getBoundingClientRect());
+    return altoTapado(host.getBoundingClientRect().bottom, cajas);
   }
 
   openInteraction(interaction: MapObjectState) {
