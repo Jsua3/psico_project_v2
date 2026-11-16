@@ -11,15 +11,20 @@ describe('figureStyle', () => {
     expect(figureStyle(valentina, base)).toEqual({
       width: '96px', height: '144px',
       'background-image': 'url("/assets/characters/kit/valentina/idle.png")',
-      'background-size': '384px 576px',
+      'background-size': '384px 1152px',
       'background-position': '0px 0px',
     });
   });
 
   it('caminata a la derecha, cuadro 3, a ×4', () => {
     expect(figureStyle(valentina, { ...base, sheet: 'walk', view: 'right', col: 3, scale: 4 })).toMatchObject({
-      width: '192px', height: '288px', 'background-size': '1152px 1152px', 'background-position': '-576px -576px',
+      width: '192px', height: '288px', 'background-size': '1152px 2304px', 'background-position': '-576px -1728px',
     });
+  });
+
+  it('una diagonal usa su propia fila de la hoja de ocho', () => {
+    expect(figureStyle(valentina, { ...base, view: 'down-left' })['background-position']).toBe('0px -144px');
+    expect(figureStyle(valentina, { ...base, view: 'up-right' })['background-position']).toBe('0px -720px');
   });
 
   it('la escala siempre es entera', () => {

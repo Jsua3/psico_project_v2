@@ -5,7 +5,7 @@
  * bob y fases de brazos y piernas se toman de A, así el pelo y el rostro sirven
  * en las dos complexiones. Cambia el cuerpo: hombros de 25-27 px con contorno,
  * torso recto sin cintura, brazos, manos y pies 1 px más grandes y perfil 1 px
- * más profundo.
+ * más profundo. En tres cuartos, torso de 16 px (A: 14).
  *
  * Ninguna complexión es «de mujer» o «de hombre»: el editor deja elegir
  * cualquiera. Mismas etiquetas que A (ver complexion-a.mjs).
@@ -152,6 +152,82 @@ const FOOT_SIDE = {
   ` },
 };
 
+// ── Tres cuartos (diagonales) ─────────────────────────────────────────────────
+
+/** Hombros cuadrados de 16 px que bajan a un torso recto de 14. */
+const TORSO_QUARTER = {
+  at: [16, 23],
+  stretchRow: 10,
+  grid: `
+    ...TTTTTTTTTT...
+    .TTTTTTTTTTTTTT.
+    TTTTTTTTTTTTTTTT
+    TTTTTTTTTTTTTTTT
+    TTTTTTTTTTTTTTTT
+    TTTTTTTTTTTTTTTT
+    TTTTTTTTTTTTTTTT
+    TTTTTTTTTTTTTTTT
+    TTTTTTTTTTTTTTTT
+    .TTTTTTTTTTTTTT.
+    .TTTTTTTTTTTTTT.
+    .TTTTTTTTTTTTTT.
+    .TTTTTTTTTTTTTT.
+    .TTTTTTTTTTTTTT.
+    .TTTTTTTTTTTTTT.
+  `,
+};
+
+const PELVIS_QUARTER = {
+  at: [16, 38],
+  grid: `
+    .PPPPPPPPPPPPPP.
+    .PPPPPPPPPPPPPP.
+    .PPPPPPPPPPPPPP.
+    .PPPPPPPPPPPPPP.
+    .PPPPPPPPPPPPPP.
+    .PPPPPPPPPPPPPP.
+  `,
+};
+
+/** Pies 1 px más largos que en A. */
+const FOOT_QUARTER_FRONT = {
+  flat: { anchor: [-4, 1], grid: `
+    ....oooo
+    ..oooooo
+    oooooooo
+    ooooooo.
+  ` },
+  heel: { anchor: [-4, 1], grid: `
+    ....oooo
+    ..oooooo
+    ooooooo.
+  ` },
+  lifted: { anchor: [-4, 1], grid: `
+    ....oooo
+    ..oooooo
+    oooooooo
+  ` },
+};
+
+const FOOT_QUARTER_BACK = {
+  flat: { anchor: [-3, 1], grid: `
+    .oooooo.
+    ooooooo.
+    oooooooo
+    ...ooooo
+  ` },
+  heel: { anchor: [-3, 1], grid: `
+    .oooooo.
+    ooooooo.
+    ...ooooo
+  ` },
+  lifted: { anchor: [-3, 1], grid: `
+    .oooooo.
+    ooooooo.
+    ..oooooo
+  ` },
+};
+
 // ── Vistas ────────────────────────────────────────────────────────────────────
 
 const FRONT_LEFT_ARM_REST = { shoulder: [16, 24], elbow: [14, 33], wrist: [14, 42] };
@@ -188,6 +264,20 @@ export const COMPLEXION_B = {
       torso: TORSO_SIDE, pelvis: PELVIS_SIDE,
       hand: HAND_SIDE, feet: FOOT_SIDE,
       armRest: SIDE_ARM_REST,
+    },
+    'down-left': {
+      ...A['down-left'],
+      torso: TORSO_QUARTER, pelvis: PELVIS_QUARTER,
+      hand: HAND_FRONT, feet: FOOT_QUARTER_FRONT,
+      armNear: { shoulder: [30, 24], elbow: [30.5, 33], wrist: [30, 42] },
+      armFar: { shoulder: [17, 24], elbow: [16, 33], wrist: [16, 42] },
+    },
+    'up-left': {
+      ...A['up-left'],
+      torso: TORSO_QUARTER, pelvis: PELVIS_QUARTER,
+      hand: HAND_FRONT, feet: FOOT_QUARTER_BACK,
+      armNear: { shoulder: [17, 24], elbow: [16.5, 33], wrist: [17, 42] },
+      armFar: { shoulder: [31, 24], elbow: [32, 33], wrist: [32, 42] },
     },
   },
   sheets: COMPLEXION_A.sheets,

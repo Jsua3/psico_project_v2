@@ -7,6 +7,8 @@
  * Leyenda: S falda (la luz decide) · J bajo (profundo).
  */
 
+import { DIAGONAL } from './falda-rodilla.diagonal.mjs';
+
 const LEGEND = {
   S: { mat: 'bottom' },
   J: { mat: 'bottom', tone: 3 },
@@ -54,6 +56,7 @@ export default {
   slots: ['bottom'],
   coverage: { P: 'bottom', l: 'skin', m: 'skin', L: 'skin', M: 'skin' },
   views: {
+    ...DIAGONAL,
     down: [{ anchor: 'P', at: [16, 38], mode: 'cover', legend: LEGEND, grid: FRONT }],
     up: [{ anchor: 'P', at: [16, 38], mode: 'cover', legend: LEGEND, grid: FRONT }],
     left: [{ anchor: 'P', at: [18, 38], mode: 'cover', legend: LEGEND, grid: SIDE }],

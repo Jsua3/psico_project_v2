@@ -14,6 +14,8 @@
 
 import { gridFrom } from '../../raster.mjs';
 import { headHalfWidth } from '../../busts/bust-a.mjs';
+import { DIAGONAL } from './afro.diagonal.mjs';
+import { hairVolume } from './portrait-volume.mjs';
 
 const LEGEND = {
   R: { mat: 'hair' },
@@ -73,8 +75,9 @@ export default {
   part: 'hair',
   z: 6,
   volume: true,
-  portrait: PORTRAIT,
+  portrait: hairVolume('afro', PORTRAIT),
   views: {
+    ...DIAGONAL,
     down: [{ anchor: 'H', at: [0, 0], mode: 'cover', legend: LEGEND, grid: frontGrid(true) }],
     up: [{ anchor: 'H', at: [0, 0], mode: 'cover', legend: LEGEND, grid: frontGrid(false) }],
     left: [{ anchor: 'H', at: [0, 0], mode: 'cover', legend: LEGEND, grid: sideGrid() }],

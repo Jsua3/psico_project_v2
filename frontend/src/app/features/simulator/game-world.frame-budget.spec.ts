@@ -16,8 +16,8 @@ describe('game-world: trabajo por cuadro', () => {
     expect(source).toMatch(/private emitPosition\(force = false\): void \{[\s\S]*?this\.callbacks\.onPosition\(x, y\);/);
     expect(source).toMatch(/private flushPosition\(\): void \{\s*if \(this\.positionDirty\) this\.emitPosition\(true\);\s*\}/);
     // Bloqueado contra una pared y quieto: ambas ramas vacían la posición pendiente.
-    expect(source).toMatch(/this\.flushPosition\(\);\s*this\.applyPlayerPose\(step\.direction, false\);/);
-    expect(source).toMatch(/this\.flushPosition\(\);\s*this\.applyPlayerPose\(this\.lastDirection, false\);/);
+    expect(source).toMatch(/this\.flushPosition\(\);\s*this\.applyPlayerPose\(this\.mirada\.actual, false\);/);
+    expect(source).toMatch(/this\.flushPosition\(\);\s*this\.applyPlayerPose\(this\.mirada\.actual, false\);/);
   });
 
   it('data-player-x/y (contrato del e2e) se escribe en cada cuadro, directo en el DOM y sin Angular', () => {

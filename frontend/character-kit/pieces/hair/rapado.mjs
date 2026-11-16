@@ -12,6 +12,8 @@
 
 import { gridFrom, stamp } from '../../raster.mjs';
 import { headHalfWidth } from '../../busts/bust-a.mjs';
+import { DIAGONAL } from './rapado.diagonal.mjs';
+import { hairVolume } from './portrait-volume.mjs';
 
 const LEGEND = {
   R: { mat: 'hair' },
@@ -39,8 +41,9 @@ export default {
   kind: 'hair',
   part: 'hair',
   z: 6,
-  portrait: PORTRAIT,
+  portrait: hairVolume('rapado', PORTRAIT),
   views: {
+    ...DIAGONAL,
     down: [{
       anchor: 'H', at: [15, 5], mode: 'cover', legend: LEGEND,
       grid: `

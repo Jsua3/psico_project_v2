@@ -1,0 +1,532 @@
+<meta name="claude:viewport-fit-sides" content="cover">
+<title>SIEP Salas por Piezas</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Pixelify+Sans:wght@500;700&family=Atkinson+Hyperlegible:wght@400;700&display=swap">
+<style>
+/* Composición: el escenario manda y ocupa el ancho; arriba, el nombre y el interruptor de día y noche; debajo, el plano de salas y qué mirar.
+   Un solo mundo visual, oscuro, a propósito: es la pantalla de un juego. */
+:root {
+  color-scheme: dark;
+  --fondo: #13111b; --escena: #0b0a12; --panel: #1d1a29; --panel-alto: #2a2540; --borde: #3b3552;
+  --tinta: #f2ecdf; --tinta-suave: #b4adc4; --acento: #b9a4f5; --acento-tinta: #1b1530;
+  --f-titulo: 'Pixelify Sans', 'Courier New', monospace;
+  --f-texto: 'Atkinson Hyperlegible', system-ui, -apple-system, 'Segoe UI', sans-serif;
+}
+* { box-sizing: border-box; }
+[hidden] { display: none !important; }
+body {
+  background: var(--fondo); color: var(--tinta); font-family: var(--f-texto); font-size: 16px; line-height: 1.5;
+  padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px));
+  padding-block: 20px 40px;
+}
+.pagina { max-width: 1180px; margin: 0 auto; display: flex; flex-direction: column; gap: 16px; }
+.cabeza { display: flex; flex-wrap: wrap; align-items: flex-end; justify-content: space-between; gap: 12px 24px; }
+.cabeza > div { min-width: 0; }
+h1 { font-family: var(--f-titulo); font-weight: 700; font-size: 34px; line-height: 1.05; margin: 0; letter-spacing: 0.01em; text-wrap: balance; }
+h2 { font-family: var(--f-titulo); font-weight: 500; font-size: 20px; margin: 0 0 6px; }
+.bajada { margin: 4px 0 0; color: var(--tinta-suave); max-width: 62ch; }
+.modos { display: inline-flex; padding: 4px; gap: 4px; background: var(--panel); border: 1px solid var(--borde); border-radius: 12px; }
+.modos button {
+  font: inherit; font-weight: 700; color: var(--tinta-suave); background: transparent; border: 0; border-radius: 8px;
+  min-height: 44px; padding: 0 18px; cursor: pointer;
+}
+.modos button[aria-pressed="true"] { background: var(--acento); color: var(--acento-tinta); }
+button:focus-visible, canvas:focus-visible { outline: 3px solid var(--tinta); outline-offset: 2px; }
+
+.escenario {
+  position: relative; width: 100%; max-width: 100%; aspect-ratio: 960 / 528; background: var(--escena);
+  border: 1px solid var(--borde); border-radius: 12px; overflow: hidden; touch-action: none; user-select: none;
+}
+@media (max-width: 640px) { .escenario { aspect-ratio: 4 / 3; } h1 { font-size: 28px; } }
+.escenario canvas { position: absolute; inset: 0; width: 100%; height: 100%; display: block; image-rendering: pixelated; cursor: pointer; }
+.rotulo {
+  position: absolute; left: 10px; top: 10px; padding: 2px 10px; border-radius: 999px; background: rgba(19, 17, 27, 0.78);
+  color: var(--tinta); font-family: var(--f-titulo); font-size: 15px; pointer-events: none;
+}
+.aviso {
+  position: absolute; transform: translate(-50%, -100%); font: inherit; font-size: 15px; font-weight: 700; white-space: nowrap;
+  color: var(--tinta); background: rgba(23, 20, 34, 0.94); border: 1px solid var(--acento); border-radius: 10px;
+  min-height: 36px; padding: 4px 12px 4px 6px; cursor: pointer; display: inline-flex; align-items: center; gap: 8px;
+}
+.aviso kbd { font-family: var(--f-texto); font-weight: 700; font-size: 15px; background: var(--acento); color: var(--acento-tinta); border-radius: 6px; padding: 1px 8px; }
+.pista {
+  position: absolute; left: 50%; bottom: 10px; transform: translateX(-50%); padding: 4px 14px; border-radius: 999px; max-width: 94%;
+  background: rgba(19, 17, 27, 0.82); border: 1px solid var(--borde); color: var(--tinta-suave); font-size: 14px; text-align: center; pointer-events: none;
+}
+.pista .corto { display: none; }
+@media (max-width: 640px) {
+  .pista { font-size: 13px; bottom: 6px; }
+  .pista .largo { display: none; }
+  .pista .corto { display: inline; }
+  .rotulo { font-size: 13px; left: 6px; top: 6px; padding: 0 8px; }
+}
+.carga { position: absolute; inset: 0; display: grid; place-items: center; color: var(--tinta-suave); font-family: var(--f-titulo); font-size: 18px; }
+
+.plano { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
+.plano .grupo { font-family: var(--f-titulo); color: var(--tinta-suave); font-size: 15px; margin-right: 4px; }
+.plano button {
+  font: inherit; font-size: 15px; color: var(--tinta); background: var(--panel); border: 1px solid var(--borde); border-radius: 999px;
+  min-height: 40px; padding: 0 14px; cursor: pointer;
+}
+.plano button:hover { border-color: var(--acento); }
+.plano button[aria-current="true"] { background: var(--panel-alto); border-color: var(--acento); color: var(--acento); font-weight: 700; }
+.notas { display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 16px 28px; }
+.notas > div { min-width: 0; }
+.notas p, .notas ul { margin: 0; color: var(--tinta-suave); }
+.notas ul { padding-left: 18px; }
+.notas li + li { margin-top: 4px; }
+.notas b { color: var(--tinta); }
+</style>
+
+<div class="pagina">
+  <header class="cabeza">
+    <div>
+      <h1>Salas por piezas</h1>
+      <p class="bajada">Cada sala se arma con piso, muros, puertas, ventanas y lámparas sueltas, y la luz se calcula según dónde quedan. Camina, acércate a una puerta y cruza.</p>
+    </div>
+    <div class="modos" role="group" aria-label="Momento del día">
+      <button type="button" id="modo-dia" aria-pressed="true">Día</button>
+      <button type="button" id="modo-noche" aria-pressed="false">Noche</button>
+    </div>
+  </header>
+
+  <div class="escenario" id="escenario">
+    <canvas id="lienzo" width="960" height="528" tabindex="0" aria-label="Sala del simulador. Camina con las flechas o con W, A, S y D; cruza una puerta con E."></canvas>
+    <div class="rotulo" id="rotulo"></div>
+    <button type="button" class="aviso" id="aviso" hidden><kbd>E</kbd><span id="aviso-texto"></span></button>
+    <div class="pista" id="pista"><span class="largo">Flechas o WASD para caminar, o toca el piso · E para cruzar una puerta</span><span class="corto">Toca el piso para caminar y el aviso para cruzar</span></div>
+    <div class="carga" id="carga">Armando las salas…</div>
+  </div>
+
+  <nav class="plano" id="plano" aria-label="Ir a una sala"></nav>
+
+  <section class="notas">
+    <div>
+      <h2>Qué mirar</h2>
+      <ul>
+        <li><b>Las puertas son parte del muro:</b> marco, plintos que reciben el zócalo y umbral. Se abren en cuatro cuadros al acercarte.</li>
+        <li><b>Hay siete tipos</b> y cada uno existe de frente, de lado y del lado de la cámara, donde solo asoman las jambas y la hoja gira sobre el tapete.</li>
+        <li><b>Día y noche:</b> de día cada ventana echa su haz, con sus parteluces y su persiana; de noche la luz sale de las lámparas, cálida en la sala de escucha y fría en los tubos.</li>
+        <li><b>Sombras y reflejos:</b> camina por un haz o junto a una lámpara y mira tu sombra; el vidrio y el metal brillan con la luz de la sala y se apagan con ella, y el piso pulido la devuelve al pie del muro.</li>
+      </ul>
+    </div>
+    <div>
+      <h2>Cómo está hecho</h2>
+      <ul>
+        <li>Todo se dibuja por código, píxel a píxel, sin degradados: hasta la luz baja en ocho escalones con tramado.</li>
+        <li>El piso de cualquier ancho, de 960 a 1920 px, es un recorte de una sola imagen maestra: nada se repite.</li>
+        <li>Las salas anchas se recorren con una cámara que sigue al personaje.</li>
+      </ul>
+    </div>
+  </section>
+</div>
+
+<script>
+(function () {
+  const D = /*__DATOS__*/;
+  const VH = 528;
+  let VW = 960;
+  const $ = (id) => document.getElementById(id);
+  const lienzo = $('lienzo'), ctx = lienzo.getContext('2d'), escenario = $('escenario');
+  const aviso = $('aviso'), avisoTexto = $('aviso-texto'), rotulo = $('rotulo'), plano = $('plano');
+  const reducido = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+  const img = {};
+  const teclas = new Set();
+  const E = { sala: D.inicio, momento: 'dia', x: 0, y: 0, vista: 0, andando: false, camino: null, camX: 0, t: 0,
+              puertas: {}, activa: null, avisada: null, fundido: 0, cruce: null };
+  const MIRADA = { fondo: 0, camara: 3, izquierda: 2, derecha: 1 };
+  const limitar = (v, a, b) => Math.max(a, Math.min(b, v));
+  const sala = () => D.salas[E.sala];
+
+  function cargar() {
+    return Promise.all(Object.keys(D.imgs).map((clave) => new Promise((listo) => {
+      const im = new Image();
+      im.onload = () => { img[clave] = im; listo(); };
+      im.onerror = () => listo();
+      im.src = D.imgs[clave];
+    })));
+  }
+
+  function ajustar() {
+    const r = escenario.getBoundingClientRect();
+    // En pantallas angostas el escenario es más alto que 960:528 y la cámara muestra una franja de la sala.
+    VW = r.width < 620 && r.height > 0 ? limitar(Math.round(VH * r.width / r.height), 480, 960) : 960;
+    lienzo.width = VW;
+    lienzo.height = VH;
+    ctx.imageSmoothingEnabled = false;
+    E.camX = limitar(E.camX, 0, sala().ancho - VW);
+  }
+
+  function entrar(id, puerta) {
+    E.sala = id;
+    const S = sala();
+    E.puertas = {};
+    E.camino = null;
+    E.activa = null;
+    const p = puerta ? S.sprites.find((s) => s.puerta && s.id === puerta) : null;
+    if (p) {
+      E.x = p.puerta.llegada[0];
+      E.y = p.puerta.llegada[1];
+      E.vista = MIRADA[p.puerta.muro];
+      E.puertas[p.id] = reducido ? 0 : 3;
+    } else {
+      E.x = S.entrada[0];
+      E.y = S.entrada[1];
+      E.vista = 0;
+    }
+    E.camX = limitar(Math.round(E.x - VW / 2), 0, S.ancho - VW);
+    rotulo.textContent = S.nombre + ' · ' + S.ancho + ' px';
+    plano.querySelectorAll('button').forEach((b) => b.setAttribute('aria-current', b.dataset.sala === id ? 'true' : 'false'));
+  }
+
+  function libre(x, y) {
+    const S = sala(), z = S.zona;
+    if (x < z[0] || x > z[0] + z[2] || y < z[1] || y > z[1] + z[3]) return false;
+    return !S.muebles.some((m) => m.caja && x > m.caja[0] && x < m.caja[2] && y > m.caja[1] && y < m.caja[3]);
+  }
+
+  // Camino por una rejilla de 8 px que rodea los muebles: tocar el piso lleva hasta ahí aunque haya algo en medio.
+  // Si el punto tocado cae dentro de un mueble, llega hasta lo más cerca que se puede.
+  function ruta(desde, hasta) {
+    const q = (v) => Math.round(v / 8) * 8, clave = (p) => p[0] + ',' + p[1];
+    const ini = [q(desde[0]), q(desde[1])], fin = [q(hasta[0]), q(hasta[1])];
+    const previo = new Map([[clave(ini), null]]), cola = [ini];
+    let mejor = ini, menor = Infinity;
+    for (let i = 0; i < cola.length && i < 30000; i++) {
+      const p = cola[i], d = Math.hypot(p[0] - fin[0], p[1] - fin[1]);
+      if (d < menor) { menor = d; mejor = p; }
+      if (d === 0) break;
+      for (const [dx, dy] of [[8, 0], [-8, 0], [0, 8], [0, -8], [8, 8], [8, -8], [-8, 8], [-8, -8]]) {
+        const n = [p[0] + dx, p[1] + dy], k = clave(n);
+        if (previo.has(k) || !libre(n[0], n[1])) continue;
+        if (dx && dy && !(libre(p[0] + dx, p[1]) && libre(p[0], p[1] + dy))) continue;
+        previo.set(k, p);
+        cola.push(n);
+      }
+    }
+    const camino = [];
+    for (let p = mejor; p; p = previo.get(clave(p))) camino.unshift(p);
+    camino.shift();
+    if (menor === 0 && libre(hasta[0], hasta[1])) camino.push(hasta);
+    return camino;
+  }
+
+  function cruzar() {
+    if (!E.activa || E.cruce) return;
+    const p = E.activa.puerta;
+    if (!D.salas[p.hacia]) return;
+    E.cruce = { t: 0, hacia: p.hacia, par: p.par, hecho: false };
+  }
+
+  function actualizar(dt) {
+    E.t += dt;
+    let S = sala();
+    if (!E.cruce) {
+      let vx = 0, vy = 0;
+      if (teclas.has('a') || teclas.has('arrowleft')) vx -= 1;
+      if (teclas.has('d') || teclas.has('arrowright')) vx += 1;
+      if (teclas.has('w') || teclas.has('arrowup')) vy -= 1;
+      if (teclas.has('s') || teclas.has('arrowdown')) vy += 1;
+      if (vx || vy) {
+        E.camino = null;
+      } else if (E.camino) {
+        while (E.camino.length && Math.hypot(E.camino[0][0] - E.x, E.camino[0][1] - E.y) < 3) E.camino.shift();
+        if (E.camino.length) {
+          const dx = E.camino[0][0] - E.x, dy = E.camino[0][1] - E.y, d = Math.hypot(dx, dy);
+          vx = dx / d; vy = dy / d;
+        } else {
+          E.camino = null;
+        }
+      }
+      const n = Math.hypot(vx, vy);
+      E.andando = false;
+      if (n > 0) {
+        vx /= n; vy /= n;
+        const paso = 150 * dt;
+        if (vx && libre(E.x + vx * paso, E.y)) { E.x += vx * paso; E.andando = true; }
+        if (vy && libre(E.x, E.y + vy * paso)) { E.y += vy * paso; E.andando = true; }
+        if (!E.andando) E.camino = null;
+        else if (!$('pista').hidden) $('pista').hidden = true;      // la ayuda se va al dar el primer paso
+        E.vista = Math.abs(vx) > Math.abs(vy) ? (vx < 0 ? 1 : 2) : (vy < 0 ? 3 : 0);
+      }
+    }
+
+    let mejor = null, cerca = 56;
+    for (const s of S.sprites) {
+      if (!s.puerta) continue;
+      const d = Math.hypot(E.x - s.puerta.llegada[0], E.y - s.puerta.llegada[1]);
+      if (d < cerca) { cerca = d; mejor = s; }
+    }
+    E.activa = mejor;
+    for (const s of S.sprites) {
+      if (!s.puerta) continue;
+      const meta = s === mejor ? 3 : 0, a = E.puertas[s.id] || 0;
+      E.puertas[s.id] = reducido ? meta : (a < meta ? Math.min(meta, a + dt / 0.07) : Math.max(meta, a - dt / 0.07));
+    }
+
+    if (E.cruce) {
+      const T = reducido ? 0 : 0.15;
+      E.cruce.t += dt;
+      if (!E.cruce.hecho && E.cruce.t >= T) { entrar(E.cruce.hacia, E.cruce.par); E.cruce.hecho = true; S = sala(); }
+      E.fundido = T ? (E.cruce.hecho ? Math.max(0, 1 - (E.cruce.t - T) / T) : Math.min(1, E.cruce.t / T)) : 0;
+      if (E.cruce.t >= 2 * T) { E.cruce = null; E.fundido = 0; }
+    }
+
+    const margen = Math.min(80, VW / 6);
+    if (E.x - E.camX < VW / 2 - margen) E.camX = E.x - (VW / 2 - margen);
+    if (E.x - E.camX > VW / 2 + margen) E.camX = E.x - (VW / 2 + margen);
+    E.camX = Math.round(limitar(E.camX, 0, S.ancho - VW));
+
+    if (E.activa && !E.cruce) {
+      const p = E.activa.puerta;
+      if (E.avisada !== E.activa.id) { avisoTexto.textContent = p.etiqueta; E.avisada = E.activa.id; }
+      const y = p.muro === 'fondo' ? 126 : p.llegada[1] - 84;
+      aviso.style.left = limitar((p.llegada[0] - E.camX) / VW * 100, 16, 84) + '%';
+      aviso.style.top = (y / VH * 100) + '%';
+      aviso.hidden = false;
+    } else if (!aviso.hidden) {
+      aviso.hidden = true;
+      E.avisada = null;
+    }
+  }
+
+  let capaR = null, capaA = null, capaB = null, capaE = null, capaS = null;
+  function lienzoAparte() {
+    const c = document.createElement('canvas');
+    c.width = VW; c.height = VH;
+    const x = c.getContext('2d');
+    x.imageSmoothingEnabled = false;
+    return x;
+  }
+
+  function cuadroDe(s) {
+    if (s.puerta) return Math.round(E.puertas[s.id] || 0);
+    if (s.fps) return Math.floor(E.t * s.fps) % s.n;
+    return s.cuadro[E.momento];
+  }
+
+  // Pinta un cuadro y lleva su brillo a la capa de reflejos: lo que queda delante tapa el brillo de lo de atrás.
+  function pintarCon(hoja, f, w, h, x, y, brillo, emisivo) {
+    ctx.drawImage(hoja, f * w, 0, w, h, x, y, w, h);
+    for (const [capa, mapa] of [[capaR, brillo], [capaE, emisivo], [capaS, null]]) {
+      capa.globalCompositeOperation = 'destination-out';
+      capa.drawImage(hoja, f * w, 0, w, h, x, y, w, h);
+      if (mapa) {
+        capa.globalCompositeOperation = 'source-over';
+        capa.drawImage(mapa, f * w, 0, w, h, x, y, w, h);
+      }
+    }
+  }
+
+  // La sombra de quien camina: la SILUETA del cuadro que se está viendo, tendida en el piso con la matriz de la fuente
+  // que manda donde pisa. Misma aritmética entera que piezas_luz.py: la matriz al revés, con división hacia abajo.
+  const BAYER = [[0, 8, 2, 10], [12, 4, 14, 6], [3, 11, 1, 9], [15, 7, 13, 5]], PISO_Y = 230;
+  const alfas = new Map();
+  function alfaDe(hoja) {
+    if (!alfas.has(hoja)) {
+      const c = document.createElement('canvas');
+      c.width = hoja.naturalWidth; c.height = hoja.naturalHeight;
+      const x = c.getContext('2d');
+      x.drawImage(hoja, 0, 0);
+      const d = x.getImageData(0, 0, c.width, c.height).data, a = new Uint8Array(c.width * c.height);
+      for (let i = 0; i < a.length; i++) a[i] = d[i * 4 + 3] >= 128 ? 1 : 0;
+      alfas.set(hoja, { a, w: c.width });
+    }
+    return alfas.get(hoja);
+  }
+
+  function matrizEn(S, x, y) {
+    const g = S.sombras[E.momento];
+    const cx = Math.min(Math.max(Math.floor(x / g.paso), 0), g.cols - 1), cy = Math.min(Math.max(Math.floor((y - g.y0) / g.paso), 0), g.filas - 1);
+    return g.m[g.abc.indexOf(g.celdas[cy * g.cols + cx])];
+  }
+
+  function siluetaDelJugador(S, hoja, f, dx) {
+    capaS.globalCompositeOperation = 'source-over';
+    capaS.clearRect(0, 0, VW, VH);
+    if (!hoja || !S.sombras) return;
+    const { a: alfa, w: W } = alfaDe(hoja), fx = f * 48, fy = E.vista * 72;
+    let py = 72;                                   // fila siguiente a la última opaca: ahí nace la sombra, pegada a los pies
+    fila: for (; py > 0; py--) for (let c = 0; c < 48; c++) if (alfa[(fy + py - 1) * W + fx + c]) break fila;
+    const ax = Math.round(E.x), ay = Math.round(E.y) - 68 + py, [a, b, c, d] = matrizEn(S, ax, ay), det = a * d - b * c;
+    if (!det || !py) return;
+    let x0 = 1e9, x1 = -1e9, y0 = 1e9, y1 = -1e9;
+    for (const u of [-24, 24]) for (const h of [0, py]) {
+      const x = Math.floor((a * u + b * h) / 64), y = Math.floor((c * u + d * h) / 64);
+      x0 = Math.min(x0, x); x1 = Math.max(x1, x); y0 = Math.min(y0, y); y1 = Math.max(y1, y);
+    }
+    x0 += ax - 3; x1 += ax + 4; y0 += ay - 3; y1 += ay + 4;
+    const w = x1 - x0, h = y1 - y0, m = new Uint8Array(w * h);
+    for (let y = 0; y < h; y++) for (let x = 0; x < w; x++) {
+      const ex = x0 + x - ax, ey = y0 + y - ay;
+      const u = Math.floor((d * ex - b * ey) * 64 / det), al = Math.floor((a * ey - c * ex) * 64 / det), col = 24 + u, fil = py - 1 - al;
+      if (al >= 0 && fil >= 0 && col >= 0 && col < 48 && alfa[(fy + fil) * W + fx + col]) m[y * w + x] = 1;
+    }
+    const im = capaS.createImageData(w, h);
+    for (let y = 0; y < h; y++) for (let x = 0; x < w; x++) {
+      let dentro = m[y * w + x];                   // el borde se deshace con el tramado: un anillo de 1 px al 50 %
+      if (!dentro && BAYER[(y0 + y) & 3][(x0 + x) & 3] < 8)
+        dentro = (x > 0 && m[y * w + x - 1]) || (x < w - 1 && m[y * w + x + 1]) || (y > 0 && m[(y - 1) * w + x]) || (y < h - 1 && m[(y + 1) * w + x]);
+      if (dentro && y0 + y >= PISO_Y) im.data[(y * w + x) * 4 + 3] = 255;
+    }
+    capaS.putImageData(im, x0 + dx, y0);
+  }
+
+  // La luz de la sala y, dentro de la silueta de quien camina, la luz «en sombra» que la sala ya trae calculada.
+  function luzCon(capa, normal, enSombra, dx) {
+    capa.globalCompositeOperation = 'copy';
+    if (enSombra) {
+      capa.drawImage(enSombra, dx, 0);
+      capa.globalCompositeOperation = 'destination-in';
+      capa.drawImage(capaS.canvas, 0, 0);
+      capa.globalCompositeOperation = 'destination-over';
+    }
+    capa.drawImage(normal, dx, 0);
+    capa.globalCompositeOperation = 'source-over';
+  }
+
+  function pintar() {
+    const S = sala(), dx = -E.camX;
+    if (!capaR || capaR.canvas.width !== VW) { capaR = lienzoAparte(); capaA = lienzoAparte(); capaB = lienzoAparte(); capaE = lienzoAparte(); capaS = lienzoAparte(); }
+    ctx.globalCompositeOperation = 'source-over';
+    ctx.fillStyle = '#0e1016';
+    ctx.fillRect(0, 0, VW, VH);
+    capaR.globalCompositeOperation = 'source-over';
+    capaR.clearRect(0, 0, VW, VH);
+    capaE.globalCompositeOperation = 'source-over';
+    capaE.clearRect(0, 0, VW, VH);
+    if (img[S.fondo]) ctx.drawImage(img[S.fondo], dx, 0);
+    const hojaJ = img[E.andando ? D.jugador.walk : D.jugador.idle];
+    const cuadroJ = reducido ? 0 : Math.floor(E.t * (E.andando ? 10 : 4)) % (E.andando ? 6 : 4);
+    siluetaDelJugador(S, hojaJ, cuadroJ, dx);       // antes de los dibujos: cada uno tapa la sombra que le queda detrás
+    const pintaSprite = (s) => {
+      if (img[s.hoja]) pintarCon(img[s.hoja], cuadroDe(s), s.w, s.h, s.x + dx, s.y, s.brillo && img[s.brillo[E.momento]], s.emisivo && img[s.emisivo[E.momento]]);
+    };
+    for (const s of S.sprites) if (s.capa === 'muro') pintaSprite(s);
+    if (img['j-sombra']) ctx.drawImage(img['j-sombra'], Math.round(E.x) - 13 + dx, Math.round(E.y) - 7);
+
+    const cosas = [];
+    for (const m of S.muebles) cosas.push({ z: m.z, mueble: m });
+    for (const s of S.sprites) if (s.capa === 'piso') cosas.push({ z: s.z, sprite: s });
+    cosas.push({ z: E.y, jugador: true });
+    cosas.sort((a, b) => a.z - b.z);
+    for (const c of cosas) {
+      if (c.mueble) {
+        const m = c.mueble, f = m.n > 1 && m.fps && !reducido ? Math.floor(E.t * m.fps) % m.n : 0;
+        if (img[m.img]) pintarCon(img[m.img], f, m.w, m.h, m.x + dx, m.y, m.brillo && img[m.brillo[E.momento]], m.emisivo && img[m.emisivo]);
+      } else if (c.sprite) {
+        pintaSprite(c.sprite);
+      } else {
+        const hoja = hojaJ, f = cuadroJ;
+        const px = Math.round(E.x) - 24 + dx, py = Math.round(E.y) - 68;
+        if (hoja) {
+          ctx.drawImage(hoja, f * 48, E.vista * 72, 48, 72, px, py, 48, 72);
+          capaR.globalCompositeOperation = 'destination-out';
+          capaR.drawImage(hoja, f * 48, E.vista * 72, 48, 72, px, py, 48, 72);
+          capaE.globalCompositeOperation = 'destination-out';
+          capaE.drawImage(hoja, f * 48, E.vista * 72, 48, 72, px, py, 48, 72);
+          capaS.globalCompositeOperation = 'destination-out';
+          capaS.drawImage(hoja, f * 48, E.vista * 72, 48, 72, px, py, 48, 72);
+        }
+      }
+    }
+    for (const s of S.sprites) if (s.capa === 'frente') pintaSprite(s);
+
+    const luz = S.luz[E.momento];
+    if (img[luz[0]]) {
+      luzCon(capaA, img[luz[0]], img[luz[2]], dx);
+      ctx.globalCompositeOperation = 'multiply';
+      ctx.drawImage(capaA.canvas, 0, 0);
+    }
+    if (img[luz[1]]) {
+      luzCon(capaB, img[luz[1]], img[luz[3]], dx);
+      ctx.globalCompositeOperation = 'lighter';
+      ctx.drawImage(capaB.canvas, 0, 0);
+    }
+    ctx.globalCompositeOperation = 'lighter';
+    ctx.drawImage(capaR.canvas, 0, 0);
+    if (E.momento === 'noche') {          // lo que alumbra por su cuenta (el televisor): resplandor que parpadea
+      for (const m of S.muebles) {
+        const r = m.resplandor;
+        if (!r || !img[r.img]) continue;
+        const nivel = r.seq[reducido ? 0 : Math.floor(E.t * 6) % r.seq.length];
+        if (nivel > 0) ctx.drawImage(img[r.img], Math.min(nivel, r.n) * r.w - r.w, 0, r.w, r.h, Math.round(m.x + m.w / 2) + r.x + dx, m.y + m.h + r.y, r.w, r.h);
+      }
+    }
+    ctx.globalCompositeOperation = 'source-over';
+    ctx.drawImage(capaE.canvas, 0, 0);       // lo que emite luz propia va encima de la luz, sin oscurecerse
+    if (E.fundido > 0) {
+      ctx.fillStyle = 'rgba(8, 7, 14, ' + E.fundido.toFixed(3) + ')';
+      ctx.fillRect(0, 0, VW, VH);
+    }
+  }
+
+  function momento(m) {
+    E.momento = m;
+    $('modo-dia').setAttribute('aria-pressed', m === 'dia' ? 'true' : 'false');
+    $('modo-noche').setAttribute('aria-pressed', m === 'noche' ? 'true' : 'false');
+  }
+
+  function arrancar(previo) {
+    let grupo = null;
+    for (const id of D.orden) {
+      const S = D.salas[id];
+      if (S.lugar !== grupo) {
+        grupo = S.lugar;
+        const rot = document.createElement('span');
+        rot.className = 'grupo';
+        rot.textContent = grupo;
+        plano.appendChild(rot);
+      }
+      const b = document.createElement('button');
+      b.type = 'button';
+      b.id = 'ir-' + id;
+      b.dataset.sala = id;
+      b.textContent = S.nombre;
+      b.addEventListener('click', () => { if (!E.cruce) E.cruce = { t: 0, hacia: id, par: null, hecho: false }; });
+      plano.appendChild(b);
+    }
+    ajustar();
+    entrar(previo && D.salas[previo.sala] ? previo.sala : D.inicio, null);
+    if (previo && typeof previo.x === 'number' && libre(previo.x, previo.y)) { E.x = previo.x; E.y = previo.y; }
+    momento(previo && previo.momento === 'noche' ? 'noche' : 'dia');
+    $('carga').hidden = true;
+    let antes = performance.now();
+    function cuadro(ahora) {
+      const dt = Math.min(0.05, (ahora - antes) / 1000);
+      antes = ahora;
+      actualizar(dt);
+      pintar();
+      requestAnimationFrame(cuadro);
+    }
+    requestAnimationFrame(cuadro);
+  }
+
+  // Para las pruebas: el estado y las funciones del juego, sin atajos que el jugador no tenga.
+  window.__salas = { D, E, teclas, actualizar, pintar, cruzar, entrar, momento, ajustar, libre, ruta };
+  window.addEventListener('resize', ajustar);
+  window.addEventListener('keydown', (ev) => {
+    const k = ev.key.toLowerCase();
+    const enJuego = document.activeElement === lienzo || document.activeElement === document.body;
+    if (k === 'e' || (k === 'enter' && document.activeElement === lienzo)) { cruzar(); return; }
+    if (['arrowup', 'arrowdown', 'arrowleft', 'arrowright'].includes(k) && enJuego) ev.preventDefault();
+    teclas.add(k);
+  });
+  window.addEventListener('keyup', (ev) => teclas.delete(ev.key.toLowerCase()));
+  window.addEventListener('blur', () => teclas.clear());
+  lienzo.addEventListener('pointerdown', (ev) => {
+    const r = lienzo.getBoundingClientRect(), z = sala().zona;
+    const x = (ev.clientX - r.left) / r.width * VW + E.camX, y = (ev.clientY - r.top) / r.height * VH;
+    E.camino = ruta([E.x, E.y], [limitar(x, z[0] + 2, z[0] + z[2] - 2), limitar(y, z[1] + 2, z[1] + z[3] - 2)]);
+    lienzo.focus({ preventScroll: true });
+  });
+  aviso.addEventListener('click', cruzar);
+  $('modo-dia').addEventListener('click', () => momento('dia'));
+  $('modo-noche').addEventListener('click', () => momento('noche'));
+
+  const hot = window.claude && window.claude.hot;
+  if (hot && hot.snapshot) hot.snapshot(() => ({ sala: E.sala, x: E.x, y: E.y, momento: E.momento }));
+  cargar().then(() => {
+    if (hot && hot.ready) hot.ready(arrancar); else arrancar((hot && hot.data) || {});
+  });
+})();
+</script>

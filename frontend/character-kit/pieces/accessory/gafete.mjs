@@ -8,6 +8,7 @@
  */
 
 import { gridFrom, stamp } from '../../raster.mjs';
+import { DIAGONAL } from './gafete.diagonal.mjs';
 
 const LEGEND = {
   c: { literal: 'gafeteCinta' },
@@ -27,6 +28,7 @@ export default {
   kind: 'accessory',
   portrait: PORTRAIT,
   views: {
+    ...DIAGONAL,
     down: [{
       anchor: 'T', at: [21, 24], mode: 'paint', legend: LEGEND,
       grid: `

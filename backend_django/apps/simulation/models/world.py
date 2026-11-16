@@ -29,6 +29,9 @@ class SceneMap(models.Model):
     spawn_x = models.IntegerField(default=0, db_default=0)
     spawn_y = models.IntegerField(default=0, db_default=0)
     ambient_json = models.TextField(default="{}", db_default="{}")
+    #: La sala armada por piezas (contrato x-siep 2.2, sección 2): ancho, momento, acabados y piezas de muro. ``None`` en una
+    #: sala de imagen fija (``ambient.backgroundImage``), como todas las de antes.
+    structure = models.JSONField(null=True, blank=True, default=None)
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 

@@ -51,7 +51,7 @@ function caja(x: number, y: number): FakeBox {
 interface SceneProbe {
   world: SimulationWorldState; player?: FakeBox;
   markers: Map<string, FakeBox>; markerData: Map<string, MapObjectState>; npcMarkers: Map<string, FakeBox>;
-  add: Record<string, Mock>; tweens: unknown; cameras: { main: Record<string, Mock> };
+  add: Record<string, Mock>; tweens: unknown; cameras: { main: Record<string, unknown> };
   labelScale: number;
   frameActors(key: string): void;
   releaseFrame(): void;
@@ -79,7 +79,12 @@ function escenaConPersona(key: string, at: { x: number; y: number }, opciones: O
   if (opciones.jugador) scene.player = caja(opciones.jugador.x, opciones.jugador.y);
   const reloj = relojDeEscena(scene);   // mirar sostiene la mirada con un aviso de reloj
 
-  const camera = { stopFollow: vi.fn(), pan: vi.fn(), startFollow: vi.fn() };
+  // Lienzo de 1366×650 a dpr 1: zoom normal 1 y cercano 2 en una sala de 960 (bloque M1).
+  const camera = {
+    stopFollow: vi.fn(), pan: vi.fn(), startFollow: vi.fn(), removeBounds: vi.fn(), centerOn: vi.fn(),
+    width: 1366, height: 650, zoom: 1, fadeEffect: { isRunning: false },
+    setZoom: vi.fn(function (this: { zoom: number }, k: number) { this.zoom = k; }),
+  };
   scene.cameras = { main: camera };
 
   const pendientes: TweenConfig[] = [];
@@ -129,24 +134,89 @@ function escenaConPersonaClave(key: string) {
 }
 
 describe('mundo: encuadre', () => {
-  it('frameActors deja de seguir al jugador y lleva la cámara entre él y la persona', () => {
-    const { scene, camera } = escenaConPersona('familia', { x: 400, y: 300 }, { jugador: { x: 200, y: 300 } });
+  // Bloque M1: la cámara la decide el controlador cada cuadro (`stepCamera`); el encuadre es un momento, no un `pan`.
+  const cuadro = (scene: unknown) => (scene as { stepCamera(delta: number): void }).stepCamera(16);
+
+  // A 1366×650 en una sala de 960: plano general ×1, caminar ×2 y cercano ×3 (regla 7).
+  it('en la reacción la cámara va a quien reacciona, de cerca', () => {
+    const { scene, camera } = escenaConPersona('familia', { x: 480, y: 300 }, { jugador: { x: 400, y: 300 } });
     scene.frameActors('familia');
-    expect(camera.stopFollow).toHaveBeenCalled();
-    expect(camera.pan).toHaveBeenCalledWith(300, expect.any(Number), 450, expect.any(String));
-  });
-
-  it('con una clave que no está en la sala no toca la cámara', () => {
-    const { scene, camera } = escenaConPersona('familia', { x: 400, y: 300 }, { jugador: { x: 200, y: 300 } });
-    scene.frameActors('nadie');
-    expect(camera.stopFollow).not.toHaveBeenCalled();
+    cuadro(scene);
+    expect(camera.setZoom).toHaveBeenLastCalledWith(3);
+    expect(camera.centerOn).toHaveBeenLastCalledWith(480, expect.any(Number));
     expect(camera.pan).not.toHaveBeenCalled();
+    expect(camera.startFollow).not.toHaveBeenCalled();
   });
 
-  it('releaseFrame vuelve a seguir al jugador', () => {
-    const { scene, camera } = escenaConPersona('familia', { x: 400, y: 300 }, { jugador: { x: 200, y: 300 } });
+  it('con una clave que no está en la sala la cámara sigue en el plano de caminar', () => {
+    const { scene, camera } = escenaConPersona('familia', { x: 480, y: 300 }, { jugador: { x: 400, y: 300 } });
+    scene.frameActors('nadie');
+    cuadro(scene);
+    expect(camera.zoom).toBe(2);
+  });
+
+  it('releaseFrame sostiene un momento el plano (sin amagar) y después vuelve al de caminar', () => {
+    const { scene, camera } = escenaConPersona('familia', { x: 480, y: 300 }, { jugador: { x: 400, y: 300 }, reduceMotion: true });
+    const probe = scene as unknown as { time: { now: number } };
+    probe.time = { now: 0 };
+    scene.frameActors('familia');
+    cuadro(scene);
+    expect(camera.zoom).toBe(3);
     scene.releaseFrame();
-    expect(camera.startFollow).toHaveBeenCalledWith(scene.player, true, 0.12, 0.12);
+    probe.time.now = 100;
+    cuadro(scene);
+    expect(camera.zoom).toBe(3);
+    probe.time.now = 1500;
+    cuadro(scene);
+    expect(camera.zoom).toBe(2);
+  });
+
+  it('si el personaje echa a andar, el plano sostenido se suelta enseguida', () => {
+    const { scene, camera } = escenaConPersona('familia', { x: 480, y: 300 }, { jugador: { x: 400, y: 300 }, reduceMotion: true });
+    const probe = scene as unknown as { time: { now: number }; player: { x: number; y: number } };
+    probe.time = { now: 0 };
+    scene.frameActors('familia');
+    cuadro(scene);
+    scene.releaseFrame();
+    probe.player.x = 380;
+    probe.time.now = 100;
+    cuadro(scene);
+    expect(camera.zoom).toBe(2);
+  });
+
+  it('entre un plano y otro viaja: pasa por un zoom intermedio dibujado al entero de abajo y llega exacto', () => {
+    const { scene, camera } = escenaConPersona('familia', { x: 480, y: 300 }, { jugador: { x: 400, y: 300 } });
+    const probe = scene as unknown as { camNow(): number; time: { now: number } };
+    probe.time = { now: 0 };
+    cuadro(scene);                                   // corte al plano de caminar (×2)
+    expect(camera.zoom).toBe(2);
+    scene.frameActors('familia');
+    probe.time.now = 1;
+    cuadro(scene);                                   // empieza el viaje (700 ms)
+    probe.time.now = 350;
+    cuadro(scene);                                   // a mitad: zoom entre 2 y 3, la escena dibuja a ×2
+    expect(camera.zoom).toBe(2);
+    probe.time.now = 800;
+    cuadro(scene);                                   // llegó: ×3 exacto
+    expect(camera.zoom).toBe(3);
+  });
+
+  it('con el lienzo todavía sin tamaño la cámara espera y encuadra al tenerlo', () => {
+    const { scene, camera } = escenaConPersona('familia', { x: 480, y: 300 }, { jugador: { x: 400, y: 300 } });
+    camera.height = 1;
+    cuadro(scene);
+    expect(camera.setZoom).not.toHaveBeenCalled();
+    camera.height = 650;
+    cuadro(scene);
+    expect(camera.zoom).toBe(2);
+  });
+
+  it('durante un fundido de puerta la cámara no cambia de zoom', () => {
+    const { scene, camera } = escenaConPersona('familia', { x: 480, y: 300 }, { jugador: { x: 400, y: 300 } });
+    camera.fadeEffect.isRunning = true;
+    scene.frameActors('familia');
+    cuadro(scene);
+    expect(camera.setZoom).not.toHaveBeenCalled();
   });
 });
 
@@ -302,27 +372,30 @@ function escenaConVarias(gente: Record<string, { x: number; y: number; type?: st
 
 describe('mundo: mirar', () => {
   it('faceTowards voltea a la persona hacia el jugador sin moverla', () => {
-    const { scene, marker } = escenaConPersona('abuela', { x: 400, y: 300 }, { jugador: { x: 200, y: 300 } });
+    const { scene, marker, reloj } = escenaConPersona('abuela', { x: 400, y: 300 }, { jugador: { x: 200, y: 300 } });
     const sprite = conSprite(marker);
     (scene as unknown as MirarProbe).faceTowards('abuela', 'player');
+    expect(sprite.play).toHaveBeenLastCalledWith('v-abuela-idle-down-left', true);   // de frente a la izquierda: la vista de en medio
+    reloj.avanzar(80);
     expect(sprite.play).toHaveBeenLastCalledWith('v-abuela-idle-left', true);
     expect({ x: marker.x, y: marker.y }).toEqual({ x: 400, y: 300 });
   });
 
-  it('elige el eje dominante, también hacia otra clave', () => {
+  it('elige la más cercana de las ocho vistas, también hacia otra clave', () => {
     const { scene, reloj } = escenaConVarias({ abuela: { x: 400, y: 300 }, medico: { x: 420, y: 100 } });
     const sprite = conSprite(scene.markers.get('abuela')!);
     (scene as unknown as MirarProbe).faceTowards('abuela', 'medico');
-    reloj.avanzar(120);   // de frente a arriba es media vuelta: pasa por una dirección intermedia
+    reloj.avanzar(240);   // de frente a arriba es media vuelta: pasa por tres vistas de en medio, 80 ms cada una
     expect(sprite.play).toHaveBeenLastCalledWith('v-abuela-idle-up', true);
   });
 
   it('una persona que camina mira y retoma: la pose recordada cambia para que el paso siguiente la reponga', () => {
-    const { scene, marker } = escenaConPersona('abuela', { x: 400, y: 300 }, { jugador: { x: 400, y: 500 } });
+    const { scene, marker, reloj } = escenaConPersona('abuela', { x: 400, y: 300 }, { jugador: { x: 400, y: 500 } });
     const sprite = conSprite(marker);
     const walker = { key: 'abuela', state: { direction: 'left' }, feetOffsetY: 16, lastPose: { direction: 'left', walking: true } };
     (scene as unknown as MirarProbe).personWalkers = new Map([['abuela', walker]]);
     (scene as unknown as MirarProbe).faceTowards('abuela', 'player');
+    reloj.avanzar(80);   // de la izquierda a abajo pasa por abajo-izquierda
     expect(sprite.play).toHaveBeenLastCalledWith('v-abuela-idle-down', true);
     expect(walker.lastPose).toEqual({ direction: 'down', walking: false });
   });
@@ -388,24 +461,28 @@ describe('mundo: la mirada se sostiene', () => {
   it('quien camina sigue mirando al jugador tras varios cuadros y retoma su rumbo al vencer', () => {
     const { scene, sprite, walker, reloj } = escenaConCaminante();
     scene.faceTowards('abuela', 'player', 1000);
-    reloj.avanzar(130);   // pasó el paso intermedio
+    reloj.avanzar(240);   // pasó el giro (media vuelta: tres vistas de en medio)
     const mirando = sprite.play.mock.calls.length;
     for (let i = 0; i < 10; i++) scene.updatePersonWalkers(16);
     expect(sprite.play).toHaveBeenLastCalledWith('v-abuela-idle-right', true);
     expect(sprite.play.mock.calls).toHaveLength(mirando);   // el paseo no la pisó
     expect(walker.lastPose).toEqual({ direction: 'right', walking: false });
     reloj.avanzar(1000);
-    scene.updatePersonWalkers(16);
+    for (let i = 0; i < 16; i++) scene.updatePersonWalkers(16);   // retoma su rumbo girando por las vistas de en medio
     expect(sprite.play).toHaveBeenLastCalledWith('v-abuela-walk-left', true);
   });
 
-  it('una media vuelta pasa por una dirección intermedia unos 120 ms antes de quedar de frente', () => {
+  it('una media vuelta pasa de frente por las tres vistas de en medio, una cada 80 ms', () => {
     const { scene, sprite, reloj } = escenaConCaminante();
     scene.faceTowards('abuela', 'player');
-    expect(sprite.play).toHaveBeenLastCalledWith('v-abuela-idle-down', true);
-    reloj.avanzar(119);
-    expect(sprite.play).toHaveBeenLastCalledWith('v-abuela-idle-down', true);
+    expect(sprite.play).toHaveBeenLastCalledWith('v-abuela-idle-down-left', true);
+    reloj.avanzar(79);
+    expect(sprite.play).toHaveBeenLastCalledWith('v-abuela-idle-down-left', true);
     reloj.avanzar(1);
+    expect(sprite.play).toHaveBeenLastCalledWith('v-abuela-idle-down', true);
+    reloj.avanzar(80);
+    expect(sprite.play).toHaveBeenLastCalledWith('v-abuela-idle-down-right', true);
+    reloj.avanzar(80);
     expect(sprite.play).toHaveBeenLastCalledWith('v-abuela-idle-right', true);
   });
 
@@ -448,8 +525,10 @@ describe('mundo: la mirada se sostiene', () => {
     (contenedor as unknown as Record<string, unknown>)['__npcVisual'] = VISUAL;
     scene.player = caja(100, 300);
     (scene as unknown as MirarProbe).faceTowards('npc:vecino', 'player', 500);
+    expect(sprite.play).toHaveBeenLastCalledWith('v-abuela-idle-down-left', true);
+    reloj.avanzar(80);
     expect(sprite.play).toHaveBeenLastCalledWith('v-abuela-idle-left', true);
-    reloj.avanzar(500);
+    reloj.avanzar(420);
     expect(sprite.play).toHaveBeenLastCalledWith('v-abuela-idle-down', true);
   });
 });
@@ -538,8 +617,8 @@ describe('mundo: la mirada de un NPC que se mueve', () => {
     scene.player = caja(300, 300);   // junto a él, a su izquierda: el «attentive» lo giraría hacia ahí
     scene.registerNpcMover({ key: 'vecino', facing: 'left', motion: { behavior, radius: 40, startDelayMs: 0 } }, { x: 360, y: 300 });
 
-    scene.faceTowards('npc:vecino', 'abuela', 1000);   // mira hacia abajo
-    expect(sprite.play).toHaveBeenLastCalledWith('v-abuela-idle-down', true);
+    scene.faceTowards('npc:vecino', 'abuela', 1000);   // mira hacia abajo: de la izquierda pasa primero por abajo-izquierda
+    expect(sprite.play).toHaveBeenLastCalledWith('v-abuela-idle-down-left', true);
     const llamadas = sprite.play.mock.calls.length;
     for (let i = 0; i < 10; i++) scene.updateNpcMovers(i * 16, 16);
     expect(sprite.play.mock.calls).toHaveLength(llamadas);   // sin la línea que salta a quien está en `gesturing`, giraría o caminaría

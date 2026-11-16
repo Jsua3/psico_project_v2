@@ -58,6 +58,32 @@ def _validator(name=SCHEMA_NAME):
     return jsonschema.Draft202012Validator(schema)
 
 
+@functools.lru_cache(maxsize=1)
+def _structure_validator():
+    schema = _validator().schema
+    return jsonschema.Draft202012Validator({"$ref": "#/$defs/estructura", "$defs": schema["$defs"]})
+
+
+def structure_errors(value):
+    """Los problemas de forma de una ``estructura`` (x-siep 2.2) suelta, como textos; ``[]`` si está bien.
+
+    Es la misma forma que exige el esquema del documento: la usa el guardado del editor, que no pasa por el documento.
+    """
+    problems = [
+        f"{'/'.join(str(p) for p in error.absolute_path) or 'estructura'}: {error.message}"
+        for error in sorted(_structure_validator().iter_errors(value), key=lambda e: [str(p) for p in e.absolute_path])
+    ]
+    seen = set()
+    for position, item in _items(value.get("piezas") if isinstance(value, dict) else None):
+        piece_id = item.get("id")
+        if isinstance(piece_id, str):
+            if piece_id in seen:
+                # BORRADOR: texto nuevo del servidor, pendiente de la aprobación de Psicología (VD-23).
+                problems.append(f"piezas/{position}/id: el id «{piece_id}» está repetido; cada pieza de la sala lleva uno propio")
+            seen.add(piece_id)
+    return problems[:MAX_SCHEMA_ERRORS]
+
+
 def is_legacy(siep):
     """¿``x-siep`` es de la versión 1.0 (puntaje, estrés, métricas y banderas), que el importador aún convierte?"""
     return isinstance(siep, dict) and siep.get("version") == LEGACY_VERSION
@@ -302,6 +328,12 @@ def _map_links(found, route, mapa, option_keys, characters, tools):
         for field, known, noun in (("opcion", option_keys, "la opción"), ("personaje", characters, "el personaje"), ("herramienta", tools, "la herramienta")):
             if isinstance(item.get(field), str) and item[field] not in known:
                 found.missing(here + (field,), noun, item[field])
+    estructura = mapa.get("estructura")
+    if isinstance(estructura, dict):  # x-siep 2.2: el id de cada pieza es único en su sala (revisión de Codex, hallazgo 7)
+        piece_ids = set()
+        for position, item in _items(estructura.get("piezas")):
+            if isinstance(item.get("id"), str):
+                found.unique(piece_ids, route + ("estructura", "piezas", position, "id"), "el id de la pieza", item["id"], "en su sala")
     for position, tree in _items(mapa.get("dialogos")):
         here = route + ("dialogos", position)
         if isinstance(tree.get("clave"), str):

@@ -38,12 +38,17 @@ import { RehearsalGoneComponent } from './rehearsal-gone.component';
 import { RehearsalPanelComponent } from './rehearsal-panel.component';
 import { type GuiaEscena, GUIA_VACIA, armarGuia, avisarOpcionNueva } from './caso/guia';
 import { DialoguePanelComponent } from './dialogue-panel.component';
-import { GameWorldComponent } from './game-world.component';
+import { CameraMoment, GameWorldComponent } from './game-world.component';
+import { CameraSettings } from './camara/camera-settings.service';
+import { altoTapado } from './camara/cubierta';
 import { type EscenarioReaccion, type FinReaccion, ReactionDirectorComponent } from './reaction-director.component';
 import { JournalPanelComponent, JournalSaveState } from './journal-panel.component';
 import { isShortcutContext } from './keyboard-focus.util';
+import { salaDelMundo } from './sala/mundo-a-sala';
 import { SafeExitButtonComponent } from './safe-exit-button.component';
 import { WorldPlacesListComponent } from './world-places-list.component';
+import { MinimapaComponent, PlanoCompletoComponent } from './plano/minimapa.component';
+import { normalizarLayout } from './plano/plano';
 import { PlaceCandidate, selectPlaces } from './world-places.util';
 import { keyPersonAccessibleName, resolveKeyPerson } from './key-person.util';
 import { SimulationHudComponent } from './simulation-hud.component';
@@ -126,6 +131,7 @@ const QUEUED_PAUSE_SLOW_NOTICE = 'La acción en curso está tardando. Estamos pa
     SimulationHudComponent, GameWorldComponent, DialoguePanelComponent,
     ToolInventoryComponent, JournalPanelComponent, AttemptOutcomeComponent,
     SafeExitButtonComponent, SceneGoalCardComponent, GameHelpComponent, WorldPlacesListComponent,
+    MinimapaComponent, PlanoCompletoComponent,
     ReactionDirectorComponent, CommentBubbleComponent, RehearsalGoneComponent, RehearsalPanelComponent, SensitiveNoticeComponent, UiButton, UiErrorState, UiScopeNotice, UiSpinner
   ],
   template: `
@@ -356,7 +362,17 @@ const QUEUED_PAUSE_SLOW_NOTICE = 'La acción en curso está tardando. Estamos pa
                 (bootFailed)="onWorldBootFailed()"
                 (roomExit)="onRoomExit($event)"
                 (enterRoom)="onDoorTrigger($event)"
+                (salaIncompleta)="onSalaIncompleta()"
                 (positionChange)="rememberPosition($event.x, $event.y)" />
+              <!-- Minimapa (bloque M1, §5.3): esquina del mundo; abre el plano completo (también con M). -->
+              @if (!cinemaBars()) {
+                <app-minimapa [plano]="placePlan()" [actual]="placeRoom()" [cercana]="cameraSettings.cercana()"
+                  (abrir)="openPlan()" (alternarCercana)="cameraSettings.toggleCercana()" />
+              }
+              <!-- Franjas de cine (bloque M1, regla 7): entran en la decisión y en la reacción; la de abajo aloja el cuadro de diálogo. -->
+              <div class="cine cine--arriba" aria-hidden="true" [class.cine--dentro]="cinemaBars()"></div>
+              <div class="cine cine--abajo" aria-hidden="true" [class.cine--dentro]="cinemaBars()"
+                [style.height.px]="cinemaBottomPx()"></div>
             } @else {
               <!-- Solo el fondo: el indicador de carga es .game-boot (un solo estado). #game-area existe siempre. -->
               <div id="game-area" class="world-skeleton" aria-hidden="true"></div>
@@ -485,6 +501,12 @@ const QUEUED_PAUSE_SLOW_NOTICE = 'La acción en curso está tardando. Estamos pa
           <app-world-places-list [places]="placeOptions()" [pausing]="pausing()"
             (choose)="choosePlace($event)" (closed)="closePlaces()" (safeExit)="pauseFromOverlay()" />
         }
+        @if (planOpen() && placePlan(); as plano) {
+          <!-- Plano del lugar (bloque M1): modal como «Ir a…»; el mundo queda en pausa y la cámara quieta. -->
+          <div class="overlay-backdrop" aria-hidden="true" (click)="closePlan()"></div>
+          <app-plano-completo [plano]="plano" [actual]="placeRoom()" [pausing]="pausing()"
+            (closed)="closePlan()" (safeExit)="pauseFromOverlay()" />
+        }
         <app-journal-panel #journalPanel class="journal-layer" [open]="journalOpen()"
           [disabled]="game.status !== 'IN_PROGRESS' || busy()" [message]="journalMessage()"
           [saveState]="journalSaveState()"
@@ -597,6 +619,18 @@ const QUEUED_PAUSE_SLOW_NOTICE = 'La acción en curso está tardando. Estamos pa
       box-shadow: var(--sim-glow);
     }
     .game-surface { position: absolute; inset: 0; }
+    /* Franjas de cine (bloque M1): se deslizan desde los bordes; no reciben el puntero ni escalan con la cámara. */
+    .cine {
+      position: absolute; left: 0; right: 0; z-index: var(--ds-z-elevado); pointer-events: none;
+      background: var(--ds-surface-page);
+      transition: transform 560ms cubic-bezier(.22, 1, .36, 1);
+    }
+    .cine--arriba { top: 0; height: clamp(28px, 8%, 72px); transform: translateY(-101%); }
+    .cine--abajo { bottom: 0; min-height: clamp(28px, 8%, 72px); transform: translateY(101%); }
+    .cine--dentro { transform: none; }
+    .cine:not(.cine--dentro) { transition-duration: 440ms; }
+    .game-container--reduce-motion .cine { transition: none; }
+    @media (prefers-reduced-motion: reduce) { .cine { transition: none; } }
     .world-skeleton { position: absolute; inset: 0; background: #0e1322; }
 
     /* Envoltorio de la ficha del objetivo: aporta posición, borde y fondo casi opaco (la ficha no pinta superficie). */
@@ -1190,6 +1224,28 @@ export class SimulationPlayComponent implements OnInit, OnDestroy {
   private readonly injector = inject(Injector);
   /** «Atajos de una tecla» (F6-10, WCAG 2.1.4): J, E, WASD, números del diálogo y A/D/E del lobby; apagables. */
   readonly shortcuts = inject(ShortcutSettings);
+  /** Vista cercana (Z) y acercamiento automático (bloque M1). */
+  readonly cameraSettings = inject(CameraSettings);
+  /**
+   * Momento de la cámara (bloque M1): mientras el diálogo de una persona está abierto (hablar y decidir), la cámara
+   * encuadra a los dos de cerca; con el de un objeto (lo que se encontró al revisar), se acerca al objeto. La reacción
+   * a una respuesta la encuadra el director con `frameActors`.
+   */
+  /** Plano del lugar (bloque M1): el `layout` del mundo validado; null en casos sin él (no hay minimapa). */
+  readonly placePlan = computed(() => normalizarLayout(this.world()?.layout));
+  readonly placeRoom = computed(() => this.placePlan()?.actual ?? '');
+  readonly planOpen = signal(false);
+  /** Franjas de cine (bloque M1, regla 7): en la decisión (diálogo con opciones) y durante la reacción. */
+  readonly cinemaBars = computed(() => (this.dialogue()?.choices?.length ?? 0) > 0 || this.reacting());
+  /** Alto de la franja de abajo: la que aloja el cuadro de diálogo (lo que este tapa), o la de arriba si no hay cuadro. */
+  readonly cinemaBottomPx = signal(0);
+
+  readonly cameraMoment = computed<CameraMoment>(() => {
+    const interaction = this.selectedInteraction();
+    if (!this.dialogue() || !interaction) return { tipo: 'explorar' };
+    const persona = interaction.type === 'PERSON' || interaction.key.startsWith('npc:');
+    return { tipo: persona ? 'conversacion' : 'objeto', clave: interaction.key };
+  });
   readonly fadeActive   = signal(false);
   /** Avisos del sistema visibles (el anfitrión `ui-toast-host` los pinta y anuncia). */
   private readonly systemNotices = toSignal(this.notifications.messages$, { initialValue: [] });
@@ -1351,7 +1407,7 @@ export class SimulationPlayComponent implements OnInit, OnDestroy {
   /** El mundo se congela con diálogo, journal u outcome abiertos (Fase 5/13). */
   readonly inputBlocked = computed(() =>
     this.showResumePrompt() || this.showContentWarning()
-    || this.showCaseIntro() || this.dialogue() !== null || this.journalOpen() || this.placesOpen()
+    || this.showCaseIntro() || this.dialogue() !== null || this.journalOpen() || this.placesOpen() || this.planOpen()
     || (!this.reactingToLast() && (this.attempt()?.status ?? 'IN_PROGRESS') !== 'IN_PROGRESS'));
 
   /** Con la pantalla de ayuda abierta el personaje no camina mientras se lee. */
@@ -1477,6 +1533,36 @@ export class SimulationPlayComponent implements OnInit, OnDestroy {
   private pendingStage: string | null = null;
 
   constructor() {
+    // Cámara (bloque M1): ajustes y momento a la escena. El alto que tapa el cuadro de diálogo se mide del DOM después
+    // de pintarlo (el panel aparece en el mismo ciclo que cambia el momento).
+    effect(onCleanup => {
+      const moment = this.cameraMoment();
+      const mode = this.viewMode();
+      const options = { cercana: this.cameraSettings.cercana(), acercarAuto: this.cameraSettings.acercarAuto() };
+      const frozen = this.planOpen();
+      const bars = this.cinemaBars();
+      // Al aparecer el mundo, los ajustes guardados (vista cercana, acercamiento) tienen que llegarle (hallazgo 5).
+      this.world();
+      untracked(() => {
+        // Con franjas, la cámara encuadra entre la de arriba y la de abajo (que crece hasta alojar el cuadro). Se mide
+        // al pintar y otra vez cuando el cuadro o la franja de la reacción ya entraron (llegan con su animación).
+        const medir = () => {
+          this.gameWorld?.setCameraOptions(options);
+          this.gameWorld?.setCameraFrozen(frozen);
+          const top = bars ? this.cinemaTopPx() : 0;
+          const bottom = Math.max(this.dialogueCoverCss(mode), top);
+          this.cinemaBottomPx.set(bottom);
+          this.gameWorld?.setCameraMoment(moment, bottom, top);
+        };
+        requestAnimationFrame(medir);
+        setTimeout(medir, 450);
+        // Con un diálogo o una reacción en pantalla, en vivo: las opciones entran escalonadas y el aviso aparece después.
+        if (moment.tipo !== 'explorar' || bars) {
+          const vivo = setInterval(medir, 250);
+          onCleanup(() => clearInterval(vivo));
+        }
+      });
+    });
     // La salida segura pedida durante una petición espera a que `busy()` se suelte: no se fuerza
     // una pausa en medio de una decisión o de un cruce de puerta (F§7.8, H-04).
     effect(() => {
@@ -1952,9 +2038,25 @@ export class SimulationPlayComponent implements OnInit, OnDestroy {
     // Atajos de una letra (F6-10; WCAG 2.1.4): apagables, y solo actúan con el foco en el juego, en el cuerpo o en un
     // botón de la interfaz (nunca en un campo, una región con scroll ni un diálogo). Enter y Espacio no dependen del
     // ajuste. El destino de un keydown sintético puede ser el documento, que no es un elemento.
-    const isLetterShortcut = event.key === 'j' || event.key === 'J' || event.key === 'e' || event.key === 'E';
+    const isLetterShortcut = event.key === 'j' || event.key === 'J' || event.key === 'e' || event.key === 'E'
+      || event.key === 'z' || event.key === 'Z' || event.key === 'm' || event.key === 'M';
     const focusTarget = event.target instanceof Element ? event.target : null;
     if (isLetterShortcut && (!this.shortcuts.enabled() || !isShortcutContext(focusTarget))) return;
+
+    // Vista cercana (bloque M1): la cámara sigue al personaje de cerca, para quien ve poco. Se recuerda.
+    if (event.key === 'z' || event.key === 'Z') {
+      event.preventDefault();
+      if (!event.repeat) this.cameraSettings.toggleCercana();
+      return;
+    }
+
+    // Plano del lugar (bloque M1): M lo abre; con él abierto, M y Esc los atiende el propio plano.
+    if (event.key === 'm' || event.key === 'M') {
+      if (!this.placePlan()) return;
+      event.preventDefault();
+      if (!event.repeat) this.openPlan();
+      return;
+    }
 
     if (event.key === 'j' || event.key === 'J') {
       event.preventDefault();
@@ -1983,6 +2085,31 @@ export class SimulationPlayComponent implements OnInit, OnDestroy {
     if (button?.tagName !== 'BUTTON' || event.repeat) return;
     if (event.key !== 'Enter' && event.key !== ' ') return;
     window.setTimeout(() => { if (event.defaultPrevented) button.click(); });
+  }
+
+  /** Alto (px CSS) de la franja de cine de arriba: el mismo `clamp(28px, 8%, 72px)` de su estilo. */
+  private cinemaTopPx(): number {
+    const height = this.canvasZone()?.nativeElement.getBoundingClientRect().height ?? 0;
+    return Math.round(Math.min(72, Math.max(28, height * 0.08)));
+  }
+
+  /** Alto (px CSS) del cuadro de diálogo de abajo que tapa el lienzo; 0 si el diálogo va al costado o no hay. */
+  private dialogueCoverCss(mode: string): number {
+    const host = this.canvasZone()?.nativeElement;
+    if (!host || typeof document === 'undefined') return 0;
+    // Lo que tapa abajo: el cuadro de diálogo y, durante la reacción, la franja con lo que dice quien reacciona.
+    // El cuadro y TODO lo que se le monta encima (aviso, ficha «Decisión», «Volver al mapa», «Ver pista»: se dibujan
+    // fuera de su caja). La franja de la reacción vive en el DOM aunque no se vea: solo cuenta durante la reacción.
+    const raices = [
+      mode === 'dialogue-cinematic' ? document.querySelector('app-dialogue-panel.dialogue-cinematic') : null,
+      this.reacting() ? document.querySelector('app-reaction-director .reaction-strip') : null,
+    ].filter((r): r is Element => r !== null);
+    const visible = (el: Element) => (el as Element & { checkVisibility?: (o?: object) => boolean })
+      .checkVisibility?.({ opacityProperty: true, visibilityProperty: true }) ?? true;
+    const cajas = raices.flatMap(r => [r, ...Array.from(r.querySelectorAll('*'))])
+      .filter(visible)
+      .map(el => el.getBoundingClientRect());
+    return altoTapado(host.getBoundingClientRect().bottom, cajas);
   }
 
   openInteraction(interaction: MapObjectState) {
@@ -2200,6 +2327,11 @@ export class SimulationPlayComponent implements OnInit, OnDestroy {
    * Aviso accionable de puerta (VD-29): aviso de advertencia del sistema SIN cierre automático. Lo pinta y anuncia
    * `ui-toast-host` (una vez, con cortesía), no mueve el foco y reemplaza al de la puerta anterior.
    */
+  /** P2: una sala por piezas no cargó entera: se ve su versión simple y se dice, sin bloquear el juego. */
+  onSalaIncompleta(): void {
+    this.notifications.show('warning', 'Parte de esta sala no cargó: se muestra una versión simple. Puedes seguir jugando.', 8000);
+  }
+
   private showDoorNotice(message: string): void {
     this.dismissDoorNotice();
     this.doorNoticeId.set(this.notifications.show('warning', message, 0));
@@ -2983,6 +3115,13 @@ export class SimulationPlayComponent implements OnInit, OnDestroy {
 
   /** Carga el ScenarioConfig que corresponde al mapa del mundo y aplica ambos. */
   private applyWorldWithScenario(world: SimulationWorldState): void {
+    // P2 (contrato x-siep 2.2): una sala por piezas se arma con lo que manda el servidor; el ScenarioConfig del legado
+    // que comparta su clave de mapa dibujaría otra sala encima.
+    if (salaDelMundo(world.map as unknown as Record<string, unknown>, world.objects)) {
+      this.scenarioConfig.set(null);
+      this.applyLoadedWorld(world);
+      return;
+    }
     this.simulationService.getScenarioConfig(world.map.key).subscribe({
       next: config => {
         this.scenarioConfig.set(config);
@@ -3167,6 +3306,22 @@ export class SimulationPlayComponent implements OnInit, OnDestroy {
   }
 
   /** Cierra la lista y devuelve el foco a su acceso: la cabecera estaba inerte mientras estuvo abierta. */
+  /** Abre el plano completo (bloque M1): solo con plano y con el mundo libre (sin diálogo, bitácora ni otra capa). */
+  openPlan(): void {
+    if (!this.placePlan() || this.inputBlocked()) return;
+    this.planOpen.set(true);
+  }
+
+  /** Cierra el plano y devuelve el foco al minimapa (o al mundo si está oculto). */
+  closePlan(): void {
+    if (!this.planOpen()) return;
+    this.planOpen.set(false);
+    afterNextRender(() => {
+      const target = document.querySelector<HTMLElement>('[data-minimapa-abrir]') ?? document.getElementById('game-area');
+      target?.focus();
+    }, { injector: this.injector });
+  }
+
   closePlaces(): void {
     if (!this.placesOpen()) return;
     this.placesOpen.set(false);

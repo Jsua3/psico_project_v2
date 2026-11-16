@@ -77,7 +77,9 @@ describe('game-world: nada nuevo por cuadro (F§7.2, 59 FPS)', () => {
   // req: BLOQUE-H (H-12)
   it('con el foco en una región con scroll las flechas la desplazan y el jugador no camina', () => {
     expect(source).toMatch(/const typing = isTextEntryTarget\(focus\) \|\| isScrollRegionTarget\(focus\);/);
-    expect(source).toMatch(/left:  !typing && \(this\.cursors\.left\.isDown/);
+    // `bloqueado` = escribiendo o con el foco en una región con scroll, o con una capa abierta (bloque M1).
+    expect(source).toContain('const bloqueado = typing || this.motionPaused;');
+    expect(source).toMatch(/left:  !bloqueado && \(this\.cursors\.left\.isDown/);
   });
 
   it('la pulsación corta de E, Espacio y Enter no se pierde (T0.2) y respeta las mismas reglas de foco', () => {
@@ -132,6 +134,16 @@ describe('game-world: ratón (F6-7, VD-5)', () => {
     expect(update).toContain('this.movePlayer(part.dx, part.dy)');
   });
 
+  it('el jugador mira en ocho direcciones: la mirada sale de la entrada en cada cuadro (con margen) y todas las poses la usan', () => {
+    const update = bodyOf(/\n  override update\(time: number, delta: number\) \{/, /\n  setWorld\(/);
+    expect(update).toContain('this.mirada = actualizarMirada(this.mirada, Number(input.right) - Number(input.left), Number(input.down) - Number(input.up), delta');
+    expect(update.indexOf('actualizarMirada(')).toBeLessThan(update.indexOf('this.applyPlayerPose('));
+    expect(update.match(/this\.applyPlayerPose\(this\.mirada\.actual, (true|false)\)/g) ?? []).toHaveLength(3);
+    expect(source).not.toMatch(/applyPlayerPose\((step\.direction|this\.lastDirection|direction), /);
+    // Las personas y los NPC tampoco deciden su mirada en 4 direcciones.
+    expect(source).not.toMatch(/\bresolveDirection\(|\bdirectionTowards\(|\bturnStepBetween\(/);
+  });
+
   it('un paso de la cruceta suelta la caminata y una sala nueva no la arrastra', () => {
     const nudge = bodyOf(/\n  nudge\(direction: 'up' \| 'down' \| 'left' \| 'right'\) \{\n    if \(!this\.player\) return;/, /\n  \/\*\* Punto de pies/);
     expect(nudge).toContain('this.walk = NO_WALK;');
@@ -153,8 +165,8 @@ describe('game-world: atajos de una tecla (F6-10, WCAG 2.1.4)', () => {
   // req: BLOQUE-H (H-07)
   it('WASD y E solo con el ajuste activo y con el foco en el juego; flechas, Enter y Espacio no dependen de él', () => {
     expect(source).toContain('const letters = this.shortcutsEnabled && isShortcutContext(focus);');
-    expect(source).toMatch(/left:  !typing && \(this\.cursors\.left\.isDown  \|\| \(letters && this\.keys\['A'\]\.isDown\)\),/);
-    expect(source).toMatch(/up:    !typing && \(this\.cursors\.up\.isDown    \|\| \(letters && this\.keys\['W'\]\.isDown\)\),/);
+    expect(source).toMatch(/left:  !bloqueado && \(this\.cursors\.left\.isDown  \|\| \(letters && this\.keys\['A'\]\.isDown\)\),/);
+    expect(source).toMatch(/up:    !bloqueado && \(this\.cursors\.up\.isDown    \|\| \(letters && this\.keys\['W'\]\.isDown\)\),/);
     expect(source).toContain('e: justE && letters,');
     expect(source).toContain('if (!letters) this.tappedKeys.e = false;');
     // Enter y Espacio siguen sin pasar por «letters».

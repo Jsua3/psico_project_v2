@@ -13,6 +13,7 @@ import { COMPLEXIONS } from '../../character-kit/mannequins/index.mjs';
 import { PIECES } from '../../character-kit/pieces/index.mjs';
 import { LITERAL_DEFAULTS, RAMPS } from '../../character-kit/ramps.mjs';
 import {
+  MIRROR_OF,
   PORTRAIT_STATES,
   SHEET_IDS,
   VIEW_ROWS,
@@ -27,7 +28,10 @@ export const KIT_ROOT = path.join(FRONTEND_ROOT, 'character-kit');
 
 const PIECE_KINDS = new Set(['hair', 'face', 'top', 'layer', 'bottom', 'shoes', 'accessory']);
 const MODES = new Set(['paint', 'repaint', 'cover']);
-const VIEW_KIND = Object.freeze({ down: 'front', up: 'back', left: 'side', right: 'side' });
+const VIEW_KIND = Object.freeze({
+  down: 'front', up: 'back', left: 'side', right: 'side',
+  'down-left': 'front34', 'down-right': 'front34', 'up-left': 'back34', 'up-right': 'back34',
+});
 
 /** Grilla de autoría → RLE de las filas normalizadas (unidas con \n). */
 export function compileGrid(text, where) {
@@ -62,7 +66,13 @@ const compileList = (list, where) => list.map((o, i) => compileOverlay(o, `${whe
 export function compilePiece(piece) {
   const key = `${piece.kind}:${piece.id}`;
   if (!PIECE_KINDS.has(piece.kind)) throw new Error(`pieza ${key}: tipo desconocido`);
-  if (piece.asymmetric && !piece.views?.right) throw new Error(`pieza ${key}: es asimétrica y le falta la vista right`);
+  // Una pieza asimétrica dibuja sus vistas derechas: el espejo pondría el detalle en el lado contrario.
+  if (piece.asymmetric) {
+    for (const [right, left] of Object.entries(MIRROR_OF)) {
+      const needed = right === 'right' || piece.views?.[left] !== undefined;
+      if (needed && !piece.views?.[right]) throw new Error(`pieza ${key}: es asimétrica y le falta la vista ${right}`);
+    }
+  }
   for (const rule of piece.edges ?? []) {
     if (rule.edge !== 'bottom' && rule.edge !== 'top') throw new Error(`pieza ${key}: borde desconocido «${rule.edge}»`);
     if (rule.depth !== undefined && !(Number.isInteger(rule.depth) && rule.depth >= 1)) throw new Error(`pieza ${key}: depth debe ser un entero ≥ 1`);

@@ -15,6 +15,9 @@ BASE_VERSION = "2.0"
 #: La 2.1 añade ``requiere`` y ``reaccion`` por opción y ``objetivo`` por escena. Solo se escribe si el caso los usa:
 #: un caso sin ellos se exporta igual que en la 2.0 (la huella sellada de las versiones publicadas no cambia).
 VERSION = "2.1"
+#: La 2.2 añade ``mapa.estructura`` (la sala armada por piezas). Mismo criterio que la 2.1: solo la lleva un caso que la
+#: usa, así que la huella sellada de las versiones ya publicadas no cambia.
+STRUCTURE_VERSION = "2.2"
 
 
 def _text(value):
@@ -22,7 +25,10 @@ def _text(value):
 
 
 def version_of(definition):
-    """``"2.1"`` si alguna opción trae ``requires`` o ``reaction`` o alguna escena trae ``goal`` o ``comments``; si no, ``"2.0"``."""
+    """``"2.2"`` si algún mapa trae ``structure``; si no, ``"2.1"`` si alguna opción trae ``requires`` o ``reaction`` o
+    alguna escena trae ``goal`` o ``comments``; si no, ``"2.0"``."""
+    if any(scene.world is not None and scene.world.structure is not None for scene in definition.scenes):
+        return STRUCTURE_VERSION
     for scene in definition.scenes:
         if _text(scene.goal) or scene.comments:
             return VERSION
@@ -127,10 +133,15 @@ def _dialogue_entry(tree):
 
 
 def _world_entry(world):
-    return {
+    entry = {
         "clave": world.key, "titulo": world.title, "ancho": world.width, "alto": world.height,
         "tema": world.theme, "aparicion": {"x": world.spawn_x, "y": world.spawn_y},
         "ambiente": world.ambient,
+    }
+    if world.structure is not None:  # solo la sala por piezas (2.2): una de imagen fija se exporta igual que antes
+        entry["estructura"] = world.structure
+    return {
+        **entry,
         "colisiones": [
             {"clave": z.key, "etiqueta": z.label, "x": z.x, "y": z.y, "ancho": z.width, "alto": z.height}
             for z in world.collisions

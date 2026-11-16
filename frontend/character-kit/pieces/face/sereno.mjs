@@ -8,6 +8,7 @@
  */
 
 import { SERENO_EXPRESSIONS, SERENO_PORTRAIT } from './sereno.portrait.mjs';
+import { DIAGONAL } from './sereno.diagonal.mjs';
 
 const LEGEND = {
   b: { mat: 'hair', tone: 3 },
@@ -23,6 +24,7 @@ export default {
   portrait: SERENO_PORTRAIT,
   expressions: SERENO_EXPRESSIONS,
   views: {
+    ...DIAGONAL,
     down: [{
       anchor: 'H', at: [16, 11], mode: 'paint', legend: LEGEND,
       grid: `

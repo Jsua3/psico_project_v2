@@ -40,6 +40,10 @@ def _omitido(relativa, nombre):
         return True
     if relativa.startswith('scripts/fixtures/'):
         return True
+    if relativa.startswith('piezas/'):
+        # Las «salas por piezas» llevan su propio manifiesto (esquema 2, sección `piezas`): lo escribe `--piezas`
+        # (piezas_catalogo.py). Este archivo sigue en esquema 1 porque el juego de hoy rechaza cualquier otro.
+        return True
     return nombre == 'hoja-lugares.png' or (nombre.startswith('hoja-contacto') and nombre.endswith('.png'))
 
 
@@ -209,7 +213,12 @@ def main(argv=None):
     p = argparse.ArgumentParser(description='Genera biblioteca/manifiesto.json')
     p.add_argument('--verificar', action='store_true', help='no escribe: sale con 1 si el archivo no coincide')
     p.add_argument('--biblioteca', default=BIBLIOTECA)
+    p.add_argument('--piezas', action='store_true',
+                   help='trabaja sobre biblioteca/piezas/manifiesto.json (esquema 2, sección `piezas`) en vez del general')
     a = p.parse_args(argv)
+    if a.piezas:
+        import piezas_catalogo
+        return piezas_catalogo.main(['--verificar'] if a.verificar else [])
     if a.verificar:
         if verificar(a.biblioteca):
             print('manifiesto.json al día')

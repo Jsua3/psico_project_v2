@@ -12,6 +12,8 @@
 
 import { gridFrom, stamp } from '../../raster.mjs';
 import { headHalfWidth } from '../../busts/bust-a.mjs';
+import { DIAGONAL } from './trenza.diagonal.mjs';
+import { hairVolume } from './portrait-volume.mjs';
 
 const LEGEND = {
   R: { mat: 'hair' },
@@ -116,8 +118,9 @@ export default {
   part: 'hair',
   z: 6,
   asymmetric: true,
-  portrait: PORTRAIT,
+  portrait: hairVolume('trenza', PORTRAIT),
   views: {
+    ...DIAGONAL,
     down: [
       { anchor: 'H', at: [15, 5], mode: 'cover', legend: LEGEND, grid: DOWN_HEAD },
       { anchor: 'H', at: [15, 5], mode: 'cover', legend: LEGEND, grid: stamp(blank(19, 16), DOWN_BRAID_HEAD) },
