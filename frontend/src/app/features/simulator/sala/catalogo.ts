@@ -87,6 +87,11 @@ export interface VistaDePieza {
    * u 85 (barniz). Se tiñe con la luz que le llega a la pieza y se suma encima de la luz.
    */
   brillo?: string;
+  /**
+   * Mapa de luz propia: tira igual a la del dibujo con los píxeles que emiten (pantallas, pilotos, el tubo o el foco
+   * encendido, el cielo de la ventana) en su color final. Se pinta ENCIMA de la luz, sin multiplicar por ambiente.
+   */
+  emisivo?: string;
 }
 
 export interface FichaDePieza {
@@ -132,6 +137,8 @@ export interface MuebleDeCatalogo extends ImagenDeCatalogo {
   huella?: { ancho: number; fondo: number; alto: number };
   /** Mapa de brillo del mueble (ver `VistaDePieza.brillo`). */
   brillo?: string;
+  /** Mapa de luz propia del mueble (ver `VistaDePieza.emisivo`). */
+  emisivo?: string;
 }
 
 export interface ManifiestoDePiezas {

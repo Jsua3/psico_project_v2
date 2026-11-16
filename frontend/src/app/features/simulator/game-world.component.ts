@@ -31,6 +31,7 @@ import { DEPTH, actorDepth, tiledLayerDepth } from './depth-sort.util';
 import { AvisoDePuertaComponent } from './sala/aviso-de-puerta.component';
 import { MANIFIESTO_DE_PIEZAS_URL, esManifiestoDePiezas } from './sala/catalogo';
 import { EscenaDeSala } from './sala/escena-de-sala';
+import type { Cuerpo } from './sala/luz';
 import { puertaDelObjeto, salaDelMundo } from './sala/mundo-a-sala';
 import {
   AUTHORED_CLINICAL_COLLISIONS,
@@ -1576,6 +1577,22 @@ export class DataDrivenWorldScene extends Phaser.Scene {
   private salaIncompletaAvisada: string | null = null;
   private firmaDelAviso = '';
 
+  /**
+   * P2: los muebles y objetos del caso que tienen arte, como cuerpos de la luz: su silueta es el alfa de su dibujo y se
+   * apoyan en el centro de su base (`cuerpoDe`). Las personas no: su sombra camina con ellas (`sombraDeFigura`).
+   */
+  private cuerposDeLaSala(): Cuerpo[] {
+    const cuerpos: Cuerpo[] = [];
+    for (const [key, m] of this.markers) {
+      const arte = (m as unknown as Record<string, unknown>)['__artSprite'] as Phaser.GameObjects.Image | undefined;
+      const obj = this.markerData.get(key);
+      if (!arte || !obj || obj.type === 'PERSON' || obj.metadata?.['sombra'] === false) continue;
+      const cuerpo = EscenaDeSala.cuerpoDeSprite(arte, m.x, m.y);
+      if (cuerpo) cuerpos.push(cuerpo);
+    }
+    return cuerpos;
+  }
+
   /** P2: ¿el mundo de ahora es una sala por piezas (`map.structure` válida)? Manda sobre el ScenarioConfig del legado. */
   private esSalaPorPiezas(): boolean {
     return !!this.world && salaDelMundo(this.world.map as unknown as Record<string, unknown>, this.world.objects) !== null;
@@ -1628,12 +1645,13 @@ export class DataDrivenWorldScene extends Phaser.Scene {
       this.load.start();
       return true;
     }
-    this.salaPorPiezas = new EscenaDeSala(this, sala, plan, manifiesto, { reducido: this.callbacks.reduceMotion });
     // Las puertas de pieza ya están en el muro: su marcador no lleva sprite, solo el rótulo y el área para cruzar.
     const dePieza = new Set((sala.puertas ?? []).map(p => p.id));
     this.renderableWorldObjects()
       .map(obj => (dePieza.has(obj.key) ? { ...obj, metadata: { ...(obj.metadata ?? {}), pintada: true, dePieza: true } } : obj))
       .forEach(obj => this.createMarker(obj));
+    // Los muebles y objetos del caso con arte arrojan su silueta en la luz de la sala (las personas, la suya al caminar).
+    this.salaPorPiezas = new EscenaDeSala(this, sala, plan, manifiesto, { reducido: this.callbacks.reduceMotion, cuerpos: this.cuerposDeLaSala() });
     this.createPlayer(this.world.player.x, this.world.player.y);
     // Cámara (M1): la sala compuesta mide `plan.ancho × plan.alto` (528 de alto, contrato 2.2); el `height` del mapa del
     // servidor puede ser mayor y la cámara mostraba el vacío bajo la sala en el plano general.
@@ -2778,6 +2796,7 @@ export class DataDrivenWorldScene extends Phaser.Scene {
     if (art?.animation) this.proximityAnimations.set(object.key, art.animation);
     const bag = marker as unknown as Record<string, unknown>;
     bag['__kitSprite'] = personVisual !== null;
+    if (art && main === art.sprite) bag['__artSprite'] = art.sprite;   // P2: su silueta va a la luz de la sala por piezas
     bag['__pixelSprite'] = pixelSprite;
     bag['__pulse'] = pulse;
     if (personSpriteForWalk && personVisual) {

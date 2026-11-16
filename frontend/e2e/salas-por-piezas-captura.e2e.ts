@@ -28,6 +28,7 @@ import { createWorldInputDriver, readPlayerPosition, waitUntilPlayerStill } from
 const CARPETA = process.env['P2_CAPTURAS']
   ?? path.resolve(__dirname, '..', '..', '..', '..', '.superpowers', 'noche-2026-11-14', 'capturas-p2');
 const HOSPITAL = JSON.parse(readFileSync(path.resolve(__dirname, '..', '..', 'biblioteca', 'piezas', 'lugares', 'hospital.json'), 'utf8'));
+const MANIFIESTO = JSON.parse(readFileSync(path.resolve(__dirname, '..', '..', 'biblioteca', 'piezas', 'manifiesto.json'), 'utf8'));
 
 type Momento = 'dia' | 'noche';
 
@@ -38,6 +39,7 @@ interface Sala {
   estructura: { ancho: number; momento?: string };
   entrada?: { x: number; y: number };
   puertas: Puerta[];
+  muebles?: { ref: string; x: number; y: number; espejo?: boolean }[];
 }
 
 type Mundo = Record<string, any>;
@@ -92,6 +94,23 @@ interface Doble {
   salaInicial: Sala;
 }
 
+/**
+ * Los muebles de la sala (`hospital.json`) como los copia el servidor de P3: un objeto PROP con su arte de la biblioteca,
+ * apoyado en sus pies. Solo los de un cuadro (el juego carga el arte de un objeto como una imagen).
+ */
+function mueblesDeSala(sala: Sala) {
+  return (sala.muebles ?? []).flatMap((m, n) => {
+    const ficha = MANIFIESTO.muebles?.[`hospital/${m.ref}`];
+    if (!ficha || (ficha.cuadros ?? 1) > 1) return [];
+    return [{
+      key: `mueble-${n}-${m.ref}`, label: ficha.nombre ?? m.ref, type: 'PROP', x: m.x, y: m.y, width: ficha.ancho, height: ficha.alto,
+      color: '#ffffff', icon: '', shortCode: '', collision: false, interactionPrompt: '', interactionText: '',
+      decisionOptionId: null, toolCode: null, dialogue: null, facing: m.espejo ? 'left' : 'right', movementPattern: {},
+      metadata: { arte: `/assets/biblioteca/${ficha.ruta}`, apoyo: 'pies' },
+    }];
+  });
+}
+
 /** Le pone al mundo la sala por piezas en la que está el jugador. */
 function ponerSala(mundo: Mundo, doble: Doble, jugador?: { x: number; y: number }): void {
   const { sala } = doble;
@@ -107,7 +126,7 @@ function ponerSala(mundo: Mundo, doble: Doble, jugador?: { x: number; y: number 
   delete mapa.ambient.backgroundImage;
   mundo['collisions'] = paredes(sala);
   const personas = sala === doble.salaInicial ? (doble.personas as Mundo[]) : [];
-  mundo['objects'] = [...personas, ...sala.puertas.map(p => exitDePuerta(sala, p, doble.cerradas))];
+  mundo['objects'] = [...personas, ...mueblesDeSala(sala), ...sala.puertas.map(p => exitDePuerta(sala, p, doble.cerradas))];
   const [zx, zy, zw, zh] = zonaCaminable(sala.encuadre, ancho);
   const actual = mundo['player'] ?? {};
   const dentro = (p: { x: number; y: number }) => p.x >= zx && p.x <= zx + zw && p.y >= zy && p.y <= zy + zh;
@@ -290,6 +309,23 @@ test.describe('salas por piezas en el juego real', () => {
       await page.setViewportSize({ width: 1920, height: 1080 });
       await page.waitForTimeout(2500);
       await capturar(page, `sombras-${salaId}-${momento}`);
+    });
+  }
+
+  // Regla 3 de calidad: la sombra de quien camina y la de dos muebles es su silueta, de día y de noche.
+  for (const momento of ['dia', 'noche'] as const) {
+    test(`sombras con silueta de quien camina y de los muebles, de ${momento}`, async ({ page }) => {
+      await page.setViewportSize({ width: 1366, height: 768 });
+      const sala = salaPorId('habitacion-recuperacion');
+      await empezar(page, sala, momento);
+      const input = createWorldInputDriver(page, 'keyboard');
+      await input.moveBy('ArrowUp', 70);
+      await waitUntilPlayerStill(page);
+      await page.waitForTimeout(500);
+      await capturar(page, `sombras-muebles-${momento}`);
+      await page.setViewportSize({ width: 1920, height: 1080 });
+      await page.waitForTimeout(2500);
+      await capturar(page, `sombras-muebles-${momento}`);
     });
   }
 
