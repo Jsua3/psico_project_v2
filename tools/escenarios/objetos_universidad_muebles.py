@@ -74,6 +74,7 @@ def archivador(n=0):
     for k in (3, 2, 1):                                                             # de abajo hacia arriba
         ocm._cajon(L, 4, 37, 6 + k * 12, 16 + k * 12, 0, contenido=False)
     ocm._cajon(L, 4, 37, 6, 16, abierto)
+    L.tex[:, :] = False                                                             # lámina pintada: lisa
     r = _reflejos(L)
     for rr, dx in ((r['izquierda'], -3), (r['derecha'], 3), (r['frente'], 0)):
         for k in range(4):

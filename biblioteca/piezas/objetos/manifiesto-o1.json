@@ -1098,6 +1098,59 @@
    "reemplaza": "escenarios/casa/arte/muebles/vitrina-comedor.png",
    "ruta": "piezas/muebles/casa/vitrina-comedor.png"
   },
+  "comisaria/archivador-metalico": {
+   "alto": 57,
+   "ancho": 42,
+   "animaciones": {
+    "reposo": {
+     "bucle": true,
+     "de": 0,
+     "fps": 1,
+     "hasta": 0
+    },
+    "revisar": {
+     "bucle": false,
+     "de": 1,
+     "fps": 10,
+     "hasta": 4,
+     "sostener": true
+    }
+   },
+   "apoyo": [
+    21,
+    57
+   ],
+   "brillo": "piezas/muebles/comisaria/archivador-metalico-brillo.png",
+   "brilloDerecha": "piezas/muebles/comisaria/archivador-metalico-brillo-derecha.png",
+   "brilloIzquierda": "piezas/muebles/comisaria/archivador-metalico-brillo-izquierda.png",
+   "cuadros": 5,
+   "fps": 1,
+   "huella": {
+    "alto": 52,
+    "ancho": 38,
+    "fondo": 14
+   },
+   "nombre": "Archivador metálico",
+   "reemplaza": "escenarios/comisaria/arte/muebles/archivador-metalico.png",
+   "ruta": "piezas/muebles/comisaria/archivador-metalico.png"
+  },
+  "comisaria/caja-archivo": {
+   "alto": 40,
+   "ancho": 40,
+   "apoyo": [
+    20,
+    40
+   ],
+   "cuadros": 1,
+   "huella": {
+    "alto": 36,
+    "ancho": 36,
+    "fondo": 12
+   },
+   "nombre": "Cajas de archivo",
+   "reemplaza": "escenarios/comisaria/arte/muebles/caja-archivo.png",
+   "ruta": "piezas/muebles/comisaria/caja-archivo.png"
+  },
   "comisaria/caneca-comisaria": {
    "alto": 33,
    "ancho": 24,
@@ -1175,6 +1228,43 @@
    "reemplaza": "escenarios/comisaria/arte/muebles/escritorio-funcionario.png",
    "ruta": "piezas/muebles/comisaria/escritorio-funcionario.png"
   },
+  "comisaria/estante-expedientes": {
+   "alto": 97,
+   "ancho": 97,
+   "apoyo": [
+    48,
+    97
+   ],
+   "brillo": "piezas/muebles/comisaria/estante-expedientes-brillo.png",
+   "brilloDerecha": "piezas/muebles/comisaria/estante-expedientes-brillo-derecha.png",
+   "brilloIzquierda": "piezas/muebles/comisaria/estante-expedientes-brillo-izquierda.png",
+   "cuadros": 1,
+   "huella": {
+    "alto": 92,
+    "ancho": 94,
+    "fondo": 16
+   },
+   "nombre": "Estante de expedientes",
+   "reemplaza": "escenarios/comisaria/arte/muebles/estante-expedientes.png",
+   "ruta": "piezas/muebles/comisaria/estante-expedientes.png"
+  },
+  "comisaria/estante-juguetes": {
+   "alto": 43,
+   "ancho": 62,
+   "apoyo": [
+    31,
+    43
+   ],
+   "cuadros": 1,
+   "huella": {
+    "alto": 40,
+    "ancho": 58,
+    "fondo": 12
+   },
+   "nombre": "Estante de juguetes",
+   "reemplaza": "escenarios/comisaria/arte/muebles/estante-juguetes.png",
+   "ruta": "piezas/muebles/comisaria/estante-juguetes.png"
+  },
   "comisaria/mesa-baja-nna": {
    "alto": 35,
    "ancho": 64,
@@ -1193,6 +1283,26 @@
    "nombre": "Mesa baja para niñas y niños",
    "reemplaza": "escenarios/comisaria/arte/muebles/mesa-baja-nna.png",
    "ruta": "piezas/muebles/comisaria/mesa-baja-nna.png"
+  },
+  "comisaria/mesa-reunion": {
+   "alto": 57,
+   "ancho": 122,
+   "apoyo": [
+    61,
+    57
+   ],
+   "brillo": "piezas/muebles/comisaria/mesa-reunion-brillo.png",
+   "brilloDerecha": "piezas/muebles/comisaria/mesa-reunion-brillo-derecha.png",
+   "brilloIzquierda": "piezas/muebles/comisaria/mesa-reunion-brillo-izquierda.png",
+   "cuadros": 1,
+   "huella": {
+    "alto": 30,
+    "ancho": 116,
+    "fondo": 24
+   },
+   "nombre": "Mesa de reuniones",
+   "reemplaza": "escenarios/comisaria/arte/muebles/mesa-reunion.png",
+   "ruta": "piezas/muebles/comisaria/mesa-reunion.png"
   },
   "comisaria/mostrador-recepcion": {
    "alto": 65,
@@ -1259,6 +1369,23 @@
    "nombre": "Silla giratoria",
    "reemplaza": "escenarios/comisaria/arte/muebles/silla-giratoria.png",
    "ruta": "piezas/muebles/comisaria/silla-giratoria.png"
+  },
+  "comisaria/silla-pequena": {
+   "alto": 29,
+   "ancho": 20,
+   "apoyo": [
+    10,
+    29
+   ],
+   "cuadros": 1,
+   "huella": {
+    "alto": 26,
+    "ancho": 18,
+    "fondo": 8
+   },
+   "nombre": "Silla pequeña",
+   "reemplaza": "escenarios/comisaria/arte/muebles/silla-pequena.png",
+   "ruta": "piezas/muebles/comisaria/silla-pequena.png"
   },
   "comisaria/silla-visitante-comisaria": {
    "alto": 39,
