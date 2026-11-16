@@ -1,7 +1,11 @@
 import { expect, test } from '@playwright/test';
 import type { Page } from '@playwright/test';
 
-import { retireCase } from './support/case-fixtures';
+import {
+  DESCRIPCION_BIENESTAR, GENERACION_CON_PROVEEDOR_FALSO, MOTIVO_SIN_PROVEEDOR_FALSO, abrirGuion, abrirMiCaso, asegurarGeneracionDisponible, cancelarGeneracionAbierta,
+  elegirDescribirTuCaso, esperarCasoListo, generarConDescripcion, ponerFaltasDeOcl, retenerEscenas, rutaEditor,
+} from './support/autoria-flujo';
+import { PROFESOR, apiToken, retireCase } from './support/case-fixtures';
 import { runAxe } from './support/quality-gates';
 import { loginAs } from './support/screen-tour';
 import { scaled } from './support/time-scale';
@@ -133,6 +137,52 @@ test.describe('@autoria accesibilidad de cada ruta del editor de casos', () => {
       await revisar(page, 'casos/:id/editor/revision');
     } finally {
       // El caso que la prueba creó no se queda en la lista de la docente (ni en la base compartida de las pruebas siguientes).
+      if (caseVersionId) await retireCase(request, caseVersionId);
+    }
+  });
+
+  // C2, tarea 12: lo nuevo del editor con el proveedor falso de C1 (el backend aislado con `AI_AUTHORING_PROVIDER=fake`).
+  test('generar un caso con IA: el paso 2, el avance, el guion con las secciones nuevas y la revisión con faltas de OCL', async ({ page, request }) => {
+    test.skip(!GENERACION_CON_PROVEEDOR_FALSO, MOTIVO_SIN_PROVEEDOR_FALSO);
+    test.setTimeout(scaled(600_000));
+    let caseVersionId = 0;
+    try {
+      await page.setViewportSize(ANCHOS[0]);
+      await asegurarGeneracionDisponible(request);
+      await cancelarGeneracionAbierta(request);
+      await loginAs(page, 'profesor');
+
+      // 1. El paso 2 con «Describe tu caso» elegido.
+      await elegirDescribirTuCaso(page);
+      await revisar(page, 'casos/nuevo/salas con «Describe tu caso»');
+
+      // 2. El avance, a mitad (las rutas de escena retenidas) y al terminar.
+      const puerta = await retenerEscenas(page);
+      await generarConDescripcion(page, DESCRIPCION_BIENESTAR);
+      await expect(page.locator('.avance').getByRole('status')).toHaveText('Escribiendo las escenas 1 y 2 de 4', { timeout: scaled(60_000) });
+      await revisar(page, 'casos/nuevo/generando (a mitad)');
+      await puerta.soltar();
+      await esperarCasoListo(page);
+      await revisar(page, 'casos/nuevo/generando (listo)');
+      caseVersionId = await abrirMiCaso(page);
+
+      // 3. El guion de la primera escena, con objetivo, pistas, «Aparece si…», «Cómo reacciona» y «Lo que dicen al acercarte».
+      await abrirGuion(page, 1);
+      await expect(page.getByRole('heading', { name: 'Lo que dicen al acercarte' })).toBeVisible({ timeout: scaled(30_000) });
+      await expect(page.getByRole('group', { name: 'Aparece si…' }).first()).toBeVisible();
+      await expect(page.getByRole('group', { name: 'Cómo reacciona' }).first()).toBeVisible();
+      await revisar(page, 'casos/:id/editor/escena/:escena (guion con las secciones nuevas)');
+
+      // 4. La revisión con faltas de OCL-09 a OCL-12 (las que el editor no deja escribir pero el servidor guarda).
+      const docente = await apiToken(request, PROFESOR);
+      await ponerFaltasDeOcl(request, docente, caseVersionId);
+      await page.goto(rutaEditor(page, '/revision'));
+      await expect(page.getByRole('heading', { name: /^Por resolver \([1-9]\d*\)$/ })).toBeVisible({ timeout: scaled(30_000) });
+      await expect(page.getByRole('button', { name: /^Llévame ahí/ }).first()).toBeVisible();
+      await revisar(page, 'casos/:id/editor/revision (con faltas de OCL)');
+    } finally {
+      await page.unrouteAll({ behavior: 'ignoreErrors' });
+      await cancelarGeneracionAbierta(request);
       if (caseVersionId) await retireCase(request, caseVersionId);
     }
   });
