@@ -39,8 +39,7 @@ from . import checks, lifecycle
 from .checks import SceneDraft, SkeletonDraft
 
 #: Las faltas que son del contenido y no impiden importar (``importing.RULE_FAULT_PREFIXES``).
-EDITORIAL_PREFIXES = ("DSL.OCL-", "DSL.PROP-", "DSL.TEXT_")
-assert EDITORIAL_PREFIXES == importing.RULE_FAULT_PREFIXES
+EDITORIAL_PREFIXES = importing.RULE_FAULT_PREFIXES
 
 _PATH_SCENE = re.compile(r"^(?:x-siep\.)?escenas\[(\d+)\]")
 _TREE_EMOTION = "neutral"

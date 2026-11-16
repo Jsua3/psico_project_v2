@@ -339,3 +339,7 @@ def test_is_editorial():
     assert not assembly.is_editorial(Issue("DSL.FORMA", report.ERROR, "", ""))
     assert not assembly.is_editorial(Issue("DSL.SIEP_REF", report.ERROR, "", ""))
     assert dataclasses.is_dataclass(assembly.AssembleResult)
+
+
+def test_la_constante_editorial_es_la_de_importing():
+    assert assembly.EDITORIAL_PREFIXES is importing.RULE_FAULT_PREFIXES
