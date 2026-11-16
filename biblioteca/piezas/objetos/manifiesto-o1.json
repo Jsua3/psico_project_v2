@@ -271,6 +271,384 @@
    "nombre": "Protocolo EPICEE/SPIKES",
    "reemplaza": "../frontend/src/assets/game/objects/tool_spikes.png",
    "ruta": "piezas/herramientas/spikes.png"
+  },
+  "biblioteca/acta-registro": {
+   "alto": 27,
+   "ancho": 36,
+   "animaciones": {
+    "gesto": {
+     "bucle": false,
+     "de": 6,
+     "fps": 10,
+     "hasta": 11,
+     "sostener": true
+    },
+    "nueva": {
+     "bucle": true,
+     "de": 1,
+     "fps": 8,
+     "hasta": 4
+    },
+    "reposo": {
+     "bucle": true,
+     "de": 0,
+     "fps": 1,
+     "hasta": 0
+    },
+    "usada": {
+     "bucle": true,
+     "de": 5,
+     "fps": 1,
+     "hasta": 5
+    }
+   },
+   "apoyo": [
+    18,
+    27
+   ],
+   "codigo": "biblioteca/acta-registro",
+   "cuadros": 12,
+   "estados": {
+    "disponible": 0,
+    "nueva": [
+     1,
+     4
+    ],
+    "usada": 5
+   },
+   "fps": 1,
+   "huella": {
+    "alto": 12,
+    "ancho": 28,
+    "fondo": 6
+   },
+   "nombre": "Acta de registro",
+   "reemplaza": "escenarios/comisaria/arte/herramientas/acta-registro.png",
+   "ruta": "piezas/herramientas/acta-registro.png"
+  },
+  "biblioteca/directorio-rutas": {
+   "alto": 27,
+   "ancho": 36,
+   "animaciones": {
+    "gesto": {
+     "bucle": false,
+     "de": 6,
+     "fps": 10,
+     "hasta": 11,
+     "sostener": true
+    },
+    "nueva": {
+     "bucle": true,
+     "de": 1,
+     "fps": 8,
+     "hasta": 4
+    },
+    "reposo": {
+     "bucle": true,
+     "de": 0,
+     "fps": 1,
+     "hasta": 0
+    },
+    "usada": {
+     "bucle": true,
+     "de": 5,
+     "fps": 1,
+     "hasta": 5
+    }
+   },
+   "apoyo": [
+    18,
+    27
+   ],
+   "codigo": "biblioteca/directorio-rutas",
+   "cuadros": 12,
+   "estados": {
+    "disponible": 0,
+    "nueva": [
+     1,
+     4
+    ],
+    "usada": 5
+   },
+   "fps": 1,
+   "huella": {
+    "alto": 12,
+    "ancho": 28,
+    "fondo": 6
+   },
+   "nombre": "Directorio de rutas",
+   "reemplaza": "escenarios/casa/arte/herramientas/directorio-rutas.png",
+   "ruta": "piezas/herramientas/directorio-rutas.png"
+  },
+  "biblioteca/ficha-plan-seguridad": {
+   "alto": 27,
+   "ancho": 36,
+   "animaciones": {
+    "gesto": {
+     "bucle": false,
+     "de": 6,
+     "fps": 10,
+     "hasta": 11,
+     "sostener": true
+    },
+    "nueva": {
+     "bucle": true,
+     "de": 1,
+     "fps": 8,
+     "hasta": 4
+    },
+    "reposo": {
+     "bucle": true,
+     "de": 0,
+     "fps": 1,
+     "hasta": 0
+    },
+    "usada": {
+     "bucle": true,
+     "de": 5,
+     "fps": 1,
+     "hasta": 5
+    }
+   },
+   "apoyo": [
+    18,
+    27
+   ],
+   "codigo": "biblioteca/ficha-plan-seguridad",
+   "cuadros": 12,
+   "estados": {
+    "disponible": 0,
+    "nueva": [
+     1,
+     4
+    ],
+    "usada": 5
+   },
+   "fps": 1,
+   "huella": {
+    "alto": 12,
+    "ancho": 28,
+    "fondo": 6
+   },
+   "nombre": "Ficha del plan de seguridad",
+   "reemplaza": "escenarios/casa/arte/herramientas/ficha-plan-seguridad.png",
+   "ruta": "piezas/herramientas/ficha-plan-seguridad.png"
+  },
+  "biblioteca/ficha-riesgo": {
+   "alto": 27,
+   "ancho": 36,
+   "animaciones": {
+    "gesto": {
+     "bucle": false,
+     "de": 6,
+     "fps": 10,
+     "hasta": 11,
+     "sostener": true
+    },
+    "nueva": {
+     "bucle": true,
+     "de": 1,
+     "fps": 8,
+     "hasta": 4
+    },
+    "reposo": {
+     "bucle": true,
+     "de": 0,
+     "fps": 1,
+     "hasta": 0
+    },
+    "usada": {
+     "bucle": true,
+     "de": 5,
+     "fps": 1,
+     "hasta": 5
+    }
+   },
+   "apoyo": [
+    18,
+    27
+   ],
+   "codigo": "biblioteca/ficha-riesgo",
+   "cuadros": 12,
+   "estados": {
+    "disponible": 0,
+    "nueva": [
+     1,
+     4
+    ],
+    "usada": 5
+   },
+   "fps": 1,
+   "huella": {
+    "alto": 12,
+    "ancho": 28,
+    "fondo": 6
+   },
+   "nombre": "Ficha de riesgo",
+   "reemplaza": "escenarios/casa/arte/herramientas/ficha-riesgo.png",
+   "ruta": "piezas/herramientas/ficha-riesgo.png"
+  },
+  "biblioteca/guia-primeros-auxilios": {
+   "alto": 27,
+   "ancho": 36,
+   "animaciones": {
+    "gesto": {
+     "bucle": false,
+     "de": 6,
+     "fps": 10,
+     "hasta": 11,
+     "sostener": true
+    },
+    "nueva": {
+     "bucle": true,
+     "de": 1,
+     "fps": 8,
+     "hasta": 4
+    },
+    "reposo": {
+     "bucle": true,
+     "de": 0,
+     "fps": 1,
+     "hasta": 0
+    },
+    "usada": {
+     "bucle": true,
+     "de": 5,
+     "fps": 1,
+     "hasta": 5
+    }
+   },
+   "apoyo": [
+    18,
+    27
+   ],
+   "codigo": "biblioteca/guia-primeros-auxilios",
+   "cuadros": 12,
+   "estados": {
+    "disponible": 0,
+    "nueva": [
+     1,
+     4
+    ],
+    "usada": 5
+   },
+   "fps": 1,
+   "huella": {
+    "alto": 12,
+    "ancho": 28,
+    "fondo": 6
+   },
+   "nombre": "Guía de primeros auxilios psicológicos",
+   "reemplaza": "escenarios/casa/arte/herramientas/guia-primeros-auxilios.png",
+   "ruta": "piezas/herramientas/guia-primeros-auxilios.png"
+  },
+  "biblioteca/protocolo-bienestar": {
+   "alto": 27,
+   "ancho": 36,
+   "animaciones": {
+    "gesto": {
+     "bucle": false,
+     "de": 6,
+     "fps": 10,
+     "hasta": 11,
+     "sostener": true
+    },
+    "nueva": {
+     "bucle": true,
+     "de": 1,
+     "fps": 8,
+     "hasta": 4
+    },
+    "reposo": {
+     "bucle": true,
+     "de": 0,
+     "fps": 1,
+     "hasta": 0
+    },
+    "usada": {
+     "bucle": true,
+     "de": 5,
+     "fps": 1,
+     "hasta": 5
+    }
+   },
+   "apoyo": [
+    18,
+    27
+   ],
+   "codigo": "biblioteca/protocolo-bienestar",
+   "cuadros": 12,
+   "estados": {
+    "disponible": 0,
+    "nueva": [
+     1,
+     4
+    ],
+    "usada": 5
+   },
+   "fps": 1,
+   "huella": {
+    "alto": 12,
+    "ancho": 28,
+    "fondo": 6
+   },
+   "nombre": "Protocolo de bienestar",
+   "reemplaza": "escenarios/universidad/arte/herramientas/protocolo-bienestar.png",
+   "ruta": "piezas/herramientas/protocolo-bienestar.png"
+  },
+  "biblioteca/tarjeta-contacto-bienestar": {
+   "alto": 27,
+   "ancho": 36,
+   "animaciones": {
+    "gesto": {
+     "bucle": false,
+     "de": 6,
+     "fps": 10,
+     "hasta": 11,
+     "sostener": true
+    },
+    "nueva": {
+     "bucle": true,
+     "de": 1,
+     "fps": 8,
+     "hasta": 4
+    },
+    "reposo": {
+     "bucle": true,
+     "de": 0,
+     "fps": 1,
+     "hasta": 0
+    },
+    "usada": {
+     "bucle": true,
+     "de": 5,
+     "fps": 1,
+     "hasta": 5
+    }
+   },
+   "apoyo": [
+    18,
+    27
+   ],
+   "codigo": "biblioteca/tarjeta-contacto-bienestar",
+   "cuadros": 12,
+   "estados": {
+    "disponible": 0,
+    "nueva": [
+     1,
+     4
+    ],
+    "usada": 5
+   },
+   "fps": 1,
+   "huella": {
+    "alto": 12,
+    "ancho": 28,
+    "fondo": 6
+   },
+   "nombre": "Tarjeta de contacto de bienestar",
+   "reemplaza": "escenarios/comisaria/arte/herramientas/tarjeta-contacto-bienestar.png",
+   "ruta": "piezas/herramientas/tarjeta-contacto-bienestar.png"
   }
  },
  "muebles": {

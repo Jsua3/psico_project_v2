@@ -98,8 +98,8 @@ TAPAS = {'PAP': 'tapa-pap', 'SPIKES': 'tapa-epicee', 'RISK_METER': 'tapa-riesgo'
          'REFLECTION_JOURNAL': 'tapa-bitacora'}
 
 
-def herramienta(codigo, n=0):
-    tapa = TAPAS[codigo]
+def herramienta(codigo, n=0, tapa=None):
+    tapa = tapa or TAPAS[codigo]
     L = Lienzo(36, 30, semilla=101)
     usada = n == 5
     lift = 1 if n in (2, 3) else 0
@@ -166,6 +166,33 @@ PIEZAS = {
     for codigo, nombre in HERRAMIENTAS.items()
 }
 
+
+
+# Herramientas de la biblioteca (fichas y guías de cada lugar): el mismo cuaderno, con la tapa y el contenido que les toca.
+op.material('tapa-plan', (150, 96, 70), luz=0.45)
+op.material('tapa-contacto', (86, 140, 150), luz=0.45)
+BIBLIOTECA = {
+    # id: (nombre, contenido del cuaderno, tapa, dibujo de hoy al que reemplaza)
+    'ficha-riesgo': ('Ficha de riesgo', 'RISK_METER', 'tapa-riesgo', 'escenarios/casa/arte/herramientas/ficha-riesgo.png'),
+    'directorio-rutas': ('Directorio de rutas', 'SAFETY_ROUTE', 'tapa-ruta', 'escenarios/casa/arte/herramientas/directorio-rutas.png'),
+    'guia-primeros-auxilios': ('Guía de primeros auxilios psicológicos', 'PAP', 'tapa-pap',
+                               'escenarios/casa/arte/herramientas/guia-primeros-auxilios.png'),
+    'protocolo-bienestar': ('Protocolo de bienestar', 'SPIKES', 'tapa-epicee', 'escenarios/universidad/arte/herramientas/protocolo-bienestar.png'),
+    'ficha-plan-seguridad': ('Ficha del plan de seguridad', 'SAFETY_ROUTE', 'tapa-plan',
+                             'escenarios/casa/arte/herramientas/ficha-plan-seguridad.png'),
+    'tarjeta-contacto-bienestar': ('Tarjeta de contacto de bienestar', 'PAP', 'tapa-contacto',
+                                   'escenarios/comisaria/arte/herramientas/tarjeta-contacto-bienestar.png'),
+    'acta-registro': ('Acta de registro', 'REFLECTION_JOURNAL', 'tapa-bitacora', 'escenarios/comisaria/arte/herramientas/acta-registro.png'),
+}
+
+
+def _dibujar_biblioteca(contenido, tapa):
+    return lambda n=0: herramienta(contenido, n, tapa=tapa)
+
+
+for _id, (_nombre, _base, _tapa, _viejo) in BIBLIOTECA.items():
+    PIEZAS[_id] = dict(PIEZAS[_base.lower().replace('_', '-')], nombre=_nombre, codigo='biblioteca/' + _id,
+                       dibujar=_dibujar_biblioteca(_base, _tapa), reemplaza=_viejo)
 
 if __name__ == '__main__':
     import objetos_hoja
