@@ -97,7 +97,9 @@ for (const tamano of TAMANOS) {
         // 3. La reacción de Laura y la nota de supervisión.
         await chooseDecision(page, /laura/i, /escuchar a laura/i);
         await expect(page.locator('app-reaction-director .reaction-strip')).toBeVisible({ timeout: scaled(5_000) });
-        await page.waitForTimeout(400);
+        // La frase llega después del encuadre y del gesto (caso/reaccion.ts): se espera a verla.
+        await expect(page.locator('app-reaction-director .reaction-line')).toBeVisible({ timeout: scaled(5_000) });
+        await page.waitForTimeout(300);
         await foto(page, `${tamano.nombre}-4-reaccion`);
         await expect(page.getByRole('dialog', { name: /consecuencia/i })).toBeVisible({ timeout: scaled(30_000) });
         await page.waitForTimeout(1_200);

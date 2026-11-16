@@ -82,13 +82,13 @@ export type FinReaccion = 'completa' | 'saltada' | 'cancelada';
     }
     .reaction-portrait {
       align-self: end; margin-top: calc(-14 * var(--px)); line-height: 0;
-      border-image: var(--marco-ficha) 4 / calc(4 * var(--px)) stretch; background-color: #262238;
+      border-image: var(--marco-ficha) 4 / calc(4 * var(--px)) stretch; background-color: #6c6589;
     }
     .reaction-face { flex: none; }
     .reaction-text { min-width: 0; display: flex; flex-direction: column; justify-content: space-between; gap: calc(3 * var(--px)); padding-top: var(--px); }
     .reaction-line { margin: 0; overflow-wrap: break-word; }
     .reaction-line .acot { font-style: italic; color: #c3bccf; }
-    .reaction-hint { align-self: flex-end; font-size: .82em; color: #c3bccf; }
+    .reaction-hint { align-self: flex-end; margin-top: auto; font-size: .82em; color: #c3bccf; }
   `],
 })
 export class ReactionDirectorComponent implements OnDestroy {
