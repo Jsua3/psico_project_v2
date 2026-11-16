@@ -1,4 +1,4 @@
-import { ChangeDetectionStrategy, Component, ElementRef, Injector, afterNextRender, computed, inject, input, linkedSignal, signal } from '@angular/core';
+import { ChangeDetectionStrategy, Component, ElementRef, Injector, afterNextRender, computed, inject, input, linkedSignal } from '@angular/core';
 import { RouterLink } from '@angular/router';
 
 import { GESTOS, type Gesto } from '../../../../core/models/simulation.model';
