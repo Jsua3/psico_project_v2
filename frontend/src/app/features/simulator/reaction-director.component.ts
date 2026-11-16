@@ -88,7 +88,7 @@ export type FinReaccion = 'completa' | 'saltada' | 'cancelada';
     .reaction-text { min-width: 0; display: flex; flex-direction: column; justify-content: space-between; gap: calc(3 * var(--px)); padding-top: var(--px); }
     .reaction-line { margin: 0; overflow-wrap: break-word; }
     .reaction-line .acot { font-style: italic; color: #c3bccf; }
-    .reaction-hint { align-self: flex-end; font-size: .82em; color: #c3bccf; }
+    .reaction-hint { align-self: flex-end; margin-top: auto; font-size: .82em; color: #c3bccf; }
   `],
 })
 export class ReactionDirectorComponent implements OnDestroy {
