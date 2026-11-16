@@ -280,3 +280,40 @@ test('@demo-k1 @demo-piezas SIM-VBG-002: entrar, caminar, hablar y jugar los tre
   await page.waitForTimeout(3_000);
   await captura('23-final.png');
 });
+
+test.describe('a 1920 × 1080', () => {
+  test.use({ viewport: { width: 1920, height: 1080 } });
+
+  // La pantalla donde se vio el cuadro desbordado: la abuela habla en la sala de espera y se abre la decisión 2, la de
+  // la herramienta y tres opciones (la más larga del capítulo 1). Tres capturas: habla, se abre, entera.
+  test('@demo-arreglo-1920 SIM-VBG-002: la decisión con herramienta de la abuela cabe entera', async ({ page }) => {
+    test.setTimeout(scaled(300_000));
+    mkdirSync(CAPTURAS, { recursive: true });
+    const captura = (nombre: string) => page.screenshot({ path: join(CAPTURAS, nombre) });
+    await entrarAlCaso(page);
+    const input = createWorldInputDriver(page, 'keyboard');
+
+    // Decisión 1 (entrada), lo más corto posible, para llegar a la sala de espera.
+    await caminarHasta(page, input, 300, 320, /vigilante/i);
+    await interactNearby(page, /vigilante/i, /\/interactions\/vigilante$/);
+    await advanceDialogueToChoices(page, /vigilante/i);
+    await chooseDecision(page, /vigilante/i, /mirar primero/i);
+    await cerrarNotaYEsperar(page, /Entiende qué está viviendo la familia/);
+
+    await caminarHasta(page, input, 640, 330, /abuela/i);
+    await interactNearby(page, /abuela/i, /\/interactions\/abuela$/);
+    const dialogo = page.getByRole('dialog', { name: /abuela/i });
+    await expect(dialogo, 'la abuela habla').toBeVisible({ timeout: scaled(15_000) });
+    await page.waitForTimeout(1_200);
+    await captura('24-arreglo-1-la-abuela-habla.png');
+
+    await advanceDialogueToChoices(page, /abuela/i);
+    await page.waitForTimeout(250);
+    await captura('24-arreglo-2-se-abre-la-decision.png');
+
+    await expect(dialogo.getByRole('button', { name: /contención emocional/i }), 'la opción adecuada de la decisión 2')
+      .toBeVisible({ timeout: scaled(10_000) });
+    await page.waitForTimeout(1_500);
+    await captura('24-arreglo-3-decision-entera.png');
+  });
+});
