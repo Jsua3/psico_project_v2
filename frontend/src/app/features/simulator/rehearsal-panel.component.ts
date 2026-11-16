@@ -152,9 +152,9 @@ const SECCION_DE: Record<CampoError, string> = { irA: 'escena', explorado: 'expl
     h2 { margin: 12px 0 4px; font-size: .95rem; color: inherit; } h3 { margin: 8px 0 2px; font-size: .85rem; color: inherit; }
     /* Objetivos de al menos 24 px (WCAG 2.5.8): cada casilla con su texto y cada selector. */
     label { display: inline-flex; align-items: center; gap: 6px; min-block-size: 24px; }
-    select { min-block-size: 28px; }
-    /* Con dedo (puntero grueso) los objetivos son de 44 px, como en el resto del juego. */
-    @media (pointer: coarse) { button, select, label, a { min-block-size: 44px; } }
+    /* Botones, selectores y enlaces de 44 px, como en el resto del juego (también con dedo); las casillas, 44 px con dedo. */
+    button, select, a { min-block-size: 44px; }
+    @media (pointer: coarse) { label { min-block-size: 44px; } }
     .rp__list { list-style: none; margin: 0; padding: 0; } .rp__list li { padding: 2px 0; }
     .rp__item, .rp__note { margin: 4px 0; font-size: .85rem; } .rp__note { color: var(--ds-text-2, rgba(244,247,251,.8)); }
     .rp__error { margin: 4px 0; font-size: .85rem; color: var(--ds-danger-text, #ffb4b4); }
