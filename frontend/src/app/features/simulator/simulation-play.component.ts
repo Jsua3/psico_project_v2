@@ -2078,11 +2078,13 @@ export class SimulationPlayComponent implements OnInit, OnDestroy {
     const host = this.canvasZone()?.nativeElement;
     if (!host || typeof document === 'undefined') return 0;
     // Lo que tapa abajo: el cuadro de diálogo y, durante la reacción, la franja con lo que dice quien reacciona.
+    // La franja de la reacción vive en el DOM aunque no se vea: solo cuenta durante la reacción y si tiene tamaño.
     const cuadros = [
       mode === 'dialogue-cinematic' ? document.querySelector('app-dialogue-panel.dialogue-cinematic') : null,
-      document.querySelector('app-reaction-director .reaction-strip'),
+      this.reacting() ? document.querySelector('app-reaction-director .reaction-strip') : null,
     ];
-    const arriba = Math.min(...cuadros.map(c => c?.getBoundingClientRect().top ?? Infinity));
+    const visibles = cuadros.map(c => c?.getBoundingClientRect()).filter(r => !!r && r.height > 0 && r.width > 0);
+    const arriba = Math.min(...visibles.map(r => r!.top));
     return Number.isFinite(arriba) ? Math.max(0, Math.round(host.getBoundingClientRect().bottom - arriba)) : 0;
   }
 

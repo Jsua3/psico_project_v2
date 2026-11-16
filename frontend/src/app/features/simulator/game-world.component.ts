@@ -90,7 +90,7 @@ import { heldInput } from './touch-hold.util';
 import { attachScrollKeyGuard, isScrollRegionTarget, isShortcutContext, isTextEntryTarget, resolveInteractPress } from './keyboard-focus.util';
 import { isCriticalAsset } from './asset-criticality.util';
 import {
-  EstadoCamara, Momento, avanzarCamara, comoDibujar, duracionDeViaje, enViaje, esperaDelGeneral, objetivoCamara,
+  EstadoCamara, Momento, avanzarCamara, comoDibujar, duracionDeViaje, enViajeDentro, esperaDelGeneral, objetivoCamara,
 } from './camara/camara';
 import { fitGameToHost, pixelScaleConfig, watchHostSize } from './pixel-canvas';
 import { PixelRender } from './pixel-render';
@@ -1139,13 +1139,15 @@ export class DataDrivenWorldScene extends Phaser.Scene {
     if (this.camEntrada && this.motionPaused) this.camEntrada.hasta += Math.max(0, delta);
     const dpr = typeof window !== 'undefined' ? window.devicePixelRatio || 1 : 1;
     const momento = this.cameraMomentNow(ahora);
+    const sala = { ancho: this.roomSize.width, alto: this.roomSize.height };
+    const vista = {
+      ancho: cam.width, alto: cam.height, dpr,
+      cubiertoAbajo: this.camCoveredCss * dpr, cubiertoArriba: this.camCoveredTopCss * dpr,
+    };
     const calculado = objetivoCamara({
       jugador: { x: this.player.x, y: this.player.y },
-      sala: { ancho: this.roomSize.width, alto: this.roomSize.height },
-      vista: {
-        ancho: cam.width, alto: cam.height, dpr,
-        cubiertoAbajo: this.camCoveredCss * dpr, cubiertoArriba: this.camCoveredTopCss * dpr,
-      },
+      sala,
+      vista,
       momento,
       cercana: this.camOptions.cercana,
       acercarAuto: this.camOptions.acercarAuto,
@@ -1166,7 +1168,7 @@ export class DataDrivenWorldScene extends Phaser.Scene {
       }
       if (this.camTravel) {
         const t = (ahora - this.camTravel.inicio) / this.camTravel.dur;
-        next = enViaje(this.camTravel.desde, objetivo, t);
+        next = enViajeDentro(this.camTravel.desde, objetivo, t, vista, sala);
         if (t >= 1) this.camTravel = null;
       } else {
         next = avanzarCamara(this.camState, objetivo, delta, false);

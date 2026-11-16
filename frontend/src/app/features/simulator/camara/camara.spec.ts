@@ -1,6 +1,6 @@
 import {
   EntradaCamara, EstadoCamara, Momento, Vista,
-  asentada, avanzarCamara, comoDibujar, duracionDeViaje, enViaje, esperaDelGeneral, objetivoCamara, suavizar,
+  asentada, avanzarCamara, comoDibujar, duracionDeViaje, enViaje, enViajeDentro, esperaDelGeneral, objetivoCamara, suavizar,
   zoomCaminar, zoomCercano, zoomGeneral,
 } from './camara';
 
@@ -137,6 +137,19 @@ describe('camara: viajes entre planos', () => {
     const medio = enViaje(desde, hacia, 0.5);
     expect(medio.centro).toEqual({ x: 50, y: 20 });
     expect(medio.zoom).toBeCloseTo(2, 10);
+  });
+
+  it('a mitad del viaje no asoma el vacío bajo la sala', () => {
+    // Del plano general (×1, la sala entera centrada) al de caminar (×2, abajo en la sala), en el lienzo de 1340×640.
+    const general = objetivoCamara(entrada({ momento: { tipo: 'general' }, jugador: { x: 600, y: 440 } }), null);
+    const caminar = objetivoCamara(entrada({ jugador: { x: 600, y: 440 } }), null);
+    const borde = (s: EstadoCamara) => s.centro.y + 640 / (2 * s.zoom);
+    const limite = Math.max(528, borde(general), borde(caminar));
+    for (let t = 0.05; t < 1; t += 0.05) {
+      const s = enViajeDentro(general, caminar, t, PORTATIL, SALA);
+      expect(borde(s)).toBeLessThanOrEqual(limite + 1e-6);
+    }
+    expect(enViajeDentro(general, caminar, 1, PORTATIL, SALA)).toEqual(caminar);
   });
 
   it('el viaje termina en el objetivo exacto: zoom entero', () => {
