@@ -224,7 +224,7 @@ const STALE_NOTE = 'Esta conversación corresponde a otro momento del caso.';
     @media (min-width: 1800px) { .dialogue-strip { --px: 3px; --tam: 20px; --retrato: 288px; } }
 
     /* Marco de pixel art: borde de 4 px de mundo por lado y relleno con trama, sin esquinas suavizadas. */
-    .placa-cuerpo, .speaker-name, .panel-back, .panel-head__note, .panel-head__aviso, .choice-btn, .stale-note, .choices-notice, .keyboard-hint, .portrait {
+    .placa-cuerpo, .speaker-name, .panel-back, .panel-head__note, .panel-head__aviso, .choice-btn, .stale-note, .choices-notice, .keyboard-hint, .strip-body[data-mas]::after, .portrait {
       border-style: solid;
       border-width: calc(4 * var(--px));
       border-image: var(--m) 4 / calc(4 * var(--px)) stretch;
@@ -252,7 +252,8 @@ const STALE_NOTE = 'Esta conversación corresponde a otro momento del caso.';
     /* Alto acotado y conocido sobre el mundo: el cuadro (placa, fichas, aviso, pista y botones) no pasa de --dialogo-alto-max;
        lo que no quepa se desplaza dentro. La pantalla lee el alto real en data-alto-ocupado (cámara de M1). */
     .dialogue-strip:not(.dialogue-strip--side) { --dialogo-alto-max: min(340px, 46vh); max-height: var(--dialogo-alto-max); }
-    @media (min-width: 1800px) { .dialogue-strip:not(.dialogue-strip--side) { --dialogo-alto-max: min(480px, 46vh); } }
+    /* Desde 1800 px de ancho hay sitio para dos filas de fichas con su texto más largo: el tope sube a 560 px (52 %). */
+    @media (min-width: 1800px) { .dialogue-strip:not(.dialogue-strip--side) { --dialogo-alto-max: min(560px, 52vh); } }
     /* Sobre el mundo, el cuadro incluye el retrato que asoma: el borde superior de app-dialogue-panel es lo que tapa. */
     .dialogue-strip:not(.dialogue-strip--side) { padding-top: calc(16 * var(--px)); }
     /* Sobre el mundo y con opciones, el cuadro es una banda de alto fijo que nunca se desplaza entera (así cortaba el
@@ -270,6 +271,11 @@ const STALE_NOTE = 'Esta conversación corresponde a otro momento del caso.';
       row-gap: calc(4 * var(--px));
       padding-top: calc(4 * var(--px));
       overflow: clip;
+    }
+    /* Donde se puede, la banda toma solo el alto que necesita, hasta el tope: una decisión corta tapa menos mundo (la
+       cámara lee el alto en data-alto-ocupado). Sin calc-size, el alto fijo de arriba. */
+    @supports (height: calc-size(max-content, size)) {
+      .dialogue-strip:not(.dialogue-strip--side).strip--con-opciones { height: calc-size(max-content, min(size, var(--dialogo-alto-max))); }
     }
     .dialogue-strip:not(.dialogue-strip--side).strip--con-opciones .strip-main { display: contents; }
     .dialogue-strip:not(.dialogue-strip--side).strip--con-opciones .placa { grid-column: 1; grid-row: 1 / -1; align-self: end; min-width: 0; }
@@ -303,6 +309,16 @@ const STALE_NOTE = 'Esta conversación corresponde a otro momento del caso.';
        y «Esc» en «Volver al mapa». */
     @media (max-height: 900px), (max-width: 560px) {
       .dialogue-strip:not(.dialogue-strip--side).strip--con-opciones .strip-body > .keyboard-hint:last-child { display: none; }
+    }
+    /* Si la lista se acota, bajo ella se dice qué fichas quedan abajo (el panel pone data-mas al acotarla). */
+    .dialogue-strip:not(.dialogue-strip--side).strip--con-opciones .strip-body[data-mas]::after {
+      content: '▼ ' attr(data-mas);
+      display: block;
+      grid-row: 4;
+      grid-column: 1 / -1;
+      justify-self: start;
+      color: #ffcd82;
+      font-family: var(--f-nombre);
     }
 
     /* Cabecera fija del panel: «Volver al mapa» y «Salida segura» siempre a mano. */
@@ -704,7 +720,7 @@ const STALE_NOTE = 'Esta conversación corresponde a otro momento del caso.';
       line-height: 1.45;
     }
     /* La pista de teclado solo existe donde hay teclado y puntero fino. */
-    .keyboard-hint { display: none; --m: var(--marco-placa); --t: var(--trama-placa); align-self: flex-start; margin: 0; padding: 0 8px 1px; font-size: .78em; color: #c3bccf; }
+    .strip-body[data-mas]::after, .keyboard-hint { display: none; --m: var(--marco-placa); --t: var(--trama-placa); align-self: flex-start; margin: 0; padding: 0 8px 1px; font-size: .78em; color: #c3bccf; }
     @media (hover: hover) and (pointer: fine) {
       .keyboard-hint { display: block; }
     }
@@ -759,6 +775,9 @@ const STALE_NOTE = 'Esta conversación corresponde a otro momento del caso.';
       /* Con opciones, una sola columna: la cabecera, la placa y debajo las fichas, que se desplazan dentro del cuadro. */
       /* El alto del teléfono es justo: margen de abajo y separaciones al mínimo y letra de 16 px, para que A y B quepan. */
       .dialogue-strip:not(.dialogue-strip--side).strip--con-opciones {
+        /* Hasta el 68 % del alto (no el 64 %): con la señal de «más abajo», A y B tienen que seguir cabiendo. */
+        --dialogo-alto-max: 68vh;
+        max-height: 68vh;
         --tam: 16px;
         grid-template-columns: minmax(0, 1fr);
         grid-template-rows: minmax(0, 1fr) auto auto minmax(0, auto);
@@ -882,6 +901,11 @@ export class DialoguePanelComponent implements AfterViewChecked, OnDestroy {
   private choicesShownAt = 0;
   /** La vista ya se asentó para la línea en curso (ancla abajo o opciones reveladas, una sola vez). */
   private settled = false;
+  /** El aviso breve con el que se acotó la lista de fichas por última vez (si cambia, se vuelve a acotar). */
+  private avisoAcotado = '';
+  /** Observa la banda sobre el mundo para volver a acotar la lista de fichas cuando cambia de alto. */
+  private observadorBanda: ResizeObserver | null = null;
+  private bandaObservada: HTMLElement | null = null;
   private focusRenderRef: AfterRenderRef | null = null;
   private readonly audio = inject(AudioDirectorService);
   private readonly kit = inject(KitService);
@@ -1130,11 +1154,23 @@ export class DialoguePanelComponent implements AfterViewChecked, OnDestroy {
     if (!this.isTypingComplete()) {
       // Solo mientras se escribe se ancla abajo, para que la línea nueva no se salga de la vista.
       strip.scrollTop = strip.scrollHeight;
+      const cuerpo = strip.querySelector<HTMLElement>('.strip-body');
+      if (cuerpo && !this.choicesVisible()) delete cuerpo.dataset['mas'];
       this.settled = false;
       return;
     }
-    if (this.settled) return;
+    if (this.settled) {
+      // El aviso breve entra y sale con las fichas a la vista: cambia el sitio de la lista y se vuelve a acotar.
+      const aviso = this.avisoBreve();
+      if (aviso !== this.avisoAcotado) {
+        this.avisoAcotado = aviso;
+        const lista = strip.classList.contains('dialogue-strip--side') ? null : strip.querySelector<HTMLElement>('.choices');
+        if (lista) this.ajustarAFilasEnteras(lista);
+      }
+      return;
+    }
     this.settled = true;
+    this.avisoAcotado = this.avisoBreve();
     // Al terminar la línea: las opciones se revelan una sola vez y el resto del tiempo el
     // estudiante manda sobre el scroll; sin opciones se deja a la vista el botón de avance.
     if (this.choicesVisible()) this.revealChoices(strip);
@@ -1146,12 +1182,71 @@ export class DialoguePanelComponent implements AfterViewChecked, OnDestroy {
    * cabecera fija se desplaza lo mínimo; si no, se alinea su inicio para que se vean la 1 y la 2
    * (y no el final de la lista) en pantallas bajas (TOUCH-01).
    */
+  /**
+   * Sobre el mundo, si las fichas no caben, la lista se acota a filas enteras: la última fila que se ve sale entera, nunca a
+   * medias, y la pista de teclado queda justo debajo. Con alturas de maqueta (offset*), no las de pantalla: la entrada
+   * escalonada de las fichas las mueve unos puntos. Si todo cabe, la lista no lleva tope.
+   */
+  private ajustarAFilasEnteras(lista: HTMLElement): void {
+    const cuerpo = lista.parentElement;
+    lista.style.maxHeight = '';
+    if (cuerpo) delete cuerpo.dataset['mas'];
+    // Con medidas de maqueta: scrollHeight cuenta el desplazamiento de la entrada escalonada y daba por desbordada una
+    // lista que cabe.
+    const pie = parseFloat(getComputedStyle(lista).paddingBottom) || 0;
+    const fichas = Array.from(lista.querySelectorAll<HTMLElement>('.choice-btn'));
+    const fondoDe = (ficha: HTMLElement) => ficha.offsetTop + ficha.offsetHeight - lista.offsetTop - lista.clientTop;
+    if (!lista.clientHeight || !fichas.length || Math.max(...fichas.map(fondoDe)) + pie <= lista.clientHeight + 0.5) return;
+    // Las fichas que quedan abajo se anuncian bajo la lista («▼ Más abajo: C y D»): la señal toma su renglón antes de
+    // medir cuántas filas caben enteras.
+    if (cuerpo) cuerpo.dataset['mas'] = 'Más abajo';
+    const alto = lista.clientHeight;
+    const fondos = fichas.map(fondoDe);
+    const corte = Math.max(0, ...fondos.filter(fondo => fondo + pie <= alto + 0.5));
+    if (corte > 0) lista.style.maxHeight = `${Math.ceil(corte + pie)}px`;
+    const abajo = fondos.map((fondo, i) => (fondo > corte + 0.5 ? this.letra(i) : '')).filter(Boolean);
+    if (cuerpo && abajo.length) {
+      cuerpo.dataset['mas'] = `Más abajo: ${abajo.length > 1 ? `${abajo.slice(0, -1).join(', ')} y ${abajo[abajo.length - 1]}` : abajo[0]}`;
+    }
+  }
+
+  /**
+   * La banda cambia de alto cuando cambian el aviso, la pista o la ventana: entonces se vuelve a acotar la lista, un
+   * cuadro después (acotarla también cambia el alto; en el mismo cuadro, el observador avisaría en bucle).
+   */
+  private observarBanda(strip: HTMLElement): void {
+    if (this.bandaObservada === strip || typeof ResizeObserver === 'undefined') return;
+    this.observadorBanda?.disconnect();
+    this.bandaObservada = strip;
+    let pendiente = 0;
+    this.observadorBanda = new ResizeObserver(() => {
+      cancelAnimationFrame(pendiente);
+      pendiente = requestAnimationFrame(() => {
+        const lista = strip.isConnected ? strip.querySelector<HTMLElement>('.choices') : null;
+        if (lista) this.ajustarAFilasEnteras(lista);
+      });
+    });
+    this.observadorBanda.observe(strip);
+    const cuerpo = strip.querySelector('.strip-body');
+    if (cuerpo) this.observadorBanda.observe(cuerpo);
+  }
+
+  /** Al cambiar el tamaño de la ventana, la lista vuelve a acotarse a las filas que caben enteras. */
+  @HostListener('window:resize')
+  alCambiarTamano(): void {
+    const strip = this.host.nativeElement.querySelector<HTMLElement>('.dialogue-strip:not(.dialogue-strip--side)');
+    const lista = strip?.querySelector<HTMLElement>('.choices');
+    if (lista) this.ajustarAFilasEnteras(lista);
+  }
+
   private revealChoices(strip: HTMLElement): void {
     const choices = strip.querySelector<HTMLElement>('.choices');
     if (!choices) return;
     // Sobre el mundo el cuadro no se desplaza: la lista de fichas es la que se desplaza y empieza arriba (A y B a la vista).
     if (!strip.classList.contains('dialogue-strip--side')) {
       choices.scrollTop = 0;
+      this.ajustarAFilasEnteras(choices);
+      this.observarBanda(strip);
       return;
     }
     if (typeof choices.scrollIntoView !== 'function') return;
@@ -1182,6 +1277,7 @@ export class DialoguePanelComponent implements AfterViewChecked, OnDestroy {
   }
 
   ngOnDestroy() {
+    this.observadorBanda?.disconnect();
     this.stopTypewriter();
     if (this.confirmHandle !== null) clearTimeout(this.confirmHandle);
     this.focusRenderRef?.destroy();
