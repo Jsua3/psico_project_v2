@@ -677,11 +677,18 @@ const STALE_NOTE = 'Esta conversación corresponde a otro momento del caso.';
       .dialogue-text { min-height: 0; }
       .choice-btn { min-height: 44px; }
     }
+    /* Teléfono: la escena sigue a la vista. El cuadro toma como mucho el 64 % del alto, el retrato baja a 64 px (2 x 32,
+       entero para el kit) y todo va en una columna; si las opciones no caben, se desplaza el cuadro, no la página. */
     @media (max-width: 560px) {
-      .dialogue-strip { --retrato: 96px; padding-left: calc(4 * var(--px)); padding-right: calc(4 * var(--px)); }
-      .strip-main { grid-template-columns: minmax(0, 1fr); }
-      .choices { grid-template-columns: minmax(0, 1fr); grid-auto-rows: auto; }
+      .dialogue-strip { --retrato: 64px; max-height: 64vh; padding-left: calc(4 * var(--px)); padding-right: calc(4 * var(--px)); }
+      .dialogue-strip:not(.dialogue-strip--side) { padding-top: calc(10 * var(--px)); }
+      .portrait { margin-top: calc(-8 * var(--px)); }
+      .strip-main { grid-template-columns: minmax(0, 1fr); gap: calc(4 * var(--px)); }
+      .choices { grid-template-columns: minmax(0, 1fr); grid-auto-rows: auto; gap: calc(3 * var(--px)); }
       .speaker-name { margin-left: calc(var(--retrato) + 14 * var(--px)); }
+      .dialogue-text { min-height: 2.9em; }
+      .dialogue-strip:not(.dialogue-strip--side).strip--con-opciones .panel-head { margin-left: 0; }
+      .dialogue-strip:not(.dialogue-strip--side).strip--con-opciones .panel-head__note { display: none; }
     }
     .strip--quieto, .strip--quieto .portrait-img, .strip--quieto .pulso, .strip--quieto .choice-btn, .strip--quieto .choice-btn--chosen { animation: none; }
     .strip--quieto .choice-btn:active { transform: none; }

@@ -1151,10 +1151,11 @@ describe('DialoguePanelComponent - scroll, hoja y retrato (T4.4)', () => {
 
   // Bloque I1: el retrato mide siempre un múltiplo de 96 (y de 32): sirve igual para el retrato del kit (32 px) y para
   // uno fino de 96 px, sin escalar a un factor no entero. En pantallas bajas ya no baja a 64 px (no es múltiplo de 96).
-  it('el retrato mide 96, 192 o 288 px según el espacio, y el panel lateral es lo único que se desplaza', () => {
+  it('el retrato mide 64, 96, 192 o 288 px según el espacio (múltiplos de 32), y el panel lateral es lo único que se desplaza', () => {
     const tamanos = [...source.matchAll(/--retrato: (\d+)px/g)].map(m => Number(m[1]));
     expect(tamanos.length).toBeGreaterThan(3);
-    for (const t of tamanos) expect(t % 96, `${t} px`).toBe(0);
+    // Desde que se retiró el retrato de 96 px (decisión del usuario), basta con múltiplos de 32: el retrato del kit queda entero.
+    for (const t of tamanos) expect(t % 32, `${t} px`).toBe(0);
     expect(source).toMatch(/\.dialogue-strip--side \{\s*--retrato: 96px;/);
     const compact = mediaBlocks(source, '(max-height: 520px)');
     expect(compact.length).toBeGreaterThan(0);
