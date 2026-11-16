@@ -139,6 +139,11 @@ def test_catalogo_en_formato_de_p1():
                 r = e['resplandor']
                 assert imagenes[r['ruta']].size == (r['ancho'] * 3, r['alto'])
                 assert len(r['parpadeo']) == e['cuadros'] and max(r['parpadeo']) <= 3
+    for clave, e in secciones['herramientas'].items():                     # iconos de la barra: 20 y 40 px, 6 cuadros
+        ic = e['icono']
+        assert imagenes[ic['ruta']].size == (20 * 6, 20), clave
+        assert imagenes[ic['ruta2x']].size == (40 * 6, 40), clave
+        assert op.colores(imagenes[ic['ruta']]) <= op.MAX_COLORES, clave
     assert cat.verificar() == [], 'correr python tools/escenarios/objetos_catalogo.py'
 
 

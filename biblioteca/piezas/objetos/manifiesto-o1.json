@@ -52,6 +52,21 @@
     "ancho": 28,
     "fondo": 6
    },
+   "icono": {
+    "alto": 20,
+    "ancho": 20,
+    "cuadros": 6,
+    "estados": {
+     "disponible": 0,
+     "nueva": [
+      1,
+      4
+     ],
+     "usada": 5
+    },
+    "ruta": "piezas/herramientas/iconos/pap-20.png",
+    "ruta2x": "piezas/herramientas/iconos/pap-40.png"
+   },
    "nombre": "Primeros Auxilios Psicológicos",
    "reemplaza": "../frontend/src/assets/game/objects/tool_pap.png",
    "ruta": "piezas/herramientas/pap.png"
@@ -105,6 +120,21 @@
     "alto": 12,
     "ancho": 28,
     "fondo": 6
+   },
+   "icono": {
+    "alto": 20,
+    "ancho": 20,
+    "cuadros": 6,
+    "estados": {
+     "disponible": 0,
+     "nueva": [
+      1,
+      4
+     ],
+     "usada": 5
+    },
+    "ruta": "piezas/herramientas/iconos/reflection-journal-20.png",
+    "ruta2x": "piezas/herramientas/iconos/reflection-journal-40.png"
    },
    "nombre": "Bitácora reflexiva",
    "reemplaza": "../frontend/src/assets/game/objects/tool_reflection_journal.png",
@@ -160,6 +190,21 @@
     "ancho": 28,
     "fondo": 6
    },
+   "icono": {
+    "alto": 20,
+    "ancho": 20,
+    "cuadros": 6,
+    "estados": {
+     "disponible": 0,
+     "nueva": [
+      1,
+      4
+     ],
+     "usada": 5
+    },
+    "ruta": "piezas/herramientas/iconos/risk-meter-20.png",
+    "ruta2x": "piezas/herramientas/iconos/risk-meter-40.png"
+   },
    "nombre": "Valoración de riesgo",
    "reemplaza": "../frontend/src/assets/game/objects/tool_risk_meter.png",
    "ruta": "piezas/herramientas/risk-meter.png"
@@ -213,6 +258,21 @@
     "alto": 12,
     "ancho": 28,
     "fondo": 6
+   },
+   "icono": {
+    "alto": 20,
+    "ancho": 20,
+    "cuadros": 6,
+    "estados": {
+     "disponible": 0,
+     "nueva": [
+      1,
+      4
+     ],
+     "usada": 5
+    },
+    "ruta": "piezas/herramientas/iconos/safety-route-20.png",
+    "ruta2x": "piezas/herramientas/iconos/safety-route-40.png"
    },
    "nombre": "Ruta de protección",
    "reemplaza": "../frontend/src/assets/game/objects/tool_safety_route.png",
@@ -268,6 +328,21 @@
     "ancho": 28,
     "fondo": 6
    },
+   "icono": {
+    "alto": 20,
+    "ancho": 20,
+    "cuadros": 6,
+    "estados": {
+     "disponible": 0,
+     "nueva": [
+      1,
+      4
+     ],
+     "usada": 5
+    },
+    "ruta": "piezas/herramientas/iconos/spikes-20.png",
+    "ruta2x": "piezas/herramientas/iconos/spikes-40.png"
+   },
    "nombre": "Protocolo EPICEE/SPIKES",
    "reemplaza": "../frontend/src/assets/game/objects/tool_spikes.png",
    "ruta": "piezas/herramientas/spikes.png"
@@ -321,6 +396,21 @@
     "alto": 12,
     "ancho": 28,
     "fondo": 6
+   },
+   "icono": {
+    "alto": 20,
+    "ancho": 20,
+    "cuadros": 6,
+    "estados": {
+     "disponible": 0,
+     "nueva": [
+      1,
+      4
+     ],
+     "usada": 5
+    },
+    "ruta": "piezas/herramientas/iconos/acta-registro-20.png",
+    "ruta2x": "piezas/herramientas/iconos/acta-registro-40.png"
    },
    "nombre": "Acta de registro",
    "reemplaza": "escenarios/comisaria/arte/herramientas/acta-registro.png",
@@ -376,6 +466,21 @@
     "ancho": 28,
     "fondo": 6
    },
+   "icono": {
+    "alto": 20,
+    "ancho": 20,
+    "cuadros": 6,
+    "estados": {
+     "disponible": 0,
+     "nueva": [
+      1,
+      4
+     ],
+     "usada": 5
+    },
+    "ruta": "piezas/herramientas/iconos/directorio-rutas-20.png",
+    "ruta2x": "piezas/herramientas/iconos/directorio-rutas-40.png"
+   },
    "nombre": "Directorio de rutas",
    "reemplaza": "escenarios/casa/arte/herramientas/directorio-rutas.png",
    "ruta": "piezas/herramientas/directorio-rutas.png"
@@ -429,6 +534,21 @@
     "alto": 12,
     "ancho": 28,
     "fondo": 6
+   },
+   "icono": {
+    "alto": 20,
+    "ancho": 20,
+    "cuadros": 6,
+    "estados": {
+     "disponible": 0,
+     "nueva": [
+      1,
+      4
+     ],
+     "usada": 5
+    },
+    "ruta": "piezas/herramientas/iconos/ficha-plan-seguridad-20.png",
+    "ruta2x": "piezas/herramientas/iconos/ficha-plan-seguridad-40.png"
    },
    "nombre": "Ficha del plan de seguridad",
    "reemplaza": "escenarios/casa/arte/herramientas/ficha-plan-seguridad.png",
@@ -484,6 +604,21 @@
     "ancho": 28,
     "fondo": 6
    },
+   "icono": {
+    "alto": 20,
+    "ancho": 20,
+    "cuadros": 6,
+    "estados": {
+     "disponible": 0,
+     "nueva": [
+      1,
+      4
+     ],
+     "usada": 5
+    },
+    "ruta": "piezas/herramientas/iconos/ficha-riesgo-20.png",
+    "ruta2x": "piezas/herramientas/iconos/ficha-riesgo-40.png"
+   },
    "nombre": "Ficha de riesgo",
    "reemplaza": "escenarios/casa/arte/herramientas/ficha-riesgo.png",
    "ruta": "piezas/herramientas/ficha-riesgo.png"
@@ -537,6 +672,21 @@
     "alto": 12,
     "ancho": 28,
     "fondo": 6
+   },
+   "icono": {
+    "alto": 20,
+    "ancho": 20,
+    "cuadros": 6,
+    "estados": {
+     "disponible": 0,
+     "nueva": [
+      1,
+      4
+     ],
+     "usada": 5
+    },
+    "ruta": "piezas/herramientas/iconos/guia-primeros-auxilios-20.png",
+    "ruta2x": "piezas/herramientas/iconos/guia-primeros-auxilios-40.png"
    },
    "nombre": "Guía de primeros auxilios psicológicos",
    "reemplaza": "escenarios/casa/arte/herramientas/guia-primeros-auxilios.png",
@@ -592,6 +742,21 @@
     "ancho": 28,
     "fondo": 6
    },
+   "icono": {
+    "alto": 20,
+    "ancho": 20,
+    "cuadros": 6,
+    "estados": {
+     "disponible": 0,
+     "nueva": [
+      1,
+      4
+     ],
+     "usada": 5
+    },
+    "ruta": "piezas/herramientas/iconos/protocolo-bienestar-20.png",
+    "ruta2x": "piezas/herramientas/iconos/protocolo-bienestar-40.png"
+   },
    "nombre": "Protocolo de bienestar",
    "reemplaza": "escenarios/universidad/arte/herramientas/protocolo-bienestar.png",
    "ruta": "piezas/herramientas/protocolo-bienestar.png"
@@ -645,6 +810,21 @@
     "alto": 12,
     "ancho": 28,
     "fondo": 6
+   },
+   "icono": {
+    "alto": 20,
+    "ancho": 20,
+    "cuadros": 6,
+    "estados": {
+     "disponible": 0,
+     "nueva": [
+      1,
+      4
+     ],
+     "usada": 5
+    },
+    "ruta": "piezas/herramientas/iconos/tarjeta-contacto-bienestar-20.png",
+    "ruta2x": "piezas/herramientas/iconos/tarjeta-contacto-bienestar-40.png"
    },
    "nombre": "Tarjeta de contacto de bienestar",
    "reemplaza": "escenarios/comisaria/arte/herramientas/tarjeta-contacto-bienestar.png",

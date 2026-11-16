@@ -145,6 +145,43 @@ def herramienta(codigo, n=0, tapa=None):
     return L, {lado: Reflejo(L.w, L.h) for lado in op.LADOS}, None
 
 
+ICONO = 20                            # la barra del juego pinta un icono de 19 px: se entrega a 20 (y ×2 = 40)
+ICONO_ESTADOS = dict(disponible=0, nueva=[1, 4], usada=5)
+
+
+def icono(codigo, n=0, tapa=None):
+    """El cuaderno de frente para la barra de herramientas, 20 × 20: 0 disponible, 1-4 nueva (brillo que cruza), 5 usada."""
+    tapa = tapa or TAPAS[codigo]
+    L = Lienzo(ICONO, ICONO, semilla=131)
+    usada = n == 5
+    L.rect(3, 17, 17, 18, 'papel', 2)                                               # canto de las hojas
+    L.rect(3, 18, 17, 18, 'papel', 3, tex=False)
+    L.rect(4, 2, 17, 16, tapa, 3 if usada else 1)                                   # tapa
+    L.rect(4, 2, 17, 2, tapa, 2 if usada else 0, tex=False)
+    L.rect(4, 16, 17, 16, tapa, 4, tex=False)
+    L.rect(2, 2, 4, 16, tapa, 3, tex=False)                                         # lomo
+    L.rect(2, 2, 2, 16, tapa, 4, tex=False)
+    _simbolo(L, codigo, 5, 5, e=2 if usada else 0)
+    if usada:                                                                       # cinta verde con la marca
+        L.rect(14, 1, 16, 7, VERDE, tex=False)
+        L.px(15, 8, VERDE)
+        L.px(15, 3, CLARO)
+    if 1 <= n <= 4:                                                                 # franja de brillo que cruza la tapa
+        for r in range(2, 16):
+            x = 2 + (n - 1) * 4 + (16 - r) // 2
+            if 5 <= x <= 16:
+                L.px(x, r, (255, 246, 216))
+    return L, {lado: Reflejo(L.w, L.h) for lado in op.LADOS}, None
+
+
+def tira_icono(codigo, tapa=None, factor=1):
+    """Tira de 6 cuadros del icono (sin recortar: cada cuadro mide 20 × 20), escalada por un factor entero."""
+    from PIL import Image
+    cuadros = [icono(codigo, n, tapa)[0].imagen() for n in range(6)]
+    tira = op.tira(cuadros)
+    return tira if factor == 1 else tira.resize((tira.width * factor, tira.height * factor), Image.Resampling.NEAREST)
+
+
 HERRAMIENTAS = {'PAP': 'Primeros Auxilios Psicológicos', 'SPIKES': 'Protocolo EPICEE/SPIKES', 'RISK_METER': 'Valoración de riesgo',
                 'SAFETY_ROUTE': 'Ruta de protección', 'REFLECTION_JOURNAL': 'Bitácora reflexiva'}
 VIEJO = {'PAP': 'tool_pap', 'SPIKES': 'tool_spikes', 'RISK_METER': 'tool_risk_meter', 'SAFETY_ROUTE': 'tool_safety_route',
