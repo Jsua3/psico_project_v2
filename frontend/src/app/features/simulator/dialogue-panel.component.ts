@@ -477,7 +477,7 @@ const STALE_NOTE = 'Esta conversación corresponde a otro momento del caso.';
       gap: calc(3 * var(--px)) calc(4 * var(--px));
     }
     .strip-body > * { grid-column: 1 / -1; }
-    .strip-body > .choices-notice { grid-column: 1; }
+    .strip-body > .choices-notice[role] { grid-column: 1; }
     .strip-body > app-scene-hint { grid-column: 2; justify-self: end; }
     /* Con subtítulos («Usar una herramienta», «Decisión») las filas no pueden ser todas iguales: el subtítulo es un rótulo,
        no una ficha. Las fichas de una misma fila siguen igualándose. */
