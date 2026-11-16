@@ -59,7 +59,7 @@ async function entrarAlCaso(page: Page): Promise<void> {
 
 type Mando = ReturnType<typeof createWorldInputDriver>;
 
-/** Carril libre de muebles en las salas del hospital de P1: por él se cruza la sala de lado a lado. */
+/** Carril libre de muebles en las salas del hospital y de la comisaría de P1: por él se cruza la sala de lado a lado. */
 const CARRIL_Y = 440;
 
 /**
@@ -240,41 +240,40 @@ test('@demo-k1 @demo-piezas SIM-VBG-002: entrar, caminar, hablar y jugar los tre
   await page.waitForTimeout(800);
   await captura('16-capitulo-3.png');
 
-  // ── Capítulo 3 · Quince días después (Comisaría de Familia, salas de imagen fija de la biblioteca) ─────────────────
+  // ── Capítulo 3 · Quince días después (Comisaría de Familia, salas por piezas de P1) ───────────────────────────────
   // Decisión 11 (O4, recepción): la sobreviviente, abordada por su izquierda (su madre está a su derecha).
-  await decidir(page, input, /sobreviviente/i, 'sobreviviente', [480, 400], /valorar riesgo de feminicidio \+ medidas/i,
+  await decidir(page, input, /sobreviviente/i, 'sobreviviente', [500, 404], /valorar riesgo de feminicidio \+ medidas/i,
     () => captura('17-decision-11-recepcion.png'), -46);
   await cerrarNotaYEsperar(page, /Valora el riesgo sin hacerle contar de nuevo/);
 
-  // Decisión 12 (N8, consultorio): la mejor respuesta pide haber leído el informe del hospital, que está en el escritorio.
-  await caminarHasta(page, input, 670, 282, /informe/i, 0);
+  // Decisión 12 (N8, consultorio): la mejor respuesta pide haber leído el informe del hospital, junto al puesto de la profesional.
+  await caminarHasta(page, input, 676, 291, /informe/i, 0);
   await interactNearby(page, /informe/i, /\/interactions\/informe-hospital$/);
   const informe = page.getByRole('dialog', { name: /informe/i });
   if (await informe.isVisible({ timeout: scaled(2_000) }).catch(() => false)) await closeDialogue(page, /informe/i);
-  await decidir(page, input, /sobreviviente/i, 'sobreviviente', [260, 410], /partir del informe/i,
+  await decidir(page, input, /sobreviviente/i, 'sobreviviente', [262, 404], /partir del informe/i,
     () => captura('18-decision-12-sin-repetir-la-herida.png'));
   await cerrarNotaYEsperar(page, /Identifica qué derechos hay que restablecer/);
 
   // Decisión 13 (O5, consultorio): la profesional psicosocial.
-  await decidir(page, input, /profesional psicosocial/i, 'profesional-psicosocial', [520, 350], /Ley 2126 de 2021/i,
+  await decidir(page, input, /profesional psicosocial/i, 'profesional-psicosocial', [520, 352], /Ley 2126 de 2021/i,
     () => captura('19-decision-13-marco.png'));
   await cerrarNotaYEsperar(page, /Explícale quién hace qué en la comisaría/);
 
-  // Decisión 14 (N9, pasillo): antes, hablar con la orientadora jurídica y con la comisaria. Las sillas del pasillo
-  // tapan y = 440: se cruza por y = 380.
-  await hablar(page, input, /orientadora/i, 'orientadora-juridica', [160, 290], 46, 380);
-  await hablar(page, input, /comisaria/i, 'comisaria', [340, 290], 46, 380);
-  await decidir(page, input, /sobreviviente/i, 'sobreviviente', [300, 380], /explicarle quién hace qué/i,
-    () => captura('20-decision-14-pasillo.png'), 46, 380);
+  // Decisión 14 (N9, pasillo): antes, hablar con la orientadora jurídica y con la comisaria (las sillas están contra el fondo).
+  await hablar(page, input, /orientadora/i, 'orientadora-juridica', [260, 300]);
+  await hablar(page, input, /comisaria/i, 'comisaria', [510, 300]);
+  await decidir(page, input, /sobreviviente/i, 'sobreviviente', [760, 376], /explicarle quién hace qué/i,
+    () => captura('20-decision-14-pasillo.png'));
   await cerrarNotaYEsperar(page, /Mira más allá de ella/);
 
   // Decisión 15 (N10, sala de espera): la madre.
-  await decidir(page, input, /abuela|madre/i, 'abuela', [420, 420], /quién vive con ella/i,
+  await decidir(page, input, /abuela|madre/i, 'abuela', [980, 400], /quién vive con ella/i,
     () => captura('21-decision-15-sala-de-espera.png'));
   await cerrarNotaYEsperar(page, /Define la actuación de protección y cierra la atención/);
 
   // Decisión 16 (O6, consultorio): el cierre. La escena siguiente es el final del caso.
-  await decidir(page, input, /profesional psicosocial/i, 'profesional-psicosocial', [520, 350], /nivel de vulneración/i,
+  await decidir(page, input, /profesional psicosocial/i, 'profesional-psicosocial', [520, 352], /nivel de vulneración/i,
     () => captura('22-decision-16-cierre.png'));
   const notaFinal = page.getByRole('dialog', { name: /consecuencia/i });
   if (await notaFinal.isVisible({ timeout: scaled(30_000) }).catch(() => false)) await closeDialogue(page, /consecuencia/i);

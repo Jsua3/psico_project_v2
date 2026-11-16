@@ -946,6 +946,7 @@
       "momento": "noche",
       "piezas": [
        {
+        "encendida": true,
         "id": "tubo-1",
         "modelo": "tubo",
         "muro": "fondo",
@@ -953,6 +954,7 @@
         "tipo": "lampara"
        },
        {
+        "encendida": true,
         "id": "tubo-2",
         "modelo": "tubo",
         "muro": "fondo",
@@ -1830,6 +1832,7 @@
       "momento": "noche",
       "piezas": [
        {
+        "encendida": true,
         "id": "tubo-1",
         "modelo": "tubo",
         "muro": "fondo",
@@ -1837,6 +1840,7 @@
         "tipo": "lampara"
        },
        {
+        "encendida": true,
         "id": "tubo-2",
         "modelo": "tubo",
         "muro": "fondo",
@@ -1844,6 +1848,7 @@
         "tipo": "lampara"
        },
        {
+        "encendida": true,
         "id": "tubo-3",
         "modelo": "tubo",
         "muro": "fondo",
@@ -2734,6 +2739,7 @@
       "momento": "noche",
       "piezas": [
        {
+        "encendida": true,
         "id": "tubo-1",
         "modelo": "tubo",
         "muro": "fondo",
@@ -2741,6 +2747,7 @@
         "tipo": "lampara"
        },
        {
+        "encendida": true,
         "id": "tubo-2",
         "modelo": "tubo",
         "muro": "fondo",
@@ -2748,6 +2755,7 @@
         "tipo": "lampara"
        },
        {
+        "encendida": true,
         "id": "tubo-3",
         "modelo": "tubo",
         "muro": "fondo",
@@ -3567,6 +3575,7 @@
       "momento": "noche",
       "piezas": [
        {
+        "encendida": true,
         "id": "tubo-1",
         "modelo": "tubo",
         "muro": "fondo",
@@ -3574,6 +3583,7 @@
         "tipo": "lampara"
        },
        {
+        "encendida": true,
         "id": "tubo-2",
         "modelo": "tubo",
         "muro": "fondo",
@@ -4293,6 +4303,7 @@
       "momento": "noche",
       "piezas": [
        {
+        "encendida": true,
         "id": "tubo",
         "modelo": "tubo",
         "muro": "fondo",
@@ -7469,6 +7480,7 @@
       "momento": "noche",
       "piezas": [
        {
+        "encendida": true,
         "id": "tubo-1",
         "modelo": "tubo",
         "muro": "fondo",
@@ -7476,6 +7488,7 @@
         "tipo": "lampara"
        },
        {
+        "encendida": true,
         "id": "tubo-2",
         "modelo": "tubo",
         "muro": "fondo",
@@ -7483,6 +7496,7 @@
         "tipo": "lampara"
        },
        {
+        "encendida": true,
         "id": "tubo-3",
         "modelo": "tubo",
         "muro": "fondo",
@@ -7490,6 +7504,7 @@
         "tipo": "lampara"
        },
        {
+        "encendida": true,
         "id": "tubo-4",
         "modelo": "tubo",
         "muro": "fondo",
@@ -8440,6 +8455,7 @@
       "momento": "noche",
       "piezas": [
        {
+        "encendida": true,
         "id": "tubo-1",
         "modelo": "tubo",
         "muro": "fondo",
@@ -8447,6 +8463,7 @@
         "tipo": "lampara"
        },
        {
+        "encendida": true,
         "id": "tubo-2",
         "modelo": "tubo",
         "muro": "fondo",
@@ -8947,7 +8964,8 @@
     "mapa": {
      "alto": 528,
      "ambiente": {
-      "backgroundImage": "/assets/biblioteca/escenarios/comisaria/arte/salas/recepcion.png",
+      "ambientNpcKeys": [],
+      "ambientNpcs": [],
       "capitulo": {
        "momento": "Comisaría de Familia",
        "numero": 3,
@@ -8955,19 +8973,21 @@
       },
       "encuadre": "tres-paredes",
       "lugarId": "comisaria",
+      "mood": "reserved",
+      "music": "none",
       "salaId": "comisaria-recepcion",
       "transitionText": "Quince días después, tras el alta médica, inicia la ruta de restablecimiento de derechos."
      },
-     "ancho": 960,
+     "ancho": 1200,
      "aparicion": {
-      "x": 480,
+      "x": 595,
       "y": 440
      },
      "clave": "c3-recepcion",
      "colisiones": [
       {
        "alto": 236,
-       "ancho": 960,
+       "ancho": 1200,
        "clave": "pared-fondo",
        "etiqueta": "Pared del fondo",
        "x": 0,
@@ -8975,7 +8995,7 @@
       },
       {
        "alto": 250,
-       "ancho": 96,
+       "ancho": 115,
        "clave": "pared-izquierda",
        "etiqueta": "Pared izquierda",
        "x": 0,
@@ -8983,51 +9003,59 @@
       },
       {
        "alto": 250,
-       "ancho": 96,
+       "ancho": 115,
        "clave": "pared-derecha",
        "etiqueta": "Pared derecha",
-       "x": 864,
+       "x": 1085,
        "y": 236
       },
       {
        "alto": 42,
-       "ancho": 960,
+       "ancho": 1200,
        "clave": "borde-delantero",
        "etiqueta": "Borde delantero",
        "x": 0,
        "y": 486
       },
       {
-       "alto": 30,
-       "ancho": 180,
-       "clave": "choque-mostrador-recepcion",
-       "etiqueta": "Mostrador de recepción",
-       "x": 330,
-       "y": 274
-      },
-      {
-       "alto": 14,
-       "ancho": 26,
-       "clave": "choque-silla-giratoria",
-       "etiqueta": "Silla giratoria",
-       "x": 407,
-       "y": 248
-      },
-      {
-       "alto": 14,
-       "ancho": 36,
-       "clave": "choque-planta-oficina",
-       "etiqueta": "Planta de oficina",
-       "x": 132,
-       "y": 286
-      },
-      {
-       "alto": 14,
-       "ancho": 26,
+       "alto": 10,
+       "ancho": 22,
        "clave": "choque-caneca-comisaria",
        "etiqueta": "Caneca",
-       "x": 267,
-       "y": 248
+       "x": 289,
+       "y": 256
+      },
+      {
+       "alto": 8,
+       "ancho": 70,
+       "clave": "choque-cartelera-comisaria",
+       "etiqueta": "Cartelera institucional",
+       "x": 765,
+       "y": 232
+      },
+      {
+       "alto": 12,
+       "ancho": 24,
+       "clave": "choque-silla-giratoria",
+       "etiqueta": "Silla giratoria",
+       "x": 628,
+       "y": 284
+      },
+      {
+       "alto": 16,
+       "ancho": 178,
+       "clave": "choque-mostrador-recepcion",
+       "etiqueta": "Mostrador de recepción",
+       "x": 511,
+       "y": 318
+      },
+      {
+       "alto": 14,
+       "ancho": 118,
+       "clave": "choque-sillas-espera-comisaria",
+       "etiqueta": "Fila de sillas de espera",
+       "x": 871,
+       "y": 286
       }
      ],
      "dialogos": [
@@ -9123,22 +9151,85 @@
        "retrato": null
       }
      ],
+     "estructura": {
+      "acabados": {
+       "muro": "zocalo-alto",
+       "paleta": "comisaria-recepcion",
+       "piso": "baldosa",
+       "variante": "comisaria-recepcion"
+      },
+      "ancho": 1200,
+      "momento": "dia",
+      "piezas": [
+       {
+        "id": "extintor",
+        "modelo": "extintor",
+        "muro": "fondo",
+        "pos": 184,
+        "tipo": "extintor"
+       },
+       {
+        "encendida": true,
+        "id": "tubo-1",
+        "modelo": "tubo",
+        "muro": "fondo",
+        "pos": 280,
+        "tipo": "lampara"
+       },
+       {
+        "id": "ventana",
+        "modelo": "alta",
+        "muro": "fondo",
+        "pos": 440,
+        "tipo": "ventana"
+       },
+       {
+        "id": "reloj",
+        "modelo": "reloj",
+        "muro": "fondo",
+        "pos": 580,
+        "tipo": "reloj"
+       },
+       {
+        "id": "senal",
+        "modelo": "senal",
+        "muro": "fondo",
+        "pos": 624,
+        "tipo": "senal"
+       },
+       {
+        "encendida": true,
+        "id": "tubo-2",
+        "modelo": "tubo",
+        "muro": "fondo",
+        "pos": 720,
+        "tipo": "lampara"
+       },
+       {
+        "id": "persiana",
+        "modelo": "persiana",
+        "muro": "fondo",
+        "pos": 904,
+        "tipo": "ventana"
+       }
+      ]
+     },
      "objetos": [
       {
-       "alto": 30,
-       "ancho": 180,
-       "clave": "mostrador-recepcion",
-       "codigoCorto": "",
+       "alto": 33,
+       "ancho": 24,
+       "clave": "caneca-comisaria",
+       "codigoCorto": "MUE",
        "colision": false,
-       "color": "#4FA3A5",
+       "color": "#7FB3D5",
        "desbloqueo": {},
-       "etiqueta": "Mostrador de recepción",
+       "etiqueta": "Caneca",
        "herramienta": null,
-       "icono": "inventory_2",
+       "icono": "chair",
        "indicacion": "",
        "metadatos": {
         "apoyo": "pies",
-        "arte": "/assets/biblioteca/escenarios/comisaria/arte/muebles/mostrador-recepcion.png",
+        "arte": "/assets/biblioteca/piezas/muebles/comisaria/caneca-comisaria.png",
         "colision": true
        },
        "movimiento": {},
@@ -9148,81 +9239,25 @@
        "texto": "",
        "tipo": "PROP",
        "visible": true,
-       "x": 420,
-       "y": 304,
+       "x": 300,
+       "y": 266,
        "z": 0
       },
       {
-       "alto": 14,
-       "ancho": 26,
-       "clave": "silla-giratoria",
-       "codigoCorto": "",
-       "colision": false,
-       "color": "#4FA3A5",
-       "desbloqueo": {},
-       "etiqueta": "Silla giratoria",
-       "herramienta": null,
-       "icono": "inventory_2",
-       "indicacion": "",
-       "metadatos": {
-        "apoyo": "pies",
-        "arte": "/assets/biblioteca/escenarios/comisaria/arte/muebles/silla-giratoria.png",
-        "colision": true
-       },
-       "movimiento": {},
-       "opcion": null,
-       "orientacion": "",
-       "personaje": null,
-       "texto": "",
-       "tipo": "PROP",
-       "visible": true,
-       "x": 420,
-       "y": 262,
-       "z": 0
-      },
-      {
-       "alto": 6,
-       "ancho": 90,
+       "alto": 76,
+       "ancho": 82,
        "clave": "cartelera-comisaria",
-       "codigoCorto": "",
+       "codigoCorto": "MUE",
        "colision": false,
-       "color": "#4FA3A5",
+       "color": "#7FB3D5",
        "desbloqueo": {},
        "etiqueta": "Cartelera institucional",
        "herramienta": null,
-       "icono": "inventory_2",
+       "icono": "chair",
        "indicacion": "",
        "metadatos": {
         "apoyo": "pies",
-        "arte": "/assets/biblioteca/escenarios/comisaria/arte/muebles/cartelera-comisaria.png",
-        "colision": false
-       },
-       "movimiento": {},
-       "opcion": null,
-       "orientacion": "",
-       "personaje": null,
-       "texto": "",
-       "tipo": "PROP",
-       "visible": true,
-       "x": 650,
-       "y": 236,
-       "z": 0
-      },
-      {
-       "alto": 14,
-       "ancho": 36,
-       "clave": "planta-oficina",
-       "codigoCorto": "",
-       "colision": false,
-       "color": "#4FA3A5",
-       "desbloqueo": {},
-       "etiqueta": "Planta de oficina",
-       "herramienta": null,
-       "icono": "inventory_2",
-       "indicacion": "",
-       "metadatos": {
-        "apoyo": "pies",
-        "arte": "/assets/biblioteca/escenarios/comisaria/arte/muebles/planta-oficina.png",
+        "arte": "/assets/biblioteca/piezas/muebles/comisaria/cartelera-comisaria.png",
         "colision": true
        },
        "movimiento": {},
@@ -9232,68 +9267,179 @@
        "texto": "",
        "tipo": "PROP",
        "visible": true,
-       "x": 150,
+       "x": 800,
+       "y": 240,
+       "z": 0
+      },
+      {
+       "alto": 44,
+       "ancho": 30,
+       "clave": "silla-giratoria",
+       "codigoCorto": "MUE",
+       "colision": false,
+       "color": "#7FB3D5",
+       "desbloqueo": {},
+       "etiqueta": "Silla giratoria",
+       "herramienta": null,
+       "icono": "chair",
+       "indicacion": "",
+       "metadatos": {
+        "apoyo": "pies",
+        "arte": "/assets/biblioteca/piezas/muebles/comisaria/silla-giratoria.png",
+        "colision": true
+       },
+       "movimiento": {},
+       "opcion": null,
+       "orientacion": "",
+       "personaje": null,
+       "texto": "",
+       "tipo": "PROP",
+       "visible": true,
+       "x": 640,
+       "y": 296,
+       "z": 0
+      },
+      {
+       "alto": 65,
+       "ancho": 183,
+       "clave": "mostrador-recepcion",
+       "codigoCorto": "MUE",
+       "colision": false,
+       "color": "#7FB3D5",
+       "desbloqueo": {},
+       "etiqueta": "Mostrador de recepción",
+       "herramienta": null,
+       "icono": "chair",
+       "indicacion": "",
+       "metadatos": {
+        "apoyo": "pies",
+        "arte": "/assets/biblioteca/piezas/muebles/comisaria/mostrador-recepcion.png",
+        "colision": true
+       },
+       "movimiento": {},
+       "opcion": null,
+       "orientacion": "",
+       "personaje": null,
+       "texto": "",
+       "tipo": "PROP",
+       "visible": true,
+       "x": 600,
+       "y": 334,
+       "z": 0
+      },
+      {
+       "alto": 40,
+       "ancho": 122,
+       "clave": "sillas-espera-comisaria",
+       "codigoCorto": "MUE",
+       "colision": false,
+       "color": "#7FB3D5",
+       "desbloqueo": {},
+       "etiqueta": "Fila de sillas de espera",
+       "herramienta": null,
+       "icono": "chair",
+       "indicacion": "",
+       "metadatos": {
+        "apoyo": "pies",
+        "arte": "/assets/biblioteca/piezas/muebles/comisaria/sillas-espera-comisaria.png",
+        "colision": true
+       },
+       "movimiento": {},
+       "opcion": null,
+       "orientacion": "",
+       "personaje": null,
+       "texto": "",
+       "tipo": "PROP",
+       "visible": true,
+       "x": 930,
        "y": 300,
        "z": 0
       },
       {
-       "alto": 14,
-       "ancho": 26,
-       "clave": "caneca-comisaria",
-       "codigoCorto": "",
+       "alto": 48,
+       "ancho": 48,
+       "clave": "funcionaria-recepcion",
+       "codigoCorto": "FUN",
        "colision": false,
-       "color": "#4FA3A5",
+       "color": "#7FB3D5",
        "desbloqueo": {},
-       "etiqueta": "Caneca",
+       "etiqueta": "Funcionaria de recepción",
        "herramienta": null,
-       "icono": "inventory_2",
-       "indicacion": "",
+       "icono": "person",
+       "indicacion": "Hablar con la funcionaria",
        "metadatos": {
         "apoyo": "pies",
-        "arte": "/assets/biblioteca/escenarios/comisaria/arte/muebles/caneca-comisaria.png",
-        "colision": true
+        "expresion": "neutral",
+        "movimiento": "quieto",
+        "recipeId": "funcionaria-recepcion"
        },
        "movimiento": {},
        "opcion": null,
        "orientacion": "",
-       "personaje": null,
-       "texto": "",
-       "tipo": "PROP",
+       "personaje": "funcionaria-recepcion",
+       "texto": "La funcionaria orienta el ingreso del caso.",
+       "tipo": "PERSON",
        "visible": true,
-       "x": 280,
-       "y": 262,
+       "x": 576,
+       "y": 306,
        "z": 0
       },
       {
-       "alto": 32,
-       "ancho": 32,
-       "clave": "dispensador-turnos",
-       "codigoCorto": "",
+       "alto": 48,
+       "ancho": 48,
+       "clave": "sobreviviente",
+       "codigoCorto": "SOB",
        "colision": false,
-       "color": "#4FA3A5",
+       "color": "#7FB3D5",
        "desbloqueo": {},
-       "etiqueta": "Dispensador de turnos",
+       "etiqueta": "Sobreviviente",
        "herramienta": null,
-       "icono": "description",
-       "indicacion": "Revisar",
+       "icono": "person",
+       "indicacion": "Escuchar a la sobreviviente",
        "metadatos": {
-        "animacionCerca": {
-         "cuadros": 3,
-         "fps": 6,
-         "hoja": "/assets/biblioteca/escenarios/comisaria/arte/objetos/dispensador-turnos-cerca.png"
-        },
         "apoyo": "pies",
-        "arte": "/assets/biblioteca/escenarios/comisaria/arte/objetos/dispensador-turnos.png"
+        "expresion": "cautelosa",
+        "movimiento": "quieto",
+        "recipeId": "sobreviviente"
        },
        "movimiento": {},
        "opcion": null,
        "orientacion": "",
-       "personaje": null,
-       "texto": "Turno 37. Van en el 12.",
-       "tipo": "RESOURCE",
+       "personaje": "sobreviviente",
+       "texto": "Mujer de 22 años; alta médica hace 15 días, secuelas físicas y trauma complejo.",
+       "tipo": "PERSON",
        "visible": true,
-       "x": 560,
-       "y": 262,
+       "x": 500,
+       "y": 404,
+       "z": 0
+      },
+      {
+       "alto": 48,
+       "ancho": 48,
+       "clave": "abuela",
+       "codigoCorto": "ABU",
+       "colision": false,
+       "color": "#7FB3D5",
+       "desbloqueo": {},
+       "etiqueta": "Abuela de la niña",
+       "herramienta": null,
+       "icono": "person",
+       "indicacion": "Hablar con su madre",
+       "metadatos": {
+        "apoyo": "pies",
+        "expresion": "preocupada",
+        "movimiento": "quieto",
+        "recipeId": "abuela-familia"
+       },
+       "movimiento": {},
+       "opcion": null,
+       "orientacion": "",
+       "personaje": "abuela",
+       "texto": "Su madre la acompaña a la comisaría.",
+       "tipo": "PERSON",
+       "visible": true,
+       "x": 700,
+       "y": 414,
        "z": 0
       },
       {
@@ -9324,100 +9470,87 @@
        "texto": "Ruta de atención: recepción, orientación, medidas de protección y seguimiento.",
        "tipo": "NOTE",
        "visible": true,
-       "x": 760,
-       "y": 236,
-       "z": 0
-      },
-      {
-       "alto": 48,
-       "ancho": 48,
-       "clave": "funcionaria-recepcion",
-       "codigoCorto": "FUN",
-       "colision": false,
-       "color": "#7FB3D5",
-       "desbloqueo": {},
-       "etiqueta": "Funcionaria de recepción",
-       "herramienta": null,
-       "icono": "person",
-       "indicacion": "Hablar con la funcionaria",
-       "metadatos": {
-        "apoyo": "pies",
-        "expresion": "neutral",
-        "movimiento": "quieto",
-        "recipeId": "funcionaria-recepcion"
-       },
-       "movimiento": {},
-       "opcion": null,
-       "orientacion": "",
-       "personaje": "funcionaria-recepcion",
-       "texto": "La funcionaria orienta el ingreso del caso.",
-       "tipo": "PERSON",
-       "visible": true,
-       "x": 400,
+       "x": 420,
        "y": 262,
        "z": 0
       },
       {
-       "alto": 48,
-       "ancho": 48,
-       "clave": "sobreviviente",
-       "codigoCorto": "SOB",
+       "alto": 40,
+       "ancho": 24,
+       "clave": "puerta-pasillo",
+       "codigoCorto": "EXIT",
        "colision": false,
-       "color": "#7FB3D5",
+       "color": "#B69CFF",
        "desbloqueo": {},
-       "etiqueta": "Sobreviviente",
+       "etiqueta": "Ir al pasillo de atención",
        "herramienta": null,
-       "icono": "person",
-       "indicacion": "Escuchar a la sobreviviente",
+       "icono": "door_front",
+       "indicacion": "Ir al pasillo de atención",
        "metadatos": {
-        "apoyo": "pies",
-        "expresion": "cautelosa",
-        "movimiento": "quieto",
-        "recipeId": "sobreviviente"
+        "entryX": 150,
+        "entryY": 382,
+        "label": "Ir al pasillo de atención",
+        "lockedMessage": "Por ahora te necesitan en esta sala.",
+        "modelo": "paso",
+        "muro": "fondo",
+        "par": "puerta-recepcion",
+        "pos": 104,
+        "requiresNodes": [
+         "cierre-caso"
+        ],
+        "targetNodeKey": "c3-pasillo"
        },
        "movimiento": {},
        "opcion": null,
        "orientacion": "",
-       "personaje": "sobreviviente",
-       "texto": "Mujer de 22 años; alta médica hace 15 días, secuelas físicas y trauma complejo.",
-       "tipo": "PERSON",
+       "personaje": null,
+       "texto": "Ir al pasillo de atención",
+       "tipo": "EXIT",
        "visible": true,
-       "x": 480,
-       "y": 400,
+       "x": 219,
+       "y": 260,
        "z": 0
       },
       {
-       "alto": 48,
-       "ancho": 48,
-       "clave": "abuela",
-       "codigoCorto": "ABU",
+       "alto": 40,
+       "ancho": 24,
+       "clave": "puerta-sala-espera",
+       "codigoCorto": "EXIT",
        "colision": false,
-       "color": "#7FB3D5",
+       "color": "#B69CFF",
        "desbloqueo": {},
-       "etiqueta": "Abuela de la niña",
+       "etiqueta": "Pasar a la sala de espera",
        "herramienta": null,
-       "icono": "person",
-       "indicacion": "Hablar con su madre",
+       "icono": "door_front",
+       "indicacion": "Pasar a la sala de espera",
        "metadatos": {
-        "apoyo": "pies",
-        "expresion": "preocupada",
-        "movimiento": "quieto",
-        "recipeId": "abuela-familia"
+        "entryX": 131,
+        "entryY": 382,
+        "label": "Pasar a la sala de espera",
+        "lockedMessage": "Por ahora te necesitan en esta sala.",
+        "modelo": "paso",
+        "muro": "derecha",
+        "par": "puerta-recepcion",
+        "pos": 152,
+        "requiresNodes": [
+         "cierre-caso"
+        ],
+        "targetNodeKey": "c3-sala-espera"
        },
        "movimiento": {},
        "opcion": null,
        "orientacion": "",
-       "personaje": "abuela",
-       "texto": "Su madre la acompaña a la comisaría.",
-       "tipo": "PERSON",
+       "personaje": null,
+       "texto": "Pasar a la sala de espera",
+       "tipo": "EXIT",
        "visible": true,
-       "x": 560,
-       "y": 412,
+       "x": 1069,
+       "y": 382,
        "z": 0
       }
      ],
      "tema": "clinical-soft",
-     "titulo": "Recepción"
+     "titulo": "Comisaría de Familia — Recepción"
     },
     "objetivo": "Valora el riesgo y define a dónde debe seguir la atención.",
     "opciones": [
@@ -9539,9 +9672,12 @@
     "mapa": {
      "alto": 528,
      "ambiente": {
-      "backgroundImage": "/assets/biblioteca/escenarios/comisaria/arte/salas/consultorio-psicosocial.png",
+      "ambientNpcKeys": [],
+      "ambientNpcs": [],
       "encuadre": "tres-paredes",
       "lugarId": "comisaria",
+      "mood": "reserved",
+      "music": "none",
       "salaId": "comisaria-consultorio-psicosocial"
      },
      "ancho": 960,
@@ -9584,52 +9720,44 @@
        "y": 486
       },
       {
-       "alto": 28,
-       "ancho": 122,
-       "clave": "choque-escritorio-funcionario",
-       "etiqueta": "Escritorio",
-       "x": 639,
-       "y": 262
+       "alto": 8,
+       "ancho": 70,
+       "clave": "choque-cartelera-comisaria",
+       "etiqueta": "Cartelera institucional",
+       "x": 525,
+       "y": 250
       },
       {
-       "alto": 14,
-       "ancho": 26,
+       "alto": 12,
+       "ancho": 24,
        "clave": "choque-silla-giratoria",
        "etiqueta": "Silla giratoria",
-       "x": 687,
-       "y": 242
+       "x": 688,
+       "y": 244
       },
       {
-       "alto": 14,
-       "ancho": 24,
+       "alto": 12,
+       "ancho": 22,
        "clave": "choque-silla-visitante-comisaria",
        "etiqueta": "Silla para visitante",
-       "x": 288,
-       "y": 326
+       "x": 289,
+       "y": 328
       },
       {
-       "alto": 14,
-       "ancho": 24,
+       "alto": 12,
+       "ancho": 22,
        "clave": "choque-silla-visitante-comisaria-2",
        "etiqueta": "Silla para visitante",
-       "x": 408,
-       "y": 326
+       "x": 409,
+       "y": 328
       },
       {
-       "alto": 24,
+       "alto": 12,
        "ancho": 60,
        "clave": "choque-mesa-baja-nna",
-       "etiqueta": "Mesa baja",
+       "etiqueta": "Mesa baja para niñas y niños",
        "x": 330,
-       "y": 338
-      },
-      {
-       "alto": 14,
-       "ancho": 36,
-       "clave": "choque-planta-oficina",
-       "etiqueta": "Planta de oficina",
-       "x": 122,
-       "y": 286
+       "y": 350
       }
      ],
      "dialogos": [
@@ -9721,22 +9849,84 @@
        "retrato": null
       }
      ],
+     "estructura": {
+      "acabados": {
+       "muro": "pintura",
+       "paleta": "comisaria-consultorio-psicosocial",
+       "piso": "madera",
+       "variante": "comisaria-consultorio-psicosocial"
+      },
+      "ancho": 960,
+      "momento": "dia",
+      "piezas": [
+       {
+        "id": "cuadro",
+        "modelo": "cuadro",
+        "muro": "fondo",
+        "pos": 56,
+        "tipo": "cuadro"
+       },
+       {
+        "id": "ventana",
+        "modelo": "persiana",
+        "muro": "fondo",
+        "pos": 232,
+        "tipo": "ventana"
+       },
+       {
+        "id": "repisa",
+        "modelo": "repisa",
+        "muro": "fondo",
+        "pos": 400,
+        "tipo": "repisa"
+       },
+       {
+        "id": "reloj",
+        "modelo": "reloj",
+        "muro": "fondo",
+        "pos": 600,
+        "tipo": "reloj"
+       },
+       {
+        "id": "cuadro-2",
+        "modelo": "cuadro",
+        "muro": "fondo",
+        "pos": 704,
+        "tipo": "cuadro"
+       },
+       {
+        "id": "lampara-pie",
+        "modelo": "pie",
+        "tipo": "lampara",
+        "x": 226,
+        "y": 330
+       },
+       {
+        "id": "lampara-mesa",
+        "modelo": "mesa",
+        "sobre": 36,
+        "tipo": "lampara",
+        "x": 748,
+        "y": 290
+       }
+      ]
+     },
      "objetos": [
       {
-       "alto": 28,
-       "ancho": 122,
-       "clave": "escritorio-funcionario",
-       "codigoCorto": "",
+       "alto": 76,
+       "ancho": 82,
+       "clave": "cartelera-comisaria",
+       "codigoCorto": "MUE",
        "colision": false,
-       "color": "#4FA3A5",
+       "color": "#7FB3D5",
        "desbloqueo": {},
-       "etiqueta": "Escritorio",
+       "etiqueta": "Cartelera institucional",
        "herramienta": null,
-       "icono": "inventory_2",
+       "icono": "chair",
        "indicacion": "",
        "metadatos": {
         "apoyo": "pies",
-        "arte": "/assets/biblioteca/escenarios/comisaria/arte/muebles/escritorio-funcionario.png",
+        "arte": "/assets/biblioteca/piezas/muebles/comisaria/cartelera-comisaria.png",
         "colision": true
        },
        "movimiento": {},
@@ -9746,25 +9936,25 @@
        "texto": "",
        "tipo": "PROP",
        "visible": true,
-       "x": 700,
-       "y": 290,
+       "x": 560,
+       "y": 258,
        "z": 0
       },
       {
-       "alto": 14,
-       "ancho": 26,
+       "alto": 44,
+       "ancho": 30,
        "clave": "silla-giratoria",
-       "codigoCorto": "",
+       "codigoCorto": "MUE",
        "colision": false,
-       "color": "#4FA3A5",
+       "color": "#7FB3D5",
        "desbloqueo": {},
        "etiqueta": "Silla giratoria",
        "herramienta": null,
-       "icono": "inventory_2",
+       "icono": "chair",
        "indicacion": "",
        "metadatos": {
         "apoyo": "pies",
-        "arte": "/assets/biblioteca/escenarios/comisaria/arte/muebles/silla-giratoria.png",
+        "arte": "/assets/biblioteca/piezas/muebles/comisaria/silla-giratoria.png",
         "colision": true
        },
        "movimiento": {},
@@ -9779,20 +9969,20 @@
        "z": 0
       },
       {
-       "alto": 14,
+       "alto": 39,
        "ancho": 24,
        "clave": "silla-visitante-comisaria",
-       "codigoCorto": "",
+       "codigoCorto": "MUE",
        "colision": false,
-       "color": "#4FA3A5",
+       "color": "#7FB3D5",
        "desbloqueo": {},
        "etiqueta": "Silla para visitante",
        "herramienta": null,
-       "icono": "inventory_2",
+       "icono": "chair",
        "indicacion": "",
        "metadatos": {
         "apoyo": "pies",
-        "arte": "/assets/biblioteca/escenarios/comisaria/arte/muebles/silla-visitante-comisaria.png",
+        "arte": "/assets/biblioteca/piezas/muebles/comisaria/silla-visitante-comisaria.png",
         "colision": true
        },
        "movimiento": {},
@@ -9807,20 +9997,20 @@
        "z": 0
       },
       {
-       "alto": 14,
+       "alto": 39,
        "ancho": 24,
        "clave": "silla-visitante-comisaria-2",
-       "codigoCorto": "",
+       "codigoCorto": "MUE",
        "colision": false,
-       "color": "#4FA3A5",
+       "color": "#7FB3D5",
        "desbloqueo": {},
        "etiqueta": "Silla para visitante",
        "herramienta": null,
-       "icono": "inventory_2",
+       "icono": "chair",
        "indicacion": "",
        "metadatos": {
         "apoyo": "pies",
-        "arte": "/assets/biblioteca/escenarios/comisaria/arte/muebles/silla-visitante-comisaria.png",
+        "arte": "/assets/biblioteca/piezas/muebles/comisaria/silla-visitante-comisaria.png",
         "colision": true,
         "espejo": true
        },
@@ -9836,20 +10026,20 @@
        "z": 0
       },
       {
-       "alto": 24,
-       "ancho": 60,
+       "alto": 35,
+       "ancho": 64,
        "clave": "mesa-baja-nna",
-       "codigoCorto": "",
+       "codigoCorto": "MUE",
        "colision": false,
-       "color": "#4FA3A5",
+       "color": "#7FB3D5",
        "desbloqueo": {},
-       "etiqueta": "Mesa baja",
+       "etiqueta": "Mesa baja para niñas y niños",
        "herramienta": null,
-       "icono": "inventory_2",
+       "icono": "chair",
        "indicacion": "",
        "metadatos": {
         "apoyo": "pies",
-        "arte": "/assets/biblioteca/escenarios/comisaria/arte/muebles/mesa-baja-nna.png",
+        "arte": "/assets/biblioteca/piezas/muebles/comisaria/mesa-baja-nna.png",
         "colision": true
        },
        "movimiento": {},
@@ -9861,98 +10051,6 @@
        "visible": true,
        "x": 360,
        "y": 362,
-       "z": 0
-      },
-      {
-       "alto": 14,
-       "ancho": 36,
-       "clave": "planta-oficina",
-       "codigoCorto": "",
-       "colision": false,
-       "color": "#4FA3A5",
-       "desbloqueo": {},
-       "etiqueta": "Planta de oficina",
-       "herramienta": null,
-       "icono": "inventory_2",
-       "indicacion": "",
-       "metadatos": {
-        "apoyo": "pies",
-        "arte": "/assets/biblioteca/escenarios/comisaria/arte/muebles/planta-oficina.png",
-        "colision": true
-       },
-       "movimiento": {},
-       "opcion": null,
-       "orientacion": "",
-       "personaje": null,
-       "texto": "",
-       "tipo": "PROP",
-       "visible": true,
-       "x": 140,
-       "y": 300,
-       "z": 0
-      },
-      {
-       "alto": 32,
-       "ancho": 32,
-       "clave": "caja-panuelos",
-       "codigoCorto": "",
-       "colision": false,
-       "color": "#4FA3A5",
-       "desbloqueo": {},
-       "etiqueta": "Caja de pañuelos",
-       "herramienta": null,
-       "icono": "inventory_2",
-       "indicacion": "Revisar",
-       "metadatos": {
-        "animacionCerca": {
-         "cuadros": 3,
-         "fps": 6,
-         "hoja": "/assets/biblioteca/escenarios/comisaria/arte/objetos/caja-panuelos-cerca.png"
-        },
-        "apoyo": "pies",
-        "arte": "/assets/biblioteca/escenarios/comisaria/arte/objetos/caja-panuelos.png"
-       },
-       "movimiento": {},
-       "opcion": null,
-       "orientacion": "",
-       "personaje": null,
-       "texto": "Tenerlos a la mano, sin ofrecerlos de golpe.",
-       "tipo": "OBJECT",
-       "visible": true,
-       "x": 360,
-       "y": 350,
-       "z": 0
-      },
-      {
-       "alto": 32,
-       "ancho": 32,
-       "clave": "papelera",
-       "codigoCorto": "",
-       "colision": false,
-       "color": "#4FA3A5",
-       "desbloqueo": {},
-       "etiqueta": "Papelera",
-       "herramienta": null,
-       "icono": "inventory_2",
-       "indicacion": "Mirar",
-       "metadatos": {
-        "animacionCerca": {
-         "cuadros": 2,
-         "fps": 6,
-         "hoja": "/assets/biblioteca/escenarios/comisaria/arte/objetos/papelera-cerca.png"
-        },
-        "apoyo": "pies",
-        "arte": "/assets/biblioteca/escenarios/comisaria/arte/objetos/papelera.png"
-       },
-       "movimiento": {},
-       "opcion": null,
-       "orientacion": "",
-       "personaje": null,
-       "texto": "Vacía.",
-       "tipo": "PROP",
-       "visible": true,
-       "x": 760,
-       "y": 262,
        "z": 0
       },
       {
@@ -9980,8 +10078,8 @@
        "texto": "La sobreviviente espera, con las manos en el regazo.",
        "tipo": "PERSON",
        "visible": true,
-       "x": 260,
-       "y": 410,
+       "x": 262,
+       "y": 404,
        "z": 0
       },
       {
@@ -10010,7 +10108,7 @@
        "tipo": "PERSON",
        "visible": true,
        "x": 520,
-       "y": 350,
+       "y": 352,
        "z": 0
       },
       {
@@ -10041,8 +10139,8 @@
        "texto": "Informe que el hospital remitió a la comisaría con la historia clínica.",
        "tipo": "OBJECT",
        "visible": true,
-       "x": 670,
-       "y": 282,
+       "x": 676,
+       "y": 291,
        "z": 0
       },
       {
@@ -10068,12 +10166,49 @@
        "tipo": "TOOL",
        "visible": true,
        "x": 600,
-       "y": 420,
+       "y": 430,
+       "z": 0
+      },
+      {
+       "alto": 40,
+       "ancho": 24,
+       "clave": "puerta-pasillo",
+       "codigoCorto": "EXIT",
+       "colision": false,
+       "color": "#B69CFF",
+       "desbloqueo": {},
+       "etiqueta": "Salir al pasillo",
+       "herramienta": null,
+       "icono": "door_front",
+       "indicacion": "Salir al pasillo",
+       "metadatos": {
+        "entryX": 774,
+        "entryY": 260,
+        "label": "Salir al pasillo",
+        "lockedMessage": "Por ahora te necesitan en esta sala.",
+        "modelo": "metalica",
+        "muro": "camara",
+        "par": "puerta-consultorio",
+        "pos": 384,
+        "requiresNodes": [
+         "cierre-caso"
+        ],
+        "targetNodeKey": "c3-pasillo"
+       },
+       "movimiento": {},
+       "opcion": null,
+       "orientacion": "",
+       "personaje": null,
+       "texto": "Salir al pasillo",
+       "tipo": "EXIT",
+       "visible": true,
+       "x": 480,
+       "y": 476,
        "z": 0
       }
      ],
      "tema": "clinical-soft",
-     "titulo": "Consultorio psicosocial"
+     "titulo": "Comisaría de Familia — Consultorio psicosocial"
     },
     "objetivo": "Valora el riesgo sin hacerle contar de nuevo lo que ya está escrito.",
     "opciones": [
@@ -10189,9 +10324,12 @@
     "mapa": {
      "alto": 528,
      "ambiente": {
-      "backgroundImage": "/assets/biblioteca/escenarios/comisaria/arte/salas/consultorio-psicosocial.png",
+      "ambientNpcKeys": [],
+      "ambientNpcs": [],
       "encuadre": "tres-paredes",
       "lugarId": "comisaria",
+      "mood": "reserved",
+      "music": "none",
       "salaId": "comisaria-consultorio-psicosocial"
      },
      "ancho": 960,
@@ -10234,52 +10372,44 @@
        "y": 486
       },
       {
-       "alto": 28,
-       "ancho": 122,
-       "clave": "choque-escritorio-funcionario",
-       "etiqueta": "Escritorio",
-       "x": 639,
-       "y": 262
+       "alto": 8,
+       "ancho": 70,
+       "clave": "choque-cartelera-comisaria",
+       "etiqueta": "Cartelera institucional",
+       "x": 525,
+       "y": 250
       },
       {
-       "alto": 14,
-       "ancho": 26,
+       "alto": 12,
+       "ancho": 24,
        "clave": "choque-silla-giratoria",
        "etiqueta": "Silla giratoria",
-       "x": 687,
-       "y": 242
+       "x": 688,
+       "y": 244
       },
       {
-       "alto": 14,
-       "ancho": 24,
+       "alto": 12,
+       "ancho": 22,
        "clave": "choque-silla-visitante-comisaria",
        "etiqueta": "Silla para visitante",
-       "x": 288,
-       "y": 326
+       "x": 289,
+       "y": 328
       },
       {
-       "alto": 14,
-       "ancho": 24,
+       "alto": 12,
+       "ancho": 22,
        "clave": "choque-silla-visitante-comisaria-2",
        "etiqueta": "Silla para visitante",
-       "x": 408,
-       "y": 326
+       "x": 409,
+       "y": 328
       },
       {
-       "alto": 24,
+       "alto": 12,
        "ancho": 60,
        "clave": "choque-mesa-baja-nna",
-       "etiqueta": "Mesa baja",
+       "etiqueta": "Mesa baja para niñas y niños",
        "x": 330,
-       "y": 338
-      },
-      {
-       "alto": 14,
-       "ancho": 36,
-       "clave": "choque-planta-oficina",
-       "etiqueta": "Planta de oficina",
-       "x": 122,
-       "y": 286
+       "y": 350
       }
      ],
      "dialogos": [
@@ -10385,22 +10515,84 @@
        "retrato": null
       }
      ],
+     "estructura": {
+      "acabados": {
+       "muro": "pintura",
+       "paleta": "comisaria-consultorio-psicosocial",
+       "piso": "madera",
+       "variante": "comisaria-consultorio-psicosocial"
+      },
+      "ancho": 960,
+      "momento": "dia",
+      "piezas": [
+       {
+        "id": "cuadro",
+        "modelo": "cuadro",
+        "muro": "fondo",
+        "pos": 56,
+        "tipo": "cuadro"
+       },
+       {
+        "id": "ventana",
+        "modelo": "persiana",
+        "muro": "fondo",
+        "pos": 232,
+        "tipo": "ventana"
+       },
+       {
+        "id": "repisa",
+        "modelo": "repisa",
+        "muro": "fondo",
+        "pos": 400,
+        "tipo": "repisa"
+       },
+       {
+        "id": "reloj",
+        "modelo": "reloj",
+        "muro": "fondo",
+        "pos": 600,
+        "tipo": "reloj"
+       },
+       {
+        "id": "cuadro-2",
+        "modelo": "cuadro",
+        "muro": "fondo",
+        "pos": 704,
+        "tipo": "cuadro"
+       },
+       {
+        "id": "lampara-pie",
+        "modelo": "pie",
+        "tipo": "lampara",
+        "x": 226,
+        "y": 330
+       },
+       {
+        "id": "lampara-mesa",
+        "modelo": "mesa",
+        "sobre": 36,
+        "tipo": "lampara",
+        "x": 748,
+        "y": 290
+       }
+      ]
+     },
      "objetos": [
       {
-       "alto": 28,
-       "ancho": 122,
-       "clave": "escritorio-funcionario",
-       "codigoCorto": "",
+       "alto": 76,
+       "ancho": 82,
+       "clave": "cartelera-comisaria",
+       "codigoCorto": "MUE",
        "colision": false,
-       "color": "#4FA3A5",
+       "color": "#7FB3D5",
        "desbloqueo": {},
-       "etiqueta": "Escritorio",
+       "etiqueta": "Cartelera institucional",
        "herramienta": null,
-       "icono": "inventory_2",
+       "icono": "chair",
        "indicacion": "",
        "metadatos": {
         "apoyo": "pies",
-        "arte": "/assets/biblioteca/escenarios/comisaria/arte/muebles/escritorio-funcionario.png",
+        "arte": "/assets/biblioteca/piezas/muebles/comisaria/cartelera-comisaria.png",
         "colision": true
        },
        "movimiento": {},
@@ -10410,25 +10602,25 @@
        "texto": "",
        "tipo": "PROP",
        "visible": true,
-       "x": 700,
-       "y": 290,
+       "x": 560,
+       "y": 258,
        "z": 0
       },
       {
-       "alto": 14,
-       "ancho": 26,
+       "alto": 44,
+       "ancho": 30,
        "clave": "silla-giratoria",
-       "codigoCorto": "",
+       "codigoCorto": "MUE",
        "colision": false,
-       "color": "#4FA3A5",
+       "color": "#7FB3D5",
        "desbloqueo": {},
        "etiqueta": "Silla giratoria",
        "herramienta": null,
-       "icono": "inventory_2",
+       "icono": "chair",
        "indicacion": "",
        "metadatos": {
         "apoyo": "pies",
-        "arte": "/assets/biblioteca/escenarios/comisaria/arte/muebles/silla-giratoria.png",
+        "arte": "/assets/biblioteca/piezas/muebles/comisaria/silla-giratoria.png",
         "colision": true
        },
        "movimiento": {},
@@ -10443,20 +10635,20 @@
        "z": 0
       },
       {
-       "alto": 14,
+       "alto": 39,
        "ancho": 24,
        "clave": "silla-visitante-comisaria",
-       "codigoCorto": "",
+       "codigoCorto": "MUE",
        "colision": false,
-       "color": "#4FA3A5",
+       "color": "#7FB3D5",
        "desbloqueo": {},
        "etiqueta": "Silla para visitante",
        "herramienta": null,
-       "icono": "inventory_2",
+       "icono": "chair",
        "indicacion": "",
        "metadatos": {
         "apoyo": "pies",
-        "arte": "/assets/biblioteca/escenarios/comisaria/arte/muebles/silla-visitante-comisaria.png",
+        "arte": "/assets/biblioteca/piezas/muebles/comisaria/silla-visitante-comisaria.png",
         "colision": true
        },
        "movimiento": {},
@@ -10471,20 +10663,20 @@
        "z": 0
       },
       {
-       "alto": 14,
+       "alto": 39,
        "ancho": 24,
        "clave": "silla-visitante-comisaria-2",
-       "codigoCorto": "",
+       "codigoCorto": "MUE",
        "colision": false,
-       "color": "#4FA3A5",
+       "color": "#7FB3D5",
        "desbloqueo": {},
        "etiqueta": "Silla para visitante",
        "herramienta": null,
-       "icono": "inventory_2",
+       "icono": "chair",
        "indicacion": "",
        "metadatos": {
         "apoyo": "pies",
-        "arte": "/assets/biblioteca/escenarios/comisaria/arte/muebles/silla-visitante-comisaria.png",
+        "arte": "/assets/biblioteca/piezas/muebles/comisaria/silla-visitante-comisaria.png",
         "colision": true,
         "espejo": true
        },
@@ -10500,20 +10692,20 @@
        "z": 0
       },
       {
-       "alto": 24,
-       "ancho": 60,
+       "alto": 35,
+       "ancho": 64,
        "clave": "mesa-baja-nna",
-       "codigoCorto": "",
+       "codigoCorto": "MUE",
        "colision": false,
-       "color": "#4FA3A5",
+       "color": "#7FB3D5",
        "desbloqueo": {},
-       "etiqueta": "Mesa baja",
+       "etiqueta": "Mesa baja para niñas y niños",
        "herramienta": null,
-       "icono": "inventory_2",
+       "icono": "chair",
        "indicacion": "",
        "metadatos": {
         "apoyo": "pies",
-        "arte": "/assets/biblioteca/escenarios/comisaria/arte/muebles/mesa-baja-nna.png",
+        "arte": "/assets/biblioteca/piezas/muebles/comisaria/mesa-baja-nna.png",
         "colision": true
        },
        "movimiento": {},
@@ -10525,98 +10717,6 @@
        "visible": true,
        "x": 360,
        "y": 362,
-       "z": 0
-      },
-      {
-       "alto": 14,
-       "ancho": 36,
-       "clave": "planta-oficina",
-       "codigoCorto": "",
-       "colision": false,
-       "color": "#4FA3A5",
-       "desbloqueo": {},
-       "etiqueta": "Planta de oficina",
-       "herramienta": null,
-       "icono": "inventory_2",
-       "indicacion": "",
-       "metadatos": {
-        "apoyo": "pies",
-        "arte": "/assets/biblioteca/escenarios/comisaria/arte/muebles/planta-oficina.png",
-        "colision": true
-       },
-       "movimiento": {},
-       "opcion": null,
-       "orientacion": "",
-       "personaje": null,
-       "texto": "",
-       "tipo": "PROP",
-       "visible": true,
-       "x": 140,
-       "y": 300,
-       "z": 0
-      },
-      {
-       "alto": 32,
-       "ancho": 32,
-       "clave": "caja-panuelos",
-       "codigoCorto": "",
-       "colision": false,
-       "color": "#4FA3A5",
-       "desbloqueo": {},
-       "etiqueta": "Caja de pañuelos",
-       "herramienta": null,
-       "icono": "inventory_2",
-       "indicacion": "Revisar",
-       "metadatos": {
-        "animacionCerca": {
-         "cuadros": 3,
-         "fps": 6,
-         "hoja": "/assets/biblioteca/escenarios/comisaria/arte/objetos/caja-panuelos-cerca.png"
-        },
-        "apoyo": "pies",
-        "arte": "/assets/biblioteca/escenarios/comisaria/arte/objetos/caja-panuelos.png"
-       },
-       "movimiento": {},
-       "opcion": null,
-       "orientacion": "",
-       "personaje": null,
-       "texto": "Tenerlos a la mano, sin ofrecerlos de golpe.",
-       "tipo": "OBJECT",
-       "visible": true,
-       "x": 360,
-       "y": 350,
-       "z": 0
-      },
-      {
-       "alto": 32,
-       "ancho": 32,
-       "clave": "papelera",
-       "codigoCorto": "",
-       "colision": false,
-       "color": "#4FA3A5",
-       "desbloqueo": {},
-       "etiqueta": "Papelera",
-       "herramienta": null,
-       "icono": "inventory_2",
-       "indicacion": "Mirar",
-       "metadatos": {
-        "animacionCerca": {
-         "cuadros": 2,
-         "fps": 6,
-         "hoja": "/assets/biblioteca/escenarios/comisaria/arte/objetos/papelera-cerca.png"
-        },
-        "apoyo": "pies",
-        "arte": "/assets/biblioteca/escenarios/comisaria/arte/objetos/papelera.png"
-       },
-       "movimiento": {},
-       "opcion": null,
-       "orientacion": "",
-       "personaje": null,
-       "texto": "Vacía.",
-       "tipo": "PROP",
-       "visible": true,
-       "x": 760,
-       "y": 262,
        "z": 0
       },
       {
@@ -10645,7 +10745,7 @@
        "tipo": "PERSON",
        "visible": true,
        "x": 520,
-       "y": 350,
+       "y": 352,
        "z": 0
       },
       {
@@ -10673,8 +10773,8 @@
        "texto": "La sobreviviente escucha en silencio.",
        "tipo": "PERSON",
        "visible": true,
-       "x": 260,
-       "y": 410,
+       "x": 262,
+       "y": 404,
        "z": 0
       },
       {
@@ -10705,8 +10805,8 @@
        "texto": "Informe que el hospital remitió a la comisaría con la historia clínica.",
        "tipo": "OBJECT",
        "visible": true,
-       "x": 670,
-       "y": 282,
+       "x": 676,
+       "y": 291,
        "z": 0
       },
       {
@@ -10758,12 +10858,49 @@
        "tipo": "TOOL",
        "visible": true,
        "x": 600,
-       "y": 420,
+       "y": 430,
+       "z": 0
+      },
+      {
+       "alto": 40,
+       "ancho": 24,
+       "clave": "puerta-pasillo",
+       "codigoCorto": "EXIT",
+       "colision": false,
+       "color": "#B69CFF",
+       "desbloqueo": {},
+       "etiqueta": "Salir al pasillo",
+       "herramienta": null,
+       "icono": "door_front",
+       "indicacion": "Salir al pasillo",
+       "metadatos": {
+        "entryX": 774,
+        "entryY": 260,
+        "label": "Salir al pasillo",
+        "lockedMessage": "Por ahora te necesitan en esta sala.",
+        "modelo": "metalica",
+        "muro": "camara",
+        "par": "puerta-consultorio",
+        "pos": 384,
+        "requiresNodes": [
+         "cierre-caso"
+        ],
+        "targetNodeKey": "c3-pasillo"
+       },
+       "movimiento": {},
+       "opcion": null,
+       "orientacion": "",
+       "personaje": null,
+       "texto": "Salir al pasillo",
+       "tipo": "EXIT",
+       "visible": true,
+       "x": 480,
+       "y": 476,
        "z": 0
       }
      ],
      "tema": "clinical-soft",
-     "titulo": "Consultorio psicosocial"
+     "titulo": "Comisaría de Familia — Consultorio psicosocial"
     },
     "objetivo": "Identifica qué derechos hay que restablecer y con qué respaldo legal.",
     "opciones": [
@@ -10896,21 +11033,24 @@
     "mapa": {
      "alto": 528,
      "ambiente": {
-      "backgroundImage": "/assets/biblioteca/escenarios/comisaria/arte/salas/pasillo.png",
-      "encuadre": "una-pared",
+      "ambientNpcKeys": [],
+      "ambientNpcs": [],
+      "encuadre": "tres-paredes",
       "lugarId": "comisaria",
+      "mood": "reserved",
+      "music": "none",
       "salaId": "comisaria-pasillo"
      },
-     "ancho": 960,
+     "ancho": 1440,
      "aparicion": {
-      "x": 480,
+      "x": 718,
       "y": 440
      },
      "clave": "c3-pasillo",
      "colisiones": [
       {
        "alto": 236,
-       "ancho": 960,
+       "ancho": 1440,
        "clave": "pared-fondo",
        "etiqueta": "Pared del fondo",
        "x": 0,
@@ -10918,51 +11058,51 @@
       },
       {
        "alto": 250,
-       "ancho": 24,
-       "clave": "borde-izquierdo",
-       "etiqueta": "Borde izquierdo",
+       "ancho": 134,
+       "clave": "pared-izquierda",
+       "etiqueta": "Pared izquierda",
        "x": 0,
        "y": 236
       },
       {
        "alto": 250,
-       "ancho": 24,
-       "clave": "borde-derecho",
-       "etiqueta": "Borde derecho",
-       "x": 936,
+       "ancho": 134,
+       "clave": "pared-derecha",
+       "etiqueta": "Pared derecha",
+       "x": 1306,
        "y": 236
       },
       {
        "alto": 42,
-       "ancho": 960,
+       "ancho": 1440,
        "clave": "borde-delantero",
        "etiqueta": "Borde delantero",
        "x": 0,
        "y": 486
       },
       {
-       "alto": 22,
-       "ancho": 120,
+       "alto": 14,
+       "ancho": 118,
        "clave": "choque-sillas-espera-comisaria",
        "etiqueta": "Fila de sillas de espera",
-       "x": 140,
-       "y": 408
+       "x": 585,
+       "y": 258
       },
       {
-       "alto": 14,
-       "ancho": 26,
+       "alto": 10,
+       "ancho": 22,
        "clave": "choque-caneca-comisaria",
        "etiqueta": "Caneca",
-       "x": 867,
-       "y": 248
+       "x": 873,
+       "y": 256
       },
       {
        "alto": 14,
-       "ancho": 36,
-       "clave": "choque-planta-oficina",
-       "etiqueta": "Planta de oficina",
-       "x": 42,
-       "y": 286
+       "ancho": 118,
+       "clave": "choque-sillas-espera-comisaria-2",
+       "etiqueta": "Fila de sillas de espera",
+       "x": 1121,
+       "y": 258
       }
      ],
      "dialogos": [
@@ -11046,22 +11186,100 @@
        "retrato": null
       }
      ],
+     "estructura": {
+      "acabados": {
+       "muro": "zocalo-alto",
+       "paleta": "comisaria-pasillo",
+       "piso": "baldosa",
+       "variante": "comisaria-pasillo"
+      },
+      "ancho": 1440,
+      "momento": "dia",
+      "piezas": [
+       {
+        "id": "senal-1",
+        "modelo": "senal",
+        "muro": "fondo",
+        "pos": 184,
+        "tipo": "senal"
+       },
+       {
+        "encendida": true,
+        "id": "tubo-1",
+        "modelo": "tubo",
+        "muro": "fondo",
+        "pos": 256,
+        "tipo": "lampara"
+       },
+       {
+        "id": "extintor",
+        "modelo": "extintor",
+        "muro": "fondo",
+        "pos": 440,
+        "tipo": "extintor"
+       },
+       {
+        "encendida": true,
+        "id": "tubo-2",
+        "modelo": "tubo",
+        "muro": "fondo",
+        "pos": 508,
+        "tipo": "lampara"
+       },
+       {
+        "id": "reloj",
+        "modelo": "reloj",
+        "muro": "fondo",
+        "pos": 508,
+        "tipo": "reloj"
+       },
+       {
+        "id": "gel",
+        "modelo": "gel",
+        "muro": "fondo",
+        "pos": 576,
+        "tipo": "gel"
+       },
+       {
+        "id": "ventana",
+        "modelo": "alta",
+        "muro": "fondo",
+        "pos": 768,
+        "tipo": "ventana"
+       },
+       {
+        "encendida": true,
+        "id": "tubo-3",
+        "modelo": "tubo",
+        "muro": "fondo",
+        "pos": 1008,
+        "tipo": "lampara"
+       },
+       {
+        "id": "cartelera",
+        "modelo": "cartelera",
+        "muro": "fondo",
+        "pos": 1128,
+        "tipo": "cartelera"
+       }
+      ]
+     },
      "objetos": [
       {
-       "alto": 22,
-       "ancho": 120,
+       "alto": 40,
+       "ancho": 122,
        "clave": "sillas-espera-comisaria",
-       "codigoCorto": "",
+       "codigoCorto": "MUE",
        "colision": false,
-       "color": "#4FA3A5",
+       "color": "#7FB3D5",
        "desbloqueo": {},
        "etiqueta": "Fila de sillas de espera",
        "herramienta": null,
-       "icono": "inventory_2",
+       "icono": "chair",
        "indicacion": "",
        "metadatos": {
         "apoyo": "pies",
-        "arte": "/assets/biblioteca/escenarios/comisaria/arte/muebles/sillas-espera-comisaria.png",
+        "arte": "/assets/biblioteca/piezas/muebles/comisaria/sillas-espera-comisaria.png",
         "colision": true
        },
        "movimiento": {},
@@ -11071,25 +11289,25 @@
        "texto": "",
        "tipo": "PROP",
        "visible": true,
-       "x": 200,
-       "y": 430,
+       "x": 644,
+       "y": 272,
        "z": 0
       },
       {
-       "alto": 14,
-       "ancho": 26,
+       "alto": 33,
+       "ancho": 24,
        "clave": "caneca-comisaria",
-       "codigoCorto": "",
+       "codigoCorto": "MUE",
        "colision": false,
-       "color": "#4FA3A5",
+       "color": "#7FB3D5",
        "desbloqueo": {},
        "etiqueta": "Caneca",
        "herramienta": null,
-       "icono": "inventory_2",
+       "icono": "chair",
        "indicacion": "",
        "metadatos": {
         "apoyo": "pies",
-        "arte": "/assets/biblioteca/escenarios/comisaria/arte/muebles/caneca-comisaria.png",
+        "arte": "/assets/biblioteca/piezas/muebles/comisaria/caneca-comisaria.png",
         "colision": true
        },
        "movimiento": {},
@@ -11099,25 +11317,25 @@
        "texto": "",
        "tipo": "PROP",
        "visible": true,
-       "x": 880,
-       "y": 262,
+       "x": 884,
+       "y": 266,
        "z": 0
       },
       {
-       "alto": 14,
-       "ancho": 36,
-       "clave": "planta-oficina",
-       "codigoCorto": "",
+       "alto": 40,
+       "ancho": 122,
+       "clave": "sillas-espera-comisaria-2",
+       "codigoCorto": "MUE",
        "colision": false,
-       "color": "#4FA3A5",
+       "color": "#7FB3D5",
        "desbloqueo": {},
-       "etiqueta": "Planta de oficina",
+       "etiqueta": "Fila de sillas de espera",
        "herramienta": null,
-       "icono": "inventory_2",
+       "icono": "chair",
        "indicacion": "",
        "metadatos": {
         "apoyo": "pies",
-        "arte": "/assets/biblioteca/escenarios/comisaria/arte/muebles/planta-oficina.png",
+        "arte": "/assets/biblioteca/piezas/muebles/comisaria/sillas-espera-comisaria.png",
         "colision": true
        },
        "movimiento": {},
@@ -11127,40 +11345,8 @@
        "texto": "",
        "tipo": "PROP",
        "visible": true,
-       "x": 60,
-       "y": 300,
-       "z": 0
-      },
-      {
-       "alto": 32,
-       "ancho": 32,
-       "clave": "camara-seguridad",
-       "codigoCorto": "",
-       "colision": false,
-       "color": "#4FA3A5",
-       "desbloqueo": {},
-       "etiqueta": "Cámara de seguridad",
-       "herramienta": null,
-       "icono": "inventory_2",
-       "indicacion": "Mirar",
-       "metadatos": {
-        "animacionCerca": {
-         "cuadros": 2,
-         "fps": 4,
-         "hoja": "/assets/biblioteca/escenarios/comisaria/arte/objetos/camara-seguridad-cerca.png"
-        },
-        "apoyo": "pies",
-        "arte": "/assets/biblioteca/escenarios/comisaria/arte/objetos/camara-seguridad.png"
-       },
-       "movimiento": {},
-       "opcion": null,
-       "orientacion": "",
-       "personaje": null,
-       "texto": "Graba. Es un espacio público.",
-       "tipo": "PROP",
-       "visible": true,
-       "x": 480,
-       "y": 236,
+       "x": 1180,
+       "y": 272,
        "z": 0
       },
       {
@@ -11188,8 +11374,8 @@
        "texto": "La sobreviviente se detuvo en mitad del pasillo.",
        "tipo": "PERSON",
        "visible": true,
-       "x": 300,
-       "y": 380,
+       "x": 760,
+       "y": 376,
        "z": 0
       },
       {
@@ -11217,8 +11403,8 @@
        "texto": "La orientadora jurídica está en la puerta de su oficina.",
        "tipo": "PERSON",
        "visible": true,
-       "x": 160,
-       "y": 290,
+       "x": 260,
+       "y": 300,
        "z": 0
       },
       {
@@ -11246,8 +11432,8 @@
        "texto": "La comisaria de familia sale de su despacho.",
        "tipo": "PERSON",
        "visible": true,
-       "x": 340,
-       "y": 290,
+       "x": 510,
+       "y": 300,
        "z": 0
       },
       {
@@ -11273,12 +11459,123 @@
        "tipo": "TOOL",
        "visible": true,
        "x": 620,
-       "y": 400,
+       "y": 440,
+       "z": 0
+      },
+      {
+       "alto": 40,
+       "ancho": 24,
+       "clave": "puerta-recepcion",
+       "codigoCorto": "EXIT",
+       "colision": false,
+       "color": "#B69CFF",
+       "desbloqueo": {},
+       "etiqueta": "Volver a la recepción",
+       "herramienta": null,
+       "icono": "door_front",
+       "indicacion": "Volver a la recepción",
+       "metadatos": {
+        "entryX": 219,
+        "entryY": 260,
+        "label": "Volver a la recepción",
+        "lockedMessage": "Por ahora te necesitan en esta sala.",
+        "modelo": "paso",
+        "muro": "izquierda",
+        "par": "puerta-pasillo",
+        "pos": 152,
+        "requiresNodes": [
+         "cierre-caso"
+        ],
+        "targetNodeKey": "c3-recepcion"
+       },
+       "movimiento": {},
+       "opcion": null,
+       "orientacion": "",
+       "personaje": null,
+       "texto": "Volver a la recepción",
+       "tipo": "EXIT",
+       "visible": true,
+       "x": 150,
+       "y": 382,
+       "z": 0
+      },
+      {
+       "alto": 40,
+       "ancho": 24,
+       "clave": "puerta-sala-espera",
+       "codigoCorto": "EXIT",
+       "colision": false,
+       "color": "#B69CFF",
+       "desbloqueo": {},
+       "etiqueta": "Volver a la sala de espera",
+       "herramienta": null,
+       "icono": "door_front",
+       "indicacion": "Volver a la sala de espera",
+       "metadatos": {
+        "entryX": 595,
+        "entryY": 260,
+        "label": "Volver a la sala de espera",
+        "lockedMessage": "Por ahora te necesitan en esta sala.",
+        "modelo": "metalica",
+        "muro": "camara",
+        "par": "puerta-pasillo",
+        "pos": 584,
+        "requiresNodes": [
+         "cierre-caso"
+        ],
+        "targetNodeKey": "c3-sala-espera"
+       },
+       "movimiento": {},
+       "opcion": null,
+       "orientacion": "",
+       "personaje": null,
+       "texto": "Volver a la sala de espera",
+       "tipo": "EXIT",
+       "visible": true,
+       "x": 718,
+       "y": 476,
+       "z": 0
+      },
+      {
+       "alto": 40,
+       "ancho": 24,
+       "clave": "puerta-consultorio",
+       "codigoCorto": "EXIT",
+       "colision": false,
+       "color": "#B69CFF",
+       "desbloqueo": {},
+       "etiqueta": "Entrar al consultorio psicosocial",
+       "herramienta": null,
+       "icono": "door_front",
+       "indicacion": "Entrar al consultorio psicosocial",
+       "metadatos": {
+        "entryX": 480,
+        "entryY": 476,
+        "label": "Entrar al consultorio psicosocial",
+        "lockedMessage": "Por ahora te necesitan en esta sala.",
+        "modelo": "metalica",
+        "muro": "fondo",
+        "par": "puerta-pasillo",
+        "pos": 640,
+        "requiresNodes": [
+         "cierre-caso"
+        ],
+        "targetNodeKey": "c3-consultorio-relato"
+       },
+       "movimiento": {},
+       "opcion": null,
+       "orientacion": "",
+       "personaje": null,
+       "texto": "Entrar al consultorio psicosocial",
+       "tipo": "EXIT",
+       "visible": true,
+       "x": 774,
+       "y": 260,
        "z": 0
       }
      ],
      "tema": "clinical-soft",
-     "titulo": "Pasillo de atención"
+     "titulo": "Comisaría de Familia — Pasillo de atención"
     },
     "objetivo": "Explícale quién hace qué en la comisaría y acompáñala hasta la persona indicada.",
     "opciones": [
@@ -11402,21 +11699,24 @@
     "mapa": {
      "alto": 528,
      "ambiente": {
-      "backgroundImage": "/assets/biblioteca/escenarios/comisaria/arte/salas/sala-espera.png",
-      "encuadre": "dos-paredes-derecha",
+      "ambientNpcKeys": [],
+      "ambientNpcs": [],
+      "encuadre": "tres-paredes",
       "lugarId": "comisaria",
+      "mood": "reserved",
+      "music": "none",
       "salaId": "comisaria-sala-espera"
      },
-     "ancho": 960,
+     "ancho": 1200,
      "aparicion": {
-      "x": 480,
+      "x": 600,
       "y": 440
      },
      "clave": "c3-sala-espera",
      "colisiones": [
       {
        "alto": 236,
-       "ancho": 960,
+       "ancho": 1200,
        "clave": "pared-fondo",
        "etiqueta": "Pared del fondo",
        "x": 0,
@@ -11424,51 +11724,83 @@
       },
       {
        "alto": 250,
-       "ancho": 24,
-       "clave": "borde-izquierdo",
-       "etiqueta": "Borde izquierdo",
+       "ancho": 115,
+       "clave": "pared-izquierda",
+       "etiqueta": "Pared izquierda",
        "x": 0,
        "y": 236
       },
       {
        "alto": 250,
-       "ancho": 96,
+       "ancho": 115,
        "clave": "pared-derecha",
        "etiqueta": "Pared derecha",
-       "x": 864,
+       "x": 1085,
        "y": 236
       },
       {
        "alto": 42,
-       "ancho": 960,
+       "ancho": 1200,
        "clave": "borde-delantero",
        "etiqueta": "Borde delantero",
        "x": 0,
        "y": 486
       },
       {
-       "alto": 22,
-       "ancho": 120,
+       "alto": 14,
+       "ancho": 118,
        "clave": "choque-sillas-espera-comisaria",
        "etiqueta": "Fila de sillas de espera",
-       "x": 240,
-       "y": 278
-      },
-      {
-       "alto": 22,
-       "ancho": 120,
-       "clave": "choque-sillas-espera-comisaria-2",
-       "etiqueta": "Fila de sillas de espera",
-       "x": 240,
-       "y": 378
+       "x": 257,
+       "y": 258
       },
       {
        "alto": 14,
-       "ancho": 36,
-       "clave": "choque-planta-oficina",
-       "etiqueta": "Planta de oficina",
-       "x": 102,
-       "y": 286
+       "ancho": 118,
+       "clave": "choque-sillas-espera-comisaria-2",
+       "etiqueta": "Fila de sillas de espera",
+       "x": 393,
+       "y": 258
+      },
+      {
+       "alto": 14,
+       "ancho": 118,
+       "clave": "choque-sillas-espera-comisaria-3",
+       "etiqueta": "Fila de sillas de espera",
+       "x": 701,
+       "y": 258
+      },
+      {
+       "alto": 14,
+       "ancho": 118,
+       "clave": "choque-sillas-espera-comisaria-4",
+       "etiqueta": "Fila de sillas de espera",
+       "x": 837,
+       "y": 258
+      },
+      {
+       "alto": 14,
+       "ancho": 118,
+       "clave": "choque-sillas-espera-comisaria-5",
+       "etiqueta": "Fila de sillas de espera",
+       "x": 361,
+       "y": 370
+      },
+      {
+       "alto": 12,
+       "ancho": 60,
+       "clave": "choque-mesa-baja-nna",
+       "etiqueta": "Mesa baja para niñas y niños",
+       "x": 570,
+       "y": 380
+      },
+      {
+       "alto": 14,
+       "ancho": 118,
+       "clave": "choque-sillas-espera-comisaria-6",
+       "etiqueta": "Fila de sillas de espera",
+       "x": 721,
+       "y": 370
       }
      ],
      "dialogos": [
@@ -11520,22 +11852,92 @@
        "retrato": null
       }
      ],
+     "estructura": {
+      "acabados": {
+       "muro": "zocalo-alto",
+       "paleta": "comisaria-sala-espera",
+       "piso": "baldosa",
+       "variante": "comisaria-sala-espera"
+      },
+      "ancho": 1200,
+      "momento": "dia",
+      "piezas": [
+       {
+        "id": "persiana-1",
+        "modelo": "persiana",
+        "muro": "fondo",
+        "pos": 136,
+        "tipo": "ventana"
+       },
+       {
+        "id": "cartelera",
+        "modelo": "cartelera",
+        "muro": "fondo",
+        "pos": 256,
+        "tipo": "cartelera"
+       },
+       {
+        "encendida": true,
+        "id": "tubo-1",
+        "modelo": "tubo",
+        "muro": "fondo",
+        "pos": 360,
+        "tipo": "lampara"
+       },
+       {
+        "id": "reloj",
+        "modelo": "reloj",
+        "muro": "fondo",
+        "pos": 560,
+        "tipo": "reloj"
+       },
+       {
+        "encendida": true,
+        "id": "tubo-2",
+        "modelo": "tubo",
+        "muro": "fondo",
+        "pos": 680,
+        "tipo": "lampara"
+       },
+       {
+        "id": "persiana-2",
+        "modelo": "persiana",
+        "muro": "fondo",
+        "pos": 816,
+        "tipo": "ventana"
+       },
+       {
+        "id": "extintor",
+        "modelo": "extintor",
+        "muro": "fondo",
+        "pos": 904,
+        "tipo": "extintor"
+       },
+       {
+        "id": "senal",
+        "modelo": "senal",
+        "muro": "fondo",
+        "pos": 944,
+        "tipo": "senal"
+       }
+      ]
+     },
      "objetos": [
       {
-       "alto": 22,
-       "ancho": 120,
+       "alto": 40,
+       "ancho": 122,
        "clave": "sillas-espera-comisaria",
-       "codigoCorto": "",
+       "codigoCorto": "MUE",
        "colision": false,
-       "color": "#4FA3A5",
+       "color": "#7FB3D5",
        "desbloqueo": {},
        "etiqueta": "Fila de sillas de espera",
        "herramienta": null,
-       "icono": "inventory_2",
+       "icono": "chair",
        "indicacion": "",
        "metadatos": {
         "apoyo": "pies",
-        "arte": "/assets/biblioteca/escenarios/comisaria/arte/muebles/sillas-espera-comisaria.png",
+        "arte": "/assets/biblioteca/piezas/muebles/comisaria/sillas-espera-comisaria.png",
         "colision": true
        },
        "movimiento": {},
@@ -11545,25 +11947,25 @@
        "texto": "",
        "tipo": "PROP",
        "visible": true,
-       "x": 300,
-       "y": 300,
+       "x": 316,
+       "y": 272,
        "z": 0
       },
       {
-       "alto": 22,
-       "ancho": 120,
+       "alto": 40,
+       "ancho": 122,
        "clave": "sillas-espera-comisaria-2",
-       "codigoCorto": "",
+       "codigoCorto": "MUE",
        "colision": false,
-       "color": "#4FA3A5",
+       "color": "#7FB3D5",
        "desbloqueo": {},
        "etiqueta": "Fila de sillas de espera",
        "herramienta": null,
-       "icono": "inventory_2",
+       "icono": "chair",
        "indicacion": "",
        "metadatos": {
         "apoyo": "pies",
-        "arte": "/assets/biblioteca/escenarios/comisaria/arte/muebles/sillas-espera-comisaria.png",
+        "arte": "/assets/biblioteca/piezas/muebles/comisaria/sillas-espera-comisaria.png",
         "colision": true
        },
        "movimiento": {},
@@ -11573,64 +11975,177 @@
        "texto": "",
        "tipo": "PROP",
        "visible": true,
-       "x": 300,
+       "x": 452,
+       "y": 272,
+       "z": 0
+      },
+      {
+       "alto": 40,
+       "ancho": 122,
+       "clave": "sillas-espera-comisaria-3",
+       "codigoCorto": "MUE",
+       "colision": false,
+       "color": "#7FB3D5",
+       "desbloqueo": {},
+       "etiqueta": "Fila de sillas de espera",
+       "herramienta": null,
+       "icono": "chair",
+       "indicacion": "",
+       "metadatos": {
+        "apoyo": "pies",
+        "arte": "/assets/biblioteca/piezas/muebles/comisaria/sillas-espera-comisaria.png",
+        "colision": true
+       },
+       "movimiento": {},
+       "opcion": null,
+       "orientacion": "",
+       "personaje": null,
+       "texto": "",
+       "tipo": "PROP",
+       "visible": true,
+       "x": 760,
+       "y": 272,
+       "z": 0
+      },
+      {
+       "alto": 40,
+       "ancho": 122,
+       "clave": "sillas-espera-comisaria-4",
+       "codigoCorto": "MUE",
+       "colision": false,
+       "color": "#7FB3D5",
+       "desbloqueo": {},
+       "etiqueta": "Fila de sillas de espera",
+       "herramienta": null,
+       "icono": "chair",
+       "indicacion": "",
+       "metadatos": {
+        "apoyo": "pies",
+        "arte": "/assets/biblioteca/piezas/muebles/comisaria/sillas-espera-comisaria.png",
+        "colision": true
+       },
+       "movimiento": {},
+       "opcion": null,
+       "orientacion": "",
+       "personaje": null,
+       "texto": "",
+       "tipo": "PROP",
+       "visible": true,
+       "x": 896,
+       "y": 272,
+       "z": 0
+      },
+      {
+       "alto": 40,
+       "ancho": 122,
+       "clave": "sillas-espera-comisaria-5",
+       "codigoCorto": "MUE",
+       "colision": false,
+       "color": "#7FB3D5",
+       "desbloqueo": {},
+       "etiqueta": "Fila de sillas de espera",
+       "herramienta": null,
+       "icono": "chair",
+       "indicacion": "",
+       "metadatos": {
+        "apoyo": "pies",
+        "arte": "/assets/biblioteca/piezas/muebles/comisaria/sillas-espera-comisaria.png",
+        "colision": true
+       },
+       "movimiento": {},
+       "opcion": null,
+       "orientacion": "",
+       "personaje": null,
+       "texto": "",
+       "tipo": "PROP",
+       "visible": true,
+       "x": 420,
+       "y": 384,
+       "z": 0
+      },
+      {
+       "alto": 35,
+       "ancho": 64,
+       "clave": "mesa-baja-nna",
+       "codigoCorto": "MUE",
+       "colision": false,
+       "color": "#7FB3D5",
+       "desbloqueo": {},
+       "etiqueta": "Mesa baja para niñas y niños",
+       "herramienta": null,
+       "icono": "chair",
+       "indicacion": "",
+       "metadatos": {
+        "apoyo": "pies",
+        "arte": "/assets/biblioteca/piezas/muebles/comisaria/mesa-baja-nna.png",
+        "colision": true
+       },
+       "movimiento": {},
+       "opcion": null,
+       "orientacion": "",
+       "personaje": null,
+       "texto": "",
+       "tipo": "PROP",
+       "visible": true,
+       "x": 600,
+       "y": 392,
+       "z": 0
+      },
+      {
+       "alto": 40,
+       "ancho": 122,
+       "clave": "sillas-espera-comisaria-6",
+       "codigoCorto": "MUE",
+       "colision": false,
+       "color": "#7FB3D5",
+       "desbloqueo": {},
+       "etiqueta": "Fila de sillas de espera",
+       "herramienta": null,
+       "icono": "chair",
+       "indicacion": "",
+       "metadatos": {
+        "apoyo": "pies",
+        "arte": "/assets/biblioteca/piezas/muebles/comisaria/sillas-espera-comisaria.png",
+        "colision": true
+       },
+       "movimiento": {},
+       "opcion": null,
+       "orientacion": "",
+       "personaje": null,
+       "texto": "",
+       "tipo": "PROP",
+       "visible": true,
+       "x": 780,
+       "y": 384,
+       "z": 0
+      },
+      {
+       "alto": 48,
+       "ancho": 48,
+       "clave": "abuela",
+       "codigoCorto": "ABU",
+       "colision": false,
+       "color": "#7FB3D5",
+       "desbloqueo": {},
+       "etiqueta": "Abuela de la niña",
+       "herramienta": null,
+       "icono": "person",
+       "indicacion": "Hablar con su madre",
+       "metadatos": {
+        "apoyo": "pies",
+        "expresion": "preocupada",
+        "movimiento": "quieto",
+        "recipeId": "abuela-familia"
+       },
+       "movimiento": {},
+       "opcion": null,
+       "orientacion": "",
+       "personaje": "abuela",
+       "texto": "La madre de la sobreviviente espera afuera.",
+       "tipo": "PERSON",
+       "visible": true,
+       "x": 980,
        "y": 400,
-       "z": 0
-      },
-      {
-       "alto": 14,
-       "ancho": 36,
-       "clave": "planta-oficina",
-       "codigoCorto": "",
-       "colision": false,
-       "color": "#4FA3A5",
-       "desbloqueo": {},
-       "etiqueta": "Planta de oficina",
-       "herramienta": null,
-       "icono": "inventory_2",
-       "indicacion": "",
-       "metadatos": {
-        "apoyo": "pies",
-        "arte": "/assets/biblioteca/escenarios/comisaria/arte/muebles/planta-oficina.png",
-        "colision": true
-       },
-       "movimiento": {},
-       "opcion": null,
-       "orientacion": "",
-       "personaje": null,
-       "texto": "",
-       "tipo": "PROP",
-       "visible": true,
-       "x": 120,
-       "y": 300,
-       "z": 0
-      },
-      {
-       "alto": 6,
-       "ancho": 90,
-       "clave": "cartelera-comisaria",
-       "codigoCorto": "",
-       "colision": false,
-       "color": "#4FA3A5",
-       "desbloqueo": {},
-       "etiqueta": "Cartelera institucional",
-       "herramienta": null,
-       "icono": "inventory_2",
-       "indicacion": "",
-       "metadatos": {
-        "apoyo": "pies",
-        "arte": "/assets/biblioteca/escenarios/comisaria/arte/muebles/cartelera-comisaria.png",
-        "colision": false
-       },
-       "movimiento": {},
-       "opcion": null,
-       "orientacion": "",
-       "personaje": null,
-       "texto": "",
-       "tipo": "PROP",
-       "visible": true,
-       "x": 480,
-       "y": 236,
        "z": 0
       },
       {
@@ -11661,74 +12176,87 @@
        "texto": "Ofrecer un vaso de agua puede ser el primer gesto de cuidado.",
        "tipo": "OBJECT",
        "visible": true,
-       "x": 700,
-       "y": 262,
+       "x": 1010,
+       "y": 286,
        "z": 0
       },
       {
-       "alto": 32,
-       "ancho": 32,
-       "clave": "papelera",
-       "codigoCorto": "",
+       "alto": 40,
+       "ancho": 24,
+       "clave": "puerta-recepcion",
+       "codigoCorto": "EXIT",
        "colision": false,
-       "color": "#4FA3A5",
+       "color": "#B69CFF",
        "desbloqueo": {},
-       "etiqueta": "Papelera",
+       "etiqueta": "Volver a la recepción",
        "herramienta": null,
-       "icono": "inventory_2",
-       "indicacion": "Mirar",
+       "icono": "door_front",
+       "indicacion": "Volver a la recepción",
        "metadatos": {
-        "animacionCerca": {
-         "cuadros": 2,
-         "fps": 6,
-         "hoja": "/assets/biblioteca/escenarios/comisaria/arte/objetos/papelera-cerca.png"
-        },
-        "apoyo": "pies",
-        "arte": "/assets/biblioteca/escenarios/comisaria/arte/objetos/papelera.png"
+        "entryX": 1069,
+        "entryY": 382,
+        "label": "Volver a la recepción",
+        "lockedMessage": "Por ahora te necesitan en esta sala.",
+        "modelo": "paso",
+        "muro": "izquierda",
+        "par": "puerta-sala-espera",
+        "pos": 152,
+        "requiresNodes": [
+         "cierre-caso"
+        ],
+        "targetNodeKey": "c3-recepcion"
        },
        "movimiento": {},
        "opcion": null,
        "orientacion": "",
        "personaje": null,
-       "texto": "Vacía.",
-       "tipo": "PROP",
+       "texto": "Volver a la recepción",
+       "tipo": "EXIT",
        "visible": true,
-       "x": 780,
-       "y": 262,
+       "x": 131,
+       "y": 382,
        "z": 0
       },
       {
-       "alto": 48,
-       "ancho": 48,
-       "clave": "abuela",
-       "codigoCorto": "ABU",
+       "alto": 40,
+       "ancho": 24,
+       "clave": "puerta-pasillo",
+       "codigoCorto": "EXIT",
        "colision": false,
-       "color": "#7FB3D5",
+       "color": "#B69CFF",
        "desbloqueo": {},
-       "etiqueta": "Abuela de la niña",
+       "etiqueta": "Ir al pasillo de atención",
        "herramienta": null,
-       "icono": "person",
-       "indicacion": "Hablar con su madre",
+       "icono": "door_front",
+       "indicacion": "Ir al pasillo de atención",
        "metadatos": {
-        "apoyo": "pies",
-        "expresion": "preocupada",
-        "movimiento": "quieto",
-        "recipeId": "abuela-familia"
+        "entryX": 718,
+        "entryY": 476,
+        "label": "Ir al pasillo de atención",
+        "lockedMessage": "Por ahora te necesitan en esta sala.",
+        "modelo": "metalica",
+        "muro": "fondo",
+        "par": "puerta-sala-espera",
+        "pos": 480,
+        "requiresNodes": [
+         "cierre-caso"
+        ],
+        "targetNodeKey": "c3-pasillo"
        },
        "movimiento": {},
        "opcion": null,
        "orientacion": "",
-       "personaje": "abuela",
-       "texto": "La madre de la sobreviviente espera afuera.",
-       "tipo": "PERSON",
+       "personaje": null,
+       "texto": "Ir al pasillo de atención",
+       "tipo": "EXIT",
        "visible": true,
-       "x": 420,
-       "y": 420,
+       "x": 595,
+       "y": 260,
        "z": 0
       }
      ],
      "tema": "clinical-soft",
-     "titulo": "Sala de espera"
+     "titulo": "Comisaría de Familia — Sala de espera"
     },
     "objetivo": "Mira más allá de ella: quién la cuida, quién depende de ella y cómo están.",
     "opciones": [
@@ -11846,9 +12374,12 @@
     "mapa": {
      "alto": 528,
      "ambiente": {
-      "backgroundImage": "/assets/biblioteca/escenarios/comisaria/arte/salas/consultorio-psicosocial.png",
+      "ambientNpcKeys": [],
+      "ambientNpcs": [],
       "encuadre": "tres-paredes",
       "lugarId": "comisaria",
+      "mood": "reserved",
+      "music": "none",
       "salaId": "comisaria-consultorio-psicosocial"
      },
      "ancho": 960,
@@ -11891,52 +12422,44 @@
        "y": 486
       },
       {
-       "alto": 28,
-       "ancho": 122,
-       "clave": "choque-escritorio-funcionario",
-       "etiqueta": "Escritorio",
-       "x": 639,
-       "y": 262
+       "alto": 8,
+       "ancho": 70,
+       "clave": "choque-cartelera-comisaria",
+       "etiqueta": "Cartelera institucional",
+       "x": 525,
+       "y": 250
       },
       {
-       "alto": 14,
-       "ancho": 26,
+       "alto": 12,
+       "ancho": 24,
        "clave": "choque-silla-giratoria",
        "etiqueta": "Silla giratoria",
-       "x": 687,
-       "y": 242
+       "x": 688,
+       "y": 244
       },
       {
-       "alto": 14,
-       "ancho": 24,
+       "alto": 12,
+       "ancho": 22,
        "clave": "choque-silla-visitante-comisaria",
        "etiqueta": "Silla para visitante",
-       "x": 288,
-       "y": 326
+       "x": 289,
+       "y": 328
       },
       {
-       "alto": 14,
-       "ancho": 24,
+       "alto": 12,
+       "ancho": 22,
        "clave": "choque-silla-visitante-comisaria-2",
        "etiqueta": "Silla para visitante",
-       "x": 408,
-       "y": 326
+       "x": 409,
+       "y": 328
       },
       {
-       "alto": 24,
+       "alto": 12,
        "ancho": 60,
        "clave": "choque-mesa-baja-nna",
-       "etiqueta": "Mesa baja",
+       "etiqueta": "Mesa baja para niñas y niños",
        "x": 330,
-       "y": 338
-      },
-      {
-       "alto": 14,
-       "ancho": 36,
-       "clave": "choque-planta-oficina",
-       "etiqueta": "Planta de oficina",
-       "x": 122,
-       "y": 286
+       "y": 350
       }
      ],
      "dialogos": [
@@ -12036,22 +12559,84 @@
        "retrato": null
       }
      ],
+     "estructura": {
+      "acabados": {
+       "muro": "pintura",
+       "paleta": "comisaria-consultorio-psicosocial",
+       "piso": "madera",
+       "variante": "comisaria-consultorio-psicosocial"
+      },
+      "ancho": 960,
+      "momento": "dia",
+      "piezas": [
+       {
+        "id": "cuadro",
+        "modelo": "cuadro",
+        "muro": "fondo",
+        "pos": 56,
+        "tipo": "cuadro"
+       },
+       {
+        "id": "ventana",
+        "modelo": "persiana",
+        "muro": "fondo",
+        "pos": 232,
+        "tipo": "ventana"
+       },
+       {
+        "id": "repisa",
+        "modelo": "repisa",
+        "muro": "fondo",
+        "pos": 400,
+        "tipo": "repisa"
+       },
+       {
+        "id": "reloj",
+        "modelo": "reloj",
+        "muro": "fondo",
+        "pos": 600,
+        "tipo": "reloj"
+       },
+       {
+        "id": "cuadro-2",
+        "modelo": "cuadro",
+        "muro": "fondo",
+        "pos": 704,
+        "tipo": "cuadro"
+       },
+       {
+        "id": "lampara-pie",
+        "modelo": "pie",
+        "tipo": "lampara",
+        "x": 226,
+        "y": 330
+       },
+       {
+        "id": "lampara-mesa",
+        "modelo": "mesa",
+        "sobre": 36,
+        "tipo": "lampara",
+        "x": 748,
+        "y": 290
+       }
+      ]
+     },
      "objetos": [
       {
-       "alto": 28,
-       "ancho": 122,
-       "clave": "escritorio-funcionario",
-       "codigoCorto": "",
+       "alto": 76,
+       "ancho": 82,
+       "clave": "cartelera-comisaria",
+       "codigoCorto": "MUE",
        "colision": false,
-       "color": "#4FA3A5",
+       "color": "#7FB3D5",
        "desbloqueo": {},
-       "etiqueta": "Escritorio",
+       "etiqueta": "Cartelera institucional",
        "herramienta": null,
-       "icono": "inventory_2",
+       "icono": "chair",
        "indicacion": "",
        "metadatos": {
         "apoyo": "pies",
-        "arte": "/assets/biblioteca/escenarios/comisaria/arte/muebles/escritorio-funcionario.png",
+        "arte": "/assets/biblioteca/piezas/muebles/comisaria/cartelera-comisaria.png",
         "colision": true
        },
        "movimiento": {},
@@ -12061,25 +12646,25 @@
        "texto": "",
        "tipo": "PROP",
        "visible": true,
-       "x": 700,
-       "y": 290,
+       "x": 560,
+       "y": 258,
        "z": 0
       },
       {
-       "alto": 14,
-       "ancho": 26,
+       "alto": 44,
+       "ancho": 30,
        "clave": "silla-giratoria",
-       "codigoCorto": "",
+       "codigoCorto": "MUE",
        "colision": false,
-       "color": "#4FA3A5",
+       "color": "#7FB3D5",
        "desbloqueo": {},
        "etiqueta": "Silla giratoria",
        "herramienta": null,
-       "icono": "inventory_2",
+       "icono": "chair",
        "indicacion": "",
        "metadatos": {
         "apoyo": "pies",
-        "arte": "/assets/biblioteca/escenarios/comisaria/arte/muebles/silla-giratoria.png",
+        "arte": "/assets/biblioteca/piezas/muebles/comisaria/silla-giratoria.png",
         "colision": true
        },
        "movimiento": {},
@@ -12094,20 +12679,20 @@
        "z": 0
       },
       {
-       "alto": 14,
+       "alto": 39,
        "ancho": 24,
        "clave": "silla-visitante-comisaria",
-       "codigoCorto": "",
+       "codigoCorto": "MUE",
        "colision": false,
-       "color": "#4FA3A5",
+       "color": "#7FB3D5",
        "desbloqueo": {},
        "etiqueta": "Silla para visitante",
        "herramienta": null,
-       "icono": "inventory_2",
+       "icono": "chair",
        "indicacion": "",
        "metadatos": {
         "apoyo": "pies",
-        "arte": "/assets/biblioteca/escenarios/comisaria/arte/muebles/silla-visitante-comisaria.png",
+        "arte": "/assets/biblioteca/piezas/muebles/comisaria/silla-visitante-comisaria.png",
         "colision": true
        },
        "movimiento": {},
@@ -12122,20 +12707,20 @@
        "z": 0
       },
       {
-       "alto": 14,
+       "alto": 39,
        "ancho": 24,
        "clave": "silla-visitante-comisaria-2",
-       "codigoCorto": "",
+       "codigoCorto": "MUE",
        "colision": false,
-       "color": "#4FA3A5",
+       "color": "#7FB3D5",
        "desbloqueo": {},
        "etiqueta": "Silla para visitante",
        "herramienta": null,
-       "icono": "inventory_2",
+       "icono": "chair",
        "indicacion": "",
        "metadatos": {
         "apoyo": "pies",
-        "arte": "/assets/biblioteca/escenarios/comisaria/arte/muebles/silla-visitante-comisaria.png",
+        "arte": "/assets/biblioteca/piezas/muebles/comisaria/silla-visitante-comisaria.png",
         "colision": true,
         "espejo": true
        },
@@ -12151,20 +12736,20 @@
        "z": 0
       },
       {
-       "alto": 24,
-       "ancho": 60,
+       "alto": 35,
+       "ancho": 64,
        "clave": "mesa-baja-nna",
-       "codigoCorto": "",
+       "codigoCorto": "MUE",
        "colision": false,
-       "color": "#4FA3A5",
+       "color": "#7FB3D5",
        "desbloqueo": {},
-       "etiqueta": "Mesa baja",
+       "etiqueta": "Mesa baja para niñas y niños",
        "herramienta": null,
-       "icono": "inventory_2",
+       "icono": "chair",
        "indicacion": "",
        "metadatos": {
         "apoyo": "pies",
-        "arte": "/assets/biblioteca/escenarios/comisaria/arte/muebles/mesa-baja-nna.png",
+        "arte": "/assets/biblioteca/piezas/muebles/comisaria/mesa-baja-nna.png",
         "colision": true
        },
        "movimiento": {},
@@ -12176,98 +12761,6 @@
        "visible": true,
        "x": 360,
        "y": 362,
-       "z": 0
-      },
-      {
-       "alto": 14,
-       "ancho": 36,
-       "clave": "planta-oficina",
-       "codigoCorto": "",
-       "colision": false,
-       "color": "#4FA3A5",
-       "desbloqueo": {},
-       "etiqueta": "Planta de oficina",
-       "herramienta": null,
-       "icono": "inventory_2",
-       "indicacion": "",
-       "metadatos": {
-        "apoyo": "pies",
-        "arte": "/assets/biblioteca/escenarios/comisaria/arte/muebles/planta-oficina.png",
-        "colision": true
-       },
-       "movimiento": {},
-       "opcion": null,
-       "orientacion": "",
-       "personaje": null,
-       "texto": "",
-       "tipo": "PROP",
-       "visible": true,
-       "x": 140,
-       "y": 300,
-       "z": 0
-      },
-      {
-       "alto": 32,
-       "ancho": 32,
-       "clave": "caja-panuelos",
-       "codigoCorto": "",
-       "colision": false,
-       "color": "#4FA3A5",
-       "desbloqueo": {},
-       "etiqueta": "Caja de pañuelos",
-       "herramienta": null,
-       "icono": "inventory_2",
-       "indicacion": "Revisar",
-       "metadatos": {
-        "animacionCerca": {
-         "cuadros": 3,
-         "fps": 6,
-         "hoja": "/assets/biblioteca/escenarios/comisaria/arte/objetos/caja-panuelos-cerca.png"
-        },
-        "apoyo": "pies",
-        "arte": "/assets/biblioteca/escenarios/comisaria/arte/objetos/caja-panuelos.png"
-       },
-       "movimiento": {},
-       "opcion": null,
-       "orientacion": "",
-       "personaje": null,
-       "texto": "Tenerlos a la mano, sin ofrecerlos de golpe.",
-       "tipo": "OBJECT",
-       "visible": true,
-       "x": 360,
-       "y": 350,
-       "z": 0
-      },
-      {
-       "alto": 32,
-       "ancho": 32,
-       "clave": "papelera",
-       "codigoCorto": "",
-       "colision": false,
-       "color": "#4FA3A5",
-       "desbloqueo": {},
-       "etiqueta": "Papelera",
-       "herramienta": null,
-       "icono": "inventory_2",
-       "indicacion": "Mirar",
-       "metadatos": {
-        "animacionCerca": {
-         "cuadros": 2,
-         "fps": 6,
-         "hoja": "/assets/biblioteca/escenarios/comisaria/arte/objetos/papelera-cerca.png"
-        },
-        "apoyo": "pies",
-        "arte": "/assets/biblioteca/escenarios/comisaria/arte/objetos/papelera.png"
-       },
-       "movimiento": {},
-       "opcion": null,
-       "orientacion": "",
-       "personaje": null,
-       "texto": "Vacía.",
-       "tipo": "PROP",
-       "visible": true,
-       "x": 760,
-       "y": 262,
        "z": 0
       },
       {
@@ -12296,7 +12789,7 @@
        "tipo": "PERSON",
        "visible": true,
        "x": 520,
-       "y": 350,
+       "y": 352,
        "z": 0
       },
       {
@@ -12324,8 +12817,8 @@
        "texto": "La sobreviviente guarda sus papeles.",
        "tipo": "PERSON",
        "visible": true,
-       "x": 260,
-       "y": 410,
+       "x": 262,
+       "y": 404,
        "z": 0
       },
       {
@@ -12356,8 +12849,8 @@
        "texto": "Informe que el hospital remitió a la comisaría con la historia clínica.",
        "tipo": "OBJECT",
        "visible": true,
-       "x": 670,
-       "y": 282,
+       "x": 676,
+       "y": 291,
        "z": 0
       },
       {
@@ -12385,10 +12878,47 @@
        "x": 820,
        "y": 330,
        "z": 0
+      },
+      {
+       "alto": 40,
+       "ancho": 24,
+       "clave": "puerta-pasillo",
+       "codigoCorto": "EXIT",
+       "colision": false,
+       "color": "#B69CFF",
+       "desbloqueo": {},
+       "etiqueta": "Salir al pasillo",
+       "herramienta": null,
+       "icono": "door_front",
+       "indicacion": "Salir al pasillo",
+       "metadatos": {
+        "entryX": 774,
+        "entryY": 260,
+        "label": "Salir al pasillo",
+        "lockedMessage": "Por ahora te necesitan en esta sala.",
+        "modelo": "metalica",
+        "muro": "camara",
+        "par": "puerta-consultorio",
+        "pos": 384,
+        "requiresNodes": [
+         "cierre-caso"
+        ],
+        "targetNodeKey": "c3-pasillo"
+       },
+       "movimiento": {},
+       "opcion": null,
+       "orientacion": "",
+       "personaje": null,
+       "texto": "Salir al pasillo",
+       "tipo": "EXIT",
+       "visible": true,
+       "x": 480,
+       "y": 476,
+       "z": 0
       }
      ],
      "tema": "clinical-soft",
-     "titulo": "Consultorio psicosocial"
+     "titulo": "Comisaría de Familia — Consultorio psicosocial"
     },
     "objetivo": "Define la actuación de protección y cierra la atención.",
     "opciones": [
@@ -12474,9 +13004,12 @@
     "mapa": {
      "alto": 528,
      "ambiente": {
-      "backgroundImage": "/assets/biblioteca/escenarios/comisaria/arte/salas/consultorio-psicosocial.png",
+      "ambientNpcKeys": [],
+      "ambientNpcs": [],
       "encuadre": "tres-paredes",
       "lugarId": "comisaria",
+      "mood": "reserved",
+      "music": "none",
       "salaId": "comisaria-consultorio-psicosocial"
      },
      "ancho": 960,
@@ -12519,52 +13052,44 @@
        "y": 486
       },
       {
-       "alto": 28,
-       "ancho": 122,
-       "clave": "choque-escritorio-funcionario",
-       "etiqueta": "Escritorio",
-       "x": 639,
-       "y": 262
+       "alto": 8,
+       "ancho": 70,
+       "clave": "choque-cartelera-comisaria",
+       "etiqueta": "Cartelera institucional",
+       "x": 525,
+       "y": 250
       },
       {
-       "alto": 14,
-       "ancho": 26,
+       "alto": 12,
+       "ancho": 24,
        "clave": "choque-silla-giratoria",
        "etiqueta": "Silla giratoria",
-       "x": 687,
-       "y": 242
+       "x": 688,
+       "y": 244
       },
       {
-       "alto": 14,
-       "ancho": 24,
+       "alto": 12,
+       "ancho": 22,
        "clave": "choque-silla-visitante-comisaria",
        "etiqueta": "Silla para visitante",
-       "x": 288,
-       "y": 326
+       "x": 289,
+       "y": 328
       },
       {
-       "alto": 14,
-       "ancho": 24,
+       "alto": 12,
+       "ancho": 22,
        "clave": "choque-silla-visitante-comisaria-2",
        "etiqueta": "Silla para visitante",
-       "x": 408,
-       "y": 326
+       "x": 409,
+       "y": 328
       },
       {
-       "alto": 24,
+       "alto": 12,
        "ancho": 60,
        "clave": "choque-mesa-baja-nna",
-       "etiqueta": "Mesa baja",
+       "etiqueta": "Mesa baja para niñas y niños",
        "x": 330,
-       "y": 338
-      },
-      {
-       "alto": 14,
-       "ancho": 36,
-       "clave": "choque-planta-oficina",
-       "etiqueta": "Planta de oficina",
-       "x": 122,
-       "y": 286
+       "y": 350
       }
      ],
      "dialogos": [
@@ -12585,22 +13110,84 @@
        "retrato": null
       }
      ],
+     "estructura": {
+      "acabados": {
+       "muro": "pintura",
+       "paleta": "comisaria-consultorio-psicosocial",
+       "piso": "madera",
+       "variante": "comisaria-consultorio-psicosocial"
+      },
+      "ancho": 960,
+      "momento": "dia",
+      "piezas": [
+       {
+        "id": "cuadro",
+        "modelo": "cuadro",
+        "muro": "fondo",
+        "pos": 56,
+        "tipo": "cuadro"
+       },
+       {
+        "id": "ventana",
+        "modelo": "persiana",
+        "muro": "fondo",
+        "pos": 232,
+        "tipo": "ventana"
+       },
+       {
+        "id": "repisa",
+        "modelo": "repisa",
+        "muro": "fondo",
+        "pos": 400,
+        "tipo": "repisa"
+       },
+       {
+        "id": "reloj",
+        "modelo": "reloj",
+        "muro": "fondo",
+        "pos": 600,
+        "tipo": "reloj"
+       },
+       {
+        "id": "cuadro-2",
+        "modelo": "cuadro",
+        "muro": "fondo",
+        "pos": 704,
+        "tipo": "cuadro"
+       },
+       {
+        "id": "lampara-pie",
+        "modelo": "pie",
+        "tipo": "lampara",
+        "x": 226,
+        "y": 330
+       },
+       {
+        "id": "lampara-mesa",
+        "modelo": "mesa",
+        "sobre": 36,
+        "tipo": "lampara",
+        "x": 748,
+        "y": 290
+       }
+      ]
+     },
      "objetos": [
       {
-       "alto": 28,
-       "ancho": 122,
-       "clave": "escritorio-funcionario",
-       "codigoCorto": "",
+       "alto": 76,
+       "ancho": 82,
+       "clave": "cartelera-comisaria",
+       "codigoCorto": "MUE",
        "colision": false,
-       "color": "#4FA3A5",
+       "color": "#7FB3D5",
        "desbloqueo": {},
-       "etiqueta": "Escritorio",
+       "etiqueta": "Cartelera institucional",
        "herramienta": null,
-       "icono": "inventory_2",
+       "icono": "chair",
        "indicacion": "",
        "metadatos": {
         "apoyo": "pies",
-        "arte": "/assets/biblioteca/escenarios/comisaria/arte/muebles/escritorio-funcionario.png",
+        "arte": "/assets/biblioteca/piezas/muebles/comisaria/cartelera-comisaria.png",
         "colision": true
        },
        "movimiento": {},
@@ -12610,25 +13197,25 @@
        "texto": "",
        "tipo": "PROP",
        "visible": true,
-       "x": 700,
-       "y": 290,
+       "x": 560,
+       "y": 258,
        "z": 0
       },
       {
-       "alto": 14,
-       "ancho": 26,
+       "alto": 44,
+       "ancho": 30,
        "clave": "silla-giratoria",
-       "codigoCorto": "",
+       "codigoCorto": "MUE",
        "colision": false,
-       "color": "#4FA3A5",
+       "color": "#7FB3D5",
        "desbloqueo": {},
        "etiqueta": "Silla giratoria",
        "herramienta": null,
-       "icono": "inventory_2",
+       "icono": "chair",
        "indicacion": "",
        "metadatos": {
         "apoyo": "pies",
-        "arte": "/assets/biblioteca/escenarios/comisaria/arte/muebles/silla-giratoria.png",
+        "arte": "/assets/biblioteca/piezas/muebles/comisaria/silla-giratoria.png",
         "colision": true
        },
        "movimiento": {},
@@ -12643,20 +13230,20 @@
        "z": 0
       },
       {
-       "alto": 14,
+       "alto": 39,
        "ancho": 24,
        "clave": "silla-visitante-comisaria",
-       "codigoCorto": "",
+       "codigoCorto": "MUE",
        "colision": false,
-       "color": "#4FA3A5",
+       "color": "#7FB3D5",
        "desbloqueo": {},
        "etiqueta": "Silla para visitante",
        "herramienta": null,
-       "icono": "inventory_2",
+       "icono": "chair",
        "indicacion": "",
        "metadatos": {
         "apoyo": "pies",
-        "arte": "/assets/biblioteca/escenarios/comisaria/arte/muebles/silla-visitante-comisaria.png",
+        "arte": "/assets/biblioteca/piezas/muebles/comisaria/silla-visitante-comisaria.png",
         "colision": true
        },
        "movimiento": {},
@@ -12671,20 +13258,20 @@
        "z": 0
       },
       {
-       "alto": 14,
+       "alto": 39,
        "ancho": 24,
        "clave": "silla-visitante-comisaria-2",
-       "codigoCorto": "",
+       "codigoCorto": "MUE",
        "colision": false,
-       "color": "#4FA3A5",
+       "color": "#7FB3D5",
        "desbloqueo": {},
        "etiqueta": "Silla para visitante",
        "herramienta": null,
-       "icono": "inventory_2",
+       "icono": "chair",
        "indicacion": "",
        "metadatos": {
         "apoyo": "pies",
-        "arte": "/assets/biblioteca/escenarios/comisaria/arte/muebles/silla-visitante-comisaria.png",
+        "arte": "/assets/biblioteca/piezas/muebles/comisaria/silla-visitante-comisaria.png",
         "colision": true,
         "espejo": true
        },
@@ -12700,20 +13287,20 @@
        "z": 0
       },
       {
-       "alto": 24,
-       "ancho": 60,
+       "alto": 35,
+       "ancho": 64,
        "clave": "mesa-baja-nna",
-       "codigoCorto": "",
+       "codigoCorto": "MUE",
        "colision": false,
-       "color": "#4FA3A5",
+       "color": "#7FB3D5",
        "desbloqueo": {},
-       "etiqueta": "Mesa baja",
+       "etiqueta": "Mesa baja para niñas y niños",
        "herramienta": null,
-       "icono": "inventory_2",
+       "icono": "chair",
        "indicacion": "",
        "metadatos": {
         "apoyo": "pies",
-        "arte": "/assets/biblioteca/escenarios/comisaria/arte/muebles/mesa-baja-nna.png",
+        "arte": "/assets/biblioteca/piezas/muebles/comisaria/mesa-baja-nna.png",
         "colision": true
        },
        "movimiento": {},
@@ -12725,98 +13312,6 @@
        "visible": true,
        "x": 360,
        "y": 362,
-       "z": 0
-      },
-      {
-       "alto": 14,
-       "ancho": 36,
-       "clave": "planta-oficina",
-       "codigoCorto": "",
-       "colision": false,
-       "color": "#4FA3A5",
-       "desbloqueo": {},
-       "etiqueta": "Planta de oficina",
-       "herramienta": null,
-       "icono": "inventory_2",
-       "indicacion": "",
-       "metadatos": {
-        "apoyo": "pies",
-        "arte": "/assets/biblioteca/escenarios/comisaria/arte/muebles/planta-oficina.png",
-        "colision": true
-       },
-       "movimiento": {},
-       "opcion": null,
-       "orientacion": "",
-       "personaje": null,
-       "texto": "",
-       "tipo": "PROP",
-       "visible": true,
-       "x": 140,
-       "y": 300,
-       "z": 0
-      },
-      {
-       "alto": 32,
-       "ancho": 32,
-       "clave": "caja-panuelos",
-       "codigoCorto": "",
-       "colision": false,
-       "color": "#4FA3A5",
-       "desbloqueo": {},
-       "etiqueta": "Caja de pañuelos",
-       "herramienta": null,
-       "icono": "inventory_2",
-       "indicacion": "Revisar",
-       "metadatos": {
-        "animacionCerca": {
-         "cuadros": 3,
-         "fps": 6,
-         "hoja": "/assets/biblioteca/escenarios/comisaria/arte/objetos/caja-panuelos-cerca.png"
-        },
-        "apoyo": "pies",
-        "arte": "/assets/biblioteca/escenarios/comisaria/arte/objetos/caja-panuelos.png"
-       },
-       "movimiento": {},
-       "opcion": null,
-       "orientacion": "",
-       "personaje": null,
-       "texto": "Tenerlos a la mano, sin ofrecerlos de golpe.",
-       "tipo": "OBJECT",
-       "visible": true,
-       "x": 360,
-       "y": 350,
-       "z": 0
-      },
-      {
-       "alto": 32,
-       "ancho": 32,
-       "clave": "papelera",
-       "codigoCorto": "",
-       "colision": false,
-       "color": "#4FA3A5",
-       "desbloqueo": {},
-       "etiqueta": "Papelera",
-       "herramienta": null,
-       "icono": "inventory_2",
-       "indicacion": "Mirar",
-       "metadatos": {
-        "animacionCerca": {
-         "cuadros": 2,
-         "fps": 6,
-         "hoja": "/assets/biblioteca/escenarios/comisaria/arte/objetos/papelera-cerca.png"
-        },
-        "apoyo": "pies",
-        "arte": "/assets/biblioteca/escenarios/comisaria/arte/objetos/papelera.png"
-       },
-       "movimiento": {},
-       "opcion": null,
-       "orientacion": "",
-       "personaje": null,
-       "texto": "Vacía.",
-       "tipo": "PROP",
-       "visible": true,
-       "x": 760,
-       "y": 262,
        "z": 0
       },
       {
@@ -12844,10 +13339,47 @@
        "x": 480,
        "y": 360,
        "z": 0
+      },
+      {
+       "alto": 40,
+       "ancho": 24,
+       "clave": "puerta-pasillo",
+       "codigoCorto": "EXIT",
+       "colision": false,
+       "color": "#B69CFF",
+       "desbloqueo": {},
+       "etiqueta": "Salir al pasillo",
+       "herramienta": null,
+       "icono": "door_front",
+       "indicacion": "Salir al pasillo",
+       "metadatos": {
+        "entryX": 774,
+        "entryY": 260,
+        "label": "Salir al pasillo",
+        "lockedMessage": "Por ahora te necesitan en esta sala.",
+        "modelo": "metalica",
+        "muro": "camara",
+        "par": "puerta-consultorio",
+        "pos": 384,
+        "requiresNodes": [
+         "cierre-caso"
+        ],
+        "targetNodeKey": "c3-pasillo"
+       },
+       "movimiento": {},
+       "opcion": null,
+       "orientacion": "",
+       "personaje": null,
+       "texto": "Salir al pasillo",
+       "tipo": "EXIT",
+       "visible": true,
+       "x": 480,
+       "y": 476,
+       "z": 0
       }
      ],
      "tema": "clinical-soft",
-     "titulo": "Consultorio psicosocial"
+     "titulo": "Comisaría de Familia — Consultorio psicosocial"
     },
     "opciones": [],
     "posicion": {

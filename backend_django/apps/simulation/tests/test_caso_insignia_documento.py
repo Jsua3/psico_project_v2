@@ -250,23 +250,26 @@ SALAS_DEL_HOSPITAL = {
     "entrada-urgencias", "sala-espera", "pasillo", "triaje", "estacion-enfermeria", "sala-escucha", "trabajo-social",
     "habitacion-recuperacion",
 }
+#: Las 4 salas de la comisaría por piezas de P1 (`feat/p1-piezas-de-arte` @ f52e4dd0), con prefijo propio en el caso.
+SALAS_DE_LA_COMISARIA = {"comisaria-recepcion", "comisaria-sala-espera", "comisaria-pasillo", "comisaria-consultorio-psicosocial"}
 
 
-def test_capitulos_1_y_2_en_el_hospital_por_piezas_y_3_en_la_comisaria_de_hoy():
-    """Capítulos 1 y 2: salas del hospital por piezas con su estructura. Capítulo 3: la comisaría de imagen fija (provisional)."""
+def test_capitulos_1_y_2_en_el_hospital_y_3_en_la_comisaria_todos_por_piezas():
+    """Los tres capítulos en salas por piezas: el hospital (1 y 2) y la comisaría (3), con estructura y puertas en el muro."""
     for clave, (_, x) in _escenas(_leer(DOCUMENTO)).items():
         mapa, ambiente = x["mapa"], x["mapa"]["ambiente"]
         assert ambiente["salaId"], clave
         if clave.startswith(("c1-", "c2-")):
             assert ambiente["lugarId"] == "hospital" and ambiente["salaId"] in SALAS_DEL_HOSPITAL, clave
-            assert mapa["estructura"]["ancho"] == mapa["ancho"] and "backgroundImage" not in ambiente, clave
-            # Ninguna clave cae en las salas del legado que el cliente dibuja y colisiona por su cuenta.
-            assert mapa["clave"] != "hospital-urgencias" and not mapa["clave"].startswith("hospital-sala-escucha"), clave
-            puertas = [o for o in mapa["objetos"] if o["tipo"] == "EXIT"]
-            assert puertas and all({"muro", "pos", "modelo"} <= set(p["metadatos"]) for p in puertas), clave
         else:
-            assert "estructura" not in mapa and ambiente["salaId"].startswith("comisaria-"), clave
-            assert "salaProvisional" not in ambiente and ambiente["lugarId"] == "comisaria", clave
-            assert ambiente["backgroundImage"].startswith("/assets/biblioteca/escenarios/comisaria/"), clave
-            # Ninguna clave del capítulo 3 cae en las salas que el cliente dibuja y colisiona por su cuenta.
-            assert not mapa["clave"].startswith("comisaria-"), clave
+            # El hospital también tiene sala de espera y pasillo: lo explorado se cuenta por sala, así que el prefijo las separa.
+            assert ambiente["lugarId"] == "comisaria" and ambiente["salaId"] in SALAS_DE_LA_COMISARIA, clave
+        assert mapa["estructura"]["ancho"] == mapa["ancho"] and "backgroundImage" not in ambiente, clave
+        assert "salaProvisional" not in ambiente, clave
+        # Ninguna clave cae en las salas del legado que el cliente dibuja y colisiona por su cuenta.
+        assert mapa["clave"] != "hospital-urgencias" and not mapa["clave"].startswith(("hospital-sala-escucha", "comisaria-")), clave
+        puertas = [o for o in mapa["objetos"] if o["tipo"] == "EXIT"]
+        assert puertas and all({"muro", "pos", "modelo"} <= set(p["metadatos"]) for p in puertas), clave
+        if clave.startswith("c3-"):
+            # En la comisaría ninguna puerta se cruza durante el caso: cada escena trae su propia sala.
+            assert all(p["metadatos"]["requiresNodes"] == ["cierre-caso"] for p in puertas), clave
