@@ -55,6 +55,7 @@ AUDIT_TAXONOMY: dict[str, str] = {
     "AI_ASSISTANT_QUERY": "asistente.consultar",
     "AI_AUTHORING_PROPOSE": "asistente_autoria.proponer",
     "AI_AUTHORING_GUIDE": "asistente_autoria.guiar",
+    "AI_AUTHORING_GENERATE": "asistente_autoria.generar",
     "TRACE_VIEWED": "traza.leer",
     "RUBRIC_SAVED": "rubrica.evaluar",
     "ANALYTICS_VIEWED": "analitica.ver",
@@ -187,6 +188,11 @@ CONTEXT_WHITELIST: dict[str, frozenset[str]] = {
     # texto de la petición ni de la respuesta.
     "AI_AUTHORING_PROPOSE": frozenset({"screen", "model", "changes", "duration_ms", "outcome"}),
     "AI_AUTHORING_GUIDE": frozenset({"screen", "model", "changes", "duration_ms", "outcome"}),
+    # C1 · la generación por etapas: id de la generación, etapa (start, skeleton, scene, assemble, cancel), modelo, duración,
+    # resultado, tipo de fallo, tokens y ronda de reparación. Nunca la descripción de la docente ni texto del modelo.
+    "AI_AUTHORING_GENERATE": frozenset({
+        "generationId", "stage", "model", "duration_ms", "outcome", "kind", "tokens_in", "tokens_out", "round",
+    }),
     "CONSENT_ACCEPTED": frozenset({"caseVersionId", "noticeVersion"}),
     "CONSENT_WITHDRAWN": frozenset({"caseVersionId", "noticeVersion"}),
     # S3-4 · solo ids (de la persona y del ADMIN que ejecuta) y recuentos: nunca el correo, el nombre ni un texto de la persona.
