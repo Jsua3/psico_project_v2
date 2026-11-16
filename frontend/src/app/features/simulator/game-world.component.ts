@@ -205,7 +205,7 @@ const LABEL_DEPTH = DEPTH.UI - 1;
 /** Prefijo de la clave con la que una persona del escenario sale como candidato de proximidad. */
 const NPC_KEY_PREFIX = 'npc:';
 /** Cuánto se sostiene el último plano cercano al soltarse (entre la decisión y la reacción, bloque M1). */
-const RETENER_PLANO_MS = 400;
+const RETENER_PLANO_MS = 1300;
 /** Plazo máximo para el primer cuadro del mundo (F6-8): pasado, el anfitrión ofrece reintentar. */
 const BOOT_WATCHDOG_MS = 25_000;
 
@@ -366,8 +366,10 @@ export class DataDrivenWorldScene extends Phaser.Scene {
   private readonly camRoomsSeen = new Set<string>();
   /** Escala CSS del lienzo ya compuesto durante un viaje (1 en reposo). */
   private camDrawScale = 1;
-  /** El último plano cercano, sostenido un momento al soltarse (ver `cameraMomentNow`). */
-  private camRetenido: { momento: Momento; hasta: number } | null = null;
+  /** El último plano cercano, sostenido un momento al soltarse (ver `cameraMomentNow`), y si se está sosteniendo ahora. */
+  private camRetenido: { momento: Momento; hasta: number; x: number; y: number } | null = null;
+  private camSosteniendo = false;
+  private camUltimoObjetivo: EstadoCamara | null = null;
   /** Viñeta de tono de la sala actual (se redibuja al rectángulo visible si cambia el lienzo). */
   private toneVignette?: Phaser.GameObjects.Image;
   /** Textura vigente de cada viñeta (tono o crisis): al cambiar el tamaño se retira la anterior (F6-8). */
@@ -1085,14 +1087,20 @@ export class DataDrivenWorldScene extends Phaser.Scene {
    * entrar a una sala, el plano general hasta que pasa su espera o el personaje se mueve; si no, caminar.
    */
   private cameraMomentNow(ahora: number): Momento {
+    this.camSosteniendo = false;
     const cercano = this.closeMomentNow();
     if (cercano) {
-      this.camRetenido = { momento: cercano, hasta: ahora + RETENER_PLANO_MS };
+      this.camRetenido = { momento: cercano, hasta: ahora + RETENER_PLANO_MS, x: this.player?.x ?? 0, y: this.player?.y ?? 0 };
       return cercano;
     }
-    // Entre la decisión y la reacción el diálogo se cierra un instante antes de que empiece la reacción: el plano se
-    // sostiene un momento para que la cámara no amague con volver a caminar y dé la vuelta.
-    if (this.camRetenido && ahora < this.camRetenido.hasta) return this.camRetenido.momento;
+    // Entre la decisión y la reacción el diálogo se cierra casi un segundo antes de que empiece la reacción (la respuesta
+    // del servidor): el plano se sostiene QUIETO para que la cámara no amague con volver a caminar ni dé un pulso al
+    // irse el cuadro. Si el personaje echa a andar, se suelta enseguida.
+    const r = this.camRetenido;
+    if (r && ahora < r.hasta && this.player && Math.hypot(this.player.x - r.x, this.player.y - r.y) <= 6) {
+      this.camSosteniendo = true;
+      return r.momento;
+    }
     this.camRetenido = null;
     const entrada = this.camEntrada;
     if (entrada && this.player) {
@@ -1131,7 +1139,7 @@ export class DataDrivenWorldScene extends Phaser.Scene {
     if (this.camEntrada && this.motionPaused) this.camEntrada.hasta += Math.max(0, delta);
     const dpr = typeof window !== 'undefined' ? window.devicePixelRatio || 1 : 1;
     const momento = this.cameraMomentNow(ahora);
-    const objetivo = objetivoCamara({
+    const calculado = objetivoCamara({
       jugador: { x: this.player.x, y: this.player.y },
       sala: { ancho: this.roomSize.width, alto: this.roomSize.height },
       vista: {
@@ -1142,6 +1150,9 @@ export class DataDrivenWorldScene extends Phaser.Scene {
       cercana: this.camOptions.cercana,
       acercarAuto: this.camOptions.acercarAuto,
     }, this.camCut ? null : this.camState);
+    // Plano sostenido: el objetivo es el de antes de soltarse (sin recalcular con el cuadro que se va).
+    const objetivo = this.camSosteniendo && this.camUltimoObjetivo ? this.camUltimoObjetivo : calculado;
+    if (!this.camSosteniendo) this.camUltimoObjetivo = calculado;
 
     let next: EstadoCamara;
     if (this.camCut || !this.camState || this.callbacks.reduceMotion) {
@@ -1878,9 +1889,8 @@ export class DataDrivenWorldScene extends Phaser.Scene {
   /** El lienzo cambió de tamaño o de dpr: nuevo zoom entero y viñetas al nuevo rectángulo visible. */
   private refitCamera(): void {
     if (!this.ready || !this.player) return;
-    // El lienzo cambió: corte al plano que toca con el zoom nuevo.
-    this.camCut = true;
-    this.camTravel = null;
+    // El lienzo cambió (el aviso sensible que se pliega, el panel, la ventana): sin corte; si el plano cambia de zoom,
+    // la cámara viaja al nuevo. Un corte aquí se comía el cierre sobre el personaje tras el plano general.
     this.applyPixelCamera(this.roomSize.width, this.roomSize.height);
     if (this.toneVignette) {
       this.toneVignette.destroy();
