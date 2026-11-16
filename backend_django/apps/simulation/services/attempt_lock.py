@@ -18,9 +18,9 @@ def lock_attempt_row(attempt_id):
     """Toma el cerrojo de la fila del intento dentro de la transacción actual.
 
     Solo bloquea el intento (no los nodos ni el caso, que la orden solo lee). Si el
-    intento no existe no hace nada: quien lo necesite lo reportará al leerlo.
+    intento no existe no hace nada: quien lo necesite lo reportará al leerlo. Cierra también un ensayo (A2).
     """
-    SimulationAttempt.objects.select_for_update().filter(pk=attempt_id).values_list("pk", flat=True).first()
+    SimulationAttempt.all_objects.select_for_update().filter(pk=attempt_id).values_list("pk", flat=True).first()
 
 
 def locked_attempt(func):

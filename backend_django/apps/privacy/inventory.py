@@ -477,6 +477,7 @@ DATA_INVENTORY: dict[str, dict] = {
             "replace_reason": (SENSITIVE, "motivo escrito para sustituir el intento"),
             "active_seconds": (SENSITIVE, "tiempo activo del estudiante en el intento"),
             "last_activity_at": (SENSITIVE, "última actividad del estudiante (sirve al cronómetro)"),
+            "is_rehearsal": (TECHNICAL, "marca de ensayo del borrador de una docente (bloque A2); no identifica a la persona"),
         },
         "exits": {
             "id": ["api"],

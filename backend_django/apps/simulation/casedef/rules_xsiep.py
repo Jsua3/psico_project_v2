@@ -29,6 +29,11 @@ def _options(doc):
     return [(i, scene, j, option) for i, scene in _scenes(doc) for j, option in _objetos(scene.get("opciones"))]
 
 
+def _commenting(doc):
+    """(posición de la escena, escena, posición del comentario, comentario) de cada comentario de ``x-siep``."""
+    return [(i, scene, k, c) for i, scene in _scenes(doc) for k, c in _objetos(scene.get("comentarios"))]
+
+
 def _label(scene):
     return _texto_id(scene.get("id")) or _texto_id(scene.get("clave")) or "(sin id)"
 
@@ -41,6 +46,11 @@ def _route(i, j=None, field=None):
     route = f"{SIEP}.escenas[{i}]"
     if j is not None:
         route += f".opciones[{j}]"
+    return route + (f".{field}" if field else "")
+
+
+def _comment_route(i, k, field=None):
+    route = f"{SIEP}.escenas[{i}].comentarios[{k}]"
     return route + (f".{field}" if field else "")
 
 
@@ -131,17 +141,27 @@ def ocl_10_requisito_alcanzable(doc):
     context Opcion
     inv OCL10: self.requiere.hechos->forAll(h | h.existeEnLaSala or h.seConsigue)
 
+    Vale igual para el ``cuando`` de los comentarios de la escena.
     Hablar con alguien o inspeccionar algo se hace en la sala de la escena; tener o usar una herramienta
     exige que algún objeto del caso la entregue; un hito debe estar declarado.
     """
-    gated = [(i, s, j, o) for i, s, j, o in _options(doc) if isinstance(o.get("requiere"), dict) and o["requiere"]]
+    gated = [
+        (i, scene, f"la opción {_option_label(option)} de la escena {_label(scene)}", _route(i, j, "requiere"), option["requiere"])
+        for i, scene, j, option in _options(doc)
+        if isinstance(option.get("requiere"), dict) and option["requiere"]
+    ]
+    gated += [
+        (i, scene, f"el comentario {k + 1} de la escena {_label(scene)}", _comment_route(i, k, "cuando"), comment["cuando"])
+        for i, scene, k, comment in _commenting(doc)
+        if isinstance(comment.get("cuando"), dict) and comment["cuando"]
+    ]
     if not gated:
-        return Outcome(no_aplica="ninguna opción declara requisito")
+        # BORRADOR: texto nuevo del servidor, pendiente de la aprobación de Psicología
+        return Outcome(no_aplica="ninguna opción declara requisito ni hay comentarios con condición")
     delivered = _delivered_tools(doc)
     milestones = _declared_milestones(doc)
     findings = []
-    for i, scene, j, option in gated:
-        requirement = option["requiere"]
+    for i, scene, where, route, requirement in gated:
         if not conditions.is_valid(requirement, facts=True):
             continue  # un requisito mal formado lo señala siep_check
         objects = _map_objects(scene)
@@ -150,8 +170,6 @@ def ocl_10_requisito_alcanzable(doc):
         if isinstance(ambient, dict):
             people |= _strs(n.get("key") for _, n in _objetos(ambient.get("ambientNpcs")))
         things = _strs(x.get("clave") for x in objects if _visible(x))
-        where = f"la opción {_option_label(option)} de la escena {_label(scene)}"
-        route = _route(i, j, "requiere")
         problems = []
         for kind, key in conditions.facts_in(requirement):
             if kind == "talked" and key not in people:
@@ -176,15 +194,23 @@ def ocl_11_vocabulario_de_reaccion(doc):
     context Opcion
     inv OCL11: self.reaccion.emocion in EXPRESSIONS and self.reaccion.gesto in GESTURES
 
-    Solo se miran la emoción y el gesto cuando vienen; la línea y el personaje no se comprueban aquí.
+    Solo se miran la emoción y el gesto cuando vienen; la línea y el personaje no se comprueban aquí. Vale igual
+    para los comentarios de la escena.
     """
-    reacting = _reacting(doc)
+    reacting = [
+        (scene, f"la reacción de la opción {_option_label(option)} de la escena {_label(scene)}", option["reaccion"],
+         lambda f, i=i, j=j: _route(i, j, f"reaccion.{f}"))
+        for i, scene, j, option in _reacting(doc)
+    ]
+    reacting += [
+        (scene, f"el comentario {k + 1} de la escena {_label(scene)}", comment, lambda f, i=i, k=k: _comment_route(i, k, f))
+        for i, scene, k, comment in _commenting(doc)
+    ]
     if not reacting:
-        return Outcome(no_aplica="ninguna opción declara reacción")
+        # BORRADOR: texto nuevo del servidor, pendiente de la aprobación de Psicología
+        return Outcome(no_aplica="ninguna opción ni comentario declara reacción")
     findings = []
-    for i, scene, j, option in reacting:
-        reaction = option["reaccion"]
-        where = f"la reacción de la opción {_option_label(option)} de la escena {_label(scene)}"
+    for scene, where, reaction, route_of in reacting:
         for field, allowed, noun in (("emocion", EXPRESSIONS, "emoción"), ("gesto", GESTURES, "gesto")):
             value = reaction.get(field)
             if value is None or value == "":
@@ -192,7 +218,7 @@ def ocl_11_vocabulario_de_reaccion(doc):
             if not isinstance(value, str) or value not in allowed:
                 # BORRADOR: texto nuevo del servidor, pendiente de la aprobación de Psicología
                 message = f"En {where}, el {noun} {value!r} no es uno de los permitidos: {', '.join(allowed)}."
-                findings.append(_h(f"Escena {_label(scene)}", _route(i, j, f"reaccion.{field}"), message))
+                findings.append(_h(f"Escena {_label(scene)}", route_of(field), message))
     return Outcome(len(reacting), findings)
 
 
@@ -225,11 +251,14 @@ def ocl_12_quien_reacciona_esta_presente(doc):
     «La sala de la escena» es el mapa de la escena o cualquier mapa del documento donde una PERSON ofrece la opción:
     el estudiante decide donde está quien la ofrece, que puede ser el mapa de otra escena. Sin personaje, la reacción
     es de quien ofrece la opción: alguna PERSON de esos mapas tiene que ofrecerla, directamente o por una elección de
-    su diálogo. Con personaje, tiene que haber una PERSON visible con ese personaje en esos mapas.
+    su diálogo. Con personaje, tiene que haber una PERSON visible con ese personaje en esos mapas. Un comentario,
+    en cambio, solo se dice en la sala de su escena: ``personaje`` es el de una PERSON visible de ese mapa.
     """
     reacting = _reacting(doc)
-    if not reacting:
-        return Outcome(no_aplica="ninguna opción declara reacción")
+    commenting = _commenting(doc)
+    if not reacting and not commenting:
+        # BORRADOR: texto nuevo del servidor, pendiente de la aprobación de Psicología
+        return Outcome(no_aplica="ninguna opción ni comentario declara reacción")
     all_maps = [_map(scene) for _, scene in _scenes(doc)]
     findings = []
     for i, scene, j, option in reacting:
@@ -249,4 +278,17 @@ def ocl_12_quien_reacciona_esta_presente(doc):
             # BORRADOR: texto nuevo del servidor, pendiente de la aprobación de Psicología
             message = f"En {where}, ningún personaje de la sala ofrece esa opción, así que nadie podría reaccionar."
             findings.append(_h(f"Escena {_label(scene)}", _route(i, j, "reaccion"), message))
-    return Outcome(len(reacting), findings)
+    for i, scene, k, comment in commenting:
+        character = comment.get("personaje")
+        here = _people_of(_map(scene))
+        if not isinstance(character, str) or not character or not any(p.get("personaje") == character for p in here):
+            # BORRADOR: texto nuevo del servidor, pendiente de la aprobación de Psicología
+            if isinstance(character, str) and character:
+                message = (
+                    f"En el comentario {k + 1} de la escena {_label(scene)}, quien comenta ({character!r}) "
+                    "no es un personaje de la sala de esa escena."
+                )
+            else:
+                message = f"En el comentario {k + 1} de la escena {_label(scene)} falta el personaje que lo dice."
+            findings.append(_h(f"Escena {_label(scene)}", _comment_route(i, k, "personaje"), message))
+    return Outcome(len(reacting) + len(commenting), findings)

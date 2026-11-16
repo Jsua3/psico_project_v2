@@ -10,6 +10,7 @@ from apps.simulation.casedef.model import (
     CaseDefinition,
     Character,
     CollisionZone,
+    Comment,
     Criterion,
     DialogueChoice,
     DialogueLine,
@@ -142,3 +143,17 @@ def sample_definition_v21():
     # ``cierre`` trae pistas sin mapa: el importador le generaría una sala; con la suya la ida y vuelta es exacta.
     closing = replace(base.scenes[2], world=make_world("sala-cierre"))
     return replace(base, scenes=(scene, base.scenes[1], closing, *base.scenes[3:]))
+
+
+def sample_definition_with_comments():
+    """La muestra 2.1 con dos comentarios de ``laura`` en ``inicio``: uno siempre y otro solo tras inspeccionar la carpeta."""
+    base = sample_definition_v21()
+    inicio = base.scenes[0]
+    comments = (
+        Comment(character="laura", line="Qué bueno que llegó, la esperaba."),
+        Comment(
+            character="laura", line="Esa carpeta tiene las notas del equipo.",
+            when={"inspected": "carpeta"}, emotion="preocupada", gesture="se-acerca",
+        ),
+    )
+    return replace(base, scenes=(replace(inicio, comments=comments), *base.scenes[1:]))

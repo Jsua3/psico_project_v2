@@ -38,6 +38,7 @@ GOVERNED = {
     ("x-siep", "escenas", "*", "opciones", "*", "fundamento"): (1200, True),
     ("x-siep", "escenas", "*", "opciones", "*", "reaccion", "linea"): (400, False),
     ("x-siep", "escenas", "*", "objetivo"): (200, False),
+    ("x-siep", "escenas", "*", "comentarios", "*", "linea"): (400, False),
 }
 
 #: Campos de la base que van a columnas de tamaño fijo y que el esquema del taller no acota (lo que

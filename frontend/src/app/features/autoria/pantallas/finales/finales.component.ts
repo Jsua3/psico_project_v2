@@ -236,7 +236,9 @@ const TIPOS_DE_FRASE: { tipo: TipoDeParte; nombre: string }[] = [
     .etiqueta { font-weight: 700; font-size: var(--autoria-texto-16); }
     .campo { min-height: 48px; padding: 8px 12px; font: inherit; font-size: var(--autoria-texto-16); border: 2px solid var(--borde-control); border-radius: var(--radio-control); background: var(--superficie); width: 100%; }
     select.campo { padding: 0 12px; width: auto; }
-    .condicion { border: 0; padding: 0; margin: 6px 0 0; display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
+    /* Un fieldset no se encoge por debajo de su contenido (min-inline-size: min-content): con una opción larga en el
+       selector, la condición desbordaba la tarjeta y la página entera en un teléfono (390 px). */
+    .condicion { border: 0; padding: 0; margin: 6px 0 0; display: flex; flex-wrap: wrap; gap: 8px; align-items: center; min-inline-size: 0; }
     .decisivos { display: flex; flex-direction: column; gap: 4px; border: 1px solid var(--linea); }
     .decisivos legend { font-weight: 700; padding: 0 4px; }
     .decisivos p { margin: 0; }

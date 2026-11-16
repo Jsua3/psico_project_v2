@@ -18,6 +18,7 @@ from apps.simulation.casedef.export import to_document
 from apps.simulation.casedef.model import (
     CaseDefinition,
     Character,
+    Comment,
     CollisionZone as CollisionZoneModel,
     Criterion,
     DialogueChoice as DialogueChoiceModel,
@@ -47,7 +48,7 @@ from apps.simulation.models import (
     SceneMap,
     SimulationNode,
 )
-from apps.simulation.services import rubric_service
+from apps.simulation.services import case_rules, rubric_service
 from shared.jsonutils import read_map, read_string_list
 
 
@@ -64,6 +65,31 @@ class Loaded:
 
 def _text(value):
     return value if isinstance(value, str) else ""
+
+
+def _comments_read(node):
+    """Los comentarios guardados de la escena como modelo puro (lectura indulgente: ``case_rules.comments_of``)."""
+    return tuple(
+        Comment(
+            character=item["personaje"], line=item["linea"],
+            when=item["cuando"] if isinstance(item.get("cuando"), dict) else {},
+            emotion=_text(item.get("emocion")), gesture=_text(item.get("gesto")),
+        )
+        for item in case_rules.comments_of(node)
+    )
+
+
+def _comments_dump(comments):
+    """El JSON que se guarda: las claves del documento sin los campos vacíos; ``"[]"`` si la escena no tiene."""
+    return json.dumps(
+        [
+            {key: value for key, value in (
+                ("personaje", c.character), ("linea", c.line), ("cuando", c.when), ("emocion", c.emotion), ("gesto", c.gesture),
+            ) if value}
+            for c in comments
+        ],
+        ensure_ascii=False,
+    )
 
 
 def _weight(value):
@@ -198,6 +224,7 @@ def load_definition(case_version_id):
             required_tools=tuple(read_string_list(node.required_tools_json)),
             safe_exit_required=node.safe_exit_required, intensity=node.intensity,
             x=node.position_x or 0, y=node.position_y or 0, prompt=_text(node.decision_prompt), goal=_text(node.goal),
+            comments=_comments_read(node),
             hints=tuple(hints.get(maps.get(node.id), ())),
             options=tuple(options.get(node.id, ())),
             world=worlds[maps[node.id]][1] if node.id in maps else None,
@@ -273,7 +300,7 @@ def _nodes(version, scenes):
             sensitive_content=scene.sensitive, safe_exit_required=scene.safe_exit_required,
             warning_message=scene.warning, start_node=scene.start, terminal_node=scene.terminal,
             position_x=scene.x, position_y=scene.y, decision_prompt=scene.prompt, display_order=position,
-            intensity=scene.intensity, goal=scene.goal,
+            intensity=scene.intensity, goal=scene.goal, comments_json=_comments_dump(scene.comments),
         )
         for position, scene in enumerate(scenes)
     ])

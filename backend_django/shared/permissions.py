@@ -20,12 +20,19 @@ class _PolicyPermission(BasePermission):
         return policies.has_role(request.user, *self.roles)
 
 
-def policy_permission(resource: str, action: str):
-    """Clase de permiso que admite a los roles con algún alcance sobre ``(resource, action)``."""
+def policy_permission(resource: str, action: str, *, also: tuple[str, str] | None = None):
+    """Clase de permiso que admite a los roles con algún alcance sobre ``(resource, action)``.
+
+    ``also`` suma los roles de una segunda política: la puerta de las rutas que sirven a dos políticas del mismo recurso (el
+    juego de un intento lo usan su estudiante, por ``("attempt", "play")``, y la docente que ensaya su borrador, por
+    ``("attempt", "rehearse")``). Es solo la puerta de rol: quién entra a cuál intento lo decide el servicio con
+    ``shared.policies.can``.
+    """
+    roles = policies.allowed_roles(resource, action)
+    if also is not None:
+        roles = roles | policies.allowed_roles(*also)
     return type(
-        f"Policy[{resource}.{action}]",
+        f"Policy[{resource}.{action}{'+' + '.'.join(also) if also else ''}]",
         (_PolicyPermission,),
-        {"policy": (resource, action), "roles": policies.allowed_roles(resource, action)},
+        {"policy": (resource, action), "also": also, "roles": roles},
     )
-
-
