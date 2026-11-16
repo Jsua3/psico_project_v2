@@ -554,13 +554,15 @@ export class DataDrivenWorldScene extends Phaser.Scene {
     const focus = document.activeElement;
     // Escribiendo o con el foco en una región con scroll (sus flechas la desplazan, H-12) el jugador no camina.
     const typing = isTextEntryTarget(focus) || isScrollRegionTarget(focus);
+    // Con una capa abierta (diálogo, decisión, plano del lugar, bitácora…: `motionPaused`) el jugador tampoco camina.
+    const bloqueado = typing || this.motionPaused;
     // Las letras (WASD y E) solo con el ajuste activo y con el foco en el juego o en el cuerpo (F6-10, WCAG 2.1.4).
     const letters = this.shortcutsEnabled && isShortcutContext(focus);
     const keyInput: PlayerMotionInput = heldInput({
-      left:  !typing && (this.cursors.left.isDown  || (letters && this.keys['A'].isDown)),
-      right: !typing && (this.cursors.right.isDown || (letters && this.keys['D'].isDown)),
-      up:    !typing && (this.cursors.up.isDown    || (letters && this.keys['W'].isDown)),
-      down:  !typing && (this.cursors.down.isDown  || (letters && this.keys['S'].isDown)),
+      left:  !bloqueado && (this.cursors.left.isDown  || (letters && this.keys['A'].isDown)),
+      right: !bloqueado && (this.cursors.right.isDown || (letters && this.keys['D'].isDown)),
+      up:    !bloqueado && (this.cursors.up.isDown    || (letters && this.keys['W'].isDown)),
+      down:  !bloqueado && (this.cursors.down.isDown  || (letters && this.keys['S'].isDown)),
     }, this.heldDirection, this.time.now - this.heldSince);
     // Caminata del ratón (F6-7): el teclado o la cruceta mandan sobre el destino y una capa abierta lo suelta.
     // Lo que pide pasa por el mismo paso con colisión y deslizamiento que el teclado.

@@ -363,7 +363,8 @@ const QUEUED_PAUSE_SLOW_NOTICE = 'La acción en curso está tardando. Estamos pa
                 (positionChange)="rememberPosition($event.x, $event.y)" />
               <!-- Minimapa (bloque M1, §5.3): esquina del mundo; abre el plano completo (también con M). -->
               @if (!cinemaBars()) {
-                <app-minimapa [plano]="placePlan()" [actual]="placeRoom()" (abrir)="openPlan()" />
+                <app-minimapa [plano]="placePlan()" [actual]="placeRoom()" [cercana]="cameraSettings.cercana()"
+                  (abrir)="openPlan()" (alternarCercana)="cameraSettings.toggleCercana()" />
               }
               <!-- Franjas de cine (bloque M1, regla 7): entran en la decisión y en la reacción; la de abajo aloja el cuadro de diálogo. -->
               <div class="cine cine--arriba" aria-hidden="true" [class.cine--dentro]="cinemaBars()"></div>
@@ -1525,10 +1526,12 @@ export class SimulationPlayComponent implements OnInit, OnDestroy {
       const options = { cercana: this.cameraSettings.cercana(), acercarAuto: this.cameraSettings.acercarAuto() };
       const frozen = this.planOpen();
       const bars = this.cinemaBars();
+      // Al aparecer el mundo, los ajustes guardados (vista cercana, acercamiento) tienen que llegarle (hallazgo 5).
+      this.world();
       untracked(() => {
-        this.gameWorld?.setCameraOptions(options);
-        this.gameWorld?.setCameraFrozen(frozen);
         requestAnimationFrame(() => {
+          this.gameWorld?.setCameraOptions(options);
+          this.gameWorld?.setCameraFrozen(frozen);
           // Con franjas, la cámara encuadra entre la de arriba y la de abajo (que crece hasta alojar el cuadro).
           const top = bars ? this.cinemaTopPx() : 0;
           const bottom = Math.max(this.dialogueCoverCss(mode), top);

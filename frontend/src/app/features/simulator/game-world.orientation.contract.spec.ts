@@ -163,8 +163,8 @@ describe('game-world: atajos de una tecla (F6-10, WCAG 2.1.4)', () => {
   // req: BLOQUE-H (H-07)
   it('WASD y E solo con el ajuste activo y con el foco en el juego; flechas, Enter y Espacio no dependen de él', () => {
     expect(source).toContain('const letters = this.shortcutsEnabled && isShortcutContext(focus);');
-    expect(source).toMatch(/left:  !typing && \(this\.cursors\.left\.isDown  \|\| \(letters && this\.keys\['A'\]\.isDown\)\),/);
-    expect(source).toMatch(/up:    !typing && \(this\.cursors\.up\.isDown    \|\| \(letters && this\.keys\['W'\]\.isDown\)\),/);
+    expect(source).toMatch(/left:  !bloqueado && \(this\.cursors\.left\.isDown  \|\| \(letters && this\.keys\['A'\]\.isDown\)\),/);
+    expect(source).toMatch(/up:    !bloqueado && \(this\.cursors\.up\.isDown    \|\| \(letters && this\.keys\['W'\]\.isDown\)\),/);
     expect(source).toContain('e: justE && letters,');
     expect(source).toContain('if (!letters) this.tappedKeys.e = false;');
     // Enter y Espacio siguen sin pasar por «letters».
