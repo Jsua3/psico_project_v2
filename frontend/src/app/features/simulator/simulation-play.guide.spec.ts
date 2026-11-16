@@ -66,6 +66,10 @@ class MundoFalso {
   playRevealEffects() {}
   walkToKey() { return true; }
   retryLoad() {}
+  // La cámara dirigida (M1): la pantalla le pasa ajustes, el plano congelado y el momento al pintar cada cuadro.
+  setCameraOptions() {}
+  setCameraFrozen() {}
+  setCameraMoment() {}
 }
 
 const PERSONA_SIN_VER: PlaceCandidate = { key: 'npc:enfermera', label: 'Enfermera', kind: 'person' };
