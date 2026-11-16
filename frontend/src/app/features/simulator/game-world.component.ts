@@ -91,7 +91,7 @@ import { heldInput } from './touch-hold.util';
 import { attachScrollKeyGuard, isScrollRegionTarget, isShortcutContext, isTextEntryTarget, resolveInteractPress } from './keyboard-focus.util';
 import { isCriticalAsset } from './asset-criticality.util';
 import {
-  EstadoCamara, Momento, avanzarCamara, comoDibujar, duracionDeViaje, enViaje, esperaDelGeneral, objetivoCamara,
+  EstadoCamara, Momento, avanzarCamara, comoDibujar, duracionDeViaje, enViajeDentro, esperaDelGeneral, objetivoCamara,
 } from './camara/camara';
 import { fitGameToHost, pixelScaleConfig, watchHostSize } from './pixel-canvas';
 import { PixelRender } from './pixel-render';
@@ -123,7 +123,11 @@ import { npcsDeLaSala } from './caso/npcs-de-sala';
 /** Lo que la pantalla le pide a la cámara (bloque M1): explorar, o encuadrar la conversación o el objeto `clave`. */
 export type CameraMoment = { tipo: 'explorar' } | { tipo: 'conversacion' | 'objeto'; clave: string };
 export interface CameraOptions { cercana: boolean; acercarAuto: boolean }
-export interface CameraReport { zoom: number; momento: Momento['tipo']; x: number; y: number; viajando: boolean }
+export interface CameraReport {
+  zoom: number; momento: Momento['tipo']; x: number; y: number; viajando: boolean;
+  /** Lo que la interfaz tapa (px CSS) abajo y arriba, tal como lo recibe la cámara, y la sala que encuadra («1200x528»). */
+  abajo: number; arriba: number; sala: string;
+}
 
 /** P2: el aviso de una puerta de pieza, en px del contenedor del juego. */
 interface AvisoDePuertaEnPantalla {
@@ -218,6 +222,10 @@ interface NpcMover {
 const LABEL_DEPTH = DEPTH.UI - 1;
 /** Prefijo de la clave con la que una persona del escenario sale como candidato de proximidad. */
 const NPC_KEY_PREFIX = 'npc:';
+/** Cuánto se sostiene el último plano cercano al soltarse (entre la decisión y la reacción, bloque M1). */
+const RETENER_PLANO_MS = 1300;
+/** Por debajo de esto (px físicos) el lienzo aún no tiene tamaño y la cámara espera (bloque M1). */
+const VISTA_MINIMA_PX = 64;
 /** Plazo máximo para el primer cuadro del mundo (F6-8): pasado, el anfitrión ofrece reintentar. */
 const BOOT_WATCHDOG_MS = 25_000;
 
@@ -373,11 +381,15 @@ export class DataDrivenWorldScene extends Phaser.Scene {
   private camMomentType: Momento['tipo'] = 'explorar';
   private camTargetZoom = 0;
   private camTravel: { desde: EstadoCamara; inicio: number; dur: number } | null = null;
-  private camEntrada: { hasta: number; x: number | null; y: number | null } | null = null;
+  private camEntrada: { espera: number; hasta: number | null; x: number | null; y: number | null } | null = null;
   private camRoomId = '';
   private readonly camRoomsSeen = new Set<string>();
   /** Escala CSS del lienzo ya compuesto durante un viaje (1 en reposo). */
   private camDrawScale = 1;
+  /** El último plano cercano, sostenido un momento al soltarse (ver `cameraMomentNow`), y si se está sosteniendo ahora. */
+  private camRetenido: { momento: Momento; hasta: number; x: number; y: number } | null = null;
+  private camSosteniendo = false;
+  private camUltimoObjetivo: EstadoCamara | null = null;
   /** Viñeta de tono de la sala actual (se redibuja al rectángulo visible si cambia el lienzo). */
   private toneVignette?: Phaser.GameObjects.Image;
   /** Textura vigente de cada viñeta (tono o crisis): al cambiar el tamaño se retira la anterior (F6-8). */
@@ -1133,6 +1145,34 @@ export class DataDrivenWorldScene extends Phaser.Scene {
    * entrar a una sala, el plano general hasta que pasa su espera o el personaje se mueve; si no, caminar.
    */
   private cameraMomentNow(ahora: number): Momento {
+    this.camSosteniendo = false;
+    const cercano = this.closeMomentNow();
+    if (cercano) {
+      this.camRetenido = { momento: cercano, hasta: ahora + RETENER_PLANO_MS, x: this.player?.x ?? 0, y: this.player?.y ?? 0 };
+      return cercano;
+    }
+    // Entre la decisión y la reacción el diálogo se cierra casi un segundo antes de que empiece la reacción (la respuesta
+    // del servidor): el plano se sostiene QUIETO para que la cámara no amague con volver a caminar ni dé un pulso al
+    // irse el cuadro. Si el personaje echa a andar, se suelta enseguida.
+    const r = this.camRetenido;
+    if (r && ahora < r.hasta && this.player && Math.hypot(this.player.x - r.x, this.player.y - r.y) <= 6) {
+      this.camSosteniendo = true;
+      return r.momento;
+    }
+    this.camRetenido = null;
+    const entrada = this.camEntrada;
+    if (entrada && this.player) {
+      if (entrada.x === null || entrada.y === null) { entrada.x = this.player.x; entrada.y = this.player.y; }
+      if (entrada.hasta === null) entrada.hasta = ahora + entrada.espera;
+      const seMovio = Math.hypot(this.player.x - entrada.x, this.player.y - entrada.y) > 6;
+      if (!seMovio && ahora < entrada.hasta) return { tipo: 'general' };
+      this.camEntrada = null;
+    }
+    return { tipo: 'explorar' };
+  }
+
+  /** La reacción, la conversación o el objeto en curso, con los pies de quien corresponda; null si no hay. */
+  private closeMomentNow(): Momento | null {
     if (this.camFrameKey) {
       const de = this.feetOf(this.camFrameKey);
       if (de) return { tipo: 'reaccion', de };
@@ -1141,14 +1181,7 @@ export class DataDrivenWorldScene extends Phaser.Scene {
       const feet = this.feetOf(this.camMoment.clave);
       if (feet) return this.camMoment.tipo === 'conversacion' ? { tipo: 'conversacion', con: feet } : { tipo: 'objeto', en: feet };
     }
-    const entrada = this.camEntrada;
-    if (entrada && this.player) {
-      if (entrada.x === null || entrada.y === null) { entrada.x = this.player.x; entrada.y = this.player.y; }
-      const seMovio = Math.hypot(this.player.x - entrada.x, this.player.y - entrada.y) > 6;
-      if (!seMovio && ahora < entrada.hasta) return { tipo: 'general' };
-      this.camEntrada = null;
-    }
-    return { tipo: 'explorar' };
+    return null;
   }
 
   /**
@@ -1160,20 +1193,30 @@ export class DataDrivenWorldScene extends Phaser.Scene {
   private stepCamera(delta: number): void {
     const cam = this.cameras?.main;
     if (!cam || !this.player || this.camFrozen || cam.fadeEffect.isRunning) return;
+    // Lienzo todavía sin tamaño (se ve 1 px de alto mientras la pantalla se arma): no se encuadra ni corre la espera del
+    // plano general; el primer cuadro con tamaño real es el corte.
+    if (cam.width < VISTA_MINIMA_PX || cam.height < VISTA_MINIMA_PX) return;
     const ahora = this.camNow();
+    // El plano general de una sala nueva cuenta solo cuando se ve: detrás de una nota o un diálogo, espera.
+    if (this.camEntrada?.hasta != null && this.motionPaused) this.camEntrada.hasta += Math.max(0, delta);
     const dpr = typeof window !== 'undefined' ? window.devicePixelRatio || 1 : 1;
     const momento = this.cameraMomentNow(ahora);
-    const objetivo = objetivoCamara({
+    const sala = { ancho: this.roomSize.width, alto: this.roomSize.height };
+    const vista = {
+      ancho: cam.width, alto: cam.height, dpr,
+      cubiertoAbajo: this.camCoveredCss * dpr, cubiertoArriba: this.camCoveredTopCss * dpr,
+    };
+    const calculado = objetivoCamara({
       jugador: { x: this.player.x, y: this.player.y },
-      sala: { ancho: this.roomSize.width, alto: this.roomSize.height },
-      vista: {
-        ancho: cam.width, alto: cam.height, dpr,
-        cubiertoAbajo: this.camCoveredCss * dpr, cubiertoArriba: this.camCoveredTopCss * dpr,
-      },
+      sala,
+      vista,
       momento,
       cercana: this.camOptions.cercana,
       acercarAuto: this.camOptions.acercarAuto,
     }, this.camCut ? null : this.camState);
+    // Plano sostenido: el objetivo es el de antes de soltarse (sin recalcular con el cuadro que se va).
+    const objetivo = this.camSosteniendo && this.camUltimoObjetivo ? this.camUltimoObjetivo : calculado;
+    if (!this.camSosteniendo) this.camUltimoObjetivo = calculado;
 
     let next: EstadoCamara;
     if (this.camCut || !this.camState || this.callbacks.reduceMotion) {
@@ -1187,7 +1230,7 @@ export class DataDrivenWorldScene extends Phaser.Scene {
       }
       if (this.camTravel) {
         const t = (ahora - this.camTravel.inicio) / this.camTravel.dur;
-        next = enViaje(this.camTravel.desde, objetivo, t);
+        next = enViajeDentro(this.camTravel.desde, objetivo, t, vista, sala);
         if (t >= 1) this.camTravel = null;
       } else {
         next = avanzarCamara(this.camState, objetivo, delta, false);
@@ -1209,9 +1252,10 @@ export class DataDrivenWorldScene extends Phaser.Scene {
     }
     const report: CameraReport = {
       zoom: this.camSettledZoom, momento: momento.tipo, x: Math.round(next.centro.x), y: Math.round(next.centro.y),
-      viajando: this.camTravel !== null,
+      viajando: this.camTravel !== null, abajo: Math.round(this.camCoveredCss), arriba: Math.round(this.camCoveredTopCss),
+      sala: `${sala.ancho}x${sala.alto} vista ${cam.width}x${cam.height}`,
     };
-    const key = `${report.zoom}|${report.momento}|${report.x}|${report.y}|${report.viajando}`;
+    const key = `${report.zoom}|${report.momento}|${report.x}|${report.y}|${report.viajando}|${report.abajo}|${report.arriba}|${report.sala}`;
     if (key !== this.camReport) {
       this.camReport = key;
       this.callbacks.onCamera?.(report);
@@ -1591,7 +1635,9 @@ export class DataDrivenWorldScene extends Phaser.Scene {
       .map(obj => (dePieza.has(obj.key) ? { ...obj, metadata: { ...(obj.metadata ?? {}), pintada: true, dePieza: true } } : obj))
       .forEach(obj => this.createMarker(obj));
     this.createPlayer(this.world.player.x, this.world.player.y);
-    this.applyPixelCamera(mapW, mapH);
+    // Cámara (M1): la sala compuesta mide `plan.ancho × plan.alto` (528 de alto, contrato 2.2); el `height` del mapa del
+    // servidor puede ser mayor y la cámara mostraba el vacío bajo la sala en el plano general.
+    this.applyPixelCamera(plan.ancho || mapW, plan.alto || mapH);
     this.refreshMarkerStates();
     this.updateNearestInteraction(true);
     this.applyCrisisVignette();
@@ -1933,16 +1979,20 @@ export class DataDrivenWorldScene extends Phaser.Scene {
       this.camRoomId = sala;
       const yaVisitada = this.camRoomsSeen.has(sala);
       this.camRoomsSeen.add(sala);
-      this.camEntrada = this.callbacks.reduceMotion ? null : { hasta: this.camNow() + esperaDelGeneral(yaVisitada), x: null, y: null };
+      // La espera empieza el primer cuadro en que el plano general se ve de verdad (ver `cameraMomentNow`).
+      this.camEntrada = this.callbacks.reduceMotion ? null : { espera: esperaDelGeneral(yaVisitada), hasta: null, x: null, y: null };
+      // Solo una sala nueva es un corte: repintar la misma sala (cada respuesta del servidor) no corta el viaje en curso.
+      this.camCut = true;
+      this.camTravel = null;
     }
-    this.camCut = true;
-    this.camTravel = null;
     this.stepCamera(0);
   }
 
   /** El lienzo cambió de tamaño o de dpr: nuevo zoom entero y viñetas al nuevo rectángulo visible. */
   private refitCamera(): void {
     if (!this.ready || !this.player) return;
+    // El lienzo cambió (el aviso sensible que se pliega, el panel, la ventana): sin corte; si el plano cambia de zoom,
+    // la cámara viaja al nuevo. Un corte aquí se comía el cierre sobre el personaje tras el plano general.
     this.applyPixelCamera(this.roomSize.width, this.roomSize.height);
     if (this.toneVignette) {
       this.toneVignette.destroy();
@@ -3912,6 +3962,8 @@ export class GameWorldComponent implements OnChanges, OnDestroy {
     host.setAttribute('data-camera-x', String(camera.x));
     host.setAttribute('data-camera-y', String(camera.y));
     host.setAttribute('data-camera-travel', camera.viajando ? 'true' : 'false');
+    host.setAttribute('data-camera-cover', `${camera.abajo},${camera.arriba}`);
+    host.setAttribute('data-camera-room', camera.sala);
   }
 
   /** Dónde está ahora la persona a atender, como `data-key-person-x/y` del host (contrato del e2e, igual que `data-player-x/y`). Directo al DOM. */

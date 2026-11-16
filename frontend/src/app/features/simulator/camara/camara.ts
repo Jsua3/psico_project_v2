@@ -217,6 +217,29 @@ export function enViaje(desde: EstadoCamara, hacia: EstadoCamara, t: number): Es
   };
 }
 
+/**
+ * El viaje, sin mostrar nunca más fuera de la sala que lo que ya mostraban sus dos extremos: a un zoom intermedio el
+ * centro interpolado podía asomar el vacío bajo la sala (los dos centros se recortaron cada uno para su propio zoom).
+ */
+export function enViajeDentro(desde: EstadoCamara, hacia: EstadoCamara, t: number, vista: Vista, sala: Sala): EstadoCamara {
+  const e = enViaje(desde, hacia, t);
+  if (t >= 1) return e;
+  const borde = (s: EstadoCamara) => {
+    const mx = vista.ancho / (2 * s.zoom);
+    const my = vista.alto / (2 * s.zoom);
+    return { x0: s.centro.x - mx, x1: s.centro.x + mx, y0: s.centro.y - my, y1: s.centro.y + my };
+  };
+  const a = borde(desde);
+  const b = borde(hacia);
+  return {
+    zoom: e.zoom,
+    centro: {
+      x: limitar(e.centro.x, vista.ancho / (2 * e.zoom), Math.min(0, a.x0, b.x0), Math.max(sala.ancho, a.x1, b.x1)),
+      y: limitar(e.centro.y, vista.alto / (2 * e.zoom), Math.min(0, a.y0, b.y0), Math.max(sala.alto, a.y1, b.y1)),
+    },
+  };
+}
+
 /** Cuánto dura (ms) el viaje de un momento a otro. */
 export function duracionDeViaje(desde: Momento['tipo'], hacia: Momento['tipo']): number {
   if (desde === 'general') return 1400;          // el plano general se cierra sobre el personaje, sin prisa

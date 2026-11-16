@@ -123,7 +123,8 @@ export class MinimapaComponent {
       border: 1px solid var(--ds-border-strong); border-radius: var(--ds-radius-lg);
       background: var(--ds-surface-1); box-shadow: var(--ds-shadow-e3); color: var(--ds-text-1);
     }
-    h2 { margin: 0; font-size: var(--ds-type-lead-size); }
+    /* El color va explícito: el estilo global de h2 no es el de la piel del juego (como en «Ir a…»). */
+    h2 { margin: 0; font-size: var(--ds-type-lead-size); color: var(--ds-text-1); }
     .plano-dialogo__plano { min-height: 0; overflow-y: auto; overscroll-behavior: contain; }
     .plano-dialogo__pie { display: flex; align-items: center; justify-content: space-between; gap: var(--ds-space-3); flex-wrap: wrap; }
   `],

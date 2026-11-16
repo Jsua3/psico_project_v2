@@ -1530,15 +1530,18 @@ export class SimulationPlayComponent implements OnInit, OnDestroy {
       // Al aparecer el mundo, los ajustes guardados (vista cercana, acercamiento) tienen que llegarle (hallazgo 5).
       this.world();
       untracked(() => {
-        requestAnimationFrame(() => {
+        // Con franjas, la cámara encuadra entre la de arriba y la de abajo (que crece hasta alojar el cuadro). Se mide
+        // al pintar y otra vez cuando el cuadro o la franja de la reacción ya entraron (llegan con su animación).
+        const medir = () => {
           this.gameWorld?.setCameraOptions(options);
           this.gameWorld?.setCameraFrozen(frozen);
-          // Con franjas, la cámara encuadra entre la de arriba y la de abajo (que crece hasta alojar el cuadro).
           const top = bars ? this.cinemaTopPx() : 0;
           const bottom = Math.max(this.dialogueCoverCss(mode), top);
           this.cinemaBottomPx.set(bottom);
           this.gameWorld?.setCameraMoment(moment, bottom, top);
-        });
+        };
+        requestAnimationFrame(medir);
+        setTimeout(medir, 450);
       });
     });
     // La salida segura pedida durante una petición espera a que `busy()` se suelte: no se fuerza
@@ -2073,11 +2076,17 @@ export class SimulationPlayComponent implements OnInit, OnDestroy {
 
   /** Alto (px CSS) del cuadro de diálogo de abajo que tapa el lienzo; 0 si el diálogo va al costado o no hay. */
   private dialogueCoverCss(mode: string): number {
-    if (mode !== 'dialogue-cinematic' || typeof document === 'undefined') return 0;
-    const panel = document.querySelector('app-dialogue-panel.dialogue-cinematic');
     const host = this.canvasZone()?.nativeElement;
-    if (!panel || !host) return 0;
-    return Math.max(0, Math.round(host.getBoundingClientRect().bottom - panel.getBoundingClientRect().top));
+    if (!host || typeof document === 'undefined') return 0;
+    // Lo que tapa abajo: el cuadro de diálogo y, durante la reacción, la franja con lo que dice quien reacciona.
+    // La franja de la reacción vive en el DOM aunque no se vea: solo cuenta durante la reacción y si tiene tamaño.
+    const cuadros = [
+      mode === 'dialogue-cinematic' ? document.querySelector('app-dialogue-panel.dialogue-cinematic') : null,
+      this.reacting() ? document.querySelector('app-reaction-director .reaction-strip') : null,
+    ];
+    const visibles = cuadros.map(c => c?.getBoundingClientRect()).filter(r => !!r && r.height > 0 && r.width > 0);
+    const arriba = Math.min(...visibles.map(r => r!.top));
+    return Number.isFinite(arriba) ? Math.max(0, Math.round(host.getBoundingClientRect().bottom - arriba)) : 0;
   }
 
   openInteraction(interaction: MapObjectState) {
