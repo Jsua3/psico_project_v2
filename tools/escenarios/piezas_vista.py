@@ -142,27 +142,22 @@ def _en_sombra(sala, momento, cuerpos, sid, guardar):
     return [guardar(f'as-{sid}-{momento}', ambiente), guardar(f'bs-{sid}-{momento}', brillo)]
 
 
-def _fuentes(sala, momento):
-    """De dónde viene la luz que arroja sombras: direcciones (ventanas, sol) y lámparas con su altura."""
-    est, pl = sala['estructura'], sl.pl
-    izq, der = g.laterales(sala['encuadre'])
-    xl = g.limites(sala['encuadre'], est['ancho'])[0]
-    lista = []
-    if est.get('exterior'):
-        return [dict(t='d', dx=pl.HAZ_FONDO[0], dy=pl.HAZ_FONDO[1], n=5, d=8)] if momento == 'dia' else []
-    for pz, ficha, luz, _ in pl._emisores(sala, momento):
-        if luz['forma'] == 'haz' and pz.get('muro') == 'fondo':
-            f = dict(t='d', dx=pl.HAZ_FONDO[0], dy=pl.HAZ_FONDO[1], n=5, d=8)
-        elif luz['forma'] == 'haz' and ((pz.get('muro') == 'izquierda' and izq) or (pz.get('muro') == 'derecha' and der)):
-            f = dict(t='d', dx=pl.HAZ_LADO[0] if pz['muro'] == 'izquierda' else -pl.HAZ_LADO[0], dy=pl.HAZ_LADO[1], n=3, d=4)
-        elif luz['forma'] == 'pozo' and ('x' in pz or pz.get('muro') == 'fondo'):
-            x, y = (pz['x'], pz['y']) if 'x' in pz else (xl + pz['pos'], g.SEAM + 64)
-            f = dict(t='p', x=x, y=y, h=luz.get('altura', 150) + pz.get('sobre', 0))
-        else:
-            continue
-        if f not in lista:
-            lista.append(f)
-    return lista
+ABC = '0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz!#$%&()*+,-.:;<=>?@^_~'
+
+
+def _rejilla(sala, momento, paso=16):
+    """Para la sombra de quien camina: la matriz que manda en cada celda del piso (rejilla de `paso` px), como una
+    lista de matrices sin repetir y una letra por celda. El juego la calcula exacta en el píxel donde pisa (LEEME de
+    la referencia de luz); a la página le basta la rejilla."""
+    ancho = sala['estructura']['ancho']
+    cols, filas = -(-ancho // paso), -(-(g.ALTO - g.SEAM) // paso)
+    puntos = [(min(cx * paso + paso // 2, ancho - 1), min(g.SEAM + cy * paso + paso // 2, g.ALTO - 1)) for cy in range(filas) for cx in range(cols)]
+    matrices, celdas = [], []
+    for m in sl.pl.matrices_de_sombra(sala, momento, puntos):
+        if list(m) not in matrices:
+            matrices.append(list(m))
+        celdas.append(ABC[matrices.index(list(m))])
+    return dict(paso=paso, y0=g.SEAM, cols=cols, filas=filas, m=matrices, celdas=''.join(celdas), abc=ABC)
 
 
 def _sombra_de_pie():
@@ -184,8 +179,8 @@ def _entrada(sala, por_defecto):
 
 def exportar(sala, lugar, imgs, muebles=()):
     """La sala como datos para la página; las imágenes van a `imgs` sin repetirse."""
-    cuerpos = [sl.pl.cuerpo(m['x'], m['y'], m['im'].width, m['im'].height, persona=bool(m.get('persona'))) for m in muebles
-               if m.get('sombra', True)]
+    cuerpos = [sl.pl.cuerpo_de(m['im'], m['x'] - m['im'].width // 2, m['y'] - m['im'].height, pie=(m['x'], m['y']) if m.get('persona') else None)
+               for m in muebles if m.get('sombra', True)]
     dia, noche = sl.capas(sala, 'dia', cuerpos), sl.capas(sala, 'noche', cuerpos)
     sid = sala['id']
 
@@ -199,7 +194,7 @@ def exportar(sala, lugar, imgs, muebles=()):
                  fondo=guardar('f-' + sid, dia['fondo'].convert('RGB')),
                  luz={m: [guardar(f'a-{sid}-{m}', c['ambiente']), guardar(f'b-{sid}-{m}', c['brillo'])] + _en_sombra(sala, m, cuerpos, sid, guardar)
                       for m, c in (('dia', dia), ('noche', noche))},
-                 fuentes={m: _fuentes(sala, m) for m in ('dia', 'noche')},
+                 sombras={m: _rejilla(sala, m) for m in ('dia', 'noche')},
                  sprites=[], muebles=[], entrada=_entrada(sala, (x0 + w // 2, y0 + h * 2 // 3)), avisos=dia['avisos'])
     puertas = {p['id']: p for p in sala.get('puertas', [])}
     for sd, sn in zip(dia['sprites'], noche['sprites']):

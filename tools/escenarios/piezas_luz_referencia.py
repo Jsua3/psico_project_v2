@@ -50,12 +50,22 @@ ANCHA = {
     'puertas': [{'id': 'p-fondo', 'muro': 'fondo', 'pos': 700, 'modelo': 'madera'},
                 {'id': 'p-camara', 'muro': 'camara', 'pos': 900, 'modelo': 'urgencias'}],
 }
-CUERPOS_ANCHA = [pl.cuerpo(520, 330, 88, 44), pl.cuerpo(760, 400, 48, 72, persona=True), pl.cuerpo(1300, 330, 50, 22),
-                 pl.cuerpo(1000, 300, 26, 74), pl.cuerpo(300, 400, 46, 40), pl.cuerpo(1620, 420, 98, 48)]
-
-
 def _de_muebles(muebles):
-    return [pl.cuerpo(m['x'], m['y'], m['im'].width, m['im'].height, persona=bool(m.get('persona'))) for m in muebles if m.get('sombra', True)]
+    """Cuerpos con la silueta de cada mueble y de cada persona, apoyados en (x, y), el centro de su base."""
+    return [pl.cuerpo_de(m['im'], m['x'] - m['im'].width // 2, m['y'] - m['im'].height, pie=(m['x'], m['y']) if m.get('persona') else None)
+            for m in muebles if m.get('sombra', True)]
+
+
+def _personas(*lista):
+    return [dict(im=ph._personaje(receta, mira)[0], x=x, y=y, persona=True) for receta, x, y, mira in lista]
+
+
+# La sala ancha: muebles del hospital y de la casa, una persona y dos cajas sin dibujo (las que no traen silueta
+# arrojan la de su huella: también es una entrada válida).
+CUERPOS_ANCHA = (_de_muebles([dict(im=ph.mueble(ref)[0], x=x, y=y) for ref, x, y in
+                              (('camilla', 520, 330), ('portasuero', 1000, 300), ('sillas-espera', 1620, 420))]
+                             + _personas(('sobreviviente', 760, 400, 'abajo')))
+                 + [pl.cuerpo(1300, 330, 50, 22), pl.cuerpo(300, 400, 46, 40)])
 
 
 def _solo_luz(sala):
@@ -72,10 +82,8 @@ def _solo_luz(sala):
 
 
 def casos():
-    import vivo
-    _, _, muebles_sala, _ = vivo.leer_escena()
-    cuerpos_sala = ([pl.cuerpo(m['x'], m['y'], m['ancho'], m['alto']) for m in muebles_sala]
-                    + [pl.cuerpo(560, 360, 48, 72, persona=True), pl.cuerpo(470, 372, 48, 72, persona=True)])
+    cuerpos_sala = _de_muebles(pv.muebles_de_biblioteca('casa', 'sala')
+                               + _personas(('sobreviviente', 560, 360, 'izquierda'), ('valentina', 470, 372, 'derecha')))
     with open(os.path.join(BIBLIOTECA, 'piezas', 'lugares', 'casa.json'), encoding='utf-8') as f:
         fachada = next(s for s in json.load(f)['salas'] if s['id'] == 'fachada')
     return [
@@ -111,7 +119,10 @@ def constantes():
                 penumbra=dict(dia=pl.PENUMBRA, noche=pl.PENUMBRA_NOCHE, exteriorDia=pl.EXTERIOR, exteriorNoche=pl.EXTERIOR_NOCHE),
                 pulidos=list(pl.PULIDOS), reflejo=pl.REFLEJO, luna=pl.LUNA, vidriadas=dict(pl.VIDRIADAS), contacto=pl.CONTACTO, tablaAmbienteNoche=pl.TABLA_AMBIENTE_NOCHE.tolist(),
                 tablaReflejo={t: [list(c) for c in v] for t, v in pl.TABLA_REFLEJO.items()}, umbralReflejo=pl.UMBRAL_REFLEJO,
-                enSombra=pl.EN_SOMBRA, hazFondo=list(pl.HAZ_FONDO), hazLado=list(pl.HAZ_LADO), sombraMaxima=pl.SOMBRA_MAXIMA,
+                enSombra=dict(pl.EN_SOMBRA), sombraPropia=pl.SOMBRA_PROPIA, sombraAlSol=pl.SOMBRA_AL_SOL, alturaTubo=pl.ALTURA_TUBO,
+                topeSombra=dict(pl.TOPE_SOMBRA), umbralDominio=pl.UMBRAL_DOMINIO, cenital=list(pl.CENITAL),
+                matrizHaz={k: list(v) for k, v in pl.MATRIZ_HAZ.items()}, senosHaz={k: list(v) for k, v in pl.SENOS_HAZ.items()},
+                direcciones=[list(d) for d in pl.DIRECCIONES], sombraMaxima=pl.SOMBRA_MAXIMA,
                 bayer=pl.BAYER.tolist(), tablaAmbiente=pl.TABLA_AMBIENTE.tolist(), tablaCalida=pl.TABLA_CALIDA.tolist(),
                 tablaFria=pl.TABLA_FRIA.tolist())
 
@@ -120,16 +131,21 @@ def generar():
     """(datos de casos.json, {ruta relativa a biblioteca/: imagen RGB})."""
     lista, imagenes = casos(), {}
     for caso in lista:
+        # Los cuerpos van completos (con su máscara) y se calculan desde los mismos datos que se escriben.
+        caso['cuerpos'] = [pl.cuerpo_a_json(c) for c in caso['cuerpos']]
+        cuerpos = [pl.cuerpo_de_json(c) for c in caso['cuerpos']]
         caso['salidas'] = {}
         for momento in MOMENTOS:
-            ambiente, brillo = pl.calcular_luz(caso['sala'], momento, caso['abiertas'], caso['cuerpos'])
+            ambiente, brillo = pl.calcular_luz(caso['sala'], momento, caso['abiertas'], cuerpos)
             rutas = {capa: f'{CARPETA}/referencia/{caso["id"]}-{momento}-{capa}.png' for capa in ('ambiente', 'brillo')}
             imagenes[rutas['ambiente']], imagenes[rutas['brillo']] = ambiente, brillo
             caso['salidas'][momento] = rutas
         # Brillo del vidrio y el metal: en cada punto de muestra, (k, tono) de día y de noche.
         ancho = caso['sala']['estructura']['ancho']
         puntos = [[x, y] for y in (254, 330, 420) for x in range(ancho // 8, ancho, ancho // 4)]
-        caso['reflejos'] = dict(puntos=puntos, **{m: [list(r) for r in pl.reflejos(caso['sala'], m, caso['abiertas'], caso['cuerpos'], puntos)]
+        caso['matrices'] = dict(puntos=puntos, **{m: [list(x) for x in pl.matrices_de_sombra(caso['sala'], m, puntos, abiertas=caso['abiertas'])]
+                                                  for m in MOMENTOS})
+        caso['reflejos'] = dict(puntos=puntos, **{m: [list(r) for r in pl.reflejos(caso['sala'], m, caso['abiertas'], cuerpos, puntos)]
                                                   for m in MOMENTOS})
     return dict(version=1, constantes=constantes(), catalogo=catalogo(lista), casos=lista), imagenes
 
@@ -190,10 +206,14 @@ La prueba del cliente debe dar esas imágenes píxel a píxel. La fuente es `too
   del haz; `horizontales`: travesaños a lo largo (0 = junto al muro); `lamas`: `[desde, hasta, paso]`, el tramo que
   cubre la persiana y cada cuántos px se repite una lama. Sin `parteluces` vale `{verticales: [512]}`.
 - `abiertas`: ids de puertas abiertas (solo las del muro del fondo dejan la cuña de luz; su ancho es `catalogo["puerta/<modelo>"].ancho`).
-- `cuerpos`: muebles y personas sobre el piso, como `{x0, x1, y0, y1, alto}` (huella en px de sala y altura). Se
-  construyen con `cuerpo(x, y, ancho, alto, persona)` a partir del sprite: para un mueble apoyado en (x, y),
-  `fondo = max(8, min(16, ancho // 5))`, `x0 = x − ancho // 2 + 2`, `x1 = x + ancho // 2 − 2`, `y0 = y − fondo`,
-  `y1 = y`, `alto = max(8, alto − fondo // 2)`; para una persona, `x ± 9`, `y − 10 … y`, alto 60.
+- `cuerpos`: muebles y personas sobre el piso. Cada uno trae su **silueta**: `mascara` (filas de texto del tamaño
+  del dibujo, `#` opaco y `.` transparente: el alfa del sprite desde 128), su apoyo dentro del dibujo (`px`, `py`:
+  columna del apoyo y fila siguiente a la última opaca) y en la sala (`x`, `y`), su `alto` (de la primera fila opaca
+  al apoyo) y su huella `{x0, x1, y0, y1}`, que solo sirve para la sombra de contacto y para saber si una lámpara
+  está encima. Se arma con `cuerpo_de(dibujo, x, y, pie)` (dibujo con su esquina en (x, y); `pie`, el punto donde
+  pisa una persona). Huella de un mueble de `ancho × alto` apoyado en (cx, cy): `fondo = max(8, min(16, ancho // 5))`,
+  `x0 = cx − ancho // 2 + 2`, `x1 = cx + ancho // 2 − 2`, `y0 = cy − fondo`, `y1 = cy`; de una persona,
+  `x ± 9`, `y − 10 … y`.
 
 ## Reglas de aritmética (las que hacen posible la igualdad)
 
@@ -224,14 +244,12 @@ La prueba del cliente debe dar esas imágenes píxel a píxel. La fuente es `too
      (`ancho // 2 − 6` a cada lado de su centro, largo 70, fuerza `vidriadas[modelo]`, tono frío, de día y de
      noche): `tono = max(tono, mancha * fuerza // 100 * reflejo // 1024)` con `reflejo` 900. Los bordes laterales
      de la franja se deshacen en 10 px: `clip(dentro * 96 + 192, 0, 1024) * caida // 1024`.
-3. Sombras de los cuerpos (`_sombra`): antes de combinar, la mancha de un haz o de un pozo pierde 3/4
-   (`enSombra` 768/1024) donde un cuerpo tapa la luz: `mancha − mancha * sombra * 768 // 1024`.
-   - Ventana del fondo: dirección `hazFondo` (45, 64) y largo `alto * 5 // 8`.
-   - Ventana lateral: dirección (64, 22) desde el muro izquierdo o (−64, 22) desde el derecho, largo `alto * 3 // 4`.
-   - Lámpara (`_sombra_de_lampara`): por cada cuerpo, dirección del centro de la lámpara al centro de su huella,
-     normalizada a 64avos con divisiones enteras; largo `min(alto * n // max(altura − alto, 16), sombraMaxima)`.
-     Se salta el cuerpo que tiene la lámpara encima. El tubo no arroja sombra.
-   - Al aire libre y de día, la sombra del sol baja la luz dos escalones (`L − 2 * paso`).
+3. Sombras de los cuerpos (`_sombras`): cada cuerpo arroja su **silueta** tendida sobre el piso (ver «La sombra
+   proyectada», abajo). Donde cae alguna, la luz es la de `combinar(a_la_sombra=True)`: cada fuente que un cuerpo
+   puede tapar (haz, pozo, tubo) entra con su mancha menos `mancha * enSombra[clase] // 1024` (768 el haz y el pozo,
+   384 el tubo); los halos del muro, la franja del tubo, la cuña de la puerta y los reflejos del piso entran
+   iguales; y al final el piso baja `sombraPropia` escalones (1; al sol, `sombraAlSol` = 2): `L − paso * escalones`.
+   Fuera de las sombras, la luz es la de `combinar(False)`. Los dos acumuladores de tono se eligen igual.
 4. Sombra de contacto (`_contacto`): por cada cuerpo, una elipse a sus pies (centro en el medio de la huella y
    `y1 − 2`; radios `ancho_huella // 2 + 5` y `max(4, fondo_huella // 2 + 3)`): `L −= contacto * paso * m // 1024`,
    con `m = min(2 * clip(1024 − r, 0, 1024), 1024)` y r la distancia normalizada. Va después de las fuentes.
@@ -259,17 +277,63 @@ luz de la sala.
 4. Lo que está delante tapa el brillo de lo de atrás: se pinta en una capa aparte, en el mismo orden que los
    sprites (cada sprite borra su silueta y luego suma su mapa), y esa capa se suma al final, después de `brillo`.
 
+## La sombra proyectada: la silueta de quien la arroja
+
+Un píxel del dibujo en la columna `col` y la fila `fila` está a `u = col − px` px a la derecha del apoyo y a
+`h = py − 1 − fila` px de altura. Su sombra cae en el piso en `(x + (a·u + b·h) // 64, y + (c·u + d·h) // 64)`, con
+la matriz `(a, b, c, d)` de la fuente que manda. Para pintarla sin agujeros se recorre al revés: para cada píxel
+(X, Y) del piso cerca del cuerpo, `ex = X − x`, `ey = Y − y`, `det = a·d − b·c`,
+`u = (d·ex − b·ey) * 64 // det`, `h = (a·ey − c·ex) * 64 // det`; está en sombra si `h ≥ 0` y el píxel
+(`px + u`, `py − 1 − h`) del dibujo existe y es opaco. División entera hacia abajo, también con negativos.
+
+1. **Quién manda.** En el apoyo (x, y) de cada cuerpo (recortado a la sala y a `y ≥ 230`), cada fuente que puede
+   tapar da `fuerza * mancha[y][x]` (la mancha sin sombras, de 0 a 1024). Manda la que más da, si llega a
+   `umbralDominio` (12800); en un empate, la primera en el orden de las piezas. Se salta la lámpara que está encima del
+   cuerpo (su punto cae en la huella agrandada 8 px). Al aire libre y de día manda siempre el sol.
+2. **La matriz.**
+   - Haz de una ventana del fondo, o el sol: `matrizHaz.fondo` (60, 28, −11, 40). Ventana del muro izquierdo:
+     `matrizHaz.izquierda` (36, 48, −27, 16); del derecho, `matrizHaz.derecha` (36, −48, 27, 16).
+   - Pozo o tubo en (lx, ly) a `altura` px del piso (pozo: `luz.altura + sobre`; tubo: `alturaTubo` = 360, puesto
+     en `y = 230 + 120`): `dx = x − lx`, `dy = y − ly`, `n = floor(sqrt(dx² + dy²))`. Si `n < 4`, la cenital.
+     Dirección `i = direccion(dx, 2·dy)` (una de 16, ver abajo) y largo en octavos del alto
+     `k8 = min(max(n * 8 // max(altura − alto, 16), 2), tope)`, con
+     `tope = max(2, min(topeSombra[clase], sombraMaxima * 8 // alto))` (`topeSombra`: pozo 12, tubo 3: bajo un tubo
+     la sombra es corta y queda casi debajo). Con `[Dx, Dy, Px, Py] = direcciones[i]`, la matriz es
+     `(Px, Dx * k8 // 8, Py, Dy * k8 // 8)`.
+   - Ninguna fuente manda: la cenital, `i, k8 = cenital` (4, 3): corta y hacia la cámara.
+3. **El ancho visto desde la fuente.** La silueta es el dibujo visto de frente; si la luz llega de lado, se ve el
+   fondo del cuerpo y no su ancho. Con `ancho = max(x1 − x0, 1)` y `fondo = y1 − y0` de la huella,
+   `s = min(max((ancho * seno + 2 * fondo * coseno) // ancho, 8), 64)` y la matriz final es
+   `(a * s // 64, b, c * s // 64, d)`. `(seno, coseno)`: del haz, `senosHaz`; de una lámpara, `(2·|Dy|, |Dx|)`.
+4. **`direccion(dx, dy)`**, sin divisiones: `ax = |dx|`, `ay = |dy|`; `q` = 0 si `ay·256 ≤ ax·51`, 1 si
+   `≤ ax·171`, 2 si `≤ ax·383`, 3 si `≤ ax·1287` y 4 si no. Si `dy ≥ 0`: `i = q` si `dx ≥ 0`, si no `8 − q`.
+   Si `dy < 0`: `i = (16 − q) % 16` si `dx ≥ 0`, si no `8 + q`. Las 16 direcciones van de 22,5° en 22,5°: la sombra
+   no tiembla al moverse, solo salta cuando el cuerpo cruza el borde de un sector o cambia la fuente que manda.
+5. **El borde.** La unión de las siluetas se agranda 1 px (4 vecinos) solo donde `bayer[y % 4][x % 4] < 8`: el
+   borde queda tramado al 50 %. Luego se recorta al piso (la sombra se corta donde empieza el muro) y se le quitan
+   los píxeles que tapa el dibujo de cada cuerpo (con su máscara puesta en `(x − px, y − py)`).
+6. **La sombra de contacto** (regla 4 de «El cálculo») sigue debajo, pequeña y a los pies.
+
+`casos.json` trae en `matrices` la matriz de una persona de alto 64 en doce puntos por caso, de día y de noche: la
+prueba más corta de los pasos 1 a 4.
+
 ## La sombra de quien camina
 
-`calcular_luz(..., todo_en_sombra=True)` da las dos capas como quedarían si algo tapara cada ventana, cada lámpara
-y el sol en todo el piso. La sombra de un personaje es mostrar esas capas dentro del polígono que barre su huella
-(`x ± 9`, `y − 10 … y`, alto 60) en la dirección de cada fuente, con el largo de la regla 3 de «El cálculo».
+La luz de la sala (con los muebles y las personas quietas como cuerpos) se calcula una vez al entrar y al cambiar
+algo. `calcular_luz(..., todo_en_sombra=True)` da además las dos capas como quedan DENTRO de una sombra en todo el
+piso (`combinar(a_la_sombra=True)` en cada píxel del piso, sin cuerpos). Para quien camina, en cada cuadro:
 
-## Para el juego
+1. Su silueta es el alfa (≥ 128) del **cuadro de animación que se está viendo**; `px` = la columna de sus pies en
+   el cuadro (24 en las hojas de 48 × 72) y `py` = la fila siguiente a la última opaca. Así su sombra camina con él.
+2. Su apoyo en la sala es `(x, y − 68 + py)` con (x, y) donde pisa; su `alto`, de la primera fila opaca a `py`.
+3. La matriz se calcula con los pasos 1 a 3 en ese apoyo, con su huella `x ± 9`, `y − 10 … y`. Solo cambia
+   cuando cruza un sector de dirección o la zona de otra fuente (con la mancha de cada fuente guardada al entrar).
+4. Se tiende la silueta (paso 5 incluido) en una máscara del tamaño de su caja y, dentro de ella, se muestran las
+   capas «en sombra» en lugar de las normales. Lo que se dibuja delante tapa la sombra (cada sprite borra su
+   silueta de la máscara, en el mismo orden en que se pinta), y fuera del piso las dos capas coinciden.
 
-La luz de la sala (con los muebles como cuerpos) se calcula una vez al entrar y al cambiar algo. La sombra de un
-personaje que camina no hace falta recalcularla con toda la sala: es la misma regla aplicada a un solo cuerpo, y
-se puede dibujar aparte como un polígono (la huella barrida en la dirección de la luz) solo donde hay haz o pozo.
+La vista previa (`maqueta-visual/piezas/vista.html`) hace esto mismo con la matriz precalculada en una rejilla de
+16 px; el juego debe calcularla en el píxel donde pisa.
 """
 
 

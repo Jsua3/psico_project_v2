@@ -303,6 +303,7 @@
     "piezas/lugares/universidad.json"
   ],
   "luz": {
+    "alturaTubo": 360,
     "bayer": [
       [
         0,
@@ -330,22 +331,140 @@
       ]
     ],
     "casos": "piezas/luz/casos.json",
+    "cenital": [
+      4,
+      3
+    ],
     "contacto": 2,
-    "enSombra": 768,
+    "direcciones": [
+      [
+        64,
+        0,
+        0,
+        32
+      ],
+      [
+        59,
+        12,
+        24,
+        -30
+      ],
+      [
+        45,
+        23,
+        45,
+        -23
+      ],
+      [
+        24,
+        30,
+        59,
+        -12
+      ],
+      [
+        0,
+        32,
+        64,
+        0
+      ],
+      [
+        -24,
+        30,
+        59,
+        12
+      ],
+      [
+        -45,
+        23,
+        45,
+        23
+      ],
+      [
+        -59,
+        12,
+        24,
+        30
+      ],
+      [
+        -64,
+        0,
+        0,
+        32
+      ],
+      [
+        -59,
+        -12,
+        24,
+        -30
+      ],
+      [
+        -45,
+        -23,
+        45,
+        -23
+      ],
+      [
+        -24,
+        -30,
+        59,
+        -12
+      ],
+      [
+        0,
+        -32,
+        64,
+        0
+      ],
+      [
+        24,
+        -30,
+        59,
+        12
+      ],
+      [
+        45,
+        -23,
+        45,
+        23
+      ],
+      [
+        59,
+        -12,
+        24,
+        30
+      ]
+    ],
+    "enSombra": {
+      "haz": 768,
+      "pozo": 768,
+      "tubo": 384
+    },
     "grisBrillo": {
       "barniz": 85,
       "metal": 170,
       "vidrio": 255
     },
-    "hazFondo": [
-      45,
-      64
-    ],
-    "hazLado": [
-      64,
-      22
-    ],
     "luna": 22,
+    "matrizHaz": {
+      "derecha": [
+        36,
+        -48,
+        27,
+        16
+      ],
+      "fondo": [
+        60,
+        28,
+        -11,
+        40
+      ],
+      "izquierda": [
+        36,
+        48,
+        -27,
+        16
+      ]
+    },
     "minimo": 4400,
     "niveles": 8,
     "paso": 700,
@@ -362,7 +481,23 @@
     ],
     "referencia": "piezas/luz/LEEME.md",
     "reflejo": 900,
+    "senosHaz": {
+      "derecha": [
+        36,
+        53
+      ],
+      "fondo": [
+        60,
+        21
+      ],
+      "izquierda": [
+        36,
+        53
+      ]
+    },
+    "sombraAlSol": 2,
     "sombraMaxima": 72,
+    "sombraPropia": 1,
     "tablaAmbiente": [
       [
         101,
@@ -569,6 +704,11 @@
         ]
       ]
     },
+    "topeSombra": {
+      "pozo": 12,
+      "tubo": 3
+    },
+    "umbralDominio": 12800,
     "umbralReflejo": 4,
     "unidad": 10000,
     "uno": 1024,

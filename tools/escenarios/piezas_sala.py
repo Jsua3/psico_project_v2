@@ -203,15 +203,8 @@ def tenir(mapa, k, tono):
 
 
 def cuerpos_de(extras):
-    """Los muebles y las personas de `extras` como cuerpos que arrojan sombra (lo que va con sombra=False no arroja)."""
-    cuerpos = []
-    for e in extras:
-        w, h = e['im'].size
-        if e.get('pie'):
-            cuerpos.append(pl.cuerpo(e['pie'][0], e['pie'][1], w, h, persona=True))
-        elif e.get('sombra', True):
-            cuerpos.append(pl.cuerpo(e['x'] + w // 2, e['y'] + h, w, h))
-    return cuerpos
+    """Los muebles y las personas de `extras` como cuerpos que arrojan su silueta (lo que va con sombra=False no arroja)."""
+    return [pl.cuerpo_de(e['im'], e['x'], e['y'], pie=e.get('pie')) for e in extras if e.get('pie') or e.get('sombra', True)]
 
 
 def componer_sala(sala, momento=None, abiertas=(), con_luz=True, extras=()):

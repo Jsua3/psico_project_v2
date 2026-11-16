@@ -9,9 +9,10 @@ tono cálido al 15 %.
 - De día cada ventana proyecta un haz sobre el piso (y un halo en su muro). De noche las ventanas no
   emiten: la penumbra baja a 0,58 y la luz sale de las lámparas (pozos cálidos; el tubo, fría y pareja).
 - Varias luces se combinan con el máximo ANTES de cuantizar: al cruzarse no rompen los escalones.
-- `cuerpos` son los muebles y las personas que hay en el piso (`cuerpo(x, y, ancho, alto)`): cada uno le tapa la luz
-  a lo que tiene detrás. La ventana arroja la sombra en la dirección de su haz; la lámpara, lejos de sí misma y más
-  larga cuanto más baja esté. En la sombra queda un cuarto de la luz de esa fuente. El tubo de techo no arroja sombra.
+- `cuerpos` son los muebles y las personas que hay en el piso (`cuerpo_de(dibujo, x, y)`): cada uno arroja su SILUETA,
+  tendida en el piso lejos de la fuente que más luz le da: la ventana, en la dirección de su haz; la lámpara, lejos de
+  sí misma y más larga cuanto más baja esté; el tubo de techo, corta y casi debajo. Dentro de la sombra cada fuente
+  pierde su parte (3/4; el tubo, 3/8) y el piso baja un escalón más. La dirección es una de 19 matrices enteras.
 - Todo es entero (la luz va en diezmilésimas; las mezclas, en 1/1024): el cliente puede repetir las mismas
   operaciones y sacar los mismos píxeles. La única raíz es `floor(sqrt(n))` con n < 2^31, que es exacta en
   doble precisión (numpy y JavaScript dan lo mismo). `TABLA_AMBIENTE`, `TABLA_CALIDA` y `TABLA_FRIA` son
@@ -34,8 +35,22 @@ MINIMO, PASO, NIVELES = 4400, 700, 8   # 0,44 … 1,00 en escalones de 0,07
 PENUMBRA, PENUMBRA_NOCHE = 7900, 5800
 EXTERIOR, EXTERIOR_NOCHE = 9300, 5100
 UNO = 1024                             # 1,0 en las mezclas
-EN_SOMBRA = 768                           # de la luz de una fuente, lo que se pierde a su sombra (3/4)
-HAZ_FONDO, HAZ_LADO = (45, 64), (64, 22)  # dirección en que viaja la luz de una ventana, en 64avos de px
+EN_SOMBRA = {'haz': 768, 'pozo': 768, 'tubo': 384}   # de la luz de cada fuente, lo que se pierde dentro de una sombra (3/4; del tubo, 3/8)
+SOMBRA_PROPIA, SOMBRA_AL_SOL = 1, 2       # escalones que además baja la luz dentro de una sombra (bajo techo; al sol)
+ALTURA_TUBO = 360                         # px del piso al tubo de techo: su sombra es corta y cae casi debajo
+TOPE_SOMBRA = {'pozo': 12, 'tubo': 3}     # largo máximo de la sombra de una lámpara, en octavos del alto del cuerpo
+UMBRAL_DOMINIO = 12800                    # fuerza × mancha que una fuente debe dar en el apoyo de un cuerpo para mandar su sombra
+CENITAL = (4, 3)                          # sin fuente que mande: sombra corta hacia la cámara (dirección 4, 3/8 del alto)
+# La sombra es la SILUETA del cuerpo tendida en el piso. Un píxel de la silueta a `u` px a la derecha del apoyo y a
+# `h` px de altura cae en (x + (a·u + b·h) / 64, y + (c·u + d·h) / 64): (b, d) es hacia dónde y cuánto se tiende por
+# cada px de altura, (a, c) cómo queda el ancho del cuerpo, girado con la sombra y aplastado por la vista.
+MATRIZ_HAZ = {'fondo': (60, 28, -11, 40), 'izquierda': (36, 48, -27, 16), 'derecha': (36, -48, 27, 16)}   # (a, b, c, d)
+SENOS_HAZ = {'fondo': (60, 21), 'izquierda': (36, 53), 'derecha': (36, 53)}   # (seno, coseno) de cada haz sobre el piso, en 64avos
+# Las 16 direcciones de las lámparas, de 22,5° en 22,5° desde la derecha y girando hacia la cámara: (Dx, Dy, Px, Py)
+# en 64avos, con el piso aplastado a la mitad en vertical. La matriz es (Px, Dx·k8 // 8, Py, Dy·k8 // 8).
+DIRECCIONES = ((64, 0, 0, 32), (59, 12, 24, -30), (45, 23, 45, -23), (24, 30, 59, -12), (0, 32, 64, 0), (-24, 30, 59, 12),
+               (-45, 23, 45, 23), (-59, 12, 24, 30), (-64, 0, 0, 32), (-59, -12, 24, -30), (-45, -23, 45, -23), (-24, -30, 59, -12),
+               (0, -32, 64, 0), (24, -30, 59, 12), (45, -23, 45, 23), (59, -12, 24, 30))
 PULIDOS = ('vinilo', 'baldosa', 'damero')   # pisos que devuelven la luz
 LUNA = 22                                 # fuerza (de 100) con que una ventana deja entrar la luna de noche, fría
 REFLEJO = 900                             # de la luz de una fuente, lo que el piso pulido devuelve al brillo
@@ -178,59 +193,104 @@ def _halo_muro(S, x, y, radio):
     return np.clip(UNO - _raiz(dx * dx + dy * dy) * UNO // radio, 0, UNO) * S.muro
 
 
-def cuerpo(x, y, ancho, alto, persona=False):
-    """Huella en el piso y altura de algo apoyado en (x, y), el centro de su base, a partir del tamaño de su sprite."""
+def cuerpo(x, y, ancho, alto, persona=False, mascara=None, apoyo=None):
+    """Huella en el piso y altura de algo apoyado en (x, y), el centro de su base, a partir del tamaño de su sprite.
+    Con `mascara` (matriz booleana del dibujo: True donde es opaco) y `apoyo` (columna del apoyo, fila siguiente a la
+    última opaca) arroja su silueta; sin ella, la de una caja con el ancho de su huella y su alto."""
     if persona:
-        return dict(x0=x - 9, x1=x + 9, y0=y - 10, y1=y, alto=60)
-    fondo = max(8, min(16, ancho // 5))
-    return dict(x0=x - ancho // 2 + 2, x1=x + ancho // 2 - 2, y0=y - fondo, y1=y, alto=max(8, alto - fondo // 2))
+        c = dict(x0=x - 9, x1=x + 9, y0=y - 10, y1=y, alto=60)
+    else:
+        fondo = max(8, min(16, ancho // 5))
+        c = dict(x0=x - ancho // 2 + 2, x1=x + ancho // 2 - 2, y0=y - fondo, y1=y, alto=max(8, alto - fondo // 2))
+    if mascara is not None:
+        px, py = apoyo if apoyo else (mascara.shape[1] // 2, mascara.shape[0])
+        c.update(x=x, y=y, mascara=mascara, px=px, py=py)
+    return c
 
 
-def _sombra(S, cuerpos, dx, dy, largos):
-    """True donde algún cuerpo tapa la luz que viaja en la dirección (dx, dy)/64. Un punto p queda a la sombra de un
-    cuerpo si p − t·(dx, dy)/64 cae en su huella para algún t entre 0 y su largo de sombra. Todo se compara
-    multiplicado por |dx|·|dy|, así no hay ninguna división."""
+def cuerpo_de(im, x, y, pie=None):
+    """El cuerpo de un dibujo RGBA puesto con su esquina en (x, y): su silueta es su alfa (opaco desde 128). `pie` es
+    el punto del piso donde se apoya una persona; un mueble se apoya en el centro de su base. El apoyo de la sombra
+    queda en la fila siguiente a la última opaca: la sombra nace pegada a los pies."""
+    w, h = im.size
+    alfa = np.array(im.getchannel('A')) >= 128
+    filas = np.nonzero(alfa.any(axis=1))[0]
+    c = cuerpo(pie[0], pie[1], w, h, persona=True) if pie else cuerpo(x + w // 2, y + h, w, h)
+    if len(filas):
+        px, py = (pie[0] - x if pie else w // 2), int(filas[-1]) + 1
+        c.update(x=x + px, y=y + py, mascara=alfa, px=px, py=py, alto=py - int(filas[0]))
+    return c
+
+
+def _completo(c):
+    """El cuerpo con todo lo que pide la sombra: el que no trae silueta arroja la de su caja."""
+    if 'mascara' in c:
+        return c
+    ancho = max(c['x1'] - c['x0'], 1)
+    return dict(c, x=(c['x0'] + c['x1']) // 2, y=c['y1'], mascara=np.ones((c['alto'], ancho), dtype=bool), px=ancho // 2, py=c['alto'])
+
+
+def cuerpo_a_json(c):
+    """El cuerpo completo como datos: la máscara va como filas de texto, '#' opaco y '.' transparente."""
+    c = _completo(c)
+    datos = {k: int(c[k]) for k in ('x0', 'x1', 'y0', 'y1', 'alto', 'x', 'y', 'px', 'py')}
+    datos['mascara'] = [''.join('#' if v else '.' for v in fila) for fila in c['mascara']]
+    return datos
+
+
+def cuerpo_de_json(datos):
+    return dict(datos, mascara=np.array([[ch == '#' for ch in fila] for fila in datos['mascara']], dtype=bool))
+
+
+def direccion(dx, dy):
+    """Índice (0 a 15) de la dirección (dx, dy) del piso, de 22,5° en 22,5° desde la derecha y girando hacia la cámara.
+    Solo compara enteros: las tangentes de 11,25°, 33,75°, 56,25° y 78,75° van en 256avos (51, 171, 383, 1287)."""
+    ax, ay = abs(dx), abs(dy)
+    q = 0 if ay * 256 <= ax * 51 else 1 if ay * 256 <= ax * 171 else 2 if ay * 256 <= ax * 383 else 3 if ay * 256 <= ax * 1287 else 4
+    if dy >= 0:
+        return q if dx >= 0 else 8 - q
+    return (16 - q) % 16 if dx >= 0 else 8 + q
+
+
+def matriz_de(i, k8):
+    """Matriz (a, b, c, d) de la dirección i con una sombra de k8 octavos del alto del cuerpo."""
+    dx, dy, px, py = DIRECCIONES[i]
+    return (px, dx * k8 // 8, py, dy * k8 // 8)
+
+
+def _silueta(S, c, m):
+    """La silueta del cuerpo tendida en el piso con la matriz m: por cada píxel de la sala se pregunta de qué píxel
+    del dibujo vendría (la matriz al revés, con división entera hacia abajo) y si ese píxel es opaco."""
+    a, b, cc, d = m
+    masc, px, py = c['mascara'], c['px'], c['py']
+    alto_m, ancho_m = masc.shape
+    det = a * d - b * cc
     total = np.zeros(S.xs.shape, dtype=bool)
-    ax, ay = abs(dx) or 1, abs(dy) or 1
-    for c, largo in zip(cuerpos, largos):
-        if largo <= 0:
-            continue
-        lo = np.zeros(S.xs.shape, dtype=np.int64)
-        hi = np.full(S.xs.shape, largo * ax * ay, dtype=np.int64)
-        dentro = np.ones(S.xs.shape, dtype=bool)
-        if dx > 0:
-            lo, hi = np.maximum(lo, 64 * (S.xs - c['x1']) * ay), np.minimum(hi, 64 * (S.xs - c['x0']) * ay)
-        elif dx < 0:
-            lo, hi = np.maximum(lo, 64 * (c['x0'] - S.xs) * ay), np.minimum(hi, 64 * (c['x1'] - S.xs) * ay)
-        else:
-            dentro &= (S.xs >= c['x0']) & (S.xs <= c['x1'])
-        if dy > 0:
-            lo, hi = np.maximum(lo, 64 * (S.ys - c['y1']) * ax), np.minimum(hi, 64 * (S.ys - c['y0']) * ax)
-        elif dy < 0:
-            lo, hi = np.maximum(lo, 64 * (c['y0'] - S.ys) * ax), np.minimum(hi, 64 * (c['y1'] - S.ys) * ax)
-        else:
-            dentro &= (S.ys >= c['y0']) & (S.ys <= c['y1'])
-        total |= dentro & (lo <= hi)
-    return total & S.piso
-
-
-def _sombra_de_lampara(S, cuerpos, x, y, altura):
-    """Sombras que arroja una lámpara puesta en (x, y) a `altura` px del piso: cada cuerpo, lejos de ella."""
-    total = np.zeros(S.xs.shape, dtype=bool)
-    for c in cuerpos:
-        if c['x0'] - 8 <= x <= c['x1'] + 8 and c['y0'] - 8 <= y <= c['y1'] + 8:
-            continue                      # la lámpara está encima de ese mueble
-        ddx, ddy = (c['x0'] + c['x1']) // 2 - x, (c['y0'] + c['y1']) // 2 - y
-        n = math.isqrt(ddx * ddx + ddy * ddy)
-        if n < 4:
-            continue
-        largo = min(c['alto'] * n // max(altura - c['alto'], 16), SOMBRA_MAXIMA)
-        total |= _sombra(S, [c], ddx * 64 // n, ddy * 64 // n, [largo])
+    xs = [(a * u + b * h) // 64 for u in (-px, ancho_m - px) for h in (0, py)]
+    ys = [(cc * u + d * h) // 64 for u in (-px, ancho_m - px) for h in (0, py)]
+    x0, x1 = max(c['x'] + min(xs) - 2, 0), min(c['x'] + max(xs) + 3, S.w)
+    y0, y1 = max(c['y'] + min(ys) - 2, g.SEAM), min(c['y'] + max(ys) + 3, g.ALTO)
+    if det == 0 or x0 >= x1 or y0 >= y1:
+        return total
+    dy, dx = np.mgrid[y0:y1, x0:x1].astype(np.int64)
+    dx, dy = dx - c['x'], dy - c['y']
+    u = (d * dx - b * dy) * 64 // det
+    h = (a * dy - cc * dx) * 64 // det
+    col, fila = px + u, py - 1 - h
+    dentro = (h >= 0) & (fila >= 0) & (fila < alto_m) & (col >= 0) & (col < ancho_m)
+    total[y0:y1, x0:x1] = dentro & masc[np.clip(fila, 0, alto_m - 1), np.clip(col, 0, ancho_m - 1)]
     return total
 
 
-def _a_la_sombra(mancha, sombra):
-    return mancha - mancha * sombra * EN_SOMBRA // UNO
+def _dibujo(S, c):
+    """Los píxeles de la sala que tapa el propio dibujo del cuerpo: ahí su sombra no se ve."""
+    total = np.zeros(S.xs.shape, dtype=bool)
+    masc = c['mascara']
+    x, y = c['x'] - c['px'], c['y'] - c['py']
+    x0, y0, x1, y1 = max(x, 0), max(y, 0), min(x + masc.shape[1], S.w), min(y + masc.shape[0], g.ALTO)
+    if x0 < x1 and y0 < y1:
+        total[y0:y1, x0:x1] = masc[y0 - y:y1 - y, x0 - x:x1 - x]
+    return total
 
 
 def _emisores(sala, momento):
@@ -252,101 +312,188 @@ def _emisores(sala, momento):
         yield pz, ficha, luz, luz.get('fuerza', 100) * (100 if propia else 60) // 100
 
 
+def _fuentes(S, sala, momento, abiertas=()):
+    """Lo que alumbra la sala, sin sombras: `fuentes` (lo que un cuerpo puede tapar: haces, pozos y tubos, cada uno con
+    su mancha sobre el piso), `fijas` (halos, franjas y cuñas: nadie las tapa) y `brillos` (reflejos del piso pulido)."""
+    exterior = bool(sala['estructura'].get('exterior'))
+    fuentes, fijas, brillos = [], [], []
+    for pz, ficha, luz, fuerza in _emisores(sala, momento):
+        muro, tono = pz.get('muro'), luz['tono']
+        if luz['forma'] == 'haz':
+            if exterior:
+                continue
+            forma = luz.get('parteluces') or PARTELUZ_SIMPLE
+            if muro == 'fondo':
+                x0 = S.xl + pz['pos'] - ficha['ancho'] // 2
+                piso, halo = _haz_fondo(S, x0, ficha['ancho'], g.SEAM - ficha['antepecho'] - ficha['alto'], ficha['alto'], forma)
+                fuentes.append(dict(clase='haz', mancha=piso, fuerza=fuerza, tono=tono, color=UNO, muro='fondo'))
+                fijas.append((halo, fuerza, tono, UNO * 2 // 3, UNO // 2))
+                brillos.append((_reflejo_piso(S, x0, x0 + ficha['ancho'], 110), fuerza, tono))
+            elif muro in ('izquierda', 'derecha') and (S.izq if muro == 'izquierda' else S.der):
+                haz = _haz_lado(S, muro, g.SEAM + pz['pos'], ficha['ancho'], forma)
+                fuentes.append(dict(clase='haz', mancha=haz, fuerza=fuerza, tono=tono, color=UNO, muro=muro))
+            continue
+        tubo = luz['forma'] == 'tubo'
+        if 'x' in pz:
+            x, y = pz['x'], pz['y']
+        elif muro == 'fondo':
+            x, y = S.xl + pz['pos'], g.SEAM + (120 if tubo else 64)
+        else:
+            continue
+        rx, ry = luz['radio']
+        altura = ALTURA_TUBO if tubo else luz.get('altura', 150) + pz.get('sobre', 0)
+        fuentes.append(dict(clase='tubo' if tubo else 'pozo', mancha=_pozo(S, x, y, rx, ry), fuerza=fuerza, tono=tono, color=UNO * 9 // 10,
+                            punto=(x, y, altura)))
+        if muro == 'fondo' and 'x' not in pz:
+            medio = 26 if tubo else 14
+            brillos.append((_reflejo_piso(S, x - medio, x + medio, 90), fuerza, tono))
+        if tubo:
+            fijas.append((np.clip(UNO - np.abs(S.xs - x) * UNO // 190, 0, UNO) * S.muro, fuerza, tono, UNO * 8 // 10, UNO // 2))
+        else:
+            fijas.append((_halo_muro(S, x, g.SEAM - 36, 96), fuerza, tono, UNO // 2, UNO * 4 // 10))
+    for puerta in sala.get('puertas', []):
+        modelo = pp.MODELOS.get(puerta.get('modelo'))
+        if puerta.get('muro') != 'fondo' or not modelo:
+            continue                          # un modelo que no existe se avisa en capas(); la luz lo ignora
+        vano = modelo['ancho'] // 2 - 6
+        if puerta['id'] not in abiertas:
+            # Cerrada, su vidrio deja pasar algo de la luz de la sala vecina: el piso pulido la devuelve al pie.
+            vidrio = VIDRIADAS.get(puerta['modelo'])
+            if vidrio:
+                brillos.append((_reflejo_piso(S, S.xl + puerta['pos'] - vano, S.xl + puerta['pos'] + vano, 70), vidrio, 'frio'))
+            continue
+        # La puerta abierta deja caer en el piso una cuña de la luz de la sala vecina.
+        medio = vano + S.n * 30 // 100
+        dentro = np.minimum(medio - np.abs(S.xs - (S.xl + puerta['pos']) - S.n * 12 // 100), 54 - S.n)
+        fijas.append((np.clip(dentro * 64, 0, UNO) * S.piso, 100, 'calido', UNO * 2 // 3 if momento == 'dia' else UNO * 4 // 10, UNO * 4 // 10))
+        brillos.append((_reflejo_piso(S, S.xl + puerta['pos'] - vano, S.xl + puerta['pos'] + vano, 60), 100, 'calido'))
+    return fuentes, fijas, brillos
+
+
+def _vista_desde(c, m, seno, coseno):
+    """La matriz con el ancho del cuerpo como se ve desde la fuente: de frente se ve su ancho; de lado, su fondo. El
+    ancho de la silueta se encoge a (ancho·seno + 2·fondo·coseno) / ancho de la huella, entre 8/64 y 1."""
+    ancho = max(c['x1'] - c['x0'], 1)
+    s = min(max((ancho * seno + 2 * (c['y1'] - c['y0']) * coseno) // ancho, 8), 64)
+    return (m[0] * s // 64, m[1], m[2] * s // 64, m[3])
+
+
+def _matriz_del_cuerpo(S, fuentes, c, sol=False):
+    """La matriz de la sombra de un cuerpo: la de la fuente que más luz le da en su apoyo (fuerza × mancha). Al sol
+    manda el sol; si ninguna llega al umbral, la sombra es la cenital: corta y hacia la cámara."""
+    if sol:
+        return _vista_desde(c, MATRIZ_HAZ['fondo'], *SENOS_HAZ['fondo'])
+    x, y = min(max(c['x'], 0), S.w - 1), min(max(c['y'], g.SEAM), g.ALTO - 1)
+    mejor, manda = UMBRAL_DOMINIO - 1, None
+    for f in fuentes:
+        if f['clase'] != 'haz':
+            lx, ly, _ = f['punto']
+            if c['x0'] - 8 <= lx <= c['x1'] + 8 and c['y0'] - 8 <= ly <= c['y1'] + 8:
+                continue                      # la lámpara está encima de ese mueble
+        aporte = f['fuerza'] * int(f['mancha'][y, x])
+        if aporte > mejor:
+            mejor, manda = aporte, f
+    i, k8 = CENITAL
+    if manda is not None and manda['clase'] == 'haz':
+        return _vista_desde(c, MATRIZ_HAZ[manda['muro']], *SENOS_HAZ[manda['muro']])
+    if manda is not None:
+        lx, ly, altura = manda['punto']
+        dx, dy = c['x'] - lx, c['y'] - ly
+        n = math.isqrt(dx * dx + dy * dy)
+        if n >= 4:
+            tope = max(2, min(TOPE_SOMBRA[manda['clase']], SOMBRA_MAXIMA * 8 // max(c['alto'], 1)))
+            i, k8 = direccion(dx, 2 * dy), min(max(n * 8 // max(altura - c['alto'], 16), 2), tope)
+    return _vista_desde(c, matriz_de(i, k8), 2 * abs(DIRECCIONES[i][1]), abs(DIRECCIONES[i][0]))
+
+
+def matrices_de_sombra(sala, momento=None, puntos=(), alto=64, abiertas=()):
+    """La matriz (a, b, c, d) de la sombra de una persona de `alto` px apoyada en cada punto (x, y) del piso: lo que el
+    juego necesita para tender la silueta de quien camina sin recalcular la sala."""
+    momento = momento or sala['estructura'].get('momento', 'dia')
+    S = _Sala(sala)
+    sol = bool(sala['estructura'].get('exterior')) and momento == 'dia'
+    fuentes = _fuentes(S, sala, momento, abiertas)[0]
+    return [_matriz_del_cuerpo(S, fuentes, dict(cuerpo(x, y, 48, 72, persona=True), x=x, y=y, alto=alto), sol) for x, y in puntos]
+
+
+def sombras(sala, momento=None, abiertas=(), cuerpos=()):
+    """Máscara booleana de la sala: los píxeles del piso que quedan a la sombra de algún cuerpo. Cada cuerpo tiende su
+    silueta con la matriz de la fuente que manda en su apoyo; el borde se deshace con el tramado (un anillo de 1 px al
+    50 %) y ningún dibujo queda tapado por una sombra."""
+    momento = momento or sala['estructura'].get('momento', 'dia')
+    S = _Sala(sala)
+    sol = bool(sala['estructura'].get('exterior')) and momento == 'dia'
+    return _sombras(S, _fuentes(S, sala, momento, abiertas)[0], [_completo(c) for c in cuerpos], sol)
+
+
+def _sombras(S, fuentes, cuerpos, sol):
+    sombra = np.zeros(S.xs.shape, dtype=bool)
+    tapado = np.zeros(S.xs.shape, dtype=bool)
+    for c in cuerpos:
+        sombra |= _silueta(S, c, _matriz_del_cuerpo(S, fuentes, c, sol))
+        tapado |= _dibujo(S, c)
+    if not sombra.any():
+        return sombra
+    borde = np.zeros_like(sombra)
+    borde[1:] |= sombra[:-1]
+    borde[:-1] |= sombra[1:]
+    borde[:, 1:] |= sombra[:, :-1]
+    borde[:, :-1] |= sombra[:, 1:]
+    return (sombra | (borde & (BAYER[S.ys % 4, S.xs % 4] < 8))) & S.piso & ~tapado
+
+
 def niveles(sala, momento=None, abiertas=(), cuerpos=(), todo_en_sombra=False, crudo=False):
     """(escalón de ambiente 0–8, escalón cálido 0–3, escalón frío 0–3) por píxel."""
     est = sala['estructura']
     momento = momento or est.get('momento', 'dia')
     S = _Sala(sala)
     exterior = bool(est.get('exterior'))
+    sol = exterior and momento == 'dia'
     if exterior:
         base = EXTERIOR if momento == 'dia' else EXTERIOR_NOCHE
     else:
         base = PENUMBRA if momento == 'dia' else PENUMBRA_NOCHE
     ganancia = U - base
-    L = np.full((g.ALTO, S.w), base, dtype=np.int64)
-    tonos = {'calido': np.zeros((g.ALTO, S.w), np.int64), 'frio': np.zeros((g.ALTO, S.w), np.int64)}
-
-    def tapa(sombra):
-        # `todo_en_sombra` da la luz que quedaría si un cuerpo tapara cada fuente en todas partes: con ella el juego
-        # pinta la sombra de quien camina sin recalcular la sala (ver LEEME de la referencia).
-        return S.piso if todo_en_sombra else sombra
-
     pulido = est.get('acabados', {}).get('piso') in PULIDOS
+    cuerpos = [_completo(c) for c in cuerpos]
+    fuentes, fijas, brillos = _fuentes(S, sala, momento, abiertas)
 
-    def reflejar(mancha, fuerza, tono):
+    def combinar(a_la_sombra):
+        """La luz de la sala sin cuerpos. `a_la_sombra` da la que queda DENTRO de una sombra: cada fuente pierde su
+        parte y el piso baja un escalón más (dos al sol)."""
+        L = np.full((g.ALTO, S.w), base, dtype=np.int64)
+        tonos = {'calido': np.zeros((g.ALTO, S.w), np.int64), 'frio': np.zeros((g.ALTO, S.w), np.int64)}
+        if sol:
+            # Luz de día: el muro echa una sombra corta sobre el suelo y el alero sobre el muro.
+            corta = S.piso & (S.n < 34)
+            L = np.where(corta, np.minimum(L, 7200 + 2100 * np.clip(S.n - 14, 0, 20) // 20), L)
+            L = np.where(S.muro & (S.ys < g.TOP + 18), 7900, L)
+        for f in fuentes:
+            mancha = f['mancha']
+            if a_la_sombra:
+                mancha = mancha - mancha * EN_SOMBRA[f['clase']] // UNO
+            L = np.maximum(L, base + ganancia * f['fuerza'] // 100 * mancha // UNO)
+            tonos[f['tono']] = np.maximum(tonos[f['tono']], mancha * f['fuerza'] // 100 * f['color'] // UNO)
+        for mancha, fuerza, tono, peso, color in fijas:
+            L = np.maximum(L, base + ganancia * fuerza // 100 * peso // UNO * mancha // UNO)
+            tonos[tono] = np.maximum(tonos[tono], mancha * fuerza // 100 * color // UNO)
         if pulido:
-            tonos[tono] = np.maximum(tonos[tono], mancha * fuerza // 100 * REFLEJO // UNO)
+            for mancha, fuerza, tono in brillos:
+                tonos[tono] = np.maximum(tonos[tono], mancha * fuerza // 100 * REFLEJO // UNO)
+        if a_la_sombra:
+            L = np.where(S.piso, L - PASO * (SOMBRA_AL_SOL if sol else SOMBRA_PROPIA), L)
+        return L, tonos['calido'], tonos['frio']
 
-    def sumar(mancha, fuerza, tono, peso=UNO, color=UNO):
-        nonlocal L
-        L = np.maximum(L, base + ganancia * fuerza // 100 * peso // UNO * mancha // UNO)
-        tonos[tono] = np.maximum(tonos[tono], mancha * fuerza // 100 * color // UNO)
-
-    if exterior and momento == 'dia':
-        # Luz de día: el muro echa una sombra corta sobre el suelo y el alero sobre el muro.
-        corta = S.piso & (S.n < 34)
-        L = np.where(corta, np.minimum(L, 7200 + 2100 * np.clip(S.n - 14, 0, 20) // 20), L)
-        L = np.where(S.muro & (S.ys < g.TOP + 18), 7900, L)
-        sol = tapa(_sombra(S, cuerpos, HAZ_FONDO[0], HAZ_FONDO[1], [c['alto'] * 5 // 8 for c in cuerpos]))
-        L = np.where(sol, L - 2 * PASO, L)
-    for pz, ficha, luz, fuerza in _emisores(sala, momento):
-        muro, tono = pz.get('muro'), luz['tono']
-        if luz['forma'] == 'haz':
-            if exterior:
-                continue
-            if muro == 'fondo':
-                x0 = S.xl + pz['pos'] - ficha['ancho'] // 2
-                forma = luz.get('parteluces') or PARTELUZ_SIMPLE
-                piso, halo = _haz_fondo(S, x0, ficha['ancho'], g.SEAM - ficha['antepecho'] - ficha['alto'], ficha['alto'], forma)
-                piso = _a_la_sombra(piso, tapa(_sombra(S, cuerpos, HAZ_FONDO[0], HAZ_FONDO[1], [c['alto'] * 5 // 8 for c in cuerpos])))
-                sumar(piso, fuerza, tono)
-                sumar(halo, fuerza, tono, peso=UNO * 2 // 3, color=UNO // 2)
-                reflejar(_reflejo_piso(S, x0, x0 + ficha['ancho'], 110), fuerza, tono)
-            elif muro in ('izquierda', 'derecha') and (S.izq if muro == 'izquierda' else S.der):
-                sentido = HAZ_LADO[0] if muro == 'izquierda' else -HAZ_LADO[0]
-                tapada = tapa(_sombra(S, cuerpos, sentido, HAZ_LADO[1], [c['alto'] * 3 // 4 for c in cuerpos]))
-                haz = _haz_lado(S, muro, g.SEAM + pz['pos'], ficha['ancho'], luz.get('parteluces') or PARTELUZ_SIMPLE)
-                sumar(_a_la_sombra(haz, tapada), fuerza, tono)
-            continue
-        if 'x' in pz:
-            x, y = pz['x'], pz['y']
-        elif muro == 'fondo':
-            x, y = S.xl + pz['pos'], g.SEAM + (120 if luz['forma'] == 'tubo' else 64)
-        else:
-            continue
-        rx, ry = luz['radio']
-        pozo = _pozo(S, x, y, rx, ry)
-        if luz['forma'] == 'pozo':
-            pozo = _a_la_sombra(pozo, tapa(_sombra_de_lampara(S, cuerpos, x, y, luz.get('altura', 150) + pz.get('sobre', 0))))
-        sumar(pozo, fuerza, tono, color=UNO * 9 // 10)
-        if muro == 'fondo' and 'x' not in pz:
-            medio = 26 if luz['forma'] == 'tubo' else 14
-            reflejar(_reflejo_piso(S, x - medio, x + medio, 90), fuerza, tono)
-        if luz['forma'] == 'tubo':
-            ancho = np.clip(UNO - np.abs(S.xs - x) * UNO // 190, 0, UNO) * S.muro
-            sumar(ancho, fuerza, tono, peso=UNO * 8 // 10, color=UNO // 2)
-        else:
-            sumar(_halo_muro(S, x, g.SEAM - 36, 96), fuerza, tono, peso=UNO // 2, color=UNO * 4 // 10)
-    for puerta in sala.get('puertas', []):
-        # La puerta abierta deja caer en el piso una cuña de la luz de la sala vecina.
-        if puerta.get('muro') != 'fondo':
-            continue
-        if puerta['id'] not in abiertas:
-            # Cerrada, su vidrio deja pasar algo de la luz de la sala vecina: el piso pulido la devuelve al pie.
-            vidrio = VIDRIADAS.get(puerta['modelo'])
-            if vidrio:
-                vano = pp.MODELOS[puerta['modelo']]['ancho'] // 2 - 6
-                reflejar(_reflejo_piso(S, S.xl + puerta['pos'] - vano, S.xl + puerta['pos'] + vano, 70), vidrio, 'frio')
-            continue
-        medio = pp.MODELOS[puerta['modelo']]['ancho'] // 2 - 6 + S.n * 30 // 100
-        dentro = np.minimum(medio - np.abs(S.xs - (S.xl + puerta['pos']) - S.n * 12 // 100), 54 - S.n)
-        cuna = np.clip(dentro * 64, 0, UNO) * S.piso
-        sumar(cuna, 100, 'calido', peso=UNO * 2 // 3 if momento == 'dia' else UNO * 4 // 10, color=UNO * 4 // 10)
-        vano = pp.MODELOS[puerta['modelo']]['ancho'] // 2 - 6
-        reflejar(_reflejo_piso(S, S.xl + puerta['pos'] - vano, S.xl + puerta['pos'] + vano, 60), 100, 'calido')
+    # `todo_en_sombra` da la luz que queda dentro de una sombra en todo el piso: con ella el juego pinta la sombra de
+    # quien camina sin recalcular la sala (ver LEEME de la referencia).
+    sombra = S.piso if todo_en_sombra else _sombras(S, fuentes, cuerpos, sol)
+    L, calido, frio = combinar(False)
+    if sombra.any():
+        Ls, cs, fs = combinar(True)
+        L, calido, frio = np.where(sombra, Ls, L), np.where(sombra, cs, calido), np.where(sombra, fs, frio)
 
     if crudo:
-        return L, tonos['calido'], tonos['frio']
+        return L, calido, frio
     for c in cuerpos:
         L = L - CONTACTO * PASO * _contacto(S, c) // UNO
 
@@ -367,8 +514,7 @@ def niveles(sala, momento=None, abiertas=(), cuerpos=(), todo_en_sombra=False, c
     q = np.clip(L - MINIMO, 0, PASO * NIVELES)
     nivel = np.clip(q // PASO + ((q % PASO) * 16 > umbral * PASO), 0, NIVELES)
     escalones = []
-    for tono in ('calido', 'frio'):
-        a = tonos[tono] * 3
+    for a in (calido * 3, frio * 3):
         escalones.append(np.clip(a // UNO + ((a % UNO) * 16 > umbral * UNO), 0, 3))
     return nivel, escalones[0], escalones[1]
 

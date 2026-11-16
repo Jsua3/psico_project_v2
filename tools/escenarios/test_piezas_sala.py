@@ -386,9 +386,21 @@ def test_los_lugares_convertidos_versionados_estan_al_dia(lugar):
         assert json.load(f) == CONVERTIDOS[lugar]
 
 
-# ── sombras proyectadas y referencia congelada ─────────────────────────────────
+# ── sombras proyectadas: la silueta de quien las arroja ─────────────────────────
 
 SOFA = pl.cuerpo(430, 330, 88, 44)
+
+
+def _barras(x=430, y=330, alto=40):
+    """Un cuerpo con dos barras de 4 px separadas por un hueco de 8: si la sombra es su silueta, el hueco se ve."""
+    mascara = np.zeros((alto, 16), dtype=bool)
+    mascara[:, :4] = mascara[:, 12:] = True
+    return pl.cuerpo(x, y, 16, alto, mascara=mascara, apoyo=(8, alto))
+
+
+def _en_el_piso(c, m, u, h):
+    a, b, cc, d = m
+    return c['x'] + (a * u + b * h) // 64, c['y'] + (cc * u + d * h) // 64
 
 
 def test_un_cuerpo_tiene_su_huella_centrada_en_el_apoyo():
@@ -396,38 +408,95 @@ def test_un_cuerpo_tiene_su_huella_centrada_en_el_apoyo():
     assert pl.cuerpo(500, 400, 48, 72, persona=True) == dict(x0=491, x1=509, y0=390, y1=400, alto=60)
 
 
-def test_un_mueble_en_el_haz_de_la_ventana_arroja_sombra_hacia_donde_viaja_la_luz():
+def test_cuerpo_de_toma_la_silueta_del_alfa_y_apoya_la_sombra_en_los_pies():
+    from PIL import Image
+    im = Image.new('RGBA', (48, 72), (0, 0, 0, 0))
+    im.paste((90, 60, 40, 255), (18, 6, 30, 66))
+    c = pl.cuerpo_de(im, 100, 300, pie=(124, 368))
+    assert (c['x'], c['y'], c['px'], c['py'], c['alto']) == (124, 366, 24, 66, 60), 'nace en la fila siguiente a la última opaca'
+    assert c['mascara'].shape == (72, 48) and c['mascara'].sum() == 12 * 60
+    assert (c['x0'], c['x1']) == (115, 133), 'la huella de una persona sigue siendo la de sus pies'
+    assert pl.cuerpo_de_json(pl.cuerpo_a_json(c))['mascara'].tolist() == c['mascara'].tolist()
+
+
+def test_la_sombra_es_la_silueta_tendida_en_la_direccion_del_haz():
+    sala, c = _sala(piezas=[VENTANA]), _barras()
+    sombra = pl.sombras(sala, 'dia', cuerpos=[c])
+    m = pl.matrices_de_sombra(sala, 'dia', [(c['x'], c['y'])], alto=c['alto'])[0]
+    assert sombra.sum() > 150
+    for u in (-6, 5):                          # las dos barras, a media altura: en sombra
+        assert sombra[_en_el_piso(c, pl._vista_desde(c, pl.MATRIZ_HAZ['fondo'], *pl.SENOS_HAZ['fondo']), u, 20)[::-1]]
+    hueco = _en_el_piso(c, pl._vista_desde(c, pl.MATRIZ_HAZ['fondo'], *pl.SENOS_HAZ['fondo']), 0, 20)
+    assert not sombra[hueco[::-1]], 'entre las barras pasa la luz: no es una mancha ni un rectángulo'
+    ys, xs = np.nonzero(sombra)
+    assert ys.min() >= c['y'] - 4 and xs.mean() > c['x'], 'cae hacia la cámara y hacia la derecha, como viaja el haz'
+
+
+def test_la_sombra_de_una_persona_sale_del_cuadro_que_se_ve():
     sala = _sala(piezas=[VENTANA])
-    libre, tapada = pl.niveles(sala, 'dia')[1], pl.niveles(sala, 'dia', cuerpos=[SOFA])[1]
-    menos = libre > tapada
-    assert menos.sum() > 300 and (tapada > libre).sum() == 0
-    ys, xs = np.nonzero(menos)
-    assert ys.min() >= SOFA['y0'] and ys.max() <= SOFA['y1'] + SOFA['alto'] * 5 // 8 + 1, 'la sombra cae hacia la cámara'
-    assert xs.max() > SOFA['x1'], 'y hacia la derecha, como el haz'
+    quieta, otra = _barras(), _barras()
+    otra['mascara'] = quieta['mascara'].copy()
+    otra['mascara'][:20, :] = False             # el mismo cuerpo, agachado: otro cuadro de animación
+    a, b = pl.sombras(sala, 'dia', cuerpos=[quieta]), pl.sombras(sala, 'dia', cuerpos=[otra])
+    assert b.sum() < a.sum() and not (b & ~a).any(), 'cambia el cuadro, cambia la sombra'
 
 
-def test_la_lampara_arroja_la_sombra_lejos_de_si_misma():
-    lampara, mesita = dict(PIE, x=300, y=330), pl.cuerpo(350, 330, 26, 40)
-    libre = pl.niveles(_sala(piezas=[lampara]), 'noche')[0]
-    tapada = pl.niveles(_sala(piezas=[lampara]), 'noche', cuerpos=[mesita])[0]
-    ys, xs = np.nonzero(libre > tapada)
-    assert len(xs) > 100 and xs.min() >= mesita['x0'] - 6 and (tapada > libre).sum() == 0
-    assert xs.max() > mesita['x1'] + 20, 'la sombra sigue más allá del mueble, del lado opuesto a la lámpara'
+def test_la_sombra_no_se_dibuja_sobre_el_propio_cuerpo_ni_sobre_el_muro():
+    sala, c = _sala(piezas=[VENTANA]), _barras(y=g.SEAM + 6)
+    sombra = pl.sombras(sala, 'dia', cuerpos=[c])
+    assert not sombra[:g.SEAM].any(), 'se corta donde empieza el muro'
+    assert not (sombra & pl._dibujo(pl._Sala(sala), c)).any()
 
 
-def test_el_tubo_de_techo_no_arroja_sombras():
-    """Bajo un tubo solo queda la sombra de contacto, pegada al mueble; nada proyectado."""
-    sala = _sala(piezas=[TUBO])
-    libre, con = pl.niveles(sala, 'noche'), pl.niveles(sala, 'noche', cuerpos=[SOFA])
-    ys, xs = np.nonzero(libre[0] != con[0])
-    assert SOFA['x0'] - 6 <= xs.min() and xs.max() <= SOFA['x1'] + 6 and SOFA['y0'] - 12 <= ys.min() and ys.max() <= SOFA['y1'] + 12
-    assert np.array_equal(libre[1], con[1]) and np.array_equal(libre[2], con[2])
+def test_la_lampara_arroja_la_silueta_lejos_de_si_misma_y_mas_larga_cuanto_mas_baja():
+    def sombra(altura):
+        lampara = dict(PIE, x=250, y=330)
+        sala = _sala(piezas=[lampara])
+        pm.PIEZAS[('lampara', 'pie')]['luz']['altura'], antes = altura, pm.PIEZAS[('lampara', 'pie')]['luz']['altura']
+        try:
+            return pl.sombras(sala, 'noche', cuerpos=[_barras(x=330, y=330)])
+        finally:
+            pm.PIEZAS[('lampara', 'pie')]['luz']['altura'] = antes
+    alta, baja = sombra(150), sombra(70)
+    ys, xs = np.nonzero(alta)
+    assert len(xs) > 60 and xs.mean() > 330, 'lejos de la lámpara, que está a la izquierda'
+    assert np.nonzero(baja)[1].max() > xs.max(), 'la lámpara más baja la estira'
+
+
+def test_bajo_el_tubo_la_sombra_es_corta_y_casi_debajo():
+    sala, c = _sala(piezas=[TUBO]), _barras(x=480, y=380)
+    ys, xs = np.nonzero(pl.sombras(sala, 'noche', cuerpos=[c]))
+    assert len(xs) > 0
+    assert np.abs(xs - c['x']).max() <= 16 and np.abs(ys - c['y']).max() <= c['alto'] * 3 // 8 + 4
+    assert pl.EN_SOMBRA['tubo'] < pl.EN_SOMBRA['pozo'], 'la luz del tubo es difusa: su sombra es más clara'
+
+
+def test_las_direcciones_son_dieciseis_y_la_sombra_no_tiembla():
+    assert [pl.direccion(dx, dy) for dx, dy in ((9, 0), (9, 9), (0, 9), (-9, 9), (-9, 0), (-9, -9), (0, -9), (9, -9))] == [0, 2, 4, 6, 8, 10, 12, 14]
+    assert len({pl.direccion(int(100 * np.cos(t)), int(100 * np.sin(t))) for t in np.linspace(0, 6.28, 400)}) == 16
+    lampara = dict(PIE, x=250, y=330)
+    matrices = pl.matrices_de_sombra(_sala(piezas=[lampara]), 'noche', [(x, 330) for x in range(300, 324, 2)])
+    assert all(m[0] == 0 and m[1] > 0 and m[3] == 0 for m in matrices), 'pasos cortos: la misma dirección'
+    assert len({tuple(m) for m in matrices}) <= 3, 'y el largo cambia por octavos, no a cada píxel'
+    for i in range(16):
+        for k8 in (2, 3, 8, 12):
+            a, b, c, d = pl.matriz_de(i, k8)
+            assert a * d - b * c != 0
+
+
+def test_manda_la_fuente_que_mas_luz_da_y_sin_ninguna_la_sombra_es_cenital():
+    sala = _sala(piezas=[VENTANA, dict(PIE, x=700, y=420)])
+    en_el_haz, junto_a_la_lampara = pl.matrices_de_sombra(sala, 'dia', [(430, 330)])[0], pl.matrices_de_sombra(sala, 'noche', [(760, 420)])[0]
+    assert en_el_haz[1] > 0 and en_el_haz[3] > 0, 'el haz del fondo tiende la sombra hacia la derecha y la cámara'
+    assert junto_a_la_lampara[1] > 0 and junto_a_la_lampara[3] == 0, 'a la derecha de la lámpara, hacia la derecha'
+    assert pl.matrices_de_sombra(_sala(), 'noche', [(480, 400)])[0] == pl._vista_desde(
+        pl.cuerpo(480, 400, 48, 72, persona=True), pl.matriz_de(*pl.CENITAL), 2 * abs(pl.DIRECCIONES[4][1]), abs(pl.DIRECCIONES[4][0]))
 
 
 def test_al_aire_libre_el_sol_arroja_sombra():
     sala = _sala(encuadre='una-pared', exterior=True)
     libre, tapada = pl.niveles(sala, 'dia')[0], pl.niveles(sala, 'dia', cuerpos=[SOFA])[0]
-    assert (libre > tapada).sum() > 300
+    assert (libre > tapada).sum() > 300 and (libre - tapada).max() >= pl.SOMBRA_AL_SOL
 
 
 def test_la_referencia_de_luz_esta_congelada():
@@ -469,11 +538,11 @@ def test_un_piso_pulido_devuelve_la_luz_al_pie_del_muro():
     assert brillo('vinilo', 'dia', [dict(VENTANA, pos=560)])[1][lejos].sum() > brillo('madera', 'dia', [dict(VENTANA, pos=560)])[1][lejos].sum()
 
 
-def test_la_sombra_de_contacto_va_en_la_luz():
+def test_la_sombra_de_contacto_va_en_la_luz_debajo_de_la_proyectada():
     libre, con = pl.niveles(_sala(), 'dia')[0], pl.niveles(_sala(), 'dia', cuerpos=[SOFA])[0]
-    ys, xs = np.nonzero(libre > con)
-    assert len(xs) > 200 and SOFA['x0'] - 6 <= xs.min() and xs.max() <= SOFA['x1'] + 6
-    assert (libre - con).max() == pl.CONTACTO and (con > libre).sum() == 0
+    ys, xs = np.nonzero(libre - con >= pl.CONTACTO)
+    assert len(xs) > 200 and SOFA['x0'] - 6 <= xs.min() and xs.max() <= SOFA['x1'] + 6, 'pequeña y a los pies'
+    assert (libre - con).max() <= pl.CONTACTO + pl.SOMBRA_PROPIA + 1 and (con > libre).sum() == 0
 
 
 # ── luz propia y objetos redibujados ───────────────────────────────────────────
