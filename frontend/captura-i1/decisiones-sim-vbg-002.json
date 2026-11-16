@@ -1,0 +1,829 @@
+{
+ "caso": "SIM-VBG-002",
+ "decisiones": [
+  {
+   "key": "prueba-c1-entrada-vigilante",
+   "speakerName": "Vigilante",
+   "portraitKey": null,
+   "emotion": "concerned",
+   "lines": [
+    {
+     "order": 1,
+     "speakerName": "Vigilante",
+     "text": "Buenas noches. ¿Usted es del equipo psicosocial? Menos mal.",
+     "emotion": "neutral"
+    },
+    {
+     "order": 2,
+     "speakerName": "Vigilante",
+     "text": "Ese muchacho quiere pasar a cirugía a la fuerza. Yo no tengo nada contra él, pero por esa puerta no entra nadie.",
+     "emotion": "concerned"
+    },
+    {
+     "order": 3,
+     "speakerName": "Vigilante",
+     "text": "(Mira la entrada completa antes de moverte: quién está, cómo está y si alguien corre riesgo.)",
+     "emotion": "neutral"
+    }
+   ],
+   "choices": [
+    {
+     "key": "n1-a",
+     "text": "Mirar primero, confirmar la seguridad y presentarte a la familia",
+     "decisionOptionId": 1,
+     "requiredToolCode": null,
+     "effect": {},
+     "toolMissing": false
+    },
+    {
+     "key": "n1-b",
+     "text": "Ir a enfermería y leer completa la historia de ingreso",
+     "decisionOptionId": 2,
+     "requiredToolCode": null,
+     "effect": {},
+     "toolMissing": false
+    },
+    {
+     "key": "n1-c",
+     "text": "Pedir al vigilante que retire al hermano que grita",
+     "decisionOptionId": 3,
+     "requiredToolCode": null,
+     "effect": {},
+     "toolMissing": false
+    }
+   ],
+   "notice": "Puedes conocer más antes de responder."
+  },
+  {
+   "key": "prueba-c1-sala-espera-abuela",
+   "speakerName": "Abuela de la niña",
+   "portraitKey": null,
+   "emotion": "concerned",
+   "lines": [
+    {
+     "order": 1,
+     "speakerName": "Abuela de la niña",
+     "text": "¡Por favor! Nadie nos dice nada de la niña… ¿dónde está mi nieta? ¡Quiero verla!",
+     "emotion": "anxious"
+    },
+    {
+     "order": 2,
+     "speakerName": "Abuela de la niña",
+     "text": "Mi hija sigue en cirugía… dicen que son 28 heridas. ¿Quién pudo hacerle esto?",
+     "emotion": "negative"
+    },
+    {
+     "order": 3,
+     "speakerName": "Abuela de la niña",
+     "text": "(La familia está en crisis. Define el foco inmediato de tu intervención.)",
+     "emotion": "neutral"
+    }
+   ],
+   "choices": [
+    {
+     "key": "pap-familia",
+     "text": "Aplicar PAP a la familia en crisis",
+     "decisionOptionId": null,
+     "requiredToolCode": "PAP",
+     "effect": {},
+     "toolMissing": true
+    },
+    {
+     "key": "h1-a",
+     "text": "Notificar de inmediato la muerte de la niña a la familia",
+     "decisionOptionId": 2,
+     "requiredToolCode": null,
+     "effect": {},
+     "toolMissing": false
+    },
+    {
+     "key": "h1-b",
+     "text": "Aplicar PAP: contención emocional, acompañamiento en duelo y estabilización de la crisis",
+     "decisionOptionId": 3,
+     "requiredToolCode": null,
+     "effect": {},
+     "toolMissing": false
+    },
+    {
+     "key": "h1-c",
+     "text": "Interrogar a la víctima herida sobre el agresor antes de cirugía",
+     "decisionOptionId": 4,
+     "requiredToolCode": null,
+     "effect": {},
+     "toolMissing": false
+    }
+   ],
+   "notice": "Puedes conocer más antes de responder."
+  },
+  {
+   "key": "prueba-c1-lugar-para-hablar-abuela",
+   "speakerName": "Abuela de la niña",
+   "portraitKey": null,
+   "emotion": "concerned",
+   "lines": [
+    {
+     "order": 1,
+     "speakerName": "Abuela de la niña",
+     "text": "Yo le cuento lo que quiera, pero aquí no… mire cuánta gente.",
+     "emotion": "sad"
+    },
+    {
+     "order": 2,
+     "speakerName": "Abuela de la niña",
+     "text": "(Decide dónde va a ser la conversación.)",
+     "emotion": "neutral"
+    }
+   ],
+   "choices": [
+    {
+     "key": "n2-a",
+     "text": "La sala de escucha: privada, con sillas, agua y pañuelos",
+     "decisionOptionId": 1,
+     "requiredToolCode": null,
+     "effect": {},
+     "toolMissing": false
+    },
+    {
+     "key": "n2-b",
+     "text": "Un rincón de la sala de espera, lejos de la puerta",
+     "decisionOptionId": 2,
+     "requiredToolCode": null,
+     "effect": {},
+     "toolMissing": false
+    },
+    {
+     "key": "n2-c",
+     "text": "El pasillo, de pie, junto a la puerta de cirugía",
+     "decisionOptionId": 3,
+     "requiredToolCode": null,
+     "effect": {},
+     "toolMissing": false
+    }
+   ],
+   "notice": "Puedes conocer más antes de responder."
+  },
+  {
+   "key": "prueba-c1-enfermeria-medico-guardia",
+   "speakerName": "Médico de guardia",
+   "portraitKey": null,
+   "emotion": "concerned",
+   "lines": [
+    {
+     "order": 1,
+     "speakerName": "Médico de guardia",
+     "text": "Tengo dos minutos y vuelvo a entrar. Lo de la niña está confirmado: falleció. La mamá sigue en cirugía y va para largo.",
+     "emotion": "neutral"
+    },
+    {
+     "order": 2,
+     "speakerName": "Médico de guardia",
+     "text": "La familia está afuera y todavía no sabe. ¿Cómo lo vamos a manejar?",
+     "emotion": "concerned"
+    },
+    {
+     "order": 3,
+     "speakerName": "Médico de guardia",
+     "text": "(Acuerda con el médico cómo se va a comunicar la noticia.)",
+     "emotion": "neutral"
+    }
+   ],
+   "choices": [
+    {
+     "key": "n3-a",
+     "text": "Acordar qué está confirmado, quién lo comunica y que estarás presente",
+     "decisionOptionId": 1,
+     "requiredToolCode": null,
+     "effect": {},
+     "toolMissing": false
+    },
+    {
+     "key": "n3-b",
+     "text": "Pedirle que dé la noticia él cuando pueda y seguir sin tocar el tema",
+     "decisionOptionId": 2,
+     "requiredToolCode": null,
+     "effect": {},
+     "toolMissing": false
+    },
+    {
+     "key": "n3-c",
+     "text": "Dar la noticia enseguida, sin acordar nada con el equipo médico",
+     "decisionOptionId": 3,
+     "requiredToolCode": null,
+     "effect": {},
+     "toolMissing": false
+    }
+   ],
+   "notice": "Puedes conocer más antes de responder."
+  },
+  {
+   "key": "prueba-c2-trabajo-social-trabajadora-social",
+   "speakerName": "Trabajadora social",
+   "portraitKey": null,
+   "emotion": "neutral",
+   "lines": [
+    {
+     "order": 1,
+     "speakerName": "Trabajadora social",
+     "text": "Pase. Antes de sentarnos con la familia, necesito que hablemos el mismo idioma.",
+     "emotion": "neutral"
+    },
+    {
+     "order": 2,
+     "speakerName": "Trabajadora social",
+     "text": "Disponibles: Resolución 459 de 2012 (protocolo de atención integral a violencias sexuales y de género), Ley 1257 de 2008, Ley 1448 de 2011.",
+     "emotion": "neutral"
+    },
+    {
+     "order": 3,
+     "speakerName": "Trabajadora social",
+     "text": "(Define el marco normativo y técnico que orienta la atención.)",
+     "emotion": "neutral"
+    }
+   ],
+   "choices": [
+    {
+     "key": "h2-a",
+     "text": "Aplicar solo la Resolución 459 de 2012",
+     "decisionOptionId": 1,
+     "requiredToolCode": null,
+     "effect": {},
+     "toolMissing": false
+    },
+    {
+     "key": "h2-b",
+     "text": "Resolución 459 de 2012 + Ley 1257 de 2008",
+     "decisionOptionId": 2,
+     "requiredToolCode": null,
+     "effect": {},
+     "toolMissing": false
+    },
+    {
+     "key": "h2-c",
+     "text": "Resolución 459 de 2012 + Ley 1448 de 2011 como eje",
+     "decisionOptionId": 3,
+     "requiredToolCode": null,
+     "effect": {},
+     "toolMissing": false
+    }
+   ],
+   "notice": "Puedes conocer más antes de responder."
+  },
+  {
+   "key": "prueba-c2-accion-tecnica-psicologa-hospital",
+   "speakerName": "Psicóloga hospitalaria",
+   "portraitKey": null,
+   "emotion": "positive",
+   "lines": [
+    {
+     "order": 1,
+     "speakerName": "Psicóloga hospitalaria",
+     "text": "La familia sigue en la sala y la sobreviviente saldrá de cirugía en unas horas. El equipo espera tu propuesta.",
+     "emotion": "positive"
+    },
+    {
+     "order": 2,
+     "speakerName": "Psicóloga hospitalaria",
+     "text": "(Define qué hacer —y qué evitar— técnica y éticamente.)",
+     "emotion": "neutral"
+    }
+   ],
+   "choices": [
+    {
+     "key": "h3-a",
+     "text": "Escucha activa + disonancia + antecedentes + ruta clínica/psiquiátrica",
+     "decisionOptionId": 1,
+     "requiredToolCode": null,
+     "effect": {},
+     "toolMissing": false
+    },
+    {
+     "key": "h3-b",
+     "text": "PAP a la familia + escucha sin juicios + EPICEE/SPIKES",
+     "decisionOptionId": 2,
+     "requiredToolCode": null,
+     "effect": {},
+     "toolMissing": false
+    },
+    {
+     "key": "h3-c",
+     "text": "Lo anterior + ciclo de la violencia + manejo interdisciplinario",
+     "decisionOptionId": 3,
+     "requiredToolCode": null,
+     "effect": {},
+     "toolMissing": false
+    },
+    {
+     "key": "h3-d",
+     "text": "PAP + escucha + EPICEE/SPIKES + evaluación psicosocial familiar + interdisciplina",
+     "decisionOptionId": 4,
+     "requiredToolCode": null,
+     "effect": {},
+     "toolMissing": false
+    }
+   ],
+   "notice": "Puedes conocer más antes de responder."
+  },
+  {
+   "key": "prueba-c2-antes-de-decir-abuela",
+   "speakerName": "Abuela de la niña",
+   "portraitKey": null,
+   "emotion": "concerned",
+   "lines": [
+    {
+     "order": 1,
+     "speakerName": "Abuela de la niña",
+     "text": "Doctor… usted no trae buena cara. Dígame qué pasó.",
+     "emotion": "anxious"
+    },
+    {
+     "order": 2,
+     "speakerName": "Abuela de la niña",
+     "text": "(El médico te mira: empiezas tú. Decide cómo abrir la conversación.)",
+     "emotion": "neutral"
+    }
+   ],
+   "choices": [
+    {
+     "key": "n4-a",
+     "text": "Preguntar qué saben, qué entienden y si quieren saberlo todo ahora y con quién",
+     "decisionOptionId": 1,
+     "requiredToolCode": null,
+     "effect": {},
+     "toolMissing": false
+    },
+    {
+     "key": "n4-b",
+     "text": "Empezar por una explicación médica detallada del ingreso y la cirugía",
+     "decisionOptionId": 2,
+     "requiredToolCode": null,
+     "effect": {},
+     "toolMissing": false
+    },
+    {
+     "key": "n4-c",
+     "text": "Abrir con «la niña ya está descansando; ahora hay que pensar en su mamá»",
+     "decisionOptionId": 3,
+     "requiredToolCode": null,
+     "effect": {},
+     "toolMissing": false
+    }
+   ],
+   "notice": "Puedes conocer más antes de responder."
+  },
+  {
+   "key": "prueba-c2-tras-el-silencio-abuela",
+   "speakerName": "Abuela de la niña",
+   "portraitKey": null,
+   "emotion": "concerned",
+   "lines": [
+    {
+     "order": 1,
+     "speakerName": "Abuela de la niña",
+     "text": "(La noticia ya está dicha. La abuela no te mira.)",
+     "emotion": "sad"
+    },
+    {
+     "order": 2,
+     "speakerName": "Abuela de la niña",
+     "text": "(Decide qué haces ahora.)",
+     "emotion": "neutral"
+    }
+   ],
+   "choices": [
+    {
+     "key": "n5-a",
+     "text": "Guardar silencio, quedarte cerca y validar su reacción sin apurarla",
+     "decisionOptionId": 1,
+     "requiredToolCode": null,
+     "effect": {},
+     "toolMissing": false
+    },
+    {
+     "key": "n5-b",
+     "text": "Pasar enseguida a explicar los trámites que siguen",
+     "decisionOptionId": 2,
+     "requiredToolCode": null,
+     "effect": {},
+     "toolMissing": false
+    },
+    {
+     "key": "n5-c",
+     "text": "Decirle que tiene que ser fuerte, porque su hija la va a necesitar",
+     "decisionOptionId": 3,
+     "requiredToolCode": null,
+     "effect": {},
+     "toolMissing": false
+    }
+   ],
+   "notice": "Puedes conocer más antes de responder."
+  },
+  {
+   "key": "prueba-c2-pasillo-hermano-mayor",
+   "speakerName": "Hermano mayor",
+   "portraitKey": null,
+   "emotion": "concerned",
+   "lines": [
+    {
+     "order": 1,
+     "speakerName": "Hermano mayor",
+     "text": "Perdone lo de ahora, en la entrada. Yo no soy así.",
+     "emotion": "sad"
+    },
+    {
+     "order": 2,
+     "speakerName": "Hermano mayor",
+     "text": "¿Y ahora qué? ¿Nos quedamos, nos vamos? ¿A quién le avisamos? Mi mamá no ha comido nada.",
+     "emotion": "anxious"
+    },
+    {
+     "order": 3,
+     "speakerName": "Hermano mayor",
+     "text": "(Decide cómo los orientas para esta noche.)",
+     "emotion": "neutral"
+    }
+   ],
+   "choices": [
+    {
+     "key": "n6-a",
+     "text": "Resumir la noche, preguntar qué necesitan y presentarlos con la trabajadora social",
+     "decisionOptionId": 1,
+     "requiredToolCode": null,
+     "effect": {},
+     "toolMissing": false
+    },
+    {
+     "key": "n6-b",
+     "text": "Entregarles por escrito los trámites y la ruta legal",
+     "decisionOptionId": 2,
+     "requiredToolCode": null,
+     "effect": {},
+     "toolMissing": false
+    },
+    {
+     "key": "n6-c",
+     "text": "Despedirte: lo que sigue les corresponde a los médicos",
+     "decisionOptionId": 3,
+     "requiredToolCode": null,
+     "effect": {},
+     "toolMissing": false
+    }
+   ],
+   "notice": "Puedes conocer más antes de responder."
+  },
+  {
+   "key": "prueba-c2-habitacion-sobreviviente",
+   "speakerName": "Sobreviviente (22 años)",
+   "portraitKey": null,
+   "emotion": "danger",
+   "lines": [
+    {
+     "order": 1,
+     "speakerName": "Sobreviviente (22 años)",
+     "text": "(Abre los ojos despacio.) ¿Dónde estoy…?",
+     "emotion": "sad"
+    },
+    {
+     "order": 2,
+     "speakerName": "Sobreviviente (22 años)",
+     "text": "¿Y mi niña? ¿Dónde está mi niña?",
+     "emotion": "anxious"
+    },
+    {
+     "order": 3,
+     "speakerName": "Sobreviviente (22 años)",
+     "text": "(Decide qué le respondes.)",
+     "emotion": "neutral"
+    }
+   ],
+   "choices": [
+    {
+     "key": "n7-a",
+     "text": "No mentir ni improvisar: acompañarla y avisar al médico para decidir en equipo",
+     "decisionOptionId": 1,
+     "requiredToolCode": null,
+     "effect": {},
+     "toolMissing": false
+    },
+    {
+     "key": "n7-b",
+     "text": "Decírselo en ese momento, a solas, con palabras claras",
+     "decisionOptionId": 2,
+     "requiredToolCode": null,
+     "effect": {},
+     "toolMissing": false
+    },
+    {
+     "key": "n7-c",
+     "text": "Decirle que la niña está bien y que ahora descanse",
+     "decisionOptionId": 3,
+     "requiredToolCode": null,
+     "effect": {},
+     "toolMissing": false
+    }
+   ],
+   "notice": "Puedes conocer más antes de responder."
+  },
+  {
+   "key": "prueba-c3-recepcion-sobreviviente",
+   "speakerName": "Sobreviviente (22 años)",
+   "portraitKey": null,
+   "emotion": "danger",
+   "lines": [
+    {
+     "order": 1,
+     "speakerName": "Sobreviviente (22 años)",
+     "text": "Salí del hospital hace unos días… las heridas duelen menos que todo lo demás.",
+     "emotion": "sad"
+    },
+    {
+     "order": 2,
+     "speakerName": "Sobreviviente (22 años)",
+     "text": "Su familia me busca para que lo perdone, dicen que la familia se respeta. Yo solo quiero estar segura.",
+     "emotion": "anxious"
+    },
+    {
+     "order": 3,
+     "speakerName": "Sobreviviente (22 años)",
+     "text": "(Define la prioridad de la asesoría psicosocial.)",
+     "emotion": "neutral"
+    }
+   ],
+   "choices": [
+    {
+     "key": "c1-a",
+     "text": "Instar a escuchar al agresor por la unidad familiar (mediación y perdón)",
+     "decisionOptionId": 1,
+     "requiredToolCode": null,
+     "effect": {},
+     "toolMissing": false
+    },
+    {
+     "key": "c1-b",
+     "text": "Valorar riesgo de feminicidio + medidas de protección + derechos",
+     "decisionOptionId": 2,
+     "requiredToolCode": null,
+     "effect": {},
+     "toolMissing": false
+    },
+    {
+     "key": "c1-c",
+     "text": "Psicoterapia centrada en patrones de infancia y elección de pareja",
+     "decisionOptionId": 3,
+     "requiredToolCode": null,
+     "effect": {},
+     "toolMissing": false
+    }
+   ],
+   "notice": "Puedes conocer más antes de responder."
+  },
+  {
+   "key": "prueba-c3-consultorio-relato-sobreviviente",
+   "speakerName": "Sobreviviente (22 años)",
+   "portraitKey": null,
+   "emotion": "danger",
+   "lines": [
+    {
+     "order": 1,
+     "speakerName": "Sobreviviente (22 años)",
+     "text": "¿Tengo que contarlo todo otra vez? Ya lo conté varias veces.",
+     "emotion": "sad"
+    },
+    {
+     "order": 2,
+     "speakerName": "Sobreviviente (22 años)",
+     "text": "(Decide cómo vas a valorar el riesgo.)",
+     "emotion": "neutral"
+    }
+   ],
+   "choices": [
+    {
+     "key": "c1-aplicar-riesgo",
+     "text": "Aplicar valoración estructurada de riesgo de feminicidio",
+     "decisionOptionId": null,
+     "requiredToolCode": "RISK_METER",
+     "effect": {},
+     "toolMissing": true
+    },
+    {
+     "key": "n8-a",
+     "text": "Partir del informe y de lo que ella quiera contar; valorar el riesgo en privado y explicando",
+     "decisionOptionId": 2,
+     "requiredToolCode": null,
+     "effect": {},
+     "toolMissing": false
+    },
+    {
+     "key": "n8-b",
+     "text": "Aplicar el instrumento como una lista, sin explicar para qué son las preguntas",
+     "decisionOptionId": 3,
+     "requiredToolCode": null,
+     "effect": {},
+     "toolMissing": false
+    },
+    {
+     "key": "n8-c",
+     "text": "Pedirle que cuente de nuevo, con detalle, todo lo que pasó esa noche",
+     "decisionOptionId": 4,
+     "requiredToolCode": null,
+     "effect": {},
+     "toolMissing": false
+    }
+   ],
+   "notice": "Puedes conocer más antes de responder."
+  },
+  {
+   "key": "prueba-c3-consultorio-marco-profesional-psicosocial",
+   "speakerName": "Profesional psicosocial",
+   "portraitKey": null,
+   "emotion": "neutral",
+   "lines": [
+    {
+     "order": 1,
+     "speakerName": "Profesional psicosocial",
+     "text": "Antes de seguir, dejemos claro con qué normas vamos a trabajar su caso.",
+     "emotion": "neutral"
+    },
+    {
+     "order": 2,
+     "speakerName": "Profesional psicosocial",
+     "text": "Disponibles: Ley 2126 de 2021 (Comisarías de Familia), Ley 1098 de 2006 (infancia y adolescencia), Ley 1257 de 2008, Ley 1448 de 2011.",
+     "emotion": "neutral"
+    },
+    {
+     "order": 3,
+     "speakerName": "Profesional psicosocial",
+     "text": "(Define el marco normativo del restablecimiento de derechos.)",
+     "emotion": "neutral"
+    }
+   ],
+   "choices": [
+    {
+     "key": "c2-a",
+     "text": "Ley 2126 de 2021 + Ley 1098 de 2006 + Ley 1257 de 2008",
+     "decisionOptionId": 1,
+     "requiredToolCode": null,
+     "effect": {},
+     "toolMissing": false
+    },
+    {
+     "key": "c2-b",
+     "text": "Ley 1098 de 2006 + Ley 1257 de 2008",
+     "decisionOptionId": 2,
+     "requiredToolCode": null,
+     "effect": {},
+     "toolMissing": false
+    },
+    {
+     "key": "c2-c",
+     "text": "Ley 1098 + Ley 1257 + Ley 1448 de 2011 como eje",
+     "decisionOptionId": 3,
+     "requiredToolCode": null,
+     "effect": {},
+     "toolMissing": false
+    }
+   ],
+   "notice": "Puedes conocer más antes de responder."
+  },
+  {
+   "key": "prueba-c3-pasillo-sobreviviente",
+   "speakerName": "Sobreviviente (22 años)",
+   "portraitKey": null,
+   "emotion": "danger",
+   "lines": [
+    {
+     "order": 1,
+     "speakerName": "Sobreviviente (22 años)",
+     "text": "¿Qué va a pasar con él? ¿Yo puedo volver a mi casa?",
+     "emotion": "anxious"
+    },
+    {
+     "order": 2,
+     "speakerName": "Sobreviviente (22 años)",
+     "text": "(Decide cómo le respondes.)",
+     "emotion": "neutral"
+    }
+   ],
+   "choices": [
+    {
+     "key": "n9-a",
+     "text": "Explicarle quién hace qué, acompañarla a orientación jurídica y llevar la valoración a la comisaria",
+     "decisionOptionId": 1,
+     "requiredToolCode": null,
+     "effect": {},
+     "toolMissing": false
+    },
+    {
+     "key": "n9-b",
+     "text": "Entregarle una hoja con los pasos y las oficinas a las que debe ir",
+     "decisionOptionId": 2,
+     "requiredToolCode": null,
+     "effect": {},
+     "toolMissing": false
+    },
+    {
+     "key": "n9-c",
+     "text": "Asegurarle que con la denuncia él no podrá acercarse nunca más",
+     "decisionOptionId": 3,
+     "requiredToolCode": null,
+     "effect": {},
+     "toolMissing": false
+    }
+   ],
+   "notice": "Puedes conocer más antes de responder."
+  },
+  {
+   "key": "prueba-c3-sala-espera-abuela",
+   "speakerName": "Abuela de la niña",
+   "portraitKey": null,
+   "emotion": "concerned",
+   "lines": [
+    {
+     "order": 1,
+     "speakerName": "Abuela de la niña",
+     "text": "Ella aguanta. La que me preocupa es la casa: los muchachos no han vuelto a dormir bien.",
+     "emotion": "sad"
+    },
+    {
+     "order": 2,
+     "speakerName": "Abuela de la niña",
+     "text": "(Decide qué haces con lo que te cuenta.)",
+     "emotion": "neutral"
+    }
+   ],
+   "choices": [
+    {
+     "key": "n10-a",
+     "text": "Preguntar quién vive con ella, quién la cuida y quién depende de ella, y valorarlos",
+     "decisionOptionId": 1,
+     "requiredToolCode": null,
+     "effect": {},
+     "toolMissing": false
+    },
+    {
+     "key": "n10-b",
+     "text": "Concentrarte solo en ella: a la familia ya la atendieron en el hospital",
+     "decisionOptionId": 2,
+     "requiredToolCode": null,
+     "effect": {},
+     "toolMissing": false
+    },
+    {
+     "key": "n10-c",
+     "text": "Citar a los hermanos para que cuenten lo que vieron y sirvan de testigos",
+     "decisionOptionId": 3,
+     "requiredToolCode": null,
+     "effect": {},
+     "toolMissing": false
+    }
+   ],
+   "notice": "Puedes conocer más antes de responder."
+  },
+  {
+   "key": "prueba-c3-consultorio-cierre-profesional-psicosocial",
+   "speakerName": "Profesional psicosocial",
+   "portraitKey": null,
+   "emotion": "neutral",
+   "lines": [
+    {
+     "order": 1,
+     "speakerName": "Profesional psicosocial",
+     "text": "Cerramos la valoración: queda definir la actuación técnica y ética con la sobreviviente y su red familiar.",
+     "emotion": "neutral"
+    },
+    {
+     "order": 2,
+     "speakerName": "Profesional psicosocial",
+     "text": "(Define qué hacer —y qué evitar— en el restablecimiento de derechos.)",
+     "emotion": "neutral"
+    }
+   ],
+   "choices": [
+    {
+     "key": "c3-a",
+     "text": "Escucha + disonancia + ciclos + valoración de feminicidio + ruta clínica",
+     "decisionOptionId": 1,
+     "requiredToolCode": null,
+     "effect": {},
+     "toolMissing": false
+    },
+    {
+     "key": "c3-b",
+     "text": "Valoración de víctima y dependientes + escucha + ciclos + rutas de salud",
+     "decisionOptionId": 2,
+     "requiredToolCode": null,
+     "effect": {},
+     "toolMissing": false
+    },
+    {
+     "key": "c3-c",
+     "text": "Lo anterior + nivel de vulneración de derechos + valoración de feminicidio + rutas",
+     "decisionOptionId": 3,
+     "requiredToolCode": null,
+     "effect": {},
+     "toolMissing": false
+    }
+   ],
+   "notice": "Puedes conocer más antes de responder."
+  }
+ ]
+}

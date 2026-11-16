@@ -163,7 +163,8 @@ const QUEUED_PAUSE_SLOW_NOTICE = 'La acción en curso está tardando. Estamos pa
       <!-- Los avisos ACCIONABLES (la puerta bloqueada y el error de una acción, VD-29) ya no se pintan aquí: son avisos
            del sistema (ui-toast-host, colocación del juego: arriba a la izquierda). Permanecen hasta cerrarse con
            «Cerrar», no mueven el foco y los anuncia ese anfitrión una vez (assertive solo el error). -->
-      @if (softNotice()) {
+      <!-- Con un diálogo sobre el mundo el aviso no flota encima del cuadro: el cuadro lo muestra en su sitio (avisoBreve). -->
+      @if (softNotice() && viewMode() !== 'dialogue-cinematic') {
         <!-- Aviso breve (4,2 s): lo que dice ya se anunció; nunca es la única
              fuente. Sin role: una región que nace con su texto no se anuncia de forma fiable. -->
         <div class="soft-notice">{{ softNotice() }}</div>
@@ -457,7 +458,7 @@ const QUEUED_PAUSE_SLOW_NOTICE = 'La acción en curso está tardando. Estamos pa
         </footer>
 
         @if (viewMode() === 'dialogue-cinematic') {
-          <app-dialogue-panel class="dialogue-cinematic" [reduceMotion]="reduceMotion()" [dialogue]="dialogue()" [interaction]="selectedInteraction()" [speakerVisual]="speakerVisual()"
+          <app-dialogue-panel class="dialogue-cinematic" [reduceMotion]="reduceMotion()" [dialogue]="dialogue()" [avisoBreve]="softNotice()" [interaction]="selectedInteraction()" [speakerVisual]="speakerVisual()"
             [releaseToken]="dialogueReleaseToken()" [pausing]="pausing()" [hintAttempt]="hintAttempt()"
             (close)="closeDialogue()" (safeExit)="pauseFromOverlay()"
             (execute)="executeDecision($event)" (useTool)="useTool($event)"
