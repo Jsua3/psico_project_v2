@@ -520,6 +520,28 @@ describe('GeneracionService: el orquestador de la generación', () => {
       g.liberar('skeleton');
     });
 
+    it('un esqueleto que vence en otra pestaña MIENTRAS se espera se ofrece y no se pide solo (cada intento cuesta)', async () => {
+      const { g, api, servicio } = montar();
+      const id = await servicio.empezar('universidad', DESCRIPCION);
+      g.retener('skeleton');
+      void firstValueFrom(api.generationSkeleton(id)); // «otra pestaña» está escribiendo el esqueleto
+      const corrida = servicio.continuar(id);
+      await vaciar();
+      expect(veces(g, 'generationSkeleton')).toBe(2); // la nuestra recibió GENERATION_BUSY, que no gasta
+
+      g.avanzarReloj(150); // la de la otra pestaña vence
+      await vi.advanceTimersByTimeAsync(ESPERA_SI_OCUPADA_MS);
+      await corrida;
+      expect(servicio.error()).toEqual({ mensaje: MENSAJES['timeout'], reintentable: true, parte: 'esqueleto' });
+      expect(veces(g, 'generationSkeleton')).toBe(2); // no volvió a pedirlo por su cuenta
+      expect(servicio.trabajando()).toBe(false);
+
+      await servicio.reintentar(); // la docente lo pide: una llamada
+      expect(veces(g, 'generationSkeleton')).toBe(3);
+      expect(servicio.generacion()!.status).toBe('imported');
+      g.liberar('skeleton');
+    });
+
     it('al retomar, un ensamblado que ya falló se ofrece y no se pide solo', async () => {
       const { g, servicio } = montar();
       const id = await servicio.empezar('universidad', DESCRIPCION);

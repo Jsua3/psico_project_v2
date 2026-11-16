@@ -169,15 +169,15 @@ export class GeneracionService {
       let g = await this.leer(id);
       ultima = g;
       let sinCambio = 0;
-      // Lo que ya estaba en error al entrar se ofrece; lo que falle durante esta corrida ya sale por su propio camino.
-      let alEntrar = true;
+      // Una parte que el servidor marca en error (al entrar o en cualquier relectura: por ejemplo, vencida en otra pestaña
+      // mientras esta esperaba) se ofrece y no se pide: pedirla otra vez es una llamada a la IA con costo, y eso solo lo
+      // dispara «Reintentar». Ese permiso alcanza para una petición aceptada; después, lo que vuelva a fallar se ofrece.
+      let permitido = forzar;
       while (this.vigente(mia)) {
         ultima = g;
         this.generacion.set(g);
         if (this.terminal(g)) return;
-        const ofrecer = !forzar && alEntrar;
-        alEntrar = false;
-        const paso = await this.paso(g, forzar, ofrecer, mia);
+        const paso = await this.paso(g, permitido, !permitido, mia);
         if (!this.vigente(mia)) return;
         if (paso.tipo === 'error') {
           // Se relee antes de publicar: la pantalla debe mostrar el estado de cada escena tal como quedó, no el de antes de pedirla.
@@ -187,6 +187,7 @@ export class GeneracionService {
         }
         if (paso.tipo === 'avanzo') {
           sinCambio = 0;
+          permitido = false;
           g = paso.g;
           continue;
         }
