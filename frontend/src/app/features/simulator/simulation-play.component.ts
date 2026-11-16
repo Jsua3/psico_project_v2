@@ -362,7 +362,13 @@ const QUEUED_PAUSE_SLOW_NOTICE = 'La acción en curso está tardando. Estamos pa
                 (enterRoom)="onDoorTrigger($event)"
                 (positionChange)="rememberPosition($event.x, $event.y)" />
               <!-- Minimapa (bloque M1, §5.3): esquina del mundo; abre el plano completo (también con M). -->
-              <app-minimapa [plano]="placePlan()" [actual]="placeRoom()" (abrir)="openPlan()" />
+              @if (!cinemaBars()) {
+                <app-minimapa [plano]="placePlan()" [actual]="placeRoom()" (abrir)="openPlan()" />
+              }
+              <!-- Franjas de cine (bloque M1, regla 7): entran en la decisión y en la reacción; la de abajo aloja el cuadro de diálogo. -->
+              <div class="cine cine--arriba" aria-hidden="true" [class.cine--dentro]="cinemaBars()"></div>
+              <div class="cine cine--abajo" aria-hidden="true" [class.cine--dentro]="cinemaBars()"
+                [style.height.px]="cinemaBottomPx()"></div>
             } @else {
               <!-- Solo el fondo: el indicador de carga es .game-boot (un solo estado). #game-area existe siempre. -->
               <div id="game-area" class="world-skeleton" aria-hidden="true"></div>
@@ -606,6 +612,18 @@ const QUEUED_PAUSE_SLOW_NOTICE = 'La acción en curso está tardando. Estamos pa
       box-shadow: var(--sim-glow);
     }
     .game-surface { position: absolute; inset: 0; }
+    /* Franjas de cine (bloque M1): se deslizan desde los bordes; no reciben el puntero ni escalan con la cámara. */
+    .cine {
+      position: absolute; left: 0; right: 0; z-index: var(--ds-z-elevado); pointer-events: none;
+      background: var(--ds-surface-page);
+      transition: transform 560ms cubic-bezier(.22, 1, .36, 1);
+    }
+    .cine--arriba { top: 0; height: clamp(28px, 8%, 72px); transform: translateY(-101%); }
+    .cine--abajo { bottom: 0; min-height: clamp(28px, 8%, 72px); transform: translateY(101%); }
+    .cine--dentro { transform: none; }
+    .cine:not(.cine--dentro) { transition-duration: 440ms; }
+    .game-container--reduce-motion .cine { transition: none; }
+    @media (prefers-reduced-motion: reduce) { .cine { transition: none; } }
     .world-skeleton { position: absolute; inset: 0; background: #0e1322; }
 
     /* Envoltorio de la ficha del objetivo: aporta posición, borde y fondo casi opaco (la ficha no pinta superficie). */
@@ -1206,6 +1224,10 @@ export class SimulationPlayComponent implements OnInit, OnDestroy {
   readonly placePlan = computed(() => normalizarLayout(this.world()?.layout));
   readonly placeRoom = computed(() => this.placePlan()?.actual ?? '');
   readonly planOpen = signal(false);
+  /** Franjas de cine (bloque M1, regla 7): en la decisión (diálogo con opciones) y durante la reacción. */
+  readonly cinemaBars = computed(() => (this.dialogue()?.choices?.length ?? 0) > 0 || this.reacting());
+  /** Alto de la franja de abajo: la que aloja el cuadro de diálogo (lo que este tapa), o la de arriba si no hay cuadro. */
+  readonly cinemaBottomPx = signal(0);
 
   readonly cameraMoment = computed<CameraMoment>(() => {
     const interaction = this.selectedInteraction();
@@ -1502,10 +1524,17 @@ export class SimulationPlayComponent implements OnInit, OnDestroy {
       const mode = this.viewMode();
       const options = { cercana: this.cameraSettings.cercana(), acercarAuto: this.cameraSettings.acercarAuto() };
       const frozen = this.planOpen();
+      const bars = this.cinemaBars();
       untracked(() => {
         this.gameWorld?.setCameraOptions(options);
         this.gameWorld?.setCameraFrozen(frozen);
-        requestAnimationFrame(() => this.gameWorld?.setCameraMoment(moment, this.dialogueCoverCss(mode)));
+        requestAnimationFrame(() => {
+          // Con franjas, la cámara encuadra entre la de arriba y la de abajo (que crece hasta alojar el cuadro).
+          const top = bars ? this.cinemaTopPx() : 0;
+          const bottom = Math.max(this.dialogueCoverCss(mode), top);
+          this.cinemaBottomPx.set(bottom);
+          this.gameWorld?.setCameraMoment(moment, bottom, top);
+        });
       });
     });
     // La salida segura pedida durante una petición espera a que `busy()` se suelte: no se fuerza
@@ -2030,6 +2059,12 @@ export class SimulationPlayComponent implements OnInit, OnDestroy {
     if (button?.tagName !== 'BUTTON' || event.repeat) return;
     if (event.key !== 'Enter' && event.key !== ' ') return;
     window.setTimeout(() => { if (event.defaultPrevented) button.click(); });
+  }
+
+  /** Alto (px CSS) de la franja de cine de arriba: el mismo `clamp(28px, 8%, 72px)` de su estilo. */
+  private cinemaTopPx(): number {
+    const height = this.canvasZone()?.nativeElement.getBoundingClientRect().height ?? 0;
+    return Math.round(Math.min(72, Math.max(28, height * 0.08)));
   }
 
   /** Alto (px CSS) del cuadro de diálogo de abajo que tapa el lienzo; 0 si el diálogo va al costado o no hay. */

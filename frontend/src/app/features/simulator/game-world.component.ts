@@ -89,7 +89,9 @@ import { EmittedPosition, shouldEmitPosition } from './position-emit.util';
 import { heldInput } from './touch-hold.util';
 import { attachScrollKeyGuard, isScrollRegionTarget, isShortcutContext, isTextEntryTarget, resolveInteractPress } from './keyboard-focus.util';
 import { isCriticalAsset } from './asset-criticality.util';
-import { EstadoCamara, Momento, avanzarCamara, objetivoCamara } from './camara/camara';
+import {
+  EstadoCamara, Momento, avanzarCamara, comoDibujar, duracionDeViaje, enViaje, esperaDelGeneral, objetivoCamara,
+} from './camara/camara';
 import { fitGameToHost, pixelScaleConfig, watchHostSize } from './pixel-canvas';
 import { PixelRender } from './pixel-render';
 import { doorFacing, doorSpriteSpecs, resolveDoorSideTextureKey, resolveDoorTextureKey } from './door-sprite.util';
@@ -120,7 +122,7 @@ import { npcsDeLaSala } from './caso/npcs-de-sala';
 /** Lo que la pantalla le pide a la cámara (bloque M1): explorar, o encuadrar la conversación o el objeto `clave`. */
 export type CameraMoment = { tipo: 'explorar' } | { tipo: 'conversacion' | 'objeto'; clave: string };
 export interface CameraOptions { cercana: boolean; acercarAuto: boolean }
-export interface CameraReport { zoom: number; momento: Momento['tipo']; x: number; y: number }
+export interface CameraReport { zoom: number; momento: Momento['tipo']; x: number; y: number; viajando: boolean }
 
 interface WorldCallbacks {
   onReady:       () => void;
@@ -347,11 +349,21 @@ export class DataDrivenWorldScene extends Phaser.Scene {
   /** Persona que reacciona (`frameActors`): manda sobre el momento mientras dura la reacción. */
   private camFrameKey: string | null = null;
   private camOptions: CameraOptions = { cercana: false, acercarAuto: true };
-  /** Alto (px CSS) que el cuadro de diálogo tapa abajo del lienzo. */
+  /** Alto (px CSS) que el cuadro de diálogo (o la franja de abajo) tapa abajo del lienzo, y la franja de arriba. */
   private camCoveredCss = 0;
+  private camCoveredTopCss = 0;
   private camFrozen = false;
   private camSettledZoom = 0;
   private camReport = '';
+  /** Dirección de cámara (regla 7): el plano en curso, el viaje entre planos y el plano general al entrar a una sala. */
+  private camMomentType: Momento['tipo'] = 'explorar';
+  private camTargetZoom = 0;
+  private camTravel: { desde: EstadoCamara; inicio: number; dur: number } | null = null;
+  private camEntrada: { hasta: number; x: number | null; y: number | null } | null = null;
+  private camRoomId = '';
+  private readonly camRoomsSeen = new Set<string>();
+  /** Escala CSS del lienzo ya compuesto durante un viaje (1 en reposo). */
+  private camDrawScale = 1;
   /** Viñeta de tono de la sala actual (se redibuja al rectángulo visible si cambia el lienzo). */
   private toneVignette?: Phaser.GameObjects.Image;
   /** Textura vigente de cada viñeta (tono o crisis): al cambiar el tamaño se retira la anterior (F6-8). */
@@ -1039,10 +1051,14 @@ export class DataDrivenWorldScene extends Phaser.Scene {
     this.camFrameKey = null;
   }
 
-  /** Lo que la pantalla pide (bloque M1): explorar, hablar con `clave` o revisar `clave`; y cuánto tapa el cuadro de diálogo abajo. */
-  setCameraMoment(moment: CameraMoment, coveredCss: number): void {
+  /**
+   * Lo que la pantalla pide (bloque M1): explorar, hablar con `clave` o revisar `clave`; cuánto tapa abajo el cuadro de
+   * diálogo o la franja de cine, y cuánto la franja de arriba (px CSS).
+   */
+  setCameraMoment(moment: CameraMoment, coveredCss: number, coveredTopCss = 0): void {
     this.camMoment = moment;
     this.camCoveredCss = Math.max(0, coveredCss);
+    this.camCoveredTopCss = Math.max(0, coveredTopCss);
   }
 
   setCameraOptions(options: CameraOptions): void {
@@ -1054,48 +1070,134 @@ export class DataDrivenWorldScene extends Phaser.Scene {
     this.camFrozen = frozen;
   }
 
-  private cameraMomentNow(): Momento {
-    const key = this.camFrameKey ?? (this.camMoment.tipo === 'explorar' ? null : this.camMoment.clave);
-    const feet = key ? this.feetOf(key) : null;
-    if (!feet) return { tipo: 'explorar' };
-    if (this.camFrameKey || this.camMoment.tipo === 'conversacion') return { tipo: 'conversacion', con: feet };
-    return { tipo: 'objeto', en: feet };
+  private camNow(): number {
+    return this.time?.now ?? (typeof performance !== 'undefined' ? performance.now() : Date.now());
   }
 
   /**
-   * Un cuadro de cámara (bloque M1): `objetivoCamara` decide adónde y con qué zoom; `avanzarCamara` lo acerca con
-   * suavidad (corte con movimiento reducido o tras pintar una sala). Quieta durante un fundido y con el plano abierto.
+   * El plano que toca ahora: la reacción manda (la cámara va a quien reacciona); luego lo que pide la pantalla; al
+   * entrar a una sala, el plano general hasta que pasa su espera o el personaje se mueve; si no, caminar.
+   */
+  private cameraMomentNow(ahora: number): Momento {
+    if (this.camFrameKey) {
+      const de = this.feetOf(this.camFrameKey);
+      if (de) return { tipo: 'reaccion', de };
+    }
+    if (this.camMoment.tipo !== 'explorar') {
+      const feet = this.feetOf(this.camMoment.clave);
+      if (feet) return this.camMoment.tipo === 'conversacion' ? { tipo: 'conversacion', con: feet } : { tipo: 'objeto', en: feet };
+    }
+    const entrada = this.camEntrada;
+    if (entrada && this.player) {
+      if (entrada.x === null || entrada.y === null) { entrada.x = this.player.x; entrada.y = this.player.y; }
+      const seMovio = Math.hypot(this.player.x - entrada.x, this.player.y - entrada.y) > 6;
+      if (!seMovio && ahora < entrada.hasta) return { tipo: 'general' };
+      this.camEntrada = null;
+    }
+    return { tipo: 'explorar' };
+  }
+
+  /**
+   * Un cuadro de cámara (bloque M1, regla 7 de la vara): `objetivoCamara` decide el plano; entre un plano y otro hay un
+   * viaje con arranque y llegada suaves (`enViaje`, con la duración de cada cambio); dentro de un plano, el seguimiento
+   * con zona muerta (`avanzarCamara`). Con movimiento reducido todo es corte. Quieta durante un fundido y con el plano
+   * del lugar abierto. Durante un viaje la escena se dibuja al entero de abajo y el lienzo ya compuesto se escala.
    */
   private stepCamera(delta: number): void {
     const cam = this.cameras?.main;
     if (!cam || !this.player || this.camFrozen || cam.fadeEffect.isRunning) return;
+    const ahora = this.camNow();
     const dpr = typeof window !== 'undefined' ? window.devicePixelRatio || 1 : 1;
-    const momento = this.cameraMomentNow();
+    const momento = this.cameraMomentNow(ahora);
     const objetivo = objetivoCamara({
       jugador: { x: this.player.x, y: this.player.y },
       sala: { ancho: this.roomSize.width, alto: this.roomSize.height },
-      vista: { ancho: cam.width, alto: cam.height, dpr, cubiertoAbajo: this.camCoveredCss * dpr },
+      vista: {
+        ancho: cam.width, alto: cam.height, dpr,
+        cubiertoAbajo: this.camCoveredCss * dpr, cubiertoArriba: this.camCoveredTopCss * dpr,
+      },
       momento,
       cercana: this.camOptions.cercana,
       acercarAuto: this.camOptions.acercarAuto,
     }, this.camCut ? null : this.camState);
-    const next = this.camCut || !this.camState ? objetivo : avanzarCamara(this.camState, objetivo, delta, this.callbacks.reduceMotion);
+
+    let next: EstadoCamara;
+    if (this.camCut || !this.camState || this.callbacks.reduceMotion) {
+      next = { centro: { ...objetivo.centro }, zoom: objetivo.zoom };
+      this.camTravel = null;
+    } else {
+      const cambiaPlano = momento.tipo !== this.camMomentType || objetivo.zoom !== this.camTargetZoom;
+      if (cambiaPlano) {
+        const dur = momento.tipo !== this.camMomentType ? duracionDeViaje(this.camMomentType, momento.tipo) : 800;
+        this.camTravel = { desde: this.camState, inicio: ahora, dur };
+      }
+      if (this.camTravel) {
+        const t = (ahora - this.camTravel.inicio) / this.camTravel.dur;
+        next = enViaje(this.camTravel.desde, objetivo, t);
+        if (t >= 1) this.camTravel = null;
+      } else {
+        next = avanzarCamara(this.camState, objetivo, delta, false);
+      }
+    }
     this.camCut = false;
+    this.camMomentType = momento.tipo;
+    this.camTargetZoom = objetivo.zoom;
     this.camState = next;
-    if (cam.zoom !== next.zoom) cam.setZoom(next.zoom);
+
+    const { base, escala } = comoDibujar(next.zoom);
+    if (cam.zoom !== base) cam.setZoom(base);
     cam.centerOn(next.centro.x, next.centro.y);
-    if (Number.isInteger(next.zoom) && next.zoom !== this.camSettledZoom) {
-      this.camSettledZoom = next.zoom;
+    this.applyCanvasScale(escala);
+    this.scaleLabelsForZoom(next.zoom);
+    if (escala === 1 && base !== this.camSettledZoom) {
+      this.camSettledZoom = base;
       this.onCameraZoomSettled();
     }
     const report: CameraReport = {
       zoom: this.camSettledZoom, momento: momento.tipo, x: Math.round(next.centro.x), y: Math.round(next.centro.y),
+      viajando: this.camTravel !== null,
     };
-    const key = `${report.zoom}|${report.momento}|${report.x}|${report.y}`;
+    const key = `${report.zoom}|${report.momento}|${report.x}|${report.y}|${report.viajando}`;
     if (key !== this.camReport) {
       this.camReport = key;
       this.callbacks.onCamera?.(report);
     }
+  }
+
+  /**
+   * Escala CSS del lienzo ya compuesto (regla 7: el viaje escala la imagen entera, no cada dibujo, y los píxeles no
+   * bailen). 1 en reposo. El contenedor recorta lo que sobra; la interfaz HTML encima no se escala.
+   */
+  private applyCanvasScale(escala: number): void {
+    if (Math.abs(escala - this.camDrawScale) < 0.0005) return;
+    this.camDrawScale = escala;
+    const canvas = this.game?.canvas as HTMLCanvasElement | undefined;
+    if (!canvas?.style) return;
+    if (canvas.parentElement) canvas.parentElement.style.overflow = 'hidden';
+    canvas.style.imageRendering = 'pixelated';
+    canvas.style.transformOrigin = '50% 50%';
+    canvas.style.transform = escala === 1 ? '' : `scale(${escala})`;
+  }
+
+  /**
+   * Los rótulos miden lo mismo en pantalla con cualquier zoom (regla 7): su escala de mundo es la de ×1 dividida por el
+   * zoom efectivo. En un viaje se ajusta cada cuadro (solo `setScale`, sin repintar textos); en reposo, una vez.
+   */
+  private scaleLabelsForZoom(zoom: number): void {
+    const displayScale = this.scale?.displayScale?.x;
+    if (!displayScale || !(zoom > 0)) return;
+    const next = labelScaleFor(displayScale, 1) / zoom;
+    if (Math.abs(next - this.labelScale) < 0.0005) return;
+    this.labelScale = next;
+    this.markerLabels.forEach(label => label.setScale(next));
+    this.hoverLabel?.setScale(next);
+    this.keyPersonIndicator?.container.setScale(next);
+    this.doorHints.forEach(hint => { hint.setScale(next); this.placeDoorHint(hint); });
+    this.npcMarkers.forEach(container => {
+      const bag = container as unknown as Record<string, unknown>;
+      (bag['__labelSprite'] as Phaser.GameObjects.Text | undefined)?.setScale(next);
+      (bag['__hintSprite'] as Phaser.GameObjects.Text | undefined)?.setScale(next);
+    });
   }
 
   /**
@@ -1275,10 +1377,16 @@ export class DataDrivenWorldScene extends Phaser.Scene {
     const view = cam.worldView;
     const zoom = cam.zoom || 1;
     const scale = this.scale?.displayScale;
-    return {
-      x: ((actor.x - view.x) * zoom) / (scale?.x || 1),
-      y: (((footY - KEY_PERSON_HEAD_PX) - view.y) * zoom) / (scale?.y || 1),
-    };
+    const sx = scale?.x || 1;
+    const sy = scale?.y || 1;
+    const x = ((actor.x - view.x) * zoom) / sx;
+    const y = (((footY - KEY_PERSON_HEAD_PX) - view.y) * zoom) / sy;
+    const k = this.camDrawScale;
+    if (k === 1) return { x, y };
+    // Durante un viaje el lienzo compuesto va escalado alrededor de su centro (bloque M1).
+    const cx = cam.width / (2 * sx);
+    const cy = cam.height / (2 * sy);
+    return { x: cx + (x - cx) * k, y: cy + (y - cy) * k };
   }
 
   /** El aspecto con el que se dibuja a la persona o al NPC de `key`. */
@@ -1730,7 +1838,17 @@ export class DataDrivenWorldScene extends Phaser.Scene {
     const cam = this.cameras.main;
     cam.stopFollow();
     cam.removeBounds();
+    // Sala nueva (no un repintado ni un cambio de lienzo): plano general que después se cierra sobre el personaje,
+    // sostenido más la primera vez que se ve la sala. Con movimiento reducido, sin plano general.
+    const sala = this.world?.map?.key || this.currentRoomKey || '';
+    if (sala !== this.camRoomId) {
+      this.camRoomId = sala;
+      const yaVisitada = this.camRoomsSeen.has(sala);
+      this.camRoomsSeen.add(sala);
+      this.camEntrada = this.callbacks.reduceMotion ? null : { hasta: this.camNow() + esperaDelGeneral(yaVisitada), x: null, y: null };
+    }
     this.camCut = true;
+    this.camTravel = null;
     this.stepCamera(0);
   }
 
@@ -3215,7 +3333,8 @@ export class DataDrivenWorldScene extends Phaser.Scene {
     const displayScale = this.scale?.displayScale?.x;
     if (!displayScale) return false;
     const zoom = this.cameras?.main?.zoom ?? 1;
-    const next = labelScaleFor(displayScale, zoom);
+    // Mismo tamaño en pantalla con cualquier zoom (regla 7): la escala de ×1 entre el zoom.
+    const next = labelScaleFor(displayScale, 1) / zoom;
     if (Math.abs(next - this.labelScale) < 0.01) {
       // La escala no cambió, pero el zoom de la sala sí pudo: la resolución de los textos lo sigue (PHA-2).
       this.pixelRender?.refreshTexts(zoom);
@@ -3689,6 +3808,7 @@ export class GameWorldComponent implements OnChanges, OnDestroy {
     host.setAttribute('data-camera-moment', camera.momento);
     host.setAttribute('data-camera-x', String(camera.x));
     host.setAttribute('data-camera-y', String(camera.y));
+    host.setAttribute('data-camera-travel', camera.viajando ? 'true' : 'false');
   }
 
   /** Dónde está ahora la persona a atender, como `data-key-person-x/y` del host (contrato del e2e, igual que `data-player-x/y`). Directo al DOM. */
@@ -3740,10 +3860,12 @@ export class GameWorldComponent implements OnChanges, OnDestroy {
   private cameraOptions: CameraOptions = { cercana: false, acercarAuto: true };
   private cameraMoment: CameraMoment = { tipo: 'explorar' };
   private cameraCoveredCss = 0;
-  setCameraMoment(moment: CameraMoment, coveredCss = 0) {
+  private cameraCoveredTopCss = 0;
+  setCameraMoment(moment: CameraMoment, coveredCss = 0, coveredTopCss = 0) {
     this.cameraMoment = moment;
     this.cameraCoveredCss = coveredCss;
-    this.scene?.setCameraMoment(moment, coveredCss);
+    this.cameraCoveredTopCss = coveredTopCss;
+    this.scene?.setCameraMoment(moment, coveredCss, coveredTopCss);
   }
   setCameraOptions(options: CameraOptions) {
     this.cameraOptions = options;
@@ -3846,7 +3968,7 @@ export class GameWorldComponent implements OnChanges, OnDestroy {
       this.scene.setPersonaScene(this.activation(), this.intensity());
       // La cámara recibe lo que la pantalla pidió antes de que existiera la escena (bloque M1).
       this.scene.setCameraOptions(this.cameraOptions);
-      this.scene.setCameraMoment(this.cameraMoment, this.cameraCoveredCss);
+      this.scene.setCameraMoment(this.cameraMoment, this.cameraCoveredCss, this.cameraCoveredTopCss);
       this.armBootWatchdog();
       this.phaserGame = new Phaser.Game({
         // PHA-5 (E5-8): se mantiene Phaser.AUTO (WebGL preferido con caída a Canvas 2D) para soportar equipos de aula
