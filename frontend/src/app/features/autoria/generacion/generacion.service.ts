@@ -30,11 +30,15 @@ export const ESPERA_SI_OCUPADA_MS = 5000;
 /** Relecturas seguidas sin ningún cambio antes de rendirse (36 × 5 s = 3 min, más que los 150 s en que el servidor da una escena por abandonada). */
 export const RELECTURAS_SIN_CAMBIO = 36;
 
+/**
+ * Lo que se está pidiendo ahora. En `escena` y `reparando`, `claves` son todas las escenas del lote que se pidió a la vez (hasta
+ * `ESCENAS_A_LA_VEZ`): la pantalla marca en curso cada una, no solo la primera.
+ */
 export type EtapaVisible =
   | { tipo: 'esqueleto' }
-  | { tipo: 'escena'; n: number; total: number; titulo: string }
+  | { tipo: 'escena'; n: number; total: number; titulo: string; claves: string[] }
   | { tipo: 'reglas' }
-  | { tipo: 'reparando'; ronda: number; titulo: string }
+  | { tipo: 'reparando'; ronda: number; titulo: string; claves: string[] }
   | { tipo: 'listo'; caseVersionId: number }
   | { tipo: 'fallo' };
 
@@ -257,9 +261,10 @@ export class GeneracionService {
     }
     const lote = pedibles.slice(0, ESCENAS_A_LA_VEZ);
     const hechas = g.scenes.filter((s) => s.state === 'done').length;
+    const claves = lote.map((s) => s.clave);
     this.etapa.set(reparar
-      ? { tipo: 'reparando', ronda: g.repair?.round ?? g.repairRounds, titulo: lote[0].titulo }
-      : { tipo: 'escena', n: Math.min(hechas + 1, g.scenes.length), total: g.scenes.length, titulo: lote[0].titulo });
+      ? { tipo: 'reparando', ronda: g.repair?.round ?? g.repairRounds, titulo: lote[0].titulo, claves }
+      : { tipo: 'escena', n: Math.min(hechas + 1, g.scenes.length), total: g.scenes.length, titulo: lote[0].titulo, claves });
 
     const pasos = await Promise.all(lote.map((s) =>
       this.pedir(() => this.autoria.api.generationScene(g.id, s.clave, reparar), 'escena', mia, s.clave)));

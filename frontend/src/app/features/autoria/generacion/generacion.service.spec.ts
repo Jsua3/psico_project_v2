@@ -57,7 +57,7 @@ describe('GeneracionService: el orquestador de la generación', () => {
     expect(veces(g, 'generationAssemble')).toBe(1);
   });
 
-  it('muestra la escena que se está escribiendo con su número y su título', async () => {
+  it('muestra la escena que se está escribiendo con su número y su título, y las claves de todo el lote que pidió', async () => {
     const { g, servicio } = montar();
     const id = await servicio.empezar('universidad', DESCRIPCION);
     g.retener('scene', 'recepcion');
@@ -66,7 +66,8 @@ describe('GeneracionService: el orquestador de la generación', () => {
     await vaciar();
 
     expect(servicio.trabajando()).toBe(true);
-    expect(servicio.etapa()).toEqual({ tipo: 'escena', n: 1, total: 4, titulo: 'Recepción' });
+    // Las dos escenas del lote se están escribiendo a la vez: la pantalla las marca a las dos en curso.
+    expect(servicio.etapa()).toEqual({ tipo: 'escena', n: 1, total: 4, titulo: 'Recepción', claves: ['recepcion', 'consulta'] });
     servicio.detener();
     g.liberar('scene', 'recepcion');
     g.liberar('scene', 'consulta');
@@ -260,7 +261,7 @@ describe('GeneracionService: el orquestador de la generación', () => {
 
     const corrida = servicio.continuar(id);
     await vaciar();
-    expect(servicio.etapa()).toEqual({ tipo: 'reparando', ronda: 1, titulo: 'Primera escucha' });
+    expect(servicio.etapa()).toEqual({ tipo: 'reparando', ronda: 1, titulo: 'Primera escucha', claves: ['consulta'] });
     g.liberar('scene', 'consulta');
     await corrida;
     expect(servicio.etapa()).toMatchObject({ tipo: 'listo' });

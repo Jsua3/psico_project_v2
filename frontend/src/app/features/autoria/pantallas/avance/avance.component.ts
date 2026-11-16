@@ -1,133 +1,259 @@
 import {
-  ChangeDetectionStrategy, Component, ElementRef, Injector, OnDestroy, OnInit, afterNextRender, computed, effect, inject, signal, viewChild,
+  ChangeDetectionStrategy, Component, ElementRef, Injector, OnDestroy, OnInit, afterNextRender, computed, effect, inject, linkedSignal,
+  signal, viewChild,
 } from '@angular/core';
+import { NgTemplateOutlet } from '@angular/common';
 import { ActivatedRoute, Router, RouterLink } from '@angular/router';
 
 import type { Generation } from '../../../../core/models/generacion.model';
 import { GeneracionService } from '../../generacion/generacion.service';
 import { rutaDelEditor } from '../../rutas';
+import { anuncioDeLasPartes, esNegativa, parteConError, partesDeLaGeneracion } from './avance-partes';
+import { ParteAvanceComponent } from './parte-avance.component';
 
-type EstadoEtapa = 'hecha' | 'en-curso' | 'error' | 'pendiente';
+/** Desde qué parte del tope de llamadas se le dice a la docente cuántos intentos con la IA lleva. */
+const AVISO_DE_INTENTOS = 0.75;
 
-interface ItemEtapa {
-  clave: string;
-  texto: string;
-  estado: EstadoEtapa;
-}
-
-// El estado de cada etapa va en texto y en símbolo, nunca solo en color.
-const SIMBOLO: Record<EstadoEtapa, string> = { hecha: '✓', 'en-curso': '…', error: '!', pendiente: '○' };
-// BORRADOR: textos nuevos, pendientes de la aprobación de Psicología
-const TEXTO_ESTADO: Record<EstadoEtapa, string> = { hecha: 'Hecha', 'en-curso': 'En curso', error: 'Con error', pendiente: 'Pendiente' };
+type Modo = 'generando' | 'listo' | 'fallo' | 'fatal' | 'cancelada';
 
 /**
- * La pantalla de avance de la generación (`casos/nuevo/generando/:generacionId`): llama a `continuar(id)` al entrar y
- * `detener()` al salir. Muestra la lista de etapas con su estado, anuncia cada cambio en una región viva y, al llegar a
- * «listo» o «fallo», lleva el foco al título. No navega sola: la docente abre su caso con el botón (P4).
+ * La pantalla de avance de la generación (`casos/nuevo/generando/:generacionId`), donde empieza la demo: la docente ve qué
+ * parte va, qué salió, qué falló y qué puede hacer. Llama a `continuar(id)` al entrar y `detener()` al salir.
+ *
+ * Arriba, cuántas partes van hechas (`role="progressbar"`) y qué se está haciendo ahora (`role="status"`: anuncia solo los
+ * cambios de etapa). Debajo, la lista de partes (esqueleto, cada escena, cada ronda de corrección y la revisión de las reglas)
+ * con su estado en símbolo y texto; la parte en curso dice cuánto lleva, y la que falló trae el mensaje del servidor y lo que se
+ * puede hacer. Al llegar a «listo», «fallo», a una generación que no existe o a una cancelada, el foco va al título. No navega
+ * sola: la docente abre su caso con el botón (P4).
  */
 @Component({
   selector: 'app-avance',
   changeDetection: ChangeDetectionStrategy.OnPush,
-  imports: [RouterLink],
+  imports: [NgTemplateOutlet, RouterLink, ParteAvanceComponent],
   template: `
     <div class="pagina avance">
-      <h1 #titulo tabindex="-1">{{ tituloPagina() }}</h1>
-      <p role="status" class="anuncio">{{ anuncio() }}</p>
-
-      @if (tipoEtapa() === 'listo') {
-        <p>Lo marcado «Sugerido por la IA» espera tu revisión.</p>
-      } @else if (tipoEtapa() === 'fallo') {
-        <p>La IA dejó partes que no cumplen las reglas del documento. Prueba a describir el caso de otra forma.</p>
-      }
-
-      @if (!fatal()) {
-        <ol class="etapas" aria-label="Etapas de la generación">
-          @for (item of items(); track item.clave) {
-            <li class="etapa" [attr.data-estado]="item.estado">
-              <span class="simbolo" aria-hidden="true">{{ simbolo(item.estado) }}</span>
-              <span class="texto">{{ item.texto }}</span>
-              <span class="estado">{{ textoEstado(item.estado) }}</span>
-            </li>
+      <div class="encabezado">
+        <h1 #titulo tabindex="-1">{{ tituloPagina() }}</h1>
+        @switch (modo()) {
+          @case ('generando') {
+            <!-- BORRADOR: texto nuevo, pendiente de la aprobación de Psicología -->
+            <p class="entrada">La IA escribe tu borrador parte por parte. Cada parte puede tardar un par de minutos.</p>
           }
-        </ol>
+          @case ('listo') {
+            <p class="entrada">Lo marcado «Sugerido por la IA» espera tu revisión.</p>
+            <p class="entrada">{{ textoPorResolver() }}</p>
+            <div class="acciones">
+              <button type="button" class="boton boton-primario" (click)="abrirMiCaso()">Abrir mi caso</button>
+            </div>
+          }
+          @case ('fallo') {
+            <p class="entrada">La IA dejó partes que no cumplen las reglas del documento. Prueba a describir el caso de otra forma.</p>
+            <div class="acciones">
+              <button type="button" class="boton boton-primario" [attr.aria-disabled]="cancelando()" (click)="empezarDeNuevo()">
+                Empezar de nuevo
+              </button>
+            </div>
+            @if (errorAlCancelar()) {
+              <p class="aviso-error tarjeta" role="alert">{{ errorAlCancelar() }}</p>
+            }
+          }
+          @case ('fatal') {
+            <div class="tarjeta aviso-error" role="alert">
+              <p>{{ error()?.mensaje }}</p>
+            </div>
+            <div class="acciones">
+              <a class="boton boton-primario" [routerLink]="rutaVolver" [queryParams]="consultaVolver()">Volver a crear un caso</a>
+            </div>
+          }
+          @case ('cancelada') {
+            <!-- BORRADOR: texto nuevo, pendiente de la aprobación de Psicología -->
+            <p class="entrada">Se canceló en otra pestaña o en una visita anterior. Puedes empezar uno nuevo.</p>
+            <div class="acciones">
+              <a class="boton boton-primario" [routerLink]="rutaVolver">Volver a crear un caso</a>
+            </div>
+          }
+        }
+      </div>
+
+      @if (modo() === 'generando' || modo() === 'listo' || modo() === 'fallo') {
+        <section class="panel tarjeta" aria-label="Avance de tu caso">
+          <p class="caso">
+            <span class="rotulo">Tu caso</span>
+            @if (tituloCaso(); as t) {
+              <span class="titulo-caso">«{{ t }}»</span>
+            } @else {
+              <!-- BORRADOR: texto nuevo, pendiente de la aprobación de Psicología -->
+              <span class="titulo-caso por-saber">El título llega con el esqueleto.</span>
+            }
+          </p>
+
+          @if (modo() === 'generando') {
+            <div class="medidor">
+              <div class="cuenta-fila">
+                <p class="cuenta">{{ textoCuenta() }}</p>
+                @if (textoIntentos(); as intentos) {
+                  <p class="intentos">{{ intentos }}</p>
+                }
+              </div>
+              <div class="barra" role="progressbar" aria-label="Partes hechas de tu caso" aria-valuemin="0"
+                   [attr.aria-valuemax]="cuenta()?.total ?? null" [attr.aria-valuenow]="cuenta()?.hechas ?? null"
+                   [attr.aria-valuetext]="textoValor()">
+                <span class="relleno" [style.--avance]="fraccion()"></span>
+              </div>
+              <p class="ahora">
+                @if (anuncio()) {
+                  <span class="rotulo" aria-hidden="true">Ahora</span>
+                } @else if (detenidoEn(); as donde) {
+                  <!-- BORRADOR: texto nuevo, pendiente de la aprobación de Psicología -->
+                  <span class="detenido"><span aria-hidden="true">! </span>Se detuvo en «{{ donde }}».</span>
+                }
+                <span role="status">{{ anuncio() }}</span>
+              </p>
+              @if (error() && !errorEn()) {
+                <ng-container *ngTemplateOutlet="problema" />
+              }
+            </div>
+          }
+
+          <ol class="partes" aria-label="Las partes de tu caso">
+            @for (p of partes(); track p.clave) {
+              <li appParteAvance [parte]="p" [segundos]="segundos(p.clave)">
+                @if (p.clave === errorEn()) {
+                  <ng-container *ngTemplateOutlet="problema" />
+                }
+              </li>
+            }
+          </ol>
+        </section>
       }
 
-      @if (error(); as e) {
-        <div class="tarjeta aviso-error" role="alert">
-          <p>{{ e.mensaje }}</p>
-          <div class="acciones">
-            @if (e.fatal) {
-              <a class="boton boton-primario" [routerLink]="rutaVolver" [queryParams]="consultaVolver()">Volver a crear un caso</a>
-            } @else {
-              @if (e.reintentable) {
-                <button type="button" class="boton boton-primario" (click)="reintentar()">Reintentar esta parte</button>
-              }
+      @if (modo() === 'generando') {
+        <div class="pie">
+          <p class="texto-secundario">Puedes cerrar esta página: el avance se guarda y podrás retomarlo.</p>
+          @if (!sinIntentos()) {
+            <div class="acciones">
               <button type="button" class="boton" [attr.aria-disabled]="cancelando()" (click)="empezarDeNuevo()">
                 Cancelar y empezar de nuevo
               </button>
-            }
-          </div>
+            </div>
+          }
           @if (errorAlCancelar()) {
-            <p>{{ errorAlCancelar() }}</p>
+            <p class="aviso-error tarjeta" role="alert">{{ errorAlCancelar() }}</p>
           }
         </div>
       }
-
-      @if (tipoEtapa() === 'listo') {
-        <div class="acciones">
-          <button type="button" class="boton boton-primario" (click)="abrirMiCaso()">Abrir mi caso</button>
-        </div>
-      } @else if (tipoEtapa() === 'fallo') {
-        <div class="acciones">
-          <button type="button" class="boton boton-primario" [attr.aria-disabled]="cancelando()" (click)="empezarDeNuevo()">
-            Empezar de nuevo
-          </button>
-        </div>
-        @if (errorAlCancelar()) {
-          <p class="aviso-error tarjeta" role="alert">{{ errorAlCancelar() }}</p>
-        }
-      }
-
-      @if (tipoEtapa() !== 'listo' && tipoEtapa() !== 'fallo' && !fatal()) {
-        <p class="texto-secundario">Puedes cerrar esta página: el avance se guarda y podrás retomarlo.</p>
-      }
     </div>
+
+    <ng-template #problema>
+      @if (error(); as e) {
+        <div class="problema">
+          <div role="alert">
+            <p class="mensaje">{{ e.mensaje }}</p>
+            @if (negativa()) {
+              <!-- BORRADOR: texto nuevo, pendiente de la aprobación de Psicología -->
+              <p class="pista">
+                Si vuelve a negarse, usa «Cancelar y empezar de nuevo»: vuelves a la descripción con el mismo lugar y puedes contarla con
+                otras palabras.
+              </p>
+            }
+          </div>
+          <div class="acciones">
+            @if (e.reintentable) {
+              <button type="button" class="boton boton-primario" (click)="reintentar()">Reintentar esta parte</button>
+            } @else if (sinIntentos()) {
+              <!-- BORRADOR: texto del brief de la Tarea 11c, pendiente de la aprobación de Psicología -->
+              <button type="button" class="boton boton-primario" [attr.aria-disabled]="cancelando()" (click)="empezarDeNuevo()">
+                Empezar un caso nuevo
+              </button>
+            }
+          </div>
+        </div>
+      }
+    </ng-template>
   `,
   styles: `
-    .avance { display: flex; flex-direction: column; gap: 16px; }
-    .avance h1 { margin: 0; }
-    .avance h1:focus { outline: 3px solid var(--primario); outline-offset: 4px; }
-    .avance p { margin: 0; }
-    .anuncio { min-height: 24px; font-size: var(--autoria-texto-16); }
-    .etapas { margin: 0; padding: 0; list-style: none; display: flex; flex-direction: column; gap: 8px; }
-    .etapa {
-      display: flex; flex-wrap: wrap; gap: 4px 12px; align-items: center; padding: 8px 12px;
-      border: 2px solid var(--linea); border-radius: var(--radio-control); background: var(--superficie);
+    .avance { gap: 1.5rem; max-inline-size: 60rem; }
+    .encabezado { display: flex; flex-direction: column; gap: 0.75rem; }
+    .encabezado h1:focus { outline: 3px solid var(--foco); outline-offset: 4px; }
+    .encabezado p { margin: 0; }
+    .entrada { font-size: var(--autoria-texto-18); line-height: 1.75rem; color: var(--texto-secundario); }
+    .acciones { display: flex; flex-wrap: wrap; gap: 0.5rem 1rem; align-items: center; }
+    .aviso-error { display: flex; flex-direction: column; gap: 0.75rem; margin: 0; border: 2px solid var(--peligro); background: var(--peligro-tinte); }
+    .aviso-error p { margin: 0; }
+
+    .panel { display: flex; flex-direction: column; gap: 1.25rem; padding: 1.5rem; }
+    .panel p { margin: 0; }
+    .rotulo {
+      display: block;
+      color: var(--texto-secundario);
+      font-size: var(--autoria-texto-14);
+      font-weight: 700;
+      line-height: 1.25rem;
+      letter-spacing: 0.06em;
+      text-transform: uppercase;
     }
-    .etapa .simbolo {
-      display: inline-flex; align-items: center; justify-content: center; width: 32px; height: 32px; flex: none;
-      border-radius: 999px; border: 2px solid var(--borde-control); font-weight: 700;
+    .caso { display: flex; flex-direction: column; gap: 0.125rem; }
+    .titulo-caso { font-size: var(--autoria-texto-24); font-weight: 700; line-height: 2rem; overflow-wrap: anywhere; }
+    .titulo-caso.por-saber { color: var(--texto-secundario); font-size: var(--autoria-texto-18); font-weight: 600; line-height: 2rem; }
+
+    .medidor {
+      display: flex; flex-direction: column; gap: 0.625rem;
+      padding-block-end: 1.25rem; border-block-end: 1px solid var(--linea);
     }
-    .etapa .texto { flex: 1 1 220px; font-size: var(--autoria-texto-16); line-height: 24px; }
-    .etapa .estado { font-size: var(--autoria-texto-16); font-weight: 700; }
-    .etapa[data-estado='hecha'] { border-color: var(--adecuada-borde); }
-    .etapa[data-estado='hecha'] .simbolo { background: var(--adecuada-tinte); border-color: var(--adecuada-borde); color: var(--adecuada); }
-    .etapa[data-estado='en-curso'] { border-color: var(--primario); }
-    .etapa[data-estado='error'] { border-color: var(--peligro); background: var(--peligro-tinte); }
-    .aviso-error { display: flex; flex-direction: column; gap: 12px; border: 2px solid var(--peligro); background: var(--peligro-tinte); }
-    .acciones { display: flex; flex-wrap: wrap; gap: 8px 16px; align-items: center; }
+    .cuenta-fila { display: flex; flex-wrap: wrap; align-items: baseline; justify-content: space-between; gap: 0.25rem 1rem; }
+    .cuenta { font-size: var(--autoria-texto-20); font-weight: 700; line-height: 1.75rem; font-variant-numeric: tabular-nums; }
+    .intentos { color: var(--aviso-texto); font-size: var(--autoria-texto-16); font-weight: 700; }
+    .barra {
+      position: relative;
+      block-size: 0.75rem;
+      overflow: hidden;
+      border: 1px solid var(--borde-control);
+      border-radius: 999px;
+      background: var(--fondo-hundido);
+    }
+    .relleno {
+      position: absolute;
+      inset: 0;
+      background: var(--primario);
+      transform: scaleX(var(--avance, 0));
+      transform-origin: left center;
+      transition: transform var(--ds-dur-base) var(--ds-ease-out);
+    }
+    .ahora {
+      display: flex; flex-wrap: wrap; align-items: baseline; gap: 0.25rem 0.5rem;
+      min-block-size: 1.75rem; font-size: var(--autoria-texto-16); line-height: 1.5rem;
+    }
+    .ahora .rotulo { display: inline; }
+    .detenido { color: var(--peligro); font-weight: 700; }
+
+    .partes { display: flex; flex-direction: column; margin: 0; padding: 0; list-style: none; }
+
+    .problema { display: flex; flex-direction: column; gap: 0.75rem; margin-block-start: 0.5rem; }
+    .problema .mensaje { color: var(--peligro); font-size: var(--autoria-texto-16); font-weight: 700; line-height: 1.5rem; }
+    .problema .pista { margin-block-start: 0.25rem; font-size: var(--autoria-texto-16); line-height: 1.5rem; }
+
+    .pie { display: flex; flex-direction: column; gap: 0.75rem; }
+    .pie p { margin: 0; font-size: var(--autoria-texto-16); }
+
+    @media (max-width: 40rem) {
+      .panel { padding: 1rem 0.75rem; }
+      .acciones .boton { flex: 1 1 100%; }
+    }
   `,
 })
 export class AvanceComponent implements OnInit, OnDestroy {
   private readonly generacion = inject(GeneracionService);
   private readonly router = inject(Router);
   private readonly injector = inject(Injector);
+  private readonly anfitrion = inject<ElementRef<HTMLElement>>(ElementRef);
   private readonly id = inject(ActivatedRoute).snapshot.paramMap.get('generacionId') ?? '';
   private readonly titulo = viewChild.required<ElementRef<HTMLElement>>('titulo');
 
   protected readonly error = this.generacion.error;
   protected readonly cancelando = signal(false);
   protected readonly errorAlCancelar = signal<string | null>(null);
+  /** La parte que la docente mandó reintentar: se ve en curso al instante, sin esperar la primera respuesta. */
+  private readonly reintentando = signal<string | null>(null);
 
   /** La generación de esta pantalla: lo que el servicio guarda de otra generación (de una visita anterior) no cuenta. */
   private readonly g = computed<Generation | null>(() => {
@@ -135,9 +261,17 @@ export class AvanceComponent implements OnInit, OnDestroy {
     return g && g.id === this.id ? g : null;
   });
   private readonly etapa = computed(() => (this.g() ? this.generacion.etapa() : null));
-  protected readonly tipoEtapa = computed(() => this.etapa()?.tipo ?? null);
-  /** La generación no existe o la función se apagó: no hay etapas que mostrar ni nada que reintentar, solo volver. */
-  protected readonly fatal = computed(() => this.error()?.fatal === true);
+
+  protected readonly modo = computed<Modo>(() => {
+    if (this.error()?.fatal) return 'fatal';
+    const g = this.g();
+    if (g?.status === 'imported') return 'listo';
+    if (g?.status === 'failed') return 'fallo';
+    // Sin generación, sin error y sin nada en marcha, la corrida terminó en `cancelled` (el servicio la suelta).
+    if (!g && !this.error() && !this.generacion.trabajando() && !this.cancelando()) return 'cancelada';
+    return 'generando';
+  });
+
   protected readonly rutaVolver = rutaDelEditor('/salas', null);
   protected readonly consultaVolver = computed(() => {
     const lugar = this.g()?.lugarId;
@@ -145,76 +279,118 @@ export class AvanceComponent implements OnInit, OnDestroy {
   });
 
   protected readonly tituloPagina = computed(() => {
-    // BORRADOR: texto nuevo, pendiente de la aprobación de Psicología
-    if (this.fatal()) return 'No pudimos seguir armando tu caso';
-    switch (this.tipoEtapa()) {
+    switch (this.modo()) {
+      // BORRADOR: texto nuevo, pendiente de la aprobación de Psicología
+      case 'fatal': return 'No pudimos seguir armando tu caso';
       // BORRADOR: textos del brief de la Tarea 9, pendientes de la aprobación de Psicología
       case 'listo': return 'Tu caso está listo como borrador';
       case 'fallo': return 'No pudimos armar un caso que se pueda abrir';
+      // BORRADOR: texto nuevo, pendiente de la aprobación de Psicología
+      case 'cancelada': return 'Este caso se canceló';
       default: return 'Estamos armando tu caso';
     }
   });
 
-  /** Lo que se está haciendo ahora, para la región viva. En «listo», «fallo» o error lo dicen el foco y la alerta. */
-  protected readonly anuncio = computed(() => {
-    const etapa = this.etapa();
-    if (this.error() || !etapa) return '';
-    switch (etapa.tipo) {
-      case 'esqueleto': return 'Armando el esqueleto';
-      case 'escena': return `Escribiendo la escena ${etapa.n} de ${etapa.total}: ${etapa.titulo}`;
-      case 'reglas': return 'Revisando las reglas';
-      case 'reparando': return `Corrigiendo «${etapa.titulo}» (ronda ${etapa.ronda} de 2)`;
-      default: return '';
-    }
+  protected readonly tituloCaso = computed(() => this.g()?.skeleton?.titulo ?? null);
+
+  /** Las rondas de corrección que esta pantalla vio, con sus escenas: al terminar la ronda el servidor ya no las trae. */
+  private readonly rondasVistas = linkedSignal<Generation['repair'], Record<number, string[]>>({
+    source: () => this.g()?.repair ?? null,
+    computation: (repair, previo) => (repair ? { ...previo?.value, [repair.round]: repair.scenes } : previo?.value ?? {}),
   });
 
-  protected readonly items = computed<ItemEtapa[]>(() => {
+  protected readonly partes = computed(() => partesDeLaGeneracion({
+    g: this.g(),
+    error: this.error(),
+    etapa: this.etapa(),
+    trabajando: this.generacion.trabajando(),
+    reintentando: this.reintentando(),
+    // Se lee siempre, no solo después de una ronda: así recuerda las escenas de cada ronda mientras el servidor las trae.
+    rondasVistas: this.rondasVistas(),
+  }));
+
+  /** Dónde va la alerta de un error: junto a la parte que falló (o, si no se sabe cuál, en el resumen de arriba). */
+  protected readonly errorEn = computed(() => parteConError(this.g(), this.error(), this.partes()));
+
+  /** La IA se negó a escribir la parte que falló (`refusal`): se sugiere contar el caso con otras palabras. */
+  protected readonly negativa = computed(() => esNegativa(this.g(), this.error()));
+
+  /** Se acabaron los intentos con la IA (`GENERATION_CALLS_EXHAUSTED`): lo único que queda es empezar otro caso. */
+  protected readonly sinIntentos = computed(() => {
+    const e = this.error();
+    return !!e && !e.reintentable && !e.fatal;
+  });
+
+  protected readonly cuenta = computed(() => {
+    if (!this.g()?.scenes.length) return null; // sin esqueleto no se sabe cuántas partes habrá
+    const contadas = this.partes().filter((p) => p.tipo !== 'escenas-por-saber');
+    return { hechas: contadas.filter((p) => p.estado === 'hecha').length, total: contadas.length };
+  });
+  protected readonly fraccion = computed(() => {
+    const c = this.cuenta();
+    return c ? c.hechas / c.total : 0;
+  });
+  // BORRADOR: textos nuevos, pendientes de la aprobación de Psicología
+  protected readonly textoCuenta = computed(() => {
+    const c = this.cuenta();
+    if (c) return `${c.hechas} de ${c.total} partes hechas`;
+    return this.g() || this.error() ? 'Primero, el esqueleto: ahí sabremos cuántas escenas tendrá tu caso.' : 'Leyendo el avance de tu caso…';
+  });
+  protected readonly textoValor = computed(() => {
+    const c = this.cuenta();
+    return c ? `${c.hechas} de ${c.total} partes hechas` : 'Armando el esqueleto: todavía no sabemos cuántas partes tendrá el caso';
+  });
+  protected readonly textoIntentos = computed(() => {
     const g = this.g();
-    const etapa = this.etapa();
-    const error = this.error();
-    const trabajando = this.generacion.trabajando();
-    const items: ItemEtapa[] = [];
-
-    const esqueleto: EstadoEtapa = !g ? (error ? 'error' : 'en-curso')
-      : g.status !== 'created' ? 'hecha'
-      : error?.parte === 'esqueleto' ? 'error'
-      : trabajando || etapa?.tipo === 'esqueleto' ? 'en-curso' : 'pendiente';
-    items.push({ clave: 'esqueleto', texto: 'Armando el esqueleto', estado: esqueleto });
-
-    const total = g?.scenes.length ?? 0;
-    g?.scenes.forEach((s, i) => {
-      const escribiendo = trabajando && s.state === 'pending' && etapa?.tipo === 'escena' && etapa.titulo === s.titulo;
-      const estado: EstadoEtapa = s.state === 'done' ? 'hecha'
-        : s.state === 'error' || (error?.parte === 'escena' && error.clave === s.clave) ? 'error'
-        : s.state === 'running' || escribiendo ? 'en-curso' : 'pendiente';
-      items.push({
-        clave: `escena-${s.clave}`,
-        texto: estado === 'en-curso' ? `Escribiendo la escena ${i + 1} de ${total}: ${s.titulo}` : `Escena ${i + 1} de ${total}: ${s.titulo}`,
-        estado,
-      });
-    });
-
-    const reparando = etapa?.tipo === 'reparando' ? etapa : null;
-    if (reparando || (g?.status === 'needs_repair' && g.repair)) {
-      const titulo = reparando?.titulo ?? g?.scenes.find((s) => s.clave === g.repair?.scenes[0])?.titulo ?? '';
-      const ronda = reparando?.ronda ?? g?.repair?.round ?? 1;
-      items.push({ clave: 'reparar', texto: `Corrigiendo «${titulo}» (ronda ${ronda} de 2)`, estado: error ? 'error' : 'en-curso' });
-    }
-
-    const reglas: EstadoEtapa = g?.status === 'imported' ? 'hecha'
-      : g?.status === 'failed' || error?.parte === 'ensamblado' ? 'error'
-      : etapa?.tipo === 'reglas' && trabajando ? 'en-curso' : 'pendiente';
-    items.push({ clave: 'reglas', texto: 'Revisando las reglas', estado: reglas });
-    return items;
+    if (!g || g.callsLimit <= 0 || g.callsUsed / g.callsLimit < AVISO_DE_INTENTOS) return null;
+    // BORRADOR: texto del brief de la Tarea 11c, pendiente de la aprobación de Psicología
+    return `Usaste ${g.callsUsed} de ${g.callsLimit} intentos con la IA.`;
   });
+  protected readonly textoPorResolver = computed(() => {
+    const n = this.g()?.issues.length ?? 0;
+    // BORRADOR: textos nuevos, pendientes de la aprobación de Psicología
+    if (!n) return 'Sin faltas: no quedó nada por resolver.';
+    return n === 1 ? 'Queda 1 cosa por resolver en el editor.' : `Quedan ${n} cosas por resolver en el editor.`;
+  });
+
+  /**
+   * Lo que se está haciendo ahora, para la región viva: cambia solo cuando cambia la etapa (nunca con el contador). Con un error,
+   * en «listo» o en «fallo» queda vacía: lo dicen la alerta y el foco en el título.
+   */
+  protected readonly anuncio = computed(() => {
+    const g = this.g();
+    return this.error() || this.modo() !== 'generando' || !g ? '' : anuncioDeLasPartes(g, this.partes());
+  });
+
+  protected readonly detenidoEn = computed(() => {
+    const clave = this.errorEn();
+    return clave ? this.partes().find((p) => p.clave === clave)?.nombre ?? null : null;
+  });
+
+  /** Las partes en curso. Solo cambia cuando cambia cuáles son (no cada vez que se relee la generación). */
+  private readonly enCurso = computed(() => this.partes().filter((p) => p.estado === 'en-curso').map((p) => p.clave), {
+    equal: (a, b) => a.length === b.length && a.every((clave, i) => clave === b[i]),
+  });
+  /** Desde cuándo (reloj del navegador) ve esta pantalla en curso cada parte: de ahí sale «lleva 40 s». */
+  private readonly inicios = linkedSignal<string[], Record<string, number>>({
+    source: this.enCurso,
+    computation: (claves, previo) => {
+      const ahora = Date.now();
+      return Object.fromEntries(claves.map((clave) => [clave, previo?.value[clave] ?? ahora]));
+    },
+  });
+  /** El reloj del contador: avanza cada segundo mientras hay algo en curso. */
+  private readonly ahora = signal(Date.now());
 
   constructor() {
-    // Al llegar a «listo» o «fallo» el foco va al título, cuando ya muestra su texto nuevo.
+    // Al llegar a «listo», «fallo», a una generación que no existe o a una cancelada, el foco va al título con su texto nuevo.
     effect(() => {
-      const tipo = this.tipoEtapa();
-      if (tipo === 'listo' || tipo === 'fallo' || this.fatal()) {
-        afterNextRender(() => this.titulo().nativeElement.focus(), { injector: this.injector });
-      }
+      if (this.modo() !== 'generando') afterNextRender(() => this.titulo().nativeElement.focus(), { injector: this.injector });
+    });
+    effect((alLimpiar) => {
+      if (!this.enCurso().length) return;
+      const reloj = setInterval(() => this.ahora.set(Date.now()), 1000);
+      alLimpiar(() => clearInterval(reloj));
     });
   }
 
@@ -226,16 +402,21 @@ export class AvanceComponent implements OnInit, OnDestroy {
     this.generacion.detener();
   }
 
-  protected simbolo(estado: EstadoEtapa): string {
-    return SIMBOLO[estado];
+  protected segundos(clave: string): number | null {
+    const inicio = this.inicios()[clave];
+    return inicio === undefined ? null : Math.max(0, (this.ahora() - inicio) / 1000);
   }
 
-  protected textoEstado(estado: EstadoEtapa): string {
-    return TEXTO_ESTADO[estado];
-  }
-
+  /** Reintenta la parte que falló y deja el foco en ella (el botón desaparece al reintentar). */
   protected reintentar(): void {
+    const clave = this.errorEn();
+    this.reintentando.set(clave);
     void this.generacion.reintentar();
+    if (!clave) return;
+    afterNextRender(() => {
+      const fila = [...this.anfitrion.nativeElement.querySelectorAll<HTMLElement>('li.parte')].find((li) => li.dataset['parte'] === clave);
+      fila?.focus();
+    }, { injector: this.injector });
   }
 
   protected abrirMiCaso(): void {
@@ -243,10 +424,14 @@ export class AvanceComponent implements OnInit, OnDestroy {
     if (id) void this.router.navigateByUrl(rutaDelEditor('/editor', String(id)));
   }
 
-  /** Cancela esta generación (si ya terminó, el servicio lo da por hecho) y vuelve al paso 2 con el mismo lugar. */
+  /**
+   * Cancela esta generación (si ya terminó, el servicio lo da por hecho) y vuelve al paso 2 con el mismo lugar. Si cancelar
+   * falla, lo dice y, si no había un error a la vista, la generación sigue: la pantalla no se queda quieta.
+   */
   protected async empezarDeNuevo(): Promise<void> {
     if (this.cancelando()) return;
     const lugarId = this.g()?.lugarId;
+    const habiaError = !!this.error();
     this.cancelando.set(true);
     this.errorAlCancelar.set(null);
     try {
@@ -255,9 +440,10 @@ export class AvanceComponent implements OnInit, OnDestroy {
       // BORRADOR: texto nuevo, pendiente de la aprobación de Psicología
       this.errorAlCancelar.set('No pudimos cancelar el caso. Vuelve a intentarlo.');
       this.cancelando.set(false);
+      if (!habiaError && this.modo() === 'generando') void this.generacion.continuar(this.id);
       return;
     }
-    this.cancelando.set(false);
+    // `cancelando` sigue encendido hasta que la página cambia: así no se ve «Este caso se canceló» por un instante.
     const destino = lugarId ? `/salas?lugar=${encodeURIComponent(lugarId)}` : '/salas';
     await this.router.navigateByUrl(rutaDelEditor(destino, null));
   }

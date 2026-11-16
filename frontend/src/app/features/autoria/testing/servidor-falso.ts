@@ -68,10 +68,15 @@ export class ServidorFalso {
   readonly generaciones: GeneracionFalsa;
   private siguienteId = 5000;
 
-  constructor(caso: CasoApi, private readonly lugar: Escenario | null = null) {
+  /** `generacion` pasa sus opciones (cupos, tope de llamadas) a la generación falsa. */
+  constructor(
+    caso: CasoApi,
+    private readonly lugar: Escenario | null = null,
+    generacion: ConstructorParameters<typeof GeneracionFalsa>[2] = {},
+  ) {
     this.editor = clonar(caso.editor);
     for (const mundo of caso.mundos) this.mundos.set(mundo.nodeId, clonar(mundo));
-    this.generaciones = new GeneracionFalsa((generado) => this.importarCaso(generado), () => this.id());
+    this.generaciones = new GeneracionFalsa((generado) => this.importarCaso(generado), () => this.id(), generacion);
   }
 
   /** Lo que `rehearsedToEnd` dice desde ahora: si el autor tiene un ensayo de esta versión que llegó a un final. */
