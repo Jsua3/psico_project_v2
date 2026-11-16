@@ -81,6 +81,7 @@ import { UiDialog } from '../../shared/ui/dialog/ui-dialog';
 import { UiScopeNotice } from '../../shared/ui/scope-notice/ui-scope-notice';
 import { CONSENT_RECORDER, ConsentNoticeStaleError, consentStorageKey } from './consent-recorder';
 import { DRAFT_COPY } from './draft-copy';
+import { variablesDeArte } from './dialogo-arte';
 
 /**
  * Plazo máximo de la precarga del consentimiento (S3-2b): antes de decidir si se pide el aviso se pregunta al servidor si la
@@ -135,7 +136,7 @@ const QUEUED_PAUSE_SLOW_NOTICE = 'La acción en curso está tardando. Estamos pa
     ReactionDirectorComponent, CommentBubbleComponent, RehearsalGoneComponent, RehearsalPanelComponent, SensitiveNoticeComponent, UiButton, UiErrorState, UiScopeNotice, UiSpinner
   ],
   template: `
-    <div class="game-container" data-skin="game" id="main-content" tabindex="-1" [attr.data-mode]="viewMode()"
+    <div class="game-container pixel-juego" data-skin="game" id="main-content" tabindex="-1" [attr.data-mode]="viewMode()" [style]="arteJuego"
       [class.game-container--reduce-motion]="reduceMotion()" [attr.data-rehearsal]="mode() === 'rehearsal' ? 'true' : null">
       <!-- Sin región viva propia (F6-12): todo anuncio sale por las dos regiones persistentes de la app
            (LiveRegionAnnouncer), que ya existen antes de que cambie su texto. -->
@@ -1359,6 +1360,13 @@ export class SimulationPlayComponent implements OnInit, OnDestroy {
   protected readonly viewedNpcKeys = signal<ReadonlySet<string>>(new Set<string>());
 
   /** Estado de vista del gameplay — gobierna el layout vía [attr.data-mode]. */
+  /**
+   * El arte de pixel de toda la pantalla (bloque U1): marcos, tramas, letras e iconos como variables CSS en la raíz, para
+   * que el HUD, los avisos y las capas usen las piezas del cuadro de diálogo. De noche, como el cuadro mientras su
+   * entrada `momento` no se enlace con el momento de la sala.
+   */
+  protected readonly arteJuego = variablesDeArte('noche');
+
   readonly viewMode = computed<SimulationViewMode>(() => resolveViewMode({
     status: this.reactingToLast() ? 'IN_PROGRESS' : (this.attempt()?.status ?? null),
     journalOpen: this.journalOpen(),

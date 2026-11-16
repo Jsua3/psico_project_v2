@@ -1,0 +1,53 @@
+// Fichas del lenguaje de pixel de la pantalla del juego (bloque U1): las mismas tintas, penumbra y luz que el cuadro de
+// diálogo de I1 (`dialogue-panel.component.ts`), sacadas a un solo sitio para que el HUD, los avisos, la pausa y el resto
+// hablen el mismo idioma. Se declaran en `.pixel-juego` (la raíz del simulador), no en `:root`: por herencia llegan a todo
+// lo que se pinta dentro del juego y no ensucian el portal. Los marcos y tramas (PNG) no van aquí: llegan como variables
+// por `variablesDeArte()` de `dialogo-arte.ts`, con la luz del momento del día.
+
+.pixel-juego {
+  // Un punto de mundo: el HUD usa el mismo a todo tamaño (la cámara descansa en ×2). El cuadro de diálogo sube a 3 px
+  // desde 1800 de ancho por su cuenta.
+  --pixel-px: 2px;
+  --pixel-borde: calc(6 * var(--pixel-px));
+  --pixel-tam: 14px;
+
+  --pixel-tinta: #f2ecdf;
+  --pixel-tinta-suave: #c3bccf;
+  --pixel-tinta-apagada: #a9a2b8;
+  --pixel-tinta-oscura: #1b1530;
+  --pixel-penumbra: #1b1826;
+  --pixel-penumbra-alzada: #24203a;
+  --pixel-penumbra-hundida: #16141f;
+  --pixel-contorno: #15131d;
+  --pixel-canto: #3a3452;
+  --pixel-tecla: #3a3454;
+  --pixel-tecla-hundida: #221e33;
+  --pixel-separador: #2a2638;
+  --pixel-ventanilla: #6c6589;
+  --pixel-ambar: #f5d49b;
+  --pixel-ambar-fondo: #3b2a12;
+  --pixel-hecho: #9fd9a8;
+  --pixel-brasa: #2e161c;
+  --pixel-brasa-alzada: #3e1c22;
+  --pixel-brasa-hundida: #22100f;
+  --pixel-brasa-tinta: #ffd6c4;
+  --pixel-brasa-tinta-sobre: #fff1ea;
+  --pixel-crema: #f0e6cf;
+  --pixel-cine: #0b0a12;
+  --pixel-velo: rgb(11 10 18 / 0.78);
+  --pixel-velo-fuerte: rgb(11 10 18 / 0.93);
+  --pixel-plano-borde: #5c5672;
+
+  // Letra: JetBrains Mono para nombres, pestañas y teclas; Poppins para el texto (las mismas del cuadro).
+  --pixel-f-nombre: 'JetBrains Mono', ui-monospace, monospace;
+  --pixel-f-texto: 'Poppins', system-ui, -apple-system, 'Segoe UI', sans-serif;
+  --pixel-letra-chica: 0.8em;
+  --pixel-letra-media: 0.88em;
+
+  @media (min-width: 1800px) {
+    --pixel-tam: 16px;
+  }
+  @media (max-width: 560px) {
+    --pixel-tam: 13px;
+  }
+}
