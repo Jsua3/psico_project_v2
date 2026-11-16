@@ -442,7 +442,7 @@ PIEZAS = {
     'banca': dict(nombre='Banca', tipo='mueble', dibujar=banca, cuadros=1,
                   huella=dict(ancho=96, fondo=12, alto=30), material='madera y hierro', reemplaza=B + 'banca.png'),
     'camilla': dict(nombre='Camilla de enfermería', tipo='mueble', dibujar=camilla, cuadros=1,
-                    huella=dict(ancho=100, fondo=16, alto=40), material='tela y cromo', reemplaza=B + 'camilla.png'),
+                    huella=dict(ancho=94, fondo=16, alto=40), material='tela y cromo', reemplaza=B + 'camilla.png'),
     'vitrina-medicamentos': dict(nombre='Vitrina de medicamentos', tipo='mueble', dibujar=vitrina_medicamentos, cuadros=1,
                                  huella=dict(ancho=54, fondo=14, alto=70), material='lámina y vidrio',
                                  reemplaza=B + 'vitrina-medicamentos.png'),
