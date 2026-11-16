@@ -52,6 +52,7 @@ interface Contract {
 }
 
 const A = '/api/authoring/cases';
+const G = '/api/authoring/generations';
 const S = '/api/simulation';
 const att = `${S}/attempts/${ATTEMPT}`;
 
@@ -176,6 +177,16 @@ const CONTRACTS: Contract[] = [
   { method: 'validateCase', call: s => s.validateCase(9), verb: 'POST', url: `${A}/9/validate`, body: {} },
   { method: 'lifecycle', call: s => s.lifecycle(9), verb: 'GET', url: `${A}/9/lifecycle` },
   { method: 'transitionCase', call: s => s.transitionCase(9, { action: 'submit' }), verb: 'POST', url: `${A}/9/lifecycle`, body: { action: 'submit' } },
+
+  // ── generación de casos con IA, por etapas (C1) ────────────────────────────────────────────────────────────
+  { method: 'generationStatus', call: s => s.generationStatus(), verb: 'GET', url: `${G}/status` },
+  { method: 'startGeneration', call: s => s.startGeneration({ lugarId: 'universidad', descripcion: 'd' }), verb: 'POST', url: G,
+    body: { lugarId: 'universidad', descripcion: 'd' } },
+  { method: 'generation', call: s => s.generation('g1'), verb: 'GET', url: `${G}/g1` },
+  { method: 'generationSkeleton', call: s => s.generationSkeleton('g1'), verb: 'POST', url: `${G}/g1/skeleton`, body: {} },
+  { method: 'generationScene', call: s => s.generationScene('g1', 'sala-1'), verb: 'POST', url: `${G}/g1/scenes/sala-1`, body: {} },
+  { method: 'generationAssemble', call: s => s.generationAssemble('g1'), verb: 'POST', url: `${G}/g1/assemble`, body: {} },
+  { method: 'cancelGeneration', call: s => s.cancelGeneration('g1'), verb: 'DELETE', url: `${G}/g1` },
 ];
 
 describe('SimulationService contrato HTTP', () => {
@@ -327,13 +338,13 @@ describe('SimulationService contrato HTTP', () => {
 
     expect(publicMethods.filter(name => !documented.has(name))).toEqual([]);
     expect([...documented].filter(name => !publicMethods.includes(name))).toEqual([]);
-    expect(publicMethods).toHaveLength(80);
+    expect(publicMethods).toHaveLength(87);
   });
 
   it('cada método vive en una sola API y cada rol tiene el tamaño esperado', () => {
     const [player, authoring, instructor] = ROLE_CLASSES.map(publicMethodsOf);
-    expect(new Set([...player, ...authoring, ...instructor]).size).toBe(80);
-    expect([player.length, authoring.length, instructor.length]).toEqual([25, 50, 5]);
+    expect(new Set([...player, ...authoring, ...instructor]).size).toBe(87);
+    expect([player.length, authoring.length, instructor.length]).toEqual([25, 57, 5]);
     expect(instructor).toEqual(['recentAttempts', 'attemptTrace', 'rubric', 'replaceAttempt', 'saveRubric']);
   });
 

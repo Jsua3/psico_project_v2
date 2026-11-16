@@ -282,3 +282,14 @@ SECURE_HSTS_PRELOAD = False
 SECURE_PROXY_SSL_HEADER = ("HTTP_X_FORWARDED_PROTO", "https")
 SESSION_COOKIE_SECURE = True
 CSRF_COOKIE_SECURE = True
+
+# C1-2 · El proveedor falso responde archivos fijos sin clave: en producción sería una IA de mentira. Se rechaza al arrancar.
+for _ai_variable, _ai_provider in (
+    ("AI_AUTHORING_PROVIDER", AI_AUTHORING_PROVIDER),  # noqa: F405 (vienen de ``from .base import *``)
+    ("AI_ASSISTANT_PROVIDER", AI_ASSISTANT_PROVIDER),  # noqa: F405
+):
+    if (_ai_provider or "").strip().lower() == "fake":
+        raise ImproperlyConfigured(
+            # BORRADOR
+            f"{_ai_variable}=fake no se admite en producción: el proveedor falso solo sirve para pruebas y el e2e."
+        )

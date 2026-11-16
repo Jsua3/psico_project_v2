@@ -1,0 +1,111 @@
+{
+  "narracion": "Llegas con Daniela a la recepción de Bienestar. Ella se queda un paso atrás, cerca de la puerta, con la mochila apretada contra el pecho. Hay otras personas cerca del mostrador y la planilla de turnos está a la vista. La recepcionista levanta la mirada del computador y te saluda. Daniela te contó que le da miedo que alguien se entere: lo que digas aquí, y cómo lo digas, también la cuida.",
+  "lineas": [
+    {
+      "personaje": "recepcionista-bienestar",
+      "texto": "Hola, buenas tardes. ¿En qué te puedo ayudar?",
+      "emocion": "neutral"
+    },
+    {
+      "personaje": "recepcionista-bienestar",
+      "texto": "Te cuento que hoy hay tres personas antes en la planilla. Si es para una cita, puedo anotarte para más tarde.",
+      "emocion": "neutral"
+    },
+    {
+      "personaje": "recepcionista-bienestar",
+      "texto": "¿Vienes con ella? Dime qué necesitan y miro cómo las organizo.",
+      "emocion": "cautelosa"
+    }
+  ],
+  "opciones": [
+    {
+      "clave": "pedir-prioridad-con-reserva",
+      "texto": "En voz baja: «Vengo con una estudiante que necesita atención prioritaria hoy. Es una situación sensible y los detalles prefiero dárselos solo a la psicóloga».",
+      "clase": "RECOMMENDED",
+      "retroalimentacion": "Dices lo necesario para que Daniela reciba atención hoy y nada más. La recepcionista entiende que es urgente sin conocer la historia, y Daniela ve que su confianza está a salvo contigo.",
+      "razonProhibicion": "",
+      "destino": "sala-espera",
+      "efectoVinculo": 1,
+      "efectoActivacion": -1,
+      "hitos": [
+        "aplicar_primeros_auxilios_psicologicos"
+      ],
+      "competencias": [
+        "DECISION_RUTA",
+        "COMUNICACION_EMPATIA"
+      ],
+      "requiere": "",
+      "reaccionLinea": "Entiendo, no necesito saber más. Le aviso a la psicóloga ya mismo; pueden esperar en la sala, que está más tranquila.",
+      "reaccionEmocion": "preocupada",
+      "reaccionGesto": "asiente"
+    },
+    {
+      "clave": "prioridad-con-planilla",
+      "texto": "«Vi que hay tres turnos antes. ¿Puede preguntarle a la psicóloga si la recibe como atención prioritaria? Mientras tanto, yo la acompaño en la sala de espera».",
+      "clase": "RECOMMENDED",
+      "retroalimentacion": "Usas lo que observaste en la planilla para hacer una petición concreta y realista, sin contar nada de Daniela. Además dejas claro que no se quedará sola mientras espera.",
+      "razonProhibicion": "",
+      "destino": "sala-espera",
+      "efectoVinculo": 1,
+      "efectoActivacion": -1,
+      "hitos": [
+        "aplicar_primeros_auxilios_psicologicos"
+      ],
+      "competencias": [
+        "COMPRENSION_SITUACION",
+        "DECISION_RUTA"
+      ],
+      "requiere": "{\"inspected\": \"planilla-turnos\"}",
+      "reaccionLinea": "Claro, le pregunto enseguida. Si tú la acompañas, mejor: yo les aviso apenas pueda recibirla.",
+      "reaccionEmocion": "neutral",
+      "reaccionGesto": "asiente"
+    },
+    {
+      "clave": "anotar-turno-normal",
+      "texto": "«Anótela en la planilla, por favor. Esperamos el turno y yo me quedo con ella».",
+      "clase": "ACCEPTABLE",
+      "retroalimentacion": "Proteges su privacidad y no la dejas sola, y eso cuenta. Pero al no pedir prioridad, Daniela espera más de lo necesario en un momento difícil. Puedes pedir atención prioritaria sin contar su historia.",
+      "razonProhibicion": "",
+      "destino": "sala-espera",
+      "efectoVinculo": 0,
+      "efectoActivacion": 0,
+      "hitos": [],
+      "competencias": [
+        "DECISION_RUTA"
+      ],
+      "requiere": "",
+      "reaccionLinea": "Listo, queda anotada. Son tres personas antes, así que puede tardar un rato.",
+      "reaccionEmocion": "neutral",
+      "reaccionGesto": ""
+    },
+    {
+      "clave": "contar-la-historia-en-voz-alta",
+      "texto": "Explicar en el mostrador, delante de quienes esperan, lo que le pasó a Daniela con su pareja para que la atiendan más rápido.",
+      "clase": "CONTRAINDICATED",
+      "retroalimentacion": "Daniela te dijo que temía que alguien se enterara. Al contar su historia frente a otras personas, pierde el control sobre quién la conoce y puede sentir que confiar en ti fue un error. La urgencia se comunica sin detalles: «necesita atención prioritaria, es una situación sensible».",
+      "razonProhibicion": "Exponer la historia de una persona frente a terceros rompe la confidencialidad, la deja expuesta ante su comunidad y puede aumentar su riesgo. Lo que ella contó solo se comparte con quien va a atenderla, y solo lo necesario.",
+      "destino": "sala-espera",
+      "efectoVinculo": -1,
+      "efectoActivacion": 1,
+      "hitos": [],
+      "competencias": [
+        "REFLEXION",
+        "COMUNICACION_EMPATIA"
+      ],
+      "requiere": "",
+      "reaccionLinea": "Espera, espera... eso no me lo cuentes aquí. Yo le aviso a la psicóloga, pero hablemos más bajito, por favor.",
+      "reaccionEmocion": "cautelosa",
+      "reaccionGesto": "se-aparta"
+    }
+  ],
+  "pistas": [],
+  "comentarios": [
+    {
+      "personaje": "recepcionista-bienestar",
+      "linea": "Cuando alguien necesita atención prioritaria, yo le aviso a la psicóloga. No hace falta que me expliquen el motivo.",
+      "cuando": "",
+      "emocion": "neutral",
+      "gesto": ""
+    }
+  ]
+}

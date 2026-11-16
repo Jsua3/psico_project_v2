@@ -1,0 +1,99 @@
+{
+  "titulo": "Después de clase: acompañar a Daniela",
+  "contexto": "Eres practicante de Psicología en Bienestar Universitario. Al terminar una clase, Daniela, estudiante de segundo semestre, se queda sola en el aula: está muy afectada después de una situación de violencia con su pareja ocurrida la noche anterior. No sabe a quién acudir y le da miedo que alguien se entere. Tu tarea es acompañarla sin presionarla: escucharla y ayudarla a calmarse, llevarla a Bienestar cuidando su privacidad, explorar con ella las señales de riesgo, contarle sus derechos y las rutas de atención, y asegurar que llegue a la psicóloga. Daniela y todos los personajes son ficticios. Este caso es un borrador para revisión de la docente.",
+  "objetivosAprendizaje": [
+    "Aplicar primeros auxilios psicológicos: escuchar, proteger y conectar antes de cualquier otro paso.",
+    "Explorar con la persona las señales de riesgo y estimar su nivel sin dudar de su relato ni pedir detalles innecesarios.",
+    "Informar con claridad los derechos y las rutas de atención de la universidad y de la ciudad, respetando el ritmo y las decisiones de la persona.",
+    "Cuidar la confidencialidad al pedir atención prioritaria y al entregar el caso a otra profesional.",
+    "Reconocer por qué no se media ni se acerca a la persona con quien la agrede, y por qué no se la presiona a denunciar ni a perdonar.",
+    "Derivar a salud mental y asegurar que la remisión llegue, proponiendo medidas concretas de protección."
+  ],
+  "escenas": [
+    {
+      "sala": "aula",
+      "titulo": "Se quedó en el aula",
+      "objetivo": "Hacer el primer contacto con Daniela: escucharla sin juzgar, ayudarla a calmarse y proponerle ir a Bienestar a su ritmo.",
+      "persona": "estudiante-consultante",
+      "intensidad": "MEDIUM",
+      "advertencia": "",
+      "final": false,
+      "siguientes": [
+        "bienestar",
+        "sala-espera"
+      ]
+    },
+    {
+      "sala": "bienestar",
+      "titulo": "Tres turnos antes",
+      "objetivo": "Pedir atención prioritaria para Daniela en la recepción sin exponer su historia frente a otras personas.",
+      "persona": "recepcionista-bienestar",
+      "intensidad": "LOW",
+      "advertencia": "",
+      "final": false,
+      "siguientes": [
+        "sala-espera"
+      ]
+    },
+    {
+      "sala": "sala-espera",
+      "titulo": "Mientras esperamos",
+      "objetivo": "Explorar con Daniela las señales de riesgo, informarle sus derechos y las rutas de atención, y sostener que no habrá mediación con quien la agrede.",
+      "persona": "estudiante-consultante",
+      "intensidad": "HIGH",
+      "advertencia": "Esta escena trata sobre violencia de pareja y miedo intenso, sin detalles gráficos. Si lo necesitas, haz una pausa antes de seguir.",
+      "final": false,
+      "siguientes": [
+        "consultorio"
+      ]
+    },
+    {
+      "sala": "consultorio",
+      "titulo": "El relevo",
+      "objetivo": "Entregar el caso a la psicóloga de Bienestar con lo esencial, asegurar que la remisión a salud mental llegue y acordar medidas de protección con Daniela.",
+      "persona": "psicologa-bienestar",
+      "intensidad": "MEDIUM",
+      "advertencia": "",
+      "final": true,
+      "siguientes": []
+    }
+  ],
+  "hitos": [
+    "aplicar_primeros_auxilios_psicologicos",
+    "valorar_el_riesgo",
+    "informar_derechos",
+    "no_mediar_con_el_agresor",
+    "recomendar_medidas_de_proteccion",
+    "derivar_a_salud_mental"
+  ],
+  "finales": [
+    {
+      "clave": "vinculo_roto",
+      "titulo": "Daniela se cerró",
+      "mensaje": "En algún momento Daniela dejó de sentirse segura contigo y se retiró de la conversación. Suele pasar cuando una respuesta suena a duda, a presión o a prisa. Vuelve sobre tus decisiones: fíjate en qué momento cambió su actitud y qué necesitaba escuchar ahí.",
+      "tono": "critical",
+      "cuando": "{\"any\":[{\"count\":\"contraindicated\",\"gte\":2},{\"persona\":{\"bond\":\"WITHDRAWN\"}},{\"persona\":{\"activation\":\"CRISIS\"}}]}"
+    },
+    {
+      "clave": "acompanamiento_completo",
+      "titulo": "Acompañada y con ruta",
+      "mensaje": "Escuchaste a Daniela antes de actuar, exploraste con ella el riesgo, le contaste sus derechos y aseguraste que llegara a la psicóloga. Sale de Bienestar sabiendo que no está sola y que las decisiones siguen siendo suyas.",
+      "tono": "positive",
+      "cuando": "{\"all\":[{\"milestone\":\"valorar_el_riesgo\"},{\"milestone\":\"informar_derechos\"},{\"milestone\":\"derivar_a_salud_mental\"},{\"count\":\"contraindicated\",\"eq\":0}]}"
+    },
+    {
+      "clave": "derivada_sin_valorar_riesgo",
+      "titulo": "Llegó a la psicóloga, pero faltó algo",
+      "mensaje": "Daniela quedó en manos de la psicóloga, y eso es valioso. Pero no exploraste con ella las señales de riesgo antes del relevo, así que el acompañamiento se decidió sin saber qué tan protegida está hoy. Repasa en qué momento podías haberlo preguntado con cuidado.",
+      "tono": "warning",
+      "cuando": "{\"all\":[{\"milestone\":\"derivar_a_salud_mental\"},{\"not\":{\"milestone\":\"valorar_el_riesgo\"}}]}"
+    },
+    {
+      "clave": "acompanamiento_incompleto",
+      "titulo": "Un primer paso",
+      "mensaje": "Acompañaste a Daniela una parte del camino, pero quedaron pasos pendientes: valorar el riesgo, informarle sus derechos o asegurar su remisión a salud mental. Revisa cuáles faltaron y vuelve a intentarlo: cada uno la cuida de una manera distinta.",
+      "tono": "neutral",
+      "cuando": ""
+    }
+  ]
+}

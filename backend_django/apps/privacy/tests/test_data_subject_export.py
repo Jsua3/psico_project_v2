@@ -17,7 +17,7 @@ from django.db.models import Q
 from apps.privacy import data_subject, inventory, services
 from apps.privacy.data_subject import PERSON_SCOPE, Pertenencia
 from apps.privacy.tests.data_subject_support import Entorno, Mundo, volcado
-from apps.simulation.models import ReflectionJournal, SimulationAttempt
+from apps.simulation.models import CaseGeneration, ReflectionJournal, SimulationAttempt
 
 pytestmark = [pytest.mark.req("RNF-003"), pytest.mark.security, pytest.mark.django_db]
 
@@ -107,6 +107,13 @@ def test_la_cuenta_va_con_sus_datos_pero_sin_la_clave(mundo):
     assert cuenta["nombre"] == mundo.persona.nombre and cuenta["apellido"] == mundo.persona.apellido
     assert cuenta["role"] == "PROFESOR" and cuenta["id"] == mundo.persona.pk
     assert "password_hash" not in cuenta
+
+
+def test_la_generacion_de_casos_sale_solo_con_su_lugar_su_descripcion_su_estado_y_su_fecha(mundo):
+    [generacion] = services.export_person(mundo.persona)["tablas"]["authoring_generations"]
+
+    assert set(generacion) == {"lugar_id", "description", "status", "created_at"}
+    assert generacion["description"] == CaseGeneration.objects.get(owner=mundo.persona).description
 
 
 def test_las_reflexiones_salen_descifradas_y_sin_el_texto_cifrado(mundo):

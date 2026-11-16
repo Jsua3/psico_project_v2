@@ -11,7 +11,7 @@ import {
 } from '../ia/propuestas';
 import { BibliotecaService } from '../modelo/biblioteca.service';
 import type {
-  CasoBorrador, ClaveFinalPlantilla, Escena, Final, Hito, Linea, MovimientoPersonaje, NivelRiesgo, Respuesta, SalaCaso,
+  CasoBorrador, ClaveFinalPlantilla, Comentario, Escena, Final, Hito, Linea, MovimientoPersonaje, NivelRiesgo, Reaccion, Respuesta, SalaCaso,
 } from '../modelo/caso';
 import { SEPARACION_ESCENAS } from '../modelo/copiar';
 import type { ColocacionPersonaje } from '../modelo/escenario';
@@ -100,6 +100,12 @@ const FALTA_POR_CAMPO: Record<string, string> = {
   intensity: 'Una escena de intensidad alta necesita su aviso.',
 };
 
+/** Campos 2.1 cuyo mensaje del servidor ya esta escrito para la docente (una sola linea, sin enlaces, topes...): se muestra tal cual. */
+const CAMPOS_CON_MENSAJE_DEL_SERVIDOR: ReadonlySet<string> = new Set(['goal', 'requires', 'reaction', 'comments']);
+
+/** Hasta cuantos comentarios de acercamiento lleva una escena. */
+export const MAX_COMENTARIOS = 6;
+
 /** Lo que se le dice al docente cuando un cambio no se pudo guardar: sin códigos ni palabras técnicas. */
 export function mensajeDeFallo(error: unknown, nombre: string, aMedias = false): string {
   const base = aMedias
@@ -111,6 +117,10 @@ export function mensajeDeFallo(error: unknown, nombre: string, aMedias = false):
   if (error.status === 404) return `${base} Esa parte del caso ya no existe; recarga el caso para verlo al día.`;
   if (error.status >= 500) return `${base} Hubo un problema al guardar; vuelve a intentarlo en un momento.`;
   const campo = (error.error as { field?: unknown } | null)?.field;
+  const delServidor = (error.error as { message?: unknown } | null)?.message;
+  if (typeof campo === 'string' && CAMPOS_CON_MENSAJE_DEL_SERVIDOR.has(campo) && typeof delServidor === 'string' && delServidor.trim()) {
+    return `${base} ${delServidor.trim()}`;
+  }
   const falta = typeof campo === 'string' ? FALTA_POR_CAMPO[campo] : undefined;
   return `${base} ${falta ?? 'Revisa lo que escribiste: así no se puede guardar.'}`;
 }
@@ -156,9 +166,6 @@ export class CasoStore {
     const estado = this.estado()?.estado;
     return estado !== undefined && estado !== 'DRAFT';
   });
-  /** Si en esta visita el docente ya llegó a un final probando como estudiante. */
-  private readonly probadoAhora = signal(false);
-  readonly probado = this.probadoAhora.asReadonly();
   readonly puedeDeshacer = computed(() => (this.version(), this.historial?.puedeDeshacer ?? false));
   readonly puedeRehacer = computed(() => (this.version(), this.historial?.puedeRehacer ?? false));
 
@@ -204,8 +211,23 @@ export class CasoStore {
    */
   readonly haySinGuardar = computed(() => this.guardandoAhora() || this.conflictoAhora() !== null || this.sinGuardar().length > 0);
 
-  marcarProbado(): void {
-    this.probadoAhora.set(true);
+  /**
+   * Relee del servidor si el ensayo de esta versión llegó a un final (`rehearsedToEnd`) y lo pone en `probadoHastaElFinal`, sin
+   * tocar nada más del borrador ni mandar nada. El ensayo corre en otra pestaña, así que la revisión lo pregunta al entrar y
+   * cuando su pestaña vuelve a estar a la vista. Si la lectura falla, queda lo que había.
+   */
+  async releerProbado(): Promise<void> {
+    const sesion = this.sesion;
+    if (!sesion) return;
+    try {
+      const vista = await firstValueFrom(sesion.api.caseEditor(sesion.caseVersionId));
+      if (this.sesion !== sesion) return;
+      const probado = vista.rehearsedToEnd === true;
+      this.estado.update((c) => (c ? { ...c, probadoHastaElFinal: probado } : c));
+      if (this.base) this.base = { ...this.base, probadoHastaElFinal: probado };
+    } catch {
+      // sin conexión o sin permiso: el aviso de la revisión sigue como estaba
+    }
   }
 
   private get servicio(): AutoriaApiService {
@@ -296,7 +318,6 @@ export class CasoStore {
   }
 
   private empezarCon(caso: CasoBorrador | null, sesion: SesionServidor | null): void {
-    this.probadoAhora.set(false);
     this.sesion = sesion;
     this.cola = [];
     this.base = caso;
@@ -428,6 +449,10 @@ export class CasoStore {
   /** El mensaje de un cambio que no se guardó; dos casos dejan el caso a medias y lo dicen. */
   private mensajeDe(error: unknown, op: Operacion, aMedias = false): string {
     if (error instanceof persistir.SalaDesalineada) return 'Algunas escenas de esta sala pueden mostrarla distinta. Vuelve a guardarla.';
+    if (error instanceof persistir.AceptacionAMedias) {
+      // BORRADOR: texto nuevo, pendiente de la aprobación de Psicología
+      return `Se aceptaron ${error.hechas} de ${error.total} ${error.total === 1 ? 'parte' : 'partes'}. Vuelve a pulsar para terminar.`;
+    }
     if (error instanceof persistir.BorradoAMedias) {
       return 'Se quitaron los caminos que llevaban a esa escena, pero la escena no se pudo borrar. Vuelve a conectar esos caminos si hace falta.';
     }
@@ -699,6 +724,7 @@ export class CasoStore {
     const nueva = nuevoId('escena');
     const lineas = new Map<string, string>();
     const respuestas = new Map<string, string>();
+    const pistas = new Map<string, string>();
     this.ejecutar({
       nombre: 'la copia de la escena',
       resumen: [`Duplicaste la escena «${this.tituloEscena(id)}»`],
@@ -709,6 +735,7 @@ export class CasoStore {
         copia.titulo = `${original.titulo} (copia)`;
         copia.posicion = { x: original.posicion.x + 40, y: original.posicion.y + 40 };
         copia.marcaIa = false;
+        if (copia.pistas) copia.pistas = copia.pistas.map((p) => ({ ...p, id: pistas.get(p.id) ?? pistas.set(p.id, nuevoId('pista')).get(p.id)! }));
         copia.lineas = copia.lineas.map((l) => ({ ...l, id: lineas.get(l.id) ?? lineas.set(l.id, nuevoId('linea')).get(l.id)! }));
         copia.respuestas = copia.respuestas.map((r) => ({
           ...r,
@@ -827,6 +854,92 @@ export class CasoStore {
         ...textoCompleto(`Aviso para el estudiante de la escena «${escena}»`, cambios.advertencia ?? undefined),
         ...(cambios.recursosApoyo ? [`Cambiaste los recursos de apoyo de la escena «${escena}»${cambios.recursosApoyo.length ? `: ${cambios.recursosApoyo.map((r) => `«${r}»`).join(', ')}` : ''}`] : []),
       ],
+    });
+  }
+
+  /** El objetivo de la escena (hasta 200 caracteres; el servidor lo valida). Vacío = no lo declara. */
+  editarObjetivo(escenaId: string, texto: string): void {
+    const titulo = this.tituloEscena(escenaId);
+    this.ejecutar({
+      nombre: 'el objetivo de la escena',
+      aplicar: (caso) => { this.escena(caso, escenaId).objetivo = texto; },
+      enviar: (despues, sesion) => persistir.actualizarEscena(sesion, despues, escenaId),
+      fusion: `escena:${escenaId}`,
+      resumen: texto.trim() ? textoCompleto(`Objetivo de la escena «${titulo}»`, texto) : [`Quitaste el objetivo de la escena «${titulo}»`],
+    });
+  }
+
+  /**
+   * Deja en la escena exactamente estas pistas, en este orden (crea, cambia o borra las del servidor para que coincidan). Las
+   * que ya estaban conservan su id; las nuevas nacen con uno propio. Una pista en blanco se queda en el borrador sin guardarse.
+   */
+  fijarPistas(escenaId: string, textos: string[]): void {
+    const titulo = this.tituloEscena(escenaId);
+    // La cola reaplica el cambio al guardarlo y al recomponer el borrador: la pista nueva tiene que nacer con el mismo id
+    // todas las veces, o su campo se rehace y se pierde lo que la docente está escribiendo.
+    const nuevas = new Map<number, string>();
+    this.ejecutar({
+      nombre: 'las pistas',
+      aplicar: (caso) => {
+        const escena = this.escena(caso, escenaId);
+        const previas = escena.pistas ?? [];
+        escena.pistas = textos.map((texto, i) => ({ id: previas[i]?.id ?? nuevas.get(i) ?? nuevas.set(i, nuevoId('pista')).get(i)!, texto }));
+      },
+      enviar: (despues, sesion) => persistir.guardarPistas(sesion, despues, escenaId),
+      fusion: `pistas:${escenaId}`,
+      resumen: textos.length
+        ? textos.flatMap((t, i) => textoCompleto(`Pista ${i + 1} de la escena «${titulo}»`, t))
+        : [`Quitaste las pistas de la escena «${titulo}»`],
+    });
+  }
+
+  /** Cuándo aparece una respuesta: la condición del documento tal cual (`{}` = siempre). */
+  editarRequisito(escenaId: string, respuestaId: string, condicion: Record<string, unknown>): void {
+    this.ejecutar({
+      nombre: 'el requisito de la respuesta',
+      aplicar: (caso) => {
+        const r = this.escena(caso, escenaId).respuestas.find((x) => x.id === respuestaId);
+        if (r) r.requiere = structuredClone(condicion);
+      },
+      enviar: (despues, sesion) => persistir.sincronizarRespuesta(sesion, despues, respuestaId),
+      fusion: `respuesta:${respuestaId}`,
+      resumen: [`Cambiaste cuándo aparece una respuesta de la escena «${this.tituloEscena(escenaId)}»`],
+    });
+  }
+
+  /** Cómo reacciona el personaje a una respuesta; las claves vacías no se guardan y `{}` quita la reacción. */
+  editarReaccion(escenaId: string, respuestaId: string, reaccion: Reaccion): void {
+    const limpia: Reaccion = {};
+    for (const [clave, valor] of Object.entries(reaccion)) {
+      if (valor !== undefined && valor !== null && valor !== '') (limpia as Record<string, unknown>)[clave] = valor;
+    }
+    const titulo = this.tituloEscena(escenaId);
+    this.ejecutar({
+      nombre: 'la reacción de la respuesta',
+      aplicar: (caso) => {
+        const r = this.escena(caso, escenaId).respuestas.find((x) => x.id === respuestaId);
+        if (r) r.reaccion = { ...limpia };
+      },
+      enviar: (despues, sesion) => persistir.sincronizarRespuesta(sesion, despues, respuestaId),
+      fusion: `respuesta:${respuestaId}`,
+      resumen: limpia.linea
+        ? textoCompleto(`Lo que dice el personaje al reaccionar a una respuesta de «${titulo}»`, limpia.linea)
+        : [`Cambiaste cómo reacciona el personaje a una respuesta de la escena «${titulo}»`],
+    });
+  }
+
+  /** Lo que dicen los personajes al acercarse el jugador (hasta 6). Con más, lanza y no cambia nada. */
+  fijarComentarios(escenaId: string, comentarios: Comentario[]): void {
+    if (comentarios.length > MAX_COMENTARIOS) throw new Error(`Una escena lleva hasta ${MAX_COMENTARIOS} comentarios.`);
+    const titulo = this.tituloEscena(escenaId);
+    this.ejecutar({
+      nombre: 'lo que dicen al acercarse',
+      aplicar: (caso) => { this.escena(caso, escenaId).comentarios = structuredClone(comentarios); },
+      enviar: (despues, sesion) => persistir.actualizarEscena(sesion, despues, escenaId),
+      fusion: `comentarios:${escenaId}`, // propia: un 400 de comentarios no debe llevarse el objetivo ni el título
+      resumen: comentarios.length
+        ? comentarios.flatMap((c, i) => textoCompleto(`Comentario ${i + 1} al acercarse en la escena «${titulo}»`, c.linea))
+        : [`Quitaste lo que dicen al acercarse en la escena «${titulo}»`],
     });
   }
 
@@ -994,6 +1107,52 @@ export class CasoStore {
         if (nodo !== undefined) await sesion.aceptarNodo(nodo);
       },
     });
+  }
+
+  /** Cuántas partes sugeridas por la IA quedan por aceptar en la escena: ella, sus líneas, sus respuestas y las personas marcadas de su sala. */
+  partesIaDeEscena(escenaId: string): number {
+    const plan = persistir.planDeAceptacion(this.estado(), escenaId);
+    return plan ? persistir.partesPorAceptar(plan) : 0;
+  }
+
+  /**
+   * Acepta de una vez todo lo sugerido por la IA en la escena. En el servidor van varias rutas, una tras otra; si una falla, lo
+   * aceptado queda aceptado, el aviso dice cuántas faltan y volver a pulsar termina (aceptar lo aceptado no cambia nada).
+   */
+  aceptarEscenaIa(escenaId: string): void {
+    const plan = persistir.planDeAceptacion(this.estado(), escenaId);
+    if (!plan || persistir.partesPorAceptar(plan) === 0) return;
+    this.ejecutar({
+      nombre: 'la revisión',
+      resumen: ['Aceptaste todo lo sugerido por el asistente en una escena'],
+      aplicar: (caso) => {
+        const escena = this.escena(caso, escenaId);
+        escena.marcaIa = false;
+        for (const linea of escena.lineas) linea.marcaIa = false;
+        for (const respuesta of escena.respuestas) respuesta.marcaIa = false;
+        for (const persona of caso.salas.find((s) => s.id === escena.salaId)?.personajes ?? []) persona.marcaIa = false;
+      },
+      enviar: async (despues, sesion) => {
+        try {
+          await persistir.aceptarEscena(sesion, despues, plan);
+        } catch (error) {
+          // un choque de revisión no es «a medias»: lo trata el aviso de conflicto
+          if (error instanceof persistir.AceptacionAMedias && (revisionConflictOf(error.causa) || this.esCasoVencido(error.causa))) throw error.causa;
+          throw error;
+        }
+      },
+    });
+  }
+
+  /** Las respuestas de la escena que ya están en el servidor, en el orden de su número (el orden en que este exporta las opciones). */
+  respuestasGuardadasDe(escenaId: string): string[] {
+    const sesion = this.sesion;
+    const escena = this.estado()?.escenas.find((e) => e.id === escenaId);
+    if (!sesion || !escena) return [];
+    return escena.respuestas
+      .flatMap((r) => { const numero = sesion.decisionDe(r.id); return numero === undefined ? [] : [{ id: r.id, numero }]; })
+      .sort((a, b) => a.numero - b.numero)
+      .map((r) => r.id);
   }
 
   /**

@@ -9,12 +9,13 @@
  */
 import type { Expresion } from '../../../core/models/biblioteca.model';
 import type {
-  CaseEditorView, CharacterEditorState, DecisionEdgeState, EndingRule, NodeEditorState, SceneMapDefinition,
-  WorldDefinition, WorldDialogueTree, WorldObject,
+  CaseEditorView, CharacterEditorState, CommentState, DecisionEdgeState, EndingRule, NodeEditorState, ReactionState,
+  SceneMapDefinition, WorldDefinition, WorldDialogueTree, WorldObject,
 } from '../../../core/models/simulation.model';
+import { GESTOS } from '../../../core/models/simulation.model';
 import type {
-  CasoBorrador, ColocacionCaso, ColocacionPersonajeCaso, EfectosRespuesta, Escena, Final, Hito, Linea, PuertaCaso,
-  Respuesta, SalaCaso,
+  CasoBorrador, Comentario, ColocacionCaso, ColocacionPersonajeCaso, EfectosRespuesta, Escena, Final, Hito, Linea, Pista,
+  PuertaCaso, Reaccion, Respuesta, SalaCaso,
 } from './caso';
 import { competenciasDeRubricas } from './efectos';
 import type { Encuadre, Escenario, Mirando } from './escenario';
@@ -61,6 +62,32 @@ function refDeCatalogo(clave: string, ids: string[]): string | null {
   return candidatas.sort((a, b) => b.length - a.length)[0] ?? null;
 }
 
+/** Un gesto o una emoción del vocabulario cerrado, o `undefined` (lo que no es del vocabulario no se inventa). */
+const gestoDe = (valor: unknown): Reaccion['gesto'] => GESTOS.find((g) => g === valor);
+const emocionDe = (valor: unknown): Reaccion['emocion'] => EXPRESIONES.find((e) => e === valor);
+
+/** La reacción de una respuesta: solo lo que dice el servidor y entra en el vocabulario; `{}` = sin reacción. */
+export function reaccionDesdeApi(r: ReactionState | undefined): Reaccion {
+  const reaccion: Reaccion = {};
+  if (typeof r?.linea === 'string' && r.linea !== '') reaccion.linea = r.linea;
+  const emocion = emocionDe(r?.emocion);
+  if (emocion) reaccion.emocion = emocion;
+  const gesto = gestoDe(r?.gesto);
+  if (gesto) reaccion.gesto = gesto;
+  if (typeof r?.personaje === 'string' && r.personaje !== '') reaccion.personaje = r.personaje;
+  return reaccion;
+}
+
+export function comentarioDesdeApi(c: CommentState): Comentario {
+  const comentario: Comentario = { personaje: c.personaje, linea: c.linea };
+  if (c.cuando && Object.keys(c.cuando).length > 0) comentario.cuando = structuredClone(c.cuando);
+  const emocion = emocionDe(c.emocion);
+  if (emocion) comentario.emocion = emocion;
+  const gesto = gestoDe(c.gesto);
+  if (gesto) comentario.gesto = gesto;
+  return comentario;
+}
+
 interface Contexto {
   editor: CaseEditorView;
   catalogo: Escenario['catalogo'];
@@ -104,6 +131,7 @@ function salaDesdeMundo(mundo: WorldDefinition, ctx: Contexto, lugarId: string |
       const esMueble = o.type === 'PROP' && (refMueble !== null || refObjeto === null);
       const colocacion: ColocacionCaso = { ref: (esMueble ? refMueble : refObjeto) ?? o.key, clave: o.key, x: o.x, y: o.y };
       if (o.decisionOptionId != null) colocacion.decisionOptionId = o.decisionOptionId;
+      if (o.toolCode) colocacion.toolCode = o.toolCode;
       if (o.aiSuggested === true) colocacion.marcaIa = true;
       if (esMueble) {
         colocacion.espejo = o.metadata?.['espejo'] === true;
@@ -145,6 +173,7 @@ function respuestaDesdeApi(d: DecisionEdgeState): Respuesta {
     id: String(d.id), texto: d.text, clase: d.responseClass, razon: d.prohibitionReason ?? '',
     retroalimentacion: d.feedbackText || d.immediateFeedback || '', efectos: efectosDesdeApi(d.effects),
     destinoId: String(d.targetNodeId), marcaIa: d.aiSuggested === true,
+    requiere: structuredClone(d.requires ?? {}), reaccion: reaccionDesdeApi(d.reaction),
   };
 }
 
@@ -158,6 +187,13 @@ function lineasDesdeApi(mundo: WorldDefinition | undefined, personajes: Characte
   }));
 }
 
+/** Las pistas de la sala de una escena (las ayudas de su mapa), por su orden. */
+function pistasDesdeApi(n: NodeEditorState, editor: CaseEditorView): Pista[] {
+  const mapaIds = new Set(editor.maps.filter((m) => m.nodeId === n.id).map((m) => m.id));
+  const delMapa = (editor.hints ?? []).filter((h) => mapaIds.has(h.mapId));
+  return delMapa.sort((a, b) => a.order - b.order).map((h) => ({ id: String(h.id), texto: h.text }));
+}
+
 function escenaDesdeApi(
   n: NodeEditorState, salaId: string | null, mundo: WorldDefinition | undefined, editor: CaseEditorView,
 ): Escena {
@@ -165,6 +201,7 @@ function escenaDesdeApi(
     id: String(n.id), titulo: n.title, narracion: n.narrative ?? '', salaId, esFinal: n.terminal,
     posicion: { x: n.positionX ?? 0, y: n.positionY ?? 0 },
     intensidad: n.intensity, advertencia: n.warningMessage ?? null, recursosApoyo: [...(n.supportResources ?? [])], marcaIa: n.aiSuggested === true,
+    objetivo: n.goal ?? '', pistas: pistasDesdeApi(n, editor), comentarios: (n.comments ?? []).map(comentarioDesdeApi),
     lineas: lineasDesdeApi(mundo, editor.characters),
     respuestas: editor.decisions.filter((d) => d.sourceNodeId === n.id).map(respuestaDesdeApi),
   };
@@ -256,6 +293,8 @@ export function casoDesdeApi(editor: CaseEditorView, mundos: WorldDefinition[], 
     ...(textosPlantilla ? { textosPlantilla } : {}),
     competencias: competenciasDeRubricas(editor.rubrics ?? []),
     estado: estadoDe(editor.status),
+    probadoHastaElFinal: editor.rehearsedToEnd === true,
+    herramientas: (editor.tools ?? []).filter((t) => t.active).map((t) => ({ codigo: t.code, nombre: t.label })),
     lista: listaDesdeApi(editor.checklist),
     personajes: editor.characters.map((c) => ({ id: c.key, nombre: c.displayName, rol: c.roleLabel, recipeId: recetaDe(c) })),
     catalogo: structuredClone(catalogo),

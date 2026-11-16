@@ -425,3 +425,78 @@ describe('casoDesdeApi: cómo se mueven las personas, a quién atender y los dat
     expect([...delaSala.muebles, ...delaSala.objetos, ...delaSala.personajes].filter((c) => c.marcaIa)).toHaveLength(2);
   });
 });
+
+describe('casoDesdeApi: los campos 2.1 (objetivo, pistas, comentarios, requisito y reacción)', () => {
+  const base = () => casoSinLugar();
+
+  it('lee el objetivo, las pistas de la sala de la escena por su orden y los comentarios', () => {
+    const { editor, mundos } = base();
+    const mapaDeInicio = editor.maps.find((m) => m.nodeId === 1)!;
+    const mapaDeRiesgo = editor.maps.find((m) => m.nodeId === 2)!;
+    editor.nodes[0].goal = 'Que la persona se sienta escuchada.';
+    editor.hints = [
+      { id: 92, mapId: mapaDeInicio.id, order: 2, text: 'Mira la carpeta.' },
+      { id: 91, mapId: mapaDeInicio.id, order: 1, text: 'Empieza por saludar.' },
+      { id: 93, mapId: mapaDeRiesgo.id, order: 1, text: 'Otra sala.' },
+    ];
+    editor.nodes[0].comments = [
+      { personaje: 'camila', linea: 'Me da pena.', cuando: { talked: 'camila' }, emocion: 'triste', gesto: 'baja-la-mirada' },
+      { personaje: 'camila', linea: 'Hola.' },
+    ];
+    const [inicio, riesgo] = casoDesdeApi(editor, mundos).escenas;
+    expect(inicio.objetivo).toBe('Que la persona se sienta escuchada.');
+    expect(inicio.pistas).toEqual([{ id: '91', texto: 'Empieza por saludar.' }, { id: '92', texto: 'Mira la carpeta.' }]);
+    expect(inicio.comentarios).toEqual([
+      { personaje: 'camila', linea: 'Me da pena.', cuando: { talked: 'camila' }, emocion: 'triste', gesto: 'baja-la-mirada' },
+      { personaje: 'camila', linea: 'Hola.' },
+    ]);
+    expect(riesgo.pistas).toEqual([{ id: '93', texto: 'Otra sala.' }]);
+    expect(riesgo.objetivo).toBe('');
+  });
+
+  it('sin comments del servidor (aún no lo envía) da []; sin pistas, []', () => {
+    const { editor, mundos } = base();
+    for (const n of editor.nodes) delete n.comments;
+    const escenas = casoDesdeApi(editor, mundos).escenas;
+    expect(escenas.every((e) => Array.isArray(e.comentarios) && e.comentarios.length === 0)).toBe(true);
+    expect(escenas.every((e) => Array.isArray(e.pistas) && e.pistas.length === 0)).toBe(true);
+  });
+
+  it('lee el requisito (el JSON tal cual, copiado) y la reacción de cada respuesta; sin ellos, {}', () => {
+    const { editor, mundos } = base();
+    editor.decisions[0].requires = { all: [{ talked: 'camila' }, { milestone: 'informar_derechos' }] };
+    editor.decisions[0].reaction = { linea: 'Gracias.', emocion: 'alegre', gesto: 'asiente', personaje: 'camila' };
+    const respuestas = casoDesdeApi(editor, mundos).escenas[0].respuestas;
+    expect(respuestas[0].requiere).toEqual({ all: [{ talked: 'camila' }, { milestone: 'informar_derechos' }] });
+    expect(respuestas[0].requiere).not.toBe(editor.decisions[0].requires);
+    expect(respuestas[0].reaccion).toEqual({ linea: 'Gracias.', emocion: 'alegre', gesto: 'asiente', personaje: 'camila' });
+    expect(respuestas[1].requiere).toEqual({});
+    expect(respuestas[1].reaccion).toEqual({});
+  });
+
+  it('una reacción con una emoción o un gesto fuera del vocabulario no los inventa', () => {
+    const { editor, mundos } = base();
+    editor.decisions[0].reaction = { linea: 'Ya.', emocion: 'furiosa', gesto: 'salta' };
+    expect(casoDesdeApi(editor, mundos).escenas[0].respuestas[0].reaccion).toEqual({ linea: 'Ya.' });
+  });
+
+  it('el ensayo hasta el final: rehearsedToEnd, y su ausencia es false', () => {
+    const { editor, mundos } = base();
+    expect(casoDesdeApi(editor, mundos).probadoHastaElFinal).toBe(false);
+    expect(casoDesdeApi({ ...editor, rehearsedToEnd: true }, mundos).probadoHastaElFinal).toBe(true);
+  });
+
+  it('las herramientas del caso y la que entrega cada objeto', () => {
+    const { editor, mundos } = casoCopiadoDeLugar(universidad, SALAS);
+    editor.tools = [
+      { id: 1, code: 'PAP', label: 'Primeros auxilios', icon: '', category: '', description: '', active: true },
+      { id: 2, code: 'OFF', label: 'Apagada', icon: '', category: '', description: '', active: false },
+    ];
+    const objeto = mundos[1].objects.find((o) => o.type !== 'PERSON' && o.type !== 'PROP' && o.type !== 'EXIT')!;
+    objeto.toolCode = 'PAP';
+    const caso = casoDesdeApi(editor, mundos, universidad);
+    expect(caso.herramientas).toEqual([{ codigo: 'PAP', nombre: 'Primeros auxilios' }]);
+    expect(caso.salas[1].objetos.find((o) => o.clave === objeto.key)!.toolCode).toBe('PAP');
+    expect(caso.salas[1].objetos.filter((o) => o.toolCode !== undefined)).toHaveLength(1);
+  });
+});

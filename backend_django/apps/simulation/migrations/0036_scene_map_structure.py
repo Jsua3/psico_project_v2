@@ -9,7 +9,7 @@ from django.db import migrations, models
 class Migration(migrations.Migration):
 
     dependencies = [
-        ('simulation', '0034_node_comments_attempt_rehearsal'),
+        ('simulation', '0035_authoring_generations'),
     ]
 
     operations = [

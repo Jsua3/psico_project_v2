@@ -98,16 +98,4 @@ describe('CasoStore · escenas y caminos', () => {
       }
     }
   });
-
-  it('«ya lo probaste» se borra al cerrar o abrir otro caso', () => {
-    const { store } = montar();
-    store.marcarProbado();
-    expect(store.probado()).toBe(true);
-    store.cerrar();
-    expect(store.probado()).toBe(false);
-    const { store: otro } = montar();
-    otro.marcarProbado();
-    otro.fijar(copiarEscenarioAlCaso(universidad, ['pasillo'], 'Otro'));
-    expect(otro.probado()).toBe(false);
-  });
 });

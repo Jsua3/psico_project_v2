@@ -1,7 +1,7 @@
 import { expect } from '@playwright/test';
 import type { APIRequestContext, Page } from '@playwright/test';
 
-import { ADMIN, apiToken, contentReviewProof, transition } from './case-fixtures';
+import { ADMIN, PROFESOR, apiToken, contentReviewProof, readEditor, send, transition } from './case-fixtures';
 import { runAxe } from './quality-gates';
 import { enterCaseAtContentWarning, loginStudent, waitForWorldReady } from './siep-flow';
 import { scaled } from './time-scale';
@@ -304,4 +304,184 @@ export async function entrarALaPrimeraSala(page: Page): Promise<void> {
     else await page.waitForTimeout(250);
   }
   await waitForWorldReady(page);
+}
+
+// ─── Generar un caso con IA (proveedor falso de C1) ─────────────────────────────────────────────────────────────────
+
+type Json = Record<string, any>;
+
+/** El e2e de la generación solo corre con el backend aislado en `AI_AUTHORING_PROVIDER=fake` y `SIEP_E2E_GENERACION=1`. */
+export const GENERACION_CON_PROVEEDOR_FALSO = process.env['SIEP_E2E_GENERACION'] === '1';
+export const MOTIVO_SIN_PROVEEDOR_FALSO = 'Corre con AI_AUTHORING_PROVIDER=fake y SIEP_E2E_GENERACION=1';
+
+/** Una descripción de bienestar universitario (de 40 a 2000 caracteres, texto plano, sin datos de nadie). */
+export const DESCRIPCION_BIENESTAR =
+  'Una estudiante se queda sola en el aula después de clase, muy afectada por una situación de violencia con su pareja. '
+  + 'Quiero que el estudiante practique escucharla, acompañarla hasta Bienestar y explicarle sus derechos sin presionarla.';
+
+/** Lo que dice el servidor cuando la IA se niega (texto fijo de C1). */
+export const MENSAJE_NEGATIVA_IA = 'La IA no quiso escribir esta parte. Prueba a describir el caso con otras palabras.';
+
+const CAMPO_DESCRIPCION = 'Describe la situación y lo que debe aprender el estudiante';
+
+/** Entra a «crear un caso», elige la universidad y, en el paso 2, la forma «Describe tu caso». */
+export async function elegirDescribirTuCaso(page: Page): Promise<void> {
+  await page.goto('/portal/casos/nuevo');
+  await expect(page.getByRole('heading', { level: 1, name: '¿Dónde pasa tu caso?' })).toBeVisible({ timeout: scaled(30_000) });
+  await page.getByRole('link', { name: 'Elegir este lugar: Universidad' }).click();
+  await expect(page.getByRole('heading', { level: 1, name: 'Elige las salas de tu caso' })).toBeVisible({ timeout: scaled(30_000) });
+  const forma = page.getByRole('radio', { name: /^Describe tu caso/ });
+  await expect(forma).toBeEnabled({ timeout: scaled(30_000) });
+  await forma.check();
+  await expect(page.getByLabel(CAMPO_DESCRIPCION)).toBeVisible({ timeout: scaled(30_000) });
+}
+
+/** Escribe la descripción y pulsa «Generar el caso con IA»: la docente llega a la pantalla de avance. Devuelve el id de la generación. */
+export async function generarConDescripcion(page: Page, descripcion: string): Promise<string> {
+  await page.getByLabel(CAMPO_DESCRIPCION).fill(descripcion);
+  await page.getByRole('button', { name: 'Generar el caso con IA' }).click();
+  await page.waitForURL(/\/portal\/casos\/nuevo\/generando\/[0-9a-f-]+/, { timeout: scaled(60_000) });
+  return /\/generando\/([0-9a-f-]+)/.exec(page.url())![1];
+}
+
+/**
+ * Retiene las peticiones de escena de la generación hasta que se llame `soltar()`: el esqueleto ya salió y el avance se queda a
+ * mitad, con las dos primeras escenas «en curso», sin depender de cuánto tarde el servidor (la IA falsa contesta al instante).
+ */
+export async function retenerEscenas(page: Page): Promise<{ soltar: () => Promise<void> }> {
+  let abrir!: () => void;
+  const puerta = new Promise<void>((resolver) => { abrir = resolver; });
+  const patron = '**/api/authoring/generations/*/scenes/*';
+  const retenidas: Promise<void>[] = [];
+  await page.route(patron, (ruta) => {
+    const sigue = puerta.then(() => ruta.continue()).catch(() => undefined);
+    retenidas.push(sigue);
+    return sigue;
+  });
+  // Al soltar se espera a que cada petición retenida haya seguido su camino (sin una espera fija) y luego se quita la ruta.
+  return { soltar: async () => { abrir(); await Promise.all(retenidas); await page.unroute(patron).catch(() => undefined); } };
+}
+
+/** La pantalla de avance llegó a «listo»: el título lo dice y trae «Abrir mi caso». */
+export async function esperarCasoListo(page: Page): Promise<void> {
+  await expect(page.getByRole('heading', { level: 1, name: 'Tu caso está listo como borrador' })).toBeVisible({ timeout: scaled(120_000) });
+  await expect(page.getByRole('button', { name: 'Abrir mi caso' })).toBeVisible();
+}
+
+/** Pulsa «Abrir mi caso» y devuelve el id del borrador creado. */
+export async function abrirMiCaso(page: Page): Promise<number> {
+  await page.getByRole('button', { name: 'Abrir mi caso' }).click();
+  await page.waitForURL(/\/portal\/casos\/\d+\/editor/, { timeout: scaled(60_000) });
+  await expect(page.getByRole('heading', { level: 1, name: /Escenas y caminos/ })).toBeVisible({ timeout: scaled(30_000) });
+  return Number(/\/portal\/casos\/(\d+)\/editor/.exec(page.url())![1]);
+}
+
+/** Cancela la generación abierta de la docente (por la API), para que una prueba nunca deje a la siguiente con «Ya tienes un caso generándose». */
+export async function cancelarGeneracionAbierta(request: APIRequestContext): Promise<void> {
+  const docente = await apiToken(request, PROFESOR);
+  const estado = await request.get('/api/authoring/generations/status', { headers: { Authorization: `Bearer ${docente}` } });
+  if (estado.status() !== 200) return;
+  const abierta = ((await estado.json()).data as Json)['inProgress'] as Json | null;
+  if (abierta) await request.delete(`/api/authoring/generations/${abierta['id']}`, { headers: { Authorization: `Bearer ${docente}` } });
+}
+
+/** Cuántas veces aparece `"aiSuggested":true` en el editor del caso (lo que la IA propuso y nadie ha revisado). */
+export async function sugeridoPorLaIa(request: APIRequestContext, token: string, caseVersionId: number): Promise<number> {
+  return (JSON.stringify(await readEditor(request, token, caseVersionId)).match(/"aiSuggested":true/g) ?? []).length;
+}
+
+export interface FaltasDeOcl {
+  /** La respuesta con un requisito que nombra un hito que el caso no tiene (OCL-10, `…opciones[j].requiere`). */
+  requisito: number;
+  /** La respuesta con una reacción de alguien que no está en la sala (OCL-12, `…opciones[j].reaccion`). */
+  reaccion: number;
+  /** La posición del comentario cuyo personaje no está en la sala de la escena (OCL-12, `…comentarios[k]`). */
+  comentario: number;
+  /** Lo que hay que deshacer para dejar el caso como estaba. */
+  deshacer: () => Promise<void>;
+}
+
+/**
+ * Le pone al caso tres faltas de las reglas OCL-09 a OCL-12 que el editor no deja escribir pero el servidor sí guarda (es lo
+ * que una IA, un documento importado o una edición vieja pueden dejar): un requisito que nombra un hito inexistente (OCL-10),
+ * una reacción de alguien que no está en la sala y un comentario de alguien que no está en la sala (las dos, OCL-12). La emoción
+ * fuera del vocabulario (OCL-11) el servidor ya no la guarda: no se puede dejar por aquí. Van en la primera escena.
+ */
+export async function ponerFaltasDeOcl(request: APIRequestContext, token: string, caseVersionId: number): Promise<FaltasDeOcl> {
+  const base = `/api/authoring/cases/${caseVersionId}`;
+  const vista = await readEditor(request, token, caseVersionId);
+  const escena = (vista['nodes'] as Json[]).find((n) => n['startNode'])!;
+  const respuestas = (vista['decisions'] as Json[]).filter((d) => d['sourceNodeId'] === escena['id']);
+  const sinRequisito = respuestas.filter((d) => Object.keys(d['requires'] ?? {}).length === 0);
+  expect(sinRequisito.length, 'la primera escena trae al menos dos respuestas sin requisito para tocar').toBeGreaterThanOrEqual(2);
+  const [conRequisito, conReaccion] = sinRequisito;
+  const cuerpo = (d: Json, extra: Json) => ({
+    sourceNodeId: d['sourceNodeId'], targetNodeId: d['targetNodeId'], optionKey: d['optionKey'], text: d['text'],
+    responseClass: d['responseClass'], prohibitedConduct: d['prohibitedConduct'], prohibitionReason: d['prohibitionReason'],
+    immediateFeedback: d['immediateFeedback'], ...extra,
+  });
+  // Alguien del caso que no está en la sala de la escena: se toma de los propios datos del caso (sin nombrar a nadie del archivo
+  // del proveedor), de preferencia alguien sin ninguna PERSON en el mapa de ninguna sala.
+  const mapaInicio = (vista['maps'] as Json[]).find((m) => m['nodeId'] === escena['id']);
+  const personas = (vista['objects'] as Json[]).filter((o) => o['type'] === 'PERSON' && o['characterId'] != null && o['visible'] !== false);
+  const sinSala = (vista['characters'] as Json[]).filter((c) => !personas.some((o) => o['characterId'] === c['id']));
+  const fueraDelInicio = (vista['characters'] as Json[]).filter((c) => !personas.some((o) => o['characterId'] === c['id'] && o['mapId'] === mapaInicio?.['id']));
+  const elegido = sinSala[0] ?? fueraDelInicio[0];
+  expect(elegido, 'el caso trae a alguien que no está en la sala de la primera escena').toBeTruthy();
+  const ajeno = String(elegido!['key']);
+  await send(request, token, 'put', `${base}/decisions/${conRequisito['id']}`, cuerpo(conRequisito, { requires: { milestone: 'hito-que-no-existe' } }), 'requisito con un hito inexistente (OCL-10)');
+  await send(request, token, 'put', `${base}/decisions/${conReaccion['id']}`,
+    cuerpo(conReaccion, { reaction: { ...(conReaccion['reaction'] ?? {}), linea: 'Ay, no sé qué decir.', personaje: ajeno } }), 'reacción de alguien que no está en la sala (OCL-12)');
+
+  const actual = (await readEditor(request, token, caseVersionId) as Json)['nodes'].find((n: Json) => n['id'] === escena['id']) as Json;
+  const comentarios = (actual['comments'] ?? []) as Json[];
+  const cuerpoEscena = (comments: Json[]) => ({
+    nodeKey: actual['key'], title: actual['title'], narrative: actual['narrative'], supportResources: actual['supportResources'],
+    requiredTools: actual['requiredTools'], sensitiveContent: actual['sensitiveContent'], safeExitRequired: actual['safeExitRequired'],
+    warningMessage: actual['warningMessage'], terminal: actual['terminal'], startNode: actual['startNode'],
+    positionX: actual['positionX'], positionY: actual['positionY'], comments,
+  });
+  await send(request, token, 'put', `${base}/nodes/${escena['id']}`,
+    cuerpoEscena([...comentarios, { personaje: ajeno, linea: 'Pasaba por aquí y me quedé escuchando.' }]), 'comentario de alguien que no está en la sala (OCL-12)');
+
+  return {
+    requisito: conRequisito['id'], reaccion: conReaccion['id'], comentario: comentarios.length,
+    deshacer: async () => {
+      await readEditor(request, token, caseVersionId);
+      await send(request, token, 'put', `${base}/decisions/${conRequisito['id']}`, cuerpo(conRequisito, { requires: {} }), 'quitar el requisito');
+      await send(request, token, 'put', `${base}/decisions/${conReaccion['id']}`, cuerpo(conReaccion, { reaction: conReaccion['reaction'] ?? {} }), 'restaurar la reacción');
+      await send(request, token, 'put', `${base}/nodes/${escena['id']}`, cuerpoEscena(comentarios), 'quitar el comentario ajeno');
+    },
+  };
+}
+
+/**
+ * La generación exige la rúbrica por defecto (en producción la siembra `seed_default_rubric`; la base desechable del e2e no la
+ * trae). Si `status` dice que está apagada, la crea como administrador por la API —la misma ruta que usa la pantalla de
+ * rúbricas, con los seis criterios de la básica— y comprueba que la generación quedó disponible.
+ */
+export async function asegurarGeneracionDisponible(request: APIRequestContext): Promise<void> {
+  const docente = await apiToken(request, PROFESOR);
+  const disponible = async (): Promise<boolean> => {
+    const estado = await request.get('/api/authoring/generations/status', { headers: { Authorization: `Bearer ${docente}` } });
+    expect(estado.status(), 'estado de la generación').toBe(200);
+    return ((await estado.json()).data as Json)['enabled'] === true;
+  };
+  if (await disponible()) return;
+  const admin = await apiToken(request, ADMIN);
+  const criterios = [
+    ['COMPRENSION_SITUACION', 'Identificación y comprensión de la situación', 20], ['ANALISIS_ARGUMENTACION', 'Análisis psicosocial y argumentación', 20],
+    ['DECISION_RUTA', 'Toma de decisiones y ruta de atención', 20], ['COMUNICACION_EMPATIA', 'Comunicación, empatía y trato profesional', 15],
+    ['PAP', 'Aplicación de primeros auxilios psicológicos', 15], ['REFLEXION', 'Reflexión, bitácora y aprendizaje', 10],
+  ] as const;
+  const creada = await request.post('/api/rubrics/', {
+    headers: { Authorization: `Bearer ${admin}` },
+    data: {
+      name: 'Rúbrica por defecto e2e', description: 'Para que la generación esté disponible en la base desechable.', version: '1.0',
+      active: true, isDefault: true,
+      criteria: criterios.map(([competency, title, weight], i) => ({ competency, title, weight, displayOrder: i + 1, active: true })),
+    },
+  });
+  expect(creada.status(), `crear la rúbrica por defecto: ${await creada.text()}`).toBe(201);
+  expect(await disponible(), 'con la rúbrica por defecto la generación queda disponible').toBe(true);
 }

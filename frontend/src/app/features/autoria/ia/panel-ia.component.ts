@@ -26,7 +26,7 @@ export function contextoDeRuta(url: string): ContextoIa {
   if (seccion === 'escena') return { pantalla: 'guion', seleccion: id ?? null };
   if (seccion === 'sala') return { pantalla: 'sala', seleccion: id ?? null };
   if (seccion === 'finales') return { pantalla: 'finales', seleccion: null };
-  if (seccion === 'probar' || seccion === 'revision') return { pantalla: seccion, seleccion: null };
+  if (seccion === 'revision') return { pantalla: seccion, seleccion: null };
   return { pantalla: 'mapa', seleccion: null };
 }
 

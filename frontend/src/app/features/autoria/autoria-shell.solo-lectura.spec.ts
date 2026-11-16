@@ -53,12 +53,6 @@ describe('AutoriaShellComponent · un caso que ya no es un borrador', () => {
     expect(servidor.llamadasA('updateEndings')).toHaveLength(0);
   });
 
-  it('en la prueba como estudiante los controles siguen vivos, porque probar no cambia el caso', async () => {
-    const { raiz } = await irA('/portal/casos/41/editor/probar', 'IN_REVIEW');
-    expect(raiz.querySelector('main [role="note"].solo-lectura')).not.toBeNull();
-    expect(raiz.querySelector<HTMLFieldSetElement>('main fieldset.marco-pantalla')!.disabled).toBe(false);
-  });
-
   it('en la revisión de un caso que ya no es un borrador los controles siguen vivos: ahí se decide y se crea la versión nueva', async () => {
     const { raiz } = await irA('/portal/casos/41/editor/revision', 'IN_REVIEW');
     const marco = raiz.querySelector<HTMLFieldSetElement>('main fieldset.marco-pantalla')!;
