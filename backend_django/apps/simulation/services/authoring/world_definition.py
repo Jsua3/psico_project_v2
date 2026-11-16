@@ -158,8 +158,10 @@ def save_world(case_version_id, node_id, request):
     if zones is not None:
         _save_collision_zones(scene_map, zones)
 
-    # x-siep 2.2 (§3.4): en una sala por piezas el ancho, las paredes y las puertas salen de la estructura.
-    if scene_map.structure is not None:
+    # x-siep 2.2 (§3.4): en una sala por piezas el ancho, las paredes y las puertas salen de la estructura. Se recalcula la
+    # versión entera aunque la sala guardada sea de imagen fija: las puertas por piezas que llegan a ella toman su aparición
+    # (revisión de Codex, hallazgo 3), y una sala que deja de ser por piezas cambia la llegada de quien entra.
+    if SceneMap.objects.filter(case_version_id=scene_map.case_version_id, structure__isnull=False).exists():
         estructura_salas.recalcular_salas(scene_map.case_version)
 
     # E2-6: cada guardado avanza la revisión (en Spring @Version no avanzaba y el 409 era inerte).

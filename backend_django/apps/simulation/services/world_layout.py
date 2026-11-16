@@ -213,9 +213,12 @@ def _colocar(salas, miembros, inicial):
             b = salas[destino]
             rect = (_candidato_inverso if inverso else _candidato)(a, posicion[a.clave], b, muro, pos)
             lugar = _ubicar(b, rect, OPUESTO[muro] if inverso else muro, puestos)
-            if lugar is not None:
-                posicion[destino] = lugar
-                puestos.append((*lugar, b.ancho))
+            if lugar is None:
+                # Sin sitio tras MAX_FILAS filas: va a la derecha de todo ya (paso 5), porque ya está en la cola y su turno
+                # necesita una posición (revisión de Codex, hallazgo 6).
+                lugar = (max((x + w for x, _, w in puestos), default=0) + SEPARACION, 0)
+            posicion[destino] = lugar
+            puestos.append((*lugar, b.ancho))
     # Paso 5: lo que quedó sin sitio va en fila a la derecha de todo.
     derecha = max((x + w for x, _, w in puestos), default=0) + SEPARACION
     for c in sorted(miembros, key=lambda c: salas[c].orden):
