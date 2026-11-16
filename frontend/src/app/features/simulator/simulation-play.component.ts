@@ -2474,7 +2474,10 @@ export class SimulationPlayComponent implements OnInit, OnDestroy {
     const object = (objectKey ? world?.objects?.find(o => o.key === objectKey) : undefined) ?? keyPerson ?? undefined;
     if (!world || !object) return { nombre: '', visual: null };
     const isKeyPerson = keyPerson?.key === object.key;
-    return { nombre: getSceneDisplayLabel(object, world.map.key), visual: isKeyPerson ? this.patientVisual() : null };
+    // La cara: la de la persona clave, o la del personaje de la sala que reacciona (la misma fuente que el diálogo y la
+    // burbuja); sin esto el hermano mayor reaccionaba sin retrato en la entrada.
+    const visual = (isKeyPerson ? this.patientVisual() : null) ?? this.gameWorld?.characterVisualOf(object.key) ?? null;
+    return { nombre: getSceneDisplayLabel(object, world.map.key), visual };
   }
 
   /** Terminó la reacción (completa o saltada): nota de supervisión sobre la escena y, detrás de ella, la sala de destino. */

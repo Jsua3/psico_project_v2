@@ -66,7 +66,7 @@ const STALE_NOTE = 'Esta conversación corresponde a otro momento del caso.';
             <button type="button" class="panel-back" (click)="close.emit()">
               <span class="panel-back__arrow" aria-hidden="true">◀</span> Volver al mapa
             </button>
-            <app-safe-exit-button class="panel-head__exit" data-hide-key [pausing]="pausing()" (pause)="safeExit.emit()" />
+            <app-safe-exit-button class="panel-head__exit" data-hide-key variante="placa" [pausing]="pausing()" (pause)="safeExit.emit()" />
           </div>
           @if (hasDecisionOptions(d)) {
             <p class="panel-head__note">
@@ -152,7 +152,7 @@ const STALE_NOTE = 'Esta conversación corresponde a otro momento del caso.';
               }
               <!-- La pista acompaña a quien decide: una confirmación de la interfaz («Explorar primero») no la ofrece. -->
               @if (offersHints(d) && hintAttempt(); as attemptRef) {
-                <app-scene-hint [attemptId]="attemptRef.attemptId" [attemptToken]="attemptRef.attemptToken"
+                <app-scene-hint variante="placa" [attemptId]="attemptRef.attemptId" [attemptToken]="attemptRef.attemptToken"
                   (consentRequired)="consentRequired.emit()" />
               }
               <div class="choices" role="group" aria-label="Opciones de intervención" tabindex="-1" cdkFocusInitial
@@ -200,6 +200,10 @@ const STALE_NOTE = 'Esta conversación corresponde a otro momento del caso.';
     :host { display: block; }
     .dialogue-strip {
       --px: 2px; --tam: 17px; --retrato: 192px;
+      /* El tamaño de letra de las placas-botón de la cabecera («Volver al mapa», «Salida segura», «Ver pista»). */
+      --tam-boton: .82em;
+      /* Y su alto común: el de «Volver» con su tecla «Esc» (22 puntos de mundo: 44 px y 66 px desde 1800 de ancho). */
+      --alto-boton: calc(22 * var(--px));
       /* Capas del panel: la pestaña del nombre tapa el canto de la placa; la cabecera fija va sobre lo que se desplaza. */
       --capa-pestana: 1; --capa-cabecera: 3;
       --tinta: #f2ecdf; --tinta-suave: #c3bccf; --tinta-oscura: #1b1530; --penumbra: #1b1826;
@@ -370,11 +374,12 @@ const STALE_NOTE = 'Esta conversación corresponde a otro momento del caso.';
       display: inline-flex;
       align-items: center;
       gap: 10px;
-      min-height: 44px;
+      min-height: var(--alto-boton);
       padding: 0 12px 1px 8px;
+      white-space: nowrap;
       color: #f2ecdf;
       font: inherit;
-      font-size: .82em;
+      font-size: var(--tam-boton);
       font-weight: 600;
       cursor: pointer;
     }
@@ -394,11 +399,13 @@ const STALE_NOTE = 'Esta conversación corresponde a otro momento del caso.';
       color: var(--tinta);
     }
     .close-btn::before { content: 'Enter'; }
+    /* «Volver al mapa» con los estados de la placa-botón, como «Salida segura» y «Ver pista»: sobre enciende el canto y
+       pulsada invierte el bisel; el foco es el anillo global de la piel, el mismo en las tres. */
     @media (hover: hover) and (pointer: fine) {
-      .panel-back:hover { color: #ffcd82; }
+      .panel-back:hover { --m: var(--marco-placa-sobre); --t: var(--trama-placa-sobre); color: #ffcd82; }
       .panel-back::before, .close-btn::before { display: inline-block; }
     }
-    .panel-back:active { transform: translateY(var(--px)); }
+    .panel-back:active { transform: translateY(var(--px)); --m: var(--marco-placa-pulsada); --t: var(--trama-placa-pulsada); }
     .panel-back__arrow { font-size: .75em; }
 
     /* La placa. */
@@ -791,6 +798,8 @@ const STALE_NOTE = 'Esta conversación corresponde a otro momento del caso.';
       /* En el teléfono la placa ocupa todo el ancho: «Volver» y «Salida segura» no pueden ir en la esquina de abajo, donde
          taparían el texto y «Siguiente»; van arriba, dentro del cuadro. */
       .dialogue-strip:not(.dialogue-strip--side):not(.strip--con-opciones) .panel-head { position: static; }
+      /* En el ancho de un teléfono «Volver al mapa» y «Salida segura» comparten renglón: sin la tecla «Esc» caben enteras. */
+      .panel-back::before { display: none; }
       .dialogue-strip:not(.dialogue-strip--side).strip--con-opciones .panel-head__note {
         position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip: rect(0, 0, 0, 0); white-space: nowrap; border: 0;
       }
@@ -1196,13 +1205,14 @@ export class DialoguePanelComponent implements AfterViewChecked, OnDestroy {
     const pie = parseFloat(getComputedStyle(lista).paddingBottom) || 0;
     const fichas = Array.from(lista.querySelectorAll<HTMLElement>('.choice-btn'));
     const fondoDe = (ficha: HTMLElement) => ficha.offsetTop + ficha.offsetHeight - lista.offsetTop - lista.clientTop;
-    if (!lista.clientHeight || !fichas.length || Math.max(...fichas.map(fondoDe)) + pie <= lista.clientHeight + 0.5) return;
+    // Las medidas de maqueta son enteras (cada una redondea medio punto): 2 px de margen para no recortar una lista que cabe.
+    if (!lista.clientHeight || !fichas.length || Math.max(...fichas.map(fondoDe)) + pie <= lista.clientHeight + 2) return;
     // Las fichas que quedan abajo se anuncian bajo la lista («▼ Más abajo: C y D»): la señal toma su renglón antes de
     // medir cuántas filas caben enteras.
     if (cuerpo) cuerpo.dataset['mas'] = 'Más abajo';
     const alto = lista.clientHeight;
     const fondos = fichas.map(fondoDe);
-    const corte = Math.max(0, ...fondos.filter(fondo => fondo + pie <= alto + 0.5));
+    const corte = Math.max(0, ...fondos.filter(fondo => fondo + pie <= alto + 2));
     if (corte > 0) lista.style.maxHeight = `${Math.ceil(corte + pie)}px`;
     const abajo = fondos.map((fondo, i) => (fondo > corte + 0.5 ? this.letra(i) : '')).filter(Boolean);
     if (cuerpo && abajo.length) {

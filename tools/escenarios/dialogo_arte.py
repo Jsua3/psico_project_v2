@@ -38,6 +38,8 @@ def _materiales(momento):
     encendida = mezcla((250, 240, 214), luz, 0.35)
     papel = (240, 234, 220)
     tecla = (58, 52, 84)
+    placa_alzada, placa_hundida = (36, 32, 50), (22, 20, 31)
+    brasa, brasa_alzada, brasa_hundida = (46, 22, 28), (62, 28, 34), (34, 16, 20)
     return {
         'placa': (penumbra, mezcla(penumbra, luz, 0.30), (17, 15, 24), (33, 30, 46), (23, 20, 33)),
         'rotulo': (penumbra, mezcla(penumbra, luz, 0.30), (17, 15, 24), (33, 30, 46), (23, 20, 33)),
@@ -51,13 +53,31 @@ def _materiales(momento):
         'tecla': (tecla, mezcla(tecla, luz, 0.28), (30, 27, 46), tecla, tecla),
         'tecla-encendida': (luz, mezcla(luz, (255, 255, 255), 0.55), mezcla(luz, (120, 70, 30), 0.3), luz, luz),
         'tecla-hundida': (hundida, (20, 18, 31), (20, 18, 31), hundida, hundida),
+        # La placa como botón («Volver al mapa», «Ver pista»): sobre y foco encienden el canto con la luz de la sala;
+        # pulsada invierte el bisel; apagada pierde la luz (deshabilitada: se ve, pero no promete nada).
+        'placa-sobre': (placa_alzada, luz, (17, 15, 24), (46, 42, 62), (30, 27, 42)),
+        'placa-foco': (placa_alzada, luz, (17, 15, 24), (46, 42, 62), (30, 27, 42)),
+        'placa-pulsada': (placa_hundida, (12, 11, 18), mezcla(placa_hundida, luz, 0.14), (30, 27, 42), (18, 16, 26)),
+        'placa-apagada': (penumbra, (52, 49, 64), (17, 15, 24), (33, 30, 46), (23, 20, 33)),
+        # «Salida segura»: la misma placa con brasa en el canto y el relleno entibiado, para que sea lo primero que se
+        # encuentra en la fila sin ser un botón rojo.
+        'salida': (brasa, (226, 106, 80), (24, 10, 14), (58, 30, 36), (36, 16, 22)),
+        'salida-sobre': (brasa_alzada, (255, 150, 112), (24, 10, 14), (76, 36, 42), (50, 22, 28)),
+        'salida-foco': (brasa_alzada, (255, 150, 112), (24, 10, 14), (76, 36, 42), (50, 22, 28)),
+        'salida-pulsada': (brasa_hundida, (16, 8, 10), mezcla(brasa_hundida, (226, 106, 80), 0.2), (44, 22, 28), (28, 12, 16)),
     }
 
 
 MARCOS = ('placa', 'rotulo', 'ficha', 'ficha-sobre', 'ficha-foco', 'ficha-pulsada', 'ficha-elegida', 'burbuja',
-          'tecla', 'tecla-encendida', 'tecla-hundida')
-TRAMAS = ('placa', 'ficha', 'ficha-sobre', 'ficha-pulsada', 'ficha-elegida', 'burbuja')
-_TINTAS = {'ficha-elegida': OSCURO, 'burbuja': PAPEL, 'tecla-encendida': OSCURO}
+          'tecla', 'tecla-encendida', 'tecla-hundida',
+          'placa-sobre', 'placa-foco', 'placa-pulsada', 'placa-apagada',
+          'salida', 'salida-sobre', 'salida-foco', 'salida-pulsada')
+TRAMAS = ('placa', 'ficha', 'ficha-sobre', 'ficha-pulsada', 'ficha-elegida', 'burbuja',
+          'placa-sobre', 'placa-pulsada', 'salida', 'salida-sobre', 'salida-pulsada')
+CALIDA = (255, 214, 196)                   # texto de «Salida segura»: claro y tibio
+APAGADA = (169, 162, 184)                  # texto de una placa deshabilitada (sigue llegando a 4,5:1)
+_TINTAS = {'ficha-elegida': OSCURO, 'burbuja': PAPEL, 'tecla-encendida': OSCURO,
+           'salida': CALIDA, 'salida-sobre': CALIDA, 'salida-pulsada': CALIDA}
 
 
 def tinta_de(nombre, momento='noche'):
@@ -90,7 +110,7 @@ def marco(nombre, momento='noche'):
             else:
                 color = relleno
             px[x, y] = color + (255,)
-    if nombre == 'ficha-foco':               # el foco enciende dos filas, no una
+    if nombre.endswith('-foco'):             # el foco enciende dos filas, no una
         for x in range(2, n - 2):
             px[x, 2] = mezcla(relleno, luz, 0.55) + (255,)
     if nombre == 'rotulo':                   # la pestaña se funde con la placa: sin borde abajo
@@ -147,6 +167,23 @@ def cursor(momento='noche'):
 def seguir(momento='noche'):
     """▼ de «hay más»: la línea terminó y se puede seguir."""
     return _figura(['#######', '#lllll#', '.#lll#.', '..#l#..', '...#...'], {'#': TINTA, 'l': LUZ[momento]})
+
+
+def bombilla(encendida=True, momento='noche'):
+    """La bombilla de «Ver pista», de 9 x 11: vidrio con brillo, rosca de metal. Apagada, el vidrio queda gris."""
+    vidrio = LUZ[momento] if encendida else (92, 86, 112)
+    brillo = (255, 255, 246) if encendida else (128, 122, 146)
+    contorno = TINTA if encendida else (12, 11, 18)
+    return _figura(['..#####..', '.#lllll#.', '#llwllll#', '#lwlllll#', '#lllllll#', '.#lllll#.', '..#lll#..',
+                    '..#ggg#..', '..#ddd#..', '..#ggg#..', '...###...'],
+                   {'#': contorno, 'l': vidrio, 'w': brillo, 'g': (150, 146, 164), 'd': (84, 80, 98)})
+
+
+def puerta_salida():
+    """La puerta con flecha de «Salida segura», de 11 x 9, en los tonos de la brasa de su placa."""
+    return _figura(['######.....', '#dddd#.....', '#dddd#..a..', '#dddd#..aa.', '#ddaaaaaaaa', '#dddd#..aa.',
+                    '#dddd#..a..', '#dddd#.....', '######.....'],
+                   {'#': (226, 106, 80), 'd': (92, 40, 40), 'a': (255, 214, 196)})
 
 
 # Las letras de las fichas se dibujan aquí: son el nombre de la respuesta (el estudiante las dice y las pulsa) y a
@@ -287,6 +324,7 @@ def exportar_recursos(destino=RECURSOS):
         for nombre in TRAMAS:
             guardar(f'trama-{nombre}-{momento}', trama(nombre, momento))
         guardar(f'cursor-{momento}', cursor(momento))
+        guardar(f'icono-bombilla-{momento}', bombilla(True, momento))
         guardar(f'seguir-{momento}', seguir(momento))
     for ch in LETRAS:
         guardar(f'letra-{ch}-clara', letra(ch, CLARO))
@@ -296,6 +334,8 @@ def exportar_recursos(destino=RECURSOS):
     for estado in PULSOS:
         guardar('pulso-' + estado, pulso(estado))
     guardar('retrato-reserva', retrato_reserva())
+    guardar('icono-bombilla-apagada', bombilla(False))
+    guardar('icono-salida', puerta_salida())
     return escritos
 
 

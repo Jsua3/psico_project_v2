@@ -1551,6 +1551,51 @@ describe('DialoguePanelComponent - respaldo de las letras', () => {
   });
 });
 
+// Bloque I1 (lo pidió el usuario): «Salida segura» y «Ver pista» dentro del cuadro son placas hermanas de «Volver al mapa».
+describe('DialoguePanelComponent - las placas-botón de la cabecera', () => {
+  const salida = readFileSync(join(__dirname, 'safe-exit-button.component.ts'), 'utf-8');
+  const pistaHtml = readFileSync(join(__dirname, 'scene-hint.component.html'), 'utf-8');
+  const pistaScss = readFileSync(join(__dirname, 'scene-hint.component.scss'), 'utf-8');
+
+  it('el cuadro pide la variante «placa»; fuera del cuadro sigue el aspecto de siempre', () => {
+    expect(source).toMatch(/<app-safe-exit-button class="panel-head__exit" data-hide-key variante="placa"/);
+    expect(source).toContain('<app-scene-hint variante="placa"');
+    expect(salida).toContain(`readonly variante = input<'base' | 'placa'>('base');`);
+    expect(salida).toContain(`[class.safe-exit-btn--placa]="variante() === 'placa'"`);
+    expect(pistaHtml).toContain(`[class.scene-hint--placa]="variante() === 'placa'"`);
+    // En la placa la bombilla es de pixel; fuera, el icono de siempre.
+    expect(pistaHtml).toContain(`[icon]="variante() === 'placa' ? undefined : 'lightbulb'"`);
+  });
+
+  it('las tres miden y visten igual: marco y trama de pixel, la misma letra y la misma altura', () => {
+    expect(source).toContain('--tam-boton: .82em;');
+    for (const css of [salida, pistaScss]) {
+      expect(css).toContain('border-image: var(--m) 4 / calc(4 * var(--px)) stretch;');
+      expect(css).toContain('font-size: var(--tam-boton);');
+      expect(css).toContain('padding: 0 12px 1px 8px;');
+    }
+    expect(source).toMatch(/\.panel-back \{[^}]*font-size: var\(--tam-boton\);/);
+    // El mismo alto para las tres (el de «Volver» con su tecla «Esc»), y «Volver al mapa» en un solo renglón.
+    expect(source).toContain('--alto-boton: calc(22 * var(--px));');
+    expect(source).toMatch(/\.panel-back \{[^}]*min-height: var\(--alto-boton\);[^}]*white-space: nowrap;/);
+    expect(salida).toContain('min-height: var(--alto-boton, 44px);');
+    expect(pistaScss).toContain('min-block-size: var(--alto-boton, 44px);');
+  });
+
+  it('«Salida segura» lleva brasa y su texto tibio llega a 4,5:1; «Ver pista» apagada se lee y su bombilla se apaga', () => {
+    // Relleno y motas de la trama de salida (dialogo_arte.py, material «salida»).
+    for (const surface of ['#2E161C', '#3A1E24', '#241016']) expect(contrastRatio('#FFD6C4', surface)).toBeGreaterThanOrEqual(4.5);
+    for (const surface of PLACA_ARTE) {
+      expect(contrastRatio('#A9A2B8', surface)).toBeGreaterThanOrEqual(4.5);
+      expect(contrastRatio('#F2ECDF', surface)).toBeGreaterThanOrEqual(4.5);
+    }
+    expect(salida).toContain('--m: var(--marco-salida); --t: var(--trama-salida);');
+    expect(pistaScss).toMatch(/&\[aria-disabled='true'\] \{[^}]*--m: var\(--marco-placa-apagada\);[^}]*color: #a9a2b8;/);
+    expect(pistaScss).toContain('&::before { background-image: var(--icono-bombilla-apagada); }');
+  });
+});
+const PLACA_ARTE = ['#1B1826', '#211E2E', '#171421'];
+
 // Bloque I1 (pedido de K1): el aviso breve de la pantalla flotaba encima de las fichas; ahora el cuadro le da su sitio.
 describe('DialoguePanelComponent - el aviso breve va dentro del cuadro', () => {
   let fixture: ComponentFixture<DialoguePanelComponent>;
