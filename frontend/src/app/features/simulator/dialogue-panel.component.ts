@@ -468,7 +468,30 @@ const STALE_NOTE = 'Esta conversación corresponde a otro momento del caso.';
     }
 
     /* Las fichas de respuesta. */
-    .strip-body { min-width: 0; display: flex; flex-direction: column; gap: calc(4 * var(--px)); }
+    /* La columna de las fichas, compacta: el aviso y «Ver pista» comparten renglón; todo lo demás va a lo ancho. */
+    .strip-body {
+      min-width: 0;
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) auto;
+      align-items: center;
+      gap: calc(3 * var(--px)) calc(4 * var(--px));
+    }
+    .strip-body > * { grid-column: 1 / -1; }
+    .strip-body > .choices-notice { grid-column: 1; }
+    .strip-body > app-scene-hint { grid-column: 2; justify-self: end; }
+    /* Con subtítulos («Usar una herramienta», «Decisión») las filas no pueden ser todas iguales: el subtítulo es un rótulo,
+       no una ficha. Las fichas de una misma fila siguen igualándose. */
+    .choices:has(.choices-subtitle) { grid-auto-rows: auto; }
+    /* Sobre el mundo y con opciones, la cabecera es un solo renglón: la nota de la decisión a la izquierda y «Volver» y
+       «Salida segura» a la derecha, pegados a las fichas. */
+    .dialogue-strip:not(.dialogue-strip--side).strip--con-opciones .panel-head {
+      grid-template-columns: minmax(0, 1fr) auto;
+      align-items: center;
+      justify-items: stretch;
+      margin-left: calc(44% + 4 * var(--px));
+    }
+    .dialogue-strip:not(.dialogue-strip--side).strip--con-opciones .panel-head__note { grid-row: 1; grid-column: 1; }
+    .dialogue-strip:not(.dialogue-strip--side).strip--con-opciones .panel-head__row { grid-row: 1; grid-column: 2; flex-wrap: nowrap; }
     .choices {
       display: grid;
       grid-template-columns: repeat(2, minmax(0, 1fr));
@@ -597,6 +620,7 @@ const STALE_NOTE = 'Esta conversación corresponde a otro momento del caso.';
       --m: var(--marco-placa); --t: var(--trama-placa);
       grid-column: 1 / -1;
       justify-self: start;
+      align-self: end;
       margin: 4px 0 0;
       padding: 0 8px 1px;
       color: #ffcd82;
