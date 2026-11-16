@@ -219,8 +219,10 @@ describe('DescribirComponent', () => {
       fixture.detectChanges();
       g.habilitada = false; // se apagó mientras escribía
       boton(raiz, 'Generar el caso con IA')!.click();
-      await hasta(() => raiz.textContent!.includes('La generación con IA no está disponible por ahora.'));
+      await hasta(() => raiz.textContent!.includes('La generación con IA no está disponible.'));
 
+      // el mensaje es el que trae el servidor, con la salida: elegir las salas a mano
+      expect(raiz.textContent).toContain('La generación con IA no está disponible. Puedes elegir las salas a mano.');
       expect(raiz.querySelector('textarea')).toBeNull();
     });
 
@@ -236,6 +238,93 @@ describe('DescribirComponent', () => {
       expect(raiz.querySelector('[role="alert"]')!.textContent).toContain('No pudimos hablar con la IA.');
       boton(raiz, 'Generar el caso con IA')!.click();
       await hasta(() => empezar.mock.calls.length === 2);
+    });
+  });
+
+  describe('el contrato final de C1', () => {
+    const DATOS = 'Una estudiante escribió a camila.rojas@correo.com porque ya no puede más con lo que pasa en casa.';
+
+    it('el aviso de no escribir datos reales va antes del cuadro de texto y está enlazado con aria-describedby', async () => {
+      const { crear } = await montar();
+      const { raiz } = await crear();
+
+      const aviso = raiz.querySelector('#descripcion-datos')!;
+      expect(aviso.textContent).toContain('No escribas datos reales de personas: ni nombres, ni correos, ni teléfonos, ni números de documento.');
+      const campo = raiz.querySelector('textarea')!;
+      expect(aviso.compareDocumentPosition(campo) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+      expect(campo.getAttribute('aria-describedby')!.split(' ')).toContain('descripcion-datos');
+    });
+
+    it('datos personales: el motivo del servidor queda junto al campo, con aria-invalid y el foco en el campo', async () => {
+      const { navegar, crear } = await montar();
+      const { fixture, raiz, hasta } = await crear();
+      escribir(raiz, DATOS);
+      fixture.detectChanges();
+      boton(raiz, 'Generar el caso con IA')!.click();
+      await hasta(() => !!raiz.querySelector('#descripcion-error'));
+
+      expect(raiz.querySelector('#descripcion-error')!.textContent).toContain(
+        'La descripción parece traer datos reales de una persona (correo, teléfono o número de documento). Cuéntala sin datos que identifiquen a nadie.');
+      const campo = raiz.querySelector('textarea')!;
+      expect(campo.getAttribute('aria-invalid')).toBe('true');
+      expect(campo.getAttribute('aria-describedby')!.split(' ')).toEqual(expect.arrayContaining(['descripcion-datos', 'descripcion-error']));
+      await hasta(() => document.activeElement === campo);
+      expect(raiz.querySelector('.aviso-error')).toBeNull(); // no es un aviso general
+      expect(navegar).not.toHaveBeenCalled();
+    });
+
+    it('texto plano: el mensaje del servidor queda junto a la descripción', async () => {
+      const { crear } = await montar();
+      const { fixture, raiz, hasta } = await crear();
+      escribir(raiz, `${DESCRIPCION} <b>x</b>`);
+      fixture.detectChanges();
+      boton(raiz, 'Generar el caso con IA')!.click();
+      await hasta(() => !!raiz.querySelector('#descripcion-error'));
+      expect(raiz.querySelector('#descripcion-error')!.textContent).toContain('La descripción debe ser texto plano, sin etiquetas, enlaces ni caracteres especiales.');
+    });
+
+    it('lugar sin elegir: el mensaje del servidor va junto a su campo (el lugar), no en un aviso general', async () => {
+      const { api, crear } = await montar();
+      const { fixture, raiz, hasta } = await crear();
+      vi.spyOn(api, 'startGeneration').mockReturnValue(
+        respuesta(400, { code: 'VALIDATION_ERROR', message: 'Elige el lugar donde pasa el caso.', field: 'lugarId' }));
+      escribir(raiz, DESCRIPCION);
+      fixture.detectChanges();
+      boton(raiz, 'Generar el caso con IA')!.click();
+      await hasta(() => !!raiz.querySelector('#lugar-error'));
+
+      const lugar = raiz.querySelector('#lugar-error')!;
+      expect(lugar.textContent).toContain('Elige el lugar donde pasa el caso.');
+      expect(lugar.getAttribute('role')).toBe('alert');
+      expect(raiz.querySelector('#descripcion-error')).toBeNull();
+      expect(raiz.querySelector('.aviso-error')).toBeNull();
+    });
+
+    it('el tope global del día muestra el texto del servidor y no deja volver a pedir', async () => {
+      const { api, crear } = await montar();
+      const { fixture, raiz, hasta } = await crear();
+      const empezar = vi.spyOn(api, 'startGeneration').mockReturnValue(respuesta(429, {
+        code: 'AI_LIMIT_EXCEEDED', scope: 'daily',
+        message: 'La plataforma llegó al límite de casos generados por hoy. Vuelve a intentarlo mañana.',
+      }));
+      escribir(raiz, DESCRIPCION);
+      fixture.detectChanges();
+      boton(raiz, 'Generar el caso con IA')!.click();
+      await hasta(() => !!raiz.querySelector('[role="alert"]'));
+
+      expect(raiz.querySelector('[role="alert"]')!.textContent).toContain('La plataforma llegó al límite de casos generados por hoy. Vuelve a intentarlo mañana.');
+      boton(raiz, 'Generar el caso con IA')!.click();
+      await new Promise((r) => setTimeout(r, 0));
+      expect(empezar).toHaveBeenCalledTimes(1);
+    });
+
+    it('sin rúbrica por defecto (enabled: false) la opción queda apagada con su motivo', async () => {
+      const { g, crear } = await montar();
+      g.habilitada = false; // el servidor dice enabled: false también sin rúbrica o con un proveedor que no genera por etapas
+      const { raiz } = await crear();
+      expect(raiz.textContent).toContain('La generación con IA no está disponible por ahora. Puedes elegir las salas a mano.');
+      expect(raiz.querySelector('textarea')).toBeNull();
+      expect(boton(raiz, 'Generar el caso con IA')).toBeUndefined();
     });
   });
 });

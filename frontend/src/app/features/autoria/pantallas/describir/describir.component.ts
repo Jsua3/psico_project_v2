@@ -1,4 +1,6 @@
-import { ChangeDetectionStrategy, Component, computed, inject, input, signal } from '@angular/core';
+import {
+  ChangeDetectionStrategy, Component, ElementRef, Injector, afterNextRender, computed, inject, input, signal, viewChild,
+} from '@angular/core';
 import { Router } from '@angular/router';
 import { firstValueFrom } from 'rxjs';
 
@@ -43,15 +45,20 @@ export const MAXIMO_DESCRIPCION = 2000;
           </div>
         </div>
       } @else if (!habilitada()) {
-        <p class="tarjeta" role="status">{{ motivoApagada }}</p>
+        <p class="tarjeta" role="status">{{ textoApagada() }}</p>
       } @else {
         <form class="formulario" novalidate (submit)="$event.preventDefault(); generar()">
+          @if (errorLugar()) {
+            <p id="lugar-error" class="error-campo" role="alert"><span aria-hidden="true">! </span>{{ errorLugar() }}</p>
+          }
           <div class="campo">
             <label for="descripcion">Describe la situación y lo que debe aprender el estudiante</label>
             <p id="descripcion-ayuda" class="texto-secundario">
               Por ejemplo: quién consulta, qué le pasó, dónde ocurre y qué esperas que el estudiante practique. Entre 40 y 2000 caracteres.
             </p>
-            <textarea id="descripcion" name="descripcion" rows="7" [attr.maxlength]="maximo" [value]="descripcion()"
+            <!-- BORRADOR: texto nuevo, pendiente de la aprobación de Psicología -->
+            <p id="descripcion-datos" class="aviso-datos"><span aria-hidden="true">▲ </span>No escribas datos reales de personas: ni nombres, ni correos, ni teléfonos, ni números de documento.</p>
+            <textarea #campoDescripcion id="descripcion" name="descripcion" rows="7" [attr.maxlength]="maximo" [value]="descripcion()"
                       [attr.aria-invalid]="errorCampo() ? 'true' : null" [attr.aria-describedby]="describedbyCampo()"
                       (input)="escribir($event)"></textarea>
             <p id="descripcion-cuenta" class="texto-secundario cuenta">{{ largo() }} de {{ maximo }}</p>
@@ -87,6 +94,7 @@ export const MAXIMO_DESCRIPCION = 2000;
       border: 2px solid var(--borde-control); border-radius: var(--radio-control);
     }
     textarea[aria-invalid='true'] { border-color: var(--peligro); }
+    .aviso-datos { padding: 8px 12px; border-left: 4px solid var(--borde-control); background: var(--superficie); font-weight: 700; }
     .cuenta { align-self: flex-end; }
     .error-campo { color: var(--peligro); font-weight: 700; }
     .retomar { display: flex; flex-direction: column; gap: 12px; }
@@ -101,6 +109,8 @@ export class DescribirComponent {
   private readonly generacion = inject(GeneracionService);
   private readonly autoria = inject(AutoriaApiService);
   private readonly router = inject(Router);
+  private readonly injector = inject(Injector);
+  private readonly campoDescripcion = viewChild<ElementRef<HTMLTextAreaElement>>('campoDescripcion');
 
   protected readonly maximo = MAXIMO_DESCRIPCION;
   // BORRADOR: texto nuevo, pendiente de la aprobación de Psicología
@@ -117,14 +127,23 @@ export class DescribirComponent {
   protected readonly enviando = signal(false);
   protected readonly cancelando = signal(false);
   protected readonly errorCampo = signal<string | null>(null);
+  /** El servidor rechazó el lugar (`field: "lugarId"`): se dice arriba del formulario, donde se ve qué lugar es. */
+  protected readonly errorLugar = signal<string | null>(null);
   protected readonly errorGeneral = signal<string | null>(null);
   protected readonly errorAlCancelar = signal<string | null>(null);
   /** El servidor dijo que se agotó el cupo del día: no se vuelve a pedir. */
   private readonly limiteAlcanzado = signal(false);
   /** El servidor dijo (404) que la generación está apagada. */
   private readonly apagadaPorServidor = signal(false);
+  /** Lo que dijo el servidor al responder 404, para mostrarlo tal cual. */
+  private readonly mensajeApagada = signal<string | null>(null);
 
   protected readonly habilitada = computed(() => !!this.estado()?.enabled && !this.apagadaPorServidor());
+  protected readonly textoApagada = computed(() => {
+    const dicho = this.mensajeApagada();
+    // BORRADOR: texto nuevo, pendiente de la aprobación de Psicología
+    return dicho ? `${dicho} Puedes elegir las salas a mano.` : this.motivoApagada;
+  });
   protected readonly largo = computed(() => this.descripcion().length);
   protected readonly largoSuficiente = computed(() => this.descripcion().trim().length >= MINIMO_DESCRIPCION);
   protected readonly puedeGenerar = computed(() => this.largoSuficiente() && !this.enviando() && !this.limiteAlcanzado());
@@ -140,7 +159,7 @@ export class DescribirComponent {
     return nombre ? `Tienes un caso a medio generar en ${nombre}.` : 'Tienes un caso a medio generar.';
   });
   protected readonly describedbyCampo = computed(() => {
-    const ids = ['descripcion-ayuda', 'descripcion-cuenta'];
+    const ids = ['descripcion-ayuda', 'descripcion-datos', 'descripcion-cuenta'];
     if (this.errorCampo()) ids.push('descripcion-error');
     return ids.join(' ');
   });
@@ -185,6 +204,7 @@ export class DescribirComponent {
     if (!this.puedeGenerar()) return;
     this.enviando.set(true);
     this.errorCampo.set(null);
+    this.errorLugar.set(null);
     this.errorGeneral.set(null);
     try {
       const id = await this.generacion.empezar(this.lugarId(), this.descripcion().trim());
@@ -204,8 +224,12 @@ export class DescribirComponent {
     }
     switch (e.tipo) {
       case 'campo':
-        if (e.campo === 'descripcion') this.errorCampo.set(e.mensaje);
-        else this.errorGeneral.set(e.mensaje);
+        if (e.campo === 'descripcion') {
+          this.errorCampo.set(e.mensaje);
+          afterNextRender(() => this.campoDescripcion()?.nativeElement.focus(), { injector: this.injector });
+        } else {
+          this.errorLugar.set(e.mensaje);
+        }
         break;
       case 'en-curso':
         await this.ofrecerRetomar(e);
@@ -217,6 +241,7 @@ export class DescribirComponent {
         break;
       case 'apagado':
         this.apagadaPorServidor.set(true);
+        this.mensajeApagada.set(e.mensaje);
         break;
       default:
         this.errorGeneral.set(e.mensaje);

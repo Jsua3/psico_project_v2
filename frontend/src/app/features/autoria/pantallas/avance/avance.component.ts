@@ -1,7 +1,7 @@
 import {
   ChangeDetectionStrategy, Component, ElementRef, Injector, OnDestroy, OnInit, afterNextRender, computed, effect, inject, signal, viewChild,
 } from '@angular/core';
-import { ActivatedRoute, Router } from '@angular/router';
+import { ActivatedRoute, Router, RouterLink } from '@angular/router';
 
 import type { Generation } from '../../../../core/models/generacion.model';
 import { GeneracionService } from '../../generacion/generacion.service';
@@ -28,6 +28,7 @@ const TEXTO_ESTADO: Record<EstadoEtapa, string> = { hecha: 'Hecha', 'en-curso': 
 @Component({
   selector: 'app-avance',
   changeDetection: ChangeDetectionStrategy.OnPush,
+  imports: [RouterLink],
   template: `
     <div class="pagina avance">
       <h1 #titulo tabindex="-1">{{ tituloPagina() }}</h1>
@@ -39,26 +40,32 @@ const TEXTO_ESTADO: Record<EstadoEtapa, string> = { hecha: 'Hecha', 'en-curso': 
         <p>La IA dejó partes que no cumplen las reglas del documento. Prueba a describir el caso de otra forma.</p>
       }
 
-      <ol class="etapas" aria-label="Etapas de la generación">
-        @for (item of items(); track item.clave) {
-          <li class="etapa" [attr.data-estado]="item.estado">
-            <span class="simbolo" aria-hidden="true">{{ simbolo(item.estado) }}</span>
-            <span class="texto">{{ item.texto }}</span>
-            <span class="estado">{{ textoEstado(item.estado) }}</span>
-          </li>
-        }
-      </ol>
+      @if (!fatal()) {
+        <ol class="etapas" aria-label="Etapas de la generación">
+          @for (item of items(); track item.clave) {
+            <li class="etapa" [attr.data-estado]="item.estado">
+              <span class="simbolo" aria-hidden="true">{{ simbolo(item.estado) }}</span>
+              <span class="texto">{{ item.texto }}</span>
+              <span class="estado">{{ textoEstado(item.estado) }}</span>
+            </li>
+          }
+        </ol>
+      }
 
       @if (error(); as e) {
         <div class="tarjeta aviso-error" role="alert">
           <p>{{ e.mensaje }}</p>
           <div class="acciones">
-            @if (e.reintentable) {
-              <button type="button" class="boton boton-primario" (click)="reintentar()">Reintentar esta parte</button>
+            @if (e.fatal) {
+              <a class="boton boton-primario" [routerLink]="rutaVolver" [queryParams]="consultaVolver()">Volver a crear un caso</a>
+            } @else {
+              @if (e.reintentable) {
+                <button type="button" class="boton boton-primario" (click)="reintentar()">Reintentar esta parte</button>
+              }
+              <button type="button" class="boton" [attr.aria-disabled]="cancelando()" (click)="empezarDeNuevo()">
+                Cancelar y empezar de nuevo
+              </button>
             }
-            <button type="button" class="boton" [attr.aria-disabled]="cancelando()" (click)="empezarDeNuevo()">
-              Cancelar y empezar de nuevo
-            </button>
           </div>
           @if (errorAlCancelar()) {
             <p>{{ errorAlCancelar() }}</p>
@@ -81,7 +88,7 @@ const TEXTO_ESTADO: Record<EstadoEtapa, string> = { hecha: 'Hecha', 'en-curso': 
         }
       }
 
-      @if (tipoEtapa() !== 'listo' && tipoEtapa() !== 'fallo') {
+      @if (tipoEtapa() !== 'listo' && tipoEtapa() !== 'fallo' && !fatal()) {
         <p class="texto-secundario">Puedes cerrar esta página: el avance se guarda y podrás retomarlo.</p>
       }
     </div>
@@ -129,8 +136,17 @@ export class AvanceComponent implements OnInit, OnDestroy {
   });
   private readonly etapa = computed(() => (this.g() ? this.generacion.etapa() : null));
   protected readonly tipoEtapa = computed(() => this.etapa()?.tipo ?? null);
+  /** La generación no existe o la función se apagó: no hay etapas que mostrar ni nada que reintentar, solo volver. */
+  protected readonly fatal = computed(() => this.error()?.fatal === true);
+  protected readonly rutaVolver = rutaDelEditor('/salas', null);
+  protected readonly consultaVolver = computed(() => {
+    const lugar = this.g()?.lugarId;
+    return lugar ? { lugar } : null;
+  });
 
   protected readonly tituloPagina = computed(() => {
+    // BORRADOR: texto nuevo, pendiente de la aprobación de Psicología
+    if (this.fatal()) return 'No pudimos seguir armando tu caso';
     switch (this.tipoEtapa()) {
       // BORRADOR: textos del brief de la Tarea 9, pendientes de la aprobación de Psicología
       case 'listo': return 'Tu caso está listo como borrador';
@@ -196,7 +212,7 @@ export class AvanceComponent implements OnInit, OnDestroy {
     // Al llegar a «listo» o «fallo» el foco va al título, cuando ya muestra su texto nuevo.
     effect(() => {
       const tipo = this.tipoEtapa();
-      if (tipo === 'listo' || tipo === 'fallo') {
+      if (tipo === 'listo' || tipo === 'fallo' || this.fatal()) {
         afterNextRender(() => this.titulo().nativeElement.focus(), { injector: this.injector });
       }
     });

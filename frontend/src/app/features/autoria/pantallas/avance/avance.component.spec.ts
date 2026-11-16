@@ -183,6 +183,57 @@ describe('AvanceComponent', () => {
     expect(navegar).toHaveBeenCalledWith('/portal/casos/nuevo/salas?lugar=universidad');
   });
 
+  describe('el contrato final de C1', () => {
+    it('un 404 a mitad del avance (apagada) muestra el mensaje del servidor y una salida, sin «Reintentar»', async () => {
+      const { raiz, hasta, ir } = await montar();
+      const api = TestBed.inject(AuthoringApi);
+      vi.spyOn(api, 'generationScene').mockImplementation(() => throwError(() => new HttpErrorResponse({
+        status: 404, error: { success: false, code: 'NOT_FOUND', message: 'La generación con IA no está disponible.' },
+      })));
+      await ir();
+      await hasta(() => !!raiz().querySelector('[role="alert"]'));
+
+      expect(raiz().querySelector('[role="alert"]')!.textContent).toContain('La generación con IA no está disponible.');
+      expect(boton(raiz(), 'Reintentar esta parte')).toBeUndefined();
+      const salida = [...raiz().querySelectorAll<HTMLAnchorElement>('a')].find((a) => a.textContent!.includes('Volver a crear un caso'))!;
+      expect(salida.getAttribute('href')).toBe('/portal/casos/nuevo/salas?lugar=universidad');
+      expect(TestBed.inject(Router).url).toContain('/generando/');
+    });
+
+    it('una generación que no existe: h1 enfocado, el mensaje, enlace «Volver a crear un caso» y nada de «Reintentar»', async () => {
+      const { harness, raiz, hasta } = await montar();
+      await harness.navigateByUrl('/portal/casos/nuevo/generando/no-existe');
+      harness.fixture.detectChanges();
+      await hasta(() => !!raiz().querySelector('[role="alert"]'));
+
+      const h1 = raiz().querySelector('h1')!;
+      expect(raiz().querySelector('[role="alert"]')!.textContent).toContain('La generación no existe.');
+      await hasta(() => document.activeElement === h1);
+      expect(boton(raiz(), 'Reintentar esta parte')).toBeUndefined();
+      expect(boton(raiz(), 'Cancelar y empezar de nuevo')).toBeUndefined();
+      const salida = [...raiz().querySelectorAll<HTMLAnchorElement>('a')].find((a) => a.textContent!.includes('Volver a crear un caso'))!;
+      expect(salida.getAttribute('href')).toBe('/portal/casos/nuevo/salas');
+      expect(raiz().querySelector('ol.etapas')).toBeNull();
+    });
+
+    it('una escena vencida al retomar se ofrece con el mensaje que trae y «Reintentar esta parte» la pide', async () => {
+      const { g, id, raiz, hasta, ir } = await montar();
+      const api = TestBed.inject(AuthoringApi);
+      await firstValueFrom(api.generationSkeleton(id));
+      g.retener('scene', 'recepcion');
+      void firstValueFrom(api.generationScene(id, 'recepcion'));
+      g.avanzarReloj(150);
+      await ir();
+      await hasta(() => !!boton(raiz(), 'Reintentar esta parte'));
+
+      expect(raiz().querySelector('[role="alert"]')!.textContent).toContain('La IA tardó demasiado en responder. Vuelve a intentarlo.');
+      expect(etapa(raiz(), 'Recepción')!.textContent).toMatch(/!.*Con error/s);
+      boton(raiz(), 'Reintentar esta parte')!.click();
+      await hasta(() => !!boton(raiz(), 'Abrir mi caso'));
+      g.liberar('scene', 'recepcion');
+    });
+  });
+
   it('al salir de la pantalla deja de pedir etapas', async () => {
     const { g, harness, raiz, hasta, ir } = await montar();
     g.retener('skeleton');
