@@ -33,7 +33,9 @@ import { RECONSIDERED_LABEL, reconsideredChip } from './reconsidered.util';
   imports: [A11yModule, NgTemplateOutlet, RouterLink, KitFigureComponent, UiEmptyState, UiErrorState, UiScopeNotice, UiSkeleton],
   template: `
     @if (status() !== 'IN_PROGRESS') {
-      <section class="outcome liquid-glass"
+      <section class="outcome"
+        [class.liquid-glass]="status() !== 'PAUSED'"
+        [class.u-placa]="status() === 'PAUSED'" [class.u-sombra]="status() === 'PAUSED'"
         [class.outcome--safe]="status() === 'SAFE_EXITED' || status() === 'PAUSED'"
         [class.outcome--pause]="status() === 'PAUSED'" role="alertdialog" aria-modal="true"
         aria-labelledby="outcome-title"
@@ -54,11 +56,11 @@ import { RECONSIDERED_LABEL, reconsideredChip } from './reconsidered.util';
           <p class="oc-pause-copy">{{ pauseMessage }}</p>
           <div class="oc-actions oc-actions--pause">
             <!-- Pausa reanudable real: mismo intento, sin crear uno nuevo. -->
-            <button type="button" class="oc-btn oc-btn--go" cdkFocusInitial (click)="resume.emit()">Reanudar este intento</button>
+            <button type="button" class="oc-btn oc-btn--go u-ficha u-ficha--primaria" cdkFocusInitial (click)="resume.emit()">Reanudar este intento</button>
             @if (mode() === 'rehearsal') {
-              <a class="oc-btn oc-btn--line" [routerLink]="editorLink()">{{ draft.rehearsalBackToEditor.text }}</a>
+              <a class="oc-btn oc-btn--line u-boton" [routerLink]="editorLink()">{{ draft.rehearsalBackToEditor.text }}</a>
             } @else {
-              <a class="oc-btn oc-btn--line" routerLink="/portal/simulador">Volver al catálogo</a>
+              <a class="oc-btn oc-btn--line u-boton" routerLink="/portal/simulador">Volver al catálogo</a>
             }
           </div>
           @if (supportResources().length) {
@@ -71,7 +73,7 @@ import { RECONSIDERED_LABEL, reconsideredChip } from './reconsidered.util';
           }
           @if (report()) {
             <details class="oc-details">
-              <summary>Ver mi seguimiento</summary>
+              <summary class="u-boton">Ver mi seguimiento <i class="u-seguir oc-details__flecha" aria-hidden="true"></i></summary>
               <ng-container [ngTemplateOutlet]="board" />
             </details>
           }
@@ -307,6 +309,8 @@ import { RECONSIDERED_LABEL, reconsideredChip } from './reconsidered.util';
       position: absolute; inset: 0; z-index: 150; display: flex; flex-direction: column;
       gap: 16px; align-items: stretch; justify-content: flex-start;
       padding: clamp(20px, 4vh, 44px) clamp(20px, 6vw, 80px); overflow-y: auto;
+    }
+    .outcome:not(.outcome--pause) {
       background: linear-gradient(180deg, rgba(17,24,39,.96), rgba(14,19,34,.97)); color: var(--sim-ink, #F4F7FB);
     }
     .oc-head { display: flex; align-items: center; gap: 16px; }
@@ -400,19 +404,22 @@ import { RECONSIDERED_LABEL, reconsideredChip } from './reconsidered.util';
     .oc-decision__empty { font-style: italic; opacity: .6; }
     .oc-actions { display: flex; flex-wrap: wrap; gap: 10px; justify-content: flex-end; margin-top: auto; padding-top: 6px; }
     .oc-btn {
-      display: inline-flex; align-items: center; justify-content: center; min-height: 44px;
-      padding: 8px 20px; border-radius: 12px; font-weight: 900; cursor: pointer; text-decoration: none;
+      display: inline-flex; align-items: center; justify-content: center; min-height: 44px; cursor: pointer; text-decoration: none;
+    }
+    /* Aspecto del cierre. La pausa no lo lleva: sus acciones son las piezas de pixel u-boton y u-ficha de la hoja común (U1). */
+    .outcome:not(.outcome--pause) .oc-btn {
+      padding: 8px 20px; border-radius: 12px; font-weight: 900;
       border: 1px solid var(--sim-border, rgba(182,156,255,.22)); background: var(--sim-surface-2, rgba(18,24,42,.6)); color: var(--sim-ink, #F4F7FB);
     }
-    .oc-btn--line { background: transparent; color: var(--sim-ink-soft, rgba(244,247,251,.74)); }
-    .oc-btn--go { background: linear-gradient(90deg, var(--sim-purple, #7C4DFF), #6336e0); border-color: transparent; color: #fff; }
+    .outcome:not(.outcome--pause) .oc-btn--line { background: transparent; color: var(--sim-ink-soft, rgba(244,247,251,.74)); }
+    .outcome:not(.outcome--pause) .oc-btn--go { background: linear-gradient(90deg, var(--sim-purple, #7C4DFF), #6336e0); border-color: transparent; color: #fff; }
     /* Hover solo con puntero fino (un híbrido táctil no queda pegado) y estilo de pulsado en todas las acciones. */
     @media (hover: hover) and (pointer: fine) {
-      .oc-btn:hover { border-color: rgba(182,156,255,.55); background: rgba(124,77,255,.18); }
-      .oc-btn--go:hover { filter: brightness(1.08); }
+      .outcome:not(.outcome--pause) .oc-btn:hover { border-color: rgba(182,156,255,.55); background: rgba(124,77,255,.18); }
+      .outcome:not(.outcome--pause) .oc-btn--go:hover { filter: brightness(1.08); }
     }
-    .oc-btn:active { transform: translateY(1px); }
-    .oc-btn:focus-visible, .oc-details summary:focus-visible { outline: 3px solid #C9B3FF; outline-offset: 3px; }
+    .outcome:not(.outcome--pause) .oc-btn:active { transform: translateY(1px); }
+    .outcome:not(.outcome--pause) .oc-btn:focus-visible, .outcome:not(.outcome--pause) .oc-details summary:focus-visible { outline: 3px solid #C9B3FF; outline-offset: 3px; }
 
     /* Pausa calmada: acciones arriba, sin tablero en primer plano. */
     .oc-pause-copy { margin: 0; max-width: 60ch; font-size: 1rem; line-height: 1.6; color: var(--sim-ink-soft, rgba(244,247,251,.74)); }
@@ -425,15 +432,53 @@ import { RECONSIDERED_LABEL, reconsideredChip } from './reconsidered.util';
     }
     .oc-details > :not(summary) { margin-top: 12px; }
 
+    /* Pausa en el lenguaje de pixel del cuadro de diálogo (bloque U1): una placa centrada sobre el velo, sin vidrio ni
+       desenfoque. El velo es una sombra enorme de la propia placa; la recorta el área de juego. */
+    .outcome--pause {
+      inset: auto; top: 50%; left: 50%; transform: translate(-50%, -50%);
+      width: min(720px, calc(100% - 2 * var(--pixel-borde))); max-height: calc(100% - 2 * var(--pixel-borde));
+      box-sizing: border-box; gap: calc(5 * var(--pixel-px));
+      padding: calc(7 * var(--pixel-px)) calc(9 * var(--pixel-px)) calc(8 * var(--pixel-px));
+      box-shadow: 0 0 0 100vmax var(--pixel-velo);
+      font-family: var(--pixel-f-texto);
+    }
+    .outcome--pause .oc-avatar {
+      border: calc(2 * var(--pixel-px)) solid var(--pixel-contorno); border-radius: 0;
+      background: var(--pixel-ventanilla); image-rendering: pixelated;
+    }
+    .outcome--pause .oc-eyebrow {
+      font-family: var(--pixel-f-nombre); font-weight: 700; font-size: calc(var(--pixel-tam) * 0.82);
+      letter-spacing: .06em; color: var(--luz);
+    }
+    .outcome--pause .oc-head__copy h3 { font-family: var(--pixel-f-texto); font-weight: 700; color: var(--pixel-tinta); }
+    .outcome--pause .oc-pause-copy { color: var(--pixel-tinta); }
+    .outcome--pause .oc-actions--pause { align-items: center; gap: calc(4 * var(--pixel-px)); }
+    .outcome--pause .oc-btn, .outcome--pause .u-ficha { padding: 0 calc(8 * var(--pixel-px)) 1px; }
+    .outcome--pause .oc-support {
+      padding: calc(3 * var(--pixel-px)) calc(5 * var(--pixel-px)) calc(4 * var(--pixel-px)); border-radius: 0;
+      background: var(--pixel-penumbra-hundida); border: 1px solid var(--pixel-separador);
+    }
+    .outcome--pause .oc-label {
+      margin: 0 0 calc(2 * var(--pixel-px)); font-family: var(--pixel-f-nombre); font-size: var(--pixel-letra-chica);
+      letter-spacing: .06em; color: var(--luz);
+    }
+    .outcome--pause .oc-support__list { color: var(--pixel-tinta); }
+    .outcome--pause .oc-details { padding: 0; border: 0; border-radius: 0; }
+    .outcome--pause .oc-details summary.u-boton { justify-content: space-between; list-style: none; color: var(--pixel-tinta); font-weight: 600; }
+    .outcome--pause .oc-details summary.u-boton::-webkit-details-marker { display: none; }
+    .outcome--pause .oc-details[open] .oc-details__flecha { transform: scaleY(-1); }
+    .outcome--pause .oc-details > :not(summary) { margin-top: calc(4 * var(--pixel-px)); }
+
     /* Columna útil a 360 px (F6-6): hitos en una columna, línea de tiempo que no desborda, acciones a todo el ancho.
        Sin desplazamiento horizontal ni con el zoom del navegador al 200 %. */
     @media (max-width: 480px) {
-      .outcome { padding: 16px 14px; gap: 12px; }
+      .outcome:not(.outcome--pause) { padding: 16px 14px; gap: 12px; }
+      .outcome--pause { padding: calc(5 * var(--pixel-px)) calc(5 * var(--pixel-px)) calc(6 * var(--pixel-px)); gap: calc(4 * var(--pixel-px)); }
       .oc-head { gap: 12px; }
       .oc-milestones { grid-template-columns: minmax(0, 1fr); }
       .oc-tl { grid-template-columns: 44px minmax(0, 1fr); }
       .oc-actions { flex-direction: column; align-items: stretch; }
-      .oc-btn { width: 100%; }
+      .oc-btn, .outcome--pause .u-ficha { width: 100%; }
     }
   `]
 })
