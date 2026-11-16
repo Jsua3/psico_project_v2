@@ -34,11 +34,9 @@ const VOLUME = {
     7: ['hhbbsbbbbbbbsbbsss'],
     8: ['hbbsbbbbbbbbbsbsss'],
     9: ['bs', 'ss'],
-    // Cortinas con onda: el brillo alterna de columna cada dos filas.
-    ...rows(10, 11, ['hbs', 'bss']),
-    ...rows(12, 13, ['bhs', 'sbs']),
-    ...rows(14, 15, ['hbs', 'bss']),
-    ...rows(16, 17, ['bhs', 'sbs']),
+    // Cortinas: un solo mechón de luz que se curva hacia dentro a media altura; el lado en sombra, liso.
+    ...rows(10, 13, ['hbs', 'bss']),
+    ...rows(14, 17, ['bhs', 'bss']),
     ...rows(18, 20, ['bbs', 'bss']),
     21: ['bbbs', 'bbss'],
     22: ['bbbbs', 'bbbss'],
@@ -57,11 +55,9 @@ const VOLUME = {
     7: ['hhbbbbsbbbbsbbbsss'],
     8: ['hbbbbsbbbbbbsbbsss'],
     9: ['bs', 'ss'],
-    // Cortinas con onda: el brillo alterna de columna cada dos filas.
-    ...rows(10, 11, ['hbs', 'bss']),
-    ...rows(12, 13, ['bhs', 'sbs']),
-    ...rows(14, 15, ['hbs', 'bss']),
-    ...rows(16, 17, ['bhs', 'sbs']),
+    // Cortinas: un solo mechón de luz que se curva hacia dentro a media altura; el lado en sombra, liso.
+    ...rows(10, 13, ['hbs', 'bss']),
+    ...rows(14, 17, ['bhs', 'bss']),
     ...rows(18, 20, ['bbs', 'bss']),
     21: ['bbbs', 'bbss'],
     22: ['bbbbs', 'bbbss'],
@@ -70,11 +66,11 @@ const VOLUME = {
   },
   // Corto liso peinado de lado: el brillo y un mechón siguen el barrido hacia la derecha.
   'corto-liso': {
-    3: ['hhbbss'],
-    4: ['shhhbbss'],
-    5: ['hbshhhbbbss'],
-    6: ['hhbbbhhhbbbbss'],
-    7: ['hbbbbsbhhbbbss'],
+    3: ['bhbbss'],
+    4: ['sbhhbbss'],
+    5: ['bbsbhhbbbss'],
+    6: ['hbbbbbhhbbbbss'],
+    7: ['bbbbbsbbhbbbss'],
     8: ['hsssssbsbbbbbsss'],
     9: ['s', 'ssssbbbsss'],
     10: ['s', 'ssssss'],
@@ -100,10 +96,10 @@ const VOLUME = {
   // Corto rizado: como el afro, más pegado a la cabeza.
   'corto-rizado': {
     3: ['h', 'hh', 'bs', 'ss'],
-    4: ['h', 'hhhbbbss', 's'],
-    5: ['hhhbssbbbbbsss', 's'],
-    6: ['hhbbbbbbssbbbssss'],
-    7: ['hbssbbbbbbbbbsssss'],
+    4: ['h', 'hshbbsss', 's'],
+    5: ['hhsbhsbbsbbsss', 's'],
+    6: ['hbbshbbsbbbsbssss'],
+    7: ['hbsbbbsbbbsbbsssss'],
     8: ['hbbssssssssssssssss'],
     9: ['bs', 'bss'],
     10: ['hbs', 'bss'],
