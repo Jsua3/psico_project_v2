@@ -121,7 +121,9 @@ def test_catalogo_en_formato_de_p1():
     archivos, secciones = cat.generar()
     imagenes = dict(archivos)
     assert set(secciones) == {'muebles', 'objetos', 'herramientas'}
-    assert set(secciones['herramientas']) == {'PAP', 'SPIKES', 'RISK_METER', 'SAFETY_ROUTE', 'REFLECTION_JOURNAL'}
+    caso = {'PAP', 'SPIKES', 'RISK_METER', 'SAFETY_ROUTE', 'REFLECTION_JOURNAL'}
+    biblioteca = {'biblioteca/' + k for k in __import__('objetos_herramientas').BIBLIOTECA}
+    assert set(secciones['herramientas']) == caso | biblioteca
     for seccion in secciones.values():
         for clave, e in seccion.items():
             tira = imagenes[e['ruta']]

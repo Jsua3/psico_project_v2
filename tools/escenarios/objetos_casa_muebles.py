@@ -112,8 +112,8 @@ def vitrina(n=0):
 
 # ── habitaciones ───────────────────────────────────────────────────────────────
 
-op.material('cobija', (120, 92, 140), op.tex_grano(0.05, claras=0.0), luz=0.42, sombra=0.55)
-op.material('cobija-nina', (210, 150, 90), op.tex_grano(0.05, claras=0.0), luz=0.42, sombra=0.55)
+op.material('cobija', (58, 124, 112), op.tex_grano(0.05, claras=0.0), luz=0.42, sombra=0.55)          # el verde azulado de hoy
+op.material('cobija-nina', (84, 126, 186), op.tex_grano(0.05, claras=0.0), luz=0.42, sombra=0.55)     # el azul de hoy
 op.material('sabana', (230, 228, 220), op.tex_grano(0.02), luz=0.3, sombra=0.45)
 
 

@@ -67,3 +67,59 @@ def guardar(im, nombre, factor=3):
 
 def hoja_lugar(lugar, piezas):
     print(guardar(hoja_antes_despues(piezas, f'objetos_{lugar}'), f'antes-despues-{lugar}'))
+
+
+def _faltantes():
+    """Lo que la biblioteca de hoy tiene y todavía no tiene dibujo nuevo (para mostrarlo como pendiente, no esconderlo)."""
+    import json
+    import objetos_catalogo as cat
+    hechos = set()
+    for modulo, _ in cat.MODULOS:
+        for ficha in __import__(modulo).PIEZAS.values():
+            if ficha.get('reemplaza'):
+                hechos.add(os.path.normpath(ficha['reemplaza']).replace('\\', '/'))
+    faltan = []
+    for lugar in ('casa', 'comisaria', 'universidad'):
+        with open(os.path.join(RAIZ, 'biblioteca', 'escenarios', lugar, 'escenario.json'), encoding='utf-8') as f:
+            cat_lugar = json.load(f)['catalogo']
+        for seccion in ('muebles', 'objetos', 'herramientas'):
+            for ficha in cat_lugar[seccion]:
+                ruta = f'escenarios/{lugar}/' + ficha['arte']
+                if seccion == 'herramientas' and ficha['id'] in __import__('objetos_herramientas').BIBLIOTECA:
+                    continue                                         # una sola ficha de biblioteca sirve en los tres lugares
+                if ruta not in hechos:
+                    faltan.append((f'{lugar}/{ficha["id"]}', ruta))
+    return faltan
+
+
+def hoja_biblioteca(columnas=4):
+    """Toda la biblioteca: por pieza, el dibujo de hoy y el nuevo, en una cuadrícula; al final lo que falta."""
+    import objetos_catalogo as cat
+    celdas = []
+    for modulo, lugar in cat.MODULOS:
+        for ref, ficha in __import__(modulo).PIEZAS.items():
+            viejo = None
+            if ficha.get('reemplaza'):
+                ruta = os.path.normpath(os.path.join(RAIZ, 'biblioteca', ficha['reemplaza']))
+                if os.path.exists(ruta):
+                    viejo = Image.open(ruta).convert('RGBA')
+            celdas.append((f'{lugar}/{ref}', viejo, oc.armar(modulo, ref)['cuadros'][0]))
+    faltan = _faltantes()
+    for nombre, ruta in faltan:
+        celdas.append((nombre + ' · PENDIENTE', Image.open(os.path.join(RAIZ, 'biblioteca', ruta)).convert('RGBA'), None))
+    ancho_celda = max((v.width if v else 0) + (n.width if n else 0) for _, v, n in celdas) + 24
+    alto_celda = max(max(v.height if v else 0, n.height if n else 0) for _, v, n in celdas) + 26
+    filas = (len(celdas) + columnas - 1) // columnas
+    lienzo = _fondo(ancho_celda * columnas + 8, alto_celda * filas + 8)
+    d = ImageDraw.Draw(lienzo)
+    for k, (nombre, viejo, nuevo) in enumerate(celdas):
+        x0, y0 = 4 + (k % columnas) * ancho_celda, 4 + (k // columnas) * alto_celda
+        base = y0 + alto_celda - 16                                  # el par abajo de la celda y su nombre debajo
+        d.text((x0 + 2, base + 2), nombre, fill=TEXTO)
+        x = x0 + 4
+        if viejo:
+            lienzo.alpha_composite(viejo, (x, base - viejo.height))
+            x += viejo.width + 10
+        if nuevo:
+            lienzo.alpha_composite(nuevo, (x, base - nuevo.height))
+    return lienzo, len(celdas) - len(faltan), faltan
