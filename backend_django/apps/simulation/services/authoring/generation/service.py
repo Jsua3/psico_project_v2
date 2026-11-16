@@ -19,11 +19,13 @@ durante todo el ensamblado, así dos ensamblados a la vez no crean dos borradore
 import json
 import logging
 import time
-from datetime import datetime
+from datetime import datetime, timezone as dt_timezone
+from zoneinfo import ZoneInfo
 
+from django.conf import settings
 from django.contrib.auth import get_user_model
 from django.core.exceptions import ValidationError as DjangoValidationError
-from django.db import IntegrityError, OperationalError, transaction
+from django.db import IntegrityError, OperationalError, connection, transaction
 from django.utils import timezone
 from rest_framework import status as http
 from rest_framework.exceptions import NotFound
@@ -44,6 +46,10 @@ logger = logging.getLogger(__name__)
 
 #: ``lock_not_available`` de PostgreSQL: lo que devuelve ``FOR UPDATE NOWAIT`` cuando otra transacción tiene la fila.
 LOCK_NOT_AVAILABLE = "55P03"
+#: Clave del cerrojo de asesoría que serializa el recuento diario global de ``start``.
+GLOBAL_COUNT_LOCK = 7_302_611
+#: Escenas que una generación puede tener a la vez en curso (el servidor lo impone, no solo el cliente).
+MAX_SCENES_IN_FLIGHT = 2
 MIN_DESCRIPTION = 40
 MAX_DESCRIPTION = prompts.MAX_DESCRIPTION
 
@@ -59,6 +65,8 @@ BUSY_MESSAGE = "Esta parte ya se está escribiendo. Espera un momento."
 STATE_MESSAGE = "Ese paso no corresponde ahora. Vuelve a cargar el avance."
 CALLS_EXHAUSTED_MESSAGE = "Este caso ya usó todos sus intentos con la IA. Empieza uno nuevo."
 DAILY_MESSAGE = "Llegaste al límite de casos generados por hoy."
+# BORRADOR: texto nuevo del servidor, pendiente de la aprobación de Psicología
+GLOBAL_DAILY_MESSAGE = "La plataforma llegó al límite de casos generados por hoy. Vuelve a intentarlo mañana."
 DISABLED_MESSAGE = "La generación con IA no está disponible."
 DESCRIPTION_SHORT = "Cuéntanos un poco más: al menos 40 caracteres."
 DESCRIPTION_LONG = "La descripción puede tener hasta 2000 caracteres."
@@ -103,6 +111,14 @@ class DailyLimitExceeded(LimitExceeded):
         self.scope = "daily"
 
 
+class GlobalDailyLimitExceeded(DailyLimitExceeded):
+    """El tope diario de toda la plataforma: mismo código, estado y ``scope`` que el de la docente, con su propio texto."""
+
+    def __init__(self):
+        ApiError.__init__(self, "AI_LIMIT_EXCEEDED", GLOBAL_DAILY_MESSAGE, http.HTTP_429_TOO_MANY_REQUESTS, scope="daily")
+        self.scope = "daily"
+
+
 class AiRefused(ApiError):
     def __init__(self):
         super().__init__("AI_REFUSED", MESSAGES["refusal"], http.HTTP_422_UNPROCESSABLE_ENTITY)
@@ -133,16 +149,35 @@ def _loads(text: str, default):
 
 
 def _stamp(value: datetime | None) -> str | None:
-    return value.strftime("%Y-%m-%dT%H:%M:%SZ") if value else None
+    """``value`` en UTC con ``Z``. Con ``USE_TZ=False`` los ``datetime`` de la base son ingenuos y de ``TIME_ZONE``."""
+    if not value:
+        return None
+    if value.tzinfo is None:
+        value = value.replace(tzinfo=ZoneInfo(settings.TIME_ZONE))
+    return value.astimezone(dt_timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
+
+
+def _scene_state(entry: dict, now: datetime, timeout: dict) -> dict:
+    if entry.get("state") == "running" and lifecycle.is_stale(_parse(entry.get("started_at")), now):
+        return {"state": "error", "error": dict(timeout)}
+    return {"state": entry.get("state", "pending"), "error": entry.get("error")}
 
 
 def view(gen: CaseGeneration) -> dict:
-    """La ``Generation`` del contrato. Sin ``document_json``, sin la descripción y sin texto del modelo salvo los títulos."""
+    """La ``Generation`` del contrato. Sin ``document_json`` y sin texto del modelo salvo los títulos; con la descripción.
+
+    Una etapa «en curso» que ya venció (``lifecycle.is_stale``) se muestra como error de ``timeout`` para que el editor ofrezca
+    pedirla de nuevo; lo guardado no cambia.
+    """
+    now = timezone.now()
     skeleton = _loads(gen.skeleton_json, {})
     scenes = _loads(gen.scenes_json, {})
     outlines = skeleton.get("escenas", []) if skeleton else []
     repair = _loads(gen.repair_json, {})
     last_error = _loads(gen.last_error_json, {})
+    timeout = {"kind": "timeout", "message": MESSAGES["timeout"]}
+    if not last_error and lifecycle.is_stale(gen.skeleton_started_at, now):
+        last_error = {"stage": "skeleton", "clave": None, **timeout}
     return {
         "id": str(gen.id),
         "lugarId": gen.lugar_id,
@@ -159,8 +194,7 @@ def view(gen: CaseGeneration) -> dict:
             {
                 "clave": o["sala"],
                 "titulo": o["titulo"],
-                "state": (scenes.get(o["sala"]) or {}).get("state", "pending"),
-                "error": (scenes.get(o["sala"]) or {}).get("error"),
+                **_scene_state(scenes.get(o["sala"]) or {}, now, timeout),
             }
             for o in outlines
         ],
@@ -182,9 +216,14 @@ def view(gen: CaseGeneration) -> dict:
 
 def _config():
     config = assistant_config.current()
-    if not config.generation_ready:
+    if not _available(config):
         raise GenerationDisabled()
     return config
+
+
+def _available(config) -> bool:
+    """Lista para llamar y con la rúbrica por defecto: sin ella ninguna escena pasaría las comprobaciones de competencias."""
+    return config.generation_ready and bool(context.competencias_por_defecto())
 
 
 def _owned(gen_id, actor, *, lock: bool = False, nowait: bool = False) -> CaseGeneration:
@@ -232,13 +271,20 @@ def _created_today(actor) -> int:
     return CaseGeneration.objects.filter(owner=actor, created_at__date=timezone.now().date()).count()
 
 
+def _created_today_by_all() -> int:
+    return CaseGeneration.objects.filter(created_at__date=timezone.now().date()).count()
+
+
 def status(actor) -> dict:
-    """``GenerationStatus``: si está disponible, cuántas le quedan hoy y la generación en curso (o ``None``)."""
+    """``GenerationStatus``: si está disponible, cuántas le quedan hoy y la generación en curso (o ``None``).
+
+    No es solo lectura: cancela las generaciones de la docente que llevan 24 h o más sin cambios (``_cancel_abandoned``).
+    """
     config = assistant_config.current()
     _cancel_abandoned(actor)
     current = CaseGeneration.objects.filter(owner=actor, status__in=GenerationStatus.IN_PROGRESS).first()
     return {
-        "enabled": config.generation_ready,
+        "enabled": _available(config),
         "remainingToday": max(0, config.generations_per_day - _created_today(actor)),
         "inProgress": view(current) if current else None,
     }
@@ -270,12 +316,16 @@ def start(actor, lugar_id: str, descripcion: str) -> dict:
     texto = _check_description(descripcion)
     # Orden de cerrojos: primero la fila del usuario (serializa sus creaciones y el recuento del día), luego la generación.
     user_model = get_user_model()
+    _cancel_abandoned(actor)  # fuera de la transacción: un tope que se pasa no debe deshacer la cancelación
     try:
         with transaction.atomic():
             user_model.objects.select_for_update().get(pk=actor.pk)
-            _cancel_abandoned(actor)
             if _created_today(actor) >= config.generations_per_day:
                 raise DailyLimitExceeded()
+            with connection.cursor() as cursor:  # serializa el recuento global entre docentes (siempre tras la fila del usuario)
+                cursor.execute("SELECT pg_advisory_xact_lock(%s)", [GLOBAL_COUNT_LOCK])
+            if _created_today_by_all() >= config.generations_global_per_day:
+                raise GlobalDailyLimitExceeded()
             gen = CaseGeneration.objects.create(owner=actor, lugar_id=lugar_id.strip(), description=texto)
     except IntegrityError:
         # ``uq_generation_in_progress_per_owner``: ya tiene una en curso; se le da su id.
@@ -344,6 +394,7 @@ def _plan_scene(gen, config, ctx, token, clave, entry, repair: bool) -> _Plan:
     sk = checks.from_json(SkeletonDraft, sk_dict)
     reparar = None
     faltas: list[str] = []
+    validador: list[str] = []  # mensajes del validador del caso: pueden citar texto que escribió el modelo
     anterior = None
     if entry.get("rejected"):
         # La salida rechazada por ``checks`` se reintenta como una reparación: el modelo corrige en vez de empezar de cero.
@@ -352,9 +403,9 @@ def _plan_scene(gen, config, ctx, token, clave, entry, repair: bool) -> _Plan:
         anterior = entry["data"]
     if repair:
         issues = (_loads(gen.repair_json, {}).get("issues") or {}).get(clave, [])
-        faltas += [issue["message"] for issue in issues if isinstance(issue, dict) and issue.get("message")]
+        validador = [issue["message"] for issue in issues if isinstance(issue, dict) and issue.get("message")]
     if anterior is not None:
-        reparar = {"anterior": anterior, "faltas": faltas}
+        reparar = {"anterior": anterior, "faltas": faltas, "faltas_validador": validador}
     return _Plan(
         messages=prompts.scene_messages(ctx, sk_dict, clave, reparar), schema_=schema.SCENE, effort=config.generate_effort_scene,
         validate=lambda raw: checks.validate_scene(raw, sk, clave, ctx), token=token, stage="scene", clave=clave,
@@ -391,6 +442,13 @@ def _reserve(gen_id, actor, transition: str, clave: str | None, config) -> _Plan
                     raise GenerationBusy()
             elif entry.get("state") not in ("pending", "error"):
                 raise GenerationState()
+            in_flight = sum(
+                1 for key, other in scenes.items()
+                if key != clave and isinstance(other, dict) and other.get("state") == "running"
+                and not lifecycle.is_stale(_parse(other.get("started_at")), now)
+            )
+            if in_flight >= MAX_SCENES_IN_FLIGHT:
+                raise GenerationBusy()
             if gen.calls >= config.generation_max_calls:
                 raise GenerationCallsExhausted()
             plan = _plan_scene(gen, config, _context_for(gen), now, clave, entry, repair)

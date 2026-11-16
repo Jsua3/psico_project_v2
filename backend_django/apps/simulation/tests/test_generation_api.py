@@ -251,3 +251,54 @@ def _textos(valor):
     elif isinstance(valor, list):
         for item in valor:
             yield from _textos(item)
+
+
+# ─── ola de arreglos de la revisión final ─────────────────────────────────────────────────────────
+
+
+def test_repair_acepta_1_y_true_y_rechaza_cualquier_otro_valor(api_docente):
+    gid, _ = con_esqueleto(api_docente)
+    ruta = f"{BASE}/{gid}/scenes/aula"
+
+    rechazo = api_docente.post(f"{ruta}?repair=yes")
+    assert rechazo.status_code == 400
+    cuerpo = rechazo.json()
+    assert cuerpo["code"] == "VALIDATION_ERROR" and cuerpo["field"] == "repair"
+    assert cuerpo["message"] == "El parámetro repair solo admite 1."
+    assert api_docente.post(f"{ruta}?repair=0").status_code == 400
+    assert api_docente.post(f"{ruta}?repair=TRUE").status_code == 400
+
+    for valor in ("1", "true"):  # la reparación: la generación no está en needs_repair, así que el estado lo rechaza
+        respuesta = api_docente.post(f"{ruta}?repair={valor}")
+        assert respuesta.status_code == 409 and respuesta.json()["code"] == "GENERATION_STATE", valor
+
+    assert api_docente.post(f"{ruta}?repair=").status_code == 200  # vacío: la escena normal
+    assert datos(api_docente.get(f"{BASE}/{gid}"))["callsUsed"] == 2
+
+
+def test_sin_el_parametro_repair_es_la_escena_normal(api_docente):
+    gid, _ = con_esqueleto(api_docente)
+    respuesta = api_docente.post(f"{BASE}/{gid}/scenes/aula")
+    assert respuesta.status_code == 200
+    assert next(e for e in datos(respuesta)["scenes"] if e["clave"] == "aula")["state"] == "done"
+
+
+def test_sin_rubrica_por_defecto_http_responde_como_apagado_y_no_crea_filas(api_docente, monkeypatch):
+    monkeypatch.setattr(context, "competencias_por_defecto", lambda: [])
+    assert datos(api_docente.get(f"{BASE}/status"))["enabled"] is False
+    respuesta = crear(api_docente)
+    assert respuesta.status_code == 404 and respuesta.json()["code"] == "NOT_FOUND"
+    assert respuesta.json()["message"] == "La generación con IA no está disponible."
+    assert not CaseGeneration.objects.exists()
+
+
+def test_las_marcas_de_tiempo_son_utc_con_z(api_docente, settings):
+    settings.TIME_ZONE = "America/Bogota"
+    gen = datos(crear(api_docente))
+    assert gen["createdAt"].endswith("Z") and gen["updatedAt"].endswith("Z")
+    guardada = CaseGeneration.objects.get(pk=gen["id"]).created_at
+    from datetime import timezone
+    from zoneinfo import ZoneInfo
+
+    esperado = guardada.replace(tzinfo=ZoneInfo("America/Bogota")).astimezone(timezone.utc)
+    assert gen["createdAt"] == esperado.strftime("%Y-%m-%dT%H:%M:%SZ")
