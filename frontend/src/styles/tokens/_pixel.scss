@@ -10,6 +10,8 @@
   --pixel-px: 2px;
   --pixel-borde: calc(6 * var(--pixel-px));
   --pixel-tam: 14px;
+  // Las placas de I1 (salida segura, pista) usan --px: fuera del cuadro valen el punto de mundo; el cuadro define el suyo.
+  --px: var(--pixel-px);
 
   --pixel-tinta: #f2ecdf;
   --pixel-tinta-suave: #c3bccf;

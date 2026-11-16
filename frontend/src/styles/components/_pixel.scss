@@ -1,12 +1,12 @@
 // Piezas de pixel de la pantalla del juego (bloque U1): las cuatro del cuadro de diálogo de I1 —placa, pestaña, tecla y
-// ficha— más la placa con brasa de «Salida segura» y la ranura de herramienta, para que todo lo que se ve en el juego
+// ficha— y la ranura de herramienta (la placa con brasa y la de la pista son de I1: safe-exit-button y scene-hint), para que todo lo que se ve en el juego
 // hable un solo idioma. Marco por border-image (4 px de mundo por lado) con la trama de la sala; nada redondeado ni
 // difuminado. Los PNG llegan como variables (`variablesDeArte()` en la raíz `.pixel-juego`); las tintas son fichas de
 // `tokens/_pixel.scss`. Acotadas con :where(.pixel-juego): no suman especificidad y no salen del simulador.
 // Muestra aprobada: https://claude.ai/artifact/Hej4uEi3zDnFjg92q3u1VN (variante B, placas en las esquinas).
 
 :where(.pixel-juego) {
-  .u-placa, .u-rotulo, .u-boton, .u-salida, .u-ficha, .u-tecla, .u-ranura {
+  .u-placa, .u-rotulo, .u-boton, .u-ficha, .u-tecla, .u-ranura {
     border-style: solid;
     border-width: calc(4 * var(--pixel-px));
     border-image: var(--m) 4 / calc(4 * var(--pixel-px)) stretch;
@@ -69,28 +69,7 @@
     .u-boton:hover:not([aria-disabled='true'], :active) { --m: var(--marco-placa-sobre, var(--marco-ficha-sobre)); --t: var(--trama-placa-sobre, var(--trama-placa)); background-color: var(--pixel-penumbra-alzada); color: var(--luz); }
   }
 
-  // «Salida segura»: la placa con brasa en el canto (I1). Lo primero que se encuentra en cualquier estado, sin ser un botón rojo.
-  .u-salida {
-    --m: var(--marco-salida, var(--marco-placa));
-    --t: var(--trama-salida, var(--trama-placa));
-    display: inline-flex;
-    align-items: center;
-    gap: calc(4 * var(--pixel-px));
-    min-height: 44px;
-    padding: 0 calc(6 * var(--pixel-px)) 1px calc(4 * var(--pixel-px));
-    background-color: var(--pixel-brasa);
-    color: var(--pixel-brasa-tinta);
-    font: inherit;
-    font-weight: 700;
-    letter-spacing: 0.02em;
-    white-space: nowrap;
-    cursor: pointer;
-  }
-  .u-salida:focus-visible { --m: var(--marco-salida-foco, var(--marco-placa)); --t: var(--trama-salida-sobre, var(--trama-placa)); background-color: var(--pixel-brasa-alzada); }
-  .u-salida:active { --m: var(--marco-salida-pulsada, var(--marco-placa)); --t: var(--trama-salida-pulsada, var(--trama-placa)); background-color: var(--pixel-brasa-hundida); transform: translateY(var(--pixel-px)); }
-  @media (hover: hover) and (pointer: fine) {
-    .u-salida:hover:not(:active) { --m: var(--marco-salida-sobre, var(--marco-placa)); --t: var(--trama-salida-sobre, var(--trama-placa)); background-color: var(--pixel-brasa-alzada); color: var(--pixel-brasa-tinta-sobre); }
-  }
+  // «Salida segura» NO va aquí: es app-safe-exit-button con variante «placa» (I1), la implementación única (REGLA-004).
 
   // Tecla: la de la letra A a D y de «Esc». Como letra es un adorno; como botón de icono se enciende con la luz de la sala.
   .u-tecla {
@@ -152,6 +131,6 @@
 
   // Con movimiento reducido, nada baja al pulsar.
   @media (prefers-reduced-motion: reduce) {
-    .u-boton:active, .u-salida:active, .u-tecla--icono:active, .u-ficha:active, .u-ranura:active { transform: none; }
+    .u-boton:active, .u-tecla--icono:active, .u-ficha:active, .u-ranura:active { transform: none; }
   }
 }
