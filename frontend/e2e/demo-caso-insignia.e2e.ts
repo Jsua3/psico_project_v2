@@ -97,9 +97,9 @@ async function cerrarNotaYEsperar(page: Page, objetivoNuevo: RegExp): Promise<vo
 /** Camina hasta `quien`, abre su conversación, espera la opción (las opciones aparecen escalonadas), captura y elige. */
 async function decidir(
   page: Page, input: Mando, quien: RegExp, clave: string, donde: [number, number], opcion: RegExp,
-  captura: () => Promise<unknown>,
+  captura: () => Promise<unknown>, alLado = 46,
 ): Promise<void> {
-  await caminarHasta(page, input, donde[0], donde[1], quien);
+  await caminarHasta(page, input, donde[0], donde[1], quien, alLado);
   await interactNearby(page, quien, new RegExp(`/interactions/${clave}$`));
   const dialogo = await advanceDialogueToChoices(page, quien);
   await expect(dialogo.getByRole('button', { name: opcion }), `${quien} ofrece la opción adecuada`).toBeVisible({ timeout: scaled(10_000) });
@@ -117,7 +117,7 @@ async function hablar(page: Page, input: Mando, quien: RegExp, clave: string, do
 
 test.use({ viewport: { width: KEYBOARD.width, height: KEYBOARD.height } });
 
-test('@demo-k1 @demo-piezas SIM-VBG-002: entrar, caminar, hablar y jugar el capítulo 1 completo (cuatro decisiones)', async ({ page }) => {
+test('@demo-k1 @demo-piezas SIM-VBG-002: entrar, caminar, hablar y jugar los capítulos 1 y 2 (diez decisiones)', async ({ page }) => {
   test.setTimeout(scaled(600_000));
   mkdirSync(CAPTURAS, { recursive: true });
   const captura = (nombre: string) => page.screenshot({ path: join(CAPTURAS, nombre) });
@@ -195,4 +195,41 @@ test('@demo-k1 @demo-piezas SIM-VBG-002: entrar, caminar, hablar y jugar el cap�
     .not.toHaveAttribute('data-goal', /Aclara con el equipo médico/, { timeout: scaled(30_000) });
   await page.waitForTimeout(800);
   await captura('09-capitulo-2.png');
+
+  // ── Capítulo 2 · La noticia ──────────────────────────────────────────────────────────────────────────────────────
+  // Las posiciones son las del documento del caso. Quien está detrás de un mueble se aborda de frente (alLado = 0) o
+  // por el lado libre (negativo: a su izquierda).
+  // Decisión 5 (O2, trabajo social): la trabajadora social, detrás de su escritorio.
+  await expect(goalCard(page)).toHaveAttribute('data-goal', /Ubica qué te exige la norma en salud/, { timeout: scaled(30_000) });
+  await decidir(page, input, /trabajadora social/i, 'trabajadora-social', [480, 290], /459 de 2012 \+ Ley 1257/i,
+    () => captura('10-decision-5-trabajo-social.png'), 0);
+  await cerrarNotaYEsperar(page, /Decide cómo actuar con la familia con criterio técnico y ético/);
+
+  // Decisión 6 (O3, sala de escucha): la psicóloga, junto a la mesa de centro.
+  await decidir(page, input, /psicóloga/i, 'psicologa-hospital', [660, 290], /evaluación psicosocial familiar/i,
+    () => captura('11-decision-6-sala-de-escucha.png'), -46);
+  await cerrarNotaYEsperar(page, /Averigua qué sabe la familia/);
+
+  // Decisión 7 (N4): la abuela, antes de la noticia.
+  await decidir(page, input, /abuela/i, 'abuela', [330, 360], /preguntar qué saben/i,
+    () => captura('12-decision-7-antes-de-decir.png'));
+  await cerrarNotaYEsperar(page, /Acompaña la reacción de la abuela/);
+
+  // Decisión 8 (N5): la abuela, después de la noticia.
+  await decidir(page, input, /abuela/i, 'abuela', [330, 360], /guardar silencio/i,
+    () => captura('13-decision-8-tras-el-silencio.png'));
+  await cerrarNotaYEsperar(page, /Ayuda a la familia a saber qué sigue esta noche/);
+
+  // Decisión 9 (N6, pasillo): la mejor respuesta pide haber hablado antes con la trabajadora social.
+  await hablar(page, input, /trabajadora social/i, 'trabajadora-social', [600, 330]);
+  await decidir(page, input, /hermano mayor/i, 'hermano-mayor', [840, 360], /resumir la noche/i,
+    () => captura('14-decision-9-pasillo.png'));
+  await cerrarNotaYEsperar(page, /Acompáñala sin mentir/);
+
+  // Decisión 10 (N7, recuperación): la mejor respuesta pide el acuerdo con el médico de la decisión 4.
+  await decidir(page, input, /sobreviviente/i, 'sobreviviente', [430, 360], /no mentir ni improvisar/i,
+    () => captura('15-decision-10-recuperacion.png'));
+  await cerrarNotaYEsperar(page, /Valora el riesgo y define a dónde debe seguir la atención/);
+  await page.waitForTimeout(800);
+  await captura('16-capitulo-3.png');
 });
