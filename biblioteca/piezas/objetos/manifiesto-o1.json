@@ -921,6 +921,470 @@
    "nombre": "Fila de sillas de espera",
    "reemplaza": "escenarios/comisaria/arte/muebles/sillas-espera-comisaria.png",
    "ruta": "piezas/muebles/comisaria/sillas-espera-comisaria.png"
+  },
+  "universidad/archivador": {
+   "alto": 57,
+   "ancho": 42,
+   "animaciones": {
+    "reposo": {
+     "bucle": true,
+     "de": 0,
+     "fps": 1,
+     "hasta": 0
+    },
+    "revisar": {
+     "bucle": false,
+     "de": 1,
+     "fps": 10,
+     "hasta": 4,
+     "sostener": true
+    }
+   },
+   "apoyo": [
+    21,
+    57
+   ],
+   "brillo": "piezas/muebles/universidad/archivador-brillo.png",
+   "brilloDerecha": "piezas/muebles/universidad/archivador-brillo-derecha.png",
+   "brilloIzquierda": "piezas/muebles/universidad/archivador-brillo-izquierda.png",
+   "cuadros": 5,
+   "fps": 1,
+   "huella": {
+    "alto": 52,
+    "ancho": 38,
+    "fondo": 14
+   },
+   "nombre": "Archivador",
+   "reemplaza": "escenarios/universidad/arte/muebles/archivador.png",
+   "ruta": "piezas/muebles/universidad/archivador.png"
+  },
+  "universidad/banca": {
+   "alto": 33,
+   "ancho": 100,
+   "apoyo": [
+    50,
+    33
+   ],
+   "cuadros": 1,
+   "huella": {
+    "alto": 30,
+    "ancho": 96,
+    "fondo": 12
+   },
+   "nombre": "Banca",
+   "reemplaza": "escenarios/universidad/arte/muebles/banca.png",
+   "ruta": "piezas/muebles/universidad/banca.png"
+  },
+  "universidad/barra-cafeteria": {
+   "alto": 73,
+   "ancho": 202,
+   "animaciones": {
+    "reposo": {
+     "bucle": true,
+     "de": 0,
+     "fps": 4,
+     "hasta": 3
+    }
+   },
+   "apoyo": [
+    101,
+    73
+   ],
+   "brillo": "piezas/muebles/universidad/barra-cafeteria-brillo.png",
+   "brilloDerecha": "piezas/muebles/universidad/barra-cafeteria-brillo-derecha.png",
+   "brilloIzquierda": "piezas/muebles/universidad/barra-cafeteria-brillo-izquierda.png",
+   "cuadros": 4,
+   "emisivo": "piezas/muebles/universidad/barra-cafeteria-emisivo.png",
+   "fps": 4,
+   "huella": {
+    "alto": 44,
+    "ancho": 196,
+    "fondo": 16
+   },
+   "nombre": "Barra de la cafetería",
+   "reemplaza": "escenarios/universidad/arte/muebles/barra-cafeteria.png",
+   "ruta": "piezas/muebles/universidad/barra-cafeteria.png"
+  },
+  "universidad/caneca": {
+   "alto": 33,
+   "ancho": 24,
+   "apoyo": [
+    12,
+    33
+   ],
+   "brillo": "piezas/muebles/universidad/caneca-brillo.png",
+   "brilloDerecha": "piezas/muebles/universidad/caneca-brillo-derecha.png",
+   "brilloIzquierda": "piezas/muebles/universidad/caneca-brillo-izquierda.png",
+   "cuadros": 1,
+   "huella": {
+    "alto": 30,
+    "ancho": 22,
+    "fondo": 10
+   },
+   "nombre": "Caneca",
+   "reemplaza": "escenarios/universidad/arte/muebles/caneca.png",
+   "ruta": "piezas/muebles/universidad/caneca.png"
+  },
+  "universidad/cartelera": {
+   "alto": 76,
+   "ancho": 82,
+   "apoyo": [
+    41,
+    76
+   ],
+   "brillo": "piezas/muebles/universidad/cartelera-brillo.png",
+   "brilloDerecha": "piezas/muebles/universidad/cartelera-brillo-derecha.png",
+   "brilloIzquierda": "piezas/muebles/universidad/cartelera-brillo-izquierda.png",
+   "cuadros": 1,
+   "huella": {
+    "alto": 70,
+    "ancho": 70,
+    "fondo": 8
+   },
+   "nombre": "Cartelera institucional",
+   "reemplaza": "escenarios/universidad/arte/muebles/cartelera.png",
+   "ruta": "piezas/muebles/universidad/cartelera.png"
+  },
+  "universidad/dispensador-agua": {
+   "alto": 65,
+   "ancho": 24,
+   "animaciones": {
+    "cerca": {
+     "bucle": false,
+     "de": 1,
+     "fps": 6,
+     "hasta": 4,
+     "luego": "reposo"
+    },
+    "reposo": {
+     "bucle": true,
+     "de": 0,
+     "fps": 1,
+     "hasta": 0
+    },
+    "revisar": {
+     "bucle": false,
+     "de": 5,
+     "fps": 4,
+     "hasta": 6,
+     "sostener": true
+    }
+   },
+   "apoyo": [
+    12,
+    65
+   ],
+   "brillo": "piezas/muebles/universidad/dispensador-agua-brillo.png",
+   "brilloDerecha": "piezas/muebles/universidad/dispensador-agua-brillo-derecha.png",
+   "brilloIzquierda": "piezas/muebles/universidad/dispensador-agua-brillo-izquierda.png",
+   "cuadros": 7,
+   "fps": 1,
+   "huella": {
+    "alto": 62,
+    "ancho": 22,
+    "fondo": 10
+   },
+   "nombre": "Dispensador de agua",
+   "reemplaza": "escenarios/universidad/arte/muebles/dispensador-agua.png",
+   "ruta": "piezas/muebles/universidad/dispensador-agua.png"
+  },
+  "universidad/escritorio": {
+   "alto": 68,
+   "ancho": 125,
+   "animaciones": {
+    "reposo": {
+     "bucle": true,
+     "de": 0,
+     "fps": 2,
+     "hasta": 1
+    },
+    "revisar": {
+     "bucle": false,
+     "de": 2,
+     "fps": 10,
+     "hasta": 5,
+     "sostener": true
+    }
+   },
+   "apoyo": [
+    62,
+    68
+   ],
+   "brillo": "piezas/muebles/universidad/escritorio-brillo.png",
+   "brilloDerecha": "piezas/muebles/universidad/escritorio-brillo-derecha.png",
+   "brilloIzquierda": "piezas/muebles/universidad/escritorio-brillo-izquierda.png",
+   "cuadros": 6,
+   "emisivo": "piezas/muebles/universidad/escritorio-emisivo.png",
+   "fps": 2,
+   "huella": {
+    "alto": 40,
+    "ancho": 120,
+    "fondo": 16
+   },
+   "nombre": "Escritorio",
+   "reemplaza": "escenarios/universidad/arte/muebles/escritorio.png",
+   "ruta": "piezas/muebles/universidad/escritorio.png"
+  },
+  "universidad/estante-libros": {
+   "alto": 77,
+   "ancho": 64,
+   "apoyo": [
+    32,
+    77
+   ],
+   "brilloDerecha": "piezas/muebles/universidad/estante-libros-brillo-derecha.png",
+   "brilloIzquierda": "piezas/muebles/universidad/estante-libros-brillo-izquierda.png",
+   "cuadros": 1,
+   "huella": {
+    "alto": 72,
+    "ancho": 60,
+    "fondo": 14
+   },
+   "nombre": "Estante de libros",
+   "reemplaza": "escenarios/universidad/arte/muebles/estante-libros.png",
+   "ruta": "piezas/muebles/universidad/estante-libros.png"
+  },
+  "universidad/mesa-cafeteria": {
+   "alto": 38,
+   "ancho": 56,
+   "apoyo": [
+    28,
+    38
+   ],
+   "brillo": "piezas/muebles/universidad/mesa-cafeteria-brillo.png",
+   "brilloDerecha": "piezas/muebles/universidad/mesa-cafeteria-brillo-derecha.png",
+   "brilloIzquierda": "piezas/muebles/universidad/mesa-cafeteria-brillo-izquierda.png",
+   "cuadros": 1,
+   "huella": {
+    "alto": 34,
+    "ancho": 50,
+    "fondo": 14
+   },
+   "nombre": "Mesa de cafetería",
+   "reemplaza": "escenarios/universidad/arte/muebles/mesa-cafeteria.png",
+   "ruta": "piezas/muebles/universidad/mesa-cafeteria.png"
+  },
+  "universidad/mesa-centro": {
+   "alto": 31,
+   "ancho": 54,
+   "apoyo": [
+    27,
+    31
+   ],
+   "brillo": "piezas/muebles/universidad/mesa-centro-brillo.png",
+   "brilloDerecha": "piezas/muebles/universidad/mesa-centro-brillo-derecha.png",
+   "brilloIzquierda": "piezas/muebles/universidad/mesa-centro-brillo-izquierda.png",
+   "cuadros": 1,
+   "huella": {
+    "alto": 20,
+    "ancho": 52,
+    "fondo": 12
+   },
+   "nombre": "Mesa de centro",
+   "reemplaza": "escenarios/universidad/arte/muebles/mesa-centro.png",
+   "ruta": "piezas/muebles/universidad/mesa-centro.png"
+  },
+  "universidad/mostrador": {
+   "alto": 65,
+   "ancho": 183,
+   "apoyo": [
+    91,
+    65
+   ],
+   "brillo": "piezas/muebles/universidad/mostrador-brillo.png",
+   "brilloDerecha": "piezas/muebles/universidad/mostrador-brillo-derecha.png",
+   "brilloIzquierda": "piezas/muebles/universidad/mostrador-brillo-izquierda.png",
+   "cuadros": 1,
+   "huella": {
+    "alto": 44,
+    "ancho": 178,
+    "fondo": 16
+   },
+   "nombre": "Mostrador de recepción",
+   "reemplaza": "escenarios/universidad/arte/muebles/mostrador.png",
+   "ruta": "piezas/muebles/universidad/mostrador.png"
+  },
+  "universidad/planta": {
+   "alto": 54,
+   "ancho": 40,
+   "animaciones": {
+    "reposo": {
+     "bucle": true,
+     "de": 0,
+     "fps": 2,
+     "hasta": 3
+    }
+   },
+   "apoyo": [
+    20,
+    54
+   ],
+   "cuadros": 4,
+   "fps": 2,
+   "huella": {
+    "alto": 46,
+    "ancho": 22,
+    "fondo": 10
+   },
+   "nombre": "Planta de oficina",
+   "reemplaza": "escenarios/universidad/arte/muebles/planta.png",
+   "ruta": "piezas/muebles/universidad/planta.png"
+  },
+  "universidad/pupitre": {
+   "alto": 38,
+   "ancho": 45,
+   "apoyo": [
+    22,
+    38
+   ],
+   "brilloDerecha": "piezas/muebles/universidad/pupitre-brillo-derecha.png",
+   "brilloIzquierda": "piezas/muebles/universidad/pupitre-brillo-izquierda.png",
+   "cuadros": 1,
+   "huella": {
+    "alto": 34,
+    "ancho": 40,
+    "fondo": 12
+   },
+   "nombre": "Pupitre",
+   "reemplaza": "escenarios/universidad/arte/muebles/pupitre.png",
+   "ruta": "piezas/muebles/universidad/pupitre.png"
+  },
+  "universidad/silla-cafeteria": {
+   "alto": 33,
+   "ancho": 22,
+   "apoyo": [
+    11,
+    33
+   ],
+   "cuadros": 1,
+   "huella": {
+    "alto": 30,
+    "ancho": 20,
+    "fondo": 10
+   },
+   "nombre": "Silla de cafetería",
+   "reemplaza": "escenarios/universidad/arte/muebles/silla-cafeteria.png",
+   "ruta": "piezas/muebles/universidad/silla-cafeteria.png"
+  },
+  "universidad/silla-oficina": {
+   "alto": 44,
+   "ancho": 30,
+   "apoyo": [
+    15,
+    44
+   ],
+   "brillo": "piezas/muebles/universidad/silla-oficina-brillo.png",
+   "brilloDerecha": "piezas/muebles/universidad/silla-oficina-brillo-derecha.png",
+   "brilloIzquierda": "piezas/muebles/universidad/silla-oficina-brillo-izquierda.png",
+   "cuadros": 1,
+   "huella": {
+    "alto": 36,
+    "ancho": 24,
+    "fondo": 12
+   },
+   "nombre": "Silla giratoria",
+   "reemplaza": "escenarios/universidad/arte/muebles/silla-oficina.png",
+   "ruta": "piezas/muebles/universidad/silla-oficina.png"
+  },
+  "universidad/silla-visitante": {
+   "alto": 39,
+   "ancho": 24,
+   "apoyo": [
+    12,
+    39
+   ],
+   "brillo": "piezas/muebles/universidad/silla-visitante-brillo.png",
+   "brilloDerecha": "piezas/muebles/universidad/silla-visitante-brillo-derecha.png",
+   "brilloIzquierda": "piezas/muebles/universidad/silla-visitante-brillo-izquierda.png",
+   "cuadros": 1,
+   "huella": {
+    "alto": 30,
+    "ancho": 22,
+    "fondo": 12
+   },
+   "nombre": "Silla para visitante",
+   "reemplaza": "escenarios/universidad/arte/muebles/silla-visitante.png",
+   "ruta": "piezas/muebles/universidad/silla-visitante.png"
+  },
+  "universidad/sillas-espera": {
+   "alto": 40,
+   "ancho": 122,
+   "apoyo": [
+    61,
+    40
+   ],
+   "brillo": "piezas/muebles/universidad/sillas-espera-brillo.png",
+   "brilloDerecha": "piezas/muebles/universidad/sillas-espera-brillo-derecha.png",
+   "brilloIzquierda": "piezas/muebles/universidad/sillas-espera-brillo-izquierda.png",
+   "cuadros": 1,
+   "huella": {
+    "alto": 32,
+    "ancho": 118,
+    "fondo": 14
+   },
+   "nombre": "Fila de sillas de espera",
+   "reemplaza": "escenarios/universidad/arte/muebles/sillas-espera.png",
+   "ruta": "piezas/muebles/universidad/sillas-espera.png"
+  },
+  "universidad/sillon": {
+   "alto": 44,
+   "ancho": 48,
+   "apoyo": [
+    24,
+    44
+   ],
+   "brillo": "piezas/muebles/universidad/sillon-brillo.png",
+   "brilloDerecha": "piezas/muebles/universidad/sillon-brillo-derecha.png",
+   "brilloIzquierda": "piezas/muebles/universidad/sillon-brillo-izquierda.png",
+   "cuadros": 1,
+   "huella": {
+    "alto": 36,
+    "ancho": 46,
+    "fondo": 14
+   },
+   "nombre": "Sillón",
+   "reemplaza": "escenarios/universidad/arte/muebles/sillon.png",
+   "ruta": "piezas/muebles/universidad/sillon.png"
+  },
+  "universidad/sofa": {
+   "alto": 47,
+   "ancho": 94,
+   "apoyo": [
+    47,
+    47
+   ],
+   "brillo": "piezas/muebles/universidad/sofa-brillo.png",
+   "brilloDerecha": "piezas/muebles/universidad/sofa-brillo-derecha.png",
+   "brilloIzquierda": "piezas/muebles/universidad/sofa-brillo-izquierda.png",
+   "cuadros": 1,
+   "huella": {
+    "alto": 40,
+    "ancho": 90,
+    "fondo": 16
+   },
+   "nombre": "Sofá de la sala",
+   "reemplaza": "escenarios/universidad/arte/muebles/sofa.png",
+   "ruta": "piezas/muebles/universidad/sofa.png"
+  },
+  "universidad/tablero": {
+   "alto": 110,
+   "ancho": 180,
+   "apoyo": [
+    90,
+    110
+   ],
+   "brillo": "piezas/muebles/universidad/tablero-brillo.png",
+   "brilloDerecha": "piezas/muebles/universidad/tablero-brillo-derecha.png",
+   "brilloIzquierda": "piezas/muebles/universidad/tablero-brillo-izquierda.png",
+   "cuadros": 1,
+   "huella": {
+    "alto": 104,
+    "ancho": 170,
+    "fondo": 8
+   },
+   "nombre": "Tablero",
+   "reemplaza": "escenarios/universidad/arte/muebles/tablero.png",
+   "ruta": "piezas/muebles/universidad/tablero.png"
   }
  },
  "objetos": {
