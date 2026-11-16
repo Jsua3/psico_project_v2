@@ -1193,6 +1193,12 @@ describe('DialoguePanelComponent - contraste de lo nuevo (WCAG 1.4.3, T4.1/T4.5)
     expect(contrastRatio(hexOf(rule('.choice-btn__hint'), 'color'), hexOf(rule('.choice-btn__hint'), 'background'))).toBeGreaterThanOrEqual(4.5);
   });
 
+  // Bloque I1: la silueta del retrato del kit (contorno #15131D) se recorta contra la ventanilla a 3:1 o más (WCAG 1.4.11).
+  it('la ventanilla del retrato deja ver el contorno de la figura a 3:1', () => {
+    const fondo = source.match(/\.portrait \{[^}]*--rp[^}]*background-color: (#[0-9a-f]{6})/)?.[1] ?? '';
+    expect(contrastRatio('#15131D', fondo)).toBeGreaterThanOrEqual(3);
+  });
+
   it('el texto de «Volver al mapa» llega a 4,5:1 y la cabecera del panel lateral es opaca', () => {
     for (const surface of PLACA) expect(contrastRatio(hexOfRule('.panel-back'), surface)).toBeGreaterThanOrEqual(4.5);
     // En el panel lateral lo que se desplaza no se transparenta debajo de los botones.

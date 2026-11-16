@@ -383,7 +383,7 @@ const STALE_NOTE = 'Esta conversación corresponde a otro momento del caso.';
       display: grid;
       place-items: end center;
       overflow: hidden;
-      background-color: #262238;
+      background-color: #6c6589;
     }
     .portrait-svg { color: #b69cff; align-self: center; width: 66%; height: 66%; }
     /* Una voz sin retrato del kit (la supervisión, un personaje sin receta): ventanilla chica con la silueta, no un hueco. */
