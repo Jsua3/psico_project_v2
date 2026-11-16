@@ -72,6 +72,28 @@ describe('SalasComponent', () => {
     expect(raiz.querySelector('#ideas')).toBeTruthy();
   });
 
+  it('pasar a «Elegir salas a mano» y volver no borra la descripción que la docente ya escribió', async () => {
+    const { fixture, raiz } = await montar();
+    raiz.querySelector<HTMLInputElement>('input[value="describe"]')!.click();
+    fixture.detectChanges();
+    await fixture.whenStable();
+    fixture.detectChanges();
+    const texto = 'Una estudiante llega a Bienestar después de una noche difícil en casa y no quiere hablar.';
+    const campo = raiz.querySelector<HTMLTextAreaElement>('#descripcion')!;
+    campo.value = texto;
+    campo.dispatchEvent(new Event('input'));
+    fixture.detectChanges();
+
+    raiz.querySelector<HTMLInputElement>('input[value="a-mano"]')!.click();
+    fixture.detectChanges();
+    raiz.querySelector<HTMLInputElement>('input[value="describe"]')!.click();
+    fixture.detectChanges();
+    await fixture.whenStable();
+    fixture.detectChanges();
+
+    expect(raiz.querySelector<HTMLTextAreaElement>('#descripcion')!.value).toBe(texto);
+  });
+
   it('con una generación en curso entra en «Describe tu caso» y se ve el aviso de retomar', async () => {
     const { fixture, raiz } = await montar(undefined, {
       enabled: true, remainingToday: 4,

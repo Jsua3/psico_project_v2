@@ -1,5 +1,5 @@
 import {
-  ChangeDetectionStrategy, Component, ElementRef, Injector, afterNextRender, computed, inject, input, signal, viewChild,
+  ChangeDetectionStrategy, Component, ElementRef, Injector, afterNextRender, computed, inject, input, model, signal, viewChild,
 } from '@angular/core';
 import { Router } from '@angular/router';
 import { firstValueFrom } from 'rxjs';
@@ -123,7 +123,8 @@ export class DescribirComponent {
   /** La generación a medio hacer que se ofrece retomar: la del servidor o la que dijo un `GENERATION_IN_PROGRESS`. */
   protected readonly retomable = signal<{ id: string; lugarId: string | null } | null>(null);
   private readonly lugares = signal<Record<string, string>>({});
-  protected readonly descripcion = signal('');
+  /** Lo que escribe la docente. Lo guarda el paso 2 (`[(descripcion)]`) para que no se pierda si cambia a «Elegir salas a mano» y vuelve. */
+  readonly descripcion = model('');
   protected readonly enviando = signal(false);
   protected readonly cancelando = signal(false);
   protected readonly errorCampo = signal<string | null>(null);

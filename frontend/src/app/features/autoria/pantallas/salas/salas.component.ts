@@ -57,7 +57,7 @@ import { PasosCrearComponent } from '../pasos-crear.component';
         </fieldset>
 
         @if (forma() === 'describe') {
-          <app-describir [lugarId]="lugarId" />
+          <app-describir [lugarId]="lugarId" [(descripcion)]="descripcionEscrita" />
         } @else {
         <section aria-labelledby="ideas" class="bloque">
           <h2 id="ideas">Ideas para empezar</h2>
@@ -251,6 +251,8 @@ export class SalasComponent {
 
   /** Cómo empieza la docente: describiendo el caso a la IA o eligiendo las salas ella misma (lo de siempre). */
   protected readonly forma = signal<'describe' | 'a-mano'>('a-mano');
+  /** La descripción vive aquí y no en «Describe tu caso», que se destruye al pasar a «Elegir salas a mano»: así no se pierde. */
+  protected readonly descripcionEscrita = signal('');
   /** La generación con IA está apagada: la opción «Describe tu caso» queda apagada con su motivo. */
   protected readonly generacionApagada = signal(false);
   protected readonly escenario = signal<Escenario | null>(null);
