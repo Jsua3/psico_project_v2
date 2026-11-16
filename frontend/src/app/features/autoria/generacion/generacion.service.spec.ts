@@ -520,6 +520,22 @@ describe('GeneracionService: el orquestador de la generación', () => {
       g.liberar('skeleton');
     });
 
+    it('tras salir de la pantalla, las escenas que terminan después no disparan otra lectura', async () => {
+      const { g, servicio } = montar();
+      const id = await servicio.empezar('universidad', DESCRIPCION);
+      for (const c of CLAVES) g.retener('scene', c);
+      const corrida = servicio.continuar(id);
+      await vaciar(); // el esqueleto sale bien y las dos primeras escenas quedan en vuelo
+      expect(veces(g, 'generationScene')).toBe(2);
+      servicio.detener();
+      const lecturas = veces(g, 'generation');
+      g.liberar('scene', 'recepcion');
+      g.liberar('scene', 'consulta');
+      await vaciar();
+      await corrida;
+      expect(veces(g, 'generation')).toBe(lecturas);
+    });
+
     it('un esqueleto que vence en otra pestaña MIENTRAS se espera se ofrece y no se pide solo (cada intento cuesta)', async () => {
       const { g, api, servicio } = montar();
       const id = await servicio.empezar('universidad', DESCRIPCION);

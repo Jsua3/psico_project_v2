@@ -271,6 +271,8 @@ export class GeneracionService {
       this.pedir(() => this.autoria.api.generationScene(g.id, s.clave, reparar), 'escena', mia, s.clave)));
     const conError = pasos.find((p): p is Extract<Paso, { tipo: 'error' }> => p.tipo === 'error');
     if (conError) return conError;
+    // Si la docente ya salió de la pantalla, no se relee: la corrida se termina en la vuelta siguiente.
+    if (!this.vigente(mia)) return { tipo: 'espera', dormir: false };
     if (pasos.some((p) => p.tipo === 'avanzo')) return { tipo: 'avanzo', g: await this.leer(g.id) };
     return { tipo: 'espera', dormir: pasos.some((p) => p.tipo === 'espera' && p.dormir) };
   }
