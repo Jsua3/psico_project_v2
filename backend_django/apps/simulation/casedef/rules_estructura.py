@@ -61,11 +61,15 @@ class _Sala:
         return list(_objetos(self.estructura.get("piezas")))
 
     def puertas(self):
-        """``(posición, objeto, metadatos)`` de cada ``EXIT`` puesto en un muro."""
+        """``(posición, objeto, metadatos)`` de TODO ``EXIT`` de la sala, esté bien puesto o no.
+
+        En una sala por piezas toda puerta va en un muro: una con ``muro`` o ``pos`` que falten o no sirvan no se salta las
+        reglas (revisión de Codex, hallazgo 2); OCL-13 la informa y las demás la juzgan con lo que sí trae.
+        """
         resultado = []
         for k, obj in self.objetos:
-            meta = obj.get("metadatos") if isinstance(obj.get("metadatos"), dict) else {}
-            if obj.get("tipo") == "EXIT" and meta.get("muro") in geometria.MUROS and _entero(meta.get("pos")):
+            if obj.get("tipo") == "EXIT":
+                meta = obj.get("metadatos") if isinstance(obj.get("metadatos"), dict) else {}
                 resultado.append((k, obj, meta))
         return resultado
 
@@ -149,13 +153,16 @@ def ocl_13_piezas_sobre_un_muro_existente(doc):
         for k, _obj, meta in sala.puertas():
             evaluados += 1
             modelo = _pieza_de(catalogo, "puerta", meta.get("modelo"))
-            hallazgos.extend(_fuera_del_muro(sala, f"{sala.ruta}.objetos[{k}]", meta["muro"], meta["pos"], modelo))
+            hallazgos.extend(_fuera_del_muro(sala, f"{sala.ruta}.objetos[{k}]", meta.get("muro"), meta.get("pos"), modelo))
     return Outcome(evaluados, hallazgos)
 
 
 def _fuera_del_muro(sala, ruta, muro, pos, modelo):
     if muro not in geometria.MUROS or not _entero(pos):
-        return [_h(sala.elemento, ruta, "La pieza no dice en qué muro ni en qué posición va.")]
+        return [_h(sala.elemento, ruta, (
+            "No dice en qué muro ni en qué posición va: en una sala por piezas toda pieza y toda puerta lleva «muro» "
+            "(fondo, izquierda, derecha o cámara) y «pos» (un número entero)."
+        ))]
     largo = geometria.largo_muro(muro, sala.encuadre, sala.ancho)
     if largo == 0:
         return [_h(sala.elemento, ruta, f"La sala no tiene muro «{muro}»: su encuadre no lo incluye.")]
@@ -188,7 +195,7 @@ def ocl_14_piezas_sin_solaparse(doc):
                 en_muros.append((f"{sala.ruta}.estructura.piezas[{k}]", pieza.get("id") or pieza["modelo"], pieza["muro"], pieza["pos"], modelo))
         for k, obj, meta in sala.puertas():
             modelo = _pieza_de(catalogo, "puerta", meta.get("modelo"))
-            if modelo:
+            if modelo and meta.get("muro") in geometria.MUROS and _entero(meta.get("pos")):  # las mal puestas, OCL-13
                 en_muros.append((f"{sala.ruta}.objetos[{k}]", obj.get("clave") or "puerta", meta["muro"], meta["pos"], modelo))
         evaluados += len(en_muros)
         for a in range(len(en_muros)):
@@ -225,6 +232,12 @@ def ocl_15_puertas_con_regreso(doc):
             destino = meta.get("targetNodeKey")
             if destino not in mapas:
                 hallazgos.append(_h(sala.elemento, ruta, "La puerta lleva a una sala que el caso no tiene."))
+                continue
+            if "par" in meta and not isinstance(meta["par"], str):
+                hallazgos.append(_h(sala.elemento, ruta, "«par» debe ser la clave (un texto) de la puerta de regreso."))
+                continue
+            if "sentidoUnico" in meta and not isinstance(meta["sentidoUnico"], bool):
+                hallazgos.append(_h(sala.elemento, ruta, "«sentidoUnico» debe ser verdadero o falso."))
                 continue
             if meta.get("sentidoUnico") is True:
                 continue
@@ -269,6 +282,11 @@ def _rects(mapa):
     return rects
 
 
+def _pie_dentro(x, y, ancho, alto):
+    """¿Cabe el pie entero (x − 11 … x + 11, y − 16 … y) dentro del mapa?"""
+    return x - PIE_ANCHO // 2 >= 0 and x + PIE_ANCHO // 2 <= ancho and y - PIE_ALTO >= 0 and y <= alto
+
+
 def _pie_choca(x, y, rects):
     px, py = x - PIE_ANCHO // 2, y - PIE_ALTO
     return any(px < rx + rw and rx < px + PIE_ANCHO and py < ry + rh and ry < py + PIE_ALTO for rx, ry, rw, rh in rects)
@@ -294,7 +312,8 @@ def ocl_16_llegada_caminable(doc):
             evaluados += 1
             x, y = meta["entryX"], meta["entryY"]
             ancho, alto = destino.get("ancho"), destino.get("alto")
-            fuera = _entero(ancho) and _entero(alto) and not (0 <= x < ancho and 0 <= y <= alto)
+            # El pie entero dentro del mapa, como exige el servidor al moverse (revisión de Codex, hallazgo 4).
+            fuera = _entero(ancho) and _entero(alto) and not _pie_dentro(x, y, ancho, alto)
             if fuera or _pie_choca(x, y, _rects(destino)):
                 hallazgos.append(_h(
                     sala.elemento, f"{sala.ruta}.objetos[{k}].metadatos",
@@ -316,9 +335,11 @@ def alcanzables(mapa, ancho=None):
     alto = mapa.get("alto") if _entero(mapa.get("alto")) else geometria.ALTO_SALA
     if not (_entero(ax) and _entero(ay) and _entero(ancho)):
         return set()
-    # Índices de la rejilla: x = ax + 8i, y = ay + 8j, dentro del mapa.
-    i_min, i_max = -((ax) // REJILLA), (ancho - 1 - ax) // REJILLA
-    j_min, j_max = -((ay) // REJILLA), (alto - ay) // REJILLA
+    if not _pie_dentro(ax, ay, ancho, alto):  # una aparición con el pie fuera del mapa no alcanza nada (hallazgo 5)
+        return set()
+    # Índices de la rejilla: x = ax + 8i, y = ay + 8j, con el pie entero dentro del mapa (11 ≤ x ≤ ancho − 11, 16 ≤ y ≤ alto).
+    i_min, i_max = _techo(PIE_ANCHO // 2 - ax, REJILLA), (ancho - PIE_ANCHO // 2 - ax) // REJILLA
+    j_min, j_max = _techo(PIE_ALTO - ay, REJILLA), (alto - ay) // REJILLA
     bloqueado = set()
     for rx, ry, rw, rh in _rects(mapa):
         # El pie (x − 11 … x + 11, y − 16 … y) toca el rectángulo si rx − 11 < x < rx + rw + 11 y ry < y < ry + rh + 16.
