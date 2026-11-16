@@ -302,7 +302,7 @@ export class AvanceComponent implements OnInit, OnDestroy {
   protected readonly tituloCaso = computed(() => this.g()?.skeleton?.titulo ?? null);
 
   /** Las rondas de corrección que esta pantalla vio, con sus escenas: al terminar la ronda el servidor ya no las trae. */
-  private readonly rondasVistas = linkedSignal<Generation['repair'], Record<number, string[]>>({
+  private readonly rondasVistas = linkedSignal<Generation['repair'], Record<number, readonly string[]>>({
     source: () => this.g()?.repair ?? null,
     computation: (repair, previo) => (repair ? { ...previo?.value, [repair.round]: repair.scenes } : previo?.value ?? {}),
   });

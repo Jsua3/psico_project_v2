@@ -32,7 +32,7 @@ export interface EntradaPartes {
   /** La parte que la docente mandó reintentar (se ve en curso al instante). */
   reintentando: string | null;
   /** Las escenas de cada ronda de corrección que la pantalla vio: al terminar la ronda el servidor ya no las trae. */
-  rondasVistas: Record<number, string[]>;
+  rondasVistas: Record<number, readonly string[]>;
 }
 
 const plural = (n: number, uno: string, varios: string) => (n === 1 ? `1 ${uno}` : `${n} ${varios}`);
@@ -41,7 +41,7 @@ const enumerar = (cosas: string[]) => (cosas.length < 2 ? cosas.join('') : `${co
 const escenas = (n: number) => plural(n, 'escena', 'escenas');
 
 /** Los mensajes de las faltas, sin repetir: una que aparece tres veces se dice una vez con «(3 veces)». */
-function faltasEnPalabras(faltas: ValidationIssue[]): string[] {
+function faltasEnPalabras(faltas: readonly ValidationIssue[]): string[] {
   const cuenta = new Map<string, number>();
   for (const f of faltas) cuenta.set(f.message, (cuenta.get(f.message) ?? 0) + 1);
   // BORRADOR: texto nuevo, pendiente de la aprobación de Psicología

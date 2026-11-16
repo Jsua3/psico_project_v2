@@ -15,11 +15,16 @@ import { Observable, ReplaySubject, defer, of } from 'rxjs';
 import { take } from 'rxjs/operators';
 
 import type {
-  Generation, GenerationErrorKind, GenerationScene, GenerationStartRequest, GenerationStatus,
+  Generation as GenerationApi, GenerationErrorKind, GenerationScene as GenerationSceneApi, GenerationStartRequest, GenerationStatus,
 } from '../../../core/models/generacion.model';
 import type {
   CaseEditorView, DecisionEdgeState, HintEditorState, MapEditorState, NodeEditorState, ValidationIssue,
 } from '../../../core/models/simulation.model';
+
+/** El contrato generado es de solo lectura; el servidor falso sí cambia sus generaciones. */
+type Mutable<T> = { -readonly [K in keyof T]: T[K] extends ReadonlyArray<infer U> ? Mutable<U>[] : T[K] extends object ? Mutable<T[K]> : T[K] };
+type Generation = Mutable<GenerationApi>;
+type GenerationScene = Mutable<GenerationSceneApi>;
 
 export type EtapaGeneracion = 'skeleton' | 'scene' | 'assemble';
 export type ResultadoEnsamblado = 'imported' | 'needs_repair' | 'failed';
