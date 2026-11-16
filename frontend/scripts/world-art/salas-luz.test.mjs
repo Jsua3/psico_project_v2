@@ -67,6 +67,9 @@ test('la fuente que domina donde pisa una figura da el rumbo y el largo de su si
   const dePozo = [];
   for (let y = 250; y < 480; y += 6) dePozo.push(...barrer(escucha, y).filter(Boolean));
   assert.ok(Math.max(...dePozo.map(f => f.largo)) > 20, 'una lámpara baja da una sombra larga');
+  // Lejos de todo pozo y de todo haz, la da la fuente más cercana: nadie se queda sin silueta en el piso.
+  assert.ok(barrer(dia, 470).every(Boolean), 'de día, todo el piso tiene sombra (la ventana más cercana)');
+  assert.ok(barrer(escucha, 470).filter((f, i) => i > 30 && i < 200).every(Boolean), 'de noche, también lejos de las lámparas');
   // Fuera del piso, nada.
   assert.equal(dia.fuenteDeSombra(100, 40), null);
 });

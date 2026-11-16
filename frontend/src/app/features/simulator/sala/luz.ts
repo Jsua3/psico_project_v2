@@ -464,24 +464,38 @@ export class LuzDeSala {
    * fondo tiende HAZ_FONDO con 5/8 del alto, el de una del lado HAZ_LADO con 3/4, y una lámpara de pozo, radial y más
    * larga cuanto más baja cuelga. El tubo del techo, que en la luz no arroja sombra, da aquí una corta y radial desde lo
    * alto (ALTURA_DEL_TUBO): sin ella, de noche nadie tendría silueta en las salas con solo tubos. Gana la que más luz da en
-   * ese punto. null si ninguna alcanza. Para la sombra de la figura (`sombra-de-figura`), sin tocar la luz de la sala.
+   * ese punto; si ninguna lo alcanza, la más cercana (lejos de su pozo o de su haz). null solo fuera del piso o sin
+   * ninguna fuente encendida. Para la sombra de la figura (`sombra-de-figura`), sin tocar la luz de la sala.
    */
   fuenteDeSombra(x: number, y: number, alto = 60): { dx: number; dy: number; largo: number } | null {
     let mejor: { dx: number; dy: number; largo: number } | null = null;
     let peso = 0;
+    // Si ninguna fuente alcanza el punto, la sombra la da la más cercana (lejos de su pozo o de su haz).
+    let cercana: { dx: number; dy: number; largo: number } | null = null;
+    let distancia = Infinity;
     const proponer = (p: number, dx: number, dy: number, largo: number) => {
       if (p > peso) {
         peso = p;
         mejor = { dx, dy, largo: Math.min(largo, SOMBRA_MAXIMA) };
       }
     };
+    const deLejos = (d: number, dx: number, dy: number, largo: number) => {
+      if (d < distancia) {
+        distancia = d;
+        cercana = { dx, dy, largo: Math.min(largo, SOMBRA_MAXIMA) };
+      }
+    };
     const radial = (fx: number, fy: number, rx: number, ry: number, altura: number, fuerza: number) => {
       const ddx = x - fx, ddy = y - fy;
-      if (ddx * ddx * ry * ry + ddy * ddy * rx * rx >= rx * rx * ry * ry) return;   // fuera del pozo
       const n = raiz(ddx * ddx + ddy * ddy);
+      const largo = piso(alto * n, Math.max(altura - alto, 16));
+      if (ddx * ddx * ry * ry + ddy * ddy * rx * rx >= rx * rx * ry * ry) {   // fuera del pozo
+        deLejos(n, piso(ddx * 64, Math.max(n, 1)), piso(ddy * 64, Math.max(n, 1)), largo);
+        return;
+      }
       const cerca = UNO - piso(n * UNO, Math.max(rx, ry));
       if (n < 4) proponer(fuerza * cerca, 0, 64, 0);
-      else proponer(fuerza * cerca, piso(ddx * 64, n), piso(ddy * 64, n), piso(alto * n, Math.max(altura - alto, 16)));
+      else proponer(fuerza * cerca, piso(ddx * 64, n), piso(ddy * 64, n), largo);
     };
     if (y < SEAM || y >= ALTO) return null;
     if (this.exterior) return this.momento === 'dia' ? { dx: HAZ_FONDO[0], dy: HAZ_FONDO[1], largo: piso(alto * 5, 8) } : null;
@@ -503,6 +517,8 @@ export class LuzDeSala {
           const t = piso(n * 1000, FONDO);
           if (x >= xi && x <= xd && Math.min(piso((t - 15) * 700, 1000), piso((740 - t) * 500, 1000)) > 0) {
             proponer(fuerza * UNO, HAZ_FONDO[0], HAZ_FONDO[1], piso(alto * 5, 8));
+          } else {
+            deLejos(Math.abs(x - piso(xi + xd, 2)), HAZ_FONDO[0], HAZ_FONDO[1], piso(alto * 5, 8));
           }
         } else if ((pieza.muro === 'izquierda' && this.izq) || (pieza.muro === 'derecha' && this.der)) {
           // El mismo haz que `hazDelLado`.
@@ -510,10 +526,9 @@ export class LuzDeSala {
           const centro = SEAM + pieza.pos + piso(dist * 35, 100);
           const dentro = Math.min(piso(luz.ancho, 2) + 4 - Math.abs(y - centro), dist);
           const alcance = limitar(piso((460 - dist) * UNO, 180), 0, UNO);
-          if (dentro > 0 && alcance > 0) {
-            const sentido = pieza.muro === 'izquierda' ? HAZ_LADO[0] : -HAZ_LADO[0];
-            proponer(fuerza * alcance, sentido, HAZ_LADO[1], piso(alto * 3, 4));
-          }
+          const sentido = pieza.muro === 'izquierda' ? HAZ_LADO[0] : -HAZ_LADO[0];
+          if (dentro > 0 && alcance > 0) proponer(fuerza * alcance, sentido, HAZ_LADO[1], piso(alto * 3, 4));
+          else deLejos(Math.abs(y - centro) + Math.max(0, dist), sentido, HAZ_LADO[1], piso(alto * 3, 4));
         }
         continue;
       }
@@ -530,7 +545,7 @@ export class LuzDeSala {
       if (luz.forma === 'pozo') radial(fx, fy, luz.radio[0], luz.radio[1], luz.altura + (pieza.sobre ?? 0), fuerza);
       else if (luz.forma === 'tubo') radial(fx, fy, luz.radio[0], luz.radio[1], ALTURA_DEL_TUBO, fuerza);
     }
-    return mejor;
+    return mejor ?? cercana;
   }
 
   /** Sombras que arroja una lámpara puesta en (x, y) a `altura` px del piso: cada cuerpo, lejos de ella. */
