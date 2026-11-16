@@ -46,7 +46,7 @@ const SECCION_DE: Record<CampoError, string> = { irA: 'escena', explorado: 'expl
             <legend class="sr-only">{{ draft.rehearsalPanelTitle.text }}</legend>
 
             <section data-section="escena">
-              <h3>{{ draft.rehearsalScene.text }}</h3>
+              <h2>{{ draft.rehearsalScene.text }}</h2>
               <select data-field="irA" [attr.aria-label]="draft.rehearsalScene.text" (change)="destino.set(num($event))">
                 @for (s of panel().escenas; track s.id) {
                   <option [value]="s.id" [selected]="s.id === destino()">{{ s.title }}</option>
@@ -57,13 +57,13 @@ const SECCION_DE: Record<CampoError, string> = { irA: 'escena', explorado: 'expl
             </section>
 
             <section data-section="explorado">
-              <h3>{{ draft.rehearsalExplored.text }}</h3>
+              <h2>{{ draft.rehearsalExplored.text }}</h2>
               <ul class="rp__list">
                 @for (c of sala(); track c.kind + c.key) {
                   <li><label><input type="checkbox" [value]="c.kind + ':' + c.key" [checked]="c.marcada" (change)="toggleExplorado(c, $event)"> {{ frase(c) }}</label></li>
                 }
               </ul>
-              <h4>{{ draft.rehearsalTools.text }}</h4>
+              <h3>{{ draft.rehearsalTools.text }}</h3>
               <ul class="rp__list">
                 @for (c of herramientas(); track c.kind + c.key) {
                   <li><label><input type="checkbox" [value]="c.kind + ':' + c.key" [checked]="c.marcada" (change)="toggleExplorado(c, $event)"> {{ frase(c) }}</label></li>
@@ -73,7 +73,7 @@ const SECCION_DE: Record<CampoError, string> = { irA: 'escena', explorado: 'expl
             </section>
 
             <section data-section="persona">
-              <h3>{{ draft.rehearsalPersona.text }}</h3>
+              <h2>{{ draft.rehearsalPersona.text }}</h2>
               <label>{{ draft.rehearsalBond.text }}
                 <select data-field="bond" (change)="setPersona('bond', $event)">
                   @for (b of vinculos; track b) { <option [value]="b" [selected]="b === panel().persona.bond">{{ vinculoWord(b) }}</option> }
@@ -89,7 +89,7 @@ const SECCION_DE: Record<CampoError, string> = { irA: 'escena', explorado: 'expl
             </section>
 
             <section data-section="hitos">
-              <h3>{{ draft.rehearsalMilestones.text }}</h3>
+              <h2>{{ draft.rehearsalMilestones.text }}</h2>
               <ul class="rp__list">
                 @for (h of panel().hitos; track h.key) {
                   <li><label><input type="checkbox" [value]="'hito:' + h.key" [checked]="h.cumplido" (change)="toggleHito(h.key, $event)"> {{ h.label }}</label></li>
@@ -99,7 +99,7 @@ const SECCION_DE: Record<CampoError, string> = { irA: 'escena', explorado: 'expl
             </section>
 
             <section data-section="ocultas">
-              <h3>{{ draft.rehearsalWhyHidden.text }}</h3>
+              <h2>{{ draft.rehearsalWhyHidden.text }}</h2>
               @for (o of panel().ocultas; track o.id) {
                 <p class="rp__item"><strong>{{ o.text }}</strong><br>{{ o.porQue }}</p>
               } @empty {
@@ -108,7 +108,7 @@ const SECCION_DE: Record<CampoError, string> = { irA: 'escena', explorado: 'expl
             </section>
 
             <section data-section="comentarios">
-              <h3>{{ draft.rehearsalComments.text }}</h3>
+              <h2>{{ draft.rehearsalComments.text }}</h2>
               @for (c of panel().comentarios; track c.index) {
                 <p class="rp__item"><strong>{{ c.personaje }}:</strong> «{{ c.line }}»<br>{{ c.estado }}</p>
               } @empty {
@@ -117,10 +117,10 @@ const SECCION_DE: Record<CampoError, string> = { irA: 'escena', explorado: 'expl
             </section>
 
             <section data-section="avisos">
-              <h3>{{ draft.rehearsalWarnings.text }}</h3>
+              <h2>{{ draft.rehearsalWarnings.text }}</h2>
               @for (a of panel().avisos; track $index) { <p class="rp__item">{{ a }}</p> } @empty { <p class="rp__note">{{ draft.rehearsalNoWarnings.text }}</p> }
               @if (panel().camino.length) {
-                <h4>{{ draft.rehearsalPath.text }}</h4>
+                <h3>{{ draft.rehearsalPath.text }}</h3>
                 <p class="rp__note">{{ panel().camino.join(' → ') }}</p>
               }
             </section>
@@ -148,7 +148,11 @@ const SECCION_DE: Record<CampoError, string> = { irA: 'escena', explorado: 'expl
     .rp__body { overflow-y: auto; padding: 0 12px 12px; min-block-size: 0; }
     .rp__all { border: 0; margin: 0; padding: 0; min-inline-size: 0; }
     .rp__all[aria-busy='true'] { opacity: .6; }
-    h3 { margin: 12px 0 4px; font-size: .95rem; color: inherit; } h4 { margin: 8px 0 2px; font-size: .85rem; }
+    /* Orden de títulos sin saltos (h1 oculto → h2 por sección → h3 por grupo; Axe heading-order). */
+    h2 { margin: 12px 0 4px; font-size: .95rem; color: inherit; } h3 { margin: 8px 0 2px; font-size: .85rem; color: inherit; }
+    /* Objetivos de al menos 24 px (WCAG 2.5.8): cada casilla con su texto y cada selector. */
+    label { display: inline-flex; align-items: center; gap: 6px; min-block-size: 24px; }
+    select { min-block-size: 28px; }
     .rp__list { list-style: none; margin: 0; padding: 0; } .rp__list li { padding: 2px 0; }
     .rp__item, .rp__note { margin: 4px 0; font-size: .85rem; } .rp__note { color: var(--ds-text-2, rgba(244,247,251,.8)); }
     .rp__error { margin: 4px 0; font-size: .85rem; color: var(--ds-danger-text, #ffb4b4); }
