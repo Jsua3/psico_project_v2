@@ -29,6 +29,9 @@ otro esquema (`frontend/scripts/world-art/build.mjs`). Este vive aparte hasta qu
   con eso se dibuja su sombra de contacto y se proyecta la que arroja (ver `piezas/luz/LEEME.md`).
 - `brillo` (en una vista o en un mueble): ruta del mapa de brillo, una tira igual a la del dibujo donde solo están los
   píxeles que brillan (gris 255 vidrio, 170 metal, 85 barniz). Cómo se pinta: `piezas/luz/LEEME.md`, sección «Brillo».
+- `emisivo` (en una vista o en un mueble): ruta de la máscara de lo que emite luz propia (pantallas, pilotos, focos
+  encendidos, el cielo de día por la ventana), una tira igual a la del dibujo con esos píxeles en su color. Se pinta
+  encima de la luz, sin multiplicar por `ambiente`, después de `brillo` y con la misma oclusión que el brillo.
 - `luz` dice cómo emite: `forma` (haz, pozo o tubo), `momento` (dia o noche), `tono` (calido o frio) y sus medidas.
 """
 import argparse
@@ -39,6 +42,7 @@ import sys
 AQUI = os.path.dirname(os.path.abspath(__file__))
 RAIZ = os.path.normpath(os.path.join(AQUI, '..', '..'))
 sys.path.insert(0, AQUI)
+import objetos_catalogo as oc  # noqa: E402
 import piezas_geo as g  # noqa: E402
 import piezas_hospital as ph  # noqa: E402
 import piezas_luz as pl  # noqa: E402
@@ -51,12 +55,15 @@ CARPETA = {'ventana': 'ventanas', 'lampara': 'lamparas'}
 ESTADOS = {'ventana': ['dia', 'noche'], 'lampara': ['apagada', 'encendida']}
 
 
-def _vista(cuadros, punto, ruta, imagenes, mapas=None):
+def _vista(cuadros, punto, ruta, imagenes, mapas=None, emisivos=None):
     imagenes[ruta] = g.tira(cuadros)
     vista = dict(ruta=ruta, ancho=cuadros[0].width, alto=cuadros[0].height, apoyo=[int(round(punto[0])), int(round(punto[1]))])
     if mapas:                       # mapa de brillo: misma tira, gris 255 vidrio, 170 metal, 85 barniz
         vista['brillo'] = ruta[:-4] + '-brillo.png'
         imagenes[vista['brillo']] = g.tira(mapas)
+    if emisivos:                    # lo que emite luz propia, en su color: se pinta encima de la luz
+        vista['emisivo'] = ruta[:-4] + '-emisivo.png'
+        imagenes[vista['emisivo']] = g.tira(emisivos)
     return vista
 
 
@@ -65,20 +72,20 @@ def generar():
     imagenes, piezas = {}, {}
     for modelo, M in pp.MODELOS.items():
         base = f'piezas/puertas/{modelo}'
-        vistas = dict(frente=_vista(pp.cuadros(modelo, 'frente'), pp.apoyo(modelo, 'frente'), base + '-frente.png', imagenes, pp.brillo(modelo, 'frente')),
-                      camara=_vista(pp.cuadros(modelo, 'camara'), pp.apoyo(modelo, 'camara'), base + '-camara.png', imagenes, pp.brillo(modelo, 'camara')),
-                      lado={str(a): _vista(pp.cuadros(modelo, 'lado', a), pp.apoyo(modelo, 'lado', a), f'{base}-lado-{a}.png', imagenes, pp.brillo(modelo, 'lado', a))
+        vistas = dict(frente=_vista(pp.cuadros(modelo, 'frente'), pp.apoyo(modelo, 'frente'), base + '-frente.png', imagenes, pp.brillo(modelo, 'frente'), pp.emisivo(modelo, 'frente')),
+                      camara=_vista(pp.cuadros(modelo, 'camara'), pp.apoyo(modelo, 'camara'), base + '-camara.png', imagenes, pp.brillo(modelo, 'camara'), pp.emisivo(modelo, 'camara')),
+                      lado={str(a): _vista(pp.cuadros(modelo, 'lado', a), pp.apoyo(modelo, 'lado', a), f'{base}-lado-{a}.png', imagenes, pp.brillo(modelo, 'lado', a), pp.emisivo(modelo, 'lado', a))
                             for a in g.ANCHOS})
         piezas['puerta/' + modelo] = dict(nombre=M['nombre'], ocupa=M['ocupa'], ancho=M['ancho'], alto=M['alto'], muros=list(g.MUROS), cuadros=pp.CUADROS,
                                           franja=[0, vistas['frente']['apoyo'][1]], hojas=M['hojas'], vistas=vistas)
     for (tipo, modelo), F in pm.PIEZAS.items():
         base = f'piezas/{CARPETA.get(tipo, "muro")}/{modelo}'
         if 'suelo' in F['muros']:
-            vistas = dict(suelo=_vista(pm.cuadros(tipo, modelo), pm.apoyo(tipo, modelo), base + '.png', imagenes, pm.brillo(tipo, modelo)))
+            vistas = dict(suelo=_vista(pm.cuadros(tipo, modelo), pm.apoyo(tipo, modelo), base + '.png', imagenes, pm.brillo(tipo, modelo), pm.emisivo(tipo, modelo)))
             franja = [0, vistas['suelo']['alto']]
         else:
-            vistas = dict(frente=_vista(pm.cuadros(tipo, modelo), pm.apoyo(tipo, modelo), base + '-frente.png', imagenes, pm.brillo(tipo, modelo)),
-                          lado={str(a): _vista(pm.cuadros(tipo, modelo, 'lado', a), pm.apoyo(tipo, modelo, 'lado', a), f'{base}-lado-{a}.png', imagenes, pm.brillo(tipo, modelo, 'lado', a))
+            vistas = dict(frente=_vista(pm.cuadros(tipo, modelo), pm.apoyo(tipo, modelo), base + '-frente.png', imagenes, pm.brillo(tipo, modelo), pm.emisivo(tipo, modelo)),
+                          lado={str(a): _vista(pm.cuadros(tipo, modelo, 'lado', a), pm.apoyo(tipo, modelo, 'lado', a), f'{base}-lado-{a}.png', imagenes, pm.brillo(tipo, modelo, 'lado', a), pm.emisivo(tipo, modelo, 'lado', a))
                                 for a in g.ANCHOS})
             frente = vistas['frente']
             franja = [frente['apoyo'][1] - frente['alto'], frente['apoyo'][1]]
@@ -124,15 +131,21 @@ def generar():
         if ph.mueble_brillo(ref):
             muebles['hospital/' + ref]['brillo'] = ruta[:-4] + '-brillo.png'
             imagenes[ruta[:-4] + '-brillo.png'] = g.tira(ph.mueble_brillo(ref))
+        if ph.mueble_emisivo(ref):
+            muebles['hospital/' + ref]['emisivo'] = ruta[:-4] + '-emisivo.png'
+            imagenes[ruta[:-4] + '-emisivo.png'] = g.tira(ph.mueble_emisivo(ref))
     geometria = dict(alto=g.ALTO, piso=g.SEAM, tope=g.TOP, k=[3, 16], anchos=list(g.ANCHOS), rejilla=g.REJILLA,
                      borde={str(a): g.borde(a) for a in g.ANCHOS})
     luz = dict(unidad=pl.U, minimo=pl.MINIMO, paso=pl.PASO, niveles=pl.NIVELES, uno=pl.UNO,
                penumbra=dict(dia=pl.PENUMBRA, noche=pl.PENUMBRA_NOCHE, exteriorDia=pl.EXTERIOR, exteriorNoche=pl.EXTERIOR_NOCHE),
                bayer=pl.BAYER.tolist(), tablaAmbiente=pl.TABLA_AMBIENTE.tolist(), tablaCalida=pl.TABLA_CALIDA.tolist(),
-               tablaFria=pl.TABLA_FRIA.tolist(), enSombra=pl.EN_SOMBRA, hazFondo=list(pl.HAZ_FONDO), hazLado=list(pl.HAZ_LADO),
+               tablaFria=pl.TABLA_FRIA.tolist(), enSombra=dict(pl.EN_SOMBRA), sombraPropia=pl.SOMBRA_PROPIA, sombraAlSol=pl.SOMBRA_AL_SOL, alturaTubo=pl.ALTURA_TUBO,
+               topeSombra=dict(pl.TOPE_SOMBRA), umbralDominio=pl.UMBRAL_DOMINIO, cenital=list(pl.CENITAL),
+               matrizHaz={k: list(v) for k, v in pl.MATRIZ_HAZ.items()}, senosHaz={k: list(v) for k, v in pl.SENOS_HAZ.items()},
+               direcciones=[list(d) for d in pl.DIRECCIONES],
                sombraMaxima=pl.SOMBRA_MAXIMA, tablaReflejo={t: [list(c) for c in v] for t, v in pl.TABLA_REFLEJO.items()},
                umbralReflejo=pl.UMBRAL_REFLEJO, grisBrillo={m: f * 85 for m, f in g.FUERZA_BRILLO.items()},
-               tablaAmbienteNoche=pl.TABLA_AMBIENTE_NOCHE.tolist(), pulidos=list(pl.PULIDOS), reflejo=pl.REFLEJO, contacto=pl.CONTACTO, referencia='piezas/luz/LEEME.md', casos='piezas/luz/casos.json')
+               tablaAmbienteNoche=pl.TABLA_AMBIENTE_NOCHE.tolist(), pulidos=list(pl.PULIDOS), reflejo=pl.REFLEJO, luna=pl.LUNA, vidriadas=dict(pl.VIDRIADAS), contacto=pl.CONTACTO, referencia='piezas/luz/LEEME.md', casos='piezas/luz/casos.json')
     return dict(esquema=2, geometria=geometria, luz=luz, piezas=piezas, pisos=pisos, muros=muros, muebles=muebles, lugares=[]), imagenes
 
 
@@ -150,12 +163,19 @@ def _completar(datos, biblioteca):
     datos['lugares'] = _listar(biblioteca, 'lugares', '.json')
     datos['propios'] = _listar(biblioteca, 'propios', '.png')
     datos['tapetes'] = _listar(biblioteca, 'tapetes', '.png')
+    # Los muebles, objetos y herramientas redibujados por el bloque O1 entran al mismo manifiesto: un solo catálogo.
+    for seccion, fichas in oc.entradas().items():
+        repetidas = set(fichas) & set(datos.get(seccion, {}))
+        if repetidas:
+            raise SystemExit(f'{seccion}: claves repetidas entre piezas_catalogo y objetos_catalogo: {sorted(repetidas)}')
+        datos.setdefault(seccion, {}).update(fichas)
     return datos
 
 
 def escribir(biblioteca=BIBLIOTECA):
     datos, imagenes = generar()
     imagenes.update(ps.imagenes_de_tapetes(ph.LUGAR))
+    oc.entradas(escribir=True)
     for ruta, im in imagenes.items():
         archivo = os.path.join(biblioteca, *ruta.split('/'))
         os.makedirs(os.path.dirname(archivo), exist_ok=True)

@@ -1,0 +1,317 @@
+<title>Objetos de la Sala viva</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Pixelify+Sans:wght@500;700&family=Inter:wght@400;500;600&display=swap">
+<style>
+/* Visor de juego: una sola vista oscura, la sala manda; el texto vive debajo, como el cuadro de un juego. */
+:root {
+  --fondo: #14121a;
+  --panel: #1f1b26;
+  --borde: #3a3245;
+  --texto: #ece6da;
+  --tenue: #b3a99a;
+  --acento: #f0c879;
+  --frio: #9cc4ec;
+  --tinta-boton: #231a10;
+  --display: "Pixelify Sans", "Courier New", monospace;
+  --cuerpo: "Inter", system-ui, -apple-system, "Segoe UI", sans-serif;
+  color-scheme: dark;
+}
+html, body { background: var(--fondo); color: var(--texto); }
+body {
+  font-family: var(--cuerpo); font-size: 15px; line-height: 1.55;
+  padding-left: max(16px, env(safe-area-inset-left, 0px));
+  padding-right: max(16px, env(safe-area-inset-right, 0px));
+  padding-block: 20px 32px;
+}
+main { max-width: 1940px; margin: 0 auto; display: grid; gap: 16px; }
+header { display: flex; flex-wrap: wrap; gap: 12px 24px; align-items: end; justify-content: space-between; }
+h1 { font-family: var(--display); font-weight: 700; font-size: clamp(22px, 3vw, 32px); margin: 0; letter-spacing: 0.02em; text-wrap: balance; }
+header p { margin: 4px 0 0; color: var(--tenue); max-width: 62ch; }
+.momento { display: inline-flex; border: 2px solid var(--borde); background: var(--panel); }
+.momento button {
+  font-family: var(--display); font-size: 15px; color: var(--tenue); background: transparent; border: 0;
+  padding: 8px 16px; min-height: 44px; cursor: pointer;
+}
+.momento button[aria-pressed="true"] { background: var(--acento); color: var(--tinta-boton); }
+.momento button:focus-visible, .lienzo:focus-visible, .reiniciar:focus-visible { outline: 3px solid var(--frio); outline-offset: 2px; }
+.lienzo { display: block; image-rendering: pixelated; image-rendering: crisp-edges; max-width: 100%; border: 2px solid var(--borde); cursor: pointer; touch-action: none; }
+.marco { min-width: 0; }
+.cuadro {
+  display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 8px 16px; align-items: center;
+  background: var(--panel); border: 2px solid var(--borde); padding: 12px 16px; min-height: 72px;
+}
+.cuadro .quien { font-family: var(--display); font-size: 18px; color: var(--acento); }
+.cuadro .dice { margin: 2px 0 0; min-height: 1.55em; }
+.cuadro .lado { display: flex; gap: 12px; align-items: center; flex-wrap: wrap; justify-content: flex-end; }
+.cuadro .cuenta { font-family: var(--display); color: var(--tenue); font-size: 15px; font-variant-numeric: tabular-nums; }
+.reiniciar { font: inherit; color: var(--texto); background: transparent; border: 2px solid var(--borde); padding: 6px 12px; min-height: 44px; cursor: pointer; }
+.galeria { display: grid; gap: 16px; }
+.galeria figure { margin: 0; display: grid; gap: 6px; min-width: 0; }
+.galeria figcaption { font-family: var(--display); color: var(--texto); font-size: 15px; }
+.galeria img { display: block; image-rendering: pixelated; image-rendering: crisp-edges; max-width: 100%; border: 2px solid var(--borde); }
+.notas { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 12px 24px; color: var(--tenue); }
+.notas h2 { font-family: var(--display); font-size: 15px; color: var(--texto); margin: 0 0 2px; letter-spacing: 0.04em; text-transform: uppercase; }
+.notas p { margin: 0; max-width: 62ch; }
+kbd { font-family: var(--display); border: 1px solid var(--borde); padding: 0 5px; color: var(--texto); }
+@media (max-width: 640px) { .cuadro { grid-template-columns: 1fr; } .cuadro .lado { justify-content: flex-start; } }
+</style>
+
+<main>
+  <header>
+    <div>
+      <h1>Objetos de la Sala viva</h1>
+      <p>La sala por piezas de P1 con el televisor, el portarretrato, el mueble, el sofá, el sillón y la mesa redibujados. Camina con <kbd>←↑→↓</kbd> o <kbd>WASD</kbd>, o toca el piso; <kbd>E</kbd> revisa lo que tienes cerca.</p>
+    </div>
+    <div class="momento" role="group" aria-label="Momento del día">
+      <button type="button" id="btn-dia" aria-pressed="true">Día</button>
+      <button type="button" id="btn-noche" aria-pressed="false">Noche</button>
+    </div>
+  </header>
+  <div class="marco"><canvas class="lienzo" id="lienzo" width="960" height="528" tabindex="0" aria-label="Sala de la casa. Usa las flechas para caminar y E para revisar."></canvas></div>
+  <section class="cuadro" aria-live="polite">
+    <div>
+      <div class="quien" id="quien">Sala</div>
+      <p class="dice" id="dice">El destello marca lo que falta por revisar.</p>
+    </div>
+    <div class="lado">
+      <span class="cuenta" id="cuenta"></span>
+      <button type="button" class="reiniciar" id="reiniciar">Volver a empezar</button>
+    </div>
+  </section>
+  <section class="galeria" id="galeria" aria-label="Más objetos dentro de su sala"></section>
+  <section class="notas">
+    <div><h2>Una sola luz</h2><p>De día manda la ventana: el barniz, el vidrio del televisor y el del portarretrato brillan del lado de la ventana. De noche manda la lámpara junto al sofá y, a la derecha, el televisor, que alumbra el muro, el piso y el vidrio de la foto.</p></div>
+    <div><h2>Sombras</h2><p>Sombra de contacto bajo cada cosa y sombra proyectada desde el haz y desde la lámpara, calculadas con la función de luz de P1 a partir de la huella de cada mueble.</p></div>
+    <div><h2>Lo que reacciona</h2><p>El televisor cambia de canal cuando te acercas. El portarretrato se inclina hacia ti y, al revisarlo, se levanta. El cajón del mueble se abre con un pequeño impulso hacia adentro antes de salir.</p></div>
+    <div><h2>Oficio</h2><p>Píxel duro a escala 1, a lo sumo 40 colores por imagen, rampas con giro de matiz y contorno del color de cada material. Con movimiento reducido, cada objeto pasa de una vez a su estado final.</p></div>
+  </section>
+</main>
+
+<script>
+/*__DATOS__*/
+(function () {
+  'use strict';
+  const D = DATOS;
+  const VISTAS = ['down', 'left', 'right', 'up'];
+  const W = D.ancho, H = D.alto, CERCA = 64, LEJOS = 92, VEL = 92;
+  const lienzo = document.getElementById('lienzo');
+  const ctx = lienzo.getContext('2d');
+  ctx.imageSmoothingEnabled = false;
+  const quien = document.getElementById('quien'), dice = document.getElementById('dice'), cuenta = document.getElementById('cuenta');
+  const consulta = window.matchMedia('(prefers-reduced-motion: reduce)');
+  let reducido = consulta.matches;
+  if (consulta.addEventListener) consulta.addEventListener('change', e => { reducido = e.matches; });
+
+  const img = {};
+  function cargar() {
+    return Promise.all(Object.entries(D.imagenes).map(([k, src]) => new Promise(ok => {
+      const im = new Image(); im.onload = () => ok(); im.onerror = () => ok(); im.src = src; img[k] = im;
+    })));
+  }
+
+  let momento = 'dia';
+  const cosas = D.cosas.map(c => Object.assign({}, c, { estado: 'reposo', t0: 0, cerca: false, revisado: false, n_: 0 }));
+  const interactivos = cosas.filter(c => c.interactivo);
+  const alumna = { x: D.alumna.x, y: D.alumna.y, vista: D.alumna.vista, anda: false, meta: null, revisarAlLlegar: null };
+  const teclas = new Set();
+
+  function sombraImg() {                       // la sombra de contacto de P1, sin suavizado
+    const c = document.createElement('canvas'); c.width = 23; c.height = 8;
+    const x = c.getContext('2d'); const d = x.createImageData(23, 8);
+    for (let j = 0; j < 8; j++) for (let i = 0; i < 23; i++) {
+      const u = (i - 11) / 11.5, v = (j - 3.5) / 4;
+      if (u * u + v * v <= 1) { const k = (j * 23 + i) * 4; d.data[k] = 8; d.data[k + 1] = 6; d.data[k + 2] = 18; d.data[k + 3] = 84; }
+    }
+    x.putImageData(d, 0, 0); return c;
+  }
+  const SOMBRA = sombraImg();
+
+  function cuadro(c, ahora) {
+    const a = c.anim[c.estado] || c.anim.reposo;
+    if (reducido) return a.bucle ? a.de : a.hasta;
+    const k = Math.floor((ahora - c.t0) / 1000 * a.fps);
+    if (a.bucle) return a.de + (k % (a.hasta - a.de + 1));
+    if (a.de + k > a.hasta) {
+      if (a.luego && !a.sostener) { c.estado = a.luego; c.t0 = ahora; return cuadro(c, ahora); }
+      return a.hasta;
+    }
+    return a.de + k;
+  }
+  function poner(c, estado, ahora) { if (c.anim[estado]) { c.estado = estado; c.t0 = ahora; } }
+
+  function libre(x, y) {
+    const [zx, zy, zw, zh] = D.zona;
+    if (x < zx + 8 || x > zx + zw - 8 || y < zy || y > zy + zh) return false;
+    for (const c of cosas) if (c.caja && x > c.caja[0] - 6 && x < c.caja[2] + 6 && y > c.caja[1] && y < c.caja[3] + 4) return false;
+    if (Math.abs(x - D.quieta.x) < 16 && y > D.quieta.y - 8 && y < D.quieta.y + 6) return false;
+    return true;
+  }
+
+  function distancia(c) { return Math.hypot(c.x - alumna.x, (c.y - alumna.y) * 1.4); }
+  function masCercano() {
+    let mejor = null, dm = 1e9;
+    for (const c of interactivos) { const d = distancia(c); if (d < dm) { dm = d; mejor = c; } }
+    return { c: mejor, d: dm };
+  }
+
+  function contar() {
+    const faltan = interactivos.filter(c => !c.revisado).length;
+    cuenta.textContent = faltan ? `Por revisar: ${faltan} de ${interactivos.length}` : 'Todo revisado';
+  }
+  function revisar(c, ahora) {
+    poner(c, 'revisar', ahora);
+    c.revisado = true;
+    quien.textContent = c.interactivo.nombre;
+    dice.textContent = c.interactivo.texto;
+    quien.dataset.ref = c.ref + ':visto';
+    contar();
+  }
+  function llegar(ahora) {
+    const c = alumna.revisarAlLlegar;
+    alumna.meta = null; alumna.revisarAlLlegar = null;
+    if (c && distancia(c) < LEJOS) revisar(c, ahora);
+  }
+
+  let antes = 0;
+  function paso(ahora) {
+    const dt = Math.min(0.05, Math.max(0, (ahora - antes) / 1000)); antes = ahora;
+    let dx = 0, dy = 0;
+    if (teclas.has('ArrowLeft') || teclas.has('a')) dx -= 1;
+    if (teclas.has('ArrowRight') || teclas.has('d')) dx += 1;
+    if (teclas.has('ArrowUp') || teclas.has('w')) dy -= 1;
+    if (teclas.has('ArrowDown') || teclas.has('s')) dy += 1;
+    if (dx || dy) { alumna.meta = null; alumna.revisarAlLlegar = null; }
+    else if (alumna.meta) {
+      const mx = alumna.meta[0] - alumna.x, my = alumna.meta[1] - alumna.y;
+      if (Math.abs(mx) < 2 && Math.abs(my) < 2) llegar(ahora);
+      else { dx = Math.abs(mx) >= 2 ? Math.sign(mx) : 0; dy = Math.abs(my) >= 2 ? Math.sign(my) : 0; }
+    }
+    alumna.anda = !!(dx || dy);
+    if (alumna.anda) {
+      const v = VEL * dt / Math.hypot(dx, dy);
+      const nx = alumna.x + dx * v, ny = alumna.y + dy * v;
+      let movio = false;
+      if (libre(nx, alumna.y)) { alumna.x = nx; movio = true; }
+      if (libre(alumna.x, ny)) { alumna.y = ny; movio = true; }
+      if (!movio && alumna.meta) llegar(ahora);
+      alumna.vista = Math.abs(dx) > Math.abs(dy) ? (dx < 0 ? 'left' : 'right') : (dy < 0 ? 'up' : 'down');
+    }
+    for (const o of interactivos) {
+      const d = distancia(o);
+      if (d < CERCA && !o.cerca) { o.cerca = true; if (o.estado === 'reposo') poner(o, 'cerca', ahora); }
+      if (d > LEJOS && o.cerca) { o.cerca = false; if (o.estado === 'cerca') poner(o, 'reposo', ahora); }
+    }
+    const { c, d } = masCercano();
+    if (c && d < CERCA) {
+      if (!quien.dataset.ref || !quien.dataset.ref.startsWith(c.ref)) {
+        quien.dataset.ref = c.ref; quien.textContent = c.interactivo.nombre;
+        dice.textContent = c.revisado ? c.interactivo.texto : `${c.interactivo.accion}: pulsa E o tócalo.`;
+      }
+    } else if (quien.dataset.ref) {
+      quien.dataset.ref = ''; quien.textContent = 'Sala'; dice.textContent = 'El destello marca lo que falta por revisar.';
+    }
+    dibujar(ahora);
+    requestAnimationFrame(paso);
+  }
+
+  function dibujar(ahora) {
+    const M = D.momentos[momento];
+    ctx.globalCompositeOperation = 'source-over';
+    ctx.drawImage(img[M.base], 0, 0);
+    const ax = Math.round(alumna.x), ay = Math.round(alumna.y);
+    ctx.drawImage(SOMBRA, ax - 11, ay - 4);
+    const idleN = reducido ? 0 : Math.floor(ahora / 250) % 4;
+    const lista = cosas.map(c => ({ z: c.z, f: () => {
+      c.n_ = cuadro(c, ahora);
+      ctx.drawImage(img[c.tira], c.n_ * c.w, 0, c.w, c.h, c.x0, c.y0, c.w, c.h);
+    } }));
+    lista.push({ z: D.quieta.y, f: () => {
+      ctx.drawImage(img[D.quieta.idle], idleN * 48, VISTAS.indexOf(D.quieta.vista) * 72, 48, 72, D.quieta.x - 24, D.quieta.y - 68, 48, 72);
+    } });
+    lista.push({ z: ay, f: () => {
+      const anda = alumna.anda && !reducido;
+      const n = anda ? Math.floor(ahora / 100) % 6 : idleN;
+      ctx.drawImage(img[anda ? D.alumna.walk : D.alumna.idle], n * 48, VISTAS.indexOf(alumna.vista) * 72, 48, 72, ax - 24, ay - 68, 48, 72);
+    } });
+    lista.sort((a, b) => a.z - b.z).forEach(o => o.f());
+    ctx.globalCompositeOperation = 'multiply'; ctx.drawImage(img[M.ambiente], 0, 0);
+    ctx.globalCompositeOperation = 'lighter'; ctx.drawImage(img[M.brillo], 0, 0);
+    ctx.globalCompositeOperation = 'source-over';
+    for (const c of cosas) if (c.emisivo) ctx.drawImage(img[c.emisivo], c.n_ * c.w, 0, c.w, c.h, c.x0, c.y0, c.w, c.h);
+    ctx.globalCompositeOperation = 'lighter';
+    for (const c of cosas) if (c.reflejo && c.reflejo[momento]) ctx.drawImage(img[c.reflejo[momento]], c.n_ * c.w, 0, c.w, c.h, c.x0, c.y0, c.w, c.h);
+    if (momento === 'noche') for (const c of cosas) if (c.emite) {
+      const capa = c.emite.capas[String(c.emite.niveles[c.n_])];
+      if (capa) ctx.drawImage(img[capa.img], capa.x, capa.y);
+    }
+    ctx.globalCompositeOperation = 'source-over';
+    const nd = reducido ? 3 : Math.floor(ahora / 110) % 12;
+    for (const c of interactivos) if (!c.revisado && nd < 8) {
+      const dx = c.ref === 'mueble-tv' ? 22 : c.w - 6, dy = c.ref === 'mueble-tv' ? 6 : -4;
+      ctx.drawImage(img[D.destello], nd * 9, 0, 9, 9, c.x0 + dx, c.y0 + dy, 9, 9);
+    }
+  }
+
+  function escalar() {
+    const disponible = lienzo.parentElement.clientWidth;
+    const k = Math.max(1, Math.floor(disponible / W));
+    lienzo.style.width = (disponible >= W ? W * k : disponible) + 'px';
+  }
+  function aLienzo(ev) {
+    const r = lienzo.getBoundingClientRect();
+    return [(ev.clientX - r.left) * W / r.width, (ev.clientY - r.top) * H / r.height];
+  }
+  function elegirMomento(m) {
+    momento = m;
+    document.getElementById('btn-dia').setAttribute('aria-pressed', String(m === 'dia'));
+    document.getElementById('btn-noche').setAttribute('aria-pressed', String(m === 'noche'));
+  }
+
+  document.getElementById('btn-dia').addEventListener('click', () => elegirMomento('dia'));
+  document.getElementById('btn-noche').addEventListener('click', () => elegirMomento('noche'));
+  document.getElementById('reiniciar').addEventListener('click', () => {
+    const ahora = performance.now();
+    for (const c of cosas) { c.revisado = false; c.cerca = false; c.estado = 'reposo'; c.t0 = ahora; }
+    Object.assign(alumna, { x: D.alumna.x, y: D.alumna.y, vista: D.alumna.vista, meta: null, revisarAlLlegar: null });
+    quien.dataset.ref = ''; quien.textContent = 'Sala'; dice.textContent = 'El destello marca lo que falta por revisar.'; contar();
+  });
+  const MOVER = ['ArrowLeft', 'ArrowRight', 'ArrowUp', 'ArrowDown', 'a', 'd', 'w', 's'];
+  lienzo.addEventListener('keydown', ev => {
+    const k = ev.key.length === 1 ? ev.key.toLowerCase() : ev.key;
+    if (MOVER.includes(k)) { teclas.add(k); ev.preventDefault(); }
+    if (k === 'e' || k === 'Enter' || k === ' ') {
+      const { c, d } = masCercano();
+      if (c && d < CERCA) revisar(c, performance.now());
+      ev.preventDefault();
+    }
+  });
+  lienzo.addEventListener('keyup', ev => teclas.delete(ev.key.length === 1 ? ev.key.toLowerCase() : ev.key));
+  lienzo.addEventListener('blur', () => teclas.clear());
+  lienzo.addEventListener('pointerdown', ev => {
+    lienzo.focus();
+    const [x, y] = aLienzo(ev);
+    const toque = interactivos.find(c => x >= c.x0 - 4 && x <= c.x0 + c.w + 4 && y >= c.y0 - 4 && y <= c.y0 + c.h + 4);
+    if (toque) {
+      if (distancia(toque) < CERCA) { revisar(toque, performance.now()); return; }
+      alumna.meta = [toque.x, toque.y + 22]; alumna.revisarAlLlegar = toque;
+    } else { alumna.meta = [x, y]; alumna.revisarAlLlegar = null; }
+  });
+  const galeria = document.getElementById('galeria');
+  for (const g of (D.galeria || [])) {
+    const fig = document.createElement('figure');
+    const cap = document.createElement('figcaption'); cap.textContent = g.titulo;
+    const im = document.createElement('img'); im.src = D.imagenes[g.img]; im.alt = g.titulo; im.width = g.w; im.height = g.h;
+    fig.append(cap, im); galeria.append(fig);
+  }
+  function escalarGaleria() {
+    for (const im of galeria.querySelectorAll('img')) {
+      const disp = galeria.clientWidth, w = Number(im.getAttribute('width'));
+      im.style.width = (disp >= w ? w * Math.max(1, Math.floor(disp / w)) : disp) + 'px'; im.style.height = 'auto';
+    }
+  }
+  window.addEventListener('resize', escalarGaleria);
+  escalarGaleria();
+  window.addEventListener('resize', escalar);
+  cargar().then(() => { escalar(); contar(); requestAnimationFrame(t => { antes = t; paso(t); }); });
+})();
+</script>

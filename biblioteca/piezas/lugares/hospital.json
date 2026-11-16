@@ -22,6 +22,7 @@
         "momento": "noche",
         "piezas": [
           {
+            "encendida": true,
             "id": "tubo-1",
             "modelo": "tubo",
             "muro": "fondo",
@@ -29,6 +30,7 @@
             "tipo": "lampara"
           },
           {
+            "encendida": true,
             "id": "tubo-2",
             "modelo": "tubo",
             "muro": "fondo",
@@ -179,6 +181,7 @@
         "momento": "noche",
         "piezas": [
           {
+            "encendida": true,
             "id": "tubo-1",
             "modelo": "tubo",
             "muro": "fondo",
@@ -186,6 +189,7 @@
             "tipo": "lampara"
           },
           {
+            "encendida": true,
             "id": "tubo-2",
             "modelo": "tubo",
             "muro": "fondo",
@@ -193,6 +197,7 @@
             "tipo": "lampara"
           },
           {
+            "encendida": true,
             "id": "tubo-3",
             "modelo": "tubo",
             "muro": "fondo",
@@ -386,6 +391,7 @@
         "momento": "noche",
         "piezas": [
           {
+            "encendida": true,
             "id": "tubo-1",
             "modelo": "tubo",
             "muro": "fondo",
@@ -393,6 +399,7 @@
             "tipo": "lampara"
           },
           {
+            "encendida": true,
             "id": "tubo-2",
             "modelo": "tubo",
             "muro": "fondo",
@@ -400,6 +407,7 @@
             "tipo": "lampara"
           },
           {
+            "encendida": true,
             "id": "tubo-3",
             "modelo": "tubo",
             "muro": "fondo",
@@ -407,6 +415,7 @@
             "tipo": "lampara"
           },
           {
+            "encendida": true,
             "id": "tubo-4",
             "modelo": "tubo",
             "muro": "fondo",
@@ -629,6 +638,7 @@
         "momento": "noche",
         "piezas": [
           {
+            "encendida": true,
             "id": "tubo",
             "modelo": "tubo",
             "muro": "fondo",
@@ -774,6 +784,7 @@
         "momento": "noche",
         "piezas": [
           {
+            "encendida": true,
             "id": "tubo-1",
             "modelo": "tubo",
             "muro": "fondo",
@@ -781,6 +792,7 @@
             "tipo": "lampara"
           },
           {
+            "encendida": true,
             "id": "tubo-2",
             "modelo": "tubo",
             "muro": "fondo",
@@ -1067,6 +1079,7 @@
         "momento": "noche",
         "piezas": [
           {
+            "encendida": true,
             "id": "tubo",
             "modelo": "tubo",
             "muro": "fondo",
@@ -1201,6 +1214,7 @@
         "momento": "noche",
         "piezas": [
           {
+            "encendida": true,
             "id": "tubo-1",
             "modelo": "tubo",
             "muro": "fondo",
@@ -1208,6 +1222,7 @@
             "tipo": "lampara"
           },
           {
+            "encendida": true,
             "id": "tubo-2",
             "modelo": "tubo",
             "muro": "fondo",
