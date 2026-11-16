@@ -493,16 +493,16 @@ describe('SimulationPlayComponent — puerta de consentimiento (ETH-01)', () => 
     }
   });
 
-  it('no acredita NPC ni permite salida segura desde controles de fondo bloqueados', () => {
+  it('no acredita NPC con un diálogo abierto, y la salida segura sigue disponible desde la superposición', () => {
     setup(makeAttempt());
     component.attempt.set(makeAttempt());
     component.dialogue.set({ key: 'dialogue-test', lines: [], choices: [] } as unknown as DialogueState);
 
     component.openNpcDialogue({ key: 'enfermera-urgencias', dialogue: { lines: [] } } as unknown as NpcConfig);
-    component.safeExit();
+    component.pauseFromOverlay();
 
     expect(sim.recordNpcInteraction).not.toHaveBeenCalled();
-    expect(sim.safeExit).not.toHaveBeenCalled();
+    expect(sim.safeExit).toHaveBeenCalledTimes(1);
   });
 
   it('acredita y abre el diálogo del NPC solo después del 2xx autoritativo', () => {
@@ -573,7 +573,7 @@ describe('SimulationPlayComponent — puerta de consentimiento (ETH-01)', () => 
     sim.updateWorldState.mockReturnValue(new Subject<SimulationWorldState>());
     sim.safeExit.mockReturnValue(EMPTY);
 
-    component.safeExit();
+    component.pauseFromOverlay();
 
     expect(sim.safeExit).toHaveBeenCalledWith(
       'attempt-1', 'token-1', 'Salida segura solicitada',
@@ -652,7 +652,7 @@ describe('SimulationPlayComponent — puerta de consentimiento (ETH-01)', () => 
       (component as any).gameWorld = { playerPosition: vi.fn(() => ({ x: 640, y: 450 })) };
       sim.safeExit.mockReturnValue(EMPTY);
 
-      component.safeExit();
+      component.pauseFromOverlay();
 
       expect(sim.updateWorldState).not.toHaveBeenCalled();
       expect(sim.safeExit).toHaveBeenCalledTimes(1);

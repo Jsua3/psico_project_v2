@@ -281,7 +281,6 @@ describe('SimulationPlayComponent: salida segura (correcciones de la revisión)'
 
       expect(sim['safeExit']).toHaveBeenCalledTimes(1);
       expect(sim['safeExit']).toHaveBeenCalledWith('attempt-1', 'token-1', 'Salida segura solicitada');
-      expect(component.pausingSlow()).toBe(false);
 
       vi.advanceTimersByTime(60_000);
 
@@ -310,7 +309,6 @@ describe('SimulationPlayComponent: salida segura (correcciones de la revisión)'
 
       expect(component.attempt()?.status).toBe('PAUSED');
       expect(component.pausing()).toBe(false);
-      expect(component.pausingSlow()).toBe(false);
       vi.advanceTimersByTime(60_000);
       expect(sim['safeExit']).toHaveBeenCalledTimes(1);
     });
@@ -325,7 +323,6 @@ describe('SimulationPlayComponent: salida segura (correcciones de la revisión)'
       failing.error(new Error('sin red'));
 
       expect(component.pausing()).toBe(false);
-      expect(component.pausingSlow()).toBe(false);
       expect(component.actionError()).toBe('No pudimos registrar la salida segura.');
       expect(component.busy()).toBe(false);
     });

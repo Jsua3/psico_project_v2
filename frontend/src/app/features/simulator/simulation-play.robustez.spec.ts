@@ -25,8 +25,8 @@ import { SimulationPlayComponent } from './simulation-play.component';
 import type { Mock } from 'vitest';
 
 /**
- * Reacciones al acercarse y al explorar (bloque B, tarea 22): la pantalla solo cablea. Se ejercita la instancia con un mundo
- * falso (sin plantilla): lo que llega a las reacciones, cuándo se bloquean y que Esc sigue pausando con la burbuja a la vista.
+ * Robustez del cliente del juego (R1): salida segura inmediata, plazos, decisión pendiente, guardado de posición y punto de
+ * lectura. La pantalla solo cablea. Se ejercita la instancia con un mundo falso (sin plantilla).
  */
 
 const COMENT_ABUELA_SIN_GESTO: WorldComment = { id: '7-0', objectKey: 'abuela', line: 'Gracias por venir.', emotion: 'triste', gesture: null };
@@ -59,7 +59,7 @@ interface Reacciones {
   setComments: Mock; setBlocked: Mock; setActivation: Mock; onProximity: Mock; onInspected: Mock; dispose: Mock;
 }
 
-describe('SimulationPlayComponent: reacciones al acercarse (4.3.7)', () => {
+describe('SimulationPlayComponent: robustez del cliente (R1)', () => {
   let component: SimulationPlayComponent;
   let sim: Record<string, Mock>;
   let mundo: Record<string, Mock>;
@@ -182,7 +182,7 @@ describe('SimulationPlayComponent: reacciones al acercarse (4.3.7)', () => {
 
     it('no espera a guardar la posición: la pausa sale en el acto', () => {
       conPosicionPendiente();
-      component.safeExit();
+      component.pauseFromOverlay();
       expect(sim['safeExit']).toHaveBeenCalledTimes(1);
     });
 
@@ -206,12 +206,12 @@ describe('SimulationPlayComponent: reacciones al acercarse (4.3.7)', () => {
 
     it('si la salida no recibe respuesta a tiempo avisa, no deja nada colgado y se puede pedir de nuevo', () => {
       sim['safeExit'].mockReturnValue(NEVER);
-      component.safeExit();
+      component.pauseFromOverlay();
       vi.advanceTimersByTime(15_000);
       expect(component.pausing()).toBe(false);
       expect(component.busy()).toBe(false);
       expect(component.actionError()).not.toBe('');
-      component.safeExit();
+      component.pauseFromOverlay();
       expect(sim['safeExit']).toHaveBeenCalledTimes(2);
     });
   });
@@ -436,6 +436,132 @@ describe('SimulationPlayComponent: reacciones al acercarse (4.3.7)', () => {
       (interno() as any).restoreReadingPoint(makeWorld());
       expect(sim['openInteraction']).not.toHaveBeenCalled();
       expect(sessionStorage.getItem('siep_punto_lectura_attempt-1')).toBeNull();
+    });
+  });
+
+  describe('ronda de arreglos 1', () => {
+    const http = (status: number, error: unknown = null) => new HttpErrorResponse({ status, error });
+    const pausado = () => ({ ...makeAttempt(), status: 'PAUSED' } as SimulationAttemptState);
+    const conDosOpciones = () => {
+      const intento = makeAttempt();
+      intento.currentNode.options.push({ id: 42, text: 'Otra' } as any);
+      component.attempt.set(intento);
+    };
+
+    it('salida segura: si la pausa se rechaza ANTES de que llegue la decisión, espera esa respuesta y repite con su token', () => {
+      const decision$ = new Subject<SimulationAttemptState>();
+      const pause$ = new Subject<SimulationAttemptState>();
+      sim['chooseDecision'].mockReturnValue(decision$);
+      sim['safeExit'].mockReturnValueOnce(pause$).mockReturnValue(NEVER);
+      component.executeDecision(41);
+      component.pauseFromOverlay();
+      expect(sim['safeExit']).toHaveBeenCalledTimes(1);
+
+      pause$.error(http(403, { message: 'Token inválido' }));
+      expect(component.actionError()).toBe('');
+      expect(sim['safeExit']).toHaveBeenCalledTimes(1);
+
+      decision$.next({ ...makeAttempt(), attemptToken: 'token-2' } as SimulationAttemptState);
+      expect(sim['safeExit']).toHaveBeenCalledTimes(2);
+      expect(sim['safeExit']).toHaveBeenLastCalledWith('attempt-1', 'token-2', 'Salida segura solicitada');
+    });
+
+    it('salida segura: si la decisión en vuelo falla, la pausa rechazada se repite una vez en vez de quedarse esperando', () => {
+      const decision$ = new Subject<SimulationAttemptState>();
+      const pause$ = new Subject<SimulationAttemptState>();
+      sim['chooseDecision'].mockReturnValue(decision$);
+      sim['safeExit'].mockReturnValueOnce(pause$).mockReturnValue(NEVER);
+      component.executeDecision(41);
+      component.pauseFromOverlay();
+      pause$.error(http(403));
+      decision$.error(http(500));
+      expect(sim['safeExit']).toHaveBeenCalledTimes(2);
+    });
+
+    it('una decisión que falla con la pausa ya registrada no devuelve la conversación ni avisa', () => {
+      const decision$ = new Subject<SimulationAttemptState>();
+      sim['chooseDecision'].mockReturnValue(decision$);
+      sim['safeExit'].mockReturnValue(of(pausado()));
+      sim['getWorld'].mockReturnValue(NEVER);
+      component.dialogue.set(DIALOGO);
+      component.executeDecision(41);
+      component.pauseFromOverlay();
+      expect(component.attempt()?.status).toBe('PAUSED');
+      decision$.error(http(500));
+      expect(component.dialogue()).toBeNull();
+      expect(component.actionError()).toBe('');
+    });
+
+    describe('en ensayo', () => {
+      let rehearsalApi: Record<string, Mock>;
+      beforeEach(() => {
+        rehearsalApi = { read: vi.fn(() => throwError(() => http(404, { code: 'REHEARSAL_GONE' }))), start: vi.fn(() => EMPTY) };
+        (component as any).rehearsalApi = rehearsalApi;
+        component.mode.set('rehearsal');
+      });
+
+      it('un ensayo borrado con una decisión en vuelo dice «ya no existe» y no «seguimos confirmando»', () => {
+        sim['chooseDecision'].mockReturnValue(throwError(() => http(404, { code: 'REHEARSAL_GONE' })));
+        sim['getAttempt'].mockReturnValue(throwError(() => http(404, { code: 'REHEARSAL_GONE' })));
+        conDosOpciones();
+        component.executeDecision(41);
+        expect(rehearsalApi['read']).toHaveBeenCalled();
+        expect(component.rehearsalGone()).toBe(true);
+        expect(component.actionError()).not.toContain('confirmando');
+      });
+
+      it('un ensayo borrado durante el guardado automático de la posición dice «ya no existe»', () => {
+        sim['updateWorldState'].mockReturnValue(throwError(() => http(404, { code: 'REHEARSAL_GONE' })));
+        interno()['lastPosition'] = { x: 10, y: 20 };
+        (interno() as any).persistPosition();
+        expect(component.rehearsalGone()).toBe(true);
+        vi.advanceTimersByTime(60_000);
+        expect(sim['updateWorldState']).toHaveBeenCalledTimes(1);
+      });
+
+      it('un ensayo borrado al sincronizar la posición antes de una acción dice «ya no existe», no «no pudimos guardar»', () => {
+        sim['updateWorldState'].mockReturnValue(throwError(() => http(404, { code: 'REHEARSAL_GONE' })));
+        interno()['lastPosition'] = { x: 10, y: 20 };
+        (interno() as any).openBackendInteraction(makeWorld().objects[1]);
+        expect(component.rehearsalGone()).toBe(true);
+        expect(component.actionError()).not.toContain('ubicación');
+      });
+    });
+
+    it('un intento nuevo no hereda la decisión incierta, la lectura ni los fallos de guardado del anterior', () => {
+      sim['chooseDecision'].mockReturnValue(NEVER);
+      conDosOpciones();
+      component.executeDecision(41);
+      sessionStorage.setItem('siep_punto_lectura_attempt-1', JSON.stringify({ attemptId: 'attempt-1', objectKey: 'carpeta', dialogueKey: 'd', line: 1 }));
+      (interno() as any).positionFailures = 3;
+      expect(sessionStorage.getItem('siep_decision_pendiente_attempt-1')).not.toBeNull();
+
+      component.startNewAttempt();
+
+      expect((interno() as any).pendingDecisionRequest).toBeNull();
+      expect(sessionStorage.getItem('siep_decision_pendiente_attempt-1')).toBeNull();
+      expect(sessionStorage.getItem('siep_punto_lectura_attempt-1')).toBeNull();
+      expect((interno() as any).positionFailures).toBe(0);
+    });
+
+    it('un ensayo nuevo tampoco hereda la decisión incierta del anterior', () => {
+      sim['chooseDecision'].mockReturnValue(NEVER);
+      conDosOpciones();
+      component.executeDecision(41);
+      (component as any).rehearsalApi = { start: vi.fn(() => EMPTY), read: vi.fn(() => EMPTY) };
+      (interno() as any).beginRehearsal(7, null);
+      expect((interno() as any).pendingDecisionRequest).toBeNull();
+    });
+
+    it('si el mundo no carga tras recargar, el guardado del punto de lectura no queda mudo', () => {
+      (interno() as any).readingRestorePending = true;
+      sim['getWorld'].mockReturnValue(throwError(() => http(500)));
+      (interno() as any).loadWorld(makeAttempt());
+      expect((interno() as any).readingRestorePending).toBe(false);
+    });
+
+    it('«safeExit()» ya no existe como camino aparte: el pie y Esc usan la misma salida', () => {
+      expect((component as any).safeExit).toBeUndefined();
     });
   });
 });
