@@ -11,7 +11,7 @@ import { test } from 'node:test';
 
 import { CASOS_DE_LUZ, MANIFIESTO, REF, huellaRgb, leerPng, pixelesDistintos, primerPixelDistinto, salaDe } from './salas-apoyo.mjs';
 
-const { CONSTANTES_DE_LUZ, TABLA_AMBIENTE, TABLA_CALIDA, TABLA_FRIA, calcularLuz, cuerpo, prepararLuz } =
+const { CONSTANTES_DE_LUZ, TABLA_AMBIENTE, TABLA_CALIDA, TABLA_FRIA, calcularLuz, cuerpo, cuerpoDe, direccion, prepararLuz } =
   await import('../../src/app/features/simulator/sala/luz.ts');
 
 const PASO_X = 48, PASO_Y = 33, ALTO = 528;
@@ -40,38 +40,39 @@ test('las tablas y las constantes de la luz son las de Python y las del manifies
   assert.deepEqual(TABLA_CALIDA, m.tablaCalida);
   assert.deepEqual(TABLA_FRIA, m.tablaFria);
   for (const [clave, valor] of Object.entries(CONSTANTES_DE_LUZ)) assert.deepEqual(valor, m[clave], `luz.${clave}`);
-  assert.deepEqual(CASOS_DE_LUZ.constantes.hazFondo, CONSTANTES_DE_LUZ.hazFondo);
 });
 
-test('la fuente que domina donde pisa una figura da el rumbo y el largo de su silueta', () => {
-  const catalogo = MANIFIESTO.piezas;
-  const barrer = (luz, y) => {
-    const vistos = [];
-    for (let x = 0; x < luz.ancho; x += 4) vistos.push(luz.fuenteDeSombra(x, y));
-    return vistos;
-  };
-  // De día, en el haz de la ventana alta del fondo de la entrada: HAZ_FONDO y 5/8 del alto.
-  const dia = prepararLuz(salaDe('hospital/entrada-urgencias'), catalogo, { momento: 'dia' });
-  const enHaz = barrer(dia, 300).filter(f => f && f.dx === CONSTANTES_DE_LUZ.hazFondo[0] && f.dy === CONSTANTES_DE_LUZ.hazFondo[1]);
-  assert.ok(enHaz.length > 0, 'algún punto del piso cae en el haz de la ventana');
-  assert.equal(enHaz[0].largo, Math.floor((60 * 5) / 8));
-  // De noche, con solo tubos: sombra corta y radial (lejos del tubo).
-  const noche = prepararLuz(salaDe('hospital/entrada-urgencias'), catalogo, { momento: 'noche' });
-  const deTubo = barrer(noche, 350).filter(Boolean);   // la fila del tubo sobre el piso (SEAM + 120)
-  assert.ok(deTubo.length > 0);
-  assert.ok(deTubo.some(f => f.largo < 10), 'bajo el tubo, la sombra es corta');
-  assert.ok(deTubo.some(f => f.dx < 0) && deTubo.some(f => f.dx > 0), 'y radial: a cada lado del tubo, hacia afuera');
-  assert.ok(deTubo.every(f => f.largo <= CONSTANTES_DE_LUZ.sombraMaxima));
-  // De noche, junto a la lámpara de pie de la sala de escucha: más larga que la del tubo.
-  const escucha = prepararLuz(salaDe('hospital/sala-escucha'), catalogo, { momento: 'noche' });
-  const dePozo = [];
-  for (let y = 250; y < 480; y += 6) dePozo.push(...barrer(escucha, y).filter(Boolean));
-  assert.ok(Math.max(...dePozo.map(f => f.largo)) > 20, 'una lámpara baja da una sombra larga');
-  // Lejos de todo pozo y de todo haz, la da la fuente más cercana: nadie se queda sin silueta en el piso.
-  assert.ok(barrer(dia, 470).every(Boolean), 'de día, todo el piso tiene sombra (la ventana más cercana)');
-  assert.ok(barrer(escucha, 470).filter((f, i) => i > 30 && i < 200).every(Boolean), 'de noche, también lejos de las lámparas');
-  // Fuera del piso, nada.
-  assert.equal(dia.fuenteDeSombra(100, 40), null);
+test('la dirección de una sombra es una de 16, sin divisiones (tangentes en 256avos), como `piezas_luz.direccion`', () => {
+  assert.equal(direccion(10, 0), 0);
+  assert.equal(direccion(0, 10), 4);
+  assert.equal(direccion(-10, 0), 8);
+  assert.equal(direccion(0, -10), 12);
+  assert.equal(direccion(10, 10), 2);
+  assert.equal(direccion(-10, -10), 10);
+  assert.equal(direccion(10, -1), 0);
+  assert.equal(direccion(10, -3), 15);
+});
+
+test('la matriz de la sombra de una persona en cada punto es la de Python (casos.json, `matrices`)', () => {
+  for (const caso of CASOS_DE_LUZ.casos) {
+    for (const momento of ['dia', 'noche']) {
+      const luz = prepararLuz(caso.sala, CASOS_DE_LUZ.catalogo, { momento });
+      caso.matrices.puntos.forEach(([x, y], k) => {
+        const persona = { ...cuerpo(x, y, 48, 72, true), x, y, alto: 64 };
+        assert.deepEqual([...luz.matrizDeCuerpo(persona)], caso.matrices[momento][k], `${caso.id} de ${momento} en (${x}, ${y})`);
+      });
+    }
+  }
+});
+
+test('el cuerpo de un dibujo: su silueta es el alfa desde 128 y su apoyo, la fila siguiente a la última opaca', () => {
+  // Un dibujo de 4 × 5 con dos filas transparentes arriba y una abajo.
+  const alfa = [0, 0, 0, 0, 0, 0, 0, 0, 0, 200, 200, 0, 0, 255, 127, 0, 0, 0, 0, 0];
+  const c = cuerpoDe(alfa, 4, 5, 100, 300);
+  assert.deepEqual({ x: c.x, y: c.y, px: c.px, py: c.py, alto: c.alto }, { x: 102, y: 304, px: 2, py: 4, alto: 2 });
+  assert.deepEqual([...c.mascara.datos], [0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 1, 0, 0, 1, 0, 0, 0, 0, 0, 0]);
+  const persona = cuerpoDe(alfa, 4, 5, 100, 300, [101, 310]);
+  assert.deepEqual({ x0: persona.x0, x1: persona.x1, px: persona.px }, { x0: 92, x1: 110, px: 1 });
 });
 
 test('la huella de un cuerpo sale del tamaño de su sprite, como en Python', () => {
@@ -107,38 +108,45 @@ for (const caso of CASOS_DE_LUZ.casos) {
   }
 }
 
-test('quien camina proyecta su sombra: moverlo rehace solo un trozo y da lo mismo que calcular la sala de cero', () => {
-  for (const caso of CASOS_DE_LUZ.casos) {
+test('abrir y cerrar una puerta rehace solo su rectángulo y da lo mismo que calcular la sala de cero', () => {
+  for (const caso of CASOS_DE_LUZ.casos.filter(c => c.abiertas.length)) {
     for (const momento of ['dia', 'noche']) {
       const luz = prepararLuz(caso.sala, CASOS_DE_LUZ.catalogo, { momento, cuerpos: caso.cuerpos });
-      luz.abrir(caso.abiertas);
+      luz.capas();
+      luz.capasEnSombra();
+      const zona = luz.abrir(caso.abiertas);
       const ancho = caso.sala.estructura.ancho;
-      // De un lado a otro de la sala, por el haz de la ventana y junto a las lámparas.
-      for (const [x, y] of [[ancho / 2, 400], [Math.round(ancho * 0.3), 300], [Math.round(ancho * 0.7), 470], [ancho / 2, 400]]) {
-        const quien = cuerpo(x, y, 48, 72, true);
-        const zona = luz.moverCuerpo(quien);
-        assert.ok(zona === null || zona.w * zona.h < ancho * ALTO / 3, `${caso.id}: no rehace la sala entera`);
-        const directa = calcularLuz(caso.sala, CASOS_DE_LUZ.catalogo, { momento, abiertas: caso.abiertas, cuerpos: [...caso.cuerpos, quien] });
-        const distinto = primerPixelDistinto(luz.capas().ambiente, directa.ambiente, ancho);
-        assert.equal(distinto, null, distinto ? `${caso.id} de ${momento}, con quien juega en (${x}, ${y}): difiere en (${distinto.x}, ${distinto.y})` : '');
-        assert.equal(primerPixelDistinto(luz.capas().brillo, directa.brillo, ancho), null, `${caso.id} de ${momento}: brillo`);
-      }
-      assert.equal(luz.moverCuerpo(cuerpo(ancho / 2, 400, 48, 72, true)), null, 'quedarse quieto no rehace nada');
-      luz.moverCuerpo(null);
-      const sinNadie = leerPng(caso.salidas[momento].ambiente);
-      if (!caso.abiertas.length) assert.equal(primerPixelDistinto(luz.capas().ambiente, sinNadie.rgba, ancho), null, `${caso.id}: al irse, vuelve la luz congelada`);
+      assert.ok(zona && zona.w * zona.h < ancho * ALTO / 2, `${caso.id}: no rehace la sala entera`);
+      const directa = calcularLuz(caso.sala, CASOS_DE_LUZ.catalogo, { momento, abiertas: caso.abiertas, cuerpos: caso.cuerpos });
+      assert.equal(primerPixelDistinto(luz.capas().ambiente, directa.ambiente, ancho), null, `${caso.id} de ${momento}: ambiente`);
+      assert.equal(primerPixelDistinto(luz.capas().brillo, directa.brillo, ancho), null, `${caso.id} de ${momento}: brillo`);
+      const enSombra = calcularLuz(caso.sala, CASOS_DE_LUZ.catalogo, { momento, abiertas: caso.abiertas, cuerpos: caso.cuerpos, todoEnSombra: true });
+      assert.equal(primerPixelDistinto(luz.capasEnSombra().ambiente, enSombra.ambiente, ancho), null, `${caso.id} de ${momento}: en sombra`);
+      luz.abrir([]);
+      const cerrada = calcularLuz(caso.sala, CASOS_DE_LUZ.catalogo, { momento, cuerpos: caso.cuerpos });
+      assert.equal(primerPixelDistinto(luz.capas().ambiente, cerrada.ambiente, ancho), null, `${caso.id} de ${momento}: al cerrar`);
     }
   }
 });
 
-test('mover a quien juega cuesta poco: menos de 12 ms por paso en la sala más ancha (se rehace como mucho cada 33 ms)', () => {
-  const caso = CASOS_DE_LUZ.casos.find(c => c.id === 'ancha-1920');
-  const luz = prepararLuz(caso.sala, CASOS_DE_LUZ.catalogo, { momento: 'dia', cuerpos: caso.cuerpos });
-  luz.moverCuerpo(cuerpo(600, 380, 48, 72, true));
-  const inicio = performance.now();
-  for (let x = 600; x < 700; x += 2) luz.moverCuerpo(cuerpo(x, 380, 48, 72, true));
-  const porPaso = (performance.now() - inicio) / 50;
-  assert.ok(porPaso < 12, `${porPaso.toFixed(1)} ms por paso`);
+test('la sombra de quien camina: su silueta tendida, dentro del piso, sin tapar su dibujo, y en sombra la luz baja', () => {
+  const caso = CASOS_DE_LUZ.casos.find(c => c.id === 'hospital-pasillo');
+  const luz = prepararLuz(caso.sala, CASOS_DE_LUZ.catalogo, { momento: 'noche' });
+  const persona = caso.cuerpos.find(c => c.alto > 40 && c.x1 - c.x0 === 18) ?? caso.cuerpos[0];
+  const sombra = luz.sombraDeCuerpo(persona);
+  assert.ok(sombra, 'arroja sombra');
+  let marcados = 0;
+  for (let y = 0; y < sombra.h; y++) {
+    for (let x = 0; x < sombra.w; x++) {
+      if (!sombra.datos[y * sombra.w + x]) continue;
+      marcados++;
+      assert.ok(sombra.y + y >= 230, 'nada sobre el muro');
+    }
+  }
+  assert.ok(marcados > 40, `${marcados} px de sombra`);
+  // Dentro de la sombra, la luz «en sombra» nunca es más clara que la normal.
+  const normal = luz.capas().ambiente, oscura = luz.capasEnSombra().ambiente;
+  for (let i = 0; i < normal.length; i += 4 * 97) assert.ok(oscura[i] <= normal[i] && oscura[i + 2] <= normal[i + 2]);
 });
 
 test('los cuerpos cambian la luz: sin ellos la sala de la referencia sale distinta', () => {

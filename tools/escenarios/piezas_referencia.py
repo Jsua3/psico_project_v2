@@ -138,8 +138,11 @@ def tablas():
     return dict(ambiente=pl.TABLA_AMBIENTE.tolist(), calida=pl.TABLA_CALIDA.tolist(), fria=pl.TABLA_FRIA.tolist(),
                 constantes=dict(u=pl.U, minimo=pl.MINIMO, paso=pl.PASO, niveles=pl.NIVELES, penumbra=pl.PENUMBRA,
                                 penumbraNoche=pl.PENUMBRA_NOCHE, exterior=pl.EXTERIOR, exteriorNoche=pl.EXTERIOR_NOCHE,
-                                uno=pl.UNO, bayer=pl.BAYER.tolist(), enSombra=pl.EN_SOMBRA, hazFondo=list(pl.HAZ_FONDO),
-                                hazLado=list(pl.HAZ_LADO), sombraMaxima=pl.SOMBRA_MAXIMA))
+                                uno=pl.UNO, bayer=pl.BAYER.tolist(), enSombra=pl.EN_SOMBRA, sombraMaxima=pl.SOMBRA_MAXIMA,
+                                matrizHaz={k: list(v) for k, v in pl.MATRIZ_HAZ.items()},
+                                senosHaz={k: list(v) for k, v in pl.SENOS_HAZ.items()},
+                                direcciones=[list(d) for d in pl.DIRECCIONES], cenital=list(pl.CENITAL),
+                                topeSombra=pl.TOPE_SOMBRA, alturaTubo=pl.ALTURA_TUBO, umbralDominio=pl.UMBRAL_DOMINIO))
 
 
 # ── luz ────────────────────────────────────────────────────────────────────────

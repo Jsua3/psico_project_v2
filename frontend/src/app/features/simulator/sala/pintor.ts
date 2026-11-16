@@ -178,6 +178,37 @@ export function brilloDeSprite(capa: Uint8ClampedArray, ancho: number, alto: num
   }
 }
 
+/** `Image.paste` de Pillow con máscara: (src·m + dst·(255 − m) + 128), redondeado como Pillow. */
+function mezclar(src: number, dst: number, m: number): number {
+  const t = src * m + dst * (255 - m) + 128;
+  return (t + (t >> 8)) >> 8;
+}
+
+/**
+ * La luz propia de un sprite en la capa RGBA de lo que emite: primero borra lo que tapa (su silueta, con su alfa), después
+ * pega su mapa emisivo con el alfa del mapa (`propios.paste` de `piezas_sala.componer_sala`). Así lo de delante tapa la
+ * luz propia de lo de atrás.
+ */
+export function emisivoDeSprite(capa: Uint8ClampedArray, ancho: number, alto: number, imagenes: Imagenes, sprite: SpriteDeSala, cuadro: number): void {
+  const hoja = imagenes.get(sprite.ruta), mapa = sprite.emisivo ? imagenes.get(sprite.emisivo) : undefined;
+  if (!hoja) return;
+  for (let j = 0; j < sprite.h; j++) {
+    const y = sprite.y + j;
+    if (y < 0 || y >= alto) continue;
+    for (let i = 0; i < sprite.w; i++) {
+      const x = sprite.x + i;
+      if (x < 0 || x >= ancho) continue;
+      const fx = cuadro * sprite.w + (sprite.espejo ? sprite.w - 1 - i : i);
+      const p = (y * ancho + x) * 4;
+      const a = fx < hoja.ancho && j < hoja.alto ? hoja.rgba[(j * hoja.ancho + fx) * 4 + 3] : 0;
+      if (a) for (let k = 0; k < 4; k++) capa[p + k] = mezclar(0, capa[p + k], a);
+      if (!mapa || fx >= mapa.ancho || j >= mapa.alto) continue;
+      const o = (j * mapa.ancho + fx) * 4, m = mapa.rgba[o + 3];
+      if (m) for (let k = 0; k < 4; k++) capa[p + k] = mezclar(mapa.rgba[o + k], capa[p + k], m);
+    }
+  }
+}
+
 /**
  * La sala entera como la pintaría el juego sin muebles ni personas: fondo, piezas de muro, piezas de piso por `z`, lo del
  * lado de la cámara y, si se pasa, la luz y el brillo de vidrio, metal y barniz (medido con `reflejo`). Las puertas de
@@ -191,8 +222,10 @@ export function componerSala(plan: PlanDeSala, imagenes: Imagenes, luz: CapasDeL
     .map((sprite, n) => ({ sprite, n }))
     .sort((a, b) => orden[a.sprite.capa] - orden[b.sprite.capa] || a.sprite.z - b.sprite.z || a.n - b.n);
   const brillos = new Uint8ClampedArray(plan.ancho * plan.alto * 3);
+  const propios = new Uint8ClampedArray(plan.ancho * plan.alto * 4);   // lo que emite luz propia: va encima de la luz
   for (const { sprite } of cosas) {
     const cuadro = sprite.puerta && abiertas.includes(sprite.id) ? CUADRO_ABIERTA : sprite.cuadro;
+    emisivoDeSprite(propios, plan.ancho, plan.alto, imagenes, sprite, cuadro);
     pegarSprite(escena, imagenes, sprite, cuadro);
     brilloDeSprite(brillos, plan.ancho, plan.alto, imagenes, sprite, cuadro, reflejo ? reflejo(sprite.punto[0], sprite.punto[1]) : null);
   }
@@ -203,6 +236,8 @@ export function componerSala(plan: PlanDeSala, imagenes: Imagenes, luz: CapasDeL
       d[p] = Math.min(255, d[p] + brillos[q]);
       d[p + 1] = Math.min(255, d[p + 1] + brillos[q + 1]);
       d[p + 2] = Math.min(255, d[p + 2] + brillos[q + 2]);
+      const m = propios[p + 3];
+      if (m) for (let k = 0; k < 3; k++) d[p + k] = mezclar(propios[p + k], d[p + k], m);
     }
   }
   return escena;
