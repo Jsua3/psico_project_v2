@@ -37,6 +37,7 @@ from apps.users.views import (
     LogoutView,
 )
 from apps.simulation.views.audit_views import AdminAuditListView
+from apps.simulation.views.authoring_generation import GenerationListCreateView
 from apps.simulation.views.authoring_views import AdminCaseListCreateView
 from apps.users.authentication import SiepJWTAuthentication
 from shared.health import health
@@ -100,6 +101,8 @@ urlpatterns = [
     # ``/api/admin/cases/**`` queda como alias del mismo urlconf hasta que el visual migre.
     path("api/authoring/cases", AdminCaseListCreateView.as_view()),
     path("api/authoring/cases/", include("apps.simulation.urls_admin")),
+    path("api/authoring/generations", GenerationListCreateView.as_view()),
+    path("api/authoring/generations/", include("apps.simulation.urls_generations")),
     path("api/admin/cases", AdminCaseListCreateView.as_view()),
     path("api/admin/cases/", include("apps.simulation.urls_admin")),
     # P6 · la biblioteca de lugares del editor de casos (solo quien autora).
