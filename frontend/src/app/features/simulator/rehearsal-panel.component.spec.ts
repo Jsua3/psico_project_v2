@@ -130,6 +130,19 @@ describe('RehearsalPanelComponent', () => {
     expect(api.adjust).toHaveBeenLastCalledWith(9, 'a1', { persona: { activation: 'CRISIS' } });
   });
 
+  it('si el cambio de persona falla o se descarta (hay otro en curso), el selector vuelve al valor del servidor', () => {
+    const vinculo = el.querySelector('select[data-field="bond"]') as HTMLSelectElement;
+    const activacion = el.querySelector('select[data-field="activation"]') as HTMLSelectElement;
+    vinculo.value = 'OPEN';
+    vinculo.dispatchEvent(new Event('change'));
+    activacion.value = 'CRISIS';   // el PATCH del vínculo sigue en vuelo: este cambio se descarta
+    activacion.dispatchEvent(new Event('change'));
+    expect(activacion.value).toBe('TENSE');
+    envio.error(new HttpErrorResponse({ status: 500 }));   // y el del vínculo falla
+    fixture.detectChanges();
+    expect(vinculo.value).toBe('GUARDED');
+  });
+
   it('marcar un hito manda la lista completa de hitos cumplidos', () => {
     (el.querySelector('input[type=checkbox][value="hito:remision"]') as HTMLInputElement).click();
     expect(api.adjust).toHaveBeenCalledWith(9, 'a1', { hitos: ['escucha', 'remision'] });

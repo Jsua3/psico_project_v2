@@ -75,12 +75,12 @@ const SECCION_DE: Record<CampoError, string> = { irA: 'escena', explorado: 'expl
             <section data-section="persona">
               <h3>{{ draft.rehearsalPersona.text }}</h3>
               <label>{{ draft.rehearsalBond.text }}
-                <select data-field="bond" (change)="setPersona({ bond: text($event) })">
+                <select data-field="bond" (change)="setPersona('bond', $event)">
                   @for (b of vinculos; track b) { <option [value]="b" [selected]="b === panel().persona.bond">{{ vinculoWord(b) }}</option> }
                 </select>
               </label>
               <label>{{ draft.rehearsalActivation.text }}
-                <select data-field="activation" (change)="setPersona({ activation: text($event) })">
+                <select data-field="activation" (change)="setPersona('activation', $event)">
                   @for (a of activaciones; track a) { <option [value]="a" [selected]="a === panel().persona.activation">{{ activacionWord(a) }}</option> }
                 </select>
               </label>
@@ -200,7 +200,6 @@ export class RehearsalPanelComponent implements OnInit {
   protected activacionWord(a: Activation): string { return palabraDeActivacion(a); }
   protected frase(c: CasillaExplorado): string { return missedFactsText([c]); }
   protected num(event: Event): number { return Number((event.target as HTMLSelectElement).value); }
-  protected text<T extends string>(event: Event): T { return (event.target as HTMLSelectElement).value as T; }
 
   protected errorOf(field: CampoError): string | null {
     const e = this.error();
@@ -231,8 +230,10 @@ export class RehearsalPanelComponent implements OnInit {
     this.send({ hitos }, () => { input.checked = !input.checked; });
   }
 
-  protected setPersona(persona: { bond?: Bond; activation?: Activation }): void {
-    this.send({ persona });
+  /** Un cambio de persona; si el servidor lo rechaza o se descarta (hay otro en curso), el selector vuelve al valor que el bloque confirmó. */
+  protected setPersona(campo: 'bond' | 'activation', event: Event): void {
+    const select = event.target as HTMLSelectElement;
+    this.send({ persona: { [campo]: select.value } }, () => { select.value = this.panel().persona[campo]; });
   }
 
   protected reload(): void {
