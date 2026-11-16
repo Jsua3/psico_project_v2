@@ -12,9 +12,9 @@ Tablas: 44. Columnas: 388.
 |---|---:|
 | PUBLIC | 148 |
 | PERSONAL | 40 |
-| SENSITIVE | 49 |
+| SENSITIVE | 50 |
 | SECRET | 2 |
-| TECHNICAL | 149 |
+| TECHNICAL | 148 |
 
 ## Tablas
 
@@ -215,10 +215,10 @@ Todas las columnas heredan `TECHNICAL`: la tabla no tiene datos personales ni se
 | `description` | SENSITIVE | api | texto libre de la docente sobre la situación que quiere simular |
 | `status` | TECHNICAL | — |  |
 | `skeleton_json` | SENSITIVE | api | esqueleto que el modelo escribió a partir de la descripción de la docente |
-| `scenes_json` | SENSITIVE | api | escenas que el modelo escribió a partir de la descripción de la docente |
+| `scenes_json` | SENSITIVE | ninguna (uso interno) | escenas que el modelo escribió a partir de la descripción de la docente, y la respuesta cruda rechazada con sus motivos |
 | `skeleton_started_at` | TECHNICAL | — |  |
 | `repair_rounds` | TECHNICAL | — |  |
-| `repair_json` | TECHNICAL | — |  |
+| `repair_json` | SENSITIVE | api | faltas por escena de la ronda de reparación, con su ruta dentro del documento que escribió el modelo |
 | `report_json` | SENSITIVE | api | faltas del caso generado, con su ruta dentro del documento que escribió el modelo |
 | `document_json` | SENSITIVE | ninguna (uso interno) | documento completo del caso que no pasó las comprobaciones, guardado para diagnóstico |
 | `last_error_json` | TECHNICAL | — |  |

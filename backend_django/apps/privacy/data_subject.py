@@ -412,7 +412,7 @@ ERASURE_RULES: dict[tuple[str, str], Regla] = {
     # ── La generación de casos con IA: texto libre de la docente y texto del modelo derivado de él; se borra la fila entera ──
     **_columnas(
         "authoring_generations",
-        ("owner_id", "description", "skeleton_json", "scenes_json", "report_json", "document_json"),
+        ("owner_id", "description", "skeleton_json", "scenes_json", "report_json", "repair_json", "document_json"),
         Regla(
             BORRAR_FILA,
             "texto libre de la docente y lo que el modelo escribió a partir de él: la generación se borra entera; el caso "
