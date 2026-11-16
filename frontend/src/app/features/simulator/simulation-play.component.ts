@@ -405,8 +405,11 @@ const QUEUED_PAUSE_SLOW_NOTICE = 'La acción en curso está tardando. Estamos pa
         </div>
 
         <!-- REGLA-004: mientras el fundido de escena (o la nota de transición) espera al servidor, el pie queda por encima y «Salida segura» se ve y se toca. -->
+        <!-- Con el cuadro de diálogo sobre el mundo, el pie se oculta y queda inerte: la franja de abajo es del cuadro. -->
         <footer class="bottom-zone" [class.bottom-zone--above-veils]="footerAboveVeils()"
-          [attr.inert]="inputBlocked() ? '' : null" [attr.aria-hidden]="inputBlocked() ? 'true' : null">
+          [attr.inert]="inputBlocked() || viewMode() === 'dialogue-cinematic' ? '' : null"
+          [attr.aria-hidden]="inputBlocked() || viewMode() === 'dialogue-cinematic' ? 'true' : null"
+          [class.bottom-zone--bajo-dialogo]="viewMode() === 'dialogue-cinematic'">
           @if (game.status === 'IN_PROGRESS' || reactingToLast()) {
             <!-- La misma implementación que las superposiciones (F6-6, REGLA-004). Sin [disabled]: con una petición
                  en curso el toque se acepta y la pausa queda en cola (H-04), y el rótulo pasa a «Pausando…»
@@ -694,6 +697,10 @@ const QUEUED_PAUSE_SLOW_NOTICE = 'La acción en curso está tardando. Estamos pa
     /* Con el fundido de escena (z 200) o la nota de transición (z 340) a pantalla completa, el pie sube por encima:
        «Salida segura» nunca queda tapada mientras una puerta o una decisión esperan al servidor (REGLA-004). */
     .bottom-zone--above-veils { z-index: 350; }
+    /* Con el cuadro de diálogo sobre el mundo, la franja de abajo es del cuadro, que trae su «Salida segura» y sus fichas
+       (con el diálogo abierto el pie ya era inerte y el dock no hace nada): el pie se oculta en vez de quedar debajo, sin
+       dejar hueco (visibility, no display: el lienzo no cambia de tamaño al abrir y cerrar). */
+    .bottom-zone--bajo-dialogo { visibility: hidden; }
     /* «Salida segura» del pie es app-safe-exit-button (F6-6): su forma vive en el componente; aquí solo su sitio. */
     .bottom-zone > app-safe-exit-button { flex-shrink: 0; }
     .tool-dock { display: block; min-width: 0; flex: 0 1 auto; }
