@@ -367,7 +367,7 @@ export class DataDrivenWorldScene extends Phaser.Scene {
   private camMomentType: Momento['tipo'] = 'explorar';
   private camTargetZoom = 0;
   private camTravel: { desde: EstadoCamara; inicio: number; dur: number } | null = null;
-  private camEntrada: { hasta: number; x: number | null; y: number | null } | null = null;
+  private camEntrada: { espera: number; hasta: number | null; x: number | null; y: number | null } | null = null;
   private camRoomId = '';
   private readonly camRoomsSeen = new Set<string>();
   /** Escala CSS del lienzo ya compuesto durante un viaje (1 en reposo). */
@@ -1111,6 +1111,7 @@ export class DataDrivenWorldScene extends Phaser.Scene {
     const entrada = this.camEntrada;
     if (entrada && this.player) {
       if (entrada.x === null || entrada.y === null) { entrada.x = this.player.x; entrada.y = this.player.y; }
+      if (entrada.hasta === null) entrada.hasta = ahora + entrada.espera;
       const seMovio = Math.hypot(this.player.x - entrada.x, this.player.y - entrada.y) > 6;
       if (!seMovio && ahora < entrada.hasta) return { tipo: 'general' };
       this.camEntrada = null;
@@ -1142,13 +1143,10 @@ export class DataDrivenWorldScene extends Phaser.Scene {
     if (!cam || !this.player || this.camFrozen || cam.fadeEffect.isRunning) return;
     // Lienzo todavía sin tamaño (se ve 1 px de alto mientras la pantalla se arma): no se encuadra ni corre la espera del
     // plano general; el primer cuadro con tamaño real es el corte.
-    if (cam.width < VISTA_MINIMA_PX || cam.height < VISTA_MINIMA_PX) {
-      if (this.camEntrada) this.camEntrada.hasta += Math.max(0, delta);
-      return;
-    }
+    if (cam.width < VISTA_MINIMA_PX || cam.height < VISTA_MINIMA_PX) return;
     const ahora = this.camNow();
     // El plano general de una sala nueva cuenta solo cuando se ve: detrás de una nota o un diálogo, espera.
-    if (this.camEntrada && this.motionPaused) this.camEntrada.hasta += Math.max(0, delta);
+    if (this.camEntrada?.hasta != null && this.motionPaused) this.camEntrada.hasta += Math.max(0, delta);
     const dpr = typeof window !== 'undefined' ? window.devicePixelRatio || 1 : 1;
     const momento = this.cameraMomentNow(ahora);
     const sala = { ancho: this.roomSize.width, alto: this.roomSize.height };
@@ -1895,7 +1893,8 @@ export class DataDrivenWorldScene extends Phaser.Scene {
       this.camRoomId = sala;
       const yaVisitada = this.camRoomsSeen.has(sala);
       this.camRoomsSeen.add(sala);
-      this.camEntrada = this.callbacks.reduceMotion ? null : { hasta: this.camNow() + esperaDelGeneral(yaVisitada), x: null, y: null };
+      // La espera empieza el primer cuadro en que el plano general se ve de verdad (ver `cameraMomentNow`).
+      this.camEntrada = this.callbacks.reduceMotion ? null : { espera: esperaDelGeneral(yaVisitada), hasta: null, x: null, y: null };
       // Solo una sala nueva es un corte: repintar la misma sala (cada respuesta del servidor) no corta el viaje en curso.
       this.camCut = true;
       this.camTravel = null;
