@@ -8802,6 +8802,7 @@
     "piezas/propios/comisaria-sala-espera.png"
   ],
   "tapetes": [
+    "piezas/tapetes/comisaria-consultorio-psicosocial-1.png",
     "piezas/tapetes/hospital-sala-escucha-1.png"
   ]
 }

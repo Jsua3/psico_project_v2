@@ -112,11 +112,10 @@
       ]
     },
     {
-      "convertidaDe": "escenarios/comisaria/escenario.json",
       "descripcion": "Mostrador de recepción donde se toma el turno y se orienta a quien llega.",
       "encuadre": "tres-paredes",
       "entrada": {
-        "x": 480,
+        "x": 595,
         "y": 440
       },
       "estructura": {
@@ -126,28 +125,59 @@
           "piso": "baldosa",
           "variante": "comisaria-recepcion"
         },
-        "ancho": 960,
+        "ancho": 1200,
         "momento": "dia",
         "piezas": [
           {
-            "id": "reloj-1",
-            "modelo": "reloj",
+            "id": "extintor",
+            "modelo": "extintor",
             "muro": "fondo",
-            "pos": 464,
-            "tipo": "reloj"
+            "pos": 184,
+            "tipo": "extintor"
           },
           {
+            "encendida": true,
             "id": "tubo-1",
             "modelo": "tubo",
             "muro": "fondo",
-            "pos": 384,
+            "pos": 280,
             "tipo": "lampara"
-          }
-        ],
-        "propios": [
+          },
           {
-            "ref": "comisaria/recepcion",
-            "ruta": "piezas/propios/comisaria-recepcion.png"
+            "id": "ventana",
+            "modelo": "alta",
+            "muro": "fondo",
+            "pos": 440,
+            "tipo": "ventana"
+          },
+          {
+            "id": "reloj",
+            "modelo": "reloj",
+            "muro": "fondo",
+            "pos": 580,
+            "tipo": "reloj"
+          },
+          {
+            "id": "senal",
+            "modelo": "senal",
+            "muro": "fondo",
+            "pos": 624,
+            "tipo": "senal"
+          },
+          {
+            "encendida": true,
+            "id": "tubo-2",
+            "modelo": "tubo",
+            "muro": "fondo",
+            "pos": 720,
+            "tipo": "lampara"
+          },
+          {
+            "id": "persiana",
+            "modelo": "persiana",
+            "muro": "fondo",
+            "pos": 904,
+            "tipo": "ventana"
           }
         ]
       },
@@ -155,72 +185,84 @@
       "muebles": [
         {
           "espejo": false,
-          "ref": "mostrador-recepcion",
-          "x": 420,
-          "y": 304
-        },
-        {
-          "espejo": false,
-          "ref": "silla-giratoria",
-          "x": 420,
-          "y": 262
-        },
-        {
-          "espejo": false,
-          "ref": "cartelera-comisaria",
-          "x": 650,
-          "y": 236
-        },
-        {
-          "espejo": false,
           "ref": "planta-oficina",
-          "x": 150,
+          "x": 196,
           "y": 300
         },
         {
           "espejo": false,
           "ref": "caneca-comisaria",
-          "x": 280,
-          "y": 262
+          "x": 300,
+          "y": 266
+        },
+        {
+          "espejo": false,
+          "ref": "cartelera-comisaria",
+          "x": 800,
+          "y": 240
+        },
+        {
+          "espejo": false,
+          "ref": "silla-giratoria",
+          "x": 640,
+          "y": 296
+        },
+        {
+          "espejo": false,
+          "ref": "mostrador-recepcion",
+          "x": 600,
+          "y": 334
+        },
+        {
+          "espejo": false,
+          "ref": "sillas-espera-comisaria",
+          "x": 930,
+          "y": 300
+        },
+        {
+          "espejo": false,
+          "ref": "planta-oficina",
+          "x": 1040,
+          "y": 300
         }
       ],
       "nombre": "Recepción",
       "objetos": [
         {
           "ref": "dispensador-turnos",
-          "x": 560,
-          "y": 262
+          "x": 724,
+          "y": 316
         },
         {
           "ref": "afiche-rutas-atencion",
-          "x": 760,
-          "y": 236
-        }
-      ],
-      "perdido": [
-        "lo propio de la sala queda como una capa fija: no se puede mover ni cambia con la paleta"
-      ],
-      "personajes": [
-        {
-          "expresion": "neutral",
-          "mirando": "derecha",
-          "ref": "funcionaria-recepcion",
-          "x": 400,
+          "x": 420,
           "y": 262
         },
         {
-          "expresion": "cautelosa",
-          "mirando": "izquierda",
-          "ref": "persona-usuaria",
-          "x": 480,
-          "y": 400
+          "ref": "camara-seguridad",
+          "sobre": 112,
+          "x": 928,
+          "y": 236
+        }
+      ],
+      "personajes": [
+        {
+          "mirando": "abajo",
+          "ref": "funcionaria-recepcion",
+          "x": 576,
+          "y": 306
         },
         {
-          "expresion": "preocupada",
-          "mirando": "izquierda",
-          "ref": "acompanante",
-          "x": 530,
-          "y": 410
+          "mirando": "arriba",
+          "ref": "sobreviviente",
+          "x": 584,
+          "y": 402
+        },
+        {
+          "mirando": "arriba",
+          "ref": "madre-acompanante",
+          "x": 642,
+          "y": 414
         }
       ],
       "puertas": [
@@ -231,7 +273,7 @@
           "modelo": "vidrio",
           "muro": "camara",
           "par": "puerta-recepcion",
-          "pos": 384
+          "pos": 480
         },
         {
           "etiqueta": "Pasar a la sala de espera",
@@ -254,11 +296,10 @@
       ]
     },
     {
-      "convertidaDe": "escenarios/comisaria/escenario.json",
       "descripcion": "Filas de sillas, agua y un afiche con la ruta de atención.",
       "encuadre": "tres-paredes",
       "entrada": {
-        "x": 480,
+        "x": 600,
         "y": 440
       },
       "estructura": {
@@ -268,28 +309,66 @@
           "piso": "baldosa",
           "variante": "comisaria-sala-espera"
         },
-        "ancho": 960,
+        "ancho": 1200,
         "momento": "dia",
         "piezas": [
           {
             "id": "persiana-1",
             "modelo": "persiana",
             "muro": "fondo",
-            "pos": 128,
+            "pos": 136,
             "tipo": "ventana"
           },
           {
+            "id": "cartelera",
+            "modelo": "cartelera",
+            "muro": "fondo",
+            "pos": 256,
+            "tipo": "cartelera"
+          },
+          {
+            "encendida": true,
             "id": "tubo-1",
             "modelo": "tubo",
             "muro": "fondo",
-            "pos": 384,
+            "pos": 360,
             "tipo": "lampara"
-          }
-        ],
-        "propios": [
+          },
           {
-            "ref": "comisaria/sala-espera",
-            "ruta": "piezas/propios/comisaria-sala-espera.png"
+            "id": "reloj",
+            "modelo": "reloj",
+            "muro": "fondo",
+            "pos": 560,
+            "tipo": "reloj"
+          },
+          {
+            "encendida": true,
+            "id": "tubo-2",
+            "modelo": "tubo",
+            "muro": "fondo",
+            "pos": 680,
+            "tipo": "lampara"
+          },
+          {
+            "id": "persiana-2",
+            "modelo": "persiana",
+            "muro": "fondo",
+            "pos": 816,
+            "tipo": "ventana"
+          },
+          {
+            "id": "extintor",
+            "modelo": "extintor",
+            "muro": "fondo",
+            "pos": 904,
+            "tipo": "extintor"
+          },
+          {
+            "id": "senal",
+            "modelo": "senal",
+            "muro": "fondo",
+            "pos": 944,
+            "tipo": "senal"
           }
         ]
       },
@@ -297,60 +376,89 @@
       "muebles": [
         {
           "espejo": false,
-          "ref": "sillas-espera-comisaria",
-          "x": 300,
-          "y": 300
-        },
-        {
-          "espejo": false,
-          "ref": "sillas-espera-comisaria",
-          "x": 300,
-          "y": 400
-        },
-        {
-          "espejo": false,
           "ref": "planta-oficina",
-          "x": 120,
-          "y": 300
+          "x": 196,
+          "y": 296
         },
         {
           "espejo": false,
-          "ref": "cartelera-comisaria",
-          "x": 480,
-          "y": 236
+          "ref": "sillas-espera-comisaria",
+          "x": 316,
+          "y": 272
+        },
+        {
+          "espejo": false,
+          "ref": "sillas-espera-comisaria",
+          "x": 452,
+          "y": 272
+        },
+        {
+          "espejo": false,
+          "ref": "sillas-espera-comisaria",
+          "x": 760,
+          "y": 272
+        },
+        {
+          "espejo": false,
+          "ref": "sillas-espera-comisaria",
+          "x": 896,
+          "y": 272
+        },
+        {
+          "espejo": false,
+          "ref": "sillas-espera-comisaria",
+          "x": 420,
+          "y": 384
+        },
+        {
+          "espejo": false,
+          "ref": "mesa-baja-nna",
+          "x": 600,
+          "y": 392
+        },
+        {
+          "espejo": false,
+          "ref": "sillas-espera-comisaria",
+          "x": 780,
+          "y": 384
         }
       ],
       "nombre": "Sala de espera",
       "objetos": [
         {
           "ref": "dispensador-agua",
+          "x": 1010,
+          "y": 286
+        },
+        {
+          "ref": "papelera",
+          "x": 1050,
+          "y": 292
+        },
+        {
+          "ref": "afiche-rutas-atencion",
           "x": 700,
           "y": 262
         },
         {
-          "ref": "papelera",
-          "x": 780,
-          "y": 262
+          "ref": "caja-panuelos",
+          "sobre": 22,
+          "x": 600,
+          "y": 393
         }
-      ],
-      "perdido": [
-        "encuadre dos-paredes-derecha: pasa a tres-paredes para que la salida lateral tenga muro",
-        "lo propio de la sala queda como una capa fija: no se puede mover ni cambia con la paleta"
       ],
       "personajes": [
         {
-          "expresion": "preocupada",
-          "mirando": "derecha",
-          "ref": "acompanante",
-          "x": 420,
-          "y": 420
+          "mirando": "abajo",
+          "ref": "madre-acompanante",
+          "x": 380,
+          "y": 300
         },
         {
-          "expresion": "triste",
           "mirando": "izquierda",
-          "ref": "persona-usuaria",
-          "x": 360,
-          "y": 430
+          "ref": "vecina",
+          "x": 860,
+          "y": 302
         }
       ],
       "puertas": [
@@ -370,16 +478,15 @@
           "modelo": "metalica",
           "muro": "fondo",
           "par": "puerta-sala-espera",
-          "pos": 504
+          "pos": 480
         }
       ]
     },
     {
-      "convertidaDe": "escenarios/comisaria/escenario.json",
       "descripcion": "Pasillo con las puertas de orientación jurídica, el despacho, el consultorio y la sala de entrevista.",
       "encuadre": "tres-paredes",
       "entrada": {
-        "x": 480,
+        "x": 718,
         "y": 440
       },
       "estructura": {
@@ -389,28 +496,74 @@
           "piso": "baldosa",
           "variante": "comisaria-pasillo"
         },
-        "ancho": 960,
+        "ancho": 1440,
         "momento": "dia",
         "piezas": [
           {
-            "id": "reloj-1",
-            "modelo": "reloj",
+            "id": "senal-1",
+            "modelo": "senal",
             "muro": "fondo",
-            "pos": 576,
-            "tipo": "reloj"
+            "pos": 184,
+            "tipo": "senal"
           },
           {
+            "encendida": true,
             "id": "tubo-1",
             "modelo": "tubo",
             "muro": "fondo",
-            "pos": 384,
+            "pos": 256,
             "tipo": "lampara"
-          }
-        ],
-        "propios": [
+          },
           {
-            "ref": "comisaria/pasillo",
-            "ruta": "piezas/propios/comisaria-pasillo.png"
+            "id": "extintor",
+            "modelo": "extintor",
+            "muro": "fondo",
+            "pos": 440,
+            "tipo": "extintor"
+          },
+          {
+            "encendida": true,
+            "id": "tubo-2",
+            "modelo": "tubo",
+            "muro": "fondo",
+            "pos": 508,
+            "tipo": "lampara"
+          },
+          {
+            "id": "reloj",
+            "modelo": "reloj",
+            "muro": "fondo",
+            "pos": 508,
+            "tipo": "reloj"
+          },
+          {
+            "id": "gel",
+            "modelo": "gel",
+            "muro": "fondo",
+            "pos": 576,
+            "tipo": "gel"
+          },
+          {
+            "id": "ventana",
+            "modelo": "alta",
+            "muro": "fondo",
+            "pos": 768,
+            "tipo": "ventana"
+          },
+          {
+            "encendida": true,
+            "id": "tubo-3",
+            "modelo": "tubo",
+            "muro": "fondo",
+            "pos": 1008,
+            "tipo": "lampara"
+          },
+          {
+            "id": "cartelera",
+            "modelo": "cartelera",
+            "muro": "fondo",
+            "pos": 1128,
+            "tipo": "cartelera"
           }
         ]
       },
@@ -418,36 +571,57 @@
       "muebles": [
         {
           "espejo": false,
+          "ref": "planta-oficina",
+          "x": 196,
+          "y": 296
+        },
+        {
+          "espejo": false,
           "ref": "sillas-espera-comisaria",
-          "x": 200,
-          "y": 430
+          "x": 644,
+          "y": 272
         },
         {
           "espejo": false,
           "ref": "caneca-comisaria",
-          "x": 880,
-          "y": 262
+          "x": 884,
+          "y": 266
+        },
+        {
+          "espejo": false,
+          "ref": "sillas-espera-comisaria",
+          "x": 1180,
+          "y": 272
         },
         {
           "espejo": false,
           "ref": "planta-oficina",
-          "x": 60,
-          "y": 300
+          "x": 1300,
+          "y": 296
         }
       ],
       "nombre": "Pasillo de atención",
       "objetos": [
         {
+          "ref": "dispensador-agua",
+          "x": 330,
+          "y": 284
+        },
+        {
           "ref": "camara-seguridad",
-          "x": 480,
+          "sobre": 112,
+          "x": 1206,
           "y": 236
         }
       ],
-      "perdido": [
-        "encuadre una-pared: pasa a tres-paredes para que la salida lateral tenga muro",
-        "lo propio de la sala queda como una capa fija: no se puede mover ni cambia con la paleta"
+      "personajes": [
+        {
+          "mirando": "izquierda",
+          "ref": "policia-infancia",
+          "x": 760,
+          "y": 376
+        }
       ],
-      "personajes": [],
       "puertas": [
         {
           "etiqueta": "Volver a la sala de espera",
@@ -456,7 +630,7 @@
           "modelo": "metalica",
           "muro": "camara",
           "par": "puerta-pasillo",
-          "pos": 384
+          "pos": 584
         },
         {
           "etiqueta": "Volver a la recepción",
@@ -474,7 +648,7 @@
           "modelo": "metalica",
           "muro": "fondo",
           "par": "puerta-pasillo",
-          "pos": 64
+          "pos": 120
         },
         {
           "etiqueta": "Entrar al despacho de la comisaria de familia",
@@ -483,7 +657,7 @@
           "modelo": "metalica",
           "muro": "fondo",
           "par": "puerta-pasillo",
-          "pos": 232
+          "pos": 376
         },
         {
           "etiqueta": "Entrar al consultorio psicosocial",
@@ -492,7 +666,7 @@
           "modelo": "metalica",
           "muro": "fondo",
           "par": "puerta-pasillo",
-          "pos": 464
+          "pos": 640
         },
         {
           "etiqueta": "Entrar a la sala de entrevista",
@@ -501,7 +675,7 @@
           "modelo": "metalica",
           "muro": "fondo",
           "par": "puerta-pasillo",
-          "pos": 664
+          "pos": 904
         },
         {
           "etiqueta": "Ir al archivo",
@@ -746,7 +920,6 @@
       ]
     },
     {
-      "convertidaDe": "escenarios/comisaria/escenario.json",
       "descripcion": "Espacio de escucha del equipo psicosocial: dos sillas, una mesa baja y pañuelos a la mano.",
       "encuadre": "tres-paredes",
       "entrada": {
@@ -764,24 +937,60 @@
         "momento": "dia",
         "piezas": [
           {
-            "id": "persiana-1",
+            "id": "cuadro",
+            "modelo": "cuadro",
+            "muro": "fondo",
+            "pos": 56,
+            "tipo": "cuadro"
+          },
+          {
+            "id": "ventana",
             "modelo": "persiana",
             "muro": "fondo",
             "pos": 232,
             "tipo": "ventana"
           },
           {
-            "id": "tubo-1",
-            "modelo": "tubo",
+            "id": "reloj",
+            "modelo": "reloj",
             "muro": "fondo",
-            "pos": 384,
-            "tipo": "lampara"
+            "pos": 600,
+            "tipo": "reloj"
+          },
+          {
+            "id": "cuadro-2",
+            "modelo": "cuadro",
+            "muro": "fondo",
+            "pos": 704,
+            "tipo": "cuadro"
+          },
+          {
+            "id": "lampara-pie",
+            "modelo": "pie",
+            "tipo": "lampara",
+            "x": 226,
+            "y": 330
+          },
+          {
+            "id": "lampara-mesa",
+            "modelo": "mesa",
+            "sobre": 36,
+            "tipo": "lampara",
+            "x": 748,
+            "y": 290
           }
         ],
-        "propios": [
+        "tapetes": [
           {
-            "ref": "comisaria/consultorio-psicosocial",
-            "ruta": "piezas/propios/comisaria-consultorio-psicosocial.png"
+            "caja": [
+              250,
+              480,
+              318,
+              404
+            ],
+            "ruta": "piezas/tapetes/comisaria-consultorio-psicosocial-1.png",
+            "x": 220,
+            "y": 318
           }
         ]
       },
@@ -789,15 +998,27 @@
       "muebles": [
         {
           "espejo": false,
-          "ref": "escritorio-funcionario",
-          "x": 700,
-          "y": 290
+          "ref": "planta-oficina",
+          "x": 140,
+          "y": 300
+        },
+        {
+          "espejo": false,
+          "ref": "cartelera-comisaria",
+          "x": 560,
+          "y": 258
         },
         {
           "espejo": false,
           "ref": "silla-giratoria",
           "x": 700,
           "y": 256
+        },
+        {
+          "espejo": false,
+          "ref": "escritorio-funcionario",
+          "x": 700,
+          "y": 290
         },
         {
           "espejo": false,
@@ -816,44 +1037,50 @@
           "ref": "mesa-baja-nna",
           "x": 360,
           "y": 362
-        },
-        {
-          "espejo": false,
-          "ref": "planta-oficina",
-          "x": 140,
-          "y": 300
         }
       ],
       "nombre": "Consultorio psicosocial",
       "objetos": [
         {
-          "ref": "caja-panuelos",
-          "x": 360,
-          "y": 350
+          "ref": "afiche-rutas-atencion",
+          "x": 214,
+          "y": 268
         },
         {
           "ref": "papelera",
-          "x": 760,
+          "x": 776,
           "y": 262
+        },
+        {
+          "ref": "dispensador-agua",
+          "x": 836,
+          "y": 270
+        },
+        {
+          "ref": "carpeta-medidas-proteccion",
+          "sobre": 37,
+          "x": 676,
+          "y": 291
+        },
+        {
+          "ref": "caja-panuelos",
+          "sobre": 24,
+          "x": 378,
+          "y": 363
         }
-      ],
-      "perdido": [
-        "lo propio de la sala queda como una capa fija: no se puede mover ni cambia con la paleta"
       ],
       "personajes": [
         {
-          "expresion": "neutral",
           "mirando": "izquierda",
           "ref": "profesional-psicosocial",
           "x": 520,
-          "y": 350
+          "y": 352
         },
         {
-          "expresion": "cautelosa",
           "mirando": "derecha",
-          "ref": "persona-usuaria",
-          "x": 260,
-          "y": 410
+          "ref": "sobreviviente",
+          "x": 262,
+          "y": 404
         }
       ],
       "puertas": [
