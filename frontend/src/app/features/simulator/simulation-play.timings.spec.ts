@@ -198,7 +198,7 @@ describe('SimulationPlayComponent: tiempos de la pantalla de juego (A-03b)', () 
       // Doble mínimo de la escena: aplicar un mundo también pide recalcular la escala (otro temporizador, de 0 ms).
       const gameWorld = {
         playRevealEffects: vi.fn(), refreshScale: vi.fn(), updatePatientVisualState: vi.fn(), setPersonaState: vi.fn(), places: vi.fn(() => []),
-        setCameraOptions: vi.fn(), setCameraMoment: vi.fn(),
+        setCameraOptions: vi.fn(), setCameraMoment: vi.fn(), setCameraFrozen: vi.fn(),
       };
       internals().gameWorld = gameWorld;
       component.attempt.set(makeAttempt());
@@ -224,7 +224,7 @@ describe('SimulationPlayComponent: tiempos de la pantalla de juego (A-03b)', () 
       // que nadie destruyó se disparaba con el entorno ya desmontado («window is not defined», intermitente en CI).
       const gameWorld = {
         playRevealEffects: vi.fn(), refreshScale: vi.fn(), updatePatientVisualState: vi.fn(), setPersonaState: vi.fn(), places: vi.fn(() => []),
-        setCameraOptions: vi.fn(), setCameraMoment: vi.fn(),
+        setCameraOptions: vi.fn(), setCameraMoment: vi.fn(), setCameraFrozen: vi.fn(),
       };
       internals().gameWorld = gameWorld;
       component.attempt.set(makeAttempt());

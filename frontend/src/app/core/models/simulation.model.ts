@@ -350,6 +350,11 @@ export interface SimulationWorldState {
   flags: Record<string, unknown>;
   /** Opciones ofrecidas ahora para el nodo actual; solo las traen las respuestas de mundo del juego (no el acuse de PATCH). */
   decisionOptions?: SimulationDecisionOption[];
+  /**
+   * Plano del lugar (contrato `x-siep` 2.2, §5.2): salas, puertas, sala actual y visitadas; sin objetos ni personas.
+   * Solo lo lee `plano/plano.ts` (`normalizarLayout`), que valida la forma; un servidor anterior no lo manda.
+   */
+  layout?: unknown;
   /** Comentarios de la escena que se dicen ahora (contrato 2.1, 4.6); la condición nunca viaja. */
   comments?: WorldComment[];
 }
