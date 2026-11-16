@@ -263,7 +263,8 @@ describe('GeneracionFalsa: la generación de casos en memoria', () => {
     expect(corta.error).toMatchObject({ code: 'VALIDATION_ERROR', field: 'descripcion', message: 'Cuéntanos un poco más: al menos 40 caracteres.' });
     const larga = await fallo(api().startGeneration({ lugarId: 'universidad', descripcion: 'x'.repeat(2001) }));
     expect(larga.error.message).toBe('La descripción puede tener hasta 2000 caracteres.');
-    expect((await fallo(api().startGeneration({ lugarId: '', descripcion: DESCRIPCION }))).error.field).toBe('lugarId');
+    const sinLugar = await fallo(api().startGeneration({ lugarId: '', descripcion: DESCRIPCION }));
+    expect(sinLugar.error).toMatchObject({ code: 'VALIDATION_ERROR', field: 'lugarId', message: 'Elige el lugar donde pasa el caso.' });
 
     for (let i = 0; i < 5; i++) {
       const una = await firstValueFrom(api().startGeneration({ lugarId: 'universidad', descripcion: DESCRIPCION }));
@@ -287,7 +288,9 @@ describe('GeneracionFalsa: la generación de casos en memoria', () => {
   it('una generación ajena o inexistente es un 404, y las llamadas se registran al suscribirse', async () => {
     const sinSuscribir = api().generation('nada');
     expect(g.llamadas).toEqual([]);
-    expect((await fallo(sinSuscribir)).status).toBe(404);
+    const e = await fallo(sinSuscribir);
+    expect(e.status).toBe(404);
+    expect(e.error.message).toBe('La generación no existe.');
     expect(g.llamadas).toEqual([{ metodo: 'generation', args: ['nada'] }]);
   });
 
@@ -329,6 +332,157 @@ describe('GeneracionFalsa: la generación de casos en memoria', () => {
     // una respuesta nueva sin esos campos nace sin requisito ni reacción
     await firstValueFrom(api().createDecision(cv, { ...cuerpo, optionKey: 'otra' }));
     expect(servidor.editor.decisions.at(-1)).toMatchObject({ requires: {}, reaction: {} });
+  });
+
+  describe('lo que añadió el contrato final de C1', () => {
+    const iniciar = (descripcion: string) => api().startGeneration({ lugarId: 'universidad', descripcion });
+    const conEsqueleto = async () => {
+      const creada = await firstValueFrom(iniciar(DESCRIPCION));
+      await firstValueFrom(api().generationSkeleton(creada.id));
+      return creada;
+    };
+
+    it.each([
+      ['un correo', 'Una estudiante escribió a camila.rojas@correo.com porque ya no puede más con lo que pasa en casa.'],
+      ['un celular', 'Una estudiante llama al 3105551234 porque ya no puede más con lo que pasa en casa y quiere hablar.'],
+      ['un documento', 'Una estudiante con cédula 1023456789 llega a Bienestar y dice que ya no puede más con lo de casa.'],
+    ])('rechaza una descripción con %s con el motivo fijo y no crea nada', async (_nombre, texto) => {
+      const e = await fallo(iniciar(texto));
+      expect(e.status).toBe(400);
+      expect(e.error).toMatchObject({
+        code: 'VALIDATION_ERROR', field: 'descripcion',
+        message: 'La descripción parece traer datos reales de una persona (correo, teléfono o número de documento). Cuéntala sin datos que identifiquen a nadie.',
+      });
+      expect((await firstValueFrom(api().generationStatus())).inProgress).toBeNull();
+    });
+
+    it.each(['<b>negrita</b>', 'mira https://ejemplo.org', 'entra a www.ejemplo.org'])(
+      'una descripción que no es texto plano (%s) da su mensaje en el campo', async (marca) => {
+        const e = await fallo(iniciar(`${DESCRIPCION} ${marca}`));
+        expect(e.status).toBe(400);
+        expect(e.error).toMatchObject({
+          field: 'descripcion', message: 'La descripción debe ser texto plano, sin etiquetas, enlaces ni caracteres especiales.',
+        });
+      });
+
+    it('el tope global cuenta lo que crearon las demás docentes y dice otro texto que el tope por docente', async () => {
+      const compartida = new GeneracionFalsa(undefined, undefined, { cupoGlobal: 3, creadasPorOtras: 2 });
+      const una = await firstValueFrom(compartida.startGeneration({ lugarId: 'universidad', descripcion: DESCRIPCION }));
+      await firstValueFrom(compartida.cancelGeneration(una.id)); // las canceladas cuentan
+      const e = await fallo(compartida.startGeneration({ lugarId: 'universidad', descripcion: DESCRIPCION }));
+      expect(e.status).toBe(429);
+      expect(e.error).toMatchObject({
+        code: 'AI_LIMIT_EXCEEDED', scope: 'daily',
+        message: 'La plataforma llegó al límite de casos generados por hoy. Vuelve a intentarlo mañana.',
+      });
+      const propia = new GeneracionFalsa(undefined, undefined, { cupoDiario: 1 });
+      const primera = await firstValueFrom(propia.startGeneration({ lugarId: 'universidad', descripcion: DESCRIPCION }));
+      await firstValueFrom(propia.cancelGeneration(primera.id));
+      const otra = await fallo(propia.startGeneration({ lugarId: 'universidad', descripcion: DESCRIPCION }));
+      expect(otra.error).toMatchObject({ scope: 'daily', message: 'Llegaste al límite de casos generados por hoy.' });
+    });
+
+    it('apagada, todo da 404 con su mensaje, también a mitad de una generación', async () => {
+      const creada = await conEsqueleto();
+      g.habilitada = false;
+      for (const o of [api().generation(creada.id), api().generationScene(creada.id, 'recepcion'), api().generationAssemble(creada.id), api().cancelGeneration(creada.id)]) {
+        const e = await fallo(o);
+        expect(e.status).toBe(404);
+        expect(e.error.message).toBe('La generación con IA no está disponible.');
+      }
+      expect((await firstValueFrom(api().generationStatus())).enabled).toBe(false);
+    });
+
+    it('?repair solo admite 1 o true: cualquier otro valor no vacío es 400 con field repair', async () => {
+      const creada = await conEsqueleto();
+      const e = await fallo(g.generationScene(creada.id, 'recepcion', 'si'));
+      expect(e.status).toBe(400);
+      expect(e.error).toMatchObject({ code: 'VALIDATION_ERROR', field: 'repair', message: 'El parámetro repair solo admite 1.' });
+      expect(g.actual(creada.id)!.callsUsed).toBe(1); // no gastó llamada
+      // `1` y `true` pasan la validación (aquí la escena no está en reparación: es un paso fuera de estado, no un 400)
+      expect((await fallo(g.generationScene(creada.id, 'recepcion', '1'))).error.code).toBe('GENERATION_STATE');
+      expect((await fallo(g.generationScene(creada.id, 'recepcion', 'true'))).error.code).toBe('GENERATION_STATE');
+    });
+
+    it('una tercera escena a la vez da 409 GENERATION_BUSY sin gastar llamada', async () => {
+      const creada = await conEsqueleto();
+      g.retener('scene', 'recepcion');
+      g.retener('scene', 'consulta');
+      void firstValueFrom(api().generationScene(creada.id, 'recepcion'));
+      void firstValueFrom(api().generationScene(creada.id, 'consulta'));
+      const usadas = g.actual(creada.id)!.callsUsed;
+
+      const tercera = await fallo(api().generationScene(creada.id, 'orientacion'));
+      expect(tercera.status).toBe(409);
+      expect(tercera.error).toMatchObject({ code: 'GENERATION_BUSY', message: 'Esta parte ya se está escribiendo. Espera un momento.' });
+      expect(g.actual(creada.id)!.callsUsed).toBe(usadas);
+      expect(g.actual(creada.id)!.scenes[2].state).toBe('pending');
+
+      g.liberar('scene', 'recepcion');
+      expect((await firstValueFrom(api().generationScene(creada.id, 'orientacion'))).scenes[2].state).toBe('done');
+      g.liberar('scene', 'consulta');
+    });
+
+    it('una escena en curso hace más de 150 s se ve como error timeout y se puede pedir otra vez, sin cambiar lo guardado', async () => {
+      const creada = await conEsqueleto();
+      g.retener('scene', 'recepcion');
+      void firstValueFrom(api().generationScene(creada.id, 'recepcion'));
+      g.avanzarReloj(149);
+      expect((await firstValueFrom(api().generation(creada.id))).scenes[0].state).toBe('running');
+
+      g.avanzarReloj(1);
+      const vista = await firstValueFrom(api().generation(creada.id));
+      expect(vista.scenes[0]).toEqual({
+        clave: 'recepcion', titulo: 'Recepción', state: 'error', error: { kind: 'timeout', message: 'La IA tardó demasiado en responder. Vuelve a intentarlo.' },
+      });
+      expect(vista.status).toBe('skeleton_ready');
+      expect(g.actual(creada.id)!.scenes[0].state).toBe('running');
+
+      // abandonada: se puede pedir de nuevo, ya no es «ocupada»
+      const otra = await firstValueFrom(api().generationScene(creada.id, 'recepcion'));
+      expect(otra.scenes[0]).toMatchObject({ state: 'done', error: null });
+      g.liberar('scene', 'recepcion');
+    });
+
+    it('el esqueleto en curso hace más de 150 s se ve como lastError skeleton timeout', async () => {
+      const creada = await firstValueFrom(iniciar(DESCRIPCION));
+      g.retener('skeleton');
+      void firstValueFrom(api().generationSkeleton(creada.id));
+      g.avanzarReloj(150);
+
+      const vista = await firstValueFrom(api().generation(creada.id));
+      expect(vista.status).toBe('created');
+      expect(vista.lastError).toEqual({
+        stage: 'skeleton', clave: null, kind: 'timeout', message: 'La IA tardó demasiado en responder. Vuelve a intentarlo.',
+      });
+      expect((await firstValueFrom(api().generationSkeleton(creada.id))).status).toBe('skeleton_ready');
+      g.liberar('skeleton');
+    });
+
+    it('createdAt y updatedAt son UTC con segundos, sin milisegundos', async () => {
+      const creada = await firstValueFrom(iniciar(DESCRIPCION));
+      expect(creada.createdAt).toMatch(/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}Z$/);
+      expect(creada.updatedAt).toMatch(/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}Z$/);
+    });
+
+    it('issues solo se llena en imported y failed y solo con faltas de severidad error; en needs_repair viajan en repair.issues', async () => {
+      const listas = await hastaEscenasListas();
+      g.resultadoDelEnsamblado('needs_repair', 'needs_repair', 'needs_repair');
+      const r1 = await firstValueFrom(api().generationAssemble(listas.id));
+      expect(r1.status).toBe('needs_repair');
+      expect(r1.issues).toEqual([]);
+      expect(Object.values(r1.repair!.issues).flat().every((i) => i.severity === 'error')).toBe(true);
+      await firstValueFrom(api().generationScene(listas.id, r1.repair!.scenes[0], true));
+      const r2 = await firstValueFrom(api().generationAssemble(listas.id));
+      await firstValueFrom(api().generationScene(listas.id, r2.repair!.scenes[0], true));
+      const importada = await firstValueFrom(api().generationAssemble(listas.id));
+      expect(importada.status).toBe('imported');
+      expect(importada.issues.length).toBeGreaterThan(0);
+      expect(importada.issues.every((i) => i.severity === 'error')).toBe(true);
+      expect(importada.repair).toBeNull();
+      expect(importada.lastError).toBeNull();
+      expect(importada.callsLimit).toBe(20);
+    });
   });
 
   it('rehearsedToEnd se devuelve en la vista del editor cuando el ensayo llegó a un final', async () => {

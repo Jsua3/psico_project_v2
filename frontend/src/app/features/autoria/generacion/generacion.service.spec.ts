@@ -425,6 +425,140 @@ describe('GeneracionService: el orquestador de la generación', () => {
     expect(servicio.generacion()).toBeNull();
   });
 
+  describe('el contrato final de C1', () => {
+    const sinRed404 = (mensaje: string) =>
+      throwError(() => new HttpErrorResponse({ status: 404, error: { success: false, code: 'NOT_FOUND', message: mensaje } }));
+
+    it('el mensaje del servidor manda sobre el fijo del cliente, y el fijo solo respalda cuando no llega ninguno', async () => {
+      const { api, servicio } = montar();
+      const id = await servicio.empezar('universidad', DESCRIPCION);
+      vi.spyOn(api, 'generationSkeleton').mockImplementation(() => throwError(() => new HttpErrorResponse({
+        status: 422, error: { success: false, code: 'AI_REFUSED', message: 'Mensaje que escribió el servidor.' },
+      })));
+      await servicio.continuar(id);
+      expect(servicio.error()).toEqual({ mensaje: 'Mensaje que escribió el servidor.', reintentable: true, parte: 'esqueleto' });
+
+      vi.spyOn(api, 'generationSkeleton').mockImplementation(() => throwError(() => new HttpErrorResponse({ status: 422, error: { code: 'AI_REFUSED' } })));
+      await servicio.continuar(id);
+      expect(servicio.error()?.mensaje).toBe(MENSAJES['refusal']);
+    });
+
+    it('el tope global llega con su propio texto y no se reemplaza por el del tope por docente', async () => {
+      const { api, servicio } = montar();
+      vi.spyOn(api, 'startGeneration').mockImplementation(() => throwError(() => new HttpErrorResponse({
+        status: 429, error: {
+          success: false, code: 'AI_LIMIT_EXCEEDED', scope: 'daily',
+          message: 'La plataforma llegó al límite de casos generados por hoy. Vuelve a intentarlo mañana.',
+        },
+      })));
+      await expect(servicio.empezar('universidad', DESCRIPCION)).rejects.toMatchObject({
+        tipo: 'limite', mensaje: 'La plataforma llegó al límite de casos generados por hoy. Vuelve a intentarlo mañana.',
+      });
+    });
+
+    it('un 404 a mitad del avance (apagada) se muestra con su mensaje, sin reintento y sin giro eterno', async () => {
+      const { api, servicio } = montar();
+      const id = await servicio.empezar('universidad', DESCRIPCION);
+      await firstValueFrom(api.generationSkeleton(id));
+      vi.spyOn(api, 'generationScene').mockImplementation(() => sinRed404('La generación con IA no está disponible.'));
+      await servicio.continuar(id);
+
+      expect(servicio.error()).toEqual({
+        mensaje: 'La generación con IA no está disponible.', reintentable: false, fatal: true, parte: 'escena', clave: 'recepcion',
+      });
+      expect(servicio.trabajando()).toBe(false);
+      await servicio.reintentar(); // sin botón: no vuelve a pedir
+      expect(api.generationScene).toHaveBeenCalledTimes(2);
+    });
+
+    it('una generación que no existe (404 «La generación no existe.») termina sin reintento', async () => {
+      const { servicio } = montar();
+      await servicio.continuar('no-existe');
+
+      expect(servicio.error()).toEqual({ mensaje: 'La generación no existe.', reintentable: false, fatal: true, parte: 'esqueleto' });
+      expect(servicio.trabajando()).toBe(false);
+      expect(servicio.generacion()).toBeNull();
+    });
+
+    it('al retomar, una escena vencida (error timeout) se ofrece y no se pide sola; «Reintentar» sí la pide', async () => {
+      const { g, api, servicio } = montar();
+      const id = await servicio.empezar('universidad', DESCRIPCION);
+      await firstValueFrom(api.generationSkeleton(id));
+      g.retener('scene', 'recepcion');
+      void firstValueFrom(api.generationScene(id, 'recepcion')); // otra pestaña que se quedó a medias
+      g.avanzarReloj(150);
+
+      await servicio.continuar(id);
+      expect(servicio.error()).toEqual({ mensaje: MENSAJES['timeout'], reintentable: true, parte: 'escena', clave: 'recepcion' });
+      expect(veces(g, 'generationScene', 'recepcion')).toBe(1);
+      expect(servicio.generacion()!.scenes.filter((s) => s.state === 'done')).toHaveLength(3);
+      expect(servicio.trabajando()).toBe(false);
+
+      await servicio.reintentar();
+      expect(veces(g, 'generationScene', 'recepcion')).toBe(2);
+      expect(servicio.error()).toBeNull();
+      expect(servicio.generacion()!.status).toBe('imported');
+      g.liberar('scene', 'recepcion');
+    });
+
+    it('al retomar, un esqueleto vencido (lastError skeleton timeout) se ofrece y no se pide solo', async () => {
+      const { g, api, servicio } = montar();
+      const id = await servicio.empezar('universidad', DESCRIPCION);
+      g.retener('skeleton');
+      void firstValueFrom(api.generationSkeleton(id));
+      g.avanzarReloj(150);
+
+      await servicio.continuar(id);
+      expect(servicio.error()).toEqual({ mensaje: MENSAJES['timeout'], reintentable: true, parte: 'esqueleto' });
+      expect(veces(g, 'generationSkeleton')).toBe(1);
+      expect(servicio.trabajando()).toBe(false);
+
+      await servicio.reintentar();
+      expect(veces(g, 'generationSkeleton')).toBe(2);
+      expect(servicio.generacion()!.status).toBe('imported');
+      g.liberar('skeleton');
+    });
+
+    it('al retomar, un ensamblado que ya falló se ofrece y no se pide solo', async () => {
+      const { g, servicio } = montar();
+      const id = await servicio.empezar('universidad', DESCRIPCION);
+      g.fallar('assemble', 502, 'AI_PROVIDER_ERROR', 'http', 2);
+      await servicio.continuar(id);
+      expect(servicio.error()).toMatchObject({ parte: 'ensamblado', reintentable: true });
+      expect(veces(g, 'generationAssemble')).toBe(2);
+
+      await servicio.continuar(id); // volver a la pantalla
+      expect(veces(g, 'generationAssemble')).toBe(2);
+      expect(servicio.error()).toEqual({ mensaje: MENSAJES['http'], reintentable: true, parte: 'ensamblado' });
+
+      await servicio.reintentar();
+      expect(servicio.generacion()!.status).toBe('imported');
+    });
+
+    it('con dos escenas en curso, un 409 GENERATION_BUSY de otra se espera y se relee, sin gastar llamada', async () => {
+      const { g, api, servicio } = montar();
+      const id = await servicio.empezar('universidad', DESCRIPCION);
+      await firstValueFrom(api.generationSkeleton(id));
+      g.retener('scene', 'recepcion');
+      g.retener('scene', 'consulta');
+      void firstValueFrom(api.generationScene(id, 'recepcion')); // dos pestañas ya escribiendo
+      void firstValueFrom(api.generationScene(id, 'consulta'));
+      const antes = g.actual(id)!.callsUsed;
+
+      const corrida = servicio.continuar(id);
+      await vaciar();
+      expect(g.actual(id)!.callsUsed).toBe(antes); // la tercera y la cuarta dieron 409
+      expect(servicio.trabajando()).toBe(true);
+      expect(servicio.error()).toBeNull();
+
+      g.liberar('scene', 'recepcion');
+      g.liberar('scene', 'consulta');
+      await vi.advanceTimersByTimeAsync(ESPERA_SI_OCUPADA_MS);
+      await corrida;
+      expect(servicio.generacion()!.status).toBe('imported');
+    });
+  });
+
   describe('empezar: los errores de inicio', () => {
     it('400 con campo lo deja en su campo', async () => {
       const { servicio } = montar();

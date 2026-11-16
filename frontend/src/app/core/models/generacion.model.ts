@@ -1,6 +1,6 @@
 /**
- * Los tipos de la API de generación de casos con IA (`/api/authoring/generations`), escritos a mano según la sección
- * «Contrato de la API de generación» del plan C1. Cuando el contrato generado de OpenAPI los traiga, se cambian por ellos.
+ * Los tipos de la API de generación de casos con IA (`/api/authoring/generations`), escritos a mano según el contrato final
+ * de C1 (`docs/operacion/generacion-de-casos.md`). Cuando el contrato generado de OpenAPI los traiga, se cambian por ellos.
  */
 import type { ValidationIssue } from './simulation.model';
 
@@ -33,6 +33,7 @@ export interface GenerationSkeleton {
 export interface GenerationScene {
   clave: string;
   titulo: string;
+  /** Una escena en curso hace más de 150 s llega como `error` con `error.kind: 'timeout'`. */
   state: GenerationSceneState;
   error: GenerationError | null;
 }
@@ -60,14 +61,22 @@ export interface Generation {
   /** Las rondas de reparación ya abiertas (0, 1 o 2). */
   repairRounds: number;
   repair: GenerationRepair | null;
-  /** Se borra cuando la misma etapa sale bien. */
+  /**
+   * `null` o `{stage, clave, kind, message}`; se borra cuando la misma etapa sale bien. Un esqueleto en curso hace más de 150 s
+   * llega aquí como `stage: 'skeleton'`, `kind: 'timeout'`.
+   */
   lastError: GenerationLastError | null;
   /** El borrador creado; solo con `status: "imported"`. */
   caseVersionId: number | null;
-  /** Con `imported`: las faltas que quedan; con `failed`: las que impidieron importar. */
+  /**
+   * Solo se llena con `imported` (las faltas que quedan) y `failed` (las que impidieron importar), y solo trae faltas de
+   * severidad `error`. En `needs_repair` va vacío: las faltas viajan en `repair.issues`.
+   */
   issues: ValidationIssue[];
+  /** Las llamadas a la IA gastadas y el tope por generación (vienen siempre). */
   callsUsed: number;
   callsLimit: number;
+  /** UTC, `YYYY-MM-DDTHH:MM:SSZ`: si se muestra, en hora local con `Intl`. */
   createdAt: string;
   updatedAt: string;
 }

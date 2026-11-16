@@ -8,6 +8,10 @@
  * vez: se relee cada `ESPERA_SI_OCUPADA_MS` y, tras `RELECTURAS_SIN_CAMBIO` relecturas sin cambio, pasa a un error con
  * «Reintentar esta parte», para no dejar nunca un giro eterno.
  *
+ * Una parte que ya está en `error` al entrar (una escena o el esqueleto vencidos a los 150 s, un fallo de una visita anterior) no
+ * se vuelve a pedir sola: se ofrece con el mensaje que trae («Reintentar esta parte»). El reintento automático único vale solo
+ * para un fallo de la propia petición durante la corrida.
+ *
  * No escribe `localStorage`: retomar una generación sale de `inProgress` en `estado()`, que es la fuente de verdad.
  */
 import { HttpErrorResponse } from '@angular/common/http';
@@ -39,6 +43,8 @@ export interface ErrorVisible {
   reintentable: boolean;
   parte: 'esqueleto' | 'escena' | 'ensamblado';
   clave?: string;
+  /** No hay nada que reintentar (la generación no existe o la función está apagada): solo queda volver a crear un caso. */
+  fatal?: boolean;
 }
 
 /** Por qué no pudo empezar una generación (P10): cada rama tiene su manejo en la pantalla. */
@@ -159,11 +165,15 @@ export class GeneracionService {
       let g = await this.leer(id);
       ultima = g;
       let sinCambio = 0;
+      // Lo que ya estaba en error al entrar se ofrece; lo que falle durante esta corrida ya sale por su propio camino.
+      let alEntrar = true;
       while (this.vigente(mia)) {
         ultima = g;
         this.generacion.set(g);
         if (this.terminal(g)) return;
-        const paso = await this.paso(g, forzar, mia);
+        const ofrecer = !forzar && alEntrar;
+        alEntrar = false;
+        const paso = await this.paso(g, forzar, ofrecer, mia);
         if (!this.vigente(mia)) return;
         if (paso.tipo === 'error') {
           // Se relee antes de publicar: la pantalla debe mostrar el estado de cada escena tal como quedó, no el de antes de pedirla.
@@ -214,12 +224,14 @@ export class GeneracionService {
     }
   }
 
-  private paso(g: Generation, forzar: boolean, mia: number): Promise<Paso> {
+  private paso(g: Generation, forzar: boolean, ofrecer: boolean, mia: number): Promise<Paso> {
     switch (g.status) {
       case 'created':
+        if (ofrecer && g.lastError?.stage === 'skeleton') return Promise.resolve(this.ofrecerError(g.lastError.message, 'esqueleto'));
         this.etapa.set({ tipo: 'esqueleto' });
         return this.pedir(() => this.autoria.api.generationSkeleton(g.id), 'esqueleto', mia);
       case 'scenes_ready':
+        if (ofrecer && g.lastError?.stage === 'assemble') return Promise.resolve(this.ofrecerError(g.lastError.message, 'ensamblado'));
         this.etapa.set({ tipo: 'reglas' });
         return this.pedir(() => this.autoria.api.generationAssemble(g.id), 'ensamblado', mia);
       case 'skeleton_ready':
@@ -234,10 +246,14 @@ export class GeneracionService {
   /** Las escenas que faltan (o las que hay que reparar), de a `ESCENAS_A_LA_VEZ`. Una `running` no se pide otra vez. */
   private async escenas(g: Generation, reparar: boolean, forzar: boolean, mia: number): Promise<Paso> {
     const enAlcance = (clave: string) => !reparar || (g.repair?.scenes.includes(clave) ?? false);
-    const pedibles = g.scenes.filter((s) => enAlcance(s.clave) && (s.state === 'pending' || s.state === 'error' || (forzar && s.state === 'running')));
+    // Una escena en `error` no se pide sola (se ofrece); solo «Reintentar esta parte» la pide, y también las que figuran en curso.
+    const pedibles = g.scenes.filter((s) => enAlcance(s.clave) && (s.state === 'pending' || (forzar && (s.state === 'error' || s.state === 'running'))));
     if (pedibles.length === 0) {
-      // Nada que pedir: o sigue en curso en otra pestaña (se espera) o el estado está por cambiar (se relee ya).
-      return { tipo: 'espera', dormir: g.scenes.some((s) => s.state === 'running') };
+      // Nada que pedir: o sigue en curso en otra pestaña (se espera), o quedó una en error (se ofrece), o el estado está por cambiar (se relee ya).
+      if (g.scenes.some((s) => s.state === 'running')) return { tipo: 'espera', dormir: true };
+      const rota = g.scenes.find((s) => enAlcance(s.clave) && s.state === 'error');
+      if (rota) return this.ofrecerError(rota.error?.message ?? MENSAJES[rota.error?.kind ?? 'http'] ?? MENSAJES['http'], 'escena', rota.clave);
+      return { tipo: 'espera', dormir: false };
     }
     const lote = pedibles.slice(0, ESCENAS_A_LA_VEZ);
     const hechas = g.scenes.filter((s) => s.state === 'done').length;
@@ -272,6 +288,11 @@ export class GeneracionService {
         return { tipo: 'error', error: this.errorVisible(e, parte, clave) };
       }
     }
+  }
+
+  /** Una parte que ya estaba en error: se ofrece con el mensaje que trae el servidor. */
+  private ofrecerError(mensaje: string, parte: Parte, clave?: string): Paso {
+    return { tipo: 'error', error: { mensaje, reintentable: true, parte, ...(clave ? { clave } : {}) } };
   }
 
   private async leer(id: string): Promise<Generation> {
@@ -319,9 +340,11 @@ export class GeneracionService {
     const codigo = cuerpo['code'] as string | undefined;
     const kind = (cuerpo['kind'] as GenerationErrorKind | undefined) ?? (codigo === 'AI_REFUSED' ? 'refusal' : 'http');
     const agotado = h?.status === 429 && codigo === 'GENERATION_CALLS_EXHAUSTED';
-    const fijo = agotado ? MENSAJES['GENERATION_CALLS_EXHAUSTED'] : MENSAJES[kind] ?? MENSAJES['http'];
+    // 404: la generación no existe o la función se apagó. No hay nada que reintentar; el servidor dice cuál de las dos.
+    const fatal = h?.status === 404;
+    const fijo = agotado ? MENSAJES['GENERATION_CALLS_EXHAUSTED'] : fatal ? MENSAJES['NOT_FOUND'] : MENSAJES[kind] ?? MENSAJES['http'];
     const mensaje = typeof cuerpo['message'] === 'string' && cuerpo['message'] ? cuerpo['message'] : fijo;
-    return { mensaje, reintentable: !agotado, parte, ...(clave ? { clave } : {}) };
+    return { mensaje, reintentable: !agotado && !fatal, ...(fatal ? { fatal: true } : {}), parte, ...(clave ? { clave } : {}) };
   }
 
   private errorDeInicio(e: unknown): ErrorDeInicio {
