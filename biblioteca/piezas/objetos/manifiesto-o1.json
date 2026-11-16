@@ -1134,6 +1134,52 @@
    "reemplaza": "escenarios/comisaria/arte/muebles/archivador-metalico.png",
    "ruta": "piezas/muebles/comisaria/archivador-metalico.png"
   },
+  "comisaria/banca-exterior": {
+   "alto": 35,
+   "ancho": 100,
+   "apoyo": [
+    50,
+    35
+   ],
+   "cuadros": 1,
+   "huella": {
+    "alto": 30,
+    "ancho": 96,
+    "fondo": 12
+   },
+   "nombre": "Banca exterior",
+   "reemplaza": "escenarios/comisaria/arte/muebles/banca-exterior.png",
+   "ruta": "piezas/muebles/comisaria/banca-exterior.png"
+  },
+  "comisaria/bandera-asta": {
+   "alto": 92,
+   "ancho": 30,
+   "animaciones": {
+    "reposo": {
+     "bucle": true,
+     "de": 0,
+     "fps": 2,
+     "hasta": 2
+    }
+   },
+   "apoyo": [
+    15,
+    92
+   ],
+   "brillo": "piezas/muebles/comisaria/bandera-asta-brillo.png",
+   "brilloDerecha": "piezas/muebles/comisaria/bandera-asta-brillo-derecha.png",
+   "brilloIzquierda": "piezas/muebles/comisaria/bandera-asta-brillo-izquierda.png",
+   "cuadros": 3,
+   "fps": 2,
+   "huella": {
+    "alto": 86,
+    "ancho": 10,
+    "fondo": 6
+   },
+   "nombre": "Asta con la bandera",
+   "reemplaza": "escenarios/comisaria/arte/muebles/bandera-asta.png",
+   "ruta": "piezas/muebles/comisaria/bandera-asta.png"
+  },
   "comisaria/caja-archivo": {
    "alto": 40,
    "ancho": 40,
@@ -1426,6 +1472,23 @@
    "nombre": "Fila de sillas de espera",
    "reemplaza": "escenarios/comisaria/arte/muebles/sillas-espera-comisaria.png",
    "ruta": "piezas/muebles/comisaria/sillas-espera-comisaria.png"
+  },
+  "comisaria/tapete-juegos": {
+   "alto": 57,
+   "ancho": 89,
+   "apoyo": [
+    44,
+    57
+   ],
+   "cuadros": 1,
+   "huella": {
+    "alto": 2,
+    "ancho": 86,
+    "fondo": 52
+   },
+   "nombre": "Tapete de juegos",
+   "reemplaza": "escenarios/comisaria/arte/muebles/tapete-juegos.png",
+   "ruta": "piezas/muebles/comisaria/tapete-juegos.png"
   },
   "universidad/archivador": {
    "alto": 57,
@@ -2462,6 +2525,24 @@
    "reemplaza": "escenarios/comisaria/arte/objetos/afiche-rutas-atencion.png",
    "ruta": "piezas/objetos/comisaria/afiche-rutas-atencion.png"
   },
+  "comisaria/boligrafo-formularios": {
+   "alto": 20,
+   "ancho": 35,
+   "apoyo": [
+    17,
+    20
+   ],
+   "cuadros": 1,
+   "huella": {
+    "alto": 8,
+    "ancho": 30,
+    "fondo": 8
+   },
+   "nombre": "Formularios y bolígrafo",
+   "reemplaza": "escenarios/comisaria/arte/objetos/boligrafo-formularios.png",
+   "ruta": "piezas/objetos/comisaria/boligrafo-formularios.png",
+   "sobre": 24
+  },
   "comisaria/caja-panuelos": {
    "alto": 22,
    "ancho": 24,
@@ -2567,6 +2648,23 @@
    "ruta": "piezas/objetos/comisaria/carpeta-medidas-proteccion.png",
    "sobre": 24
   },
+  "comisaria/cartel-linea-155": {
+   "alto": 53,
+   "ancho": 38,
+   "apoyo": [
+    19,
+    53
+   ],
+   "cuadros": 1,
+   "huella": {
+    "alto": 48,
+    "ancho": 20,
+    "fondo": 6
+   },
+   "nombre": "Cartel de la línea 155",
+   "reemplaza": "escenarios/comisaria/arte/objetos/cartel-linea-155.png",
+   "ruta": "piezas/objetos/comisaria/cartel-linea-155.png"
+  },
   "comisaria/dispensador-agua": {
    "alto": 65,
    "ancho": 24,
@@ -2666,6 +2764,40 @@
    "nombre": "Papelera",
    "reemplaza": "escenarios/comisaria/arte/objetos/papelera.png",
    "ruta": "piezas/objetos/comisaria/papelera.png"
+  },
+  "comisaria/sello-tinta": {
+   "alto": 23,
+   "ancho": 32,
+   "animaciones": {
+    "reposo": {
+     "bucle": true,
+     "de": 0,
+     "fps": 1,
+     "hasta": 0
+    },
+    "revisar": {
+     "bucle": false,
+     "de": 1,
+     "fps": 10,
+     "hasta": 3,
+     "sostener": true
+    }
+   },
+   "apoyo": [
+    16,
+    23
+   ],
+   "cuadros": 4,
+   "fps": 1,
+   "huella": {
+    "alto": 14,
+    "ancho": 28,
+    "fondo": 8
+   },
+   "nombre": "Sello de la comisaría",
+   "reemplaza": "escenarios/comisaria/arte/objetos/sello-tinta.png",
+   "ruta": "piezas/objetos/comisaria/sello-tinta.png",
+   "sobre": 24
   },
   "comun/destello": {
    "alto": 9,
