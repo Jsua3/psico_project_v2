@@ -348,6 +348,7 @@ const QUEUED_PAUSE_SLOW_NOTICE = 'La acción en curso está tardando. Estamos pa
                 (bootFailed)="onWorldBootFailed()"
                 (roomExit)="onRoomExit($event)"
                 (enterRoom)="onDoorTrigger($event)"
+                (salaIncompleta)="onSalaIncompleta()"
                 (positionChange)="rememberPosition($event.x, $event.y)" />
             } @else {
               <!-- Solo el fondo: el indicador de carga es .game-boot (un solo estado). #game-area existe siempre. -->
@@ -2074,6 +2075,11 @@ export class SimulationPlayComponent implements OnInit, OnDestroy {
    * Aviso accionable de puerta (VD-29): aviso de advertencia del sistema SIN cierre automático. Lo pinta y anuncia
    * `ui-toast-host` (una vez, con cortesía), no mueve el foco y reemplaza al de la puerta anterior.
    */
+  /** P2: una sala por piezas no cargó entera: se ve su versión simple y se dice, sin bloquear el juego. */
+  onSalaIncompleta(): void {
+    this.notifications.show('warning', 'Parte de esta sala no cargó: se muestra una versión simple. Puedes seguir jugando.', 8000);
+  }
+
   private showDoorNotice(message: string): void {
     this.dismissDoorNotice();
     this.doorNoticeId.set(this.notifications.show('warning', message, 0));

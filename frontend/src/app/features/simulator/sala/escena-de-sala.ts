@@ -156,12 +156,27 @@ export class EscenaDeSala {
     }
   }
 
-  /** Pide las imágenes que el plan necesita y no están cargadas. true si pidió alguna: hay que esperar a que lleguen. */
-  static pedirTexturas(escena: Phaser.Scene, plan: PlanDeSala): boolean {
+  /**
+   * Qué falta para armar el plan: 'listo' si todo está cargado, 'pedir' si falta algo que aún no ha fallado y 'fallo' si
+   * alguna imagen ya falló al cargar (`fallidas`, claves del cargador): entonces la sala no se arma a medias ni se vuelve
+   * a pedir sin fin; quien la monta sigue por el camino de imagen fija y lo avisa.
+   */
+  static estadoDeTexturas(plan: PlanDeSala, existe: (clave: string) => boolean, fallidas: ReadonlySet<string>): 'listo' | 'pedir' | 'fallo' {
+    let pedir = false;
+    for (const ruta of rutasDelPlan(plan)) {
+      if (existe(clave(ruta))) continue;
+      if (fallidas.has(clave(ruta))) return 'fallo';
+      pedir = true;
+    }
+    return pedir ? 'pedir' : 'listo';
+  }
+
+  /** Pide las imágenes que el plan necesita, no están cargadas y no han fallado. true si pidió alguna: hay que esperar. */
+  static pedirTexturas(escena: Phaser.Scene, plan: PlanDeSala, fallidas: ReadonlySet<string> = new Set()): boolean {
     let pidio = false;
     const enFondo = new Set(plan.fondo.map(r => r.ruta));
     for (const ruta of rutasDelPlan(plan)) {
-      if (escena.textures.exists(clave(ruta))) continue;
+      if (escena.textures.exists(clave(ruta)) || fallidas.has(clave(ruta))) continue;
       const sprite = enFondo.has(ruta) ? undefined : plan.sprites.find(s => s.ruta === ruta);
       if (sprite) escena.load.spritesheet(clave(ruta), urlDePieza(ruta), { frameWidth: sprite.w, frameHeight: sprite.h });
       else escena.load.image(clave(ruta), urlDePieza(ruta));
