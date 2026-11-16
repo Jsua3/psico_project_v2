@@ -175,3 +175,20 @@ def test_el_contexto_serializado_es_estable():
     a = prompts.skeleton_messages(context.del_lugar(lugar, []), "d")[0]["content"][0]["text"]
     b = prompts.skeleton_messages(context.del_lugar(lugares.cargar_lugar("universidad"), []), "otra")[0]["content"][0]["text"]
     assert a == b
+
+
+def test_el_sistema_dice_cada_regla_que_python_revisa_del_recorrido_y_de_los_finales():
+    texto = " ".join(prompts.SYSTEM_GENERATE.split())
+    for frase in (
+        "al menos una escena con dos caminos",
+        "una o dos escenas siguientes",
+        "nunca vuelve sobre una escena ya vista",
+        "se alcanza desde la primera",
+        "al menos una escena final",
+        "sin escenas siguientes y sin respuestas",
+        "el último final es el final por defecto",
+        "solo hitos, conteos o la persona",
+        "nunca talked ni inspected",
+        "es el destino de alguna respuesta",
+    ):
+        assert frase in texto, frase
