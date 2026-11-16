@@ -77,7 +77,9 @@ describe('game-world: nada nuevo por cuadro (F§7.2, 59 FPS)', () => {
   // req: BLOQUE-H (H-12)
   it('con el foco en una región con scroll las flechas la desplazan y el jugador no camina', () => {
     expect(source).toMatch(/const typing = isTextEntryTarget\(focus\) \|\| isScrollRegionTarget\(focus\);/);
-    expect(source).toMatch(/left:  !typing && \(this\.cursors\.left\.isDown/);
+    // `bloqueado` = escribiendo o con el foco en una región con scroll, o con una capa abierta (bloque M1).
+    expect(source).toContain('const bloqueado = typing || this.motionPaused;');
+    expect(source).toMatch(/left:  !bloqueado && \(this\.cursors\.left\.isDown/);
   });
 
   it('la pulsación corta de E, Espacio y Enter no se pierde (T0.2) y respeta las mismas reglas de foco', () => {
