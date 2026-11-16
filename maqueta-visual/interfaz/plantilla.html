@@ -1,0 +1,953 @@
+<title>Pantalla del juego unificada</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;700&family=Poppins:ital,wght@0,400;0,600;0,700;1,400;1,600&display=swap">
+<style>
+/* Una sola mirada oscura (el juego es de noche): la página es la mesa de trabajo y la pantalla del juego es la pieza. */
+:root {
+  color-scheme: dark;
+  --mesa: #100f17;          /* fondo de la página */
+  --mesa-2: #18161f;        /* superficies de la página */
+  --linea: #2c2838;         /* bordes de la página */
+  --texto: #ece6d8;         /* texto de la página */
+  --texto-2: #b3abc2;       /* texto secundario de la página */
+  --acento: #ffcd82;        /* la luz de lámpara de la sala, la misma del cuadro de diálogo */
+  --f-mono: 'JetBrains Mono', ui-monospace, 'Cascadia Mono', Consolas, monospace;
+  --f-texto: 'Poppins', system-ui, -apple-system, 'Segoe UI', sans-serif;
+}
+body { background: var(--mesa); color: var(--texto); font-family: var(--f-texto); }
+.pagina { padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px)); padding-block: 20px 48px; max-width: 1760px; margin: 0 auto; display: grid; gap: 18px; }
+.cab { display: grid; gap: 6px; }
+.cab h1 { margin: 0; font-family: var(--f-mono); font-size: 1.35rem; letter-spacing: .01em; color: var(--acento); text-wrap: balance; }
+.cab p { margin: 0; color: var(--texto-2); max-width: 70ch; line-height: 1.5; }
+.mandos { display: grid; gap: 10px; }
+.grupo { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; }
+.grupo__nombre { font-family: var(--f-mono); font-size: .72rem; letter-spacing: .08em; text-transform: uppercase; color: var(--texto-2); min-width: 8.5em; }
+.grupo button { font: 600 .82rem/1.2 var(--f-texto); color: var(--texto); background: var(--mesa-2); border: 1px solid var(--linea); padding: 8px 12px; min-height: 36px; cursor: pointer; border-radius: 2px; }
+.grupo button[aria-pressed="true"] { background: var(--acento); color: #1b1530; border-color: var(--acento); }
+.grupo button:focus-visible { outline: 2px solid var(--acento); outline-offset: 2px; }
+.grupo button .reco { font-family: var(--f-mono); font-size: .7rem; margin-left: 6px; opacity: .8; }
+.escena { display: grid; gap: 14px; }
+.escena--lado { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+@media (max-width: 760px) { .escena--lado { grid-template-columns: minmax(0, 1fr); } }
+.lamina { display: grid; gap: 6px; min-width: 0; }
+.lamina__pie { display: flex; flex-wrap: wrap; gap: 4px 14px; font-size: .78rem; color: var(--texto-2); line-height: 1.4; }
+.lamina__pie strong { font-family: var(--f-mono); color: var(--acento); font-weight: 700; }
+.lamina__caja { position: relative; overflow: hidden; background: #000; }
+.lamina__caja > .pantalla, .lamina__caja > .hoy { position: absolute; top: 0; left: 0; transform-origin: 0 0; }
+.hoy { display: block; background: #0b0a12; }
+.hoy img { display: block; width: 100%; height: 100%; object-fit: contain; }
+.hoy__falta { width: 100%; height: 100%; display: grid; place-items: center; color: var(--texto-2); font-family: var(--f-mono); font-size: 18px; text-align: center; padding: 24px; box-sizing: border-box; }
+.notas { display: grid; gap: 14px; grid-template-columns: repeat(auto-fit, minmax(min(100%, 420px), 1fr)); }
+.nota { background: var(--mesa-2); border: 1px solid var(--linea); padding: 16px 18px; display: grid; gap: 8px; align-content: start; min-width: 0; }
+.nota h2 { margin: 0; font-family: var(--f-mono); font-size: .9rem; color: var(--acento); letter-spacing: .02em; }
+.nota p, .nota li { margin: 0; color: var(--texto); line-height: 1.55; font-size: .88rem; }
+.nota ul { margin: 0; padding-left: 1.1em; display: grid; gap: 6px; }
+.nota .suave { color: var(--texto-2); }
+.tabla { overflow-x: auto; }
+.tabla table { border-collapse: collapse; width: 100%; font-size: .8rem; }
+.tabla th, .tabla td { text-align: left; padding: 6px 8px; border-bottom: 1px solid var(--linea); vertical-align: top; }
+.tabla th { font-family: var(--f-mono); font-weight: 700; color: var(--texto-2); font-size: .72rem; letter-spacing: .04em; }
+.tabla code { font-family: var(--f-mono); font-size: .76rem; color: var(--acento); }
+
+/* ── La pantalla del juego ─────────────────────────────────────────────────────────────────────────────────────── */
+/* Una pieza de pixel art: marco por border-image (4 px de mundo por lado) y trama; nada redondeado ni difuminado.   */
+.pantalla {
+  --px: 2px; --tam: 14px; --tam-d: 17px; --retrato: 192px; --rp: 2;
+  --borde: calc(6 * var(--px));
+  --tinta: #f2ecdf; --tinta-suave: #c3bccf; --tinta-oscura: #1b1530; --penumbra: #1b1826; --luz: #ffcd82;
+  --contorno: #15131d; --tecla-fondo: #3a3454; --ambar: #f5d49b; --ambar-fondo: #3b2a12; --brasa-tinta: #ffd6c4; --cine: #0b0a12;
+  --f-nombre: 'JetBrains Mono', ui-monospace, 'Cascadia Mono', Consolas, monospace;
+  --f-texto: 'Poppins', system-ui, -apple-system, 'Segoe UI', sans-serif;
+  position: relative; overflow: hidden; background: var(--cine); color: var(--tinta);
+  font-family: var(--f-texto); font-size: var(--tam); line-height: 1.4;
+}
+.pantalla[data-tam="1920"] { --px: 3px; --tam: 17px; --tam-d: 20px; --retrato: 288px; --rp: 3; }
+.pantalla[data-tam="390"] { --tam: 13px; --tam-d: 16px; --retrato: 64px; }
+/* A 1920 el HUD va al punto del mundo (2 px: la cámara descansa en ×2), no al de 3 px del cuadro de diálogo: así tapa menos
+   sala que hoy. El cuadro de I1 conserva sus 3 px desde 1800 de ancho. */
+.pantalla[data-tam="1920"] .hud, .pantalla[data-tam="1920"] .cine-arriba, .pantalla[data-tam="1920"] .avisos-mundo, .pantalla[data-tam="1920"] .mundo { --px: 2px; --rp: 2; --tam: 16px; --borde: 12px; }
+.pantalla *, .pantalla *::before, .pantalla *::after { box-sizing: border-box; }
+:where(.pantalla) button { font: inherit; color: inherit; cursor: pointer; }
+
+.u-placa, .u-rotulo, .u-boton, .u-salida, .u-ficha, .u-tecla, .u-ranura {
+  border-style: solid; border-width: calc(4 * var(--px)); border-image: var(--m) 4 / calc(4 * var(--px)) stretch; border-radius: 0;
+  background-color: var(--penumbra); background-image: var(--t); background-size: calc(8 * var(--px));
+  background-clip: padding-box; background-origin: padding-box; image-rendering: pixelated;
+}
+.u-placa { --m: var(--marco-placa); --t: var(--trama-placa); }
+.u-rotulo { --m: var(--marco-rotulo); --t: var(--trama-placa); border-bottom-width: 0; }
+.u-ficha { --m: var(--marco-ficha); --t: var(--trama-ficha); }
+
+/* Placa-botón (hermana de «Volver al mapa»): sobre y foco encienden el canto, pulsada se hunde un punto, apagada pierde la luz. */
+.u-boton { --m: var(--marco-placa); --t: var(--trama-placa); display: inline-flex; align-items: center; gap: calc(4 * var(--px)); min-height: 44px; padding: 0 calc(6 * var(--px)) 1px calc(4 * var(--px)); font-weight: 600; color: var(--tinta); white-space: nowrap; }
+.u-boton:focus-visible { --m: var(--marco-placa-foco); --t: var(--trama-placa-sobre); background-color: #24203a; outline: none; }
+.u-boton:active { --m: var(--marco-placa-pulsada); --t: var(--trama-placa-pulsada); background-color: #16141f; transform: translateY(var(--px)); }
+.u-boton[aria-disabled="true"] { --m: var(--marco-placa-apagada); --t: var(--trama-placa); color: #a9a2b8; cursor: default; transform: none; }
+@media (hover: hover) and (pointer: fine) {
+  .u-boton:hover:not([aria-disabled="true"], :active) { --m: var(--marco-placa-sobre); --t: var(--trama-placa-sobre); background-color: #24203a; color: var(--luz); }
+}
+/* «Salida segura»: la misma placa con brasa en el canto (I1), lo primero que se encuentra en cualquier estado. */
+.u-salida { --m: var(--marco-salida); --t: var(--trama-salida); display: inline-flex; align-items: center; gap: calc(4 * var(--px)); min-height: 44px; padding: 0 calc(6 * var(--px)) 1px calc(4 * var(--px)); background-color: #2e161c; color: var(--brasa-tinta); font-weight: 700; letter-spacing: .02em; white-space: nowrap; }
+.u-salida::before { content: ''; flex: none; width: calc(11 * var(--px)); height: calc(9 * var(--px)); background: var(--icono-salida) 0 0 / 100% 100% no-repeat; image-rendering: pixelated; }
+.u-salida:focus-visible { --m: var(--marco-salida-foco); --t: var(--trama-salida-sobre); background-color: #3e1c22; outline: none; }
+.u-salida:active { --m: var(--marco-salida-pulsada); --t: var(--trama-salida-pulsada); background-color: #22100f; transform: translateY(var(--px)); }
+@media (hover: hover) and (pointer: fine) {
+  .u-salida:hover:not(:active) { --m: var(--marco-salida-sobre); --t: var(--trama-salida-sobre); background-color: #3e1c22; color: #fff1ea; }
+}
+/* La tecla: la misma de la letra A a D y de «Esc». Como botón de icono se enciende con la luz de la sala. */
+.u-tecla { --m: var(--marco-tecla); --t: none; background-color: var(--tecla-fondo); display: inline-grid; place-items: center; font-family: var(--f-nombre); font-weight: 700; line-height: 1; color: var(--tinta); }
+.u-tecla--letra { min-width: calc(15 * var(--px)); min-height: calc(15 * var(--px)); padding: 0 calc(2 * var(--px)) var(--px); font-size: .82em; }
+.u-tecla--icono { width: 44px; height: 44px; }
+
+.u-tecla--icono:focus-visible, .u-tecla--icono[aria-pressed="true"] { --m: var(--marco-tecla-encendida); background-color: var(--luz); color: var(--tinta-oscura); outline: none; }
+.u-tecla--icono:active { --m: var(--marco-tecla-hundida); background-color: #221e33; transform: translateY(var(--px)); }
+@media (hover: hover) and (pointer: fine) {
+  .u-tecla--icono:hover:not(:active) { --m: var(--marco-tecla-encendida); background-color: var(--luz); color: var(--tinta-oscura); }
+}
+.ico { width: calc(var(--iw) * var(--px)); height: calc(var(--ih) * var(--px)); flex: none; display: block; }
+.seguir { display: block; flex: none; width: calc(7 * var(--px)); height: calc(5 * var(--px)); background: var(--seguir) 0 0 / 100% 100% no-repeat; image-rendering: pixelated; }
+.oculto { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
+
+/* El mundo: la sala por piezas a factor entero (la cámara de M1 descansa en ×2), con quien juega y los rótulos anclados. */
+.mundo { position: absolute; inset: 0; overflow: hidden; }
+.mundo img { position: absolute; image-rendering: pixelated; max-width: none; }
+.etiqueta { position: absolute; transform: translate(-50%, 0); padding: 0 calc(3 * var(--px)) var(--px); background: var(--penumbra); box-shadow: 0 0 0 var(--px) var(--contorno), inset 0 var(--px) 0 #3a3452; font-family: var(--f-nombre); font-size: calc(var(--tam) * .8); font-weight: 700; color: var(--tinta); white-space: nowrap; line-height: 1.5; }
+.aviso-puerta { position: absolute; --m: var(--marco-placa); --t: var(--trama-placa); display: inline-flex; align-items: center; gap: calc(3 * var(--px)); min-height: 44px; padding: 0 calc(5 * var(--px)) 1px calc(3 * var(--px)); white-space: nowrap; font-weight: 600; }
+.aviso-puerta__detalle { font-weight: 400; color: var(--tinta-suave); }
+.cola { position: absolute; width: calc(7 * var(--px)); height: calc(4 * var(--px)); }
+.cola--lado { width: calc(4 * var(--px)); height: calc(7 * var(--px)); }
+
+/* Los grupos del HUD: piezas sueltas sobre el mundo (B) o franja continua arriba (A). */
+.hud { position: absolute; inset: 0; pointer-events: none; }
+.hud > * { pointer-events: auto; }
+.esq-izq { position: absolute; left: var(--borde); top: var(--borde); width: min(440px, 33%); display: flex; flex-direction: column; align-items: flex-start; }
+.pantalla[data-tam="1920"] .esq-izq { width: min(520px, 30%); }
+.pestana { position: relative; z-index: 1; margin: 0 0 calc(-1 * var(--px)) calc(6 * var(--px)); padding: 1px calc(4 * var(--px)) calc(2 * var(--px)); display: flex; align-items: center; gap: calc(3 * var(--px)); max-width: calc(100% - 12 * var(--px)); font-family: var(--f-nombre); font-weight: 700; font-size: calc(var(--tam) * .86); line-height: 1.3; color: var(--luz); }
+.pestana__txt { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; min-width: 0; }
+.pestana--suave { color: var(--tinta-suave); }
+.objetivo { width: 100%; display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: center; gap: 1px calc(5 * var(--px)); min-height: 44px; padding: calc(2 * var(--px)) calc(5 * var(--px)) calc(3 * var(--px)) calc(5 * var(--px)); text-align: left; white-space: normal; }
+.objetivo__kicker { grid-column: 1; font-family: var(--f-nombre); font-size: .8em; font-weight: 700; letter-spacing: .02em; color: var(--tinta-suave); }
+.objetivo__texto { grid-column: 1; font-weight: 600; color: var(--tinta); line-height: 1.35; }
+.objetivo .seguir { grid-column: 2; grid-row: 1 / span 2; }
+.objetivo[aria-expanded="true"] .seguir { transform: scaleY(-1); }
+.objetivo__cuerpo { width: 100%; margin-top: calc(-1 * var(--px)); padding: calc(3 * var(--px)) calc(5 * var(--px)) calc(4 * var(--px)); display: grid; gap: calc(3 * var(--px)); }
+.objetivo__cuerpo h3 { margin: 0; font-family: var(--f-nombre); font-size: .8em; color: var(--luz); letter-spacing: .02em; }
+.objetivo__cuerpo ul { margin: 0; padding: 0; list-style: none; display: grid; gap: calc(1 * var(--px)); }
+.objetivo__cuerpo li { display: flex; align-items: center; gap: calc(3 * var(--px)); }
+.marca { font-family: var(--f-nombre); font-size: .82em; color: var(--tinta-suave); }
+.marca--hecha { color: #9fd9a8; }
+.pista { display: flex; flex-wrap: wrap; align-items: center; gap: calc(2 * var(--px)) calc(4 * var(--px)); }
+.pista .u-boton::before { content: ''; flex: none; width: calc(9 * var(--px)); height: calc(11 * var(--px)); background: var(--icono-bombilla) 0 0 / 100% 100% no-repeat; image-rendering: pixelated; }
+.pista .u-boton[aria-disabled="true"]::before { background-image: var(--icono-bombilla-apagada); }
+.pista__nota { font-size: .84em; color: var(--tinta-suave); }
+
+.esq-der { position: absolute; right: var(--borde); top: var(--borde); display: flex; flex-direction: column; align-items: flex-end; }
+.esq-der .pestana { margin: 0 calc(6 * var(--px)) calc(-1 * var(--px)) 0; max-width: 100%; }
+.barra-der { display: flex; align-items: center; gap: calc(4 * var(--px)); padding: calc(2 * var(--px)) calc(2 * var(--px)) calc(2 * var(--px)) calc(3 * var(--px)); }
+.persona { display: flex; align-items: center; gap: calc(4 * var(--px)); min-width: 0; }
+.ventanilla { position: relative; flex: none; width: calc(24 * var(--rp) * 1px); height: calc(21 * var(--rp) * 1px); overflow: hidden; background: #6c6589; box-shadow: 0 0 0 var(--px) var(--contorno); }
+.ventanilla img { position: absolute; left: calc(-4 * var(--rp) * 1px); top: calc(-5 * var(--rp) * 1px); width: calc(32 * var(--rp) * 1px); height: calc(32 * var(--rp) * 1px); image-rendering: pixelated; }
+.persona__txt { display: grid; gap: 1px; min-width: 0; }
+.persona__estado { display: flex; align-items: center; gap: calc(3 * var(--px)); font-weight: 600; line-height: 1.25; }
+.persona__quien { font-family: var(--f-nombre); font-size: .78em; color: var(--tinta-suave); }
+.pulso { flex: none; width: calc(16 * var(--px)); height: calc(8 * var(--px)); background: var(--pulso-TENSE) 0 0 / calc(64 * var(--px)) calc(8 * var(--px)) no-repeat; image-rendering: pixelated; animation: pulso 1s steps(4) 180; }
+@keyframes pulso { to { background-position: calc(-64 * var(--px)) 0; } }
+.separador { flex: none; align-self: stretch; width: var(--px); background: #2a2638; margin: calc(2 * var(--px)) 0; }
+.teclas { display: flex; gap: calc(2 * var(--px)); }
+
+/* El carril de avisos: arriba al centro, entre los dos grupos. Nunca cae sobre la ficha del objetivo ni sobre el plano. */
+.carril { position: absolute; top: var(--borde); left: 50%; transform: translateX(-50%); width: max-content; max-width: min(460px, 32%); display: flex; flex-direction: column; align-items: center; gap: calc(3 * var(--px)); }
+.pantalla[data-tam="1920"] .carril { max-width: min(640px, 32%); }
+.aviso { display: flex; align-items: center; gap: calc(4 * var(--px)); min-height: 44px; padding: calc(1 * var(--px)) calc(3 * var(--px)) calc(2 * var(--px)) calc(5 * var(--px)); font-weight: 600; line-height: 1.35; }
+.aviso--accion { color: var(--ambar); }
+.aviso--breve { color: var(--tinta); }
+.aviso--sala { padding: calc(2 * var(--px)) calc(8 * var(--px)) calc(3 * var(--px)); font-family: var(--f-nombre); font-weight: 700; color: var(--luz); font-size: 1.05em; }
+.aviso--sensible { flex-direction: column; align-items: stretch; gap: calc(2 * var(--px)); padding: calc(3 * var(--px)) calc(5 * var(--px)) calc(4 * var(--px)); max-width: 100%; }
+.aviso--sensible p { margin: 0; font-weight: 400; color: var(--tinta); }
+.sensible { color: var(--ambar); }
+.u-tecla--cerrar { width: 44px; height: 44px; flex: none; }
+
+
+/* El plano (M1): placa con el plano en pixel y su pestaña con el lugar. */
+.plano { position: absolute; right: var(--borde); display: flex; flex-direction: column; align-items: flex-end; gap: calc(2 * var(--px)); }
+.plano__caja { display: flex; flex-direction: column; align-items: stretch; }
+.plano__caja .pestana { align-self: flex-end; margin: 0 calc(6 * var(--px)) calc(-1 * var(--px)) 0; max-width: none; }
+.plano__abrir { display: grid; place-items: center; width: 100%; padding: calc(2 * var(--px)); line-height: 0; }
+.plano__abrir svg { display: block; width: calc(96 * var(--px)); height: calc(44 * var(--px)); }
+.plano__botones { display: flex; gap: calc(2 * var(--px)); }
+.plano__botones .u-boton { font-size: .9em; }
+
+/* Abajo: «Salida segura» y herramientas a la izquierda; la acción cercana a la derecha. */
+.abajo-izq { position: absolute; left: var(--borde); bottom: var(--borde); display: flex; align-items: flex-end; gap: calc(4 * var(--px)); }
+.abajo-izq > .u-salida { min-height: calc(28 * var(--px)); }
+.herramientas { display: flex; flex-direction: column; align-items: flex-start; }
+.herramientas .pestana { color: var(--tinta-suave); }
+.herramientas .pestana b { color: var(--luz); font-weight: 700; }
+.ranuras { display: flex; gap: calc(2 * var(--px)); }
+.u-ranura { --m: var(--marco-ficha); --t: var(--trama-ficha); position: relative; width: calc(28 * var(--px)); height: calc(28 * var(--px)); padding: 0; display: grid; place-items: center; }
+.u-ranura i { display: block; width: calc(20 * var(--px)); height: calc(20 * var(--px)); background-image: var(--h); background-size: calc(120 * var(--px)) calc(20 * var(--px)); background-repeat: no-repeat; image-rendering: pixelated; }
+.u-ranura--bloqueada i { filter: grayscale(1) contrast(.75) brightness(1.05); opacity: .5; }
+/* La sombra de tramado de la placa del cuadro (sombra.png), bajo cada pieza que flota sobre la sala. */
+.objetivo, .barra-der, .plano__abrir, .accion, .abajo-izq > .u-salida, .tel-abajo .u-salida, .u-ranura, .aviso, .aviso-puerta, .franja { position: relative; }
+.objetivo::after, .barra-der::after, .plano__abrir::after, .accion::after, .abajo-izq > .u-salida::after, .tel-abajo .u-salida::after, .u-ranura::before, .aviso::after, .aviso-puerta::after {
+  content: ''; position: absolute; left: calc(-2 * var(--px)); right: calc(-2 * var(--px)); bottom: calc(-6 * var(--px)); height: calc(2 * var(--px));
+  background-image: var(--sombra); background-size: calc(2 * var(--px)); image-rendering: pixelated; pointer-events: none;
+}
+.objetivo[aria-expanded="true"]::after { display: none; }
+.u-ranura--bloqueada .candado { position: absolute; right: calc(-1 * var(--px)); bottom: calc(-1 * var(--px)); color: var(--tinta-suave); filter: drop-shadow(var(--px) 0 0 var(--contorno)) drop-shadow(0 var(--px) 0 var(--contorno)) drop-shadow(calc(-1 * var(--px)) 0 0 var(--contorno)) drop-shadow(0 calc(-1 * var(--px)) 0 var(--contorno)); }
+.u-ranura--nueva { --m: var(--marco-ficha-foco); --t: var(--trama-ficha-sobre); }
+.u-ranura--nueva i { animation: brillo .5s steps(4) 8; background-position-x: calc(-20 * var(--px)); }
+@keyframes brillo { from { background-position-x: calc(-20 * var(--px)); } to { background-position-x: calc(-100 * var(--px)); } }
+.u-ranura--nueva::after { content: ''; position: absolute; top: calc(-3 * var(--px)); right: calc(-3 * var(--px)); width: calc(3 * var(--px)); height: calc(3 * var(--px)); background: var(--luz); box-shadow: 0 0 0 var(--px) var(--contorno); }
+.u-ranura:focus-visible { --m: var(--marco-ficha-foco); --t: var(--trama-ficha-sobre); outline: none; }
+@media (hover: hover) and (pointer: fine) { .u-ranura:hover { --m: var(--marco-ficha-sobre); --t: var(--trama-ficha-sobre); } }
+
+.abajo-der { position: absolute; right: var(--borde); bottom: var(--borde); display: flex; align-items: flex-end; gap: calc(3 * var(--px)); max-width: 44%; }
+.accion { display: grid; grid-template-columns: auto auto minmax(0, 1fr); align-items: center; gap: calc(4 * var(--px)); min-height: calc(28 * var(--px)); padding: calc(2 * var(--px)) calc(6 * var(--px)) calc(3 * var(--px)) calc(4 * var(--px)); text-align: left; }
+.accion__txt { display: grid; gap: 2px; min-width: 0; }
+.accion__txt strong { font-weight: 600; }
+.accion__motivo { width: fit-content; max-width: 100%; padding: 1px calc(3 * var(--px)); background: var(--ambar-fondo); color: var(--ambar); font-size: .86em; font-weight: 700; line-height: 1.3; }
+@media (hover: hover) and (pointer: fine) { .accion:hover { --m: var(--marco-ficha-sobre); --t: var(--trama-ficha-sobre); } }
+.accion:focus-visible { --m: var(--marco-ficha-foco); --t: var(--trama-ficha-sobre); outline: none; }
+
+/* Variante A: franja continua arriba. */
+.franja { position: absolute; left: 0; right: 0; top: 0; --m: var(--marco-placa); --t: var(--trama-placa); border-image-width: 0 0 calc(4 * var(--px)) 0; border-width: 0 0 calc(4 * var(--px)) 0; display: flex; align-items: center; gap: calc(5 * var(--px)); padding: calc(3 * var(--px)) var(--borde); min-height: calc(30 * var(--px)); }
+.franja__caso { display: flex; align-items: center; gap: calc(4 * var(--px)); min-width: 0; flex: 0 1 auto; }
+.franja__marca { font-family: var(--f-nombre); font-weight: 700; letter-spacing: .14em; color: var(--luz); font-size: .9em; }
+.franja__titulo { font-weight: 700; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; min-width: 0; max-width: 24ch; }
+.franja__centro { flex: 1; display: flex; justify-content: center; align-items: center; gap: calc(4 * var(--px)); min-width: 0; color: var(--tinta-suave); }
+.franja__lugar { display: flex; align-items: center; gap: calc(2 * var(--px)); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; min-width: 0; }
+.chip { font-family: var(--f-nombre); font-weight: 700; font-size: .82em; color: var(--luz); padding: 1px calc(3 * var(--px)) calc(1 * var(--px)); background: #262236; box-shadow: 0 0 0 var(--px) var(--contorno); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; min-width: 0; }
+.pantalla[data-var="A"] .esq-izq { top: calc(var(--alto-franja) + var(--borde)); }
+.pantalla[data-var="A"] .carril { top: calc(var(--alto-franja) + var(--borde)); }
+
+/* Cine (M1): franjas negras en la decisión; en B la de arriba aloja el HUD reducido. */
+.cine-arriba { position: absolute; left: 0; right: 0; top: 0; height: clamp(28px, 8%, 72px); background: var(--cine); display: flex; align-items: center; justify-content: space-between; gap: calc(6 * var(--px)); padding: 0 var(--borde); }
+.cine-abajo { position: absolute; left: 0; right: 0; bottom: 0; background: var(--cine); }
+.cine-arriba__izq { display: flex; align-items: center; gap: calc(4 * var(--px)); min-width: 0; font-size: .92em; color: var(--tinta-suave); }
+.cine-arriba__izq .chip { flex: none; }
+.cine-arriba__obj { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; min-width: 0; }
+.cine-arriba__obj b { font-family: var(--f-nombre); font-weight: 700; color: var(--tinta-suave); font-size: .86em; margin-right: .4em; }
+
+/* Capas: velo de pausa, capítulo e «Ir a…». */
+.velo { position: absolute; inset: 0; background: rgba(11, 10, 18, .78); }
+.velo--capitulo { background: rgba(11, 10, 18, .93); }
+.modal { position: absolute; left: 50%; top: 50%; transform: translate(-50%, -50%); width: min(720px, calc(100% - 2 * var(--borde))); display: grid; gap: calc(5 * var(--px)); padding: calc(7 * var(--px)) calc(9 * var(--px)) calc(8 * var(--px)); }
+.pantalla[data-tam="1920"] .modal { width: min(980px, 60%); }
+.modal__cab { display: flex; align-items: center; gap: calc(7 * var(--px)); }
+.modal__cab .ventanilla { width: calc(32 * var(--rp) * 1.5px); height: calc(32 * var(--rp) * 1.5px); }
+.modal__cab .ventanilla img { left: 0; top: 0; width: 100%; height: 100%; }
+.kicker { margin: 0; font-family: var(--f-nombre); font-weight: 700; font-size: .82em; letter-spacing: .06em; text-transform: uppercase; color: var(--luz); }
+.modal h2 { margin: 0; font-family: var(--f-texto); font-weight: 700; font-size: 1.6em; line-height: 1.2; color: var(--tinta); }
+.modal p { margin: 0; }
+.modal__acciones { display: flex; flex-wrap: wrap; gap: calc(4 * var(--px)); align-items: center; }
+.u-ficha--primaria { --m: var(--marco-ficha-elegida); --t: var(--trama-ficha-elegida); background-color: #f0e6cf; color: var(--tinta-oscura); display: inline-flex; align-items: center; gap: calc(3 * var(--px)); min-height: 44px; padding: 0 calc(7 * var(--px)) 1px; font-weight: 700; }
+.u-ficha--primaria:focus-visible { outline: calc(1 * var(--px)) solid var(--luz); outline-offset: calc(2 * var(--px)); }
+.hundido { padding: calc(3 * var(--px)) calc(5 * var(--px)) calc(4 * var(--px)); background: #141220 var(--trama-placa-pulsada) 0 0 / calc(8 * var(--px)); box-shadow: inset 0 var(--px) 0 #0c0b13, 0 0 0 var(--px) #2a2638; image-rendering: pixelated; display: grid; gap: calc(2 * var(--px)); }
+.hundido ul { margin: 0; padding-left: 1.1em; display: grid; gap: 2px; }
+.capitulo { position: absolute; left: 50%; top: 46%; transform: translate(-50%, -50%); display: flex; flex-direction: column; align-items: center; max-width: min(760px, 86%); }
+.capitulo .u-placa { padding: calc(6 * var(--px)) calc(12 * var(--px)) calc(7 * var(--px)); font-style: italic; font-weight: 600; font-size: 1.5em; text-align: center; line-height: 1.4; }
+.capitulo .pestana { margin: 0 0 calc(-1 * var(--px)) 0; font-size: 1em; letter-spacing: .06em; }
+.lista-ir { display: grid; gap: calc(2 * var(--px)); }
+.lista-ir button { display: grid; grid-template-columns: 7em minmax(0, 1fr) auto; align-items: center; gap: calc(4 * var(--px)); min-height: 48px; padding: calc(1 * var(--px)) calc(5 * var(--px)) calc(2 * var(--px)) calc(4 * var(--px)); text-align: left; font-weight: 600; }
+.lista-ir small { font-family: var(--f-nombre); font-weight: 700; font-size: .78em; letter-spacing: .06em; color: var(--tinta-suave); }
+.lista-ir .aviso-mini { font-weight: 400; color: var(--tinta-suave); font-size: .86em; display: flex; align-items: center; gap: calc(2 * var(--px)); }
+
+/* Zonas: lo que tapa la interfaz, para medir contra hoy. */
+.zona { position: absolute; background: rgba(255, 70, 170, .28); outline: 1px solid rgba(255, 70, 170, .8); pointer-events: none; }
+
+/* ── Teléfono: flujo en columnas (nada se monta). Como hoy, sin título del caso, lugar ni texto de la persona. ── */
+.tel-arriba, .tel-abajo { position: absolute; left: var(--borde); right: var(--borde); display: flex; flex-direction: column; gap: calc(2 * var(--px)); }
+.tel-arriba { top: var(--borde); }
+.tel-abajo { bottom: var(--borde); }
+.tel-arriba .barra-der { justify-content: space-between; }
+.tel-arriba .persona__txt, .tel-arriba .separador { display: none; }
+.tel-arriba .esq-izq { position: static; width: 100%; }
+.tel-arriba .objetivo__kicker { display: none; }
+.tel-arriba .objetivo__texto { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.tel-arriba .carril { position: static; transform: none; max-width: 100%; width: 100%; margin-top: calc(1 * var(--px)); }
+.tel-abajo .accion { width: 100%; }
+.tel-abajo .herramientas { align-self: flex-start; }
+.tel-camara { position: absolute; right: var(--borde); top: 44%; display: flex; flex-direction: column; gap: calc(2 * var(--px)); }
+.pantalla[data-tam="390"] .modal { padding: calc(5 * var(--px)) calc(5 * var(--px)) calc(6 * var(--px)); }
+.pantalla[data-tam="390"] .modal h2 { font-size: 1.35em; }
+.pantalla[data-tam="390"] .lista-ir button { grid-template-columns: 5.6em minmax(0, 1fr); }
+.pantalla[data-tam="390"] .lista-ir .aviso-mini { grid-column: 2; }
+.pantalla[data-tam="390"] .capitulo .u-placa { font-size: 1.2em; padding: calc(5 * var(--px)) calc(7 * var(--px)) calc(6 * var(--px)); }
+
+/* ── El cuadro de diálogo de I1 (copiado de dialogue-panel.component.ts @ 0fceb11e, con la salida y la pista en placa) ── */
+.dlg { position: absolute; left: 0; right: 0; bottom: 0; }
+.dialogue-strip { --capa-pestana: 1; --capa-cabecera: 3; position: relative; width: 100%; display: flex; flex-direction: column; align-items: stretch; gap: calc(4 * var(--px)); padding: calc(16 * var(--px)) calc(8 * var(--px)) calc(10 * var(--px)); color: var(--tinta); font-family: var(--f-texto); font-size: var(--tam-d); line-height: 1.45; --dialogo-alto-max: min(340px, 46vh); }
+.pantalla[data-tam="1920"] .dialogue-strip { --dialogo-alto-max: min(560px, 52vh); }
+.dialogue-strip .placa-cuerpo, .dialogue-strip .speaker-name, .dialogue-strip .panel-head__note, .dialogue-strip .choice-btn, .dialogue-strip .choices-notice, .dialogue-strip .keyboard-hint, .dialogue-strip .portrait {
+  border-style: solid; border-width: calc(4 * var(--px)); border-image: var(--m) 4 / calc(4 * var(--px)) stretch; border-radius: 0;
+  background-color: var(--penumbra); background-image: var(--t); background-size: calc(8 * var(--px)); background-clip: padding-box; background-origin: padding-box; image-rendering: pixelated;
+}
+.dialogue-strip .strip-main { display: grid; grid-template-columns: minmax(0, 11fr) minmax(0, 14fr); gap: calc(8 * var(--px)); align-items: end; }
+.dialogue-strip:not(.strip--con-opciones) .strip-main { grid-template-columns: minmax(0, min(46em, 100%)); }
+.dialogue-strip:not(.strip--con-opciones) .strip-body { display: none; }
+.dialogue-strip.strip--con-opciones { display: grid; height: var(--dialogo-alto-max); grid-template-columns: minmax(0, 11fr) minmax(0, 14fr); grid-template-rows: minmax(0, 1fr) auto minmax(0, auto); column-gap: calc(8 * var(--px)); row-gap: calc(4 * var(--px)); padding-top: calc(4 * var(--px)); overflow: clip; }
+@supports (height: calc-size(max-content, size)) { .dialogue-strip.strip--con-opciones { height: calc-size(max-content, min(size, var(--dialogo-alto-max))); } }
+.dialogue-strip.strip--con-opciones .strip-main { display: contents; }
+.dialogue-strip.strip--con-opciones .placa { grid-column: 1; grid-row: 1 / -1; align-self: end; min-width: 0; }
+.dialogue-strip.strip--con-opciones .strip-body { grid-column: 2; grid-row: 3; min-height: 0; grid-template-rows: auto minmax(0, auto) auto; align-content: start; }
+.dialogue-strip.strip--con-opciones .strip-body > .choices-notice, .dialogue-strip.strip--con-opciones .strip-body > .pista { grid-row: 1; }
+.dialogue-strip.strip--con-opciones .strip-body > .keyboard-hint:last-child { grid-row: 3; }
+.dialogue-strip.strip--con-opciones .choices { grid-row: 2; align-self: stretch; min-height: 0; grid-auto-rows: minmax(min-content, 1fr); align-content: start; overflow-y: auto; scrollbar-width: thin; scrollbar-color: #ffcd82 #1b1826; padding-top: var(--px); padding-bottom: calc(2 * var(--px)); }
+.pantalla[data-tam="1366"] .dialogue-strip.strip--con-opciones .strip-body > .keyboard-hint:last-child, .pantalla[data-tam="390"] .dialogue-strip.strip--con-opciones .strip-body > .keyboard-hint:last-child { display: none; }
+.dialogue-strip .panel-head { position: relative; z-index: var(--capa-cabecera); display: grid; gap: calc(3 * var(--px)); justify-items: end; }
+.dialogue-strip:not(.strip--con-opciones) .panel-head { position: absolute; right: calc(8 * var(--px)); bottom: calc(10 * var(--px)); }
+.dialogue-strip .panel-head__row { display: flex; align-items: center; justify-content: flex-end; gap: calc(4 * var(--px)); flex-wrap: wrap; }
+.dialogue-strip .panel-head__note { --m: var(--marco-placa); --t: var(--trama-placa); margin: 0; display: flex; align-items: baseline; flex-wrap: wrap; gap: 2px 12px; padding: 1px 10px 3px; font-size: .8em; line-height: 1.35; color: #c3bccf; }
+.dialogue-strip .panel-chip { font-family: var(--f-nombre); font-weight: 700; font-size: 1.05em; letter-spacing: .02em; color: #ffcd82; }
+.dialogue-strip .panel-back { font-size: .82em; gap: 10px; padding: 0 12px 1px 8px; }
+.dialogue-strip .panel-head .u-salida { font-size: .82em; padding: 0 12px 1px 8px; }
+.dialogue-strip .placa { min-width: 0; display: flex; flex-direction: column; }
+.dialogue-strip .speaker-name { --m: var(--marco-rotulo); --t: var(--trama-placa); align-self: flex-start; position: relative; z-index: var(--capa-pestana); margin: 0 0 calc(-1 * var(--px)) calc(var(--retrato) + 18 * var(--px)); border-bottom-width: 0; padding: 1px calc(4 * var(--px)) calc(2 * var(--px)); font-family: var(--f-nombre); font-weight: 700; font-size: 1.1em; line-height: 1.2; letter-spacing: .01em; color: var(--luz); }
+.dialogue-strip .placa-cuerpo { --m: var(--marco-placa); --t: var(--trama-placa); position: relative; display: grid; grid-template-columns: auto minmax(0, 1fr); gap: calc(6 * var(--px)); padding: calc(4 * var(--px)) calc(5 * var(--px)) calc(3 * var(--px)) calc(4 * var(--px)); }
+.dialogue-strip .placa-cuerpo::after, .dialogue-strip .choice-btn::after { content: ''; position: absolute; left: calc(-2 * var(--px)); right: calc(-2 * var(--px)); bottom: calc(-6 * var(--px)); height: calc(2 * var(--px)); background-image: var(--sombra); background-size: calc(2 * var(--px)); image-rendering: pixelated; pointer-events: none; }
+.dialogue-strip .portrait { --m: var(--marco-ficha); --t: none; position: relative; align-self: end; margin-top: calc(-14 * var(--px)); width: calc(var(--retrato) + 8 * var(--px)); height: calc(var(--retrato) + 8 * var(--px)); display: grid; place-items: end center; overflow: hidden; background-color: #6c6589; }
+.dialogue-strip .portrait-img { display: block; width: var(--retrato); height: var(--retrato); image-rendering: pixelated; }
+.dialogue-strip .placa-habla { min-width: 0; display: flex; flex-direction: column; gap: calc(3 * var(--px)); padding-top: var(--px); }
+.dialogue-strip .dialogue-text { margin: 0; min-height: 4.35em; white-space: pre-line; overflow-wrap: break-word; color: var(--tinta); }
+.dialogue-strip .dialogue-text .acot { font-style: italic; color: var(--tinta-suave); }
+.dialogue-strip .placa-pie { display: flex; justify-content: flex-end; align-items: center; min-height: 44px; gap: 8px; }
+.dialogue-strip .close-btn { display: inline-flex; align-items: center; gap: 8px; min-height: 44px; padding: 0 2px; border: 0; background: transparent; color: var(--tinta); font-size: .9em; font-weight: 600; }
+.dialogue-strip .strip-body { min-width: 0; display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: center; gap: calc(3 * var(--px)) calc(4 * var(--px)); }
+.dialogue-strip .strip-body > * { grid-column: 1 / -1; }
+.dialogue-strip .strip-body > .choices-notice { grid-column: 1; }
+.dialogue-strip .strip-body > .pista { grid-column: 2; justify-self: end; }
+.dialogue-strip.strip--con-opciones .panel-head { grid-column: 2; grid-row: 2; position: static; grid-template-columns: minmax(0, 1fr) auto; align-items: center; justify-items: stretch; }
+.dialogue-strip.strip--con-opciones .panel-head__note { grid-row: 1; grid-column: 1; }
+.dialogue-strip.strip--con-opciones .panel-head__row { grid-row: 1; grid-column: 2; flex-wrap: nowrap; }
+.dialogue-strip .choices { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); grid-auto-rows: 1fr; gap: calc(5 * var(--px)); padding-left: calc(10 * var(--px)); margin-left: calc(-10 * var(--px)); }
+.dialogue-strip .choice-btn { --m: var(--marco-ficha); --t: var(--trama-ficha); position: relative; display: grid; grid-template-columns: auto minmax(0, 1fr); gap: calc(5 * var(--px)); align-items: start; min-height: 48px; padding: calc(2 * var(--px)) calc(4 * var(--px)) calc(3 * var(--px)) calc(3 * var(--px)); color: var(--tinta); font-size: .94em; line-height: 1.35; text-align: left; }
+.dialogue-strip .choice-btn:focus-visible, .dialogue-strip .choice-btn.foco { --m: var(--marco-ficha-foco); --t: var(--trama-ficha-sobre); outline: none; }
+.dialogue-strip .choice-btn.foco .choice-num { border-image-source: var(--marco-tecla-encendida); background-color: var(--luz); --lt: var(--lo); }
+.dialogue-strip .choice-btn.foco .choice-btn__cursor { display: block; }
+@media (hover: hover) and (pointer: fine) { .dialogue-strip .choice-btn:hover { --m: var(--marco-ficha-sobre); --t: var(--trama-ficha-sobre); } }
+.dialogue-strip .choice-num { --lc: none; --lo: none; --lt: var(--lc); display: grid; place-items: center; min-width: calc(15 * var(--px)); min-height: calc(17 * var(--px)); margin-top: 1px; border-width: calc(4 * var(--px)); border-style: solid; border-image: var(--marco-tecla) 4 / calc(4 * var(--px)) stretch; background: #3a3454 padding-box; image-rendering: pixelated; }
+.dialogue-strip .choice-num::after { content: ''; width: calc(7 * var(--px)); height: calc(9 * var(--px)); background: var(--lt) 0 0 / 100% 100% no-repeat; image-rendering: pixelated; }
+.dialogue-strip .choice-num[data-letra="A"] { --lc: var(--letra-A-clara); --lo: var(--letra-A-oscura); }
+.dialogue-strip .choice-num[data-letra="B"] { --lc: var(--letra-B-clara); --lo: var(--letra-B-oscura); }
+.dialogue-strip .choice-num[data-letra="C"] { --lc: var(--letra-C-clara); --lo: var(--letra-C-oscura); }
+.dialogue-strip .choice-num[data-letra="D"] { --lc: var(--letra-D-clara); --lo: var(--letra-D-oscura); }
+.dialogue-strip .choice-btn__cursor { display: none; position: absolute; left: calc(-11 * var(--px)); top: 50%; width: calc(6 * var(--px)); height: calc(7 * var(--px)); margin-top: calc(-3.5 * var(--px)); background: var(--cursor) 0 0 / 100% 100% no-repeat; image-rendering: pixelated; }
+.dialogue-strip .choice-btn__body { display: grid; gap: 5px; min-width: 0; padding-top: .1em; overflow-wrap: break-word; }
+.dialogue-strip .choice-btn__hint { width: fit-content; max-width: 100%; padding: 1px 6px; background: #3b2a12; color: #f5d49b; font-size: .8em; font-weight: 700; line-height: 1.3; }
+.dialogue-strip .choice-btn--unavailable { cursor: not-allowed; opacity: .72; }
+.dialogue-strip .choices-notice { --m: var(--marco-placa); --t: var(--trama-placa); margin: 0; padding: 2px 10px 4px; color: #f5e3c0; font-size: .84em; line-height: 1.45; }
+.dialogue-strip .keyboard-hint { --m: var(--marco-placa); --t: var(--trama-placa); align-self: flex-start; margin: 0; padding: 0 8px 1px; font-size: .78em; color: #c3bccf; }
+.dialogue-strip .pista .u-boton { font-size: .82em; }
+.dialogue-strip.strip--con-opciones .strip-body[data-mas]::after { content: '▼ ' attr(data-mas); display: block; grid-row: 4; grid-column: 1 / -1; justify-self: start; padding: 0 8px 1px; color: #ffcd82; font-family: var(--f-nombre); font-size: .78em; border-style: solid; border-width: calc(4 * var(--px)); border-image: var(--marco-placa) 4 / calc(4 * var(--px)) stretch; background: var(--penumbra) var(--trama-placa) 0 0 / calc(8 * var(--px)) padding-box; image-rendering: pixelated; }
+.dialogue-strip .tecla-pie { font-size: .82em; }
+.pantalla[data-tam="390"] .dialogue-strip { --dialogo-alto-max: 64vh; padding-left: calc(4 * var(--px)); padding-right: calc(4 * var(--px)); padding-top: calc(10 * var(--px)); }
+.pantalla[data-tam="390"] .dialogue-strip .portrait { margin-top: calc(-8 * var(--px)); }
+.pantalla[data-tam="390"] .dialogue-strip .strip-main { grid-template-columns: minmax(0, 1fr); gap: calc(4 * var(--px)); }
+.pantalla[data-tam="390"] .dialogue-strip .choices { grid-template-columns: minmax(0, 1fr); grid-auto-rows: auto; gap: calc(3 * var(--px)); }
+.pantalla[data-tam="390"] .dialogue-strip .speaker-name { margin-left: calc(var(--retrato) + 14 * var(--px)); }
+.pantalla[data-tam="390"] .dialogue-strip .dialogue-text { min-height: 2.9em; }
+.pantalla[data-tam="390"] .dialogue-strip.strip--con-opciones { --dialogo-alto-max: 68vh; --tam-d: 16px; grid-template-columns: minmax(0, 1fr); grid-template-rows: minmax(0, 1fr) auto auto minmax(0, auto); row-gap: calc(3 * var(--px)); padding-bottom: calc(4 * var(--px)); }
+.pantalla[data-tam="390"] .dialogue-strip.strip--con-opciones .choices { grid-template-columns: minmax(0, 1fr); grid-auto-rows: minmax(min-content, auto); gap: calc(3 * var(--px)); }
+.pantalla[data-tam="390"] .dialogue-strip.strip--con-opciones .panel-head { grid-column: 1; grid-row: 2; }
+.pantalla[data-tam="390"] .dialogue-strip.strip--con-opciones .placa { grid-column: 1; grid-row: 3; }
+.pantalla[data-tam="390"] .dialogue-strip.strip--con-opciones .strip-body { grid-column: 1; grid-row: 4; }
+.pantalla[data-tam="390"] .dialogue-strip.strip--con-opciones .panel-head__note { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); }
+.pantalla[data-tam="390"] .dialogue-strip:not(.strip--con-opciones) .panel-head { position: static; }
+
+/* Movimiento: por pasos y finito; con movimiento reducido, todo quieto. */
+.pantalla[data-quieto] .pulso, .pantalla[data-quieto] .u-ranura--nueva i { animation: none; }
+@media (prefers-reduced-motion: reduce) {
+  .pulso, .u-ranura--nueva i { animation: none; }
+  .u-boton:active, .u-salida:active, .u-tecla--icono:active { transform: none; }
+}
+</style>
+
+<div class="pagina" id="pagina">
+  <header class="cab">
+    <h1>Pantalla del juego unificada</h1>
+    <p>Muestra para aprobar: toda la pantalla del juego con las placas y fichas del cuadro de diálogo, sobre la sala de espera de SIM-VBG-002 de noche. Nada de esto se aplicó todavía al juego.</p>
+  </header>
+  <nav class="mandos" aria-label="Qué mostrar">
+    <div class="grupo" role="group" aria-labelledby="g-estado"><span class="grupo__nombre" id="g-estado">Estado</span><span id="estados" class="grupo" style="gap:6px"></span></div>
+    <div class="grupo" role="group" aria-labelledby="g-tam"><span class="grupo__nombre" id="g-tam">Pantalla</span>
+      <button type="button" data-tam="1366">1366 × 768</button><button type="button" data-tam="1920">1920 × 1080</button><button type="button" data-tam="390">390 × 844</button></div>
+    <div class="grupo" role="group" aria-labelledby="g-vista"><span class="grupo__nombre" id="g-vista">Ver</span>
+      <button type="button" data-vista="lado">Hoy y nueva</button><button type="button" data-vista="nueva">Solo nueva</button><button type="button" data-vista="hoy">Solo hoy</button></div>
+    <div class="grupo" role="group" aria-labelledby="g-var"><span class="grupo__nombre" id="g-var">Parte de arriba</span>
+      <button type="button" data-var="B">B · Placas en las esquinas<span class="reco">recomendada</span></button><button type="button" data-var="A">A · Franja continua</button></div>
+    <div class="grupo" role="group" aria-labelledby="g-mas"><span class="grupo__nombre" id="g-mas">Comprobar</span>
+      <button type="button" id="b-zonas" aria-pressed="false">Lo que tapa la interfaz</button><button type="button" id="b-quieto" aria-pressed="false">Movimiento reducido</button><button type="button" id="b-defecto" aria-pressed="false" hidden>Puerta junto a la ficha del objetivo</button></div>
+  </nav>
+  <section class="escena" id="escena" aria-live="polite"></section>
+  <section class="notas" id="notas"></section>
+</div>
+
+<script>
+/*__ARTE__*/
+/*__HOY__*/
+
+// ── Iconos de pixel: una matriz de caracteres por icono, un rectángulo por tramo de color. ─────────────────────────────
+const COL = { X: 'currentColor', s: 'var(--tinta-suave)', l: 'var(--luz)', d: '#15131d', a: 'var(--ambar)', p: 'var(--penumbra)' };
+const ICONOS = {
+  ira: ['........X', '......XXX', '....XXXX.', '..XXXXXX.', 'XXXXXXXX.', '....XXX..', '....XX...', '....X....'],
+  ayuda: ['..XXXXX..', '.XX...XX.', '.XX...XX.', '.....XX..', '....XX...', '....XX...', '.........', '....XX...', '....XX...'],
+  bitacora: ['XXXX.XXXX', 'X..XXX..X', 'X.s.X.s.X', 'X..sXs..X', 'X.s.X.s.X', 'X..sXs..X', 'X...X...X', 'XXXXXXXXX'],
+  ajustes: ['...X.X...', '.X.XXX.X.', '..XXXXX..', 'XXXX.XXXX', '.XX...XX.', 'XXXX.XXXX', '..XXXXX..', '.X.XXX.X.', '...X.X...'],
+  inicio: ['....X....', '...XXX...', '..XXXXX..', '.XXXXXXX.', 'XXXXXXXXX', '.X.....X.', '.X.XX..X.', '.X.XX..X.', '.XXXXXXX.'],
+  pin: ['.XXXXX.', 'XX...XX', 'XX...XX', 'XXX.XXX', '.XXXXX.', '..XXX..', '...X...'],
+  aviso: ['....X....', '...XXX...', '..XX.XX..', '..XX.XX..', '.XXXXXXX.', '.XXX.XXX.', 'XXXXXXXXX'],
+  candado: ['..XXX..', '.X...X.', '.X...X.', 'XXXXXXX', 'XXXdXXX', 'XXXdXXX', 'XXXXXXX'],
+  lupa: ['.XXXX....', 'X....X...', 'X....X...', 'X....X...', 'X....X...', '.XXXXX...', '.....XX..', '......XX.', '.......XX'],
+  cerrar: ['XX...XX', '.XX.XX.', '..XXX..', '.XX.XX.', 'XX...XX'],
+  pausa: ['XX.XX', 'XX.XX', 'XX.XX', 'XX.XX', 'XX.XX', 'XX.XX', 'XX.XX'],
+  hecho: ['......X', '.....XX', 'X...XX.', 'XX.XX..', '.XXX...', '..X....'],
+  cola: ['dpppppd', '.dpppd.', '..dpd..', '...d...'],
+  colaArriba: ['...d...', '..dpd..', '.dpppd.', 'dpppppd'],
+  colaDer: ['d...', 'pd..', 'ppd.', 'pppd', 'ppd.', 'pd..', 'd...'],
+  colaIzq: ['...d', '..dp', '.dpp', 'dppp', '.dpp', '..dp', '...d'],
+};
+function ico(nombre, extra = '') {
+  const m = ICONOS[nombre]; const h = m.length; const w = m[0].length; let r = '';
+  m.forEach((fila, y) => { let x = 0; while (x < w) { const c = fila[x]; if (c === '.') { x++; continue; } let x2 = x; while (x2 < w && fila[x2] === c) x2++; r += `<rect x="${x}" y="${y}" width="${x2 - x}" height="1" fill="${COL[c]}"/>`; x = x2; } });
+  return `<svg class="ico ${extra}" viewBox="0 0 ${w} ${h}" style="--iw:${w};--ih:${h}" shape-rendering="crispEdges" aria-hidden="true" focusable="false">${r}</svg>`;
+}
+
+// ── El plano de SIM-VBG-002 (ilustrativo: la disposición real la da el layout del caso que lee M1). ────────────────────
+const SALAS = [
+  { k: 'triaje', x: 2, y: 2, w: 20, h: 16 }, { k: 'enfermeria', x: 24, y: 2, w: 22, h: 16 },
+  { k: 'trabajo', x: 52, y: 2, w: 20, h: 16 }, { k: 'escucha', x: 74, y: 2, w: 20, h: 16 },
+  { k: 'entrada', x: 2, y: 22, w: 28, h: 20 }, { k: 'espera', x: 32, y: 22, w: 26, h: 20 },
+  { k: 'pasillo', x: 60, y: 22, w: 34, h: 8 }, { k: 'recuperacion', x: 60, y: 32, w: 34, h: 10 },
+];
+const VISITADAS = new Set(['entrada', 'espera']);
+function planoSvg() {
+  let r = '';
+  for (const s of SALAS) {
+    const actual = s.k === 'espera', vista = VISITADAS.has(s.k);
+    const relleno = actual ? 'var(--luz)' : vista ? '#3a3454' : 'none';
+    const linea = actual ? '#15131d' : vista ? 'var(--tinta-suave)' : '#5c5672';
+    r += `<rect x="${s.x}.5" y="${s.y}.5" width="${s.w - 1}" height="${s.h - 1}" fill="${relleno}" stroke="${linea}" stroke-width="1" ${!vista && !actual ? 'stroke-dasharray="2 1"' : ''}/>`;
+  }
+  r += '<rect x="44" y="30" width="2" height="2" fill="#15131d"/>'; // quien juega, en la sala actual
+  return `<svg viewBox="0 0 96 44" shape-rendering="crispEdges" aria-hidden="true" focusable="false">${r}</svg>`;
+}
+
+// ── Escenas: la cámara, quien juega, rótulos y lo cercano, por estado. Coordenadas del mundo (render de P2, ×1). ──────────
+const SALA = { w: 1440, h: 528 };
+const PNJ = [{ x: 640, y: 333, nombre: 'Abuela de la niña' }, { x: 1030, y: 303, nombre: 'Hermano mayor' }];
+const PUERTA = { x: 720, arriba: 128, abajo: 236, izq: 690, der: 750, texto: 'Pasar a Pasillo', detalle: 'Todavía no se puede pasar.' };
+const CASO = 'Violencia Familiar y Tentativa de Feminicidio';
+const LUGAR = 'Hospital — Sala de espera';
+const ETAPA = 'Sala de espera: contener antes de informar';
+const OBJETIVO = 'Entiende qué está viviendo la familia y qué necesita ahora, antes de decidir cómo acompañarla.';
+const PERSONA = 'se muestra cautelosa y tensa';
+const SENSIBLE = 'Este caso aborda violencia de género, tentativa de feminicidio y la muerte de una niña. Puedes usar la salida segura en cualquier momento.';
+const HERRAMIENTAS = [
+  { ref: 'pap', nombre: 'Primeros Auxilios Psicológicos' }, { ref: 'spikes', nombre: 'Protocolo EPICEE (SPIKES)' },
+  { ref: 'risk-meter', nombre: 'Valoración de riesgo' }, { ref: 'safety-route', nombre: 'Ruta de protección' },
+  { ref: 'reflection-journal', nombre: 'Bitácora reflexiva' },
+];
+const ESTADOS = [
+  { id: 'explorando', nombre: 'Explorando' }, { id: 'llegada', nombre: 'Al entrar a la sala' }, { id: 'puerta', nombre: 'Puerta cerrada' },
+  { id: 'aviso', nombre: 'Aviso breve' }, { id: 'conversacion', nombre: 'Conversación' }, { id: 'decision', nombre: 'Decisión' },
+  { id: 'pista', nombre: 'Pista disponible' }, { id: 'sinpista', nombre: 'Pista no disponible' }, { id: 'pausa', nombre: 'Pausa' },
+  { id: 'capitulo', nombre: 'Capítulo' }, { id: 'ira', nombre: 'Ir a…' },
+];
+const TAM = { 1366: { w: 1366, h: 768, z: 2 }, 1920: { w: 1920, h: 1080, z: 2 }, 390: { w: 390, h: 844, z: 1 } };
+const HOY_DE = {
+  explorando: { 1366: 'explorando-1366', 1920: 'explorando-1920', 390: 'explorando-390' },
+  llegada: { 1366: 'explorando-1366' }, puerta: { 1366: 'puerta-1366', 1920: 'puerta-1920' },
+  aviso: { 1366: 'aviso-1366', 1920: 'aviso-1920', 390: 'decision-390' },
+  conversacion: { 1366: 'conversacion-1366', 1920: 'conversacion-1920', 390: 'conversacion-390' },
+  decision: { 1366: 'decision-1366', 1920: 'decision-1920', 390: 'decision-390' },
+  pista: { 1366: 'pista-1366', 1920: 'pista-1920' }, sinpista: { 1366: 'pista-1366', 1920: 'pista-1920' },
+  pausa: { 1366: 'pausa-1366', 390: 'pausa-390' }, capitulo: { 1366: 'capitulo-1366' }, ira: { 1366: 'ira-1366', 390: 'ira-390' },
+};
+const HOY_NOTA = {
+  'explorando-1366': 'capturas-demo-i1e/05', 'explorando-1920': 'capturas-p2, puerta cerrada', 'explorando-390': 'baseline F10, 390',
+  'puerta-1366': 'capturas-p2, el aviso tapa la ficha', 'puerta-1920': 'capturas-p2', 'aviso-1366': 'capturas-i1, con aviso breve',
+  'aviso-1920': 'capturas-i1', 'conversacion-1366': 'capturas-demo-i1e/02', 'conversacion-1920': 'capturas-demo/26-1',
+  'conversacion-390': 'capturas-i1, teléfono', 'decision-1366': 'capturas-demo/26, 1366', 'decision-1920': 'capturas-demo/26-3',
+  'decision-390': 'capturas-i1, teléfono', 'pista-1366': '«Ver pista» de hoy: capturas-demo/26', 'pista-1920': 'capturas-demo/26-3',
+  'pausa-1366': 'baseline F10 a 1440 × 900', 'pausa-390': 'baseline F10, 390', 'capitulo-1366': 'capturas-demo-i1e/09',
+  'ira-1366': 'baseline F10 a 1440 × 900 (otro caso)', 'ira-390': 'baseline F10, 390',
+};
+// Lo que tapa hoy, medido sobre la captura de explorar (cabecera, marco del lienzo, pie, ficha del objetivo y plano).
+const HOY_TAPA = { 1366: '26 a 29', 1920: '17 a 20' };
+
+function escena(estado) {
+  const e = { val: { x: 720, y: 268, cara: 'espalda' }, foco: { x: 720, y: 250 }, kit: true, herramientas: 0, nueva: false,
+    accion: null, puerta: true, carril: [], objetivo: 'plegada', dialogo: null, capa: null, abajo: true, plano: true, cine: false };
+  const bloqueada = { tecla: 'E', candado: true, texto: 'Pasar a Pasillo', motivo: 'Antes de pasar, recoge algo de la sala.' };
+  const hablar = { tecla: 'E', texto: 'Hablar con Abuela de la niña' };
+  switch (estado) {
+    case 'explorando': e.accion = bloqueada; break;
+    case 'llegada': Object.assign(e, { val: { x: 720, y: 470, cara: 'frente' }, foco: { x: 720, y: 330 }, puerta: false,
+      accion: { tecla: 'E', texto: 'Pasar a Volver a la entrada de urgencias' } });
+      e.carril = [{ tipo: 'sensible-abierto' }, { tipo: 'sala', texto: ETAPA }]; break;
+    case 'puerta': e.accion = bloqueada; e.carril = [{ tipo: 'accion', texto: 'Antes de pasar, recoge algo de la sala.' }]; break;
+    case 'aviso': Object.assign(e, { val: { x: 872, y: 428, cara: 'frente' }, foco: { x: 820, y: 360 }, kit: false, herramientas: 1, nueva: true, puerta: false });
+      e.carril = [{ tipo: 'breve', texto: 'Obtuviste: Kit PAP. Ya está en tu barra de herramientas.' }]; break;
+    case 'conversacion': Object.assign(e, { val: { x: 706, y: 337, cara: 'izquierda' }, foco: { x: 672, y: 318 }, puerta: false, abajo: false, dialogo: 'conversacion' }); break;
+    case 'decision': Object.assign(e, { val: { x: 706, y: 337, cara: 'izquierda' }, foco: { x: 672, y: 300 }, puerta: false, abajo: false, plano: false, cine: true, dialogo: 'decision' }); break;
+    case 'pista': case 'sinpista': Object.assign(e, { val: { x: 706, y: 337, cara: 'izquierda' }, foco: { x: 700, y: 300 }, puerta: false,
+      objetivo: estado === 'pista' ? 'pista' : 'sinpista', accion: hablar }); break;
+    case 'pausa': Object.assign(e, { accion: bloqueada, capa: 'pausa' }); break;
+    case 'capitulo': Object.assign(e, { val: { x: 720, y: 470, cara: 'frente' }, foco: { x: 720, y: 330 }, puerta: false, capa: 'capitulo' }); break;
+    case 'ira': Object.assign(e, { accion: bloqueada, capa: 'ira' }); break;
+  }
+  return e;
+}
+
+// ── Piezas del HUD ───────────────────────────────────────────────────────────────────────────────────────────────────
+const tecla = (t) => `<span class="u-tecla u-tecla--letra" aria-hidden="true">${t}</span>`;
+function teclasMenu() {
+  return [['ira', 'Ir a… personas y puertas de la sala'], ['ayuda', 'Abrir cómo se juega'], ['bitacora', 'Abrir bitácora reflexiva (J)'],
+    ['ajustes', 'Abrir ajustes del juego'], ['inicio', 'Volver al catálogo de simulaciones']]
+    .map(([i, n]) => `<button type="button" class="u-tecla u-tecla--icono" aria-label="${n}" title="${n}">${ico(i)}</button>`).join('');
+}
+function persona(tam) {
+  return `<div class="persona" role="group" aria-label="${PERSONA}">
+    <span class="ventanilla" aria-hidden="true"><img src="${ARTE['retrato-abuela-familia-cautelosa']}" alt=""></span>
+    <span class="persona__txt"><span class="persona__quien">Abuela de la niña</span>
+      <span class="persona__estado"><i class="pulso" aria-hidden="true"></i><span>${PERSONA}</span></span></span></div>`;
+}
+function objetivo(e) {
+  const abierto = e.objetivo !== 'plegada';
+  let cuerpo = '';
+  if (abierto) {
+    const disponible = e.objetivo === 'pista';
+    cuerpo = `<div class="u-placa objetivo__cuerpo" id="obj-cuerpo">
+      <h3>En esta sala</h3>
+      <ul><li>Abuela de la niña · <span class="marca">aún no</span></li><li>Hermano mayor · <span class="marca marca--hecha">ya hablaste</span></li><li>Kit PAP · <span class="marca">aún no</span></li></ul>
+      <div class="pista"><button type="button" class="u-boton" ${disponible ? '' : 'aria-disabled="true" aria-describedby="pista-motivo"'}>Pedir una pista</button>
+        <span class="pista__nota" id="pista-motivo">${disponible ? '2 pistas por ver · sin costo' : 'Ya viste todas las pistas de esta escena.'}</span></div>
+    </div>`;
+  }
+  return `<div class="esq-izq" data-tapa>
+    <p class="u-rotulo pestana"><span class="pestana__txt">${ETAPA}</span></p>
+    <button type="button" class="u-boton objetivo" aria-expanded="${abierto}" ${abierto ? 'aria-controls="obj-cuerpo"' : ''}>
+      <span class="objetivo__kicker">Objetivo de la escena</span><span class="objetivo__texto">${OBJETIVO}</span><i class="seguir" aria-hidden="true"></i></button>
+    ${cuerpo}</div>`;
+}
+function esquinaDerecha(tam) {
+  return `<div class="esq-der" data-tapa>
+    <p class="u-rotulo pestana pestana--suave" title="${CASO}"><span class="pestana__txt">SIEP · ${CASO}</span></p>
+    <div class="u-placa barra-der">${persona(tam)}<span class="separador" aria-hidden="true"></span><div class="teclas">${teclasMenu()}</div></div></div>`;
+}
+function franja(tam) {
+  return `<header class="u-placa franja" data-tapa>
+    <span class="franja__caso"><span class="franja__marca">SIEP</span><span class="franja__titulo" title="${CASO}">${CASO}</span></span>
+    <span class="franja__centro"><span class="franja__lugar">${ico('pin')}<span>${LUGAR}</span></span>${sensibleChip()}</span>
+    ${persona(tam)}<span class="separador" aria-hidden="true"></span><div class="teclas">${teclasMenu()}</div></header>`;
+}
+function sensibleChip() {
+  return `<button type="button" class="u-boton sensible" aria-expanded="false" data-tapa>${ico('aviso')}<span>Contenido sensible</span></button>`;
+}
+function carril(e, variante) {
+  const piezas = [];
+  const abierto = e.carril.some((c) => c.tipo === 'sensible-abierto');
+  if (variante === 'B' && !abierto) piezas.push(sensibleChip());
+  for (const c of e.carril) {
+    if (c.tipo === 'sensible-abierto') piezas.push(`<div class="u-placa aviso aviso--sensible" data-tapa><p id="sens-txt">${SENSIBLE}</p>
+      <button type="button" class="u-boton sensible" aria-expanded="true" aria-controls="sens-txt" style="align-self:flex-end">${ico('aviso')}<span>Contenido sensible</span></button></div>`);
+    if (c.tipo === 'sala') piezas.push(`<div class="u-placa aviso aviso--sala" data-tapa>${c.texto}</div>`);
+    if (c.tipo === 'accion') piezas.push(`<div class="u-placa aviso aviso--accion" data-tapa>${ico('aviso')}<span>${c.texto}</span>
+      <button type="button" class="u-tecla u-tecla--icono u-tecla--cerrar" aria-label="Cerrar aviso">${ico('cerrar')}</button></div>`);
+    if (c.tipo === 'breve') piezas.push(`<div class="u-placa aviso aviso--breve" data-tapa>${ico('hecho')}<span>${c.texto}</span></div>`);
+  }
+  return `<div class="carril">${piezas.join('')}</div>`;
+}
+function plano(variante, topPx) {
+  const pest = variante === 'B'
+    ? `<p class="u-rotulo pestana">${ico('pin')}<span class="pestana__txt">${LUGAR}</span></p>`
+    : `<p class="u-rotulo pestana pestana--suave"><span class="pestana__txt">Plano</span></p>`;
+  return `<div class="plano" style="top:${topPx}" data-tapa>
+    <div class="plano__caja">${pest}
+    <button type="button" class="u-boton plano__abrir" aria-label="Abrir plano (M). Estás en: Sala de espera. Puertas: Entrada de urgencias, Pasillo.">${planoSvg()}</button></div>
+    <div class="plano__botones"><button type="button" class="u-boton">Ocultar plano</button>
+      <button type="button" class="u-boton" aria-pressed="false">${ico('lupa')}<span>Vista cercana</span>${tecla('Z')}</button></div></div>`;
+}
+function herramientas(e, tam) {
+  const ranuras = HERRAMIENTAS.map((h, i) => {
+    const tiene = i < e.herramientas; const nueva = tiene && e.nueva && i === e.herramientas - 1;
+    const cls = tiene ? (nueva ? 'u-ranura--nueva' : '') : 'u-ranura--bloqueada';
+    const nombre = `${h.nombre}: ${tiene ? 'Disponible.' : 'No disponible. Aún no tienes esta herramienta. Recógela en la sala.'}`;
+    return `<button type="button" class="u-ranura ${cls}" ${tiene ? '' : 'aria-disabled="true"'} tabindex="${i === 0 ? 0 : -1}" aria-label="${nombre}" title="${h.nombre}">
+      <i style="--h:url(${ARTE['herramienta-' + h.ref]})"></i>${tiene ? '' : `<span class="candado">${ico('candado')}</span>`}</button>`;
+  }).join('');
+  return `<div class="herramientas"><p class="u-rotulo pestana" aria-hidden="true"><span class="pestana__txt">Herramientas · <b>${e.herramientas} de ${HERRAMIENTAS.length}</b></span></p>
+    <div class="ranuras" role="toolbar" aria-label="Herramientas ${e.herramientas} de ${HERRAMIENTAS.length}">${ranuras}</div></div>`;
+}
+function accion(a) {
+  if (!a) return '';
+  return `<button type="button" class="u-ficha accion" ${a.motivo ? `aria-label="${a.texto}: cerrada. ${a.motivo}"` : ''}>
+    ${tecla(a.tecla)}${a.candado ? ico('candado') : '<span></span>'}
+    <span class="accion__txt"><strong>${a.texto}</strong>${a.motivo ? `<span class="accion__motivo">${a.motivo}</span>` : ''}</span></button>`;
+}
+
+// ── El cuadro de diálogo (I1), con la salida y la pista en placa. ────────────────────────────────────────────────────
+function dialogo(tipo, tam) {
+  const retrato = `<div class="portrait" aria-hidden="true"><img class="portrait-img" src="${ARTE['retrato-abuela-familia-' + (tipo === 'decision' ? 'preocupada' : 'cautelosa')]}" alt=""></div>`;
+  const cabecera = (conNota) => `<header class="panel-head">
+      <div class="panel-head__row"><button type="button" class="u-boton panel-back">${tam !== '390' ? '<span class="u-tecla u-tecla--letra" aria-hidden="true">Esc</span>' : ''}<span aria-hidden="true" style="font-size:.75em">◀</span> Volver al mapa</button>
+        <button type="button" class="u-salida">Salida segura</button></div>
+      ${conNota ? '<p class="panel-head__note"><span class="panel-chip">Decisión</span><span>Tu elección queda registrada en tu seguimiento formativo.</span></p>' : ''}</header>`;
+  if (tipo === 'conversacion') {
+    return `<div class="dlg" data-tapa><div class="dialogue-strip" role="dialog" aria-modal="true" aria-label="Diálogo con Abuela de la niña">
+      ${cabecera(false)}
+      <div class="strip-main"><section class="placa"><p class="speaker-name">Abuela de la niña</p>
+        <div class="placa-cuerpo">${retrato}<div class="placa-habla"><p class="dialogue-text">¡Por favor! Nadie nos dice nada</p>
+          <div class="placa-pie">${tam !== '390' ? '<span class="u-tecla u-tecla--letra tecla-pie" aria-hidden="true">Enter</span>' : ''}<button type="button" class="close-btn">Siguiente <span aria-hidden="true">▶</span></button></div></div></div></section></div>
+    </div></div>`;
+  }
+  const opciones = [
+    ['A', 'Aplicar PAP a la familia en crisis', true], ['B', 'Notificar de inmediato la muerte de la niña a la familia', false],
+    ['C', 'Aplicar PAP: contención emocional, acompañamiento en duelo y estabilización de la crisis', false],
+    ['D', 'Interrogar a la víctima herida sobre el agresor antes de cirugía', false],
+  ].map(([l, t, falta], i) => `<button type="button" class="choice-btn ${falta ? 'choice-btn--unavailable' : ''} ${i === 1 ? 'foco' : ''}" aria-label="${l}. ${t}${falta ? '. Aún no tienes esta herramienta. Recógela en la sala.' : ''}" ${falta ? 'aria-disabled="true"' : ''}>
+      <span class="choice-num" aria-hidden="true" data-letra="${l}"></span><span class="choice-btn__body"><span>${t}</span>${falta ? '<span class="choice-btn__hint">Aún no tienes esta herramienta. Recógela en la sala.</span>' : ''}</span><i class="choice-btn__cursor" aria-hidden="true"></i></button>`).join('');
+  return `<div class="dlg" data-tapa><div class="dialogue-strip strip--con-opciones" role="dialog" aria-modal="true" aria-label="Diálogo con Abuela de la niña">
+    ${cabecera(true)}
+    <div class="strip-main"><section class="placa"><p class="speaker-name">Abuela de la niña</p>
+      <div class="placa-cuerpo">${retrato}<div class="placa-habla"><p class="dialogue-text"><span class="acot">(La familia está en crisis. Define el foco inmediato de tu intervención.)</span></p><div class="placa-pie"></div></div></div></section>
+      <div class="strip-body"><p class="choices-notice" id="choices-notice" role="note">Puedes conocer más antes de responder.</p>
+        <div class="pista"><button type="button" class="u-boton">Ver pista</button></div>
+        <div class="choices" role="group" aria-label="Opciones de intervención" aria-describedby="choices-notice">${opciones}</div>
+        <p class="keyboard-hint">Enter: continuar · A a D: elegir · Esc: volver al mapa</p></div></div>
+  </div></div>`;
+}
+
+// ── Capas ────────────────────────────────────────────────────────────────────────────────────────────────────────────
+function capa(tipo) {
+  if (tipo === 'pausa') return `<div class="velo"></div><section class="u-placa modal" role="alertdialog" aria-modal="true" aria-labelledby="pausa-t" data-tapa>
+    <div class="modal__cab"><span class="ventanilla" aria-hidden="true"><img src="${ARTE['retrato-valentina-neutral']}" alt=""></span>
+      <div><p class="kicker">Pausa segura activa</p><h2 id="pausa-t">Tu caso está en pausa</h2></div></div>
+    <p>Tu avance quedó guardado exactamente donde estabas. No hay penalización: puedes retomarlo cuando quieras.</p>
+    <div class="modal__acciones"><button type="button" class="u-ficha u-ficha--primaria">Reanudar este intento</button><button type="button" class="u-boton">Volver al catálogo</button></div>
+    <div class="hundido"><p class="kicker">Apoyo profesional</p><ul>
+      <li>Puedes pausar el intento y retomarlo con acompañamiento docente.</li>
+      <li>Si el contenido activa malestar, contacta al Centro Integral de Psicología o a Bienestar Universitario.</li>
+      <li>En riesgo inmediato, prioriza líneas locales de emergencia y rutas institucionales de protección.</li></ul></div>
+    <button type="button" class="u-boton" aria-expanded="false" style="justify-content:space-between">Ver mi seguimiento <i class="seguir" aria-hidden="true"></i></button>
+  </section>`;
+  if (tipo === 'capitulo') return `<div class="velo velo--capitulo"></div><div class="capitulo" data-tapa>
+    <p class="u-rotulo pestana">Capítulo 2</p><p class="u-placa" style="margin:0">La noticia. Hospital, madrugada.</p></div>`;
+  if (tipo === 'ira') {
+    const filas = [['Persona', 'Abuela de la niña', ''], ['Persona', 'Hermano mayor', ''], ['Puerta', 'Entrada de urgencias', ''],
+      ['Puerta', 'Pasillo', `${ico('candado')}<span>Todavía no se puede pasar.</span>`]]
+      .map(([k, n, a]) => `<button type="button" class="u-ficha"><small>${k.toUpperCase()}</small><span>${n}</span>${a ? `<span class="aviso-mini">${a}</span>` : ''}</button>`).join('');
+    return `<div class="velo"></div><section class="u-placa modal" role="dialog" aria-modal="true" aria-labelledby="ira-t" data-tapa>
+      <div><p class="kicker" id="ira-t">Ir a…</p><p style="color:var(--tinta-suave)">Elige a dónde quieres ir: caminarás hasta ahí y se te avisará al llegar.</p></div>
+      <div class="lista-ir">${filas}</div>
+      <div class="modal__acciones" style="justify-content:space-between"><button type="button" class="u-salida">Salida segura</button><button type="button" class="u-boton">Cerrar</button></div></section>`;
+  }
+  return '';
+}
+
+// ── Montaje de una pantalla ─────────────────────────────────────────────────────────────────────────────────────────
+function pantalla(estado, tam, variante, opciones = {}) {
+  const T = TAM[tam]; const e = escena(estado);
+  // En el teléfono, al hablar la cámara se acerca a ×2 y deja a los dos en la franja libre sobre el cuadro (M1).
+  const z = tam === '390' && e.dialogo ? 2 : T.z;
+  if (tam === '390' && e.dialogo) e.foco = { x: e.foco.x, y: e.foco.y + (T.h / 2 - (e.dialogo === 'decision' ? 150 : 300)) / z };
+  const raiz = document.createElement('div');
+  raiz.className = 'pantalla'; raiz.dataset.tam = tam; raiz.dataset.var = variante; raiz.dataset.estado = estado;
+  if (opciones.quieto) raiz.dataset.quieto = '';
+  raiz.style.width = T.w + 'px'; raiz.style.height = T.h + 'px';
+  for (const [k, v] of Object.entries(VARS)) raiz.style.setProperty(k, v);
+
+  // Cámara: centra el foco y no muestra más allá de la sala (si la sala es más chica que la pantalla, la centra).
+  let foco = { ...e.foco };
+  if (opciones.defecto && estado === 'puerta') foco = { x: PUERTA.x + (T.w * 0.30) / z, y: PUERTA.arriba + (T.h * 0.32) / z };
+  const desp = (eje, tamPant, tamSala, f) => tamSala * z <= tamPant ? (tamPant - tamSala * z) / 2
+    : ((opciones.defecto && estado === 'puerta') || (tam === '390' && e.dialogo && eje === 'y')) ? tamPant / 2 - f * z : Math.min(0, Math.max(tamPant - tamSala * z, tamPant / 2 - f * z));
+  const ox = desp('x', T.w, SALA.w, foco.x); const oy = desp('y', T.h, SALA.h, foco.y);
+  const aPant = (x, y) => ({ x: ox + x * z, y: oy + y * z });
+
+  let mundo = `<img src="${ARTE['sala-espera-noche']}" alt="" style="left:${ox}px;top:${oy}px;width:${SALA.w * z}px;height:${SALA.h * z}px">`;
+  if (e.kit) { const p = aPant(836, 382); mundo += `<img src="${ARTE['kit-pap']}" alt="" style="left:${p.x}px;top:${p.y}px;width:${28 * z}px;height:auto" class="kit">`; }
+  const v = aPant(e.val.x - 24, e.val.y - 70);
+  mundo += `<img src="${ARTE['valentina-' + e.val.cara]}" alt="" style="left:${v.x}px;top:${v.y}px;width:${48 * z}px;height:${76 * z}px">`;
+  const etiquetas = PNJ.map((p) => ({ ...aPant(p.x, p.y + 4), t: p.nombre }));
+  if (e.kit) etiquetas.push({ ...aPant(850, 400), t: 'Kit PAP' });
+  mundo += etiquetas.map((p) => `<span class="etiqueta" style="left:${p.x}px;top:${p.y + 2 * z}px">${p.t}</span>`).join('');
+
+  raiz._puerta = e.puerta ? { ...aPant(PUERTA.x, PUERTA.arriba) } : null;
+  const hud = [];
+  if (tam === '390') return pantallaTelefono(raiz, e, mundo, estado);
+  const altoFranja = tam === '1920' ? 105 : 70;
+  if (variante === 'A' && tam !== '390') { raiz.style.setProperty('--alto-franja', altoFranja + 'px'); hud.push(franja(tam)); }
+  if (!e.cine) {
+    hud.push(objetivo(e));
+    if (variante === 'B' || tam === '390') hud.push(esquinaDerecha(tam));
+    hud.push(carril(e, tam === '390' ? 'B' : variante));
+    if (e.plano && tam !== '390') hud.push(plano(variante, variante === 'B' ? (tam === '1920' ? '150px' : '104px') : `calc(${altoFranja}px + var(--borde))`));
+  }
+  if (e.abajo) {
+    hud.push(`<div class="abajo-izq" data-tapa><button type="button" class="u-salida">Salida segura${tam !== '390' ? tecla('Esc') : ''}</button>${herramientas(e, tam)}</div>`);
+    if (e.accion) hud.push(`<div class="abajo-der" data-tapa>${accion(e.accion)}</div>`);
+  }
+  let cine = '';
+  if (e.cine) {
+    const arriba = tam === '390' || variante === 'A' ? '' : `<div class="cine-arriba" data-tapa>
+      <span class="cine-arriba__izq"><span class="chip">${ETAPA}</span><span class="cine-arriba__obj"><b>Objetivo</b>${OBJETIVO}</span></span>
+      ${variante === 'B' ? '<span class="u-boton sensible" style="min-height:0;font-size:.86em">' + ico('aviso') + '<span>Contenido sensible</span></span>' : ''}
+      <span style="flex:none">${persona(tam)}</span></div>`;
+    cine = arriba + '<div class="cine-abajo" id="cine-abajo"></div>';
+  }
+  raiz.innerHTML = `<div class="mundo" aria-hidden="true">${mundo}</div><div class="avisos-mundo"></div>${cine}<div class="hud">${hud.join('')}</div>
+    ${e.dialogo ? dialogo(e.dialogo, tam) : ''}${e.capa ? `<div class="hud" style="pointer-events:auto">${capa(e.capa)}</div>` : ''}`;
+  if (e.capa === 'capitulo') {
+    // REGLA-004: durante el fundido, «Salida segura» y el pie quedan por encima del velo.
+    const pie = raiz.querySelector('.abajo-izq'); if (pie) raiz.appendChild(pie.cloneNode(true));
+  }
+  raiz._puerta = e.puerta ? { ...aPant(PUERTA.x, PUERTA.arriba) } : null;
+  raiz._accion = e.accion;
+  return raiz;
+}
+
+// Caja de un elemento en px de la pantalla (sin la escala de la lámina).
+function cajaDe(raiz, el) {
+  const R = raiz.getBoundingClientRect(); const k = R.width / raiz.offsetWidth; const r = el.getBoundingClientRect();
+  return { x: (r.left - R.left) / k, y: (r.top - R.top) / k, w: r.width / k, h: r.height / k };
+}
+// Las piezas que se ven (no las cajas de grupo, que tienen huecos): lo que tapa la interfaz y lo que el aviso de puerta esquiva.
+const PIEZAS = '.hud .u-placa, .hud .u-rotulo, .hud .u-boton, .hud .u-salida, .hud .u-ranura, .hud .u-ficha, .hud .u-tecla--icono, .hud .franja, .cine-arriba, .cine-abajo, .dlg, .avisos-mundo .aviso-puerta';
+function piezas(raiz, sin) {
+  const els = [...raiz.querySelectorAll(PIEZAS)].filter((el) => el !== sin);
+  return els.filter((el) => !els.some((o) => o !== el && o.contains(el))).map((el) => cajaDe(raiz, el));
+}
+
+function pantallaTelefono(raiz, e, mundo, estado) {
+  const llave = (i, n, extra = '') => `<button type="button" class="u-tecla u-tecla--icono" aria-label="${n}" title="${n}" ${extra}>${ico(i)}</button>`;
+  const teclas = [['ira', 'Ir a… personas y puertas de la sala'], ['ayuda', 'Abrir cómo se juega'], ['bitacora', 'Abrir bitácora reflexiva (J)'], ['ajustes', 'Abrir ajustes del juego (incluye volver al catálogo)']]
+    .map(([i, n]) => llave(i, n)).join('');
+  const arriba = [];
+  if (!e.dialogo) {
+    arriba.push(`<div class="u-placa barra-der" data-tapa>${persona('390')}<span class="separador" aria-hidden="true"></span><div class="teclas">${teclas}</div></div>`);
+    arriba.push(objetivo(e));
+  }
+  arriba.push(carril(e, 'B'));
+  const abajo = [];
+  if (e.abajo) {
+    if (e.accion) abajo.push(accion(e.accion));
+    abajo.push(herramientas(e, '390'));
+    abajo.push(`<div style="display:flex"><button type="button" class="u-salida" style="min-height:calc(28 * var(--px))">Salida segura</button></div>`);
+  }
+  const camara = e.abajo && !e.capa ? `<div class="tel-camara">${llave('pin', 'Abrir plano (M). Estás en: Sala de espera.')}${llave('lupa', 'Vista cercana (Z)', 'aria-pressed="false"')}</div>` : '';
+  raiz.innerHTML = `<div class="mundo" aria-hidden="true">${mundo}</div><div class="avisos-mundo"></div>
+    <div class="hud"><div class="tel-arriba">${arriba.join('')}</div>${camara}<div class="tel-abajo" data-tapa>${abajo.join('')}</div></div>
+    ${e.dialogo ? dialogo(e.dialogo, '390') : ''}${e.capa ? `<div class="hud" style="pointer-events:auto">${capa(e.capa)}</div>` : ''}`;
+  if (e.capa === 'capitulo') { const pie = raiz.querySelector('.tel-abajo'); if (pie) raiz.appendChild(pie.cloneNode(true)); }
+  return raiz;
+}
+
+// El aviso de puerta (P2) cuelga de la puerta. Si arriba le estorba una pieza del HUD o el borde, prueba en orden: correrse por
+// la pared con la cola señalando la puerta, ponerse al lado de la puerta (cola de lado) y, si nada cabe, bajo la puerta.
+function colocarAvisoDePuerta(raiz) {
+  const ancla = raiz._puerta; const capa = raiz.querySelector('.avisos-mundo');
+  if (!ancla || !capa) return;
+  const conTecla = raiz.dataset.tam !== '390';
+  capa.innerHTML = `<button type="button" class="u-placa aviso-puerta" aria-label="${PUERTA.texto}: cerrada. ${PUERTA.detalle}">
+      ${conTecla ? tecla('E') : ''}${ico('candado')}<span>${PUERTA.texto}</span><span class="aviso-puerta__detalle">${PUERTA.detalle}</span></button>`;
+  const aviso = capa.firstElementChild; const W = raiz.offsetWidth; const H = raiz.offsetHeight;
+  const px = parseFloat(getComputedStyle(raiz).getPropertyValue('--px')) || 2;
+  const w = aviso.offsetWidth; const h = aviso.offsetHeight; const cola = 4 * px; const margen = 6 * px;
+  const hud = piezas(raiz, aviso).filter((b) => b.w * b.h < W * H * 0.6);
+  const libre = (r) => r.x >= margen && r.x + r.w <= W - margen && r.y >= margen && r.y + r.h <= H - margen
+    && !hud.some((b) => r.x < b.x + b.w + margen && r.x + r.w + margen > b.x && r.y < b.y + b.h + margen && r.y + r.h + margen > b.y);
+  const z = TAM[raiz.dataset.tam].z;
+  const izq = ancla.x + (PUERTA.izq - PUERTA.x) * z, der = ancla.x + (PUERTA.der - PUERTA.x) * z, abajo = ancla.y + (PUERTA.abajo - PUERTA.arriba) * z;
+  const ladoY = ancla.y + 10 * z;
+  const opciones = [{ x: ancla.x - w / 2, y: ancla.y - cola - h + px, lado: 'arriba' }];
+  for (let d = 8; d < w / 2 - 8 * px; d += 8) opciones.push({ x: ancla.x - w / 2 - d, y: ancla.y - cola - h + px, lado: 'arriba' }, { x: ancla.x - w / 2 + d, y: ancla.y - cola - h + px, lado: 'arriba' });
+  const medioY = ancla.y + ((PUERTA.abajo - PUERTA.arriba) * z) / 2 - h / 2;
+  opciones.push({ x: izq - cola - w + px, y: ladoY, lado: 'izq' }, { x: der + cola - px, y: ladoY, lado: 'der' },
+    { x: izq - cola - w + px, y: medioY, lado: 'izq' }, { x: der + cola - px, y: medioY, lado: 'der' }, { x: ancla.x - w / 2, y: abajo + cola - px, lado: 'abajo' });
+  const elegida = opciones.find((o) => libre({ x: o.x, y: o.y, w, h })) ?? opciones[opciones.length - 1];
+  aviso.style.left = elegida.x + 'px'; aviso.style.top = elegida.y + 'px';
+  const c = document.createElement('span');
+  const forma = { arriba: 'cola', abajo: 'colaArriba', izq: 'colaDer', der: 'colaIzq' }[elegida.lado];
+  c.className = 'cola' + (elegida.lado === 'izq' || elegida.lado === 'der' ? ' cola--lado' : '');
+  c.innerHTML = ico(forma); c.firstElementChild.style.width = '100%'; c.firstElementChild.style.height = '100%';
+  if (elegida.lado === 'arriba') { c.style.left = (ancla.x - 3.5 * px) + 'px'; c.style.top = (elegida.y + h - px) + 'px'; }
+  if (elegida.lado === 'abajo') { c.style.left = (ancla.x - 3.5 * px) + 'px'; c.style.top = (elegida.y - cola + px) + 'px'; }
+  if (elegida.lado === 'izq') { c.style.left = (elegida.x + w - px) + 'px'; c.style.top = (elegida.y + h / 2 - 3.5 * px) + 'px'; }
+  if (elegida.lado === 'der') { c.style.left = (elegida.x - cola + px) + 'px'; c.style.top = (elegida.y + h / 2 - 3.5 * px) + 'px'; }
+  capa.appendChild(c);
+  raiz.dataset.avisoPuerta = elegida.lado;
+}
+
+// Ajustes que dependen de medidas.
+function ajustar(raiz) {
+  const W = raiz.offsetWidth; const px = parseFloat(getComputedStyle(raiz).getPropertyValue('--px')) || 2; const margen = 6 * px;
+  // El carril de avisos ocupa el hueco entre el grupo de la izquierda y el de la derecha (o el plano, en A).
+  const carril = raiz.querySelector('.carril');
+  const izq = raiz.querySelector('.esq-izq'); const der = raiz.querySelector('.esq-der') || raiz.querySelector('.plano');
+  if (carril && izq && der && raiz.dataset.tam !== '390') {
+    const a = cajaDe(raiz, izq); const b = cajaDe(raiz, der.querySelector('.u-placa') || der);
+    carril.style.left = (a.x + a.w + margen) + 'px'; carril.style.width = (b.x - a.x - a.w - 2 * margen) + 'px';
+    carril.style.maxWidth = 'none'; carril.style.transform = 'none';
+  }
+  // El plano cuelga del grupo de la derecha (B) con la misma separación que hay entre piezas.
+  const plano = raiz.querySelector('.plano'); const esqDer = raiz.querySelector('.esq-der');
+  if (plano && esqDer && raiz.dataset.tam !== '390') { const b = cajaDe(raiz, esqDer); plano.style.top = (b.y + b.h + 2 * px) + 'px'; }
+  // Los rótulos del mundo no se salen: se corren hacia dentro, y si quien los lleva está fuera de cuadro, no se pintan.
+  for (const et of raiz.querySelectorAll('.etiqueta')) {
+    const x = parseFloat(et.style.left); const w = et.offsetWidth;
+    if (x < 0 || x > W) { et.hidden = true; continue; }
+    et.style.left = Math.min(W - margen - w / 2, Math.max(margen + w / 2, x)) + 'px';
+  }
+  // La lista de fichas se acota a filas enteras y bajo ella se dice qué queda abajo (como hace el panel de I1).
+  const lista = raiz.querySelector('.strip--con-opciones .choices');
+  if (lista) {
+    const L = lista.getBoundingClientRect(); const fichas = [...lista.querySelectorAll('.choice-btn')];
+    const cortadas = fichas.filter((f) => f.getBoundingClientRect().bottom > L.bottom + 1);
+    if (cortadas.length) {
+      const enteras = fichas.filter((f) => !cortadas.includes(f));
+      const fondo = Math.max(...enteras.map((f) => f.getBoundingClientRect().bottom));
+      const k = L.height / lista.offsetHeight;
+      lista.style.maxHeight = ((fondo - L.top) / k + 2 * px) + 'px';
+      const letras = cortadas.map((f) => f.querySelector('.choice-num').dataset.letra);
+      lista.closest('.strip-body').dataset.mas = 'Más abajo: ' + letras.join(' y ');
+    }
+  }
+  const dlg = raiz.querySelector('.dlg'); const abajo = raiz.querySelector('#cine-abajo');
+  if (dlg && abajo) abajo.style.height = dlg.offsetHeight + 'px';
+  if (dlg) raiz.dataset.altoOcupado = dlg.offsetHeight;
+  colocarAvisoDePuerta(raiz);
+}
+
+// Cuánto tapa la interfaz: unión de las piezas, en una rejilla de 4 px.
+function medir(raiz) {
+  const W = raiz.offsetWidth, H = raiz.offsetHeight, g = 4;
+  const cols = Math.ceil(W / g), filas = Math.ceil(H / g), malla = new Uint8Array(cols * filas);
+  const cajas = piezas(raiz);
+  for (const c of cajas) for (let y = Math.max(0, Math.floor(c.y / g)); y < Math.min(filas, Math.ceil((c.y + c.h) / g)); y++) for (let x = Math.max(0, Math.floor(c.x / g)); x < Math.min(cols, Math.ceil((c.x + c.w) / g)); x++) malla[y * cols + x] = 1;
+  let n = 0; for (const b of malla) n += b;
+  return { pct: Math.round((1000 * n) / malla.length) / 10, cajas };
+}
+function pintarZonas(raiz, cajas) { for (const c of cajas) { const z = document.createElement('span'); z.className = 'zona'; Object.assign(z.style, { left: c.x + 'px', top: c.y + 'px', width: c.w + 'px', height: c.h + 'px' }); raiz.appendChild(z); } }
+
+// ── La página ───────────────────────────────────────────────────────────────────────────────────────────────────────
+const VARS = {};
+for (const [k, v] of Object.entries(ARTE)) {
+  const url = `url(${v})`;
+  if (k.startsWith('marco-') || k.startsWith('trama-')) VARS['--' + k.replace(/-noche$/, '')] = url;
+  if (k.startsWith('letra-')) VARS['--' + k] = url;
+  if (k.startsWith('pulso-')) VARS['--' + k] = url;
+}
+Object.assign(VARS, { '--cursor': `url(${ARTE['cursor-noche']})`, '--seguir': `url(${ARTE['seguir-noche']})`, '--sombra': `url(${ARTE['sombra']})`,
+  '--icono-salida': `url(${ARTE['icono-salida']})`, '--icono-bombilla': `url(${ARTE['icono-bombilla-noche']})`, '--icono-bombilla-apagada': `url(${ARTE['icono-bombilla-apagada']})` });
+
+const q = new URLSearchParams(location.search);
+const est = { estado: q.get('estado') || 'explorando', tam: q.get('tam') || '1366', vista: q.get('vista') || 'lado', var: q.get('var') || 'B',
+  zonas: q.get('zonas') === '1', quieto: q.get('quieto') === '1', defecto: q.get('defecto') === '1' };
+const solo = q.get('solo') === '1';
+
+function lamina(tipo) {
+  const T = TAM[est.tam]; const caja = document.createElement('div'); caja.className = 'lamina__caja';
+  const fig = document.createElement('figure'); fig.className = 'lamina'; fig.style.margin = '0';
+  const pie = document.createElement('figcaption'); pie.className = 'lamina__pie';
+  let cosa;
+  if (tipo === 'hoy') {
+    const clave = HOY_DE[est.estado]?.[est.tam];
+    cosa = document.createElement('div'); cosa.className = 'hoy'; cosa.style.width = T.w + 'px'; cosa.style.height = T.h + 'px';
+    cosa.innerHTML = clave ? `<img src="${HOY[clave]}" alt="El juego de hoy: ${ESTADOS.find((s) => s.id === est.estado).nombre}">` : '<div class="hoy__falta">No hay captura del juego de hoy en este estado y tamaño.</div>';
+    pie.innerHTML = `<strong>Hoy</strong><span>${clave ? HOY_NOTA[clave] : 'sin captura'}</span>${HOY_TAPA[est.tam] && est.estado === 'explorando' ? `<span>La interfaz tapa ≈ ${HOY_TAPA[est.tam]} % al explorar (medido sobre las capturas, sin y con la franja de contenido sensible)</span>` : ''}`;
+  } else {
+    cosa = pantalla(est.estado, est.tam, est.var, { quieto: est.quieto, defecto: est.defecto });
+    pie.innerHTML = `<strong>Nueva · ${est.var === 'B' ? 'B, placas en las esquinas' : 'A, franja continua'}</strong><span class="medida"></span>`;
+  }
+  caja.appendChild(cosa); fig.append(caja, pie);
+  return { fig, caja, cosa, pie, T };
+}
+
+function dibujar() {
+  const escenaEl = document.getElementById('escena');
+  escenaEl.innerHTML = '';
+  escenaEl.className = 'escena' + (est.vista === 'lado' ? ' escena--lado' : '');
+  const tipos = est.vista === 'lado' ? ['hoy', 'nueva'] : [est.vista];
+  const laminas = tipos.map(lamina);
+  laminas.forEach((l) => escenaEl.appendChild(l.fig));
+  const escalar = () => laminas.forEach((l) => { const ancho = l.caja.parentElement.clientWidth; const k = Math.min(1, ancho / l.T.w); l.caja.style.width = l.T.w * k + 'px'; l.caja.style.height = l.T.h * k + 'px'; l.cosa.style.transform = `scale(${k})`; });
+  escalar();
+  for (const l of laminas) if (l.cosa.classList.contains('pantalla')) {
+    ajustar(l.cosa);
+    const m = medir(l.cosa);
+    l.pie.querySelector('.medida').textContent = `La interfaz tapa el ${m.pct.toLocaleString('es')} % de la pantalla${l.cosa.dataset.altoOcupado ? ` · cuadro de ${l.cosa.dataset.altoOcupado} px (data-alto-ocupado)` : ''}`;
+    l.cosa.dataset.tapa = m.pct;
+    if (est.zonas) pintarZonas(l.cosa, m.cajas);
+  }
+  window.onresize = escalar;
+  document.querySelectorAll('button[data-tam]').forEach((b) => b.setAttribute('aria-pressed', String(b.dataset.tam === est.tam)));
+  document.querySelectorAll('button[data-vista]').forEach((b) => b.setAttribute('aria-pressed', String(b.dataset.vista === est.vista)));
+  document.querySelectorAll('button[data-var]').forEach((b) => b.setAttribute('aria-pressed', String(b.dataset.var === est.var)));
+  document.querySelectorAll('#estados button').forEach((b) => b.setAttribute('aria-pressed', String(b.dataset.estado === est.estado)));
+  document.getElementById('b-zonas').setAttribute('aria-pressed', String(est.zonas));
+  document.getElementById('b-quieto').setAttribute('aria-pressed', String(est.quieto));
+  const bd = document.getElementById('b-defecto'); bd.hidden = est.estado !== 'puerta'; bd.setAttribute('aria-pressed', String(est.defecto));
+}
+
+function notas() {
+  document.getElementById('notas').innerHTML = `
+  <article class="nota"><h2>Qué cambia</h2><ul>
+    <li>Todo es una de cuatro piezas del cuadro de diálogo: <b>placa</b> (superficie con marco y trama), <b>pestaña</b> (el nombre que tapa el canto de una placa), <b>tecla</b> (la de A a D y Esc) y <b>ficha</b> (el botón). Mismos PNG, misma luz de la sala.</li>
+    <li>La parte de arriba repite la forma del cuadro: pestaña con el nombre de la escena sobre la placa del objetivo, como el nombre de quien habla sobre su placa.</li>
+    <li>Los botones de iconos son teclas: al pasar o enfocar se encienden con la luz de la sala, igual que la letra de una ficha.</li>
+    <li>«Salida segura» es la placa con brasa de I1 en todos los estados: abajo a la izquierda al explorar, en la cabecera del cuadro al hablar, en «Ir a…» y durante el fundido de capítulo.</li>
+    <li>Las herramientas usan los cuadernos de O1 a su tamaño de pixel; bloqueada lleva candado, nueva centellea ocho veces y se queda quieta.</li>
+    <li>Todos los avisos van en un solo carril arriba al centro, entre los dos grupos. Así el aviso de la puerta cerrada ya no cae sobre la ficha del objetivo.</li>
+    <li>El aviso de la puerta, anclado a la puerta, se corre por la pared si una pieza le estorba y la cola sigue señalando la puerta. Los rótulos de personas y objetos van colgados de cada uno y caminan con ellos.</li>
+    <li>Al explorar, la interfaz tapa el 22 % de la pantalla a 1366 (hoy, 26 a 29 %) y el 13 % a 1920 (hoy, 17 a 20 %). A 1920 el HUD usa el punto del mundo, 2 px como la cámara en ×2; el cuadro de diálogo conserva sus 3 px.</li>
+    <li>En el teléfono, como hoy, no van el título del caso, el lugar ni el texto de la persona, y «Volver al catálogo» vive en Ajustes. El plano y la vista cercana pasan a dos teclas de cámara al borde derecho.</li>
+    <li>Ningún texto clínico cambia. Todas las acciones, nombres accesibles y teclas de hoy siguen.</li></ul></article>
+  <article class="nota"><h2>La única bifurcación: la parte de arriba</h2>
+    <p><b>B · Placas en las esquinas (recomendada).</b> La sala llega hasta el borde de arriba; el objetivo queda a la izquierda, la persona y las teclas a la derecha, y el centro queda libre para la sala y los avisos. Se ve como un juego, no como una página con cabecera. En la decisión, el HUD se reduce a una línea dentro de la franja negra del cine. Tapa menos sala que hoy (ver la medida bajo cada pantalla).</p>
+    <p><b>A · Franja continua.</b> La barra de hoy hecha placa: todo en una línea, el orden de siempre, lo más fácil de aplicar. Se come una franja de 70 px a todo lo ancho, y en la decisión queda encima de la franja del cine.</p>
+    <p class="suave">En el teléfono las dos coinciden: no hay ancho para esquinas, así que va una placa arriba y el objetivo debajo.</p></article>
+  <article class="nota"><h2>Qué pieza va en qué componente</h2><div class="tabla"><table>
+    <thead><tr><th>Pieza</th><th>Componente del juego</th></tr></thead><tbody>
+    <tr><td>Pestaña + placa del objetivo</td><td><code>scene-goal-card</code>, envoltorio <code>.objective-card</code></td></tr>
+    <tr><td>Persona, teclas del menú, título del caso</td><td><code>simulation-hud</code></td></tr>
+    <tr><td>Chip y aviso de contenido sensible</td><td><code>sensitive-notice</code></td></tr>
+    <tr><td>Carril de avisos</td><td><code>.soft-notice</code>, <code>.room-banner</code>, <code>.pausing-notice</code>, <code>ui-toast-host</code> (posición de juego)</td></tr>
+    <tr><td>Plano y sus botones</td><td><code>app-minimapa</code> (M1)</td></tr>
+    <tr><td>Placa con brasa</td><td><code>safe-exit-button</code> (variante de I1)</td></tr>
+    <tr><td>Ranuras de herramientas</td><td><code>tool-inventory</code> con los iconos de O1</td></tr>
+    <tr><td>Ficha de acción cercana</td><td><code>.context-bar</code> de <code>simulation-play</code></td></tr>
+    <tr><td>Aviso de puerta con cola</td><td><code>aviso-de-puerta</code> (P2)</td></tr>
+    <tr><td>Rótulos del mundo</td><td>rótulos de <code>game-world</code></td></tr>
+    <tr><td>Pausa, capítulo, «Ir a…», plano completo</td><td><code>attempt-outcome</code>, <code>.transition-note</code>, <code>world-places-list</code>, <code>app-plano-completo</code></td></tr>
+    <tr><td>«Pedir una pista» y «Ver pista»</td><td><code>scene-hint</code> (variante de I1)</td></tr>
+    </tbody></table></div></article>`;
+}
+
+function iniciar() {
+  if (solo) {
+    document.getElementById('pagina').hidden = true;
+    const r = est.vista === 'hoy' ? lamina('hoy').cosa : pantalla(est.estado, est.tam, est.var, { quieto: est.quieto, defecto: est.defecto });
+    r.style.position = 'relative'; r.id = 'solo';
+    document.body.style.margin = '0'; document.body.appendChild(r);
+    if (r.classList.contains('pantalla')) { ajustar(r); const m = medir(r); r.dataset.tapa = m.pct; if (est.zonas) pintarZonas(r, m.cajas); }
+    document.body.dataset.listo = '1';
+    return;
+  }
+  const cont = document.getElementById('estados');
+  cont.innerHTML = ESTADOS.map((s) => `<button type="button" data-estado="${s.id}">${s.nombre}</button>`).join('');
+  cont.addEventListener('click', (ev) => { const b = ev.target.closest('button'); if (b) { est.estado = b.dataset.estado; dibujar(); } });
+  document.querySelectorAll('button[data-tam]').forEach((b) => b.addEventListener('click', () => { est.tam = b.dataset.tam; dibujar(); }));
+  document.querySelectorAll('button[data-vista]').forEach((b) => b.addEventListener('click', () => { est.vista = b.dataset.vista; dibujar(); }));
+  document.querySelectorAll('button[data-var]').forEach((b) => b.addEventListener('click', () => { est.var = b.dataset.var; dibujar(); }));
+  document.getElementById('b-zonas').onclick = () => { est.zonas = !est.zonas; dibujar(); };
+  document.getElementById('b-quieto').onclick = () => { est.quieto = !est.quieto; dibujar(); };
+  document.getElementById('b-defecto').onclick = () => { est.defecto = !est.defecto; dibujar(); };
+  notas(); dibujar();
+  document.body.dataset.listo = '1';
+}
+(document.fonts && document.fonts.ready ? document.fonts.ready : Promise.resolve()).then(iniciar);
+</script>
