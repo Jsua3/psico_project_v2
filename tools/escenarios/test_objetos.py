@@ -140,6 +140,20 @@ def test_catalogo_en_formato_de_p1():
     assert cat.verificar() == [], 'correr python tools/escenarios/objetos_catalogo.py'
 
 
+@pytest.mark.parametrize('modulo,ref', TODAS)
+def test_silueta_limpia(modulo, ref):
+    """La sombra ahora sale del alfa: la silueta es una sola pieza (o piezas grandes), sin píxeles sueltos en el borde."""
+    from scipy import ndimage
+    p = oc.armar(modulo, ref)
+    siluetas = p['silueta'] or [np.array(c)[:, :, 3] > 0 for c in p['cuadros']]
+    for k, s in enumerate(siluetas):
+        etiquetas, n = ndimage.label(s, structure=np.ones((3, 3)))
+        tamanos = ndimage.sum(s, etiquetas, range(1, n + 1)) if n else []
+        assert all(t > oc.EFECTO_MAXIMO for t in tamanos), f'cuadro {k}: piezas sueltas de {sorted(tamanos)} px'
+        vecinos = ndimage.convolve(s.astype(int), np.ones((3, 3), int), mode='constant') - s
+        assert not (s & (vecinos <= 1)).any(), f'cuadro {k}: un píxel colgado del borde'
+
+
 def test_espejo_no_cambia_colores():
     p = oc.armar('objetos_casa', 'sillon-casa')
     assert op.colores(ImageOps.mirror(p['cuadros'][0])) == op.colores(p['cuadros'][0])

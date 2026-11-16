@@ -106,6 +106,10 @@ def generar():
             if b is not None:
                 archivos.append((base + sufijo + '.png', b))
                 entrada[clave] = base + sufijo + '.png'
+        sil = oc.tira_silueta(p)
+        if sil is not None:                                          # la sombra sale de aquí, sin vapor ni rayas sueltas
+            archivos.append((base + '-silueta.png', sil))
+            entrada['silueta'] = base + '-silueta.png'
         em = oc.tira_emisivo_color(p)
         if em is not None:
             archivos.append((base + '-emisivo.png', em))

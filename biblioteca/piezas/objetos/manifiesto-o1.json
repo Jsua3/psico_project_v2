@@ -413,7 +413,8 @@
    },
    "nombre": "Estufa",
    "reemplaza": "escenarios/casa/arte/muebles/estufa.png",
-   "ruta": "piezas/muebles/casa/estufa.png"
+   "ruta": "piezas/muebles/casa/estufa.png",
+   "silueta": "piezas/muebles/casa/estufa-silueta.png"
   },
   "casa/lavaplatos": {
    "alto": 49,
@@ -2356,6 +2357,7 @@
    "nombre": "Taza de café",
    "reemplaza": "escenarios/universidad/arte/objetos/taza-cafe.png",
    "ruta": "piezas/objetos/universidad/taza-cafe.png",
+   "silueta": "piezas/objetos/universidad/taza-cafe-silueta.png",
    "sobre": 24
   },
   "universidad/vaso-agua": {
