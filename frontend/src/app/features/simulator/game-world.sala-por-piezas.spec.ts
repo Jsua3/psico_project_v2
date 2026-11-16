@@ -39,7 +39,17 @@ describe('sala por piezas en la escena (P2)', () => {
   });
 
   it('3. con una capa encima, las puertas de pieza y las sombras no avanzan', () => {
-    expect(source).toMatch(/if \(this\.salaPorPiezas && !this\.motionPaused\) \{\s*this\.salaPorPiezas\.actualizar\(/);
+    expect(source).toMatch(/if \(this\.salaPorPiezas && !this\.motionPaused\) \{\s*const activa = this\.salaPorPiezas\.actualizar\(/);
+  });
+
+  it('el aviso de la puerta de pieza es un botón de Angular sobre el lienzo, no la pista de Phaser', () => {
+    expect(source).toMatch(/@if \(avisoDePuerta\(\); as aviso\) \{\s*<app-aviso-de-puerta /);
+    expect(source).toContain('(cruzar)="cruzarPorAviso(aviso.id)"');
+    expect(source).toContain("if (isExit && object.metadata?.['dePieza'] !== true) {");
+    expect(source).toContain('pintada: true, dePieza: true');
+    // Con el mundo en pausa no hay aviso; solo se avisa a Angular cuando cambia.
+    expect(source).toMatch(/this\.avisoDePuerta\(activa\);\s*\} else \{\s*this\.avisoDePuerta\(null\);/);
+    expect(source).toContain('if (firma === this.firmaDelAviso) return;');
   });
 
   it('6. la sala por piezas se suelta en el camino de ScenarioConfig y al apagar la escena', () => {

@@ -28,6 +28,7 @@ import {
 } from './scene-motion.util';
 import { nextAmbientStep, npcMotionStrategyFor } from './motion-strategies';
 import { DEPTH, actorDepth, tiledLayerDepth } from './depth-sort.util';
+import { AvisoDePuertaComponent } from './sala/aviso-de-puerta.component';
 import { MANIFIESTO_DE_PIEZAS_URL, esManifiestoDePiezas } from './sala/catalogo';
 import { EscenaDeSala } from './sala/escena-de-sala';
 import { puertaDelObjeto, salaDelMundo } from './sala/mundo-a-sala';
@@ -117,10 +118,21 @@ import { PERSONA_ICON_KINDS, personaIconImage, personaIconKey, personaIconKind, 
 import { DOOR_FALLBACK_HEIGHT, DOOR_SPRITE_FEET_Y, doorHintY, staleSpriteSize, worldSpriteForTexture } from './world-scale.util';
 import { npcsDeLaSala } from './caso/npcs-de-sala';
 
+/** P2: el aviso de una puerta de pieza, en px del contenedor del juego. */
+interface AvisoDePuertaEnPantalla {
+  id: string;
+  texto: string;
+  bloqueada: boolean;
+  x: number;
+  y: number;
+}
+
 interface WorldCallbacks {
   onReady:       () => void;
   /** P2: una sala por piezas no pudo armarse (alguna pieza no cargó) y se muestra por el camino de imagen fija. */
   onSalaIncompleta?: () => void;
+  /** P2: el aviso de la puerta de pieza activa, o null si no hay ninguna (o el mundo está en pausa). */
+  onAvisoDePuerta?: (aviso: AvisoDePuertaEnPantalla | null) => void;
   /** Candidato PRINCIPAL en rango (un NPC va como MapObjectState sintético con key `npc:{clave}`); null si no hay. */
   onProximity:   (obj: MapObjectState | null) => void;
   /** Candidato secundario (otra persona u objeto también en rango); null si no hay. */
@@ -625,10 +637,34 @@ export class DataDrivenWorldScene extends Phaser.Scene {
     // P2: la sala por piezas abre la puerta a la que se acerca quien juega y rehace su luz (sombra incluida).
     // P2: con una capa encima (plano, diálogo, bitácora) las puertas de pieza no se abren ni se cierran: quedan como estaban.
     if (this.salaPorPiezas && !this.motionPaused) {
-      this.salaPorPiezas.actualizar(delta, this.player ? { x: this.player.x, y: this.player.y } : null,
+      const activa = this.salaPorPiezas.actualizar(delta, this.player ? { x: this.player.x, y: this.player.y } : null,
         new Set(Object.keys(this.doorStates).filter(clave => this.doorStates[clave] === 'locked')), this.callbacks.reduceMotion);
       this.sombrasConSilueta(this.salaPorPiezas);
+      this.avisoDePuerta(activa);
+    } else {
+      this.avisoDePuerta(null);
     }
+  }
+
+  /**
+   * P2: el aviso de la puerta de pieza activa («E · Pasar a …»), un botón de Angular sobre el lienzo, en px del contenedor
+   * (posición de `posicionDelAviso` por la cámara y el devicePixelRatio). Solo avisa a Angular cuando cambia.
+   */
+  private avisoDePuerta(id: string | null): void {
+    let aviso: AvisoDePuertaEnPantalla | null = null;
+    const p = id ? this.salaPorPiezas?.posicionDelAviso(id) : null;
+    const obj = id ? this.markerData.get(id) : undefined;
+    if (id && p && obj) {
+      const cam = this.cameras.main, dpr = 1 / (this.scale.zoom || 1);
+      aviso = {
+        id, texto: `Pasar a ${obj.label}`, bloqueada: this.doorStates[id] === 'locked',
+        x: Math.round(((p.x - cam.worldView.x) * cam.zoom) / dpr), y: Math.round(((p.y - cam.worldView.y) * cam.zoom) / dpr),
+      };
+    }
+    const firma = aviso ? `${aviso.id}|${aviso.x}|${aviso.y}|${aviso.bloqueada}` : '';
+    if (firma === this.firmaDelAviso) return;
+    this.firmaDelAviso = firma;
+    this.callbacks.onAvisoDePuerta?.(aviso);
   }
 
   /** P2: la sombra con silueta de quien juega y de cada persona del caso, en una sala por piezas (regla 3 de calidad). */
@@ -1271,6 +1307,7 @@ export class DataDrivenWorldScene extends Phaser.Scene {
   /** P2: claves de piezas que fallaron al cargar: no se vuelven a pedir (hallazgo 2 de la revisión de Codex). */
   private readonly piezasFallidas = new Set<string>();
   private salaIncompletaAvisada: string | null = null;
+  private firmaDelAviso = '';
 
   /** P2: ¿el mundo de ahora es una sala por piezas (`map.structure` válida)? Manda sobre el ScenarioConfig del legado. */
   private esSalaPorPiezas(): boolean {
@@ -1281,6 +1318,7 @@ export class DataDrivenWorldScene extends Phaser.Scene {
   private soltarSalaPorPiezas(): void {
     this.salaPorPiezas?.destruir();
     this.salaPorPiezas = null;
+    this.avisoDePuerta(null);
   }
 
   /**
@@ -1327,7 +1365,7 @@ export class DataDrivenWorldScene extends Phaser.Scene {
     // Las puertas de pieza ya están en el muro: su marcador no lleva sprite, solo el rótulo y el área para cruzar.
     const dePieza = new Set((sala.puertas ?? []).map(p => p.id));
     this.renderableWorldObjects()
-      .map(obj => (dePieza.has(obj.key) ? { ...obj, metadata: { ...(obj.metadata ?? {}), pintada: true } } : obj))
+      .map(obj => (dePieza.has(obj.key) ? { ...obj, metadata: { ...(obj.metadata ?? {}), pintada: true, dePieza: true } } : obj))
       .forEach(obj => this.createMarker(obj));
     this.createPlayer(this.world.player.x, this.world.player.y);
     this.applyPixelCamera(mapW, mapH);
@@ -2474,7 +2512,8 @@ export class DataDrivenWorldScene extends Phaser.Scene {
     this.applyAmbientLife(marker, object);
     this.buildKeyPersonIndicator(marker, object);
 
-    if (isExit) {
+    // La puerta de pieza no lleva esta pista de Phaser: la avisa `app-aviso-de-puerta` sobre el lienzo (P2).
+    if (isExit && object.metadata?.['dePieza'] !== true) {
       const hintTx = this.add.text(0, 0, this.doorHintText(object.label), {
         fontFamily: WORLD_FONT_FAMILY, fontSize: `${LABEL_BASE_FONT_PX}px`, color: '#4fa3a5', fontStyle: 'bold'
       }).setOrigin(.5);
@@ -3188,7 +3227,7 @@ export class DataDrivenWorldScene extends Phaser.Scene {
 @Component({
   selector: 'app-game-world',
   standalone: true,
-  imports: [CommonModule, MatIconModule],
+  imports: [CommonModule, MatIconModule, AvisoDePuertaComponent],
   host: { '[class.touch-input]': 'touchInput()' },
   template: `
     <div #gameHost class="phaser-host" role="application"
@@ -3197,6 +3236,10 @@ export class DataDrivenWorldScene extends Phaser.Scene {
       [attr.data-rendered-scenario-key]="renderedScenarioKey()"
       [attr.aria-label]="worldLabel()">
     </div>
+    @if (avisoDePuerta(); as aviso) {
+      <app-aviso-de-puerta [texto]="aviso.texto" [bloqueada]="aviso.bloqueada" [conTecla]="!touchInput()"
+        [x]="aviso.x" [y]="aviso.y" (cruzar)="cruzarPorAviso(aviso.id)" />
+    }
     @if (!assetsReady() && showLoader()) {
       <div class="world-loading">
         <p class="world-loading__label" role="status">Preparando la escena…</p>
@@ -3438,6 +3481,14 @@ export class GameWorldComponent implements OnChanges, OnDestroy {
   readonly bootFailed = output<void>();
   /** P2: una sala por piezas no cargó entera y se muestra en su versión simple (el anfitrión lo avisa). */
   readonly salaIncompleta = output<void>();
+  /** P2: el aviso de la puerta de pieza activa sobre el lienzo (null: ninguno). */
+  readonly avisoDePuerta = signal<AvisoDePuertaEnPantalla | null>(null);
+
+  /** P2: pulsar el aviso es lo mismo que E junto a esa puerta: el anfitrión decide si se cruza o dice qué falta. */
+  cruzarPorAviso(id: string): void {
+    const puerta = this.world()?.objects.find(o => o.key === id);
+    if (puerta) this.interact.emit(puerta);
+  }
   /** Terminó la caminata pedida con «Ir a…» (F6-11): llegó o no pudo. */
   readonly walkEnded = output<{ key: string; label: string; outcome: 'arrived' | 'blocked' }>();
   readonly renderReady = signal(false);
@@ -3722,6 +3773,7 @@ export class GameWorldComponent implements OnChanges, OnDestroy {
           this.worldReady.emit();
         }),
         onSalaIncompleta: () => this.zone.run(() => this.salaIncompleta.emit()),
+        onAvisoDePuerta: aviso => this.zone.run(() => this.avisoDePuerta.set(aviso)),
         onProximity:   i => this.zone.run(() => this.proximity.emit(i)),
         onProximityAlso: i => this.zone.run(() => this.proximityAlso.emit(i)),
         onNothingNearby: () => this.zone.run(() => this.nothingNearby.emit()),
