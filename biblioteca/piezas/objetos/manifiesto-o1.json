@@ -1005,6 +1005,46 @@
    "reemplaza": "escenarios/universidad/arte/muebles/barra-cafeteria.png",
    "ruta": "piezas/muebles/universidad/barra-cafeteria.png"
   },
+  "universidad/biombo": {
+   "alto": 60,
+   "ancho": 70,
+   "apoyo": [
+    35,
+    60
+   ],
+   "brillo": "piezas/muebles/universidad/biombo-brillo.png",
+   "brilloDerecha": "piezas/muebles/universidad/biombo-brillo-derecha.png",
+   "brilloIzquierda": "piezas/muebles/universidad/biombo-brillo-izquierda.png",
+   "cuadros": 1,
+   "huella": {
+    "alto": 56,
+    "ancho": 68,
+    "fondo": 8
+   },
+   "nombre": "Biombo",
+   "reemplaza": "escenarios/universidad/arte/muebles/biombo.png",
+   "ruta": "piezas/muebles/universidad/biombo.png"
+  },
+  "universidad/camilla": {
+   "alto": 43,
+   "ancho": 97,
+   "apoyo": [
+    48,
+    43
+   ],
+   "brillo": "piezas/muebles/universidad/camilla-brillo.png",
+   "brilloDerecha": "piezas/muebles/universidad/camilla-brillo-derecha.png",
+   "brilloIzquierda": "piezas/muebles/universidad/camilla-brillo-izquierda.png",
+   "cuadros": 1,
+   "huella": {
+    "alto": 40,
+    "ancho": 100,
+    "fondo": 16
+   },
+   "nombre": "Camilla de enfermería",
+   "reemplaza": "escenarios/universidad/arte/muebles/camilla.png",
+   "ruta": "piezas/muebles/universidad/camilla.png"
+  },
   "universidad/caneca": {
    "alto": 33,
    "ancho": 24,
@@ -1125,6 +1165,25 @@
    "reemplaza": "escenarios/universidad/arte/muebles/escritorio.png",
    "ruta": "piezas/muebles/universidad/escritorio.png"
   },
+  "universidad/estante-biblioteca": {
+   "alto": 97,
+   "ancho": 98,
+   "apoyo": [
+    49,
+    97
+   ],
+   "brilloDerecha": "piezas/muebles/universidad/estante-biblioteca-brillo-derecha.png",
+   "brilloIzquierda": "piezas/muebles/universidad/estante-biblioteca-brillo-izquierda.png",
+   "cuadros": 1,
+   "huella": {
+    "alto": 92,
+    "ancho": 94,
+    "fondo": 16
+   },
+   "nombre": "Estante de la biblioteca",
+   "reemplaza": "escenarios/universidad/arte/muebles/estante-biblioteca.png",
+   "ruta": "piezas/muebles/universidad/estante-biblioteca.png"
+  },
   "universidad/estante-libros": {
    "alto": 77,
    "ancho": 64,
@@ -1143,6 +1202,26 @@
    "nombre": "Estante de libros",
    "reemplaza": "escenarios/universidad/arte/muebles/estante-libros.png",
    "ruta": "piezas/muebles/universidad/estante-libros.png"
+  },
+  "universidad/lavamanos": {
+   "alto": 47,
+   "ancho": 38,
+   "apoyo": [
+    19,
+    47
+   ],
+   "brillo": "piezas/muebles/universidad/lavamanos-brillo.png",
+   "brilloDerecha": "piezas/muebles/universidad/lavamanos-brillo-derecha.png",
+   "brilloIzquierda": "piezas/muebles/universidad/lavamanos-brillo-izquierda.png",
+   "cuadros": 1,
+   "huella": {
+    "alto": 44,
+    "ancho": 36,
+    "fondo": 10
+   },
+   "nombre": "Lavamanos",
+   "reemplaza": "escenarios/universidad/arte/muebles/lavamanos.png",
+   "ruta": "piezas/muebles/universidad/lavamanos.png"
   },
   "universidad/mesa-cafeteria": {
    "alto": 38,
@@ -1183,6 +1262,27 @@
    "nombre": "Mesa de centro",
    "reemplaza": "escenarios/universidad/arte/muebles/mesa-centro.png",
    "ruta": "piezas/muebles/universidad/mesa-centro.png"
+  },
+  "universidad/mesa-estudio": {
+   "alto": 45,
+   "ancho": 132,
+   "apoyo": [
+    66,
+    45
+   ],
+   "brillo": "piezas/muebles/universidad/mesa-estudio-brillo.png",
+   "brilloDerecha": "piezas/muebles/universidad/mesa-estudio-brillo-derecha.png",
+   "brilloIzquierda": "piezas/muebles/universidad/mesa-estudio-brillo-izquierda.png",
+   "cuadros": 1,
+   "emisivo": "piezas/muebles/universidad/mesa-estudio-emisivo.png",
+   "huella": {
+    "alto": 30,
+    "ancho": 126,
+    "fondo": 16
+   },
+   "nombre": "Mesa de estudio",
+   "reemplaza": "escenarios/universidad/arte/muebles/mesa-estudio.png",
+   "ruta": "piezas/muebles/universidad/mesa-estudio.png"
   },
   "universidad/mostrador": {
    "alto": 65,
@@ -1229,6 +1329,27 @@
    "nombre": "Planta de oficina",
    "reemplaza": "escenarios/universidad/arte/muebles/planta.png",
    "ruta": "piezas/muebles/universidad/planta.png"
+  },
+  "universidad/porteria": {
+   "alto": 86,
+   "ancho": 122,
+   "apoyo": [
+    61,
+    86
+   ],
+   "brillo": "piezas/muebles/universidad/porteria-brillo.png",
+   "brilloDerecha": "piezas/muebles/universidad/porteria-brillo-derecha.png",
+   "brilloIzquierda": "piezas/muebles/universidad/porteria-brillo-izquierda.png",
+   "cuadros": 1,
+   "emisivo": "piezas/muebles/universidad/porteria-emisivo.png",
+   "huella": {
+    "alto": 84,
+    "ancho": 118,
+    "fondo": 20
+   },
+   "nombre": "Portería",
+   "reemplaza": "escenarios/universidad/arte/muebles/porteria.png",
+   "ruta": "piezas/muebles/universidad/porteria.png"
   },
   "universidad/pupitre": {
    "alto": 38,
@@ -1385,6 +1506,43 @@
    "nombre": "Tablero",
    "reemplaza": "escenarios/universidad/arte/muebles/tablero.png",
    "ruta": "piezas/muebles/universidad/tablero.png"
+  },
+  "universidad/tapete": {
+   "alto": 37,
+   "ancho": 120,
+   "apoyo": [
+    60,
+    37
+   ],
+   "cuadros": 1,
+   "huella": {
+    "alto": 2,
+    "ancho": 116,
+    "fondo": 34
+   },
+   "nombre": "Tapete",
+   "reemplaza": "escenarios/universidad/arte/muebles/tapete.png",
+   "ruta": "piezas/muebles/universidad/tapete.png"
+  },
+  "universidad/vitrina-medicamentos": {
+   "alto": 73,
+   "ancho": 58,
+   "apoyo": [
+    29,
+    73
+   ],
+   "brillo": "piezas/muebles/universidad/vitrina-medicamentos-brillo.png",
+   "brilloDerecha": "piezas/muebles/universidad/vitrina-medicamentos-brillo-derecha.png",
+   "brilloIzquierda": "piezas/muebles/universidad/vitrina-medicamentos-brillo-izquierda.png",
+   "cuadros": 1,
+   "huella": {
+    "alto": 70,
+    "ancho": 54,
+    "fondo": 14
+   },
+   "nombre": "Vitrina de medicamentos",
+   "reemplaza": "escenarios/universidad/arte/muebles/vitrina-medicamentos.png",
+   "ruta": "piezas/muebles/universidad/vitrina-medicamentos.png"
   }
  },
  "objetos": {

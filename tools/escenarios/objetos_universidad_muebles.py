@@ -215,6 +215,193 @@ def banca(n=0):
     return L, _reflejos(L), None
 
 
+def camilla(n=0):
+    """Camilla de la enfermería de la universidad: colchoneta con el rollo de papel y la escalerilla al lado."""
+    L = Lienzo(106, 46, semilla=237)
+    L.rect(4, 22, 98, 27, 'cromo', 2)                                               # bastidor
+    L.rect(4, 22, 98, 22, 'cromo', 0, tex=False)
+    L.cojin(4, 10, 98, 22, 'tela-azul', r=3, arriba=0.3, abajo=0.25)               # colchoneta
+    L.cojin(4, 4, 26, 14, 'tela-azul', r=3, arriba=0.3, abajo=0.3)                  # cabecera levantada
+    L.rect(30, 10, 92, 19, 'papel', 0)                                              # papel de la camilla
+    L.rect(30, 19, 92, 19, 'papel', 2, tex=False)
+    L.rect(93, 9, 97, 14, 'papel', 1, tex=False)                                    # el rollo
+    for x in (8, 94):                                                               # patas
+        L.rect(x, 27, x + 2, 43, 'cromo', 2)
+        L.rect(x - 2, 43, x + 4, 44, 'cromo', 4, tex=False)
+    L.rect(8, 36, 96, 37, 'cromo', 3, tex=False)
+    r = _reflejos(L)
+    r['izquierda'].rect(5, 23, 40, 23, 2)
+    r['derecha'].rect(60, 23, 97, 23, 2)
+    r['frente'].rect(30, 23, 70, 23, 1)
+    return L, r, None
+
+
+def vitrina_medicamentos(n=0):
+    """Vitrina blanca de la enfermería con frascos y cajas tras el vidrio, y la cruz verde arriba."""
+    L = Lienzo(58, 74, semilla=239)
+    L.bloque(1, 1, 56, 71, 'blanco-clinico', tapa=3)
+    L.rect(22, 4, 34, 9, (96, 170, 120), tex=False)                                 # cruz verde
+    L.rect(26, 2, 30, 11, (96, 170, 120), tex=False)
+    L.rect(5, 13, 52, 50, 'blanco-clinico', 4, tex=False)                           # interior
+    for y in (25, 38):
+        L.rect(5, y, 52, y, 'blanco-clinico', 2, tex=False)
+    colores = ((196, 140, 96), (120, 170, 200), (226, 210, 160), (196, 84, 78), (150, 196, 150))
+    for fila, y in enumerate((24, 37, 49)):
+        for k in range(6):
+            x = 7 + k * 7
+            c = colores[(k + fila) % len(colores)]
+            if (k + fila) % 3:
+                L.rect(x, y - 6, x + 4, y - 1, c, tex=False)                        # frascos
+                L.rect(x + 1, y - 7, x + 3, y - 7, 'blanco-clinico', 1, tex=False)
+            else:
+                L.rect(x, y - 5, x + 5, y - 1, 'papel', 1, tex=False)               # cajas
+                L.rect(x + 1, y - 4, x + 4, y - 4, c, tex=False)
+    L.rect(28, 13, 28, 50, 'cromo', 2, tex=False)                                   # junta de las puertas
+    for y0 in (54, 62):                                                             # cajones
+        L.rect(5, y0, 52, y0 + 6, 'blanco-clinico', 1)
+        L.rect(5, y0 + 6, 52, y0 + 6, 'blanco-clinico', 3, tex=False)
+        L.rect(25, y0 + 3, 31, y0 + 3, 'cromo', 2, tex=False)
+    vidrio = L.caja_mascara(5, 13, 52, 50)
+    r = _reflejos(L)
+    r['izquierda'].diagonal(6, 48, 14, 2, 2)
+    r['derecha'].diagonal(51, 48, 14, 2, 2, sentido=-1)
+    r['frente'].rect(8, 14, 49, 14, 1)
+    for rr in r.values():
+        rr.m[(rr.m > 0) & ~vidrio] = 0
+    return L, r, None
+
+
+def biombo(n=0):
+    """Biombo de tres paneles de tela sobre marco de tubo, con los paneles en zigzag."""
+    L = Lienzo(72, 62, semilla=241)
+    for k, (x0, prof) in enumerate(((2, 0), (24, 3), (48, 0))):
+        x1 = x0 + 21
+        L.rect(x0, 2 + prof, x1, 56 - prof, 'cromo', 2)                             # marco
+        L.rect(x0 + 2, 4 + prof, x1 - 2, 52 - prof, 'tela-gris' if k != 1 else 'sabana', 1 + (k == 1))
+        for x in range(x0 + 4, x1 - 2, 4):                                          # pliegues de la tela
+            L.rect(x, 5 + prof, x, 51 - prof, 'tela-gris' if k != 1 else 'sabana', 3, tex=False)
+        L.rect(x0 + 1, 56 - prof, x0 + 2, 59 - prof, 'cromo', 3)                    # patas
+        L.rect(x1 - 2, 56 - prof, x1 - 1, 59 - prof, 'cromo', 3)
+    r = _reflejos(L)
+    for rr, xs in ((r['izquierda'], (2, 24, 48)), (r['derecha'], (23, 45, 69)), (r['frente'], (12, 35, 58))):
+        for x in xs:
+            rr.px(x, 3, 2)
+    return L, r, None
+
+
+def lavamanos(n=0):
+    """Lavamanos de pared con llave cromada, jabón y toallas de papel."""
+    L = Lienzo(42, 48, semilla=243)
+    L.rect(8, 1, 33, 14, 'cromo', 3)                                                # dispensador de toallas
+    L.rect(8, 1, 33, 1, 'cromo', 0, tex=False)
+    L.rect(14, 14, 27, 16, 'papel', 0, tex=False)
+    L.bloque(3, 20, 38, 30, 'ceramica', tapa=4)                                     # el lavamanos
+    L.rect(7, 21, 34, 23, 'ceramica', 4, tex=False)
+    L.rect(18, 17, 21, 21, 'cromo', 2)                                              # llave
+    L.rect(18, 17, 25, 18, 'cromo', 1)
+    L.rect(30, 17, 33, 21, (226, 196, 120), tex=False)                              # jabón
+    L.rect(17, 31, 24, 44, 'ceramica', 2)                                           # pedestal
+    L.rect(17, 31, 17, 44, 'ceramica', 3, tex=False)
+    L.rect(14, 44, 27, 45, 'ceramica', 4, tex=False)
+    r = _reflejos(L)
+    r['izquierda'].rect(18, 17, 18, 20, 2)
+    r['derecha'].rect(25, 17, 25, 18, 2)
+    r['frente'].rect(19, 17, 23, 17, 2)
+    for rr in r.values():
+        rr.rect(5, 21, 36, 21, 1)
+    return L, r, None
+
+
+def mesa_estudio(n=0):
+    """Mesa larga de la biblioteca con lámparas de lectura, libros abiertos y un portátil."""
+    L = Lienzo(132, 48, semilla=245)
+    for x in (6, 122):
+        L.rect(x, 20, x + 3, 45, 'roble', 3)
+        L.rect(x, 44, x + 3, 45, 'roble', 4, tex=False)
+    L.bloque(1, 14, 130, 22, 'roble', tapa=6)
+    for x in (30, 96):                                                              # lámparas de lectura verdes
+        L.rect(x + 4, 6, x + 5, 15, 'laton', 2, tex=False)
+        L.rect(x, 3, x + 10, 7, (70, 130, 96), tex=False)
+        L.rect(x + 1, 7, x + 9, 7, (255, 236, 176), tex=False)                      # la luz por debajo
+    L.rect(10, 13, 24, 18, 'papel', 0, tex=False)                                   # libros abiertos
+    L.rect(17, 13, 17, 18, 'papel', 3, tex=False)
+    L.rect(52, 6, 72, 16, 'plastico-gris', 2)                                       # portátil
+    L.rect(54, 8, 70, 14, (96, 140, 196), tex=False)
+    L.rect(50, 16, 74, 18, 'plastico-gris', 1, tex=False)
+    L.rect(106, 12, 120, 18, 'papel', 1, tex=False)
+    em = L.caja_mascara(54, 8, 70, 14) | L.caja_mascara(31, 7, 39, 7) | L.caja_mascara(97, 7, 105, 7)
+    r = _reflejos(L)
+    r['izquierda'].rect(2, 15, 28, 15, 2)
+    r['derecha'].rect(100, 15, 129, 15, 2)
+    r['frente'].rect(30, 19, 100, 19, 1)
+    return L, r, em
+
+
+def estante_biblioteca(n=0):
+    """Estante alto de la biblioteca, cinco repisas llenas de lomos y una escalera de mano."""
+    L = Lienzo(98, 98, semilla=247)
+    L.bloque(1, 1, 96, 95, 'nogal', tapa=3)
+    L.rect(4, 6, 93, 92, 'nogal', 5, tex=False)
+    for k, y in enumerate((22, 39, 56, 73, 92)):
+        L.rect(4, y - 1, 93, y, 'nogal', 2, tex=False)
+        _libros(L, 5, 92, y - 2, 14, 3 + k * 5)
+    L.linea(70, 94, 84, 10, 'roble', 2)                                             # escalera de mano
+    L.linea(78, 94, 92, 10, 'roble', 2)
+    for k in range(1, 9):
+        y = 94 - k * 10
+        L.rect(70 + (94 - y) // 6, y, 78 + (94 - y) // 6, y, 'roble', 3, tex=False)
+    r = _reflejos(L)
+    r['izquierda'].rect(2, 2, 46, 2, 1)
+    r['derecha'].rect(50, 2, 95, 2, 1)
+    return L, r, None
+
+
+def porteria(n=0):
+    """Portería de la entrada: caseta con vidrio, el vigilante no está, una lámpara de escritorio encendida."""
+    L = Lienzo(122, 88, semilla=249)
+    L.bloque(1, 30, 120, 85, 'acero', tapa=4)                                       # muro bajo de la caseta
+    L.rect(1, 2, 120, 30, 'acero', 2)                                               # parte alta
+    L.rect(1, 2, 120, 2, 'acero', 0, tex=False)
+    L.rect(6, 6, 115, 28, 'vidrio', 4, tex=False)                                   # ventanal
+    for x in (42, 80):
+        L.rect(x, 6, x + 1, 28, 'acero', 2, tex=False)
+    L.rect(10, 20, 36, 28, 'plastico-negro', 3, tex=False)                          # adentro: pantallas apagadas y una silla
+    L.rect(50, 18, 70, 28, 'plastico-negro', 4, tex=False)
+    L.rect(88, 18, 94, 22, (255, 236, 176), tex=False)                              # la lámpara encendida
+    L.rect(4, 30, 117, 33, 'laminado', 1)                                           # repisa del libro de visitas
+    L.rect(16, 28, 36, 31, 'papel', 0, tex=False)
+    L.rect(4, 50, 117, 53, (196, 84, 78), tex=False)                                # franja institucional
+    L.rect(48, 60, 72, 72, 'papel', 1, tex=False)                                   # letrero de la universidad
+    L.rect(52, 64, 68, 66, (70, 110, 160), tex=False)
+    for x in range(20, 120, 20):                                                    # juntas de los paneles del muro
+        L.rect(x, 34, x, 49, 'acero', 4, tex=False)
+        L.rect(x, 54, x, 83, 'acero', 4, tex=False)
+        L.rect(x + 1, 34, x + 1, 49, 'acero', 1, tex=False)
+    L.tex[:, :] = False                                                             # lámina pintada: lisa, sin motas
+    vidrio = L.caja_mascara(6, 6, 115, 28)
+    em = L.caja_mascara(88, 18, 94, 22)
+    r = _reflejos(L)
+    r['izquierda'].diagonal(8, 27, 18, 3, 2)
+    r['derecha'].diagonal(113, 27, 18, 3, 2, sentido=-1)
+    r['frente'].rect(10, 7, 110, 7, 1)
+    for rr in r.values():
+        rr.m[(rr.m > 0) & ~vidrio] = 0
+    return L, r, em
+
+
+def tapete(n=0):
+    """Tapete tejido de la sala de bienestar, con flecos y una greca."""
+    L = Lienzo(122, 42, semilla=251)
+    L.poli([(8, 4), (113, 4), (119, 37), (2, 37)], 'lino-rojo', 2)                  # en perspectiva: más ancho cerca
+    L.poli([(14, 8), (107, 8), (112, 33), (9, 33)], 'crochet', 2)
+    L.poli([(22, 13), (99, 13), (103, 28), (18, 28)], 'lino-rojo', 1)
+    for x in range(26, 98, 10):                                                     # greca
+        L.rect(x, 19, x + 4, 22, 'crochet', 1, tex=False)
+    for x in range(3, 119, 3):                                                      # flecos
+        L.px(x, 38, 'crochet', 2)
+    return L, _reflejos(L), None
+
+
 def _variante(funcion, **kw):
     return lambda n=0: funcion(n, **kw)
 
@@ -254,6 +441,23 @@ PIEZAS = {
                             animaciones=dict(reposo=dict(de=0, hasta=3, fps=4, bucle=True)), reemplaza=B + 'barra-cafeteria.png'),
     'banca': dict(nombre='Banca', tipo='mueble', dibujar=banca, cuadros=1,
                   huella=dict(ancho=96, fondo=12, alto=30), material='madera y hierro', reemplaza=B + 'banca.png'),
+    'camilla': dict(nombre='Camilla de enfermería', tipo='mueble', dibujar=camilla, cuadros=1,
+                    huella=dict(ancho=100, fondo=16, alto=40), material='tela y cromo', reemplaza=B + 'camilla.png'),
+    'vitrina-medicamentos': dict(nombre='Vitrina de medicamentos', tipo='mueble', dibujar=vitrina_medicamentos, cuadros=1,
+                                 huella=dict(ancho=54, fondo=14, alto=70), material='lámina y vidrio',
+                                 reemplaza=B + 'vitrina-medicamentos.png'),
+    'biombo': dict(nombre='Biombo', tipo='mueble', dibujar=biombo, cuadros=1,
+                   huella=dict(ancho=68, fondo=8, alto=56), material='tela y tubo', reemplaza=B + 'biombo.png'),
+    'lavamanos': dict(nombre='Lavamanos', tipo='mueble', dibujar=lavamanos, cuadros=1,
+                      huella=dict(ancho=36, fondo=10, alto=44), material='cerámica y cromo', reemplaza=B + 'lavamanos.png'),
+    'mesa-estudio': dict(nombre='Mesa de estudio', tipo='mueble', dibujar=mesa_estudio, cuadros=1,
+                         huella=dict(ancho=126, fondo=16, alto=30), material='madera barnizada', reemplaza=B + 'mesa-estudio.png'),
+    'estante-biblioteca': dict(nombre='Estante de la biblioteca', tipo='mueble', dibujar=estante_biblioteca, cuadros=1,
+                               huella=dict(ancho=94, fondo=16, alto=92), material='madera', reemplaza=B + 'estante-biblioteca.png'),
+    'porteria': dict(nombre='Portería', tipo='mueble', dibujar=porteria, cuadros=1,
+                     huella=dict(ancho=118, fondo=20, alto=84), material='acero y vidrio', reemplaza=B + 'porteria.png'),
+    'tapete': dict(nombre='Tapete', tipo='mueble', dibujar=tapete, cuadros=1,
+                   huella=dict(ancho=116, fondo=34, alto=2), material='tejido', reemplaza=B + 'tapete.png'),
 }
 
 
