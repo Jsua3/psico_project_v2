@@ -31,6 +31,8 @@ import { scaled } from '../e2e/support/time-scale';
  *  - ninguna franja (cabecera, aviso, pista de teclado) tapa el rótulo de quien habla, ninguna pieza del cuadro se monta
  *    sobre otra y nada de la pantalla las tapa;
  *  - lo mismo con el aviso breve «hay otra forma de responder» en pantalla, que antes flotaba sobre las fichas.
+ *  - ninguna ficha visible sale a medias (la lista se acota a filas enteras y dice qué fichas quedan abajo), la pista de
+ *    teclado va debajo de las fichas y, a 1920 x 1080, las fichas caben enteras sin desplazar.
  * Los estados salen de `tools/escenarios/decisiones_para_prueba.py`. Se corre con la pila aislada:
  *   SIEP_TEST_DB_PORT=5664 SIEP_E2E_API_PORT=8184 SIEP_E2E_WEB_PORT=4384 \
  *     node scripts/test-e2e.mjs --config=captura-i1/playwright.config.ts decisiones-caben
@@ -108,7 +110,7 @@ async function medir(page: Page): Promise<{ fallas: string[]; medidas: Record<st
     const fijos: Record<string, string> = {
       retrato: '.portrait', rotulo: '.speaker-name', placa: '.placa-cuerpo', cabecera: '.panel-head', volver: '.panel-back',
       salida: 'app-safe-exit-button', nota: '.panel-head__note', aviso: '.choices-notice', pista: 'app-scene-hint',
-      teclado: '.keyboard-hint',
+      teclado: '.keyboard-hint', columna: '.strip-body',
     };
     const medidas: Record<string, unknown> = { tira: txt(cTira) };
     for (const [nombre, sel] of Object.entries(fijos)) {
@@ -131,6 +133,7 @@ async function medir(page: Page): Promise<{ fallas: string[]; medidas: Record<st
     if (!lista) return { fallas: [...fallas, 'no hay fichas'], medidas };
     const ventana = corte(caja(lista), visible);
     medidas['lista'] = `${txt(caja(lista))} desplazable ${lista.scrollHeight - lista.clientHeight}px`;
+    medidas['tope'] = `${lista.style.maxHeight || 'sin tope'} | banda ${getComputedStyle(tira).height} de ${getComputedStyle(tira).maxHeight}`;
     const fichas = Array.from(lista.querySelectorAll<HTMLElement>('.choice-btn'));
     fichas.slice(0, 2).forEach((f, i) => {
       if (!dentro(caja(f), ventana)) fallas.push(`la ${'AB'[i]} no se ve entera sin desplazar ${txt(caja(f))} (lista ${txt(ventana)})`);
@@ -141,6 +144,16 @@ async function medir(page: Page): Promise<{ fallas: string[]; medidas: Record<st
       const asoma = Math.min(c.bottom, ventana.bottom) - Math.max(c.top, ventana.top);
       if (asoma > T && !dentro(c, ventana)) fallas.push(`la ficha ${'ABCDEF'[i]} se ve a medias ${txt(c)} (lista ${txt(ventana)})`);
     });
+    // A 1920 x 1080 hay sitio para las fichas enteras de cada decisión: ahí la lista no se desplaza.
+    if (innerWidth >= 1800 && innerHeight >= 1000 && lista.scrollHeight > lista.clientHeight + 1) {
+      fallas.push(`a ${innerWidth} x ${innerHeight} la lista se desplaza aunque hay sitio (${lista.scrollHeight - lista.clientHeight}px)`);
+    }
+    // Si la lista se desplaza, bajo ella se dice qué fichas quedan abajo.
+    if (lista.scrollHeight > lista.clientHeight + 1) {
+      const senal = getComputedStyle(lista.parentElement!, '::after');
+      if (senal.content === 'none' || senal.display === 'none') fallas.push('la lista se desplaza y no dice qué fichas quedan abajo');
+      else medidas['senal'] = senal.content;
+    }
     // La pista de teclado va debajo de las fichas, sin montarse sobre la lista.
     const teclado = tira.querySelector('.keyboard-hint');
     if (teclado && !oculto(teclado) && caja(teclado).top < caja(lista).bottom - T) {

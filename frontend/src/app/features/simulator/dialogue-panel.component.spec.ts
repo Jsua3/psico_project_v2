@@ -1618,6 +1618,8 @@ describe('DialoguePanelComponent - alto acotado sobre el mundo', () => {
     // La banda de decisión toma el alto que necesita, hasta el tope; si las fichas no caben, la lista se acota a filas enteras.
     expect(source).toContain("height: calc-size(max-content, min(size, var(--dialogo-alto-max)));");
     expect(source).toContain("lista.style.maxHeight = `${Math.ceil(corte + pie)}px`;");
+    // Con la lista acotada, bajo ella se dicen las fichas que quedan abajo.
+    expect(source).toContain("content: '▼ ' attr(data-mas);");
     expect(source).toContain("anfitrion.dataset['altoOcupado']");
   });
 
