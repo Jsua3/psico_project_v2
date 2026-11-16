@@ -77,6 +77,11 @@ MARKUP_TEXT = _fixed("El texto «» debe ser texto plano, sin etiquetas ni enlac
 _TEXT_PROBLEMS = {TOO_LONG: TOO_LONG_TEXT, CONTROL: CONTROL_TEXT, MULTILINE: ONE_LINE, MARKUP: MARKUP_TEXT, LINK: MARKUP_TEXT}
 GRAPHIC = _fixed(assistant_prompts.GRAPHIC_REASON)
 REVICTIMIZING = _fixed(assistant_prompts.REVICTIMIZING_REASON)
+# BORRADOR: texto nuevo del servidor, pendiente de la aprobación de Psicología
+PERSONAL_DATA_MOTIVO = _fixed(
+    "La descripción parece traer datos reales de una persona (correo, teléfono o número de documento). "
+    "Cuéntala sin datos que identifiquen a nadie."
+)
 
 # Esqueleto.
 SCENE_COUNT = _fixed(f"El caso necesita de {schema.MIN_SCENES} a {schema.MAX_SCENES} escenas.")
@@ -161,6 +166,62 @@ class GenerationInvalid(Exception):
         super().__init__("; ".join(motivos))
         self.motivos = list(motivos)
         self.escena = escena
+
+
+# --- La descripción de la docente: nada que identifique a una persona real ------------------------------------------------
+# Expresiones acotadas, sin dependencias. Solo dicen el TIPO de dato hallado; nunca devuelven el dato ni un fragmento.
+_EMAIL = re.compile(r"[\w.+-]+@[\w-]+(?:\.[\w-]+)+")
+_PHONE = (
+    # Número internacional: «+» y 8 o más dígitos.
+    re.compile(r"\+\s?\d(?:[\s.\-()]?\d){7,}"),
+    # Móvil de Colombia: 10 dígitos que empiezan por 3, con o sin 57 / +57.
+    re.compile(r"(?<!\d)(?:\+?57[\s.\-]?)?3\d{2}[\s.\-]?\d{3}[\s.\-]?\d{4}(?!\d)"),
+    # Fijo con indicativo (601 a 608), con o sin paréntesis.
+    re.compile(r"(?<!\d)\(?60[1-8]\)?[\s.\-]?\d{3}[\s.\-]?\d{4}(?!\d)"),
+)
+_DOCUMENT_KEYWORD = (
+    r"(?:(?i:c[eé]dula|documento|pasaporte|identificaci[oó]n)|C\.\s?C\.?|CC|T\.\s?I\.?|TI|NIT|nit)"
+)
+_DOCUMENT_AFTER_KEYWORD = re.compile(
+    rf"(?<![\w.]){_DOCUMENT_KEYWORD}(?![^\W\d])"
+    r"(?:\s+de\s+(?i:ciudadan[ií]a|extranjer[ií]a|identidad))?"
+    r"(?:[\s:#.]*(?i:n\.?\s?[º°o]\.?|no\.?|n[uú]mero|num\.?))*"
+    r"[\s:#.]*(\d[\d. ]*\d)(?!\d)"
+)
+_BARE_NUMBER = re.compile(r"(?<![\d.])(?:\d{8,10}|\d{1,3}(?:\.\d{3}){2,3})(?![\d])")
+_PERSONAL_DATA_KINDS = ("email", "phone", "document")
+
+
+def _blank(texto: str, patrones) -> str:
+    for patron in patrones:
+        texto = patron.sub(" ", texto)
+    return texto
+
+
+def personal_data_kinds(texto: str) -> tuple[str, ...]:
+    """Los tipos de dato personal que trae ``texto``, en orden fijo (``email``, ``phone``, ``document``); vacío si no hay.
+
+    Un hallazgo se borra antes de buscar el siguiente tipo, para que un celular no cuente además como documento.
+    """
+    texto = str(texto)
+    halladas = set()
+    if _EMAIL.search(texto):
+        halladas.add("email")
+    texto = _blank(texto, (_EMAIL,))
+    if any(patron.search(texto) for patron in _PHONE):
+        halladas.add("phone")
+    texto = _blank(texto, _PHONE)
+    por_palabra = any(5 <= sum(c.isdigit() for c in m.group(1)) <= 12 for m in _DOCUMENT_AFTER_KEYWORD.finditer(texto))
+    sueltos = any(8 <= sum(c.isdigit() for c in m.group(0)) <= 10 for m in _BARE_NUMBER.finditer(texto))
+    if por_palabra or sueltos:
+        halladas.add("document")
+    return tuple(tipo for tipo in _PERSONAL_DATA_KINDS if tipo in halladas)
+
+
+def check_description(texto: str) -> None:
+    """Lanza ``GenerationInvalid([PERSONAL_DATA_MOTIVO])`` si la descripción trae un correo, un teléfono o un documento."""
+    if personal_data_kinds(texto):
+        raise GenerationInvalid([PERSONAL_DATA_MOTIVO], escena=None)
 
 
 @dataclass(frozen=True)

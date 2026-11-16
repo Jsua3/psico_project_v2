@@ -462,3 +462,87 @@ def test_requisito_y_comentario_solo_admiten_hojas_talked_inspected_y_milestone(
 def test_una_hoja_de_tipo_desconocido_no_pasa_en_silencio(aula, sk, ctx):
     aula["opciones"][1]["requiere"] = json.dumps({"talked": "docente", "otra": 1})
     assert motivos_de(lambda: checks.validate_scene(aula, sk, "aula", ctx)).motivos == ["Un requisito no tiene la forma esperada."]
+
+
+# --- Tarea 5b · datos personales en la descripción de la docente -------------------------------------------------------
+
+CORREO = "maria.lopez@ejemplo.edu.co"
+CEDULA = "1023456789"
+
+
+@pytest.mark.parametrize("texto, tipo", [
+    ("Escribe a maria.lopez@ejemplo.edu.co por favor", "email"),
+    ("Mi correo es Juan_P+caso@correo.com", "email"),
+    ("Llámame al 3001234567", "phone"),
+    ("Celular 300 123 4567", "phone"),
+    ("Celular 300-123-4567", "phone"),
+    ("Celular 300.123.4567", "phone"),
+    ("Celular +57 300 123 4567", "phone"),
+    ("Celular 57 3001234567", "phone"),
+    ("Fijo 601 234 5678", "phone"),
+    ("Fijo (604) 123 4567", "phone"),
+    ("Fijo 6012345678", "phone"),
+    ("Desde afuera: +1 415 555 0132", "phone"),
+    ("Desde afuera: +34 612 345 678", "phone"),
+    ("La cédula 1023456789 de la estudiante", "document"),
+    ("Cedula: 1.023.456.789", "document"),
+    ("C.C. 52.123.456", "document"),
+    ("CC 52123456", "document"),
+    ("C.C. 123456", "document"),
+    ("T.I. 98765", "document"),
+    ("T.I. No. 1023456789", "document"),
+    ("TI 1023456789", "document"),
+    ("Pasaporte n.º 12345678", "document"),
+    ("NIT 900.123.456-7", "document"),
+    ("identificación 12345678", "document"),
+    ("documento de identidad número 1023456", "document"),
+    ("Cédula de ciudadanía 1 023 456 789", "document"),
+    ("Su número es 1023456789 según el registro", "document"),
+    ("Su número es 1.023.456.789 según el registro", "document"),
+])
+def test_los_datos_personales_se_detectan(texto, tipo):
+    assert tipo in checks.personal_data_kinds(texto)
+    with pytest.raises(GenerationInvalid) as error:
+        checks.check_description(texto)
+    assert error.value.motivos == [checks.PERSONAL_DATA_MOTIVO] and error.value.escena is None
+
+
+@pytest.mark.parametrize("texto", [
+    "Ley 1257 de 2008", "Ley 2126 de 2021", "Decreto 1069 de 2015", "Quiero 4 escenas",
+    "Pasa en el segundo semestre de 2026", "La estudiante tiene 19 años", "Ocurre a las 10:30",
+    "Se llama a la línea 155", "Se llama a la línea 123", "El 30 % de los casos", "Hay 12 estudiantes en el aula 301",
+    "[falso:reparar]", "[falso:timeout]", "[falso:http]", "[falso:malformed]", "[falso:refusal]",
+    "Entre 2024 y 2026 aumentaron un 15 % las consultas", "La sala 3 tiene 40 sillas",
+    "Para ti: un caso de duelo", "Cuéntalo en 5 minutos, a las 8:15 de la mañana",
+    ("Una estudiante de segundo semestre llega a bienestar universitario después de una crisis de ansiedad antes de un "
+     "examen. Vive lejos de su familia, comparte cuarto con otra estudiante y no ha dormido bien en dos semanas. "
+     "Quiero que la persona estudiante practique la escucha activa, valide lo que siente y la oriente hacia la ruta de "
+     "atención de la universidad, sin dar diagnósticos. Menciona la Ley 1257 de 2008 y la línea 155. " * 3),
+    "",
+])
+def test_lo_que_no_es_dato_personal_pasa(texto):
+    assert checks.personal_data_kinds(texto) == ()
+    assert checks.check_description(texto) is None
+
+
+def test_los_tipos_salen_en_orden_fijo_y_sin_repetirse():
+    texto = f"Cédula {CEDULA}, celular 300 123 4567 y correo {CORREO}; otro correo b@c.co"
+    assert checks.personal_data_kinds(texto) == ("email", "phone", "document")
+
+
+def test_un_celular_no_se_cuenta_tambien_como_documento():
+    assert checks.personal_data_kinds("Celular 3001234567") == ("phone",)
+
+
+def test_el_motivo_de_datos_personales_no_cita_el_dato():
+    texto = f"Escribe a {CORREO} o busca la cédula {CEDULA}."
+    with pytest.raises(GenerationInvalid) as error:
+        checks.check_description(texto)
+    for dato in (CORREO, CEDULA, "maria.lopez", "1023"):
+        assert dato not in str(error.value) and all(dato not in motivo for motivo in error.value.motivos)
+    assert all(CORREO not in tipo and CEDULA not in tipo for tipo in checks.personal_data_kinds(texto))
+
+
+def test_el_motivo_de_datos_personales_es_un_motivo_fijo():
+    assert checks.PERSONAL_DATA_MOTIVO in checks.FIXED_MOTIVOS
+    assert checks.is_fixed_motivo(checks.PERSONAL_DATA_MOTIVO)
