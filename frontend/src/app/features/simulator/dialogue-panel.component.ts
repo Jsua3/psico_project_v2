@@ -588,7 +588,7 @@ const STALE_NOTE = 'Esta conversación corresponde a otro momento del caso.';
     .choice-num__txt--ver { position: static; width: auto; height: auto; clip: auto; }
     /* Respaldo: si la letra de pixel no carga, la letra va en texto (la mono distingue C de 0 y B de 8). */
     .strip--letras-texto .choice-num::after { display: none; }
-    .strip--letras-texto .choice-num__txt { position: static; width: auto; height: auto; clip: auto; font-size: 1.05em; line-height: 1; }
+    .strip--letras-texto .choice-num__txt { position: static; width: auto; height: auto; clip: auto; line-height: 1; }
     .strip--letras-texto .choice-btn--chosen .choice-num__txt { color: var(--tinta-oscura); }
     .choice-num:has(.choice-num__txt--ver)::after { display: none; }
     .choice-num[data-letra="A"] { --lc: var(--letra-A-clara); --lo: var(--letra-A-oscura); }
