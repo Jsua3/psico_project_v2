@@ -30,7 +30,8 @@ import { scaled } from '../e2e/support/time-scale';
  *  - A y B se ven enteras sin tocar nada, y cada ficha se puede ver entera desplazando solo la lista de fichas;
  *  - ninguna franja (cabecera, aviso, pista de teclado) tapa el rótulo de quien habla, ninguna pieza del cuadro se monta
  *    sobre otra y nada de la pantalla las tapa;
- *  - lo mismo con el aviso breve «hay otra forma de responder» en pantalla, que antes flotaba sobre las fichas.
+ *  - lo mismo con el aviso breve «hay otra forma de responder» en pantalla, que antes flotaba sobre las fichas;
+ *  - la barra inferior del juego, oculta e inerte con el cuadro abierto, y de vuelta (visible y enfocable) al cerrarlo.
  *  - ninguna ficha visible sale a medias (la lista se acota a filas enteras y dice qué fichas quedan abajo), la pista de
  *    teclado va debajo de las fichas y, a 1920 x 1080, las fichas caben enteras sin desplazar.
  * Los estados salen de `tools/escenarios/decisiones_para_prueba.py`. Se corre con la pila aislada:
@@ -203,6 +204,11 @@ async function medir(page: Page): Promise<{ fallas: string[]; medidas: Record<st
         }
       }
     }
+    // La barra inferior del juego (herramientas, «Salida segura») no queda debajo del cuadro: oculta e inerte.
+    const barra = document.querySelector('footer.bottom-zone');
+    if (barra && (getComputedStyle(barra).visibility !== 'hidden' || !barra.hasAttribute('inert') || barra.getAttribute('aria-hidden') !== 'true')) {
+      fallas.push('la barra inferior sigue visible o activa con el cuadro abierto');
+    }
     // Los avisos sueltos de la pantalla no pasan por el sitio del cuadro (no reciben el puntero: se miden aparte).
     for (const aviso of Array.from(document.querySelectorAll('.soft-notice, .pausing-notice, .room-banner'))) {
       if (!oculto(aviso) && cruce(caja(aviso), cTira)) fallas.push(`${nombre(aviso)} flota encima del cuadro ${txt(caja(aviso))}`);
@@ -263,6 +269,16 @@ for (const tamano of TAMANOS) {
           }
           await ponerAvisoBreve(page, '');
         }
+        // Al cerrar el cuadro, la barra inferior vuelve: visible, activa y con «Salida segura» enfocable.
+        await page.locator('app-dialogue-panel.dialogue-cinematic .panel-back').click();
+        await expect(page.locator('app-dialogue-panel.dialogue-cinematic')).toHaveCount(0);
+        const pie = await page.evaluate(() => {
+          const barra = document.querySelector('footer.bottom-zone')!;
+          const salida = barra.querySelector<HTMLElement>('app-safe-exit-button button');
+          salida?.focus();
+          return { visible: getComputedStyle(barra).visibility, inerte: barra.hasAttribute('inert'), enfocada: !!salida && document.activeElement === salida };
+        });
+        expect(pie).toEqual({ visible: 'visible', inerte: false, enfocada: true });
       } finally {
         writeFileSync(`${DESTINO}/decisiones-caben-${tamano.nombre}.json`, JSON.stringify(informe, null, 1));
         if (fixture) await retireCase(request, fixture.caseVersionId, records);

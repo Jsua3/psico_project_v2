@@ -1603,6 +1603,13 @@ describe('DialoguePanelComponent - el aviso breve va dentro del cuadro', () => {
     expect(fila?.nextElementSibling?.matches('.choices, app-scene-hint')).toBe(true);
   });
 
+  it('con el cuadro sobre el mundo, la barra inferior se oculta sin dejar hueco y queda inerte', () => {
+    const pantalla = readFileSync(join(__dirname, 'simulation-play.component.ts'), 'utf-8');
+    expect(pantalla).toContain(`[class.bottom-zone--bajo-dialogo]="viewMode() === 'dialogue-cinematic'"`);
+    expect(pantalla).toContain(`[attr.inert]="inputBlocked() || viewMode() === 'dialogue-cinematic' ? '' : null"`);
+    expect(pantalla).toContain('.bottom-zone--bajo-dialogo { visibility: hidden; }');
+  });
+
   it('la pantalla no pinta el aviso suelto mientras hay un diálogo sobre el mundo: se lo pasa al cuadro', () => {
     const pantalla = readFileSync(join(__dirname, 'simulation-play.component.ts'), 'utf-8');
     expect(pantalla).toContain("@if (softNotice() && viewMode() !== 'dialogue-cinematic') {");
