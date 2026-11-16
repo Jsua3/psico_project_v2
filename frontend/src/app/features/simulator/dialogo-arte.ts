@@ -9,8 +9,10 @@ export const LETRAS = ['A', 'B', 'C', 'D'] as const;
 
 const RUTA = 'assets/game/dialogo/';
 const MARCOS = ['placa', 'rotulo', 'ficha', 'ficha-sobre', 'ficha-foco', 'ficha-pulsada', 'ficha-elegida', 'burbuja',
-  'tecla', 'tecla-encendida', 'tecla-hundida'] as const;
-const TRAMAS = ['placa', 'ficha', 'ficha-sobre', 'ficha-pulsada', 'ficha-elegida', 'burbuja'] as const;
+  'tecla', 'tecla-encendida', 'tecla-hundida',
+  'placa-sobre', 'placa-foco', 'placa-pulsada', 'placa-apagada', 'salida', 'salida-sobre', 'salida-foco', 'salida-pulsada'] as const;
+const TRAMAS = ['placa', 'ficha', 'ficha-sobre', 'ficha-pulsada', 'ficha-elegida', 'burbuja',
+  'placa-sobre', 'placa-pulsada', 'salida', 'salida-sobre', 'salida-pulsada'] as const;
 /** El color de la fuente de luz, el mismo que usa `dialogo_arte.LUZ`. */
 const LUZ: Readonly<Record<MomentoDelDia, string>> = { noche: '#ffcd82', dia: '#fff3cd' };
 
@@ -27,6 +29,11 @@ export function variablesDeArte(momento: MomentoDelDia): Record<string, string> 
   for (const m of MARCOS) vars[`--marco-${m}`] = url(`marco-${m}-${momento}`);
   for (const t of TRAMAS) vars[`--trama-${t}`] = url(`trama-${t}-${momento}`);
   vars['--cursor'] = url(`cursor-${momento}`);
+  // Los iconos de las placas de la cabecera: la bombilla de «Ver pista» (encendida con la luz del momento) y la puerta
+  // de «Salida segura».
+  vars['--icono-bombilla'] = url(`icono-bombilla-${momento}`);
+  vars['--icono-bombilla-apagada'] = url('icono-bombilla-apagada');
+  vars['--icono-salida'] = url('icono-salida');
   vars['--seguir'] = url(`seguir-${momento}`);
   vars['--cola'] = url('cola');
   vars['--sombra'] = url('sombra');

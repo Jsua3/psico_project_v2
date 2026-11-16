@@ -362,3 +362,11 @@ describe('SimulationPlayComponent: la reacción al elegir (4.3.3)', () => {
     expect(stage.setPersonaState).not.toHaveBeenCalled();
   });
 });
+
+// Bloque I1 (aviso de K1): quien reacciona sin ser la persona clave de la sala (el hermano mayor en la entrada) también
+// tiene cara: la del personaje de la sala, la misma fuente que el diálogo y la burbuja.
+describe('SimulationPlayComponent - la cara de quien reacciona', () => {
+  it('reactionActor cae a characterVisualOf del personaje que reacciona', () => {
+    expect(source).toContain('const visual = (isKeyPerson ? this.patientVisual() : null) ?? this.gameWorld?.characterVisualOf(object.key) ?? null;');
+  });
+});

@@ -135,6 +135,17 @@ async function medir(page: Page): Promise<{ fallas: string[]; medidas: Record<st
     const ventana = corte(caja(lista), visible);
     medidas['lista'] = `${txt(caja(lista))} desplazable ${lista.scrollHeight - lista.clientHeight}px`;
     medidas['tope'] = `${lista.style.maxHeight || 'sin tope'} | banda ${getComputedStyle(tira).height} de ${getComputedStyle(tira).maxHeight}`;
+    if (new URLSearchParams(location.search).has('diagnostico') || (window as unknown as { __diag?: boolean }).__diag) {
+      const ficha = lista.querySelector<HTMLElement>('.choice-btn');
+      const tope = lista.style.maxHeight;
+      const mas = lista.parentElement!.dataset['mas'];
+      lista.style.maxHeight = '';
+      delete lista.parentElement!.dataset['mas'];
+      medidas['libre'] = `lista ${lista.clientHeight}/${lista.scrollHeight} banda ${tira.getBoundingClientRect().height}`;
+      lista.style.maxHeight = tope;
+      if (mas) lista.parentElement!.dataset['mas'] = mas;
+      medidas['diag'] = `fichas ${Array.from(lista.querySelectorAll<HTMLElement>('.choice-btn')).map(f => `${f.offsetTop}+${f.offsetHeight}`).join(',')} | lista offTop ${lista.offsetTop} client ${lista.clientHeight} scroll ${lista.scrollHeight} | ficha padre ${ficha?.offsetParent?.className} lista padre ${(lista.offsetParent as HTMLElement | null)?.className}`;
+    }
     const fichas = Array.from(lista.querySelectorAll<HTMLElement>('.choice-btn'));
     fichas.slice(0, 2).forEach((f, i) => {
       if (!dentro(caja(f), ventana)) fallas.push(`la ${'AB'[i]} no se ve entera sin desplazar ${txt(caja(f))} (lista ${txt(ventana)})`);
@@ -246,6 +257,7 @@ for (const tamano of TAMANOS) {
         await interactNearby(page, /laura/i, /\/interactions\/laura$/);
         await expect(page.getByRole('dialog', { name: /laura/i })).toBeVisible({ timeout: scaled(30_000) });
 
+        if (process.env['CAPTURA_DIAG']) await page.evaluate(() => { (window as unknown as { __diag?: boolean }).__diag = true; });
         for (const estado of decisiones) {
           await ponerDecision(page, estado);
           const nombre = new RegExp(estado.speakerName.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'i');
@@ -268,6 +280,32 @@ for (const tamano of TAMANOS) {
             await page.screenshot({ path: `${DESTINO}/decisiones-caben-${tamano.nombre}-con-aviso-breve.png` });
           }
           await ponerAvisoBreve(page, '');
+        }
+        // Las placas-botón de la cabecera, recortadas, en reposo, sobre y pulsadas (para mirarlas a x1 y x3). Pulsar es bajar
+        // el botón y soltarlo fuera: no se dispara nada.
+        const cabeza = page.locator('app-dialogue-panel.dialogue-cinematic .panel-head');
+        const pista = page.locator('app-dialogue-panel.dialogue-cinematic app-scene-hint');
+        const recorte = async (estado: string) => {
+          const a = (await cabeza.boundingBox())!;
+          const b = (await pista.boundingBox()) ?? a;
+          const x = Math.max(0, Math.min(a.x, b.x) - 12);
+          const y = Math.max(0, Math.min(a.y, b.y) - 12);
+          const ancho = Math.min(tamano.width - x, Math.max(a.x + a.width, b.x + b.width) - x + 12);
+          const alto = Math.min(tamano.height - y, Math.max(a.y + a.height, b.y + b.height) - y + 12);
+          await page.screenshot({ path: `${DESTINO}/placas-${tamano.nombre}-${estado}.png`, clip: { x, y, width: ancho, height: alto } });
+        };
+        await page.mouse.move(2, 2);
+        await recorte('reposo');
+        for (const [nombre, selector] of [['salida', '.panel-head__exit button'], ['volver', '.panel-back'], ['pista', 'app-scene-hint button']]) {
+          const boton = page.locator(`app-dialogue-panel.dialogue-cinematic ${selector}`).first();
+          await boton.hover();
+          await recorte(`sobre-${nombre}`);
+          if (nombre !== 'pista') {
+            await page.mouse.down();
+            await recorte(`pulsada-${nombre}`);
+            await page.mouse.move(2, 2);
+            await page.mouse.up();
+          }
         }
         // Al cerrar el cuadro, la barra inferior vuelve: visible, activa y con «Salida segura» enfocable.
         await page.locator('app-dialogue-panel.dialogue-cinematic .panel-back').click();
