@@ -517,6 +517,14 @@ def _reachable(edges: dict[str, list[str]], start: str) -> list[str]:
     return seen
 
 
+def _normalize_ending_key(key):
+    """La clave de un final en minúsculas con guion bajo: el modelo suele escribirla en kebab-case."""
+    if not isinstance(key, str):
+        return key
+    key = re.sub(r"[-\s.]", "_", key.strip().lower())
+    return re.sub(r"_+", "_", key).strip("_")
+
+
 def _endings(c: _Collector, raw, milestones: set[str]) -> list[dict]:
     items = c.items(raw, "finales")
     if not MIN_ENDINGS <= len(items) <= MAX_ENDINGS_GENERATED:
@@ -527,7 +535,7 @@ def _endings(c: _Collector, raw, milestones: set[str]) -> list[dict]:
         if not c.obj(item, schema.SKELETON["properties"]["finales"]["items"]["required"], "finales"):
             continue
         is_last = position == len(items) - 1
-        key = item["clave"]
+        key = _normalize_ending_key(item["clave"])
         if not isinstance(key, str) or not case_rules.NAME.fullmatch(key) or key in keys:
             c.add(ENDING_KEY)
         else:
