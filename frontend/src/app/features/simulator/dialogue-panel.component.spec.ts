@@ -1522,3 +1522,12 @@ describe('DialoguePanelComponent - cara del personaje de la sala', () => {
     TestBed.resetTestingModule();
   });
 });
+
+// Bloque I1: si la letra de pixel no carga, la opción conserva su letra en texto.
+describe('DialoguePanelComponent - respaldo de las letras', () => {
+  it('con la letra sin cargar, la clase de respaldo muestra el texto y quita la imagen', () => {
+    expect(source).toContain('.strip--letras-texto .choice-num::after { display: none; }');
+    expect(source).toMatch(/\.strip--letras-texto \.choice-num__txt \{ position: static;/);
+    expect(source).toContain("prueba.onerror = () => this.letrasEnTexto.set(true);");
+  });
+});

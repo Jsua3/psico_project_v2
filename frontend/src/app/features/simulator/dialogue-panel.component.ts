@@ -47,6 +47,7 @@ const STALE_NOTE = 'Esta conversación corresponde a otro momento del caso.';
         [class.strip--quieto]="reduceMotion()"
         [class.strip--sin-retrato]="!portraitSrc(d) && !visualDeHablante(d)"
         [class.strip--con-opciones]="hasChoices(d)"
+        [class.strip--letras-texto]="letrasEnTexto()"
         [style]="arte()"
         [attr.data-momento]="momento()"
         role="dialog"
@@ -581,6 +582,10 @@ const STALE_NOTE = 'Esta conversación corresponde a otro momento del caso.';
     }
     .choice-num__txt { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0, 0, 0, 0); white-space: nowrap; }
     .choice-num__txt--ver { position: static; width: auto; height: auto; clip: auto; }
+    /* Respaldo: si la letra de pixel no carga, la letra va en texto (la mono distingue C de 0 y B de 8). */
+    .strip--letras-texto .choice-num::after { display: none; }
+    .strip--letras-texto .choice-num__txt { position: static; width: auto; height: auto; clip: auto; font-size: 1.05em; line-height: 1; }
+    .strip--letras-texto .choice-btn--chosen .choice-num__txt { color: var(--tinta-oscura); }
     .choice-num:has(.choice-num__txt--ver)::after { display: none; }
     .choice-num[data-letra="A"] { --lc: var(--letra-A-clara); --lo: var(--letra-A-oscura); }
     .choice-num[data-letra="B"] { --lc: var(--letra-B-clara); --lo: var(--letra-B-oscura); }
@@ -777,6 +782,8 @@ export class DialoguePanelComponent implements AfterViewChecked, OnDestroy {
   ));
   /** Opción ya elegida: pausa breve de confirmación antes de ejecutar. */
   readonly chosenKey = signal<string | null>(null);
+  /** La letra de pixel no cargó (ruta o recurso ausente): las opciones muestran su letra en texto. */
+  protected readonly letrasEnTexto = signal(false);
   /** El arte de pixel del momento del día, como variables CSS del elemento raíz. */
   protected readonly arte = computed(() => variablesDeArte(this.momento()));
   /** La línea entera en tramos (acotación o no) y, de cada uno, lo ya escrito y lo que falta (invisible, ocupa su sitio). */
@@ -812,6 +819,12 @@ export class DialoguePanelComponent implements AfterViewChecked, OnDestroy {
 
   constructor() {
     this.kit.load().catch(() => undefined);
+    // Una sola prueba de carga de la letra A, por la misma ruta que usan las variables de arte.
+    if (typeof Image !== 'undefined') {
+      const prueba = new Image();
+      prueba.onerror = () => this.letrasEnTexto.set(true);
+      prueba.src = /^url\((.+)\)$/.exec(variablesDeArte('noche')['--letra-A-clara'])?.[1] ?? '';
+    }
     effect(() => {
       const d = this.dialogue();
       this.stopTypewriter();
