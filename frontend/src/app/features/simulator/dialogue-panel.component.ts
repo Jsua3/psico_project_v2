@@ -1,6 +1,6 @@
 import { CommonModule } from '@angular/common';
 import { A11yModule } from '@angular/cdk/a11y';
-import { AfterRenderRef, AfterViewChecked, Component, ElementRef, HostListener, Injector, OnDestroy, afterNextRender, computed, effect, inject, input, output, signal, untracked, ChangeDetectionStrategy } from '@angular/core';
+import { AfterRenderRef, AfterViewChecked, Component, DestroyRef, ElementRef, HostListener, Injector, OnDestroy, afterNextRender, computed, effect, inject, input, output, signal, untracked, ChangeDetectionStrategy } from '@angular/core';
 import { LiveRegionAnnouncer } from '../../core/a11y/live-announcer.service';
 import { ShortcutSettings } from '../../core/a11y/shortcut-settings.service';
 import { DialogueChoiceState, DialogueState, MapObjectState, Persona } from '../../core/models/simulation.model';
@@ -243,6 +243,10 @@ const STALE_NOTE = 'Esta conversación corresponde a otro momento del caso.';
     .dialogue-strip:not(.strip--con-opciones) .strip-body { display: none; }
     /* Una sola opción ocupa todo el ancho de su columna, no media. */
     .choices:not(:has(.choice-btn + .choice-btn)) { grid-template-columns: minmax(0, 1fr); }
+    /* Alto acotado y conocido sobre el mundo: el cuadro (placa, fichas, aviso, pista y botones) no pasa de --dialogo-alto-max;
+       lo que no quepa se desplaza dentro. La pantalla lee el alto real en data-alto-ocupado (cámara de M1). */
+    .dialogue-strip:not(.dialogue-strip--side) { --dialogo-alto-max: min(340px, 46vh); max-height: var(--dialogo-alto-max); }
+    @media (min-width: 1800px) { .dialogue-strip:not(.dialogue-strip--side) { --dialogo-alto-max: min(480px, 46vh); } }
     /* Sobre el mundo, el cuadro incluye el retrato que asoma: el borde superior de app-dialogue-panel es lo que tapa. */
     .dialogue-strip:not(.dialogue-strip--side) { padding-top: calc(16 * var(--px)); }
 
@@ -691,7 +695,7 @@ const STALE_NOTE = 'Esta conversación corresponde a otro momento del caso.';
     /* Teléfono: la escena sigue a la vista. El cuadro toma como mucho el 64 % del alto, el retrato baja a 64 px (2 x 32,
        entero para el kit) y todo va en una columna; si las opciones no caben, se desplaza el cuadro, no la página. */
     @media (max-width: 560px) {
-      .dialogue-strip { --retrato: 64px; max-height: 64vh; padding-left: calc(4 * var(--px)); padding-right: calc(4 * var(--px)); }
+      .dialogue-strip, .dialogue-strip:not(.dialogue-strip--side) { --dialogo-alto-max: 64vh; --retrato: 64px; max-height: 64vh; padding-left: calc(4 * var(--px)); padding-right: calc(4 * var(--px)); }
       .dialogue-strip:not(.dialogue-strip--side) { padding-top: calc(10 * var(--px)); }
       .portrait { margin-top: calc(-8 * var(--px)); }
       .strip-main { grid-template-columns: minmax(0, 1fr); gap: calc(4 * var(--px)); }
@@ -816,9 +820,20 @@ export class DialoguePanelComponent implements AfterViewChecked, OnDestroy {
   private readonly liveAnnouncer = inject(LiveRegionAnnouncer);
   private readonly host = inject<ElementRef<HTMLElement>>(ElementRef);
   private readonly injector = inject(Injector);
+  private readonly destroyRef = inject(DestroyRef);
 
   constructor() {
     this.kit.load().catch(() => undefined);
+    // El alto que ocupa el cuadro, publicado en el anfitrión para la cámara (M1): data-alto-ocupado, en px CSS.
+    afterNextRender(() => {
+      if (typeof ResizeObserver === 'undefined') return;
+      const anfitrion = this.host.nativeElement;
+      const observador = new ResizeObserver(() => {
+        anfitrion.dataset['altoOcupado'] = String(this.dialogue() ? Math.round(anfitrion.getBoundingClientRect().height) : 0);
+      });
+      observador.observe(anfitrion);
+      this.destroyRef.onDestroy(() => observador.disconnect());
+    }, { injector: this.injector });
     // Una sola prueba de carga de la letra A, por la misma ruta que usan las variables de arte.
     if (typeof Image !== 'undefined') {
       const prueba = new Image();
