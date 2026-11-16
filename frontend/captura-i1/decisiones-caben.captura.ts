@@ -135,6 +135,17 @@ async function medir(page: Page): Promise<{ fallas: string[]; medidas: Record<st
     fichas.slice(0, 2).forEach((f, i) => {
       if (!dentro(caja(f), ventana)) fallas.push(`la ${'AB'[i]} no se ve entera sin desplazar ${txt(caja(f))} (lista ${txt(ventana)})`);
     });
+    // Ninguna ficha visible sale a medias: o se ve entera o no se ve (la lista se acota a filas enteras).
+    fichas.forEach((f, i) => {
+      const c = caja(f);
+      const asoma = Math.min(c.bottom, ventana.bottom) - Math.max(c.top, ventana.top);
+      if (asoma > T && !dentro(c, ventana)) fallas.push(`la ficha ${'ABCDEF'[i]} se ve a medias ${txt(c)} (lista ${txt(ventana)})`);
+    });
+    // La pista de teclado va debajo de las fichas, sin montarse sobre la lista.
+    const teclado = tira.querySelector('.keyboard-hint');
+    if (teclado && !oculto(teclado) && caja(teclado).top < caja(lista).bottom - T) {
+      fallas.push(`la pista de teclado se monta sobre la lista ${txt(caja(teclado))} (lista ${txt(caja(lista))})`);
+    }
     fichas.forEach((f, i) => {
       const antes = caja(f);
       if (antes.bottom > ventana.bottom) lista.scrollTop += antes.bottom - ventana.bottom + 1;

@@ -1614,7 +1614,10 @@ describe('DialoguePanelComponent - el aviso breve va dentro del cuadro', () => {
 describe('DialoguePanelComponent - alto acotado sobre el mundo', () => {
   it('el cuadro no pasa de --dialogo-alto-max y publica data-alto-ocupado', () => {
     expect(source).toContain('.dialogue-strip:not(.dialogue-strip--side) { --dialogo-alto-max: min(340px, 46vh); max-height: var(--dialogo-alto-max); }');
-    expect(source).toContain("--dialogo-alto-max: min(480px, 46vh);");
+    expect(source).toContain("--dialogo-alto-max: min(560px, 52vh);");
+    // La banda de decisión toma el alto que necesita, hasta el tope; si las fichas no caben, la lista se acota a filas enteras.
+    expect(source).toContain("height: calc-size(max-content, min(size, var(--dialogo-alto-max)));");
+    expect(source).toContain("lista.style.maxHeight = `${Math.ceil(corte + pie)}px`;");
     expect(source).toContain("anfitrion.dataset['altoOcupado']");
   });
 
