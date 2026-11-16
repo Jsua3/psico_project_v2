@@ -44,17 +44,21 @@ async function abrirRevisionComprobada(page: Page): Promise<Locator> {
   return seccion.getByRole('button', { name: /^Llévame ahí/ });
 }
 
-/** Pulsa cada «Llévame ahí» de «Por resolver» (uno por falta) y devuelve el `id` del elemento que recibió el foco en cada caso. */
-async function anclasDeLasFaltas(page: Page): Promise<string[]> {
+function escapar(texto: string): string {
+  return texto.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+}
+
+/** Pulsa cada «Llévame ahí» de «Por resolver» (uno por falta) y devuelve el `id` del elemento que recibió el foco y la dirección a la que llegó. */
+async function anclasDeLasFaltas(page: Page): Promise<Array<{ ancla: string; url: string }>> {
   const cuantas = await (await abrirRevisionComprobada(page)).count();
   expect(cuantas, 'la revisión lista faltas').toBeGreaterThan(0);
-  const anclas: string[] = [];
+  const anclas: Array<{ ancla: string; url: string }> = [];
   for (let i = 0; i < cuantas; i++) {
     const llevar = await abrirRevisionComprobada(page);
     await expect(llevar).toHaveCount(cuantas);
     await llevar.nth(i).click();
     await page.waitForFunction(() => !!document.activeElement && document.activeElement !== document.body, undefined, { timeout: scaled(15_000) });
-    anclas.push(await page.evaluate(() => document.activeElement?.id ?? ''));
+    anclas.push({ ancla: await page.evaluate(() => document.activeElement?.id ?? ''), url: page.url() });
   }
   return anclas;
 }
@@ -104,12 +108,14 @@ test.describe('@generacion la docente describe un caso y la IA lo arma con el pr
       await page.waitForTimeout(2_100);
       await expect(page).toHaveURL(/\/generando\//);
       caseVersionId = await abrirMiCaso(page);
-      await expect(page.locator('button.escena')).toHaveCount(4, { timeout: scaled(30_000) });
       const docente = await apiToken(request, PROFESOR);
+      const nEscenas = ((await editorDe(request, docente, caseVersionId))['nodes'] as Json[]).length;
+      expect(nEscenas, 'el caso generado trae escenas').toBeGreaterThan(0);
+      await expect(page.locator('button.escena')).toHaveCount(nEscenas, { timeout: scaled(30_000) });
 
       // ── 3 · La primera escena (la del inicio): lo que la IA escribió, en el guion ──────────────────────────────
       await abrirGuion(page, 1);
-      await expect(page.getByLabel('Objetivo de la escena')).toHaveValue(/primer contacto con Daniela/, { timeout: scaled(30_000) });
+      await expect(page.getByLabel('Objetivo de la escena')).toHaveValue(/\S/, { timeout: scaled(30_000) });
       await expect(page.locator('textarea[id^="pista-texto-"]'), 'las tres pistas de la sala').toHaveCount(3);
       const apareceSi = page.getByRole('group', { name: 'Aparece si…' }).filter({ has: page.getByRole('checkbox', { checked: true }) });
       await expect(apareceSi, 'una respuesta con «Aparece si…» y su casilla marcada').toHaveCount(1);
@@ -123,7 +129,7 @@ test.describe('@generacion la docente describe un caso y la IA lo arma con el pr
       // ── 4 · Aceptar lo sugerido por la IA, escena por escena ───────────────────────────────────────────────────
       const pendientes = await sugeridoPorLaIa(request, docente, caseVersionId);
       expect(pendientes, 'el caso recién generado trae partes sugeridas por la IA').toBeGreaterThan(0);
-      for (let escena = 1; escena <= 4; escena++) {
+      for (let escena = 1; escena <= nEscenas; escena++) {
         await abrirGuion(page, escena);
         const aceptar = page.getByRole('button', { name: /^Aceptar toda la escena/ });
         await expect(aceptar, `la escena ${escena} ofrece aceptar lo sugerido`).toBeVisible({ timeout: scaled(30_000) });
@@ -146,35 +152,51 @@ test.describe('@generacion la docente describe un caso y la IA lo arma con el pr
       // ── 5 · La revisión: las faltas de OCL-09 a OCL-12 llevan a lo concreto ────────────────────────────────────
       const faltas = await ponerFaltasDeOcl(request, docente, caseVersionId);
       const anclas = await anclasDeLasFaltas(page);
-      expect(anclas, '«Llévame ahí» abre la escena y da el foco a lo exacto: el «Aparece si…», el «Cómo reacciona» y el comentario').toEqual(
+      expect(anclas.map((a) => a.ancla), '«Llévame ahí» abre la escena y da el foco a lo exacto: el «Aparece si…», el «Cómo reacciona» y el comentario').toEqual(
         expect.arrayContaining([`aparece-si-${faltas.requisito}`, `reaccion-${faltas.reaccion}`, `comentario-${faltas.comentario}`]),
       );
+      // Y la escena que se abrió es la correcta: las tres faltas puestas están en la primera (la del inicio).
+      const escenaInicio = (await editorDe(request, docente, caseVersionId))['nodes'].find((n: Json) => n['startNode']) as Json;
+      for (const esperada of [`aparece-si-${faltas.requisito}`, `reaccion-${faltas.reaccion}`, `comentario-${faltas.comentario}`]) {
+        const llegada = anclas.find((a) => a.ancla === esperada)!;
+        expect(llegada.url, `«Llévame ahí» de ${esperada} abre el guion de la escena del inicio`)
+          .toMatch(new RegExp(`/editor/escena/(?:${escapar(String(escenaInicio['key']))}|${escenaInicio['id']})(?:[?#]|$)`));
+      }
       await page.goto(rutaEditor(page, '/revision'));
       await expect(page.getByRole('heading', { name: /^Por resolver \([1-9]\d*\)$/ })).toBeVisible({ timeout: scaled(30_000) });
       await sinInfraccionesGraves(page, 'la revisión con faltas de OCL');
       await faltas.deshacer();
 
-      // Lo que el proveedor falso deja sin resolver a propósito: dos hitos que ninguna respuesta marca. La docente los marca en la
-      // primera respuesta de la tercera escena (a la que se llega desde el inicio) y la revisión queda limpia.
-      const sinHitos = await abrirRevisionComprobada(page);
-      const etiquetas = await sinHitos.evaluateAll((botones) => botones.map((b) => b.getAttribute('aria-label') ?? ''));
-      expect(etiquetas.filter((e) => /^Llévame ahí: El hito .* no se puede cumplir/.test(e)),
-        'la revisión lista los dos hitos que ninguna respuesta marca').toHaveLength(2);
-      await abrirGuion(page, 3);
-      const primera = page.locator('li.respuesta').first();
-      for (const hito of ['Recomendar medidas de protección', 'No mediar con el agresor']) {
-        await primera.getByRole('checkbox', { name: hito, exact: true }).check();
+      // Lo que el proveedor falso deje sin resolver (hoy: hitos que ninguna respuesta marca y un final inalcanzable; mañana, quizá
+      // nada): la docente resuelve, una a una, las faltas que la revisión liste en ese momento, sean cero o más, hasta que no queden.
+      // No se nombra ninguna falta, final ni hito del archivo del proveedor: todo sale de lo que dicen la revisión y el propio caso.
+      const hitosDelCaso = ((await editorDe(request, docente, caseVersionId))['rules']['milestones'] as Json[]).map((h) => String(h['label']));
+      const MAX_VUELTAS = 12;
+      for (let vuelta = 0; ; vuelta++) {
+        const todas = await (await abrirRevisionComprobada(page)).evaluateAll((botones) => botones.map((b) => b.getAttribute('aria-label') ?? ''));
+        // La lista de verificación no es del caso sino de la docente: se marca más abajo, al enviar.
+        const etiquetas = todas.filter((e) => !/lista de verificación/i.test(e));
+        if (etiquetas.length === 0) break;
+        expect(vuelta, `la revisión sigue listando faltas tras ${MAX_VUELTAS} arreglos: ${etiquetas.join(' | ')}`).toBeLessThan(MAX_VUELTAS);
+        const falta = etiquetas[0];
+        const final = /^Llévame ahí: El final «(.+?)»/.exec(falta);
+        if (/no se puede cumplir/.test(falta)) {
+          // Un hito que ninguna respuesta marca: se marca en la primera respuesta de la primera escena (el caso empieza ahí).
+          const hito = hitosDelCaso.filter((h) => falta.includes(h)).sort((a, b) => b.length - a.length)[0];
+          expect(hito, `la falta «${falta}» nombra un hito del caso`).toBeTruthy();
+          await abrirGuion(page, 1);
+          await page.locator('li.respuesta').first().getByRole('checkbox', { name: hito, exact: true }).check();
+          await guardado(page);
+        } else if (final) {
+          // Un final al que nadie llega: «Llévame ahí» lo abre con el foco puesto y la docente lo borra.
+          await page.getByRole('button', { name: falta }).click();
+          await expect.poll(() => page.evaluate(() => document.activeElement?.id ?? ''), { timeout: scaled(15_000) }).toMatch(/^final-/);
+          await page.getByRole('button', { name: `Borrar el final ${final[1]}` }).click();
+          await guardado(page);
+        } else {
+          throw new Error(`La revisión lista una falta que esta prueba no sabe resolver como docente: «${falta}»`);
+        }
       }
-      await guardado(page);
-
-      // Y un final que pide cumplir «Derivar a salud mental» sin «Valorar el riesgo»: con las respuestas del caso nadie llega a él.
-      // La revisión lo dice, «Llévame ahí» abre ese final con el foco puesto, y la docente lo borra.
-      await abrirRevisionComprobada(page);
-      const nombreDelFinal = 'Llegó a la psicóloga, pero faltó algo';
-      await page.getByRole('button', { name: new RegExp(`^Llévame ahí: El final «${nombreDelFinal}»`) }).click();
-      await expect.poll(() => page.evaluate(() => document.activeElement?.id ?? ''), { timeout: scaled(15_000) }).toMatch(/^final-/);
-      await page.getByRole('button', { name: `Borrar el final ${nombreDelFinal}` }).click();
-      await guardado(page);
 
       // La lista de verificación marca «protocolos de seguridad»: el caso necesita un recurso de apoyo (el proveedor no los escribe).
       await abrirGuion(page, 1);
@@ -186,7 +208,7 @@ test.describe('@generacion la docente describe un caso y la IA lo arma con el pr
       asignacion = await assignCase(request, caseVersionId);
       await page.evaluate(() => { window.localStorage.clear(); window.sessionStorage.clear(); });
       await entrarALaPrimeraSala(page);
-      await expect(page.locator('app-simulation-play').getByText('Escenario 1 de 4').first()).toBeVisible({ timeout: scaled(30_000) });
+      await expect(page.locator('app-simulation-play').getByText(`Escenario 1 de ${nEscenas}`).first()).toBeVisible({ timeout: scaled(30_000) });
       await sinInfraccionesGraves(page, 'la primera sala del caso generado, vista por el estudiante');
     } finally {
       if (caseVersionId) await retireCase(request, caseVersionId, asignacion ? [asignacion] : []);

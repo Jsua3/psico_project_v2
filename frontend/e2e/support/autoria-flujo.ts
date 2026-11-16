@@ -419,9 +419,18 @@ export async function ponerFaltasDeOcl(request: APIRequestContext, token: string
     responseClass: d['responseClass'], prohibitedConduct: d['prohibitedConduct'], prohibitionReason: d['prohibitionReason'],
     immediateFeedback: d['immediateFeedback'], ...extra,
   });
+  // Alguien del caso que no está en la sala de la escena: se toma de los propios datos del caso (sin nombrar a nadie del archivo
+  // del proveedor), de preferencia alguien sin ninguna PERSON en el mapa de ninguna sala.
+  const mapaInicio = (vista['maps'] as Json[]).find((m) => m['nodeId'] === escena['id']);
+  const personas = (vista['objects'] as Json[]).filter((o) => o['type'] === 'PERSON' && o['characterId'] != null && o['visible'] !== false);
+  const sinSala = (vista['characters'] as Json[]).filter((c) => !personas.some((o) => o['characterId'] === c['id']));
+  const fueraDelInicio = (vista['characters'] as Json[]).filter((c) => !personas.some((o) => o['characterId'] === c['id'] && o['mapId'] === mapaInicio?.['id']));
+  const elegido = sinSala[0] ?? fueraDelInicio[0];
+  expect(elegido, 'el caso trae a alguien que no está en la sala de la primera escena').toBeTruthy();
+  const ajeno = String(elegido!['key']);
   await send(request, token, 'put', `${base}/decisions/${conRequisito['id']}`, cuerpo(conRequisito, { requires: { milestone: 'hito-que-no-existe' } }), 'requisito con un hito inexistente (OCL-10)');
   await send(request, token, 'put', `${base}/decisions/${conReaccion['id']}`,
-    cuerpo(conReaccion, { reaction: { ...(conReaccion['reaction'] ?? {}), linea: 'Ay, no sé qué decir.', personaje: 'psicologa-bienestar' } }), 'reacción de alguien que no está en la sala (OCL-12)');
+    cuerpo(conReaccion, { reaction: { ...(conReaccion['reaction'] ?? {}), linea: 'Ay, no sé qué decir.', personaje: ajeno } }), 'reacción de alguien que no está en la sala (OCL-12)');
 
   const actual = (await readEditor(request, token, caseVersionId) as Json)['nodes'].find((n: Json) => n['id'] === escena['id']) as Json;
   const comentarios = (actual['comments'] ?? []) as Json[];
@@ -431,9 +440,6 @@ export async function ponerFaltasDeOcl(request: APIRequestContext, token: string
     warningMessage: actual['warningMessage'], terminal: actual['terminal'], startNode: actual['startNode'],
     positionX: actual['positionX'], positionY: actual['positionY'], comments,
   });
-  // La psicóloga solo está en el consultorio: en el aula nadie la oye.
-  const ajeno = 'psicologa-bienestar';
-  expect((vista['characters'] as Json[]).map((c) => c['key']), 'el caso trae a la psicóloga de Bienestar').toContain(ajeno);
   await send(request, token, 'put', `${base}/nodes/${escena['id']}`,
     cuerpoEscena([...comentarios, { personaje: ajeno, linea: 'Pasaba por aquí y me quedé escuchando.' }]), 'comentario de alguien que no está en la sala (OCL-12)');
 
