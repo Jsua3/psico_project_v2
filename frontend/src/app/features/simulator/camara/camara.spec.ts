@@ -40,6 +40,11 @@ describe('camara: los tres planos son enteros', () => {
 });
 
 describe('camara: plano general y plano de caminar', () => {
+  it('el plano general del juego real (lienzo 1342×610, jugador en 600,440) centra la sala', () => {
+    const o = objetivoCamara(entrada({ momento: { tipo: 'general' }, jugador: { x: 600, y: 440 }, vista: vista(1342, 610) }), null);
+    expect(o).toEqual({ centro: { x: 600, y: 264 }, zoom: 1 });
+  });
+
   it('el plano general muestra la sala entera, centrada', () => {
     expect(objetivoCamara(entrada({ momento: { tipo: 'general' } }), null)).toEqual({ centro: { x: 600, y: 264 }, zoom: 1 });
   });

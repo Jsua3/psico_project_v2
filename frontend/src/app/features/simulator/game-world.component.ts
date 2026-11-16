@@ -124,8 +124,8 @@ export type CameraMoment = { tipo: 'explorar' } | { tipo: 'conversacion' | 'obje
 export interface CameraOptions { cercana: boolean; acercarAuto: boolean }
 export interface CameraReport {
   zoom: number; momento: Momento['tipo']; x: number; y: number; viajando: boolean;
-  /** Lo que la interfaz tapa (px CSS) abajo y arriba, tal como lo recibe la cámara. */
-  abajo: number; arriba: number;
+  /** Lo que la interfaz tapa (px CSS) abajo y arriba, tal como lo recibe la cámara, y la sala que encuadra («1200x528»). */
+  abajo: number; arriba: number; sala: string;
 }
 
 interface WorldCallbacks {
@@ -210,6 +210,8 @@ const LABEL_DEPTH = DEPTH.UI - 1;
 const NPC_KEY_PREFIX = 'npc:';
 /** Cuánto se sostiene el último plano cercano al soltarse (entre la decisión y la reacción, bloque M1). */
 const RETENER_PLANO_MS = 1300;
+/** Por debajo de esto (px físicos) el lienzo aún no tiene tamaño y la cámara espera (bloque M1). */
+const VISTA_MINIMA_PX = 64;
 /** Plazo máximo para el primer cuadro del mundo (F6-8): pasado, el anfitrión ofrece reintentar. */
 const BOOT_WATCHDOG_MS = 25_000;
 
@@ -1138,6 +1140,12 @@ export class DataDrivenWorldScene extends Phaser.Scene {
   private stepCamera(delta: number): void {
     const cam = this.cameras?.main;
     if (!cam || !this.player || this.camFrozen || cam.fadeEffect.isRunning) return;
+    // Lienzo todavía sin tamaño (se ve 1 px de alto mientras la pantalla se arma): no se encuadra ni corre la espera del
+    // plano general; el primer cuadro con tamaño real es el corte.
+    if (cam.width < VISTA_MINIMA_PX || cam.height < VISTA_MINIMA_PX) {
+      if (this.camEntrada) this.camEntrada.hasta += Math.max(0, delta);
+      return;
+    }
     const ahora = this.camNow();
     // El plano general de una sala nueva cuenta solo cuando se ve: detrás de una nota o un diálogo, espera.
     if (this.camEntrada && this.motionPaused) this.camEntrada.hasta += Math.max(0, delta);
@@ -1195,8 +1203,9 @@ export class DataDrivenWorldScene extends Phaser.Scene {
     const report: CameraReport = {
       zoom: this.camSettledZoom, momento: momento.tipo, x: Math.round(next.centro.x), y: Math.round(next.centro.y),
       viajando: this.camTravel !== null, abajo: Math.round(this.camCoveredCss), arriba: Math.round(this.camCoveredTopCss),
+      sala: `${sala.ancho}x${sala.alto} vista ${cam.width}x${cam.height}`,
     };
-    const key = `${report.zoom}|${report.momento}|${report.x}|${report.y}|${report.viajando}|${report.abajo}|${report.arriba}`;
+    const key = `${report.zoom}|${report.momento}|${report.x}|${report.y}|${report.viajando}|${report.abajo}|${report.arriba}|${report.sala}`;
     if (key !== this.camReport) {
       this.camReport = key;
       this.callbacks.onCamera?.(report);
@@ -3854,6 +3863,7 @@ export class GameWorldComponent implements OnChanges, OnDestroy {
     host.setAttribute('data-camera-y', String(camera.y));
     host.setAttribute('data-camera-travel', camera.viajando ? 'true' : 'false');
     host.setAttribute('data-camera-cover', `${camera.abajo},${camera.arriba}`);
+    host.setAttribute('data-camera-room', camera.sala);
   }
 
   /** Dónde está ahora la persona a atender, como `data-key-person-x/y` del host (contrato del e2e, igual que `data-player-x/y`). Directo al DOM. */

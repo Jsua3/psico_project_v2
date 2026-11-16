@@ -201,6 +201,16 @@ describe('mundo: encuadre', () => {
     expect(camera.zoom).toBe(3);
   });
 
+  it('con el lienzo todavía sin tamaño la cámara espera y encuadra al tenerlo', () => {
+    const { scene, camera } = escenaConPersona('familia', { x: 480, y: 300 }, { jugador: { x: 400, y: 300 } });
+    camera.height = 1;
+    cuadro(scene);
+    expect(camera.setZoom).not.toHaveBeenCalled();
+    camera.height = 650;
+    cuadro(scene);
+    expect(camera.zoom).toBe(2);
+  });
+
   it('durante un fundido de puerta la cámara no cambia de zoom', () => {
     const { scene, camera } = escenaConPersona('familia', { x: 480, y: 300 }, { jugador: { x: 400, y: 300 } });
     camera.fadeEffect.isRunning = true;
