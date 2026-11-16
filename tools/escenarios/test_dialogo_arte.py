@@ -94,3 +94,15 @@ def test_el_pulso_tiene_cuatro_cuadros_y_cada_estado_es_distinto():
         assert tira.size == (16 * 4, 8), estado
         assert {a for *_, a in tira.getdata()} <= {0, 255}
     assert len({tuple(t.getdata()) for t in tiras.values()}) == 3
+
+
+def test_el_retrato_de_reserva_tiene_el_formato_del_kit_y_no_tiene_cara():
+    im = da.retrato_reserva()
+    assert im.size == (32, 32)
+    assert {a for *_, a in im.getdata()} <= {0, 255}
+    colores = {c[:3] for c in im.getdata() if c[3]}
+    assert colores == set(da.RESERVA.values()) | {da.TINTA}      # cuatro tonos y el contorno del kit: sin ojos ni boca
+    px = im.load()
+    lleno = {(x, y) for y in range(32) for x in range(32) if px[x, y][3]}
+    assert (15, 4) in lleno and (15, 26) in lleno and (3, 29) in lleno and (28, 29) in lleno   # cabeza, cuello y hombros
+    assert (2, 6) not in lleno and (29, 6) not in lleno

@@ -406,7 +406,7 @@ const QUEUED_PAUSE_SLOW_NOTICE = 'La acción en curso está tardando. Estamos pa
                 }
               </header>
               <app-dialogue-panel class="dialogue-side" mode="side" [reduceMotion]="reduceMotion()"
-                [dialogue]="dialogue()" [interaction]="selectedInteraction()"
+                [dialogue]="dialogue()" [interaction]="selectedInteraction()" [speakerVisual]="speakerVisual()"
                 [releaseToken]="dialogueReleaseToken()" [pausing]="pausing()" [hintAttempt]="hintAttempt()"
                 (close)="closeDialogue()" (safeExit)="pauseFromOverlay()"
                 (execute)="executeDecision($event)" (useTool)="useTool($event)"
@@ -473,7 +473,7 @@ const QUEUED_PAUSE_SLOW_NOTICE = 'La acción en curso está tardando. Estamos pa
         </footer>
 
         @if (viewMode() === 'dialogue-cinematic') {
-          <app-dialogue-panel class="dialogue-cinematic" [reduceMotion]="reduceMotion()" [dialogue]="dialogue()" [interaction]="selectedInteraction()"
+          <app-dialogue-panel class="dialogue-cinematic" [reduceMotion]="reduceMotion()" [dialogue]="dialogue()" [interaction]="selectedInteraction()" [speakerVisual]="speakerVisual()"
             [releaseToken]="dialogueReleaseToken()" [pausing]="pausing()" [hintAttempt]="hintAttempt()"
             (close)="closeDialogue()" (safeExit)="pauseFromOverlay()"
             (execute)="executeDecision($event)" (useTool)="useTool($event)"
@@ -1428,6 +1428,11 @@ export class SimulationPlayComponent implements OnInit, OnDestroy {
   /** El comentario a la vista y dónde está la cabeza de quien lo dice, en px del lienzo (se refresca por cuadro solo mientras hay burbuja). */
   protected readonly bubble = signal<BurbujaVisible | null>(null);
   protected readonly bubbleAnchor = signal<{ x: number; y: number } | null>(null);
+  /** El personaje con quien se habla, para la cara del panel de diálogo (la misma fuente que la burbuja y la reacción). */
+  protected readonly speakerVisual = computed(() => {
+    const key = this.selectedInteraction()?.key;
+    return key ? this.gameWorld?.characterVisualOf(key) ?? null : null;
+  });
   protected readonly bubbleSpeaker = computed(() => {
     const key = this.bubble()?.objectKey;
     if (!key) return null;

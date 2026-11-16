@@ -1,10 +1,13 @@
 import { CommonModule } from '@angular/common';
 import { A11yModule } from '@angular/cdk/a11y';
-import { AfterRenderRef, AfterViewChecked, Component, ElementRef, HostListener, Injector, OnDestroy, afterNextRender, computed, effect, inject, input, output, signal, untracked, ChangeDetectionStrategy } from '@angular/core';
+import { AfterRenderRef, AfterViewChecked, Component, DestroyRef, ElementRef, HostListener, Injector, OnDestroy, afterNextRender, computed, effect, inject, input, output, signal, untracked, ChangeDetectionStrategy } from '@angular/core';
 import { LiveRegionAnnouncer } from '../../core/a11y/live-announcer.service';
 import { ShortcutSettings } from '../../core/a11y/shortcut-settings.service';
 import { DialogueChoiceState, DialogueState, MapObjectState, Persona } from '../../core/models/simulation.model';
 import { KitService } from '../character/kit/kit.service';
+import type { CharacterVisual } from '../character/kit/character-visual.resolver';
+import type { PortraitState } from '../character/kit/kit-engine';
+import { KitFigureComponent } from '../character/kit/kit-figure.component';
 import { AudioDirectorService } from './audio-director.service';
 import { MS_POR_CARACTER, pausaTras, tramos } from './caso/ritmo-texto';
 import { choiceIndex } from './dialogue-keys.util';
@@ -31,7 +34,7 @@ const STALE_NOTE = 'Esta conversación corresponde a otro momento del caso.';
 @Component({
   selector: 'app-dialogue-panel',
   standalone: true,
-  imports: [A11yModule, CommonModule, SafeExitButtonComponent, SceneHintComponent, UiButton],
+  imports: [A11yModule, CommonModule, KitFigureComponent, SafeExitButtonComponent, SceneHintComponent, UiButton],
   template: `
     @if (dialogue(); as d) {
       <div #dialogueBox
@@ -42,8 +45,9 @@ const STALE_NOTE = 'Esta conversación corresponde a otro momento del caso.';
         [class.strip--warning]="interaction()?.type === 'WARNING'"
         [class.strip--supervisory]="activeSpeakerName(d) === 'Supervisión clínica'"
         [class.strip--quieto]="reduceMotion()"
-        [class.strip--sin-retrato]="!portraitSrc(d)"
+        [class.strip--sin-retrato]="!portraitSrc(d) && !visualDeHablante(d)"
         [class.strip--con-opciones]="hasChoices(d)"
+        [class.strip--letras-texto]="letrasEnTexto()"
         [style]="arte()"
         [attr.data-momento]="momento()"
         role="dialog"
@@ -79,11 +83,12 @@ const STALE_NOTE = 'Esta conversación corresponde a otro momento del caso.';
               <div class="portrait" aria-hidden="true" [style.color]="showsEmotionCue(d) ? emotionColor(activeEmotion(d)) : null">
                 @if (portraitSrc(d); as src) {
                   <img class="portrait-img" [src]="src" alt="" width="96" height="96" (error)="onPortraitError(src)" />
+                } @else if (visualDeHablante(d); as visual) {
+                  <!-- Sin retrato por nombre, la cara del personaje que está en la sala (la misma que usa la reacción). -->
+                  <app-kit-figure class="portrait-kit" [visual]="visual" [portrait]="caraDeKit(d, visual)" [scale]="escalaKit()" />
                 } @else {
-                  <svg viewBox="0 0 48 48" class="portrait-svg" width="40" height="40">
-                    <circle cx="24" cy="18" r="9" fill="currentColor"/>
-                    <path d="M8 44 C8 33 15 28 24 28 C33 28 40 33 40 44 Z" fill="currentColor"/>
-                  </svg>
+                  <!-- Sin retrato del kit: el busto de reserva, sin rasgos, al mismo oficio (32 x 32, contorno y luz del kit). -->
+                  <img class="portrait-svg" src="assets/game/dialogo/retrato-reserva.png" alt="" width="32" height="32" />
                 }
                 @if (showsEmotionCue(d) && activeEmotion(d) !== 'neutral') {
                   <span class="emotion-chip" [attr.data-emotion]="activeEmotion(d)"></span>
@@ -238,6 +243,10 @@ const STALE_NOTE = 'Esta conversación corresponde a otro momento del caso.';
     .dialogue-strip:not(.strip--con-opciones) .strip-body { display: none; }
     /* Una sola opción ocupa todo el ancho de su columna, no media. */
     .choices:not(:has(.choice-btn + .choice-btn)) { grid-template-columns: minmax(0, 1fr); }
+    /* Alto acotado y conocido sobre el mundo: el cuadro (placa, fichas, aviso, pista y botones) no pasa de --dialogo-alto-max;
+       lo que no quepa se desplaza dentro. La pantalla lee el alto real en data-alto-ocupado (cámara de M1). */
+    .dialogue-strip:not(.dialogue-strip--side) { --dialogo-alto-max: min(340px, 46vh); max-height: var(--dialogo-alto-max); }
+    @media (min-width: 1800px) { .dialogue-strip:not(.dialogue-strip--side) { --dialogo-alto-max: min(480px, 46vh); } }
     /* Sobre el mundo, el cuadro incluye el retrato que asoma: el borde superior de app-dialogue-panel es lo que tapa. */
     .dialogue-strip:not(.dialogue-strip--side) { padding-top: calc(16 * var(--px)); }
 
@@ -385,7 +394,7 @@ const STALE_NOTE = 'Esta conversación corresponde a otro momento del caso.';
       overflow: hidden;
       background-color: #6c6589;
     }
-    .portrait-svg { color: #b69cff; align-self: center; width: 66%; height: 66%; }
+    .portrait-svg { display: block; width: var(--retrato); height: var(--retrato); image-rendering: pixelated; }
     /* Una voz sin retrato del kit (la supervisión, un personaje sin receta): ventanilla chica con la silueta, no un hueco. */
     .strip--sin-retrato { --retrato: 96px; }
     @media (min-width: 1800px) { .strip--sin-retrato { --retrato: 96px; } }
@@ -577,6 +586,10 @@ const STALE_NOTE = 'Esta conversación corresponde a otro momento del caso.';
     }
     .choice-num__txt { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0, 0, 0, 0); white-space: nowrap; }
     .choice-num__txt--ver { position: static; width: auto; height: auto; clip: auto; }
+    /* Respaldo: si la letra de pixel no carga, la letra va en texto (la mono distingue C de 0 y B de 8). */
+    .strip--letras-texto .choice-num::after { display: none; }
+    .strip--letras-texto .choice-num__txt { position: static; width: auto; height: auto; clip: auto; line-height: 1; }
+    .strip--letras-texto .choice-btn--chosen .choice-num__txt { color: var(--tinta-oscura); }
     .choice-num:has(.choice-num__txt--ver)::after { display: none; }
     .choice-num[data-letra="A"] { --lc: var(--letra-A-clara); --lo: var(--letra-A-oscura); }
     .choice-num[data-letra="B"] { --lc: var(--letra-B-clara); --lo: var(--letra-B-oscura); }
@@ -679,11 +692,23 @@ const STALE_NOTE = 'Esta conversación corresponde a otro momento del caso.';
       .dialogue-text { min-height: 0; }
       .choice-btn { min-height: 44px; }
     }
+    /* Teléfono: la escena sigue a la vista. El cuadro toma como mucho el 64 % del alto, el retrato baja a 64 px (2 x 32,
+       entero para el kit) y todo va en una columna; si las opciones no caben, se desplaza el cuadro, no la página. */
     @media (max-width: 560px) {
-      .dialogue-strip { --retrato: 96px; padding-left: calc(4 * var(--px)); padding-right: calc(4 * var(--px)); }
-      .strip-main { grid-template-columns: minmax(0, 1fr); }
-      .choices { grid-template-columns: minmax(0, 1fr); grid-auto-rows: auto; }
+      .dialogue-strip, .dialogue-strip:not(.dialogue-strip--side) { --dialogo-alto-max: 64vh; --retrato: 64px; max-height: 64vh; padding-left: calc(4 * var(--px)); padding-right: calc(4 * var(--px)); }
+      .dialogue-strip:not(.dialogue-strip--side) { padding-top: calc(10 * var(--px)); }
+      .portrait { margin-top: calc(-8 * var(--px)); }
+      .strip-main { grid-template-columns: minmax(0, 1fr); gap: calc(4 * var(--px)); }
+      .choices { grid-template-columns: minmax(0, 1fr); grid-auto-rows: auto; gap: calc(3 * var(--px)); }
       .speaker-name { margin-left: calc(var(--retrato) + 14 * var(--px)); }
+      .dialogue-text { min-height: 2.9em; }
+      .dialogue-strip:not(.dialogue-strip--side).strip--con-opciones .panel-head { margin-left: 0; }
+      /* En el teléfono la placa ocupa todo el ancho: «Volver» y «Salida segura» no pueden ir en la esquina de abajo, donde
+         taparían el texto y «Siguiente»; van arriba, dentro del cuadro. */
+      .dialogue-strip:not(.dialogue-strip--side):not(.strip--con-opciones) .panel-head { position: static; }
+      .dialogue-strip:not(.dialogue-strip--side).strip--con-opciones .panel-head__note {
+        position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip: rect(0, 0, 0, 0); white-space: nowrap; border: 0;
+      }
     }
     .strip--quieto, .strip--quieto .portrait-img, .strip--quieto .pulso, .strip--quieto .choice-btn, .strip--quieto .choice-btn--chosen { animation: none; }
     .strip--quieto .choice-btn:active { transform: none; }
@@ -724,6 +749,18 @@ export class DialoguePanelComponent implements AfterViewChecked, OnDestroy {
    * («Se muestra cautelosa y tensa»), sin cifras. Sin ella, la placa no muestra estado.
    */
   readonly persona = input<Pick<Persona, 'bond' | 'activation' | 'label'> | null>(null);
+  /**
+   * El personaje de la sala con quien se habla (lo da la pantalla, como a la reacción). Si el retrato no se resuelve por
+   * receta ni por nombre (el kit solo conoce algunos nombres), el panel dibuja su cara con él.
+   */
+  readonly speakerVisual = input<CharacterVisual | null>(null);
+  /** La escala entera del retrato del kit: 32 px por la del panel (96, 192 o 288; 64 en el teléfono). */
+  protected readonly escalaKit = computed(() => {
+    const ancho = typeof window === 'undefined' ? 1366 : window.innerWidth;
+    if (ancho <= 560) return 2;
+    if (this.mode() === 'side') return ancho >= 1800 ? 6 : 3;
+    return ancho >= 1800 ? 9 : 6;
+  });
 
   readonly close   = output<void>();
   /** Vocabulario educativo en borrador (VD-24): el chip de la cabecera sale del registro de borradores. */
@@ -749,6 +786,8 @@ export class DialoguePanelComponent implements AfterViewChecked, OnDestroy {
   ));
   /** Opción ya elegida: pausa breve de confirmación antes de ejecutar. */
   readonly chosenKey = signal<string | null>(null);
+  /** La letra de pixel no cargó (ruta o recurso ausente): las opciones muestran su letra en texto. */
+  protected readonly letrasEnTexto = signal(false);
   /** El arte de pixel del momento del día, como variables CSS del elemento raíz. */
   protected readonly arte = computed(() => variablesDeArte(this.momento()));
   /** La línea entera en tramos (acotación o no) y, de cada uno, lo ya escrito y lo que falta (invisible, ocupa su sitio). */
@@ -781,9 +820,26 @@ export class DialoguePanelComponent implements AfterViewChecked, OnDestroy {
   private readonly liveAnnouncer = inject(LiveRegionAnnouncer);
   private readonly host = inject<ElementRef<HTMLElement>>(ElementRef);
   private readonly injector = inject(Injector);
+  private readonly destroyRef = inject(DestroyRef);
 
   constructor() {
     this.kit.load().catch(() => undefined);
+    // El alto que ocupa el cuadro, publicado en el anfitrión para la cámara (M1): data-alto-ocupado, en px CSS.
+    afterNextRender(() => {
+      if (typeof ResizeObserver === 'undefined') return;
+      const anfitrion = this.host.nativeElement;
+      const observador = new ResizeObserver(() => {
+        anfitrion.dataset['altoOcupado'] = String(this.dialogue() ? Math.round(anfitrion.getBoundingClientRect().height) : 0);
+      });
+      observador.observe(anfitrion);
+      this.destroyRef.onDestroy(() => observador.disconnect());
+    }, { injector: this.injector });
+    // Una sola prueba de carga de la letra A, por la misma ruta que usan las variables de arte.
+    if (typeof Image !== 'undefined') {
+      const prueba = new Image();
+      prueba.onerror = () => this.letrasEnTexto.set(true);
+      prueba.src = /^url\((.+)\)$/.exec(variablesDeArte('noche')['--letra-A-clara'])?.[1] ?? '';
+    }
     effect(() => {
       const d = this.dialogue();
       this.stopTypewriter();
@@ -884,6 +940,20 @@ export class DialoguePanelComponent implements AfterViewChecked, OnDestroy {
    */
   offersHints(d: DialogueState): boolean {
     return !d.stale && d.choices.some(choice => choice.decisionOptionId != null || choice.requiredToolCode != null);
+  }
+
+  /** El visual de quien habla, solo si la línea es suya (en una conversación con varias voces no se le presta la cara a otra). */
+  visualDeHablante(d: DialogueState): CharacterVisual | null {
+    const linea = this.activeLine()?.speakerName?.trim() || null;
+    const arbol = d.speakerName?.trim() || null;
+    if (isSystemVoice(this.activeSpeakerName(d)) || (linea && linea !== arbol)) return null;
+    return this.speakerVisual();
+  }
+
+  /** La cara del kit para la emoción de la línea, si el personaje la tiene; si no, la neutra. */
+  caraDeKit(d: DialogueState, visual: CharacterVisual): PortraitState {
+    const cara = (this.kit.bundle()?.catalog.emotionToPortrait?.[this.activeEmotion(d)] ?? 'neutral') as PortraitState;
+    return cara in visual.portraits ? cara : 'neutral';
   }
 
   /** La letra de la opción en la posición `i` (A a D, como en el documento del caso). */

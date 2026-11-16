@@ -1151,10 +1151,11 @@ describe('DialoguePanelComponent - scroll, hoja y retrato (T4.4)', () => {
 
   // Bloque I1: el retrato mide siempre un múltiplo de 96 (y de 32): sirve igual para el retrato del kit (32 px) y para
   // uno fino de 96 px, sin escalar a un factor no entero. En pantallas bajas ya no baja a 64 px (no es múltiplo de 96).
-  it('el retrato mide 96, 192 o 288 px según el espacio, y el panel lateral es lo único que se desplaza', () => {
+  it('el retrato mide 64, 96, 192 o 288 px según el espacio (múltiplos de 32), y el panel lateral es lo único que se desplaza', () => {
     const tamanos = [...source.matchAll(/--retrato: (\d+)px/g)].map(m => Number(m[1]));
     expect(tamanos.length).toBeGreaterThan(3);
-    for (const t of tamanos) expect(t % 96, `${t} px`).toBe(0);
+    // Desde que se retiró el retrato de 96 px (decisión del usuario), basta con múltiplos de 32: el retrato del kit queda entero.
+    for (const t of tamanos) expect(t % 32, `${t} px`).toBe(0);
     expect(source).toMatch(/\.dialogue-strip--side \{\s*--retrato: 96px;/);
     const compact = mediaBlocks(source, '(max-height: 520px)');
     expect(compact.length).toBeGreaterThan(0);
@@ -1489,5 +1490,53 @@ describe('Dialogue typewriter timing', () => {
   it('keeps the configured interval near 45 ms', () => {
     expect(INTERVAL_MS).toBeGreaterThanOrEqual(44);
     expect(INTERVAL_MS).toBeLessThanOrEqual(46);
+  });
+});
+
+// Bloque I1: el vigilante y el hermano mayor salían con la silueta porque el kit no conoce su nombre; el panel usa la
+// cara del personaje de la sala (la misma que la reacción) cuando el retrato no se resuelve.
+describe('DialoguePanelComponent - cara del personaje de la sala', () => {
+  it('presta la cara de la sala solo a la voz de quien habla, nunca a una voz de sistema ni a otro hablante', async () => {
+    await TestBed.configureTestingModule({
+      imports: [DialoguePanelComponent],
+      providers: [{ provide: AudioDirectorService, useValue: { playSfx: vi.fn() } }, { provide: KitService, useValue: fakeKitService() }],
+    }).compileComponents();
+    const fixture = TestBed.createComponent(DialoguePanelComponent);
+    const c = fixture.componentInstance;
+    const visual = { portraits: {} } as never;
+    writeInputSignal(c.speakerVisual, visual);
+    const vigilante: DialogueState = { key: 'v', speakerName: 'Vigilante', portraitKey: null, emotion: 'neutral', choices: [],
+      lines: [{ order: 1, speakerName: 'Vigilante', text: 'Buenas noches.', emotion: 'neutral' }] };
+    writeInputSignal(c.dialogue, vigilante);
+    TestBed.flushEffects();
+    expect(c.visualDeHablante(vigilante)).toBe(visual);
+    const otraVoz = { ...vigilante, lines: [{ order: 1, speakerName: 'Enfermera', text: 'Ahora no.', emotion: 'neutral' }] };
+    writeInputSignal(c.dialogue, otraVoz);
+    TestBed.flushEffects();
+    expect(c.visualDeHablante(otraVoz)).toBeNull();
+    const sistema = { ...vigilante, speakerName: 'Supervisión clínica', lines: [{ order: 1, speakerName: 'Supervisión clínica', text: 'Nota.', emotion: 'neutral' }] };
+    writeInputSignal(c.dialogue, sistema);
+    TestBed.flushEffects();
+    expect(c.visualDeHablante(sistema)).toBeNull();
+    fixture.destroy();
+    TestBed.resetTestingModule();
+  });
+});
+
+// Bloque I1: si la letra de pixel no carga, la opción conserva su letra en texto.
+describe('DialoguePanelComponent - respaldo de las letras', () => {
+  it('con la letra sin cargar, la clase de respaldo muestra el texto y quita la imagen', () => {
+    expect(source).toContain('.strip--letras-texto .choice-num::after { display: none; }');
+    expect(source).toMatch(/\.strip--letras-texto \.choice-num__txt \{ position: static;/);
+    expect(source).toContain("prueba.onerror = () => this.letrasEnTexto.set(true);");
+  });
+});
+
+// Bloque I1: sobre el mundo el cuadro tiene un alto acotado y lo publica para la cámara.
+describe('DialoguePanelComponent - alto acotado sobre el mundo', () => {
+  it('el cuadro no pasa de --dialogo-alto-max y publica data-alto-ocupado', () => {
+    expect(source).toContain('.dialogue-strip:not(.dialogue-strip--side) { --dialogo-alto-max: min(340px, 46vh); max-height: var(--dialogo-alto-max); }');
+    expect(source).toContain("--dialogo-alto-max: min(480px, 46vh);");
+    expect(source).toContain("anfitrion.dataset['altoOcupado']");
   });
 });
