@@ -33,6 +33,8 @@ import { scaled } from './support/time-scale';
 const TITULO = 'Violencia Familiar y Tentativa de Feminicidio';
 const KEYBOARD = REQUIRED_VIEWPORTS[1];
 const CAPTURAS = process.env['DEMO_CAPTURAS_DIR'] ?? join(process.cwd(), 'test-results', 'demo-capturas');
+/** Prefijo de las capturas de la prueba a 1920 × 1080 (una tanda por arreglo: 24, 25…). */
+const ARREGLO = process.env['DEMO_ARREGLO'] ?? '25-arreglo';
 
 async function entrarAlCaso(page: Page): Promise<void> {
   await page.goto('/login');
@@ -305,15 +307,15 @@ test.describe('a 1920 × 1080', () => {
     const dialogo = page.getByRole('dialog', { name: /abuela/i });
     await expect(dialogo, 'la abuela habla').toBeVisible({ timeout: scaled(15_000) });
     await page.waitForTimeout(1_200);
-    await captura('24-arreglo-1-la-abuela-habla.png');
+    await captura(`${ARREGLO}-1-la-abuela-habla.png`);
 
     await advanceDialogueToChoices(page, /abuela/i);
     await page.waitForTimeout(250);
-    await captura('24-arreglo-2-se-abre-la-decision.png');
+    await captura(`${ARREGLO}-2-se-abre-la-decision.png`);
 
     await expect(dialogo.getByRole('button', { name: /contención emocional/i }), 'la opción adecuada de la decisión 2')
       .toBeVisible({ timeout: scaled(10_000) });
     await page.waitForTimeout(1_500);
-    await captura('24-arreglo-3-decision-entera.png');
+    await captura(`${ARREGLO}-3-decision-entera.png`);
   });
 });
