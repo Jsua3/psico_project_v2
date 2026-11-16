@@ -259,7 +259,7 @@ const marcaNueva = (marca: boolean | undefined): Partial<WorldObject> => (marca 
  * La clave de un objeto que el servidor aún no tiene: la que el borrador ya le dio (así todos los mapas de una sala
  * lo llaman igual), si está libre en este mapa; si no, una nueva a partir de la pieza.
  */
-function claveDeNuevo(propuesta: string | undefined, ref: string, usadas: Set<string>): string {
+export function claveDeNuevo(propuesta: string | undefined, ref: string, usadas: Set<string>): string {
   if (propuesta && !usadas.has(propuesta)) {
     usadas.add(propuesta);
     return propuesta;
@@ -280,7 +280,9 @@ function objetoNuevo(
 }
 
 /** La huella de un mueble en el suelo: el punto de apoyo es su centro inferior. */
-function huella(clave: string, etiqueta: string, x: number, y: number, ancho: number, alto: number, id = 0): WorldCollisionZone {
+export function huella(
+  clave: string, etiqueta: string, x: number, y: number, ancho: number, alto: number, id = 0,
+): WorldCollisionZone {
   return { id, key: `choque-${clave}`, label: etiqueta, x: x - Math.floor(ancho / 2), y: y - alto, width: ancho, height: alto };
 }
 

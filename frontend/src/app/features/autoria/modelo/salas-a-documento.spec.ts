@@ -1,9 +1,31 @@
 import { describe, expect, it } from 'vitest';
+import { trasladarChoque } from './choques-mueble';
 import { CASO_HOSPITAL } from '../testing/hospital';
 import { anclaDeElemento, documentoDeSalas, elementoDeRuta, faltasPorSala } from './salas-a-documento';
 import { CASOS_DE_REGLAS_DE_SALA } from './reglas-salas-casos.fixture';
 
 describe('documento de salas', () => {
+  function casoConMuebleEnLlegada() {
+    const caso = structuredClone(CASO_HOSPITAL);
+    const destino = caso.salas[1];
+    destino.choques['mueble-prueba'] = { x: 500, y: 300, ancho: 50, alto: 50 };
+    trasladarChoque(destino, 'mueble-prueba', 1000, 80);
+    return caso;
+  }
+
+  it('un mueble que la docente mueve encima de la llegada de una puerta dispara OCL-16', () => {
+    const caso = casoConMuebleEnLlegada();
+    expect(faltasPorSala(caso, CASOS_DE_REGLAS_DE_SALA.catalogo).get(caso.salas[0].id)
+      ?.some(f => f.regla === 'OCL-16' && f.elemento.id === 'a-pasillo')).toBe(true);
+  });
+
+  it('al sacarlo de ah?, OCL-16 desaparece', () => {
+    const caso = casoConMuebleEnLlegada();
+    trasladarChoque(caso.salas[1], 'mueble-prueba', -1000, -80);
+    expect(faltasPorSala(caso, CASOS_DE_REGLAS_DE_SALA.catalogo).get(caso.salas[0].id)
+      ?.some(f => f.regla === 'OCL-16' && f.elemento.id === 'a-pasillo') ?? false).toBe(false);
+  });
+
   it('con el ejemplo 7.2 del contrato, umbral y llegada de cada puerta son los de la tabla', () => {
     const mapa = documentoDeSalas(CASO_HOSPITAL)['x-siep'].escenas[0].mapa!;
     const pasillo = mapa.objetos!.find(o => o['clave'] === 'a-pasillo')!;

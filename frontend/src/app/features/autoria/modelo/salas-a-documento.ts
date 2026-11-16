@@ -1,4 +1,5 @@
 import type { CasoBorrador, PuertaCaso, SalaCaso } from './caso';
+import { claveDeNuevo } from './hacia-api';
 import { ALTO_SALA, ANCHO_SALA, esAnchoDeSala, llegada, paredes } from './geometria';
 import { revisarSalas, type CatalogoDeReglas, type DocumentoDeSalas, type ReglaDeSala } from './reglas-de-sala';
 
@@ -23,16 +24,7 @@ export function documentoDeSalas(caso: CasoBorrador): DocumentoDeSalas {
     const sala = escena.salaId ? salas.get(escena.salaId) : undefined;
     if (!sala) return { clave };
     const usados = new Set<string>();
-    const claveObjeto = (propuesta: string | undefined, ref: string) => {
-      let clave = propuesta || ref;
-      if (usados.has(clave)) {
-        let n = 2;
-        while (usados.has(`${ref}-${n}`)) n++;
-        clave = `${ref}-${n}`;
-      }
-      usados.add(clave);
-      return clave;
-    };
+    const claveObjeto = (propuesta: string | undefined, ref: string) => claveDeNuevo(propuesta, ref, usados);
     const objetos: Record<string, unknown>[] = [];
     for (const m of sala.muebles) {
       const ficha = caso.catalogo.muebles.find(f => f.id === m.ref);

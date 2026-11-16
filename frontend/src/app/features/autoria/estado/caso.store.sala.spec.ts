@@ -22,6 +22,49 @@ function montar() {
 const sala = (store: CasoStore, id: string) => store.caso()!.salas.find((s) => s.id === id)!;
 
 describe('CasoStore · editar una sala', () => {
+  it('mover un mueble traslada su choque', () => {
+    const store = montar();
+    store.agregarElemento('pasillo', 'mueble', 'sofa');
+    const m = sala(store, 'pasillo').muebles.at(-1)!;
+    const antes = { ...sala(store, 'pasillo').choques[m.clave!] };
+    store.moverElemento('pasillo', 'mueble', sala(store, 'pasillo').muebles.length - 1, m.x + 30, m.y + 20);
+    const despues = sala(store, 'pasillo').muebles.at(-1)!;
+    expect(sala(store, 'pasillo').choques[m.clave!]).toEqual({
+      ...antes, x: antes.x + despues.x - m.x, y: antes.y + despues.y - m.y,
+    });
+  });
+
+  it('agregar un mueble con colisi?n le crea su choque', () => {
+    const store = montar();
+    store.agregarElemento('pasillo', 'mueble', 'sofa');
+    const m = sala(store, 'pasillo').muebles.at(-1)!;
+    const ficha = store.caso()!.catalogo.muebles.find(f => f.id === m.ref)!;
+    expect(ficha.colision).toBe(true);
+    expect(sala(store, 'pasillo').choques[m.clave!]).toEqual({
+      x: m.x - Math.floor(ficha.ancho / 2), y: m.y - ficha.alto, ancho: ficha.ancho, alto: ficha.alto,
+    });
+  });
+
+  it('quitar un mueble quita su choque', () => {
+    const store = montar();
+    store.agregarElemento('pasillo', 'mueble', 'sofa');
+    const s = sala(store, 'pasillo');
+    const clave = s.muebles.at(-1)!.clave!;
+    store.quitarElemento('pasillo', 'mueble', s.muebles.length - 1);
+    expect(sala(store, 'pasillo').choques[clave]).toBeUndefined();
+  });
+
+  it('deshacer devuelve el choque', () => {
+    const store = montar();
+    store.agregarElemento('pasillo', 'mueble', 'sofa');
+    const s = sala(store, 'pasillo');
+    const clave = s.muebles.at(-1)!.clave!;
+    const choque = { ...s.choques[clave] };
+    store.quitarElemento('pasillo', 'mueble', s.muebles.length - 1);
+    store.deshacer();
+    expect(sala(store, 'pasillo').choques[clave]).toEqual(choque);
+  });
+
   it('mover fuera de la zona caminable se limita al borde', () => {
     const store = montar();
     const zona = zonaCaminable('tres-paredes');

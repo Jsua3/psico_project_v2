@@ -5,6 +5,7 @@ import { firstValueFrom } from 'rxjs';
 import { revisionConflictOf } from '../../../core/api/revision-conflict.util';
 import type { CaseLifecycle, ValidationIssue } from '../../../core/models/simulation.model';
 import { AutoriaApiService } from '../api/autoria-api.service';
+import { claveDeMueble, crearChoque, fijarClavesDeMuebles, trasladarChoque } from '../modelo/choques-mueble';
 import { casoDesdeApi } from '../modelo/desde-api';
 import {
   type Cambio, type ResolverIds, type Tocados, aplicarPropuesta as aplicarCambiosIa, resolverLocal,
@@ -694,15 +695,22 @@ export class CasoStore {
 
   moverElemento(salaId: string, tipo: TipoElemento, indice: number, x: number, y: number): void {
     this.cambiarSala(salaId, `Moviste ${ARTICULO[tipo]}`, (caso, sala) => {
+      if (tipo === 'mueble') fijarClavesDeMuebles(sala);
       const elemento = lista(sala, tipo)[indice];
       if (!elemento) return;
       const medio = tipo === 'mueble' ? (caso.catalogo.muebles.find((m) => m.id === elemento.ref)?.ancho ?? 0) / 2 : 0;
+      const antes = { x: elemento.x, y: elemento.y };
       Object.assign(elemento, limitarAZona(zonaCaminable(sala.encuadre), x, y, medio));
+      if (tipo === 'mueble') trasladarChoque(sala, claveDeMueble(sala, indice), elemento.x - antes.x, elemento.y - antes.y);
     });
   }
 
   quitarElemento(salaId: string, tipo: TipoElemento, indice: number): void {
     this.cambiarSala(salaId, `Quitaste ${ARTICULO[tipo]}`, (_caso, sala) => {
+      if (tipo === 'mueble' && sala.muebles[indice]) {
+        fijarClavesDeMuebles(sala);
+        delete sala.choques[claveDeMueble(sala, indice)];
+      }
       lista(sala, tipo).splice(indice, 1);
     });
   }
@@ -715,8 +723,12 @@ export class CasoStore {
         : tipo === 'objeto' ? caso.catalogo.objetos.some((o) => o.id === ref) : caso.personajes.some((p) => p.id === ref);
       if (!hayPieza) return;
       const { x, y } = centroDeZona(zonaCaminable(sala.encuadre));
+      if (tipo === 'mueble') fijarClavesDeMuebles(sala);
       const clave = claveLibre(ref, clavesDeSala(sala));
-      if (tipo === 'mueble') sala.muebles.push({ ref, x, y, espejo: false, clave });
+      if (tipo === 'mueble') {
+        sala.muebles.push({ ref, x, y, espejo: false, clave });
+        crearChoque(sala, clave, ref, x, y, caso.catalogo);
+      }
       else if (tipo === 'objeto') sala.objetos.push({ ref, x, y, clave });
       else sala.personajes.push({ ref, x, y, mirando: 'izquierda', expresion: 'neutral', clave });
     });
@@ -792,11 +804,23 @@ export class CasoStore {
     const escenario = await this.biblioteca.escenario(origen.lugarId);
     const original = escenario.salas.find((s) => s.id === origen.salaId);
     if (!original) return;
-    this.cambiarSala(salaId, 'Volviste la sala a como viene en el lugar', (_caso, sala) => {
+    this.cambiarSala(salaId, 'Volviste la sala a como viene en el lugar', (caso, sala) => {
       const copia = structuredClone(original);
       const usadas = new Set<string>(sala.puertas.map((p) => p.id));
       const conClave = <T extends { ref: string }>(piezas: T[]) => piezas.map((p) => ({ ...p, clave: claveLibre(p.ref, usadas) }));
+      const anteriores = sala.muebles.map((m, i) => ({ ...m, clave: claveDeMueble(sala, i) }));
+      const choquesAnteriores = { ...sala.choques };
+      for (const m of anteriores) delete sala.choques[m.clave];
       sala.muebles = conClave(copia.muebles);
+      for (const [i, m] of sala.muebles.entries()) {
+        const clave = claveDeMueble(sala, i);
+        const anterior = anteriores.find(a => a.clave === clave);
+        const choque = choquesAnteriores[clave];
+        if (anterior && choque) {
+          sala.choques[clave] = choque;
+          trasladarChoque(sala, clave, m.x - anterior.x, m.y - anterior.y);
+        } else crearChoque(sala, clave, m.ref, m.x, m.y, caso.catalogo);
+      }
       sala.objetos = conClave(copia.objetos);
       sala.personajes = conClave(copia.personajes);
       sala.entrada = copia.entrada;
