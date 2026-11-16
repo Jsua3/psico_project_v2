@@ -10,6 +10,7 @@ import type { PortraitState } from '../character/kit/kit-engine';
 import { KitFigureComponent } from '../character/kit/kit-figure.component';
 import { AudioDirectorService } from './audio-director.service';
 import { MS_POR_CARACTER, pausaTras, tramos } from './caso/ritmo-texto';
+import { lineaDeArranque } from './caso/robustez';
 import { choiceIndex } from './dialogue-keys.util';
 import { MomentoDelDia, letraDe, variablesDeArte } from './dialogo-arte';
 import { scrollShiftToUncoverText } from './dialogue-scroll.util';
@@ -827,6 +828,8 @@ export class DialoguePanelComponent implements AfterViewChecked, OnDestroy {
   /** Aviso de una opción de herramienta sin la herramienta: se ve y forma parte de su nombre accesible (WCAG 2.5.3). */
   protected readonly toolMissingHint = 'Aún no tienes esta herramienta. Recógela en la sala.';
   readonly releaseToken = input(0);
+  /** Línea con la que arranca la conversación reabierta tras recargar (R1): solo vale para la conversación de esa clave. */
+  readonly startAt = input<{ key: string; line: number } | null>(null);
   /** Hay una salida segura pedida que espera: el botón «Salida segura» del panel dice «Pausando…» (F6-6). */
   readonly pausing = input(false);
   /** Momento del día de la sala: los marcos toman su luz (cálida de lámpara de noche, clara de sol de día). */
@@ -935,14 +938,15 @@ export class DialoguePanelComponent implements AfterViewChecked, OnDestroy {
     effect(() => {
       const d = this.dialogue();
       this.stopTypewriter();
-      this.lineIndex.set(0);
+      const start = lineaDeArranque(untracked(() => this.startAt()), d);
+      this.lineIndex.set(start);
       this.chosenKey.set(null);
       this.failedPortrait.set(null);
       this.choicesShownAt = Date.now();
       this.settled = false;
       if (d?.lines?.length) {
         this.audio.playSfx('ui_select');
-        this.startTypewriter(d.lines[0].text);
+        this.startTypewriter(d.lines[start].text);
       } else {
         this.displayedText.set('');
         this.isTypingComplete.set(true);
