@@ -59,6 +59,10 @@ CSRF_COOKIE_SECURE = False
 SECURE_SSL_REDIRECT = False
 SECURE_HSTS_SECONDS = 0
 
+# Los archivos del cliente (programas e imágenes) se guardan una hora en el navegador: durante la clase, volver a entrar o
+# recargar no los descarga otra vez por la misma red Wi-Fi. index.html no pasa por aquí (lo sirve la vista del SPA).
+WHITENOISE_MAX_AGE = 3600
+
 SECRET_KEY = _clave("DJANGO_SECRET_KEY")
 if SECRET_KEY != _SECRET_KEY_BASE:  # base la leyó del mismo entorno: si no coincide, algo la cambió entre medias.
     raise ImproperlyConfigured("Modo aula: DJANGO_SECRET_KEY cambió al cargar los ajustes.")
