@@ -22,7 +22,7 @@ DESCRIPCION = (
 )
 COMPETENCIAS = [
     {"codigo": codigo, "nombre": codigo.title()}
-    for codigo in ("PAP", "COMUNICACION_EMPATIA", "DECISION_RUTA", "COMPRENSION_SITUACION", "REFLEXION")
+    for codigo in ("PAP", "COMUNICACION_EMPATIA", "DECISION_RUTA", "COMPRENSION_SITUACION", "REFLEXION", "ANALISIS_ARGUMENTACION")
 ]
 CAMPOS = {
     "id", "lugarId", "descripcion", "status", "skeleton", "scenes", "repairRounds", "repair", "lastError",

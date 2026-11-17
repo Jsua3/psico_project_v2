@@ -72,7 +72,8 @@
       "efectoActivacion": 0,
       "hitos": [],
       "competencias": [
-        "DECISION_RUTA"
+        "DECISION_RUTA",
+        "ANALISIS_ARGUMENTACION"
       ],
       "requiere": "",
       "reaccionLinea": "Bueno... si tú dices que es lo mejor.",
