@@ -37,7 +37,7 @@ export type FinReaccion = 'completa' | 'saltada' | 'cancelada';
       <!-- V6 (accesibilidad, WCAG 2.2.1/2.2.2): con el foco del teclado dentro o el puntero encima, la franja no avanza sola;
            al soltar sigue con el tiempo que le quedaba. -->
       <div class="reaction-dock" [style]="arte" (focusin)="sostener('foco', true)" (focusout)="soltarFoco($event)"
-        (mouseenter)="sostener('puntero', true)" (mouseleave)="sostener('puntero', false)">
+        (pointermove)="alMoverPuntero($event)" (pointerleave)="sostener('puntero', false)">
       <!-- La placa de quien reacciona (bloque I1): el mismo marco de pixel que la del diálogo, con su retrato asomado. -->
       <div class="reaction-strip">
         <span class="reaction-name">{{ quien().nombre }}</span>
@@ -259,6 +259,16 @@ export class ReactionDirectorComponent implements OnDestroy {
         this.programar(espera);
       }
     }
+  }
+
+  /**
+   * El puntero sostiene la franja solo si se mueve de verdad sobre ella: si la franja aparece bajo un puntero quieto (el
+   * clic que eligió la opción), el navegador avisa de un «entrar» sin movimiento y la franja no debe congelarse por eso.
+   * Un dedo no la sostiene: un arrastre táctil no tiene «salir» fiable y la dejaría quieta (para eso está el foco).
+   */
+  alMoverPuntero(evento: PointerEvent): void {
+    if (evento.pointerType === 'touch') return;
+    if (evento.movementX || evento.movementY) this.sostener('puntero', true);
   }
 
   /** El foco sale de la franja (no a otro control de ella): deja de sostenerla. */

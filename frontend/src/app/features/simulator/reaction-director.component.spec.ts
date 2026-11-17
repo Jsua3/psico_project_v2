@@ -216,3 +216,18 @@ it('cancel suelta la franja sostenida (la salida segura no espera a nadie)', asy
   expect(director.sostenida).toBe(false);
   expect(terminado, 'corta como siempre, sin «completa»').toEqual(['cancelada']);
 });
+
+it('un puntero quieto bajo la franja que aparece no la sostiene, un dedo tampoco; un ratón que se mueve encima, sí', async () => {
+  const { director, terminado } = montar({ reduceMotion: false });
+  director.play(ENTRADA, QUIEN);
+  await vi.advanceTimersByTimeAsync(10);
+  director.alMoverPuntero({ pointerType: 'mouse', movementX: 0, movementY: 0 } as PointerEvent);
+  expect(director.sostenida).toBe(false);
+  director.alMoverPuntero({ pointerType: 'touch', movementX: 0, movementY: 9 } as PointerEvent);
+  expect(director.sostenida, 'un dedo no la sostiene').toBe(false);
+  director.alMoverPuntero({ pointerType: 'mouse', movementX: 3, movementY: 0 } as PointerEvent);
+  expect(director.sostenida).toBe(true);
+  director.sostener('puntero', false);
+  await vi.runAllTimersAsync();
+  expect(terminado).toEqual(['completa']);
+});
