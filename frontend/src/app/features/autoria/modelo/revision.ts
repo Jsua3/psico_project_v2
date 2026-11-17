@@ -225,6 +225,35 @@ const AVISO_QUE_CUBRE: Record<string, TipoAviso> = {
   'WORLD.NODE_WITHOUT_OPTIONS': 'sin-salida',
 };
 
+/** Las respuestas de la escena que tienen número del servidor, en el orden de ese número (el orden en que se exportan las opciones). */
+function respuestasConNumero(escena: Pick<Escena, 'respuestas'>): string[] {
+  return escena.respuestas.filter((r) => /^\d+$/.test(r.id)).sort((a, b) => Number(a.id) - Number(b.id)).map((r) => r.id);
+}
+
+/**
+ * A dónde lleva una falta de las reglas OCL-09 a OCL-12 del documento: se lee su `path` (`x-siep.escenas[i].opciones[j].requiere`,
+ * `….reaccion…`, `….comentarios[k]…`). La j-ésima opción es la j-ésima respuesta guardada de la escena; si no se halla, se abre la
+ * lista de respuestas. El comentario `k` es su posición en el documento, la misma de su ancla.
+ */
+function irALaFaltaDelDocumento(
+  h: ValidationIssue,
+  caso: Pick<CasoBorrador, 'escenas'>,
+  respuestasGuardadas: ((escenaId: string) => string[]) | undefined,
+): Falta['ir'] {
+  if (h.nodeId === undefined) return { ruta: '/editor' };
+  const ruta = rutaDeEscena(h.nodeId);
+  const path = h.path ?? '';
+  // se decide por el `path`: OCL-10, OCL-11 y OCL-12 valen tanto para respuestas como para comentarios
+  const comentario = /\.comentarios\[(\d+)\]/.exec(path);
+  if (comentario) return { ruta, ancla: `comentario-${comentario[1]}` };
+  const opcion = /\.opciones\[(\d+)\]\.(requiere|reaccion)\b/.exec(path);
+  const escena = caso.escenas.find((e) => e.id === String(h.nodeId));
+  const respuesta = opcion && escena ? (respuestasGuardadas?.(escena.id) ?? respuestasConNumero(escena))[Number(opcion[1])] : undefined;
+  if (!opcion) return { ruta, ancla: h.code === 'DSL.OCL-12' ? 'comentarios-titulo' : 'respuestas-escena' }; // sin ruta reconocible: el respaldo por código
+  if (!respuesta) return { ruta, ancla: 'respuestas-escena' };
+  return { ruta, ancla: `${opcion[2] === 'requiere' ? 'aparece-si' : 'reaccion'}-${respuesta}` };
+}
+
 /**
  * Lo que la compuerta del servidor dice que impide publicar (los hallazgos que son errores), como faltas del docente. Las
  * reglas del modelo llevan a la escena, la respuesta, el hito o el final concretos; lo que el editor ya listó por su cuenta
@@ -233,7 +262,15 @@ const AVISO_QUE_CUBRE: Record<string, TipoAviso> = {
 export function faltasDelServidor(
   hallazgos: ValidationIssue[],
   caso: CasoBorrador,
-  opciones: { respuestaDeOpcion: (optionKey: string) => string | undefined; faltasLocales: Falta[] },
+  opciones: {
+    respuestaDeOpcion: (optionKey: string) => string | undefined;
+    faltasLocales: Falta[];
+    /**
+     * Las respuestas de la escena que ya están en el servidor, en el orden en que este las exporta (por su número). Quien llama
+     * lo sabe aun de las creadas en esta visita; si falta, se toman las que traen el número del servidor como id.
+     */
+    respuestasGuardadas?: (escenaId: string) => string[];
+  },
 ): Falta[] {
   const yaListados = new Set(opciones.faltasLocales.map((f) => f.codigo).filter((c): c is string => !!c));
   const avisosDeCaminos = new Set(revisarCaminos(caso).map((a) => a.tipo));
@@ -267,6 +304,12 @@ export function faltasDelServidor(
         faltas.push(falta(primera ? { ruta: rutaDeEscena(primera.escena.id), ancla: `competencias-${primera.respuestaId}` } : { ruta: '/editor' }));
         break;
       }
+      case 'DSL.OCL-09':
+      case 'DSL.OCL-10':
+      case 'DSL.OCL-11':
+      case 'DSL.OCL-12':
+        faltas.push(falta(irALaFaltaDelDocumento(h, caso, opciones.respuestasGuardadas)));
+        break;
       case 'high-intensity-without-warning':
         faltas.push(falta({ ruta: escena ?? '/editor', ...(escena ? { ancla: 'aviso-escena' } : {}) }));
         break;
@@ -311,9 +354,10 @@ function avisosDeCompetencias(caso: CasoBorrador): Falta[] {
 }
 
 /** Cosas que conviene mirar pero no impiden enviar. */
-export function sugerencias(caso: CasoBorrador, probado: boolean): Falta[] {
+export function sugerencias(caso: CasoBorrador): Falta[] {
   const lista: Falta[] = [...avisosDeCompetencias(caso), ...avisosDeDialogoSinPersona(caso)];
-  if (!probado) lista.push({ mensaje: 'Todavía no probaste el caso completo como estudiante.', ir: { ruta: '/probar' } });
+  // BORRADOR: texto nuevo, pendiente de la aprobación de Psicología
+  if (caso.probadoHastaElFinal !== true) lista.push({ mensaje: 'Todavía no probaste el caso completo en el juego.', ir: { ruta: '/editor', accionId: 'probar' } });
   caso.escenas.forEach((e) => {
     const vaciasL = e.lineas.filter((l) => !l.texto.trim()).length;
     const vaciasR = e.respuestas.filter((r) => !r.texto.trim() || !r.retroalimentacion.trim()).length;

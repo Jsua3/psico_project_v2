@@ -45,13 +45,10 @@ describe('CasoStore · borrador en memoria', () => {
     expect(localStorage.length).toBe(0);
   });
 
-  it('cambiar de caso borra el «ya lo probaste» y el historial de la sala', () => {
+  it('cambiar de caso borra el historial de la sala', () => {
     const store = TestBed.inject(CasoStore);
     store.fijar(casoDePrueba());
-    store.marcarProbado();
-    expect(store.probado()).toBe(true);
     store.fijar({ ...casoDePrueba(), id: 'caso-2' });
-    expect(store.probado()).toBe(false);
     expect(store.puedeDeshacer()).toBe(false);
   });
 });

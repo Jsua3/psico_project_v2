@@ -17,7 +17,7 @@ interface PiezaVista {
 
 /**
  * La sala tal como quedó editada, solo para mirar: fondo, muebles, objetos y personajes en su
- * lugar. Se usa en «Probar como estudiante» y en la vista previa del guion.
+ * lugar. Se usa en la vista previa del guion.
  */
 @Component({
   selector: 'app-sala-vista',

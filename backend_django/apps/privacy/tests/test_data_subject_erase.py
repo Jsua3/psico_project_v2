@@ -36,6 +36,7 @@ from apps.privacy.tests.data_subject_support import Entorno, Mundo, barrer, volc
 from apps.progression.models import StudentCaseCompletion
 from apps.simulation.models import (
     AttemptEvent,
+    CaseGeneration,
     AttemptFeedback,
     AttemptHintView,
     AttemptReport,
@@ -271,8 +272,20 @@ def test_c_sus_intentos_eventos_decisiones_y_pertenencias_siguen_con_los_mismos_
     assert despues == antes
     asi_quedan = _conteos()
     for tabla, cuenta in conteos.items():
-        if tabla not in {"reflection_journals", "audit_logs"}:
+        if tabla not in {"reflection_journals", "audit_logs", "authoring_generations"}:
             assert asi_quedan[tabla] == cuenta, tabla
+
+
+def test_c_su_generacion_de_casos_con_ia_se_borra_entera_y_la_de_otra_docente_queda(mundo, otro):
+    """C1: la descripción que escribió la docente y lo que la IA escribió de ella son texto libre suyo: la fila se borra."""
+    ajena = CaseGeneration.objects.filter(owner=otro.persona).count()
+    assert ajena == 1  # el mundo de la otra docente también trae la suya
+    assert CaseGeneration.objects.filter(owner=mundo.persona).count() == 1
+
+    _suprimir(mundo)
+
+    assert not CaseGeneration.objects.filter(owner_id=mundo.persona.pk).exists()
+    assert CaseGeneration.objects.filter(owner=otro.persona).count() == ajena
 
 
 def test_c_el_comentario_de_la_encuesta_de_la_persona_se_vacia_y_su_calificacion_y_la_respuesta_de_otra_se_conservan(mundo, otro):

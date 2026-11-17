@@ -75,7 +75,7 @@ describe('puedeEnviar con las reglas del modelo de métricas', () => {
     caso.competencias = [{ codigo: 'ETICA', nombre: 'Ética profesional' }, { codigo: 'ESCUCHA', nombre: 'Escucha activa' }];
     caso.escenas[0].respuestas[0].efectos = { competencias: ['ETICA'] };
     expect(puedeEnviar(caso)).toEqual({ ok: true, faltas: [] }); // la autoridad es la compuerta del servidor
-    expect(sugerencias(caso, true)).toEqual([{
+    expect(sugerencias({ ...caso, probadoHastaElFinal: true })).toEqual([{
       codigo: 'competency-without-evidence',
       mensaje: 'La competencia «Escucha activa» de la rúbrica parece no tener evidencia: ninguna respuesta la marca. La compuerta de Psicología lo confirma al enviar.',
       ir: { ruta: '/editor/escena/a', ancla: 'competencias-1' },
@@ -85,7 +85,7 @@ describe('puedeEnviar con las reglas del modelo de métricas', () => {
   it('mientras nadie declare competencias no hay aviso', () => {
     const caso = completo();
     caso.competencias = [{ codigo: 'ETICA', nombre: 'Ética profesional' }];
-    expect(sugerencias(caso, true)).toEqual([]);
+    expect(sugerencias({ ...caso, probadoHastaElFinal: true })).toEqual([]);
   });
 
   it('si la compuerta sí bloquea por una competencia, su falta se lista aunque el editor solo avisara', () => {
@@ -240,5 +240,21 @@ describe('faltasDelServidor: lo que dice la compuerta, en lenguaje del docente y
     caso.lista = { items: [{ codigo: 'b', texto: 'b', obligatorio: true, cumplido: false, enBorrador: false, respaldo: null, respaldado: null }], constanciaRegistrada: false };
     const locales = puedeEnviar(caso).faltas;
     expect(faltasDelServidor([issue({ code: 'CHECKLIST_INCOMPLETE', message: 'Lo mismo.' })], caso, { respuestaDeOpcion: () => undefined, faltasLocales: locales })).toEqual([]);
+  });
+});
+
+describe('sugerencias: «todavía no probaste el caso completo en el juego»', () => {
+  const mensaje = 'Todavía no probaste el caso completo en el juego.';
+
+  it('sale con probadoHastaElFinal falso o ausente y la guía señala el botón «Probar» de la barra', () => {
+    const caso = completo();
+    for (const probado of [undefined, false]) {
+      const lista = sugerencias({ ...caso, probadoHastaElFinal: probado });
+      expect(lista.find((f) => f.mensaje === mensaje)?.ir).toEqual({ ruta: '/editor', accionId: 'probar' });
+    }
+  });
+
+  it('desaparece con probadoHastaElFinal verdadero', () => {
+    expect(sugerencias({ ...completo(), probadoHastaElFinal: true }).map((f) => f.mensaje)).not.toContain(mensaje);
   });
 });

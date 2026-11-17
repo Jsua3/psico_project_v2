@@ -229,3 +229,133 @@ def test_el_repr_de_la_configuracion_no_muestra_la_key():
     assert KEY not in repr(cfg)
     assert KEY not in str(cfg)
     assert "***" in repr(cfg)
+
+
+# ── Esfuerzo, respaldo y uso medido (C1, tarea 2) ────────────────────────────────────────────────────────────────
+
+
+class _Transporte:
+    """Sustituye ``post_json``: anota el cuerpo, las cabeceras y el timeout, y devuelve ``reply``."""
+
+    def __init__(self):
+        self.payload = self.headers = self.timeout = None
+        self.reply = {"content": [{"type": "text", "text": '{"a": 1}'}], "stop_reason": "end_turn"}
+
+    def __call__(self, url, payload, headers, timeout=None):
+        self.payload, self.headers, self.timeout = payload, headers, timeout
+        return self.reply
+
+
+@pytest.fixture
+def transporte(monkeypatch):
+    from apps.simulation.services import ai_providers
+
+    t = _Transporte()
+    monkeypatch.setattr(ai_providers, "post_json", t)
+    return t
+
+
+def _texto(text):
+    return {"type": "text", "text": text}
+
+
+def test_sin_parametros_nuevos_el_cuerpo_y_las_cabeceras_no_cambian(transporte):
+    _provider().complete_structured("sistema", MESSAGES, SCHEMA, "m", max_tokens=1234)
+
+    assert transporte.payload == {
+        "model": "m",
+        "max_tokens": 1234,
+        "system": "sistema",
+        "messages": MESSAGES,
+        "output_config": {"format": {"type": "json_schema", "schema": SCHEMA}},
+    }
+    assert transporte.headers == {"x-api-key": KEY, "anthropic-version": "2023-06-01"}
+    assert transporte.timeout == 30
+
+
+def test_effort_va_dentro_de_output_config(transporte):
+    _provider().complete_structured("s", MESSAGES, SCHEMA, "m", effort="medium")
+
+    assert transporte.payload["output_config"] == {
+        "format": {"type": "json_schema", "schema": SCHEMA},
+        "effort": "medium",
+    }
+    assert "fallbacks" not in transporte.payload
+    assert "anthropic-beta" not in transporte.headers
+
+
+def test_fallbacks_pone_el_parametro_y_la_cabecera_beta(transporte):
+    from apps.simulation.services.ai_providers import STRUCTURED_FALLBACK_BETA
+
+    _provider().complete_structured("s", MESSAGES, SCHEMA, "m", fallbacks="default")
+
+    assert STRUCTURED_FALLBACK_BETA == "server-side-fallback-2026-07-01"
+    assert transporte.payload["fallbacks"] == "default"
+    assert transporte.headers["anthropic-beta"] == "server-side-fallback-2026-07-01"
+    assert transporte.headers["x-api-key"] == KEY
+    assert "effort" not in transporte.payload["output_config"]
+
+
+def test_meta_trae_modelo_servido_respaldo_y_uso(transporte):
+    transporte.reply = {
+        "model": "claude-opus-4-8",
+        "stop_reason": "end_turn",
+        "content": [
+            {"type": "fallback", "from": {"model": "claude-fable-5-2"}, "to": {"model": "claude-opus-4-8"}},
+            _texto('{"a": 1}'),
+        ],
+        "usage": {"input_tokens": 10, "output_tokens": 5, "iterations": [{"type": "fallback_message"}]},
+    }
+    meta = {}
+
+    _provider().complete_structured("s", MESSAGES, SCHEMA, "m", meta=meta)
+
+    assert meta == {
+        "model": "claude-opus-4-8",
+        "fallback": True,
+        "usage": {"input_tokens": 10, "output_tokens": 5, "cache_read_input_tokens": 0, "cache_creation_input_tokens": 0},
+    }
+
+
+def test_meta_sin_respaldo_y_con_cache(transporte):
+    transporte.reply = {
+        "model": "claude-fable-5-2",
+        "stop_reason": "end_turn",
+        "content": [_texto('{"a": 1}')],
+        "usage": {"input_tokens": 3, "output_tokens": 4, "cache_read_input_tokens": 2000, "cache_creation_input_tokens": 7},
+    }
+    meta = {}
+
+    _provider().complete_structured("s", MESSAGES, SCHEMA, "m", meta=meta)
+
+    assert meta["model"] == "claude-fable-5-2"
+    assert meta["fallback"] is False
+    assert meta["usage"] == {
+        "input_tokens": 3, "output_tokens": 4, "cache_read_input_tokens": 2000, "cache_creation_input_tokens": 7,
+    }
+
+
+def test_meta_con_respuesta_sin_uso_ni_modelo_trae_ceros(transporte):
+    meta = {}
+
+    _provider().complete_structured("s", MESSAGES, SCHEMA, "m", meta=meta)
+
+    assert meta == {
+        "model": "m",
+        "fallback": False,
+        "usage": {"input_tokens": 0, "output_tokens": 0, "cache_read_input_tokens": 0, "cache_creation_input_tokens": 0},
+    }
+
+
+def test_bloques_thinking_y_fallback_no_confunden_la_lectura(transporte):
+    transporte.reply = {
+        "stop_reason": "end_turn",
+        "content": [
+            {"type": "thinking", "thinking": "pienso"},
+            {"type": "fallback", "from": {"model": "a"}, "to": {"model": "b"}},
+            _texto('{"a": 2}'),
+            _texto('{"a": 3}'),
+        ],
+    }
+
+    assert _provider().complete_structured("s", MESSAGES, SCHEMA, "m") == {"a": 2}

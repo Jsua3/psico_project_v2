@@ -486,6 +486,7 @@ AI_ASSISTANT_MODEL = os.environ.get("AI_ASSISTANT_MODEL", "gpt-4o-mini").strip()
 # estudiante (AI_ASSISTANT_*). Ids de modelo verificados el 2026-10-26 con la skill claude-api.
 AI_AUTHORING_ENABLED = _env_flag("AI_AUTHORING_ENABLED")
 AI_AUTHORING_PROVIDER = os.environ.get("AI_AUTHORING_PROVIDER", "anthropic").strip()
+AI_AUTHORING_BASE_URL = os.environ.get("AI_AUTHORING_BASE_URL", "https://integrate.api.nvidia.com/v1").strip()
 AI_AUTHORING_API_KEY = os.environ.get("AI_AUTHORING_API_KEY", "").strip()
 AI_AUTHORING_MODEL_FAST = os.environ.get("AI_AUTHORING_MODEL_FAST", "claude-haiku-5-5").strip()
 AI_AUTHORING_MODEL_CAPABLE = os.environ.get("AI_AUTHORING_MODEL_CAPABLE", "claude-opus-5-5").strip()
@@ -494,6 +495,18 @@ AI_AUTHORING_MONTHLY_LIMIT = int(os.environ.get("AI_AUTHORING_MONTHLY_LIMIT", "3
 # Cuánto espera el servidor al proveedor (segundos) y cuántos tokens de salida admite una propuesta (``propose``; la guía usa 600).
 AI_AUTHORING_TIMEOUT_SECONDS = int(os.environ.get("AI_AUTHORING_TIMEOUT_SECONDS", "60"))
 AI_AUTHORING_MAX_TOKENS_PROPOSE = int(os.environ.get("AI_AUTHORING_MAX_TOKENS_PROPOSE", "8000"))
+# Generación del caso por etapas (C1): modelo, esfuerzo por etapa, respaldo y topes. ``AI_AUTHORING_GENERATE_FALLBACKS=""`` apaga
+# el respaldo. Los valores por defecto son los de la medición real del 2026-11-12.
+AI_AUTHORING_MODEL_GENERATE = os.environ.get("AI_AUTHORING_MODEL_GENERATE", "claude-fable-5-2").strip()
+AI_AUTHORING_GENERATE_TIMEOUT_SECONDS = int(os.environ.get("AI_AUTHORING_GENERATE_TIMEOUT_SECONDS", "100"))
+AI_AUTHORING_GENERATIONS_PER_DAY = int(os.environ.get("AI_AUTHORING_GENERATIONS_PER_DAY", "5"))
+AI_AUTHORING_GENERATION_MAX_CALLS = int(os.environ.get("AI_AUTHORING_GENERATION_MAX_CALLS", "20"))
+# Tope diario de generaciones creadas por todas las docentes juntas (el gasto global de la clave).
+AI_AUTHORING_GENERATIONS_GLOBAL_PER_DAY = int(os.environ.get("AI_AUTHORING_GENERATIONS_GLOBAL_PER_DAY", "30"))
+AI_AUTHORING_GENERATE_MAX_TOKENS = int(os.environ.get("AI_AUTHORING_GENERATE_MAX_TOKENS", "16000"))
+AI_AUTHORING_GENERATE_EFFORT_SKELETON = os.environ.get("AI_AUTHORING_GENERATE_EFFORT_SKELETON", "high").strip()
+AI_AUTHORING_GENERATE_EFFORT_SCENE = os.environ.get("AI_AUTHORING_GENERATE_EFFORT_SCENE", "medium").strip()
+AI_AUTHORING_GENERATE_FALLBACKS = os.environ.get("AI_AUTHORING_GENERATE_FALLBACKS", "default").strip()
 
 ACCESS_REQUEST_NOTIFY_EMAILS = [
     email.strip()
@@ -560,6 +573,7 @@ SPECTACULAR_SETTINGS = {
         "AssistantStatusModeEnum": "apps.simulation.serializers.contracts.ASSISTANT_STATUS_MODES",
         "AssistantGuideModeEnum": "apps.simulation.serializers.contracts.ASSISTANT_GUIDE_MODES",
         "HintReasonEnum": "apps.simulation.serializers.contracts.HINT_REASONS",
+        "GenerationErrorKindEnum": "apps.simulation.serializers.contracts.GENERATION_ERROR_KINDS",
         "LifecycleActionEnum": "apps.simulation.serializers.contracts.LIFECYCLE_ACTIONS",
         "MembershipStatusEnum": "apps.grupos.models.MembershipStatus",
         "ReviewDecisionEnum": "apps.simulation.models.case.ReviewDecision",

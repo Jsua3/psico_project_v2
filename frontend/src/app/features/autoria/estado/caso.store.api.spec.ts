@@ -819,3 +819,37 @@ describe('CasoStore con la API · los datos del caso (contexto y objetivos)', ()
     expect(caso(store).contexto).toBe('Mi contexto.');
   });
 });
+
+describe('CasoStore con la API · releerProbado (si el ensayo llegó a un final)', () => {
+  it('relee el editor y pone probadoHastaElFinal sin tocar lo demás ni mandar nada', async () => {
+    const { servidor, store } = await abrir();
+    expect(caso(store).probadoHastaElFinal).toBe(false);
+    const antes = structuredClone(caso(store));
+    servidor.marcarEnsayado(true);
+    await store.releerProbado();
+    expect(servidor.metodos).toEqual(['caseEditor']);
+    expect(caso(store).probadoHastaElFinal).toBe(true);
+    expect({ ...caso(store), probadoHastaElFinal: false }).toEqual(antes);
+    servidor.marcarEnsayado(false);
+    await store.releerProbado();
+    expect(caso(store).probadoHastaElFinal).toBe(false);
+  });
+
+  it('no deja pendiente nada que guardar, y si la lectura falla conserva lo que había', async () => {
+    const { servidor, store } = await abrir();
+    servidor.marcarEnsayado(true);
+    await store.releerProbado();
+    servidor.llamadas.length = 0;
+    await store.sincronizado();
+    expect(servidor.metodos).toEqual([]);
+    servidor.fallar('caseEditor', 500);
+    await store.releerProbado();
+    expect(caso(store).probadoHastaElFinal).toBe(true);
+  });
+
+  it('sin caso abierto no hace nada', async () => {
+    const { servidor, store } = montar();
+    await store.releerProbado();
+    expect(servidor.metodos).toEqual([]);
+  });
+});

@@ -9,8 +9,16 @@ import {
 } from '../../modelo/efectos';
 import { fraseDeRespuesta, pasoDeRespuesta } from '../../modelo/persona';
 import { EXPRESIONES } from '../../modelo/escenario';
-import { NOMBRE_CLASE, NOMBRE_EXPRESION, NOMBRE_INTENSIDAD } from '../../modelo/textos';
+import { NOMBRE_CLASE, NOMBRE_EXPRESION, NOMBRE_INTENSIDAD, plural } from '../../modelo/textos';
+import { RUTA_ENSAYO, alPulsarProbar } from '../../ensayo';
 import { RutasAutoria } from '../../rutas';
+import { ComentariosComponent } from './comentarios.component';
+import { ObjetivoPistasComponent } from './objetivo-pistas.component';
+import { ReaccionComponent } from './reaccion.component';
+import { SelectorCondicionComponent } from './selector-condicion.component';
+
+/** El juego muestra las opciones de una decisión como A, B, C y D. */
+const MAX_RESPUESTAS = 4;
 
 const CLASIFICACIONES: { valor: ClaseRespuesta; nombre: string; simbolo: string }[] = [
   { valor: 'RECOMMENDED', nombre: NOMBRE_CLASE.RECOMMENDED, simbolo: '✓' },
@@ -35,7 +43,7 @@ const PASOS_ACTIVACION = [{ valor: -1, nombre: 'Se calma' }, { valor: 0, nombre:
  */
 @Component({
   selector: 'app-guion',
-  imports: [RouterLink],
+  imports: [RouterLink, ComentariosComponent, ObjetivoPistasComponent, SelectorCondicionComponent, ReaccionComponent],
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
     @if (escena(); as e) {
@@ -52,7 +60,8 @@ const PASOS_ACTIVACION = [{ valor: -1, nombre: 'Se calma' }, { valor: 0, nombre:
           @if (e.marcaIa) {
             <div class="fila-titulo">
               <span class="pildora">Sugerido por la IA</span>
-              <button type="button" class="boton" (click)="aceptarEscena(e)">Aceptar escena</button>
+              <!-- BORRADOR: texto nuevo, pendiente de la aprobación de Psicología -->
+              <button type="button" class="boton" (click)="aceptarEscena(e)">Aceptar toda la escena ({{ plural(store.partesIaDeEscena(e.id), 'parte', 'partes') }})</button>
             </div>
           }
           <label for="en" class="etiqueta">Escena {{ numero(e) }} · Nombre</label>
@@ -74,6 +83,7 @@ const PASOS_ACTIVACION = [{ valor: -1, nombre: 'Se calma' }, { valor: 0, nombre:
               }
             }
           </div>
+          <app-objetivo-pistas [escena]="e" />
           <div class="recursos" data-accion="recursos-de-apoyo">
             <label for="recursos-escena" class="etiqueta">Recursos de apoyo para el estudiante</label>
             <textarea id="recursos-escena" class="campo" rows="3" aria-describedby="recursos-escena-ayuda"
@@ -84,7 +94,15 @@ const PASOS_ACTIVACION = [{ valor: -1, nombre: 'Se calma' }, { valor: 0, nombre:
             @if (e.salaId) {
               <a class="boton" [routerLink]="rutas.a('/editor/sala', e.salaId)">Abrir sala</a>
             }
-            <a class="boton" [routerLink]="rutas.a('/probar')" [queryParams]="{ desde: e.id }">Probar desde aquí</a>
+            @if (nodoParaProbar(); as nodo) {
+              <!-- BORRADOR: texto nuevo, pendiente de la aprobación de Psicología -->
+              <a class="boton" [attr.href]="rutaEnsayo(nodo)" target="_blank" rel="noopener" data-accion="probar"
+                 aria-label="Probar desde aquí, en el juego (se abre en otra pestaña)" (click)="probar($event, nodo)">Probar desde aquí ↗</a>
+            } @else {
+              <!-- BORRADOR: texto nuevo, pendiente de la aprobación de Psicología -->
+              <button type="button" class="boton" aria-disabled="true" aria-describedby="probar-aviso" data-accion="probar">Probar desde aquí ↗</button>
+              <span id="probar-aviso" class="texto-secundario nota">Guarda la escena para probarla.</span>
+            }
           </div>
         </section>
 
@@ -141,6 +159,8 @@ const PASOS_ACTIVACION = [{ valor: -1, nombre: 'Se calma' }, { valor: 0, nombre:
               </ol>
               <button type="button" class="boton" data-accion="agregar-linea" (click)="agregarLinea(e)">Agregar una línea</button>
             </section>
+
+            <app-comentarios [escena]="e" />
 
             <section aria-labelledby="rh" class="bloque" id="respuestas-escena" tabindex="-1" data-accion="respuesta-a-escena-nueva">
               <h2 id="rh">Lo que puede responder el estudiante</h2>
@@ -223,6 +243,9 @@ const PASOS_ACTIVACION = [{ valor: -1, nombre: 'Se calma' }, { valor: 0, nombre:
                         <p class="texto-secundario nota">Este caso todavía no tiene hitos.</p>
                       }
                     </fieldset>
+                    <app-selector-condicion [condicion]="r.requiere" [salaId]="e.salaId" leyenda="Aparece si…" vacio="Siempre aparece."
+                                            [idBase]="'aparece-si-' + r.id" (cambio)="store.editarRequisito(e.id, r.id, $event)" />
+                    <app-reaccion [respuesta]="r" [escena]="e" [idBase]="'reaccion-' + r.id" (cambio)="store.editarReaccion(e.id, r.id, $event)" />
                     <fieldset class="competencias" [id]="'competencias-' + r.id" tabindex="-1">
                       <legend>Competencias que evidencia (una o dos)</legend>
                       @for (c of competencias(); track c.codigo) {
@@ -261,7 +284,20 @@ const PASOS_ACTIVACION = [{ valor: -1, nombre: 'Se calma' }, { valor: 0, nombre:
                   </li>
                 }
               </ol>
-              <button type="button" class="boton" data-accion="agregar-respuesta" (click)="agregarRespuesta(e)">Agregar una respuesta</button>
+              @if (todasConRequisito(e)) {
+                <!-- BORRADOR: texto nuevo, pendiente de la aprobación de Psicología -->
+                <p class="texto-secundario nota" id="aviso-todas-con-requisito"><span aria-hidden="true">▲</span> Todas las respuestas tienen un requisito: deja al menos una que aparezca siempre.</p>
+              }
+              <button type="button" class="boton" data-accion="agregar-respuesta" [attr.aria-disabled]="enElTopeDeRespuestas(e)"
+                      [attr.aria-describedby]="describedbyAgregarRespuesta(e)" (click)="agregarRespuesta(e)">Agregar una respuesta</button>
+              @if (enElTopeDeRespuestas(e)) {
+                <!-- BORRADOR: texto nuevo, pendiente de la aprobación de Psicología -->
+                <p id="respuestas-tope" class="texto-secundario nota"><span aria-hidden="true">▲</span> Una decisión tiene hasta 4 respuestas (A, B, C y D).</p>
+              }
+              @if (e.respuestas.length > maximoRespuestas) {
+                <!-- BORRADOR: texto nuevo, pendiente de la aprobación de Psicología -->
+                <p id="respuestas-exceso" class="texto-secundario nota"><span aria-hidden="true">▲</span> Esta escena tiene {{ e.respuestas.length }} respuestas y el juego solo muestra 4 (A, B, C y D). Quita las que sobren.</p>
+              }
             </section>
           </div>
 
@@ -353,6 +389,13 @@ export class GuionComponent {
   readonly escenaId = input.required<string>();
 
   protected readonly store = inject(CasoStore);
+  protected readonly plural = plural;
+  /** El número que el servidor le dio a la escena: sin él (la escena aún no se guardó) no hay desde dónde probar. */
+  protected readonly nodoParaProbar = computed(() => (this.store.caso(), this.store.guardando(), this.store.nodoDeEscena(this.escenaId())));
+  protected readonly rutaEnsayo = (nodo: number): string => RUTA_ENSAYO(this.store.caso()!.id, nodo);
+  protected probar(evento: MouseEvent, nodo: number): void {
+    void alPulsarProbar(evento, this.store, nodo);
+  }
   private readonly router = inject(Router);
   protected readonly expresiones = EXPRESIONES;
   protected readonly nombreExpresion = NOMBRE_EXPRESION;
@@ -375,6 +418,11 @@ export class GuionComponent {
     const e = this.escena();
     return e?.lineas.find((l) => l.id === this.lineaVista()) ?? e?.lineas[0] ?? null;
   });
+
+  /** ¿Cada respuesta de la escena lleva un requisito? Entonces puede que ninguna aparezca. */
+  protected todasConRequisito(e: Escena): boolean {
+    return e.respuestas.length > 0 && e.respuestas.every((r) => Object.keys(r.requiere ?? {}).length > 0);
+  }
 
   protected numero(e: Escena): number {
     return this.escenas().indexOf(e) + 1;
@@ -464,7 +512,20 @@ export class GuionComponent {
     this.enfocar(`lt${this.escena()!.lineas.length - 1}`);
   }
 
+  /** El juego muestra las opciones como A–D: el tope solo impide agregar, nunca borra las que ya haya. */
+  protected readonly maximoRespuestas = MAX_RESPUESTAS;
+
+  protected enElTopeDeRespuestas(e: Escena): boolean {
+    return e.respuestas.length >= MAX_RESPUESTAS;
+  }
+
+  protected describedbyAgregarRespuesta(e: Escena): string | null {
+    if (!this.enElTopeDeRespuestas(e)) return null;
+    return e.respuestas.length > MAX_RESPUESTAS ? 'respuestas-tope respuestas-exceso' : 'respuestas-tope';
+  }
+
   protected agregarRespuesta(e: Escena): void {
+    if (this.enElTopeDeRespuestas(e)) return;
     this.store.agregarRespuesta(e.id);
     this.enfocar(`rt${this.escena()!.respuestas.length - 1}`);
   }
@@ -512,10 +573,13 @@ export class GuionComponent {
     });
   }
 
-  protected aceptarEscena(e: Escena): void {
-    this.store.aceptarIa({ escenaId: e.id });
-    this.anuncio.set('Escena aceptada.');
+  /** Acepta de una vez lo sugerido en la escena; solo si de verdad quedó todo aceptado se anuncia (si no, habla el aviso de lo que faltó). */
+  protected async aceptarEscena(e: Escena): Promise<void> {
+    this.store.aceptarEscenaIa(e.id);
     this.enfocarPrimero('#en');
+    await this.store.sincronizado();
+    // BORRADOR: texto nuevo, pendiente de la aprobación de Psicología
+    if (this.store.partesIaDeEscena(e.id) === 0) this.anuncio.set('Aceptaste todo lo sugerido en esta escena.');
   }
 
   protected aceptarLinea(e: Escena, l: Linea, i: number): void {

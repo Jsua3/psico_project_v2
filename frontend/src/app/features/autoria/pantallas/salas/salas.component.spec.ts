@@ -12,13 +12,15 @@ import type { Escenario } from '../../modelo/escenario';
 import { SalasComponent } from './salas.component';
 
 
-async function montar(createCase = vi.fn(() => of({ caseVersionId: 77 }))) {
+const GENERACION_ENCENDIDA = { enabled: true, remainingToday: 5, inProgress: null };
+
+async function montar(createCase = vi.fn(() => of({ caseVersionId: 77 })), estadoGeneracion: unknown = GENERACION_ENCENDIDA) {
   await TestBed.configureTestingModule({
     imports: [SalasComponent],
     providers: [
       provideRouter(rutasDePrueba),
       { provide: BibliotecaService, useValue: { escenario: async () => universidad } },
-      { provide: AuthoringApi, useValue: { createCase } },
+      { provide: AuthoringApi, useValue: { createCase, generationStatus: () => of(estadoGeneracion), libraryPlaces: () => of([]) } },
     ],
   }).compileComponents();
   const fixture = TestBed.createComponent(SalasComponent);
@@ -35,6 +37,90 @@ const marcadas = (raiz: HTMLElement) =>
   [...raiz.querySelectorAll<HTMLInputElement>('input[type="checkbox"]')].filter((c) => c.checked).map((c) => c.value);
 
 describe('SalasComponent', () => {
+  it('ofrece las dos formas de empezar y «Elegir salas a mano» deja la pantalla de siempre', async () => {
+    const { fixture, raiz } = await montar();
+    const grupo = raiz.querySelector('fieldset.forma')!;
+    expect(grupo.querySelector('legend')!.textContent).toContain('¿Cómo quieres empezar?');
+    const radios = [...grupo.querySelectorAll<HTMLInputElement>('input[type="radio"]')];
+    expect(radios.map((r) => r.value)).toEqual(['describe', 'a-mano']);
+    expect(grupo.textContent).toContain('La IA arma un borrador completo a partir de tu descripción. Tú lo revisas y lo cambias.');
+    expect(grupo.textContent).toContain('Eliges las salas y escribes tú cada escena.');
+
+    // «a mano» es lo de hoy: ideas, lista de salas y barra de crear
+    expect(radios[1].checked).toBe(true);
+    expect(raiz.querySelector('#ideas')).toBeTruthy();
+    expect(raiz.querySelector('[data-accion="elegir-salas"]')).toBeTruthy();
+    expect(boton(raiz, 'Crear el caso con estas salas')).toBeTruthy();
+    expect(raiz.querySelector('app-describir')).toBeNull();
+    fixture.detectChanges();
+  });
+
+  it('«Describe tu caso» muestra el formulario de describir en vez de las ideas y las salas', async () => {
+    const { fixture, raiz } = await montar();
+    raiz.querySelector<HTMLInputElement>('input[value="describe"]')!.click();
+    fixture.detectChanges();
+    await fixture.whenStable();
+    fixture.detectChanges();
+
+    expect(raiz.querySelector('app-describir')).toBeTruthy();
+    expect(raiz.querySelector('#ideas')).toBeNull();
+    expect(boton(raiz, 'Crear el caso con estas salas')).toBeUndefined();
+
+    raiz.querySelector<HTMLInputElement>('input[value="a-mano"]')!.click();
+    fixture.detectChanges();
+    expect(raiz.querySelector('app-describir')).toBeNull();
+    expect(raiz.querySelector('#ideas')).toBeTruthy();
+  });
+
+  it('pasar a «Elegir salas a mano» y volver no borra la descripción que la docente ya escribió', async () => {
+    const { fixture, raiz } = await montar();
+    raiz.querySelector<HTMLInputElement>('input[value="describe"]')!.click();
+    fixture.detectChanges();
+    await fixture.whenStable();
+    fixture.detectChanges();
+    const texto = 'Una estudiante llega a Bienestar después de una noche difícil en casa y no quiere hablar.';
+    const campo = raiz.querySelector<HTMLTextAreaElement>('#descripcion')!;
+    campo.value = texto;
+    campo.dispatchEvent(new Event('input'));
+    fixture.detectChanges();
+
+    raiz.querySelector<HTMLInputElement>('input[value="a-mano"]')!.click();
+    fixture.detectChanges();
+    raiz.querySelector<HTMLInputElement>('input[value="describe"]')!.click();
+    fixture.detectChanges();
+    await fixture.whenStable();
+    fixture.detectChanges();
+
+    expect(raiz.querySelector<HTMLTextAreaElement>('#descripcion')!.value).toBe(texto);
+  });
+
+  it('con una generación en curso entra en «Describe tu caso» y se ve el aviso de retomar', async () => {
+    const { fixture, raiz } = await montar(undefined, {
+      enabled: true, remainingToday: 4,
+      inProgress: { id: 'g-7', lugarId: 'universidad', status: 'skeleton_ready', scenes: [] },
+    });
+    for (let i = 0; i < 5; i++) { await new Promise((r) => setTimeout(r, 0)); fixture.detectChanges(); }
+
+    expect(raiz.querySelector<HTMLInputElement>('input[value="describe"]')!.checked).toBe(true);
+    expect(raiz.querySelector('app-describir')).toBeTruthy();
+    expect(raiz.textContent).toContain('Tienes un caso a medio generar');
+    expect(raiz.querySelector('#ideas')).toBeNull();
+  });
+
+  it('con la generación apagada, «Describe tu caso» queda apagada con su motivo', async () => {
+    const { fixture, raiz } = await montar(undefined, { enabled: false, remainingToday: 0, inProgress: null });
+    fixture.detectChanges();
+    await fixture.whenStable();
+    fixture.detectChanges();
+
+    const describe = raiz.querySelector<HTMLInputElement>('input[value="describe"]')!;
+    expect(describe.disabled).toBe(true);
+    expect(raiz.querySelector('#forma-describe-texto')!.textContent).toContain(
+      'La generación con IA no está disponible por ahora. Puedes elegir las salas a mano.');
+    expect(describe.getAttribute('aria-describedby')).toBe('forma-describe-texto');
+    expect(raiz.querySelector<HTMLInputElement>('input[value="a-mano"]')!.checked).toBe(true);
+  });
+
   it('elegir un recorrido sugerido marca sus salas', async () => {
     const { fixture, raiz } = await montar();
     raiz.querySelector<HTMLButtonElement>('button[aria-label="Usar esta idea: Atención en Bienestar"]')!.click();

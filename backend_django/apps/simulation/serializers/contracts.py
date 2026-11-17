@@ -537,3 +537,94 @@ class RehearsalStartedSerializer(AttemptStateSerializer):
     se publica en el esquema, ``test_openapi_schema_never_exposes_prohibited_fields``) más el bloque del panel."""
 
     rehearsal = RehearsalBlockSerializer()
+
+
+# ─── …/api/authoring/generations/* (generación de un caso por etapas con IA, C1) ───
+GENERATION_STATUSES = ("created", "skeleton_ready", "scenes_ready", "needs_repair", "imported", "failed", "cancelled")
+GENERATION_SCENE_STATES = ("pending", "running", "done", "error")
+GENERATION_ERROR_KINDS = ("timeout", "http", "malformed", "refusal")
+GENERATION_STAGES = ("skeleton", "scene", "assemble")
+
+
+class GenerationErrorEnvelopeSerializer(ErrorEnvelopeSerializer):
+    """El 409, 429 y 502 de la generación. Cada motivo suma su campo en la raíz:
+
+    `GENERATION_IN_PROGRESS` → `generationId` (la que sigue abierta); `AI_LIMIT_EXCEEDED` → `scope` (`daily`);
+    `AI_PROVIDER_ERROR` → `kind` (`timeout`, `http` o `malformed`).
+    """
+
+    generationId = serializers.UUIDField(required=False, help_text="Solo en `GENERATION_IN_PROGRESS`.")
+    scope = serializers.CharField(required=False, help_text="Solo en `AI_LIMIT_EXCEEDED`: `daily`.")
+    kind = serializers.CharField(required=False, help_text="Solo en `AI_PROVIDER_ERROR`: `timeout`, `http` o `malformed`.")
+
+
+class GenerationSkeletonSceneSerializer(serializers.Serializer):
+    clave = serializers.CharField(help_text="El id de la sala donde pasa la escena.")
+    titulo = serializers.CharField()
+    final = serializers.BooleanField()
+
+
+class GenerationSkeletonSerializer(serializers.Serializer):
+    """El esqueleto del caso: su título y las escenas en orden (la primera es la de inicio)."""
+
+    titulo = serializers.CharField()
+    escenas = GenerationSkeletonSceneSerializer(many=True)
+
+
+class GenerationSceneErrorSerializer(serializers.Serializer):
+    kind = serializers.ChoiceField(choices=GENERATION_ERROR_KINDS)
+    message = serializers.CharField(help_text="Texto fijo del servidor; nunca cita lo que dijo el modelo.")
+
+
+class GenerationSceneStateSerializer(serializers.Serializer):
+    """Una escena del esqueleto con su avance."""
+
+    clave = serializers.CharField()
+    titulo = serializers.CharField()
+    state = serializers.ChoiceField(choices=GENERATION_SCENE_STATES)
+    error = GenerationSceneErrorSerializer(allow_null=True)
+
+
+class GenerationRepairSerializer(serializers.Serializer):
+    """La ronda de reparación abierta: qué escenas se rehacen y las faltas de cada una (solo con `needs_repair`)."""
+
+    round = serializers.IntegerField(min_value=1, max_value=2)
+    scenes = serializers.ListField(child=serializers.CharField())
+    issues = serializers.DictField(child=serializers.ListField(child=ValidationIssueSerializer()))
+
+
+class GenerationErrorSerializer(serializers.Serializer):
+    """El último fallo de una etapa; se borra cuando esa misma etapa sale bien."""
+
+    stage = serializers.ChoiceField(choices=GENERATION_STAGES)
+    clave = serializers.CharField(allow_null=True)
+    kind = serializers.ChoiceField(choices=GENERATION_ERROR_KINDS)
+    message = serializers.CharField(help_text="Texto fijo del servidor; nunca cita lo que dijo el modelo.")
+
+
+class GenerationSerializer(serializers.Serializer):
+    """Una generación por etapas. No trae el documento guardado ni texto del modelo salvo los títulos del esqueleto."""
+
+    id = serializers.UUIDField()
+    lugarId = serializers.CharField()
+    descripcion = serializers.CharField()
+    status = serializers.ChoiceField(choices=GENERATION_STATUSES)
+    skeleton = GenerationSkeletonSerializer(allow_null=True, help_text="Nulo hasta que el esqueleto esté listo.")
+    scenes = GenerationSceneStateSerializer(many=True)
+    repairRounds = serializers.IntegerField(min_value=0, max_value=2, help_text="Las rondas ya abiertas.")
+    repair = GenerationRepairSerializer(allow_null=True)
+    lastError = GenerationErrorSerializer(allow_null=True)
+    caseVersionId = serializers.IntegerField(allow_null=True, help_text="El borrador creado, solo con `imported`.")
+    issues = ValidationIssueSerializer(many=True, help_text="Con `imported`: lo que queda por resolver; con `failed`: lo que impidió importar. Solo faltas de severidad `error`: los avisos no se incluyen.")
+    callsUsed = serializers.IntegerField()
+    callsLimit = serializers.IntegerField()
+    createdAt = serializers.DateTimeField(format="%Y-%m-%dT%H:%M:%SZ", help_text="UTC, ISO 8601 con `Z`.")
+    updatedAt = serializers.DateTimeField(format="%Y-%m-%dT%H:%M:%SZ", help_text="UTC, ISO 8601 con `Z`.")
+
+
+class GenerationStatusSerializer(serializers.Serializer):
+    """Si la generación con IA está disponible, cuántas le quedan hoy a la docente y la generación en curso."""
+
+    enabled = serializers.BooleanField()
+    remainingToday = serializers.IntegerField(min_value=0)
+    inProgress = GenerationSerializer(allow_null=True)

@@ -1,0 +1,81 @@
+{
+  "narracion": "La sala de espera de Bienestar está más tranquila que el mostrador. Daniela se sienta en la esquina de una banca, con las manos apretadas sobre las rodillas, y mira hacia la puerta cada vez que se oyen pasos. Sobre la mesa hay un folleto con las rutas de atención. Es un buen momento para hablar de lo que ella necesita, sin apurarla y sin pedirle más detalles de los necesarios.",
+  "lineas": [
+    {
+      "personaje": "estudiante-consultante",
+      "texto": "¿Y si él se entera de que vine? Me dijo que, si le contaba a alguien, iba a ser peor.",
+      "emocion": "en-crisis"
+    },
+    {
+      "personaje": "estudiante-consultante",
+      "texto": "No sé si quiero denunciar. Solo quiero saber qué puedo hacer para que no me busque.",
+      "emocion": "cautelosa"
+    }
+  ],
+  "opciones": [
+    {
+      "clave": "explorar-riesgo-y-derechos",
+      "texto": "Le preguntas con calma si se siente segura hoy y si hay algo que le preocupe de cuando salga de aquí. Después le cuentas, con palabras sencillas, qué rutas de atención existen y que ella decide cuál tomar y cuándo. Le propones que la psicóloga de Bienestar la acompañe en lo que sigue.",
+      "clase": "RECOMMENDED",
+      "retroalimentacion": "Exploras las señales de riesgo sin dudar de su relato y le devuelves información y control: sabe qué opciones tiene y que la decisión es suya. Eso baja su miedo y fortalece el vínculo.",
+      "razonProhibicion": "",
+      "destino": "consultorio",
+      "efectoVinculo": 1,
+      "efectoActivacion": -1,
+      "hitos": [
+        "valorar_el_riesgo",
+        "informar_derechos",
+        "derivar_a_salud_mental"
+      ],
+      "competencias": [
+        "COMPRENSION_SITUACION",
+        "DECISION_RUTA"
+      ],
+      "requiere": "",
+      "reaccionLinea": "Ah, no sabía que había tantas opciones. Prefiero ir despacio, pero me siento menos sola.",
+      "reaccionEmocion": "cautelosa",
+      "reaccionGesto": "asiente"
+    },
+    {
+      "clave": "usar-el-folleto-de-rutas",
+      "texto": "Tomas el folleto de rutas de la mesa y lo repasas con ella: le muestras los teléfonos y las instancias de apoyo, y le propones guardar el que le sirva más.",
+      "clase": "RECOMMENDED",
+      "retroalimentacion": "Usas lo que tienes a la mano para darle información concreta y verificable, sin presionarla a decidir hoy. Ella puede llevarse el folleto y volver a él a su ritmo.",
+      "razonProhibicion": "",
+      "destino": "consultorio",
+      "efectoVinculo": 1,
+      "efectoActivacion": 0,
+      "hitos": [
+        "informar_derechos"
+      ],
+      "competencias": [
+        "DECISION_RUTA",
+        "COMUNICACION_EMPATIA"
+      ],
+      "requiere": "{\"inspected\": \"folleto-rutas\"}",
+      "reaccionLinea": "Me lo guardo. Gracias por no obligarme a nada.",
+      "reaccionEmocion": "triste",
+      "reaccionGesto": "asiente"
+    },
+    {
+      "clave": "ofrecer-hablar-con-el-agresor",
+      "texto": "«Si quieres, hablo con tu pareja para aclarar las cosas y que te deje tranquila».",
+      "clase": "CONTRAINDICATED",
+      "retroalimentacion": "Esta oferta suena a ayuda, pero acercarse a la persona que agrede pone a Daniela en más riesgo y le quita el control sobre lo que sigue. El cuidado pasa por la protección de ella y por las rutas de atención, nunca por la mediación.",
+      "razonProhibicion": "Mediar o acercarse a la persona que agrede aumenta el riesgo para quien lo vive y puede romper su confianza; no corresponde a quien acompaña.",
+      "destino": "consultorio",
+      "efectoVinculo": -1,
+      "efectoActivacion": 1,
+      "hitos": [],
+      "competencias": [
+        "REFLEXION"
+      ],
+      "requiere": "",
+      "reaccionLinea": "No, por favor, no hables con él. Eso empeoraría todo.",
+      "reaccionEmocion": "en-crisis",
+      "reaccionGesto": "se-aparta"
+    }
+  ],
+  "pistas": [],
+  "comentarios": []
+}

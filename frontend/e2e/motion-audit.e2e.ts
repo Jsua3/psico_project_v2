@@ -56,7 +56,7 @@ for (const role of ['publico', 'estudiante', 'profesor', 'admin'] as const) {
 }
 
 // req: RNF-04, RNF-005
-test('@motion-audit editor de casos: cada pantalla (mapa, guion, sala, finales, probar y revisión) sin movimiento fuera de criterio', async ({ page, request }) => {
+test('@motion-audit editor de casos: cada pantalla (mapa, guion, sala, finales y revisión) sin movimiento fuera de criterio', async ({ page, request }) => {
   test.setTimeout(scaled(5 * 60_000));
   await page.setViewportSize({ width: 1440, height: 1000 });
   const findings: Finding[] = [];

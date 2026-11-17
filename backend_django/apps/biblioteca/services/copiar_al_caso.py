@@ -145,6 +145,33 @@ class _Claves:
         return clave
 
 
+def _asignar_claves(sala, entradas=None):
+    """Las claves de objeto de una sala en el orden exacto de la copia: muebles, objetos, personas y puertas.
+
+    ``entradas`` son las salas elegidas (``id → entrada``): con ellas solo las puertas que llevan a una sala elegida
+    reciben clave, como en la copia; sin ellas se cuentan todas las puertas.
+    """
+    claves = _Claves()
+    return {
+        "muebles": [claves.nueva(colocado["ref"]) for colocado in sala.get("muebles", [])],
+        "objetos": [claves.nueva(colocado["ref"]) for colocado in sala.get("objetos", [])],
+        "personajes": [claves.nueva(colocado["ref"]) for colocado in sala.get("personajes", [])],
+        "puertas": [
+            claves.nueva(puerta["id"]) for puerta in sala.get("puertas", [])
+            if entradas is None or puerta["hacia"] in entradas
+        ],
+    }
+
+
+def claves_de_sala(sala):
+    """``{"muebles", "objetos", "personajes", "puertas"}`` → las claves de objeto que la copia asigna en esa sala.
+
+    Misma fuente que la copia. De las puertas devuelve las de todas (la copia solo crea las que llevan a una sala
+    elegida, algo que aquí no se sabe): es un superconjunto.
+    """
+    return _asignar_claves(sala)
+
+
 def _json(valor):
     return json.dumps(valor, ensure_ascii=False)
 
@@ -165,9 +192,8 @@ def _objeto(escena, clave, etiqueta, tipo, x, y, ancho, alto, **campos):
 
 def _muebles(escena, sala, catalogo, lugar_id, claves):
     objetos, zonas = [], []
-    for colocado in sala.get("muebles", []):
+    for colocado, clave in zip(sala.get("muebles", []), claves):
         modelo = catalogo[colocado["ref"]]
-        clave = claves.nueva(colocado["ref"])
         choca = bool(modelo["colision"])
         metadata = {"arte": url_de_arte(lugar_id, modelo["arte"]), "colision": choca, "apoyo": APOYO}
         if colocado.get("espejo"):
@@ -223,7 +249,7 @@ def _paredes(escena, sala):
 
 def _objetos(escena, sala, catalogo, lugar_id, claves):
     resultado = []
-    for colocado in sala.get("objetos", []):
+    for colocado, clave in zip(sala.get("objetos", []), claves):
         modelo = catalogo[colocado["ref"]]
         metadata = {"arte": url_de_arte(lugar_id, modelo["arte"]), "apoyo": APOYO}
         animacion = modelo.get("animacionCerca")
@@ -234,7 +260,7 @@ def _objetos(escena, sala, catalogo, lugar_id, claves):
                 "fps": animacion.get("fps", FPS_POR_DEFECTO),
             }
         resultado.append(_objeto(
-            escena, claves.nueva(colocado["ref"]), modelo["nombre"], modelo["tipo"], colocado["x"], colocado["y"],
+            escena, clave, modelo["nombre"], modelo["tipo"], colocado["x"], colocado["y"],
             TAMANO_OBJETO, TAMANO_OBJETO,
             interaction_prompt=modelo.get("textoInteraccion") or "", interaction_text=modelo.get("alRevisar") or "",
             metadata=metadata,
@@ -244,14 +270,14 @@ def _objetos(escena, sala, catalogo, lugar_id, claves):
 
 def _personas(escena, sala, personajes, caracteres, claves):
     resultado = []
-    for colocado in sala.get("personajes", []):
+    for colocado, clave in zip(sala.get("personajes", []), claves):
         info = personajes[colocado["ref"]]
         metadata = {"recipeId": info["recipeId"], "movimiento": "quieto", "apoyo": APOYO}
         if colocado.get("expresion"):
             metadata["expresion"] = colocado["expresion"]
         ancho, alto = TAMANO_PERSONA
         resultado.append(_objeto(
-            escena, claves.nueva(colocado["ref"]), info["nombre"], "PERSON", colocado["x"], colocado["y"], ancho, alto,
+            escena, clave, info["nombre"], "PERSON", colocado["x"], colocado["y"], ancho, alto,
             interaction_prompt="Hablar", facing=MIRANDO.get(colocado.get("mirando"), "down"),
             character=caracteres[colocado["ref"]], metadata=metadata,
         ))
@@ -260,15 +286,14 @@ def _personas(escena, sala, personajes, caracteres, claves):
 
 def _puertas(escena, sala, entradas, claves, claves_de_puertas):
     """Las puertas hacia salas elegidas. Una puerta en el muro (``muro``, ``pos``, ``modelo``) no lleva ``x, y`` ni
-    ``pintada``: su umbral y su llegada los fija ``recalcular_salas`` al final de la copia. ``claves_de_puertas`` guarda la
-    clave que tomó cada puerta en el caso, para traducir después los ``par`` que la nombran."""
+    ``pintada``: su umbral y su llegada los fija ``recalcular_salas`` al final de la copia. ``claves`` son las de las puertas
+    elegidas, en orden (``_asignar_claves``); ``claves_de_puertas`` guarda la clave que tomó cada puerta en el caso, para
+    traducir después los ``par`` que la nombran."""
     resultado = []
-    for puerta in sala.get("puertas", []):
-        if puerta["hacia"] not in entradas:
-            continue  # lleva a una sala que no se eligió
+    elegidas = [puerta for puerta in sala.get("puertas", []) if puerta["hacia"] in entradas]  # las otras no se crean
+    for puerta, clave in zip(elegidas, claves):
         destino = entradas[puerta["hacia"]]
         ancho, alto = TAMANO_PUERTA
-        clave = claves.nueva(puerta["id"])
         claves_de_puertas[(sala["id"], puerta["id"])] = clave
         metadata = {"targetNodeKey": puerta["hacia"], "entryX": destino["x"], "entryY": destino["y"]}
         if "muro" in puerta:
@@ -392,11 +417,11 @@ def copiar_al_caso(case_version, lugar, salas):
             width=_ancho(sala), height=ALTO_SALA, theme=TEMA, spawn_x=entrada["x"], spawn_y=entrada["y"],
             ambient_json=_json(ambiente), structure=copy.deepcopy(estructura),
         )
-        claves = _Claves()
-        de_muebles, zonas = _muebles(escena, sala, muebles, lugar_id, claves)
-        de_objetos = _objetos(escena, sala, objetos, lugar_id, claves)
-        de_personas = _personas(escena, sala, personajes, caracteres, claves)
-        de_puertas = _puertas(escena, sala, entradas, claves, claves_de_puertas)
+        claves = _asignar_claves(sala, entradas)
+        de_muebles, zonas = _muebles(escena, sala, muebles, lugar_id, claves["muebles"])
+        de_objetos = _objetos(escena, sala, objetos, lugar_id, claves["objetos"])
+        de_personas = _personas(escena, sala, personajes, caracteres, claves["personajes"])
+        de_puertas = _puertas(escena, sala, entradas, claves["puertas"], claves_de_puertas)
         MapObject.objects.bulk_create(de_muebles + de_objetos + de_personas + de_puertas)
         CollisionZone.objects.bulk_create(_paredes(escena, sala) + zonas)
         todas_las_puertas.extend(de_puertas)

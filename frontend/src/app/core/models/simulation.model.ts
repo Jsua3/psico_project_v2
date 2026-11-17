@@ -704,6 +704,33 @@ export interface NodeEditorState {
   displayOrder: number;
   /** La escena la propuso el asistente de IA y nadie la ha revisado (P5). */
   aiSuggested?: boolean;
+  /** El objetivo de la escena (2.1, hasta 200 caracteres); vacío = la escena no lo declara. */
+  goal: string;
+  /** Lo que dicen los personajes al acercarse (2.1); el servidor de la base puede no enviarlo: ausente = no hay. */
+  comments?: CommentState[];
+}
+
+/** Los cinco gestos del documento 2.1 (vocabulario cerrado). */
+export const GESTOS = ['se-acerca', 'asiente', 'se-aparta', 'baja-la-mirada', 'se-agita'] as const;
+export type Gesto = (typeof GESTOS)[number];
+
+/** Un comentario de escena: lo que dice un personaje al acercarse el jugador, con su condición opcional (`cuando`). */
+export interface CommentState {
+  personaje: string;
+  /** Una línea de hasta 400 caracteres, sin enlaces. */
+  linea: string;
+  /** Condición del documento (`talked`, `inspected`, `milestone`, `all`, `any`, `not`); ausente = siempre. */
+  cuando?: Record<string, unknown>;
+  emocion?: string;
+  gesto?: string;
+}
+
+/** Cómo reacciona el personaje a una respuesta (2.1): todo opcional; `{}` = sin reacción. */
+export interface ReactionState {
+  linea?: string;
+  emocion?: string;
+  gesto?: string;
+  personaje?: string;
 }
 
 export interface DecisionEdgeState {
@@ -730,6 +757,10 @@ export interface DecisionEdgeState {
   feedbackText: string;
   /** La opción la propuso el asistente de IA y nadie la ha revisado (P5). */
   aiSuggested?: boolean;
+  /** Cuándo aparece la respuesta (2.1): una condición del documento; `{}` = siempre. */
+  requires: Record<string, unknown>;
+  /** Cómo reacciona el personaje al elegirla (2.1); `{}` = sin reacción. */
+  reaction: ReactionState;
 }
 
 /**
@@ -898,6 +929,8 @@ export interface CaseEditorView {
   checklistCompletion: number;
   publishable: boolean;
   checklist: PublicationChecklistView;
+  /** Si quien edita tiene un ensayo de esta versión que llegó a un final (A2); ausente = `false`. */
+  rehearsedToEnd?: boolean;
 }
 
 // ─── Authoring CRUD request models ────────────────────────────────────────────
@@ -921,6 +954,10 @@ export interface NodeUpsertRequest {
   intensity?: Intensity;
   /** Ausente = no se toca; `true` marca la escena como propuesta por la IA, `false` la da por revisada. */
   aiSuggested?: boolean;
+  /** Ausente = no se toca; vacío = se borra el objetivo. */
+  goal?: string;
+  /** Ausente = no se toca; `[]` o `null` los quita todos. */
+  comments?: CommentState[] | null;
 }
 
 export interface DecisionOptionUpsertRequest {
@@ -941,6 +978,10 @@ export interface DecisionOptionUpsertRequest {
   feedbackText?: string;
   /** Ausente = no se toca. */
   aiSuggested?: boolean;
+  /** Ausente = no se toca; `{}` o `null` quita el requisito. */
+  requires?: Record<string, unknown> | null;
+  /** Ausente = no se toca; `{}` o `null` quita la reacción. */
+  reaction?: ReactionState | null;
 }
 
 /** Una ayuda de una sala: texto plano de hasta 280 caracteres; sin `hintOrder` se agrega al final. */
@@ -1314,6 +1355,8 @@ export interface ValidationIssue {
   milestoneKey?: string;
   endingKey?: string;
   competencyCode?: string;
+  /** Dónde del documento está la falta (`x-siep.escenas[i].opciones[j].requiere`, `….comentarios[k]`…); lo traen las reglas OCL del documento 2.1. */
+  path?: string;
 }
 
 export interface CaseValidation {
