@@ -90,3 +90,21 @@
   flex-wrap: wrap;
   gap: var(--ds-space-3);
 }
+
+// La acción principal no queda bajo el pliegue: la barra se pega al pie de la ventana mientras el contexto se lee y,
+// al llegar al final de la ficha, se queda en su sitio. No quita nada del contenido ni del aviso de contenido sensible.
+.brief-actions--pegajosa {
+  position: sticky;
+  inset-block-end: 0;
+  z-index: var(--ds-z-pegajoso);
+  padding-block: var(--ds-space-3);
+  border-top: 1px solid var(--ds-border-strong);
+  background: var(--ds-surface-page);
+}
+
+// En móvil las pestañas de abajo son fijas: la barra se pega justo encima de ellas, no debajo.
+@media (max-width: 63.999rem) {
+  .brief-actions--pegajosa {
+    inset-block-end: calc(var(--asb-alto-modulo-inferior, 0px) + env(safe-area-inset-bottom, 0px));
+  }
+}

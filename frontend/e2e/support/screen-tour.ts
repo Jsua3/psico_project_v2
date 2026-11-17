@@ -57,12 +57,12 @@ async function firstEditorPath(page: Page): Promise<string> {
 
 /**
  * El ensayo es de un BORRADOR: se clona por la API el primer caso del editor (como `ensayo.e2e.ts`) y se abre su ensayo.
- * Abrir el ensayo de una versión publicada solo mostraría el error de apertura.
+ * Abrir el ensayo de una versión publicada solo mostraría el error de apertura. La importación de `case-fixtures` es
+ * dinámica a propósito: una estática hace que Vitest (que importa este módulo) falle con `TransformStream is not defined`.
  */
 async function rehearsalPath(page: Page): Promise<string> {
-  const source = Number(/\/portal\/casos\/(\d+)\/editor$/.exec(await firstEditorPath(page))?.[1]);
-  // Importación dinámica: `case-fixtures` trae Playwright, y la prueba de cobertura de este archivo corre en Vitest.
   const { cloneDraft } = await import('./case-fixtures');
+  const source = Number(/\/portal\/casos\/(\d+)\/editor$/.exec(await firstEditorPath(page))?.[1]);
   const draft = await cloneDraft(page.request, source);
   return `/portal/casos/${draft.id}/ensayo`;
 }

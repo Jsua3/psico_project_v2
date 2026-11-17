@@ -114,6 +114,16 @@ describe('CaseBriefComponent', () => {
     expect(service.startAttempt).not.toHaveBeenCalled();
   });
 
+  it('la acción principal vive en una barra pegada al pie para verse sin desplazar la ficha (1366×768)', async () => {
+    await render();
+    const bar = host().querySelector('.brief-actions--pegajosa')!;
+    expect(bar.querySelector('button')?.textContent).toContain('Comenzar');
+    expect(bar.textContent).toContain('Volver al catálogo');
+    // La barra es el último bloque de la ficha, después del contexto y del aviso de contenido.
+    expect(host().querySelector('.brief-sensitive')!.compareDocumentPosition(bar) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    expect(getComputedStyle(bar).position).toBe('sticky');
+  });
+
   it('«Volver al catálogo» regresa sin dejar nada abierto', async () => {
     const service = await render();
     button('Volver al catálogo')!.click();

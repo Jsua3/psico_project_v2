@@ -27,7 +27,7 @@ import type { Mock } from 'vitest';
 
 /**
  * Correcciones de la revisión adversarial sobre la salida segura (REGLA-004 / ETH-02): el fundido de escena no
- * tapa el pie (F1), la pausa en cola tiene plazo (F2), Esc mantenido no encadena acciones (F5) y ningún aviso
+ * tapa el pie (F1), la pausa sale en el acto, sin cola (F2), Esc mantenido no encadena acciones (F5) y ningún aviso
  * queda encima de la pantalla de pausa (F7). Instancia + contratos de fuente (Jest no renderiza la plantilla).
  */
 
@@ -225,7 +225,7 @@ describe('SimulationPlayComponent: salida segura (correcciones de la revisión)'
       expect(component.doorNotice()).toBe('');
     });
 
-    it('si la pausa falla, los avisos siguen: la superposición no cambió (se limpia al éxito, no antes)', () => {
+    it('aunque la pausa no se registre, los avisos se apagan en el acto: la persona ya salió (V3, REGLA-004)', () => {
       const failing = new Subject<never>();
       sim['safeExit'].mockReturnValue(failing);
       showAllNotices();
@@ -233,8 +233,10 @@ describe('SimulationPlayComponent: salida segura (correcciones de la revisión)'
       component.pauseFromOverlay();
       failing.error(new Error('sin red'));
 
-      expect(component.roomBanner()).not.toBe('');
-      expect(component.doorNotice()).not.toBe('');
+      expect(component.roomBanner()).toBe('');
+      expect(component.doorNotice()).toBe('');
+      expect(component.transitionNote()).toBe('');
+      expect(component.softNotice()).toBe('');
     });
 
     it('un intento nuevo también limpia los avisos del intento anterior', () => {
@@ -258,7 +260,7 @@ describe('SimulationPlayComponent: salida segura (correcciones de la revisión)'
       expect(component.placesOpen()).toBe(false);
     });
 
-    it('si la pausa falla, «Ir a…» sigue abierta (se limpia al éxito, no antes) y se puede reintentar', () => {
+    it('aunque la pausa no se registre, «Ir a…» se cierra en el acto y la pausa se reintenta sola (V3)', () => {
       const failing = new Subject<never>();
       sim['safeExit'].mockReturnValue(failing);
       component.placesOpen.set(true);
@@ -266,7 +268,8 @@ describe('SimulationPlayComponent: salida segura (correcciones de la revisión)'
       component.pauseFromOverlay();
       failing.error(new Error('sin red'));
 
-      expect(component.placesOpen()).toBe(true);
+      expect(component.placesOpen()).toBe(false);
+      expect(component.attempt()?.status).toBe('PAUSED');
     });
 
     it('la nota de transición ya no es un temporizador anónimo: se puede cancelar', () => {
@@ -318,7 +321,7 @@ describe('SimulationPlayComponent: salida segura (correcciones de la revisión)'
       expect(sim['safeExit']).toHaveBeenCalledTimes(1);
     });
 
-    it('si el servidor rechaza la pausa enviada por el plazo, sale el aviso de error y se puede volver a pedir', () => {
+    it('si el servidor no registra la pausa, la persona sigue en pausa con la nota de la pantalla (sin aviso de error) y se reintenta sola', () => {
       const failing = new Subject<never>();
       sim['safeExit'].mockReturnValue(failing);
       component.busy.set(true);
@@ -327,9 +330,12 @@ describe('SimulationPlayComponent: salida segura (correcciones de la revisión)'
 
       failing.error(new Error('sin red'));
 
-      expect(component.pausing()).toBe(false);
-      expect(component.actionError()).toBe('No pudimos registrar la salida segura.');
+      expect(component.pausing()).toBe(true);
+      expect(component.pauseNote()).not.toBeNull();
+      expect(component.actionError()).toBe('');
       expect(component.busy()).toBe(false);
+      vi.advanceTimersByTime(2_000);
+      expect(sim['safeExit']).toHaveBeenCalledTimes(2);
     });
 
     it('con la posición sin guardar la pausa sale sin esperarla ni pedirla', () => {
@@ -344,10 +350,12 @@ describe('SimulationPlayComponent: salida segura (correcciones de la revisión)'
       expect(sim['safeExit']).toHaveBeenCalledTimes(1);
     });
 
-    it('la respuesta tardía de una decisión no pisa el estado de una pausa ya registrada', () => {
+    it('la respuesta de una decisión que llega con la pausa puesta no saca a la persona de ella (adopta el estado, sigue PAUSED)', () => {
       const decision = new Subject<SimulationAttemptState>();
       sim['chooseDecision'].mockReturnValue(decision);
       sim['safeExit'].mockReturnValue(of(paused()));
+      sim['getWorld'].mockReturnValue(of({ map: { key: 'hospital-urgencias' }, objects: [], tools: [], inventory: [], flags: {} } as never));
+      sim['getScenarioConfig'] = vi.fn(() => of({ scenarioKey: 'x', startRoomKey: 'x', rooms: [] }));
       component.attempt.set(makeAttempt({
         currentNode: { id: 1, key: 'hospital-urgencias', title: 'U', narrative: 'N', terminal: false, options: [{ id: 101, text: 'Opción' }] },
       }));

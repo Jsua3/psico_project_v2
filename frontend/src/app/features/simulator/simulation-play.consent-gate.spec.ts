@@ -759,8 +759,8 @@ describe('SimulationPlayComponent — puerta de consentimiento (ETH-01)', () => 
 
   /**
    * REGLA-004 / ETH-02 (F§7.8): la salida segura debe poder alcanzarse desde cada superposición.
-   * `safeExit()` no se toca (arriba sigue fijado que no actúa con un overlay abierto); el camino
-   * de las superposiciones es `pauseFromOverlay()`, que comparte con él `pauseCurrentAttempt()`.
+   * El camino de las superposiciones y del pie es `pauseFromOverlay()` (ya no existe un `safeExit()` aparte): pausa en el
+   * cliente en el acto y sincroniza con el servidor a través de la pausa pendiente (`pausa`).
    */
   describe('salida segura desde las superposiciones (pauseFromOverlay)', () => {
     const optionsDialogue = {
@@ -832,23 +832,24 @@ describe('SimulationPlayComponent — puerta de consentimiento (ETH-01)', () => 
       expect(sim.safeExit).toHaveBeenCalledTimes(1);
     });
 
-    it('si el servidor falla la superposición sigue ahí y se puede reintentar', () => {
+    it('si el servidor falla la persona sale igual (V3, REGLA-004): la superposición se cierra, el intento queda PAUSED y la pausa se reintenta sola', () => {
       component.showCaseIntro.set(true);
       sim.safeExit.mockReturnValueOnce(throwError(() => new Error('sin red')));
 
       component.pauseFromOverlay();
 
-      expect(component.showCaseIntro()).toBe(true);
-      expect(component.attempt()?.status).toBe('IN_PROGRESS');
+      expect(component.showCaseIntro()).toBe(false);
+      expect(component.attempt()?.status).toBe('PAUSED');
       expect(component.busy()).toBe(false);
-      expect(component.pausing()).toBe(false);
-      expect(component.actionError()).toMatch(/salida segura/i);
+      expect(component.pauseNote()).not.toBeNull();
+      expect(component.actionError()).toBe('');
 
       sim.safeExit.mockReturnValue(of(makeAttempt({ status: 'PAUSED' })));
-      component.pauseFromOverlay();
+      window.dispatchEvent(new Event('online'));   // al volver la conexión reintenta en el acto
 
       expect(sim.safeExit).toHaveBeenCalledTimes(2);
-      expect(component.showCaseIntro()).toBe(false);
+      expect(component.pauseNote()).toBeNull();
+      expect(component.pausing()).toBe(false);
     });
 
     it('no actúa bajo el aviso de contenido (ETH-01) ni bajo el aviso de reanudar', () => {

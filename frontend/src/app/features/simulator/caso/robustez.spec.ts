@@ -2,8 +2,8 @@ import { HttpErrorResponse } from '@angular/common/http';
 import { TimeoutError } from 'rxjs';
 
 import {
-  OrdenDeRespuestas, borrarIntencion, borrarLectura, esLecturaRecuperable, esPlazoVencido, esperaDeReintento,
-  guardarIntencion, guardarLectura, leerIntencion, leerLectura, lineaDeArranque, pasoTrasFalloDeGuardado,
+  OrdenDeRespuestas, borrarIntencion, borrarLectura, claveDeNpc, esLecturaRecuperable, esPlazoVencido, esperaDeReintento,
+  guardarIntencion, guardarLectura, leerIntencion, leerLectura, lineaDeArranque, objetoDeLectura, pasoTrasFalloDeGuardado,
   respuestaVigente, veredictoDeEnvio, veredictoDeIntencion,
 } from './robustez';
 
@@ -86,7 +86,7 @@ describe('robustez del juego: reglas puras', () => {
     it('un valor dañado o incompleto no se toma por intención ni por punto de lectura', () => {
       const almacen = memoria();
       almacen.setItem('siep_decision_pendiente_a', '{no es json');
-      almacen.setItem('siep_punto_lectura_a', JSON.stringify({ attemptId: 'a', objectKey: 'x', dialogueKey: 'd', line: -1 }));
+      almacen.setItem('siep_punto_lectura_a', JSON.stringify({ attemptId: 'a', nodeId: 1, objectKey: 'x', dialogueKey: 'd', line: -1 }));
       expect(leerIntencion(almacen, 'a')).toBeNull();
       expect(leerLectura(almacen, 'a')).toBeNull();
     });
@@ -100,11 +100,30 @@ describe('robustez del juego: reglas puras', () => {
 
     it('el punto de lectura guarda la conversación y la línea', () => {
       const almacen = memoria();
-      guardarLectura(almacen, { attemptId: 'a', objectKey: 'abuela', dialogueKey: 'd1', line: 2 });
-      expect(leerLectura(almacen, 'a')).toEqual({ attemptId: 'a', objectKey: 'abuela', dialogueKey: 'd1', line: 2 });
+      guardarLectura(almacen, { attemptId: 'a', nodeId: 5, objectKey: 'abuela', dialogueKey: 'd1', line: 2 });
+      expect(leerLectura(almacen, 'a')).toEqual({ attemptId: 'a', nodeId: 5, objectKey: 'abuela', dialogueKey: 'd1', line: 2 });
       borrarLectura(almacen, 'a');
       expect(leerLectura(almacen, 'a')).toBeNull();
     });
+
+    it('un punto de lectura sin el nodo en que se guardó no se toma por válido: no se sabría si la escena cambió', () => {
+      const almacen = memoria();
+      almacen.setItem('siep_punto_lectura_a', JSON.stringify({ attemptId: 'a', objectKey: 'abuela', dialogueKey: 'd1', line: 2 }));
+      expect(leerLectura(almacen, 'a')).toBeNull();
+    });
+  });
+
+  it('la conversación de un personaje de ambiente (npc-<clave>) también se recupera, con su clave', () => {
+    const dialogo = { key: 'npc-vecino', lines: [{}, {}] };
+    expect(claveDeNpc('npc-vecino')).toBe('vecino');
+    expect(claveDeNpc('consequence-123')).toBeNull();
+    expect(claveDeNpc('npc-')).toBeNull();
+    expect(objetoDeLectura(null, dialogo)).toBe('npc-vecino');
+    expect(objetoDeLectura({ key: 'npc:vecino' }, dialogo)).toBe('npc-vecino');
+    expect(objetoDeLectura(null, { key: 'npc-vecino', lines: [] })).toBeNull();
+    expect(objetoDeLectura({ key: 'abuela', type: 'PERSON' }, { key: 'd', lines: [{}] })).toBe('abuela');
+    expect(objetoDeLectura(null, { key: 'd', lines: [{}] })).toBeNull();
+    expect(objetoDeLectura({ key: 'tool-x', type: 'TOOL' }, { key: 'd', lines: [{}] })).toBeNull();
   });
 
   it('solo la conversación de un objeto del mundo se recupera', () => {
