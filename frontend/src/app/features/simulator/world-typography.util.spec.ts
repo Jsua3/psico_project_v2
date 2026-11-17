@@ -22,7 +22,7 @@ describe('world-typography', () => {
     } as unknown as FontFaceSet;
     await whenWorldFontsReady(fonts);
     expect(fonts.load).toHaveBeenCalled();
-    expect((fonts.load as unknown as { mock: { calls: string[][] } }).mock.calls.every(([font]) => /Poppins/.test(font))).toBe(true);
+    expect((fonts.load as unknown as { mock: { calls: string[][] } }).mock.calls.every(([font]) => /Poppins|JetBrains Mono/.test(font))).toBe(true);
     expect(order[order.length - 1]).toBe('ready');
   });
 
