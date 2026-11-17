@@ -1081,6 +1081,14 @@ export const DRAFT_COPY = {
     where: 'Pantalla de pausa: el servidor rechaza la pausa de forma permanente y se dejó de reintentar',
     text: 'No pudimos registrar tu pausa en el servidor. Tu avance sigue guardado: puedes volver al catálogo y retomar el caso más tarde.',
   },
+  retryNotice: {
+    decision: 'R1-11',
+    owner: 'Psicología',
+    review: 'validar',
+    where: 'Tras una respuesta que concede otra oportunidad: aviso neutro de que el caso sigue en el mismo punto (RN-08, sin clasificar)',
+    // V4: antes decía «No se avanzó el caso ni se aplicaron cambios acumulados…»: lenguaje del sistema que no se entiende.
+    text: 'El caso sigue en el mismo punto. Si quieres, revisa la escena; luego vuelve a hablar con la persona para responder otra vez.',
+  },
 } as const satisfies Record<string, DraftCopyEntry>;
 
 export type DraftCopyKey = keyof typeof DRAFT_COPY;

@@ -113,7 +113,7 @@ const WORLD_REVEAL_DELAY_MS = 80;
 /** Rótulo del diálogo que muestra la consecuencia narrativa justo tras decidir (RN-08; decisión del usuario 2026-10-18). */
 const CONSEQUENCE_SPEAKER = 'Consecuencia';
 /** Aviso de reintento al decidir: neutro, sin clasificación. El servidor puede mandar un mensaje evaluativo (forma heredada). */
-const RETRY_NOTICE = 'No se avanzó el caso ni se aplicaron cambios acumulados. Revisa la escena y vuelve a responder.';
+const RETRY_NOTICE = DRAFT_COPY.retryNotice.text;
 /** Sin movimientos nuevos durante este tiempo, la posición del jugador se guarda en el servidor. */
 const POSITION_SAVE_DEBOUNCE_MS = 550;
 /** Línea «no hay nada cerca» tras pedir interactuar sin nada al alcance. */

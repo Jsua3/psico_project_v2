@@ -646,7 +646,7 @@ describe('SimulationPlayComponent: orientación integrada', () => {
       const dialogue = decide({ allowed: true, message: 'Decisión con riesgo: revisa.' });
       const lines = dialogue?.lines.map(line => line.text) ?? [];
 
-      expect(lines.join(' ')).toContain('No se avanzó el caso');
+      expect(lines.join(' ')).toContain('El caso sigue en el mismo punto');
       expect(lines.join(' ')).not.toContain('Decisión con riesgo');
       expect(lines).not.toContain('Tu decisión quedó registrada en tu seguimiento formativo.');
     });
