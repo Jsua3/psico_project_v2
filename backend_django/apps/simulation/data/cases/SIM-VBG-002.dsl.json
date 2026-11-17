@@ -1196,7 +1196,21 @@
        "metadatos": {
         "apoyo": "pies",
         "expresion": "cautelosa",
-        "movimiento": "quieto",
+        "movimiento": {
+         "tipo": "ruta",
+         "modo": "ida-y-vuelta",
+         "pausaMs": 2500,
+         "puntos": [
+          {
+           "x": 360,
+           "y": 420
+          },
+          {
+           "x": 460,
+           "y": 430
+          }
+         ]
+        },
         "recipeId": "seguridad"
        },
        "movimiento": {},
@@ -1312,7 +1326,21 @@
        "metadatos": {
         "apoyo": "pies",
         "expresion": "preocupada",
-        "movimiento": "quieto",
+        "movimiento": {
+         "tipo": "ruta",
+         "modo": "circuito",
+         "pausaMs": 1500,
+         "puntos": [
+          {
+           "x": 820,
+           "y": 310
+          },
+          {
+           "x": 760,
+           "y": 390
+          }
+         ]
+        },
         "recipeId": "enfermera-urgencias"
        },
        "movimiento": {},
@@ -2296,7 +2324,21 @@
        "metadatos": {
         "apoyo": "pies",
         "expresion": "neutral",
-        "movimiento": "quieto",
+        "movimiento": {
+         "tipo": "ruta",
+         "modo": "ida-y-vuelta",
+         "pausaMs": 2000,
+         "puntos": [
+          {
+           "x": 1180,
+           "y": 330
+          },
+          {
+           "x": 1180,
+           "y": 400
+          }
+         ]
+        },
         "recipeId": "enfermera-urgencias"
        },
        "movimiento": {},
@@ -3203,7 +3245,21 @@
        "metadatos": {
         "apoyo": "pies",
         "expresion": "neutral",
-        "movimiento": "quieto",
+        "movimiento": {
+         "tipo": "ruta",
+         "modo": "ida-y-vuelta",
+         "pausaMs": 2000,
+         "puntos": [
+          {
+           "x": 1180,
+           "y": 330
+          },
+          {
+           "x": 1180,
+           "y": 400
+          }
+         ]
+        },
         "recipeId": "enfermera-urgencias"
        },
        "movimiento": {},
@@ -3903,7 +3959,21 @@
        "metadatos": {
         "apoyo": "pies",
         "expresion": "neutral",
-        "movimiento": "quieto",
+        "movimiento": {
+         "tipo": "ruta",
+         "modo": "circuito",
+         "pausaMs": 1800,
+         "puntos": [
+          {
+           "x": 700,
+           "y": 338
+          },
+          {
+           "x": 700,
+           "y": 300
+          }
+         ]
+        },
         "recipeId": "enfermera-urgencias"
        },
        "movimiento": {},
@@ -7882,7 +7952,21 @@
        "metadatos": {
         "apoyo": "pies",
         "expresion": "neutral",
-        "movimiento": "quieto",
+        "movimiento": {
+         "tipo": "ruta",
+         "modo": "ida-y-vuelta",
+         "pausaMs": 2500,
+         "puntos": [
+          {
+           "x": 680,
+           "y": 340
+          },
+          {
+           "x": 760,
+           "y": 340
+          }
+         ]
+        },
         "recipeId": "trabajadora-social"
        },
        "movimiento": {},
@@ -8749,7 +8833,21 @@
        "metadatos": {
         "apoyo": "pies",
         "expresion": "preocupada",
-        "movimiento": "quieto",
+        "movimiento": {
+         "tipo": "ruta",
+         "modo": "ida-y-vuelta",
+         "pausaMs": 3000,
+         "puntos": [
+          {
+           "x": 800,
+           "y": 380
+          },
+          {
+           "x": 740,
+           "y": 380
+          }
+         ]
+        },
         "recipeId": "enfermera-urgencias"
        },
        "movimiento": {},
@@ -11422,7 +11520,21 @@
        "metadatos": {
         "apoyo": "pies",
         "expresion": "neutral",
-        "movimiento": "quieto",
+        "movimiento": {
+         "tipo": "ruta",
+         "modo": "ida-y-vuelta",
+         "pausaMs": 2500,
+         "puntos": [
+          {
+           "x": 600,
+           "y": 320
+          },
+          {
+           "x": 660,
+           "y": 340
+          }
+         ]
+        },
         "recipeId": "comisaria-familia"
        },
        "movimiento": {},

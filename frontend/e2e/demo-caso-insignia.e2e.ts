@@ -15,6 +15,7 @@ import {
   goalCard,
   interactNearby,
   leaveBrief,
+  nearbyAction,
   loginStudent,
   reachNearby,
   readPlayerPosition,
@@ -89,6 +90,9 @@ async function caminarHasta(
   await ir('y', carril);
   await ir('x', x + alLado);
   await ir('y', Math.min(CARRIL_Y, y + (alLado ? 12 : 40)));
+  // Quien camina un trayecto (N1, metadatos.movimiento) vuelve una y otra vez a su partida, que es (x, y): se le espera
+  // ahí hasta que su acción aparece en la barra, en vez de perseguirlo. Al hablarle se detiene de cara al estudiante.
+  await expect(nearbyAction(page, quien)).toBeVisible({ timeout: scaled(20_000) }).catch(() => undefined);
   await reachNearby(page, input, ['ArrowUp'], quien);
 }
 
