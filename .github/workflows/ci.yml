@@ -67,6 +67,8 @@ jobs:
         with:
           node-version: ${{ env.NODE_VERSION }}
       - run: npm run test:scripts
+      - name: Comprobar versiones
+        run: npm run check:version
 
   audit:
     name: Vulnerabilidades (pip-audit + npm audit)

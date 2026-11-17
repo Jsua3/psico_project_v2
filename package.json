@@ -9,6 +9,7 @@
     "db:bootstrap": "node scripts/db-bootstrap.mjs",
     "install:all": "npm install --prefix frontend",
     "check:backend": "node scripts/run-backend.mjs check",
+    "check:version": "node scripts/check-version.mjs",
     "test:scripts": "node --test \"scripts/**/*.test.mjs\"",
     "test:backend": "node scripts/test-backend.mjs",
     "test:backend:down": "node scripts/test-backend.mjs --down",
