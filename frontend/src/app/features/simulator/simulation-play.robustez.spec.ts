@@ -562,4 +562,55 @@ describe('SimulationPlayComponent: robustez del cliente (R1)', () => {
       expect((component as any).safeExit).toBeUndefined();
     });
   });
+
+  describe('intento reemplazado desde otra pestaña u otro equipo (V4)', () => {
+    const http = (status: number) => new HttpErrorResponse({ status, error: { success: false, code: 'NOT_FOUND', message: 'Intento no encontrado' } });
+    const guardar = () => {
+      interno()['lastPosition'] = { x: 10, y: 20 };
+      (interno() as any).persistPosition();
+    };
+
+    it('un 404 al guardar la posición, confirmado con la lectura del intento, lo da por reemplazado y deja de reintentar', () => {
+      sim['updateWorldState'].mockReturnValue(throwError(() => http(404)));
+      sim['getAttempt'].mockReturnValue(throwError(() => http(404)));
+      guardar();
+      expect(sim['getAttempt']).toHaveBeenCalledWith('attempt-1', 'token-1');
+      expect(component.attempt()?.status).toBe('REPLACED');
+      vi.advanceTimersByTime(60_000);
+      expect(sim['updateWorldState']).toHaveBeenCalledTimes(1);
+      expect(component.actionError()).toBe('');
+    });
+
+    it('si la lectura del intento responde, el 404 no era del intento: sigue el reintento de siempre', () => {
+      sim['updateWorldState'].mockReturnValueOnce(throwError(() => http(404)))
+        .mockReturnValue(of({ attemptId: 'attempt-1', status: 'IN_PROGRESS', map: { key: 'sala' }, player: { x: 10, y: 20 } }));
+      sim['getAttempt'].mockReturnValue(of(makeAttempt()));
+      guardar();
+      expect(component.attempt()?.status).toBe('IN_PROGRESS');
+      vi.advanceTimersByTime(600);
+      expect(sim['updateWorldState']).toHaveBeenCalledTimes(2);
+    });
+
+    it('una interacción con 404 sobre un intento reemplazado no dice «Revisa tu conexión»: muestra el intento reemplazado', () => {
+      sim['updateWorldState'].mockReturnValue(of({ attemptId: 'attempt-1', status: 'IN_PROGRESS', map: { key: 'sala' }, player: { x: 0, y: 0 } }));
+      sim['openInteraction'].mockReturnValue(throwError(() => http(404)));
+      sim['getAttempt'].mockReturnValue(throwError(() => http(404)));
+      (interno() as any).openBackendInteraction(makeWorld().objects[1]);
+      expect(component.attempt()?.status).toBe('REPLACED');
+      expect(component.actionError()).toBe('');
+      expect(component.busy()).toBe(false);
+    });
+
+    it('la salida segura sobre un intento reemplazado no queda pendiente: la pantalla dice que se reemplazó', () => {
+      sim['safeExit'].mockReturnValue(throwError(() => http(404)));
+      sim['getAttempt'].mockReturnValue(throwError(() => http(404)));
+      component.pauseFromOverlay();
+      vi.advanceTimersByTime(1);
+      expect(component.attempt()?.status).toBe('REPLACED');
+      expect(component.pauseNote()).toBeNull();
+      expect(sessionStorage.getItem('siep_pausa_pendiente_attempt-1')).toBeNull();
+      vi.advanceTimersByTime(60_000);
+      expect(sim['safeExit']).toHaveBeenCalledTimes(1);
+    });
+  });
 });

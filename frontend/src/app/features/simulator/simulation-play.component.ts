@@ -31,6 +31,7 @@ import { HELP_FIRST_CARD, markHelpSeen, readHelpSeen, resetHelpSeen } from './he
 import { SceneGoalCardComponent } from './scene-goal-card.component';
 import { SensitiveNoticeComponent } from './sensitive-notice.component';
 import { debeConfirmarEnsayo, escenaDesde, reintentarSinDesde, veredictoDeLectura } from './caso/ensayo';
+import { debeConfirmarIntento, intentoPerdido } from './caso/intento-reemplazado';
 import { escenaRetenida } from './caso/escena-visible';
 import {
   type AlmacenSimple, type IntencionDeDecision, OrdenDeRespuestas, PLAZO_ACCION_MS, borrarIntencion, borrarLectura, claveDeNpc, esPlazoVencido, guardarIntencion,
@@ -1947,15 +1948,52 @@ export class SimulationPlayComponent implements OnInit, OnDestroy {
     this.announce((why === 'closed' ? DRAFT_COPY.rehearsalClosed : DRAFT_COPY.rehearsalGone).text, 'assertive');
   }
 
+  /**
+   * El intento se abrió de nuevo en otra pestaña u otro equipo y el servidor cerró este como reemplazado (V4): se cortan los
+   * reintentos (pausa, decisión, posición), se retira lo que estaba abierto y la pantalla del cierre dice «Intento
+   * reemplazado» con «Volver al catálogo», desde donde se sigue el intento nuevo. Se dice una sola vez.
+   */
+  private showAttemptReplaced(attemptId: string): void {
+    const current = this.attempt();
+    if (!current || current.attemptId !== attemptId || current.status === 'REPLACED') return;
+    this.cancelarReintentos();
+    this.endPausing();
+    this.reaction?.cancel();
+    this.pendingAfterReaction = null;
+    this.reacting.set(false); this.busy.set(false); this.loading.set(false); this.fadeActive.set(false);
+    this.pendingDecisionRequest = null;
+    this.decisionInFlight = false;
+    this.consequenceOnResume = this.replayIntent = null;
+    this.positionFailures = this.positionGiveUps = 0;
+    if (this.positionSaveHandle) { window.clearTimeout(this.positionSaveHandle); this.positionSaveHandle = null; }
+    this.dismissActionError();
+    this.clearTransientOverlays();
+    borrarMarcaDePausa(this.almacen, attemptId);
+    this.attempt.set({ ...current, status: 'REPLACED' });
+    // Lo mismo que dice la pantalla del cierre (encabezado y titular de `attempt-outcome`): sin texto nuevo que validar.
+    this.announce('Intento reemplazado. Empezaste un intento nuevo; este quedó cerrado tal como estaba.', 'assertive');
+  }
+
   /** Ensayo perdido: nada que pausar en el servidor; «Salida segura» y Esc llevan al editor (REGLA-004). */
   private leaveRehearsal(): void { void this.router.navigate(['/portal/casos', this.attempt()?.caseVersionId ?? Number(this.route.snapshot.paramMap.get('caseVersionId')), 'editor']); }
 
   /** «Empezar de nuevo» tras perder el ensayo: otro ensayo en la escena en la que estaba. */
   restartRehearsalHere(): void { const id = Number(this.route.snapshot.paramMap.get('caseVersionId')); if (id) this.beginRehearsal(id, this.rehearsal()?.sceneId ?? this.rehearsalFrom); }
 
-  /** En ensayo, un 403/404/409 de las rutas del juego se confirma con la lectura del bloque (7.4); si no es un ensayo perdido o cerrado, sigue su camino. */
+  /**
+   * En ensayo, un 403/404/409 de las rutas del juego se confirma con la lectura del bloque (7.4); si no es un ensayo perdido o
+   * cerrado, sigue su camino. Como estudiante, un 404 se confirma leyendo el intento: si también da 404, otra pestaña u otro
+   * equipo lo reemplazó (V4) y se dice así, sin reintentar ni culpar a la conexión.
+   */
   private orRehearsalGone(cause: unknown, otherwise: () => void): void {
     const attempt = this.attempt();
+    if (attempt && debeConfirmarIntento(this.mode(), cause)) {
+      this.simulationService.getAttempt(attempt.attemptId, attempt.attemptToken).pipe(timeout(PLAZO_ACCION_MS)).subscribe({
+        next: () => otherwise(),
+        error: check => { if (intentoPerdido(check)) this.showAttemptReplaced(attempt.attemptId); else otherwise(); },
+      });
+      return;
+    }
     if (!attempt || !debeConfirmarEnsayo(this.mode(), cause)) { otherwise(); return; }
     this.rehearsalApi.read(attempt.caseVersionId, attempt.attemptId).subscribe({
       next: () => otherwise(),
