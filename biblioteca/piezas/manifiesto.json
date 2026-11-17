@@ -75,6 +75,7 @@
         "ancho": 28,
         "fondo": 6
       },
+      "icono": "piezas/herramientas/iconos/pap-20.png",
       "nombre": "Primeros Auxilios Psicológicos",
       "reemplaza": "../frontend/src/assets/game/objects/tool_pap.png",
       "ruta": "piezas/herramientas/pap.png"
@@ -129,6 +130,7 @@
         "ancho": 28,
         "fondo": 6
       },
+      "icono": "piezas/herramientas/iconos/reflection-journal-20.png",
       "nombre": "Bitácora reflexiva",
       "reemplaza": "../frontend/src/assets/game/objects/tool_reflection_journal.png",
       "ruta": "piezas/herramientas/reflection-journal.png"
@@ -183,6 +185,7 @@
         "ancho": 28,
         "fondo": 6
       },
+      "icono": "piezas/herramientas/iconos/risk-meter-20.png",
       "nombre": "Valoración de riesgo",
       "reemplaza": "../frontend/src/assets/game/objects/tool_risk_meter.png",
       "ruta": "piezas/herramientas/risk-meter.png"
@@ -237,6 +240,7 @@
         "ancho": 28,
         "fondo": 6
       },
+      "icono": "piezas/herramientas/iconos/safety-route-20.png",
       "nombre": "Ruta de protección",
       "reemplaza": "../frontend/src/assets/game/objects/tool_safety_route.png",
       "ruta": "piezas/herramientas/safety-route.png"
@@ -291,6 +295,7 @@
         "ancho": 28,
         "fondo": 6
       },
+      "icono": "piezas/herramientas/iconos/spikes-20.png",
       "nombre": "Protocolo EPICEE/SPIKES",
       "reemplaza": "../frontend/src/assets/game/objects/tool_spikes.png",
       "ruta": "piezas/herramientas/spikes.png"

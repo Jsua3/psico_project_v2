@@ -7,14 +7,26 @@
 /** Pila de fuentes de todo texto del lienzo. */
 export const WORLD_FONT_FAMILY = "Poppins, 'Segoe UI', system-ui, sans-serif";
 
+/**
+ * Rótulos del mundo (nombres de personas y objetos, el verbo al pasar el cursor): la letra de los nombres de las placas
+ * del cuadro (bloque U1), sobre la penumbra de las placas y con su tinta crema. Un solo lenguaje con la interfaz.
+ */
+export const WORLD_LABEL_FONT_FAMILY = "'JetBrains Mono', Consolas, monospace";
+/** Tinta de los rótulos (`--pixel-tinta`). */
+export const WORLD_LABEL_INK = '#f2ecdf';
+/** Fondo de los rótulos: la penumbra de las placas (`--pixel-penumbra`, #1b1826), casi opaca. */
+export const WORLD_LABEL_PLATE = 'rgba(27,24,38,.94)';
+
 /** Plazo máximo de espera: pasado, el texto sale con la fuente de respaldo y el juego sigue. */
 export const WORLD_FONT_TIMEOUT_MS = 2000;
 
-/** Pesos que usa el lienzo (rótulos 400/600, pistas en negrita 800). */
-const WORLD_FONT_FACES = ['400 12px Poppins', '600 12px Poppins', '800 12px Poppins'];
+/** Pesos que usa el lienzo (texto 400/600, pistas en negrita 800; rótulos en JetBrains Mono 400 y 700). */
+const WORLD_FONT_FACES = [
+  '400 12px Poppins', '600 12px Poppins', '800 12px Poppins', '400 12px "JetBrains Mono"', '700 12px "JetBrains Mono"',
+];
 
 /**
- * Se cumple cuando Poppins (los pesos del lienzo) ya está cargada y `document.fonts.ready` también, o al vencer el
+ * Se cumple cuando Poppins y JetBrains Mono (los pesos del lienzo) ya están cargadas y `document.fonts.ready` también, o al vencer el
  * plazo. Nunca se rechaza: sin `FontFaceSet` (jsdom, WebView antiguo) o con la carga fallida resuelve igual.
  */
 export function whenWorldFontsReady(

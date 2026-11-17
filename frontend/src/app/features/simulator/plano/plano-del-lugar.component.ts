@@ -60,14 +60,14 @@ const PUERTA_GROSOR = 14;
   styles: [`
     :host { display: grid; gap: var(--ds-space-3); min-width: 0; }
     .plano__dibujo { display: block; width: 100%; height: 100%; min-height: 0; }
-    .sala__piso { fill: none; stroke: var(--ds-text-3); stroke-width: 1.5; stroke-dasharray: 5 4; }
-    .sala--visitada .sala__piso { fill: var(--ds-surface-2); stroke: var(--ds-border-strong); stroke-dasharray: none; }
-    .sala--actual .sala__piso { fill: var(--ds-surface-2); stroke: var(--ds-primary); stroke-width: 3; stroke-dasharray: none; }
-    .puerta { fill: var(--ds-surface-page); stroke: var(--ds-text-2); stroke-width: 1; }
+    .sala__piso { fill: none; stroke: var(--pixel-plano-borde, var(--ds-text-3)); stroke-width: 1.5; stroke-dasharray: 5 4; }
+    .sala--visitada .sala__piso { fill: var(--pixel-tecla, var(--ds-surface-2)); stroke: var(--pixel-tinta-suave, var(--ds-border-strong)); stroke-dasharray: none; }
+    .sala--actual .sala__piso { fill: var(--luz, var(--ds-surface-2)); stroke: var(--pixel-contorno, var(--ds-primary)); stroke-width: 3; stroke-dasharray: none; }
+    .puerta { fill: var(--pixel-penumbra, var(--ds-surface-page)); stroke: var(--pixel-tinta-suave, var(--ds-text-2)); stroke-width: 1; }
     .sala--sin-visitar .puerta { stroke: var(--ds-text-3); }
-    .aqui { fill: var(--ds-primary); stroke: var(--ds-surface-page); stroke-width: 2; }
-    .sala__nombre { fill: var(--ds-text-1); font-family: var(--ds-font-sans); font-weight: 700; }
-    .sala--actual .sala__nombre { fill: var(--ds-primary-hover); }
+    .aqui { fill: var(--pixel-contorno, var(--ds-primary)); stroke: var(--luz, var(--ds-surface-page)); stroke-width: 2; }
+    .sala__nombre { fill: var(--pixel-tinta, var(--ds-text-1)); font-family: var(--pixel-f-nombre, var(--ds-font-sans)); font-weight: 700; }
+    .sala--actual .sala__nombre { fill: var(--pixel-tinta-oscura, var(--ds-primary-hover)); }
     .plano__lista {
       display: grid; gap: var(--ds-space-1); margin: 0; padding: 0; list-style: none;
       color: var(--ds-text-2); font-size: var(--ds-type-body-s-size); line-height: var(--ds-type-body-s-line);

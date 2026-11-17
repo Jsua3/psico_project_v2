@@ -46,7 +46,7 @@ let nextHelpId = 0;
         </div>
       </section>
     } @else {
-      <section class="help-screen" role="dialog" data-help-view="screen"
+      <section class="help-screen" role="dialog" aria-modal="true" data-help-view="screen"
         cdkTrapFocus [cdkTrapFocusAutoCapture]="true" [attr.aria-labelledby]="titleId">
         <header class="help-screen__head">
           <h2 class="help-screen__title" [attr.id]="titleId">{{ text.title }}</h2>

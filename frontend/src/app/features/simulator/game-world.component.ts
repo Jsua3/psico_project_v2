@@ -61,7 +61,9 @@ import {
 import { serverRejectsPlayerAt } from './server-world-geometry.util';
 import { InteractionVerb, interactionVerb, participatesInInteraction } from './interaction-verb.util';
 import { paintVignette, vignetteTextureKey } from './vignette-texture.util';
-import { WORLD_FONT_FAMILY, whenWorldFontsReady } from './world-typography.util';
+import {
+  WORLD_FONT_FAMILY, WORLD_LABEL_FONT_FAMILY, WORLD_LABEL_INK, WORLD_LABEL_PLATE, whenWorldFontsReady,
+} from './world-typography.util';
 import { HOVER_HIT, HoverCandidate, pickHoverTarget } from './world-hover.util';
 import { NO_WALK, WALK_GROUND_RADIUS_PX, WalkState, cancelWalkOnKeys, reachRadius, startWalk, tickWalk } from './world-walk.util';
 import { InputKind, nextInputKind, touchControlsVisible } from './world-input-kind.util';
@@ -1078,8 +1080,8 @@ export class DataDrivenWorldScene extends Phaser.Scene {
     const label = this.hoverLabel?.active
       ? this.hoverLabel
       : (this.hoverLabel = this.add.text(0, 0, '', {
-          fontFamily: WORLD_FONT_FAMILY, fontSize: `${LABEL_BASE_FONT_PX}px`, color: '#e8f0f4',
-          backgroundColor: 'rgba(8,12,18,.9)', padding: { x: 4, y: 3 }, align: 'center',
+          fontFamily: WORLD_LABEL_FONT_FAMILY, fontSize: `${LABEL_BASE_FONT_PX}px`, color: WORLD_LABEL_INK,
+          backgroundColor: WORLD_LABEL_PLATE, padding: { x: 4, y: 3 }, align: 'center',
         }).setOrigin(0.5, 1).setScale(this.labelScale).setDepth(LABEL_DEPTH));
     label.setText(anchor.verb.locked ? `${anchor.verb.text} · bloqueada` : anchor.verb.text);
     label.setPosition(anchor.x, top - 4).setVisible(true);
@@ -2327,8 +2329,8 @@ export class DataDrivenWorldScene extends Phaser.Scene {
     npc: NpcConfig, pos: { x: number; y: number }, offsetY: number,
   ): { label: Phaser.GameObjects.Text; hint: Phaser.GameObjects.Text } {
     const label = this.add.text(pos.x, pos.y + offsetY, npc.displayName, {
-      fontFamily: WORLD_FONT_FAMILY, fontSize: `${LABEL_BASE_FONT_PX}px`, color: '#e8f0f4',
-      backgroundColor: 'rgba(8,12,18,.72)', padding: { x: 3, y: 2 }, align: 'center',
+      fontFamily: WORLD_LABEL_FONT_FAMILY, fontSize: `${LABEL_BASE_FONT_PX}px`, color: WORLD_LABEL_INK, fontStyle: 'bold',
+      backgroundColor: WORLD_LABEL_PLATE, padding: { x: 4, y: 2 }, align: 'center',
     }).setOrigin(0.5, 1).setAlpha(0).setScale(this.labelScale).setDepth(LABEL_DEPTH);
     const hint = this.add.text(pos.x, pos.y + offsetY, this.npcHintGlyph(), {
       fontFamily: WORLD_FONT_FAMILY, fontSize: `${LABEL_BASE_FONT_PX}px`, color: '#4fa3a5',
@@ -2768,8 +2770,8 @@ export class DataDrivenWorldScene extends Phaser.Scene {
     // Los EXIT no llevan label propio — su door hint ya nombra el destino.
     // Fuera del contenedor del marcador y sobre los actores: un sprite que pase por delante no lo tapa.
     const label  = isExit ? null : this.add.text(object.x, object.y + markerLabelOffsetY(object), displayLabel, {
-      fontFamily: WORLD_FONT_FAMILY, fontSize: `${LABEL_BASE_FONT_PX}px`, color: '#e8f0f4',
-      backgroundColor: 'rgba(8,12,18,.72)', padding: { x:5, y:3 }, align: 'center', wordWrap: { width: this.labelWrap }
+      fontFamily: WORLD_LABEL_FONT_FAMILY, fontSize: `${LABEL_BASE_FONT_PX}px`, color: WORLD_LABEL_INK,
+      backgroundColor: WORLD_LABEL_PLATE, padding: { x:5, y:3 }, align: 'center', wordWrap: { width: this.labelWrap }
     }).setOrigin(.5, 0).setAlpha(0).setScale(this.labelScale).setDepth(LABEL_DEPTH);
 
     let main: Phaser.GameObjects.GameObject;
@@ -3183,15 +3185,15 @@ export class DataDrivenWorldScene extends Phaser.Scene {
     const state = this.personaState;
     const stateHeight = state ? LABEL_BASE_FONT_PX + 8 : 0;
     const name = this.add.text(0, -(height + KEY_PERSON_NAME_GAP_PX + stateHeight), label, {
-      fontFamily: WORLD_FONT_FAMILY, fontSize: `${LABEL_BASE_FONT_PX}px`, color: KEY_PERSON_COLOR, fontStyle: 'bold',
-      backgroundColor: 'rgba(8,12,18,.85)', padding: { x: 5, y: 3 }, align: 'center',
+      fontFamily: WORLD_LABEL_FONT_FAMILY, fontSize: `${LABEL_BASE_FONT_PX}px`, color: KEY_PERSON_COLOR, fontStyle: 'bold',
+      backgroundColor: WORLD_LABEL_PLATE, padding: { x: 5, y: 3 }, align: 'center',
     }).setOrigin(0.5, 1);
     const tipOffsetY = keyPersonTipOffsetY(markerFeetOffsetY(object));
     const children: Phaser.GameObjects.GameObject[] = [chevron, name];
     if (state) {
       children.push(this.add.text(0, -(height + KEY_PERSON_NAME_GAP_PX), state, {
-        fontFamily: WORLD_FONT_FAMILY, fontSize: `${LABEL_BASE_FONT_PX}px`, color: '#e8f0f4',
-        backgroundColor: 'rgba(8,12,18,.85)', padding: { x: 5, y: 3 }, align: 'center',
+        fontFamily: WORLD_LABEL_FONT_FAMILY, fontSize: `${LABEL_BASE_FONT_PX}px`, color: WORLD_LABEL_INK,
+        backgroundColor: WORLD_LABEL_PLATE, padding: { x: 5, y: 3 }, align: 'center',
       }).setOrigin(0.5, 1));
     }
     const container = this.add.container(marker.x, marker.y + tipOffsetY, children)

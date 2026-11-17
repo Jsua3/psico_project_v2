@@ -98,6 +98,11 @@ def generar():
         for campo in ('sobre', 'estados', 'codigo'):
             if ficha.get(campo) is not None:
                 entrada[campo] = ficha[campo]
+        if tipo == 'herramienta':
+            # El icono de la barra de herramientas (O1, 20 px): lo usa la ranura de pixel del juego (U1).
+            icono = f'piezas/herramientas/iconos/{ref}-20.png'
+            if os.path.exists(os.path.join(BIB, *icono.split('/'))):
+                entrada['icono'] = icono
         if ficha.get('reemplaza'):
             entrada['reemplaza'] = os.path.normpath(ficha['reemplaza']).replace('\\', '/')
         for lado, clave, sufijo in (('frente', 'brillo', '-brillo'), ('izquierda', 'brilloIzquierda', '-brillo-izquierda'),
