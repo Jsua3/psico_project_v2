@@ -42,7 +42,7 @@ CARPETA = FAKE_FIXTURES / "universidad"
 SALAS = ["aula", "bienestar", "sala-espera", "consultorio"]
 COMPETENCIAS = [
     {"codigo": codigo, "nombre": codigo.title()}
-    for codigo in ("PAP", "COMUNICACION_EMPATIA", "DECISION_RUTA", "COMPRENSION_SITUACION", "REFLEXION")
+    for codigo in ("PAP", "COMUNICACION_EMPATIA", "DECISION_RUTA", "COMPRENSION_SITUACION", "REFLEXION", "ANALISIS_ARGUMENTACION")
 ]
 TABLAS = (
     SimulationCase, CaseVersion, SimulationNode, SceneMap, MapObject, DecisionOption, DialogueTree, DialogueLine,

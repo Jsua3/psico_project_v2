@@ -31,7 +31,7 @@ DESCRIPCION = (
 KEY = "sk-ant-clave-de-prueba-0123456789"
 COMPETENCIAS = [
     {"codigo": codigo, "nombre": codigo.title()}
-    for codigo in ("PAP", "COMUNICACION_EMPATIA", "DECISION_RUTA", "COMPRENSION_SITUACION", "REFLEXION")
+    for codigo in ("PAP", "COMUNICACION_EMPATIA", "DECISION_RUTA", "COMPRENSION_SITUACION", "REFLEXION", "ANALISIS_ARGUMENTACION")
 ]
 SALAS = ["aula", "bienestar", "sala-espera", "consultorio"]
 CARPETA = FAKE_FIXTURES / "universidad"

@@ -210,7 +210,9 @@ test.describe('@generacion la docente describe un caso y la IA lo arma con el pr
       asignacion = await assignCase(request, caseVersionId);
       await page.evaluate(() => { window.localStorage.clear(); window.sessionStorage.clear(); });
       await entrarALaPrimeraSala(page);
-      await expect(page.locator('app-simulation-play').getByText(`Escenario 1 de ${nEscenas}`).first()).toBeVisible({ timeout: scaled(30_000) });
+      // La sala ocupa la pantalla (b28adb40): sin contador «Escenario 1 de N»; la ficha dice el objetivo de la escena.
+      await expect(page.locator('app-simulation-play').getByText('Objetivo de la escena').first()).toBeVisible({ timeout: scaled(30_000) });
+      await expect(page.locator('app-simulation-play').getByText(/Escenario \d+ de \d+/)).toHaveCount(0);
       await sinInfraccionesGraves(page, 'la primera sala del caso generado, vista por el estudiante');
     } finally {
       if (caseVersionId) await retireCase(request, caseVersionId, asignacion ? [asignacion] : []);

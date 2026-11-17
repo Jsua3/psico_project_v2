@@ -71,7 +71,8 @@
       "efectoActivacion": 0,
       "hitos": [],
       "competencias": [
-        "DECISION_RUTA"
+        "DECISION_RUTA",
+        "ANALISIS_ARGUMENTACION"
       ],
       "requiere": "",
       "reaccionLinea": "Listo, queda anotada. Son tres personas antes, así que puede tardar un rato.",

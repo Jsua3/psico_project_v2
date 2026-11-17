@@ -23,7 +23,7 @@ EDITOR = "/api/authoring/cases"
 DESCRIPCION = "Una estudiante de segundo semestre se queda sola después de clase y necesita que la acompañen con calma."
 COMPETENCIAS = [
     {"codigo": codigo, "nombre": codigo.title()}
-    for codigo in ("PAP", "COMUNICACION_EMPATIA", "DECISION_RUTA", "COMPRENSION_SITUACION", "REFLEXION")
+    for codigo in ("PAP", "COMUNICACION_EMPATIA", "DECISION_RUTA", "COMPRENSION_SITUACION", "REFLEXION", "ANALISIS_ARGUMENTACION")
 ]
 APAGADO = "La generación con IA no está disponible."
 
