@@ -158,7 +158,7 @@ const NARROW_QUERY = '(max-width: 760px)';
   template: `
     <div class="game-container pixel-juego" data-skin="game" id="main-content" tabindex="-1" [attr.data-mode]="viewMode()" [style]="arteJuego"
       [class.game-container--reduce-motion]="reduceMotion()" [class.game-container--cine]="cinemaBars()"
-      [style.--alto-hud]="altoHud() + 'px'" [style.--alto-objetivo]="altoObjetivo() + 'px'"
+      [style.--alto-hud]="altoHud() + 'px'" [style.--alto-objetivo]="altoObjetivo() + 'px'" [style.--alto-pie]="altoPie() + 'px'"
       [attr.data-rehearsal]="mode() === 'rehearsal' ? 'true' : null">
       <!-- Sin región viva propia (F6-12): todo anuncio sale por las dos regiones persistentes de la app
            (LiveRegionAnnouncer), que ya existen antes de que cambie su texto. -->
@@ -343,7 +343,9 @@ const NARROW_QUERY = '(max-width: 760px)';
                      fuente. Sin role: una región que nace con su texto no se anuncia de forma fiable. -->
                 <div class="soft-notice u-placa u-sombra"><app-pixel-icono nombre="hecho" /><span>{{ softNotice() }}</span></div>
               }
-              @if (roomBanner() && !fadeActive()) {
+              <!-- El título de una escena nueva ya está en la pestaña de la ficha del objetivo: el aviso del carril no lo
+                   repite (B, V4); se anuncia igual por la región. -->
+              @if (roomBanner() && !fadeActive() && !(bannerDeEtapa() && roomBanner() === stageLabel())) {
                 <div class="room-banner u-placa u-sombra">{{ roomBanner() }}</div>
               }
             </div>
@@ -646,9 +648,10 @@ const NARROW_QUERY = '(max-width: 760px)';
     /* Cabecera y pie bajo una capa o un diálogo lateral (inert): se ven apagados, no «vivos pero muertos» (F6-1).
        El mundo no se atenúa con un diálogo lateral abierto: sigue siendo el contexto de lo que se decide. */
     .top-bar[inert], .bottom-zone[inert] {
-      opacity: .55;
-      filter: saturate(.6);
-      transition: opacity var(--ds-dur-fade) var(--ds-ease-out);
+      /* Apagadas pero opacas: con opacidad, el plano y las placas dejaban ver a través las personas y los rótulos del
+         mundo (B, V4: «el plano translúcido»). */
+      filter: saturate(.6) brightness(.6);
+      transition: filter var(--ds-dur-fade) var(--ds-ease-out);
     }
 
     /* ── Main zone: canvas + optional right panel ────────────────────────── */
@@ -1382,6 +1385,8 @@ export class SimulationPlayComponent implements OnInit, OnDestroy {
   readonly softNotice   = signal('');
   /** Nombre de la sala al entrar (1-2 s). */
   readonly roomBanner   = signal('');
+  /** El aviso del carril es el título de una escena nueva (no el nombre de la sala): si la pestaña ya lo dice, no se repite. */
+  protected readonly bannerDeEtapa = signal(false);
   /** Salto temporal / texto de transición autorado (map.ambient.transitionText). */
   readonly transitionNote = signal('');
   /** La nota partida en pestaña de capítulo y texto (bloque U1). */
@@ -1389,6 +1394,8 @@ export class SimulationPlayComponent implements OnInit, OnDestroy {
   /** Alto (px) del grupo de la derecha y de la ficha del objetivo: bajo 760 px la ficha baja bajo el HUD y su hueco la iguala. */
   protected readonly altoHud = signal(0);
   protected readonly altoObjetivo = signal(0);
+  /** Alto del pie (V4): en el teléfono la ficha táctil «Hablar con…» tapaba la puerta de la barra de acción. */
+  protected readonly altoPie = signal(0);
   /** Advertencia de contenido: ETH-01 — precede a la escena, la narrativa y el gameplay. */
   readonly showContentWarning = signal(false);
   /** `rehearsal`: la docente ensaya su borrador (ruta `casos/:id/ensayo`). */
@@ -1581,16 +1588,19 @@ export class SimulationPlayComponent implements OnInit, OnDestroy {
     const hud = this.derecha()?.nativeElement;
     this.world(); // la ficha nace con el mundo: se vuelve a buscar cuando aparece
     const objetivo = this.canvasZone()?.nativeElement.querySelector<HTMLElement>('.objective-card');
+    // El pie (salida, herramientas y la barra de acción): los controles táctiles del mundo se ponen encima de él.
+    const pie = this.canvasZone()?.nativeElement.closest('.game-container')?.querySelector<HTMLElement>('.bottom-zone') ?? null;
     if (typeof ResizeObserver === 'undefined') return;
     const observador = new ResizeObserver(entradas => {
       for (const entrada of entradas) {
         const alto = Math.round((entrada.target as HTMLElement).offsetHeight);
-        const destino = entrada.target === hud ? this.altoHud : this.altoObjetivo;
+        const destino = entrada.target === hud ? this.altoHud : entrada.target === pie ? this.altoPie : this.altoObjetivo;
         if (destino() !== alto) destino.set(alto);
       }
     });
     if (hud) observador.observe(hud);
     if (objetivo) observador.observe(objetivo);
+    if (pie) observador.observe(pie);
     onCleanup(() => observador.disconnect());
   });
 
@@ -3921,7 +3931,8 @@ export class SimulationPlayComponent implements OnInit, OnDestroy {
     this.announce(keyPersonAccessibleName(getSceneDisplayLabel(person, world.map.key)));
   }
 
-  private showRoomBanner(text: string, ms: number): void {
+  private showRoomBanner(text: string, ms: number, etapa = false): void {
+    this.bannerDeEtapa.set(etapa);
     this.roomBanner.set(text);
     if (this.roomBannerTimer !== null) window.clearTimeout(this.roomBannerTimer);
     this.roomBannerTimer = window.setTimeout(() => this.roomBanner.set(''), ms);
@@ -3935,7 +3946,7 @@ export class SimulationPlayComponent implements OnInit, OnDestroy {
 
   /** Banner con el título de la escena nueva. */
   private announceNewStage(title: string): void {
-    this.showRoomBanner(title, STAGE_BANNER_MS);
+    this.showRoomBanner(title, STAGE_BANNER_MS, true);
     this.announce(title);
   }
 

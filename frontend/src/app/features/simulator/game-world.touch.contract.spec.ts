@@ -47,7 +47,8 @@ describe('game-world: controles táctiles', () => {
 
   it('la cruceta es una cruz de 3x3 de 48 px abajo a la izquierda y «Interactuar» abajo a la derecha, sin tapar el piso', () => {
     // El contenedor ocupa el ancho del mundo pegado abajo y NO recibe toques: solo los controles.
-    expect(source).toMatch(/\.touch-controls \{\s*display: none;\s*position: absolute;\s*left: 8px;\s*right: 8px;\s*bottom: 8px;/);
+    // V4: la banda va 8 px sobre el pie de la pantalla del juego (--alto-pie): sin él, la ficha táctil tapaba la puerta.
+    expect(source).toMatch(/\.touch-controls \{\s*display: none;\s*position: absolute;\s*left: 8px;\s*right: 8px;\s*(\/\*[\s\S]*?\*\/\s*)?bottom: calc\(8px \+ var\(--alto-pie, 0px\)\);/);
     expect(source).toMatch(/justify-content: space-between;[\s\S]*?pointer-events: none;/);
     expect(source).toMatch(/\.touch-dpad, \.touch-interact \{ pointer-events: auto; \}/);
     expect(source).toMatch(/\.touch-dpad \{\s*display: grid;\s*grid-template-columns: repeat\(3, 48px\);\s*grid-template-rows: repeat\(3, 48px\);/);
