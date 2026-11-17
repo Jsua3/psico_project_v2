@@ -22,7 +22,7 @@ import { nuevaRespuesta } from '../modelo/fabricas';
 import { centroDeZona, largoMuro, llegada, limitarAZona, zonaCaminable } from '../modelo/geometria';
 import type { Muro } from '../modelo/geometria';
 import { claveLibre, cuerpoCrearCaso } from '../modelo/hacia-api';
-import { nuevoId } from '../modelo/ids';
+import { hexAleatorio, nuevoId } from '../modelo/ids';
 import { revisarPuntoDeIda } from '../modelo/movimiento';
 import { posicionLibre, trazarEscenas } from '../modelo/trazado';
 import { Historial } from './historial';
@@ -1321,7 +1321,7 @@ export class CasoStore {
    * cambia. Lo que se agrega queda marcado «sugerido por la IA» hasta que el docente lo acepte.
    */
   aplicarPropuesta(cambios: Cambio[], seleccion: boolean[]): void {
-    const semilla = crypto.randomUUID().slice(0, 6);
+    const semilla = hexAleatorio(6);
     let tocados: Tocados | null = null;
     const antes = this.estado() ? structuredClone(this.estado()!) : null;
     this.ejecutar({
