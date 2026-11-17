@@ -312,7 +312,7 @@ def start(actor, lugar_id: str, descripcion: str) -> dict:
     config = _config()
     if not isinstance(lugar_id, str) or not lugar_id.strip():
         raise _invalid("lugarId", PLACE_MISSING)
-    lugares.cargar_lugar(lugar_id.strip())  # 404 si el lugar no existe
+    lugares.cargar_lugar(lugar_id.strip(), por_piezas=True)  # 404 si el lugar no existe
     texto = _check_description(descripcion)
     # Orden de cerrojos: primero la fila del usuario (serializa sus creaciones y el recuento del día), luego la generación.
     user_model = get_user_model()
@@ -367,7 +367,7 @@ class _Plan:
 
 
 def _context_for(gen: CaseGeneration) -> dict:
-    return context.del_lugar(lugares.cargar_lugar(gen.lugar_id), context.competencias_por_defecto())
+    return context.del_lugar(lugares.cargar_lugar(gen.lugar_id, por_piezas=True), context.competencias_por_defecto())
 
 
 #: Dónde vive la salida rechazada del esqueleto mientras no hay esqueleto: dentro de ``scenes_json`` (``view`` solo lee ahí las

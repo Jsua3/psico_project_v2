@@ -93,7 +93,8 @@ def base_definition(lugar_id: str, sk: SkeletonDraft, actor) -> CaseDefinition:
     try:
         with transaction.atomic():
             created = create_case(
-                {"title": sk.titulo, "description": sk.contexto, "lugarId": lugar_id, "salas": [e.sala for e in sk.escenas]},
+                {"title": sk.titulo, "description": sk.contexto, "lugarId": lugar_id, "salas": [e.sala for e in sk.escenas],
+                 "porPiezas": True},
                 actor,
             )
             version_id = created["caseVersionId"]

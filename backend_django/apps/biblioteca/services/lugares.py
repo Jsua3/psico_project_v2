@@ -96,7 +96,7 @@ def _portada(lugar_id, salas):
     return url_de_arte(lugar_id, fondo) if fondo else None
 
 
-def cargar_lugar(lugar_id):
+def cargar_lugar(lugar_id, por_piezas=False):
     """El escenario del lugar tal como está en el archivo (rutas de arte relativas), como una copia nueva.
 
     404 si el id no tiene la forma de un id de la biblioteca o el índice no lo nombra.
@@ -105,9 +105,12 @@ def cargar_lugar(lugar_id):
         raise NotFound(_NO_EXISTE)
     if lugar_id not in {entrada.get("id") for entrada in _indice()}:
         raise NotFound(_NO_EXISTE)
-    escenario = _leer(_carpeta() / lugar_id / "escenario.json")
-    if not isinstance(escenario, dict) or escenario.get("id") != lugar_id:
-        logger.error("biblioteca_no_disponible", extra={"fields": {"archivo": "escenario.json", "causa": "id"}})
+    alternativo = _carpeta() / lugar_id / "escenario-piezas.json"
+    archivo = alternativo if por_piezas and alternativo.exists() else _carpeta() / lugar_id / "escenario.json"
+    escenario = _leer(archivo)
+    if (not isinstance(escenario, dict) or escenario.get("id") != lugar_id
+            or (archivo == alternativo and escenario.get("esquema") != 3)):
+        logger.error("biblioteca_no_disponible", extra={"fields": {"archivo": archivo.name, "causa": "id_o_esquema"}})
         raise ApiError("BIBLIOTECA_NO_DISPONIBLE", _NO_DISPONIBLE, status.HTTP_503_SERVICE_UNAVAILABLE)
     return escenario
 
