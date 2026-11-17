@@ -117,6 +117,14 @@ describe('cadena de errores HTTP', () => {
       expect(effects()).toEqual({ clear: 0, nav: 0, err: 0, warn: 0 });
     });
 
+    // V3 (REGLA-004): la pausa sin red ya la explica la pantalla de pausa; el aviso de conexión le taparía el título.
+    it('una petición sin red que la pantalla explica (`screenHandlesOffline`) no dispara el aviso de conexión', () => {
+      buildHttpErrorChain().handle({ ...ctxBase, error: http(0), url: '/api/simulation/attempts/a/safe-exit', screenHandlesOffline: true });
+      expect(effects()).toEqual({ clear: 0, nav: 0, err: 0, warn: 0 });
+      buildHttpErrorChain().handle({ ...ctxBase, error: http(0), url: '/api/simulation/attempts/a/safe-exit' });
+      expect(effects()).toEqual({ clear: 0, nav: 0, err: 1, warn: 0 });
+    });
+
     it('…pero el cambio de contraseña obligatorio manda igual', () => {
       router.url = '/portal/rubricas';
       buildHttpErrorChain().handle({ ...ctxBase, error: passwordChange(), url: '/api/rubrics/4', screenHandlesForbidden: true });

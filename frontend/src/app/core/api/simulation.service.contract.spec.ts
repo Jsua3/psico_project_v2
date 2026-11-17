@@ -4,7 +4,7 @@ import { TestBed } from '@angular/core/testing';
 import { Observable } from 'rxjs';
 
 import { resolveScenarioConfigAssetKey } from '../../features/simulator/scenario-config-assets.util';
-import { SCREEN_HANDLES_FORBIDDEN } from '../auth/http-error-chain';
+import { SCREEN_HANDLES_FORBIDDEN, SCREEN_HANDLES_OFFLINE } from '../auth/http-error-chain';
 import { AuthoringApi } from './authoring.api';
 import { InstructorApi } from './instructor.api';
 import { SimulationService } from './simulation.service';
@@ -344,6 +344,15 @@ describe('SimulationService contrato HTTP', () => {
     const request = httpMock.expectOne(`${S}/attempts`);
     expect(request.request.context.get(SCREEN_HANDLES_FORBIDDEN)).toBe(true);
     request.flush({}, { status: 403, statusText: 'Forbidden' });
+  });
+
+  // REGLA-004 (V3): sin red la pausa ya salió en la pantalla y su nota lo dice; el aviso global de conexión no la tapa.
+  it('la salida segura deja que la pantalla explique la falta de red: no sale además el aviso de conexión', () => {
+    service.safeExit('a1', 't1', 'Salida segura solicitada').subscribe({ error: () => undefined });
+
+    const request = httpMock.expectOne(`${S}/attempts/a1/safe-exit`);
+    expect(request.request.context.get(SCREEN_HANDLES_OFFLINE)).toBe(true);
+    request.flush({ success: true, data: null });
   });
 
   it('el jugador no ve métodos de autoría ni de instructor', () => {

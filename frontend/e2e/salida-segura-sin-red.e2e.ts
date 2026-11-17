@@ -65,6 +65,9 @@ test('@orientation sin red, «Salida segura» saca en el acto y registra la paus
   await expect(pending, 'la pausa pendiente de registrar se explica en la pantalla de pausa').toBeVisible({ timeout: scaled(5_000) });
   await expect.poll(() => failedSafeExits, { message: 'se intentó registrar la pausa sin red', timeout: scaled(10_000) })
     .toBeGreaterThan(0);
+  // La nota ya lo explica: el aviso global de conexión no sale sobre la pausa (le tapaba el título).
+  await expect(page.getByText(/no fue posible conectar con el servidor/i), 'el aviso global no tapa la pausa')
+    .toHaveCount(0);
   await page.screenshot({ path: test.info().outputPath('salida-segura-sin-red.png') });
 
   // Vuelve la red: la pausa se registra sola, sin otro toque.

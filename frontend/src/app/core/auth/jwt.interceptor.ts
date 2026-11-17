@@ -5,7 +5,7 @@ import { catchError, tap, throwError } from 'rxjs';
 import { isSameOriginApiUrl } from './api-origin';
 import { AuthService } from './auth.service';
 import { NotificationService } from '../notifications/notification.service';
-import { CONNECTION_MESSAGE, SCREEN_HANDLES_FORBIDDEN, buildHttpErrorChain } from './http-error-chain';
+import { CONNECTION_MESSAGE, SCREEN_HANDLES_FORBIDDEN, SCREEN_HANDLES_OFFLINE, buildHttpErrorChain } from './http-error-chain';
 
 const errorChain = buildHttpErrorChain();
 
@@ -29,6 +29,7 @@ export const jwtInterceptor: HttpInterceptorFn = (req, next) => {
       errorChain.handle({
         error, url: req.url, auth, router, notifications,
         screenHandlesForbidden: req.context.get(SCREEN_HANDLES_FORBIDDEN),
+        screenHandlesOffline: req.context.get(SCREEN_HANDLES_OFFLINE),
       });
       return throwError(() => error);
     })
