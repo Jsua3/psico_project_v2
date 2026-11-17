@@ -416,7 +416,7 @@ import { RECONSIDERED_LABEL, reconsideredChip } from './reconsidered.util';
     .oc-btn:focus-visible, .oc-details summary:focus-visible { outline: 3px solid #C9B3FF; outline-offset: 3px; }
 
     /* Pausa calmada: acciones arriba, sin tablero en primer plano. */
-    .oc-pause-note { margin: 0; max-width: 60ch; font-size: .875rem; line-height: 1.5; color: var(--sim-ink-soft, rgba(244,247,251,.74)); }
+    .oc-pause-note { margin: 0; max-width: 60ch; font-size: var(--ds-type-body-s-size); line-height: 1.5; color: var(--sim-ink-soft, rgba(244,247,251,.74)); }
     .oc-pause-copy { margin: 0; max-width: 60ch; font-size: 1rem; line-height: 1.6; color: var(--sim-ink-soft, rgba(244,247,251,.74)); }
     .oc-actions--pause { justify-content: flex-start; margin-top: 0; padding-top: 0; }
     .oc-support__list { margin: 0; padding-left: 18px; display: grid; gap: 6px; color: var(--sim-ink-soft, rgba(244,247,251,.74)); font-size: .86rem; line-height: 1.5; }
