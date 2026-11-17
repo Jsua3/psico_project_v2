@@ -7,10 +7,12 @@ import type { Escenario, LugarResumen } from './escenario';
 /**
  * La dirección de una imagen de un lugar. El servidor ya entrega las imágenes con su dirección pública
  * (`/assets/biblioteca/…`), así que casi siempre se devuelve igual; una ruta relativa al lugar (`arte/salas/…`)
- * se completa con la carpeta del lugar.
+ * se completa con la carpeta del lugar, y una de la biblioteca de piezas (`piezas/…`, esquema 3) cuelga de la biblioteca,
+ * que la comparten todos los lugares (como `url_de_arte` del servidor, contrato x-siep 2.2).
  */
 export function rutaArte(lugarId: string | null, ruta: string): string {
   if (!ruta || ruta.startsWith('/') || /^https?:\/\//.test(ruta)) return ruta;
+  if (ruta.startsWith('piezas/')) return `/assets/biblioteca/${ruta}`;
   return lugarId ? `/assets/biblioteca/escenarios/${lugarId}/${ruta}` : ruta;
 }
 

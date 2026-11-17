@@ -124,6 +124,25 @@ describe('SalaComponent', () => {
     } finally { raiz.remove(); fixture.destroy(); }
   });
 
+  it('en la sala por piezas el botón de una hoja animada mide un cuadro de la pieza, no la hoja entera', async () => {
+    const { fixture, store, raiz } = await montar();
+    const catalogo = TestBed.inject(CatalogoDePiezas);
+    const falso = catalogo as unknown as { manifiesto: ReturnType<typeof signal<unknown>>; paleta: () => unknown; acabados: () => unknown };
+    const ruta = 'piezas/muebles/comisaria/escritorio.png';
+    falso.manifiesto.set({ piezas: {}, pisos: {}, muros: {}, objetos: {}, herramientas: {},
+      muebles: { 'comisaria/escritorio': { nombre: 'Escritorio', ruta, ancho: 125, alto: 68, cuadros: 6, apoyo: [62, 68] } } });
+    falso.paleta = () => [];
+    falso.acabados = () => ({ pisos: [], muros: [] });
+    const caso = structuredClone(CASO_HOSPITAL);
+    caso.catalogo.muebles.push({ id: 'escritorio', nombre: 'Escritorio', arte: `/assets/biblioteca/${ruta}`, ancho: 125, alto: 68, colision: true });
+    caso.salas[0].muebles = [{ ref: 'escritorio', x: 300, y: 300 }];
+    store.fijar(caso); fixture.componentRef.setInput('salaId', caso.salas[0].id);
+    fixture.detectChanges();
+    const img = raiz.querySelector<HTMLImageElement>('[data-elemento="mueble-0"] img')!;
+    expect(img.classList.contains('cuadro')).toBe(true);
+    expect([img.style.width, img.style.height]).toEqual(['125px', '68px']);
+  });
+
   it('al ensanchar una sala ampliada vuelve a escala uno', async () => {
     const { fixture, store, raiz } = await montar();
     const caso = structuredClone(CASO_HOSPITAL);
