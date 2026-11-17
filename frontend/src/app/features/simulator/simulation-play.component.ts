@@ -1111,75 +1111,7 @@ const NARROW_QUERY = '(max-width: 760px)';
     .case-intro-overlay--resume { z-index: 400; }
     .case-intro-card--entry { width: min(560px, 100%); }
 
-    /* Las tres entradas (reanudar, aviso de contenido, «Antes de comenzar») en el lenguaje de pixel de la pantalla del
-       juego (U1, crítica r2): placa sobre el velo, como la pausa, sin vidrio morado ni resplandor. Las reglas de arriba
-       quedan como respaldo fuera del juego; estas, más específicas, mandan dentro de .game-container. Las acciones se
-       envuelven en dos filas antes que salirse de la placa («Continuar intento en progreso» se cortaba a 1366). */
-    .game-container .case-intro-overlay { background: var(--pixel-velo-fuerte); }
-    /* Reanudar: un poco más ancha para que sus dos acciones vayan en una fila bajo «Volver al catálogo». */
-    .game-container .case-intro-card--entry { width: min(640px, 100%); }
-    .game-container .case-intro-card {
-      border-style: solid; border-width: calc(4 * var(--pixel-px)); border-color: transparent; border-radius: 0;
-      border-image: var(--marco-placa) 4 / calc(4 * var(--pixel-px)) stretch;
-      background-color: var(--pixel-penumbra); background-image: var(--trama-placa);
-      background-size: calc(8 * var(--pixel-px)); background-clip: padding-box;
-      box-shadow: none; color: var(--pixel-tinta); font-family: var(--pixel-f-texto);
-    }
-    .game-container .case-intro-card__header { background: transparent; border-bottom: 1px solid var(--pixel-separador); }
-    .game-container .case-intro-card .psy-eyebrow {
-      font-family: var(--pixel-f-nombre); font-weight: 700; font-size: calc(var(--pixel-tam) * .82);
-      letter-spacing: .06em; color: var(--luz);
-    }
-    .game-container .case-intro-card__header h2 { font-family: var(--pixel-f-texto); font-weight: 700; color: var(--pixel-tinta); }
-    .game-container .case-intro-card__chip {
-      border: 1px solid var(--pixel-separador); border-radius: 0; background: var(--pixel-penumbra-hundida);
-      color: var(--pixel-tinta); font-family: var(--pixel-f-nombre); font-size: var(--pixel-letra-chica); letter-spacing: .04em;
-    }
-    .game-container .case-intro-card__body p { color: var(--pixel-tinta); }
-    .game-container .case-intro-card__body p:last-child { color: var(--luz); }
-    .game-container .case-intro-card__body:focus-visible { outline: var(--pixel-px) solid var(--luz); }
-    .game-container .case-intro-card__actions {
-      flex-wrap: wrap; justify-content: flex-end; gap: calc(4 * var(--pixel-px));
-      border-top: 1px solid var(--pixel-separador); background: var(--pixel-penumbra-hundida);
-    }
-    .game-container .case-intro-card__actions > :first-child:not(.case-intro-card__buttons) { margin-right: auto; }
-    .game-container .case-intro-card__buttons { flex-wrap: wrap; justify-content: flex-end; flex-shrink: 1; min-width: 0; gap: calc(4 * var(--pixel-px)); }
-    /* Botones de las entradas como las placas-botón del juego; la acción principal, como la ficha encendida (crema). */
-    .game-container .case-intro-card__actions .ui-button,
-    .game-container .case-intro-card__actions .psy-button,
-    .game-container .intro-music-toggle {
-      --m: var(--marco-placa); --t: var(--trama-placa);
-      min-height: 44px; padding: 0 calc(6 * var(--pixel-px)) 1px;
-      border-style: solid; border-width: calc(4 * var(--pixel-px)); border-color: transparent; border-radius: 0;
-      border-image: var(--m) 4 / calc(4 * var(--pixel-px)) stretch;
-      background-color: var(--pixel-penumbra); background-image: var(--t);
-      background-size: calc(8 * var(--pixel-px)); background-clip: padding-box;
-      box-shadow: none; color: var(--pixel-tinta); font-family: var(--pixel-f-texto); font-weight: 600; text-decoration: none;
-      transition: none;
-    }
-    .game-container .case-intro-card__actions .ui-button--primary,
-    .game-container .case-intro-card__actions .psy-button--primary {
-      --m: var(--marco-ficha-elegida); --t: var(--trama-ficha-elegida);
-      background-color: var(--pixel-crema); color: var(--pixel-tinta-oscura); font-weight: 700;
-    }
-    .game-container .intro-music-toggle[aria-pressed="true"] { color: var(--pixel-tinta-suave); background-image: none; }
-    .game-container .case-intro-card__actions .ui-button:focus-visible,
-    .game-container .case-intro-card__actions .psy-button:focus-visible,
-    .game-container .intro-music-toggle:focus-visible {
-      outline: var(--pixel-px) solid var(--luz); outline-offset: calc(2 * var(--pixel-px));
-    }
-    .game-container .case-intro-card__actions .ui-button:active,
-    .game-container .case-intro-card__actions .psy-button:active,
-    .game-container .intro-music-toggle:active { transform: translateY(var(--pixel-px)); }
-    @media (hover: hover) and (pointer: fine) {
-      .game-container .case-intro-card__actions .ui-button:hover,
-      .game-container .case-intro-card__actions .psy-button:hover,
-      .game-container .intro-music-toggle:hover {
-        background-color: var(--pixel-penumbra); outline: var(--pixel-px) solid var(--luz); outline-offset: calc(2 * var(--pixel-px));
-      }
-      .game-container .case-intro-card__actions .ui-button--primary:hover,
-      .game-container .case-intro-card__actions .psy-button--primary:hover { background-color: var(--pixel-crema); }
-    }
+    /* Las entradas en placas de pixel (U1, crítica r2) viven en la hoja común, src/styles/components/_pixel.scss. */
     /* ETH-01: el almacenamiento falló y el consentimiento NO está registrado; el aviso previo sigue (sin mundo). */
     .consent-error {
       display: grid; grid-template-columns: auto minmax(0, 1fr); align-items: start; gap: 8px 10px;
