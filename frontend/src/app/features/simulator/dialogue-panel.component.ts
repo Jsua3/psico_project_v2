@@ -261,6 +261,9 @@ const STALE_NOTE = 'Esta conversación corresponde a otro momento del caso.';
        para la placa y esa fila juntas (ensayo, ventanas angostas; strip--angosta lo mide el panel), la fila va arriba y la
        placa conserva su ancho: antes caía sobre «Siguiente» (P4, V4) o la placa se angostaba tanto que el texto no cabía. */
     .dialogue-strip.strip--angosta:not(.strip--con-opciones) .panel-head { position: static; }
+    /* Con la fila arriba, lo fijo (fila, pestaña, pie con «Siguiente») más dos renglones no cabía en 46vh de una ventana
+       baja (1280 × 600 al 125 %: 221 px): la banda angosta llega al 60 % del alto. */
+    .dialogue-strip.strip--angosta:not(.strip--con-opciones) { --dialogo-alto-max: min(400px, 60vh); }
     .dialogue-strip:not(.strip--con-opciones) .strip-body { display: none; }
     /* Una sola opción ocupa todo el ancho de su columna, no media. */
     .choices:not(:has(.choice-btn + .choice-btn)) { grid-template-columns: minmax(0, 1fr); }
