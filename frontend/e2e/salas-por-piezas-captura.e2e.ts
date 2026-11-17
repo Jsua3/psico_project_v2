@@ -364,11 +364,14 @@ test.describe('salas por piezas en el juego real', () => {
       const p = (q: number) => o[Math.min(o.length - 1, Math.floor(q * o.length))] ?? 0;
       return { cuadros: c.length, p50: Math.round(p(0.5) * 10) / 10, p95: Math.round(p(0.95) * 10) / 10, max: Math.round((o[o.length - 1] ?? 0) * 10) / 10 };
     };
+    await page.evaluate(() => { (window as unknown as { __p2Sombras: unknown }).__p2Sombras = { ms: 0, veces: 0 }; });
     await grabar();
     await page.keyboard.down('ArrowLeft');
     await page.waitForTimeout(1500);
     await page.keyboard.up('ArrowLeft');
     const caminar = resumen(await leer());
+    const sombras = await page.evaluate(() => (window as unknown as { __p2Sombras?: { ms: number; veces: number } }).__p2Sombras ?? null);
+    const sombrasPorCuadro = sombras && sombras.veces ? Math.round((sombras.ms / sombras.veces) * 100) / 100 : null;
     await page.keyboard.down('ArrowRight');
     await page.waitForTimeout(1500);
     await page.keyboard.up('ArrowRight');
@@ -379,7 +382,7 @@ test.describe('salas por piezas en el juego real', () => {
     const r = await respuesta;
     await page.waitForTimeout(3000);
     const revisar = resumen(await leer());
-    console.log('[medida]', JSON.stringify({ caminar, revisar, interaccion: r ? new URL(r.url()).pathname : null }));
+    console.log('[medida]', JSON.stringify({ caminar, sombrasPorCuadro, revisar, interaccion: r ? new URL(r.url()).pathname : null }));
     await cdp.send('Emulation.setCPUThrottlingRate', { rate: 1 });
   });
 

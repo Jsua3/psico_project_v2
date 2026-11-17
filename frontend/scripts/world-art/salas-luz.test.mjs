@@ -243,12 +243,36 @@ test('encendida como siempre y nunca (la forma vieja de la biblioteca) da la mis
   }
 });
 
-test('la luz de la sala más ancha, con muebles, se calcula en menos de 400 ms', () => {
+/** Cuánto puede costar la luz de la sala más ancha, en veces la carga de referencia: medida 1,9–2,1 (2026-11-16); margen ×2. */
+const CUANTAS_REFERENCIAS = 4;
+
+/** El mejor de `n` tiempos de `hacer` (ms): lo que tarda sin interrupciones de otros procesos. */
+function mejorDe(n, hacer) {
+  let mejor = Infinity;
+  for (let i = 0; i < n; i++) {
+    const inicio = performance.now();
+    hacer();
+    mejor = Math.min(mejor, performance.now() - inicio);
+  }
+  return mejor;
+}
+
+/** Una carga fija de aritmética entera como la de la luz (divisiones de piso sobre un millón de píxeles): mide el equipo. */
+function referencia() {
+  const a = new Int32Array(1013760);
+  let s = 0;
+  for (let k = 0; k < 32; k++) for (let i = 0; i < a.length; i++) { a[i] = Math.floor((i * 37 + k * 11) / 7) & 1023; s += a[i]; }
+  return s;
+}
+
+test('la luz de la sala más ancha, con muebles, cuesta poco respecto de lo que da el equipo (CUANTAS_REFERENCIAS)', () => {
+  // Medida estable: el mejor de cinco, dividido por la misma carga fija medida en el mismo proceso, así un equipo lento o
+  // ocupado no la tumba y una regresión de verdad (la luz el doble de cara) sí.
   const caso = CASOS_DE_LUZ.casos.find(c => c.id === 'ancha-1920');
   const opciones = { momento: 'noche', cuerpos: caso.cuerpos };
   calcularLuz(caso.sala, CASOS_DE_LUZ.catalogo, opciones);   // calienta
-  const inicio = performance.now();
-  calcularLuz(caso.sala, CASOS_DE_LUZ.catalogo, opciones);
-  const ms = performance.now() - inicio;
-  assert.ok(ms < 400, `tardó ${ms.toFixed(0)} ms`);
+  referencia();
+  const ref = mejorDe(5, referencia);
+  const luz = mejorDe(5, () => calcularLuz(caso.sala, CASOS_DE_LUZ.catalogo, opciones));
+  assert.ok(luz / ref < CUANTAS_REFERENCIAS, `la luz tardó ${luz.toFixed(0)} ms = ${(luz / ref).toFixed(1)} veces la referencia (${ref.toFixed(0)} ms)`);
 });

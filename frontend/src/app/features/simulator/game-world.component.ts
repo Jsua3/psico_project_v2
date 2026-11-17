@@ -735,6 +735,13 @@ export class DataDrivenWorldScene extends Phaser.Scene {
 
   /** P2: la sombra con silueta de quien juega y de cada persona del caso, en una sala por piezas (regla 3 de calidad). */
   private sombrasConSilueta(sala: EscenaDeSala): void {
+    const medida = (window as unknown as { __p2Sombras?: { ms: number; veces: number } }).__p2Sombras;   // medida opcional: la prueba e2e `medir:` la pone para saber cuánto cuestan las sombras
+    const t0 = medida ? performance.now() : 0;
+    this.sombrasConSiluetaMedidas(sala);
+    if (medida) { medida.ms += performance.now() - t0; medida.veces++; }
+  }
+
+  private sombrasConSiluetaMedidas(sala: EscenaDeSala): void {
     if (this.player) sala.sombraDeFigura('jugador', this.playerSprite, this.player.x, this.player.y);
     for (const [key, m] of this.markers) {
       const sprite = (m as unknown as Record<string, unknown>)['__personSprite'] as Phaser.GameObjects.Sprite | undefined;
@@ -1602,6 +1609,8 @@ export class DataDrivenWorldScene extends Phaser.Scene {
   private readonly piezasFallidas = new Set<string>();
   /** P2: la sala por piezas apartada durante un repintado de la misma sala (vuelve sin rearmarse). */
   private salaApartada: EscenaDeSala | null = null;
+  /** P2: dónde estaba la cámara al apartar la sala (vuelve ahí si la sala vuelve). */
+  private camaraApartada: { x: number; y: number } | null = null;
 
   /** P2: lo que dibuja la sala por piezas: estructura, encuadre, puertas y objetos con arte. Igual = no hay que rearmarla. */
   private firmaDeSala(): string {
@@ -1726,6 +1735,9 @@ export class DataDrivenWorldScene extends Phaser.Scene {
     // Cámara (M1): la sala compuesta mide `plan.ancho × plan.alto` (528 de alto, contrato 2.2); el `height` del mapa del
     // servidor puede ser mayor y la cámara mostraba el vacío bajo la sala en el plano general.
     this.applyPixelCamera(plan.ancho || mapW, plan.alto || mapH);
+    const camara = this.camaraApartada;
+    this.camaraApartada = null;
+    if (camara && this.salaPorPiezas === apartada) this.cameras.main.setScroll(camara.x, camara.y);   // la misma sala: sin salto
     this.refreshMarkerStates();
     this.updateNearestInteraction(true);
     this.applyCrisisVignette();
@@ -1757,6 +1769,8 @@ export class DataDrivenWorldScene extends Phaser.Scene {
     if (this.salaPorPiezas && this.salaPorPiezas.firma === this.firmaDeSala()) {
       this.salaApartada = this.salaPorPiezas;
       this.salaApartada.apartar();
+      // Y la cámara queda donde estaba: rearmarla la centraría de golpe en quien juega (un salto de unos px al revisar).
+      this.camaraApartada = { x: this.cameras.main.scrollX, y: this.cameras.main.scrollY };
     } else {
       this.salaPorPiezas?.destruir();   // sus texturas de lienzo no las borra removeAll
     }
