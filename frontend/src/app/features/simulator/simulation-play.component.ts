@@ -136,7 +136,7 @@ const PLACAS_SOBRE_EL_MUNDO = [
   '.objective-card', '.carril .sensitive-strip', '.carril .soft-notice', '.carril .room-banner',
   'app-simulation-hud .hud-case', 'app-simulation-hud .hud-strip',
   'app-minimapa .minimapa__lugar', 'app-minimapa .minimapa__abrir', 'app-minimapa .minimapa__alternar',
-  '.bottom-zone .safe-exit-btn', '.bottom-zone .tool-dock-wrap', '.bottom-zone .notice-pie .sensitive-strip',
+  '.help-slot .help-card', '.bottom-zone .safe-exit-btn', '.bottom-zone .tool-dock-wrap', '.bottom-zone .notice-pie .sensitive-strip',
   '.bottom-zone .context-bar__interaction', '.bottom-zone .context-bar__now',
 ].join(', ');
 /** Modo compacto (F§7.9): la misma condición que el CSS compacto y que el HUD. */
@@ -317,7 +317,7 @@ const NARROW_QUERY = '(max-width: 760px)';
 
               <footer class="case-intro-card__actions">
                 <div class="case-intro-card__buttons">
-                  <app-safe-exit-button [pausing]="pausing()" (pause)="pauseFromOverlay()" />
+                  <app-safe-exit-button variante="placa" [pausing]="pausing()" (pause)="pauseFromOverlay()" />
                   <button cdkFocusInitial class="psy-button psy-button--primary" type="button" (click)="continueFromCaseIntro()">
                     Continuar
                   </button>
@@ -632,8 +632,10 @@ const NARROW_QUERY = '(max-width: 760px)';
     .top-bar > .rehearsal-banner { pointer-events: auto; }
     .top-bar__fila { display: flex; align-items: flex-start; gap: var(--pixel-borde); padding: var(--pixel-borde); }
     /* El grupo de la derecha: el HUD y, debajo, el minimapa. La capa deja pasar el puntero; solo sus hijos lo reciben. */
-    .top-bar__derecha { flex: none; display: flex; flex-direction: column; align-items: flex-end; gap: calc(2 * var(--pixel-px)); pointer-events: none; }
-    .top-bar__derecha > * { pointer-events: auto; }
+    /* Puede encogerse (y la pestaña del caso se corta con puntos suspensivos): con un título largo, su ancho de contenido
+       (el título entero) empujaba el grupo fuera de la cabecera; en el ensayo caía sobre el panel de autora (crítica r2). */
+    .top-bar__derecha { flex: 0 1 auto; min-width: 0; display: flex; flex-direction: column; align-items: flex-end; gap: calc(2 * var(--pixel-px)); pointer-events: none; }
+    .top-bar__derecha > * { pointer-events: auto; max-width: 100%; }
     /* El chip de contenido sensible del pie solo existe en teléfono (≤ 560 px): en el resto, el del carril. */
     .notice-pie { display: none; }
     /* El hueco mide lo que la ficha del objetivo: el carril nunca cae sobre ella (antes el aviso de puerta la tapaba). */
@@ -676,6 +678,17 @@ const NARROW_QUERY = '(max-width: 760px)';
       .game-container[data-rehearsal] .top-bar,
       .game-container[data-rehearsal] .bottom-zone { margin-right: 0; }
     }
+    /* Ensayo en pantalla ancha: la cabecera termina antes del panel de autora y no le cabe el carril entre la ficha y el
+       grupo de la derecha; el carril (aviso sensible, aviso breve, rótulo) baja a su propia fila, centrado. */
+    @media (min-width: 761px) {
+      .game-container[data-rehearsal] .top-bar__fila { flex-wrap: wrap; }
+      .game-container[data-rehearsal] .carril { order: 3; flex: 1 1 100%; }
+      /* En su fila el aviso desplegado no se tiende de lado a lado sobre el mundo: el ancho del carril de siempre. */
+      .game-container[data-rehearsal] .carril > * { max-width: min(520px, 100%); }
+      .game-container[data-rehearsal] .top-bar__derecha {
+        margin-left: auto; max-width: calc(100% - min(440px, 33%) - var(--pixel-borde));
+      }
+    }
     .canvas-zone {
       position: relative;
       min-height: 0;
@@ -713,6 +726,11 @@ const NARROW_QUERY = '(max-width: 760px)';
       overflow: hidden;
     }
     .objective-card__etapa { flex: none; }
+    /* Ensayo: la franja «Ensayo del borrador» ocupa la cima de la cabecera; la ficha baja lo mismo y su pestaña no queda
+       debajo de la franja (crítica r2). */
+    @media (min-width: 761px) {
+      .game-container[data-rehearsal] .objective-card { top: calc(var(--pixel-borde) + var(--alto-franja-ensayo)); }
+    }
     /* Decisión con franjas de cine: la franja de arriba queda limpia (el HUD sigue). */
     .game-container--cine .objective-card { visibility: hidden; }
     /* Con franjas, la fila de arriba se pega al borde y el grupo de la derecha deja la pestaña del caso: cabe en la franja
@@ -731,7 +749,12 @@ const NARROW_QUERY = '(max-width: 760px)';
     @media (min-width: 1100px) {
       /* Arriba al centro, bajo el carril: a la derecha están ahora el HUD y el plano. 380 px como máximo: más ancha tapaba
          la puerta del quirófano (acceso restringido) en el arranque de Urgencias. */
-      .help-slot { top: calc(var(--pixel-borde) + 64px); bottom: auto; left: 50%; transform: translateX(-50%); width: min(380px, 30%); }
+      /* U1, crítica r2: arriba al centro tapaba el aviso de contenido sensible desplegado (ETH-01) en los mismos 8 s del
+         arranque. Va bajo la ficha del objetivo, en su columna y de su ancho (la ayuda habla de esa ficha). */
+      .help-slot {
+        top: calc(2 * var(--pixel-borde) + var(--alto-objetivo, 130px) + var(--alto-franja-ensayo, 0px)); bottom: auto;
+        left: var(--pixel-borde); transform: none; width: min(440px, 33%);
+      }
     }
     /* Móvil vertical: las cruces táctiles ocupan abajo; la tarjeta va arriba, bajo el HUD y la ficha del objetivo. */
     @media (max-width: 760px) {
@@ -1048,7 +1071,8 @@ const NARROW_QUERY = '(max-width: 760px)';
     }
     .game-boot p { margin: 0; color: var(--ds-text-2); font-size: .95rem; }
     .game-failure ui-error-state { max-inline-size: 28rem; }
-    .rehearsal-banner { margin: 0; padding: 4px 12px; font-size: .85rem; text-align: center; background: var(--ds-surface-2, rgba(18,24,42,.9)); color: var(--ds-text-1); border-block-end: 1px solid var(--ds-border, rgba(182,156,255,.3)); }
+    .game-container[data-rehearsal] { --alto-franja-ensayo: 30px; }
+    .rehearsal-banner { box-sizing: border-box; height: var(--alto-franja-ensayo); overflow: hidden; white-space: nowrap; text-overflow: ellipsis; line-height: 21px; margin: 0; padding: 4px 12px; font-size: .85rem; text-align: center; background: var(--ds-surface-2, rgba(18,24,42,.9)); color: var(--ds-text-1); border-block-end: 1px solid var(--ds-border, rgba(182,156,255,.3)); }
     /* Aviso no esencial («Obtuviste: …»): quieto, sin animación, sobre el pie. */
     .soft-notice, .room-banner {
       display: flex; align-items: center; gap: calc(4 * var(--pixel-px)); min-height: 44px;
@@ -1086,6 +1110,8 @@ const NARROW_QUERY = '(max-width: 760px)';
     /* «Reanudar» es la misma entrada que las otras tres (F6-2): por encima de ellas y sin el CSS propio que tenía. */
     .case-intro-overlay--resume { z-index: 400; }
     .case-intro-card--entry { width: min(560px, 100%); }
+
+    /* Las entradas en placas de pixel (U1, crítica r2) viven en la hoja común, src/styles/components/_pixel.scss. */
     /* ETH-01: el almacenamiento falló y el consentimiento NO está registrado; el aviso previo sigue (sin mundo). */
     .consent-error {
       display: grid; grid-template-columns: auto minmax(0, 1fr); align-items: start; gap: 8px 10px;

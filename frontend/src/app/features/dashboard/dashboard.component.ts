@@ -276,7 +276,9 @@ export class DashboardComponent implements OnInit {
     if (criticas > 0) {
       gaps.push({
         titulo: 'Decisiones críticas',
-        texto: `${criticas} decisión(es) requieren revisión docente.`,
+        texto: criticas === 1
+          ? '1 decisión requiere revisión docente.'
+          : `${criticas} decisiones requieren revisión docente.`,
         estado: 'En revisión',
         tone: 'warning'
       });
@@ -292,7 +294,9 @@ export class DashboardComponent implements OnInit {
     } else if ((data.simulacionesEnProgreso ?? 0) > 0) {
       gaps.push({
         titulo: 'Seguimiento activo',
-        texto: `${data.simulacionesEnProgreso} simulación(es) en progreso.`,
+        texto: data.simulacionesEnProgreso === 1
+          ? '1 simulación en progreso.'
+          : `${data.simulacionesEnProgreso} simulaciones en progreso.`,
         estado: 'En curso',
         tone: 'info'
       });

@@ -327,7 +327,7 @@ describe('traza del docente en el sistema de la biblioteca (F7-4)', () => {
       await render();
       const cards = [...host().querySelectorAll('.tr-metric')] as HTMLButtonElement[];
       expect(cards.map(card => text(card.querySelector('.ui-stat__label')))).toEqual([
-        'Total decisiones', 'Recomendadas', 'Aceptables', 'Con riesgo', 'Contraindicadas', 'Reflexiones', 'Evaluación', 'Tiempo total',
+        'Total de decisiones', 'Recomendadas', 'Aceptables', 'Con riesgo', 'Contraindicadas', 'Reflexiones', 'Evaluación', 'Tiempo total',
       ]);
       // Son conteos de hechos por clase de respuesta (3 + 1 + 1 + 0), no una medida.
       expect(cards.map(card => text(card.querySelector('.ui-stat__value')))).toEqual(['5', '3', '1', '1', '0', '0', 'Pendiente', '25 min 0 s']);
