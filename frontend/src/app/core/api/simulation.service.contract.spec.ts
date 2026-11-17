@@ -171,6 +171,8 @@ const CONTRACTS: Contract[] = [
   { method: 'worldEditor', call: s => s.worldEditor(9), verb: 'GET', url: `${A}/9/world-editor` },
   { method: 'saveWorld', call: s => s.saveWorld(9, body('mundo')), verb: 'PUT', url: `${A}/9/world`, body: body('mundo') },
   { method: 'validateWorld', call: s => s.validateWorld(9), verb: 'POST', url: `${A}/9/world/validate`, body: {} },
+  // P4 (tarea 11): el plano de las salas por piezas del caso para el editor.
+  { method: 'casePlan', call: s => s.casePlan(9), verb: 'GET', url: `${A}/9/plan` },
   { method: 'worldPreview', call: s => s.worldPreview(9), verb: 'GET', url: `${A}/9/world-preview` },
 
   // ── revisión del caso (F10-6†: C4 ciclo de vida y C6 validación) ───────────────────────────────────────────
@@ -219,7 +221,11 @@ describe('SimulationService contrato HTTP', () => {
       expect(req.request.headers.has('X-SIEP-Attempt-Token')).toBe(false);
     }
     // La decisión (C2) responde `{ attempt, consequence, retry? }`: lo demás desenvuelve el sobre tal cual.
-    req.flush({ data: contract.method === 'chooseDecision' ? { attempt: { ok: contract.method }, consequence: null } : { ok: contract.method } });
+    req.flush({
+      data: contract.method === 'chooseDecision' ? { attempt: { ok: contract.method }, consequence: null }
+        : contract.method === 'casePlan' ? { plan: { ok: contract.method } }   // devuelve `data.plan`
+        : { ok: contract.method },
+    });
 
     // Todos los métodos de esta tabla desenvuelven el sobre `{ data }`. `chooseDecision` añade `consequence` y `retry`
     // (C2): por eso se compara con `toMatchObject` y no con igualdad exacta.
@@ -338,13 +344,13 @@ describe('SimulationService contrato HTTP', () => {
 
     expect(publicMethods.filter(name => !documented.has(name))).toEqual([]);
     expect([...documented].filter(name => !publicMethods.includes(name))).toEqual([]);
-    expect(publicMethods).toHaveLength(87);
+    expect(publicMethods).toHaveLength(88);
   });
 
   it('cada método vive en una sola API y cada rol tiene el tamaño esperado', () => {
     const [player, authoring, instructor] = ROLE_CLASSES.map(publicMethodsOf);
-    expect(new Set([...player, ...authoring, ...instructor]).size).toBe(87);
-    expect([player.length, authoring.length, instructor.length]).toEqual([25, 57, 5]);
+    expect(new Set([...player, ...authoring, ...instructor]).size).toBe(88);
+    expect([player.length, authoring.length, instructor.length]).toEqual([25, 58, 5]);
     expect(instructor).toEqual(['recentAttempts', 'attemptTrace', 'rubric', 'replaceAttempt', 'saveRubric']);
   });
 
