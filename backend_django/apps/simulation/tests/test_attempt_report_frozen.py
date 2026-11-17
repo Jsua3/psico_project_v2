@@ -12,6 +12,7 @@ from django.core.management import call_command
 
 from apps.simulation.casedef.vocabulary import ResponseClass
 from apps.simulation.models import (
+    DialogueChoice,
     AttemptEvent,
     AttemptReport,
     CaseVersion,
@@ -133,7 +134,12 @@ def test_decision_review_trae_cada_decision_con_su_consecuencia_y_su_retroalimen
     first = payload[0]
     assert [item["order"] for item in payload] == list(range(1, len(payload) + 1))
     assert first["nodeId"] == start_node
-    assert first["chosen"] == {"optionId": good.id, "text": good.text}
+    # V4: además del texto de la opción, «label» trae el texto corto del botón que la ofrece, si el caso lo tiene y es distinto.
+    boton = DialogueChoice.objects.filter(decision_option=good).order_by("display_order", "id").values_list("text", flat=True).first()
+    esperado = {"optionId": good.id, "text": good.text}
+    if boton and boton.strip() and boton.strip() != good.text:
+        esperado["label"] = boton.strip()
+    assert first["chosen"] == esperado
     assert first["consequence"] == "Consecuencia propia"
     assert first["feedback"] == {"explanation": "Explicación pedagógica", "theoryBasis": "Teoría X"}
     assert first["class"] == case_state.response_class_of(good).value

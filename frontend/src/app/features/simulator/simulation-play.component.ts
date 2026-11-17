@@ -3,7 +3,7 @@ import { perfCancel, perfEnd, perfEndNextPaint, perfStart } from '../../core/per
 import { CommonModule } from '@angular/common';
 import { Component, ElementRef, HostListener, Injector, OnDestroy, OnInit, ViewChild, afterNextRender, afterRenderEffect, viewChild, computed, effect, inject, signal, untracked, ChangeDetectionStrategy } from '@angular/core';
 import { HttpErrorResponse } from '@angular/common/http';
-import { retry, timeout } from 'rxjs';
+import { Observable, catchError, defaultIfEmpty, of, retry, switchMap, tap, throwError, timeout } from 'rxjs';
 import { ActivatedRoute, Router, RouterLink } from '@angular/router';
 import { MatIconModule } from '@angular/material/icon';
 import { toSignal } from '@angular/core/rxjs-interop';
@@ -1688,6 +1688,8 @@ export class SimulationPlayComponent implements OnInit, OnDestroy {
 
   private lastPosition: { x: number; y: number } | null = null;
   private lastSyncedPosition: { x: number; y: number } | null = null;
+  /** La posición sin guardar al pulsar «Salida segura»: viaja con la pausa, antes de ella (REGLA-004 y V4). */
+  private positionForPause: { attemptId: string; mapKey: string; x: number; y: number } | null = null;
   private positionSaveHandle: number | null = null;
   /**
    * Histéresis también para la interacción contextual (clic/E). Al entrar o
@@ -1714,7 +1716,10 @@ export class SimulationPlayComponent implements OnInit, OnDestroy {
   private decisionInFlight = false;
   /** La pausa local aún sin registrar en el servidor: reintenta con espera creciente y al volver la red (V3, REGLA-004). */
   private readonly pausa = new PausaPendiente<SimulationAttemptState>({
-    enviar: () => this.simulationService.safeExit(this.hintAttempt()!.attemptId, this.hintAttempt()!.attemptToken, 'Salida segura solicitada').pipe(timeout(PLAZO_ACCION_MS)),
+    // La posición pendiente sale antes, en la misma cadena: la pausa visible no la espera, pero el servidor la tiene (V4).
+    enviar: () => this.positionBeforePause().pipe(
+      switchMap(() => this.simulationService.safeExit(this.hintAttempt()!.attemptId, this.hintAttempt()!.attemptToken, 'Salida segura solicitada').pipe(timeout(PLAZO_ACCION_MS))),
+    ),
     consultar: () => this.simulationService.getAttempt(this.hintAttempt()!.attemptId, this.hintAttempt()!.attemptToken).pipe(timeout(PLAZO_ACCION_MS)),
     decisionEnVuelo: () => this.decisionInFlight,
     alRegistrar: updated => this.onPauseRegistered(updated),
@@ -3207,11 +3212,50 @@ export class SimulationPlayComponent implements OnInit, OnDestroy {
     // Sonido discreto: la salida segura es seria, no alarmista.
     this.audioDirector.playSfx('ui_cancel');
     if (this.reacting()) this.cutReactionForPause();   // sin encuadre, gesto ni nota de supervisión sobre la pausa
+    this.capturePositionForPause(game);
     this.attempt.set({ ...this.attempt()!, status: 'PAUSED' });
     this.clearTransientOverlays();
     this.busy.set(false);
     if (this.mode() !== 'rehearsal') guardarMarcaDePausa(this.almacen, game.attemptId);
     this.pausa.iniciar();
+  }
+
+  /**
+   * Al pulsar «Salida segura», la posición viva que aún no está guardada pasa a viajar con la pausa: se corta el guardado
+   * con espera (y su reintento) para que no salga después de la pausa, que el servidor ya no aceptaría.
+   */
+  private capturePositionForPause(game: SimulationAttemptState): void {
+    const live = this.gameWorld?.playerPosition();
+    if (live) this.lastPosition = live;
+    if (this.positionSaveHandle) { window.clearTimeout(this.positionSaveHandle); this.positionSaveHandle = null; }
+    this.positionRetry.cancelar();
+    const world = this.world(), last = this.lastPosition, synced = this.lastSyncedPosition;
+    const pending = !!last && (!synced || synced.x !== last.x || synced.y !== last.y);
+    this.positionForPause = pending && world ? { attemptId: game.attemptId, mapKey: world.map.key, x: last!.x, y: last!.y } : null;
+  }
+
+  /**
+   * Antes de registrar la pausa, la posición que quedó pendiente (V4): así el servidor la guarda con la pausa. Si el servidor
+   * la rechaza (fuera del mapa, otra sala), la pausa sigue igual; sin red o sin respuesta falla la cadena entera y la pausa
+   * pendiente la reintenta, posición incluida, al volver la red.
+   */
+  private positionBeforePause(): Observable<unknown> {
+    const pending = this.positionForPause, game = this.hintAttempt();
+    if (!pending || !game || pending.attemptId !== game.attemptId) return of(null);
+    return this.simulationService.updateWorldState(game.attemptId, game.attemptToken, pending.x, pending.y, pending.mapKey, true).pipe(
+      timeout(PLAZO_ACCION_MS),
+      tap(() => {
+        if (this.positionForPause === pending) this.positionForPause = null;
+        this.lastSyncedPosition = { x: pending.x, y: pending.y };
+      }),
+      catchError(err => {
+        const sinRed = esPlazoVencido(err) || (err instanceof HttpErrorResponse && err.status === 0);
+        if (sinRed) return throwError(() => err);
+        if (this.positionForPause === pending) this.positionForPause = null;
+        return of(null);
+      }),
+      defaultIfEmpty(null),
+    );
   }
 
   /** El servidor registró la pausa (o dijo en qué estado quedó el intento): se adopta y se recarga el mundo. */

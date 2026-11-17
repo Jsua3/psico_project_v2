@@ -338,7 +338,7 @@ describe('SimulationPlayComponent: salida segura (correcciones de la revisión)'
       expect(sim['safeExit']).toHaveBeenCalledTimes(2);
     });
 
-    it('con la posición sin guardar la pausa sale sin esperarla ni pedirla', () => {
+    it('con la posición sin guardar la pausa se ve en el acto y la posición sale antes que la pausa (V4)', () => {
       const sync = new Subject<unknown>();
       sim['updateWorldState'].mockReturnValue(sync);
       (component as unknown as { lastPosition: { x: number; y: number } }).lastPosition = { x: 120, y: 340 };
@@ -346,7 +346,10 @@ describe('SimulationPlayComponent: salida segura (correcciones de la revisión)'
 
       component.pauseFromOverlay();
 
-      expect(sim['updateWorldState']).not.toHaveBeenCalled();
+      expect(component.attempt()?.status).toBe('PAUSED');
+      expect(sim['updateWorldState']).toHaveBeenCalledWith('attempt-1', 'token-1', 120, 340, 'hospital-urgencias', true);
+      expect(sim['safeExit']).not.toHaveBeenCalled();
+      sync.next({ attemptId: 'attempt-1', status: 'IN_PROGRESS', map: { key: 'hospital-urgencias' }, player: { x: 120, y: 340 } });
       expect(sim['safeExit']).toHaveBeenCalledTimes(1);
     });
 

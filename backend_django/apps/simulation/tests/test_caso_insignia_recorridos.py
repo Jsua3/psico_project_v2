@@ -191,6 +191,10 @@ def test_final_protectora_integral(cliente, version):
     final = partida.final()
     assert final["key"] == "protectora"
     assert len(partida.hitos()) == 21  # los 11 originales y los 10 nuevos
+    # «Elegiste:» del cierre (V4): el texto corto del botón que se pulsó, además del de la opción.
+    elegida = partida.estado["completionReport"]["decisionReview"][0]["chosen"]
+    assert elegida["label"] == "Mirar primero, confirmar la seguridad y presentarte a la familia"
+    assert elegida["text"].startswith("Mirar primero: confirmar con el vigilante")
     assert not any("contraindicada" in frase or "con riesgo" in frase for frase in final["reason"])
 
 

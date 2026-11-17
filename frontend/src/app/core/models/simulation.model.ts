@@ -282,7 +282,8 @@ export interface DecisionReviewItem {
   order: number;
   nodeId: number;
   nodeTitle: string;
-  chosen: { optionId: number; text: string };
+  /** `label`: el texto corto del botón que se pulsó, si el caso lo trae (V4); si no, solo `text`, el de la opción. */
+  chosen: { optionId: number; text: string; label?: string };
   consequence: string;
   feedback: { explanation: string; theoryBasis?: string };
   class: ResponseClass;

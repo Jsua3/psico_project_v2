@@ -180,10 +180,13 @@ describe('SimulationPlayComponent: robustez del cliente (R1)', () => {
       sim['updateWorldState'].mockReturnValue(NEVER);
     };
 
-    it('no espera a guardar la posición: la pausa sale en el acto', () => {
+    it('la pantalla de pausa sale en el acto aunque la posición pendiente aún no se guarde; la pausa se envía tras ella (V4)', () => {
       conPosicionPendiente();
       component.pauseFromOverlay();
-      expect(sim['safeExit']).toHaveBeenCalledTimes(1);
+      expect(component.attempt()?.status).toBe('PAUSED');
+      expect(component.pausing()).toBe(true);
+      expect(sim['updateWorldState']).toHaveBeenCalledWith('attempt-1', 'token-1', 10, 20, 'sala', true);
+      expect(sim['safeExit']).not.toHaveBeenCalled();
     });
 
     it('con una petición en vuelo la pausa sale en el acto, sin esperar su plazo', () => {
@@ -213,6 +216,68 @@ describe('SimulationPlayComponent: robustez del cliente (R1)', () => {
       expect(component.pauseNote()).not.toBeNull();
       vi.advanceTimersByTime(2_000);
       expect(sim['safeExit']).toHaveBeenCalledTimes(2);
+    });
+  });
+
+  describe('la pausa lleva consigo la posición pendiente (V4, REGLA-004)', () => {
+    const ack = { attemptId: 'attempt-1', status: 'IN_PROGRESS', map: { key: 'sala' }, player: { x: 10, y: 20 } };
+    const pausada = { ...makeAttempt(), status: 'PAUSED' } as SimulationAttemptState;
+    const orden: string[] = [];
+    const conPosicionPendiente = () => { interno()['lastPosition'] = { x: 10, y: 20 }; };
+    beforeEach(() => {
+      orden.length = 0;
+      sim['updateWorldState'].mockImplementation(() => defer(() => { orden.push('posicion'); return of(ack); }));
+      sim['safeExit'].mockImplementation(() => defer(() => { orden.push('pausa'); return of(pausada); }));
+    });
+
+    it('con la posición sin guardar, primero la posición y después la pausa; la pausa queda registrada', () => {
+      conPosicionPendiente();
+      component.pauseFromOverlay();
+      expect(orden).toEqual(['posicion', 'pausa']);
+      expect(sim['updateWorldState']).toHaveBeenCalledWith('attempt-1', 'token-1', 10, 20, 'sala', true);
+      expect(interno()['lastSyncedPosition']).toEqual({ x: 10, y: 20 });
+      expect(component.pauseNote()).toBeNull();
+    });
+
+    it('con la posición ya guardada solo sale la pausa', () => {
+      conPosicionPendiente();
+      interno()['lastSyncedPosition'] = { x: 10, y: 20 };
+      component.pauseFromOverlay();
+      expect(orden).toEqual(['pausa']);
+    });
+
+    it('el guardado con espera que estaba programado no sale después de la pausa', () => {
+      conPosicionPendiente();
+      interno()['positionSaveHandle'] = window.setTimeout(() => (interno() as any).persistPosition(), 400);
+      component.pauseFromOverlay();
+      vi.advanceTimersByTime(5_000);
+      expect(orden).toEqual(['posicion', 'pausa']);
+    });
+
+    it('si el servidor rechaza la posición, la pausa se registra igual', () => {
+      conPosicionPendiente();
+      sim['updateWorldState'].mockImplementation(() => defer(() => { orden.push('posicion'); return throwError(() => new HttpErrorResponse({ status: 400 })); }));
+      component.pauseFromOverlay();
+      expect(orden).toEqual(['posicion', 'pausa']);
+      expect(component.pauseNote()).toBeNull();
+    });
+
+    it('sin red no se pierde la posición: al reintentar sale otra vez la posición y luego la pausa', () => {
+      conPosicionPendiente();
+      let red = false;
+      sim['updateWorldState'].mockImplementation(() => defer(() => {
+        orden.push('posicion');
+        return red ? of(ack) : throwError(() => new HttpErrorResponse({ status: 0 }));
+      }));
+      component.pauseFromOverlay();
+      expect(orden).toEqual(['posicion']);
+      expect(component.attempt()?.status).toBe('PAUSED');
+      expect(component.pauseNote()).not.toBeNull();
+      red = true;
+      vi.advanceTimersByTime(2_000);
+      expect(orden).toEqual(['posicion', 'posicion', 'pausa']);
+      expect(interno()['lastSyncedPosition']).toEqual({ x: 10, y: 20 });
+      expect(component.pauseNote()).toBeNull();
     });
   });
 
