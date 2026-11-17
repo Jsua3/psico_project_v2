@@ -187,3 +187,73 @@ it('sin nombre se anuncia solo la frase, sin los dos puntos sueltos', async () =
   await vi.runAllTimersAsync();
   expect(announcer.announce).toHaveBeenCalledWith('Gracias por quedarse.', 'polite');
 });
+
+// V6 (accesibilidad, WCAG 2.2.1/2.2.2): sostenida por el foco o el puntero, la franja no avanza sola; al soltarla sigue con
+// el tiempo que le quedaba. Sin nadie que la sostenga, la duración y el orden no cambian.
+it('con el foco o el puntero en la franja no avanza; al soltarla termina con su tiempo de siempre', async () => {
+  const { director, terminado } = montar({ reduceMotion: false });
+  director.play(ENTRADA, QUIEN);
+  await vi.advanceTimersByTimeAsync(10);
+  director.sostener('foco', true);
+  await vi.advanceTimersByTimeAsync(60_000);
+  expect(terminado).toEqual([]);
+  director.sostener('puntero', true);
+  director.sostener('foco', false);
+  await vi.advanceTimersByTimeAsync(60_000);
+  expect(terminado, 'el puntero encima también la sostiene').toEqual([]);
+  director.sostener('puntero', false);
+  await vi.runAllTimersAsync();
+  expect(terminado).toEqual(['completa']);
+});
+
+it('cancel suelta la franja sostenida (la salida segura no espera a nadie)', async () => {
+  const { director, terminado } = montar({ reduceMotion: false });
+  director.play(ENTRADA, QUIEN);
+  await vi.advanceTimersByTimeAsync(10);
+  director.sostener('foco', true);
+  director.cancel();
+  await vi.runAllTimersAsync();
+  expect(director.sostenida).toBe(false);
+  expect(terminado, 'corta como siempre, sin «completa»').toEqual(['cancelada']);
+});
+
+it('un puntero quieto bajo la franja que aparece no la sostiene, un dedo tampoco; un ratón que se mueve encima, sí', async () => {
+  const { director, terminado } = montar({ reduceMotion: false });
+  director.play(ENTRADA, QUIEN);
+  await vi.advanceTimersByTimeAsync(10);
+  director.alMoverPuntero({ pointerType: 'mouse', movementX: 0, movementY: 0 } as PointerEvent);
+  expect(director.sostenida).toBe(false);
+  director.alMoverPuntero({ pointerType: 'touch', movementX: 0, movementY: 9 } as PointerEvent);
+  expect(director.sostenida, 'un dedo no la sostiene').toBe(false);
+  director.alMoverPuntero({ pointerType: 'mouse', movementX: 3, movementY: 0 } as PointerEvent);
+  expect(director.sostenida).toBe(true);
+  director.sostener('puntero', false);
+  await vi.runAllTimersAsync();
+  expect(terminado).toEqual(['completa']);
+});
+
+it('sostenida por el puntero, Enter salta igual que siempre (una vez, al estado final) y la suelta', async () => {
+  const { director, escenario, terminado, teclear } = montar({ reduceMotion: false });
+  director.play(ENTRADA, QUIEN);
+  await vi.advanceTimersByTimeAsync(10);
+  director.alMoverPuntero({ pointerType: 'mouse', movementX: 2, movementY: 1 } as PointerEvent);
+  expect(director.sostenida).toBe(true);
+  expect(teclear('Enter').defaultPrevented).toBe(true);
+  await vi.runAllTimersAsync();
+  expect(terminado).toEqual(['saltada']);
+  expect(director.sostenida).toBe(false);
+  expect(escenario.llamadas).toContain('setPersonaState:La persona se abre y está serena');
+});
+
+it('con movimiento reducido sostenerla no cambia la secuencia: sin encuadre ni gesto, y termina al soltarla', async () => {
+  const { director, escenario, terminado } = montar({ reduceMotion: true });
+  director.play(ENTRADA, QUIEN);
+  director.sostener('foco', true);
+  await vi.advanceTimersByTimeAsync(60_000);
+  expect(terminado).toEqual([]);
+  director.sostener('foco', false);
+  await vi.runAllTimersAsync();
+  expect(terminado).toEqual(['completa']);
+  expect(escenario.llamadas.some(c => c.startsWith('frameActors') || c.startsWith('playGesture'))).toBe(false);
+  expect(escenario.llamadas).toContain('setPersonaState:La persona se abre y está serena');
+});
