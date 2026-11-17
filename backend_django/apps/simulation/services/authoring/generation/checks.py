@@ -786,18 +786,26 @@ def validate_scene(raw: dict, sk: SkeletonDraft, clave: str, ctx: dict) -> Scene
         c.add(STRUCTURE_FORM)
     elif texto:
         try:
-            estructura = json.loads(texto)
+            cambios = json.loads(texto)
         except (ValueError, RecursionError):
             c.add(STRUCTURE_FORM)
         else:
-            if not isinstance(estructura, dict) or siep_check.structure_errors(estructura):
-                c.add(STRUCTURE_FORM)
             plantilla = room.get("estructura")
-            if not isinstance(plantilla, dict) or not isinstance(estructura, dict) or any(
-                (campo in estructura) != (campo in plantilla) or estructura.get(campo) != plantilla.get(campo)
-                for campo in ("ancho", "propios", "tapetes", "exterior")
-            ):
+            if not isinstance(cambios, dict):
+                c.add(STRUCTURE_FORM)
+            elif set(cambios) - {"momento", "acabados", "piezas"}:
                 c.add(STRUCTURE_FIXED)
+            elif not isinstance(plantilla, dict):
+                c.add(STRUCTURE_FIXED)
+            else:
+                estructura = {**plantilla, **cambios}
+                if siep_check.structure_errors(estructura):
+                    c.add(STRUCTURE_FORM)
+                if any(
+                    (campo in estructura) != (campo in plantilla) or estructura.get(campo) != plantilla.get(campo)
+                    for campo in ("ancho", "propios", "tapetes", "exterior")
+                ):
+                    c.add(STRUCTURE_FIXED)
 
     c.raise_if_any(clave)
     return SceneDraft(

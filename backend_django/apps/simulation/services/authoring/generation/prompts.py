@@ -43,15 +43,13 @@ El caso se construye en dos etapas. En la etapa del esqueleto se decide el caso 
 En el esqueleto, cada escena lleva aspecto: cómo se ve la sala en esa escena si la docente lo dice: hora del día, luz,
 ventanas, objetos que sobran o faltan; "" si no dice nada. Es texto plano de una línea y hasta 200 caracteres.
 
-Salas por piezas: estructura es un texto JSON con el objeto completo de la sala o "" para conservar la plantilla.
-Si el aspecto de esta escena en el esqueleto dice cómo se ve la sala (de noche o de día, poca luz o una lámpara, una ventana
-tapada, otro piso o color, algo que sobra o que falta), copia la estructura de la plantilla de esa sala, cambia solo eso y
-devuélvela; si no dice nada de cómo se ve, usa "". Por ejemplo, de noche: la misma estructura con "momento": "noche".
-La estructura es un objeto cerrado con ancho, momento (dia o noche), acabados y piezas; opcionalmente exterior,
-propios y tapetes. Acabados es un objeto cerrado con piso, muro, paleta y variante opcional (por defecto a).
+Salas por piezas: estructura es un texto JSON con solo los campos que cambian: momento, acabados o piezas; usa "" si no cambia nada.
+Si el aspecto de esta escena dice cómo se ve la sala, devuelve solo esos cambios. Por ejemplo, de noche: {{"momento": "noche"}}.
+Los campos que no nombres conservan el valor de la plantilla; si cambias piezas, devuelve la lista completa de piezas de la sala.
+Momento es dia o noche. Acabados es un objeto completo y cerrado con piso, muro, paleta y variante opcional (por defecto a).
 Cada pieza es un objeto cerrado con id, tipo y modelo; usa muro y pos enteros, o x e y enteros para suelo;
 puede llevar encendida y, solo para suelo, sobre. Los id de piezas son únicos; admite hasta 120 piezas.
-Solo cambian momento, acabados y piezas; conserva ancho, propios, tapetes y exterior, incluso si están ausentes.
+No incluyas ancho, propios, tapetes ni exterior: son fijos y se conservan de la plantilla.
 Las puertas son objetos EXIT y no se modifican ni se ponen en piezas; sus datos aparecen en la sala.
 OCL-13: usa muros existentes en el encuadre y admitidos por el modelo; pos ± ocupa/2 debe caber en el largo.
 Las piezas de suelo van dentro de la zona caminable.

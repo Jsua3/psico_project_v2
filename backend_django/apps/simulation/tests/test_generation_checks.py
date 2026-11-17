@@ -683,3 +683,11 @@ def test_aspecto_se_conserva_y_admite_hasta_200_caracteres(esqueleto, ctx):
     borrador = checks.validate_skeleton(esqueleto, ctx)
     assert borrador.escenas[0].aspecto == "a" * 200
     assert checks.from_json(SkeletonDraft, checks.as_json(borrador)) == borrador
+
+
+@pytest.mark.parametrize("valor", ["", "{}"])
+def test_estructura_sin_cambios_conserva_la_plantilla(valor, aula, sk, ctx):
+    aula["estructura"] = valor
+    resultado = checks.validate_scene(aula, sk, "aula", ctx)
+    plantilla = next(s for s in ctx["salas"] if s["id"] == "aula")["estructura"]
+    assert resultado.estructura == (None if valor == "" else plantilla)

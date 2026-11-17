@@ -120,5 +120,5 @@
       "gesto": "baja-la-mirada"
     }
   ],
-  "estructura": "{\"acabados\":{\"muro\":\"zocalo-alto\",\"paleta\":\"universidad-aula\",\"piso\":\"baldosa\",\"variante\":\"universidad-aula\"},\"ancho\":960,\"momento\":\"dia\",\"piezas\":[{\"id\":\"persiana-1\",\"modelo\":\"persiana\",\"muro\":\"fondo\",\"pos\":112,\"tipo\":\"ventana\"},{\"id\":\"persiana-2\",\"modelo\":\"persiana\",\"muro\":\"fondo\",\"pos\":112,\"tipo\":\"ventana\"},{\"id\":\"reloj-1\",\"modelo\":\"reloj\",\"muro\":\"fondo\",\"pos\":552,\"tipo\":\"reloj\"},{\"id\":\"tubo-1\",\"modelo\":\"tubo\",\"muro\":\"fondo\",\"pos\":216,\"tipo\":\"lampara\"},{\"id\":\"tubo-2\",\"modelo\":\"tubo\",\"muro\":\"fondo\",\"pos\":552,\"tipo\":\"lampara\"}]}"
+  "estructura": "{\"piezas\": [{\"id\": \"persiana-1\", \"modelo\": \"persiana\", \"muro\": \"fondo\", \"pos\": 112, \"tipo\": \"ventana\"}, {\"id\": \"persiana-2\", \"modelo\": \"persiana\", \"muro\": \"fondo\", \"pos\": 112, \"tipo\": \"ventana\"}, {\"id\": \"reloj-1\", \"modelo\": \"reloj\", \"muro\": \"fondo\", \"pos\": 552, \"tipo\": \"reloj\"}, {\"id\": \"tubo-1\", \"modelo\": \"tubo\", \"muro\": \"fondo\", \"pos\": 216, \"tipo\": \"lampara\"}, {\"id\": \"tubo-2\", \"modelo\": \"tubo\", \"muro\": \"fondo\", \"pos\": 552, \"tipo\": \"lampara\"}]}"
 }
