@@ -39,7 +39,10 @@ const HELP_MEMORY_KEY = 'siep.ayuda.v1';
                 </span>
               }
               <span class="hud-persona-copy">
-                <i class="hud-persona-pulso" [attr.data-activation]="game.persona.activation" aria-hidden="true"></i>
+                <!-- Un elemento por estado: al cambiar el estado el pulso nace de nuevo y vuelve a latir (unos 4 s). -->
+                @for (activacion of [game.persona.activation]; track activacion) {
+                  <i class="hud-persona-pulso" [attr.data-activation]="activacion" aria-hidden="true"></i>
+                }
                 <span class="hud-persona-label" [title]="game.persona.label">{{ game.persona.label }}</span>
               </span>
             </div>
@@ -171,14 +174,16 @@ const HELP_MEMORY_KEY = 'siep.ayuda.v1';
     }
     .hud-persona-face { position: absolute; left: calc(-4 * var(--pixel-px)); top: calc(-5 * var(--pixel-px)); }
     .hud-persona-copy { display: flex; align-items: center; gap: calc(3 * var(--pixel-px)); min-width: 0; }
-    /* El pulso de la persona del cuadro (pulso-*.png de I1): tenso por defecto, calmo lento y en crisis rápido. Finito. */
+    /* El pulso de la persona del cuadro (pulso-*.png de I1): tenso por defecto, calmo lento y en crisis rápido. Late unos
+       4 s al aparecer o al cambiar el estado y descansa en su primer cuadro: nada se mueve sin fin (F9-1) y las esperas de
+       animaciones asentadas (Axe) terminan. */
     .hud-persona-pulso {
       flex: none; width: calc(16 * var(--pixel-px)); height: calc(8 * var(--pixel-px));
       background: var(--pulso-TENSE) 0 0 / calc(64 * var(--pixel-px)) calc(8 * var(--pixel-px)) no-repeat;
-      image-rendering: pixelated; animation: hud-pulso 1s steps(4) 180;
+      image-rendering: pixelated; animation: hud-pulso 1s steps(4) 4;
     }
-    .hud-persona-pulso[data-activation='CALM'] { background-image: var(--pulso-CALM); animation-duration: 2s; }
-    .hud-persona-pulso[data-activation='CRISIS'] { background-image: var(--pulso-CRISIS); animation-duration: .5s; }
+    .hud-persona-pulso[data-activation='CALM'] { background-image: var(--pulso-CALM); animation-duration: 2s; animation-iteration-count: 2; }
+    .hud-persona-pulso[data-activation='CRISIS'] { background-image: var(--pulso-CRISIS); animation-duration: .5s; animation-iteration-count: 8; }
     @keyframes hud-pulso { to { background-position: calc(-64 * var(--pixel-px)) 0; } }
     .hud-persona-label { min-width: 0; max-width: 16em; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-weight: 600; color: var(--pixel-tinta); }
 
