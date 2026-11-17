@@ -34,6 +34,8 @@ V3_KEYS = REPORT_KEYS | {
     "schemaVersion", "ordinal", "definitionHash", "counts", "milestones", "persona", "decisionReview", "reflections",
     "competencyLevels", "profileRules", "nonRecommendedCount", "reflectionCoverage", "keyLearningEvidence",
     "timeByScene",
+    # V5: si alguna respuesta del caso declara competencias (aditivo; los informes cerrados antes no lo traen).
+    "competenciesDeclared",
 }
 SUMMARY_KEYS = {
     "attemptId", "caseTitle", "status", "summaryMessage", "retries", "reflectionsCount", "safeExitUsed", "toolsUsed",

@@ -262,6 +262,37 @@ def test_una_primera_respuesta_mala_no_cambia_el_final(cliente, version):
     assert partida.final()["key"] == "protectora"
 
 
+# ─── Competencias sin declarar (V5) ─────────────────────────────────────────────────────────────────────
+
+def test_el_informe_y_la_traza_dicen_que_el_caso_no_declara_competencias(cliente, version):
+    """Ninguna respuesta de SIM-VBG-002 declara qué competencia evidencia: el informe y la traza de la docente lo dicen
+    (``competenciesDeclared``) para que el cierre de la estudiante no muestre cuatro «Sin evidencia» que no son suyos."""
+    from apps.simulation.assessment.competencies import case_declares_competencies
+
+    assert case_declares_competencies(version.id) is False
+    partida = Partida(cliente, version)
+    partida.jugar()
+    assert partida.final()["key"] == "protectora"
+    assert partida.estado["completionReport"]["competenciesDeclared"] is False
+
+    docente = APIClient()
+    docente.force_authenticate(user=User.objects.get(email="k1_prof@x.com"))
+    traza = docente.get(f"/api/instructor/attempts/{partida.id}/trace")
+    assert traza.status_code == 200
+    assert traza.data["data"]["competenciesDeclared"] is False
+    assert traza.data["data"]["caseVersionId"] == version.id
+
+
+def test_basta_una_respuesta_que_declare_una_competencia(version):
+    from apps.simulation.assessment.competencies import case_declares_competencies
+
+    opcion = DecisionOption.objects.filter(case_version=version).order_by("id").first()
+    efectos = json.loads(opcion.effects or "{}")
+    efectos["competencies"] = {"CONTENCION": None}
+    DecisionOption.objects.filter(pk=opcion.pk).update(effects=json.dumps(efectos))
+    assert case_declares_competencies(version.id) is True
+
+
 # ─── Los requisitos: la mejor respuesta aparece solo cuando se exploró lo necesario ──────────────────
 
 @pytest.mark.parametrize("paso, mejor, falta", [

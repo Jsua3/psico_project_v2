@@ -503,6 +503,8 @@ describe('AttemptOutcomeComponent: tus decisiones y marcador (F10-4, C2)', () =>
     reportHasDecisions?: boolean;
     mode?: 'student' | 'rehearsal';
     caseVersionId?: number | null;
+    /** V5: el informe dice si el caso declara competencias (sin el campo, como antes). */
+    competenciesDeclared?: boolean;
   } = {}): void {
     TestBed.configureTestingModule({
       imports: [AttemptOutcomeComponent],
@@ -525,9 +527,10 @@ describe('AttemptOutcomeComponent: tus decisiones y marcador (F10-4, C2)', () =>
     fixture = TestBed.createComponent(AttemptOutcomeComponent);
     component = fixture.componentInstance;
     writeInputSignal(component.status, options.status ?? 'COMPLETED');
+    const declara = options.competenciesDeclared === undefined ? {} : { competenciesDeclared: options.competenciesDeclared };
     writeInputSignal(component.report, options.reportHasDecisions
-      ? makeReport({ status: 'COMPLETED', decisionReview: items })
-      : makeReport({ status: 'COMPLETED' }));
+      ? makeReport({ status: 'COMPLETED', decisionReview: items, ...declara })
+      : makeReport({ status: 'COMPLETED', ...declara }));
     writeInputSignal(component.reviewAttemptId, options.reviewAttemptId === undefined ? 'a1' : options.reviewAttemptId);
     if (options.mode) writeInputSignal(component.mode, options.mode);
     if (options.caseVersionId !== undefined) writeInputSignal(component.caseVersionId, options.caseVersionId);
@@ -653,6 +656,21 @@ describe('AttemptOutcomeComponent: tus decisiones y marcador (F10-4, C2)', () =>
 
     const chosen = Array.from(host().querySelectorAll('.oc-decision__chosen')).map(el => text(el));
     expect(chosen).toEqual(['Elegiste: Escuchar sin juzgar', 'Elegiste: Derivar a la ruta']);
+  });
+
+  it('si el caso no declara competencias, el cierre no muestra el bloque (V5); si las declara, «Sin evidencia» sigue', async () => {
+    render({ reportHasDecisions: true, items: [decision()] });
+    await settle();
+    const conBloque = !!host().querySelector('.oc-competencies');
+    fixture.destroy();
+    TestBed.resetTestingModule();
+
+    render({ reportHasDecisions: true, items: [decision()], competenciesDeclared: false });
+    await settle();
+    expect(host().querySelector('.oc-competencies')).toBeNull();
+    expect(host().querySelector('.oc-ending')).not.toBeNull();
+    expect(host().querySelector('.oc-decisions')).not.toBeNull();
+    expect(conBloque).toBe(true);
   });
 
   it('el cierre completo no muestra puntaje, estrés, desempeño ni porcentajes', async () => {

@@ -437,6 +437,15 @@ describe('traza del docente en el sistema de la biblioteca (F7-4)', () => {
       expect(text(host())).not.toContain('Dos decisiones recomendadas de tres.');
     });
 
+    it('si el caso no declara competencias, una nota llana lo dice y enlaza al editor (V5)', async () => {
+      await render({ trace: id => of(traceFixture(id, {
+        systemEvaluation: null, systemEvaluationAvailable: false, competenciesDeclared: false, caseVersionId: 21,
+      })) });
+      expect(text(systemSection())).toContain('Este caso todavía no declara qué competencia evidencia cada respuesta');
+      expect(systemSection()!.querySelector('a')?.getAttribute('href')).toBe('/portal/casos/21/editor');
+      expect(systemSection()!.querySelector('table')).toBeNull();
+    });
+
     it('si el sistema no tiene valoración que mostrar, la sección no aparece', async () => {
       await render({ trace: id => of(traceFixture(id, { systemEvaluation: null, systemEvaluationAvailable: false })) });
       expect(systemSection()).toBeNull();

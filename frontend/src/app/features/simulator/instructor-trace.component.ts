@@ -56,6 +56,9 @@ const TRACE_COPY = {
   levelOrComment: 'Elige un nivel o escribe una retroalimentación para guardar.',
   noTeacherLevel: 'Sin criterio equivalente',
   systemFolded: 'La valoración del sistema se mostrará cuando registres tu propia valoración.',
+  // V5 (borrador, a validar con Psicología): el caso no declara competencias en sus respuestas.
+  notDeclared: 'Este caso todavía no declara qué competencia evidencia cada respuesta; por eso el resultado no muestra niveles.',
+  openEditor: 'Abrir el caso en el editor',
   classPanels: {
     RECOMMENDED: {
       title: 'Decisiones recomendadas',

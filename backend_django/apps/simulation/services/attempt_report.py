@@ -429,6 +429,8 @@ def build_report_payload(attempt, events, ordinal=None, definition_hash=None):
         "reflections": reflections,
         # E6-1d: nombres de nivel, nunca un índice numérico (RN-09).
         "competencyLevels": competency_levels,
+        # V5: si ninguna respuesta del caso declara competencias, el cierre de la estudiante no muestra el bloque.
+        "competenciesDeclared": assessment_competencies.case_declares_competencies(attempt.case_version_id),
         "profileRules": definitions.PROFILE_RULES,  # la versión de la regla con la que se calculó (E6, revisión I-3)
         "nonRecommendedCount": evidence.non_recommended_count(events),
         "reflectionCoverage": coverage,

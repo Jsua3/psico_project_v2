@@ -204,6 +204,12 @@ def _persona_por_escena(events):
     ]
 
 
+def _declara_competencias(attempt):
+    from apps.simulation.assessment.competencies import case_declares_competencies
+
+    return case_declares_competencies(attempt.case_version_id)
+
+
 def _valoracion_del_sistema(attempt, evaluations):
     """``(systemEvaluation, systemEvaluationAvailable)``: la valoración automática, plegada hasta que el docente guarda la suya.
 
@@ -278,6 +284,9 @@ def trace(attempt_id, instructor=None):
         # La valoración automática va plegada hasta que el docente guarde la suya (ver ``_valoracion_del_sistema``).
         "systemEvaluation": system_evaluation,
         "systemEvaluationAvailable": system_available,
+        # V5: sin competencias declaradas en el caso no hay valoración del sistema; la docente ve por qué y el editor.
+        "caseVersionId": attempt.case_version_id,
+        "competenciesDeclared": _declara_competencias(attempt),
     }
 
 
