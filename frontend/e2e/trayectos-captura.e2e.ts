@@ -82,7 +82,8 @@ async function registrar(page: Page, ms: number, cada = 200): Promise<Muestra[]>
   return muestras;
 }
 
-test.describe('trayectos de personas en el juego real (captura)', () => {
+// @captura: arnés de capturas con su propia pila (levantar-n1.ps1); CI lo excluye con --grep-invert (V6).
+test.describe('@captura trayectos de personas en el juego real (captura)', () => {
   test.setTimeout(240_000);
 
   test('la enfermera da su circuito y el vigilante va y viene, en 8 direcciones y sin salirse de sus tramos', async ({ page }) => {
