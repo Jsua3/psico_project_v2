@@ -344,6 +344,14 @@
       "audit": "ADMIN_ACCEPT_AI_OBJECT"
     },
     {
+      "route": "api/admin/cases/<int:case_version_id>/plan",
+      "method": "GET",
+      "exposure": "role:ADMIN,PROFESOR",
+      "body": "none",
+      "throttle": null,
+      "audit": "EXENTO: contenido del caso (autoría): no son datos de personas"
+    },
+    {
       "route": "api/admin/cases/<int:case_version_id>/publish",
       "method": "POST",
       "exposure": "role:ADMIN",
@@ -936,6 +944,14 @@
       "body": "json-small",
       "throttle": null,
       "audit": "ADMIN_ACCEPT_AI_OBJECT"
+    },
+    {
+      "route": "api/authoring/cases/<int:case_version_id>/plan",
+      "method": "GET",
+      "exposure": "role:ADMIN,PROFESOR",
+      "body": "none",
+      "throttle": null,
+      "audit": "EXENTO: contenido del caso (autoría): no son datos de personas"
     },
     {
       "route": "api/authoring/cases/<int:case_version_id>/publish",

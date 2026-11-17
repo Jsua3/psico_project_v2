@@ -141,6 +141,7 @@ _AUTORIA = {
     (f"{_CV}/nodes/reorder", "PATCH"): "ADMIN_REORDER_NODES",
     (f"{_CV}/objects/<int:object_id>", "PUT"): "ADMIN_UPDATE_OBJECT",
     (f"{_CV}/objects/<int:object_id>", "DELETE"): "ADMIN_DELETE_OBJECT",
+    (f"{_CV}/plan", "GET"): _exento(_CONTENIDO),   # P4, tarea 11: el plano de las salas por piezas para el editor
     (f"{_CV}/publish", "POST"): "ADMIN_PUBLISH_CASE",
     (f"{_CV}/rules/milestones", "PUT"): "ADMIN_UPDATE_MILESTONES",
     (f"{_CV}/rules/risk", "PUT"): "ADMIN_UPDATE_RISK",
