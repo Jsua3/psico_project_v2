@@ -160,7 +160,9 @@ async function assertSafeExitAboveFade(page: Page, state: string, touch: boolean
   if (fade) expect(await page.locator('.scene-fade--active').count(), `${state}: el fundido sigue activo al pulsar`).toBe(1);
   if (touch) await exit.tap({ timeout: 3_000 });
   else await exit.click({ timeout: 3_000 });
-  await expect(page.getByRole('button', { name: /pausando/i }), `${state}: el pie acusa la pausa pedida`).toBeVisible();
+  // Ronda V3 (REGLA-004): la pausa es local e inmediata; no espera al servidor lento (antes el pie decía «Pausando…»).
+  await expect(page.getByRole('alertdialog', { name: /pausa/i }), `${state}: la pantalla de pausa sale en el acto`)
+    .toBeVisible({ timeout: 3_000 });
 }
 
 /** La pausa pedida bajo el fundido llega cuando el servidor responde: una sola llamada, pantalla de pausa y sin avisos encima. */
@@ -169,6 +171,9 @@ async function expectQueuedPauseThenResume(
 ): Promise<void> {
   const pause = page.getByRole('alertdialog', { name: /pausa/i });
   await expect(pause, `${state}: debe aparecer la pausa`).toBeVisible({ timeout: scaled(40_000) });
+  // El registro en el servidor espera a la petición en vuelo (la decisión lenta): se cuenta cuando ya salió, y es UNA.
+  await expect.poll(safeExitCalls, { message: `${state}: la pausa se registra en el servidor`, timeout: scaled(40_000) })
+    .toBeGreaterThanOrEqual(expectedTotalCalls);
   expect(safeExitCalls(), `${state}: una sola llamada a safe-exit por pausa pedida`).toBe(expectedTotalCalls);
   // La pausa corta la reacción en el acto: ningún gesto en curso (`data-reaction`) queda bajo la pantalla de pausa.
   await expect(page.locator('.phaser-host[data-reaction]'), `${state}: un gesto de reacción quedó vivo bajo la pausa`).toHaveCount(0);

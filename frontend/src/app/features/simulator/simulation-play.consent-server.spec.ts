@@ -580,16 +580,19 @@ describe('SimulationPlayComponent: el consentimiento usa el servidor (S3-2b)', (
       playing();
     });
 
-    it('un 403 CONSENT_REQUIRED en la salida segura (el servidor no lo envía) se trata como cualquier fallo de la pausa, no como el aviso', () => {
+    it('un 403 CONSENT_REQUIRED en la salida segura (el servidor no lo envía) se trata como cualquier fallo de la pausa, no como el aviso: la persona sale igual y se reintenta', () => {
       sim['safeExit'].mockReturnValue(throwError(() => consentRequired()));
+      sim['getAttempt'] = vi.fn(() => throwError(() => consentRequired()));
 
       component.pauseFromOverlay();
 
       expect(sim['safeExit']).toHaveBeenCalledTimes(1);
       expect(component.showContentWarning()).toBe(false);
-      expect(component.actionError()).toBe('No pudimos registrar la salida segura.');
+      expect(component.attempt()?.status).toBe('PAUSED'); // la persona ya salió
+      expect(component.pauseNote()).toBe(DRAFT_COPY.pausePermanentFail.text); // un 4xx que se repite tras consultar: no hay bucle y se dice
+      expect(component.actionError()).toBe('');
       expect(recorder.forget).not.toHaveBeenCalled();
-      expect(component.pausing()).toBe(false); // se puede volver a pedir
+      expect(component.pausing()).toBe(false); // se dejó de reintentar
     });
 
     it('la pausa sale aunque el servidor ya no tenga el consentimiento: la persona queda pausada y luego vuelve el aviso', () => {

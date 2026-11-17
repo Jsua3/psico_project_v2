@@ -162,7 +162,9 @@ describe('SimulationPlayComponent: arranque y fallos con reintento (F6-1)', () =
       });
 
       component.ngOnInit();
-      expect(component.error()).toBe('No pudimos iniciar la simulación. Revisa tus permisos.');
+      // Un 500 (o la red) no es un problema de permisos: el aviso no manda a revisarlos (hallazgo NVIDIA, 2026-11-16).
+      expect(component.error()).toBe('No pudimos iniciar la simulación. Inténtalo de nuevo.');
+      expect(component.error()).not.toContain('permisos');
       expect(component.canRetry()).toBe(true);
 
       component.retryFromError();

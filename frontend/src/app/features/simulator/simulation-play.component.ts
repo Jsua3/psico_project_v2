@@ -33,9 +33,14 @@ import { SensitiveNoticeComponent } from './sensitive-notice.component';
 import { debeConfirmarEnsayo, escenaDesde, reintentarSinDesde, veredictoDeLectura } from './caso/ensayo';
 import { escenaRetenida } from './caso/escena-visible';
 import {
-  type AlmacenSimple, OrdenDeRespuestas, PLAZO_ACCION_MS, borrarIntencion, borrarLectura, esLecturaRecuperable, esPlazoVencido, guardarIntencion,
-  guardarLectura, leerIntencion, leerLectura, pasoTrasFalloDeGuardado, respuestaVigente, veredictoDeEnvio, veredictoDeIntencion,
+  type AlmacenSimple, type IntencionDeDecision, OrdenDeRespuestas, PLAZO_ACCION_MS, borrarIntencion, borrarLectura, claveDeNpc, esPlazoVencido, guardarIntencion,
+  guardarLectura, leerIntencion, leerLectura, objetoDeLectura, pasoTrasFalloDeGuardado, respuestaVigente, veredictoDeEnvio, veredictoDeIntencion,
 } from './caso/robustez';
+import {
+  PausaPendiente, ReintentoAlVolver, borrarMarcaDePausa, esperaDeSincronizacion, guardarMarcaDePausa, hayMarcaDePausa, puedeReenviarEleccion,
+  veredictoDeFalloDePausa,
+} from './caso/pausa-local';
+import { npcsDeLaSala } from './caso/npcs-de-sala';
 import { memoriaDeComentarios } from './caso/comentarios';
 import { BurbujaVisible, MundoCercania, ProximityReactions, RELOJ_DE_VENTANA, acotarAncla } from './proximity-reactions';
 import { CommentBubbleComponent } from './comment-bubble.component';
@@ -174,7 +179,7 @@ const NARROW_QUERY = '(max-width: 760px)';
              fuente. Sin role: una región que nace con su texto no se anuncia de forma fiable. -->
         <div class="soft-notice">{{ softNotice() }}</div>
       }
-      @if (pausing()) {
+      @if (pausing() && attempt()?.status === 'IN_PROGRESS') {
         <!-- Acuse visible de la salida segura pedida: con una superposición abierta el pie queda oculto.
              Los lectores de pantalla ya reciben el aviso por la región viva. -->
         <div class="pausing-notice" aria-hidden="true">
@@ -529,7 +534,7 @@ const NARROW_QUERY = '(max-width: 760px)';
 
         @if (!holdingOutcome() && !reactingToLast()) {
           <app-attempt-outcome [report]="game.completionReport" [status]="game.status"
-            [supportResources]="supportResources()"
+            [supportResources]="supportResources()" [pauseNote]="pauseNote()"
             [mode]="mode()" [caseVersionId]="game.caseVersionId"
             [reviewAttemptId]="game.status === 'COMPLETED' && mode() !== 'rehearsal' ? game.attemptId : null"
             (retry)="startNewAttempt()" (resume)="resumeCurrentAttempt()" />
@@ -1517,11 +1522,31 @@ export class SimulationPlayComponent implements OnInit, OnDestroy {
   private destroyed = false;
   /** Retiro del fundido tras cargar el mundo: si el componente se destruye antes, no debe dispararse. */
   private worldRevealTimer: number | null = null;
-  /** La petición de salida segura ya salió: ni la cola ni el plazo la repiten. */
-  private pauseSent = false;
-  /** Hay una decisión enviada sin respuesta: su respuesta puede traer un token nuevo (la pausa rechazada espera por él). */
+  /** Hay una decisión enviada sin respuesta: la pausa pendiente espera a que termine para que el servidor la vea después (V3). */
   private decisionInFlight = false;
-  private pauseAwaitsDecision = false;
+  /** La pausa local aún sin registrar en el servidor: reintenta con espera creciente y al volver la red (V3, REGLA-004). */
+  private readonly pausa = new PausaPendiente<SimulationAttemptState>({
+    enviar: () => this.simulationService.safeExit(this.hintAttempt()!.attemptId, this.hintAttempt()!.attemptToken, 'Salida segura solicitada').pipe(timeout(PLAZO_ACCION_MS)),
+    consultar: () => this.simulationService.getAttempt(this.hintAttempt()!.attemptId, this.hintAttempt()!.attemptToken).pipe(timeout(PLAZO_ACCION_MS)),
+    decisionEnVuelo: () => this.decisionInFlight,
+    alRegistrar: updated => this.onPauseRegistered(updated),
+    alFallar: (cause, seguir) => this.orRehearsalGone(cause, seguir),
+    alRendirse: () => { this.pausing.set(false); this.pauseState.set('failed'); },
+    alQuedarPendiente: (_fallos, cause) => {
+      this.pauseState.set('pending');
+      if (this.resumeQueued && veredictoDeFalloDePausa(cause) === 'reintentar') this.showActionError(DRAFT_COPY.pauseResumeOffline.text);
+    },
+  });
+  private readonly pauseState = signal<'none' | 'pending' | 'failed'>('none');
+  /** La línea discreta de la pantalla de pausa mientras el servidor aún no la registró (o si lo rechazó de forma permanente). */
+  readonly pauseNote = computed(() => ({ none: null, pending: DRAFT_COPY.pauseNotRegistered.text, failed: DRAFT_COPY.pausePermanentFail.text })[this.pauseState()]);
+  /** Al reanudar: la consecuencia de la decisión que la pausa cortó, el aviso de una elección perdida y una decisión ya aplicada cuya respuesta se perdió (se reenvía, mismo `requestId`). */
+  private consequenceOnResume: SimulationDecisionResult | null = null;
+  private replayIntent: IntencionDeDecision | null = null;
+  /** Reintentos al volver la red: la elección sin enviar (mismo `requestId`) y la posición sin guardar (con espera creciente). */
+  private readonly decisionOnline = new ReintentoAlVolver(() => this.resendDecisionOnline());
+  private readonly positionRetry = new ReintentoAlVolver(() => this.persistPosition());
+  private positionGiveUps = 0;
   /** Tras pausar se recarga el mundo (dos GET encadenados) y `busy()` sigue activo hasta que termina. */
   private worldReloadPending = false;
   /** «Reanudar» pulsado durante esa recarga: se ejecuta al terminar en vez de descartarse en silencio. */
@@ -1561,11 +1586,6 @@ export class SimulationPlayComponent implements OnInit, OnDestroy {
         }
       });
     });
-    // Red de seguridad: si por algún camino quedó una pausa pedida con `busy()` libre, sale (la normal ya salió en el acto).
-    effect(() => {
-      if (!this.pausing() || this.busy()) return;
-      untracked(() => this.startQueuedPause());
-    });
     // El punto de lectura de la conversación abierta (cuál y en qué línea) se guarda para recuperarlo al recargar.
     effect(() => {
       const dialogo = this.dialogue();
@@ -1585,11 +1605,6 @@ export class SimulationPlayComponent implements OnInit, OnDestroy {
         this.reactions?.setBlocked(blocked);
         if (activation) this.reactions?.setActivation(activation);
       });
-    });
-    // «Salida segura» durante la reacción la corta en el acto: sin encuadre, gesto ni nota de supervisión sobre la pausa.
-    effect(() => {
-      if (!this.pausing() || !this.reacting()) return;
-      untracked(() => this.cutReactionForPause());
     });
     // La supervisión de la última decisión dejó de estar a la vista (se cerró, «Salida segura», Esc o cualquier
     // otro camino): el resultado ya se ve y es el momento de su sonido y su foco.
@@ -1643,6 +1658,13 @@ export class SimulationPlayComponent implements OnInit, OnDestroy {
 
   ngOnDestroy(): void {
     this.destroyed = true;
+    const pendiente = this.pausa.activa ? this.attempt() : null;
+    // Último intento de registrar la pausa, sin tocar señales: la marca de «pausa pendiente» cubre si tampoco llega.
+    pendiente && this.simulationService.safeExit(pendiente.attemptId, pendiente.attemptToken, 'Salida segura solicitada')
+      .subscribe({ next: () => borrarMarcaDePausa(this.almacen, pendiente.attemptId), error: () => undefined });
+    this.pausa.cerrar();
+    this.decisionOnline.cerrar();
+    this.positionRetry.cerrar();
     this.stopCompactWatch?.();
     this.reactions?.dispose();
     if (this.bubbleFrame) cancelAnimationFrame(this.bubbleFrame);
@@ -1668,12 +1690,23 @@ export class SimulationPlayComponent implements OnInit, OnDestroy {
       return;
     }
 
+    const offer = (active: SimulationAttemptState) => {
+      this.pendingActiveAttempt.set(active);
+      this.showResumePrompt.set(true);
+      this.loading.set(false);
+    };
     this.simulationService.getActiveAttempt(id).subscribe({
       next: active => {
         if (active && (active.status === 'IN_PROGRESS' || active.status === 'PAUSED')) {
-          this.pendingActiveAttempt.set(active);
-          this.showResumePrompt.set(true);
-          this.loading.set(false);
+          // Una pausa que quedó sin registrar (salió sin red): se registra ANTES de la tarjeta, que así dice «Reanudar intento en pausa».
+          if (active.status === 'IN_PROGRESS' && hayMarcaDePausa(this.almacen, active.attemptId)) {
+            this.simulationService.safeExit(active.attemptId, active.attemptToken, 'Salida segura solicitada').pipe(timeout(PLAZO_ACCION_MS)).subscribe({
+              next: paused => { borrarMarcaDePausa(this.almacen, active.attemptId); offer(paused); },
+              error: () => offer(active),
+            });
+            return;
+          }
+          offer(active);
           return;
         }
         this.beginAttempt(id, false);
@@ -1685,6 +1718,8 @@ export class SimulationPlayComponent implements OnInit, OnDestroy {
   resumeAttempt() {
     const active = this.pendingActiveAttempt();
     if (!active) return;
+    // La persona eligió seguir: una marca de pausa que no se pudo registrar ya no debe pedir otra al recargar (R-1).
+    borrarMarcaDePausa(this.almacen, active.attemptId);
     this.showResumePrompt.set(false);
     this.loading.set(true);
     if (active.status === 'PAUSED') {
@@ -1778,6 +1813,8 @@ export class SimulationPlayComponent implements OnInit, OnDestroy {
   resumeCurrentAttempt(): void {
     const current = this.attempt();
     if (!current || current.status !== 'PAUSED') return;
+    // La pausa local aún no llegó al servidor (su traza importa): se registra primero y la reanudación queda encolada.
+    if (this.pausa.activa) { this.resumeQueued = true; this.pausa.intentar(); return; }
     if (this.busy()) {
       // La pausa recarga el mundo y la tarjeta «Reanudar» aparece antes de que termine: ese toque
       // no se pierde, queda encolado y se atiende al liberar `busy()` (ver `finishWorldReload`).
@@ -1789,9 +1826,18 @@ export class SimulationPlayComponent implements OnInit, OnDestroy {
       next: attempt => {
         this.busy.set(false);
         this.attempt.set(attempt);
+        borrarMarcaDePausa(this.almacen, attempt.attemptId);   // R-1: ni la marca ni la nota de un rechazo sobreviven a reanudar
+        this.pauseState.set('none');
         // Un diálogo que llegó tarde mientras el intento estaba en pausa (la supervisión se abre
         // al terminar la reacción a la decisión) no debe reaparecer al reanudar.
         this.dialogue.set(null);
+        // La consecuencia de la decisión que la pausa cortó se lee ahora (A3); una elección que no se guardó, se dice.
+        const consequence = this.consequenceOnResume ? this.buildConsequenceDialogue(this.consequenceOnResume) : null;
+        this.consequenceOnResume = null;
+        if (consequence) this.dialogue.set(consequence);
+        this.restorePendingDecision(attempt, DRAFT_COPY.choiceNotSaved.text);
+        this.replayAppliedDecision();
+        this.positionGiveUps = 0;
         this.trackPersona(attempt);
         this.applyAudioScene(attempt);
         // Si se pausó desde la introducción sin haberla leído, reaparece (`resolveIntroStep` ya lo
@@ -1810,12 +1856,21 @@ export class SimulationPlayComponent implements OnInit, OnDestroy {
       if (!id) continue;
       this.clearPendingDecision(id);
       borrarLectura(this.almacen, id);
+      borrarMarcaDePausa(this.almacen, id);
     }
+    this.cancelarReintentos();
     this.pendingDecisionRequest = null;
     this.decisionInFlight = false;
-    this.pauseAwaitsDecision = false;
-    this.positionFailures = 0;
+    this.consequenceOnResume = this.replayIntent = null;
+    this.positionFailures = this.positionGiveUps = 0;
     this.dialogueStart.set(null);
+  }
+
+  /** Apaga los reintentos pendientes (pausa, decisión, posición). */
+  private cancelarReintentos(): void {
+    this.pausa.cancelar();
+    this.decisionOnline.cancelar();
+    this.positionRetry.cancelar();
   }
 
   startNewAttempt() {
@@ -1869,7 +1924,7 @@ export class SimulationPlayComponent implements OnInit, OnDestroy {
     this.busy.set(true);
     this.viewedNpcKeys.set(new Set());   // lo hablado lo dice el mundo recién leído
     this.simulationService.getAttempt(attempt.attemptId, attempt.attemptToken).subscribe({
-      next: fresh => { this.attempt.set(fresh); this.loadWorld(fresh); },
+      next: fresh => { this.attempt.set(this.attempt()?.status === 'PAUSED' ? { ...fresh, status: 'PAUSED' } : fresh); this.loadWorld(fresh); },
       error: cause => {
         this.busy.set(false);
         this.orRehearsalGone(cause, () => this.fail(DRAFT_COPY.rehearsalReloadFailed.text, cause, () => this.reloadRehearsal(block)));
@@ -1880,6 +1935,8 @@ export class SimulationPlayComponent implements OnInit, OnDestroy {
   /** El ensayo se descartó o cerró: se corta la secuencia y la burbuja y se ofrece abrir otro. Se dice una sola vez. */
   showRehearsalGone(why: 'gone' | 'closed' = 'gone'): void {
     if (this.rehearsalGone()) return;
+    this.cancelarReintentos();
+    this.endPausing();
     this.rehearsalWhy.set(why);
     this.reaction?.cancel();
     this.pendingAfterReaction = null;
@@ -1914,7 +1971,7 @@ export class SimulationPlayComponent implements OnInit, OnDestroy {
       error: cause => {
         const refused = accessErrorMessage(cause);
         if (refused) this.fail(refused, cause, null);
-        else this.fail('No pudimos iniciar la simulación. Revisa tus permisos.', cause, () => this.beginAttempt(caseVersionId, forceNew));
+        else this.fail('No pudimos iniciar la simulación. Inténtalo de nuevo.', cause, () => this.beginAttempt(caseVersionId, forceNew));
       },
     });
   }
@@ -2339,23 +2396,27 @@ export class SimulationPlayComponent implements OnInit, OnDestroy {
           // (por puerta o por decisión), así no se dice dos veces.
           this.applyWorldWithScenario(world);
         },
-        error: err => {
-          this.busy.set(false);
-          this.fadeActive.set(false);
-          // Si el servidor rechaza una puerta que el cliente creía abierta, su texto (el del seed) puede nombrar
-          // temas de las decisiones: se dice lo que el cliente sabe decir, sin ese texto.
-          if (err instanceof HttpErrorResponse && err.status === 400) this.showDoorNotice(ORIENTATION_COPY.door.fallback);
-          else this.reportApiError(err, 'No pudimos cruzar la puerta.');
-        },
+        error: err => this.onDoorFailed(game.attemptId, err),
       });
     }, 'door_open'));
+  }
+
+  /** La puerta falló. Con la pausa puesta mientras esperaba, nada sale sobre la pantalla de pausa. */
+  private onDoorFailed(attemptId: string, err: unknown): void {
+    this.busy.set(false);
+    this.fadeActive.set(false);
+    if (!this.respuestaVigente(attemptId)) return;
+    // Si el servidor rechaza una puerta que el cliente creía abierta, su texto (el del seed) puede nombrar
+    // temas de las decisiones: se dice lo que el cliente sabe decir, sin ese texto.
+    if (err instanceof HttpErrorResponse && err.status === 400) this.showDoorNotice(ORIENTATION_COPY.door.fallback);
+    else this.reportApiError(err, 'No pudimos cruzar la puerta.');
   }
 
   /**
    * La intención de decidir en curso: si la misma opción falla en la red y se reenvía, viaja con el mismo `requestId`
    * (el servidor responde la repetición sin decidir dos veces). Se libera al recibir respuesta.
    */
-  private pendingDecisionRequest: { decisionOptionId: number; requestId: string } | null = null;
+  private pendingDecisionRequest: { decisionOptionId: number; requestId: string; nodeId?: number; dialogueKey?: string } | null = null;
   /** Dónde arranca la conversación que se reabre al recargar (R1): su clave y la línea en que iba. */
   readonly dialogueStart = signal<{ key: string; line: number } | null>(null);
   /** Almacenamiento de la sesión sin que un bloqueo (modo privado, cuota) rompa el juego. */
@@ -2380,6 +2441,7 @@ export class SimulationPlayComponent implements OnInit, OnDestroy {
    */
   /** P2: una sala por piezas no cargó entera: se ve su versión simple y se dice, sin bloquear el juego. */
   onSalaIncompleta(): void {
+    if (this.attempt()?.status !== 'IN_PROGRESS') return;   // la sala se recargó bajo la pausa: el aviso no sale sobre ella
     this.notifications.show('warning', 'Parte de esta sala no cargó: se muestra una versión simple. Puedes seguir jugando.', 8000);
   }
 
@@ -2567,6 +2629,7 @@ export class SimulationPlayComponent implements OnInit, OnDestroy {
    * `CONSENT_REQUIRED` no es un error de la acción: la pantalla vuelve al aviso (S3-2b).
    */
   private reportApiError(err: unknown, fallback: string): void {
+    if (this.attempt()?.status === 'PAUSED') return;   // un error tardío no sale sobre la pantalla de pausa
     // Una acción que no respondió a tiempo: la persona lo ve y puede reintentar; nada queda colgado.
     if (esPlazoVencido(err)) {
       this.showActionError(DRAFT_COPY.actionSlow.text);
@@ -2613,57 +2676,83 @@ export class SimulationPlayComponent implements OnInit, OnDestroy {
     this.dialogue.set(null);
     this.journalMessage.set('');
     this.audioDirector.playSfx('dialogue_advance');   // el aviso de que la elección salió; ya no hay fundido aquí
-    {
-      const request = this.decisionRequestFor(decisionOptionId);
-      this.decisionInFlight = true;
-      this.simulationService.chooseDecision(
-        game.attemptId, game.attemptToken, decisionOptionId,
-        false, [], request.requestId,
-      ).pipe(timeout(PLAZO_ACCION_MS)).subscribe({
-        next: updated => {
-          this.decisionInFlight = false;
-          this.clearPendingDecision(game.attemptId);
-          // Una pausa enviada por el plazo (F2) ya fijó el estado autoritativo del intento: la respuesta tardía de
-          // esta decisión no lo pisa con uno anterior.
-          if (this.attempt()?.status === 'PAUSED') {
-            perfCancel('decision-to-scene');
-            this.busy.set(false);
-            return;
-          }
-          this.trackStageChange(game, updated);
-          this.attempt.set(updated);
-          this.repeatPauseAfterDecision();
-          // La etiqueta nueva la dice la reacción en su paso (`afterReaction` la deja si no hubo): aquí solo el icono.
-          this.syncPersonaIcon(updated, false);
-          this.trackPersona(updated);
-          this.persistAttemptToken(updated);
-          this.selectedInteraction.set(null);
-          this.nearbyInteraction.set(null);
-          this.journalPanel?.clear();
-          // El personaje reacciona en su sala; la supervisión y la sala de destino siguen en `afterReaction`.
-          this.pendingAfterReaction = updated;
-          if (!this.reaction) { this.afterReaction(); return; }
-          this.heldNode.set(escenaRetenida(game.currentNode, updated.currentNode));
-          this.reacting.set(true);
-          this.reaction.play(
-            { reaction: updated.reaction, personaAntes: game.persona, personaDespues: updated.persona, reduceMotion: this.reduceMotion() },
-            this.reactionActor(updated.reaction?.objectKey ?? null),
-          );
-        },
-        error: err => {
-          perfCancel('decision-to-scene');
-          this.decisionInFlight = false;
-          // La pausa ya quedó registrada: ni se devuelve la conversación sobre ella ni se avisa de nada.
-          if (this.attempt()?.status === 'PAUSED') { this.busy.set(false); return; }
-          // Se devuelve la conversación para poder reintentar en vez de dejar al estudiante en el mapa.
-          this.dialogue.set(previousDialogue);
-          this.releaseDialogue();
-          this.busy.set(false);
-          this.handleDecisionFailure(err, game);
-          this.repeatPauseAfterDecision();
-        }
-      });
+    const request = this.decisionRequestFor(decisionOptionId);
+    this.decisionInFlight = true;
+    this.simulationService.chooseDecision(
+      game.attemptId, game.attemptToken, decisionOptionId,
+      false, [], request.requestId,
+    ).pipe(timeout(PLAZO_ACCION_MS)).subscribe({
+      next: updated => this.onDecisionResult(game, updated),
+      error: err => {
+        perfCancel('decision-to-scene');
+        this.decisionInFlight = false;
+        if (this.choiceLostUnderPause()) return;
+        // La conversación vuelve EN LAS OPCIONES (su última línea, M1); al volver la red la elección se reenvía sola.
+        this.dialogue.set(previousDialogue);
+        if (previousDialogue?.lines?.length) this.dialogueStart.set({ key: previousDialogue.key, line: previousDialogue.lines.length - 1 });
+        if (this.pendingDecisionRequest) this.pendingDecisionRequest.dialogueKey = previousDialogue?.key;
+        if (this.attempt()?.attemptId === game.attemptId) this.decisionOnline.armar(null);
+        this.releaseDialogue();
+        this.busy.set(false);
+        this.handleDecisionFailure(err, game);
+      }
+    });
+  }
+
+  /** Llegó la respuesta de la decisión: con la pausa local puesta (Esc con ella en vuelo) se adopta sin reproducirla; si no, sigue su camino. */
+  private onDecisionResult(game: SimulationAttemptState, updated: SimulationDecisionResult): void {
+    this.decisionInFlight = false;
+    this.clearPendingDecision(game.attemptId);
+    if (this.attempt()?.status === 'PAUSED') this.adoptDecisionUnderPause(updated);
+    else this.applyDecisionResult(game, updated);
+  }
+
+  /** La decisión en vuelo llegó con la pausa local puesta: se adopta su estado SIN dejar la pausa, sin reproducir la reacción; la consecuencia se lee al reanudar. */
+  private adoptDecisionUnderPause(updated: SimulationDecisionResult): void {
+    perfCancel('decision-to-scene');
+    this.busy.set(false);
+    if (updated.status !== 'IN_PROGRESS') {   // la decisión cerró el caso: manda el resultado y ya no hay pausa que registrar
+      this.pausa.cancelar();
+      this.endPausing();
+      this.attempt.set(updated);
+      this.showClosedAttempt(updated);
+      return;
     }
+    this.attempt.set({ ...updated, status: 'PAUSED' });
+    this.trackPersona(updated);
+    this.persistAttemptToken(updated);
+    this.consequenceOnResume = updated;
+    this.pausa.intentar();
+  }
+
+  /** La decisión falló o no se pudo conciliar con la pausa local puesta: la persona sigue fuera, sin aviso (al reanudar la intención pendiente se le dice). */
+  private choiceLostUnderPause(): boolean {
+    if (this.attempt()?.status !== 'PAUSED') return false;
+    this.busy.set(false);
+    this.pausa.intentar();
+    return true;
+  }
+
+  /** El camino normal de la respuesta de una decisión: reacción del personaje y, tras ella, consecuencia y sala nueva. */
+  private applyDecisionResult(game: SimulationAttemptState, updated: SimulationDecisionResult): void {
+    this.trackStageChange(game, updated);
+    this.attempt.set(updated);
+    // La etiqueta nueva la dice la reacción en su paso (`afterReaction` la deja si no hubo): aquí solo el icono.
+    this.syncPersonaIcon(updated, false);
+    this.trackPersona(updated);
+    this.persistAttemptToken(updated);
+    this.selectedInteraction.set(null);
+    this.nearbyInteraction.set(null);
+    this.journalPanel?.clear();
+    // El personaje reacciona en su sala; la supervisión y la sala de destino siguen en `afterReaction`.
+    this.pendingAfterReaction = updated;
+    if (!this.reaction) { this.afterReaction(); return; }
+    this.heldNode.set(escenaRetenida(game.currentNode, updated.currentNode));
+    this.reacting.set(true);
+    this.reaction.play(
+      { reaction: updated.reaction, personaAntes: game.persona, personaDespues: updated.persona, reduceMotion: this.reduceMotion() },
+      this.reactionActor(updated.reaction?.objectKey ?? null),
+    );
   }
 
   /** Quién reacciona: el nombre en la sala actual y, si es la persona clave, su retrato. */
@@ -2693,13 +2782,14 @@ export class SimulationPlayComponent implements OnInit, OnDestroy {
     } else {
       const consequence = this.buildConsequenceDialogue(updated);
       if (consequence) this.dialogue.set(consequence);
+      this.consequenceOnResume = consequence ? updated : null;   // si la salida segura llega con ella a la vista, se lee al reanudar
     }
     this.loadProgressMap(updated);
     this.applyAudioScene(updated);
     this.triggerFade(() => this.loadWorld(updated), null);   // la elección ya sonó al enviarse
   }
 
-  /** La salida segura corta la reacción en el acto. Si la decisión ya cerró el caso, el resultado se abre sin supervisión. */
+  /** La salida segura corta la reacción en el acto: si la decisión cerró el caso, el resultado se abre sin supervisión; si no, su consecuencia se lee al reanudar (A3). */
   private cutReactionForPause(): void {
     const updated = this.pendingAfterReaction;
     this.pendingAfterReaction = null;
@@ -2707,12 +2797,17 @@ export class SimulationPlayComponent implements OnInit, OnDestroy {
     this.heldNode.set(null);
     this.reacting.set(false);
     this.busy.set(false);
-    if (updated && updated.status !== 'IN_PROGRESS') {
-      this.playCompletionAudio();
-      this.loadProgressMap(updated);
-      this.applyAudioScene(updated);
-      this.loadWorld(updated);
-    }
+    if (!updated) return;
+    if (updated.status !== 'IN_PROGRESS') this.showClosedAttempt(updated);
+    else this.consequenceOnResume = updated;
+  }
+
+  /** El intento cerró con la decisión: suena el cierre y se carga el mundo del resultado. */
+  private showClosedAttempt(updated: SimulationAttemptState): void {
+    this.playCompletionAudio();
+    this.loadProgressMap(updated);
+    this.applyAudioScene(updated);
+    this.loadWorld(updated);
   }
 
   useTool(toolCode: string) {
@@ -2772,6 +2867,7 @@ export class SimulationPlayComponent implements OnInit, OnDestroy {
   closeDialogue() {
     // Con la supervisión de la última decisión retenida, cerrarla abre el resultado (`releaseHeldOutcome`).
     this.dialogue.set(null);
+    this.consequenceOnResume = null;   // leída o descartada a propósito: no vuelve
     // Al cerrar ya no hay nada «abierto»: sin esto el objeto, y la herramienta del dock, quedaban marcados.
     this.selectedInteraction.set(null);
   }
@@ -2855,13 +2951,12 @@ export class SimulationPlayComponent implements OnInit, OnDestroy {
 
   /**
    * Salida segura desde cualquier superposición (diálogo con o sin opciones, bitácora, introducción
-   * y contexto) y desde el pie (F§7.8). Es el camino de REGLA-004 para los estados en que
-   * el pie no actúa a propósito (overlay abierto).
+   * y contexto) y desde el pie (F§7.8). Es el camino de REGLA-004: saca a la persona YA, con o sin red.
    *
    * - No hace nada sin un intento `IN_PROGRESS`, bajo el aviso de contenido (ETH-01) ni bajo el
    *   de reanudar, ni si ya hay una pausa pedida (un segundo toque no pausa dos veces).
-   * - No espera a ninguna petición en vuelo ni a guardar la posición (REGLA-004): la pausa sale en el acto y lo que llegue
-   *   después se descarta porque el intento ya no está en curso.
+   * - Pausa LOCALMENTE en el acto (el intento pasa a `PAUSED` en el cliente) y luego sincroniza con el servidor (`pausa`), sin
+   *   devolver nunca a la persona al caso; espera la respuesta de una decisión en vuelo para que el servidor la aplique antes.
    */
   pauseFromOverlay(): void {
     if (this.rehearsalGone()) return this.leaveRehearsal();
@@ -2878,32 +2973,32 @@ export class SimulationPlayComponent implements OnInit, OnDestroy {
     }
     const game = this.attempt();
     if (!game || game.status !== 'IN_PROGRESS') return;
-    if (this.showResumePrompt() || this.showContentWarning()) return;
-    if (this.pausing()) return;
+    if (this.showResumePrompt() || this.showContentWarning() || this.pausing()) return;
     this.pausing.set(true);
-    // Plazo de seguridad (F2): si la pausa no sale por la cola, se envía igualmente.
-    // Sale en el acto: lo que estaba en vuelo se descarta al llegar (ya no hay intento en curso) y no retiene la salida.
-    this.startQueuedPause();
-  }
-
-  /** Arranca la pausa pedida con `pauseFromOverlay()`. */
-  private startQueuedPause(): void {
-    const game = this.attempt();
-    if (!game || game.status !== 'IN_PROGRESS') {
-      this.endPausing();
-      return;
-    }
-    // La petición ya salió (por el plazo): la liberación tardía de `busy()` no la repite.
-    if (this.pauseSent) return;
     // Sonido discreto: la salida segura es seria, no alarmista.
     this.audioDirector.playSfx('ui_cancel');
-    this.busy.set(true);
-    this.pauseCurrentAttempt();
+    if (this.reacting()) this.cutReactionForPause();   // sin encuadre, gesto ni nota de supervisión sobre la pausa
+    this.attempt.set({ ...this.attempt()!, status: 'PAUSED' });
+    this.clearTransientOverlays();
+    this.busy.set(false);
+    if (this.mode() !== 'rehearsal') guardarMarcaDePausa(this.almacen, game.attemptId);
+    this.pausa.iniciar();
   }
 
-  /** La pausa pedida terminó o se descartó: se apagan el estado, el aviso de lentitud y el plazo. */
+  /** El servidor registró la pausa (o dijo en qué estado quedó el intento): se adopta y se recarga el mundo. */
+  private onPauseRegistered(updated: SimulationAttemptState): void {
+    this.endPausing();
+    borrarMarcaDePausa(this.almacen, updated.attemptId);
+    this.attempt.set(updated);
+    this.busy.set(true);
+    this.worldReloadPending = true;
+    this.loadWorld(updated);
+  }
+
+  /** La pausa pedida terminó o se descartó. */
   private endPausing(): void {
     this.pausing.set(false);
+    this.pauseState.set('none');
   }
 
   /** ¿Sigue en curso el intento `attemptId` (y, si se pide, en la misma sala)? Para descartar respuestas tardías. */
@@ -2914,53 +3009,6 @@ export class SimulationPlayComponent implements OnInit, OnDestroy {
     );
   }
 
-  /** Llegó la respuesta de la decisión mientras una pausa rechazada la esperaba: se repite una vez con el token que trajo. */
-  private repeatPauseAfterDecision(): void {
-    if (!this.pauseAwaitsDecision) return;
-    this.pauseAwaitsDecision = false;
-    if (this.attempt()?.status === 'IN_PROGRESS') this.pauseCurrentAttempt();
-    else this.endPausing();
-  }
-
-  private pauseCurrentAttempt(): void {
-    // Ya hay una pausa en camino (el plazo se adelantó a la sincronización de la posición, que responde tarde): no se repite.
-    if (this.pauseSent) return;
-    const game = this.attempt();
-    if (!game || game.status !== 'IN_PROGRESS') {
-      this.endPausing();
-      this.busy.set(false);
-      return;
-    }
-    this.pauseSent = true;
-    this.simulationService.safeExit(game.attemptId, game.attemptToken, 'Salida segura solicitada').pipe(timeout(PLAZO_ACCION_MS)).subscribe({
-      next: updated => {
-        this.pauseSent = false;
-        this.endPausing();
-        this.attempt.set(updated);
-        // Se limpia al éxito y no antes: si la petición falla, la superposición sigue ahí y se puede
-        // reintentar. Sin esto la pausa (z 150) quedaría bajo las tarjetas de introducción (z 380) y
-        // la bitácora reaparecería al reanudar.
-        this.clearTransientOverlays();
-        this.worldReloadPending = true;
-        this.loadWorld(updated);
-      },
-      error: cause => {
-        this.pauseSent = false;
-        // Una decisión en vuelo rota el token: la pausa se rechaza si llegó con el viejo. Se repite una vez con el token vigente,
-        // sea cual sea el orden: ya con la respuesta de la decisión a la vista, o al llegar esta (`repeatPauseAfterDecision`).
-        const vigente = this.attempt();
-        if (vigente?.attemptId === game.attemptId && vigente.status === 'IN_PROGRESS' && !isConsentRequiredError(cause)
-            && !esPlazoVencido(cause)) {
-          if (vigente.attemptToken !== game.attemptToken) { this.pauseCurrentAttempt(); return; }
-          if (this.decisionInFlight) { this.pauseAwaitsDecision = true; return; }
-        }
-        this.endPausing();
-        this.orRehearsalGone(cause, () => this.showActionError(esPlazoVencido(cause) ? DRAFT_COPY.actionSlow.text : 'No pudimos registrar la salida segura.'));
-        this.busy.set(false);
-      },
-    });
-  }
-
   /** Cierra toda superposición y descarta lo que esperaba una respuesta (pausa e intento nuevo). */
   private clearTransientOverlays(): void {
     this.selectedInteraction.set(null);
@@ -2969,6 +3017,7 @@ export class SimulationPlayComponent implements OnInit, OnDestroy {
     this.journalOpen.set(false);
     // «Ir a…» tiene su propia «Salida segura»: pausar desde ahí no la deja bajo la pantalla de pausa ni la trae de vuelta.
     this.placesOpen.set(false);
+    this.planOpen.set(false);
     this.showCaseIntro.set(false);
     this.helpOpen.set(false);
     this.pendingRestrictedInteraction.set(null);
@@ -3063,23 +3112,25 @@ export class SimulationPlayComponent implements OnInit, OnDestroy {
     const pending = this.pendingDecisionRequest;
     if (pending && pending.decisionOptionId === decisionOptionId) return pending;
     const requestId = globalThis.crypto?.randomUUID?.() ?? `${Date.now()}-${Math.random().toString(36).slice(2)}`;
-    this.pendingDecisionRequest = { decisionOptionId, requestId };
     const game = this.attempt();
+    const request = { decisionOptionId, requestId, nodeId: game?.currentNode.id };
+    this.pendingDecisionRequest = request;
     if (game && this.mode() !== 'rehearsal') {
       guardarIntencion(this.almacen, { attemptId: game.attemptId, nodeId: game.currentNode.id, decisionOptionId, requestId });
     }
-    return this.pendingDecisionRequest;
+    return request;
   }
 
   /** La decisión se confirmó o se descartó con certeza: la intención ya no se retiene (ni en memoria ni en la sesión). */
   private clearPendingDecision(attemptId: string): void {
     this.pendingDecisionRequest = null;
+    this.decisionOnline.cancelar();
     borrarIntencion(this.almacen, attemptId);
   }
 
   /**
    * El envío de la decisión falló. El plazo y los fallos de red o servidor conservan la intención (se reenvía con el mismo
-   * `requestId`). Un 4xx no basta para darla por perdida: el primer envío pudo aplicarse, así que se consulta el intento.
+   * `requestId`). Un 4xx se consulta: si la decisión sí se aplicó, se reenvía (el servidor devuelve su respuesta original).
    */
   private handleDecisionFailure(err: unknown, game: SimulationAttemptState): void {
     const veredicto = veredictoDeEnvio(err);
@@ -3092,71 +3143,124 @@ export class SimulationPlayComponent implements OnInit, OnDestroy {
       return;
     }
     this.busy.set(true);
+    this.decisionInFlight = true;   // la pausa pendiente espera a que se concilie
     this.simulationService.getAttempt(game.attemptId, game.attemptToken).pipe(timeout(PLAZO_ACCION_MS)).subscribe({
       next: fresh => {
-        if (this.attempt()?.attemptId !== game.attemptId) { this.busy.set(false); return; }
-        this.clearPendingDecision(game.attemptId);
-        if (veredictoDeIntencion({ nodeId: game.currentNode.id }, fresh) === 'aplicada') {
-          // El primer envío sí llegó: se adopta el intento del servidor en vez de perder la decisión.
-          this.attempt.set(fresh);
-          this.persistAttemptToken(fresh);
-          this.dialogue.set(null);
-          this.selectedInteraction.set(null);
-          this.nearbyInteraction.set(null);
-          this.loadWorld(fresh);
+        const pending = this.pendingDecisionRequest;
+        if (this.attempt()?.attemptId !== game.attemptId) { this.decisionInFlight = false; this.busy.set(false); return; }
+        if (pending && veredictoDeIntencion({ nodeId: game.currentNode.id }, fresh) === 'aplicada') {
+          // El primer envío sí llegó: se reenvía con el mismo requestId; si eso falla, se adopta el intento del servidor.
+          this.simulationService.chooseDecision(game.attemptId, game.attemptToken, pending.decisionOptionId, false, [], pending.requestId)
+            .pipe(timeout(PLAZO_ACCION_MS)).subscribe({
+              next: updated => this.onDecisionResult(game, updated),
+              error: () => { this.clearPendingDecision(game.attemptId); this.adoptServerAttempt(fresh); },
+            });
           return;
         }
+        this.decisionInFlight = false;
         this.busy.set(false);
+        if (this.choiceLostUnderPause()) return;
+        this.clearPendingDecision(game.attemptId);
         this.reportApiError(err, 'No pudimos registrar tu decisión. Inténtalo de nuevo.');
       },
       // Sin poder consultar, el resultado sigue incierto: la intención se conserva.
       error: cause => {
+        this.decisionInFlight = false;
         this.busy.set(false);
-        this.orRehearsalGone(cause, () => this.showActionError(DRAFT_COPY.decisionConfirming.text));
+        if (!this.choiceLostUnderPause()) this.orRehearsalGone(cause, () => this.showActionError(DRAFT_COPY.decisionConfirming.text));
       },
     });
   }
 
-  /** Tras recargar: la intención guardada se descarta si el servidor ya avanzó; si no, se retoma y se reenvía con su `requestId`. */
-  private restorePendingDecision(attempt: SimulationAttemptState): void {
+  /** El servidor ya avanzó el intento y no se pudo reenviar la decisión: se adopta su estado (con la pausa local puesta, la pausa lo trae al registrarse). */
+  private adoptServerAttempt(fresh: SimulationAttemptState): void {
+    this.decisionInFlight = false;
+    this.persistAttemptToken(fresh);
+    if (this.attempt()?.status === 'PAUSED') { this.busy.set(false); this.pausa.intentar(); return; }
+    this.attempt.set(fresh);
+    this.dialogue.set(null);
+    this.selectedInteraction.set(null);
+    this.nearbyInteraction.set(null);
+    this.loadWorld(fresh);
+  }
+
+  /** Al volver la red, la elección que no salió se reenvía sola con su mismo `requestId` (idempotente) y se avisa. */
+  private resendDecisionOnline(): void {
+    const pending = this.pendingDecisionRequest, game = this.attempt();
+    const veredicto = puedeReenviarEleccion({
+      pendiente: pending, intento: game && { status: game.status, nodeId: game.currentNode.id }, dialogoAbierto: this.dialogue()?.key ?? null,
+      otraSuperposicion: this.journalOpen() || this.helpOpen() || this.placesOpen() || this.planOpen() || this.showContentWarning(),
+      ocupado: this.busy() || this.decisionInFlight,
+    });
+    if (veredicto === 'esperar') this.decisionOnline.armar(esperaDeSincronizacion(1));
+    if (veredicto !== 'reenviar') return;
+    this.showSoftNotice(DRAFT_COPY.decisionResentOnline.text);
+    this.executeDecision(pending!.decisionOptionId);
+  }
+
+  /** Tras recargar o al reanudar: la intención guardada se retoma con su `requestId` o, si el servidor ya avanzó, se reenvía para mostrar su consecuencia. */
+  private restorePendingDecision(attempt: SimulationAttemptState, aviso: string = DRAFT_COPY.decisionConfirming.text): void {
     if (this.mode() === 'rehearsal') return;
     const intencion = leerIntencion(this.almacen, attempt.attemptId);
     if (!intencion) return;
-    if (attempt.status !== 'IN_PROGRESS' || veredictoDeIntencion(intencion, attempt) === 'aplicada') {
-      borrarIntencion(this.almacen, attempt.attemptId);
-      return;
+    if (attempt.status !== 'IN_PROGRESS') borrarIntencion(this.almacen, attempt.attemptId);
+    else if (veredictoDeIntencion(intencion, attempt) === 'aplicada') this.replayIntent = intencion;
+    else {
+      this.pendingDecisionRequest = { decisionOptionId: intencion.decisionOptionId, requestId: intencion.requestId, nodeId: intencion.nodeId };
+      this.notifications.show('info', aviso);
     }
-    this.pendingDecisionRequest = { decisionOptionId: intencion.decisionOptionId, requestId: intencion.requestId };
-    this.notifications.show('info', DRAFT_COPY.decisionConfirming.text);
   }
 
-  /** Guarda qué conversación va abierta y en qué línea (o borra el punto al cerrarla). */
+  /** La decisión ya se aplicó pero su respuesta se perdió: se reenvía con el MISMO requestId y se lee su consecuencia sobre la escena. */
+  private replayAppliedDecision(): void {
+    const intencion = this.replayIntent, game = this.attempt();
+    this.replayIntent = null;
+    if (!intencion || !game) return;
+    this.simulationService.chooseDecision(game.attemptId, game.attemptToken, intencion.decisionOptionId, false, [], intencion.requestId)
+      .pipe(timeout(PLAZO_ACCION_MS)).subscribe({
+        next: result => {
+          const consequence = this.buildConsequenceDialogue(result);
+          const visible = consequence && this.respuestaVigente(game.attemptId) && !this.dialogue();
+          if (visible) this.dialogue.set(consequence);
+          if (!consequence || visible) borrarIntencion(this.almacen, game.attemptId);   // solo ante un resultado cierto y atendido
+        },
+        error: err => { if (veredictoDeEnvio(err) === 'conciliar') borrarIntencion(this.almacen, game.attemptId); },
+      });
+  }
+
+  /** Guarda qué conversación va abierta, en qué línea y en qué escena (o borra el punto al cerrarla). */
   private saveReadingPoint(seleccion: MapObjectState | null, dialogo: DialogueState | null, line: number): void {
     const game = this.attempt();
     if (!game || this.mode() === 'rehearsal') return;
-    if (seleccion && dialogo && esLecturaRecuperable(seleccion, dialogo)) {
-      guardarLectura(this.almacen, { attemptId: game.attemptId, objectKey: seleccion.key, dialogueKey: dialogo.key, line });
+    const objectKey = objetoDeLectura(seleccion, dialogo);
+    if (objectKey && dialogo) {
+      guardarLectura(this.almacen, { attemptId: game.attemptId, nodeId: game.currentNode.id, objectKey, dialogueKey: dialogo.key, line });
     } else {
       borrarLectura(this.almacen, game.attemptId);
     }
   }
 
-  /** Tras recargar el mundo: reabre la conversación que iba abierta y la deja en la línea en que iba. */
+  /** Tras recargar el mundo: reabre la conversación (de un objeto o de un personaje de ambiente) en la línea en que iba; si la escena cambió o ya no está, se descarta. */
   private restoreReadingPoint(world: SimulationWorldState): void {
     this.readingRestorePending = false;
     const game = this.attempt();
     if (!game || this.mode() === 'rehearsal') return;
     const punto = leerLectura(this.almacen, game.attemptId);
     if (!punto) return;
-    const objeto = game.status === 'IN_PROGRESS' && !this.showCaseIntro() && !this.inputBlocked()
-      ? world.objects.find(candidate => candidate.key === punto.objectKey && candidate.type !== 'EXIT')
+    const reabrible = game.status === 'IN_PROGRESS' && punto.nodeId === game.currentNode.id && !this.showCaseIntro() && !this.inputBlocked();
+    const npcKey = claveDeNpc(punto.objectKey);
+    const npc = reabrible && npcKey
+      ? npcsDeLaSala(this.scenarioConfig()?.rooms.find(room => room.key === world.map.key)?.npcs ?? [], world.map.ambient).find(candidate => candidate.key === npcKey)
       : undefined;
-    if (!objeto) {
+    const objeto = reabrible && !npcKey ? world.objects.find(candidate => candidate.key === punto.objectKey && candidate.type !== 'EXIT') : undefined;
+    if (!npc && !objeto) {
       borrarLectura(this.almacen, game.attemptId);
       return;
     }
     this.dialogueStart.set({ key: punto.dialogueKey, line: punto.line });
-    this.openBackendInteraction(objeto);
+    // Un personaje de ambiente ya quedó registrado al abrirlo la primera vez: reabrir no vuelve a tocar el servidor.
+    if (npc) this.showNpcDialogue(npc);
+    else this.openBackendInteraction(objeto!);
   }
 
   /**
@@ -3317,16 +3421,18 @@ export class SimulationPlayComponent implements OnInit, OnDestroy {
     // repite al recargar: `pendingStage` solo lo arma la respuesta de una decisión.
     const stage = this.pendingStage;
     this.pendingStage = null;
-    if (stage) this.announceNewStage(stage);
+    const live = this.attempt()?.status === 'IN_PROGRESS';   // con la pausa puesta (local o registrada) ningún aviso de etapa o sala
+    if (stage && live) this.announceNewStage(stage);
     if (previousMapKey && mapChanged) {
       // La posición pendiente pertenece a la sala anterior: descartarla evita
       // que un flush posterior envíe coordenadas del mapa viejo.
       this.lastPosition = null;
       this.lastSyncedPosition = null;
-      this.announceRoomChange(world, stage !== null);
+      if (live) this.announceRoomChange(world, stage !== null);
     }
     this.maybeShowInitialCaseIntro();
     if (this.readingRestorePending) this.restoreReadingPoint(world);
+    if (this.replayIntent) this.replayAppliedDecision();
     // Al final, con la escena ya aplicada: si «Reanudar» llegó durante la recarga, se atiende ahora.
     this.finishWorldReload();
   }
@@ -3740,7 +3846,8 @@ export class SimulationPlayComponent implements OnInit, OnDestroy {
       synced.x, synced.y, world.map.key).pipe(timeout(PLAZO_ACCION_MS))
       .subscribe({
         next: updated => {
-          this.positionFailures = 0;
+          this.positionFailures = this.positionGiveUps = 0;
+          this.positionRetry.cancelar();
           // Una respuesta vieja que llega después de otra más nueva no pisa lo ya sincronizado.
           if (!this.positionOrder.aceptar(order)) return;
           if (this.respuestaVigente(game.attemptId, world.map.key) && updated.attemptId === game.attemptId && updated.map.key === world.map.key) {
@@ -3750,18 +3857,20 @@ export class SimulationPlayComponent implements OnInit, OnDestroy {
         // Un fallo no interrumpe la caminata, salvo que el servidor haya perdido el consentimiento (S3-2b): se reintenta.
         error: err => {
           if (isConsentRequiredError(err)) this.requireConsentAgain();
-          else this.orRehearsalGone(err, () => this.retryPositionSave());
+          else if (this.respuestaVigente(game.attemptId)) this.orRehearsalGone(err, () => this.retryPositionSave());
         },
       });
   }
 
   /** El guardado automático falló: se reintenta con espera creciente y, agotados los intentos, se avisa. */
   private retryPositionSave(): void {
+    if (this.destroyed) return;
     this.positionFailures += 1;
     const paso = pasoTrasFalloDeGuardado(this.positionFailures);
     if (paso.accion === 'avisar') {
       this.positionFailures = 0;
-      this.showActionError(DRAFT_COPY.positionNotSaved.text);
+      if (this.positionGiveUps++ === 0) this.showActionError(DRAFT_COPY.positionNotSaved.text);   // una sola vez mientras siga pendiente
+      this.positionRetry.armar(esperaDeSincronizacion(this.positionGiveUps));   // y se retoma al volver la red y con espera creciente (M2)
       return;
     }
     if (this.positionSaveHandle) window.clearTimeout(this.positionSaveHandle);
@@ -3811,7 +3920,7 @@ export class SimulationPlayComponent implements OnInit, OnDestroy {
           if (isConsentRequiredError(err)) { this.busy.set(false); this.requireConsentAgain(); return; }
           this.busy.set(false);
           this.releaseDialogue();
-          this.orRehearsalGone(err, () => this.showActionError(DRAFT_COPY.positionNotSyncedForAction.text));
+          if (this.attempt()?.status !== 'PAUSED') this.orRehearsalGone(err, () => this.showActionError(DRAFT_COPY.positionNotSyncedForAction.text));
         },
       });
   }

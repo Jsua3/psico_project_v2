@@ -100,7 +100,7 @@ describe('simulation-play: salida segura alcanzable desde cada superposición (R
   });
 
   it('la pausa pedida tiene un acuse visible que no depende del pie (oculto bajo una superposición)', () => {
-    const notice = source.match(/@if \(pausing\(\)\) \{[\s\S]*?\n      \}\n/)?.[0] ?? '';
+    const notice = source.match(/@if \(pausing\(\) && attempt\(\)\?\.status === 'IN_PROGRESS'\) \{[\s\S]*?\n      \}\n/)?.[0] ?? '';
     expect(notice).toContain('class="pausing-notice"');
     expect(notice).toContain('Pausando el caso…');
     // El acuse es estático: sin temporizadores ni animación (nada esencial se cierra solo).
