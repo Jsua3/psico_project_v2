@@ -1,6 +1,8 @@
+import { writeFileSync } from 'node:fs';
+
 import { expect, test } from '@playwright/test';
 
-import { acceptContentWarning, leaveBrief, loginAs, readPlayerPosition, startFreshAttempt, waitForWorldReady } from './support/siep-flow';
+import { leaveBrief, loginAs, readPlayerPosition, startFreshAttempt, waitForWorldReady } from './support/siep-flow';
 import { scaled } from './support/time-scale';
 
 /**
@@ -25,10 +27,23 @@ test.describe('modo aula por la red local', () => {
     await cdp.send('Emulation.setCPUThrottlingRate', { rate: 4 });
     await cdp.send('Network.enable');
     let bytes = 0;
-    cdp.on('Network.loadingFinished', (e: { encodedDataLength: number }) => { bytes += e.encodedDataLength; });
+    // Cada petición hasta poder caminar (dirección, tipo, bytes por la red), para ver qué se descarga y por qué.
+    const urls = new Map<string, { url: string; tipo: string }>();
+    const peticiones: { url: string; tipo: string; bytes: number; ms: number }[] = [];
+    let caminando = false;
+    let inicio = Date.now();
+    cdp.on('Network.responseReceived', (e: { requestId: string; type: string; response: { url: string } }) => {
+      urls.set(e.requestId, { url: e.response.url, tipo: e.type });
+    });
+    cdp.on('Network.loadingFinished', (e: { requestId: string; encodedDataLength: number }) => {
+      bytes += e.encodedDataLength;
+      const r = urls.get(e.requestId);
+      if (r && !caminando) peticiones.push({ ...r, bytes: e.encodedDataLength, ms: Date.now() - inicio });
+    });
 
     // 1. Primera carga (caché vacía): la página de inicio de sesión servida compilada por el servidor del aula.
-    const inicio = Date.now();
+    await page.goto('about:blank');
+    inicio = Date.now();
     await page.goto('/login', { waitUntil: 'load' });
     const primeraCarga = Date.now() - inicio;
     await expect(page.getByRole('heading', { name: 'Iniciar sesión' })).toBeVisible({ timeout: scaled(30_000) });
@@ -44,14 +59,21 @@ test.describe('modo aula por la red local', () => {
     await page.getByRole('button', { name: /entrar al caso/i }).click();
     await page.waitForURL(/\/portal\/simulador\/\d+/, { timeout: scaled(60_000) });
     await leaveBrief(page);
-    const consent = page.getByRole('dialog').filter({ hasText: 'Antes de entrar al caso' });
+    // Aviso de contenido, «Antes de comenzar» y lo que venga: se pasa cada «Continuar» con el teclado (laten para llamar la
+    // atención y nunca están quietos para un clic) hasta que el mundo está listo. Un intento anterior se descarta.
+    const mundo = page.locator('app-game-world .phaser-host[data-world-ready="true"]');
     const startFresh = page.getByRole('button', { name: /iniciar nuevo intento/i });
-    await expect(consent.or(startFresh).first()).toBeVisible({ timeout: scaled(60_000) });
-    if (await startFresh.isVisible().catch(() => false)) await startFreshAttempt(page, startFresh);
-    const tarjeta = await acceptContentWarning(page, consent);
-    await tarjeta.getByRole('button', { name: /^continuar$/i }).click();
+    const limite = Date.now() + scaled(120_000);
+    while (Date.now() < limite && !(await mundo.isVisible().catch(() => false))) {
+      if (await startFresh.isVisible().catch(() => false)) { await startFreshAttempt(page, startFresh); continue; }
+      const continuar = page.getByRole('dialog').getByRole('button', { name: /^continuar$/i }).first();
+      if (await continuar.isVisible().catch(() => false)) { await continuar.press('Enter').catch(() => undefined); await page.waitForTimeout(400); }
+      else await page.waitForTimeout(250);
+    }
     await waitForWorldReady(page);
     const hastaCaminar = Date.now() - entrar;
+    caminando = true;
+    if (process.env['SIEP_E2E_AULA_INFORME']) writeFileSync(process.env['SIEP_E2E_AULA_INFORME'], JSON.stringify(peticiones, null, 1));
 
     // 3. Camina: la posición del jugador cambia con el teclado.
     const antes = await readPlayerPosition(page);
