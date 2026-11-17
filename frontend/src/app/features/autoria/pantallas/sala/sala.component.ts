@@ -384,6 +384,19 @@ const DISTANCIAS_INICIALES = [96, -96, 160, -160, 48, -48];
               @if (p.tipo === 'mueble') {
                 <button type="button" class="boton" (click)="store.voltearMueble(s.id, p.indice)">Voltear</button>
               }
+              @if (p.tipo === 'objeto' && (store.caso()?.herramientas?.length ?? 0) > 0) {
+                <!-- El estudiante consigue la herramienta al revisar el objeto (el servidor la entrega por su toolCode). -->
+                <!-- BORRADOR: texto nuevo, pendiente de la aprobación de Psicología -->
+                <label class="etiqueta" for="pentrega">Al revisarlo, entrega la herramienta</label>
+                <select id="pentrega" class="campo" data-accion="entrega-herramienta"
+                        (change)="store.herramientaDeObjeto(s.id, p.indice, $any($event.target).value || null)">
+                  <!-- BORRADOR: texto nuevo, pendiente de la aprobación de Psicología -->
+                  <option value="" [selected]="!s.objetos[p.indice]?.toolCode">Ninguna</option>
+                  @for (h of store.caso()?.herramientas ?? []; track h.codigo) {
+                    <option [value]="h.codigo" [selected]="s.objetos[p.indice]?.toolCode === h.codigo">{{ h.nombre }}</option>
+                  }
+                </select>
+              }
               <span id="pmov" class="etiqueta">Mover</span>
               <div role="group" aria-labelledby="pmov" class="flechas">
                 <button type="button" class="boton" aria-label="Mover a la izquierda" (click)="desplazar(p, -8, 0)">←</button>

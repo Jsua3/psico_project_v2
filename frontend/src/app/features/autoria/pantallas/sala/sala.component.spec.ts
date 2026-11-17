@@ -143,6 +143,26 @@ describe('SalaComponent', () => {
     expect([img.style.width, img.style.height]).toEqual(['125px', '68px']);
   });
 
+  it('un objeto elegido ofrece las herramientas del caso y guarda la que entrega al revisarlo', async () => {
+    const { fixture, store, raiz } = await montar();
+    const caso = structuredClone(store.caso()!);
+    caso.herramientas = [{ codigo: 'ficha-riesgo', nombre: 'Ficha de riesgo' }, { codigo: 'acta-registro', nombre: 'Acta de registro de la atención' }];
+    caso.salas[0].objetos = [{ ref: caso.catalogo.objetos[0].id, x: 400, y: 300 }];
+    store.fijar(caso);
+    fixture.detectChanges();
+    raiz.querySelector<HTMLButtonElement>('[data-elemento="objeto-0"]')!.click();
+    fixture.detectChanges();
+    const select = raiz.querySelector<HTMLSelectElement>('select[data-accion="entrega-herramienta"]')!;
+    expect([...select.options].map((o) => o.textContent?.trim())).toEqual(['Ninguna', 'Ficha de riesgo', 'Acta de registro de la atención']);
+    select.value = 'acta-registro';
+    select.dispatchEvent(new Event('change'));
+    fixture.detectChanges();
+    expect(store.caso()!.salas[0].objetos[0].toolCode).toBe('acta-registro');
+    select.value = '';
+    select.dispatchEvent(new Event('change'));
+    expect(store.caso()!.salas[0].objetos[0].toolCode).toBeUndefined();
+  });
+
   it('al ensanchar una sala ampliada vuelve a escala uno', async () => {
     const { fixture, store, raiz } = await montar();
     const caso = structuredClone(CASO_HOSPITAL);
