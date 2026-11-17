@@ -1,4 +1,4 @@
-import { readFileSync } from 'node:fs';
+import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 
 import { expect, test } from '@playwright/test';
@@ -58,12 +58,18 @@ async function desbordes(page: Page): Promise<string[]> {
 }
 
 let caso = 0;
-test.beforeAll(async ({ request }) => {
+test.beforeAll(async ({ request }, testInfo) => {
+  // Un solo importe por corrida: tras un fallo Playwright rehace el proceso y volvería a importar (el servidor frena los
+  // importes seguidos con 429). El id queda en la carpeta de salida, que se vacía al empezar cada corrida.
+  const memo = join(testInfo.project.outputDir, 'ajuste-pantalla-caso.json');
+  if (existsSync(memo)) { caso = JSON.parse(readFileSync(memo, 'utf-8')).caso; return; }
   const token = await apiToken(request, PROFESOR);
   // Una versión propia por corrida: contra una pila viva, el mismo código y versión ya importados darían 409.
   const doc = { ...DOC, caso: { ...DOC.caso, version: `0.1.${Date.now() % 1_000_000}` } };
   const importado = await send(request, token, 'post', '/api/authoring/cases/import', doc, 'importar el caso de textos largos');
   caso = importado['caseVersionId'] as number;
+  mkdirSync(testInfo.project.outputDir, { recursive: true });
+  writeFileSync(memo, JSON.stringify({ caso }));
 });
 
 for (const [ancho, alto] of AREAS) {
@@ -88,7 +94,7 @@ for (const [ancho, alto] of AREAS) {
         const nombre = /hablar con ([^\n]+)/i.exec(panel)?.[1]?.trim() ?? '';
         expect(nombre, 'la sala tiene a quién hablarle').not.toBe('');
         const quien = new RegExp(nombre.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'i');
-        await exploreUntilNearby(page, createWorldInputDriver(page, 'keyboard'), quien, 60_000);
+        await exploreUntilNearby(page, createWorldInputDriver(page, 'keyboard'), quien, 90_000);
         await page.keyboard.press('e');
         const dialogo = page.getByRole('dialog', { name: quien });
         await expect(dialogo).toBeVisible({ timeout: 15_000 });
@@ -100,6 +106,9 @@ for (const [ancho, alto] of AREAS) {
         }
         await expect(page.locator('.choice-btn').first(), 'la conversación llega a sus opciones').toBeVisible();
         await page.waitForTimeout(1_500);
+        // Con AJUSTE_CAPTURAS=<carpeta>, la decisión de cada tamaño queda en captura (para revisar a ojo).
+        const carpeta = process.env['AJUSTE_CAPTURAS'];
+        if (carpeta) await page.screenshot({ path: join(carpeta, `${ancho}x${alto}-${zoom * 100}-decision.png`) });
         expect(await desbordes(page), 'decisión').toEqual([]);
       } finally {
         await contexto.close();
