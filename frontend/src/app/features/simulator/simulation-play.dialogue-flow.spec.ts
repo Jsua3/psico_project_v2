@@ -93,6 +93,7 @@ describe('SimulationPlayComponent: diálogo sin callejones', () => {
       openInteraction: vi.fn(() => EMPTY),
       chooseDecision: vi.fn(() => EMPTY),
       useTool: vi.fn(() => EMPTY),
+      getAttempt: vi.fn(() => of(makeAttempt())),
     };
     audio = {
       init: vi.fn(),
@@ -239,29 +240,30 @@ describe('SimulationPlayComponent: diálogo sin callejones', () => {
   });
 
   describe('salida segura con una decisión en vuelo (H-04)', () => {
-    it('la pausa espera a que termine la decisión y usa el intento que devolvió el servidor', () => {
+    it('la pausa sale en el acto; si la decisión rotó el token antes de que llegara, se repite con el token nuevo', () => {
       const decision$ = new Subject<SimulationAttemptState>();
+      const pause$ = new Subject<SimulationAttemptState>();
       sim['chooseDecision'].mockReturnValue(decision$);
+      sim['safeExit'].mockReturnValueOnce(pause$);
       sim['getWorld'].mockReturnValue(of(component.world()));
       sim['getScenarioConfig'].mockReturnValue(of({ scenarioKey: 'x', startRoomKey: 'x', rooms: [] }));
       component.dialogue.set(decisionDialogue(11));
 
       component.executeDecision(11);
-      component.pauseFromOverlay();
       vi.advanceTimersByTime(400);
+      component.pauseFromOverlay();
 
       expect(component.pausing()).toBe(true);
       expect(sim['chooseDecision']).toHaveBeenCalledTimes(1);
-      expect(sim['safeExit']).not.toHaveBeenCalled();
-
-      // El servidor ya avanzó el caso: la pausa debe usar el token del intento nuevo, no el viejo.
-      decision$.next(makeAttempt({ attemptToken: 'token-2', currentNode: { key: FREE_NODE, title: 'Etapa 2', options: [] } }));
-      vi.advanceTimersByTime(340); // la sala de destino carga tras el fundido que sigue a la reacción
-      TestBed.tick();
-
-      expect(component.busy()).toBe(true); // la pausa ya está en vuelo
       expect(sim['safeExit']).toHaveBeenCalledTimes(1);
-      expect(sim['safeExit']).toHaveBeenCalledWith('attempt-1', 'token-2', 'Salida segura solicitada');
+      expect(sim['safeExit']).toHaveBeenLastCalledWith('attempt-1', 'token-1', 'Salida segura solicitada');
+
+      // El servidor avanzó el caso (y rotó el token) antes de ver la pausa: esta se rechaza y se repite con el token nuevo.
+      decision$.next(makeAttempt({ attemptToken: 'token-2', currentNode: { key: FREE_NODE, title: 'Etapa 2', options: [] } }));
+      pause$.error(http(403, 'Token del intento inválido.'));
+
+      expect(sim['safeExit']).toHaveBeenCalledTimes(2);
+      expect(sim['safeExit']).toHaveBeenLastCalledWith('attempt-1', 'token-2', 'Salida segura solicitada');
     });
 
     it('si la decisión falla la pausa pedida se ejecuta igualmente y la conversación no reaparece', () => {

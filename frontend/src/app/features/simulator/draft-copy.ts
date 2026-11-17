@@ -17,7 +17,7 @@ export interface DraftCopyEntry {
    * Decisión del plan visual (§9) o regla de negocio que lo origina; `F6-n` / `F7-n` cuando el texto nace de una
    * tarea del plan y no de una decisión.
    */
-  readonly decision: `VD-${number}` | `RN-${number}` | `ETH-${number}` | `F6-${number}` | `F7-${number}` | `F10-${number}` | `P6-${number}` | `DSL-${number}`;
+  readonly decision: `VD-${number}` | `RN-${number}` | `ETH-${number}` | `F6-${number}` | `F7-${number}` | `F10-${number}` | `P6-${number}` | `DSL-${number}` | `R1-${number}`;
   /** Quién debe fijar la redacción definitiva. */
   readonly owner: 'Psicología';
   /** Qué se espera de Psicología; sin indicar, `validar`. */
@@ -1009,6 +1009,42 @@ export const DRAFT_COPY = {
     owner: 'Psicología',
     where: 'Resultado: nota de una conducta prohibida en «Tus decisiones»',
     text: 'Alerta ética: esta respuesta puede aumentar el riesgo de revictimización.',
+  },
+  /** Robustez del cliente (R1): avisos cuando una acción no responde o la posición no se guarda. Sin contenido clínico. */
+  actionSlow: {
+    decision: 'R1-1',
+    owner: 'Psicología',
+    review: 'validar',
+    where: 'Aviso de error: una acción del juego (interacción, herramienta, puerta, conversación, pausa) no respondió a tiempo',
+    text: 'La respuesta está tardando. Inténtalo de nuevo.',
+  },
+  decisionSlow: {
+    decision: 'R1-2',
+    owner: 'Psicología',
+    review: 'validar',
+    where: 'Aviso de error: el registro de una decisión no respondió a tiempo',
+    text: 'La respuesta está tardando. Vuelve a elegir la misma opción para confirmarla.',
+  },
+  decisionConfirming: {
+    decision: 'R1-3',
+    owner: 'Psicología',
+    review: 'validar',
+    where: 'Aviso: queda una decisión sin confirmar (al elegir otra opción, al recargar o si no se pudo consultar el estado)',
+    text: 'Aún estamos confirmando tu decisión anterior. Vuelve a elegirla para continuar.',
+  },
+  positionNotSaved: {
+    decision: 'R1-4',
+    owner: 'Psicología',
+    review: 'validar',
+    where: 'Aviso de error: el guardado automático de la posición falló tras varios reintentos',
+    text: 'No pudimos guardar tu posición. Revisa tu conexión: si recargas, podrías volver unos pasos atrás.',
+  },
+  positionNotSyncedForAction: {
+    decision: 'R1-5',
+    owner: 'Psicología',
+    review: 'validar',
+    where: 'Aviso de error: una acción que pide estar cerca no pudo guardar antes la ubicación',
+    text: 'No pudimos guardar tu ubicación. Revisa tu conexión y vuelve a intentarlo.',
   },
 } as const satisfies Record<string, DraftCopyEntry>;
 

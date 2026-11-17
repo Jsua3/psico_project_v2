@@ -269,49 +269,22 @@ describe('SimulationPlayComponent: salida segura (correcciones de la revisión)'
     });
   });
 
-  describe('F2: la pausa en cola tiene plazo (petición colgada)', () => {
+  describe('F2: la pausa sale en el acto, sin cola ni plazo (petición colgada)', () => {
     const DEADLINE_MS = 10_000;
     const paused = () => makeAttempt({ status: 'PAUSED' });
 
-    it('con una petición colgada la pausa NO sale antes del plazo y sale al cumplirse, una sola vez', () => {
+    it('con una petición colgada la pausa sale en el acto, sin esperar ningún plazo, una sola vez', () => {
       component.busy.set(true); // una petición que nunca responde
 
       component.pauseFromOverlay();
       TestBed.tick();
-      vi.advanceTimersByTime(DEADLINE_MS - 1);
-
-      expect(sim['safeExit']).not.toHaveBeenCalled();
-      expect(component.pausingSlow()).toBe(false);
-
-      vi.advanceTimersByTime(1);
 
       expect(sim['safeExit']).toHaveBeenCalledTimes(1);
       expect(sim['safeExit']).toHaveBeenCalledWith('attempt-1', 'token-1', 'Salida segura solicitada');
-      expect(component.pausingSlow()).toBe(true);
-    });
 
-    it('el aviso del plazo es visible (texto del pie de pausa) y se anuncia, en español', () => {
-      component.busy.set(true);
-      component.pauseFromOverlay();
+      vi.advanceTimersByTime(60_000);
 
-      vi.advanceTimersByTime(DEADLINE_MS);
-      vi.advanceTimersByTime(60); // el anuncio se emite 50 ms después
-
-      expect(component.slowPauseNotice).toBe('La acción en curso está tardando. Estamos pausando el caso igualmente.');
-      // La salida segura se anuncia en la región assertive de la app (F6-12): es de las pocas cosas que lo merecen.
-      expect(document.querySelector('[data-live-region="assertive"]')!.textContent).toBe(component.slowPauseNotice);
-      expect(source).toContain("{{ pausingSlow() ? slowPauseNotice : 'Pausando el caso…' }}");
-    });
-
-    it('una pausa en cola se anuncia en assertive (salida segura) y no en la región de cortesía', () => {
-      component.busy.set(true);
-
-      component.pauseFromOverlay();
-      vi.advanceTimersByTime(60);
-
-      expect(document.querySelector('[data-live-region="assertive"]')!.textContent)
-        .toBe('Pausando el caso. Se guardará en cuanto termine la acción en curso.');
-      expect(document.querySelector('[data-live-region="polite"]')!.textContent).toBe('');
+      expect(sim['safeExit']).toHaveBeenCalledTimes(1);
     });
 
     it('si la petición termina mucho después, su liberación de busy no repite la pausa', () => {
@@ -327,21 +300,6 @@ describe('SimulationPlayComponent: salida segura (correcciones de la revisión)'
       expect(sim['safeExit']).toHaveBeenCalledTimes(1);
     });
 
-    it('si busy se libera antes del plazo la pausa sale por la cola y el plazo ya no la repite', () => {
-      component.busy.set(true);
-      component.pauseFromOverlay();
-      vi.advanceTimersByTime(2_000);
-      expect(sim['safeExit']).not.toHaveBeenCalled();
-
-      component.busy.set(false);
-      TestBed.tick();
-      expect(sim['safeExit']).toHaveBeenCalledTimes(1);
-
-      vi.advanceTimersByTime(60_000);
-
-      expect(sim['safeExit']).toHaveBeenCalledTimes(1);
-    });
-
     it('al terminar la pausa se apagan el estado, el aviso de lentitud y el plazo', () => {
       sim['safeExit'].mockReturnValue(of(paused()));
       component.busy.set(true);
@@ -351,7 +309,6 @@ describe('SimulationPlayComponent: salida segura (correcciones de la revisión)'
 
       expect(component.attempt()?.status).toBe('PAUSED');
       expect(component.pausing()).toBe(false);
-      expect(component.pausingSlow()).toBe(false);
       vi.advanceTimersByTime(60_000);
       expect(sim['safeExit']).toHaveBeenCalledTimes(1);
     });
@@ -366,13 +323,11 @@ describe('SimulationPlayComponent: salida segura (correcciones de la revisión)'
       failing.error(new Error('sin red'));
 
       expect(component.pausing()).toBe(false);
-      expect(component.pausingSlow()).toBe(false);
       expect(component.actionError()).toBe('No pudimos registrar la salida segura.');
       expect(component.busy()).toBe(false);
     });
 
-    it('si la sincronización de la posición queda colgada, el plazo envía la pausa sin esperarla', () => {
-      // Hay una posición pendiente: `startQueuedPause` primero la guarda y esa petición nunca responde.
+    it('con la posición sin guardar la pausa sale sin esperarla ni pedirla', () => {
       const sync = new Subject<unknown>();
       sim['updateWorldState'].mockReturnValue(sync);
       (component as unknown as { lastPosition: { x: number; y: number } }).lastPosition = { x: 120, y: 340 };
@@ -380,18 +335,7 @@ describe('SimulationPlayComponent: salida segura (correcciones de la revisión)'
 
       component.pauseFromOverlay();
 
-      expect(sim['updateWorldState']).toHaveBeenCalledTimes(1);
-      expect(sim['safeExit']).not.toHaveBeenCalled();
-
-      vi.advanceTimersByTime(DEADLINE_MS);
-
-      expect(sim['safeExit']).toHaveBeenCalledTimes(1);
-      expect(component.pausingSlow()).toBe(true);
-
-      // La sincronización de la posición responde tarde: ya no repite la pausa.
-      sync.next({});
-      sync.complete();
-
+      expect(sim['updateWorldState']).not.toHaveBeenCalled();
       expect(sim['safeExit']).toHaveBeenCalledTimes(1);
     });
 
@@ -415,17 +359,6 @@ describe('SimulationPlayComponent: salida segura (correcciones de la revisión)'
       expect(component.attempt()?.status).toBe('PAUSED');
       expect(component.busy()).toBe(false);
       expect(component.fadeActive()).toBe(false);
-    });
-
-    it('un intento nuevo apaga el plazo pendiente', () => {
-      component.busy.set(true);
-      component.pauseFromOverlay();
-
-      component.startNewAttempt();
-      vi.advanceTimersByTime(60_000);
-
-      expect(sim['safeExit']).not.toHaveBeenCalled();
-      expect(component.pausing()).toBe(false);
     });
 
     it('el aviso del pie admite varias líneas sin salirse de la pantalla', () => {

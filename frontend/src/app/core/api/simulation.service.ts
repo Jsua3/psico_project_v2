@@ -28,6 +28,13 @@ import {
  * La respuesta de una decisión (C2) tiene una sola forma: `{ attempt, consequence, retry? }`. Sin puntaje, delta ni
  * clase: tras decidir solo llegan la consecuencia y, si el caso concede otra oportunidad, el reintento.
  */
+interface PositionAck {
+  attemptId: string;
+  status: SimulationAttemptState['status'];
+  map: { key: string };
+  player: { x: number; y: number };
+}
+
 interface DecisionResponseWire {
   attempt: SimulationAttemptState;
   consequence: DecisionConsequence | null;
@@ -159,7 +166,7 @@ export class SimulationService {
   }
 
   updateWorldState(attemptId: string, attemptToken: string, playerX: number, playerY: number, currentMapKey: string) {
-    return this.http.patch<ApiResponse<SimulationWorldState>>(`${this.API}/attempts/${attemptId}/world-state`, {
+    return this.http.patch<ApiResponse<PositionAck>>(`${this.API}/attempts/${attemptId}/world-state`, {
       attemptToken,
       playerX,
       playerY,
