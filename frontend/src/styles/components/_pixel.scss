@@ -100,7 +100,13 @@
   }
   // La ficha encendida: la acción principal de una capa (crema y tinta oscura, como la ficha elegida del cuadro).
   .u-ficha--primaria { --m: var(--marco-ficha-elegida); --t: var(--trama-ficha-elegida); background-color: var(--pixel-crema); color: var(--pixel-tinta-oscura); font-weight: 700; }
-  .u-ficha--primaria:focus-visible { --m: var(--marco-ficha-elegida); outline: calc(1 * var(--pixel-px)) solid var(--luz); outline-offset: calc(2 * var(--pixel-px)); }
+  .u-ficha--primaria:focus-visible { --m: var(--marco-ficha-elegida); --t: var(--trama-ficha-elegida); outline: calc(1 * var(--pixel-px)) solid var(--luz); outline-offset: calc(2 * var(--pixel-px)); }
+  // Encendida en todos sus estados: la trama oscura de sobre y pulsada dejaba la tinta oscura sobre oscuro (se vio en
+  // «Reanudar este intento» con el foco de teclado). Sobre: el contorno de luz; pulsada: el mismo hundido de un punto.
+  .u-ficha--primaria:active { --m: var(--marco-ficha-elegida); --t: var(--trama-ficha-elegida); }
+  @media (hover: hover) and (pointer: fine) {
+    .u-ficha--primaria:hover:not(:active) { --m: var(--marco-ficha-elegida); --t: var(--trama-ficha-elegida); outline: calc(1 * var(--pixel-px)) solid var(--luz); outline-offset: calc(2 * var(--pixel-px)); }
+  }
 
   // Ranura de herramienta: ficha cuadrada con el cuaderno de O1 (tira de 6 cuadros de 20 px: 0 disponible, 1-4 nueva,
   // 5 usada) a la escala del punto de mundo.
