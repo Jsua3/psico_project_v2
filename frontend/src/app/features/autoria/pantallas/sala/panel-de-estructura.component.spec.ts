@@ -68,6 +68,22 @@ describe('PanelDeEstructuraComponent', () => {
     expect(opciones(3)).toEqual(['rojo']);
   });
 
+  it('cada lista muestra lo que la sala tiene aunque no sea la primera opción', async () => {
+    const { store, actualizar, raiz } = await montar();
+    const selectores = () => raiz.querySelectorAll<HTMLSelectElement>('select');
+    const ultimo = [...selectores()[0].options].map(o => o.value).at(-1)!;
+    selectores()[0].value = ultimo; selectores()[0].dispatchEvent(new Event('change')); actualizar();
+    const acabados = store.caso()!.salas[0].estructura!.acabados;
+    expect(acabados.piso).toBe(ultimo);
+    // Al volver a pintar desde el borrador (otra sala, deshacer, recargar), cada lista dice lo guardado.
+    const caso = structuredClone(store.caso()!);
+    store.fijar(caso); actualizar();
+    expect(selectores()[0].value).toBe(acabados.piso);
+    expect(selectores()[1].value).toBe(acabados.variante);
+    expect(selectores()[2].value).toBe(acabados.muro);
+    expect(selectores()[3].value).toBe(acabados.paleta);
+  });
+
   it('crear la puerta de regreso agrega y enlaza una puerta en la sala destino', async () => {
     const { fixture, store, actualizar, raiz } = await montar();
     const caso = structuredClone(store.caso()!);

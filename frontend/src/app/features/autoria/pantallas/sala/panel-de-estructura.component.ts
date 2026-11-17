@@ -7,6 +7,17 @@ import type { SalaCaso } from '../../modelo/caso';
 import { largoMuro, zonaCaminable, type Muro } from '../../modelo/geometria';
 import { anclaDeElemento, type FaltaDeSala } from '../../modelo/salas-a-documento';
 
+/** Palabras de los identificadores de la biblioteca que se escriben con tilde o en mayúsculas. */
+const PALABRAS: Readonly<Record<string, string>> = {
+  adoquin: 'adoquín', zocalo: 'zócalo', comisaria: 'comisaría', habitacion: 'habitación', ninos: 'niños', nna: 'NNA',
+  juridica: 'jurídica', orientacion: 'orientación', cafeteria: 'cafetería', enfermeria: 'enfermería', recepcion: 'recepción',
+};
+/** `casa-habitacion-ninos` → «Casa habitación niños»; una sola letra (`a`) → «A». */
+export function legible(id: string): string {
+  const texto = id.split('-').map(p => PALABRAS[p] ?? p).join(' ');
+  return texto.charAt(0).toUpperCase() + texto.slice(1);
+}
+
 @Component({
   selector: 'app-panel-de-estructura',
   changeDetection: ChangeDetectionStrategy.OnPush,
@@ -14,7 +25,7 @@ import { anclaDeElemento, type FaltaDeSala } from '../../modelo/salas-a-document
     <!-- BORRADOR: texto nuevo, pendiente de la aprobación de Psicología -->
     <div role="tablist" aria-label="Piezas de la sala" (keydown)="tecla($event)">
       @for (categoria of catalogo.paleta(); track categoria.clave; let i = $index) {
-        <button type="button" role="tab" [attr.aria-selected]="indice() === i" [attr.tabindex]="indice() === i ? 0 : -1"
+        <button type="button" role="tab" class="boton" [attr.aria-selected]="indice() === i" [attr.tabindex]="indice() === i ? 0 : -1"
           (click)="indice.set(i)">{{ categoria.nombre }}</button>
       }
     </div>
@@ -22,58 +33,63 @@ import { anclaDeElemento, type FaltaDeSala } from '../../modelo/salas-a-document
       <div role="tabpanel">
         @for (modelo of categoria.modelos; track modelo.tipo + modelo.modelo) {
           <!-- BORRADOR: texto nuevo, pendiente de la aprobación de Psicología -->
-          <button type="button" [attr.data-modelo]="modelo.modelo" (click)="agregar(modelo)">Agregar {{ modelo.nombre }}</button>
+          <button type="button" class="boton" [attr.data-modelo]="modelo.modelo" (click)="agregar(modelo)">Agregar {{ modelo.nombre }}</button>
         }
         @if (categoria.clave === 'objetos') { <ng-content /> }
       </div>
     }
     @if (puerta(); as puerta) {
       <!-- BORRADOR: texto nuevo, pendiente de la aprobación de Psicología -->
-      <label>Destino <select [value]="puerta.hacia ?? ''" (change)="destino(puerta.id, $any($event.target).value)">
+      <label>Destino <select class="campo" (change)="destino(puerta.id, $any($event.target).value)">
         <!-- BORRADOR: texto nuevo, pendiente de la aprobación de Psicología -->
-        <option value="">Elige una sala</option>
+        <option value="" [selected]="!puerta.hacia">Elige una sala</option>
         @for (destino of store.caso()?.salas ?? []; track destino.id) {
-          <option [value]="destino.id">{{ destino.nombre }}</option>
+          <option [value]="destino.id" [selected]="destino.id === puerta.hacia">{{ destino.nombre }}</option>
         }
       </select></label>
       <!-- BORRADOR: texto nuevo, pendiente de la aprobación de Psicología -->
-      <label>Modelo <select [value]="puerta.modelo ?? ''" (change)="modeloPuerta(puerta.id, $any($event.target).value)">
-        @for (modelo of modelosPuerta(); track modelo.modelo) { <option [value]="modelo.modelo">{{ modelo.nombre }}</option> }
+      <label>Modelo <select class="campo" (change)="modeloPuerta(puerta.id, $any($event.target).value)">
+        @for (modelo of modelosPuerta(); track modelo.modelo) { <option [value]="modelo.modelo" [selected]="modelo.modelo === puerta.modelo">{{ modelo.nombre }}</option> }
       </select></label>
       <!-- BORRADOR: texto nuevo, pendiente de la aprobación de Psicología -->
       <label><input type="checkbox" [checked]="puerta.sentidoUnico ?? false"
         (change)="sentido(puerta.id, $any($event.target).checked)" /> Una sola dirección</label>
       @if (faltaRegreso(puerta.id)) {
         <!-- BORRADOR: texto nuevo, pendiente de la aprobación de Psicología -->
-        <button type="button" (click)="regreso(puerta.id)">Crear la puerta de regreso</button>
+        <button type="button" class="boton" (click)="regreso(puerta.id)">Crear la puerta de regreso</button>
       }
     }
     @if (sala().estructura; as estructura) {
       <!-- BORRADOR: texto nuevo, pendiente de la aprobación de Psicología -->
-      <label>Piso <select [value]="estructura.acabados.piso" (change)="piso($any($event.target).value)">
-        @for (p of catalogo.acabados().pisos; track p.piso) { <option [value]="p.piso">{{ p.piso }}</option> }
+      <label>Piso <select class="campo" (change)="piso($any($event.target).value)">
+        @for (p of catalogo.acabados().pisos; track p.piso) { <option [value]="p.piso" [selected]="p.piso === estructura.acabados.piso">{{ nombrePiso(p.piso, p.variantes) }}</option> }
       </select></label>
       <!-- BORRADOR: texto nuevo, pendiente de la aprobación de Psicología -->
-      <label>Variante <select [value]="estructura.acabados.variante" (change)="variante($any($event.target).value)">
-        @for (v of variantes(); track v) { <option [value]="v">{{ v }}</option> }
+      <label>Variante <select class="campo" (change)="variante($any($event.target).value)">
+        @for (v of variantes(); track v) { <option [value]="v" [selected]="v === estructura.acabados.variante">{{ legible(v) }}</option> }
       </select></label>
       <!-- BORRADOR: texto nuevo, pendiente de la aprobación de Psicología -->
-      <label>Acabado de muro <select [value]="estructura.acabados.muro" (change)="muro($any($event.target).value)">
-        @for (m of catalogo.acabados().muros; track m.muro) { <option [value]="m.muro">{{ m.muro }}</option> }
+      <label>Acabado de muro <select class="campo" (change)="muro($any($event.target).value)">
+        @for (m of catalogo.acabados().muros; track m.muro) { <option [value]="m.muro" [selected]="m.muro === estructura.acabados.muro">{{ nombreMuro(m.muro, m.paletas) }}</option> }
       </select></label>
       <!-- BORRADOR: texto nuevo, pendiente de la aprobación de Psicología -->
-      <label>Paleta <select [value]="estructura.acabados.paleta" (change)="paleta($any($event.target).value)">
-        @for (p of paletas(); track p) { <option [value]="p">{{ p }}</option> }
+      <label>Paleta <select class="campo" (change)="paleta($any($event.target).value)">
+        @for (p of paletas(); track p) { <option [value]="p" [selected]="p === estructura.acabados.paleta">{{ legible(p) }}</option> }
       </select></label>
       <!-- BORRADOR: texto nuevo, pendiente de la aprobación de Psicología -->
-      <button type="button" role="switch" [attr.aria-checked]="estructura.momento === 'noche'" (click)="momento()">Día / Noche</button>
+      <button type="button" role="switch" class="boton" [attr.aria-checked]="estructura.momento === 'noche'" (click)="momento()">Día / Noche</button>
     }
   `,
   styles: [`
-    :host { display: flex; flex-direction: column; gap: 8px; }
-    [role=tablist] { display: flex; flex-wrap: wrap; }
+    :host { display: flex; flex-direction: column; gap: 12px; }
+    [role=tablist], [role=tabpanel] { display: flex; flex-wrap: wrap; gap: 6px; }
+    [role=tablist] { padding-bottom: 8px; border-bottom: 1px solid var(--linea); }
+    [role=tab][aria-selected=true] { background: var(--primario-tinte); border-color: var(--primario); color: var(--primario); }
+    [role=tabpanel] .boton { flex: 1 1 auto; justify-content: flex-start; text-align: left; }
     button, select { min-height: 44px; }
-    label { display: flex; flex-direction: column; }
+    label { display: flex; flex-direction: column; gap: 4px; font-weight: 600; font-size: var(--autoria-texto-16); }
+    label:has(input[type=checkbox]) { flex-direction: row; align-items: center; gap: 8px; font-weight: 400; }
+    [role=switch][aria-checked=true] { background: var(--primario-tinte); border-color: var(--primario); }
   `],
 })
 export class PanelDeEstructuraComponent {
@@ -84,6 +100,16 @@ export class PanelDeEstructuraComponent {
   protected readonly catalogo = inject(CatalogoDePiezas);
   protected readonly store = inject(CasoStore);
   protected readonly indice = signal(0);
+
+  /** El nombre que da la biblioteca a un piso o a un muro, y uno legible para variantes y paletas (nunca el valor técnico). */
+  protected nombrePiso(piso: string, variantes: string[]): string {
+    const pisos = this.catalogo.manifiesto()?.pisos ?? {};
+    return pisos[`${piso}-a`]?.nombre ?? variantes.map(v => pisos[`${piso}-${v}`]?.nombre).find(Boolean) ?? legible(piso);
+  }
+  protected nombreMuro(muro: string, paletas: string[]): string {
+    return paletas.map(p => this.catalogo.manifiesto()?.muros?.[`${muro}/${p}`]?.nombre).find(Boolean) ?? legible(muro);
+  }
+  protected readonly legible = legible;
 
   protected puerta() { return this.sala().puertas.find(p => p.id === this.puertaElegida()); }
   protected modelosPuerta() { return this.catalogo.paleta().find(c => c.clave === 'puertas')?.modelos ?? []; }

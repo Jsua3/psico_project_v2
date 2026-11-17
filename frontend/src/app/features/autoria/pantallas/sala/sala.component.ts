@@ -208,13 +208,13 @@ const DISTANCIAS_INICIALES = [96, -96, 160, -160, 48, -48];
                       <!-- BORRADOR: texto nuevo, pendiente de la aprobación de Psicología -->
                       Esta puerta no se guarda hasta que elijas a qué sala lleva.
                       <!-- BORRADOR: texto nuevo, pendiente de la aprobación de Psicología -->
-                      <button type="button" (click)="seleccionarPieza(anclaPuerta(puerta.id))">Ir a la pieza</button>
+                      <button type="button" class="boton" (click)="seleccionarPieza(anclaPuerta(puerta.id))">Ir a la pieza</button>
                     </li>
                   }
                   @for (f of faltasSala(); track $index) {
                     <li [id]="'falta-' + s.id + '-' + $index">{{ f.regla }}: {{ f.mensaje }}
                       <!-- BORRADOR: texto nuevo, pendiente de la aprobación de Psicología -->
-                      <button type="button" (click)="irAFalta(f)">Ir a la pieza</button>
+                      <button type="button" class="boton" (click)="irAFalta(f)">Ir a la pieza</button>
                     </li>
                   }
                 </ul>
