@@ -1227,6 +1227,7 @@ export interface OpenApiPaths {
   readonly '/api/admin/cases/{case_version_id}/nodes/{node_id}/accept-ai': 'POST';
   readonly '/api/admin/cases/{case_version_id}/objects/{object_id}': 'DELETE' | 'PUT';
   readonly '/api/admin/cases/{case_version_id}/objects/{object_id}/accept-ai': 'POST';
+  readonly '/api/admin/cases/{case_version_id}/plan': 'GET';
   readonly '/api/admin/cases/{case_version_id}/publish': 'POST';
   readonly '/api/admin/cases/{case_version_id}/rehearsal': 'POST';
   readonly '/api/admin/cases/{case_version_id}/rehearsal/{attempt_id}': 'GET' | 'PATCH';
@@ -1284,6 +1285,7 @@ export interface OpenApiPaths {
   readonly '/api/authoring/cases/{case_version_id}/nodes/{node_id}/accept-ai': 'POST';
   readonly '/api/authoring/cases/{case_version_id}/objects/{object_id}': 'DELETE' | 'PUT';
   readonly '/api/authoring/cases/{case_version_id}/objects/{object_id}/accept-ai': 'POST';
+  readonly '/api/authoring/cases/{case_version_id}/plan': 'GET';
   readonly '/api/authoring/cases/{case_version_id}/publish': 'POST';
   readonly '/api/authoring/cases/{case_version_id}/rehearsal': 'POST';
   readonly '/api/authoring/cases/{case_version_id}/rehearsal/{attempt_id}': 'GET' | 'PATCH';

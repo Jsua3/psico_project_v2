@@ -33,6 +33,7 @@ from ..serializers.contracts import (
 )
 from ..services import authoring_service as svc
 from ..services import rehearsal
+from ..services import world_layout
 from ..services.authoring import guards, importing, lifecycle
 
 REVISION_HEADER = "X-Case-Revision"
@@ -500,6 +501,14 @@ class CaseValidateView(_AuthoringView):
         self.version_for(request, case_version_id, mutate=False)
         return api_ok(svc.validate_case(case_version_id))
 
+
+class CasePlanView(_AuthoringView):
+    """``GET …/plan``: el plano de las salas por piezas del caso para el editor (P4, Tarea 11); ``plan`` es ``null`` si no
+    tiene ninguna. Mismos permisos que ``validate``: leer un caso ajeno es 404."""
+
+    def get(self, request, case_version_id):
+        self.version_for(request, case_version_id, mutate=False)
+        return api_ok({"plan": world_layout.plano_de_autoria(case_version_id)})
 
 class WorldPreviewView(_AuthoringView):
     def get(self, request, case_version_id):

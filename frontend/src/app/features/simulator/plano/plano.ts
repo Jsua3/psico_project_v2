@@ -21,7 +21,7 @@ const MUROS: readonly Muro[] = ['fondo', 'izquierda', 'derecha', 'camara'];
 const ENCUADRES: readonly Encuadre[] = ['tres-paredes', 'dos-paredes-izquierda', 'dos-paredes-derecha', 'una-pared'];
 
 export interface SalaDelPlano { clave: string; titulo: string; ancho: number; encuadre: Encuadre; x: number; y: number; visitada: boolean }
-export interface PuertaDelPlano { origen: string; destino: string; muro: Muro; pos: number }
+export interface PuertaDelPlano { origen: string; destino: string; muro: Muro; pos: number; clave?: string }
 export interface PlanoDelLugar { actual: string | null; salas: SalaDelPlano[]; puertas: PuertaDelPlano[] }
 
 export type EstadoSala = 'actual' | 'visitada' | 'sin-visitar';
@@ -84,7 +84,7 @@ export function normalizarLayout(raw: unknown): PlanoDelLugar | null {
     if (!esRegistro(door)) continue;
     const { from, to, wall, pos } = door;
     if (!esTexto(from) || !claves.has(from) || !esTexto(to) || !MUROS.includes(wall as Muro) || !esNumero(pos)) continue;
-    puertas.push({ origen: from, destino: to, muro: wall as Muro, pos });
+    puertas.push({ origen: from, destino: to, muro: wall as Muro, pos, ...(esTexto(door['key']) ? { clave: door['key'] } : {}) });
   }
 
   return { actual: esTexto(raw['currentRoom']) ? raw['currentRoom'] : null, salas, puertas };
@@ -99,6 +99,11 @@ function redondear(n: number, d: number): number {
 function inicioDelFondo(encuadre: Encuadre, ancho: number): number {
   const conIzquierda = encuadre === 'tres-paredes' || encuadre === 'dos-paredes-izquierda';
   return conIzquierda ? 96 + redondear(19 * (ancho - 960), 240) : 0;
+}
+
+/** Dónde cae en el plano una posición de un muro de la sala (lo mismo que la muesca de una puerta allí). */
+export function puntoEnElMuro(sala: SalaDelPlano, muro: Muro, pos: number): MarcaPuerta {
+  return marca(sala, { origen: sala.clave, destino: '', muro, pos });
 }
 
 function marca(sala: SalaDelPlano, puerta: PuertaDelPlano): MarcaPuerta {

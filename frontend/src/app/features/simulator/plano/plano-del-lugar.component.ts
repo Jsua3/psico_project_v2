@@ -1,6 +1,9 @@
-import { ChangeDetectionStrategy, Component, computed, input } from '@angular/core';
+import { ChangeDetectionStrategy, Component, computed, input, output } from '@angular/core';
 
-import { PlanoDelLugar, SalaDibujada, dibujarPlano, textoDeLaSala, textoDelPlano } from './plano';
+import { Muro, PlanoDelLugar, SalaDibujada, dibujarPlano, puntoEnElMuro, textoDeLaSala, textoDelPlano } from './plano';
+
+/** Una puerta con algo por resolver (editor de casos): una marca roja discontinua con «×» y su texto en la lista. */
+export interface PuertaRota { sala: string; muro: Muro; pos: number; texto: string }
 
 /** Medio lado de la muesca de una puerta y su grosor, en px de plano (los de sala). */
 const PUERTA_LARGO = 40;
@@ -23,7 +26,8 @@ const PUERTA_GROSOR = 14;
     <svg class="plano__dibujo" [attr.viewBox]="viewBox()" role="img" [attr.aria-label]="resumen()"
       preserveAspectRatio="xMidYMid meet" focusable="false">
       @for (sala of dibujo().salas; track sala.clave) {
-        <g [attr.class]="'sala sala--' + sala.estado" [attr.data-sala]="sala.clave">
+        <g [attr.class]="'sala sala--' + sala.estado" [attr.data-sala]="sala.clave" [class.sala--elegible]="elegible()"
+          (click)="elegible() && salaElegida.emit(sala.clave)">
           <rect class="sala__piso" [attr.x]="sala.x" [attr.y]="sala.y" [attr.width]="sala.ancho" [attr.height]="sala.alto"
             rx="24" vector-effect="non-scaling-stroke" />
           @for (p of sala.puertas; track $index) {
@@ -48,11 +52,24 @@ const PUERTA_GROSOR = 14;
           }
         </g>
       }
+      @for (r of rotasDibujadas(); track $index) {
+        <g class="rota" [attr.data-rota]="r.sala">
+          <circle vector-effect="non-scaling-stroke" [attr.cx]="r.x" [attr.cy]="r.y" r="44" />
+          <text [attr.x]="r.x" [attr.y]="r.y" text-anchor="middle" dominant-baseline="central" font-size="64">×</text>
+        </g>
+      }
     </svg>
     @if (modo() === 'completo') {
       <ul class="plano__lista">
         @for (item of lista(); track item.clave) {
-          <li [attr.aria-current]="item.actual ? 'location' : null">{{ item.texto }}</li>
+          <li [attr.aria-current]="item.actual ? 'location' : null">
+            @if (elegible()) {
+              <button type="button" class="plano__sala" (click)="salaElegida.emit(item.clave)">{{ item.texto }}</button>
+            } @else {
+              {{ item.texto }}
+            }
+            @for (r of rotasDe(item.clave); track $index) { <span class="plano__rota">{{ r.texto }}</span> }
+          </li>
         }
       </ul>
     }
@@ -73,6 +90,13 @@ const PUERTA_GROSOR = 14;
       color: var(--ds-text-2); font-size: var(--ds-type-body-s-size); line-height: var(--ds-type-body-s-line);
     }
     .plano__lista li[aria-current] { color: var(--ds-text-1); font-weight: 700; }
+    .sala--elegible { cursor: pointer; }
+    .rota circle { fill: none; stroke: #bd2020; stroke-width: 3; stroke-dasharray: 6 4; }
+    .rota text { fill: #a50000; font-weight: 700; }
+    .plano__sala { display: block; width: 100%; min-height: 44px; padding: 8px 12px; text-align: left; font: inherit; color: var(--ds-text-1);
+      background: var(--ds-surface-1, transparent); border: 1px solid var(--ds-border-strong, currentColor); border-radius: 8px; cursor: pointer; }
+    .plano__sala:active { transform: translateY(1px); }
+    .plano__rota { display: block; color: #a50000; font-weight: 600; }
   `],
 })
 export class PlanoDelLugarComponent {
@@ -82,6 +106,11 @@ export class PlanoDelLugarComponent {
   /** Salas visitadas en esta sesión que el servidor quizá aún no cuenta. */
   readonly visitadas = input<ReadonlySet<string>>(new Set());
   readonly modo = input<'mini' | 'completo'>('mini');
+  /** Puertas con algo por resolver (solo el editor de casos): por omisión, ninguna. */
+  readonly rotas = input<readonly PuertaRota[]>([]);
+  /** Con `elegible`, cada sala del dibujo y de la lista se puede elegir (clic o Enter). */
+  readonly elegible = input(false);
+  readonly salaElegida = output<string>();
 
   protected readonly PUERTA_LARGO = PUERTA_LARGO;
   protected readonly PUERTA_GROSOR = PUERTA_GROSOR;
@@ -91,10 +120,20 @@ export class PlanoDelLugarComponent {
     const { x, y, ancho, alto } = this.dibujo().caja;
     return `${x} ${y} ${ancho} ${alto}`;
   });
-  protected readonly resumen = computed(() => textoDeLaSala(this.plano(), this.actual()));
+  protected readonly rotasDibujadas = computed(() => this.rotas().flatMap(r => {
+    const sala = this.plano().salas.find(s => s.clave === r.sala);
+    return sala ? [{ ...puntoEnElMuro(sala, r.muro, r.pos), sala: r.sala, texto: r.texto }] : [];
+  }));
+  protected rotasDe(clave: string): readonly PuertaRota[] { return this.rotas().filter(r => r.sala === clave); }
+  // Sin sala actual (el plano del editor de casos) la imagen nombra las salas: nunca queda sin texto.
+  // BORRADOR: texto nuevo, pendiente de la aprobación de Psicología
+  protected readonly resumen = computed(() => textoDeLaSala(this.plano(), this.actual())
+    || `Plano de las salas: ${this.plano().salas.map(s => s.titulo).join(', ')}.`);
   protected readonly lista = computed(() => {
     const textos = textoDelPlano(this.plano(), this.actual(), this.visitadas());
-    return this.plano().salas.map((sala, i) => ({ clave: sala.clave, texto: textos[i], actual: sala.clave === this.actual() }));
+    // En el editor (elegible) todas se ven: «visitada» es del juego y sobra.
+    return this.plano().salas.map((sala, i) => ({ clave: sala.clave, actual: sala.clave === this.actual(),
+      texto: this.elegible() ? textos[i].replace(/^(.*?), visitada\./, '$1.') : textos[i] }));
   });
   /** Tamaño de los nombres en px de plano: unas 48 letras a lo ancho del plano, se muestre al tamaño que se muestre. */
   protected readonly letra = computed(() => Math.round(this.dibujo().caja.ancho / 48));

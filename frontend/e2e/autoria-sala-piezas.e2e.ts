@@ -115,6 +115,21 @@ test.describe('editor de salas por piezas', () => {
     await expect(puerta).toHaveAttribute('data-pos', String(final));
     await expect(puerta).not.toHaveAttribute('data-incumple', /.+/);
 
+    // 5b. El plano del caso (Tarea 11): las seis salas por piezas del caso, todas con nombre y sin puertas rotas; un clic
+    //     en una sala abre su editor.
+    await page.goto(`/portal/casos/${casoId}/editor/plano`);
+    await expect(page.getByRole('heading', { level: 1, name: 'Plano del caso' })).toBeVisible({ timeout: scaled(30_000) });
+    const salasDelPlano = page.locator('app-plano-caso button.plano__sala');
+    await expect(salasDelPlano).toHaveCount(6, { timeout: scaled(30_000) });
+    await expect(page.locator('app-plano-caso g.rota')).toHaveCount(0);
+    await sinInfraccionesSerias(page, 'el plano del caso');
+    await capturar(page, 'p4-plano-caso', 1366, 768, true);
+    await capturar(page, 'p4-plano-caso', 1920, 1080, true);
+    await page.setViewportSize({ width: 1366, height: 768 });
+    await salasDelPlano.filter({ hasText: /^Entrada de urgencias/ }).click();
+    await page.waitForURL(new RegExp(`/editor/sala/${SALA}$`), { timeout: scaled(30_000) });
+    await expect(puerta).toBeVisible({ timeout: scaled(60_000) });
+
     // 6. La ensaya desde esa escena: el juego recibe la misma sala por piezas, con la puerta en su posición nueva.
     const token = await apiToken(request, PROFESOR);
     const editor = await readEditor(request, token, casoId);
