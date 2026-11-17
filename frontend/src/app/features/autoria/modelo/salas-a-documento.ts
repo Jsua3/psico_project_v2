@@ -1,6 +1,7 @@
 import type { CasoBorrador, PuertaCaso, SalaCaso } from './caso';
 import { claveDeNuevo } from './hacia-api';
 import { ALTO_SALA, ANCHO_SALA, esAnchoDeSala, llegada, paredes } from './geometria';
+import { movimientoAMetadata } from './movimiento';
 import { revisarSalas, type CatalogoDeReglas, type DocumentoDeSalas, type ReglaDeSala } from './reglas-de-sala';
 
 export interface FaltaDeSala {
@@ -40,8 +41,10 @@ export function documentoDeSalas(caso: CasoBorrador): DocumentoDeSalas {
     }
     for (const p of sala.personajes) {
       const ficha = caso.personajes.find(f => f.id === p.ref);
+      // El marcador es el punto de apoyo, como guarda el editor (`apoyo: 'pies'`), y el trayecto va tal cual para OCL-19.
       objetos.push({ clave: claveObjeto(p.clave, p.ref), tipo: 'PERSON', x: p.x, y: p.y, ancho: 48, alto: 48,
-        visible: true, colision: false, etiqueta: ficha?.nombre ?? p.ref, metadatos: {} });
+        visible: true, colision: false, etiqueta: ficha?.nombre ?? p.ref, metadatos: {
+          apoyo: 'pies', ...(p.movimiento !== undefined ? { movimiento: movimientoAMetadata(p.movimiento) } : {}) } });
     }
     for (const puerta of sala.puertas) {
       const destino = puerta.hacia ? salas.get(puerta.hacia) : undefined;
@@ -111,4 +114,21 @@ export function faltasPorSala(caso: CasoBorrador, catalogo: CatalogoDeReglas | n
     }
   }
   return resultado;
+}
+
+/**
+ * La clave de la persona cuyo trayecto señala una falta OCL-19 del servidor en la escena `escenaId`. Los objetos del servidor
+ * no van en el orden del editor, así que se busca la misma falta (mismo texto) con la regla del cliente y, si no aparece, se
+ * toma la primera persona de la escena con trayecto. `null` si la escena no tiene ninguna.
+ */
+export function personaDeTrayecto(caso: CasoBorrador, escenaId: string, mensaje: string): string | null {
+  const indice = caso.escenas.findIndex(e => e.id === escenaId);
+  if (indice < 0) return null;
+  const documento = documentoDeSalas(caso), objetos = documento['x-siep'].escenas[indice]?.mapa?.objetos ?? [];
+  const prefijo = `x-siep.escenas[${indice}].mapa.objetos[`;
+  const propias = revisarSalas(documento, null).filter(h => h.regla === 'OCL-19' && h.ruta.startsWith(prefijo));
+  const hallazgo = propias.find(h => h.mensaje === mensaje) ?? propias[0];
+  const elegido = hallazgo ? objetos[Number(/\.objetos\[(\d+)\]/.exec(hallazgo.ruta)?.[1])]
+    : objetos.find(o => o['tipo'] === 'PERSON' && o['metadatos']?.['movimiento']?.['tipo'] === 'ruta');
+  return elegido && typeof elegido['clave'] === 'string' ? elegido['clave'] : null;
 }

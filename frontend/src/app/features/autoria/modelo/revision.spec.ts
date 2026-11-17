@@ -294,3 +294,32 @@ describe('faltas del servidor de salas por piezas', () => {
       .toEqual({ ruta: '/editor/escena/999' });
   });
 });
+
+describe('faltas del servidor del trayecto de una persona (OCL-19)', () => {
+  const MENSAJE = 'El camino recto hasta este punto atraviesa un mueble, una pared u otra persona: la persona camina en línea recta entre sus puntos; agrega un punto intermedio para rodearlo.';
+  const llevar = (borrador: CasoBorrador, message: string, nodeId = 7) =>
+    faltasDelServidor([{ code: 'DSL.OCL-19', severity: 'error', message, nodeId, path: 'x-siep.escenas[4].mapa.objetos[11].metadatos.movimiento.puntos[0]' }],
+      borrador, { respuestaDeOpcion: () => undefined, faltasLocales: [] })[0];
+  const conTrayecto = (puntos: { x: number; y: number }[]) => {
+    const borrador = structuredClone(CASO_HOSPITAL);
+    borrador.escenas[0].id = '7';
+    const sala = borrador.salas.find(s => s.id === borrador.escenas[0].salaId)!;
+    // Una persona quieta primero: el índice del servidor (objetos[11]) no coincide con el del editor.
+    sala.personajes = [
+      { ref: 'quieta', clave: 'quieta', x: 300, y: 300, mirando: 'derecha', expresion: 'neutral', movimiento: 'quieto' },
+      { ref: 'caminante', clave: 'caminante', x: 500, y: 300, mirando: 'derecha', expresion: 'neutral',
+        movimiento: { tipo: 'ruta', modo: 'ida-y-vuelta', puntos } },
+    ];
+    return { borrador, salaId: sala.id, clave: 'caminante' };
+  };
+
+  it('lleva a la sala y a la persona del trayecto aunque el servidor numere los objetos de otra forma', () => {
+    const { borrador, salaId, clave } = conTrayecto([{ x: 10, y: 10 }, { x: 20, y: 20 }]);
+    expect(llevar(borrador, MENSAJE).ir).toEqual({ ruta: `/editor/sala/${salaId}`, ancla: `objeto-${salaId}-${clave}` });
+  });
+
+  it('una escena desconocida conserva el destino predeterminado', () => {
+    const { borrador } = conTrayecto([{ x: 10, y: 10 }, { x: 20, y: 20 }]);
+    expect(llevar(borrador, MENSAJE, 999).ir).toEqual({ ruta: '/editor/escena/999' });
+  });
+});

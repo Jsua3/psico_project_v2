@@ -1,7 +1,7 @@
 import { MUROS, esAnchoDeSala, esEncuadre, largoMuro, zonaCaminable, type Muro } from './geometria';
 import type { ManifiestoDePiezas } from '../../simulator/sala/catalogo';
 
-export type ReglaDeSala = 'OCL-13' | 'OCL-14' | 'OCL-15' | 'OCL-16' | 'OCL-17' | 'OCL-18';
+export type ReglaDeSala = 'OCL-13' | 'OCL-14' | 'OCL-15' | 'OCL-16' | 'OCL-17' | 'OCL-18' | 'OCL-19';
 export interface HallazgoDeSala { regla: ReglaDeSala; ruta: string; mensaje: string }
 export interface CatalogoDeReglas {
   anchos: readonly number[];
@@ -167,5 +167,116 @@ export function revisarSalas(doc: DocumentoDeSalas, catalogo: CatalogoDeReglas |
       }
     }
   }
+  revisarTrayectos(escenas, (ruta, mensaje) => agregar('OCL-19', ruta, mensaje));
   return hallazgos;
+}
+
+/** El margen de la sala para una persona que camina: el `margin` de `personWalkBounds` y `MARGEN_PERSONA` del servidor. */
+const MARGEN_PERSONA = 24;
+/** A cuánto se para el estudiante para usar una puerta: ningún trayecto pasa tan cerca. */
+const RADIO_PUERTA = 56;
+const numero = (v: unknown): v is number => typeof v === 'number' && Number.isFinite(v) && Math.abs(v) <= 1_000_000;
+
+/**
+ * OCL-19, igual que `ocl_19_trayectos_caminables` del servidor (mira cualquier mapa, tenga o no `estructura`): el juego
+ * lleva a la persona en línea recta de un punto al siguiente sin rodear muebles, así que cada tramo se recorre píxel a
+ * píxel con sus pies contra la zona caminable, el margen de la sala, las colisiones y las demás personas, y ningún punto
+ * pasa a 56 px o menos de una puerta.
+ */
+function revisarTrayectos(escenas: [number, Datos][], agregar: (ruta: string, mensaje: string) => void): void {
+  for (const [i, escena] of escenas) {
+    const mapa = escena['mapa'];
+    if (!mapa || typeof mapa !== 'object' || Array.isArray(mapa)) continue;
+    const obs = objetos(mapa['objetos']);
+    for (const [k, obj] of obs) {
+      const meta = tabla(obj['metadatos']), movimiento = meta['movimiento'];
+      if (obj['tipo'] !== 'PERSON' || !movimiento || typeof movimiento !== 'object' || Array.isArray(movimiento) || movimiento['tipo'] !== 'ruta') continue;
+      const ruta = `x-siep.escenas[${i}].mapa.objetos[${k}].metadatos.movimiento`;
+      const puntos = movimiento['puntos'], pausa = movimiento['pausaMs'], modo = movimiento['modo'];
+      if (!Array.isArray(puntos) || puntos.length < 2 || puntos.length > 8 || (modo !== 'circuito' && modo !== 'ida-y-vuelta')
+        || ('pausaMs' in movimiento && (!numero(pausa) || pausa < 0 || pausa > 10000))
+        || puntos.some(p => !p || typeof p !== 'object' || Array.isArray(p) || !numero(p['x']) || !numero(p['y']))) {
+        // BORRADOR: texto nuevo, pendiente de la aprobación de Psicología
+        agregar(ruta, 'El trayecto requiere de 2 a 8 puntos válidos, un modo válido y una pausa entre 0 y 10000 ms.');
+        continue;
+      }
+      const ancho = mapa['ancho'], alto = mapa['alto'], ox = obj['x'], oy = obj['y'];
+      if (!(entero(ancho) && entero(alto) && numero(ox) && numero(oy))) {
+        // BORRADOR: texto nuevo, pendiente de la aprobación de Psicología
+        agregar(ruta, 'No se puede comprobar el trayecto sin las medidas de la sala y la posición de la persona.');
+        continue;
+      }
+      // Los pies quedan bajo el marcador: 0 px si el marcador ya es el punto de apoyo, 16 en los casos de antes.
+      const pies = meta['apoyo'] === 'pies' ? 0 : 16;
+      const cajas: Rect[] = rects({ ...mapa, objetos: obs.map(([, o]) => o).filter(o => o !== obj) });
+      // Las personas no chocan entre sí en el juego: el trayecto no pasa por donde otra está de pie (sus pies).
+      for (const [, otra] of obs) {
+        if (otra === obj || otra['tipo'] !== 'PERSON' || otra['visible'] === false || !numero(otra['x']) || !numero(otra['y'])) continue;
+        const pie = otra['y'] + (tabla(otra['metadatos'])['apoyo'] === 'pies' ? 0 : 16);
+        cajas.push({ x: otra['x'] - 11, y: pie - 16, ancho: 22, alto: 16 });
+      }
+      const estructura = mapa['estructura'], ambiente = tabla(mapa['ambiente']);
+      const zona = estructura && typeof estructura === 'object' && !Array.isArray(estructura) && esAnchoDeSala(estructura['ancho'])
+        ? zonaCaminable(esEncuadre(ambiente['encuadre']) ? ambiente['encuadre'] : 'tres-paredes', estructura['ancho'])
+        : { x: 0, y: 0, ancho, alto };
+      const puertas = obs.map(([, o]) => o)
+        .filter(o => o['tipo'] === 'EXIT' && o['visible'] !== false && numero(o['x']) && numero(o['y']))
+        .map(o => [String(o['etiqueta'] || o['clave'] || 'una puerta'), o['x'] as number, o['y'] as number] as const);
+      const libre = (x: number, y: number) => {
+        const pie = y + pies;
+        return MARGEN_PERSONA <= x && x <= ancho - MARGEN_PERSONA && MARGEN_PERSONA <= y && y <= alto - MARGEN_PERSONA
+          && dentro(x - zona.x, pie - zona.y, zona.ancho, zona.alto) && dentro(x, pie, ancho, alto) && !choca(x, pie, cajas);
+      };
+      const tapa = (x: number, y: number) => {
+        const pie = y + pies;
+        return puertas.find(([, px, py]) => Math.hypot(x - px, pie - py) <= RADIO_PUERTA)?.[0] ?? null;
+      };
+      const tramo = (a: readonly [number, number], b: readonly [number, number]) => {
+        const pasos = Math.max(1, Math.ceil(Math.hypot(b[0] - a[0], b[1] - a[1])));
+        let chocaTramo = false, puerta: string | null = null;
+        for (let t = 1; t <= pasos; t++) {
+          const x = a[0] + (b[0] - a[0]) * t / pasos, y = a[1] + (b[1] - a[1]) * t / pasos;
+          chocaTramo = chocaTramo || !libre(x, y);
+          puerta = puerta || tapa(x, y);
+        }
+        return [chocaTramo, puerta] as const;
+      };
+      const partida = [ox, oy] as const;
+      if (!libre(...partida)) {
+        // BORRADOR: texto nuevo, pendiente de la aprobación de Psicología
+        agregar(ruta, 'La partida de la persona queda fuera de la zona caminable, sobre un mueble o sobre otra persona.');
+        continue;
+      }
+      const paradas = [partida, ...puntos.map(p => [p['x'], p['y']] as const)];
+      const avisadas = new Set<string>();
+      const puertaTapada = (nombre: string | null, donde: string) => {
+        if (nombre === null || avisadas.has(nombre)) return;
+        avisadas.add(nombre);
+        // BORRADOR: texto nuevo, pendiente de la aprobación de Psicología
+        agregar(donde, `La persona pasaría frente a la puerta «${nombre}» y la taparía: aleja el trayecto al menos 56 px de la puerta.`);
+      };
+      puertaTapada(tapa(...partida), ruta);
+      const malos = new Set<number>();
+      for (let n = 0; n < paradas.length - 1; n++) {
+        const parada = paradas[n + 1], donde = `${ruta}.puntos[${n}]`;
+        if (!libre(...parada)) {
+          malos.add(n + 1);
+          // BORRADOR: texto nuevo, pendiente de la aprobación de Psicología
+          agregar(donde, 'El punto queda fuera de la zona caminable, sobre un mueble o sobre otra persona.');
+          continue;
+        }
+        if (malos.has(n)) continue; // el tramo sale de un punto ya informado
+        const [chocaTramo, puerta] = tramo(paradas[n], parada);
+        // BORRADOR: texto nuevo, pendiente de la aprobación de Psicología
+        if (chocaTramo) agregar(donde, 'El camino recto hasta este punto atraviesa un mueble, una pared u otra persona: la persona camina en línea recta entre sus puntos; agrega un punto intermedio para rodearlo.');
+        puertaTapada(puerta, donde);
+      }
+      if (modo === 'circuito' && libre(...paradas[paradas.length - 1])) {
+        const [chocaTramo, puerta] = tramo(paradas[paradas.length - 1], partida);
+        // BORRADOR: texto nuevo, pendiente de la aprobación de Psicología
+        if (chocaTramo) agregar(ruta, 'El camino recto de regreso a la partida atraviesa un mueble, una pared u otra persona: agrega un punto intermedio para rodearlo.');
+        puertaTapada(puerta, ruta);
+      }
+    }
+  }
 }

@@ -66,13 +66,41 @@ def casos():
     s = sala(ancho=1920); s['mapa']['objetos'] = [{'tipo': 'PERSON', 'x': 1800, 'y': 300}]; agregar('sala ancha accesible', [s])
     s = sala(); s['mapa']['estructura']['ancho'] = 1000; s['mapa']['estructura']['acabados'] = {'piso': 'otro', 'variante': 'z', 'muro': 'otro', 'paleta': 'z'}; s['mapa']['objetos'] = [puerta(modelo='desconocida', sentidoUnico=True)]; agregar('catálogo desconocido', [s, sala('b')])
     agregar('sin catálogo', [base], sinCatalogo=True)
+    # OCL-19: el trayecto de una persona (con la zona caminable de 1440: x 134…1306, pies en y 252…486).
+    def persona(x=300, y=300, puntos=((600, 300), (600, 400)), modo='circuito', apoyo='pies'):
+        meta = {'movimiento': {'tipo': 'ruta', 'modo': modo, 'puntos': [{'x': px, 'y': py} for px, py in puntos]}}
+        if apoyo:
+            meta['apoyo'] = apoyo
+        return {'clave': 'caminante', 'etiqueta': 'Caminante', 'tipo': 'PERSON', 'x': x, 'y': y, 'metadatos': meta}
+    mueble = {'x': 440, 'y': 250, 'ancho': 30, 'alto': 100}
+    en_diagonal = {'x': 440, 'y': 365, 'ancho': 20, 'alto': 20}
+    bajo_la_linea = {'x': 440, 'y': 302, 'ancho': 30, 'alto': 8}
+    pausa_larga = persona()
+    pausa_larga['metadatos']['movimiento']['pausaMs'] = 10001
+    for nombre, objetos, colisiones in [
+            ('trayecto libre', [persona()], []),
+            ('trayecto atraviesa mueble', [persona()], [mueble]),
+            ('punto sobre mueble', [persona(puntos=((455, 300), (600, 400)))], [mueble]),
+            ('trayecto tapa puerta', [persona(), puerta('a', sentidoUnico=True)], []),
+            ('regreso del circuito choca', [persona(puntos=((600, 300), (600, 450)))], [en_diagonal]),
+            ('ida y vuelta sin regreso', [persona(puntos=((600, 300), (600, 450)), modo='ida-y-vuelta')], [en_diagonal]),
+            ('otra persona en medio', [persona(), {'clave': 'otra', 'tipo': 'PERSON', 'x': 450, 'y': 300, 'metadatos': {'apoyo': 'pies'}}], []),
+            ('partida fuera de la zona', [persona(y=200)], []),
+            ('apoyo en los pies', [persona()], [bajo_la_linea]),
+            ('apoyo de antes', [persona(apoyo=None)], [bajo_la_linea]),
+            ('trayecto mal formado', [persona(puntos=((600, 300),))], []),
+            ('pausa fuera de rango', [pausa_larga], []),
+            ('trayecto sin posición', [persona(x=None)], [])]:
+        s = sala(); s['mapa']['objetos'] = objetos; s['mapa']['colisiones'] = colisiones; agregar(nombre, [s])
+    s = sala(); del s['mapa']['estructura']; s['mapa']['objetos'] = [persona()]; s['mapa']['colisiones'] = [mueble]
+    agregar('trayecto en sala sin estructura', [s])
     return resultado
 
 
 def generar():
     datos = catalogo()
     cat = Catalogo(tuple(datos['anchos']), {}, {k: PiezaCatalogo(k, frozenset(v['muros']), v['ocupa'], tuple(v['franja'])) for k, v in datos['piezas'].items()}, frozenset({'vinilo'}), frozenset(datos['clavesDePisos']), frozenset(datos['muros']), frozenset(datos['propios']), frozenset(datos['tapetes']))
-    funciones = [reglas.ocl_13_piezas_sobre_un_muro_existente, reglas.ocl_14_piezas_sin_solaparse, reglas.ocl_15_puertas_con_regreso, reglas.ocl_16_llegada_caminable, reglas.ocl_17_todo_se_alcanza, reglas.ocl_18_todo_del_catalogo]
+    funciones = [reglas.ocl_13_piezas_sobre_un_muro_existente, reglas.ocl_14_piezas_sin_solaparse, reglas.ocl_15_puertas_con_regreso, reglas.ocl_16_llegada_caminable, reglas.ocl_17_todo_se_alcanza, reglas.ocl_18_todo_del_catalogo, reglas.ocl_19_trayectos_caminables]
     anterior = registro._proveedor
     try:
         resultado = casos()

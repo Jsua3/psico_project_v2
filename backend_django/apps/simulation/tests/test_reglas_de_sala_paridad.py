@@ -19,7 +19,8 @@ def test_cada_regla_tiene_un_caso_que_cumple_y_uno_que_incumple():
     casos = datos.generar()['casos']
     pares = [('borde exacto', 'borde fuera'), ('piezas se tocan', 'piezas chocan'),
              ('sentido único', 'sin regreso'), ('llegada libre', 'llegada sobre mueble'),
-             ('persona accesible', 'persona tras muebles'), ('sala válida', 'catálogo desconocido')]
+             ('persona accesible', 'persona tras muebles'), ('sala válida', 'catálogo desconocido'),
+             ('trayecto libre', 'trayecto atraviesa mueble')]
     for numero, (bueno, malo) in enumerate(pares, 13):
         regla = f'OCL-{numero}'
         cumple = next(c for c in casos if c['nombre'] == bueno)

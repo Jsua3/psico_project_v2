@@ -359,7 +359,7 @@ const DISTANCIAS_INICIALES = [96, -96, 160, -160, 48, -48];
                   }
                   @if (p.movimiento && typeof p.movimiento === 'object' && p.movimiento.tipo === 'ruta') {
                     <app-trayecto-de-persona [ruta]="p.movimiento" [seleccionado]="puntoDeRuta()"
-                      (elegir)="puntoDeRuta.set($event)" (cambio)="cambiarRuta(p, $event)" />
+                      (elegir)="puntoDeRuta.set($event)" (cambio)="cambiarRuta(p, $event)" (keydown)="teclaTrayecto($event)" />
                   }
                 </div>
 
@@ -973,6 +973,12 @@ export class SalaComponent {
       evento.stopPropagation();
       void this.quitar(p);
     }
+  }
+
+  /** Ctrl+Z y Ctrl+Y también desde los puntos del trayecto (no desde su casilla de pausa: ahí deshacen lo escrito). */
+  protected teclaTrayecto(evento: KeyboardEvent): void {
+    if ((evento.target as HTMLElement | null)?.closest('input, select, textarea')) return;
+    this.teclaGeneral(evento);
   }
 
   protected teclaGeneral(evento: KeyboardEvent): void {

@@ -68,6 +68,30 @@ describe('SalaComponent', () => {
     expect(movimiento().puntos).toEqual(inicial);
   });
 
+  it('un punto del trayecto se mueve con Mayús y flechas y Ctrl+Z / Ctrl+Y desde el mismo punto lo deshacen y rehacen', async () => {
+    const { fixture, store, raiz } = await montar();
+    raiz.querySelector<HTMLButtonElement>('[data-elemento="personaje-0"]')!.click();
+    fixture.detectChanges();
+    [...raiz.querySelectorAll('button')].find(b => b.textContent?.trim() === 'Recorre un trayecto')!.click();
+    fixture.detectChanges();
+    const puntos = () => (store.caso()!.salas[0].personajes[0].movimiento as { puntos: { x: number; y: number }[] }).puntos;
+    const inicial = structuredClone(puntos());
+    const punto = () => raiz.querySelector<HTMLElement>('app-trayecto-de-persona li button')!;
+    tecla(punto(), 'ArrowDown', { shiftKey: true }); fixture.detectChanges();
+    expect(puntos()[0]).toEqual({ x: inicial[0].x, y: inicial[0].y + 1 });
+    tecla(punto(), 'ArrowLeft'); fixture.detectChanges();
+    expect(puntos()[0]).toEqual({ x: inicial[0].x - 8, y: inicial[0].y + 1 });
+    tecla(punto(), 'z', { ctrlKey: true }); fixture.detectChanges();
+    expect(puntos()[0]).toEqual({ x: inicial[0].x, y: inicial[0].y + 1 });
+    tecla(punto(), 'z', { ctrlKey: true }); fixture.detectChanges();
+    expect(puntos()).toEqual(inicial);
+    tecla(punto(), 'y', { ctrlKey: true }); fixture.detectChanges();
+    expect(puntos()[0]).toEqual({ x: inicial[0].x, y: inicial[0].y + 1 });
+    // En la casilla de la pausa Ctrl+Z es del texto: no toca el borrador.
+    tecla(raiz.querySelector('app-trayecto-de-persona input')!, 'z', { ctrlKey: true }); fixture.detectChanges();
+    expect(puntos()[0]).toEqual({ x: inicial[0].x, y: inicial[0].y + 1 });
+  });
+
   it('agregar una ventana la deja elegida y enfocada en el primer hueco del fondo', async () => {
     const { fixture, store, raiz } = await montar();
     const catalogo = TestBed.inject(CatalogoDePiezas);

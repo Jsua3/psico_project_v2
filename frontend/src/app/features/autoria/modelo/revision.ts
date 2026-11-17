@@ -5,7 +5,7 @@ import { competenciasMarcadas } from './efectos';
 import { escenasAlcanzables, hitosInalcanzables } from './hitos';
 import { evaluarCondicion, esCondicionValida, hitosDeCondicion } from './condiciones';
 import { contextosDeRecorridos } from './recorridos';
-import { anclaDeElemento, elementoDeRuta } from './salas-a-documento';
+import { anclaDeElemento, elementoDeRuta, personaDeTrayecto } from './salas-a-documento';
 
 export interface Falta {
   mensaje: string;
@@ -334,6 +334,18 @@ export function faltasDelServidor(
         faltas.push(falta(destino
           ? { ...destinoSala, ancla: anclaDeElemento(salaId, destino.elemento) }
           : { ruta: escena ?? '/editor' }));
+        break;
+      }
+      case 'DSL.OCL-19': {
+        // El trayecto de una persona: a la sala y, si se reconoce, a esa persona en el lienzo.
+        const escenaDelCaso = caso.escenas.find((e) => e.id === String(h.nodeId));
+        const salaId = escenaDelCaso?.salaId;
+        if (!escenaDelCaso || !salaId || !caso.salas.some((s) => s.id === salaId)) {
+          faltas.push(falta({ ruta: escena ?? '/editor' }));
+          break;
+        }
+        const clave = personaDeTrayecto(caso, escenaDelCaso.id, h.message);
+        faltas.push(falta({ ruta: `/editor/sala/${salaId}`, ...(clave ? { ancla: anclaDeElemento(salaId, { tipo: 'objeto', id: clave }) } : {}) }));
         break;
       }
       case 'high-intensity-without-warning':

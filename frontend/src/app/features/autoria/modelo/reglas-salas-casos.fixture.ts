@@ -2060,6 +2060,999 @@ export const CASOS_DE_REGLAS_DE_SALA = {
    ],
    "nombre": "sin catálogo",
    "sinCatalogo": true
+  },
+  {
+   "documento": {
+    "x-siep": {
+     "escenas": [
+      {
+       "clave": "a",
+       "mapa": {
+        "alto": 528,
+        "ambiente": {
+         "encuadre": "tres-paredes"
+        },
+        "ancho": 1440,
+        "aparicion": {
+         "x": 400,
+         "y": 300
+        },
+        "clave": "a",
+        "colisiones": [],
+        "estructura": {
+         "acabados": {
+          "muro": "liso",
+          "paleta": "blanco",
+          "piso": "vinilo"
+         },
+         "ancho": 1440,
+         "piezas": []
+        },
+        "objetos": [
+         {
+          "clave": "caminante",
+          "etiqueta": "Caminante",
+          "metadatos": {
+           "apoyo": "pies",
+           "movimiento": {
+            "modo": "circuito",
+            "puntos": [
+             {
+              "x": 600,
+              "y": 300
+             },
+             {
+              "x": 600,
+              "y": 400
+             }
+            ],
+            "tipo": "ruta"
+           }
+          },
+          "tipo": "PERSON",
+          "x": 300,
+          "y": 300
+         }
+        ]
+       }
+      }
+     ]
+    }
+   },
+   "hallazgos": [],
+   "nombre": "trayecto libre"
+  },
+  {
+   "documento": {
+    "x-siep": {
+     "escenas": [
+      {
+       "clave": "a",
+       "mapa": {
+        "alto": 528,
+        "ambiente": {
+         "encuadre": "tres-paredes"
+        },
+        "ancho": 1440,
+        "aparicion": {
+         "x": 400,
+         "y": 300
+        },
+        "clave": "a",
+        "colisiones": [
+         {
+          "alto": 100,
+          "ancho": 30,
+          "x": 440,
+          "y": 250
+         }
+        ],
+        "estructura": {
+         "acabados": {
+          "muro": "liso",
+          "paleta": "blanco",
+          "piso": "vinilo"
+         },
+         "ancho": 1440,
+         "piezas": []
+        },
+        "objetos": [
+         {
+          "clave": "caminante",
+          "etiqueta": "Caminante",
+          "metadatos": {
+           "apoyo": "pies",
+           "movimiento": {
+            "modo": "circuito",
+            "puntos": [
+             {
+              "x": 600,
+              "y": 300
+             },
+             {
+              "x": 600,
+              "y": 400
+             }
+            ],
+            "tipo": "ruta"
+           }
+          },
+          "tipo": "PERSON",
+          "x": 300,
+          "y": 300
+         }
+        ]
+       }
+      }
+     ]
+    }
+   },
+   "hallazgos": [
+    {
+     "mensaje": "El camino recto hasta este punto atraviesa un mueble, una pared u otra persona: la persona camina en línea recta entre sus puntos; agrega un punto intermedio para rodearlo.",
+     "regla": "OCL-19",
+     "ruta": "x-siep.escenas[0].mapa.objetos[0].metadatos.movimiento.puntos[0]"
+    },
+    {
+     "mensaje": "El camino recto de regreso a la partida atraviesa un mueble, una pared u otra persona: agrega un punto intermedio para rodearlo.",
+     "regla": "OCL-19",
+     "ruta": "x-siep.escenas[0].mapa.objetos[0].metadatos.movimiento"
+    }
+   ],
+   "nombre": "trayecto atraviesa mueble"
+  },
+  {
+   "documento": {
+    "x-siep": {
+     "escenas": [
+      {
+       "clave": "a",
+       "mapa": {
+        "alto": 528,
+        "ambiente": {
+         "encuadre": "tres-paredes"
+        },
+        "ancho": 1440,
+        "aparicion": {
+         "x": 400,
+         "y": 300
+        },
+        "clave": "a",
+        "colisiones": [
+         {
+          "alto": 100,
+          "ancho": 30,
+          "x": 440,
+          "y": 250
+         }
+        ],
+        "estructura": {
+         "acabados": {
+          "muro": "liso",
+          "paleta": "blanco",
+          "piso": "vinilo"
+         },
+         "ancho": 1440,
+         "piezas": []
+        },
+        "objetos": [
+         {
+          "clave": "caminante",
+          "etiqueta": "Caminante",
+          "metadatos": {
+           "apoyo": "pies",
+           "movimiento": {
+            "modo": "circuito",
+            "puntos": [
+             {
+              "x": 455,
+              "y": 300
+             },
+             {
+              "x": 600,
+              "y": 400
+             }
+            ],
+            "tipo": "ruta"
+           }
+          },
+          "tipo": "PERSON",
+          "x": 300,
+          "y": 300
+         }
+        ]
+       }
+      }
+     ]
+    }
+   },
+   "hallazgos": [
+    {
+     "mensaje": "El punto queda fuera de la zona caminable, sobre un mueble o sobre otra persona.",
+     "regla": "OCL-19",
+     "ruta": "x-siep.escenas[0].mapa.objetos[0].metadatos.movimiento.puntos[0]"
+    },
+    {
+     "mensaje": "El camino recto de regreso a la partida atraviesa un mueble, una pared u otra persona: agrega un punto intermedio para rodearlo.",
+     "regla": "OCL-19",
+     "ruta": "x-siep.escenas[0].mapa.objetos[0].metadatos.movimiento"
+    }
+   ],
+   "nombre": "punto sobre mueble"
+  },
+  {
+   "documento": {
+    "x-siep": {
+     "escenas": [
+      {
+       "clave": "a",
+       "mapa": {
+        "alto": 528,
+        "ambiente": {
+         "encuadre": "tres-paredes"
+        },
+        "ancho": 1440,
+        "aparicion": {
+         "x": 400,
+         "y": 300
+        },
+        "clave": "a",
+        "colisiones": [],
+        "estructura": {
+         "acabados": {
+          "muro": "liso",
+          "paleta": "blanco",
+          "piso": "vinilo"
+         },
+         "ancho": 1440,
+         "piezas": []
+        },
+        "objetos": [
+         {
+          "clave": "caminante",
+          "etiqueta": "Caminante",
+          "metadatos": {
+           "apoyo": "pies",
+           "movimiento": {
+            "modo": "circuito",
+            "puntos": [
+             {
+              "x": 600,
+              "y": 300
+             },
+             {
+              "x": 600,
+              "y": 400
+             }
+            ],
+            "tipo": "ruta"
+           }
+          },
+          "tipo": "PERSON",
+          "x": 300,
+          "y": 300
+         },
+         {
+          "clave": "puerta",
+          "metadatos": {
+           "modelo": "a",
+           "muro": "fondo",
+           "pos": 400,
+           "sentidoUnico": true,
+           "targetNodeKey": "a"
+          },
+          "tipo": "EXIT",
+          "x": 400,
+          "y": 300
+         }
+        ]
+       }
+      }
+     ]
+    }
+   },
+   "hallazgos": [
+    {
+     "mensaje": "La persona pasaría frente a la puerta «puerta» y la taparía: aleja el trayecto al menos 56 px de la puerta.",
+     "regla": "OCL-19",
+     "ruta": "x-siep.escenas[0].mapa.objetos[0].metadatos.movimiento.puntos[0]"
+    }
+   ],
+   "nombre": "trayecto tapa puerta"
+  },
+  {
+   "documento": {
+    "x-siep": {
+     "escenas": [
+      {
+       "clave": "a",
+       "mapa": {
+        "alto": 528,
+        "ambiente": {
+         "encuadre": "tres-paredes"
+        },
+        "ancho": 1440,
+        "aparicion": {
+         "x": 400,
+         "y": 300
+        },
+        "clave": "a",
+        "colisiones": [
+         {
+          "alto": 20,
+          "ancho": 20,
+          "x": 440,
+          "y": 365
+         }
+        ],
+        "estructura": {
+         "acabados": {
+          "muro": "liso",
+          "paleta": "blanco",
+          "piso": "vinilo"
+         },
+         "ancho": 1440,
+         "piezas": []
+        },
+        "objetos": [
+         {
+          "clave": "caminante",
+          "etiqueta": "Caminante",
+          "metadatos": {
+           "apoyo": "pies",
+           "movimiento": {
+            "modo": "circuito",
+            "puntos": [
+             {
+              "x": 600,
+              "y": 300
+             },
+             {
+              "x": 600,
+              "y": 450
+             }
+            ],
+            "tipo": "ruta"
+           }
+          },
+          "tipo": "PERSON",
+          "x": 300,
+          "y": 300
+         }
+        ]
+       }
+      }
+     ]
+    }
+   },
+   "hallazgos": [
+    {
+     "mensaje": "El camino recto de regreso a la partida atraviesa un mueble, una pared u otra persona: agrega un punto intermedio para rodearlo.",
+     "regla": "OCL-19",
+     "ruta": "x-siep.escenas[0].mapa.objetos[0].metadatos.movimiento"
+    }
+   ],
+   "nombre": "regreso del circuito choca"
+  },
+  {
+   "documento": {
+    "x-siep": {
+     "escenas": [
+      {
+       "clave": "a",
+       "mapa": {
+        "alto": 528,
+        "ambiente": {
+         "encuadre": "tres-paredes"
+        },
+        "ancho": 1440,
+        "aparicion": {
+         "x": 400,
+         "y": 300
+        },
+        "clave": "a",
+        "colisiones": [
+         {
+          "alto": 20,
+          "ancho": 20,
+          "x": 440,
+          "y": 365
+         }
+        ],
+        "estructura": {
+         "acabados": {
+          "muro": "liso",
+          "paleta": "blanco",
+          "piso": "vinilo"
+         },
+         "ancho": 1440,
+         "piezas": []
+        },
+        "objetos": [
+         {
+          "clave": "caminante",
+          "etiqueta": "Caminante",
+          "metadatos": {
+           "apoyo": "pies",
+           "movimiento": {
+            "modo": "ida-y-vuelta",
+            "puntos": [
+             {
+              "x": 600,
+              "y": 300
+             },
+             {
+              "x": 600,
+              "y": 450
+             }
+            ],
+            "tipo": "ruta"
+           }
+          },
+          "tipo": "PERSON",
+          "x": 300,
+          "y": 300
+         }
+        ]
+       }
+      }
+     ]
+    }
+   },
+   "hallazgos": [],
+   "nombre": "ida y vuelta sin regreso"
+  },
+  {
+   "documento": {
+    "x-siep": {
+     "escenas": [
+      {
+       "clave": "a",
+       "mapa": {
+        "alto": 528,
+        "ambiente": {
+         "encuadre": "tres-paredes"
+        },
+        "ancho": 1440,
+        "aparicion": {
+         "x": 400,
+         "y": 300
+        },
+        "clave": "a",
+        "colisiones": [],
+        "estructura": {
+         "acabados": {
+          "muro": "liso",
+          "paleta": "blanco",
+          "piso": "vinilo"
+         },
+         "ancho": 1440,
+         "piezas": []
+        },
+        "objetos": [
+         {
+          "clave": "caminante",
+          "etiqueta": "Caminante",
+          "metadatos": {
+           "apoyo": "pies",
+           "movimiento": {
+            "modo": "circuito",
+            "puntos": [
+             {
+              "x": 600,
+              "y": 300
+             },
+             {
+              "x": 600,
+              "y": 400
+             }
+            ],
+            "tipo": "ruta"
+           }
+          },
+          "tipo": "PERSON",
+          "x": 300,
+          "y": 300
+         },
+         {
+          "clave": "otra",
+          "metadatos": {
+           "apoyo": "pies"
+          },
+          "tipo": "PERSON",
+          "x": 450,
+          "y": 300
+         }
+        ]
+       }
+      }
+     ]
+    }
+   },
+   "hallazgos": [
+    {
+     "mensaje": "El camino recto hasta este punto atraviesa un mueble, una pared u otra persona: la persona camina en línea recta entre sus puntos; agrega un punto intermedio para rodearlo.",
+     "regla": "OCL-19",
+     "ruta": "x-siep.escenas[0].mapa.objetos[0].metadatos.movimiento.puntos[0]"
+    }
+   ],
+   "nombre": "otra persona en medio"
+  },
+  {
+   "documento": {
+    "x-siep": {
+     "escenas": [
+      {
+       "clave": "a",
+       "mapa": {
+        "alto": 528,
+        "ambiente": {
+         "encuadre": "tres-paredes"
+        },
+        "ancho": 1440,
+        "aparicion": {
+         "x": 400,
+         "y": 300
+        },
+        "clave": "a",
+        "colisiones": [],
+        "estructura": {
+         "acabados": {
+          "muro": "liso",
+          "paleta": "blanco",
+          "piso": "vinilo"
+         },
+         "ancho": 1440,
+         "piezas": []
+        },
+        "objetos": [
+         {
+          "clave": "caminante",
+          "etiqueta": "Caminante",
+          "metadatos": {
+           "apoyo": "pies",
+           "movimiento": {
+            "modo": "circuito",
+            "puntos": [
+             {
+              "x": 600,
+              "y": 300
+             },
+             {
+              "x": 600,
+              "y": 400
+             }
+            ],
+            "tipo": "ruta"
+           }
+          },
+          "tipo": "PERSON",
+          "x": 300,
+          "y": 200
+         }
+        ]
+       }
+      }
+     ]
+    }
+   },
+   "hallazgos": [
+    {
+     "mensaje": "La partida de la persona queda fuera de la zona caminable, sobre un mueble o sobre otra persona.",
+     "regla": "OCL-19",
+     "ruta": "x-siep.escenas[0].mapa.objetos[0].metadatos.movimiento"
+    }
+   ],
+   "nombre": "partida fuera de la zona"
+  },
+  {
+   "documento": {
+    "x-siep": {
+     "escenas": [
+      {
+       "clave": "a",
+       "mapa": {
+        "alto": 528,
+        "ambiente": {
+         "encuadre": "tres-paredes"
+        },
+        "ancho": 1440,
+        "aparicion": {
+         "x": 400,
+         "y": 300
+        },
+        "clave": "a",
+        "colisiones": [
+         {
+          "alto": 8,
+          "ancho": 30,
+          "x": 440,
+          "y": 302
+         }
+        ],
+        "estructura": {
+         "acabados": {
+          "muro": "liso",
+          "paleta": "blanco",
+          "piso": "vinilo"
+         },
+         "ancho": 1440,
+         "piezas": []
+        },
+        "objetos": [
+         {
+          "clave": "caminante",
+          "etiqueta": "Caminante",
+          "metadatos": {
+           "apoyo": "pies",
+           "movimiento": {
+            "modo": "circuito",
+            "puntos": [
+             {
+              "x": 600,
+              "y": 300
+             },
+             {
+              "x": 600,
+              "y": 400
+             }
+            ],
+            "tipo": "ruta"
+           }
+          },
+          "tipo": "PERSON",
+          "x": 300,
+          "y": 300
+         }
+        ]
+       }
+      }
+     ]
+    }
+   },
+   "hallazgos": [],
+   "nombre": "apoyo en los pies"
+  },
+  {
+   "documento": {
+    "x-siep": {
+     "escenas": [
+      {
+       "clave": "a",
+       "mapa": {
+        "alto": 528,
+        "ambiente": {
+         "encuadre": "tres-paredes"
+        },
+        "ancho": 1440,
+        "aparicion": {
+         "x": 400,
+         "y": 300
+        },
+        "clave": "a",
+        "colisiones": [
+         {
+          "alto": 8,
+          "ancho": 30,
+          "x": 440,
+          "y": 302
+         }
+        ],
+        "estructura": {
+         "acabados": {
+          "muro": "liso",
+          "paleta": "blanco",
+          "piso": "vinilo"
+         },
+         "ancho": 1440,
+         "piezas": []
+        },
+        "objetos": [
+         {
+          "clave": "caminante",
+          "etiqueta": "Caminante",
+          "metadatos": {
+           "movimiento": {
+            "modo": "circuito",
+            "puntos": [
+             {
+              "x": 600,
+              "y": 300
+             },
+             {
+              "x": 600,
+              "y": 400
+             }
+            ],
+            "tipo": "ruta"
+           }
+          },
+          "tipo": "PERSON",
+          "x": 300,
+          "y": 300
+         }
+        ]
+       }
+      }
+     ]
+    }
+   },
+   "hallazgos": [
+    {
+     "mensaje": "El camino recto hasta este punto atraviesa un mueble, una pared u otra persona: la persona camina en línea recta entre sus puntos; agrega un punto intermedio para rodearlo.",
+     "regla": "OCL-19",
+     "ruta": "x-siep.escenas[0].mapa.objetos[0].metadatos.movimiento.puntos[0]"
+    }
+   ],
+   "nombre": "apoyo de antes"
+  },
+  {
+   "documento": {
+    "x-siep": {
+     "escenas": [
+      {
+       "clave": "a",
+       "mapa": {
+        "alto": 528,
+        "ambiente": {
+         "encuadre": "tres-paredes"
+        },
+        "ancho": 1440,
+        "aparicion": {
+         "x": 400,
+         "y": 300
+        },
+        "clave": "a",
+        "colisiones": [],
+        "estructura": {
+         "acabados": {
+          "muro": "liso",
+          "paleta": "blanco",
+          "piso": "vinilo"
+         },
+         "ancho": 1440,
+         "piezas": []
+        },
+        "objetos": [
+         {
+          "clave": "caminante",
+          "etiqueta": "Caminante",
+          "metadatos": {
+           "apoyo": "pies",
+           "movimiento": {
+            "modo": "circuito",
+            "puntos": [
+             {
+              "x": 600,
+              "y": 300
+             }
+            ],
+            "tipo": "ruta"
+           }
+          },
+          "tipo": "PERSON",
+          "x": 300,
+          "y": 300
+         }
+        ]
+       }
+      }
+     ]
+    }
+   },
+   "hallazgos": [
+    {
+     "mensaje": "El trayecto requiere de 2 a 8 puntos válidos, un modo válido y una pausa entre 0 y 10000 ms.",
+     "regla": "OCL-19",
+     "ruta": "x-siep.escenas[0].mapa.objetos[0].metadatos.movimiento"
+    }
+   ],
+   "nombre": "trayecto mal formado"
+  },
+  {
+   "documento": {
+    "x-siep": {
+     "escenas": [
+      {
+       "clave": "a",
+       "mapa": {
+        "alto": 528,
+        "ambiente": {
+         "encuadre": "tres-paredes"
+        },
+        "ancho": 1440,
+        "aparicion": {
+         "x": 400,
+         "y": 300
+        },
+        "clave": "a",
+        "colisiones": [],
+        "estructura": {
+         "acabados": {
+          "muro": "liso",
+          "paleta": "blanco",
+          "piso": "vinilo"
+         },
+         "ancho": 1440,
+         "piezas": []
+        },
+        "objetos": [
+         {
+          "clave": "caminante",
+          "etiqueta": "Caminante",
+          "metadatos": {
+           "apoyo": "pies",
+           "movimiento": {
+            "modo": "circuito",
+            "pausaMs": 10001,
+            "puntos": [
+             {
+              "x": 600,
+              "y": 300
+             },
+             {
+              "x": 600,
+              "y": 400
+             }
+            ],
+            "tipo": "ruta"
+           }
+          },
+          "tipo": "PERSON",
+          "x": 300,
+          "y": 300
+         }
+        ]
+       }
+      }
+     ]
+    }
+   },
+   "hallazgos": [
+    {
+     "mensaje": "El trayecto requiere de 2 a 8 puntos válidos, un modo válido y una pausa entre 0 y 10000 ms.",
+     "regla": "OCL-19",
+     "ruta": "x-siep.escenas[0].mapa.objetos[0].metadatos.movimiento"
+    }
+   ],
+   "nombre": "pausa fuera de rango"
+  },
+  {
+   "documento": {
+    "x-siep": {
+     "escenas": [
+      {
+       "clave": "a",
+       "mapa": {
+        "alto": 528,
+        "ambiente": {
+         "encuadre": "tres-paredes"
+        },
+        "ancho": 1440,
+        "aparicion": {
+         "x": 400,
+         "y": 300
+        },
+        "clave": "a",
+        "colisiones": [],
+        "estructura": {
+         "acabados": {
+          "muro": "liso",
+          "paleta": "blanco",
+          "piso": "vinilo"
+         },
+         "ancho": 1440,
+         "piezas": []
+        },
+        "objetos": [
+         {
+          "clave": "caminante",
+          "etiqueta": "Caminante",
+          "metadatos": {
+           "apoyo": "pies",
+           "movimiento": {
+            "modo": "circuito",
+            "puntos": [
+             {
+              "x": 600,
+              "y": 300
+             },
+             {
+              "x": 600,
+              "y": 400
+             }
+            ],
+            "tipo": "ruta"
+           }
+          },
+          "tipo": "PERSON",
+          "x": null,
+          "y": 300
+         }
+        ]
+       }
+      }
+     ]
+    }
+   },
+   "hallazgos": [
+    {
+     "mensaje": "No se puede comprobar el trayecto sin las medidas de la sala y la posición de la persona.",
+     "regla": "OCL-19",
+     "ruta": "x-siep.escenas[0].mapa.objetos[0].metadatos.movimiento"
+    }
+   ],
+   "nombre": "trayecto sin posición"
+  },
+  {
+   "documento": {
+    "x-siep": {
+     "escenas": [
+      {
+       "clave": "a",
+       "mapa": {
+        "alto": 528,
+        "ambiente": {
+         "encuadre": "tres-paredes"
+        },
+        "ancho": 1440,
+        "aparicion": {
+         "x": 400,
+         "y": 300
+        },
+        "clave": "a",
+        "colisiones": [
+         {
+          "alto": 100,
+          "ancho": 30,
+          "x": 440,
+          "y": 250
+         }
+        ],
+        "objetos": [
+         {
+          "clave": "caminante",
+          "etiqueta": "Caminante",
+          "metadatos": {
+           "apoyo": "pies",
+           "movimiento": {
+            "modo": "circuito",
+            "puntos": [
+             {
+              "x": 600,
+              "y": 300
+             },
+             {
+              "x": 600,
+              "y": 400
+             }
+            ],
+            "tipo": "ruta"
+           }
+          },
+          "tipo": "PERSON",
+          "x": 300,
+          "y": 300
+         }
+        ]
+       }
+      }
+     ]
+    }
+   },
+   "hallazgos": [
+    {
+     "mensaje": "El camino recto hasta este punto atraviesa un mueble, una pared u otra persona: la persona camina en línea recta entre sus puntos; agrega un punto intermedio para rodearlo.",
+     "regla": "OCL-19",
+     "ruta": "x-siep.escenas[0].mapa.objetos[0].metadatos.movimiento.puntos[0]"
+    },
+    {
+     "mensaje": "El camino recto de regreso a la partida atraviesa un mueble, una pared u otra persona: agrega un punto intermedio para rodearlo.",
+     "regla": "OCL-19",
+     "ruta": "x-siep.escenas[0].mapa.objetos[0].metadatos.movimiento"
+    }
+   ],
+   "nombre": "trayecto en sala sin estructura"
   }
  ],
  "catalogo": {
