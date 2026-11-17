@@ -106,8 +106,8 @@ La versión del programa es la de `package.json` en la raíz. Se sigue el versio
 
 **Pruebas y herramientas**
 
-- Servidor: suite completa en 8213 passed y 5 skipped al cierre del 17 de noviembre; los 7 fallos que había eran pruebas atrasadas y se arreglaron.
-- Job Frontend: `test:frontend` 5739/5739 al cierre.
+- Servidor: suite completa en 8254 passed y 4 skipped al cierre del 17 de noviembre; el único fallo, un presupuesto de consultas atrasado (la consulta de `competenciesDeclared`), se ajustó y su archivo pasa 11/11.
+- Job Frontend: los 9 pasos en verde; `test:frontend` 5755/5755 al cierre.
 - Pruebas e2e nuevas: recorrido de los tres capítulos de SIM-VBG-002 (`@demo-k1`), `autoria-sala-piezas`, `autoria-generacion`, ensayo de la docente y salida segura sin red.
 - La referencia de contratos HTTP incluye las rutas de generación y del plano.
 - `npm run check:version` comprueba que todas las versiones coincidan y corre en CI. Este CHANGELOG nace con la entrega.
