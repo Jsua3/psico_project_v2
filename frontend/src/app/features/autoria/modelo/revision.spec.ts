@@ -1,3 +1,4 @@
+import { CASO_HOSPITAL } from '../testing/hospital';
 import { revisarCaminos } from './caminos';
 import type { CasoBorrador, Escena, Respuesta } from './caso';
 import type { ValidationIssue } from '../../../core/models/simulation.model';
@@ -248,5 +249,48 @@ describe('faltasDelServidor: las faltas de requisitos, reacciones y comentarios 
     expect(llevar(caso, 'DSL.OCL-12', 'x-siep.escenas[1].comentarios').ir).toEqual({ ruta: '/editor/escena/7', ancla: 'comentarios-titulo' });
     const sinEscena = faltasDelServidor([{ code: 'DSL.OCL-12', severity: 'error', message: 'X.', path: 'x-siep.escenas[1].comentarios[0]' }], caso, { respuestaDeOpcion: () => undefined, faltasLocales: [] })[0];
     expect(sinEscena.ir).toEqual({ ruta: '/editor' });
+  });
+});
+
+
+describe('faltas del servidor de salas por piezas', () => {
+  const caso = () => {
+    const borrador = structuredClone(CASO_HOSPITAL);
+    borrador.escenas[0].id = '7';
+    return borrador;
+  };
+  const llevar = (borrador: CasoBorrador, code: string, path: string, nodeId = 7) =>
+    faltasDelServidor([{ code, severity: 'error', message: 'Mensaje íntegro del servidor.', nodeId, path }], borrador,
+      { respuestaDeOpcion: () => undefined, faltasLocales: [] })[0];
+
+  it('OCL-14 lleva a la sala y a la pieza', () => {
+    const borrador = caso();
+    const salaId = borrador.escenas[0].salaId!;
+    expect(llevar(borrador, 'DSL.OCL-14', 'x-siep.escenas[9].mapa.estructura.piezas[0].x')).toEqual({
+      codigo: 'DSL.OCL-14', mensaje: 'Mensaje íntegro del servidor.',
+      ir: { ruta: `/editor/sala/${salaId}`, ancla: `pieza-${salaId}-v1` },
+    });
+  });
+
+  it('OCL-15 de una puerta lleva a su botón', () => {
+    const borrador = caso();
+    const salaId = borrador.escenas[0].salaId!;
+    // El índice de objetos del servidor no identifica de forma segura el botón del editor.
+    expect(llevar(borrador, 'DSL.OCL-15', 'x-siep.escenas[9].mapa.objetos[0].metadatos').ir)
+      .toEqual({ ruta: `/editor/sala/${salaId}` });
+  });
+
+  it('OCL-18 sin catálogo lleva a la sala sin ancla', () => {
+    const borrador = caso();
+    expect(llevar(borrador, 'DSL.OCL-18', 'x-siep.escenas[9].mapa').ir)
+      .toEqual({ ruta: `/editor/sala/${borrador.escenas[0].salaId}` });
+  });
+
+  it('una pieza inexistente o una escena desconocida conserva el destino predeterminado', () => {
+    const borrador = caso();
+    expect(llevar(borrador, 'DSL.OCL-13', 'x-siep.escenas[9].mapa.estructura.piezas[999]').ir)
+      .toEqual({ ruta: '/editor/escena/7' });
+    expect(llevar(borrador, 'DSL.OCL-16', 'x-siep.escenas[0].mapa.aparicion', 999).ir)
+      .toEqual({ ruta: '/editor/escena/999' });
   });
 });
