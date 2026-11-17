@@ -1578,6 +1578,19 @@ export class DataDrivenWorldScene extends Phaser.Scene {
   private manifiestoDePiezasPedido = false;
   /** P2: claves de piezas que fallaron al cargar: no se vuelven a pedir (hallazgo 2 de la revisión de Codex). */
   private readonly piezasFallidas = new Set<string>();
+  /** P2: la sala por piezas apartada durante un repintado de la misma sala (vuelve sin rearmarse). */
+  private salaApartada: EscenaDeSala | null = null;
+
+  /** P2: lo que dibuja la sala por piezas: estructura, encuadre, puertas y objetos con arte. Igual = no hay que rearmarla. */
+  private firmaDeSala(): string {
+    if (!this.world) return '';
+    const mapa = this.world.map as unknown as Record<string, unknown>;
+    const objetos = this.world.objects
+      .filter(o => o.type === 'EXIT' || typeof o.metadata?.['arte'] === 'string')
+      .map(o => [o.key, o.type, o.x, o.y, o.metadata?.['arte'] ?? null, o.metadata?.['espejo'] ?? null, o.metadata?.['muro'] ?? null,
+        o.metadata?.['pos'] ?? null, o.metadata?.['modelo'] ?? null]);
+    return JSON.stringify([mapa['key'], mapa['structure'] ?? null, (mapa['ambient'] as Record<string, unknown> | undefined)?.['encuadre'] ?? null, objetos]);
+  }
   private salaIncompletaAvisada: string | null = null;
   private firmaDelAviso = '';
 
@@ -1621,6 +1634,8 @@ export class DataDrivenWorldScene extends Phaser.Scene {
   private soltarSalaPorPiezas(): void {
     this.salaPorPiezas?.destruir();
     this.salaPorPiezas = null;
+    this.salaApartada?.destruir();
+    this.salaApartada = null;
     this.avisoDePuerta(null);
   }
 
@@ -1666,6 +1681,9 @@ export class DataDrivenWorldScene extends Phaser.Scene {
       this.load.start();
       return true;
     }
+    const apartada = this.salaApartada;
+    this.salaApartada = null;
+    if (apartada && apartada.firma !== this.firmaDeSala()) apartada.destruir();
     // Las puertas de pieza ya están en el muro: su marcador no lleva sprite, solo el rótulo y el área para cruzar.
     // Los muebles y objetos de la biblioteca de piezas los dibuja la escena (con su animación); su marcador, solo el rótulo.
     const dePieza = new Set([...(sala.puertas ?? []).map(p => p.id), ...muebles.map(m => m.id)]);
@@ -1673,9 +1691,15 @@ export class DataDrivenWorldScene extends Phaser.Scene {
       .map(obj => (dePieza.has(obj.key) ? { ...obj, metadata: { ...(obj.metadata ?? {}), pintada: true, dePieza: true } } : obj))
       .forEach(obj => this.createMarker(obj));
     // Los muebles y objetos del caso con arte arrojan su silueta en la luz de la sala (las personas, la suya al caminar).
-    this.salaPorPiezas = new EscenaDeSala(this, sala, plan, manifiesto, {
-      reducido: this.callbacks.reduceMotion, cuerpos: this.cuerposDeLaSala(), muebles,
-    });
+    if (apartada && apartada.firma === this.firmaDeSala()) {
+      apartada.devolver();
+      this.salaPorPiezas = apartada;
+    } else {
+      this.salaPorPiezas = new EscenaDeSala(this, sala, plan, manifiesto, {
+        reducido: this.callbacks.reduceMotion, cuerpos: this.cuerposDeLaSala(), muebles,
+      });
+      this.salaPorPiezas.firma = this.firmaDeSala();
+    }
     this.createPlayer(this.world.player.x, this.world.player.y);
     // Cámara (M1): la sala compuesta mide `plan.ancho × plan.alto` (528 de alto, contrato 2.2); el `height` del mapa del
     // servidor puede ser mayor y la cámara mostraba el vacío bajo la sala en el plano general.
@@ -1706,7 +1730,14 @@ export class DataDrivenWorldScene extends Phaser.Scene {
     this.cameras.main.stopFollow();   // clear stale follow target before destroying children
     // Los pulsos repeat:-1 sobreviven a removeAll y se acumulaban en cada re-render.
     this.endGestures();   // antes del killAll: Phaser descarta los tweens sin avisar y la promesa quedaría colgada
-    this.salaPorPiezas?.destruir();   // P2: sus texturas de lienzo no las borra removeAll
+    // P2: si la sala por piezas que viene es la misma (misma estructura, puertas y objetos con arte), se aparta entera y
+    // vuelve después del repintado: cada interacción trae el mundo completo y rearmarla congelaba el juego (V2).
+    if (this.salaPorPiezas && this.salaPorPiezas.firma === this.firmaDeSala()) {
+      this.salaApartada = this.salaPorPiezas;
+      this.salaApartada.apartar();
+    } else {
+      this.salaPorPiezas?.destruir();   // sus texturas de lienzo no las borra removeAll
+    }
     this.salaPorPiezas = null;
     this.tweens.killAll();
     this.children.removeAll(true);

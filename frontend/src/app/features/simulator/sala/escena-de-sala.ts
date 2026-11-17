@@ -166,6 +166,40 @@ interface MuebleVivo {
 
 const texturaDeMueble = (clave: string) => `sala:mueble:${clave}`;
 
+/**
+ * Lo caro de armar una sala (el fondo compuesto y la luz) guardado por su firma: cada respuesta del servidor vuelve a armar
+ * la escena (`renderWorld`) y, si la sala y sus cuerpos no cambiaron, la cuenta da los mismos píxeles. Las cuatro últimas.
+ */
+const cacheDeSalas = new Map<string, unknown>();
+function enCache<T>(clave: string, hacer: () => T): T {
+  if (cacheDeSalas.has(clave)) {
+    const valor = cacheDeSalas.get(clave) as T;
+    cacheDeSalas.delete(clave);
+    cacheDeSalas.set(clave, valor);
+    return valor;
+  }
+  const valor = hacer();
+  cacheDeSalas.set(clave, valor);
+  while (cacheDeSalas.size > 8) cacheDeSalas.delete(cacheDeSalas.keys().next().value as string);
+  return valor;
+}
+
+function firmaDePlan(sala: SalaPorPiezas, plan: PlanDeSala): string {
+  return JSON.stringify([sala.encuadre, sala.estructura, sala.puertas ?? [], plan.momento, plan.ancho]);
+}
+
+function firmaDeCuerpos(cuerpos: readonly Cuerpo[]): string {
+  return JSON.stringify(cuerpos.map(c => {
+    const m = c.mascara as Mascara | readonly string[] | undefined;
+    let suma = 0;
+    if (m && !Array.isArray(m)) {
+      const datos = (m as Mascara).datos;
+      for (let i = 0; i < datos.length; i++) if (datos[i]) suma = (suma * 31 + i) % 1000000007;
+    }
+    return [c.x0, c.x1, c.y0, c.y1, c.alto, c.x, c.y, c.px, c.py, m && !Array.isArray(m) ? `${(m as Mascara).ancho}x${(m as Mascara).alto}:${suma}` : m];
+  }));
+}
+
 export class EscenaDeSala {
   readonly plan: PlanDeSala;
   private readonly escena: Phaser.Scene;
@@ -255,7 +289,7 @@ export class EscenaDeSala {
         if (px) imagenes.set(s.ruta, px);
       }
     }
-    const fondo = pintarFondo(plan, imagenes);
+    const fondo = enCache(`fondo|${firmaDePlan(sala, plan)}`, () => pintarFondo(plan, imagenes));
     const nombreFondo = `sala:fondo-${sufijo}`;
     const lienzoFondo = escena.textures.createCanvas(nombreFondo, plan.ancho, plan.alto);
     if (lienzoFondo) {
@@ -297,7 +331,11 @@ export class EscenaDeSala {
     }
 
     // Luz.
-    this.luz = prepararLuz(sala, manifiesto.piezas, { momento: plan.momento, cuerpos });
+    // La misma sala con los mismos cuerpos da la misma luz: se reutiliza (cada interacción vuelve a armar la escena) con
+    // sus puertas cerradas, que es como nace la escena nueva.
+    this.luz = enCache(`luz|${firmaDePlan(sala, plan)}|${firmaDeCuerpos(cuerpos)}`,
+      () => prepararLuz(sala, manifiesto.piezas, { momento: plan.momento, cuerpos }));
+    this.luz.abrir([]);
     const capas = this.luz.capas();
     const ambiente = escena.textures.createCanvas(`sala:ambiente-${sufijo}`, plan.ancho, plan.alto);
     const brillo = escena.textures.createCanvas(`sala:brillo-${sufijo}`, plan.ancho, plan.alto);
@@ -663,6 +701,19 @@ export class EscenaDeSala {
     if (escena.textures.exists(clave(ruta))) return false;
     escena.load.image(clave(ruta), urlDePieza(ruta));
     return true;
+  }
+
+  /** Firma de lo que dibuja la escena (la pone quien la arma): si la sala siguiente da la misma, se conserva entera. */
+  firma = '';
+
+  /** Saca sus objetos de la lista de la escena sin destruirlos: sobreviven a `children.removeAll` de un repintado. */
+  apartar(): void {
+    for (const o of this.objetos) this.escena.children.remove(o);
+  }
+
+  /** Los devuelve a la escena tal como estaban (mismos objetos, mismas texturas, mismos píxeles). */
+  devolver(): void {
+    for (const o of this.objetos) this.escena.add.existing(o);
   }
 
   /** Quien juega está cerca de este objeto (null: de ninguno): si el mueble tiene clip `cerca`, lo hace una vez. */
