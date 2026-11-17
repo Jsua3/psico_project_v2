@@ -43,9 +43,9 @@ interface Pieza {
   `,
   styles: [`
     :host { position: absolute; inset: 0; pointer-events: none; z-index: 5; }
-    .pieza-muro { position: absolute; box-sizing: border-box; min-width: 24px; min-height: 24px; padding: 0;
+    .pieza-muro { position: absolute; box-sizing: border-box; min-width: calc(24px / var(--escala, 1)); min-height: calc(24px / var(--escala, 1)); padding: 0;
       border: 2px solid transparent; background: transparent; touch-action: none; pointer-events: auto; cursor: grab; }
-    .pieza-muro::before { content: ""; position: absolute; left: 50%; top: 50%; width: 44px; height: 44px;
+    .pieza-muro::before { content: ""; position: absolute; left: 50%; top: 50%; width: calc(44px / var(--escala, 1)); height: calc(44px / var(--escala, 1));
       transform: translate(-50%, -50%); }
     .pieza-muro:active { cursor: grabbing; }
     .pieza-muro.elegida, .pieza-muro:focus-visible { outline: 3px solid #175ec6; outline-offset: 2px; }
@@ -59,7 +59,7 @@ export class PiezasDelMuroComponent {
   readonly sala = input.required<SalaCaso>();
   readonly plan = input.required<PlanDeSala | null>();
   readonly faltas = input.required<FaltaDeSala[]>();
-  readonly escala = input.required<1 | 2>();
+  readonly escala = input.required<number>();
   readonly elegida = output<string | null>();
   protected readonly seleccion = signal<string | null>(null);
   protected readonly anuncio = signal('');

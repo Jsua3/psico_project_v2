@@ -63,7 +63,7 @@ const DISTANCIAS_INICIALES = [96, -96, 160, -160, 48, -48];
   host: { '(document:keydown.escape)': 'atencion.set(null)' },
   template: `
     @if (sala(); as s) {
-      <div class="pagina">
+      <div class="pagina" [class.pagina-ancha]="s.estructura">
         <div class="cabeza">
           <div>
             <h1>{{ s.nombre }}</h1>
@@ -129,13 +129,14 @@ const DISTANCIAS_INICIALES = [96, -96, 160, -160, 48, -48];
             }
             <div [class.desplazamiento]="s.estructura">
             <div class="escenario" #escenario [id]="'sala-' + s.id" [class.por-piezas]="s.estructura"
-                 [style.width.px]="s.estructura ? s.estructura.ancho * escalaPiezas() : null"
-                 [style.height.px]="s.estructura ? alto * escalaPiezas() : null" tabindex="-1"
+                 [class.encajada]="s.estructura && escalaLienzo() < 1"
+                 [style.width.px]="s.estructura ? s.estructura.ancho * escalaLienzo() : null"
+                 [style.height.px]="s.estructura ? alto * escalaLienzo() : null" tabindex="-1"
                  data-accion="mover-mueble" (keydown)="teclaGeneral($event)" (click)="clicEnSala($event)"
-                 [style.--escala]="s.estructura ? escalaPiezas() : escala()" (pointermove)="arrastrar($event)"
+                 [style.--escala]="s.estructura ? escalaLienzo() : escala()" (pointermove)="arrastrar($event)"
                  (pointerup)="soltar()" (pointercancel)="soltar()">
               @if (s.estructura) {
-                <app-manija-de-ancho [ancho]="s.estructura.ancho" [escala]="escalaPiezas()"
+                <app-manija-de-ancho [ancho]="s.estructura.ancho" [escala]="escalaLienzo()"
                   (cambio)="cambiarAncho($event)" />
               }
               <div class="lienzo" [style.width.px]="s.estructura?.ancho ?? ancho">
@@ -144,7 +145,7 @@ const DISTANCIAS_INICIALES = [96, -96, 160, -160, 48, -48];
                     <app-lienzo-de-sala [sala]="salaLienzoActual" [actores]="actoresLienzo()"
                       [escala]="1" (listo)="plan.set($event.plan)" />
                     <app-piezas-del-muro #capaDePiezas [sala]="s" [plan]="plan()" [faltas]="faltasSala()"
-                      [escala]="escalaPiezas()" (elegida)="piezaDeMuroElegida.set($event)" />
+                      [escala]="escalaLienzo()" (elegida)="piezaDeMuroElegida.set($event)" />
                   }
                 } @else {
                   <img class="pixel fondo" [src]="arte(s.fondo)" alt="" [width]="ancho" [height]="alto" draggable="false" />
@@ -401,6 +402,8 @@ const DISTANCIAS_INICIALES = [96, -96, 160, -160, 48, -48];
   styles: `
     .cabeza { display: flex; flex-wrap: wrap; gap: 12px 24px; align-items: flex-end; justify-content: space-between; }
     .cabeza p { margin: 4px 0 0; }
+    /* Una sala por piezas usa más ancho en pantallas grandes: el lienzo encajado se ve más grande (a 1366 no cambia nada). */
+    .pagina.pagina-ancha { max-width: 1680px; }
     .tres-columnas { display: grid; grid-template-columns: minmax(200px, 240px) minmax(0, 1fr) minmax(220px, 280px); gap: 16px; align-items: start; }
     @media (max-width: 1100px) { .tres-columnas { grid-template-columns: 1fr; } }
     h2 { margin: 0 0 8px; font-size: var(--autoria-texto-20); line-height: 28px; }
@@ -449,6 +452,8 @@ const DISTANCIAS_INICIALES = [96, -96, 160, -160, 48, -48];
     /* La atención (cursor o foco en la lista) señala la pieza con un trazo sólido; lo elegido pesa más y conserva el suyo. */
     .pieza.atendida:not(.elegida) { outline: 3px solid var(--primario); outline-offset: 3px; }
     .pieza img { image-rendering: pixelated; pointer-events: none; }
+    /* Encajada (menos de 1:1) el arte se reduce suave: el vecino más próximo borraría las líneas finas. */
+    :host ::ng-deep .escenario.encajada canvas, .escenario.encajada .pieza img, .escenario.encajada .personaje { image-rendering: auto !important; }
     .pieza img.espejo { transform: scaleX(-1); }
     .personaje { display: block; width: 48px; height: 72px; background-repeat: no-repeat; image-rendering: pixelated; pointer-events: none; }
     .ayuda { margin: 0; font-size: var(--autoria-texto-16); line-height: 24px; }
@@ -490,6 +495,19 @@ export class SalaComponent {
     anclaDeElemento(this.salaId(), { tipo: 'puerta', id: p.id }) === this.piezaDeMuroElegida())?.id ?? null);
   protected readonly plan = signal<PlanDeSala | null>(null);
   protected readonly escalaPiezas = signal<1 | 2>(1);
+  /** Ancho de la columna de la sala en pantalla (lo mide un ResizeObserver; 0 hasta medirlo). */
+  private readonly disponible = signal(0);
+  /**
+   * La escala a la que se ve una sala por piezas: entera en la columna (una sala de 1200 o 1920 px se ve completa a 1366 y a
+   * 1920, sin desplazarse), nunca más grande que 1:1; con «×2» (salas de hasta 960) se ve al doble y la columna se desplaza.
+   */
+  protected readonly escalaLienzo = computed(() => {
+    const ancho = this.sala()?.estructura?.ancho;
+    if (!ancho) return 1;
+    if (this.escalaPiezas() === 2) return 2;
+    const disponible = this.disponible();
+    return disponible > 0 ? Math.min(1, disponible / ancho) : 1;
+  });
   protected readonly faltas = signal(new Map<string, FaltaDeSala[]>());
   protected readonly faltasSala = computed(() => this.faltas().get(this.salaId()) ?? []);
   protected readonly puertasPendientes = computed(() => {
@@ -704,12 +722,21 @@ export class SalaComponent {
         this.avisoPersona.set('');
       });
     });
-    afterNextRender(() => {
+    // Se mide cuando aparece el lienzo (al recargar, el caso llega después del primer pintado). La sala por piezas tiene el
+    // ancho de su escala: para encajarla se mide la columna que la contiene.
+    effect((alLimpiar) => {
       const el = this.escenario()?.nativeElement;
       if (!el || typeof ResizeObserver === 'undefined') return;
-      const medir = () => this.escala.set(el.clientWidth / ANCHO_SALA || 1);
+      const columna = el.parentElement;
+      const medir = () => {
+        this.escala.set(el.clientWidth / ANCHO_SALA || 1);
+        if (columna) this.disponible.set(columna.clientWidth);
+      };
       medir();
-      new ResizeObserver(medir).observe(el);
+      const observador = new ResizeObserver(medir);
+      observador.observe(el);
+      if (columna) observador.observe(columna);
+      alLimpiar(() => observador.disconnect());
     });
   }
 
@@ -997,7 +1024,7 @@ export class SalaComponent {
 
   private aSala(evento: MouseEvent): { x: number; y: number } {
     const r = this.escenario()!.nativeElement.getBoundingClientRect();
-    const e = this.sala()?.estructura ? this.escalaPiezas() : this.escala();
+    const e = this.sala()?.estructura ? this.escalaLienzo() : this.escala();
     return { x: Math.round((evento.clientX - r.left) / e), y: Math.round((evento.clientY - r.top) / e) };
   }
 

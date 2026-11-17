@@ -26,6 +26,18 @@ describe('documento de salas', () => {
       ?.some(f => f.regla === 'OCL-16' && f.elemento.id === 'a-pasillo') ?? false).toBe(false);
   });
 
+  it('OCL-14 marca las dos piezas del par (el servidor señala solo la primera)', () => {
+    const caso = structuredClone(CASO_HOSPITAL);
+    const sala = caso.salas.find(s => s.estructura && caso.escenas.some(e => e.salaId === s.id))!;
+    sala.estructura!.piezas = [
+      { id: 'cuadro-1', tipo: 'cuadro', modelo: 'a', muro: 'fondo', pos: 300 },
+      { id: 'cuadro-2', tipo: 'cuadro', modelo: 'a', muro: 'fondo', pos: 350 },
+    ];
+    const marcadas = (faltasPorSala(caso, CASOS_DE_REGLAS_DE_SALA.catalogo).get(sala.id) ?? [])
+      .filter(f => f.regla === 'OCL-14').map(f => `${f.elemento.tipo}:${f.elemento.id}`);
+    expect(marcadas.sort()).toEqual(['pieza:cuadro-1', 'pieza:cuadro-2']);
+  });
+
   it('con el ejemplo 7.2 del contrato, umbral y llegada de cada puerta son los de la tabla', () => {
     const mapa = documentoDeSalas(CASO_HOSPITAL)['x-siep'].escenas[0].mapa!;
     const pasillo = mapa.objetos!.find(o => o['clave'] === 'a-pasillo')!;
