@@ -43,6 +43,8 @@ def test_la_instruccion_nombra_cada_regla_de_sala():
                   *map(str, (rules_estructura.REJILLA, rules_estructura.RADIO_PUERTA,
                              rules_estructura.RADIO_PERSONA, rules_estructura.RADIO_OBJETO))]:
         assert valor in texto
+    # Si la docente describe cómo se ve la sala, la IA debe copiar la plantilla y cambiar solo eso.
+    assert "copia la estructura de la plantilla" in texto
 
 
 def test_el_esquema_de_escena_no_suma_uniones():

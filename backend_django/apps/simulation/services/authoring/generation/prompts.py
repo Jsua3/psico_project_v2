@@ -41,6 +41,9 @@ El caso se construye en dos etapas. En la etapa del esqueleto se decide el caso 
 """
     + f"""
 Salas por piezas: estructura es un texto JSON con el objeto completo de la sala o "" para conservar la plantilla.
+Si la petición de la docente dice cómo se ve la sala de esta escena (de noche o de día, poca luz o una lámpara, una ventana
+tapada, otro piso o color, algo que sobra o que falta), copia la estructura de la plantilla de esa sala, cambia solo eso y
+devuélvela; si no dice nada de cómo se ve, usa "". Por ejemplo, de noche: la misma estructura con "momento": "noche".
 La estructura es un objeto cerrado con ancho, momento (dia o noche), acabados y piezas; opcionalmente exterior,
 propios y tapetes. Acabados es un objeto cerrado con piso, muro, paleta y variante opcional (por defecto a).
 Cada pieza es un objeto cerrado con id, tipo y modelo; usa muro y pos enteros, o x e y enteros para suelo;
