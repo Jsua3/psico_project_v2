@@ -107,5 +107,6 @@
       "emocion": "neutral",
       "gesto": ""
     }
-  ]
+  ],
+  "estructura": "{\"acabados\":{\"piso\":\"baldosa\",\"variante\":\"a\",\"muro\":\"pintura\",\"paleta\":\"universidad\"},\"ancho\":960,\"momento\":\"noche\",\"piezas\":[{\"id\":\"persiana-1\",\"modelo\":\"persiana\",\"muro\":\"fondo\",\"pos\":144,\"tipo\":\"ventana\"},{\"id\":\"cuadro-1\",\"modelo\":\"cuadro\",\"muro\":\"fondo\",\"pos\":320,\"tipo\":\"cuadro\"},{\"id\":\"tubo-1\",\"modelo\":\"tubo\",\"muro\":\"fondo\",\"pos\":320,\"tipo\":\"lampara\"},{\"id\":\"tubo-2\",\"modelo\":\"tubo\",\"muro\":\"fondo\",\"pos\":608,\"tipo\":\"lampara\"}]}"
 }

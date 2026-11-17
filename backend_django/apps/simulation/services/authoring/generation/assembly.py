@@ -166,15 +166,20 @@ def build(base: CaseDefinition, sk: SkeletonDraft, scenes: dict[str, SceneDraft]
     by_sala = {scene.key: scene for scene in base.scenes}
     names = {character.key: character.display_name for character in base.characters}
     built: list[Scene] = []
+    salas_con_estructura: set[str] = set()
     for position, outline in enumerate(sk.escenas):
         draft = scenes[outline.sala]
         options = tuple(_option(outline.sala, option) for option in draft.opciones)
         scene = by_sala[outline.sala]
+        world = scene.world
+        if world is not None and draft.estructura is not None and outline.sala not in salas_con_estructura:
+            world = replace(world, structure=draft.estructura)
+            salas_con_estructura.add(outline.sala)
         built.append(replace(
             scene, title=outline.titulo, goal=outline.objetivo, intensity=outline.intensidad, warning=outline.advertencia,
             sensitive=outline.intensidad == "HIGH", start=position == 0, terminal=outline.final, narrative=draft.narracion,
             hints=tuple(draft.pistas), comments=tuple(_comment(c) for c in draft.comentarios), options=options,
-            world=_world(scene.world, outline, draft, options, names) if scene.world is not None else None,
+            world=_world(world, outline, draft, options, names) if world is not None else None,
         ))
     milestones = [m for m in base.rules.get("milestones", []) if m.get("key") in sk.hitos]
     rules = {**base.rules, "milestones": milestones, "endings": [dict(final) for final in sk.finales]}

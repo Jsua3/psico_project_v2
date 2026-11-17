@@ -5,7 +5,7 @@ copia crea en la base, así que lo que la IA nombra existe en el caso. ``compete
 """
 from apps.biblioteca.services import copiar_al_caso
 from apps.simulation.assessment import competencies
-from apps.simulation.casedef import vocabulary
+from apps.simulation.casedef import catalogo as catalogo_piezas, vocabulary
 from apps.simulation.models import Rubric
 from apps.simulation.services.authoring.rules import ENDING_TONES
 
@@ -30,9 +30,34 @@ def _sala(sala: dict, personajes: dict, objetos: dict) -> dict:
     for colocado, clave in zip(sala.get("objetos", []), claves["objetos"]):
         modelo = objetos.get(colocado["ref"], {})
         revisables.append({"clave": clave, "nombre": modelo.get("nombre", ""), "alRevisar": modelo.get("alRevisar", "")})
-    return {
+    resultado = {
         "id": sala["id"], "nombre": sala.get("nombre", ""), "descripcion": sala.get("descripcion", ""),
         "personas": personas, "objetos": revisables,
+    }
+    if isinstance(sala.get("estructura"), dict):
+        resultado["estructura"] = sala["estructura"]
+        resultado["puertas"] = [
+            {k: puerta[k] for k in ("id", "muro", "pos", "modelo") if k in puerta}
+            for puerta in sala.get("puertas", [])
+        ]
+    return resultado
+
+
+def _catalogo():
+    catalogo = catalogo_piezas.vigente()
+    if catalogo is None:
+        return None
+    return {
+        "anchos": list(catalogo.anchos),
+        "piezas": [
+            {"tipo": p.tipo, "modelo": p.clave.split("/", 1)[1], "ocupa": p.ocupa,
+             "muros": sorted(p.muros), "franja": list(p.franja)}
+            for _, p in sorted(catalogo.piezas.items())
+        ],
+        "pisos": [{"piso": k.partition("-")[0], "variante": k.partition("-")[2]}
+                  for k in sorted(catalogo.claves_de_pisos)],
+        "muros": [{"muro": k.split("/", 1)[0], "paleta": k.split("/", 1)[1]}
+                  for k in sorted(catalogo.muros)],
     }
 
 
@@ -41,7 +66,7 @@ def del_lugar(lugar: dict, competencias: list[dict]) -> dict:
     catalogo = lugar.get("catalogo", {})
     personajes = {p["id"]: p for p in lugar.get("personajes", [])}
     objetos = {o["id"]: o for o in catalogo.get("objetos", [])}
-    return {
+    resultado = {
         "lugar": {"id": lugar["id"], "nombre": lugar.get("nombre", ""), "descripcion": lugar.get("descripcion", "")},
         "salas": [_sala(sala, personajes, objetos) for sala in lugar.get("salas", [])],
         "hitos": [
@@ -60,3 +85,6 @@ def del_lugar(lugar: dict, competencias: list[dict]) -> dict:
             "tonos": list(ENDING_TONES),
         },
     }
+    if any(isinstance(s.get("estructura"), dict) for s in lugar.get("salas", [])):
+        resultado["catalogoPiezas"] = _catalogo()
+    return resultado

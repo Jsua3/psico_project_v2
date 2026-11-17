@@ -60,7 +60,7 @@ _CTX = None
 def _contexto():
     global _CTX
     if _CTX is None:
-        _CTX = context.del_lugar(lugares.cargar_lugar("universidad"), COMPETENCIAS)
+        _CTX = context.del_lugar(lugares.cargar_lugar("universidad", por_piezas=True), COMPETENCIAS)
     return _CTX
 
 

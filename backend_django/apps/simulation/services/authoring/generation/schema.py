@@ -64,6 +64,7 @@ SKELETON = _obj({
 })
 
 SCENE = _obj({
+    "estructura": _TEXT,
     "narracion": _TEXT,
     "lineas": _list(_obj({
         "personaje": _TEXT,

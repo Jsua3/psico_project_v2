@@ -30,7 +30,7 @@ def leer(nombre):
 
 @pytest.fixture(scope="module")
 def ctx():
-    return context.del_lugar(lugares.cargar_lugar("universidad"), COMPETENCIAS)
+    return context.del_lugar(lugares.cargar_lugar("universidad", por_piezas=True), COMPETENCIAS)
 
 
 @pytest.fixture
