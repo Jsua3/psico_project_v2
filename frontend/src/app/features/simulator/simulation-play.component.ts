@@ -683,6 +683,8 @@ const NARROW_QUERY = '(max-width: 760px)';
     @media (min-width: 761px) {
       .game-container[data-rehearsal] .top-bar__fila { flex-wrap: wrap; }
       .game-container[data-rehearsal] .carril { order: 3; flex: 1 1 100%; }
+      /* En su fila el aviso desplegado no se tiende de lado a lado sobre el mundo: el ancho del carril de siempre. */
+      .game-container[data-rehearsal] .carril > * { max-width: min(520px, 100%); }
       .game-container[data-rehearsal] .top-bar__derecha {
         margin-left: auto; max-width: calc(100% - min(440px, 33%) - var(--pixel-borde));
       }
@@ -1114,6 +1116,8 @@ const NARROW_QUERY = '(max-width: 760px)';
        quedan como respaldo fuera del juego; estas, más específicas, mandan dentro de .game-container. Las acciones se
        envuelven en dos filas antes que salirse de la placa («Continuar intento en progreso» se cortaba a 1366). */
     .game-container .case-intro-overlay { background: var(--pixel-velo-fuerte); }
+    /* Reanudar: un poco más ancha para que sus dos acciones vayan en una fila bajo «Volver al catálogo». */
+    .game-container .case-intro-card--entry { width: min(640px, 100%); }
     .game-container .case-intro-card {
       border-style: solid; border-width: calc(4 * var(--pixel-px)); border-color: transparent; border-radius: 0;
       border-image: var(--marco-placa) 4 / calc(4 * var(--pixel-px)) stretch;
