@@ -231,7 +231,7 @@ const LABEL_DEPTH = DEPTH.UI - 1;
 /** Cada cuánto (ms) la cámara vuelve a medir las placas de la interfaz (zona segura, U1). */
 const MEDIR_PLACAS_MS = 150;
 /** Prefijo de la clave con la que una persona del escenario sale como candidato de proximidad. */
-const NPC_KEY_PREFIX = 'npc:';
+export const NPC_KEY_PREFIX = 'npc:';
 /** Cuánto se sostiene el último plano cercano al soltarse (entre la decisión y la reacción, bloque M1). */
 const RETENER_PLANO_MS = 1300;
 /** Por debajo de esto (px físicos) el lienzo aún no tiene tamaño y la cámara espera (bloque M1). */

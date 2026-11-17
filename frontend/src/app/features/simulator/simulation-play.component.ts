@@ -50,7 +50,7 @@ import { RehearsalGoneComponent } from './rehearsal-gone.component';
 import { RehearsalPanelComponent } from './rehearsal-panel.component';
 import { type GuiaEscena, GUIA_VACIA, armarGuia, avisarOpcionNueva } from './caso/guia';
 import { DialoguePanelComponent } from './dialogue-panel.component';
-import { CameraMoment, GameWorldComponent } from './game-world.component';
+import { CameraMoment, GameWorldComponent, NPC_KEY_PREFIX } from './game-world.component';
 import { CameraSettings } from './camara/camera-settings.service';
 import { altoTapado } from './camara/cubierta';
 import type { Caja } from './camara/camara';
@@ -1360,7 +1360,13 @@ export class SimulationPlayComponent implements OnInit, OnDestroy {
 
   readonly cameraMoment = computed<CameraMoment>(() => {
     const interaction = this.selectedInteraction();
-    if (!this.dialogue() || !interaction) return { tipo: 'explorar' };
+    const dialogo = this.dialogue();
+    // V6: la conversación con una persona del escenario (`showNpcDialogue`, clave «npc-…») no pasa por una interacción
+    // del mapa; también es conversación, con los pies que el mundo conoce como «npc:…».
+    if (dialogo && !interaction && dialogo.key.startsWith('npc-')) {
+      return { tipo: 'conversacion', clave: `${NPC_KEY_PREFIX}${dialogo.key.slice('npc-'.length)}` };
+    }
+    if (!dialogo || !interaction) return { tipo: 'explorar' };
     const persona = interaction.type === 'PERSON' || interaction.key.startsWith('npc:');
     return { tipo: persona ? 'conversacion' : 'objeto', clave: interaction.key };
   });

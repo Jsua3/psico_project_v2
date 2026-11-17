@@ -8,7 +8,7 @@ import type { ManifiestoDePiezas, SalaPorPiezas } from '../../../simulator/sala/
 import type { PlanDeSala } from '../../../simulator/sala/composicion';
 import type { EscenaDeSala } from '../../../simulator/sala/escena-de-sala';
 import { CatalogoDePiezas } from '../../estado/catalogo-de-piezas';
-import type { ActorDelLienzo } from './lienzo-de-sala';
+import { repartirActores, type ActorDelLienzo } from './lienzo-de-sala';
 
 interface OpcionesDeJuego {
   contenedor: HTMLElement;
@@ -37,10 +37,13 @@ function crearJuegoDeSala(op: OpcionesDeJuego): JuegoDeSala {
     const plan = motor.EscenaDeSala.planear(op.sala, op.manifiesto);
     if (!plan) throw new Error('No se pudo planear la sala');
     const reducido = window.matchMedia?.('(prefers-reduced-motion: reduce)').matches ?? false;
+    // Como en el juego: las piezas de la biblioteca las dibuja la escena (hoja, animación, brillo, luz propia, sombra).
+    const { muebles, sprites } = repartirActores(op.actores, op.manifiesto);
     const escena: Phaser.Types.Scenes.SettingsConfig | Phaser.Types.Scenes.CreateSceneFromObjectConfig = {
       preload(this: Phaser.Scene) {
         motor.EscenaDeSala.pedirTexturas(this, plan);
-        op.actores.forEach((actor, i) => {
+        motor.EscenaDeSala.pedirMuebles(this, muebles);
+        sprites.forEach((actor, i) => {
           const clave = `actor:${i}`;
           if (actor.cuadroAncho > 0 && actor.cuadroAlto > 0) {
             this.load.spritesheet(clave, actor.url, { frameWidth: actor.cuadroAncho, frameHeight: actor.cuadroAlto });
@@ -50,14 +53,14 @@ function crearJuegoDeSala(op: OpcionesDeJuego): JuegoDeSala {
       create(this: Phaser.Scene) {
         try {
           if (motor.EscenaDeSala.estadoDeTexturas(plan, (clave) => this.textures.exists(clave), new Set()) !== 'listo'
-              || op.actores.some((_, i) => !this.textures.exists(`actor:${i}`))) throw new Error('Faltan texturas');
-          const cuerpos = op.actores.flatMap((actor, i) => {
+              || sprites.some((_, i) => !this.textures.exists(`actor:${i}`))) throw new Error('Faltan texturas');
+          const cuerpos = sprites.flatMap((actor, i) => {
             const sprite = this.add.sprite(actor.x, actor.y, `actor:${i}`, actor.fila * 4)
               .setOrigin(0.5, 1).setFlipX(actor.espejo).setDepth(actorDepth(actor.y));
             const cuerpo = motor.EscenaDeSala.cuerpoDeSprite(sprite, 0, 0);
             return cuerpo ? [cuerpo] : [];
           });
-          sala = new motor.EscenaDeSala(this, op.sala, plan, op.manifiesto, { momento: plan.momento, reducido, cuerpos });
+          sala = new motor.EscenaDeSala(this, op.sala, plan, op.manifiesto, { momento: plan.momento, reducido, cuerpos, muebles });
           op.listo(plan);
         } catch { op.fallo(); }
       },

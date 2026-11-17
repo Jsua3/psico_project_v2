@@ -30,7 +30,15 @@ import { scaled } from './support/time-scale';
  * `.superpowers/scripts/levantar-demo-piezas.ps1`): el caso insignia SIM-VBG-002, ya importado, publicado y asignado, se
  * juega en el cliente del bloque B, en las salas del hospital por piezas (P1, P2 y P3), por todo el capítulo 1. No crea ni borra datos: corre contra la pila viva (`E2E_BASE_URL`), no contra la pila de pruebas.
  * Las capturas van a `DEMO_CAPTURAS_DIR`.
+ *
+ * Solo con `SIEP_DEMO_VIVA=1`: la pila de pruebas (`npm run test:e2e`, la de CI) no trae SIM-VBG-002 importado ni asignado,
+ * así que ahí estas pruebas se saltan en lugar de fallar en «SIM-VBG-002 está en el catálogo del estudiante».
  */
+test.skip(
+  process.env['SIEP_DEMO_VIVA'] !== '1',
+  'Corre contra la pila viva de la demo (SIM-VBG-002 importado, publicado y asignado): SIEP_DEMO_VIVA=1 y E2E_BASE_URL de la demo',
+);
+
 const TITULO = 'Violencia Familiar y Tentativa de Feminicidio';
 const KEYBOARD = REQUIRED_VIEWPORTS[1];
 const CAPTURAS = process.env['DEMO_CAPTURAS_DIR'] ?? join(process.cwd(), 'test-results', 'demo-capturas');

@@ -476,6 +476,26 @@ describe('solicitudDeSala: la sala como mundo del mapa', () => {
     });
   });
 
+  it('un objeto guarda la herramienta que entrega: la elegida, ninguna, o la del servidor si no cambió', () => {
+    const c = caso();
+    const i = c.salas.findIndex((s) => s.objetos.length > 0);
+    const sala = c.salas[i];
+    const mundo = structuredClone(copiado.mundos[i]);
+    const clave = sala.objetos[0].clave!;
+    const guardado = (s: typeof sala, m: typeof mundo, k: string) => solicitudDeSala(s, contexto, m).solicitud.objects.find((o) => o.key === k)!;
+    // Sin cambio: el objeto se manda tal como lo tenía el servidor.
+    expect(guardado(sala, mundo, clave)).toEqual(mundo.objects.find((o) => o.key === clave));
+    // La docente elige una herramienta para un objeto que ya estaba y para uno nuevo.
+    sala.objetos[0] = { ...sala.objetos[0], toolCode: 'ficha-riesgo' };
+    sala.objetos.push({ ref: sala.objetos[0].ref, x: 200, y: 300, clave: 'nuevo-1', toolCode: 'directorio-rutas' });
+    expect(guardado(sala, mundo, clave).toolCode).toBe('ficha-riesgo');
+    expect(guardado(sala, mundo, 'nuevo-1').toolCode).toBe('directorio-rutas');
+    // La quita: el servidor la tenía y ahora se manda vacía.
+    delete sala.objetos[0].toolCode;
+    mundo.objects.find((o) => o.key === clave)!.toolCode = 'ficha-riesgo';
+    expect(guardado(sala, mundo, clave).toolCode).toBeNull();
+  });
+
   it('una sala sin lugar (sin catálogo) también se guarda: lo que había se conserva', () => {
     const { editor, mundos } = casoSinLugar();
     const sinLugar = casoDesdeApi(editor, mundos);

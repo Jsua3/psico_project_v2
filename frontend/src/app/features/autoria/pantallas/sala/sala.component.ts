@@ -13,6 +13,7 @@ import type { FaltaDeSala } from '../../modelo/salas-a-documento';
 import type { PlanDeSala } from '../../../simulator/sala/composicion';
 import { LienzoDeSalaComponent } from './lienzo-de-sala.component';
 import { actoresDeSala, salaParaLienzo } from './lienzo-de-sala';
+import { piezaDelObjeto } from '../../../simulator/sala/mueble-vivo';
 import { PiezasDelMuroComponent } from './piezas-del-muro.component';
 import { ManijaDeAnchoComponent } from './manija-de-ancho.component';
 import { PanelDeEstructuraComponent } from './panel-de-estructura.component';
@@ -37,6 +38,11 @@ interface Pieza {
   espejo: boolean;
   /** Para personajes: la fila de idle.png según hacia dónde mira. */
   sprite?: { url: string; fila: number };
+  /**
+   * Sala por piezas: el cuadro de la pieza de la biblioteca que la dibuja en el lienzo. El botón mide eso y no la imagen
+   * entera: una hoja animada de O1 (seis cuadros de 125 px) hacía un botón de 750 px que tapaba media sala.
+   */
+  cuadro?: { ancho: number; alto: number };
   /** Para personajes: cómo se mueve y si es la persona a atender de la sala. */
   movimiento?: MovimientoPersonaje;
   personaClave?: boolean;
@@ -187,7 +193,8 @@ const DISTANCIAS_INICIALES = [96, -96, 160, -160, 48, -48];
                       <span class="personaje" [style.background-image]="'url(' + p.sprite.url + ')'"
                             [style.background-position]="'0 ' + (-72 * p.sprite.fila) + 'px'"></span>
                     } @else {
-                      <img class="pixel" [src]="p.arte" alt="" draggable="false" [class.espejo]="p.espejo" />
+                      <img class="pixel" [src]="p.arte" alt="" draggable="false" [class.espejo]="p.espejo" [class.cuadro]="!!p.cuadro"
+                           [style.width.px]="p.cuadro?.ancho" [style.height.px]="p.cuadro?.alto" />
                     }
                   </button>
                 }
@@ -377,6 +384,19 @@ const DISTANCIAS_INICIALES = [96, -96, 160, -160, 48, -48];
               @if (p.tipo === 'mueble') {
                 <button type="button" class="boton" (click)="store.voltearMueble(s.id, p.indice)">Voltear</button>
               }
+              @if (p.tipo === 'objeto' && (store.caso()?.herramientas?.length ?? 0) > 0) {
+                <!-- El estudiante consigue la herramienta al revisar el objeto (el servidor la entrega por su toolCode). -->
+                <!-- BORRADOR: texto nuevo, pendiente de la aprobación de Psicología -->
+                <label class="etiqueta" for="pentrega">Al revisarlo, entrega la herramienta</label>
+                <select id="pentrega" class="campo" data-accion="entrega-herramienta"
+                        (change)="store.herramientaDeObjeto(s.id, p.indice, $any($event.target).value || null)">
+                  <!-- BORRADOR: texto nuevo, pendiente de la aprobación de Psicología -->
+                  <option value="" [selected]="!s.objetos[p.indice]?.toolCode">Ninguna</option>
+                  @for (h of store.caso()?.herramientas ?? []; track h.codigo) {
+                    <option [value]="h.codigo" [selected]="s.objetos[p.indice]?.toolCode === h.codigo">{{ h.nombre }}</option>
+                  }
+                </select>
+              }
               <span id="pmov" class="etiqueta">Mover</span>
               <div role="group" aria-labelledby="pmov" class="flechas">
                 <button type="button" class="boton" aria-label="Mover a la izquierda" (click)="desplazar(p, -8, 0)">←</button>
@@ -455,6 +475,8 @@ const DISTANCIAS_INICIALES = [96, -96, 160, -160, 48, -48];
     /* Encajada (menos de 1:1) el arte se reduce suave: el vecino más próximo borraría las líneas finas. */
     :host ::ng-deep .escenario.encajada canvas, .escenario.encajada .pieza img, .escenario.encajada .personaje { image-rendering: auto !important; }
     .pieza img.espejo { transform: scaleX(-1); }
+    /* El cuadro de la pieza (el primero de su hoja), no la hoja entera: así mide el botón lo que dibuja el lienzo. */
+    .pieza img.cuadro { object-fit: none; object-position: 0 100%; }
     .personaje { display: block; width: 48px; height: 72px; background-repeat: no-repeat; image-rendering: pixelated; pointer-events: none; }
     .ayuda { margin: 0; font-size: var(--autoria-texto-16); line-height: 24px; }
     .catalogo { display: flex; flex-direction: column; gap: 8px; }
@@ -590,16 +612,24 @@ export class SalaComponent {
       return total > 1 ? `${nombre} ${n}` : nombre;
     };
     const veces = (lista: { ref: string }[], ref: string) => lista.filter((x) => x.ref === ref).length;
+    // Solo en la sala por piezas: el lienzo dibuja la pieza de la biblioteca (como el juego) y el botón mide su cuadro.
+    const manifiesto = s.estructura ? this.catalogoPiezas.manifiesto() : null;
+    const cuadroDe = (arte: string) => {
+      const pieza = manifiesto ? piezaDelObjeto(arte, manifiesto) : null;
+      return pieza ? { ancho: pieza.ficha.ancho, alto: pieza.ficha.alto } : undefined;
+    };
     return [
       ...s.muebles.map((m, i) => {
         const c = nombreMueble(m.ref);
+        const arte = rutaArte(caso.lugarId, c?.arte ?? '');
         return { clave: `mueble-${i}`, tipo: 'mueble' as const, indice: i, nombre: etiqueta(c?.nombre ?? m.ref, veces(s.muebles, m.ref)),
-          x: m.x, y: m.y, arte: rutaArte(caso.lugarId, c?.arte ?? ''), espejo: !!m.espejo, marcaIa: m.marcaIa === true };
+          x: m.x, y: m.y, arte, cuadro: cuadroDe(arte), espejo: !!m.espejo, marcaIa: m.marcaIa === true };
       }),
       ...s.objetos.map((o, i) => {
         const c = nombreObjeto(o.ref);
+        const arte = rutaArte(caso.lugarId, c?.arte ?? '');
         return { clave: `objeto-${i}`, tipo: 'objeto' as const, indice: i, nombre: etiqueta(c?.nombre ?? o.ref, veces(s.objetos, o.ref)),
-          x: o.x, y: o.y, arte: rutaArte(caso.lugarId, c?.arte ?? ''), espejo: false, marcaIa: o.marcaIa === true };
+          x: o.x, y: o.y, arte, cuadro: cuadroDe(arte), espejo: false, marcaIa: o.marcaIa === true };
       }),
       ...s.personajes.map((p, i) => {
         const c = caso.personajes.find((x) => x.id === p.ref);

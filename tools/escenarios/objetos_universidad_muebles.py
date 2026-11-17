@@ -357,36 +357,99 @@ def estante_biblioteca(n=0):
     return L, r, None
 
 
+LETRAS = {'P': ['###', '#.#', '###', '#..', '#..'], 'O': ['###', '#.#', '#.#', '#.#', '###'],
+          'R': ['##.', '#.#', '##.', '#.#', '#.#'], 'T': ['###', '.#.', '.#.', '.#.', '.#.'],
+          'E': ['###', '#..', '##.', '#..', '###'], 'I': ['#', '#', '#', '#', '#'], 'A': ['.#.', '#.#', '###', '#.#', '#.#']}
+
+
+def _texto(L, x, y, texto, color):
+    for letra in texto:
+        patron = LETRAS[letra]
+        for yy, fila in enumerate(patron):
+            for xx, ch in enumerate(fila):
+                if ch == '#':
+                    L.px(x + xx, y + yy, color)
+        x += len(patron[0]) + 1
+    return x
+
+
 def porteria(n=0):
-    """Portería de la entrada: caseta con vidrio, el vigilante no está, una lámpara de escritorio encendida."""
-    L = Lienzo(122, 88, semilla=249)
-    L.bloque(1, 30, 120, 85, 'acero', tapa=4)                                       # muro bajo de la caseta
-    L.rect(1, 2, 120, 30, 'acero', 2)                                               # parte alta
-    L.rect(1, 2, 120, 2, 'acero', 0, tex=False)
-    L.rect(6, 6, 115, 28, 'vidrio', 4, tex=False)                                   # ventanal
-    for x in (42, 80):
-        L.rect(x, 6, x + 1, 28, 'acero', 2, tex=False)
-    L.rect(10, 20, 36, 28, 'plastico-negro', 3, tex=False)                          # adentro: pantallas apagadas y una silla
-    L.rect(50, 18, 70, 28, 'plastico-negro', 4, tex=False)
-    L.rect(88, 18, 94, 22, (255, 236, 176), tex=False)                              # la lámpara encendida
-    L.rect(4, 30, 117, 33, 'laminado', 1)                                           # repisa del libro de visitas
-    L.rect(16, 28, 36, 31, 'papel', 0, tex=False)
-    L.rect(4, 50, 117, 53, (196, 84, 78), tex=False)                                # franja institucional
-    L.rect(48, 60, 72, 72, 'papel', 1, tex=False)                                   # letrero de la universidad
-    L.rect(52, 64, 68, 66, (70, 110, 160), tex=False)
-    for x in range(20, 120, 20):                                                    # juntas de los paneles del muro
-        L.rect(x, 34, x, 49, 'acero', 4, tex=False)
-        L.rect(x, 54, x, 83, 'acero', 4, tex=False)
-        L.rect(x + 1, 34, x + 1, 49, 'acero', 1, tex=False)
-    L.tex[:, :] = False                                                             # lámina pintada: lisa, sin motas
-    vidrio = L.caja_mascara(6, 6, 115, 28)
-    em = L.caja_mascara(88, 18, 94, 22)
+    """Caseta de portería de la entrada: techo con alero y letrero, ventanal con la ventanilla de atención y su repisa
+    con el libro de visitas, adentro la pantalla de las cámaras y una lámpara; puerta lateral con su farol."""
+    L = Lienzo(124, 90, semilla=249)
+    muro, marco = 'plastico-crema', 'acero'
+    # cuerpo de la caseta
+    L.rect(5, 12, 118, 85, muro, 2)
+    L.rect(5, 12, 5, 85, muro, 3, tex=False)
+    L.rect(118, 12, 118, 85, muro, 4, tex=False)
+    L.rect(119, 12, 121, 84, muro, 4, tex=False)                                    # la cara lateral: la caseta tiene fondo
+    L.rect(119, 12, 121, 14, muro, 5, tex=False)
+    L.rect(5, 11, 118, 13, muro, 5, tex=False)                                      # sombra bajo el alero
+    L.rect(5, 70, 118, 73, (176, 70, 64), tex=False)                                # franja de la universidad
+    L.rect(5, 70, 118, 70, (206, 104, 96), tex=False)
+    L.rect(4, 82, 119, 86, 'mdf-gris', 3)                                           # zócalo
+    L.rect(4, 82, 119, 82, 'mdf-gris', 1, tex=False)
+    # ventanal con la ventanilla al centro
+    L.rect(9, 17, 88, 49, marco, 2, tex=False)
+    vidrio = L.caja_mascara(11, 19, 86, 47)
+    L.mascara(vidrio, 'vidrio', 4, tex=False)                                       # adentro, en penumbra
+    L.rect(11, 38, 86, 47, 'vidrio', 5, tex=False)                                  # el mostrador interior
+    L.rect(16, 30, 31, 38, 'plastico-negro', 3, tex=False)                          # pantalla de las cámaras
+    L.rect(17, 31, 30, 36, (90, 140, 120), tex=False)
+    for x in (17, 24):
+        L.rect(x, 31, x + 5, 33, (120, 176, 150), tex=False)                        # cuatro cuadros de cámara
+        L.rect(x, 34, x + 5, 36, (70, 120, 104), tex=False)
+    L.rect(70, 27, 74, 31, (255, 236, 176), tex=False)                              # lámpara de escritorio encendida
+    L.rect(72, 32, 72, 37, marco, 3, tex=False)
+    L.rect(58, 33, 64, 35, (52, 62, 92), tex=False)                                 # la gorra del vigilante sobre la mesa
+    L.rect(57, 35, 65, 35, (40, 46, 70), tex=False)
+    L.px(61, 33, (230, 192, 86))
+    for x in (36, 62):                                                              # parteluces
+        L.rect(x, 17, x + 1, 49, marco, 2, tex=False)
+    L.rect(38, 36, 61, 49, marco, 3, tex=False)                                     # la ventanilla: marco corredizo
+    L.rect(40, 38, 59, 47, (40, 36, 44), tex=False)                                 # la ventanilla abierta
+    L.rect(36, 49, 64, 52, 'laminado', 1)                                           # repisa de atención
+    L.rect(36, 49, 64, 49, 'laminado', 0, tex=False)
+    L.rect(36, 52, 64, 53, 'laminado', 4, tex=False)
+    L.rect(42, 46, 52, 49, 'papel', 0, tex=False)                                   # libro de visitas abierto
+    L.rect(47, 46, 47, 49, 'papel', 3, tex=False)
+    L.linea(53, 48, 57, 45, (70, 110, 160))                                         # el bolígrafo
+    L.rect(16, 57, 31, 66, 'papel', 1, tex=False)                                   # aviso: «identifíquese»
+    L.rect(18, 59, 21, 64, (70, 110, 160), tex=False)                               # escudo
+    L.rect(23, 60, 29, 60, (120, 124, 140), tex=False)
+    L.rect(23, 63, 28, 63, (120, 124, 140), tex=False)
+    # puerta lateral con su ventanita, la manija y el farol
+    L.rect(94, 24, 113, 82, marco, 2)
+    L.rect(94, 24, 113, 24, marco, 1, tex=False)
+    L.rect(97, 28, 110, 40, 'vidrio', 4, tex=False)
+    L.rect(108, 52, 110, 54, 'cromo', 1, tex=False)
+    L.rect(95, 25, 95, 81, marco, 4, tex=False)
+    L.rect(101, 16, 106, 20, 'plastico-negro', 2, tex=False)                        # farol sobre la puerta
+    L.rect(102, 18, 105, 20, (255, 226, 150), tex=False)
+    # techo con alero y letrero
+    L.rect(0, 2, 123, 7, 'mdf-gris', 1)                                             # losa vista desde arriba
+    L.rect(0, 2, 123, 2, 'mdf-gris', 0, tex=False)
+    L.rect(0, 8, 123, 11, 'mdf-gris', 3, tex=False)                                 # canto del alero
+    L.rect(0, 11, 123, 11, 'mdf-gris', 4, tex=False)
+    L.rect(36, 0, 87, 9, (52, 62, 92), tex=False)                                   # letrero azul de la portería
+    L.rect(36, 0, 87, 0, (80, 92, 128), tex=False)
+    _texto(L, 47, 3, 'PORTERIA', (248, 240, 214))                                   # centrado en el letrero (29 px)
+    L.px(72, 1, (248, 240, 214))                                                    # la tilde de la Í
+    L.tex[:, :] = False                                                             # revoque y lámina lisos: sin motas
+    em = L.caja_mascara(17, 31, 30, 36) | L.caja_mascara(70, 27, 74, 31) | L.caja_mascara(102, 18, 105, 20)
     r = _reflejos(L)
-    r['izquierda'].diagonal(8, 27, 18, 3, 2)
-    r['derecha'].diagonal(113, 27, 18, 3, 2, sentido=-1)
-    r['frente'].rect(10, 7, 110, 7, 1)
+    r['izquierda'].diagonal(12, 46, 22, 3, 2)
+    r['izquierda'].diagonal(64, 46, 18, 2, 1)
+    r['izquierda'].diagonal(98, 39, 8, 2, 2)
+    r['derecha'].diagonal(34, 46, 18, 2, 1, sentido=-1)
+    r['derecha'].diagonal(85, 46, 22, 3, 2, sentido=-1)
+    r['derecha'].diagonal(109, 39, 8, 2, 2, sentido=-1)
+    r['frente'].rect(12, 19, 85, 19, 1)
+    r['frente'].rect(98, 28, 109, 28, 1)
+    vidrios = vidrio | L.caja_mascara(97, 28, 110, 40)
     for rr in r.values():
-        rr.m[(rr.m > 0) & ~vidrio] = 0
+        rr.m[(rr.m > 0) & ~vidrios] = 0
+        rr.px(109, 52, 2)
     return L, r, em
 
 

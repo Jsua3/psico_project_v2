@@ -812,6 +812,18 @@ export class CasoStore {
     });
   }
 
+  /** La herramienta del caso que el objeto entrega al revisarlo (`null`: ninguna). Se puede deshacer. */
+  herramientaDeObjeto(salaId: string, indice: number, codigo: string | null): void {
+    // BORRADOR: texto nuevo, pendiente de la aprobación de Psicología
+    const que = codigo ? 'Elegiste la herramienta que entrega un objeto' : 'Quitaste la herramienta que entregaba un objeto';
+    this.cambiarSala(salaId, que, (_caso, sala) => {
+      const objeto = sala.objetos[indice];
+      if (!objeto) return;
+      if (codigo) objeto.toolCode = codigo;
+      else delete objeto.toolCode;
+    });
+  }
+
   /** Deja la sala como viene en la biblioteca (vuelve a leerla). Se puede deshacer. */
   async volverSalaOriginal(salaId: string): Promise<void> {
     const caso = this.estado();
