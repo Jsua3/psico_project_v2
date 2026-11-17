@@ -245,6 +245,7 @@ class SceneOutline:
     advertencia: str
     final: bool
     siguientes: tuple[str, ...]
+    aspecto: str = ""
 
 
 @dataclass(frozen=True)
@@ -283,7 +284,8 @@ def from_json(cls, data: dict):
         return SkeletonDraft(
             titulo=data["titulo"], contexto=data["contexto"], objetivos=tuple(data["objetivos"]),
             escenas=tuple(
-                SceneOutline(**{**escena, "siguientes": tuple(escena["siguientes"])}) for escena in data["escenas"]
+                SceneOutline(**{**escena, "aspecto": escena.get("aspecto", ""), "siguientes": tuple(escena["siguientes"])})
+                for escena in data["escenas"]
             ),
             hitos=tuple(data["hitos"]), finales=tuple(dict(final) for final in data["finales"]),
         )
@@ -466,13 +468,18 @@ def _outline(c: _Collector, raw, position: int, ctx_rooms: dict) -> SceneOutline
     if not isinstance(raw["final"], bool):
         c.shape("escenas")
     siguientes = c.strings(raw["siguientes"], "escenas")
+    if isinstance(raw["aspecto"], str) and len(raw["aspecto"]) > 200:
+        c.add(_named(TOO_LONG_TEXT, "aspecto de la escena"))
+        aspecto = ""
+    else:
+        aspecto = c.text(raw["aspecto"], 200, "aspecto de la escena")
     return SceneOutline(
         sala=sala,
         titulo=c.text(raw["titulo"], MAX_TITLE, "título de la escena", required=True, revictimizing=_ENCUADRE),
         objetivo=c.text(raw["objetivo"], GOAL_MAX, "objetivo de la escena", required=True, revictimizing=_ENCUADRE),
         persona=persona if isinstance(persona, str) else "",
         intensidad=intensidad, advertencia=advertencia,
-        final=raw["final"] is True, siguientes=tuple(siguientes),
+        final=raw["final"] is True, siguientes=tuple(siguientes), aspecto=aspecto,
     )
 
 

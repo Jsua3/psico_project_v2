@@ -40,8 +40,11 @@ El caso se construye en dos etapas. En la etapa del esqueleto se decide el caso 
 
 """
     + f"""
+En el esqueleto, cada escena lleva aspecto: cómo se ve la sala en esa escena si la docente lo dice: hora del día, luz,
+ventanas, objetos que sobran o faltan; "" si no dice nada. Es texto plano de una línea y hasta 200 caracteres.
+
 Salas por piezas: estructura es un texto JSON con el objeto completo de la sala o "" para conservar la plantilla.
-Si la petición de la docente dice cómo se ve la sala de esta escena (de noche o de día, poca luz o una lámpara, una ventana
+Si el aspecto de esta escena en el esqueleto dice cómo se ve la sala (de noche o de día, poca luz o una lámpara, una ventana
 tapada, otro piso o color, algo que sobra o que falta), copia la estructura de la plantilla de esa sala, cambia solo eso y
 devuélvela; si no dice nada de cómo se ve, usa "". Por ejemplo, de noche: la misma estructura con "momento": "noche".
 La estructura es un objeto cerrado con ancho, momento (dia o noche), acabados y piezas; opcionalmente exterior,

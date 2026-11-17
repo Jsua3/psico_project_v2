@@ -27,7 +27,7 @@ HUELLA_ANTES = "30bafdd6d81e8d3da9eccdb10d9253932d7c3be2929f51ea5b8dc4d47c856b77
 ESQUELETO_MINIMO = {
     "titulo": "Caso", "contexto": "Contexto", "objetivosAprendizaje": ["Objetivo"],
     "escenas": [{"sala": "x", "titulo": "T", "objetivo": "O", "persona": "p", "intensidad": "LOW",
-                 "advertencia": "", "final": False, "siguientes": []}],
+                 "advertencia": "", "aspecto": "", "final": False, "siguientes": []}],
     "hitos": [], "finales": [],
 }
 
@@ -192,3 +192,9 @@ def test_el_sistema_dice_cada_regla_que_python_revisa_del_recorrido_y_de_los_fin
         "es el destino de alguna respuesta",
     ):
         assert frase in texto, frase
+
+
+def test_el_esquema_exige_aspecto_como_texto():
+    escena = schema.SKELETON["properties"]["escenas"]["items"]
+    assert escena["properties"]["aspecto"] == {"type": "string"}
+    assert "aspecto" in escena["required"]
