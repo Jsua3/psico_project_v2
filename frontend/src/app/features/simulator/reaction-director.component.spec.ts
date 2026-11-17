@@ -231,3 +231,29 @@ it('un puntero quieto bajo la franja que aparece no la sostiene, un dedo tampoco
   await vi.runAllTimersAsync();
   expect(terminado).toEqual(['completa']);
 });
+
+it('sostenida por el puntero, Enter salta igual que siempre (una vez, al estado final) y la suelta', async () => {
+  const { director, escenario, terminado, teclear } = montar({ reduceMotion: false });
+  director.play(ENTRADA, QUIEN);
+  await vi.advanceTimersByTimeAsync(10);
+  director.alMoverPuntero({ pointerType: 'mouse', movementX: 2, movementY: 1 } as PointerEvent);
+  expect(director.sostenida).toBe(true);
+  expect(teclear('Enter').defaultPrevented).toBe(true);
+  await vi.runAllTimersAsync();
+  expect(terminado).toEqual(['saltada']);
+  expect(director.sostenida).toBe(false);
+  expect(escenario.llamadas).toContain('setPersonaState:La persona se abre y está serena');
+});
+
+it('con movimiento reducido sostenerla no cambia la secuencia: sin encuadre ni gesto, y termina al soltarla', async () => {
+  const { director, escenario, terminado } = montar({ reduceMotion: true });
+  director.play(ENTRADA, QUIEN);
+  director.sostener('foco', true);
+  await vi.advanceTimersByTimeAsync(60_000);
+  expect(terminado).toEqual([]);
+  director.sostener('foco', false);
+  await vi.runAllTimersAsync();
+  expect(terminado).toEqual(['completa']);
+  expect(escenario.llamadas.some(c => c.startsWith('frameActors') || c.startsWith('playGesture'))).toBe(false);
+  expect(escenario.llamadas).toContain('setPersonaState:La persona se abre y está serena');
+});
