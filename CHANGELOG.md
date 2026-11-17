@@ -13,15 +13,18 @@ La versión del programa es la de `package.json` en la raíz. Se sigue el versio
 - Quien juega y las personas del caso miran y caminan en ocho direcciones.
 - El personal camina por la sala: en el caso insignia, la enfermera, el vigilante, la trabajadora social y la comisaria hacen su recorrido.
 - Los muebles, objetos y herramientas de la biblioteca están rediseñados, con detalles que se mueven (vapor, gotera, ropa que se mece, teléfono que timbra). La comisaría y la universidad tienen arte nuevo.
-- La cámara cambia de plano como en el cine: plano general al entrar, acercamiento al hablar y al revisar. No deja fuera al personaje, lo que tiene al alcance ni a quien habla. Hay vista cercana con la tecla Z.
+- La cámara cambia de plano como en el cine: plano general al entrar, acercamiento al hablar y al revisar. No deja fuera al personaje, lo que tiene al alcance ni a quien habla. Hay vista cercana con la tecla Z. También encuadra la conversación con una persona del escenario.
 - Un minimapa en la esquina y un plano completo con la tecla M muestran el lugar. El plano tiene una alternativa en texto.
 - Las personas notan al estudiante, comentan lo que explora y miran lo que revisa.
-- Al elegir una respuesta, el personaje reacciona en su sala antes de la nota de supervisión. La reacción se puede saltar y respeta el movimiento reducido.
+- Al elegir una respuesta, el personaje reacciona en su sala antes de la nota de supervisión. La reacción se puede saltar y respeta el movimiento reducido. La franja de la reacción se queda a la vista mientras tiene el foco del teclado o el ratón se mueve encima, y sigue al soltarla.
+- La entrada al caso es más rápida: la luz de las sombras se calcula detrás de «Antes de comenzar» y no en el primer cuadro del juego.
 
 **Interfaz**
 
 - Todo el juego tiene un solo estilo de pixel: la ficha del objetivo, los avisos, el aviso de puerta, la pausa, «Ir a…», las ranuras de herramientas y los rótulos del mundo.
 - Las decisiones van sobre el mundo, con cuatro fichas que caben a 1366 × 768. En el teléfono el cuadro ocupa como mucho el 64 % del alto.
+- Un parlamento o una consecuencia largos se leen por páginas de frases enteras, con «N de M» junto al botón; Enter pasa de página antes que de línea. El lector de pantalla recibe el texto entero.
+- Ninguna letra de la interfaz del juego baja de 12 px.
 - Si una voz no tiene retrato, se dibuja la cara del personaje de la sala o un retrato de reserva.
 - Cuando una puerta está cerrada, el aviso dice el motivo y dónde está lo que sigue.
 - «Salida segura» está siempre a la vista, también durante la reacción. Enter sobre «Salida segura» pide la pausa; no salta la reacción.
@@ -44,13 +47,14 @@ La versión del programa es la de `package.json` en la raíz. Se sigue el versio
 - «Elegiste:» muestra el texto corto del botón que se pulsó.
 - El aviso de la segunda oportunidad dice en llano qué hacer.
 - Se ajustaron la redacción y las indicaciones del caso tras una prueba simulada.
-- Las competencias del resultado se llaman con sus tildes. Este caso sale con «Sin evidencia» porque sus respuestas aún no declaran competencias; es una decisión pendiente de Psicología.
+- Las competencias del resultado se llaman con sus tildes. Sus respuestas aún no declaran competencias (decisión pendiente de Psicología): el cierre del estudiante no muestra el bloque de competencias, y la docente ve en la traza por qué no hay valoración.
 
 ### Lo que nota un docente
 
 **Crear casos**
 
 - Puede describir un caso y la IA lo arma por etapas, con las salas por piezas del lugar elegido. La descripción no puede traer datos personales.
+- Crear un caso a mano también arma las salas por piezas en casa, comisaría y universidad. Los casos ya creados no cambian. Por la API, sin el cliente, hay que mandar `porPiezas: true`.
 - Una pantalla de avance dice qué parte va, cuánto lleva, qué salió y qué hacer si algo falla. Se puede cancelar o reintentar.
 - La IA reacomoda la sala según cómo la docente la describe. Lo que genera lleva marca de IA y debe validarse con Psicología.
 
@@ -58,7 +62,9 @@ La versión del programa es la de `package.json` en la raíz. Se sigue el versio
 
 - El editor arma salas por piezas: paleta, acabados, día y noche, ancho de la sala, y muros con puertas y ventanas.
 - Las piezas se mueven por el muro con rejilla, con el ratón o el teclado, con deshacer y rehacer.
-- Hay un catálogo de piezas del lugar, con muebles, objetos y herramientas.
+- Hay un catálogo de piezas del lugar, con muebles, objetos y herramientas. El lienzo de la sala dibuja cada pieza igual que el juego.
+- Un objeto de la sala puede entregar una herramienta del caso al revisarlo («Al revisarlo, entrega la herramienta»).
+- En una columna de teléfono la sala no baja de ×0,8 y se desplaza dentro de su columna.
 - Las faltas de cada sala se ven en vivo, por ejemplo una puerta mal puesta, y la revisión lleva hasta la pieza.
 - La docente dibuja el trayecto de una persona sobre la sala, y se valida antes de guardar.
 - El plano del caso muestra cómo se conectan las salas.
@@ -108,7 +114,8 @@ La versión del programa es la de `package.json` en la raíz. Se sigue el versio
 
 - Servidor: suite completa en 8254 passed y 4 skipped al cierre del 17 de noviembre; el único fallo, un presupuesto de consultas atrasado (la consulta de `competenciesDeclared`), se ajustó y su archivo pasa 11/11.
 - Job Frontend: los 9 pasos en verde; `test:frontend` 5755/5755 al cierre.
-- Pruebas e2e nuevas: recorrido de los tres capítulos de SIM-VBG-002 (`@demo-k1`), `autoria-sala-piezas`, `autoria-generacion`, ensayo de la docente y salida segura sin red.
+- Pruebas e2e nuevas: recorrido de los tres capítulos de SIM-VBG-002 (`@demo-k1`), `autoria-sala-piezas`, `autoria-generacion`, `autoria-crear-a-mano-piezas`, ensayo de la docente y salida segura sin red.
+- El recorrido de SIM-VBG-002 corre solo contra la pila viva de la demo (`SIEP_DEMO_VIVA=1`). El arnés `trayectos-captura` lleva `@captura` y sale del `e2e` de CI.
 - La referencia de contratos HTTP incluye las rutas de generación y del plano.
 - `npm run check:version` comprueba que todas las versiones coincidan y corre en CI. Este CHANGELOG nace con la entrega.
 
