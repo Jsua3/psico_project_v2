@@ -57,6 +57,39 @@ describe('CasoStore · estructura de sala', () => {
     expect(guardados[0].map.structure).toEqual(sala(store, 'sala-espera').estructura);
   });
 
+  it('guardar una puerta sin destino la registra y al elegir destino deja de omitirla', async () => {
+    const fuente = casoSinLugar();
+    fuente.editor.nodes = fuente.editor.nodes.slice(0, 2).map((n, i) => ({ ...n, key: i ? 'pasillo' : 'sala-espera' }));
+    fuente.editor.maps = fuente.editor.maps.slice(0, 2);
+    const mundos = structuredClone(MUNDO_HOSPITAL);
+    mundos.forEach((m, i) => { m.nodeId = fuente.editor.nodes[i].id; m.map.id = fuente.editor.maps[i].id; });
+    const servidor = new ServidorFalso({ editor: fuente.editor, mundos }, null);
+    TestBed.resetTestingModule();
+    TestBed.configureTestingModule({ providers: [provideRouter([]), { provide: AuthoringApi, useValue: servidor.autoria }] });
+    const store = TestBed.inject(CasoStore);
+    await store.cargar(fuente.editor.caseVersionId);
+    servidor.llamadas.length = 0;
+    const id = store.agregarPuerta('sala-espera', 'madera', 'fondo', 100);
+    await store.sincronizado();
+    expect(servidor.llamadasA('saveWorld').length).toBeGreaterThan(0);
+    expect(store.error()).toBeNull();
+    expect(store.puertasSinGuardar().get('sala-espera')).toContain(id);
+    servidor.llamadas.length = 0;
+    store.fijarDestinoDePuerta('sala-espera', id, 'pasillo');
+    await store.sincronizado();
+    expect(servidor.llamadasA('saveWorld').length).toBeGreaterThan(0);
+    expect(store.error()).toBeNull();
+    expect(store.puertasSinGuardar().get('sala-espera') ?? []).not.toContain(id);
+  });
+
+  it('no duplica una puerta de regreso existente ni con dos llamadas seguidas', () => {
+    const store = montar();
+    const antes = sala(store, 'pasillo').puertas.length;
+    store.crearPuertaDeRegreso('sala-espera', 'a-pasillo', ficha);
+    store.crearPuertaDeRegreso('sala-espera', 'a-pasillo', ficha);
+    expect(sala(store, 'pasillo').puertas).toHaveLength(antes);
+  });
+
   it('agregar y quitar puerta se deshacen', () => {
     const store = montar();
     const id = store.agregarPuerta('sala-espera', 'madera', 'fondo', 200);
@@ -72,6 +105,9 @@ describe('CasoStore · estructura de sala', () => {
 
   it('crear la puerta de regreso enlaza par en las dos', () => {
     const store = montar();
+    const caso = structuredClone(store.caso()!);
+    caso.salas[1].puertas = caso.salas[1].puertas.filter(p => p.hacia !== 'sala-espera');
+    store.fijar(caso);
     const id = store.crearPuertaDeRegreso('sala-espera', 'a-pasillo', ficha);
     expect(sala(store, 'sala-espera').puertas.find((p) => p.id === 'a-pasillo')!.par).toBe(id);
     expect(sala(store, 'pasillo').puertas.find((p) => p.id === id)).toMatchObject({
@@ -106,6 +142,7 @@ describe('CasoStore · estructura de sala', () => {
   it('la puerta de regreso usa el fondo y el centro si no hay muro opuesto ni hueco', () => {
     const store = montar();
     const caso = structuredClone(store.caso()!);
+    caso.salas[1].puertas = caso.salas[1].puertas.filter(p => p.hacia !== 'sala-espera');
     caso.salas.find((s) => s.id === 'pasillo')!.encuadre = 'una-pared';
     store.fijar(caso);
     const id = store.crearPuertaDeRegreso('sala-espera', 'a-pasillo', () => ({ ocupa: 5000, franja: [0, 200] }));

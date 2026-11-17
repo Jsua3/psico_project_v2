@@ -117,7 +117,16 @@ export class PanelDeEstructuraComponent {
     if (!estructura || !ficha) return;
     if (modelo.muros.includes('suelo') && !modelo.muros.some(m => m !== 'suelo')) {
       const zona = zonaCaminable(sala.encuadre, estructura.ancho);
-      const punto = proyectarAlSuelo({ x: zona.x + zona.ancho / 2, y: zona.y + zona.alto / 2 }, zona);
+      const centro = proyectarAlSuelo({ x: zona.x + zona.ancho / 2, y: zona.y + zona.alto / 2 }, zona);
+      const ocupada = (x: number) => (estructura.piezas ?? []).some(p => p.x === x && p.y === centro.y);
+      let punto = centro;
+      if (ocupada(centro.x)) {
+        const candidatos: number[] = [];
+        for (let x = centro.x + 48; x <= zona.x + zona.ancho; x += 48) candidatos.push(x);
+        for (let x = centro.x - 48; x >= zona.x; x -= 48) candidatos.push(x);
+        const libre = candidatos.find(x => !ocupada(x));
+        if (libre !== undefined) punto = { ...centro, x: libre };
+      }
       const id = this.store.agregarPiezaDeMuro(sala.id, modelo.tipo, modelo.modelo, punto);
       if (id) this.agregada.emit(anclaDeElemento(sala.id, { tipo: 'pieza', id }));
       return;

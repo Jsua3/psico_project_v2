@@ -3,6 +3,8 @@ import { TestBed } from '@angular/core/testing';
 
 import { CatalogoDePiezas } from '../../estado/catalogo-de-piezas';
 import { CasoStore } from '../../estado/caso.store';
+import { faltasPorSala } from '../../modelo/salas-a-documento';
+import { CASOS_DE_REGLAS_DE_SALA } from '../../modelo/reglas-salas-casos.fixture';
 import { CASO_HOSPITAL } from '../../testing/hospital';
 import { PanelDeEstructuraComponent } from './panel-de-estructura.component';
 
@@ -10,11 +12,11 @@ async function montar() {
   TestBed.resetTestingModule();
   const ficha = { nombre: 'Ventana alta', ocupa: 40, franja: [0, 40], muros: ['fondo'], cuadros: 1, vistas: {} };
   const manifiesto = { piezas: { 'ventana/alta': ficha, 'lampara/pie': { ...ficha, nombre: 'Lámpara de pie', muros: ['suelo'] } },
-    pisos: { 'vinilo-a': {} }, muros: { 'liso/blanco': {} } };
+    pisos: { 'vinilo-a': {}, 'madera-b': {} }, muros: { 'liso/blanco': {}, 'ladrillo/rojo': {} } };
   const catalogo = { manifiesto: signal(manifiesto), paleta: () => [
     { clave: 'ventanas', nombre: 'Ventanas', modelos: [{ tipo: 'ventana', modelo: 'alta', nombre: 'Ventana alta', muros: ['fondo'] }] },
     { clave: 'lamparas', nombre: 'Lámparas', modelos: [{ tipo: 'lampara', modelo: 'pie', nombre: 'Lámpara de pie', muros: ['suelo'] }] },
-  ], acabados: () => ({ pisos: [{ piso: 'vinilo', variantes: ['a'] }], muros: [{ muro: 'liso', paletas: ['blanco'] }] }) };
+  ], acabados() { return CatalogoDePiezas.prototype.acabados.call(this as unknown as CatalogoDePiezas); } };
   await TestBed.configureTestingModule({ imports: [PanelDeEstructuraComponent],
     providers: [{ provide: CatalogoDePiezas, useValue: catalogo }] }).compileComponents();
   const store = TestBed.inject(CasoStore);
@@ -55,21 +57,45 @@ describe('PanelDeEstructuraComponent', () => {
   });
 
   it('solo ofrece variantes y paletas que existen', async () => {
-    const { raiz } = await montar();
-    expect([...raiz.querySelectorAll<HTMLSelectElement>('select')].map(s => [...s.options].map(o => o.value)))
-      .toEqual([['vinilo'], ['a'], ['liso'], ['blanco']]);
+    const { raiz, actualizar } = await montar();
+    const selectores = raiz.querySelectorAll<HTMLSelectElement>('select');
+    const opciones = (i: number) => [...selectores[i].options].map(o => o.value);
+    expect(opciones(1)).toEqual(['a']);
+    expect(opciones(3)).toEqual(['blanco']);
+    selectores[0].value = 'madera'; selectores[0].dispatchEvent(new Event('change')); actualizar();
+    expect(opciones(1)).toEqual(['b']);
+    selectores[2].value = 'ladrillo'; selectores[2].dispatchEvent(new Event('change')); actualizar();
+    expect(opciones(3)).toEqual(['rojo']);
   });
-  it('crear la puerta de regreso desaparece cuando ya hay regreso', async () => {
+
+  it('crear la puerta de regreso agrega y enlaza una puerta en la sala destino', async () => {
     const { fixture, store, actualizar, raiz } = await montar();
-    const puerta = store.caso()!.salas[0].puertas.find(p => p.id === 'a-pasillo')!;
-    fixture.componentRef.setInput('puertaElegida', puerta.id);
-    fixture.componentRef.setInput('faltas', [{ regla: 'OCL-15', mensaje: 'Falta regreso',
-      elemento: { tipo: 'puerta', id: puerta.id } }]);
+    const caso = structuredClone(store.caso()!);
+    caso.salas[1].puertas = caso.salas[1].puertas.filter(p => p.hacia !== caso.salas[0].id);
+    store.fijar(caso); actualizar();
+    const puerta = caso.salas[0].puertas.find(p => p.id === 'a-pasillo');
+    fixture.componentRef.setInput('puertaElegida', puerta!.id);
+    fixture.componentRef.setInput('faltas', faltasPorSala(store.caso()!, CASOS_DE_REGLAS_DE_SALA.catalogo).get(caso.salas[0].id));
     fixture.detectChanges();
     const boton = [...raiz.querySelectorAll('button')].find(b => b.textContent?.includes('Crear la puerta de regreso'))!;
-    expect(boton).toBeTruthy();
-    fixture.componentRef.setInput('faltas', []); actualizar();
+    boton.click(); boton.click(); actualizar();
+    const origen = store.caso()!.salas[0].puertas.find(p => p.id === puerta!.id)!;
+    const regresos = store.caso()!.salas[1].puertas.filter(p => p.hacia === caso.salas[0].id);
+    expect(regresos).toHaveLength(1);
+    expect(regresos[0]).toMatchObject({ id: origen.par, par: origen.id });
+    fixture.componentRef.setInput('faltas', faltasPorSala(store.caso()!, CASOS_DE_REGLAS_DE_SALA.catalogo).get(caso.salas[0].id));
+    actualizar();
     expect([...raiz.querySelectorAll('button')].some(b => b.textContent?.includes('Crear la puerta de regreso'))).toBe(false);
+  });
+
+  it('las lámparas de pie consecutivas ocupan puntos distintos dentro de la zona', async () => {
+    const { fixture, store, actualizar, raiz } = await montar();
+    raiz.querySelectorAll<HTMLButtonElement>('[role="tab"]')[1].click(); fixture.detectChanges();
+    const agregar = raiz.querySelector<HTMLButtonElement>('[data-modelo="pie"]')!;
+    agregar.click(); actualizar(); agregar.click(); actualizar();
+    const piezas = store.caso()!.salas[0].estructura!.piezas!.slice(-2);
+    expect(piezas[1].x).toBe(piezas[0].x! + 48);
+    expect(piezas[1].y).toBe(piezas[0].y);
   });
 
 });

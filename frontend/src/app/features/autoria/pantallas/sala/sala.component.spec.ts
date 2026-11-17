@@ -14,6 +14,9 @@ import { BibliotecaService } from '../../modelo/biblioteca.service';
 import { copiarEscenarioAlCaso } from '../../modelo/copiar';
 import type { Escenario } from '../../modelo/escenario';
 import { SalaComponent } from './sala.component';
+import { FABRICA_DE_JUEGO_DE_SALA } from './lienzo-de-sala.component';
+import { primerHueco } from '../../modelo/arrastre-en-muro';
+import { largoMuro } from '../../modelo/geometria';
 
 
 /** `respuestaDelAviso`: lo que elige el docente cuando el editor le pregunta antes de quitar a la última persona. */
@@ -25,6 +28,7 @@ async function montar(respuestaDelAviso: 'continue' | 'proceed' = 'proceed') {
     imports: [SalaComponent],
     providers: [
       { provide: CatalogoDePiezas, useValue: { manifiesto: signal(null), reglas: signal(null), error: signal(false) } },
+      { provide: FABRICA_DE_JUEGO_DE_SALA, useValue: () => ({ destruir: () => {} }) },
       provideRouter([]), { provide: BibliotecaService, useValue: { escenario: async () => universidad } },
       { provide: UiDialog, useValue: { consequence } },
     ],
@@ -42,6 +46,51 @@ const tecla = (el: Element, key: string, extra: KeyboardEventInit = {}) =>
   el.dispatchEvent(new KeyboardEvent('keydown', { key, bubbles: true, ...extra }));
 
 describe('SalaComponent', () => {
+  it('agregar una ventana la deja elegida y enfocada en el primer hueco del fondo', async () => {
+    const { fixture, store, raiz } = await montar();
+    const catalogo = TestBed.inject(CatalogoDePiezas);
+    const ficha = { nombre: 'Ventana alta', ocupa: 40, franja: [0, 40] as [number, number], muros: ['fondo'] };
+    const falso = catalogo as unknown as { manifiesto: ReturnType<typeof signal<unknown>>; paleta: () => unknown; acabados: () => unknown };
+    falso.manifiesto.set({ piezas: { 'ventana/alta': ficha }, pisos: {}, muros: {} });
+    falso.paleta = () => [{ clave: 'ventanas', nombre: 'Ventanas', modelos: [
+      { tipo: 'ventana', modelo: 'alta', nombre: 'Ventana alta', muros: ['fondo'] },
+    ] }];
+    falso.acabados = () => ({ pisos: [], muros: [] });
+    const caso = structuredClone(CASO_HOSPITAL);
+    caso.salas[0].estructura!.piezas = [];
+    caso.salas[0].puertas = [];
+    store.fijar(caso); fixture.componentRef.setInput('salaId', caso.salas[0].id);
+    document.body.appendChild(raiz);
+    try {
+      fixture.detectChanges();
+      raiz.querySelector<HTMLButtonElement>('[data-modelo="alta"]')!.click();
+      fixture.detectChanges();
+      await fixture.whenStable();
+      await new Promise(resolve => setTimeout(resolve, 0));
+      fixture.detectChanges();
+      const pieza = store.caso()!.salas[0].estructura!.piezas!.at(-1)!;
+      const esperado = primerHueco('fondo', { ...ficha, esPuerta: false }, [],
+        largoMuro('fondo', caso.salas[0].encuadre, caso.salas[0].estructura!.ancho));
+      const boton = raiz.querySelector<HTMLButtonElement>(`[data-pieza="${pieza.id}"]`)!;
+      expect(pieza).toMatchObject({ muro: 'fondo', pos: esperado });
+      expect(boton.classList.contains('elegida')).toBe(true);
+      expect(document.activeElement).toBe(boton);
+    } finally { raiz.remove(); fixture.destroy(); }
+  });
+
+  it('al ensanchar una sala ampliada vuelve a escala uno', async () => {
+    const { fixture, store, raiz } = await montar();
+    const caso = structuredClone(CASO_HOSPITAL);
+    caso.salas[0].estructura!.ancho = 960;
+    store.fijar(caso); fixture.componentRef.setInput('salaId', caso.salas[0].id); fixture.detectChanges();
+    [...raiz.querySelectorAll('button')].find(b => b.textContent?.trim() === '×2')!.click();
+    fixture.detectChanges();
+    expect(raiz.querySelector<HTMLElement>('.escenario')!.style.width).toBe('1920px');
+    raiz.querySelector<HTMLElement>('[role="slider"]')!.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowRight' }));
+    fixture.detectChanges();
+    expect(raiz.querySelector<HTMLElement>('.escenario')!.style.width).toBe('1200px');
+  });
+
   it('una sala por piezas deja desplazar con el dedo y solo las piezas bloquean el gesto', async () => {
     const { fixture, store, raiz } = await montar();
     const caso = structuredClone(store.caso()!);

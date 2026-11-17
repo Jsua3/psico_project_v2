@@ -14,6 +14,8 @@ describe('ManijaDeAnchoComponent', () => {
     fixture.componentInstance.cambio.subscribe(valor => cambios.push(valor));
     fixture.detectChanges();
     const control = fixture.nativeElement.querySelector('[role="slider"]') as HTMLElement;
+    expect(control.tagName).toBe('DIV');
+    expect(control.tabIndex).toBe(0);
     for (const ancho of [1200, 1440, 1680, 1920]) {
       control.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowRight', bubbles: true }));
       expect(cambios.at(-1)).toBe(ancho);

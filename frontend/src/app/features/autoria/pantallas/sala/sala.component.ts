@@ -651,6 +651,7 @@ export class SalaComponent {
   }
 
   constructor() {
+    effect(() => { if ((this.sala()?.estructura?.ancho ?? 0) > 960) this.escalaPiezas.set(1); });
     let temporizador: ReturnType<typeof setTimeout> | undefined;
     effect(() => {
       if (!this.sala()?.estructura) {
@@ -899,6 +900,7 @@ export class SalaComponent {
   protected cambiarAncho(ancho: number): void {
     // BORRADOR: texto nuevo, pendiente de la aprobación de Psicología
     this.store.cambiarEstructura(this.salaId(), 'Cambiaste el ancho de la sala', e => { e.ancho = ancho; });
+    if (ancho > 960) this.escalaPiezas.set(1);
   }
 
   protected async volverOriginal(): Promise<void> {

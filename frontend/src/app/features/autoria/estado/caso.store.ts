@@ -680,6 +680,7 @@ export class CasoStore {
     const puerta = origen?.puertas.find((p) => p.id === puertaId);
     const destino = this.estado()?.salas.find((s) => s.id === puerta?.hacia);
     if (!origen || !puerta || !destino || this.soloLectura()) return '';
+    if (destino.puertas.some((p) => p.id === puerta.par || p.hacia === salaId)) return '';
     const id = idDePieza(destino, 'puerta');
     const opuestos: Record<Muro, Muro> = { fondo: 'camara', camara: 'fondo', izquierda: 'derecha', derecha: 'izquierda' };
     const modelo = puerta.modelo ?? '';

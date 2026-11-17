@@ -7,13 +7,13 @@ import { ANCHOS } from '../../modelo/geometria';
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
     <!-- BORRADOR: texto nuevo, pendiente de la aprobación de Psicología -->
-    <button type="button" role="slider" aria-label="Ancho de la sala" aria-valuemin="960" aria-valuemax="1920"
+    <div tabindex="0" role="slider" aria-label="Ancho de la sala" aria-valuemin="960" aria-valuemax="1920"
       [attr.aria-valuenow]="ancho()" [attr.aria-valuetext]="ancho() + ' px'" (keydown)="tecla($event)"
-      (pointerdown)="iniciar($event)" (pointerup)="soltar($event)" (pointercancel)="cancelar()">↔</button>
+      (pointerdown)="iniciar($event)" (pointerup)="soltar($event)" (pointercancel)="cancelar()">↔</div>
   `,
   styles: [`
     :host { position: absolute; right: 0; top: 50%; z-index: 10; transform: translateY(-50%); }
-    button { min-width: 44px; min-height: 44px; touch-action: none; cursor: ew-resize; }
+    [role=slider] { min-width: 44px; min-height: 44px; touch-action: none; cursor: ew-resize; }
   `],
 })
 export class ManijaDeAnchoComponent {
