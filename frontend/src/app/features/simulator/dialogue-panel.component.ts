@@ -257,14 +257,10 @@ const STALE_NOTE = 'Esta conversación corresponde a otro momento del caso.';
     /* Sin opciones, la placa sola. Con opciones, la columna de las fichas se reserva desde la primera línea: nada salta al
        aparecer y la cámara (M1) mide un solo alto durante toda la conversación. */
     .dialogue-strip:not(.strip--con-opciones) .strip-main { grid-template-columns: minmax(0, min(46em, 100%)); }
-    /* Sobre el mundo y sin opciones, «Volver al mapa» y «Salida segura» van en la esquina de abajo a la derecha: la placa
-       les deja su ancho. En el ensayo, con el panel de autora, el cuadro mide unos 1000 px y la fila caía sobre «Siguiente»
-       de la consecuencia y le quitaba los clics (P4, ensayo.e2e.ts, V4). En el teléfono la fila va arriba (abajo, 560 px). */
-    @media (min-width: 561px) {
-      .dialogue-strip:not(.dialogue-strip--side):not(.strip--con-opciones) .strip-main {
-        grid-template-columns: minmax(0, min(46em, 100% - 200 * var(--px) - 2em));
-      }
-    }
+    /* Sin opciones, «Volver al mapa» y «Salida segura» van en la esquina de abajo a la derecha. Si la banda no tiene sitio
+       para la placa y esa fila juntas (ensayo, ventanas angostas; strip--angosta lo mide el panel), la fila va arriba y la
+       placa conserva su ancho: antes caía sobre «Siguiente» (P4, V4) o la placa se angostaba tanto que el texto no cabía. */
+    .dialogue-strip.strip--angosta:not(.strip--con-opciones) .panel-head { position: static; }
     .dialogue-strip:not(.strip--con-opciones) .strip-body { display: none; }
     /* Una sola opción ocupa todo el ancho de su columna, no media. */
     .choices:not(:has(.choice-btn + .choice-btn)) { grid-template-columns: minmax(0, 1fr); }
@@ -1464,16 +1460,28 @@ export class DialoguePanelComponent implements AfterViewChecked, OnDestroy {
     if (typeof requestAnimationFrame === 'undefined') return;
     // `untracked`: se llama desde el efecto que arranca el diálogo; leer la línea ahí lo haría depender de ella.
     const linea = untracked(() => this.lineIndex());
-    requestAnimationFrame(() => {
+    // Hasta 6 cuadros: al abrirse el cuadro (una consecuencia nueva) el párrafo puede no tener aún su maqueta final.
+    const medir = (intentos: number): void => {
       if (this.lineIndex() !== linea || this.pagina() !== 0 || this.paginas().length !== 1) return;
       const banda = this.host.nativeElement.querySelector<HTMLElement>('.dialogue-strip');
       const parrafo = banda?.querySelector<HTMLElement>('.dialogue-text');
-      const placa = parrafo?.closest<HTMLElement>('.placa-cuerpo');
-      if (!banda || !parrafo || !parrafo.offsetHeight) return;
+      if (!banda || !parrafo || !parrafo.offsetHeight) {
+        if (intentos > 0) requestAnimationFrame(() => medir(intentos - 1));
+        return;
+      }
+      // Sin sitio para la placa (46em) y la fila de «Volver» y «Salida segura» lado a lado, la fila sube (strip--angosta).
+      const sinOpciones = !banda.classList.contains('dialogue-strip--side') && !banda.classList.contains('strip--con-opciones');
+      const cabeza = banda.querySelector<HTMLElement>('.panel-head');
+      banda.classList.remove('strip--angosta');
+      const em = parseFloat(getComputedStyle(banda).fontSize) || 16;
+      if (sinOpciones && cabeza && banda.clientWidth < 46 * em + cabeza.offsetWidth + 48) banda.classList.add('strip--angosta');
+      const placa = parrafo.closest<HTMLElement>('.placa-cuerpo');
       const sobra = Math.max(banda.scrollHeight - banda.clientHeight, placa ? placa.scrollHeight - placa.clientHeight : 0);
       if (sobra <= 1) return;
-      const tope = parrafo.offsetHeight - sobra;
-      if (tope < 24) return;
+      // Lo que de verdad cabe para el párrafo en esta placa y este tamaño: su alto menos lo que desborda; con un mínimo de
+      // dos renglones (si la placa es más baja aún, igual se parte por frases: mejor páginas cortas que desplazar).
+      const renglon = parseFloat(getComputedStyle(parrafo).lineHeight) || 24;
+      const tope = Math.max(parrafo.offsetHeight - sobra, 2 * renglon);
       const sonda = parrafo.cloneNode(false) as HTMLElement;
       sonda.style.cssText = `position:absolute;visibility:hidden;left:0;top:0;width:${parrafo.clientWidth}px`;
       parrafo.parentElement!.appendChild(sonda);
@@ -1484,7 +1492,8 @@ export class DialoguePanelComponent implements AfterViewChecked, OnDestroy {
       this.paginas.set(paginas);
       this.pagina.set(0);
       this.escribir(paginas[0]);
-    });
+    };
+    requestAnimationFrame(() => medir(5));
   }
 
   private escribir(text: string) {
