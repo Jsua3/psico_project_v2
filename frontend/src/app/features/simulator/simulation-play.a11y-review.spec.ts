@@ -56,7 +56,7 @@ describe('F9: el interruptor «Movimiento reducido» del juego apaga las animaci
 
   // Bloque U1 (variante B): el contenedor suma la clase `pixel-juego` y las variables de arte (`[style]="arteJuego"`) de las piezas de pixel.
   it('el contenedor lleva la clase mientras el interruptor (reduceMotion) está activo', () => {
-    expect(source).toMatch(/<div class="game-container pixel-juego" data-skin="game" id="main-content" tabindex="-1" \[attr\.data-mode\]="viewMode\(\)" \[style\]="arteJuego"\s*\[class\.game-container--reduce-motion\]="reduceMotion\(\)"\s*\[class\.game-container--cine\]="cinemaBars\(\)"\s*\[style\.--alto-hud\]="altoHud\(\) \+ 'px'" \[style\.--alto-objetivo\]="altoObjetivo\(\) \+ 'px'"\s*( ?\[attr\.data-rehearsal\]="[^"]*")?>/);
+    expect(source).toMatch(/<div class="game-container pixel-juego" data-skin="game" id="main-content" tabindex="-1" \[attr\.data-mode\]="viewMode\(\)" \[style\]="arteJuego"\s*\[class\.game-container--reduce-motion\]="reduceMotion\(\)"\s*\[class\.game-container--cine\]="cinemaBars\(\)"\s*\[style\.--alto-hud\]="altoHud\(\) \+ 'px'" \[style\.--alto-objetivo\]="altoObjetivo\(\) \+ 'px'"( \[style\.--alto-pie\]="altoPie\(\) \+ 'px'")?\s*( ?\[attr\.data-rehearsal\]="[^"]*")?>/);
   });
 
   it('la regla alcanza al contenedor y a todos sus descendientes, también a los componentes hijos', () => {

@@ -252,6 +252,14 @@ const STALE_NOTE = 'Esta conversación corresponde a otro momento del caso.';
     /* Sin opciones, la placa sola. Con opciones, la columna de las fichas se reserva desde la primera línea: nada salta al
        aparecer y la cámara (M1) mide un solo alto durante toda la conversación. */
     .dialogue-strip:not(.strip--con-opciones) .strip-main { grid-template-columns: minmax(0, min(46em, 100%)); }
+    /* Sobre el mundo y sin opciones, «Volver al mapa» y «Salida segura» van en la esquina de abajo a la derecha: la placa
+       les deja su ancho. En el ensayo, con el panel de autora, el cuadro mide unos 1000 px y la fila caía sobre «Siguiente»
+       de la consecuencia y le quitaba los clics (P4, ensayo.e2e.ts, V4). En el teléfono la fila va arriba (abajo, 560 px). */
+    @media (min-width: 561px) {
+      .dialogue-strip:not(.dialogue-strip--side):not(.strip--con-opciones) .strip-main {
+        grid-template-columns: minmax(0, min(46em, 100% - 200 * var(--px) - 2em));
+      }
+    }
     .dialogue-strip:not(.strip--con-opciones) .strip-body { display: none; }
     /* Una sola opción ocupa todo el ancho de su columna, no media. */
     .choices:not(:has(.choice-btn + .choice-btn)) { grid-template-columns: minmax(0, 1fr); }
@@ -260,6 +268,12 @@ const STALE_NOTE = 'Esta conversación corresponde a otro momento del caso.';
     .dialogue-strip:not(.dialogue-strip--side) { --dialogo-alto-max: min(340px, 46vh); max-height: var(--dialogo-alto-max); }
     /* Desde 1800 px de ancho hay sitio para dos filas de fichas con su texto más largo: el tope sube a 560 px (52 %). */
     @media (min-width: 1800px) { .dialogue-strip:not(.dialogue-strip--side) { --dialogo-alto-max: min(560px, 52vh); } }
+    /* Decisión en pantalla baja (1366 × 768): con 340 px solo cabía una fila de fichas de tres o cuatro renglones y la C y la D
+       quedaban abajo (B, V4). La banda de la decisión sube a 430 px: caben dos filas; si aun así no, la lista se desplaza y
+       la pista dice cuáles quedan abajo. Sin opciones, el tope de siempre. */
+    @media (max-height: 900px) and (min-width: 761px) {
+      .dialogue-strip:not(.dialogue-strip--side).strip--con-opciones { --dialogo-alto-max: min(430px, 56vh); }
+    }
     /* Sobre el mundo, el cuadro incluye el retrato que asoma: el borde superior de app-dialogue-panel es lo que tapa. */
     .dialogue-strip:not(.dialogue-strip--side) { padding-top: calc(16 * var(--px)); }
     /* Sobre el mundo y con opciones, el cuadro es una banda de alto fijo que nunca se desplaza entera (así cortaba el
@@ -1219,7 +1233,12 @@ export class DialoguePanelComponent implements AfterViewChecked, OnDestroy {
     const fondos = fichas.map(fondoDe);
     const corte = Math.max(0, ...fondos.filter(fondo => fondo + pie <= alto + 2));
     if (corte > 0) lista.style.maxHeight = `${Math.ceil(corte + pie)}px`;
-    const abajo = fondos.map((fondo, i) => (fondo > corte + 0.5 ? this.letra(i) : '')).filter(Boolean);
+    // Si ni la primera fila cabe entera (corte 0), la lista no se acota y esa fila se ve, aunque recortada: «más abajo»
+    // son solo las fichas que empiezan por debajo de lo visible. Antes decía «A, B, C y D» con A y B a la vista (B, V4).
+    const arribaDe = (ficha: HTMLElement) => ficha.offsetTop - lista.offsetTop - lista.clientTop;
+    const abajo = fichas
+      .map((ficha, i) => ((corte > 0 ? fondos[i] > corte + 0.5 : arribaDe(ficha) >= alto - 1) ? this.letra(i) : ''))
+      .filter(Boolean);
     if (cuerpo && abajo.length) {
       cuerpo.dataset['mas'] = `Más abajo: ${abajo.length > 1 ? `${abajo.slice(0, -1).join(', ')} y ${abajo[abajo.length - 1]}` : abajo[0]}`;
     }

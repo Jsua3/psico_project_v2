@@ -3710,7 +3710,9 @@ export class DataDrivenWorldScene extends Phaser.Scene {
       position: absolute;
       left: 8px;
       right: 8px;
-      bottom: 8px;
+      /* Encima del pie de la pantalla del juego (--alto-pie lo publica simulation-play; fuera de ella, 0): con el mundo a
+         sangre, la ficha táctil «Hablar con…» tapaba en el teléfono la puerta de la barra de acción (V4). */
+      bottom: calc(8px + var(--alto-pie, 0px));
       grid-template-columns: auto auto;
       justify-content: space-between;
       align-items: end;
