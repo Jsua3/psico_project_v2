@@ -560,7 +560,7 @@ describe('SimulationPlayComponent — puerta de consentimiento (ETH-01)', () => 
     );
   });
 
-  it('la salida segura no espera a sincronizar la posición pendiente: sale en el acto (REGLA-004)', () => {
+  it('la salida segura no espera a la red: la pausa se ve en el acto y la posición pendiente sale antes que la pausa (REGLA-004, V4)', () => {
     setup(makeAttempt());
     component.attempt.set(makeAttempt());
     const world = {
@@ -570,15 +570,19 @@ describe('SimulationPlayComponent — puerta de consentimiento (ETH-01)', () => 
     } as unknown as SimulationWorldState;
     component.world.set(world);
     (component as any).lastPosition = { x: 612, y: 444 };
-    sim.updateWorldState.mockReturnValue(new Subject<SimulationWorldState>());
+    const sync$ = new Subject<SimulationWorldState>();
+    sim.updateWorldState.mockReturnValue(sync$);
     sim.safeExit.mockReturnValue(EMPTY);
 
     component.pauseFromOverlay();
 
+    expect(component.attempt()?.status).toBe('PAUSED');
+    expect(sim.updateWorldState).toHaveBeenCalledWith('attempt-1', 'token-1', 612, 444, 'hospital-sala-escucha');
+    expect(sim.safeExit).not.toHaveBeenCalled();
+    sync$.next({ attemptId: 'attempt-1', status: 'IN_PROGRESS', map: { key: 'hospital-sala-escucha' }, player: { x: 612, y: 444 } } as never);
     expect(sim.safeExit).toHaveBeenCalledWith(
       'attempt-1', 'token-1', 'Salida segura solicitada',
     );
-    expect(sim.updateWorldState).not.toHaveBeenCalled();
   });
 
   describe('posición viva antes de una acción validada', () => {
@@ -647,14 +651,16 @@ describe('SimulationPlayComponent — puerta de consentimiento (ETH-01)', () => 
       expect(sim.recordNpcInteraction).toHaveBeenCalledWith('attempt-1', 'token-1', 'enfermera-urgencias');
     });
 
-    it('la salida segura NO sincroniza la posición viva antes de pausar: no depende de ninguna petición', () => {
+    it('la salida segura toma la posición viva del mundo y la deja guardada antes de la pausa (V4)', () => {
       (component as any).lastPosition = { x: 612, y: 444 };
       (component as any).gameWorld = { playerPosition: vi.fn(() => ({ x: 640, y: 450 })) };
+      sim.updateWorldState.mockReturnValue(of({ attemptId: 'attempt-1', status: 'IN_PROGRESS', map: { key: 'hospital-urgencias' }, player: { x: 640, y: 450 } }));
       sim.safeExit.mockReturnValue(EMPTY);
 
       component.pauseFromOverlay();
 
-      expect(sim.updateWorldState).not.toHaveBeenCalled();
+      expect(sim.updateWorldState).toHaveBeenCalledTimes(1);
+      expect(sim.updateWorldState.mock.calls[0].slice(2, 4)).toEqual([640, 450]);
       expect(sim.safeExit).toHaveBeenCalledTimes(1);
     });
   });
@@ -819,16 +825,21 @@ describe('SimulationPlayComponent — puerta de consentimiento (ETH-01)', () => 
       expect((component as any).pendingRestrictedInteraction()).toBeNull();
     });
 
-    it('pausa en el acto y una sola vez, sin esperar a guardar la posición pendiente', () => {
+    it('pausa en el acto y una sola vez; la posición pendiente sale una vez, antes de la única pausa (V4)', () => {
       component.world.set({ map: { key: 'hospital-urgencias' }, flags: {} } as unknown as SimulationWorldState);
       (component as any).lastPosition = { x: 612, y: 444 };
-      sim.updateWorldState.mockReturnValue(new Subject<SimulationWorldState>());
+      const sync$ = new Subject<SimulationWorldState>();
+      sim.updateWorldState.mockReturnValue(sync$);
       component.showCaseIntro.set(true);
 
       component.pauseFromOverlay();
       component.pauseFromOverlay();
 
-      expect(sim.updateWorldState).not.toHaveBeenCalled();
+      expect(component.attempt()?.status).toBe('PAUSED');
+      expect(component.showCaseIntro()).toBe(false);
+      expect(sim.updateWorldState).toHaveBeenCalledTimes(1);
+      expect(sim.safeExit).not.toHaveBeenCalled();
+      sync$.next({ attemptId: 'attempt-1', status: 'IN_PROGRESS', map: { key: 'hospital-urgencias' }, player: { x: 612, y: 444 } } as never);
       expect(sim.safeExit).toHaveBeenCalledTimes(1);
     });
 

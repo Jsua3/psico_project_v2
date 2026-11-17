@@ -876,7 +876,9 @@ describe('SimulationPlayComponent: ronda V3 de robustez', () => {
         pos$.error(http(0));
         vi.advanceTimersByTime(60_000);
         expect(component.actionError()).toBe('');
-        expect(sim['updateWorldState']).toHaveBeenCalledTimes(1);
+        expect(component.attempt()?.status).toBe('PAUSED');
+        // Desde V4 la posición pendiente viaja con la pausa: solo ella la reenvía (la misma posición), nunca un guardado suelto.
+        expect(sim['updateWorldState'].mock.calls.every((call: unknown[]) => call[2] === 1 && call[3] === 2)).toBe(true);
       });
 
       describe('M-4: un 4xx permanente al registrar la pausa', () => {
