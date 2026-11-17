@@ -9,7 +9,7 @@ import { CaseReviewPanelComponent } from '../../../simulator/case-review-panel.c
 import { AutoriaApiService } from '../../api/autoria-api.service';
 import { CasoStore } from '../../estado/caso.store';
 import { GuiaService } from '../../guia/guia.service';
-import { type Falta, faltasDelServidor, puedeEnviar, sugerencias } from '../../modelo/revision';
+import { type Falta, avisosDeLectura, faltasDelServidor, puedeEnviar, sugerencias } from '../../modelo/revision';
 import { RutasAutoria, rutaDelEditor } from '../../rutas';
 
 /** Cómo se nombra el estado del caso ante el docente. */
@@ -295,7 +295,8 @@ export class RevisionComponent {
     if (!caso) return [];
     // Un aviso del editor que la compuerta ya convirtió en falta no se repite como sugerencia.
     const codigosEnFaltas = new Set(this.faltas().map((f) => f.codigo).filter(Boolean));
-    return sugerencias(caso).filter((s) => !s.codigo || !codigosEnFaltas.has(s.codigo));
+    // Los textos largos los avisa el servidor (también en un caso escrito a mano): se suman como sugerencias, con su escena.
+    return [...sugerencias(caso).filter((s) => !s.codigo || !codigosEnFaltas.has(s.codigo)), ...avisosDeLectura(this.hallazgos())];
   });
   /** El nombre del lugar del caso; nada si el caso no tiene lugar. */
   protected readonly lugar = computed(() => (this.store.caso(), this.store.nombreDelLugar()));

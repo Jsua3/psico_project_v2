@@ -1,5 +1,5 @@
 {
-  "narracion": "Llegas con Daniela a la recepción de Bienestar. Ella se queda un paso atrás, cerca de la puerta, con la mochila apretada contra el pecho. Hay otras personas cerca del mostrador y la planilla de turnos está a la vista. La recepcionista levanta la mirada del computador y te saluda. Daniela te contó que le da miedo que alguien se entere: lo que digas aquí, y cómo lo digas, también la cuida.",
+  "narracion": "Llegas con Daniela a la recepción de Bienestar. Ella se queda un paso atrás, con la mochila apretada contra el pecho. Hay otras personas cerca del mostrador. Daniela te contó que le da miedo que alguien se entere: lo que digas aquí también la cuida.",
   "lineas": [
     {
       "personaje": "recepcionista-bienestar",
@@ -20,7 +20,7 @@
   "opciones": [
     {
       "clave": "pedir-prioridad-con-reserva",
-      "texto": "En voz baja: «Vengo con una estudiante que necesita atención prioritaria hoy. Es una situación sensible y los detalles prefiero dárselos solo a la psicóloga».",
+      "texto": "En voz baja: «Vengo con una estudiante que necesita atención prioritaria hoy. Los detalles se los doy solo a la psicóloga».",
       "clase": "RECOMMENDED",
       "retroalimentacion": "Dices lo necesario para que Daniela reciba atención hoy y nada más. La recepcionista entiende que es urgente sin conocer la historia, y Daniela ve que su confianza está a salvo contigo.",
       "razonProhibicion": "",
@@ -41,7 +41,7 @@
     },
     {
       "clave": "prioridad-con-planilla",
-      "texto": "«Vi que hay tres turnos antes. ¿Puede preguntarle a la psicóloga si la recibe como atención prioritaria? Mientras tanto, yo la acompaño en la sala de espera».",
+      "texto": "«¿Puede preguntarle a la psicóloga si la recibe como atención prioritaria? Mientras tanto, la acompaño en la sala de espera».",
       "clase": "RECOMMENDED",
       "retroalimentacion": "Usas lo que observaste en la planilla para hacer una petición concreta y realista, sin contar nada de Daniela. Además dejas claro que no se quedará sola mientras espera.",
       "razonProhibicion": "",
@@ -83,7 +83,7 @@
       "clave": "contar-la-historia-en-voz-alta",
       "texto": "Explicar en el mostrador, delante de quienes esperan, lo que le pasó a Daniela con su pareja para que la atiendan más rápido.",
       "clase": "CONTRAINDICATED",
-      "retroalimentacion": "Daniela te dijo que temía que alguien se enterara. Al contar su historia frente a otras personas, pierde el control sobre quién la conoce y puede sentir que confiar en ti fue un error. La urgencia se comunica sin detalles: «necesita atención prioritaria, es una situación sensible».",
+      "retroalimentacion": "Daniela temía que alguien se enterara. Al contar su historia frente a otras personas pierde el control sobre quién la conoce. La urgencia se pide sin detalles: «necesita atención prioritaria, es una situación sensible».",
       "razonProhibicion": "Exponer la historia de una persona frente a terceros rompe la confidencialidad, la deja expuesta ante su comunidad y puede aumentar su riesgo. Lo que ella contó solo se comparte con quien va a atenderla, y solo lo necesario.",
       "destino": "sala-espera",
       "efectoVinculo": -1,

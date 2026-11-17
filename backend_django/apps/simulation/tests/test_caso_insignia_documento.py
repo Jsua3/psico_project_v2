@@ -8,8 +8,17 @@ validar; aquí se comprueba la forma, no el criterio clínico.
 import json
 from pathlib import Path
 
-from apps.simulation.casedef import conditions, report, validate
+from apps.simulation.casedef import conditions, lectura, report, validate
 from apps.simulation.casedef.vocabulary import COMMENTS_MAX, EXPRESSIONS, GESTURES, GOAL_MAX, REACTION_LINE_MAX
+
+#: Los textos de SIM-VBG-002 que pasan su largo de lectura (avisos, no errores): la narración del capítulo 1 (428) y los
+#: documentos «Acceso a quirófano» (212), «Hoja de ingreso» (280) e «Informe remitido por el hospital» (346).
+LARGOS_DE_LECTURA_CONOCIDOS = [
+    "escenas[0].descripcion",
+    "x-siep.escenas[0].mapa.dialogos[5].lineas[0].texto",
+    "x-siep.escenas[3].mapa.dialogos[2].lineas[0].texto",
+    "x-siep.escenas[11].mapa.dialogos[2].lineas[0].texto",
+]
 
 CASOS = Path(validate.__file__).resolve().parents[1] / "data" / "cases"
 DOCUMENTO = CASOS / "SIM-VBG-002.dsl.json"
@@ -81,7 +90,12 @@ def test_el_documento_es_2_2_y_no_tiene_ni_un_hallazgo():
     documento = _leer(DOCUMENTO)
     assert documento["caso"]["id"] == "SIM-VBG-002"
     assert documento["x-siep"]["version"] == "2.2"
-    assert validate.validate_document(documento) == []  # ni errores ni avisos
+    hallazgos = validate.validate_document(documento)
+    # Ni errores ni avisos, salvo los cuatro largos de lectura conocidos (``casedef.lectura``, V5): la narración del
+    # capítulo 1 y tres documentos que se leen en voz alta. Recortarlos es decisión de Psicología; un texto largo nuevo falla aquí.
+    assert [(h.code, h.severity, h.path) for h in hallazgos] == [
+        (lectura.CODE, report.WARNING, ruta) for ruta in LARGOS_DE_LECTURA_CONOCIDOS
+    ]
     estados = {r.rule: r.state for r in validate.run_rules(documento).results}
     assert report.INCUMPLE not in estados.values()
     reglas = ("09", "10", "11", "12", "13", "14", "15", "16", "17", "18")

@@ -73,6 +73,16 @@ Se hacen cumplir en Python sobre lo que devuelve el modelo (`prompts.py`), sin I
 
 Los marcadores son dos listas congeladas en español, comparadas sobre el texto en minúsculas, sin tildes ni puntuación. **Son un primer filtro, no el control:** una frase dañina puede no coincidir con ninguna. El control real es la marca «sugerido por la IA» más la revisión humana de cada parte antes de enviar el caso. Los textos y las listas son BORRADOR hasta que Psicología los apruebe.
 
+**Largos de lectura (V5).** Lo que la estudiante lee al jugar tiene un tope para leerse sin desplazarse. Los topes, en caracteres:
+
+| Narración | Parlamento | Pregunta | Respuesta | Retroalimentación | Reacción | Comentario | Pista |
+|---|---|---|---|---|---|---|---|
+| 300 | 200 | 160 | 140 | 240 | 160 | 120 | 140 |
+
+Los topes se calibraron sobre SIM-VBG-002. La fuente única es `casedef/lectura.py`, y la instrucción de la generación de casos dice los mismos números: pide repartir un parlamento largo en varios turnos del mismo personaje.
+
+Pasar un tope **no es un error**. El validador del documento da el aviso `DSL.READING_LENGTH` con el texto concreto, sea el caso generado o escrito a mano. La pantalla «Enviar a revisión» lo muestra entre las sugerencias, que no impiden enviar.
+
 **La IA no rebaja una respuesta que una persona dejó contraindicada.** `set-response-class` se rechaza (422 `AI_PROPOSAL_INVALID`) si la respuesta es hoy `CONTRAINDICATED`, o tiene razón de prohibición o conducta prohibida, y la clase nueva no es `CONTRAINDICATED`; no importa si su texto coincide o no con un marcador. Volver a proponer `CONTRAINDICATED` sí se admite.
 
 ## Las diez operaciones y cómo se aplican

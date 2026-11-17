@@ -1,5 +1,5 @@
 {
-  "narracion": "La clase terminó hace unos minutos y el aula se va quedando vacía. Daniela sigue en su pupitre, con la mochila junto a la silla y la mirada fija en el cuaderno cerrado. La docente recoge sus cosas en el escritorio y la mira de reojo, sin saber si acercarse. Tú, practicante de Bienestar, notas que a Daniela le tiemblan las manos.",
+  "narracion": "La clase terminó y el aula se va quedando vacía. Daniela sigue en su pupitre, con la mochila junto a la silla y la mirada fija en el cuaderno cerrado. La docente la mira de reojo desde el escritorio. Tú, practicante de Bienestar, notas que a Daniela le tiemblan las manos.",
   "lineas": [
     {
       "personaje": "docente",
@@ -20,7 +20,7 @@
   "opciones": [
     {
       "clave": "escuchar-y-acompanar",
-      "texto": "Te sientas cerca, sin invadir su espacio: «Gracias por contármelo. Aquí estoy, no tienes que explicarme nada que no quieras. Respiremos un momento y, cuando tú quieras, te acompaño a Bienestar».",
+      "texto": "Te sientas cerca, sin invadir su espacio: «Gracias por contármelo. Aquí estoy. Cuando quieras, te acompaño a Bienestar».",
       "clase": "RECOMMENDED",
       "retroalimentacion": "Escuchas antes de actuar, le devuelves el control sobre lo que cuenta y le propones un siguiente paso a su ritmo. Eso la ayuda a calmarse y abre la confianza para seguir.",
       "razonProhibicion": "",
@@ -41,7 +41,7 @@
     },
     {
       "clave": "cuidar-privacidad",
-      "texto": "Después de hablar con la docente, le dices a Daniela: «Lo que me cuentes queda entre nosotras y el equipo que te va a atender. Si quieres, vamos directo a un lugar tranquilo de Bienestar, sin pasar por recepción».",
+      "texto": "«Lo que me cuentes queda entre nosotras y el equipo que te atienda. Si quieres, vamos a Bienestar sin pasar por recepción».",
       "clase": "RECOMMENDED",
       "retroalimentacion": "Respondes a su mayor temor: que alguien se entere. Al explicarle quién sabrá y quién no, y ofrecerle un camino discreto, la proteges y le das una razón concreta para confiar.",
       "razonProhibicion": "",
@@ -84,7 +84,7 @@
       "clave": "minimizar-y-presionar",
       "texto": "«Seguro fue una pelea de pareja, eso pasa. Pero si de verdad fue grave, tienes que denunciarlo hoy mismo».",
       "clase": "CONTRAINDICATED",
-      "retroalimentacion": "Esta respuesta le resta importancia a lo que vivió, pone en duda su relato y además la presiona a denunciar. Daniela puede sentir que no le creen y que pierde el control de sus decisiones, y eso suele hacer que deje de pedir ayuda. Denunciar es un derecho que ella decide cuándo y cómo ejercer, con información y acompañamiento.",
+      "retroalimentacion": "Esta respuesta le resta importancia a lo que vivió, duda de su relato y la presiona a denunciar. Daniela puede sentir que no le creen y dejar de pedir ayuda. Denunciar es un derecho que ella decide cuándo ejercer.",
       "razonProhibicion": "Minimizar lo ocurrido, dudar del relato y presionar a denunciar revictimiza: daña la confianza y le quita a la persona la decisión sobre su propio proceso.",
       "destino": "bienestar",
       "efectoVinculo": -1,

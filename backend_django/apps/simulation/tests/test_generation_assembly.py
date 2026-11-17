@@ -11,7 +11,7 @@ import pytest
 from django.contrib.auth import get_user_model
 
 from apps.biblioteca.services import lugares
-from apps.simulation.casedef import report
+from apps.simulation.casedef import lectura, report
 from apps.simulation.casedef.export import to_document
 from apps.simulation.casedef.report import Issue
 from apps.simulation.casedef.validate import validate_document
@@ -33,7 +33,7 @@ from apps.simulation.models import (
 )
 from apps.simulation.services import case_rules, rubric_service
 from apps.simulation.services.ai_providers import FAKE_FIXTURES
-from apps.simulation.services.authoring import importing
+from apps.simulation.services.authoring import importing, validation
 from apps.simulation.services.authoring.generation import assembly, checks, context, lifecycle
 from shared.exceptions import ApiError
 
@@ -230,6 +230,27 @@ def test_el_borrador_trae_rubrica_con_competencias(rubrica, docente):
     assert criterios.count() == RubricCriterion.objects.filter(rubric__is_default=True, rubric__case_version=None).count()
     assert {c.competency_ref.code for c in criterios} >= {c["codigo"] for c in COMPETENCIAS}
     assert Rubric.objects.get(is_default=True).case_version_id is None
+
+
+def test_un_parlamento_largo_importa_sin_reparar_y_la_revision_lo_avisa(rubrica, docente):
+    """Pasar un largo de lectura no es una falta: el borrador se importa y la docente ve el aviso en la revisión."""
+    escenas = _escenas()
+    aula = escenas["aula"]
+    largo = ("Me cuesta decirlo, pero desde hace semanas no duermo y no sé a quién contarle. " * 4)[:260]
+    escenas["aula"] = dataclasses.replace(aula, lineas=({**aula.lineas[0], "texto": largo}, *aula.lineas[1:]))
+    r = assembly.assemble(generacion(docente, escenas), docente)
+    assert r.result == "imported" and r.case_version_id
+    assert not any(i["code"] == lectura.CODE for i in r.issues)
+    issues, _ = validation.validate_version(r.case_version_id)
+    avisos = [i for i in issues if i["code"] == lectura.CODE]
+    assert len(avisos) == 1 and avisos[0]["severity"] == report.WARNING
+    assert "260 caracteres" in avisos[0]["message"] and "«Me cuesta decirlo" in avisos[0]["message"]
+
+
+def test_el_proveedor_falso_escribe_textos_que_se_leen_sin_desplazarse(base):
+    """Las respuestas de ejemplo del proveedor falso respetan los largos de lectura que pide la instrucción."""
+    documento = to_document(assembly.build(base, _esqueleto(), _escenas()))
+    assert [i.message for i in validate_document(documento) if i.code == lectura.CODE] == []
 
 
 def test_con_falta_de_ocl_y_rondas_libres_pide_reparar_y_no_crea_nada(rubrica, docente):

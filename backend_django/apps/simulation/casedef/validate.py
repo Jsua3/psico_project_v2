@@ -8,7 +8,8 @@ parte del DSL del taller: se quita antes de mirar la forma.
 
 ``validate_document(documento)`` es el validador **único** del documento completo (R17): los límites,
 la forma y las 16 reglas del taller con sus mensajes por título (``messages``), ``x-siep`` (esquema,
-enlaces, claves, condiciones y métricas: ``siep_check``) y los textos (``text_check``). Devuelve una
+enlaces, claves, condiciones y métricas: ``siep_check``), los textos (``text_check``) y, como avisos, los largos de
+lectura (``lectura``). Devuelve una
 lista de ``Issue`` con código ``DSL.*``, gravedad, ruta y mensaje llano; nunca lanza, sea cual sea el
 documento.
 """
@@ -17,7 +18,7 @@ import json
 import logging
 from pathlib import Path
 
-from . import form, limits, messages, siep_check, text_check
+from . import form, lectura, limits, messages, siep_check, text_check
 from .messages import route_text
 from .report import CUMPLE, ERROR, INCUMPLE, NO_APLICA, PREFIX, WARNING, Finding, Issue, Outcome, RuleReport, RuleResult
 from .rules import REGISTRY
@@ -162,6 +163,7 @@ def validate_unguarded(document):
         + _rule_issues(run_rules(document), names)
         + text_check.check(document, names)
         + siep_check.check(document, names)
+        + lectura.check(document, names)
     )
 
 
