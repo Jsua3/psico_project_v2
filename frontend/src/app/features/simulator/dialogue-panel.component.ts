@@ -638,6 +638,33 @@ const STALE_NOTE = 'Esta conversación corresponde a otro momento del caso.';
       animation: choice-in 150ms steps(3, jump-none) backwards;
       animation-delay: calc(var(--stagger, 0) * 55ms);
     }
+    /* Ajuste a la pantalla (V5): si las fichas no caben enteras, el panel compacta antes de desplazar (data-compacto, lo pone
+       ajustarAFilasEnteras). Nivel 1: la nota «Decisión» sale de la vista (la sigue leyendo el lector), fichas más ceñidas
+       y la banda hasta el 66 % del alto. Nivel 2: letra de las fichas más chica y la banda hasta el 80 %. Solo si aun así
+       no caben, la lista se desplaza y la pista nombra las que quedan abajo. */
+    .dialogue-strip:not(.dialogue-strip--side).strip--con-opciones[data-compacto] { --dialogo-alto-max: min(680px, 66vh); }
+    .dialogue-strip:not(.dialogue-strip--side).strip--con-opciones[data-compacto='2'] { --dialogo-alto-max: min(900px, 80vh); }
+    .dialogue-strip[data-compacto] .panel-head__note {
+      position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip: rect(0, 0, 0, 0); white-space: nowrap; border: 0;
+    }
+    .dialogue-strip[data-compacto] .choices { gap: calc(3 * var(--px)); }
+    .dialogue-strip[data-compacto] .choice-btn { font-size: .88em; line-height: 1.28; gap: calc(3 * var(--px)); min-height: 44px; }
+    .dialogue-strip[data-compacto='2'] .choice-btn { font-size: .8em; line-height: 1.24; }
+    /* Nivel 3 (ventanas bajas o con zoom, p. ej. 1280 × 600 al 125 %): apilado, como en el teléfono. Arriba «Volver» y
+       «Salida segura»; debajo la pregunta a todo el ancho, sin retrato; y las fichas en dos columnas a todo el ancho. La
+       banda hasta el 88 % del alto. */
+    .dialogue-strip:not(.dialogue-strip--side).strip--con-opciones[data-compacto='3'] {
+      --dialogo-alto-max: 86vh; grid-template-columns: minmax(0, 1fr); grid-template-rows: auto auto minmax(0, auto);
+      row-gap: calc(3 * var(--px));
+    }
+    /* En la decisión el pie de la placa no lleva botón: sin su alto mínimo, y la placa más ceñida. */
+    .dialogue-strip[data-compacto='3'] .placa-pie { min-height: 0; }
+    .dialogue-strip[data-compacto='3'] .placa-cuerpo { padding-block: calc(2 * var(--px)); }
+    .dialogue-strip:not(.dialogue-strip--side).strip--con-opciones[data-compacto='3'] .panel-head { grid-column: 1; grid-row: 1; }
+    .dialogue-strip:not(.dialogue-strip--side).strip--con-opciones[data-compacto='3'] .placa { grid-column: 1; grid-row: 2; }
+    .dialogue-strip:not(.dialogue-strip--side).strip--con-opciones[data-compacto='3'] .strip-body { grid-column: 1; grid-row: 3; }
+    .dialogue-strip[data-compacto='3'] .portrait { display: none; }
+    .dialogue-strip[data-compacto='3'] .choice-btn { font-size: .8em; }
     /* Confirmación: la ficha elegida se enciende y las demás ceden. */
     .choices--locked .choice-btn { pointer-events: none; }
     .choices--locked .choice-btn:not(.choice-btn--chosen) { opacity: .45; }
@@ -1225,7 +1252,19 @@ export class DialoguePanelComponent implements AfterViewChecked, OnDestroy {
     const fichas = Array.from(lista.querySelectorAll<HTMLElement>('.choice-btn'));
     const fondoDe = (ficha: HTMLElement) => ficha.offsetTop + ficha.offsetHeight - lista.offsetTop - lista.clientTop;
     // Las medidas de maqueta son enteras (cada una redondea medio punto): 2 px de margen para no recortar una lista que cabe.
-    if (!lista.clientHeight || !fichas.length || Math.max(...fichas.map(fondoDe)) + pie <= lista.clientHeight + 2) return;
+    const caben = () => !lista.clientHeight || !fichas.length || Math.max(...fichas.map(fondoDe)) + pie <= lista.clientHeight + 2;
+    // Ajuste a la pantalla (V5): antes de desplazar, el cuadro se compacta por niveles (data-compacto en la banda): sin la
+    // nota «Decisión» a la vista, fichas más ceñidas y la banda más alta; después, letra más chica. Cada nivel se mide en
+    // el acto (la lectura de offsetTop rehace la maqueta), así que no hay parpadeo; con los mismos tamaños sale el mismo.
+    const banda = lista.closest<HTMLElement>('.dialogue-strip');
+    if (banda && !banda.classList.contains('dialogue-strip--side')) {
+      delete banda.dataset['compacto'];
+      for (const nivel of ['1', '2', '3']) {
+        if (caben()) break;
+        banda.dataset['compacto'] = nivel;
+      }
+    }
+    if (caben()) return;
     // Las fichas que quedan abajo se anuncian bajo la lista («▼ Más abajo: C y D»): la señal toma su renglón antes de
     // medir cuántas filas caben enteras.
     if (cuerpo) cuerpo.dataset['mas'] = 'Más abajo';
