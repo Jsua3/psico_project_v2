@@ -85,7 +85,7 @@ describe('doorStatus: etapa exigida (requiresNodes)', () => {
 
   it('una puerta bloqueada por la etapa usa la frase general, sin contar decisiones de un caso', () => {
     const status = doorStatus(door({ requiresNodes: ['otra-escena'] }), { nodeKey: 'esta-escena', world: MUNDO, viewedNpcKeys: new Set(), copy: COPY });
-    expect(status).toMatchObject({ state: 'locked', stageLocked: true, message: 'Esta salida se abre más adelante en el caso.' });
+    expect(status).toMatchObject({ state: 'locked', stageLocked: true, message: 'Esta salida se abre más adelante en el caso; por ahora, lo que sigue está en esta sala.' });
   });
 
   it('el contexto de las puertas ya no pide número de decisión', () => {
@@ -104,7 +104,7 @@ describe('doorStatus: etapa exigida (requiresNodes)', () => {
       ctxFor({ copy: { world: null, npcs: [{ key: 'enfermera-urgencias', displayName: 'Enfermera' }] } }),
     );
     expect(both).toMatchObject({ state: 'locked', stageLocked: true });
-    expect(both.message).toBe('Antes de pasar, habla con Enfermera. Esta salida se abre más adelante en el caso.');
+    expect(both.message).toBe('Antes de pasar, habla con Enfermera. Esta salida se abre más adelante en el caso; por ahora, lo que sigue está en esta sala.');
   });
 });
 

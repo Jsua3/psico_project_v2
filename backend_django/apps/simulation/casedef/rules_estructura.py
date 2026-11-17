@@ -10,6 +10,8 @@ vigila ``siep_check``). Solo miran los mapas que traen ``estructura`` y sus puer
 - OCL-16: la llegada de cada puerta es caminable: el pie del jugador no toca ninguna colisión del destino.
 - OCL-17: desde la aparición se alcanza, caminando por una rejilla de 8 px, toda puerta, persona y objeto interactivo.
 - OCL-18: ancho, acabados y modelos están en el catálogo de piezas.
+- OCL-19: el trayecto de una persona se camina en línea recta entre sus puntos sin tocar muebles ni paredes, dentro
+  del margen de la sala y a más de 56 px de toda puerta (mira cualquier mapa, tenga o no ``estructura``).
 """
 # Las reglas se registran en el orden en que se importan: las de antes van primero aunque alguien importe este módulo solo.
 from . import catalogo as catalogo_piezas
@@ -462,3 +464,130 @@ def ocl_18_todo_del_catalogo(doc):
                 if capa.get("ruta") not in conocidas:
                     hallazgos.append(_h(sala.elemento, f"{ruta}.{campo}[{k}]", f"La imagen «{capa.get('ruta')}» no está en el catálogo."))
     return Outcome(len(salas), hallazgos)
+
+
+#: Margen de la sala para una persona que camina, en coordenadas de su marcador: el ``margin`` por defecto de
+#: ``personWalkBounds`` en ``frontend/src/app/features/simulator/person-walk.util.ts``. Si cambia allá, cambia aquí.
+MARGEN_PERSONA = 24
+
+
+@rule("OCL-19", "OCL")
+def ocl_19_trayectos_caminables(doc):
+    """OCL-19. El trayecto de una persona se camina en línea recta, sin tocar muebles ni paredes y sin tapar una puerta.
+
+    El juego lleva a la persona en línea recta de un punto al siguiente (también de vuelta a la partida en un circuito) y
+    no busca caminos alrededor de un mueble: por eso aquí se recorre cada tramo píxel a píxel con el pie de la persona,
+    contra lo mismo que mira el juego (la zona caminable del encuadre, el margen de la sala, las colisiones y los objetos
+    con colisión, salvo ella misma). Un tramo que choca se arregla con un punto intermedio que rodee el mueble. Ningún
+    punto ni tramo pasa a menos de 56 px de una puerta: ahí se para el estudiante para usarla.
+    """
+    import math
+
+    def numero(v):
+        return isinstance(v, (int, float)) and not isinstance(v, bool) and math.isfinite(v) and abs(v) <= 1_000_000
+
+    hallazgos, evaluados = [], 0
+    for i, escena in _escenas(doc):
+        mapa = escena.get("mapa")
+        if not isinstance(mapa, dict):
+            continue
+        for k, obj in _objetos(mapa.get("objetos")):
+            meta = obj.get("metadatos") if isinstance(obj.get("metadatos"), dict) else {}
+            movimiento = meta.get("movimiento")
+            if obj.get("tipo") != "PERSON" or not isinstance(movimiento, dict) or movimiento.get("tipo") != "ruta":
+                continue
+            evaluados += 1
+            ruta = f"{SIEP}.escenas[{i}].mapa.objetos[{k}].metadatos.movimiento"
+            elemento = f"Persona {obj.get('etiqueta') or obj.get('clave') or k}"
+            puntos = movimiento.get("puntos")
+            pausa = movimiento.get("pausaMs")
+            modo = movimiento.get("modo")
+            if (not isinstance(puntos, list) or not 2 <= len(puntos) <= 8
+                    or modo not in ("circuito", "ida-y-vuelta")
+                    or ("pausaMs" in movimiento and (not numero(pausa) or not 0 <= pausa <= 10000))
+                    or any(not isinstance(p, dict) or not numero(p.get("x")) or not numero(p.get("y")) for p in puntos)):
+                hallazgos.append(_h(elemento, ruta, "El trayecto requiere de 2 a 8 puntos válidos, un modo válido y una pausa entre 0 y 10000 ms."))
+                continue
+            ancho, alto = mapa.get("ancho"), mapa.get("alto")
+            ox, oy = obj.get("x"), obj.get("y")
+            if not (_entero(ancho) and _entero(alto) and numero(ox) and numero(oy)):
+                hallazgos.append(_h(elemento, ruta, "No se puede comprobar el trayecto sin las medidas de la sala y la posición de la persona."))
+                continue
+            # Los pies quedan bajo el marcador: 0 px si el marcador ya es el punto de apoyo, 16 en los casos de antes.
+            pies = 0 if meta.get("apoyo") == "pies" else 16
+            rects = _rects({**mapa, "objetos": [o for _, o in _objetos(mapa.get("objetos")) if o is not obj]})
+            # Las personas no chocan entre sí en el juego: el trayecto no pasa por donde otra está de pie (sus pies).
+            for _, otra in _objetos(mapa.get("objetos")):
+                if otra is obj or otra.get("tipo") != "PERSON" or otra.get("visible") is False:
+                    continue
+                if numero(otra.get("x")) and numero(otra.get("y")):
+                    meta_otra = otra.get("metadatos") if isinstance(otra.get("metadatos"), dict) else {}
+                    pie_otra = otra["y"] + (0 if meta_otra.get("apoyo") == "pies" else 16)
+                    rects.append((otra["x"] - PIE_ANCHO // 2, pie_otra - PIE_ALTO, PIE_ANCHO, PIE_ALTO))
+            estructura = mapa.get("estructura")
+            if isinstance(estructura, dict) and estructura.get("ancho") in geometria.ANCHOS:
+                ambiente = mapa.get("ambiente") if isinstance(mapa.get("ambiente"), dict) else {}
+                encuadre = ambiente.get("encuadre") if ambiente.get("encuadre") in geometria.LATERALES else "tres-paredes"
+                zx, zy, zw, zh = geometria.zona_caminable(encuadre, estructura["ancho"])
+            else:
+                zx, zy, zw, zh = 0, 0, ancho, alto
+            puertas = [
+                (o.get("etiqueta") or o.get("clave") or "una puerta", o["x"], o["y"])
+                for _, o in _objetos(mapa.get("objetos"))
+                if o.get("tipo") == "EXIT" and o.get("visible") is not False and numero(o.get("x")) and numero(o.get("y"))
+            ]
+
+            def libre(x, y):
+                """El marcador en (x, y): sus pies caben en la zona y en la sala, dentro del margen, sin tocar nada."""
+                pie = y + pies
+                return (MARGEN_PERSONA <= x <= ancho - MARGEN_PERSONA and MARGEN_PERSONA <= y <= alto - MARGEN_PERSONA
+                        and _pie_dentro(x - zx, pie - zy, zw, zh) and _pie_dentro(x, pie, ancho, alto)
+                        and not _pie_choca(x, pie, rects))
+
+            def tapa(x, y):
+                """La primera puerta a la que los pies quedarían a 56 px o menos (donde se para el estudiante), o None."""
+                pie = y + pies
+                return next((nombre for nombre, px, py in puertas if math.hypot(x - px, pie - py) <= RADIO_PUERTA), None)
+
+            def tramo(a, b):
+                """``(choca, puerta)`` al recorrer de ``a`` a ``b`` cada píxel, como el juego (pasos de 1,4 px como mucho)."""
+                pasos = max(1, math.ceil(math.hypot(b[0] - a[0], b[1] - a[1])))
+                choca, puerta = False, None
+                for t in range(1, pasos + 1):
+                    x, y = a[0] + (b[0] - a[0]) * t / pasos, a[1] + (b[1] - a[1]) * t / pasos
+                    choca = choca or not libre(x, y)
+                    puerta = puerta or tapa(x, y)
+                return choca, puerta
+
+            partida = (ox, oy)
+            if not libre(*partida):
+                hallazgos.append(_h(elemento, ruta, "La partida de la persona queda fuera de la zona caminable, sobre un mueble o sobre otra persona."))
+                continue
+            paradas = [partida] + [(p["x"], p["y"]) for p in puntos]
+            avisadas = set()
+
+            def puerta_tapada(nombre, donde):
+                if nombre is not None and nombre not in avisadas:
+                    avisadas.add(nombre)
+                    hallazgos.append(_h(elemento, donde, f"La persona pasaría frente a la puerta «{nombre}» y la taparía: aleja el trayecto al menos 56 px de la puerta."))
+
+            puerta_tapada(tapa(*partida), ruta)
+            malos = set()
+            for n, parada in enumerate(paradas[1:]):
+                donde = f"{ruta}.puntos[{n}]"
+                if not libre(*parada):
+                    malos.add(n + 1)
+                    hallazgos.append(_h(elemento, donde, "El punto queda fuera de la zona caminable, sobre un mueble o sobre otra persona."))
+                    continue
+                if n in malos:
+                    continue  # el tramo sale de un punto ya informado
+                choca, puerta = tramo(paradas[n], parada)
+                if choca:
+                    hallazgos.append(_h(elemento, donde, "El camino recto hasta este punto atraviesa un mueble, una pared u otra persona: la persona camina en línea recta entre sus puntos; agrega un punto intermedio para rodearlo."))
+                puerta_tapada(puerta, donde)
+            if modo == "circuito" and libre(*paradas[-1]):
+                choca, puerta = tramo(paradas[-1], partida)
+                if choca:
+                    hallazgos.append(_h(elemento, ruta, "El camino recto de regreso a la partida atraviesa un mueble, una pared u otra persona: agrega un punto intermedio para rodearlo."))
+                puerta_tapada(puerta, ruta)
+    return Outcome(evaluados, hallazgos, no_aplica="ninguna persona declara un trayecto" if not evaluados else None)

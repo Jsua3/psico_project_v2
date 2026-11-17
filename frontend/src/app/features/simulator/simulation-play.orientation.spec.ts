@@ -258,7 +258,7 @@ describe('SimulationPlayComponent: orientación integrada', () => {
 
       component.openInteraction(gate);
 
-      expect(component.doorNotice()).toBe('Esta salida se abre más adelante en el caso.');
+      expect(component.doorNotice()).toBe('Esta salida se abre más adelante en el caso; por ahora, lo que sigue está en esta sala.');
     });
   });
 
