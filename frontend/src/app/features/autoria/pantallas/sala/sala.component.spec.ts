@@ -1,7 +1,9 @@
 import { readFileSync } from 'fs';
 import { join } from 'path';
 
+import { signal } from '@angular/core';
 import { TestBed } from '@angular/core/testing';
+import { CatalogoDePiezas } from '../../estado/catalogo-de-piezas';
 import { provideRouter } from '@angular/router';
 
 import { UiDialog } from '../../../../shared/ui/dialog/ui-dialog';
@@ -21,6 +23,7 @@ async function montar(respuestaDelAviso: 'continue' | 'proceed' = 'proceed') {
   await TestBed.configureTestingModule({
     imports: [SalaComponent],
     providers: [
+      { provide: CatalogoDePiezas, useValue: { manifiesto: signal(null), reglas: signal(null), error: signal(false) } },
       provideRouter([]), { provide: BibliotecaService, useValue: { escenario: async () => universidad } },
       { provide: UiDialog, useValue: { consequence } },
     ],
@@ -38,6 +41,13 @@ const tecla = (el: Element, key: string, extra: KeyboardEventInit = {}) =>
   el.dispatchEvent(new KeyboardEvent('keydown', { key, bubbles: true, ...extra }));
 
 describe('SalaComponent', () => {
+  it('una sala de imagen fija no carga el lienzo ni la capa de piezas', async () => {
+    const { raiz } = await montar();
+    expect(raiz.querySelector('app-lienzo-de-sala')).toBeNull();
+    expect(raiz.querySelector('app-piezas-del-muro')).toBeNull();
+    expect(raiz.querySelector('img.fondo')).not.toBeNull();
+  });
+
   it('con un elemento elegido, las flechas lo mueven 8 px y con Mayúsculas 1 px', async () => {
     const { fixture, store, raiz } = await montar();
     const psicologa = raiz.querySelector<HTMLButtonElement>('[data-elemento="personaje-0"]')!;

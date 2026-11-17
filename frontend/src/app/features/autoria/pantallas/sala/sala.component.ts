@@ -1,11 +1,19 @@
 import {
-  ChangeDetectionStrategy, Component, ElementRef, Injector, afterNextRender, computed, effect, inject, input, signal, untracked,
-  viewChild,
+  ChangeDetectionStrategy, Component, DestroyRef, ElementRef, Injector, afterNextRender, computed, effect, inject, input,
+  signal, untracked, viewChild,
 } from '@angular/core';
 import { RouterLink } from '@angular/router';
 
 import { UiDialog } from '../../../../shared/ui/dialog/ui-dialog';
 import { CasoStore, type TipoElemento } from '../../estado/caso.store';
+import { CatalogoDePiezas } from '../../estado/catalogo-de-piezas';
+import { claveDeNuevo } from '../../modelo/hacia-api';
+import { faltasPorSala, anclaDeElemento } from '../../modelo/salas-a-documento';
+import type { FaltaDeSala } from '../../modelo/salas-a-documento';
+import type { PlanDeSala } from '../../../simulator/sala/composicion';
+import { LienzoDeSalaComponent } from './lienzo-de-sala.component';
+import { actoresDeSala, salaParaLienzo } from './lienzo-de-sala';
+import { PiezasDelMuroComponent } from './piezas-del-muro.component';
 import { rutaArte, rutaRetrato, rutaSpriteKit } from '../../modelo/biblioteca.service';
 import type { MovimientoPersonaje, SalaCaso } from '../../modelo/caso';
 import { EXPRESIONES, type Expresion, type Mirando, type Punto } from '../../modelo/escenario';
@@ -46,7 +54,7 @@ const DISTANCIAS_INICIALES = [96, -96, 160, -160, 48, -48];
  */
 @Component({
   selector: 'app-sala',
-  imports: [RouterLink],
+  imports: [RouterLink, LienzoDeSalaComponent, PiezasDelMuroComponent],
   changeDetection: ChangeDetectionStrategy.OnPush,
   host: { '(document:keydown.escape)': 'atencion.set(null)' },
   template: `
@@ -99,10 +107,36 @@ const DISTANCIAS_INICIALES = [96, -96, 160, -160, 48, -48];
 
           <section aria-labelledby="la-sala" class="columna-sala">
             <h2 id="la-sala" class="solo-lector">La sala</h2>
-            <div class="escenario" #escenario tabindex="-1" data-accion="mover-mueble" (keydown)="teclaGeneral($event)" (click)="clicEnSala($event)"
-                 [style.--escala]="escala()" (pointermove)="arrastrar($event)" (pointerup)="soltar()" (pointercancel)="soltar()">
-              <div class="lienzo">
-                <img class="pixel fondo" [src]="arte(s.fondo)" alt="" [width]="ancho" [height]="alto" draggable="false" />
+            @if (s.estructura && catalogoPiezas.error()) {
+              <!-- BORRADOR: texto nuevo, pendiente de la aprobación de Psicología -->
+              <p role="alert">No se pudo cargar el catálogo de piezas.</p>
+              <!-- BORRADOR: texto nuevo, pendiente de la aprobación de Psicología -->
+              <button type="button" class="boton" (click)="catalogoPiezas.reintentar()">Reintentar</button>
+            }
+            @if (s.estructura && s.estructura.ancho <= 960) {
+              <!-- BORRADOR: texto nuevo, pendiente de la aprobación de Psicología -->
+              <button type="button" class="boton" (click)="escalaPiezas.set(escalaPiezas() === 1 ? 2 : 1)">
+                {{ escalaPiezas() === 1 ? '×2' : '×1' }}
+              </button>
+            }
+            <div [class.desplazamiento]="s.estructura">
+            <div class="escenario" #escenario [id]="'sala-' + s.id" [class.por-piezas]="s.estructura"
+                 [style.width.px]="s.estructura ? s.estructura.ancho * escalaPiezas() : null"
+                 [style.height.px]="s.estructura ? alto * escalaPiezas() : null" tabindex="-1"
+                 data-accion="mover-mueble" (keydown)="teclaGeneral($event)" (click)="clicEnSala($event)"
+                 [style.--escala]="s.estructura ? escalaPiezas() : escala()" (pointermove)="arrastrar($event)"
+                 (pointerup)="soltar()" (pointercancel)="soltar()">
+              <div class="lienzo" [style.width.px]="s.estructura?.ancho ?? ancho">
+                @if (s.estructura) {
+                  @if (!catalogoPiezas.error() && catalogoPiezas.manifiesto() && salaLienzo(); as salaLienzoActual) {
+                    <app-lienzo-de-sala [sala]="salaLienzoActual" [actores]="actoresLienzo()"
+                      [escala]="1" (listo)="plan.set($event.plan)" />
+                    <app-piezas-del-muro [sala]="s" [plan]="plan()" [faltas]="faltasSala()"
+                      [escala]="escalaPiezas()" (elegida)="piezaDeMuroElegida.set($event)" />
+                  }
+                } @else {
+                  <img class="pixel fondo" [src]="arte(s.fondo)" alt="" [width]="ancho" [height]="alto" draggable="false" />
+                }
                 <!-- Hasta dónde va y viene cada persona: una línea discreta y una marca en forma de rombo (solo adorno; el dato está en los detalles). -->
                 <svg class="trazos" [attr.viewBox]="'0 0 ' + ancho + ' ' + alto" aria-hidden="true">
                   @for (t of trazos(); track t.clave) {
@@ -114,7 +148,10 @@ const DISTANCIAS_INICIALES = [96, -96, 160, -160, 48, -48];
                   }
                 </svg>
                 @for (p of piezasOrdenadas(); track p.clave) {
-                  <button type="button" class="pieza" data-equivalente="lista-de-la-sala" [attr.data-elemento]="p.clave" [class.elegida]="elegida() === p.clave" [class.atendida]="atencion() === p.clave" [class.marca-ia]="p.marcaIa"
+                  <button type="button" class="pieza" [id]="idObjeto(p)" data-equivalente="lista-de-la-sala"
+                          [attr.data-elemento]="p.clave" [class.elegida]="elegida() === p.clave"
+                          [class.atendida]="atencion() === p.clave" [class.marca-ia]="p.marcaIa"
+                          [class.dibujo-en-lienzo]="s.estructura"
                           [attr.aria-label]="p.nombre + (p.personaClave ? ', ' + textoPersonaAAtender : '') + (p.marcaIa ? ', sugerido por la IA' : '') + (elegida() === p.clave ? ', elegido' : '')"
                           [style.left.px]="posicion(p).x" [style.top.px]="posicion(p).y" [style.z-index]="p.y"
                           (pointerdown)="empezarArrastre($event, p)" (click)="elegir(p.clave)" (keydown)="teclaPieza($event, p)">
@@ -139,6 +176,21 @@ const DISTANCIAS_INICIALES = [96, -96, 160, -160, 48, -48];
                 }
               </div>
             </div>
+            </div>
+            @if (s.estructura && faltasSala().length) {
+              <section aria-labelledby="faltas-sala">
+                <!-- BORRADOR: texto nuevo, pendiente de la aprobación de Psicología -->
+                <h3 id="faltas-sala">Por resolver en esta sala</h3>
+                <ul>
+                  @for (f of faltasSala(); track $index) {
+                    <li [id]="'falta-' + s.id + '-' + $index">{{ f.regla }}: {{ f.mensaje }}
+                      <!-- BORRADOR: texto nuevo, pendiente de la aprobación de Psicología -->
+                      <button type="button" (click)="irAFalta(f)">Ir a la pieza</button>
+                    </li>
+                  }
+                </ul>
+              </section>
+            }
             <p class="texto-secundario ayuda">
               Elige algo en la sala o en la lista. Muévelo arrastrando, con las flechas del teclado
               (<kbd>Mayús</kbd> + flecha mueve un poquito) o con los botones «Mover». <kbd>Supr</kbd> lo quita.
@@ -285,6 +337,9 @@ const DISTANCIAS_INICIALES = [96, -96, 160, -160, 48, -48];
     [role='option'][aria-selected='true'] { background: var(--primario-tinte); outline: 2px solid var(--primario); }
     .vacio, .puerta { font-size: var(--autoria-texto-16); padding: 4px 8px; }
     .columna-sala { display: flex; flex-direction: column; gap: 12px; min-width: 0; }
+    .desplazamiento { max-width: 100%; overflow-x: auto; }
+    .escenario.por-piezas { aspect-ratio: auto; overflow: hidden; flex: none; }
+    .dibujo-en-lienzo > img, .dibujo-en-lienzo > .personaje { visibility: hidden; }
     .escenario { position: relative; width: 100%; aspect-ratio: 960 / 528; overflow: hidden; border-radius: 10px; border: 1px solid var(--linea); background: var(--juego-escenario); touch-action: none; }
     .lienzo { position: absolute; left: 0; top: 0; width: 960px; height: 528px; transform: scale(var(--escala, 1)); transform-origin: 0 0; }
     .fondo { position: absolute; inset: 0; width: 960px; height: 528px; }
@@ -347,6 +402,41 @@ export class SalaComponent {
   readonly salaId = input.required<string>();
 
   protected readonly store = inject(CasoStore);
+  protected readonly catalogoPiezas = inject(CatalogoDePiezas);
+  protected readonly salaLienzo = computed(() => {
+    const sala = this.sala();
+    return sala ? salaParaLienzo(sala) : null;
+  });
+  protected readonly actoresLienzo = computed(() => {
+    const sala = this.sala();
+    return sala ? actoresDeSala(sala, this.store.caso() ?? undefined) : [];
+  });
+  protected readonly plan = signal<PlanDeSala | null>(null);
+  protected readonly escalaPiezas = signal<1 | 2>(1);
+  protected readonly piezaDeMuroElegida = signal<string | null>(null);
+  protected readonly faltas = signal(new Map<string, FaltaDeSala[]>());
+  protected readonly faltasSala = computed(() => this.faltas().get(this.salaId()) ?? []);
+
+  protected readonly clavesObjetos = computed(() => {
+    const sala = this.sala(), caso = this.store.caso();
+    const claves = new Map<string, string>(), usadas = new Set<string>();
+    if (!sala || !caso) return claves;
+    sala.muebles.forEach((m, i) => {
+      if (caso.catalogo.muebles.some(f => f.id === m.ref)) claves.set(`mueble-${i}`, claveDeNuevo(m.clave, m.ref, usadas));
+    });
+    sala.objetos.forEach((o, i) => {
+      if (caso.catalogo.objetos.some(f => f.id === o.ref)) claves.set(`objeto-${i}`, claveDeNuevo(o.clave, o.ref, usadas));
+    });
+    sala.personajes.forEach((p, i) => claves.set(`personaje-${i}`, claveDeNuevo(p.clave, p.ref, usadas)));
+    return claves;
+  });
+  protected idObjeto(p: Pieza): string | null {
+    const id = this.clavesObjetos().get(p.clave);
+    return id ? anclaDeElemento(this.salaId(), { tipo: 'objeto', id }) : null;
+  }
+  protected irAFalta(falta: FaltaDeSala): void {
+    document.getElementById(anclaDeElemento(this.salaId(), falta.elemento))?.focus();
+  }
   protected readonly ancho = ANCHO_SALA;
   protected readonly alto = ALTO_SALA;
   protected readonly expresiones = EXPRESIONES;
@@ -495,6 +585,20 @@ export class SalaComponent {
   }
 
   constructor() {
+    let temporizador: ReturnType<typeof setTimeout> | undefined;
+    effect(() => {
+      const caso = this.store.caso(), reglas = this.catalogoPiezas.reglas(), error = this.catalogoPiezas.error();
+      if (!caso || !reglas || error) {
+        clearTimeout(temporizador); temporizador = undefined; this.faltas.set(new Map()); return;
+      }
+      if (temporizador) return;
+      temporizador = setTimeout(() => {
+        temporizador = undefined;
+        const actual = this.store.caso(), catalogo = this.catalogoPiezas.reglas();
+        if (actual && catalogo && !this.catalogoPiezas.error()) this.faltas.set(faltasPorSala(actual, catalogo));
+      }, 100);
+    });
+    inject(DestroyRef).onDestroy(() => clearTimeout(temporizador));
     // Lo que se está decidiendo de una persona (el punto, el aviso) no pasa a la siguiente cosa que se elige.
     effect(() => {
       this.elegida();
@@ -757,7 +861,7 @@ export class SalaComponent {
 
   private aSala(evento: MouseEvent): { x: number; y: number } {
     const r = this.escenario()!.nativeElement.getBoundingClientRect();
-    const e = this.escala();
+    const e = this.sala()?.estructura ? this.escalaPiezas() : this.escala();
     return { x: Math.round((evento.clientX - r.left) / e), y: Math.round((evento.clientY - r.top) / e) };
   }
 
