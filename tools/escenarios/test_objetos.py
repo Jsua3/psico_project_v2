@@ -13,7 +13,7 @@ import objetos_comun as oc  # noqa: E402
 import objetos_pixel as op  # noqa: E402
 import objetos_reflejo as orf  # noqa: E402
 
-MODULOS = ['objetos_casa', 'objetos_comisaria', 'objetos_hospital', 'objetos_universidad', 'objetos_herramientas']
+MODULOS = ['objetos_casa', 'objetos_comisaria', 'objetos_hospital', 'objetos_universidad', 'objetos_universidad_muebles', 'objetos_herramientas']
 TODAS = [(m, ref) for m in MODULOS for ref in importlib.import_module(m).PIEZAS]
 
 
@@ -121,7 +121,9 @@ def test_catalogo_en_formato_de_p1():
     archivos, secciones = cat.generar()
     imagenes = dict(archivos)
     assert set(secciones) == {'muebles', 'objetos', 'herramientas'}
-    assert set(secciones['herramientas']) == {'PAP', 'SPIKES', 'RISK_METER', 'SAFETY_ROUTE', 'REFLECTION_JOURNAL'}
+    caso = {'PAP', 'SPIKES', 'RISK_METER', 'SAFETY_ROUTE', 'REFLECTION_JOURNAL'}
+    biblioteca = {'biblioteca/' + k for k in __import__('objetos_herramientas').BIBLIOTECA}
+    assert set(secciones['herramientas']) == caso | biblioteca
     for seccion in secciones.values():
         for clave, e in seccion.items():
             tira = imagenes[e['ruta']]
@@ -137,7 +139,26 @@ def test_catalogo_en_formato_de_p1():
                 r = e['resplandor']
                 assert imagenes[r['ruta']].size == (r['ancho'] * 3, r['alto'])
                 assert len(r['parpadeo']) == e['cuadros'] and max(r['parpadeo']) <= 3
+    for clave, e in secciones['herramientas'].items():                     # iconos de la barra: 20 y 40 px, 6 cuadros
+        ic = e['icono']
+        assert imagenes[ic['ruta']].size == (20 * 6, 20), clave
+        assert imagenes[ic['ruta2x']].size == (40 * 6, 40), clave
+        assert op.colores(imagenes[ic['ruta']]) <= op.MAX_COLORES, clave
     assert cat.verificar() == [], 'correr python tools/escenarios/objetos_catalogo.py'
+
+
+@pytest.mark.parametrize('modulo,ref', TODAS)
+def test_silueta_limpia(modulo, ref):
+    """La sombra ahora sale del alfa: la silueta es una sola pieza (o piezas grandes), sin píxeles sueltos en el borde."""
+    from scipy import ndimage
+    p = oc.armar(modulo, ref)
+    siluetas = p['silueta'] or [np.array(c)[:, :, 3] > 0 for c in p['cuadros']]
+    for k, s in enumerate(siluetas):
+        etiquetas, n = ndimage.label(s, structure=np.ones((3, 3)))
+        tamanos = ndimage.sum(s, etiquetas, range(1, n + 1)) if n else []
+        assert all(t > oc.EFECTO_MAXIMO for t in tamanos), f'cuadro {k}: piezas sueltas de {sorted(tamanos)} px'
+        vecinos = ndimage.convolve(s.astype(int), np.ones((3, 3), int), mode='constant') - s
+        assert not (s & (vecinos <= 1)).any(), f'cuadro {k}: un píxel colgado del borde'
 
 
 def test_espejo_no_cambia_colores():

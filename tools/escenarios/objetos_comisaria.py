@@ -506,6 +506,52 @@ PIEZAS.update({
                                   reemplaza=B + 'objetos/afiche-rutas-atencion.png'),
 })
 
+import objetos_comisaria_c as cc  # noqa: E402
+
+PIEZAS.update({
+    'archivador-metalico': dict(nombre='Archivador metálico', tipo='mueble', dibujar=cc.archivador_metalico, cuadros=5,
+                                huella=dict(ancho=38, fondo=14, alto=52), material='acero',
+                                animaciones=dict(reposo=dict(de=0, hasta=0, fps=1, bucle=True),
+                                                 revisar=dict(de=1, hasta=4, fps=10, bucle=False, sostener=True)),
+                                reemplaza=B + 'muebles/archivador-metalico.png'),
+    'estante-expedientes': dict(nombre='Estante de expedientes', tipo='mueble', dibujar=cc.estante_expedientes, cuadros=1,
+                                huella=dict(ancho=94, fondo=16, alto=92), material='acero y cartón',
+                                reemplaza=B + 'muebles/estante-expedientes.png'),
+    'caja-archivo': dict(nombre='Cajas de archivo', tipo='mueble', dibujar=cc.caja_archivo, cuadros=1,
+                         huella=dict(ancho=36, fondo=12, alto=36), material='cartón',
+                         reemplaza=B + 'muebles/caja-archivo.png'),
+    'mesa-reunion': dict(nombre='Mesa de reuniones', tipo='mueble', dibujar=cc.mesa_reunion, cuadros=1,
+                         huella=dict(ancho=116, fondo=24, alto=30), material='laminado',
+                         reemplaza=B + 'muebles/mesa-reunion.png'),
+    'silla-pequena': dict(nombre='Silla pequeña', tipo='mueble', dibujar=cc.silla_pequena, cuadros=1,
+                          huella=dict(ancho=18, fondo=8, alto=26), material='madera pintada',
+                          reemplaza=B + 'muebles/silla-pequena.png'),
+    'estante-juguetes': dict(nombre='Estante de juguetes', tipo='mueble', dibujar=cc.estante_juguetes, cuadros=1,
+                             huella=dict(ancho=58, fondo=12, alto=40), material='madera',
+                             reemplaza=B + 'muebles/estante-juguetes.png'),
+    'tapete-juegos': dict(nombre='Tapete de juegos', tipo='mueble', dibujar=cc.tapete_juegos, cuadros=1,
+                          huella=dict(ancho=86, fondo=52, alto=2), material='foamy',
+                          reemplaza=B + 'muebles/tapete-juegos.png'),
+    'bandera-asta': dict(nombre='Asta con la bandera', tipo='mueble', dibujar=cc.bandera_asta, cuadros=3,
+                         huella=dict(ancho=10, fondo=6, alto=86), material='latón y tela',
+                         animaciones=dict(reposo=dict(de=0, hasta=2, fps=2, bucle=True)),
+                         reemplaza=B + 'muebles/bandera-asta.png'),
+    'banca-exterior': dict(nombre='Banca exterior', tipo='mueble', dibujar=cc.banca_exterior, cuadros=1,
+                           huella=dict(ancho=96, fondo=12, alto=30), material='concreto',
+                           reemplaza=B + 'muebles/banca-exterior.png'),
+    'sello-tinta': dict(nombre='Sello de la comisaría', tipo='objeto', dibujar=cc.sello_tinta, cuadros=4, sobre=24,
+                        huella=dict(ancho=28, fondo=8, alto=14), material='madera y tinta',
+                        animaciones=dict(reposo=dict(de=0, hasta=0, fps=1, bucle=True),
+                                         revisar=dict(de=1, hasta=3, fps=10, bucle=False, sostener=True)),
+                        reemplaza=B + 'objetos/sello-tinta.png'),
+    'boligrafo-formularios': dict(nombre='Formularios y bolígrafo', tipo='objeto', dibujar=cc.boligrafo_formularios, cuadros=1,
+                                  sobre=24, huella=dict(ancho=30, fondo=8, alto=8), material='papel',
+                                  reemplaza=B + 'objetos/boligrafo-formularios.png'),
+    'cartel-linea-155': dict(nombre='Cartel de la línea 155', tipo='objeto', dibujar=cc.cartel_155, cuadros=1,
+                             huella=dict(ancho=20, fondo=6, alto=48), material='cartel y acero',
+                             reemplaza=B + 'objetos/cartel-linea-155.png'),
+})
+
 
 if __name__ == '__main__':
     import objetos_hoja

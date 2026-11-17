@@ -86,13 +86,23 @@ def colocadas(cuadros=None, cosas=COSAS):
 
 
 def cuerpos(cosas, personas):
-    """Huellas que arrojan sombra (las de la ficha) y las de las personas (regla de P1). Lo que va encima no arroja."""
+    """La regla de P1 (sombra por silueta): cada cosa apoyada en el piso arroja su alfa (o su `silueta`, sin vapor ni
+    rayas sueltas); lo que va encima de un mueble no arroja. Las personas, su cuadro del kit con el pie en (x, y)."""
     out = []
     for c in cosas:
-        h = c['pieza']['ficha'].get('huella')
-        if h and not c['sobre']:
-            out.append(dict(x0=c['x'] - h['ancho'] // 2, x1=c['x'] + h['ancho'] // 2, y0=c['y'] - h['fondo'], y1=c['y'], alto=h['alto']))
-    out += [pl.cuerpo(q['x'], q['y'], 48, 72, persona=True) for q in personas]
+        if c['sobre']:
+            continue
+        im = c['im']
+        sil = c['pieza'].get('silueta')
+        if sil:
+            m = sil[c['n']]
+            if c['espejo']:
+                m = m[:, ::-1]
+            im = im.copy()
+            im.putalpha(Image.fromarray((m * 255).astype('uint8')))
+        out.append(pl.cuerpo_de(im, c['x0'], c['y0']))
+    for q in personas:
+        out.append(pl.cuerpo_de(cuadro_kit(q['receta'], q['vista']), q['x'] - 24, q['y'] - 68, pie=(q['x'], q['y'])))
     return out
 
 

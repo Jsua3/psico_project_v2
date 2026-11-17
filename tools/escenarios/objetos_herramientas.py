@@ -98,8 +98,8 @@ TAPAS = {'PAP': 'tapa-pap', 'SPIKES': 'tapa-epicee', 'RISK_METER': 'tapa-riesgo'
          'REFLECTION_JOURNAL': 'tapa-bitacora'}
 
 
-def herramienta(codigo, n=0):
-    tapa = TAPAS[codigo]
+def herramienta(codigo, n=0, tapa=None):
+    tapa = tapa or TAPAS[codigo]
     L = Lienzo(36, 30, semilla=101)
     usada = n == 5
     lift = 1 if n in (2, 3) else 0
@@ -145,6 +145,43 @@ def herramienta(codigo, n=0):
     return L, {lado: Reflejo(L.w, L.h) for lado in op.LADOS}, None
 
 
+ICONO = 20                            # la barra del juego pinta un icono de 19 px: se entrega a 20 (y ×2 = 40)
+ICONO_ESTADOS = dict(disponible=0, nueva=[1, 4], usada=5)
+
+
+def icono(codigo, n=0, tapa=None):
+    """El cuaderno de frente para la barra de herramientas, 20 × 20: 0 disponible, 1-4 nueva (brillo que cruza), 5 usada."""
+    tapa = tapa or TAPAS[codigo]
+    L = Lienzo(ICONO, ICONO, semilla=131)
+    usada = n == 5
+    L.rect(3, 17, 17, 18, 'papel', 2)                                               # canto de las hojas
+    L.rect(3, 18, 17, 18, 'papel', 3, tex=False)
+    L.rect(4, 2, 17, 16, tapa, 3 if usada else 1)                                   # tapa
+    L.rect(4, 2, 17, 2, tapa, 2 if usada else 0, tex=False)
+    L.rect(4, 16, 17, 16, tapa, 4, tex=False)
+    L.rect(2, 2, 4, 16, tapa, 3, tex=False)                                         # lomo
+    L.rect(2, 2, 2, 16, tapa, 4, tex=False)
+    _simbolo(L, codigo, 5, 5, e=2 if usada else 0)
+    if usada:                                                                       # cinta verde con la marca
+        L.rect(14, 1, 16, 7, VERDE, tex=False)
+        L.px(15, 8, VERDE)
+        L.px(15, 3, CLARO)
+    if 1 <= n <= 4:                                                                 # franja de brillo que cruza la tapa
+        for r in range(2, 16):
+            x = 2 + (n - 1) * 4 + (16 - r) // 2
+            if 5 <= x <= 16:
+                L.px(x, r, (255, 246, 216))
+    return L, {lado: Reflejo(L.w, L.h) for lado in op.LADOS}, None
+
+
+def tira_icono(codigo, tapa=None, factor=1):
+    """Tira de 6 cuadros del icono (sin recortar: cada cuadro mide 20 × 20), escalada por un factor entero."""
+    from PIL import Image
+    cuadros = [icono(codigo, n, tapa)[0].imagen() for n in range(6)]
+    tira = op.tira(cuadros)
+    return tira if factor == 1 else tira.resize((tira.width * factor, tira.height * factor), Image.Resampling.NEAREST)
+
+
 HERRAMIENTAS = {'PAP': 'Primeros Auxilios Psicológicos', 'SPIKES': 'Protocolo EPICEE/SPIKES', 'RISK_METER': 'Valoración de riesgo',
                 'SAFETY_ROUTE': 'Ruta de protección', 'REFLECTION_JOURNAL': 'Bitácora reflexiva'}
 VIEJO = {'PAP': 'tool_pap', 'SPIKES': 'tool_spikes', 'RISK_METER': 'tool_risk_meter', 'SAFETY_ROUTE': 'tool_safety_route',
@@ -166,6 +203,33 @@ PIEZAS = {
     for codigo, nombre in HERRAMIENTAS.items()
 }
 
+
+
+# Herramientas de la biblioteca (fichas y guías de cada lugar): el mismo cuaderno, con la tapa y el contenido que les toca.
+op.material('tapa-plan', (150, 96, 70), luz=0.45)
+op.material('tapa-contacto', (86, 140, 150), luz=0.45)
+BIBLIOTECA = {
+    # id: (nombre, contenido del cuaderno, tapa, dibujo de hoy al que reemplaza)
+    'ficha-riesgo': ('Ficha de riesgo', 'RISK_METER', 'tapa-riesgo', 'escenarios/casa/arte/herramientas/ficha-riesgo.png'),
+    'directorio-rutas': ('Directorio de rutas', 'SAFETY_ROUTE', 'tapa-ruta', 'escenarios/casa/arte/herramientas/directorio-rutas.png'),
+    'guia-primeros-auxilios': ('Guía de primeros auxilios psicológicos', 'PAP', 'tapa-pap',
+                               'escenarios/casa/arte/herramientas/guia-primeros-auxilios.png'),
+    'protocolo-bienestar': ('Protocolo de bienestar', 'SPIKES', 'tapa-epicee', 'escenarios/universidad/arte/herramientas/protocolo-bienestar.png'),
+    'ficha-plan-seguridad': ('Ficha del plan de seguridad', 'SAFETY_ROUTE', 'tapa-plan',
+                             'escenarios/casa/arte/herramientas/ficha-plan-seguridad.png'),
+    'tarjeta-contacto-bienestar': ('Tarjeta de contacto de bienestar', 'PAP', 'tapa-contacto',
+                                   'escenarios/comisaria/arte/herramientas/tarjeta-contacto-bienestar.png'),
+    'acta-registro': ('Acta de registro', 'REFLECTION_JOURNAL', 'tapa-bitacora', 'escenarios/comisaria/arte/herramientas/acta-registro.png'),
+}
+
+
+def _dibujar_biblioteca(contenido, tapa):
+    return lambda n=0: herramienta(contenido, n, tapa=tapa)
+
+
+for _id, (_nombre, _base, _tapa, _viejo) in BIBLIOTECA.items():
+    PIEZAS[_id] = dict(PIEZAS[_base.lower().replace('_', '-')], nombre=_nombre, codigo='biblioteca/' + _id,
+                       dibujar=_dibujar_biblioteca(_base, _tapa), reemplaza=_viejo)
 
 if __name__ == '__main__':
     import objetos_hoja
