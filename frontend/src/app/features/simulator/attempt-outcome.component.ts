@@ -226,7 +226,7 @@ import { RECONSIDERED_LABEL, reconsideredChip } from './reconsidered.util';
                     @for (item of decisions(); track item.order) {
                       <li class="oc-decision" [attr.data-tone]="item.class">
                         <p class="oc-decision__node">{{ item.nodeTitle }}</p>
-                        <p class="oc-decision__chosen"><span class="oc-decision__k">Elegiste:</span> {{ item.chosen.text }}</p>
+                        <p class="oc-decision__chosen"><span class="oc-decision__k">Elegiste:</span> {{ item.chosen.label || item.chosen.text }}</p>
                         @if (item.reconsidered; as first) {
                           <p class="oc-decision__first">{{ reconsideredLabel }}: {{ first.firstOptionText }}</p>
                         }

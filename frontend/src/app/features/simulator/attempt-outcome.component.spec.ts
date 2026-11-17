@@ -644,6 +644,17 @@ describe('AttemptOutcomeComponent: tus decisiones y marcador (F10-4, C2)', () =>
     expect(host().querySelectorAll('.oc-decision')).toHaveLength(1);
   });
 
+  it('«Elegiste:» muestra el texto corto del botón que se pulsó si el caso lo trae; si no, el de la opción (V4)', async () => {
+    render({ reportHasDecisions: true, items: [
+      { ...decision(), chosen: { optionId: 9, text: 'Escuchar sin juzgar, con todo el detalle del protocolo', label: 'Escuchar sin juzgar' } },
+      { ...decision(), order: 2, chosen: { optionId: 10, text: 'Derivar a la ruta' } },
+    ] });
+    await settle();
+
+    const chosen = Array.from(host().querySelectorAll('.oc-decision__chosen')).map(el => text(el));
+    expect(chosen).toEqual(['Elegiste: Escuchar sin juzgar', 'Elegiste: Derivar a la ruta']);
+  });
+
   it('el cierre completo no muestra puntaje, estrés, desempeño ni porcentajes', async () => {
     render({ reportHasDecisions: true, items: [decision()] });
     await settle();
