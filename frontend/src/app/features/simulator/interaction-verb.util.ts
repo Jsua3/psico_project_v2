@@ -24,6 +24,14 @@ export function participatesInInteraction(obj: Pick<MapObjectState, 'type' | 'de
   }
 }
 
+/** Una etiqueta de salida que ya dice el movimiento («Volver al pasillo», «Pasar a la sala de espera»). */
+const EXIT_LABEL_WITH_VERB = /^(pasar|volver|salir|ir|entrar|regresar|subir|bajar|cruzar|seguir|continuar)\b/i;
+
+/** «Pasar a {lugar}», salvo que la etiqueta ya sea la frase del movimiento: entonces va tal cual (no «Pasar a Volver…»). */
+function exitVerb(label: string): string {
+  return EXIT_LABEL_WITH_VERB.test(label.trim()) ? label.trim() : `Pasar a ${label}`;
+}
+
 /**
  * Verbo del botón principal de interacción (F§4.3): lo que el jugador va a HACER, no lo que
  * sugiere el `interactionPrompt` sembrado (algunos nombran la acción clínica). Una puerta
@@ -37,7 +45,7 @@ export function interactionVerb(obj: MapObjectState, door: DoorStatus | null): I
       return { text: `Recoger ${obj.label}`, locked: false, reason: null };
     case 'EXIT': {
       const locked = door?.state === 'locked';
-      return { text: `Pasar a ${obj.label}`, locked, reason: locked ? door?.message ?? null : null };
+      return { text: exitVerb(obj.label), locked, reason: locked ? door?.message ?? null : null };
     }
     case 'PROP':
       return null;

@@ -35,6 +35,17 @@ describe('interactionVerb (F§4.3)', () => {
     });
   });
 
+  it.each([
+    ['Volver al pasillo', 'Volver al pasillo'],
+    ['Pasar a la sala de espera', 'Pasar a la sala de espera'],
+    ['Salir a la entrada de urgencias', 'Salir a la entrada de urgencias'],
+    ['Ir al pasillo de atención', 'Ir al pasillo de atención'],
+    ['Entrar al consultorio psicosocial', 'Entrar al consultorio psicosocial'],
+    ['Irene', 'Pasar a Irene'],
+  ] as const)('una salida cuya etiqueta ya dice el movimiento va tal cual: «%s» → «%s»', (label, expected) => {
+    expect(interactionVerb(obj('EXIT', label), null)?.text).toBe(expected);
+  });
+
   it('una salida abierta, o sin estado de puerta, no se bloquea', () => {
     expect(interactionVerb(obj('EXIT', 'Consultorio'), OPEN)).toEqual({ text: 'Pasar a Consultorio', locked: false, reason: null });
     expect(interactionVerb(obj('EXIT', 'Consultorio'), null)?.locked).toBe(false);
