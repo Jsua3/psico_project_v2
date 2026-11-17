@@ -1133,6 +1133,21 @@ const NARROW_QUERY = '(max-width: 760px)';
          como hoy el HUD no muestra el lugar bajo 960 px. */
       .top-bar__derecha ::ng-deep .minimapa__lugar { display: none; }
       .top-bar__derecha ::ng-deep .minimapa__abrir { width: 120px; }
+      /* El plano y sus dos teclas en una fila (no apilados): «Ocultar plano» y «Vista cercana» quedan como teclas de icono
+         de 44 px; su texto sale de la vista pero sigue en el nombre accesible. */
+      .top-bar__derecha ::ng-deep app-minimapa { grid-auto-flow: column; align-items: start; }
+      .top-bar__derecha ::ng-deep .minimapa__alternar {
+        display: grid; place-items: center; min-width: 44px; min-height: 44px; padding: 0;
+      }
+      .top-bar__derecha ::ng-deep .minimapa__texto {
+        position: absolute; width: 1px; height: 1px; margin: -1px; padding: 0; overflow: hidden;
+        clip: rect(0 0 0 0); white-space: nowrap; border: 0;
+      }
+      /* El pie en el orden del DOM: «Salida segura» y el chip (en la misma fila si caben), las cinco herramientas a lo ancho
+         y la acción cercana debajo. Nada desborda: cada fila cabe en 360 px. */
+      .bottom-zone { align-content: flex-end; row-gap: calc(3 * var(--pixel-px)); }
+      .notice-pie { align-self: center; }
+      .tool-dock { flex: 1 1 100%; }
     }
     @keyframes sheet-up {
       from { transform: translateY(40px); opacity: 0; }

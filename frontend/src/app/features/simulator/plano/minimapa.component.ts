@@ -39,12 +39,12 @@ function leerOculto(): boolean {
         </button>
       }
       <button type="button" class="minimapa__alternar u-boton" data-minimapa-alternar (click)="alternar()">
-        {{ oculto() ? 'Mostrar plano' : 'Ocultar plano' }}
+        <app-pixel-icono nombre="plano" /><span class="minimapa__texto">{{ oculto() ? 'Mostrar plano' : 'Ocultar plano' }}</span>
       </button>
     }
     <!-- Vista cercana (Z) también con botón, para quien no usa teclado o usa lector de pantalla. -->
     <button type="button" class="minimapa__alternar u-boton" data-vista-cercana [attr.aria-pressed]="cercana()"
-      (click)="alternarCercana.emit()"><app-pixel-icono nombre="lupa" />Vista cercana (Z)</button>
+      (click)="alternarCercana.emit()"><app-pixel-icono nombre="lupa" /><span class="minimapa__texto">Vista cercana (Z)</span></button>
   `,
   styles: [`
     /* Bloque U1: piezas de la hoja común. El sitio lo da la pantalla (bajo el grupo de la derecha, variante B). */
