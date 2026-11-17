@@ -816,12 +816,6 @@
          "hablante": "Vigilante",
          "orden": 2,
          "texto": "Ese muchacho quiere pasar a cirugía a la fuerza. Yo no tengo nada contra él, pero por esa puerta no entra nadie."
-        },
-        {
-         "emocion": "neutral",
-         "hablante": "Vigilante",
-         "orden": 3,
-         "texto": "(Mira la entrada completa antes de moverte: quién está, cómo está y si alguien corre riesgo.)"
         }
        ],
        "objeto": "vigilante",
@@ -858,7 +852,7 @@
          "herramientaRequerida": "PAP",
          "opcion": null,
          "orden": 1,
-         "texto": "Aplicar PAP a la familia en crisis"
+         "texto": "Aplicar Primeros Auxilios Psicológicos (PAP) a la familia en crisis"
         }
        ],
        "emocion": "concerned",
@@ -1476,7 +1470,7 @@
      "tema": "clinical-soft",
      "titulo": "Hospital — Entrada de urgencias"
     },
-    "objetivo": "Mira qué está pasando en la entrada y quién necesita qué, antes de acercarte a alguien.",
+    "objetivo": "Mira qué está pasando en la entrada, quién necesita qué y si alguien corre riesgo, antes de acercarte a alguien.",
     "opciones": [
      {
       "clase": "RECOMMENDED",
@@ -1726,7 +1720,7 @@
          "herramientaRequerida": "PAP",
          "opcion": null,
          "orden": 1,
-         "texto": "Aplicar PAP a la familia en crisis"
+         "texto": "Aplicar Primeros Auxilios Psicológicos (PAP) a la familia en crisis"
         },
         {
          "clave": "h1-a",
@@ -1767,12 +1761,6 @@
          "hablante": "Abuela de la niña",
          "orden": 2,
          "texto": "Mi hija sigue en cirugía… dicen que son 28 heridas. ¿Quién pudo hacerle esto?"
-        },
-        {
-         "emocion": "neutral",
-         "hablante": "Abuela de la niña",
-         "orden": 3,
-         "texto": "(La familia está en crisis. Define el foco inmediato de tu intervención.)"
         }
        ],
        "objeto": "abuela",
@@ -2704,12 +2692,6 @@
          "hablante": "Abuela de la niña",
          "orden": 1,
          "texto": "Yo le cuento lo que quiera, pero aquí no… mire cuánta gente."
-        },
-        {
-         "emocion": "neutral",
-         "hablante": "Abuela de la niña",
-         "orden": 2,
-         "texto": "(Decide dónde va a ser la conversación.)"
         }
        ],
        "objeto": "abuela",
@@ -3576,12 +3558,6 @@
          "hablante": "Médico de guardia",
          "orden": 2,
          "texto": "La familia está afuera y todavía no sabe. ¿Cómo lo vamos a manejar?"
-        },
-        {
-         "emocion": "neutral",
-         "hablante": "Médico de guardia",
-         "orden": 3,
-         "texto": "(Acuerda con el médico cómo se va a comunicar la noticia.)"
         }
        ],
        "objeto": "medico-guardia",
@@ -4334,12 +4310,6 @@
          "hablante": "Trabajadora social",
          "orden": 2,
          "texto": "Disponibles: Resolución 459 de 2012 (protocolo de atención integral a violencias sexuales y de género), Ley 1257 de 2008, Ley 1448 de 2011."
-        },
-        {
-         "emocion": "neutral",
-         "hablante": "Trabajadora social",
-         "orden": 3,
-         "texto": "(Define el marco normativo y técnico que orienta la atención.)"
         }
        ],
        "objeto": "trabajadora-social",
@@ -5013,7 +4983,7 @@
          "herramientaRequerida": null,
          "opcion": "h3-pap-epicee",
          "orden": 2,
-         "texto": "PAP a la familia + escucha sin juicios + EPICEE/SPIKES"
+         "texto": "Primeros Auxilios Psicológicos (PAP) a la familia + escucha sin juicios + protocolo EPICEE/SPIKES de comunicación de noticias difíciles"
         },
         {
          "clave": "h3-c",
@@ -5021,7 +4991,7 @@
          "herramientaRequerida": null,
          "opcion": "h3-epicee-ciclo",
          "orden": 3,
-         "texto": "Lo anterior + ciclo de la violencia + manejo interdisciplinario"
+         "texto": "PAP a la familia + escucha sin juicios + protocolo EPICEE/SPIKES + ciclo de la violencia + manejo interdisciplinario"
         },
         {
          "clave": "h3-d",
@@ -5040,12 +5010,6 @@
          "hablante": "Psicóloga hospitalaria",
          "orden": 1,
          "texto": "La familia sigue en la sala y la sobreviviente saldrá de cirugía en unas horas. El equipo espera tu propuesta."
-        },
-        {
-         "emocion": "neutral",
-         "hablante": "Psicóloga hospitalaria",
-         "orden": 2,
-         "texto": "(Define qué hacer —y qué evitar— técnica y éticamente.)"
         }
        ],
        "objeto": "psicologa-hospital",
@@ -5617,7 +5581,7 @@
      "tema": "clinical-soft",
      "titulo": "Hospital — Sala de escucha familiar"
     },
-    "objetivo": "Decide cómo actuar con la familia con criterio técnico y ético.",
+    "objetivo": "Decide cómo actuar con la familia, qué hacer y qué evitar, con criterio técnico y ético.",
     "opciones": [
      {
       "clase": "RISKY",
@@ -5886,7 +5850,7 @@
          "emocion": "neutral",
          "hablante": "Abuela de la niña",
          "orden": 2,
-         "texto": "(El médico te mira: empiezas tú. Decide cómo abrir la conversación.)"
+         "texto": "(El médico te mira: empiezas tú.)"
         }
        ],
        "objeto": "abuela",
@@ -6678,12 +6642,6 @@
          "hablante": "Abuela de la niña",
          "orden": 1,
          "texto": "(La noticia ya está dicha. La abuela no te mira.)"
-        },
-        {
-         "emocion": "neutral",
-         "hablante": "Abuela de la niña",
-         "orden": 2,
-         "texto": "(Decide qué haces ahora.)"
         }
        ],
        "objeto": "abuela",
@@ -7457,12 +7415,6 @@
          "hablante": "Hermano mayor",
          "orden": 2,
          "texto": "¿Y ahora qué? ¿Nos quedamos, nos vamos? ¿A quién le avisamos? Mi mamá no ha comido nada."
-        },
-        {
-         "emocion": "neutral",
-         "hablante": "Hermano mayor",
-         "orden": 3,
-         "texto": "(Decide cómo los orientas para esta noche.)"
         }
        ],
        "objeto": "hermano-mayor",
@@ -8478,12 +8430,6 @@
          "hablante": "Sobreviviente (22 años)",
          "orden": 2,
          "texto": "¿Y mi niña? ¿Dónde está mi niña?"
-        },
-        {
-         "emocion": "neutral",
-         "hablante": "Sobreviviente (22 años)",
-         "orden": 3,
-         "texto": "(Decide qué le respondes.)"
         }
        ],
        "objeto": "sobreviviente",
@@ -9221,12 +9167,6 @@
          "hablante": "Sobreviviente (22 años)",
          "orden": 2,
          "texto": "Su familia me busca para que lo perdone, dicen que la familia se respeta. Yo solo quiero estar segura."
-        },
-        {
-         "emocion": "neutral",
-         "hablante": "Sobreviviente (22 años)",
-         "orden": 3,
-         "texto": "(Define la prioridad de la asesoría psicosocial.)"
         }
        ],
        "objeto": "sobreviviente",
@@ -9650,7 +9590,7 @@
      "tema": "clinical-soft",
      "titulo": "Comisaría de Familia — Recepción"
     },
-    "objetivo": "Valora el riesgo y define a dónde debe seguir la atención.",
+    "objetivo": "Define la prioridad de la asesoría psicosocial: valora el riesgo y decide a dónde debe seguir la atención.",
     "opciones": [
      {
       "clase": "CONTRAINDICATED",
@@ -9903,12 +9843,6 @@
          "hablante": "Sobreviviente (22 años)",
          "orden": 1,
          "texto": "¿Tengo que contarlo todo otra vez? Ya lo conté varias veces."
-        },
-        {
-         "emocion": "neutral",
-         "hablante": "Sobreviviente (22 años)",
-         "orden": 2,
-         "texto": "(Decide cómo vas a valorar el riesgo.)"
         }
        ],
        "objeto": "sobreviviente",
@@ -10553,12 +10487,6 @@
          "hablante": "Profesional psicosocial",
          "orden": 2,
          "texto": "Disponibles: Ley 2126 de 2021 (Comisarías de Familia), Ley 1098 de 2006 (infancia y adolescencia), Ley 1257 de 2008, Ley 1448 de 2011."
-        },
-        {
-         "emocion": "neutral",
-         "hablante": "Profesional psicosocial",
-         "orden": 3,
-         "texto": "(Define el marco normativo del restablecimiento de derechos.)"
         }
        ],
        "objeto": "profesional-psicosocial",
@@ -11240,12 +11168,6 @@
          "hablante": "Sobreviviente (22 años)",
          "orden": 1,
          "texto": "¿Qué va a pasar con él? ¿Yo puedo volver a mi casa?"
-        },
-        {
-         "emocion": "neutral",
-         "hablante": "Sobreviviente (22 años)",
-         "orden": 2,
-         "texto": "(Decide cómo le respondes.)"
         }
        ],
        "objeto": "sobreviviente",
@@ -11952,12 +11874,6 @@
          "hablante": "Abuela de la niña",
          "orden": 1,
          "texto": "Ella aguanta. La que me preocupa es la casa: los muchachos no han vuelto a dormir bien."
-        },
-        {
-         "emocion": "neutral",
-         "hablante": "Abuela de la niña",
-         "orden": 2,
-         "texto": "(Decide qué haces con lo que te cuenta.)"
         }
        ],
        "objeto": "abuela",
@@ -12600,7 +12516,7 @@
          "herramientaRequerida": null,
          "opcion": "c3-integral-derechos",
          "orden": 3,
-         "texto": "Lo anterior + nivel de vulneración de derechos + valoración de feminicidio + rutas"
+         "texto": "Valoración de víctima y dependientes + escucha + ciclos + nivel de vulneración de derechos + valoración de feminicidio + rutas de salud"
         }
        ],
        "emocion": "neutral",
@@ -12611,12 +12527,6 @@
          "hablante": "Profesional psicosocial",
          "orden": 1,
          "texto": "Cerramos la valoración: queda definir la actuación técnica y ética con la sobreviviente y su red familiar."
-        },
-        {
-         "emocion": "neutral",
-         "hablante": "Profesional psicosocial",
-         "orden": 2,
-         "texto": "(Define qué hacer —y qué evitar— en el restablecimiento de derechos.)"
         }
        ],
        "objeto": "profesional-psicosocial",
@@ -13032,7 +12942,7 @@
      "tema": "clinical-soft",
      "titulo": "Comisaría de Familia — Consultorio psicosocial"
     },
-    "objetivo": "Define la actuación de protección y cierra la atención.",
+    "objetivo": "Define la actuación de protección —qué hacer y qué evitar— y cierra la atención.",
     "opciones": [
      {
       "clase": "RISKY",
