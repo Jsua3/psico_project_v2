@@ -161,6 +161,13 @@ export function mensajeDeCarga(error: unknown): string {
 export class CasoStore {
   private readonly injector = inject(Injector);
   private readonly estado = signal<CasoBorrador | null>(null);
+  private readonly puertasPendientes = signal<ReadonlyMap<string, readonly string[]>>(new Map());
+  readonly puertasSinGuardar = this.puertasPendientes.asReadonly();
+
+  private async guardarSala(sesion: SesionServidor, caso: CasoBorrador, salaId: string): Promise<void> {
+    const pendientes = await persistir.guardarSala(sesion, caso, salaId);
+    if (this.sesion === sesion) this.puertasPendientes.update(actual => new Map(actual).set(salaId, pendientes));
+  }
   /** El borrador tal como lo confirmó el servidor; `estado` es este más los cambios que aún viajan. */
   private base: CasoBorrador | null = null;
   private sesion: SesionServidor | null = null;
@@ -332,6 +339,7 @@ export class CasoStore {
   }
 
   private empezarCon(caso: CasoBorrador | null, sesion: SesionServidor | null): void {
+    this.puertasPendientes.set(new Map());
     this.sesion = sesion;
     this.cola = [];
     this.base = caso;
@@ -568,7 +576,7 @@ export class CasoStore {
       resumen: [`Deshiciste o rehiciste un cambio en ${cambiadas.length === 1 ? `la sala «${this.nombreSala(cambiadas[0])}»` : 'una sala'}`],
       aplicar: (caso) => { caso.salas = structuredClone(salas); },
       enviar: async (despues, sesion) => {
-        for (const id of cambiadas) await persistir.guardarSala(sesion, despues, id);
+        for (const id of cambiadas) await this.guardarSala(sesion, despues, id);
       },
     });
     void this.procesar();
@@ -584,8 +592,8 @@ export class CasoStore {
       resumen: [`${que} en la sala «${this.nombreSala(salaId)}»`],
       aplicar: (caso) => cambio(caso, this.sala(caso, salaId)),
       enviar: async (despues, sesion) => {
-        await persistir.guardarSala(sesion, despues, salaId);
-        if (otraSalaId && otraSalaId !== salaId) await persistir.guardarSala(sesion, despues, otraSalaId);
+        await this.guardarSala(sesion, despues, salaId);
+        if (otraSalaId && otraSalaId !== salaId) await this.guardarSala(sesion, despues, otraSalaId);
       },
       fusion: otraSalaId ? undefined : `sala:${salaId}`,
     }, { sala: true });
@@ -647,6 +655,14 @@ export class CasoStore {
     // BORRADOR: texto nuevo, pendiente de la aprobación de Psicología
     this.cambiarSala(salaId, 'Quitaste una puerta', (_caso, sala) => {
       sala.puertas = sala.puertas.filter((p) => p.id !== puertaId);
+    });
+  }
+
+  editarPuerta(salaId: string, puertaId: string, cambios: { modelo?: string; sentidoUnico?: boolean }): void {
+    // BORRADOR: texto nuevo, pendiente de la aprobación de Psicología
+    this.cambiarSala(salaId, 'Cambiaste una puerta', (_caso, sala) => {
+      const puerta = sala.puertas.find(p => p.id === puertaId);
+      if (puerta) Object.assign(puerta, cambios);
     });
   }
 
@@ -1324,7 +1340,7 @@ export class CasoStore {
         for (const id of t.escenas) await persistir.actualizarEscena(sesion, despues, id);
         for (const id of t.guiones) await persistir.sincronizarGuion(sesion, despues, id);
         for (const id of t.respuestas) await persistir.sincronizarRespuesta(sesion, despues, id);
-        for (const id of t.salas) await persistir.guardarSala(sesion, despues, id);
+        for (const id of t.salas) await this.guardarSala(sesion, despues, id);
         if (t.finales) await persistir.guardarFinales(sesion, despues);
       },
     }, { propuesta: true });
@@ -1349,7 +1365,7 @@ export class CasoStore {
         for (const id of t.escenasNuevas) await persistir.borrarEscena(sesion, despues, id);
         for (const id of t.escenas) await persistir.actualizarEscena(sesion, despues, id);
         for (const id of t.guiones) await persistir.sincronizarGuion(sesion, despues, id);
-        for (const id of t.salas) await persistir.guardarSala(sesion, despues, id);
+        for (const id of t.salas) await this.guardarSala(sesion, despues, id);
         if (t.finales) await persistir.guardarFinales(sesion, despues);
       },
     });

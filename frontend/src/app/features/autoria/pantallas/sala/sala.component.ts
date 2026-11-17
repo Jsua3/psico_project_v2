@@ -14,6 +14,8 @@ import type { PlanDeSala } from '../../../simulator/sala/composicion';
 import { LienzoDeSalaComponent } from './lienzo-de-sala.component';
 import { actoresDeSala, salaParaLienzo } from './lienzo-de-sala';
 import { PiezasDelMuroComponent } from './piezas-del-muro.component';
+import { ManijaDeAnchoComponent } from './manija-de-ancho.component';
+import { PanelDeEstructuraComponent } from './panel-de-estructura.component';
 import { rutaArte, rutaRetrato, rutaSpriteKit } from '../../modelo/biblioteca.service';
 import type { MovimientoPersonaje, SalaCaso } from '../../modelo/caso';
 import { EXPRESIONES, type Expresion, type Mirando, type Punto } from '../../modelo/escenario';
@@ -54,7 +56,7 @@ const DISTANCIAS_INICIALES = [96, -96, 160, -160, 48, -48];
  */
 @Component({
   selector: 'app-sala',
-  imports: [RouterLink, LienzoDeSalaComponent, PiezasDelMuroComponent],
+  imports: [RouterLink, LienzoDeSalaComponent, PiezasDelMuroComponent, ManijaDeAnchoComponent, PanelDeEstructuraComponent],
   changeDetection: ChangeDetectionStrategy.OnPush,
   host: { '(document:keydown.escape)': 'atencion.set(null)' },
   template: `
@@ -113,6 +115,10 @@ const DISTANCIAS_INICIALES = [96, -96, 160, -160, 48, -48];
               <!-- BORRADOR: texto nuevo, pendiente de la aprobación de Psicología -->
               <button type="button" class="boton" (click)="catalogoPiezas.reintentar()">Reintentar</button>
             }
+            @if (s.estructura && !catalogoPiezas.error() && !catalogoPiezas.manifiesto()) {
+              <!-- BORRADOR: texto nuevo, pendiente de la aprobación de Psicología -->
+              <p role="status">Cargando la sala…</p>
+            }
             @if (s.estructura && s.estructura.ancho <= 960) {
               <!-- BORRADOR: texto nuevo, pendiente de la aprobación de Psicología -->
               <button type="button" class="boton" (click)="escalaPiezas.set(escalaPiezas() === 1 ? 2 : 1)">
@@ -126,12 +132,16 @@ const DISTANCIAS_INICIALES = [96, -96, 160, -160, 48, -48];
                  data-accion="mover-mueble" (keydown)="teclaGeneral($event)" (click)="clicEnSala($event)"
                  [style.--escala]="s.estructura ? escalaPiezas() : escala()" (pointermove)="arrastrar($event)"
                  (pointerup)="soltar()" (pointercancel)="soltar()">
+              @if (s.estructura) {
+                <app-manija-de-ancho [ancho]="s.estructura.ancho" [escala]="escalaPiezas()"
+                  (cambio)="cambiarAncho($event)" />
+              }
               <div class="lienzo" [style.width.px]="s.estructura?.ancho ?? ancho">
                 @if (s.estructura) {
                   @if (!catalogoPiezas.error() && catalogoPiezas.manifiesto() && salaLienzo(); as salaLienzoActual) {
                     <app-lienzo-de-sala [sala]="salaLienzoActual" [actores]="actoresLienzo()"
                       [escala]="1" (listo)="plan.set($event.plan)" />
-                    <app-piezas-del-muro [sala]="s" [plan]="plan()" [faltas]="faltasSala()"
+                    <app-piezas-del-muro #capaDePiezas [sala]="s" [plan]="plan()" [faltas]="faltasSala()"
                       [escala]="escalaPiezas()" (elegida)="piezaDeMuroElegida.set($event)" />
                   }
                 } @else {
@@ -177,11 +187,19 @@ const DISTANCIAS_INICIALES = [96, -96, 160, -160, 48, -48];
               </div>
             </div>
             </div>
-            @if (s.estructura && faltasSala().length) {
+            @if (s.estructura && (faltasSala().length || puertasPendientes().length)) {
               <section aria-labelledby="faltas-sala">
                 <!-- BORRADOR: texto nuevo, pendiente de la aprobación de Psicología -->
                 <h3 id="faltas-sala">Por resolver en esta sala</h3>
                 <ul>
+                  @for (puerta of puertasPendientes(); track puerta.id) {
+                    <li>
+                      <!-- BORRADOR: texto nuevo, pendiente de la aprobación de Psicología -->
+                      Esta puerta no se guarda hasta que elijas a qué sala lleva.
+                      <!-- BORRADOR: texto nuevo, pendiente de la aprobación de Psicología -->
+                      <button type="button" (click)="seleccionarPieza(anclaPuerta(puerta.id))">Ir a la pieza</button>
+                    </li>
+                  }
                   @for (f of faltasSala(); track $index) {
                     <li [id]="'falta-' + s.id + '-' + $index">{{ f.regla }}: {{ f.mensaje }}
                       <!-- BORRADOR: texto nuevo, pendiente de la aprobación de Psicología -->
@@ -197,6 +215,7 @@ const DISTANCIAS_INICIALES = [96, -96, 160, -160, 48, -48];
               <kbd>Ctrl</kbd>+<kbd>Z</kbd> deshace.
             </p>
 
+            @if (!s.estructura) {
             <section aria-labelledby="catalogo" class="tarjeta catalogo" data-accion="agregar-mueble">
               <h3 id="catalogo">Catálogo del lugar <span class="texto-secundario">· se agrega en el centro de la sala</span></h3>
               <div role="tablist" aria-label="Qué quieres agregar" class="acciones">
@@ -213,7 +232,8 @@ const DISTANCIAS_INICIALES = [96, -96, 160, -160, 48, -48];
                 <ul class="catalogo-lista">
                   @for (c of catalogo(); track c.ref) {
                     <li>
-                      <button type="button" class="boton" [attr.aria-label]="'Agregar a la sala: ' + c.nombre" (click)="agregar(c.ref, c.nombre)">
+                      <button type="button" class="boton" [attr.aria-label]="'Agregar a la sala: ' + c.nombre"
+                        (click)="agregar(c.ref, c.nombre)">
                         @if (c.arte) { <img class="pixel" [src]="c.arte" alt="" /> }
                         {{ c.nombre }}
                       </button>
@@ -228,9 +248,48 @@ const DISTANCIAS_INICIALES = [96, -96, 160, -160, 48, -48];
                 </ul>
               </div>
             </section>
+            }
+
           </section>
 
           <section aria-labelledby="detalles" class="tarjeta columna-detalles" data-accion="quitar-elemento">
+            @if (s.estructura && catalogoPiezas.manifiesto()) {
+              <app-panel-de-estructura [sala]="s" [puertaElegida]="puertaElegida()" [faltas]="faltasSala()"
+                (agregada)="seleccionarPieza($event)">
+            <section aria-labelledby="catalogo" class="tarjeta catalogo" data-accion="agregar-mueble">
+              <h3 id="catalogo">Catálogo del lugar <span class="texto-secundario">· se agrega en el centro de la sala</span></h3>
+              <div role="tablist" aria-label="Qué quieres agregar" class="acciones">
+                @for (t of pestanas; track t.tipo) {
+                  <button role="tab" type="button" class="boton" [attr.aria-selected]="pestana() === t.tipo" (click)="pestana.set(t.tipo)">
+                    {{ t.nombre }} ({{ cantidad(t.tipo) }})
+                  </button>
+                }
+              </div>
+              <label for="catq" class="etiqueta">Buscar en el catálogo</label>
+              <input id="catq" type="search" class="campo" placeholder="Buscar, por ejemplo «silla»" [value]="busqueda()"
+                     (input)="busqueda.set($any($event.target).value)" />
+              <div role="tabpanel" [attr.aria-label]="nombrePestana()">
+                <ul class="catalogo-lista">
+                  @for (c of catalogo(); track c.ref) {
+                    <li>
+                      <button type="button" class="boton" [attr.aria-label]="'Agregar a la sala: ' + c.nombre"
+                        (click)="agregar(c.ref, c.nombre)">
+                        @if (c.arte) { <img class="pixel" [src]="c.arte" alt="" /> }
+                        {{ c.nombre }}
+                      </button>
+                    </li>
+                  } @empty {
+                    @if (cantidad(pestana()) === 0) {
+                      <li class="texto-secundario" data-sin-catalogo>{{ sinCatalogo() }}</li>
+                    } @else {
+                      <li class="texto-secundario">Nada coincide con «{{ busqueda() }}».</li>
+                    }
+                  }
+                </ul>
+              </div>
+            </section>
+              </app-panel-de-estructura>
+            }
             <p class="texto-secundario">Detalles</p>
             @if (piezaElegida(); as p) {
               <h2 id="detalles">{{ p.nombre }}</h2>
@@ -338,7 +397,7 @@ const DISTANCIAS_INICIALES = [96, -96, 160, -160, 48, -48];
     .vacio, .puerta { font-size: var(--autoria-texto-16); padding: 4px 8px; }
     .columna-sala { display: flex; flex-direction: column; gap: 12px; min-width: 0; }
     .desplazamiento { max-width: 100%; overflow-x: auto; }
-    .escenario.por-piezas { aspect-ratio: auto; overflow: hidden; flex: none; }
+    .escenario.por-piezas { aspect-ratio: auto; overflow: hidden; flex: none; touch-action: pan-x pan-y; }
     .dibujo-en-lienzo > img, .dibujo-en-lienzo > .personaje { visibility: hidden; }
     .escenario { position: relative; width: 100%; aspect-ratio: 960 / 528; overflow: hidden; border-radius: 10px; border: 1px solid var(--linea); background: var(--juego-escenario); touch-action: none; }
     .lienzo { position: absolute; left: 0; top: 0; width: 960px; height: 528px; transform: scale(var(--escala, 1)); transform-origin: 0 0; }
@@ -347,7 +406,7 @@ const DISTANCIAS_INICIALES = [96, -96, 160, -160, 48, -48];
     .marca-ia-aviso { margin: 0; }
     .pieza {
       position: absolute; transform: translate(-50%, -100%); padding: 0; margin: 0; border: 0; background: none;
-      cursor: grab; line-height: 0; display: flex; align-items: flex-end; justify-content: center;
+      cursor: grab; touch-action: none; line-height: 0; display: flex; align-items: flex-end; justify-content: center;
       /* La sala se dibuja escalada: el mínimo de 24 px tiene que valer en pantalla, no en el dibujo. */
       min-width: calc(24px / var(--escala, 1)); min-height: calc(24px / var(--escala, 1));
     }
@@ -402,7 +461,7 @@ export class SalaComponent {
   readonly salaId = input.required<string>();
 
   protected readonly store = inject(CasoStore);
-  protected readonly catalogoPiezas = inject(CatalogoDePiezas);
+  protected get catalogoPiezas(): CatalogoDePiezas { return this.injector.get(CatalogoDePiezas); }
   protected readonly salaLienzo = computed(() => {
     const sala = this.sala();
     return sala ? salaParaLienzo(sala) : null;
@@ -411,11 +470,18 @@ export class SalaComponent {
     const sala = this.sala();
     return sala ? actoresDeSala(sala, this.store.caso() ?? undefined) : [];
   });
+  protected readonly piezaDeMuroElegida = signal<string | null>(null);
+  protected readonly puertaElegida = computed(() => this.sala()?.puertas.find(p =>
+    anclaDeElemento(this.salaId(), { tipo: 'puerta', id: p.id }) === this.piezaDeMuroElegida())?.id ?? null);
   protected readonly plan = signal<PlanDeSala | null>(null);
   protected readonly escalaPiezas = signal<1 | 2>(1);
-  protected readonly piezaDeMuroElegida = signal<string | null>(null);
   protected readonly faltas = signal(new Map<string, FaltaDeSala[]>());
   protected readonly faltasSala = computed(() => this.faltas().get(this.salaId()) ?? []);
+  protected readonly puertasPendientes = computed(() => {
+    const ids = this.store.puertasSinGuardar().get(this.salaId()) ?? [];
+    return (this.sala()?.puertas ?? []).filter(p => ids.includes(p.id));
+  });
+  protected anclaPuerta(id: string): string { return anclaDeElemento(this.salaId(), { tipo: 'puerta', id }); }
 
   protected readonly clavesObjetos = computed(() => {
     const sala = this.sala(), caso = this.store.caso();
@@ -587,6 +653,9 @@ export class SalaComponent {
   constructor() {
     let temporizador: ReturnType<typeof setTimeout> | undefined;
     effect(() => {
+      if (!this.sala()?.estructura) {
+        clearTimeout(temporizador); temporizador = undefined; this.faltas.set(new Map()); return;
+      }
       const caso = this.store.caso(), reglas = this.catalogoPiezas.reglas(), error = this.catalogoPiezas.error();
       if (!caso || !reglas || error) {
         clearTimeout(temporizador); temporizador = undefined; this.faltas.set(new Map()); return;
@@ -595,7 +664,7 @@ export class SalaComponent {
       temporizador = setTimeout(() => {
         temporizador = undefined;
         const actual = this.store.caso(), catalogo = this.catalogoPiezas.reglas();
-        if (actual && catalogo && !this.catalogoPiezas.error()) this.faltas.set(faltasPorSala(actual, catalogo));
+        if (this.sala()?.estructura && actual && catalogo && !this.catalogoPiezas.error()) this.faltas.set(faltasPorSala(actual, catalogo));
       }, 100);
     });
     inject(DestroyRef).onDestroy(() => clearTimeout(temporizador));
@@ -819,6 +888,17 @@ export class SalaComponent {
     this.avisoPersona.set(marcada
       ? `Ahora la persona a atender es ${p.nombre}.${anterior ? ` ${anterior} dejó de serlo.` : ''}`
       : 'Esta sala ya no tiene persona a atender.');
+  }
+
+  private readonly capaDePiezas = viewChild<PiezasDelMuroComponent>('capaDePiezas');
+
+  protected seleccionarPieza(id: string): void {
+    afterNextRender(() => this.capaDePiezas()?.seleccionar(id), { injector: this.injector });
+  }
+
+  protected cambiarAncho(ancho: number): void {
+    // BORRADOR: texto nuevo, pendiente de la aprobación de Psicología
+    this.store.cambiarEstructura(this.salaId(), 'Cambiaste el ancho de la sala', e => { e.ancho = ancho; });
   }
 
   protected async volverOriginal(): Promise<void> {

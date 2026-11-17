@@ -41,6 +41,7 @@ const escenaDe = (caso: CasoBorrador, id: string): Escena | undefined => caso.es
  */
 async function armarSolicitudDeSala(
   s: SesionServidor, caso: CasoBorrador, salaId: string, previo: WorldDefinition,
+  pendientes?: Set<string>,
 ): Promise<Omit<WorldRoomSaveRequest, 'revision'>> {
   const sala = caso.salas.find((x) => x.id === salaId);
   if (!sala) throw new Error(`La sala «${salaId}» no está en el caso.`);
@@ -50,12 +51,15 @@ async function armarSolicitudDeSala(
     if (!nodosPorSala.has(sala)) nodosPorSala.set(sala, nodo);
   }
   for (let intento = 0; intento < 2; intento++) {
-    const { solicitud, faltanPersonajes } = solicitudDeSala(
+    const { solicitud, faltanPersonajes, puertasSinGuardar } = solicitudDeSala(
       sala,
       { revision: s.revision, catalogo: caso.catalogo, personajes: caso.personajes, personajesDelCaso: s.vista.characters, nodosPorSala, salaPorNodo },
       previo,
     );
-    if (faltanPersonajes.length === 0) return solicitud;
+    if (faltanPersonajes.length === 0) {
+      for (const id of puertasSinGuardar) pendientes?.add(id);
+      return solicitud;
+    }
     for (const ref of faltanPersonajes) {
       const info = caso.personajes.find((p) => p.id === ref);
       await s.crearPersonaje({ characterKey: ref, displayName: info?.nombre ?? ref, roleLabel: info?.rol ?? '', portraitKey: '' });
@@ -149,12 +153,16 @@ const esConflicto = (error: unknown): boolean => error instanceof HttpErrorRespo
  * cambió. Si falla uno de los siguientes, el primero ya quedó guardado: se reintenta una vez los que faltan, para
  * alinearlos con él; si tampoco se puede, se avisa con `SalaDesalineada` (el store muestra lo que quedó).
  */
-export async function guardarSala(s: SesionServidor, caso: CasoBorrador, salaId: string): Promise<void> {
+export async function guardarSala(s: SesionServidor, caso: CasoBorrador, salaId: string): Promise<string[]> {
+  const pendientes = new Set<string>();
   const nodos = caso.escenas
     .filter((e) => e.salaId === salaId)
     .map((e) => s.nodoDe(e.id))
     .filter((id): id is number => id !== undefined && s.mapaDeNodo(id) !== undefined);
-  const guardar = async (nodoId: number) => s.guardarMundo(nodoId, await armarSolicitudDeSala(s, caso, salaId, await s.mundoDe(nodoId)));
+  const guardar = async (nodoId: number) => {
+    const solicitud = await armarSolicitudDeSala(s, caso, salaId, await s.mundoDe(nodoId), pendientes);
+    await s.guardarMundo(nodoId, solicitud);
+  };
   for (let i = 0; i < nodos.length; i++) {
     try {
       await guardar(nodos[i]);
@@ -167,10 +175,11 @@ export async function guardarSala(s: SesionServidor, caso: CasoBorrador, salaId:
         throw new SalaDesalineada(salaId);
       }
       await recuperarGuiones(s, caso, nodos);
-      return;
+      return [...pendientes];
     }
   }
   await recuperarGuiones(s, caso, nodos);
+  return [...pendientes];
 }
 
 /**

@@ -45,6 +45,8 @@ interface Pieza {
     :host { position: absolute; inset: 0; pointer-events: none; z-index: 5; }
     .pieza-muro { position: absolute; box-sizing: border-box; min-width: 24px; min-height: 24px; padding: 0;
       border: 2px solid transparent; background: transparent; touch-action: none; pointer-events: auto; cursor: grab; }
+    .pieza-muro::before { content: ""; position: absolute; left: 50%; top: 50%; width: 44px; height: 44px;
+      transform: translate(-50%, -50%); }
     .pieza-muro.elegida, .pieza-muro:focus-visible { outline: 3px solid #175ec6; outline-offset: 2px; }
     .pieza-muro.incumple { border: 3px dashed #bd2020; }
     .pieza-muro span { position: absolute; top: 0; right: 0; color: white; background: #a50000;
@@ -103,7 +105,8 @@ export class PiezasDelMuroComponent {
   protected etiqueta(p: Pieza): string {
     const l = this.lugar(p);
     // BORRADOR: texto nuevo, pendiente de la aprobación de Psicología
-    const sitio = 'muro' in l ? `muro ${l.muro === 'fondo' ? 'del fondo' : `de ${l.muro}`}, a ${l.pos} px`
+    const sitio = 'muro' in l ? `${{ fondo: 'muro del fondo', izquierda: 'muro izquierdo', derecha: 'muro derecho',
+      camara: 'lado de la cámara' }[l.muro]}, a ${l.pos} px`
       : `suelo, a ${l.x}, ${l.y} px`;
     // BORRADOR: texto nuevo, pendiente de la aprobación de Psicología
     return `${p.nombre}, ${sitio}${this.faltasDe(p).map(f => `, no cumple: ${f.mensaje}`).join('')}`;
@@ -119,10 +122,15 @@ export class PiezasDelMuroComponent {
     return cajaDePieza(p.id, vigente ? this.plan() : null, lugar, p.ficha, this.sala().encuadre, this.ancho());
   }
   private ancho(): number { return this.sala().estructura?.ancho ?? 960; }
+  seleccionar(id: string): void {
+    this.seleccion.set(id); this.elegida.emit(id);
+    setTimeout(() => this.raiz.nativeElement.ownerDocument.getElementById(id)?.focus());
+  }
   protected elegir(p: Pieza, evento: Event): void {
     evento.stopPropagation(); this.seleccion.set(this.idHtml(p)); this.elegida.emit(this.idHtml(p));
   }
   private guardar(p: Pieza, lugar: Lugar): void {
+    if (JSON.stringify(p.lugar) === JSON.stringify(lugar)) return;
     if (p.tipo === 'puerta' && 'muro' in lugar) this.store.moverPuerta(this.sala().id, p.id, lugar.muro, lugar.pos);
     else if (p.tipo === 'pieza') this.store.moverPiezaDeMuro(this.sala().id, p.id, lugar);
     // BORRADOR: texto nuevo, pendiente de la aprobación de Psicología

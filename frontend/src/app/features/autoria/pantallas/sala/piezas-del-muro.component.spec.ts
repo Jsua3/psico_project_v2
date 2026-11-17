@@ -110,4 +110,21 @@ describe('PiezasDelMuroComponent', () => {
     fixture.componentRef.setInput('faltas', []); fixture.detectChanges();
     expect(raiz.querySelector('[data-pieza="v1"]')!.hasAttribute('data-incumple')).toBe(false);
   });
+  it('Esc suelta la pieza elegida', async () => {
+    const { raiz, fixture } = await montar();
+    const boton = raiz.querySelector<HTMLButtonElement>('[data-pieza="v1"]')!;
+    boton.click(); fixture.detectChanges();
+    expect(boton.classList.contains('elegida')).toBe(true);
+    tecla(boton, 'Escape'); fixture.detectChanges();
+    expect(boton.classList.contains('elegida')).toBe(false);
+  });
+
+  it('la falta queda enlazada con aria-describedby', async () => {
+    const { raiz, fixture } = await montar();
+    fixture.componentRef.setInput('faltas', [{ regla: 'OCL-14', mensaje: 'Hay un obstáculo',
+      elemento: { tipo: 'pieza', id: 'v1' } }]);
+    fixture.detectChanges();
+    expect(raiz.querySelector('[data-pieza="v1"]')!.getAttribute('aria-describedby')).toBe('falta-sala-espera-0');
+  });
+
 });

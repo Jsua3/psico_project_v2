@@ -8,6 +8,7 @@ import { provideRouter } from '@angular/router';
 
 import { UiDialog } from '../../../../shared/ui/dialog/ui-dialog';
 import { universidad } from '../../testing/universidad';
+import { CASO_HOSPITAL } from '../../testing/hospital';
 import { CasoStore } from '../../estado/caso.store';
 import { BibliotecaService } from '../../modelo/biblioteca.service';
 import { copiarEscenarioAlCaso } from '../../modelo/copiar';
@@ -41,6 +42,43 @@ const tecla = (el: Element, key: string, extra: KeyboardEventInit = {}) =>
   el.dispatchEvent(new KeyboardEvent('keydown', { key, bubbles: true, ...extra }));
 
 describe('SalaComponent', () => {
+  it('una sala por piezas deja desplazar con el dedo y solo las piezas bloquean el gesto', async () => {
+    const { fixture, store, raiz } = await montar();
+    const caso = structuredClone(store.caso()!);
+    caso.salas[0].estructura = structuredClone(CASO_HOSPITAL.salas[0].estructura!);
+    store.fijar(caso); fixture.detectChanges();
+    const escenario = raiz.querySelector<HTMLElement>('.escenario')!;
+    expect(getComputedStyle(escenario).touchAction).toBe('pan-x pan-y');
+    expect(getComputedStyle(raiz.querySelector<HTMLElement>('.pieza')!).touchAction).toBe('none');
+  });
+
+  it('si el catálogo falla, Reintentar vuelve a pedirlo', async () => {
+    const { fixture, store, raiz } = await montar();
+    const catalogo = TestBed.inject(CatalogoDePiezas);
+    const reintentar = vi.fn();
+    (catalogo as unknown as { reintentar: () => void }).reintentar = reintentar;
+    (catalogo.error as ReturnType<typeof signal<boolean>>).set(true);
+    const caso = structuredClone(store.caso()!);
+    caso.salas[0].estructura = structuredClone(CASO_HOSPITAL.salas[0].estructura!);
+    store.fijar(caso); fixture.detectChanges();
+    [...raiz.querySelectorAll('button')].find(b => b.textContent?.trim() === 'Reintentar')!.click();
+    expect(reintentar).toHaveBeenCalledOnce();
+  });
+
+  it('una puerta sin destino aparece en Por resolver hasta que se elige su sala', async () => {
+    const { fixture, store, raiz } = await montar();
+    const caso = structuredClone(CASO_HOSPITAL);
+    store.fijar(caso); fixture.componentRef.setInput('salaId', caso.salas[0].id);
+    const id = store.agregarPuerta(caso.salas[0].id, 'madera', 'fondo', 100);
+    const pendientes = signal(new Map([[caso.salas[0].id, [id]]]));
+    vi.spyOn(store, 'puertasSinGuardar').mockImplementation(pendientes);
+    fixture.detectChanges();
+    expect(raiz.textContent).toContain('Esta puerta no se guarda hasta que elijas a qué sala lleva.');
+    store.fijarDestinoDePuerta(caso.salas[0].id, id, caso.salas[1].id);
+    pendientes.set(new Map()); fixture.detectChanges();
+    expect(raiz.textContent).not.toContain('Esta puerta no se guarda hasta que elijas a qué sala lleva.');
+  });
+
   it('una sala de imagen fija no carga el lienzo ni la capa de piezas', async () => {
     const { raiz } = await montar();
     expect(raiz.querySelector('app-lienzo-de-sala')).toBeNull();
