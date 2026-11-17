@@ -47,6 +47,7 @@ import { DialoguePanelComponent } from './dialogue-panel.component';
 import { CameraMoment, GameWorldComponent } from './game-world.component';
 import { CameraSettings } from './camara/camera-settings.service';
 import { altoTapado } from './camara/cubierta';
+import type { Caja } from './camara/camara';
 import { type EscenarioReaccion, type FinReaccion, ReactionDirectorComponent } from './reaction-director.component';
 import { JournalPanelComponent, JournalSaveState } from './journal-panel.component';
 import { isShortcutContext } from './keyboard-focus.util';
@@ -121,6 +122,18 @@ const ROOM_BANNER_MS = 2200;
 const STAGE_BANNER_MS = 3000;
 /** Nota de transición autorada en el mapa (salto temporal). Hoy dura lo mismo que `NOTICE_MS`, pero es otro aviso. */
 const TRANSITION_NOTE_MS = 4200;
+/**
+ * Las placas de la interfaz que quedan sobre el mundo al explorar (variante B, U1): la ficha del objetivo, el carril,
+ * el grupo de la derecha (HUD y plano), «Salida segura», las herramientas y la acción cercana. La cámara no deja
+ * cuerpos bajo ellas (zona segura). Las ocultas miden 0 y no cuentan.
+ */
+const PLACAS_SOBRE_EL_MUNDO = [
+  '.objective-card', '.carril .sensitive-strip', '.carril .soft-notice', '.carril .room-banner',
+  'app-simulation-hud .hud-case', 'app-simulation-hud .hud-strip',
+  'app-minimapa .minimapa__lugar', 'app-minimapa .minimapa__abrir', 'app-minimapa .minimapa__alternar',
+  '.bottom-zone .safe-exit-btn', '.bottom-zone .tool-dock-wrap', '.bottom-zone .notice-pie .sensitive-strip',
+  '.bottom-zone .context-bar__interaction', '.bottom-zone .context-bar__now',
+].join(', ');
 /** Modo compacto (F§7.9): la misma condición que el CSS compacto y que el HUD. */
 const COMPACT_QUERY = '(max-height: 520px), (pointer: coarse) and (orientation: landscape)';
 /** Pantalla estrecha (móvil vertical): la tarjeta también arranca plegada, el mundo ocupa el ancho (F§4.6). */
@@ -1498,6 +1511,24 @@ export class SimulationPlayComponent implements OnInit, OnDestroy {
   /** Solo para el binding de `reactionStage`: una consulta de señal no choca con NG0100 cuando `world()` crea el mundo. */
   private readonly gameWorldRef = viewChild(GameWorldComponent);
   private readonly canvasZone = viewChild<ElementRef<HTMLElement>>('canvasZone');
+  /**
+   * Zona segura de la cámara (U1): las cajas de las placas sobre el mundo, en px CSS desde la esquina del lienzo. Solo al
+   * explorar: con las franjas de cine o un cuadro abierto la cámara ya encuadra entre las franjas.
+   */
+  private readonly medirPlacas = (): Caja[] => {
+    if (this.cinemaBars() || this.viewMode() !== 'explore') return [];
+    const zona = this.canvasZone()?.nativeElement;
+    const raiz = zona?.closest('.game-container');
+    const lienzo = zona?.querySelector<HTMLElement>('app-game-world canvas') ?? zona;
+    if (!raiz || !lienzo) return [];
+    const base = lienzo.getBoundingClientRect();
+    const cajas: Caja[] = [];
+    raiz.querySelectorAll<HTMLElement>(PLACAS_SOBRE_EL_MUNDO).forEach(el => {
+      const r = el.getBoundingClientRect();
+      if (r.width >= 1 && r.height >= 1) cajas.push({ x: r.left - base.left, y: r.top - base.top, ancho: r.width, alto: r.height });
+    });
+    return cajas;
+  };
   private readonly derecha = viewChild<ElementRef<HTMLElement>>('derecha');
   /**
    * Bloque U1 (variante B): mide el alto del grupo HUD + minimapa y el de la ficha del objetivo y los publica como
@@ -1641,6 +1672,7 @@ export class SimulationPlayComponent implements OnInit, OnDestroy {
         // al pintar y otra vez cuando el cuadro o la franja de la reacción ya entraron (llegan con su animación).
         const medir = () => {
           this.gameWorld?.setCameraOptions(options);
+          this.gameWorld?.setCameraPlacas?.(this.medirPlacas);
           this.gameWorld?.setCameraFrozen(frozen);
           const top = bars ? this.cinemaTopPx() : 0;
           const bottom = Math.max(this.dialogueCoverCss(mode), top);

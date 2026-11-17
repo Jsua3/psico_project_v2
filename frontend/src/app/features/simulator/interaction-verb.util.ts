@@ -27,8 +27,11 @@ export function participatesInInteraction(obj: Pick<MapObjectState, 'type' | 'de
 /** Una etiqueta de salida que ya dice el movimiento («Volver al pasillo», «Pasar a la sala de espera»). */
 const EXIT_LABEL_WITH_VERB = /^(pasar|volver|salir|ir|entrar|regresar|subir|bajar|cruzar|seguir|continuar)\b/i;
 
-/** «Pasar a {lugar}», salvo que la etiqueta ya sea la frase del movimiento: entonces va tal cual (no «Pasar a Volver…»). */
-function exitVerb(label: string): string {
+/**
+ * «Pasar a {lugar}», salvo que la etiqueta ya sea la frase del movimiento: entonces va tal cual (no «Pasar a Volver…»).
+ * La usan la ficha de acción cercana y el aviso de puerta de las salas por piezas: las dos dicen lo mismo.
+ */
+export function exitVerb(label: string): string {
   return EXIT_LABEL_WITH_VERB.test(label.trim()) ? label.trim() : `Pasar a ${label}`;
 }
 

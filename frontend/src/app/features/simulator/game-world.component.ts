@@ -59,7 +59,7 @@ import {
   selectRevealed,
 } from './interaction-priority.util';
 import { serverRejectsPlayerAt } from './server-world-geometry.util';
-import { InteractionVerb, interactionVerb, participatesInInteraction } from './interaction-verb.util';
+import { InteractionVerb, exitVerb, interactionVerb, participatesInInteraction } from './interaction-verb.util';
 import { paintVignette, vignetteTextureKey } from './vignette-texture.util';
 import {
   WORLD_FONT_FAMILY, WORLD_LABEL_FONT_FAMILY, WORLD_LABEL_INK, WORLD_LABEL_PLATE, whenWorldFontsReady,
@@ -97,7 +97,7 @@ import { heldInput } from './touch-hold.util';
 import { attachScrollKeyGuard, isScrollRegionTarget, isShortcutContext, isTextEntryTarget, resolveInteractPress } from './keyboard-focus.util';
 import { isCriticalAsset } from './asset-criticality.util';
 import {
-  EstadoCamara, Momento, avanzarCamara, comoDibujar, duracionDeViaje, enViajeDentro, esperaDelGeneral, objetivoCamara,
+  Caja as CajaDePlaca, EstadoCamara, Momento, avanzarCamara, comoDibujar, duracionDeViaje, enViajeDentro, esperaDelGeneral, objetivoCamara,
 } from './camara/camara';
 import { fitGameToHost, pixelScaleConfig, watchHostSize } from './pixel-canvas';
 import { PixelRender } from './pixel-render';
@@ -226,6 +226,8 @@ interface NpcMover {
 
 /** Profundidad de los rótulos del mundo: sobre todos los actores y bajo los rótulos de puerta (UI). */
 const LABEL_DEPTH = DEPTH.UI - 1;
+/** Cada cuánto (ms) la cámara vuelve a medir las placas de la interfaz (zona segura, U1). */
+const MEDIR_PLACAS_MS = 150;
 /** Prefijo de la clave con la que una persona del escenario sale como candidato de proximidad. */
 const NPC_KEY_PREFIX = 'npc:';
 /** Cuánto se sostiene el último plano cercano al soltarse (entre la decisión y la reacción, bloque M1). */
@@ -380,6 +382,10 @@ export class DataDrivenWorldScene extends Phaser.Scene {
   /** Alto (px CSS) que el cuadro de diálogo (o la franja de abajo) tapa abajo del lienzo, y la franja de arriba. */
   private camCoveredCss = 0;
   private camCoveredTopCss = 0;
+  /** Zona segura (U1): quien mide las placas de la interfaz sobre el lienzo (px CSS) y lo último que midió. */
+  private camPlacasMedir: (() => readonly CajaDePlaca[]) | null = null;
+  private camPlacas: readonly CajaDePlaca[] = [];
+  private camPlacasEn = Number.NEGATIVE_INFINITY;
   private camFrozen = false;
   private camSettledZoom = 0;
   private camReport = '';
@@ -717,7 +723,7 @@ export class DataDrivenWorldScene extends Phaser.Scene {
     if (id && p && obj) {
       const cam = this.cameras.main, dpr = 1 / (this.scale.zoom || 1);
       aviso = {
-        id, texto: `Pasar a ${obj.label}`, bloqueada: this.doorStates[id] === 'locked',
+        id, texto: exitVerb(obj.label), bloqueada: this.doorStates[id] === 'locked',
         x: Math.round(((p.x - cam.worldView.x) * cam.zoom) / dpr), y: Math.round(((p.y - cam.worldView.y) * cam.zoom) / dpr),
       };
     }
@@ -1138,6 +1144,13 @@ export class DataDrivenWorldScene extends Phaser.Scene {
     this.camOptions = { ...options };
   }
 
+  /** Zona segura (U1): la pantalla da cómo medir sus placas sobre el lienzo; se mide a lo sumo cada `MEDIR_PLACAS_MS`. */
+  setCameraPlacas(medir: (() => readonly CajaDePlaca[]) | null): void {
+    this.camPlacasMedir = medir;
+    this.camPlacasEn = Number.NEGATIVE_INFINITY;
+    if (!medir) this.camPlacas = [];
+  }
+
   /** Con el plano abierto la cámara no se mueve ni cambia de zoom. */
   setCameraFrozen(frozen: boolean): void {
     this.camFrozen = frozen;
@@ -1209,9 +1222,15 @@ export class DataDrivenWorldScene extends Phaser.Scene {
     const dpr = typeof window !== 'undefined' ? window.devicePixelRatio || 1 : 1;
     const momento = this.cameraMomentNow(ahora);
     const sala = { ancho: this.roomSize.width, alto: this.roomSize.height };
+    // Las placas de la interfaz cambian poco (abrir la ficha, una acción al alcance): se miden unas veces por segundo.
+    if (this.camPlacasMedir && ahora - this.camPlacasEn >= MEDIR_PLACAS_MS) {
+      this.camPlacas = this.camPlacasMedir();
+      this.camPlacasEn = ahora;
+    }
     const vista = {
       ancho: cam.width, alto: cam.height, dpr,
       cubiertoAbajo: this.camCoveredCss * dpr, cubiertoArriba: this.camCoveredTopCss * dpr,
+      placas: this.camPlacas.map(p => ({ x: p.x * dpr, y: p.y * dpr, ancho: p.ancho * dpr, alto: p.alto * dpr })),
     };
     const calculado = objetivoCamara({
       jugador: { x: this.player.x, y: this.player.y },
@@ -1220,6 +1239,7 @@ export class DataDrivenWorldScene extends Phaser.Scene {
       momento,
       cercana: this.camOptions.cercana,
       acercarAuto: this.camOptions.acercarAuto,
+      cerca: this.nearestKey ? this.feetOf(this.nearestKey) : null,
     }, this.camCut ? null : this.camState);
     // Plano sostenido: el objetivo es el de antes de soltarse (sin recalcular con el cuadro que se va).
     const objetivo = this.camSosteniendo && this.camUltimoObjetivo ? this.camUltimoObjetivo : calculado;
@@ -4093,6 +4113,12 @@ export class GameWorldComponent implements OnChanges, OnDestroy {
   private cameraMoment: CameraMoment = { tipo: 'explorar' };
   private cameraCoveredCss = 0;
   private cameraCoveredTopCss = 0;
+  private cameraPlacas: (() => readonly CajaDePlaca[]) | null = null;
+  /** Zona segura de la cámara (U1): cómo medir las placas de la interfaz sobre el lienzo (px CSS desde su esquina). */
+  setCameraPlacas(medir: (() => readonly CajaDePlaca[]) | null) {
+    this.cameraPlacas = medir;
+    this.scene?.setCameraPlacas?.(medir);
+  }
   setCameraMoment(moment: CameraMoment, coveredCss = 0, coveredTopCss = 0) {
     this.cameraMoment = moment;
     this.cameraCoveredCss = coveredCss;
@@ -4203,6 +4229,7 @@ export class GameWorldComponent implements OnChanges, OnDestroy {
       // La cámara recibe lo que la pantalla pidió antes de que existiera la escena (bloque M1).
       this.scene.setCameraOptions(this.cameraOptions);
       this.scene.setCameraMoment(this.cameraMoment, this.cameraCoveredCss, this.cameraCoveredTopCss);
+      this.scene.setCameraPlacas?.(this.cameraPlacas);
       this.armBootWatchdog();
       this.phaserGame = new Phaser.Game({
         // PHA-5 (E5-8): se mantiene Phaser.AUTO (WebGL preferido con caída a Canvas 2D) para soportar equipos de aula
