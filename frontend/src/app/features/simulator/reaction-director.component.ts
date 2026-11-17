@@ -34,7 +34,10 @@ export type FinReaccion = 'completa' | 'saltada' | 'cancelada';
     @if (activa()) {
       <!-- La franja ocupa la banda de abajo, como el cuadro del diálogo: el pie queda oculto mientras dura y «Salida segura»
            va aquí, a su derecha (REGLA-004: siempre a la vista; Esc sigue pausando por la cadena del juego). -->
-      <div class="reaction-dock" [style]="arte">
+      <!-- V6 (accesibilidad, WCAG 2.2.1/2.2.2): con el foco del teclado dentro o el puntero encima, la franja no avanza sola;
+           al soltar sigue con el tiempo que le quedaba. -->
+      <div class="reaction-dock" [style]="arte" (focusin)="sostener('foco', true)" (focusout)="soltarFoco($event)"
+        (mouseenter)="sostener('puntero', true)" (mouseleave)="sostener('puntero', false)">
       <!-- La placa de quien reacciona (bloque I1): el mismo marco de pixel que la del diálogo, con su retrato asomado. -->
       <div class="reaction-strip">
         <span class="reaction-name">{{ quien().nombre }}</span>
@@ -138,6 +141,9 @@ export class ReactionDirectorComponent implements OnDestroy {
   private token = 0;
   private timers = new Set<ReturnType<typeof setTimeout>>();
   private wakes = new Set<() => void>();
+  /** Esperas en curso con lo que les queda: se congelan mientras la franja está sostenida (foco o puntero). */
+  private esperas = new Set<{ resolve: () => void; restante: number; desde: number; t: ReturnType<typeof setTimeout> | null }>();
+  private sostenidaPor = new Set<'foco' | 'puntero'>();
   private anunciada = false;
   private framed = false;
 
@@ -233,10 +239,52 @@ export class ReactionDirectorComponent implements OnDestroy {
     this._activa.set(false);
   }
 
+  /** ¿La franja está sostenida? (foco del teclado dentro o puntero encima). */
+  get sostenida(): boolean {
+    return this.sostenidaPor.size > 0;
+  }
+
+  /** Sostiene o suelta la franja por `motivo`. Sostenida, ninguna espera corre; al soltar, siguen con lo que les quedaba. */
+  sostener(motivo: 'foco' | 'puntero', si: boolean): void {
+    const antes = this.sostenida;
+    if (si) this.sostenidaPor.add(motivo);
+    else this.sostenidaPor.delete(motivo);
+    if (antes === this.sostenida) return;
+    const ahora = Date.now();
+    for (const espera of this.esperas) {
+      if (this.sostenida) {
+        if (espera.t !== null) { clearTimeout(espera.t); this.timers.delete(espera.t); espera.t = null; }
+        espera.restante = Math.max(0, espera.restante - (ahora - espera.desde));
+      } else {
+        this.programar(espera);
+      }
+    }
+  }
+
+  /** El foco sale de la franja (no a otro control de ella): deja de sostenerla. */
+  soltarFoco(evento: FocusEvent): void {
+    const dentro = evento.relatedTarget instanceof Node && (evento.currentTarget as HTMLElement | null)?.contains(evento.relatedTarget);
+    if (!dentro) this.sostener('foco', false);
+  }
+
+  private programar(espera: { resolve: () => void; restante: number; desde: number; t: ReturnType<typeof setTimeout> | null }): void {
+    espera.desde = Date.now();
+    const t = setTimeout(() => {
+      this.timers.delete(t);
+      this.esperas.delete(espera);
+      this.wakes.delete(espera.resolve);
+      espera.resolve();
+    }, espera.restante);
+    espera.t = t;
+    this.timers.add(t);
+  }
+
   private detener(): void {
     this.token++;
     for (const t of this.timers) clearTimeout(t);
     this.timers.clear();
+    this.esperas.clear();
+    this.sostenidaPor.clear();
     const pendientes = [...this.wakes];
     this.wakes.clear();
     for (const despierta of pendientes) despierta();
@@ -244,9 +292,11 @@ export class ReactionDirectorComponent implements OnDestroy {
 
   private esperar(ms: number): Promise<void> {
     return new Promise<void>(resolve => {
-      const t = setTimeout(() => { this.timers.delete(t); this.wakes.delete(resolve); resolve(); }, ms);
-      this.timers.add(t);
+      const espera = { resolve, restante: ms, desde: Date.now(), t: null as ReturnType<typeof setTimeout> | null };
+      this.esperas.add(espera);
       this.wakes.add(resolve);
+      // Si ya está sostenida (el foco o el puntero llegaron antes), espera a que la suelten.
+      if (!this.sostenida) this.programar(espera);
     });
   }
 }

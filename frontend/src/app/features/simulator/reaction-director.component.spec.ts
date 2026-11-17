@@ -187,3 +187,32 @@ it('sin nombre se anuncia solo la frase, sin los dos puntos sueltos', async () =
   await vi.runAllTimersAsync();
   expect(announcer.announce).toHaveBeenCalledWith('Gracias por quedarse.', 'polite');
 });
+
+// V6 (accesibilidad, WCAG 2.2.1/2.2.2): sostenida por el foco o el puntero, la franja no avanza sola; al soltarla sigue con
+// el tiempo que le quedaba. Sin nadie que la sostenga, la duración y el orden no cambian.
+it('con el foco o el puntero en la franja no avanza; al soltarla termina con su tiempo de siempre', async () => {
+  const { director, terminado } = montar({ reduceMotion: false });
+  director.play(ENTRADA, QUIEN);
+  await vi.advanceTimersByTimeAsync(10);
+  director.sostener('foco', true);
+  await vi.advanceTimersByTimeAsync(60_000);
+  expect(terminado).toEqual([]);
+  director.sostener('puntero', true);
+  director.sostener('foco', false);
+  await vi.advanceTimersByTimeAsync(60_000);
+  expect(terminado, 'el puntero encima también la sostiene').toEqual([]);
+  director.sostener('puntero', false);
+  await vi.runAllTimersAsync();
+  expect(terminado).toEqual(['completa']);
+});
+
+it('cancel suelta la franja sostenida (la salida segura no espera a nadie)', async () => {
+  const { director, terminado } = montar({ reduceMotion: false });
+  director.play(ENTRADA, QUIEN);
+  await vi.advanceTimersByTimeAsync(10);
+  director.sostener('foco', true);
+  director.cancel();
+  await vi.runAllTimersAsync();
+  expect(director.sostenida).toBe(false);
+  expect(terminado, 'corta como siempre, sin «completa»').toEqual(['cancelada']);
+});

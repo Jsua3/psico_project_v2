@@ -124,6 +124,12 @@ async function elegirEscuchar(page: Page, input: WorldInputDriver): Promise<void
     .toBeVisible();
 }
 
+// Con E2E_CPU_LENTA=4 cada prueba corre con la CPU frenada ×4 (CDP), como un ejecutor lento de CI (V6).
+test.beforeEach(async ({ page }) => {
+  const rate = Number(process.env['E2E_CPU_LENTA'] ?? 0);
+  if (rate > 1) await (await page.context().newCDPSession(page)).send('Emulation.setCPUThrottlingRate', { rate });
+});
+
 for (const viewport of [KEYBOARD, TOUCH]) {
   test.describe(`explorar-${viewport.name}`, () => {
     test.use({ viewport: { width: viewport.width, height: viewport.height }, hasTouch: viewport.inputMode === 'touch' });
@@ -164,8 +170,12 @@ for (const viewport of [KEYBOARD, TOUCH]) {
         const strip = page.locator('app-reaction-director');
         await expect(strip.locator('.reaction-strip'), 'la franja de la reacción aparece').toBeVisible({ timeout: scaled(5_000) });
         await expect(strip).toContainText('Gracias por escucharme.');
+        // V6: con el foco del teclado dentro, la franja no avanza sola (accesibilidad, WCAG 2.2.1): se enfoca «Salida segura»
+        // de la franja (sin pulsarla) para auditarla a la vista aunque Axe tarde más que su duración; luego se suelta.
+        await strip.locator('.reaction-exit button').first().focus();
         await expectNoSeriousAxeViolations(page, `${viewport.name}: la franja de la reacción`, 'app-reaction-director');
         expect(await strip.locator('.reaction-strip').count(), 'la franja seguía a la vista al terminar la auditoría').toBe(1);
+        await page.evaluate(() => (document.activeElement as HTMLElement | null)?.blur());
         await expect.poll(reactionsSeen, { message: 'el gesto de Laura puso data-reaction en el host', timeout: scaled(5_000) })
           .toContain('se-acerca');
         await expect(host(page)).not.toHaveAttribute('data-reaction', /.+/, { timeout: scaled(10_000) });
