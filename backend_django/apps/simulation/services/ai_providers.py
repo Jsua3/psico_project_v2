@@ -354,6 +354,7 @@ _FAKE_FAILURES = {
     "[falso:refusal]": ("refusal", "el proveedor falso simuló una negativa"),
 }
 _FAKE_REPAIR = "[falso:reparar]"
+_FAKE_OVERLAP = "[falso:sala-encimada]"
 _FAKE_STAGE = re.compile(r"\AEtapa: (esqueleto|escena ([a-z0-9-]{1,64}))[ \t]*$", re.MULTILINE)
 _FAKE_PLACE = re.compile(r"^Lugar: ([a-z0-9-]{1,64})[ \t]*$", re.MULTILINE)
 _FAKE_PREVIOUS_SCENE = "Escena anterior (JSON):"
@@ -397,10 +398,14 @@ class FakeProvider(AnthropicProvider):
         carpeta = FAKE_FIXTURES / lugar.group(1)
         if etapa.group(1) == "esqueleto":
             esqueleto = self._leer(carpeta / "esqueleto.json")
-            if _FAKE_REPAIR in texto:  # la marca viaja con el esqueleto hasta las escenas
-                esqueleto["contexto"] = f"{esqueleto['contexto']} {_FAKE_REPAIR}"
+            for marca in (_FAKE_REPAIR, _FAKE_OVERLAP):  # viaja con el esqueleto hasta las escenas
+                if marca in texto:
+                    esqueleto["contexto"] = f"{esqueleto['contexto']} {marca}"
             return esqueleto
         clave = etapa.group(2)
+        if _FAKE_OVERLAP in texto and clave == "aula":
+            sufijo = "encimada.reparar" if _FAKE_PREVIOUS_SCENE in texto else "encimada"
+            return self._leer(carpeta / f"escena-{clave}.{sufijo}.json")
         if _FAKE_REPAIR in texto and _FAKE_PREVIOUS_SCENE not in texto:
             variante = carpeta / f"escena-{clave}.reparar.json"
             if variante.is_file():

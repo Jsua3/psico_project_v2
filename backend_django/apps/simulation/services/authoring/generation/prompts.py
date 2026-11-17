@@ -8,6 +8,8 @@ lee: ``Etapa: esqueleto`` o ``Etapa: escena <clave>`` y ``Lugar: <id>``.
 import json
 import re
 
+from apps.simulation.casedef.geometria import ANCHOS
+from apps.simulation.casedef.rules_estructura import RADIO_OBJETO, RADIO_PERSONA, RADIO_PUERTA, REJILLA
 from apps.simulation.services.authoring.assistant.prompts import CONTENT_RULES
 
 MAX_DESCRIPTION = 2000
@@ -36,6 +38,28 @@ La descripción de la docente llega dentro de <descripcion_docente>…</descripc
 
 El caso se construye en dos etapas. En la etapa del esqueleto se decide el caso en grande: título, contexto, objetivos de aprendizaje, las escenas (una por sala, cada una con su persona, su intensidad y las escenas a las que puede seguir), los hitos que el caso usa y los finales. En la etapa de una escena se escribe, sobre ese esqueleto, todo lo que pasa dentro de una sala. Cada etapa responde solo con el objeto JSON del esquema; un campo que no aplica queda vacío ("") o como lista vacía.
 
+"""
+    + f"""
+En el esqueleto, cada escena lleva aspecto: cómo se ve la sala en esa escena si la docente lo dice: hora del día, luz,
+ventanas, objetos que sobran o faltan; "" si no dice nada. Es texto plano de una línea y hasta 200 caracteres.
+
+Salas por piezas: estructura es un texto JSON con solo los campos que cambian: momento, acabados o piezas; usa "" si no cambia nada.
+Si el aspecto de esta escena dice cómo se ve la sala, devuelve solo esos cambios. Por ejemplo, de noche: {{"momento": "noche"}}.
+Los campos que no nombres conservan el valor de la plantilla; si cambias piezas, devuelve la lista completa de piezas de la sala.
+Momento es dia o noche. Acabados es un objeto completo y cerrado con piso, muro, paleta y variante opcional (por defecto a).
+Cada pieza es un objeto cerrado con id, tipo y modelo; usa muro y pos enteros, o x e y enteros para suelo;
+puede llevar encendida y, solo para suelo, sobre. Los id de piezas son únicos; admite hasta 120 piezas.
+No incluyas ancho, propios, tapetes ni exterior: son fijos y se conservan de la plantilla.
+Las puertas son objetos EXIT y no se modifican ni se ponen en piezas; sus datos aparecen en la sala.
+OCL-13: usa muros existentes en el encuadre y admitidos por el modelo; pos ± ocupa/2 debe caber en el largo.
+Las piezas de suelo van dentro de la zona caminable.
+OCL-14: en un mismo muro hay choque si |Δpos| < (ocupa_a + ocupa_b)/2, con {REJILLA} px adicionales si una es puerta,
+y solo si las franjas se cruzan; cuenta también las puertas de la sala.
+OCL-15: las puertas conservan su destino y regreso, salvo sentido único.
+OCL-16: no tapes la llegada de una puerta ni la pongas fuera del mapa o sobre una colisión.
+OCL-17: deja paso desde la aparición hacia puertas, personas y objetos interactivos, en rejilla de {REJILLA} px;
+sus radios son {RADIO_PUERTA}, {RADIO_PERSONA} y {RADIO_OBJETO} px respectivamente.
+OCL-18: usa solo claves del catálogo dado para acabados y modelos; anchos válidos: {', '.join(map(str, ANCHOS))} px.
 """
     + CONTENT_RULES
     + """

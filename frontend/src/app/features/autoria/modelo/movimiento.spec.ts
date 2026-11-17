@@ -1,7 +1,7 @@
 import type { SalaCaso } from './caso';
 import type { Escenario } from './escenario';
 import {
-  NOMBRE_MOVIMIENTO, TEXTO_PERSONA_A_ATENDER, mismoMovimiento, movimientoAMetadata, movimientoDeMetadata, revisarPuntoDeIda,
+  NOMBRE_MOVIMIENTO, TEXTO_PERSONA_A_ATENDER, mismoMovimiento, movimientoAMetadata, movimientoDeMetadata, revisarPuntoDeIda, revisarTrayecto,
 } from './movimiento';
 
 describe('cómo se mueve una persona: lo que guarda el juego y lo que ve el docente', () => {
@@ -92,5 +92,26 @@ describe('el punto hasta donde va y viene una persona', () => {
   it('un mueble que el catálogo no conoce (un caso sin lugar) no estorba: el juego igual lo respeta', () => {
     const sinCatalogo: Escenario['catalogo'] = { muebles: [], objetos: [], herramientas: [] };
     expect(revisarPuntoDeIda(sala, sinCatalogo, desde, { x: 400, y: 330 }).ok).toBe(true);
+  });
+});
+
+
+describe('trayectos', () => {
+  const ruta = { tipo: 'ruta' as const, puntos: [{ x: 200, y: 250 }, { x: 300, y: 250 }], modo: 'circuito' as const };
+
+  it('lee y guarda la ruta con la forma exacta del contrato', () => {
+    expect(movimientoAMetadata(movimientoDeMetadata({ ...ruta, pausaMs: 1500 }))).toEqual({ ...ruta, pausaMs: 1500 });
+  });
+
+  it('no agrega la partida a puntos', () => {
+    expect(movimientoAMetadata(movimientoDeMetadata(ruta))).toEqual(ruta);
+  });
+
+  it('revisarTrayecto rechaza 1 punto, 9 puntos, un n?mero infinito y una pausa de 10001', () => {
+    for (const cambio of [
+      { puntos: ruta.puntos.slice(0, 1) }, { puntos: Array(9).fill(ruta.puntos[0]) },
+      { puntos: [{ x: Infinity, y: 0 }, ruta.puntos[0]] }, { pausaMs: 10001 },
+    ]) expect(revisarTrayecto({ ...ruta, ...cambio }).length).toBeGreaterThan(0);
+    expect(revisarTrayecto(ruta)).toEqual([]);
   });
 });

@@ -1,3 +1,4 @@
+import type { EstructuraDeSala } from '../../features/simulator/sala/catalogo';
 export interface CatalogItem {
   caseVersionId: number;
   code: string;
@@ -1095,6 +1096,7 @@ export interface WorldValidationState {
 }
 
 export interface SceneMapDefinition {
+  structure?: EstructuraDeSala | null;
   id: number;
   key: string;
   title: string;

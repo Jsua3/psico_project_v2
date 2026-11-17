@@ -30,7 +30,7 @@ def leer(nombre):
 
 @pytest.fixture(scope="module")
 def ctx():
-    return context.del_lugar(lugares.cargar_lugar("universidad"), COMPETENCIAS)
+    return context.del_lugar(lugares.cargar_lugar("universidad", por_piezas=True), COMPETENCIAS)
 
 
 @pytest.fixture
@@ -660,3 +660,34 @@ def test_las_entradas_hostiles_no_cuelgan_la_busqueda(familia):
         inicio = time.perf_counter()
         checks.personal_data_kinds(texto)
         assert time.perf_counter() - inicio < 1.0, (familia, texto[:30])
+
+
+@pytest.mark.parametrize("aspecto", ["x" * 201, "<b>" + HOSTIL + "</b>", 123])
+def test_checks_rechaza_aspecto_largo_o_con_etiquetas(aspecto, esqueleto, ctx):
+    esqueleto["escenas"][0]["aspecto"] = aspecto
+    error = motivos_de(lambda: checks.validate_skeleton(esqueleto, ctx))
+    assert error.motivos and all(checks.is_fixed_motivo(m) for m in error.motivos)
+    assert HOSTIL not in str(error.motivos)
+
+
+def test_esqueleto_viejo_sin_aspecto_se_lee(sk):
+    datos = checks.as_json(sk)
+    for escena in datos["escenas"]:
+        escena.pop("aspecto")
+    recuperado = checks.from_json(SkeletonDraft, datos)
+    assert all(escena.aspecto == "" for escena in recuperado.escenas)
+
+
+def test_aspecto_se_conserva_y_admite_hasta_200_caracteres(esqueleto, ctx):
+    esqueleto["escenas"][0]["aspecto"] = "a" * 200
+    borrador = checks.validate_skeleton(esqueleto, ctx)
+    assert borrador.escenas[0].aspecto == "a" * 200
+    assert checks.from_json(SkeletonDraft, checks.as_json(borrador)) == borrador
+
+
+@pytest.mark.parametrize("valor", ["", "{}"])
+def test_estructura_sin_cambios_conserva_la_plantilla(valor, aula, sk, ctx):
+    aula["estructura"] = valor
+    resultado = checks.validate_scene(aula, sk, "aula", ctx)
+    plantilla = next(s for s in ctx["salas"] if s["id"] == "aula")["estructura"]
+    assert resultado.estructura == (None if valor == "" else plantilla)

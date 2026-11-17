@@ -47,6 +47,7 @@ SKELETON = _obj({
         "sala": _TEXT,
         "titulo": _TEXT,
         "objetivo": _TEXT,
+        "aspecto": _TEXT,
         "persona": _TEXT,
         "intensidad": _enum(member.value for member in Intensity),
         "advertencia": _TEXT,
@@ -64,6 +65,7 @@ SKELETON = _obj({
 })
 
 SCENE = _obj({
+    "estructura": _TEXT,
     "narracion": _TEXT,
     "lineas": _list(_obj({
         "personaje": _TEXT,

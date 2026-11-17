@@ -47,3 +47,15 @@ describe('partesDeLaGeneracion: lo que pidió «Reintentar» no sobrevive a su e
     expect(estados(fallida, null, { tipo: 'reglas' })['reglas']).toBe('pendiente');
   });
 });
+
+
+it('una falta DSL.OCL-14 de la generación aparece con su mensaje en la revisión de las reglas', () => {
+  const mensaje = 'La pieza está fuera de la sala.';
+  const g = generacion({
+    status: 'imported', caseVersionId: 7,
+    issues: [{ code: 'DSL.OCL-14', severity: 'error', message: mensaje, path: 'x-siep.escenas[0].mapa' }],
+  });
+  const reglas = partesDeLaGeneracion({ g, error: null, etapa: null, trabajando: false, reintentando: null, rondasVistas: {} })
+    .find((parte) => parte.clave === 'reglas');
+  expect(reglas?.faltas).toEqual([mensaje]);
+});

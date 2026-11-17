@@ -21,7 +21,8 @@
       "siguientes": [
         "bienestar",
         "sala-espera"
-      ]
+      ],
+      "aspecto": ""
     },
     {
       "sala": "bienestar",
@@ -33,7 +34,8 @@
       "final": false,
       "siguientes": [
         "sala-espera"
-      ]
+      ],
+      "aspecto": "La sala de bienestar está de noche."
     },
     {
       "sala": "sala-espera",
@@ -45,7 +47,8 @@
       "final": false,
       "siguientes": [
         "consultorio"
-      ]
+      ],
+      "aspecto": ""
     },
     {
       "sala": "consultorio",
@@ -55,7 +58,8 @@
       "intensidad": "MEDIUM",
       "advertencia": "",
       "final": true,
-      "siguientes": []
+      "siguientes": [],
+      "aspecto": ""
     }
   ],
   "hitos": [

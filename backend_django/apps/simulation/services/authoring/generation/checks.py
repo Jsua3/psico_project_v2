@@ -17,7 +17,7 @@ import re
 import unicodedata
 from dataclasses import asdict, dataclass
 
-from apps.simulation.casedef import conditions
+from apps.simulation.casedef import conditions, siep_check
 from apps.simulation.casedef.text import CONTROL, LINK, MARKUP, MULTILINE, NOT_TEXT, TOO_LONG, plain_text_problem
 from apps.simulation.casedef.vocabulary import (
     EXPRESSIONS,
@@ -155,6 +155,10 @@ _CONDITION_MOTIVOS = {
 }
 
 #: Los motivos de ``FIXED_MOTIVOS`` ya están todos registrados cuando termina el módulo de constantes.
+# BORRADOR: texto nuevo, pendiente de la aprobación de Psicología
+STRUCTURE_FORM = _fixed("La estructura de la sala no tiene la forma esperada.")
+# BORRADOR: texto nuevo, pendiente de la aprobación de Psicología
+STRUCTURE_FIXED = _fixed("La estructura cambia elementos fijos de la sala o la sala no admite piezas.")
 FIXED_MOTIVOS = frozenset(_FIXED)
 _FIELD_NAME = re.compile(r"«[^»]*»")
 
@@ -241,6 +245,7 @@ class SceneOutline:
     advertencia: str
     final: bool
     siguientes: tuple[str, ...]
+    aspecto: str = ""
 
 
 @dataclass(frozen=True)
@@ -265,6 +270,7 @@ class SceneDraft:
     pistas: tuple[str, ...]
     #: ``{personaje, linea}`` y, solo si no están vacíos, ``cuando`` (``dict``), ``emocion`` y ``gesto``.
     comentarios: tuple[dict, ...]
+    estructura: dict | None = None
 
 
 def as_json(draft) -> dict:
@@ -278,7 +284,8 @@ def from_json(cls, data: dict):
         return SkeletonDraft(
             titulo=data["titulo"], contexto=data["contexto"], objetivos=tuple(data["objetivos"]),
             escenas=tuple(
-                SceneOutline(**{**escena, "siguientes": tuple(escena["siguientes"])}) for escena in data["escenas"]
+                SceneOutline(**{**escena, "aspecto": escena.get("aspecto", ""), "siguientes": tuple(escena["siguientes"])})
+                for escena in data["escenas"]
             ),
             hitos=tuple(data["hitos"]), finales=tuple(dict(final) for final in data["finales"]),
         )
@@ -286,7 +293,7 @@ def from_json(cls, data: dict):
         return SceneDraft(
             narracion=data["narracion"], lineas=tuple(dict(x) for x in data["lineas"]),
             opciones=tuple(dict(x) for x in data["opciones"]), pistas=tuple(data["pistas"]),
-            comentarios=tuple(dict(x) for x in data["comentarios"]),
+            comentarios=tuple(dict(x) for x in data["comentarios"]), estructura=data.get("estructura"),
         )
     raise TypeError("from_json solo conoce SkeletonDraft y SceneDraft")
 
@@ -461,13 +468,18 @@ def _outline(c: _Collector, raw, position: int, ctx_rooms: dict) -> SceneOutline
     if not isinstance(raw["final"], bool):
         c.shape("escenas")
     siguientes = c.strings(raw["siguientes"], "escenas")
+    if isinstance(raw["aspecto"], str) and len(raw["aspecto"]) > 200:
+        c.add(_named(TOO_LONG_TEXT, "aspecto de la escena"))
+        aspecto = ""
+    else:
+        aspecto = c.text(raw["aspecto"], 200, "aspecto de la escena")
     return SceneOutline(
         sala=sala,
         titulo=c.text(raw["titulo"], MAX_TITLE, "título de la escena", required=True, revictimizing=_ENCUADRE),
         objetivo=c.text(raw["objetivo"], GOAL_MAX, "objetivo de la escena", required=True, revictimizing=_ENCUADRE),
         persona=persona if isinstance(persona, str) else "",
         intensidad=intensidad, advertencia=advertencia,
-        final=raw["final"] is True, siguientes=tuple(siguientes),
+        final=raw["final"] is True, siguientes=tuple(siguientes), aspecto=aspecto,
     )
 
 
@@ -768,8 +780,35 @@ def validate_scene(raw: dict, sk: SkeletonDraft, clave: str, ctx: dict) -> Scene
         c.add(HINTS_MAX)
     hints = [c.text(hint, MAX_HINT, "pista", required=True, revictimizing=_ENCUADRE) for hint in hints[:schema.MAX_HINTS + 1]]
     comments = _comments(c, raw["comentarios"], room, set(sk.hitos))
+    estructura = None
+    texto = raw["estructura"]
+    if not isinstance(texto, str):
+        c.add(STRUCTURE_FORM)
+    elif texto:
+        try:
+            cambios = json.loads(texto)
+        except (ValueError, RecursionError):
+            c.add(STRUCTURE_FORM)
+        else:
+            plantilla = room.get("estructura")
+            if not isinstance(cambios, dict):
+                c.add(STRUCTURE_FORM)
+            elif set(cambios) - {"momento", "acabados", "piezas"}:
+                c.add(STRUCTURE_FIXED)
+            elif not isinstance(plantilla, dict):
+                c.add(STRUCTURE_FIXED)
+            else:
+                estructura = {**plantilla, **cambios}
+                if siep_check.structure_errors(estructura):
+                    c.add(STRUCTURE_FORM)
+                if any(
+                    (campo in estructura) != (campo in plantilla) or estructura.get(campo) != plantilla.get(campo)
+                    for campo in ("ancho", "propios", "tapetes", "exterior")
+                ):
+                    c.add(STRUCTURE_FIXED)
 
     c.raise_if_any(clave)
     return SceneDraft(
         narracion=narracion, lineas=tuple(lines), opciones=tuple(options), pistas=tuple(hints), comentarios=tuple(comments),
+        estructura=estructura,
     )

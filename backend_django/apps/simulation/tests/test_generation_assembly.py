@@ -60,7 +60,7 @@ _CTX = None
 def _contexto():
     global _CTX
     if _CTX is None:
-        _CTX = context.del_lugar(lugares.cargar_lugar("universidad"), COMPETENCIAS)
+        _CTX = context.del_lugar(lugares.cargar_lugar("universidad", por_piezas=True), COMPETENCIAS)
     return _CTX
 
 
@@ -142,9 +142,9 @@ def test_base_definition_no_deja_filas(rubrica, docente):
     assert [s.key for s in definicion.scenes] == SALAS
 
 
-def test_build_con_el_proveedor_falso_da_un_documento_2_1_valido(base):
+def test_build_con_el_proveedor_falso_da_un_documento_2_2_valido(base):
     doc = to_document(assembly.build(base, _esqueleto(), _escenas()))
-    assert doc["x-siep"]["version"] == "2.1"
+    assert doc["x-siep"]["version"] == "2.2"
     assert [i for i in validate_document(doc) if i.severity == "error"] == []
 
 
@@ -204,9 +204,11 @@ def test_assemble_importa_y_marca_todo_lo_sugerido(rubrica, docente):
     r = assembly.assemble(generacion(docente, escenas), docente)
     assert r.result == "imported" and r.case_version_id
     version = CaseVersion.objects.get(pk=r.case_version_id)
+    mapas = SceneMap.objects.filter(case_version=version)
+    assert mapas.count() == len(SALAS) and all(mapa.structure for mapa in mapas)
     assert version.status == "DRAFT" and version.simulation_case.created_by_id == docente.id
     assert marcadas(version) == total_a_marcar(sk, escenas)
-    assert r.document["x-siep"]["version"] == "2.1"
+    assert r.document["x-siep"]["version"] == "2.2"
 
 
 def test_mark_ai_suggested_devuelve_cuantas_partes_marco(rubrica, docente):
@@ -264,7 +266,7 @@ def test_con_error_de_forma_sin_rondas_falla_y_no_crea_nada(rubrica, docente, mo
     r = assembly.assemble(gen, docente)
     assert r.result == "failed" and r.case_version_id is None
     assert [i["code"] for i in r.issues] == ["DSL.FORMA"]
-    assert r.document["x-siep"]["version"] == "2.1"
+    assert r.document["x-siep"]["version"] == "2.2"
     assert contar_filas() == antes
 
 

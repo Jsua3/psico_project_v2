@@ -88,6 +88,7 @@ class CaseLugarRequest(serializers.Serializer):
             "max_length": "El lugar no existe en la biblioteca.",
         },
     )
+    porPiezas = serializers.BooleanField(required=False, default=False)
     salas = serializers.ListField(
         child=_TextoEstricto(
             max_length=60,

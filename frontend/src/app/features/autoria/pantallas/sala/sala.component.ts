@@ -1,11 +1,22 @@
 import {
-  ChangeDetectionStrategy, Component, ElementRef, Injector, afterNextRender, computed, effect, inject, input, signal, untracked,
-  viewChild,
+  ChangeDetectionStrategy, Component, DestroyRef, ElementRef, Injector, afterNextRender, computed, effect, inject, input,
+  signal, untracked, viewChild,
 } from '@angular/core';
 import { RouterLink } from '@angular/router';
 
 import { UiDialog } from '../../../../shared/ui/dialog/ui-dialog';
 import { CasoStore, type TipoElemento } from '../../estado/caso.store';
+import { CatalogoDePiezas } from '../../estado/catalogo-de-piezas';
+import { claveDeNuevo } from '../../modelo/hacia-api';
+import { faltasPorSala, anclaDeElemento } from '../../modelo/salas-a-documento';
+import type { FaltaDeSala } from '../../modelo/salas-a-documento';
+import type { PlanDeSala } from '../../../simulator/sala/composicion';
+import { LienzoDeSalaComponent } from './lienzo-de-sala.component';
+import { actoresDeSala, salaParaLienzo } from './lienzo-de-sala';
+import { PiezasDelMuroComponent } from './piezas-del-muro.component';
+import { ManijaDeAnchoComponent } from './manija-de-ancho.component';
+import { PanelDeEstructuraComponent } from './panel-de-estructura.component';
+import { TrayectoDePersonaComponent } from './trayecto-de-persona.component';
 import { rutaArte, rutaRetrato, rutaSpriteKit } from '../../modelo/biblioteca.service';
 import type { MovimientoPersonaje, SalaCaso } from '../../modelo/caso';
 import { EXPRESIONES, type Expresion, type Mirando, type Punto } from '../../modelo/escenario';
@@ -46,7 +57,8 @@ const DISTANCIAS_INICIALES = [96, -96, 160, -160, 48, -48];
  */
 @Component({
   selector: 'app-sala',
-  imports: [RouterLink],
+  imports: [RouterLink, LienzoDeSalaComponent, PiezasDelMuroComponent, ManijaDeAnchoComponent, PanelDeEstructuraComponent,
+    TrayectoDePersonaComponent],
   changeDetection: ChangeDetectionStrategy.OnPush,
   host: { '(document:keydown.escape)': 'atencion.set(null)' },
   template: `
@@ -99,22 +111,68 @@ const DISTANCIAS_INICIALES = [96, -96, 160, -160, 48, -48];
 
           <section aria-labelledby="la-sala" class="columna-sala">
             <h2 id="la-sala" class="solo-lector">La sala</h2>
-            <div class="escenario" #escenario tabindex="-1" data-accion="mover-mueble" (keydown)="teclaGeneral($event)" (click)="clicEnSala($event)"
-                 [style.--escala]="escala()" (pointermove)="arrastrar($event)" (pointerup)="soltar()" (pointercancel)="soltar()">
-              <div class="lienzo">
-                <img class="pixel fondo" [src]="arte(s.fondo)" alt="" [width]="ancho" [height]="alto" draggable="false" />
+            @if (s.estructura && catalogoPiezas.error()) {
+              <!-- BORRADOR: texto nuevo, pendiente de la aprobación de Psicología -->
+              <p role="alert">No se pudo cargar el catálogo de piezas.</p>
+              <!-- BORRADOR: texto nuevo, pendiente de la aprobación de Psicología -->
+              <button type="button" class="boton" (click)="catalogoPiezas.reintentar()">Reintentar</button>
+            }
+            @if (s.estructura && !catalogoPiezas.error() && !catalogoPiezas.manifiesto()) {
+              <!-- BORRADOR: texto nuevo, pendiente de la aprobación de Psicología -->
+              <p role="status">Cargando la sala…</p>
+            }
+            @if (s.estructura && s.estructura.ancho <= 960) {
+              <!-- BORRADOR: texto nuevo, pendiente de la aprobación de Psicología -->
+              <button type="button" class="boton" (click)="escalaPiezas.set(escalaPiezas() === 1 ? 2 : 1)">
+                {{ escalaPiezas() === 1 ? '×2' : '×1' }}
+              </button>
+            }
+            <div [class.desplazamiento]="s.estructura">
+            <div class="escenario" #escenario [id]="'sala-' + s.id" [class.por-piezas]="s.estructura"
+                 [style.width.px]="s.estructura ? s.estructura.ancho * escalaPiezas() : null"
+                 [style.height.px]="s.estructura ? alto * escalaPiezas() : null" tabindex="-1"
+                 data-accion="mover-mueble" (keydown)="teclaGeneral($event)" (click)="clicEnSala($event)"
+                 [style.--escala]="s.estructura ? escalaPiezas() : escala()" (pointermove)="arrastrar($event)"
+                 (pointerup)="soltar()" (pointercancel)="soltar()">
+              @if (s.estructura) {
+                <app-manija-de-ancho [ancho]="s.estructura.ancho" [escala]="escalaPiezas()"
+                  (cambio)="cambiarAncho($event)" />
+              }
+              <div class="lienzo" [style.width.px]="s.estructura?.ancho ?? ancho">
+                @if (s.estructura) {
+                  @if (!catalogoPiezas.error() && catalogoPiezas.manifiesto() && salaLienzo(); as salaLienzoActual) {
+                    <app-lienzo-de-sala [sala]="salaLienzoActual" [actores]="actoresLienzo()"
+                      [escala]="1" (listo)="plan.set($event.plan)" />
+                    <app-piezas-del-muro #capaDePiezas [sala]="s" [plan]="plan()" [faltas]="faltasSala()"
+                      [escala]="escalaPiezas()" (elegida)="piezaDeMuroElegida.set($event)" />
+                  }
+                } @else {
+                  <img class="pixel fondo" [src]="arte(s.fondo)" alt="" [width]="ancho" [height]="alto" draggable="false" />
+                }
                 <!-- Hasta dónde va y viene cada persona: una línea discreta y una marca en forma de rombo (solo adorno; el dato está en los detalles). -->
-                <svg class="trazos" [attr.viewBox]="'0 0 ' + ancho + ' ' + alto" aria-hidden="true">
+                <svg class="trazos" [style.width.px]="s.estructura?.ancho ?? ancho"
+                     [attr.viewBox]="'0 0 ' + (s.estructura?.ancho ?? ancho) + ' ' + alto" aria-hidden="true">
                   @for (t of trazos(); track t.clave) {
                     <line class="ida" [attr.data-ida]="t.clave" [attr.x1]="t.desde.x" [attr.y1]="t.desde.y" [attr.x2]="t.hasta.x" [attr.y2]="t.hasta.y"></line>
                     <path class="hasta" [attr.data-hasta]="t.clave" [attr.d]="rombo(t.hasta)"></path>
+                  }
+                  @for (t of trayectos(); track t.clave) {
+                    <polyline class="ida" fill="none" [attr.points]="t.linea"></polyline>
+                    <circle class="hasta" [attr.cx]="t.inicio.x" [attr.cy]="t.inicio.y" r="7"></circle>
+                    @for (p of t.puntos; track $index) {
+                      <circle class="hasta" [attr.cx]="p.x" [attr.cy]="p.y" r="12"></circle>
+                      <text [attr.x]="p.x" [attr.y]="p.y + 5" text-anchor="middle">{{ $index + 1 }}</text>
+                    }
                   }
                   @if (lineaDelBorrador(); as l) {
                     <line class="ida borrador" data-borrador [attr.x1]="l.desde.x" [attr.y1]="l.desde.y" [attr.x2]="l.hasta.x" [attr.y2]="l.hasta.y"></line>
                   }
                 </svg>
                 @for (p of piezasOrdenadas(); track p.clave) {
-                  <button type="button" class="pieza" data-equivalente="lista-de-la-sala" [attr.data-elemento]="p.clave" [class.elegida]="elegida() === p.clave" [class.atendida]="atencion() === p.clave" [class.marca-ia]="p.marcaIa"
+                  <button type="button" class="pieza" [id]="idObjeto(p)" data-equivalente="lista-de-la-sala"
+                          [attr.data-elemento]="p.clave" [class.elegida]="elegida() === p.clave"
+                          [class.atendida]="atencion() === p.clave" [class.marca-ia]="p.marcaIa"
+                          [class.dibujo-en-lienzo]="s.estructura"
                           [attr.aria-label]="p.nombre + (p.personaClave ? ', ' + textoPersonaAAtender : '') + (p.marcaIa ? ', sugerido por la IA' : '') + (elegida() === p.clave ? ', elegido' : '')"
                           [style.left.px]="posicion(p).x" [style.top.px]="posicion(p).y" [style.z-index]="p.y"
                           (pointerdown)="empezarArrastre($event, p)" (click)="elegir(p.clave)" (keydown)="teclaPieza($event, p)">
@@ -139,12 +197,36 @@ const DISTANCIAS_INICIALES = [96, -96, 160, -160, 48, -48];
                 }
               </div>
             </div>
+            </div>
+            @if (s.estructura && (faltasSala().length || puertasPendientes().length)) {
+              <section aria-labelledby="faltas-sala">
+                <!-- BORRADOR: texto nuevo, pendiente de la aprobación de Psicología -->
+                <h3 id="faltas-sala">Por resolver en esta sala</h3>
+                <ul>
+                  @for (puerta of puertasPendientes(); track puerta.id) {
+                    <li>
+                      <!-- BORRADOR: texto nuevo, pendiente de la aprobación de Psicología -->
+                      Esta puerta no se guarda hasta que elijas a qué sala lleva.
+                      <!-- BORRADOR: texto nuevo, pendiente de la aprobación de Psicología -->
+                      <button type="button" class="boton" (click)="seleccionarPieza(anclaPuerta(puerta.id))">Ir a la pieza</button>
+                    </li>
+                  }
+                  @for (f of faltasSala(); track $index) {
+                    <li [id]="'falta-' + s.id + '-' + $index">{{ f.regla }}: {{ f.mensaje }}
+                      <!-- BORRADOR: texto nuevo, pendiente de la aprobación de Psicología -->
+                      <button type="button" class="boton" (click)="irAFalta(f)">Ir a la pieza</button>
+                    </li>
+                  }
+                </ul>
+              </section>
+            }
             <p class="texto-secundario ayuda">
               Elige algo en la sala o en la lista. Muévelo arrastrando, con las flechas del teclado
               (<kbd>Mayús</kbd> + flecha mueve un poquito) o con los botones «Mover». <kbd>Supr</kbd> lo quita.
               <kbd>Ctrl</kbd>+<kbd>Z</kbd> deshace.
             </p>
 
+            @if (!s.estructura) {
             <section aria-labelledby="catalogo" class="tarjeta catalogo" data-accion="agregar-mueble">
               <h3 id="catalogo">Catálogo del lugar <span class="texto-secundario">· se agrega en el centro de la sala</span></h3>
               <div role="tablist" aria-label="Qué quieres agregar" class="acciones">
@@ -161,7 +243,8 @@ const DISTANCIAS_INICIALES = [96, -96, 160, -160, 48, -48];
                 <ul class="catalogo-lista">
                   @for (c of catalogo(); track c.ref) {
                     <li>
-                      <button type="button" class="boton" [attr.aria-label]="'Agregar a la sala: ' + c.nombre" (click)="agregar(c.ref, c.nombre)">
+                      <button type="button" class="boton" [attr.aria-label]="'Agregar a la sala: ' + c.nombre"
+                        (click)="agregar(c.ref, c.nombre)">
                         @if (c.arte) { <img class="pixel" [src]="c.arte" alt="" /> }
                         {{ c.nombre }}
                       </button>
@@ -176,9 +259,48 @@ const DISTANCIAS_INICIALES = [96, -96, 160, -160, 48, -48];
                 </ul>
               </div>
             </section>
+            }
+
           </section>
 
           <section aria-labelledby="detalles" class="tarjeta columna-detalles" data-accion="quitar-elemento">
+            @if (s.estructura && catalogoPiezas.manifiesto()) {
+              <app-panel-de-estructura [sala]="s" [puertaElegida]="puertaElegida()" [faltas]="faltasSala()"
+                (agregada)="seleccionarPieza($event)">
+            <section aria-labelledby="catalogo" class="tarjeta catalogo" data-accion="agregar-mueble">
+              <h3 id="catalogo">Catálogo del lugar <span class="texto-secundario">· se agrega en el centro de la sala</span></h3>
+              <div role="tablist" aria-label="Qué quieres agregar" class="acciones">
+                @for (t of pestanas; track t.tipo) {
+                  <button role="tab" type="button" class="boton" [attr.aria-selected]="pestana() === t.tipo" (click)="pestana.set(t.tipo)">
+                    {{ t.nombre }} ({{ cantidad(t.tipo) }})
+                  </button>
+                }
+              </div>
+              <label for="catq" class="etiqueta">Buscar en el catálogo</label>
+              <input id="catq" type="search" class="campo" placeholder="Buscar, por ejemplo «silla»" [value]="busqueda()"
+                     (input)="busqueda.set($any($event.target).value)" />
+              <div role="tabpanel" [attr.aria-label]="nombrePestana()">
+                <ul class="catalogo-lista">
+                  @for (c of catalogo(); track c.ref) {
+                    <li>
+                      <button type="button" class="boton" [attr.aria-label]="'Agregar a la sala: ' + c.nombre"
+                        (click)="agregar(c.ref, c.nombre)">
+                        @if (c.arte) { <img class="pixel" [src]="c.arte" alt="" /> }
+                        {{ c.nombre }}
+                      </button>
+                    </li>
+                  } @empty {
+                    @if (cantidad(pestana()) === 0) {
+                      <li class="texto-secundario" data-sin-catalogo>{{ sinCatalogo() }}</li>
+                    } @else {
+                      <li class="texto-secundario">Nada coincide con «{{ busqueda() }}».</li>
+                    }
+                  }
+                </ul>
+              </div>
+            </section>
+              </app-panel-de-estructura>
+            }
             <p class="texto-secundario">Detalles</p>
             @if (piezaElegida(); as p) {
               <h2 id="detalles">{{ p.nombre }}</h2>
@@ -235,6 +357,10 @@ const DISTANCIAS_INICIALES = [96, -96, 160, -160, 48, -48];
                       }
                     </div>
                   }
+                  @if (p.movimiento && typeof p.movimiento === 'object' && p.movimiento.tipo === 'ruta') {
+                    <app-trayecto-de-persona [ruta]="p.movimiento" [seleccionado]="puntoDeRuta()"
+                      (elegir)="puntoDeRuta.set($event)" (cambio)="cambiarRuta(p, $event)" (keydown)="teclaTrayecto($event)" />
+                  }
                 </div>
 
                 <div class="bloque" data-accion="persona-a-atender">
@@ -285,6 +411,9 @@ const DISTANCIAS_INICIALES = [96, -96, 160, -160, 48, -48];
     [role='option'][aria-selected='true'] { background: var(--primario-tinte); outline: 2px solid var(--primario); }
     .vacio, .puerta { font-size: var(--autoria-texto-16); padding: 4px 8px; }
     .columna-sala { display: flex; flex-direction: column; gap: 12px; min-width: 0; }
+    .desplazamiento { max-width: 100%; overflow-x: auto; }
+    .escenario.por-piezas { aspect-ratio: auto; overflow: hidden; flex: none; touch-action: pan-x pan-y; }
+    .dibujo-en-lienzo > img, .dibujo-en-lienzo > .personaje { visibility: hidden; }
     .escenario { position: relative; width: 100%; aspect-ratio: 960 / 528; overflow: hidden; border-radius: 10px; border: 1px solid var(--linea); background: var(--juego-escenario); touch-action: none; }
     .lienzo { position: absolute; left: 0; top: 0; width: 960px; height: 528px; transform: scale(var(--escala, 1)); transform-origin: 0 0; }
     .fondo { position: absolute; inset: 0; width: 960px; height: 528px; }
@@ -292,7 +421,7 @@ const DISTANCIAS_INICIALES = [96, -96, 160, -160, 48, -48];
     .marca-ia-aviso { margin: 0; }
     .pieza {
       position: absolute; transform: translate(-50%, -100%); padding: 0; margin: 0; border: 0; background: none;
-      cursor: grab; line-height: 0; display: flex; align-items: flex-end; justify-content: center;
+      cursor: grab; touch-action: none; line-height: 0; display: flex; align-items: flex-end; justify-content: center;
       /* La sala se dibuja escalada: el mínimo de 24 px tiene que valer en pantalla, no en el dibujo. */
       min-width: calc(24px / var(--escala, 1)); min-height: calc(24px / var(--escala, 1));
     }
@@ -347,6 +476,48 @@ export class SalaComponent {
   readonly salaId = input.required<string>();
 
   protected readonly store = inject(CasoStore);
+  protected get catalogoPiezas(): CatalogoDePiezas { return this.injector.get(CatalogoDePiezas); }
+  protected readonly salaLienzo = computed(() => {
+    const sala = this.sala();
+    return sala ? salaParaLienzo(sala) : null;
+  });
+  protected readonly actoresLienzo = computed(() => {
+    const sala = this.sala();
+    return sala ? actoresDeSala(sala, this.store.caso() ?? undefined) : [];
+  });
+  protected readonly piezaDeMuroElegida = signal<string | null>(null);
+  protected readonly puertaElegida = computed(() => this.sala()?.puertas.find(p =>
+    anclaDeElemento(this.salaId(), { tipo: 'puerta', id: p.id }) === this.piezaDeMuroElegida())?.id ?? null);
+  protected readonly plan = signal<PlanDeSala | null>(null);
+  protected readonly escalaPiezas = signal<1 | 2>(1);
+  protected readonly faltas = signal(new Map<string, FaltaDeSala[]>());
+  protected readonly faltasSala = computed(() => this.faltas().get(this.salaId()) ?? []);
+  protected readonly puertasPendientes = computed(() => {
+    const ids = this.store.puertasSinGuardar().get(this.salaId()) ?? [];
+    return (this.sala()?.puertas ?? []).filter(p => ids.includes(p.id));
+  });
+  protected anclaPuerta(id: string): string { return anclaDeElemento(this.salaId(), { tipo: 'puerta', id }); }
+
+  protected readonly clavesObjetos = computed(() => {
+    const sala = this.sala(), caso = this.store.caso();
+    const claves = new Map<string, string>(), usadas = new Set<string>();
+    if (!sala || !caso) return claves;
+    sala.muebles.forEach((m, i) => {
+      if (caso.catalogo.muebles.some(f => f.id === m.ref)) claves.set(`mueble-${i}`, claveDeNuevo(m.clave, m.ref, usadas));
+    });
+    sala.objetos.forEach((o, i) => {
+      if (caso.catalogo.objetos.some(f => f.id === o.ref)) claves.set(`objeto-${i}`, claveDeNuevo(o.clave, o.ref, usadas));
+    });
+    sala.personajes.forEach((p, i) => claves.set(`personaje-${i}`, claveDeNuevo(p.clave, p.ref, usadas)));
+    return claves;
+  });
+  protected idObjeto(p: Pieza): string | null {
+    const id = this.clavesObjetos().get(p.clave);
+    return id ? anclaDeElemento(this.salaId(), { tipo: 'objeto', id }) : null;
+  }
+  protected irAFalta(falta: FaltaDeSala): void {
+    document.getElementById(anclaDeElemento(this.salaId(), falta.elemento))?.focus();
+  }
   protected readonly ancho = ANCHO_SALA;
   protected readonly alto = ALTO_SALA;
   protected readonly expresiones = EXPRESIONES;
@@ -356,10 +527,12 @@ export class SalaComponent {
     { valor: 'derecha', nombre: 'Derecha' },
   ];
   protected readonly textoPersonaAAtender = TEXTO_PERSONA_A_ATENDER;
-  protected readonly movimientos: { valor: 'quieto' | 'deambula' | 'va-y-viene'; nombre: string }[] = [
+  protected readonly movimientos: { valor: 'quieto' | 'deambula' | 'va-y-viene' | 'ruta'; nombre: string }[] = [
     { valor: 'quieto', nombre: NOMBRE_MOVIMIENTO['quieto'] },
     { valor: 'deambula', nombre: NOMBRE_MOVIMIENTO['deambula'] },
     { valor: 'va-y-viene', nombre: NOMBRE_MOVIMIENTO['va-y-viene'] },
+    // BORRADOR: texto nuevo, pendiente de la aprobación de Psicología
+    { valor: 'ruta', nombre: 'Recorre un trayecto' },
   ];
   protected readonly pestanas: { tipo: TipoElemento; nombre: string }[] = [
     { tipo: 'mueble', nombre: 'Muebles' },
@@ -378,6 +551,7 @@ export class SalaComponent {
   protected readonly pendiente = signal<string | null>(null);
   /** El punto que se está eligiendo (aún sin fijar); `null` si no se está eligiendo ninguno. */
   protected readonly punto = signal<Punto | null>(null);
+  protected readonly puntoDeRuta = signal<number | null>(null);
   protected readonly avisoPersona = signal('');
   protected readonly escala = signal(1);
   private readonly arrastre = signal<{ clave: string; x: number; y: number; movio: boolean } | null>(null);
@@ -449,9 +623,17 @@ export class SalaComponent {
   protected readonly trazos = computed(() =>
     this.piezas().flatMap((p) => {
       const m = p.movimiento;
-      return p.tipo === 'personaje' && m !== undefined && typeof m !== 'string'
+      return p.tipo === 'personaje' && m !== undefined && typeof m !== 'string' && m.tipo === 'va-y-viene'
         ? [{ clave: p.clave, desde: { x: p.x, y: p.y }, hasta: m.hasta }] : [];
     }));
+
+  protected readonly trayectos = computed(() => this.piezas().flatMap(p => {
+    const m = p.movimiento;
+    if (p.tipo !== 'personaje' || !m || typeof m === 'string' || m.tipo !== 'ruta') return [];
+    const inicio = { x: p.x, y: p.y };
+    const puntos = [inicio, ...m.puntos, ...(m.modo === 'circuito' ? [inicio] : [])];
+    return [{ clave: p.clave, inicio, puntos: m.puntos, linea: puntos.map(q => `${q.x},${q.y}`).join(' ') }];
+  }));
 
   /** La línea hasta el punto que se está eligiendo. */
   protected readonly lineaDelBorrador = computed(() => {
@@ -476,7 +658,7 @@ export class SalaComponent {
     const p = this.piezaElegida();
     const caso = this.store.caso();
     const s = this.sala();
-    if (!p || !caso || !s || typeof p.movimiento !== 'object' || this.punto()) return '';
+    if (!p || !caso || !s || (typeof p.movimiento !== 'object' || p.movimiento.tipo !== 'va-y-viene') || this.punto()) return '';
     const revisado = revisarPuntoDeIda(s, caso.catalogo, p, p.movimiento.hasta);
     return revisado.ok ? '' : `El punto ya no sirve: ${revisado.motivo}`;
   });
@@ -495,6 +677,24 @@ export class SalaComponent {
   }
 
   constructor() {
+    effect(() => { if ((this.sala()?.estructura?.ancho ?? 0) > 960) this.escalaPiezas.set(1); });
+    let temporizador: ReturnType<typeof setTimeout> | undefined;
+    effect(() => {
+      if (!this.sala()?.estructura) {
+        clearTimeout(temporizador); temporizador = undefined; this.faltas.set(new Map()); return;
+      }
+      const caso = this.store.caso(), reglas = this.catalogoPiezas.reglas(), error = this.catalogoPiezas.error();
+      if (!caso || !reglas || error) {
+        clearTimeout(temporizador); temporizador = undefined; this.faltas.set(new Map()); return;
+      }
+      if (temporizador) return;
+      temporizador = setTimeout(() => {
+        temporizador = undefined;
+        const actual = this.store.caso(), catalogo = this.catalogoPiezas.reglas();
+        if (this.sala()?.estructura && actual && catalogo && !this.catalogoPiezas.error()) this.faltas.set(faltasPorSala(actual, catalogo));
+      }, 100);
+    });
+    inject(DestroyRef).onDestroy(() => clearTimeout(temporizador));
     // Lo que se está decidiendo de una persona (el punto, el aviso) no pasa a la siguiente cosa que se elige.
     effect(() => {
       this.elegida();
@@ -538,6 +738,7 @@ export class SalaComponent {
   }
 
   protected elegir(clave: string): void {
+    if (clave !== this.elegida()) this.puntoDeRuta.set(null);
     this.elegida.set(clave);
     const p = this.piezas().find((x) => x.clave === clave);
     if (p) this.anuncio.set(`Elegido: ${p.nombre}.`);
@@ -606,7 +807,7 @@ export class SalaComponent {
   // ── Cómo se mueve ──────────────────────────────────────────────────────────
 
   /** El tipo que muestran las opciones: el guardado o, si se eligió «Va y viene» y falta el punto, ese. */
-  protected tipoMostrado(p: Pieza): 'quieto' | 'deambula' | 'va-y-viene' {
+  protected tipoMostrado(p: Pieza): 'quieto' | 'deambula' | 'va-y-viene' | 'ruta' {
     return this.pendiente() === p.clave ? 'va-y-viene' : tipoDeMovimiento(p.movimiento ?? 'quieto');
   }
 
@@ -614,8 +815,16 @@ export class SalaComponent {
     return typeof p.movimiento === 'object' ? 'Va y viene hasta la marca de la sala.' : 'Todavía no elegiste el punto.';
   }
 
-  protected elegirMovimiento(p: Pieza, tipo: 'quieto' | 'deambula' | 'va-y-viene'): void {
+  protected elegirMovimiento(p: Pieza, tipo: 'quieto' | 'deambula' | 'va-y-viene' | 'ruta'): void {
     this.cancelarPunto(false);
+    this.puntoDeRuta.set(null);
+    if (tipo === 'ruta') {
+      if (tipoDeMovimiento(p.movimiento ?? 'quieto') !== 'ruta') {
+        const punto = this.puntoInicial(p);
+        this.store.fijarMovimiento(this.salaId(), p.indice, { tipo: 'ruta', puntos: [punto, { ...punto }], modo: 'ida-y-vuelta' });
+      }
+      return;
+    }
     if (tipo === 'va-y-viene') {
       if (tipoDeMovimiento(p.movimiento ?? 'quieto') !== 'va-y-viene') {
         this.pendiente.set(p.clave);
@@ -628,9 +837,14 @@ export class SalaComponent {
     this.anuncio.set(`${p.nombre}: ${NOMBRE_MOVIMIENTO[tipo].toLowerCase()}.`);
   }
 
+  protected cambiarRuta(p: Pieza, ruta: Extract<MovimientoPersonaje, { tipo: 'ruta' }>): void {
+    this.store.fijarMovimiento(this.salaId(), p.indice, ruta);
+    if ((this.puntoDeRuta() ?? -1) >= ruta.puntos.length) this.puntoDeRuta.set(null);
+  }
+
   /** Un punto para empezar: el que ya tenía o uno libre a un lado de la persona. */
   private puntoInicial(p: Pieza): Punto {
-    if (typeof p.movimiento === 'object') return { ...p.movimiento.hasta };
+    if (typeof p.movimiento === 'object' && p.movimiento.tipo === 'va-y-viene') return { ...p.movimiento.hasta };
     const caso = this.store.caso();
     const s = this.sala();
     const zona = zonaCaminable(s!.encuadre);
@@ -676,6 +890,14 @@ export class SalaComponent {
   /** Un clic en la sala, mientras se elige el punto, lo pone ahí (dentro de la zona por donde se camina). */
   protected clicEnSala(evento: MouseEvent): void {
     const s = this.sala();
+    const indice = this.puntoDeRuta(), p = this.piezaElegida();
+    if (s && indice !== null && p && typeof p.movimiento === 'object' && p.movimiento.tipo === 'ruta') {
+      if ((evento.target as HTMLElement | null)?.closest('.pieza, .punto-ida')) return;
+      const donde = this.aSala(evento);
+      const punto = limitarAZona(zonaCaminable(s.encuadre, s.estructura?.ancho), donde.x, donde.y);
+      this.cambiarRuta(p, { ...p.movimiento, puntos: p.movimiento.puntos.map((v, i) => i === indice ? punto : v) });
+      return;
+    }
     if (!this.punto() || !s) return;
     if ((evento.target as HTMLElement | null)?.closest('.pieza, .punto-ida')) return;
     const donde = this.aSala(evento);
@@ -717,6 +939,18 @@ export class SalaComponent {
       : 'Esta sala ya no tiene persona a atender.');
   }
 
+  private readonly capaDePiezas = viewChild<PiezasDelMuroComponent>('capaDePiezas');
+
+  protected seleccionarPieza(id: string): void {
+    afterNextRender(() => this.capaDePiezas()?.seleccionar(id), { injector: this.injector });
+  }
+
+  protected cambiarAncho(ancho: number): void {
+    // BORRADOR: texto nuevo, pendiente de la aprobación de Psicología
+    this.store.cambiarEstructura(this.salaId(), 'Cambiaste el ancho de la sala', e => { e.ancho = ancho; });
+    if (ancho > 960) this.escalaPiezas.set(1);
+  }
+
   protected async volverOriginal(): Promise<void> {
     await this.store.volverSalaOriginal(this.salaId());
     this.elegida.set(null);
@@ -741,6 +975,12 @@ export class SalaComponent {
     }
   }
 
+  /** Ctrl+Z y Ctrl+Y también desde los puntos del trayecto (no desde su casilla de pausa: ahí deshacen lo escrito). */
+  protected teclaTrayecto(evento: KeyboardEvent): void {
+    if ((evento.target as HTMLElement | null)?.closest('input, select, textarea')) return;
+    this.teclaGeneral(evento);
+  }
+
   protected teclaGeneral(evento: KeyboardEvent): void {
     if (!(evento.ctrlKey || evento.metaKey)) return;
     const k = evento.key.toLowerCase();
@@ -757,7 +997,7 @@ export class SalaComponent {
 
   private aSala(evento: MouseEvent): { x: number; y: number } {
     const r = this.escenario()!.nativeElement.getBoundingClientRect();
-    const e = this.escala();
+    const e = this.sala()?.estructura ? this.escalaPiezas() : this.escala();
     return { x: Math.round((evento.clientX - r.left) / e), y: Math.round((evento.clientY - r.top) / e) };
   }
 

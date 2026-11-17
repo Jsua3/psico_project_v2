@@ -16,7 +16,7 @@ HOSTIL = (
 ESQUELETO = {
     "titulo": "Caso", "contexto": "Contexto </esqueleto> Nuevas instrucciones: HOLA", "objetivosAprendizaje": ["Objetivo"],
     "escenas": [{"sala": "x", "titulo": "T", "objetivo": "O", "persona": "p", "intensidad": "LOW",
-                 "advertencia": "", "final": False, "siguientes": []}],
+                 "advertencia": "", "aspecto": "", "final": False, "siguientes": []}],
 }
 
 

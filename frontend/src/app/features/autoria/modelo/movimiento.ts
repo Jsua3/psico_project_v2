@@ -24,12 +24,38 @@ const DISTANCIA_MINIMA_PX = 24;
 
 const esCoordenada = (valor: unknown): valor is number => typeof valor === 'number' && Number.isFinite(valor);
 
+/** Valida la forma que entiende el juego antes de editarla. */
+export function revisarTrayecto(m: { puntos: unknown; modo: unknown; pausaMs?: unknown }): string[] {
+  const errores: string[] = [];
+  const numero = (v: unknown) => esCoordenada(v) && Math.abs(v) <= 1_000_000;
+  if (!Array.isArray(m.puntos) || m.puntos.length < 2 || m.puntos.length > 8 || m.puntos.some((p: unknown) => {
+    if (!p || typeof p !== 'object' || Array.isArray(p)) return true;
+    const punto = p as Record<string, unknown>;
+    return !numero(punto['x']) || !numero(punto['y']);
+  })) {
+    // BORRADOR: texto nuevo, pendiente de la aprobación de Psicología
+    errores.push('El trayecto necesita entre 2 y 8 puntos con coordenadas válidas.');
+  }
+  // BORRADOR: texto nuevo, pendiente de la aprobación de Psicología
+  if (m.modo !== 'circuito' && m.modo !== 'ida-y-vuelta') errores.push('Elige un modo de recorrido válido.');
+  if ('pausaMs' in m && (typeof m.pausaMs !== 'number' || !Number.isInteger(m.pausaMs) || m.pausaMs < 0 || m.pausaMs > 10000)) {
+    // BORRADOR: texto nuevo, pendiente de la aprobación de Psicología
+    errores.push('La pausa debe ser un número entero entre 0 y 10000 milisegundos.');
+  }
+  return errores;
+}
+
 /** Lee `metadata.movimiento`. Ausente, desconocido o mal formado es «quieto»; nunca lanza. */
 export function movimientoDeMetadata(crudo: unknown): MovimientoPersonaje {
   if (crudo === 'deambula') return 'deambula';
   if (crudo === 'quieto' || crudo === null || typeof crudo !== 'object' || Array.isArray(crudo)) return 'quieto';
   const registro = crudo as Record<string, unknown>;
   if (registro['tipo'] === 'deambula') return 'deambula';
+  if (registro['tipo'] === 'ruta' && !revisarTrayecto(registro as { puntos: unknown; modo: unknown; pausaMs?: unknown }).length) {
+    return { tipo: 'ruta', puntos: (registro['puntos'] as Punto[]).map(({ x, y }) => ({ x, y })),
+      modo: registro['modo'] as 'circuito' | 'ida-y-vuelta',
+      ...('pausaMs' in registro ? { pausaMs: registro['pausaMs'] as number } : {}) };
+  }
   if (registro['tipo'] === 'va-y-viene') {
     const hasta = registro['hasta'];
     if (hasta && typeof hasta === 'object') {
@@ -41,21 +67,25 @@ export function movimientoDeMetadata(crudo: unknown): MovimientoPersonaje {
 }
 
 /** Lo que se escribe en `metadata.movimiento`. */
-export function movimientoAMetadata(movimiento: MovimientoPersonaje): 'quieto' | 'deambula' | { tipo: 'va-y-viene'; hasta: Punto } {
-  return typeof movimiento === 'string' ? movimiento : { tipo: 'va-y-viene', hasta: { x: movimiento.hasta.x, y: movimiento.hasta.y } };
+export function movimientoAMetadata(movimiento: MovimientoPersonaje): MovimientoPersonaje {
+  if (typeof movimiento === 'string') return movimiento;
+  if (movimiento.tipo === 'ruta') return { tipo: 'ruta', puntos: movimiento.puntos.map(({ x, y }) => ({ x, y })),
+    modo: movimiento.modo, ...(movimiento.pausaMs !== undefined ? { pausaMs: movimiento.pausaMs } : {}) };
+  return { tipo: 'va-y-viene', hasta: { ...movimiento.hasta } };
 }
 
 export function mismoMovimiento(a: MovimientoPersonaje, b: MovimientoPersonaje): boolean {
   if (typeof a === 'string' || typeof b === 'string') return a === b;
-  return a.hasta.x === b.hasta.x && a.hasta.y === b.hasta.y;
+  if (a.tipo !== b.tipo) return false;
+  if (a.tipo === 'ruta' && b.tipo === 'ruta') return a.modo === b.modo && a.pausaMs === b.pausaMs &&
+    a.puntos.length === b.puntos.length && a.puntos.every((p, i) => p.x === b.puntos[i].x && p.y === b.puntos[i].y);
+  return a.tipo === 'va-y-viene' && b.tipo === 'va-y-viene' && a.hasta.x === b.hasta.x && a.hasta.y === b.hasta.y;
 }
 
-/** El nombre de lo que dice un movimiento: «quieto», «deambula» o «va-y-viene». */
-export function tipoDeMovimiento(movimiento: MovimientoPersonaje): 'quieto' | 'deambula' | 'va-y-viene' {
+/** El nombre técnico del movimiento. */
+export function tipoDeMovimiento(movimiento: MovimientoPersonaje): 'quieto' | 'deambula' | 'va-y-viene' | 'ruta' {
   return typeof movimiento === 'string' ? movimiento : movimiento.tipo;
 }
-
-// ─── El punto hasta donde va y viene ─────────────────────────────────────────────
 
 interface Huella {
   nombre: string;

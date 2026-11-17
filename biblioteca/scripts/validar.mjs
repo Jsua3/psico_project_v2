@@ -163,13 +163,13 @@ export function lugarDeEsquema(escenario, rutaJson) {
  * @returns {Promise<{ errores: Hallazgo[], avisos: Hallazgo[] }>}
  *   con Hallazgo = { codigo, donde, mensaje }
  */
-export async function validarEscenario(dir, { kitDir = KIT_POR_DEFECTO, catalogoModelos = CATALOGO_MODELOS } = {}) {
+export async function validarEscenario(dir, { kitDir = KIT_POR_DEFECTO, catalogoModelos = CATALOGO_MODELOS, archivoNombre = 'escenario.json' } = {}) {
   const errores = [];
   const avisos = [];
   const error = (codigo, donde, mensaje) => errores.push({ codigo, donde, mensaje });
   const aviso = (codigo, donde, mensaje) => avisos.push({ codigo, donde, mensaje });
 
-  const archivo = path.join(dir, 'escenario.json');
+  const archivo = path.join(dir, archivoNombre);
   let escenario;
   try {
     escenario = JSON.parse(await readFile(archivo, 'utf8'));
@@ -475,6 +475,11 @@ export async function validarTodos(dirEscenarios = DIR_ESCENARIOS, { kitDir = KI
       continue;
     }
     lugares.push(entrada.id);
+    if (await existe(path.join(dir, 'escenario-piezas.json'))) {
+      const piezas = await validarEscenario(dir, { kitDir, archivoNombre: 'escenario-piezas.json' });
+      errores.push(...prefijar(piezas.errores, `${entrada.id}/escenario-piezas.json`));
+      avisos.push(...prefijar(piezas.avisos, `${entrada.id}/escenario-piezas.json`));
+    }
     const resultado = await validarEscenario(dir, { kitDir });
     errores.push(...prefijar(resultado.errores, entrada.id));
     avisos.push(...prefijar(resultado.avisos, entrada.id));

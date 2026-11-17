@@ -13,6 +13,7 @@ import type {
   WorldDialogueTree, WorldObject, WorldRoomSaveRequest,
 } from '../../../core/models/simulation.model';
 import type { CasoBorrador, EfectosRespuesta, Escena, Hito, Linea, ListaVerificacion, Respuesta, SalaCaso } from './caso';
+import { llegada } from './geometria';
 import { comentarioDesdeApi, expresionDe, reaccionDesdeApi } from './desde-api';
 import { finalesDePlantilla, plantillaEditada } from './finales';
 import { mismoMovimiento, movimientoAMetadata, movimientoDeMetadata } from './movimiento';
@@ -218,12 +219,15 @@ export interface ContextoSala {
   personajes: Personaje[];
   /** Los personajes que el caso ya tiene (`editor.characters`). */
   personajesDelCaso: CharacterEditorState[];
+  nodosPorSala?: ReadonlyMap<string, string>;
+  salaPorNodo?: ReadonlyMap<string, string>;
 }
 
 export interface SolicitudDeSala {
   solicitud: WorldRoomSaveRequest;
   /** Personajes puestos en la sala que el caso aún no tiene: hay que darlos de alta antes de guardar la sala. */
   faltanPersonajes: string[];
+  puertasSinGuardar: string[];
 }
 
 const COLOR_OBJETO = '#4FA3A5';
@@ -255,7 +259,7 @@ const marcaNueva = (marca: boolean | undefined): Partial<WorldObject> => (marca 
  * La clave de un objeto que el servidor aún no tiene: la que el borrador ya le dio (así todos los mapas de una sala
  * lo llaman igual), si está libre en este mapa; si no, una nueva a partir de la pieza.
  */
-function claveDeNuevo(propuesta: string | undefined, ref: string, usadas: Set<string>): string {
+export function claveDeNuevo(propuesta: string | undefined, ref: string, usadas: Set<string>): string {
   if (propuesta && !usadas.has(propuesta)) {
     usadas.add(propuesta);
     return propuesta;
@@ -276,7 +280,9 @@ function objetoNuevo(
 }
 
 /** La huella de un mueble en el suelo: el punto de apoyo es su centro inferior. */
-function huella(clave: string, etiqueta: string, x: number, y: number, ancho: number, alto: number, id = 0): WorldCollisionZone {
+export function huella(
+  clave: string, etiqueta: string, x: number, y: number, ancho: number, alto: number, id = 0,
+): WorldCollisionZone {
   return { id, key: `choque-${clave}`, label: etiqueta, x: x - Math.floor(ancho / 2), y: y - alto, width: ancho, height: alto };
 }
 
@@ -311,6 +317,7 @@ export function solicitudDeSala(sala: SalaCaso, contexto: ContextoSala, previo: 
   const personajeDelCaso = new Map(contexto.personajesDelCaso.map((p) => [p.key, p]));
   const previos = new Map(previo.objects.map((o) => [o.key, o]));
   const faltanPersonajes: string[] = [];
+  const puertasSinGuardar: string[] = [];
 
   // Lo que la sala dice que existe, por clave de objeto.
   type Edicion = (base: WorldObject) => WorldObject;
@@ -379,12 +386,38 @@ export function solicitudDeSala(sala: SalaCaso, contexto: ContextoSala, previo: 
     ));
   }
 
-  const puertas = new Set(sala.puertas.map((p) => p.id));
+  for (const puerta of sala.puertas) {
+    const encontrado = previos.get(puerta.id);
+    const base = encontrado?.type === 'EXIT' ? encontrado : undefined;
+    const anterior = base?.metadata['targetNodeKey'];
+    let destino = typeof anterior === 'string' ? anterior : undefined;
+    if (puerta.hacia !== null && (!base || (contexto.salaPorNodo && contexto.salaPorNodo.get(destino ?? '') !== puerta.hacia))) {
+      const nuevoDestino = contexto.nodosPorSala?.get(puerta.hacia);
+      if (nuevoDestino) destino = nuevoDestino;
+      else puertasSinGuardar.push(puerta.id);
+    } else if (!base && puerta.hacia === null) {
+      puertasSinGuardar.push(puerta.id);
+    }
+    if (!base && !destino) continue;
+    const metadata: Record<string, unknown> = { ...(base?.metadata ?? {}) };
+    if (destino !== undefined) metadata['targetNodeKey'] = destino;
+    for (const campo of ['muro', 'pos', 'modelo', 'par', 'sentidoUnico'] as const) {
+      if (puerta[campo] === undefined) delete metadata[campo];
+      else metadata[campo] = puerta[campo];
+    }
+    if (base?.type === 'EXIT') {
+      existentes.set(puerta.id, (original) => ({ ...original, label: puerta.etiqueta, metadata }));
+    } else {
+      const punto = puerta.muro !== undefined && puerta.pos !== undefined
+        ? llegada(puerta.muro, puerta.pos, sala.encuadre, sala.estructura?.ancho ?? previo.map.width)
+        : { x: puerta.x, y: puerta.y };
+      nuevos.push(objetoNuevo(claveDeNuevo(puerta.id, puerta.id, usadas), puerta.etiqueta, 'EXIT', punto.x, punto.y, 24, 40, { metadata }));
+    }
+  }
   const objects: WorldObject[] = [];
   for (const base of previo.objects) {
     const edicion = existentes.get(base.key);
     if (edicion) objects.push(edicion(base));
-    else if (puertas.has(base.key)) objects.push(base); // las puertas no se editan aquí
   }
   objects.push(...nuevos);
 
@@ -401,18 +434,19 @@ export function solicitudDeSala(sala: SalaCaso, contexto: ContextoSala, previo: 
     const antes = previos.get(duenoClave);
     if (!dueno) continue; // el mueble ya no está: su huella tampoco
     const seMovio = !antes || antes.x !== dueno.x || antes.y !== dueno.y;
-    collisionZones.push(seMovio ? huella(duenoClave, zona.label ?? dueno.label, dueno.x, dueno.y, dueno.width, dueno.height, zona.id) : zona);
+    collisionZones.push(seMovio && antes ? { ...zona, x: zona.x + dueno.x - antes.x, y: zona.y + dueno.y - antes.y } : zona);
   }
   collisionZones.push(...zonasNuevas);
 
   return {
     solicitud: {
       revision: contexto.revision,
-      map: { ...previo.map, spawnX: sala.entrada.x, spawnY: sala.entrada.y },
+      map: { ...previo.map, spawnX: sala.entrada.x, spawnY: sala.entrada.y, ...(sala.estructura != null || previo.map.structure !== undefined ? { structure: sala.estructura ?? previo.map.structure ?? null } : {}) },
       objects,
       collisionZones,
     },
     faltanPersonajes,
+    puertasSinGuardar,
   };
 }
 

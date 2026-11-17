@@ -5,6 +5,7 @@ import { competenciasMarcadas } from './efectos';
 import { escenasAlcanzables, hitosInalcanzables } from './hitos';
 import { evaluarCondicion, esCondicionValida, hitosDeCondicion } from './condiciones';
 import { contextosDeRecorridos } from './recorridos';
+import { anclaDeElemento, elementoDeRuta, personaDeTrayecto } from './salas-a-documento';
 
 export interface Falta {
   mensaje: string;
@@ -310,6 +311,43 @@ export function faltasDelServidor(
       case 'DSL.OCL-12':
         faltas.push(falta(irALaFaltaDelDocumento(h, caso, opciones.respuestasGuardadas)));
         break;
+      case 'DSL.OCL-13':
+      case 'DSL.OCL-14':
+      case 'DSL.OCL-15':
+      case 'DSL.OCL-16':
+      case 'DSL.OCL-17':
+      case 'DSL.OCL-18': {
+        const escenaDelCaso = caso.escenas.find((e) => e.id === String(h.nodeId));
+        const salaId = escenaDelCaso?.salaId;
+        const ruta = h.path?.replace(/^x-siep\.escenas\[\d+\]\.mapa(?=\.|$)/, 'x-siep.escenas[0].mapa');
+        if (!salaId || !caso.salas.some((s) => s.id === salaId) || !ruta || !/^x-siep\.escenas\[\d+\]\.mapa(?:\.|$)/.test(h.path ?? '')) {
+          faltas.push(falta({ ruta: escena ?? '/editor' }));
+          break;
+        }
+        const destinoSala = { ruta: `/editor/sala/${salaId}` };
+        if (!ruta.includes('.estructura.piezas[')) {
+          faltas.push(falta(destinoSala));
+          break;
+        }
+        // El orden de escenas del servidor puede diferir; solo se conserva el de las piezas de esta sala.
+        const destino = elementoDeRuta(ruta, { ...caso, escenas: [escenaDelCaso] });
+        faltas.push(falta(destino
+          ? { ...destinoSala, ancla: anclaDeElemento(salaId, destino.elemento) }
+          : { ruta: escena ?? '/editor' }));
+        break;
+      }
+      case 'DSL.OCL-19': {
+        // El trayecto de una persona: a la sala y, si se reconoce, a esa persona en el lienzo.
+        const escenaDelCaso = caso.escenas.find((e) => e.id === String(h.nodeId));
+        const salaId = escenaDelCaso?.salaId;
+        if (!escenaDelCaso || !salaId || !caso.salas.some((s) => s.id === salaId)) {
+          faltas.push(falta({ ruta: escena ?? '/editor' }));
+          break;
+        }
+        const clave = personaDeTrayecto(caso, escenaDelCaso.id, h.message, h.path);
+        faltas.push(falta({ ruta: `/editor/sala/${salaId}`, ...(clave ? { ancla: anclaDeElemento(salaId, { tipo: 'objeto', id: clave }) } : {}) }));
+        break;
+      }
       case 'high-intensity-without-warning':
         faltas.push(falta({ ruta: escena ?? '/editor', ...(escena ? { ancla: 'aviso-escena' } : {}) }));
         break;
