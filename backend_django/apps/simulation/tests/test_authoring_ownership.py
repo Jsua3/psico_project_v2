@@ -111,6 +111,7 @@ FOREIGN_ROUTES = [
     ("get", "<int:case_version_id>/editor", None, 404),
     ("get", "<int:case_version_id>/definition", None, 404),
     ("get", "<int:case_version_id>/world-editor", None, 404),
+    ("get", "<int:case_version_id>/plan", None, 404),
     ("get", "<int:case_version_id>/world-preview", None, 404),
     ("post", "<int:case_version_id>/world/validate", {}, 404),
     ("put", "<int:case_version_id>/world", {"objects": []}, 403),

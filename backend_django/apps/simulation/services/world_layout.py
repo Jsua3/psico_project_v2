@@ -254,6 +254,35 @@ def plano_de_version(case_version_id):
     }
 
 
+def plano_de_autoria(case_version_id):
+    """El plano de la versión para la docente (P4, Tarea 11): TODAS sus salas por piezas, de todos los grupos, sin sala
+    actual ni visitadas, con la forma del ``layout`` (contrato 2.2, §5.2). Cada grupo va a la derecha del anterior para
+    que no se monten. ``None`` si ninguna sala de la versión es por piezas. Ningún objeto ni persona: solo salas y puertas.
+    """
+    por_piezas = {
+        _sala_de(mapa, read_map(mapa.ambient_json))
+        for mapa in SceneMap.objects.filter(case_version_id=case_version_id).select_related("node")
+        if isinstance(mapa.structure, dict) and mapa.structure
+    }
+    if not por_piezas:
+        return None
+    plano = plano_de_version(case_version_id)
+    salas = [r for r in plano["rooms"] if r["key"] in por_piezas]
+    desplazamiento, siguiente_x = {}, 0
+    for grupo in dict.fromkeys(r["group"] for r in salas):
+        del_grupo = [r for r in salas if r["group"] == grupo]
+        izquierda = min(r["plan"]["x"] for r in del_grupo)
+        desplazamiento[grupo] = siguiente_x - izquierda
+        siguiente_x += max(r["plan"]["x"] + r["width"] for r in del_grupo) - izquierda + SEPARACION
+    return {
+        "rooms": [
+            {"key": r["key"], "title": r["title"], "width": r["width"], "frame": r["frame"],
+             "plan": {"x": r["plan"]["x"] + desplazamiento[r["group"]], "y": r["plan"]["y"]}, "visited": False}
+            for r in salas
+        ],
+        "doors": [dict(d) for d in plano["doors"] if d["from"] in por_piezas and d["to"] in por_piezas],
+    }
+
 def _plano_en_cache(case_version):
     from shared import cache as shared_cache
 
