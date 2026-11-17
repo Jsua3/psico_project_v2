@@ -59,6 +59,11 @@ describe('game-world: game feel del bloque B', () => {
     // Reutilizada: solo se crea si no existe; y la de otro tamaño de ese papel se retira.
     expect(block).toContain('if (!this.textures.exists(key)) {');
     expect(block).toContain('this.textures.remove(previous)');
+    // La imagen anterior del mismo papel se destruye ANTES de retirar su textura: ninguna imagen viva queda con una textura
+    // destruida (la de crisis fallaba en `TexturerImage.run` al llegar a CRISIS).
+    expect(block.indexOf('this.vignetteImages.get(role)?.destroy();')).toBeGreaterThan(-1);
+    expect(block.indexOf('this.vignetteImages.get(role)?.destroy();')).toBeLessThan(block.indexOf('this.textures.remove(previous)'));
+    expect(block).toContain('this.vignetteImages.set(role, image);');
     expect(block).toMatch(/this\.add\.image\(frame\.x, frame\.y, key\)[\s\S]*?\.setDisplaySize\(frame\.width, frame\.height\)[\s\S]*?\.setScrollFactor\(0\)/);
     expect(source).toContain("this.addVignette('tone', tint, 0.12, 0.3, DEPTH.LIGHTING_FLOOR);");
     expect(source).toContain("this.addVignette('crisis', CRISIS_VIGNETTE_TINT, 0.18, 1, DEPTH.LIGHTING + 1);");

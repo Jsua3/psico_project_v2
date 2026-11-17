@@ -406,6 +406,8 @@ export class DataDrivenWorldScene extends Phaser.Scene {
   private toneVignette?: Phaser.GameObjects.Image;
   /** Textura vigente de cada viñeta (tono o crisis): al cambiar el tamaño se retira la anterior (F6-8). */
   private readonly vignetteKeys = new Map<'tone' | 'crisis', string>();
+  /** La última imagen de cada papel: se destruye antes de retirar su textura (ver `addVignette`). */
+  private readonly vignetteImages = new Map<'tone' | 'crisis', Phaser.GameObjects.Image>();
   private crisisPulse?: Phaser.Tweens.Tween;
   /** Último estado de crisis aplicado; evita reiniciar un pulso que no cambió. */
   private crisisStateKey = '';
@@ -2552,15 +2554,22 @@ export class DataDrivenWorldScene extends Phaser.Scene {
         texture.refresh();
       }
     }
+    // La imagen anterior de este papel se va ANTES de retirar su textura: si seguía viva (dos llamadas seguidas, p. ej. el
+    // zoom que se asienta mientras la sala se repinta), quedaba en la lista de dibujo con la textura destruida. La de crisis
+    // tiene alfa 0 hasta la activación CRISIS, así que fallaba justo entonces (`TexturerImage.run`, «reading 'resolution'»
+    // de null: el mundo se detenía tras una reacción «en-crisis», B en V4).
+    this.vignetteImages.get(role)?.destroy();
     // La textura de otro tamaño de este mismo papel ya no hace falta.
     const previous = this.vignetteKeys.get(role);
     if (previous && previous !== key && this.textures.exists(previous)) this.textures.remove(previous);
     this.vignetteKeys.set(role, key);
-    return this.add.image(frame.x, frame.y, key)
+    const image = this.add.image(frame.x, frame.y, key)
       .setOrigin(0, 0)
       .setDisplaySize(frame.width, frame.height)
       .setScrollFactor(0)
       .setDepth(depth);
+    this.vignetteImages.set(role, image);
+    return image;
   }
 
   /**
