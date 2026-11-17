@@ -1,6 +1,7 @@
 import { ChangeDetectionStrategy, Component, effect, input, signal, untracked } from '@angular/core';
 
 import { DRAFT_COPY } from './draft-copy';
+import { PixelIconoComponent } from './pixel/pixel-icono.component';
 
 /** Cuánto se ve la franja completa al entrar a una escena con aviso, antes de plegarse a su chip. */
 export const SENSITIVE_UNFOLDED_MS = 8000;
@@ -17,58 +18,42 @@ let nextNoticeId = 0;
 @Component({
   selector: 'app-sensitive-notice',
   standalone: true,
+  imports: [PixelIconoComponent],
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
     @if (text(); as notice) {
-      <div class="sensitive-strip" [class.sensitive-strip--folded]="!unfolded()" [class.sensitive-strip--still]="reduceMotion()">
+      <div class="sensitive-strip" [class.u-placa]="unfolded()" [class.u-sombra]="unfolded()"
+        [class.sensitive-strip--folded]="!unfolded()" [class.sensitive-strip--still]="reduceMotion()">
         <p class="sensitive-strip__text" [id]="textId" [class.sr-only]="!unfolded()">{{ notice }}</p>
-        <button type="button" class="sensitive-strip__chip" [attr.aria-expanded]="unfolded()" [attr.aria-controls]="textId" (click)="toggle()">
-          {{ copy.sensitiveChip.text }}
+        <button type="button" class="sensitive-strip__chip u-boton" [class.u-sombra]="!unfolded()" [attr.aria-expanded]="unfolded()"
+          [attr.aria-controls]="textId" (click)="toggle()">
+          <app-pixel-icono nombre="aviso" />{{ copy.sensitiveChip.text }}
         </button>
       </div>
     }
   `,
   styles: [`
     :host { display: block; }
-    /* Legible (>= 12 px, también en compacto), contraste alto y sin desenfoque; ocupa su propio sitio en la cabecera. */
+    /* Bloque U1: desplegado es una placa del cuadro de diálogo con el texto y su chip; plegado queda solo el chip, una
+       placa-botón con el triángulo de aviso en ámbar (el mismo del aviso de ficha «Aún no tienes esta herramienta»).
+       Va en el carril de avisos de arriba al centro: no tapa al personaje ni los controles. */
     .sensitive-strip {
       display: flex;
-      align-items: center;
-      justify-content: center;
-      gap: 10px;
-      padding: 5px 14px;
-      background: rgba(8,12,18,.94);
-      border-bottom: 1px solid rgba(245,184,75,.28);
-      color: #f3dfb5;
-      font-size: .78rem;
-      line-height: 1.35;
-      text-align: center;
+      flex-direction: column;
+      align-items: flex-end;
+      gap: calc(2 * var(--pixel-px, 2px));
+      padding: calc(3 * var(--pixel-px, 2px)) calc(5 * var(--pixel-px, 2px)) calc(4 * var(--pixel-px, 2px));
+      color: var(--pixel-tinta);
+      font-size: var(--pixel-tam, 14px);
+      line-height: 1.4;
       animation: sensitive-strip-in .2s ease-out;
     }
-    .sensitive-strip--folded { justify-content: flex-end; padding-top: 2px; padding-bottom: 2px; }
-    .sensitive-strip__text { margin: 0; }
-    .sensitive-strip__chip {
-      flex: none;
-      min-height: 24px;
-      padding: 2px 10px;
-      border: 1px solid rgba(245,184,75,.55);
-      border-radius: 999px;
-      background: transparent;
-      color: #f3dfb5;
-      font: inherit;
-      font-weight: 700;
-      cursor: pointer;
-    }
-    @media (hover: hover) and (pointer: fine) {
-      .sensitive-strip__chip:hover { background: rgba(245,184,75,.14); }
-    }
+    .sensitive-strip--folded { padding: 0; }
+    .sensitive-strip__text { margin: 0; align-self: stretch; }
+    .sensitive-strip__chip { flex: none; color: var(--pixel-ambar); font-weight: 700; }
     .sensitive-strip--still { animation: none; }
     @keyframes sensitive-strip-in { from { opacity: .4; } to { opacity: 1; } }
     @media (prefers-reduced-motion: reduce) { .sensitive-strip { animation: none; } }
-    /* Compacto (apaisado táctil o poca altura): el mundo pierde lo mínimo, sin bajar de 12 px. */
-    @media (max-height: 520px), (pointer: coarse) and (orientation: landscape) {
-      .sensitive-strip { padding: 3px 12px; font-size: .75rem; line-height: 1.3; }
-    }
   `],
 })
 export class SensitiveNoticeComponent {

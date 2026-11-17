@@ -1,7 +1,8 @@
 import { existsSync, readFileSync } from 'fs';
 import { join } from 'path';
 
-const source = readFileSync(join(__dirname, 'simulation-play.component.ts'), 'utf-8');
+// Los fines de línea se normalizan: con `core.autocrlf=true` el árbol de trabajo sale en CRLF y varios cortes de abajo buscan `\n`.
+const source = readFileSync(join(__dirname, 'simulation-play.component.ts'), 'utf-8').replace(/\r\n/g, '\n');
 
 describe('simulation-play: introducción', () => {
   it('la introducción es una tarjeta genérica: sin escena animada, sin video y sin texto de un caso', () => {
@@ -80,8 +81,10 @@ describe('simulation-play: salida segura alcanzable desde cada superposición (R
   // (aria-hidden) viven en app-safe-exit-button (su spec y simulation-play.safe-exit-states.spec.ts los fijan).
   const safeExitSource = readFileSync(join(__dirname, 'safe-exit-button.component.ts'), 'utf-8');
 
+  // Bloque U1 (variante B): el botón del pie es la variante «placa» del mismo componente: la etiqueta trae `variante="placa"` antes de `[compact]`.
   it('el botón del pie acepta el toque con una petición en curso y su nombre no dice «(Escape)»', () => {
-    const footerButton = source.match(/<app-safe-exit-button \[compact\][^>]*\/>/)?.[0] ?? '';
+    const footerButton = source.match(/<app-safe-exit-button variante="placa" \[compact\][^>]*\/>/)?.[0] ?? '';
+    expect(footerButton).not.toBe('');
     expect(footerButton).toContain('(pause)="pauseFromOverlay()"');
     expect(footerButton).toContain('[pausing]="pausing()"');
     expect(footerButton).not.toContain('[disabled]');
@@ -90,8 +93,10 @@ describe('simulation-play: salida segura alcanzable desde cada superposición (R
     expect(source).not.toContain('Salida segura (Escape)');
   });
 
+  // Bloque U1 (variante B): se busca la etiqueta de la variante «placa»; con la antigua el texto salía vacío y la prueba no comprobaba nada.
   it('el botón del pie no pisa su nombre con un aria-label: el texto visible es el nombre (WCAG 2.5.3)', () => {
-    const footerButton = source.match(/<app-safe-exit-button \[compact\][^>]*\/>/)?.[0] ?? '';
+    const footerButton = source.match(/<app-safe-exit-button variante="placa" \[compact\][^>]*\/>/)?.[0] ?? '';
+    expect(footerButton).not.toBe('');
     // Con aria-label «Salida segura» y la tecla «Esc» visible, axe 4.14 marca label-content-name-mismatch.
     expect(footerButton).not.toContain('aria-label');
     expect(safeExitSource).not.toContain('aria-label');
@@ -99,9 +104,12 @@ describe('simulation-play: salida segura alcanzable desde cada superposición (R
     expect(safeExitSource).toContain('<kbd class="safe-exit-btn__kbd" aria-hidden="true">Esc</kbd>');
   });
 
+  // Bloque U1 (variante B): el acuse es una placa de pixel (u-placa u-sombra) con el icono de pixel «pausa», ya no un chip con mat-icon.
   it('la pausa pedida tiene un acuse visible que no depende del pie (oculto bajo una superposición)', () => {
-    const notice = source.match(/@if \(pausing\(\)\) \{[\s\S]*?\n      \}\n/)?.[0] ?? '';
-    expect(notice).toContain('class="pausing-notice"');
+    const notice = source.match(/@if \(pausing\(\) && attempt\(\)\?\.status === 'IN_PROGRESS'\) \{[\s\S]*?\n      \}\n/)?.[0] ?? '';
+    expect(notice).toContain('class="pausing-notice u-placa u-sombra"');
+    expect(notice).toContain('<app-pixel-icono nombre="pausa" />');
+    expect(notice).toContain('aria-hidden="true"');
     expect(notice).toContain('Pausando el caso…');
     // El acuse es estático: sin temporizadores ni animación (nada esencial se cierra solo).
     expect(source).not.toMatch(/\.pausing-notice\s*\{[^}]*animation/);

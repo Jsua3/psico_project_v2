@@ -48,7 +48,7 @@ describe('orientation.config: textos', () => {
 
   it('las puertas: la frase general y el respaldo no nombran listas que ya no existen', () => {
     expect(copy.door.before('habla con Ana')).toBe('Antes de pasar, habla con Ana.');
-    expect(copy.door.laterGate).toBe('Esta salida se abre más adelante en el caso.');
+    expect(copy.door.laterGate).toBe('Esta salida se abre más adelante: sigue en esta sala.');
     expect(copy.door.fallback).not.toMatch(/Qué hacer/);
   });
 });

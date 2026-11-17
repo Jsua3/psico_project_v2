@@ -1,5 +1,7 @@
 import { ChangeDetectionStrategy, Component, computed, input, output } from '@angular/core';
 
+import { PixelIconoComponent } from '../pixel/pixel-icono.component';
+
 /**
  * Aviso de la puerta de una sala por piezas (diseño, sección 4.4): «E · Pasar a la sala de espera», junto a la puerta que
  * se abrió. Siempre es un botón: con teclado lo dispara E (lo escucha la escena) o Enter y Espacio si tiene el foco; con
@@ -12,11 +14,12 @@ import { ChangeDetectionStrategy, Component, computed, input, output } from '@an
 @Component({
   selector: 'app-aviso-de-puerta',
   standalone: true,
+  imports: [PixelIconoComponent],
   template: `
-    <button type="button" class="aviso" [class.aviso--cerrada]="bloqueada()" [attr.aria-disabled]="bloqueada() ? 'true' : null"
-      [style.left.px]="x()" [style.top.px]="y()" (click)="cruzar.emit()">
+    <button type="button" class="aviso u-boton u-sombra" [class.aviso--cerrada]="bloqueada()" [attr.aria-disabled]="bloqueada() ? 'true' : null"
+      [style.left.px]="x()" [style.top.px]="y()" [style.--x]="x() + 'px'" (click)="cruzar.emit()">
       @if (conTecla()) {
-        <kbd class="aviso__tecla" aria-hidden="true">E</kbd><span class="aviso__sep" aria-hidden="true">·</span>
+        <kbd class="aviso__tecla u-tecla u-tecla--letra" aria-hidden="true">E</kbd><span class="aviso__sep" aria-hidden="true">·</span>
       }
       @if (bloqueada()) {
         <svg class="aviso__candado" viewBox="0 0 7 8" shape-rendering="crispEdges" aria-hidden="true">
@@ -28,40 +31,36 @@ import { ChangeDetectionStrategy, Component, computed, input, output } from '@an
         <span class="aviso__falta"><span class="aviso__oculto">: cerrada.</span> {{ detalle() }}</span>
       }
     </button>
-    <span class="aviso__cola" [style.left.px]="x()" [style.top.px]="y()" aria-hidden="true"></span>
+    <span class="aviso__cola" [style.left.px]="x()" [style.top.px]="y()" aria-hidden="true"><app-pixel-icono nombre="cola-abajo" /></span>
   `,
   changeDetection: ChangeDetectionStrategy.OnPush,
   styles: [`
-    :host { position: absolute; inset: 0; pointer-events: none; }
-    /* Un cartelito del mismo mundo: borde de dos tonos con esquinas en escalón y sombra dura, sin redondeos ni difuminado. */
+    /* Contenedor de tamaño: el cartel se acota al ancho del lienzo (100cqw) y no se sale por un borde. */
+    :host { position: absolute; inset: 0; pointer-events: none; container-type: size; }
+    /* Bloque U1: el cartel es la placa-botón del cuadro de diálogo (marco, trama, sombra de tramado y estados de sobre, foco y
+       pulsado de la hoja común) con la tecla E de las fichas y una cola de pixel que se monta un punto sobre su canto. */
+    /* Centrado sobre su puerta, salvo junto a un borde del lienzo: ahí se corre lo justo para quedar entero (la cola
+       sigue señalando la puerta, que es otro elemento). Si el cartel es más ancho que el lienzo, manda el borde izquierdo. */
     .aviso {
-      position: absolute; transform: translate(-50%, calc(-100% - 6px)); pointer-events: auto;
-      display: inline-flex; align-items: center; gap: 8px; min-height: 44px; padding: 6px 14px 6px 8px;
-      font: 600 15px/1.2 Poppins, 'Segoe UI', system-ui, sans-serif; color: #f6ecd6; white-space: nowrap; cursor: pointer;
-      background: #1b1420; border: 0;
-      box-shadow: 0 0 0 2px #5c4436, 0 0 0 4px #281c18, 4px 4px 0 4px rgba(8, 6, 18, 0.45);
-      clip-path: polygon(0 4px, 4px 4px, 4px 0, calc(100% - 4px) 0, calc(100% - 4px) 4px, 100% 4px, 100% calc(100% - 4px),
-        calc(100% - 4px) calc(100% - 4px), calc(100% - 4px) 100%, 4px 100%, 4px calc(100% - 4px), 0 calc(100% - 4px));
-      transition: transform 160ms cubic-bezier(.2, .8, .2, 1);
+      --borde: calc(2 * var(--pixel-px, 2px));
+      --dx: clamp(calc(var(--borde) - var(--x, 0px)), -50%, calc(100cqw - var(--x, 0px) - 100% - var(--borde)));
+      position: absolute; transform: none; translate: var(--dx) calc(-100% - 3 * var(--pixel-px, 2px)); pointer-events: auto;
+      gap: calc(3 * var(--pixel-px, 2px)); padding: 0 calc(5 * var(--pixel-px, 2px)) 1px calc(3 * var(--pixel-px, 2px));
+      font-family: var(--pixel-f-texto); font-size: calc(var(--pixel-tam, 14px) * 1.05); font-weight: 600; line-height: 1.2;
     }
-    .aviso:active { transform: translate(-50%, calc(-100% - 5px)); }
-    .aviso:focus-visible { outline: 3px solid #f6ecd6; outline-offset: 4px; }
-    .aviso__tecla {
-      font: 600 14px/1 Poppins, sans-serif; min-width: 26px; height: 26px; display: inline-grid; place-items: center;
-      color: #281c18; background: #f2c46b; box-shadow: inset 0 -3px 0 #b8863a, 0 0 0 2px #281c18;
-    }
-    .aviso__sep { color: #c9bba0; }
-    .aviso__candado { width: 14px; height: 16px; flex: none; }
-    .aviso__ojo { fill: #281c18; }
-    .aviso__falta { font-weight: 400; color: #c9bba0; }
+    .aviso:active { transform: none; translate: var(--dx) calc(-100% - 2 * var(--pixel-px, 2px)); }
+    .aviso__sep { color: var(--pixel-tinta-suave); }
+    .aviso__candado { width: calc(7 * var(--pixel-px, 2px)); height: calc(8 * var(--pixel-px, 2px)); flex: none; }
+    .aviso__ojo { fill: var(--pixel-penumbra); }
+    .aviso__falta { font-weight: 400; color: var(--pixel-tinta-suave); }
     .aviso__oculto { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
     .aviso__cola {
-      position: absolute; width: 10px; height: 6px; transform: translate(-50%, -6px);
-      background: #5c4436; clip-path: polygon(0 0, 100% 0, 50% 100%);
+      position: absolute; display: block; width: calc(7 * var(--pixel-px, 2px)); height: calc(4 * var(--pixel-px, 2px));
+      transform: translate(-50%, -100%);
     }
+    .aviso__cola app-pixel-icono { width: 100%; height: 100%; }
     @media (prefers-reduced-motion: reduce) {
-      .aviso { transition: none; }
-      .aviso:active { transform: translate(-50%, calc(-100% - 6px)); }
+      .aviso:active { translate: var(--dx) calc(-100% - 3 * var(--pixel-px, 2px)); }
     }
   `],
 })

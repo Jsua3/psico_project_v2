@@ -106,7 +106,8 @@ const STALE_NOTE = 'Esta conversación corresponde a otro momento del caso.';
 
               <div class="placa-habla">
                 @if (estadoPersona(d); as e) {
-                  <p class="persona-state"><i class="pulso" [attr.data-activation]="e.activation" aria-hidden="true"></i>{{ e.texto }}</p>
+                  <!-- El pulso nace de nuevo con cada estado y late unos 4 s (U1: nada se mueve sin fin). -->
+                  <p class="persona-state">@for (activacion of [e.activation]; track activacion) {<i class="pulso" [attr.data-activation]="activacion" aria-hidden="true"></i>}{{ e.texto }}</p>
                 }
                 <!-- La línea se maqueta entera desde el principio (lo que falta va invisible): ninguna palabra salta de renglón. -->
                 <p class="dialogue-text" aria-hidden="true">@for (t of piezas(); track $index) {<span [class.acot]="t.acotacion" [class.falta]="t.oculto">{{ t.texto }}</span>}</p>
@@ -514,10 +515,10 @@ const STALE_NOTE = 'Esta conversación corresponde a otro momento del caso.';
       height: calc(8 * var(--px));
       background: var(--pulso-TENSE) 0 0 / calc(64 * var(--px)) calc(8 * var(--px)) no-repeat;
       image-rendering: pixelated;
-      animation: pulso 1s steps(4) 180;
+      animation: pulso 1s steps(4) 4;
     }
-    .pulso[data-activation="CALM"] { background-image: var(--pulso-CALM); animation-duration: 2s; }
-    .pulso[data-activation="CRISIS"] { background-image: var(--pulso-CRISIS); animation-duration: .5s; }
+    .pulso[data-activation="CALM"] { background-image: var(--pulso-CALM); animation-duration: 2s; animation-iteration-count: 2; }
+    .pulso[data-activation="CRISIS"] { background-image: var(--pulso-CRISIS); animation-duration: .5s; animation-iteration-count: 8; }
     .dialogue-text {
       margin: 0;
       min-height: 4.35em;

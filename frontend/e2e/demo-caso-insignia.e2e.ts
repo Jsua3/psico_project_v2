@@ -15,6 +15,7 @@ import {
   goalCard,
   interactNearby,
   leaveBrief,
+  nearbyAction,
   loginStudent,
   reachNearby,
   readPlayerPosition,
@@ -89,6 +90,9 @@ async function caminarHasta(
   await ir('y', carril);
   await ir('x', x + alLado);
   await ir('y', Math.min(CARRIL_Y, y + (alLado ? 12 : 40)));
+  // Quien camina un trayecto (N1, metadatos.movimiento) vuelve una y otra vez a su partida, que es (x, y): se le espera
+  // ahí hasta que su acción aparece en la barra, en vez de perseguirlo. Al hablarle se detiene de cara al estudiante.
+  await expect(nearbyAction(page, quien)).toBeVisible({ timeout: scaled(20_000) }).catch(() => undefined);
   await reachNearby(page, input, ['ArrowUp'], quien);
 }
 
@@ -212,7 +216,7 @@ test('@demo-k1 @demo-piezas SIM-VBG-002: entrar, caminar, hablar y jugar los tre
   await expect(goalCard(page)).toHaveAttribute('data-goal', /Ubica qué te exige la norma en salud/, { timeout: scaled(30_000) });
   await decidir(page, input, /trabajadora social/i, 'trabajadora-social', [480, 290], /459 de 2012 \+ Ley 1257/i,
     () => captura('10-decision-5-trabajo-social.png'), 0);
-  await cerrarNotaYEsperar(page, /Decide cómo actuar con la familia con criterio técnico y ético/);
+  await cerrarNotaYEsperar(page, /Decide cómo actuar con la familia, qué hacer y qué evitar/);
 
   // Decisión 6 (O3, sala de escucha): la psicóloga, junto a la mesa de centro.
   await decidir(page, input, /psicóloga/i, 'psicologa-hospital', [660, 290], /evaluación psicosocial familiar/i,
@@ -238,7 +242,7 @@ test('@demo-k1 @demo-piezas SIM-VBG-002: entrar, caminar, hablar y jugar los tre
   // Decisión 10 (N7, recuperación): la mejor respuesta pide el acuerdo con el médico de la decisión 4.
   await decidir(page, input, /sobreviviente/i, 'sobreviviente', [430, 360], /no mentir ni improvisar/i,
     () => captura('15-decision-10-recuperacion.png'));
-  await cerrarNotaYEsperar(page, /Valora el riesgo y define a dónde debe seguir la atención/);
+  await cerrarNotaYEsperar(page, /Define la prioridad de la asesoría psicosocial/);
   await page.waitForTimeout(800);
   await captura('16-capitulo-3.png');
 
@@ -272,7 +276,7 @@ test('@demo-k1 @demo-piezas SIM-VBG-002: entrar, caminar, hablar y jugar los tre
   // Decisión 15 (N10, sala de espera): la madre.
   await decidir(page, input, /abuela|madre/i, 'abuela', [980, 400], /quién vive con ella/i,
     () => captura('21-decision-15-sala-de-espera.png'));
-  await cerrarNotaYEsperar(page, /Define la actuación de protección y cierra la atención/);
+  await cerrarNotaYEsperar(page, /Define la actuación de protección/);
 
   // Decisión 16 (O6, consultorio): el cierre. La escena siguiente es el final del caso.
   await decidir(page, input, /profesional psicosocial/i, 'profesional-psicosocial', [520, 352], /nivel de vulneración/i,

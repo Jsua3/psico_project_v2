@@ -37,9 +37,9 @@ export interface HelpCardOptions {
 const WHAT_TO_DO_LINE = DRAFT_COPY.helpFirstCardGoal.text;
 
 const KEYBOARD_MOVE_LINE =
-  'Muévete con las flechas o WASD. Acércate a una persona o un objeto: abajo aparece su nombre. Pulsa E para actuar.';
+  'Muévete con las flechas o WASD. Acércate a una persona o un objeto: abajo aparece su nombre. Pulsa E para interactuar.';
 const KEYBOARD_MOVE_LINE_NO_LETTERS =
-  'Muévete con las flechas. Acércate a una persona o un objeto: abajo aparece su nombre. Pulsa Enter para actuar.';
+  'Muévete con las flechas. Acércate a una persona o un objeto: abajo aparece su nombre. Pulsa Enter para interactuar.';
 
 /**
  * Líneas de la tarjeta de primera vez. Compacto táctil: la frase corta de F§5.8 (el resto vive

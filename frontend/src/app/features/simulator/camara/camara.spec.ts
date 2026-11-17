@@ -1,6 +1,6 @@
 import {
-  EntradaCamara, EstadoCamara, Momento, Vista,
-  asentada, avanzarCamara, comoDibujar, duracionDeViaje, enViaje, enViajeDentro, esperaDelGeneral, objetivoCamara, suavizar,
+  ALTO_CUERPO, Caja, EntradaCamara, EstadoCamara, MEDIO_CUERPO, Momento, Punto, Vista,
+  asentada, esquivarPlacas, avanzarCamara, comoDibujar, duracionDeViaje, enViaje, enViajeDentro, esperaDelGeneral, objetivoCamara, suavizar,
   zoomCaminar, zoomCercano, zoomGeneral,
 } from './camara';
 
@@ -205,5 +205,74 @@ describe('camara: seguimiento al caminar', () => {
   it('sin tiempo no cambia; tras una pausa larga llega de golpe', () => {
     expect(avanzarCamara(desde, hacia, 0, false)).toEqual(desde);
     expect(avanzarCamara(desde, hacia, 5000, false)).toEqual(hacia);
+  });
+});
+
+describe('camara: zona segura de las placas (bloque U1)', () => {
+  // Placas medidas a 1366 × 768 en el juego real (px CSS = físicos a dpr 1), en el lienzo de 1340 × 640 de PORTATIL.
+  const OBJETIVO: Caja = { x: 14, y: 15, ancho: 438, alto: 103 };
+  const PLANO: Caja = { x: 1150, y: 130, ancho: 202, alto: 218 };
+  const SALIDA: Caja = { x: 14, y: 560, ancho: 526, alto: 70 };
+  const PLACAS = [OBJETIVO, PLANO, SALIDA];
+  const conPlacas = (v: Vista = PORTATIL): Vista => ({ ...v, placas: PLACAS });
+
+  /** El cuadro de un cuerpo (48 × 72 sobre los pies) en px de pantalla, con la cámara en `est`. */
+  const enPantalla = (pie: Punto, est: EstadoCamara, v: Vista) => ({
+    x: (pie.x - MEDIO_CUERPO - est.centro.x) * est.zoom + v.ancho / 2,
+    y: (pie.y - ALTO_CUERPO - est.centro.y) * est.zoom + v.alto / 2,
+    ancho: 2 * MEDIO_CUERPO * est.zoom,
+    alto: ALTO_CUERPO * est.zoom,
+  });
+  const tapa = (r: Caja, p: Caja) => r.x < p.x + p.ancho && r.x + r.ancho > p.x && r.y < p.y + p.alto && r.y + r.alto > p.y;
+
+  it('sin placas el encuadre es el de siempre', () => {
+    const e = entrada({ jugador: { x: 60, y: 110 } });
+    expect(objetivoCamara({ ...e, vista: { ...PORTATIL, placas: [] } }, null)).toEqual(objetivoCamara(e, null));
+  });
+
+  it('en la esquina de arriba a la izquierda, la ficha del objetivo ya no tapa al personaje', () => {
+    const jugador = { x: 60, y: 110 };
+    const antes = objetivoCamara(entrada({ jugador }), null);
+    expect(tapa(enPantalla(jugador, antes, PORTATIL), OBJETIVO)).toBe(true);
+    const despues = objetivoCamara(entrada({ jugador, vista: conPlacas() }), null);
+    const r = enPantalla(jugador, despues, PORTATIL);
+    expect(PLACAS.some(p => tapa(r, p))).toBe(false);
+    expect(despues.zoom).toBe(antes.zoom);
+  });
+
+  it('bajo el plano de arriba a la derecha y junto al pie también lo saca', () => {
+    for (const jugador of [{ x: 1150, y: 200 }, { x: 60, y: 520 }]) {
+      const e = objetivoCamara(entrada({ jugador, vista: conPlacas() }), null);
+      expect(PLACAS.some(p => tapa(enPantalla(jugador, e, PORTATIL), p)), JSON.stringify(jugador)).toBe(false);
+    }
+  });
+
+  it('lo que está al alcance (una puerta junto a la ficha) tampoco queda bajo una placa', () => {
+    const jugador = { x: 200, y: 260 };
+    const puerta = { x: 120, y: 120 };
+    const e = objetivoCamara(entrada({ jugador, cerca: puerta, vista: conPlacas() }), null);
+    expect(tapa(enPantalla(puerta, e, PORTATIL), OBJETIVO)).toBe(false);
+    expect(PLACAS.some(p => tapa(enPantalla(jugador, e, PORTATIL), p))).toBe(false);
+  });
+
+  it('nunca se corre más que el tamaño de la placa, y queda quieto al repetirse (sin vaivén)', () => {
+    const jugador = { x: 60, y: 110 };
+    const e = entrada({ jugador, vista: conPlacas() });
+    const sin = objetivoCamara(entrada({ jugador }), null);
+    const primero = objetivoCamara(e, null);
+    expect(Math.abs(primero.centro.x - sin.centro.x)).toBeLessThanOrEqual(Math.max(...PLACAS.map(p => p.ancho)) / sin.zoom);
+    expect(Math.abs(primero.centro.y - sin.centro.y)).toBeLessThanOrEqual(Math.max(...PLACAS.map(p => p.alto)) / sin.zoom);
+    expect(objetivoCamara(e, primero)).toEqual(primero);
+  });
+
+  it('el plano general no se corre: ahí se ve la sala entera', () => {
+    const e = entrada({ jugador: { x: 60, y: 110 }, momento: { tipo: 'general' } });
+    expect(objetivoCamara({ ...e, vista: conPlacas() }, null)).toEqual(objetivoCamara(e, null));
+  });
+
+  it('si ninguna salida cabe en la vista, no se mueve', () => {
+    const todo: Caja = { x: 0, y: 0, ancho: 1340, alto: 640 };
+    const centro = { x: 600, y: 300 };
+    expect(esquivarPlacas(centro, 2, { ...PORTATIL, placas: [todo] }, [{ x: 600, y: 300 }])).toEqual(centro);
   });
 });

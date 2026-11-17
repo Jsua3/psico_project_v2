@@ -128,6 +128,7 @@ describe('diálogo de retroalimentación de la traza (F7-4)', () => {
     }));
     const cards = [...host().querySelectorAll('.tf-card')];
     expect(text(cards[0])).toContain('Valoración formativa:');
+    expect(text(cards[0])).toMatch(/Evaluada: .*2026/);
     expect(text(cards[0].querySelector('ui-badge'))).toBe('Logrado');
     expect(text(cards[0])).not.toContain('Puntaje total');
     expect(cards.every(card => card.querySelector('strong') === null)).toBe(true);

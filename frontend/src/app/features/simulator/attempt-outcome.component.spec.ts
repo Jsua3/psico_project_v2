@@ -166,7 +166,7 @@ describe('AttemptOutcomeComponent: pausa calmada renderizada (T12.1, AC-7)', () 
   const host = () => fixture.nativeElement as HTMLElement;
   const text = (el: Element | null) => el?.textContent?.replace(/\s+/g, ' ').trim() ?? '';
 
-  function render(status: 'PAUSED' | 'COMPLETED' | 'SAFE_EXITED' | 'REPLACED' | 'IN_PROGRESS', options: { report?: AttemptCompletionReport | null; resources?: string[] } = {}): void {
+  function render(status: 'PAUSED' | 'COMPLETED' | 'SAFE_EXITED' | 'REPLACED' | 'IN_PROGRESS', options: { report?: AttemptCompletionReport | null; resources?: string[]; pauseNote?: string | null } = {}): void {
     TestBed.configureTestingModule({
       imports: [AttemptOutcomeComponent],
       providers: [
@@ -185,6 +185,7 @@ describe('AttemptOutcomeComponent: pausa calmada renderizada (T12.1, AC-7)', () 
     writeInputSignal(component.status, status);
     writeInputSignal(component.report, options.report === undefined ? makeReport({ status: status as AttemptCompletionReport['status'] }) : options.report);
     if (options.resources) writeInputSignal(component.supportResources, options.resources);
+    if (options.pauseNote !== undefined) writeInputSignal(component.pauseNote, options.pauseNote);
     fixture.detectChanges();
   }
 
@@ -208,6 +209,18 @@ describe('AttemptOutcomeComponent: pausa calmada renderizada (T12.1, AC-7)', () 
     render('PAUSED');
     expect(text(host().querySelector('.oc-pause-copy')))
       .toBe('Tu avance quedó guardado exactamente donde estabas. No hay penalización: puedes retomarlo cuando quieras.');
+  });
+
+  it('con la pausa aún sin registrar, una línea discreta con role="status" lo dice, justo bajo el texto tranquilizador; sin nota no hay línea', () => {
+    render('PAUSED', { pauseNote: 'Saliste del caso. Registraremos la pausa cuando vuelva la conexión.' });
+    const note = host().querySelector('.oc-pause-note') as HTMLElement;
+    expect(note.getAttribute('role')).toBe('status');
+    expect(text(note)).toBe('Saliste del caso. Registraremos la pausa cuando vuelva la conexión.');
+    expect(note.previousElementSibling?.classList.contains('oc-pause-copy')).toBe(true);
+    fixture.destroy();
+    TestBed.resetTestingModule();
+    render('PAUSED', { pauseNote: null });
+    expect(host().querySelector('.oc-pause-note')).toBeNull();
   });
 
   it('«Reanudar este intento» es la primera acción y «Volver al catálogo» la segunda', () => {

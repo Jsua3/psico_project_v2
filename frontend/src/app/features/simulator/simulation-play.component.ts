@@ -1,7 +1,7 @@
 import { A11yModule } from '@angular/cdk/a11y';
 import { perfCancel, perfEnd, perfEndNextPaint, perfStart } from '../../core/perf/perf-marks';
 import { CommonModule } from '@angular/common';
-import { Component, ElementRef, HostListener, Injector, OnDestroy, OnInit, ViewChild, afterNextRender, viewChild, computed, effect, inject, signal, untracked, ChangeDetectionStrategy } from '@angular/core';
+import { Component, ElementRef, HostListener, Injector, OnDestroy, OnInit, ViewChild, afterNextRender, afterRenderEffect, viewChild, computed, effect, inject, signal, untracked, ChangeDetectionStrategy } from '@angular/core';
 import { HttpErrorResponse } from '@angular/common/http';
 import { retry, timeout } from 'rxjs';
 import { ActivatedRoute, Router, RouterLink } from '@angular/router';
@@ -29,13 +29,19 @@ import { ORIENTATION_COPY, SAFE_EXIT_ALWAYS_REACHABLE } from './orientation.conf
 import { GameHelpComponent } from './game-help.component';
 import { HELP_FIRST_CARD, markHelpSeen, readHelpSeen, resetHelpSeen } from './help-memory.util';
 import { SceneGoalCardComponent } from './scene-goal-card.component';
+import { partirNotaDeTransicion } from './nota-transicion';
 import { SensitiveNoticeComponent } from './sensitive-notice.component';
 import { debeConfirmarEnsayo, escenaDesde, reintentarSinDesde, veredictoDeLectura } from './caso/ensayo';
 import { escenaRetenida } from './caso/escena-visible';
 import {
-  type AlmacenSimple, OrdenDeRespuestas, PLAZO_ACCION_MS, borrarIntencion, borrarLectura, esLecturaRecuperable, esPlazoVencido, guardarIntencion,
-  guardarLectura, leerIntencion, leerLectura, pasoTrasFalloDeGuardado, respuestaVigente, veredictoDeEnvio, veredictoDeIntencion,
+  type AlmacenSimple, type IntencionDeDecision, OrdenDeRespuestas, PLAZO_ACCION_MS, borrarIntencion, borrarLectura, claveDeNpc, esPlazoVencido, guardarIntencion,
+  guardarLectura, leerIntencion, leerLectura, objetoDeLectura, pasoTrasFalloDeGuardado, respuestaVigente, veredictoDeEnvio, veredictoDeIntencion,
 } from './caso/robustez';
+import {
+  PausaPendiente, ReintentoAlVolver, borrarMarcaDePausa, esperaDeSincronizacion, guardarMarcaDePausa, hayMarcaDePausa, puedeReenviarEleccion,
+  veredictoDeFalloDePausa,
+} from './caso/pausa-local';
+import { npcsDeLaSala } from './caso/npcs-de-sala';
 import { memoriaDeComentarios } from './caso/comentarios';
 import { BurbujaVisible, MundoCercania, ProximityReactions, RELOJ_DE_VENTANA, acotarAncla } from './proximity-reactions';
 import { CommentBubbleComponent } from './comment-bubble.component';
@@ -46,6 +52,7 @@ import { DialoguePanelComponent } from './dialogue-panel.component';
 import { CameraMoment, GameWorldComponent } from './game-world.component';
 import { CameraSettings } from './camara/camera-settings.service';
 import { altoTapado } from './camara/cubierta';
+import type { Caja } from './camara/camara';
 import { type EscenarioReaccion, type FinReaccion, ReactionDirectorComponent } from './reaction-director.component';
 import { JournalPanelComponent, JournalSaveState } from './journal-panel.component';
 import { isShortcutContext } from './keyboard-focus.util';
@@ -86,6 +93,8 @@ import { UiDialog } from '../../shared/ui/dialog/ui-dialog';
 import { UiScopeNotice } from '../../shared/ui/scope-notice/ui-scope-notice';
 import { CONSENT_RECORDER, ConsentNoticeStaleError, consentStorageKey } from './consent-recorder';
 import { DRAFT_COPY } from './draft-copy';
+import { variablesDeArte } from './dialogo-arte';
+import { PixelIconoComponent } from './pixel/pixel-icono.component';
 
 /**
  * Plazo máximo de la precarga del consentimiento (S3-2b): antes de decidir si se pide el aviso se pregunta al servidor si la
@@ -118,6 +127,18 @@ const ROOM_BANNER_MS = 2200;
 const STAGE_BANNER_MS = 3000;
 /** Nota de transición autorada en el mapa (salto temporal). Hoy dura lo mismo que `NOTICE_MS`, pero es otro aviso. */
 const TRANSITION_NOTE_MS = 4200;
+/**
+ * Las placas de la interfaz que quedan sobre el mundo al explorar (variante B, U1): la ficha del objetivo, el carril,
+ * el grupo de la derecha (HUD y plano), «Salida segura», las herramientas y la acción cercana. La cámara no deja
+ * cuerpos bajo ellas (zona segura). Las ocultas miden 0 y no cuentan.
+ */
+const PLACAS_SOBRE_EL_MUNDO = [
+  '.objective-card', '.carril .sensitive-strip', '.carril .soft-notice', '.carril .room-banner',
+  'app-simulation-hud .hud-case', 'app-simulation-hud .hud-strip',
+  'app-minimapa .minimapa__lugar', 'app-minimapa .minimapa__abrir', 'app-minimapa .minimapa__alternar',
+  '.bottom-zone .safe-exit-btn', '.bottom-zone .tool-dock-wrap', '.bottom-zone .notice-pie .sensitive-strip',
+  '.bottom-zone .context-bar__interaction', '.bottom-zone .context-bar__now',
+].join(', ');
 /** Modo compacto (F§7.9): la misma condición que el CSS compacto y que el HUD. */
 const COMPACT_QUERY = '(max-height: 520px), (pointer: coarse) and (orientation: landscape)';
 /** Pantalla estrecha (móvil vertical): la tarjeta también arranca plegada, el mundo ocupa el ancho (F§4.6). */
@@ -129,13 +150,15 @@ const NARROW_QUERY = '(max-width: 760px)';
     A11yModule, CommonModule, RouterLink, MatIconModule,
     SimulationHudComponent, GameWorldComponent, DialoguePanelComponent,
     ToolInventoryComponent, JournalPanelComponent, AttemptOutcomeComponent,
-    SafeExitButtonComponent, SceneGoalCardComponent, GameHelpComponent, WorldPlacesListComponent,
+    SafeExitButtonComponent, PixelIconoComponent, SceneGoalCardComponent, GameHelpComponent, WorldPlacesListComponent,
     MinimapaComponent, PlanoCompletoComponent,
     ReactionDirectorComponent, CommentBubbleComponent, RehearsalGoneComponent, RehearsalPanelComponent, SensitiveNoticeComponent, UiButton, UiErrorState, UiScopeNotice, UiSpinner
   ],
   template: `
-    <div class="game-container" data-skin="game" id="main-content" tabindex="-1" [attr.data-mode]="viewMode()"
-      [class.game-container--reduce-motion]="reduceMotion()" [attr.data-rehearsal]="mode() === 'rehearsal' ? 'true' : null">
+    <div class="game-container pixel-juego" data-skin="game" id="main-content" tabindex="-1" [attr.data-mode]="viewMode()" [style]="arteJuego"
+      [class.game-container--reduce-motion]="reduceMotion()" [class.game-container--cine]="cinemaBars()"
+      [style.--alto-hud]="altoHud() + 'px'" [style.--alto-objetivo]="altoObjetivo() + 'px'"
+      [attr.data-rehearsal]="mode() === 'rehearsal' ? 'true' : null">
       <!-- Sin región viva propia (F6-12): todo anuncio sale por las dos regiones persistentes de la app
            (LiveRegionAnnouncer), que ya existen antes de que cambie su texto. -->
       <!-- Un h1 por pantalla (plan visual F3-6): el nombre del caso, visualmente oculto (el juego es a sangre). -->
@@ -169,25 +192,23 @@ const NARROW_QUERY = '(max-width: 760px)';
            del sistema (ui-toast-host, colocación del juego: arriba a la izquierda). Permanecen hasta cerrarse con
            «Cerrar», no mueven el foco y los anuncia ese anfitrión una vez (assertive solo el error). -->
       <!-- Con un diálogo sobre el mundo el aviso no flota encima del cuadro: el cuadro lo muestra en su sitio (avisoBreve). -->
-      @if (softNotice() && viewMode() !== 'dialogue-cinematic') {
-        <!-- Aviso breve (4,2 s): lo que dice ya se anunció; nunca es la única
-             fuente. Sin role: una región que nace con su texto no se anuncia de forma fiable. -->
-        <div class="soft-notice">{{ softNotice() }}</div>
-      }
-      @if (pausing()) {
+      @if (pausing() && attempt()?.status === 'IN_PROGRESS') {
         <!-- Acuse visible de la salida segura pedida: con una superposición abierta el pie queda oculto.
              Los lectores de pantalla ya reciben el aviso por la región viva. -->
-        <div class="pausing-notice" aria-hidden="true">
-          <mat-icon aria-hidden="true">pause_circle</mat-icon>
+        <div class="pausing-notice u-placa u-sombra" aria-hidden="true">
+          <app-pixel-icono nombre="pausa" />
           <span>Pausando el caso…</span>
         </div>
       }
-      @if (roomBanner() && !fadeActive()) {
-        <div class="room-banner">{{ roomBanner() }}</div>
-      }
       @if (transitionNote()) {
+        <!-- Bloque U1: la pestaña del capítulo sobre la placa del texto (como el nombre de quien habla sobre su placa). -->
         <div class="transition-note">
-          <p>{{ transitionNote() }}</p>
+          <div class="transition-note__bloque">
+            @if (transitionParts().capitulo; as capitulo) {
+              <p class="transition-note__capitulo u-rotulo">{{ capitulo }}</p>
+            }
+            <p class="transition-note__texto u-placa u-sombra">{{ transitionParts().texto }}</p>
+          </div>
         </div>
       }
 
@@ -308,24 +329,48 @@ const NARROW_QUERY = '(max-width: 760px)';
 
         <header class="top-bar" [attr.inert]="inputBlocked() ? '' : null" [attr.aria-hidden]="inputBlocked() ? 'true' : null">
           @if (mode() === 'rehearsal') { <p class="rehearsal-banner" role="note">{{ draft.rehearsalBanner.text }}</p> }
-          <app-simulation-hud
-            [attempt]="game"
-            [patientVisual]="patientVisual()"
-            [stageLabel]="stageLabel()"
-            [locationLabel]="world()?.map?.title ?? ''"
-            [journalOpen]="journalOpen()"
-            [musicMuted]="musicMuted()"
-            [sfxMuted]="sfxMuted()"
-            [reduceMotion]="reduceMotion()"
-            (toggleJournal)="journalOpen.set(!journalOpen())" (openPlaces)="openPlaces()"
-            [shortcuts]="shortcuts.enabled()" (toggleShortcuts)="shortcuts.toggle()"
-            (toggleMusic)="toggleMusicMute()"
-            (toggleSfx)="toggleSfxMute()"
-            (toggleReduceMotion)="toggleReduceMotion()"
-            (openHelp)="openHelp()" (helpReset)="resetHelpCard()" />
-          <!-- Recordatorio ético del nodo sensible (ETH-01): franja bajo la cabecera, completa al entrar y plegada a un chip a los 8 s;
-               siempre a la vista en todos los dispositivos. Ocupa su propio sitio: no tapa al personaje ni los controles. -->
-          <app-sensitive-notice [text]="sensitiveNotice()" [sceneKey]="visibleNode()?.key ?? null" [reduceMotion]="reduceMotion()" />
+          <!-- Bloque U1, variante B: una fila sobre el mundo. A la izquierda, el hueco de la ficha del objetivo (que vive en el
+               lienzo); en medio, el carril de avisos; a la derecha, el grupo del caso, la persona y las teclas. -->
+          <div class="top-bar__fila">
+            <span class="top-bar__hueco" aria-hidden="true"></span>
+            <div class="carril">
+            <!-- Recordatorio ético del nodo sensible (ETH-01): franja bajo la cabecera, completa al entrar y plegada a un chip a los 8 s;
+                 siempre a la vista en todos los dispositivos. Ocupa su propio sitio: no tapa al personaje ni los controles. -->
+            <app-sensitive-notice [text]="sensitiveNotice()" [sceneKey]="visibleNode()?.key ?? null" [reduceMotion]="reduceMotion()" />
+              @if (softNotice() && viewMode() !== 'dialogue-cinematic') {
+                <!-- Aviso breve (4,2 s): lo que dice ya se anunció; nunca es la única
+                     fuente. Sin role: una región que nace con su texto no se anuncia de forma fiable. -->
+                <div class="soft-notice u-placa u-sombra"><app-pixel-icono nombre="hecho" /><span>{{ softNotice() }}</span></div>
+              }
+              @if (roomBanner() && !fadeActive()) {
+                <div class="room-banner u-placa u-sombra">{{ roomBanner() }}</div>
+              }
+            </div>
+            <!-- Bloque U1: el HUD y, debajo de él, el minimapa (antes en la esquina del lienzo). Un solo grupo a la derecha. -->
+            <div class="top-bar__derecha" #derecha>
+            <app-simulation-hud
+              [attempt]="game"
+              [patientVisual]="patientVisual()"
+              [stageLabel]="stageLabel()"
+              [locationLabel]="world()?.map?.title ?? ''"
+              [journalOpen]="journalOpen()"
+              [musicMuted]="musicMuted()"
+              [sfxMuted]="sfxMuted()"
+              [reduceMotion]="reduceMotion()"
+              (toggleJournal)="journalOpen.set(!journalOpen())" (openPlaces)="openPlaces()"
+              [shortcuts]="shortcuts.enabled()" (toggleShortcuts)="shortcuts.toggle()"
+              (toggleMusic)="toggleMusicMute()"
+              (toggleSfx)="toggleSfxMute()"
+              (toggleReduceMotion)="toggleReduceMotion()"
+              (openHelp)="openHelp()" (helpReset)="resetHelpCard()" />
+            @if (world() && !cinemaBars()) {
+              <!-- Minimapa (bloque M1, §5.3): abre el plano completo (también con M). Con las franjas de cine se va. -->
+              <app-minimapa [plano]="placePlan()" [actual]="placeRoom()" [cercana]="cameraSettings.cercana()"
+                [lugar]="world()?.map?.title ?? ''"
+                (abrir)="openPlan()" (alternarCercana)="cameraSettings.toggleCercana()" />
+            }
+            </div>
+          </div>
         </header>
 
         <div class="main-zone">
@@ -335,6 +380,10 @@ const NARROW_QUERY = '(max-width: 760px)';
               <!-- Sin role="status": la ficha no trae región viva (los avisos salen por el anunciador de la app). -->
               <div class="objective-card">
                 <!-- La ficha abierta se desplaza por dentro con tope de alto (no baja hasta las personas y objetos del suelo). -->
+                @if (stageLabel(); as etapa) {
+                  <!-- La etapa es la pestaña de la ficha, como el nombre de quien habla sobre su placa (U1). -->
+                  <p class="objective-card__etapa u-rotulo"><span class="u-rotulo__texto">{{ etapa }}</span></p>
+                }
                 <div class="objective-card__scroll">
                   <app-scene-goal-card [guia]="guide()" [hintAttempt]="hintAttempt()" [compact]="cardFolded()"
                     (opened)="refreshGuide()" (consentRequired)="requireConsentAgain()" />
@@ -363,11 +412,6 @@ const NARROW_QUERY = '(max-width: 760px)';
                 (enterRoom)="onDoorTrigger($event)"
                 (salaIncompleta)="onSalaIncompleta()"
                 (positionChange)="rememberPosition($event.x, $event.y)" />
-              <!-- Minimapa (bloque M1, §5.3): esquina del mundo; abre el plano completo (también con M). -->
-              @if (!cinemaBars()) {
-                <app-minimapa [plano]="placePlan()" [actual]="placeRoom()" [cercana]="cameraSettings.cercana()"
-                  (abrir)="openPlan()" (alternarCercana)="cameraSettings.toggleCercana()" />
-              }
               <!-- Franjas de cine (bloque M1, regla 7): entran en la decisión y en la reacción; la de abajo aloja el cuadro de diálogo. -->
               <div class="cine cine--arriba" aria-hidden="true" [class.cine--dentro]="cinemaBars()"></div>
               <div class="cine cine--abajo" aria-hidden="true" [class.cine--dentro]="cinemaBars()"
@@ -430,8 +474,12 @@ const NARROW_QUERY = '(max-width: 760px)';
                  en curso el toque se acepta y la pausa sale en el acto (REGLA-004), y el rótulo pasa a «Pausando…»
                  (aria-busy). Sin aria-label: el nombre accesible sale del texto visible (WCAG 2.5.3, axe
                  label-content-name-mismatch); la tecla Esc es aria-hidden. -->
-            <app-safe-exit-button [compact]="compactMode()" [pausing]="pausing()" (pause)="pauseFromOverlay()" />
+            <app-safe-exit-button variante="placa" [compact]="compactMode()" [pausing]="pausing()" (pause)="pauseFromOverlay()" />
           }
+          <!-- Teléfono (≤ 560 px, bloque U1): el chip de contenido sensible baja junto a «Salida segura» y deja más sala a la vista.
+               Con ≤ 560 px se oculta el del carril y con más se oculta este (display: none lo saca del árbol de accesibilidad:
+               queda uno solo, visible y legible a la vez). -->
+          <app-sensitive-notice class="notice-pie" [text]="sensitiveNotice()" [sceneKey]="visibleNode()?.key ?? null" [reduceMotion]="reduceMotion()" />
 
           <app-tool-inventory class="tool-dock" [tools]="world()?.tools ?? []"
             [inventory]="world()?.inventory ?? []"
@@ -443,12 +491,12 @@ const NARROW_QUERY = '(max-width: 760px)';
           <div class="context-bar">
             @if (contextAction(); as action) {
               <!-- Un solo botón principal, una línea y altura fija: el mundo no cambia de tamaño al acercarte a algo. -->
-              <button type="button" class="context-bar__interaction"
+              <button type="button" class="context-bar__interaction u-ficha u-sombra"
                 [class.context-bar__interaction--exit]="action.obj.type === 'EXIT'"
                 [class.context-bar__interaction--locked]="action.verb.locked"
                 (click)="openInteraction(action.obj)" [attr.aria-label]="action.ariaLabel" [attr.title]="action.title">
-                @if (!compactMode()) { <kbd aria-hidden="true">{{ shortcuts.enabled() ? 'E' : 'Enter' }}</kbd> }
-                @if (action.verb.locked) { <mat-icon class="context-bar__lock" aria-hidden="true">lock</mat-icon> }
+                @if (!compactMode()) { <kbd class="u-tecla u-tecla--letra" aria-hidden="true">{{ shortcuts.enabled() ? 'E' : 'Enter' }}</kbd> }
+                @if (action.verb.locked) { <app-pixel-icono class="context-bar__lock" nombre="candado" /> }
                 <span class="context-bar__copy">
                   <strong>{{ action.verb.text }}</strong>
                   @if (action.verb.locked && action.verb.reason) {
@@ -457,10 +505,10 @@ const NARROW_QUERY = '(max-width: 760px)';
                 </span>
               </button>
               @if (contextAlso(); as also) {
-                <button type="button" class="context-bar__interaction context-bar__interaction--secondary"
+                <button type="button" class="context-bar__interaction context-bar__interaction--secondary u-ficha u-sombra"
                   [class.context-bar__interaction--locked]="also.verb.locked"
                   (click)="openInteraction(also.obj)" [attr.title]="also.title" [attr.aria-label]="'También: ' + also.verb.text">
-                  @if (also.verb.locked) { <mat-icon class="context-bar__lock" aria-hidden="true">lock</mat-icon> }
+                  @if (also.verb.locked) { <app-pixel-icono class="context-bar__lock" nombre="candado" /> }
                   <span class="context-bar__also">También:</span>
                   <strong>{{ also.verb.text }}</strong>
                 </button>
@@ -468,7 +516,7 @@ const NARROW_QUERY = '(max-width: 760px)';
             } @else {
               <div class="context-bar__idle">
                 @if (nothingNearbyNote(); as note) {
-                  <p class="context-bar__now">{{ note }}</p>
+                  <p class="context-bar__now u-placa">{{ note }}</p>
                 }
               </div>
             }
@@ -529,7 +577,7 @@ const NARROW_QUERY = '(max-width: 760px)';
 
         @if (!holdingOutcome() && !reactingToLast()) {
           <app-attempt-outcome [report]="game.completionReport" [status]="game.status"
-            [supportResources]="supportResources()"
+            [supportResources]="supportResources()" [pauseNote]="pauseNote()"
             [mode]="mode()" [caseVersionId]="game.caseVersionId"
             [reviewAttemptId]="game.status === 'COMPLETED' && mode() !== 'rehearsal' ? game.attemptId : null"
             (retry)="startNewAttempt()" (resume)="resumeCurrentAttempt()" />
@@ -560,7 +608,8 @@ const NARROW_QUERY = '(max-width: 760px)';
       position: fixed;
       inset: 0;
       display: grid;
-      grid-template-rows: auto minmax(0, 1fr) auto;
+      /* Bloque U1, variante B: el mundo a sangre; la cabecera y el pie son capas sobre él (misma celda de la rejilla). */
+      grid-template-rows: minmax(0, 1fr);
       /* La columna explícita clampa el track al viewport: sin ella, el
          min-content de la bottom-zone (dock + salida segura) ensancha el track
          implícito y desborda canvas + objective-card en mobile. */
@@ -577,7 +626,19 @@ const NARROW_QUERY = '(max-width: 760px)';
     .game-container .psy-eyebrow { color: var(--ds-primary); }
 
     /* ── Top bar ─────────────────────────────────────────────────────────── */
-    .top-bar { z-index: 40; }
+    .top-bar, .main-zone, .bottom-zone { grid-row: 1; grid-column: 1; }
+    .top-bar { z-index: var(--ds-z-cabecera); align-self: start; pointer-events: none; }
+    .top-bar > .rehearsal-banner { pointer-events: auto; }
+    .top-bar__fila { display: flex; align-items: flex-start; gap: var(--pixel-borde); padding: var(--pixel-borde); }
+    /* El grupo de la derecha: el HUD y, debajo, el minimapa. La capa deja pasar el puntero; solo sus hijos lo reciben. */
+    .top-bar__derecha { flex: none; display: flex; flex-direction: column; align-items: flex-end; gap: calc(2 * var(--pixel-px)); pointer-events: none; }
+    .top-bar__derecha > * { pointer-events: auto; }
+    /* El chip de contenido sensible del pie solo existe en teléfono (≤ 560 px): en el resto, el del carril. */
+    .notice-pie { display: none; }
+    /* El hueco mide lo que la ficha del objetivo: el carril nunca cae sobre ella (antes el aviso de puerta la tapaba). */
+    .top-bar__hueco { flex: none; width: min(440px, 33%); }
+    .carril { flex: 1; min-width: 0; display: flex; flex-direction: column; align-items: center; gap: calc(3 * var(--pixel-px)); pointer-events: none; }
+    .carril > * { pointer-events: auto; max-width: 100%; }
     /* Cabecera y pie bajo una capa o un diálogo lateral (inert): se ven apagados, no «vivos pero muertos» (F6-1).
        El mundo no se atenúa con un diálogo lateral abierto: sigue siendo el contexto de lo que se decide. */
     .top-bar[inert], .bottom-zone[inert] {
@@ -592,7 +653,7 @@ const NARROW_QUERY = '(max-width: 760px)';
       grid-template-columns: minmax(0, 1fr);
       gap: 10px;
       min-height: 0;
-      padding: 10px 12px 0;
+      padding: 0;
     }
     .game-container[data-mode='dialogue-right'] .main-zone {
       grid-template-columns: minmax(0, 1fr) clamp(340px, 28vw, 480px);
@@ -611,11 +672,8 @@ const NARROW_QUERY = '(max-width: 760px)';
     .canvas-zone {
       position: relative;
       min-height: 0;
-      border: 1px solid rgba(182,156,255,.18);
-      border-radius: 16px;
       overflow: hidden;
-      background: #0e1322;
-      box-shadow: var(--sim-glow);
+      background: var(--pixel-cine);
     }
     .game-surface { position: absolute; inset: 0; }
     /* Franjas de cine (bloque M1): se deslizan desde los bordes; no reciben el puntero ni escalan con la cámara. */
@@ -632,31 +690,28 @@ const NARROW_QUERY = '(max-width: 760px)';
     @media (prefers-reduced-motion: reduce) { .cine { transition: none; } }
     .world-skeleton { position: absolute; inset: 0; background: #0e1322; }
 
-    /* Envoltorio de la ficha del objetivo: aporta posición, borde y fondo casi opaco (la ficha no pinta superficie). */
+    /* Envoltorio de la ficha del objetivo (U1): solo posición y tope de alto; la pestaña de la etapa y la placa la pintan
+       las piezas de la hoja común. Arriba a la izquierda, del ancho del hueco de la cabecera. */
     .objective-card {
       position: absolute;
-      top: 10px;
-      left: 10px;
-      z-index: 20;
-      width: min(380px, 58%);
+      top: var(--pixel-borde);
+      left: var(--pixel-borde);
+      z-index: var(--ds-z-pegajoso);
+      width: min(440px, 33%);
       /* Tope de alto: sin él la lista desplegada bajaba sobre el kit y la Familia en crisis, que nacen en el tercio inferior. */
-      max-height: min(calc(100% - 20px), 66%);
+      max-height: min(calc(100% - 24px), 66%);
       display: flex;
       flex-direction: column;
+      align-items: stretch;
       overflow: hidden;
-      padding: 8px 11px;
-      border: 1px solid rgba(182,156,255,.32);
-      border-radius: 10px;
-      background: rgba(8,12,18,.88);
-      /* Marco doble: línea interna oscura — acabado pixel-art sobrio. */
-      box-shadow:
-        inset 0 0 0 1px rgba(8,12,18,.95),
-        0 12px 30px -22px rgba(124,77,255,.55);
     }
-    @media (min-width: 1100px) {
-      /* Más ancha, la lista y el aviso pierden líneas: con el tope de alto se ve entera (o casi) sin tapar el kit ni la Familia en crisis. */
-      .objective-card { width: min(560px, 50%); }
-    }
+    .objective-card__etapa { flex: none; }
+    /* Decisión con franjas de cine: la franja de arriba queda limpia (el HUD sigue). */
+    .game-container--cine .objective-card { visibility: hidden; }
+    /* Con franjas, la fila de arriba se pega al borde y el grupo de la derecha deja la pestaña del caso: cabe en la franja
+       negra (8 % del alto) sin bajar sobre la sala. Las teclas siguen, con la misma conducta. */
+    .game-container--cine .top-bar__fila { padding-top: 0; }
+    .game-container--cine .top-bar__derecha ::ng-deep .hud-case { display: none; }
     .objective-card__scroll { min-height: 0; overflow-y: auto; overscroll-behavior: contain; scrollbar-width: thin; }
 
     /* Tarjeta de primera vez: sobre las cruces táctiles (48) para que sus botones siempre se puedan tocar, y bajo las
@@ -667,25 +722,27 @@ const NARROW_QUERY = '(max-width: 760px)';
       width: min(560px, calc(100% - 24px));
     }
     @media (min-width: 1100px) {
-      /* 380 px: más ancha tapaba la puerta del quirófano (acceso restringido) en el arranque de Urgencias. */
-      .help-slot { top: 12px; bottom: auto; left: auto; right: 12px; transform: none; width: min(380px, calc(100% - 488px)); }
+      /* Arriba al centro, bajo el carril: a la derecha están ahora el HUD y el plano. 380 px como máximo: más ancha tapaba
+         la puerta del quirófano (acceso restringido) en el arranque de Urgencias. */
+      .help-slot { top: calc(var(--pixel-borde) + 64px); bottom: auto; left: 50%; transform: translateX(-50%); width: min(380px, 30%); }
     }
-    /* Móvil vertical: las cruces táctiles ocupan abajo; la tarjeta va arriba, bajo el chip de la ficha del objetivo. */
+    /* Móvil vertical: las cruces táctiles ocupan abajo; la tarjeta va arriba, bajo el HUD y la ficha del objetivo. */
     @media (max-width: 760px) {
-      .help-slot { top: 52px; bottom: auto; }
+      .help-slot { top: calc(3 * var(--pixel-borde) + var(--alto-hud, 0px) + var(--alto-objetivo, 0px)); bottom: auto; }
     }
     @media (max-height: 520px), (pointer: coarse) and (orientation: landscape) {
       /* Entre las bandas de las cruces táctiles (≈ 150 px a cada lado): sus botones quedan a la vista y se pueden tocar. */
       .help-slot { top: 8px; bottom: auto; left: 50%; right: auto; transform: translateX(-50%); width: min(460px, calc(100% - 300px)); }
     }
-    /* Pantalla de ayuda: deja libres la cabecera (48 px) y el pie (64 px); la capa no captura toques fuera de la hoja. */
+    /* Pantalla de ayuda: cabecera y pie ya no son franjas fijas sino capas sobre el mundo (U1). Deja libres el HUD de
+       arriba (120 px) y el pie de abajo (96 px), que siguen operables; la capa no captura toques fuera de la hoja. */
     .help-layer {
-      position: absolute; left: 0; right: 0; top: 52px; bottom: 68px; z-index: 90;
+      position: absolute; left: 0; right: 0; top: 120px; bottom: 96px; z-index: 90;
       display: grid; place-items: center; padding: 8px 12px; pointer-events: none;
     }
     .help-layer app-game-help { width: min(640px, 100%); max-height: 100%; pointer-events: auto; }
     /* La hoja de ayuda trae su propio tope (78vh / 92vh): aquí no puede pasar de la capa, o taparía el pie. */
-    .help-layer ::ng-deep .help-screen { max-height: min(560px, calc(100vh - 136px)); }
+    .help-layer ::ng-deep .help-screen { max-height: min(560px, calc(100vh - 232px)); }
 
     /* ── Right panel (solo en dialogue-right) ────────────────────────────── */
     .right-panel {
@@ -718,15 +775,20 @@ const NARROW_QUERY = '(max-width: 760px)';
 
     /* ── Bottom zone: salida segura + dock + contexto ────────────────────── */
     /* Altura FIJA: acercarte a algo cambia el texto del pie, nunca su tamaño (el mundo no salta; TOUCH-04). */
+    /* El pie es una capa sobre el mundo (U1): «Salida segura» y las herramientas a la izquierda, la acción cercana a la
+       derecha; en medio se ve la sala y el puntero pasa al mundo. */
     .bottom-zone {
+      align-self: end;
       display: flex;
-      align-items: stretch;
-      gap: 10px;
+      align-items: flex-end;
+      gap: calc(4 * var(--pixel-px));
       box-sizing: border-box;
-      height: 64px;
-      padding: 8px 12px 10px;
-      z-index: 30;
+      padding: var(--pixel-borde);
+      z-index: var(--ds-z-cabecera);
+      pointer-events: none;
+      --alto-boton: calc(28 * var(--pixel-px));
     }
+    .bottom-zone > * { pointer-events: auto; }
     /* Con el fundido de escena (z 200) o la nota de transición (z 340) a pantalla completa, el pie sube por encima:
        «Salida segura» nunca queda tapada mientras una puerta o una decisión esperan al servidor (REGLA-004). */
     .bottom-zone--above-veils { z-index: 350; }
@@ -737,92 +799,87 @@ const NARROW_QUERY = '(max-width: 760px)';
     /* «Salida segura» del pie es app-safe-exit-button (F6-6): su forma vive en el componente; aquí solo su sitio. */
     .bottom-zone > app-safe-exit-button { flex-shrink: 0; }
     .tool-dock { display: block; min-width: 0; flex: 0 1 auto; }
+    /* La acción cercana (U1): fichas del cuadro de diálogo, una principal y, más baja, la secundaria. La barra deja pasar el
+       puntero al mundo; solo sus fichas lo reciben. */
     .context-bar {
       flex: 1;
       display: flex;
       align-items: center;
       justify-content: flex-end;
-      gap: 8px;
+      gap: calc(4 * var(--pixel-px));
       min-width: 0;
       min-height: 0;
+      font-family: var(--pixel-f-texto);
+      font-size: var(--pixel-tam);
+      pointer-events: none;
     }
+    .context-bar > * { pointer-events: auto; }
+    /* Sin overflow: la sombra de tramado de la ficha cuelga por debajo; el recorte con elipsis lo hace cada texto. */
     .context-bar__interaction {
+      box-sizing: border-box;
       display: flex;
       align-items: center;
-      gap: 10px;
+      gap: calc(4 * var(--pixel-px));
       min-width: 0;
       max-width: 100%;
       max-height: 100%;
       min-height: 44px;
-      padding: 5px 14px;
-      border: 1px solid rgba(182,156,255,.35);
-      border-radius: 12px;
-      background: rgba(8,12,18,.88);
-      color: inherit;
-      font: inherit;
+      padding: calc(2 * var(--pixel-px)) calc(6 * var(--pixel-px)) calc(3 * var(--pixel-px)) calc(4 * var(--pixel-px));
       text-align: left;
-      cursor: pointer;
-      overflow: hidden;
     }
-    .context-bar__interaction--exit { border-color: rgba(182,156,255,.65); }
-    /* Puerta bloqueada: forma, no solo color (borde discontinuo y candado). */
-    .context-bar__interaction--locked { border-style: dashed; border-color: rgba(245,184,75,.7); }
-    .context-bar__interaction kbd {
-      flex-shrink: 0;
-      padding: 3px 9px;
-      border-radius: 6px;
-      background: rgba(124,77,255,.22);
-      border: 1px solid rgba(124,77,255,.4);
-      font-size: .8rem;
-      font-family: 'JetBrains Mono', monospace;
-      font-weight: 800;
-      color: #c9b8ff;
-    }
-    .context-bar__lock { flex-shrink: 0; width: 18px; height: 18px; font-size: 18px; color: #F5B84B; }
+    /* La puerta bloqueada se dice con el candado y el motivo (forma y texto, no solo color); la de salida, con su verbo. */
+    .context-bar__interaction--exit, .context-bar__interaction--locked { font-weight: 700; }
     /* La tecla E solo se rotula con teclado y puntero fino: en táctil el botón basta. */
     @media not all and (hover: hover) and (pointer: fine) {
       .context-bar__interaction kbd { display: none; }
     }
-    .context-bar__copy { display: grid; min-width: 0; }
+    .context-bar__lock { flex: none; color: var(--pixel-ambar); }
+    .context-bar__copy { display: grid; gap: var(--pixel-px); justify-items: start; min-width: 0; }
     .context-bar__copy strong {
       min-width: 0;
+      max-width: 100%;
       overflow: hidden;
       text-overflow: ellipsis;
       white-space: nowrap;
-      font-size: .8rem;
-      color: #cdbcff;
+      font-weight: 700;
       line-height: 1.25;
     }
+    /* El motivo de la puerta bloqueada: ámbar sobre su fondo, como el aviso de ficha «Aún no tienes esta herramienta». */
     .context-bar__reason {
       min-width: 0;
+      max-width: 100%;
       overflow: hidden;
       text-overflow: ellipsis;
       white-space: nowrap;
-      font-size: .75rem;
+      padding: var(--pixel-px) calc(2 * var(--pixel-px));
+      background: var(--pixel-ambar-fondo);
+      color: var(--pixel-ambar);
+      font-size: var(--pixel-letra-chica);
+      font-weight: 700;
       line-height: 1.3;
-      color: #ffe2ae;
     }
-    /* Segundo candidato en rango: más pequeño; la tecla E siempre actúa sobre el principal. */
+    /* Segundo candidato en rango: una ficha más baja; la tecla E siempre actúa sobre el principal. */
     .context-bar__interaction--secondary {
-      flex: 0 1 40%; min-width: 96px; gap: 6px; padding: 4px 10px; border-color: rgba(182,156,255,.25);
+      flex: 0 1 40%; min-width: 96px; gap: calc(3 * var(--pixel-px));
+      padding: var(--pixel-px) calc(4 * var(--pixel-px)) calc(2 * var(--pixel-px));
     }
     .context-bar__interaction--secondary strong {
-      min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: .75rem; color: #cdbcff;
+      min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: var(--pixel-letra-chica); font-weight: 600;
     }
-    .context-bar__also { flex-shrink: 0; font-size: .75rem; font-weight: 700; color: rgba(232,240,244,.78); }
-    /* Sin nada cerca la barra queda en blanco; solo dice «No hay nada a tu alcance» mientras dure la nota. */
-    .context-bar__idle { flex: 1; min-width: 0; display: grid; gap: 2px; align-content: center; text-align: left; }
+    .context-bar__also { flex: none; font-size: var(--pixel-letra-chica); font-weight: 700; color: var(--pixel-tinta-suave); }
+    /* Sin nada cerca la barra queda en blanco; solo dice «No hay nada a tu alcance» mientras dure la nota (una placa que no se toca). */
+    .context-bar__idle { flex: 1; min-width: 0; display: grid; gap: 2px; justify-items: start; align-content: center; text-align: left; pointer-events: none; }
     .context-bar__now {
       min-width: 0;
       margin: 0;
+      padding: calc(2 * var(--pixel-px)) calc(5 * var(--pixel-px)) calc(3 * var(--pixel-px));
       overflow: hidden;
-      font-size: .84rem;
       font-weight: 700;
       line-height: 1.3;
-      color: rgba(244,247,251,.94);
       display: -webkit-box;
       -webkit-line-clamp: 2;
       -webkit-box-orient: vertical;
+      pointer-events: none;
     }
 
     /* Advertencia de contenido (ETH-01): variante del card de intro. */
@@ -983,42 +1040,37 @@ const NARROW_QUERY = '(max-width: 760px)';
     .game-failure ui-error-state { max-inline-size: 28rem; }
     .rehearsal-banner { margin: 0; padding: 4px 12px; font-size: .85rem; text-align: center; background: var(--ds-surface-2, rgba(18,24,42,.9)); color: var(--ds-text-1); border-block-end: 1px solid var(--ds-border, rgba(182,156,255,.3)); }
     /* Aviso no esencial («Obtuviste: …»): quieto, sin animación, sobre el pie. */
-    .soft-notice {
-      position: absolute; bottom: 84px; left: 50%; transform: translateX(-50%); z-index: 310;
-      max-width: min(92vw, 520px); padding: 9px 16px; border-radius: 12px;
-      background: rgba(18,24,42,.96); border: 1px solid rgba(182,156,255,.45);
-      color: #f4f7fb; font-size: .86rem; font-weight: 700; line-height: 1.35; text-align: center;
-      pointer-events: none;
+    .soft-notice, .room-banner {
+      display: flex; align-items: center; gap: calc(4 * var(--pixel-px)); min-height: 44px;
+      padding: var(--pixel-px) calc(5 * var(--pixel-px)) calc(2 * var(--pixel-px));
+      font-size: var(--pixel-tam); font-weight: 600; line-height: 1.35; pointer-events: none;
     }
+    /* Acuse de la salida segura con una capa abierta: placa con la tinta de la brasa, arriba al centro (carril). */
     .pausing-notice {
-      position: absolute; bottom: 14px; left: 50%; transform: translateX(-50%); z-index: 420;
-      display: flex; align-items: center; gap: 8px;
-      width: max-content; max-width: min(92vw, 520px);
-      padding: 8px 16px; border-radius: 18px;
-      background: rgba(24,30,46,.96); border: 1px solid rgba(241,167,159,.5);
-      color: #f1a79f; font-size: .85rem; font-weight: 800; letter-spacing: .02em;
+      position: absolute; top: var(--pixel-borde); left: 50%; transform: translateX(-50%); z-index: var(--ds-z-maximo);
+      display: flex; align-items: center; gap: calc(4 * var(--pixel-px));
+      width: max-content; max-width: min(92vw, 520px); min-height: 44px;
+      padding: var(--pixel-px) calc(5 * var(--pixel-px)) calc(2 * var(--pixel-px));
+      color: var(--pixel-brasa-tinta); font-size: var(--pixel-tam); font-weight: 700; letter-spacing: .02em;
     }
-    .pausing-notice mat-icon { font-size: 20px; width: 20px; height: 20px; }
-    /* Arriba a la derecha: la ficha del objetivo ocupa el lado izquierdo (hasta el 58 % del ancho) y el rótulo nunca la tapa. */
-    .room-banner {
-      position: absolute; top: 96px; right: 12px; left: auto; max-width: calc(42% - 24px); z-index: 320;
-      padding: 10px 22px; border-radius: 18px;
-      background: rgba(18,24,42,.9); border: 1px solid var(--sim-border);
-      color: var(--sim-ink); font-weight: 800; letter-spacing: .04em;
-      animation: room-banner-in 260ms ease;
-      pointer-events: none;
-    }
+    /* El rótulo de la sala al entrar, en el carril: la etapa en la letra de las pestañas, con la luz de la sala. */
+    .room-banner { font-family: var(--pixel-f-nombre); font-weight: 700; color: var(--luz); animation: room-banner-in 260ms ease; }
     @keyframes room-banner-in { from { opacity: 0; transform: translateY(-8px); } }
     @keyframes room-banner-in-centered { from { opacity: 0; transform: translate(-50%, -8px); } }
+    /* Tarjeta de capítulo (U1): el velo fuerte de la paleta y, al centro, la pestaña del capítulo sobre la placa del texto.
+       El pie sube por encima del velo (REGLA-004, .bottom-zone--above-veils). */
     .transition-note {
       position: fixed; inset: 0; z-index: 340; display: grid; place-items: center;
-      background: rgba(6,9,16,.92); pointer-events: none;
+      background: var(--pixel-velo-fuerte); pointer-events: none;
       animation: transition-note-in 420ms ease;
     }
-    .transition-note p {
-      max-width: min(88vw, 640px); margin: 0; padding: 0 24px; text-align: center;
-      color: #f4f7fb; font-size: clamp(1.05rem, 2.4vw, 1.45rem); font-weight: 600;
-      line-height: 1.6; letter-spacing: .02em; font-style: italic;
+    .transition-note__bloque { display: grid; justify-items: start; width: min(88vw, 640px); }
+    .transition-note__capitulo { margin-bottom: calc(-1 * var(--pixel-px)); }
+    .transition-note__texto {
+      box-sizing: border-box; width: 100%; margin: 0;
+      padding: calc(8 * var(--pixel-px)) calc(12 * var(--pixel-px)) calc(9 * var(--pixel-px));
+      text-align: center; font-family: var(--pixel-f-texto); font-size: calc(var(--pixel-tam) * 1.5); font-weight: 600; font-style: italic;
+      line-height: 1.6; letter-spacing: .02em;
     }
     @keyframes transition-note-in { from { opacity: 0; } }
     /* «Reanudar» es la misma entrada que las otras tres (F6-2): por encima de ellas y sin el CSS propio que tenía. */
@@ -1045,9 +1097,14 @@ const NARROW_QUERY = '(max-width: 760px)';
 
     /* ── Mobile: panel derecho como bottom sheet, dock scrolleable ───────── */
     @media (max-width: 760px) {
-      /* La ficha va plegada a un chip arriba a la izquierda: el rótulo vuelve al centro, bajo el chip. */
-      .room-banner { left: 50%; right: auto; transform: translateX(-50%); max-width: calc(100% - 24px); animation-name: room-banner-in-centered; }
-      .main-zone { padding: 8px 8px 0; }
+      /* Bloque U1 (variante B): la ficha del objetivo pasa a lo ancho y baja bajo el HUD (--alto-hud); la cabecera se
+         apila (HUD y minimapa primero, el hueco igual de alto que la ficha, el carril centrado debajo) para que ni el
+         carril ni el HUD caigan sobre ella. Las alturas las mide un ResizeObserver y las publica .game-container. */
+      .main-zone { padding: 0; }
+      .top-bar__fila { flex-direction: column; align-items: stretch; }
+      .top-bar__derecha { order: -1; width: 100%; }
+      .top-bar__hueco { width: 100%; height: var(--alto-objetivo, 0px); }
+      .carril { flex: none; }
       .game-container[data-mode='dialogue-right'] .main-zone {
         grid-template-columns: minmax(0, 1fr);
       }
@@ -1063,10 +1120,10 @@ const NARROW_QUERY = '(max-width: 760px)';
         animation: sheet-up 200ms cubic-bezier(.2,.8,.2,1) both;
       }
       .objective-card {
-        left: 8px;
-        right: 8px;
+        top: calc(2 * var(--pixel-borde) + var(--alto-hud, 0px));
+        left: var(--pixel-borde);
+        right: var(--pixel-borde);
         width: auto;
-        padding: 7px 10px;
       }
       /* En vertical el pie tiene dos filas de altura fija (salida y herramientas; mensaje): tampoco crece. */
       .bottom-zone { flex-wrap: wrap; height: auto; padding: 6px 8px 8px; }
@@ -1084,6 +1141,31 @@ const NARROW_QUERY = '(max-width: 760px)';
       .case-intro-card__actions .psy-button { width: 100%; }
       /* El principal arriba y «Salida segura» debajo, cada uno en su fila. */
       .case-intro-card__buttons { flex-direction: column-reverse; align-items: stretch; }
+    }
+    /* Teléfono (≤ 560 px, U1): más sala a la vista. El chip de contenido sensible baja al pie (junto a «Salida segura»);
+       del minimapa quedan sus dos botones (sin la imagen ni la pestaña del lugar); la ficha del objetivo, sin kicker. */
+    @media (max-width: 560px) {
+      .carril > app-sensitive-notice { display: none; }
+      .notice-pie { display: block; flex: 0 1 auto; min-width: 0; max-width: 100%; }
+      /* El plano sigue a la vista y se abre con el dedo (en el teléfono no hay tecla M); solo se va la pestaña del lugar,
+         como hoy el HUD no muestra el lugar bajo 960 px. */
+      .top-bar__derecha ::ng-deep .minimapa__lugar { display: none; }
+      .top-bar__derecha ::ng-deep .minimapa__abrir { width: 120px; }
+      /* El plano y sus dos teclas en una fila (no apilados): «Ocultar plano» y «Vista cercana» quedan como teclas de icono
+         de 44 px; su texto sale de la vista pero sigue en el nombre accesible. */
+      .top-bar__derecha ::ng-deep app-minimapa { grid-auto-flow: column; align-items: start; }
+      .top-bar__derecha ::ng-deep .minimapa__alternar {
+        display: grid; place-items: center; min-width: 44px; min-height: 44px; padding: 0;
+      }
+      .top-bar__derecha ::ng-deep .minimapa__texto {
+        position: absolute; width: 1px; height: 1px; margin: -1px; padding: 0; overflow: hidden;
+        clip: rect(0 0 0 0); white-space: nowrap; border: 0;
+      }
+      /* El pie en el orden del DOM: «Salida segura» y el chip (en la misma fila si caben), las cinco herramientas a lo ancho
+         y la acción cercana debajo. Nada desborda: cada fila cabe en 360 px. */
+      .bottom-zone { align-content: flex-end; row-gap: calc(3 * var(--pixel-px)); }
+      .notice-pie { align-self: center; }
+      .tool-dock { flex: 1 1 100%; }
     }
     @keyframes sheet-up {
       from { transform: translateY(40px); opacity: 0; }
@@ -1103,11 +1185,8 @@ const NARROW_QUERY = '(max-width: 760px)';
       .context-bar__interaction--secondary { flex-basis: 30%; min-width: 110px; }
       .context-bar__also { display: none; }
       .context-bar__idle { text-align: left; }
-      .context-bar__now { font-size: .78rem; line-height: 1.25; }
+      .context-bar__now { font-size: var(--pixel-letra-chica); line-height: 1.25; }
       /* Avisos por encima del pie más bajo, sin tapar la mitad del mundo. */
-      .soft-notice { bottom: 62px; max-width: min(86vw, 460px); padding: 7px 14px; font-size: .8rem; }
-      .room-banner { top: 56px; padding: 7px 18px; font-size: .85rem; }
-      .pausing-notice { bottom: 8px; }
 
       /* Desplegada, la tarjeta deja libre la cruz de movimiento (abajo a la izquierda) y se sostiene a la derecha de ella.
          Plegada (chip) sigue en la esquina. */
@@ -1268,6 +1347,11 @@ export class SimulationPlayComponent implements OnInit, OnDestroy {
   readonly roomBanner   = signal('');
   /** Salto temporal / texto de transición autorado (map.ambient.transitionText). */
   readonly transitionNote = signal('');
+  /** La nota partida en pestaña de capítulo y texto (bloque U1). */
+  protected readonly transitionParts = computed(() => partirNotaDeTransicion(this.transitionNote()));
+  /** Alto (px) del grupo de la derecha y de la ficha del objetivo: bajo 760 px la ficha baja bajo el HUD y su hueco la iguala. */
+  protected readonly altoHud = signal(0);
+  protected readonly altoObjetivo = signal(0);
   /** Advertencia de contenido: ETH-01 — precede a la escena, la narrativa y el gameplay. */
   readonly showContentWarning = signal(false);
   /** `rehearsal`: la docente ensaya su borrador (ruta `casos/:id/ensayo`). */
@@ -1355,6 +1439,13 @@ export class SimulationPlayComponent implements OnInit, OnDestroy {
   protected readonly viewedNpcKeys = signal<ReadonlySet<string>>(new Set<string>());
 
   /** Estado de vista del gameplay — gobierna el layout vía [attr.data-mode]. */
+  /**
+   * El arte de pixel de toda la pantalla (bloque U1): marcos, tramas, letras e iconos como variables CSS en la raíz, para
+   * que el HUD, los avisos y las capas usen las piezas del cuadro de diálogo. De noche, como el cuadro mientras su
+   * entrada `momento` no se enlace con el momento de la sala.
+   */
+  protected readonly arteJuego = variablesDeArte('noche');
+
   readonly viewMode = computed<SimulationViewMode>(() => resolveViewMode({
     status: this.reactingToLast() ? 'IN_PROGRESS' : (this.attempt()?.status ?? null),
     journalOpen: this.journalOpen(),
@@ -1425,6 +1516,46 @@ export class SimulationPlayComponent implements OnInit, OnDestroy {
   /** Solo para el binding de `reactionStage`: una consulta de señal no choca con NG0100 cuando `world()` crea el mundo. */
   private readonly gameWorldRef = viewChild(GameWorldComponent);
   private readonly canvasZone = viewChild<ElementRef<HTMLElement>>('canvasZone');
+  /**
+   * Zona segura de la cámara (U1): las cajas de las placas sobre el mundo, en px CSS desde la esquina del lienzo. Solo al
+   * explorar: con las franjas de cine o un cuadro abierto la cámara ya encuadra entre las franjas.
+   */
+  private readonly medirPlacas = (): Caja[] => {
+    if (this.cinemaBars() || this.viewMode() !== 'explore') return [];
+    const zona = this.canvasZone()?.nativeElement;
+    const raiz = zona?.closest('.game-container');
+    const lienzo = zona?.querySelector<HTMLElement>('app-game-world canvas') ?? zona;
+    if (!raiz || !lienzo) return [];
+    const base = lienzo.getBoundingClientRect();
+    const cajas: Caja[] = [];
+    raiz.querySelectorAll<HTMLElement>(PLACAS_SOBRE_EL_MUNDO).forEach(el => {
+      const r = el.getBoundingClientRect();
+      if (r.width >= 1 && r.height >= 1) cajas.push({ x: r.left - base.left, y: r.top - base.top, ancho: r.width, alto: r.height });
+    });
+    return cajas;
+  };
+  private readonly derecha = viewChild<ElementRef<HTMLElement>>('derecha');
+  /**
+   * Bloque U1 (variante B): mide el alto del grupo HUD + minimapa y el de la ficha del objetivo y los publica como
+   * `--alto-hud` y `--alto-objetivo` en `.game-container`. Bajo 760 px la ficha baja bajo el HUD y el hueco de la cabecera
+   * mide lo que ella, así el carril de avisos no cae encima. Se desconecta solo al destruir el componente o al rehacerse.
+   */
+  private readonly medirAltos = afterRenderEffect(onCleanup => {
+    const hud = this.derecha()?.nativeElement;
+    this.world(); // la ficha nace con el mundo: se vuelve a buscar cuando aparece
+    const objetivo = this.canvasZone()?.nativeElement.querySelector<HTMLElement>('.objective-card');
+    if (typeof ResizeObserver === 'undefined') return;
+    const observador = new ResizeObserver(entradas => {
+      for (const entrada of entradas) {
+        const alto = Math.round((entrada.target as HTMLElement).offsetHeight);
+        const destino = entrada.target === hud ? this.altoHud : this.altoObjetivo;
+        if (destino() !== alto) destino.set(alto);
+      }
+    });
+    if (hud) observador.observe(hud);
+    if (objetivo) observador.observe(objetivo);
+    onCleanup(() => observador.disconnect());
+  });
 
   /** Reacciones al acercarse y al explorar (4.3.7): nacen con el mundo y el intento (`onWorldReady`). */
   protected reactions: ProximityReactions | null = null;
@@ -1517,11 +1648,31 @@ export class SimulationPlayComponent implements OnInit, OnDestroy {
   private destroyed = false;
   /** Retiro del fundido tras cargar el mundo: si el componente se destruye antes, no debe dispararse. */
   private worldRevealTimer: number | null = null;
-  /** La petición de salida segura ya salió: ni la cola ni el plazo la repiten. */
-  private pauseSent = false;
-  /** Hay una decisión enviada sin respuesta: su respuesta puede traer un token nuevo (la pausa rechazada espera por él). */
+  /** Hay una decisión enviada sin respuesta: la pausa pendiente espera a que termine para que el servidor la vea después (V3). */
   private decisionInFlight = false;
-  private pauseAwaitsDecision = false;
+  /** La pausa local aún sin registrar en el servidor: reintenta con espera creciente y al volver la red (V3, REGLA-004). */
+  private readonly pausa = new PausaPendiente<SimulationAttemptState>({
+    enviar: () => this.simulationService.safeExit(this.hintAttempt()!.attemptId, this.hintAttempt()!.attemptToken, 'Salida segura solicitada').pipe(timeout(PLAZO_ACCION_MS)),
+    consultar: () => this.simulationService.getAttempt(this.hintAttempt()!.attemptId, this.hintAttempt()!.attemptToken).pipe(timeout(PLAZO_ACCION_MS)),
+    decisionEnVuelo: () => this.decisionInFlight,
+    alRegistrar: updated => this.onPauseRegistered(updated),
+    alFallar: (cause, seguir) => this.orRehearsalGone(cause, seguir),
+    alRendirse: () => { this.pausing.set(false); this.pauseState.set('failed'); },
+    alQuedarPendiente: (_fallos, cause) => {
+      this.pauseState.set('pending');
+      if (this.resumeQueued && veredictoDeFalloDePausa(cause) === 'reintentar') this.showActionError(DRAFT_COPY.pauseResumeOffline.text);
+    },
+  });
+  private readonly pauseState = signal<'none' | 'pending' | 'failed'>('none');
+  /** La línea discreta de la pantalla de pausa mientras el servidor aún no la registró (o si lo rechazó de forma permanente). */
+  readonly pauseNote = computed(() => ({ none: null, pending: DRAFT_COPY.pauseNotRegistered.text, failed: DRAFT_COPY.pausePermanentFail.text })[this.pauseState()]);
+  /** Al reanudar: la consecuencia de la decisión que la pausa cortó, el aviso de una elección perdida y una decisión ya aplicada cuya respuesta se perdió (se reenvía, mismo `requestId`). */
+  private consequenceOnResume: SimulationDecisionResult | null = null;
+  private replayIntent: IntencionDeDecision | null = null;
+  /** Reintentos al volver la red: la elección sin enviar (mismo `requestId`) y la posición sin guardar (con espera creciente). */
+  private readonly decisionOnline = new ReintentoAlVolver(() => this.resendDecisionOnline());
+  private readonly positionRetry = new ReintentoAlVolver(() => this.persistPosition());
+  private positionGiveUps = 0;
   /** Tras pausar se recarga el mundo (dos GET encadenados) y `busy()` sigue activo hasta que termina. */
   private worldReloadPending = false;
   /** «Reanudar» pulsado durante esa recarga: se ejecuta al terminar en vez de descartarse en silencio. */
@@ -1546,6 +1697,7 @@ export class SimulationPlayComponent implements OnInit, OnDestroy {
         // al pintar y otra vez cuando el cuadro o la franja de la reacción ya entraron (llegan con su animación).
         const medir = () => {
           this.gameWorld?.setCameraOptions(options);
+          this.gameWorld?.setCameraPlacas?.(this.medirPlacas);
           this.gameWorld?.setCameraFrozen(frozen);
           const top = bars ? this.cinemaTopPx() : 0;
           const bottom = Math.max(this.dialogueCoverCss(mode), top);
@@ -1560,11 +1712,6 @@ export class SimulationPlayComponent implements OnInit, OnDestroy {
           onCleanup(() => clearInterval(vivo));
         }
       });
-    });
-    // Red de seguridad: si por algún camino quedó una pausa pedida con `busy()` libre, sale (la normal ya salió en el acto).
-    effect(() => {
-      if (!this.pausing() || this.busy()) return;
-      untracked(() => this.startQueuedPause());
     });
     // El punto de lectura de la conversación abierta (cuál y en qué línea) se guarda para recuperarlo al recargar.
     effect(() => {
@@ -1585,11 +1732,6 @@ export class SimulationPlayComponent implements OnInit, OnDestroy {
         this.reactions?.setBlocked(blocked);
         if (activation) this.reactions?.setActivation(activation);
       });
-    });
-    // «Salida segura» durante la reacción la corta en el acto: sin encuadre, gesto ni nota de supervisión sobre la pausa.
-    effect(() => {
-      if (!this.pausing() || !this.reacting()) return;
-      untracked(() => this.cutReactionForPause());
     });
     // La supervisión de la última decisión dejó de estar a la vista (se cerró, «Salida segura», Esc o cualquier
     // otro camino): el resultado ya se ve y es el momento de su sonido y su foco.
@@ -1643,6 +1785,13 @@ export class SimulationPlayComponent implements OnInit, OnDestroy {
 
   ngOnDestroy(): void {
     this.destroyed = true;
+    const pendiente = this.pausa.activa ? this.attempt() : null;
+    // Último intento de registrar la pausa, sin tocar señales: la marca de «pausa pendiente» cubre si tampoco llega.
+    pendiente && this.simulationService.safeExit(pendiente.attemptId, pendiente.attemptToken, 'Salida segura solicitada')
+      .subscribe({ next: () => borrarMarcaDePausa(this.almacen, pendiente.attemptId), error: () => undefined });
+    this.pausa.cerrar();
+    this.decisionOnline.cerrar();
+    this.positionRetry.cerrar();
     this.stopCompactWatch?.();
     this.reactions?.dispose();
     if (this.bubbleFrame) cancelAnimationFrame(this.bubbleFrame);
@@ -1668,12 +1817,23 @@ export class SimulationPlayComponent implements OnInit, OnDestroy {
       return;
     }
 
+    const offer = (active: SimulationAttemptState) => {
+      this.pendingActiveAttempt.set(active);
+      this.showResumePrompt.set(true);
+      this.loading.set(false);
+    };
     this.simulationService.getActiveAttempt(id).subscribe({
       next: active => {
         if (active && (active.status === 'IN_PROGRESS' || active.status === 'PAUSED')) {
-          this.pendingActiveAttempt.set(active);
-          this.showResumePrompt.set(true);
-          this.loading.set(false);
+          // Una pausa que quedó sin registrar (salió sin red): se registra ANTES de la tarjeta, que así dice «Reanudar intento en pausa».
+          if (active.status === 'IN_PROGRESS' && hayMarcaDePausa(this.almacen, active.attemptId)) {
+            this.simulationService.safeExit(active.attemptId, active.attemptToken, 'Salida segura solicitada').pipe(timeout(PLAZO_ACCION_MS)).subscribe({
+              next: paused => { borrarMarcaDePausa(this.almacen, active.attemptId); offer(paused); },
+              error: () => offer(active),
+            });
+            return;
+          }
+          offer(active);
           return;
         }
         this.beginAttempt(id, false);
@@ -1685,6 +1845,8 @@ export class SimulationPlayComponent implements OnInit, OnDestroy {
   resumeAttempt() {
     const active = this.pendingActiveAttempt();
     if (!active) return;
+    // La persona eligió seguir: una marca de pausa que no se pudo registrar ya no debe pedir otra al recargar (R-1).
+    borrarMarcaDePausa(this.almacen, active.attemptId);
     this.showResumePrompt.set(false);
     this.loading.set(true);
     if (active.status === 'PAUSED') {
@@ -1778,6 +1940,8 @@ export class SimulationPlayComponent implements OnInit, OnDestroy {
   resumeCurrentAttempt(): void {
     const current = this.attempt();
     if (!current || current.status !== 'PAUSED') return;
+    // La pausa local aún no llegó al servidor (su traza importa): se registra primero y la reanudación queda encolada.
+    if (this.pausa.activa) { this.resumeQueued = true; this.pausa.intentar(); return; }
     if (this.busy()) {
       // La pausa recarga el mundo y la tarjeta «Reanudar» aparece antes de que termine: ese toque
       // no se pierde, queda encolado y se atiende al liberar `busy()` (ver `finishWorldReload`).
@@ -1789,9 +1953,18 @@ export class SimulationPlayComponent implements OnInit, OnDestroy {
       next: attempt => {
         this.busy.set(false);
         this.attempt.set(attempt);
+        borrarMarcaDePausa(this.almacen, attempt.attemptId);   // R-1: ni la marca ni la nota de un rechazo sobreviven a reanudar
+        this.pauseState.set('none');
         // Un diálogo que llegó tarde mientras el intento estaba en pausa (la supervisión se abre
         // al terminar la reacción a la decisión) no debe reaparecer al reanudar.
         this.dialogue.set(null);
+        // La consecuencia de la decisión que la pausa cortó se lee ahora (A3); una elección que no se guardó, se dice.
+        const consequence = this.consequenceOnResume ? this.buildConsequenceDialogue(this.consequenceOnResume) : null;
+        this.consequenceOnResume = null;
+        if (consequence) this.dialogue.set(consequence);
+        this.restorePendingDecision(attempt, DRAFT_COPY.choiceNotSaved.text);
+        this.replayAppliedDecision();
+        this.positionGiveUps = 0;
         this.trackPersona(attempt);
         this.applyAudioScene(attempt);
         // Si se pausó desde la introducción sin haberla leído, reaparece (`resolveIntroStep` ya lo
@@ -1810,12 +1983,21 @@ export class SimulationPlayComponent implements OnInit, OnDestroy {
       if (!id) continue;
       this.clearPendingDecision(id);
       borrarLectura(this.almacen, id);
+      borrarMarcaDePausa(this.almacen, id);
     }
+    this.cancelarReintentos();
     this.pendingDecisionRequest = null;
     this.decisionInFlight = false;
-    this.pauseAwaitsDecision = false;
-    this.positionFailures = 0;
+    this.consequenceOnResume = this.replayIntent = null;
+    this.positionFailures = this.positionGiveUps = 0;
     this.dialogueStart.set(null);
+  }
+
+  /** Apaga los reintentos pendientes (pausa, decisión, posición). */
+  private cancelarReintentos(): void {
+    this.pausa.cancelar();
+    this.decisionOnline.cancelar();
+    this.positionRetry.cancelar();
   }
 
   startNewAttempt() {
@@ -1869,7 +2051,7 @@ export class SimulationPlayComponent implements OnInit, OnDestroy {
     this.busy.set(true);
     this.viewedNpcKeys.set(new Set());   // lo hablado lo dice el mundo recién leído
     this.simulationService.getAttempt(attempt.attemptId, attempt.attemptToken).subscribe({
-      next: fresh => { this.attempt.set(fresh); this.loadWorld(fresh); },
+      next: fresh => { this.attempt.set(this.attempt()?.status === 'PAUSED' ? { ...fresh, status: 'PAUSED' } : fresh); this.loadWorld(fresh); },
       error: cause => {
         this.busy.set(false);
         this.orRehearsalGone(cause, () => this.fail(DRAFT_COPY.rehearsalReloadFailed.text, cause, () => this.reloadRehearsal(block)));
@@ -1880,6 +2062,8 @@ export class SimulationPlayComponent implements OnInit, OnDestroy {
   /** El ensayo se descartó o cerró: se corta la secuencia y la burbuja y se ofrece abrir otro. Se dice una sola vez. */
   showRehearsalGone(why: 'gone' | 'closed' = 'gone'): void {
     if (this.rehearsalGone()) return;
+    this.cancelarReintentos();
+    this.endPausing();
     this.rehearsalWhy.set(why);
     this.reaction?.cancel();
     this.pendingAfterReaction = null;
@@ -1914,7 +2098,7 @@ export class SimulationPlayComponent implements OnInit, OnDestroy {
       error: cause => {
         const refused = accessErrorMessage(cause);
         if (refused) this.fail(refused, cause, null);
-        else this.fail('No pudimos iniciar la simulación. Revisa tus permisos.', cause, () => this.beginAttempt(caseVersionId, forceNew));
+        else this.fail('No pudimos iniciar la simulación. Inténtalo de nuevo.', cause, () => this.beginAttempt(caseVersionId, forceNew));
       },
     });
   }
@@ -2339,23 +2523,27 @@ export class SimulationPlayComponent implements OnInit, OnDestroy {
           // (por puerta o por decisión), así no se dice dos veces.
           this.applyWorldWithScenario(world);
         },
-        error: err => {
-          this.busy.set(false);
-          this.fadeActive.set(false);
-          // Si el servidor rechaza una puerta que el cliente creía abierta, su texto (el del seed) puede nombrar
-          // temas de las decisiones: se dice lo que el cliente sabe decir, sin ese texto.
-          if (err instanceof HttpErrorResponse && err.status === 400) this.showDoorNotice(ORIENTATION_COPY.door.fallback);
-          else this.reportApiError(err, 'No pudimos cruzar la puerta.');
-        },
+        error: err => this.onDoorFailed(game.attemptId, err),
       });
     }, 'door_open'));
+  }
+
+  /** La puerta falló. Con la pausa puesta mientras esperaba, nada sale sobre la pantalla de pausa. */
+  private onDoorFailed(attemptId: string, err: unknown): void {
+    this.busy.set(false);
+    this.fadeActive.set(false);
+    if (!this.respuestaVigente(attemptId)) return;
+    // Si el servidor rechaza una puerta que el cliente creía abierta, su texto (el del seed) puede nombrar
+    // temas de las decisiones: se dice lo que el cliente sabe decir, sin ese texto.
+    if (err instanceof HttpErrorResponse && err.status === 400) this.showDoorNotice(ORIENTATION_COPY.door.fallback);
+    else this.reportApiError(err, 'No pudimos cruzar la puerta.');
   }
 
   /**
    * La intención de decidir en curso: si la misma opción falla en la red y se reenvía, viaja con el mismo `requestId`
    * (el servidor responde la repetición sin decidir dos veces). Se libera al recibir respuesta.
    */
-  private pendingDecisionRequest: { decisionOptionId: number; requestId: string } | null = null;
+  private pendingDecisionRequest: { decisionOptionId: number; requestId: string; nodeId?: number; dialogueKey?: string } | null = null;
   /** Dónde arranca la conversación que se reabre al recargar (R1): su clave y la línea en que iba. */
   readonly dialogueStart = signal<{ key: string; line: number } | null>(null);
   /** Almacenamiento de la sesión sin que un bloqueo (modo privado, cuota) rompa el juego. */
@@ -2380,6 +2568,7 @@ export class SimulationPlayComponent implements OnInit, OnDestroy {
    */
   /** P2: una sala por piezas no cargó entera: se ve su versión simple y se dice, sin bloquear el juego. */
   onSalaIncompleta(): void {
+    if (this.attempt()?.status !== 'IN_PROGRESS') return;   // la sala se recargó bajo la pausa: el aviso no sale sobre ella
     this.notifications.show('warning', 'Parte de esta sala no cargó: se muestra una versión simple. Puedes seguir jugando.', 8000);
   }
 
@@ -2567,6 +2756,7 @@ export class SimulationPlayComponent implements OnInit, OnDestroy {
    * `CONSENT_REQUIRED` no es un error de la acción: la pantalla vuelve al aviso (S3-2b).
    */
   private reportApiError(err: unknown, fallback: string): void {
+    if (this.attempt()?.status === 'PAUSED') return;   // un error tardío no sale sobre la pantalla de pausa
     // Una acción que no respondió a tiempo: la persona lo ve y puede reintentar; nada queda colgado.
     if (esPlazoVencido(err)) {
       this.showActionError(DRAFT_COPY.actionSlow.text);
@@ -2613,57 +2803,83 @@ export class SimulationPlayComponent implements OnInit, OnDestroy {
     this.dialogue.set(null);
     this.journalMessage.set('');
     this.audioDirector.playSfx('dialogue_advance');   // el aviso de que la elección salió; ya no hay fundido aquí
-    {
-      const request = this.decisionRequestFor(decisionOptionId);
-      this.decisionInFlight = true;
-      this.simulationService.chooseDecision(
-        game.attemptId, game.attemptToken, decisionOptionId,
-        false, [], request.requestId,
-      ).pipe(timeout(PLAZO_ACCION_MS)).subscribe({
-        next: updated => {
-          this.decisionInFlight = false;
-          this.clearPendingDecision(game.attemptId);
-          // Una pausa enviada por el plazo (F2) ya fijó el estado autoritativo del intento: la respuesta tardía de
-          // esta decisión no lo pisa con uno anterior.
-          if (this.attempt()?.status === 'PAUSED') {
-            perfCancel('decision-to-scene');
-            this.busy.set(false);
-            return;
-          }
-          this.trackStageChange(game, updated);
-          this.attempt.set(updated);
-          this.repeatPauseAfterDecision();
-          // La etiqueta nueva la dice la reacción en su paso (`afterReaction` la deja si no hubo): aquí solo el icono.
-          this.syncPersonaIcon(updated, false);
-          this.trackPersona(updated);
-          this.persistAttemptToken(updated);
-          this.selectedInteraction.set(null);
-          this.nearbyInteraction.set(null);
-          this.journalPanel?.clear();
-          // El personaje reacciona en su sala; la supervisión y la sala de destino siguen en `afterReaction`.
-          this.pendingAfterReaction = updated;
-          if (!this.reaction) { this.afterReaction(); return; }
-          this.heldNode.set(escenaRetenida(game.currentNode, updated.currentNode));
-          this.reacting.set(true);
-          this.reaction.play(
-            { reaction: updated.reaction, personaAntes: game.persona, personaDespues: updated.persona, reduceMotion: this.reduceMotion() },
-            this.reactionActor(updated.reaction?.objectKey ?? null),
-          );
-        },
-        error: err => {
-          perfCancel('decision-to-scene');
-          this.decisionInFlight = false;
-          // La pausa ya quedó registrada: ni se devuelve la conversación sobre ella ni se avisa de nada.
-          if (this.attempt()?.status === 'PAUSED') { this.busy.set(false); return; }
-          // Se devuelve la conversación para poder reintentar en vez de dejar al estudiante en el mapa.
-          this.dialogue.set(previousDialogue);
-          this.releaseDialogue();
-          this.busy.set(false);
-          this.handleDecisionFailure(err, game);
-          this.repeatPauseAfterDecision();
-        }
-      });
+    const request = this.decisionRequestFor(decisionOptionId);
+    this.decisionInFlight = true;
+    this.simulationService.chooseDecision(
+      game.attemptId, game.attemptToken, decisionOptionId,
+      false, [], request.requestId,
+    ).pipe(timeout(PLAZO_ACCION_MS)).subscribe({
+      next: updated => this.onDecisionResult(game, updated),
+      error: err => {
+        perfCancel('decision-to-scene');
+        this.decisionInFlight = false;
+        if (this.choiceLostUnderPause()) return;
+        // La conversación vuelve EN LAS OPCIONES (su última línea, M1); al volver la red la elección se reenvía sola.
+        this.dialogue.set(previousDialogue);
+        if (previousDialogue?.lines?.length) this.dialogueStart.set({ key: previousDialogue.key, line: previousDialogue.lines.length - 1 });
+        if (this.pendingDecisionRequest) this.pendingDecisionRequest.dialogueKey = previousDialogue?.key;
+        if (this.attempt()?.attemptId === game.attemptId) this.decisionOnline.armar(null);
+        this.releaseDialogue();
+        this.busy.set(false);
+        this.handleDecisionFailure(err, game);
+      }
+    });
+  }
+
+  /** Llegó la respuesta de la decisión: con la pausa local puesta (Esc con ella en vuelo) se adopta sin reproducirla; si no, sigue su camino. */
+  private onDecisionResult(game: SimulationAttemptState, updated: SimulationDecisionResult): void {
+    this.decisionInFlight = false;
+    this.clearPendingDecision(game.attemptId);
+    if (this.attempt()?.status === 'PAUSED') this.adoptDecisionUnderPause(updated);
+    else this.applyDecisionResult(game, updated);
+  }
+
+  /** La decisión en vuelo llegó con la pausa local puesta: se adopta su estado SIN dejar la pausa, sin reproducir la reacción; la consecuencia se lee al reanudar. */
+  private adoptDecisionUnderPause(updated: SimulationDecisionResult): void {
+    perfCancel('decision-to-scene');
+    this.busy.set(false);
+    if (updated.status !== 'IN_PROGRESS') {   // la decisión cerró el caso: manda el resultado y ya no hay pausa que registrar
+      this.pausa.cancelar();
+      this.endPausing();
+      this.attempt.set(updated);
+      this.showClosedAttempt(updated);
+      return;
     }
+    this.attempt.set({ ...updated, status: 'PAUSED' });
+    this.trackPersona(updated);
+    this.persistAttemptToken(updated);
+    this.consequenceOnResume = updated;
+    this.pausa.intentar();
+  }
+
+  /** La decisión falló o no se pudo conciliar con la pausa local puesta: la persona sigue fuera, sin aviso (al reanudar la intención pendiente se le dice). */
+  private choiceLostUnderPause(): boolean {
+    if (this.attempt()?.status !== 'PAUSED') return false;
+    this.busy.set(false);
+    this.pausa.intentar();
+    return true;
+  }
+
+  /** El camino normal de la respuesta de una decisión: reacción del personaje y, tras ella, consecuencia y sala nueva. */
+  private applyDecisionResult(game: SimulationAttemptState, updated: SimulationDecisionResult): void {
+    this.trackStageChange(game, updated);
+    this.attempt.set(updated);
+    // La etiqueta nueva la dice la reacción en su paso (`afterReaction` la deja si no hubo): aquí solo el icono.
+    this.syncPersonaIcon(updated, false);
+    this.trackPersona(updated);
+    this.persistAttemptToken(updated);
+    this.selectedInteraction.set(null);
+    this.nearbyInteraction.set(null);
+    this.journalPanel?.clear();
+    // El personaje reacciona en su sala; la supervisión y la sala de destino siguen en `afterReaction`.
+    this.pendingAfterReaction = updated;
+    if (!this.reaction) { this.afterReaction(); return; }
+    this.heldNode.set(escenaRetenida(game.currentNode, updated.currentNode));
+    this.reacting.set(true);
+    this.reaction.play(
+      { reaction: updated.reaction, personaAntes: game.persona, personaDespues: updated.persona, reduceMotion: this.reduceMotion() },
+      this.reactionActor(updated.reaction?.objectKey ?? null),
+    );
   }
 
   /** Quién reacciona: el nombre en la sala actual y, si es la persona clave, su retrato. */
@@ -2696,13 +2912,14 @@ export class SimulationPlayComponent implements OnInit, OnDestroy {
     } else {
       const consequence = this.buildConsequenceDialogue(updated);
       if (consequence) this.dialogue.set(consequence);
+      this.consequenceOnResume = consequence ? updated : null;   // si la salida segura llega con ella a la vista, se lee al reanudar
     }
     this.loadProgressMap(updated);
     this.applyAudioScene(updated);
     this.triggerFade(() => this.loadWorld(updated), null);   // la elección ya sonó al enviarse
   }
 
-  /** La salida segura corta la reacción en el acto. Si la decisión ya cerró el caso, el resultado se abre sin supervisión. */
+  /** La salida segura corta la reacción en el acto: si la decisión cerró el caso, el resultado se abre sin supervisión; si no, su consecuencia se lee al reanudar (A3). */
   private cutReactionForPause(): void {
     const updated = this.pendingAfterReaction;
     this.pendingAfterReaction = null;
@@ -2710,12 +2927,17 @@ export class SimulationPlayComponent implements OnInit, OnDestroy {
     this.heldNode.set(null);
     this.reacting.set(false);
     this.busy.set(false);
-    if (updated && updated.status !== 'IN_PROGRESS') {
-      this.playCompletionAudio();
-      this.loadProgressMap(updated);
-      this.applyAudioScene(updated);
-      this.loadWorld(updated);
-    }
+    if (!updated) return;
+    if (updated.status !== 'IN_PROGRESS') this.showClosedAttempt(updated);
+    else this.consequenceOnResume = updated;
+  }
+
+  /** El intento cerró con la decisión: suena el cierre y se carga el mundo del resultado. */
+  private showClosedAttempt(updated: SimulationAttemptState): void {
+    this.playCompletionAudio();
+    this.loadProgressMap(updated);
+    this.applyAudioScene(updated);
+    this.loadWorld(updated);
   }
 
   useTool(toolCode: string) {
@@ -2775,6 +2997,7 @@ export class SimulationPlayComponent implements OnInit, OnDestroy {
   closeDialogue() {
     // Con la supervisión de la última decisión retenida, cerrarla abre el resultado (`releaseHeldOutcome`).
     this.dialogue.set(null);
+    this.consequenceOnResume = null;   // leída o descartada a propósito: no vuelve
     // Al cerrar ya no hay nada «abierto»: sin esto el objeto, y la herramienta del dock, quedaban marcados.
     this.selectedInteraction.set(null);
   }
@@ -2858,13 +3081,12 @@ export class SimulationPlayComponent implements OnInit, OnDestroy {
 
   /**
    * Salida segura desde cualquier superposición (diálogo con o sin opciones, bitácora, introducción
-   * y contexto) y desde el pie (F§7.8). Es el camino de REGLA-004 para los estados en que
-   * el pie no actúa a propósito (overlay abierto).
+   * y contexto) y desde el pie (F§7.8). Es el camino de REGLA-004: saca a la persona YA, con o sin red.
    *
    * - No hace nada sin un intento `IN_PROGRESS`, bajo el aviso de contenido (ETH-01) ni bajo el
    *   de reanudar, ni si ya hay una pausa pedida (un segundo toque no pausa dos veces).
-   * - No espera a ninguna petición en vuelo ni a guardar la posición (REGLA-004): la pausa sale en el acto y lo que llegue
-   *   después se descarta porque el intento ya no está en curso.
+   * - Pausa LOCALMENTE en el acto (el intento pasa a `PAUSED` en el cliente) y luego sincroniza con el servidor (`pausa`), sin
+   *   devolver nunca a la persona al caso; espera la respuesta de una decisión en vuelo para que el servidor la aplique antes.
    */
   pauseFromOverlay(): void {
     if (this.rehearsalGone()) return this.leaveRehearsal();
@@ -2881,32 +3103,32 @@ export class SimulationPlayComponent implements OnInit, OnDestroy {
     }
     const game = this.attempt();
     if (!game || game.status !== 'IN_PROGRESS') return;
-    if (this.showResumePrompt() || this.showContentWarning()) return;
-    if (this.pausing()) return;
+    if (this.showResumePrompt() || this.showContentWarning() || this.pausing()) return;
     this.pausing.set(true);
-    // Plazo de seguridad (F2): si la pausa no sale por la cola, se envía igualmente.
-    // Sale en el acto: lo que estaba en vuelo se descarta al llegar (ya no hay intento en curso) y no retiene la salida.
-    this.startQueuedPause();
-  }
-
-  /** Arranca la pausa pedida con `pauseFromOverlay()`. */
-  private startQueuedPause(): void {
-    const game = this.attempt();
-    if (!game || game.status !== 'IN_PROGRESS') {
-      this.endPausing();
-      return;
-    }
-    // La petición ya salió (por el plazo): la liberación tardía de `busy()` no la repite.
-    if (this.pauseSent) return;
     // Sonido discreto: la salida segura es seria, no alarmista.
     this.audioDirector.playSfx('ui_cancel');
-    this.busy.set(true);
-    this.pauseCurrentAttempt();
+    if (this.reacting()) this.cutReactionForPause();   // sin encuadre, gesto ni nota de supervisión sobre la pausa
+    this.attempt.set({ ...this.attempt()!, status: 'PAUSED' });
+    this.clearTransientOverlays();
+    this.busy.set(false);
+    if (this.mode() !== 'rehearsal') guardarMarcaDePausa(this.almacen, game.attemptId);
+    this.pausa.iniciar();
   }
 
-  /** La pausa pedida terminó o se descartó: se apagan el estado, el aviso de lentitud y el plazo. */
+  /** El servidor registró la pausa (o dijo en qué estado quedó el intento): se adopta y se recarga el mundo. */
+  private onPauseRegistered(updated: SimulationAttemptState): void {
+    this.endPausing();
+    borrarMarcaDePausa(this.almacen, updated.attemptId);
+    this.attempt.set(updated);
+    this.busy.set(true);
+    this.worldReloadPending = true;
+    this.loadWorld(updated);
+  }
+
+  /** La pausa pedida terminó o se descartó. */
   private endPausing(): void {
     this.pausing.set(false);
+    this.pauseState.set('none');
   }
 
   /** ¿Sigue en curso el intento `attemptId` (y, si se pide, en la misma sala)? Para descartar respuestas tardías. */
@@ -2917,53 +3139,6 @@ export class SimulationPlayComponent implements OnInit, OnDestroy {
     );
   }
 
-  /** Llegó la respuesta de la decisión mientras una pausa rechazada la esperaba: se repite una vez con el token que trajo. */
-  private repeatPauseAfterDecision(): void {
-    if (!this.pauseAwaitsDecision) return;
-    this.pauseAwaitsDecision = false;
-    if (this.attempt()?.status === 'IN_PROGRESS') this.pauseCurrentAttempt();
-    else this.endPausing();
-  }
-
-  private pauseCurrentAttempt(): void {
-    // Ya hay una pausa en camino (el plazo se adelantó a la sincronización de la posición, que responde tarde): no se repite.
-    if (this.pauseSent) return;
-    const game = this.attempt();
-    if (!game || game.status !== 'IN_PROGRESS') {
-      this.endPausing();
-      this.busy.set(false);
-      return;
-    }
-    this.pauseSent = true;
-    this.simulationService.safeExit(game.attemptId, game.attemptToken, 'Salida segura solicitada').pipe(timeout(PLAZO_ACCION_MS)).subscribe({
-      next: updated => {
-        this.pauseSent = false;
-        this.endPausing();
-        this.attempt.set(updated);
-        // Se limpia al éxito y no antes: si la petición falla, la superposición sigue ahí y se puede
-        // reintentar. Sin esto la pausa (z 150) quedaría bajo las tarjetas de introducción (z 380) y
-        // la bitácora reaparecería al reanudar.
-        this.clearTransientOverlays();
-        this.worldReloadPending = true;
-        this.loadWorld(updated);
-      },
-      error: cause => {
-        this.pauseSent = false;
-        // Una decisión en vuelo rota el token: la pausa se rechaza si llegó con el viejo. Se repite una vez con el token vigente,
-        // sea cual sea el orden: ya con la respuesta de la decisión a la vista, o al llegar esta (`repeatPauseAfterDecision`).
-        const vigente = this.attempt();
-        if (vigente?.attemptId === game.attemptId && vigente.status === 'IN_PROGRESS' && !isConsentRequiredError(cause)
-            && !esPlazoVencido(cause)) {
-          if (vigente.attemptToken !== game.attemptToken) { this.pauseCurrentAttempt(); return; }
-          if (this.decisionInFlight) { this.pauseAwaitsDecision = true; return; }
-        }
-        this.endPausing();
-        this.orRehearsalGone(cause, () => this.showActionError(esPlazoVencido(cause) ? DRAFT_COPY.actionSlow.text : 'No pudimos registrar la salida segura.'));
-        this.busy.set(false);
-      },
-    });
-  }
-
   /** Cierra toda superposición y descarta lo que esperaba una respuesta (pausa e intento nuevo). */
   private clearTransientOverlays(): void {
     this.selectedInteraction.set(null);
@@ -2972,6 +3147,7 @@ export class SimulationPlayComponent implements OnInit, OnDestroy {
     this.journalOpen.set(false);
     // «Ir a…» tiene su propia «Salida segura»: pausar desde ahí no la deja bajo la pantalla de pausa ni la trae de vuelta.
     this.placesOpen.set(false);
+    this.planOpen.set(false);
     this.showCaseIntro.set(false);
     this.helpOpen.set(false);
     this.pendingRestrictedInteraction.set(null);
@@ -3030,7 +3206,7 @@ export class SimulationPlayComponent implements OnInit, OnDestroy {
     this.audioDirector.playSfx('ui_confirm');
     this.dialogue.set({
       key: `tool-feedback-${result.toolCode}-${Date.now()}`,
-      speakerName: result.pertinent ? '✓ Herramienta pertinente' : 'ℹ Herramienta aplicada',
+      speakerName: result.pertinent ? 'Herramienta pertinente' : 'Herramienta aplicada',
       portraitKey: null, emotion: result.pertinent ? 'positive' : 'neutral',
       lines: [{ order: 1, speakerName: '', text: result.feedbackMessage, emotion: 'neutral' }],
       choices: []
@@ -3066,23 +3242,25 @@ export class SimulationPlayComponent implements OnInit, OnDestroy {
     const pending = this.pendingDecisionRequest;
     if (pending && pending.decisionOptionId === decisionOptionId) return pending;
     const requestId = globalThis.crypto?.randomUUID?.() ?? `${Date.now()}-${Math.random().toString(36).slice(2)}`;
-    this.pendingDecisionRequest = { decisionOptionId, requestId };
     const game = this.attempt();
+    const request = { decisionOptionId, requestId, nodeId: game?.currentNode.id };
+    this.pendingDecisionRequest = request;
     if (game && this.mode() !== 'rehearsal') {
       guardarIntencion(this.almacen, { attemptId: game.attemptId, nodeId: game.currentNode.id, decisionOptionId, requestId });
     }
-    return this.pendingDecisionRequest;
+    return request;
   }
 
   /** La decisión se confirmó o se descartó con certeza: la intención ya no se retiene (ni en memoria ni en la sesión). */
   private clearPendingDecision(attemptId: string): void {
     this.pendingDecisionRequest = null;
+    this.decisionOnline.cancelar();
     borrarIntencion(this.almacen, attemptId);
   }
 
   /**
    * El envío de la decisión falló. El plazo y los fallos de red o servidor conservan la intención (se reenvía con el mismo
-   * `requestId`). Un 4xx no basta para darla por perdida: el primer envío pudo aplicarse, así que se consulta el intento.
+   * `requestId`). Un 4xx se consulta: si la decisión sí se aplicó, se reenvía (el servidor devuelve su respuesta original).
    */
   private handleDecisionFailure(err: unknown, game: SimulationAttemptState): void {
     const veredicto = veredictoDeEnvio(err);
@@ -3095,71 +3273,124 @@ export class SimulationPlayComponent implements OnInit, OnDestroy {
       return;
     }
     this.busy.set(true);
+    this.decisionInFlight = true;   // la pausa pendiente espera a que se concilie
     this.simulationService.getAttempt(game.attemptId, game.attemptToken).pipe(timeout(PLAZO_ACCION_MS)).subscribe({
       next: fresh => {
-        if (this.attempt()?.attemptId !== game.attemptId) { this.busy.set(false); return; }
-        this.clearPendingDecision(game.attemptId);
-        if (veredictoDeIntencion({ nodeId: game.currentNode.id }, fresh) === 'aplicada') {
-          // El primer envío sí llegó: se adopta el intento del servidor en vez de perder la decisión.
-          this.attempt.set(fresh);
-          this.persistAttemptToken(fresh);
-          this.dialogue.set(null);
-          this.selectedInteraction.set(null);
-          this.nearbyInteraction.set(null);
-          this.loadWorld(fresh);
+        const pending = this.pendingDecisionRequest;
+        if (this.attempt()?.attemptId !== game.attemptId) { this.decisionInFlight = false; this.busy.set(false); return; }
+        if (pending && veredictoDeIntencion({ nodeId: game.currentNode.id }, fresh) === 'aplicada') {
+          // El primer envío sí llegó: se reenvía con el mismo requestId; si eso falla, se adopta el intento del servidor.
+          this.simulationService.chooseDecision(game.attemptId, game.attemptToken, pending.decisionOptionId, false, [], pending.requestId)
+            .pipe(timeout(PLAZO_ACCION_MS)).subscribe({
+              next: updated => this.onDecisionResult(game, updated),
+              error: () => { this.clearPendingDecision(game.attemptId); this.adoptServerAttempt(fresh); },
+            });
           return;
         }
+        this.decisionInFlight = false;
         this.busy.set(false);
+        if (this.choiceLostUnderPause()) return;
+        this.clearPendingDecision(game.attemptId);
         this.reportApiError(err, 'No pudimos registrar tu decisión. Inténtalo de nuevo.');
       },
       // Sin poder consultar, el resultado sigue incierto: la intención se conserva.
       error: cause => {
+        this.decisionInFlight = false;
         this.busy.set(false);
-        this.orRehearsalGone(cause, () => this.showActionError(DRAFT_COPY.decisionConfirming.text));
+        if (!this.choiceLostUnderPause()) this.orRehearsalGone(cause, () => this.showActionError(DRAFT_COPY.decisionConfirming.text));
       },
     });
   }
 
-  /** Tras recargar: la intención guardada se descarta si el servidor ya avanzó; si no, se retoma y se reenvía con su `requestId`. */
-  private restorePendingDecision(attempt: SimulationAttemptState): void {
+  /** El servidor ya avanzó el intento y no se pudo reenviar la decisión: se adopta su estado (con la pausa local puesta, la pausa lo trae al registrarse). */
+  private adoptServerAttempt(fresh: SimulationAttemptState): void {
+    this.decisionInFlight = false;
+    this.persistAttemptToken(fresh);
+    if (this.attempt()?.status === 'PAUSED') { this.busy.set(false); this.pausa.intentar(); return; }
+    this.attempt.set(fresh);
+    this.dialogue.set(null);
+    this.selectedInteraction.set(null);
+    this.nearbyInteraction.set(null);
+    this.loadWorld(fresh);
+  }
+
+  /** Al volver la red, la elección que no salió se reenvía sola con su mismo `requestId` (idempotente) y se avisa. */
+  private resendDecisionOnline(): void {
+    const pending = this.pendingDecisionRequest, game = this.attempt();
+    const veredicto = puedeReenviarEleccion({
+      pendiente: pending, intento: game && { status: game.status, nodeId: game.currentNode.id }, dialogoAbierto: this.dialogue()?.key ?? null,
+      otraSuperposicion: this.journalOpen() || this.helpOpen() || this.placesOpen() || this.planOpen() || this.showContentWarning(),
+      ocupado: this.busy() || this.decisionInFlight,
+    });
+    if (veredicto === 'esperar') this.decisionOnline.armar(esperaDeSincronizacion(1));
+    if (veredicto !== 'reenviar') return;
+    this.showSoftNotice(DRAFT_COPY.decisionResentOnline.text);
+    this.executeDecision(pending!.decisionOptionId);
+  }
+
+  /** Tras recargar o al reanudar: la intención guardada se retoma con su `requestId` o, si el servidor ya avanzó, se reenvía para mostrar su consecuencia. */
+  private restorePendingDecision(attempt: SimulationAttemptState, aviso: string = DRAFT_COPY.decisionConfirming.text): void {
     if (this.mode() === 'rehearsal') return;
     const intencion = leerIntencion(this.almacen, attempt.attemptId);
     if (!intencion) return;
-    if (attempt.status !== 'IN_PROGRESS' || veredictoDeIntencion(intencion, attempt) === 'aplicada') {
-      borrarIntencion(this.almacen, attempt.attemptId);
-      return;
+    if (attempt.status !== 'IN_PROGRESS') borrarIntencion(this.almacen, attempt.attemptId);
+    else if (veredictoDeIntencion(intencion, attempt) === 'aplicada') this.replayIntent = intencion;
+    else {
+      this.pendingDecisionRequest = { decisionOptionId: intencion.decisionOptionId, requestId: intencion.requestId, nodeId: intencion.nodeId };
+      this.notifications.show('info', aviso);
     }
-    this.pendingDecisionRequest = { decisionOptionId: intencion.decisionOptionId, requestId: intencion.requestId };
-    this.notifications.show('info', DRAFT_COPY.decisionConfirming.text);
   }
 
-  /** Guarda qué conversación va abierta y en qué línea (o borra el punto al cerrarla). */
+  /** La decisión ya se aplicó pero su respuesta se perdió: se reenvía con el MISMO requestId y se lee su consecuencia sobre la escena. */
+  private replayAppliedDecision(): void {
+    const intencion = this.replayIntent, game = this.attempt();
+    this.replayIntent = null;
+    if (!intencion || !game) return;
+    this.simulationService.chooseDecision(game.attemptId, game.attemptToken, intencion.decisionOptionId, false, [], intencion.requestId)
+      .pipe(timeout(PLAZO_ACCION_MS)).subscribe({
+        next: result => {
+          const consequence = this.buildConsequenceDialogue(result);
+          const visible = consequence && this.respuestaVigente(game.attemptId) && !this.dialogue();
+          if (visible) this.dialogue.set(consequence);
+          if (!consequence || visible) borrarIntencion(this.almacen, game.attemptId);   // solo ante un resultado cierto y atendido
+        },
+        error: err => { if (veredictoDeEnvio(err) === 'conciliar') borrarIntencion(this.almacen, game.attemptId); },
+      });
+  }
+
+  /** Guarda qué conversación va abierta, en qué línea y en qué escena (o borra el punto al cerrarla). */
   private saveReadingPoint(seleccion: MapObjectState | null, dialogo: DialogueState | null, line: number): void {
     const game = this.attempt();
     if (!game || this.mode() === 'rehearsal') return;
-    if (seleccion && dialogo && esLecturaRecuperable(seleccion, dialogo)) {
-      guardarLectura(this.almacen, { attemptId: game.attemptId, objectKey: seleccion.key, dialogueKey: dialogo.key, line });
+    const objectKey = objetoDeLectura(seleccion, dialogo);
+    if (objectKey && dialogo) {
+      guardarLectura(this.almacen, { attemptId: game.attemptId, nodeId: game.currentNode.id, objectKey, dialogueKey: dialogo.key, line });
     } else {
       borrarLectura(this.almacen, game.attemptId);
     }
   }
 
-  /** Tras recargar el mundo: reabre la conversación que iba abierta y la deja en la línea en que iba. */
+  /** Tras recargar el mundo: reabre la conversación (de un objeto o de un personaje de ambiente) en la línea en que iba; si la escena cambió o ya no está, se descarta. */
   private restoreReadingPoint(world: SimulationWorldState): void {
     this.readingRestorePending = false;
     const game = this.attempt();
     if (!game || this.mode() === 'rehearsal') return;
     const punto = leerLectura(this.almacen, game.attemptId);
     if (!punto) return;
-    const objeto = game.status === 'IN_PROGRESS' && !this.showCaseIntro() && !this.inputBlocked()
-      ? world.objects.find(candidate => candidate.key === punto.objectKey && candidate.type !== 'EXIT')
+    const reabrible = game.status === 'IN_PROGRESS' && punto.nodeId === game.currentNode.id && !this.showCaseIntro() && !this.inputBlocked();
+    const npcKey = claveDeNpc(punto.objectKey);
+    const npc = reabrible && npcKey
+      ? npcsDeLaSala(this.scenarioConfig()?.rooms.find(room => room.key === world.map.key)?.npcs ?? [], world.map.ambient).find(candidate => candidate.key === npcKey)
       : undefined;
-    if (!objeto) {
+    const objeto = reabrible && !npcKey ? world.objects.find(candidate => candidate.key === punto.objectKey && candidate.type !== 'EXIT') : undefined;
+    if (!npc && !objeto) {
       borrarLectura(this.almacen, game.attemptId);
       return;
     }
     this.dialogueStart.set({ key: punto.dialogueKey, line: punto.line });
-    this.openBackendInteraction(objeto);
+    // Un personaje de ambiente ya quedó registrado al abrirlo la primera vez: reabrir no vuelve a tocar el servidor.
+    if (npc) this.showNpcDialogue(npc);
+    else this.openBackendInteraction(objeto!);
   }
 
   /**
@@ -3320,16 +3551,18 @@ export class SimulationPlayComponent implements OnInit, OnDestroy {
     // repite al recargar: `pendingStage` solo lo arma la respuesta de una decisión.
     const stage = this.pendingStage;
     this.pendingStage = null;
-    if (stage) this.announceNewStage(stage);
+    const live = this.attempt()?.status === 'IN_PROGRESS';   // con la pausa puesta (local o registrada) ningún aviso de etapa o sala
+    if (stage && live) this.announceNewStage(stage);
     if (previousMapKey && mapChanged) {
       // La posición pendiente pertenece a la sala anterior: descartarla evita
       // que un flush posterior envíe coordenadas del mapa viejo.
       this.lastPosition = null;
       this.lastSyncedPosition = null;
-      this.announceRoomChange(world, stage !== null);
+      if (live) this.announceRoomChange(world, stage !== null);
     }
     this.maybeShowInitialCaseIntro();
     if (this.readingRestorePending) this.restoreReadingPoint(world);
+    if (this.replayIntent) this.replayAppliedDecision();
     // Al final, con la escena ya aplicada: si «Reanudar» llegó durante la recarga, se atiende ahora.
     this.finishWorldReload();
   }
@@ -3743,7 +3976,8 @@ export class SimulationPlayComponent implements OnInit, OnDestroy {
       synced.x, synced.y, world.map.key).pipe(timeout(PLAZO_ACCION_MS))
       .subscribe({
         next: updated => {
-          this.positionFailures = 0;
+          this.positionFailures = this.positionGiveUps = 0;
+          this.positionRetry.cancelar();
           // Una respuesta vieja que llega después de otra más nueva no pisa lo ya sincronizado.
           if (!this.positionOrder.aceptar(order)) return;
           if (this.respuestaVigente(game.attemptId, world.map.key) && updated.attemptId === game.attemptId && updated.map.key === world.map.key) {
@@ -3753,18 +3987,20 @@ export class SimulationPlayComponent implements OnInit, OnDestroy {
         // Un fallo no interrumpe la caminata, salvo que el servidor haya perdido el consentimiento (S3-2b): se reintenta.
         error: err => {
           if (isConsentRequiredError(err)) this.requireConsentAgain();
-          else this.orRehearsalGone(err, () => this.retryPositionSave());
+          else if (this.respuestaVigente(game.attemptId)) this.orRehearsalGone(err, () => this.retryPositionSave());
         },
       });
   }
 
   /** El guardado automático falló: se reintenta con espera creciente y, agotados los intentos, se avisa. */
   private retryPositionSave(): void {
+    if (this.destroyed) return;
     this.positionFailures += 1;
     const paso = pasoTrasFalloDeGuardado(this.positionFailures);
     if (paso.accion === 'avisar') {
       this.positionFailures = 0;
-      this.showActionError(DRAFT_COPY.positionNotSaved.text);
+      if (this.positionGiveUps++ === 0) this.showActionError(DRAFT_COPY.positionNotSaved.text);   // una sola vez mientras siga pendiente
+      this.positionRetry.armar(esperaDeSincronizacion(this.positionGiveUps));   // y se retoma al volver la red y con espera creciente (M2)
       return;
     }
     if (this.positionSaveHandle) window.clearTimeout(this.positionSaveHandle);
@@ -3814,7 +4050,7 @@ export class SimulationPlayComponent implements OnInit, OnDestroy {
           if (isConsentRequiredError(err)) { this.busy.set(false); this.requireConsentAgain(); return; }
           this.busy.set(false);
           this.releaseDialogue();
-          this.orRehearsalGone(err, () => this.showActionError(DRAFT_COPY.positionNotSyncedForAction.text));
+          if (this.attempt()?.status !== 'PAUSED') this.orRehearsalGone(err, () => this.showActionError(DRAFT_COPY.positionNotSyncedForAction.text));
         },
       });
   }

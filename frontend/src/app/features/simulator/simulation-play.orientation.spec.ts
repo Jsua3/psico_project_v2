@@ -258,7 +258,7 @@ describe('SimulationPlayComponent: orientación integrada', () => {
 
       component.openInteraction(gate);
 
-      expect(component.doorNotice()).toBe('Esta salida se abre más adelante en el caso.');
+      expect(component.doorNotice()).toBe('Esta salida se abre más adelante: sigue en esta sala.');
     });
   });
 
@@ -464,7 +464,8 @@ describe('SimulationPlayComponent: orientación integrada', () => {
       const source = readFileSync(join(__dirname, 'simulation-play.component.ts'), 'utf-8');
       expect(source).not.toContain('nowLine');
       expect(source).not.toContain('context-bar__hint');
-      expect(source).toMatch(/<div class="context-bar__idle">\s*@if \(nothingNearbyNote\(\); as note\) \{\s*<p class="context-bar__now">\{\{ note \}\}<\/p>/);
+      // Bloque U1 (variante B): la nota de reposo es una placa (u-placa).
+      expect(source).toMatch(/<div class="context-bar__idle">\s*@if \(nothingNearbyNote\(\); as note\) \{\s*<p class="context-bar__now u-placa">\{\{ note \}\}<\/p>/);
     });
   });
 

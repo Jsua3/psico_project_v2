@@ -367,8 +367,9 @@ describe('ToolInventoryComponent: dock de herramientas (T7.3)', () => {
         const match = body.match(/font-size:\s*([\d.]+)(rem|px)/);
         if (match) sizes.push({ selector: selector.trim(), px: match[2] === 'rem' ? Number(match[1]) * 16 : Number(match[1]) });
       }
-      expect(sizes.length).toBeGreaterThanOrEqual(2);
+      // Bloque U1: los textos ya no declaran tamaños literales (la pestaña y el aviso usan fichas de tamaño), así que se exige que ninguno literal baje de 12 px y que el aviso use la ficha.
       expect(sizes.filter(s => s.px < 12)).toEqual([]);
+      expect(styles).toMatch(/\.tool-notice \{[^}]*font-size: var\(--pixel-tam\);/);
     });
 
     // req: RNF-04, BLOQUE-H
@@ -382,11 +383,43 @@ describe('ToolInventoryComponent: dock de herramientas (T7.3)', () => {
       expect(styles).toMatch(/\.tool-card:focus-visible \{[^}]*outline-offset: -3px;/);
     });
 
-    it('en compacto las ranuras son iconos de 44x44 y el nombre queda en title y aria-label', () => {
-      expect(styles).toMatch(
-        /@media \(max-height: 520px\), \(pointer: coarse\) and \(orientation: landscape\) \{[\s\S]*?\.tool-card \{[^}]*width: 44px;[^}]*height: 44px;/,
-      );
+    it('las ranuras son fichas cuadradas de pixel de la hoja común (56 px, más que los 44 px) y el nombre queda en title, aria-label y la pestaña', () => {
+      // Bloque U1: el modo compacto ya no encoge la ranura a 44 px; la ficha u-ranura mide 28 puntos de mundo y el nombre sale de la ranura.
+      mount(['PAP']);
+      for (const item of cards()) {
+        expect(item.classList).toContain('u-ranura');
+        expect(item.classList).toContain('u-sombra');
+      }
+      expect(styles).not.toMatch(/@media \(max-height: 520px\)/);
       expect(styles).toMatch(/\.tool-name \{ display: none; \}/);
+      expect(card('PAP').getAttribute('title')).toContain('Primeros Auxilios Psicológicos');
+    });
+
+    it('las herramientas de O1 llevan el icono de pixel de su tira (cuadro 0) y las demás conservan el de Material; las bloqueadas ponen el candado de pixel', () => {
+      // Bloque U1: el mat-icon de la herramienta y el de candado pasan a icono de pixel; el código desconocido sigue con Material.
+      mount(['PAP']);
+      const pap = card('PAP');
+      expect(pap.querySelector('mat-icon')).toBeNull();
+      expect(pap.querySelector('i.tool-card__icono')?.getAttribute('aria-hidden')).toBe('true');
+      expect((pap.querySelector('i.tool-card__icono') as HTMLElement).style.backgroundImage).toContain('iconos/pap-20.png');
+      expect((card('RISK_METER').querySelector('i.tool-card__icono') as HTMLElement).style.backgroundImage).toContain('iconos/risk-meter-20.png');
+      expect(pap.querySelector('app-pixel-icono.tool-lock')).toBeNull();
+      expect(card('SPIKES').querySelector('app-pixel-icono.tool-lock')).not.toBeNull();
+      expect(card('SPIKES').querySelector('mat-icon')).toBeNull();
+    });
+
+    it('la pestaña suma el nombre de la ranura con foco o elegida y sigue oculta al lector', () => {
+      // Bloque U1: las ranuras ya no muestran su nombre; la pestaña de la cuenta lo lleva.
+      mount(['PAP']);
+      const tab = () => root.querySelector('.tool-count')!;
+      expect(tab().textContent).not.toContain('Primeros Auxilios');
+      card('PAP').focus();
+      fixture.detectChanges();
+      expect(tab().textContent).toContain('Primeros Auxilios Psicológicos');
+      expect(tab().getAttribute('aria-hidden')).toBe('true');
+      card('PAP').blur();
+      fixture.detectChanges();
+      expect(tab().textContent).not.toContain('Primeros Auxilios');
     });
 
     it('el dock no deshabilita de verdad ni oculta las bloqueadas al lector (soft-disabled del patrón)', () => {

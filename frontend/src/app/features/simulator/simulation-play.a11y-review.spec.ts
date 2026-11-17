@@ -32,10 +32,13 @@ describe('F6: anuncios de las regiones vivas, una sola vez', () => {
     expect(toolFeedback).toContain('lines: [');
   });
 
+  // Bloque U1 (variante B): el aviso suave es una placa con icono de pixel y la ficha lleva la pestaña de la etapa antes del desplazable; ninguno trae role.
   it('el juego no trae región viva propia: ni el aviso suave ni la tarjeta «Qué hacer» llevan role', () => {
-    expect(source).toMatch(/<div class="soft-notice">\{\{ softNotice\(\) \}\}<\/div>/);
-    expect(source).toMatch(/<div class="objective-card">\s*(<!--[^>]*-->\s*)?<div class="objective-card__scroll">/);
+    expect(source).toMatch(/<div class="soft-notice u-placa u-sombra"><app-pixel-icono nombre="hecho" \/><span>\{\{ softNotice\(\) \}\}<\/span><\/div>/);
+    expect(source).not.toMatch(/<div class="soft-notice[^>]*role=/);
+    expect(source).toMatch(/<div class="objective-card">\s*(<!--[\s\S]*?-->\s*)?(@if \(stageLabel\(\); as etapa\) \{[\s\S]*?objective-card__etapa[\s\S]*?\}\s*)?<div class="objective-card__scroll">/);
     expect(source).not.toMatch(/<div class="objective-card"[^>]*role=/);
+    expect(source).not.toMatch(/<p class="objective-card__etapa[^>]*role=/);
     expect(source).not.toMatch(/aria-live="assertive" role="status"/);
     expect(source).not.toContain('a11yAnnouncement');
   });
@@ -51,8 +54,9 @@ describe('F9: el interruptor «Movimiento reducido» del juego apaga las animaci
   ];
   const reduceRule = source.slice(source.indexOf(selectors[0]), source.indexOf('}', source.indexOf(selectors[3])) + 1);
 
+  // Bloque U1 (variante B): el contenedor suma la clase `pixel-juego` y las variables de arte (`[style]="arteJuego"`) de las piezas de pixel.
   it('el contenedor lleva la clase mientras el interruptor (reduceMotion) está activo', () => {
-    expect(source).toMatch(/<div class="game-container" data-skin="game" id="main-content" tabindex="-1" \[attr\.data-mode\]="viewMode\(\)"\s*\[class\.game-container--reduce-motion\]="reduceMotion\(\)"( \[attr\.data-rehearsal\]="[^"]*")?>/);
+    expect(source).toMatch(/<div class="game-container pixel-juego" data-skin="game" id="main-content" tabindex="-1" \[attr\.data-mode\]="viewMode\(\)" \[style\]="arteJuego"\s*\[class\.game-container--reduce-motion\]="reduceMotion\(\)"\s*\[class\.game-container--cine\]="cinemaBars\(\)"\s*\[style\.--alto-hud\]="altoHud\(\) \+ 'px'" \[style\.--alto-objetivo\]="altoObjetivo\(\) \+ 'px'"\s*( ?\[attr\.data-rehearsal\]="[^"]*")?>/);
   });
 
   it('la regla alcanza al contenedor y a todos sus descendientes, también a los componentes hijos', () => {

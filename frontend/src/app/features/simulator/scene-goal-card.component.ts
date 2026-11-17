@@ -27,27 +27,25 @@ let nextGoalCardId = 0;
   },
   template: `
     <section class="goal-card" [attr.aria-label]="copy.goalCardTitle.text" [class.goal-card--compact]="compact()">
-      <button type="button" class="goal-card__toggle" [attr.aria-expanded]="open()" [attr.aria-controls]="open() ? bodyId : null" (click)="toggle()">
+      <button type="button" class="goal-card__toggle u-boton u-sombra" [attr.aria-expanded]="open()" [attr.aria-controls]="open() ? bodyId : null" (click)="toggle()">
         <span class="goal-card__kicker">{{ copy.goalCardTitle.text }}</span>
         <span class="goal-card__goal">{{ visibleGoal() }}</span>
-        <svg class="goal-card__chevron" [class.goal-card__chevron--open]="open()" viewBox="0 0 16 16" width="12" height="12" aria-hidden="true" focusable="false">
-          <path d="M3.5 6 8 10.5 12.5 6" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
-        </svg>
+<i class="goal-card__chevron u-seguir" [class.goal-card__chevron--open]="open()" aria-hidden="true"></i>
       </button>
 
       <!-- El cuerpo se crea al abrir por primera vez y después solo se oculta: así «Pedir una pista» conserva su enfriamiento y sus pistas. -->
       @if (everOpened()) {
-        <div class="goal-card__body" [id]="bodyId" [hidden]="!open()">
+        <div class="goal-card__body u-placa" [id]="bodyId" [hidden]="!open()">
           @if (guia().enEstaSala.length) {
             <h3 class="goal-card__list-title">{{ copy.roomListTitle.text }}</h3>
             <ul class="goal-card__list">
               @for (el of guia().enEstaSala; track el.key) {
-                <li class="goal-card__item">{{ el.label }} · <span class="goal-card__mark">{{ mark(el) }}</span></li>
+                <li class="goal-card__item">{{ el.label }} · <span class="goal-card__mark" [class.goal-card__mark--hecha]="el.visto">{{ mark(el) }}</span></li>
               }
             </ul>
           }
           @if (hintAttempt(); as attempt) {
-            <app-scene-hint [attemptId]="attempt.attemptId" [attemptToken]="attempt.attemptToken"
+            <app-scene-hint variante="placa" [attemptId]="attempt.attemptId" [attemptToken]="attempt.attemptToken"
               [buttonLabel]="copy.hintAskLabel.text" (consentRequired)="consentRequired.emit()" />
           }
         </div>
@@ -55,50 +53,49 @@ let nextGoalCardId = 0;
     </section>
   `,
   styles: [`
+    /* Bloque U1: la ficha en las piezas del cuadro de diálogo (hoja común). Plegada es una placa-botón con el kicker en la
+       letra de las pestañas y la flecha de seguir; abierta suma una placa con «En esta sala» y «Pedir una pista» (la placa
+       de la pista de I1). Objetivo táctil de 44 px con cualquier puntero; ningún texto baja de 12 px. */
     :host { display: block; min-width: 0; }
-
-    .goal-card { display: grid; gap: 6px; min-width: 0; color: rgba(232,240,244,.92); }
-
-    /* Objetivo táctil de 44 px de verdad con cualquier puntero; el texto no baja de 12 px. */
+    .goal-card { display: grid; min-width: 0; color: var(--pixel-tinta); font-family: var(--pixel-f-texto); font-size: var(--pixel-tam); }
     .goal-card__toggle {
       box-sizing: border-box;
       display: grid;
       grid-template-columns: minmax(0, 1fr) auto;
       grid-template-areas: 'kicker chevron' 'goal chevron';
       align-items: center;
-      gap: 1px 10px;
+      gap: 1px calc(5 * var(--pixel-px));
       width: 100%;
       min-height: 44px;
-      padding: 4px 10px;
-      border: 1px solid rgba(182,156,255,.7);
-      border-radius: 8px;
-      background: transparent;
-      color: #e8f0f4;
-      font: inherit;
+      padding: calc(2 * var(--pixel-px)) calc(5 * var(--pixel-px)) calc(3 * var(--pixel-px));
       text-align: left;
-      cursor: pointer;
-      transition: border-color 150ms ease, background-color 150ms ease;
+      white-space: normal;
     }
-    .goal-card__kicker { grid-area: kicker; font-size: .75rem; font-weight: 800; letter-spacing: .04em; color: #cdbcff; }
-    .goal-card__goal { grid-area: goal; min-width: 0; font-size: .82rem; line-height: 1.35; font-weight: 700; color: #f4f7fb; overflow-wrap: anywhere; }
-    .goal-card__chevron { grid-area: chevron; color: #cdbcff; transition: transform 150ms ease; }
-    .goal-card__chevron--open { transform: rotate(180deg); }
+    .goal-card__kicker { grid-area: kicker; font-family: var(--pixel-f-nombre); font-size: var(--pixel-letra-chica); font-weight: 700; letter-spacing: .02em; color: var(--pixel-tinta-suave); }
+    .goal-card__goal { grid-area: goal; min-width: 0; font-weight: 600; line-height: 1.35; color: var(--pixel-tinta); overflow-wrap: anywhere; }
+    .goal-card__chevron { grid-area: chevron; }
+    .goal-card__chevron--open { transform: scaleY(-1); }
     @media (hover: hover) and (pointer: fine) {
-      .goal-card__toggle:hover { border-color: rgba(182,156,255,.85); background: rgba(124,77,255,.18); }
-    }
-    @media (prefers-reduced-motion: reduce) {
-      .goal-card__toggle, .goal-card__chevron { transition: none; }
+      .goal-card__toggle:hover .goal-card__kicker { color: var(--luz); }
+      .goal-card__toggle:hover .goal-card__goal { color: var(--pixel-tinta); }
     }
 
-    .goal-card__body { display: grid; gap: 6px; min-width: 0; }
+    /* Teléfono (≤ 560 px): más sala a la vista. Sin el kicker, y plegada la ficha lleva el objetivo en una línea con puntos
+       suspensivos (el texto sigue entero en el DOM y la ficha se abre al tocar; abierta lo muestra completo). */
+    @media (max-width: 560px) {
+      .goal-card__kicker { display: none; }
+      .goal-card__toggle { grid-template-areas: 'goal chevron'; }
+      :host([data-collapsed='true']) .goal-card__goal { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    }
+
+    .goal-card__body { display: grid; gap: calc(3 * var(--pixel-px)); min-width: 0; margin-top: calc(-1 * var(--pixel-px)); padding: calc(3 * var(--pixel-px)) calc(5 * var(--pixel-px)) calc(4 * var(--pixel-px)); }
     /* «display: grid» pisa el estilo de «hidden»: plegada, el cuerpo sigue vivo (conserva el enfriamiento de la pista) pero no se ve. */
     .goal-card__body[hidden] { display: none; }
-    .goal-card__list-title { margin: 4px 0 0; font-size: .75rem; font-weight: 800; color: #cdbcff; }
-    .goal-card__list { display: grid; gap: 2px; margin: 0; padding: 0; list-style: none; }
-    .goal-card__item { font-size: .8rem; line-height: 1.35; color: rgba(232,240,244,.92); overflow-wrap: anywhere; }
-    .goal-card__mark { color: rgba(232,240,244,.78); }
-
-    /* La pista vive en el panel oscuro del juego: sus tokens siguen a la piel. */
+    .goal-card__list-title { margin: 0; font-family: var(--pixel-f-nombre); font-size: var(--pixel-letra-chica); font-weight: 700; color: var(--luz); }
+    .goal-card__list { display: grid; gap: var(--pixel-px); margin: 0; padding: 0; list-style: none; }
+    .goal-card__item { line-height: 1.35; color: var(--pixel-tinta); overflow-wrap: anywhere; }
+    .goal-card__mark { font-family: var(--pixel-f-nombre); font-size: var(--pixel-letra-chica); color: var(--pixel-tinta-suave); }
+    .goal-card__mark--hecha { color: var(--pixel-hecho); }
     app-scene-hint { display: block; }
   `],
 })

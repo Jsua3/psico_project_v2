@@ -59,9 +59,11 @@ import {
   selectRevealed,
 } from './interaction-priority.util';
 import { serverRejectsPlayerAt } from './server-world-geometry.util';
-import { InteractionVerb, interactionVerb, participatesInInteraction } from './interaction-verb.util';
+import { InteractionVerb, exitVerb, interactionVerb, participatesInInteraction } from './interaction-verb.util';
 import { paintVignette, vignetteTextureKey } from './vignette-texture.util';
-import { WORLD_FONT_FAMILY, whenWorldFontsReady } from './world-typography.util';
+import {
+  WORLD_FONT_FAMILY, WORLD_LABEL_FONT_FAMILY, WORLD_LABEL_INK, WORLD_LABEL_PLATE, whenWorldFontsReady,
+} from './world-typography.util';
 import { HOVER_HIT, HoverCandidate, pickHoverTarget } from './world-hover.util';
 import { NO_WALK, WALK_GROUND_RADIUS_PX, WalkState, cancelWalkOnKeys, reachRadius, startWalk, tickWalk } from './world-walk.util';
 import { InputKind, nextInputKind, touchControlsVisible } from './world-input-kind.util';
@@ -95,7 +97,7 @@ import { heldInput } from './touch-hold.util';
 import { attachScrollKeyGuard, isScrollRegionTarget, isShortcutContext, isTextEntryTarget, resolveInteractPress } from './keyboard-focus.util';
 import { isCriticalAsset } from './asset-criticality.util';
 import {
-  EstadoCamara, Momento, avanzarCamara, comoDibujar, duracionDeViaje, enViajeDentro, esperaDelGeneral, objetivoCamara,
+  Caja as CajaDePlaca, EstadoCamara, Momento, avanzarCamara, comoDibujar, duracionDeViaje, enViajeDentro, esperaDelGeneral, objetivoCamara,
 } from './camara/camara';
 import { fitGameToHost, pixelScaleConfig, watchHostSize } from './pixel-canvas';
 import { PixelRender } from './pixel-render';
@@ -224,6 +226,8 @@ interface NpcMover {
 
 /** Profundidad de los rótulos del mundo: sobre todos los actores y bajo los rótulos de puerta (UI). */
 const LABEL_DEPTH = DEPTH.UI - 1;
+/** Cada cuánto (ms) la cámara vuelve a medir las placas de la interfaz (zona segura, U1). */
+const MEDIR_PLACAS_MS = 150;
 /** Prefijo de la clave con la que una persona del escenario sale como candidato de proximidad. */
 const NPC_KEY_PREFIX = 'npc:';
 /** Cuánto se sostiene el último plano cercano al soltarse (entre la decisión y la reacción, bloque M1). */
@@ -378,6 +382,10 @@ export class DataDrivenWorldScene extends Phaser.Scene {
   /** Alto (px CSS) que el cuadro de diálogo (o la franja de abajo) tapa abajo del lienzo, y la franja de arriba. */
   private camCoveredCss = 0;
   private camCoveredTopCss = 0;
+  /** Zona segura (U1): quien mide las placas de la interfaz sobre el lienzo (px CSS) y lo último que midió. */
+  private camPlacasMedir: (() => readonly CajaDePlaca[]) | null = null;
+  private camPlacas: readonly CajaDePlaca[] = [];
+  private camPlacasEn = Number.NEGATIVE_INFINITY;
   private camFrozen = false;
   private camSettledZoom = 0;
   private camReport = '';
@@ -715,7 +723,7 @@ export class DataDrivenWorldScene extends Phaser.Scene {
     if (id && p && obj) {
       const cam = this.cameras.main, dpr = 1 / (this.scale.zoom || 1);
       aviso = {
-        id, texto: `Pasar a ${obj.label}`, bloqueada: this.doorStates[id] === 'locked',
+        id, texto: exitVerb(obj.label), bloqueada: this.doorStates[id] === 'locked',
         x: Math.round(((p.x - cam.worldView.x) * cam.zoom) / dpr), y: Math.round(((p.y - cam.worldView.y) * cam.zoom) / dpr),
       };
     }
@@ -727,6 +735,13 @@ export class DataDrivenWorldScene extends Phaser.Scene {
 
   /** P2: la sombra con silueta de quien juega y de cada persona del caso, en una sala por piezas (regla 3 de calidad). */
   private sombrasConSilueta(sala: EscenaDeSala): void {
+    const medida = (window as unknown as { __p2Sombras?: { ms: number; veces: number } }).__p2Sombras;   // medida opcional: la prueba e2e `medir:` la pone para saber cuánto cuestan las sombras
+    const t0 = medida ? performance.now() : 0;
+    this.sombrasConSiluetaMedidas(sala);
+    if (medida) { medida.ms += performance.now() - t0; medida.veces++; }
+  }
+
+  private sombrasConSiluetaMedidas(sala: EscenaDeSala): void {
     if (this.player) sala.sombraDeFigura('jugador', this.playerSprite, this.player.x, this.player.y);
     for (const [key, m] of this.markers) {
       const sprite = (m as unknown as Record<string, unknown>)['__personSprite'] as Phaser.GameObjects.Sprite | undefined;
@@ -1078,8 +1093,8 @@ export class DataDrivenWorldScene extends Phaser.Scene {
     const label = this.hoverLabel?.active
       ? this.hoverLabel
       : (this.hoverLabel = this.add.text(0, 0, '', {
-          fontFamily: WORLD_FONT_FAMILY, fontSize: `${LABEL_BASE_FONT_PX}px`, color: '#e8f0f4',
-          backgroundColor: 'rgba(8,12,18,.9)', padding: { x: 4, y: 3 }, align: 'center',
+          fontFamily: WORLD_LABEL_FONT_FAMILY, fontSize: `${LABEL_BASE_FONT_PX}px`, color: WORLD_LABEL_INK,
+          backgroundColor: WORLD_LABEL_PLATE, padding: { x: 4, y: 3 }, align: 'center',
         }).setOrigin(0.5, 1).setScale(this.labelScale).setDepth(LABEL_DEPTH));
     label.setText(anchor.verb.locked ? `${anchor.verb.text} · bloqueada` : anchor.verb.text);
     label.setPosition(anchor.x, top - 4).setVisible(true);
@@ -1134,6 +1149,13 @@ export class DataDrivenWorldScene extends Phaser.Scene {
 
   setCameraOptions(options: CameraOptions): void {
     this.camOptions = { ...options };
+  }
+
+  /** Zona segura (U1): la pantalla da cómo medir sus placas sobre el lienzo; se mide a lo sumo cada `MEDIR_PLACAS_MS`. */
+  setCameraPlacas(medir: (() => readonly CajaDePlaca[]) | null): void {
+    this.camPlacasMedir = medir;
+    this.camPlacasEn = Number.NEGATIVE_INFINITY;
+    if (!medir) this.camPlacas = [];
   }
 
   /** Con el plano abierto la cámara no se mueve ni cambia de zoom. */
@@ -1207,9 +1229,15 @@ export class DataDrivenWorldScene extends Phaser.Scene {
     const dpr = typeof window !== 'undefined' ? window.devicePixelRatio || 1 : 1;
     const momento = this.cameraMomentNow(ahora);
     const sala = { ancho: this.roomSize.width, alto: this.roomSize.height };
+    // Las placas de la interfaz cambian poco (abrir la ficha, una acción al alcance): se miden unas veces por segundo.
+    if (this.camPlacasMedir && ahora - this.camPlacasEn >= MEDIR_PLACAS_MS) {
+      this.camPlacas = this.camPlacasMedir();
+      this.camPlacasEn = ahora;
+    }
     const vista = {
       ancho: cam.width, alto: cam.height, dpr,
       cubiertoAbajo: this.camCoveredCss * dpr, cubiertoArriba: this.camCoveredTopCss * dpr,
+      placas: this.camPlacas.map(p => ({ x: p.x * dpr, y: p.y * dpr, ancho: p.ancho * dpr, alto: p.alto * dpr })),
     };
     const calculado = objetivoCamara({
       jugador: { x: this.player.x, y: this.player.y },
@@ -1218,6 +1246,7 @@ export class DataDrivenWorldScene extends Phaser.Scene {
       momento,
       cercana: this.camOptions.cercana,
       acercarAuto: this.camOptions.acercarAuto,
+      cerca: this.nearestKey ? this.feetOf(this.nearestKey) : null,
     }, this.camCut ? null : this.camState);
     // Plano sostenido: el objetivo es el de antes de soltarse (sin recalcular con el cuadro que se va).
     const objetivo = this.camSosteniendo && this.camUltimoObjetivo ? this.camUltimoObjetivo : calculado;
@@ -1580,6 +1609,8 @@ export class DataDrivenWorldScene extends Phaser.Scene {
   private readonly piezasFallidas = new Set<string>();
   /** P2: la sala por piezas apartada durante un repintado de la misma sala (vuelve sin rearmarse). */
   private salaApartada: EscenaDeSala | null = null;
+  /** P2: dónde estaba la cámara al apartar la sala (vuelve ahí si la sala vuelve). */
+  private camaraApartada: { x: number; y: number } | null = null;
 
   /** P2: lo que dibuja la sala por piezas: estructura, encuadre, puertas y objetos con arte. Igual = no hay que rearmarla. */
   private firmaDeSala(): string {
@@ -1704,6 +1735,9 @@ export class DataDrivenWorldScene extends Phaser.Scene {
     // Cámara (M1): la sala compuesta mide `plan.ancho × plan.alto` (528 de alto, contrato 2.2); el `height` del mapa del
     // servidor puede ser mayor y la cámara mostraba el vacío bajo la sala en el plano general.
     this.applyPixelCamera(plan.ancho || mapW, plan.alto || mapH);
+    const camara = this.camaraApartada;
+    this.camaraApartada = null;
+    if (camara && this.salaPorPiezas === apartada) this.cameras.main.setScroll(camara.x, camara.y);   // la misma sala: sin salto
     this.refreshMarkerStates();
     this.updateNearestInteraction(true);
     this.applyCrisisVignette();
@@ -1735,6 +1769,8 @@ export class DataDrivenWorldScene extends Phaser.Scene {
     if (this.salaPorPiezas && this.salaPorPiezas.firma === this.firmaDeSala()) {
       this.salaApartada = this.salaPorPiezas;
       this.salaApartada.apartar();
+      // Y la cámara queda donde estaba: rearmarla la centraría de golpe en quien juega (un salto de unos px al revisar).
+      this.camaraApartada = { x: this.cameras.main.scrollX, y: this.cameras.main.scrollY };
     } else {
       this.salaPorPiezas?.destruir();   // sus texturas de lienzo no las borra removeAll
     }
@@ -2327,8 +2363,8 @@ export class DataDrivenWorldScene extends Phaser.Scene {
     npc: NpcConfig, pos: { x: number; y: number }, offsetY: number,
   ): { label: Phaser.GameObjects.Text; hint: Phaser.GameObjects.Text } {
     const label = this.add.text(pos.x, pos.y + offsetY, npc.displayName, {
-      fontFamily: WORLD_FONT_FAMILY, fontSize: `${LABEL_BASE_FONT_PX}px`, color: '#e8f0f4',
-      backgroundColor: 'rgba(8,12,18,.72)', padding: { x: 3, y: 2 }, align: 'center',
+      fontFamily: WORLD_LABEL_FONT_FAMILY, fontSize: `${LABEL_BASE_FONT_PX}px`, color: WORLD_LABEL_INK, fontStyle: 'bold',
+      backgroundColor: WORLD_LABEL_PLATE, padding: { x: 4, y: 2 }, align: 'center',
     }).setOrigin(0.5, 1).setAlpha(0).setScale(this.labelScale).setDepth(LABEL_DEPTH);
     const hint = this.add.text(pos.x, pos.y + offsetY, this.npcHintGlyph(), {
       fontFamily: WORLD_FONT_FAMILY, fontSize: `${LABEL_BASE_FONT_PX}px`, color: '#4fa3a5',
@@ -2768,8 +2804,8 @@ export class DataDrivenWorldScene extends Phaser.Scene {
     // Los EXIT no llevan label propio — su door hint ya nombra el destino.
     // Fuera del contenedor del marcador y sobre los actores: un sprite que pase por delante no lo tapa.
     const label  = isExit ? null : this.add.text(object.x, object.y + markerLabelOffsetY(object), displayLabel, {
-      fontFamily: WORLD_FONT_FAMILY, fontSize: `${LABEL_BASE_FONT_PX}px`, color: '#e8f0f4',
-      backgroundColor: 'rgba(8,12,18,.72)', padding: { x:5, y:3 }, align: 'center', wordWrap: { width: this.labelWrap }
+      fontFamily: WORLD_LABEL_FONT_FAMILY, fontSize: `${LABEL_BASE_FONT_PX}px`, color: WORLD_LABEL_INK,
+      backgroundColor: WORLD_LABEL_PLATE, padding: { x:5, y:3 }, align: 'center', wordWrap: { width: this.labelWrap }
     }).setOrigin(.5, 0).setAlpha(0).setScale(this.labelScale).setDepth(LABEL_DEPTH);
 
     let main: Phaser.GameObjects.GameObject;
@@ -3183,15 +3219,15 @@ export class DataDrivenWorldScene extends Phaser.Scene {
     const state = this.personaState;
     const stateHeight = state ? LABEL_BASE_FONT_PX + 8 : 0;
     const name = this.add.text(0, -(height + KEY_PERSON_NAME_GAP_PX + stateHeight), label, {
-      fontFamily: WORLD_FONT_FAMILY, fontSize: `${LABEL_BASE_FONT_PX}px`, color: KEY_PERSON_COLOR, fontStyle: 'bold',
-      backgroundColor: 'rgba(8,12,18,.85)', padding: { x: 5, y: 3 }, align: 'center',
+      fontFamily: WORLD_LABEL_FONT_FAMILY, fontSize: `${LABEL_BASE_FONT_PX}px`, color: KEY_PERSON_COLOR, fontStyle: 'bold',
+      backgroundColor: WORLD_LABEL_PLATE, padding: { x: 5, y: 3 }, align: 'center',
     }).setOrigin(0.5, 1);
     const tipOffsetY = keyPersonTipOffsetY(markerFeetOffsetY(object));
     const children: Phaser.GameObjects.GameObject[] = [chevron, name];
     if (state) {
       children.push(this.add.text(0, -(height + KEY_PERSON_NAME_GAP_PX), state, {
-        fontFamily: WORLD_FONT_FAMILY, fontSize: `${LABEL_BASE_FONT_PX}px`, color: '#e8f0f4',
-        backgroundColor: 'rgba(8,12,18,.85)', padding: { x: 5, y: 3 }, align: 'center',
+        fontFamily: WORLD_LABEL_FONT_FAMILY, fontSize: `${LABEL_BASE_FONT_PX}px`, color: WORLD_LABEL_INK,
+        backgroundColor: WORLD_LABEL_PLATE, padding: { x: 5, y: 3 }, align: 'center',
       }).setOrigin(0.5, 1));
     }
     const container = this.add.container(marker.x, marker.y + tipOffsetY, children)
@@ -4091,6 +4127,12 @@ export class GameWorldComponent implements OnChanges, OnDestroy {
   private cameraMoment: CameraMoment = { tipo: 'explorar' };
   private cameraCoveredCss = 0;
   private cameraCoveredTopCss = 0;
+  private cameraPlacas: (() => readonly CajaDePlaca[]) | null = null;
+  /** Zona segura de la cámara (U1): cómo medir las placas de la interfaz sobre el lienzo (px CSS desde su esquina). */
+  setCameraPlacas(medir: (() => readonly CajaDePlaca[]) | null) {
+    this.cameraPlacas = medir;
+    this.scene?.setCameraPlacas?.(medir);
+  }
   setCameraMoment(moment: CameraMoment, coveredCss = 0, coveredTopCss = 0) {
     this.cameraMoment = moment;
     this.cameraCoveredCss = coveredCss;
@@ -4201,6 +4243,7 @@ export class GameWorldComponent implements OnChanges, OnDestroy {
       // La cámara recibe lo que la pantalla pidió antes de que existiera la escena (bloque M1).
       this.scene.setCameraOptions(this.cameraOptions);
       this.scene.setCameraMoment(this.cameraMoment, this.cameraCoveredCss, this.cameraCoveredTopCss);
+      this.scene.setCameraPlacas?.(this.cameraPlacas);
       this.armBootWatchdog();
       this.phaserGame = new Phaser.Game({
         // PHA-5 (E5-8): se mantiene Phaser.AUTO (WebGL preferido con caída a Canvas 2D) para soportar equipos de aula

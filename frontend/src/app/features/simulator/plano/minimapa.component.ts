@@ -1,8 +1,8 @@
 import { A11yModule } from '@angular/cdk/a11y';
 import { ChangeDetectionStrategy, Component, ElementRef, HostListener, Injector, afterNextRender, computed, inject, input, output, signal } from '@angular/core';
 
-import { UiButton } from '../../../shared/ui/button/ui-button';
 import { SafeExitButtonComponent } from '../safe-exit-button.component';
+import { PixelIconoComponent } from '../pixel/pixel-icono.component';
 import { PlanoDelLugarComponent } from './plano-del-lugar.component';
 import { PlanoDelLugar, textoDeLaSala } from './plano';
 
@@ -25,51 +25,42 @@ function leerOculto(): boolean {
 @Component({
   selector: 'app-minimapa',
   standalone: true,
-  imports: [PlanoDelLugarComponent],
+  imports: [PlanoDelLugarComponent, PixelIconoComponent],
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
     @if (plano(); as p) {
+      <!-- Bloque U1: la pestaña del plano dice dónde estás (el lugar dejó la cabecera), como el nombre sobre una placa. -->
+      @if (lugar() || actual()) {
+        <p class="minimapa__lugar u-rotulo" aria-hidden="true"><app-pixel-icono nombre="lugar" /><span class="u-rotulo__texto">{{ lugar() || actual() }}</span></p>
+      }
       @if (!oculto()) {
-        <button type="button" class="minimapa__abrir" data-minimapa-abrir [attr.aria-label]="nombre()" (click)="abrir.emit()">
+        <button type="button" class="minimapa__abrir u-boton u-sombra" data-minimapa-abrir [attr.aria-label]="nombre()" (click)="abrir.emit()">
           <app-plano-del-lugar aria-hidden="true" [plano]="p" [actual]="actual()" [visitadas]="visitadas()" modo="mini" />
         </button>
       }
-      <button type="button" class="minimapa__alternar" data-minimapa-alternar (click)="alternar()">
-        {{ oculto() ? 'Mostrar plano' : 'Ocultar plano' }}
+      <button type="button" class="minimapa__alternar u-boton" data-minimapa-alternar (click)="alternar()">
+        <app-pixel-icono nombre="plano" /><span class="minimapa__texto">{{ oculto() ? 'Mostrar plano' : 'Ocultar plano' }}</span>
       </button>
     }
     <!-- Vista cercana (Z) también con botón, para quien no usa teclado o usa lector de pantalla. -->
-    <button type="button" class="minimapa__alternar" data-vista-cercana [attr.aria-pressed]="cercana()"
-      (click)="alternarCercana.emit()">Vista cercana (Z)</button>
+    <button type="button" class="minimapa__alternar u-boton" data-vista-cercana [attr.aria-pressed]="cercana()"
+      (click)="alternarCercana.emit()"><app-pixel-icono nombre="lupa" /><span class="minimapa__texto">Vista cercana (Z)</span></button>
   `,
   styles: [`
-    :host {
-      position: absolute; top: var(--ds-space-3); right: var(--ds-space-3); z-index: var(--ds-z-elevado);
-      display: grid; justify-items: end; gap: var(--ds-space-1); pointer-events: none;
-    }
-    button { pointer-events: auto; font: inherit; cursor: pointer; }
-    .minimapa__abrir {
-      display: block; width: clamp(140px, 16vw, 220px); aspect-ratio: 16 / 9; padding: var(--ds-space-1);
-      border: 1px solid var(--ds-border-strong); border-radius: var(--ds-radius-md);
-      background: var(--ds-veil); box-shadow: var(--ds-shadow-e2);
-    }
-    .minimapa__alternar {
-      min-height: var(--ds-target-min); padding: 0 var(--ds-space-2);
-      border: 1px solid var(--ds-border); border-radius: var(--ds-radius-md);
-      background: var(--ds-surface-1); color: var(--ds-text-2);
-      font-size: var(--ds-type-caption-size); font-weight: 700;
-    }
-    @media (hover: hover) and (pointer: fine) {
-      .minimapa__abrir:hover, .minimapa__alternar:hover { border-color: var(--ds-primary); }
-    }
-    .minimapa__abrir:active, .minimapa__alternar:active { transform: translateY(1px); }
-    @media (prefers-reduced-motion: reduce) {
-      .minimapa__abrir:active, .minimapa__alternar:active { transform: none; }
-    }
+    /* Bloque U1: piezas de la hoja común. El sitio lo da la pantalla (bajo el grupo de la derecha, variante B). */
+    :host { display: grid; justify-items: end; gap: calc(2 * var(--pixel-px)); pointer-events: none; font-size: var(--pixel-tam); }
+    button { pointer-events: auto; }
+    .minimapa__lugar { margin: 0 calc(6 * var(--pixel-px)) calc(-1 * var(--pixel-px)) 0; max-width: 100%; }
+    .minimapa__lugar + .minimapa__abrir { margin-top: calc(-2 * var(--pixel-px)); }
+    .minimapa__abrir { display: block; width: clamp(160px, 15vw, 230px); aspect-ratio: 16 / 9; padding: calc(2 * var(--pixel-px)); }
+    .minimapa__alternar { font-size: var(--pixel-letra-media); }
+    .minimapa__alternar[aria-pressed='true'] { --m: var(--marco-placa-foco); background-color: var(--pixel-penumbra-alzada); color: var(--luz); }
   `],
 })
 export class MinimapaComponent {
   readonly plano = input<PlanoDelLugar | null>(null);
+  /** El lugar en palabras («Hospital — Sala de espera»), para la pestaña del plano (U1). Sin él, la sala actual. */
+  readonly lugar = input('');
   readonly actual = input('');
   readonly visitadas = input<ReadonlySet<string>>(new Set());
   /** La vista cercana está puesta (su botón lo anuncia con `aria-pressed`). */
@@ -102,15 +93,15 @@ export class MinimapaComponent {
 @Component({
   selector: 'app-plano-completo',
   standalone: true,
-  imports: [A11yModule, PlanoDelLugarComponent, SafeExitButtonComponent, UiButton],
+  imports: [A11yModule, PlanoDelLugarComponent, SafeExitButtonComponent],
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
-    <section class="plano-dialogo" role="dialog" aria-modal="true" aria-labelledby="plano-titulo" cdkTrapFocus>
+    <section class="plano-dialogo u-placa" role="dialog" aria-modal="true" aria-labelledby="plano-titulo" cdkTrapFocus>
       <h2 id="plano-titulo">Plano del lugar</h2>
       <app-plano-del-lugar class="plano-dialogo__plano" [plano]="plano()" [actual]="actual()" [visitadas]="visitadas()" modo="completo" />
       <footer class="plano-dialogo__pie">
-        <app-safe-exit-button data-hide-key [pausing]="pausing()" (pause)="safeExit.emit()" />
-        <button ui-button variant="secondary" type="button" data-plano-cerrar (click)="closed.emit()">Cerrar</button>
+        <app-safe-exit-button data-hide-key variante="placa" [pausing]="pausing()" (pause)="safeExit.emit()" />
+        <button type="button" class="u-boton" data-plano-cerrar (click)="closed.emit()">Cerrar</button>
       </footer>
     </section>
   `,
@@ -119,12 +110,12 @@ export class MinimapaComponent {
     .plano-dialogo {
       position: absolute; top: 50%; left: 50%; z-index: var(--ds-z-modal); transform: translate(-50%, -50%);
       width: min(880px, 94vw); max-height: min(680px, 88vh);
-      display: grid; grid-template-rows: auto minmax(0, 1fr) auto; gap: var(--ds-space-3); padding: var(--ds-space-4);
-      border: 1px solid var(--ds-border-strong); border-radius: var(--ds-radius-lg);
-      background: var(--ds-surface-1); box-shadow: var(--ds-shadow-e3); color: var(--ds-text-1);
+      display: grid; grid-template-rows: auto minmax(0, 1fr) auto; gap: calc(5 * var(--pixel-px));
+      padding: calc(6 * var(--pixel-px)) calc(8 * var(--pixel-px)) calc(7 * var(--pixel-px));
+      color: var(--pixel-tinta); font-family: var(--pixel-f-texto); font-size: var(--pixel-tam);
     }
     /* El color va explícito: el estilo global de h2 no es el de la piel del juego (como en «Ir a…»). */
-    h2 { margin: 0; font-size: var(--ds-type-lead-size); color: var(--ds-text-1); }
+    h2 { margin: 0; font-family: var(--pixel-f-nombre); font-size: calc(var(--pixel-tam) * 1.15); letter-spacing: .04em; color: var(--luz); }
     .plano-dialogo__plano { min-height: 0; overflow-y: auto; overscroll-behavior: contain; }
     .plano-dialogo__pie { display: flex; align-items: center; justify-content: space-between; gap: var(--ds-space-3); flex-wrap: wrap; }
   `],

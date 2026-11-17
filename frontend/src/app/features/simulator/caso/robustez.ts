@@ -148,9 +148,10 @@ export function borrarIntencion(almacen: AlmacenSimple, attemptId: string): void
   quitar(almacen, claveIntencion(attemptId));
 }
 
-/** Qué conversación abierta iba y en qué línea. */
+/** Qué conversación abierta iba, en qué línea y en qué escena (nodo): al recargar con otra escena el punto no se reabre. */
 export interface PuntoDeLectura {
   attemptId: string;
+  nodeId: number;
   objectKey: string;
   dialogueKey: string;
   line: number;
@@ -163,10 +164,10 @@ export function guardarLectura(almacen: AlmacenSimple, punto: PuntoDeLectura): v
 export function leerLectura(almacen: AlmacenSimple, attemptId: string): PuntoDeLectura | null {
   const crudo = leerJson(almacen, claveLectura(attemptId));
   if (!crudo || crudo['attemptId'] !== attemptId) return null;
-  const { objectKey, dialogueKey, line } = crudo;
-  if (typeof objectKey !== 'string' || !objectKey || typeof dialogueKey !== 'string' || typeof line !== 'number'
-      || !Number.isInteger(line) || line < 0) return null;
-  return { attemptId, objectKey, dialogueKey, line };
+  const { nodeId, objectKey, dialogueKey, line } = crudo;
+  if (typeof nodeId !== 'number' || typeof objectKey !== 'string' || !objectKey || typeof dialogueKey !== 'string'
+      || typeof line !== 'number' || !Number.isInteger(line) || line < 0) return null;
+  return { attemptId, nodeId, objectKey, dialogueKey, line };
 }
 
 export function borrarLectura(almacen: AlmacenSimple, attemptId: string): void {
@@ -183,6 +184,23 @@ export function esLecturaRecuperable(
 ): boolean {
   if (!seleccion || !dialogo || !dialogo.lines?.length) return false;
   return !seleccion.key.startsWith('tool-') && !seleccion.key.startsWith('npc:') && seleccion.type !== 'EXIT';
+}
+
+/** La clave del personaje de ambiente de una conversación `npc-<clave>`; `null` si la conversación no es de uno. */
+export function claveDeNpc(dialogueKey: string): string | null {
+  return dialogueKey.startsWith('npc-') && dialogueKey.length > 4 ? dialogueKey.slice(4) : null;
+}
+
+/**
+ * Qué se guarda como «objeto» del punto de lectura: la clave del objeto del mundo, o la conversación `npc-<clave>` de un
+ * personaje de ambiente (que se reabre en el cliente, sin pedir nada al servidor). `null` si no se guarda.
+ */
+export function objetoDeLectura(
+  seleccion: { key: string; type?: string } | null,
+  dialogo: { key: string; lines?: readonly unknown[] } | null,
+): string | null {
+  if (esLecturaRecuperable(seleccion, dialogo)) return seleccion!.key;
+  return dialogo?.lines?.length && claveDeNpc(dialogo.key) ? dialogo.key : null;
 }
 
 /** La línea con la que arranca un diálogo: la guardada si es de esa conversación y existe; si no, la primera. */

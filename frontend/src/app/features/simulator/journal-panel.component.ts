@@ -77,7 +77,7 @@ export type JournalSaveState = 'idle' | 'saving' | 'saved' | 'error';
           <aside class="journal-context" aria-label="Contexto del caso">
             @if (timeline().length) {
               <div class="context-block">
-                <p class="context-title">Trazabilidad</p>
+                <h3 class="context-title">Trazabilidad</h3>
                 <ol>
                   @for (stage of timeline(); track $index) {
                     <li>{{ stage }}</li>
@@ -87,7 +87,7 @@ export type JournalSaveState = 'idle' | 'saving' | 'saved' | 'error';
             }
             @if (resources().length) {
               <div class="context-block">
-                <p class="context-title">Apoyo profesional</p>
+                <h3 class="context-title">Apoyo profesional</h3>
                 <ul>
                   @for (resource of resources(); track resource) {
                     <li>{{ resource }}</li>
@@ -102,7 +102,7 @@ export type JournalSaveState = 'idle' | 'saving' | 'saved' | 'error';
       <footer class="sheet-footer">
         <p class="encrypt-note" id="encrypt-note">
           <mat-icon aria-hidden="true">lock</mat-icon>
-          Las bitácoras se cifran con AES-GCM antes de guardarse.
+          Tu bitácora se guarda cifrada.
         </p>
         <div class="footer-actions">
           <!-- REGLA-004: la bitácora tampoco atrapa; la pausa nunca depende de «disabled». -->

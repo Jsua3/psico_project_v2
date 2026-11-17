@@ -66,9 +66,17 @@ describe('AvisoDePuertaComponent', () => {
     expect([cola.style.left, cola.style.top]).toEqual(['412px', '188px']);
   });
 
+  // Bloque U1: el cartel pasó a la placa del cuadro de diálogo (tintas de tokens/_pixel.scss): texto y detalle sobre la
+  // penumbra de la placa, y la letra de la tecla sobre su relleno.
   it('el texto se lee: contraste de al menos 4,5 a 1 en todo lo que dice', () => {
-    expect(contrastRatio('#f6ecd6', '#1b1420')).toBeGreaterThanOrEqual(4.5);
-    expect(contrastRatio('#c9bba0', '#1b1420')).toBeGreaterThanOrEqual(4.5);
-    expect(contrastRatio('#281c18', '#f2c46b')).toBeGreaterThanOrEqual(4.5);
+    expect(contrastRatio('#f2ecdf', '#1b1826')).toBeGreaterThanOrEqual(4.5);
+    expect(contrastRatio('#c3bccf', '#1b1826')).toBeGreaterThanOrEqual(4.5);
+    expect(contrastRatio('#f2ecdf', '#3a3454')).toBeGreaterThanOrEqual(4.5);
+  });
+
+  it('es la placa-botón de la hoja común con la tecla de las fichas y una cola de pixel', () => {
+    expect(boton().classList).toContain('u-boton');
+    expect(boton().querySelector('kbd')!.classList).toContain('u-tecla');
+    expect(fixture.nativeElement.querySelector('.aviso__cola app-pixel-icono')).not.toBeNull();
   });
 });

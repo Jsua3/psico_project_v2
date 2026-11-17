@@ -74,8 +74,8 @@ interface GrupoPersona {
               }
 
               <!-- BORRADOR: texto nuevo, pendiente de la aprobación de Psicología -->
-              <label [for]="'comentario-' + it.k + '-linea'" class="etiqueta">Lo que dice {{ nombreDe(it.comentario.personaje) }}</label>
-              <input type="text" class="campo" [id]="'comentario-' + it.k + '-linea'" [value]="invalidas()[it.k]?.texto ?? it.comentario.linea"
+              <label [for]="'comentario-' + it.k + '-texto'" class="etiqueta">Lo que dice {{ nombreDe(it.comentario.personaje) }}</label>
+              <input type="text" class="campo" [id]="'comentario-' + it.k + '-texto'" [value]="invalidas()[it.k]?.texto ?? it.comentario.linea"
                      [attr.aria-invalid]="invalidas()[it.k] ? 'true' : null"
                      [attr.aria-describedby]="invalidas()[it.k] ? 'comentario-' + it.k + '-problema' : null"
                      (change)="guardarFrase(it.k, $any($event.target).value)" />
@@ -137,8 +137,8 @@ interface GrupoPersona {
               <!-- BORRADOR: texto nuevo, pendiente de la aprobación de Psicología -->
               <strong>Comentario {{ nuevoK() + 1 }}</strong>
               <!-- BORRADOR: texto nuevo, pendiente de la aprobación de Psicología -->
-              <label [for]="'comentario-' + nuevoK() + '-linea'" class="etiqueta">Lo que dice {{ g.nombre }}</label>
-              <input type="text" class="campo" [id]="'comentario-' + nuevoK() + '-linea'"
+              <label [for]="'comentario-' + nuevoK() + '-texto'" class="etiqueta">Lo que dice {{ g.nombre }}</label>
+              <input type="text" class="campo" [id]="'comentario-' + nuevoK() + '-texto'"
                      [attr.aria-invalid]="problemaNuevo() ? 'true' : null"
                      [attr.aria-describedby]="problemaNuevo() ? 'comentario-' + nuevoK() + '-problema' : 'comentario-' + nuevoK() + '-nota'"
                      (change)="guardarNuevo($any($event.target).value)" />
@@ -245,11 +245,11 @@ export class ComentariosComponent {
   }
 
   protected agregar(ref: string): void {
-    if (this.pendiente()) { this.enfocar(`comentario-${this.nuevoK()}-linea`); return; }
+    if (this.pendiente()) { this.enfocar(`comentario-${this.nuevoK()}-texto`); return; }
     if (this.enElTope()) return;
     this.problemaNuevo.set(null);
     this.pendiente.set({ ref });
-    this.enfocar(`comentario-${this.nuevoK()}-linea`);
+    this.enfocar(`comentario-${this.nuevoK()}-texto`);
   }
 
   /** La frase del comentario nuevo: solo cuando es válida entra al caso, con la frase ya escrita. */
@@ -264,7 +264,7 @@ export class ComentariosComponent {
     const k = this.nuevoK();
     this.pendiente.set(null);
     this.guardar([...this.lista(), { personaje: pendiente.ref, linea: texto }]);
-    this.enfocar(`comentario-${k}-linea`);
+    this.enfocar(`comentario-${k}-texto`);
   }
 
   protected descartarNuevo(gi: number): void {
@@ -280,7 +280,7 @@ export class ComentariosComponent {
     const siguiente = grupos[gi]?.items.find((it) => it.k === k)?.siguiente ?? null;
     this.invalidas.update((todas) => this.reubicar(todas, (pos) => (pos === k ? null : pos > k ? pos - 1 : pos)));
     this.guardar(this.lista().filter((_, i) => i !== k));
-    if (siguiente !== null) this.enfocar(`comentario-${siguiente - 1}-linea`);
+    if (siguiente !== null) this.enfocar(`comentario-${siguiente - 1}-texto`);
     else this.enfocar(grupos[gi]?.ref != null ? `comentarios-agregar-${gi}` : 'comentarios-titulo');
   }
 
