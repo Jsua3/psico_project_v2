@@ -111,7 +111,10 @@ import { RECONSIDERED_LABEL, reconsideredChip } from './reconsidered.util';
               <p class="oc-ending__title">{{ ending.title }}</p>
               <p class="oc-ending__message">{{ ending.message }}</p>
               @if (r.persona; as persona) {
-                <p class="oc-ending__persona">{{ draft.endingPersonaPrefix.text }} {{ persona.label }}.</p>
+                <!-- Si el final depende de la persona, «Cómo llegaste aquí» ya la nombra: no se repite encima (V4). -->
+                @if (!personaInReasons(ending.reason, persona.label)) {
+                  <p class="oc-ending__persona">{{ draft.endingPersonaPrefix.text }} {{ persona.label }}.</p>
+                }
               }
               @if (ending.reason && ending.reason.length) {
                 <p class="oc-ending__how">{{ draft.endingReasonTitle.text }}</p>
@@ -605,6 +608,12 @@ export class AttemptOutcomeComponent {
   title(): string {
     if (this.status() === 'PAUSED') return 'Tu caso está en pausa';
     return this.report()?.summaryMessage ?? this.headline();
+  }
+
+  /** ¿Alguna razón del final ya dice la persona («La persona usuaria …»)? Entonces su línea aparte sobra. */
+  personaInReasons(reasons: readonly string[] | null | undefined, label: string): boolean {
+    const sentence = `${this.draft.endingPersonaPrefix.text} ${label}`.trim().replace(/\.$/, '');
+    return (reasons ?? []).some(reason => reason.trim().replace(/\.$/, '') === sentence);
   }
 
   /** Encabezado corto por estado — lenguaje honesto, sin fingir pausa en cierres. */

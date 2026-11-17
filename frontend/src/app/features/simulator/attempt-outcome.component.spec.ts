@@ -301,6 +301,16 @@ describe('AttemptOutcomeComponent: pausa calmada renderizada (T12.1, AC-7)', () 
       .toEqual(['Volver al catálogo', 'Volver al portal']);
   });
 
+  it('si «Cómo llegaste aquí» ya nombra a la persona (el final depende de ella), su línea no se repite encima', () => {
+    // V4, SIM-VBG-002 «La ruta se abandona»: la persona salía dos veces seguidas en el cierre.
+    const base = makeReport({ status: 'COMPLETED' });
+    render('COMPLETED', { report: { ...base, ending: { ...base.ending!, reason: ['Cumpliste: Valorar el riesgo', 'La persona usuaria se muestra abierta y serena'] } } });
+    const ending = host().querySelector('.oc-ending') as HTMLElement;
+    expect(ending.querySelector('.oc-ending__persona')).toBeNull();
+    expect(Array.from(ending.querySelectorAll('.oc-ending__reasons li')).map(el => text(el)))
+      .toEqual(['Cumpliste: Valorar el riesgo', 'La persona usuaria se muestra abierta y serena']);
+  });
+
   it('con el intento en curso no se pinta nada', () => {
     render('IN_PROGRESS');
     expect(host().querySelector('section')).toBeNull();
