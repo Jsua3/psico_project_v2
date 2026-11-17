@@ -125,7 +125,7 @@ test.describe('@generacion la docente describe un caso y la IA lo arma con el pr
       await expect(page.locator('fieldset.reaccion textarea').first(), 'la frase con la que reacciona').toHaveValue(/\S/);
       await expect(page.locator('fieldset.reaccion .vista img').first(), 'la vista previa de su cara').toHaveAttribute('alt', /^Cara: /);
       await expect(page.getByRole('heading', { name: 'Lo que dicen al acercarte' })).toBeVisible();
-      await expect(page.locator('input[id^="comentario-"][id$="-linea"]'), 'dos comentarios al acercarte').toHaveCount(2);
+      await expect(page.locator('input[id^="comentario-"][id$="-texto"]'), 'dos comentarios al acercarte').toHaveCount(2);
       await sinInfraccionesGraves(page, 'el guion de la primera escena generada');
 
       // ── 4 · Aceptar lo sugerido por la IA, escena por escena ───────────────────────────────────────────────────

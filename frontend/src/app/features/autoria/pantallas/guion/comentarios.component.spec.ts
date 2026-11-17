@@ -77,8 +77,8 @@ describe('ComentariosComponent', () => {
     await listo();
     expect(fijar).not.toHaveBeenCalled();
     expect(comentarios()).toEqual([]);
-    expect(document.activeElement).toBe(campo(0, 'linea'));
-    await escribir(campo<HTMLInputElement>(0, 'linea'), '   '); // vacío: sigue esperando
+    expect(document.activeElement).toBe(campo(0, 'texto'));
+    await escribir(campo<HTMLInputElement>(0, 'texto'), '   '); // vacío: sigue esperando
     expect(fijar).not.toHaveBeenCalled();
     expect(comentarios()).toEqual([]);
   });
@@ -88,20 +88,20 @@ describe('ComentariosComponent', () => {
     await pulsar(botonAgregar(raiz)[0]);
     await listo();
     expect(raiz.querySelector('#comentario-1')).not.toBeNull(); // la posición que tendrá: la del servidor
-    await escribir(campo<HTMLInputElement>(1, 'linea'), '  Hola de nuevo ');
+    await escribir(campo<HTMLInputElement>(1, 'texto'), '  Hola de nuevo ');
     expect(fijar).toHaveBeenCalledTimes(1);
     expect(comentarios()).toEqual([{ personaje: 'psicologa-bienestar', linea: 'Uno' }, { personaje: 'psicologa-bienestar', linea: 'Hola de nuevo' }]);
     await listo();
-    expect(document.activeElement).toBe(campo(1, 'linea'));
-    expect(campo<HTMLInputElement>(1, 'linea').value).toBe('Hola de nuevo');
+    expect(document.activeElement).toBe(campo(1, 'texto'));
+    expect(campo<HTMLInputElement>(1, 'texto').value).toBe('Hola de nuevo');
   });
 
   it('una frase inválida en el comentario nuevo se queda con su alerta y no entra al caso; «Quitar» lo descarta y el foco vuelve a «Agregar»', async () => {
     const { raiz, pulsar, fijar, comentarios, campo, escribir, listo } = await montar();
     await pulsar(botonAgregar(raiz)[0]);
-    await escribir(campo<HTMLInputElement>(0, 'linea'), 'Mira https://x.co');
+    await escribir(campo<HTMLInputElement>(0, 'texto'), 'Mira https://x.co');
     expect(raiz.querySelector('#comentario-0 [role=alert]')!.textContent).toContain('enlaces');
-    expect(campo(0, 'linea').getAttribute('aria-invalid')).toBe('true');
+    expect(campo(0, 'texto').getAttribute('aria-invalid')).toBe('true');
     expect(fijar).not.toHaveBeenCalled();
     expect(comentarios()).toEqual([]);
     await pulsar([...raiz.querySelectorAll<HTMLButtonElement>('#comentario-0 button')].find((x) => x.textContent!.trim() === 'Quitar')!);
@@ -181,7 +181,7 @@ describe('ComentariosComponent', () => {
     expect(document.activeElement!.id).toBe('comentario-2-bajar'); // y vuelve a ser el 3.º
     await pulsar(raiz.querySelector<HTMLButtonElement>('#comentario-0-quitar')!);
     await listo();
-    expect(document.activeElement).toBe(campo(0, 'linea')); // el que era el 2.º y ahora es el 1.º
+    expect(document.activeElement).toBe(campo(0, 'texto')); // el que era el 2.º y ahora es el 1.º
     await pulsar(raiz.querySelector<HTMLButtonElement>('#comentario-1-quitar')!); // el último: no hay siguiente
     await listo();
     expect(document.activeElement).toBe(botonAgregar(raiz)[0]);
@@ -192,49 +192,49 @@ describe('ComentariosComponent', () => {
 
   it('una frase inválida con su alerta sigue a su comentario cuando otro sube, baja o se quita, y no se guarda', async () => {
     const { raiz, pulsar, escribir, campo, comentarios, fijar, listo } = await montar({ comentarios: tres });
-    await escribir(campo<HTMLInputElement>(1, 'linea'), 'Mira https://x.co');
-    expect(campo(1, 'linea').getAttribute('aria-invalid')).toBe('true');
+    await escribir(campo<HTMLInputElement>(1, 'texto'), 'Mira https://x.co');
+    expect(campo(1, 'texto').getAttribute('aria-invalid')).toBe('true');
     // «Tres» sube sobre «Dos»: lo inválido pasa a la posición 2 con su alerta y su texto
     await pulsar(raiz.querySelector<HTMLButtonElement>('#comentario-2-subir')!);
     expect(comentarios().map((c) => c.linea)).toEqual(['Uno', 'Tres', 'Dos']);
-    expect(campo<HTMLInputElement>(2, 'linea').value).toBe('Mira https://x.co');
+    expect(campo<HTMLInputElement>(2, 'texto').value).toBe('Mira https://x.co');
     expect(raiz.querySelector('#comentario-2 [role=alert]')!.textContent).toContain('enlaces');
-    expect(campo(2, 'linea').getAttribute('aria-invalid')).toBe('true');
+    expect(campo(2, 'texto').getAttribute('aria-invalid')).toBe('true');
     expect(raiz.querySelector('#comentario-1 [role=alert]')).toBeNull();
-    expect(campo<HTMLInputElement>(1, 'linea').value).toBe('Tres');
+    expect(campo<HTMLInputElement>(1, 'texto').value).toBe('Tres');
     // quitar el primero: lo inválido pasa a la posición 1
     await pulsar(raiz.querySelector<HTMLButtonElement>('#comentario-0-quitar')!);
     await listo();
     expect(comentarios().map((c) => c.linea)).toEqual(['Tres', 'Dos']);
-    expect(campo<HTMLInputElement>(1, 'linea').value).toBe('Mira https://x.co');
+    expect(campo<HTMLInputElement>(1, 'texto').value).toBe('Mira https://x.co');
     expect(raiz.querySelector('#comentario-1 [role=alert]')).not.toBeNull();
     expect(raiz.querySelector('#comentario-0 [role=alert]')).toBeNull();
     expect(fijar).toHaveBeenCalledTimes(2); // la frase inválida nunca se mandó
     // y corregirla la guarda y quita la alerta
-    await escribir(campo<HTMLInputElement>(1, 'linea'), 'Dos corregido');
+    await escribir(campo<HTMLInputElement>(1, 'texto'), 'Dos corregido');
     expect(comentarios().map((c) => c.linea)).toEqual(['Tres', 'Dos corregido']);
     expect(raiz.querySelector('#comentario-1 [role=alert]')).toBeNull();
   });
 
   it('quitar el comentario que tiene la frase inválida descarta también su alerta', async () => {
     const { raiz, pulsar, escribir, campo, listo } = await montar({ comentarios: tres });
-    await escribir(campo<HTMLInputElement>(0, 'linea'), 'Hola <b>x</b>');
+    await escribir(campo<HTMLInputElement>(0, 'texto'), 'Hola <b>x</b>');
     await pulsar(raiz.querySelector<HTMLButtonElement>('#comentario-0-quitar')!);
     await listo();
     expect(raiz.querySelectorAll('[role=alert]')).toHaveLength(0);
-    expect(campo<HTMLInputElement>(0, 'linea').value).toBe('Dos');
+    expect(campo<HTMLInputElement>(0, 'texto').value).toBe('Dos');
   });
 
   it('la frase se guarda recortada; con enlace, HTML o más de 400 no se guarda y dice por qué', async () => {
     const { campo, escribir, comentarios, fijar, raiz } = await montar({ comentarios: [{ personaje: 'psicologa-bienestar', linea: '' }] });
-    await escribir(campo<HTMLInputElement>(0, 'linea'), '  Buenos días  ');
+    await escribir(campo<HTMLInputElement>(0, 'texto'), '  Buenos días  ');
     expect(comentarios()[0].linea).toBe('Buenos días');
     fijar.mockClear();
     for (const [texto, pista] of [['Mira https://x.co', 'enlaces'], ['Hola <b>x</b>', 'HTML'], ['a'.repeat(401), '400 caracteres']]) { // el salto de línea no llega: un campo de una línea lo quita al pegar (lo prueba frase.spec)
-      await escribir(campo<HTMLInputElement>(0, 'linea'), texto);
+      await escribir(campo<HTMLInputElement>(0, 'texto'), texto);
       expect(raiz.querySelector('#comentario-0 [role=alert]'), texto).not.toBeNull();
       expect(raiz.querySelector('#comentario-0 [role=alert]')!.textContent).toContain(pista);
-      expect(campo(0, 'linea').getAttribute('aria-invalid')).toBe('true');
+      expect(campo(0, 'texto').getAttribute('aria-invalid')).toBe('true');
     }
     expect(fijar).not.toHaveBeenCalled();
     expect(comentarios()[0].linea).toBe('Buenos días');
@@ -259,7 +259,7 @@ describe('ComentariosComponent', () => {
     const cuando = { milestone: 'informar' };
     const { raiz, campo, escribir, comentarios } = await montar({ comentarios: [{ personaje: 'psicologa-bienestar', linea: 'Hola', cuando }] });
     expect(raiz.querySelector('#comentario-0-cuando')!.textContent).toContain('Informar derechos');
-    await escribir(campo<HTMLInputElement>(0, 'linea'), 'Otra frase');
+    await escribir(campo<HTMLInputElement>(0, 'texto'), 'Otra frase');
     await escribir(campo<HTMLSelectElement>(0, 'cara'), 'triste');
     await escribir(campo<HTMLSelectElement>(0, 'gesto'), 'asiente');
     expect(comentarios()[0]).toEqual({ personaje: 'psicologa-bienestar', linea: 'Otra frase', cuando, emocion: 'triste', gesto: 'asiente' });
