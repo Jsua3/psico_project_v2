@@ -10,7 +10,7 @@ import type { PortraitState } from '../character/kit/kit-engine';
 import { KitFigureComponent } from '../character/kit/kit-figure.component';
 import { AudioDirectorService } from './audio-director.service';
 import { MS_POR_CARACTER, pausaTras, tramos } from './caso/ritmo-texto';
-import { partirEnPaginas } from './caso/paginas-texto';
+import { paginarSiNoCabe } from './caso/paginas-texto';
 import { lineaDeArranque } from './caso/robustez';
 import { choiceIndex } from './dialogue-keys.util';
 import { MomentoDelDia, letraDe, variablesDeArte } from './dialogo-arte';
@@ -1494,18 +1494,26 @@ export class DialoguePanelComponent implements AfterViewChecked, OnDestroy {
         return;
       }
       const placa = parrafo.closest<HTMLElement>('.placa-cuerpo');
-      const sobra = Math.max(banda.scrollHeight - banda.clientHeight, placa ? placa.scrollHeight - placa.clientHeight : 0);
+      const desborde = () => Math.max(banda.scrollHeight - banda.clientHeight, placa ? placa.scrollHeight - placa.clientHeight : 0);
+      const sobra = desborde();
       if (sobra <= 1) return;
-      // Lo que de verdad cabe para el párrafo en esta placa y este tamaño: su alto menos lo que desborda; con un mínimo de
-      // dos renglones (si la placa es más baja aún, igual se parte por frases: mejor páginas cortas que desplazar).
+      // Solo cuenta lo que desborda POR el texto: con el párrafo plegado, lo que siga desbordando (el retrato, la fila, una
+      // banda que aún entra) no es suyo y no se le resta (V6, CI de living-world.e2e.ts:101).
+      const estilo = parrafo.style.cssText;
+      parrafo.style.cssText += ';height:0;min-height:0;overflow:hidden';
+      const culpa = sobra - desborde();
+      parrafo.style.cssText = estilo;
+      if (culpa <= 1) return;
       const renglon = parseFloat(getComputedStyle(parrafo).lineHeight) || 24;
-      // Un renglón de margen: con la página partida, el pie gana «N de M» y el redondeo de medio punto por renglón (zoom
-      // del 125 %) dejaba la primera página 2 a 20 px por encima de la banda.
-      const tope = Math.max(parrafo.offsetHeight - sobra - renglon, 2 * renglon);
+      // La sonda mide solo el texto, sin el alto mínimo que reserva el párrafo (4,35em): con ese mínimo ninguna página
+      // «cabía» en el tope y cada frase salía sola en su página. Cuánto cabe y cómo se llena cada página, en paginarSiNoCabe.
       const sonda = parrafo.cloneNode(false) as HTMLElement;
-      sonda.style.cssText = `position:absolute;visibility:hidden;left:0;top:0;width:${parrafo.clientWidth}px`;
+      sonda.style.cssText = `position:absolute;visibility:hidden;left:0;top:0;min-height:0;width:${parrafo.clientWidth}px`;
       parrafo.parentElement!.appendChild(sonda);
-      const paginas = partirEnPaginas(text, pagina => { sonda.textContent = pagina; return sonda.offsetHeight <= tope; });
+      const paginas = paginarSiNoCabe(text, parrafo.offsetHeight - culpa, renglon, pagina => {
+        sonda.textContent = pagina;
+        return sonda.offsetHeight;
+      });
       sonda.remove();
       if (paginas.length < 2) return;
       this.stopTypewriter();

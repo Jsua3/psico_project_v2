@@ -552,6 +552,15 @@ export class EscenaDeSala {
    * con el cociente de las dos capas de ambiente en cada píxel (debajo de los actores, así lo de delante la tapa). El
    * brillo no se rebaja (diferencia aceptada: es pequeño y una capa que suma no se puede restar).
    */
+  /**
+   * Calcula ya la luz «en sombra» de la sala, la que usa `sombraDeFigura`. Es perezosa: sin esto la paga el primer cuadro
+   * en que se dibuja la sombra de alguien (V6, unos 390 ms con la CPU ×4). Queda en la luz de la sala, que se reutiliza por
+   * su firma: llamarla otra vez no rehace nada.
+   */
+  calentarSombras(): void {
+    this.luz.capasEnSombra();
+  }
+
   sombraDeFigura(id: string, sprite: Phaser.GameObjects.Sprite | null | undefined, piesX: number, piesY: number): void {
     const imagen = this.sombras.get(id);
     const silueta = sprite?.visible && sprite.frame ? this.siluetaDe(sprite) : null;

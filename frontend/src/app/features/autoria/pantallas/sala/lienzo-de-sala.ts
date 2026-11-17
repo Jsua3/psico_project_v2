@@ -16,6 +16,27 @@ export function filaDeMirando(mirando: string | undefined): number {
   return VIEW_ROWS.indexOf(VISTA_DE[mirando ?? ''] ?? 'down');
 }
 
+/** Una columna más angosta que esto es de teléfono: ahí la sala no se encoge por debajo de `ESCALA_MINIMA_ANGOSTA`. */
+export const COLUMNA_ANGOSTA = 600;
+/**
+ * La escala más chica de una sala por piezas en una columna angosta. Más chica, las piezas vecinas (una puerta y la cartelera
+ * o el buzón junto a ella) se pisan con sus objetivos mínimos de 24 px y quedan tapadas (WCAG 2.5.8): la sala se desplaza
+ * dentro de su columna, como con «×2», y a 390 se maneja con la misma geometría que a 1366.
+ */
+export const ESCALA_MINIMA_ANGOSTA = 0.8;
+
+/**
+ * La escala a la que se ve una sala por piezas de `ancho` en una columna de `disponible` px (0: aún sin medir): entera en la
+ * columna y nunca más grande que 1:1 (una sala de 1200 o 1920 se ve completa a 1366 y a 1920); con «×2», al doble; en una
+ * columna angosta, no menos de `ESCALA_MINIMA_ANGOSTA`.
+ */
+export function escalaDeSala(ancho: number, disponible: number, ampliada: boolean): number {
+  if (ampliada) return 2;
+  if (disponible <= 0) return 1;
+  const entera = Math.min(1, disponible / ancho);
+  return disponible < COLUMNA_ANGOSTA ? Math.max(entera, ESCALA_MINIMA_ANGOSTA) : entera;
+}
+
 /** Donde se publica la biblioteca de piezas (P1 y O1): sus hojas tienen cuadros de ancho × alto. */
 const PIEZAS = '/assets/biblioteca/piezas/';
 

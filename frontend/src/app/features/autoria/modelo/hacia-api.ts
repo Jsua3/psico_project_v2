@@ -456,10 +456,18 @@ export function solicitudDeSala(sala: SalaCaso, contexto: ContextoSala, previo: 
 
 // ─── Casos nuevos ────────────────────────────────────────────────────────────
 
-/** Crear un caso: con un lugar, nace con una copia de las salas elegidas; sin lugar, nace vacío. */
+/**
+ * Crear un caso: con un lugar, nace con una copia de las salas elegidas; sin lugar, nace vacío.
+ *
+ * Las salas se piden por piezas (`porPiezas`), igual que las arma la generación con IA: el mundo por piezas es el formato
+ * del caso y las piezas nuevas son para quien arma salas. El servidor usa la plantilla por piezas del lugar si la hay
+ * (`escenario-piezas.json`) y, si no, la de imagen fija de siempre.
+ */
 export function cuerpoCrearCaso(titulo: string, lugarId: string | null, salas: string[], descripcion = ''): CaseCreateRequest {
   // La descripción es el contexto que lee el estudiante y la compuerta de publicación exige una: el editor no tiene dónde
   // escribirla, así que nace con la de la idea o el lugar elegidos.
   const conDescripcion = descripcion.trim() ? { description: descripcion.trim() } : {};
-  return lugarId === null ? { title: titulo, ...conDescripcion } : { title: titulo, ...conDescripcion, lugarId, salas: [...salas] };
+  return lugarId === null
+    ? { title: titulo, ...conDescripcion }
+    : { title: titulo, ...conDescripcion, lugarId, salas: [...salas], porPiezas: true };
 }

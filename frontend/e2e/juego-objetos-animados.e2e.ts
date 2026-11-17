@@ -2,7 +2,7 @@ import { expect, test } from '@playwright/test';
 import type { Page } from '@playwright/test';
 
 import {
-  aprobarYPublicarPorApi, completarListaYEnviar, crearCasoBienestar, entrarALaPrimeraSala, escribirCasoBienestar, hacerQueVayaYVenga,
+  aprobarYPublicarPorApi, completarListaYEnviar, crearCasoBienestarImagenFija, entrarALaPrimeraSala, escribirCasoBienestar, hacerQueVayaYVenga,
   marcarPersonaAAtender,
 } from './support/autoria-flujo';
 import { ADMIN, apiToken, assignCase, bearer, retireCase } from './support/case-fixtures';
@@ -98,7 +98,9 @@ test('un estudiante juega la primera sala de un caso hecho en el editor: el obje
   try {
     // ── La docente hace el caso ──────────────────────────────────────────────────────────────────────────────────
     await loginAs(page, 'profesor');
-    caseVersionId = await crearCasoBienestar(page, `Objetos animados e2e ${Date.now()}`);
+    // Imagen fija a propósito: esta prueba es del contrato `data-proximity` de los marcadores. En una sala por piezas (lo
+    // que el editor crea a mano desde V6) la cercanía la anima la escena de la sala y no se publica ese contrato.
+    caseVersionId = await crearCasoBienestarImagenFija(page, request, `Objetos animados e2e ${Date.now()}`);
     await escribirCasoBienestar(page);
     const persona = await marcarPersonaAAtender(page);
     await hacerQueVayaYVenga(page); // la persona que quedó elegida en la sala va y viene hasta un punto que la docente fijó

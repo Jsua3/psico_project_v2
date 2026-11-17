@@ -1,7 +1,23 @@
 import { describe, expect, it } from 'vitest';
 import type { ManifiestoDePiezas } from '../../../simulator/sala/catalogo';
 import type { SalaCaso } from '../../modelo/caso';
-import { actoresDeSala, repartirActores, salaParaLienzo, type ActorDelLienzo } from './lienzo-de-sala';
+import { actoresDeSala, escalaDeSala, repartirActores, salaParaLienzo, type ActorDelLienzo } from './lienzo-de-sala';
+
+describe('escala de la sala por piezas', () => {
+  it('entera en la columna y nunca más de 1:1 en escritorio (1200 a 1366 se ve completa)', () => {
+    expect(escalaDeSala(960, 765, false)).toBeCloseTo(765 / 960);
+    expect(escalaDeSala(1200, 765, false)).toBeCloseTo(765 / 1200);
+    expect(escalaDeSala(960, 1500, false)).toBe(1);
+  });
+  it('en una columna de teléfono no baja de ×0,8: se desplaza en su columna y las piezas no se pisan', () => {
+    expect(escalaDeSala(960, 342, false)).toBe(0.8);
+    expect(escalaDeSala(1920, 342, false)).toBe(0.8);
+  });
+  it('«×2» y sin medir', () => {
+    expect(escalaDeSala(960, 342, true)).toBe(2);
+    expect(escalaDeSala(960, 0, false)).toBe(1);
+  });
+});
 
 const sala = (): SalaCaso => ({
   id: 's', nombre: '', descripcion: '', encuadre: 'una-pared', fondo: '', entrada: { x: 0, y: 0 },
