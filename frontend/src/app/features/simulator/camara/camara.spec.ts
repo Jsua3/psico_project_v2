@@ -1,6 +1,7 @@
 import {
   ALTO_CUERPO, Caja, EntradaCamara, EstadoCamara, MEDIO_CUERPO, Momento, Punto, Vista,
-  asentada, esquivarPlacas, avanzarCamara, comoDibujar, duracionDeViaje, enViaje, enViajeDentro, esperaDelGeneral, objetivoCamara, suavizar,
+  asentada, esquivarPlacas, avanzarCamara, comoDibujar, duracionDeViaje, enViaje, enViajeDentro, esperaDelGeneral, objetivoCamara, sinSaltos, suavizar,
+  VELOCIDAD_MAXIMA,
   zoomCaminar, zoomCercano, zoomGeneral,
 } from './camara';
 
@@ -276,3 +277,39 @@ describe('camara: zona segura de las placas (bloque U1)', () => {
     expect(esquivarPlacas(centro, 2, { ...PORTATIL, placas: [todo] }, [{ x: 600, y: 300 }])).toEqual(centro);
   });
 });
+
+describe('camara: ningún cuadro mueve la vista de golpe (V5)', () => {
+  const en = (x: number, y: number, zoom = 2): EstadoCamara => ({ centro: { x, y }, zoom });
+
+  it('un objetivo que salta 65 px a mitad de un viaje (la placa que se esquiva) se recorre en varios cuadros', () => {
+    // Medido en el pasillo del hospital (N6): 65 px de mundo a zoom ~2 en un cuadro, unos 128 px de pantalla.
+    const antes = en(800, 300);
+    const salto = en(865, 300);
+    const cuadro = sinSaltos(antes, salto, 16);
+    const enPantalla = Math.hypot(cuadro.centro.x - antes.centro.x, cuadro.centro.y - antes.centro.y) * cuadro.zoom;
+    expect(enPantalla).toBeLessThanOrEqual(VELOCIDAD_MAXIMA * 16 + 1e-6);
+    expect(cuadro.centro.x).toBeGreaterThan(antes.centro.x);
+    // Y llega: unos cuadros después está en el objetivo, sin pasarse.
+    let actual = cuadro;
+    for (let i = 0; i < 30; i++) actual = sinSaltos(actual, salto, 16);
+    expect(actual.centro).toEqual(salto.centro);
+  });
+
+  it('el movimiento normal de un viaje o del seguimiento no se toca', () => {
+    const antes = en(600, 300);
+    const paso = en(606, 302);
+    expect(sinSaltos(antes, paso, 16)).toEqual(paso);
+  });
+
+  it('el zoom no se limita: solo el centro', () => {
+    const cuadro = sinSaltos(en(600, 300, 1), en(900, 300, 3), 16);
+    expect(cuadro.zoom).toBe(3);
+  });
+
+  it('tras una pausa larga (pestaña oculta) o sin tiempo medido no frena: igual que el corte de avanzarCamara', () => {
+    expect(sinSaltos(en(600, 300), en(900, 300), 1000)).toEqual(en(900, 300));
+    const sinTiempo = sinSaltos(en(600, 300), en(900, 300), 0);
+    expect(sinTiempo.centro.x).toBeLessThan(900);
+  });
+});
+
