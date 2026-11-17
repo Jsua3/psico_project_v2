@@ -265,7 +265,7 @@ const STALE_NOTE = 'Esta conversación corresponde a otro momento del caso.';
     .dialogue-strip.strip--angosta:not(.strip--con-opciones):not(.dialogue-strip--side) .panel-head { position: static; }
     /* Con la fila arriba, lo fijo (fila, pestaña, pie con «Siguiente») más dos renglones no cabía en 46vh de una ventana
        baja (1280 × 600 al 125 %: 221 px): la banda angosta llega al 60 % del alto. */
-    .dialogue-strip.strip--angosta:not(.strip--con-opciones) { --dialogo-alto-max: min(400px, 60vh); }
+    .dialogue-strip.strip--angosta:not(.strip--con-opciones) { --dialogo-alto-max: min(420px, 64vh); }
     .dialogue-strip:not(.strip--con-opciones) .strip-body { display: none; }
     /* Una sola opción ocupa todo el ancho de su columna, no media. */
     .choices:not(:has(.choice-btn + .choice-btn)) { grid-template-columns: minmax(0, 1fr); }
@@ -1489,7 +1489,8 @@ export class DialoguePanelComponent implements AfterViewChecked, OnDestroy {
       // se vuelve a medir en el cuadro siguiente.
       if (angosta !== untracked(() => this.angosta())) {
         this.angosta.set(angosta);
-        if (intentos > 0) requestAnimationFrame(() => medir(intentos - 1));
+        // Dos cuadros: el primero puede llegar antes de que la plantilla aplique la clase (la página salía 11 px larga).
+        if (intentos > 0) requestAnimationFrame(() => requestAnimationFrame(() => medir(intentos - 1)));
         return;
       }
       const placa = parrafo.closest<HTMLElement>('.placa-cuerpo');
