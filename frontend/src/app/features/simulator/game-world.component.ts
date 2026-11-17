@@ -97,7 +97,7 @@ import { heldInput } from './touch-hold.util';
 import { attachScrollKeyGuard, isScrollRegionTarget, isShortcutContext, isTextEntryTarget, resolveInteractPress } from './keyboard-focus.util';
 import { isCriticalAsset } from './asset-criticality.util';
 import {
-  Caja as CajaDePlaca, EstadoCamara, Momento, avanzarCamara, comoDibujar, duracionDeViaje, enViajeDentro, esperaDelGeneral, objetivoCamara,
+  Caja as CajaDePlaca, EstadoCamara, Momento, avanzarCamara, comoDibujar, duracionDeViaje, enViajeDentro, esperaDelGeneral, objetivoCamara, sinSaltos,
 } from './camara/camara';
 import { fitGameToHost, pixelScaleConfig, watchHostSize } from './pixel-canvas';
 import { PixelRender } from './pixel-render';
@@ -1271,6 +1271,8 @@ export class DataDrivenWorldScene extends Phaser.Scene {
       } else {
         next = avanzarCamara(this.camState, objetivo, delta, false);
       }
+      // V5: un objetivo que cambia de golpe a mitad de un viaje (la placa que se esquiva) no se ve como un salto.
+      next = sinSaltos(this.camState, next, delta);
     }
     this.camCut = false;
     this.camMomentType = momento.tipo;

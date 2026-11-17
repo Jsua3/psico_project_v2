@@ -125,6 +125,9 @@ def exportar():
     hoja = Image.open(os.path.join(RAIZ, 'maqueta-visual', 'objetos', 'herramientas-x3.png')).convert('RGB')
     hoja = hoja.resize((hoja.width // 3, hoja.height // 3), Image.Resampling.NEAREST)
     galeria.append(dict(titulo='Herramientas del caso: disponible, nueva (4), usada y el gesto al usarlas (6)', img=img(hoja), w=hoja.width, h=hoja.height))
+    hoja = Image.open(os.path.join(RAIZ, 'maqueta-visual', 'objetos', 'antes-despues-biblioteca.png')).convert('RGB')
+    galeria.append(dict(titulo='Toda la biblioteca: el dibujo de hoy a la izquierda y el nuevo a la derecha (127 piezas)',
+                        img=img(hoja), w=hoja.width, h=hoja.height))
     datos['galeria'] = galeria
     datos['imagenes'] = img.todas
     return datos

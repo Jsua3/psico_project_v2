@@ -65,8 +65,37 @@ def armar(modulo, ref):
         hay_emisivo |= bool(e.any())
         emisivo.append(_mascara_img(e & dentro).crop(caja))
     w, h = cuadros[0].size
+    siluetas = [silueta(c) for c in cuadros]
+    distinta = any(not np.array_equal(s, np.array(c)[:, :, 3] > 0) for s, c in zip(siluetas, cuadros))
     return dict(ref=ref, modulo=modulo, cuadros=cuadros, ancho=w, alto=h, reflejo=reflejo if hay_reflejo else None,
-                emisivo=emisivo if hay_emisivo else None, material=material, ficha=ficha)
+                emisivo=emisivo if hay_emisivo else None, material=material, ficha=ficha,
+                silueta=siluetas if distinta else None)
+
+
+EFECTO_MAXIMO = 14          # px: lo que flota suelto y es así de chico es un efecto (vapor, rayas del timbre), no cuerpo
+
+
+def silueta(cuadro):
+    """Lo que proyecta sombra: el alfa del dibujo sin los efectos sueltos (componentes chicos separados del cuerpo)."""
+    from scipy import ndimage
+    opaco = np.array(cuadro)[:, :, 3] > 0
+    etiquetas, n = ndimage.label(opaco, structure=np.ones((3, 3)))
+    if n <= 1:
+        return opaco
+    tamanos = ndimage.sum(opaco, etiquetas, range(1, n + 1))
+    mayor = int(np.argmax(tamanos)) + 1
+    queda = np.zeros_like(opaco)
+    for k, t in enumerate(tamanos, start=1):
+        if k == mayor or t > EFECTO_MAXIMO:
+            queda |= etiquetas == k
+    return queda
+
+
+def tira_silueta(pieza):
+    """Formato para la sombra por alfa de P1: blanco donde el objeto proyecta sombra. None si es igual al alfa."""
+    if not pieza.get('silueta'):
+        return None
+    return op.tira([_mascara_img(s) for s in pieza['silueta']])
 
 
 # Formato de brillo de P1: gris por material (255 vidrio y pantalla, 170 metal, 85 barniz).

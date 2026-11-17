@@ -55,6 +55,23 @@ const issue = (code: string, mensaje: string, extra: Partial<ValidationIssue> = 
 describe('RevisionComponent · la compuerta de publicación en lenguaje del docente', () => {
   afterEach(() => document.querySelectorAll('body > app-revision, body > [ng-version]').forEach((n) => n.remove()));
 
+  it('un texto largo es una sugerencia con el texto y su escena, no una falta: el caso se puede enviar igual', async () => {
+    const mensaje = 'Escena «Consultorio», diálogo «Laura», línea del diálogo 2: este parlamento tiene 336 caracteres y en la pantalla'
+      + ' del juego se lee cómodo hasta 200; repártelo en varios turnos cortos del mismo personaje. Empieza así: «Anoche pasó algo…»';
+    const { raiz, enviar } = await montar({
+      hallazgos: [issue('DSL.READING_LENGTH', mensaje, { severity: 'warning', nodeId: 1, path: 'x-siep.escenas[0].mapa.dialogos[0].lineas[1].texto' })],
+    });
+    expect(raiz.textContent).toContain('Nada por resolver.');
+    expect(enviar().getAttribute('aria-disabled')).not.toBe('true');
+    const fila = [...raiz.querySelectorAll<HTMLElement>('li.falta')].find((li) => li.textContent?.includes('este parlamento tiene 336 caracteres'));
+    expect(fila, 'el aviso sale entre las sugerencias').toBeDefined();
+    expect(fila!.closest('section')!.querySelector('h2')!.textContent).toContain('no impiden enviar');
+    expect(fila!.textContent).toContain('Empieza así: «Anoche pasó algo…»');
+    expect(fila!.querySelector('a')!.textContent!.trim()).toBe('Ir a revisarlo');
+    expect(fila!.querySelector('a')!.getAttribute('href')).toContain('/editor/escena/1');
+    expect(raiz.textContent).not.toMatch(/DSL\.|READING_LENGTH/);
+  });
+
   it('un caso sin nada que resolver puede enviarse', async () => {
     const { raiz, enviar, servidor } = await montar();
     expect(servidor.metodos).toEqual(['caseEditor', 'validateCase', 'lifecycle']); // la primera relee si el ensayo ya llegó a un final

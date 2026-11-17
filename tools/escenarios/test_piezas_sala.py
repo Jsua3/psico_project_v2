@@ -340,6 +340,7 @@ import piezas_convertir as cv  # noqa: E402
 
 CONVERTIDOS = {lugar: cv._json(cv.convertir_lugar(lugar)) for lugar in cv.LUGARES}
 CONVERTIDAS = [(lugar, sala) for lugar, datos in CONVERTIDOS.items() for sala in datos['salas']]
+NATIVAS = {lugar: {s['id'] for s in __import__(modulo).SALAS} for lugar, modulo in cv.NATIVAS.items()}
 
 
 def test_se_convierten_las_28_salas():
@@ -349,13 +350,13 @@ def test_se_convierten_las_28_salas():
 
 @pytest.mark.parametrize('lugar, sala', CONVERTIDAS, ids=lambda v: v if isinstance(v, str) else v['id'])
 def test_cada_sala_convertida_se_arma_sin_avisos(lugar, sala):
-    assert 'fondo' not in sala and sala['estructura']['ancho'] == 960
+    assert 'fondo' not in sala and sala['estructura']['ancho'] in (g.ANCHOS if sala['id'] in NATIVAS.get(lugar, ()) else (960,))
     acabados = sala['estructura']['acabados']
     assert acabados['piso'] in ps.PISOS and acabados['muro'] in ps.ACABADOS and acabados['paleta'] in ps.PALETAS
     c = sl.capas(sala)
     assert c['avisos'] == []
     assert sum(s['tipo'] == 'puerta' for s in c['sprites']) == len(sala['puertas']) >= 1
-    assert sl.componer_sala(sala, 'noche').size == (960, g.ALTO)
+    assert sl.componer_sala(sala, 'noche').size == (sala['estructura']['ancho'], g.ALTO)
 
 
 @pytest.mark.parametrize('lugar', cv.LUGARES)
@@ -374,7 +375,8 @@ def test_las_puertas_convertidas_son_reciprocas_y_del_mismo_modelo(lugar):
 
 @pytest.mark.parametrize('lugar, sala', CONVERTIDAS, ids=lambda v: v if isinstance(v, str) else v['id'])
 def test_en_una_sala_convertida_nada_se_solapa(lugar, sala):
-    puestas = [dict(tipo='puerta', modelo=p['modelo'], muro=p['muro'], pos=p['pos']) for p in sala['puertas']] + sala['estructura']['piezas']
+    puestas = [dict(tipo='puerta', modelo=p['modelo'], muro=p['muro'], pos=p['pos']) for p in sala['puertas']]
+    puestas += [p for p in sala['estructura']['piezas'] if 'muro' in p]       # las lámparas de pie van en el piso
     for i, a in enumerate(puestas):
         for b in puestas[i + 1:]:
             assert not cv._chocan(a, b), (sala['id'], a, b)
@@ -588,3 +590,39 @@ def test_la_sala_de_la_casa_usa_los_muebles_y_objetos_que_redibujo_o1():
     r = tele['resplandor']
     assert tele['emisivos'] and r['tira'].size == (r['w'] * r['n'], r['h']) and max(r['seq']) <= r['n']
     assert pv.muebles_de_biblioteca('casa', 'sala', dx=240)[0]['x'] == lista[0]['x'] + 240
+
+
+# ── comisaría por piezas ───────────────────────────────────────────────────────
+
+import piezas_comisaria as pco  # noqa: E402
+
+
+def test_la_comisaria_trae_por_piezas_las_cuatro_salas_del_capitulo_3_y_conserva_las_demas():
+    salas = {s['id']: s for s in CONVERTIDOS['comisaria']['salas']}
+    assert NATIVAS['comisaria'] == {'recepcion', 'sala-espera', 'pasillo', 'consultorio-psicosocial'}
+    for s in pco.SALAS:
+        assert salas[s['id']] == json.loads(json.dumps(s)), 'en comisaria.json va la sala nativa, no la convertida'
+        assert 'convertidaDe' not in salas[s['id']] and 'propios' not in s['estructura'], 'nada de capas fijas del arte viejo'
+    assert all(salas[i].get('convertidaDe') for i in salas if i not in NATIVAS['comisaria'])
+
+
+@pytest.mark.parametrize('sala', pco.SALAS, ids=lambda s: s['id'])
+def test_cada_sala_de_la_comisaria_usa_el_arte_de_o1_y_proyecta_sus_sombras(sala):
+    assert all(pco._ficha(m['ref']) for m in sala['muebles'] + sala['objetos']), 'todo mueble y objeto sale del catálogo de O1'
+    muebles = pco.muebles_de(sala)
+    assert any(m.get('persona') for m in muebles) and sum(1 for m in muebles if m.get('sombra')) >= 3
+    puestas = [dict(tipo='puerta', modelo=p['modelo'], muro=p['muro'], pos=p['pos']) for p in sala['puertas']] + \
+              [p for p in sala['estructura']['piezas'] if 'muro' in p]
+    assert not any(cv._chocan(a, b) for i, a in enumerate(puestas) for b in puestas[i + 1:])
+    assert any(p['tipo'] == 'ventana' for p in sala['estructura']['piezas']), 'de día entra luz: el día y la noche se distinguen'
+    cuerpos = sl.cuerpos_de([dict(im=m['im'], x=m['x'] - m['im'].width // 2, y=m['y'] - m['im'].height, sombra=m.get('sombra', True) and not m.get('persona'),
+                                  pie=(m['x'], m['y']) if m.get('persona') else None) for m in muebles])
+    assert pl.sombras(sala, 'dia', cuerpos=cuerpos).sum() > 500
+
+
+def test_en_la_vista_previa_las_salas_de_la_comisaria_no_chocan_con_las_del_hospital():
+    import piezas_vista as pv
+    ids = [s['id'] for _, salas in pv.lugares() for s, _ in salas]
+    assert len(ids) == len(set(ids)) and 'comisaria-pasillo' in ids
+    pasillo = next(s for _, salas in pv.lugares() for s, _ in salas if s['id'] == 'comisaria-pasillo')
+    assert {p['hacia'] for p in pasillo['puertas']} == {'comisaria-sala-espera', 'comisaria-recepcion', 'comisaria-consultorio-psicosocial', None}

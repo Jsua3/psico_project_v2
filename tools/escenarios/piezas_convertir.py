@@ -35,6 +35,7 @@ import piezas_sala as sl  # noqa: E402
 import piezas_superficies as ps  # noqa: E402
 
 LUGARES = {'universidad': 'arte_universidad', 'casa': 'arte_casa', 'comisaria': 'arte_comisaria'}
+NATIVAS = {'comisaria': 'piezas_comisaria'}   # lugares con salas dibujadas por piezas que reemplazan a las convertidas
 PUERTA = {'casa': 'madera', 'universidad': 'madera-ventanilla', 'comisaria': 'metalica'}
 LAMPARA = {'casa': 'colgante', 'universidad': 'tubo', 'comisaria': 'tubo'}
 ENCUADRE = {v: k for k, v in g.ENCUADRES.items()}
@@ -218,6 +219,10 @@ def convertir_lugar(lugar):
         if perdido:
             sala['perdido'] = perdido
         convertidas.append(sala)
+    if lugar in NATIVAS:
+        # Las salas nativas (mismos ids de sala y de puerta) ocupan el lugar de las convertidas: el resto sigue enlazado.
+        nativas = {s['id']: s for s in importlib.import_module(NATIVAS[lugar]).SALAS}
+        convertidas = [copy.deepcopy(nativas[s['id']]) if s['id'] in nativas else s for s in convertidas]
     return dict(esquema=3, id=escenario['id'], nombre=escenario['nombre'], descripcion=escenario.get('descripcion', ''), salas=convertidas)
 
 
@@ -249,6 +254,7 @@ def antes_y_despues(lugar, convertido):
     temporal = os.path.join(SALIDA, 'convertidas', lugar)
     os.makedirs(temporal, exist_ok=True)
     originales = {s['id']: s for s in escenario['salas']}
+    convertido = dict(convertido, salas=[s for s in convertido['salas'] if s.get('convertidaDe')])   # las nativas tienen su hoja
     hoja = Image.new('RGB', (2 * ANCHO + 36, len(convertido['salas']) * (g.ALTO + 30) + 8), (24, 26, 34))
     d = ImageDraw.Draw(hoja)
     for n, sala in enumerate(convertido['salas']):

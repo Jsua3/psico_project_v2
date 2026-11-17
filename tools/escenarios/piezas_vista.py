@@ -298,9 +298,21 @@ def lugares():
                           (PASILLO, [])])]
     try:
         import piezas_hospital as ph
+        import piezas_comisaria as pco
     except ImportError:
         return lista
-    return [('Hospital', [(s, ph.muebles_de(s)) for s in ph.SALAS])] + lista
+    return [('Hospital', [(s, ph.muebles_de(s)) for s in ph.SALAS]), ('Comisaría', [(_con_prefijo(s, pco), pco.muebles_de(s)) for s in pco.SALAS])] + lista
+
+
+def _con_prefijo(sala, modulo):
+    """La sala con `comisaria-` delante de su id y del destino de sus puertas: en la página conviven con las del hospital,
+    que también tienen sala de espera y pasillo. Las puertas a salas que la página no trae se ven pero no se cruzan."""
+    propias = {s['id'] for s in modulo.SALAS}
+    sala = copy.deepcopy(sala)
+    sala['id'] = modulo.LUGAR_ID + '-' + sala['id']
+    for p in sala['puertas']:
+        p['hacia'] = modulo.LUGAR_ID + '-' + p['hacia'] if p['hacia'] in propias else None
+    return sala
 
 
 def construir(destino=SALIDA):
@@ -310,10 +322,10 @@ def construir(destino=SALIDA):
             salas[sala['id']] = exportar(sala, nombre, imgs, muebles)
             orden.append(sala['id'])
             avisos += [sala['id'] + ': ' + a for a in salas[sala['id']].pop('avisos')]
-    for sid, s in salas.items():          # toda puerta lleva a una sala que existe y a una puerta de regreso
+    for sid, s in salas.items():          # toda puerta lleva a una sala que existe y a una puerta de regreso (sin destino: se ve y no se cruza)
         for sp in s['sprites']:
             p = sp.get('puerta')
-            if p and (p['hacia'] not in salas or not any(o['id'] == p['par'] and o.get('puerta') for o in salas[p['hacia']]['sprites'])):
+            if p and p['hacia'] is not None and (p['hacia'] not in salas or not any(o['id'] == p['par'] and o.get('puerta') for o in salas[p['hacia']]['sprites'])):
                 avisos.append(f'{sid}/{sp["id"]}: lleva a {p["hacia"]}/{p["par"]}, que no existe')
     imgs['j-idle'] = uri(os.path.join(KIT, 'valentina', 'idle.png'))
     imgs['j-walk'] = uri(os.path.join(KIT, 'valentina', 'walk.png'))

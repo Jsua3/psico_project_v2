@@ -20,6 +20,7 @@ describe('simulation-play: rejilla del ensayo', () => {
   });
 
   it('los títulos del panel heredan el color del panel (el h3 global es azul oscuro: 1,57:1 sobre el fondo del panel, Axe color-contrast)', () => {
+    expect(panel).toMatch(/h2 \{[^}]*color: inherit;/);
     expect(panel).toMatch(/h3 \{[^}]*color: inherit;/);
   });
 

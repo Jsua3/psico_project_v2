@@ -5,7 +5,7 @@ import {
   aprobarYPublicarPorApi, completarListaYEnviar, crearCasoBienestar, entrarALaPrimeraSala, escribirCasoBienestar, hacerQueVayaYVenga,
   marcarPersonaAAtender,
 } from './support/autoria-flujo';
-import { assignCase, retireCase } from './support/case-fixtures';
+import { ADMIN, apiToken, assignCase, bearer, retireCase } from './support/case-fixtures';
 import type { AssignmentRecord } from './support/case-fixtures';
 import { measuresIn, measuresInText, recordSimulationResponses, retiredKeysIn, shapeOf } from './support/no-numbers';
 import type { RecordedResponse } from './support/no-numbers';
@@ -203,7 +203,11 @@ test('un estudiante juega la primera sala de un caso hecho en el editor: el obje
     const dialogo = page.getByRole('dialog', { name: nombre });
     await expect(dialogo).toContainText('Hola, ¿esta es la oficina de Bienestar?', { timeout: scaled(15_000) });
     await chooseDecision(page, nombre, /Sí, la sala de espera está aquí al lado/);
-    await expect(page.locator('app-simulation-play').getByText('Escenario 2 de 3').first()).toBeVisible({ timeout: scaled(45_000) });
+    // El bloque B retiró el contador «Escenario k de n» (el número de pasos lo decide la docente): la barra nombra la escena.
+    const admin = await apiToken(request, ADMIN);
+    const escenas = ((await (await request.get(`/api/authoring/cases/${caseVersionId}/editor`, { headers: bearer(admin) })).json()).data as { nodes: Array<{ title: string }> }).nodes;
+    await expect(page.locator('app-simulation-play').getByText(escenas[1].title, { exact: true }).first(),
+      'la barra nombra la segunda escena del caso').toBeVisible({ timeout: scaled(45_000) });
 
     // ── Ninguna cifra llegó al estudiante ────────────────────────────────────────────────────────────────────────
     const texto = await page.locator('app-simulation-play').first().innerText();

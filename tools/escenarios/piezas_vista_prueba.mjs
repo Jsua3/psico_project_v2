@@ -166,7 +166,8 @@ for (const id of await page.evaluate(() => window.__salas.D.orden)) {
   await page.waitForTimeout(450);
   visitas.push((await estado(page)).sala === id);
 }
-ok('plano: salta a las 11 salas', visitas.length === 11 && visitas.every(Boolean), visitas);
+const cuantas = await page.evaluate(() => Object.keys(window.__salas.D.salas).length);
+ok('plano: salta a las ' + cuantas + ' salas', visitas.length === cuantas && cuantas >= 15 && visitas.every(Boolean), visitas);
 await page.close();
 
 // ── 6. pantalla angosta ──

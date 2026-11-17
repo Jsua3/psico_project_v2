@@ -337,3 +337,32 @@ export function comoDibujar(zoom: number): { base: number; escala: number } {
   const base = Math.max(1, Math.floor(zoom));
   return { base, escala: zoom / base };
 }
+
+// ── Sin saltos ─────────────────────────────────────────────────────────────────────────────────────────────────────
+
+/**
+ * Lo más que la vista se mueve en pantalla, en píxeles del lienzo por milisegundo (V5). Un viaje entre planos o el
+ * seguimiento al caminar quedan muy por debajo (unos 0,3 a 1 px/ms en su punto más rápido); solo un objetivo que cambia
+ * de golpe (la placa que se esquiva, una persona que aparece) lo alcanza.
+ */
+export const VELOCIDAD_MAXIMA = 2;
+
+/**
+ * El cuadro siguiente sin saltos: si el centro se movería en pantalla más de `VELOCIDAD_MAXIMA × dt`, avanza solo eso en
+ * la misma dirección (el encuadre final es el mismo; solo no se llega de golpe). El zoom no se toca. Con una pausa de un
+ * segundo o más (pestaña oculta) no frena, igual que `avanzarCamara`; los cortes (sala nueva, movimiento reducido) no
+ * pasan por aquí. Sin tiempo medido cuenta como un cuadro.
+ */
+export function sinSaltos(previo: EstadoCamara, siguiente: EstadoCamara, dtMs: number): EstadoCamara {
+  if (dtMs >= 1000) return siguiente;
+  const dt = dtMs > 0 ? dtMs : 16;
+  const zoom = Math.max(siguiente.zoom, 0.0001);
+  const dx = siguiente.centro.x - previo.centro.x;
+  const dy = siguiente.centro.y - previo.centro.y;
+  const enPantalla = Math.hypot(dx, dy) * zoom;
+  const tope = VELOCIDAD_MAXIMA * dt;
+  if (enPantalla <= tope) return siguiente;
+  const f = tope / enPantalla;
+  return { centro: { x: previo.centro.x + dx * f, y: previo.centro.y + dy * f }, zoom: siguiente.zoom };
+}
+

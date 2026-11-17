@@ -558,7 +558,7 @@ def _generation_on(**ajustes):
 
     competencias = [
         {"codigo": codigo, "nombre": codigo.title()}
-        for codigo in ("PAP", "COMUNICACION_EMPATIA", "DECISION_RUTA", "COMPRENSION_SITUACION", "REFLEXION")
+        for codigo in ("PAP", "COMUNICACION_EMPATIA", "DECISION_RUTA", "COMPRENSION_SITUACION", "REFLEXION", "ANALISIS_ARGUMENTACION")
     ]
     config = dict(
         AI_AUTHORING_ENABLED=True, AI_AUTHORING_PROVIDER="fake", AI_AUTHORING_GENERATIONS_PER_DAY=5,

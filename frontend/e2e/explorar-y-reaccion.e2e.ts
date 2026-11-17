@@ -89,11 +89,17 @@ async function leerHasta(page: Page, dialogueName: RegExp, text: string): Promis
   const dialogue = page.getByRole('dialog', { name: dialogueName });
   await expect(dialogue).toBeVisible({ timeout: scaled(30_000) });
   const deadline = Date.now() + scaled(20_000);
+  // «Saltar animación», «Siguiente» y «Continuar» comparten la clase `close-btn`: se distinguen por su nombre accesible, para que
+  // un clic tardío (la animación terminó entre la lectura y el clic) no avance de línea sin haber leído el texto completo.
+  const skip = dialogue.getByRole('button', { name: /saltar animación/i });
+  const advance = dialogue.getByRole('button', { name: /mostrar siguiente intervención|^continuar/i });
+  const read = (): Promise<string> => dialogue.innerText({ timeout: scaled(2_000) }).catch(() => '');
+  const listed = async (): Promise<{ options: number }> => ({ options: await dialogue.getByRole('group', { name: /opciones de intervención/i }).count() });
   while (Date.now() < deadline) {
-    const shown = await dialogue.innerText({ timeout: scaled(2_000) }).catch(() => '');
-    if (shown.includes(text)) return { options: await dialogue.getByRole('group', { name: /opciones de intervención/i }).count() };
-    const next = dialogue.locator('button.close-btn:visible');
-    if (await next.count()) await next.first().click({ timeout: scaled(1_000) }).catch(() => undefined);
+    if ((await read()).includes(text)) return listed();
+    if (await skip.count()) await skip.first().click({ timeout: scaled(1_000) }).catch(() => undefined);
+    else if ((await read()).includes(text)) return listed();   // sin «Saltar» la línea ya está completa: se vuelve a leer antes de avanzar
+    else if (await advance.count()) await advance.first().click({ timeout: scaled(1_000) }).catch(() => undefined);
     else await page.waitForTimeout(50);
     if (!(await dialogue.isVisible().catch(() => false))) break;
   }

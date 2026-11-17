@@ -36,7 +36,7 @@ import objetos_comun as oc  # noqa: E402
 import objetos_pixel as op  # noqa: E402
 import objetos_reflejo as orf  # noqa: E402
 
-MODULOS = (('objetos_casa', 'casa'), ('objetos_comisaria', 'comisaria'), ('objetos_hospital', 'hospital'), ('objetos_universidad', 'universidad'),
+MODULOS = (('objetos_casa', 'casa'), ('objetos_comisaria', 'comisaria'), ('objetos_hospital', 'hospital'), ('objetos_universidad', 'universidad'), ('objetos_universidad_muebles', 'universidad'),
            ('objetos_herramientas', 'herramientas'))
 SIDECAR = os.path.join(BIB, 'piezas', 'objetos', 'manifiesto-o1.json')
 SECCION = {'mueble': 'muebles', 'objeto': 'objetos', 'herramienta': 'herramientas'}
@@ -111,6 +111,10 @@ def generar():
             if b is not None:
                 archivos.append((base + sufijo + '.png', b))
                 entrada[clave] = base + sufijo + '.png'
+        sil = oc.tira_silueta(p)
+        if sil is not None:                                          # la sombra sale de aquí, sin vapor ni rayas sueltas
+            archivos.append((base + '-silueta.png', sil))
+            entrada['silueta'] = base + '-silueta.png'
         em = oc.tira_emisivo_color(p)
         if em is not None:
             archivos.append((base + '-emisivo.png', em))
@@ -123,6 +127,18 @@ def generar():
                 e = ficha['emite']
                 entrada['resplandor'] = dict(ruta=base + '-resplandor.png', x=x, y=y, ancho=im.width // 3, alto=im.height, cuadros=3,
                                              tono=e['tono'], momento=e['momento'], parpadeo=e['niveles'])
+        if tipo == 'herramienta':                                    # icono de la barra de herramientas, 20 y 40 px
+            import objetos_herramientas as oh
+            base_icono = ficha['codigo'] if ficha['codigo'] in oh.TAPAS else ficha['codigo'].split('/')[-1]
+            contenido = ficha['codigo'] if ficha['codigo'] in oh.TAPAS else oh.BIBLIOTECA[ref][1]
+            tapa = None if ficha['codigo'] in oh.TAPAS else oh.BIBLIOTECA[ref][2]
+            rutas = {}
+            for factor, sufijo in ((1, '20'), (2, '40')):
+                ruta_icono = f'piezas/herramientas/iconos/{ref}-{sufijo}.png'
+                archivos.append((ruta_icono, oh.tira_icono(contenido, tapa, factor)))
+                rutas[sufijo] = ruta_icono
+            entrada['icono'] = dict(ruta=rutas['20'], ruta2x=rutas['40'], ancho=oh.ICONO, alto=oh.ICONO, cuadros=6,
+                                    estados=oh.ICONO_ESTADOS)
         clave = ficha['codigo'] if tipo == 'herramienta' else f'{lugar}/{ref}'
         secciones[SECCION[tipo]][clave] = entrada
     archivos.append(('piezas/objetos/comun/destello.png', op.tira(oc.destello())))

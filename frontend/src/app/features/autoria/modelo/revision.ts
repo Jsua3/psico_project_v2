@@ -391,6 +391,19 @@ function avisosDeCompetencias(caso: CasoBorrador): Falta[] {
   }));
 }
 
+/** El aviso del servidor por un texto que obligaría a desplazarse para leerlo al jugar (``casedef/lectura.py``). */
+export const CODIGO_LARGO_DE_LECTURA = 'DSL.READING_LENGTH';
+
+/**
+ * Los avisos de largo de lectura que da el servidor, como sugerencias: no impiden enviar, citan el texto que se pasa y llevan a
+ * su escena. Valen igual para un caso generado con la IA que para uno escrito a mano.
+ */
+export function avisosDeLectura(hallazgos: ValidationIssue[]): Falta[] {
+  return hallazgos
+    .filter((h) => h.code === CODIGO_LARGO_DE_LECTURA && h.severity === 'warning')
+    .map((h) => ({ codigo: h.code, mensaje: h.message, ir: { ruta: h.nodeId !== undefined ? rutaDeEscena(h.nodeId) : '/editor' } }));
+}
+
 /** Cosas que conviene mirar pero no impiden enviar. */
 export function sugerencias(caso: CasoBorrador): Falta[] {
   const lista: Falta[] = [...avisosDeCompetencias(caso), ...avisosDeDialogoSinPersona(caso)];

@@ -17,7 +17,7 @@ from apps.simulation.services.authoring.generation.schema import SCENE, SKELETON
 
 CONTEXTO = {"lugar": {"id": "universidad"}}
 SALAS_ESPERADAS = ["aula", "bienestar", "sala-espera", "consultorio"]
-COMPETENCIAS = {"PAP", "COMUNICACION_EMPATIA", "DECISION_RUTA", "COMPRENSION_SITUACION", "REFLEXION"}
+COMPETENCIAS = {"PAP", "COMUNICACION_EMPATIA", "DECISION_RUTA", "COMPRENSION_SITUACION", "REFLEXION", "ANALISIS_ARGUMENTACION"}
 LUGAR = Path(__file__).resolve().parents[4] / "biblioteca" / "escenarios" / "universidad" / "escenario.json"
 
 
