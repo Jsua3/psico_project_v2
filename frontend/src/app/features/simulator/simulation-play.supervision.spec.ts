@@ -426,7 +426,7 @@ describe('SimulationPlayComponent: lo que se muestra al decidir (RN-08, C2)', ()
     decideMiddle(decided(makeAttempt({}, 'hospital-accion'),
       { consequence: null, retry: { allowed: true, message: 'Decisión con riesgo: revisa las implicaciones.' } }));
 
-    expect(shownText()).toContain('No se avanzó el caso');
+    expect(shownText()).toContain('El caso sigue en el mismo punto');
     expect(shownText()).not.toContain('Decisión con riesgo');
     expect(shownText()).not.toContain(CONSEQUENCE.text);
   });

@@ -170,6 +170,17 @@ describe('SimulationPlayComponent: orientación integrada', () => {
 
     it('sin intento ni mundo no hay estados de puerta', () => {
       expect(component.doorStates()).toEqual({});
+      expect(component.doorMessages()).toEqual({});
+    });
+
+    it('doorMessages da al aviso de la puerta el mismo motivo vivo que la barra, y nada si está abierta', () => {
+      startInUrgencias();
+      expect(component.doorMessages()).toEqual({
+        'puerta-sala-escucha': 'Antes de pasar, habla con Familia en crisis (en el extremo izquierdo, al frente).',
+      });
+
+      startInUrgencias(makeWorld('hospital-urgencias', urgenciasObjects(), { inspectedObjectKeys: ['familia-crisis'] }));
+      expect(component.doorMessages()).toEqual({});
     });
 
     it('una puerta bloqueada explica el motivo vivo, no el texto del seed, y no llama al servidor', () => {
@@ -647,7 +658,7 @@ describe('SimulationPlayComponent: orientación integrada', () => {
       const dialogue = decide({ allowed: true, message: 'Decisión con riesgo: revisa.' });
       const lines = dialogue?.lines.map(line => line.text) ?? [];
 
-      expect(lines.join(' ')).toContain('No se avanzó el caso');
+      expect(lines.join(' ')).toContain('El caso sigue en el mismo punto');
       expect(lines.join(' ')).not.toContain('Decisión con riesgo');
       expect(lines).not.toContain('Tu decisión quedó registrada en tu seguimiento formativo.');
     });

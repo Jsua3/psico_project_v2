@@ -1,3 +1,5 @@
+import { readFileSync } from 'node:fs';
+import { join } from 'node:path';
 import { TestBed } from '@angular/core/testing';
 
 import { MINIMAPA_STORAGE_KEY, MinimapaComponent, PlanoCompletoComponent } from './minimapa.component';
@@ -81,6 +83,14 @@ describe('MinimapaComponent', () => {
   it('con el almacenamiento bloqueado se ve, sin error', () => {
     vi.spyOn(Storage.prototype, 'getItem').mockImplementation(() => { throw new DOMException('bloqueado', 'SecurityError'); });
     expect(minimapa().el.querySelector('[data-minimapa-abrir]')).not.toBeNull();
+  });
+});
+
+describe('MinimapaComponent: el plano cabe en su marco', () => {
+  it('un lugar más alto que ancho no se sale del botón: el plano toma el alto del marco 16:9 y el botón recorta', () => {
+    const fuente = readFileSync(join(__dirname, 'minimapa.component.ts'), 'utf-8');
+    expect(fuente).toMatch(/\.minimapa__abrir \{[^}]*aspect-ratio: 16 \/ 9;[^}]*overflow: hidden;/);
+    expect(fuente).toContain('.minimapa__abrir app-plano-del-lugar { display: block; height: 100%; }');
   });
 });
 

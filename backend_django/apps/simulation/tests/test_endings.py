@@ -183,6 +183,30 @@ def test_la_razon_usa_el_singular_y_calla_lo_que_no_ocurrio(monkeypatch):
     ]
 
 
+def test_la_razon_explica_tambien_los_hitos_que_nombra_el_final_alcanzado(monkeypatch):
+    """V4 (SIM-VBG-002, «Protección lograda, duelo desatendido»): el final depende de hitos que no son decisivos; la razón
+    los nombra (cumplidos o no) para que «Cómo llegaste aquí» explique el final, no solo los hitos decisivos."""
+    own = [{"key": "sin-saludo", "title": "Sin saludo", "message": "Faltó saludar.", "tone": "warning",
+            "when": {"all": [{"milestone": "riesgo_valorado"}, {"not": {"milestone": "saludo"}}]}}]
+
+    ending = _play(monkeypatch, rules=_rules(endings=own), done=["riesgo_valorado"])
+
+    assert ending["key"] == "sin-saludo"
+    # En el orden en que el caso declara sus hitos, como siempre.
+    assert ending["reason"] == [
+        "Faltó: Saludar",
+        "Cumpliste: Valorar el riesgo",
+        "Faltó: Recomendar medidas de protección",
+        "Faltó: Informar derechos",
+    ]
+
+
+def test_un_hito_que_el_final_no_nombra_y_no_es_decisivo_no_entra_en_la_razon(monkeypatch):
+    ending = _play(monkeypatch, rules=_rules(), done=DECISIVE + ["saludo"])
+
+    assert not any("Saludar" in phrase for phrase in ending["reason"])
+
+
 def test_el_resultado_no_lleva_cifras_de_puntaje_ni_conteos_por_severidad(monkeypatch):
     ending = _play(monkeypatch, rules=_rules(), done=DECISIVE, contraindicated=1)
 

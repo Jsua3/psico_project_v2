@@ -32,6 +32,7 @@ import { SceneGoalCardComponent } from './scene-goal-card.component';
 import { partirNotaDeTransicion } from './nota-transicion';
 import { SensitiveNoticeComponent } from './sensitive-notice.component';
 import { debeConfirmarEnsayo, escenaDesde, reintentarSinDesde, veredictoDeLectura } from './caso/ensayo';
+import { debeConfirmarIntento, intentoPerdido } from './caso/intento-reemplazado';
 import { escenaRetenida } from './caso/escena-visible';
 import {
   type AlmacenSimple, type IntencionDeDecision, OrdenDeRespuestas, PLAZO_ACCION_MS, borrarIntencion, borrarLectura, claveDeNpc, esPlazoVencido, guardarIntencion,
@@ -116,7 +117,7 @@ const WORLD_REVEAL_DELAY_MS = 80;
 /** Rótulo del diálogo que muestra la consecuencia narrativa justo tras decidir (RN-08; decisión del usuario 2026-10-18). */
 const CONSEQUENCE_SPEAKER = 'Consecuencia';
 /** Aviso de reintento al decidir: neutro, sin clasificación. El servidor puede mandar un mensaje evaluativo (forma heredada). */
-const RETRY_NOTICE = 'No se avanzó el caso ni se aplicaron cambios acumulados. Revisa la escena y vuelve a responder.';
+const RETRY_NOTICE = DRAFT_COPY.retryNotice.text;
 /** Sin movimientos nuevos durante este tiempo, la posición del jugador se guarda en el servidor. */
 const POSITION_SAVE_DEBOUNCE_MS = 550;
 /** Línea «no hay nada cerca» tras pedir interactuar sin nada al alcance. */
@@ -136,7 +137,7 @@ const PLACAS_SOBRE_EL_MUNDO = [
   '.objective-card', '.carril .sensitive-strip', '.carril .soft-notice', '.carril .room-banner',
   'app-simulation-hud .hud-case', 'app-simulation-hud .hud-strip',
   'app-minimapa .minimapa__lugar', 'app-minimapa .minimapa__abrir', 'app-minimapa .minimapa__alternar',
-  '.bottom-zone .safe-exit-btn', '.bottom-zone .tool-dock-wrap', '.bottom-zone .notice-pie .sensitive-strip',
+  '.help-slot .help-card', '.bottom-zone .safe-exit-btn', '.bottom-zone .tool-dock-wrap', '.bottom-zone .notice-pie .sensitive-strip',
   '.bottom-zone .context-bar__interaction', '.bottom-zone .context-bar__now',
 ].join(', ');
 /** Modo compacto (F§7.9): la misma condición que el CSS compacto y que el HUD. */
@@ -317,7 +318,7 @@ const NARROW_QUERY = '(max-width: 760px)';
 
               <footer class="case-intro-card__actions">
                 <div class="case-intro-card__buttons">
-                  <app-safe-exit-button [pausing]="pausing()" (pause)="pauseFromOverlay()" />
+                  <app-safe-exit-button variante="placa" [pausing]="pausing()" (pause)="pauseFromOverlay()" />
                   <button cdkFocusInitial class="psy-button psy-button--primary" type="button" (click)="continueFromCaseIntro()">
                     Continuar
                   </button>
@@ -401,7 +402,7 @@ const NARROW_QUERY = '(max-width: 760px)';
                 [reduceMotion]="reduceMotion()"
                 [activation]="attempt()?.persona?.activation ?? 'CALM'"
                 [intensity]="attempt()?.currentNode?.intensity ?? 'MEDIUM'"
-                [doorStates]="doorStates()"
+                [doorStates]="doorStates()" [doorMessages]="doorMessages()"
                 [dimmedKeys]="dimmedKeys()" [compact]="compactMode()"
                 [showLoader]="false" (worldReady)="onWorldReady()" (patientVisual)="patientVisual.set($event)"
                 (proximity)="nearbyInteraction.set($event); reactions?.onProximity($event?.key ?? null)" (proximityAlso)="nearbyAlso.set($event)"
@@ -423,7 +424,7 @@ const NARROW_QUERY = '(max-width: 760px)';
 
             <!-- La reacción del personaje tras elegir: franja sobre el mundo, en la sala donde ocurrió (4.3.3). -->
             <app-reaction-director #reaction [escenario]="reactionStage()" [reduceMotion]="reduceMotion()"
-              (finished)="afterReaction($event)" />
+              [pausing]="pausing()" (finished)="afterReaction($event)" (safeExit)="pauseFromOverlay()" />
 
             <!-- Lo que dice un personaje al acercarse (4.6): sobre su cabeza, sin foco ni teclas; se anuncia por el anunciador de la app. -->
             <app-comment-bubble [comment]="bubble()?.comment ?? null" [speaker]="bubbleSpeaker()" [anchor]="bubbleAnchor()"
@@ -468,7 +469,8 @@ const NARROW_QUERY = '(max-width: 760px)';
         <footer class="bottom-zone" [class.bottom-zone--above-veils]="footerAboveVeils()"
           [attr.inert]="inputBlocked() || viewMode() === 'dialogue-cinematic' ? '' : null"
           [attr.aria-hidden]="inputBlocked() || viewMode() === 'dialogue-cinematic' ? 'true' : null"
-          [class.bottom-zone--bajo-dialogo]="viewMode() === 'dialogue-cinematic'">
+          [class.bottom-zone--bajo-dialogo]="viewMode() === 'dialogue-cinematic'"
+          [class.bottom-zone--bajo-reaccion]="reacting()">
           @if (game.status === 'IN_PROGRESS' || reactingToLast()) {
             <!-- La misma implementación que las superposiciones (F6-6, REGLA-004). Sin [disabled]: con una petición
                  en curso el toque se acepta y la pausa sale en el acto (REGLA-004), y el rótulo pasa a «Pausando…»
@@ -631,8 +633,10 @@ const NARROW_QUERY = '(max-width: 760px)';
     .top-bar > .rehearsal-banner { pointer-events: auto; }
     .top-bar__fila { display: flex; align-items: flex-start; gap: var(--pixel-borde); padding: var(--pixel-borde); }
     /* El grupo de la derecha: el HUD y, debajo, el minimapa. La capa deja pasar el puntero; solo sus hijos lo reciben. */
-    .top-bar__derecha { flex: none; display: flex; flex-direction: column; align-items: flex-end; gap: calc(2 * var(--pixel-px)); pointer-events: none; }
-    .top-bar__derecha > * { pointer-events: auto; }
+    /* Puede encogerse (y la pestaña del caso se corta con puntos suspensivos): con un título largo, su ancho de contenido
+       (el título entero) empujaba el grupo fuera de la cabecera; en el ensayo caía sobre el panel de autora (crítica r2). */
+    .top-bar__derecha { flex: 0 1 auto; min-width: 0; display: flex; flex-direction: column; align-items: flex-end; gap: calc(2 * var(--pixel-px)); pointer-events: none; }
+    .top-bar__derecha > * { pointer-events: auto; max-width: 100%; }
     /* El chip de contenido sensible del pie solo existe en teléfono (≤ 560 px): en el resto, el del carril. */
     .notice-pie { display: none; }
     /* El hueco mide lo que la ficha del objetivo: el carril nunca cae sobre ella (antes el aviso de puerta la tapaba). */
@@ -665,9 +669,26 @@ const NARROW_QUERY = '(max-width: 760px)';
     .game-container[data-rehearsal][data-mode='dialogue-right'] .main-zone {
       grid-template-columns: minmax(0, 1fr) clamp(340px, 28vw, 480px) clamp(280px, 24vw, 340px);
     }
+    /* Ensayo: el HUD, el plano y el pie flotan sobre el mundo, no sobre el panel de autora (antes, a 1366, el grupo de la
+       derecha y la barra de acción tapaban «Lo explorado» y sus casillas). Dejan libre la columna del panel y su hueco. */
+    .game-container[data-rehearsal] .top-bar,
+    .game-container[data-rehearsal] .bottom-zone { margin-right: calc(clamp(280px, 24vw, 340px) + 10px); }
     @media (max-width: 760px) {
       .game-container[data-rehearsal] .main-zone,
       .game-container[data-rehearsal][data-mode='dialogue-right'] .main-zone { grid-template-columns: minmax(0, 1fr); }
+      .game-container[data-rehearsal] .top-bar,
+      .game-container[data-rehearsal] .bottom-zone { margin-right: 0; }
+    }
+    /* Ensayo en pantalla ancha: la cabecera termina antes del panel de autora y no le cabe el carril entre la ficha y el
+       grupo de la derecha; el carril (aviso sensible, aviso breve, rótulo) baja a su propia fila, centrado. */
+    @media (min-width: 761px) {
+      .game-container[data-rehearsal] .top-bar__fila { flex-wrap: wrap; }
+      .game-container[data-rehearsal] .carril { order: 3; flex: 1 1 100%; }
+      /* En su fila el aviso desplegado no se tiende de lado a lado sobre el mundo: el ancho del carril de siempre. */
+      .game-container[data-rehearsal] .carril > * { max-width: min(520px, 100%); }
+      .game-container[data-rehearsal] .top-bar__derecha {
+        margin-left: auto; max-width: calc(100% - min(440px, 33%) - var(--pixel-borde));
+      }
     }
     .canvas-zone {
       position: relative;
@@ -706,6 +727,11 @@ const NARROW_QUERY = '(max-width: 760px)';
       overflow: hidden;
     }
     .objective-card__etapa { flex: none; }
+    /* Ensayo: la franja «Ensayo del borrador» ocupa la cima de la cabecera; la ficha baja lo mismo y su pestaña no queda
+       debajo de la franja (crítica r2). */
+    @media (min-width: 761px) {
+      .game-container[data-rehearsal] .objective-card { top: calc(var(--pixel-borde) + var(--alto-franja-ensayo)); }
+    }
     /* Decisión con franjas de cine: la franja de arriba queda limpia (el HUD sigue). */
     .game-container--cine .objective-card { visibility: hidden; }
     /* Con franjas, la fila de arriba se pega al borde y el grupo de la derecha deja la pestaña del caso: cabe en la franja
@@ -724,7 +750,12 @@ const NARROW_QUERY = '(max-width: 760px)';
     @media (min-width: 1100px) {
       /* Arriba al centro, bajo el carril: a la derecha están ahora el HUD y el plano. 380 px como máximo: más ancha tapaba
          la puerta del quirófano (acceso restringido) en el arranque de Urgencias. */
-      .help-slot { top: calc(var(--pixel-borde) + 64px); bottom: auto; left: 50%; transform: translateX(-50%); width: min(380px, 30%); }
+      /* U1, crítica r2: arriba al centro tapaba el aviso de contenido sensible desplegado (ETH-01) en los mismos 8 s del
+         arranque. Va bajo la ficha del objetivo, en su columna y de su ancho (la ayuda habla de esa ficha). */
+      .help-slot {
+        top: calc(2 * var(--pixel-borde) + var(--alto-objetivo, 130px) + var(--alto-franja-ensayo, 0px)); bottom: auto;
+        left: var(--pixel-borde); transform: none; width: min(440px, 33%);
+      }
     }
     /* Móvil vertical: las cruces táctiles ocupan abajo; la tarjeta va arriba, bajo el HUD y la ficha del objetivo. */
     @media (max-width: 760px) {
@@ -796,6 +827,9 @@ const NARROW_QUERY = '(max-width: 760px)';
        (con el diálogo abierto el pie ya era inerte y el dock no hace nada): el pie se oculta en vez de quedar debajo, sin
        dejar hueco (visibility, no display: el lienzo no cambia de tamaño al abrir y cerrar). */
     .bottom-zone--bajo-dialogo { visibility: hidden; }
+    /* Lo mismo durante la reacción: la franja ocupa la banda de abajo y trae su «Salida segura» (antes la tapaba y solo
+       asomaba un filo); un solo botón a la vista y en el árbol de accesibilidad. */
+    .bottom-zone--bajo-reaccion { visibility: hidden; }
     /* «Salida segura» del pie es app-safe-exit-button (F6-6): su forma vive en el componente; aquí solo su sitio. */
     .bottom-zone > app-safe-exit-button { flex-shrink: 0; }
     .tool-dock { display: block; min-width: 0; flex: 0 1 auto; }
@@ -1038,7 +1072,8 @@ const NARROW_QUERY = '(max-width: 760px)';
     }
     .game-boot p { margin: 0; color: var(--ds-text-2); font-size: .95rem; }
     .game-failure ui-error-state { max-inline-size: 28rem; }
-    .rehearsal-banner { margin: 0; padding: 4px 12px; font-size: .85rem; text-align: center; background: var(--ds-surface-2, rgba(18,24,42,.9)); color: var(--ds-text-1); border-block-end: 1px solid var(--ds-border, rgba(182,156,255,.3)); }
+    .game-container[data-rehearsal] { --alto-franja-ensayo: 30px; }
+    .rehearsal-banner { box-sizing: border-box; height: var(--alto-franja-ensayo); overflow: hidden; white-space: nowrap; text-overflow: ellipsis; line-height: 21px; margin: 0; padding: 4px 12px; font-size: .85rem; text-align: center; background: var(--ds-surface-2, rgba(18,24,42,.9)); color: var(--ds-text-1); border-block-end: 1px solid var(--ds-border, rgba(182,156,255,.3)); }
     /* Aviso no esencial («Obtuviste: …»): quieto, sin animación, sobre el pie. */
     .soft-notice, .room-banner {
       display: flex; align-items: center; gap: calc(4 * var(--pixel-px)); min-height: 44px;
@@ -1076,6 +1111,8 @@ const NARROW_QUERY = '(max-width: 760px)';
     /* «Reanudar» es la misma entrada que las otras tres (F6-2): por encima de ellas y sin el CSS propio que tenía. */
     .case-intro-overlay--resume { z-index: 400; }
     .case-intro-card--entry { width: min(560px, 100%); }
+
+    /* Las entradas en placas de pixel (U1, crítica r2) viven en la hoja común, src/styles/components/_pixel.scss. */
     /* ETH-01: el almacenamiento falló y el consentimiento NO está registrado; el aviso previo sigue (sin mundo). */
     .consent-error {
       display: grid; grid-template-columns: auto minmax(0, 1fr); align-items: start; gap: 8px 10px;
@@ -1590,6 +1627,21 @@ export class SimulationPlayComponent implements OnInit, OnDestroy {
     return context ? doorStateMap(context.world.objects ?? [], context) : {};
   });
 
+  /**
+   * Motivo de cada puerta bloqueada de la sala (clave → texto): el aviso de la puerta de pieza dice lo mismo que la barra
+   * («Antes de pasar, …» o la salida que se abre más adelante), no un «todavía no» genérico. Misma fuente que `doorStates`.
+   */
+  readonly doorMessages = computed<Record<string, string>>(() => {
+    const context = this.doorContext();
+    const messages: Record<string, string> = {};
+    for (const obj of context?.world.objects ?? []) {
+      if (obj.type !== 'EXIT') continue;
+      const message = doorStatus(obj, context!).message;
+      if (message) messages[obj.key] = message;
+    }
+    return messages;
+  });
+
   /** Candidato secundario en rango (otra persona u objeto): el botón secundario de la barra. */
   readonly nearbyAlso = signal<MapObjectState | null>(null);
   /** Puntero grueso (táctil): el texto de la barra no promete teclas. */
@@ -2074,15 +2126,52 @@ export class SimulationPlayComponent implements OnInit, OnDestroy {
     this.announce((why === 'closed' ? DRAFT_COPY.rehearsalClosed : DRAFT_COPY.rehearsalGone).text, 'assertive');
   }
 
+  /**
+   * El intento se abrió de nuevo en otra pestaña u otro equipo y el servidor cerró este como reemplazado (V4): se cortan los
+   * reintentos (pausa, decisión, posición), se retira lo que estaba abierto y la pantalla del cierre dice «Intento
+   * reemplazado» con «Volver al catálogo», desde donde se sigue el intento nuevo. Se dice una sola vez.
+   */
+  private showAttemptReplaced(attemptId: string): void {
+    const current = this.attempt();
+    if (!current || current.attemptId !== attemptId || current.status === 'REPLACED') return;
+    this.cancelarReintentos();
+    this.endPausing();
+    this.reaction?.cancel();
+    this.pendingAfterReaction = null;
+    this.reacting.set(false); this.busy.set(false); this.loading.set(false); this.fadeActive.set(false);
+    this.pendingDecisionRequest = null;
+    this.decisionInFlight = false;
+    this.consequenceOnResume = this.replayIntent = null;
+    this.positionFailures = this.positionGiveUps = 0;
+    if (this.positionSaveHandle) { window.clearTimeout(this.positionSaveHandle); this.positionSaveHandle = null; }
+    this.dismissActionError();
+    this.clearTransientOverlays();
+    borrarMarcaDePausa(this.almacen, attemptId);
+    this.attempt.set({ ...current, status: 'REPLACED' });
+    // Lo mismo que dice la pantalla del cierre (encabezado y titular de `attempt-outcome`): sin texto nuevo que validar.
+    this.announce('Intento reemplazado. Empezaste un intento nuevo; este quedó cerrado tal como estaba.', 'assertive');
+  }
+
   /** Ensayo perdido: nada que pausar en el servidor; «Salida segura» y Esc llevan al editor (REGLA-004). */
   private leaveRehearsal(): void { void this.router.navigate(['/portal/casos', this.attempt()?.caseVersionId ?? Number(this.route.snapshot.paramMap.get('caseVersionId')), 'editor']); }
 
   /** «Empezar de nuevo» tras perder el ensayo: otro ensayo en la escena en la que estaba. */
   restartRehearsalHere(): void { const id = Number(this.route.snapshot.paramMap.get('caseVersionId')); if (id) this.beginRehearsal(id, this.rehearsal()?.sceneId ?? this.rehearsalFrom); }
 
-  /** En ensayo, un 403/404/409 de las rutas del juego se confirma con la lectura del bloque (7.4); si no es un ensayo perdido o cerrado, sigue su camino. */
+  /**
+   * En ensayo, un 403/404/409 de las rutas del juego se confirma con la lectura del bloque (7.4); si no es un ensayo perdido o
+   * cerrado, sigue su camino. Como estudiante, un 404 se confirma leyendo el intento: si también da 404, otra pestaña u otro
+   * equipo lo reemplazó (V4) y se dice así, sin reintentar ni culpar a la conexión.
+   */
   private orRehearsalGone(cause: unknown, otherwise: () => void): void {
     const attempt = this.attempt();
+    if (attempt && debeConfirmarIntento(this.mode(), cause)) {
+      this.simulationService.getAttempt(attempt.attemptId, attempt.attemptToken).pipe(timeout(PLAZO_ACCION_MS)).subscribe({
+        next: () => otherwise(),
+        error: check => { if (intentoPerdido(check)) this.showAttemptReplaced(attempt.attemptId); else otherwise(); },
+      });
+      return;
+    }
     if (!attempt || !debeConfirmarEnsayo(this.mode(), cause)) { otherwise(); return; }
     this.rehearsalApi.read(attempt.caseVersionId, attempt.attemptId).subscribe({
       next: () => otherwise(),

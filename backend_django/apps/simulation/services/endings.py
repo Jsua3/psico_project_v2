@@ -120,12 +120,31 @@ def _mentions_persona(condition) -> bool:
     return "persona" in condition or any(_mentions_persona(value) for value in condition.values())
 
 
+def _named_milestones(condition) -> set[str]:
+    """Las claves de hito que nombra una condición ``when``, en cualquier nivel (``all``, ``any``, ``not``)."""
+    if isinstance(condition, list):
+        return set().union(*(_named_milestones(item) for item in condition))
+    if not isinstance(condition, dict):
+        return set()
+    named = {condition["milestone"]} if isinstance(condition.get("milestone"), str) else set()
+    for value in condition.values():
+        if isinstance(value, (dict, list)):
+            named |= _named_milestones(value)
+    return named
+
+
 def _reason(rules: case_rules.CaseRules, ending: Ending, context: dict, persona) -> list[str]:
-    """Las frases en palabras que explican el final: hitos decisivos, respuestas contraindicadas o con riesgo, persona."""
+    """Las frases en palabras que explican el final: hitos decisivos y los que nombra el final alcanzado, respuestas
+    contraindicadas o con riesgo, persona.
+
+    Un final puede depender de hitos que no son decisivos (SIM-VBG-002: «Protección lograda, duelo desatendido» depende de
+    acompañar el duelo): sin nombrarlos, «Cómo llegaste aquí» solo diría lo cumplido y no explicaría el final (V4).
+    """
     # BORRADOR: texto nuevo del servidor, pendiente de la aprobación de Psicología (VD-23)
     phrases = []
+    named = _named_milestones(ending.get("when"))
     for milestone in rules.milestones:
-        if milestone.decisive:
+        if milestone.decisive or milestone.key in named:
             done = milestone.key in context["milestones"]
             phrases.append(f"{'Cumpliste' if done else 'Faltó'}: {milestone.label}")
     contraindicated = context["counts"]["contraindicated"]

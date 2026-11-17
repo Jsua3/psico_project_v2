@@ -46,6 +46,8 @@ describe('sala por piezas en la escena (P2)', () => {
   it('el aviso de la puerta de pieza es un botón de Angular sobre el lienzo, no la pista de Phaser', () => {
     expect(source).toMatch(/@if \(avisoDePuerta\(\); as aviso\) \{\s*<app-aviso-de-puerta /);
     expect(source).toContain('(cruzar)="cruzarPorAviso(aviso.id)"');
+    // Cerrada, dice el mismo motivo que la barra (`doorMessages` de la pantalla), no el «todavía no» genérico.
+    expect(source).toContain('[falta]="doorMessages()[aviso.id] ?? null"');
     expect(source).toContain("if (isExit && object.metadata?.['dePieza'] !== true) {");
     expect(source).toContain('pintada: true, dePieza: true');
     // Con el mundo en pausa no hay aviso; solo se avisa a Angular cuando cambia.

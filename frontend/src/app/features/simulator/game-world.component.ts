@@ -406,6 +406,8 @@ export class DataDrivenWorldScene extends Phaser.Scene {
   private toneVignette?: Phaser.GameObjects.Image;
   /** Textura vigente de cada viñeta (tono o crisis): al cambiar el tamaño se retira la anterior (F6-8). */
   private readonly vignetteKeys = new Map<'tone' | 'crisis', string>();
+  /** La última imagen de cada papel: se destruye antes de retirar su textura (ver `addVignette`). */
+  private readonly vignetteImages = new Map<'tone' | 'crisis', Phaser.GameObjects.Image>();
   private crisisPulse?: Phaser.Tweens.Tween;
   /** Último estado de crisis aplicado; evita reiniciar un pulso que no cambió. */
   private crisisStateKey = '';
@@ -2552,15 +2554,22 @@ export class DataDrivenWorldScene extends Phaser.Scene {
         texture.refresh();
       }
     }
+    // La imagen anterior de este papel se va ANTES de retirar su textura: si seguía viva (dos llamadas seguidas, p. ej. el
+    // zoom que se asienta mientras la sala se repinta), quedaba en la lista de dibujo con la textura destruida. La de crisis
+    // tiene alfa 0 hasta la activación CRISIS, así que fallaba justo entonces (`TexturerImage.run`, «reading 'resolution'»
+    // de null: el mundo se detenía tras una reacción «en-crisis», B en V4).
+    this.vignetteImages.get(role)?.destroy();
     // La textura de otro tamaño de este mismo papel ya no hace falta.
     const previous = this.vignetteKeys.get(role);
     if (previous && previous !== key && this.textures.exists(previous)) this.textures.remove(previous);
     this.vignetteKeys.set(role, key);
-    return this.add.image(frame.x, frame.y, key)
+    const image = this.add.image(frame.x, frame.y, key)
       .setOrigin(0, 0)
       .setDisplaySize(frame.width, frame.height)
       .setScrollFactor(0)
       .setDepth(depth);
+    this.vignetteImages.set(role, image);
+    return image;
   }
 
   /**
@@ -3633,7 +3642,7 @@ export class DataDrivenWorldScene extends Phaser.Scene {
       [attr.aria-label]="worldLabel()">
     </div>
     @if (avisoDePuerta(); as aviso) {
-      <app-aviso-de-puerta [texto]="aviso.texto" [bloqueada]="aviso.bloqueada" [conTecla]="!touchInput()"
+      <app-aviso-de-puerta [texto]="aviso.texto" [bloqueada]="aviso.bloqueada" [falta]="doorMessages()[aviso.id] ?? null" [conTecla]="!touchInput()"
         [x]="aviso.x" [y]="aviso.y" (cruzar)="cruzarPorAviso(aviso.id)" />
     }
     @if (!assetsReady() && showLoader()) {
@@ -3846,6 +3855,8 @@ export class GameWorldComponent implements OnChanges, OnDestroy {
   readonly nextTargetKey = input<string | null>(null);
   /** Estado vivo de cada puerta por clave: la bloqueada lleva candado y borde discontinuo en su rótulo. */
   readonly doorStates = input<Record<string, 'open' | 'locked'>>({});
+  /** Motivo de cada puerta bloqueada (clave → texto, de `doorStatus`): el aviso de la puerta de pieza lo dice como la barra. */
+  readonly doorMessages = input<Record<string, string>>({});
   /** Objetos de decisión de otras etapas: se atenúan, sin anillo y con rótulo solo muy cerca. */
   readonly dimmedKeys = input<ReadonlySet<string>>(new Set<string>());
   /** Modo compacto (móvil horizontal): rótulos mínimos. El puntero táctil ya lo implica. */
