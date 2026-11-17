@@ -1,6 +1,22 @@
 import { describe, expect, it } from 'vitest';
 
-import { cajaDePieza, pasoDeTeclado, primerHueco, proyectarAlMuro, proyectarAlSuelo } from './arrastre-en-muro';
+import { cajaDePieza, pasoDeTeclado, primerHueco, proyectarAlMuro, proyectarAlSuelo, zonasDeToque } from './arrastre-en-muro';
+
+describe('zonas de toque con el dedo', () => {
+  it('una pieza chica crece centrada hasta el mínimo; una grande no cambia', () => {
+    const z = zonasDeToque(new Map([['reloj', { x: 100, y: 50, ancho: 24, alto: 24 }], ['tubo', { x: 300, y: 20, ancho: 72, alto: 24 }]]), 55);
+    expect(z.get('reloj')).toEqual({ x: 84.5, y: 34.5, ancho: 55, alto: 55 });
+    expect(z.get('tubo')).toEqual({ x: 300, y: 4.5, ancho: 72, alto: 55 });
+  });
+  it('dos vecinas que se pisarían reparten el borde a mitad de camino, sin achicar sus cajas', () => {
+    const z = zonasDeToque(new Map([['a', { x: 100, y: 50, ancho: 24, alto: 24 }], ['b', { x: 140, y: 50, ancho: 24, alto: 24 }]]), 55);
+    const a = z.get('a')!, b = z.get('b')!;
+    expect(a.x + a.ancho).toBe(132);
+    expect(b.x).toBe(132);
+    expect(a.ancho).toBeGreaterThanOrEqual(24);
+    expect(b.alto).toBe(55);
+  });
+});
 import { ALTO_SALA, ancla, largoMuro } from './geometria';
 import type { PlanDeSala } from '../../simulator/sala/composicion';
 
