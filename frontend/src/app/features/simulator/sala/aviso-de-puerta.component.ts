@@ -17,7 +17,7 @@ import { PixelIconoComponent } from '../pixel/pixel-icono.component';
   imports: [PixelIconoComponent],
   template: `
     <button type="button" class="aviso u-boton u-sombra" [class.aviso--cerrada]="bloqueada()" [attr.aria-disabled]="bloqueada() ? 'true' : null"
-      [style.left.px]="x()" [style.top.px]="y()" (click)="cruzar.emit()">
+      [style.left.px]="x()" [style.top.px]="y()" [style.--x]="x() + 'px'" (click)="cruzar.emit()">
       @if (conTecla()) {
         <kbd class="aviso__tecla u-tecla u-tecla--letra" aria-hidden="true">E</kbd><span class="aviso__sep" aria-hidden="true">·</span>
       }
@@ -35,15 +35,20 @@ import { PixelIconoComponent } from '../pixel/pixel-icono.component';
   `,
   changeDetection: ChangeDetectionStrategy.OnPush,
   styles: [`
-    :host { position: absolute; inset: 0; pointer-events: none; }
+    /* Contenedor de tamaño: el cartel se acota al ancho del lienzo (100cqw) y no se sale por un borde. */
+    :host { position: absolute; inset: 0; pointer-events: none; container-type: size; }
     /* Bloque U1: el cartel es la placa-botón del cuadro de diálogo (marco, trama, sombra de tramado y estados de sobre, foco y
        pulsado de la hoja común) con la tecla E de las fichas y una cola de pixel que se monta un punto sobre su canto. */
+    /* Centrado sobre su puerta, salvo junto a un borde del lienzo: ahí se corre lo justo para quedar entero (la cola
+       sigue señalando la puerta, que es otro elemento). Si el cartel es más ancho que el lienzo, manda el borde izquierdo. */
     .aviso {
-      position: absolute; transform: translate(-50%, calc(-100% - 3 * var(--pixel-px, 2px))); pointer-events: auto;
+      --borde: calc(2 * var(--pixel-px, 2px));
+      --dx: clamp(calc(var(--borde) - var(--x, 0px)), -50%, calc(100cqw - var(--x, 0px) - 100% - var(--borde)));
+      position: absolute; transform: none; translate: var(--dx) calc(-100% - 3 * var(--pixel-px, 2px)); pointer-events: auto;
       gap: calc(3 * var(--pixel-px, 2px)); padding: 0 calc(5 * var(--pixel-px, 2px)) 1px calc(3 * var(--pixel-px, 2px));
       font-family: var(--pixel-f-texto); font-size: calc(var(--pixel-tam, 14px) * 1.05); font-weight: 600; line-height: 1.2;
     }
-    .aviso:active { transform: translate(-50%, calc(-100% - 2 * var(--pixel-px, 2px))); }
+    .aviso:active { transform: none; translate: var(--dx) calc(-100% - 2 * var(--pixel-px, 2px)); }
     .aviso__sep { color: var(--pixel-tinta-suave); }
     .aviso__candado { width: calc(7 * var(--pixel-px, 2px)); height: calc(8 * var(--pixel-px, 2px)); flex: none; }
     .aviso__ojo { fill: var(--pixel-penumbra); }
@@ -55,7 +60,7 @@ import { PixelIconoComponent } from '../pixel/pixel-icono.component';
     }
     .aviso__cola app-pixel-icono { width: 100%; height: 100%; }
     @media (prefers-reduced-motion: reduce) {
-      .aviso:active { transform: translate(-50%, calc(-100% - 3 * var(--pixel-px, 2px))); }
+      .aviso:active { translate: var(--dx) calc(-100% - 3 * var(--pixel-px, 2px)); }
     }
   `],
 })

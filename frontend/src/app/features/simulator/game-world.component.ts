@@ -59,7 +59,7 @@ import {
   selectRevealed,
 } from './interaction-priority.util';
 import { serverRejectsPlayerAt } from './server-world-geometry.util';
-import { InteractionVerb, interactionVerb, participatesInInteraction } from './interaction-verb.util';
+import { InteractionVerb, exitVerb, interactionVerb, participatesInInteraction } from './interaction-verb.util';
 import { paintVignette, vignetteTextureKey } from './vignette-texture.util';
 import {
   WORLD_FONT_FAMILY, WORLD_LABEL_FONT_FAMILY, WORLD_LABEL_INK, WORLD_LABEL_PLATE, whenWorldFontsReady,
@@ -717,7 +717,7 @@ export class DataDrivenWorldScene extends Phaser.Scene {
     if (id && p && obj) {
       const cam = this.cameras.main, dpr = 1 / (this.scale.zoom || 1);
       aviso = {
-        id, texto: `Pasar a ${obj.label}`, bloqueada: this.doorStates[id] === 'locked',
+        id, texto: exitVerb(obj.label), bloqueada: this.doorStates[id] === 'locked',
         x: Math.round(((p.x - cam.worldView.x) * cam.zoom) / dpr), y: Math.round(((p.y - cam.worldView.y) * cam.zoom) / dpr),
       };
     }
