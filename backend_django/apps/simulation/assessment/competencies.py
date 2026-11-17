@@ -24,7 +24,7 @@ from decimal import ROUND_HALF_UP, Decimal
 from rest_framework.exceptions import NotFound
 
 from apps.simulation.casedef.vocabulary import ResponseClass
-from apps.simulation.models import LEVEL_INDEX, REGISTERED_DECISION_EVENT_TYPES, FormativeLevel, RubricCriterion
+from apps.simulation.models import LEVEL_INDEX, REGISTERED_DECISION_EVENT_TYPES, DecisionOption, FormativeLevel, RubricCriterion
 from apps.simulation.services import case_rules, rubric_service
 from apps.simulation.services.case_state import response_class_of
 from apps.simulation.services.competencies import normalize_code
@@ -108,6 +108,16 @@ def rubric_of(case_version_id):
         return rubric_service.rubric_for_case_version(case_version_id)
     except NotFound:
         return None
+
+
+def case_declares_competencies(case_version_id):
+    """¿Alguna respuesta de la versión declara qué competencia evidencia (``effects.competencies``)? (V5)
+
+    Sin ninguna, ningún intento puede tener nivel en ninguna competencia: el resultado de la estudiante no muestra el
+    bloque (sería «Sin evidencia» en todas, hiciera lo que hiciera) y la docente ve por qué. Es un dato del caso.
+    """
+    opciones = DecisionOption.objects.filter(case_version_id=case_version_id).only("id", "effects")
+    return any(case_rules.competency_overrides(opcion) for opcion in opciones)
 
 
 BASIS_DECLARED = "DECLARED"

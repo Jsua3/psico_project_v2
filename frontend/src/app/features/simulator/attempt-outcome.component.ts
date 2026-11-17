@@ -183,7 +183,8 @@ import { RECONSIDERED_LABEL, reconsideredChip } from './reconsidered.util';
 
           <!-- «Frente a tu intento anterior»: el reporte aún no trae datos del intento previo; el bloque entra cuando los traiga. -->
 
-          @if (r.competencyLevels && r.competencyLevels.length) {
+          <!-- V5: si el caso no declara competencias, no se muestra: serían «Sin evidencia» en todas, hiciera lo que hiciera. -->
+          @if (r.competencyLevels && r.competencyLevels.length && r.competenciesDeclared !== false) {
             <section class="oc-block oc-competencies" aria-labelledby="oc-competencies-title">
               <p class="oc-label" id="oc-competencies-title">{{ draft.competenciesTitle.text }}</p>
               <ul class="oc-competencies__list">

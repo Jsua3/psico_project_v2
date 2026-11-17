@@ -196,6 +196,8 @@ export interface AttemptCompletionReport {
   decisionReview?: DecisionReviewItem[];
   /** El perfil por competencia con la evidencia que lo sostiene (E6-1d, v3). */
   competencyLevels?: CompetencyLevelEntry[];
+  /** V5: `false` si ninguna respuesta del caso declara competencias (el cierre no muestra el bloque); sin el campo, como antes. */
+  competenciesDeclared?: boolean;
   /** Las notas de reflexión por escena, sin su texto. */
   reflections?: { nodeId: number; nodeTitle: string; locked: boolean }[];
   /** Cuántas escenas con decisión tienen reflexión (E6-1d). */
@@ -554,6 +556,9 @@ export interface ToolUseResult {
 
 export interface AttemptTrace {
   attemptId: string;
+  /** V5: la versión del caso (el enlace al editor) y si alguna de sus respuestas declara competencias. */
+  caseVersionId?: number;
+  competenciesDeclared?: boolean;
   studentAlias: string;
   caseTitle: string;
   status: string;
