@@ -40,6 +40,41 @@ def test_copia_del_lugar_entero(db, lugar_id):
     catalogo_piezas.cargar_catalogo.cache_clear()
 
 
+def _ideas_por_piezas():
+    """Cada idea de salas de los lugares con plantilla por piezas: lo que elige la docente al crear a mano."""
+    return [
+        pytest.param(lugar_id, idea["salas"], id=f"{lugar_id}-{idea['id']}")
+        for lugar_id in ("casa", "comisaria", "universidad")
+        for idea in lugares.cargar_lugar(lugar_id, por_piezas=True)["recorridosSugeridos"]
+    ]
+
+
+@pytest.mark.parametrize(("lugar_id", "salas"), _ideas_por_piezas())
+def test_crear_a_mano_una_idea_por_piezas_nace_sin_faltas(db, lugar_id, salas):
+    """El editor crea a mano con ``porPiezas`` (como la IA): solo algunas salas, sus puertas a las otras no se crean y el
+    caso recién creado cumple las reglas de las salas por piezas (OCL-13 a OCL-18)."""
+    catalogo_piezas.cargar_catalogo.cache_clear()
+    docente = get_user_model().objects.create_user(
+        email=f"idea-{lugar_id}@example.com", password="x", nombre="N", apellido="A", role="PROFESOR",
+    )
+    cliente = APIClient()
+    cliente.force_authenticate(user=docente)
+    respuesta = cliente.post("/api/authoring/cases", {
+        "title": "Caso a mano", "lugarId": lugar_id, "salas": salas, "porPiezas": True,
+    }, format="json")
+    assert respuesta.status_code == 200, respuesta.data
+    version = CaseVersion.objects.get(pk=respuesta.data["data"]["caseVersionId"])
+    mapas = SceneMap.objects.filter(case_version=version)
+    assert mapas.count() == len(salas) and all(mapa.structure for mapa in mapas)
+    documento = export_definition(version.id)
+    reglas = {f"OCL-{n}" for n in range(13, 19)}
+    resultados = {r.rule: r for r in validate.run_rules(documento).results if r.rule in reglas}
+    fallas = {regla: [(f.path, f.message) for f in r.findings] or r.state
+              for regla, r in resultados.items() if r.state != "CUMPLE" or r.findings}
+    assert set(resultados) == reglas and not fallas, fallas
+    catalogo_piezas.cargar_catalogo.cache_clear()
+
+
 def test_crear_sin_opcion_conserva_imagen_fija(db):
     docente = get_user_model().objects.create_user(
         email="fijo@example.com", password="x", nombre="N", apellido="A", role="PROFESOR",

@@ -52,6 +52,8 @@ export const ALLOWED_NUMERIC_KEYS: Readonly<Record<string, string>> = {
   entryX: 'punto de entrada de la puerta', entryY: 'punto de entrada de la puerta',
   interactionRadius: 'radio de interacción de un objeto',
   cameraZoom: 'acercamiento de la cámara en la sala (`ambient` de autoría): geometría del render, no una medida',
+  ancho: 'ancho de la sala por piezas (`map.structure.ancho`): geometría del dibujo, no una medida',
+  pos: 'posición de una puerta o ventana a lo largo de su muro (`structure.piezas[].pos`, `metadata.pos` de la puerta): geometría, no una medida',
   cuadros: 'cuadros de la hoja de animación de cercanía de un objeto (`metadata.animacionCerca`): parámetro del dibujo, no una medida',
   fps: 'cuadros por segundo de esa animación: parámetro del dibujo, no una medida',
 };

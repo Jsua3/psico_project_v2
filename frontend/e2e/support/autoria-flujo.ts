@@ -40,6 +40,29 @@ export async function crearCasoBienestar(page: Page, titulo: string): Promise<nu
   return Number(/\/portal\/casos\/(\d+)\/editor/.exec(page.url())![1]);
 }
 
+/**
+ * El mismo caso de «Atención en Bienestar», pero con salas de IMAGEN FIJA, creado por la API (`porPiezas: false`) y abierto
+ * en el mapa del caso. Desde V6 el editor crea a mano por piezas; esto queda para las pruebas del camino de imagen fija, que
+ * sigue vivo en los casos viejos y en los lugares sin plantilla por piezas (p. ej. la animación de cercanía de los marcadores,
+ * que el juego publica en `data-proximity`).
+ */
+export async function crearCasoBienestarImagenFija(page: Page, request: APIRequestContext, titulo: string): Promise<number> {
+  const token = await apiToken(request, PROFESOR);
+  const respuesta = await request.post('/api/authoring/cases', {
+    headers: { Authorization: `Bearer ${token}` },
+    data: {
+      title: titulo, lugarId: 'universidad', salas: ['pasillo', 'sala-espera', 'consultorio'], porPiezas: false,
+      description: 'Una persona llega a Bienestar, espera su turno y es escuchada en el consultorio.',
+    },
+  });
+  expect(respuesta.ok(), `crear el caso de imagen fija: ${respuesta.status()}`).toBeTruthy();
+  const id = (await respuesta.json()).data.caseVersionId as number;
+  await page.goto(`/portal/casos/${id}/editor`);
+  await expect(page.getByRole('heading', { level: 1, name: /Escenas y caminos/ })).toBeVisible({ timeout: scaled(30_000) });
+  await expect(page.locator('button.escena')).toHaveCount(3, { timeout: scaled(30_000) });
+  return id;
+}
+
 /** La dirección de una pantalla del editor del caso abierto. */
 export function rutaEditor(page: Page, resto = ''): string {
   const id = /\/portal\/casos\/(\d+)\/editor/.exec(page.url())?.[1];

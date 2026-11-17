@@ -45,6 +45,8 @@ export interface CaseCreateRequest {
   lugarId?: string | null;
   /** Ids de las salas del lugar, en el orden pedido (la primera es el inicio); obligatoria con `lugarId`. */
   salas?: string[];
+  /** Copiar las salas por piezas si el lugar tiene plantilla por piezas (si no, de imagen fija). El servidor asume `false`. */
+  porPiezas?: boolean;
 }
 
 /** Cabecera con la revisión que el editor tiene del caso (E2-6): el servidor responde 409 si está vencida. */

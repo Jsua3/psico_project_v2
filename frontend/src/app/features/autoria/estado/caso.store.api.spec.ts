@@ -104,7 +104,7 @@ describe('CasoStore con la API · abrir un caso', () => {
     const { servidor, store } = montar();
     const id = await store.crearCaso('Mi caso', 'universidad', ['consultorio', 'pasillo']);
     expect(id).toBe(CASO);
-    expect(servidor.llamadasA('createCase')[0].args[0]).toEqual({ title: 'Mi caso', lugarId: 'universidad', salas: ['consultorio', 'pasillo'] });
+    expect(servidor.llamadasA('createCase')[0].args[0]).toEqual({ title: 'Mi caso', lugarId: 'universidad', salas: ['consultorio', 'pasillo'], porPiezas: true });
   });
 });
 

@@ -534,9 +534,9 @@ describe('solicitudDeSala: la sala como mundo del mapa', () => {
 });
 
 describe('cuerpoCrearCaso', () => {
-  it('con lugar manda el lugar y las salas en el orden elegido', () => {
+  it('con lugar manda el lugar y las salas en el orden elegido, por piezas como la generación con IA', () => {
     expect(cuerpoCrearCaso('Caso', 'universidad', ['pasillo', 'consultorio'])).toEqual({
-      title: 'Caso', lugarId: 'universidad', salas: ['pasillo', 'consultorio'],
+      title: 'Caso', lugarId: 'universidad', salas: ['pasillo', 'consultorio'], porPiezas: true,
     });
   });
 
@@ -546,9 +546,9 @@ describe('cuerpoCrearCaso', () => {
 
   it('manda la descripción cuando la hay (la compuerta de publicación la exige) y la recorta', () => {
     expect(cuerpoCrearCaso('Caso', 'universidad', ['pasillo'], '  La persona llega y es escuchada.  ')).toEqual({
-      title: 'Caso', description: 'La persona llega y es escuchada.', lugarId: 'universidad', salas: ['pasillo'],
+      title: 'Caso', description: 'La persona llega y es escuchada.', lugarId: 'universidad', salas: ['pasillo'], porPiezas: true,
     });
-    expect(cuerpoCrearCaso('Caso', 'universidad', ['pasillo'], '   ')).toEqual({ title: 'Caso', lugarId: 'universidad', salas: ['pasillo'] });
+    expect(cuerpoCrearCaso('Caso', 'universidad', ['pasillo'], '   ')).toEqual({ title: 'Caso', lugarId: 'universidad', salas: ['pasillo'], porPiezas: true });
   });
 });
 
