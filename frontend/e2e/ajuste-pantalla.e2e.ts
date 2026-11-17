@@ -110,6 +110,21 @@ for (const [ancho, alto] of AREAS) {
         const carpeta = process.env['AJUSTE_CAPTURAS'];
         if (carpeta) await page.screenshot({ path: join(carpeta, `${ancho}x${alto}-${zoom * 100}-decision.png`) });
         expect(await desbordes(page), 'decisión').toEqual([]);
+
+        // La consecuencia (los casos generados traen retroalimentación de hasta ~400 caracteres): tampoco se lee
+        // desplazando; si no cabe, va en páginas con «N de M».
+        await page.waitForTimeout(1_200); // la guarda contra la decisión accidental
+        await page.locator('.choice-btn').first().click();
+        const nota = page.getByRole('dialog', { name: /consecuencia/i });
+        if (await nota.waitFor({ state: 'visible', timeout: 20_000 }).then(() => true, () => false)) {
+          for (let i = 0; i < 8; i += 1) {
+            await page.waitForTimeout(2_500);
+            expect(await desbordes(page), `consecuencia, página ${i + 1}`).toEqual([]);
+            const indicador = await page.locator('.placa-pagina').textContent().catch(() => null);
+            if (!indicador || /^(\d+) de \1$/.test(indicador.trim())) break;
+            await page.keyboard.press('Enter');
+          }
+        }
       } finally {
         await contexto.close();
       }

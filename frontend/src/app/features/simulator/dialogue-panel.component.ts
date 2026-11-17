@@ -10,6 +10,7 @@ import type { PortraitState } from '../character/kit/kit-engine';
 import { KitFigureComponent } from '../character/kit/kit-figure.component';
 import { AudioDirectorService } from './audio-director.service';
 import { MS_POR_CARACTER, pausaTras, tramos } from './caso/ritmo-texto';
+import { partirEnPaginas } from './caso/paginas-texto';
 import { lineaDeArranque } from './caso/robustez';
 import { choiceIndex } from './dialogue-keys.util';
 import { MomentoDelDia, letraDe, variablesDeArte } from './dialogo-arte';
@@ -127,14 +128,18 @@ const STALE_NOTE = 'Esta conversación corresponde a otro momento del caso.';
                       Saltar <span aria-hidden="true">▶</span>
                     </button>
                   }
-                  @if (isTypingComplete() && !isLastLine()) {
+                  @if (paginas().length > 1) {
+                    <!-- Parlamento en páginas (V5): cuántas van y cuántas son; el lector tiene el texto entero arriba. -->
+                    <span class="placa-pagina" aria-hidden="true">{{ pagina() + 1 }} de {{ paginas().length }}</span>
+                  }
+                  @if (isTypingComplete() && !esFinal()) {
                     <button type="button" class="close-btn" ui-button variant="primary" cdkFocusInitial
                       (click)="advanceLine()"
                       aria-label="Mostrar siguiente intervención">
                       Siguiente <span aria-hidden="true">▶</span>
                     </button>
                   }
-                  @if (isTypingComplete() && isLastLine() && !hasChoices(d)) {
+                  @if (isTypingComplete() && esFinal() && !hasChoices(d)) {
                     <button type="button" class="close-btn" ui-button variant="primary" cdkFocusInitial
                       (click)="close.emit()">
                       Continuar <span aria-hidden="true">▶</span>
@@ -554,6 +559,7 @@ const STALE_NOTE = 'Esta conversación corresponde a otro momento del caso.';
       border: 0;
     }
     .placa-pie { display: flex; justify-content: flex-end; align-items: center; min-height: 44px; }
+    .placa-pagina { margin-right: auto; font-size: .78em; color: var(--tinta-suave); }
     .dialogue-strip .close-btn {
       display: inline-flex;
       align-items: center;
@@ -920,10 +926,17 @@ export class DialoguePanelComponent implements AfterViewChecked, OnDestroy {
   readonly lineIndex = signal(0);
   readonly activeLine = computed(() => activeDialogueLine(this.dialogue(), this.lineIndex()));
   readonly isLastLine = computed(() => isFinalDialogueLine(this.dialogue(), this.lineIndex()));
+  /** Páginas del parlamento activo (V5): uno largo se parte por frases según lo que cabe en la placa (paginas-texto). */
+  readonly paginas = signal<string[]>([]);
+  readonly pagina = signal(0);
+  readonly textoPagina = computed(() => this.paginas()[this.pagina()] ?? this.activeLine()?.text ?? '');
+  readonly ultimaPagina = computed(() => this.pagina() >= this.paginas().length - 1);
+  /** El final del parlamento: su última línea y, de ella, la última página. */
+  readonly esFinal = computed(() => this.isLastLine() && this.ultimaPagina());
   readonly choicesVisible = computed(() => dialogueChoicesVisible(
     this.dialogue(),
     this.lineIndex(),
-    this.isTypingComplete(),
+    this.isTypingComplete() && this.ultimaPagina(),
   ));
   /** Opción ya elegida: pausa breve de confirmación antes de ejecutar. */
   readonly chosenKey = signal<string | null>(null);
@@ -933,7 +946,7 @@ export class DialoguePanelComponent implements AfterViewChecked, OnDestroy {
   protected readonly arte = computed(() => variablesDeArte(this.momento()));
   /** La línea entera en tramos (acotación o no) y, de cada uno, lo ya escrito y lo que falta (invisible, ocupa su sitio). */
   protected readonly piezas = computed(() => {
-    const texto = this.activeLine()?.text ?? '';
+    const texto = this.textoPagina();
     const visto = this.displayedText().length;
     const lista: { texto: string; acotacion: boolean; oculto: boolean }[] = [];
     let desde = 0;
@@ -1181,7 +1194,7 @@ export class DialoguePanelComponent implements AfterViewChecked, OnDestroy {
     let action = dialogueKeyAction(
       e.key,
       this.isTypingComplete(),
-      this.isLastLine(),
+      this.esFinal(),
       this.hasChoices(d) ? d.choices.length : 0,
       e.repeat,
     );
@@ -1402,6 +1415,14 @@ export class DialoguePanelComponent implements AfterViewChecked, OnDestroy {
   }
 
   advanceLine(): void {
+    // Un parlamento en páginas pasa primero de página (V5); la línea siguiente viene después de la última.
+    if (!this.ultimaPagina()) {
+      this.stopTypewriter();
+      this.pagina.update(n => n + 1);
+      this.audio.playSfx('ui_select');
+      this.escribir(this.textoPagina());
+      return;
+    }
     const d = this.dialogue();
     const nextIndex = nextDialogueLineIndex(d, this.lineIndex());
     if (!d || nextIndex === null) return;
@@ -1417,7 +1438,7 @@ export class DialoguePanelComponent implements AfterViewChecked, OnDestroy {
   skipTypewriter(): void {
     if (this.isTypingComplete()) return;
     this.stopTypewriter();
-    this.displayedText.set(this.activeLine()?.text ?? '');
+    this.displayedText.set(this.textoPagina());
     this.isTypingComplete.set(true);
     this.requestDialogueFocus();
   }
@@ -1426,7 +1447,47 @@ export class DialoguePanelComponent implements AfterViewChecked, OnDestroy {
     return this.activeLine()?.text ?? '';
   }
 
+  /** Empieza una línea: una sola página con todo el texto y, ya maquetada, se parte si no cabe en la placa (V5). */
   private startTypewriter(text: string) {
+    this.paginas.set([text]);
+    this.pagina.set(0);
+    this.escribir(text);
+    this.programarPaginado(text);
+  }
+
+  /**
+   * Ya maquetada la línea entera (lo que falta va invisible y ocupa su sitio), mide cuánto desborda la placa o la banda.
+   * Si desborda, la parte por frases en páginas que quepan: una sonda con el ancho y la letra del párrafo dice si una
+   * página cabe en el alto que le queda. Sin maqueta (pruebas sin navegador), no hace nada.
+   */
+  private programarPaginado(text: string): void {
+    if (typeof requestAnimationFrame === 'undefined') return;
+    // `untracked`: se llama desde el efecto que arranca el diálogo; leer la línea ahí lo haría depender de ella.
+    const linea = untracked(() => this.lineIndex());
+    requestAnimationFrame(() => {
+      if (this.lineIndex() !== linea || this.pagina() !== 0 || this.paginas().length !== 1) return;
+      const banda = this.host.nativeElement.querySelector<HTMLElement>('.dialogue-strip');
+      const parrafo = banda?.querySelector<HTMLElement>('.dialogue-text');
+      const placa = parrafo?.closest<HTMLElement>('.placa-cuerpo');
+      if (!banda || !parrafo || !parrafo.offsetHeight) return;
+      const sobra = Math.max(banda.scrollHeight - banda.clientHeight, placa ? placa.scrollHeight - placa.clientHeight : 0);
+      if (sobra <= 1) return;
+      const tope = parrafo.offsetHeight - sobra;
+      if (tope < 24) return;
+      const sonda = parrafo.cloneNode(false) as HTMLElement;
+      sonda.style.cssText = `position:absolute;visibility:hidden;left:0;top:0;width:${parrafo.clientWidth}px`;
+      parrafo.parentElement!.appendChild(sonda);
+      const paginas = partirEnPaginas(text, pagina => { sonda.textContent = pagina; return sonda.offsetHeight <= tope; });
+      sonda.remove();
+      if (paginas.length < 2) return;
+      this.stopTypewriter();
+      this.paginas.set(paginas);
+      this.pagina.set(0);
+      this.escribir(paginas[0]);
+    });
+  }
+
+  private escribir(text: string) {
     this.settled = false;
     // `untracked`: el efecto del constructor llama aquí y no debe reiniciar el diálogo cuando cambia el interruptor.
     if (untracked(() => this.reduceMotion())) {
