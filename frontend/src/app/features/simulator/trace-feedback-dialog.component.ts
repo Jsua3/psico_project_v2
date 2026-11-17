@@ -98,7 +98,7 @@ export interface TraceFeedbackDialogData {
               @if (evaluation.comment) {
                 <p class="tf-card__hint">{{ evaluation.comment }}</p>
               }
-              <small>Evaluada {{ date(evaluation.evaluatedAt) }}</small>
+              <small>Evaluada: {{ date(evaluation.evaluatedAt) }}</small>
             </li>
           }
         </ul>

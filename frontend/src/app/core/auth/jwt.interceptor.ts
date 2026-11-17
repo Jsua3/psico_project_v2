@@ -1,11 +1,11 @@
-import { HttpInterceptorFn } from '@angular/common/http';
+import { HttpInterceptorFn, HttpResponse } from '@angular/common/http';
 import { inject } from '@angular/core';
 import { Router } from '@angular/router';
-import { catchError, throwError } from 'rxjs';
+import { catchError, tap, throwError } from 'rxjs';
 import { isSameOriginApiUrl } from './api-origin';
 import { AuthService } from './auth.service';
 import { NotificationService } from '../notifications/notification.service';
-import { SCREEN_HANDLES_FORBIDDEN, buildHttpErrorChain } from './http-error-chain';
+import { CONNECTION_MESSAGE, SCREEN_HANDLES_FORBIDDEN, buildHttpErrorChain } from './http-error-chain';
 
 const errorChain = buildHttpErrorChain();
 
@@ -21,6 +21,10 @@ export const jwtInterceptor: HttpInterceptorFn = (req, next) => {
   }
 
   return next(req).pipe(
+    // Con la primera respuesta del servidor la conexión volvió: el aviso de conexión ya no vale y se retira solo.
+    tap(event => {
+      if (event instanceof HttpResponse) notifications.dismissMatching('error', CONNECTION_MESSAGE);
+    }),
     catchError((error: unknown) => {
       errorChain.handle({
         error, url: req.url, auth, router, notifications,
