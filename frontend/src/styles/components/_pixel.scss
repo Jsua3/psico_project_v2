@@ -220,3 +220,8 @@
     }
   }
 }
+
+// Ajuste a la pantalla (V5): la ficha del objetivo no lleva barra propia. La sombra de la placa-botón (u-sombra, 12 px
+// bajo la placa) desbordaba el contenedor desplazable 4 px y, con barras clásicas (Windows), salía una barra con flecha
+// junto a una ficha de dos renglones. El contenedor deja ese margen abajo.
+.game-container.pixel-juego .objective-card__scroll { padding-bottom: calc(6 * var(--pixel-px)); }
