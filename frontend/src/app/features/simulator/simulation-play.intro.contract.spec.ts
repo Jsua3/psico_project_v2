@@ -56,7 +56,8 @@ describe('simulation-play: salida segura alcanzable desde cada superposición (R
   const caseIntro = source.slice(source.indexOf('id="case-intro-title"'), source.indexOf('<header class="top-bar"'));
 
   it('la tarjeta de la introducción ofrece «Salida segura» a la izquierda de «Continuar»', () => {
-    const intoPause = /<app-safe-exit-button \[pausing\]="pausing\(\)" \(pause\)="pauseFromOverlay\(\)" \/>\s*<button cdkFocusInitial class="psy-button psy-button--primary" type="button" \(click\)="continueFromCaseIntro\(\)">/;
+    // U1 (crítica r2): la salida de la tarjeta es la placa con brasa de I1, la misma del pie del juego.
+    const intoPause = /<app-safe-exit-button variante="placa" \[pausing\]="pausing\(\)" \(pause\)="pauseFromOverlay\(\)" \/>\s*<button cdkFocusInitial class="psy-button psy-button--primary" type="button" \(click\)="continueFromCaseIntro\(\)">/;
     expect(caseIntro).toMatch(intoPause);
   });
 

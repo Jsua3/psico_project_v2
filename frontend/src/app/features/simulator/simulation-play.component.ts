@@ -136,7 +136,7 @@ const PLACAS_SOBRE_EL_MUNDO = [
   '.objective-card', '.carril .sensitive-strip', '.carril .soft-notice', '.carril .room-banner',
   'app-simulation-hud .hud-case', 'app-simulation-hud .hud-strip',
   'app-minimapa .minimapa__lugar', 'app-minimapa .minimapa__abrir', 'app-minimapa .minimapa__alternar',
-  '.bottom-zone .safe-exit-btn', '.bottom-zone .tool-dock-wrap', '.bottom-zone .notice-pie .sensitive-strip',
+  '.help-slot .help-card', '.bottom-zone .safe-exit-btn', '.bottom-zone .tool-dock-wrap', '.bottom-zone .notice-pie .sensitive-strip',
   '.bottom-zone .context-bar__interaction', '.bottom-zone .context-bar__now',
 ].join(', ');
 /** Modo compacto (F§7.9): la misma condición que el CSS compacto y que el HUD. */
@@ -317,7 +317,7 @@ const NARROW_QUERY = '(max-width: 760px)';
 
               <footer class="case-intro-card__actions">
                 <div class="case-intro-card__buttons">
-                  <app-safe-exit-button [pausing]="pausing()" (pause)="pauseFromOverlay()" />
+                  <app-safe-exit-button variante="placa" [pausing]="pausing()" (pause)="pauseFromOverlay()" />
                   <button cdkFocusInitial class="psy-button psy-button--primary" type="button" (click)="continueFromCaseIntro()">
                     Continuar
                   </button>
@@ -631,8 +631,10 @@ const NARROW_QUERY = '(max-width: 760px)';
     .top-bar > .rehearsal-banner { pointer-events: auto; }
     .top-bar__fila { display: flex; align-items: flex-start; gap: var(--pixel-borde); padding: var(--pixel-borde); }
     /* El grupo de la derecha: el HUD y, debajo, el minimapa. La capa deja pasar el puntero; solo sus hijos lo reciben. */
-    .top-bar__derecha { flex: none; display: flex; flex-direction: column; align-items: flex-end; gap: calc(2 * var(--pixel-px)); pointer-events: none; }
-    .top-bar__derecha > * { pointer-events: auto; }
+    /* Puede encogerse (y la pestaña del caso se corta con puntos suspensivos): con un título largo, su ancho de contenido
+       (el título entero) empujaba el grupo fuera de la cabecera; en el ensayo caía sobre el panel de autora (crítica r2). */
+    .top-bar__derecha { flex: 0 1 auto; min-width: 0; display: flex; flex-direction: column; align-items: flex-end; gap: calc(2 * var(--pixel-px)); pointer-events: none; }
+    .top-bar__derecha > * { pointer-events: auto; max-width: 100%; }
     /* El chip de contenido sensible del pie solo existe en teléfono (≤ 560 px): en el resto, el del carril. */
     .notice-pie { display: none; }
     /* El hueco mide lo que la ficha del objetivo: el carril nunca cae sobre ella (antes el aviso de puerta la tapaba). */
@@ -668,6 +670,15 @@ const NARROW_QUERY = '(max-width: 760px)';
     @media (max-width: 760px) {
       .game-container[data-rehearsal] .main-zone,
       .game-container[data-rehearsal][data-mode='dialogue-right'] .main-zone { grid-template-columns: minmax(0, 1fr); }
+    }
+    /* Ensayo en pantalla ancha: la cabecera termina antes del panel de autora y no le cabe el carril entre la ficha y el
+       grupo de la derecha; el carril (aviso sensible, aviso breve, rótulo) baja a su propia fila, centrado. */
+    @media (min-width: 761px) {
+      .game-container[data-rehearsal] .top-bar__fila { flex-wrap: wrap; }
+      .game-container[data-rehearsal] .carril { order: 3; flex: 1 1 100%; }
+      .game-container[data-rehearsal] .top-bar__derecha {
+        margin-left: auto; max-width: calc(100% - min(440px, 33%) - var(--pixel-borde));
+      }
     }
     .canvas-zone {
       position: relative;
@@ -706,6 +717,11 @@ const NARROW_QUERY = '(max-width: 760px)';
       overflow: hidden;
     }
     .objective-card__etapa { flex: none; }
+    /* Ensayo: la franja «Ensayo del borrador» ocupa la cima de la cabecera; la ficha baja lo mismo y su pestaña no queda
+       debajo de la franja (crítica r2). */
+    @media (min-width: 761px) {
+      .game-container[data-rehearsal] .objective-card { top: calc(var(--pixel-borde) + var(--alto-franja-ensayo)); }
+    }
     /* Decisión con franjas de cine: la franja de arriba queda limpia (el HUD sigue). */
     .game-container--cine .objective-card { visibility: hidden; }
     /* Con franjas, la fila de arriba se pega al borde y el grupo de la derecha deja la pestaña del caso: cabe en la franja
@@ -724,7 +740,12 @@ const NARROW_QUERY = '(max-width: 760px)';
     @media (min-width: 1100px) {
       /* Arriba al centro, bajo el carril: a la derecha están ahora el HUD y el plano. 380 px como máximo: más ancha tapaba
          la puerta del quirófano (acceso restringido) en el arranque de Urgencias. */
-      .help-slot { top: calc(var(--pixel-borde) + 64px); bottom: auto; left: 50%; transform: translateX(-50%); width: min(380px, 30%); }
+      /* U1, crítica r2: arriba al centro tapaba el aviso de contenido sensible desplegado (ETH-01) en los mismos 8 s del
+         arranque. Va bajo la ficha del objetivo, en su columna y de su ancho (la ayuda habla de esa ficha). */
+      .help-slot {
+        top: calc(2 * var(--pixel-borde) + var(--alto-objetivo, 130px) + var(--alto-franja-ensayo, 0px)); bottom: auto;
+        left: var(--pixel-borde); transform: none; width: min(440px, 33%);
+      }
     }
     /* Móvil vertical: las cruces táctiles ocupan abajo; la tarjeta va arriba, bajo el HUD y la ficha del objetivo. */
     @media (max-width: 760px) {
@@ -1038,7 +1059,8 @@ const NARROW_QUERY = '(max-width: 760px)';
     }
     .game-boot p { margin: 0; color: var(--ds-text-2); font-size: .95rem; }
     .game-failure ui-error-state { max-inline-size: 28rem; }
-    .rehearsal-banner { margin: 0; padding: 4px 12px; font-size: .85rem; text-align: center; background: var(--ds-surface-2, rgba(18,24,42,.9)); color: var(--ds-text-1); border-block-end: 1px solid var(--ds-border, rgba(182,156,255,.3)); }
+    .game-container[data-rehearsal] { --alto-franja-ensayo: 30px; }
+    .rehearsal-banner { box-sizing: border-box; height: var(--alto-franja-ensayo); overflow: hidden; white-space: nowrap; text-overflow: ellipsis; line-height: 21px; margin: 0; padding: 4px 12px; font-size: .85rem; text-align: center; background: var(--ds-surface-2, rgba(18,24,42,.9)); color: var(--ds-text-1); border-block-end: 1px solid var(--ds-border, rgba(182,156,255,.3)); }
     /* Aviso no esencial («Obtuviste: …»): quieto, sin animación, sobre el pie. */
     .soft-notice, .room-banner {
       display: flex; align-items: center; gap: calc(4 * var(--pixel-px)); min-height: 44px;
@@ -1076,6 +1098,74 @@ const NARROW_QUERY = '(max-width: 760px)';
     /* «Reanudar» es la misma entrada que las otras tres (F6-2): por encima de ellas y sin el CSS propio que tenía. */
     .case-intro-overlay--resume { z-index: 400; }
     .case-intro-card--entry { width: min(560px, 100%); }
+
+    /* Las tres entradas (reanudar, aviso de contenido, «Antes de comenzar») en el lenguaje de pixel de la pantalla del
+       juego (U1, crítica r2): placa sobre el velo, como la pausa, sin vidrio morado ni resplandor. Las reglas de arriba
+       quedan como respaldo fuera del juego; estas, más específicas, mandan dentro de .game-container. Las acciones se
+       envuelven en dos filas antes que salirse de la placa («Continuar intento en progreso» se cortaba a 1366). */
+    .game-container .case-intro-overlay { background: var(--pixel-velo-fuerte); }
+    .game-container .case-intro-card {
+      border-style: solid; border-width: calc(4 * var(--pixel-px)); border-color: transparent; border-radius: 0;
+      border-image: var(--marco-placa) 4 / calc(4 * var(--pixel-px)) stretch;
+      background-color: var(--pixel-penumbra); background-image: var(--trama-placa);
+      background-size: calc(8 * var(--pixel-px)); background-clip: padding-box;
+      box-shadow: none; color: var(--pixel-tinta); font-family: var(--pixel-f-texto);
+    }
+    .game-container .case-intro-card__header { background: transparent; border-bottom: 1px solid var(--pixel-separador); }
+    .game-container .case-intro-card .psy-eyebrow {
+      font-family: var(--pixel-f-nombre); font-weight: 700; font-size: calc(var(--pixel-tam) * .82);
+      letter-spacing: .06em; color: var(--luz);
+    }
+    .game-container .case-intro-card__header h2 { font-family: var(--pixel-f-texto); font-weight: 700; color: var(--pixel-tinta); }
+    .game-container .case-intro-card__chip {
+      border: 1px solid var(--pixel-separador); border-radius: 0; background: var(--pixel-penumbra-hundida);
+      color: var(--pixel-tinta); font-family: var(--pixel-f-nombre); font-size: var(--pixel-letra-chica); letter-spacing: .04em;
+    }
+    .game-container .case-intro-card__body p { color: var(--pixel-tinta); }
+    .game-container .case-intro-card__body p:last-child { color: var(--luz); }
+    .game-container .case-intro-card__body:focus-visible { outline: var(--pixel-px) solid var(--luz); }
+    .game-container .case-intro-card__actions {
+      flex-wrap: wrap; justify-content: flex-end; gap: calc(4 * var(--pixel-px));
+      border-top: 1px solid var(--pixel-separador); background: var(--pixel-penumbra-hundida);
+    }
+    .game-container .case-intro-card__actions > :first-child:not(.case-intro-card__buttons) { margin-right: auto; }
+    .game-container .case-intro-card__buttons { flex-wrap: wrap; justify-content: flex-end; flex-shrink: 1; min-width: 0; gap: calc(4 * var(--pixel-px)); }
+    /* Botones de las entradas como las placas-botón del juego; la acción principal, como la ficha encendida (crema). */
+    .game-container .case-intro-card__actions .ui-button,
+    .game-container .case-intro-card__actions .psy-button,
+    .game-container .intro-music-toggle {
+      --m: var(--marco-placa); --t: var(--trama-placa);
+      min-height: 44px; padding: 0 calc(6 * var(--pixel-px)) 1px;
+      border-style: solid; border-width: calc(4 * var(--pixel-px)); border-color: transparent; border-radius: 0;
+      border-image: var(--m) 4 / calc(4 * var(--pixel-px)) stretch;
+      background-color: var(--pixel-penumbra); background-image: var(--t);
+      background-size: calc(8 * var(--pixel-px)); background-clip: padding-box;
+      box-shadow: none; color: var(--pixel-tinta); font-family: var(--pixel-f-texto); font-weight: 600; text-decoration: none;
+      transition: none;
+    }
+    .game-container .case-intro-card__actions .ui-button--primary,
+    .game-container .case-intro-card__actions .psy-button--primary {
+      --m: var(--marco-ficha-elegida); --t: var(--trama-ficha-elegida);
+      background-color: var(--pixel-crema); color: var(--pixel-tinta-oscura); font-weight: 700;
+    }
+    .game-container .intro-music-toggle[aria-pressed="true"] { color: var(--pixel-tinta-suave); background-image: none; }
+    .game-container .case-intro-card__actions .ui-button:focus-visible,
+    .game-container .case-intro-card__actions .psy-button:focus-visible,
+    .game-container .intro-music-toggle:focus-visible {
+      outline: var(--pixel-px) solid var(--luz); outline-offset: calc(2 * var(--pixel-px));
+    }
+    .game-container .case-intro-card__actions .ui-button:active,
+    .game-container .case-intro-card__actions .psy-button:active,
+    .game-container .intro-music-toggle:active { transform: translateY(var(--pixel-px)); }
+    @media (hover: hover) and (pointer: fine) {
+      .game-container .case-intro-card__actions .ui-button:hover,
+      .game-container .case-intro-card__actions .psy-button:hover,
+      .game-container .intro-music-toggle:hover {
+        background-color: var(--pixel-penumbra); outline: var(--pixel-px) solid var(--luz); outline-offset: calc(2 * var(--pixel-px));
+      }
+      .game-container .case-intro-card__actions .ui-button--primary:hover,
+      .game-container .case-intro-card__actions .psy-button--primary:hover { background-color: var(--pixel-crema); }
+    }
     /* ETH-01: el almacenamiento falló y el consentimiento NO está registrado; el aviso previo sigue (sin mundo). */
     .consent-error {
       display: grid; grid-template-columns: auto minmax(0, 1fr); align-items: start; gap: 8px 10px;

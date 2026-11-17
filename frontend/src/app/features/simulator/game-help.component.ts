@@ -118,6 +118,40 @@ let nextHelpId = 0;
     }
     .help-btn--primary { border-color: #b69cff; background: #b69cff; color: #0b0f1a; }
     .help-btn:focus-visible { outline: 3px solid #c9b3ff; outline-offset: 3px; }
+    .help-btn:active { transform: translateY(1px); }
+
+    /* Dentro de la pantalla del juego (U1, crítica r2): la tarjeta de primera vez y la hoja de ayuda en las placas de pixel
+       del cuadro de diálogo, no en el vidrio morado; «Entendido» es la ficha encendida (crema) y el resto, placas-botón.
+       Fuera del juego (el vestíbulo) siguen las reglas de arriba. */
+    :host-context(.pixel-juego) .help-card,
+    :host-context(.pixel-juego) .help-screen {
+      border-style: solid; border-width: calc(4 * var(--pixel-px)); border-color: transparent; border-radius: 0;
+      border-image: var(--marco-placa) 4 / calc(4 * var(--pixel-px)) stretch;
+      background-color: var(--pixel-penumbra); background-image: var(--trama-placa);
+      background-size: calc(8 * var(--pixel-px)); background-clip: padding-box;
+      box-shadow: none; color: var(--pixel-tinta); font-family: var(--pixel-f-texto);
+    }
+    :host-context(.pixel-juego) .help-card__title,
+    :host-context(.pixel-juego) .help-screen__title { font-family: var(--pixel-f-nombre); font-weight: 700; color: var(--luz); }
+    :host-context(.pixel-juego) .help-screen__head { border-bottom-color: var(--pixel-separador); }
+    :host-context(.pixel-juego) .help-btn {
+      --m: var(--marco-placa); --t: var(--trama-placa);
+      padding: 0 calc(6 * var(--pixel-px)) 1px;
+      border-style: solid; border-width: calc(4 * var(--pixel-px)); border-color: transparent; border-radius: 0;
+      border-image: var(--m) 4 / calc(4 * var(--pixel-px)) stretch;
+      background-color: var(--pixel-penumbra); background-image: var(--t);
+      background-size: calc(8 * var(--pixel-px)); background-clip: padding-box;
+      color: var(--pixel-tinta); font-family: var(--pixel-f-texto); font-weight: 600;
+    }
+    :host-context(.pixel-juego) .help-btn--primary {
+      --m: var(--marco-ficha-elegida); --t: var(--trama-ficha-elegida);
+      background-color: var(--pixel-crema); color: var(--pixel-tinta-oscura); font-weight: 700;
+    }
+    :host-context(.pixel-juego) .help-btn:focus-visible { outline: var(--pixel-px) solid var(--luz); outline-offset: calc(2 * var(--pixel-px)); }
+    :host-context(.pixel-juego) .help-btn:active { transform: translateY(var(--pixel-px)); }
+    @media (hover: hover) and (pointer: fine) {
+      :host-context(.pixel-juego) .help-btn:hover { outline: var(--pixel-px) solid var(--luz); outline-offset: calc(2 * var(--pixel-px)); }
+    }
 
     .help-screen {
       display: flex;
