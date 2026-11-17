@@ -174,6 +174,13 @@ describe('SimulationPlayComponent: robustez del cliente (R1)', () => {
     expect(sim['chooseDecision'].mock.calls[1][5]).toBe(sim['chooseDecision'].mock.calls[0][5]);
   });
 
+  it('una conversación con una persona del escenario (npc-…) también encuadra a las dos personas (V6, camara-y-plano)', () => {
+    component.dialogue.set({ ...DIALOGO, key: 'npc-enfermera-urgencias' } as DialogueState);
+    expect(component.cameraMoment()).toEqual({ tipo: 'conversacion', clave: 'npc:enfermera-urgencias' });
+    component.dialogue.set(null);
+    expect(component.cameraMoment()).toEqual({ tipo: 'explorar' });
+  });
+
   describe('salida segura inmediata (REGLA-004)', () => {
     const conPosicionPendiente = () => {
       interno()['lastPosition'] = { x: 10, y: 20 };

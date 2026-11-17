@@ -233,7 +233,8 @@ for (const viewport of [KEYBOARD, TOUCH]) {
         // La espera fiable: el atributo del gesto (dura unos 400 ms; la franja, ~3 s). «Salida segura» se comprueba por su
         // rol mientras la reacción sigue en curso, y justo antes de pulsar se confirma que la franja sigue a la vista: la
         // pulsación no puede caer cuando la secuencia ya terminó sola.
-        await expect(host(page)).toHaveAttribute('data-reaction', 'se-acerca', { timeout: scaled(10_000) });
+        // V6: el atributo dura ~400 ms y con la máquina cargada la espera podía llegar tarde; el registro lo guarda.
+        await expect.poll(reactionsSeen, { message: 'el gesto de Laura empezó', timeout: scaled(10_000) }).toContain('se-acerca');
         await expect(exit, 'un único «Salida segura» durante la reacción').toHaveCount(1);
         await expect(exit).toBeVisible();
         await expect(exit).toBeEnabled();
