@@ -33,7 +33,8 @@ export type ColocacionCaso = Colocacion & {
  * Cómo se mueve una persona de la sala: se queda quieta (por defecto), camina por la sala o va y viene entre el lugar
  * donde la puso el docente y otro punto (`hasta`). Es el `metadata.movimiento` del juego, leído sin pérdida.
  */
-export type MovimientoPersonaje = 'quieto' | 'deambula' | { tipo: 'va-y-viene'; hasta: { x: number; y: number } };
+export type MovimientoPersonaje = 'quieto' | 'deambula' | { tipo: 'va-y-viene'; hasta: { x: number; y: number } }
+  | { tipo: 'ruta'; puntos: { x: number; y: number }[]; modo: 'circuito' | 'ida-y-vuelta'; pausaMs?: number };
 
 export type ColocacionPersonajeCaso = ColocacionPersonaje & {
   clave?: string;

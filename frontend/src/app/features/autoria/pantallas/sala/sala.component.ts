@@ -605,7 +605,7 @@ export class SalaComponent {
   protected readonly trazos = computed(() =>
     this.piezas().flatMap((p) => {
       const m = p.movimiento;
-      return p.tipo === 'personaje' && m !== undefined && typeof m !== 'string'
+      return p.tipo === 'personaje' && m !== undefined && typeof m !== 'string' && m.tipo === 'va-y-viene'
         ? [{ clave: p.clave, desde: { x: p.x, y: p.y }, hasta: m.hasta }] : [];
     }));
 
@@ -632,7 +632,7 @@ export class SalaComponent {
     const p = this.piezaElegida();
     const caso = this.store.caso();
     const s = this.sala();
-    if (!p || !caso || !s || typeof p.movimiento !== 'object' || this.punto()) return '';
+    if (!p || !caso || !s || (typeof p.movimiento !== 'object' || p.movimiento.tipo !== 'va-y-viene') || this.punto()) return '';
     const revisado = revisarPuntoDeIda(s, caso.catalogo, p, p.movimiento.hasta);
     return revisado.ok ? '' : `El punto ya no sirve: ${revisado.motivo}`;
   });
@@ -780,7 +780,7 @@ export class SalaComponent {
   // ── Cómo se mueve ──────────────────────────────────────────────────────────
 
   /** El tipo que muestran las opciones: el guardado o, si se eligió «Va y viene» y falta el punto, ese. */
-  protected tipoMostrado(p: Pieza): 'quieto' | 'deambula' | 'va-y-viene' {
+  protected tipoMostrado(p: Pieza): 'quieto' | 'deambula' | 'va-y-viene' | 'ruta' {
     return this.pendiente() === p.clave ? 'va-y-viene' : tipoDeMovimiento(p.movimiento ?? 'quieto');
   }
 
@@ -804,7 +804,7 @@ export class SalaComponent {
 
   /** Un punto para empezar: el que ya tenía o uno libre a un lado de la persona. */
   private puntoInicial(p: Pieza): Punto {
-    if (typeof p.movimiento === 'object') return { ...p.movimiento.hasta };
+    if (typeof p.movimiento === 'object' && p.movimiento.tipo === 'va-y-viene') return { ...p.movimiento.hasta };
     const caso = this.store.caso();
     const s = this.sala();
     const zona = zonaCaminable(s!.encuadre);

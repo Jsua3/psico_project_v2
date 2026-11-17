@@ -584,6 +584,16 @@ describe('solicitudDeSala: cómo se mueve una persona y a quién atender', () =>
     expect(solicitud.objects).toEqual(copiado.mundos[indice].objects);
   });
 
+  it('un movimiento mal formado se conserva sin tocar', () => {
+    const mundo: WorldDefinition = structuredClone(copiado.mundos[indice]);
+    const persona = mundo.objects.find((o) => o.type === 'PERSON')!;
+    const movimiento = { tipo: 'ruta', puntos: [{ x: 1, y: 2 }], modo: 'circuito' };
+    persona.metadata = { ...persona.metadata, movimiento };
+    const c = casoDesdeApi(copiado.editor, [copiado.mundos[0], mundo, ...copiado.mundos.slice(2)], universidad);
+    const { solicitud } = solicitudDeSala(c.salas[indice], contexto, mundo);
+    expect(personaGuardada(solicitud).metadata['movimiento']).toEqual(movimiento);
+  });
+
   it('un movimiento que el juego no entiende se conserva mientras el docente no lo cambie', () => {
     const mundo: WorldDefinition = structuredClone(copiado.mundos[indice]);
     const persona = mundo.objects.find((o) => o.type === 'PERSON')!;

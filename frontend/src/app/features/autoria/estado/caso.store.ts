@@ -771,11 +771,11 @@ export class CasoStore {
     const sala = caso?.salas.find((s) => s.id === salaId);
     const persona = sala?.personajes[indice];
     if (!caso || !sala || !persona) return { ok: false, motivo: 'Esa persona ya no está en la sala.' };
-    if (typeof movimiento !== 'string') {
+    if (typeof movimiento !== 'string' && movimiento.tipo === 'va-y-viene') {
       const revisado = revisarPuntoDeIda(sala, caso.catalogo, persona, movimiento.hasta);
       if (!revisado.ok) return revisado;
     }
-    const nuevo: MovimientoPersonaje = typeof movimiento === 'string' ? movimiento : { tipo: 'va-y-viene', hasta: { ...movimiento.hasta } };
+    const nuevo: MovimientoPersonaje = structuredClone(movimiento);
     this.cambiarSala(salaId, 'Cambiaste cómo se mueve una persona', (_caso, s) => {
       const p = s.personajes[indice];
       if (p) p.movimiento = structuredClone(nuevo);
