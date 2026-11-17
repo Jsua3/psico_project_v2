@@ -346,7 +346,10 @@ export function solicitudDeSala(sala: SalaCaso, contexto: ContextoSala, previo: 
 
   for (const o of sala.objetos) {
     if (o.clave && previos.has(o.clave)) {
-      existentes.set(o.clave, (base) => conMarca({ ...base, x: o.x, y: o.y }, o.marcaIa));
+      // La herramienta que entrega al revisarlo (la elige la docente); si no cambió, se deja la del servidor tal cual.
+      const antes = previos.get(o.clave)!.toolCode || null;
+      const herramienta = (o.toolCode ?? null) === antes ? {} : { toolCode: o.toolCode ?? null };
+      existentes.set(o.clave, (base) => conMarca({ ...base, x: o.x, y: o.y, ...herramienta }, o.marcaIa));
       continue;
     }
     const pieza = objetosCatalogo.get(o.ref);
@@ -359,6 +362,7 @@ export function solicitudDeSala(sala: SalaCaso, contexto: ContextoSala, previo: 
     }
     nuevos.push(objetoNuevo(claveDeNuevo(o.clave, o.ref, usadas), pieza.nombre, pieza.tipo, o.x, o.y, TAMANO_OBJETO, TAMANO_OBJETO, {
       interactionPrompt: pieza.textoInteraccion, interactionText: pieza.alRevisar ?? '', metadata, ...marcaNueva(o.marcaIa),
+      toolCode: o.toolCode ?? null,
     }));
   }
 
