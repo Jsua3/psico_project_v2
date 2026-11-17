@@ -33,14 +33,14 @@ export function revisarTrayecto(m: { puntos: unknown; modo: unknown; pausaMs?: u
     const punto = p as Record<string, unknown>;
     return !numero(punto['x']) || !numero(punto['y']);
   })) {
-    // BORRADOR: texto nuevo, pendiente de la aprobaci?n de Psicolog?a
-    errores.push('El trayecto necesita entre 2 y 8 puntos con coordenadas v?lidas.');
+    // BORRADOR: texto nuevo, pendiente de la aprobación de Psicología
+    errores.push('El trayecto necesita entre 2 y 8 puntos con coordenadas válidas.');
   }
-  // BORRADOR: texto nuevo, pendiente de la aprobaci?n de Psicolog?a
-  if (m.modo !== 'circuito' && m.modo !== 'ida-y-vuelta') errores.push('Elige un modo de recorrido v?lido.');
+  // BORRADOR: texto nuevo, pendiente de la aprobación de Psicología
+  if (m.modo !== 'circuito' && m.modo !== 'ida-y-vuelta') errores.push('Elige un modo de recorrido válido.');
   if ('pausaMs' in m && (typeof m.pausaMs !== 'number' || !Number.isInteger(m.pausaMs) || m.pausaMs < 0 || m.pausaMs > 10000)) {
-    // BORRADOR: texto nuevo, pendiente de la aprobaci?n de Psicolog?a
-    errores.push('La pausa debe ser un n?mero entero entre 0 y 10000 milisegundos.');
+    // BORRADOR: texto nuevo, pendiente de la aprobación de Psicología
+    errores.push('La pausa debe ser un número entero entre 0 y 10000 milisegundos.');
   }
   return errores;
 }
@@ -82,7 +82,7 @@ export function mismoMovimiento(a: MovimientoPersonaje, b: MovimientoPersonaje):
   return a.tipo === 'va-y-viene' && b.tipo === 'va-y-viene' && a.hasta.x === b.hasta.x && a.hasta.y === b.hasta.y;
 }
 
-/** El nombre t?cnico del movimiento. */
+/** El nombre técnico del movimiento. */
 export function tipoDeMovimiento(movimiento: MovimientoPersonaje): 'quieto' | 'deambula' | 'va-y-viene' | 'ruta' {
   return typeof movimiento === 'string' ? movimiento : movimiento.tipo;
 }

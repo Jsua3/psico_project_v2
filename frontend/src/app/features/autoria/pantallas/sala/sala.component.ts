@@ -16,6 +16,7 @@ import { actoresDeSala, salaParaLienzo } from './lienzo-de-sala';
 import { PiezasDelMuroComponent } from './piezas-del-muro.component';
 import { ManijaDeAnchoComponent } from './manija-de-ancho.component';
 import { PanelDeEstructuraComponent } from './panel-de-estructura.component';
+import { TrayectoDePersonaComponent } from './trayecto-de-persona.component';
 import { rutaArte, rutaRetrato, rutaSpriteKit } from '../../modelo/biblioteca.service';
 import type { MovimientoPersonaje, SalaCaso } from '../../modelo/caso';
 import { EXPRESIONES, type Expresion, type Mirando, type Punto } from '../../modelo/escenario';
@@ -56,7 +57,8 @@ const DISTANCIAS_INICIALES = [96, -96, 160, -160, 48, -48];
  */
 @Component({
   selector: 'app-sala',
-  imports: [RouterLink, LienzoDeSalaComponent, PiezasDelMuroComponent, ManijaDeAnchoComponent, PanelDeEstructuraComponent],
+  imports: [RouterLink, LienzoDeSalaComponent, PiezasDelMuroComponent, ManijaDeAnchoComponent, PanelDeEstructuraComponent,
+    TrayectoDePersonaComponent],
   changeDetection: ChangeDetectionStrategy.OnPush,
   host: { '(document:keydown.escape)': 'atencion.set(null)' },
   template: `
@@ -148,10 +150,19 @@ const DISTANCIAS_INICIALES = [96, -96, 160, -160, 48, -48];
                   <img class="pixel fondo" [src]="arte(s.fondo)" alt="" [width]="ancho" [height]="alto" draggable="false" />
                 }
                 <!-- Hasta dónde va y viene cada persona: una línea discreta y una marca en forma de rombo (solo adorno; el dato está en los detalles). -->
-                <svg class="trazos" [attr.viewBox]="'0 0 ' + ancho + ' ' + alto" aria-hidden="true">
+                <svg class="trazos" [style.width.px]="s.estructura?.ancho ?? ancho"
+                     [attr.viewBox]="'0 0 ' + (s.estructura?.ancho ?? ancho) + ' ' + alto" aria-hidden="true">
                   @for (t of trazos(); track t.clave) {
                     <line class="ida" [attr.data-ida]="t.clave" [attr.x1]="t.desde.x" [attr.y1]="t.desde.y" [attr.x2]="t.hasta.x" [attr.y2]="t.hasta.y"></line>
                     <path class="hasta" [attr.data-hasta]="t.clave" [attr.d]="rombo(t.hasta)"></path>
+                  }
+                  @for (t of trayectos(); track t.clave) {
+                    <polyline class="ida" fill="none" [attr.points]="t.linea"></polyline>
+                    <circle class="hasta" [attr.cx]="t.inicio.x" [attr.cy]="t.inicio.y" r="7"></circle>
+                    @for (p of t.puntos; track $index) {
+                      <circle class="hasta" [attr.cx]="p.x" [attr.cy]="p.y" r="12"></circle>
+                      <text [attr.x]="p.x" [attr.y]="p.y + 5" text-anchor="middle">{{ $index + 1 }}</text>
+                    }
                   }
                   @if (lineaDelBorrador(); as l) {
                     <line class="ida borrador" data-borrador [attr.x1]="l.desde.x" [attr.y1]="l.desde.y" [attr.x2]="l.hasta.x" [attr.y2]="l.hasta.y"></line>
@@ -346,6 +357,10 @@ const DISTANCIAS_INICIALES = [96, -96, 160, -160, 48, -48];
                       }
                     </div>
                   }
+                  @if (p.movimiento && typeof p.movimiento === 'object' && p.movimiento.tipo === 'ruta') {
+                    <app-trayecto-de-persona [ruta]="p.movimiento" [seleccionado]="puntoDeRuta()"
+                      (elegir)="puntoDeRuta.set($event)" (cambio)="cambiarRuta(p, $event)" />
+                  }
                 </div>
 
                 <div class="bloque" data-accion="persona-a-atender">
@@ -512,10 +527,12 @@ export class SalaComponent {
     { valor: 'derecha', nombre: 'Derecha' },
   ];
   protected readonly textoPersonaAAtender = TEXTO_PERSONA_A_ATENDER;
-  protected readonly movimientos: { valor: 'quieto' | 'deambula' | 'va-y-viene'; nombre: string }[] = [
+  protected readonly movimientos: { valor: 'quieto' | 'deambula' | 'va-y-viene' | 'ruta'; nombre: string }[] = [
     { valor: 'quieto', nombre: NOMBRE_MOVIMIENTO['quieto'] },
     { valor: 'deambula', nombre: NOMBRE_MOVIMIENTO['deambula'] },
     { valor: 'va-y-viene', nombre: NOMBRE_MOVIMIENTO['va-y-viene'] },
+    // BORRADOR: texto nuevo, pendiente de la aprobación de Psicología
+    { valor: 'ruta', nombre: 'Recorre un trayecto' },
   ];
   protected readonly pestanas: { tipo: TipoElemento; nombre: string }[] = [
     { tipo: 'mueble', nombre: 'Muebles' },
@@ -534,6 +551,7 @@ export class SalaComponent {
   protected readonly pendiente = signal<string | null>(null);
   /** El punto que se está eligiendo (aún sin fijar); `null` si no se está eligiendo ninguno. */
   protected readonly punto = signal<Punto | null>(null);
+  protected readonly puntoDeRuta = signal<number | null>(null);
   protected readonly avisoPersona = signal('');
   protected readonly escala = signal(1);
   private readonly arrastre = signal<{ clave: string; x: number; y: number; movio: boolean } | null>(null);
@@ -608,6 +626,14 @@ export class SalaComponent {
       return p.tipo === 'personaje' && m !== undefined && typeof m !== 'string' && m.tipo === 'va-y-viene'
         ? [{ clave: p.clave, desde: { x: p.x, y: p.y }, hasta: m.hasta }] : [];
     }));
+
+  protected readonly trayectos = computed(() => this.piezas().flatMap(p => {
+    const m = p.movimiento;
+    if (p.tipo !== 'personaje' || !m || typeof m === 'string' || m.tipo !== 'ruta') return [];
+    const inicio = { x: p.x, y: p.y };
+    const puntos = [inicio, ...m.puntos, ...(m.modo === 'circuito' ? [inicio] : [])];
+    return [{ clave: p.clave, inicio, puntos: m.puntos, linea: puntos.map(q => `${q.x},${q.y}`).join(' ') }];
+  }));
 
   /** La línea hasta el punto que se está eligiendo. */
   protected readonly lineaDelBorrador = computed(() => {
@@ -712,6 +738,7 @@ export class SalaComponent {
   }
 
   protected elegir(clave: string): void {
+    if (clave !== this.elegida()) this.puntoDeRuta.set(null);
     this.elegida.set(clave);
     const p = this.piezas().find((x) => x.clave === clave);
     if (p) this.anuncio.set(`Elegido: ${p.nombre}.`);
@@ -788,8 +815,16 @@ export class SalaComponent {
     return typeof p.movimiento === 'object' ? 'Va y viene hasta la marca de la sala.' : 'Todavía no elegiste el punto.';
   }
 
-  protected elegirMovimiento(p: Pieza, tipo: 'quieto' | 'deambula' | 'va-y-viene'): void {
+  protected elegirMovimiento(p: Pieza, tipo: 'quieto' | 'deambula' | 'va-y-viene' | 'ruta'): void {
     this.cancelarPunto(false);
+    this.puntoDeRuta.set(null);
+    if (tipo === 'ruta') {
+      if (tipoDeMovimiento(p.movimiento ?? 'quieto') !== 'ruta') {
+        const punto = this.puntoInicial(p);
+        this.store.fijarMovimiento(this.salaId(), p.indice, { tipo: 'ruta', puntos: [punto, { ...punto }], modo: 'ida-y-vuelta' });
+      }
+      return;
+    }
     if (tipo === 'va-y-viene') {
       if (tipoDeMovimiento(p.movimiento ?? 'quieto') !== 'va-y-viene') {
         this.pendiente.set(p.clave);
@@ -800,6 +835,11 @@ export class SalaComponent {
     this.pendiente.set(null);
     this.store.fijarMovimiento(this.salaId(), p.indice, tipo);
     this.anuncio.set(`${p.nombre}: ${NOMBRE_MOVIMIENTO[tipo].toLowerCase()}.`);
+  }
+
+  protected cambiarRuta(p: Pieza, ruta: Extract<MovimientoPersonaje, { tipo: 'ruta' }>): void {
+    this.store.fijarMovimiento(this.salaId(), p.indice, ruta);
+    if ((this.puntoDeRuta() ?? -1) >= ruta.puntos.length) this.puntoDeRuta.set(null);
   }
 
   /** Un punto para empezar: el que ya tenía o uno libre a un lado de la persona. */
@@ -850,6 +890,14 @@ export class SalaComponent {
   /** Un clic en la sala, mientras se elige el punto, lo pone ahí (dentro de la zona por donde se camina). */
   protected clicEnSala(evento: MouseEvent): void {
     const s = this.sala();
+    const indice = this.puntoDeRuta(), p = this.piezaElegida();
+    if (s && indice !== null && p && typeof p.movimiento === 'object' && p.movimiento.tipo === 'ruta') {
+      if ((evento.target as HTMLElement | null)?.closest('.pieza, .punto-ida')) return;
+      const donde = this.aSala(evento);
+      const punto = limitarAZona(zonaCaminable(s.encuadre, s.estructura?.ancho), donde.x, donde.y);
+      this.cambiarRuta(p, { ...p.movimiento, puntos: p.movimiento.puntos.map((v, i) => i === indice ? punto : v) });
+      return;
+    }
     if (!this.punto() || !s) return;
     if ((evento.target as HTMLElement | null)?.closest('.pieza, .punto-ida')) return;
     const donde = this.aSala(evento);

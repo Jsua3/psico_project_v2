@@ -46,6 +46,28 @@ const tecla = (el: Element, key: string, extra: KeyboardEventInit = {}) =>
   el.dispatchEvent(new KeyboardEvent('keydown', { key, bubbles: true, ...extra }));
 
 describe('SalaComponent', () => {
+  it('agregar, quitar y reordenar puntos con teclado se deshace', async () => {
+    const { fixture, store, raiz } = await montar();
+    raiz.querySelector<HTMLButtonElement>('[data-elemento="personaje-0"]')!.click();
+    fixture.detectChanges();
+    [...raiz.querySelectorAll('button')].find(b => b.textContent?.trim() === 'Recorre un trayecto')!.click();
+    fixture.detectChanges();
+    const movimiento = () => store.caso()!.salas[0].personajes[0].movimiento as
+      { tipo: 'ruta'; puntos: { x: number; y: number }[] };
+    const inicial = structuredClone(movimiento().puntos);
+    const punto = raiz.querySelector<HTMLElement>('app-trayecto-de-persona li button')!;
+    tecla(punto, 'ArrowRight'); fixture.detectChanges();
+    expect(movimiento().puntos[0].x).toBe(inicial[0].x + 8);
+    raiz.querySelector<HTMLButtonElement>('[data-agregar]')!.click(); fixture.detectChanges();
+    expect(movimiento().puntos.length).toBe(3);
+    raiz.querySelector<HTMLButtonElement>('[data-subir="1"]')!.click(); fixture.detectChanges();
+    raiz.querySelector<HTMLButtonElement>('[data-quitar="1"]')!.click(); fixture.detectChanges();
+    expect(movimiento().puntos.length).toBe(2);
+    for (let i = 0; i < 4; i++) store.deshacer();
+    fixture.detectChanges();
+    expect(movimiento().puntos).toEqual(inicial);
+  });
+
   it('agregar una ventana la deja elegida y enfocada en el primer hueco del fondo', async () => {
     const { fixture, store, raiz } = await montar();
     const catalogo = TestBed.inject(CatalogoDePiezas);
@@ -337,12 +359,12 @@ describe('SalaComponent', () => {
   };
 
   describe('«Cómo se mueve»', () => {
-    it('una persona elegida ofrece tres opciones en palabras del docente y por defecto se queda quieta', async () => {
+    it('una persona elegida ofrece cuatro opciones en palabras del docente y por defecto se queda quieta', async () => {
       const { fixture, raiz } = await montar();
       await elegirPersona(fixture, raiz);
       const opciones = [...raiz.querySelectorAll<HTMLElement>('[role="radiogroup"][aria-labelledby="pmueve"] [role="radio"]')];
-      expect(opciones.map((o) => o.textContent?.trim())).toEqual(['Se queda quieto', 'Camina por la sala', 'Va y viene']);
-      expect(opciones.map((o) => o.getAttribute('aria-checked'))).toEqual(['true', 'false', 'false']);
+      expect(opciones.map((o) => o.textContent?.trim())).toEqual(['Se queda quieto', 'Camina por la sala', 'Va y viene', 'Recorre un trayecto']);
+      expect(opciones.map((o) => o.getAttribute('aria-checked'))).toEqual(['true', 'false', 'false', 'false']);
       expect(raiz.querySelector('#pmueve')!.textContent).toContain('Cómo se mueve');
     });
 
