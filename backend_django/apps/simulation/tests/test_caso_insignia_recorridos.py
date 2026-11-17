@@ -177,10 +177,12 @@ def test_los_avisos_de_publicacion_son_los_explicados(version):
 
     - la sala de escucha se alcanza por una puerta, no por una decisión (igual que la recepción del caso original);
     - con 16 decisiones hay demasiados caminos para enumerarlos: que los 7 finales se alcanzan lo prueban los recorridos;
-    - ninguna respuesta declara competencias todavía, como en el caso original.
+    - ninguna respuesta declara competencias todavía, como en el caso original;
+    - cuatro textos pasan su largo de lectura (V5): la narración del capítulo 1 y tres documentos que se leen en voz alta
+      (``LARGOS_DE_LECTURA_CONOCIDOS`` en ``test_caso_insignia_documento``); recortarlos es decisión de Psicología.
     """
     sin_prefijo = sorted(codigo.rsplit(".", 1)[-1] for codigo in version.avisos_de_publicacion)
-    assert sin_prefijo == ["UNREACHABLE_NODE", "competency-without-evidence", "ending-reachability-skipped"]
+    assert sin_prefijo == ["READING_LENGTH", "UNREACHABLE_NODE", "competency-without-evidence", "ending-reachability-skipped"]
 
 
 # ─── Los siete finales ────────────────────────────────────────────────────────
