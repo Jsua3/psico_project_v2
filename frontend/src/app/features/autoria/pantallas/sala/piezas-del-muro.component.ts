@@ -4,8 +4,8 @@ import type { FichaDePieza } from '../../../simulator/sala/catalogo';
 import type { PlanDeSala } from '../../../simulator/sala/composicion';
 import { CatalogoDePiezas } from '../../estado/catalogo-de-piezas';
 import { CasoStore } from '../../estado/caso.store';
-import { cajaDePieza, pasoDeTeclado, proyectarAlMuro, proyectarAlSuelo } from '../../modelo/arrastre-en-muro';
-import type { LugarEnMuro, LugarEnSuelo } from '../../modelo/arrastre-en-muro';
+import { cajaDePieza, pasoDeTeclado, proyectarAlMuro, proyectarAlSuelo, zonasDeToque } from '../../modelo/arrastre-en-muro';
+import type { Caja, LugarEnMuro, LugarEnSuelo } from '../../modelo/arrastre-en-muro';
 import type { SalaCaso } from '../../modelo/caso';
 import { MUROS, ancla, zonaCaminable } from '../../modelo/geometria';
 import type { Muro } from '../../modelo/geometria';
@@ -27,7 +27,7 @@ interface Pieza {
   host: { tabindex: '-1', '(keydown)': 'teclaGeneral($event)' },
   template: `
     @for (p of piezas(); track p.tipo + ':' + p.id) {
-      @let limites = caja(p);
+      @let limites = zona(p);
       <button type="button" class="pieza-muro" [id]="idHtml(p)" [attr.data-pieza]="p.id"
         [attr.data-muro]="muro(p)" [attr.data-pos]="pos(p)" [attr.data-incumple]="reglas(p) || null"
         [attr.aria-label]="etiqueta(p)" [attr.aria-describedby]="descripcion(p) || null"
@@ -123,6 +123,13 @@ export class PiezasDelMuroComponent {
     return cajaDePieza(p.id, vigente ? this.plan() : null, lugar, p.ficha, this.sala().encuadre, this.ancho());
   }
   private ancho(): number { return this.sala().estructura?.ancho ?? 960; }
+  /** Con el dedo (`pointer: coarse`) cada pieza se toca en una zona de 44 px en pantalla como mínimo (WCAG 2.5.8 táctil). */
+  private readonly dedo = typeof matchMedia === 'function' && matchMedia('(pointer: coarse)').matches;
+  private readonly zonas = computed(() => this.dedo
+    ? zonasDeToque(new Map(this.piezas().map(p => [this.idHtml(p), this.caja(p)])), 44 / (this.escala() || 1))
+    : null);
+  /** El botón transparente de la pieza: su caja con ratón; con el dedo, su zona de toque (el dibujo no cambia). */
+  protected zona(p: Pieza): Caja { return this.zonas()?.get(this.idHtml(p)) ?? this.caja(p); }
   seleccionar(id: string): void {
     this.seleccion.set(id); this.elegida.emit(id);
     setTimeout(() => this.raiz.nativeElement.ownerDocument.getElementById(id)?.focus());
