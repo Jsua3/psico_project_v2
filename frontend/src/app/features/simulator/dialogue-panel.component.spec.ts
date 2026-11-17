@@ -1688,3 +1688,16 @@ describe('DialoguePanelComponent - alto acotado sobre el mundo', () => {
     expect(source).toMatch(new RegExp(`${banda.replace(/[.()]/g, '\\$&')} \\.panel-head \\{[^}]*grid-column: 2;[^}]*position: static;`));
   });
 });
+
+describe('DialoguePanelComponent - páginas solo cuando no cabe (V6, living-world.e2e.ts:101)', () => {
+  it('la sonda mide el texto sin el alto mínimo del párrafo y la regla es paginarSiNoCabe', () => {
+    // Con el min-height de 4,35em en la sonda ninguna página cabía y cada frase salía sola (tres páginas para 80 caracteres).
+    expect(source).toMatch(/sonda\.style\.cssText = `[^`]*min-height:0;/);
+    expect(source).toContain('paginarSiNoCabe(text, parrafo.offsetHeight - culpa, renglon,');
+  });
+
+  it('solo resta lo que desborda por el texto: mide la banda con el párrafo plegado', () => {
+    expect(source).toContain("parrafo.style.cssText += ';height:0;min-height:0;overflow:hidden';");
+    expect(source).toMatch(/const culpa = sobra - desborde\(\);[\s\S]{0,80}if \(culpa <= 1\) return;/);
+  });
+});

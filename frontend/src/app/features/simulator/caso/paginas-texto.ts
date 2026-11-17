@@ -30,3 +30,18 @@ export function partirEnPaginas(texto: string, cabe: (pagina: string) => boolean
   if (actual.trim()) paginas.push(actual.trim());
   return paginas.length > 0 ? paginas : [texto];
 }
+
+/**
+ * Decide las páginas de un parlamento contra el alto que el párrafo tiene de verdad en su placa (V6, CI de
+ * `living-world.e2e.ts:101`: una línea de 80 caracteres que cabía de sobra salía en tres páginas de una frase).
+ * - Nunca parte un texto que cabe entero: si `alto(texto)` no pasa de `disponible`, una sola página.
+ * - Solo si de verdad no cabe, pagina; cada página se llena con tantas frases como quepan antes de abrir la siguiente.
+ *   Con páginas, deja un renglón de margen (el pie gana «N de M» y el redondeo al 125 % estiraba la primera página),
+ *   con un mínimo de dos renglones por página.
+ * `alto` mide el texto en la placa real, sin el alto mínimo que reserva el párrafo (ese mínimo no es texto).
+ */
+export function paginarSiNoCabe(texto: string, disponible: number, renglon: number, alto: (pagina: string) => number): string[] {
+  if (alto(texto) <= disponible) return [texto];
+  const tope = Math.max(disponible - renglon, 2 * renglon);
+  return partirEnPaginas(texto, pagina => alto(pagina) <= tope);
+}
