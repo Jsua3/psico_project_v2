@@ -185,6 +185,8 @@ interface WorldCallbacks {
   onArtLoading?: () => void;
   /** Fin de la precarga; lista las claves esenciales que fallaron (vacía si todo cargó). */
   onLoadComplete: (criticalFailures: string[]) => void;
+  /** Recetas de las personas de la sala inicial: solo esas se precargan; el resto se trae en segundo plano (modo aula). */
+  recetasIniciales?: () => readonly string[] | null;
   reduceMotion:  boolean;
   sfxMuted:       boolean;
   /** Manifiesto del arte de la biblioteca (null si no cargó: los objetos quedan en su reposo, sin animación de cercanía). */
@@ -470,8 +472,12 @@ export class DataDrivenWorldScene extends Phaser.Scene {
       this.playerVisual = resolveCharacter(kit, playerCharacterRef(stored));
       queueCharacterSheets(this, this.playerVisual);
       // NPC, personas, guía y figurantes: todas las recetas que no son jugables (unos 14 personajes).
+      // Antes de caminar solo las de la sala inicial; las demás, en segundo plano al terminar (ver create()).
+      const iniciales = this.callbacks.recetasIniciales?.() ?? null;
       for (const [recipeId, recipe] of Object.entries(kit.recipes)) {
-        if (recipe.kind !== 'jugable') queueCharacterSheets(this, resolveCharacter(kit, { kind: 'receta', recipeId }));
+        if (recipe.kind === 'jugable') continue;
+        if (iniciales && !iniciales.includes(recipeId)) { this.recetasDiferidas.push(recipeId); continue; }
+        queueCharacterSheets(this, resolveCharacter(kit, { kind: 'receta', recipeId }));
       }
     }
 
@@ -522,6 +528,17 @@ export class DataDrivenWorldScene extends Phaser.Scene {
       this.assetsLoaded = true;
       this.callbacks.onLoadComplete(criticalFailures);
     });
+  }
+
+  /** Recetas que no están en la sala inicial: se cargan en segundo plano tras la carga inicial. */
+  private recetasDiferidas: string[] = [];
+
+  /** Trae en segundo plano las hojas de las personas que no están en la sala inicial (listas antes de llegar a una puerta). */
+  cargarRecetasDiferidas(): void {
+    const kit = this.callbacks.kit;
+    if (!kit || !this.recetasDiferidas.length) return;
+    for (const recipeId of this.recetasDiferidas.splice(0)) queueCharacterSheets(this, resolveCharacter(kit, { kind: 'receta', recipeId }));
+    this.load.start();
   }
 
   create() {
@@ -4220,6 +4237,8 @@ export class GameWorldComponent implements OnChanges, OnDestroy {
           this.writePlayerPosition(this.scene?.playerPosition() ?? null);
           this.renderReady.set(true);
           this.worldReady.emit();
+          // Con la sala ya armada, el resto de los personajes llega en segundo plano (no compite con la sala inicial).
+          this.scene?.cargarRecetasDiferidas();
         }),
         onSalaIncompleta: () => this.zone.run(() => this.salaIncompleta.emit()),
         onAvisoDePuerta: aviso => this.zone.run(() => this.avisoDePuerta.set(aviso)),
@@ -4246,6 +4265,13 @@ export class GameWorldComponent implements OnChanges, OnDestroy {
           if (!this.renderReady()) this.armBootWatchdog();
         }),
         onArtLoading: () => this.onArtLoading(),
+        recetasIniciales: () => {
+          const objetos = this.world()?.objects;
+          if (!objetos) return null;
+          const recetas = objetos.filter(o => o.type === 'PERSON').map(o => o.metadata?.['recipeId'])
+            .filter((r): r is string => typeof r === 'string' && r.length > 0);
+          return recetas.length ? recetas : null;
+        },
         onLoadComplete: failures => this.zone.run(() => {
           this.loadPercent.set(100);
           this.assetsReady.set(true);
