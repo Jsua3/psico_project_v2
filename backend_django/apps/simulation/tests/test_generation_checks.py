@@ -317,7 +317,7 @@ def test_cuatro_respuestas_pasan_y_dos_no(aula, sk, ctx):
     (lambda s: s["opciones"][3].update(razonProhibicion=""), "Una respuesta contraindicada necesita su razón."),
     (lambda s: s["opciones"][0].update(razonProhibicion="Una razón."), "Solo una respuesta contraindicada lleva razón de prohibición."),
     (lambda s: s["opciones"][1].update(clave=s["opciones"][0]["clave"]), "La clave de una respuesta no es válida o está repetida."),
-    (lambda s: s["opciones"][1].update(clave="Con Espacios"), "La clave de una respuesta no es válida o está repetida."),
+    (lambda s: s["opciones"][1].update(clave="con$signo"), "La clave de una respuesta no es válida o está repetida."),
     (lambda s: s["opciones"][0].update(retroalimentacion=""), "El texto «retroalimentación» no puede quedar vacío."),
     (lambda s: s["opciones"][0].update(efectoVinculo=2), "El efecto de una respuesta sobre la persona debe ser -1, 0 o 1."),
     (lambda s: s["opciones"][0].update(efectoActivacion=True), "El efecto de una respuesta sobre la persona debe ser -1, 0 o 1."),
@@ -384,6 +384,53 @@ def test_lo_revictimizante_solo_pasa_en_una_contraindicada_con_su_razon(aula, sk
     aula["opciones"][2]["texto"] = "Respuesta normal."
     aula["lineas"][0]["texto"] = frase  # una línea de diálogo: tampoco
     assert assistant_prompts.REVICTIMIZING_REASON in motivos_de(lambda: checks.validate_scene(aula, sk, "aula", ctx)).motivos
+
+
+# --- Corrida real con NVIDIA (2026-11-16): encuadre y claves de respuesta ------------------------------------------------
+
+NEGACION = "Evitar mediar con el agresor y no culpar a la persona."  # nombra lo que no se hace: un marcador sin negación
+
+
+def test_el_encuadre_del_esqueleto_puede_nombrar_lo_que_no_se_hace(esqueleto, ctx):
+    esqueleto["contexto"] = f"Una mujer pide ayuda en casa. {NEGACION}"
+    esqueleto["objetivosAprendizaje"][0] = NEGACION
+    esqueleto["escenas"][0]["objetivo"] = "Escuchar sin mediar con el agresor."
+    esqueleto["finales"][0]["mensaje"] = "Propusiste mediar con el agresor y el vínculo se rompió."
+    assert checks.validate_skeleton(esqueleto, ctx)
+
+
+def test_el_encuadre_sigue_rechazando_la_violencia_grafica(esqueleto, ctx):
+    esqueleto["contexto"] = "Describe la golpiza con detalle para que se entienda."
+    assert assistant_prompts.GRAPHIC_REASON in motivos_de(lambda: checks.validate_skeleton(esqueleto, ctx)).motivos
+
+
+def test_narracion_retroalimentacion_y_pistas_pueden_nombrar_lo_que_no_se_hace(aula, sk, ctx):
+    aula["narracion"] = f"{aula['narracion']} {NEGACION}"
+    aula["opciones"][0]["retroalimentacion"] = "No propusiste mediar con el agresor: eso protege el vínculo."
+    aula["pistas"][0] = "Evita mediar con el agresor."
+    assert checks.validate_scene(aula, sk, "aula", ctx)
+
+
+@pytest.mark.parametrize("escrita, normalizada", [
+    ("ofrecer_agua_derechos", "ofrecer-agua-derechos"),
+    ("Acompañar en Silencio", "acompanar-en-silencio"),
+    ("__presionar__denuncia.", "presionar-denuncia"),
+])
+def test_la_clave_de_una_respuesta_se_normaliza(escrita, normalizada, aula, sk, ctx):
+    aula["opciones"][0]["clave"] = escrita
+    escena = checks.validate_scene(aula, sk, "aula", ctx)
+    assert escena.opciones[0]["clave"] == normalizada
+
+
+def test_dos_claves_de_respuesta_que_chocan_al_normalizar_se_rechazan(aula, sk, ctx):
+    aula["opciones"][0]["clave"] = "pedir_ayuda"
+    aula["opciones"][1]["clave"] = "pedir-ayuda"
+    assert checks.OPTION_KEY in motivos_de(lambda: checks.validate_scene(aula, sk, "aula", ctx)).motivos
+
+
+def test_una_clave_de_respuesta_que_sigue_invalida_se_rechaza(aula, sk, ctx):
+    aula["opciones"][0]["clave"] = "pedir$ayuda"
+    assert checks.OPTION_KEY in motivos_de(lambda: checks.validate_scene(aula, sk, "aula", ctx)).motivos
 
 
 # --- Todos los motivos, motivos fijos, ida y vuelta -----------------------------------------------------------------

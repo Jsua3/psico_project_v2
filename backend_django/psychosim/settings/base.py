@@ -486,6 +486,7 @@ AI_ASSISTANT_MODEL = os.environ.get("AI_ASSISTANT_MODEL", "gpt-4o-mini").strip()
 # estudiante (AI_ASSISTANT_*). Ids de modelo verificados el 2026-10-26 con la skill claude-api.
 AI_AUTHORING_ENABLED = _env_flag("AI_AUTHORING_ENABLED")
 AI_AUTHORING_PROVIDER = os.environ.get("AI_AUTHORING_PROVIDER", "anthropic").strip()
+AI_AUTHORING_BASE_URL = os.environ.get("AI_AUTHORING_BASE_URL", "https://integrate.api.nvidia.com/v1").strip()
 AI_AUTHORING_API_KEY = os.environ.get("AI_AUTHORING_API_KEY", "").strip()
 AI_AUTHORING_MODEL_FAST = os.environ.get("AI_AUTHORING_MODEL_FAST", "claude-haiku-5-5").strip()
 AI_AUTHORING_MODEL_CAPABLE = os.environ.get("AI_AUTHORING_MODEL_CAPABLE", "claude-opus-5-5").strip()

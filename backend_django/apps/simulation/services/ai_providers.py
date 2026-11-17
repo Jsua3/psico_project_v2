@@ -223,6 +223,127 @@ class AnthropicProvider(AIProvider):
         return message.replace(self.api_key, "***") if self.api_key else message
 
 
+class OpenAICompatibleProvider(AIProvider):
+    """Chat Completions de una API compatible con OpenAI (por defecto, NVIDIA) para el asistente y la generación.
+
+    Estos modelos razonan con tokens que cuentan como salida (``reasoning_content``): con un tope corto el contenido
+    llega vacío. Por eso ``complete_structured`` (guía, propuestas y generación) nunca pide menos de
+    ``MIN_OUTPUT_TOKENS``; el proveedor de Anthropic no cambia.
+    """
+
+    #: Piso de tokens de salida (razonamiento más respuesta).
+    MIN_OUTPUT_TOKENS = 4096
+
+    @staticmethod
+    def _url() -> str:
+        from django.conf import settings
+
+        base = (getattr(settings, "AI_AUTHORING_BASE_URL", "") or "https://integrate.api.nvidia.com/v1").rstrip("/")
+        return base if base.endswith("/chat/completions") else base + "/chat/completions"
+
+    def _sin_clave(self, texto: str) -> str:
+        return texto.replace(self.api_key, "***") if self.api_key else texto
+
+    def _llamar(self, payload: dict, timeout: float) -> dict:
+        try:
+            data = post_json(self._url(), payload, {"Authorization": f"Bearer {self.api_key}"}, timeout=timeout)
+        except (RuntimeError, OSError, http.client.HTTPException) as exc:
+            if _es_timeout(exc):
+                raise ProviderError("timeout", "el proveedor no respondió a tiempo") from None
+            raise ProviderError("http", self._sin_clave(str(exc))) from None
+        except ValueError:
+            raise ProviderError("malformed", "el cuerpo de la respuesta no es JSON") from None
+        if not isinstance(data, dict):
+            raise ProviderError("malformed", "el cuerpo de la respuesta no es un objeto JSON")
+        return data
+
+    @staticmethod
+    def _contenido(data: dict) -> str:
+        choices = data.get("choices")
+        if not isinstance(choices, list) or not choices or not isinstance(choices[0], dict):
+            raise ProviderError("malformed", "la respuesta no contiene una opción")
+        choice = choices[0]
+        message = choice.get("message")
+        if not isinstance(message, dict):
+            raise ProviderError("malformed", "la respuesta no contiene un mensaje")
+        if message.get("refusal") or choice.get("finish_reason") in {"content_filter", "refusal"}:
+            raise ProviderError("refusal", "el modelo se negó a responder")
+        if choice.get("finish_reason") != "stop":
+            raise ProviderError("malformed", "la respuesta no terminó correctamente")
+        content = message.get("content")
+        if not isinstance(content, str) or not content.strip():
+            raise ProviderError("malformed", "el contenido de la respuesta está vacío")
+        return content.strip()
+
+    def complete(self, system: str, question: str) -> str:
+        # ``complete`` (asistente del estudiante) respeta MAX_TOKENS como todo proveedor: lo fija el contrato común.
+        payload = {"model": self.model, "max_tokens": MAX_TOKENS, "messages": [
+            {"role": "system", "content": system}, {"role": "user", "content": question},
+        ]}
+        try:
+            data = post_json(self._url(), payload, {"Authorization": f"Bearer {self.api_key}"})
+        except RuntimeError as exc:
+            raise RuntimeError(self._sin_clave(str(exc))) from None
+        message = ((data.get("choices") or [{}])[0] or {}).get("message") or {}
+        return (message.get("content") or "").strip()
+
+    def complete_structured(self, system: str, messages: list[dict], schema: dict, model: str,
+                            max_tokens: int = 4000, timeout: float = AUTHORING_TIMEOUT_SECONDS, *,
+                            effort: str | None = None, fallbacks: str | None = None,
+                            meta: dict | None = None) -> dict:
+        from jsonschema import ValidationError, validate
+
+        # Anthropic acepta bloques con cache_control; Chat Completions recibe el mismo texto sin esa directiva.
+        convertidos = []
+        for message in messages:
+            content = message.get("content")
+            if isinstance(content, list):
+                content = "\n".join(b.get("text", "") for b in content if isinstance(b, dict) and b.get("type") == "text")
+            convertidos.append({"role": message["role"], "content": content})
+        instrucciones = system + "\nDevuelve un objeto JSON que cumpla este esquema: " + json.dumps(schema, ensure_ascii=False)
+        payload = {"model": model, "max_tokens": max(int(max_tokens), self.MIN_OUTPUT_TOKENS),
+                   "messages": [{"role": "system", "content": instrucciones}, *convertidos]}
+        formato = {"type": "json_schema", "json_schema": {"name": "respuesta", "schema": schema, "strict": True}}
+        try:
+            data = self._llamar({**payload, "response_format": formato}, timeout)
+        except ProviderError as exc:
+            if exc.kind != "http" or not str(exc).startswith("provider returned 400"):
+                raise
+            # La API no admite json_schema: se repite con json_object (el esquema ya va en las instrucciones).
+            data = self._llamar({**payload, "response_format": {"type": "json_object"}}, timeout)
+        if meta is not None:
+            usage = data.get("usage") if isinstance(data.get("usage"), dict) else {}
+            def contador(nombre):
+                valor = usage.get(nombre)
+                return valor if isinstance(valor, int) and not isinstance(valor, bool) else 0
+            meta.update({"model": data.get("model") if isinstance(data.get("model"), str) and data.get("model") else model,
+                         "fallback": False, "usage": {"input_tokens": contador("prompt_tokens"),
+                         "output_tokens": contador("completion_tokens"), "cache_read_input_tokens": 0,
+                         "cache_creation_input_tokens": 0}})
+        texto = self._contenido(data)
+        # Puede haber texto o razonamiento con llaves antes del objeto: vale el primero que cumpla el esquema.
+        decoder = json.JSONDecoder()
+        hubo_objeto = False
+        for posicion, caracter in enumerate(texto):
+            if caracter != "{":
+                continue
+            try:
+                resultado, _ = decoder.raw_decode(texto, posicion)
+            except ValueError:
+                continue
+            if not isinstance(resultado, dict):
+                continue
+            hubo_objeto = True
+            try:
+                validate(resultado, schema)
+            except ValidationError:
+                continue
+            return resultado
+        if hubo_objeto:
+            raise ProviderError("malformed", "el JSON no cumple el esquema")
+        raise ProviderError("malformed", "la respuesta no contiene un objeto JSON")
+
+
 #: Las respuestas fijas del proveedor falso (datos de borrador clínico, pendientes de la aprobación de Psicología).
 FAKE_FIXTURES = Path(__file__).resolve().parent / "authoring" / "generation" / "fixtures"
 #: Marcas que la descripción de la docente puede llevar para provocar un fallo en las pruebas y el e2e.
@@ -304,6 +425,7 @@ class FakeProvider(AnthropicProvider):
 
 PROVIDERS: dict[str, type[AIProvider]] = {
     "openai": OpenAIProvider,
+    "openai-compatible": OpenAICompatibleProvider,
     "anthropic": AnthropicProvider,
     "fake": FakeProvider,
 }
