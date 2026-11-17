@@ -118,17 +118,21 @@ export function faltasPorSala(caso: CasoBorrador, catalogo: CatalogoDeReglas | n
 
 /**
  * La clave de la persona cuyo trayecto señala una falta OCL-19 del servidor en la escena `escenaId`. Los objetos del servidor
- * no van en el orden del editor, así que se busca la misma falta (mismo texto) con la regla del cliente y, si no aparece, se
- * toma la primera persona de la escena con trayecto. `null` si la escena no tiene ninguna.
+ * no van en el orden del editor, así que se busca con la regla del cliente la misma falta: el mismo texto y el mismo tramo
+ * (lo que sigue a `.movimiento` en la ruta: `.puntos[n]` o nada). Si solo una persona la tiene, es ella; si ninguna la tiene
+ * y la escena tiene una sola persona con trayecto, es esa. Si hay varias posibles, `null`: se lleva a la sala sin adivinar.
  */
-export function personaDeTrayecto(caso: CasoBorrador, escenaId: string, mensaje: string): string | null {
+export function personaDeTrayecto(caso: CasoBorrador, escenaId: string, mensaje: string, ruta = ''): string | null {
   const indice = caso.escenas.findIndex(e => e.id === escenaId);
   if (indice < 0) return null;
   const documento = documentoDeSalas(caso), objetos = documento['x-siep'].escenas[indice]?.mapa?.objetos ?? [];
   const prefijo = `x-siep.escenas[${indice}].mapa.objetos[`;
-  const propias = revisarSalas(documento, null).filter(h => h.regla === 'OCL-19' && h.ruta.startsWith(prefijo));
-  const hallazgo = propias.find(h => h.mensaje === mensaje) ?? propias[0];
-  const elegido = hallazgo ? objetos[Number(/\.objetos\[(\d+)\]/.exec(hallazgo.ruta)?.[1])]
-    : objetos.find(o => o['tipo'] === 'PERSON' && o['metadatos']?.['movimiento']?.['tipo'] === 'ruta');
-  return elegido && typeof elegido['clave'] === 'string' ? elegido['clave'] : null;
+  const tramo = (r: string) => r.includes('.movimiento') ? r.slice(r.indexOf('.movimiento') + '.movimiento'.length) : null;
+  const clave = (r: string) => objetos[Number(/\.objetos\[(\d+)\]/.exec(r)?.[1])]?.['clave'];
+  const iguales = revisarSalas(documento, null)
+    .filter(h => h.regla === 'OCL-19' && h.ruta.startsWith(prefijo) && h.mensaje === mensaje && tramo(h.ruta) === tramo(ruta));
+  const candidatas = new Set((iguales.length ? iguales.map(h => clave(h.ruta))
+    : objetos.filter(o => o['tipo'] === 'PERSON' && o['metadatos']?.['movimiento']?.['tipo'] === 'ruta').map(o => o['clave']))
+    .filter((c): c is string => typeof c === 'string'));
+  return candidatas.size === 1 ? [...candidatas][0] : null;
 }

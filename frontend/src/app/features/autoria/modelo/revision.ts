@@ -344,7 +344,7 @@ export function faltasDelServidor(
           faltas.push(falta({ ruta: escena ?? '/editor' }));
           break;
         }
-        const clave = personaDeTrayecto(caso, escenaDelCaso.id, h.message);
+        const clave = personaDeTrayecto(caso, escenaDelCaso.id, h.message, h.path);
         faltas.push(falta({ ruta: `/editor/sala/${salaId}`, ...(clave ? { ancla: anclaDeElemento(salaId, { tipo: 'objeto', id: clave }) } : {}) }));
         break;
       }

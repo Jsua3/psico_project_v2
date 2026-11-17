@@ -318,6 +318,13 @@ describe('faltas del servidor del trayecto de una persona (OCL-19)', () => {
     expect(llevar(borrador, MENSAJE).ir).toEqual({ ruta: `/editor/sala/${salaId}`, ancla: `objeto-${salaId}-${clave}` });
   });
 
+  it('con dos personas que tienen la misma falta no adivina: lleva a la sala sin ancla', () => {
+    const { borrador, salaId } = conTrayecto([{ x: 10, y: 10 }, { x: 20, y: 20 }]);
+    const sala = borrador.salas.find(s => s.id === salaId)!;
+    sala.personajes[0] = { ...sala.personajes[0], movimiento: { tipo: 'ruta', modo: 'ida-y-vuelta', puntos: [{ x: 10, y: 10 }, { x: 20, y: 20 }] } };
+    expect(llevar(borrador, MENSAJE).ir).toEqual({ ruta: `/editor/sala/${salaId}` });
+  });
+
   it('una escena desconocida conserva el destino predeterminado', () => {
     const { borrador } = conTrayecto([{ x: 10, y: 10 }, { x: 20, y: 20 }]);
     expect(llevar(borrador, MENSAJE, 999).ir).toEqual({ ruta: '/editor/escena/999' });

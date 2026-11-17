@@ -77,10 +77,10 @@ test.describe('editor de salas por piezas', () => {
     await puerta.focus();
     await expect(puerta).toBeFocused();
     // Las listas del panel dicen lo que la sala tiene (no la primera opción): la paleta del hospital y el destino de la puerta.
-    await expect(page.getByLabel('Paleta')).toHaveValue('hospital');
+    await expect(page.locator('app-panel-de-estructura').getByLabel('Paleta')).toHaveValue('hospital');
     await page.keyboard.press('ArrowRight');
     await page.keyboard.press('ArrowLeft');
-    await expect(page.getByLabel('Destino')).toHaveValue(/espera/);
+    await expect(page.locator('app-panel-de-estructura').getByLabel('Destino')).toHaveValue(/espera/);
     let pasos = 0;
     while (pasos < 20) {
       await page.keyboard.press('ArrowRight');
@@ -96,9 +96,13 @@ test.describe('editor de salas por piezas', () => {
     await capturar(page, 'p4-sala-falta-ocl14', 1366, 768, true);
     await page.setViewportSize({ width: 1366, height: 768 });
 
-    // 4. La corrige con el teclado: vuelve hasta un paso a la derecha de donde estaba y la falta se va.
+    // 4. La corrige con el teclado: retrocede de a un paso hasta que la falta se va (la revisión en vivo puede verla un
+    //    paso tarde, así que no se cuenta: se mira).
     await puerta.focus();
-    for (let i = 1; i < pasos; i++) await page.keyboard.press('ArrowLeft');
+    for (let i = 0; i < pasos + 2 && await faltas.count() > 0; i++) {
+      await page.keyboard.press('ArrowLeft');
+      await page.waitForTimeout(250);
+    }
     await expect(faltas).toHaveCount(0, { timeout: scaled(5_000) });
     await expect(page.locator('button.pieza-muro[data-incumple]')).toHaveCount(0);
     const final = Number(await puerta.getAttribute('data-pos'));
