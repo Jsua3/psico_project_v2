@@ -70,6 +70,15 @@ export class AudioDirectorService {
    *  fijados antes de crear el servicio, se detecten igual que `reducedMotion` arriba. */
   private readonly html5Works = detectHtml5VolumeWorks(window.Audio);
 
+  /**
+   * La música pesa unos 2,4 MB por pista. Con audio HTML5 basta con leer su cabecera al crearla: el navegador la transmite al
+   * sonar y no la descarga entera antes de que la estudiante pueda caminar (en el aula, 30 equipos por el mismo Wi-Fi). Con
+   * Web Audio (iOS) hace falta el archivo entero para decodificarlo, como antes.
+   */
+  private musicPreload(): boolean | 'metadata' {
+    return this.html5Works ? 'metadata' : true;
+  }
+
   init(): void {
     if (this.initialized) return;
     this.initialized = true;
@@ -86,7 +95,7 @@ export class AudioDirectorService {
         src: [src],
         loop: true,
         volume: 0,
-        preload: true,
+        preload: this.musicPreload(),
         // Pista de ~150 s. Con HTML5 se transmite; Web Audio la decodificaría entera (~50 MB de PCM).
         // Solo donde el navegador respeta el volumen del elemento; en iOS/iPadOS se queda en Web Audio.
         html5: this.html5Works,
@@ -134,7 +143,7 @@ export class AudioDirectorService {
         src: ['assets/game/audio/PsicoLament.mp3'],
         loop: true,
         volume: this.musicVolume,
-        preload: true,
+        preload: this.musicPreload(),
         html5: this.html5Works,
         onloaderror: (_: number, err: unknown) => console.warn('[AudioDirector] No se pudo cargar PsicoLament:', err),
       });
