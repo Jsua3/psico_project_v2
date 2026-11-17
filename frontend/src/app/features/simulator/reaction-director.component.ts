@@ -164,6 +164,9 @@ export class ReactionDirectorComponent implements OnDestroy {
   @HostListener('document:keydown', ['$event'])
   onKeydown(event: KeyboardEvent): void {
     if (!this._activa() || (event.key !== 'Enter' && event.key !== ' ')) return;
+    // REGLA-004: con el foco en un control («Salida segura» de la franja, la ficha…), Enter y Espacio son de ese control.
+    const target = event.target as Element | null;
+    if (target?.closest?.('button, a[href], input, select, textarea, [contenteditable="true"]')) return;
     event.preventDefault();
     if (event.repeat) return;
     this.detener();
