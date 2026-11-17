@@ -666,9 +666,15 @@ const NARROW_QUERY = '(max-width: 760px)';
     .game-container[data-rehearsal][data-mode='dialogue-right'] .main-zone {
       grid-template-columns: minmax(0, 1fr) clamp(340px, 28vw, 480px) clamp(280px, 24vw, 340px);
     }
+    /* Ensayo: el HUD, el plano y el pie flotan sobre el mundo, no sobre el panel de autora (antes, a 1366, el grupo de la
+       derecha y la barra de acción tapaban «Lo explorado» y sus casillas). Dejan libre la columna del panel y su hueco. */
+    .game-container[data-rehearsal] .top-bar,
+    .game-container[data-rehearsal] .bottom-zone { margin-right: calc(clamp(280px, 24vw, 340px) + 10px); }
     @media (max-width: 760px) {
       .game-container[data-rehearsal] .main-zone,
       .game-container[data-rehearsal][data-mode='dialogue-right'] .main-zone { grid-template-columns: minmax(0, 1fr); }
+      .game-container[data-rehearsal] .top-bar,
+      .game-container[data-rehearsal] .bottom-zone { margin-right: 0; }
     }
     .canvas-zone {
       position: relative;
