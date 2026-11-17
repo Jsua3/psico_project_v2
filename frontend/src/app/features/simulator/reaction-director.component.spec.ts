@@ -126,6 +126,26 @@ it('pinta la franja con el nombre, la frase y la pista oculta a lectores mientra
   expect(el.querySelector('.reaction-strip')).toBeNull();
 });
 
+it('la franja trae «Salida segura» (REGLA-004): pulsarla pide la pausa y, pedida, dice «Pausando…»', async () => {
+  const { director, fixture } = montar({ reduceMotion: true });
+  const pausas: number[] = [];
+  director.safeExit.subscribe(() => pausas.push(1));
+  director.play(ENTRADA, QUIEN);
+  await vi.advanceTimersByTimeAsync(10);
+  fixture.detectChanges();
+  const el = fixture.nativeElement as HTMLElement;
+  const boton = el.querySelector<HTMLButtonElement>('.reaction-dock .safe-exit-btn');
+  expect(boton?.textContent).toContain('Salida segura');
+  boton!.click();
+  expect(pausas).toEqual([1]);
+  fixture.componentRef.setInput('pausing', true);
+  fixture.detectChanges();
+  expect(el.querySelector('.reaction-dock .safe-exit-btn')?.textContent).toContain('Pausando…');
+  director.cancel();
+  fixture.detectChanges();
+  expect(el.querySelector('.safe-exit-btn')).toBeNull();
+});
+
 it('sin nombre se anuncia solo la frase, sin los dos puntos sueltos', async () => {
   const { director, announcer } = montar({ reduceMotion: true });
   director.play(ENTRADA, { nombre: '', visual: null });

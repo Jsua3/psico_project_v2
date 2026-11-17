@@ -401,7 +401,7 @@ const NARROW_QUERY = '(max-width: 760px)';
                 [reduceMotion]="reduceMotion()"
                 [activation]="attempt()?.persona?.activation ?? 'CALM'"
                 [intensity]="attempt()?.currentNode?.intensity ?? 'MEDIUM'"
-                [doorStates]="doorStates()"
+                [doorStates]="doorStates()" [doorMessages]="doorMessages()"
                 [dimmedKeys]="dimmedKeys()" [compact]="compactMode()"
                 [showLoader]="false" (worldReady)="onWorldReady()" (patientVisual)="patientVisual.set($event)"
                 (proximity)="nearbyInteraction.set($event); reactions?.onProximity($event?.key ?? null)" (proximityAlso)="nearbyAlso.set($event)"
@@ -423,7 +423,7 @@ const NARROW_QUERY = '(max-width: 760px)';
 
             <!-- La reacción del personaje tras elegir: franja sobre el mundo, en la sala donde ocurrió (4.3.3). -->
             <app-reaction-director #reaction [escenario]="reactionStage()" [reduceMotion]="reduceMotion()"
-              (finished)="afterReaction($event)" />
+              [pausing]="pausing()" (finished)="afterReaction($event)" (safeExit)="pauseFromOverlay()" />
 
             <!-- Lo que dice un personaje al acercarse (4.6): sobre su cabeza, sin foco ni teclas; se anuncia por el anunciador de la app. -->
             <app-comment-bubble [comment]="bubble()?.comment ?? null" [speaker]="bubbleSpeaker()" [anchor]="bubbleAnchor()"
@@ -468,7 +468,8 @@ const NARROW_QUERY = '(max-width: 760px)';
         <footer class="bottom-zone" [class.bottom-zone--above-veils]="footerAboveVeils()"
           [attr.inert]="inputBlocked() || viewMode() === 'dialogue-cinematic' ? '' : null"
           [attr.aria-hidden]="inputBlocked() || viewMode() === 'dialogue-cinematic' ? 'true' : null"
-          [class.bottom-zone--bajo-dialogo]="viewMode() === 'dialogue-cinematic'">
+          [class.bottom-zone--bajo-dialogo]="viewMode() === 'dialogue-cinematic'"
+          [class.bottom-zone--bajo-reaccion]="reacting()">
           @if (game.status === 'IN_PROGRESS' || reactingToLast()) {
             <!-- La misma implementación que las superposiciones (F6-6, REGLA-004). Sin [disabled]: con una petición
                  en curso el toque se acepta y la pausa sale en el acto (REGLA-004), y el rótulo pasa a «Pausando…»
@@ -796,6 +797,9 @@ const NARROW_QUERY = '(max-width: 760px)';
        (con el diálogo abierto el pie ya era inerte y el dock no hace nada): el pie se oculta en vez de quedar debajo, sin
        dejar hueco (visibility, no display: el lienzo no cambia de tamaño al abrir y cerrar). */
     .bottom-zone--bajo-dialogo { visibility: hidden; }
+    /* Lo mismo durante la reacción: la franja ocupa la banda de abajo y trae su «Salida segura» (antes la tapaba y solo
+       asomaba un filo); un solo botón a la vista y en el árbol de accesibilidad. */
+    .bottom-zone--bajo-reaccion { visibility: hidden; }
     /* «Salida segura» del pie es app-safe-exit-button (F6-6): su forma vive en el componente; aquí solo su sitio. */
     .bottom-zone > app-safe-exit-button { flex-shrink: 0; }
     .tool-dock { display: block; min-width: 0; flex: 0 1 auto; }
@@ -1588,6 +1592,21 @@ export class SimulationPlayComponent implements OnInit, OnDestroy {
   readonly doorStates = computed<Record<string, 'open' | 'locked'>>(() => {
     const context = this.doorContext();
     return context ? doorStateMap(context.world.objects ?? [], context) : {};
+  });
+
+  /**
+   * Motivo de cada puerta bloqueada de la sala (clave → texto): el aviso de la puerta de pieza dice lo mismo que la barra
+   * («Antes de pasar, …» o la salida que se abre más adelante), no un «todavía no» genérico. Misma fuente que `doorStates`.
+   */
+  readonly doorMessages = computed<Record<string, string>>(() => {
+    const context = this.doorContext();
+    const messages: Record<string, string> = {};
+    for (const obj of context?.world.objects ?? []) {
+      if (obj.type !== 'EXIT') continue;
+      const message = doorStatus(obj, context!).message;
+      if (message) messages[obj.key] = message;
+    }
+    return messages;
   });
 
   /** Candidato secundario en rango (otra persona u objeto): el botón secundario de la barra. */

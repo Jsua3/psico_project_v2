@@ -170,6 +170,17 @@ describe('SimulationPlayComponent: orientación integrada', () => {
 
     it('sin intento ni mundo no hay estados de puerta', () => {
       expect(component.doorStates()).toEqual({});
+      expect(component.doorMessages()).toEqual({});
+    });
+
+    it('doorMessages da al aviso de la puerta el mismo motivo vivo que la barra, y nada si está abierta', () => {
+      startInUrgencias();
+      expect(component.doorMessages()).toEqual({
+        'puerta-sala-escucha': 'Antes de pasar, habla con Familia en crisis (en el extremo izquierdo, al frente).',
+      });
+
+      startInUrgencias(makeWorld('hospital-urgencias', urgenciasObjects(), { inspectedObjectKeys: ['familia-crisis'] }));
+      expect(component.doorMessages()).toEqual({});
     });
 
     it('una puerta bloqueada explica el motivo vivo, no el texto del seed, y no llama al servidor', () => {

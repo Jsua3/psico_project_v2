@@ -14,6 +14,7 @@ import { tramos } from './caso/ritmo-texto';
 import { variablesDeArte } from './dialogo-arte';
 import { type Emocion, type Gesto } from './caso/vocabulario';
 import { DRAFT_COPY } from './draft-copy';
+import { SafeExitButtonComponent } from './safe-exit-button.component';
 
 /** Lo que el director necesita de la escena; lo cumple `GameWorldComponent`. */
 export interface EscenarioReaccion {
@@ -27,12 +28,15 @@ export type FinReaccion = 'completa' | 'saltada' | 'cancelada';
 
 @Component({
   selector: 'app-reaction-director',
-  imports: [KitFigureComponent],
+  imports: [KitFigureComponent, SafeExitButtonComponent],
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
     @if (activa()) {
+      <!-- La franja ocupa la banda de abajo, como el cuadro del diálogo: el pie queda oculto mientras dura y «Salida segura»
+           va aquí, a su derecha (REGLA-004: siempre a la vista; Esc sigue pausando por la cadena del juego). -->
+      <div class="reaction-dock" [style]="arte">
       <!-- La placa de quien reacciona (bloque I1): el mismo marco de pixel que la del diálogo, con su retrato asomado. -->
-      <div class="reaction-strip" [style]="arte">
+      <div class="reaction-strip">
         <span class="reaction-name">{{ quien().nombre }}</span>
         <div class="reaction-body">
           @if (quien().visual; as visual) {
@@ -46,20 +50,31 @@ export type FinReaccion = 'completa' | 'saltada' | 'cancelada';
           </div>
         </div>
       </div>
+      <app-safe-exit-button class="reaction-exit" variante="placa" [pausing]="pausing()" (pause)="safeExit.emit()" />
+      </div>
     }
   `,
   styles: [`
     :host { display: contents; }
-    .reaction-strip {
+    .reaction-dock {
       --px: 2px; --retrato: 192px;
       /* Capas: la franja va sobre la burbuja de comentario (--capa-burbuja: 55); la pestaña del nombre, sobre la placa. */
       --capa-reaccion: 60; --capa-pestana: 1;
-      position: absolute; left: calc(8 * var(--px)); bottom: calc(10 * var(--px)); z-index: var(--capa-reaccion);
-      width: min(46em, calc(100% - 16 * var(--px))); display: flex; flex-direction: column; align-items: flex-start;
+      position: absolute; left: calc(8 * var(--px)); right: calc(8 * var(--px)); bottom: calc(10 * var(--px)); z-index: var(--capa-reaccion);
+      display: flex; align-items: flex-end; gap: calc(6 * var(--px)); pointer-events: none;
+    }
+    .reaction-dock > * { pointer-events: auto; }
+    .reaction-exit { flex: none; }
+    .reaction-strip {
+      flex: 0 1 46em; min-width: 0; display: flex; flex-direction: column; align-items: flex-start;
       color: #f2ecdf; font-family: 'Poppins', system-ui, -apple-system, 'Segoe UI', sans-serif; font-size: 17px; line-height: 1.45;
     }
-    @media (min-width: 1800px) { .reaction-strip { --px: 3px; --retrato: 288px; font-size: 20px; } }
-    @media (max-width: 560px) { .reaction-strip { --retrato: 96px; font-size: 16px; left: calc(4 * var(--px)); width: calc(100% - 8 * var(--px)); } }
+    @media (min-width: 1800px) { .reaction-dock { --px: 3px; --retrato: 288px; } .reaction-strip { font-size: 20px; } }
+    /* Teléfono: la franja a todo lo ancho y «Salida segura» encima, a la derecha. */
+    @media (max-width: 560px) {
+      .reaction-dock { --retrato: 96px; left: calc(4 * var(--px)); right: calc(4 * var(--px)); flex-direction: column-reverse; align-items: flex-end; }
+      .reaction-strip { font-size: 16px; flex-basis: auto; align-self: stretch; }
+    }
     .reaction-name, .reaction-body, .reaction-portrait {
       border-style: solid; border-width: calc(4 * var(--px)); border-radius: 0; image-rendering: pixelated;
       background-clip: padding-box; background-origin: padding-box; background-size: calc(8 * var(--px));
@@ -96,7 +111,11 @@ export class ReactionDirectorComponent implements OnDestroy {
 
   readonly escenario = input<EscenarioReaccion | null>(null);
   readonly reduceMotion = input(false);
+  /** La pausa ya está pedida: «Salida segura» dice «Pausando…» (la misma regla que el pie y el cuadro). */
+  readonly pausing = input(false);
   readonly finished = output<FinReaccion>();
+  /** Quien juega pulsó «Salida segura» en la franja: el anfitrión pausa como desde el pie (REGLA-004). */
+  readonly safeExit = output<void>();
 
   protected readonly hint = DRAFT_COPY.reactionSkipHint.text;
   /** El arte de pixel de la interfaz de diálogo, como variables CSS. */
