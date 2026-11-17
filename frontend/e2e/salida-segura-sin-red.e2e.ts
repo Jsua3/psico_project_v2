@@ -25,6 +25,7 @@ import { scaled } from './support/time-scale';
 test.use({ viewport: { width: 1366, height: 768 } });
 
 const SAFE_EXIT = /\/api\/simulation\/attempts\/[^/]+\/safe-exit$/;
+const WORLD_STATE = /\/api\/simulation\/attempts\/[^/]+\/world-state$/;
 
 test('@orientation sin red, «Salida segura» saca en el acto y registra la pausa al volver la conexión', async ({ page, request }) => {
   test.setTimeout(scaled(240_000));
@@ -42,10 +43,13 @@ test('@orientation sin red, «Salida segura» saca en el acto y registra la paus
 
   // Corte de red: el navegador queda sin conexión y toda petición a la API de esta página falla como sin red.
   let offline = true;
+  // Desde V4 la pausa lleva consigo la posición pendiente: el intento de registrarla empieza por la posición (PATCH) y sigue
+  // con la pausa (POST). Sin red cuenta cualquiera de los dos.
   let failedSafeExits = 0;
   await page.route('**/api/**', async route => {
     if (!offline) return route.fallback();
-    if (route.request().method() === 'POST' && SAFE_EXIT.test(new URL(route.request().url()).pathname)) failedSafeExits += 1;
+    const method = route.request().method(), path = new URL(route.request().url()).pathname;
+    if ((method === 'POST' && SAFE_EXIT.test(path)) || (method === 'PATCH' && WORLD_STATE.test(path))) failedSafeExits += 1;
     return route.abort('internetdisconnected');
   });
   await page.context().setOffline(true);
@@ -70,7 +74,13 @@ test('@orientation sin red, «Salida segura» saca en el acto y registra la paus
     .toHaveCount(0);
   await page.screenshot({ path: test.info().outputPath('salida-segura-sin-red.png') });
 
-  // Vuelve la red: la pausa se registra sola, sin otro toque.
+  // Vuelve la red: la pausa se registra sola, sin otro toque, y la posición queda guardada antes que ella (V4).
+  const order: string[] = [];
+  page.on('request', request => {
+    const path = new URL(request.url()).pathname;
+    if (request.method() === 'PATCH' && WORLD_STATE.test(path)) order.push('posicion');
+    if (request.method() === 'POST' && SAFE_EXIT.test(path)) order.push('pausa');
+  });
   const registered = page.waitForResponse(response =>
     response.request().method() === 'POST' && SAFE_EXIT.test(new URL(response.url()).pathname) && response.ok(),
   { timeout: scaled(45_000) });
@@ -78,6 +88,8 @@ test('@orientation sin red, «Salida segura» saca en el acto y registra la paus
   await page.context().setOffline(false);
   const pauseResponse = await registered;
   expect((await readJson(pauseResponse)).data.status, 'el servidor deja el intento en pausa').toBe('PAUSED');
+  expect(order.at(-1), 'al volver la red la pausa sale después de la posición pendiente').toBe('pausa');
+  expect(order.slice(0, -1).every(step => step === 'posicion'), `antes de la pausa solo la posición: ${order.join(', ')}`).toBe(true);
   const attemptId = /attempts\/([^/]+)\/safe-exit/.exec(pauseResponse.url())![1];
   const history = (await (await request.get('/api/simulation/attempts/history', { headers: probe.headers })).json()).data as
     Array<{ attemptId: string; status: string }>;
