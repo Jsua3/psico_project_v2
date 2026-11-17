@@ -61,6 +61,10 @@ import { RutasAutoria } from '../../rutas';
                   @if (e.salaId) {
                     <a class="boton" [routerLink]="rutas.a('/editor/sala', e.salaId)" data-accion="abrir-sala">Abrir sala</a>
                   }
+                  @if (hayPlano()) {
+                    <!-- BORRADOR: texto nuevo, pendiente de la aprobación de Psicología -->
+                    <a class="boton" [routerLink]="rutas.a('/editor/plano')" data-accion="abrir-plano">Ver el plano</a>
+                  }
                 </div>
               } @else {
                 <h2 id="pe">Ninguna</h2>
@@ -209,6 +213,8 @@ import { RutasAutoria } from '../../rutas';
 export class EditorComponent {
   protected readonly rutas = inject(RutasAutoria);
   protected readonly store = inject(CasoStore);
+  /** El plano del caso solo existe con salas por piezas. */
+  protected readonly hayPlano = computed(() => this.store.caso()?.salas.some(s => !!s.estructura) ?? false);
   private readonly router = inject(Router);
   private readonly mapa = viewChild<MapaEscenasComponent>('mapa');
   private readonly injector = inject(Injector);

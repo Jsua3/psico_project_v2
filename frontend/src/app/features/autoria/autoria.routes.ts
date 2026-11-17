@@ -8,6 +8,7 @@ import { EditorComponent } from './pantallas/editor/editor.component';
 import { FinalesComponent } from './pantallas/finales/finales.component';
 import { GuionComponent } from './pantallas/guion/guion.component';
 import { LugarComponent } from './pantallas/lugar/lugar.component';
+import { PlanoCasoComponent } from './pantallas/plano/plano.component';
 import { RevisionComponent } from './pantallas/revision/revision.component';
 import { SalaComponent } from './pantallas/sala/sala.component';
 import { SalasComponent } from './pantallas/salas/salas.component';
@@ -20,6 +21,7 @@ export const pantallasDelEditor: Routes = [
   { path: 'datos', component: DatosComponent, title: 'Datos del caso · Editor de casos' },
   { path: 'finales', component: FinalesComponent, title: 'Finales · Editor de casos' },
   { path: 'revision', component: RevisionComponent, title: 'Enviar a revisión · Editor de casos' },
+  { path: 'plano', component: PlanoCasoComponent, title: 'Plano del caso · Editor de casos' },
   { path: '**', redirectTo: '' },
 ];
 

@@ -122,3 +122,11 @@ describe('plano: textos para lector de pantalla', () => {
     expect(lineas[3]).toMatch(/^Pasillo, estás aquí\. Puertas: Triaje, /);
   });
 });
+
+describe('normalizarLayout para el editor (P4)', () => {
+  it('conserva la clave de cada puerta y la omite si no viene', () => {
+    const plano = normalizarLayout({ rooms: [{ key: 'a', plan: { x: 0, y: 0 } }, { key: 'b', plan: { x: 1200, y: 0 } }],
+      doors: [{ key: 'a-b', from: 'a', to: 'b', wall: 'derecha', pos: 100 }, { from: 'b', to: 'a', wall: 'izquierda', pos: 100 }] })!;
+    expect(plano.puertas.map(p => p.clave)).toEqual(['a-b', undefined]);
+  });
+});

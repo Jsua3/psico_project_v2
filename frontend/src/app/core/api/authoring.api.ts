@@ -415,6 +415,12 @@ export class AuthoringApi {
       .pipe(map(r => r.data));
   }
 
+  /** El plano de las salas por piezas del caso para el editor (`layout` del contrato 2.2, §5.2, sin sala actual); null si no tiene. */
+  casePlan(caseVersionId: number) {
+    return this.http.get<ApiResponse<{ plan: unknown }>>(`${this.API}/${caseVersionId}/plan`)
+      .pipe(map(response => response.data.plan));
+  }
+
   /** C6: la validación del caso con hallazgos en lenguaje llano y a qué escena o mapa llevar al autor. */
   validateCase(caseVersionId: number) {
     return this.http.post<ApiResponse<CaseValidation>>(`${this.API}/${caseVersionId}/validate`, {})
