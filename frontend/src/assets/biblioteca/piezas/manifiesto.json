@@ -2795,11 +2795,11 @@
       "ruta": "piezas/muebles/universidad/planta.png"
     },
     "universidad/porteria": {
-      "alto": 86,
-      "ancho": 122,
+      "alto": 88,
+      "ancho": 124,
       "apoyo": [
-        61,
-        86
+        62,
+        88
       ],
       "brillo": "piezas/muebles/universidad/porteria-brillo.png",
       "brilloDerecha": "piezas/muebles/universidad/porteria-brillo-derecha.png",
