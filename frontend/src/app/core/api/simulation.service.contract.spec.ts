@@ -372,6 +372,19 @@ describe('SimulationService contrato HTTP', () => {
     request.flush({ success: true, data: null });
   });
 
+  // V4: la posición que viaja con la pausa también la explica la pantalla de pausa; la del caminar normal, el aviso de siempre.
+  it('la posición que lleva la pausa no saca el aviso global de conexión; la de caminar sí puede', () => {
+    service.updateWorldState('a1', 't1', 10, 20, 'sala', true).subscribe({ error: () => undefined });
+    const conPausa = httpMock.expectOne(`${S}/attempts/a1/world-state`);
+    expect(conPausa.request.context.get(SCREEN_HANDLES_OFFLINE)).toBe(true);
+    conPausa.flush({ success: true, data: null });
+
+    service.updateWorldState('a1', 't1', 10, 20, 'sala').subscribe({ error: () => undefined });
+    const caminando = httpMock.expectOne(`${S}/attempts/a1/world-state`);
+    expect(caminando.request.context.get(SCREEN_HANDLES_OFFLINE)).toBe(false);
+    caminando.flush({ success: true, data: null });
+  });
+
   it('el jugador no ve métodos de autoría ni de instructor', () => {
     const player = publicMethodsOf(SimulationService);
     for (const name of [...publicMethodsOf(AuthoringApi), ...publicMethodsOf(InstructorApi)]) {

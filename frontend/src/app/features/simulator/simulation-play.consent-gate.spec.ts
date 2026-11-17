@@ -577,7 +577,7 @@ describe('SimulationPlayComponent — puerta de consentimiento (ETH-01)', () => 
     component.pauseFromOverlay();
 
     expect(component.attempt()?.status).toBe('PAUSED');
-    expect(sim.updateWorldState).toHaveBeenCalledWith('attempt-1', 'token-1', 612, 444, 'hospital-sala-escucha');
+    expect(sim.updateWorldState).toHaveBeenCalledWith('attempt-1', 'token-1', 612, 444, 'hospital-sala-escucha', true);
     expect(sim.safeExit).not.toHaveBeenCalled();
     sync$.next({ attemptId: 'attempt-1', status: 'IN_PROGRESS', map: { key: 'hospital-sala-escucha' }, player: { x: 612, y: 444 } } as never);
     expect(sim.safeExit).toHaveBeenCalledWith(

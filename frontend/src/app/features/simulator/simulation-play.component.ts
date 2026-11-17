@@ -3232,7 +3232,7 @@ export class SimulationPlayComponent implements OnInit, OnDestroy {
   private positionBeforePause(): Observable<unknown> {
     const pending = this.positionForPause, game = this.hintAttempt();
     if (!pending || !game || pending.attemptId !== game.attemptId) return of(null);
-    return this.simulationService.updateWorldState(game.attemptId, game.attemptToken, pending.x, pending.y, pending.mapKey).pipe(
+    return this.simulationService.updateWorldState(game.attemptId, game.attemptToken, pending.x, pending.y, pending.mapKey, true).pipe(
       timeout(PLAZO_ACCION_MS),
       tap(() => {
         if (this.positionForPause === pending) this.positionForPause = null;

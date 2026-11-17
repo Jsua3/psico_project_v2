@@ -165,13 +165,14 @@ export class SimulationService {
     }).pipe(map(response => response.data));
   }
 
-  updateWorldState(attemptId: string, attemptToken: string, playerX: number, playerY: number, currentMapKey: string) {
+  /** `screenHandlesOffline`: la posición que viaja con la pausa (V4); sin red la explica la pantalla de pausa, no el aviso global. */
+  updateWorldState(attemptId: string, attemptToken: string, playerX: number, playerY: number, currentMapKey: string, screenHandlesOffline = false) {
     return this.http.patch<ApiResponse<PositionAck>>(`${this.API}/attempts/${attemptId}/world-state`, {
       attemptToken,
       playerX,
       playerY,
       currentMapKey
-    }).pipe(map(response => response.data));
+    }, screenHandlesOffline ? { context: new HttpContext().set(SCREEN_HANDLES_OFFLINE, true) } : {}).pipe(map(response => response.data));
   }
 
   openInteraction(attemptId: string, attemptToken: string, interactionKey: string) {

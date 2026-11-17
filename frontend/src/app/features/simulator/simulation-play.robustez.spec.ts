@@ -185,7 +185,7 @@ describe('SimulationPlayComponent: robustez del cliente (R1)', () => {
       component.pauseFromOverlay();
       expect(component.attempt()?.status).toBe('PAUSED');
       expect(component.pausing()).toBe(true);
-      expect(sim['updateWorldState']).toHaveBeenCalledWith('attempt-1', 'token-1', 10, 20, 'sala');
+      expect(sim['updateWorldState']).toHaveBeenCalledWith('attempt-1', 'token-1', 10, 20, 'sala', true);
       expect(sim['safeExit']).not.toHaveBeenCalled();
     });
 
@@ -234,7 +234,7 @@ describe('SimulationPlayComponent: robustez del cliente (R1)', () => {
       conPosicionPendiente();
       component.pauseFromOverlay();
       expect(orden).toEqual(['posicion', 'pausa']);
-      expect(sim['updateWorldState']).toHaveBeenCalledWith('attempt-1', 'token-1', 10, 20, 'sala');
+      expect(sim['updateWorldState']).toHaveBeenCalledWith('attempt-1', 'token-1', 10, 20, 'sala', true);
       expect(interno()['lastSyncedPosition']).toEqual({ x: 10, y: 20 });
       expect(component.pauseNote()).toBeNull();
     });

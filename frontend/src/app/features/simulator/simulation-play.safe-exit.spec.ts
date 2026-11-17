@@ -347,7 +347,7 @@ describe('SimulationPlayComponent: salida segura (correcciones de la revisión)'
       component.pauseFromOverlay();
 
       expect(component.attempt()?.status).toBe('PAUSED');
-      expect(sim['updateWorldState']).toHaveBeenCalledWith('attempt-1', 'token-1', 120, 340, 'hospital-urgencias');
+      expect(sim['updateWorldState']).toHaveBeenCalledWith('attempt-1', 'token-1', 120, 340, 'hospital-urgencias', true);
       expect(sim['safeExit']).not.toHaveBeenCalled();
       sync.next({ attemptId: 'attempt-1', status: 'IN_PROGRESS', map: { key: 'hospital-urgencias' }, player: { x: 120, y: 340 } });
       expect(sim['safeExit']).toHaveBeenCalledTimes(1);
