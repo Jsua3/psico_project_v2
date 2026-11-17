@@ -7,7 +7,7 @@
 
 /** Las frases del texto, con su puntuación y lo que la cierra (comillas, paréntesis). Unidas, dan el texto de nuevo. */
 export function frasesDe(texto: string): string[] {
-  const frases = texto.match(/[^.!?…]+(?:[.!?…]+["'»”’)\]]*\s*|$)/g)?.filter(frase => frase.trim().length > 0) ?? [];
+  const frases = texto.match(new RegExp('[^.!?…]+(?:[.!?…]+["»”’)\\]]*\\s*|$)', 'g'))?.filter(frase => frase.trim().length > 0) ?? [];
   return frases.length > 0 ? frases : [texto];
 }
 

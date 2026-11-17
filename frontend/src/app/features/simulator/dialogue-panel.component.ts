@@ -130,7 +130,7 @@ const STALE_NOTE = 'Esta conversación corresponde a otro momento del caso.';
                   }
                   @if (paginas().length > 1) {
                     <!-- Parlamento en páginas (V5): cuántas van y cuántas son; el lector tiene el texto entero arriba. -->
-                    <span class="placa-pagina" aria-hidden="true">{{ pagina() + 1 }} de {{ paginas().length }}</span>
+                    <span class="placa-pagina" aria-hidden="true">{{ cuentaDePaginas() }}</span>
                   }
                   @if (isTypingComplete() && !esFinal()) {
                     <button type="button" class="close-btn" ui-button variant="primary" cdkFocusInitial
@@ -929,6 +929,8 @@ export class DialoguePanelComponent implements AfterViewChecked, OnDestroy {
   readonly ultimaPagina = computed(() => this.pagina() >= this.paginas().length - 1);
   /** El final del parlamento: su última línea y, de ella, la última página. */
   readonly esFinal = computed(() => this.isLastLine() && this.ultimaPagina());
+  /** «2 de 3» junto a «Siguiente» cuando el parlamento va en varias páginas. */
+  protected readonly cuentaDePaginas = computed(() => `${this.pagina() + 1} de ${this.paginas().length}`);
   readonly choicesVisible = computed(() => dialogueChoicesVisible(
     this.dialogue(),
     this.lineIndex(),
@@ -1481,7 +1483,9 @@ export class DialoguePanelComponent implements AfterViewChecked, OnDestroy {
       // Lo que de verdad cabe para el párrafo en esta placa y este tamaño: su alto menos lo que desborda; con un mínimo de
       // dos renglones (si la placa es más baja aún, igual se parte por frases: mejor páginas cortas que desplazar).
       const renglon = parseFloat(getComputedStyle(parrafo).lineHeight) || 24;
-      const tope = Math.max(parrafo.offsetHeight - sobra, 2 * renglon);
+      // Un renglón de margen: con la página partida, el pie gana «N de M» y el redondeo de medio punto por renglón (zoom
+      // del 125 %) dejaba la primera página 2 a 20 px por encima de la banda.
+      const tope = Math.max(parrafo.offsetHeight - sobra - renglon, 2 * renglon);
       const sonda = parrafo.cloneNode(false) as HTMLElement;
       sonda.style.cssText = `position:absolute;visibility:hidden;left:0;top:0;width:${parrafo.clientWidth}px`;
       parrafo.parentElement!.appendChild(sonda);
