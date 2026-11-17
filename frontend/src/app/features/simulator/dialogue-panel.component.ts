@@ -43,6 +43,7 @@ const STALE_NOTE = 'Esta conversación corresponde a otro momento del caso.';
         cdkTrapFocus
         [cdkTrapFocusAutoCapture]="true"
         class="dialogue-strip"
+        [class.strip--angosta]="angosta()"
         [class.dialogue-strip--side]="mode() === 'side'"
         [class.strip--warning]="interaction()?.type === 'WARNING'"
         [class.strip--supervisory]="activeSpeakerName(d) === 'Supervisión clínica'"
@@ -121,16 +122,17 @@ const STALE_NOTE = 'Esta conversación corresponde a otro momento del caso.';
                 }
 
                 <div class="placa-pie">
+                  @if (paginas().length > 1) {
+                    <!-- Parlamento en páginas (V5): cuántas van y cuántas son, a la izquierda y antes de todo botón (al lado
+                         de «Saltar» quedaba tapado; V6). El lector tiene el texto entero arriba. -->
+                    <span class="placa-pagina" aria-hidden="true">{{ cuentaDePaginas() }}</span>
+                  }
                   @if (!isTypingComplete()) {
                     <button type="button" class="close-btn" ui-button variant="primary" cdkFocusInitial
                       (click)="skipTypewriter()"
                       aria-label="Saltar animación de texto">
                       Saltar <span aria-hidden="true">▶</span>
                     </button>
-                  }
-                  @if (paginas().length > 1) {
-                    <!-- Parlamento en páginas (V5): cuántas van y cuántas son; el lector tiene el texto entero arriba. -->
-                    <span class="placa-pagina" aria-hidden="true">{{ cuentaDePaginas() }}</span>
                   }
                   @if (isTypingComplete() && !esFinal()) {
                     <button type="button" class="close-btn" ui-button variant="primary" cdkFocusInitial
@@ -260,10 +262,10 @@ const STALE_NOTE = 'Esta conversación corresponde a otro momento del caso.';
     /* Sin opciones, «Volver al mapa» y «Salida segura» van en la esquina de abajo a la derecha. Si la banda no tiene sitio
        para la placa y esa fila juntas (ensayo, ventanas angostas; strip--angosta lo mide el panel), la fila va arriba y la
        placa conserva su ancho: antes caía sobre «Siguiente» (P4, V4) o la placa se angostaba tanto que el texto no cabía. */
-    .dialogue-strip.strip--angosta:not(.strip--con-opciones) .panel-head { position: static; }
+    .dialogue-strip.strip--angosta:not(.strip--con-opciones):not(.dialogue-strip--side) .panel-head { position: static; }
     /* Con la fila arriba, lo fijo (fila, pestaña, pie con «Siguiente») más dos renglones no cabía en 46vh de una ventana
        baja (1280 × 600 al 125 %: 221 px): la banda angosta llega al 60 % del alto. */
-    .dialogue-strip.strip--angosta:not(.strip--con-opciones) { --dialogo-alto-max: min(400px, 60vh); }
+    .dialogue-strip.strip--angosta:not(.strip--con-opciones) { --dialogo-alto-max: min(420px, 64vh); }
     .dialogue-strip:not(.strip--con-opciones) .strip-body { display: none; }
     /* Una sola opción ocupa todo el ancho de su columna, no media. */
     .choices:not(:has(.choice-btn + .choice-btn)) { grid-template-columns: minmax(0, 1fr); }
@@ -932,6 +934,8 @@ export class DialoguePanelComponent implements AfterViewChecked, OnDestroy {
   readonly ultimaPagina = computed(() => this.pagina() >= this.paginas().length - 1);
   /** El final del parlamento: su última línea y, de ella, la última página. */
   readonly esFinal = computed(() => this.isLastLine() && this.ultimaPagina());
+  /** Sin sitio para la placa y la fila de «Volver al mapa» y «Salida segura» lado a lado: la fila sube (lo mide programarPaginado). */
+  protected readonly angosta = signal(false);
   /** «2 de 3» junto a «Siguiente» cuando el parlamento va en varias páginas. */
   protected readonly cuentaDePaginas = computed(() => `${this.pagina() + 1} de ${this.paginas().length}`);
   readonly choicesVisible = computed(() => dialogueChoicesVisible(
@@ -1476,10 +1480,19 @@ export class DialoguePanelComponent implements AfterViewChecked, OnDestroy {
       }
       // Sin sitio para la placa (46em) y la fila de «Volver» y «Salida segura» lado a lado, la fila sube (strip--angosta).
       const sinOpciones = !banda.classList.contains('dialogue-strip--side') && !banda.classList.contains('strip--con-opciones');
-      const cabeza = banda.querySelector<HTMLElement>('.panel-head');
-      banda.classList.remove('strip--angosta');
+      // El ancho de la fila es la suma de sus botones (arriba la fila ocupa todo el ancho y la medida se daría vuelta).
+      const fila = banda.querySelector<HTMLElement>('.panel-head__row');
+      const anchoFila = fila ? Array.from(fila.children).reduce((suma, hijo) => suma + (hijo as HTMLElement).offsetWidth + 8, 0) : 0;
       const em = parseFloat(getComputedStyle(banda).fontSize) || 16;
-      if (sinOpciones && cabeza && banda.clientWidth < 46 * em + cabeza.offsetWidth + 48) banda.classList.add('strip--angosta');
+      const angosta = sinOpciones && anchoFila > 0 && banda.clientWidth < 46 * em + anchoFila + 48;
+      // Una señal (no una clase puesta a mano): la plantilla la aplica aunque rehaga la banda; con la fila ya en su sitio,
+      // se vuelve a medir en el cuadro siguiente.
+      if (angosta !== untracked(() => this.angosta())) {
+        this.angosta.set(angosta);
+        // Dos cuadros: el primero puede llegar antes de que la plantilla aplique la clase (la página salía 11 px larga).
+        if (intentos > 0) requestAnimationFrame(() => requestAnimationFrame(() => medir(intentos - 1)));
+        return;
+      }
       const placa = parrafo.closest<HTMLElement>('.placa-cuerpo');
       const sobra = Math.max(banda.scrollHeight - banda.clientHeight, placa ? placa.scrollHeight - placa.clientHeight : 0);
       if (sobra <= 1) return;

@@ -453,7 +453,7 @@ import { RECONSIDERED_LABEL, reconsideredChip } from './reconsidered.util';
       background: var(--pixel-ventanilla); image-rendering: pixelated;
     }
     .outcome--pause .oc-eyebrow {
-      font-family: var(--pixel-f-nombre); font-weight: 700; font-size: calc(var(--pixel-tam) * 0.82);
+      font-family: var(--pixel-f-nombre); font-weight: 700; font-size: max(var(--pixel-letra-minima), calc(var(--pixel-tam) * 0.82));
       letter-spacing: .06em; color: var(--luz);
     }
     .outcome--pause .oc-head__copy h3 { font-family: var(--pixel-f-texto); font-weight: 700; color: var(--pixel-tinta); }
