@@ -53,6 +53,20 @@ async function desbordes(page: Page): Promise<string[]> {
       if (el.scrollHeight > el.clientHeight + 1) out.push(`barra en ${nombre(el)} (${el.clientHeight} de ${el.scrollHeight} px)`);
     });
     if (!ultimoRecurso) ocultas.forEach(letra => out.push(`la opción ${letra} queda fuera de la vista`));
+    // Solapes (V6): ni la fila de «Volver al mapa» y «Salida segura» ni los botones del pie tapan el texto que se lee
+    // ni la cuenta «N de M». No son desbordes: hay que mirar que los rectángulos no se crucen.
+    const visibles = (selector: string) => Array.from(document.querySelectorAll<HTMLElement>(selector))
+      .filter(el => getComputedStyle(el).visibility !== 'hidden')
+      .map(el => ({ el, r: el.getBoundingClientRect() }))
+      .filter(({ r }) => r.width > 1 && r.height > 1);
+    const cruzan = (a: DOMRect, b: DOMRect) => a.left < b.right - 1 && b.left < a.right - 1 && a.top < b.bottom - 1 && b.top < a.bottom - 1;
+    for (const tapa of visibles('.panel-head__row, .placa-pie .close-btn')) {
+      for (const tapado of visibles('.dialogue-text, .placa-pagina')) {
+        if (!tapa.el.contains(tapado.el) && !tapado.el.contains(tapa.el) && cruzan(tapa.r, tapado.r)) {
+          out.push(`${nombre(tapa.el)} tapa ${nombre(tapado.el)}`);
+        }
+      }
+    }
     return out;
   });
 }
