@@ -112,8 +112,8 @@ La versión del programa es la de `package.json` en la raíz. Se sigue el versio
 
 **Pruebas y herramientas**
 
-- Servidor: suite completa en 8254 passed y 4 skipped al cierre del 17 de noviembre; el único fallo, un presupuesto de consultas atrasado (la consulta de `competenciesDeclared`), se ajustó y su archivo pasa 11/11.
-- Job Frontend: los 9 pasos en verde; `test:frontend` 5755/5755 al cierre.
+- Servidor: suite completa en 8255 passed, 4 skipped y 0 fallos al cierre del 17 de noviembre.
+- Job Frontend: los 9 pasos en verde; `test:frontend` 5781/5781 al cierre. El `e2e` de CI completo dio 346 passed; sus 3 fallos se arreglaron y se repitieron en verde en la cabeza final.
 - Pruebas e2e nuevas: recorrido de los tres capítulos de SIM-VBG-002 (`@demo-k1`), `autoria-sala-piezas`, `autoria-generacion`, `autoria-crear-a-mano-piezas`, ensayo de la docente y salida segura sin red.
 - El recorrido de SIM-VBG-002 corre solo contra la pila viva de la demo (`SIEP_DEMO_VIVA=1`). El arnés `trayectos-captura` lleva `@captura` y sale del `e2e` de CI.
 - La referencia de contratos HTTP incluye las rutas de generación y del plano.
@@ -127,4 +127,4 @@ La versión del programa es la de `package.json` en la raíz. Se sigue el versio
 - Medido con 10 estudiantes a la vez: 0 errores. Con 30 funciona, pero con esperas de uno a tres segundos.
 - Solo se comprobó desde el mismo equipo; falta probar la entrada desde otro equipo de la red.
 
-Rango: `origin/master` `ef9deb4f` … `HEAD` `da3ca0f7`; 427 commits sin merges.
+Rango: `origin/master` `ef9deb4f` … `f6f40ceb`; 463 commits sin merges.
