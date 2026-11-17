@@ -44,6 +44,9 @@
   --pixel-f-nombre: 'JetBrains Mono', ui-monospace, monospace;
   --pixel-f-texto: 'Poppins', system-ui, -apple-system, 'Segoe UI', sans-serif;
   // Ningún texto del juego baja de 12 px, tampoco en el teléfono (13 px de base).
+  // Piso de toda letra de la interfaz del juego (U1, V6): ningún texto baja de 12 px en ningún tramo (guardas de CI
+  // game-chrome y a11y-scan). Las letras que salen de multiplicar --pixel-tam lo llevan con max().
+  --pixel-letra-minima: 12px;
   --pixel-letra-chica: max(12px, 0.8em);
   --pixel-letra-media: max(12px, 0.88em);
 

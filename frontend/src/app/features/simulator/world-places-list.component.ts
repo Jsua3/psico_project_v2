@@ -68,7 +68,7 @@ const KIND_LABELS: Record<PlaceKind, string> = { person: 'Persona', door: 'Puert
     }
     /* El título es el kicker de la capa: mono, mayúsculas y con la luz del momento. */
     .places__head h2 {
-      margin: 0; font-family: var(--pixel-f-nombre); font-weight: 700; font-size: calc(var(--pixel-tam) * 0.82);
+      margin: 0; font-family: var(--pixel-f-nombre); font-weight: 700; font-size: max(var(--pixel-letra-minima), calc(var(--pixel-tam) * 0.82));
       letter-spacing: .06em; text-transform: uppercase; color: var(--luz);
     }
     .places__hint, .places__empty { margin: 0; color: var(--pixel-tinta-suave); line-height: 1.5; }
