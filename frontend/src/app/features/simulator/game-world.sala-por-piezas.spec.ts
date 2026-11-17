@@ -35,6 +35,13 @@ describe('sala por piezas en la escena (P2)', () => {
     expect(source).toContain('if (this.salaIncompletaAvisada !== this.world.map.key) {');
   });
 
+  it('V6: con la sala lista, la luz de las sombras se calcula fuera del primer cuadro de juego, y solo si la sala sigue', () => {
+    expect(source).toMatch(/this\.callbacks\.onReady\(\);\s*(\/\/[^\n]*\n\s*)*const recienArmada = this\.salaPorPiezas;\s*setTimeout\(\(\) => \{ if \(this\.salaPorPiezas === recienArmada\) recienArmada\?\.calentarSombras\(\); \}, 0\);\s*return true;/);
+    const capasEnSombra = vi.fn();
+    EscenaDeSala.prototype.calentarSombras.call({ luz: { capasEnSombra } } as unknown as EscenaDeSala);
+    expect(capasEnSombra).toHaveBeenCalledTimes(1);
+  });
+
   it('1. con `structure`, el ScenarioConfig del legado no se lleva la sala', () => {
     expect(source).toContain('if (this.scenarioConfig && !this.esSalaPorPiezas()) {');
   });

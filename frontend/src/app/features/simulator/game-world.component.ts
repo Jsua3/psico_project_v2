@@ -1764,6 +1764,11 @@ export class DataDrivenWorldScene extends Phaser.Scene {
     this.applyCrisisVignette();
     this.playIntroFade();
     this.callbacks.onReady();
+    // V6: la luz «en sombra» (la de las sombras de quien camina) es perezosa y la pagaba el primer cuadro de juego, unos
+    // 390 ms con la CPU ×4 al pulsar «Continuar» en «Antes de comenzar». Se calcula ya, fuera de este cuadro y con la sala
+    // lista: mientras la tarjeta está a la vista. Si la sala ya no es esta, no se hace nada.
+    const recienArmada = this.salaPorPiezas;
+    setTimeout(() => { if (this.salaPorPiezas === recienArmada) recienArmada?.calentarSombras(); }, 0);
     return true;
   }
 
