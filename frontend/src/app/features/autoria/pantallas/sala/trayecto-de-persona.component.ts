@@ -13,19 +13,19 @@ type Ruta = Extract<MovimientoPersonaje, { tipo: 'ruta' }>;
       @for (p of ruta().puntos; track $index; let i = $index) {
         <li>
           <!-- BORRADOR: texto nuevo, pendiente de la aprobación de Psicología -->
-          <button type="button" [attr.aria-pressed]="seleccionado() === i" (click)="elegir.emit(i)"
+          <button type="button" class="boton" [attr.aria-pressed]="seleccionado() === i" (click)="elegir.emit(i)"
             (keydown)="tecla($event, i)">Punto {{ i + 1 }}: {{ p.x }}, {{ p.y }}</button>
           <!-- BORRADOR: texto nuevo, pendiente de la aprobación de Psicología -->
-          <button type="button" [attr.data-subir]="i" [disabled]="i === 0" (click)="ordenar(i, -1)">Subir</button>
+          <button type="button" class="boton" [attr.data-subir]="i" [disabled]="i === 0" (click)="ordenar(i, -1)">Subir</button>
           <!-- BORRADOR: texto nuevo, pendiente de la aprobación de Psicología -->
-          <button type="button" [disabled]="i === ruta().puntos.length - 1" (click)="ordenar(i, 1)">Bajar</button>
+          <button type="button" class="boton" [disabled]="i === ruta().puntos.length - 1" (click)="ordenar(i, 1)">Bajar</button>
           <!-- BORRADOR: texto nuevo, pendiente de la aprobación de Psicología -->
-          <button type="button" [attr.data-quitar]="i" [disabled]="ruta().puntos.length <= 2" (click)="quitar(i)">Quitar</button>
+          <button type="button" class="boton" [attr.data-quitar]="i" [disabled]="ruta().puntos.length <= 2" (click)="quitar(i)">Quitar</button>
         </li>
       }
     </ol>
     <!-- BORRADOR: texto nuevo, pendiente de la aprobación de Psicología -->
-    <button type="button" data-agregar [disabled]="ruta().puntos.length >= 8" (click)="agregar()">Agregar punto</button>
+    <button type="button" class="boton" data-agregar [disabled]="ruta().puntos.length >= 8" (click)="agregar()">Agregar punto</button>
     <!-- BORRADOR: texto nuevo, pendiente de la aprobación de Psicología -->
     <label>Modo
       <select [value]="ruta().modo" (change)="modo($any($event.target).value)">

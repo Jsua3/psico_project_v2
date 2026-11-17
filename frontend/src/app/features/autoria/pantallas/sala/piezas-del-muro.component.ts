@@ -47,6 +47,7 @@ interface Pieza {
       border: 2px solid transparent; background: transparent; touch-action: none; pointer-events: auto; cursor: grab; }
     .pieza-muro::before { content: ""; position: absolute; left: 50%; top: 50%; width: 44px; height: 44px;
       transform: translate(-50%, -50%); }
+    .pieza-muro:active { cursor: grabbing; }
     .pieza-muro.elegida, .pieza-muro:focus-visible { outline: 3px solid #175ec6; outline-offset: 2px; }
     .pieza-muro.incumple { border: 3px dashed #bd2020; }
     .pieza-muro span { position: absolute; top: 0; right: 0; color: white; background: #a50000;
