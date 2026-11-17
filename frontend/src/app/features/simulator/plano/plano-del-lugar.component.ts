@@ -93,7 +93,8 @@ const PUERTA_GROSOR = 14;
     .sala--elegible { cursor: pointer; }
     .rota circle { fill: none; stroke: #bd2020; stroke-width: 3; stroke-dasharray: 6 4; }
     .rota text { fill: #a50000; font-weight: 700; }
-    .plano__sala { display: block; width: 100%; min-height: 44px; text-align: left; }
+    .plano__sala { display: block; width: 100%; min-height: 44px; padding: 8px 12px; text-align: left; font: inherit; color: var(--ds-text-1);
+      background: var(--ds-surface-1, transparent); border: 1px solid var(--ds-border-strong, currentColor); border-radius: 8px; cursor: pointer; }
     .plano__sala:active { transform: translateY(1px); }
     .plano__rota { display: block; color: #a50000; font-weight: 600; }
   `],
@@ -124,10 +125,15 @@ export class PlanoDelLugarComponent {
     return sala ? [{ ...puntoEnElMuro(sala, r.muro, r.pos), sala: r.sala, texto: r.texto }] : [];
   }));
   protected rotasDe(clave: string): readonly PuertaRota[] { return this.rotas().filter(r => r.sala === clave); }
-  protected readonly resumen = computed(() => textoDeLaSala(this.plano(), this.actual()));
+  // Sin sala actual (el plano del editor de casos) la imagen nombra las salas: nunca queda sin texto.
+  // BORRADOR: texto nuevo, pendiente de la aprobación de Psicología
+  protected readonly resumen = computed(() => textoDeLaSala(this.plano(), this.actual())
+    || `Plano de las salas: ${this.plano().salas.map(s => s.titulo).join(', ')}.`);
   protected readonly lista = computed(() => {
     const textos = textoDelPlano(this.plano(), this.actual(), this.visitadas());
-    return this.plano().salas.map((sala, i) => ({ clave: sala.clave, texto: textos[i], actual: sala.clave === this.actual() }));
+    // En el editor (elegible) todas se ven: «visitada» es del juego y sobra.
+    return this.plano().salas.map((sala, i) => ({ clave: sala.clave, actual: sala.clave === this.actual(),
+      texto: this.elegible() ? textos[i].replace(/^(.*?), visitada\./, '$1.') : textos[i] }));
   });
   /** Tamaño de los nombres en px de plano: unas 48 letras a lo ancho del plano, se muestre al tamaño que se muestre. */
   protected readonly letra = computed(() => Math.round(this.dibujo().caja.ancho / 48));

@@ -86,6 +86,11 @@ describe('PlanoDelLugarComponent en el editor de casos (P4)', () => {
     expect(el.querySelectorAll('.sala--elegible')).toHaveLength(0);
   });
 
+  it('sin sala actual la imagen nombra las salas (nunca queda sin texto alternativo)', () => {
+    const el = montarEditor({}).nativeElement as HTMLElement;
+    expect(el.querySelector('svg')!.getAttribute('aria-label')).toBe(`Plano de las salas: ${PLANO.salas.map(s => s.titulo).join(', ')}.`);
+  });
+
   it('una puerta rota sale en rojo con «×» en su muro y su texto en la lista', () => {
     const el = montarEditor({ rotas: [{ sala: 'triaje', muro: 'fondo', pos: 200, texto: 'Esta puerta no tiene regreso.' }] })
       .nativeElement as HTMLElement;
@@ -105,5 +110,7 @@ describe('PlanoDelLugarComponent en el editor de casos (P4)', () => {
     el.querySelector('g[data-sala="triaje"]')!.dispatchEvent(new MouseEvent('click', { bubbles: true }));
     el.querySelectorAll<HTMLButtonElement>('button.plano__sala')[0].click();
     expect(elegidas).toEqual(['triaje', PLANO.salas[0].clave]);
+    fixture.componentRef.setInput('visitadas', new Set(PLANO.salas.map(s => s.clave))); fixture.detectChanges();
+    expect(el.querySelector('button.plano__sala')!.textContent).not.toContain('visitada');
   });
 });

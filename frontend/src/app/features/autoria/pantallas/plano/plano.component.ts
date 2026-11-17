@@ -23,13 +23,18 @@ type Estado = { tipo: 'cargando' } | { tipo: 'listo'; plano: PlanoDelLugar | nul
   changeDetection: ChangeDetectionStrategy.OnPush,
   imports: [PlanoDelLugarComponent, RouterLink],
   template: `
-    <header class="cabeza">
-      <!-- BORRADOR: texto nuevo, pendiente de la aprobación de Psicología -->
-      <h1>Plano del caso</h1>
-      <!-- BORRADOR: texto nuevo, pendiente de la aprobación de Psicología -->
-      <p class="texto-secundario">Las salas por piezas del caso y sus puertas. Elige una sala para abrir su editor.</p>
-      <a class="boton" [routerLink]="rutas.a('/editor')">Volver al caso</a>
-    </header>
+    <div class="pagina">
+    <div class="cabeza">
+      <div>
+        <!-- BORRADOR: texto nuevo, pendiente de la aprobación de Psicología -->
+        <h1>Plano del caso</h1>
+        <!-- BORRADOR: texto nuevo, pendiente de la aprobación de Psicología -->
+        <p class="texto-secundario">Las salas por piezas del caso y sus puertas. Elige una sala para abrir su editor.</p>
+      </div>
+      <div class="acciones">
+        <a class="boton boton-secundario" [routerLink]="rutas.a('/editor')">Volver al mapa</a>
+      </div>
+    </div>
     @switch (estado().tipo) {
       @case ('cargando') {
         <!-- BORRADOR: texto nuevo, pendiente de la aprobación de Psicología -->
@@ -49,11 +54,11 @@ type Estado = { tipo: 'cargando' } | { tipo: 'listo'; plano: PlanoDelLugar | nul
         }
       }
     }
+    </div>
   `,
   styles: [`
-    :host { display: grid; gap: 16px; }
-    .cabeza { display: grid; gap: 8px; justify-items: start; }
-    .cabeza h1, .cabeza p { margin: 0; }
+    .cabeza { display: flex; flex-wrap: wrap; gap: 12px 24px; align-items: flex-end; justify-content: space-between; }
+    .cabeza p { margin: 4px 0 0; }
     app-plano-del-lugar { padding: 16px; }
   `],
 })
