@@ -52,8 +52,8 @@ describe('draft-copy: textos en borrador pendientes de Psicología', () => {
     // autoevaluación breve y últimos cierres del panel) y la nota «persona a atender» de la persona clave (P6-4); y los siete
     // de la ficha del objetivo (DSL-2: rótulo, respaldo, «En esta sala», las tres marcas y «Pedir una pista») y los cuatro de DSL-3 (los dos avisos
     // de exploración y los dos textos de la ayuda) el chip del aviso sensible (DSL-4) y los cinco de la tarjeta «Antes de comenzar» (DSL-5) y los cuatro de «Respuestas que no llegaste a ver» (DSL-6) y «Por ahora no hay nada que decidir» (DSL-7) y el
-    // respaldo de la puerta bloqueada cuando el servidor no dice qué falta (DSL-8); del ensayo y su panel de autora, los que no están en el brief y los cuatro de error y aviso (DSL-10 y DSL-11: 11 + 4 = 15) y los cinco avisos de robustez del cliente (R1) y los cinco de la pausa local y el reenvío al volver la red (V3). Los del brief (banner, ensayo perdido, reiniciar, volver al editor y el panel) solo se conocen.
-    expect(list.filter(entry => entry.review === 'validar')).toHaveLength(106);
+    // respaldo de la puerta bloqueada cuando el servidor no dice qué falta (DSL-8); del ensayo y su panel de autora, los que no están en el brief y los cuatro de error y aviso (DSL-10 y DSL-11: 11 + 4 = 15) y los cinco avisos de robustez del cliente (R1) y los cinco de la pausa local y el reenvío al volver la red (V3) y el aviso de la segunda oportunidad (V4). Los del brief (banner, ensayo perdido, reiniciar, volver al editor y el panel) solo se conocen.
+    expect(list.filter(entry => entry.review === 'validar')).toHaveLength(107);
   });
 
   // req: ETH-01, SIEP-RF-05 (S3-2b)

@@ -188,7 +188,7 @@ describe('SimulationPlayComponent: la reacción al elegir (4.3.3)', () => {
     service['chooseDecision'].mockReturnValue(of({ ...RESPUESTA_CON_REACCION, consequence: null, retry: { allowed: true, message: '' } }));
     component.executeDecision(41);
     director.terminar('completa');
-    expect(component.dialogue()?.lines.map(l => l.text)).toContain('No se avanzó el caso ni se aplicaron cambios acumulados. Revisa la escena y vuelve a responder.');
+    expect(component.dialogue()?.lines.map(l => l.text)).toContain('El caso sigue en el mismo punto. Si quieres, revisa la escena; luego vuelve a hablar con la persona para responder otra vez.');
   });
 
   it('pedir la salida segura durante la reacción la corta y pausa en el acto', () => {

@@ -218,8 +218,11 @@ def test_final_la_ruta_se_abandona_con_el_vinculo_roto(cliente, version):
 def test_final_proteccion_lograda_duelo_desatendido(cliente, version):
     partida = Partida(cliente, version)
     partida.jugar(O3=["h3-pap-epicee"])  # aceptable: aplica EPICEE pero no acompaña el duelo
-    assert partida.final()["key"] == "duelo_desatendido"
+    final = partida.final()
+    assert final["key"] == "duelo_desatendido"
     assert "duelo_acompanado" not in partida.hitos()
+    # «Cómo llegaste aquí» dice lo que decidió este final (V4): no solo los hitos de la comisaría.
+    assert "Faltó: Acompañar el duelo" in final["reason"]
 
 
 def test_final_contencion_solida_proteccion_incompleta(cliente, version):
