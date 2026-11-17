@@ -41,7 +41,7 @@ export const ORIENTATION_COPY = {
   },
   door: {
     before: (phrases: string): string => `Antes de pasar, ${phrases}.`,
-    laterGate: 'Esta salida se abre más adelante en el caso.',
+    laterGate: 'Esta salida se abre más adelante en el caso; por ahora, lo que sigue está en esta sala.',
     fallback: DRAFT_COPY.doorFallback.text,
   },
 } as const;
