@@ -75,7 +75,21 @@
         "ancho": 28,
         "fondo": 6
       },
-      "icono": "piezas/herramientas/iconos/pap-20.png",
+      "icono": {
+        "alto": 20,
+        "ancho": 20,
+        "cuadros": 6,
+        "estados": {
+          "disponible": 0,
+          "nueva": [
+            1,
+            4
+          ],
+          "usada": 5
+        },
+        "ruta": "piezas/herramientas/iconos/pap-20.png",
+        "ruta2x": "piezas/herramientas/iconos/pap-40.png"
+      },
       "nombre": "Primeros Auxilios Psicológicos",
       "reemplaza": "../frontend/src/assets/game/objects/tool_pap.png",
       "ruta": "piezas/herramientas/pap.png"
@@ -130,7 +144,21 @@
         "ancho": 28,
         "fondo": 6
       },
-      "icono": "piezas/herramientas/iconos/reflection-journal-20.png",
+      "icono": {
+        "alto": 20,
+        "ancho": 20,
+        "cuadros": 6,
+        "estados": {
+          "disponible": 0,
+          "nueva": [
+            1,
+            4
+          ],
+          "usada": 5
+        },
+        "ruta": "piezas/herramientas/iconos/reflection-journal-20.png",
+        "ruta2x": "piezas/herramientas/iconos/reflection-journal-40.png"
+      },
       "nombre": "Bitácora reflexiva",
       "reemplaza": "../frontend/src/assets/game/objects/tool_reflection_journal.png",
       "ruta": "piezas/herramientas/reflection-journal.png"
@@ -185,7 +213,21 @@
         "ancho": 28,
         "fondo": 6
       },
-      "icono": "piezas/herramientas/iconos/risk-meter-20.png",
+      "icono": {
+        "alto": 20,
+        "ancho": 20,
+        "cuadros": 6,
+        "estados": {
+          "disponible": 0,
+          "nueva": [
+            1,
+            4
+          ],
+          "usada": 5
+        },
+        "ruta": "piezas/herramientas/iconos/risk-meter-20.png",
+        "ruta2x": "piezas/herramientas/iconos/risk-meter-40.png"
+      },
       "nombre": "Valoración de riesgo",
       "reemplaza": "../frontend/src/assets/game/objects/tool_risk_meter.png",
       "ruta": "piezas/herramientas/risk-meter.png"
@@ -240,7 +282,21 @@
         "ancho": 28,
         "fondo": 6
       },
-      "icono": "piezas/herramientas/iconos/safety-route-20.png",
+      "icono": {
+        "alto": 20,
+        "ancho": 20,
+        "cuadros": 6,
+        "estados": {
+          "disponible": 0,
+          "nueva": [
+            1,
+            4
+          ],
+          "usada": 5
+        },
+        "ruta": "piezas/herramientas/iconos/safety-route-20.png",
+        "ruta2x": "piezas/herramientas/iconos/safety-route-40.png"
+      },
       "nombre": "Ruta de protección",
       "reemplaza": "../frontend/src/assets/game/objects/tool_safety_route.png",
       "ruta": "piezas/herramientas/safety-route.png"
@@ -295,10 +351,507 @@
         "ancho": 28,
         "fondo": 6
       },
-      "icono": "piezas/herramientas/iconos/spikes-20.png",
+      "icono": {
+        "alto": 20,
+        "ancho": 20,
+        "cuadros": 6,
+        "estados": {
+          "disponible": 0,
+          "nueva": [
+            1,
+            4
+          ],
+          "usada": 5
+        },
+        "ruta": "piezas/herramientas/iconos/spikes-20.png",
+        "ruta2x": "piezas/herramientas/iconos/spikes-40.png"
+      },
       "nombre": "Protocolo EPICEE/SPIKES",
       "reemplaza": "../frontend/src/assets/game/objects/tool_spikes.png",
       "ruta": "piezas/herramientas/spikes.png"
+    },
+    "biblioteca/acta-registro": {
+      "alto": 27,
+      "ancho": 36,
+      "animaciones": {
+        "gesto": {
+          "bucle": false,
+          "de": 6,
+          "fps": 10,
+          "hasta": 11,
+          "sostener": true
+        },
+        "nueva": {
+          "bucle": true,
+          "de": 1,
+          "fps": 8,
+          "hasta": 4
+        },
+        "reposo": {
+          "bucle": true,
+          "de": 0,
+          "fps": 1,
+          "hasta": 0
+        },
+        "usada": {
+          "bucle": true,
+          "de": 5,
+          "fps": 1,
+          "hasta": 5
+        }
+      },
+      "apoyo": [
+        18,
+        27
+      ],
+      "codigo": "biblioteca/acta-registro",
+      "cuadros": 12,
+      "estados": {
+        "disponible": 0,
+        "nueva": [
+          1,
+          4
+        ],
+        "usada": 5
+      },
+      "fps": 1,
+      "huella": {
+        "alto": 12,
+        "ancho": 28,
+        "fondo": 6
+      },
+      "icono": {
+        "alto": 20,
+        "ancho": 20,
+        "cuadros": 6,
+        "estados": {
+          "disponible": 0,
+          "nueva": [
+            1,
+            4
+          ],
+          "usada": 5
+        },
+        "ruta": "piezas/herramientas/iconos/acta-registro-20.png",
+        "ruta2x": "piezas/herramientas/iconos/acta-registro-40.png"
+      },
+      "nombre": "Acta de registro",
+      "reemplaza": "escenarios/comisaria/arte/herramientas/acta-registro.png",
+      "ruta": "piezas/herramientas/acta-registro.png"
+    },
+    "biblioteca/directorio-rutas": {
+      "alto": 27,
+      "ancho": 36,
+      "animaciones": {
+        "gesto": {
+          "bucle": false,
+          "de": 6,
+          "fps": 10,
+          "hasta": 11,
+          "sostener": true
+        },
+        "nueva": {
+          "bucle": true,
+          "de": 1,
+          "fps": 8,
+          "hasta": 4
+        },
+        "reposo": {
+          "bucle": true,
+          "de": 0,
+          "fps": 1,
+          "hasta": 0
+        },
+        "usada": {
+          "bucle": true,
+          "de": 5,
+          "fps": 1,
+          "hasta": 5
+        }
+      },
+      "apoyo": [
+        18,
+        27
+      ],
+      "codigo": "biblioteca/directorio-rutas",
+      "cuadros": 12,
+      "estados": {
+        "disponible": 0,
+        "nueva": [
+          1,
+          4
+        ],
+        "usada": 5
+      },
+      "fps": 1,
+      "huella": {
+        "alto": 12,
+        "ancho": 28,
+        "fondo": 6
+      },
+      "icono": {
+        "alto": 20,
+        "ancho": 20,
+        "cuadros": 6,
+        "estados": {
+          "disponible": 0,
+          "nueva": [
+            1,
+            4
+          ],
+          "usada": 5
+        },
+        "ruta": "piezas/herramientas/iconos/directorio-rutas-20.png",
+        "ruta2x": "piezas/herramientas/iconos/directorio-rutas-40.png"
+      },
+      "nombre": "Directorio de rutas",
+      "reemplaza": "escenarios/casa/arte/herramientas/directorio-rutas.png",
+      "ruta": "piezas/herramientas/directorio-rutas.png"
+    },
+    "biblioteca/ficha-plan-seguridad": {
+      "alto": 27,
+      "ancho": 36,
+      "animaciones": {
+        "gesto": {
+          "bucle": false,
+          "de": 6,
+          "fps": 10,
+          "hasta": 11,
+          "sostener": true
+        },
+        "nueva": {
+          "bucle": true,
+          "de": 1,
+          "fps": 8,
+          "hasta": 4
+        },
+        "reposo": {
+          "bucle": true,
+          "de": 0,
+          "fps": 1,
+          "hasta": 0
+        },
+        "usada": {
+          "bucle": true,
+          "de": 5,
+          "fps": 1,
+          "hasta": 5
+        }
+      },
+      "apoyo": [
+        18,
+        27
+      ],
+      "codigo": "biblioteca/ficha-plan-seguridad",
+      "cuadros": 12,
+      "estados": {
+        "disponible": 0,
+        "nueva": [
+          1,
+          4
+        ],
+        "usada": 5
+      },
+      "fps": 1,
+      "huella": {
+        "alto": 12,
+        "ancho": 28,
+        "fondo": 6
+      },
+      "icono": {
+        "alto": 20,
+        "ancho": 20,
+        "cuadros": 6,
+        "estados": {
+          "disponible": 0,
+          "nueva": [
+            1,
+            4
+          ],
+          "usada": 5
+        },
+        "ruta": "piezas/herramientas/iconos/ficha-plan-seguridad-20.png",
+        "ruta2x": "piezas/herramientas/iconos/ficha-plan-seguridad-40.png"
+      },
+      "nombre": "Ficha del plan de seguridad",
+      "reemplaza": "escenarios/casa/arte/herramientas/ficha-plan-seguridad.png",
+      "ruta": "piezas/herramientas/ficha-plan-seguridad.png"
+    },
+    "biblioteca/ficha-riesgo": {
+      "alto": 27,
+      "ancho": 36,
+      "animaciones": {
+        "gesto": {
+          "bucle": false,
+          "de": 6,
+          "fps": 10,
+          "hasta": 11,
+          "sostener": true
+        },
+        "nueva": {
+          "bucle": true,
+          "de": 1,
+          "fps": 8,
+          "hasta": 4
+        },
+        "reposo": {
+          "bucle": true,
+          "de": 0,
+          "fps": 1,
+          "hasta": 0
+        },
+        "usada": {
+          "bucle": true,
+          "de": 5,
+          "fps": 1,
+          "hasta": 5
+        }
+      },
+      "apoyo": [
+        18,
+        27
+      ],
+      "codigo": "biblioteca/ficha-riesgo",
+      "cuadros": 12,
+      "estados": {
+        "disponible": 0,
+        "nueva": [
+          1,
+          4
+        ],
+        "usada": 5
+      },
+      "fps": 1,
+      "huella": {
+        "alto": 12,
+        "ancho": 28,
+        "fondo": 6
+      },
+      "icono": {
+        "alto": 20,
+        "ancho": 20,
+        "cuadros": 6,
+        "estados": {
+          "disponible": 0,
+          "nueva": [
+            1,
+            4
+          ],
+          "usada": 5
+        },
+        "ruta": "piezas/herramientas/iconos/ficha-riesgo-20.png",
+        "ruta2x": "piezas/herramientas/iconos/ficha-riesgo-40.png"
+      },
+      "nombre": "Ficha de riesgo",
+      "reemplaza": "escenarios/casa/arte/herramientas/ficha-riesgo.png",
+      "ruta": "piezas/herramientas/ficha-riesgo.png"
+    },
+    "biblioteca/guia-primeros-auxilios": {
+      "alto": 27,
+      "ancho": 36,
+      "animaciones": {
+        "gesto": {
+          "bucle": false,
+          "de": 6,
+          "fps": 10,
+          "hasta": 11,
+          "sostener": true
+        },
+        "nueva": {
+          "bucle": true,
+          "de": 1,
+          "fps": 8,
+          "hasta": 4
+        },
+        "reposo": {
+          "bucle": true,
+          "de": 0,
+          "fps": 1,
+          "hasta": 0
+        },
+        "usada": {
+          "bucle": true,
+          "de": 5,
+          "fps": 1,
+          "hasta": 5
+        }
+      },
+      "apoyo": [
+        18,
+        27
+      ],
+      "codigo": "biblioteca/guia-primeros-auxilios",
+      "cuadros": 12,
+      "estados": {
+        "disponible": 0,
+        "nueva": [
+          1,
+          4
+        ],
+        "usada": 5
+      },
+      "fps": 1,
+      "huella": {
+        "alto": 12,
+        "ancho": 28,
+        "fondo": 6
+      },
+      "icono": {
+        "alto": 20,
+        "ancho": 20,
+        "cuadros": 6,
+        "estados": {
+          "disponible": 0,
+          "nueva": [
+            1,
+            4
+          ],
+          "usada": 5
+        },
+        "ruta": "piezas/herramientas/iconos/guia-primeros-auxilios-20.png",
+        "ruta2x": "piezas/herramientas/iconos/guia-primeros-auxilios-40.png"
+      },
+      "nombre": "Guía de primeros auxilios psicológicos",
+      "reemplaza": "escenarios/casa/arte/herramientas/guia-primeros-auxilios.png",
+      "ruta": "piezas/herramientas/guia-primeros-auxilios.png"
+    },
+    "biblioteca/protocolo-bienestar": {
+      "alto": 27,
+      "ancho": 36,
+      "animaciones": {
+        "gesto": {
+          "bucle": false,
+          "de": 6,
+          "fps": 10,
+          "hasta": 11,
+          "sostener": true
+        },
+        "nueva": {
+          "bucle": true,
+          "de": 1,
+          "fps": 8,
+          "hasta": 4
+        },
+        "reposo": {
+          "bucle": true,
+          "de": 0,
+          "fps": 1,
+          "hasta": 0
+        },
+        "usada": {
+          "bucle": true,
+          "de": 5,
+          "fps": 1,
+          "hasta": 5
+        }
+      },
+      "apoyo": [
+        18,
+        27
+      ],
+      "codigo": "biblioteca/protocolo-bienestar",
+      "cuadros": 12,
+      "estados": {
+        "disponible": 0,
+        "nueva": [
+          1,
+          4
+        ],
+        "usada": 5
+      },
+      "fps": 1,
+      "huella": {
+        "alto": 12,
+        "ancho": 28,
+        "fondo": 6
+      },
+      "icono": {
+        "alto": 20,
+        "ancho": 20,
+        "cuadros": 6,
+        "estados": {
+          "disponible": 0,
+          "nueva": [
+            1,
+            4
+          ],
+          "usada": 5
+        },
+        "ruta": "piezas/herramientas/iconos/protocolo-bienestar-20.png",
+        "ruta2x": "piezas/herramientas/iconos/protocolo-bienestar-40.png"
+      },
+      "nombre": "Protocolo de bienestar",
+      "reemplaza": "escenarios/universidad/arte/herramientas/protocolo-bienestar.png",
+      "ruta": "piezas/herramientas/protocolo-bienestar.png"
+    },
+    "biblioteca/tarjeta-contacto-bienestar": {
+      "alto": 27,
+      "ancho": 36,
+      "animaciones": {
+        "gesto": {
+          "bucle": false,
+          "de": 6,
+          "fps": 10,
+          "hasta": 11,
+          "sostener": true
+        },
+        "nueva": {
+          "bucle": true,
+          "de": 1,
+          "fps": 8,
+          "hasta": 4
+        },
+        "reposo": {
+          "bucle": true,
+          "de": 0,
+          "fps": 1,
+          "hasta": 0
+        },
+        "usada": {
+          "bucle": true,
+          "de": 5,
+          "fps": 1,
+          "hasta": 5
+        }
+      },
+      "apoyo": [
+        18,
+        27
+      ],
+      "codigo": "biblioteca/tarjeta-contacto-bienestar",
+      "cuadros": 12,
+      "estados": {
+        "disponible": 0,
+        "nueva": [
+          1,
+          4
+        ],
+        "usada": 5
+      },
+      "fps": 1,
+      "huella": {
+        "alto": 12,
+        "ancho": 28,
+        "fondo": 6
+      },
+      "icono": {
+        "alto": 20,
+        "ancho": 20,
+        "cuadros": 6,
+        "estados": {
+          "disponible": 0,
+          "nueva": [
+            1,
+            4
+          ],
+          "usada": 5
+        },
+        "ruta": "piezas/herramientas/iconos/tarjeta-contacto-bienestar-20.png",
+        "ruta2x": "piezas/herramientas/iconos/tarjeta-contacto-bienestar-40.png"
+      },
+      "nombre": "Tarjeta de contacto de bienestar",
+      "reemplaza": "escenarios/comisaria/arte/herramientas/tarjeta-contacto-bienestar.png",
+      "ruta": "piezas/herramientas/tarjeta-contacto-bienestar.png"
     }
   },
   "lugares": [
@@ -864,7 +1417,8 @@
       },
       "nombre": "Estufa",
       "reemplaza": "escenarios/casa/arte/muebles/estufa.png",
-      "ruta": "piezas/muebles/casa/estufa.png"
+      "ruta": "piezas/muebles/casa/estufa.png",
+      "silueta": "piezas/muebles/casa/estufa-silueta.png"
     },
     "casa/lavaplatos": {
       "alto": 49,
@@ -1170,6 +1724,105 @@
       "reemplaza": "escenarios/casa/arte/muebles/vitrina-comedor.png",
       "ruta": "piezas/muebles/casa/vitrina-comedor.png"
     },
+    "comisaria/archivador-metalico": {
+      "alto": 57,
+      "ancho": 42,
+      "animaciones": {
+        "reposo": {
+          "bucle": true,
+          "de": 0,
+          "fps": 1,
+          "hasta": 0
+        },
+        "revisar": {
+          "bucle": false,
+          "de": 1,
+          "fps": 10,
+          "hasta": 4,
+          "sostener": true
+        }
+      },
+      "apoyo": [
+        21,
+        57
+      ],
+      "brillo": "piezas/muebles/comisaria/archivador-metalico-brillo.png",
+      "brilloDerecha": "piezas/muebles/comisaria/archivador-metalico-brillo-derecha.png",
+      "brilloIzquierda": "piezas/muebles/comisaria/archivador-metalico-brillo-izquierda.png",
+      "cuadros": 5,
+      "fps": 1,
+      "huella": {
+        "alto": 52,
+        "ancho": 38,
+        "fondo": 14
+      },
+      "nombre": "Archivador metálico",
+      "reemplaza": "escenarios/comisaria/arte/muebles/archivador-metalico.png",
+      "ruta": "piezas/muebles/comisaria/archivador-metalico.png"
+    },
+    "comisaria/banca-exterior": {
+      "alto": 35,
+      "ancho": 100,
+      "apoyo": [
+        50,
+        35
+      ],
+      "cuadros": 1,
+      "huella": {
+        "alto": 30,
+        "ancho": 96,
+        "fondo": 12
+      },
+      "nombre": "Banca exterior",
+      "reemplaza": "escenarios/comisaria/arte/muebles/banca-exterior.png",
+      "ruta": "piezas/muebles/comisaria/banca-exterior.png"
+    },
+    "comisaria/bandera-asta": {
+      "alto": 92,
+      "ancho": 30,
+      "animaciones": {
+        "reposo": {
+          "bucle": true,
+          "de": 0,
+          "fps": 2,
+          "hasta": 2
+        }
+      },
+      "apoyo": [
+        15,
+        92
+      ],
+      "brillo": "piezas/muebles/comisaria/bandera-asta-brillo.png",
+      "brilloDerecha": "piezas/muebles/comisaria/bandera-asta-brillo-derecha.png",
+      "brilloIzquierda": "piezas/muebles/comisaria/bandera-asta-brillo-izquierda.png",
+      "cuadros": 3,
+      "fps": 2,
+      "huella": {
+        "alto": 86,
+        "ancho": 10,
+        "fondo": 6
+      },
+      "nombre": "Asta con la bandera",
+      "reemplaza": "escenarios/comisaria/arte/muebles/bandera-asta.png",
+      "ruta": "piezas/muebles/comisaria/bandera-asta.png"
+    },
+    "comisaria/caja-archivo": {
+      "alto": 40,
+      "ancho": 40,
+      "apoyo": [
+        20,
+        40
+      ],
+      "cuadros": 1,
+      "huella": {
+        "alto": 36,
+        "ancho": 36,
+        "fondo": 12
+      },
+      "nombre": "Cajas de archivo",
+      "reemplaza": "escenarios/comisaria/arte/muebles/caja-archivo.png",
+      "ruta": "piezas/muebles/comisaria/caja-archivo.png"
+    },
     "comisaria/caneca-comisaria": {
       "alto": 33,
       "ancho": 24,
@@ -1247,6 +1900,43 @@
       "reemplaza": "escenarios/comisaria/arte/muebles/escritorio-funcionario.png",
       "ruta": "piezas/muebles/comisaria/escritorio-funcionario.png"
     },
+    "comisaria/estante-expedientes": {
+      "alto": 97,
+      "ancho": 97,
+      "apoyo": [
+        48,
+        97
+      ],
+      "brillo": "piezas/muebles/comisaria/estante-expedientes-brillo.png",
+      "brilloDerecha": "piezas/muebles/comisaria/estante-expedientes-brillo-derecha.png",
+      "brilloIzquierda": "piezas/muebles/comisaria/estante-expedientes-brillo-izquierda.png",
+      "cuadros": 1,
+      "huella": {
+        "alto": 92,
+        "ancho": 94,
+        "fondo": 16
+      },
+      "nombre": "Estante de expedientes",
+      "reemplaza": "escenarios/comisaria/arte/muebles/estante-expedientes.png",
+      "ruta": "piezas/muebles/comisaria/estante-expedientes.png"
+    },
+    "comisaria/estante-juguetes": {
+      "alto": 43,
+      "ancho": 62,
+      "apoyo": [
+        31,
+        43
+      ],
+      "cuadros": 1,
+      "huella": {
+        "alto": 40,
+        "ancho": 58,
+        "fondo": 12
+      },
+      "nombre": "Estante de juguetes",
+      "reemplaza": "escenarios/comisaria/arte/muebles/estante-juguetes.png",
+      "ruta": "piezas/muebles/comisaria/estante-juguetes.png"
+    },
     "comisaria/mesa-baja-nna": {
       "alto": 35,
       "ancho": 64,
@@ -1265,6 +1955,26 @@
       "nombre": "Mesa baja para niñas y niños",
       "reemplaza": "escenarios/comisaria/arte/muebles/mesa-baja-nna.png",
       "ruta": "piezas/muebles/comisaria/mesa-baja-nna.png"
+    },
+    "comisaria/mesa-reunion": {
+      "alto": 57,
+      "ancho": 122,
+      "apoyo": [
+        61,
+        57
+      ],
+      "brillo": "piezas/muebles/comisaria/mesa-reunion-brillo.png",
+      "brilloDerecha": "piezas/muebles/comisaria/mesa-reunion-brillo-derecha.png",
+      "brilloIzquierda": "piezas/muebles/comisaria/mesa-reunion-brillo-izquierda.png",
+      "cuadros": 1,
+      "huella": {
+        "alto": 30,
+        "ancho": 116,
+        "fondo": 24
+      },
+      "nombre": "Mesa de reuniones",
+      "reemplaza": "escenarios/comisaria/arte/muebles/mesa-reunion.png",
+      "ruta": "piezas/muebles/comisaria/mesa-reunion.png"
     },
     "comisaria/mostrador-recepcion": {
       "alto": 65,
@@ -1332,6 +2042,23 @@
       "reemplaza": "escenarios/comisaria/arte/muebles/silla-giratoria.png",
       "ruta": "piezas/muebles/comisaria/silla-giratoria.png"
     },
+    "comisaria/silla-pequena": {
+      "alto": 29,
+      "ancho": 20,
+      "apoyo": [
+        10,
+        29
+      ],
+      "cuadros": 1,
+      "huella": {
+        "alto": 26,
+        "ancho": 18,
+        "fondo": 8
+      },
+      "nombre": "Silla pequeña",
+      "reemplaza": "escenarios/comisaria/arte/muebles/silla-pequena.png",
+      "ruta": "piezas/muebles/comisaria/silla-pequena.png"
+    },
     "comisaria/silla-visitante-comisaria": {
       "alto": 39,
       "ancho": 24,
@@ -1371,6 +2098,23 @@
       "nombre": "Fila de sillas de espera",
       "reemplaza": "escenarios/comisaria/arte/muebles/sillas-espera-comisaria.png",
       "ruta": "piezas/muebles/comisaria/sillas-espera-comisaria.png"
+    },
+    "comisaria/tapete-juegos": {
+      "alto": 57,
+      "ancho": 89,
+      "apoyo": [
+        44,
+        57
+      ],
+      "cuadros": 1,
+      "huella": {
+        "alto": 2,
+        "ancho": 86,
+        "fondo": 52
+      },
+      "nombre": "Tapete de juegos",
+      "reemplaza": "escenarios/comisaria/arte/muebles/tapete-juegos.png",
+      "ruta": "piezas/muebles/comisaria/tapete-juegos.png"
     },
     "hospital/archivador-clinico": {
       "alto": 73,
@@ -1641,6 +2385,628 @@
       },
       "nombre": "Sillón",
       "ruta": "piezas/muebles/hospital/sillon.png"
+    },
+    "universidad/archivador": {
+      "alto": 57,
+      "ancho": 42,
+      "animaciones": {
+        "reposo": {
+          "bucle": true,
+          "de": 0,
+          "fps": 1,
+          "hasta": 0
+        },
+        "revisar": {
+          "bucle": false,
+          "de": 1,
+          "fps": 10,
+          "hasta": 4,
+          "sostener": true
+        }
+      },
+      "apoyo": [
+        21,
+        57
+      ],
+      "brillo": "piezas/muebles/universidad/archivador-brillo.png",
+      "brilloDerecha": "piezas/muebles/universidad/archivador-brillo-derecha.png",
+      "brilloIzquierda": "piezas/muebles/universidad/archivador-brillo-izquierda.png",
+      "cuadros": 5,
+      "fps": 1,
+      "huella": {
+        "alto": 52,
+        "ancho": 38,
+        "fondo": 14
+      },
+      "nombre": "Archivador",
+      "reemplaza": "escenarios/universidad/arte/muebles/archivador.png",
+      "ruta": "piezas/muebles/universidad/archivador.png"
+    },
+    "universidad/banca": {
+      "alto": 33,
+      "ancho": 100,
+      "apoyo": [
+        50,
+        33
+      ],
+      "cuadros": 1,
+      "huella": {
+        "alto": 30,
+        "ancho": 96,
+        "fondo": 12
+      },
+      "nombre": "Banca",
+      "reemplaza": "escenarios/universidad/arte/muebles/banca.png",
+      "ruta": "piezas/muebles/universidad/banca.png"
+    },
+    "universidad/barra-cafeteria": {
+      "alto": 73,
+      "ancho": 202,
+      "animaciones": {
+        "reposo": {
+          "bucle": true,
+          "de": 0,
+          "fps": 4,
+          "hasta": 3
+        }
+      },
+      "apoyo": [
+        101,
+        73
+      ],
+      "brillo": "piezas/muebles/universidad/barra-cafeteria-brillo.png",
+      "brilloDerecha": "piezas/muebles/universidad/barra-cafeteria-brillo-derecha.png",
+      "brilloIzquierda": "piezas/muebles/universidad/barra-cafeteria-brillo-izquierda.png",
+      "cuadros": 4,
+      "emisivo": "piezas/muebles/universidad/barra-cafeteria-emisivo.png",
+      "fps": 4,
+      "huella": {
+        "alto": 44,
+        "ancho": 196,
+        "fondo": 16
+      },
+      "nombre": "Barra de la cafetería",
+      "reemplaza": "escenarios/universidad/arte/muebles/barra-cafeteria.png",
+      "ruta": "piezas/muebles/universidad/barra-cafeteria.png"
+    },
+    "universidad/biombo": {
+      "alto": 60,
+      "ancho": 70,
+      "apoyo": [
+        35,
+        60
+      ],
+      "brillo": "piezas/muebles/universidad/biombo-brillo.png",
+      "brilloDerecha": "piezas/muebles/universidad/biombo-brillo-derecha.png",
+      "brilloIzquierda": "piezas/muebles/universidad/biombo-brillo-izquierda.png",
+      "cuadros": 1,
+      "huella": {
+        "alto": 56,
+        "ancho": 68,
+        "fondo": 8
+      },
+      "nombre": "Biombo",
+      "reemplaza": "escenarios/universidad/arte/muebles/biombo.png",
+      "ruta": "piezas/muebles/universidad/biombo.png"
+    },
+    "universidad/camilla": {
+      "alto": 43,
+      "ancho": 97,
+      "apoyo": [
+        48,
+        43
+      ],
+      "brillo": "piezas/muebles/universidad/camilla-brillo.png",
+      "brilloDerecha": "piezas/muebles/universidad/camilla-brillo-derecha.png",
+      "brilloIzquierda": "piezas/muebles/universidad/camilla-brillo-izquierda.png",
+      "cuadros": 1,
+      "huella": {
+        "alto": 40,
+        "ancho": 94,
+        "fondo": 16
+      },
+      "nombre": "Camilla de enfermería",
+      "reemplaza": "escenarios/universidad/arte/muebles/camilla.png",
+      "ruta": "piezas/muebles/universidad/camilla.png"
+    },
+    "universidad/caneca": {
+      "alto": 33,
+      "ancho": 24,
+      "apoyo": [
+        12,
+        33
+      ],
+      "brillo": "piezas/muebles/universidad/caneca-brillo.png",
+      "brilloDerecha": "piezas/muebles/universidad/caneca-brillo-derecha.png",
+      "brilloIzquierda": "piezas/muebles/universidad/caneca-brillo-izquierda.png",
+      "cuadros": 1,
+      "huella": {
+        "alto": 30,
+        "ancho": 22,
+        "fondo": 10
+      },
+      "nombre": "Caneca",
+      "reemplaza": "escenarios/universidad/arte/muebles/caneca.png",
+      "ruta": "piezas/muebles/universidad/caneca.png"
+    },
+    "universidad/cartelera": {
+      "alto": 76,
+      "ancho": 82,
+      "apoyo": [
+        41,
+        76
+      ],
+      "brillo": "piezas/muebles/universidad/cartelera-brillo.png",
+      "brilloDerecha": "piezas/muebles/universidad/cartelera-brillo-derecha.png",
+      "brilloIzquierda": "piezas/muebles/universidad/cartelera-brillo-izquierda.png",
+      "cuadros": 1,
+      "huella": {
+        "alto": 70,
+        "ancho": 70,
+        "fondo": 8
+      },
+      "nombre": "Cartelera institucional",
+      "reemplaza": "escenarios/universidad/arte/muebles/cartelera.png",
+      "ruta": "piezas/muebles/universidad/cartelera.png"
+    },
+    "universidad/dispensador-agua": {
+      "alto": 65,
+      "ancho": 24,
+      "animaciones": {
+        "cerca": {
+          "bucle": false,
+          "de": 1,
+          "fps": 6,
+          "hasta": 4,
+          "luego": "reposo"
+        },
+        "reposo": {
+          "bucle": true,
+          "de": 0,
+          "fps": 1,
+          "hasta": 0
+        },
+        "revisar": {
+          "bucle": false,
+          "de": 5,
+          "fps": 4,
+          "hasta": 6,
+          "sostener": true
+        }
+      },
+      "apoyo": [
+        12,
+        65
+      ],
+      "brillo": "piezas/muebles/universidad/dispensador-agua-brillo.png",
+      "brilloDerecha": "piezas/muebles/universidad/dispensador-agua-brillo-derecha.png",
+      "brilloIzquierda": "piezas/muebles/universidad/dispensador-agua-brillo-izquierda.png",
+      "cuadros": 7,
+      "fps": 1,
+      "huella": {
+        "alto": 62,
+        "ancho": 22,
+        "fondo": 10
+      },
+      "nombre": "Dispensador de agua",
+      "reemplaza": "escenarios/universidad/arte/muebles/dispensador-agua.png",
+      "ruta": "piezas/muebles/universidad/dispensador-agua.png"
+    },
+    "universidad/escritorio": {
+      "alto": 68,
+      "ancho": 125,
+      "animaciones": {
+        "reposo": {
+          "bucle": true,
+          "de": 0,
+          "fps": 2,
+          "hasta": 1
+        },
+        "revisar": {
+          "bucle": false,
+          "de": 2,
+          "fps": 10,
+          "hasta": 5,
+          "sostener": true
+        }
+      },
+      "apoyo": [
+        62,
+        68
+      ],
+      "brillo": "piezas/muebles/universidad/escritorio-brillo.png",
+      "brilloDerecha": "piezas/muebles/universidad/escritorio-brillo-derecha.png",
+      "brilloIzquierda": "piezas/muebles/universidad/escritorio-brillo-izquierda.png",
+      "cuadros": 6,
+      "emisivo": "piezas/muebles/universidad/escritorio-emisivo.png",
+      "fps": 2,
+      "huella": {
+        "alto": 40,
+        "ancho": 120,
+        "fondo": 16
+      },
+      "nombre": "Escritorio",
+      "reemplaza": "escenarios/universidad/arte/muebles/escritorio.png",
+      "ruta": "piezas/muebles/universidad/escritorio.png"
+    },
+    "universidad/estante-biblioteca": {
+      "alto": 97,
+      "ancho": 98,
+      "apoyo": [
+        49,
+        97
+      ],
+      "brilloDerecha": "piezas/muebles/universidad/estante-biblioteca-brillo-derecha.png",
+      "brilloIzquierda": "piezas/muebles/universidad/estante-biblioteca-brillo-izquierda.png",
+      "cuadros": 1,
+      "huella": {
+        "alto": 92,
+        "ancho": 94,
+        "fondo": 16
+      },
+      "nombre": "Estante de la biblioteca",
+      "reemplaza": "escenarios/universidad/arte/muebles/estante-biblioteca.png",
+      "ruta": "piezas/muebles/universidad/estante-biblioteca.png"
+    },
+    "universidad/estante-libros": {
+      "alto": 77,
+      "ancho": 64,
+      "apoyo": [
+        32,
+        77
+      ],
+      "brilloDerecha": "piezas/muebles/universidad/estante-libros-brillo-derecha.png",
+      "brilloIzquierda": "piezas/muebles/universidad/estante-libros-brillo-izquierda.png",
+      "cuadros": 1,
+      "huella": {
+        "alto": 72,
+        "ancho": 60,
+        "fondo": 14
+      },
+      "nombre": "Estante de libros",
+      "reemplaza": "escenarios/universidad/arte/muebles/estante-libros.png",
+      "ruta": "piezas/muebles/universidad/estante-libros.png"
+    },
+    "universidad/lavamanos": {
+      "alto": 47,
+      "ancho": 38,
+      "apoyo": [
+        19,
+        47
+      ],
+      "brillo": "piezas/muebles/universidad/lavamanos-brillo.png",
+      "brilloDerecha": "piezas/muebles/universidad/lavamanos-brillo-derecha.png",
+      "brilloIzquierda": "piezas/muebles/universidad/lavamanos-brillo-izquierda.png",
+      "cuadros": 1,
+      "huella": {
+        "alto": 44,
+        "ancho": 36,
+        "fondo": 10
+      },
+      "nombre": "Lavamanos",
+      "reemplaza": "escenarios/universidad/arte/muebles/lavamanos.png",
+      "ruta": "piezas/muebles/universidad/lavamanos.png"
+    },
+    "universidad/mesa-cafeteria": {
+      "alto": 38,
+      "ancho": 56,
+      "apoyo": [
+        28,
+        38
+      ],
+      "brillo": "piezas/muebles/universidad/mesa-cafeteria-brillo.png",
+      "brilloDerecha": "piezas/muebles/universidad/mesa-cafeteria-brillo-derecha.png",
+      "brilloIzquierda": "piezas/muebles/universidad/mesa-cafeteria-brillo-izquierda.png",
+      "cuadros": 1,
+      "huella": {
+        "alto": 34,
+        "ancho": 50,
+        "fondo": 14
+      },
+      "nombre": "Mesa de cafetería",
+      "reemplaza": "escenarios/universidad/arte/muebles/mesa-cafeteria.png",
+      "ruta": "piezas/muebles/universidad/mesa-cafeteria.png"
+    },
+    "universidad/mesa-centro": {
+      "alto": 31,
+      "ancho": 54,
+      "apoyo": [
+        27,
+        31
+      ],
+      "brillo": "piezas/muebles/universidad/mesa-centro-brillo.png",
+      "brilloDerecha": "piezas/muebles/universidad/mesa-centro-brillo-derecha.png",
+      "brilloIzquierda": "piezas/muebles/universidad/mesa-centro-brillo-izquierda.png",
+      "cuadros": 1,
+      "huella": {
+        "alto": 20,
+        "ancho": 52,
+        "fondo": 12
+      },
+      "nombre": "Mesa de centro",
+      "reemplaza": "escenarios/universidad/arte/muebles/mesa-centro.png",
+      "ruta": "piezas/muebles/universidad/mesa-centro.png"
+    },
+    "universidad/mesa-estudio": {
+      "alto": 45,
+      "ancho": 132,
+      "apoyo": [
+        66,
+        45
+      ],
+      "brillo": "piezas/muebles/universidad/mesa-estudio-brillo.png",
+      "brilloDerecha": "piezas/muebles/universidad/mesa-estudio-brillo-derecha.png",
+      "brilloIzquierda": "piezas/muebles/universidad/mesa-estudio-brillo-izquierda.png",
+      "cuadros": 1,
+      "emisivo": "piezas/muebles/universidad/mesa-estudio-emisivo.png",
+      "huella": {
+        "alto": 30,
+        "ancho": 126,
+        "fondo": 16
+      },
+      "nombre": "Mesa de estudio",
+      "reemplaza": "escenarios/universidad/arte/muebles/mesa-estudio.png",
+      "ruta": "piezas/muebles/universidad/mesa-estudio.png"
+    },
+    "universidad/mostrador": {
+      "alto": 65,
+      "ancho": 183,
+      "apoyo": [
+        91,
+        65
+      ],
+      "brillo": "piezas/muebles/universidad/mostrador-brillo.png",
+      "brilloDerecha": "piezas/muebles/universidad/mostrador-brillo-derecha.png",
+      "brilloIzquierda": "piezas/muebles/universidad/mostrador-brillo-izquierda.png",
+      "cuadros": 1,
+      "huella": {
+        "alto": 44,
+        "ancho": 178,
+        "fondo": 16
+      },
+      "nombre": "Mostrador de recepción",
+      "reemplaza": "escenarios/universidad/arte/muebles/mostrador.png",
+      "ruta": "piezas/muebles/universidad/mostrador.png"
+    },
+    "universidad/planta": {
+      "alto": 54,
+      "ancho": 40,
+      "animaciones": {
+        "reposo": {
+          "bucle": true,
+          "de": 0,
+          "fps": 2,
+          "hasta": 3
+        }
+      },
+      "apoyo": [
+        20,
+        54
+      ],
+      "cuadros": 4,
+      "fps": 2,
+      "huella": {
+        "alto": 46,
+        "ancho": 22,
+        "fondo": 10
+      },
+      "nombre": "Planta de oficina",
+      "reemplaza": "escenarios/universidad/arte/muebles/planta.png",
+      "ruta": "piezas/muebles/universidad/planta.png"
+    },
+    "universidad/porteria": {
+      "alto": 86,
+      "ancho": 122,
+      "apoyo": [
+        61,
+        86
+      ],
+      "brillo": "piezas/muebles/universidad/porteria-brillo.png",
+      "brilloDerecha": "piezas/muebles/universidad/porteria-brillo-derecha.png",
+      "brilloIzquierda": "piezas/muebles/universidad/porteria-brillo-izquierda.png",
+      "cuadros": 1,
+      "emisivo": "piezas/muebles/universidad/porteria-emisivo.png",
+      "huella": {
+        "alto": 84,
+        "ancho": 118,
+        "fondo": 20
+      },
+      "nombre": "Portería",
+      "reemplaza": "escenarios/universidad/arte/muebles/porteria.png",
+      "ruta": "piezas/muebles/universidad/porteria.png"
+    },
+    "universidad/pupitre": {
+      "alto": 38,
+      "ancho": 45,
+      "apoyo": [
+        22,
+        38
+      ],
+      "brilloDerecha": "piezas/muebles/universidad/pupitre-brillo-derecha.png",
+      "brilloIzquierda": "piezas/muebles/universidad/pupitre-brillo-izquierda.png",
+      "cuadros": 1,
+      "huella": {
+        "alto": 34,
+        "ancho": 40,
+        "fondo": 12
+      },
+      "nombre": "Pupitre",
+      "reemplaza": "escenarios/universidad/arte/muebles/pupitre.png",
+      "ruta": "piezas/muebles/universidad/pupitre.png"
+    },
+    "universidad/silla-cafeteria": {
+      "alto": 33,
+      "ancho": 22,
+      "apoyo": [
+        11,
+        33
+      ],
+      "cuadros": 1,
+      "huella": {
+        "alto": 30,
+        "ancho": 20,
+        "fondo": 10
+      },
+      "nombre": "Silla de cafetería",
+      "reemplaza": "escenarios/universidad/arte/muebles/silla-cafeteria.png",
+      "ruta": "piezas/muebles/universidad/silla-cafeteria.png"
+    },
+    "universidad/silla-oficina": {
+      "alto": 44,
+      "ancho": 30,
+      "apoyo": [
+        15,
+        44
+      ],
+      "brillo": "piezas/muebles/universidad/silla-oficina-brillo.png",
+      "brilloDerecha": "piezas/muebles/universidad/silla-oficina-brillo-derecha.png",
+      "brilloIzquierda": "piezas/muebles/universidad/silla-oficina-brillo-izquierda.png",
+      "cuadros": 1,
+      "huella": {
+        "alto": 36,
+        "ancho": 24,
+        "fondo": 12
+      },
+      "nombre": "Silla giratoria",
+      "reemplaza": "escenarios/universidad/arte/muebles/silla-oficina.png",
+      "ruta": "piezas/muebles/universidad/silla-oficina.png"
+    },
+    "universidad/silla-visitante": {
+      "alto": 39,
+      "ancho": 24,
+      "apoyo": [
+        12,
+        39
+      ],
+      "brillo": "piezas/muebles/universidad/silla-visitante-brillo.png",
+      "brilloDerecha": "piezas/muebles/universidad/silla-visitante-brillo-derecha.png",
+      "brilloIzquierda": "piezas/muebles/universidad/silla-visitante-brillo-izquierda.png",
+      "cuadros": 1,
+      "huella": {
+        "alto": 30,
+        "ancho": 22,
+        "fondo": 12
+      },
+      "nombre": "Silla para visitante",
+      "reemplaza": "escenarios/universidad/arte/muebles/silla-visitante.png",
+      "ruta": "piezas/muebles/universidad/silla-visitante.png"
+    },
+    "universidad/sillas-espera": {
+      "alto": 40,
+      "ancho": 122,
+      "apoyo": [
+        61,
+        40
+      ],
+      "brillo": "piezas/muebles/universidad/sillas-espera-brillo.png",
+      "brilloDerecha": "piezas/muebles/universidad/sillas-espera-brillo-derecha.png",
+      "brilloIzquierda": "piezas/muebles/universidad/sillas-espera-brillo-izquierda.png",
+      "cuadros": 1,
+      "huella": {
+        "alto": 32,
+        "ancho": 118,
+        "fondo": 14
+      },
+      "nombre": "Fila de sillas de espera",
+      "reemplaza": "escenarios/universidad/arte/muebles/sillas-espera.png",
+      "ruta": "piezas/muebles/universidad/sillas-espera.png"
+    },
+    "universidad/sillon": {
+      "alto": 44,
+      "ancho": 48,
+      "apoyo": [
+        24,
+        44
+      ],
+      "brillo": "piezas/muebles/universidad/sillon-brillo.png",
+      "brilloDerecha": "piezas/muebles/universidad/sillon-brillo-derecha.png",
+      "brilloIzquierda": "piezas/muebles/universidad/sillon-brillo-izquierda.png",
+      "cuadros": 1,
+      "huella": {
+        "alto": 36,
+        "ancho": 46,
+        "fondo": 14
+      },
+      "nombre": "Sillón",
+      "reemplaza": "escenarios/universidad/arte/muebles/sillon.png",
+      "ruta": "piezas/muebles/universidad/sillon.png"
+    },
+    "universidad/sofa": {
+      "alto": 47,
+      "ancho": 94,
+      "apoyo": [
+        47,
+        47
+      ],
+      "brillo": "piezas/muebles/universidad/sofa-brillo.png",
+      "brilloDerecha": "piezas/muebles/universidad/sofa-brillo-derecha.png",
+      "brilloIzquierda": "piezas/muebles/universidad/sofa-brillo-izquierda.png",
+      "cuadros": 1,
+      "huella": {
+        "alto": 40,
+        "ancho": 90,
+        "fondo": 16
+      },
+      "nombre": "Sofá de la sala",
+      "reemplaza": "escenarios/universidad/arte/muebles/sofa.png",
+      "ruta": "piezas/muebles/universidad/sofa.png"
+    },
+    "universidad/tablero": {
+      "alto": 110,
+      "ancho": 180,
+      "apoyo": [
+        90,
+        110
+      ],
+      "brillo": "piezas/muebles/universidad/tablero-brillo.png",
+      "brilloDerecha": "piezas/muebles/universidad/tablero-brillo-derecha.png",
+      "brilloIzquierda": "piezas/muebles/universidad/tablero-brillo-izquierda.png",
+      "cuadros": 1,
+      "huella": {
+        "alto": 104,
+        "ancho": 170,
+        "fondo": 8
+      },
+      "nombre": "Tablero",
+      "reemplaza": "escenarios/universidad/arte/muebles/tablero.png",
+      "ruta": "piezas/muebles/universidad/tablero.png"
+    },
+    "universidad/tapete": {
+      "alto": 37,
+      "ancho": 120,
+      "apoyo": [
+        60,
+        37
+      ],
+      "cuadros": 1,
+      "huella": {
+        "alto": 2,
+        "ancho": 116,
+        "fondo": 34
+      },
+      "nombre": "Tapete",
+      "reemplaza": "escenarios/universidad/arte/muebles/tapete.png",
+      "ruta": "piezas/muebles/universidad/tapete.png"
+    },
+    "universidad/vitrina-medicamentos": {
+      "alto": 73,
+      "ancho": 58,
+      "apoyo": [
+        29,
+        73
+      ],
+      "brillo": "piezas/muebles/universidad/vitrina-medicamentos-brillo.png",
+      "brilloDerecha": "piezas/muebles/universidad/vitrina-medicamentos-brillo-derecha.png",
+      "brilloIzquierda": "piezas/muebles/universidad/vitrina-medicamentos-brillo-izquierda.png",
+      "cuadros": 1,
+      "huella": {
+        "alto": 70,
+        "ancho": 54,
+        "fondo": 14
+      },
+      "nombre": "Vitrina de medicamentos",
+      "reemplaza": "escenarios/universidad/arte/muebles/vitrina-medicamentos.png",
+      "ruta": "piezas/muebles/universidad/vitrina-medicamentos.png"
     }
   },
   "muros": {
@@ -5417,6 +6783,24 @@
       "reemplaza": "escenarios/comisaria/arte/objetos/afiche-rutas-atencion.png",
       "ruta": "piezas/objetos/comisaria/afiche-rutas-atencion.png"
     },
+    "comisaria/boligrafo-formularios": {
+      "alto": 20,
+      "ancho": 35,
+      "apoyo": [
+        17,
+        20
+      ],
+      "cuadros": 1,
+      "huella": {
+        "alto": 8,
+        "ancho": 30,
+        "fondo": 8
+      },
+      "nombre": "Formularios y bolígrafo",
+      "reemplaza": "escenarios/comisaria/arte/objetos/boligrafo-formularios.png",
+      "ruta": "piezas/objetos/comisaria/boligrafo-formularios.png",
+      "sobre": 24
+    },
     "comisaria/caja-panuelos": {
       "alto": 22,
       "ancho": 24,
@@ -5522,6 +6906,23 @@
       "ruta": "piezas/objetos/comisaria/carpeta-medidas-proteccion.png",
       "sobre": 24
     },
+    "comisaria/cartel-linea-155": {
+      "alto": 53,
+      "ancho": 38,
+      "apoyo": [
+        19,
+        53
+      ],
+      "cuadros": 1,
+      "huella": {
+        "alto": 48,
+        "ancho": 20,
+        "fondo": 6
+      },
+      "nombre": "Cartel de la línea 155",
+      "reemplaza": "escenarios/comisaria/arte/objetos/cartel-linea-155.png",
+      "ruta": "piezas/objetos/comisaria/cartel-linea-155.png"
+    },
     "comisaria/dispensador-agua": {
       "alto": 65,
       "ancho": 24,
@@ -5621,6 +7022,40 @@
       "nombre": "Papelera",
       "reemplaza": "escenarios/comisaria/arte/objetos/papelera.png",
       "ruta": "piezas/objetos/comisaria/papelera.png"
+    },
+    "comisaria/sello-tinta": {
+      "alto": 23,
+      "ancho": 32,
+      "animaciones": {
+        "reposo": {
+          "bucle": true,
+          "de": 0,
+          "fps": 1,
+          "hasta": 0
+        },
+        "revisar": {
+          "bucle": false,
+          "de": 1,
+          "fps": 10,
+          "hasta": 3,
+          "sostener": true
+        }
+      },
+      "apoyo": [
+        16,
+        23
+      ],
+      "cuadros": 4,
+      "fps": 1,
+      "huella": {
+        "alto": 14,
+        "ancho": 28,
+        "fondo": 8
+      },
+      "nombre": "Sello de la comisaría",
+      "reemplaza": "escenarios/comisaria/arte/objetos/sello-tinta.png",
+      "ruta": "piezas/objetos/comisaria/sello-tinta.png",
+      "sobre": 24
     },
     "comun/destello": {
       "alto": 9,
@@ -6439,6 +7874,7 @@
       "nombre": "Taza de café",
       "reemplaza": "escenarios/universidad/arte/objetos/taza-cafe.png",
       "ruta": "piezas/objetos/universidad/taza-cafe.png",
+      "silueta": "piezas/objetos/universidad/taza-cafe-silueta.png",
       "sobre": 24
     },
     "universidad/vaso-agua": {
