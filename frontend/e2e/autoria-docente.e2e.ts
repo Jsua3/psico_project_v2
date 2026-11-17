@@ -235,7 +235,9 @@ test('un docente crea, prueba y envía un caso; la administradora lo aprueba y u
     await page.evaluate(() => { window.localStorage.clear(); window.sessionStorage.clear(); });
     const registro = recordSimulationResponses(page);
     await entrarALaPrimeraSala(page);
-    await expect(page.locator('app-simulation-play').getByText('Escenario 1 de 3').first()).toBeVisible({ timeout: scaled(30_000) });
+    // La sala ocupa la pantalla (b28adb40): ya no hay contador «Escenario 1 de 3»; la ficha dice el objetivo de la escena.
+    await expect(page.locator('app-simulation-play').getByText('Objetivo de la escena').first()).toBeVisible({ timeout: scaled(30_000) });
+    await expect(page.locator('app-simulation-play').getByText(/Escenario \d+ de \d+/)).toHaveCount(0);
     await sinInfraccionesGraves(page, 'la primera sala vista por el estudiante');
     const acceso = page.locator('button[data-hud-places]');
     await acceso.focus();
