@@ -598,7 +598,9 @@ export class EscenaDeSala {
         .setBlendMode(Phaser.BlendModes.MULTIPLY);
       this.sombras.set(id, sombraImagen);
       this.objetos.push(sombraImagen);
-    } else if (sombraImagen.texture.key !== nombre) {
+    } else if (sombraImagen.texture !== textura) {
+      // Por objeto, no por clave: al crecer, el lienzo se rehace con el MISMO nombre y la imagen seguía con la textura
+      // destruida (`TexturerImage.run`: «reading 'resolution'» de null, y el mundo se detenía con quien camina).
       sombraImagen.setTexture(nombre);
     }
     sombraImagen.setPosition(sombra.x, sombra.y).setVisible(true);
