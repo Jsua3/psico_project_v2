@@ -2,7 +2,8 @@ import { MUROS, esAnchoDeSala, esEncuadre, largoMuro, zonaCaminable, type Muro }
 import type { ManifiestoDePiezas } from '../../simulator/sala/catalogo';
 
 export type ReglaDeSala = 'OCL-13' | 'OCL-14' | 'OCL-15' | 'OCL-16' | 'OCL-17' | 'OCL-18' | 'OCL-19';
-export interface HallazgoDeSala { regla: ReglaDeSala; ruta: string; mensaje: string }
+/** `otra` (solo OCL-14): la ruta de la otra pieza del par. El servidor señala solo la primera; el editor marca las dos. */
+export interface HallazgoDeSala { regla: ReglaDeSala; ruta: string; mensaje: string; otra?: string }
 export interface CatalogoDeReglas {
   anchos: readonly number[];
   piezas: Readonly<Record<string, { muros: readonly string[]; ocupa: number; franja: readonly [number, number] }>>;
@@ -69,7 +70,7 @@ export function revisarSalas(doc: DocumentoDeSalas, catalogo: CatalogoDeReglas |
   const salas = escenas.filter(([, e]) => e['mapa'] && typeof e['mapa'] === 'object' && e['mapa']['estructura'] && typeof e['mapa']['estructura'] === 'object' && !Array.isArray(e['mapa']['estructura']));
   const hallazgos: HallazgoDeSala[] = [];
   // BORRADOR: texto nuevo, pendiente de la aprobación de Psicología.
-  const agregar = (regla: ReglaDeSala, ruta: string, mensaje: string) => hallazgos.push({ regla, ruta, mensaje });
+  const agregar = (regla: ReglaDeSala, ruta: string, mensaje: string, otra?: string) => hallazgos.push({ regla, ruta, mensaje, ...(otra ? { otra } : {}) });
   const modelo = (tipo: unknown, nombre: unknown) => catalogo?.piezas[`${mostrar(tipo)}/${mostrar(nombre)}`];
   const salaId = (clave: string, mapa: MapaDeSala) => typeof tabla(mapa.ambiente)['salaId'] === 'string' && tabla(mapa.ambiente)['salaId'] ? tabla(mapa.ambiente)['salaId'] : clave;
   for (const regla of ['OCL-13', 'OCL-14', 'OCL-15', 'OCL-16', 'OCL-17', 'OCL-18'] as const) {
@@ -113,7 +114,7 @@ export function revisarSalas(doc: DocumentoDeSalas, catalogo: CatalogoDeReglas |
         for (const [k, p] of piezas) { const f = modelo(p['tipo'], p['modelo']); if (f && MUROS.includes(p['muro']) && entero(p['pos'])) lista.push({ ruta: `${ruta}.estructura.piezas[${k}]`, nombre: p['id'] || p['modelo'], muro: p['muro'], pos: p['pos'], ficha: f, puerta: p['tipo'] === 'puerta' }); }
         for (const [k, o, m] of puertas) { const f = modelo('puerta', m['modelo']); if (f && MUROS.includes(m['muro']) && entero(m['pos'])) lista.push({ ruta: `${ruta}.objetos[${k}]`, nombre: o['clave'] || 'puerta', muro: m['muro'], pos: m['pos'], ficha: f, puerta: true }); }
         // BORRADOR: texto nuevo, pendiente de la aprobación de Psicología
-        for (let a = 0; a < lista.length; a++) for (let b = a + 1; b < lista.length; b++) { const x = lista[a], y = lista[b]; if (x.muro === y.muro && 2 * Math.abs(x.pos - y.pos) < x.ficha.ocupa + y.ficha.ocupa + (x.puerta || y.puerta ? 16 : 0) && x.ficha.franja[0] < y.ficha.franja[1] && y.ficha.franja[0] < x.ficha.franja[1]) agregar(regla, x.ruta, `«${x.nombre}» y «${y.nombre}» se montan una sobre otra en el muro «${x.muro}».`); }
+        for (let a = 0; a < lista.length; a++) for (let b = a + 1; b < lista.length; b++) { const x = lista[a], y = lista[b]; if (x.muro === y.muro && 2 * Math.abs(x.pos - y.pos) < x.ficha.ocupa + y.ficha.ocupa + (x.puerta || y.puerta ? 16 : 0) && x.ficha.franja[0] < y.ficha.franja[1] && y.ficha.franja[0] < x.ficha.franja[1]) agregar(regla, x.ruta, `«${x.nombre}» y «${y.nombre}» se montan una sobre otra en el muro «${x.muro}».`, y.ruta); }
       }
       if (regla === 'OCL-15') for (const [k, , m] of puertas) {
         const r = `${ruta}.objetos[${k}]`, destino = mapas.get(m['targetNodeKey']);

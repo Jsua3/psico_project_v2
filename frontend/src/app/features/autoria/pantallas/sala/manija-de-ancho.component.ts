@@ -18,7 +18,7 @@ import { ANCHOS } from '../../modelo/geometria';
 })
 export class ManijaDeAnchoComponent {
   readonly ancho = input.required<number>();
-  readonly escala = input<1 | 2>(1);
+  readonly escala = input<number>(1);
   readonly cambio = output<number>();
   private inicio: { x: number; ancho: number; puntero: number } | null = null;
 

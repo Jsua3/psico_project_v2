@@ -101,7 +101,9 @@ export function faltasPorSala(caso: CasoBorrador, catalogo: CatalogoDeReglas | n
   const resultado = new Map<string, FaltaDeSala[]>();
   for (const hallazgo of revisarSalas(documentoDeSalas(caso), catalogo)) {
     const destino = elementoDeRuta(hallazgo.ruta, caso);
-    const destinos = destino ? [destino] : hallazgo.ruta === 'x-siep.escenas'
+    // OCL-14 marca también la otra pieza del par: así se ve en la que la docente acaba de mover.
+    const otra = hallazgo.otra ? elementoDeRuta(hallazgo.otra, caso) : null;
+    const destinos = destino ? [destino, ...(otra ? [otra] : [])] : hallazgo.ruta === 'x-siep.escenas'
       ? caso.salas.filter(s => s.estructura && caso.escenas.some(e => e.salaId === s.id))
         .map(s => ({ salaId: s.id, elemento: { tipo: 'sala' as const, id: null } })) : [];
     for (const d of destinos) {

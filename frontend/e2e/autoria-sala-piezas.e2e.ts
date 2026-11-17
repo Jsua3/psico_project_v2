@@ -34,6 +34,15 @@ async function sinInfraccionesSerias(page: Page, estado: string): Promise<void> 
   expect(serias, `${estado}: Axe, infracciones serias\n${resumen}`).toEqual([]);
 }
 
+/** La sala por piezas se ve entera en su columna: sin desplazamiento horizontal (encajada al ancho). */
+async function salaEntera(page: Page, ancho: number, alto: number): Promise<void> {
+  await page.setViewportSize({ width: ancho, height: alto });
+  await expect.poll(() => page.evaluate(() => {
+    const columna = document.querySelector<HTMLElement>('.escenario.por-piezas')?.parentElement;
+    return columna ? columna.scrollWidth - columna.clientWidth : -1;
+  }), { message: `la sala entra en su columna a ${ancho} × ${alto}` }).toBeLessThanOrEqual(1);
+}
+
 async function capturar(page: Page, nombre: string, ancho: number, alto: number, completa = false): Promise<void> {
   await page.setViewportSize({ width: ancho, height: alto });
   await page.waitForTimeout(400);
@@ -66,6 +75,8 @@ test.describe('editor de salas por piezas', () => {
     await expect(puerta).toHaveAttribute('data-muro', 'fondo');
     await expect(puerta).not.toHaveAttribute('data-incumple', /.+/);
     const inicial = Number(await puerta.getAttribute('data-pos'));
+    await salaEntera(page, 1920, 1080);
+    await salaEntera(page, 1366, 768);
     await sinInfraccionesSerias(page, 'la sala por piezas recién abierta');
     await capturar(page, 'p4-sala-editor', 1366, 768, true);
     await capturar(page, 'p4-sala-editor', 1920, 1080, true);
@@ -90,7 +101,9 @@ test.describe('editor de salas por piezas', () => {
     }
     await expect(faltas).toContainText(/OCL-14: .* se montan una sobre otra en el muro «fondo»/, { timeout: scaled(5_000) });
     expect(pasos, 'la puerta llega a montarse sobre otra pieza antes de 20 pasos').toBeLessThan(20);
-    await expect(page.locator('button.pieza-muro[data-incumple*="OCL-14"]')).not.toHaveCount(0);
+    // Las dos piezas del par se marcan: la puerta que se movió y la que ya estaba.
+    await expect(puerta).toHaveAttribute('data-incumple', /OCL-14/);
+    await expect(page.locator('button.pieza-muro[data-incumple*="OCL-14"]')).toHaveCount(2);
     await expect(puerta).toBeFocused();
     await sinInfraccionesSerias(page, 'la sala con la puerta montada sobre otra pieza');
     await capturar(page, 'p4-sala-falta-ocl14', 1366, 768, true);

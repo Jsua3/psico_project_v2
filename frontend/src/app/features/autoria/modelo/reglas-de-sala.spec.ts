@@ -3,7 +3,8 @@ import { CASOS_DE_REGLAS_DE_SALA } from './reglas-salas-casos.fixture';
 import { catalogoDeReglas, revisarSalas, type DocumentoDeSalas, type HallazgoDeSala } from './reglas-de-sala';
 import type { ManifiestoDePiezas } from '../../simulator/sala/catalogo';
 
-const ordenar = (hallazgos: readonly HallazgoDeSala[]) => [...hallazgos].sort((a, b) =>
+// Se compara lo que dice el servidor (regla, ruta, mensaje); `otra` es solo del editor.
+const ordenar = (hallazgos: readonly HallazgoDeSala[]) => hallazgos.map(({ regla, ruta, mensaje }) => ({ regla, ruta, mensaje })).sort((a, b) =>
   a.regla.localeCompare(b.regla) || a.ruta.localeCompare(b.ruta) || a.mensaje.localeCompare(b.mensaje));
 const { catalogo, casos } = CASOS_DE_REGLAS_DE_SALA;
 
