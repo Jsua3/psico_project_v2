@@ -109,6 +109,16 @@ const KIND_LABELS: Record<PlaceKind, string> = { person: 'Persona', door: 'Puert
       .places__item { grid-template-columns: 5.6em minmax(0, 1fr); }
       .places__note { grid-column: 2; }
     }
+    /* Poco alto (V6): la lista no se desplaza; las fichas van en dos columnas y, con ratón, más bajas (piso de 24 px;
+       con dedo siguen en 48). */
+    @media (max-height: 760px) and (min-width: 561px) {
+      .places__list { grid-template-columns: repeat(2, minmax(0, 1fr)); align-content: start; }
+      .places__item { grid-template-columns: 5.6em minmax(0, 1fr); }
+      .places__note { grid-column: 2; }
+    }
+    @media (max-height: 560px) and (pointer: fine) {
+      .places__item { min-height: 36px; }
+    }
   `],
 })
 export class WorldPlacesListComponent {

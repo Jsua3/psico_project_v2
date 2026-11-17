@@ -267,6 +267,42 @@ describe('GameHelpComponent (T3.2)', () => {
       expect(body.getAttribute('aria-label')).toBe('Contenido de la ayuda');
     });
 
+    it('si todo cabe, una sola página y sin pie de páginas (V6)', async () => {
+      create({ view: 'screen' });
+      await fixture.whenStable();
+      fixture.detectChanges();
+      expect(host().querySelector('.help-screen__pie')).toBeNull();
+      expect(host().querySelectorAll('.help-screen__body > [hidden]').length).toBe(0);
+    });
+
+    it('sin sitio, va en páginas de secciones enteras con «N de M» y nunca se desplaza (V6)', async () => {
+      create({ view: 'screen' });
+      await fixture.whenStable();
+      const body = host().querySelector('.help-screen__body') as HTMLElement;
+      const piezas = Array.from(body.children) as HTMLElement[];
+      // jsdom no maqueta: el cuerpo deja 220 px y cada pieza mide 60 (con el hueco de 12), así caben tres por página.
+      Object.defineProperty(body, 'clientHeight', { configurable: true, value: 220 });
+      Object.defineProperty(body, 'scrollHeight', { configurable: true, value: 60 * piezas.length });
+      piezas.forEach(pieza => Object.defineProperty(pieza, 'offsetHeight', { configurable: true, value: 60 }));
+      window.dispatchEvent(new Event('resize'));
+      fixture.detectChanges();
+      await fixture.whenStable();
+      fixture.detectChanges();
+      const total = Math.ceil(piezas.length / 3);
+      const cuenta = () => host().querySelector('.help-screen__cuenta')?.textContent?.trim();
+      const visibles = () => piezas.filter(pieza => !pieza.hidden);
+      expect(cuenta()).toBe(`1 de ${total}`);
+      expect(visibles()).toEqual(piezas.slice(0, 3));
+      expect(buttonByName('Anterior')?.getAttribute('aria-disabled')).toBe('true');
+      buttonByName('Siguiente')!.click();
+      fixture.detectChanges();
+      expect(cuenta()).toBe(`2 de ${total}`);
+      expect(visibles()).toEqual(piezas.slice(3, 6));
+      buttonByName('Anterior')!.click();
+      fixture.detectChanges();
+      expect(cuenta()).toBe(`1 de ${total}`);
+    });
+
     it('táctil: sin sección de teclas; teclado: con ella', () => {
       create({ view: 'screen', modality: 'touch' });
       expect(host().querySelector('[data-help-section="teclas"]')).toBeNull();
