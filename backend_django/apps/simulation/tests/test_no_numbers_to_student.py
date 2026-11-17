@@ -75,6 +75,9 @@ ALLOWED_NUMERIC_KEYS = {
     "entryX": "punto de entrada de la puerta", "entryY": "punto de entrada de la puerta",
     "interactionRadius": "radio de interacción de un objeto",
     "cameraZoom": "acercamiento de la cámara en la sala (``ambient`` de autoría): geometría del render, no una medida",
+    "ancho": "ancho de la sala por piezas (``map.structure.ancho``): geometría del dibujo, no una medida",
+    "pos": "posición de una puerta o ventana a lo largo de su muro (``structure.piezas[].pos``, ``metadata.pos`` de la "
+           "puerta): geometría, no una medida",
     # ── la animación del dibujo de un objeto copiado de la biblioteca (``metadata.animacionCerca``) ──
     "cuadros": "cuántos cuadros tiene la hoja de animación de un objeto cuando la persona se le acerca: es el dibujo, no una medida de ella",
     "fps": "a cuántos cuadros por segundo se anima esa hoja: velocidad del dibujo, no una medida de la persona",
@@ -382,11 +385,12 @@ def test_las_claves_retiradas_de_la_prueba_son_las_del_codigo_de_produccion():
 SALAS_DEL_LUGAR = ["pasillo", "sala-espera", "bienestar", "consultorio"]
 
 
-def _jugar_casos_de_un_lugar():
+def _jugar_casos_de_un_lugar(por_piezas=False):
     """El profesor crea un caso por sala desde la universidad; una estudiante por sala abre el suyo y recibe sus respuestas.
 
-    El caso se crea por la API de autoría (``lugarId`` + ``salas``), se publica y se asigna al grupo de la estudiante
-    con el atajo de las demás pruebas; desde ahí todo es lo que ve ella: tarjeta del caso, intento y mundo.
+    El caso se crea por la API de autoría (``lugarId`` + ``salas``, y ``porPiezas`` como el editor desde V6), se publica y
+    se asigna al grupo de la estudiante con el atajo de las demás pruebas; desde ahí todo es lo que ve ella: tarjeta del
+    caso, intento y mundo.
     """
     User = get_user_model()
     profesor = User.objects.create_user(
@@ -398,7 +402,8 @@ def _jugar_casos_de_un_lugar():
 
     for sala in SALAS_DEL_LUGAR:
         creado = autor.post(
-            "/api/authoring/cases", {"title": f"Caso desde {sala}", "lugarId": "universidad", "salas": [sala]},
+            "/api/authoring/cases",
+            {"title": f"Caso desde {sala}", "lugarId": "universidad", "salas": [sala], "porPiezas": por_piezas},
             format="json",
         )
         assert creado.status_code == 200, creado.data
@@ -485,3 +490,14 @@ def test_ninguna_respuesta_de_un_caso_de_un_lugar_lleva_una_medida_ni_una_clave_
 
     assert retiradas == [], f"claves retiradas en las respuestas: {retiradas}"
     assert medidas == [], f"números que no son id, hecho, duración, posición ni dibujo: {medidas}"
+
+
+def test_un_caso_por_piezas_no_lleva_medidas_y_su_geometria_es_la_de_la_sala(db):
+    """Un caso creado por piezas (lo que hace el editor desde V6) llega a la estudiante sin medidas. Esta prueba es la razón
+    de ser de ``ancho`` y ``pos`` en ``ALLOWED_NUMERIC_KEYS``: aparecen en el mundo de una sala por piezas."""
+    cliente = _jugar_casos_de_un_lugar(por_piezas=True)
+    numeros, claves = _scan(cliente.recorded)
+    assert sorted({(where, key) for where, key in claves if key in RETIRED_KEYS}) == []
+    medidas = sorted({(where, key, value) for where, key, value in numeros if not _allowed(key)}, key=str)
+    assert medidas == [], f"números que no son id, hecho, duración, posición ni dibujo: {medidas}"
+    assert {"ancho", "pos"} <= {key for _where, key, _value in numeros}

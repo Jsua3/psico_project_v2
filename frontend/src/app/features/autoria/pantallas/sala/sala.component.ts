@@ -12,7 +12,7 @@ import { faltasPorSala, anclaDeElemento } from '../../modelo/salas-a-documento';
 import type { FaltaDeSala } from '../../modelo/salas-a-documento';
 import type { PlanDeSala } from '../../../simulator/sala/composicion';
 import { LienzoDeSalaComponent } from './lienzo-de-sala.component';
-import { actoresDeSala, salaParaLienzo } from './lienzo-de-sala';
+import { actoresDeSala, escalaDeSala, salaParaLienzo } from './lienzo-de-sala';
 import { piezaDelObjeto } from '../../../simulator/sala/mueble-vivo';
 import { PiezasDelMuroComponent } from './piezas-del-muro.component';
 import { ManijaDeAnchoComponent } from './manija-de-ancho.component';
@@ -526,9 +526,8 @@ export class SalaComponent {
   protected readonly escalaLienzo = computed(() => {
     const ancho = this.sala()?.estructura?.ancho;
     if (!ancho) return 1;
-    if (this.escalaPiezas() === 2) return 2;
-    const disponible = this.disponible();
-    return disponible > 0 ? Math.min(1, disponible / ancho) : 1;
+    // En una columna de teléfono, no menos de ×0,8: la sala se desplaza en su columna y las piezas no se pisan (WCAG 2.5.8).
+    return escalaDeSala(ancho, this.disponible(), this.escalaPiezas() === 2);
   });
   protected readonly faltas = signal(new Map<string, FaltaDeSala[]>());
   protected readonly faltasSala = computed(() => this.faltas().get(this.salaId()) ?? []);
