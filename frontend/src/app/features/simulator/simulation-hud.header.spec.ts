@@ -107,13 +107,13 @@ describe('HUD: cabecera (T7.1) y Ajustes (T7.2)', () => {
 
   describe('atajos de una tecla (F6-10, WCAG 2.1.4)', () => {
     // req: BLOQUE-H (H-07), RNF-04
-    it('activos y con puntero fino la bitácora anuncia (J) y Ajustes trae su fila «Atajos de una tecla» en On', () => {
+    it('activos y con puntero fino la bitácora anuncia (J) y Ajustes trae su fila «Atajos de una tecla» en Sí', () => {
       const root = mount(false);
       expect(button(root, 'Abrir bitácora reflexiva (J)')).not.toBeNull();
       openSettings(root);
       const row = settingsRow(root, 'Atajos de una tecla')!;
       expect(row.getAttribute('aria-pressed')).toBe('true');
-      expect(row.querySelector('strong')?.textContent?.trim()).toBe('On');
+      expect(row.querySelector('strong')?.textContent?.trim()).toBe('Sí');
     });
 
     it('apagados, ni el nombre accesible ni el título ni la fila de Ajustes prometen la J', () => {
@@ -125,7 +125,7 @@ describe('HUD: cabecera (T7.1) y Ajustes (T7.2)', () => {
       expect(settingsRow(root, 'Bitácora')?.querySelector('strong')?.textContent?.trim()).toBe('');
       const row = settingsRow(root, 'Atajos de una tecla')!;
       expect(row.getAttribute('aria-pressed')).toBe('false');
-      expect(row.querySelector('strong')?.textContent?.trim()).toBe('Off');
+      expect(row.querySelector('strong')?.textContent?.trim()).toBe('No');
       expect(root.innerHTML).not.toContain('(J)');
     });
 

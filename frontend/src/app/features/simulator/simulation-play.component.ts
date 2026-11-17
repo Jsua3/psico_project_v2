@@ -3110,7 +3110,7 @@ export class SimulationPlayComponent implements OnInit, OnDestroy {
     this.audioDirector.playSfx('ui_confirm');
     this.dialogue.set({
       key: `tool-feedback-${result.toolCode}-${Date.now()}`,
-      speakerName: result.pertinent ? '✓ Herramienta pertinente' : 'ℹ Herramienta aplicada',
+      speakerName: result.pertinent ? 'Herramienta pertinente' : 'Herramienta aplicada',
       portraitKey: null, emotion: result.pertinent ? 'positive' : 'neutral',
       lines: [{ order: 1, speakerName: '', text: result.feedbackMessage, emotion: 'neutral' }],
       choices: []

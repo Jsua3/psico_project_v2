@@ -91,23 +91,23 @@ const HELP_MEMORY_KEY = 'siep.ayuda.v1';
                   <button type="button" [attr.aria-pressed]="!musicMuted()" (click)="toggleMusic.emit()">
                     <mat-icon aria-hidden="true">{{ musicMuted() ? 'music_off' : 'music_note' }}</mat-icon>
                     <span>Música ambiental</span>
-                    <strong>{{ musicMuted() ? 'Off' : 'On' }}</strong>
+                    <strong aria-hidden="true">{{ musicMuted() ? 'No' : 'Sí' }}</strong>
                   </button>
                   <button type="button" [attr.aria-pressed]="!sfxMuted()" (click)="toggleSfx.emit()">
                     <mat-icon aria-hidden="true">{{ sfxMuted() ? 'volume_off' : 'graphic_eq' }}</mat-icon>
                     <span>Sonidos de acciones</span>
-                    <strong>{{ sfxMuted() ? 'Off' : 'On' }}</strong>
+                    <strong aria-hidden="true">{{ sfxMuted() ? 'No' : 'Sí' }}</strong>
                   </button>
                   <button type="button" [attr.aria-pressed]="reduceMotion()" (click)="toggleReduceMotion.emit()">
                     <mat-icon aria-hidden="true">motion_photos_pause</mat-icon>
                     <span>Movimiento reducido</span>
-                    <strong>{{ reduceMotion() ? 'On' : 'Off' }}</strong>
+                    <strong aria-hidden="true">{{ reduceMotion() ? 'Sí' : 'No' }}</strong>
                   </button>
                   <!-- WCAG 2.1.4 (F6-10): las teclas de una letra o un número se pueden apagar. -->
                   <button type="button" [attr.aria-pressed]="shortcuts()" (click)="toggleShortcuts.emit()">
                     <mat-icon aria-hidden="true">accessibility</mat-icon>
                     <span>{{ shortcutsLabel }}</span>
-                    <strong>{{ shortcuts() ? 'On' : 'Off' }}</strong>
+                    <strong aria-hidden="true">{{ shortcuts() ? 'Sí' : 'No' }}</strong>
                   </button>
                   <button type="button" (click)="toggleJournal.emit(); settingsOpen.set(false)">
                     <mat-icon aria-hidden="true">menu_book</mat-icon>

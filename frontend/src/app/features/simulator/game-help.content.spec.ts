@@ -31,7 +31,7 @@ function everyHelpText(): string[] {
 describe('game-help.content: tarjeta de primera vez (F§5.8)', () => {
   it('teclado: tres líneas con la tecla E, la ficha del objetivo y la pausa con Esc', () => {
     expect(firstTimeHelpLines({ modality: 'keyboard', compact: false, safeExitPromise: true })).toEqual([
-      'Muévete con las flechas o WASD. Acércate a una persona o un objeto: abajo aparece su nombre. Pulsa E para actuar.',
+      'Muévete con las flechas o WASD. Acércate a una persona o un objeto: abajo aparece su nombre. Pulsa E para interactuar.',
       'Arriba está el objetivo de la escena: ábrelo para ver qué hay en la sala o pedir una pista.',
       'Puedes pausar el caso en cualquier momento con «Salida segura» (con teclado, también Esc). Tu avance se guarda.',
     ]);
