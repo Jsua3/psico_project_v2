@@ -3633,7 +3633,7 @@ export class DataDrivenWorldScene extends Phaser.Scene {
       [attr.aria-label]="worldLabel()">
     </div>
     @if (avisoDePuerta(); as aviso) {
-      <app-aviso-de-puerta [texto]="aviso.texto" [bloqueada]="aviso.bloqueada" [conTecla]="!touchInput()"
+      <app-aviso-de-puerta [texto]="aviso.texto" [bloqueada]="aviso.bloqueada" [falta]="doorMessages()[aviso.id] ?? null" [conTecla]="!touchInput()"
         [x]="aviso.x" [y]="aviso.y" (cruzar)="cruzarPorAviso(aviso.id)" />
     }
     @if (!assetsReady() && showLoader()) {
@@ -3846,6 +3846,8 @@ export class GameWorldComponent implements OnChanges, OnDestroy {
   readonly nextTargetKey = input<string | null>(null);
   /** Estado vivo de cada puerta por clave: la bloqueada lleva candado y borde discontinuo en su rótulo. */
   readonly doorStates = input<Record<string, 'open' | 'locked'>>({});
+  /** Motivo de cada puerta bloqueada (clave → texto, de `doorStatus`): el aviso de la puerta de pieza lo dice como la barra. */
+  readonly doorMessages = input<Record<string, string>>({});
   /** Objetos de decisión de otras etapas: se atenúan, sin anillo y con rótulo solo muy cerca. */
   readonly dimmedKeys = input<ReadonlySet<string>>(new Set<string>());
   /** Modo compacto (móvil horizontal): rótulos mínimos. El puntero táctil ya lo implica. */

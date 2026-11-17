@@ -14,6 +14,11 @@ describe('simulation-play: rejilla del ensayo', () => {
     expect(screen).toMatch(/\.game-container\[data-rehearsal\]\[data-mode='dialogue-right'\] \.main-zone \{\s*grid-template-columns: minmax\(0, 1fr\) clamp\([^;]*\) clamp\(/);
   });
 
+  it('con el ensayo, el HUD, el plano y el pie dejan libre la columna del panel (en teléfono el panel se superpone)', () => {
+    expect(screen).toMatch(/\.game-container\[data-rehearsal\] \.top-bar,\s*\.game-container\[data-rehearsal\] \.bottom-zone \{ margin-right: calc\(clamp\(280px, 24vw, 340px\) \+ 10px\); \}/);
+    expect(screen).toMatch(/@media \(max-width: 760px\) \{[^}]*\}\s*\.game-container\[data-rehearsal\] \.top-bar,\s*\.game-container\[data-rehearsal\] \.bottom-zone \{ margin-right: 0; \}/);
+  });
+
   it('los títulos del panel heredan el color del panel (el h3 global es azul oscuro: 1,57:1 sobre el fondo del panel, Axe color-contrast)', () => {
     expect(panel).toMatch(/h3 \{[^}]*color: inherit;/);
   });

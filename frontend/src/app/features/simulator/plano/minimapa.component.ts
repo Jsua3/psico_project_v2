@@ -52,7 +52,10 @@ function leerOculto(): boolean {
     button { pointer-events: auto; }
     .minimapa__lugar { margin: 0 calc(6 * var(--pixel-px)) calc(-1 * var(--pixel-px)) 0; max-width: 100%; }
     .minimapa__lugar + .minimapa__abrir { margin-top: calc(-2 * var(--pixel-px)); }
-    .minimapa__abrir { display: block; width: clamp(160px, 15vw, 230px); aspect-ratio: 16 / 9; padding: calc(2 * var(--pixel-px)); }
+    .minimapa__abrir { display: block; width: clamp(160px, 15vw, 230px); aspect-ratio: 16 / 9; padding: calc(2 * var(--pixel-px)); overflow: hidden; }
+    /* El plano llena el botón y su SVG (meet) encaja el dibujo: un lugar más alto que ancho (casa, universidad: salas en
+       cuatro filas) tomaba el alto del dibujo y la fila de abajo, la sala actual, se salía del marco sobre «Vista cercana». */
+    .minimapa__abrir app-plano-del-lugar { display: block; height: 100%; }
     .minimapa__alternar { font-size: var(--pixel-letra-media); }
     .minimapa__alternar[aria-pressed='true'] { --m: var(--marco-placa-foco); background-color: var(--pixel-penumbra-alzada); color: var(--luz); }
   `],

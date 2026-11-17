@@ -126,6 +126,61 @@ it('pinta la franja con el nombre, la frase y la pista oculta a lectores mientra
   expect(el.querySelector('.reaction-strip')).toBeNull();
 });
 
+it('REGLA-004: con el foco en un botón (p. ej. «Salida segura»), Enter y Espacio son del botón, no saltan la reacción', () => {
+  const { director, terminado } = montar({ reduceMotion: false });
+  director.play(ENTRADA, QUIEN);
+  const salida = document.createElement('button');
+  salida.textContent = 'Salida segura';
+  document.body.appendChild(salida);
+  try {
+    for (const key of ['Enter', ' ']) {
+      const e = new KeyboardEvent('keydown', { key, cancelable: true, bubbles: true });
+      salida.dispatchEvent(e);
+      expect(e.defaultPrevented, `${key} sobre el botón no se cancela`).toBe(false);
+    }
+    expect(terminado, 'la reacción sigue en curso').toEqual([]);
+  } finally {
+    salida.remove();
+  }
+});
+
+it('REGLA-004: Enter sobre «Salida segura» de la propia franja pide la pausa y no salta la reacción', async () => {
+  const { director, fixture, terminado } = montar({ reduceMotion: true });
+  const pausas: number[] = [];
+  director.safeExit.subscribe(() => pausas.push(1));
+  director.play(ENTRADA, QUIEN);
+  await vi.advanceTimersByTimeAsync(10);
+  fixture.detectChanges();
+  const boton = (fixture.nativeElement as HTMLElement).querySelector<HTMLButtonElement>('.reaction-dock .safe-exit-btn')!;
+  const e = new KeyboardEvent('keydown', { key: 'Enter', cancelable: true, bubbles: true });
+  boton.dispatchEvent(e);
+  expect(e.defaultPrevented, 'el navegador activa el botón').toBe(false);
+  expect(terminado, 'la reacción no se saltó').toEqual([]);
+  boton.click();   // lo que hace el navegador con Enter sobre un botón
+  expect(pausas).toEqual([1]);
+  director.cancel();
+});
+
+it('la franja trae «Salida segura» (REGLA-004): pulsarla pide la pausa y, pedida, dice «Pausando…»', async () => {
+  const { director, fixture } = montar({ reduceMotion: true });
+  const pausas: number[] = [];
+  director.safeExit.subscribe(() => pausas.push(1));
+  director.play(ENTRADA, QUIEN);
+  await vi.advanceTimersByTimeAsync(10);
+  fixture.detectChanges();
+  const el = fixture.nativeElement as HTMLElement;
+  const boton = el.querySelector<HTMLButtonElement>('.reaction-dock .safe-exit-btn');
+  expect(boton?.textContent).toContain('Salida segura');
+  boton!.click();
+  expect(pausas).toEqual([1]);
+  fixture.componentRef.setInput('pausing', true);
+  fixture.detectChanges();
+  expect(el.querySelector('.reaction-dock .safe-exit-btn')?.textContent).toContain('Pausando…');
+  director.cancel();
+  fixture.detectChanges();
+  expect(el.querySelector('.safe-exit-btn')).toBeNull();
+});
+
 it('sin nombre se anuncia solo la frase, sin los dos puntos sueltos', async () => {
   const { director, announcer } = montar({ reduceMotion: true });
   director.play(ENTRADA, { nombre: '', visual: null });
