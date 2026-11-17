@@ -6,7 +6,8 @@ import { throwError } from 'rxjs';
 
 import { NotificationService } from '../notifications/notification.service';
 import { AuthService } from './auth.service';
-import { SCREEN_HANDLES_FORBIDDEN } from './http-error-chain';
+import { watchConnectionRecovery } from '../notifications/connection-recovery';
+import { CONNECTION_MESSAGE, SCREEN_HANDLES_FORBIDDEN } from './http-error-chain';
 import { jwtInterceptor } from './jwt.interceptor';
 
 /**
@@ -17,14 +18,13 @@ import { jwtInterceptor } from './jwt.interceptor';
  */
 describe('jwtInterceptor', () => {
   const SESSION_MESSAGE = 'Tu sesión ya no es válida o tu usuario está inactivo. Contacta al administrador.';
-  const CONNECTION_MESSAGE = 'No fue posible conectar con el servidor. Intenta nuevamente.';
   const PERMISSION_MESSAGE = 'No tienes permisos para realizar esta acción.';
 
   let http: HttpClient;
   let httpMock: HttpTestingController;
   let auth: { getToken: ReturnType<typeof vi.fn>; isTokenExpired: ReturnType<typeof vi.fn>; clearSession: ReturnType<typeof vi.fn> };
   let router: { url: string; navigate: ReturnType<typeof vi.fn> };
-  let notifications: { error: ReturnType<typeof vi.fn>; warning: ReturnType<typeof vi.fn> };
+  let notifications: { error: ReturnType<typeof vi.fn>; warning: ReturnType<typeof vi.fn>; dismissMatching: ReturnType<typeof vi.fn> };
 
   beforeEach(() => {
     auth = {
@@ -33,7 +33,7 @@ describe('jwtInterceptor', () => {
       clearSession: vi.fn(),
     };
     router = { url: '/dashboard', navigate: vi.fn() };
-    notifications = { error: vi.fn(), warning: vi.fn() };
+    notifications = { error: vi.fn(), warning: vi.fn(), dismissMatching: vi.fn() };
 
     TestBed.configureTestingModule({
       providers: [
@@ -285,6 +285,78 @@ describe('jwtInterceptor', () => {
       expect(notifications.error).not.toHaveBeenCalled();
       expect(notifications.warning).not.toHaveBeenCalled();
       expect(router.navigate).not.toHaveBeenCalled();
+    });
+  });
+
+  // El aviso de conexión no se cierra solo (es un error): se retira cuando la conexión vuelve.
+  describe('aviso de conexión pegado', () => {
+    let real: NotificationService;
+    let visible: () => string[];
+
+    beforeEach(() => {
+      TestBed.resetTestingModule();
+      TestBed.configureTestingModule({
+        providers: [
+          provideHttpClient(withInterceptors([jwtInterceptor])),
+          provideHttpClientTesting(),
+          { provide: AuthService, useValue: auth },
+          { provide: Router, useValue: router },
+        ],
+      });
+      http = TestBed.inject(HttpClient);
+      httpMock = TestBed.inject(HttpTestingController);
+      real = TestBed.inject(NotificationService);
+      let current: string[] = [];
+      real.messages$.subscribe(list => (current = list.map(m => m.text)));
+      visible = () => current;
+    });
+
+    it('un fallo de red deja el aviso', () => {
+      fail('/api/cosa', 0);
+      expect(visible()).toEqual([CONNECTION_MESSAGE]);
+    });
+
+    it('dos fallos de red seguidos dejan un solo aviso', () => {
+      fail('/api/cosa', 0);
+      fail('/api/otra', 0);
+      expect(visible()).toEqual([CONNECTION_MESSAGE]);
+    });
+
+    it('la primera respuesta correcta retira el aviso', () => {
+      fail('/api/cosa', 0);
+      http.get('/api/otra').subscribe();
+      httpMock.expectOne('/api/otra').flush({ ok: true });
+      expect(visible()).toEqual([]);
+    });
+
+    it('una respuesta de error del servidor (p. ej. 400) no lo retira: no prueba que haya conexión de punta a punta y no lo crea', () => {
+      fail('/api/cosa', 400);
+      expect(visible()).toEqual([]);
+      fail('/api/cosa', 0);
+      fail('/api/otra', 400);
+      expect(visible()).toEqual([CONNECTION_MESSAGE]);
+    });
+
+    it('no retira otros avisos al llegar una respuesta correcta', () => {
+      real.error('Otro error que sí espera al usuario');
+      http.get('/api/cosa').subscribe();
+      httpMock.expectOne('/api/cosa').flush({});
+      expect(visible()).toEqual(['Otro error que sí espera al usuario']);
+    });
+
+    it('el evento online lo retira sin esperar a una petición', () => {
+      const target = new EventTarget();
+      const stop = watchConnectionRecovery(real, target as unknown as Window);
+      fail('/api/cosa', 0);
+      expect(visible()).toEqual([CONNECTION_MESSAGE]);
+
+      target.dispatchEvent(new Event('online'));
+      expect(visible()).toEqual([]);
+
+      fail('/api/cosa', 0);
+      stop();
+      target.dispatchEvent(new Event('online'));
+      expect(visible()).toEqual([CONNECTION_MESSAGE]);
     });
   });
 });

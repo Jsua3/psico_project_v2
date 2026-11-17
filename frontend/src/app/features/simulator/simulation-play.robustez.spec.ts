@@ -204,14 +204,14 @@ describe('SimulationPlayComponent: robustez del cliente (R1)', () => {
       expect(component.busy()).toBe(false);
     });
 
-    it('si la salida no recibe respuesta a tiempo avisa, no deja nada colgado y se puede pedir de nuevo', () => {
+    it('si la salida no recibe respuesta a tiempo la persona sigue en pausa, no queda nada colgado y se reintenta sola (V3)', () => {
       sim['safeExit'].mockReturnValue(NEVER);
       component.pauseFromOverlay();
       vi.advanceTimersByTime(15_000);
-      expect(component.pausing()).toBe(false);
+      expect(component.attempt()?.status).toBe('PAUSED');
       expect(component.busy()).toBe(false);
-      expect(component.actionError()).not.toBe('');
-      component.pauseFromOverlay();
+      expect(component.pauseNote()).not.toBeNull();
+      vi.advanceTimersByTime(2_000);
       expect(sim['safeExit']).toHaveBeenCalledTimes(2);
     });
   });
@@ -304,14 +304,18 @@ describe('SimulationPlayComponent: robustez del cliente (R1)', () => {
       expect(sim['chooseDecision'].mock.calls[0][5]).toBe('req-guardado');
     });
 
-    it('al recargar, si el servidor ya avanzó de nodo la intención se descarta', () => {
+    it('al recargar, si el servidor ya avanzó de nodo la intención no bloquea: se reenvía (V3) y un fallo de red NO la borra (M-6)', () => {
       sessionStorage.setItem('siep_decision_pendiente_attempt-1', JSON.stringify({ attemptId: 'attempt-1', nodeId: 99, decisionOptionId: 41, requestId: 'req-guardado' }));
+      sim['chooseDecision'].mockReturnValue(throwError(() => new Error('sin red')));
       (interno() as any).restorePendingDecision(makeAttempt());
-      expect(sessionStorage.getItem('siep_decision_pendiente_attempt-1')).toBeNull();
+      (interno() as any).replayAppliedDecision();
+      expect(sim['chooseDecision']).toHaveBeenCalledWith('attempt-1', 'token-1', 41, false, [], 'req-guardado');
+      expect(sessionStorage.getItem('siep_decision_pendiente_attempt-1')).not.toBeNull();
       sim['chooseDecision'].mockReturnValue(NEVER);
       conDosOpciones();
       component.executeDecision(42);
-      expect(sim['chooseDecision']).toHaveBeenCalledTimes(1);
+      expect(sim['chooseDecision']).toHaveBeenCalledTimes(2);   // el reenvío de la intención y la elección nueva: nada bloquea
+      expect(sim['chooseDecision'].mock.calls[1][2]).toBe(42);
     });
 
     it('un 4xx en el reenvío NO libera la intención sin consultar el estado del intento', () => {
@@ -384,10 +388,10 @@ describe('SimulationPlayComponent: robustez del cliente (R1)', () => {
       expect(component.actionError()).toBe('');
     });
 
-    it('si no se pudo tras todos los reintentos avisa', () => {
+    it('si no se pudo tras todos los reintentos avisa (y, desde V3, sigue pendiente: lo retoma al volver la red)', () => {
       sim['updateWorldState'].mockReturnValue(throwError(() => new Error('sin red')));
       guardar();
-      vi.advanceTimersByTime(60_000);
+      vi.advanceTimersByTime(4_200);
       expect(sim['updateWorldState']).toHaveBeenCalledTimes(4);
       expect(component.actionError()).toContain('posición');
     });
@@ -412,7 +416,7 @@ describe('SimulationPlayComponent: robustez del cliente (R1)', () => {
 
     it('se guarda qué conversación y en qué línea va', () => {
       (interno() as any).saveReadingPoint({ key: 'abuela', type: 'PERSON' }, dialogoDe('d1'), 2);
-      expect(JSON.parse(sessionStorage.getItem('siep_punto_lectura_attempt-1')!)).toEqual({ attemptId: 'attempt-1', objectKey: 'abuela', dialogueKey: 'd1', line: 2 });
+      expect(JSON.parse(sessionStorage.getItem('siep_punto_lectura_attempt-1')!)).toEqual({ attemptId: 'attempt-1', nodeId: 1, objectKey: 'abuela', dialogueKey: 'd1', line: 2 });
     });
 
     it('al cerrar la conversación el punto se borra', () => {
@@ -422,7 +426,7 @@ describe('SimulationPlayComponent: robustez del cliente (R1)', () => {
     });
 
     it('al recargar reabre esa conversación y arranca en la línea guardada', () => {
-      sessionStorage.setItem('siep_punto_lectura_attempt-1', JSON.stringify({ attemptId: 'attempt-1', objectKey: 'carpeta', dialogueKey: 'd1', line: 2 }));
+      sessionStorage.setItem('siep_punto_lectura_attempt-1', JSON.stringify({ attemptId: 'attempt-1', nodeId: 1, objectKey: 'carpeta', dialogueKey: 'd1', line: 2 }));
       const objeto = makeWorld().objects[1];
       sim['openInteraction'].mockReturnValue(of({ world: makeWorld(), interaction: objeto, dialogue: dialogoDe('d1') }));
       (interno() as any).restoreReadingPoint(makeWorld());
@@ -432,7 +436,7 @@ describe('SimulationPlayComponent: robustez del cliente (R1)', () => {
     });
 
     it('si el objeto ya no está en la sala, el punto se descarta', () => {
-      sessionStorage.setItem('siep_punto_lectura_attempt-1', JSON.stringify({ attemptId: 'attempt-1', objectKey: 'fantasma', dialogueKey: 'd1', line: 1 }));
+      sessionStorage.setItem('siep_punto_lectura_attempt-1', JSON.stringify({ attemptId: 'attempt-1', nodeId: 1, objectKey: 'fantasma', dialogueKey: 'd1', line: 1 }));
       (interno() as any).restoreReadingPoint(makeWorld());
       expect(sim['openInteraction']).not.toHaveBeenCalled();
       expect(sessionStorage.getItem('siep_punto_lectura_attempt-1')).toBeNull();
@@ -448,34 +452,28 @@ describe('SimulationPlayComponent: robustez del cliente (R1)', () => {
       component.attempt.set(intento);
     };
 
-    it('salida segura: si la pausa se rechaza ANTES de que llegue la decisión, espera esa respuesta y repite con su token', () => {
+    it('salida segura: la pausa NO viaja mientras la decisión está en vuelo; sale al llegar su respuesta, con el token vigente (V3: el token no rota)', () => {
       const decision$ = new Subject<SimulationAttemptState>();
-      const pause$ = new Subject<SimulationAttemptState>();
       sim['chooseDecision'].mockReturnValue(decision$);
-      sim['safeExit'].mockReturnValueOnce(pause$).mockReturnValue(NEVER);
+      sim['safeExit'].mockReturnValue(NEVER);
       component.executeDecision(41);
       component.pauseFromOverlay();
-      expect(sim['safeExit']).toHaveBeenCalledTimes(1);
-
-      pause$.error(http(403, { message: 'Token inválido' }));
-      expect(component.actionError()).toBe('');
-      expect(sim['safeExit']).toHaveBeenCalledTimes(1);
+      expect(sim['safeExit']).not.toHaveBeenCalled();
+      expect(component.attempt()?.status).toBe('PAUSED');
 
       decision$.next({ ...makeAttempt(), attemptToken: 'token-2' } as SimulationAttemptState);
-      expect(sim['safeExit']).toHaveBeenCalledTimes(2);
+      expect(sim['safeExit']).toHaveBeenCalledTimes(1);
       expect(sim['safeExit']).toHaveBeenLastCalledWith('attempt-1', 'token-2', 'Salida segura solicitada');
     });
 
-    it('salida segura: si la decisión en vuelo falla, la pausa rechazada se repite una vez en vez de quedarse esperando', () => {
+    it('salida segura: si la decisión en vuelo falla, la pausa se envía igualmente en vez de quedarse esperando', () => {
       const decision$ = new Subject<SimulationAttemptState>();
-      const pause$ = new Subject<SimulationAttemptState>();
       sim['chooseDecision'].mockReturnValue(decision$);
-      sim['safeExit'].mockReturnValueOnce(pause$).mockReturnValue(NEVER);
+      sim['safeExit'].mockReturnValue(NEVER);
       component.executeDecision(41);
       component.pauseFromOverlay();
-      pause$.error(http(403));
       decision$.error(http(500));
-      expect(sim['safeExit']).toHaveBeenCalledTimes(2);
+      expect(sim['safeExit']).toHaveBeenCalledTimes(1);
     });
 
     it('una decisión que falla con la pausa ya registrada no devuelve la conversación ni avisa', () => {

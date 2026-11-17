@@ -106,7 +106,7 @@ describe('simulation-play: salida segura alcanzable desde cada superposición (R
 
   // Bloque U1 (variante B): el acuse es una placa de pixel (u-placa u-sombra) con el icono de pixel «pausa», ya no un chip con mat-icon.
   it('la pausa pedida tiene un acuse visible que no depende del pie (oculto bajo una superposición)', () => {
-    const notice = source.match(/@if \(pausing\(\)\) \{[\s\S]*?\n      \}\n/)?.[0] ?? '';
+    const notice = source.match(/@if \(pausing\(\) && attempt\(\)\?\.status === 'IN_PROGRESS'\) \{[\s\S]*?\n      \}\n/)?.[0] ?? '';
     expect(notice).toContain('class="pausing-notice u-placa u-sombra"');
     expect(notice).toContain('<app-pixel-icono nombre="pausa" />');
     expect(notice).toContain('aria-hidden="true"');

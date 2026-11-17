@@ -240,11 +240,10 @@ describe('SimulationPlayComponent: diálogo sin callejones', () => {
   });
 
   describe('salida segura con una decisión en vuelo (H-04)', () => {
-    it('la pausa sale en el acto; si la decisión rotó el token antes de que llegara, se repite con el token nuevo', () => {
+    it('la persona sale en el acto (pausa local); el envío de la pausa espera la respuesta de la decisión y el servidor ve la decisión primero (V3)', () => {
       const decision$ = new Subject<SimulationAttemptState>();
-      const pause$ = new Subject<SimulationAttemptState>();
       sim['chooseDecision'].mockReturnValue(decision$);
-      sim['safeExit'].mockReturnValueOnce(pause$);
+      sim['safeExit'].mockReturnValue(of(makeAttempt({ status: 'PAUSED', attemptToken: 'token-2' })));
       sim['getWorld'].mockReturnValue(of(component.world()));
       sim['getScenarioConfig'].mockReturnValue(of({ scenarioKey: 'x', startRoomKey: 'x', rooms: [] }));
       component.dialogue.set(decisionDialogue(11));
@@ -253,17 +252,17 @@ describe('SimulationPlayComponent: diálogo sin callejones', () => {
       vi.advanceTimersByTime(400);
       component.pauseFromOverlay();
 
+      expect(component.attempt()?.status).toBe('PAUSED');
       expect(component.pausing()).toBe(true);
       expect(sim['chooseDecision']).toHaveBeenCalledTimes(1);
-      expect(sim['safeExit']).toHaveBeenCalledTimes(1);
-      expect(sim['safeExit']).toHaveBeenLastCalledWith('attempt-1', 'token-1', 'Salida segura solicitada');
+      expect(sim['safeExit']).not.toHaveBeenCalled();
 
-      // El servidor avanzó el caso (y rotó el token) antes de ver la pausa: esta se rechaza y se repite con el token nuevo.
+      // El servidor aplica la decisión y, después, ve la pausa (el token no rota: se usa el que trajo la respuesta).
       decision$.next(makeAttempt({ attemptToken: 'token-2', currentNode: { key: FREE_NODE, title: 'Etapa 2', options: [] } }));
-      pause$.error(http(403, 'Token del intento inválido.'));
 
-      expect(sim['safeExit']).toHaveBeenCalledTimes(2);
+      expect(sim['safeExit']).toHaveBeenCalledTimes(1);
       expect(sim['safeExit']).toHaveBeenLastCalledWith('attempt-1', 'token-2', 'Salida segura solicitada');
+      expect(component.pausing()).toBe(false);
     });
 
     it('si la decisión falla la pausa pedida se ejecuta igualmente y la conversación no reaparece', () => {

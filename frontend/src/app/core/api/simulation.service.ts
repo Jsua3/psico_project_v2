@@ -2,7 +2,7 @@ import { Injectable, inject } from '@angular/core';
 import { HttpClient, HttpContext, HttpHeaders } from '@angular/common/http';
 import { map } from 'rxjs/operators';
 import { ApiResponse } from './api-response';
-import { SCREEN_HANDLES_FORBIDDEN } from '../auth/http-error-chain';
+import { SCREEN_HANDLES_FORBIDDEN, SCREEN_HANDLES_OFFLINE } from '../auth/http-error-chain';
 import { resolveScenarioConfigAssetKey } from '../../features/simulator/scenario-config-assets.util';
 import type { ConsentRecordEnvelope, ConsentStateEnvelope, ConsentWithdrawalEnvelope } from './generated/openapi-contracts';
 import {
@@ -224,10 +224,11 @@ export class SimulationService {
   }
 
   safeExit(attemptId: string, attemptToken: string, reason: string) {
+    // Sin red, la pantalla de pausa ya lo dice (REGLA-004, V3): el aviso global de conexión no le tapa el título.
     return this.http.post<ApiResponse<SimulationAttemptState>>(`${this.API}/attempts/${attemptId}/safe-exit`, {
       attemptToken,
       reason
-    }).pipe(map(response => response.data));
+    }, { context: new HttpContext().set(SCREEN_HANDLES_OFFLINE, true) }).pipe(map(response => response.data));
   }
 
   /** Reanuda un intento en pausa segura (mismo attemptId, estado intacto). */

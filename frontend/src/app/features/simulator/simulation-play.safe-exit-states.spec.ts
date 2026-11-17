@@ -170,7 +170,7 @@ describe('SimulationPlayComponent: una sola «Salida segura» operable por estad
     expect(buttons[0].textContent).toContain('Pausando…');
   });
 
-  it('un toque en «Salida segura» pide la pausa (con una petición en curso se deja en cola)', () => {
+  it('un toque en «Salida segura» pide la pausa (con una petición en curso sale igual, en el acto)', () => {
     component.busy.set(true);
     operableExits()[0].click();
     fixture.detectChanges();

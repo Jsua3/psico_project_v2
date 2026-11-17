@@ -94,6 +94,13 @@ export class NotificationService {
     this.messagesSubject.next(this.messagesSubject.value.filter(message => message.id !== id));
   }
 
+  /** Retira los avisos visibles de ese tipo y texto (p. ej. el de conexión cuando vuelve la red). Sin coincidencias no hace nada. */
+  dismissMatching(type: NotificationType, text: string): void {
+    for (const message of this.messagesSubject.value) {
+      if (message.type === type && message.text === text) this.dismiss(message.id);
+    }
+  }
+
   clear(): void {
     for (const id of this.timers.keys()) this.clearTimer(id);
     this.messagesSubject.next([]);

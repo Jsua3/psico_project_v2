@@ -1046,6 +1046,41 @@ export const DRAFT_COPY = {
     where: 'Aviso de error: una acción que pide estar cerca no pudo guardar antes la ubicación',
     text: 'No pudimos guardar tu ubicación. Revisa tu conexión y vuelve a intentarlo.',
   },
+  pauseNotRegistered: {
+    decision: 'R1-6',
+    owner: 'Psicología',
+    review: 'validar',
+    where: 'Pantalla de pausa: la salida segura ya sacó a la persona del caso pero el servidor aún no registra la pausa (sin conexión)',
+    text: 'Saliste del caso. Registraremos la pausa cuando vuelva la conexión.',
+  },
+  pauseResumeOffline: {
+    decision: 'R1-7',
+    owner: 'Psicología',
+    review: 'validar',
+    where: 'Aviso de error: «Reanudar» con la pausa aún sin registrar y sin conexión',
+    text: 'Todavía no hay conexión. Reanudaremos tu intento en cuanto vuelva.',
+  },
+  choiceNotSaved: {
+    decision: 'R1-8',
+    owner: 'Psicología',
+    review: 'validar',
+    where: 'Aviso al reanudar: la última elección se envió justo antes de la salida segura y no alcanzó a guardarse',
+    text: 'Tu última elección no alcanzó a guardarse. Puedes volver a elegirla.',
+  },
+  decisionResentOnline: {
+    decision: 'R1-9',
+    owner: 'Psicología',
+    review: 'validar',
+    where: 'Aviso breve: una elección que no salió por falta de conexión se envió sola al volver la red',
+    text: 'Volvió la conexión: enviamos tu elección.',
+  },
+  pausePermanentFail: {
+    decision: 'R1-10',
+    owner: 'Psicología',
+    review: 'validar',
+    where: 'Pantalla de pausa: el servidor rechaza la pausa de forma permanente y se dejó de reintentar',
+    text: 'No pudimos registrar tu pausa en el servidor. Tu avance sigue guardado: puedes volver al catálogo y retomar el caso más tarde.',
+  },
 } as const satisfies Record<string, DraftCopyEntry>;
 
 export type DraftCopyKey = keyof typeof DRAFT_COPY;

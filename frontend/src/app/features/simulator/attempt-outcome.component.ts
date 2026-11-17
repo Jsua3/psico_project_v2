@@ -54,6 +54,7 @@ import { RECONSIDERED_LABEL, reconsideredChip } from './reconsidered.util';
         @if (status() === 'PAUSED') {
           <!-- Pausa calmada: lo primero es poder volver; el tablero queda plegado y sin cifras en primer plano. -->
           <p class="oc-pause-copy">{{ pauseMessage }}</p>
+          @if (pauseNote()) { <p class="oc-pause-note" role="status">{{ pauseNote() }}</p> }
           <div class="oc-actions oc-actions--pause">
             <!-- Pausa reanudable real: mismo intento, sin crear uno nuevo. -->
             <button type="button" class="oc-btn oc-btn--go u-ficha u-ficha--primaria" cdkFocusInitial (click)="resume.emit()">Reanudar este intento</button>
@@ -422,6 +423,7 @@ import { RECONSIDERED_LABEL, reconsideredChip } from './reconsidered.util';
     .outcome:not(.outcome--pause) .oc-btn:focus-visible, .outcome:not(.outcome--pause) .oc-details summary:focus-visible { outline: 3px solid #C9B3FF; outline-offset: 3px; }
 
     /* Pausa calmada: acciones arriba, sin tablero en primer plano. */
+    .oc-pause-note { margin: 0; max-width: 60ch; font-size: var(--ds-type-body-s-size); line-height: 1.5; color: var(--sim-ink-soft, rgba(244,247,251,.74)); }
     .oc-pause-copy { margin: 0; max-width: 60ch; font-size: 1rem; line-height: 1.6; color: var(--sim-ink-soft, rgba(244,247,251,.74)); }
     .oc-actions--pause { justify-content: flex-start; margin-top: 0; padding-top: 0; }
     .oc-support__list { margin: 0; padding-left: 18px; display: grid; gap: 6px; color: var(--sim-ink-soft, rgba(244,247,251,.74)); font-size: .86rem; line-height: 1.5; }
@@ -567,6 +569,8 @@ export class AttemptOutcomeComponent {
   readonly resume = output<void>();
   /** Recursos de apoyo que se muestran en la pausa (opcional; los aporta quien conoce el caso). */
   readonly supportResources = input<string[]>([]);
+  /** Pausa local aún sin registrar en el servidor (sin conexión): la línea discreta que lo dice; `null` cuando ya quedó registrada. */
+  readonly pauseNote = input<string | null>(null);
   /**
    * Intento cuyo reporte del dueño trae «Tus decisiones» (C2). Lo pasa quien llama solo al completar: sin id no hay
    * petición. Con el id, `decisionReview` sale del reporte congelado, no de la respuesta de la última decisión.
