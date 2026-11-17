@@ -33,14 +33,22 @@ export const ALTO_CUERPO = 72;
 export const MARGEN_PIES = 8;
 /** Suavidad del seguimiento al caminar: cada cuadro recorre 1 − e^(−TASA·dt) de lo que falta (dt en segundos). */
 export const TASA = 6;
+/** Aire (px CSS) entre un cuerpo y la placa de la interfaz que lo taparía. */
+export const AIRE_PLACA = 6;
 
 export interface Punto { x: number; y: number }
 
+/** Una placa de la interfaz sobre el lienzo (bloque U1), en px físicos desde la esquina superior izquierda de la vista. */
+export interface Caja { x: number; y: number; ancho: number; alto: number }
+
 /**
  * Lienzo en px físicos (cam.width/height), su devicePixelRatio y lo que la interfaz tapa (px físicos): abajo el cuadro
- * de diálogo o la franja inferior; arriba la franja superior.
+ * de diálogo o la franja inferior; arriba la franja superior. `placas`: las cajas de la interfaz que quedan sobre el
+ * mundo al explorar (esquinas, carril y pie, bloque U1); el encuadre no deja cuerpos bajo ellas.
  */
-export interface Vista { ancho: number; alto: number; dpr: number; cubiertoAbajo: number; cubiertoArriba?: number }
+export interface Vista {
+  ancho: number; alto: number; dpr: number; cubiertoAbajo: number; cubiertoArriba?: number; placas?: readonly Caja[];
+}
 
 export interface Sala { ancho: number; alto: number }
 
@@ -65,6 +73,8 @@ export interface EntradaCamara {
   cercana: boolean;
   /** Acercamiento automático en los momentos (ajuste; encendido por defecto). */
   acercarAuto: boolean;
+  /** Pies de lo que está al alcance (persona, puerta u objeto): tampoco queda bajo una placa. */
+  cerca?: Punto | null;
 }
 
 export interface EstadoCamara { centro: Punto; zoom: number }
@@ -159,12 +169,74 @@ export function objetivoCamara(e: EntradaCamara, previo: EstadoCamara | null): E
 
   // La cámara se queda dentro de la sala; solo baja de su borde lo justo para que los pies queden sobre el cuadro.
   const fondo = Math.max(sala.alto, pies + MARGEN_PIES + abajo);
+  const centro = {
+    x: limitar(x, visibleAncho / 2, 0, sala.ancho),
+    y: limitar(y, visibleAlto / 2, 0, fondo),
+  };
+  return { centro: esquivarPlacas(centro, zoom, vista, cuerposQueImportan(e)), zoom };
+}
+
+/** Los cuerpos que una placa no debe tapar: quien juega y lo que tiene al alcance, con quien habla, quien reacciona. */
+function cuerposQueImportan(e: EntradaCamara): Punto[] {
+  const m = e.momento;
+  if (m.tipo === 'general') return [];
+  if (m.tipo === 'conversacion') return [e.jugador, m.con];
+  if (m.tipo === 'reaccion') return [m.de];
+  if (m.tipo === 'objeto') return [e.jugador, m.en];
+  return e.cerca ? [e.jugador, e.cerca] : [e.jugador];
+}
+
+/**
+ * Zona segura (bloque U1): si un cuerpo (su cuadro de 48 × 72 sobre los pies) cae bajo una placa de la interfaz, el
+ * encuadre se corre lo mínimo para sacarlo, en el eje y el sentido que pidan menos, sin que el cuerpo salga de lo que
+ * dejan libre las franjas. Nunca se corre más que el tamaño de la placa: pasado el borde de la sala se ve el vacío, que
+ * queda bajo la misma placa. Sin placas devuelve el centro tal cual.
+ */
+export function esquivarPlacas(centro: Punto, zoom: number, vista: Vista, cuerpos: readonly Punto[]): Punto {
+  const placas = vista.placas ?? [];
+  if (placas.length === 0 || cuerpos.length === 0 || !(zoom > 0)) return centro;
+  const aire = AIRE_PLACA * vista.dpr;
+  const arribaLibre = tapadoArriba(vista);
+  const abajoLibre = vista.alto - tapadoAbajo(vista);
+  let cx = centro.x;
+  let cy = centro.y;
+  for (let vuelta = 0; vuelta < 3; vuelta++) {
+    let movio = false;
+    for (const pie of cuerpos) {
+      const r = {
+        x: (pie.x - MEDIO_CUERPO - cx) * zoom + vista.ancho / 2,
+        y: (pie.y - ALTO_CUERPO - cy) * zoom + vista.alto / 2,
+        ancho: 2 * MEDIO_CUERPO * zoom,
+        alto: ALTO_CUERPO * zoom,
+      };
+      for (const p of placas) {
+        const tapa = r.x < p.x + p.ancho + aire && r.x + r.ancho > p.x - aire
+          && r.y < p.y + p.alto + aire && r.y + r.alto > p.y - aire;
+        if (!tapa) continue;
+        const salida = [
+          { dx: p.x + p.ancho + aire - r.x, dy: 0 },
+          { dx: p.x - aire - (r.x + r.ancho), dy: 0 },
+          { dx: 0, dy: p.y + p.alto + aire - r.y },
+          { dx: 0, dy: p.y - aire - (r.y + r.alto) },
+        ].filter(o => r.x + o.dx >= 0 && r.x + r.ancho + o.dx <= vista.ancho
+          && r.y + o.dy >= arribaLibre && r.y + r.alto + o.dy <= abajoLibre)
+          .sort((a, b) => Math.abs(a.dx) + Math.abs(a.dy) - (Math.abs(b.dx) + Math.abs(b.dy)))[0];
+        if (!salida) continue;
+        // El contenido se mueve (dx, dy) en pantalla: la cámara, lo contrario en mundo.
+        cx -= salida.dx / zoom;
+        cy -= salida.dy / zoom;
+        r.x += salida.dx;
+        r.y += salida.dy;
+        movio = true;
+      }
+    }
+    if (!movio) break;
+  }
+  const topeX = Math.max(...placas.map(p => p.ancho)) / zoom;
+  const topeY = Math.max(...placas.map(p => p.alto)) / zoom;
   return {
-    centro: {
-      x: limitar(x, visibleAncho / 2, 0, sala.ancho),
-      y: limitar(y, visibleAlto / 2, 0, fondo),
-    },
-    zoom,
+    x: centro.x + Math.max(-topeX, Math.min(topeX, cx - centro.x)),
+    y: centro.y + Math.max(-topeY, Math.min(topeY, cy - centro.y)),
   };
 }
 
