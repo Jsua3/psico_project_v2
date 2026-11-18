@@ -140,6 +140,18 @@ export async function canvasSize(page: Page): Promise<{ width: number; height: n
 }
 
 /** La ficha del objetivo de la escena: el host lleva `data-goal` (el objetivo visible) y su botón la abre y la cierra. */
+/**
+ * Pone la ficha del objetivo abierta o plegada sin alternar a ciegas. Desde la guía de la escena (U1, V7) arranca abierta
+ * fuera del tramo compacto y plegada en compacto: un clic sin mirar la dejaba al revés de lo que la prueba esperaba.
+ */
+export async function fichaDelObjetivoEn(page: Page, abierta: boolean): Promise<void> {
+  const toggle = goalCard(page).locator('button.goal-card__toggle');
+  // Un evento de clic del DOM: en compacto táctil (844 × 390) la tecla «Ir a…» del HUD puede quedar encima de la ficha
+  // abierta y el clic del puntero no le llega; aquí importa el estado de la ficha, no a qué alcanza el puntero.
+  if (((await toggle.getAttribute('aria-expanded')) === 'true') !== abierta) await toggle.dispatchEvent('click');
+  await expect(toggle).toHaveAttribute('aria-expanded', String(abierta));
+}
+
 export function goalCard(page: Page): Locator {
   return page.locator('app-scene-goal-card');
 }

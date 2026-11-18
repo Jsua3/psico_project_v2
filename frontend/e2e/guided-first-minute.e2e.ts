@@ -12,6 +12,7 @@ import {
   createWorldInputDriver,
   enterWorld,
   exploreUntilNearby,
+  fichaDelObjetivoEn,
   goalCard,
   interactNearby,
   primaryNearbyAction,
@@ -61,7 +62,7 @@ for (const viewport of GUIDED_VIEWPORTS) {
         await expect(card).toBeVisible();
         await expect(card).toHaveAttribute('data-goal', INITIAL_GOAL);
         await expect(toggle).toContainText(INITIAL_GOAL);
-        await expect(toggle).toHaveAttribute('aria-expanded', 'false');
+        // Desde la guía (U1, V7) arranca abierta fuera del tramo compacto y plegada en compacto: no se da por plegada.
         const box = await card.boundingBox();
         expect(box).not.toBeNull();
         expect(box!.y).toBeGreaterThanOrEqual(0);
@@ -74,11 +75,9 @@ for (const viewport of GUIDED_VIEWPORTS) {
         await expect(help).toBeHidden();
 
         // Abierta, la ficha lista a la familia como «aún no»; se cierra para no tapar el mundo al caminar.
-        await toggle.click();
-        await expect(toggle).toHaveAttribute('aria-expanded', 'true');
+        await fichaDelObjetivoEn(page, true);
         await expect(card.getByRole('listitem').filter({ hasText: /familia en crisis/i })).toContainText(/aún no/i);
-        await toggle.click();
-        await expect(toggle).toHaveAttribute('aria-expanded', 'false');
+        await fichaDelObjetivoEn(page, false);
 
         // Recoger: aviso «Obtuviste…».
         await input.moveUntilNearby('ArrowLeft', /kit pap/i);
@@ -103,10 +102,9 @@ for (const viewport of GUIDED_VIEWPORTS) {
         }).toBeLessThanOrEqual(CANVAS_TOLERANCE_PX);
 
         // Tras hablar con la familia, la ficha (al abrirse se relee) la marca como «ya hablaste».
-        await toggle.click();
+        await fichaDelObjetivoEn(page, true);
         await expect(card.getByRole('listitem').filter({ hasText: /familia en crisis/i })).toContainText(/ya hablaste/i);
-        await toggle.click();
-        await expect(toggle).toHaveAttribute('aria-expanded', 'false');
+        await fichaDelObjetivoEn(page, false);
 
         // AC-6: con la enfermera a su alcance la barra dice qué hacer y la tecla E (o el toque) abre su diálogo.
         const nurse = await exploreUntilNearby(page, input, /enfermera de urgencias/i);

@@ -13,6 +13,7 @@ import {
   closeDialogue,
   createWorldInputDriver,
   finishCaseIntroduction,
+  fichaDelObjetivoEn,
   goalCard,
   interactNearby,
   leaveBrief,
@@ -150,10 +151,9 @@ for (const viewport of [KEYBOARD, TOUCH]) {
 
         // La ficha del objetivo trae el de la escena; abierta y sin infracciones serias.
         await expect(goalCard(page)).toHaveAttribute('data-goal', 'Escuchar a Laura');
-        await goalCard(page).locator('.goal-card__toggle').click();
-        await expect(goalCard(page).locator('.goal-card__toggle')).toHaveAttribute('aria-expanded', 'true');
+        await fichaDelObjetivoEn(page, true);
         await expectNoSeriousAxeViolations(page, `${viewport.name}: la ficha del objetivo abierta`);
-        await goalCard(page).locator('.goal-card__toggle').click();
+        await fichaDelObjetivoEn(page, false);
 
         // Laura todavía no ofrece nada: la conversación lo dice y no lista «Escuchar…».
         await irA(page, input, /laura/i, 'laura');
