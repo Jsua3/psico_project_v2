@@ -52,7 +52,9 @@ let nextGoalCardId = 0;
               }
             </ul>
           }
-          @if (hintAttempt(); as attempt) {
+          <!-- La pista se arma solo cuando la persona abre la ficha a mano: abierta sola (al empezar o al cambiar el objetivo)
+               no pide nada al servidor, que con una respuesta buena retiraría un aviso de conexión pendiente. -->
+          @if (abiertaAMano() && hintAttempt(); as attempt) {
             <app-scene-hint variante="placa" [attemptId]="attempt.attemptId" [attemptToken]="attempt.attemptToken"
               [buttonLabel]="copy.hintAskLabel.text" (consentRequired)="consentRequired.emit()" />
           }
@@ -133,6 +135,8 @@ export class SceneGoalCardComponent {
 
   protected readonly open = signal(false);
   protected readonly everOpened = signal(false);
+  /** La persona la abrió con su botón al menos una vez: recién entonces se arma «Pedir una pista». */
+  protected readonly abiertaAMano = signal(false);
   protected readonly visibleGoal = computed(() => this.guia().objetivo || DRAFT_COPY.goalCardFallback.text);
   /** El pulso de una vez al cambiar el objetivo (la clase se quita al terminar la animación). */
   protected readonly pulso = signal(false);
@@ -167,6 +171,7 @@ export class SceneGoalCardComponent {
     this.open.set(next);
     if (next) {
       this.everOpened.set(true);
+      this.abiertaAMano.set(true);
       this.opened.emit();
     }
   }
