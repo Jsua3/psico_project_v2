@@ -1,4 +1,4 @@
-import { armarGuia, avisarOpcionNueva, opcionesNuevas } from './guia';
+import { armarGuia, avisarOpcionNueva, opcionesNuevas, pasoSalida } from './guia';
 
 const LUGARES = [
   { key: 'puerta-sala', label: 'Sala de escucha', kind: 'door' },
@@ -31,7 +31,39 @@ it('una persona del mapa cuenta como vista si se habló con ella o si se inspecc
 });
 
 it('sin nada en la sala no queda nada por conocer', () => {
-  expect(armarGuia({ goal: '', lugares: [], inspeccionados: [], hablados: new Set() })).toEqual({ objetivo: '', enEstaSala: [], quedaPorConocer: false });
+  expect(armarGuia({ goal: '', lugares: [], inspeccionados: [], hablados: new Set() }))
+    .toEqual({ objetivo: '', enEstaSala: [], quedaPorConocer: false, siguiente: null, hechos: 0, total: 0 });
+});
+
+describe('el siguiente paso (V7, guía para las primeras testers)', () => {
+  const PAP = { key: 'tool-pap', label: 'Kit PAP', recogida: false };
+
+  it('primero la siguiente persona sin hablar, con la cuenta de la sala (personas y herramientas)', () => {
+    const guia = armarGuia({ goal: 'x', lugares: LUGARES, inspeccionados: [], hablados: new Set(['enfermera']), herramientas: [PAP] });
+    expect(guia.siguiente).toBe('Habla con Familia');
+    expect([guia.hechos, guia.total]).toEqual([1, 3]);
+  });
+
+  it('con las personas habladas, la herramienta por recoger; nunca un objeto sin revisar', () => {
+    const guia = armarGuia({ goal: 'x', lugares: LUGARES, inspeccionados: [], hablados: new Set(['enfermera', 'familia']), herramientas: [PAP] });
+    expect(guia.siguiente).toBe('Recoge la herramienta «Kit PAP»');
+    expect(guia.siguiente).not.toContain('Historia clínica');
+  });
+
+  it('con todo hecho, por dónde seguir: la primera puerta abierta y «Ir a…»', () => {
+    const guia = armarGuia({
+      goal: 'x', lugares: LUGARES, inspeccionados: [], hablados: new Set(['enfermera', 'familia']), herramientas: [{ ...PAP, recogida: true }],
+    });
+    expect(guia.siguiente).toBe(pasoSalida('Sala de escucha'));
+    expect(guia.siguiente).toContain('«Ir a…»');
+    expect([guia.hechos, guia.total]).toEqual([3, 3]);
+  });
+
+  it('una puerta cerrada (con aviso) no se propone', () => {
+    const cerrada = LUGARES.map(l => l.kind === 'door' ? { ...l, note: 'cerrada' } : l);
+    const guia = armarGuia({ goal: 'x', lugares: cerrada, inspeccionados: [], hablados: new Set(['enfermera', 'familia']) });
+    expect(guia.siguiente).toBeNull();
+  });
 });
 
 it('descarta los rótulos vacíos y conserva el orden dado: personas primero, luego objetos', () => {

@@ -254,9 +254,11 @@ describe('SimulationPlayComponent: tiempos de la pantalla de juego (A-03b)', () 
       component.executeDecision(101);
       // Sin director montado (no hay franja que esperar), la nota llega ya, antes del fundido de salida.
       expect(component.dialogue()?.speakerName).toBe('Consecuencia');
-      // El mundo de destino carga detrás de la nota, tras el fundido de salida.
+      // V7: el mundo de destino no carga mientras se lee la nota: se pide al cerrarla.
       expect(sim['getWorld']).not.toHaveBeenCalled();
       advance(340);
+      expect(sim['getWorld']).not.toHaveBeenCalled();
+      component.closeDialogue();
       expect(sim['getWorld']).toHaveBeenCalled();
     });
   });

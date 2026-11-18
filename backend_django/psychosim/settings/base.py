@@ -555,7 +555,7 @@ DEFAULT_FROM_EMAIL = os.environ.get("DEFAULT_FROM_EMAIL", "siep@psychosim.edu.co
 SPECTACULAR_SETTINGS = {
     "TITLE": "PsychoSim / SIEP API",
     "DESCRIPTION": "Backend Django para el simulador SIEP (contrato idéntico a Spring).",
-    "VERSION": "1.1.0",
+    "VERSION": "1.2.0",
     "SERVE_INCLUDE_SCHEMA": False,
     "DEFAULT_SCHEMA_CLASS": "shared.openapi.SiepAutoSchema",
     "PREPROCESSING_HOOKS": [

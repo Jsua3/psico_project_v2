@@ -13,6 +13,7 @@ import {
   closeDialogue,
   createWorldInputDriver,
   finishCaseIntroduction,
+  fichaDelObjetivoEn,
   goalCard,
   interactNearby,
   leaveBrief,
@@ -150,10 +151,9 @@ for (const viewport of [KEYBOARD, TOUCH]) {
 
         // La ficha del objetivo trae el de la escena; abierta y sin infracciones serias.
         await expect(goalCard(page)).toHaveAttribute('data-goal', 'Escuchar a Laura');
-        await goalCard(page).locator('.goal-card__toggle').click();
-        await expect(goalCard(page).locator('.goal-card__toggle')).toHaveAttribute('aria-expanded', 'true');
+        await fichaDelObjetivoEn(page, true);
         await expectNoSeriousAxeViolations(page, `${viewport.name}: la ficha del objetivo abierta`);
-        await goalCard(page).locator('.goal-card__toggle').click();
+        await fichaDelObjetivoEn(page, false);
 
         // Laura todavía no ofrece nada: la conversación lo dice y no lista «Escuchar…».
         await irA(page, input, /laura/i, 'laura');
@@ -169,20 +169,19 @@ for (const viewport of [KEYBOARD, TOUCH]) {
         await cpuLenta(page, true);
         const decision = await chooseDecision(page, /laura/i, /escuchar a laura/i);
         expect(decision.reaction, 'el servidor trae la reacción de Laura').toMatchObject({ line: 'Gracias por escucharme.', gesture: 'se-acerca', objectKey: 'laura' });
-        // La franja dura ~3 s: se audita antes de cualquier otra espera, y debe seguir a la vista al terminar la auditoría
-        // (si no, Axe habría revisado un contenedor vacío).
+        // V7: la respuesta de la persona nunca se va sola: la franja espera «Continuar» (botón de 44 px, Enter o toque).
         const strip = page.locator('app-reaction-director');
         await expect(strip.locator('.reaction-strip'), 'la franja de la reacción aparece').toBeVisible({ timeout: scaled(5_000) });
-        // La frase llega tras el encuadre y el gesto: con la CPU frenada tarda más (se espera antes de sostener la franja,
-        // que si no se quedaría sin frase).
+        // La frase llega tras el encuadre y el gesto: con la CPU frenada tarda más.
         await expect(strip).toContainText('Gracias por escucharme.', { timeout: scaled(20_000) });
-        // V6: con el foco del teclado dentro, la franja no avanza sola (accesibilidad, WCAG 2.2.1): se enfoca «Salida segura»
-        // de la franja (sin pulsarla) para auditarla a la vista aunque Axe tarde más que su duración; luego se suelta.
-        await strip.locator('.reaction-exit button').first().focus();
         await expectNoSeriousAxeViolations(page, `${viewport.name}: la franja de la reacción`, 'app-reaction-director');
-        expect(await strip.locator('.reaction-strip').count(), 'la franja seguía a la vista al terminar la auditoría').toBe(1);
-        await page.evaluate(() => (document.activeElement as HTMLElement | null)?.blur());
         await cpuLenta(page, false);
+        await page.waitForTimeout(4_000);   // más que lo que duraba antes la franja entera
+        expect(await strip.locator('.reaction-strip').count(), 'la franja no se fue sola').toBe(1);
+        const continuar = strip.locator('button.reaction-continue');
+        await expect(continuar).toBeVisible();
+        const alto = (await continuar.boundingBox())?.height ?? 0;
+        expect(alto, '«Continuar» de la franja mide al menos 44 px').toBeGreaterThanOrEqual(44);
         await expect.poll(reactionsSeen, { message: 'el gesto de Laura puso data-reaction en el host', timeout: scaled(5_000) })
           .toContain('se-acerca');
         await expect(host(page)).not.toHaveAttribute('data-reaction', /.+/, { timeout: scaled(10_000) });

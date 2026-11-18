@@ -105,8 +105,9 @@ const KIND_LABELS: Record<PlaceKind, string> = { person: 'Persona', door: 'Puert
     .places__note { font-weight: 400; font-size: var(--pixel-letra-media); color: var(--pixel-tinta-suave); }
     .places__foot { display: flex; align-items: center; justify-content: space-between; gap: calc(4 * var(--pixel-px)); flex-wrap: wrap; }
     @media (max-width: 560px) {
-      .places { padding: calc(5 * var(--pixel-px)) calc(5 * var(--pixel-px)) calc(6 * var(--pixel-px)); }
-      .places__item { grid-template-columns: 5.6em minmax(0, 1fr); }
+      /* Teléfono (V7): la lista entra sin desplazarse; las fichas bajan al piso del dedo (44 px) y los huecos se acortan. */
+      .places { gap: calc(3 * var(--pixel-px)); padding: calc(5 * var(--pixel-px)) calc(5 * var(--pixel-px)) calc(6 * var(--pixel-px)); }
+      .places__item { grid-template-columns: 5.6em minmax(0, 1fr); min-height: 44px; }
       .places__note { grid-column: 2; }
     }
     /* Poco alto (V6): la lista no se desplaza; las fichas van en dos columnas y, con ratón, más bajas (piso de 24 px;

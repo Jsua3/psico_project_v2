@@ -16,6 +16,9 @@ const GUIA: GuiaEscena = {
     { key: 'carpeta', label: 'Historia clínica', tipo: 'objeto', visto: true },
   ],
   quedaPorConocer: true,
+  siguiente: 'Habla con Familia',
+  hechos: 1,
+  total: 2,
 };
 
 /**
@@ -38,7 +41,9 @@ describe('SceneGoalCardComponent', () => {
     const fixture = TestBed.createComponent(SceneGoalCardComponent);
     fixture.componentRef.setInput('guia', entrada.guia);
     fixture.componentRef.setInput('hintAttempt', entrada.hintAttempt ?? null);
-    if (entrada.compact !== undefined) fixture.componentRef.setInput('compact', entrada.compact);
+    // Desde V7 la ficha arranca abierta fuera de compacto; las pruebas de la ficha plegada la montan en compacto (donde
+    // sigue arrancando plegada), salvo que pidan otra cosa.
+    fixture.componentRef.setInput('compact', entrada.compact ?? true);
     let abiertas = 0;
     fixture.componentInstance.opened.subscribe(() => abiertas++);
     fixture.detectChanges();
@@ -53,6 +58,36 @@ describe('SceneGoalCardComponent', () => {
   }
 
   afterEach(() => TestBed.resetTestingModule());
+
+  describe('guía para las primeras testers (V7)', () => {
+    it('fuera de compacto arranca abierta, con el siguiente paso y la cuenta de la sala', () => {
+      const { host, toggle } = montar({ guia: GUIA, compact: false });
+      expect(toggle().getAttribute('aria-expanded')).toBe('true');
+      const paso = host.querySelector('[data-guia-paso]')!;
+      expect(paso.textContent).toContain('Siguiente paso · 2 de 2');
+      expect(paso.textContent).toContain('Habla con Familia');
+    });
+
+    it('plegada por la persona, al cambiar el objetivo se vuelve a abrir con un pulso (una vez)', () => {
+      const { fixture, host, toggle, abrir } = montar({ guia: GUIA, compact: false });
+      abrir(); // la pliega
+      expect(toggle().getAttribute('aria-expanded')).toBe('false');
+      fixture.componentRef.setInput('guia', { ...GUIA, objetivo: 'Busca un lugar para hablar' });
+      fixture.detectChanges();
+      expect(toggle().getAttribute('aria-expanded')).toBe('true');
+      expect(host.querySelector('.goal-card')!.classList.contains('goal-card--pulso')).toBe(true);
+    });
+
+    it('con «Reducir movimiento» se vuelve a abrir sin pulso, y con todo hecho lo dice', () => {
+      const { fixture, host, toggle } = montar({ guia: GUIA, compact: false });
+      fixture.componentRef.setInput('reduceMotion', true);
+      fixture.componentRef.setInput('guia', { ...GUIA, objetivo: 'Otra', siguiente: 'Cuando termines en esta sala: X.', hechos: 2, total: 2 });
+      fixture.detectChanges();
+      expect(toggle().getAttribute('aria-expanded')).toBe('true');
+      expect(host.querySelector('.goal-card')!.classList.contains('goal-card--pulso')).toBe(false);
+      expect(host.querySelector('[data-guia-paso]')!.textContent).toContain('Todo hecho en esta sala · 2 de 2');
+    });
+  });
 
   it('plegada muestra el objetivo y lo publica en data-goal', () => {
     const { host, el } = montar({ guia: GUIA });

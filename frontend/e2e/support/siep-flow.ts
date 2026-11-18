@@ -140,6 +140,18 @@ export async function canvasSize(page: Page): Promise<{ width: number; height: n
 }
 
 /** La ficha del objetivo de la escena: el host lleva `data-goal` (el objetivo visible) y su botón la abre y la cierra. */
+/**
+ * Pone la ficha del objetivo abierta o plegada sin alternar a ciegas. Desde la guía de la escena (U1, V7) arranca abierta
+ * fuera del tramo compacto y plegada en compacto: un clic sin mirar la dejaba al revés de lo que la prueba esperaba.
+ */
+export async function fichaDelObjetivoEn(page: Page, abierta: boolean): Promise<void> {
+  const toggle = goalCard(page).locator('button.goal-card__toggle');
+  // Un evento de clic del DOM: en compacto táctil (844 × 390) la tecla «Ir a…» del HUD puede quedar encima de la ficha
+  // abierta y el clic del puntero no le llega; aquí importa el estado de la ficha, no a qué alcanza el puntero.
+  if (((await toggle.getAttribute('aria-expanded')) === 'true') !== abierta) await toggle.dispatchEvent('click');
+  await expect(toggle).toHaveAttribute('aria-expanded', String(abierta));
+}
+
 export function goalCard(page: Page): Locator {
   return page.locator('app-scene-goal-card');
 }
@@ -162,11 +174,52 @@ export async function watchReaction(page: Page): Promise<() => Promise<string[]>
   return () => page.evaluate(() => [...((window as unknown as { __reacciones?: string[] }).__reacciones ?? [])]);
 }
 
+/**
+ * V7: la respuesta del personaje espera «Continuar» y un cambio de lugar espera «Ir a <lugar>». Quien sigue la historia
+ * (el ayudante que espera el mundo o la consecuencia) los pulsa, como haría una persona. No hace nada si no están.
+ */
+export async function seguirLaHistoria(page: Page): Promise<boolean> {
+  let pulso = false;
+  const continuar = page.locator('app-reaction-director button.reaction-continue');
+  // Dos veces como mucho: si la frase aún no se veía, el primero la muestra y el segundo cierra la franja.
+  for (let vez = 0; vez < 2 && (await continuar.isVisible().catch(() => false)); vez += 1) {
+    await continuar.click({ timeout: scaled(5_000) }).catch(() => undefined);
+    pulso = true;
+  }
+  const ir = page.locator('.cambio-de-lugar__ir');
+  if (await ir.isVisible().catch(() => false)) {
+    // El botón late (como «Continuar» de «Antes de comenzar») y nunca está quieto para un clic: Enter, con el foco en él.
+    await ir.press('Enter', { timeout: scaled(5_000) }).catch(() => undefined);
+    pulso = true;
+  }
+  return pulso;
+}
+
+/**
+ * V7: espera la nota de consecuencia tras una decisión. La franja de la reacción ya no se va sola: se pulsa «Continuar»
+ * como haría una persona. Devuelve si la nota llegó a verse dentro del plazo.
+ */
+export async function esperarConsecuencia(page: Page, plazoMs = scaled(30_000)): Promise<boolean> {
+  const nota = page.getByRole('dialog', { name: /consecuencia/i });
+  const hasta = Date.now() + plazoMs;
+  while (Date.now() < hasta) {
+    if (await nota.isVisible().catch(() => false)) return true;
+    await seguirLaHistoria(page);
+    await page.waitForTimeout(100);
+  }
+  return nota.isVisible().catch(() => false);
+}
+
 export async function waitForWorldReady(page: Page, expectedMapKey?: string): Promise<void> {
   const host = page.locator('app-game-world .phaser-host[data-world-ready="true"]');
+  await seguirLaHistoria(page);
   await expect(host).toBeVisible({ timeout: scaled(45_000) });
   if (expectedMapKey) {
-    await expect(host).toHaveAttribute('data-rendered-map-key', expectedMapKey, { timeout: scaled(45_000) });
+    // Si la sala nueva espera «Ir a…» (o la franja, «Continuar»), se pulsa mientras se espera su clave.
+    await expect.poll(async () => {
+      await seguirLaHistoria(page);
+      return host.getAttribute('data-rendered-map-key').catch(() => null);
+    }, { timeout: scaled(45_000), message: `el mundo ${expectedMapKey} no quedó listo` }).toBe(expectedMapKey);
     await expect(host).toHaveAttribute('data-rendered-scenario-key', expectedMapKey, { timeout: scaled(45_000) });
   }
 }
@@ -753,15 +806,29 @@ export async function advanceDialogueToChoices(page: Page, dialogueName: RegExp)
   throw new Error(`El diálogo ${dialogueName} no expuso sus opciones en ${budgetMs / 1000} s`);
 }
 
-export async function closeDialogue(page: Page, dialogueName: RegExp): Promise<void> {
+export async function closeDialogue(page: Page, dialogueName: RegExp, opciones: { irAlLugar?: boolean } = {}): Promise<void> {
   const dialogue = page.getByRole('dialog', { name: dialogueName });
-  await expect(dialogue).toBeVisible({ timeout: scaled(30_000) });
+  // V7: la consecuencia llega tras «Continuar» en la franja de la reacción, que ya no se va sola.
+  await expect.poll(async () => (await dialogue.isVisible().catch(() => false)) || (await seguirLaHistoria(page) && false),
+    { timeout: scaled(30_000), message: `el diálogo ${dialogueName} no apareció` }).toBe(true);
+  // Al cerrar la consecuencia se pide el mundo de la escena siguiente; si es otra sala, sale «Ir a <lugar>» y se pulsa.
+  const esConsecuencia = dialogueName.test('Consecuencia') && opciones.irAlLugar !== false;
+  const mundo = esConsecuencia
+    ? page.waitForResponse(r => r.request().method() === 'GET' && /\/api\/simulation\/attempts\/[^/]+\/world$/.test(new URL(r.url()).pathname),
+      { timeout: scaled(10_000) }).catch(() => null)
+    : null;
+  const cerrado = async () => {
+    if (!mundo || !(await mundo)) return;
+    const ir = page.locator('.cambio-de-lugar__ir');
+    await ir.waitFor({ state: 'visible', timeout: scaled(1_500) }).then(() => ir.press('Enter')).catch(() => undefined);
+  };
 
   const budgetMs = scaled(DIALOGUE_BUDGET_MS);
   const deadline = Date.now() + budgetMs;
   while (Date.now() < deadline) {
     if (await clickCurrentDialogueAction(dialogue)) {
       if (await dialogue.isHidden().catch(() => false)) {
+        await cerrado();
         return;
       }
       // «Continuar» (antes «Cerrar diálogo (Esc)»): el último botón de cada diálogo.
@@ -770,6 +837,7 @@ export async function closeDialogue(page: Page, dialogueName: RegExp): Promise<v
     }
     if (await dialogue.isHidden().catch(() => false)) {
       await expect(dialogue).toBeHidden({ timeout: scaled(10_000) });
+      await cerrado();
       return;
     }
     await page.waitForTimeout(50);

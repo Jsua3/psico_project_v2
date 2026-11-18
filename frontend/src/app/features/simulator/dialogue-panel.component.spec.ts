@@ -1170,11 +1170,17 @@ describe('DialoguePanelComponent - scroll, hoja y retrato (T4.4)', () => {
   // Bloque I1: el retrato mide siempre un múltiplo de 96 (y de 32): sirve igual para el retrato del kit (32 px) y para
   // uno fino de 96 px, sin escalar a un factor no entero. En pantallas bajas ya no baja a 64 px (no es múltiplo de 96).
   it('el retrato mide 64, 96, 192 o 288 px según el espacio (múltiplos de 32), y el panel lateral es lo único que se desplaza', () => {
-    const tamanos = [...source.matchAll(/--retrato: (\d+)px/g)].map(m => Number(m[1]));
-    expect(tamanos.length).toBeGreaterThan(3);
+    // Tramos (U1, V7): los tamaños del tramo compacto y del amplio salen de las fichas --dialogo-* de .pixel-juego.
+    const fichas = readFileSync(join(__dirname, '../../../styles/tokens/_pixel.scss'), 'utf-8');
+    const tamanos = [
+      ...source.matchAll(/--retrato: (?:var\(--dialogo-retrato(?:-lado)?, )?(\d+)px/g),
+      ...fichas.matchAll(/--dialogo-retrato(?:-lado)?: (\d+)px/g),
+    ].map(m => Number(m[1]));
+    expect(tamanos.length).toBeGreaterThan(5);
+    expect(new Set(tamanos)).toEqual(new Set([64, 96, 128, 192, 288]));
     // Desde que se retiró el retrato de 96 px (decisión del usuario), basta con múltiplos de 32: el retrato del kit queda entero.
     for (const t of tamanos) expect(t % 32, `${t} px`).toBe(0);
-    expect(source).toMatch(/\.dialogue-strip--side \{\s*--retrato: 96px;/);
+    expect(source).toMatch(/\.dialogue-strip--side \{\s*--retrato: var\(--dialogo-retrato-lado, 96px\);/);
     const compact = mediaBlocks(source, '(max-height: 520px)');
     expect(compact.length).toBeGreaterThan(0);
     expect(compact.some(block => block.includes('--retrato: 96px'))).toBe(true);
@@ -1665,8 +1671,9 @@ describe('DialoguePanelComponent - el aviso breve va dentro del cuadro', () => {
 // Bloque I1: sobre el mundo el cuadro tiene un alto acotado y lo publica para la cámara.
 describe('DialoguePanelComponent - alto acotado sobre el mundo', () => {
   it('el cuadro no pasa de --dialogo-alto-max y publica data-alto-ocupado', () => {
-    expect(source).toContain('.dialogue-strip:not(.dialogue-strip--side) { --dialogo-alto-max: min(340px, 46vh); max-height: var(--dialogo-alto-max); }');
-    expect(source).toContain("--dialogo-alto-max: min(560px, 52vh);");
+    expect(source).toContain('.dialogue-strip:not(.dialogue-strip--side) { --dialogo-alto-max: var(--dialogo-banda, min(340px, 46vh)); max-height: var(--dialogo-alto-max); }');
+    // En el tramo amplio (fichas de .pixel-juego) la banda sube a 560 px.
+    expect(readFileSync(join(__dirname, '../../../styles/tokens/_pixel.scss'), 'utf-8')).toContain('--dialogo-banda: min(560px, 52vh);');
     // La banda de decisión toma el alto que necesita, hasta el tope; si las fichas no caben, la lista se acota a filas enteras.
     expect(source).toContain("height: calc-size(max-content, min(size, var(--dialogo-alto-max)));");
     expect(source).toContain("lista.style.maxHeight = `${Math.ceil(corte + pie)}px`;");

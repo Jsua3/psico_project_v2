@@ -5,6 +5,7 @@ import { readJson } from './support/api-bodies';
 import { probeStudentConsent } from './support/consent';
 import { GUIDED_VIEWPORTS } from './support/guided-viewports';
 import {
+  esperarConsecuencia,
   acceptContentWarning,
   advanceDialogueToChoices,
   chooseDecision,
@@ -292,7 +293,8 @@ for (const viewport of GUIDED_VIEWPORTS) {
         /aplicar pap: contención emocional, acompañamiento en duelo/i,
       );
       const supervision = page.getByRole('dialog', { name: /consecuencia/i });
-      await expect(supervision).toBeVisible({ timeout: scaled(30_000) });
+      expect(await esperarConsecuencia(page), 'la supervisión llega tras «Continuar» en la reacción').toBe(true);
+      await expect(supervision).toBeVisible();
       await assertSafeExitPauses(page, 'supervisión', viewport);
     });
 
