@@ -176,7 +176,8 @@ export async function seguirLaHistoria(page: Page): Promise<boolean> {
   }
   const ir = page.locator('.cambio-de-lugar__ir');
   if (await ir.isVisible().catch(() => false)) {
-    await ir.click({ timeout: scaled(5_000) }).catch(() => undefined);
+    // El botón late (como «Continuar» de «Antes de comenzar») y nunca está quieto para un clic: Enter, con el foco en él.
+    await ir.press('Enter', { timeout: scaled(5_000) }).catch(() => undefined);
     pulso = true;
   }
   return pulso;
@@ -807,7 +808,7 @@ export async function closeDialogue(page: Page, dialogueName: RegExp, opciones: 
   const cerrado = async () => {
     if (!mundo || !(await mundo)) return;
     const ir = page.locator('.cambio-de-lugar__ir');
-    await ir.waitFor({ state: 'visible', timeout: scaled(1_500) }).then(() => ir.click()).catch(() => undefined);
+    await ir.waitFor({ state: 'visible', timeout: scaled(1_500) }).then(() => ir.press('Enter')).catch(() => undefined);
   };
 
   const budgetMs = scaled(DIALOGUE_BUDGET_MS);
