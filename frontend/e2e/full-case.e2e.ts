@@ -7,6 +7,7 @@ import { classValuesIn, closeOnlyKeysIn, measuresIn, measuresInText, recordSimul
 import { assertQualityState } from './support/quality-gates';
 import { REQUIRED_VIEWPORTS } from './support/required-viewports';
 import {
+  esperarConsecuencia,
   acceptContentWarning,
   chooseDecision,
   closeDialogue,
@@ -351,7 +352,8 @@ async function completeFullCase(
   // AC-9: la consecuencia de la ÚLTIMA decisión se mantiene a la vista y el
   // resultado del intento solo se abre cuando se cierra.
   const supervision = page.getByRole('dialog', { name: /consecuencia/i });
-  await expect(supervision).toBeVisible({ timeout: scaled(30_000) });
+  expect(await esperarConsecuencia(page), 'la supervisión llega tras «Continuar» en la reacción').toBe(true);
+  await expect(supervision).toBeVisible();
   await expect(page.locator('app-attempt-outcome .outcome')).toHaveCount(0);
   await assertQualityState(page, testInfo, `${viewport.name}-${route}-last-supervision`);
   await closeDialogue(page, /consecuencia/i);

@@ -2,6 +2,7 @@ import { expect, test } from '@playwright/test';
 
 import { assertNoUnexpectedConsoleOrPageErrors, KNOWN_CONSOLE_PATTERNS } from './support/console-gate';
 import {
+  esperarConsecuencia,
   chooseDecision,
   closeDialogue,
   createWorldInputDriver,
@@ -52,7 +53,7 @@ test.describe('@feedback RN-08: la consecuencia al decidir no trae clasificació
 
     // Al decidir: la consecuencia narrativa, sin clasificación ni el texto evaluativo del servidor.
     const consequence = page.getByRole('dialog', { name: /consecuencia/i });
-    await expect(consequence).toBeVisible({ timeout: scaled(30_000) });
+    expect(await esperarConsecuencia(page), 'la consecuencia llega tras «Continuar» en la reacción').toBe(true);
     const shown = (await consequence.textContent()) ?? '';
     expect(shown).not.toMatch(/Decisión adecuada|Decisión con riesgo|Alerta ética/);
     if (decision.consequence) expect(shown).toContain(decision.consequence.text);

@@ -1,8 +1,12 @@
 /**
  * Director de la reacción del personaje tras elegir una respuesta (4.3.3, pasos 2 a 4): encuadre, gesto, cara, frase
  * y etiqueta, en la sala donde ocurrió. Los pasos y sus duraciones salen de `caso/reaccion.ts` (módulo puro); aquí solo
- * se reproducen, se pintan la franja y la frase, y se atiende la tecla de saltar. Esc no se consume: la cadena de Esc
- * del juego (salida segura) sigue mandando (REGLA-004).
+ * se reproducen, se pintan la franja y la frase, y se atiende «Continuar». Esc no se consume: la cadena de Esc del juego
+ * (salida segura) sigue mandando (REGLA-004).
+ *
+ * V7: la respuesta del personaje nunca se va sola. Con frase, la franja queda en pantalla hasta que quien juega pulse
+ * «Continuar» (el botón de 44 px, Enter o Espacio, o un toque); si lo pulsa antes de que la frase aparezca, la franja
+ * salta a su estado final y sigue esperando.
  */
 import { ChangeDetectionStrategy, Component, HostListener, OnDestroy, computed, inject, input, output, signal } from '@angular/core';
 import { LiveRegionAnnouncer } from '../../core/a11y/live-announcer.service';
@@ -13,8 +17,8 @@ import { type EntradaReaccion, type PasoReaccion, pasosDeReaccion } from './caso
 import { tramos } from './caso/ritmo-texto';
 import { variablesDeArte } from './dialogo-arte';
 import { type Emocion, type Gesto } from './caso/vocabulario';
-import { DRAFT_COPY } from './draft-copy';
 import { SafeExitButtonComponent } from './safe-exit-button.component';
+import { UiButton } from '../../shared/ui/button/ui-button';
 
 /** Lo que el director necesita de la escena; lo cumple `GameWorldComponent`. */
 export interface EscenarioReaccion {
@@ -28,16 +32,14 @@ export type FinReaccion = 'completa' | 'saltada' | 'cancelada';
 
 @Component({
   selector: 'app-reaction-director',
-  imports: [KitFigureComponent, SafeExitButtonComponent],
+  imports: [KitFigureComponent, SafeExitButtonComponent, UiButton],
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
     @if (activa()) {
       <!-- La franja ocupa la banda de abajo, como el cuadro del diálogo: el pie queda oculto mientras dura y «Salida segura»
            va aquí, a su derecha (REGLA-004: siempre a la vista; Esc sigue pausando por la cadena del juego). -->
-      <!-- V6 (accesibilidad, WCAG 2.2.1/2.2.2): con el foco del teclado dentro o el puntero encima, la franja no avanza sola;
-           al soltar sigue con el tiempo que le quedaba. -->
-      <div class="reaction-dock" [style]="arte" (focusin)="sostener('foco', true)" (focusout)="soltarFoco($event)"
-        (pointermove)="alMoverPuntero($event)" (pointerleave)="sostener('puntero', false)">
+      <!-- V7 (WCAG 2.2.1): la franja no se va sola; espera a «Continuar». -->
+      <div class="reaction-dock" [style]="arte">
       <!-- La placa de quien reacciona (bloque I1): el mismo marco de pixel que la del diálogo, con su retrato asomado. -->
       <div class="reaction-strip">
         <span class="reaction-name">{{ quien().nombre }}</span>
@@ -49,7 +51,9 @@ export type FinReaccion = 'completa' | 'saltada' | 'cancelada';
             @if (frase(); as texto) {
               <p class="reaction-line">@for (t of tramosDe(texto); track $index) {<span [class.acot]="t.acotacion">{{ t.texto }}</span>}</p>
             }
-            <span class="reaction-hint" aria-hidden="true">{{ hint }}</span>
+            <button type="button" class="reaction-continue" ui-button variant="primary" (click)="continuar()">
+              Continuar <span class="reaction-key" aria-hidden="true">Enter</span>
+            </button>
           </div>
         </div>
       </div>
@@ -106,7 +110,8 @@ export type FinReaccion = 'completa' | 'saltada' | 'cancelada';
     .reaction-text { min-width: 0; display: flex; flex-direction: column; justify-content: space-between; gap: calc(3 * var(--px)); padding-top: var(--px); }
     .reaction-line { margin: 0; overflow-wrap: break-word; }
     .reaction-line .acot { font-style: italic; color: #c3bccf; }
-    .reaction-hint { align-self: flex-end; margin-top: auto; font-size: .82em; color: #c3bccf; }
+    .reaction-continue { align-self: flex-end; margin-top: auto; min-height: 44px; min-width: 44px; gap: .5em; }
+    .reaction-key { font-family: 'JetBrains Mono', ui-monospace, monospace; font-size: .72em; opacity: .8; }
   `],
 })
 export class ReactionDirectorComponent implements OnDestroy {
@@ -120,7 +125,6 @@ export class ReactionDirectorComponent implements OnDestroy {
   /** Quien juega pulsó «Salida segura» en la franja: el anfitrión pausa como desde el pie (REGLA-004). */
   readonly safeExit = output<void>();
 
-  protected readonly hint = DRAFT_COPY.reactionSkipHint.text;
   /** El arte de pixel de la interfaz de diálogo, como variables CSS. */
   protected readonly arte = variablesDeArte('noche');
   /** El retrato a ×6 (192 px, múltiplo de 96: sirve también para un retrato fino) y a ×3 en pantallas angostas. */
@@ -141,10 +145,11 @@ export class ReactionDirectorComponent implements OnDestroy {
   private token = 0;
   private timers = new Set<ReturnType<typeof setTimeout>>();
   private wakes = new Set<() => void>();
-  /** Esperas en curso con lo que les queda: se congelan mientras la franja está sostenida (foco o puntero). */
-  private esperas = new Set<{ resolve: () => void; restante: number; desde: number; t: ReturnType<typeof setTimeout> | null }>();
-  private sostenidaPor = new Set<'foco' | 'puntero'>();
   private anunciada = false;
+  /** Los pasos ya terminaron (o se saltaron): la franja espera «Continuar». */
+  private enEspera = false;
+  /** Se saltó a su estado final antes de terminar: al continuar se emite «saltada». */
+  private saltada = false;
   private framed = false;
 
   play(entrada: EntradaReaccion, quien: { nombre: string; visual: CharacterVisual | null }): void {
@@ -153,6 +158,8 @@ export class ReactionDirectorComponent implements OnDestroy {
     this.emocion.set('neutral');
     this.frase.set(null);
     this.anunciada = false;
+    this.enEspera = false;
+    this.saltada = false;
     this.pasos = pasosDeReaccion({ ...entrada, reduceMotion: entrada.reduceMotion || this.reduceMotion() });
     const token = ++this.token;
     this._activa.set(true);
@@ -175,10 +182,28 @@ export class ReactionDirectorComponent implements OnDestroy {
     if (target?.closest?.('button, a[href], input, select, textarea, [contenteditable="true"]')) return;
     event.preventDefault();
     if (event.repeat) return;
+    this.continuar();
+  }
+
+  /**
+   * «Continuar» (botón, Enter, Espacio o toque). Si la frase aún no se ve, salta al estado final y la franja sigue
+   * esperando; si ya se ve (o no hay frase), la franja termina.
+   */
+  continuar(): void {
+    if (!this._activa()) return;
+    const hayFrase = this.pasos.some(paso => paso.tipo === 'frase');
+    if (!this.enEspera && hayFrase && this.frase() === null) {
+      this.detener();
+      this.aplicarFinal();
+      this.saltada = true;
+      this.enEspera = true;
+      return;
+    }
+    const motivo: FinReaccion = this.saltada || !this.enEspera ? 'saltada' : 'completa';
     this.detener();
-    this.aplicarFinal();
+    if (!this.enEspera) this.aplicarFinal();   // en espera ya está todo aplicado
     this.cerrar();
-    this.finished.emit('saltada');
+    this.finished.emit(motivo);
   }
 
   ngOnDestroy(): void {
@@ -212,6 +237,11 @@ export class ReactionDirectorComponent implements OnDestroy {
       }
     }
     if (token !== this.token) return;
+    // V7: con frase, la franja no se va sola: espera «Continuar». Sin frase no hay nada que leer y termina como siempre.
+    if (this.pasos.some(paso => paso.tipo === 'frase')) {
+      this.enEspera = true;
+      return;
+    }
     this.cerrar();
     this.finished.emit('completa');
   }
@@ -239,62 +269,10 @@ export class ReactionDirectorComponent implements OnDestroy {
     this._activa.set(false);
   }
 
-  /** ¿La franja está sostenida? (foco del teclado dentro o puntero encima). */
-  get sostenida(): boolean {
-    return this.sostenidaPor.size > 0;
-  }
-
-  /** Sostiene o suelta la franja por `motivo`. Sostenida, ninguna espera corre; al soltar, siguen con lo que les quedaba. */
-  sostener(motivo: 'foco' | 'puntero', si: boolean): void {
-    const antes = this.sostenida;
-    if (si) this.sostenidaPor.add(motivo);
-    else this.sostenidaPor.delete(motivo);
-    if (antes === this.sostenida) return;
-    const ahora = Date.now();
-    for (const espera of this.esperas) {
-      if (this.sostenida) {
-        if (espera.t !== null) { clearTimeout(espera.t); this.timers.delete(espera.t); espera.t = null; }
-        espera.restante = Math.max(0, espera.restante - (ahora - espera.desde));
-      } else {
-        this.programar(espera);
-      }
-    }
-  }
-
-  /**
-   * El puntero sostiene la franja solo si se mueve de verdad sobre ella: si la franja aparece bajo un puntero quieto (el
-   * clic que eligió la opción), el navegador avisa de un «entrar» sin movimiento y la franja no debe congelarse por eso.
-   * Un dedo no la sostiene: un arrastre táctil no tiene «salir» fiable y la dejaría quieta (para eso está el foco).
-   */
-  alMoverPuntero(evento: PointerEvent): void {
-    if (evento.pointerType === 'touch') return;
-    if (evento.movementX || evento.movementY) this.sostener('puntero', true);
-  }
-
-  /** El foco sale de la franja (no a otro control de ella): deja de sostenerla. */
-  soltarFoco(evento: FocusEvent): void {
-    const dentro = evento.relatedTarget instanceof Node && (evento.currentTarget as HTMLElement | null)?.contains(evento.relatedTarget);
-    if (!dentro) this.sostener('foco', false);
-  }
-
-  private programar(espera: { resolve: () => void; restante: number; desde: number; t: ReturnType<typeof setTimeout> | null }): void {
-    espera.desde = Date.now();
-    const t = setTimeout(() => {
-      this.timers.delete(t);
-      this.esperas.delete(espera);
-      this.wakes.delete(espera.resolve);
-      espera.resolve();
-    }, espera.restante);
-    espera.t = t;
-    this.timers.add(t);
-  }
-
   private detener(): void {
     this.token++;
     for (const t of this.timers) clearTimeout(t);
     this.timers.clear();
-    this.esperas.clear();
-    this.sostenidaPor.clear();
     const pendientes = [...this.wakes];
     this.wakes.clear();
     for (const despierta of pendientes) despierta();
@@ -302,11 +280,9 @@ export class ReactionDirectorComponent implements OnDestroy {
 
   private esperar(ms: number): Promise<void> {
     return new Promise<void>(resolve => {
-      const espera = { resolve, restante: ms, desde: Date.now(), t: null as ReturnType<typeof setTimeout> | null };
-      this.esperas.add(espera);
+      const t = setTimeout(() => { this.timers.delete(t); this.wakes.delete(resolve); resolve(); }, ms);
+      this.timers.add(t);
       this.wakes.add(resolve);
-      // Si ya está sostenida (el foco o el puntero llegaron antes), espera a que la suelten.
-      if (!this.sostenida) this.programar(espera);
     });
   }
 }

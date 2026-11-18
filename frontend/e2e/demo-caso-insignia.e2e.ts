@@ -6,6 +6,7 @@ import { join } from 'node:path';
 import { resetStudentConsent } from './support/consent';
 import { REQUIRED_VIEWPORTS } from './support/required-viewports';
 import {
+  esperarConsecuencia,
   acceptContentWarning,
   advanceDialogueToChoices,
   chooseDecision,
@@ -107,7 +108,8 @@ async function caminarHasta(
 /** Tras elegir: la nota de supervisión llega después de la reacción; al cerrarla, la ficha trae el objetivo nuevo. */
 async function cerrarNotaYEsperar(page: Page, objetivoNuevo: RegExp): Promise<void> {
   const nota = page.getByRole('dialog', { name: /consecuencia/i });
-  await expect(nota, 'la nota de supervisión llega tras la reacción').toBeVisible({ timeout: scaled(30_000) });
+  expect(await esperarConsecuencia(page), 'la nota de supervisión llega tras la reacción').toBe(true);
+  await expect(nota).toBeVisible();
   await closeDialogue(page, /consecuencia/i);
   await expect(goalCard(page), `la escena siguiente trae su objetivo (${objetivoNuevo})`)
     .toHaveAttribute('data-goal', objetivoNuevo, { timeout: scaled(30_000) });
@@ -210,7 +212,8 @@ test('@demo-k1 @demo-piezas SIM-VBG-002: entrar, caminar, hablar y jugar los tre
   await decidir(page, input, /médico de guardia/i, 'medico-guardia', [800, 410], /acordar qué está confirmado/i,
     () => captura('08-decision-4.png'));
   const nota = page.getByRole('dialog', { name: /consecuencia/i });
-  await expect(nota, 'la nota de supervisión de la decisión 4').toBeVisible({ timeout: scaled(30_000) });
+  expect(await esperarConsecuencia(page), 'la nota de supervisión de la decisión 4').toBe(true);
+  await expect(nota).toBeVisible();
   await closeDialogue(page, /consecuencia/i);
   await expect(goalCard(page), 'el capítulo 2 trae su propio objetivo')
     .not.toHaveAttribute('data-goal', /Aclara con el equipo médico/, { timeout: scaled(30_000) });
@@ -290,7 +293,7 @@ test('@demo-k1 @demo-piezas SIM-VBG-002: entrar, caminar, hablar y jugar los tre
   await decidir(page, input, /profesional psicosocial/i, 'profesional-psicosocial', [520, 352], /nivel de vulneración/i,
     () => captura('22-decision-16-cierre.png'));
   const notaFinal = page.getByRole('dialog', { name: /consecuencia/i });
-  if (await notaFinal.isVisible({ timeout: scaled(30_000) }).catch(() => false)) await closeDialogue(page, /consecuencia/i);
+  if (await esperarConsecuencia(page) && await notaFinal.isVisible()) await closeDialogue(page, /consecuencia/i);
   await page.waitForTimeout(3_000);
   await captura('23-final.png');
 });

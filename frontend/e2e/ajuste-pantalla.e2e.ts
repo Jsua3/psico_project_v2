@@ -7,7 +7,8 @@ import { expect, test } from '@playwright/test';
 import type { BrowserContext, Locator, Page } from '@playwright/test';
 
 import { PROFESOR, apiToken, send } from './support/case-fixtures';
-import { createWorldInputDriver, enterWorld, exploreUntilNearby, loginAs, waitForWorldReady } from './support/siep-flow';
+import {
+  esperarConsecuencia, createWorldInputDriver, enterWorld, exploreUntilNearby, loginAs, waitForWorldReady } from './support/siep-flow';
 
 /**
  * Ajuste de la pantalla del juego al área de la página (bloque U1, V5; pedido del usuario: «la responsividad y la
@@ -307,8 +308,17 @@ for (const { ancho, alto, zoom, dedo } of TAMANOS) {
         // desplazando; si no cabe, va en páginas con «N de M».
         await page.waitForTimeout(1_200); // la guarda contra la decisión accidental
         await page.locator('.choice-btn').first().click();
+        // V7: la reacción no se va sola; con su frase y «Continuar» (44 px) tampoco desborda.
+        const franja = page.locator('app-reaction-director .reaction-strip');
+        await expect(franja, 'la reacción de la persona aparece').toBeVisible({ timeout: 10_000 });
+        await page.waitForTimeout(3_500);
+        await expect(franja, 'la reacción no se va sola').toBeVisible();
+        if (carpeta) await page.screenshot({ path: join(carpeta, `${ancho}x${alto}-${zoom * 100}-reaccion.png`) });
+        expect(await desbordes(page), 'reacción con «Continuar»').toEqual([]);
+        const continuar = page.locator('app-reaction-director button.reaction-continue');
+        expect((await continuar.boundingBox())?.height ?? 0, '«Continuar» de la reacción mide al menos 44 px').toBeGreaterThanOrEqual(44);
         const nota = page.getByRole('dialog', { name: /consecuencia/i });
-        if (await nota.waitFor({ state: 'visible', timeout: 20_000 }).then(() => true, () => false)) {
+        if (await esperarConsecuencia(page, 20_000)) {
           for (let i = 0; i < 8; i += 1) {
             await page.waitForTimeout(2_500);
             expect(await desbordes(page), `consecuencia, página ${i + 1}`).toEqual([]);

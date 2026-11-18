@@ -116,6 +116,15 @@ const FADE_OUT_MS = 340;
 const WORLD_REVEAL_DELAY_MS = 80;
 /** Rótulo del diálogo que muestra la consecuencia narrativa justo tras decidir (RN-08; decisión del usuario 2026-10-18). */
 const CONSEQUENCE_SPEAKER = 'Consecuencia';
+
+/**
+ * V7: ¿la escena siguiente sigue en el mismo lugar? Cada escena trae su propia clave de mapa aunque sea la misma sala
+ * (en SIM-VBG-002, `hosp-sala-espera-1` y `-2` son la sala de espera): manda el nombre del lugar; sin nombre, la clave.
+ */
+export function mismoLugar(antes: { key: string; title?: string | null }, despues: { key: string; title?: string | null }): boolean {
+  const a = antes.title?.trim() ?? '', b = despues.title?.trim() ?? '';
+  return a && b ? a === b : antes.key === despues.key;
+}
 /** Aviso de reintento al decidir: neutro, sin clasificación. El servidor puede mandar un mensaje evaluativo (forma heredada). */
 const RETRY_NOTICE = DRAFT_COPY.retryNotice.text;
 /** Sin movimientos nuevos durante este tiempo, la posición del jugador se guarda en el servidor. */
@@ -298,6 +307,26 @@ const NARROW_QUERY = '(max-width: 760px)';
         }
 
         @if (worldStarted()) {
+        @if (cambioDeLugar(); as cambio) {
+          <!-- V7: la historia nunca cambia de sala sin aviso (fuera del mundo, que queda inerte bajo una capa). La sala nueva se carga solo al pulsar «Ir a <lugar>». -->
+          <section class="case-intro-overlay cambio-de-lugar" role="dialog" aria-modal="true" aria-labelledby="cambio-de-lugar-titulo">
+            <article class="case-intro-card" cdkTrapFocus [cdkTrapFocusAutoCapture]="true">
+              <header class="case-intro-card__header">
+                <p class="psy-eyebrow">Cambio de lugar</p>
+                <h2 id="cambio-de-lugar-titulo">La historia continúa en {{ cambio.lugar }}</h2>
+              </header>
+              <footer class="case-intro-card__actions">
+                <div class="case-intro-card__buttons">
+                  <app-safe-exit-button variante="placa" [pausing]="pausing()" (pause)="pauseFromOverlay()" />
+                  <button cdkFocusInitial class="psy-button psy-button--primary cambio-de-lugar__ir" type="button" (click)="irAlLugar()">
+                    Ir a {{ cambio.lugar }}
+                  </button>
+                </div>
+              </footer>
+            </article>
+          </section>
+        }
+
         @if (showCaseIntro()) {
           <section class="case-intro-overlay" role="dialog" aria-modal="true" aria-labelledby="case-intro-title">
             <article class="case-intro-card" cdkTrapFocus [cdkTrapFocusAutoCapture]="true">
@@ -327,6 +356,7 @@ const NARROW_QUERY = '(max-width: 760px)';
             </article>
           </section>
         }
+
 
         <header class="top-bar" [attr.inert]="inputBlocked() ? '' : null" [attr.aria-hidden]="inputBlocked() ? 'true' : null">
           @if (mode() === 'rehearsal') { <p class="rehearsal-banner" role="note">{{ draft.rehearsalBanner.text }}</p> }
@@ -1544,6 +1574,7 @@ export class SimulationPlayComponent implements OnInit, OnDestroy {
   readonly inputBlocked = computed(() =>
     this.showResumePrompt() || this.showContentWarning()
     || this.showCaseIntro() || this.dialogue() !== null || this.journalOpen() || this.placesOpen() || this.planOpen()
+    || this.cambioDeLugar() !== null
     || (!this.reactingToLast() && (this.attempt()?.status ?? 'IN_PROGRESS') !== 'IN_PROGRESS'));
 
   /** Con la pantalla de ayuda abierta el personaje no camina mientras se lee. */
@@ -1559,6 +1590,12 @@ export class SimulationPlayComponent implements OnInit, OnDestroy {
   readonly reacting = signal(false);
   /** La respuesta de la decisión, a la espera de que termine la reacción para abrir la supervisión y cargar la sala. */
   private pendingAfterReaction: SimulationDecisionResult | null = null;
+  /** V7: la decisión cuya escena siguiente espera a que se cierre la consecuencia (y, si es otra sala, a la tarjeta). */
+  private transicionPendiente: SimulationDecisionResult | null = null;
+  /** V7: sube al cortar la transición (pausa, recarga): una respuesta del mundo que llegue tarde ya no hace nada. */
+  private transicionToken = 0;
+  /** V7: «La historia continúa en <lugar>». El mundo de la sala nueva ya está pedido; se aplica al pulsar «Ir a…». */
+  readonly cambioDeLugar = signal<{ lugar: string; mundo: SimulationWorldState; intento: SimulationAttemptState } | null>(null);
 
   /** La escena que el director de la reacción maneja (el mundo del juego; `gameWorld` es privado para la plantilla). */
   protected reactionStage(): EscenarioReaccion | null { return this.gameWorldRef() ?? null; }
@@ -2315,7 +2352,7 @@ export class SimulationPlayComponent implements OnInit, OnDestroy {
       return;
     }
 
-    if (this.showCaseIntro()) {
+    if (this.showCaseIntro() || this.cambioDeLugar()) {
       // REGLA-004: Esc pausa también aquí. Va antes del chequeo de botones porque el foco de las
       // tarjetas siempre está en uno (`cdkFocusInitial`) y, sin este orden, Esc nunca llegaría.
       if (event.key === 'Escape') {
@@ -3024,13 +3061,68 @@ export class SimulationPlayComponent implements OnInit, OnDestroy {
     if (updated.status === 'COMPLETED') {
       if (!this.holdOutcomeForConsequence(updated)) this.playCompletionAudio();
     } else {
+      // V7: reacción (ya leída) → consecuencia (espera a cerrarse) → aviso si cambia de sala (espera) → cambio. La
+      // consecuencia se lee en la sala donde se decidió; el mundo de la escena siguiente se pide al cerrarla.
       const consequence = this.buildConsequenceDialogue(updated);
-      if (consequence) this.dialogue.set(consequence);
       this.consequenceOnResume = consequence ? updated : null;   // si la salida segura llega con ella a la vista, se lee al reanudar
+      this.transicionPendiente = updated;
+      if (consequence) this.dialogue.set(consequence);
+      else this.seguirTrasConsecuencia();
+      return;
     }
     this.loadProgressMap(updated);
     this.applyAudioScene(updated);
     this.triggerFade(() => this.loadWorld(updated), null);   // la elección ya sonó al enviarse
+  }
+
+  /**
+   * V7: la consecuencia ya se leyó (o no había). Se pide el mundo de la escena siguiente: si es otra sala, primero la
+   * tarjeta «La historia continúa en <lugar>»; si es la misma, se aplica como siempre. Si el pedido falla, sigue el camino
+   * de siempre (`loadWorld`), con su manejo de errores.
+   */
+  private seguirTrasConsecuencia(): void {
+    const updated = this.transicionPendiente;
+    this.transicionPendiente = null;
+    if (!updated) return;
+    const token = ++this.transicionToken;
+    const salaActual = this.world()?.map ?? null;
+    this.simulationService.getWorld(updated.attemptId, updated.attemptToken).pipe(timeout(PLAZO_ACCION_MS)).subscribe({
+      next: mundo => {
+        if (token !== this.transicionToken) return;
+        if (salaActual !== null && !mismoLugar(salaActual, mundo.map)) {
+          const lugar = mundo.map.title?.trim() || 'otro lugar';
+          this.cambioDeLugar.set({ lugar, mundo, intento: updated });
+          this.announce(`La historia continúa en ${lugar}.`);
+          return;
+        }
+        this.irAlMundo(updated, mundo);
+      },
+      error: () => {
+        if (token === this.transicionToken) this.irAlMundo(updated, null);
+      },
+    });
+  }
+
+  /** V7: «Ir a <lugar>» en la tarjeta del cambio de lugar: ahora sí cambia la sala. */
+  irAlLugar(): void {
+    const cambio = this.cambioDeLugar();
+    if (!cambio) return;
+    this.cambioDeLugar.set(null);
+    this.irAlMundo(cambio.intento, cambio.mundo);
+  }
+
+  /** Aplica el mundo de la escena siguiente (el ya pedido, o lo pide si no lo hay) tras el fundido de siempre. */
+  private irAlMundo(updated: SimulationAttemptState, mundo: SimulationWorldState | null): void {
+    this.loadProgressMap(updated);
+    this.applyAudioScene(updated);
+    this.triggerFade(() => (mundo ? this.applyWorldWithScenario(mundo) : this.loadWorld(updated)), null);   // la elección ya sonó al enviarse
+  }
+
+  /** V7: la transición se corta (pausa, recarga): la tarjeta se va y una respuesta tardía del mundo ya no hace nada. */
+  private cortarTransicion(): void {
+    this.transicionPendiente = null;
+    this.transicionToken++;
+    this.cambioDeLugar.set(null);
   }
 
   /** La salida segura corta la reacción en el acto: si la decisión cerró el caso, el resultado se abre sin supervisión; si no, su consecuencia se lee al reanudar (A3). */
@@ -3110,10 +3202,13 @@ export class SimulationPlayComponent implements OnInit, OnDestroy {
 
   closeDialogue() {
     // Con la supervisión de la última decisión retenida, cerrarla abre el resultado (`releaseHeldOutcome`).
+    const cerrada = this.dialogue();
     this.dialogue.set(null);
     this.consequenceOnResume = null;   // leída o descartada a propósito: no vuelve
     // Al cerrar ya no hay nada «abierto»: sin esto el objeto, y la herramienta del dock, quedaban marcados.
     this.selectedInteraction.set(null);
+    // V7: cerrar la consecuencia de una decisión es lo que deja seguir a la escena siguiente (y a su aviso de cambio).
+    if (this.transicionPendiente && cerrada?.key.startsWith('consequence-')) this.seguirTrasConsecuencia();
   }
 
   /** Diálogo informativo de NPC (frontend-only, sin decisión) → modo cinematic. */
@@ -3294,6 +3389,7 @@ export class SimulationPlayComponent implements OnInit, OnDestroy {
 
   /** Cierra toda superposición y descarta lo que esperaba una respuesta (pausa e intento nuevo). */
   private clearTransientOverlays(): void {
+    this.cortarTransicion();
     this.selectedInteraction.set(null);
     this.supervisionHold.set(false);
     this.dialogue.set(null);
