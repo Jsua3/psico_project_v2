@@ -117,6 +117,7 @@ La versión del programa es la de `package.json` en la raíz. Se sigue el versio
 - Job Frontend: los 9 pasos en verde; `test:frontend` 5781/5781 al cierre. El `e2e` de CI completo dio 346 passed; sus 3 fallos se arreglaron y se repitieron en verde en la cabeza final.
 - Pruebas e2e nuevas: recorrido de los tres capítulos de SIM-VBG-002 (`@demo-k1`), `autoria-sala-piezas`, `autoria-generacion`, `autoria-crear-a-mano-piezas`, ensayo de la docente y salida segura sin red.
 - El recorrido de SIM-VBG-002 corre solo contra la pila viva de la demo (`SIEP_DEMO_VIVA=1`). El arnés `trayectos-captura` lleva `@captura` y sale del `e2e` de CI.
+- `keyboard-ui` comprueba la ayuda por páginas con el teclado: las flechas no mueven al jugador, «Anterior» y «Siguiente» se alcanzan con Tab y se usan con Enter, y Esc la cierra sin pausar.
 - La referencia de contratos HTTP incluye las rutas de generación y del plano.
 - `npm run check:version` comprueba que todas las versiones coincidan y corre en CI. Este CHANGELOG nace con la entrega.
 
