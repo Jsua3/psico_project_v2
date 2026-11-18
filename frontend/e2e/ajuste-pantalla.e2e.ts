@@ -308,6 +308,15 @@ for (const { ancho, alto, zoom, dedo } of TAMANOS) {
         // desplazando; si no cabe, va en páginas con «N de M».
         await page.waitForTimeout(1_200); // la guarda contra la decisión accidental
         await page.locator('.choice-btn').first().click();
+        // V7: la reacción no se va sola; con su frase y «Continuar» (44 px) tampoco desborda.
+        const franja = page.locator('app-reaction-director .reaction-strip');
+        if (await franja.isVisible({ timeout: 10_000 }).catch(() => false)) {
+          await page.waitForTimeout(3_500);
+          if (carpeta) await page.screenshot({ path: join(carpeta, `${ancho}x${alto}-${zoom * 100}-reaccion.png`) });
+          expect(await desbordes(page), 'reacción con «Continuar»').toEqual([]);
+          const continuar = page.locator('app-reaction-director button.reaction-continue');
+          expect((await continuar.boundingBox())?.height ?? 0, '«Continuar» de la reacción mide al menos 44 px').toBeGreaterThanOrEqual(44);
+        }
         const nota = page.getByRole('dialog', { name: /consecuencia/i });
         if (await esperarConsecuencia(page, 20_000)) {
           for (let i = 0; i < 8; i += 1) {
