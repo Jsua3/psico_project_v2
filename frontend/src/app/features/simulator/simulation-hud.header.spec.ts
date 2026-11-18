@@ -396,7 +396,8 @@ describe('HUD: cabecera (T7.1) y Ajustes (T7.2)', () => {
       const fichas = readFileSync(join(__dirname, '../../../styles/tokens/_pixel.scss'), 'utf-8');
       expect(fichas).toContain('--pixel-letra-chica: max(12px, 0.8em);');
       expect(fichas).toContain('--pixel-letra-media: max(12px, 0.88em);');
-      for (const base of fichas.matchAll(/--pixel-tam: (\d+)px;/g)) expect(Number(base[1])).toBeGreaterThanOrEqual(13);
+      // Escala única (V7): la letra base es continua, con piso de 12 px y techo de 16 px.
+      expect(fichas).toMatch(/--pixel-tam: clamp\(12px, [^;]+, 16px\);/);
     });
 
     it('en compacto el grupo de la esquina mide lo que sus teclas de 44 px y su marco', () => {
@@ -411,10 +412,14 @@ describe('HUD: cabecera (T7.1) y Ajustes (T7.2)', () => {
       return styles.replace(/@media[^{]*\{(?:[^{}]*\{[^{}]*\})*[^{}]*\}/g, '');
     }
 
-    // req: RNF-04, BLOQUE-H
-    it('los botones de la cabecera y de Ajustes miden 44 px con cualquier puntero, no solo con dedo', () => {
+    // req: RNF-04, BLOQUE-H. Escala única (U1, V7): las teclas de la cabecera miden tres veces la letra, entre 44 y 48 px con
+    // cualquier puntero (la guarda de 44 px no se afloja); las filas de Ajustes siguen en 44 px.
+    it('las teclas de la cabecera siguen la escala sin bajar de 44 px con cualquier puntero, y las de Ajustes miden 44 px', () => {
       const base = baseStyles();
-      expect(base).toMatch(/\.hud-action \{[^}]*width: 44px;[^}]*height: 44px;/);
+      expect(base).toMatch(/\.hud-action \{[^}]*width: var\(--tecla-hud, 44px\);[^}]*height: var\(--tecla-hud, 44px\);/);
+      const fichas = readFileSync(join(__dirname, '../../../styles/tokens/_pixel.scss'), 'utf-8');
+      expect(fichas).toContain('--tecla-hud: clamp(44px, calc(var(--pixel-tam) * 3), 48px);');
+      expect(fichas).not.toMatch(/--tecla-hud: [^;]*3[0-9]px/);
       expect(base).toMatch(/\.settings-menu__header button \{[^}]*width: 44px;[^}]*height: 44px;/);
       expect(base).toMatch(/\.settings-menu > button,\s*\.settings-menu > a \{[^}]*min-height: 44px;/);
     });

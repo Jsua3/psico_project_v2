@@ -8,6 +8,7 @@ import { KitFigureComponent } from '../character/kit/kit-figure.component';
 import type { PortraitState } from '../character/kit/kit-engine';
 import { DRAFT_COPY } from './draft-copy';
 import { PixelIconoComponent } from './pixel/pixel-icono.component';
+import { CONSULTA_COMPACTO } from './pixel/tramos';
 import { COARSE_POINTER_QUERY, matchesMedia, watchMedia } from './pointer-modality.util';
 import { portraitStateForPersona } from './persona-portrait.util';
 
@@ -32,7 +33,10 @@ const HELP_MEMORY_KEY = 'siep.ayuda.v1';
         <div class="hud-strip u-placa u-sombra">
           <div class="hud-zone hud-zone--right">
             <!-- La persona en palabras (sin cifras): su cara según el vínculo y la activación, su pulso y la frase del servidor. -->
-            <div class="hud-persona" [class.hud-persona--text-only]="!patientVisual()" role="group" [attr.aria-label]="game.persona.label">
+            <!-- En el tramo compacto la frase sale de la barra pero no se pierde: aparece al pasar el cursor y al enfocar el
+                 grupo con teclado (solo ahí entra en el orden de tabulación), y sigue en su nombre accesible. -->
+            <div class="hud-persona" [class.hud-persona--text-only]="!patientVisual()" role="group" [attr.aria-label]="game.persona.label"
+              [attr.tabindex]="compacto() ? 0 : null">
               @if (patientVisual(); as visual) {
                 <span class="hud-persona-ventanilla" aria-hidden="true">
                   <app-kit-figure class="hud-persona-face" [visual]="visual" [portrait]="portraitState()" [scale]="2" />
@@ -192,8 +196,9 @@ const HELP_MEMORY_KEY = 'siep.ayuda.v1';
     .hud-score--progress span { font-size: var(--pixel-letra-chica); font-weight: 700; white-space: nowrap; color: var(--luz); }
 
     .hud-actions { position: relative; display: flex; align-items: center; gap: calc(2 * var(--pixel-px)); padding-left: calc(3 * var(--pixel-px)); border-left: var(--pixel-px) solid var(--pixel-separador); }
-    /* La tecla de la hoja común, a 44 px con cualquier puntero (RNF-04, BLOQUE-H). */
-    .hud-action { width: 44px; height: 44px; text-decoration: none; }
+    /* La tecla de la hoja común sigue la escala única (U1, V7): tres veces la letra, entre 44 y 48 px con cualquier
+       puntero (--tecla-hud en las fichas; la guarda de 44 px de RNF-04 y BLOQUE-H no se afloja). */
+    .hud-action { width: var(--tecla-hud, 44px); height: var(--tecla-hud, 44px); text-decoration: none; }
     /* Bitácora abierta y Ajustes abiertos: la tecla queda encendida, como al enfocarla. */
     .hud-action--active { --m: var(--marco-tecla-encendida); background-color: var(--luz); color: var(--pixel-tinta-oscura); }
 
@@ -279,9 +284,17 @@ const HELP_MEMORY_KEY = 'siep.ayuda.v1';
     @media (max-width: 1359px) {
       .hud-case { display: none; }
     }
-    @media (max-width: 960px) {
-      .hud-persona-label { display: none; }
-      .hud-persona--text-only .hud-persona-copy { display: none; }
+    /* Tramo compacto (U1, V7): la frase sale de la barra y queda la cara con su pulso; al pasar el cursor o al enfocar
+       el grupo con teclado, la frase aparece en una placa debajo. Sigue en el nombre accesible del grupo. */
+    @media (max-height: 700px), (max-width: 1100px) {
+      .hud-persona { position: relative; }
+      .hud-persona:focus-visible { outline: var(--pixel-px) solid var(--luz); outline-offset: calc(2 * var(--pixel-px)); }
+      .hud-persona-label {
+        position: absolute; top: calc(100% + 5 * var(--pixel-px)); left: 0; z-index: var(--ds-z-elevado); max-width: none;
+        padding: var(--pixel-px) calc(4 * var(--pixel-px)) calc(2 * var(--pixel-px)); background: var(--pixel-penumbra);
+        box-shadow: 0 0 0 var(--pixel-px) var(--pixel-contorno); visibility: hidden;
+      }
+      .hud-persona:hover .hud-persona-label, .hud-persona:focus-visible .hud-persona-label { visibility: visible; }
     }
     /* Teléfono en vertical: el catálogo sigue a un toque en Ajustes («Catálogo»). */
     @media (max-width: 480px) {
@@ -340,6 +353,8 @@ export class SimulationHudComponent {
   readonly settingsOpen = signal(false);
   /** Sin teclado de por medio: los nombres accesibles y textos de este HUD no prometen atajos (J). */
   readonly coarsePointer = signal(matchesMedia(COARSE_POINTER_QUERY));
+  /** Tramo compacto (`pixel/tramos.ts`): la frase de la persona sale de la barra y el grupo se puede enfocar para leerla. */
+  protected readonly compacto = signal(matchesMedia(CONSULTA_COMPACTO));
   /** Tras «Ver la ayuda otra vez»: lo confirma la fila y una región viva (sin temporizadores). */
   readonly helpResetDone = signal(false);
   readonly toggleJournal = output<void>();
@@ -382,9 +397,11 @@ export class SimulationHudComponent {
     });
     // Un híbrido puede cambiar de puntero principal; la consulta avisa sin escuchar nada de `document`.
     const stopWatchingPointer = watchMedia(COARSE_POINTER_QUERY, coarse => this.coarsePointer.set(coarse));
+    const stopWatchingTramo = watchMedia(CONSULTA_COMPACTO, compacto => this.compacto.set(compacto));
     inject(DestroyRef).onDestroy(() => {
       this.unlistenOutsidePointer();
       stopWatchingPointer();
+      stopWatchingTramo();
     });
   }
 

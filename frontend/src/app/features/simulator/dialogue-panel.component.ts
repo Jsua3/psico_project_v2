@@ -25,11 +25,17 @@ import {
 import { UiButton } from '../../shared/ui/button/ui-button';
 import { DRAFT_COPY } from './draft-copy';
 import { isSystemVoice, resolvePortraitAsset } from './portrait-resolver.util';
+import { escalaDelRetrato } from './pixel/tramos';
 import { SafeExitButtonComponent } from './safe-exit-button.component';
 import { HintAttemptRef, SceneHintComponent } from './scene-hint.component';
 
 /** Ventana tras mostrar las opciones en la que se ignora un clic por teclado (Enter/Espacio mantenido). */
 const CHOICE_ACTIVATION_GUARD_MS = 500;
+
+/** El área de la página en px de CSS (con el zoom del navegador ya aplicado). */
+const medirVentana = () => typeof window === 'undefined'
+  ? { ancho: 1366, alto: 768 }
+  : { ancho: window.innerWidth, alto: window.innerHeight };
 /** Texto de la línea informativa de una conversación que pertenece a otra etapa. */
 const STALE_NOTE = 'Esta conversación corresponde a otro momento del caso.';
 
@@ -208,7 +214,9 @@ const STALE_NOTE = 'Esta conversación corresponde a otro momento del caso.';
        son PNG de assets/game/dialogo (tools/escenarios/dialogo_arte.py) que llegan como variables CSS (dialogo-arte.ts). */
     :host { display: block; }
     .dialogue-strip {
-      --px: 2px; --tam: 17px; --retrato: 192px;
+      /* Tramos (U1, V7): la escala sale de las fichas --dialogo-* de .pixel-juego (compacto 128 px, medio 192, amplio 288 a
+         3 px por punto); estos son los valores del tramo medio, también fuera del juego. */
+      --px: var(--dialogo-px, 2px); --tam: var(--dialogo-tam, 17px); --retrato: var(--dialogo-retrato, 192px);
       /* El tamaño de letra de las placas-botón de la cabecera («Volver al mapa», «Salida segura», «Ver pista»). */
       --tam-boton: .82em;
       /* Y su alto común: el de «Volver» con su tecla «Esc» (22 puntos de mundo: 44 px y 66 px desde 1800 de ancho). */
@@ -234,7 +242,6 @@ const STALE_NOTE = 'Esta conversación corresponde a otro momento del caso.';
       line-height: 1.45;
       animation: strip-rise 160ms steps(3, jump-none) both;
     }
-    @media (min-width: 1800px) { .dialogue-strip { --px: 3px; --tam: 20px; --retrato: 288px; } }
 
     /* Marco de pixel art: borde de 4 px de mundo por lado y relleno con trama, sin esquinas suavizadas. */
     .placa-cuerpo, .speaker-name, .panel-back, .panel-head__note, .panel-head__aviso, .choice-btn, .stale-note, .choices-notice, .keyboard-hint, .strip-body[data-mas]::after, .portrait {
@@ -271,9 +278,8 @@ const STALE_NOTE = 'Esta conversación corresponde a otro momento del caso.';
     .choices:not(:has(.choice-btn + .choice-btn)) { grid-template-columns: minmax(0, 1fr); }
     /* Alto acotado y conocido sobre el mundo: el cuadro (placa, fichas, aviso, pista y botones) no pasa de --dialogo-alto-max;
        lo que no quepa se desplaza dentro. La pantalla lee el alto real en data-alto-ocupado (cámara de M1). */
-    .dialogue-strip:not(.dialogue-strip--side) { --dialogo-alto-max: min(340px, 46vh); max-height: var(--dialogo-alto-max); }
-    /* Desde 1800 px de ancho hay sitio para dos filas de fichas con su texto más largo: el tope sube a 560 px (52 %). */
-    @media (min-width: 1800px) { .dialogue-strip:not(.dialogue-strip--side) { --dialogo-alto-max: min(560px, 52vh); } }
+    /* En el tramo amplio hay sitio para dos filas de fichas con su texto más largo: el tope sube a 560 px (52 %). */
+    .dialogue-strip:not(.dialogue-strip--side) { --dialogo-alto-max: var(--dialogo-banda, min(340px, 46vh)); max-height: var(--dialogo-alto-max); }
     /* Decisión en pantalla baja (1366 × 768): con 340 px solo cabía una fila de fichas de tres o cuatro renglones y la C y la D
        quedaban abajo (B, V4). La banda de la decisión sube a 430 px: caben dos filas; si aun así no, la lista se desplaza y
        la pista dice cuáles quedan abajo. Sin opciones, el tope de siempre. */
@@ -499,7 +505,6 @@ const STALE_NOTE = 'Esta conversación corresponde a otro momento del caso.';
     .portrait-svg { display: block; width: var(--retrato); height: var(--retrato); image-rendering: pixelated; }
     /* Una voz sin retrato del kit (la supervisión, un personaje sin receta): ventanilla chica con la silueta, no un hueco. */
     .strip--sin-retrato { --retrato: 96px; }
-    @media (min-width: 1800px) { .strip--sin-retrato { --retrato: 96px; } }
     .portrait-img {
       display: block;
       width: var(--retrato);
@@ -794,8 +799,8 @@ const STALE_NOTE = 'Esta conversación corresponde a otro momento del caso.';
 
     /* ── Modo lateral (panel derecho del HUD): la placa arriba y las fichas debajo, en una columna. ───────── */
     .dialogue-strip--side {
-      --retrato: 96px;
-      --tam: 16px;
+      --retrato: var(--dialogo-retrato-lado, 96px);
+      --tam: var(--dialogo-tam-lado, 16px);
       min-height: 0;
       height: 100%;
       overflow-y: auto;
@@ -809,7 +814,6 @@ const STALE_NOTE = 'Esta conversación corresponde a otro momento del caso.';
     .dialogue-strip--side .portrait { margin-top: calc(-8 * var(--px)); }
     .dialogue-strip--side .speaker-name { margin-left: calc(var(--retrato) + 14 * var(--px)); }
     .dialogue-strip--side .dialogue-text { min-height: 2.9em; }
-    @media (min-width: 1800px) { .dialogue-strip--side { --retrato: 192px; --tam: 19px; } }
 
     /* Pantallas bajas (844x390 táctil): todo más denso y las opciones a la vista. */
     @media (max-height: 520px) {
@@ -902,12 +906,12 @@ export class DialoguePanelComponent implements AfterViewChecked, OnDestroy {
    * receta ni por nombre (el kit solo conoce algunos nombres), el panel dibuja su cara con él.
    */
   readonly speakerVisual = input<CharacterVisual | null>(null);
-  /** La escala entera del retrato del kit: 32 px por la del panel (96, 192 o 288; 64 en el teléfono). */
+  /** El área de la página: la escala del retrato la sigue al cambiar el tamaño o el zoom (antes se leía una vez). */
+  private readonly ventana = signal(medirVentana());
+  /** La escala entera del retrato del kit: la misma de `--retrato` en cada tramo (`pixel/tramos.ts`). */
   protected readonly escalaKit = computed(() => {
-    const ancho = typeof window === 'undefined' ? 1366 : window.innerWidth;
-    if (ancho <= 560) return 2;
-    if (this.mode() === 'side') return ancho >= 1800 ? 6 : 3;
-    return ancho >= 1800 ? 9 : 6;
+    const { ancho, alto } = this.ventana();
+    return escalaDelRetrato(ancho, alto, this.mode() === 'side');
   });
 
   readonly close   = output<void>();
@@ -1333,6 +1337,7 @@ export class DialoguePanelComponent implements AfterViewChecked, OnDestroy {
   /** Al cambiar el tamaño de la ventana, la lista vuelve a acotarse a las filas que caben enteras. */
   @HostListener('window:resize')
   alCambiarTamano(): void {
+    this.ventana.set(medirVentana());
     const strip = this.host.nativeElement.querySelector<HTMLElement>('.dialogue-strip:not(.dialogue-strip--side)');
     const lista = strip?.querySelector<HTMLElement>('.choices');
     if (lista) this.ajustarAFilasEnteras(lista);
