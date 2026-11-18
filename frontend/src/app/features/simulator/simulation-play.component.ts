@@ -434,7 +434,6 @@ const NARROW_QUERY = '(max-width: 760px)';
               <div id="game-area" class="world-skeleton" aria-hidden="true"></div>
             }
 
-            <!-- La reacción del personaje tras elegir: franja sobre el mundo, en la sala donde ocurrió (4.3.3). -->
         @if (cambioDeLugar(); as cambio) {
           <!-- V7: la historia nunca cambia de sala sin aviso. La sala nueva se carga solo al pulsar «Ir a <lugar>». -->
           <section class="case-intro-overlay cambio-de-lugar" role="dialog" aria-modal="true" aria-labelledby="cambio-de-lugar-titulo">
@@ -454,6 +453,7 @@ const NARROW_QUERY = '(max-width: 760px)';
             </article>
           </section>
         }
+            <!-- La reacción del personaje tras elegir: franja sobre el mundo, en la sala donde ocurrió (4.3.3). -->
             <app-reaction-director #reaction [escenario]="reactionStage()" [reduceMotion]="reduceMotion()"
               [pausing]="pausing()" (finished)="afterReaction($event)" (safeExit)="pauseFromOverlay()" />
 

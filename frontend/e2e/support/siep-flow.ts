@@ -793,13 +793,13 @@ export async function advanceDialogueToChoices(page: Page, dialogueName: RegExp)
   throw new Error(`El diálogo ${dialogueName} no expuso sus opciones en ${budgetMs / 1000} s`);
 }
 
-export async function closeDialogue(page: Page, dialogueName: RegExp): Promise<void> {
+export async function closeDialogue(page: Page, dialogueName: RegExp, opciones: { irAlLugar?: boolean } = {}): Promise<void> {
   const dialogue = page.getByRole('dialog', { name: dialogueName });
   // V7: la consecuencia llega tras «Continuar» en la franja de la reacción, que ya no se va sola.
   await expect.poll(async () => (await dialogue.isVisible().catch(() => false)) || (await seguirLaHistoria(page) && false),
     { timeout: scaled(30_000), message: `el diálogo ${dialogueName} no apareció` }).toBe(true);
   // Al cerrar la consecuencia se pide el mundo de la escena siguiente; si es otra sala, sale «Ir a <lugar>» y se pulsa.
-  const esConsecuencia = dialogueName.test('Consecuencia');
+  const esConsecuencia = dialogueName.test('Consecuencia') && opciones.irAlLugar !== false;
   const mundo = esConsecuencia
     ? page.waitForResponse(r => r.request().method() === 'GET' && /\/api\/simulation\/attempts\/[^/]+\/world$/.test(new URL(r.url()).pathname),
       { timeout: scaled(10_000) }).catch(() => null)
