@@ -7,7 +7,7 @@ import { expect, test } from '@playwright/test';
 import type { BrowserContext, Locator, Page } from '@playwright/test';
 
 import { PROFESOR, apiToken, send } from './support/case-fixtures';
-import { createWorldInputDriver, exploreUntilNearby, loginAs, waitForWorldReady } from './support/siep-flow';
+import { createWorldInputDriver, enterWorld, exploreUntilNearby, loginAs, waitForWorldReady } from './support/siep-flow';
 
 /**
  * Ajuste de la pantalla del juego al área de la página (bloque U1, V5; pedido del usuario: «la responsividad y la
@@ -23,7 +23,8 @@ import { createWorldInputDriver, exploreUntilNearby, loginAs, waitForWorldReady 
  *   - el tramo (V7) no se cumple: letra fuera de la escala única, teclas del HUD fuera de su rango, la frase de la persona
  *     donde no toca o el retrato del kit recortado por su ventanilla;
  *   - el plano del caso de varias salas (SIM-VBG-002) sale cortado o se desplaza.
- * Además de los 9 tamaños al 100 % y al 125 %, un teléfono de 390 × 844 con dedo (tramo compacto).
+ * Además de los 9 tamaños al 100 % y al 125 %, un teléfono de 390 × 844 con dedo (tramo compacto), como estudiante: en el
+ * teléfono el ensayo de la docente es su panel de autora y el mundo no se ve, así que se mide como lo usa quien juega.
  * El zoom del navegador se imita con el área dividida entre el zoom y deviceScaleFactor igual al zoom.
  */
 const DOC = JSON.parse(readFileSync(join(__dirname, 'fixtures', 'caso-textos-largos.dsl.json'), 'utf-8'));
@@ -31,11 +32,8 @@ const AREAS: Array<[number, number]> = [
   [1280, 600], [1366, 650], [1536, 730], [1600, 780], [1920, 950], [1920, 1070], [1366, 768], [1920, 1080], [1920, 1200],
 ];
 const ZOOMS = [1, 1.25];
-/** Cada tamaño de la matriz: área de la página, zoom y si el puntero es el dedo (teléfono). */
-const TAMANOS = [
-  ...AREAS.flatMap(([ancho, alto]) => ZOOMS.map(zoom => ({ ancho, alto, zoom, dedo: false }))),
-  { ancho: 390, alto: 844, zoom: 1, dedo: true },
-];
+/** Cada tamaño de la matriz: área de la página y zoom (el teléfono va aparte, como estudiante). */
+const TAMANOS = AREAS.flatMap(([ancho, alto]) => ZOOMS.map(zoom => ({ ancho, alto, zoom, dedo: false })));
 /** El caso de varias salas (mundo por piezas): el único que trae plano y minimapa. */
 const DOC_SALAS = JSON.parse(readFileSync(
   join(__dirname, '..', '..', 'backend_django', 'apps', 'simulation', 'data', 'cases', 'SIM-VBG-002.dsl.json'), 'utf-8'));
@@ -342,3 +340,25 @@ for (const { ancho, alto, zoom, dedo } of TAMANOS) {
     });
   }
 }
+
+// El teléfono (V7), con dedo y como estudiante en el primer caso de su catálogo: mundo, tramo compacto y menús.
+test('@ajuste-pantalla 390x844 al 100 % con dedo, como estudiante', async ({ browser }, testInfo) => {
+  test.setTimeout(240_000);
+  const contexto = await browser.newContext({
+    baseURL: testInfo.project.use.baseURL, viewport: { width: 390, height: 844 }, hasTouch: true, isMobile: true,
+  });
+  const page = await contexto.newPage();
+  try {
+    await enterWorld(page);
+    await page.waitForTimeout(1_200);
+    expect(await desbordes(page), 'explorando').toEqual([]);
+    expect.soft(await revisarTramo(page, true), 'tramo').toEqual([]);
+    await revisarMenus(page, '390x844-100');
+    // El cuadro de diálogo en el teléfono (390 × 844, dedo) lo mide vertical-quality.e2e.ts (geometría y Axe); aquí, el mundo,
+    // el tramo y los menús, que no dependen del caso que la pila ponga primero en el catálogo.
+    const carpeta = process.env['AJUSTE_CAPTURAS'];
+    if (carpeta) await page.screenshot({ path: join(carpeta, '390x844-100-explorar.png') });
+  } finally {
+    await contexto.close();
+  }
+});

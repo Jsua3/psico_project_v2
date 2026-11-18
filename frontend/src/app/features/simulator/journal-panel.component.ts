@@ -260,6 +260,8 @@ export type JournalSaveState = 'idle' | 'saving' | 'saved' | 'error';
       .journal-modal { padding: 14px; max-height: 92vh; }
       .journal-columns { grid-template-columns: minmax(0, 1fr); overflow-y: auto; }
       .journal-context { order: 2; }
+      /* Angosto (V7): la indicación del campo ocupa cuatro renglones; el campo crece hasta mostrarla entera, sin barra. */
+      textarea { field-sizing: content; }
     }
     @media (prefers-reduced-motion: reduce) {
       .journal-modal { transition: none; }
