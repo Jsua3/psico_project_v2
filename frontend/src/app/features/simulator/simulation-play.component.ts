@@ -3059,7 +3059,15 @@ export class SimulationPlayComponent implements OnInit, OnDestroy {
     // de pedir el mundo: si este falla, su error suelta la retención. Sin consecuencia que mostrar, el resultado
     // se abre ya y el cierre suena como siempre. Nada de esto mira la clasificación (RN-08).
     if (updated.status === 'COMPLETED') {
-      if (!this.holdOutcomeForConsequence(updated)) this.playCompletionAudio();
+      const retenida = this.holdOutcomeForConsequence(updated);
+      if (!retenida) this.playCompletionAudio();
+      this.loadProgressMap(updated);
+      this.applyAudioScene(updated);
+      // El fundido nunca va encima de un panel abierto (REGLA-004: la «Salida segura» de la supervisión queda a la vista y
+      // se puede pulsar): con la supervisión retenida, el mundo del cierre se carga detrás, sin fundido.
+      if (retenida) this.loadWorld(updated);
+      else this.triggerFade(() => this.loadWorld(updated), null);   // la elección ya sonó al enviarse
+      return;
     } else {
       // V7: reacción (ya leída) → consecuencia (espera a cerrarse) → aviso si cambia de sala (espera) → cambio. La
       // consecuencia se lee en la sala donde se decidió; el mundo de la escena siguiente se pide al cerrarla.
@@ -3068,11 +3076,7 @@ export class SimulationPlayComponent implements OnInit, OnDestroy {
       this.transicionPendiente = updated;
       if (consequence) this.dialogue.set(consequence);
       else this.seguirTrasConsecuencia();
-      return;
     }
-    this.loadProgressMap(updated);
-    this.applyAudioScene(updated);
-    this.triggerFade(() => this.loadWorld(updated), null);   // la elección ya sonó al enviarse
   }
 
   /**

@@ -246,6 +246,25 @@ describe('SimulationPlayComponent: la reacción al elegir (4.3.3)', () => {
     });
   });
 
+  it('REGLA-004: con la supervisión del cierre a la vista no hay fundido encima; el mundo del cierre carga detrás', () => {
+    const { component, service } = montarConDialogoDeDecision();
+    service['chooseDecision'].mockReturnValue(of({ ...RESPUESTA_CON_REACCION, status: 'COMPLETED' }));
+    component.executeDecision(41);
+    director.terminar('completa');
+    expect(component.dialogue()?.speakerName).toBe('Consecuencia');
+    expect(component.fadeActive(), 'ningún fundido tapa la supervisión ni su «Salida segura»').toBe(false);
+    expect(service['getWorld']).toHaveBeenCalled();
+  });
+
+  it('el cierre sin supervisión que mostrar sigue con el fundido de siempre', () => {
+    const { component, service } = montarConDialogoDeDecision();
+    service['chooseDecision'].mockReturnValue(of({ ...RESPUESTA_CON_REACCION, status: 'COMPLETED', consequence: null, retry: null }));
+    component.executeDecision(41);
+    director.terminar('completa');
+    expect(component.dialogue()).toBeNull();
+    expect(component.fadeActive()).toBe(true);
+  });
+
   it('la última decisión retiene el resultado tras la reacción, como antes', () => {
     const { component, service } = montarConDialogoDeDecision();
     service['chooseDecision'].mockReturnValue(of({ ...RESPUESTA_CON_REACCION, status: 'COMPLETED' }));
