@@ -80,9 +80,10 @@ export function armarGuia(e: EntradaGuia): GuiaEscena {
     vistas.add(lugar.key);
 
     if (lugar.kind === 'person') {
-      const visto = lugar.key.startsWith(PREFIJO_NPC)
-        ? e.hablados.has(lugar.key.slice(PREFIJO_NPC.length))
-        : e.hablados.has(lugar.key) || inspeccionados.has(lugar.key);
+      // Con o sin el prefijo `npc:`: una persona del mapa (las de un caso por piezas) queda hablada al interactuar con ella,
+      // y el servidor la apunta en los inspeccionados, no en las conversaciones vistas (V7).
+      const clave = lugar.key.startsWith(PREFIJO_NPC) ? lugar.key.slice(PREFIJO_NPC.length) : lugar.key;
+      const visto = e.hablados.has(clave) || inspeccionados.has(clave);
       personas.push({ key: lugar.key, label, tipo: 'persona', visto });
     } else {
       objetos.push({ key: lugar.key, label, tipo: 'objeto', visto: inspeccionados.has(lugar.key) });
