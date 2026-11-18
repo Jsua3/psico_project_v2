@@ -1,4 +1,4 @@
-import { ChangeDetectionStrategy, Component, computed, input, output, signal } from '@angular/core';
+import { ChangeDetectionStrategy, Component, computed, effect, input, output, signal, untracked } from '@angular/core';
 
 import type { ElementoSala, GuiaEscena } from './caso/guia';
 import { DRAFT_COPY } from './draft-copy';
@@ -26,7 +26,8 @@ let nextGoalCardId = 0;
     '[attr.data-collapsed]': '!open()',
   },
   template: `
-    <section class="goal-card" [attr.aria-label]="copy.goalCardTitle.text" [class.goal-card--compact]="compact()">
+    <section class="goal-card" [attr.aria-label]="copy.goalCardTitle.text" [class.goal-card--compact]="compact()"
+      [class.goal-card--pulso]="pulso()" (animationend)="pulso.set(false)">
       <button type="button" class="goal-card__toggle u-boton u-sombra" [attr.aria-expanded]="open()" [attr.aria-controls]="open() ? bodyId : null" (click)="toggle()">
         <span class="goal-card__kicker">{{ copy.goalCardTitle.text }}</span>
         <span class="goal-card__goal">{{ visibleGoal() }}</span>
@@ -36,6 +37,13 @@ let nextGoalCardId = 0;
       <!-- El cuerpo se crea al abrir por primera vez y después solo se oculta: así «Pedir una pista» conserva su enfriamiento y sus pistas. -->
       @if (everOpened()) {
         <div class="goal-card__body u-placa" [id]="bodyId" [hidden]="!open()">
+          <!-- El siguiente paso (V7): qué hacer, con quién o con qué, y dónde; con la cuenta de la sala. -->
+          @if (guia().siguiente; as paso) {
+            <p class="goal-card__paso" data-guia-paso>
+              <span class="goal-card__paso-cuenta">{{ cuentaDePasos() }}</span>
+              <span class="goal-card__paso-texto">{{ paso }}</span>
+            </p>
+          }
           @if (guia().enEstaSala.length) {
             <h3 class="goal-card__list-title">{{ copy.roomListTitle.text }}</h3>
             <ul class="goal-card__list">
@@ -91,6 +99,14 @@ let nextGoalCardId = 0;
     .goal-card__body { display: grid; gap: calc(3 * var(--pixel-px)); min-width: 0; margin-top: calc(-1 * var(--pixel-px)); padding: calc(3 * var(--pixel-px)) calc(5 * var(--pixel-px)) calc(4 * var(--pixel-px)); }
     /* «display: grid» pisa el estilo de «hidden»: plegada, el cuerpo sigue vivo (conserva el enfriamiento de la pista) pero no se ve. */
     .goal-card__body[hidden] { display: none; }
+    /* El siguiente paso (V7): la cuenta con la letra de las pestañas y el paso con la tinta clara. */
+    .goal-card__paso { display: grid; gap: var(--pixel-px); margin: 0; }
+    .goal-card__paso-cuenta { font-family: var(--pixel-f-nombre); font-size: var(--pixel-letra-chica); font-weight: 700; letter-spacing: .04em; color: var(--luz); }
+    .goal-card__paso-texto { font-weight: 600; line-height: 1.35; }
+    /* Al cambiar el objetivo la ficha se vuelve a abrir con un pulso suave, una vez; nada con movimiento reducido. */
+    .goal-card--pulso .goal-card__toggle { animation: goal-pulso 1.2s steps(6, jump-none) 1; }
+    @keyframes goal-pulso { 50% { box-shadow: 0 0 0 calc(2 * var(--pixel-px)) var(--luz); } }
+    @media (prefers-reduced-motion: reduce) { .goal-card--pulso .goal-card__toggle { animation: none; } }
     .goal-card__list-title { margin: 0; font-family: var(--pixel-f-nombre); font-size: var(--pixel-letra-chica); font-weight: 700; color: var(--luz); }
     .goal-card__list { display: grid; gap: var(--pixel-px); margin: 0; padding: 0; list-style: none; }
     .goal-card__item { line-height: 1.35; color: var(--pixel-tinta); overflow-wrap: anywhere; }
@@ -106,8 +122,10 @@ export class SceneGoalCardComponent {
 
   readonly guia = input.required<GuiaEscena>();
   readonly hintAttempt = input<HintAttemptRef | null>(null);
-  /** Pantalla baja o táctil horizontal: la ficha pide menos sitio. Arranca plegada con o sin él. */
+  /** Pantalla baja o táctil horizontal: la ficha pide menos sitio y arranca plegada. */
   readonly compact = input(false);
+  /** El ajuste «Reducir movimiento» del juego: sin pulso al cambiar el objetivo. */
+  readonly reduceMotion = input(false);
   /** Se abrió: la pantalla refresca «En esta sala» antes de que se lea. */
   readonly opened = output<void>();
   /** La pista recibió 403 `CONSENT_REQUIRED`: la pantalla vuelve al aviso previo como con cualquier otra orden. */
@@ -116,6 +134,33 @@ export class SceneGoalCardComponent {
   protected readonly open = signal(false);
   protected readonly everOpened = signal(false);
   protected readonly visibleGoal = computed(() => this.guia().objetivo || DRAFT_COPY.goalCardFallback.text);
+  /** El pulso de una vez al cambiar el objetivo (la clase se quita al terminar la animación). */
+  protected readonly pulso = signal(false);
+  /** «Siguiente paso · 2 de 6» mientras queda algo en la sala; con todo hecho, «Todo hecho en esta sala». */
+  protected readonly cuentaDePasos = computed(() => {
+    const { hechos, total } = this.guia();
+    if (total === 0) return 'Siguiente paso';
+    return hechos >= total ? `Todo hecho en esta sala · ${total} de ${total}` : `Siguiente paso · ${hechos + 1} de ${total}`;
+  });
+  private objetivoVisto: string | null = null;
+
+  constructor() {
+    // Guía para las primeras testers (V7): al empezar el caso la ficha está abierta; al cambiar el objetivo se vuelve a
+    // abrir con un pulso. En compacto (pantalla baja o táctil horizontal) sigue plegada: la sala ocupa la pantalla.
+    effect(() => {
+      const objetivo = this.guia().objetivo;
+      if (!objetivo) return;
+      untracked(() => {
+        if (objetivo === this.objetivoVisto) return;
+        const primera = this.objetivoVisto === null;
+        this.objetivoVisto = objetivo;
+        if (this.compact()) return;
+        this.open.set(true);
+        this.everOpened.set(true);
+        if (!primera && !this.reduceMotion()) this.pulso.set(true);
+      });
+    });
+  }
 
   protected toggle(): void {
     const next = !this.open();

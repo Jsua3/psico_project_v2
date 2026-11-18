@@ -388,7 +388,7 @@ const NARROW_QUERY = '(max-width: 760px)';
                   <p class="objective-card__etapa u-rotulo"><span class="u-rotulo__texto">{{ etapa }}</span></p>
                 }
                 <div class="objective-card__scroll">
-                  <app-scene-goal-card [guia]="guide()" [hintAttempt]="hintAttempt()" [compact]="cardFolded()"
+                  <app-scene-goal-card [guia]="guide()" [hintAttempt]="hintAttempt()" [compact]="cardFolded()" [reduceMotion]="reduceMotion()"
                     (opened)="refreshGuide()" (consentRequired)="requireConsentAgain()" />
                 </div>
               </div>
@@ -1816,6 +1816,11 @@ export class SimulationPlayComponent implements OnInit, OnDestroy {
       this.visibleNode()?.key;
       this.visibleNode()?.goal;
       this.world()?.map.key;
+      // Y lo hecho: al hablar, recoger o abrirse una puerta, la tarjeta pasa al siguiente paso en el acto (V7).
+      this.viewedNpcKeys();
+      this.world()?.inventory;
+      this.world()?.inspectedObjectKeys;
+      this.doorStates();
       untracked(() => this.refreshGuide());
     });
     // El panel lateral encoge (o devuelve) el mundo: se vuelve a leer el contenedor cuando el diseño ya cambió.
@@ -4078,11 +4083,16 @@ export class SimulationPlayComponent implements OnInit, OnDestroy {
 
   /** Relee la guía de la escena (objetivo del documento, lo que hay en la sala, si queda algo por conocer). */
   refreshGuide(world: SimulationWorldState | null = this.world()): GuiaEscena {
+    // El siguiente paso (V7): las puertas cerradas no se proponen; las herramientas de la sala, hasta que se recogen.
+    const cerradas = this.doorStates();
+    const inventario = world?.inventory ?? [];
     const guide = armarGuia({
       goal: this.visibleNode()?.goal ?? '',
-      lugares: this.gameWorld?.places() ?? [],
+      lugares: (this.gameWorld?.places() ?? []).map(l => l.kind === 'door' && cerradas[l.key] === 'locked' ? { ...l, note: 'cerrada' } : l),
       inspeccionados: world?.inspectedObjectKeys ?? [],
       hablados: collectViewedNpcKeys(world, this.viewedNpcKeys()),
+      herramientas: (world?.objects ?? []).filter(o => o.type === 'TOOL' && o.toolCode)
+        .map(o => ({ key: o.key, label: o.label, recogida: inventario.includes(o.toolCode!) })),
     });
     this.guide.set(guide);
     return guide;

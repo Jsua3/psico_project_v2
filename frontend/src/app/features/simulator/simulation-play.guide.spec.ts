@@ -169,7 +169,10 @@ describe('SimulationPlayComponent: la sala ocupa la pantalla (guía genérica)',
     const { fixture } = montarConMundo({ goal: 'G' });
     lugares = [PERSONA_SIN_VER];
     const el: HTMLElement = fixture.nativeElement;
-    el.querySelector<HTMLButtonElement>('app-scene-goal-card button.goal-card__toggle')!.click();
+    const toggle = el.querySelector<HTMLButtonElement>('app-scene-goal-card button.goal-card__toggle')!;
+    // Desde V7 la ficha arranca abierta: se pliega y se vuelve a abrir.
+    if (toggle.getAttribute('aria-expanded') === 'true') { toggle.click(); fixture.detectChanges(); }
+    toggle.click();
     fixture.detectChanges();
     expect(el.querySelector('app-scene-goal-card')!.textContent).toContain('Enfermera');
     expect(el.querySelector('app-scene-goal-card')!.textContent).toContain('aún no');
