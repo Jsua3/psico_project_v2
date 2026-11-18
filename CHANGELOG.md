@@ -2,6 +2,26 @@
 
 La versión del programa es la de `package.json` en la raíz. Se sigue el versionado semántico: mayor, menor y parche.
 
+## [1.2.0] — 2026-11-18
+
+### Lo que nota un estudiante
+
+- **Escala por tramos:** la letra de las placas va de 12 a 16 px según el tamaño de la ventana y las teclas del HUD miden de 44 a 48 px. En una ventana compacta el cuadro baja la letra y el retrato; en una amplia crecen. El retrato del kit sigue al tamaño de la ventana.
+- En el teléfono, «Ir a…» tiene fichas de 44 px y el campo de la bitácora muestra entera su indicación.
+- **La ficha «Objetivo de la escena» dice el siguiente paso concreto**, con la cuenta de la sala («Siguiente paso · 2 de 6 — Habla con …»):
+  - primero las personas sin hablar, después la herramienta de la sala y, con todo hecho, por dónde seguir;
+  - lo hecho se marca en «En esta sala»;
+  - al empezar el caso está abierta y se puede plegar.
+- **La respuesta del personaje no se va sola:** espera «Continuar» (botón de 44 px, Enter, Espacio o toque).
+- **Ningún cambio de lugar llega sin aviso:** antes de cambiar de sala sale «La historia continúa en <lugar>», con «Salida segura» e «Ir a <lugar>». En el mismo lugar no hay aviso.
+
+### Interno
+
+- La matriz `ajuste-pantalla` mide por tramo la letra, las teclas y el plano (con SIM-VBG-002 en los 18 tamaños) y suma 390 × 844 con dedo.
+- Los ayudantes del e2e esperan «Continuar» y la tarjeta de cambio de lugar.
+
+Rango: `v1.1.0` (`d8cd91a6`) … la cabeza de la candidata 1.2.0.
+
 ## [1.1.0] — 2026-11-18
 
 ### Lo que nota un estudiante
