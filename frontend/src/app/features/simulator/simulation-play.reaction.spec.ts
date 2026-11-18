@@ -160,7 +160,7 @@ describe('SimulationPlayComponent: la reacción al elegir (4.3.3)', () => {
     expect(quien.nombre).toBe('Familia en crisis');
   });
 
-  it('la nota de supervisión llega después de la reacción y el mundo de destino carga detrás', async () => {
+  it('la nota de supervisión llega después de la reacción y el mundo de destino carga al cerrarla (V7)', async () => {
     const { component, service } = montarConDialogoDeDecision();
     component.executeDecision(41);
     expect(component.reacting()).toBe(true);
@@ -172,7 +172,78 @@ describe('SimulationPlayComponent: la reacción al elegir (4.3.3)', () => {
     expect(component.dialogue()?.speakerName).toBe('Consecuencia');
     expect(service['getWorld']).not.toHaveBeenCalled();
     await vi.advanceTimersByTimeAsync(400);
+    expect(service['getWorld'], 'V7: la escena no cambia mientras se lee la consecuencia').not.toHaveBeenCalled();
+    component.closeDialogue();
+    await vi.advanceTimersByTimeAsync(400);
     expect(service['getWorld']).toHaveBeenCalled();
+  });
+
+  // V7: orden fijo — reacción (espera) → consecuencia (espera) → aviso de cambio de lugar (espera) → cambio.
+  describe('V7: nunca se cambia de lugar sin aviso', () => {
+    const OTRA_SALA = () => ({ ...makeWorld(), map: { key: 'hospital-urgencias', title: 'Urgencias del hospital' } } as unknown as SimulationWorldState);
+
+    it('si la escena siguiente es otra sala, tras la consecuencia sale «La historia continúa en…» y solo «Ir a…» la carga', async () => {
+      const { component, service } = montarConDialogoDeDecision();
+      service['getWorld'].mockReturnValue(of(OTRA_SALA()));
+      component.executeDecision(41);
+      director.terminar('completa');
+      expect(component.dialogue()?.speakerName).toBe('Consecuencia');
+      await vi.advanceTimersByTimeAsync(2_000);
+      expect(component.cambioDeLugar(), 'nada se pisa: la tarjeta espera a que se cierre la consecuencia').toBeNull();
+      component.closeDialogue();
+      expect(component.cambioDeLugar()?.lugar).toBe('Urgencias del hospital');
+      expect(component.inputBlocked(), 'con la tarjeta el mundo no se mueve').toBe(true);
+      await vi.advanceTimersByTimeAsync(60_000);
+      expect(component.world()?.map.key, 'sin pulsar, la sala no cambia').toBe('hospital-sala-escucha');
+      expect(component.fadeActive()).toBe(false);
+      component.irAlLugar();
+      expect(component.cambioDeLugar()).toBeNull();
+      await vi.advanceTimersByTimeAsync(400);
+      expect(component.world()?.map.key).toBe('hospital-urgencias');
+      expect(service['getWorld'], 'el mundo se pide una sola vez').toHaveBeenCalledTimes(1);
+    });
+
+    it('otra escena con otra clave pero el mismo lugar (mismo nombre) no es un cambio de lugar: no hay tarjeta', () => {
+      const { component, service } = montarConDialogoDeDecision();
+      service['getWorld'].mockReturnValue(of({ ...makeWorld(), map: { key: 'hospital-sala-escucha-2', title: 'Sala de escucha' } }));
+      component.executeDecision(41);
+      director.terminar('completa');
+      component.closeDialogue();
+      expect(component.cambioDeLugar()).toBeNull();
+      expect(component.fadeActive()).toBe(true);
+    });
+
+    it('si la escena siguiente es en la misma sala no hay tarjeta: el mundo se aplica al cerrar la consecuencia', async () => {
+      const { component } = montarConDialogoDeDecision();
+      component.executeDecision(41);
+      director.terminar('completa');
+      component.closeDialogue();
+      expect(component.cambioDeLugar()).toBeNull();
+      expect(component.fadeActive(), 'el fundido de siempre empieza ya').toBe(true);
+    });
+
+    it('sin consecuencia, la tarjeta sale en cuanto termina la reacción (con «Continuar»)', () => {
+      const { component, service } = montarConDialogoDeDecision();
+      service['chooseDecision'].mockReturnValue(of({ ...RESPUESTA_CON_REACCION, consequence: null, retry: null }));
+      service['getWorld'].mockReturnValue(of(OTRA_SALA()));
+      component.executeDecision(41);
+      expect(component.cambioDeLugar(), 'durante la reacción, nada').toBeNull();
+      director.terminar('completa');
+      expect(component.dialogue()).toBeNull();
+      expect(component.cambioDeLugar()?.lugar).toBe('Urgencias del hospital');
+    });
+
+    it('«Salida segura» con la tarjeta a la vista la quita y pausa (REGLA-004); un mundo tardío ya no la trae', () => {
+      const { component, service } = montarConDialogoDeDecision();
+      service['getWorld'].mockReturnValue(of(OTRA_SALA()));
+      component.executeDecision(41);
+      director.terminar('completa');
+      component.closeDialogue();
+      expect(component.cambioDeLugar()).not.toBeNull();
+      component.pauseFromOverlay();
+      expect(component.cambioDeLugar()).toBeNull();
+      expect(service['safeExit']).toHaveBeenCalledTimes(1);
+    });
   });
 
   it('la última decisión retiene el resultado tras la reacción, como antes', () => {

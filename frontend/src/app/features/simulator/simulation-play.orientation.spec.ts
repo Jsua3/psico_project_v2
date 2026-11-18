@@ -858,6 +858,9 @@ describe('SimulationPlayComponent: orientación integrada', () => {
         choices: [{ key: 'o', text: 'Opción', decisionOptionId: 101, requiredToolCode: null, effect: {} }],
       } as unknown as DialogueState);
       component.executeDecision(101);
+      // V7: la consecuencia se cierra (leída) y, si la sala cambia, se pulsa «Ir a <lugar>».
+      if (component.dialogue()?.speakerName === 'Consecuencia') component.closeDialogue();
+      if (component.cambioDeLugar()) component.irAlLugar();
       tick(340); // fundido
       tick(100); // el mundo nuevo ya se ve
     }

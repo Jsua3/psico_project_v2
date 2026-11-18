@@ -7,7 +7,8 @@ import { expect, test } from '@playwright/test';
 import type { BrowserContext, Locator, Page } from '@playwright/test';
 
 import { PROFESOR, apiToken, send } from './support/case-fixtures';
-import { createWorldInputDriver, enterWorld, exploreUntilNearby, loginAs, waitForWorldReady } from './support/siep-flow';
+import {
+  esperarConsecuencia, createWorldInputDriver, enterWorld, exploreUntilNearby, loginAs, waitForWorldReady } from './support/siep-flow';
 
 /**
  * Ajuste de la pantalla del juego al área de la página (bloque U1, V5; pedido del usuario: «la responsividad y la
@@ -308,7 +309,7 @@ for (const { ancho, alto, zoom, dedo } of TAMANOS) {
         await page.waitForTimeout(1_200); // la guarda contra la decisión accidental
         await page.locator('.choice-btn').first().click();
         const nota = page.getByRole('dialog', { name: /consecuencia/i });
-        if (await nota.waitFor({ state: 'visible', timeout: 20_000 }).then(() => true, () => false)) {
+        if (await esperarConsecuencia(page, 20_000)) {
           for (let i = 0; i < 8; i += 1) {
             await page.waitForTimeout(2_500);
             expect(await desbordes(page), `consecuencia, página ${i + 1}`).toEqual([]);
