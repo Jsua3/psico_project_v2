@@ -78,9 +78,8 @@ describe('ficha del objetivo (T9.1)', () => {
   it('el aviso es legible (>= 12 px, también en compacto), con contraste alto y sin desenfoque', () => {
     // El tamaño sale de `--pixel-tam` (14 px; 13 en móvil; 16 en pantalla grande) y no hay un tamaño propio más pequeño en el aviso.
     const pixelTokens = readFileSync(join(__dirname, '../../../styles/tokens/_pixel.scss'), 'utf-8');
-    const sizes = [...pixelTokens.matchAll(/--pixel-tam:\s*(\d+)px;/g)].map(match => Number(match[1]));
-    expect(sizes.length).toBeGreaterThanOrEqual(3);
-    expect(Math.min(...sizes)).toBeGreaterThanOrEqual(12);
+    // Escala única (U1, V7): continua según el área, con piso de 12 px y techo de 16 px.
+    expect(pixelTokens).toMatch(/--pixel-tam: clamp\(12px, [^;]+, 16px\);/);
     expect(noticeRule('.sensitive-strip')).toMatch(/font-size:\s*var\(--pixel-tam, 14px\);/);
     expect([...noticeSource.matchAll(/font-size:\s*([\d.]+)(rem|px)/g)].filter(match => Number(match[1]) * (match[2] === 'rem' ? 16 : 1) < 12)).toEqual([]);
     // Tinta de la placa y del chip sobre la penumbra opaca de las piezas: razón de contraste >= 7:1 (AAA).

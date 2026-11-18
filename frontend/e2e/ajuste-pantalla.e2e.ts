@@ -19,7 +19,11 @@ import { createWorldInputDriver, exploreUntilNearby, loginAs, waitForWorldReady 
  *   - una pieza fija del juego (ficha del objetivo, cabecera, pie, menús, cuadro) tiene barra propia (scrollHeight mayor
  *     que clientHeight en un contenedor desplazable);
  *   - una opción de la decisión queda fuera de la vista;
- *   - un menú (Ajustes, «Cómo se juega», bitácora, «Ir a…», plano, pausa) sale cortado de la ventana o se desplaza (V6).
+ *   - un menú (Ajustes, «Cómo se juega», bitácora, «Ir a…», plano, pausa) sale cortado de la ventana o se desplaza (V6);
+ *   - el tramo (V7) no se cumple: letra fuera de la escala única, teclas del HUD fuera de su rango, la frase de la persona
+ *     donde no toca o el retrato del kit recortado por su ventanilla;
+ *   - el plano del caso de varias salas (SIM-VBG-002) sale cortado o se desplaza.
+ * Además de los 9 tamaños al 100 % y al 125 %, un teléfono de 390 × 844 con dedo (tramo compacto).
  * El zoom del navegador se imita con el área dividida entre el zoom y deviceScaleFactor igual al zoom.
  */
 const DOC = JSON.parse(readFileSync(join(__dirname, 'fixtures', 'caso-textos-largos.dsl.json'), 'utf-8'));
@@ -27,6 +31,14 @@ const AREAS: Array<[number, number]> = [
   [1280, 600], [1366, 650], [1536, 730], [1600, 780], [1920, 950], [1920, 1070], [1366, 768], [1920, 1080], [1920, 1200],
 ];
 const ZOOMS = [1, 1.25];
+/** Cada tamaño de la matriz: área de la página, zoom y si el puntero es el dedo (teléfono). */
+const TAMANOS = [
+  ...AREAS.flatMap(([ancho, alto]) => ZOOMS.map(zoom => ({ ancho, alto, zoom, dedo: false }))),
+  { ancho: 390, alto: 844, zoom: 1, dedo: true },
+];
+/** El caso de varias salas (mundo por piezas): el único que trae plano y minimapa. */
+const DOC_SALAS = JSON.parse(readFileSync(
+  join(__dirname, '..', '..', 'backend_django', 'apps', 'simulation', 'data', 'cases', 'SIM-VBG-002.dsl.json'), 'utf-8'));
 
 async function desbordes(page: Page): Promise<string[]> {
   return page.evaluate(() => {
@@ -88,19 +100,91 @@ async function desbordes(page: Page): Promise<string[]> {
  * primer tamaño fallaba con ENOENT al guardar la traza de ese gancho en `.playwright-artifacts-*` (V6). Ahora el importe va
  * dentro de la prueba, con el `request` de su propio contexto, y la traza es la de la prueba.
  */
-let caso = 0;
-async function asegurarCaso(contexto: BrowserContext, baseURL: string): Promise<number> {
-  if (caso) return caso;
-  const clave = createHash('sha1').update(`${process.ppid}|${baseURL}`).digest('hex').slice(0, 12);
+const casos = new Map<string, number>();
+async function asegurarCaso(contexto: BrowserContext, baseURL: string, cual = 'textos-largos', fuente: Record<string, any> = DOC): Promise<number> {
+  const enMemoria = casos.get(cual);
+  if (enMemoria) return enMemoria;
+  const clave = createHash('sha1').update(`${process.ppid}|${baseURL}|${cual}`).digest('hex').slice(0, 12);
   const memo = join(tmpdir(), `siep-ajuste-pantalla-${clave}.json`);
-  if (existsSync(memo)) return (caso = JSON.parse(readFileSync(memo, 'utf-8')).caso);
+  if (existsSync(memo)) {
+    const id = JSON.parse(readFileSync(memo, 'utf-8')).caso as number;
+    casos.set(cual, id);
+    return id;
+  }
   const token = await apiToken(contexto.request, PROFESOR);
   // Una versión propia por corrida: contra una pila viva, el mismo código y versión ya importados darían 409.
-  const doc = { ...DOC, caso: { ...DOC.caso, version: `0.1.${Date.now() % 1_000_000}` } };
-  const importado = await send(contexto.request, token, 'post', '/api/authoring/cases/import', doc, 'importar el caso de textos largos');
-  caso = importado['caseVersionId'] as number;
-  writeFileSync(memo, JSON.stringify({ caso }));
-  return caso;
+  const doc = { ...fuente, caso: { ...fuente['caso'], version: `0.1.${Date.now() % 1_000_000}` } };
+  const importado = await send(contexto.request, token, 'post', '/api/authoring/cases/import', doc, `importar el caso ${cual}`);
+  const id = importado['caseVersionId'] as number;
+  casos.set(cual, id);
+  writeFileSync(memo, JSON.stringify({ caso: id }));
+  return id;
+}
+
+/**
+ * El tramo (V7, escala aprobada por el usuario; las mismas consultas que `pixel/tramos.ts`). Mide con una sonda la letra de
+ * las placas (--pixel-tam) y la tecla del HUD, y mira la composición del HUD: en compacto la frase de la persona sale de la
+ * barra pero sigue en el nombre del grupo, que se puede enfocar; en medio y amplio, la frase está en la barra.
+ */
+async function revisarTramo(page: Page, dedo: boolean): Promise<string[]> {
+  return page.evaluate(conDedo => {
+    const fuera: string[] = [];
+    const ancho = innerWidth;
+    const alto = innerHeight;
+    const tramo = alto <= 700 || ancho <= 1100 ? 'compacto' : ancho >= 1700 && alto >= 1000 ? 'amplio' : 'medio';
+    const raiz = document.querySelector('.game-container');
+    if (!raiz) return ['no está el juego'];
+    const sonda = document.createElement('div');
+    sonda.style.cssText = 'position:absolute;visibility:hidden;font-size:var(--pixel-tam);width:var(--tecla-hud)';
+    raiz.appendChild(sonda);
+    const letra = parseFloat(getComputedStyle(sonda).fontSize);
+    sonda.remove();
+    const esperada = Math.min(16, Math.max(12, Math.min(0.00625 * alto + 9.25, 0.0047 * ancho + 7)));
+    if (letra < 12 || letra > 16 || Math.abs(letra - esperada) > 0.5) fuera.push(`${tramo}: letra de ${letra} px (se esperaban ${esperada.toFixed(1)})`);
+    const tecla = document.querySelector<HTMLElement>('.hud-action')?.getBoundingClientRect().width ?? 0;
+    const [minimo, maximo] = conDedo ? [44, 48] : [36, 48];
+    if (tecla < minimo - 0.5 || tecla > maximo + 0.5) fuera.push(`${tramo}: tecla del HUD de ${tecla} px (de ${minimo} a ${maximo})`);
+    const grupo = document.querySelector<HTMLElement>('.hud-persona');
+    const frase = document.querySelector<HTMLElement>('.hud-persona-label');
+    if (grupo && frase) {
+      const texto = (frase.textContent ?? '').trim();
+      if (!texto || !(grupo.getAttribute('aria-label') ?? '').includes(texto)) fuera.push(`${tramo}: la frase de la persona no está en el nombre del grupo`);
+      const enLaBarra = getComputedStyle(frase).visibility !== 'hidden' && frase.getBoundingClientRect().width > 1;
+      if (tramo === 'compacto') {
+        if (enLaBarra) fuera.push('compacto: la frase de la persona sigue en la barra');
+        if (grupo.tabIndex !== 0) fuera.push('compacto: el grupo de la persona no se puede enfocar para leer la frase');
+      } else if (!enLaBarra) {
+        fuera.push(`${tramo}: falta la frase de la persona en la barra`);
+      }
+    }
+    return fuera;
+  }, dedo);
+}
+
+/** En compacto, la frase aparece al pasar el cursor por la cara y queda dentro de la ventana. */
+async function revisarFraseAlPasar(page: Page): Promise<string[]> {
+  const grupo = page.locator('.hud-persona').first();
+  if (!(await grupo.isVisible().catch(() => false))) return [];
+  await grupo.hover();
+  await page.waitForTimeout(200);
+  const frase = page.locator('.hud-persona-label').first();
+  const fuera = await frase.evaluate(el => getComputedStyle(el).visibility === 'hidden' ? ['la frase no aparece al pasar el cursor'] : []);
+  await page.mouse.move(2, 2);
+  return [...fuera, ...(fuera.length ? [] : await cortes(frase))];
+}
+
+/** El retrato del kit va a escala entera dentro de su ventanilla: nunca más grande que ella (salía recortado). */
+async function revisarRetrato(page: Page): Promise<string[]> {
+  return page.evaluate(() => {
+    const caja = document.querySelector('.dialogue-strip .portrait');
+    const kit = document.querySelector('.dialogue-strip .portrait-kit');
+    if (!caja || !kit) return [];
+    const c = caja.getBoundingClientRect();
+    const k = kit.getBoundingClientRect();
+    return k.width > c.width + 1 || k.height > c.height + 1
+      ? [`el retrato del kit (${Math.round(k.width)} px) no cabe en su ventanilla (${Math.round(c.width)} px)`]
+      : [];
+  });
 }
 
 /**
@@ -174,14 +258,16 @@ async function revisarMenus(page: Page, prefijo: string): Promise<void> {
   }
 }
 
-for (const [ancho, alto] of AREAS) {
-  for (const zoom of ZOOMS) {
-    test(`@ajuste-pantalla ${ancho}x${alto} al ${zoom * 100} %`, async ({ browser }, testInfo) => {
-      test.setTimeout(180_000);
+for (const { ancho, alto, zoom, dedo } of TAMANOS) {
+  {
+    test(`@ajuste-pantalla ${ancho}x${alto} al ${zoom * 100} %${dedo ? ' con dedo' : ''}`, async ({ browser }, testInfo) => {
+      test.setTimeout(240_000);
       const contexto = await browser.newContext({
         baseURL: testInfo.project.use.baseURL,
         viewport: { width: Math.round(ancho / zoom), height: Math.round(alto / zoom) },
         deviceScaleFactor: zoom,
+        hasTouch: dedo,
+        isMobile: dedo,
       });
       const page = await contexto.newPage();
       try {
@@ -191,6 +277,8 @@ for (const [ancho, alto] of AREAS) {
         await waitForWorldReady(page);
         await page.waitForTimeout(1_200);
         expect(await desbordes(page), 'explorando').toEqual([]);
+        expect.soft(await revisarTramo(page, dedo), 'tramo').toEqual([]);
+        if (!dedo && (alto / zoom <= 700 || ancho / zoom <= 1100)) expect.soft(await revisarFraseAlPasar(page), 'frase de la persona').toEqual([]);
         await revisarMenus(page, `${ancho}x${alto}-${zoom * 100}`);
 
         // La primera persona de la sala (el panel de autora la lista como «hablar con …»), hasta sus opciones.
@@ -214,6 +302,7 @@ for (const [ancho, alto] of AREAS) {
         const carpeta = process.env['AJUSTE_CAPTURAS'];
         if (carpeta) await page.screenshot({ path: join(carpeta, `${ancho}x${alto}-${zoom * 100}-decision.png`) });
         expect(await desbordes(page), 'decisión').toEqual([]);
+        expect.soft(await revisarRetrato(page), 'retrato en la decisión').toEqual([]);
 
         // La consecuencia (los casos generados traen retroalimentación de hasta ~400 caracteres): tampoco se lee
         // desplazando; si no cabe, va en páginas con «N de M».
@@ -229,6 +318,24 @@ for (const [ancho, alto] of AREAS) {
             await page.keyboard.press('Enter');
           }
         }
+
+        // El plano (V7: el caso de textos largos tiene una sola sala y no lo trae): el caso de varias salas, en su ensayo.
+        const salas = await asegurarCaso(contexto, String(testInfo.project.use.baseURL), 'varias-salas', DOC_SALAS);
+        await page.goto(`/portal/casos/${salas}/ensayo`);
+        await waitForWorldReady(page);
+        await page.waitForTimeout(1_200);
+        const abrirPlano = page.locator('[data-minimapa-abrir]');
+        await expect(abrirPlano, 'el caso de varias salas muestra el minimapa').toBeVisible({ timeout: 15_000 });
+        await abrirPlano.click();
+        const plano = page.locator('.plano-dialogo');
+        await expect(plano).toBeVisible({ timeout: 5_000 });
+        await page.waitForTimeout(500);
+        const carpetaPlano = process.env['AJUSTE_CAPTURAS'];
+        if (carpetaPlano) await page.screenshot({ path: join(carpetaPlano, `${ancho}x${alto}-${zoom * 100}-menu-plano.png`) });
+        expect.soft(await desbordes(page), 'menú plano').toEqual([]);
+        expect.soft(await cortes(plano), 'menú plano, dentro de la ventana').toEqual([]);
+        await page.locator('[data-plano-cerrar]').click();
+        await expect(plano).toBeHidden({ timeout: 5_000 });
       } finally {
         await contexto.close();
       }
