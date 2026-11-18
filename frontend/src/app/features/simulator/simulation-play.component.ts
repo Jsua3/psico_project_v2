@@ -307,6 +307,26 @@ const NARROW_QUERY = '(max-width: 760px)';
         }
 
         @if (worldStarted()) {
+        @if (cambioDeLugar(); as cambio) {
+          <!-- V7: la historia nunca cambia de sala sin aviso (fuera del mundo, que queda inerte bajo una capa). La sala nueva se carga solo al pulsar «Ir a <lugar>». -->
+          <section class="case-intro-overlay cambio-de-lugar" role="dialog" aria-modal="true" aria-labelledby="cambio-de-lugar-titulo">
+            <article class="case-intro-card" cdkTrapFocus [cdkTrapFocusAutoCapture]="true">
+              <header class="case-intro-card__header">
+                <p class="psy-eyebrow">Cambio de lugar</p>
+                <h2 id="cambio-de-lugar-titulo">La historia continúa en {{ cambio.lugar }}</h2>
+              </header>
+              <footer class="case-intro-card__actions">
+                <div class="case-intro-card__buttons">
+                  <app-safe-exit-button variante="placa" [pausing]="pausing()" (pause)="pauseFromOverlay()" />
+                  <button cdkFocusInitial class="psy-button psy-button--primary cambio-de-lugar__ir" type="button" (click)="irAlLugar()">
+                    Ir a {{ cambio.lugar }}
+                  </button>
+                </div>
+              </footer>
+            </article>
+          </section>
+        }
+
         @if (showCaseIntro()) {
           <section class="case-intro-overlay" role="dialog" aria-modal="true" aria-labelledby="case-intro-title">
             <article class="case-intro-card" cdkTrapFocus [cdkTrapFocusAutoCapture]="true">
@@ -434,25 +454,6 @@ const NARROW_QUERY = '(max-width: 760px)';
               <div id="game-area" class="world-skeleton" aria-hidden="true"></div>
             }
 
-        @if (cambioDeLugar(); as cambio) {
-          <!-- V7: la historia nunca cambia de sala sin aviso. La sala nueva se carga solo al pulsar «Ir a <lugar>». -->
-          <section class="case-intro-overlay cambio-de-lugar" role="dialog" aria-modal="true" aria-labelledby="cambio-de-lugar-titulo">
-            <article class="case-intro-card" cdkTrapFocus [cdkTrapFocusAutoCapture]="true">
-              <header class="case-intro-card__header">
-                <p class="psy-eyebrow">Cambio de lugar</p>
-                <h2 id="cambio-de-lugar-titulo">La historia continúa en {{ cambio.lugar }}</h2>
-              </header>
-              <footer class="case-intro-card__actions">
-                <div class="case-intro-card__buttons">
-                  <app-safe-exit-button variante="placa" [pausing]="pausing()" (pause)="pauseFromOverlay()" />
-                  <button cdkFocusInitial class="psy-button psy-button--primary cambio-de-lugar__ir" type="button" (click)="irAlLugar()">
-                    Ir a {{ cambio.lugar }}
-                  </button>
-                </div>
-              </footer>
-            </article>
-          </section>
-        }
             <!-- La reacción del personaje tras elegir: franja sobre el mundo, en la sala donde ocurrió (4.3.3). -->
             <app-reaction-director #reaction [escenario]="reactionStage()" [reduceMotion]="reduceMotion()"
               [pausing]="pausing()" (finished)="afterReaction($event)" (safeExit)="pauseFromOverlay()" />
