@@ -15,7 +15,7 @@ vi.mock('phaser', () => ({
 }));
 
 import { DataDrivenWorldScene, GameWorldComponent } from './game-world.component';
-import { LABEL_MAX_SCREEN_WIDTH_PX, LABEL_MIN_SCREEN_PX } from './interaction-priority.util';
+import { LABEL_MAX_SCREEN_WIDTH_PX, LABEL_MIN_SCREEN_PX, labelScaleFor } from './interaction-priority.util';
 import type { Mock } from 'vitest';
 
 const source = readFileSync(join(__dirname, 'game-world.component.ts'), 'utf-8');
@@ -188,14 +188,17 @@ describe('game-world: rótulos legibles en cualquier tamaño (T5.3)', () => {
   });
 
   // req: REGLA-009 (F0-8, PHA-2: rótulos nítidos con zoom de cámara)
-  it('con zoom 2 la resolución de los textos sigue al zoom aunque la escala de los rótulos no cambie', () => {
+  // Regla 7 de la vara (bloque M1): los rótulos no crecen con el zoom; antes, a ×2 o ×3 salían al doble o al triple.
+  it('los rótulos miden lo mismo en pantalla con cualquier zoom y la resolución de los textos sigue al zoom', () => {
     const scene = sceneAt(1, 2) as LabelProbe & { pixelRender: { refreshTexts: Mock } };
     scene.pixelRender = { refreshTexts: vi.fn() };
-    expect(scene.syncLabelScale()).toBe(false);
-    expect(scene.labelScale).toBe(1);
-    expect(scene.pixelRender.refreshTexts).toHaveBeenCalledWith(2);
+    const enPantallaA1 = labelScaleFor(1, 1);
+    scene.syncLabelScale();
+    expect(scene.labelScale * 2).toBeCloseTo(enPantallaA1, 6);
+    expect(scene.pixelRender.refreshTexts).toHaveBeenLastCalledWith(2);
     scene.cameras.main.zoom = 3;
     scene.syncLabelScale();
+    expect(scene.labelScale * 3).toBeCloseTo(enPantallaA1, 6);
     expect(scene.pixelRender.refreshTexts).toHaveBeenLastCalledWith(3);
   });
 
@@ -203,14 +206,22 @@ describe('game-world: rótulos legibles en cualquier tamaño (T5.3)', () => {
     const scene = new DataDrivenWorldScene({} as never) as unknown as {
       cameras: { main: Record<string, unknown> };
       pixelRender: { refreshTexts: Mock };
+      player: { x: number; y: number };
+      callbacks: { reduceMotion: boolean };
       applyPixelCamera(width: number, height: number): void;
     };
-    const cam = { width: 1920, height: 1080, zoom: 1, setZoom: vi.fn((k: number) => { cam.zoom = k; }), setBounds: vi.fn() };
+    const cam = {
+      width: 1920, height: 1080, zoom: 1, setZoom: vi.fn((k: number) => { cam.zoom = k; }),
+      stopFollow: vi.fn(), removeBounds: vi.fn(), centerOn: vi.fn(), fadeEffect: { isRunning: false },
+    };
     scene.cameras = { main: cam };
+    scene.player = { x: 480, y: 300 };
+    scene.callbacks = { reduceMotion: false };
     scene.pixelRender = { refreshTexts: vi.fn() };
     scene.applyPixelCamera(960, 540);
-    expect(cam.setZoom).toHaveBeenCalledWith(2);
-    expect(scene.pixelRender.refreshTexts).toHaveBeenCalledWith(2);
+    // Plano de caminar a 1920×1080 (bloque M1): ×3, entero.
+    expect(cam.setZoom).toHaveBeenCalledWith(3);
+    expect(scene.pixelRender.refreshTexts).toHaveBeenCalledWith(3);
   });
 
   it('cuando cambia la escala de los rótulos, la resolución se recalcula después de reescalarlos', () => {

@@ -45,9 +45,13 @@ async function waitForSettledOverlays(page: Page): Promise<void> {
  * da un color intermedio y un falso «color-contrast». Las infinitas (cursor, pulsos) no se esperan.
  */
 async function waitForFiniteAnimations(page: Page): Promise<void> {
+  // Una animación finita a la que le quedan más de 5 s (los pulsos de ambiente de U1 duran minutos antes de descansar)
+  // es ambiente como las infinitas: esperarla agotaba el plazo sin que ninguna transición de entrada siguiera en curso.
   await page.waitForFunction(() => document.getAnimations().every(animation => {
     const timing = animation.effect?.getComputedTiming();
-    return animation.playState !== 'running' || timing === undefined || timing.iterations === Infinity;
+    if (animation.playState !== 'running' || timing === undefined || timing.iterations === Infinity) return true;
+    const restante = Number(timing.endTime ?? 0) - Number(animation.currentTime ?? 0);
+    return restante > 5000;
   }), undefined, { timeout: scaled(10_000) });
 }
 
@@ -175,7 +179,15 @@ async function auditGeometry(page: Page): Promise<GeometryAudit> {
     for (const selector of ['.canvas-zone', 'app-game-world canvas']) {
       for (const element of document.querySelectorAll(selector)) {
         if (!visible(element)) continue;
-        assertInsideViewport(element);
+        // La cámara de cerca de M1 agranda el lienzo centrado al abrir una conversación (×2-×3): lo que se ve es lo que deja
+        // su contenedor recortado, y el desborde de la página se mide aparte. Un lienzo recortado por un contenedor que cabe
+        // en la vista está bien; uno sin recorte sigue siendo falta.
+        if (element.tagName === 'CANVAS') {
+          let recorte: HTMLElement | null = element.parentElement;
+          while (recorte && !/(hidden|clip)/.test(getComputedStyle(recorte).overflow)) recorte = recorte.parentElement;
+          if (recorte && recorte !== document.body && recorte !== document.documentElement) { assertInsideViewport(recorte); continue; }
+        }
+        assertInsideViewport(element as HTMLElement);
       }
     }
 

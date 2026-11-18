@@ -93,7 +93,7 @@
 
             <div class="tr-summary" role="group" aria-label="Resumen de revisión">
               <button ui-card type="button" class="tr-metric" aria-haspopup="dialog" (click)="openFeedback('TOTAL', item)">
-                <ui-stat label="Total decisiones" [value]="totalDecisions(item)" />
+                <ui-stat label="Total de decisiones"[value]="totalDecisions(item)" />
                 <span class="tr-metric__cta">Ver retroalimentación</span>
               </button>
               <button ui-card type="button" class="tr-metric" aria-haspopup="dialog" (click)="openFeedback('RECOMMENDED', item)">
@@ -381,7 +381,17 @@
             </ui-section>
 
             <!-- La valoración automática queda plegada hasta que el docente guarda la suya: así no la copia sin mirar. -->
-            @if (item.systemEvaluation; as system) {
+            @if (item.competenciesDeclared === false) {
+              <!-- V5: sin competencias declaradas en el caso no hay perfil que mostrar; se dice por qué, en vez de filas vacías. -->
+              <ui-section class="tr-system" title="Valoración del sistema">
+                <div class="tr-stack">
+                  <p class="tr-hint tr-system__no-declarado">{{ copy.notDeclared }}</p>
+                  @if (item.caseVersionId) {
+                    <a ui-button variant="secondary" [attr.href]="'/portal/casos/' + item.caseVersionId + '/editor'">{{ copy.openEditor }}</a>
+                  }
+                </div>
+              </ui-section>
+            } @else if (item.systemEvaluation; as system) {
               <ui-section class="tr-system" title="Valoración del sistema">
                 <div class="tr-stack">
                   <p class="tr-hint">El perfil automático por competencia, junto a tu valoración. Es una referencia: la valoración que cuenta es la tuya.</p>

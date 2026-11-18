@@ -12,7 +12,7 @@ import { fakeKitService } from '../character/kit/testing/kit-testing';
 import { HttpErrorResponse } from '@angular/common/http';
 import { of, throwError } from 'rxjs';
 import { SimulationService } from '../../core/api/simulation.service';
-import { DecisionReviewItem } from '../../core/models/simulation.model';
+import { DecisionReviewItem, MissedOption } from '../../core/models/simulation.model';
 import { RECONSIDERED_LABEL } from './reconsidered.util';
 
 /** El único servicio que la pantalla de resultado llama: «Tus decisiones» lee el reporte congelado del dueño (C2). */
@@ -166,7 +166,7 @@ describe('AttemptOutcomeComponent: pausa calmada renderizada (T12.1, AC-7)', () 
   const host = () => fixture.nativeElement as HTMLElement;
   const text = (el: Element | null) => el?.textContent?.replace(/\s+/g, ' ').trim() ?? '';
 
-  function render(status: 'PAUSED' | 'COMPLETED' | 'SAFE_EXITED' | 'REPLACED' | 'IN_PROGRESS', options: { report?: AttemptCompletionReport | null; resources?: string[] } = {}): void {
+  function render(status: 'PAUSED' | 'COMPLETED' | 'SAFE_EXITED' | 'REPLACED' | 'IN_PROGRESS', options: { report?: AttemptCompletionReport | null; resources?: string[]; pauseNote?: string | null } = {}): void {
     TestBed.configureTestingModule({
       imports: [AttemptOutcomeComponent],
       providers: [
@@ -185,6 +185,7 @@ describe('AttemptOutcomeComponent: pausa calmada renderizada (T12.1, AC-7)', () 
     writeInputSignal(component.status, status);
     writeInputSignal(component.report, options.report === undefined ? makeReport({ status: status as AttemptCompletionReport['status'] }) : options.report);
     if (options.resources) writeInputSignal(component.supportResources, options.resources);
+    if (options.pauseNote !== undefined) writeInputSignal(component.pauseNote, options.pauseNote);
     fixture.detectChanges();
   }
 
@@ -208,6 +209,18 @@ describe('AttemptOutcomeComponent: pausa calmada renderizada (T12.1, AC-7)', () 
     render('PAUSED');
     expect(text(host().querySelector('.oc-pause-copy')))
       .toBe('Tu avance quedó guardado exactamente donde estabas. No hay penalización: puedes retomarlo cuando quieras.');
+  });
+
+  it('con la pausa aún sin registrar, una línea discreta con role="status" lo dice, justo bajo el texto tranquilizador; sin nota no hay línea', () => {
+    render('PAUSED', { pauseNote: 'Saliste del caso. Registraremos la pausa cuando vuelva la conexión.' });
+    const note = host().querySelector('.oc-pause-note') as HTMLElement;
+    expect(note.getAttribute('role')).toBe('status');
+    expect(text(note)).toBe('Saliste del caso. Registraremos la pausa cuando vuelva la conexión.');
+    expect(note.previousElementSibling?.classList.contains('oc-pause-copy')).toBe(true);
+    fixture.destroy();
+    TestBed.resetTestingModule();
+    render('PAUSED', { pauseNote: null });
+    expect(host().querySelector('.oc-pause-note')).toBeNull();
   });
 
   it('«Reanudar este intento» es la primera acción y «Volver al catálogo» la segunda', () => {
@@ -286,6 +299,16 @@ describe('AttemptOutcomeComponent: pausa calmada renderizada (T12.1, AC-7)', () 
     render('REPLACED');
     expect(Array.from(host().querySelectorAll('footer button, footer a')).map(el => text(el)))
       .toEqual(['Volver al catálogo', 'Volver al portal']);
+  });
+
+  it('si «Cómo llegaste aquí» ya nombra a la persona (el final depende de ella), su línea no se repite encima', () => {
+    // V4, SIM-VBG-002 «La ruta se abandona»: la persona salía dos veces seguidas en el cierre.
+    const base = makeReport({ status: 'COMPLETED' });
+    render('COMPLETED', { report: { ...base, ending: { ...base.ending!, reason: ['Cumpliste: Valorar el riesgo', 'La persona usuaria se muestra abierta y serena'] } } });
+    const ending = host().querySelector('.oc-ending') as HTMLElement;
+    expect(ending.querySelector('.oc-ending__persona')).toBeNull();
+    expect(Array.from(ending.querySelectorAll('.oc-ending__reasons li')).map(el => text(el)))
+      .toEqual(['Cumpliste: Valorar el riesgo', 'La persona usuaria se muestra abierta y serena']);
   });
 
   it('con el intento en curso no se pinta nada', () => {
@@ -478,6 +501,10 @@ describe('AttemptOutcomeComponent: tus decisiones y marcador (F10-4, C2)', () =>
     reviewAttemptId?: string | null;
     /** La respuesta de decidir ya trae el reporte con sus decisiones (la ruta normal) o no (la de respaldo). */
     reportHasDecisions?: boolean;
+    mode?: 'student' | 'rehearsal';
+    caseVersionId?: number | null;
+    /** V5: el informe dice si el caso declara competencias (sin el campo, como antes). */
+    competenciesDeclared?: boolean;
   } = {}): void {
     TestBed.configureTestingModule({
       imports: [AttemptOutcomeComponent],
@@ -500,10 +527,13 @@ describe('AttemptOutcomeComponent: tus decisiones y marcador (F10-4, C2)', () =>
     fixture = TestBed.createComponent(AttemptOutcomeComponent);
     component = fixture.componentInstance;
     writeInputSignal(component.status, options.status ?? 'COMPLETED');
+    const declara = options.competenciesDeclared === undefined ? {} : { competenciesDeclared: options.competenciesDeclared };
     writeInputSignal(component.report, options.reportHasDecisions
-      ? makeReport({ status: 'COMPLETED', decisionReview: items })
-      : makeReport({ status: 'COMPLETED' }));
+      ? makeReport({ status: 'COMPLETED', decisionReview: items, ...declara })
+      : makeReport({ status: 'COMPLETED', ...declara }));
     writeInputSignal(component.reviewAttemptId, options.reviewAttemptId === undefined ? 'a1' : options.reviewAttemptId);
+    if (options.mode) writeInputSignal(component.mode, options.mode);
+    if (options.caseVersionId !== undefined) writeInputSignal(component.caseVersionId, options.caseVersionId);
     fixture.detectChanges();
   }
 
@@ -615,6 +645,32 @@ describe('AttemptOutcomeComponent: tus decisiones y marcador (F10-4, C2)', () =>
 
     expect(simulation.studentReport).toHaveBeenCalledTimes(2);
     expect(host().querySelectorAll('.oc-decision')).toHaveLength(1);
+  });
+
+  it('«Elegiste:» muestra el texto corto del botón que se pulsó si el caso lo trae; si no, el de la opción (V4)', async () => {
+    render({ reportHasDecisions: true, items: [
+      { ...decision(), chosen: { optionId: 9, text: 'Escuchar sin juzgar, con todo el detalle del protocolo', label: 'Escuchar sin juzgar' } },
+      { ...decision(), order: 2, chosen: { optionId: 10, text: 'Derivar a la ruta' } },
+    ] });
+    await settle();
+
+    const chosen = Array.from(host().querySelectorAll('.oc-decision__chosen')).map(el => text(el));
+    expect(chosen).toEqual(['Elegiste: Escuchar sin juzgar', 'Elegiste: Derivar a la ruta']);
+  });
+
+  it('si el caso no declara competencias, el cierre no muestra el bloque (V5); si las declara, «Sin evidencia» sigue', async () => {
+    render({ reportHasDecisions: true, items: [decision()] });
+    await settle();
+    const conBloque = !!host().querySelector('.oc-competencies');
+    fixture.destroy();
+    TestBed.resetTestingModule();
+
+    render({ reportHasDecisions: true, items: [decision()], competenciesDeclared: false });
+    await settle();
+    expect(host().querySelector('.oc-competencies')).toBeNull();
+    expect(host().querySelector('.oc-ending')).not.toBeNull();
+    expect(host().querySelector('.oc-decisions')).not.toBeNull();
+    expect(conBloque).toBe(true);
   });
 
   it('el cierre completo no muestra puntaje, estrés, desempeño ni porcentajes', async () => {
@@ -761,5 +817,98 @@ describe('AttemptOutcomeComponent: tus decisiones y marcador (F10-4, C2)', () =>
     expect(host().querySelector('.oc-selfcheck')).toBeNull();
   });
 
+
+  describe('«Respuestas que no llegaste a ver» (DSL-6)', () => {
+    const missed = (overrides: Partial<MissedOption> = {}): MissedOption => ({
+      optionId: 41, text: 'Quedarse y explicar', class: 'RECOMMENDED',
+      missing: [
+        { kind: 'talked', key: 'enfermera', label: 'Enfermera de urgencias' },
+        { kind: 'used', key: 'PAP', label: 'Primeros auxilios psicológicos' },
+      ],
+      ...overrides,
+    });
+
+    it('lista por decisión las respuestas no vistas con lo que faltó explorar', async () => {
+      render({ items: [decision({ missed: [missed()] })] });
+      await settle();
+
+      const bloque = host().querySelector('.oc-decision .oc-missed')!;
+      expect(text(bloque)).toContain('Respuestas que no llegaste a ver');
+      expect(text(bloque)).toContain('Aparecían si conocías algo más de la sala.');
+      expect(text(bloque)).toContain('Quedarse y explicar');
+      expect(text(bloque)).toContain('Recomendada');
+      expect(text(bloque)).toContain('Te faltó: hablar con Enfermera de urgencias y usar Primeros auxilios psicológicos');
+    });
+
+    it('una respuesta retenida sin hechos de exploración lo dice sin inventar', async () => {
+      render({ items: [decision({ missed: [missed({ optionId: 42, text: 'Otra', class: 'RISKY', missing: [] })] })] });
+      await settle();
+
+      const bloque = host().querySelector('.oc-missed')!;
+      expect(text(bloque)).toContain('Dependía de cómo iba el caso hasta ese momento.');
+      expect(text(bloque)).not.toContain('Te faltó');
+    });
+
+    it('sin respuestas no vistas, o con un informe v3, no hay bloque', async () => {
+      render({ items: [decision({ missed: [] })] });
+      await settle();
+      expect(host().querySelector('.oc-missed')).toBeNull();
+      fixture.destroy();
+      TestBed.resetTestingModule();
+
+      render({ items: [decision()] });
+      await settle();
+      expect(host().querySelector('.oc-missed')).toBeNull();
+    });
+
+    it('el bloque vive dentro de su decisión y las opciones se leen como lista', async () => {
+      render({ items: [decision({ missed: [missed(), missed({ optionId: 43, text: 'Esperar', class: 'ACCEPTABLE', missing: [{ kind: 'has', key: 'k', label: 'Informe' }] })] })] });
+      await settle();
+
+      const bloque = host().querySelector('.oc-decision .oc-missed')!;
+      expect(bloque.querySelectorAll('li')).toHaveLength(2);
+      expect(text(bloque)).toContain('Te faltó: tener Informe');
+    });
+  });
+
+describe('modo ensayo (DSL-10)', () => {
+    it('el final de un ensayo ofrece empezar de nuevo y volver al editor, sin pedir el informe del estudiante ni la autoevaluación', async () => {
+      // El reporte no trae decisionReview y hay id de intento: en modo estudiante eso pediría el informe congelado.
+      render({ mode: 'rehearsal', caseVersionId: 9 });
+      await settle();
+
+      const botones = Array.from(host().querySelectorAll('footer.oc-actions button, footer.oc-actions a')).map(el => text(el));
+      expect(botones).toEqual(['Empezar de nuevo', 'Volver al editor']);
+      expect(host().querySelector('footer.oc-actions a')!.getAttribute('href')).toBe('/portal/casos/9/editor');
+      expect(simulation.studentReport).not.toHaveBeenCalled();
+      expect(host().querySelector('.oc-selfcheck')).toBeNull();
+    });
+
+    it('«Empezar de nuevo» emite retry', async () => {
+      render({ mode: 'rehearsal', caseVersionId: 9 });
+      const reintentos: unknown[] = [];
+      component.retry.subscribe(() => reintentos.push(1));
+      (host().querySelector('footer.oc-actions button') as HTMLButtonElement).click();
+      expect(reintentos).toHaveLength(1);
+    });
+
+    it('sin id de caso el enlace lleva a la lista de casos (nunca un href roto)', async () => {
+      render({ mode: 'rehearsal', caseVersionId: null });
+      expect(host().querySelector('footer.oc-actions a')!.getAttribute('href')).toBe('/portal/casos');
+    });
+
+    it('en pausa, el ensayo ofrece volver al editor en lugar del catálogo de estudiantes', async () => {
+      render({ mode: 'rehearsal', caseVersionId: 9, status: 'PAUSED', reviewAttemptId: null });
+      const enlaces = Array.from(host().querySelectorAll('a')).map(el => el.getAttribute('href'));
+      expect(enlaces).toContain('/portal/casos/9/editor');
+      expect(enlaces).not.toContain('/portal/simulador');
+    });
+
+    it('el modo estudiante no cambia: reintentar y volver al simulador', async () => {
+      render({ reviewAttemptId: null });
+      const botones = Array.from(host().querySelectorAll('footer.oc-actions button, footer.oc-actions a')).map(el => text(el));
+      expect(botones).toEqual(['Reintentar caso', 'Volver al simulador', 'Volver al portal']);
+    });
+  });
 });
 

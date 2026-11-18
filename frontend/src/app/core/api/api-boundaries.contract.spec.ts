@@ -26,6 +26,8 @@ describe('fronteras de las APIs por rol', () => {
       'features/autoria/api/autoria-api.service.ts',
       'features/simulator/case-authoring-hub.component.ts',
       'features/simulator/case-review-panel.component.ts',
+      // Bloque B: el panel de autora del ensayo es autoría de la docente (lee los hitos declarados del editor, una vez).
+      'features/simulator/rehearsal-panel.component.ts',
     ]);
   });
 

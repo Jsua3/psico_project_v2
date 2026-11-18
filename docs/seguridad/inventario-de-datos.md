@@ -6,15 +6,15 @@
 
 ## Resumen
 
-Tablas: 43. Columnas: 369.
+Tablas: 44. Columnas: 389.
 
 | Clasificación | Columnas |
 |---|---:|
-| PUBLIC | 148 |
-| PERSONAL | 39 |
-| SENSITIVE | 44 |
+| PUBLIC | 149 |
+| PERSONAL | 40 |
+| SENSITIVE | 50 |
 | SECRET | 2 |
-| TECHNICAL | 136 |
+| TECHNICAL | 148 |
 
 ## Tablas
 
@@ -199,6 +199,35 @@ Todas las columnas heredan `TECHNICAL`: la tabla no tiene datos personales ni se
 | `user_id` | PERSONAL | ninguna (uso interno) | docente que usó el asistente |
 | `day` | PERSONAL | ninguna (uso interno) | día en que el docente usó el asistente |
 | `count` | PERSONAL | api | cuántas veces lo usó ese día el docente |
+
+
+### `authoring_generations` — simulation.CaseGeneration
+
+**Finalidad:** La generación de un caso con IA por etapas (C1): la descripción que escribió la docente, el esqueleto y las escenas que escribió el modelo, el informe de faltas y, solo si falla, el documento para diagnóstico. Una sola docente la ve.
+
+**Plazo:** Sin plazo definido (SD-9, pendiente de la institución). Se borra con la cuenta; la descripción puede traer lo que la docente decidió contar, aunque el servidor rechaza correos, teléfonos y documentos de identidad.
+
+| Columna | Clasificación | Salidas | Motivo |
+|---|---|---|---|
+| `id` | TECHNICAL | — |  |
+| `owner_id` | PERSONAL | api | docente que generó el caso |
+| `lugar_id` | TECHNICAL | — |  |
+| `description` | SENSITIVE | api | texto libre de la docente sobre la situación que quiere simular |
+| `status` | TECHNICAL | — |  |
+| `skeleton_json` | SENSITIVE | api | esqueleto que el modelo escribió a partir de la descripción de la docente |
+| `scenes_json` | SENSITIVE | ninguna (uso interno) | escenas que el modelo escribió a partir de la descripción de la docente, y la respuesta cruda rechazada con sus motivos |
+| `skeleton_started_at` | TECHNICAL | — |  |
+| `repair_rounds` | TECHNICAL | — |  |
+| `repair_json` | SENSITIVE | api | faltas por escena de la ronda de reparación, con su ruta dentro del documento que escribió el modelo |
+| `report_json` | SENSITIVE | api | faltas del caso generado, con su ruta dentro del documento que escribió el modelo |
+| `document_json` | SENSITIVE | ninguna (uso interno) | documento completo del caso que no pasó las comprobaciones, guardado para diagnóstico |
+| `last_error_json` | TECHNICAL | — |  |
+| `calls` | TECHNICAL | — |  |
+| `tokens_in` | TECHNICAL | — |  |
+| `tokens_out` | TECHNICAL | — |  |
+| `case_version_id` | TECHNICAL | — |  |
+| `created_at` | TECHNICAL | — |  |
+| `updated_at` | TECHNICAL | — |  |
 
 
 ### `case_assignments` — grupos.CaseAssignment
@@ -717,6 +746,7 @@ Todas las columnas heredan `PUBLIC`: la tabla no tiene datos personales ni sensi
 | `spawn_x` | PUBLIC | — |  |
 | `spawn_y` | PUBLIC | — |  |
 | `ambient_json` | PUBLIC | — |  |
+| `structure` | PUBLIC | — |  |
 | `created_at` | PUBLIC | — |  |
 | `updated_at` | PUBLIC | — |  |
 

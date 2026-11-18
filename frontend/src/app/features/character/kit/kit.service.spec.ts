@@ -5,6 +5,16 @@ import { TestBed } from '@angular/core/testing';
 import { KIT_BUNDLE_URL, KitService } from './kit.service';
 import { testKitBundle } from './testing/kit-testing';
 
+/** Paquete como los de antes de las ocho vistas: cada complexión solo trae abajo, izquierda, derecha y arriba. */
+function sinDiagonales(): object {
+  const bundle = testKitBundle();
+  const complexions = Object.fromEntries(Object.entries(bundle.complexions).map(([id, views]) => {
+    const { down, left, right, up } = views;
+    return [id, { down, left, right, up }];
+  }));
+  return { ...bundle, complexions };
+}
+
 describe('KitService', () => {
   let service: KitService;
   let http: HttpTestingController;
@@ -41,6 +51,7 @@ describe('KitService', () => {
     ['de otra versión', { ...testKitBundle(), schemaVersion: 2 }],
     ['sin su receta por defecto', { ...testKitBundle(), recipes: {} }],
     ['que no es un paquete', { ok: true }],
+    ['de antes de las diagonales (4 vistas por complexión)', sinDiagonales()],
   ])('un kit.json %s cuenta como carga fallida: nada se publica y el siguiente load reintenta', async (_name, body) => {
     const failed = service.load();
     http.expectOne(KIT_BUNDLE_URL).flush(body);

@@ -7,6 +7,7 @@
  */
 
 import { gridFrom } from '../../raster.mjs';
+import { DIAGONAL } from './uniforme-clinico.diagonal.mjs';
 
 const LEGEND = {
   j: { mat: 'top' },
@@ -38,6 +39,7 @@ export default {
   coverage: { T: 'top', a: 'top', A: 'top', b: 'skin', B: 'skin' },
   edges: [{ labels: ['a', 'A'], edge: 'bottom', tone: 3 }],
   views: {
+    ...DIAGONAL,
     down: [
       {
         anchor: 'T', at: [19, 23], mode: 'paint', legend: LEGEND,

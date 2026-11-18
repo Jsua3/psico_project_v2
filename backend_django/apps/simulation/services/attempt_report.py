@@ -53,6 +53,7 @@ from ..models import (
     AttemptStatus,
     CaseVersion,
     DecisionOption,
+    DialogueChoice,
     FormativeLevel,
     ClinicalTool,
     MapObject,
@@ -262,10 +263,30 @@ def _missed_by_decision(events):
     return claimed
 
 
+def _choice_labels(option_ids):
+    """``{id de opción: texto corto}``: lo que dice el botón de la elección de diálogo que ofrece la opción (V4).
+
+    Es lo que la estudiante pulsó; si varias elecciones la ofrecen, la primera por orden. Sin elección, no hay entrada.
+    """
+    if not option_ids:
+        return {}
+    labels = {}
+    rows = (
+        DialogueChoice.objects.filter(decision_option_id__in=option_ids)
+        .order_by("display_order", "id")
+        .values_list("decision_option_id", "text")
+    )
+    for option_id, text in rows:
+        if text and text.strip():
+            labels.setdefault(option_id, text.strip())
+    return labels
+
+
 def build_decision_review(events):
     """``decisionReview[]``: una entrada por decisión registrada, en el orden en que ocurrieron.
 
-    Cada una lleva ``missed``; sin evento ``OPTIONS_NOT_OFFERED`` (o con uno ilegible) es ``[]``.
+    Cada una lleva ``missed``; sin evento ``OPTIONS_NOT_OFFERED`` (o con uno ilegible) es ``[]``. ``chosen.label`` es el
+    texto corto del botón que se pulsó, cuando el caso lo trae y no es igual al de la opción (V4: «Elegiste:»).
     """
     claimed = _missed_by_decision(events)
     option_ids = {option_id for entries in claimed.values() for option_id, _ in entries}
@@ -278,6 +299,7 @@ def build_decision_review(events):
             version_id = version_id or ev.node.case_version_id
     labels = missed_labels(version_id, by_node)
     review = []
+    choice_labels = _choice_labels({ev.decision_option_id for ev in events if ev.decision_option_id})
     first_answers = {}  # nodo → primera respuesta que el juego no aplicó (reintento)
     for ev in events:
         if not ev.decision_option_id:
@@ -303,6 +325,9 @@ def build_decision_review(events):
             "prohibited": response_class == ResponseClass.CONTRAINDICATED,
             "missed": _missed_for(claimed.get(ev.id, []), options, labels),
         }
+        label = choice_labels.get(option.id)
+        if label and label != option.text:
+            item["chosen"]["label"] = label
         first = first_answers.pop(ev.node_id, None)
         if first is not None:
             item["reconsidered"] = {"firstOptionId": first.id, "firstOptionText": first.text}
@@ -404,6 +429,8 @@ def build_report_payload(attempt, events, ordinal=None, definition_hash=None):
         "reflections": reflections,
         # E6-1d: nombres de nivel, nunca un índice numérico (RN-09).
         "competencyLevels": competency_levels,
+        # V5: si ninguna respuesta del caso declara competencias, el cierre de la estudiante no muestra el bloque.
+        "competenciesDeclared": assessment_competencies.case_declares_competencies(attempt.case_version_id),
         "profileRules": definitions.PROFILE_RULES,  # la versión de la regla con la que se calculó (E6, revisión I-3)
         "nonRecommendedCount": evidence.non_recommended_count(events),
         "reflectionCoverage": coverage,

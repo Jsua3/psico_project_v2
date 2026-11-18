@@ -29,14 +29,14 @@ for (const item of CASES) {
 
     test(`nitidez del mundo en movimiento · ${item.name}`, async ({ page }) => {
       test.setTimeout(5 * 60_000);
-      // Con movimiento reducido el juego salta el video de introducción: aviso → contexto → mundo.
+      // Aviso de contenido → tarjeta «Antes de comenzar» → mundo.
       await page.goto('/login');
       await loginStudent(page);
       await page.goto('/portal/jugar');
       await expect(page.locator('app-game-menu canvas')).toBeVisible({ timeout: 30_000 });
       const consent = await enterCaseAtContentWarning(page);
       await consent.getByRole('button', { name: /^continuar$/i }).click();
-      const caseIntro = page.getByRole('dialog').filter({ hasText: 'Contexto inicial del caso' });
+      const caseIntro = page.getByRole('dialog').filter({ hasText: 'Antes de comenzar' });
       await expect(caseIntro).toBeVisible({ timeout: 30_000 });
       await caseIntro.getByRole('button', { name: /^continuar$/i }).click();
       await waitForWorldReady(page);

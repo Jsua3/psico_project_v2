@@ -1,7 +1,6 @@
 import { A11yModule } from '@angular/cdk/a11y';
 import { ChangeDetectionStrategy, Component, ElementRef, HostListener, Injector, afterNextRender, inject, input, output } from '@angular/core';
 
-import { UiButton } from '../../shared/ui/button/ui-button';
 import { DRAFT_COPY } from './draft-copy';
 import { SafeExitButtonComponent } from './safe-exit-button.component';
 import { PlaceCandidate, PlaceKind } from './world-places.util';
@@ -18,10 +17,10 @@ const KIND_LABELS: Record<PlaceKind, string> = { person: 'Persona', door: 'Puert
 @Component({
   selector: 'app-world-places-list',
   standalone: true,
-  imports: [A11yModule, SafeExitButtonComponent, UiButton],
+  imports: [A11yModule, SafeExitButtonComponent],
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
-    <section class="places" role="dialog" aria-modal="true" aria-labelledby="places-title" cdkTrapFocus>
+    <section class="places u-placa u-sombra" role="dialog" aria-modal="true" aria-labelledby="places-title" cdkTrapFocus>
       <header class="places__head">
         <h2 id="places-title">{{ copy.title }}</h2>
       </header>
@@ -31,7 +30,7 @@ const KIND_LABELS: Record<PlaceKind, string> = { person: 'Persona', door: 'Puert
         <ul class="places__list">
           @for (place of places(); track place.key) {
             <li>
-              <button type="button" class="places__item" (click)="choose.emit(place)">
+              <button type="button" class="places__item u-ficha" (click)="choose.emit(place)">
                 <span class="places__kind">{{ kindLabel(place.kind) }}</span>{{ ' ' }}<span class="places__name">{{ place.label }}</span>@if (place.note) {
                   {{ ' ' }}<span class="places__note">{{ place.note }}</span>
                 }
@@ -44,39 +43,38 @@ const KIND_LABELS: Record<PlaceKind, string> = { person: 'Persona', door: 'Puert
       }
 
       <footer class="places__foot">
-        <app-safe-exit-button data-hide-key [pausing]="pausing()" (pause)="safeExit.emit()" />
-        <button ui-button variant="secondary" type="button" (click)="closed.emit()">Cerrar</button>
+        <app-safe-exit-button data-hide-key variante="placa" [pausing]="pausing()" (pause)="safeExit.emit()" />
+        <button type="button" class="places__close u-boton" (click)="closed.emit()">Cerrar</button>
       </footer>
     </section>
   `,
   styles: [`
     :host { display: contents; }
+    /* Placa de pixel de la hoja común (bloque U1): sin esquinas redondeadas ni sombras difusas. */
     .places {
       position: absolute;
       top: 50%;
       left: 50%;
       z-index: var(--ds-z-modal);
       transform: translate(-50%, -50%);
-      width: min(520px, 94vw);
-      max-height: min(560px, 86vh);
+      width: min(720px, calc(100% - 2 * var(--pixel-borde)));
+      max-height: min(560px, calc(100% - 2 * var(--pixel-borde)));
+      box-sizing: border-box;
       display: grid;
       grid-template-rows: auto auto minmax(0, 1fr) auto;
-      gap: 10px;
-      padding: 16px;
-      border: 1px solid var(--ds-border-strong);
-      border-radius: var(--ds-radius-lg);
-      background: var(--ds-surface-1);
-      box-shadow: var(--ds-shadow-e3);
-      color: var(--ds-text-1);
+      gap: calc(5 * var(--pixel-px));
+      padding: calc(7 * var(--pixel-px)) calc(9 * var(--pixel-px)) calc(8 * var(--pixel-px));
+      font-family: var(--pixel-f-texto);
     }
-    .places__head h2 { margin: 0; font-size: var(--ds-type-lead-size); color: var(--ds-text-1); }
-    .places__hint, .places__empty {
-      margin: 0; color: var(--ds-text-2);
-      font-size: var(--ds-type-body-s-size); line-height: var(--ds-type-body-s-line);
+    /* El título es el kicker de la capa: mono, mayúsculas y con la luz del momento. */
+    .places__head h2 {
+      margin: 0; font-family: var(--pixel-f-nombre); font-weight: 700; font-size: max(var(--pixel-letra-minima), calc(var(--pixel-tam) * 0.82));
+      letter-spacing: .06em; text-transform: uppercase; color: var(--luz);
     }
+    .places__hint, .places__empty { margin: 0; color: var(--pixel-tinta-suave); line-height: 1.5; }
     .places__list {
       display: grid;
-      gap: 6px;
+      gap: calc(2 * var(--pixel-px));
       margin: 0;
       padding: 0;
       list-style: none;
@@ -85,48 +83,41 @@ const KIND_LABELS: Record<PlaceKind, string> = { person: 'Persona', door: 'Puert
       overscroll-behavior: contain;
     }
     .places__item {
-      display: flex;
-      align-items: baseline;
-      gap: 10px;
+      display: grid;
+      grid-template-columns: 7em minmax(0, 1fr) auto;
+      align-items: center;
+      gap: calc(4 * var(--pixel-px));
       width: 100%;
-      min-height: var(--ds-target-min);
-      padding: 8px 12px;
-      border: 1px solid var(--ds-border);
-      border-radius: var(--ds-radius-md);
-      background: var(--ds-surface-2);
-      color: var(--ds-text-1);
-      font: inherit;
+      min-height: 48px;
+      padding: 0 calc(5 * var(--pixel-px)) calc(2 * var(--pixel-px)) calc(4 * var(--pixel-px));
       text-align: left;
-      cursor: pointer;
     }
-    @media (hover: hover) and (pointer: fine) {
-      .places__item:hover { border-color: var(--ds-primary); }
-    }
-    .places__item:active { transform: translateY(1px); }
     .places__kind {
-      flex-shrink: 0;
-      min-width: 64px;
-      color: var(--ds-text-2);
-      font-size: var(--ds-type-caption-size);
-      font-weight: 800;
-      letter-spacing: .04em;
-      text-transform: uppercase;
-    }
-    .places__name { min-width: 0; overflow-wrap: anywhere; font-weight: 700; }
-    /* Aviso junto al nombre (persona a atender): texto, no solo color, para quien no distingue los acentos. */
-    .places__note {
-      flex-shrink: 0;
-      margin-left: auto;
-      padding: 2px 8px;
-      border: 1px solid var(--ds-border-strong);
-      border-radius: var(--ds-radius-md);
-      color: var(--ds-text-1);
-      font-size: var(--ds-type-caption-size);
+      font-family: var(--pixel-f-nombre);
       font-weight: 700;
+      font-size: var(--pixel-letra-chica);
+      letter-spacing: .06em;
+      text-transform: uppercase;
+      color: var(--pixel-tinta-suave);
     }
-    .places__foot { display: flex; align-items: center; justify-content: space-between; gap: 10px; flex-wrap: wrap; }
-    @media (prefers-reduced-motion: reduce) {
-      .places__item:active { transform: none; }
+    .places__name { min-width: 0; overflow-wrap: anywhere; font-weight: 600; }
+    /* Aviso junto al nombre (persona a atender o lugar cerrado): texto, no solo color. */
+    .places__note { font-weight: 400; font-size: var(--pixel-letra-media); color: var(--pixel-tinta-suave); }
+    .places__foot { display: flex; align-items: center; justify-content: space-between; gap: calc(4 * var(--pixel-px)); flex-wrap: wrap; }
+    @media (max-width: 560px) {
+      .places { padding: calc(5 * var(--pixel-px)) calc(5 * var(--pixel-px)) calc(6 * var(--pixel-px)); }
+      .places__item { grid-template-columns: 5.6em minmax(0, 1fr); }
+      .places__note { grid-column: 2; }
+    }
+    /* Poco alto (V6): la lista no se desplaza; las fichas van en dos columnas y, con ratón, más bajas (piso de 24 px;
+       con dedo siguen en 48). */
+    @media (max-height: 760px) and (min-width: 561px) {
+      .places__list { grid-template-columns: repeat(2, minmax(0, 1fr)); align-content: start; }
+      .places__item { grid-template-columns: 5.6em minmax(0, 1fr); }
+      .places__note { grid-column: 2; }
+    }
+    @media (max-height: 560px) and (pointer: fine) {
+      .places__item { min-height: 36px; }
     }
   `],
 })
@@ -148,7 +139,7 @@ export class WorldPlacesListComponent {
   constructor() {
     // El foco entra a la lista: el primer lugar (o «Cerrar» si no hay ninguno). El CDK ya atrapa el foco dentro.
     afterNextRender(() => {
-      const first = this.host.nativeElement.querySelector<HTMLElement>('.places__item, .places__foot button.ui-button');
+      const first = this.host.nativeElement.querySelector<HTMLElement>('.places__item, .places__close');
       first?.focus();
     }, { injector: inject(Injector) });
   }

@@ -14,7 +14,7 @@ describe('draft-copy: textos en borrador pendientes de Psicología', () => {
     const entries = draftCopyList();
     expect(entries.length).toBeGreaterThan(0);
     for (const entry of entries) {
-      expect(entry.decision, entry.key).toMatch(/^(VD|RN|ETH|F6|F7|F10|P6)-\d+$/);
+      expect(entry.decision, entry.key).toMatch(/^(VD|RN|ETH|F6|F7|F10|P6|DSL|R1)-\d+$/);
       expect(entry.owner, entry.key).toBe('Psicología');
       expect(entry.where.trim(), entry.key).not.toBe('');
       expect(entry.text.trim(), entry.key).not.toBe('');
@@ -34,7 +34,6 @@ describe('draft-copy: textos en borrador pendientes de Psicología', () => {
     expect(DRAFT_COPY.consentSaving).toMatchObject({ text: 'Registrando tu consentimiento…', decision: 'ETH-01', review: 'conocimiento' });
     expect(DRAFT_COPY.journalSaveReason).toMatchObject({ text: 'Escribe tu reflexión para guardar', decision: 'F6-5', review: 'conocimiento' });
     expect(DRAFT_COPY.shortcutsSettingLabel).toMatchObject({ text: 'Atajos de una tecla', decision: 'VD-18', review: 'conocimiento' });
-    expect(DRAFT_COPY.keysHintArrows).toMatchObject({ text: 'Flechas mover · Enter interactuar · Esc salida segura', decision: 'VD-18', review: 'conocimiento' });
     expect(DRAFT_COPY.placesButtonLabel).toMatchObject({ text: 'Ir a… personas y puertas de la sala', decision: 'VD-19', review: 'conocimiento' });
   });
 
@@ -42,7 +41,7 @@ describe('draft-copy: textos en borrador pendientes de Psicología', () => {
     const list = draftCopyList();
     for (const entry of list) expect(['validar', 'conocimiento'], entry.key).toContain(entry.review);
     expect(list.filter(entry => entry.review === 'conocimiento').map(entry => entry.key).sort()).toEqual(
-      ['briefPending', 'consentSaving', 'hintNoCostNote', 'journalSaveReason', 'keysHintArrows', 'placesButtonLabel', 'shortcutsSettingLabel'],
+      ['briefPending', 'commentBubbleLabel', 'consentSaving', 'hintNoCostNote', 'journalSaveReason', 'placesButtonLabel', 'reactionSkipHint', 'rehearsalActivation', 'rehearsalActivationCalm', 'rehearsalActivationCrisis', 'rehearsalActivationTense', 'rehearsalBackToEditor', 'rehearsalBackToScript', 'rehearsalBanner', 'rehearsalBond', 'rehearsalBondGuarded', 'rehearsalBondOpen', 'rehearsalBondWithdrawn', 'rehearsalBroken', 'rehearsalCommentDue', 'rehearsalComments', 'rehearsalExplored', 'rehearsalGoTo', 'rehearsalGone', 'rehearsalHeldByCondition', 'rehearsalMilestones', 'rehearsalPanelTitle', 'rehearsalPersona', 'rehearsalReload', 'rehearsalRestart', 'rehearsalScene', 'rehearsalTools', 'rehearsalWarnings', 'rehearsalWhyHidden', 'shortcutsSettingLabel', 'unknownPerson', 'unknownThing'],
     );
     // Los diez de F6, los ocho de F7-4 (tres de vocabulario VD-24, el rótulo de la valoración formativa y los cuatro
     // nombres de nivel: las claves las fijó ED-2, la redacción visible la elige Psicología) y la consecuencia del
@@ -50,8 +49,11 @@ describe('draft-copy: textos en borrador pendientes de Psicología', () => {
     // aviso de contenido cambió de versión (S3-2b, ETH-01) y los del resultado con retroalimentación por decisión
     // (F10-4: «Tus decisiones», sus estados, las etiquetas y el marcador): son texto que ve la persona y se validan, no
     // solo se conocen; y los del cierre por hitos y competencias (VD-23: clases en palabras, hitos, competencias,
-    // autoevaluación breve y últimos cierres del panel) y la nota «persona a atender» de la persona clave (P6-4).
-    expect(list.filter(entry => entry.review === 'validar')).toHaveLength(57);
+    // autoevaluación breve y últimos cierres del panel) y la nota «persona a atender» de la persona clave (P6-4); y los siete
+    // de la ficha del objetivo (DSL-2: rótulo, respaldo, «En esta sala», las tres marcas y «Pedir una pista») y los cuatro de DSL-3 (los dos avisos
+    // de exploración y los dos textos de la ayuda) el chip del aviso sensible (DSL-4) y los cinco de la tarjeta «Antes de comenzar» (DSL-5) y los cuatro de «Respuestas que no llegaste a ver» (DSL-6) y «Por ahora no hay nada que decidir» (DSL-7) y el
+    // respaldo de la puerta bloqueada cuando el servidor no dice qué falta (DSL-8); del ensayo y su panel de autora, los que no están en el brief y los cuatro de error y aviso (DSL-10 y DSL-11: 11 + 4 = 15) y los cinco avisos de robustez del cliente (R1) y los cinco de la pausa local y el reenvío al volver la red (V3) y el aviso de la segunda oportunidad (V4). Los del brief (banner, ensayo perdido, reiniciar, volver al editor y el panel) solo se conocen.
+    expect(list.filter(entry => entry.review === 'validar')).toHaveLength(107);
   });
 
   // req: ETH-01, SIEP-RF-05 (S3-2b)
@@ -120,11 +122,10 @@ describe('draft-copy: textos en borrador pendientes de Psicología', () => {
     expect(hud).not.toContain('<span>Atajos de una tecla</span>');
   });
 
-  it('la pista de teclas con los atajos apagados es la del registro (la plantilla la repite con <kbd>)', () => {
+  it('la barra en reposo ya no repite las teclas: viven en la sección «Teclas» de la ayuda', () => {
     const template = readFileSync(join(__dirname, 'simulation-play.component.ts'), 'utf-8');
-    const hint = /<p class="context-bar__hint" aria-hidden="true">(Flechas mover[^<]*(?:<kbd>[^<]*<\/kbd>[^<]*)*)<\/p>/.exec(template);
-    expect(hint, 'la pista «Flechas mover…» está en la plantilla').not.toBeNull();
-    expect(hint![1].replace(/<\/?kbd>/g, '')).toBe(DRAFT_COPY.keysHintArrows.text);
+    expect(template).not.toContain('<p class="context-bar__hint"');
+    expect(template).not.toContain('Flechas mover');
   });
 
   it('las claves del registro son únicas y la lista las recorre todas', () => {

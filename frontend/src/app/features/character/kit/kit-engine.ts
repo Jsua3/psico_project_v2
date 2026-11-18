@@ -13,14 +13,18 @@
  *   - La LUZ se calcula después de componer (y después de reflejar), siempre
  *     desde arriba-izquierda en pantalla. Por eso la vista derecha puede salir
  *     del espejo de la izquierda sin heredar una luz al revés.
+ *   - Hay OCHO vistas y cinco se dibujan: frente, tres cuartos de frente,
+ *     perfil, tres cuartos de espalda y espalda. Las tres del lado derecho son
+ *     el espejo de su izquierda (`MIRROR_OF`).
  *   - Los DETALLES (ojos, mechones, cremallera) se pintan con tono explícito y
  *     el CONTORNO de 1 px se añade al final por fuera de la silueta.
  */
 
 // ── Contrato de hojas ─────────────────────────────────────────────────────────
 
-export type ViewId = 'down' | 'left' | 'right' | 'up';
-export type ViewKind = 'front' | 'back' | 'side';
+export type ViewId = 'down' | 'down-left' | 'left' | 'up-left' | 'up' | 'up-right' | 'right' | 'down-right';
+/** `front34` y `back34`: tres cuartos de frente y de espalda (las diagonales). */
+export type ViewKind = 'front' | 'back' | 'side' | 'front34' | 'back34';
 export type SheetId = 'idle' | 'walk';
 export type PieceKind = 'hair' | 'face' | 'top' | 'layer' | 'bottom' | 'shoes' | 'accessory';
 export type PortraitState = 'neutral' | 'preocupada' | 'triste' | 'alegre' | 'cautelosa' | 'en-crisis';
@@ -33,7 +37,12 @@ export const SHEETS: Readonly<Record<SheetId, { readonly frames: number; readonl
   walk: Object.freeze({ frames: 6, fps: 10 }),
 });
 export const SHEET_IDS: readonly SheetId[] = Object.freeze(['idle', 'walk']);
-export const VIEW_ROWS: readonly ViewId[] = Object.freeze(['down', 'left', 'right', 'up']);
+/** Filas de cada hoja, en orden de giro: abajo, abajo-izquierda, izquierda, arriba-izquierda, arriba y sus tres derechas. */
+export const VIEW_ROWS: readonly ViewId[] = Object.freeze(['down', 'down-left', 'left', 'up-left', 'up', 'up-right', 'right', 'down-right']);
+/** Vistas que se dibujan; el resto sale de `MIRROR_OF`. */
+export const AUTHORED_VIEWS: readonly ViewId[] = Object.freeze(['down', 'down-left', 'left', 'up-left', 'up']);
+/** Vista derecha → la izquierda de la que es espejo (con la luz recalculada después de reflejar). */
+export const MIRROR_OF: Readonly<Partial<Record<ViewId, ViewId>>> = Object.freeze({ right: 'left', 'down-right': 'down-left', 'up-right': 'up-left' });
 /** Seis estados: los cuatro de 2026-10 más cautelosa (vínculo GUARDED) y en-crisis (activación CRISIS). */
 export const PORTRAIT_STATES: readonly PortraitState[] = Object.freeze(['neutral', 'preocupada', 'triste', 'alegre', 'cautelosa', 'en-crisis']);
 export const OUTLINE = '#15131d';
@@ -234,6 +243,8 @@ export interface LightRules {
   shadeWidth?: (part: string, mat: string | null) => number;
   castDepth?: (part: string, mat: string | null) => number;
   highlight?: (part: string, mat: string | null) => boolean;
+  /** Pasada final sobre los tonos (el volumen del retrato). */
+  volume?: (frame: Frame, tones: Int8Array, materials: Record<string, Ramp>) => void;
 }
 
 // ── Grillas de texto y RLE ────────────────────────────────────────────────────
@@ -347,19 +358,31 @@ export function mirrorFrame(frame: Frame, pivotX: number): Frame {
 
 // ── Mapas de etiquetas del maniquí ────────────────────────────────────────────
 
-/** Profundidad por etiqueta (sombras proyectadas). Las vistas de espalda usan `front`. */
-export const LABEL_Z: Readonly<Record<'front' | 'side', Readonly<Record<string, number>>>> = Object.freeze({
+/**
+ * Profundidad por etiqueta (sombras proyectadas). Las vistas de espalda usan
+ * `front`; los tres cuartos, `quarter`: como en el perfil, minúscula = miembro
+ * cercano (delante del torso) y mayúscula = lejano (detrás).
+ */
+export const LABEL_Z: Readonly<Record<'front' | 'side' | 'quarter', Readonly<Record<string, number>>>> = Object.freeze({
   // La pelvis comparte profundidad con los muslos: la unión no es un borde.
   front: Object.freeze({ H: 5, e: 5, E: 5, N: 2.5, T: 3, P: 1, a: 4, b: 4, c: 4.2, A: 4, B: 4, C: 4.2, l: 1, m: 1, o: 0.9, L: 1, M: 1, O: 0.9 }),
   // Perfil: todo lo lejano queda detrás de lo cercano (brazo lejano el más al fondo).
   side: Object.freeze({ H: 5, e: 5.1, N: 2.5, T: 3, P: 1, a: 4, b: 4, c: 4.2, A: 0.5, B: 0.5, C: 0.55, l: 1, m: 1, o: 0.9, L: 0.7, M: 0.7, O: 0.65 }),
+  // Tres cuartos: el brazo cercano cuelga delante del torso; el lejano asoma por detrás.
+  quarter: Object.freeze({ H: 5, e: 5.1, N: 2.5, T: 3, P: 1, a: 4, b: 4, c: 4.2, A: 0.5, B: 0.5, C: 0.55, l: 1, m: 1, o: 0.9, L: 0.7, M: 0.7, O: 0.65 }),
 });
 
-/** Miembros lejanos en perfil: un tono más oscuro. */
+/** Miembros lejanos (perfil y tres cuartos): un tono más oscuro. */
 export const FAR_LABELS: ReadonlySet<string> = new Set(['A', 'B', 'C', 'L', 'M', 'O']);
 
+/** ¿La vista distingue miembro cercano y lejano? Perfil y tres cuartos sí; de frente y de espalda son izquierdo y derecho. */
+export function hasFarLimbs(kind: ViewKind): boolean {
+  return kind === 'side' || kind === 'front34' || kind === 'back34';
+}
+
 export function labelZ(kind: ViewKind, label: string): number {
-  return LABEL_Z[kind === 'side' ? 'side' : 'front'][label] ?? 0;
+  const map = kind === 'side' ? 'side' : kind === 'front34' || kind === 'back34' ? 'quarter' : 'front';
+  return LABEL_Z[map][label] ?? 0;
 }
 
 export function encodeLabelFrame(frame: Frame): EncodedFrame {
@@ -377,7 +400,7 @@ export function decodeLabelFrame(encoded: EncodedFrame, kind: ViewKind, width: n
     if (ch === '.') continue;
     frame.part[i] = ch;
     frame.z[i] = labelZ(kind, ch);
-    frame.far[i] = kind === 'side' && FAR_LABELS.has(ch) ? 1 : 0;
+    frame.far[i] = hasFarLimbs(kind) && FAR_LABELS.has(ch) ? 1 : 0;
   }
   return frame;
 }
@@ -533,13 +556,160 @@ export const LIGHT_RULES: LightRules = Object.freeze({
   shadeWidth: (part: string) => (part === 'H' || part === 'T' || part === 'P' || part === 'hair' ? 2 : 1),
 });
 
-/** Luz del retrato: formas grandes, bandas de sombra más anchas y sombra del mentón. */
+// ── Volumen del retrato ───────────────────────────────────────────────────────
+
+/** Filas de la cabeza del busto donde empieza la mandíbula y donde cae el mentón (las complexiones comparten cabeza y cuello). */
+const PORTRAIT_JAW_Y = 19;
+const PORTRAIT_CHIN_Y = 24;
+/** En las filas de los ojos, la banda de sombra de la cara no pasa a la izquierda de esta columna. */
+const PORTRAIT_EYE_LIMIT_X = 21;
+/** Columnas del cuello y primera fila de los hombros del busto. */
+const PORTRAIT_NECK = Object.freeze({ left: 13, right: 18, top: 25 });
+/** Luminancia mínima (0-255) del tono profundo para tocar el borde de la silueta sin fundirse con un fondo oscuro. */
+const PORTRAIT_MIN_EDGE_LUMA = 40;
+
+function luma(hex: string): number {
+  const [r, g, b] = hexToRgb(hex);
+  return 0.299 * r + 0.587 * g + 0.114 * b;
+}
+
+/**
+ * Volumen del retrato, sobre los tonos que ya dio la luz. Solo oscurece celdas sin tono fijado ni color literal:
+ * los rasgos y los detalles que dibuja cada pieza mandan siempre.
+ *
+ *   1. Cara: el lado contrario a la luz gana una banda de sombra más ancha y el tono profundo en su contorno.
+ *   2. Orejas: la del lado contrario, en sombra con el lóbulo profundo; la otra baja de tono hacia el lóbulo.
+ *   3. Cuello: la sombra del mentón cae en cuña hacia el lado contrario a la luz.
+ *   4. Hombros: sombra de la cabeza (profunda del lado contrario), sombra bajo el cuello y un pliegue por hombro.
+ *   5. Guarda de silueta: un tono profundo demasiado oscuro no toca el borde (se fundiría con un fondo oscuro).
+ */
+export function portraitVolume(frame: Frame, tones: Int8Array, materials: Record<string, Ramp>): void {
+  const { width, height } = frame;
+  const index = (x: number, y: number): number => (inside(frame, x, y) ? y * width + x : -1);
+  const isAuto = (i: number): boolean => i >= 0 && frame.part[i] !== null && frame.fixedTone[i] < 0 && frame.literal[i] === null;
+  const darken = (x: number, y: number, tone: number, part: string, mat: string | null = null): void => {
+    const i = index(x, y);
+    if (!isAuto(i) || frame.part[i] !== part) return;
+    if (mat !== null && frame.mat[i] !== mat) return;
+    tones[i] = Math.max(tones[i], tone);
+  };
+  /** Primera y última columna de la fila que cumplen la condición. */
+  const span = (y: number, test: (i: number) => boolean): [number, number] | null => {
+    let lo = -1;
+    let hi = -1;
+    for (let x = 0; x < width; x++) {
+      if (!test(y * width + x)) continue;
+      if (lo < 0) lo = x;
+      hi = x;
+    }
+    return lo < 0 ? null : [lo, hi];
+  };
+  const rowsOf = (part: string): number[] => {
+    const rows: number[] = [];
+    for (let y = 0; y < height; y++) if (span(y, i => frame.part[i] === part)) rows.push(y);
+    return rows;
+  };
+
+  // 1. Cara.
+  for (let y = 0; y < height; y++) {
+    const head = span(y, i => frame.part[i] === 'H');
+    if (!head) continue;
+    const xr = head[1];
+    // Un ojo pegado al contorno (cuando el pelo tapa la mejilla) no recibe un píxel profundo al lado.
+    const besideEye = y < PORTRAIT_JAW_Y && !isAuto(index(xr - 1, y));
+    darken(xr, y, besideEye ? TONE.SHADE : TONE.DEEP, 'H', 'skin');
+    if (y === PORTRAIT_CHIN_Y) darken(xr - 1, y, TONE.DEEP, 'H', 'skin');
+    darken(xr - 1, y, TONE.SHADE, 'H', 'skin');
+    if (y < PORTRAIT_JAW_Y) {
+      darken(xr - 2, y, TONE.SHADE, 'H', 'skin');
+      if (xr - 3 >= PORTRAIT_EYE_LIMIT_X) darken(xr - 3, y, TONE.SHADE, 'H', 'skin');
+    } else if (isAuto(index(xr - 3, y))) {
+      // En la mandíbula la banda no se pega a la boca.
+      darken(xr - 2, y, TONE.SHADE, 'H', 'skin');
+    }
+  }
+
+  // 2. Orejas.
+  const farEar = rowsOf('E');
+  for (const y of farEar) {
+    const ear = span(y, i => frame.part[i] === 'E') as [number, number];
+    for (let x = ear[0]; x <= ear[1]; x++) darken(x, y, y === farEar[0] ? TONE.SHADE : TONE.DEEP, 'E', 'skin');
+  }
+  const nearEar = rowsOf('e');
+  for (const y of nearEar) {
+    const ear = span(y, i => frame.part[i] === 'e') as [number, number];
+    for (let x = ear[0]; x <= ear[1]; x++) {
+      const i = index(x, y);
+      if (!isAuto(i) || frame.part[i] !== 'e' || y === nearEar[0]) continue;
+      tones[i] = y === nearEar[nearEar.length - 1] ? TONE.SHADE : TONE.BASE;
+    }
+  }
+
+  // 3. Cuello: la fila bajo el mentón ya viene profunda de la sombra proyectada.
+  const neckRows = rowsOf('N');
+  for (const [k, y] of neckRows.entries()) {
+    const neck = span(y, i => frame.part[i] === 'N') as [number, number];
+    const nr = neck[1];
+    if (k === 1) {
+      darken(nr, y, TONE.DEEP, 'N', 'skin');
+      darken(nr - 1, y, TONE.DEEP, 'N', 'skin');
+      darken(nr - 2, y, TONE.SHADE, 'N', 'skin');
+    } else if (k === 2) {
+      darken(nr, y, TONE.SHADE, 'N', 'skin');
+      darken(nr - 1, y, TONE.SHADE, 'N', 'skin');
+    }
+  }
+
+  // 4. Hombros.
+  const { left, right, top } = PORTRAIT_NECK;
+  for (const [dx, dy] of [[1, 0], [2, 0], [3, 0], [1, 1], [2, 1]]) darken(left - dx, top + dy, TONE.SHADE, 'T');
+  for (const [dx, dy] of [[1, 0], [2, 0], [3, 0], [1, 1], [2, 1], [1, 2]]) darken(right + dx, top + dy, TONE.DEEP, 'T');
+  for (const [dx, dy] of [[3, 1], [4, 1], [2, 2], [3, 2], [1, 3], [2, 3]]) darken(right + dx, top + dy, TONE.SHADE, 'T');
+  // Bajo el cuello: la prenda queda en sombra, más del lado contrario a la luz.
+  for (let y = top; y < height; y++) {
+    const under: number[] = [];
+    for (let x = 0; x < width; x++) {
+      const i = index(x, y);
+      const above = index(x, y - 1);
+      if (isAuto(i) && above >= 0 && frame.part[i] === 'T' && frame.part[above] === 'N') under.push(x);
+    }
+    under.forEach((x, k) => {
+      if (k === 0 && under.length > 1) return;
+      darken(x, y, k === under.length - 1 ? TONE.DEEP : TONE.SHADE, 'T');
+    });
+  }
+  // Un pliegue en la costura de cada hombro: en sombra del lado de la luz, profundo del otro.
+  for (let dy = 2; dy <= 4; dy++) {
+    const shoulders = span(top + dy, i => frame.part[i] === 'T');
+    if (!shoulders) continue;
+    if (dy <= 3) darken(shoulders[0] + 2, top + dy, TONE.SHADE, 'T');
+    darken(shoulders[1] - 2, top + dy, TONE.DEEP, 'T');
+  }
+
+  // 5. Guarda de silueta.
+  for (let y = 0; y < height; y++) {
+    for (let x = 0; x < width; x++) {
+      const i = y * width + x;
+      if (frame.part[i] === null || frame.literal[i] !== null || tones[i] !== TONE.DEEP) continue;
+      const touchesEdge = [[1, 0], [-1, 0], [0, 1], [0, -1]].some(([dx, dy]) => {
+        const j = index(x + dx, y + dy);
+        return j < 0 || frame.part[j] === null;
+      });
+      if (!touchesEdge) continue;
+      const ramp = materials[frame.mat[i] ?? ''];
+      if (ramp && luma(ramp[TONE.DEEP]) < PORTRAIT_MIN_EDGE_LUMA) tones[i] = TONE.SHADE;
+    }
+  }
+}
+
+/** Luz del retrato: formas grandes, bandas de sombra más anchas, sombra del mentón y volumen. */
 const PORTRAIT_SHADE: Readonly<Record<string, number>> = Object.freeze({ H: 2, hair: 2, T: 2, N: 1 });
 const PORTRAIT_CAST: Readonly<Record<string, number>> = Object.freeze({ N: 1, H: 1, T: 1 });
 export const PORTRAIT_LIGHT_RULES: LightRules = Object.freeze({
   group: (part: string) => part,
   shadeWidth: (part: string) => PORTRAIT_SHADE[part] ?? 1,
   castDepth: (part: string) => PORTRAIT_CAST[part] ?? 1,
+  volume: portraitVolume,
 });
 
 /** Superposición lista para aplicar: filas decodificadas y, si viene de un espejo, su eje. */
@@ -572,11 +742,12 @@ function resolveOverlay(o: Overlay, mirrored: boolean, pivotX: number): Resolved
   return { anchor: o.anchor, at: o.at, mode: o.mode, parts: o.parts, legend: o.legend, rows: gridRows(o.grid), mirrored, pivotX };
 }
 
-/** Superposiciones de una pieza para una vista; `right` sin dibujo propio = espejo de `left`. */
+/** Superposiciones de una pieza para una vista; una vista derecha sin dibujo propio = espejo de su izquierda (`MIRROR_OF`). */
 export function overlaysFor(piece: Piece, view: ViewId, ctx: OverlayContext): ResolvedOverlay[] {
   const own = piece.views[view];
-  const mirrored = !own && view === 'right';
-  const list = own ?? (mirrored ? piece.views.left : undefined) ?? [];
+  const source = own ? undefined : MIRROR_OF[view];
+  const mirrored = source !== undefined;
+  const list = own ?? (source ? piece.views[source] : undefined) ?? [];
   return list
     .filter(o => overlayApplies(o, ctx.complexion, ctx.sheet, ctx.frame))
     .map(o => resolveOverlay(o, mirrored, ctx.pivotX));
@@ -723,6 +894,7 @@ export function dressFrame(labelFrame: Frame, pieces: Piece[], overlaysOf: (piec
 /** Cuadro vestido → RGBA con luz, rampas, literales y contorno. */
 export function paintFrame(dressed: Frame, materials: Record<string, Ramp>, literals: Record<string, string>, rules: LightRules = LIGHT_RULES): Uint8Array {
   const tones = computeTones(dressed, rules);
+  rules.volume?.(dressed, tones, materials);
   const resolved = cloneFrame(dressed);
   for (let i = 0; i < resolved.literal.length; i++) {
     const key = resolved.literal[i];
@@ -833,8 +1005,8 @@ export function composePortrait(bundle: KitBundle, recipe: Recipe, state: Portra
 }
 
 /**
- * Hojas `idle` (192×288) y `walk` (288×288), filas abajo/izquierda/derecha/arriba,
- * y los retratos de `recipe.portraits` (por defecto, solo el neutral).
+ * Hojas `idle` (192×576) y `walk` (288×576), una fila por vista en el orden de
+ * `VIEW_ROWS`, y los retratos de `recipe.portraits` (por defecto, solo el neutral).
  */
 export function composeCharacter(bundle: KitBundle, recipe: Recipe, options: { keepDressed?: boolean } = {}): ComposedCharacter {
   if (!bundle.complexions[recipe.complexion]) throw new Error(`${recipeLabel(recipe)}: complexión desconocida ${recipe.complexion}`);
@@ -844,7 +1016,8 @@ export function composeCharacter(bundle: KitBundle, recipe: Recipe, options: { k
     if (!materials[slot]) throw new Error(`${recipeLabel(recipe)}: falta el color de la ranura «${slot}» (la usa ${owner})`);
   }
   const literals = { ...bundle.literals, ...(recipe.literals ?? {}) };
-  const keepFor = (): Record<ViewId, Frame[]> | null => (options.keepDressed ? { down: [], left: [], right: [], up: [] } : null);
+  const keepFor = (): Record<ViewId, Frame[]> | null =>
+    (options.keepDressed ? Object.fromEntries(VIEW_ROWS.map(view => [view, [] as Frame[]])) as Record<ViewId, Frame[]> : null);
   const keepIdle = keepFor();
   const keepWalk = keepFor();
   const result: ComposedCharacter = {

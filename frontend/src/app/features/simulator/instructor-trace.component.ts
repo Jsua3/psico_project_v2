@@ -56,6 +56,9 @@ const TRACE_COPY = {
   levelOrComment: 'Elige un nivel o escribe una retroalimentación para guardar.',
   noTeacherLevel: 'Sin criterio equivalente',
   systemFolded: 'La valoración del sistema se mostrará cuando registres tu propia valoración.',
+  // V5 (borrador, a validar con Psicología): el caso no declara competencias en sus respuestas.
+  notDeclared: 'Este caso todavía no declara qué competencia evidencia cada respuesta; por eso el resultado no muestra niveles.',
+  openEditor: 'Abrir el caso en el editor',
   classPanels: {
     RECOMMENDED: {
       title: 'Decisiones recomendadas',
@@ -300,7 +303,7 @@ export class InstructorTraceComponent implements OnInit {
       return {
         key,
         title: 'Todas las decisiones del intento',
-        intro: 'Resumen completo de las elecciones registradas y su clase de respuesta.',
+        intro: 'Resumen completo de las decisiones registradas y su clase de respuesta.',
         ...empty,
         decisions: item.events.filter(event => this.isDecisionEvent(event)),
         emptyTitle: 'Sin decisiones registradas',
@@ -492,6 +495,7 @@ export class InstructorTraceComponent implements OnInit {
     if (!scores.length && !this.clean(this.rubricComment, '')) {
       this.rubricMessage.set(this.copy.levelOrComment);
       this.rubricMessageIsError.set(true);
+      this.announcer.announce(this.copy.levelOrComment, 'assertive');
       return;
     }
 
@@ -512,9 +516,12 @@ export class InstructorTraceComponent implements OnInit {
         this.refreshTrace(trace.attemptId);
       },
       error: () => {
-        this.rubricMessage.set('No fue posible guardar la evaluación. Intenta nuevamente o verifica tus permisos.');
+        const fallo = 'No fue posible guardar la evaluación. Intenta nuevamente o verifica tus permisos.';
+        this.rubricMessage.set(fallo);
         this.rubricMessageIsError.set(true);
         this.savingRubric.set(false);
+        // Es el único rastro del fallo (no hay aviso emergente): se anuncia como los demás errores de la pantalla (F6-12).
+        this.announcer.announce(fallo, 'assertive');
       }
     });
   }

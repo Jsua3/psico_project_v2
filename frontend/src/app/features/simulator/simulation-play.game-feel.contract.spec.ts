@@ -23,9 +23,9 @@ describe('simulation-play: game feel del bloque B', () => {
     expect(source).toMatch(/\.scene-fade \{[^}]*transition: opacity 320ms ease;/);
   });
 
-  it('la consecuencia se abre como antes, a los 400 ms, y lo que se lee sale de la consecuencia, no del feedback', () => {
-    expect(source).toContain('if (consequence) window.setTimeout(() => this.dialogue.set(consequence), SUPERVISION_DELAY_MS);');
-    expect(source).toContain('const SUPERVISION_DELAY_MS = 400;');
+  it('la consecuencia se abre al terminar la reacción (sin la espera de 400 ms) y lo que se lee sale de la consecuencia, no del feedback', () => {
+    expect(source).toContain('if (consequence) this.dialogue.set(consequence);');
+    expect(source).not.toContain('SUPERVISION_DELAY_MS');
     expect(source).not.toContain('updated.feedback');
   });
 

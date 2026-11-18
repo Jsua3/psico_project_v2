@@ -19,7 +19,8 @@ from apps.simulation.models import (
     SceneMap,
     SimulationNode,
 )
-from apps.simulation.services import world_validation
+from apps.simulation.casedef import siep_check
+from apps.simulation.services import estructura_salas, world_validation
 from shared.exceptions import ApiError
 from shared.jsonutils import (
     INT4_MAX,
@@ -125,6 +126,7 @@ def save_world(case_version_id, node_id, request):
     _validar_enteros_del_mundo(request)
     _validar_claves_del_mundo(request)
     _validar_fondo_de_sala(request.get("map"))
+    _validar_estructura(request.get("map"))
 
     all_maps = list(SceneMap.objects.filter(case_version_id=case_version_id).order_by("id"))
     if node_id is not None:
@@ -155,6 +157,12 @@ def save_world(case_version_id, node_id, request):
     zones = request.get("collisionZones")
     if zones is not None:
         _save_collision_zones(scene_map, zones)
+
+    # x-siep 2.2 (§3.4): en una sala por piezas el ancho, las paredes y las puertas salen de la estructura. Se recalcula la
+    # versión entera aunque la sala guardada sea de imagen fija: las puertas por piezas que llegan a ella toman su aparición
+    # (revisión de Codex, hallazgo 3), y una sala que deja de ser por piezas cambia la llegada de quien entra.
+    if SceneMap.objects.filter(case_version_id=scene_map.case_version_id, structure__isnull=False).exists():
+        estructura_salas.recalcular_salas(scene_map.case_version)
 
     # E2-6: cada guardado avanza la revisión (en Spring @Version no avanzaba y el 409 era inerte).
     bump_revision(case_version_id)
@@ -331,7 +339,22 @@ def _apply_map_definition(scene_map, map_def):
         scene_map.theme = _texto(SceneMap, "theme", map_def.get("theme"), "map.theme")
     if map_def.get("ambient") is not None:
         scene_map.ambient_json = _write_map(map_def.get("ambient"))
+    if "structure" in map_def:  # x-siep 2.2: null la vuelve sala de imagen fija; su forma ya pasó _validar_estructura
+        scene_map.structure = map_def["structure"]
     scene_map.save()
+
+
+def _validar_estructura(map_def):
+    """La ``structure`` que manda el editor tiene la forma del documento 2.2 (o es ``null``); si no, 400."""
+    if not isinstance(map_def, dict) or map_def.get("structure") is None:
+        return
+    problemas = siep_check.structure_errors(map_def["structure"])
+    if problemas:
+        # BORRADOR: texto nuevo del servidor, pendiente de la aprobación de Psicología (VD-23).
+        raise ApiError(
+            "VALIDATION_ERROR", f"La estructura de la sala no es válida: {problemas[0]}",
+            status.HTTP_400_BAD_REQUEST, field="map.structure",
+        )
 
 
 def _save_objects(scene_map, objects, case_version_id):
@@ -590,6 +613,7 @@ def _scene_map_definition(m):
         "spawnX": m.spawn_x,
         "spawnY": m.spawn_y,
         "ambient": _read_map(m.ambient_json),
+        "structure": m.structure,
     }
 
 

@@ -87,7 +87,7 @@ export function casoCopiadoDeLugar(
     nodes.push({
       id: nodeId, key: sala.id, title: sala.nombre, narrative: sala.descripcion, supportResources: [], requiredTools: [],
       sensitiveContent: false, safeExitRequired: false, warningMessage: null, terminal: false, startNode: i === 0,
-      positionX: 180 + (i % 4) * 280, positionY: 180 + Math.floor(i / 4) * 200, intensity: 'MEDIUM', decisionPrompt: '',
+      positionX: 180 + (i % 4) * 280, positionY: 180 + Math.floor(i / 4) * 200, intensity: 'MEDIUM', decisionPrompt: '', goal: '',
       displayOrder: i, aiSuggested: false,
     });
     maps.push({
@@ -180,7 +180,7 @@ export function casoSinLugar(): CasoApi {
   const nodo = (id: number, key: string, title: string, extra: Partial<NodeEditorState> = {}): NodeEditorState => ({
     id, key, title, narrative: `Narración de ${title}`, supportResources: ['Línea 123'], requiredTools: ['ficha-riesgo'],
     sensitiveContent: true, safeExitRequired: true, warningMessage: null, terminal: false, startNode: false,
-    positionX: 100 * id, positionY: 50, intensity: 'MEDIUM', decisionPrompt: '¿Qué haces?', displayOrder: id, aiSuggested: false,
+    positionX: 100 * id, positionY: 50, intensity: 'MEDIUM', decisionPrompt: '¿Qué haces?', displayOrder: id, aiSuggested: false, goal: '',
     ...extra,
   });
   const nodes = [
@@ -219,17 +219,17 @@ export function casoSinLugar(): CasoApi {
         id: 51, optionKey: 'escuchar', sourceNodeId: 1, sourceKey: 'inicio', targetNodeId: 2, targetKey: 'riesgo',
         text: 'Escucho sin interrumpir.', responseClass: 'RECOMMENDED', prohibitedConduct: false, prohibitionReason: null,
         immediateFeedback: 'Bien.', effects: { persona: { bond: 1, activation: -1 }, milestones: ['valorar_el_riesgo'], competencies: ['ESCUCHA'] },
-        consequenceText: 'Se abre.', theoryBasis: 'Rogers', feedbackText: 'Escuchar da seguridad.', aiSuggested: false,
+        consequenceText: 'Se abre.', theoryBasis: 'Rogers', feedbackText: 'Escuchar da seguridad.', aiSuggested: false, requires: {}, reaction: {},
       },
       {
         id: 52, optionKey: 'apurar', sourceNodeId: 1, sourceKey: 'inicio', targetNodeId: 3, targetKey: 'cierre',
         text: 'Cuéntame rápido.', responseClass: 'CONTRAINDICATED', prohibitedConduct: true, prohibitionReason: 'Apura a la persona.',
-        immediateFeedback: '', effects: {}, consequenceText: '', theoryBasis: '', feedbackText: '', aiSuggested: true,
+        immediateFeedback: '', effects: {}, consequenceText: '', theoryBasis: '', feedbackText: '', aiSuggested: true, requires: {}, reaction: {},
       },
       {
         id: 53, optionKey: 'derivar', sourceNodeId: 2, sourceKey: 'riesgo', targetNodeId: 3, targetKey: 'cierre',
         text: 'Te acompaño a Bienestar.', responseClass: 'ACCEPTABLE', prohibitedConduct: false, prohibitionReason: null,
-        immediateFeedback: 'Es una opción.', effects: {}, consequenceText: '', theoryBasis: '', feedbackText: '', aiSuggested: false,
+        immediateFeedback: 'Es una opción.', effects: {}, consequenceText: '', theoryBasis: '', feedbackText: '', aiSuggested: false, requires: {}, reaction: {},
       },
     ],
     rules: {

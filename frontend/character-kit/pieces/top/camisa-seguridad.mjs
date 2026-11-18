@@ -7,6 +7,7 @@
  */
 
 import { gridFrom } from '../../raster.mjs';
+import { DIAGONAL } from './camisa-seguridad.diagonal.mjs';
 
 const LEGEND = {
   j: { mat: 'top' },
@@ -36,6 +37,7 @@ export default {
   coverage: { T: 'top', a: 'top', A: 'top', b: 'skin', B: 'skin' },
   edges: [{ labels: ['a', 'A'], edge: 'bottom', tone: 3 }],
   views: {
+    ...DIAGONAL,
     down: [
       { anchor: 'T', at: [20, 22], mode: 'cover', legend: LEGEND, grid: '.hh...hh.' },
       {

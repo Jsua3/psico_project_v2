@@ -5,10 +5,9 @@ import {
   DecorationCtx, activeDecisionObjectKeys, decorateDialogueState, otherStageDecisionKeys,
 } from './dialogue-decoration.util';
 import { CopyContext } from './evidence-copy.util';
-import { NODE_EVIDENCE, nodeEvidence } from './evidence-gating.config';
-import { ORIENTATION_COPY } from './orientation.config';
+import { DRAFT_COPY } from './draft-copy';
 
-const STALE = ORIENTATION_COPY.notices.staleConversation;
+const STALE = DRAFT_COPY.noStepNow.text;
 
 function choice(key: string, decisionOptionId: number | null, extra: Partial<DialogueChoiceState> = {}): DialogueChoiceState {
   return { key, text: `Opción ${key}`, decisionOptionId, requiredToolCode: null, effect: {}, ...extra };
@@ -40,10 +39,10 @@ function object(key: string, type: MapObjectState['type'], dlg: DialogueState | 
 }
 
 function ctxWith(partial: Partial<DecorationCtx> = {}): DecorationCtx {
-  const copy: CopyContext = { currentRoom: 'sala-escucha', world: null, nameTools: false, npcs: [] };
+  const copy: CopyContext = { world: null, npcs: [] };
   return {
-    nodeKey: 'hospital-urgencias', nodeOptionIds: [101, 102, 103], evidence: null, world: worldWith(),
-    viewedNpcKeys: new Set(), copy, ...partial,
+    nodeKey: 'hospital-urgencias', nodeOptionIds: [101, 102, 103], world: worldWith(),
+    viewedNpcKeys: new Set(), copy, notice: null, ...partial,
   };
 }
 
@@ -123,43 +122,28 @@ describe('decorateDialogueState: filtro por etapa', () => {
   });
 });
 
-describe('decorateDialogueState: un solo aviso de evidencia', () => {
-  const urgencias = nodeEvidence('hospital-urgencias');
+describe('decorateDialogueState: un solo aviso para las decisiones', () => {
+  const AVISO = 'Puedes conocer más antes de responder.';
 
-  it('lo pone en notice (nunca por opción) con las frases de lo que falta', () => {
-    const out = decorateDialogueState(H1, ctxWith({ evidence: urgencias, copy: { currentRoom: 'sala-escucha', world: null, nameTools: false, npcs: [] } }));
-    expect(out.notice).toBe(
-      'Antes de decidir te falta: hablar con la Enfermera de urgencias (en Urgencias) y usar el material de apoyo de la sala (en Urgencias). '
-      + 'Puedes seguir explorando o decidir ahora; tu decisión quedará registrada con información incompleta.',
-    );
+  it('pone el aviso de la pantalla en notice (nunca por opción) cuando hay decisiones activas', () => {
+    const out = decorateDialogueState(H1, ctxWith({ notice: AVISO }));
+    expect(out.notice).toBe(AVISO);
     expect(out.choices.every(c => c.evidenceWarning === undefined)).toBe(true);
   });
 
-  it('sin faltantes no hay aviso; cuenta lo hablado, lo recogido y lo usado', () => {
-    const ready = worldWith({ inventory: ['PAP'], usedToolKeys: ['PAP@familia-crisis'] });
-    const out = decorateDialogueState(H1, ctxWith({ evidence: urgencias, world: ready, viewedNpcKeys: new Set(['enfermera-urgencias']) }));
+  it('sin aviso no hay notice', () => {
+    const out = decorateDialogueState(H1, ctxWith({ notice: null }));
     expect(out.notice).toBeUndefined();
     expect('notice' in out).toBe(false);
   });
 
   it('solo avisa si hay decisiones activas: no en conversaciones de herramienta ni en las de otra etapa', () => {
-    expect(decorateDialogueState(FAMILIA, ctxWith({ evidence: urgencias })).notice).toBeUndefined();
-    expect(decorateDialogueState(H2, ctxWith({ evidence: urgencias })).notice).toBeUndefined();
+    expect(decorateDialogueState(FAMILIA, ctxWith({ notice: AVISO })).notice).toBeUndefined();
+    expect(decorateDialogueState(H2, ctxWith({ notice: AVISO })).notice).toBeUndefined();
   });
 
-  it('suma lo que exige cada opción (efecto autorado) sin repetir lo del nodo', () => {
-    const d = dialogue('x', [choice('a', 101, { effect: { requiresInspected: ['expediente-caso'], requiresNpcs: ['enfermera-urgencias'] } }), choice('b', 102)]);
-    const out = decorateDialogueState(d, ctxWith({ evidence: urgencias, copy: { currentRoom: 'urgencias', world: null, nameTools: false, npcs: [] } }));
-    expect(out.notice).toContain('hablar con la Enfermera de urgencias, usar el material de apoyo de la sala y revisar el Expediente del caso (en la Recepción).');
-    expect(out.notice!.match(/Enfermera de urgencias/g)).toHaveLength(1);
-  });
-
-  it('con las banderas por defecto el aviso de cada etapa no nombra técnicas ni claves', () => {
-    for (const [nodeKey, def] of Object.entries(NODE_EVIDENCE)) {
-      const out = decorateDialogueState(H1, ctxWith({ nodeKey, evidence: def, nodeOptionIds: null }));
-      expect(out.notice).toBeDefined();
-      expect(out.notice).not.toMatch(/PAP|SPIKES|RISK_METER|EPICEE|Primeros Auxilios|[a-z]+-[a-z]+/);
-    }
+  it('con nodeOptionIds desconocidos (null) las decisiones cuentan como activas', () => {
+    expect(decorateDialogueState(H1, ctxWith({ notice: AVISO, nodeOptionIds: null })).notice).toBe(AVISO);
   });
 
   it('retira el aviso por opción heredado (evidenceWarning)', () => {
@@ -169,7 +153,7 @@ describe('decorateDialogueState: un solo aviso de evidencia', () => {
   });
 });
 
-describe('decorateDialogueState: herramienta ausente, líneas desbloqueadas y pureza', () => {
+describe('decorateDialogueState: herramienta ausente, ausencia de líneas extra y pureza', () => {
   it('toolMissing refleja el inventario y no toca las opciones sin herramienta', () => {
     const none = decorateDialogueState(FAMILIA, ctxWith());
     expect(none.choices[0].toolMissing).toBe(true);
@@ -181,22 +165,21 @@ describe('decorateDialogueState: herramienta ausente, líneas desbloqueadas y pu
     expect(noWorld.choices[0].toolMissing).toBeUndefined();
   });
 
-  it('desbloquea la línea narrativa solo con la evidencia completa y no la repite', () => {
-    const def = nodeEvidence('hospital-urgencias');
-    const ready = worldWith({ inventory: ['PAP'], usedToolKeys: ['PAP@familia-crisis'] });
-    const ctx = ctxWith({ evidence: def, world: ready, viewedNpcKeys: new Set(['enfermera-urgencias']) });
-    const once = decorateDialogueState(H1, ctx);
-    expect(once.lines).toHaveLength(H1.lines.length + 1);
-    expect(once.lines.at(-1)!.emotion).toBe('positive');
-    expect(once.lines.at(-1)!.speakerName).toBe('Abuela de la niña');
-    expect(decorateDialogueState(once, ctx).lines).toHaveLength(once.lines.length);
-    const notYet = decorateDialogueState(H1, ctxWith({ evidence: def }));
-    expect(notYet.lines).toHaveLength(H1.lines.length);
+  it('no agrega líneas por evidencia ni conoce NODE_EVIDENCE', async () => {
+    expect(decorateDialogueState(H1, ctxWith({ notice: null })).lines).toEqual(H1.lines);
+    const config = await import('./evidence-gating.config');
+    expect(Object.keys(config)).not.toContain('NODE_EVIDENCE');
+  });
+
+  it('una conversación sin decisiones ofrecidas dice que por ahora no hay nada que decidir', () => {
+    const d = decorateDialogueState(H1, ctxWith({ nodeOptionIds: [999], notice: null }));
+    expect(d.stale).toBe(true);
+    expect(d.lines.at(-1)!.text).toBe('Por ahora no hay nada que decidir en esta conversación.');
   });
 
   it('no muta la conversación de entrada y es idempotente', () => {
     const snapshot = JSON.stringify(H2);
-    const ctx = ctxWith({ evidence: nodeEvidence('hospital-urgencias') });
+    const ctx = ctxWith();
     const once = decorateDialogueState(H2, ctx);
     expect(JSON.stringify(H2)).toBe(snapshot);
     expect(decorateDialogueState(once, ctx)).toEqual(once);

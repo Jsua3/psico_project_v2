@@ -172,7 +172,7 @@ describe('SimulationPlayComponent: supervisión de la última decisión (DLG-05)
       expect(audio['playSfx']).not.toHaveBeenCalledWith('session_complete');
     });
 
-    it('una decisión que no es la última sigue como antes: el intento sigue en curso y la supervisión llega a los 400 ms', () => {
+    it('una decisión que no es la última sigue en curso y la supervisión llega al terminar la reacción, sin espera de 400 ms', () => {
       component.attempt.set(makeAttempt());
       component.world.set(makeWorld());
       sim['chooseDecision'].mockReturnValue(of(decided(makeAttempt({}, 'hospital-accion'))));
@@ -184,8 +184,6 @@ describe('SimulationPlayComponent: supervisión de la última decisión (DLG-05)
       component.executeDecision(101);
       tick(340);
       tick(100);
-      expect(component.dialogue()).toBeNull();
-      tick(400);
 
       expect(component.holdingOutcome()).toBe(false);
       expect(component.dialogue()?.speakerName).toBe('Consecuencia');
@@ -428,7 +426,7 @@ describe('SimulationPlayComponent: lo que se muestra al decidir (RN-08, C2)', ()
     decideMiddle(decided(makeAttempt({}, 'hospital-accion'),
       { consequence: null, retry: { allowed: true, message: 'Decisión con riesgo: revisa las implicaciones.' } }));
 
-    expect(shownText()).toContain('No se avanzó el caso');
+    expect(shownText()).toContain('El caso sigue en el mismo punto');
     expect(shownText()).not.toContain('Decisión con riesgo');
     expect(shownText()).not.toContain(CONSEQUENCE.text);
   });
@@ -478,7 +476,7 @@ describe('simulation-play: contrato de la supervisión retenida', () => {
 
   it('el modo de vista recibe la retención y el resultado solo se pinta cuando no hay retención', () => {
     expect(source).toMatch(/resolveViewMode\(\{[^}]*holdOutcome: this\.holdingOutcome\(\),\s*\}\)/);
-    expect(source).toMatch(/@if \(!holdingOutcome\(\)\) \{\s*<app-attempt-outcome/);
+    expect(source).toMatch(/@if \(!holdingOutcome\(\) && !reactingToLast\(\)\) \{\s*<app-attempt-outcome/);
   });
 
   it('la retención solo vale con el intento COMPLETED y con el diálogo a la vista', () => {
@@ -489,7 +487,7 @@ describe('simulation-play: contrato de la supervisión retenida', () => {
 
   it('«Salida segura» con la supervisión retenida cierra el diálogo antes de mirar si hay algo que pausar', () => {
     expect(source).toMatch(
-      /pauseFromOverlay\(\): void \{[^}]*if \(this\.holdingOutcome\(\)\) \{\s*this\.closeDialogue\(\);\s*return;\s*\}\s*const game = this\.attempt\(\);/,
+      /pauseFromOverlay\(\): void \{[^}]*if \(this\.holdingOutcome\(\)\) \{\s*this\.closeDialogue\(\);\s*return;\s*\}\s*(?:\/\/[^\n]*\n\s*if \(this\.reactingToLast\(\)\) \{[^}]*\}\s*)?const game = this\.attempt\(\);/,
     );
   });
 

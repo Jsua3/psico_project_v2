@@ -2,7 +2,7 @@ import { Observable, firstValueFrom } from 'rxjs';
 
 import type { AuthoringApi } from '../../../core/api/authoring.api';
 import type {
-  BriefUpdateRequest, CaseEditorView, ChecklistUpdateRequest, CharacterUpsertRequest, DecisionOptionUpsertRequest, DialogueUpsertRequest, EndingRule, MapEditorState,
+  BriefUpdateRequest, CaseEditorView, ChecklistUpdateRequest, CharacterUpsertRequest, DecisionOptionUpsertRequest, DialogueUpsertRequest, EndingRule, HintEditorState, HintUpsertRequest, MapEditorState,
   MapUpsertRequest, Milestone, NodeUpsertRequest, RiskLevel, WorldDefinition, WorldDialogueTree, WorldDialoguesSaveRequest, WorldRoomSaveRequest,
 } from '../../../core/models/simulation.model';
 import type { CasoLeido } from '../api/autoria-api.service';
@@ -128,6 +128,23 @@ export class SesionServidor {
 
   aceptarDecision(decisionId: number) {
     return this.escribir((r) => this.api.acceptAiDecision(this.caseVersionId, decisionId, r));
+  }
+
+  crearPista(mapaId: number, cuerpo: HintUpsertRequest) {
+    return this.escribir((r) => this.api.createHint(this.caseVersionId, mapaId, cuerpo, r));
+  }
+
+  actualizarPista(pistaId: number, cuerpo: HintUpsertRequest) {
+    return this.escribir((r) => this.api.updateHint(this.caseVersionId, pistaId, cuerpo, r));
+  }
+
+  borrarPista(pistaId: number) {
+    return this.escribir((r) => this.api.deleteHint(this.caseVersionId, pistaId, r));
+  }
+
+  /** Las pistas que el servidor tiene en un mapa, por su orden. */
+  pistasDeMapa(mapaId: number): HintEditorState[] {
+    return (this.vista.hints ?? []).filter((h) => h.mapId === mapaId).sort((a, b) => a.order - b.order);
   }
 
   crearDialogo(mapaId: number, cuerpo: DialogueUpsertRequest) {

@@ -9,18 +9,20 @@
  */
 import type { Expresion } from '../../../core/models/biblioteca.model';
 import type {
-  CaseEditorView, CharacterEditorState, DecisionEdgeState, EndingRule, NodeEditorState, SceneMapDefinition,
-  WorldDefinition, WorldDialogueTree, WorldObject,
+  CaseEditorView, CharacterEditorState, CommentState, DecisionEdgeState, EndingRule, NodeEditorState, ReactionState,
+  SceneMapDefinition, WorldDefinition, WorldDialogueTree, WorldObject,
 } from '../../../core/models/simulation.model';
+import { GESTOS } from '../../../core/models/simulation.model';
 import type {
-  CasoBorrador, ColocacionCaso, ColocacionPersonajeCaso, EfectosRespuesta, Escena, Final, Hito, Linea, PuertaCaso,
-  Respuesta, SalaCaso,
+  CasoBorrador, Comentario, ColocacionCaso, ColocacionPersonajeCaso, EfectosRespuesta, Escena, Final, Hito, Linea, Pista,
+  PuertaCaso, Reaccion, Respuesta, SalaCaso,
 } from './caso';
 import { competenciasDeRubricas } from './efectos';
 import type { Encuadre, Escenario, Mirando } from './escenario';
 import { EXPRESIONES } from './escenario';
 import { textosDeLaPlantillaGuardada } from './finales';
 import { movimientoDeMetadata } from './movimiento';
+import { MUROS } from './geometria';
 
 /** La clave con la que se guarda el guion de una escena: el diálogo de la sala que no es de ninguna persona. */
 export const PREFIJO_GUION = 'guion-';
@@ -33,6 +35,12 @@ const texto = (valor: unknown): string | null => (typeof valor === 'string' && v
 /** La sala a la que pertenece un mapa: la que dice `ambient.salaId` o, si no dice ninguna, el propio mapa. */
 export function salaIdDeMapa(mapa: Pick<SceneMapDefinition, 'key' | 'ambient'>): string {
   return texto(mapa.ambient?.['salaId']) ?? mapa.key;
+}
+
+/** Relaciona cada nodo con la sala de su mapa, en el orden del editor. */
+export function salaPorClaveDeNodoDe(mapas: CaseEditorView['maps'], mundos: WorldDefinition[]): Map<string, string> {
+  const mundoPorNodo = new Map(mundos.map((m) => [m.nodeId, m]));
+  return new Map(mapas.map((mapa) => [mapa.nodeKey, salaIdDeMapa(mundoPorNodo.get(mapa.nodeId)?.map ?? { key: mapa.key, ambient: {} })]));
 }
 
 function lugarIdDeMapa(mapa: Pick<SceneMapDefinition, 'ambient'>): string | null {
@@ -61,6 +69,32 @@ function refDeCatalogo(clave: string, ids: string[]): string | null {
   return candidatas.sort((a, b) => b.length - a.length)[0] ?? null;
 }
 
+/** Un gesto o una emoción del vocabulario cerrado, o `undefined` (lo que no es del vocabulario no se inventa). */
+const gestoDe = (valor: unknown): Reaccion['gesto'] => GESTOS.find((g) => g === valor);
+const emocionDe = (valor: unknown): Reaccion['emocion'] => EXPRESIONES.find((e) => e === valor);
+
+/** La reacción de una respuesta: solo lo que dice el servidor y entra en el vocabulario; `{}` = sin reacción. */
+export function reaccionDesdeApi(r: ReactionState | undefined): Reaccion {
+  const reaccion: Reaccion = {};
+  if (typeof r?.linea === 'string' && r.linea !== '') reaccion.linea = r.linea;
+  const emocion = emocionDe(r?.emocion);
+  if (emocion) reaccion.emocion = emocion;
+  const gesto = gestoDe(r?.gesto);
+  if (gesto) reaccion.gesto = gesto;
+  if (typeof r?.personaje === 'string' && r.personaje !== '') reaccion.personaje = r.personaje;
+  return reaccion;
+}
+
+export function comentarioDesdeApi(c: CommentState): Comentario {
+  const comentario: Comentario = { personaje: c.personaje, linea: c.linea };
+  if (c.cuando && Object.keys(c.cuando).length > 0) comentario.cuando = structuredClone(c.cuando);
+  const emocion = emocionDe(c.emocion);
+  if (emocion) comentario.emocion = emocion;
+  const gesto = gestoDe(c.gesto);
+  if (gesto) comentario.gesto = gesto;
+  return comentario;
+}
+
 interface Contexto {
   editor: CaseEditorView;
   catalogo: Escenario['catalogo'];
@@ -70,8 +104,16 @@ interface Contexto {
 
 function puertaDe(o: WorldObject, ctx: Contexto): PuertaCaso | null {
   const destino = texto(o.metadata?.['targetNodeKey']);
-  if (o.type !== 'EXIT' || destino === null) return null;
-  return { id: o.key, hacia: ctx.salaPorClaveDeNodo.get(destino) ?? null, x: o.x, y: o.y, etiqueta: o.label };
+  if (o.type !== 'EXIT') return null;
+  const puerta: PuertaCaso = { id: o.key, hacia: destino === null ? null : ctx.salaPorClaveDeNodo.get(destino) ?? null, x: o.x, y: o.y, etiqueta: o.label };
+  const metadata = o.metadata;
+  const muro = MUROS.find((m) => m === metadata['muro']);
+  if (muro) puerta.muro = muro;
+  if (typeof metadata['pos'] === 'number') puerta.pos = metadata['pos'];
+  if (typeof metadata['modelo'] === 'string') puerta.modelo = metadata['modelo'];
+  if (typeof metadata['par'] === 'string') puerta.par = metadata['par'];
+  if (typeof metadata['sentidoUnico'] === 'boolean') puerta.sentidoUnico = metadata['sentidoUnico'];
+  return puerta;
 }
 
 function salaDesdeMundo(mundo: WorldDefinition, ctx: Contexto, lugarId: string | null): SalaCaso {
@@ -104,6 +146,7 @@ function salaDesdeMundo(mundo: WorldDefinition, ctx: Contexto, lugarId: string |
       const esMueble = o.type === 'PROP' && (refMueble !== null || refObjeto === null);
       const colocacion: ColocacionCaso = { ref: (esMueble ? refMueble : refObjeto) ?? o.key, clave: o.key, x: o.x, y: o.y };
       if (o.decisionOptionId != null) colocacion.decisionOptionId = o.decisionOptionId;
+      if (o.toolCode) colocacion.toolCode = o.toolCode;
       if (o.aiSuggested === true) colocacion.marcaIa = true;
       if (esMueble) {
         colocacion.espejo = o.metadata?.['espejo'] === true;
@@ -116,7 +159,8 @@ function salaDesdeMundo(mundo: WorldDefinition, ctx: Contexto, lugarId: string |
   return {
     id: salaId, nombre: map.title, descripcion: nodo?.narrative ?? '', encuadre,
     fondo: texto(map.ambient?.['backgroundImage']) ?? '', entrada: { x: map.spawnX, y: map.spawnY },
-    muebles, objetos, personajes, puertas,
+    muebles, objetos, personajes, puertas, estructura: map.structure == null ? null : structuredClone(map.structure),
+    choques: Object.fromEntries(mundo.collisionZones.filter((z) => z.key.startsWith('choque-')).map((z) => [z.key.slice(7), { x: z.x, y: z.y, ancho: z.width, alto: z.height }])),
     origen: lugarId !== null && texto(map.ambient?.['salaId']) !== null ? { lugarId, salaId } : null,
   };
 }
@@ -145,6 +189,7 @@ function respuestaDesdeApi(d: DecisionEdgeState): Respuesta {
     id: String(d.id), texto: d.text, clase: d.responseClass, razon: d.prohibitionReason ?? '',
     retroalimentacion: d.feedbackText || d.immediateFeedback || '', efectos: efectosDesdeApi(d.effects),
     destinoId: String(d.targetNodeId), marcaIa: d.aiSuggested === true,
+    requiere: structuredClone(d.requires ?? {}), reaccion: reaccionDesdeApi(d.reaction),
   };
 }
 
@@ -158,6 +203,13 @@ function lineasDesdeApi(mundo: WorldDefinition | undefined, personajes: Characte
   }));
 }
 
+/** Las pistas de la sala de una escena (las ayudas de su mapa), por su orden. */
+function pistasDesdeApi(n: NodeEditorState, editor: CaseEditorView): Pista[] {
+  const mapaIds = new Set(editor.maps.filter((m) => m.nodeId === n.id).map((m) => m.id));
+  const delMapa = (editor.hints ?? []).filter((h) => mapaIds.has(h.mapId));
+  return delMapa.sort((a, b) => a.order - b.order).map((h) => ({ id: String(h.id), texto: h.text }));
+}
+
 function escenaDesdeApi(
   n: NodeEditorState, salaId: string | null, mundo: WorldDefinition | undefined, editor: CaseEditorView,
 ): Escena {
@@ -165,6 +217,7 @@ function escenaDesdeApi(
     id: String(n.id), titulo: n.title, narracion: n.narrative ?? '', salaId, esFinal: n.terminal,
     posicion: { x: n.positionX ?? 0, y: n.positionY ?? 0 },
     intensidad: n.intensity, advertencia: n.warningMessage ?? null, recursosApoyo: [...(n.supportResources ?? [])], marcaIa: n.aiSuggested === true,
+    objetivo: n.goal ?? '', pistas: pistasDesdeApi(n, editor), comentarios: (n.comments ?? []).map(comentarioDesdeApi),
     lineas: lineasDesdeApi(mundo, editor.characters),
     respuestas: editor.decisions.filter((d) => d.sourceNodeId === n.id).map(respuestaDesdeApi),
   };
@@ -214,13 +267,8 @@ export function casoDesdeApi(editor: CaseEditorView, mundos: WorldDefinition[], 
   const lugarId = mapas.map(({ mapa, mundo }) => lugarIdDeMapa(definicion(mapa, mundo))).find((id) => id !== null) ?? null;
   const catalogo = lugar && lugar.id === lugarId ? lugar.catalogo : CATALOGO_VACIO;
 
-  const salaPorClaveDeNodo = new Map<string, string>();
-  const salaPorNodo = new Map<number, string>();
-  for (const { mapa, mundo } of mapas) {
-    const salaId = salaIdDeMapa(definicion(mapa, mundo));
-    salaPorClaveDeNodo.set(mapa.nodeKey, salaId);
-    salaPorNodo.set(mapa.nodeId, salaId);
-  }
+  const salaPorClaveDeNodo = salaPorClaveDeNodoDe(editor.maps, mundos);
+  const salaPorNodo = new Map(mapas.map(({ mapa }) => [mapa.nodeId, salaPorClaveDeNodo.get(mapa.nodeKey)!]));
   const ctx: Contexto = {
     editor, catalogo, salaPorClaveDeNodo, personajePorId: new Map(editor.characters.map((c) => [c.id, c])),
   };
@@ -256,6 +304,8 @@ export function casoDesdeApi(editor: CaseEditorView, mundos: WorldDefinition[], 
     ...(textosPlantilla ? { textosPlantilla } : {}),
     competencias: competenciasDeRubricas(editor.rubrics ?? []),
     estado: estadoDe(editor.status),
+    probadoHastaElFinal: editor.rehearsedToEnd === true,
+    herramientas: (editor.tools ?? []).filter((t) => t.active).map((t) => ({ codigo: t.code, nombre: t.label })),
     lista: listaDesdeApi(editor.checklist),
     personajes: editor.characters.map((c) => ({ id: c.key, nombre: c.displayName, rol: c.roleLabel, recipeId: recetaDe(c) })),
     catalogo: structuredClone(catalogo),

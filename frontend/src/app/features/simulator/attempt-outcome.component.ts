@@ -5,7 +5,7 @@ import { rxResource } from '@angular/core/rxjs-interop';
 import { RouterLink } from '@angular/router';
 import { EMPTY } from 'rxjs';
 import { SimulationService } from '../../core/api/simulation.service';
-import { AttemptCompletionReport, AttemptTimelineEntry, DecisionReviewItem, SimulationAttemptState } from '../../core/models/simulation.model';
+import { AttemptCompletionReport, AttemptTimelineEntry, DecisionReviewItem, MissedOption, SimulationAttemptState } from '../../core/models/simulation.model';
 import { UiScopeNotice } from '../../shared/ui/scope-notice/ui-scope-notice';
 import { UiSkeleton } from '../../shared/ui/skeleton/ui-skeleton';
 import { errorKindFromStatus, uiDataState } from '../../shared/ui/state/ui-data-state';
@@ -17,7 +17,7 @@ import { resolveCharacter } from '../character/kit/character-visual.resolver';
 import { KitFigureComponent } from '../character/kit/kit-figure.component';
 import { KitService } from '../character/kit/kit.service';
 import { DRAFT_COPY } from './draft-copy';
-import { levelWord, milestoneMark, responseClassWord } from './outcome-text.util';
+import { levelWord, milestoneMark, missedFactsText, responseClassWord } from './outcome-text.util';
 import { RECONSIDERED_LABEL, reconsideredChip } from './reconsidered.util';
 
 /**
@@ -33,7 +33,9 @@ import { RECONSIDERED_LABEL, reconsideredChip } from './reconsidered.util';
   imports: [A11yModule, NgTemplateOutlet, RouterLink, KitFigureComponent, UiEmptyState, UiErrorState, UiScopeNotice, UiSkeleton],
   template: `
     @if (status() !== 'IN_PROGRESS') {
-      <section class="outcome liquid-glass"
+      <section class="outcome"
+        [class.liquid-glass]="status() !== 'PAUSED'"
+        [class.u-placa]="status() === 'PAUSED'" [class.u-sombra]="status() === 'PAUSED'"
         [class.outcome--safe]="status() === 'SAFE_EXITED' || status() === 'PAUSED'"
         [class.outcome--pause]="status() === 'PAUSED'" role="alertdialog" aria-modal="true"
         aria-labelledby="outcome-title"
@@ -52,10 +54,15 @@ import { RECONSIDERED_LABEL, reconsideredChip } from './reconsidered.util';
         @if (status() === 'PAUSED') {
           <!-- Pausa calmada: lo primero es poder volver; el tablero queda plegado y sin cifras en primer plano. -->
           <p class="oc-pause-copy">{{ pauseMessage }}</p>
+          @if (pauseNote()) { <p class="oc-pause-note" role="status">{{ pauseNote() }}</p> }
           <div class="oc-actions oc-actions--pause">
             <!-- Pausa reanudable real: mismo intento, sin crear uno nuevo. -->
-            <button type="button" class="oc-btn oc-btn--go" cdkFocusInitial (click)="resume.emit()">Reanudar este intento</button>
-            <a class="oc-btn oc-btn--line" routerLink="/portal/simulador">Volver al catálogo</a>
+            <button type="button" class="oc-btn oc-btn--go u-ficha u-ficha--primaria" cdkFocusInitial (click)="resume.emit()">Reanudar este intento</button>
+            @if (mode() === 'rehearsal') {
+              <a class="oc-btn oc-btn--line u-boton" [routerLink]="editorLink()">{{ draft.rehearsalBackToEditor.text }}</a>
+            } @else {
+              <a class="oc-btn oc-btn--line u-boton" routerLink="/portal/simulador">Volver al catálogo</a>
+            }
           </div>
           @if (supportResources().length) {
             <div class="oc-block oc-support">
@@ -67,14 +74,18 @@ import { RECONSIDERED_LABEL, reconsideredChip } from './reconsidered.util';
           }
           @if (report()) {
             <details class="oc-details">
-              <summary>Ver mi seguimiento</summary>
+              <summary class="u-boton">Ver mi seguimiento <i class="u-seguir oc-details__flecha" aria-hidden="true"></i></summary>
               <ng-container [ngTemplateOutlet]="board" />
             </details>
           }
         } @else {
           <ng-container [ngTemplateOutlet]="board" />
           <footer class="oc-actions">
-            @if (status() === 'REPLACED') {
+            @if (mode() === 'rehearsal') {
+              <!-- Ensayo (DSL-10): se repite o se vuelve al editor; nada de catálogo ni de portal de estudiantes. -->
+              <button type="button" class="oc-btn oc-btn--go" (click)="retry.emit()">{{ draft.rehearsalRestart.text }}</button>
+              <a class="oc-btn oc-btn--line" [routerLink]="editorLink()">{{ draft.rehearsalBackToEditor.text }}</a>
+            } @else if (status() === 'REPLACED') {
               <!-- Ya existe un intento más nuevo: «reintentar» (forceNew) también lo reemplazaría. -->
               <a class="oc-btn oc-btn--go" routerLink="/portal/simulador">Volver al catálogo</a>
             } @else if (status() === 'SAFE_EXITED') {
@@ -85,7 +96,9 @@ import { RECONSIDERED_LABEL, reconsideredChip } from './reconsidered.util';
               <button type="button" class="oc-btn oc-btn--go" (click)="retry.emit()">Reintentar caso</button>
               <a class="oc-btn oc-btn--line" routerLink="/portal/simulador">Volver al simulador</a>
             }
-            <a class="oc-btn oc-btn--line" routerLink="/portal/dashboard">Volver al portal</a>
+            @if (mode() !== 'rehearsal') {
+              <a class="oc-btn oc-btn--line" routerLink="/portal/dashboard">Volver al portal</a>
+            }
           </footer>
         }
 
@@ -100,7 +113,10 @@ import { RECONSIDERED_LABEL, reconsideredChip } from './reconsidered.util';
               <p class="oc-ending__title">{{ ending.title }}</p>
               <p class="oc-ending__message">{{ ending.message }}</p>
               @if (r.persona; as persona) {
-                <p class="oc-ending__persona">{{ draft.endingPersonaPrefix.text }} {{ persona.label }}.</p>
+                <!-- Si el final depende de la persona, «Cómo llegaste aquí» ya la nombra: no se repite encima (V4). -->
+                @if (!personaInReasons(ending.reason, persona.label)) {
+                  <p class="oc-ending__persona">{{ draft.endingPersonaPrefix.text }} {{ persona.label }}.</p>
+                }
               }
               @if (ending.reason && ending.reason.length) {
                 <p class="oc-ending__how">{{ draft.endingReasonTitle.text }}</p>
@@ -111,7 +127,7 @@ import { RECONSIDERED_LABEL, reconsideredChip } from './reconsidered.util';
             </div>
           }
 
-          @if (status() === 'COMPLETED') {
+          @if (status() === 'COMPLETED' && mode() !== 'rehearsal') {
             <!-- Autoevaluación breve (R-6): va ANTES de la revisión; vive solo aquí, no se envía ni se guarda. -->
             <section class="oc-block oc-selfcheck" aria-labelledby="oc-selfcheck-title">
               <p class="oc-label" id="oc-selfcheck-title">{{ draft.selfAssessTitle.text }}</p>
@@ -167,7 +183,8 @@ import { RECONSIDERED_LABEL, reconsideredChip } from './reconsidered.util';
 
           <!-- «Frente a tu intento anterior»: el reporte aún no trae datos del intento previo; el bloque entra cuando los traiga. -->
 
-          @if (r.competencyLevels && r.competencyLevels.length) {
+          <!-- V5: si el caso no declara competencias, no se muestra: serían «Sin evidencia» en todas, hiciera lo que hiciera. -->
+          @if (r.competencyLevels && r.competencyLevels.length && r.competenciesDeclared !== false) {
             <section class="oc-block oc-competencies" aria-labelledby="oc-competencies-title">
               <p class="oc-label" id="oc-competencies-title">{{ draft.competenciesTitle.text }}</p>
               <ul class="oc-competencies__list">
@@ -210,7 +227,7 @@ import { RECONSIDERED_LABEL, reconsideredChip } from './reconsidered.util';
                     @for (item of decisions(); track item.order) {
                       <li class="oc-decision" [attr.data-tone]="item.class">
                         <p class="oc-decision__node">{{ item.nodeTitle }}</p>
-                        <p class="oc-decision__chosen"><span class="oc-decision__k">Elegiste:</span> {{ item.chosen.text }}</p>
+                        <p class="oc-decision__chosen"><span class="oc-decision__k">Elegiste:</span> {{ item.chosen.label || item.chosen.text }}</p>
                         @if (item.reconsidered; as first) {
                           <p class="oc-decision__first">{{ reconsideredLabel }}: {{ first.firstOptionText }}</p>
                         }
@@ -230,6 +247,24 @@ import { RECONSIDERED_LABEL, reconsideredChip } from './reconsidered.util';
                         }
                         @if (item.feedback.theoryBasis) {
                           <p class="oc-decision__basis"><span class="oc-decision__k">{{ draft.decisionBasisLabel.text }}:</span> {{ item.feedback.theoryBasis }}</p>
+                        }
+                        <!-- Las respuestas que no vio abiertas en esa escena y lo que le faltó explorar (DSL-6): solo al cierre. -->
+                        @if (item.missed?.length) {
+                          <div class="oc-missed">
+                            <p class="oc-missed__title">{{ draft.missedTitle.text }}</p>
+                            <p class="oc-missed__lead">{{ draft.missedLead.text }}</p>
+                            <ul class="oc-missed__list">
+                              @for (option of item.missed; track option.optionId) {
+                                <li>
+                                  <span class="oc-missed__text">{{ option.text }}</span>
+                                  @if (classWord(option.class); as word) {
+                                    <span class="oc-missed__class">{{ word }}</span>
+                                  }
+                                  <span class="oc-missed__needed">{{ missedNeededText(option) }}</span>
+                                </li>
+                              }
+                            </ul>
+                          </div>
                         }
                       </li>
                     }
@@ -279,6 +314,8 @@ import { RECONSIDERED_LABEL, reconsideredChip } from './reconsidered.util';
       position: absolute; inset: 0; z-index: 150; display: flex; flex-direction: column;
       gap: 16px; align-items: stretch; justify-content: flex-start;
       padding: clamp(20px, 4vh, 44px) clamp(20px, 6vw, 80px); overflow-y: auto;
+    }
+    .outcome:not(.outcome--pause) {
       background: linear-gradient(180deg, rgba(17,24,39,.96), rgba(14,19,34,.97)); color: var(--sim-ink, #F4F7FB);
     }
     .oc-head { display: flex; align-items: center; gap: 16px; }
@@ -363,24 +400,34 @@ import { RECONSIDERED_LABEL, reconsideredChip } from './reconsidered.util';
       font-size: var(--ds-type-caption-size); font-weight: 900; letter-spacing: .04em; text-transform: uppercase; opacity: .9;
     }
     .oc-decision__note { display: block; border-radius: 12px; }
+    .oc-missed { margin-top: 6px; padding-top: 8px; border-top: 1px dashed rgba(255,255,255,.16); display: grid; gap: 4px; }
+    .oc-missed__title { font-weight: 800; }
+    .oc-missed__lead { opacity: .7; }
+    .oc-missed__list { margin: 0; padding-left: 18px; display: grid; gap: 6px; }
+    .oc-missed__class { margin-left: 8px; opacity: .6; font-size: .86em; }
+    .oc-missed__needed { display: block; opacity: .86; }
     .oc-decision__empty { font-style: italic; opacity: .6; }
     .oc-actions { display: flex; flex-wrap: wrap; gap: 10px; justify-content: flex-end; margin-top: auto; padding-top: 6px; }
     .oc-btn {
-      display: inline-flex; align-items: center; justify-content: center; min-height: 44px;
-      padding: 8px 20px; border-radius: 12px; font-weight: 900; cursor: pointer; text-decoration: none;
+      display: inline-flex; align-items: center; justify-content: center; min-height: 44px; cursor: pointer; text-decoration: none;
+    }
+    /* Aspecto del cierre. La pausa no lo lleva: sus acciones son las piezas de pixel u-boton y u-ficha de la hoja común (U1). */
+    .outcome:not(.outcome--pause) .oc-btn {
+      padding: 8px 20px; border-radius: 12px; font-weight: 900;
       border: 1px solid var(--sim-border, rgba(182,156,255,.22)); background: var(--sim-surface-2, rgba(18,24,42,.6)); color: var(--sim-ink, #F4F7FB);
     }
-    .oc-btn--line { background: transparent; color: var(--sim-ink-soft, rgba(244,247,251,.74)); }
-    .oc-btn--go { background: linear-gradient(90deg, var(--sim-purple, #7C4DFF), #6336e0); border-color: transparent; color: #fff; }
+    .outcome:not(.outcome--pause) .oc-btn--line { background: transparent; color: var(--sim-ink-soft, rgba(244,247,251,.74)); }
+    .outcome:not(.outcome--pause) .oc-btn--go { background: linear-gradient(90deg, var(--sim-purple, #7C4DFF), #6336e0); border-color: transparent; color: #fff; }
     /* Hover solo con puntero fino (un híbrido táctil no queda pegado) y estilo de pulsado en todas las acciones. */
     @media (hover: hover) and (pointer: fine) {
-      .oc-btn:hover { border-color: rgba(182,156,255,.55); background: rgba(124,77,255,.18); }
-      .oc-btn--go:hover { filter: brightness(1.08); }
+      .outcome:not(.outcome--pause) .oc-btn:hover { border-color: rgba(182,156,255,.55); background: rgba(124,77,255,.18); }
+      .outcome:not(.outcome--pause) .oc-btn--go:hover { filter: brightness(1.08); }
     }
-    .oc-btn:active { transform: translateY(1px); }
-    .oc-btn:focus-visible, .oc-details summary:focus-visible { outline: 3px solid #C9B3FF; outline-offset: 3px; }
+    .outcome:not(.outcome--pause) .oc-btn:active { transform: translateY(1px); }
+    .outcome:not(.outcome--pause) .oc-btn:focus-visible, .outcome:not(.outcome--pause) .oc-details summary:focus-visible { outline: 3px solid #C9B3FF; outline-offset: 3px; }
 
     /* Pausa calmada: acciones arriba, sin tablero en primer plano. */
+    .oc-pause-note { margin: 0; max-width: 60ch; font-size: var(--ds-type-body-s-size); line-height: 1.5; color: var(--sim-ink-soft, rgba(244,247,251,.74)); }
     .oc-pause-copy { margin: 0; max-width: 60ch; font-size: 1rem; line-height: 1.6; color: var(--sim-ink-soft, rgba(244,247,251,.74)); }
     .oc-actions--pause { justify-content: flex-start; margin-top: 0; padding-top: 0; }
     .oc-support__list { margin: 0; padding-left: 18px; display: grid; gap: 6px; color: var(--sim-ink-soft, rgba(244,247,251,.74)); font-size: .86rem; line-height: 1.5; }
@@ -391,15 +438,56 @@ import { RECONSIDERED_LABEL, reconsideredChip } from './reconsidered.util';
     }
     .oc-details > :not(summary) { margin-top: 12px; }
 
+    /* Pausa en el lenguaje de pixel del cuadro de diálogo (bloque U1): una placa centrada sobre el velo, sin vidrio ni
+       desenfoque. El velo es una sombra enorme de la propia placa; la recorta el área de juego. */
+    .outcome--pause {
+      inset: auto; top: 50%; left: 50%; transform: translate(-50%, -50%);
+      width: min(720px, calc(100% - 2 * var(--pixel-borde))); max-height: calc(100% - 2 * var(--pixel-borde));
+      box-sizing: border-box; gap: calc(5 * var(--pixel-px));
+      padding: calc(7 * var(--pixel-px)) calc(9 * var(--pixel-px)) calc(8 * var(--pixel-px));
+      box-shadow: 0 0 0 100vmax var(--pixel-velo);
+      font-family: var(--pixel-f-texto);
+      /* La placa no es contenedor desplazable (V6): su sombra de pixel (u-sombra, 4 px al lado y 12 px abajo) la hacía
+         desbordar y salían dos barras propias, con la sombra recortada. */
+      overflow: visible;
+    }
+    .outcome--pause .oc-avatar {
+      border: calc(2 * var(--pixel-px)) solid var(--pixel-contorno); border-radius: 0;
+      background: var(--pixel-ventanilla); image-rendering: pixelated;
+    }
+    .outcome--pause .oc-eyebrow {
+      font-family: var(--pixel-f-nombre); font-weight: 700; font-size: max(var(--pixel-letra-minima), calc(var(--pixel-tam) * 0.82));
+      letter-spacing: .06em; color: var(--luz);
+    }
+    .outcome--pause .oc-head__copy h3 { font-family: var(--pixel-f-texto); font-weight: 700; color: var(--pixel-tinta); }
+    .outcome--pause .oc-pause-copy { color: var(--pixel-tinta); }
+    .outcome--pause .oc-actions--pause { align-items: center; gap: calc(4 * var(--pixel-px)); }
+    .outcome--pause .oc-btn, .outcome--pause .u-ficha { padding: 0 calc(8 * var(--pixel-px)) 1px; }
+    .outcome--pause .oc-support {
+      padding: calc(3 * var(--pixel-px)) calc(5 * var(--pixel-px)) calc(4 * var(--pixel-px)); border-radius: 0;
+      background: var(--pixel-penumbra-hundida); border: 1px solid var(--pixel-separador);
+    }
+    .outcome--pause .oc-label {
+      margin: 0 0 calc(2 * var(--pixel-px)); font-family: var(--pixel-f-nombre); font-size: var(--pixel-letra-chica);
+      letter-spacing: .06em; color: var(--luz);
+    }
+    .outcome--pause .oc-support__list { color: var(--pixel-tinta); }
+    .outcome--pause .oc-details { padding: 0; border: 0; border-radius: 0; }
+    .outcome--pause .oc-details summary.u-boton { justify-content: space-between; list-style: none; color: var(--pixel-tinta); font-weight: 600; }
+    .outcome--pause .oc-details summary.u-boton::-webkit-details-marker { display: none; }
+    .outcome--pause .oc-details[open] .oc-details__flecha { transform: scaleY(-1); }
+    .outcome--pause .oc-details > :not(summary) { margin-top: calc(4 * var(--pixel-px)); }
+
     /* Columna útil a 360 px (F6-6): hitos en una columna, línea de tiempo que no desborda, acciones a todo el ancho.
        Sin desplazamiento horizontal ni con el zoom del navegador al 200 %. */
     @media (max-width: 480px) {
-      .outcome { padding: 16px 14px; gap: 12px; }
+      .outcome:not(.outcome--pause) { padding: 16px 14px; gap: 12px; }
+      .outcome--pause { padding: calc(5 * var(--pixel-px)) calc(5 * var(--pixel-px)) calc(6 * var(--pixel-px)); gap: calc(4 * var(--pixel-px)); }
       .oc-head { gap: 12px; }
       .oc-milestones { grid-template-columns: minmax(0, 1fr); }
       .oc-tl { grid-template-columns: 44px minmax(0, 1fr); }
       .oc-actions { flex-direction: column; align-items: stretch; }
-      .oc-btn { width: 100%; }
+      .oc-btn, .outcome--pause .u-ficha { width: 100%; }
     }
   `]
 })
@@ -476,10 +564,20 @@ export class AttemptOutcomeComponent {
   readonly report = input<AttemptCompletionReport | null>(null);
   readonly status = input.required<SimulationAttemptState['status']>();
   readonly retry = output<void>();
+  /** `rehearsal`: la docente ensaya su borrador; no hay informe del estudiante ni autoevaluación y las salidas llevan al editor. */
+  readonly mode = input<'student' | 'rehearsal'>('student');
+  /** El caso que se ensaya, para el enlace «Volver al editor». */
+  readonly caseVersionId = input<number | null>(null);
+  protected readonly editorLink = computed(() => {
+    const id = this.caseVersionId();
+    return id === null ? '/portal/casos' : `/portal/casos/${id}/editor`;
+  });
   /** Pausa reanudable (ETH-02 A): reanuda el MISMO intento, no crea uno nuevo. */
   readonly resume = output<void>();
   /** Recursos de apoyo que se muestran en la pausa (opcional; los aporta quien conoce el caso). */
   readonly supportResources = input<string[]>([]);
+  /** Pausa local aún sin registrar en el servidor (sin conexión): la línea discreta que lo dice; `null` cuando ya quedó registrada. */
+  readonly pauseNote = input<string | null>(null);
   /**
    * Intento cuyo reporte del dueño trae «Tus decisiones» (C2). Lo pasa quien llama solo al completar: sin id no hay
    * petición. Con el id, `decisionReview` sale del reporte congelado, no de la respuesta de la última decisión.
@@ -515,7 +613,7 @@ export class AttemptOutcomeComponent {
    * ruta normal `decisionReview` ya viaja en el reporte congelado de esa respuesta (una petición menos al cerrar).
    */
   private readonly decisionsResource = rxResource<AttemptCompletionReport, string | undefined>({
-    params: () => (this.report()?.decisionReview === undefined ? this.reviewAttemptId() ?? undefined : undefined),
+    params: () => (this.mode() !== 'rehearsal' && this.report()?.decisionReview === undefined ? this.reviewAttemptId() ?? undefined : undefined),
     stream: ({ params }) => (params === undefined ? EMPTY : this.simulation.studentReport(params)),
   });
   protected readonly decisions = computed<DecisionReviewItem[]>(() => {
@@ -539,6 +637,12 @@ export class AttemptOutcomeComponent {
 
   /** La clase de una decisión al cierre, en palabras (RN-08): nunca una cifra. */
   protected readonly classWord = responseClassWord;
+  /** «Te faltó: …» con lo que había que explorar, o el texto de respaldo si la opción dependía del rumbo del caso. */
+  protected missedNeededText(option: MissedOption): string {
+    return option.missing.length
+      ? `${DRAFT_COPY.missedNeeded.text} ${missedFactsText(option.missing)}`
+      : DRAFT_COPY.missedNoFacts.text;
+  }
   protected readonly levelWord = levelWord;
   protected readonly markOf = milestoneMark;
 
@@ -553,6 +657,12 @@ export class AttemptOutcomeComponent {
   title(): string {
     if (this.status() === 'PAUSED') return 'Tu caso está en pausa';
     return this.report()?.summaryMessage ?? this.headline();
+  }
+
+  /** ¿Alguna razón del final ya dice la persona («La persona usuaria …»)? Entonces su línea aparte sobra. */
+  personaInReasons(reasons: readonly string[] | null | undefined, label: string): boolean {
+    const sentence = `${this.draft.endingPersonaPrefix.text} ${label}`.trim().replace(/\.$/, '');
+    return (reasons ?? []).some(reason => reason.trim().replace(/\.$/, '') === sentence);
   }
 
   /** Encabezado corto por estado — lenguaje honesto, sin fingir pausa en cierres. */

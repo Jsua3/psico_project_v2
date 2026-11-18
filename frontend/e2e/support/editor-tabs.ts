@@ -6,10 +6,10 @@ import { scaled } from './time-scale';
 
 /**
  * Los momentos del editor de casos, en el orden en que se recorren (P6): el mapa del caso, el guion de una escena, una
- * sala, los datos del caso, los finales, probar como estudiante y enviar a revisión. Cada uno es una pantalla con su propia dirección; los
+ * sala, los datos del caso, los finales y enviar a revisión. Cada uno es una pantalla con su propia dirección; los
  * nombres son los que se leen en los informes de las sondas.
  */
-export const EDITOR_TABS = ['El caso', 'Guion de la escena', 'Sala', 'Datos del caso', 'Finales', 'Probar como estudiante', 'Enviar a revisión'] as const;
+export const EDITOR_TABS = ['El caso', 'Guion de la escena', 'Sala', 'Datos del caso', 'Finales', 'Enviar a revisión'] as const;
 
 /**
  * Crea desde la interfaz un caso propio con una sala de la universidad (lo mismo que hace un docente: elegir el lugar, usar
@@ -62,11 +62,6 @@ export async function recorrerEditor(page: Page, visit: (tab: (typeof EDITOR_TAB
   await expect(page.getByRole('heading', { level: 1 })).toBeVisible({ timeout: scaled(30_000) });
   await page.waitForTimeout(400);
   await visit('Finales');
-
-  await secciones.getByRole('link', { name: 'Probar como estudiante' }).click();
-  await expect(page.getByRole('heading', { level: 1, name: 'Probar como estudiante' })).toBeVisible({ timeout: scaled(30_000) });
-  await page.waitForTimeout(400);
-  await visit('Probar como estudiante');
 
   await secciones.getByRole('link', { name: 'Enviar a revisión' }).click();
   await expect(page.getByRole('heading', { level: 1, name: 'Enviar a revisión' })).toBeVisible({ timeout: scaled(30_000) });

@@ -1,0 +1,24 @@
+{
+  "narracion": "El consultorio de Bienestar es pequeño y silencioso. La psicóloga recibe a Daniela con una sonrisa tranquila y le ofrece una silla. Tú te quedas un momento en la puerta: es el relevo. Lo que digas ahora, y lo que dejes a decisión de Daniela, define cómo sigue su acompañamiento.",
+  "lineas": [
+    {
+      "personaje": "psicologa-bienestar",
+      "texto": "Gracias por acompañarla hasta aquí. Daniela, tú decides qué quieres contarme y a qué ritmo.",
+      "emocion": "neutral"
+    },
+    {
+      "personaje": "psicologa-bienestar",
+      "texto": "Vamos a revisar juntas qué medidas de protección te hacen sentir más segura y cómo te conectamos con atención en salud mental.",
+      "emocion": "preocupada"
+    },
+    {
+      "personaje": "psicologa-bienestar",
+      "texto": "Desde aquí me encargo de que la remisión llegue. Puedes seguir con tu día; ella queda en buenas manos.",
+      "emocion": "alegre"
+    }
+  ],
+  "opciones": [],
+  "pistas": [],
+  "comentarios": [],
+  "estructura": ""
+}

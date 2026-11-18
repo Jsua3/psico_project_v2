@@ -1,0 +1,989 @@
+<meta name="claude:viewport-fit-sides" content="cover">
+<title>SIEP Diálogo Vivo</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Pixelify+Sans:wght@500;700&family=Atkinson+Hyperlegible:ital,wght@0,400;0,700;1,400&family=Poppins:wght@400;600;800&display=swap">
+<style>
+/* Composición: el escenario manda y ocupa el ancho; arriba el nombre y el interruptor Hoy / Nueva; debajo los mandos de la maqueta; al pie, cómo se usa y por qué es así. */
+:root {
+  color-scheme: dark;
+  --fondo: #13111b; --escena: #0b0a12; --panel: #1b1826; --panel-alto: #28243c; --borde: #3b3552;
+  --tinta: #f2ecdf; --tinta-suave: #b9b2c8; --acento: #ffcd82; --acento-tinta: #1b1530;
+  --f-titulo: 'Pixelify Sans', 'Courier New', monospace;
+  --f-texto: 'Atkinson Hyperlegible', system-ui, -apple-system, 'Segoe UI', sans-serif;
+  --f-hoy: 'Poppins', system-ui, -apple-system, 'Segoe UI', sans-serif;
+}
+* { box-sizing: border-box; }
+[hidden] { display: none !important; }
+html, body { height: 100%; }
+body {
+  background: var(--fondo); color: var(--tinta); font-family: var(--f-texto); font-size: 16px; line-height: 1.5;
+  padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px));
+  padding-block: 20px 40px;
+}
+.pagina { max-width: 1400px; margin: 0 auto; display: flex; flex-direction: column; gap: 14px; }
+.cabeza { display: flex; flex-wrap: wrap; align-items: flex-end; justify-content: space-between; gap: 12px 24px; }
+.cabeza > div { min-width: 0; }
+h1 { font-family: var(--f-titulo); font-weight: 700; font-size: 34px; line-height: 1.05; margin: 0; text-wrap: balance; }
+.bajada { margin: 4px 0 0; color: var(--tinta-suave); max-width: 66ch; }
+.grupo { display: inline-flex; flex-wrap: wrap; padding: 4px; gap: 4px; background: var(--panel); border: 1px solid var(--borde); border-radius: 12px; }
+.grupo button, .suelto {
+  font: inherit; font-weight: 700; color: var(--tinta-suave); background: transparent; border: 0; border-radius: 8px;
+  min-height: 44px; padding: 0 14px; cursor: pointer;
+}
+.grupo button[aria-pressed="true"] { background: var(--acento); color: var(--acento-tinta); }
+.suelto { background: var(--panel); border: 1px solid var(--borde); color: var(--tinta); }
+.suelto:hover, .grupo button:hover { color: var(--tinta); }
+.grupo button[aria-pressed="true"]:hover { color: var(--acento-tinta); }
+.pagina button:focus-visible, .pagina input:focus-visible { outline: 3px solid var(--tinta); outline-offset: 2px; }
+.barra { display: flex; flex-wrap: wrap; gap: 10px 18px; align-items: center; }
+.barra .campo { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; min-width: 0; }
+.barra .campo > span { color: var(--tinta-suave); font-size: 14px; }
+.barra label { display: inline-flex; align-items: center; gap: 8px; min-height: 44px; cursor: pointer; }
+.barra input[type="checkbox"] { width: 20px; height: 20px; accent-color: var(--acento); }
+
+/* ── El escenario: lienzo de la sala y, encima, la interfaz ───────────────────────────────────────────── */
+.escenario {
+  --u: 2; --r: 4; --px: calc(1px * var(--u)); --tam: 17px; --tam-nombre: 20px;
+  position: relative; width: 100%; max-width: 100%; aspect-ratio: 16 / 9; max-height: 86vh; background: var(--escena);
+  border: 1px solid var(--borde); border-radius: 12px; overflow: hidden; user-select: none; -webkit-user-select: none;
+  font-family: var(--f-texto); font-size: var(--tam); line-height: 1.45; color: var(--tinta);
+}
+@media (max-width: 640px) { .escenario { aspect-ratio: 390 / 700; max-height: none; } h1 { font-size: 28px; } }
+.pagina.solo { max-width: none; }
+.pagina.solo > :not(.escenario) { display: none; }
+.pagina.solo .escenario { position: fixed; inset: 0; aspect-ratio: auto; max-height: none; border: 0; border-radius: 0; }
+.escenario canvas#lienzo { position: absolute; inset: 0; width: 100%; height: 100%; display: block; image-rendering: pixelated; touch-action: none; outline: none; }
+.sr { position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip: rect(0, 0, 0, 0); white-space: nowrap; border: 0; }
+
+/* Marco de pixel art: borde de 4 px de sala por lado, a la escala entera de la cámara. */
+.marco {
+  border-style: solid; border-width: calc(4 * var(--px)); border-image-slice: 4; border-image-width: calc(4 * var(--px));
+  border-image-repeat: stretch; border-image-source: var(--m); background-image: var(--t); background-size: calc(8 * var(--px));
+  background-clip: padding-box; background-origin: padding-box; image-rendering: pixelated; position: relative;
+}
+.con-sombra::after {
+  content: ''; position: absolute; left: calc(-2 * var(--px)); right: calc(-2 * var(--px)); bottom: calc(-6 * var(--px));
+  height: calc(2 * var(--px)); background-image: var(--sombra); background-size: calc(2 * var(--px)); image-rendering: pixelated; pointer-events: none;
+}
+.tecla {
+  --m: var(--marco-tecla); display: inline-grid; place-items: center; min-width: 1.7em; min-height: 1.7em; padding: 0 .3em calc(1 * var(--px));
+  border-style: solid; border-width: calc(4 * var(--px)); border-image: var(--m) 4 / calc(4 * var(--px)) stretch; image-rendering: pixelated;
+  background: #3a3454 padding-box; color: var(--tinta); font-family: var(--f-titulo); font-weight: 500; font-size: calc(var(--tam-nombre) * 1.1); line-height: 1;
+}
+.tecla.chica { font-size: calc(var(--tam-nombre) * .8); }
+.glifo { display: block; --gp: calc(1px * max(2, var(--u))); width: calc(7 * var(--gp)); height: calc(9 * var(--gp)); background: var(--lc) 0 0 / 100% 100% no-repeat; image-rendering: pixelated; }
+.ficha .tecla { min-width: 0; min-height: 0; padding: calc(2 * var(--px)) calc(2 * var(--px)) calc(3 * var(--px)); }
+
+.rotulo-sala {
+  position: absolute; left: calc(6 * var(--px)); top: calc(6 * var(--px)); --m: var(--marco-placa); --t: var(--trama-placa);
+  padding: 2px 10px 3px; font-family: var(--f-titulo); font-size: calc(var(--tam-nombre) * .8); color: var(--tinta); pointer-events: none; max-width: calc(100% - 12 * var(--px));
+}
+.rotulo-sala small { display: block; font-family: var(--f-texto); font-size: 13px; color: var(--tinta-suave); max-width: 40ch; }
+
+/* Lo que va pegado al mundo: burbuja de comentario, aviso de estado y pista de hablar. Su píxel es el de la cámara en ese momento. */
+.burbuja, .aviso-estado, .pista { --px: calc(1px * var(--um, var(--u))); }
+.volver-sala {
+  position: absolute; right: calc(6 * var(--px)); top: calc(6 * var(--px)); --m: var(--marco-placa); --t: var(--trama-placa); font: inherit; font-size: .86em;
+  color: var(--tinta); cursor: pointer; display: inline-flex; align-items: center; gap: 10px; min-height: 44px; padding: 0 10px 1px 6px; white-space: nowrap;
+}
+.volver-sala:focus-visible { outline: var(--px) solid var(--luz); outline-offset: var(--px); }
+.volver-hoy { display: none; }
+.burbuja {
+  position: absolute; --m: var(--marco-burbuja); --t: var(--trama-burbuja); transform: translate(-50%, -100%);
+  width: max-content; max-width: min(21em, 78%); display: flex; align-items: center; gap: calc(3 * var(--px));
+  padding: calc(1 * var(--px)) calc(3 * var(--px)); color: #241b2c; pointer-events: none; z-index: 3;
+}
+.burbuja canvas { flex: none; width: calc(32 * var(--px)); height: calc(32 * var(--px)); image-rendering: pixelated; margin: calc(-2 * var(--px)) 0 calc(-1 * var(--px)); }
+.burbuja p { margin: 0; min-width: 0; font-size: .94em; line-height: 1.35; }
+.burbuja b { display: block; font-family: var(--f-titulo); font-weight: 700; font-size: .9em; color: #5b3d86; }
+.burbuja .cola {
+  position: absolute; left: var(--cola-x, 50%); bottom: calc(-7 * var(--px)); width: calc(7 * var(--px)); height: calc(4 * var(--px));
+  margin-left: calc(-3.5 * var(--px)); background: var(--cola) 0 0 / 100% 100%; image-rendering: pixelated;
+}
+.burbuja.entra { animation: asoma 140ms steps(2, jump-none) both; }
+@keyframes asoma { from { transform: translate(-50%, calc(-100% + 2 * var(--px))); opacity: 0; } to { transform: translate(-50%, -100%); opacity: 1; } }
+.aviso-estado {
+  position: absolute; --m: var(--marco-placa); --t: var(--trama-placa); transform: translate(-50%, -100%); display: flex; align-items: center;
+  gap: calc(3 * var(--px)); padding: 1px 8px 2px; font-size: .88em; white-space: nowrap; pointer-events: none; z-index: 2;
+}
+.pista {
+  position: absolute; left: 50%; bottom: calc(10 * var(--px)); transform: translateX(-50%); --m: var(--marco-placa); --t: var(--trama-placa);
+  display: flex; align-items: center; gap: 10px; padding: 3px 12px 4px; white-space: nowrap; pointer-events: none;
+}
+.pulso { flex: none; width: calc(16 * var(--px)); height: calc(8 * var(--px)); background-size: 400% 100%; image-rendering: pixelated; }
+
+/* ── La conversación: placa de quien habla (izquierda) y fichas de respuesta (derecha) ──────────────── */
+.dialogo {
+  position: absolute; left: calc(8 * var(--px)); right: calc(8 * var(--px)); bottom: calc(10 * var(--px));
+  display: grid; grid-template-columns: minmax(0, 11fr) minmax(0, 14fr); gap: calc(8 * var(--px)); align-items: end; pointer-events: none;
+}
+.dialogo > * { pointer-events: auto; }
+.dialogo.sola { grid-template-columns: minmax(0, min(46em, 100%)); }
+.placa { min-width: 0; display: flex; flex-direction: column; }
+.pestanas {
+  display: flex; align-items: flex-end; justify-content: space-between; gap: calc(4 * var(--px));
+  padding-left: calc(32px * var(--r) + 18 * var(--px)); margin-bottom: calc(-1 * var(--px)); position: relative; z-index: 1;
+}
+.escenario.apilada .pestanas { padding-left: calc(32px * var(--r) + 14 * var(--px)); }
+.rotulo {
+  --m: var(--marco-rotulo); --t: var(--trama-placa); border-bottom-width: 0; padding: 1px calc(4 * var(--px)) calc(2 * var(--px));
+  font-family: var(--f-titulo); font-weight: 700; font-size: var(--tam-nombre); line-height: 1.15; color: var(--luz); min-width: 0;
+}
+.escenario.apilada .rotulo { font-size: calc(var(--tam-nombre) * .85); }
+.rotulo small { display: block; font-family: var(--f-texto); font-weight: 400; font-size: .62em; color: var(--tinta-suave); letter-spacing: .02em; }
+.cuerpo {
+  --m: var(--marco-placa); --t: var(--trama-placa); display: grid; grid-template-columns: auto minmax(0, 1fr); gap: calc(6 * var(--px));
+  padding: calc(4 * var(--px)) calc(5 * var(--px)) calc(4 * var(--px)) calc(4 * var(--px)); cursor: pointer; outline: none;
+}
+.retrato {
+  --m: var(--marco-ficha); align-self: end; margin-top: calc(-14 * var(--px)); background-color: var(--tono, #2c2942); background-image: none;
+  width: calc(32px * var(--r) + 8 * var(--px)); height: calc(32px * var(--r) + 8 * var(--px)); overflow: hidden;
+}
+.retrato canvas { display: block; width: calc(32px * var(--r)); height: calc(32px * var(--r)); image-rendering: pixelated; }
+.retrato .base { position: absolute; left: 0; right: 0; bottom: 0; height: calc(2 * var(--px)); background: var(--tono-pulso, transparent); }
+.habla { min-width: 0; display: flex; flex-direction: column; gap: calc(3 * var(--px)); padding-top: calc(1 * var(--px)); }
+.estado { margin: 0; display: flex; align-items: center; gap: calc(4 * var(--px)); font-size: .86em; color: var(--tinta-suave); }
+.estado.cambio { animation: destello 480ms steps(1) 1; }
+@keyframes destello { 0%, 50% { color: var(--luz); } 25%, 75%, 100% { color: var(--tinta-suave); } }
+.linea { margin: 0; min-height: 4.35em; white-space: pre-line; overflow-wrap: break-word; }
+.linea .acot { font-style: italic; color: var(--tinta-suave); }
+.linea .falta { visibility: hidden; }
+.pie-placa { display: flex; justify-content: flex-end; align-items: center; gap: 10px; min-height: 44px; }
+.seguir {
+  font: inherit; font-size: .9em; color: var(--tinta); background: transparent; border: 0; cursor: pointer; min-height: 44px; padding: 0 2px;
+  display: inline-flex; align-items: center; gap: 8px;
+}
+.seguir .flecha { width: calc(7 * var(--px)); height: calc(5 * var(--px)); background: var(--seguir) 0 0 / 100% 100%; image-rendering: pixelated; }
+.seguir.lista .flecha { animation: rebota 900ms steps(1) infinite; }
+@keyframes rebota { 0%, 100% { transform: translateY(0); } 50% { transform: translateY(var(--px)); } }
+.seguir:focus-visible, .ficha:focus-visible { outline: var(--px) solid var(--luz); outline-offset: var(--px); }
+.placa.supervision .rotulo { color: #9fd9a8; }
+
+.respuestas { min-width: 0; display: flex; flex-direction: column; gap: calc(4 * var(--px)); }
+.respuestas.reservada { visibility: hidden; }
+.cinta { --m: var(--marco-placa); --t: var(--trama-placa); margin: 0; align-self: flex-start; display: flex; flex-wrap: wrap; align-items: baseline; gap: 2px 12px; padding: 1px 10px 3px; font-size: .84em; color: var(--tinta-suave); }
+.cinta .chip { font-family: var(--f-titulo); font-weight: 700; font-size: calc(var(--tam-nombre) * .8); color: var(--luz); }
+.fichas {
+  display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); grid-auto-rows: 1fr; gap: calc(5 * var(--px)) calc(5 * var(--px)); outline: none;
+  max-height: calc(var(--alto, 700) * .6px); overflow-y: auto; overscroll-behavior: contain; scrollbar-width: thin;
+  padding: calc(3 * var(--px)) calc(3 * var(--px)) calc(7 * var(--px)) calc(12 * var(--px)); margin: calc(-3 * var(--px)) calc(-3 * var(--px)) calc(-7 * var(--px)) calc(-12 * var(--px));
+}
+.fichas.una { grid-template-columns: minmax(0, 1fr); grid-auto-rows: auto; }
+.ficha {
+  --m: var(--marco-ficha); --t: var(--trama-ficha); font: inherit; color: var(--tinta); text-align: left; cursor: pointer; min-height: 48px;
+  display: grid; grid-template-columns: auto minmax(0, 1fr); gap: calc(5 * var(--px)); align-items: start;
+  padding: calc(2 * var(--px)) calc(4 * var(--px)) calc(3 * var(--px)) calc(3 * var(--px));
+}
+.ficha .tecla { margin-top: 1px; }
+.ficha .num { display: none; }
+.ficha .ficha-texto { min-width: 0; overflow-wrap: break-word; padding-top: .15em; }
+.ficha .cursor { position: absolute; left: calc(-11 * var(--px)); top: 50%; width: calc(6 * var(--px)); height: calc(7 * var(--px)); margin-top: calc(-3.5 * var(--px));
+  background: var(--cursor) 0 0 / 100% 100%; image-rendering: pixelated; display: none; }
+@media (hover: hover) and (pointer: fine) {
+  .ficha:hover { --m: var(--marco-ficha-sobre); --t: var(--trama-ficha-sobre); transform: translateY(calc(-1 * var(--px))); }
+  .ficha:hover .tecla { --m: var(--marco-tecla-encendida); background-color: var(--luz); color: var(--acento-tinta); }
+  .ficha:hover .glifo { background-image: var(--lo); }
+}
+.ficha.es-sobre .glifo, .ficha:focus-visible .glifo, .ficha.es-foco .glifo, .ficha.elegida .glifo { background-image: var(--lo); }
+.ficha:active .glifo, .ficha.pulsada .glifo { background-image: var(--lc); }
+.ficha.es-sobre { --m: var(--marco-ficha-sobre); --t: var(--trama-ficha-sobre); transform: translateY(calc(-1 * var(--px))); }
+.ficha.es-sobre .tecla { --m: var(--marco-tecla-encendida); background-color: var(--luz); color: var(--acento-tinta); }
+.ficha:focus-visible, .ficha.es-foco { --m: var(--marco-ficha-foco); --t: var(--trama-ficha-sobre); transform: translateY(calc(-1 * var(--px))); }
+.ficha:focus-visible .tecla, .ficha.es-foco .tecla { --m: var(--marco-tecla-encendida); background-color: var(--luz); color: var(--acento-tinta); }
+.ficha:focus-visible .cursor, .ficha.es-foco .cursor { display: block; animation: senala 700ms steps(1) infinite; }
+.ficha.es-foco { outline: var(--px) solid var(--luz); outline-offset: var(--px); }
+.ficha .rotulo-estado { display: none; position: absolute; right: calc(2 * var(--px)); top: calc(-9 * var(--px)); font-family: var(--f-titulo); font-size: calc(var(--tam-nombre) * .7); color: var(--luz); background: #1b1826; padding: 0 6px; }
+.fichas.muestra .rotulo-estado { display: block; }
+@keyframes senala { 0%, 100% { transform: translateX(0); } 50% { transform: translateX(var(--px)); } }
+.ficha:active, .ficha.pulsada { --m: var(--marco-ficha-pulsada); --t: var(--trama-ficha-pulsada); transform: translateY(var(--px)); }
+.ficha:active::after, .ficha.pulsada::after { display: none; }
+.ficha:active .tecla, .ficha.pulsada .tecla { --m: var(--marco-tecla-hundida); background-color: #211e32; color: var(--tinta); }
+.ficha.elegida { --m: var(--marco-ficha-elegida); --t: var(--trama-ficha-elegida); color: var(--acento-tinta); transform: none; cursor: default; }
+.ficha.elegida .tecla { --m: var(--marco-tecla-encendida); background-color: var(--luz); color: var(--acento-tinta); }
+.ficha.cede { opacity: 0; transform: translateY(calc(2 * var(--px))); transition: opacity 240ms steps(3), transform 240ms steps(2); pointer-events: none; }
+.ficha.entra { animation: sube 150ms steps(3, jump-none) both; animation-delay: calc(var(--n) * 55ms); }
+@keyframes sube { from { opacity: 0; transform: translateY(calc(3 * var(--px))); } to { opacity: 1; transform: none; } }
+.ficha[aria-disabled="true"] { cursor: not-allowed; opacity: .7; }
+
+/* Apilado: tableta en vertical y teléfono. La placa arriba, las fichas debajo en una columna que se desplaza. */
+.escenario.apilada .dialogo { grid-template-columns: minmax(0, 1fr); gap: calc(5 * var(--px)); left: calc(6 * var(--px)); right: calc(6 * var(--px)); bottom: calc(8 * var(--px)); max-height: calc(100% - 96px); grid-template-rows: auto minmax(0, 1fr); }
+.escenario.apilada .respuestas.reservada { display: none; }
+.escenario.apilada .respuestas { min-height: 0; }
+.escenario.apilada .fichas { grid-template-columns: minmax(0, 1fr); grid-auto-rows: auto; min-height: 0; max-height: none; }
+.escenario.apilada .linea { min-height: 2.9em; }
+.escenario.apilada .dialogo.eligiendo .linea { min-height: 0; }
+.escenario.apilada .dialogo.eligiendo .pie-placa { display: none; }
+.escenario.apilada.hablando .rotulo-sala { display: none; }
+.escenario.apilada .volver-sala { right: auto; left: calc(6 * var(--px)); }
+.escenario.estrecha .volver-sala .tecla { display: none; }
+.escenario.estrecha .volver-sala { padding-left: 12px; }
+
+/* ── «Hoy»: la interfaz como está en el juego, con sus mismos estilos ───────────────────────────────── */
+.escenario[data-modo="hoy"] { font-family: var(--f-hoy); }
+.escenario[data-modo="hoy"] .dialogo, .escenario[data-modo="hoy"].apilada .dialogo {
+  left: 0; right: 0; bottom: 0; display: flex; flex-direction: column; gap: 0; max-height: 78%; overflow-y: auto; min-height: 180px;
+  background: rgba(8, 12, 18, .95); border-top: 2px solid rgba(182, 156, 255, .4); pointer-events: auto; align-items: stretch;
+}
+.escenario[data-modo="hoy"] .volver-sala { display: none; }
+.escenario[data-modo="hoy"] .volver-hoy { display: inline-flex; }
+.escenario[data-modo="hoy"] .marco { border: 0; border-image: none; background-image: none; }
+.escenario[data-modo="hoy"] .con-sombra::after { display: none; }
+.escenario[data-modo="hoy"] .pestanas, .escenario[data-modo="hoy"].apilada .pestanas { order: -1; padding: 6px 12px; margin: 0; border-bottom: 1px solid rgba(182, 156, 255, .18); background: #080c12; flex-direction: row-reverse; align-items: center; justify-content: flex-end; }
+.escenario[data-modo="hoy"] .rotulo { position: absolute; left: 130px; top: 76px; padding: 0; font-family: var(--f-hoy); font-size: 12px; font-weight: 800; letter-spacing: .12em; text-transform: uppercase; color: #b69cff; }
+.escenario[data-modo="hoy"] .rotulo small { display: none; }
+.escenario[data-modo="hoy"] .volver-hoy { align-items: center; gap: 8px; min-height: 44px; border: 1px solid rgba(182, 156, 255, .4); border-radius: 12px; background: rgba(124, 77, 255, .12); color: #e8f0f4; font: inherit; font-size: 12.8px; font-weight: 800; padding: 6px 14px; cursor: pointer; }
+.escenario[data-modo="hoy"] .cuerpo { display: flex; gap: 0; padding: 0; cursor: default; }
+.escenario[data-modo="hoy"] .retrato { margin: 0; width: 112px; min-height: 150px; height: auto; display: grid; place-items: center; background: rgba(124, 77, 255, .08); border-right: 1px solid rgba(182, 156, 255, .2); }
+.escenario[data-modo="hoy"] .retrato canvas { width: 96px; height: 96px; transform: none !important; }
+.escenario[data-modo="hoy"] .retrato .base, .escenario[data-modo="hoy"] .estado { display: none; }
+.escenario[data-modo="hoy"] .habla { padding: 42px 22px 12px 18px; gap: 12px; flex: 1; }
+.escenario[data-modo="hoy"] .linea { font-size: 15.5px; line-height: 1.65; min-height: 1.6em; color: rgba(232, 240, 244, .92); }
+.escenario[data-modo="hoy"] .linea .acot { font-style: normal; color: inherit; }
+.escenario[data-modo="hoy"] .seguir { background: #7c4dff; color: #fff; border-radius: 12px; padding: 0 18px; font-weight: 600; }
+.escenario[data-modo="hoy"] .seguir .tecla, .escenario[data-modo="hoy"] .seguir .flecha { display: none; }
+.escenario[data-modo="hoy"] .seguir::after { content: '▶'; font-size: .8em; }
+.escenario[data-modo="hoy"] .respuestas { padding: 0 22px 16px 130px; gap: 8px; }
+.escenario[data-modo="hoy"] .respuestas.reservada { display: none; }
+.escenario[data-modo="hoy"] .cinta { font-size: 12px; padding: 0; align-items: center; color: rgba(232, 240, 244, .78); }
+.escenario[data-modo="hoy"] .cinta .chip { padding: 2px 8px; border-radius: 999px; border: 1px solid rgba(182, 156, 255, .5); background: rgba(124, 77, 255, .16); color: #d6c6ff; font-family: var(--f-hoy); font-weight: 800; font-size: 12px; }
+.escenario[data-modo="hoy"] .fichas, .escenario[data-modo="hoy"].apilada .fichas { grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); grid-auto-rows: auto; gap: 10px; overflow: visible; padding: 0; margin: 0; max-height: none; }
+.escenario[data-modo="hoy"] .ficha, .escenario[data-modo="hoy"] .ficha:hover, .escenario[data-modo="hoy"] .ficha:focus-visible {
+  border: 1px solid rgba(182, 156, 255, .3); border-radius: 14px; background: rgba(255, 255, 255, .06); color: rgba(232, 240, 244, .9);
+  font-size: 13.1px; line-height: 1.35; min-height: 64px; padding: 11px 12px; gap: 10px; transform: none; box-shadow: 0 14px 34px -22px rgba(124, 77, 255, .5);
+}
+.escenario[data-modo="hoy"] .ficha:hover { border-color: rgba(182, 156, 255, .7); background: rgba(124, 77, 255, .16); }
+.escenario[data-modo="hoy"] .ficha:focus-visible { outline: 2px solid #b69cff; outline-offset: 2px; }
+.escenario[data-modo="hoy"] .ficha.elegida { border-color: rgba(232, 240, 244, .85); background: rgba(124, 77, 255, .3); }
+.escenario[data-modo="hoy"] .ficha .tecla, .escenario[data-modo="hoy"] .ficha:hover .tecla, .escenario[data-modo="hoy"] .ficha.elegida .tecla {
+  border: 1px solid rgba(182, 156, 255, .5); border-radius: 7px; background: rgba(124, 77, 255, .16); color: #cdbcff; min-width: 22px; min-height: 22px;
+  padding: 0; font-family: 'JetBrains Mono', ui-monospace, monospace; font-size: 12px; font-weight: 800;
+}
+.escenario[data-modo="hoy"] .ficha .glifo, .escenario[data-modo="hoy"] .ficha .cursor { display: none !important; }
+.escenario[data-modo="hoy"] .ficha .num { display: inline; }
+.escenario[data-modo="hoy"] .burbuja { border: 2px solid #3b4a5a; border-radius: 10px; background: #0f1720; color: #f4f7fa; box-shadow: 0 4px 12px rgba(0, 0, 0, .45); padding: 8px 12px; gap: 8px; max-width: min(260px, 70%); animation: none; }
+.escenario[data-modo="hoy"] .burbuja canvas { width: 32px; height: 32px; margin: 0; }
+.escenario[data-modo="hoy"] .burbuja b { display: none; }
+.escenario[data-modo="hoy"] .burbuja .cola { width: 12px; height: 12px; margin-left: -6px; bottom: -8px; background: #0f1720; border-right: 2px solid #3b4a5a; border-bottom: 2px solid #3b4a5a; transform: rotate(45deg); }
+.escenario[data-modo="hoy"] .rotulo-sala, .escenario[data-modo="hoy"] .pista { border: 1px solid #3b4a5a; border-radius: 10px; background: rgba(15, 23, 32, .9); padding: 4px 12px; font-family: var(--f-hoy); font-size: 13px; }
+.escenario[data-modo="hoy"] .pista .tecla { border: 1px solid #b69cff; border-radius: 6px; background: transparent; min-width: 22px; min-height: 22px; font-family: var(--f-hoy); font-size: 12px; }
+.escenario[data-modo="hoy"] .aviso-estado { border: 1px solid #3b4a5a; border-radius: 8px; background: #0f1720; padding: 2px 8px; }
+.escenario[data-modo="hoy"] .aviso-estado .pulso { display: none; }
+
+.pie { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 16px 32px; }
+@media (max-width: 900px) { .pie { grid-template-columns: minmax(0, 1fr); } }
+.pie h2 { font-family: var(--f-titulo); font-weight: 500; font-size: 20px; margin: 0 0 6px; color: var(--acento); }
+.pie p { margin: 0 0 10px; max-width: 62ch; }
+.pie ul { margin: 0; padding-left: 20px; display: flex; flex-direction: column; gap: 4px; max-width: 62ch; }
+.nota { color: var(--tinta-suave); font-size: 14px; }
+kbd { font-family: var(--f-titulo); background: var(--panel-alto); border: 1px solid var(--borde); border-radius: 5px; padding: 0 6px; }
+</style>
+
+<div class="pagina" id="pagina">
+  <div class="cabeza">
+    <div>
+      <h1>Diálogo vivo</h1>
+      <p class="bajada">La conversación con los personajes del caso <span id="caso-id"></span>, en la sala de escucha del hospital. Es una maqueta: todavía no está dentro del juego.</p>
+    </div>
+    <div class="grupo" role="group" aria-label="Qué interfaz se ve">
+      <button type="button" id="modo-hoy" aria-pressed="false">Hoy</button>
+      <button type="button" id="modo-nueva" aria-pressed="true">Nueva</button>
+    </div>
+  </div>
+
+  <div class="barra">
+    <div class="campo"><span>Ver</span>
+      <button type="button" class="suelto" id="ver-comentario">Comentario</button>
+      <button type="button" class="suelto" id="ver-habla">Habla</button>
+      <button type="button" class="suelto" id="ver-opciones">Opciones</button>
+      <button type="button" class="suelto" id="ver-estados">Estados</button>
+      <button type="button" class="suelto" id="ver-reaccion">Reacción</button>
+      <button type="button" class="suelto" id="ver-nota">Nota</button>
+    </div>
+    <div class="campo"><span>Escena</span>
+      <div class="grupo" role="group" aria-label="Escena del caso" id="escenas"></div>
+    </div>
+    <div class="campo"><span>Luz</span>
+      <div class="grupo" role="group" aria-label="Momento del día">
+        <button type="button" id="luz-noche" aria-pressed="true">Noche</button>
+        <button type="button" id="luz-dia" aria-pressed="false">Día</button>
+      </div>
+    </div>
+    <div class="campo"><span>Texto de las opciones</span>
+      <div class="grupo" role="group" aria-label="Largo del texto de las opciones">
+        <button type="button" id="texto-corto" aria-pressed="true">Corto</button>
+        <button type="button" id="texto-largo" aria-pressed="false">Largo</button>
+      </div>
+    </div>
+    <label><input type="checkbox" id="quieto"> Reducir movimiento</label>
+  </div>
+
+  <div class="escenario" id="escenario" data-modo="nueva" data-momento="noche">
+    <canvas id="lienzo" tabindex="-1" aria-label="Sala de escucha del hospital. La psicóloga en formación camina por la sala; están la familia y una colega."></canvas>
+    <div class="rotulo-sala marco" id="rotulo-sala"></div>
+    <div class="burbuja marco" id="burbuja" role="group" hidden><canvas id="burbuja-cara" width="32" height="32"></canvas><p><b id="burbuja-quien"></b><span id="burbuja-linea"></span></p><i class="cola"></i></div>
+    <div class="aviso-estado marco" id="aviso-estado" hidden><i class="pulso" id="aviso-pulso"></i><span id="aviso-texto"></span></div>
+    <div class="pista marco con-sombra" id="pista" hidden><span class="tecla">E</span><span id="pista-texto"></span></div>
+
+    <button type="button" class="volver-sala marco con-sombra" id="volver" hidden><span class="tecla chica" aria-hidden="true">Esc</span><span>Volver a la sala</span></button>
+
+    <div class="dialogo sola" id="dialogo" hidden>
+      <section class="placa" id="placa" role="dialog" aria-labelledby="quien">
+        <div class="pestanas">
+          <div class="rotulo marco"><span id="quien"></span><small id="quien-rol" hidden></small></div>
+          <button type="button" class="volver-hoy" id="volver-hoy"><span aria-hidden="true">◀</span> Volver al mapa</button>
+        </div>
+        <div class="cuerpo marco con-sombra" id="cuerpo" tabindex="-1">
+          <div class="retrato marco" id="retrato"><canvas id="cara" width="32" height="32"></canvas><i class="base"></i></div>
+          <div class="habla">
+            <p class="estado" id="estado" hidden><i class="pulso" id="estado-pulso"></i><span id="estado-texto"></span></p>
+            <p class="linea" id="linea" aria-hidden="true"></p>
+            <p class="sr" id="linea-completa"></p>
+            <div class="pie-placa">
+              <button type="button" class="seguir" id="seguir"><span class="tecla chica" aria-hidden="true">Enter</span><span id="seguir-texto">Saltar</span><i class="flecha" aria-hidden="true"></i></button>
+            </div>
+          </div>
+        </div>
+      </section>
+      <section class="respuestas reservada" id="respuestas" hidden>
+        <p class="cinta marco" id="cinta"><span class="chip">Decisión</span><span id="cinta-texto">Tu elección queda registrada en tu seguimiento formativo.</span></p>
+        <div class="fichas" id="fichas" role="group" aria-label="Opciones de intervención" tabindex="-1"></div>
+      </section>
+    </div>
+    <p class="sr" id="anuncio" aria-live="polite"></p>
+  </div>
+
+  <div class="pie">
+    <div>
+      <h2>Cómo se usa</h2>
+      <p>Camina con las flechas o tocando el piso. Acércate a alguien y pulsa <kbd>E</kbd>. <kbd>Enter</kbd> salta o avanza el texto; las flechas recorren las respuestas y las letras <kbd>A</kbd> a <kbd>D</kbd> eligen. <kbd>Esc</kbd> vuelve a la sala.</p>
+      <p class="nota">Los botones «Ver» llevan directo a cada momento. «Hoy» muestra la misma escena con la interfaz que tiene el juego en este momento.</p>
+    </div>
+    <div>
+      <h2>Qué cambia</h2>
+      <ul>
+        <li>Dos piezas en vez de una franja: la placa de quien habla y las fichas de respuesta. La sala se sigue viendo.</li>
+        <li>Los marcos son pixel art a la misma escala que la sala y toman su luz: lámpara de noche, sol de día.</li>
+        <li>El retrato recibe la luz que tiene el personaje donde está parado; respira, parpadea y salta al cambiar de cara.</li>
+        <li>El estado de la persona se lee en un dibujo de pulso y en palabras, sin números.</li>
+        <li>El texto se escribe con pausas en la puntuación y las acotaciones van en cursiva. Ninguna palabra salta de renglón.</li>
+        <li>Al elegir, tu ficha se enciende, las demás ceden y el personaje reacciona con el cuerpo, la cara y un globo.</li>
+      </ul>
+    </div>
+    <div>
+      <h2>Lo que no cambia</h2>
+      <ul>
+        <li>Los textos son los del caso, tal cual están escritos.</li>
+        <li>Ninguna señal dice cuál respuesta es la adecuada: todas las fichas se ven y se encienden igual.</li>
+        <li>Todo se maneja con teclado, se anuncia a lectores de pantalla y respeta «Reducir movimiento».</li>
+      </ul>
+      <p class="nota" style="margin-top:10px">La sala es del arte por piezas; los personajes y sus caras, del kit del juego.</p>
+    </div>
+  </div>
+
+</div>
+
+<script>
+const D = /*__DATOS__*/;
+const W = D.sala.w, H = D.sala.h, SEAM = 230;
+const FW = 48, FH = 72, PX = 24, PY = 68, FILAS = { down: 0, left: 1, right: 2, up: 3 };
+const el = id => document.getElementById(id);
+const escenario = el('escenario'), lienzo = el('lienzo'), c = lienzo.getContext('2d');
+const mundo = document.createElement('canvas'); mundo.width = W; mundo.height = H;
+const g = mundo.getContext('2d');
+const I = {}, AMB = {};
+const limitar = (v, a, b) => Math.max(a, Math.min(b, v));
+const EMOTE_DE = { preocupada: 'apuro', triste: 'pena', cautelosa: 'duda', 'en-crisis': 'crisis', alegre: 'brote' };
+const RITMO = { 'en-crisis': 0.8, triste: 1.3, cautelosa: 1.15 };
+const RESPIRA = { CALM: 1600, TENSE: 1000, CRISIS: 560 }, PULSO_FPS = { CALM: 2, TENSE: 4, CRISIS: 8 };
+const PAUSA = { ',': 120, ';': 180, ':': 180, '.': 300, '?': 300, '!': 300, '…': 420, ')': 200 };
+const CONSULTANTE = 'abuela';
+const SUPERVISION = { nombre: 'Supervisión clínica', receta: 'supervisor-clinico' };
+
+const E = {
+  modo: 'nueva', momento: 'noche', texto: 'corto', quieto: matchMedia('(prefers-reduced-motion: reduce)').matches, t: 0, esc: 0,
+  cam: { x: 0, y: 0, z: 1 }, zN: 1, zC: 1, teclas: {}, cercano: null, fase: 'sala', dlg: null, pers: [], persona: D.persona.inicial.slice(),
+  jug: { x: 0, y: 0, dir: 'up', anda: false, meta: null }, dijo: {}, hablo: {}, burbuja: null, burbujaT: 0, avisoT: 0, avisoDe: null, opcionesDesde: 0,
+};
+const hoy = () => E.modo === 'hoy';
+const quieto = () => E.quieto;
+const escena = () => D.escenas[E.esc];
+const per = clave => E.pers.find(p => p.clave === clave);
+const etiqueta = () => { const t = D.persona.etiquetas[E.persona.join('/')]; return t.charAt(0).toUpperCase() + t.slice(1); };
+
+function cargar() {
+  return Promise.all(Object.entries(D.imgs).map(([k, src]) => new Promise((ok, mal) => {
+    const im = new Image(); im.onload = () => { I[k] = im; ok(); }; im.onerror = mal; im.src = src;
+  }))).then(() => {
+    for (const [eid, por] of Object.entries(D.luz)) for (const [m, [a]] of Object.entries(por)) {
+      const cv = document.createElement('canvas'); cv.width = W; cv.height = H;
+      const x = cv.getContext('2d', { willReadFrequently: true }); x.drawImage(I[a], 0, 0); AMB[eid + m] = x;
+    }
+  });
+}
+
+/* ── variables de arte: los marcos del momento del día ── */
+function vestir() {
+  const m = E.momento, s = escenario.style;
+  for (const k of Object.keys(D.imgs)) {
+    const r = /^(marco|trama|cursor|seguir)-(?:(.+)-)?(noche|dia)$/.exec(k);
+    if (r && r[3] === m) s.setProperty('--' + (r[2] ? r[1] + '-' + r[2] : r[1]), 'url(' + D.imgs[k] + ')');
+  }
+  s.setProperty('--cola', 'url(' + D.imgs.cola + ')'); s.setProperty('--sombra', 'url(' + D.imgs.sombra + ')');
+  s.setProperty('--luz', D.luzColor[m]);
+  escenario.dataset.momento = m; escenario.dataset.modo = E.modo;
+}
+
+/* ── tamaño: zoom entero de la cámara y escala de la interfaz ── */
+function medir() {
+  const cw = escenario.clientWidth, ch = escenario.clientHeight;
+  const razon = cw / 960;                                   // la vista normal llena la pantalla: sube al entero siguiente desde ,25
+  E.zN = Math.max(1, razon - Math.floor(razon) >= 0.25 ? Math.ceil(razon) : Math.floor(razon));
+  const cerca = E.zN + 1;
+  E.zC = (cw / cerca >= 320 && (ch * 0.56) / cerca >= 150) ? cerca : E.zN;
+  const u = E.zC, apilada = cw < 900;
+  escenario.style.setProperty('--u', u);
+  escenario.style.setProperty('--r', apilada ? (u === 1 ? 3 : u * 2) : u * 3);
+  escenario.style.setProperty('--tam', (u >= 3 ? 21 : u === 2 ? 17 : 16) + 'px');
+  escenario.style.setProperty('--tam-nombre', (u >= 3 ? 30 : 20) + 'px');
+  escenario.classList.toggle('apilada', apilada);
+  escenario.classList.toggle('estrecha', cw < 520);
+  escenario.style.setProperty('--alto', ch);
+}
+
+/* ── sala ── */
+const juntaIzq = y => 96 - (y - SEAM) * 72 / (H - SEAM);
+function libre(x, y) {
+  const [, zy, , zh] = D.sala.zona;
+  if (y < Math.max(zy, 248) || y > Math.min(zy + zh, 486)) return false;
+  if (x < juntaIzq(y) + 12 || x > W - juntaIzq(y) - 12) return false;
+  for (const m of D.muebles) if (x > m.caja[0] - 8 && x < m.caja[2] + 8 && y > m.caja[1] - 2 && y < m.caja[3] + 4) return false;
+  for (const p of E.pers) if (Math.hypot(x - p.x, (y - p.y) * 1.6) < 17) return false;
+  return true;
+}
+function mirarA(desde, hacia) {
+  const dx = hacia.x - desde.x, dy = hacia.y - desde.y;
+  return Math.abs(dx) > Math.abs(dy) * 1.2 ? (dx < 0 ? 'left' : 'right') : (dy < 0 ? 'up' : 'down');
+}
+function iniciarEscena(n, conservar) {
+  E.esc = n; const es = escena();
+  E.pers = es.personas.map(p => Object.assign({}, p, { dir0: p.dir, gx: 0, gy: 0, gxT: 0, gyT: 0, emote: null, emoteT: 0, tiembla: 0, asiente: 0, baja: 0, notada: false }));
+  E.jug = { x: es.entrada[0], y: es.entrada[1], dir: 'up', anda: false, meta: null };
+  E.dijo = {}; E.hablo = {}; if (!conservar) E.persona = D.persona.inicial.slice();
+  cerrarDialogo(true);
+  el('burbuja').hidden = true; E.burbuja = null; el('aviso-estado').hidden = true; E.avisoDe = null;
+  el('rotulo-sala').textContent = ''; const b = document.createElement('span'); b.textContent = D.sala.nombre;
+  const s = document.createElement('small'); s.textContent = es.objetivo; el('rotulo-sala').append(b, s);
+  for (const btn of el('escenas').children) btn.setAttribute('aria-pressed', String(Number(btn.dataset.n) === n));
+  E.cam.z = E.zN; apuntar(1, escenario.clientWidth, escenario.clientHeight);
+}
+
+function decir(texto) { el('anuncio').textContent = ''; setTimeout(() => { el('anuncio').textContent = texto; }, 30); }
+function emote(p, nombre) { if (hoy() || !nombre) return; p.emote = nombre; p.emoteT = 0; }
+function gesto(p, nombre) {
+  if (quieto()) return;
+  const j = E.jug, dx = j.x - p.x, dy = j.y - p.y, d = Math.hypot(dx, dy) || 1;
+  if (nombre === 'se-acerca') { p.gxT = dx / d * 8; p.gyT = dy / d * 5; }
+  else if (nombre === 'se-aparta') { p.gxT = -dx / d * 12; p.gyT = -dy / d * 6; p.dir = mirarA(j, p); }
+  else if (nombre === 'se-agita') p.tiembla = 0.7;
+  else if (nombre === 'asiente') p.asiente = 0.6;
+  else if (nombre === 'baja-la-mirada') p.baja = 2.4;
+}
+
+/* El comentario al acercarse: burbuja sobre la cabeza, sin detener a nadie. */
+function notar(p) {
+  const lista = escena().comentarios.filter(q => q.personaje === p.clave), n = E.dijo[p.clave] || 0;
+  if (n < lista.length) {
+    const q = lista[n]; E.dijo[p.clave] = n + 1; p.expresion = q.emocion; emote(p, EMOTE_DE[q.emocion] || 'duda'); gesto(p, q.gesto);
+    mostrarBurbuja(p, q.linea, q.emocion);
+  } else if (!hoy()) emote(p, EMOTE_DE[p.expresion] || 'duda');
+}
+function mostrarBurbuja(p, linea, emocion) {
+  E.burbuja = p.clave; E.burbujaT = 6;
+  el('burbuja-quien').textContent = p.nombre; el('burbuja-linea').textContent = linea;
+  pintarCara(el('burbuja-cara'), p, emocion, false, false);
+  const b = el('burbuja'); b.hidden = false; b.setAttribute('aria-label', 'Comentario de ' + p.nombre);
+  b.classList.remove('entra'); if (!quieto() && !hoy()) { void b.offsetWidth; b.classList.add('entra'); }
+  decir(p.nombre + ': ' + linea);
+}
+function avisarEstado(p) {
+  E.avisoDe = p.clave; E.avisoT = 4.2; el('aviso-texto').textContent = etiqueta(); ponerPulso(el('aviso-pulso')); el('aviso-estado').hidden = false;
+}
+
+function actualizar(dt) {
+  E.t += dt;
+  const j = E.jug; let dx = 0, dy = 0;
+  if (E.fase === 'sala') {
+    if (E.teclas.ArrowLeft || E.teclas.a) dx -= 1;
+    if (E.teclas.ArrowRight || E.teclas.d) dx += 1;
+    if (E.teclas.ArrowUp || E.teclas.w) dy -= 1;
+    if (E.teclas.ArrowDown || E.teclas.s) dy += 1;
+    if (dx || dy) j.meta = null;
+    else if (j.meta) { const mx = j.meta.x - j.x, my = j.meta.y - j.y, dist = Math.hypot(mx, my); if (dist < 3) j.meta = null; else { dx = mx / dist; dy = my / dist; } }
+  }
+  const largo = Math.hypot(dx, dy); j.anda = false;
+  if (largo > 0) {
+    const paso = 92 * dt, vx = dx / largo * paso, vy = dy / largo * paso * 0.8; let movio = false;
+    if (libre(j.x + vx, j.y)) { j.x += vx; movio = true; }
+    if (libre(j.x, j.y + vy)) { j.y += vy; movio = true; }
+    if (!movio) j.meta = null;
+    j.anda = movio; j.dir = Math.abs(dx) > Math.abs(dy) ? (dx < 0 ? 'left' : 'right') : (dy < 0 ? 'up' : 'down');
+  }
+  let cercano = null, mejor = 60;
+  for (const p of E.pers) {
+    const d = Math.hypot(j.x - p.x, (j.y - p.y) * 1.3);
+    if (d < mejor) { mejor = d; cercano = p; }
+    if (d < 74) { if (E.fase === 'sala' && !(p.baja > 0)) p.dir = mirarA(p, j); if (!p.notada && E.fase === 'sala') { p.notada = true; notar(p); } }
+    else if (d > 130) { p.notada = false; if (E.fase === 'sala') p.dir = p.dir0; }
+    if (p.emote) { p.emoteT += dt; if (p.emoteT > 3.6 && E.fase === 'sala') p.emote = null; }
+    const k = quieto() ? 1 : 1 - Math.exp(-dt * 9);
+    p.gx += (p.gxT - p.gx) * k; p.gy += (p.gyT - p.gy) * k;
+    p.tiembla = Math.max(0, p.tiembla - dt); p.asiente = Math.max(0, p.asiente - dt); p.baja = Math.max(0, p.baja - dt);
+  }
+  E.cercano = E.fase === 'sala' ? cercano : null;
+  if (E.burbuja) {
+    const p = per(E.burbuja); E.burbujaT -= dt;
+    if (!p || E.burbujaT <= 0 || E.fase !== 'sala' || Math.hypot(j.x - p.x, j.y - p.y) > 150) { E.burbuja = null; el('burbuja').hidden = true; }
+  }
+  if (E.avisoDe) { E.avisoT -= dt; if (E.avisoT <= 0) { E.avisoDe = null; el('aviso-estado').hidden = true; } }
+  camara(dt);
+}
+
+function areaLibre(ch) {
+  if (el('dialogo').hidden) return ch;
+  const r = escenario.getBoundingClientRect(); let arriba = ch;
+  for (const hijo of [el('retrato'), el('placa'), el('respuestas')]) if (hijo.offsetParent !== null) arriba = Math.min(arriba, hijo.getBoundingClientRect().top - r.top);
+  return Math.max(120, arriba - (hoy() ? 0 : 6 * E.zC));
+}
+function apuntar(k, cw, ch) {
+  const j = E.jug, hablando = E.fase !== 'sala' && E.dlg;
+  const z = hablando ? E.zC : E.zN;
+  E.cam.z += (z - E.cam.z) * k; if (Math.abs(E.cam.z - z) < 0.004) E.cam.z = z;
+  const libreH = hablando ? areaLibre(ch) : ch, o = hablando ? per(E.dlg.foco) : null;
+  const cx = o ? (j.x + o.x) / 2 : j.x, cy = (o ? (j.y + o.y) / 2 : j.y) - 44;
+  const vw = cw / E.cam.z, vh = ch / E.cam.z, lh = libreH / E.cam.z;
+  const tx = vw >= W ? (W - vw) / 2 : limitar(cx - vw / 2, 0, W - vw);
+  let ty;
+  if (vh >= H && !hablando) ty = (H - vh) / 2;
+  else {
+    ty = limitar(cy - lh / 2, 0, Math.max(0, H - vh));        // la sala sigue viéndose detrás de la interfaz…
+    if (hablando) ty = Math.max(ty, (o ? Math.max(j.y, o.y) : j.y) + 12 - lh);   // …salvo que tape los pies de quien habla
+  }
+  E.cam.x += (tx - E.cam.x) * k; E.cam.y += (ty - E.cam.y) * k;
+}
+function camara(dt) { apuntar(quieto() ? 1 : 1 - Math.exp(-dt * 7), lienzo.clientWidth, lienzo.clientHeight); }
+
+function pintarPersonaje(hoja, cuadros, fps, dir, x, y, fase) {
+  const n = quieto() ? 0 : Math.floor((E.t + (fase || 0)) * fps) % cuadros;
+  g.drawImage(hoja, n * FW, FILAS[dir] * FH, FW, FH, Math.round(x - PX), Math.round(y - PY), FW, FH);
+}
+function posicion(p) {
+  let x = p.x + p.gx, y = p.y + p.gy;
+  if (p.tiembla > 0 && !quieto()) x += Math.round(Math.sin(E.t * 60));
+  if (p.asiente > 0 && !quieto()) y += Math.floor(p.asiente * 6.6) % 2;
+  if (p.baja > 0) y += 1;
+  return [x, y];
+}
+function pintar() {
+  const j = E.jug, m = E.momento;
+  g.globalCompositeOperation = 'source-over'; g.globalAlpha = 1; g.imageSmoothingEnabled = false;
+  g.drawImage(I.fondo, 0, 0);
+  const cuadro = s => s.fps && !quieto() ? Math.floor(E.t * s.fps) % s.n : s.cuadro[m];
+  const sprite = s => g.drawImage(I[s.img], cuadro(s) * s.w, 0, s.w, s.h, s.x, s.y, s.w, s.h);
+  for (const s of D.sprites) if (s.capa === 'muro') sprite(s);
+  const piezas = [];
+  for (const mu of D.muebles) piezas.push({ z: mu.z, mu });
+  for (const s of D.sprites) if (s.capa === 'piso') piezas.push({ z: s.z, s });
+  for (const p of E.pers) { const [x, y] = posicion(p); piezas.push({ z: y, p, x, y }); }
+  piezas.push({ z: j.y, j: true });
+  piezas.sort((a, b) => a.z - b.z);
+  g.fillStyle = 'rgba(8, 6, 18, 0.33)';
+  for (const q of piezas) {
+    g.beginPath();
+    if (q.mu) g.ellipse(q.mu.s[0], q.mu.s[1], q.mu.s[2], q.mu.s[3], 0, 0, Math.PI * 2);
+    else if (q.p) g.ellipse(Math.round(q.x), Math.round(q.y) - 5, 11, 4, 0, 0, Math.PI * 2);
+    else if (q.j) g.ellipse(Math.round(j.x), Math.round(j.y) - 5, 11, 4, 0, 0, Math.PI * 2);
+    g.fill();
+  }
+  for (const q of piezas) {
+    if (q.mu) g.drawImage(I[q.mu.img], q.mu.x, q.mu.y);
+    else if (q.s) sprite(q.s);
+    else if (q.p) pintarPersonaje(I['idle-' + q.p.receta], 4, 4, q.p.baja > 0 ? 'down' : q.p.dir, q.x, q.y, q.p.x * 0.01);
+    else pintarPersonaje(j.anda ? I['walk-' + D.jugadora] : I['idle-' + D.jugadora], j.anda ? 6 : 4, j.anda ? 10 : 4, j.dir, j.x, j.y);
+  }
+  for (const s of D.sprites) if (s.capa === 'frente') sprite(s);
+  const [a, b] = D.luz[escena().id][m];
+  g.globalCompositeOperation = 'multiply'; g.drawImage(I[a], 0, 0);
+  g.globalCompositeOperation = 'lighter'; g.drawImage(I[b], 0, 0);
+  g.globalCompositeOperation = 'source-over';
+  for (const p of E.pers) {
+    if (!p.emote || E.burbuja === p.clave) continue;        // con la burbuja abierta, la cara de la burbuja ya lo dice
+    const [x, y] = posicion(p), n = D.emotes.indexOf(p.emote), s = quieto() ? 1 : Math.min(1, p.emoteT / 0.12);
+    g.drawImage(I.emotes, n * 16, 0, 16, 16, Math.round(x) - 8, Math.round(y) - 86 + Math.round((1 - s) * 4) - (quieto() ? 0 : Math.round(Math.sin(E.t * 3))), 16, 16);
+  }
+}
+
+function presentar() {
+  const dpr = Math.min(window.devicePixelRatio || 1, 3), cw = lienzo.clientWidth, ch = lienzo.clientHeight;
+  const bw = Math.round(cw * dpr), bh = Math.round(ch * dpr);
+  if (lienzo.width !== bw || lienzo.height !== bh) { lienzo.width = bw; lienzo.height = bh; }
+  c.setTransform(1, 0, 0, 1, 0, 0); c.fillStyle = '#0b0a12'; c.fillRect(0, 0, bw, bh);
+  c.imageSmoothingEnabled = false;
+  const s = E.cam.z * dpr;
+  c.setTransform(s, 0, 0, s, Math.round(-E.cam.x * s), Math.round(-E.cam.y * s));
+  c.drawImage(mundo, 0, 0);
+  const um = Math.max(1, Math.round(E.cam.z)); if (E.um !== um) { E.um = um; escenario.style.setProperty('--um', um); }
+  const aPantalla = (x, y) => [Math.round((x - E.cam.x) * E.cam.z), Math.round((y - E.cam.y) * E.cam.z)];
+  const b = el('burbuja');
+  if (!b.hidden && E.burbuja) {
+    const [x, y] = posicion(per(E.burbuja)), [sx, sy] = aPantalla(x, y - (hoy() ? 76 : 92)), w = b.offsetWidth / 2 + 6;
+    const bx = limitar(sx, w, cw - w); b.style.left = bx + 'px'; b.style.top = Math.max(b.offsetHeight + 6, sy) + 'px';
+    b.style.setProperty('--cola-x', limitar(50 + (sx - bx) / (b.offsetWidth || 1) * 100, 12, 88) + '%');
+  }
+  const a = el('aviso-estado');
+  if (!a.hidden && E.avisoDe) { const [x, y] = posicion(per(E.avisoDe)), [sx, sy] = aPantalla(x, y - 94); a.style.left = limitar(sx, 110, cw - 110) + 'px'; a.style.top = Math.max(40, sy) + 'px'; }
+  const pista = el('pista'), texto = E.cercano ? 'Hablar con ' + articulo(E.cercano.nombre) : '';
+  if (pista.hidden === !!texto) pista.hidden = !texto;
+  if (texto && el('pista-texto').textContent !== texto) el('pista-texto').textContent = texto;
+}
+const articulo = n => (/^(Abuela|Psicóloga|Enfermera|Trabajadora)/.test(n) ? 'la ' : 'el ') + n.charAt(0).toLowerCase() + n.slice(1);
+
+/* ── retrato: la cara con la luz de la sala ── */
+function tono(p) {
+  if (hoy() || !p || !p.x) return [255, 255, 255];
+  const d = AMB[escena().id + E.momento].getImageData(limitar(Math.round(p.x), 0, W - 1), limitar(Math.round(p.y - 30), 0, H - 1), 1, 1).data;
+  return [0, 1, 2].map(i => Math.round(d[i] + (255 - d[i]) * 0.42));
+}
+function ladoDeLuz(p) {
+  const fuentes = E.momento === 'noche' ? [250, 716] : [480]; let mejor = fuentes[0];
+  for (const f of fuentes) if (Math.abs(f - p.x) < Math.abs(mejor - p.x)) mejor = f;
+  return mejor < p.x ? -1 : 1;
+}
+const BAYER = [0, 8, 2, 10, 12, 4, 14, 6, 3, 11, 1, 9, 15, 7, 13, 5];
+const taller = document.createElement('canvas'); taller.width = taller.height = 32;
+function pintarCara(destino, p, expresion, cerrado, conLuz) {
+  const N = 32, hoja = I['cara-' + p.receta], n = Math.max(0, D.estados.indexOf(expresion)), iluminar = conLuz && !hoy();
+  if (destino.width !== N) destino.width = destino.height = N;
+  if (iluminar && taller.width !== N) taller.width = taller.height = N;
+  const x = (iluminar ? taller : destino).getContext('2d', { willReadFrequently: true }), sx = n * N, sy = cerrado ? N : 0;
+  x.globalCompositeOperation = 'source-over'; x.clearRect(0, 0, N, N); x.imageSmoothingEnabled = false;
+  x.drawImage(hoja, sx, sy, N, N, 0, 0, N, N);
+  if (!iluminar) return;
+  const final = () => {                                  // fondo por escalones con el tono de la sala y, encima, el busto
+    const dx = destino.getContext('2d'), t = tono(p), f = dx.createImageData(N, N), niveles = [0.21, 0.245, 0.28];
+    for (let yy = 0; yy < N; yy++) for (let xx = 0; xx < N; xx++) {
+      const v = yy / (N - 1) * 2, k = Math.min(2, Math.floor(v) + (v - Math.floor(v) > (BAYER[(yy % 4) * 4 + (xx % 4)] + 0.5) / 16 ? 1 : 0)), i = (yy * N + xx) * 4;
+      for (let q = 0; q < 3; q++) f.data[i + q] = Math.round(t[q] * niveles[k] + 10); f.data[i + 3] = 255;
+    }
+    dx.putImageData(f, 0, 0); dx.imageSmoothingEnabled = false; dx.drawImage(taller, 0, 0);
+  };
+  if (!p.x) return final();
+  const t = tono(p);
+  x.globalCompositeOperation = 'multiply'; x.fillStyle = 'rgb(' + t.join(',') + ')'; x.fillRect(0, 0, N, N);
+  x.globalCompositeOperation = 'destination-in'; x.drawImage(hoja, sx, sy, N, N, 0, 0, N, N);
+  x.globalCompositeOperation = 'source-over';
+  const im = x.getImageData(0, 0, N, N), d = im.data, lado = ladoDeLuz(p), luz = E.momento === 'noche' ? [255, 205, 130] : [255, 243, 205];
+  const orig = new Uint8ClampedArray(d), grosor = N / 32 > 1 ? 2 : 1;
+  for (let yy = 4; yy < N - 2; yy++) for (let xx = 3; xx < N - 3; xx++) {
+    const i = (yy * N + xx) * 4;                         // píxel de contorno con vacío hacia la luz: los de adentro se encienden
+    if (orig[i + 3] && !orig[i + lado * 4 + 3]) for (let g2 = 1; g2 <= grosor; g2++) { const dentro = i - lado * 4 * g2; if (orig[dentro + 3]) for (let k = 0; k < 3; k++) d[dentro + k] = Math.round(orig[dentro + k] * 0.5 + luz[k] * 0.5); }
+  }
+  x.putImageData(im, 0, 0);
+  final();
+}
+const R = { p: null, expresion: 'neutral', cerrado: false, sube: 0, salto: 0, proximo: 2, respT: 0 };
+function ponerRetrato(p, expresion) {
+  const cambia = R.p && (R.p !== p || R.expresion !== expresion);
+  R.p = p; R.expresion = expresion; R.cerrado = false;
+  pintarCara(el('cara'), p, expresion, false, true);
+  const t = tono(p); el('retrato').style.setProperty('--tono', 'rgb(' + t.map(v => Math.round(v * 0.24 + 12)).join(',') + ')');
+  if (cambia && !quieto() && !hoy()) R.salto = 0.2;
+}
+function vivirRetrato(dt) {
+  if (!R.p || el('dialogo').hidden) return;
+  const cara = el('cara'); let dy = 0;
+  if (!quieto() && !hoy()) {
+    const act = R.p.clave === CONSULTANTE ? E.persona[1] : null, periodo = act ? RESPIRA[act] : 1300;
+    R.respT += dt * 1000; if (R.respT >= periodo) { R.respT = 0; R.sube = R.sube ? 0 : 1; }
+    dy = -R.sube;
+    if (R.salto > 0) { R.salto -= dt; dy = R.salto > 0.11 ? -2 : R.salto > 0.05 ? 1 : 0; }
+    R.proximo -= dt;
+    if (R.proximo <= 0) { R.cerrado = !R.cerrado; R.proximo = R.cerrado ? 0.13 : 2.6 + Math.random() * 3.2; pintarCara(cara, R.p, R.expresion, R.cerrado, true); }
+  }
+  const px = dy * Number(escenario.style.getPropertyValue('--r'));
+  cara.style.transform = px ? 'translateY(' + px + 'px)' : '';
+}
+let pulsoT = 0;
+function ponerPulso(nodo) { nodo.style.backgroundImage = 'url(' + D.imgs['pulso-' + E.persona[1]] + ')'; }
+function vivirPulso(dt) {
+  pulsoT += dt; const n = quieto() ? 0 : Math.floor(pulsoT * PULSO_FPS[E.persona[1]]) % 4;
+  for (const id of ['estado-pulso', 'aviso-pulso']) el(id).style.backgroundPosition = (n * 100 / 3) + '% 0';
+}
+function ponerEstado(p, destello) {
+  const e = el('estado'), es = p && p.clave === CONSULTANTE && !hoy();
+  e.hidden = !es; if (!es) { el('retrato').style.removeProperty('--tono-pulso'); return; }
+  el('estado-texto').textContent = etiqueta(); ponerPulso(el('estado-pulso'));
+  el('retrato').style.setProperty('--tono-pulso', { CALM: '#8fcf9a', TENSE: '#f0c46e', CRISIS: '#ec9684' }[E.persona[1]]);
+  e.classList.remove('cambio'); if (destello && !quieto()) { void e.offsetWidth; e.classList.add('cambio'); }
+}
+
+/* ── el texto: se maqueta entero y se revela con ritmo ── */
+const T = { tramos: [], total: 0, n: 0, reloj: null, alTerminar: null, factor: 1 };
+function tramos(texto) {
+  const lista = []; let i = 0;
+  for (const m of texto.matchAll(/\([^)]*\)/g)) {
+    if (m.index > i) lista.push({ texto: texto.slice(i, m.index), acot: false });
+    lista.push({ texto: m[0], acot: true }); i = m.index + m[0].length;
+  }
+  if (i < texto.length) lista.push({ texto: texto.slice(i), acot: false });
+  return lista;
+}
+function revelar(n) {
+  const l = el('linea'); l.textContent = ''; let resto = n;
+  for (const tr of T.tramos) {
+    const visto = tr.texto.slice(0, Math.max(0, resto)), falta = tr.texto.slice(Math.max(0, resto)); resto -= tr.texto.length;
+    for (const [trozo, oculto] of [[visto, false], [falta, true]]) {
+      if (!trozo) continue;
+      const s = document.createElement('span'); s.textContent = trozo; s.className = (tr.acot ? 'acot ' : '') + (oculto ? 'falta' : ''); l.appendChild(s);
+    }
+  }
+}
+function escribir(texto, emocion, alTerminar) {
+  clearTimeout(T.reloj); T.tramos = tramos(texto); T.total = texto.length; T.n = 0; T.alTerminar = alTerminar; T.factor = RITMO[emocion] || 1;
+  el('linea-completa').textContent = texto; decir(el('quien').textContent + ': ' + texto);
+  botonSeguir('Saltar', false);
+  if (quieto()) return completar();
+  revelar(0);
+  const cps = hoy() ? 22 : 30;
+  const paso = () => {
+    T.n += 1; revelar(T.n);
+    if (T.n >= T.total) return completar();
+    const ch = texto[T.n - 1], sig = texto[T.n];
+    let espera = 1000 / cps * (hoy() ? 1 : T.factor);
+    if (!hoy() && PAUSA[ch] && sig !== ch && !(ch === '.' && /\d/.test(sig || ''))) espera += PAUSA[ch] * T.factor;
+    T.reloj = setTimeout(paso, espera);
+  };
+  T.reloj = setTimeout(paso, 140);
+}
+function completar() {
+  clearTimeout(T.reloj); T.n = T.total; revelar(T.total);
+  const fin = T.alTerminar; T.alTerminar = null; if (fin) fin();
+}
+const escribiendo = () => T.n < T.total;
+
+/* ── conversación ── */
+function hablante(clave) { return clave === 'supervision' ? SUPERVISION : per(clave); }
+function ponerHablante(clave, expresion, destello) {
+  const p = hablante(clave);
+  el('quien').textContent = p.nombre; el('placa').classList.toggle('supervision', clave === 'supervision');
+  const rol = el('quien-rol'); rol.hidden = clave !== 'supervision' || hoy(); rol.textContent = 'Nota para ti, fuera de la escena';
+  ponerRetrato(p, expresion); ponerEstado(p, destello);
+}
+function botonSeguir(texto, lista) { el('seguir-texto').textContent = texto; el('seguir').classList.toggle('lista', !!lista); }
+function abrirDialogo(clave, directo) {
+  const p = per(clave), origen = escena().dialogos[clave]; if (!p || !origen) return;
+  const d = E.prueba ? Object.assign({}, origen, { opciones: E.prueba }) : origen;
+  E.dlg = { clave, foco: clave, i: 0, d, elegida: null }; E.fase = 'habla'; E.jug.meta = null; E.hablo[clave] = true;
+  el('burbuja').hidden = true; E.burbuja = null; el('aviso-estado').hidden = true; E.avisoDe = null;
+  E.jug.dir = mirarA(E.jug, p); p.dir = mirarA(p, E.jug); p.baja = 0;
+  const dlg = el('dialogo'), resp = el('respuestas'), hay = d.opciones.length > 0;
+  dlg.hidden = false; dlg.classList.toggle('sola', !hay); dlg.classList.remove('eligiendo');
+  resp.hidden = !hay; resp.classList.add('reservada'); resp.setAttribute('aria-hidden', 'true');
+  escenario.classList.add('hablando'); el('volver').hidden = false;
+  el('cinta').querySelector('.chip').hidden = false; el('cinta-texto').textContent = 'Tu elección queda registrada en tu seguimiento formativo.';
+  if (hay) armarFichas(d.opciones);
+  reservarLineas();
+  linea(directo);
+  el('cuerpo').focus({ preventScroll: true });
+}
+/* La caja no salta: se mide la línea más alta de toda la conversación (líneas, reacciones y notas) y se reserva. */
+function reservarLineas() {
+  const l = el('linea'), d = E.dlg.d, textos = d.lineas.map(q => q.texto);
+  for (const o of d.opciones) textos.push(o.reaccion.linea, o.nota);
+  l.style.minHeight = ''; let alto = 0;
+  if (!hoy()) for (const t of textos) { T.tramos = tramos(t); revelar(t.length); alto = Math.max(alto, l.offsetHeight); }
+  l.textContent = ''; if (alto) l.style.minHeight = alto + 'px';
+}
+function linea(directo) {
+  const { d, i, clave } = E.dlg, li = d.lineas[i], p = per(clave), ultima = i === d.lineas.length - 1;
+  p.expresion = li.emocion; ponerHablante(clave, li.emocion);
+  escribir(li.texto, li.emocion, () => {
+    if (ultima && d.opciones.length) mostrarOpciones();
+    else botonSeguir(ultima ? 'Continuar' : 'Siguiente', true);
+  });
+  if (directo) completar();
+}
+function avanzar() {
+  if (!E.dlg) return;
+  if (escribiendo()) return completar();
+  if (E.fase === 'habla') {
+    if (E.dlg.i < E.dlg.d.lineas.length - 1) { E.dlg.i += 1; linea(); }
+    else if (!E.dlg.d.opciones.length) cerrarDialogo();
+  } else if (E.fase === 'reaccion') nota();
+  else if (E.fase === 'nota') terminar();
+}
+function armarFichas(opciones) {
+  const f = el('fichas'); f.textContent = ''; f.classList.remove('muestra');
+  opciones.forEach((o, n) => {
+    const b = document.createElement('button'); b.type = 'button'; b.className = 'ficha marco con-sombra'; b.id = 'opcion-' + o.letra; b.dataset.n = n; b.style.setProperty('--n', n);
+    const texto = E.texto === 'largo' ? o.largo : o.corto;
+    b.setAttribute('aria-label', o.letra + '. ' + texto);
+    const t = document.createElement('span'); t.className = 'tecla'; t.setAttribute('aria-hidden', 'true');
+    const l = document.createElement('i'); l.className = 'glifo'; l.dataset.letra = o.letra;
+    l.style.setProperty('--lc', 'url(' + D.imgs['letra-' + o.letra + '-clara'] + ')'); l.style.setProperty('--lo', 'url(' + D.imgs['letra-' + o.letra + '-oscura'] + ')');
+    const nu = document.createElement('span'); nu.className = 'num'; nu.textContent = n + 1; t.append(l, nu);
+    const s = document.createElement('span'); s.className = 'ficha-texto'; s.textContent = texto;
+    const cur = document.createElement('i'); cur.className = 'cursor'; cur.setAttribute('aria-hidden', 'true');
+    b.append(t, s, cur);
+    b.addEventListener('click', ev => { if (ev.detail === 0 && performance.now() - E.opcionesDesde < 500) return; elegir(n); });
+    f.appendChild(b);
+  });
+  elegirRejilla();
+}
+/* Dos columnas (todas las fichas del mismo tamaño, se leen A B / C D) o una sola: la que ocupe menos alto. */
+function elegirRejilla() {
+  const f = el('fichas'), n = [...f.children].filter(b => !b.hidden).length; f.classList.remove('una');
+  if (n < 2) { f.classList.add('una'); return; }
+  if (escenario.classList.contains('apilada') || hoy()) return;
+  const dos = f.scrollHeight; f.classList.add('una');
+  if (dos <= f.scrollHeight) f.classList.remove('una');
+}
+function mostrarOpciones() {
+  E.fase = 'opciones'; E.opcionesDesde = performance.now();
+  const resp = el('respuestas'); resp.classList.remove('reservada'); resp.removeAttribute('aria-hidden'); el('dialogo').classList.add('eligiendo');
+  botonSeguir('Elige una respuesta', false); el('seguir').hidden = true;
+  for (const b of el('fichas').children) { b.classList.remove('entra'); if (!quieto() && !hoy()) { void b.offsetWidth; b.classList.add('entra'); } }
+  el('fichas').focus({ preventScroll: true }); el('fichas').scrollTop = 0;
+  decir('Opciones de intervención: ' + E.dlg.d.opciones.length + '. Usa las flechas o las letras.');
+}
+function elegir(n) {
+  if (E.fase !== 'opciones' || !E.dlg || E.dlg.elegida !== null) return;
+  const o = E.dlg.d.opciones[n], fichas = [...el('fichas').children]; E.dlg.elegida = n;
+  fichas.forEach((b, i) => { b.classList.remove('entra'); b.classList.add(i === n ? 'elegida' : 'cede'); b.disabled = true; });
+  el('cinta-texto').textContent = 'Tu respuesta'; el('cinta').querySelector('.chip').hidden = true;
+  const sigue = () => { if (!E.dlg || E.dlg.elegida !== n) return; fichas.forEach((b, i) => { if (i !== n) b.hidden = true; }); el('fichas').classList.add('una'); reaccion(o); };
+  if (quieto()) sigue(); else setTimeout(sigue, 420);
+}
+function reaccion(o) {
+  E.fase = 'reaccion'; const r = o.reaccion, p = per(r.personaje) || per(E.dlg.clave), antes = E.persona.join('/');
+  E.dlg.foco = p.clave; E.dlg.opcion = o; el('seguir').hidden = false; el('dialogo').classList.remove('eligiendo');
+  E.persona = [D.persona.bond[limitar(D.persona.bond.indexOf(E.persona[0]) + (o.efecto.bond || 0), 0, 2)],
+               D.persona.activation[limitar(D.persona.activation.indexOf(E.persona[1]) + (o.efecto.activation || 0), 0, 2)]];
+  const cambio = E.persona.join('/') !== antes;
+  p.expresion = r.emocion; gesto(p, r.gesto); emote(p, o.efecto.bond > 0 ? 'brote' : EMOTE_DE[r.emocion]);   // más confianza es un brote
+  el('volver').hidden = true;
+  E.jug.dir = mirarA(E.jug, p);
+  ponerHablante(p.clave, r.emocion, cambio);
+  const fin = () => {
+    botonSeguir('Continuar', true);
+    if (cambio) { const cn = per(CONSULTANTE); if (cn && p.clave !== CONSULTANTE && !hoy()) avisarEstado(cn); decir((cn ? cn.nombre + ' ' : '') + etiqueta().toLowerCase()); }
+  };
+  if (r.linea) escribir(r.linea, r.emocion, fin); else { T.tramos = []; T.total = T.n = 0; el('linea').textContent = ''; fin(); }
+}
+function nota() {
+  const o = E.dlg.opcion; E.fase = 'nota';
+  ponerHablante('supervision', 'neutral');
+  escribir(o.nota, 'neutral', () => botonSeguir(E.esc < D.escenas.length - 1 ? 'Siguiente escena' : 'Volver a empezar', true));
+}
+function terminar() { const sig = (E.esc + 1) % D.escenas.length; iniciarEscena(sig, sig !== 0); }
+function cerrarDialogo(silencio) {
+  clearTimeout(T.reloj); T.n = T.total = 0; el('dialogo').hidden = true; E.dlg = null; E.fase = 'sala'; R.p = null;
+  el('seguir').hidden = false; el('respuestas').hidden = true; escenario.classList.remove('hablando'); el('volver').hidden = true;
+  const pers = E.pers; setTimeout(() => { for (const p of pers) { p.gxT = 0; p.gyT = 0; } }, 1600);
+  if (!silencio) lienzo.focus({ preventScroll: true });
+}
+function accion() { if (E.fase === 'sala' && E.cercano) abrirDialogo(E.cercano.clave); }
+
+/* ── saltos de «Ver» ── */
+function junto(clave) { const p = per(clave), der = p.dir0 === 'right'; E.jug.x = p.x + (der ? 54 : -54); E.jug.y = p.y + 8; E.jug.meta = null; E.jug.dir = der ? 'left' : 'right'; }
+function ver(que, opcion) {
+  iniciarEscena(E.esc, true); const cl = escena().hablante;
+  if (que === 'comentario') { const p = per(CONSULTANTE); junto(p.clave); p.notada = true; notar(p); return; }
+  junto(cl); abrirDialogo(cl, que !== 'habla');
+  if (que === 'habla') return;
+  while (E.dlg.i < E.dlg.d.lineas.length - 1) { E.dlg.i += 1; linea(true); }
+  if (E.fase !== 'opciones') mostrarOpciones();
+  if (que === 'opciones') return;
+  const q = E.quieto; E.quieto = true; elegir(opcion || 0); completar(); if (que === 'nota') { nota(); completar(); } E.quieto = q;
+}
+
+function verEstados() {
+  ver('opciones'); const fichas = [...el('fichas').children], nombres = ['Reposo', 'Sobre', 'Foco', 'Pulsada'], clases = ['', 'es-sobre', 'es-foco', 'pulsada'];
+  el('fichas').classList.add('muestra');
+  fichas.forEach((b, i) => { b.classList.remove('entra'); if (clases[i]) b.classList.add(clases[i]); const r = document.createElement('span'); r.className = 'rotulo-estado'; r.textContent = nombres[i] || ''; r.setAttribute('aria-hidden', 'true'); b.appendChild(r); });
+}
+/* Para el recorrido: las opciones de cualquier decisión del caso, cortas o largas, en la conversación de la escena. */
+function probar(n, largo) {
+  const dz = D.decisiones[n], textos = dz[largo ? 'largos' : 'cortos'];
+  E.prueba = textos.map((t, i) => ({ letra: 'ABCD'[i], corto: t, largo: t, reaccion: { personaje: escena().hablante, emocion: 'neutral', gesto: '', linea: '' }, nota: '', efecto: {} }));
+  ver('opciones'); E.prueba = null;
+}
+function fijar(grupo, activo) { for (const [id, v] of Object.entries(grupo)) el(id).setAttribute('aria-pressed', String(v === activo)); }
+function modo(nombre) { E.modo = nombre; fijar({ 'modo-hoy': 'hoy', 'modo-nueva': 'nueva' }, nombre); vestir(); medir(); iniciarEscena(E.esc, true); }
+function momento(nombre) { E.momento = nombre; fijar({ 'luz-noche': 'noche', 'luz-dia': 'dia' }, nombre); vestir(); if (R.p) ponerRetrato(R.p, R.expresion); }
+function largoTexto(nombre) {
+  E.texto = nombre; fijar({ 'texto-corto': 'corto', 'texto-largo': 'largo' }, nombre);
+  if (E.dlg && E.dlg.d.opciones.length && E.dlg.elegida === null) { armarFichas(E.dlg.d.opciones); if (E.fase === 'opciones') mostrarOpciones(); }
+}
+
+addEventListener('keydown', ev => {
+  const k = ev.key.length === 1 ? ev.key.toLowerCase() : ev.key, enBoton = ev.target instanceof HTMLButtonElement || ev.target instanceof HTMLInputElement;
+  if (ev.target instanceof HTMLElement && ev.target.closest('.barra, .cabeza')) return;
+  if (ev.ctrlKey || ev.metaKey || ev.altKey) return;
+  if (E.fase === 'sala') {
+    if (['ArrowLeft', 'ArrowRight', 'ArrowUp', 'ArrowDown'].includes(k)) ev.preventDefault();
+    E.teclas[k] = true;
+    if ((k === 'e' || (k === 'Enter' && !enBoton)) && !ev.repeat) { ev.preventDefault(); accion(); }
+    return;
+  }
+  if (k === 'Escape') { ev.preventDefault(); if (E.fase === 'habla' || E.fase === 'opciones') cerrarDialogo(); return; }
+  if (E.fase === 'opciones') {
+    const fichas = [...el('fichas').children].filter(b => !b.hidden), actual = fichas.indexOf(document.activeElement);
+    const columnas = el('fichas').classList.contains('una') || escenario.classList.contains('apilada') || hoy() ? 1 : 2;
+    const mover = { ArrowDown: columnas, ArrowUp: -columnas, ArrowRight: 1, ArrowLeft: -1 }[k];
+    if (mover) { ev.preventDefault(); const n = actual < 0 ? 0 : limitar(actual + mover, 0, fichas.length - 1); fichas[n].focus(); fichas[n].scrollIntoView({ block: 'nearest' }); return; }
+    const n = k.length === 1 && 'abcd'.includes(k) && !hoy() ? 'abcd'.indexOf(k) : k.length === 1 && '1234'.includes(k) ? '1234'.indexOf(k) : -1;
+    if (n >= 0 && n < fichas.length && !ev.repeat) { ev.preventDefault(); elegir(n); }
+    return;
+  }
+  if ((k === 'Enter' || k === ' ') && !enBoton) { ev.preventDefault(); if (!ev.repeat) avanzar(); }
+});
+addEventListener('keyup', ev => { E.teclas[ev.key.length === 1 ? ev.key.toLowerCase() : ev.key] = false; });
+addEventListener('blur', () => { E.teclas = {}; });
+lienzo.addEventListener('pointerdown', ev => {
+  if (E.fase !== 'sala') return;
+  const r = lienzo.getBoundingClientRect();
+  E.jug.meta = { x: E.cam.x + (ev.clientX - r.left) / E.cam.z, y: limitar(E.cam.y + (ev.clientY - r.top) / E.cam.z, 250, 484) };
+  if (E.cercano && Math.hypot(E.jug.meta.x - E.cercano.x, E.jug.meta.y - (E.cercano.y - 30)) < 34) { E.jug.meta = null; accion(); }
+});
+el('cuerpo').addEventListener('click', ev => { if (!(ev.target instanceof Element && ev.target.closest('button'))) avanzar(); });
+el('seguir').addEventListener('click', avanzar);
+el('volver').addEventListener('click', () => cerrarDialogo());
+el('volver-hoy').addEventListener('click', () => { if (E.fase === 'habla' || E.fase === 'opciones') cerrarDialogo(); });
+el('modo-hoy').addEventListener('click', () => modo('hoy'));
+el('modo-nueva').addEventListener('click', () => modo('nueva'));
+el('luz-noche').addEventListener('click', () => momento('noche'));
+el('luz-dia').addEventListener('click', () => momento('dia'));
+el('texto-corto').addEventListener('click', () => largoTexto('corto'));
+el('texto-largo').addEventListener('click', () => largoTexto('largo'));
+el('quieto').addEventListener('change', ev => { E.quieto = ev.target.checked; });
+for (const que of ['comentario', 'habla', 'opciones', 'reaccion', 'nota']) el('ver-' + que).addEventListener('click', () => ver(que));
+el('ver-estados').addEventListener('click', verEstados);
+new ResizeObserver(() => { medir(); if (E.dlg && E.dlg.elegida === null && !el('respuestas').hidden) elegirRejilla(); if (E.dlg && E.fase === 'habla') { const n = T.n; reservarLineas(); T.tramos = tramos(el('linea-completa').textContent); revelar(n); } }).observe(escenario);
+
+let antes = 0;
+function ciclo(ahora) {
+  const dt = Math.min(0.05, (ahora - antes) / 1000 || 0); antes = ahora;
+  actualizar(dt); pintar(); presentar(); vivirRetrato(dt); vivirPulso(dt);
+  requestAnimationFrame(ciclo);
+}
+cargar().then(() => {
+  el('caso-id').textContent = D.caso.id; el('quieto').checked = E.quieto;
+  D.escenas.forEach((es, n) => {
+    const b = document.createElement('button'); b.type = 'button'; b.dataset.n = n; b.textContent = es.id + ' · ' + es.titulo.replace(/^Capítulo \d+ · /, '');
+    b.addEventListener('click', () => iniciarEscena(n)); el('escenas').appendChild(b);
+  });
+  if (location.hash === '#solo') el('pagina').classList.add('solo');
+  vestir(); medir(); iniciarEscena(0);
+  window.__dialogo = { D, E, R, T, ver, verEstados, probar, modo, momento, largoTexto, iniciarEscena, completar, avanzar, elegir, abrirDialogo, junto, per, listo: true };
+  requestAnimationFrame(ciclo);
+}).catch(err => { el('rotulo-sala').textContent = 'No se pudieron cargar las imágenes de la maqueta.'; console.error(err); });
+</script>

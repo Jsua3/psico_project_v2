@@ -10,8 +10,7 @@
  * Leyenda: R pelo (la luz decide) · r borde del moño y raya (profundo) · h brillo.
  */
 
-import { gridFrom } from '../../raster.mjs';
-import { headHalfWidth } from '../../busts/bust-a.mjs';
+import { DIAGONAL } from './mono.diagonal.mjs';
 
 const LEGEND = {
   R: { mat: 'hair' },
@@ -19,20 +18,34 @@ const LEGEND = {
   h: { mat: 'hair', tone: 0 },
 };
 
-// ── Retrato 32×32: recogido, raya al medio y el moño asomando a un lado ───────
+// ── Retrato 32×32: pelo recogido hacia atrás con el moño arriba ───────────────
+//
+// Misma silueta de la cabeza que antes; el casco con raya al medio pasa a ser pelo
+// tirante. El moño es una bola sobre la coronilla (luz arriba a la izquierda, tono
+// profundo abajo a la derecha) y su sombra cae sobre el casco. Una banda de brillo
+// del lado de la luz y tres zonas de tono (luz, base, sombra) que separan dos mechones
+// en diagonal hacia el moño; el tono más oscuro, junto a las orejas y en el borde
+// contrario a la luz.
+//
+// Leyenda: R pelo (la luz decide) · h brillo · b base · s sombra · r profundo.
 
-const CX = 15.5;
+const PORTRAIT_LEGEND = { ...LEGEND, b: { mat: 'hair', tone: 1 }, s: { mat: 'hair', tone: 2 } };
+
 const PORTRAIT = [{
-  anchor: 'H', at: [0, 0], mode: 'cover', legend: LEGEND,
-  grid: gridFrom(32, 32, (x, y) => {
-    if (y < 3 || y > 13) return '.';
-    const head = headHalfWidth(Math.max(4, y));
-    const half = y === 3 ? 2.5 : head + (y <= 9 ? 1 : 0);
-    if (Math.abs(x - CX) > half) return '.';
-    if (y <= 8) return x === 15 && y <= 6 ? 'r' : ((x === 10 && y === 6) || (x === 11 && y === 5) ? 'h' : 'R');
-    // Bandas laterales recogidas hasta la oreja.
-    return Math.abs(x - CX) > 6.5 && y <= 12 ? 'R' : '.';
-  }),
+  anchor: 'H', at: [8, 2], mode: 'cover', legend: PORTRAIT_LEGEND,
+  grid: `
+    ......hbsr......
+    .....hhbssr.....
+    .....RRssrr.....
+    ...Rhhssrrrrr...
+    .Rhhhbsbbsssrrr.
+    .Rhbbsbbbbsssrr.
+    Rbbbsbbbbbbssrrr
+    Rbs..........srr
+    bs............rr
+    s..............r
+    r..............r
+  `,
 }];
 
 export default {
@@ -42,6 +55,7 @@ export default {
   z: 6,
   portrait: PORTRAIT,
   views: {
+    ...DIAGONAL,
     down: [{
       anchor: 'H', at: [15, 5], mode: 'cover', legend: LEGEND,
       grid: `

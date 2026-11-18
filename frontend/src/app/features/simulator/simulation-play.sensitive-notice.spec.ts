@@ -75,6 +75,17 @@ describe('SimulationPlayComponent: aviso del nodo sensible', () => {
     expect(component.sensitiveNotice()).toBe('Este momento permite salida segura: prioriza confidencialidad y rutas institucionales.');
   });
 
+  it('mientras el personaje reacciona (escena anterior retenida), el aviso sigue siendo el de la escena anterior', () => {
+    const previous = attemptWith({ id: 1, key: 'entrada', warningMessage: null, safeExitRequired: false }).currentNode;
+    component.attempt.set(attemptWith({ id: 2, key: 'sala-espera', warningMessage: WARNING }));
+    (component as unknown as { heldNode: { set(node: unknown): void } }).heldNode.set(previous);
+
+    expect(component.sensitiveNotice(), 'el aviso de la escena siguiente no se adelanta a la reacción').toBeNull();
+
+    (component as unknown as { heldNode: { set(node: unknown): void } }).heldNode.set(null);
+    expect(component.sensitiveNotice(), 'al terminar la reacción llega el aviso de la escena nueva').toBe(WARNING);
+  });
+
   it('el aviso cambia con el nodo: al pasar a una etapa sin aviso desaparece', () => {
     component.attempt.set(attemptWith({ warningMessage: WARNING }));
     expect(component.sensitiveNotice()).toBe(WARNING);

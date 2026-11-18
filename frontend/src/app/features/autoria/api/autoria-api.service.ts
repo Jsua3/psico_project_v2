@@ -1,8 +1,10 @@
+import { HttpClient } from '@angular/common/http';
 import { Injectable, inject } from '@angular/core';
-import { Observable, catchError, forkJoin, map, of, switchMap } from 'rxjs';
+import { Observable, catchError, firstValueFrom, forkJoin, map, of, switchMap } from 'rxjs';
 
 import { AuthoringApi } from '../../../core/api/authoring.api';
 import type { CaseEditorView, WorldDefinition } from '../../../core/models/simulation.model';
+import { MANIFIESTO_DE_PIEZAS_URL, esManifiestoDePiezas, type ManifiestoDePiezas } from '../../simulator/sala/catalogo';
 import type { CasoBorrador } from '../modelo/caso';
 import { casoDesdeApi } from '../modelo/desde-api';
 import type { Escenario } from '../modelo/escenario';
@@ -29,6 +31,19 @@ export interface CasoLeido {
 export class AutoriaApiService {
   /** Las mutaciones, la validación y el asistente: llamadas directas con su revisión. */
   readonly api = inject(AuthoringApi);
+  private readonly http = inject(HttpClient);
+  private manifiestoPendiente: Promise<ManifiestoDePiezas> | null = null;
+
+  /** Comparte la petición en curso y conserva el resultado; un fallo permite volver a intentarlo. */
+  manifiestoDePiezas(): Promise<ManifiestoDePiezas> {
+    return this.manifiestoPendiente ??= firstValueFrom(this.http.get<unknown>(MANIFIESTO_DE_PIEZAS_URL)).then((datos) => {
+      if (!esManifiestoDePiezas(datos)) throw new Error('Manifiesto de piezas inválido');
+      return datos;
+    }).catch((error: unknown) => {
+      this.manifiestoPendiente = null;
+      throw error;
+    });
+  }
 
   /** Los lugares de la biblioteca. */
   lugares() {

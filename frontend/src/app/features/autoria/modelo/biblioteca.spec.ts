@@ -61,6 +61,10 @@ describe('Biblioteca', () => {
       expect(rutaArte('universidad', '')).toBe('');
     });
 
+    it('una ruta de la biblioteca de piezas cuelga de la biblioteca, no del lugar (como el servidor)', () => {
+      expect(rutaArte('comisaria', 'piezas/muebles/comisaria/escritorio.png')).toBe('/assets/biblioteca/piezas/muebles/comisaria/escritorio.png');
+    });
+
     it('el retrato sale del kit de personajes del programa', () => {
       expect(rutaRetrato('camila', 'en-crisis')).toBe('/assets/characters/kit/camila/portrait-en-crisis.png');
     });

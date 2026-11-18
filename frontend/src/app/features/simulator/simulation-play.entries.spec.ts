@@ -4,6 +4,7 @@ vi.mock('phaser', () => ({
   __esModule: true,
   default: {
     Scene: class {},
+    Game: class { destroy(): void {} },
     AUTO: 0,
     Scale: { FIT: 0, CENTER_BOTH: 0 },
     Math: { Clamp: (value: number) => value },
@@ -20,7 +21,7 @@ import { join } from 'path';
 import { LIVE_WRITE_DELAY_MS, LiveRegionAnnouncer } from '../../core/a11y/live-announcer.service';
 import { SimulationService } from '../../core/api/simulation.service';
 import { AuthService } from '../../core/auth/auth.service';
-import { SimulationAttemptState } from '../../core/models/simulation.model';
+import { SimulationAttemptState, SimulationWorldState } from '../../core/models/simulation.model';
 import { UiDialog } from '../../shared/ui/dialog/ui-dialog';
 import { AvatarStore } from '../character/avatar.store';
 import { KitService } from '../character/kit/kit.service';
@@ -67,19 +68,17 @@ const FROZEN = {
     ],
     actions: ['Volver al catálogo', 'Continuar'],
   },
-  intro: { eyebrow: 'Introducción', title: 'Antes de comenzar', toggle: 'Silenciar música', actions: ['Salida segura', 'Continuar'] },
-  context: {
+  intro: {
     eyebrow: 'Primera escena',
-    title: 'Contexto inicial del caso',
+    title: 'Antes de comenzar',
+    toggle: 'Silenciar música',
+    actions: ['Salida segura', 'Continuar'],
     paragraphs: [
-      'Son las 11 de la noche en un barrio con altas condiciones de vulnerabilidad: pobreza, violencias urbanas, robos, expendio de drogas, presencia de grupos armados ilegales y riñas callejeras entre vecinos.',
-      'Un hombre de aproximadamente 28 años entra a su domicilio, donde reside con su pareja actual, una mujer de 22 años. Ella tiene una hija de 3 años.',
-      'En horas de la tarde, el hombre había tenido un altercado verbal con su pareja. Hubo groserías, maltrato psicológico y chantaje emocional: le dijo que sin él no era nadie, que era una mujer mantenida y que estaba seguro de que ella le era infiel.',
-      'Esa noche, cuando él entra a la residencia, la mujer le reclama por llegar tarde y haberse perdido toda la tarde.',
-      'El hombre, sin mediar palabra, saca una navaja y hiere a la niña de 3 años, causándole la muerte de manera inmediata. Luego hiere a la mujer con 28 heridas de arma cortopunzante, dejándola gravemente herida.',
-      'Tu intervención inicia en urgencias. Lee el contexto con cuidado: cada conversación, herramienta y decisión puede cambiar el curso de la atención.',
+      'Caso: Violencia Familiar',
+      'Escena: Urgencias: crisis y contención',
+      'Empiezas en: Sala de espera',
+      'El contexto del caso está en su ficha.',
     ],
-    hint: 'Lee el contexto completo antes de iniciar la intervención.',
   },
 } as const;
 
@@ -184,13 +183,12 @@ describe('SimulationPlayComponent: las cuatro entradas (F6-2)', () => {
 
   describe('una sola forma para las cuatro', () => {
     // req: BLOQUE-H, RNF-04, REGLA-004
-    it('reanudar, consentimiento, introducción y contexto comparten estructura y son modales', () => {
+    it('reanudar, consentimiento e introducción comparten estructura y son modales', () => {
       showResume();
       const entries: Array<[string, () => void]> = [
         ['reanudar', () => undefined],
         ['consentimiento', () => { component.showResumePrompt.set(false); component.showContentWarning.set(true); }],
-        ['introducción', () => { component.showContentWarning.set(false); component.worldStarted.set(true); component.showIntroScene.set(true); }],
-        ['contexto', () => { component.showIntroScene.set(false); component.showCaseIntro.set(true); }],
+        ['introducción', () => { component.showContentWarning.set(false); component.worldStarted.set(true); component.showCaseIntro.set(true); }],
       ];
       for (const [name, show] of entries) {
         show();
@@ -242,27 +240,22 @@ describe('SimulationPlayComponent: las cuatro entradas (F6-2)', () => {
       expect(buttonsOf(dialog.querySelector('.case-intro-card__actions')!)).toEqual([...FROZEN.consent.actions]);
     });
 
-    it('introducción y contexto', () => {
+    it('introducción', () => {
       component.attempt.set(ATTEMPT);
+      component.world.set({ map: { key: 'sala', title: 'Sala de espera' } } as unknown as SimulationWorldState);
       component.worldStarted.set(true);
       component.loading.set(false);
-      component.showIntroScene.set(true);
+      component.showCaseIntro.set(true);
       fixture.detectChanges();
-      let dialog = overlay()!;
+      const dialog = overlay()!;
       expect(text(dialog.querySelector('.psy-eyebrow'))).toBe(FROZEN.intro.eyebrow);
       expect(text(dialog.querySelector('h2'))).toBe(FROZEN.intro.title);
       expect(text(dialog.querySelector('.intro-music-toggle span'))).toBe(FROZEN.intro.toggle);
       expect(buttonsOf(dialog.querySelector('.case-intro-card__buttons')!)).toEqual([...FROZEN.intro.actions]);
 
-      component.showIntroScene.set(false);
-      component.showCaseIntro.set(true);
-      fixture.detectChanges();
-      dialog = overlay()!;
-      expect(text(dialog.querySelector('.psy-eyebrow'))).toBe(FROZEN.context.eyebrow);
-      expect(text(dialog.querySelector('h2'))).toBe(FROZEN.context.title);
       expect(Array.from(dialog.querySelectorAll('.case-intro-card__body p')).map(p => text(p)))
-        .toEqual([...FROZEN.context.paragraphs]);
-      expect(text(dialog.querySelector('.case-intro-card__actions > span'))).toBe(FROZEN.context.hint);
+        .toEqual([...FROZEN.intro.paragraphs]);
+      expect(dialog.textContent).not.toMatch(/28 heridas|urgencias de noche/i);
     });
   });
 

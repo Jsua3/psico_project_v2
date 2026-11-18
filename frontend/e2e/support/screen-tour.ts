@@ -55,6 +55,18 @@ async function firstEditorPath(page: Page): Promise<string> {
   return (await link.getAttribute('href')) ?? '/portal/casos';
 }
 
+/**
+ * El ensayo es de un BORRADOR: se clona por la API el primer caso del editor (como `ensayo.e2e.ts`) y se abre su ensayo.
+ * Abrir el ensayo de una versión publicada solo mostraría el error de apertura. La importación de `case-fixtures` es
+ * dinámica a propósito: una estática hace que Vitest (que importa este módulo) falle con `TransformStream is not defined`.
+ */
+async function rehearsalPath(page: Page): Promise<string> {
+  const { cloneDraft } = await import('./case-fixtures');
+  const source = Number(/\/portal\/casos\/(\d+)\/editor$/.exec(await firstEditorPath(page))?.[1]);
+  const draft = await cloneDraft(page.request, source);
+  return `/portal/casos/${draft.id}/ensayo`;
+}
+
 /** El botón «Entrar al caso» vive en la sala (lobby) y lleva a la ficha del caso (F10-1), igual que en `enterCaseAtContentWarning`. */
 async function studentBriefPath(page: Page): Promise<string> {
   await page.goto('/portal/jugar');
@@ -146,6 +158,8 @@ export const TOUR_SCREENS: readonly TourScreen[] = [
   { id: 'catalogo', role: 'admin', routePattern: 'portal/simulador', path: '/portal/simulador' },
   { id: 'casos', role: 'admin', routePattern: 'portal/casos', path: '/portal/casos' },
   { id: 'editor-caso', role: 'admin', routePattern: 'portal/casos/:caseVersionId/editor', resolvePath: firstEditorPath },
+  // Bloque B: el ensayo del borrador en el juego real (la pantalla del juego en modo ensayo, con el panel de autora).
+  { id: 'ensayo-caso', role: 'admin', routePattern: 'portal/casos/:caseVersionId/ensayo', resolvePath: rehearsalPath, ready: waitForCanvas },
   { id: 'casos-nuevo', role: 'admin', routePattern: 'portal/casos/nuevo', path: '/portal/casos/nuevo' },
   { id: 'trazabilidad', role: 'admin', routePattern: 'portal/docente/trazabilidad', path: '/portal/docente/trazabilidad' },
   { id: 'rubricas', role: 'admin', routePattern: 'portal/rubricas', path: '/portal/rubricas' },

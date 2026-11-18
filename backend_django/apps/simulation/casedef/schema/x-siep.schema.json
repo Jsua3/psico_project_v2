@@ -7,7 +7,7 @@
   "required": ["version"],
   "additionalProperties": false,
   "properties": {
-    "version": { "enum": ["2.0", "2.1"] },
+    "version": { "enum": ["2.0", "2.1", "2.2"] },
     "contexto": { "type": "string", "maxLength": 4000 },
     "descripcionDerivada": { "const": true, "description": "`caso.descripcion` de la base es el contexto de la versión (el caso no tenía descripción propia): el importador no la guarda como descripción." },
     "mundoVersion": { "type": "integer", "minimum": 1, "maximum": 1000000 },
@@ -17,6 +17,18 @@
     "escenas": { "type": "array", "maxItems": 200, "items": { "$ref": "#/$defs/escena" } },
     "rubricas": { "type": "array", "maxItems": 50, "items": { "$ref": "#/$defs/rubrica" } }
   },
+  "if": {
+    "required": ["escenas"],
+    "properties": {
+      "escenas": {
+        "contains": {
+          "type": "object", "required": ["mapa"],
+          "properties": { "mapa": { "type": "object", "required": ["estructura"] } }
+        }
+      }
+    }
+  },
+  "then": { "properties": { "version": { "const": "2.2" } } },
   "$defs": {
     "clave": { "type": "string", "minLength": 1, "maxLength": 120 },
     "codigoHerramienta": { "type": "string", "minLength": 1, "maxLength": 80, "description": "`clinical_tools.tool_code` mide 80 en la base de datos." },
@@ -31,6 +43,82 @@
     "idRubrica": { "type": "string", "pattern": "^RUB-[0-9]{2,6}(?![\\s\\S])" },
     "idCriterio": { "type": "string", "pattern": "^CR[0-9]{2,6}(?![\\s\\S])" },
     "objeto_libre": { "type": "object", "maxProperties": 200 },
+    "claveDeCatalogo": { "type": "string", "maxLength": 80, "pattern": "^[a-z0-9]+(-[a-z0-9]+)*(?![\\s\\S])" },
+    "color": { "type": "array", "minItems": 3, "maxItems": 3, "items": { "type": "integer", "minimum": 0, "maximum": 255 } },
+
+    "estructura": {
+      "type": "object",
+      "description": "La sala armada por piezas (x-siep 2.2, contrato `.superpowers/contratos/x-siep-2.2.md`, sección 2). Que el ancho, los acabados y los modelos existan en el catálogo lo juzga la regla OCL-18; dónde va cada pieza, OCL-13 y OCL-14.",
+      "required": ["ancho", "momento", "acabados", "piezas"],
+      "additionalProperties": false,
+      "properties": {
+        "ancho": { "enum": [960, 1200, 1440, 1680, 1920] },
+        "momento": { "enum": ["dia", "noche"] },
+        "acabados": {
+          "type": "object",
+          "required": ["piso", "muro", "paleta"],
+          "additionalProperties": false,
+          "properties": {
+            "piso": { "$ref": "#/$defs/claveDeCatalogo" },
+            "variante": { "$ref": "#/$defs/claveDeCatalogo" },
+            "muro": { "$ref": "#/$defs/claveDeCatalogo" },
+            "paleta": { "$ref": "#/$defs/claveDeCatalogo" }
+          }
+        },
+        "piezas": { "type": "array", "maxItems": 120, "items": { "$ref": "#/$defs/piezaDeSala" } },
+        "exterior": { "type": "boolean" },
+        "tapetes": {
+          "type": "array",
+          "maxItems": 12,
+          "items": {
+            "type": "object",
+            "required": ["ruta", "x", "y"],
+            "additionalProperties": false,
+            "properties": {
+              "ruta": { "type": "string", "pattern": "^piezas/tapetes/[a-z0-9]+(-[a-z0-9]+)*\\.png(?![\\s\\S])" },
+              "x": { "$ref": "#/$defs/entero" },
+              "y": { "$ref": "#/$defs/entero" },
+              "caja": { "type": "array", "minItems": 4, "maxItems": 4, "items": { "$ref": "#/$defs/entero" } },
+              "colores": { "type": "object", "maxProperties": 12, "additionalProperties": { "$ref": "#/$defs/color" } }
+            }
+          }
+        },
+        "propios": {
+          "type": "array",
+          "maxItems": 4,
+          "items": {
+            "type": "object",
+            "required": ["ruta"],
+            "additionalProperties": false,
+            "properties": {
+              "ref": { "type": "string", "maxLength": 120 },
+              "ruta": { "type": "string", "pattern": "^piezas/propios/[a-z0-9]+(-[a-z0-9]+)*\\.png(?![\\s\\S])" }
+            }
+          }
+        }
+      }
+    },
+    "piezaDeSala": {
+      "type": "object",
+      "description": "Una pieza de muro (`muro`, `pos`) o de suelo (`x`, `y`: la lámpara de pie o de mesa). Las puertas no van aquí: son objetos EXIT.",
+      "required": ["id", "tipo", "modelo"],
+      "additionalProperties": false,
+      "properties": {
+        "id": { "$ref": "#/$defs/claveDeCatalogo" },
+        "tipo": { "$ref": "#/$defs/claveDeCatalogo" },
+        "modelo": { "$ref": "#/$defs/claveDeCatalogo" },
+        "muro": { "enum": ["fondo", "izquierda", "derecha", "camara"] },
+        "pos": { "$ref": "#/$defs/entero" },
+        "x": { "$ref": "#/$defs/entero" },
+        "y": { "$ref": "#/$defs/entero" },
+        "sobre": { "type": "integer", "minimum": 0, "maximum": 528 },
+        "encendida": { "type": "boolean" }
+      },
+      "oneOf": [
+        { "required": ["muro", "pos"], "not": { "anyOf": [{ "required": ["x"] }, { "required": ["y"] }, { "required": ["sobre"] }] } },
+        { "required": ["x", "y"], "not": { "anyOf": [{ "required": ["muro"] }, { "required": ["pos"] }] } }
+      ]
+    },
 
     "reglas": {
       "type": "object",
@@ -249,6 +337,7 @@
           "properties": { "x": { "$ref": "#/$defs/entero" }, "y": { "$ref": "#/$defs/entero" } }
         },
         "ambiente": { "$ref": "#/$defs/objeto_libre" },
+        "estructura": { "$ref": "#/$defs/estructura" },
         "colisiones": { "type": "array", "maxItems": 600, "items": { "$ref": "#/$defs/colision" } },
         "objetos": { "type": "array", "maxItems": 500, "items": { "$ref": "#/$defs/objetoDeMapa" } },
         "dialogos": { "type": "array", "maxItems": 200, "items": { "$ref": "#/$defs/dialogo" } }

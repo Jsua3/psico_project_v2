@@ -163,6 +163,10 @@ def test_rules_that_do_not_apply_say_so_instead_of_passing_silently():
     assert list(by_rule) == [
         "FORMA", *[f"OCL-0{n}" for n in range(1, 9)], *[f"PROP-0{n}" for n in range(1, 9)],
         *[f"OCL-{n:02d}" for n in range(9, 13)],
+        # Bloque P3: las salas por piezas (x-siep 2.2).
+        *[f"OCL-{n}" for n in range(13, 19)],
+        # Trayectos de personas (bloque G1, sobre el trabajo de Codex): no aplica si nadie declara uno.
+        "OCL-19",
     ]
 
 

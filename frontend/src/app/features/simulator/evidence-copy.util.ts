@@ -1,34 +1,20 @@
-import { MapObjectState } from '../../core/models/simulation.model';
+import { ClinicalToolState, MapObjectState } from '../../core/models/simulation.model';
+import { DRAFT_COPY } from './draft-copy';
 import { EvidenceWorld, MissingItem } from './evidence-gating.config';
-import {
-  ENTITY_NAMES, EntityName, ORIENTATION_COPY, ROOM_LABELS, RoomGroup, TOOL_HINTS,
-} from './orientation.config';
 import { placeHint } from './place-hint.util';
 
 /**
- * Una sola redacción de «lo que falta» para la lista, la puerta y el aviso de
- * evidencia (principio P4: una fuente por concepto). Nunca aparece una clave
- * interna ni, con NAME_TOOLS_IN_HINTS = false, el nombre de una herramienta.
+ * Una sola redacción de «lo que falta» para la puerta (principio P4: una fuente por concepto). Nombra con lo que
+ * hay en el mundo vivo y en el escenario; nunca una clave interna ni el nombre de un caso.
  */
 export interface CopyContext {
-  /** Sala donde está el jugador; null si se desconoce (entonces no se añade «(en {sala})»). */
-  currentRoom: RoomGroup | null;
-  /** Mundo vivo (lo cumple SimulationWorldState). `objects` permite dar el lugar de lo que está en la sala. */
-  world: (EvidenceWorld & { objects?: readonly MapObjectState[] }) | null;
-  /** NAME_TOOLS_IN_HINTS: nombrar la herramienta en lugar de describirla. */
-  nameTools: boolean;
-  /** NPC del escenario (para nombrar a los que no están en ENTITY_NAMES, p. ej. casos del editor). */
+  /** Mundo vivo (lo cumple SimulationWorldState). `objects` da el nombre y el lugar de lo que está en la sala; `tools`, el nombre de las herramientas. */
+  world: (EvidenceWorld & { objects?: readonly MapObjectState[]; tools?: readonly ClinicalToolState[] }) | null;
+  /** NPC del escenario (nombran a las personas que no son un objeto del mundo). */
   npcs: readonly { key: string; displayName: string }[];
 }
 
-type Mode = 'infinitive' | 'imperative';
-
-const VERBS: Record<'talk' | 'inspect' | 'collect' | 'use', Record<Mode, string>> = {
-  talk: { infinitive: 'hablar con', imperative: 'habla con' },
-  inspect: { infinitive: 'revisar', imperative: 'revisa' },
-  collect: { infinitive: 'recoger', imperative: 'recoge' },
-  use: { infinitive: 'usar', imperative: 'usa' },
-};
+const VERBS = { talk: 'habla con', inspect: 'revisa', collect: 'recoge', use: 'usa' } as const;
 
 /** Une con comas y «y» (o «e» ante un sonido «i»): «a», «a y b», «a, b y c». */
 export function joinSpanish(items: readonly string[]): string {
@@ -39,18 +25,7 @@ export function joinSpanish(items: readonly string[]): string {
   return `${list.slice(0, -1).join(', ')} ${conjunction} ${last}`;
 }
 
-function entityPhrase(
-  key: string, verb: Record<Mode, string>, mode: Mode, ctx: CopyContext,
-): { text: string; room: RoomGroup | null } | null {
-  const entity: EntityName | undefined = ENTITY_NAMES[key];
-  if (entity) return { text: `${verb[mode]} ${entity.article} ${entity.name}`, room: entity.room };
-  const npc = ctx.npcs.find(n => n.key === key);
-  if (npc) return { text: `${verb[mode]} ${npc.displayName}`, room: null };
-  const label = ctx.world?.objects?.find(o => o.key === key)?.label;
-  if (label) return { text: `${verb[mode]} ${label}`, room: ctx.currentRoom };
-  return null;
-}
-
+/** El objeto del mundo (en la sala actual) al que se refiere lo que falta, si lo hay. */
 function findLiveObject(item: MissingItem, ctx: CopyContext): MapObjectState | undefined {
   const objects = ctx.world?.objects;
   if (!objects) return undefined;
@@ -59,61 +34,33 @@ function findLiveObject(item: MissingItem, ctx: CopyContext): MapObjectState | u
   return undefined;
 }
 
-function phraseFor(item: MissingItem, mode: Mode, ctx: CopyContext): string {
+function toolLabel(item: MissingItem, ctx: CopyContext, live: MapObjectState | undefined): string | null {
+  return ctx.world?.tools?.find(tool => tool.code === item.key)?.label ?? live?.label ?? null;
+}
+
+function phraseFor(item: MissingItem, ctx: CopyContext): string {
+  const live = findLiveObject(item, ctx);
+  const npc = ctx.npcs.find(n => n.key === item.key);
+
   let text: string;
-  let room: RoomGroup | null = null;
-
   if (item.kind === 'toolOwned' || item.kind === 'toolUsed') {
-    const hint = TOOL_HINTS[item.key];
-    const verb = VERBS[item.kind === 'toolOwned' ? 'collect' : 'use'][mode];
-    if (hint) {
-      text = `${verb} ${ctx.nameTools ? hint.named : hint.generic}`;
-      room = hint.room;
-    } else {
-      text = `${verb} ${ORIENTATION_COPY.evidence.unknownThing}`;
-    }
+    const verb = VERBS[item.kind === 'toolOwned' ? 'collect' : 'use'];
+    text = `${verb} ${toolLabel(item, ctx, live) ?? DRAFT_COPY.unknownThing.text}`;
   } else {
-    const isPerson = item.kind === 'npc' || ENTITY_NAMES[item.key]?.person === true;
+    const isPerson = item.kind === 'npc' || live?.type === 'PERSON' || npc !== undefined;
     const verb = VERBS[isPerson ? 'talk' : 'inspect'];
-    const found = entityPhrase(item.key, verb, mode, ctx);
-    if (found) {
-      text = found.text;
-      room = found.room;
-    } else {
-      text = `${verb[mode]} ${isPerson ? ORIENTATION_COPY.evidence.unknownPerson : ORIENTATION_COPY.evidence.unknownThing}`;
-    }
+    const name = live?.label ?? npc?.displayName ?? (isPerson ? DRAFT_COPY.unknownPerson.text : DRAFT_COPY.unknownThing.text);
+    text = `${verb} ${name}`;
   }
 
-  if (ctx.currentRoom && room && room !== ctx.currentRoom) return `${text} (${ROOM_LABELS[room].en})`;
-  if (mode === 'imperative' && (room === null || room === ctx.currentRoom)) {
-    const live = findLiveObject(item, ctx);
-    if (live) return `${text} (${placeHint(live.x, live.y)})`;
-  }
+  // El lugar solo se dice de lo que está en la sala actual (el mundo vivo trae sus coordenadas).
+  if (live) return `${text} (${placeHint(live.x, live.y)})`;
   return text;
 }
 
-function uniqueItems(items: readonly MissingItem[]): MissingItem[] {
-  const seen = new Set<string>();
-  return items.filter(item => {
-    const id = `${item.kind}:${item.key}`;
-    if (seen.has(id)) return false;
-    seen.add(id);
-    return true;
-  });
-}
 
-/** Infinitivo, para el aviso de evidencia: «hablar con la Enfermera de urgencias (en Urgencias)». */
-export function humanizeMissing(items: readonly MissingItem[], ctx: CopyContext): string[] {
-  return uniqueItems(items).map(item => phraseFor(item, 'infinitive', ctx));
-}
-
-/** Imperativo, para puertas y lista: «habla con la Familia en crisis (en el extremo izquierdo, al frente)». */
+/** Imperativo, para las puertas: «habla con Ana (en el extremo izquierdo, al frente)». */
 export function imperativeMissing(items: readonly MissingItem[], ctx: CopyContext): string[] {
-  return uniqueItems(items).map(item => phraseFor(item, 'imperative', ctx));
-}
-
-/** Aviso único de evidencia (F§5.5); null si no falta nada. */
-export function evidenceNoticeText(items: readonly MissingItem[], ctx: CopyContext): string | null {
-  const phrases = humanizeMissing(items, ctx);
-  return phrases.length ? ORIENTATION_COPY.evidence.notice(joinSpanish(phrases)) : null;
+  // Se deduplica por frase, no por clave: dos requisitos sin nombre conocido dirían lo mismo dos veces.
+  return [...new Set(items.map(item => phraseFor(item, ctx)))];
 }

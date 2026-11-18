@@ -76,6 +76,22 @@ describe('GameHelpComponent: nota sobre los atajos fuera del bloque validado (F6
     expect(rendered).toEqual(helpSections({ modality: 'keyboard', safeExitPromise: true }).map(section => section.id));
   });
 
+  it('el ajuste «Atajos de una tecla» llega a la ayuda: apagado, la pantalla y la tarjeta no prometen WASD, E ni J', () => {
+    create('screen');
+    expect(host().textContent).toMatch(/WASD/);
+    fixture.destroy();
+    TestBed.resetTestingModule();
+    TestBed.configureTestingModule({ imports: [GameHelpComponent] });
+    fixture = TestBed.createComponent(GameHelpComponent);
+    writeInputSignal(fixture.componentInstance.view, 'screen');
+    writeInputSignal(fixture.componentInstance.safeExitPromise, true);
+    writeInputSignal(fixture.componentInstance.shortcuts, false);
+    fixture.detectChanges();
+    const sections = Array.from(host().querySelectorAll('[data-help-section]')).map(section => section.textContent ?? '').join(' | ');
+    expect(sections).not.toMatch(/WASD|\bE\b|\bJ\b/);
+    expect(sections).toMatch(/flechas/i);
+  });
+
   it('la tarjeta de primera vez no lleva la nota', () => {
     create('card');
     expect(host().querySelector('[data-help-draft]')).toBeNull();
@@ -249,6 +265,42 @@ describe('GameHelpComponent (T3.2)', () => {
       expect(body.getAttribute('tabindex')).toBe('0');
       expect(body.getAttribute('role')).toBe('region');
       expect(body.getAttribute('aria-label')).toBe('Contenido de la ayuda');
+    });
+
+    it('si todo cabe, una sola página y sin pie de páginas (V6)', async () => {
+      create({ view: 'screen' });
+      await fixture.whenStable();
+      fixture.detectChanges();
+      expect(host().querySelector('.help-screen__pie')).toBeNull();
+      expect(host().querySelectorAll('.help-screen__body > [hidden]').length).toBe(0);
+    });
+
+    it('sin sitio, va en páginas de secciones enteras con «N de M» y nunca se desplaza (V6)', async () => {
+      create({ view: 'screen' });
+      await fixture.whenStable();
+      const body = host().querySelector('.help-screen__body') as HTMLElement;
+      const piezas = Array.from(body.children) as HTMLElement[];
+      // jsdom no maqueta: el cuerpo deja 220 px y cada pieza mide 60 (con el hueco de 12), así caben tres por página.
+      Object.defineProperty(body, 'clientHeight', { configurable: true, value: 220 });
+      Object.defineProperty(body, 'scrollHeight', { configurable: true, value: 60 * piezas.length });
+      piezas.forEach(pieza => Object.defineProperty(pieza, 'offsetHeight', { configurable: true, value: 60 }));
+      window.dispatchEvent(new Event('resize'));
+      fixture.detectChanges();
+      await fixture.whenStable();
+      fixture.detectChanges();
+      const total = Math.ceil(piezas.length / 3);
+      const cuenta = () => host().querySelector('.help-screen__cuenta')?.textContent?.trim();
+      const visibles = () => piezas.filter(pieza => !pieza.hidden);
+      expect(cuenta()).toBe(`1 de ${total}`);
+      expect(visibles()).toEqual(piezas.slice(0, 3));
+      expect(buttonByName('Anterior')?.getAttribute('aria-disabled')).toBe('true');
+      buttonByName('Siguiente')!.click();
+      fixture.detectChanges();
+      expect(cuenta()).toBe(`2 de ${total}`);
+      expect(visibles()).toEqual(piezas.slice(3, 6));
+      buttonByName('Anterior')!.click();
+      fixture.detectChanges();
+      expect(cuenta()).toBe(`1 de ${total}`);
     });
 
     it('táctil: sin sección de teclas; teclado: con ella', () => {

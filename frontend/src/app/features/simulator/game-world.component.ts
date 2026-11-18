@@ -5,6 +5,7 @@ import Phaser from 'phaser';
 import { Activation, CollisionZoneState, Intensity, MapObjectState, NpcConfig, Persona, RoomConfig, ScenarioConfig, SimulationWorldState } from '../../core/models/simulation.model';
 import { backgroundImage, walkableZone } from './room-ambient.util';
 import { LEGACY_FEET_OFFSET_Y, isPaintedDoor, markerFeetOffsetY, markerLabelOffsetY, standsOnFeet } from './object-anchor.util';
+import { ALTO_DE_PERSONA_PX, type Caja, cajaDelCuerpo, cajaDelRotulo, yDelRotulo } from './rotulo-sin-pisar.util';
 import { KenneyDungeonFrames } from './kenney-frames.constants';
 import {
   HOSPITAL_COLLISIONS,
@@ -27,6 +28,14 @@ import {
 } from './scene-motion.util';
 import { nextAmbientStep, npcMotionStrategyFor } from './motion-strategies';
 import { DEPTH, actorDepth, tiledLayerDepth } from './depth-sort.util';
+import { AvisoDePuertaComponent } from './sala/aviso-de-puerta.component';
+import { MANIFIESTO_DE_PIEZAS_URL, esManifiestoDePiezas } from './sala/catalogo';
+import { EscenaDeSala } from './sala/escena-de-sala';
+import type { MuebleDeSala } from './sala/escena-de-sala';
+import { piezaDelObjeto } from './sala/mueble-vivo';
+import type { ManifiestoDePiezas } from './sala/catalogo';
+import type { Cuerpo } from './sala/luz';
+import { puertaDelObjeto, salaDelMundo } from './sala/mundo-a-sala';
 import {
   AUTHORED_CLINICAL_COLLISIONS,
   AUTHORED_PLAYER_SPAWN,
@@ -50,18 +59,24 @@ import {
   selectRevealed,
 } from './interaction-priority.util';
 import { serverRejectsPlayerAt } from './server-world-geometry.util';
-import { InteractionVerb, interactionVerb, participatesInInteraction } from './interaction-verb.util';
+import { InteractionVerb, exitVerb, interactionVerb, participatesInInteraction } from './interaction-verb.util';
 import { paintVignette, vignetteTextureKey } from './vignette-texture.util';
-import { WORLD_FONT_FAMILY, whenWorldFontsReady } from './world-typography.util';
+import {
+  WORLD_FONT_FAMILY, WORLD_LABEL_FONT_FAMILY, WORLD_LABEL_INK, WORLD_LABEL_PLATE, whenWorldFontsReady,
+} from './world-typography.util';
 import { HOVER_HIT, HoverCandidate, pickHoverTarget } from './world-hover.util';
 import { NO_WALK, WALK_GROUND_RADIUS_PX, WalkState, cancelWalkOnKeys, reachRadius, startWalk, tickWalk } from './world-walk.util';
 import { InputKind, nextInputKind, touchControlsVisible } from './world-input-kind.util';
 import { PlaceCandidate } from './world-places.util';
 import { DRAFT_COPY } from './draft-copy';
+import { pasosDeGesto } from './caso/gestos';
+import type { Gesto } from './caso/vocabulario';
 import {
   KEY_PERSON_CHEVRON, KEY_PERSON_COLOR, KEY_PERSON_COLOR_HEX, KEY_PERSON_HALO_HEX, KEY_PERSON_NAME_GAP_PX,
-  isKeyPerson, keyPersonTipOffsetY, resolveKeyPerson,
+  KEY_PERSON_HEAD_PX, isKeyPerson, keyPersonTipOffsetY, resolveKeyPerson,
 } from './key-person.util';
+import { GAZE_HOLD_MS } from './gaze.util';
+import { MS_POR_PASO_DE_MIRADA, Mirada, actualizarMirada, direccionDeVector, miradaInicial, mirarHacia, orientacionDeDato, pasosDeGiro } from './direccion-ocho';
 import {
   PERSON_PAUSE_MIN_MS, PersonWalkEnv, PersonWalkState, bodyBlocks, parsePersonMovement, personFacing, personWalkBounds, resumePersonWalk,
   randomPersonPause, startPersonWalk, tickPersonWalk,
@@ -75,14 +90,15 @@ import {
   computePlayerStep,
   playerHitbox,
   rectsIntersect,
-  resolveDirection,
   splitFrameDelta,
 } from './player-motion.util';
 import { EmittedPosition, shouldEmitPosition } from './position-emit.util';
 import { heldInput } from './touch-hold.util';
 import { attachScrollKeyGuard, isScrollRegionTarget, isShortcutContext, isTextEntryTarget, resolveInteractPress } from './keyboard-focus.util';
 import { isCriticalAsset } from './asset-criticality.util';
-import { cameraBounds, integerZoom } from './pixel-scale.util';
+import {
+  Caja as CajaDePlaca, EstadoCamara, Momento, avanzarCamara, comoDibujar, duracionDeViaje, enViajeDentro, esperaDelGeneral, objetivoCamara, sinSaltos,
+} from './camara/camara';
 import { fitGameToHost, pixelScaleConfig, watchHostSize } from './pixel-canvas';
 import { PixelRender } from './pixel-render';
 import { doorFacing, doorSpriteSpecs, resolveDoorSideTextureKey, resolveDoorTextureKey } from './door-sprite.util';
@@ -94,7 +110,7 @@ import {
 } from './proximity-animation.util';
 import { AVATAR_STORAGE_KEY } from '../character/avatar.store';
 import { NpcMotionConfig, NpcMovementZone } from '../../core/models/simulation.model';
-import type { KitBundle } from '../character/kit/kit-engine';
+import type { KitBundle, ViewId } from '../character/kit/kit-engine';
 import { CharacterRef, CharacterVisual, resolveCharacter } from '../character/kit/character-visual.resolver';
 import {
   KIT_ORIGIN_X, KIT_ORIGIN_Y, addComposedSheets, addRgbaTexture, ensureCharacterAnims, kitFrameIndex, kitSheetKey,
@@ -108,9 +124,32 @@ import {
 } from './world-characters.util';
 import { PERSONA_ICON_KINDS, personaIconImage, personaIconKey, personaIconKind, personaIconView } from './persona-icon.util';
 import { DOOR_FALLBACK_HEIGHT, DOOR_SPRITE_FEET_Y, doorHintY, staleSpriteSize, worldSpriteForTexture } from './world-scale.util';
+import { npcsDeLaSala } from './caso/npcs-de-sala';
+
+/** Lo que la pantalla le pide a la cámara (bloque M1): explorar, o encuadrar la conversación o el objeto `clave`. */
+export type CameraMoment = { tipo: 'explorar' } | { tipo: 'conversacion' | 'objeto'; clave: string };
+export interface CameraOptions { cercana: boolean; acercarAuto: boolean }
+export interface CameraReport {
+  zoom: number; momento: Momento['tipo']; x: number; y: number; viajando: boolean;
+  /** Lo que la interfaz tapa (px CSS) abajo y arriba, tal como lo recibe la cámara, y la sala que encuadra («1200x528»). */
+  abajo: number; arriba: number; sala: string;
+}
+
+/** P2: el aviso de una puerta de pieza, en px del contenedor del juego. */
+interface AvisoDePuertaEnPantalla {
+  id: string;
+  texto: string;
+  bloqueada: boolean;
+  x: number;
+  y: number;
+}
 
 interface WorldCallbacks {
   onReady:       () => void;
+  /** P2: una sala por piezas no pudo armarse (alguna pieza no cargó) y se muestra por el camino de imagen fija. */
+  onSalaIncompleta?: () => void;
+  /** P2: el aviso de la puerta de pieza activa, o null si no hay ninguna (o el mundo está en pausa). */
+  onAvisoDePuerta?: (aviso: AvisoDePuertaEnPantalla | null) => void;
   /** Candidato PRINCIPAL en rango (un NPC va como MapObjectState sintético con key `npc:{clave}`); null si no hay. */
   onProximity:   (obj: MapObjectState | null) => void;
   /** Candidato secundario (otra persona u objeto también en rango); null si no hay. */
@@ -132,6 +171,8 @@ interface WorldCallbacks {
   onKeyPersonIndicator?: (name: string | null) => void;
   /** Para la prueba de extremo a extremo: dónde está ahora la persona a atender (redondeada), o `null` si no hay; solo se avisa al cambiar. */
   onKeyPersonPosition?: (position: { x: number; y: number } | null) => void;
+  /** Cámara (bloque M1): zoom entero asentado, momento y centro redondeado; solo se avisa al cambiar. */
+  onCamera?: (camera: CameraReport) => void;
   /** Terminó una caminata pedida con «Ir a…» (F6-11): llegó, o no pudo (muro, mueble, servidor). */
   onWalkEnded?:  (key: string, label: string, outcome: 'arrived' | 'blocked') => void;
   /** Progreso de la precarga, 0-100 (solo la carga inicial). */
@@ -144,6 +185,8 @@ interface WorldCallbacks {
   onArtLoading?: () => void;
   /** Fin de la precarga; lista las claves esenciales que fallaron (vacía si todo cargó). */
   onLoadComplete: (criticalFailures: string[]) => void;
+  /** Recetas de las personas de la sala inicial: solo esas se precargan; el resto se trae en segundo plano (modo aula). */
+  recetasIniciales?: () => readonly string[] | null;
   reduceMotion:  boolean;
   sfxMuted:       boolean;
   /** Manifiesto del arte de la biblioteca (null si no cargó: los objetos quedan en su reposo, sin animación de cercanía). */
@@ -167,7 +210,7 @@ interface PersonWalker {
   state: PersonWalkState;
   /** Cuánto bajo su marcador pisa (0 si el marcador es su punto de apoyo, `metadata.apoyo = "pies"`; 16 en los casos de antes). */
   feetOffsetY: number;
-  lastPose: { direction: PlayerDirection | null; walking: boolean };
+  lastPose: { direction: ViewId | null; walking: boolean };
 }
 
 interface NpcMover {
@@ -177,16 +220,27 @@ interface NpcMover {
   target: { x: number; y: number } | null;
   anchorIdx: number;
   pauseUntil: number;
-  lastPose: { direction: PlayerDirection | null; walking: boolean };
+  /** Hacia dónde mira el NPC (8 direcciones, con margen y giro por las vistas de en medio). */
+  mirada: Mirada;
+  lastPose: { direction: ViewId | null; walking: boolean };
 }
 
 
 /** Profundidad de los rótulos del mundo: sobre todos los actores y bajo los rótulos de puerta (UI). */
 const LABEL_DEPTH = DEPTH.UI - 1;
+/** Cada cuánto (ms) la cámara vuelve a medir las placas de la interfaz (zona segura, U1). */
+const MEDIR_PLACAS_MS = 150;
 /** Prefijo de la clave con la que una persona del escenario sale como candidato de proximidad. */
-const NPC_KEY_PREFIX = 'npc:';
+export const NPC_KEY_PREFIX = 'npc:';
+/** Cuánto se sostiene el último plano cercano al soltarse (entre la decisión y la reacción, bloque M1). */
+const RETENER_PLANO_MS = 1300;
+/** Por debajo de esto (px físicos) el lienzo aún no tiene tamaño y la cámara espera (bloque M1). */
+const VISTA_MINIMA_PX = 64;
 /** Plazo máximo para el primer cuadro del mundo (F6-8): pasado, el anfitrión ofrece reintentar. */
 const BOOT_WATCHDOG_MS = 25_000;
+
+/** Una mirada sostenida: cómo miraba antes, cómo mira ahora, sus avisos pendientes y cómo se suelta (`restore`: volver a como miraba). */
+interface Gaze { base: ViewId; current: ViewId; timers: Array<{ remove(): void }>; end: (restore?: boolean) => void }
 const NO_KEYS: ReadonlySet<string> = new Set<string>();
 /** El informe de cercanía cuando ningún objeto tiene hoja: lo que se publica al quedarse sin animaciones. */
 const NO_PROXIMITY_REPORT = JSON.stringify({ playing: null, frames: {} });
@@ -211,8 +265,10 @@ export class DataDrivenWorldScene extends Phaser.Scene {
   /** Las hojas y animaciones del jugador están listas (si no, marcador geométrico). */
   private playerKitReady = false;
   private lastDirection: PlayerDirection = 'down';
+  /** Hacia dónde mira el jugador (8 direcciones): la decide la entrada, con margen y giro por las vistas de en medio. */
+  private mirada: Mirada = miradaInicial('down');
   /** Última pose aplicada — la animación solo cambia si dirección, caminar o movimiento reducido cambiaron. */
-  private lastPose: { direction: PlayerDirection | null; walking: boolean; reduce: boolean } = { direction: null, walking: false, reduce: false };
+  private lastPose: { direction: ViewId | null; walking: boolean; reduce: boolean } = { direction: null, walking: false, reduce: false };
   private cursors?: Phaser.Types.Input.Keyboard.CursorKeys;
   private keys?: Record<string, Phaser.Input.Keyboard.Key>;
   private wallsLayer?: Phaser.Tilemaps.TilemapLayer;
@@ -244,6 +300,14 @@ export class DataDrivenWorldScene extends Phaser.Scene {
   /** La sala de la que son `personWalkers` y cómo iban al reconstruirse: si la sala es la misma, retoman (cada `world.set` la reconstruye). */
   private personWalkRoom = '';
   private savedPersonWalks: ReadonlyMap<string, PersonWalkState> | null = null;
+  /** Último estado en palabras de la persona clave: el indicador se recrea en cada render y lo vuelve a escribir. */
+  private personaState: string | null = null;
+  /** Personas en pleno gesto: su caminata se suspende hasta que vuelven a su sitio. */
+  private readonly gesturing = new Set<string>();
+  /** Cierres de los gestos en curso: Phaser descarta los tweens en `killAll` sin avisar, así que se llaman a mano. */
+  private readonly gestureEnds = new Set<() => void>();
+  /** Miradas sostenidas (`faceTowards`): entran en `gesturing` para que ningún paseo las pise mientras duran. */
+  private readonly gazes = new Map<string, Gaze>();
   /** Chevrón y nombre sobre la persona clave de la sala (a lo sumo uno). */
   private keyPersonIndicator?: { key: string; container: Phaser.GameObjects.Container; tipOffsetY: number };
   /** Lo último que se avisó de dónde está la persona clave (se compara para avisar solo cuando cambia de píxel). */
@@ -310,10 +374,42 @@ export class DataDrivenWorldScene extends Phaser.Scene {
   private crisisVignette?: Phaser.GameObjects.Image;
   /** Sala que encuadra la cámara: el zoom entero se recalcula con ella al cambiar el lienzo. */
   private roomSize = { width: AUTHORED_ROOM_WIDTH, height: AUTHORED_ROOM_HEIGHT };
+  /** Cámara (bloque M1): la decide `camara/camara.ts`; aquí solo su estado, lo pedido y el último aviso. */
+  private camState: EstadoCamara | null = null;
+  private camCut = true;
+  private camMoment: CameraMoment = { tipo: 'explorar' };
+  /** Persona que reacciona (`frameActors`): manda sobre el momento mientras dura la reacción. */
+  private camFrameKey: string | null = null;
+  private camOptions: CameraOptions = { cercana: false, acercarAuto: true };
+  /** Alto (px CSS) que el cuadro de diálogo (o la franja de abajo) tapa abajo del lienzo, y la franja de arriba. */
+  private camCoveredCss = 0;
+  private camCoveredTopCss = 0;
+  /** Zona segura (U1): quien mide las placas de la interfaz sobre el lienzo (px CSS) y lo último que midió. */
+  private camPlacasMedir: (() => readonly CajaDePlaca[]) | null = null;
+  private camPlacas: readonly CajaDePlaca[] = [];
+  private camPlacasEn = Number.NEGATIVE_INFINITY;
+  private camFrozen = false;
+  private camSettledZoom = 0;
+  private camReport = '';
+  /** Dirección de cámara (regla 7): el plano en curso, el viaje entre planos y el plano general al entrar a una sala. */
+  private camMomentType: Momento['tipo'] = 'explorar';
+  private camTargetZoom = 0;
+  private camTravel: { desde: EstadoCamara; inicio: number; dur: number } | null = null;
+  private camEntrada: { espera: number; hasta: number | null; x: number | null; y: number | null } | null = null;
+  private camRoomId = '';
+  private readonly camRoomsSeen = new Set<string>();
+  /** Escala CSS del lienzo ya compuesto durante un viaje (1 en reposo). */
+  private camDrawScale = 1;
+  /** El último plano cercano, sostenido un momento al soltarse (ver `cameraMomentNow`), y si se está sosteniendo ahora. */
+  private camRetenido: { momento: Momento; hasta: number; x: number; y: number } | null = null;
+  private camSosteniendo = false;
+  private camUltimoObjetivo: EstadoCamara | null = null;
   /** Viñeta de tono de la sala actual (se redibuja al rectángulo visible si cambia el lienzo). */
   private toneVignette?: Phaser.GameObjects.Image;
   /** Textura vigente de cada viñeta (tono o crisis): al cambiar el tamaño se retira la anterior (F6-8). */
   private readonly vignetteKeys = new Map<'tone' | 'crisis', string>();
+  /** La última imagen de cada papel: se destruye antes de retirar su textura (ver `addVignette`). */
+  private readonly vignetteImages = new Map<'tone' | 'crisis', Phaser.GameObjects.Image>();
   private crisisPulse?: Phaser.Tweens.Tween;
   /** Último estado de crisis aplicado; evita reiniciar un pulso que no cambió. */
   private crisisStateKey = '';
@@ -376,8 +472,12 @@ export class DataDrivenWorldScene extends Phaser.Scene {
       this.playerVisual = resolveCharacter(kit, playerCharacterRef(stored));
       queueCharacterSheets(this, this.playerVisual);
       // NPC, personas, guía y figurantes: todas las recetas que no son jugables (unos 14 personajes).
+      // Antes de caminar solo las de la sala inicial; las demás, en segundo plano al terminar (ver create()).
+      const iniciales = this.callbacks.recetasIniciales?.() ?? null;
       for (const [recipeId, recipe] of Object.entries(kit.recipes)) {
-        if (recipe.kind !== 'jugable') queueCharacterSheets(this, resolveCharacter(kit, { kind: 'receta', recipeId }));
+        if (recipe.kind === 'jugable') continue;
+        if (iniciales && !iniciales.includes(recipeId)) { this.recetasDiferidas.push(recipeId); continue; }
+        queueCharacterSheets(this, resolveCharacter(kit, { kind: 'receta', recipeId }));
       }
     }
 
@@ -430,8 +530,21 @@ export class DataDrivenWorldScene extends Phaser.Scene {
     });
   }
 
+  /** Recetas que no están en la sala inicial: se cargan en segundo plano tras la carga inicial. */
+  private recetasDiferidas: string[] = [];
+
+  /** Trae en segundo plano las hojas de las personas que no están en la sala inicial (listas antes de llegar a una puerta). */
+  cargarRecetasDiferidas(): void {
+    const kit = this.callbacks.kit;
+    if (!kit || !this.recetasDiferidas.length) return;
+    for (const recipeId of this.recetasDiferidas.splice(0)) queueCharacterSheets(this, resolveCharacter(kit, { kind: 'receta', recipeId }));
+    this.load.start();
+  }
+
   create() {
     this.pixelRender = new PixelRender(this).attach();
+    this.events.once('shutdown', () => this.endGestures());
+    this.events.once('shutdown', () => this.soltarSalaPorPiezas());   // P2
     this.ready = true;
     // Phaser solo LEE las teclas: sin captura no llama a `preventDefault`, así el navegador
     // conserva Enter/Espacio en los botones y todas las teclas en el textarea de la bitácora.
@@ -454,6 +567,8 @@ export class DataDrivenWorldScene extends Phaser.Scene {
     // Al cambiar el tamaño o el dpr del lienzo: nuevo zoom entero y rótulos de ≥ 12 px de pantalla.
     this.scale.on('resize', () => this.refitCamera());
     this.scale.on('resize', this.onScaleResize, this);
+    // La cámara se mueve después de que el jugador se movió en el cuadro (bloque M1).
+    this.events.on(Phaser.Scenes.Events.POST_UPDATE, (_time: number, delta: number) => this.stepCamera(delta));
     this.onScaleResize();
     this.renderWorld();
   }
@@ -497,13 +612,15 @@ export class DataDrivenWorldScene extends Phaser.Scene {
     const focus = document.activeElement;
     // Escribiendo o con el foco en una región con scroll (sus flechas la desplazan, H-12) el jugador no camina.
     const typing = isTextEntryTarget(focus) || isScrollRegionTarget(focus);
+    // Con una capa abierta (diálogo, decisión, plano del lugar, bitácora…: `motionPaused`) el jugador tampoco camina.
+    const bloqueado = typing || this.motionPaused;
     // Las letras (WASD y E) solo con el ajuste activo y con el foco en el juego o en el cuerpo (F6-10, WCAG 2.1.4).
     const letters = this.shortcutsEnabled && isShortcutContext(focus);
     const keyInput: PlayerMotionInput = heldInput({
-      left:  !typing && (this.cursors.left.isDown  || (letters && this.keys['A'].isDown)),
-      right: !typing && (this.cursors.right.isDown || (letters && this.keys['D'].isDown)),
-      up:    !typing && (this.cursors.up.isDown    || (letters && this.keys['W'].isDown)),
-      down:  !typing && (this.cursors.down.isDown  || (letters && this.keys['S'].isDown)),
+      left:  !bloqueado && (this.cursors.left.isDown  || (letters && this.keys['A'].isDown)),
+      right: !bloqueado && (this.cursors.right.isDown || (letters && this.keys['D'].isDown)),
+      up:    !bloqueado && (this.cursors.up.isDown    || (letters && this.keys['W'].isDown)),
+      down:  !bloqueado && (this.cursors.down.isDown  || (letters && this.keys['S'].isDown)),
     }, this.heldDirection, this.time.now - this.heldSince);
     // Caminata del ratón (F6-7): el teclado o la cruceta mandan sobre el destino y una capa abierta lo suelta.
     // Lo que pide pasa por el mismo paso con colisión y deslizamiento que el teclado.
@@ -527,6 +644,8 @@ export class DataDrivenWorldScene extends Phaser.Scene {
     // Helper puro (player-motion.util): normaliza diagonal, limita delta y
     // resuelve dirección estable (sin parpadeo diagonal).
     const step = computePlayerStep(input, this.lastDirection, delta);
+    // Hacia dónde mira (8 direcciones, sin parpadeo entre vecinas): la entrada, no el paso, para que contra la pared mire hacia la tecla.
+    this.mirada = actualizarMirada(this.mirada, Number(input.right) - Number(input.left), Number(input.down) - Number(input.up), delta, { reducirMovimiento: this.callbacks.reduceMotion });
 
     if (step.moving) {
       // Sub-pasos con colisión: misma velocidad real a cualquier fps.
@@ -538,7 +657,7 @@ export class DataDrivenWorldScene extends Phaser.Scene {
       this.lastDirection = step.direction;
       if (moved) {
         this.emitPosition();
-        this.applyPlayerPose(step.direction, true);
+        this.applyPlayerPose(this.mirada.actual, true);
         // ── Footstep audio: one random variant every STEP_INTERVAL ms ────────
         if (!this.callbacks.reduceMotion && !this.callbacks.sfxMuted) {
           this.stepTimer += delta;
@@ -551,12 +670,12 @@ export class DataDrivenWorldScene extends Phaser.Scene {
         // Bloqueado del todo contra pared/mueble: sin avance real no debe
         // correr la animación de caminata (ni sonar pasos).
         this.flushPosition();
-        this.applyPlayerPose(step.direction, false);
+        this.applyPlayerPose(this.mirada.actual, false);
       }
     } else {
       this.stepTimer = this.STEP_INTERVAL; // prime timer: first step fires on frame 1 of movement, not after a full interval
       this.flushPosition();
-      this.applyPlayerPose(this.lastDirection, false);
+      this.applyPlayerPose(this.mirada.actual, false);
     }
 
     this.interactionCooldown = Math.max(0, this.interactionCooldown - delta);
@@ -599,6 +718,54 @@ export class DataDrivenWorldScene extends Phaser.Scene {
     for (const container of this.npcMarkers.values()) this.ysort(container);
     this.checkExitTriggers();
     this.checkDbDoorTriggers();
+    // P2: la sala por piezas abre la puerta a la que se acerca quien juega y rehace su luz (sombra incluida).
+    // P2: con una capa encima (plano, diálogo, bitácora) las puertas de pieza no se abren ni se cierran: quedan como estaban.
+    if (this.salaPorPiezas && !this.motionPaused) {
+      const activa = this.salaPorPiezas.actualizar(delta, this.player ? { x: this.player.x, y: this.player.y } : null,
+        new Set(Object.keys(this.doorStates).filter(clave => this.doorStates[clave] === 'locked')), this.callbacks.reduceMotion);
+      this.sombrasConSilueta(this.salaPorPiezas);
+      this.avisoDePuerta(activa);
+      this.salaPorPiezas.cerca(this.nearestKey);
+    } else {
+      this.avisoDePuerta(null);
+    }
+  }
+
+  /**
+   * P2: el aviso de la puerta de pieza activa («E · Pasar a …»), un botón de Angular sobre el lienzo, en px del contenedor
+   * (posición de `posicionDelAviso` por la cámara y el devicePixelRatio). Solo avisa a Angular cuando cambia.
+   */
+  private avisoDePuerta(id: string | null): void {
+    let aviso: AvisoDePuertaEnPantalla | null = null;
+    const p = id ? this.salaPorPiezas?.posicionDelAviso(id) : null;
+    const obj = id ? this.markerData.get(id) : undefined;
+    if (id && p && obj) {
+      const cam = this.cameras.main, dpr = 1 / (this.scale.zoom || 1);
+      aviso = {
+        id, texto: exitVerb(obj.label), bloqueada: this.doorStates[id] === 'locked',
+        x: Math.round(((p.x - cam.worldView.x) * cam.zoom) / dpr), y: Math.round(((p.y - cam.worldView.y) * cam.zoom) / dpr),
+      };
+    }
+    const firma = aviso ? `${aviso.id}|${aviso.x}|${aviso.y}|${aviso.bloqueada}` : '';
+    if (firma === this.firmaDelAviso) return;
+    this.firmaDelAviso = firma;
+    this.callbacks.onAvisoDePuerta?.(aviso);
+  }
+
+  /** P2: la sombra con silueta de quien juega y de cada persona del caso, en una sala por piezas (regla 3 de calidad). */
+  private sombrasConSilueta(sala: EscenaDeSala): void {
+    const medida = (window as unknown as { __p2Sombras?: { ms: number; veces: number } }).__p2Sombras;   // medida opcional: la prueba e2e `medir:` la pone para saber cuánto cuestan las sombras
+    const t0 = medida ? performance.now() : 0;
+    this.sombrasConSiluetaMedidas(sala);
+    if (medida) { medida.ms += performance.now() - t0; medida.veces++; }
+  }
+
+  private sombrasConSiluetaMedidas(sala: EscenaDeSala): void {
+    if (this.player) sala.sombraDeFigura('jugador', this.playerSprite, this.player.x, this.player.y);
+    for (const [key, m] of this.markers) {
+      const sprite = (m as unknown as Record<string, unknown>)['__personSprite'] as Phaser.GameObjects.Sprite | undefined;
+      if (sprite) sala.sombraDeFigura(key, sprite, m.x + sprite.x, m.y + sprite.y);
+    }
   }
 
   setWorld(world: SimulationWorldState) {
@@ -722,7 +889,8 @@ export class DataDrivenWorldScene extends Phaser.Scene {
       moved = true;
     }
     this.lastDirection = direction;
-    this.applyPlayerPose(direction, moved); // el update() del frame siguiente vuelve a idle
+    this.mirada = mirarHacia(this.mirada, direction, { reducirMovimiento: this.callbacks.reduceMotion });
+    this.applyPlayerPose(this.mirada.actual, moved); // el update() del frame siguiente vuelve a idle
     if (moved) {
       // Cada toque es un paso discreto: se avisa siempre, sin esperar el intervalo.
       this.emitPosition(true);
@@ -749,7 +917,7 @@ export class DataDrivenWorldScene extends Phaser.Scene {
         if (npc) { this.callbacks.onNpcInteract(npc); return; }
       } else {
         const obj = this.proximityObjectFor(key);
-        if (obj) { this.callbacks.onInteract(obj); return; }
+        if (obj) { this.salaPorPiezas?.revisar(obj.key); this.callbacks.onInteract(obj); return; }
       }
     }
     this.callbacks.onNothingNearby();
@@ -944,8 +1112,8 @@ export class DataDrivenWorldScene extends Phaser.Scene {
     const label = this.hoverLabel?.active
       ? this.hoverLabel
       : (this.hoverLabel = this.add.text(0, 0, '', {
-          fontFamily: WORLD_FONT_FAMILY, fontSize: `${LABEL_BASE_FONT_PX}px`, color: '#e8f0f4',
-          backgroundColor: 'rgba(8,12,18,.9)', padding: { x: 4, y: 3 }, align: 'center',
+          fontFamily: WORLD_LABEL_FONT_FAMILY, fontSize: `${LABEL_BASE_FONT_PX}px`, color: WORLD_LABEL_INK,
+          backgroundColor: WORLD_LABEL_PLATE, padding: { x: 4, y: 3 }, align: 'center',
         }).setOrigin(0.5, 1).setScale(this.labelScale).setDepth(LABEL_DEPTH));
     label.setText(anchor.verb.locked ? `${anchor.verb.text} · bloqueada` : anchor.verb.text);
     label.setPosition(anchor.x, top - 4).setVisible(true);
@@ -960,6 +1128,428 @@ export class DataDrivenWorldScene extends Phaser.Scene {
     const target = bag['__kitSprite'] === true || bag['__pixelSprite'] === true ? bag['__pulse'] : m;
     this.tweens.add({ targets: target, scale: 1.16, duration: 140, yoyo: true, repeat: 2, ease: 'Sine.easeInOut' });
   }
+
+  /** Termina los gestos en curso: promesa resuelta y persona en su sitio. */
+  private endGestures(): void {
+    for (const end of [...this.gestureEnds]) end();
+  }
+
+  /** ¿Hay un gesto en curso? Mirar hacia algo (`faceTowards`) no cuenta. */
+  isGesturing(key: string): boolean { return this.gesturing.has(key) && !this.gazes.has(key); }
+
+  /** El marcador (persona o NPC) de una clave del mundo. */
+  private actorOf(key: string): Phaser.GameObjects.Container | undefined {
+    return key.startsWith(NPC_KEY_PREFIX) ? this.npcMarkers.get(key.slice(NPC_KEY_PREFIX.length)) : this.markers.get(key);
+  }
+
+  /**
+   * La reacción de `key` a una respuesta: la cámara encuadra al jugador y a esa persona, de cerca, hasta `releaseFrame`
+   * (bloque M1). Con movimiento reducido es un corte. Sin la clave en la sala, nada.
+   */
+  frameActors(key: string): void {
+    if (!this.feetOf(key)) return;
+    this.camFrameKey = key;
+  }
+
+  /** Terminó la reacción: la cámara vuelve al momento que pide la pantalla. */
+  releaseFrame(): void {
+    this.camFrameKey = null;
+  }
+
+  /**
+   * Lo que la pantalla pide (bloque M1): explorar, hablar con `clave` o revisar `clave`; cuánto tapa abajo el cuadro de
+   * diálogo o la franja de cine, y cuánto la franja de arriba (px CSS).
+   */
+  setCameraMoment(moment: CameraMoment, coveredCss: number, coveredTopCss = 0): void {
+    this.camMoment = moment;
+    this.camCoveredCss = Math.max(0, coveredCss);
+    this.camCoveredTopCss = Math.max(0, coveredTopCss);
+  }
+
+  setCameraOptions(options: CameraOptions): void {
+    this.camOptions = { ...options };
+  }
+
+  /** Zona segura (U1): la pantalla da cómo medir sus placas sobre el lienzo; se mide a lo sumo cada `MEDIR_PLACAS_MS`. */
+  setCameraPlacas(medir: (() => readonly CajaDePlaca[]) | null): void {
+    this.camPlacasMedir = medir;
+    this.camPlacasEn = Number.NEGATIVE_INFINITY;
+    if (!medir) this.camPlacas = [];
+  }
+
+  /** Con el plano abierto la cámara no se mueve ni cambia de zoom. */
+  setCameraFrozen(frozen: boolean): void {
+    this.camFrozen = frozen;
+  }
+
+  private camNow(): number {
+    return this.time?.now ?? (typeof performance !== 'undefined' ? performance.now() : Date.now());
+  }
+
+  /**
+   * El plano que toca ahora: la reacción manda (la cámara va a quien reacciona); luego lo que pide la pantalla; al
+   * entrar a una sala, el plano general hasta que pasa su espera o el personaje se mueve; si no, caminar.
+   */
+  private cameraMomentNow(ahora: number): Momento {
+    this.camSosteniendo = false;
+    const cercano = this.closeMomentNow();
+    if (cercano) {
+      this.camRetenido = { momento: cercano, hasta: ahora + RETENER_PLANO_MS, x: this.player?.x ?? 0, y: this.player?.y ?? 0 };
+      return cercano;
+    }
+    // Entre la decisión y la reacción el diálogo se cierra casi un segundo antes de que empiece la reacción (la respuesta
+    // del servidor): el plano se sostiene QUIETO para que la cámara no amague con volver a caminar ni dé un pulso al
+    // irse el cuadro. Si el personaje echa a andar, se suelta enseguida.
+    const r = this.camRetenido;
+    if (r && ahora < r.hasta && this.player && Math.hypot(this.player.x - r.x, this.player.y - r.y) <= 6) {
+      this.camSosteniendo = true;
+      return r.momento;
+    }
+    this.camRetenido = null;
+    const entrada = this.camEntrada;
+    if (entrada && this.player) {
+      if (entrada.x === null || entrada.y === null) { entrada.x = this.player.x; entrada.y = this.player.y; }
+      if (entrada.hasta === null) entrada.hasta = ahora + entrada.espera;
+      const seMovio = Math.hypot(this.player.x - entrada.x, this.player.y - entrada.y) > 6;
+      if (!seMovio && ahora < entrada.hasta) return { tipo: 'general' };
+      this.camEntrada = null;
+    }
+    return { tipo: 'explorar' };
+  }
+
+  /** La reacción, la conversación o el objeto en curso, con los pies de quien corresponda; null si no hay. */
+  private closeMomentNow(): Momento | null {
+    if (this.camFrameKey) {
+      const de = this.feetOf(this.camFrameKey);
+      if (de) return { tipo: 'reaccion', de };
+    }
+    if (this.camMoment.tipo !== 'explorar') {
+      const feet = this.feetOf(this.camMoment.clave);
+      if (feet) return this.camMoment.tipo === 'conversacion' ? { tipo: 'conversacion', con: feet } : { tipo: 'objeto', en: feet };
+    }
+    return null;
+  }
+
+  /**
+   * Un cuadro de cámara (bloque M1, regla 7 de la vara): `objetivoCamara` decide el plano; entre un plano y otro hay un
+   * viaje con arranque y llegada suaves (`enViaje`, con la duración de cada cambio); dentro de un plano, el seguimiento
+   * con zona muerta (`avanzarCamara`). Con movimiento reducido todo es corte. Quieta durante un fundido y con el plano
+   * del lugar abierto. Durante un viaje la escena se dibuja al entero de abajo y el lienzo ya compuesto se escala.
+   */
+  private stepCamera(delta: number): void {
+    const cam = this.cameras?.main;
+    if (!cam || !this.player || this.camFrozen || cam.fadeEffect.isRunning) return;
+    // Lienzo todavía sin tamaño (se ve 1 px de alto mientras la pantalla se arma): no se encuadra ni corre la espera del
+    // plano general; el primer cuadro con tamaño real es el corte.
+    if (cam.width < VISTA_MINIMA_PX || cam.height < VISTA_MINIMA_PX) return;
+    const ahora = this.camNow();
+    // El plano general de una sala nueva cuenta solo cuando se ve: detrás de una nota o un diálogo, espera.
+    if (this.camEntrada?.hasta != null && this.motionPaused) this.camEntrada.hasta += Math.max(0, delta);
+    const dpr = typeof window !== 'undefined' ? window.devicePixelRatio || 1 : 1;
+    const momento = this.cameraMomentNow(ahora);
+    const sala = { ancho: this.roomSize.width, alto: this.roomSize.height };
+    // Las placas de la interfaz cambian poco (abrir la ficha, una acción al alcance): se miden unas veces por segundo.
+    if (this.camPlacasMedir && ahora - this.camPlacasEn >= MEDIR_PLACAS_MS) {
+      this.camPlacas = this.camPlacasMedir();
+      this.camPlacasEn = ahora;
+    }
+    const vista = {
+      ancho: cam.width, alto: cam.height, dpr,
+      cubiertoAbajo: this.camCoveredCss * dpr, cubiertoArriba: this.camCoveredTopCss * dpr,
+      placas: this.camPlacas.map(p => ({ x: p.x * dpr, y: p.y * dpr, ancho: p.ancho * dpr, alto: p.alto * dpr })),
+    };
+    const calculado = objetivoCamara({
+      jugador: { x: this.player.x, y: this.player.y },
+      sala,
+      vista,
+      momento,
+      cercana: this.camOptions.cercana,
+      acercarAuto: this.camOptions.acercarAuto,
+      cerca: this.nearestKey ? this.feetOf(this.nearestKey) : null,
+    }, this.camCut ? null : this.camState);
+    // Plano sostenido: el objetivo es el de antes de soltarse (sin recalcular con el cuadro que se va).
+    const objetivo = this.camSosteniendo && this.camUltimoObjetivo ? this.camUltimoObjetivo : calculado;
+    if (!this.camSosteniendo) this.camUltimoObjetivo = calculado;
+
+    let next: EstadoCamara;
+    if (this.camCut || !this.camState || this.callbacks.reduceMotion) {
+      next = { centro: { ...objetivo.centro }, zoom: objetivo.zoom };
+      this.camTravel = null;
+    } else {
+      const cambiaPlano = momento.tipo !== this.camMomentType || objetivo.zoom !== this.camTargetZoom;
+      if (cambiaPlano) {
+        const dur = momento.tipo !== this.camMomentType ? duracionDeViaje(this.camMomentType, momento.tipo) : 800;
+        this.camTravel = { desde: this.camState, inicio: ahora, dur };
+      }
+      if (this.camTravel) {
+        const t = (ahora - this.camTravel.inicio) / this.camTravel.dur;
+        next = enViajeDentro(this.camTravel.desde, objetivo, t, vista, sala);
+        if (t >= 1) this.camTravel = null;
+      } else {
+        next = avanzarCamara(this.camState, objetivo, delta, false);
+      }
+      // V5: un objetivo que cambia de golpe a mitad de un viaje (la placa que se esquiva) no se ve como un salto.
+      next = sinSaltos(this.camState, next, delta);
+    }
+    this.camCut = false;
+    this.camMomentType = momento.tipo;
+    this.camTargetZoom = objetivo.zoom;
+    this.camState = next;
+
+    const { base, escala } = comoDibujar(next.zoom);
+    if (cam.zoom !== base) cam.setZoom(base);
+    cam.centerOn(next.centro.x, next.centro.y);
+    this.applyCanvasScale(escala);
+    this.scaleLabelsForZoom(next.zoom);
+    if (escala === 1 && base !== this.camSettledZoom) {
+      this.camSettledZoom = base;
+      this.onCameraZoomSettled();
+    }
+    const report: CameraReport = {
+      zoom: this.camSettledZoom, momento: momento.tipo, x: Math.round(next.centro.x), y: Math.round(next.centro.y),
+      viajando: this.camTravel !== null, abajo: Math.round(this.camCoveredCss), arriba: Math.round(this.camCoveredTopCss),
+      sala: `${sala.ancho}x${sala.alto} vista ${cam.width}x${cam.height}`,
+    };
+    const key = `${report.zoom}|${report.momento}|${report.x}|${report.y}|${report.viajando}|${report.abajo}|${report.arriba}|${report.sala}`;
+    if (key !== this.camReport) {
+      this.camReport = key;
+      this.callbacks.onCamera?.(report);
+    }
+  }
+
+  /**
+   * Escala CSS del lienzo ya compuesto (regla 7: el viaje escala la imagen entera, no cada dibujo, y los píxeles no
+   * bailen). 1 en reposo. El contenedor recorta lo que sobra; la interfaz HTML encima no se escala.
+   */
+  private applyCanvasScale(escala: number): void {
+    if (Math.abs(escala - this.camDrawScale) < 0.0005) return;
+    this.camDrawScale = escala;
+    const canvas = this.game?.canvas as HTMLCanvasElement | undefined;
+    if (!canvas?.style) return;
+    if (canvas.parentElement) canvas.parentElement.style.overflow = 'hidden';
+    canvas.style.imageRendering = 'pixelated';
+    canvas.style.transformOrigin = '50% 50%';
+    canvas.style.transform = escala === 1 ? '' : `scale(${escala})`;
+  }
+
+  /**
+   * Los rótulos miden lo mismo en pantalla con cualquier zoom (regla 7): su escala de mundo es la de ×1 dividida por el
+   * zoom efectivo. En un viaje se ajusta cada cuadro (solo `setScale`, sin repintar textos); en reposo, una vez.
+   */
+  private scaleLabelsForZoom(zoom: number): void {
+    const displayScale = this.scale?.displayScale?.x;
+    if (!displayScale || !(zoom > 0)) return;
+    const next = labelScaleFor(displayScale, 1) / zoom;
+    if (Math.abs(next - this.labelScale) < 0.0005) return;
+    this.labelScale = next;
+    this.markerLabels.forEach(label => label.setScale(next));
+    this.hoverLabel?.setScale(next);
+    this.keyPersonIndicator?.container.setScale(next);
+    this.doorHints.forEach(hint => { hint.setScale(next); this.placeDoorHint(hint); });
+    this.npcMarkers.forEach(container => {
+      const bag = container as unknown as Record<string, unknown>;
+      (bag['__labelSprite'] as Phaser.GameObjects.Text | undefined)?.setScale(next);
+      (bag['__hintSprite'] as Phaser.GameObjects.Text | undefined)?.setScale(next);
+    });
+  }
+
+  /**
+   * La cámara llegó a un zoom entero nuevo: rótulos de ≥ 12 px de pantalla, textos a esa resolución y viñetas al nuevo
+   * rectángulo visible (como `refitCamera`). Una vez por cambio de zoom, nunca por cuadro. Las viñetas solo se rehacen
+   * si ya existen: al pintar una sala, `renderWorld` las crea después con el zoom ya puesto.
+   */
+  private onCameraZoomSettled(): void {
+    this.pixelRender?.refreshTexts(this.camSettledZoom);
+    if (this.syncLabelScale() && this.world) this.refreshMarkerStates();
+    if (!this.ready) return;
+    if (this.toneVignette) {
+      this.toneVignette.destroy();
+      this.applyLightingOverlay();
+    }
+    if (this.crisisVignette) {
+      this.crisisVignette.destroy();
+      this.applyCrisisVignette();
+    }
+  }
+
+  /** Reproduce los pasos del gesto sobre el marcador de `key` y lo deja en su sitio exacto; resuelve al terminar (o ya, sin pasos).
+   *  `voltear` no se aplica: game-world.kit.contract.spec.ts prohíbe espejar personas y ningún gesto lo pide. */
+  playGesture(key: string, gesto: Gesto): Promise<void> {
+    this.gazes.get(key)?.end();   // un gesto manda sobre la mirada
+    const actor = this.actorOf(key);
+    const toward = (a: number, b: number) => Math.sign(a - b) as -1 | 0 | 1;
+    const steps = actor ? pasosDeGesto(gesto, {
+      haciaJugador: { x: toward(this.player?.x ?? actor.x, actor.x), y: toward(this.player?.y ?? actor.y, actor.y) },
+    }, this.callbacks.reduceMotion) : [];
+    if (!actor || steps.length === 0 || this.gesturing.has(key)) return Promise.resolve();
+    const origin = { x: actor.x, y: actor.y, angle: actor.angle };
+    this.gesturing.add(key);
+    return new Promise<void>(resolve => {
+      let done = false;
+      const finish = (): void => {
+        if (done) return;
+        done = true;
+        this.gestureEnds.delete(finish);
+        this.gesturing.delete(key);
+        if (actor.scene) {   // un repintado de la sala (o su cierre) ya pudo destruirla
+          actor.setPosition(origin.x, origin.y).setAngle(origin.angle);
+        }
+        resolve();
+      };
+      this.gestureEnds.add(finish);
+      let x = origin.x, y = origin.y;
+      const run = (i: number) => {
+        if (i >= steps.length) { finish(); return; }
+        const step = steps[i];
+        x += step.dx; y += step.dy;
+        this.tweens.add({
+          targets: actor, x, y, angle: step.angulo, duration: step.ms, ease: 'Sine.easeInOut',
+          onComplete: () => run(i + 1), onStop: finish,
+        });
+      };
+      run(0);
+    });
+  }
+
+  /** Una línea en palabras bajo el nombre de la persona clave (`null` la quita); la escena la recuerda entre renders. */
+  setPersonaState(text: string | null): void {
+    this.personaState = text;
+    const indicator = this.keyPersonIndicator;
+    const marker = indicator && this.markers.get(indicator.key);
+    const object = indicator && this.markerData.get(indicator.key);
+    if (!indicator || !marker || !object) return;
+    indicator.container.destroy();
+    this.buildKeyPersonIndicator(marker, object);
+  }
+
+  /** Pone a la persona (o NPC) mirando hacia el jugador o hacia otra clave, sin caminar, y SOSTIENE la mirada `holdMs`: el paseo no la pisa y al vencer retoma. De media vuelta pasa antes por una dirección intermedia (con movimiento reducido, de una vez). */
+  faceTowards(key: string, target: 'player' | string, holdMs: number = GAZE_HOLD_MS): void {
+    const actor = this.actorOf(key);
+    const from = this.liveFeetOf(key);
+    const to = target === 'player' ? (this.player ? { x: this.player.x, y: this.player.y } : null) : this.liveFeetOf(target);
+    if (!actor || !from || !to || (this.gesturing.has(key) && !this.gazes.has(key))) return;
+    const dx = to.x - from.x;
+    const gaze = this.holdGaze(key, actor, holdMs);
+    const direction = direccionDeVector(dx, to.y - from.y, null) ?? gaze.current;
+    // Gira por las vistas de en medio, una cada MS_POR_PASO_DE_MIRADA (con movimiento reducido, de una vez).
+    const pasos = this.callbacks.reduceMotion ? [direction] : pasosDeGiro(gaze.current, direction, dx);
+    if (!pasos.length) { this.poseFacing(key, actor, direction); gaze.current = direction; return; }
+    pasos.forEach((vista, k) => {
+      const poner = (): void => { gaze.current = vista; this.poseFacing(key, actor, vista); };
+      if (k === 0) poner(); else gaze.timers.push(this.time.delayedCall(k * MS_POR_PASO_DE_MIRADA, poner));
+    });
+  }
+
+  /** Registra (o renueva) la mirada sostenida de `key`: queda en `gesturing` hasta vencer, hasta un gesto o hasta que la sala se repinte. */
+  private holdGaze(key: string, actor: Phaser.GameObjects.Container, holdMs: number): Gaze {
+    const previous = this.gazes.get(key);
+    const base = previous?.base ?? this.facingOf(key);
+    previous?.end();
+    const gaze: Gaze = { base, current: previous?.current ?? base, timers: [], end: () => undefined };
+    gaze.end = (restore = false): void => {
+      for (const timer of gaze.timers) timer.remove();
+      gaze.timers.length = 0;
+      if (this.gazes.get(key) !== gaze) return;
+      this.gazes.delete(key);
+      this.gesturing.delete(key);
+      this.gestureEnds.delete(gaze.end);
+      // Quien camina retoma su rumbo en su siguiente paso; el resto vuelve a como miraba.
+      if (restore && actor.scene && !this.personWalkers.has(key)) this.poseFacing(key, actor, gaze.base);
+    };
+    this.gazes.set(key, gaze);
+    this.gesturing.add(key);
+    this.gestureEnds.add(gaze.end);
+    gaze.timers.push(this.time.delayedCall(holdMs, () => gaze.end(true)));
+    return gaze;
+  }
+
+  /** Hacia dónde mira ahora la persona (o NPC) de `key`. */
+  private facingOf(key: string): ViewId {
+    const walker = this.personWalkers.get(key);
+    if (walker) return walker.lastPose.direction ?? walker.state.direction;
+    if (key.startsWith(NPC_KEY_PREFIX)) {
+      const name = key.slice(NPC_KEY_PREFIX.length);
+      const mover = this.npcMovers.get(name);
+      const config = (this.npcMarkers.get(name) as unknown as Record<string, unknown> | undefined)?.['__npcConfig'] as NpcConfig | undefined;
+      return mover?.lastPose.direction ?? orientacionDeDato(config?.facing);
+    }
+    return personFacing(this.markerData.get(key)?.facing);
+  }
+
+  /** Pone la pose de reposo de `key` mirando a `direction` (por el camino que cada tipo de persona ya tiene). */
+  private poseFacing(key: string, actor: Phaser.GameObjects.Container, direction: ViewId): void {
+    const walker = this.personWalkers.get(key);
+    if (walker) {
+      // Su mirada queda donde se le puso: al retomar el paseo gira desde aquí, no salta.
+      const mirada = mirarHacia(walker.state.mirada ?? miradaInicial(walker.state.direction), direction, { reducirMovimiento: true });
+      walker.state = { ...walker.state, mirada, direction };
+      this.applyPersonPose(walker, actor, direction, false);
+      return;
+    }
+    if (key.startsWith(NPC_KEY_PREFIX)) {
+      const mover = this.npcMovers.get(key.slice(NPC_KEY_PREFIX.length));
+      if (mover) mover.mirada = mirarHacia(mover.mirada ?? miradaInicial(mover.lastPose.direction ?? 'down'), direction, { reducirMovimiento: true });
+      if (mover) this.applyNpcPose(mover, actor, direction, false); else this.applyNpcFacing(actor, direction);
+      return;
+    }
+    const bag = actor as unknown as Record<string, unknown>;
+    const sprite = bag['__personSprite'] as Phaser.GameObjects.Sprite | undefined;
+    const visual = bag['__personVisual'] as CharacterVisual | undefined;
+    if (sprite && visual) playKitPose(sprite, visual, direction, false, this.callbacks.reduceMotion);
+  }
+
+  /** Dónde pisa ahora `key`: el contenedor VIVO (camina o flota) más el contacto con el piso; no la posición de reposo del dato. */
+  private liveFeetOf(key: string): { x: number; y: number } | null {
+    const actor = this.actorOf(key);
+    if (!actor) return null;
+    const object = this.markerData.get(key);
+    return { x: actor.x, y: actor.y + (key.startsWith(NPC_KEY_PREFIX) || !object ? 0 : markerFeetOffsetY(object)) };
+  }
+
+  /** Claves de las personas (marcadores PERSON y `npc:{clave}`) cuyos pies están a menos de `radiusPx` de los pies del objeto `key` (posiciones vivas). */
+  peopleNear(key: string, radiusPx: number): string[] {
+    const from = this.liveFeetOf(key);
+    if (!from) return [];
+    const near: string[] = [];
+    const check = (candidate: string): void => {
+      const feet = candidate === key ? null : this.liveFeetOf(candidate);
+      if (feet && Math.hypot(feet.x - from.x, feet.y - from.y) < radiusPx) near.push(candidate);
+    };
+    for (const [other, object] of this.markerData) if (object.type === 'PERSON' && this.markers.has(other)) check(other);
+    for (const npcKey of this.npcMarkers.keys()) check(NPC_KEY_PREFIX + npcKey);
+    return near;
+  }
+
+  /** La cabeza de la persona en px CSS relativos al host (cámara, zoom y escala del lienzo); `null` si no está en la sala. Sin asignaciones por llamada salvo el resultado. */
+  screenAnchorOf(key: string): { x: number; y: number } | null {
+    const actor = this.actorOf(key);
+    const object = this.markerData.get(key);
+    if (!actor) return null;
+    const footY = actor.y + (key.startsWith(NPC_KEY_PREFIX) || !object ? 0 : markerFeetOffsetY(object));
+    const cam = this.cameras.main;
+    const view = cam.worldView;
+    const zoom = cam.zoom || 1;
+    const scale = this.scale?.displayScale;
+    const sx = scale?.x || 1;
+    const sy = scale?.y || 1;
+    const x = ((actor.x - view.x) * zoom) / sx;
+    const y = (((footY - KEY_PERSON_HEAD_PX) - view.y) * zoom) / sy;
+    const k = this.camDrawScale;
+    if (k === 1) return { x, y };
+    // Durante un viaje el lienzo compuesto va escalado alrededor de su centro (bloque M1).
+    const cx = cam.width / (2 * sx);
+    const cy = cam.height / (2 * sy);
+    return { x: cx + (x - cx) * k, y: cy + (y - cy) * k };
+  }
+
+  /** El aspecto con el que se dibuja a la persona o al NPC de `key`. */
+  characterVisualOf(key: string): CharacterVisual | null {
+    const bag = this.actorOf(key) as unknown as Record<string, unknown> | undefined;
+    return (bag?.['__personVisual'] ?? bag?.['__npcVisual'] ?? null) as CharacterVisual | null;
+  }
+
+  /** ¿Es `key` la persona clave de la sala? */
+  isKeyPerson(key: string): boolean { return this.keyPersonKey() === key; }
 
   /** Fase 4: draws the authored per-room background image (world.map.ambient.backgroundImage)
    *  over the procedural floor. No-op if none; safe on load failure (procedural floor remains). */
@@ -1033,13 +1623,163 @@ export class DataDrivenWorldScene extends Phaser.Scene {
     return true;
   }
 
+  /** P2: la sala por piezas que se está mostrando (null en las salas de imagen fija o de Tiled). */
+  private salaPorPiezas: EscenaDeSala | null = null;
+  private manifiestoDePiezasPedido = false;
+  /** P2: claves de piezas que fallaron al cargar: no se vuelven a pedir (hallazgo 2 de la revisión de Codex). */
+  private readonly piezasFallidas = new Set<string>();
+  /** P2: la sala por piezas apartada durante un repintado de la misma sala (vuelve sin rearmarse). */
+  private salaApartada: EscenaDeSala | null = null;
+  /** P2: dónde estaba la cámara al apartar la sala (vuelve ahí si la sala vuelve). */
+  private camaraApartada: { x: number; y: number } | null = null;
+
+  /** P2: lo que dibuja la sala por piezas: estructura, encuadre, puertas y objetos con arte. Igual = no hay que rearmarla. */
+  private firmaDeSala(): string {
+    if (!this.world) return '';
+    const mapa = this.world.map as unknown as Record<string, unknown>;
+    const objetos = this.world.objects
+      .filter(o => o.type === 'EXIT' || typeof o.metadata?.['arte'] === 'string')
+      .map(o => [o.key, o.type, o.x, o.y, o.metadata?.['arte'] ?? null, o.metadata?.['espejo'] ?? null, o.metadata?.['muro'] ?? null,
+        o.metadata?.['pos'] ?? null, o.metadata?.['modelo'] ?? null]);
+    return JSON.stringify([mapa['key'], mapa['structure'] ?? null, (mapa['ambient'] as Record<string, unknown> | undefined)?.['encuadre'] ?? null, objetos]);
+  }
+  private salaIncompletaAvisada: string | null = null;
+  private firmaDelAviso = '';
+
+  /**
+   * P2: los muebles y objetos del caso que tienen arte, como cuerpos de la luz: su silueta es el alfa de su dibujo y se
+   * apoyan en el centro de su base (`cuerpoDe`). Las personas no: su sombra camina con ellas (`sombraDeFigura`).
+   */
+  private cuerposDeLaSala(): Cuerpo[] {
+    const cuerpos: Cuerpo[] = [];
+    for (const [key, m] of this.markers) {
+      const arte = (m as unknown as Record<string, unknown>)['__artSprite'] as Phaser.GameObjects.Image | undefined;
+      const obj = this.markerData.get(key);
+      if (!arte || !obj || obj.type === 'PERSON' || obj.metadata?.['sombra'] === false) continue;
+      const cuerpo = EscenaDeSala.cuerpoDeSprite(arte, m.x, m.y);
+      if (cuerpo) cuerpos.push(cuerpo);
+    }
+    return cuerpos;
+  }
+
+  /**
+   * P2: los objetos del caso cuyo arte es una pieza de la biblioteca (un mueble, un objeto o una herramienta de P1 y O1, por
+   * su ruta o por el arte viejo que reemplaza): los dibuja la escena de la sala, con su animación, su brillo y su luz propia.
+   */
+  private mueblesDeLaSala(manifiesto: ManifiestoDePiezas): MuebleDeSala[] {
+    return this.renderableWorldObjects().flatMap(obj => {
+      if (obj.type === 'EXIT' || obj.type === 'PERSON') return [];
+      const pieza = piezaDelObjeto(obj.metadata?.['arte'], manifiesto);
+      return pieza ? [{
+        id: obj.key, clave: pieza.clave, ficha: pieza.ficha, x: obj.x, y: obj.y + markerFeetOffsetY(obj),
+        espejo: obj.metadata?.['espejo'] === true,
+      }] : [];
+    });
+  }
+
+  /** P2: ¿el mundo de ahora es una sala por piezas (`map.structure` válida)? Manda sobre el ScenarioConfig del legado. */
+  private esSalaPorPiezas(): boolean {
+    return !!this.world && salaDelMundo(this.world.map as unknown as Record<string, unknown>, this.world.objects) !== null;
+  }
+
+  /** P2: suelta la sala por piezas (sprites, texturas propias y capas de luz) al cambiar de camino o al apagar la escena. */
+  private soltarSalaPorPiezas(): void {
+    this.salaPorPiezas?.destruir();
+    this.salaPorPiezas = null;
+    this.salaApartada?.destruir();
+    this.salaApartada = null;
+    this.avisoDePuerta(null);
+  }
+
+  /**
+   * P2 (contrato x-siep 2.2): si el mapa trae `structure`, la sala se arma con piezas, con su luz y sus puertas, y aquí se
+   * monta lo demás del juego como siempre. Devuelve false si la sala no es por piezas (o no se puede armar): entonces
+   * `renderWorld` sigue por el camino de hoy. Mientras llegan el manifiesto o las imágenes devuelve true y repinta al llegar.
+   */
+  private renderSalaPorPiezas(mapW: number, mapH: number): boolean {
+    const sala = this.world ? salaDelMundo(this.world.map as unknown as Record<string, unknown>, this.world.objects) : null;
+    if (!sala || !this.world) return false;
+    const manifiesto = this.cache.json.get('sala:manifiesto-de-piezas') as unknown;
+    if (!esManifiestoDePiezas(manifiesto)) {
+      if (this.manifiestoDePiezasPedido) return false;   // no cargó: la sala sigue por el camino de hoy
+      this.manifiestoDePiezasPedido = true;
+      this.load.json('sala:manifiesto-de-piezas', MANIFIESTO_DE_PIEZAS_URL);
+      this.load.once(Phaser.Loader.Events.COMPLETE, () => { if (this.ready) this.renderWorld(); });
+      this.load.start();
+      return true;
+    }
+    const plan = EscenaDeSala.planear(sala, manifiesto);
+    if (!plan) return false;
+    const muebles = this.mueblesDeLaSala(manifiesto);
+    const estado = EscenaDeSala.estadoDeTexturas(plan, clave => this.textures.exists(clave), this.piezasFallidas);
+    if (estado === 'fallo') {
+      // Una pieza no cargó: la sala no se arma a medias ni se vuelve a pedir; sigue por el camino de imagen fija y se avisa.
+      if (this.salaIncompletaAvisada !== this.world.map.key) {   // una vez por sala, no en cada repintado
+        this.salaIncompletaAvisada = this.world.map.key;
+        console.error('[sala por piezas] no cargaron:', [...this.piezasFallidas].join(', '));
+        this.callbacks.onSalaIncompleta?.();
+      }
+      return false;
+    }
+    const faltanMuebles = EscenaDeSala.pedirMuebles(this, muebles, this.piezasFallidas);
+    if (estado === 'pedir' || faltanMuebles) {
+      const alFallar = (archivo: Phaser.Loader.File) => { this.piezasFallidas.add(archivo.key); };
+      this.load.on(Phaser.Loader.Events.FILE_LOAD_ERROR, alFallar);
+      if (estado === 'pedir') EscenaDeSala.pedirTexturas(this, plan, this.piezasFallidas);
+      this.load.once(Phaser.Loader.Events.COMPLETE, () => {
+        this.load.off(Phaser.Loader.Events.FILE_LOAD_ERROR, alFallar);
+        if (this.ready) this.renderWorld();
+      });
+      this.load.start();
+      return true;
+    }
+    const apartada = this.salaApartada;
+    this.salaApartada = null;
+    if (apartada && apartada.firma !== this.firmaDeSala()) apartada.destruir();
+    // Las puertas de pieza ya están en el muro: su marcador no lleva sprite, solo el rótulo y el área para cruzar.
+    // Los muebles y objetos de la biblioteca de piezas los dibuja la escena (con su animación); su marcador, solo el rótulo.
+    const dePieza = new Set([...(sala.puertas ?? []).map(p => p.id), ...muebles.map(m => m.id)]);
+    this.renderableWorldObjects()
+      .map(obj => (dePieza.has(obj.key) ? { ...obj, metadata: { ...(obj.metadata ?? {}), pintada: true, dePieza: true } } : obj))
+      .forEach(obj => this.createMarker(obj));
+    // Los muebles y objetos del caso con arte arrojan su silueta en la luz de la sala (las personas, la suya al caminar).
+    if (apartada && apartada.firma === this.firmaDeSala()) {
+      apartada.devolver();
+      this.salaPorPiezas = apartada;
+    } else {
+      this.salaPorPiezas = new EscenaDeSala(this, sala, plan, manifiesto, {
+        reducido: this.callbacks.reduceMotion, cuerpos: this.cuerposDeLaSala(), muebles,
+      });
+      this.salaPorPiezas.firma = this.firmaDeSala();
+    }
+    this.createPlayer(this.world.player.x, this.world.player.y);
+    // Cámara (M1): la sala compuesta mide `plan.ancho × plan.alto` (528 de alto, contrato 2.2); el `height` del mapa del
+    // servidor puede ser mayor y la cámara mostraba el vacío bajo la sala en el plano general.
+    this.applyPixelCamera(plan.ancho || mapW, plan.alto || mapH);
+    const camara = this.camaraApartada;
+    this.camaraApartada = null;
+    if (camara && this.salaPorPiezas === apartada) this.cameras.main.setScroll(camara.x, camara.y);   // la misma sala: sin salto
+    this.refreshMarkerStates();
+    this.updateNearestInteraction(true);
+    this.applyCrisisVignette();
+    this.playIntroFade();
+    this.callbacks.onReady();
+    // V6: la luz «en sombra» (la de las sombras de quien camina) es perezosa y la pagaba el primer cuadro de juego, unos
+    // 390 ms con la CPU ×4 al pulsar «Continuar» en «Antes de comenzar». Se calcula ya, fuera de este cuadro y con la sala
+    // lista: mientras la tarjeta está a la vista. Si la sala ya no es esta, no se hace nada.
+    const recienArmada = this.salaPorPiezas;
+    setTimeout(() => { if (this.salaPorPiezas === recienArmada) recienArmada?.calentarSombras(); }, 0);
+    return true;
+  }
+
   private renderWorld() {
     if (!this.world) return;
     // El arte de la biblioteca que aún no está cargado se pide primero; el mundo se pinta de nuevo al llegar.
     if (this.queueMissingArt()) return;
 
     // Multi-room mode: delegate to renderRoom() when a ScenarioConfig is loaded
-    if (this.scenarioConfig) {
+    // (P2: salvo que el mundo sea una sala por piezas: ella manda, aunque haya llegado una configuración del legado).
+    if (this.scenarioConfig && !this.esSalaPorPiezas()) {
       const room = this.roomForCurrentWorld()
         ?? this.scenarioConfig.rooms.find(r => r.key === this.scenarioConfig!.startRoomKey)
         ?? this.scenarioConfig.rooms[0];
@@ -1049,6 +1789,18 @@ export class DataDrivenWorldScene extends Phaser.Scene {
 
     this.cameras.main.stopFollow();   // clear stale follow target before destroying children
     // Los pulsos repeat:-1 sobreviven a removeAll y se acumulaban en cada re-render.
+    this.endGestures();   // antes del killAll: Phaser descarta los tweens sin avisar y la promesa quedaría colgada
+    // P2: si la sala por piezas que viene es la misma (misma estructura, puertas y objetos con arte), se aparta entera y
+    // vuelve después del repintado: cada interacción trae el mundo completo y rearmarla congelaba el juego (V2).
+    if (this.salaPorPiezas && this.salaPorPiezas.firma === this.firmaDeSala()) {
+      this.salaApartada = this.salaPorPiezas;
+      this.salaApartada.apartar();
+      // Y la cámara queda donde estaba: rearmarla la centraría de golpe en quien juega (un salto de unos px al revisar).
+      this.camaraApartada = { x: this.cameras.main.scrollX, y: this.cameras.main.scrollY };
+    } else {
+      this.salaPorPiezas?.destruir();   // sus texturas de lienzo no las borra removeAll
+    }
+    this.salaPorPiezas = null;
     this.tweens.killAll();
     this.children.removeAll(true);
     this.markers.clear();
@@ -1070,6 +1822,9 @@ export class DataDrivenWorldScene extends Phaser.Scene {
     const mapKey  = this.world.map.key;
     const { width: mapW, height: mapH } = this.world.map;
     this.cameras.main.setBackgroundColor('#0e141a');
+
+    // P2: una sala con `structure` se arma por piezas; sin ella, todo sigue como hoy.
+    if (this.renderSalaPorPiezas(mapW, mapH)) return;
 
     // ── Fase C: registry de renderers también en modo sala única ───────────
     // Si hay renderer para este mapa, él pinta todas las capas visuales y aquí
@@ -1197,6 +1952,8 @@ export class DataDrivenWorldScene extends Phaser.Scene {
       : null;
 
     this.cameras.main.stopFollow();
+    this.endGestures();   // antes del killAll: Phaser descarta los tweens sin avisar y la promesa quedaría colgada
+    this.soltarSalaPorPiezas();   // P2: si la sala anterior era por piezas, sus texturas y su luz no quedan vivas
     this.tweens.killAll();
     this.children.removeAll(true);
     this.markers.clear();
@@ -1308,7 +2065,7 @@ export class DataDrivenWorldScene extends Phaser.Scene {
 
     // Los JSON de escenario traen coords de la sala autoría; spawnNpcs tiene la
     // red de seguridad (freeTileNear) si alguna cayera en colisión.
-    this.spawnNpcs(roomConfig.npcs);
+    this.spawnNpcs(npcsDeLaSala(roomConfig.npcs, this.world?.map.ambient));
     // Fase 10: enter_room persiste entryX/entryY en world.player. Esa autoridad
     // debe ganar incluso si el ScenarioConfig asíncrono dejó un actor transitorio
     // en el centro; el actor vivo solo respalda datos backend no jugables.
@@ -1341,26 +2098,36 @@ export class DataDrivenWorldScene extends Phaser.Scene {
   }
 
   /**
-   * Zoom entero de cámara (spec §8.3): el mayor k que deja ver el 80 % de la sala. La
-   * cámara sigue a la jugadora y se limita a la sala; si la vista es mayor, la centra.
+   * Sala nueva o lienzo nuevo (bloque M1): la cámara la decide `camara/camara.ts` cada cuadro (zoom entero de spec §8.3
+   * con un ancho de referencia de 960, zona muerta, límites de la sala). Aquí solo se pide un corte: ni seguimiento de
+   * Phaser ni límites de cámara, que pelearían con el controlador.
    */
   private applyPixelCamera(roomWidth: number, roomHeight: number): void {
     this.roomSize = { width: roomWidth, height: roomHeight };
     const cam = this.cameras.main;
-    const k = integerZoom(cam.width, cam.height, roomWidth, roomHeight);
-    cam.setZoom(k);
-    this.pixelRender?.refreshTexts(k);
-    const bounds = cameraBounds(roomWidth, roomHeight, cam.width / k, cam.height / k);
-    cam.setBounds(bounds.x, bounds.y, bounds.width, bounds.height);
-    if (this.player) {
-      cam.startFollow(this.player, true, 0.12, 0.12);
-      cam.centerOn(this.player.x, this.player.y);
+    cam.stopFollow();
+    cam.removeBounds();
+    // Sala nueva (no un repintado ni un cambio de lienzo): plano general que después se cierra sobre el personaje,
+    // sostenido más la primera vez que se ve la sala. Con movimiento reducido, sin plano general.
+    const sala = this.world?.map?.key || this.currentRoomKey || '';
+    if (sala !== this.camRoomId) {
+      this.camRoomId = sala;
+      const yaVisitada = this.camRoomsSeen.has(sala);
+      this.camRoomsSeen.add(sala);
+      // La espera empieza el primer cuadro en que el plano general se ve de verdad (ver `cameraMomentNow`).
+      this.camEntrada = this.callbacks.reduceMotion ? null : { espera: esperaDelGeneral(yaVisitada), hasta: null, x: null, y: null };
+      // Solo una sala nueva es un corte: repintar la misma sala (cada respuesta del servidor) no corta el viaje en curso.
+      this.camCut = true;
+      this.camTravel = null;
     }
+    this.stepCamera(0);
   }
 
   /** El lienzo cambió de tamaño o de dpr: nuevo zoom entero y viñetas al nuevo rectángulo visible. */
   private refitCamera(): void {
     if (!this.ready || !this.player) return;
+    // El lienzo cambió (el aviso sensible que se pliega, el panel, la ventana): sin corte; si el plano cambia de zoom,
+    // la cámara viaja al nuevo. Un corte aquí se comía el cierre sobre el personaje tras el plano general.
     this.applyPixelCamera(this.roomSize.width, this.roomSize.height);
     if (this.toneVignette) {
       this.toneVignette.destroy();
@@ -1397,6 +2164,7 @@ export class DataDrivenWorldScene extends Phaser.Scene {
     let nearestDist = Infinity;
     for (const obj of this.world.objects) {
       if ((obj.type || '').toUpperCase() !== 'EXIT') continue;
+      if (puertaDelObjeto(obj)) continue;   // P2: una puerta de pieza se cruza con E, no al pisarla (diseño 4.4)
       const meta = obj.metadata as { targetNodeKey?: string; entryX?: number; entryY?: number } | undefined;
       const target = meta?.targetNodeKey;
       if (!target) continue;
@@ -1446,12 +2214,13 @@ export class DataDrivenWorldScene extends Phaser.Scene {
       target: null,
       anchorIdx: 0,
       pauseUntil: this.time.now + (npc.motion.startDelayMs ?? 600),
-      lastPose: { direction: (npc.facing ?? 'down') as PlayerDirection, walking: false },
+      mirada: miradaInicial(orientacionDeDato(npc.facing)),
+      lastPose: { direction: orientacionDeDato(npc.facing), walking: false },
     });
   }
 
   /** Pose del NPC (dirección + caminando) solo si cambió — como el jugador. */
-  private applyNpcPose(mover: NpcMover, container: Phaser.GameObjects.Container, direction: PlayerDirection, walking: boolean): void {
+  private applyNpcPose(mover: NpcMover, container: Phaser.GameObjects.Container, direction: ViewId, walking: boolean): void {
     if (mover.lastPose.direction === direction && mover.lastPose.walking === walking) return;
     mover.lastPose = { direction, walking };
     this.playNpc(container, direction, walking);
@@ -1461,25 +2230,29 @@ export class DataDrivenWorldScene extends Phaser.Scene {
     if (this.motionPaused || this.npcMovers.size === 0) return;
     for (const mover of this.npcMovers.values()) {
       const container = this.npcMarkers.get(mover.key);
-      if (!container) continue;
+      if (!container || this.gesturing.has(this.npcKeyOf(mover.key))) continue;   // mirando hacia algo o en pleno gesto
       const behavior = effectiveNpcBehavior(mover.cfg.behavior, this.callbacks.reduceMotion);
-      const lastDir = mover.lastPose.direction ?? 'down';
+      const opts = { msPorPaso: MS_POR_PASO_DE_MIRADA, reducirMovimiento: this.callbacks.reduceMotion };
+      mover.mirada ??= miradaInicial(mover.lastPose.direction ?? 'down');
+      // Quieto o en pausa: un giro empezado termina (8 direcciones, `direccion-ocho.ts`).
+      const mirarQuieto = (): void => {
+        mover.mirada = actualizarMirada(mover.mirada, 0, 0, delta, opts);
+        this.applyNpcPose(mover, container, mover.mirada.actual, false);
+      };
 
-      if (behavior === 'idle') { this.applyNpcPose(mover, container, lastDir, false); continue; }
+      if (behavior === 'idle') { mirarQuieto(); continue; }
 
       if (behavior === 'attentive') {
-        // Gira hacia el jugador cuando está cerca; nunca se traslada.
-        if (this.player) {
-          const d = Phaser.Math.Distance.Between(this.player.x, this.player.y, container.x, container.y);
-          if (d <= 110) {
-            const dir = resolveDirection(this.player.x - container.x, this.player.y - container.y, lastDir);
-            this.applyNpcPose(mover, container, dir, false);
-          }
-        }
+        // Gira hacia el jugador cuando está cerca, sin parpadear entre vecinas; nunca se traslada.
+        const cerca = !!this.player && Phaser.Math.Distance.Between(this.player.x, this.player.y, container.x, container.y) <= 110;
+        const vx = cerca && this.player ? this.player.x - container.x : 0;
+        const vy = cerca && this.player ? this.player.y - container.y : 0;
+        mover.mirada = actualizarMirada(mover.mirada, vx, vy, delta, opts);
+        this.applyNpcPose(mover, container, mover.mirada.actual, false);
         continue;
       }
 
-      if (time < mover.pauseUntil) { this.applyNpcPose(mover, container, lastDir, false); continue; }
+      if (time < mover.pauseUntil) { mirarQuieto(); continue; }
 
       if (!mover.target) {
         mover.target = this.nextNpcTarget(mover, container);
@@ -1487,28 +2260,28 @@ export class DataDrivenWorldScene extends Phaser.Scene {
       }
 
       const next = stepToward(container, mover.target, npcSpeed(mover.cfg) * (delta / 1000));
-      const dir = resolveDirection(next.x - container.x, next.y - container.y, lastDir);
-      if (!this.wouldCollide(next.x, next.y)) {
-        container.setPosition(next.x, next.y);
-        this.applyNpcPose(mover, container, dir, true);
-      } else if (!this.wouldCollide(next.x, container.y)) {
-        container.setPosition(next.x, container.y);
-        this.applyNpcPose(mover, container, dir, true);
-      } else if (!this.wouldCollide(container.x, next.y)) {
-        container.setPosition(container.x, next.y);
-        this.applyNpcPose(mover, container, dir, true);
-      } else {
+      const desde = { x: container.x, y: container.y };
+      let avanza = true;
+      if (!this.wouldCollide(next.x, next.y)) container.setPosition(next.x, next.y);
+      else if (!this.wouldCollide(next.x, container.y)) container.setPosition(next.x, container.y);
+      else if (!this.wouldCollide(container.x, next.y)) container.setPosition(container.x, next.y);
+      else avanza = false;
+      // Mira hacia donde avanzó de verdad (también deslizando por una pared).
+      mover.mirada = actualizarMirada(mover.mirada, container.x - desde.x, container.y - desde.y, delta, opts);
+      if (!avanza) {
         // Bloqueado del todo: nuevo objetivo después, nunca caminar en el sitio.
         mover.target = null;
         mover.pauseUntil = time + 900;
-        this.applyNpcPose(mover, container, dir, false);
+        this.applyNpcPose(mover, container, mover.mirada.actual, false);
         continue;
       }
+      this.applyNpcPose(mover, container, mover.mirada.actual, true);
 
       if (reached(container, mover.target, 2)) {
         const anchors = mover.cfg.anchors ?? [];
         const anchor = anchors.length ? anchors[mover.anchorIdx] : null;
-        this.applyNpcPose(mover, container, (anchor?.face as PlayerDirection | undefined) ?? dir, false);
+        if (anchor?.face) mover.mirada = mirarHacia(mover.mirada, orientacionDeDato(anchor.face), opts);
+        this.applyNpcPose(mover, container, mover.mirada.actual, false);
         mover.pauseUntil = time + npcPause(mover.cfg, anchor);
         mover.anchorIdx = npcMotionStrategyFor(mover.cfg.behavior).anchorAfterArrival(mover.anchorIdx, anchors.length);
         mover.target = null;
@@ -1529,11 +2302,11 @@ export class DataDrivenWorldScene extends Phaser.Scene {
   }
 
   /** Reposo del NPC mirando a `direction` (las 4 filas del kit son reales). */
-  private applyNpcFacing(container: Phaser.GameObjects.Container, direction: PlayerDirection): void {
+  private applyNpcFacing(container: Phaser.GameObjects.Container, direction: ViewId): void {
     this.playNpc(container, direction, false);
   }
 
-  private playNpc(container: Phaser.GameObjects.Container, direction: PlayerDirection, walking: boolean): void {
+  private playNpc(container: Phaser.GameObjects.Container, direction: ViewId, walking: boolean): void {
     const bag = container as unknown as Record<string, unknown>;
     const sprite = bag['__npcSprite'] as Phaser.GameObjects.Sprite | undefined;
     const visual = bag['__npcVisual'] as CharacterVisual | undefined;
@@ -1571,7 +2344,7 @@ export class DataDrivenWorldScene extends Phaser.Scene {
         bag['__npcSprite'] = figure;
         bag['__npcVisual'] = visual;
       }
-      this.applyNpcFacing(container, npc.facing ?? 'down');
+      this.applyNpcFacing(container, orientacionDeDato(npc.facing));
       this.registerNpcMover(npc, pos);
     }
   }
@@ -1616,8 +2389,8 @@ export class DataDrivenWorldScene extends Phaser.Scene {
     npc: NpcConfig, pos: { x: number; y: number }, offsetY: number,
   ): { label: Phaser.GameObjects.Text; hint: Phaser.GameObjects.Text } {
     const label = this.add.text(pos.x, pos.y + offsetY, npc.displayName, {
-      fontFamily: WORLD_FONT_FAMILY, fontSize: `${LABEL_BASE_FONT_PX}px`, color: '#e8f0f4',
-      backgroundColor: 'rgba(8,12,18,.72)', padding: { x: 3, y: 2 }, align: 'center',
+      fontFamily: WORLD_LABEL_FONT_FAMILY, fontSize: `${LABEL_BASE_FONT_PX}px`, color: WORLD_LABEL_INK, fontStyle: 'bold',
+      backgroundColor: WORLD_LABEL_PLATE, padding: { x: 4, y: 2 }, align: 'center',
     }).setOrigin(0.5, 1).setAlpha(0).setScale(this.labelScale).setDepth(LABEL_DEPTH);
     const hint = this.add.text(pos.x, pos.y + offsetY, this.npcHintGlyph(), {
       fontFamily: WORLD_FONT_FAMILY, fontSize: `${LABEL_BASE_FONT_PX}px`, color: '#4fa3a5',
@@ -1652,8 +2425,26 @@ export class DataDrivenWorldScene extends Phaser.Scene {
     if (!marker || !label || !obj) return;
     const moving = this.markerMoves(key);
     const x = moving ? marker.x : obj.x;
-    const y = (moving ? marker.y : obj.y) + markerLabelOffsetY(obj);
+    // P2: bajo los pies como siempre; si ahí pisa a otra persona o un rótulo visible, sobre la cabeza (rotulo-sin-pisar).
+    const pies = (moving ? marker.y : obj.y) + markerFeetOffsetY(obj);
+    const y = yDelRotulo(x, pies, label.displayWidth, label.displayHeight,
+      obj.type === 'PERSON' ? ALTO_DE_PERSONA_PX : 0, this.cajasOcupadas(key));
     if (label.x !== x || label.y !== y) label.setPosition(x, y);
+  }
+
+  /** P2: los cuerpos de las demás personas y los rótulos visibles de los demás, para que un rótulo no los pise. */
+  private cajasOcupadas(propia: string): Caja[] {
+    const cajas: Caja[] = [];
+    this.markers.forEach((m, key) => {
+      if (key === propia) return;
+      const obj = this.markerData.get(key);
+      if (!obj) return;
+      const moving = this.markerMoves(key);
+      if (obj.type === 'PERSON') cajas.push(cajaDelCuerpo(moving ? m.x : obj.x, (moving ? m.y : obj.y) + markerFeetOffsetY(obj)));
+      const otro = this.markerLabels.get(key);
+      if (otro && otro.alpha > 0) cajas.push(cajaDelRotulo(otro.x, otro.y, otro.displayWidth, otro.displayHeight));
+    });
+    return cajas;
   }
 
   /**
@@ -1787,15 +2578,22 @@ export class DataDrivenWorldScene extends Phaser.Scene {
         texture.refresh();
       }
     }
+    // La imagen anterior de este papel se va ANTES de retirar su textura: si seguía viva (dos llamadas seguidas, p. ej. el
+    // zoom que se asienta mientras la sala se repinta), quedaba en la lista de dibujo con la textura destruida. La de crisis
+    // tiene alfa 0 hasta la activación CRISIS, así que fallaba justo entonces (`TexturerImage.run`, «reading 'resolution'»
+    // de null: el mundo se detenía tras una reacción «en-crisis», B en V4).
+    this.vignetteImages.get(role)?.destroy();
     // La textura de otro tamaño de este mismo papel ya no hace falta.
     const previous = this.vignetteKeys.get(role);
     if (previous && previous !== key && this.textures.exists(previous)) this.textures.remove(previous);
     this.vignetteKeys.set(role, key);
-    return this.add.image(frame.x, frame.y, key)
+    const image = this.add.image(frame.x, frame.y, key)
       .setOrigin(0, 0)
       .setDisplaySize(frame.width, frame.height)
       .setScrollFactor(0)
       .setDepth(depth);
+    this.vignetteImages.set(role, image);
+    return image;
   }
 
   /**
@@ -1897,7 +2695,7 @@ export class DataDrivenWorldScene extends Phaser.Scene {
    * Aplica la pose SOLO si cambió (dirección, caminar o movimiento reducido): la animación no
    * se reinicia en cada update y el reposo es inmediato al soltar teclas o chocar con una pared.
    */
-  private applyPlayerPose(direction: PlayerDirection, walking: boolean): void {
+  private applyPlayerPose(direction: ViewId, walking: boolean): void {
     const reduce = this.callbacks.reduceMotion;
     if (this.lastPose.direction === direction && this.lastPose.walking === walking && this.lastPose.reduce === reduce) return;
     this.lastPose = { direction, walking, reduce };
@@ -2039,22 +2837,23 @@ export class DataDrivenWorldScene extends Phaser.Scene {
     // Los EXIT no llevan label propio — su door hint ya nombra el destino.
     // Fuera del contenedor del marcador y sobre los actores: un sprite que pase por delante no lo tapa.
     const label  = isExit ? null : this.add.text(object.x, object.y + markerLabelOffsetY(object), displayLabel, {
-      fontFamily: WORLD_FONT_FAMILY, fontSize: `${LABEL_BASE_FONT_PX}px`, color: '#e8f0f4',
-      backgroundColor: 'rgba(8,12,18,.72)', padding: { x:5, y:3 }, align: 'center', wordWrap: { width: this.labelWrap }
+      fontFamily: WORLD_LABEL_FONT_FAMILY, fontSize: `${LABEL_BASE_FONT_PX}px`, color: WORLD_LABEL_INK,
+      backgroundColor: WORLD_LABEL_PLATE, padding: { x:5, y:3 }, align: 'center', wordWrap: { width: this.labelWrap }
     }).setOrigin(.5, 0).setAlpha(0).setScale(this.labelScale).setDepth(LABEL_DEPTH);
 
     let main: Phaser.GameObjects.GameObject;
     // Dónde pisa el objeto dentro de su marcador: 0 si su posición es su punto de apoyo (`metadata.apoyo`), 16 como siempre si no.
     const feetY = markerFeetOffsetY(object);
     // Una puerta que ya está pintada en el fondo no lleva sprite encima: solo la pista y el área para cruzar.
-    const painted = isPaintedDoor(object);
+    // Una puerta pintada en el fondo o una pieza que dibuja la sala por piezas (P2): sin sprite propio, solo rótulo y área.
+    const painted = isPaintedDoor(object) || object.metadata?.['dePieza'] === true;
     let personVisual: CharacterVisual | null = null;
     let personSpriteForWalk: Phaser.GameObjects.Sprite | null = null;
     let doorSprite: Phaser.GameObjects.Image | null = null;
 
     // Un marcador con sprite de pixel art nunca se escala (markerEmphasis, focus): spec §1.1.2.
     let pixelSprite = false;
-    const art = this.assetsLoaded && !isExit ? this.buildArtSprite(object) : null;
+    const art = this.assetsLoaded && !isExit && !painted ? this.buildArtSprite(object) : null;
     if (painted) {
       main = this.add.container(0, 0);
     } else if (this.assetsLoaded) {
@@ -2122,6 +2921,7 @@ export class DataDrivenWorldScene extends Phaser.Scene {
     if (art?.animation) this.proximityAnimations.set(object.key, art.animation);
     const bag = marker as unknown as Record<string, unknown>;
     bag['__kitSprite'] = personVisual !== null;
+    if (art && main === art.sprite) bag['__artSprite'] = art.sprite;   // P2: su silueta va a la luz de la sala por piezas
     bag['__pixelSprite'] = pixelSprite;
     bag['__pulse'] = pulse;
     if (personSpriteForWalk && personVisual) {
@@ -2140,7 +2940,8 @@ export class DataDrivenWorldScene extends Phaser.Scene {
     this.applyAmbientLife(marker, object);
     this.buildKeyPersonIndicator(marker, object);
 
-    if (isExit) {
+    // La puerta de pieza no lleva esta pista de Phaser: la avisa `app-aviso-de-puerta` sobre el lienzo (P2).
+    if (isExit && object.metadata?.['dePieza'] !== true) {
       const hintTx = this.add.text(0, 0, this.doorHintText(object.label), {
         fontFamily: WORLD_FONT_FAMILY, fontSize: `${LABEL_BASE_FONT_PX}px`, color: '#4fa3a5', fontStyle: 'bold'
       }).setOrigin(.5);
@@ -2388,7 +3189,7 @@ export class DataDrivenWorldScene extends Phaser.Scene {
     const zone = walkableZone(this.world?.map.ambient);
     for (const walker of this.personWalkers.values()) {
       const marker = this.markers.get(walker.key);
-      if (!marker) continue;
+      if (!marker || this.gesturing.has(walker.key)) continue;
       const feet = walker.feetOffsetY;
       const bounds = personWalkBounds(
         this.world?.map.width || AUTHORED_ROOM_WIDTH, this.world?.map.height || AUTHORED_ROOM_HEIGHT, undefined, zone, feet,
@@ -2408,7 +3209,7 @@ export class DataDrivenWorldScene extends Phaser.Scene {
   }
 
   /** Pose de la persona (dirección + caminando) solo si cambió, como el jugador y las personas del escenario. */
-  private applyPersonPose(walker: PersonWalker, marker: Phaser.GameObjects.Container, direction: PlayerDirection, walking: boolean): void {
+  private applyPersonPose(walker: PersonWalker, marker: Phaser.GameObjects.Container, direction: ViewId, walking: boolean): void {
     if (walker.lastPose.direction === direction && walker.lastPose.walking === walking) return;
     walker.lastPose = { direction, walking };
     const bag = marker as unknown as Record<string, unknown>;
@@ -2448,12 +3249,21 @@ export class DataDrivenWorldScene extends Phaser.Scene {
     chevron.lineStyle(2, KEY_PERSON_HALO_HEX, 0.9);
     chevron.strokeTriangle(-halfWidth, -height, halfWidth, -height, 0, 0);
     const label = getSceneDisplayLabel(object, this.world?.map.key);
-    const name = this.add.text(0, -(height + KEY_PERSON_NAME_GAP_PX), label, {
-      fontFamily: WORLD_FONT_FAMILY, fontSize: `${LABEL_BASE_FONT_PX}px`, color: KEY_PERSON_COLOR, fontStyle: 'bold',
-      backgroundColor: 'rgba(8,12,18,.85)', padding: { x: 5, y: 3 }, align: 'center',
+    const state = this.personaState;
+    const stateHeight = state ? LABEL_BASE_FONT_PX + 8 : 0;
+    const name = this.add.text(0, -(height + KEY_PERSON_NAME_GAP_PX + stateHeight), label, {
+      fontFamily: WORLD_LABEL_FONT_FAMILY, fontSize: `${LABEL_BASE_FONT_PX}px`, color: KEY_PERSON_COLOR, fontStyle: 'bold',
+      backgroundColor: WORLD_LABEL_PLATE, padding: { x: 5, y: 3 }, align: 'center',
     }).setOrigin(0.5, 1);
     const tipOffsetY = keyPersonTipOffsetY(markerFeetOffsetY(object));
-    const container = this.add.container(marker.x, marker.y + tipOffsetY, [chevron, name])
+    const children: Phaser.GameObjects.GameObject[] = [chevron, name];
+    if (state) {
+      children.push(this.add.text(0, -(height + KEY_PERSON_NAME_GAP_PX), state, {
+        fontFamily: WORLD_LABEL_FONT_FAMILY, fontSize: `${LABEL_BASE_FONT_PX}px`, color: WORLD_LABEL_INK,
+        backgroundColor: WORLD_LABEL_PLATE, padding: { x: 5, y: 3 }, align: 'center',
+      }).setOrigin(0.5, 1));
+    }
+    const container = this.add.container(marker.x, marker.y + tipOffsetY, children)
       .setDepth(LABEL_DEPTH)
       .setScale(this.labelScale);
     this.keyPersonIndicator = { key: object.key, container, tipOffsetY };
@@ -2806,7 +3616,8 @@ export class DataDrivenWorldScene extends Phaser.Scene {
     const displayScale = this.scale?.displayScale?.x;
     if (!displayScale) return false;
     const zoom = this.cameras?.main?.zoom ?? 1;
-    const next = labelScaleFor(displayScale, zoom);
+    // Mismo tamaño en pantalla con cualquier zoom (regla 7): la escala de ×1 entre el zoom.
+    const next = labelScaleFor(displayScale, 1) / zoom;
     if (Math.abs(next - this.labelScale) < 0.01) {
       // La escala no cambió, pero el zoom de la sala sí pudo: la resolución de los textos lo sigue (PHA-2).
       this.pixelRender?.refreshTexts(zoom);
@@ -2845,7 +3656,7 @@ export class DataDrivenWorldScene extends Phaser.Scene {
 @Component({
   selector: 'app-game-world',
   standalone: true,
-  imports: [CommonModule, MatIconModule],
+  imports: [CommonModule, MatIconModule, AvisoDePuertaComponent],
   host: { '[class.touch-input]': 'touchInput()' },
   template: `
     <div #gameHost class="phaser-host" role="application"
@@ -2854,6 +3665,10 @@ export class DataDrivenWorldScene extends Phaser.Scene {
       [attr.data-rendered-scenario-key]="renderedScenarioKey()"
       [attr.aria-label]="worldLabel()">
     </div>
+    @if (avisoDePuerta(); as aviso) {
+      <app-aviso-de-puerta [texto]="aviso.texto" [bloqueada]="aviso.bloqueada" [falta]="doorMessages()[aviso.id] ?? null" [conTecla]="!touchInput()"
+        [x]="aviso.x" [y]="aviso.y" (cruzar)="cruzarPorAviso(aviso.id)" />
+    }
     @if (!assetsReady() && showLoader()) {
       <div class="world-loading">
         <p class="world-loading__label" role="status">Preparando la escena…</p>
@@ -2919,7 +3734,9 @@ export class DataDrivenWorldScene extends Phaser.Scene {
       position: absolute;
       left: 8px;
       right: 8px;
-      bottom: 8px;
+      /* Encima del pie de la pantalla del juego (--alto-pie lo publica simulation-play; fuera de ella, 0): con el mundo a
+         sangre, la ficha táctil «Hablar con…» tapaba en el teléfono la puerta de la barra de acción (V4). */
+      bottom: calc(8px + var(--alto-pie, 0px));
       grid-template-columns: auto auto;
       justify-content: space-between;
       align-items: end;
@@ -3064,6 +3881,8 @@ export class GameWorldComponent implements OnChanges, OnDestroy {
   readonly nextTargetKey = input<string | null>(null);
   /** Estado vivo de cada puerta por clave: la bloqueada lleva candado y borde discontinuo en su rótulo. */
   readonly doorStates = input<Record<string, 'open' | 'locked'>>({});
+  /** Motivo de cada puerta bloqueada (clave → texto, de `doorStatus`): el aviso de la puerta de pieza lo dice como la barra. */
+  readonly doorMessages = input<Record<string, string>>({});
   /** Objetos de decisión de otras etapas: se atenúan, sin anillo y con rótulo solo muy cerca. */
   readonly dimmedKeys = input<ReadonlySet<string>>(new Set<string>());
   /** Modo compacto (móvil horizontal): rótulos mínimos. El puntero táctil ya lo implica. */
@@ -3093,6 +3912,16 @@ export class GameWorldComponent implements OnChanges, OnDestroy {
   readonly npcInteract = output<NpcConfig>();
   /** Phaser no pintó ni un cuadro en `BOOT_WATCHDOG_MS` (contexto perdido, recurso colgado): quien lo aloja ofrece reintentar. */
   readonly bootFailed = output<void>();
+  /** P2: una sala por piezas no cargó entera y se muestra en su versión simple (el anfitrión lo avisa). */
+  readonly salaIncompleta = output<void>();
+  /** P2: el aviso de la puerta de pieza activa sobre el lienzo (null: ninguno). */
+  readonly avisoDePuerta = signal<AvisoDePuertaEnPantalla | null>(null);
+
+  /** P2: pulsar el aviso es lo mismo que E junto a esa puerta: el anfitrión decide si se cruza o dice qué falta. */
+  cruzarPorAviso(id: string): void {
+    const puerta = this.world()?.objects.find(o => o.key === id);
+    if (puerta) this.interact.emit(puerta);
+  }
   /** Terminó la caminata pedida con «Ir a…» (F6-11): llegó o no pudo. */
   readonly walkEnded = output<{ key: string; label: string; outcome: 'arrived' | 'blocked' }>();
   readonly renderReady = signal(false);
@@ -3104,6 +3933,8 @@ export class GameWorldComponent implements OnChanges, OnDestroy {
   readonly assetsReady = signal(false);
   /** Faltó un mapa o tileset: la sala se ve en paneles planos. */
   readonly criticalLoadFailed = signal(false);
+  /** Zoom entero de la cámara en reposo (bloque M1): los marcos del diálogo se dibujan a este mismo factor (I1). */
+  readonly cameraZoom = signal(1);
   private scene?: DataDrivenWorldScene;
   private phaserGame?: Phaser.Game;
   private bootWatchdog?: number;
@@ -3269,6 +4100,20 @@ export class GameWorldComponent implements OnChanges, OnDestroy {
     else host.setAttribute('data-key-person', name);
   }
 
+  /** Cámara como `data-camera-zoom/moment/x/y` del host (contrato del e2e del bloque M1) y zoom asentado como señal. Directo al DOM. */
+  private writeCamera(camera: CameraReport): void {
+    if (camera.zoom > 0 && camera.zoom !== this.cameraZoom()) this.cameraZoom.set(camera.zoom);
+    const host = this.gameHost?.nativeElement;
+    if (!host) return;
+    host.setAttribute('data-camera-zoom', String(camera.zoom));
+    host.setAttribute('data-camera-moment', camera.momento);
+    host.setAttribute('data-camera-x', String(camera.x));
+    host.setAttribute('data-camera-y', String(camera.y));
+    host.setAttribute('data-camera-travel', camera.viajando ? 'true' : 'false');
+    host.setAttribute('data-camera-cover', `${camera.abajo},${camera.arriba}`);
+    host.setAttribute('data-camera-room', camera.sala);
+  }
+
   /** Dónde está ahora la persona a atender, como `data-key-person-x/y` del host (contrato del e2e, igual que `data-player-x/y`). Directo al DOM. */
   private writeKeyPersonPosition(position: { x: number; y: number } | null): void {
     const host = this.gameHost?.nativeElement;
@@ -3312,6 +4157,45 @@ export class GameWorldComponent implements OnChanges, OnDestroy {
 
   dismissLoadWarning(): void { this.criticalLoadFailed.set(false); }
   focus(key: string) { this.scene?.focus(key); }
+  frameActors(key: string) { this.scene?.frameActors(key); }
+  releaseFrame() { this.scene?.releaseFrame(); }
+  /** Cámara (bloque M1): momento que pide la pantalla y alto (px CSS) que el cuadro de diálogo tapa abajo del lienzo. */
+  private cameraOptions: CameraOptions = { cercana: false, acercarAuto: true };
+  private cameraMoment: CameraMoment = { tipo: 'explorar' };
+  private cameraCoveredCss = 0;
+  private cameraCoveredTopCss = 0;
+  private cameraPlacas: (() => readonly CajaDePlaca[]) | null = null;
+  /** Zona segura de la cámara (U1): cómo medir las placas de la interfaz sobre el lienzo (px CSS desde su esquina). */
+  setCameraPlacas(medir: (() => readonly CajaDePlaca[]) | null) {
+    this.cameraPlacas = medir;
+    this.scene?.setCameraPlacas?.(medir);
+  }
+  setCameraMoment(moment: CameraMoment, coveredCss = 0, coveredTopCss = 0) {
+    this.cameraMoment = moment;
+    this.cameraCoveredCss = coveredCss;
+    this.cameraCoveredTopCss = coveredTopCss;
+    this.scene?.setCameraMoment(moment, coveredCss, coveredTopCss);
+  }
+  setCameraOptions(options: CameraOptions) {
+    this.cameraOptions = options;
+    this.scene?.setCameraOptions(options);
+  }
+  setCameraFrozen(frozen: boolean) { this.scene?.setCameraFrozen(frozen); }
+  setPersonaState(text: string | null) { this.scene?.setPersonaState(text); }
+  faceTowards(key: string, target: 'player' | string) { this.scene?.faceTowards(key, target); }
+  peopleNear(key: string, radiusPx: number): string[] { return this.scene?.peopleNear(key, radiusPx) ?? []; }
+  screenAnchorOf(key: string): { x: number; y: number } | null { return this.scene?.screenAnchorOf(key) ?? null; }
+  characterVisualOf(key: string): CharacterVisual | null { return this.scene?.characterVisualOf(key) ?? null; }
+  isKeyPerson(key: string): boolean { return this.scene?.isKeyPerson(key) ?? false; }
+  /** Marca el gesto en curso como `data-reaction` del host (contrato del e2e: solo la reacción a una decisión) mientras dura; `{ mark: false }` gesticula sin marcar. Directo al DOM. */
+  playGesture(key: string, gesto: Gesto, options: { mark?: boolean } = {}): Promise<void> {
+    const host = this.gameHost?.nativeElement;
+    const busy = this.scene?.isGesturing(key) ?? true;   // un gesto que no empieza no toca la marca del que sigue
+    const run = this.scene?.playGesture(key, gesto) ?? Promise.resolve();
+    if (busy || options.mark === false) return run;
+    host?.setAttribute('data-reaction', gesto);
+    return run.finally(() => host?.removeAttribute('data-reaction'));
+  }
   setScenarioConfig(config: ScenarioConfig | null) { this.scene?.setScenarioConfig(config); }
   transitionToRoom(targetRoomKey: string, entryX: number, entryY: number) {
     this.scene?.transitionToRoom(targetRoomKey, entryX, entryY);
@@ -3358,7 +4242,11 @@ export class GameWorldComponent implements OnChanges, OnDestroy {
           this.writePlayerPosition(this.scene?.playerPosition() ?? null);
           this.renderReady.set(true);
           this.worldReady.emit();
+          // Con la sala ya armada, el resto de los personajes llega en segundo plano (no compite con la sala inicial).
+          this.scene?.cargarRecetasDiferidas();
         }),
+        onSalaIncompleta: () => this.zone.run(() => this.salaIncompleta.emit()),
+        onAvisoDePuerta: aviso => this.zone.run(() => this.avisoDePuerta.set(aviso)),
         onProximity:   i => this.zone.run(() => this.proximity.emit(i)),
         onProximityAlso: i => this.zone.run(() => this.proximityAlso.emit(i)),
         onNothingNearby: () => this.zone.run(() => this.nothingNearby.emit()),
@@ -3374,6 +4262,7 @@ export class GameWorldComponent implements OnChanges, OnDestroy {
         onProximityAnimation: report => this.writeProximityAnimation(report),
         onKeyPersonIndicator: name => this.writeKeyPerson(name),
         onKeyPersonPosition: position => this.writeKeyPersonPosition(position),
+        onCamera: camera => this.writeCamera(camera),
         onWalkEnded:   (key, label, outcome) => this.zone.run(() => this.walkEnded.emit({ key, label, outcome })),
         onLoadProgress: percent => this.zone.run(() => {
           this.loadPercent.set(percent);
@@ -3381,6 +4270,13 @@ export class GameWorldComponent implements OnChanges, OnDestroy {
           if (!this.renderReady()) this.armBootWatchdog();
         }),
         onArtLoading: () => this.onArtLoading(),
+        recetasIniciales: () => {
+          const objetos = this.world()?.objects;
+          if (!objetos) return null;
+          const recetas = objetos.filter(o => o.type === 'PERSON').map(o => o.metadata?.['recipeId'])
+            .filter((r): r is string => typeof r === 'string' && r.length > 0);
+          return recetas.length ? recetas : null;
+        },
         onLoadComplete: failures => this.zone.run(() => {
           this.loadPercent.set(100);
           this.assetsReady.set(true);
@@ -3390,6 +4286,10 @@ export class GameWorldComponent implements OnChanges, OnDestroy {
         sfxMuted: this.sfxMuted(),
       });
       this.scene.setPersonaScene(this.activation(), this.intensity());
+      // La cámara recibe lo que la pantalla pidió antes de que existiera la escena (bloque M1).
+      this.scene.setCameraOptions(this.cameraOptions);
+      this.scene.setCameraMoment(this.cameraMoment, this.cameraCoveredCss, this.cameraCoveredTopCss);
+      this.scene.setCameraPlacas?.(this.cameraPlacas);
       this.armBootWatchdog();
       this.phaserGame = new Phaser.Game({
         // PHA-5 (E5-8): se mantiene Phaser.AUTO (WebGL preferido con caída a Canvas 2D) para soportar equipos de aula

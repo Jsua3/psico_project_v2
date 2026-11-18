@@ -1,4 +1,4 @@
-import { levelWord, milestoneMark, responseClassWord } from './outcome-text.util';
+import { levelWord, milestoneMark, missedFactPhrase, missedFactsText, responseClassWord } from './outcome-text.util';
 
 // req: RN-08, RN-09 (el cierre habla en palabras, nunca en cifras)
 describe('outcome-text.util', () => {
@@ -33,5 +33,20 @@ describe('outcome-text.util', () => {
       responseClassWord('RECOMMENDED'), responseClassWord('RISKY'), levelWord('LOGRADO'), levelWord(null), milestoneMark({ decisive: true }),
     ].join(' ');
     expect(words).not.toMatch(/\d|puntaje|estrés|desempeño/i);
+  });
+
+  it('lo que faltó explorar se dice con un verbo por tipo de hecho', () => {
+    expect(missedFactPhrase({ kind: 'talked', key: 'a', label: 'la enfermera' })).toBe('hablar con la enfermera');
+    expect(missedFactPhrase({ kind: 'inspected', key: 'a', label: 'el informe' })).toBe('revisar el informe');
+    expect(missedFactPhrase({ kind: 'has', key: 'a', label: 'la llave' })).toBe('tener la llave');
+    expect(missedFactPhrase({ kind: 'used', key: 'a', label: 'la guía' })).toBe('usar la guía');
+  });
+
+  it('las frases se unen con comas y una «y» antes de la última', () => {
+    const f = (label: string) => ({ kind: 'has' as const, key: label, label });
+    expect(missedFactsText([])).toBe('');
+    expect(missedFactsText([f('A')])).toBe('tener A');
+    expect(missedFactsText([f('A'), f('B')])).toBe('tener A y tener B');
+    expect(missedFactsText([f('A'), f('B'), f('C')])).toBe('tener A, tener B y tener C');
   });
 });

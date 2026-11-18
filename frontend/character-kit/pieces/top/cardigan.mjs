@@ -9,6 +9,7 @@
  */
 
 import { gridFrom } from '../../raster.mjs';
+import { DIAGONAL } from './cardigan.diagonal.mjs';
 
 const LEGEND = {
   j: { mat: 'top' },
@@ -38,6 +39,7 @@ export default {
   coverage: { T: 'top', a: 'top', b: 'top', A: 'top', B: 'top' },
   edges: [{ labels: ['b', 'B'], edge: 'bottom', tone: 2 }],
   views: {
+    ...DIAGONAL,
     down: [
       {
         anchor: 'T', at: [17, 23], mode: 'paint', legend: LEGEND,

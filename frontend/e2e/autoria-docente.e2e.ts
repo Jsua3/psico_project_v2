@@ -170,29 +170,13 @@ test('un docente crea, prueba y envía un caso; la administradora lo aprueba y u
     await page.unroute('**/api/authoring/cases/*/assistant/propose');
     await page.unroute('**/api/authoring/cases/*/assistant/status');
 
-    // ── 5 · Probar el caso como estudiante, hasta un final ───────────────────────────────────────────────────────
-    await page.goto(rutaEditor(page, '/probar'));
-    await expect(page.getByRole('heading', { level: 1, name: 'Probar como estudiante' })).toBeVisible({ timeout: scaled(30_000) });
-    await sinInfraccionesGraves(page, 'probar como estudiante');
-    const vista = page.getByRole('region', { name: 'Vista del estudiante' });
-    for (let paso = 0; paso < 14 && !(await page.getByRole('heading', { name: 'Fin del caso' }).isVisible().catch(() => false)) && !(await vista.getByText('Fin del caso').isVisible().catch(() => false)); paso++) {
-      if (await vista.getByRole('button', { name: 'Siguiente', exact: true }).isVisible().catch(() => false)) {
-        await vista.getByRole('button', { name: 'Siguiente', exact: true }).click();
-      } else if (await vista.getByRole('radio').first().isVisible().catch(() => false)) {
-        await vista.getByRole('radio').first().check();
-        await vista.getByRole('button', { name: 'Elegir esta respuesta' }).click();
-        await expect(vista.getByRole('group', { name: 'Resultado de la respuesta' })).toBeVisible();
-        expect(measuresInText(await vista.innerText()), 'la prueba como estudiante no muestra cifras').toEqual([]);
-        await vista.getByRole('button', { name: 'Continuar' }).click();
-      } else if (await vista.getByRole('button', { name: 'Ver el final' }).isVisible().catch(() => false)) {
-        await vista.getByRole('button', { name: 'Ver el final' }).click();
-      } else {
-        await page.waitForTimeout(200);
-      }
-    }
-    await expect(vista.getByText('Fin del caso')).toBeVisible({ timeout: scaled(15_000) });
-    expect(measuresInText(await page.locator('#main-content').innerText()), 'ni el final ni la vista de autora muestran cifras').toEqual([]);
-    await sinInfraccionesGraves(page, 'el final de la prueba como estudiante');
+    // ── 5 · Probar: el botón de la escena abre el ensayo del juego real en otra pestaña (el recorrido lo prueba el e2e del bloque B) ──
+    await page.goto(rutaEditor(page, `/escena/${primeraEscena}`));
+    const probarDesdeAqui = page.getByRole('link', { name: /^Probar desde aquí/ });
+    await expect(probarDesdeAqui).toBeVisible({ timeout: scaled(30_000) });
+    await expect(probarDesdeAqui).toHaveAttribute('target', '_blank');
+    await expect(probarDesdeAqui).toHaveAttribute('href', `/portal/casos/${caseVersionId}/ensayo?desde=${primeraEscena}`);
+    await sinInfraccionesGraves(page, 'el guion con «Probar desde aquí»');
 
     // ── 6 · La persona a atender y cómo se mueve, en la sala del editor y con teclas (sin arrastrar, sin la API) ─────
     const persona = await marcarPersonaAAtender(page);
@@ -251,7 +235,9 @@ test('un docente crea, prueba y envía un caso; la administradora lo aprueba y u
     await page.evaluate(() => { window.localStorage.clear(); window.sessionStorage.clear(); });
     const registro = recordSimulationResponses(page);
     await entrarALaPrimeraSala(page);
-    await expect(page.locator('app-simulation-play').getByText('Escenario 1 de 3').first()).toBeVisible({ timeout: scaled(30_000) });
+    // La sala ocupa la pantalla (b28adb40): ya no hay contador «Escenario 1 de 3»; la ficha dice el objetivo de la escena.
+    await expect(page.locator('app-simulation-play').getByText('Objetivo de la escena').first()).toBeVisible({ timeout: scaled(30_000) });
+    await expect(page.locator('app-simulation-play').getByText(/Escenario \d+ de \d+/)).toHaveCount(0);
     await sinInfraccionesGraves(page, 'la primera sala vista por el estudiante');
     const acceso = page.locator('button[data-hud-places]');
     await acceso.focus();

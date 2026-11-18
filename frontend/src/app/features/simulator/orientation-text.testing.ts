@@ -1,10 +1,10 @@
 /**
  * Contratos de texto compartidos por los specs de orientación (SOLO pruebas).
  * Un texto visible de orientación: sin claves internas, con tildes, sin vocabulario de logro
- * ni de respuesta clínica, y (con las banderas por defecto) sin nombres de herramienta.
+ * ni de respuesta clínica, y sin nombres de herramienta.
  */
 
-/** Técnicas y nombres de herramienta: no deben verse con NAME_TOOLS_IN_HINTS = false. */
+/** Técnicas y nombres de herramienta: no deben verse en un texto genérico de orientación. */
 export const TOOL_VOCAB = /PAP|SPIKES|RISK_METER|EPICEE|Primeros Auxilios|Valoraci[oó]n de riesgo|\bKit\b/;
 
 /** Una clave interna: palabras en minúscula unidas por guion, prefijos de clave o arroba. */

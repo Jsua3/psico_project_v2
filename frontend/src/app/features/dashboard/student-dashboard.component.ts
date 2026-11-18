@@ -74,7 +74,7 @@ export class StudentDashboardComponent {
     if (this.casesFailed()) return { value: NO_DATA_LABEL, hint: 'No se pudo cargar' };
     // Solo lo que dice /cases: contar los títulos del historial afirmaría casos que quizá ya no están asignados.
     const count = this.cases().length;
-    return { value: String(count), hint: count > 0 ? 'Disponibles en la sala' : 'Sin casos por ahora' };
+    return { value: String(count), hint: count > 0 ? 'Listos para practicar' : 'Sin casos por ahora' };
   });
   protected readonly completed = computed(() => completedAttemptCount(this.history()));
   protected readonly activeTime = computed(() => {

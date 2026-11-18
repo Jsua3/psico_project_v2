@@ -1,6 +1,6 @@
-<section class="scene-hint" aria-label="Pistas de la escena">
+<section class="scene-hint" [class.scene-hint--placa]="variante() === 'placa'" aria-label="Pistas de la escena">
   <div class="scene-hint__bar">
-    <button ui-button type="button" variant="secondary" size="sm" icon="lightbulb" [loading]="busy()" [disabledReason]="blockedReason()" (click)="ask()">Ver pista</button>
+    <button ui-button class="scene-hint__ask" type="button" variant="secondary" size="sm" [icon]="variante() === 'placa' ? undefined : 'lightbulb'" [loading]="busy()" [disabledReason]="blockedReason()" (click)="ask()">{{ buttonLabel() }}</button>
     @if (counter(); as text) {
       <span class="scene-hint__counter">{{ text }}</span>
     }

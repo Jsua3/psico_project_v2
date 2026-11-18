@@ -5,9 +5,14 @@ import { LiveRegionAnnouncer } from '../../core/a11y/live-announcer.service';
 import { ClinicalToolState } from '../../core/models/simulation.model';
 import { UiIconButton } from '../../shared/ui/button/ui-icon-button';
 import { DRAFT_COPY } from './draft-copy';
+import { PixelIconoComponent } from './pixel/pixel-icono.component';
 
 /** Cómo se consigue una herramienta que aún no se tiene: igual para todas, no revela cuál sirve para qué decisión. */
 const LOCKED_REASON = 'Se consigue explorando las salas del caso.';
+
+/** Códigos de herramienta que tienen su tira de iconos de pixel (O1); el resto conserva el icono de Material. */
+const ICONOS_DE_BARRA = new Set(['PAP', 'SPIKES', 'RISK_METER', 'SAFETY_ROUTE', 'REFLECTION_JOURNAL']);
+const RUTA_ICONOS = 'assets/biblioteca/piezas/herramientas/iconos/';
 
 /**
  * Dock horizontal inferior de herramientas clínicas (HUD redesign).
@@ -19,13 +24,17 @@ const LOCKED_REASON = 'Se consigue explorando las salas del caso.';
 @Component({
   selector: 'app-tool-inventory',
   standalone: true,
-  imports: [CommonModule, MatIconModule, UiIconButton],
+  imports: [CommonModule, MatIconModule, UiIconButton, PixelIconoComponent],
   template: `
     <div class="tool-dock-wrap">
       @if (tools().length > 0) {
-        <span class="tool-count" aria-hidden="true">
-          <span class="tool-count__label">Herramientas</span>
-          <strong>{{ ownedCount() }} de {{ tools().length }}</strong>
+        <!-- Pestaña de pixel montada sobre la fila de ranuras: el nombre de la ranura con foco o elegida va aquí porque las ranuras no lo muestran. -->
+        <span class="tool-count u-rotulo u-rotulo--suave" aria-hidden="true">
+          <span class="tool-count__label u-rotulo__texto">Herramientas ·</span>
+          <strong class="tool-count__cuenta">{{ ownedCount() }} de {{ tools().length }}</strong>
+          @if (nombreVisible(); as nombre) {
+            <span class="u-rotulo__texto">· {{ nombre }}</span>
+          }
         </span>
       }
       <!-- Barra de herramientas (patrón ARIA, tabindex itinerante): UNA parada de tabulación; flechas, Inicio y Fin
@@ -38,7 +47,7 @@ const LOCKED_REASON = 'Se consigue explorando las salas del caso.';
         @for (tool of tools(); track tool.code; let index = $index) {
           @let owned = ownedSet().has(tool.code);
           <button
-            class="tool-card"
+            class="tool-card u-ranura u-sombra"
             type="button"
             [attr.tabindex]="index === tabStop() ? 0 : -1"
             [attr.aria-disabled]="owned ? null : 'true'"
@@ -47,13 +56,18 @@ const LOCKED_REASON = 'Se consigue explorando las salas del caso.';
             [class.tool-card--selected]="selectedToolCode() === tool.code"
             [title]="owned ? tool.label + ' — ' + tool.description : tool.label + ' — ' + lockedReason"
             [attr.aria-label]="tool.label + ': ' + tool.description + '. ' + (owned ? 'Disponible.' : 'No disponible. ' + lockedReason)"
-            (focus)="activeIndex.set(index)"
+            (focus)="activeIndex.set(index); focoIndex.set(index)"
+            (blur)="focoIndex.set(null)"
             (keydown)="onToolKeydown($event, index)"
             (click)="onSelect(tool, $event)">
             @if (!owned) {
-              <mat-icon class="tool-lock" aria-hidden="true">lock</mat-icon>
+              <app-pixel-icono class="tool-lock" nombre="candado" />
             }
-            <mat-icon aria-hidden="true">{{ tool.icon }}</mat-icon>
+            @if (iconoDe(tool.code); as ref) {
+              <i class="tool-card__icono" aria-hidden="true" [style.background-image]="'url(' + rutaIconos + ref + '-20.png)'"></i>
+            } @else {
+              <mat-icon aria-hidden="true">{{ tool.icon }}</mat-icon>
+            }
             <span class="tool-name" aria-hidden="true">{{ tool.label }}</span>
           </button>
         }
@@ -61,7 +75,7 @@ const LOCKED_REASON = 'Se consigue explorando las salas del caso.';
       <!-- En táctil el title no se ve: tocar una bloqueada lo explica aquí. Es un aviso accionable (VD-29): permanece
            hasta cerrarlo («Cerrar aviso» o Esc, que consume solo esa pulsación) y se anuncia por las regiones vivas. -->
       @if (notice(); as message) {
-        <div class="tool-notice">
+        <div class="tool-notice u-placa u-sombra">
           <p class="tool-notice__text">{{ message }}</p>
           <button ui-icon-button class="tool-notice__close" icon="close" label="Cerrar aviso" (click)="dismissNotice()"></button>
         </div>
@@ -71,91 +85,51 @@ const LOCKED_REASON = 'Se consigue explorando las salas del caso.';
   changeDetection: ChangeDetectionStrategy.OnPush,
   styles: [`
     :host { position: relative; }
-    .tool-dock-wrap { display: flex; align-items: center; gap: 8px; min-width: 0; }
-    .tool-count {
-      display: grid;
-      flex-shrink: 0;
-      gap: 1px;
-      line-height: 1.15;
-      color: rgba(232,240,244,.78);
-      font-size: .75rem;
-      white-space: nowrap;
-    }
-    .tool-count strong {
-      color: #E7DDFF;
-      font-family: 'JetBrains Mono', monospace;
-      font-size: .75rem;
-    }
+    /* La pestaña de la cuenta se monta sobre la fila de ranuras (el margen negativo es de .u-rotulo). */
+    .tool-dock-wrap { display: flex; flex-direction: column; align-items: flex-start; min-width: 0; }
+    .tool-count { flex-shrink: 0; }
+    .tool-count__cuenta { color: var(--luz); font-weight: 700; }
     .tool-dock {
       display: flex;
       align-items: stretch;
-      gap: 6px;
+      gap: calc(3 * var(--pixel-px));
       min-width: 0;
       max-width: 100%;
       overflow-x: auto;
       overflow-y: hidden;
       scrollbar-width: thin;
-      padding-bottom: 2px;
+      /* Aire para la sombra de tramado (.u-sombra) que cuelga bajo cada ranura: el dock recorta lo que sale. */
+      padding-bottom: calc(7 * var(--pixel-px));
     }
-    .tool-card {
-      position: relative;
-      display: flex;
-      flex-direction: column;
-      align-items: center;
-      justify-content: center;
-      gap: 2px;
-      flex-shrink: 0;
-      min-width: 76px;
-      max-width: 112px;
-      min-height: 44px;
-      padding: 4px 10px 3px;
-      border: 1px solid rgba(182,156,255,.28);
-      border-radius: 11px;
-      background: rgba(8,12,18,.76);
-      color: rgba(182,156,255,.6);
-      cursor: pointer;
-      transition: border-color 160ms ease, background 160ms ease, color 160ms ease;
+    .tool-card { flex-shrink: 0; min-height: 44px; color: var(--pixel-tinta); }
+    .tool-card mat-icon { font-size: calc(12 * var(--pixel-px)); width: calc(12 * var(--pixel-px)); height: calc(12 * var(--pixel-px)); }
+    /* El nombre ya está en el nombre accesible, en el title y en la pestaña: aquí solo queda en el DOM. */
+    .tool-name { display: none; }
+    /* El cuaderno de O1: tira de 6 cuadros de 20 px; el cuadro 0 es «disponible». */
+    .tool-card__icono {
+      display: block;
+      width: calc(20 * var(--pixel-px));
+      height: calc(20 * var(--pixel-px));
+      background-repeat: no-repeat;
+      background-size: calc(120 * var(--pixel-px)) calc(20 * var(--pixel-px));
+      background-position: 0 0;
+      image-rendering: pixelated;
     }
-    .tool-card mat-icon { font-size: 19px; width: 19px; height: 19px; }
-    .tool-name {
-      max-width: 100%;
-      overflow: hidden;
-      text-overflow: ellipsis;
-      white-space: nowrap;
-      font-size: .75rem;
-      font-weight: 800;
-      letter-spacing: .01em;
-      line-height: 1.1;
-    }
-    .tool-card--owned {
-      border-color: rgba(182,156,255,.5);
-      color: #B69CFF;
-    }
-    .tool-card--owned:hover {
-      border-color: rgba(182,156,255,.9);
-      background: rgba(124,77,255,.18);
-      box-shadow: 0 0 14px -4px rgba(124,77,255,.5);
-    }
-    .tool-card--owned:active { transform: translateY(1px) scale(.985); }
-    .tool-card--selected {
-      border-color: rgba(182,156,255,.95);
-      background: rgba(124,77,255,.22);
-      color: #d6c6ff;
-      box-shadow: 0 0 16px -4px rgba(124,77,255,.65);
-      animation: tool-pop 170ms cubic-bezier(.2,.8,.2,1);
-    }
-    .tool-card--locked {
-      opacity: .6;
-      cursor: default;
-    }
+    .tool-card--selected { --m: var(--marco-ficha-foco); --t: var(--trama-ficha-sobre); animation: tool-pop 170ms cubic-bezier(.2,.8,.2,1); }
+    .tool-card--locked { cursor: default; }
+    .tool-card--locked .tool-card__icono,
+    .tool-card--locked mat-icon { filter: grayscale(1) contrast(.75) brightness(1.05); opacity: .5; }
+    /* Candado de pixel abajo a la derecha, con contorno de un punto hacia los cuatro lados. */
     .tool-lock {
       position: absolute;
-      top: 3px;
-      right: 5px;
-      font-size: 11px !important;
-      width: 11px !important;
-      height: 11px !important;
-      color: rgba(232,240,244,.75);
+      right: calc(1 * var(--pixel-px));
+      bottom: calc(1 * var(--pixel-px));
+      color: var(--pixel-tinta-suave);
+      filter:
+        drop-shadow(var(--pixel-px) 0 0 var(--pixel-contorno))
+        drop-shadow(calc(-1 * var(--pixel-px)) 0 0 var(--pixel-contorno))
+        drop-shadow(0 var(--pixel-px) 0 var(--pixel-contorno))
+        drop-shadow(0 calc(-1 * var(--pixel-px)) 0 var(--pixel-contorno));
     }
     /* El anillo es el de la piel del juego (--ds-focus); el dock recorta lo que sale de él (overflow), así que va hacia adentro. */
     .tool-card:focus-visible { outline-offset: -3px; }
@@ -163,35 +137,23 @@ const LOCKED_REASON = 'Se consigue explorando las salas del caso.';
       position: absolute;
       left: 0;
       bottom: calc(100% + 6px);
-      z-index: 5;
+      z-index: var(--ds-z-elevado);
       display: flex;
       align-items: center;
       gap: 4px;
       max-width: min(340px, 92vw);
-      padding: 2px 4px 2px 11px;
-      border: 1px solid rgba(182,156,255,.4);
-      border-radius: 10px;
-      background: rgba(13,18,30,.96);
-      color: rgba(232,240,244,.92);
-      font-size: .8rem;
+      padding: 0 0 0 calc(3 * var(--pixel-px));
+      font-size: var(--pixel-tam);
       line-height: 1.3;
     }
-    .tool-notice__text { margin: 0; padding: 5px 0; }
+    .tool-notice__text { margin: 0; padding: 5px 0; color: var(--pixel-tinta); }
     @keyframes tool-pop {
       0%   { transform: scale(.94); }
       70%  { transform: scale(1.02); }
       100% { transform: scale(1); }
     }
-    /* Modo compacto: ranuras de icono (44x44); el nombre completo queda en title y en el nombre accesible. */
-    @media (max-height: 520px), (pointer: coarse) and (orientation: landscape) {
-      .tool-card { width: 44px; min-width: 44px; max-width: 44px; height: 44px; padding: 0; }
-      .tool-name { display: none; }
-      .tool-count__label { display: none; }
-      .tool-lock { top: 2px; right: 2px; }
-    }
     @media (prefers-reduced-motion: reduce) {
       .tool-card--selected { animation: none; }
-      .tool-card--owned:active { transform: none; }
     }
   `]
 })
@@ -202,11 +164,22 @@ export class ToolInventoryComponent {
   readonly select = output<string>();
 
   protected readonly lockedReason = LOCKED_REASON;
+  protected readonly rutaIconos = RUTA_ICONOS;
   private readonly host = inject<ElementRef<HTMLElement>>(ElementRef);
   private readonly announcer = inject(LiveRegionAnnouncer);
   /** Ranura que lleva el foco de tabulación (tabindex itinerante): la barra entera es UNA parada de Tab (H-12). */
   protected readonly activeIndex = signal(0);
   protected readonly tabStop = computed(() => Math.min(this.activeIndex(), Math.max(0, this.tools().length - 1)));
+  /** Ranura que tiene el foco ahora mismo (null al salir): su nombre se lee en la pestaña, porque las ranuras no lo muestran. */
+  protected readonly focoIndex = signal<number | null>(null);
+  /** Nombre que acompaña a la cuenta en la pestaña: el de la ranura con foco o, si no hay, el de la elegida. */
+  protected readonly nombreVisible = computed(() => {
+    const index = this.focoIndex();
+    const tools = this.tools();
+    const porFoco = index === null ? undefined : tools[index];
+    const elegida = tools.find(tool => tool.code === this.selectedToolCode());
+    return (porFoco ?? elegida)?.label ?? '';
+  });
   /** La ranura que pidió el aviso: al cerrarlo con su botón, el foco vuelve a ella. */
   private lockedOrigin: HTMLElement | null = null;
   /** Vocabulario educativo en borrador (VD-24): sale del registro, no de la plantilla. */
@@ -230,6 +203,11 @@ export class ToolInventoryComponent {
       const message = this.notice();
       if (message) untracked(() => this.announcer.announce(message, 'polite'));
     });
+  }
+
+  /** `ref` de la tira de O1 de una herramienta (`RISK_METER` → `risk-meter`), o null si no tiene y queda el icono de Material. */
+  protected iconoDe(code: string): string | null {
+    return ICONOS_DE_BARRA.has(code) ? code.toLowerCase().replace(/_/g, '-') : null;
   }
 
   protected onSelect(tool: ClinicalToolState, event?: Event): void {

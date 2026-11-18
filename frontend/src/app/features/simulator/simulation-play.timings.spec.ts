@@ -157,8 +157,8 @@ describe('SimulationPlayComponent: tiempos de la pantalla de juego (A-03b)', () 
     });
 
     it('el banner de etapa nueva se muestra 3000 ms', () => {
-      internals().announceNewStage({ title: 'Seguimiento', previousNumber: null });
-      const banner = ORIENTATION_COPY.notices.newStage('Seguimiento');
+      internals().announceNewStage('Seguimiento');
+      const banner = 'Seguimiento';
       expect(component.roomBanner()).toBe(banner);
 
       advance(2999);
@@ -196,7 +196,10 @@ describe('SimulationPlayComponent: tiempos de la pantalla de juego (A-03b)', () 
 
     it('con el mundo cargado el fundido se retira a los 80 ms y los efectos de cámara llegan 320 ms después', () => {
       // Doble mínimo de la escena: aplicar un mundo también pide recalcular la escala (otro temporizador, de 0 ms).
-      const gameWorld = { playRevealEffects: vi.fn(), refreshScale: vi.fn(), updatePatientVisualState: vi.fn() };
+      const gameWorld = {
+        playRevealEffects: vi.fn(), refreshScale: vi.fn(), updatePatientVisualState: vi.fn(), setPersonaState: vi.fn(), places: vi.fn(() => []),
+        setCameraOptions: vi.fn(), setCameraMoment: vi.fn(), setCameraFrozen: vi.fn(),
+      };
       internals().gameWorld = gameWorld;
       component.attempt.set(makeAttempt());
       component.fadeActive.set(true);
@@ -219,7 +222,10 @@ describe('SimulationPlayComponent: tiempos de la pantalla de juego (A-03b)', () 
     it('si el componente se destruye antes de los 80 ms, el fundido no se retira ni se piden efectos de cámara', () => {
       // El retiro del fundido toca `window` al dispararse: en las pruebas, un temporizador de un componente
       // que nadie destruyó se disparaba con el entorno ya desmontado («window is not defined», intermitente en CI).
-      const gameWorld = { playRevealEffects: vi.fn(), refreshScale: vi.fn(), updatePatientVisualState: vi.fn() };
+      const gameWorld = {
+        playRevealEffects: vi.fn(), refreshScale: vi.fn(), updatePatientVisualState: vi.fn(), setPersonaState: vi.fn(), places: vi.fn(() => []),
+        setCameraOptions: vi.fn(), setCameraMoment: vi.fn(), setCameraFrozen: vi.fn(),
+      };
       internals().gameWorld = gameWorld;
       component.attempt.set(makeAttempt());
       component.fadeActive.set(true);
@@ -232,7 +238,7 @@ describe('SimulationPlayComponent: tiempos de la pantalla de juego (A-03b)', () 
       expect(gameWorld.playRevealEffects).not.toHaveBeenCalled();
     });
 
-    it('la supervisión de una decisión que no es la última se abre 400 ms después de la respuesta', () => {
+    it('la supervisión de una decisión que no es la última se abre al terminar la reacción, sin la espera de 400 ms', () => {
       component.attempt.set(makeAttempt());
       component.world.set(makeWorld());
       sim['chooseDecision'].mockReturnValue(of({
@@ -246,13 +252,12 @@ describe('SimulationPlayComponent: tiempos de la pantalla de juego (A-03b)', () 
       } as unknown as DialogueState);
 
       component.executeDecision(101);
-      advance(340); // el fundido y, con él, la respuesta del servidor
-      expect(component.dialogue()).toBeNull();
-
-      advance(399);
-      expect(component.dialogue()).toBeNull();
-      advance(1);
+      // Sin director montado (no hay franja que esperar), la nota llega ya, antes del fundido de salida.
       expect(component.dialogue()?.speakerName).toBe('Consecuencia');
+      // El mundo de destino carga detrás de la nota, tras el fundido de salida.
+      expect(sim['getWorld']).not.toHaveBeenCalled();
+      advance(340);
+      expect(sim['getWorld']).toHaveBeenCalled();
     });
   });
 

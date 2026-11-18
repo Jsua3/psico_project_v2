@@ -27,7 +27,6 @@ export const PANTALLAS = {
   sala: 'Editar una sala',
   guion: 'Guion de una escena',
   finales: 'Finales del caso',
-  probar: 'Probar como estudiante',
   revision: 'Enviar a revisión',
   cabecera: 'Cualquier pantalla (arriba)',
 } as const;
@@ -89,7 +88,8 @@ export const ACCIONES: readonly Accion[] = [
   { id: 'ordenar-mapa', nombre: 'Ordenar el mapa de escenas', pantalla: PANTALLAS.mapa, ruta: '/editor', palabras: 'acomodar organizar automático', ayuda: 'Acomoda las escenas de izquierda a derecha según sus caminos.' },
   { id: 'pedir-a-la-ia', nombre: 'Pedirle algo al asistente de IA', pantalla: PANTALLAS.cabecera, ruta: '', palabras: 'inteligencia artificial ayuda escribir generar', ayuda: 'Abre el asistente: tú pides, la IA propone y tú decides qué entra.' },
   { id: 'aceptar-ia', nombre: 'Aceptar lo que sugirió la IA', pantalla: PANTALLAS.cabecera, ruta: '', palabras: 'revisar sugerido marca aprobar', ayuda: 'Lo que agrega la IA queda marcado «Sugerido por la IA» con un botón «Aceptar» en cada parte.' },
-  { id: 'probar', nombre: 'Probar el caso como estudiante', pantalla: PANTALLAS.cabecera, ruta: '', palabras: 'jugar ensayar ver como estudiante', ayuda: 'Recorre el caso como lo vería un estudiante.' },
+  // BORRADOR: texto nuevo, pendiente de la aprobación de Psicología
+  { id: 'probar', nombre: 'Probar el caso en el juego', pantalla: PANTALLAS.cabecera, ruta: '', palabras: 'jugar ensayar ver como estudiante', ayuda: 'Abre tu borrador en el juego real, en otra pestaña, para jugarlo como un estudiante y ver por qué una respuesta no aparece.' },
   { id: 'enviar-revision', nombre: 'Enviar el caso a revisión', pantalla: PANTALLAS.cabecera, ruta: '', palabras: 'psicología publicar terminar revisar', ayuda: 'Revisa qué falta y envía el caso a Psicología.' },
   { id: 'buscar', nombre: 'Buscar una acción por su nombre', pantalla: PANTALLAS.cabecera, ruta: '', palabras: 'buscador encontrar ctrl k', ayuda: 'Escribe con tus palabras qué quieres hacer.' },
 ];

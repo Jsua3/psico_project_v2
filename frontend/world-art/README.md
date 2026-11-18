@@ -33,8 +33,7 @@ unificados, §13.1).
 
 1. Edita la fila en `WORLD_SPRITES` y su caso en `world-scale.util.spec.ts`.
 2. `npm run world-art:build` y `npm run world-art:laminas`; mira las láminas.
-3. Si cambias el alto de una puerta, revisa dónde queda su aviso (`doorHintY`) y la intro del caso
-   (`case-intro-scene.component.ts`, que fija el tamaño de sus imágenes en el HTML).
+3. Si cambias el alto de una puerta, revisa dónde queda su aviso (`doorHintY`).
 
 ## Cambiar el arte
 

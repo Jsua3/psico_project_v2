@@ -255,6 +255,7 @@ export class LoginComponent implements AfterViewInit {
       .then(() => {
         if (typeof google === 'undefined' || !google.accounts?.id) {
           this.googleUnavailable.set(true);
+          this.announcement.set('El acceso con Google no está disponible ahora.');
           return;
         }
         if (!this.googleInitialized) {

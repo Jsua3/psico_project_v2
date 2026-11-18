@@ -12,6 +12,7 @@
  */
 
 import { gridFrom } from '../../raster.mjs';
+import { DIAGONAL } from './falda-larga.diagonal.mjs';
 
 const LEGEND = {
   S: { mat: 'bottom' },
@@ -45,6 +46,7 @@ export default {
   slots: ['bottom'],
   coverage: { P: 'bottom', l: 'skin', m: 'skin', L: 'skin', M: 'skin' },
   views: {
+    ...DIAGONAL,
     down: [cover(FRONT)],
     up: [cover(FRONT)],
     left: [

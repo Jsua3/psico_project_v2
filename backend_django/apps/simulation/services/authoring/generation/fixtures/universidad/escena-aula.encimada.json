@@ -1,0 +1,125 @@
+{
+  "narracion": "La clase terminó y el aula se va quedando vacía. Daniela sigue en su pupitre, con la mochila junto a la silla y la mirada fija en el cuaderno cerrado. La docente la mira de reojo desde el escritorio. Tú, practicante de Bienestar, notas que a Daniela le tiemblan las manos.",
+  "lineas": [
+    {
+      "personaje": "docente",
+      "texto": "Daniela no ha estado bien en toda la clase. Tú eres de Bienestar, ¿cierto? Quizá contigo se sienta más tranquila.",
+      "emocion": "preocupada"
+    },
+    {
+      "personaje": "estudiante-consultante",
+      "texto": "Estoy bien, solo... necesito un momento. No quiero que nadie se entere.",
+      "emocion": "cautelosa"
+    },
+    {
+      "personaje": "estudiante-consultante",
+      "texto": "Anoche pasó algo con mi pareja. Me dio mucho miedo. No sé a quién contarle ni qué hacer.",
+      "emocion": "triste"
+    }
+  ],
+  "opciones": [
+    {
+      "clave": "escuchar-y-acompanar",
+      "texto": "Te sientas cerca, sin invadir su espacio: «Gracias por contármelo. Aquí estoy. Cuando quieras, te acompaño a Bienestar».",
+      "clase": "RECOMMENDED",
+      "retroalimentacion": "Escuchas antes de actuar, le devuelves el control sobre lo que cuenta y le propones un siguiente paso a su ritmo. Eso la ayuda a calmarse y abre la confianza para seguir.",
+      "razonProhibicion": "",
+      "destino": "bienestar",
+      "efectoVinculo": 1,
+      "efectoActivacion": -1,
+      "hitos": [
+        "aplicar_primeros_auxilios_psicologicos"
+      ],
+      "competencias": [
+        "PAP",
+        "COMUNICACION_EMPATIA"
+      ],
+      "requiere": "",
+      "reaccionLinea": "Gracias... Sí, creo que puedo ir si vas conmigo.",
+      "reaccionEmocion": "triste",
+      "reaccionGesto": "asiente"
+    },
+    {
+      "clave": "cuidar-privacidad",
+      "texto": "«Lo que me cuentes queda entre nosotras y el equipo que te atienda. Si quieres, vamos a Bienestar sin pasar por recepción».",
+      "clase": "RECOMMENDED",
+      "retroalimentacion": "Respondes a su mayor temor: que alguien se entere. Al explicarle quién sabrá y quién no, y ofrecerle un camino discreto, la proteges y le das una razón concreta para confiar.",
+      "razonProhibicion": "",
+      "destino": "sala-espera",
+      "efectoVinculo": 1,
+      "efectoActivacion": -1,
+      "hitos": [
+        "aplicar_primeros_auxilios_psicologicos"
+      ],
+      "competencias": [
+        "PAP",
+        "DECISION_RUTA",
+        "COMUNICACION_EMPATIA"
+      ],
+      "requiere": "{\"talked\": \"docente\"}",
+      "reaccionLinea": "¿De verdad nadie más se va a enterar? Entonces sí, vamos.",
+      "reaccionEmocion": "cautelosa",
+      "reaccionGesto": "se-acerca"
+    },
+    {
+      "clave": "ofrecer-bienestar-rapido",
+      "texto": "«Lo mejor es que vayas a Bienestar, allá saben qué hacer. Ven, te llevo de una vez».",
+      "clase": "ACCEPTABLE",
+      "retroalimentacion": "La llevas al lugar correcto, y eso sirve. Pero pasas a la solución sin detenerte a escucharla ni a ayudarla a calmarse, y ella llega a Bienestar igual de tensa que como la encontraste.",
+      "razonProhibicion": "",
+      "destino": "bienestar",
+      "efectoVinculo": 0,
+      "efectoActivacion": 0,
+      "hitos": [],
+      "competencias": [
+        "DECISION_RUTA",
+        "ANALISIS_ARGUMENTACION"
+      ],
+      "requiere": "",
+      "reaccionLinea": "Bueno... si tú dices que es lo mejor.",
+      "reaccionEmocion": "cautelosa",
+      "reaccionGesto": "baja-la-mirada"
+    },
+    {
+      "clave": "minimizar-y-presionar",
+      "texto": "«Seguro fue una pelea de pareja, eso pasa. Pero si de verdad fue grave, tienes que denunciarlo hoy mismo».",
+      "clase": "CONTRAINDICATED",
+      "retroalimentacion": "Esta respuesta le resta importancia a lo que vivió, duda de su relato y la presiona a denunciar. Daniela puede sentir que no le creen y dejar de pedir ayuda. Denunciar es un derecho que ella decide cuándo ejercer.",
+      "razonProhibicion": "Minimizar lo ocurrido, dudar del relato y presionar a denunciar revictimiza: daña la confianza y le quita a la persona la decisión sobre su propio proceso.",
+      "destino": "bienestar",
+      "efectoVinculo": -1,
+      "efectoActivacion": 1,
+      "hitos": [],
+      "competencias": [
+        "COMUNICACION_EMPATIA",
+        "REFLEXION"
+      ],
+      "requiere": "",
+      "reaccionLinea": "Mejor olvídalo. No debí decir nada.",
+      "reaccionEmocion": "en-crisis",
+      "reaccionGesto": "se-aparta"
+    }
+  ],
+  "pistas": [
+    "Antes de proponer algo, fíjate en lo que Daniela dijo que más le preocupa.",
+    "La docente la vio durante toda la clase: hablar con ella puede darte una idea de cómo cuidar su privacidad.",
+    "En un primer contacto no hace falta conocer todo lo que pasó para poder acompañar."
+  ],
+  "comentarios": [
+    {
+      "personaje": "docente",
+      "linea": "La vi muy callada desde que llegó. Yo no le pregunté nada delante del grupo; pensé que era mejor no exponerla.",
+      "cuando": "",
+      "emocion": "preocupada",
+      "gesto": ""
+    },
+    {
+      "personaje": "estudiante-consultante",
+      "linea": "Ni siquiera saqué los cuadernos hoy. No he dormido casi nada.",
+      "cuando": "{\"inspected\": \"mochila\"}",
+      "emocion": "triste",
+      "gesto": "baja-la-mirada"
+    }
+  ],
+  "estructura": "{\"piezas\": [{\"id\": \"persiana-1\", \"modelo\": \"persiana\", \"muro\": \"fondo\", \"pos\": 112, \"tipo\": \"ventana\"}, {\"id\": \"persiana-2\", \"modelo\": \"persiana\", \"muro\": \"fondo\", \"pos\": 112, \"tipo\": \"ventana\"}, {\"id\": \"reloj-1\", \"modelo\": \"reloj\", \"muro\": \"fondo\", \"pos\": 552, \"tipo\": \"reloj\"}, {\"id\": \"tubo-1\", \"modelo\": \"tubo\", \"muro\": \"fondo\", \"pos\": 216, \"tipo\": \"lampara\"}, {\"id\": \"tubo-2\", \"modelo\": \"tubo\", \"muro\": \"fondo\", \"pos\": 552, \"tipo\": \"lampara\"}]}"
+}

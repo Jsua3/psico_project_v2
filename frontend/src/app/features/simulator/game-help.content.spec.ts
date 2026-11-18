@@ -1,4 +1,5 @@
 import { readFileSync } from 'fs';
+import { DRAFT_COPY } from './draft-copy';
 import { join } from 'path';
 
 import {
@@ -28,10 +29,10 @@ function everyHelpText(): string[] {
 }
 
 describe('game-help.content: tarjeta de primera vez (F§5.8)', () => {
-  it('teclado: tres líneas con la tecla E, la tarjeta «Qué hacer» y la pausa con Esc', () => {
+  it('teclado: tres líneas con la tecla E, la ficha del objetivo y la pausa con Esc', () => {
     expect(firstTimeHelpLines({ modality: 'keyboard', compact: false, safeExitPromise: true })).toEqual([
-      'Muévete con las flechas o WASD. Acércate a una persona o un objeto: abajo aparece su nombre. Pulsa E para actuar.',
-      'La tarjeta «Qué hacer» te dice el siguiente paso y dónde. Nunca marca cuál decisión es la adecuada: eso lo decides tú.',
+      'Muévete con las flechas o WASD. Acércate a una persona o un objeto: abajo aparece su nombre. Pulsa E para interactuar.',
+      'Arriba está el objetivo de la escena: ábrelo para ver qué hay en la sala o pedir una pista.',
       'Puedes pausar el caso en cualquier momento con «Salida segura» (con teclado, también Esc). Tu avance se guarda.',
     ]);
   });
@@ -39,7 +40,7 @@ describe('game-help.content: tarjeta de primera vez (F§5.8)', () => {
   it('táctil: las mismas líneas 2 y 3, esta última sin «con teclado, también Esc»', () => {
     expect(firstTimeHelpLines({ modality: 'touch', compact: false, safeExitPromise: true })).toEqual([
       'Mantén pulsada una flecha para caminar. Cuando algo tenga nombre cerca, toca «Interactuar».',
-      'La tarjeta «Qué hacer» te dice el siguiente paso y dónde. Nunca marca cuál decisión es la adecuada: eso lo decides tú.',
+      'Arriba está el objetivo de la escena: ábrelo para ver qué hay en la sala o pedir una pista.',
       'Puedes pausar el caso en cualquier momento con «Salida segura». Tu avance se guarda.',
     ]);
   });
@@ -126,9 +127,60 @@ describe('game-help.content: pantalla permanente (F§5.8)', () => {
     expect(text('touch', 'bitacora')).toBe('Escribe tus reflexiones cuando quieras con el botón de la cabecera.');
   });
 
-  it('el caso anuncia las 6 decisiones y la retroalimentación llega después de decidir', () => {
+  it('«Qué hacer» describe la ficha del objetivo: dónde está, sin nombrar una tarjeta que ya no existe ni insinuar respuestas', () => {
+    for (const modality of MODALITIES) {
+      const text = helpSections({ modality, safeExitPromise: true }).find(s => s.id === 'que-hacer')?.text ?? '';
+      expect(text).toBe(DRAFT_COPY.helpGoalSection.text);
+      expect(text).toContain('arriba a la izquierda');
+      expect(text).not.toMatch(/tarjeta|se marca sola|siguiente paso|Antes de decidir/i);
+    }
+  });
+
+  describe('atajos de una tecla (F6-10): la ayuda sigue el ajuste', () => {
+    const KEY_LETTERS = /WASD|\bE\b|\bJ\b|1 a 4/;
+    const off = (extra: object = {}) => ({ modality: 'keyboard' as HelpModality, safeExitPromise: true, singleKeyShortcuts: false, ...extra });
+
+    it('apagados prometen flechas y Enter, no WASD, E, J ni los números', () => {
+      const texts = helpSections(off()).flatMap(s => [s.title, s.text]);
+      expect(texts.join(' | ')).not.toMatch(KEY_LETTERS);
+      const keys = helpSections(off()).find(s => s.id === 'teclas')?.text ?? '';
+      expect(keys).toContain('flechas');
+      expect(keys).toContain('Enter');
+      expect(keys).toContain('Esc');
+      // Las opciones del diálogo no responden a flechas: se eligen con Tab y Enter, o con clic.
+      expect(keys).toContain('Elegir una opción: Tab y Enter, o clic');
+      expect(keys).not.toMatch(/flechas y Enter/);
+    });
+
+    it('la tarjeta de primera vez tampoco promete WASD ni E con el ajuste apagado', () => {
+      for (const compact of BOOLEANS) {
+        const lines = firstTimeHelpLines({ modality: 'keyboard', compact, safeExitPromise: true, singleKeyShortcuts: false });
+        expect(lines.join(' | ')).not.toMatch(KEY_LETTERS);
+        expect(lines[0]).toMatch(/flechas/);
+        expect(lines[0]).toMatch(/Enter/);
+      }
+    });
+
+    it('encendidos (y por defecto) conservan WASD, E y J', () => {
+      for (const options of [{ singleKeyShortcuts: true }, {}]) {
+        const keys = helpSections({ modality: 'keyboard', safeExitPromise: true, ...options }).find(s => s.id === 'teclas')?.text ?? '';
+        expect(keys).toMatch(/WASD/);
+        expect(keys).toMatch(/\bE\b/);
+        expect(keys).toMatch(/\bJ\b/);
+      }
+    });
+
+    it('la modalidad táctil no cambia con el ajuste', () => {
+      expect(helpSections({ modality: 'touch', safeExitPromise: true, singleKeyShortcuts: false })).toEqual(
+        helpSections({ modality: 'touch', safeExitPromise: true, singleKeyShortcuts: true }),
+      );
+    });
+  });
+
+  it('el caso no nombra lugares ni cuántas decisiones hay, y la retroalimentación llega después de decidir', () => {
     const all = helpSections({ modality: 'keyboard', safeExitPromise: true });
-    expect(all.find(s => s.id === 'caso')?.text).toContain('Tomarás 6 decisiones clínicas, una por etapa.');
+    expect(all.find(s => s.id === 'caso')?.text).toBe(DRAFT_COPY.helpCaseSection.text);
+    expect(all.find(s => s.id === 'caso')?.text).not.toMatch(/hospital|Comisar|[0-9]+ decisiones/i);
     expect(all.find(s => s.id === 'decidir')?.text).toContain('Ninguna opción está marcada como correcta');
     expect(all.find(s => s.id === 'decidir')?.text).toContain('No hay límite de tiempo.');
   });
@@ -170,15 +222,14 @@ describe('game-help.content: límites de producto y de redacción', () => {
 
   it('lleva tildes: ninguna palabra de uso común aparece sin ellas', () => {
     const missingTilde =
-      /\b(accion|decision|informacion|psicologa|bitacora|comisaria|recepcion|proteccion|atencion|tecnica|clinica|clinicas|clinico|exploraras|tomaras|recibiras|acercate|muevete|manten|mas ayuda)\b/i;
+      /\b(accion|decision|informacion|psicologa|bitacora|comisaria|recepcion|proteccion|atencion|tecnica|clinica|clinicas|clinico|exploraras|tomaras|recibiras|acercate|muevete|manten|mas ayuda|retroalimentacion)\b/i;
     for (const text of texts) expect(text).not.toMatch(missingTilde);
     // Y las que sí deben llevarla están escritas con ella.
     const joined = texts.join(' ');
     expect(joined).toContain('Cómo se juega');
     expect(joined).toContain('Más ayuda');
     expect(joined).toContain('Bitácora');
-    expect(joined).toContain('Comisaría de Familia');
-    expect(joined).toContain('decisión');
+    expect(joined).toContain('retroalimentación');
   });
 
   it('ningún texto contiene un identificador interno del caso', () => {

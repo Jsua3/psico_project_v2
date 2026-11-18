@@ -195,7 +195,8 @@ test.describe('@live-regions las regiones siguen expuestas con un diálogo modal
     const dialogue = page.getByRole('dialog', { name: /diálogo con/i });
     await expect(dialogue).toBeVisible({ timeout: scaled(10_000) });
     await expect(dialogue).toHaveAttribute('aria-modal', 'true');
-    const line = ((await dialogue.locator('.strip-body > .visually-hidden').first().textContent()) ?? '').trim();
+    // El texto entero de la línea para el lector va en la placa del que habla (rediseño del panel, `fa2dd43e`).
+    const line = ((await dialogue.locator('.placa-habla > .visually-hidden').first().textContent()) ?? '').trim();
     expect(line, 'el diálogo tiene su primera línea').not.toBe('');
     await expect.poll(async () => (await liveLog(page)).some(entry => entry.text.includes(line.slice(0, 40))), {
       message: 'la primera línea del diálogo se anunció (la región del panel ya no nace con su texto)', timeout: scaled(5_000),

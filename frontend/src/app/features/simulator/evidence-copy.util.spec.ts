@@ -1,13 +1,8 @@
 import { MapObjectState } from '../../core/models/simulation.model';
-import { MissingItem, NODE_EVIDENCE, missingEvidenceItems } from './evidence-gating.config';
-import {
-  CopyContext, evidenceNoticeText, humanizeMissing, imperativeMissing, joinSpanish,
-} from './evidence-copy.util';
-import { ENTITY_NAMES, ROUTE_ORDER, RoomGroup, TOOL_HINTS } from './orientation.config';
+import { MissingItem } from './evidence-gating.config';
+import { CopyContext, imperativeMissing, joinSpanish } from './evidence-copy.util';
 
-function ctxFor(room: RoomGroup | null, extra: Partial<CopyContext> = {}): CopyContext {
-  return { currentRoom: room, world: null, nameTools: false, npcs: [], ...extra };
-}
+const MUNDO = { inventory: [], inspectedObjectKeys: [], usedToolKeys: [], flags: {} };
 
 function obj(partial: Partial<MapObjectState> & Pick<MapObjectState, 'key' | 'label' | 'type'>): MapObjectState {
   return {
@@ -22,8 +17,6 @@ const used = (key: string): MissingItem => ({ kind: 'toolUsed', key });
 const owned = (key: string): MissingItem => ({ kind: 'toolOwned', key });
 const inspected = (key: string): MissingItem => ({ kind: 'inspected', key });
 
-/** Lo que nunca debe verse con las banderas por defecto: técnicas y nombres de herramienta. */
-const TOOL_VOCAB = /PAP|SPIKES|RISK_METER|EPICEE|Primeros Auxilios|Valoraci[oó]n de riesgo|\bKit\b/;
 /** Una clave interna: palabras en minúscula unidas por guion, o un prefijo de clave. */
 const SLUG = /[a-z]+-[a-z]+|npc:|tool:|inspected:|@/;
 
@@ -42,151 +35,70 @@ describe('joinSpanish', () => {
   });
 });
 
-describe('humanizeMissing / imperativeMissing', () => {
-  it('personas: «hablar con {artículo} {nombre}»; añade la sala si está en otra', () => {
-    expect(humanizeMissing([npc('enfermera-urgencias')], ctxFor('urgencias')))
-      .toEqual(['hablar con la Enfermera de urgencias']);
-    expect(humanizeMissing([npc('enfermera-urgencias')], ctxFor('sala-escucha')))
-      .toEqual(['hablar con la Enfermera de urgencias (en Urgencias)']);
-    expect(imperativeMissing([npc('medico-guardia')], ctxFor('consultorio')))
-      .toEqual(['habla con el Médico de guardia (en Urgencias)']);
-  });
-
-  it('sin sala actual conocida no se añade «(en …)»', () => {
-    expect(humanizeMissing([npc('enfermera-urgencias')], ctxFor(null)))
-      .toEqual(['hablar con la Enfermera de urgencias']);
-  });
-
-  it('un objeto por revisar se «revisa»; una persona exigida como «revisada» se «habla»', () => {
-    expect(humanizeMissing([inspected('expediente-caso')], ctxFor('recepcion')))
-      .toEqual(['revisar el Expediente del caso']);
-    expect(humanizeMissing([inspected('familia-crisis')], ctxFor('urgencias')))
-      .toEqual(['hablar con la Familia en crisis']);
-    expect(imperativeMissing([inspected('expediente-caso')], ctxFor('urgencias')))
-      .toEqual(['revisa el Expediente del caso (en la Recepción)']);
-  });
-
-  it('distingue TENER de USAR una herramienta y describe sin nombrarla', () => {
-    const ctx = ctxFor('urgencias');
-    expect(humanizeMissing([owned('PAP')], ctx)).toEqual(['recoger el material de apoyo de la sala']);
-    expect(humanizeMissing([used('PAP')], ctx)).toEqual(['usar el material de apoyo de la sala']);
-    expect(humanizeMissing([owned('SPIKES')], ctx)).toEqual(['recoger el material del estante (en la Sala de escucha familiar)']);
-    expect(humanizeMissing([used('RISK_METER')], ctxFor('consultorio'))).toEqual(['usar el instrumento de la sala']);
-    expect(imperativeMissing([used('RISK_METER')], ctxFor('recepcion')))
-      .toEqual(['usa el instrumento de la sala (en el Consultorio)']);
-  });
-
-  it('con NAME_TOOLS_IN_HINTS (nameTools) nombra la herramienta', () => {
-    const ctx = ctxFor('urgencias', { nameTools: true });
-    expect(humanizeMissing([owned('PAP')], ctx)).toEqual(['recoger el Kit PAP']);
-    expect(humanizeMissing([used('PAP')], ctx)).toEqual(['usar el Kit PAP']);
-    expect(humanizeMissing([owned('SPIKES')], ctx)).toEqual(['recoger el Protocolo EPICEE (en la Sala de escucha familiar)']);
-    expect(humanizeMissing([used('RISK_METER')], ctxFor('consultorio', { nameTools: true })))
-      .toEqual(['usar la Valoración de riesgo']);
-  });
-
-  it('el imperativo añade el lugar vivo de lo que está en la sala actual', () => {
-    const world = {
-      inventory: [], inspectedObjectKeys: [], usedToolKeys: [], flags: {},
-      objects: [
-        obj({ key: 'familia-crisis', label: 'Familia en crisis', type: 'PERSON', x: 190, y: 420 }),
-        obj({ key: 'tool-pap', label: 'Kit PAP', type: 'TOOL', toolCode: 'PAP', x: 318, y: 428 }),
-      ],
+describe('imperativeMissing: nombra con lo que hay en el mundo', () => {
+  it('nombra con lo que hay en el mundo, no con una tabla de un caso', () => {
+    const ctx: CopyContext = {
+      world: { ...MUNDO, objects: [obj({ key: 'expediente', label: 'Expediente', type: 'OBJECT' })], tools: [{ code: 'KIT', label: 'Kit de apoyo', icon: '', category: '', description: '', active: true }] },
+      npcs: [{ key: 'ana', displayName: 'Ana' }],
     };
-    const ctx = ctxFor('urgencias', { world });
-    expect(imperativeMissing([inspected('familia-crisis')], ctx))
-      .toEqual(['habla con la Familia en crisis (en el extremo izquierdo, al frente)']);
-    expect(imperativeMissing([owned('PAP')], ctx))
-      .toEqual(['recoge el material de apoyo de la sala (a la izquierda, al frente)']);
-    // el infinitivo del aviso no lleva lugar: solo la sala si es otra
-    expect(humanizeMissing([inspected('familia-crisis')], ctx)).toEqual(['hablar con la Familia en crisis']);
+    expect(imperativeMissing([inspected('expediente'), npc('ana'), owned('KIT')], ctx))
+      .toEqual([expect.stringMatching(/^revisa Expediente/), 'habla con Ana', 'recoge Kit de apoyo']);
+  });
+
+  it('sin nombre conocido usa una frase general sin clave', () => {
+    expect(imperativeMissing([npc('x-1')], { world: MUNDO, npcs: [] })).toEqual(['habla con alguien de la sala']);
+    const unknown = imperativeMissing([inspected('otro-z'), owned('NOPE'), used('NOPE')], { world: MUNDO, npcs: [] });
+    expect(unknown).toEqual(['revisa algo de la sala', 'recoge algo de la sala', 'usa algo de la sala']);
+    for (const phrase of unknown) expect(phrase).not.toMatch(SLUG);
+  });
+
+  it('una persona exigida como «revisada» se «habla»: lo dice el tipo del objeto o el escenario', () => {
+    const ctx: CopyContext = {
+      world: { ...MUNDO, objects: [obj({ key: 'madre', label: 'Madre', type: 'PERSON', x: 190, y: 420 })] },
+      npcs: [{ key: 'ana', displayName: 'Ana' }],
+    };
+    expect(imperativeMissing([inspected('madre')], ctx)).toEqual(['habla con Madre (en el extremo izquierdo, al frente)']);
+    expect(imperativeMissing([inspected('ana')], ctx)).toEqual(['habla con Ana']);
+  });
+
+  it('distingue TENER (recoge) de USAR (usa) una herramienta y la nombra con la etiqueta del mundo', () => {
+    const tools = [{ code: 'KIT', label: 'Kit de apoyo', icon: '', category: '', description: '', active: true }];
+    const ctx: CopyContext = { world: { ...MUNDO, tools }, npcs: [] };
+    expect(imperativeMissing([owned('KIT')], ctx)).toEqual(['recoge Kit de apoyo']);
+    expect(imperativeMissing([used('KIT')], ctx)).toEqual(['usa Kit de apoyo']);
+  });
+
+  it('el lugar se dice solo de lo que está en la sala actual, con las coordenadas vivas', () => {
+    const ctx: CopyContext = {
+      world: {
+        ...MUNDO,
+        objects: [
+          obj({ key: 'caja', label: 'Caja azul', type: 'OBJECT', x: 190, y: 420 }),
+          obj({ key: 'kit', label: 'Kit en la mesa', type: 'TOOL', toolCode: 'KIT', x: 318, y: 428 }),
+        ],
+      },
+      npcs: [],
+    };
+    expect(imperativeMissing([inspected('caja')], ctx)).toEqual(['revisa Caja azul (en el extremo izquierdo, al frente)']);
+    expect(imperativeMissing([owned('KIT')], ctx)).toEqual(['recoge Kit en la mesa (a la izquierda, al frente)']);
+    // lo que no está en esta sala no lleva lugar
+    expect(imperativeMissing([inspected('lejos')], ctx)).toEqual(['revisa algo de la sala']);
   });
 
   it('elimina duplicados y conserva el orden', () => {
-    expect(humanizeMissing([owned('PAP'), npc('enfermera-urgencias'), owned('PAP')], ctxFor('urgencias')))
-      .toEqual(['recoger el material de apoyo de la sala', 'hablar con la Enfermera de urgencias']);
+    const ctx: CopyContext = { world: MUNDO, npcs: [{ key: 'ana', displayName: 'Ana' }] };
+    expect(imperativeMissing([npc('ana'), owned('KIT'), npc('ana')], ctx)).toEqual(['habla con Ana', 'recoge algo de la sala']);
   });
 
-  it('una clave sin nombre usa el escenario o el mundo y, si no, una frase genérica sin clave', () => {
-    const ctx = ctxFor('urgencias', {
-      npcs: [{ key: 'ana-visita', displayName: 'Visita de Ana' }],
-      world: { inventory: [], inspectedObjectKeys: [], usedToolKeys: [], flags: {},
-        objects: [obj({ key: 'caja-azul', label: 'Caja azul', type: 'OBJECT' })] },
-    });
-    expect(humanizeMissing([npc('ana-visita')], ctx)).toEqual(['hablar con Visita de Ana']);
-    expect(humanizeMissing([inspected('caja-azul')], ctx)).toEqual(['revisar Caja azul']);
-    const unknown = humanizeMissing([npc('x-y'), inspected('otro-z'), owned('NOPE'), used('NOPE')], ctxFor('urgencias'));
-    expect(unknown).toEqual([
-      'hablar con alguien en otra sala', 'revisar algo en otra sala',
-      'recoger algo en otra sala', 'usar algo en otra sala',
-    ]);
-    for (const phrase of unknown) expect(phrase).not.toMatch(SLUG);
-  });
-});
-
-describe('evidenceNoticeText (aviso único de F§5.5)', () => {
-  it('compone la frase completa y no promete resultado alguno', () => {
-    const text = evidenceNoticeText([npc('enfermera-urgencias'), used('PAP')], ctxFor('urgencias'));
-    expect(text).toBe(
-      'Antes de decidir te falta: hablar con la Enfermera de urgencias y usar el material de apoyo de la sala. '
-      + 'Puedes seguir explorando o decidir ahora; tu decisión quedará registrada con información incompleta.',
-    );
+  it('dos requisitos distintos sin nombre conocido no repiten la misma frase', () => {
+    const ctx: CopyContext = { world: MUNDO, npcs: [] };
+    expect(imperativeMissing([inspected('nota-perdida'), inspected('otra-nota')], ctx)).toEqual(['revisa algo de la sala']);
   });
 
-  it('sin faltantes no hay aviso', () => {
-    expect(evidenceNoticeText([], ctxFor('urgencias'))).toBeNull();
-  });
-});
-
-describe('contratos de texto con las banderas por defecto', () => {
-  const allKeys = Object.keys(ENTITY_NAMES);
-  const allTools = Object.keys(TOOL_HINTS);
-  // Las herramientas se piden por tool_code (TOOL_HINTS), nunca por su objeto 'tool-*' del mundo.
-  const everyItem: MissingItem[] = [
-    ...allKeys.filter(key => !key.startsWith('tool-')).flatMap(key => [npc(key), inspected(key)]),
-    ...allTools.flatMap(key => [owned(key), used(key)]),
-  ];
-  const nodeItems = Object.entries(NODE_EVIDENCE).map(([nodeKey, def]) => ({
-    nodeKey,
-    items: missingEvidenceItems(def, { inventory: [], inspectedObjectKeys: [], usedToolKeys: [], flags: {} }, new Set()),
-  }));
-
-  it('cada combinación de NODE_EVIDENCE × sala dice lo mismo en infinitivo, imperativo y aviso', () => {
-    for (const { nodeKey, items } of nodeItems) {
-      expect(items.length).toBeGreaterThan(0);
-      for (const room of [...ROUTE_ORDER, null]) {
-        const ctx = ctxFor(room);
-        const infinitives = humanizeMissing(items, ctx);
-        const imperatives = imperativeMissing(items, ctx);
-        const notice = evidenceNoticeText(items, ctx)!;
-        expect(infinitives).toHaveLength(items.length);
-        expect(imperatives).toHaveLength(items.length);
-        // Misma entidad nombrada: lo que cambia es solo el verbo.
-        infinitives.forEach((phrase, i) => {
-          expect(phrase.length).toBeGreaterThan(0);
-          expect(notice).toContain(phrase);
-          expect(imperatives[i].replace(/^\S+( con)? /, '')).toBe(phrase.replace(/^\S+( con)? /, ''));
-          expect(`${nodeKey}:${phrase}`).not.toMatch(/:.*(PAP|SPIKES|RISK_METER|EPICEE)/);
-        });
-      }
+  it('con cualquier mezcla nunca aparece una clave', () => {
+    const ctx: CopyContext = { world: MUNDO, npcs: [] };
+    for (const phrase of imperativeMissing([npc('enfermera-urgencias'), inspected('expediente-caso'), owned('SPIKES'), used('PAP@x')], ctx)) {
+      expect(phrase).not.toMatch(SLUG);
     }
-  });
-
-  it('nunca aparece una clave ni el nombre de una herramienta (todas las claves × todas las salas)', () => {
-    for (const room of [...ROUTE_ORDER, null]) {
-      const ctx = ctxFor(room);
-      for (const phrase of [...humanizeMissing(everyItem, ctx), ...imperativeMissing(everyItem, ctx)]) {
-        expect(phrase).not.toMatch(SLUG);
-        expect(phrase).not.toMatch(TOOL_VOCAB);
-      }
-      expect(evidenceNoticeText(everyItem, ctx)).not.toMatch(TOOL_VOCAB);
-    }
-  });
-
-  it('con tildes y sin vocabulario de logro', () => {
-    const text = evidenceNoticeText(everyItem, ctxFor('urgencias'))!;
-    expect(text).toMatch(/información incompleta/);
-    expect(text).not.toMatch(/\b(informacion|decision|psicologa|recepcion|bitacora)\b/i);
-    expect(text).not.toMatch(/completad|bien hecho|logr|puntos?\b|correct|adecuad/i);
   });
 });

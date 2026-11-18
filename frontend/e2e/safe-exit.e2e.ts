@@ -115,20 +115,16 @@ async function assertSafeExitPauses(page: Page, state: string, viewport: { width
   ).toBe(true);
 }
 
-/** Tras reanudar desde la introducción o el contexto reaparece lo que no se había leído: se avanza hasta el mundo. */
+/** Tras reanudar desde la introducción reaparece la tarjeta si no se había leído: se avanza hasta el mundo. */
 async function advanceToWorld(page: Page): Promise<void> {
   const world = page.locator('app-game-world .phaser-host[data-world-ready="true"]');
-  const introVideo = page.getByRole('dialog').filter({ hasText: 'Antes de comenzar' });
-  const caseIntro = page.getByRole('dialog').filter({ hasText: 'Contexto inicial del caso' });
+  const caseIntro = page.getByRole('dialog').filter({ hasText: 'Antes de comenzar' });
   const deadline = Date.now() + scaled(60_000);
   while (Date.now() < deadline) {
-    if (await introVideo.isVisible().catch(() => false)) {
-      await introVideo.getByRole('button', { name: /saltar video|continuar/i }).click();
-    } else if (await caseIntro.isVisible().catch(() => false)) {
+    if (await caseIntro.isVisible().catch(() => false)) {
       await caseIntro.getByRole('button', { name: /^continuar$/i }).click();
     } else if (await world.isVisible().catch(() => false)
-      && await caseIntro.isHidden().catch(() => true)
-      && await introVideo.isHidden().catch(() => true)) {
+      && await caseIntro.isHidden().catch(() => true)) {
       return;
     }
     await page.waitForTimeout(250);
@@ -143,9 +139,13 @@ const SLOW_SERVER_MS = 7_000;
  * F1 (REGLA-004): con el fundido de escena a pantalla completa esperando al servidor, «Salida segura» sigue a la
  * vista (nada la cubre en ningún punto de su caja) y se puede pulsar o tocar de verdad. El clic de Playwright
  * comprueba además que ninguna capa recibe el toque, y no espera más de 3 s: si el fundido la tapara, fallaría.
+ *
+ * `fade: false` es para la decisión con el servidor lento: desde 4.3.3 el orden es reacción en la sala actual, nota de
+ * supervisión y, al final, el fundido, así que mientras la petición está pendiente no hay fundido. El resto del contrato
+ * no se afloja: el botón sigue siendo el único, visible, nada lo cubre y se puede tocar con la petición pendiente.
  */
-async function assertSafeExitAboveFade(page: Page, state: string, touch: boolean): Promise<void> {
-  await expect(page.locator('.scene-fade--active'), `${state}: el fundido de escena debe estar activo`).toHaveCount(1);
+async function assertSafeExitAboveFade(page: Page, state: string, touch: boolean, { fade = true }: { fade?: boolean } = {}): Promise<void> {
+  if (fade) await expect(page.locator('.scene-fade--active'), `${state}: el fundido de escena debe estar activo`).toHaveCount(1);
   const exit = page.getByRole('button', { name: /salida segura/i });
   await expect(exit, `${state}: un único «Salida segura» bajo el fundido`).toHaveCount(1);
   await expect(exit).toBeVisible();
@@ -157,10 +157,12 @@ async function assertSafeExitAboveFade(page: Page, state: string, touch: boolean
     });
   });
   expect(covered, `${state}: algo cubre «Salida segura» (el fundido de escena la tapaba)`).toBe(false);
-  expect(await page.locator('.scene-fade--active').count(), `${state}: el fundido sigue activo al pulsar`).toBe(1);
+  if (fade) expect(await page.locator('.scene-fade--active').count(), `${state}: el fundido sigue activo al pulsar`).toBe(1);
   if (touch) await exit.tap({ timeout: 3_000 });
   else await exit.click({ timeout: 3_000 });
-  await expect(page.getByRole('button', { name: /pausando/i }), `${state}: el pie acusa la pausa pedida`).toBeVisible();
+  // Ronda V3 (REGLA-004): la pausa es local e inmediata; no espera al servidor lento (antes el pie decía «Pausando…»).
+  await expect(page.getByRole('alertdialog', { name: /pausa/i }), `${state}: la pantalla de pausa sale en el acto`)
+    .toBeVisible({ timeout: 3_000 });
 }
 
 /** La pausa pedida bajo el fundido llega cuando el servidor responde: una sola llamada, pantalla de pausa y sin avisos encima. */
@@ -169,7 +171,12 @@ async function expectQueuedPauseThenResume(
 ): Promise<void> {
   const pause = page.getByRole('alertdialog', { name: /pausa/i });
   await expect(pause, `${state}: debe aparecer la pausa`).toBeVisible({ timeout: scaled(40_000) });
+  // El registro en el servidor espera a la petición en vuelo (la decisión lenta): se cuenta cuando ya salió, y es UNA.
+  await expect.poll(safeExitCalls, { message: `${state}: la pausa se registra en el servidor`, timeout: scaled(40_000) })
+    .toBeGreaterThanOrEqual(expectedTotalCalls);
   expect(safeExitCalls(), `${state}: una sola llamada a safe-exit por pausa pedida`).toBe(expectedTotalCalls);
+  // La pausa corta la reacción en el acto: ningún gesto en curso (`data-reaction`) queda bajo la pantalla de pausa.
+  await expect(page.locator('.phaser-host[data-reaction]'), `${state}: un gesto de reacción quedó vivo bajo la pausa`).toHaveCount(0);
   // Ningún aviso de etapa o de sala queda pintado (ni anunciado) encima de la pausa; el aviso de puerta (F6-12) es un
   // aviso del sistema (`.ui-toast`) y la pausa también lo retira.
   await expect(page.locator('.room-banner, .transition-note, .ui-toast'), `${state}: avisos sobre la pausa`).toHaveCount(0);
@@ -345,7 +352,8 @@ for (const viewport of GUIDED_VIEWPORTS) {
       await expect(option).toBeVisible();
       await page.route(/\/api\/simulation\/attempts\/[^/]+\/decisions$/, slow);
       await option.click();
-      await assertSafeExitAboveFade(page, 'decisión con el servidor lento', touch);
+      // Sin fundido: la reacción de la sala actual va antes y el fundido solo llega tras la respuesta (4.3.3).
+      await assertSafeExitAboveFade(page, 'decisión con el servidor lento', touch, { fade: false });
       await expectQueuedPauseThenResume(page, 'decisión con el servidor lento', () => safeExitCalls, 2);
     });
   });

@@ -16,8 +16,8 @@ const LEAK = new RegExp(`\\b(${FORBIDDEN.join('|')})\\b`, 'g');
  * expresión regular que los nombra).
  */
 const OWNED_PREFIXES = [
-  'orientation', 'stage-route', 'scene-checklist', 'place-hint', 'evidence-copy', 'door-status',
-  'dialogue-decoration', 'interaction-verb', 'help-memory', 'visited-rooms', 'evidence-gating',
+  'orientation', 'place-hint', 'evidence-copy', 'door-status',
+  'dialogue-decoration', 'interaction-verb', 'help-memory', 'evidence-gating',
   // El panel de opciones (F6-4, DM-5.8): ni su plantilla ni su código leen la clasificación antes de decidir.
   'dialogue-panel',
   // El ratón en el mundo (F6-7): la caminata y el resaltado solo conocen claves y distancias.
@@ -50,7 +50,7 @@ describe('no-classification-leak', () => {
   it('no vigila los specs: ellos son quienes afirman la ausencia', () => {
     const names = OWNED_PREFIXES.flatMap(filesWithPrefix);
     expect(names.some(name => name.endsWith('.spec.ts'))).toBe(false);
-    expect(names).toContain('scene-checklist.util.ts');
+    expect(names).toContain('evidence-gating.config.ts');
     expect(names).toContain('dialogue-decoration.util.ts');
   });
 

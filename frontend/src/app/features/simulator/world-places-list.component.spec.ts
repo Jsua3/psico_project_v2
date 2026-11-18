@@ -82,11 +82,12 @@ describe('WorldPlacesListComponent', () => {
     expect(document.activeElement).toBe(items()[0]);
   });
 
+  // Bloque U1: «Cerrar» es una placa-botón u-boton (ya no UiButton), así que se localiza por su clase propia.
   it('sin lugares dice por qué en vez de quedar vacía y conserva «Cerrar» y «Salida segura»', () => {
     mount([]);
     expect(items()).toHaveLength(0);
     expect(text(host().querySelector('.places__empty'))).toBe(DRAFT_COPY.placesEmpty.text);
-    expect(text(host().querySelector('.places__foot .ui-button'))).toBe('Cerrar');
+    expect(text(host().querySelector('.places__close'))).toBe('Cerrar');
     expect(host().querySelectorAll('app-safe-exit-button button')).toHaveLength(1);
   });
 
@@ -113,7 +114,7 @@ describe('WorldPlacesListComponent', () => {
     mount();
     const closed = vi.fn();
     component.closed.subscribe(closed);
-    host().querySelector<HTMLButtonElement>('.places__foot .ui-button')!.click();
+    host().querySelector<HTMLButtonElement>('.places__close')!.click();
     expect(closed).toHaveBeenCalledTimes(1);
   });
 });

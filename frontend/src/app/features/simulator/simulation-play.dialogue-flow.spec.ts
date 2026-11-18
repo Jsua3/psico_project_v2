@@ -93,6 +93,7 @@ describe('SimulationPlayComponent: diálogo sin callejones', () => {
       openInteraction: vi.fn(() => EMPTY),
       chooseDecision: vi.fn(() => EMPTY),
       useTool: vi.fn(() => EMPTY),
+      getAttempt: vi.fn(() => of(makeAttempt())),
     };
     audio = {
       init: vi.fn(),
@@ -150,8 +151,6 @@ describe('SimulationPlayComponent: diálogo sin callejones', () => {
       component.selectedInteraction.set({ key: 'familia-crisis', type: 'PERSON' } as unknown as MapObjectState);
       component.nearbyInteraction.set({ key: 'familia-crisis', type: 'PERSON' } as unknown as MapObjectState);
       component.journalOpen.set(true);
-      (component as any).pendingEvidenceDecisionId = 11;
-      (component as any).pendingEvidenceMissing = ['npc:enfermera-urgencias'];
 
       component.startNewAttempt();
 
@@ -160,8 +159,6 @@ describe('SimulationPlayComponent: diálogo sin callejones', () => {
       expect(component.selectedInteraction()).toBeNull();
       expect(component.nearbyInteraction()).toBeNull();
       expect(component.journalOpen()).toBe(false);
-      expect((component as any).pendingEvidenceDecisionId).toBeNull();
-      expect((component as any).pendingEvidenceMissing).toEqual([]);
     });
   });
 
@@ -176,6 +173,18 @@ describe('SimulationPlayComponent: diálogo sin callejones', () => {
       expect(component.actionError()).toMatch(/otra etapa/i);
       expect(component.dialogueReleaseToken()).toBe(before + 1);
       expect(component.dialogue()).not.toBeNull();
+    });
+
+    it('elegir una opción la envía en el acto: no hay diálogo «Criterio profesional»', () => {
+      component.dialogue.set(decisionDialogue(11));
+
+      component.executeDecision(11);
+
+      expect(sim['chooseDecision']).toHaveBeenCalledTimes(1);
+      expect(sim['chooseDecision']).toHaveBeenCalledWith(
+        expect.any(String), expect.any(String), 11, false, [], expect.any(String),
+      );
+      expect(component.dialogue()).toBeNull();
     });
 
     it('con una petición en curso rechaza la elección sin dejarla bloqueada', () => {
@@ -231,28 +240,29 @@ describe('SimulationPlayComponent: diálogo sin callejones', () => {
   });
 
   describe('salida segura con una decisión en vuelo (H-04)', () => {
-    it('la pausa espera a que termine la decisión y usa el intento que devolvió el servidor', () => {
+    it('la persona sale en el acto (pausa local); el envío de la pausa espera la respuesta de la decisión y el servidor ve la decisión primero (V3)', () => {
       const decision$ = new Subject<SimulationAttemptState>();
       sim['chooseDecision'].mockReturnValue(decision$);
+      sim['safeExit'].mockReturnValue(of(makeAttempt({ status: 'PAUSED', attemptToken: 'token-2' })));
       sim['getWorld'].mockReturnValue(of(component.world()));
       sim['getScenarioConfig'].mockReturnValue(of({ scenarioKey: 'x', startRoomKey: 'x', rooms: [] }));
       component.dialogue.set(decisionDialogue(11));
 
       component.executeDecision(11);
-      component.pauseFromOverlay();
       vi.advanceTimersByTime(400);
+      component.pauseFromOverlay();
 
+      expect(component.attempt()?.status).toBe('PAUSED');
       expect(component.pausing()).toBe(true);
       expect(sim['chooseDecision']).toHaveBeenCalledTimes(1);
       expect(sim['safeExit']).not.toHaveBeenCalled();
 
-      // El servidor ya avanzó el caso: la pausa debe usar el token del intento nuevo, no el viejo.
+      // El servidor aplica la decisión y, después, ve la pausa (el token no rota: se usa el que trajo la respuesta).
       decision$.next(makeAttempt({ attemptToken: 'token-2', currentNode: { key: FREE_NODE, title: 'Etapa 2', options: [] } }));
-      TestBed.tick();
 
-      expect(component.busy()).toBe(true); // la pausa ya está en vuelo
       expect(sim['safeExit']).toHaveBeenCalledTimes(1);
-      expect(sim['safeExit']).toHaveBeenCalledWith('attempt-1', 'token-2', 'Salida segura solicitada');
+      expect(sim['safeExit']).toHaveBeenLastCalledWith('attempt-1', 'token-2', 'Salida segura solicitada');
+      expect(component.pausing()).toBe(false);
     });
 
     it('si la decisión falla la pausa pedida se ejecuta igualmente y la conversación no reaparece', () => {
@@ -351,7 +361,7 @@ describe('SimulationPlayComponent: diálogo sin callejones', () => {
 
       expect(dialogue?.choices).toEqual([]);
       expect(dialogue?.stale).toBe(true);
-      expect(dialogue?.lines.at(-1)?.text).toBe('Esta conversación corresponde a otro momento del caso.');
+      expect(dialogue?.lines.at(-1)?.text).toBe('Por ahora no hay nada que decidir en esta conversación.');
       expect(component.viewMode()).toBe('dialogue-cinematic');
     });
 
@@ -385,29 +395,18 @@ describe('SimulationPlayComponent: diálogo sin callejones', () => {
       expect(dialogue?.choices.map(c => c.key)).toEqual(['x']);
     });
 
-    it('el aviso de lo que falta llega una sola vez, en `notice`, y sin claves internas', () => {
+    it('el aviso de lo que queda por conocer llega una sola vez, en `notice`, y sin claves internas', () => {
       component.attempt.set(makeAttempt({
         currentNode: { key: 'hospital-urgencias', title: 'Urgencias', options: [{ id: 11, text: 'Opción' }] },
       }));
+      // Una persona de la sala con la que aún no se habló: queda algo por conocer.
+      (component as any).gameWorld = { places: () => [{ key: 'npc:enfermera', label: 'Enfermera', kind: 'person' }], playerPosition: () => undefined, focus: () => undefined };
 
       const dialogue = open(objectWith('sala', [choice('uno', 11)]));
 
-      expect(dialogue?.notice).toMatch(/^Antes de decidir te falta: /);
-      expect(dialogue?.notice).not.toMatch(/enfermera-urgencias|PAP|npc:|tool:/);
+      expect(dialogue?.notice).toBe('Puedes conocer más antes de responder.');
+      expect(dialogue?.notice).not.toMatch(/enfermera|PAP|npc:|tool:/);
       expect(dialogue?.choices.every(c => c.evidenceWarning === undefined)).toBe(true);
-    });
-
-    it('el aviso dice en qué sala está lo que falta cuando el estudiante está en otra', () => {
-      component.attempt.set(makeAttempt({
-        currentNode: { key: 'hospital-urgencias', title: 'Urgencias', options: [{ id: 11, text: 'Opción' }] },
-      }));
-      component.world.set({
-        ...(component.world() as object), map: { key: 'hospital-sala-escucha' },
-      } as unknown as SimulationWorldState);
-
-      const dialogue = open(objectWith('sala', [choice('uno', 11)]));
-
-      expect(dialogue?.notice).toContain('hablar con la Enfermera de urgencias (en Urgencias)');
     });
 
     it('marca la opción de herramienta cuyo material aún no se tiene', () => {

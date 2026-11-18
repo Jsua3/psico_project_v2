@@ -344,6 +344,14 @@
       "audit": "ADMIN_ACCEPT_AI_OBJECT"
     },
     {
+      "route": "api/admin/cases/<int:case_version_id>/plan",
+      "method": "GET",
+      "exposure": "role:ADMIN,PROFESOR",
+      "body": "none",
+      "throttle": null,
+      "audit": "EXENTO: contenido del caso (autoría): no son datos de personas"
+    },
+    {
       "route": "api/admin/cases/<int:case_version_id>/publish",
       "method": "POST",
       "exposure": "role:ADMIN",
@@ -938,6 +946,14 @@
       "audit": "ADMIN_ACCEPT_AI_OBJECT"
     },
     {
+      "route": "api/authoring/cases/<int:case_version_id>/plan",
+      "method": "GET",
+      "exposure": "role:ADMIN,PROFESOR",
+      "body": "none",
+      "throttle": null,
+      "audit": "EXENTO: contenido del caso (autoría): no son datos de personas"
+    },
+    {
       "route": "api/authoring/cases/<int:case_version_id>/publish",
       "method": "POST",
       "exposure": "role:ADMIN",
@@ -1076,6 +1092,62 @@
         "import_user"
       ],
       "audit": "CASE_IMPORTED"
+    },
+    {
+      "route": "api/authoring/generations",
+      "method": "POST",
+      "exposure": "role:ADMIN,PROFESOR",
+      "body": "json-small",
+      "throttle": null,
+      "audit": "AI_AUTHORING_GENERATE"
+    },
+    {
+      "route": "api/authoring/generations/<uuid:gen_id>",
+      "method": "DELETE",
+      "exposure": "role:ADMIN,PROFESOR",
+      "body": "none",
+      "throttle": null,
+      "audit": "AI_AUTHORING_GENERATE"
+    },
+    {
+      "route": "api/authoring/generations/<uuid:gen_id>",
+      "method": "GET",
+      "exposure": "role:ADMIN,PROFESOR",
+      "body": "none",
+      "throttle": null,
+      "audit": "EXENTO: lectura de lo propio o de un catálogo común a todos los roles: no son datos de otra persona"
+    },
+    {
+      "route": "api/authoring/generations/<uuid:gen_id>/assemble",
+      "method": "POST",
+      "exposure": "role:ADMIN,PROFESOR",
+      "body": "json-small",
+      "throttle": null,
+      "audit": "AI_AUTHORING_GENERATE"
+    },
+    {
+      "route": "api/authoring/generations/<uuid:gen_id>/scenes/<slug:clave>",
+      "method": "POST",
+      "exposure": "role:ADMIN,PROFESOR",
+      "body": "json-small",
+      "throttle": null,
+      "audit": "AI_AUTHORING_GENERATE"
+    },
+    {
+      "route": "api/authoring/generations/<uuid:gen_id>/skeleton",
+      "method": "POST",
+      "exposure": "role:ADMIN,PROFESOR",
+      "body": "json-small",
+      "throttle": null,
+      "audit": "AI_AUTHORING_GENERATE"
+    },
+    {
+      "route": "api/authoring/generations/status",
+      "method": "GET",
+      "exposure": "role:ADMIN,PROFESOR",
+      "body": "none",
+      "throttle": null,
+      "audit": "EXENTO: lectura de lo propio o de un catálogo común a todos los roles: no son datos de otra persona"
     },
     {
       "route": "api/biblioteca/lugares",

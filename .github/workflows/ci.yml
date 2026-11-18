@@ -67,6 +67,8 @@ jobs:
         with:
           node-version: ${{ env.NODE_VERSION }}
       - run: npm run test:scripts
+      - name: Comprobar versiones
+        run: npm run check:version
 
   audit:
     name: Vulnerabilidades (pip-audit + npm audit)
@@ -186,7 +188,7 @@ jobs:
       - name: Instalar Chromium de Playwright
         working-directory: frontend
         run: npx playwright install --with-deps chromium
-      - run: npm run test:e2e -- --grep-invert "@full-case|@orientation" --shard=${{ matrix.shard }}/4
+      - run: npm run test:e2e -- --grep-invert "@full-case|@orientation|@captura" --shard=${{ matrix.shard }}/4
       - name: Subir artefactos de Playwright
         if: failure()
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7

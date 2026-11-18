@@ -13,8 +13,11 @@ export const PERMISSION_MESSAGE = 'No tienes permisos para realizar esta acción
 const LOGIN_URL = '/api/auth/login';
 const LOGOUT_URL = '/api/auth/logout';
 const ME_URL = '/api/auth/me';
-/** Pantallas públicas que muestran su propio texto de 429 (acceso, Google y solicitud de acceso). */
-const SELF_THROTTLED_URLS = [LOGIN_URL, '/api/auth/google', '/api/auth/access-request'];
+/**
+ * Pantallas que muestran su propio texto de 429: las públicas de acceso (acceso, Google y solicitud de acceso) y la generación
+ * de casos con IA (el tope del día en «Describe tu caso», los intentos agotados en el avance).
+ */
+const SELF_THROTTLED_URLS = [LOGIN_URL, '/api/auth/google', '/api/auth/access-request', '/api/authoring/generations'];
 
 /**
  * Marca de una petición cuyo 403 lo explica su pantalla con su propio texto (p. ej. «Esta rúbrica es de solo
@@ -23,11 +26,18 @@ const SELF_THROTTLED_URLS = [LOGIN_URL, '/api/auth/google', '/api/auth/access-re
  */
 export const SCREEN_HANDLES_FORBIDDEN = new HttpContextToken<boolean>(() => false);
 
+/**
+ * Marca de una petición cuya falta de red la explica su pantalla (la salida segura sin red, REGLA-004: la pantalla de pausa
+ * dice que la pausa se registrará al volver la conexión): el aviso global «No fue posible conectar…» no sale además.
+ */
+export const SCREEN_HANDLES_OFFLINE = new HttpContextToken<boolean>(() => false);
+
 /** Lo que cada eslabón necesita para decidir y actuar; se pasa entero para no acoplarlos a `inject()`. */
 export interface HttpErrorContext {
   error: unknown;
   url: string;
   screenHandlesForbidden?: boolean;
+  screenHandlesOffline?: boolean;
   auth: Pick<AuthService, 'clearSession' | 'requirePasswordChange'>;
   router: Pick<Router, 'url' | 'navigate'>;
   notifications: Pick<NotificationService, 'error' | 'warning'>;
@@ -168,7 +178,7 @@ export class ForbiddenHandler extends HttpErrorHandler {
 
 export class NoConnectionHandler extends HttpErrorHandler {
   protected canHandle(ctx: HttpErrorContext): boolean {
-    return statusOf(ctx) === 0;
+    return statusOf(ctx) === 0 && !ctx.screenHandlesOffline;
   }
   protected apply(ctx: HttpErrorContext): void {
     ctx.notifications.error(CONNECTION_MESSAGE);

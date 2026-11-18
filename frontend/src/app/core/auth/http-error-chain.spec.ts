@@ -117,6 +117,14 @@ describe('cadena de errores HTTP', () => {
       expect(effects()).toEqual({ clear: 0, nav: 0, err: 0, warn: 0 });
     });
 
+    // V3 (REGLA-004): la pausa sin red ya la explica la pantalla de pausa; el aviso de conexión le taparía el título.
+    it('una petición sin red que la pantalla explica (`screenHandlesOffline`) no dispara el aviso de conexión', () => {
+      buildHttpErrorChain().handle({ ...ctxBase, error: http(0), url: '/api/simulation/attempts/a/safe-exit', screenHandlesOffline: true });
+      expect(effects()).toEqual({ clear: 0, nav: 0, err: 0, warn: 0 });
+      buildHttpErrorChain().handle({ ...ctxBase, error: http(0), url: '/api/simulation/attempts/a/safe-exit' });
+      expect(effects()).toEqual({ clear: 0, nav: 0, err: 1, warn: 0 });
+    });
+
     it('…pero el cambio de contraseña obligatorio manda igual', () => {
       router.url = '/portal/rubricas';
       buildHttpErrorChain().handle({ ...ctxBase, error: passwordChange(), url: '/api/rubrics/4', screenHandlesForbidden: true });
@@ -207,7 +215,9 @@ describe('cadena de errores HTTP', () => {
       expect(notifications.warning).toHaveBeenLastCalledWith(THROTTLED_FALLBACK_MESSAGE);
     });
 
-    it.each(['/api/auth/login', '/api/auth/google', '/api/auth/access-request'])(
+    // La generación de casos con IA explica sus 429 en su pantalla (el tope del día en «Describe tu caso», los intentos
+    // agotados junto a la parte que falló en el avance): el aviso global los repetiría y los anunciaría dos veces.
+    it.each(['/api/auth/login', '/api/auth/google', '/api/auth/access-request', '/api/authoring/generations/6f1d3c2a/scenes/consulta'])(
       '%s lo explica su propia pantalla: la cadena no avisa además', url => {
         run(throttled({ message: 'Demasiados intentos. Espera 5 s e inténtalo de nuevo.' }), url);
         expect(effects()).toEqual({ clear: 0, nav: 0, err: 0, warn: 0 });

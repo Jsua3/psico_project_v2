@@ -525,14 +525,20 @@ def assign_to_case_version(case_version_id, rubric_id, user):
 
 
 def rubric_for_case_version(case_version_id):
+    """La rúbrica con que se evalúa una versión: la asignada; si no, la propia de la versión; si no, la de la plataforma.
+
+    Una asignación a la rúbrica POR DEFECTO no tapa la rúbrica propia de la versión: la de un caso importado o generado
+    trae las competencias que declaran sus respuestas, y la por defecto (asignada en masa por ``seed_default_rubric`` antes
+    de este arreglo) las dejaba todas «sin evidencia». Una asignación a cualquier otra rúbrica sigue mandando.
+    """
     assignment = (
         SimulationRubricAssignment.objects.filter(case_version_id=case_version_id, active=True)
         .select_related("rubric")
         .first()
     )
-    if assignment:
-        return assignment.rubric
     specific = Rubric.objects.filter(case_version_id=case_version_id, active=True).order_by("id").first()
+    if assignment and not (specific and assignment.rubric.is_default):
+        return assignment.rubric
     if specific:
         return specific
     default = Rubric.objects.filter(is_default=True, active=True).order_by("id").first()
@@ -843,7 +849,11 @@ def seed_default_rubric(user):
     competencies.link_unlinked_criteria(create=True)
     set_default(rubric.id)
 
+    # Solo a las versiones publicadas que no tienen rúbrica propia: una propia (la del documento importado o la copia de la
+    # generación) es la que corresponde a las competencias que declaran sus respuestas.
     for case_version in CaseVersion.objects.filter(status="PUBLISHED", simulation_case__active=True):
+        if Rubric.objects.filter(case_version=case_version, active=True).exists():
+            continue
         if not SimulationRubricAssignment.objects.filter(case_version=case_version, active=True).exists():
             SimulationRubricAssignment.objects.create(case_version=case_version, rubric=rubric, assigned_by=user)
     return rubric_detail(rubric)

@@ -129,10 +129,10 @@ def _lugar_pedido(request):
     if request.get("lugarId") is None:
         return None, None
     pedido = inputs.CaseLugarRequest(
-        data={clave: request[clave] for clave in ("lugarId", "salas") if clave in request}
+        data={clave: request[clave] for clave in ("lugarId", "salas", "porPiezas") if clave in request}
     )
     pedido.is_valid(raise_exception=True)
-    lugar = lugares.cargar_lugar(pedido.validated_data["lugarId"])
+    lugar = lugares.cargar_lugar(pedido.validated_data["lugarId"], por_piezas=pedido.validated_data["porPiezas"])
     return lugar, copiar_al_caso.validar_salas(lugar, pedido.validated_data["salas"])
 
 

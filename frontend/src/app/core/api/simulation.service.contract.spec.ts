@@ -4,7 +4,7 @@ import { TestBed } from '@angular/core/testing';
 import { Observable } from 'rxjs';
 
 import { resolveScenarioConfigAssetKey } from '../../features/simulator/scenario-config-assets.util';
-import { SCREEN_HANDLES_FORBIDDEN } from '../auth/http-error-chain';
+import { SCREEN_HANDLES_FORBIDDEN, SCREEN_HANDLES_OFFLINE } from '../auth/http-error-chain';
 import { AuthoringApi } from './authoring.api';
 import { InstructorApi } from './instructor.api';
 import { SimulationService } from './simulation.service';
@@ -52,6 +52,7 @@ interface Contract {
 }
 
 const A = '/api/authoring/cases';
+const G = '/api/authoring/generations';
 const S = '/api/simulation';
 const att = `${S}/attempts/${ATTEMPT}`;
 
@@ -66,6 +67,7 @@ const CONTRACTS: Contract[] = [
   { method: 'getProgressMap', call: s => s.getProgressMap(ATTEMPT, TOKEN), verb: 'GET',
     url: `${att}/progress-map`, attemptToken: true },
   { method: 'getWorld', call: s => s.getWorld(ATTEMPT, TOKEN), verb: 'GET', url: `${att}/world`, attemptToken: true },
+  { method: 'getAttempt', call: s => s.getAttempt(ATTEMPT, TOKEN), verb: 'GET', url: att, attemptToken: true },
   { method: 'enterRoom', call: s => s.enterRoom(ATTEMPT, TOKEN, 'sala-b', 'puerta-a'), verb: 'POST',
     url: `${att}/enter-room`, body: { attemptToken: TOKEN, targetNodeKey: 'sala-b', doorKey: 'puerta-a' } },
   { method: 'updateWorldState', call: s => s.updateWorldState(ATTEMPT, TOKEN, 10, 20, 'mapa-1'), verb: 'PATCH',
@@ -169,12 +171,24 @@ const CONTRACTS: Contract[] = [
   { method: 'worldEditor', call: s => s.worldEditor(9), verb: 'GET', url: `${A}/9/world-editor` },
   { method: 'saveWorld', call: s => s.saveWorld(9, body('mundo')), verb: 'PUT', url: `${A}/9/world`, body: body('mundo') },
   { method: 'validateWorld', call: s => s.validateWorld(9), verb: 'POST', url: `${A}/9/world/validate`, body: {} },
+  // P4 (tarea 11): el plano de las salas por piezas del caso para el editor.
+  { method: 'casePlan', call: s => s.casePlan(9), verb: 'GET', url: `${A}/9/plan` },
   { method: 'worldPreview', call: s => s.worldPreview(9), verb: 'GET', url: `${A}/9/world-preview` },
 
   // ── revisión del caso (F10-6†: C4 ciclo de vida y C6 validación) ───────────────────────────────────────────
   { method: 'validateCase', call: s => s.validateCase(9), verb: 'POST', url: `${A}/9/validate`, body: {} },
   { method: 'lifecycle', call: s => s.lifecycle(9), verb: 'GET', url: `${A}/9/lifecycle` },
   { method: 'transitionCase', call: s => s.transitionCase(9, { action: 'submit' }), verb: 'POST', url: `${A}/9/lifecycle`, body: { action: 'submit' } },
+
+  // ── generación de casos con IA, por etapas (C1) ────────────────────────────────────────────────────────────
+  { method: 'generationStatus', call: s => s.generationStatus(), verb: 'GET', url: `${G}/status` },
+  { method: 'startGeneration', call: s => s.startGeneration({ lugarId: 'universidad', descripcion: 'd' }), verb: 'POST', url: G,
+    body: { lugarId: 'universidad', descripcion: 'd' } },
+  { method: 'generation', call: s => s.generation('g1'), verb: 'GET', url: `${G}/g1` },
+  { method: 'generationSkeleton', call: s => s.generationSkeleton('g1'), verb: 'POST', url: `${G}/g1/skeleton`, body: {} },
+  { method: 'generationScene', call: s => s.generationScene('g1', 'sala-1'), verb: 'POST', url: `${G}/g1/scenes/sala-1`, body: {} },
+  { method: 'generationAssemble', call: s => s.generationAssemble('g1'), verb: 'POST', url: `${G}/g1/assemble`, body: {} },
+  { method: 'cancelGeneration', call: s => s.cancelGeneration('g1'), verb: 'DELETE', url: `${G}/g1` },
 ];
 
 describe('SimulationService contrato HTTP', () => {
@@ -207,7 +221,11 @@ describe('SimulationService contrato HTTP', () => {
       expect(req.request.headers.has('X-SIEP-Attempt-Token')).toBe(false);
     }
     // La decisión (C2) responde `{ attempt, consequence, retry? }`: lo demás desenvuelve el sobre tal cual.
-    req.flush({ data: contract.method === 'chooseDecision' ? { attempt: { ok: contract.method }, consequence: null } : { ok: contract.method } });
+    req.flush({
+      data: contract.method === 'chooseDecision' ? { attempt: { ok: contract.method }, consequence: null }
+        : contract.method === 'casePlan' ? { plan: { ok: contract.method } }   // devuelve `data.plan`
+        : { ok: contract.method },
+    });
 
     // Todos los métodos de esta tabla desenvuelven el sobre `{ data }`. `chooseDecision` añade `consequence` y `retry`
     // (C2): por eso se compara con `toMatchObject` y no con igualdad exacta.
@@ -326,13 +344,13 @@ describe('SimulationService contrato HTTP', () => {
 
     expect(publicMethods.filter(name => !documented.has(name))).toEqual([]);
     expect([...documented].filter(name => !publicMethods.includes(name))).toEqual([]);
-    expect(publicMethods).toHaveLength(79);
+    expect(publicMethods).toHaveLength(88);
   });
 
   it('cada método vive en una sola API y cada rol tiene el tamaño esperado', () => {
     const [player, authoring, instructor] = ROLE_CLASSES.map(publicMethodsOf);
-    expect(new Set([...player, ...authoring, ...instructor]).size).toBe(79);
-    expect([player.length, authoring.length, instructor.length]).toEqual([24, 50, 5]);
+    expect(new Set([...player, ...authoring, ...instructor]).size).toBe(88);
+    expect([player.length, authoring.length, instructor.length]).toEqual([25, 58, 5]);
     expect(instructor).toEqual(['recentAttempts', 'attemptTrace', 'rubric', 'replaceAttempt', 'saveRubric']);
   });
 
@@ -343,6 +361,28 @@ describe('SimulationService contrato HTTP', () => {
     const request = httpMock.expectOne(`${S}/attempts`);
     expect(request.request.context.get(SCREEN_HANDLES_FORBIDDEN)).toBe(true);
     request.flush({}, { status: 403, statusText: 'Forbidden' });
+  });
+
+  // REGLA-004 (V3): sin red la pausa ya salió en la pantalla y su nota lo dice; el aviso global de conexión no la tapa.
+  it('la salida segura deja que la pantalla explique la falta de red: no sale además el aviso de conexión', () => {
+    service.safeExit('a1', 't1', 'Salida segura solicitada').subscribe({ error: () => undefined });
+
+    const request = httpMock.expectOne(`${S}/attempts/a1/safe-exit`);
+    expect(request.request.context.get(SCREEN_HANDLES_OFFLINE)).toBe(true);
+    request.flush({ success: true, data: null });
+  });
+
+  // V4: la posición que viaja con la pausa también la explica la pantalla de pausa; la del caminar normal, el aviso de siempre.
+  it('la posición que lleva la pausa no saca el aviso global de conexión; la de caminar sí puede', () => {
+    service.updateWorldState('a1', 't1', 10, 20, 'sala', true).subscribe({ error: () => undefined });
+    const conPausa = httpMock.expectOne(`${S}/attempts/a1/world-state`);
+    expect(conPausa.request.context.get(SCREEN_HANDLES_OFFLINE)).toBe(true);
+    conPausa.flush({ success: true, data: null });
+
+    service.updateWorldState('a1', 't1', 10, 20, 'sala').subscribe({ error: () => undefined });
+    const caminando = httpMock.expectOne(`${S}/attempts/a1/world-state`);
+    expect(caminando.request.context.get(SCREEN_HANDLES_OFFLINE)).toBe(false);
+    caminando.flush({ success: true, data: null });
   });
 
   it('el jugador no ve métodos de autoría ni de instructor', () => {

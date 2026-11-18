@@ -12,7 +12,7 @@ import type {
   ChecklistUpdateRequest, WorldDefinition, WorldDialogueChoice, WorldDialogueTree, WorldObject, WorldRoomSaveRequest,
 } from '../../../core/models/simulation.model';
 import type { CasoBorrador, Escena, Respuesta } from '../modelo/caso';
-import { arbolDeGuion } from '../modelo/desde-api';
+import { arbolDeGuion, salaPorClaveDeNodoDe } from '../modelo/desde-api';
 import {
   claveLibre, cuerpoDecision, cuerpoLista, cuerpoGuion, cuerpoNodo, finalesAApi, hitosAApi, solicitudDeSala,
 } from '../modelo/hacia-api';
@@ -41,16 +41,25 @@ const escenaDe = (caso: CasoBorrador, id: string): Escena | undefined => caso.es
  */
 async function armarSolicitudDeSala(
   s: SesionServidor, caso: CasoBorrador, salaId: string, previo: WorldDefinition,
+  pendientes?: Set<string>,
 ): Promise<Omit<WorldRoomSaveRequest, 'revision'>> {
   const sala = caso.salas.find((x) => x.id === salaId);
   if (!sala) throw new Error(`La sala «${salaId}» no está en el caso.`);
+  const salaPorNodo = salaPorClaveDeNodoDe(s.vista.maps, [...s.mundos.values()]);
+  const nodosPorSala = new Map<string, string>();
+  for (const [nodo, sala] of salaPorNodo) {
+    if (!nodosPorSala.has(sala)) nodosPorSala.set(sala, nodo);
+  }
   for (let intento = 0; intento < 2; intento++) {
-    const { solicitud, faltanPersonajes } = solicitudDeSala(
+    const { solicitud, faltanPersonajes, puertasSinGuardar } = solicitudDeSala(
       sala,
-      { revision: s.revision, catalogo: caso.catalogo, personajes: caso.personajes, personajesDelCaso: s.vista.characters },
+      { revision: s.revision, catalogo: caso.catalogo, personajes: caso.personajes, personajesDelCaso: s.vista.characters, nodosPorSala, salaPorNodo },
       previo,
     );
-    if (faltanPersonajes.length === 0) return solicitud;
+    if (faltanPersonajes.length === 0) {
+      for (const id of puertasSinGuardar) pendientes?.add(id);
+      return solicitud;
+    }
     for (const ref of faltanPersonajes) {
       const info = caso.personajes.find((p) => p.id === ref);
       await s.crearPersonaje({ characterKey: ref, displayName: info?.nombre ?? ref, roleLabel: info?.rol ?? '', portraitKey: '' });
@@ -73,6 +82,69 @@ export class BorradoAMedias extends Error {
   }
 }
 
+/** Se aceptaron algunas partes de una escena y otra falló: cuántas se alcanzaron a aceptar, de cuántas, y por qué paró. */
+export class AceptacionAMedias extends Error {
+  constructor(readonly hechas: number, readonly total: number, readonly causa: unknown) {
+    super('No se alcanzó a aceptar toda la escena.');
+  }
+}
+
+/** Lo sugerido por la IA en una escena y todavía sin aceptar: la escena misma, sus líneas, sus respuestas y las personas de su sala. */
+export interface PlanDeAceptacion {
+  escenaId: string;
+  escena: boolean;
+  lineas: number;
+  respuestas: string[];
+  salaId: string | null;
+  /** La clave de cada persona marcada; `undefined` si todavía no está en el servidor. */
+  personas: Array<string | undefined>;
+}
+
+export function planDeAceptacion(caso: CasoBorrador | null, escenaId: string): PlanDeAceptacion | null {
+  const escena = caso?.escenas.find((e) => e.id === escenaId);
+  if (!caso || !escena) return null;
+  const sala = caso.salas.find((s) => s.id === escena.salaId);
+  return {
+    escenaId,
+    escena: escena.marcaIa === true,
+    lineas: escena.lineas.filter((l) => l.marcaIa).length,
+    respuestas: escena.respuestas.filter((r) => r.marcaIa).map((r) => r.id),
+    salaId: sala?.id ?? null,
+    personas: (sala?.personajes ?? []).filter((p) => p.marcaIa).map((p) => p.clave),
+  };
+}
+
+export const partesPorAceptar = (plan: PlanDeAceptacion): number =>
+  (plan.escena ? 1 : 0) + plan.lineas + plan.respuestas.length + plan.personas.length;
+
+/**
+ * Acepta en el servidor todo lo del plan, una ruta tras otra y con la revisión que devuelve cada una: la escena, el guion (sus
+ * líneas viajan juntas), cada respuesta y cada persona. Aceptar lo ya aceptado no cambia nada, así que repetir completa. Si una
+ * ruta falla, lo aceptado queda y se lanza `AceptacionAMedias` con la cuenta.
+ */
+export async function aceptarEscena(s: SesionServidor, caso: CasoBorrador, plan: PlanDeAceptacion): Promise<void> {
+  const pasos: Array<{ partes: number; hacer: () => Promise<unknown> }> = [];
+  if (plan.escena) {
+    pasos.push({ partes: 1, hacer: async () => { const nodo = s.nodoDe(plan.escenaId); if (nodo !== undefined) await s.aceptarNodo(nodo); } });
+  }
+  if (plan.lineas > 0) pasos.push({ partes: plan.lineas, hacer: () => sincronizarGuion(s, caso, plan.escenaId) });
+  for (const id of plan.respuestas) {
+    pasos.push({ partes: 1, hacer: async () => { const decision = s.decisionDe(id); if (decision !== undefined) await s.aceptarDecision(decision); } });
+  }
+  for (const clave of plan.personas) {
+    pasos.push({ partes: 1, hacer: async () => { if (clave && plan.salaId) await aceptarPieza(s, caso, plan.salaId, clave); } });
+  }
+  let hechas = 0;
+  for (const paso of pasos) {
+    try {
+      await paso.hacer();
+    } catch (error) {
+      throw new AceptacionAMedias(hechas, partesPorAceptar(plan), error);
+    }
+    hechas += paso.partes;
+  }
+}
+
 /** Otra sesión cambió el caso: no se reintenta ni se da por perdido nada, lo trata el store. */
 const esConflicto = (error: unknown): boolean => error instanceof HttpErrorResponse && error.status === 409;
 
@@ -81,12 +153,16 @@ const esConflicto = (error: unknown): boolean => error instanceof HttpErrorRespo
  * cambió. Si falla uno de los siguientes, el primero ya quedó guardado: se reintenta una vez los que faltan, para
  * alinearlos con él; si tampoco se puede, se avisa con `SalaDesalineada` (el store muestra lo que quedó).
  */
-export async function guardarSala(s: SesionServidor, caso: CasoBorrador, salaId: string): Promise<void> {
+export async function guardarSala(s: SesionServidor, caso: CasoBorrador, salaId: string): Promise<string[]> {
+  const pendientes = new Set<string>();
   const nodos = caso.escenas
     .filter((e) => e.salaId === salaId)
     .map((e) => s.nodoDe(e.id))
     .filter((id): id is number => id !== undefined && s.mapaDeNodo(id) !== undefined);
-  const guardar = async (nodoId: number) => s.guardarMundo(nodoId, await armarSolicitudDeSala(s, caso, salaId, await s.mundoDe(nodoId)));
+  const guardar = async (nodoId: number) => {
+    const solicitud = await armarSolicitudDeSala(s, caso, salaId, await s.mundoDe(nodoId), pendientes);
+    await s.guardarMundo(nodoId, solicitud);
+  };
   for (let i = 0; i < nodos.length; i++) {
     try {
       await guardar(nodos[i]);
@@ -99,10 +175,11 @@ export async function guardarSala(s: SesionServidor, caso: CasoBorrador, salaId:
         throw new SalaDesalineada(salaId);
       }
       await recuperarGuiones(s, caso, nodos);
-      return;
+      return [...pendientes];
     }
   }
   await recuperarGuiones(s, caso, nodos);
+  return [...pendientes];
 }
 
 /**
@@ -183,6 +260,8 @@ export async function crearEscena(s: SesionServidor, caso: CasoBorrador, escenaI
     };
     const solicitud = await armarSolicitudDeSala(s, caso, sala.id, previo);
     await s.guardarMundo(nodo.id, solicitud);
+    // Una escena que nace con pistas (la copia de otra, una propuesta de la IA) las guarda también: borrador y servidor coinciden.
+    await guardarPistas(s, caso, escenaId);
   } catch (error) {
     try {
       await s.borrarNodo(nodo.id); // se lleva su mapa: no queda una escena a medias
@@ -193,7 +272,7 @@ export async function crearEscena(s: SesionServidor, caso: CasoBorrador, escenaI
   }
 }
 
-/** Pone al día título, posición, final, aviso e intensidad de la escena (y si es la de inicio). */
+/** Pone al día título, posición, final, aviso, intensidad, objetivo y comentarios de la escena (y si es la de inicio). */
 export async function actualizarEscena(s: SesionServidor, caso: CasoBorrador, escenaId: string): Promise<void> {
   const escena = escenaDe(caso, escenaId);
   const nodoId = s.nodoDe(escenaId);
@@ -204,10 +283,31 @@ export async function actualizarEscena(s: SesionServidor, caso: CasoBorrador, es
     && previo.title === cuerpo.title && previo.narrative === cuerpo.narrative && previo.terminal === cuerpo.terminal && previo.startNode === cuerpo.startNode
     && previo.positionX === cuerpo.positionX && previo.positionY === cuerpo.positionY && previo.intensity === cuerpo.intensity
     && (previo.warningMessage ?? null) === (cuerpo.warningMessage ?? null)
-    && JSON.stringify(previo.supportResources ?? []) === JSON.stringify(cuerpo.supportResources ?? [])) {
+    && JSON.stringify(previo.supportResources ?? []) === JSON.stringify(cuerpo.supportResources ?? [])
+    && !('goal' in cuerpo) && !('comments' in cuerpo)) { // el objetivo y los comentarios viajan solo si cambiaron
     return; // nada que decirle al servidor
   }
   await s.actualizarNodo(nodoId, cuerpo);
+}
+
+/**
+ * Deja en el mapa de la escena exactamente las pistas del borrador, en su orden: las que ya hay cambian de texto si hace falta,
+ * las que faltan se crean (al final) y las que sobran se borran. Una pista en blanco se queda en el borrador hasta que tenga
+ * texto (el servidor no la aceptaria). Una escena sin mapa en el servidor no tiene donde guardarlas: no se manda nada.
+ */
+export async function guardarPistas(s: SesionServidor, caso: CasoBorrador, escenaId: string): Promise<void> {
+  const escena = escenaDe(caso, escenaId);
+  const nodoId = s.nodoDe(escenaId);
+  const mapa = nodoId === undefined ? undefined : s.mapaDeNodo(nodoId);
+  if (!escena || !mapa) return;
+  const deseadas = (escena.pistas ?? []).map((p) => p.texto).filter((t) => t.trim() !== '');
+  const guardadas = s.pistasDeMapa(mapa.id);
+  for (let i = 0; i < deseadas.length; i++) {
+    const guardada = guardadas[i];
+    if (!guardada) await s.crearPista(mapa.id, { text: deseadas[i] });
+    else if (guardada.text !== deseadas[i]) await s.actualizarPista(guardada.id, { text: deseadas[i], hintOrder: guardada.order });
+  }
+  for (const sobra of guardadas.slice(deseadas.length)) await s.borrarPista(sobra.id);
 }
 
 /** Borra la escena del servidor, con las respuestas de otras escenas que llegaban a ella (el servidor no deja huérfanas). */

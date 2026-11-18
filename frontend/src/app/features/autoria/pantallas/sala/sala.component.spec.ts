@@ -1,16 +1,22 @@
 import { readFileSync } from 'fs';
 import { join } from 'path';
 
+import { signal } from '@angular/core';
 import { TestBed } from '@angular/core/testing';
+import { CatalogoDePiezas } from '../../estado/catalogo-de-piezas';
 import { provideRouter } from '@angular/router';
 
 import { UiDialog } from '../../../../shared/ui/dialog/ui-dialog';
 import { universidad } from '../../testing/universidad';
+import { CASO_HOSPITAL } from '../../testing/hospital';
 import { CasoStore } from '../../estado/caso.store';
 import { BibliotecaService } from '../../modelo/biblioteca.service';
 import { copiarEscenarioAlCaso } from '../../modelo/copiar';
 import type { Escenario } from '../../modelo/escenario';
 import { SalaComponent } from './sala.component';
+import { FABRICA_DE_JUEGO_DE_SALA } from './lienzo-de-sala.component';
+import { primerHueco } from '../../modelo/arrastre-en-muro';
+import { largoMuro } from '../../modelo/geometria';
 
 
 /** `respuestaDelAviso`: lo que elige el docente cuando el editor le pregunta antes de quitar a la última persona. */
@@ -21,6 +27,8 @@ async function montar(respuestaDelAviso: 'continue' | 'proceed' = 'proceed') {
   await TestBed.configureTestingModule({
     imports: [SalaComponent],
     providers: [
+      { provide: CatalogoDePiezas, useValue: { manifiesto: signal(null), reglas: signal(null), error: signal(false) } },
+      { provide: FABRICA_DE_JUEGO_DE_SALA, useValue: () => ({ destruir: () => {} }) },
       provideRouter([]), { provide: BibliotecaService, useValue: { escenario: async () => universidad } },
       { provide: UiDialog, useValue: { consequence } },
     ],
@@ -38,6 +46,180 @@ const tecla = (el: Element, key: string, extra: KeyboardEventInit = {}) =>
   el.dispatchEvent(new KeyboardEvent('keydown', { key, bubbles: true, ...extra }));
 
 describe('SalaComponent', () => {
+  it('agregar, quitar y reordenar puntos con teclado se deshace', async () => {
+    const { fixture, store, raiz } = await montar();
+    raiz.querySelector<HTMLButtonElement>('[data-elemento="personaje-0"]')!.click();
+    fixture.detectChanges();
+    [...raiz.querySelectorAll('button')].find(b => b.textContent?.trim() === 'Recorre un trayecto')!.click();
+    fixture.detectChanges();
+    const movimiento = () => store.caso()!.salas[0].personajes[0].movimiento as
+      { tipo: 'ruta'; puntos: { x: number; y: number }[] };
+    const inicial = structuredClone(movimiento().puntos);
+    const punto = raiz.querySelector<HTMLElement>('app-trayecto-de-persona li button')!;
+    tecla(punto, 'ArrowRight'); fixture.detectChanges();
+    expect(movimiento().puntos[0].x).toBe(inicial[0].x + 8);
+    raiz.querySelector<HTMLButtonElement>('[data-agregar]')!.click(); fixture.detectChanges();
+    expect(movimiento().puntos.length).toBe(3);
+    raiz.querySelector<HTMLButtonElement>('[data-subir="1"]')!.click(); fixture.detectChanges();
+    raiz.querySelector<HTMLButtonElement>('[data-quitar="1"]')!.click(); fixture.detectChanges();
+    expect(movimiento().puntos.length).toBe(2);
+    for (let i = 0; i < 4; i++) store.deshacer();
+    fixture.detectChanges();
+    expect(movimiento().puntos).toEqual(inicial);
+  });
+
+  it('un punto del trayecto se mueve con Mayús y flechas y Ctrl+Z / Ctrl+Y desde el mismo punto lo deshacen y rehacen', async () => {
+    const { fixture, store, raiz } = await montar();
+    raiz.querySelector<HTMLButtonElement>('[data-elemento="personaje-0"]')!.click();
+    fixture.detectChanges();
+    [...raiz.querySelectorAll('button')].find(b => b.textContent?.trim() === 'Recorre un trayecto')!.click();
+    fixture.detectChanges();
+    const puntos = () => (store.caso()!.salas[0].personajes[0].movimiento as { puntos: { x: number; y: number }[] }).puntos;
+    const inicial = structuredClone(puntos());
+    const punto = () => raiz.querySelector<HTMLElement>('app-trayecto-de-persona li button')!;
+    tecla(punto(), 'ArrowDown', { shiftKey: true }); fixture.detectChanges();
+    expect(puntos()[0]).toEqual({ x: inicial[0].x, y: inicial[0].y + 1 });
+    tecla(punto(), 'ArrowLeft'); fixture.detectChanges();
+    expect(puntos()[0]).toEqual({ x: inicial[0].x - 8, y: inicial[0].y + 1 });
+    tecla(punto(), 'z', { ctrlKey: true }); fixture.detectChanges();
+    expect(puntos()[0]).toEqual({ x: inicial[0].x, y: inicial[0].y + 1 });
+    tecla(punto(), 'z', { ctrlKey: true }); fixture.detectChanges();
+    expect(puntos()).toEqual(inicial);
+    tecla(punto(), 'y', { ctrlKey: true }); fixture.detectChanges();
+    expect(puntos()[0]).toEqual({ x: inicial[0].x, y: inicial[0].y + 1 });
+    // En la casilla de la pausa Ctrl+Z es del texto: no toca el borrador.
+    tecla(raiz.querySelector('app-trayecto-de-persona input')!, 'z', { ctrlKey: true }); fixture.detectChanges();
+    expect(puntos()[0]).toEqual({ x: inicial[0].x, y: inicial[0].y + 1 });
+  });
+
+  it('agregar una ventana la deja elegida y enfocada en el primer hueco del fondo', async () => {
+    const { fixture, store, raiz } = await montar();
+    const catalogo = TestBed.inject(CatalogoDePiezas);
+    const ficha = { nombre: 'Ventana alta', ocupa: 40, franja: [0, 40] as [number, number], muros: ['fondo'] };
+    const falso = catalogo as unknown as { manifiesto: ReturnType<typeof signal<unknown>>; paleta: () => unknown; acabados: () => unknown };
+    falso.manifiesto.set({ piezas: { 'ventana/alta': ficha }, pisos: {}, muros: {} });
+    falso.paleta = () => [{ clave: 'ventanas', nombre: 'Ventanas', modelos: [
+      { tipo: 'ventana', modelo: 'alta', nombre: 'Ventana alta', muros: ['fondo'] },
+    ] }];
+    falso.acabados = () => ({ pisos: [], muros: [] });
+    const caso = structuredClone(CASO_HOSPITAL);
+    caso.salas[0].estructura!.piezas = [];
+    caso.salas[0].puertas = [];
+    store.fijar(caso); fixture.componentRef.setInput('salaId', caso.salas[0].id);
+    document.body.appendChild(raiz);
+    try {
+      fixture.detectChanges();
+      raiz.querySelector<HTMLButtonElement>('[data-modelo="alta"]')!.click();
+      fixture.detectChanges();
+      await fixture.whenStable();
+      await new Promise(resolve => setTimeout(resolve, 0));
+      fixture.detectChanges();
+      const pieza = store.caso()!.salas[0].estructura!.piezas!.at(-1)!;
+      const esperado = primerHueco('fondo', { ...ficha, esPuerta: false }, [],
+        largoMuro('fondo', caso.salas[0].encuadre, caso.salas[0].estructura!.ancho));
+      const boton = raiz.querySelector<HTMLButtonElement>(`[data-pieza="${pieza.id}"]`)!;
+      expect(pieza).toMatchObject({ muro: 'fondo', pos: esperado });
+      expect(boton.classList.contains('elegida')).toBe(true);
+      expect(document.activeElement).toBe(boton);
+    } finally { raiz.remove(); fixture.destroy(); }
+  });
+
+  it('en la sala por piezas el botón de una hoja animada mide un cuadro de la pieza, no la hoja entera', async () => {
+    const { fixture, store, raiz } = await montar();
+    const catalogo = TestBed.inject(CatalogoDePiezas);
+    const falso = catalogo as unknown as { manifiesto: ReturnType<typeof signal<unknown>>; paleta: () => unknown; acabados: () => unknown };
+    const ruta = 'piezas/muebles/comisaria/escritorio.png';
+    falso.manifiesto.set({ piezas: {}, pisos: {}, muros: {}, objetos: {}, herramientas: {},
+      muebles: { 'comisaria/escritorio': { nombre: 'Escritorio', ruta, ancho: 125, alto: 68, cuadros: 6, apoyo: [62, 68] } } });
+    falso.paleta = () => [];
+    falso.acabados = () => ({ pisos: [], muros: [] });
+    const caso = structuredClone(CASO_HOSPITAL);
+    caso.catalogo.muebles.push({ id: 'escritorio', nombre: 'Escritorio', arte: `/assets/biblioteca/${ruta}`, ancho: 125, alto: 68, colision: true });
+    caso.salas[0].muebles = [{ ref: 'escritorio', x: 300, y: 300 }];
+    store.fijar(caso); fixture.componentRef.setInput('salaId', caso.salas[0].id);
+    fixture.detectChanges();
+    const img = raiz.querySelector<HTMLImageElement>('[data-elemento="mueble-0"] img')!;
+    expect(img.classList.contains('cuadro')).toBe(true);
+    expect([img.style.width, img.style.height]).toEqual(['125px', '68px']);
+  });
+
+  it('un objeto elegido ofrece las herramientas del caso y guarda la que entrega al revisarlo', async () => {
+    const { fixture, store, raiz } = await montar();
+    const caso = structuredClone(store.caso()!);
+    caso.herramientas = [{ codigo: 'ficha-riesgo', nombre: 'Ficha de riesgo' }, { codigo: 'acta-registro', nombre: 'Acta de registro de la atención' }];
+    caso.salas[0].objetos = [{ ref: caso.catalogo.objetos[0].id, x: 400, y: 300 }];
+    store.fijar(caso);
+    fixture.detectChanges();
+    raiz.querySelector<HTMLButtonElement>('[data-elemento="objeto-0"]')!.click();
+    fixture.detectChanges();
+    const select = raiz.querySelector<HTMLSelectElement>('select[data-accion="entrega-herramienta"]')!;
+    expect([...select.options].map((o) => o.textContent?.trim())).toEqual(['Ninguna', 'Ficha de riesgo', 'Acta de registro de la atención']);
+    select.value = 'acta-registro';
+    select.dispatchEvent(new Event('change'));
+    fixture.detectChanges();
+    expect(store.caso()!.salas[0].objetos[0].toolCode).toBe('acta-registro');
+    select.value = '';
+    select.dispatchEvent(new Event('change'));
+    expect(store.caso()!.salas[0].objetos[0].toolCode).toBeUndefined();
+  });
+
+  it('al ensanchar una sala ampliada vuelve a escala uno', async () => {
+    const { fixture, store, raiz } = await montar();
+    const caso = structuredClone(CASO_HOSPITAL);
+    caso.salas[0].estructura!.ancho = 960;
+    store.fijar(caso); fixture.componentRef.setInput('salaId', caso.salas[0].id); fixture.detectChanges();
+    [...raiz.querySelectorAll('button')].find(b => b.textContent?.trim() === '×2')!.click();
+    fixture.detectChanges();
+    expect(raiz.querySelector<HTMLElement>('.escenario')!.style.width).toBe('1920px');
+    raiz.querySelector<HTMLElement>('[role="slider"]')!.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowRight' }));
+    fixture.detectChanges();
+    expect(raiz.querySelector<HTMLElement>('.escenario')!.style.width).toBe('1200px');
+  });
+
+  it('una sala por piezas deja desplazar con el dedo y solo las piezas bloquean el gesto', async () => {
+    const { fixture, store, raiz } = await montar();
+    const caso = structuredClone(store.caso()!);
+    caso.salas[0].estructura = structuredClone(CASO_HOSPITAL.salas[0].estructura!);
+    store.fijar(caso); fixture.detectChanges();
+    const escenario = raiz.querySelector<HTMLElement>('.escenario')!;
+    expect(getComputedStyle(escenario).touchAction).toBe('pan-x pan-y');
+    expect(getComputedStyle(raiz.querySelector<HTMLElement>('.pieza')!).touchAction).toBe('none');
+  });
+
+  it('si el catálogo falla, Reintentar vuelve a pedirlo', async () => {
+    const { fixture, store, raiz } = await montar();
+    const catalogo = TestBed.inject(CatalogoDePiezas);
+    const reintentar = vi.fn();
+    (catalogo as unknown as { reintentar: () => void }).reintentar = reintentar;
+    (catalogo.error as ReturnType<typeof signal<boolean>>).set(true);
+    const caso = structuredClone(store.caso()!);
+    caso.salas[0].estructura = structuredClone(CASO_HOSPITAL.salas[0].estructura!);
+    store.fijar(caso); fixture.detectChanges();
+    [...raiz.querySelectorAll('button')].find(b => b.textContent?.trim() === 'Reintentar')!.click();
+    expect(reintentar).toHaveBeenCalledOnce();
+  });
+
+  it('una puerta sin destino aparece en Por resolver hasta que se elige su sala', async () => {
+    const { fixture, store, raiz } = await montar();
+    const caso = structuredClone(CASO_HOSPITAL);
+    store.fijar(caso); fixture.componentRef.setInput('salaId', caso.salas[0].id);
+    const id = store.agregarPuerta(caso.salas[0].id, 'madera', 'fondo', 100);
+    const pendientes = signal(new Map([[caso.salas[0].id, [id]]]));
+    vi.spyOn(store, 'puertasSinGuardar').mockImplementation(pendientes);
+    fixture.detectChanges();
+    expect(raiz.textContent).toContain('Esta puerta no se guarda hasta que elijas a qué sala lleva.');
+    store.fijarDestinoDePuerta(caso.salas[0].id, id, caso.salas[1].id);
+    pendientes.set(new Map()); fixture.detectChanges();
+    expect(raiz.textContent).not.toContain('Esta puerta no se guarda hasta que elijas a qué sala lleva.');
+  });
+
+  it('una sala de imagen fija no carga el lienzo ni la capa de piezas', async () => {
+    const { raiz } = await montar();
+    expect(raiz.querySelector('app-lienzo-de-sala')).toBeNull();
+    expect(raiz.querySelector('app-piezas-del-muro')).toBeNull();
+    expect(raiz.querySelector('img.fondo')).not.toBeNull();
+  });
+
   it('con un elemento elegido, las flechas lo mueven 8 px y con Mayúsculas 1 px', async () => {
     const { fixture, store, raiz } = await montar();
     const psicologa = raiz.querySelector<HTMLButtonElement>('[data-elemento="personaje-0"]')!;
@@ -240,12 +422,12 @@ describe('SalaComponent', () => {
   };
 
   describe('«Cómo se mueve»', () => {
-    it('una persona elegida ofrece tres opciones en palabras del docente y por defecto se queda quieta', async () => {
+    it('una persona elegida ofrece cuatro opciones en palabras del docente y por defecto se queda quieta', async () => {
       const { fixture, raiz } = await montar();
       await elegirPersona(fixture, raiz);
       const opciones = [...raiz.querySelectorAll<HTMLElement>('[role="radiogroup"][aria-labelledby="pmueve"] [role="radio"]')];
-      expect(opciones.map((o) => o.textContent?.trim())).toEqual(['Se queda quieto', 'Camina por la sala', 'Va y viene']);
-      expect(opciones.map((o) => o.getAttribute('aria-checked'))).toEqual(['true', 'false', 'false']);
+      expect(opciones.map((o) => o.textContent?.trim())).toEqual(['Se queda quieto', 'Camina por la sala', 'Va y viene', 'Recorre un trayecto']);
+      expect(opciones.map((o) => o.getAttribute('aria-checked'))).toEqual(['true', 'false', 'false', 'false']);
       expect(raiz.querySelector('#pmueve')!.textContent).toContain('Cómo se mueve');
     });
 

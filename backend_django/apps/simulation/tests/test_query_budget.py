@@ -74,7 +74,7 @@ QUERY_BUDGETS = {
     # Ronda 1: 36 → 37. Con los hechos de exploración registrados por sala (como los deja el juego), la disponibilidad necesita el
     # mapa de la escena de decisión; este escenario no pide ``/world`` en cada escena, así que el del mundo no es ese y se
     # consulta (+1). Un jugador real ya tiene el mapa de la escena cargado y paga 36.
-    "post_decision_closing": 37,  # (10) la decisión que cierra: reporte v3 + evaluación del sistema (antes de E6: 26 y 9)
+    "post_decision_closing": 39,  # (10) la decisión que cierra: reporte v3 + evaluación del sistema (antes de E6: 26 y 9); +1 en V4: los textos cortos de «Elegiste:» (R1, una sola consulta de DialogueChoice); +1 en V5: `competenciesDeclared` del cierre (R1 `0c76d4d5`, una consulta de si el caso declara competencias)
     "get_student_report_completed": 3,  # (1) la primera lectura del dueño de un intento completado escribe el evento
     # S4-1: 15 → 16 a propósito. Leer el reporte de un grupo es leer datos de otras personas y deja UNA fila de
     # auditoría (`reporte.leer`, RNF-007): es el INSERT de `audit_logs`, la única escritura. Las 15 de lectura no cambian.

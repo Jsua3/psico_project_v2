@@ -1,61 +1,54 @@
-import { IntroGateContext, resolveIntroStep } from './intro-gate.util';
+import { IntroGateContext, introCardLines, resolveIntroStep } from './intro-gate.util';
 
-/** Contexto base: primer ingreso al nodo inicial, sin nada visto todavía. */
+/** Contexto base: intento en curso, sin nada visto todavía. */
 function ctx(overrides: Partial<IntroGateContext> = {}): IntroGateContext {
   return {
     attemptStatus: 'IN_PROGRESS',
-    nodeKey: 'hospital-urgencias',
-    mapKey: 'hospital-urgencias',
     consentGiven: false,
     introRead: false,
-    reduceMotion: false,
     ...overrides,
   };
 }
 
 describe('intro-gate.util', () => {
   describe('resolveIntroStep', () => {
-    it('sin consentimiento pide consentimiento antes que cualquier contenido', () => {
+    it.each([
+      [{ attemptStatus: 'COMPLETED', consentGiven: true, introRead: false }, 'none'],
+      [{ attemptStatus: 'SAFE_EXITED', consentGiven: true, introRead: false }, 'none'],
+      [{ attemptStatus: null, consentGiven: true, introRead: false }, 'none'],
+      [{ attemptStatus: 'IN_PROGRESS', consentGiven: false, introRead: false }, 'consent'],
+      [{ attemptStatus: 'IN_PROGRESS', consentGiven: false, introRead: true }, 'consent'],
+      [{ attemptStatus: 'IN_PROGRESS', consentGiven: true, introRead: false }, 'card'],
+      [{ attemptStatus: 'IN_PROGRESS', consentGiven: true, introRead: true }, 'none'],
+    ] as Array<[Partial<IntroGateContext>, string]>)('%o → %s, en cualquier escena', (overrides, step) => {
+      expect(resolveIntroStep(ctx(overrides))).toBe(step);
+    });
+
+    it('pide consentimiento antes que cualquier contenido, también al reanudar a mitad de caso', () => {
       expect(resolveIntroStep(ctx())).toBe('consent');
     });
+  });
+});
 
-    it('pide consentimiento incluso al reanudar a mitad de caso (otro nodo)', () => {
-      expect(resolveIntroStep(ctx({ nodeKey: 'comisaria-recepcion', mapKey: 'comisaria-recepcion' })))
-        .toBe('consent');
-    });
+describe('introCardLines', () => {
+  it('nombra el caso, la escena y la sala, y dice dónde se lee el contexto', () => {
+    expect(introCardLines('Caso de prueba', 'Recepción', 'Sala de espera')).toEqual([
+      'Caso: Caso de prueba',
+      'Escena: Recepción',
+      'Empiezas en: Sala de espera',
+      'El contexto del caso está en su ficha.',
+    ]);
+  });
 
-    it('pide consentimiento aunque reduceMotion esté activo (nunca salta la puerta)', () => {
-      expect(resolveIntroStep(ctx({ reduceMotion: true }))).toBe('consent');
-    });
+  it('sin título de sala no pinta «Empiezas en:» vacío', () => {
+    expect(introCardLines('Caso de prueba', 'Recepción', '')).toEqual([
+      'Caso: Caso de prueba',
+      'Escena: Recepción',
+      'El contexto del caso está en su ficha.',
+    ]);
+  });
 
-    it('pide consentimiento aunque la intro ya se haya leído en otra sesión', () => {
-      expect(resolveIntroStep(ctx({ introRead: true }))).toBe('consent');
-    });
-
-    it('tras consentir muestra la escena animada en el nodo inicial', () => {
-      expect(resolveIntroStep(ctx({ consentGiven: true }))).toBe('scene');
-    });
-
-    it('tras consentir con reduceMotion muestra la narrativa (sin escena)', () => {
-      expect(resolveIntroStep(ctx({ consentGiven: true, reduceMotion: true }))).toBe('narrative');
-    });
-
-    it('tras consentir no repite la intro ya leída', () => {
-      expect(resolveIntroStep(ctx({ consentGiven: true, introRead: true }))).toBe('none');
-    });
-
-    it('tras consentir fuera del nodo inicial no muestra intro', () => {
-      expect(resolveIntroStep(ctx({ consentGiven: true, nodeKey: 'comisaria-recepcion' }))).toBe('none');
-    });
-
-    it('tras consentir con el mapa de otra sala no muestra intro', () => {
-      expect(resolveIntroStep(ctx({ consentGiven: true, mapKey: 'hospital-pasillo' }))).toBe('none');
-    });
-
-    it('no muestra nada si el intento no está IN_PROGRESS', () => {
-      expect(resolveIntroStep(ctx({ attemptStatus: 'COMPLETED' }))).toBe('none');
-      expect(resolveIntroStep(ctx({ attemptStatus: 'SAFE_EXITED' }))).toBe('none');
-      expect(resolveIntroStep(ctx({ attemptStatus: null }))).toBe('none');
-    });
+  it('un título con «$&» o llaves se copia tal cual', () => {
+    expect(introCardLines('A $& {x}', 'B', 'C')[0]).toBe('Caso: A $& {x}');
   });
 });

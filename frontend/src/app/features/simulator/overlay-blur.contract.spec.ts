@@ -19,7 +19,6 @@ describe('paneles del juego sin desenfoque caro', () => {
     ['journal-panel.component.ts', '.journal-modal'],
     ['simulation-hud.component.ts', '.hud-shell'],
     ['simulation-hud.component.ts', '.settings-menu'],
-    ['scene-checklist-card.component.ts', '.checklist'],
     ['game-help.component.ts', '.help-card'],
     ['game-help.component.ts', '.help-screen'],
   ];
@@ -28,9 +27,9 @@ describe('paneles del juego sin desenfoque caro', () => {
     expect(ruleBody(read(file), selector)).not.toMatch(/backdrop-filter/);
   });
 
-  it('el HUD compensa con un fondo algo más opaco', () => {
-    expect(ruleBody(read('simulation-hud.component.ts'), '.hud-shell'))
-      .toContain('background: linear-gradient(180deg, rgba(22,18,42,.92), rgba(8,12,18,.9));');
+  // Bloque U1: el HUD es una placa de pixel opaca (penumbra y trama de la hoja común), no un degradado translúcido.
+  it('el HUD es una placa opaca de la hoja común', () => {
+    expect(read('simulation-hud.component.ts')).toContain('<div class="hud-strip u-placa u-sombra">');
   });
 
   it('se conservan los vidrios translúcidos a propósito', () => {

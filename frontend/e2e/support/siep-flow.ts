@@ -42,14 +42,21 @@ export async function markFirstTimeHelpSeen(page: Page): Promise<void> {
   }, [HELP_MEMORY_KEY, HELP_MEMORY_SEEN]).catch(() => undefined);
 }
 
-export async function loginStudent(page: Page, options: { seedHelp?: boolean } = {}): Promise<void> {
+export interface Login { email: string; password: string }
+
+/** El formulario de ingreso con las credenciales dadas (la docente que ensaya, el administrador…); termina dentro del portal. */
+export async function loginAs(page: Page, who: Login, options: { seedHelp?: boolean } = {}): Promise<void> {
   await captureApiBodies(page);
   if (options.seedHelp !== false) await markFirstTimeHelpSeen(page);
   if (!/\/login$/.test(new URL(page.url()).pathname)) await page.goto('/login');
-  await page.locator('input[type="email"]').last().fill(EMAIL);
-  await page.locator('input[type="password"]').last().fill(PASSWORD);
+  await page.locator('input[type="email"]').last().fill(who.email);
+  await page.locator('input[type="password"]').last().fill(who.password);
   await page.getByRole('button', { name: /^ingresar$/i }).click();
   await page.waitForURL(/\/portal\//, { timeout: scaled(30_000) });
+}
+
+export async function loginStudent(page: Page, options: { seedHelp?: boolean } = {}): Promise<void> {
+  await loginAs(page, { email: EMAIL, password: PASSWORD }, options);
 }
 
 /**
@@ -94,16 +101,19 @@ export async function enterCaseAtContentWarning(page: Page): Promise<Locator> {
 
 export async function acceptContentWarning(page: Page, consent: Locator): Promise<Locator> {
   await consent.getByRole('button', { name: /^continuar$/i }).click();
-  const introVideo = page.getByRole('dialog').filter({ hasText: 'Antes de comenzar' });
-  await expect(introVideo).toBeVisible({ timeout: scaled(30_000) });
-  return introVideo;
+  const card = page.getByRole('dialog').filter({ hasText: 'Antes de comenzar' });
+  await expect(card).toBeVisible({ timeout: scaled(30_000) });
+  return card;
 }
 
-export async function finishCaseIntroduction(page: Page, introVideo: Locator): Promise<Locator> {
-  await introVideo.getByRole('button', { name: /saltar video|continuar/i }).click();
-  const caseIntro = page.getByRole('dialog').filter({ hasText: 'Contexto inicial del caso' });
-  await expect(caseIntro).toBeVisible({ timeout: scaled(30_000) });
-  return caseIntro;
+/**
+ * La tarjeta «Antes de comenzar» nombra el caso, la escena y la sala (no un texto fijo): se comprueba que trae el nombre de un
+ * caso y se devuelve sin pulsar nada; quien llama pulsa «Continuar» en lo que recibe.
+ */
+export async function finishCaseIntroduction(page: Page, card: Locator): Promise<Locator> {
+  await expect(card).toBeVisible({ timeout: scaled(30_000) });
+  await expect(card).toContainText(/Caso:\s*\S/);
+  return card;
 }
 
 /**
@@ -129,15 +139,27 @@ export async function canvasSize(page: Page): Promise<{ width: number; height: n
   return { width: box.width, height: box.height };
 }
 
-/** Tarjeta «Qué hacer»: su sección lleva data-next-step (id del siguiente paso) y data-stage. */
-export function checklistCard(page: Page): Locator {
-  return page.locator('app-scene-checklist-card section.checklist');
+/** La ficha del objetivo de la escena: el host lleva `data-goal` (el objetivo visible) y su botón la abre y la cierra. */
+export function goalCard(page: Page): Locator {
+  return page.locator('app-scene-goal-card');
 }
 
-/** La tarjeta «Qué hacer» señala stepId (p. ej. 'u1-recoger') como el siguiente paso. */
-export async function expectNextStep(page: Page, stepId: string): Promise<void> {
-  await expect(checklistCard(page), `El siguiente paso de «Qué hacer» debería ser ${stepId}`)
-    .toHaveAttribute('data-next-step', stepId, { timeout: scaled(15_000) });
+/**
+ * Anota cada valor que toma `data-reaction` en el documento (el gesto dura ~400 ms: una espera por sondeo puede perderlo).
+ * Instálalo ANTES de elegir; devuelve una función que lee los valores vistos hasta ahora.
+ */
+export async function watchReaction(page: Page): Promise<() => Promise<string[]>> {
+  await page.evaluate(() => {
+    const seen: string[] = [];
+    (window as unknown as { __reacciones: string[] }).__reacciones = seen;
+    new MutationObserver(records => {
+      for (const record of records) {
+        const value = (record.target as Element).getAttribute('data-reaction');
+        if (value) seen.push(value);
+      }
+    }).observe(document.documentElement, { attributes: true, attributeFilter: ['data-reaction'], subtree: true });
+  });
+  return () => page.evaluate(() => [...((window as unknown as { __reacciones?: string[] }).__reacciones ?? [])]);
 }
 
 export async function waitForWorldReady(page: Page, expectedMapKey?: string): Promise<void> {
@@ -178,11 +200,6 @@ export function nearbyAction(page: Page, label: RegExp): Locator {
 /** Solo el botón PRINCIPAL de la barra (el que actúa con la tecla E). */
 export function primaryNearbyAction(page: Page): Locator {
   return page.locator('button.context-bar__interaction:not(.context-bar__interaction--secondary)');
-}
-
-/** Línea «Ahora: …» del pie (`.context-bar__now`). */
-export function nowLine(page: Page): Locator {
-  return page.locator('.context-bar__now');
 }
 
 export interface WorldInputDriver {
@@ -780,9 +797,9 @@ export async function chooseDecision(
   const response = await responsePromise;
   await requireOk(response, `Falló la decisión ${optionText}`);
   // C2: con FEEDBACK_AT_CLOSE_ONLY el estado del intento viene dentro de `attempt`; el resto del e2e lee el estado
-  // plano, así que se aplana aquí conservando `consequence` y `retry`.
+  // plano, así que se aplana aquí conservando `consequence`, `retry` y `reaction`.
   const body = (await readJson(response)).data as ApiData;
-  return body.attempt ? { ...body.attempt, consequence: body.consequence ?? null, retry: body.retry ?? null } : body;
+  return body.attempt ? { ...body.attempt, consequence: body.consequence ?? null, retry: body.retry ?? null, reaction: body.reaction ?? null } : body;
 }
 
 export async function useToolChoice(

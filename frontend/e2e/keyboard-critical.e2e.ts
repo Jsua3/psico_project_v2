@@ -582,7 +582,18 @@ test('[A04] validar y publicar: «Enviar a revisión» muestra lo que falta, se 
     const yesterday = new Date(Date.now() - 24 * 60 * 60 * 1000);
     const two = (value: number) => String(value).padStart(2, '0');
     await typeInto(page, dialog.getByLabel('Quién revisó'), 'Dra. Ruiz');
-    await typeInto(page, dialog.getByLabel('Fecha de la revisión'), `${two(yesterday.getMonth() + 1)}${two(yesterday.getDate())}${yesterday.getFullYear()}`);
+    // El campo de fecha sigue el orden del sistema operativo (mm/dd/aaaa en el Linux de CI, dd/mm/aaaa en un Windows en
+    // español), no el de `navigator.language`: se escribe mes-día-año y, si no queda la fecha de ayer, se vuelve con
+    // Mayús+Tab a la primera casilla y se escribe día-mes-año.
+    const fecha = dialog.getByLabel('Fecha de la revisión');
+    const ayer = `${yesterday.getFullYear()}-${two(yesterday.getMonth() + 1)}-${two(yesterday.getDate())}`;
+    await typeInto(page, fecha, `${two(yesterday.getMonth() + 1)}${two(yesterday.getDate())}${yesterday.getFullYear()}`);
+    if ((await fecha.inputValue()) !== ayer) {
+      await page.keyboard.press('Shift+Tab');
+      await page.keyboard.press('Shift+Tab');
+      await page.keyboard.type(`${two(yesterday.getDate())}${two(yesterday.getMonth() + 1)}${yesterday.getFullYear()}`);
+    }
+    await expect(fecha, 'la fecha de la revisión es la de ayer').toHaveValue(ayer);
     await typeInto(page, dialog.getByLabel('Referencia o acta'), 'Acta 4 de Psicología');
     await pressWithKeyboard(page, dialog.getByRole('button', { name: 'Aprobar y publicar' }));
     await expect(toast(page, 'El caso se publicó.')).toBeVisible({ timeout: scaled(30_000) });

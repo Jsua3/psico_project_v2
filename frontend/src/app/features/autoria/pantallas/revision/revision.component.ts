@@ -9,7 +9,7 @@ import { CaseReviewPanelComponent } from '../../../simulator/case-review-panel.c
 import { AutoriaApiService } from '../../api/autoria-api.service';
 import { CasoStore } from '../../estado/caso.store';
 import { GuiaService } from '../../guia/guia.service';
-import { type Falta, faltasDelServidor, puedeEnviar, sugerencias } from '../../modelo/revision';
+import { type Falta, avisosDeLectura, faltasDelServidor, puedeEnviar, sugerencias } from '../../modelo/revision';
 import { RutasAutoria, rutaDelEditor } from '../../rutas';
 
 /** Cómo se nombra el estado del caso ante el docente. */
@@ -32,6 +32,7 @@ const NO_SE_PUDO_ENVIAR = 'No se pudo enviar el caso. No se cambió nada: vuelve
 @Component({
   selector: 'app-revision',
   imports: [RouterLink, CaseReviewPanelComponent],
+  host: { '(document:visibilitychange)': 'alCambiarVisibilidad()' },
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
     @if (store.caso(); as caso) {
@@ -100,7 +101,11 @@ const NO_SE_PUDO_ENVIAR = 'No se pudo enviar el caso. No se cambió nada: vuelve
                 @for (s of sugeridas(); track $index) {
                   <li class="tarjeta falta">
                     <p>{{ s.mensaje }}</p>
-                    <a class="boton" [routerLink]="rutas.a(s.ir.ruta)">{{ s.ir.ruta === '/probar' ? 'Probar ahora' : 'Ir a revisarlo' }}</a>
+                    @if (s.ir.accionId === 'probar') {
+                      <button type="button" class="boton" [attr.aria-label]="'Llévame ahí: ' + s.mensaje" (click)="llevar(s)">Llévame ahí</button>
+                    } @else {
+                      <a class="boton" [routerLink]="rutas.a(s.ir.ruta)">Ir a revisarlo</a>
+                    }
                   </li>
                 }
               </ul>
@@ -227,6 +232,7 @@ export class RevisionComponent {
 
   constructor() {
     void this.comprobar();
+    void this.store.releerProbado();
     // Una decisión tomada en el panel (aprobar, devolver, archivar) cambia el caso en el servidor: se vuelve a leer para
     // que el editor, la revisión vigente y las acciones permitidas sean las nuevas.
     this.autoria.api.caseChanges.pipe(takeUntilDestroyed()).subscribe((id) => {
@@ -271,7 +277,11 @@ export class RevisionComponent {
     const unicos = new Map(delServidor.map((h) => [`${h.code}|${h.message}`, h]));
     return [
       ...locales,
-      ...faltasDelServidor([...unicos.values()], caso, { respuestaDeOpcion: (clave) => this.store.respuestaDeOpcion(clave), faltasLocales: locales }),
+      ...faltasDelServidor([...unicos.values()], caso, {
+        respuestaDeOpcion: (clave) => this.store.respuestaDeOpcion(clave),
+        respuestasGuardadas: (escenaId) => this.store.respuestasGuardadasDe(escenaId),
+        faltasLocales: locales,
+      }),
     ];
   });
 
@@ -285,7 +295,8 @@ export class RevisionComponent {
     if (!caso) return [];
     // Un aviso del editor que la compuerta ya convirtió en falta no se repite como sugerencia.
     const codigosEnFaltas = new Set(this.faltas().map((f) => f.codigo).filter(Boolean));
-    return sugerencias(caso, this.store.probado()).filter((s) => !s.codigo || !codigosEnFaltas.has(s.codigo));
+    // Los textos largos los avisa el servidor (también en un caso escrito a mano): se suman como sugerencias, con su escena.
+    return [...sugerencias(caso).filter((s) => !s.codigo || !codigosEnFaltas.has(s.codigo)), ...avisosDeLectura(this.hallazgos())];
   });
   /** El nombre del lugar del caso; nada si el caso no tiene lugar. */
   protected readonly lugar = computed(() => (this.store.caso(), this.store.nombreDelLugar()));
@@ -310,9 +321,14 @@ export class RevisionComponent {
     if (caso.modoFinales === 'propio' && caso.finales.length && caso.finales.every((f) => f.nombre.trim() && f.texto.trim())) {
       hechos.push(`Los ${caso.finales.length} finales tienen nombre y texto.`);
     }
-    if (this.store.probado()) hechos.push('Ya lo probaste como estudiante.');
+    if (caso.probadoHastaElFinal) hechos.push('Ya lo probaste como estudiante.');
     return hechos;
   });
+
+  /** El ensayo corre en otra pestaña: al volver a esta, se pregunta si ya llegó a un final. */
+  protected alCambiarVisibilidad(): void {
+    if (document.visibilityState === 'visible') void this.store.releerProbado();
+  }
 
   /** Marca o desmarca un ítem de la lista de verificación (se guarda con la revisión vigente) y vuelve a preguntar qué falta. */
   protected marcarItem(codigo: string, cumplido: boolean): void {

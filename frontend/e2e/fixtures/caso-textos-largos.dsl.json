@@ -1,0 +1,2924 @@
+{
+  "versionDsl": "1.0",
+  "caso": {
+    "id": "VISITA-DOMICILIARIA-ALIANZA-Y-CONSUMO-PR",
+    "version": "0.1.0",
+    "estado": "BORRADOR",
+    "titulo": "Visita domiciliaria: alianza y consumo problemático",
+    "descripcion": "Generado con IA · por validar con Psicología. La psicóloga visitante acude a una casa de barrio tras una derivación de la EPS por «riesgo psicosocial». En la sala encuentra a un hombre de 38 años, su pareja y su hijo de 10 años. El hombre consume alcohol de forma problemática y niega que afecte a su familia. La estudiante debe practicar entrevista motivacional: construir alianza sin confrontar, explorar ambivalencia, evitar etiquetas y cerrar con un acuerdo de cuidado mínimo (no conducir tras beber, cita de seguimiento). Errores a aprender: confrontación prematura, consejos directivos, ignorar la presencia del niño, prometer confidencialidad absoluta ante riesgo.",
+    "objetivosAprendizaje": [
+      "Establecer alianza terapéutica con una persona que minimiza su consumo sin usar confrontación.",
+      "Explorar ambivalencia mediante preguntas abiertas y reflexiones complejas.",
+      "Leer señales no verbales del usuario, su pareja y su hijo para decidir cuándo profundizar o contener.",
+      "Evitar etiquetas diagnósticas y consejos directivos que rompan la alianza.",
+      "Negociar un acuerdo de cuidado mínimo concreto y realista (no conducir tras beber, cita de seguimiento).",
+      "Identificar riesgos para el niño sin prometer confidencialidad absoluta ni mediar con la pareja."
+    ],
+    "escenaInicial": "E01",
+    "rubrica": "RUB-01"
+  },
+  "personajes": [
+    {
+      "id": "P01",
+      "nombre": "Vecina",
+      "rol": "Vecina"
+    },
+    {
+      "id": "P02",
+      "nombre": "Persona usuaria",
+      "rol": "Persona usuaria"
+    },
+    {
+      "id": "P03",
+      "nombre": "Psicóloga visitante",
+      "rol": "Profesional"
+    },
+    {
+      "id": "P04",
+      "nombre": "Niña de la casa",
+      "rol": "Niña, niño o adolescente"
+    },
+    {
+      "id": "P05",
+      "nombre": "Familiar",
+      "rol": "Familiar"
+    }
+  ],
+  "herramientas": [
+    {
+      "id": "H01",
+      "nombre": "Ficha de riesgo",
+      "descripcion": "Para anotar señales de riesgo observadas en la casa.",
+      "categoria": "clinical"
+    },
+    {
+      "id": "H02",
+      "nombre": "Directorio de rutas de atención",
+      "descripcion": "Teléfonos y lugares a los que se puede remitir a la persona.",
+      "categoria": "clinical"
+    },
+    {
+      "id": "H03",
+      "nombre": "Guía de primeros auxilios psicológicos",
+      "descripcion": "Pasos para acompañar a alguien en crisis: escuchar, proteger y conectar.",
+      "categoria": "clinical"
+    },
+    {
+      "id": "H04",
+      "nombre": "Ficha del plan de seguridad",
+      "descripcion": "Para acordar con la persona qué hace, a quién llama y a dónde va si el riesgo sube.",
+      "categoria": "clinical"
+    }
+  ],
+  "escenas": [
+    {
+      "id": "E01",
+      "orden": 1,
+      "titulo": "Llegada y primer contacto",
+      "descripcion": "Llegas a la fachada de una casa de barrio: la puerta tiene un cerrojo por dentro y una ventana con reja sencilla. En el andén, una vecina barre la entrada y te mira con curiosidad. El ambiente es tranquilo, se escuchan ruidos lejanos de la calle. Te presentas como psicóloga visitante de la EPS y explicas que vienes por una derivación de riesgo psicosocial. La vecina deja la escoba y te escucha, sin mostrar hostilidad pero con cierta reserva. Es el primer contacto y tu objetivo es generar confianza para que te permita entrar y conocer la dinámica familiar.",
+      "participantes": [
+        "P01"
+      ],
+      "decision": {
+        "id": "D01",
+        "pregunta": "¿Qué decisión tomas en esta escena?",
+        "opciones": [
+          {
+            "id": "OP01",
+            "texto": "Buenos días, soy psicóloga de la EPS. Vengo a conversar con la familia para ver cómo les va y ofrecer apoyo. ¿Cómo está usted? ¿Lleva mucho tiempo en el barrio?",
+            "siguienteEscena": "E02",
+            "clasificacion": "ADECUADA"
+          },
+          {
+            "id": "OP02",
+            "texto": "Buenos días. Soy la psicóloga visitante. La EPS nos derivó para una valoración de riesgo psicosocial. ¿Sabe algo de la situación de la familia?",
+            "siguienteEscena": "E02",
+            "clasificacion": "ADECUADA"
+          },
+          {
+            "id": "OP03",
+            "texto": "Buenos días. Vengo porque el hombre de la casa tiene un problema con el alcohol. ¿Usted ha visto algo raro?",
+            "siguienteEscena": "E02",
+            "clasificacion": "RIESGOSA"
+          },
+          {
+            "id": "OP04",
+            "texto": "Buenos días. Le prometo que todo lo que me cuente quedará entre nosotras, nadie se enterará. ¿Qué sabe del hombre?",
+            "siguienteEscena": "E02",
+            "clasificacion": "INADECUADA",
+            "conductaProhibida": true,
+            "motivoProhibicion": "Prometer confidencialidad absoluta incumple el deber de proteger a menores y víctimas de violencia; genera falso seguridad y riesgo legal."
+          }
+        ],
+        "pistas": [
+          "Empieza por conocer a la vecina: ella es parte de la red de apoyo.",
+          "Explica el motivo de la visita sin usar etiquetas diagnósticas.",
+          "Evita prometer lo que no puedes cumplir legalmente."
+        ]
+      }
+    },
+    {
+      "id": "E02",
+      "orden": 2,
+      "titulo": "Entrevista en la sala: el usuario y su familia",
+      "descripcion": "La psicóloga entra a la sala de estar: el televisor emite un noticiero a bajo volumen, el sofá está desgastado y en la pared cuelga un portarretrato donde falta una figura. El usuario, un hombre de 38 años, está sentado al borde del sofá con las manos entrelazadas; su mirada evita el contacto. Junto a él, su pareja permanece en silencio, con los brazos cruzados. El niño de 10 años hace tareas en la mesa del comedor, visible desde aquí, pero levanta la vista cada vez que el padre habla. El aire huele a café y a algo más dulce, como licor barato. La psicóloga se presenta y explica el motivo de la visita: una derivación de la EPS por «riesgo psicosocial». El usuario suelta una risa corta y niega cualquier problema: «Solo tomo unas copas para dormir, todos lo hacen». La pareja aprieta los labios. El niño aprieta el lápiz. La psicóloga debe iniciar la entrevista motivacional sin confrontar, observando la dinámica y decidiendo si profundiza con el usuario o escucha a la pareja en la cocina, mientras el niño está en el comedor. Cada palabra cuenta para construir alianza o romperla. La luz de la tarde entra por la ventana y dibuja sombras largas sobre la alfombra. Es el momento de elegir cómo abrir la conversación. La psicóloga respira y habla. La reacción del usuario será la primera pista de su disposición al cambio. La pareja y el niño observan. La escena está servida. La estudiante decide su primera intervención. El silencio se vuelve denso. La psicóloga rompe el hielo con una pregunta abierta, una reflexión o un comentario que invite a explorar, no a defenderse. El usuario se recuesta un poco, la pareja suspira, el niño deja de escribir. La entrevista comienza. La sala contiene la tensión. La psicóloga tiene la iniciativa. El próximo paso definirá el rumbo de la visita.",
+      "participantes": [
+        "P02",
+        "P03"
+      ],
+      "decision": {
+        "id": "D02",
+        "pregunta": "¿Qué decisión tomas en esta escena?",
+        "opciones": [
+          {
+            "id": "OP05",
+            "texto": "Usted dice que no hay problema, y sin embargo su pareja y su hijo parecen tensos. ¿Qué es lo que ellos ven que usted no ve?",
+            "siguienteEscena": "E03",
+            "clasificacion": "ADECUADA"
+          },
+          {
+            "id": "OP06",
+            "texto": "Entiendo que para usted el consumo es controlado y que le molesta que piensen lo contrario. Su pareja y su hijo callan, pero su cuerpo habla. ¿Le parece si escuchamos a su pareja en la cocina mientras usted descansa un momento?",
+            "siguienteEscena": "E04",
+            "clasificacion": "ADECUADA"
+          },
+          {
+            "id": "OP07",
+            "texto": "Si bebe a diario y maneja, está poniendo en riesgo a su familia. Debería dejar de tomar o al menos no conducir. Le doy el número de un grupo de ayuda.",
+            "siguienteEscena": "E03",
+            "clasificacion": "RIESGOSA"
+          },
+          {
+            "id": "OP08",
+            "texto": "Lo que hablemos queda entre usted y yo, se lo prometo. Cuénteme cuánto bebe realmente para que yo decida si hay peligro.",
+            "siguienteEscena": "E04",
+            "clasificacion": "INADECUADA",
+            "conductaProhibida": true,
+            "motivoProhibicion": "Promete confidencialidad absoluta en contexto de riesgo y asume rol de evaluación punitiva, lo que revictimiza y contraviene el deber de protección."
+          }
+        ],
+        "pistas": [
+          "Use preguntas abiertas y reflexiones complejas para explorar la ambivalencia. Observe la comunicación no verbal de la pareja y el niño. Evite consejos directivos y etiquetas. La alianza se construye validando, no confrontando."
+        ]
+      }
+    },
+    {
+      "id": "E03",
+      "orden": 3,
+      "titulo": "La mirada del niño",
+      "descripcion": "En el comedor, la luz de la mañana filtra por la ventana y ilumina la mesa donde la niña de 10 años termina sus deberes junto a una planta que alguien riega con esmero. La psicóloga visitante se sienta a su altura, nota que la niña dibuja en el margen de su cuaderno una casa con todos sus miembros, pero el padre aparece borroso. El televisor de la sala suena bajo, y la niña levanta la vista con curiosidad contenida, como quien evalúa si puede confiar. La estudiante percibe una mezcla de normalidad aparente y una tensión sutil en los hombros de la niña; es el momento de explorar su bienestar sin invadir, validando lo que exprese y observando qué recursos naturales tiene a mano.",
+      "participantes": [
+        "P04"
+      ],
+      "decision": {
+        "id": "D03",
+        "pregunta": "¿Qué decisión tomas en esta escena?",
+        "opciones": [
+          {
+            "id": "OP09",
+            "texto": "¿Qué sientes cuando escuchas ese ruido? ¿Quieres contarme cómo te cuidas tú?",
+            "siguienteEscena": "E05",
+            "clasificacion": "ADECUADA"
+          },
+          {
+            "id": "OP10",
+            "texto": "¿Te gustaría seguir dibujando tu casa ideal mientras charlamos un rato?",
+            "siguienteEscena": "E05",
+            "clasificacion": "ADECUADA"
+          },
+          {
+            "id": "OP11",
+            "texto": "Si algo te asusta, podrías irte a la casa de la vecina, ella te ayudará.",
+            "siguienteEscena": "E05",
+            "clasificacion": "RIESGOSA"
+          },
+          {
+            "id": "OP12",
+            "texto": "Tu papá bebe y por eso hace ruido, eso no está bien para ti.",
+            "siguienteEscena": "E05",
+            "clasificacion": "INADECUADA",
+            "conductaProhibida": true,
+            "motivoProhibicion": "Culpar al niño y confrontar al padre frente a él revictimiza y rompe la alianza terapéutica."
+          }
+        ],
+        "pistas": [
+          "Observa el lenguaje no verbal antes de preguntar.",
+          "Valida lo que siente sin juzgar al padre.",
+          "Evita dar consejos directos sobre el consumo."
+        ]
+      }
+    },
+    {
+      "id": "E04",
+      "orden": 4,
+      "titulo": "La perspectiva de la pareja",
+      "descripcion": "En la cocina, la luz tenue del mesón revela una nevera cubierta de notas: una lista de mercado, una cita médica y un recordatorio de la escuela del niño. La pareja está sentada frente a la mesa, con las manos entrelazadas, mientras el vapor de una taza de café sube lentamente. El aire huele a comida casera y a una tensión que no se nombra. La estudiante percibe que este espacio íntimo permite a la pareja hablar sin la presencia del usuario, y que sus palabras pueden mostrar el impacto real del consumo en la dinámica familiar y en el bienestar del niño. La escena invita a escuchar con respeto, validar el sufrimiento y recoger información clave para el plan de seguridad sin presionar ni juzgar. Cada gesto y silencio de la pareja cuenta una historia que la estudiante debe saber leer. La visita avanza hacia el patio, donde se cerrará el acuerdo de cuidado.",
+      "participantes": [
+        "P05"
+      ],
+      "decision": {
+        "id": "D04",
+        "pregunta": "¿Qué decisión tomas en esta escena?",
+        "opciones": [
+          {
+            "id": "OP13",
+            "texto": "Preguntar con empatía cómo se siente la pareja respecto al consumo y su impacto en la familia, validando sus emociones.",
+            "siguienteEscena": "E05",
+            "clasificacion": "ADECUADA"
+          },
+          {
+            "id": "OP14",
+            "texto": "Ofrecer información sobre recursos de apoyo sin presionar a la pareja a actuar ya.",
+            "siguienteEscena": "E05",
+            "clasificacion": "ADECUADA"
+          },
+          {
+            "id": "OP15",
+            "texto": "Sugerir que la pareja confronte al usuario sobre su consumo ahora mismo.",
+            "siguienteEscena": "E05",
+            "clasificacion": "RIESGOSA"
+          },
+          {
+            "id": "OP16",
+            "texto": "Decir a la pareja que debe denunciar al usuario inmediatamente para proteger al niño.",
+            "siguienteEscena": "E05",
+            "clasificacion": "INADECUADA",
+            "conductaProhibida": true,
+            "motivoProhibicion": "Presionar a la víctima a denunciar revictimiza y rompe la alianza."
+          }
+        ],
+        "pistas": [
+          "Escucha primero, valida y luego ofrece información concreta.",
+          "Evita exigir decisiones inmediatas; la seguridad se construye paso a paso."
+        ]
+      }
+    },
+    {
+      "id": "E05",
+      "orden": 5,
+      "titulo": "Cierre en el patio: acuerdo de cuidado",
+      "descripcion": "En el patio trasero, bajo el tendedero y lejos de miradas, la psicóloga retoma a la persona usuaria para cerrar la visita. El aire huele a tierra húmeda y a ropa secándose; el banco de madera invita a sentarse. La profesional resume lo conversado, valida el esfuerzo de hablar y propone dos compromisos concretos: no conducir después de consumir alcohol y asistir a la cita de seguimiento la próxima semana. La persona usuaria escucha, asiente y pregunta dudas sobre el transporte alternativo. La psicóloga anota los acuerdos, entrega una tarjeta con teléfonos de ayuda y recuerda que la vecina y la pareja pueden ser apoyos inmediatos. El encuentro termina con un apretón de manos y la sensación de un primer paso firme. 167 words. 950 chars. 0 newlines. 0 tabs.",
+      "contenidoSensible": true,
+      "advertencia": "Escena de cierre: la estudiante debe negociar compromisos concretos sin presionar.",
+      "participantes": [
+        "P02"
+      ]
+    }
+  ],
+  "retroalimentacion": [],
+  "rubricas": [
+    {
+      "id": "RUB-01",
+      "nombre": "Rúbrica básica de desempeño SIEP",
+      "version": "1.0",
+      "activa": true,
+      "criterios": [
+        {
+          "id": "CR01",
+          "competencia": "COMPRENSION_SITUACION",
+          "titulo": "Identificación y comprensión de la situación",
+          "orden": 1,
+          "descripcion": "Reconoce el problema central, factores personales, familiares, sociales y contextuales; diferencia hechos, interpretaciones y supuestos; reconoce señales de riesgo y protección."
+        },
+        {
+          "id": "CR02",
+          "competencia": "ANALISIS_ARGUMENTACION",
+          "titulo": "Análisis psicosocial y argumentación",
+          "orden": 2,
+          "descripcion": "Relaciona la información del caso, sustenta decisiones, emplea conceptos pertinentes, evita conclusiones sin evidencia y demuestra pensamiento crítico."
+        },
+        {
+          "id": "CR03",
+          "competencia": "DECISION_RUTA",
+          "titulo": "Toma de decisiones y ruta de atención",
+          "orden": 3,
+          "descripcion": "Selecciona acciones adecuadas, establece prioridades, reconoce remisiones pertinentes, aplica la ruta de atención y evita acciones que aumenten el riesgo."
+        },
+        {
+          "id": "CR04",
+          "competencia": "COMUNICACION_EMPATIA",
+          "titulo": "Comunicación, empatía y trato profesional",
+          "orden": 4,
+          "descripcion": "Usa lenguaje respetuoso, escucha activa, evita juicios y estigmatización, valida emocionalmente y mantiene actitud ética."
+        },
+        {
+          "id": "CR05",
+          "competencia": "PAP",
+          "titulo": "Aplicación de primeros auxilios psicológicos",
+          "orden": 5,
+          "descripcion": "Establece contacto seguro, identifica necesidades inmediatas, reduce activación emocional, orienta y conecta con apoyos adecuados; reconoce los límites de los primeros auxilios psicológicos."
+        },
+        {
+          "id": "CR06",
+          "competencia": "REFLEXION",
+          "titulo": "Reflexión, bitácora y aprendizaje",
+          "orden": 6,
+          "descripcion": "Registra decisiones relevantes, reconoce aciertos y errores, reflexiona sobre consecuencias, integra retroalimentación y propone mejoras."
+        }
+      ],
+      "descripcion": "Instrumento general para evaluar el análisis, la toma de decisiones, la actuación profesional, la argumentación y la reflexión del estudiante durante una simulación psicosocial."
+    }
+  ],
+  "x-siep": {
+    "version": "2.1",
+    "mundoVersion": 2,
+    "reglas": {
+      "milestones": [
+        {
+          "key": "valorar_el_riesgo",
+          "label": "Valorar el riesgo",
+          "description": "Explorar con la persona usuaria las señales de riesgo en la casa y estimar su nivel antes de decidir el acompañamiento. [por validar con Psicología]",
+          "decisive": true
+        },
+        {
+          "key": "informar_derechos",
+          "label": "Informar derechos",
+          "description": "Explicar a la persona usuaria sus derechos y las rutas de atención que existen en el barrio y en la ciudad. [por validar con Psicología]",
+          "decisive": false
+        },
+        {
+          "key": "derivar_a_salud_mental",
+          "label": "Derivar a salud mental",
+          "description": "Remitir a la persona usuaria a atención en salud mental y asegurar que la remisión llegue. [por validar con Psicología]",
+          "decisive": false
+        },
+        {
+          "key": "identificar_una_red_de_apoyo",
+          "label": "Identificar una red de apoyo",
+          "description": "Reconocer con la persona usuaria a quién puede acudir: familiares, vecinas, amistades, instituciones. [por validar con Psicología]",
+          "decisive": false
+        },
+        {
+          "key": "acordar_un_plan_de_seguridad",
+          "label": "Acordar un plan de seguridad",
+          "description": "Acordar con la persona usuaria qué hace, a quién llama y a dónde va si el riesgo sube. [por validar con Psicología]",
+          "decisive": true
+        }
+      ],
+      "riskLevel": "SEVERE",
+      "endings": [
+        {
+          "key": "alianza_y_acuerdo",
+          "title": "Alianza lograda y acuerdo de cuidado",
+          "message": "La estudiante construyó una alianza respetuosa, exploró la ambivalencia sin confrontar y cerró con un acuerdo concreto: el usuario se compromete a no conducir tras beber y asiste a una cita de seguimiento. La pareja se siente escuchada y el niño, contenido.",
+          "tone": "positive",
+          "when": {
+            "all": [
+              {
+                "milestone": "acordar_un_plan_de_seguridad"
+              },
+              {
+                "milestone": "identificar_una_red_de_apoyo"
+              }
+            ]
+          },
+          "aiSuggested": true
+        },
+        {
+          "key": "avance_parcial",
+          "title": "Avance parcial, resistencia persistente",
+          "message": "La estudiante logró algunos avances pero la resistencia del usuario se mantiene. Se acordó solo la cita de seguimiento; el compromiso de no conducir quedó pendiente. La pareja expresa preocupación y el niño muestra señales de tensión. Se recomienda nueva visita y derivación a grupo de apoyo.",
+          "tone": "warning",
+          "when": {
+            "any": [
+              {
+                "count": "risky",
+                "gte": 2
+              },
+              {
+                "milestone": "informar_derechos"
+              }
+            ]
+          },
+          "aiSuggested": true
+        },
+        {
+          "key": "derivacion_necesaria",
+          "title": "Derivación y plan de seguridad urgente",
+          "message": "La alianza no se consolidó; el usuario niega todo riesgo y la pareja pide ayuda aparte. Se activa derivación a salud mental y se acuerda plan de seguridad con la pareja y la vecina para proteger al niño. La estudiante documenta y coordina seguimiento interinstitucional.",
+          "tone": "critical",
+          "when": {
+            "any": [
+              {
+                "count": "contraindicated",
+                "gte": 1
+              },
+              {
+                "persona": {
+                  "bond": "WITHDRAWN",
+                  "activation": "CRISIS"
+                }
+              }
+            ]
+          },
+          "aiSuggested": true
+        },
+        {
+          "key": "cierre_estandar",
+          "title": "Cierre estándar con seguimiento programado",
+          "message": "La visita finaliza con una valoración básica. Se programa control en 15 días y se entregan teléfonos de ayuda. Quedan pendientes la exploración profunda de la ambivalencia y el acuerdo de no conducir.",
+          "tone": "neutral",
+          "aiSuggested": true
+        }
+      ]
+    },
+    "personajes": [
+      {
+        "clave": "vecina",
+        "retrato": "",
+        "enFicha": false,
+        "orden": 0,
+        "id": "P01"
+      },
+      {
+        "clave": "persona-usuaria",
+        "retrato": "",
+        "enFicha": false,
+        "orden": 1,
+        "id": "P02"
+      },
+      {
+        "clave": "psicologa-visitante",
+        "retrato": "",
+        "enFicha": false,
+        "orden": 2,
+        "id": "P03"
+      },
+      {
+        "clave": "nina-casa",
+        "retrato": "",
+        "enFicha": false,
+        "orden": 3,
+        "id": "P04"
+      },
+      {
+        "clave": "familiar",
+        "retrato": "",
+        "enFicha": false,
+        "orden": 4,
+        "id": "P05"
+      }
+    ],
+    "herramientas": [
+      {
+        "codigo": "ficha-riesgo",
+        "icono": "assignment",
+        "activa": true,
+        "id": "H01"
+      },
+      {
+        "codigo": "directorio-rutas",
+        "icono": "assignment",
+        "activa": true,
+        "id": "H02"
+      },
+      {
+        "codigo": "guia-primeros-auxilios",
+        "icono": "assignment",
+        "activa": true,
+        "id": "H03"
+      },
+      {
+        "codigo": "ficha-plan-seguridad",
+        "icono": "assignment",
+        "activa": true,
+        "id": "H04"
+      }
+    ],
+    "escenas": [
+      {
+        "clave": "fachada",
+        "inicial": true,
+        "terminal": false,
+        "salidaSeguraObligatoria": false,
+        "intensidad": "LOW",
+        "apoyo": [],
+        "herramientasRequeridas": [],
+        "posicion": {
+          "x": 180,
+          "y": 180
+        },
+        "opciones": [
+          {
+            "clave": "fachada-saludo-calido",
+            "clase": "RECOMMENDED",
+            "retroalimentacionInmediata": "Un saludo cálido y preguntas abiertas sobre la vecina construyen alianza y muestran interés genuino por su red de apoyo. Facilita que ella se sienta valorada y colabore.",
+            "efectos": {
+              "persona": {
+                "bond": 1,
+                "activation": 0
+              },
+              "milestones": [
+                "identificar_una_red_de_apoyo"
+              ],
+              "competencies": [
+                "COMUNICACION_EMPATIA",
+                "COMPRENSION_SITUACION"
+              ]
+            },
+            "id": "OP01",
+            "mensaje": "Un saludo cálido y preguntas abiertas sobre la vecina construyen alianza y muestran interés genuino por su red de apoyo. Facilita que ella se sienta valorada y colabore.",
+            "reaccion": {
+              "linea": "Ah, qué amable. Hace diez años que vivo aquí, ya nos conocemos todos.",
+              "emocion": "alegre",
+              "gesto": "se-acerca"
+            }
+          },
+          {
+            "clave": "fachada-presentacion-formal",
+            "clase": "ACCEPTABLE",
+            "retroalimentacionInmediata": "La presentación formal y directa informa el motivo, pero puede sentirse burocrática. Preguntar por la situación de la familia invita a la vecina a compartir, aunque sin el calor inicial.",
+            "efectos": {
+              "milestones": [
+                "identificar_una_red_de_apoyo"
+              ],
+              "competencies": [
+                "COMUNICACION_EMPATIA",
+                "COMPRENSION_SITUACION"
+              ]
+            },
+            "id": "OP02",
+            "mensaje": "La presentación formal y directa informa el motivo, pero puede sentirse burocrática. Preguntar por la situación de la familia invita a la vecina a compartir, aunque sin el calor inicial.",
+            "reaccion": {
+              "linea": "Ya me imaginaba. El hombre bebe mucho y a veces gritan.",
+              "emocion": "preocupada",
+              "gesto": "baja-la-mirada"
+            }
+          },
+          {
+            "clave": "fachada-pregunta-directa-consumo",
+            "clase": "RISKY",
+            "retroalimentacionInmediata": "Mencionar el consumo de entrada rompe la confidencialidad y puede alertar a la vecina, generando defensas. Además, etiquetar como 'problema' sin explorar primero es prematuro.",
+            "efectos": {
+              "persona": {
+                "bond": -1,
+                "activation": 1
+              },
+              "competencies": [
+                "COMUNICACION_EMPATIA",
+                "ANALISIS_ARGUMENTACION"
+              ]
+            },
+            "id": "OP03",
+            "mensaje": "Mencionar el consumo de entrada rompe la confidencialidad y puede alertar a la vecina, generando defensas. Además, etiquetar como 'problema' sin explorar primero es prematuro.",
+            "reaccion": {
+              "linea": "¿Y usted quién es para andar diciendo eso? Mejor hable con ellos.",
+              "emocion": "cautelosa",
+              "gesto": "se-aparta"
+            }
+          },
+          {
+            "clave": "fachada-prometer-confidencialidad-absoluta",
+            "clase": "CONTRAINDICATED",
+            "retroalimentacionInmediata": "Prometer confidencialidad absoluta es contraindicado porque ante riesgo para menores o violencia de género hay obligación legal de informar. Esto crea falsas expectativas y puede poner en peligro al niño.",
+            "efectos": {
+              "persona": {
+                "bond": -1,
+                "activation": 1
+              },
+              "competencies": [
+                "COMUNICACION_EMPATIA",
+                "PAP"
+              ]
+            },
+            "id": "OP04",
+            "mensaje": "Prometer confidencialidad absoluta es contraindicado porque ante riesgo para menores o violencia de género hay obligación legal de informar. Esto crea falsas expectativas y puede poner en peligro al niño.",
+            "reaccion": {
+              "linea": "¿En serio? Eso no lo puede prometer, si pasa algo grave tiene que avisar.",
+              "emocion": "preocupada",
+              "gesto": "se-agita"
+            }
+          }
+        ],
+        "id": "E01",
+        "preguntaDerivada": true,
+        "objetivo": "Presentarse, explicar el motivo de la visita y generar confianza inicial con la vecina.",
+        "comentarios": [
+          {
+            "personaje": "vecina",
+            "linea": "El cerrojo de la puerta siempre está echado por dentro, por si acaso.",
+            "emocion": "preocupada",
+            "gesto": "se-aparta"
+          },
+          {
+            "personaje": "vecina",
+            "linea": "A veces el niño viene a jugar a mi patio cuando hay gritos.",
+            "cuando": {
+              "talked": "vecina"
+            },
+            "emocion": "triste",
+            "gesto": "baja-la-mirada"
+          }
+        ],
+        "mapa": {
+          "clave": "sala-fachada",
+          "titulo": "Fachada de la casa",
+          "ancho": 960,
+          "alto": 528,
+          "tema": "clinical-soft",
+          "aparicion": {
+            "x": 480,
+            "y": 440
+          },
+          "ambiente": {
+            "backgroundImage": "/assets/biblioteca/escenarios/casa/arte/salas/fachada.png",
+            "encuadre": "una-pared",
+            "salaId": "fachada",
+            "lugarId": "casa"
+          },
+          "colisiones": [
+            {
+              "clave": "pared-fondo",
+              "etiqueta": "Pared del fondo",
+              "x": 0,
+              "y": 0,
+              "ancho": 960,
+              "alto": 236
+            },
+            {
+              "clave": "borde-izquierdo",
+              "etiqueta": "Borde izquierdo",
+              "x": 0,
+              "y": 236,
+              "ancho": 24,
+              "alto": 250
+            },
+            {
+              "clave": "borde-derecho",
+              "etiqueta": "Borde derecho",
+              "x": 936,
+              "y": 236,
+              "ancho": 24,
+              "alto": 250
+            },
+            {
+              "clave": "borde-delantero",
+              "etiqueta": "Borde delantero",
+              "x": 0,
+              "y": 486,
+              "ancho": 960,
+              "alto": 42
+            },
+            {
+              "clave": "choque-materas",
+              "etiqueta": "Materas",
+              "x": 170,
+              "y": 286,
+              "ancho": 60,
+              "alto": 14
+            },
+            {
+              "clave": "choque-banco-patio",
+              "etiqueta": "Banco del patio",
+              "x": 720,
+              "y": 312,
+              "ancho": 80,
+              "alto": 18
+            }
+          ],
+          "objetos": [
+            {
+              "clave": "materas",
+              "etiqueta": "Materas",
+              "tipo": "PROP",
+              "x": 200,
+              "y": 300,
+              "ancho": 60,
+              "alto": 14,
+              "z": 0,
+              "orientacion": "",
+              "color": "#4FA3A5",
+              "icono": "inventory_2",
+              "codigoCorto": "",
+              "colision": false,
+              "visible": true,
+              "indicacion": "",
+              "texto": "",
+              "opcion": null,
+              "personaje": null,
+              "herramienta": null,
+              "desbloqueo": {},
+              "movimiento": {},
+              "metadatos": {
+                "arte": "/assets/biblioteca/escenarios/casa/arte/muebles/materas.png",
+                "colision": true,
+                "apoyo": "pies"
+              }
+            },
+            {
+              "clave": "banco-patio",
+              "etiqueta": "Banco del patio",
+              "tipo": "PROP",
+              "x": 760,
+              "y": 330,
+              "ancho": 80,
+              "alto": 18,
+              "z": 0,
+              "orientacion": "",
+              "color": "#4FA3A5",
+              "icono": "inventory_2",
+              "codigoCorto": "",
+              "colision": false,
+              "visible": true,
+              "indicacion": "",
+              "texto": "",
+              "opcion": null,
+              "personaje": null,
+              "herramienta": null,
+              "desbloqueo": {},
+              "movimiento": {},
+              "metadatos": {
+                "arte": "/assets/biblioteca/escenarios/casa/arte/muebles/banco-patio.png",
+                "colision": true,
+                "apoyo": "pies"
+              }
+            },
+            {
+              "clave": "papelera",
+              "etiqueta": "Papelera",
+              "tipo": "PROP",
+              "x": 640,
+              "y": 300,
+              "ancho": 32,
+              "alto": 32,
+              "z": 0,
+              "orientacion": "",
+              "color": "#4FA3A5",
+              "icono": "inventory_2",
+              "codigoCorto": "",
+              "colision": false,
+              "visible": true,
+              "indicacion": "Mirar",
+              "texto": "Vacía.",
+              "opcion": null,
+              "personaje": null,
+              "herramienta": null,
+              "desbloqueo": {},
+              "movimiento": {},
+              "metadatos": {
+                "arte": "/assets/biblioteca/escenarios/casa/arte/objetos/papelera.png",
+                "apoyo": "pies",
+                "animacionCerca": {
+                  "hoja": "/assets/biblioteca/escenarios/casa/arte/objetos/papelera-cerca.png",
+                  "cuadros": 2,
+                  "fps": 6
+                }
+              }
+            },
+            {
+              "clave": "cerrojo-puerta",
+              "etiqueta": "Cerrojo de la puerta",
+              "tipo": "PROP",
+              "x": 445,
+              "y": 250,
+              "ancho": 32,
+              "alto": 32,
+              "z": 0,
+              "orientacion": "",
+              "color": "#4FA3A5",
+              "icono": "inventory_2",
+              "codigoCorto": "",
+              "colision": false,
+              "visible": true,
+              "indicacion": "Mirar",
+              "texto": "Tiene cerrojo por dentro.",
+              "opcion": null,
+              "personaje": null,
+              "herramienta": null,
+              "desbloqueo": {},
+              "movimiento": {},
+              "metadatos": {
+                "arte": "/assets/biblioteca/escenarios/casa/arte/objetos/cerrojo-puerta.png",
+                "apoyo": "pies",
+                "animacionCerca": {
+                  "hoja": "/assets/biblioteca/escenarios/casa/arte/objetos/cerrojo-puerta-cerca.png",
+                  "cuadros": 3,
+                  "fps": 6
+                }
+              }
+            },
+            {
+              "clave": "vecina",
+              "etiqueta": "Vecina",
+              "tipo": "PERSON",
+              "x": 300,
+              "y": 370,
+              "ancho": 48,
+              "alto": 48,
+              "z": 0,
+              "orientacion": "right",
+              "color": "#4FA3A5",
+              "icono": "person",
+              "codigoCorto": "",
+              "colision": false,
+              "visible": true,
+              "indicacion": "Hablar",
+              "texto": "",
+              "opcion": null,
+              "personaje": "vecina",
+              "herramienta": null,
+              "desbloqueo": {},
+              "movimiento": {},
+              "metadatos": {
+                "recipeId": "vecina",
+                "movimiento": "quieto",
+                "apoyo": "pies",
+                "expresion": "neutral",
+                "personaClave": true
+              }
+            },
+            {
+              "clave": "puerta-sala",
+              "etiqueta": "Entrar a la casa",
+              "tipo": "EXIT",
+              "x": 480,
+              "y": 236,
+              "ancho": 24,
+              "alto": 40,
+              "z": 0,
+              "orientacion": "",
+              "color": "#4FA3A5",
+              "icono": "door_front",
+              "codigoCorto": "",
+              "colision": false,
+              "visible": true,
+              "indicacion": "Entrar a la casa",
+              "texto": "",
+              "opcion": null,
+              "personaje": null,
+              "herramienta": null,
+              "desbloqueo": {},
+              "movimiento": {},
+              "metadatos": {
+                "targetNodeKey": "sala",
+                "entryX": 480,
+                "entryY": 440,
+                "pintada": true
+              }
+            }
+          ],
+          "dialogos": [
+            {
+              "clave": "guion-fachada",
+              "hablante": "Vecina",
+              "retrato": null,
+              "emocion": "neutral",
+              "objeto": "vecina",
+              "lineas": [
+                {
+                  "orden": 1,
+                  "hablante": "Vecina",
+                  "texto": "Buenos días. ¿En qué le puedo ayudar? No estamos acostumbrados a visitas de la EPS por aquí.",
+                  "emocion": "cautelosa"
+                },
+                {
+                  "orden": 2,
+                  "hablante": "Vecina",
+                  "texto": "Mire, la familia de al lado es muy reservada. Ojalá pueda hacer algo, porque el niño a veces se queda solo en la puerta.",
+                  "emocion": "preocupada"
+                }
+              ],
+              "elecciones": [
+                {
+                  "clave": "fachada-saludo-calido",
+                  "texto": "Buenos días, soy psicóloga de la EPS. Vengo a conversar con la familia para ver cómo les va y ofrecer apoyo. ¿Cómo está usted? ¿Lleva mucho tiempo en el barrio?",
+                  "opcion": "fachada-saludo-calido",
+                  "herramientaRequerida": null,
+                  "efecto": {},
+                  "orden": 1
+                },
+                {
+                  "clave": "fachada-presentacion-formal",
+                  "texto": "Buenos días. Soy la psicóloga visitante. La EPS nos derivó para una valoración de riesgo psicosocial. ¿Sabe algo de la situación de la familia?",
+                  "opcion": "fachada-presentacion-formal",
+                  "herramientaRequerida": null,
+                  "efecto": {},
+                  "orden": 2
+                },
+                {
+                  "clave": "fachada-pregunta-directa-consumo",
+                  "texto": "Buenos días. Vengo porque el hombre de la casa tiene un problema con el alcohol. ¿Usted ha visto algo raro?",
+                  "opcion": "fachada-pregunta-directa-consumo",
+                  "herramientaRequerida": null,
+                  "efecto": {},
+                  "orden": 3
+                },
+                {
+                  "clave": "fachada-prometer-confidencialidad-absoluta",
+                  "texto": "Buenos días. Le prometo que todo lo que me cuente quedará entre nosotras, nadie se enterará. ¿Qué sabe del hombre?",
+                  "opcion": "fachada-prometer-confidencialidad-absoluta",
+                  "herramientaRequerida": null,
+                  "efecto": {},
+                  "orden": 4
+                }
+              ]
+            }
+          ]
+        }
+      },
+      {
+        "clave": "sala",
+        "inicial": false,
+        "terminal": false,
+        "salidaSeguraObligatoria": false,
+        "intensidad": "MEDIUM",
+        "apoyo": [],
+        "herramientasRequeridas": [],
+        "posicion": {
+          "x": 460,
+          "y": 180
+        },
+        "opciones": [
+          {
+            "clave": "sala-explorar-ambivalencia",
+            "clase": "RECOMMENDED",
+            "retroalimentacionInmediata": "Esta pregunta abierta invita a explorar la ambivalencia sin confrontar. Señala la discrepancia entre su discurso y la señal no verbal de su familia, lo que abre espacio a la reflexión. Mantiene la alianza y evita etiquetas.",
+            "efectos": {
+              "persona": {
+                "bond": 1,
+                "activation": 0
+              },
+              "milestones": [
+                "valorar_el_riesgo",
+                "identificar_una_red_de_apoyo"
+              ],
+              "competencies": [
+                "COMUNICACION_EMPATIA",
+                "COMPRENSION_SITUACION",
+                "ANALISIS_ARGUMENTACION"
+              ]
+            },
+            "id": "OP05",
+            "mensaje": "Esta pregunta abierta invita a explorar la ambivalencia sin confrontar. Señala la discrepancia entre su discurso y la señal no verbal de su familia, lo que abre espacio a la reflexión. Mantiene la alianza y evita etiquetas.",
+            "reaccion": {
+              "linea": "El usuario baja la mirada, suelta un suspiro largo y murmura: \"Quizás... a veces me paso de copas.\"",
+              "emocion": "preocupada",
+              "gesto": "baja-la-mirada"
+            }
+          },
+          {
+            "clave": "sala-validar-y-reflejar",
+            "clase": "ACCEPTABLE",
+            "retroalimentacionInmediata": "Valida la perspectiva del usuario y refleja la tensión familiar sin juzgar. Propone un cambio de escenario que permite escuchar a la pareja y proteger al niño de la conversación adulta. Es aceptable, aunque menos directo en explorar la ambivalencia del usuario.",
+            "efectos": {
+              "persona": {
+                "bond": 0,
+                "activation": -1
+              },
+              "milestones": [
+                "identificar_una_red_de_apoyo"
+              ],
+              "competencies": [
+                "COMUNICACION_EMPATIA",
+                "COMPRENSION_SITUACION",
+                "REFLEXION"
+              ]
+            },
+            "id": "OP06",
+            "mensaje": "Valida la perspectiva del usuario y refleja la tensión familiar sin juzgar. Propone un cambio de escenario que permite escuchar a la pareja y proteger al niño de la conversación adulta. Es aceptable, aunque menos directo en explorar la ambivalencia del usuario.",
+            "reaccion": {
+              "linea": "El usuario asiente con recelo: \"Hagan lo que quieran, yo no tengo nada que esconder.\"",
+              "emocion": "cautelosa",
+              "gesto": "asiente"
+            }
+          },
+          {
+            "clave": "sala-consejo-directivo",
+            "clase": "RISKY",
+            "retroalimentacionInmediata": "Ofrece consejo directivo y etiqueta de riesgo sin haber explorado la motivación del usuario. Puede generar resistencia y romper la alianza. El usuario puede sentirse juzgado y cerrarse. Aunque la intención es protectora, la forma es prematura y directiva.",
+            "efectos": {
+              "persona": {
+                "bond": -1,
+                "activation": 1
+              },
+              "milestones": [
+                "informar_derechos"
+              ],
+              "competencies": [
+                "DECISION_RUTA",
+                "PAP"
+              ]
+            },
+            "id": "OP07",
+            "mensaje": "Ofrece consejo directivo y etiqueta de riesgo sin haber explorado la motivación del usuario. Puede generar resistencia y romper la alianza. El usuario puede sentirse juzgado y cerrarse. Aunque la intención es protectora, la forma es prematura y directiva.",
+            "reaccion": {
+              "linea": "El usuario se tensa, cruza los brazos y replica seco: \"Nadie me va a decir cómo vivir en mi casa.\"",
+              "emocion": "en-crisis",
+              "gesto": "se-aparta"
+            }
+          },
+          {
+            "clave": "sala-prometer-confidencialidad-absoluta",
+            "clase": "CONTRAINDICATED",
+            "retroalimentacionInmediata": "Prometer confidencialidad absoluta ante riesgo psicosocial es ética y legalmente incorrecto. Además, pide información con fines de evaluación de peligro, lo que posiciona a la psicóloga como jueza y rompe la alianza terapéutica. Puede inhibir la honestidad futura y dejar desprotegidos a la pareja y al niño.",
+            "efectos": {
+              "persona": {
+                "bond": -1,
+                "activation": 1
+              },
+              "competencies": [
+                "COMUNICACION_EMPATIA",
+                "REFLEXION"
+              ]
+            },
+            "id": "OP08",
+            "mensaje": "Prometer confidencialidad absoluta ante riesgo psicosocial es ética y legalmente incorrecto. Además, pide información con fines de evaluación de peligro, lo que posiciona a la psicóloga como jueza y rompe la alianza terapéutica. Puede inhibir la honestidad futura y dejar desprotegidos a la pareja y al niño.",
+            "reaccion": {
+              "linea": "El usuario esboza una sonrisa cínica: \"¿Y si le digo que tomo un litro al día? ¿Me encierra?\"",
+              "emocion": "cautelosa",
+              "gesto": "se-agita"
+            }
+          }
+        ],
+        "id": "E02",
+        "preguntaDerivada": true,
+        "objetivo": "Iniciar la entrevista motivacional con el usuario mientras observa la dinámica familiar.",
+        "comentarios": [
+          {
+            "personaje": "persona-usuaria",
+            "linea": "El televisor sigue sonando, pero el usuario apaga el sonido con el control remoto.",
+            "emocion": "neutral",
+            "gesto": "se-acerca"
+          },
+          {
+            "personaje": "psicologa-visitante",
+            "linea": "La psicóloga toma nota mental de la foto familiar incompleta y del lápiz que el niño aprieta con fuerza.",
+            "emocion": "preocupada",
+            "gesto": "asiente"
+          }
+        ],
+        "mapa": {
+          "clave": "sala-sala",
+          "titulo": "Sala",
+          "ancho": 960,
+          "alto": 528,
+          "tema": "clinical-soft",
+          "aparicion": {
+            "x": 480,
+            "y": 440
+          },
+          "ambiente": {
+            "backgroundImage": "/assets/biblioteca/escenarios/casa/arte/salas/sala.png",
+            "encuadre": "tres-paredes",
+            "salaId": "sala",
+            "lugarId": "casa"
+          },
+          "colisiones": [
+            {
+              "clave": "pared-fondo",
+              "etiqueta": "Pared del fondo",
+              "x": 0,
+              "y": 0,
+              "ancho": 960,
+              "alto": 236
+            },
+            {
+              "clave": "pared-izquierda",
+              "etiqueta": "Pared izquierda",
+              "x": 0,
+              "y": 236,
+              "ancho": 96,
+              "alto": 250
+            },
+            {
+              "clave": "pared-derecha",
+              "etiqueta": "Pared derecha",
+              "x": 864,
+              "y": 236,
+              "ancho": 96,
+              "alto": 250
+            },
+            {
+              "clave": "borde-delantero",
+              "etiqueta": "Borde delantero",
+              "x": 0,
+              "y": 486,
+              "ancho": 960,
+              "alto": 42
+            },
+            {
+              "clave": "choque-sofa-casa",
+              "etiqueta": "Sofá de la sala",
+              "x": 255,
+              "y": 304,
+              "ancho": 90,
+              "alto": 26
+            },
+            {
+              "clave": "choque-sillon-casa",
+              "etiqueta": "Sillón",
+              "x": 447,
+              "y": 276,
+              "ancho": 46,
+              "alto": 24
+            },
+            {
+              "clave": "choque-mesa-centro-casa",
+              "etiqueta": "Mesa de centro",
+              "x": 305,
+              "y": 374,
+              "ancho": 50,
+              "alto": 18
+            },
+            {
+              "clave": "choque-mueble-tv",
+              "etiqueta": "Mueble del televisor",
+              "x": 610,
+              "y": 242,
+              "ancho": 100,
+              "alto": 20
+            }
+          ],
+          "objetos": [
+            {
+              "clave": "sofa-casa",
+              "etiqueta": "Sofá de la sala",
+              "tipo": "PROP",
+              "x": 300,
+              "y": 330,
+              "ancho": 90,
+              "alto": 26,
+              "z": 0,
+              "orientacion": "",
+              "color": "#4FA3A5",
+              "icono": "inventory_2",
+              "codigoCorto": "",
+              "colision": false,
+              "visible": true,
+              "indicacion": "",
+              "texto": "",
+              "opcion": null,
+              "personaje": null,
+              "herramienta": null,
+              "desbloqueo": {},
+              "movimiento": {},
+              "metadatos": {
+                "arte": "/assets/biblioteca/escenarios/casa/arte/muebles/sofa-casa.png",
+                "colision": true,
+                "apoyo": "pies"
+              }
+            },
+            {
+              "clave": "sillon-casa",
+              "etiqueta": "Sillón",
+              "tipo": "PROP",
+              "x": 470,
+              "y": 300,
+              "ancho": 46,
+              "alto": 24,
+              "z": 0,
+              "orientacion": "",
+              "color": "#4FA3A5",
+              "icono": "inventory_2",
+              "codigoCorto": "",
+              "colision": false,
+              "visible": true,
+              "indicacion": "",
+              "texto": "",
+              "opcion": null,
+              "personaje": null,
+              "herramienta": null,
+              "desbloqueo": {},
+              "movimiento": {},
+              "metadatos": {
+                "arte": "/assets/biblioteca/escenarios/casa/arte/muebles/sillon-casa.png",
+                "colision": true,
+                "apoyo": "pies",
+                "espejo": true
+              }
+            },
+            {
+              "clave": "mesa-centro-casa",
+              "etiqueta": "Mesa de centro",
+              "tipo": "PROP",
+              "x": 330,
+              "y": 392,
+              "ancho": 50,
+              "alto": 18,
+              "z": 0,
+              "orientacion": "",
+              "color": "#4FA3A5",
+              "icono": "inventory_2",
+              "codigoCorto": "",
+              "colision": false,
+              "visible": true,
+              "indicacion": "",
+              "texto": "",
+              "opcion": null,
+              "personaje": null,
+              "herramienta": null,
+              "desbloqueo": {},
+              "movimiento": {},
+              "metadatos": {
+                "arte": "/assets/biblioteca/escenarios/casa/arte/muebles/mesa-centro-casa.png",
+                "colision": true,
+                "apoyo": "pies"
+              }
+            },
+            {
+              "clave": "mueble-tv",
+              "etiqueta": "Mueble del televisor",
+              "tipo": "PROP",
+              "x": 660,
+              "y": 262,
+              "ancho": 100,
+              "alto": 20,
+              "z": 0,
+              "orientacion": "",
+              "color": "#4FA3A5",
+              "icono": "inventory_2",
+              "codigoCorto": "",
+              "colision": false,
+              "visible": true,
+              "indicacion": "",
+              "texto": "",
+              "opcion": null,
+              "personaje": null,
+              "herramienta": null,
+              "desbloqueo": {},
+              "movimiento": {},
+              "metadatos": {
+                "arte": "/assets/biblioteca/escenarios/casa/arte/muebles/mueble-tv.png",
+                "colision": true,
+                "apoyo": "pies"
+              }
+            },
+            {
+              "clave": "televisor",
+              "etiqueta": "Televisor encendido",
+              "tipo": "PROP",
+              "x": 650,
+              "y": 250,
+              "ancho": 32,
+              "alto": 32,
+              "z": 0,
+              "orientacion": "",
+              "color": "#4FA3A5",
+              "icono": "inventory_2",
+              "codigoCorto": "",
+              "colision": false,
+              "visible": true,
+              "indicacion": "Mirar",
+              "texto": "Nadie lo está viendo.",
+              "opcion": null,
+              "personaje": null,
+              "herramienta": null,
+              "desbloqueo": {},
+              "movimiento": {},
+              "metadatos": {
+                "arte": "/assets/biblioteca/escenarios/casa/arte/objetos/televisor.png",
+                "apoyo": "pies",
+                "animacionCerca": {
+                  "hoja": "/assets/biblioteca/escenarios/casa/arte/objetos/televisor-cerca.png",
+                  "cuadros": 4,
+                  "fps": 6
+                }
+              }
+            },
+            {
+              "clave": "portarretrato",
+              "etiqueta": "Portarretrato",
+              "tipo": "OBJECT",
+              "x": 700,
+              "y": 252,
+              "ancho": 32,
+              "alto": 32,
+              "z": 0,
+              "orientacion": "",
+              "color": "#4FA3A5",
+              "icono": "inventory_2",
+              "codigoCorto": "",
+              "colision": false,
+              "visible": true,
+              "indicacion": "Mirar",
+              "texto": "Una foto familiar. Falta alguien en el marco.",
+              "opcion": null,
+              "personaje": null,
+              "herramienta": null,
+              "desbloqueo": {},
+              "movimiento": {},
+              "metadatos": {
+                "arte": "/assets/biblioteca/escenarios/casa/arte/objetos/portarretrato.png",
+                "apoyo": "pies",
+                "animacionCerca": {
+                  "hoja": "/assets/biblioteca/escenarios/casa/arte/objetos/portarretrato-cerca.png",
+                  "cuadros": 3,
+                  "fps": 6
+                }
+              }
+            },
+            {
+              "clave": "persona-usuaria",
+              "etiqueta": "Persona usuaria",
+              "tipo": "PERSON",
+              "x": 560,
+              "y": 360,
+              "ancho": 48,
+              "alto": 48,
+              "z": 0,
+              "orientacion": "left",
+              "color": "#4FA3A5",
+              "icono": "person",
+              "codigoCorto": "",
+              "colision": false,
+              "visible": true,
+              "indicacion": "Hablar",
+              "texto": "",
+              "opcion": null,
+              "personaje": "persona-usuaria",
+              "herramienta": null,
+              "desbloqueo": {},
+              "movimiento": {},
+              "metadatos": {
+                "recipeId": "sobreviviente",
+                "movimiento": "quieto",
+                "apoyo": "pies",
+                "expresion": "cautelosa",
+                "personaClave": true
+              }
+            },
+            {
+              "clave": "psicologa-visitante",
+              "etiqueta": "Psicóloga visitante",
+              "tipo": "PERSON",
+              "x": 400,
+              "y": 430,
+              "ancho": 48,
+              "alto": 48,
+              "z": 0,
+              "orientacion": "right",
+              "color": "#4FA3A5",
+              "icono": "person",
+              "codigoCorto": "",
+              "colision": false,
+              "visible": true,
+              "indicacion": "Hablar",
+              "texto": "",
+              "opcion": null,
+              "personaje": "psicologa-visitante",
+              "herramienta": null,
+              "desbloqueo": {},
+              "movimiento": {},
+              "metadatos": {
+                "recipeId": "profesional-psicosocial",
+                "movimiento": "quieto",
+                "apoyo": "pies",
+                "expresion": "neutral"
+              }
+            },
+            {
+              "clave": "puerta-fachada",
+              "etiqueta": "Salir a la calle",
+              "tipo": "EXIT",
+              "x": 480,
+              "y": 486,
+              "ancho": 24,
+              "alto": 40,
+              "z": 0,
+              "orientacion": "",
+              "color": "#4FA3A5",
+              "icono": "door_front",
+              "codigoCorto": "",
+              "colision": false,
+              "visible": true,
+              "indicacion": "Salir a la calle",
+              "texto": "",
+              "opcion": null,
+              "personaje": null,
+              "herramienta": null,
+              "desbloqueo": {},
+              "movimiento": {},
+              "metadatos": {
+                "targetNodeKey": "fachada",
+                "entryX": 480,
+                "entryY": 440,
+                "pintada": true
+              }
+            },
+            {
+              "clave": "puerta-comedor",
+              "etiqueta": "Pasar al comedor",
+              "tipo": "EXIT",
+              "x": 200,
+              "y": 236,
+              "ancho": 24,
+              "alto": 40,
+              "z": 0,
+              "orientacion": "",
+              "color": "#4FA3A5",
+              "icono": "door_front",
+              "codigoCorto": "",
+              "colision": false,
+              "visible": true,
+              "indicacion": "Pasar al comedor",
+              "texto": "",
+              "opcion": null,
+              "personaje": null,
+              "herramienta": null,
+              "desbloqueo": {},
+              "movimiento": {},
+              "metadatos": {
+                "targetNodeKey": "comedor",
+                "entryX": 480,
+                "entryY": 440,
+                "pintada": true
+              }
+            }
+          ],
+          "dialogos": [
+            {
+              "clave": "guion-sala",
+              "hablante": "Persona usuaria",
+              "retrato": null,
+              "emocion": "neutral",
+              "objeto": "persona-usuaria",
+              "lineas": [
+                {
+                  "orden": 1,
+                  "hablante": "Persona usuaria",
+                  "texto": "Mire, doctora, no sé por qué vienen. Yo trabajo, mantengo mi casa, mi hijo estudia. Unas cervezas al final del día no le hacen daño a nadie. Es costumbre, no vicio.",
+                  "emocion": "cautelosa"
+                },
+                {
+                  "orden": 2,
+                  "hablante": "Psicóloga visitante",
+                  "texto": "Gracias por recibirme. Vengo porque la EPS nos pidió ver cómo están en casa, sin juzgar. Me gustaría conocer su versión, la de su pareja y cómo se siente su hijo.",
+                  "emocion": "neutral"
+                },
+                {
+                  "orden": 3,
+                  "hablante": "Persona usuaria",
+                  "texto": "Mi versión es clara: no hay problema. Mi mujer se preocupa de más y el niño... el niño está bien, ¿no? Hace sus tareas, no molesta.",
+                  "emocion": "preocupada"
+                }
+              ],
+              "elecciones": [
+                {
+                  "clave": "sala-explorar-ambivalencia",
+                  "texto": "Usted dice que no hay problema, y sin embargo su pareja y su hijo parecen tensos. ¿Qué es lo que ellos ven que usted no ve?",
+                  "opcion": "sala-explorar-ambivalencia",
+                  "herramientaRequerida": null,
+                  "efecto": {},
+                  "orden": 1
+                },
+                {
+                  "clave": "sala-validar-y-reflejar",
+                  "texto": "Entiendo que para usted el consumo es controlado y que le molesta que piensen lo contrario. Su pareja y su hijo callan, pero su cuerpo habla. ¿Le parece si escuchamos a su pareja en la cocina mientras usted descansa un momento?",
+                  "opcion": "sala-validar-y-reflejar",
+                  "herramientaRequerida": null,
+                  "efecto": {},
+                  "orden": 2
+                },
+                {
+                  "clave": "sala-consejo-directivo",
+                  "texto": "Si bebe a diario y maneja, está poniendo en riesgo a su familia. Debería dejar de tomar o al menos no conducir. Le doy el número de un grupo de ayuda.",
+                  "opcion": "sala-consejo-directivo",
+                  "herramientaRequerida": null,
+                  "efecto": {},
+                  "orden": 3
+                },
+                {
+                  "clave": "sala-prometer-confidencialidad-absoluta",
+                  "texto": "Lo que hablemos queda entre usted y yo, se lo prometo. Cuénteme cuánto bebe realmente para que yo decida si hay peligro.",
+                  "opcion": "sala-prometer-confidencialidad-absoluta",
+                  "herramientaRequerida": null,
+                  "efecto": {},
+                  "orden": 4
+                }
+              ]
+            }
+          ]
+        }
+      },
+      {
+        "clave": "comedor",
+        "inicial": false,
+        "terminal": false,
+        "salidaSeguraObligatoria": false,
+        "intensidad": "MEDIUM",
+        "apoyo": [],
+        "herramientasRequeridas": [],
+        "posicion": {
+          "x": 740,
+          "y": 180
+        },
+        "opciones": [
+          {
+            "clave": "comedor-validar-emociones",
+            "clase": "RECOMMENDED",
+            "retroalimentacionInmediata": "Validar la emoción y preguntar por autocuidado fortalece la alianza, permite valorar el riesgo sin presionar y abre la puerta a identificar redes de apoyo.",
+            "efectos": {
+              "persona": {
+                "bond": 1,
+                "activation": -1
+              },
+              "milestones": [
+                "valorar_el_riesgo",
+                "identificar_una_red_de_apoyo"
+              ],
+              "competencies": [
+                "COMUNICACION_EMPATIA",
+                "COMPRENSION_SITUACION"
+              ]
+            },
+            "id": "OP09",
+            "mensaje": "Validar la emoción y preguntar por autocuidado fortalece la alianza, permite valorar el riesgo sin presionar y abre la puerta a identificar redes de apoyo.",
+            "reaccion": {
+              "linea": "La niña suspira y dice que se esconde bajo la manta.",
+              "emocion": "triste",
+              "gesto": "se-acerca"
+            }
+          },
+          {
+            "clave": "comedor-invitar-dibujar",
+            "clase": "ACCEPTABLE",
+            "retroalimentacionInmediata": "Ofrecer una actividad creativa relaja a la niña, aunque no profundiza directamente en sus sentimientos ni en la red de apoyo; sirve como puente para futuras conversaciones.",
+            "efectos": {
+              "milestones": [
+                "informar_derechos"
+              ],
+              "competencies": [
+                "PAP",
+                "REFLEXION"
+              ]
+            },
+            "id": "OP10",
+            "mensaje": "Ofrecer una actividad creativa relaja a la niña, aunque no profundiza directamente en sus sentimientos ni en la red de apoyo; sirve como puente para futuras conversaciones.",
+            "reaccion": {
+              "linea": "La niña asiente y busca sus colores.",
+              "emocion": "neutral",
+              "gesto": "asiente"
+            }
+          },
+          {
+            "clave": "comedor-delegar-vecina",
+            "clase": "RISKY",
+            "retroalimentacionInmediata": "Sugerir que busque a la vecina amplía su red, pero delegar la responsabilidad de protegerse en la niña sin un plan adulto puede sobrecargarla y minimizar la gravedad del riesgo.",
+            "efectos": {
+              "milestones": [
+                "identificar_una_red_de_apoyo"
+              ],
+              "competencies": [
+                "DECISION_RUTA",
+                "ANALISIS_ARGUMENTACION"
+              ]
+            },
+            "id": "OP11",
+            "mensaje": "Sugerir que busque a la vecina amplía su red, pero delegar la responsabilidad de protegerse en la niña sin un plan adulto puede sobrecargarla y minimizar la gravedad del riesgo.",
+            "reaccion": {
+              "linea": "La niña mira hacia la puerta, indecisa.",
+              "emocion": "cautelosa",
+              "gesto": "se-aparta"
+            }
+          },
+          {
+            "clave": "comedor-culpar-padre",
+            "clase": "CONTRAINDICATED",
+            "retroalimentacionInmediata": "Culpar al padre frente a la niña y etiquetar su consumo la expone a lealtades conflictivas, aumenta su ansiedad y rompe la confianza; además, confrontar al agresor a través del niño es una forma de revictimización.",
+            "efectos": {
+              "persona": {
+                "bond": -1,
+                "activation": 1
+              }
+            },
+            "id": "OP12",
+            "mensaje": "Culpar al padre frente a la niña y etiquetar su consumo la expone a lealtades conflictivas, aumenta su ansiedad y rompe la confianza; además, confrontar al agresor a través del niño es una forma de revictimización.",
+            "reaccion": {
+              "linea": "La niña baja la mirada y se calla.",
+              "emocion": "triste",
+              "gesto": "baja-la-mirada"
+            }
+          }
+        ],
+        "id": "E03",
+        "preguntaDerivada": true,
+        "objetivo": "Observar e interactuar con el hijo de 10 años para valorar su bienestar sin alarmar.",
+        "comentarios": [
+          {
+            "personaje": "nina-casa",
+            "linea": "A veces quiero que todo esté tranquilo como en mi dibujo.",
+            "emocion": "triste",
+            "gesto": "baja-la-mirada"
+          },
+          {
+            "personaje": "nina-casa",
+            "linea": "La planta está grande porque le canto mientras la riego.",
+            "cuando": {
+              "inspected": "planta-maceta"
+            },
+            "emocion": "alegre",
+            "gesto": "asiente"
+          }
+        ],
+        "mapa": {
+          "clave": "sala-comedor",
+          "titulo": "Comedor",
+          "ancho": 960,
+          "alto": 528,
+          "tema": "clinical-soft",
+          "aparicion": {
+            "x": 480,
+            "y": 440
+          },
+          "ambiente": {
+            "backgroundImage": "/assets/biblioteca/escenarios/casa/arte/salas/comedor.png",
+            "encuadre": "dos-paredes-izquierda",
+            "salaId": "comedor",
+            "lugarId": "casa"
+          },
+          "colisiones": [
+            {
+              "clave": "pared-fondo",
+              "etiqueta": "Pared del fondo",
+              "x": 0,
+              "y": 0,
+              "ancho": 960,
+              "alto": 236
+            },
+            {
+              "clave": "pared-izquierda",
+              "etiqueta": "Pared izquierda",
+              "x": 0,
+              "y": 236,
+              "ancho": 96,
+              "alto": 250
+            },
+            {
+              "clave": "borde-derecho",
+              "etiqueta": "Borde derecho",
+              "x": 936,
+              "y": 236,
+              "ancho": 24,
+              "alto": 250
+            },
+            {
+              "clave": "borde-delantero",
+              "etiqueta": "Borde delantero",
+              "x": 0,
+              "y": 486,
+              "ancho": 960,
+              "alto": 42
+            },
+            {
+              "clave": "choque-mesa-comedor",
+              "etiqueta": "Mesa del comedor",
+              "x": 425,
+              "y": 320,
+              "ancho": 110,
+              "alto": 30
+            },
+            {
+              "clave": "choque-silla-comedor",
+              "etiqueta": "Silla del comedor",
+              "x": 419,
+              "y": 302,
+              "ancho": 22,
+              "alto": 12
+            },
+            {
+              "clave": "choque-silla-comedor-2",
+              "etiqueta": "Silla del comedor",
+              "x": 519,
+              "y": 302,
+              "ancho": 22,
+              "alto": 12
+            },
+            {
+              "clave": "choque-silla-comedor-3",
+              "etiqueta": "Silla del comedor",
+              "x": 419,
+              "y": 372,
+              "ancho": 22,
+              "alto": 12
+            },
+            {
+              "clave": "choque-silla-comedor-4",
+              "etiqueta": "Silla del comedor",
+              "x": 519,
+              "y": 372,
+              "ancho": 22,
+              "alto": 12
+            },
+            {
+              "clave": "choque-vitrina-comedor",
+              "etiqueta": "Vitrina",
+              "x": 170,
+              "y": 234,
+              "ancho": 60,
+              "alto": 18
+            }
+          ],
+          "objetos": [
+            {
+              "clave": "mesa-comedor",
+              "etiqueta": "Mesa del comedor",
+              "tipo": "PROP",
+              "x": 480,
+              "y": 350,
+              "ancho": 110,
+              "alto": 30,
+              "z": 0,
+              "orientacion": "",
+              "color": "#4FA3A5",
+              "icono": "inventory_2",
+              "codigoCorto": "",
+              "colision": false,
+              "visible": true,
+              "indicacion": "",
+              "texto": "",
+              "opcion": null,
+              "personaje": null,
+              "herramienta": null,
+              "desbloqueo": {},
+              "movimiento": {},
+              "metadatos": {
+                "arte": "/assets/biblioteca/escenarios/casa/arte/muebles/mesa-comedor.png",
+                "colision": true,
+                "apoyo": "pies"
+              }
+            },
+            {
+              "clave": "silla-comedor",
+              "etiqueta": "Silla del comedor",
+              "tipo": "PROP",
+              "x": 430,
+              "y": 314,
+              "ancho": 22,
+              "alto": 12,
+              "z": 0,
+              "orientacion": "",
+              "color": "#4FA3A5",
+              "icono": "inventory_2",
+              "codigoCorto": "",
+              "colision": false,
+              "visible": true,
+              "indicacion": "",
+              "texto": "",
+              "opcion": null,
+              "personaje": null,
+              "herramienta": null,
+              "desbloqueo": {},
+              "movimiento": {},
+              "metadatos": {
+                "arte": "/assets/biblioteca/escenarios/casa/arte/muebles/silla-comedor.png",
+                "colision": true,
+                "apoyo": "pies"
+              }
+            },
+            {
+              "clave": "silla-comedor-2",
+              "etiqueta": "Silla del comedor",
+              "tipo": "PROP",
+              "x": 530,
+              "y": 314,
+              "ancho": 22,
+              "alto": 12,
+              "z": 0,
+              "orientacion": "",
+              "color": "#4FA3A5",
+              "icono": "inventory_2",
+              "codigoCorto": "",
+              "colision": false,
+              "visible": true,
+              "indicacion": "",
+              "texto": "",
+              "opcion": null,
+              "personaje": null,
+              "herramienta": null,
+              "desbloqueo": {},
+              "movimiento": {},
+              "metadatos": {
+                "arte": "/assets/biblioteca/escenarios/casa/arte/muebles/silla-comedor.png",
+                "colision": true,
+                "apoyo": "pies"
+              }
+            },
+            {
+              "clave": "silla-comedor-3",
+              "etiqueta": "Silla del comedor",
+              "tipo": "PROP",
+              "x": 430,
+              "y": 384,
+              "ancho": 22,
+              "alto": 12,
+              "z": 0,
+              "orientacion": "",
+              "color": "#4FA3A5",
+              "icono": "inventory_2",
+              "codigoCorto": "",
+              "colision": false,
+              "visible": true,
+              "indicacion": "",
+              "texto": "",
+              "opcion": null,
+              "personaje": null,
+              "herramienta": null,
+              "desbloqueo": {},
+              "movimiento": {},
+              "metadatos": {
+                "arte": "/assets/biblioteca/escenarios/casa/arte/muebles/silla-comedor.png",
+                "colision": true,
+                "apoyo": "pies",
+                "espejo": true
+              }
+            },
+            {
+              "clave": "silla-comedor-4",
+              "etiqueta": "Silla del comedor",
+              "tipo": "PROP",
+              "x": 530,
+              "y": 384,
+              "ancho": 22,
+              "alto": 12,
+              "z": 0,
+              "orientacion": "",
+              "color": "#4FA3A5",
+              "icono": "inventory_2",
+              "codigoCorto": "",
+              "colision": false,
+              "visible": true,
+              "indicacion": "",
+              "texto": "",
+              "opcion": null,
+              "personaje": null,
+              "herramienta": null,
+              "desbloqueo": {},
+              "movimiento": {},
+              "metadatos": {
+                "arte": "/assets/biblioteca/escenarios/casa/arte/muebles/silla-comedor.png",
+                "colision": true,
+                "apoyo": "pies",
+                "espejo": true
+              }
+            },
+            {
+              "clave": "vitrina-comedor",
+              "etiqueta": "Vitrina",
+              "tipo": "PROP",
+              "x": 200,
+              "y": 252,
+              "ancho": 60,
+              "alto": 18,
+              "z": 0,
+              "orientacion": "",
+              "color": "#4FA3A5",
+              "icono": "inventory_2",
+              "codigoCorto": "",
+              "colision": false,
+              "visible": true,
+              "indicacion": "",
+              "texto": "",
+              "opcion": null,
+              "personaje": null,
+              "herramienta": null,
+              "desbloqueo": {},
+              "movimiento": {},
+              "metadatos": {
+                "arte": "/assets/biblioteca/escenarios/casa/arte/muebles/vitrina-comedor.png",
+                "colision": true,
+                "apoyo": "pies"
+              }
+            },
+            {
+              "clave": "planta-maceta",
+              "etiqueta": "Planta pequeña",
+              "tipo": "PROP",
+              "x": 300,
+              "y": 300,
+              "ancho": 32,
+              "alto": 32,
+              "z": 0,
+              "orientacion": "",
+              "color": "#4FA3A5",
+              "icono": "inventory_2",
+              "codigoCorto": "",
+              "colision": false,
+              "visible": true,
+              "indicacion": "Mirar",
+              "texto": "Alguien la riega todos los días.",
+              "opcion": null,
+              "personaje": null,
+              "herramienta": null,
+              "desbloqueo": {},
+              "movimiento": {},
+              "metadatos": {
+                "arte": "/assets/biblioteca/escenarios/casa/arte/objetos/planta-maceta.png",
+                "apoyo": "pies",
+                "animacionCerca": {
+                  "hoja": "/assets/biblioteca/escenarios/casa/arte/objetos/planta-maceta-cerca.png",
+                  "cuadros": 3,
+                  "fps": 6
+                }
+              }
+            },
+            {
+              "clave": "nina-casa",
+              "etiqueta": "Niña de la casa",
+              "tipo": "PERSON",
+              "x": 620,
+              "y": 400,
+              "ancho": 48,
+              "alto": 48,
+              "z": 0,
+              "orientacion": "left",
+              "color": "#4FA3A5",
+              "icono": "person",
+              "codigoCorto": "",
+              "colision": false,
+              "visible": true,
+              "indicacion": "Hablar",
+              "texto": "",
+              "opcion": null,
+              "personaje": "nina-casa",
+              "herramienta": null,
+              "desbloqueo": {},
+              "movimiento": {},
+              "metadatos": {
+                "recipeId": "nina-casa",
+                "movimiento": "quieto",
+                "apoyo": "pies",
+                "expresion": "cautelosa",
+                "personaClave": true
+              }
+            },
+            {
+              "clave": "puerta-sala",
+              "etiqueta": "Volver a la sala",
+              "tipo": "EXIT",
+              "x": 480,
+              "y": 486,
+              "ancho": 24,
+              "alto": 40,
+              "z": 0,
+              "orientacion": "",
+              "color": "#4FA3A5",
+              "icono": "door_front",
+              "codigoCorto": "",
+              "colision": false,
+              "visible": true,
+              "indicacion": "Volver a la sala",
+              "texto": "",
+              "opcion": null,
+              "personaje": null,
+              "herramienta": null,
+              "desbloqueo": {},
+              "movimiento": {},
+              "metadatos": {
+                "targetNodeKey": "sala",
+                "entryX": 480,
+                "entryY": 440,
+                "pintada": true
+              }
+            },
+            {
+              "clave": "puerta-cocina",
+              "etiqueta": "Pasar a la cocina",
+              "tipo": "EXIT",
+              "x": 936,
+              "y": 380,
+              "ancho": 24,
+              "alto": 40,
+              "z": 0,
+              "orientacion": "",
+              "color": "#4FA3A5",
+              "icono": "door_front",
+              "codigoCorto": "",
+              "colision": false,
+              "visible": true,
+              "indicacion": "Pasar a la cocina",
+              "texto": "",
+              "opcion": null,
+              "personaje": null,
+              "herramienta": null,
+              "desbloqueo": {},
+              "movimiento": {},
+              "metadatos": {
+                "targetNodeKey": "cocina",
+                "entryX": 480,
+                "entryY": 440,
+                "pintada": true
+              }
+            }
+          ],
+          "dialogos": [
+            {
+              "clave": "guion-comedor",
+              "hablante": "Niña de la casa",
+              "retrato": null,
+              "emocion": "neutral",
+              "objeto": "nina-casa",
+              "lineas": [
+                {
+                  "orden": 1,
+                  "hablante": "Niña de la casa",
+                  "texto": "Estoy terminando la tarea de mates, pero a veces se me olvidan los números.",
+                  "emocion": "neutral"
+                },
+                {
+                  "orden": 2,
+                  "hablante": "Niña de la casa",
+                  "texto": "Mi mamá dice que la planta crece porque le hablamos bonito.",
+                  "emocion": "alegre"
+                },
+                {
+                  "orden": 3,
+                  "hablante": "Niña de la casa",
+                  "texto": "Ayer papá llegó tarde y la puerta hizo mucho ruido al cerrarse.",
+                  "emocion": "preocupada"
+                }
+              ],
+              "elecciones": [
+                {
+                  "clave": "comedor-validar-emociones",
+                  "texto": "¿Qué sientes cuando escuchas ese ruido? ¿Quieres contarme cómo te cuidas tú?",
+                  "opcion": "comedor-validar-emociones",
+                  "herramientaRequerida": null,
+                  "efecto": {},
+                  "orden": 1
+                },
+                {
+                  "clave": "comedor-invitar-dibujar",
+                  "texto": "¿Te gustaría seguir dibujando tu casa ideal mientras charlamos un rato?",
+                  "opcion": "comedor-invitar-dibujar",
+                  "herramientaRequerida": null,
+                  "efecto": {},
+                  "orden": 2
+                },
+                {
+                  "clave": "comedor-delegar-vecina",
+                  "texto": "Si algo te asusta, podrías irte a la casa de la vecina, ella te ayudará.",
+                  "opcion": "comedor-delegar-vecina",
+                  "herramientaRequerida": null,
+                  "efecto": {},
+                  "orden": 3
+                },
+                {
+                  "clave": "comedor-culpar-padre",
+                  "texto": "Tu papá bebe y por eso hace ruido, eso no está bien para ti.",
+                  "opcion": "comedor-culpar-padre",
+                  "herramientaRequerida": null,
+                  "efecto": {},
+                  "orden": 4
+                }
+              ]
+            }
+          ]
+        }
+      },
+      {
+        "clave": "cocina",
+        "inicial": false,
+        "terminal": false,
+        "salidaSeguraObligatoria": false,
+        "intensidad": "MEDIUM",
+        "apoyo": [],
+        "herramientasRequeridas": [],
+        "posicion": {
+          "x": 1020,
+          "y": 180
+        },
+        "opciones": [
+          {
+            "clave": "cocina-pregunta-empatica",
+            "clase": "RECOMMENDED",
+            "retroalimentacionInmediata": "Esta respuesta fortalece la alianza, muestra escucha activa y permite a la pareja expresar su dolor sin sentirse juzgada, facilitando la identificación de redes de apoyo.",
+            "efectos": {
+              "persona": {
+                "bond": 1,
+                "activation": 0
+              },
+              "milestones": [
+                "identificar_una_red_de_apoyo",
+                "informar_derechos"
+              ],
+              "competencies": [
+                "COMUNICACION_EMPATIA",
+                "COMPRENSION_SITUACION"
+              ]
+            },
+            "id": "OP13",
+            "mensaje": "Esta respuesta fortalece la alianza, muestra escucha activa y permite a la pareja expresar su dolor sin sentirse juzgada, facilitando la identificación de redes de apoyo.",
+            "reaccion": {
+              "linea": "Gracias por escuchar, me siento un poco aliviada.",
+              "emocion": "alegre",
+              "gesto": "asiente"
+            }
+          },
+          {
+            "clave": "cocina-ofrecer-recursos",
+            "clase": "ACCEPTABLE",
+            "retroalimentacionInmediata": "Brinda datos útiles y reduce la activación, pero no profundiza en la experiencia emocional de la pareja; puede ser un primer paso antes de explorar más.",
+            "efectos": {
+              "persona": {
+                "bond": 0,
+                "activation": -1
+              },
+              "milestones": [
+                "informar_derechos"
+              ],
+              "competencies": [
+                "ANALISIS_ARGUMENTACION"
+              ]
+            },
+            "id": "OP14",
+            "mensaje": "Brinda datos útiles y reduce la activación, pero no profundiza en la experiencia emocional de la pareja; puede ser un primer paso antes de explorar más.",
+            "reaccion": {
+              "linea": "Lo tendré en cuenta.",
+              "emocion": "neutral",
+              "gesto": "asiente"
+            }
+          },
+          {
+            "clave": "cocina-sugerir-confrontacion",
+            "clase": "RISKY",
+            "retroalimentacionInmediata": "Presionar una confrontación inmediata puede escalar el conflicto, aumentar el riesgo para el niño y debilitar la alianza terapéutica.",
+            "efectos": {
+              "persona": {
+                "bond": -1,
+                "activation": 1
+              },
+              "milestones": [
+                "valorar_el_riesgo"
+              ],
+              "competencies": [
+                "DECISION_RUTA"
+              ]
+            },
+            "id": "OP15",
+            "mensaje": "Presionar una confrontación inmediata puede escalar el conflicto, aumentar el riesgo para el niño y debilitar la alianza terapéutica.",
+            "reaccion": {
+              "linea": "No creo que sea buen momento.",
+              "emocion": "preocupada",
+              "gesto": "se-aparta"
+            }
+          },
+          {
+            "clave": "cocina-exigir-denuncia",
+            "clase": "CONTRAINDICATED",
+            "retroalimentacionInmediata": "Esta respuesta culpa a la pareja y exige una acción que puede aumentar el riesgo y revictimizar; rompe la confianza y contraviene el principio de no mediar con el agresor.",
+            "efectos": {
+              "persona": {
+                "bond": -1,
+                "activation": 1
+              },
+              "competencies": [
+                "PAP"
+              ]
+            },
+            "id": "OP16",
+            "mensaje": "Esta respuesta culpa a la pareja y exige una acción que puede aumentar el riesgo y revictimizar; rompe la confianza y contraviene el principio de no mediar con el agresor.",
+            "reaccion": {
+              "linea": "No me siento cómoda con eso.",
+              "emocion": "triste",
+              "gesto": "baja-la-mirada"
+            }
+          }
+        ],
+        "id": "E04",
+        "preguntaDerivada": true,
+        "objetivo": "Escuchar a la pareja en la cocina para entender el impacto del consumo en la familia.",
+        "comentarios": [
+          {
+            "personaje": "familiar",
+            "linea": "El olor a café siempre me recuerda las mañanas tranquilas que ya no tenemos.",
+            "emocion": "triste",
+            "gesto": "baja-la-mirada"
+          }
+        ],
+        "mapa": {
+          "clave": "sala-cocina",
+          "titulo": "Cocina",
+          "ancho": 960,
+          "alto": 528,
+          "tema": "clinical-soft",
+          "aparicion": {
+            "x": 480,
+            "y": 440
+          },
+          "ambiente": {
+            "backgroundImage": "/assets/biblioteca/escenarios/casa/arte/salas/cocina.png",
+            "encuadre": "tres-paredes",
+            "salaId": "cocina",
+            "lugarId": "casa"
+          },
+          "colisiones": [
+            {
+              "clave": "pared-fondo",
+              "etiqueta": "Pared del fondo",
+              "x": 0,
+              "y": 0,
+              "ancho": 960,
+              "alto": 236
+            },
+            {
+              "clave": "pared-izquierda",
+              "etiqueta": "Pared izquierda",
+              "x": 0,
+              "y": 236,
+              "ancho": 96,
+              "alto": 250
+            },
+            {
+              "clave": "pared-derecha",
+              "etiqueta": "Pared derecha",
+              "x": 864,
+              "y": 236,
+              "ancho": 96,
+              "alto": 250
+            },
+            {
+              "clave": "borde-delantero",
+              "etiqueta": "Borde delantero",
+              "x": 0,
+              "y": 486,
+              "ancho": 960,
+              "alto": 42
+            },
+            {
+              "clave": "choque-nevera",
+              "etiqueta": "Nevera",
+              "x": 138,
+              "y": 242,
+              "ancho": 44,
+              "alto": 20
+            },
+            {
+              "clave": "choque-meson-cocina",
+              "etiqueta": "Mesón de la cocina",
+              "x": 340,
+              "y": 236,
+              "ancho": 120,
+              "alto": 26
+            },
+            {
+              "clave": "choque-estufa",
+              "etiqueta": "Estufa",
+              "x": 492,
+              "y": 240,
+              "ancho": 56,
+              "alto": 22
+            },
+            {
+              "clave": "choque-lavaplatos",
+              "etiqueta": "Lavaplatos",
+              "x": 615,
+              "y": 240,
+              "ancho": 50,
+              "alto": 22
+            }
+          ],
+          "objetos": [
+            {
+              "clave": "nevera",
+              "etiqueta": "Nevera",
+              "tipo": "PROP",
+              "x": 160,
+              "y": 262,
+              "ancho": 44,
+              "alto": 20,
+              "z": 0,
+              "orientacion": "",
+              "color": "#4FA3A5",
+              "icono": "inventory_2",
+              "codigoCorto": "",
+              "colision": false,
+              "visible": true,
+              "indicacion": "",
+              "texto": "",
+              "opcion": null,
+              "personaje": null,
+              "herramienta": null,
+              "desbloqueo": {},
+              "movimiento": {},
+              "metadatos": {
+                "arte": "/assets/biblioteca/escenarios/casa/arte/muebles/nevera.png",
+                "colision": true,
+                "apoyo": "pies"
+              }
+            },
+            {
+              "clave": "meson-cocina",
+              "etiqueta": "Mesón de la cocina",
+              "tipo": "PROP",
+              "x": 400,
+              "y": 262,
+              "ancho": 120,
+              "alto": 26,
+              "z": 0,
+              "orientacion": "",
+              "color": "#4FA3A5",
+              "icono": "inventory_2",
+              "codigoCorto": "",
+              "colision": false,
+              "visible": true,
+              "indicacion": "",
+              "texto": "",
+              "opcion": null,
+              "personaje": null,
+              "herramienta": null,
+              "desbloqueo": {},
+              "movimiento": {},
+              "metadatos": {
+                "arte": "/assets/biblioteca/escenarios/casa/arte/muebles/meson-cocina.png",
+                "colision": true,
+                "apoyo": "pies"
+              }
+            },
+            {
+              "clave": "estufa",
+              "etiqueta": "Estufa",
+              "tipo": "PROP",
+              "x": 520,
+              "y": 262,
+              "ancho": 56,
+              "alto": 22,
+              "z": 0,
+              "orientacion": "",
+              "color": "#4FA3A5",
+              "icono": "inventory_2",
+              "codigoCorto": "",
+              "colision": false,
+              "visible": true,
+              "indicacion": "",
+              "texto": "",
+              "opcion": null,
+              "personaje": null,
+              "herramienta": null,
+              "desbloqueo": {},
+              "movimiento": {},
+              "metadatos": {
+                "arte": "/assets/biblioteca/escenarios/casa/arte/muebles/estufa.png",
+                "colision": true,
+                "apoyo": "pies"
+              }
+            },
+            {
+              "clave": "lavaplatos",
+              "etiqueta": "Lavaplatos",
+              "tipo": "PROP",
+              "x": 640,
+              "y": 262,
+              "ancho": 50,
+              "alto": 22,
+              "z": 0,
+              "orientacion": "",
+              "color": "#4FA3A5",
+              "icono": "inventory_2",
+              "codigoCorto": "",
+              "colision": false,
+              "visible": true,
+              "indicacion": "",
+              "texto": "",
+              "opcion": null,
+              "personaje": null,
+              "herramienta": null,
+              "desbloqueo": {},
+              "movimiento": {},
+              "metadatos": {
+                "arte": "/assets/biblioteca/escenarios/casa/arte/muebles/lavaplatos.png",
+                "colision": true,
+                "apoyo": "pies"
+              }
+            },
+            {
+              "clave": "nevera-notas",
+              "etiqueta": "Nevera con notas",
+              "tipo": "NOTE",
+              "x": 160,
+              "y": 240,
+              "ancho": 32,
+              "alto": 32,
+              "z": 0,
+              "orientacion": "",
+              "color": "#4FA3A5",
+              "icono": "article",
+              "codigoCorto": "",
+              "colision": false,
+              "visible": true,
+              "indicacion": "Leer",
+              "texto": "Lista de mercado y una cita médica.",
+              "opcion": null,
+              "personaje": null,
+              "herramienta": null,
+              "desbloqueo": {},
+              "movimiento": {},
+              "metadatos": {
+                "arte": "/assets/biblioteca/escenarios/casa/arte/objetos/nevera-notas.png",
+                "apoyo": "pies",
+                "animacionCerca": {
+                  "hoja": "/assets/biblioteca/escenarios/casa/arte/objetos/nevera-notas-cerca.png",
+                  "cuadros": 3,
+                  "fps": 6
+                }
+              }
+            },
+            {
+              "clave": "papelera",
+              "etiqueta": "Papelera",
+              "tipo": "PROP",
+              "x": 740,
+              "y": 262,
+              "ancho": 32,
+              "alto": 32,
+              "z": 0,
+              "orientacion": "",
+              "color": "#4FA3A5",
+              "icono": "inventory_2",
+              "codigoCorto": "",
+              "colision": false,
+              "visible": true,
+              "indicacion": "Mirar",
+              "texto": "Vacía.",
+              "opcion": null,
+              "personaje": null,
+              "herramienta": null,
+              "desbloqueo": {},
+              "movimiento": {},
+              "metadatos": {
+                "arte": "/assets/biblioteca/escenarios/casa/arte/objetos/papelera.png",
+                "apoyo": "pies",
+                "animacionCerca": {
+                  "hoja": "/assets/biblioteca/escenarios/casa/arte/objetos/papelera-cerca.png",
+                  "cuadros": 2,
+                  "fps": 6
+                }
+              }
+            },
+            {
+              "clave": "familiar",
+              "etiqueta": "Familiar",
+              "tipo": "PERSON",
+              "x": 480,
+              "y": 380,
+              "ancho": 48,
+              "alto": 48,
+              "z": 0,
+              "orientacion": "left",
+              "color": "#4FA3A5",
+              "icono": "person",
+              "codigoCorto": "",
+              "colision": false,
+              "visible": true,
+              "indicacion": "Hablar",
+              "texto": "",
+              "opcion": null,
+              "personaje": "familiar",
+              "herramienta": null,
+              "desbloqueo": {},
+              "movimiento": {},
+              "metadatos": {
+                "recipeId": "madre-acompanante",
+                "movimiento": "quieto",
+                "apoyo": "pies",
+                "expresion": "preocupada",
+                "personaClave": true
+              }
+            },
+            {
+              "clave": "puerta-comedor",
+              "etiqueta": "Volver al comedor",
+              "tipo": "EXIT",
+              "x": 96,
+              "y": 380,
+              "ancho": 24,
+              "alto": 40,
+              "z": 0,
+              "orientacion": "",
+              "color": "#4FA3A5",
+              "icono": "door_front",
+              "codigoCorto": "",
+              "colision": false,
+              "visible": true,
+              "indicacion": "Volver al comedor",
+              "texto": "",
+              "opcion": null,
+              "personaje": null,
+              "herramienta": null,
+              "desbloqueo": {},
+              "movimiento": {},
+              "metadatos": {
+                "targetNodeKey": "comedor",
+                "entryX": 480,
+                "entryY": 440,
+                "pintada": true
+              }
+            },
+            {
+              "clave": "puerta-patio",
+              "etiqueta": "Salir al patio",
+              "tipo": "EXIT",
+              "x": 780,
+              "y": 236,
+              "ancho": 24,
+              "alto": 40,
+              "z": 0,
+              "orientacion": "",
+              "color": "#4FA3A5",
+              "icono": "door_front",
+              "codigoCorto": "",
+              "colision": false,
+              "visible": true,
+              "indicacion": "Salir al patio",
+              "texto": "",
+              "opcion": null,
+              "personaje": null,
+              "herramienta": null,
+              "desbloqueo": {},
+              "movimiento": {},
+              "metadatos": {
+                "targetNodeKey": "patio",
+                "entryX": 480,
+                "entryY": 440,
+                "pintada": true
+              }
+            }
+          ],
+          "dialogos": [
+            {
+              "clave": "guion-cocina",
+              "hablante": "Familiar",
+              "retrato": null,
+              "emocion": "neutral",
+              "objeto": "familiar",
+              "lineas": [
+                {
+                  "orden": 1,
+                  "hablante": "Familiar",
+                  "texto": "Llevo tiempo viendo cómo el consumo de él cambia el ambiente en casa, y me duele ver a mi hijo crecer así.",
+                  "emocion": "preocupada"
+                },
+                {
+                  "orden": 2,
+                  "hablante": "Familiar",
+                  "texto": "A veces pienso que no hay salida, pero quiero que mi hijo esté a salvo.",
+                  "emocion": "triste"
+                }
+              ],
+              "elecciones": [
+                {
+                  "clave": "cocina-pregunta-empatica",
+                  "texto": "Preguntar con empatía cómo se siente la pareja respecto al consumo y su impacto en la familia, validando sus emociones.",
+                  "opcion": "cocina-pregunta-empatica",
+                  "herramientaRequerida": null,
+                  "efecto": {},
+                  "orden": 1
+                },
+                {
+                  "clave": "cocina-ofrecer-recursos",
+                  "texto": "Ofrecer información sobre recursos de apoyo sin presionar a la pareja a actuar ya.",
+                  "opcion": "cocina-ofrecer-recursos",
+                  "herramientaRequerida": null,
+                  "efecto": {},
+                  "orden": 2
+                },
+                {
+                  "clave": "cocina-sugerir-confrontacion",
+                  "texto": "Sugerir que la pareja confronte al usuario sobre su consumo ahora mismo.",
+                  "opcion": "cocina-sugerir-confrontacion",
+                  "herramientaRequerida": null,
+                  "efecto": {},
+                  "orden": 3
+                },
+                {
+                  "clave": "cocina-exigir-denuncia",
+                  "texto": "Decir a la pareja que debe denunciar al usuario inmediatamente para proteger al niño.",
+                  "opcion": "cocina-exigir-denuncia",
+                  "herramientaRequerida": null,
+                  "efecto": {},
+                  "orden": 4
+                }
+              ]
+            }
+          ]
+        }
+      },
+      {
+        "clave": "patio",
+        "inicial": false,
+        "terminal": true,
+        "salidaSeguraObligatoria": false,
+        "intensidad": "HIGH",
+        "apoyo": [],
+        "herramientasRequeridas": [],
+        "posicion": {
+          "x": 180,
+          "y": 380
+        },
+        "opciones": [],
+        "id": "E05",
+        "pistas": [
+          "Cierra con compromisos concretos y realistas; evita promesas absolutas."
+        ],
+        "objetivo": "Retomar al usuario en privado y cerrar con un acuerdo mínimo de cuidado y seguimiento.",
+        "comentarios": [
+          {
+            "personaje": "persona-usuaria",
+            "linea": "Pienso en mi hijo y en que esto puede cambiar.",
+            "emocion": "preocupada",
+            "gesto": "baja-la-mirada"
+          }
+        ],
+        "mapa": {
+          "clave": "sala-patio",
+          "titulo": "Patio",
+          "ancho": 960,
+          "alto": 528,
+          "tema": "clinical-soft",
+          "aparicion": {
+            "x": 480,
+            "y": 440
+          },
+          "ambiente": {
+            "backgroundImage": "/assets/biblioteca/escenarios/casa/arte/salas/patio.png",
+            "encuadre": "una-pared",
+            "salaId": "patio",
+            "lugarId": "casa"
+          },
+          "colisiones": [
+            {
+              "clave": "pared-fondo",
+              "etiqueta": "Pared del fondo",
+              "x": 0,
+              "y": 0,
+              "ancho": 960,
+              "alto": 236
+            },
+            {
+              "clave": "borde-izquierdo",
+              "etiqueta": "Borde izquierdo",
+              "x": 0,
+              "y": 236,
+              "ancho": 24,
+              "alto": 250
+            },
+            {
+              "clave": "borde-derecho",
+              "etiqueta": "Borde derecho",
+              "x": 936,
+              "y": 236,
+              "ancho": 24,
+              "alto": 250
+            },
+            {
+              "clave": "borde-delantero",
+              "etiqueta": "Borde delantero",
+              "x": 0,
+              "y": 486,
+              "ancho": 960,
+              "alto": 42
+            },
+            {
+              "clave": "choque-tendedero",
+              "etiqueta": "Tendedero",
+              "x": 255,
+              "y": 290,
+              "ancho": 90,
+              "alto": 10
+            },
+            {
+              "clave": "choque-materas",
+              "etiqueta": "Materas",
+              "x": 690,
+              "y": 286,
+              "ancho": 60,
+              "alto": 14
+            },
+            {
+              "clave": "choque-banco-patio",
+              "etiqueta": "Banco del patio",
+              "x": 480,
+              "y": 382,
+              "ancho": 80,
+              "alto": 18
+            }
+          ],
+          "objetos": [
+            {
+              "clave": "tendedero",
+              "etiqueta": "Tendedero",
+              "tipo": "PROP",
+              "x": 300,
+              "y": 300,
+              "ancho": 90,
+              "alto": 10,
+              "z": 0,
+              "orientacion": "",
+              "color": "#4FA3A5",
+              "icono": "inventory_2",
+              "codigoCorto": "",
+              "colision": false,
+              "visible": true,
+              "indicacion": "",
+              "texto": "",
+              "opcion": null,
+              "personaje": null,
+              "herramienta": null,
+              "desbloqueo": {},
+              "movimiento": {},
+              "metadatos": {
+                "arte": "/assets/biblioteca/escenarios/casa/arte/muebles/tendedero.png",
+                "colision": true,
+                "apoyo": "pies"
+              }
+            },
+            {
+              "clave": "materas",
+              "etiqueta": "Materas",
+              "tipo": "PROP",
+              "x": 720,
+              "y": 300,
+              "ancho": 60,
+              "alto": 14,
+              "z": 0,
+              "orientacion": "",
+              "color": "#4FA3A5",
+              "icono": "inventory_2",
+              "codigoCorto": "",
+              "colision": false,
+              "visible": true,
+              "indicacion": "",
+              "texto": "",
+              "opcion": null,
+              "personaje": null,
+              "herramienta": null,
+              "desbloqueo": {},
+              "movimiento": {},
+              "metadatos": {
+                "arte": "/assets/biblioteca/escenarios/casa/arte/muebles/materas.png",
+                "colision": true,
+                "apoyo": "pies"
+              }
+            },
+            {
+              "clave": "banco-patio",
+              "etiqueta": "Banco del patio",
+              "tipo": "PROP",
+              "x": 520,
+              "y": 400,
+              "ancho": 80,
+              "alto": 18,
+              "z": 0,
+              "orientacion": "",
+              "color": "#4FA3A5",
+              "icono": "inventory_2",
+              "codigoCorto": "",
+              "colision": false,
+              "visible": true,
+              "indicacion": "",
+              "texto": "",
+              "opcion": null,
+              "personaje": null,
+              "herramienta": null,
+              "desbloqueo": {},
+              "movimiento": {},
+              "metadatos": {
+                "arte": "/assets/biblioteca/escenarios/casa/arte/muebles/banco-patio.png",
+                "colision": true,
+                "apoyo": "pies"
+              }
+            },
+            {
+              "clave": "persona-usuaria",
+              "etiqueta": "Persona usuaria",
+              "tipo": "PERSON",
+              "x": 660,
+              "y": 380,
+              "ancho": 48,
+              "alto": 48,
+              "z": 0,
+              "orientacion": "left",
+              "color": "#4FA3A5",
+              "icono": "person",
+              "codigoCorto": "",
+              "colision": false,
+              "visible": true,
+              "indicacion": "Hablar",
+              "texto": "",
+              "opcion": null,
+              "personaje": "persona-usuaria",
+              "herramienta": null,
+              "desbloqueo": {},
+              "movimiento": {},
+              "metadatos": {
+                "recipeId": "sobreviviente",
+                "movimiento": "quieto",
+                "apoyo": "pies",
+                "expresion": "neutral",
+                "personaClave": true
+              }
+            },
+            {
+              "clave": "puerta-cocina",
+              "etiqueta": "Volver a la cocina",
+              "tipo": "EXIT",
+              "x": 480,
+              "y": 486,
+              "ancho": 24,
+              "alto": 40,
+              "z": 0,
+              "orientacion": "",
+              "color": "#4FA3A5",
+              "icono": "door_front",
+              "codigoCorto": "",
+              "colision": false,
+              "visible": true,
+              "indicacion": "Volver a la cocina",
+              "texto": "",
+              "opcion": null,
+              "personaje": null,
+              "herramienta": null,
+              "desbloqueo": {},
+              "movimiento": {},
+              "metadatos": {
+                "targetNodeKey": "cocina",
+                "entryX": 480,
+                "entryY": 440,
+                "pintada": true
+              }
+            }
+          ],
+          "dialogos": [
+            {
+              "clave": "guion-patio",
+              "hablante": "Persona usuaria",
+              "retrato": null,
+              "emocion": "neutral",
+              "objeto": "persona-usuaria",
+              "lineas": [
+                {
+                  "orden": 1,
+                  "hablante": "Persona usuaria",
+                  "texto": "Entiendo lo que me pides, no es fácil pero lo intentaré.",
+                  "emocion": "cautelosa"
+                },
+                {
+                  "orden": 2,
+                  "hablante": "Persona usuaria",
+                  "texto": "Voy a pedirle a mi cuñado que me lleve si salgo a tomar algo.",
+                  "emocion": "alegre"
+                },
+                {
+                  "orden": 3,
+                  "hablante": "Persona usuaria",
+                  "texto": "Gracias por no juzgarme, volveré a la cita.",
+                  "emocion": "neutral"
+                }
+              ],
+              "elecciones": []
+            }
+          ]
+        }
+      }
+    ],
+    "rubricas": [
+      {
+        "criterios": [
+          {
+            "puntajeMaximo": 20,
+            "peso": "20.00",
+            "activo": true,
+            "id": "CR01",
+            "competenciaCodigo": "COMPRENSION_SITUACION"
+          },
+          {
+            "puntajeMaximo": 20,
+            "peso": "20.00",
+            "activo": true,
+            "id": "CR02",
+            "competenciaCodigo": "ANALISIS_ARGUMENTACION"
+          },
+          {
+            "puntajeMaximo": 20,
+            "peso": "20.00",
+            "activo": true,
+            "id": "CR03",
+            "competenciaCodigo": "DECISION_RUTA"
+          },
+          {
+            "puntajeMaximo": 15,
+            "peso": "15.00",
+            "activo": true,
+            "id": "CR04",
+            "competenciaCodigo": "COMUNICACION_EMPATIA"
+          },
+          {
+            "puntajeMaximo": 15,
+            "peso": "15.00",
+            "activo": true,
+            "id": "CR05",
+            "competenciaCodigo": "PAP"
+          },
+          {
+            "puntajeMaximo": 10,
+            "peso": "10.00",
+            "activo": true,
+            "id": "CR06",
+            "competenciaCodigo": "REFLEXION"
+          }
+        ],
+        "id": "RUB-01"
+      }
+    ],
+    "contexto": "La psicóloga visitante acude a una casa de barrio tras una derivación de la EPS por «riesgo psicosocial». En la sala encuentra a un hombre de 38 años, su pareja y su hijo de 10 años. El hombre consume alcohol de forma problemática y niega que afecte a su familia. La estudiante debe practicar entrevista motivacional: construir alianza sin confrontar, explorar ambivalencia, evitar etiquetas y cerrar con un acuerdo de cuidado mínimo (no conducir tras beber, cita de seguimiento). Errores a aprender: confrontación prematura, consejos directivos, ignorar la presencia del niño, prometer confidencialidad absoluta ante riesgo."
+  }
+}

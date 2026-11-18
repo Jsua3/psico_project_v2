@@ -1,3 +1,4 @@
+import type { EstructuraDeSala } from '../../features/simulator/sala/catalogo';
 export interface CatalogItem {
   caseVersionId: number;
   code: string;
@@ -195,6 +196,8 @@ export interface AttemptCompletionReport {
   decisionReview?: DecisionReviewItem[];
   /** El perfil por competencia con la evidencia que lo sostiene (E6-1d, v3). */
   competencyLevels?: CompetencyLevelEntry[];
+  /** V5: `false` si ninguna respuesta del caso declara competencias (el cierre no muestra el bloque); sin el campo, como antes. */
+  competenciesDeclared?: boolean;
   /** Las notas de reflexión por escena, sin su texto. */
   reflections?: { nodeId: number; nodeTitle: string; locked: boolean }[];
   /** Cuántas escenas con decisión tienen reflexión (E6-1d). */
@@ -244,6 +247,33 @@ export interface DecisionRetry {
 export interface SimulationDecisionResult extends SimulationAttemptState {
   consequence: DecisionConsequence | null;
   retry: DecisionRetry | null;
+  /** La reacción de la persona a lo elegido (contrato 2.1, §4.4); `null` si el servidor no la manda. */
+  reaction: DecisionReaction | null;
+}
+
+/** La reacción de la persona a la decisión: lo que dice, cómo se ve y qué hace (contrato 2.1, §4.4). */
+export interface DecisionReaction {
+  line: string;
+  emotion: string | null;
+  gesture: string;
+  objectKey: string | null;
+}
+
+/** Qué hizo falta explorar antes de una opción: hablar, inspeccionar, tener o usar algo (contrato 2.1, §4.5). */
+export type ExploredFactKind = 'talked' | 'inspected' | 'has' | 'used';
+
+export interface MissedFact {
+  kind: ExploredFactKind;
+  key: string;
+  label: string;
+}
+
+/** Una opción de la escena que el estudiante no vio abierta, con lo que le faltaba explorar (contrato 2.1, §4.5). */
+export interface MissedOption {
+  optionId: number;
+  text: string;
+  class: ResponseClass;
+  missing: MissedFact[];
 }
 
 /**
@@ -254,12 +284,15 @@ export interface DecisionReviewItem {
   order: number;
   nodeId: number;
   nodeTitle: string;
-  chosen: { optionId: number; text: string };
+  /** `label`: el texto corto del botón que se pulsó, si el caso lo trae (V4); si no, solo `text`, el de la opción. */
+  chosen: { optionId: number; text: string; label?: string };
   consequence: string;
   feedback: { explanation: string; theoryBasis?: string };
   class: ResponseClass;
   prohibited: boolean;
   reconsidered?: { firstOptionId: number; firstOptionText: string };
+  /** Opciones que no vio abiertas en esa escena; un informe anterior (v3) no lo trae. */
+  missed?: MissedOption[];
 }
 
 /**
@@ -295,6 +328,8 @@ export interface SimulationNodeState {
   terminal: boolean;
   /** Intensidad de la escena: la que decide el aviso previo (Tarea 4). */
   intensity: Intensity;
+  /** Lo que se busca lograr en la escena; una carga anterior no lo trae (se lee como ''). */
+  goal?: string;
   options: SimulationDecisionOption[];
 }
 
@@ -319,6 +354,90 @@ export interface SimulationWorldState {
   flags: Record<string, unknown>;
   /** Opciones ofrecidas ahora para el nodo actual; solo las traen las respuestas de mundo del juego (no el acuse de PATCH). */
   decisionOptions?: SimulationDecisionOption[];
+  /**
+   * Plano del lugar (contrato `x-siep` 2.2, §5.2): salas, puertas, sala actual y visitadas; sin objetos ni personas.
+   * Solo lo lee `plano/plano.ts` (`normalizarLayout`), que valida la forma; un servidor anterior no lo manda.
+   */
+  layout?: unknown;
+  /** Comentarios de la escena que se dicen ahora (contrato 2.1, 4.6); la condición nunca viaja. */
+  comments?: WorldComment[];
+}
+
+/** Un comentario de la escena que se dice ahora (contrato 2.1, 4.6): `emotion` y `gesture` son `null` si no son del vocabulario. */
+export interface WorldComment {
+  id: string;
+  objectKey: string;
+  line: string;
+  emotion: string | null;
+  gesture: string | null;
+}
+
+/** Lo que falta explorar para una respuesta o un comentario (la misma forma que `MissedFact`). */
+export interface RehearsalMissing {
+  kind: ExploredFactKind;
+  key: string;
+  label: string;
+}
+
+export interface RehearsalOption {
+  id: number;
+  text: string;
+  offered: boolean;
+  missing: RehearsalMissing[];
+  retainedBy: 'facts' | 'condition' | 'broken' | null;
+}
+
+export interface RehearsalComment {
+  index: number;
+  personaje: string;
+  line: string;
+  due: boolean;
+  /** El servidor lo manda (contrato 2.1, 7.2): por qué no se dice ahora. */
+  retainedBy: 'broken' | 'condition' | 'absent' | null;
+  missing: RehearsalMissing[];
+}
+
+export interface RehearsalExplored {
+  talked: string[];
+  inspected: string[];
+  has: string[];
+  used: string[];
+}
+
+export interface RehearsalScene {
+  id: number;
+  key: string;
+  title: string;
+  start: boolean;
+  terminal: boolean;
+}
+
+/** El bloque `rehearsal` del ensayo (contrato 2.1, 7.2); solo viaja por las rutas de autoría del ensayo. */
+export interface RehearsalBlock {
+  sceneId: number;
+  options: RehearsalOption[];
+  comments: RehearsalComment[];
+  warnings: string[];
+  persona: { bond: Bond; activation: Activation; label: string };
+  milestones: string[];
+  path: { nodeId: number; title: string }[];
+  /** Lo que cuenta hoy para la escena actual: es lo que lee el servidor al evaluar `requiere` y `cuando`. */
+  explored: RehearsalExplored;
+  /** Lo único que `PATCH explorado` admite en la escena actual. */
+  explorable: RehearsalMissing[];
+  /** Todas las escenas del caso, en el orden del editor, para elegir a cuál ir. */
+  scenes: RehearsalScene[];
+}
+
+export interface RehearsalStart extends SimulationAttemptState {
+  rehearsal: RehearsalBlock;
+}
+
+export interface RehearsalAdjustBody {
+  irA?: number;
+  explorado?: RehearsalExplored;
+  persona?: { bond?: Bond; activation?: Activation };
+  hitos?: string[];
 }
 
 export interface SceneMapState {
@@ -437,6 +556,9 @@ export interface ToolUseResult {
 
 export interface AttemptTrace {
   attemptId: string;
+  /** V5: la versión del caso (el enlace al editor) y si alguna de sus respuestas declara competencias. */
+  caseVersionId?: number;
+  competenciesDeclared?: boolean;
   studentAlias: string;
   caseTitle: string;
   status: string;
@@ -589,6 +711,33 @@ export interface NodeEditorState {
   displayOrder: number;
   /** La escena la propuso el asistente de IA y nadie la ha revisado (P5). */
   aiSuggested?: boolean;
+  /** El objetivo de la escena (2.1, hasta 200 caracteres); vacío = la escena no lo declara. */
+  goal: string;
+  /** Lo que dicen los personajes al acercarse (2.1); el servidor de la base puede no enviarlo: ausente = no hay. */
+  comments?: CommentState[];
+}
+
+/** Los cinco gestos del documento 2.1 (vocabulario cerrado). */
+export const GESTOS = ['se-acerca', 'asiente', 'se-aparta', 'baja-la-mirada', 'se-agita'] as const;
+export type Gesto = (typeof GESTOS)[number];
+
+/** Un comentario de escena: lo que dice un personaje al acercarse el jugador, con su condición opcional (`cuando`). */
+export interface CommentState {
+  personaje: string;
+  /** Una línea de hasta 400 caracteres, sin enlaces. */
+  linea: string;
+  /** Condición del documento (`talked`, `inspected`, `milestone`, `all`, `any`, `not`); ausente = siempre. */
+  cuando?: Record<string, unknown>;
+  emocion?: string;
+  gesto?: string;
+}
+
+/** Cómo reacciona el personaje a una respuesta (2.1): todo opcional; `{}` = sin reacción. */
+export interface ReactionState {
+  linea?: string;
+  emocion?: string;
+  gesto?: string;
+  personaje?: string;
 }
 
 export interface DecisionEdgeState {
@@ -615,6 +764,10 @@ export interface DecisionEdgeState {
   feedbackText: string;
   /** La opción la propuso el asistente de IA y nadie la ha revisado (P5). */
   aiSuggested?: boolean;
+  /** Cuándo aparece la respuesta (2.1): una condición del documento; `{}` = siempre. */
+  requires: Record<string, unknown>;
+  /** Cómo reacciona el personaje al elegirla (2.1); `{}` = sin reacción. */
+  reaction: ReactionState;
 }
 
 /**
@@ -783,6 +936,8 @@ export interface CaseEditorView {
   checklistCompletion: number;
   publishable: boolean;
   checklist: PublicationChecklistView;
+  /** Si quien edita tiene un ensayo de esta versión que llegó a un final (A2); ausente = `false`. */
+  rehearsedToEnd?: boolean;
 }
 
 // ─── Authoring CRUD request models ────────────────────────────────────────────
@@ -806,6 +961,10 @@ export interface NodeUpsertRequest {
   intensity?: Intensity;
   /** Ausente = no se toca; `true` marca la escena como propuesta por la IA, `false` la da por revisada. */
   aiSuggested?: boolean;
+  /** Ausente = no se toca; vacío = se borra el objetivo. */
+  goal?: string;
+  /** Ausente = no se toca; `[]` o `null` los quita todos. */
+  comments?: CommentState[] | null;
 }
 
 export interface DecisionOptionUpsertRequest {
@@ -826,6 +985,10 @@ export interface DecisionOptionUpsertRequest {
   feedbackText?: string;
   /** Ausente = no se toca. */
   aiSuggested?: boolean;
+  /** Ausente = no se toca; `{}` o `null` quita el requisito. */
+  requires?: Record<string, unknown> | null;
+  /** Ausente = no se toca; `{}` o `null` quita la reacción. */
+  reaction?: ReactionState | null;
 }
 
 /** Una ayuda de una sala: texto plano de hasta 280 caracteres; sin `hintOrder` se agrega al final. */
@@ -939,6 +1102,7 @@ export interface WorldValidationState {
 }
 
 export interface SceneMapDefinition {
+  structure?: EstructuraDeSala | null;
   id: number;
   key: string;
   title: string;
@@ -1199,6 +1363,8 @@ export interface ValidationIssue {
   milestoneKey?: string;
   endingKey?: string;
   competencyCode?: string;
+  /** Dónde del documento está la falta (`x-siep.escenas[i].opciones[j].requiere`, `….comentarios[k]`…); lo traen las reglas OCL del documento 2.1. */
+  path?: string;
 }
 
 export interface CaseValidation {

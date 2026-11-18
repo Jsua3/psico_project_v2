@@ -5,6 +5,7 @@ import {
   createWorldInputDriver,
   enterWorld,
   exploreUntilNearby,
+  goalCard,
   readPlayerPosition,
   waitUntilPlayerStill,
 } from './support/siep-flow';
@@ -131,12 +132,12 @@ test.describe('@mouse-world clic para caminar', () => {
   });
 
   // req: BLOQUE-H, RNF-04 (revisión de F6: Phaser también recibe los clics que caen sobre OTROS elementos de la página)
-  test('un clic sobre un botón de la interfaz que no pausa el juego («Qué hacer») no hace caminar al jugador', async ({ page }) => {
+  test('un clic sobre un botón de la interfaz que no pausa el juego (la ficha del objetivo) no hace caminar al jugador', async ({ page }) => {
     test.setTimeout(scaled(240_000));
     await enterWorld(page);
     await waitUntilPlayerStill(page);
     const before = await readPlayerPosition(page);
-    const toggle = page.locator('[data-checklist-toggle]').first();
+    const toggle = goalCard(page).locator('button.goal-card__toggle');
     await expect(toggle).toBeVisible();
     await toggle.click();
     await page.waitForTimeout(scaled(1500));

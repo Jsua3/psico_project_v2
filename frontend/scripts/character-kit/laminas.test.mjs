@@ -16,10 +16,10 @@ test('parseArgs entiende modos, escala y salida', () => {
   assert.deepEqual(parseArgs(['--elenco']), { elenco: true });
 });
 
-test('ficha de receta: 4 vistas, 6 retratos, 16 cuadros de reposo y 24 de caminata', () => {
+test('ficha de receta: 8 vistas, 6 retratos, 32 cuadros de reposo y 48 de caminata', () => {
   const { name, html } = buildLamina({ receta: 'valentina' });
   assert.equal(name, 'receta-valentina');
-  assert.equal(images(html), 4 + 6 + 16 + 24);
+  assert.equal(images(html), 8 + 6 + 32 + 48);
   assert.match(html, /image-rendering: pixelated/);
 });
 
@@ -27,7 +27,7 @@ test('lámina de piezas: una fila por complexión con vistas, caminata de perfil
   const { name, html } = buildLamina({ piezas: 'hair:bob-flequillo' });
   assert.equal(name, 'piezas-hair-bob-flequillo');
   const complexions = Object.keys(buildBundle().complexions).length;
-  assert.equal(images(html), complexions * (4 + 6 + 1));
+  assert.equal(images(html), complexions * (8 + 6 + 1));
 });
 
 test('las escalas de las imágenes son enteras', () => {

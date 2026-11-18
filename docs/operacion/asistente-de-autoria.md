@@ -36,6 +36,8 @@ Variables del backend (`backend_django/psychosim/settings/base.py`, ejemplo en `
 
 La clave nunca sale del servidor: al cliente solo llegan mensajes fijos, y al registro va solo el tipo de fallo del proveedor, no su texto.
 
+Para usar NVIDIA, activa `AI_AUTHORING_ENABLED=true`, configura `AI_AUTHORING_PROVIDER=openai-compatible` y define `AI_AUTHORING_API_KEY` solo en el entorno del servidor. `AI_AUTHORING_BASE_URL` usa por defecto `https://integrate.api.nvidia.com/v1` y puede apuntar a otra API compatible. Define `AI_AUTHORING_MODEL_FAST`, `AI_AUTHORING_MODEL_CAPABLE` y `AI_AUTHORING_MODEL_GENERATE` con modelos disponibles en ese proveedor. Estas respuestas pueden tardar entre 30 y 90 segundos: considera aumentar `AI_AUTHORING_TIMEOUT_SECONDS` y `AI_AUTHORING_GENERATE_TIMEOUT_SECONDS` sin superar los plazos del servidor o proxy. El razonamiento de estos modelos consume tokens de salida (`reasoning_content`): por eso este proveedor nunca pide menos de 4096 tokens de salida, aunque la guía pida 600 (el proveedor de Anthropic conserva los topes de siempre). Pide la respuesta con `response_format` de tipo `json_schema` estricto y, si la API no lo admite (400), repite una vez con `json_object`; en los dos casos el JSON se valida contra el esquema antes de usarse.
+
 ## Tope de gasto
 
 Cada `propose` y cada `guide` gasta un uso. El cupo se **reserva antes** de llamar al proveedor y se **devuelve si el proveedor falla** (502): una respuesta de error no gasta ayuda. Una propuesta inválida (422 `AI_PROPOSAL_INVALID`) y un rechazo del modelo (422 `AI_REFUSED`) sí lo gastan, porque la llamada ocurrió.
@@ -70,6 +72,16 @@ Se hacen cumplir en Python sobre lo que devuelve el modelo (`prompts.py`), sin I
 - **Lista revictimizante** (culpar, dudar, minimizar, presionar, acercar al agresor): solo se admite en una respuesta `CONTRAINDICATED` **con su razón** (`prohibitionReason`). Una `CONTRAINDICATED` sin razón también se rechaza.
 
 Los marcadores son dos listas congeladas en español, comparadas sobre el texto en minúsculas, sin tildes ni puntuación. **Son un primer filtro, no el control:** una frase dañina puede no coincidir con ninguna. El control real es la marca «sugerido por la IA» más la revisión humana de cada parte antes de enviar el caso. Los textos y las listas son BORRADOR hasta que Psicología los apruebe.
+
+**Largos de lectura (V5).** Lo que la estudiante lee al jugar tiene un tope para leerse sin desplazarse. Los topes, en caracteres:
+
+| Narración | Parlamento | Pregunta | Respuesta | Retroalimentación | Reacción | Comentario | Pista |
+|---|---|---|---|---|---|---|---|
+| 300 | 200 | 160 | 140 | 240 | 160 | 120 | 140 |
+
+Los topes se calibraron sobre SIM-VBG-002. La fuente única es `casedef/lectura.py`, y la instrucción de la generación de casos dice los mismos números: pide repartir un parlamento largo en varios turnos del mismo personaje.
+
+Pasar un tope **no es un error**. El validador del documento da el aviso `DSL.READING_LENGTH` con el texto concreto, sea el caso generado o escrito a mano. La pantalla «Enviar a revisión» lo muestra entre las sugerencias, que no impiden enviar.
 
 **La IA no rebaja una respuesta que una persona dejó contraindicada.** `set-response-class` se rechaza (422 `AI_PROPOSAL_INVALID`) si la respuesta es hoy `CONTRAINDICATED`, o tiene razón de prohibición o conducta prohibida, y la clase nueva no es `CONTRAINDICATED`; no importa si su texto coincide o no con un marcador. Volver a proponer `CONTRAINDICATED` sí se admite.
 

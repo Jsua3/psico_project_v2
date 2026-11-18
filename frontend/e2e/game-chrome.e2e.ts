@@ -168,9 +168,10 @@ for (const viewport of [
 
     test('un aviso de conexión queda arriba a la izquierda y no tapa «Salida segura», «Interactuar» ni la cruceta', async ({ page }) => {
       test.setTimeout(scaled(180_000));
-      // El archivo estático de la sala falla (la escena cae a su dibujo de respaldo): el interceptor HTTP emite el aviso
-      // de conexión (un error, que no se va solo).
-      await page.route('**/assets/game/scenarios/*.json', route => route.abort('failed'));
+      // El manifiesto del arte de la biblioteca falla (los objetos quedan en su reposo, el juego sigue): el interceptor HTTP
+      // emite el aviso de conexión (un error, que no se va solo). Antes se cortaba `/assets/game/scenarios/*.json`, que el
+      // mundo por piezas ya no pide.
+      await page.route(/\/assets\/biblioteca\/manifiesto\.json(\?|$)/, route => route.abort('failed'));
       await openLobby(page);
       await reachWorld(page);
 
@@ -207,8 +208,14 @@ test.describe('@game-chrome cabecera y pie bajo una capa', () => {
     for (const selector of ['header.top-bar', 'footer.bottom-zone']) {
       const region = page.locator(selector);
       await expect(region, selector).toHaveAttribute('inert', '');
+      // «Apagadas pero opacas» (B, V4): se apagan con brillo (filter: brightness), no con opacidad, para que el mundo no se
+      // vea a través. Vale cualquiera de las dos; lo que se exige es que se vean apagadas.
       await expect.poll(
-        () => region.evaluate(el => Number.parseFloat(getComputedStyle(el).opacity)),
+        () => region.evaluate(el => {
+          const estilo = getComputedStyle(el);
+          const brillo = /brightness\(([\d.]+)\)/.exec(estilo.filter);
+          return Math.min(Number.parseFloat(estilo.opacity), brillo ? Number.parseFloat(brillo[1]) : 1);
+        }),
         { message: `${selector} se ve apagado`, timeout: 3_000 },
       ).toBeLessThan(0.8);
     }
@@ -245,7 +252,7 @@ for (const viewport of [
       await exploreUntilNearby(page, input, /sala de escucha familiar/i);
       await waitUntilPlayerStill(page);
 
-      for (const selector of ['.hud-action', 'button.context-bar__interaction', '.tool-card', '[data-checklist-toggle]']) {
+      for (const selector of ['.hud-action', 'button.context-bar__interaction', '.tool-card', 'app-scene-goal-card .goal-card__toggle']) {
         const items = page.locator(selector);
         const count = await items.count();
         expect(count, `hay al menos un ${selector}`).toBeGreaterThan(0);
@@ -261,10 +268,10 @@ for (const viewport of [
         expect(measured, `${selector}: alguno visible que medir`).toBeGreaterThan(0);
       }
 
-      // Todo texto visible de la cabecera, la tarjeta «Qué hacer» y el pie, con su tamaño real calculado.
+      // Todo texto visible de la cabecera, la ficha del objetivo y el pie, con su tamaño real calculado.
       const small = await page.evaluate(() => {
         const found: string[] = [];
-        for (const root of Array.from(document.querySelectorAll('app-simulation-hud, app-scene-checklist-card, footer.bottom-zone'))) {
+        for (const root of Array.from(document.querySelectorAll('app-simulation-hud, app-scene-goal-card, footer.bottom-zone'))) {
           const walker = document.createTreeWalker(root, NodeFilter.SHOW_TEXT);
           for (let node = walker.nextNode(); node; node = walker.nextNode()) {
             const text = (node.textContent ?? '').trim();

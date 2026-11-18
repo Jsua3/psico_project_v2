@@ -399,6 +399,28 @@ export async function main(env = process.env, fetchImpl = globalThis.fetch) {
     (await request('POST', '/authoring/cases/1/publish', { token: tokens.PROFESOR, body: {} })).status,
     403,
   );
+  // C1: la generación de casos con IA es de quien autora (permiso case.author): sin sesión 401 y el estudiante 403, también
+  // con la bandera apagada (el permiso se revisa antes que el apagado). No escribe filas ni llama al proveedor.
+  expectStatus(
+    'sin sesion GET /authoring/generations/status -> 401',
+    (await request('GET', '/authoring/generations/status')).status,
+    401,
+  );
+  expectStatus(
+    'ESTUDIANTE GET /authoring/generations/status -> 403',
+    (await request('GET', '/authoring/generations/status', { token: tokens.ESTUDIANTE })).status,
+    403,
+  );
+  expectStatus(
+    'sin sesion POST /authoring/generations -> 401',
+    (await request('POST', '/authoring/generations', { body: {} })).status,
+    401,
+  );
+  expectStatus(
+    'ESTUDIANTE POST /authoring/generations -> 403',
+    (await request('POST', '/authoring/generations', { token: tokens.ESTUDIANTE, body: {} })).status,
+    403,
+  );
   // E4-5: importar crea un borrador desde el documento del caso. Un estudiante no entra; sin un documento
   // válido, el docente y el ADMIN reciben un 400 con los hallazgos (la matriz no escribe filas).
   expectStatus(

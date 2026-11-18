@@ -327,7 +327,7 @@ describe('traza del docente en el sistema de la biblioteca (F7-4)', () => {
       await render();
       const cards = [...host().querySelectorAll('.tr-metric')] as HTMLButtonElement[];
       expect(cards.map(card => text(card.querySelector('.ui-stat__label')))).toEqual([
-        'Total decisiones', 'Recomendadas', 'Aceptables', 'Con riesgo', 'Contraindicadas', 'Reflexiones', 'Evaluación', 'Tiempo total',
+        'Total de decisiones', 'Recomendadas', 'Aceptables', 'Con riesgo', 'Contraindicadas', 'Reflexiones', 'Evaluación', 'Tiempo total',
       ]);
       // Son conteos de hechos por clase de respuesta (3 + 1 + 1 + 0), no una medida.
       expect(cards.map(card => text(card.querySelector('.ui-stat__value')))).toEqual(['5', '3', '1', '1', '0', '0', 'Pendiente', '25 min 0 s']);
@@ -435,6 +435,15 @@ describe('traza del docente en el sistema de la biblioteca (F7-4)', () => {
       expect(text(systemSection())).toContain('La valoración del sistema se mostrará cuando registres tu propia valoración.');
       expect(systemSection()!.querySelector('table')).toBeNull();
       expect(text(host())).not.toContain('Dos decisiones recomendadas de tres.');
+    });
+
+    it('si el caso no declara competencias, una nota llana lo dice y enlaza al editor (V5)', async () => {
+      await render({ trace: id => of(traceFixture(id, {
+        systemEvaluation: null, systemEvaluationAvailable: false, competenciesDeclared: false, caseVersionId: 21,
+      })) });
+      expect(text(systemSection())).toContain('Este caso todavía no declara qué competencia evidencia cada respuesta');
+      expect(systemSection()!.querySelector('a')?.getAttribute('href')).toBe('/portal/casos/21/editor');
+      expect(systemSection()!.querySelector('table')).toBeNull();
     });
 
     it('si el sistema no tiene valoración que mostrar, la sección no aparece', async () => {

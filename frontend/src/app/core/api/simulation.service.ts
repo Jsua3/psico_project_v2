@@ -2,7 +2,7 @@ import { Injectable, inject } from '@angular/core';
 import { HttpClient, HttpContext, HttpHeaders } from '@angular/common/http';
 import { map } from 'rxjs/operators';
 import { ApiResponse } from './api-response';
-import { SCREEN_HANDLES_FORBIDDEN } from '../auth/http-error-chain';
+import { SCREEN_HANDLES_FORBIDDEN, SCREEN_HANDLES_OFFLINE } from '../auth/http-error-chain';
 import { resolveScenarioConfigAssetKey } from '../../features/simulator/scenario-config-assets.util';
 import type { ConsentRecordEnvelope, ConsentStateEnvelope, ConsentWithdrawalEnvelope } from './generated/openapi-contracts';
 import {
@@ -10,6 +10,7 @@ import {
   CaseBrief,
   CatalogItem,
   DecisionConsequence,
+  DecisionReaction,
   DecisionRetry,
   HintState,
   InteractionResult,
@@ -27,14 +28,22 @@ import {
  * La respuesta de una decisión (C2) tiene una sola forma: `{ attempt, consequence, retry? }`. Sin puntaje, delta ni
  * clase: tras decidir solo llegan la consecuencia y, si el caso concede otra oportunidad, el reintento.
  */
+interface PositionAck {
+  attemptId: string;
+  status: SimulationAttemptState['status'];
+  map: { key: string };
+  player: { x: number; y: number };
+}
+
 interface DecisionResponseWire {
   attempt: SimulationAttemptState;
   consequence: DecisionConsequence | null;
   retry?: DecisionRetry | null;
+  reaction?: DecisionReaction | null;
 }
 
 function toDecisionResult(data: DecisionResponseWire): SimulationDecisionResult {
-  return { ...data.attempt, consequence: data.consequence, retry: data.retry ?? null };
+  return { ...data.attempt, consequence: data.consequence, retry: data.retry ?? null, reaction: data.reaction ?? null };
 }
 
 /**
@@ -49,6 +58,12 @@ export class SimulationService {
 
   private attemptOptions(attemptToken: string) {
     return { headers: new HttpHeaders({ 'X-SIEP-Attempt-Token': attemptToken }) };
+  }
+
+  /** El intento tal como está ahora (contrato 2.1, §4.1); lo usa el ensayo para retomar el estado. */
+  getAttempt(attemptId: string, attemptToken: string) {
+    return this.http.get<ApiResponse<SimulationAttemptState>>(`${this.API}/attempts/${attemptId}`, this.attemptOptions(attemptToken))
+      .pipe(map(response => response.data));
   }
 
   listCases() {
@@ -150,13 +165,14 @@ export class SimulationService {
     }).pipe(map(response => response.data));
   }
 
-  updateWorldState(attemptId: string, attemptToken: string, playerX: number, playerY: number, currentMapKey: string) {
-    return this.http.patch<ApiResponse<SimulationWorldState>>(`${this.API}/attempts/${attemptId}/world-state`, {
+  /** `screenHandlesOffline`: la posición que viaja con la pausa (V4); sin red la explica la pantalla de pausa, no el aviso global. */
+  updateWorldState(attemptId: string, attemptToken: string, playerX: number, playerY: number, currentMapKey: string, screenHandlesOffline = false) {
+    return this.http.patch<ApiResponse<PositionAck>>(`${this.API}/attempts/${attemptId}/world-state`, {
       attemptToken,
       playerX,
       playerY,
       currentMapKey
-    }).pipe(map(response => response.data));
+    }, screenHandlesOffline ? { context: new HttpContext().set(SCREEN_HANDLES_OFFLINE, true) } : {}).pipe(map(response => response.data));
   }
 
   openInteraction(attemptId: string, attemptToken: string, interactionKey: string) {
@@ -209,10 +225,11 @@ export class SimulationService {
   }
 
   safeExit(attemptId: string, attemptToken: string, reason: string) {
+    // Sin red, la pantalla de pausa ya lo dice (REGLA-004, V3): el aviso global de conexión no le tapa el título.
     return this.http.post<ApiResponse<SimulationAttemptState>>(`${this.API}/attempts/${attemptId}/safe-exit`, {
       attemptToken,
       reason
-    }).pipe(map(response => response.data));
+    }, { context: new HttpContext().set(SCREEN_HANDLES_OFFLINE, true) }).pipe(map(response => response.data));
   }
 
   /** Reanuda un intento en pausa segura (mismo attemptId, estado intacto). */

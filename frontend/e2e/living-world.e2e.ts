@@ -39,11 +39,7 @@ async function enterPlayableCase(page: Page) {
   if (await startFresh.count()) await startFreshAttempt(page, startFresh);
   await consent.getByRole('button', { name: /^continuar$/i }).click();
 
-  const introVideo = page.getByRole('dialog').filter({ hasText: 'Antes de comenzar' });
-  await expect(introVideo).toBeVisible({ timeout: scaled(15_000) });
-  await introVideo.getByRole('button', { name: /saltar video|continuar/i }).click();
-
-  const caseIntro = page.getByRole('dialog').filter({ hasText: 'Contexto inicial del caso' });
+  const caseIntro = page.getByRole('dialog').filter({ hasText: 'Antes de comenzar' });
   await expect(caseIntro).toBeVisible({ timeout: scaled(15_000) });
   await caseIntro.getByRole('button', { name: /^continuar$/i }).click();
   await expect(caseIntro).toBeHidden({ timeout: scaled(15_000) });

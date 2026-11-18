@@ -19,7 +19,7 @@ function casoLimpio() {
   datos.editor.decisions.push({
     id: 900, optionKey: 'opcion-1', sourceNodeId: a.id, sourceKey: a.key, targetNodeId: b.id, targetKey: b.key, text: 'Te escucho.',
     responseClass: 'RECOMMENDED', prohibitedConduct: false, prohibitionReason: null, immediateFeedback: '', feedbackText: 'Escuchar da seguridad.',
-    consequenceText: '', theoryBasis: '', aiSuggested: false, effects: { milestones: datos.editor.rules.milestones.map((m) => m.key) },
+    consequenceText: '', theoryBasis: '', aiSuggested: false, requires: {}, reaction: {}, effects: { milestones: datos.editor.rules.milestones.map((m) => m.key) },
   });
   return datos;
 }
@@ -55,9 +55,26 @@ const issue = (code: string, mensaje: string, extra: Partial<ValidationIssue> = 
 describe('RevisionComponent · la compuerta de publicación en lenguaje del docente', () => {
   afterEach(() => document.querySelectorAll('body > app-revision, body > [ng-version]').forEach((n) => n.remove()));
 
+  it('un texto largo es una sugerencia con el texto y su escena, no una falta: el caso se puede enviar igual', async () => {
+    const mensaje = 'Escena «Consultorio», diálogo «Laura», línea del diálogo 2: este parlamento tiene 336 caracteres y en la pantalla'
+      + ' del juego se lee cómodo hasta 200; repártelo en varios turnos cortos del mismo personaje. Empieza así: «Anoche pasó algo…»';
+    const { raiz, enviar } = await montar({
+      hallazgos: [issue('DSL.READING_LENGTH', mensaje, { severity: 'warning', nodeId: 1, path: 'x-siep.escenas[0].mapa.dialogos[0].lineas[1].texto' })],
+    });
+    expect(raiz.textContent).toContain('Nada por resolver.');
+    expect(enviar().getAttribute('aria-disabled')).not.toBe('true');
+    const fila = [...raiz.querySelectorAll<HTMLElement>('li.falta')].find((li) => li.textContent?.includes('este parlamento tiene 336 caracteres'));
+    expect(fila, 'el aviso sale entre las sugerencias').toBeDefined();
+    expect(fila!.closest('section')!.querySelector('h2')!.textContent).toContain('no impiden enviar');
+    expect(fila!.textContent).toContain('Empieza así: «Anoche pasó algo…»');
+    expect(fila!.querySelector('a')!.textContent!.trim()).toBe('Ir a revisarlo');
+    expect(fila!.querySelector('a')!.getAttribute('href')).toContain('/editor/escena/1');
+    expect(raiz.textContent).not.toMatch(/DSL\.|READING_LENGTH/);
+  });
+
   it('un caso sin nada que resolver puede enviarse', async () => {
     const { raiz, enviar, servidor } = await montar();
-    expect(servidor.metodos).toEqual(['validateCase', 'lifecycle']);
+    expect(servidor.metodos).toEqual(['caseEditor', 'validateCase', 'lifecycle']); // la primera relee si el ensayo ya llegó a un final
     expect(raiz.textContent).toContain('Nada por resolver.');
     expect(enviar().getAttribute('aria-disabled')).not.toBe('true');
     expect(raiz.querySelector('.pildora.estado')!.textContent!.trim()).toBe('Borrador');
@@ -392,5 +409,35 @@ describe('RevisionComponent · un caso que Psicología devolvió', () => {
   it('una aprobación anterior tampoco la muestra', async () => {
     const { raiz } = await montar({ revision: { requestedBy: 'Docente', requestedAt: '2026-10-20T10:00:00Z', decision: 'APPROVED' } });
     expect(raiz.querySelector('[data-accion="devuelto-por-psicologia"]')).toBeNull();
+  });
+});
+
+describe('RevisionComponent · el ensayo en otra pestaña', () => {
+  afterEach(() => { vi.restoreAllMocks(); document.querySelectorAll('body > app-revision, body > [ng-version]').forEach((n) => n.remove()); });
+  const sugerencia = (raiz: HTMLElement) => [...raiz.querySelectorAll('li.falta')].find((li) => li.textContent?.includes('Todavía no probaste el caso completo en el juego.'));
+
+  it('al entrar relee si el ensayo llegó a un final: sin ensayo ofrece «Llévame ahí» a la guía, con ensayo la sugerencia no sale', async () => {
+    const { raiz, servidor, store, fixture, listo } = await montar();
+    expect(servidor.metodos).toContain('caseEditor');
+    const s = sugerencia(raiz)!;
+    expect(s, 'sin ensayo, sugiere probar').toBeDefined();
+    expect(s.querySelector('button')!.textContent?.trim()).toBe('Llévame ahí');
+    servidor.marcarEnsayado(true);
+    await store.releerProbado();
+    await listo();
+    expect(sugerencia(raiz)).toBeUndefined();
+    expect(raiz.textContent).toContain('Ya lo probaste como estudiante.');
+    expect(fixture).toBeTruthy();
+  });
+
+  it('cuando la pestaña vuelve a estar visible, vuelve a preguntar', async () => {
+    const { raiz, servidor, listo } = await montar();
+    servidor.marcarEnsayado(true);
+    servidor.llamadas.length = 0;
+    vi.spyOn(document, 'visibilityState', 'get').mockReturnValue('visible');
+    document.dispatchEvent(new Event('visibilitychange'));
+    await listo();
+    expect(servidor.metodos).toContain('caseEditor');
+    expect(sugerencia(raiz)).toBeUndefined();
   });
 });

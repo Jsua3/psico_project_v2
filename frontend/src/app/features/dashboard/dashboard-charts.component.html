@@ -6,7 +6,7 @@
   } @else if (isAdmin()) {
     <ui-card class="dc-chart">
       <h3 class="dc-chart__title">Usuarios por rol</h3>
-      <p class="dc-chart__sub">Distribución del registro académico</p>
+      <p class="dc-chart__sub">Cuántas cuentas hay de cada rol</p>
       @if (chartHasData(adminRoleChart())) {
         <ul class="dc-bars">
           @for (bar of adminRoleChart(); track bar.label) {
@@ -46,7 +46,7 @@
 
     <ui-card class="dc-chart">
       <h3 class="dc-chart__title">Simulaciones por día</h3>
-      <p class="dc-chart__sub">Últimos registros recientes</p>
+      <p class="dc-chart__sub">Los registros más recientes</p>
       @if (chartHasData(adminWeeklyChart())) {
         <ul class="dc-bars">
           @for (bar of adminWeeklyChart(); track bar.label) {

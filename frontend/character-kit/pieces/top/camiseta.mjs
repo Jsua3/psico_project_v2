@@ -7,6 +7,7 @@
  */
 
 import { gridFrom } from '../../raster.mjs';
+import { DIAGONAL } from './camiseta.diagonal.mjs';
 
 const LEGEND = {
   j: { mat: 'top' },
@@ -31,6 +32,7 @@ export default {
   /** Borde de la manga corta. */
   edges: [{ labels: ['a', 'A'], edge: 'bottom', tone: 3 }],
   views: {
+    ...DIAGONAL,
     down: [
       { anchor: 'T', at: [20, 23], mode: 'paint', legend: LEGEND, grid: `
         JJJ...JJJ

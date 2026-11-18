@@ -27,6 +27,7 @@ from ..models import (
 )
 from . import comments as comments_service
 from . import attempt_duration, attempt_lifecycle as lifecycle, door_chain, game_service, option_availability
+from . import world_layout
 from .attempt_lock import locked_attempt
 from .world_state import (
     require_world_state,
@@ -141,6 +142,16 @@ def _person_movement(map_object):
         return None
     if movement.get("tipo") == "deambula":
         return "deambula"
+    if movement.get("tipo") == "ruta":
+        puntos, modo = movement.get("puntos"), movement.get("modo")
+        pausa = movement.get("pausaMs")
+        if (not isinstance(puntos, list) or not 2 <= len(puntos) <= 8
+                or modo not in ("circuito", "ida-y-vuelta")
+                or (pausa is not None and (not _is_number(pausa) or not 0 <= pausa <= 10000))
+                or ("pausaMs" in movement and pausa is None)
+                or any(not isinstance(p, dict) or not _is_number(p.get("x")) or not _is_number(p.get("y")) for p in puntos)):
+            return None
+        return ("ruta", [(p["x"], p["y"]) for p in puntos], modo)
     hasta = movement.get("hasta")
     if movement.get("tipo") == "va-y-viene" and isinstance(hasta, dict):
         if _is_number(hasta.get("x")) and _is_number(hasta.get("y")):
@@ -156,6 +167,9 @@ def _interaction_rect(map_object):
     if movement == "deambula":
         radius = PERSON_WANDER_RADIUS_PX
         return x - radius, y - radius, width + 2 * radius, height + 2 * radius
+    if isinstance(movement, tuple) and movement[0] == "ruta":
+        # Un trayecto no se mide con un rectángulo: `_require_nearby` recorre sus tramos (`_route_distance`).
+        return x, y, width, height
     if movement is not None:
         _, to_x, to_y = movement
         # El punto lejano no puede estar fuera de la sala: un `hasta` desmedido no vuelve «cercano» lo que no lo es.
@@ -168,9 +182,42 @@ def _interaction_rect(map_object):
     return x, y, width, height
 
 
+#: Cada cuántos px se mide la cercanía a lo largo de un trayecto (el error es la mitad: 1 px de 120).
+ROUTE_SAMPLE_PX = 2
+
+
+def _route_distance(px, py, map_object, puntos, modo):
+    """Distancia del jugador a la persona en el punto más cercano de su trayecto.
+
+    El servidor no conoce la posición viva de quien camina: puede estar en cualquier punto de sus tramos rectos (los que
+    recorre el juego y comprueba OCL-19), así que se mide contra todos ellos, recortados a la sala. Un rectángulo
+    envolvente aceptaría también lugares a los que la persona nunca va.
+    """
+    scene_map = map_object.scene_map
+    width, height = map_object.width or 0, map_object.height or 0
+    paradas = [(map_object.position_x, map_object.position_y)] + [
+        (_clamp(x, 0, scene_map.width or DEFAULT_MAP_WIDTH), _clamp(y, 0, scene_map.height or DEFAULT_MAP_HEIGHT))
+        for x, y in puntos
+    ]
+    tramos = list(zip(paradas, paradas[1:]))
+    if modo == "circuito":
+        tramos.append((paradas[-1], paradas[0]))
+    mejor = math.inf
+    for (ax, ay), (bx, by) in tramos:
+        pasos = max(1, math.ceil(math.hypot(bx - ax, by - ay) / ROUTE_SAMPLE_PX))
+        for t in range(pasos + 1):
+            x, y = ax + (bx - ax) * t / pasos, ay + (by - ay) * t / pasos
+            mejor = min(mejor, _rect_distance(px, py, x, y, width, height))
+    return mejor
+
+
 def _require_nearby(world_state, map_object, what="el objeto"):
-    rect_x, rect_y, rect_w, rect_h = _interaction_rect(map_object)
-    distance = _rect_distance(world_state.player_x, world_state.player_y, rect_x, rect_y, rect_w, rect_h)
+    movement = _person_movement(map_object)
+    if isinstance(movement, tuple) and movement[0] == "ruta":
+        distance = _route_distance(world_state.player_x, world_state.player_y, map_object, movement[1], movement[2])
+    else:
+        rect_x, rect_y, rect_w, rect_h = _interaction_rect(map_object)
+        distance = _rect_distance(world_state.player_x, world_state.player_y, rect_x, rect_y, rect_w, rect_h)
     if distance > INTERACTION_RANGE_PX:
         raise ValidationError(f"Estás demasiado lejos de {what} para interactuar")
 
@@ -698,6 +745,15 @@ def _static_world_key(scene_map_id, case_version):
     return shared_cache.static_world_key(scene_map_id, case_version)
 
 
+def _ambient_for(scene_map):
+    """El ambiente del mapa. Una sala armada por piezas no entrega ``backgroundImage`` (contrato x-siep 2.2, §5.1): el
+    juego la compone con piezas, y un fondo que quedó de cuando era de imagen fija la taparía (revisión de Codex, hallazgo 8)."""
+    ambient = _read_map(scene_map.ambient_json)
+    if isinstance(scene_map.structure, dict):
+        ambient.pop("backgroundImage", None)
+    return ambient
+
+
 def _build_static_world(scene_map, case_version_id):
     dialogues = _dialogues_by_object_id(scene_map.id)
     return {
@@ -710,7 +766,9 @@ def _build_static_world(scene_map, case_version_id):
             "theme": scene_map.theme,
             "spawnX": scene_map.spawn_x,
             "spawnY": scene_map.spawn_y,
-            "ambient": _read_map(scene_map.ambient_json),
+            "ambient": _ambient_for(scene_map),
+            # x-siep 2.2: la sala armada por piezas; ``None`` en una sala de imagen fija.
+            "structure": scene_map.structure if isinstance(scene_map.structure, dict) else None,
         },
         "objects": [
             _to_map_object(o, dialogue=dialogues.get(o.id))
@@ -817,6 +875,8 @@ def _to_world_state(attempt, state, *, estudiante=True):
         "flags": _flags_for(state, estudiante=estudiante),
         "decisionOptions": options,
         "comments": comments,
+        # x-siep 2.2 (§5.2): el plano del lugar, sin objetos ni personajes; ``None`` en una sala de imagen fija.
+        "layout": world_layout.layout_para(attempt, scene_map),
     }
 
 

@@ -1,7 +1,7 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://siep.local/biblioteca/escenario.schema.json",
-  "title": "Escenario de la biblioteca (esquema 2; el 1 se acepta con aviso)",
+  "title": "Escenario de la biblioteca (esquema 2 o 3; el 1 se acepta con aviso)",
   "type": "object",
   "additionalProperties": false,
   "required": [
@@ -21,7 +21,8 @@
     "esquema": {
       "enum": [
         1,
-        2
+        2,
+        3
       ]
     },
     "id": {
@@ -121,12 +122,13 @@
     },
     "arte": {
       "type": "string",
-      "pattern": "^arte/([a-z0-9-]+/)*[a-z0-9-]+\\.png$"
+      "pattern": "^(arte|piezas)/([a-z0-9-]+/)*[a-z0-9-]+\\.png$",
+      "description": "Ruta de una imagen: `arte/…` es relativa a la carpeta del lugar; `piezas/…` (esquema 3) es del catálogo de piezas, relativa a `biblioteca/`."
     },
     "x": {
       "type": "integer",
       "minimum": 0,
-      "maximum": 960
+      "maximum": 1920
     },
     "y": {
       "type": "integer",
@@ -157,7 +159,6 @@
         "nombre",
         "descripcion",
         "encuadre",
-        "fondo",
         "entrada",
         "muebles",
         "objetos",
@@ -263,7 +264,13 @@
               "mirando": {
                 "enum": [
                   "izquierda",
-                  "derecha"
+                  "derecha",
+                  "abajo",
+                  "arriba",
+                  "abajo-izquierda",
+                  "abajo-derecha",
+                  "arriba-izquierda",
+                  "arriba-derecha"
                 ]
               },
               "expresion": {
@@ -287,8 +294,6 @@
             "required": [
               "id",
               "hacia",
-              "x",
-              "y",
               "etiqueta"
             ],
             "properties": {
@@ -306,11 +311,125 @@
               },
               "etiqueta": {
                 "$ref": "#/$defs/texto"
+              },
+              "muro": {
+                "enum": [
+                  "fondo",
+                  "izquierda",
+                  "derecha",
+                  "camara"
+                ]
+              },
+              "pos": {
+                "type": "integer",
+                "minimum": 0,
+                "maximum": 1920
+              },
+              "modelo": {
+                "$ref": "#/$defs/clave"
+              },
+              "par": {
+                "$ref": "#/$defs/clave"
+              },
+              "sentidoUnico": {
+                "type": "boolean"
               }
+            },
+            "oneOf": [
+              {
+                "required": [
+                  "x",
+                  "y"
+                ],
+                "not": {
+                  "anyOf": [
+                    {
+                      "required": [
+                        "muro"
+                      ]
+                    },
+                    {
+                      "required": [
+                        "pos"
+                      ]
+                    }
+                  ]
+                }
+              },
+              {
+                "required": [
+                  "muro",
+                  "pos",
+                  "modelo"
+                ],
+                "not": {
+                  "anyOf": [
+                    {
+                      "required": [
+                        "x"
+                      ]
+                    },
+                    {
+                      "required": [
+                        "y"
+                      ]
+                    }
+                  ]
+                }
+              }
+            ]
+          }
+        },
+        "estructura": {
+          "type": "object",
+          "description": "Esquema 3: la sala armada por piezas (contrato x-siep 2.2, sección 2). Su forma detallada y las reglas OCL-13 a 18 las juzga el servidor; aquí se exige el ancho del catálogo.",
+          "required": [
+            "ancho",
+            "momento",
+            "acabados",
+            "piezas"
+          ],
+          "properties": {
+            "ancho": {
+              "enum": [
+                960,
+                1200,
+                1440,
+                1680,
+                1920
+              ]
+            },
+            "momento": {
+              "enum": [
+                "dia",
+                "noche"
+              ]
             }
           }
         }
-      }
+      },
+      "oneOf": [
+        {
+          "required": [
+            "fondo"
+          ],
+          "not": {
+            "required": [
+              "estructura"
+            ]
+          }
+        },
+        {
+          "required": [
+            "estructura"
+          ],
+          "not": {
+            "required": [
+              "fondo"
+            ]
+          }
+        }
+      ]
     },
     "recorrido": {
       "type": "object",
@@ -373,6 +492,33 @@
         },
         "colision": {
           "type": "boolean"
+        },
+        "huella": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "ancho",
+            "fondo",
+            "alto"
+          ],
+          "description": "Esquema 3: la base del mueble en el piso (ancho × fondo) y su altura. Si está, el choque es la base y no la caja del dibujo.",
+          "properties": {
+            "ancho": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 528
+            },
+            "fondo": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 528
+            },
+            "alto": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 528
+            }
+          }
         }
       }
     },
@@ -570,7 +716,10 @@
   "if": {
     "properties": {
       "esquema": {
-        "const": 2
+        "enum": [
+          2,
+          3
+        ]
       }
     }
   },

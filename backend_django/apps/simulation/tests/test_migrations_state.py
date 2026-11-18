@@ -43,7 +43,13 @@ def test_el_grafo_real_no_esta_vacio_y_tiene_una_hoja_por_app(settings):
 
     apps_con_migraciones = {app for app, _ in loader.graph.leaf_nodes()}
     assert {"users", "grupos", "simulation", "progression"} <= apps_con_migraciones
-    assert leaf_conflicts(loader.graph) == {}
+    conflictos = leaf_conflicts(loader.graph)
+    assert conflictos == {}, (
+        f"Dos ramas trajeron migraciones hermanas y el grafo quedó con más de una hoja: {conflictos}. Regla: la rama que "
+        "entra SEGUNDA a master cambia la dependencia de su migración a la hoja que ya está en master (por ejemplo, la "
+        "0036 de P3 pasa a depender de la 0035 de C1 si C1 entró antes) y, si su número choca, se renumera. Si la "
+        "migración ya se aplicó en alguna base, en vez de eso se agrega una migración de unión que dependa de las dos."
+    )
 
 
 def test_los_modelos_no_tienen_cambios_sin_migrar(settings):

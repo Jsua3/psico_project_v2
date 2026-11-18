@@ -43,10 +43,11 @@ import { RutasAutoria } from '../../rutas';
             <section aria-labelledby="pe" class="tarjeta">
               <p class="texto-secundario">Escena elegida</p>
               @if (escenaElegida(); as e) {
-                <h2 id="pe">{{ numero(e) }} · {{ e.titulo }}</h2>
+                <h2 id="pe" tabindex="-1">{{ numero(e) }} · {{ e.titulo }}</h2>
                 @if (e.marcaIa) {
                   <p class="marca-ia"><span class="pildora">Sugerido por la IA</span> La creó el asistente; revísala y acéptala.</p>
-                  <button type="button" class="boton" data-accion="aceptar-ia" (click)="store.aceptarIa({ escenaId: e.id })">Aceptar escena</button>
+                  <!-- BORRADOR: texto nuevo, pendiente de la aprobación de Psicología -->
+                  <button type="button" class="boton" data-accion="aceptar-ia" (click)="aceptarEscena(e.id)">Aceptar toda la escena ({{ plural(store.partesIaDeEscena(e.id), 'parte', 'partes') }})</button>
                 }
                 <p class="texto-secundario">{{ nombreSala(e.salaId) }} · {{ plural(e.lineas.length, 'línea', 'líneas') }} · {{ plural(e.respuestas.length, 'respuesta', 'respuestas') }}</p>
                 <dl>
@@ -59,6 +60,10 @@ import { RutasAutoria } from '../../rutas';
                   <a class="boton boton-primario" [routerLink]="rutas.a('/editor/escena', e.id)" data-accion="abrir-guion">Abrir guion</a>
                   @if (e.salaId) {
                     <a class="boton" [routerLink]="rutas.a('/editor/sala', e.salaId)" data-accion="abrir-sala">Abrir sala</a>
+                  }
+                  @if (hayPlano()) {
+                    <!-- BORRADOR: texto nuevo, pendiente de la aprobación de Psicología -->
+                    <a class="boton" [routerLink]="rutas.a('/editor/plano')" data-accion="abrir-plano">Ver el plano</a>
                   }
                 </div>
               } @else {
@@ -208,6 +213,8 @@ import { RutasAutoria } from '../../rutas';
 export class EditorComponent {
   protected readonly rutas = inject(RutasAutoria);
   protected readonly store = inject(CasoStore);
+  /** El plano del caso solo existe con salas por piezas. */
+  protected readonly hayPlano = computed(() => this.store.caso()?.salas.some(s => !!s.estructura) ?? false);
   private readonly router = inject(Router);
   private readonly mapa = viewChild<MapaEscenasComponent>('mapa');
   private readonly injector = inject(Injector);
@@ -220,6 +227,16 @@ export class EditorComponent {
   protected readonly destino = signal<string | 'nueva' | null>(null);
   protected readonly borrando = signal<string | null>(null);
   protected readonly anuncio = signal('');
+
+  /** Acepta de una vez lo sugerido en la escena; solo si quedó todo aceptado se anuncia (si no, habla el aviso de lo que faltó). */
+  protected async aceptarEscena(id: string): Promise<void> {
+    this.store.aceptarEscenaIa(id);
+    await this.store.sincronizado();
+    // BORRADOR: texto nuevo, pendiente de la aprobación de Psicología
+    if (this.store.partesIaDeEscena(id) === 0) this.anuncio.set('Aceptaste todo lo sugerido en esta escena.');
+    this.enfocar('#pe'); // el botón pulsado desaparece: el foco no cae al cuerpo de la página
+
+  }
 
   protected readonly avisos = computed<Aviso[]>(() => {
     const caso = this.store.caso();

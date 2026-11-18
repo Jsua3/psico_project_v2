@@ -104,7 +104,7 @@ describe('CasoStore con la API · abrir un caso', () => {
     const { servidor, store } = montar();
     const id = await store.crearCaso('Mi caso', 'universidad', ['consultorio', 'pasillo']);
     expect(id).toBe(CASO);
-    expect(servidor.llamadasA('createCase')[0].args[0]).toEqual({ title: 'Mi caso', lugarId: 'universidad', salas: ['consultorio', 'pasillo'] });
+    expect(servidor.llamadasA('createCase')[0].args[0]).toEqual({ title: 'Mi caso', lugarId: 'universidad', salas: ['consultorio', 'pasillo'], porPiezas: true });
   });
 });
 
@@ -817,5 +817,39 @@ describe('CasoStore con la API · los datos del caso (contexto y objetivos)', ()
     expect(store.conflicto()).not.toBeNull();
     expect(store.conflicto()!.sinGuardar.join(' ')).toContain('Mi contexto.');
     expect(caso(store).contexto).toBe('Mi contexto.');
+  });
+});
+
+describe('CasoStore con la API · releerProbado (si el ensayo llegó a un final)', () => {
+  it('relee el editor y pone probadoHastaElFinal sin tocar lo demás ni mandar nada', async () => {
+    const { servidor, store } = await abrir();
+    expect(caso(store).probadoHastaElFinal).toBe(false);
+    const antes = structuredClone(caso(store));
+    servidor.marcarEnsayado(true);
+    await store.releerProbado();
+    expect(servidor.metodos).toEqual(['caseEditor']);
+    expect(caso(store).probadoHastaElFinal).toBe(true);
+    expect({ ...caso(store), probadoHastaElFinal: false }).toEqual(antes);
+    servidor.marcarEnsayado(false);
+    await store.releerProbado();
+    expect(caso(store).probadoHastaElFinal).toBe(false);
+  });
+
+  it('no deja pendiente nada que guardar, y si la lectura falla conserva lo que había', async () => {
+    const { servidor, store } = await abrir();
+    servidor.marcarEnsayado(true);
+    await store.releerProbado();
+    servidor.llamadas.length = 0;
+    await store.sincronizado();
+    expect(servidor.metodos).toEqual([]);
+    servidor.fallar('caseEditor', 500);
+    await store.releerProbado();
+    expect(caso(store).probadoHastaElFinal).toBe(true);
+  });
+
+  it('sin caso abierto no hace nada', async () => {
+    const { servidor, store } = montar();
+    await store.releerProbado();
+    expect(servidor.metodos).toEqual([]);
   });
 });

@@ -92,6 +92,36 @@ describe('GuionComponent', () => {
     expect(raiz.textContent).not.toContain('Sugerido por la IA');
   });
 
+  it('«Aceptar toda la escena» dice cuántas partes son, las baja todas y lo anuncia', async () => {
+    const { fixture, store, id, raiz, listo } = await montar();
+    const caso = structuredClone(store.caso()!);
+    const escena = caso.escenas.find((e) => e.id === id)!;
+    escena.marcaIa = true;
+    escena.lineas.push({ id: 'l-ia', personajeId: caso.personajes[0].id, texto: 'Hola', expresion: 'neutral', marcaIa: true });
+    escena.respuestas.push({ id: 'r-ia', texto: 'Cuéntame', clase: 'RECOMMENDED', razon: '', efectos: {}, retroalimentacion: 'Bien.', destinoId: null, marcaIa: true });
+    store.fijar(caso);
+    document.body.appendChild(fixture.nativeElement);
+    await listo();
+    expect([...raiz.querySelectorAll('button')].some((b) => b.textContent?.trim() === 'Aceptar escena')).toBe(false);
+    boton(raiz, 'Aceptar toda la escena (3 partes)').click();
+    await listo();
+    await new Promise((r) => setTimeout(r, 0));
+    const despues = store.caso()!.escenas.find((e) => e.id === id)!;
+    expect([despues.marcaIa, despues.lineas[0].marcaIa, despues.respuestas[0].marcaIa]).toEqual([false, false, false]);
+    expect(raiz.querySelector('[role="status"].solo-lector')!.textContent!.trim()).toBe('Aceptaste todo lo sugerido en esta escena.');
+    expect(raiz.textContent).not.toContain('Aceptar toda la escena');
+    fixture.nativeElement.remove();
+  });
+
+  it('con una sola parte sugerida el botón dice «1 parte»', async () => {
+    const { store, id, raiz, listo } = await montar();
+    const caso = structuredClone(store.caso()!);
+    caso.escenas.find((e) => e.id === id)!.marcaIa = true;
+    store.fijar(caso);
+    await listo();
+    expect(boton(raiz, 'Aceptar toda la escena (1 parte)')).toBeDefined();
+  });
+
   const enCuerpo = async (fixture: { nativeElement: HTMLElement }, listo: () => Promise<void>) => {
     document.body.appendChild(fixture.nativeElement);
     await listo();
@@ -188,5 +218,76 @@ describe('GuionComponent', () => {
     await listo();
     expect(store.caso()!.escenas.find((e) => e.id === id)!.respuestas[0]).toMatchObject({ clase: 'CONTRAINDICATED', razon: 'Apura a la persona.' });
     expect(raiz.textContent).not.toContain('Explica por qué esta respuesta');
+  });
+
+  it('cada respuesta trae «Aparece si…» y «Cómo reacciona», y avisa si todas las respuestas tienen requisito', async () => {
+    const { store, id, raiz, listo } = await montar();
+    boton(raiz, 'Agregar una respuesta').click();
+    boton(raiz, 'Agregar una respuesta').click();
+    await listo();
+    const [a, b] = store.caso()!.escenas.find((e) => e.id === id)!.respuestas;
+    for (const r of [a, b]) {
+      expect(raiz.querySelector(`fieldset#aparece-si-${r.id} legend`)!.textContent).toBe('Aparece si…');
+      expect(raiz.querySelector(`fieldset#reaccion-${r.id} legend`)!.textContent).toBe('Cómo reacciona');
+    }
+    expect(raiz.querySelector('#aviso-todas-con-requisito')).toBeNull();
+
+    store.editarRequisito(id, a.id, { milestone: 'x' });
+    await listo();
+    expect(raiz.querySelector('#aviso-todas-con-requisito')).toBeNull(); // la otra aparece siempre
+    store.editarRequisito(id, b.id, { milestone: 'y' });
+    await listo();
+    expect(raiz.querySelector('#aviso-todas-con-requisito')!.textContent)
+      .toContain('Todas las respuestas tienen un requisito: deja al menos una que aparezca siempre.');
+    store.editarRequisito(id, b.id, {});
+    await listo();
+    expect(raiz.querySelector('#aviso-todas-con-requisito')).toBeNull();
+  });
+});
+
+describe('GuionComponent · Probar desde aquí', () => {
+  it('es un enlace a la ruta del ensayo desde esa escena, que abre otra pestaña', async () => {
+    const { store, id, raiz, listo } = await montar();
+    vi.spyOn(store, 'nodoDeEscena').mockReturnValue(12);
+    store.fijar({ ...store.caso()!, id: '41' }); // el caso abierto es el 41
+    await listo();
+    const enlace = raiz.querySelector<HTMLAnchorElement>('a[data-accion="probar"]')!;
+    expect(enlace.getAttribute('href')).toBe('/portal/casos/41/ensayo?desde=12');
+    expect(enlace.target).toBe('_blank');
+    expect(enlace.rel).toContain('noopener');
+    expect(enlace.getAttribute('aria-label')).toBe('Probar desde aquí, en el juego (se abre en otra pestaña)');
+    expect(enlace.textContent?.trim()).toBe('Probar desde aquí ↗');
+    expect(id).toBeTruthy();
+  });
+
+  it('el clic primario guarda lo pendiente y abre; Ctrl+clic deja el enlace normal', async () => {
+    const { store, raiz, listo } = await montar();
+    vi.spyOn(store, 'nodoDeEscena').mockReturnValue(12);
+    store.fijar({ ...store.caso()!, id: '41' });
+    await listo();
+    const sincronizado = vi.spyOn(store, 'sincronizado').mockResolvedValue();
+    const pestana = { opener: {}, location: { href: '' }, closed: false };
+    const abrir = vi.spyOn(window, 'open').mockReturnValue(pestana as unknown as Window);
+    const enlace = raiz.querySelector<HTMLAnchorElement>('a[data-accion="probar"]')!;
+    const conCtrl = new MouseEvent('click', { bubbles: true, cancelable: true, ctrlKey: true });
+    enlace.dispatchEvent(conCtrl);
+    expect(conCtrl.defaultPrevented).toBe(false);
+    expect(abrir).not.toHaveBeenCalled();
+    const primario = new MouseEvent('click', { bubbles: true, cancelable: true });
+    enlace.dispatchEvent(primario);
+    expect(primario.defaultPrevented).toBe(true);
+    expect(abrir).toHaveBeenCalledTimes(1);
+    await vi.waitFor(() => expect(pestana.location.href).toBe('/portal/casos/41/ensayo?desde=12'));
+    expect(sincronizado).toHaveBeenCalled();
+    abrir.mockRestore();
+  });
+
+  it('una escena sin guardar no ofrece el enlace y dice por qué', async () => {
+    const { raiz } = await montar(); // un borrador en memoria: ninguna escena tiene número en el servidor
+    expect(raiz.querySelector('a[data-accion="probar"]')).toBeNull();
+    const boton = raiz.querySelector<HTMLButtonElement>('button[data-accion="probar"]')!;
+    expect(boton.getAttribute('aria-disabled')).toBe('true');
+    expect(raiz.querySelector('#probar-aviso')!.textContent).toContain('Guarda la escena para probarla.');
+    expect(boton.getAttribute('aria-describedby')).toBe('probar-aviso');
   });
 });

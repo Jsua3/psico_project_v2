@@ -8,6 +8,7 @@
  */
 
 import { gridFrom, stamp } from '../../raster.mjs';
+import { DIAGONAL } from './gafas.diagonal.mjs';
 
 const LEGEND = { g: { literal: 'gafas' } };
 
@@ -32,6 +33,7 @@ export default {
   kind: 'accessory',
   portrait: PORTRAIT,
   views: {
+    ...DIAGONAL,
     down: [{
       // Aro de 5 px alrededor del ojo de 1 px: queda piel dentro y no se lee como gafas de sol.
       anchor: 'H', at: [19, 12], mode: 'paint', legend: LEGEND,

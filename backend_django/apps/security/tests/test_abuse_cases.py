@@ -709,7 +709,7 @@ def test_control_negativo_sin_la_puerta_de_rol_el_estudiante_o_el_docente_entra(
 #  4 · Anónimo: toda ruta privada del inventario de superficie responde 401 sin token  (RNF-002, LS-7)
 # ═════════════════════════════════════════════════════════════════════════════════════════════════════════════════
 
-_EJEMPLOS_DE_PARAMETRO = {"int": "1", "uuid": "00000000-0000-4000-8000-000000000001", "str": "x"}
+_EJEMPLOS_DE_PARAMETRO = {"int": "1", "uuid": "00000000-0000-4000-8000-000000000001", "str": "x", "slug": "aula"}
 _PARAMETRO_DE_RUTA = re.compile(r"<(?:(?P<tipo>[a-z]+):)?(?P<nombre>[a-z_]+)>")
 _DOCUMENTACION = {"schema", "swagger-ui.html"}
 

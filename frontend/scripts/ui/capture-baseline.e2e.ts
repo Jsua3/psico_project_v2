@@ -77,8 +77,8 @@ test('capturas · galería /dev/ui', async ({ page }) => {
   }
 });
 
-// Estados del juego (F6): cada uno a los tres anchos, de la entrada al caso a la pausa. El video de introducción se
-// salta (la configuración fija movimiento reducido). Un estado que falla se anota en el manifiesto y el recorrido sigue.
+// Estados del juego (F6): cada uno a los tres anchos, de la entrada al caso a la pausa. Un estado que falla se anota en el
+// manifiesto y el recorrido sigue.
 test('capturas · juego', async ({ page }) => {
   test.setTimeout(20 * 60_000);
   mkdirSync(OUT_DIR, { recursive: true });
@@ -112,9 +112,9 @@ test('capturas · juego', async ({ page }) => {
       await page.locator('app-game-menu canvas').waitFor({ state: 'visible', timeout: 30_000 });
       const consent = await enterCaseAtContentWarning(page);
       await shot('aviso-contenido', async () => undefined);
-      // Con movimiento reducido el juego salta el video de introducción: aviso → contexto → mundo.
+      // Aviso de contenido → tarjeta «Antes de comenzar» → mundo.
       await consent.getByRole('button', { name: /^continuar$/i }).click();
-      const caseIntro = page.getByRole('dialog').filter({ hasText: 'Contexto inicial del caso' });
+      const caseIntro = page.getByRole('dialog').filter({ hasText: 'Antes de comenzar' });
       await caseIntro.waitFor({ state: 'visible', timeout: 30_000 });
       await shot('contexto', async () => undefined);
       await caseIntro.getByRole('button', { name: /^continuar$/i }).click();

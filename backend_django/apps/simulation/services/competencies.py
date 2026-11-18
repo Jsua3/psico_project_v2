@@ -112,12 +112,38 @@ def link_unlinked_criteria(create=False):
         if code not in cache:
             competency = Competency.objects.filter(code=code).first()
             if competency is None and create:
+                # El nombre es el título del criterio (con sus tildes), no el código: es lo que lee el estudiante.
                 competency = Competency.objects.create(
-                    code=code, name=code.replace("_", " ").capitalize()
+                    code=code, name=(criterion.title or "").strip()[:255] or _nombre_del_codigo(code)
                 )
             cache[code] = competency
         competency = cache[code]
         if competency is not None:
             RubricCriterion.objects.filter(pk=criterion.pk).update(competency_ref=competency)
             linked += 1
+    if create:
+        nombrar_competencias_crudas()
     return linked
+
+
+def _nombre_del_codigo(code):
+    """``COMPRENSION_SITUACION`` → «Comprension situacion»: el nombre que se ponía antes, sin tildes."""
+    return code.replace("_", " ").capitalize()
+
+
+def nombrar_competencias_crudas():
+    """Las competencias que aún llevan el nombre sacado de su código («Comprension situacion», «Pap») toman el título del
+    primer criterio que las usa («Identificación y comprensión de la situación»). Idempotente; no toca un nombre que alguien
+    escribió. Devuelve cuántas renombró."""
+    renombradas = 0
+    for competency in Competency.objects.order_by("id"):
+        if competency.name != _nombre_del_codigo(competency.code):
+            continue
+        titulo = (
+            RubricCriterion.objects.filter(competency_ref=competency).exclude(title="").order_by("id")
+            .values_list("title", flat=True).first()
+        )
+        if titulo and titulo.strip() and titulo.strip() != competency.name:
+            Competency.objects.filter(pk=competency.pk).update(name=titulo.strip()[:255])
+            renombradas += 1
+    return renombradas

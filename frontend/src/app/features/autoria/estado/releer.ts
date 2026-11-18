@@ -44,11 +44,14 @@ export function firmaDelCaso(caso: CasoBorrador): string {
     finales: caso.finales.map((f) => [f.id, f.nombre, f.texto, f.condicion]), plantilla: caso.textosPlantilla ?? null,
     escenas: porId(caso.escenas).map((e) => [
       e.id, e.titulo, e.narracion, e.salaId, e.esFinal, e.intensidad, e.advertencia ?? null, e.posicion.x, e.posicion.y,
-      e.lineas.map((l) => [l.texto, l.personajeId]),
-      porId(e.respuestas).filter((r) => motivoSinGuardar(r) === null).map((r) => [r.id, r.texto, r.clase, r.razon, r.destinoId, r.retroalimentacion]),
+      e.marcaIa === true,
+      e.lineas.map((l) => [l.texto, l.personajeId, l.marcaIa]),
+      porId(e.respuestas).filter((r) => motivoSinGuardar(r) === null).map((r) => [r.id, r.texto, r.clase, r.razon, r.destinoId, r.retroalimentacion, r.marcaIa]),
     ]),
+    // las marcas «sugerido por la IA» también se ven: un cambio que baja marcas a medias (aceptar toda la escena) tiene que mostrarse
     salas: porId(caso.salas).map((s) => [
-      s.id, s.nombre, s.muebles.map((m) => [m.ref, m.x, m.y]), s.objetos.map((o) => [o.ref, o.x, o.y]), s.personajes.map((p) => [p.ref, p.x, p.y]),
+      s.id, s.nombre, s.muebles.map((m) => [m.ref, m.x, m.y, m.marcaIa === true]), s.objetos.map((o) => [o.ref, o.x, o.y, o.marcaIa === true]),
+      s.personajes.map((p) => [p.ref, p.x, p.y, p.marcaIa === true]),
     ]),
   });
 }

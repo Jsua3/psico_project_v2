@@ -143,6 +143,26 @@ function isSameOrInside(inner, outer) {
  * Se valida todo ANTES de borrar: la salida debe llamarse `biblioteca`, no puede ser la biblioteca fuente ni estar dentro de
  * ella (copiaría sobre sí misma) ni contenerla (borrarla se llevaría la fuente), y cada archivo que el manifiesto lista debe existir.
  */
+/**
+ * Lo que el juego carga del catálogo de piezas (`biblioteca/piezas/manifiesto.json`, esquema 2, de P1): el manifiesto,
+ * cada imagen y cada lugar que nombra. La referencia de luz congelada (`piezas/luz/`) es de las pruebas y no se publica.
+ * Sin catálogo de piezas, nada.
+ */
+export function piecesFiles(biblioteca = BIBLIOTECA_DIR) {
+  const file = path.join(biblioteca, 'piezas', 'manifiesto.json');
+  if (!existsSync(file)) return [];
+  const keys = new Set(['piezas/manifiesto.json']);
+  const walk = (value) => {
+    if (typeof value === 'string') {
+      if (/^piezas\/[a-z0-9/_-]+\.(png|json)$/.test(value) && !value.startsWith('piezas/luz/')) keys.add(value);
+    } else if (value && typeof value === 'object') {
+      for (const item of Object.values(value)) walk(item);
+    }
+  };
+  walk(JSON.parse(readFileSync(file, 'utf8')));
+  return [...keys].sort();
+}
+
 export function publishLibrary({ biblioteca = BIBLIOTECA_DIR, output = PUBLISHED_DIR } = {}) {
   if (path.basename(output) !== 'biblioteca') throw new Error(`publishLibrary: no borro ${output} (la carpeta de salida debe llamarse biblioteca)`);
   const source = path.resolve(biblioteca);
@@ -151,7 +171,7 @@ export function publishLibrary({ biblioteca = BIBLIOTECA_DIR, output = PUBLISHED
     throw new Error(`publishLibrary: la salida (${target}) no puede ser la biblioteca (${source}), estar dentro de ella ni contenerla`);
   }
   const manifest = readManifest(path.join(source, 'manifiesto.json'));
-  const files = [...Object.keys(manifest.sprites), 'manifiesto.json'];
+  const files = [...Object.keys(manifest.sprites), 'manifiesto.json', ...piecesFiles(source)];
   const missing = files.filter((key) => !existsSync(path.join(source, ...key.split('/'))));
   if (missing.length > 0) throw new Error(`publishLibrary: el manifiesto lista archivos que no existen (${missing.join(', ')}); no borro ${target}`);
   rmSync(target, { recursive: true, force: true });
@@ -178,7 +198,7 @@ function filesUnder(dir, prefix = '') {
 export function publishedFindings({ biblioteca = BIBLIOTECA_DIR, output = PUBLISHED_DIR } = {}) {
   const findings = [];
   const manifest = readManifest(path.join(biblioteca, 'manifiesto.json'));
-  const wanted = [...Object.keys(manifest.sprites).sort(), 'manifiesto.json'];
+  const wanted = [...Object.keys(manifest.sprites).sort(), 'manifiesto.json', ...piecesFiles(biblioteca)];
   for (const key of wanted) {
     const copy = path.join(output, ...key.split('/'));
     if (!existsSync(copy)) findings.push(`${key}: falta en src/assets/biblioteca (npm run world-art:build)`);

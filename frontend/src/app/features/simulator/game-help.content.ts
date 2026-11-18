@@ -11,7 +11,8 @@
  *   orienta proceso y lugar.
  */
 
-import { DECISION_TOTAL, ORIENTATION_COPY } from './orientation.config';
+import { DRAFT_COPY } from './draft-copy';
+import { ORIENTATION_COPY } from './orientation.config';
 
 /** Modalidad de puntero con la que se escribe el texto: teclado y ratón, o pantalla táctil. */
 export type HelpModality = 'keyboard' | 'touch';
@@ -29,13 +30,16 @@ export interface HelpCardOptions {
   /** Pantalla baja (menos de 520 px de alto): una sola frase. */
   compact: boolean;
   safeExitPromise: boolean;
+  /** Ajuste «Atajos de una tecla» (F6-10). Apagado: la ayuda promete flechas y Enter, no WASD, E, J ni los números. Por defecto, encendido. */
+  singleKeyShortcuts?: boolean;
 }
 
-const WHAT_TO_DO_LINE =
-  'La tarjeta «Qué hacer» te dice el siguiente paso y dónde. Nunca marca cuál decisión es la adecuada: eso lo decides tú.';
+const WHAT_TO_DO_LINE = DRAFT_COPY.helpFirstCardGoal.text;
 
 const KEYBOARD_MOVE_LINE =
-  'Muévete con las flechas o WASD. Acércate a una persona o un objeto: abajo aparece su nombre. Pulsa E para actuar.';
+  'Muévete con las flechas o WASD. Acércate a una persona o un objeto: abajo aparece su nombre. Pulsa E para interactuar.';
+const KEYBOARD_MOVE_LINE_NO_LETTERS =
+  'Muévete con las flechas. Acércate a una persona o un objeto: abajo aparece su nombre. Pulsa Enter para interactuar.';
 
 /**
  * Líneas de la tarjeta de primera vez. Compacto táctil: la frase corta de F§5.8 (el resto vive
@@ -43,16 +47,17 @@ const KEYBOARD_MOVE_LINE =
  */
 export function firstTimeHelpLines(options: HelpCardOptions): readonly string[] {
   const { modality, compact, safeExitPromise } = options;
+  const keyboardMoveLine = options.singleKeyShortcuts === false ? KEYBOARD_MOVE_LINE_NO_LETTERS : KEYBOARD_MOVE_LINE;
   if (compact) {
     return modality === 'touch'
       ? ['Mantén pulsada una flecha para caminar. Toca «Interactuar» cuando veas un nombre abajo.']
-      : [KEYBOARD_MOVE_LINE];
+      : [keyboardMoveLine];
   }
   const lines: string[] = [];
   lines.push(
     modality === 'touch'
       ? 'Mantén pulsada una flecha para caminar. Cuando algo tenga nombre cerca, toca «Interactuar».'
-      : KEYBOARD_MOVE_LINE,
+      : keyboardMoveLine,
   );
   lines.push(WHAT_TO_DO_LINE);
   if (safeExitPromise) {
@@ -85,36 +90,43 @@ export interface HelpSection {
 export interface HelpScreenOptions {
   modality: HelpModality;
   safeExitPromise: boolean;
+  /** Ajuste «Atajos de una tecla» (F6-10); por defecto, encendido. Solo cambia el texto de teclado. */
+  singleKeyShortcuts?: boolean;
 }
 
 /** Secciones de la pantalla permanente «Cómo se juega», en el orden en que se leen. */
 export function helpSections(options: HelpScreenOptions): readonly HelpSection[] {
   const { modality, safeExitPromise } = options;
   const touch = modality === 'touch';
+  const letters = options.singleKeyShortcuts !== false;
   const sections: HelpSection[] = [
     {
       id: 'caso',
       title: 'El caso',
-      text:
-        `Acompañas una atención psicosocial en dos lugares: el hospital y la Comisaría de Familia. Tomarás ${DECISION_TOTAL} decisiones clínicas, una por etapa. Entre una y otra explorarás las salas, hablarás con las personas y reunirás información.`,
+      text: DRAFT_COPY.helpCaseSection.text,
     },
     {
       id: 'moverte',
       title: 'Moverte',
-      text: touch ? 'Mantén pulsada una flecha; un toque da un paso corto.' : 'Flechas o WASD.',
+      text: touch
+        ? 'Mantén pulsada una flecha; un toque da un paso corto.'
+        : letters
+          ? 'Flechas o WASD.'
+          : 'Flechas.',
     },
     {
       id: 'interactuar',
       title: 'Interactuar',
       text: touch
         ? 'Acércate y toca «Interactuar». El botón dice con qué vas a interactuar.'
-        : 'Acércate a una persona o un objeto con nombre y pulsa E (también sirven Espacio y Enter).',
+        : letters
+          ? 'Acércate a una persona o un objeto con nombre y pulsa E (también sirven Espacio y Enter).'
+          : 'Acércate a una persona o un objeto con nombre y pulsa Enter (también sirve Espacio).',
     },
     {
       id: 'que-hacer',
       title: 'Qué hacer',
-      text:
-        'La tarjeta «Qué hacer» te dice el siguiente paso y dónde, y se marca sola cuando lo haces. Los pasos de «Antes de decidir» son recomendados: puedes decidir sin completarlos, pero tu decisión quedará registrada con información incompleta.',
+      text: DRAFT_COPY.helpGoalSection.text,
     },
     {
       id: 'herramientas',
@@ -133,7 +145,9 @@ export function helpSections(options: HelpScreenOptions): readonly HelpSection[]
       title: 'Bitácora',
       text: touch
         ? 'Escribe tus reflexiones cuando quieras con el botón de la cabecera.'
-        : 'Escribe tus reflexiones cuando quieras (tecla J o botón de la cabecera).',
+        : letters
+          ? 'Escribe tus reflexiones cuando quieras (tecla J o botón de la cabecera).'
+          : 'Escribe tus reflexiones cuando quieras con el botón de la cabecera.',
     },
   ];
   if (safeExitPromise) {
@@ -146,13 +160,20 @@ export function helpSections(options: HelpScreenOptions): readonly HelpSection[]
     });
   }
   if (!touch) {
-    const keys = [
-      'Mover: flechas o WASD',
-      'Interactuar: E, Espacio o Enter',
-      'Avanzar un diálogo: Enter o Espacio',
-      'Elegir una opción: 1 a 4',
-      'Bitácora: J',
-    ];
+    const keys = letters
+      ? [
+          'Mover: flechas o WASD',
+          'Interactuar: E, Espacio o Enter',
+          'Avanzar un diálogo: Enter o Espacio',
+          'Elegir una opción: 1 a 4',
+          'Bitácora: J',
+        ]
+      : [
+          'Mover: flechas',
+          'Interactuar: Enter o Espacio',
+          'Avanzar un diálogo: Enter o Espacio',
+          'Elegir una opción: Tab y Enter, o clic',
+        ];
     if (safeExitPromise) keys.push('Salida segura: Esc');
     sections.push({ id: 'teclas', title: 'Teclas', text: keys.join(' · ') });
   }

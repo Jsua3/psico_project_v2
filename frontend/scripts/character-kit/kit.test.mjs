@@ -7,13 +7,16 @@ import { test } from 'node:test';
 
 import {
   FRAME,
+  MIRROR_OF,
   TONE,
+  VIEW_ROWS,
   applyRecipeVariant,
   composeCharacter,
   computeTones,
   createFrame,
   decodeRle,
   encodeRle,
+  overlaysFor,
   parseGrid,
   targetRows,
 } from '../../src/app/features/character/kit/kit-engine.ts';
@@ -47,11 +50,22 @@ function withPieces(extraPieces, patch = {}) {
   return { bundle, recipe };
 }
 
-test('Valentina sale idéntica a lo aprobado: hojas de la prueba (76e6171) y retrato 32×32 (2026-10-03)', () => {
+/** Las 4 filas de antes (abajo, izquierda, derecha, arriba) en su orden de entonces: lo aprobado no cambia con las diagonales. */
+function legacyRows(image) {
+  const rowBytes = image.width * FRAME.height * 4;
+  const out = new Uint8Array(rowBytes * 4);
+  ['down', 'left', 'right', 'up'].forEach((view, k) => {
+    const row = VIEW_ROWS.indexOf(view);
+    out.set(image.rgba.subarray(row * rowBytes, (row + 1) * rowBytes), k * rowBytes);
+  });
+  return out;
+}
+
+test('Valentina sale idéntica a lo aprobado: hojas de la prueba (76e6171) y retrato 32×32 (con el volumen del retrato, 2026-11-15)', () => {
   const bundle = buildBundle();
   const out = composeCharacter(bundle, TRIAL);
-  assert.equal(sha(out.idle.rgba), golden.idle);
-  assert.equal(sha(out.walk.rgba), golden.walk);
+  assert.equal(sha(legacyRows(out.idle)), golden.idle);
+  assert.equal(sha(legacyRows(out.walk)), golden.walk);
   assert.equal(sha(out.portraits.neutral.rgba), golden['portrait-neutral']);
 });
 
@@ -105,22 +119,63 @@ test('targetRows: la cabeza sigue a upper, el torso se parte en la cintura y la 
   assert.deepEqual(targetRows(frame, 'P', 40), [40]);
 });
 
-test('la derecha no es el espejo exacto de la izquierda: la luz se recalcula después del espejo', () => {
+test('las vistas derechas no son el espejo exacto de sus izquierdas: la luz se recalcula después del espejo', () => {
   const bundle = buildBundle();
   const { walk } = composeCharacter(bundle, bundle.recipes.valentina);
-  for (let col = 0; col < 6; col++) {
-    for (const axis of [FRAME.width - 1, FRAME.width]) {
-      let same = true;
-      for (let y = 0; y < FRAME.height && same; y++) {
-        for (let x = 0; x < FRAME.width && same; x++) {
-          const mx = axis - x;
-          if (mx < 0 || mx >= FRAME.width) continue;
-          if (pixel(walk, col, 1, x, y) !== pixel(walk, col, 2, mx, y)) same = false;
+  for (const [right, left] of Object.entries(MIRROR_OF)) {
+    const leftRow = VIEW_ROWS.indexOf(left);
+    const rightRow = VIEW_ROWS.indexOf(right);
+    for (let col = 0; col < 6; col++) {
+      for (const axis of [FRAME.width - 1, FRAME.width]) {
+        let same = true;
+        for (let y = 0; y < FRAME.height && same; y++) {
+          for (let x = 0; x < FRAME.width && same; x++) {
+            const mx = axis - x;
+            if (mx < 0 || mx >= FRAME.width) continue;
+            if (pixel(walk, col, leftRow, x, y) !== pixel(walk, col, rightRow, mx, y)) same = false;
+          }
         }
+        assert.equal(same, false, `${right}: cuadro ${col}, eje ${axis}`);
       }
-      assert.equal(same, false, `cuadro ${col}, eje ${axis}`);
     }
   }
+});
+
+test('ocho vistas: orden de las filas, tamaño de las hojas y espejos', () => {
+  assert.deepEqual([...VIEW_ROWS], ['down', 'down-left', 'left', 'up-left', 'up', 'up-right', 'right', 'down-right']);
+  assert.deepEqual({ ...MIRROR_OF }, { right: 'left', 'down-right': 'down-left', 'up-right': 'up-left' });
+  const bundle = buildBundle();
+  for (const views of Object.values(bundle.complexions)) assert.deepEqual(Object.keys(views).sort(), [...VIEW_ROWS].sort());
+  const out = composeCharacter(bundle, bundle.recipes.valentina, { keepDressed: true });
+  assert.deepEqual([out.idle.width, out.idle.height], [192, 576]);
+  assert.deepEqual([out.walk.width, out.walk.height], [288, 576]);
+  // Con piezas simétricas, la silueta de cada vista derecha sí es el espejo de su izquierda, alrededor del pivote.
+  const sym = composeCharacter(bundle, sampleRecipe('hair:corto-liso', 'a'), { keepDressed: true });
+  for (const [right, left] of Object.entries(MIRROR_OF)) {
+    const a = sym.dressed.idle[left][0];
+    const b = sym.dressed.idle[right][0];
+    for (let y = 0; y < FRAME.height; y++) {
+      for (let x = 0; x < FRAME.width; x++) {
+        const mx = 2 * FRAME.pivotX - x;
+        if (mx < 0 || mx >= FRAME.width) continue;
+        assert.equal(b.part[y * FRAME.width + mx] !== null, a.part[y * FRAME.width + x] !== null, `${right} (${x},${y})`);
+      }
+    }
+  }
+});
+
+test('overlaysFor: una diagonal derecha sin dibujo propio usa el espejo de su izquierda; con dibujo propio, el suyo', () => {
+  const overlay = { anchor: 'T', at: [17, 23], mode: 'paint', legend: { a: { mat: 'top' } }, grid: 'a' };
+  const ctx = { pivotX: FRAME.pivotX, complexion: 'a', sheet: 'idle', frame: 0 };
+  const sym = compilePiece({ id: 'x', kind: 'top', views: { 'down-left': [overlay], 'up-left': [overlay] } });
+  for (const view of ['down-right', 'up-right']) {
+    const list = overlaysFor(sym, view, ctx);
+    assert.equal(list.length, 1, view);
+    assert.equal(list[0].mirrored, true, view);
+  }
+  assert.equal(overlaysFor(sym, 'down-left', ctx)[0].mirrored, false);
+  const own = compilePiece({ id: 'y', kind: 'top', asymmetric: true, views: { left: [overlay], right: [overlay], 'down-left': [overlay], 'down-right': [overlay] } });
+  assert.equal(overlaysFor(own, 'down-right', ctx)[0].mirrored, false);
 });
 
 test('filtros de superposición: complexions, sheets y frames', () => {
@@ -216,6 +271,9 @@ test('compilePiece rechaza piezas mal formadas', () => {
   assert.throws(() => compilePiece(conOverlay({ mode: 'pintar' })), /modo desconocido/);
   assert.throws(() => compilePiece(conOverlay({ sheets: ['run'] })), /hoja desconocida/);
   assert.throws(() => compilePiece({ ...base, asymmetric: true, views: { left: [overlay] } }), /asimétrica/);
+  assert.throws(() => compilePiece({ ...base, asymmetric: true, views: { left: [overlay], right: [overlay], 'down-left': [overlay] } }), /asimétrica y le falta la vista down-right/);
+  assert.throws(() => compilePiece({ ...base, asymmetric: true, views: { left: [overlay], right: [overlay], 'up-left': [overlay] } }), /asimétrica y le falta la vista up-right/);
+  assert.throws(() => compilePiece({ ...base, views: { diagonal: [overlay] } }), /vista desconocida/);
   assert.throws(() => compilePiece({ ...base, expressions: { furiosa: [] } }), /estado de retrato desconocido/);
 });
 

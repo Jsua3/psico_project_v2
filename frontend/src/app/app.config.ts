@@ -8,6 +8,8 @@ import { routes } from './app.routes';
 import { CachedSimulationService } from './core/api/cached-simulation.service';
 import { SimulationService } from './core/api/simulation.service';
 import { jwtInterceptor } from './core/auth/jwt.interceptor';
+import { NotificationService } from './core/notifications/notification.service';
+import { watchConnectionRecovery } from './core/notifications/connection-recovery';
 import { SiepErrorHandler } from './core/error/siep-error-handler';
 import { offlineNavigationHandler } from './core/navigation/offline-navigation';
 import { PreloadMarkedRoutes } from './core/navigation/preload-marked';
@@ -40,6 +42,8 @@ export const appConfig: ApplicationConfig = {
     // Proxy de caché: los componentes siguen inyectando SimulationService (ver CachedSimulationService).
     { provide: SimulationService, useExisting: CachedSimulationService },
     provideAppInitializer(initializeAuthSession),
+    // El aviso de conexión se retira solo al volver la red (evento `online`) o con la primera respuesta correcta.
+    provideAppInitializer(() => { watchConnectionRecovery(inject(NotificationService)); }),
     // Material Symbols (subconjunto autoalojado) como fuente de los <mat-icon>, sin `font-family !important` (F1-3).
     provideAppInitializer(() => { inject(MatIconRegistry).setDefaultFontSetClass('material-symbols-rounded'); }),
     // Tarjetas con borde fino por token y elevación suave (F1-4): la apariencia «elevated» fija border-width 0.
