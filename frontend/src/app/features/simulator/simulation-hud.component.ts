@@ -196,8 +196,8 @@ const HELP_MEMORY_KEY = 'siep.ayuda.v1';
     .hud-score--progress span { font-size: var(--pixel-letra-chica); font-weight: 700; white-space: nowrap; color: var(--luz); }
 
     .hud-actions { position: relative; display: flex; align-items: center; gap: calc(2 * var(--pixel-px)); padding-left: calc(3 * var(--pixel-px)); border-left: var(--pixel-px) solid var(--pixel-separador); }
-    /* La tecla de la hoja común sigue la escala única (U1, V7, aprobada por el usuario): tres veces la letra, entre 36 y
-       48 px, y con dedo nunca menos de 44 (--tecla-hud en las fichas). Antes, 44 px con cualquier puntero (RNF-04). */
+    /* La tecla de la hoja común sigue la escala única (U1, V7): tres veces la letra, entre 44 y 48 px con cualquier
+       puntero (--tecla-hud en las fichas; la guarda de 44 px de RNF-04 y BLOQUE-H no se afloja). */
     .hud-action { width: var(--tecla-hud, 44px); height: var(--tecla-hud, 44px); text-decoration: none; }
     /* Bitácora abierta y Ajustes abiertos: la tecla queda encendida, como al enfocarla. */
     .hud-action--active { --m: var(--marco-tecla-encendida); background-color: var(--luz); color: var(--pixel-tinta-oscura); }

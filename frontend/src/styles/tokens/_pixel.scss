@@ -12,9 +12,9 @@
   // Escala única (U1, V7; aprobada por el usuario): la letra de las placas sigue al área visible de forma continua, con
   // piso de 12 px y techo de 16 px (1280 × 600: 13; 1366 × 768: 13,4; 1920 × 1080: 16; teléfono: 12).
   --pixel-tam: clamp(12px, min(0.625vh + 9.25px, 0.47vw + 7px), 16px);
-  // Teclas del HUD: tres veces la letra, entre 36 y 48 px; con dedo nunca menos de 44 (abajo). El arte del mundo y los
-  // retratos no siguen esta escala: van a escala entera.
-  --tecla-hud: clamp(36px, calc(var(--pixel-tam) * 3), 48px);
+  // Teclas del HUD: tres veces la letra, entre 44 y 48 px con cualquier puntero (la guarda de 44 px de BLOQUE-H y RNF-04
+  // no se afloja; decisión del orquestador, V7). El arte del mundo y los retratos no siguen esta escala: van a escala entera.
+  --tecla-hud: clamp(44px, calc(var(--pixel-tam) * 3), 48px);
   // Las placas de I1 (salida segura, pista) usan --px: fuera del cuadro valen el punto de mundo; el cuadro define el suyo.
   --px: var(--pixel-px);
 
@@ -54,9 +54,6 @@
   --pixel-letra-chica: max(12px, 0.8em);
   --pixel-letra-media: max(12px, 0.88em);
 
-  @media (pointer: coarse) {
-    --tecla-hud: max(44px, clamp(36px, calc(var(--pixel-tam) * 3), 48px));
-  }
 
   // Tramos (U1, V7): las mismas consultas que `features/simulator/pixel/tramos.ts`. El cuadro de diálogo lee estas
   // fichas (--dialogo-*); sus reglas propias del teléfono y de la pantalla muy baja siguen ganando por ir después.

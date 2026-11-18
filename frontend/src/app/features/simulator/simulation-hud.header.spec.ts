@@ -412,14 +412,14 @@ describe('HUD: cabecera (T7.1) y Ajustes (T7.2)', () => {
       return styles.replace(/@media[^{]*\{(?:[^{}]*\{[^{}]*\})*[^{}]*\}/g, '');
     }
 
-    // req: RNF-04, BLOQUE-H. Escala única (U1, V7, aprobada por el usuario): las teclas de la cabecera miden tres veces la
-    // letra, entre 36 y 48 px con ratón y nunca menos de 44 con dedo; las filas de Ajustes siguen en 44 px.
-    it('las teclas de la cabecera siguen la escala (36 a 48 px, 44 con dedo) y las de Ajustes miden 44 px', () => {
+    // req: RNF-04, BLOQUE-H. Escala única (U1, V7): las teclas de la cabecera miden tres veces la letra, entre 44 y 48 px con
+    // cualquier puntero (la guarda de 44 px no se afloja); las filas de Ajustes siguen en 44 px.
+    it('las teclas de la cabecera siguen la escala sin bajar de 44 px con cualquier puntero, y las de Ajustes miden 44 px', () => {
       const base = baseStyles();
       expect(base).toMatch(/\.hud-action \{[^}]*width: var\(--tecla-hud, 44px\);[^}]*height: var\(--tecla-hud, 44px\);/);
       const fichas = readFileSync(join(__dirname, '../../../styles/tokens/_pixel.scss'), 'utf-8');
-      expect(fichas).toContain('--tecla-hud: clamp(36px, calc(var(--pixel-tam) * 3), 48px);');
-      expect(fichas).toMatch(/@media \(pointer: coarse\) \{\s*--tecla-hud: max\(44px, clamp\(36px, calc\(var\(--pixel-tam\) \* 3\), 48px\)\);/);
+      expect(fichas).toContain('--tecla-hud: clamp(44px, calc(var(--pixel-tam) * 3), 48px);');
+      expect(fichas).not.toMatch(/--tecla-hud: [^;]*3[0-9]px/);
       expect(base).toMatch(/\.settings-menu__header button \{[^}]*width: 44px;[^}]*height: 44px;/);
       expect(base).toMatch(/\.settings-menu > button,\s*\.settings-menu > a \{[^}]*min-height: 44px;/);
     });

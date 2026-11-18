@@ -140,7 +140,8 @@ async function revisarTramo(page: Page, dedo: boolean): Promise<string[]> {
     const esperada = Math.min(16, Math.max(12, Math.min(0.00625 * alto + 9.25, 0.0047 * ancho + 7)));
     if (letra < 12 || letra > 16 || Math.abs(letra - esperada) > 0.5) fuera.push(`${tramo}: letra de ${letra} px (se esperaban ${esperada.toFixed(1)})`);
     const tecla = document.querySelector<HTMLElement>('.hud-action')?.getBoundingClientRect().width ?? 0;
-    const [minimo, maximo] = conDedo ? [44, 48] : [36, 48];
+    // Con cualquier puntero, de 44 a 48 px (la guarda de 44 px de BLOQUE-H y RNF-04 no se afloja).
+    const [minimo, maximo] = [44, 48];
     if (tecla < minimo - 0.5 || tecla > maximo + 0.5) fuera.push(`${tramo}: tecla del HUD de ${tecla} px (de ${minimo} a ${maximo})`);
     const grupo = document.querySelector<HTMLElement>('.hud-persona');
     const frase = document.querySelector<HTMLElement>('.hud-persona-label');
