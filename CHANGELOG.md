@@ -25,6 +25,7 @@ La versión del programa es la de `package.json` en la raíz. Se sigue el versio
 - Las decisiones van sobre el mundo, con cuatro fichas que caben a 1366 × 768. En el teléfono el cuadro ocupa como mucho el 64 % del alto.
 - Un parlamento o una consecuencia largos se leen por páginas de frases enteras, con «N de M» junto al botón; Enter pasa de página antes que de línea. El lector de pantalla recibe el texto entero.
 - Ninguna letra de la interfaz del juego baja de 12 px.
+- Los menús caben en la ventana sin desplazarse: «Cómo se juega» va en páginas de secciones enteras cuando no cabe, Ajustes e «Ir a…» pasan a dos columnas con poco alto, la pausa no tiene barra propia y el plano se encoge al alto que queda.
 - Si una voz no tiene retrato, se dibuja la cara del personaje de la sala o un retrato de reserva.
 - Cuando una puerta está cerrada, el aviso dice el motivo y dónde está lo que sigue.
 - «Salida segura» está siempre a la vista, también durante la reacción. Enter sobre «Salida segura» pide la pausa; no salta la reacción.
