@@ -144,7 +144,8 @@ describe('bloque H: semántica del HUD y de la tarjeta de contexto', () => {
     // El bloque «Paso k (k/6)» salió del HUD (T7.1): el único contador es el chip «Decisión k de 6».
     expect(hud).not.toContain('class="hud-step"');
     // La persona va en palabras (grupo con su frase como nombre) y el HUD ya no tiene medidor ni marcador de seguimiento.
-    expect(hud).toMatch(/<div class="hud-persona"[^>]* role="group" \[attr\.aria-label\]="game\.persona\.label">/);
+    // Tramo compacto (U1, V7): el grupo además se puede enfocar, para leer la frase que sale de la barra.
+    expect(hud).toMatch(/<div class="hud-persona"[^>]* role="group" \[attr\.aria-label\]="game\.persona\.label"\s*\[attr\.tabindex\]="compacto\(\) \? 0 : null">/);
     expect(hud).not.toContain('hud-patient');
     expect(hud).not.toContain('Seguimiento formativo');
     expect(play).toContain('<div class="case-intro-card__body" tabindex="0" role="region" aria-label="Datos de la primera escena">');
