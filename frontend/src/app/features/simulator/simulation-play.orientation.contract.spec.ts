@@ -356,9 +356,10 @@ describe('ayuda (T9.8)', () => {
   });
 
   it('la pantalla de ayuda deja libres la cabecera y el pie (no se pone inert)', () => {
-    // Bloque U1 (variante B): ya no hay cabecera de 52 px ni pie de 68 px fijos sino capas; se dejan libres el HUD (120 px) y el pie (96 px).
-    expect(rule('.help-layer')).toMatch(/top: 120px;/);
-    expect(rule('.help-layer')).toMatch(/bottom: 96px;/);
+    // Bloque U1 (variante B): ya no hay cabecera de 52 px ni pie de 68 px fijos sino capas; se dejan libres la tira del HUD
+    // (de 64 a 120 px según el alto) y el pie medido (--alto-pie, V6).
+    expect(rule('.help-layer')).toMatch(/top: clamp\(64px, 12vh, 120px\);/);
+    expect(rule('.help-layer')).toMatch(/bottom: calc\(var\(--alto-pie, 88px\) \+ 8px\);/);
     expect(rule('.help-layer')).toMatch(/pointer-events: none;/);
     expect(source).toMatch(/<footer class="bottom-zone"[^>]*\[attr\.inert\]="inputBlocked\(\)/);
   });

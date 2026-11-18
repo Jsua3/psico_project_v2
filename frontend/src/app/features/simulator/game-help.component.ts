@@ -1,5 +1,8 @@
 import { A11yModule } from '@angular/cdk/a11y';
-import { ChangeDetectionStrategy, Component, computed, input, output } from '@angular/core';
+import {
+  ChangeDetectionStrategy, Component, DestroyRef, ElementRef, Injector, afterNextRender, computed, effect, inject, input, output,
+  signal, untracked, viewChild,
+} from '@angular/core';
 
 import { DRAFT_COPY } from './draft-copy';
 import { HELP_TEXT, HelpModality, firstTimeHelpLines, helpSections } from './game-help.content';
@@ -53,19 +56,31 @@ let nextHelpId = 0;
           <button type="button" class="help-btn" data-help-action="close"
             (click)="closed.emit()">{{ text.closeHelp }}</button>
         </header>
-        <div class="help-screen__body" tabindex="0" role="region" aria-label="Contenido de la ayuda">
-          @for (section of sections(); track section.id) {
-            <section class="help-section" [attr.data-help-section]="section.id">
+        <div #cuerpo class="help-screen__body" tabindex="0" role="region" aria-label="Contenido de la ayuda">
+          @for (section of sections(); track section.id; let i = $index) {
+            <section class="help-section" [attr.data-help-section]="section.id" [hidden]="!enPagina(i)">
               <h3 class="help-section__title">{{ section.title }}</h3>
               <p class="help-section__text">{{ section.text }}</p>
             </section>
           }
           <!-- Fuera del bloque validado (F6-10, VD-18): nota en borrador sobre los atajos de una tecla. -->
-          <aside class="help-draft" data-help-draft="shortcuts" aria-label="Nota sobre los atajos de una tecla (borrador)">
+          <aside class="help-draft" data-help-draft="shortcuts" aria-label="Nota sobre los atajos de una tecla (borrador)"
+            [hidden]="!enPagina(sections().length)">
             <p class="help-draft__tag">Borrador</p>
             <p class="help-section__text">{{ shortcutsNote }}</p>
           </aside>
         </div>
+        <!-- Sin sitio para todo, la hoja va en páginas de secciones enteras, como el cuadro de diálogo (V6): nunca se
+             desplaza. Mientras se mide (sin páginas aún) el pie está, así la medida ya cuenta su alto. -->
+        @if (paginas().length !== 1) {
+          <footer class="help-screen__pie">
+            <span class="help-screen__cuenta" aria-live="polite">{{ cuenta() }}</span>
+            <button type="button" class="help-btn" data-help-action="anterior" [attr.aria-disabled]="pagina() === 0"
+              (click)="irA(-1)">Anterior</button>
+            <button type="button" class="help-btn" data-help-action="siguiente" [attr.aria-disabled]="ultima()"
+              (click)="irA(1)">Siguiente</button>
+          </footer>
+        }
       </section>
     }
   `,
@@ -186,6 +201,14 @@ let nextHelpId = 0;
       overscroll-behavior: contain;
     }
     .help-screen__body:focus-visible { outline: 3px solid #c9b3ff; outline-offset: -3px; }
+    .help-screen__body > [hidden] { display: none; }
+    .help-screen__pie {
+      display: flex; align-items: center; gap: 8px; flex-shrink: 0;
+      padding: 8px 12px 8px 16px; border-top: 1px solid rgba(182,156,255,.22);
+    }
+    .help-screen__cuenta { margin-right: auto; font-size: max(12px, .78rem); font-weight: 700; }
+    .help-btn[aria-disabled="true"] { opacity: .45; cursor: default; }
+    :host-context(.pixel-juego) .help-screen__pie { border-top-color: var(--pixel-separador); }
     /* Fuera del bloque validado: borde discontinuo (la forma, no solo el color, dice «borrador»). */
     .help-draft {
       display: grid;
@@ -244,4 +267,73 @@ export class GameHelpComponent {
       singleKeyShortcuts: this.shortcuts(),
     }),
   );
+
+  private readonly injector = inject(Injector);
+  private readonly cuerpo = viewChild<ElementRef<HTMLElement>>('cuerpo');
+  /**
+   * Páginas de la hoja (V6, «ningún menú pide desplazar»): qué piezas del cuerpo (las secciones y, al final, la nota en
+   * borrador) van en cada una. Vacío mientras se mide; una sola página cuando todo cabe.
+   */
+  protected readonly paginas = signal<number[][]>([]);
+  protected readonly pagina = signal(0);
+  protected readonly cuenta = computed(() => `${this.pagina() + 1} de ${Math.max(this.paginas().length, 1)}`);
+  protected readonly ultima = computed(() => this.pagina() >= this.paginas().length - 1);
+
+  constructor() {
+    // Se vuelve a medir al abrir la hoja y cuando cambia su texto (modalidad, atajos).
+    effect(() => {
+      this.sections();
+      if (this.view() === 'screen') untracked(() => this.remedir());
+    });
+    // Y cuando cambia el tamaño de la ventana (o el zoom): otro alto, otras páginas. No es manejo de teclado.
+    const alCambiar = () => { if (this.view() === 'screen') this.remedir(); };
+    window.addEventListener('resize', alCambiar);
+    inject(DestroyRef).onDestroy(() => window.removeEventListener('resize', alCambiar));
+  }
+
+  protected enPagina(pieza: number): boolean {
+    const paginas = this.paginas();
+    return paginas.length === 0 || (paginas[this.pagina()]?.includes(pieza) ?? false);
+  }
+
+  protected irA(paso: number): void {
+    const destino = this.pagina() + paso;
+    if (destino >= 0 && destino < this.paginas().length) this.pagina.set(destino);
+  }
+
+
+  /** Muestra todas las piezas y, ya pintadas, las reparte en páginas que quepan en el alto del cuerpo. */
+  private remedir(): void {
+    this.paginas.set([]);
+    afterNextRender(() => this.medir(), { injector: this.injector });
+  }
+
+  private medir(): void {
+    const cuerpo = this.cuerpo()?.nativeElement;
+    if (!cuerpo || this.paginas().length > 0) return;
+    const piezas = Array.from(cuerpo.children) as HTMLElement[];
+    if (cuerpo.scrollHeight <= cuerpo.clientHeight + 1) {
+      this.paginas.set([piezas.map((_, i) => i)]);
+      this.pagina.set(0);
+      return;
+    }
+    const estilo = getComputedStyle(cuerpo);
+    const hueco = parseFloat(estilo.rowGap) || 0;
+    const util = cuerpo.clientHeight - (parseFloat(estilo.paddingTop) || 0) - (parseFloat(estilo.paddingBottom) || 0);
+    const paginas: number[][] = [];
+    let usado = 0;
+    piezas.forEach((pieza, i) => {
+      const alto = pieza.offsetHeight;
+      const actual = paginas.at(-1);
+      if (actual && usado + hueco + alto <= util) {
+        actual.push(i);
+        usado += hueco + alto;
+      } else {
+        paginas.push([i]);
+        usado = alto;
+      }
+    });
+    this.paginas.set(paginas);
+    this.pagina.update(p => Math.min(p, paginas.length - 1));
+  }
 }

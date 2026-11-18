@@ -119,7 +119,9 @@ export class MinimapaComponent {
     }
     /* El color va explícito: el estilo global de h2 no es el de la piel del juego (como en «Ir a…»). */
     h2 { margin: 0; font-family: var(--pixel-f-nombre); font-size: calc(var(--pixel-tam) * 1.15); letter-spacing: .04em; color: var(--luz); }
-    .plano-dialogo__plano { min-height: 0; overflow-y: auto; overscroll-behavior: contain; }
+    /* El dibujo se encoge al alto que queda (su viewBox lo mantiene entero) y la lista de salas va debajo: el plano no
+       se desplaza (V6). La barra solo queda de red si la lista sola no cupiera. */
+    .plano-dialogo__plano { min-height: 0; grid-template-rows: minmax(0, 1fr) auto; overflow-y: auto; overscroll-behavior: contain; }
     .plano-dialogo__pie { display: flex; align-items: center; justify-content: space-between; gap: var(--ds-space-3); flex-wrap: wrap; }
   `],
 })

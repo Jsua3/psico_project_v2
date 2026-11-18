@@ -298,6 +298,11 @@ const HELP_MEMORY_KEY = 'siep.ayuda.v1';
       .settings-menu { grid-template-columns: repeat(2, minmax(0, 1fr)); width: min(560px, calc(100vw - 16px)); }
       .settings-menu__header { grid-column: 1 / -1; }
     }
+    /* Poco alto (V6): con 620 px o menos, Ajustes ya va en dos columnas (a 1229 × 584, en una sola, pedía 3 px de barra). */
+    @media (max-height: 620px) {
+      .settings-menu { grid-template-columns: repeat(2, minmax(0, 1fr)); width: min(560px, calc(100vw - 16px)); }
+      .settings-menu__header { grid-column: 1 / -1; }
+    }
     @media (prefers-reduced-motion: reduce) {
       .hud-persona-pulso { animation: none; }
       .settings-menu > button:active, .settings-menu > a:active, .settings-menu__header button:active { transform: none; }

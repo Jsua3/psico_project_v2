@@ -768,15 +768,14 @@ const NARROW_QUERY = '(max-width: 760px)';
       /* Entre las bandas de las cruces táctiles (≈ 150 px a cada lado): sus botones quedan a la vista y se pueden tocar. */
       .help-slot { top: 8px; bottom: auto; left: 50%; right: auto; transform: translateX(-50%); width: min(460px, calc(100% - 300px)); }
     }
-    /* Pantalla de ayuda: cabecera y pie ya no son franjas fijas sino capas sobre el mundo (U1). Deja libres el HUD de
-       arriba (120 px) y el pie de abajo (96 px), que siguen operables; la capa no captura toques fuera de la hoja. */
+    /* Ayuda: capa que deja libres la tira del HUD y el pie (--alto-pie); la fila mide la capa (sin ella crecía con la hoja
+       y la hoja salía por abajo), la hoja se encoge a ella y, si no le cabe, va en páginas (V6). */
     .help-layer {
-      position: absolute; left: 0; right: 0; top: 120px; bottom: 96px; z-index: 90;
-      display: grid; place-items: center; padding: 8px 12px; pointer-events: none;
+      position: absolute; left: 0; right: 0; top: clamp(64px, 12vh, 120px); bottom: calc(var(--alto-pie, 88px) + 8px);
+      z-index: 90; display: grid; grid-template-rows: minmax(0, 1fr); place-items: center; padding: 8px 12px; pointer-events: none;
     }
-    .help-layer app-game-help { width: min(640px, 100%); max-height: 100%; pointer-events: auto; }
-    /* La hoja de ayuda trae su propio tope (78vh / 92vh): aquí no puede pasar de la capa, o taparía el pie. */
-    .help-layer ::ng-deep .help-screen { max-height: min(560px, calc(100vh - 232px)); }
+    .help-layer app-game-help { display: flex; flex-direction: column; width: min(640px, 100%); max-height: 100%; pointer-events: auto; }
+    .help-layer ::ng-deep .help-screen { max-height: 760px; min-height: 0; }
 
     /* ── Right panel (solo en dialogue-right) ────────────────────────────── */
     .right-panel {

@@ -447,6 +447,9 @@ import { RECONSIDERED_LABEL, reconsideredChip } from './reconsidered.util';
       padding: calc(7 * var(--pixel-px)) calc(9 * var(--pixel-px)) calc(8 * var(--pixel-px));
       box-shadow: 0 0 0 100vmax var(--pixel-velo);
       font-family: var(--pixel-f-texto);
+      /* La placa no es contenedor desplazable (V6): su sombra de pixel (u-sombra, 4 px al lado y 12 px abajo) la hacía
+         desbordar y salían dos barras propias, con la sombra recortada. */
+      overflow: visible;
     }
     .outcome--pause .oc-avatar {
       border: calc(2 * var(--pixel-px)) solid var(--pixel-contorno); border-radius: 0;
