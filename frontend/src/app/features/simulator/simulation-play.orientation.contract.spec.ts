@@ -126,7 +126,8 @@ describe('ficha del objetivo (T9.1)', () => {
   });
 
   it('la ficha recibe la guía, el intento y el pliegue compacto (cardFolded), y refresca la sala al abrirse', () => {
-    expect(source).toMatch(/<app-scene-goal-card \[guia\]="guide\(\)" \[hintAttempt\]="hintAttempt\(\)" \[compact\]="cardFolded\(\)"\s*\(opened\)="refreshGuide\(\)" \(consentRequired\)="requireConsentAgain\(\)"/);
+    // V7: también el ajuste «Reducir movimiento» (sin pulso al cambiar el objetivo).
+    expect(source).toMatch(/<app-scene-goal-card \[guia\]="guide\(\)" \[hintAttempt\]="hintAttempt\(\)" \[compact\]="cardFolded\(\)" \[reduceMotion\]="reduceMotion\(\)"\s*\(opened\)="refreshGuide\(\)" \(consentRequired\)="requireConsentAgain\(\)"/);
     expect(source).toContain('readonly cardFolded = computed(() => this.compactMode() || this.narrowScreen());');
   });
 
