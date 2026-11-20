@@ -1,7 +1,7 @@
 import { HttpErrorResponse } from '@angular/common/http';
 import {
-  AfterViewInit, CSP_NONCE, ChangeDetectionStrategy, Component, ElementRef, Injector, afterNextRender, computed, inject,
-  signal, viewChild,
+  AfterViewInit, CSP_NONCE, ChangeDetectionStrategy, Component, ElementRef, Injector, afterNextRender, computed, effect,
+  inject, signal, untracked, viewChild,
 } from '@angular/core';
 import { AbstractControl, FormBuilder, ReactiveFormsModule, Validators } from '@angular/forms';
 import { MatIconModule } from '@angular/material/icon';
@@ -12,12 +12,12 @@ import { AuthService } from '../../core/auth/auth.service';
 import { safeReturnUrl } from '../../core/auth/return-url';
 import { throttledMessage } from '../../core/auth/throttled';
 import { APP_BRAND } from '../../core/config/brand.config';
+import { TemaService } from '../../core/tema/tema.service';
 import { PublicBarComponent } from '../../shared/layout/public-bar.component';
 import { UiButton } from '../../shared/ui/button/ui-button';
 import { UiCheck } from '../../shared/ui/field/ui-check';
 import { UiControl, UiField } from '../../shared/ui/field/ui-field';
 import { UiScopeNotice } from '../../shared/ui/scope-notice/ui-scope-notice';
-import { SiepParticleLayerComponent } from '../../shared/ui/siep-particle-layer.component';
 import type { DemoCredentials } from './login-demo.dev';
 import { LOGIN_ASSETS, LOGIN_PEDAGOGY_PILLARS, LOGIN_REMEMBER_EMAIL_KEY } from './login-assets.config';
 import { findLoginRole, LOGIN_ROLES, LoginRole } from './login-role.config';
@@ -30,17 +30,19 @@ const SIGN_IN_FIELDS = [['email', 'login-email'], ['password', 'login-password']
 const REQUEST_FIELDS = [['nombre', 'registro-nombre'], ['apellido', 'registro-apellido'], ['email', 'registro-email']] as const;
 
 /**
- * Acceso (plan visual F4-2): un formulario a la vista (entrar o solicitar acceso) con etiqueta visible en cada campo
- * (ui-field, H-29) y borde de control (H-28); al enviar con errores se muestran todos y el foco va al primero; el
- * botón dice que trabaja (ui-button [loading]) y no envía dos veces; al alternar formularios el foco va al encabezado
- * del nuevo (nunca a body). Al lado, desde 64rem, un panel del simulador en la piel juego con UNA imagen.
+ * Acceso (plan visual F4-2; rediseño Metafrónesis 2026-11-20): un formulario a la vista (entrar o solicitar acceso)
+ * en una tarjeta con el acabado de las pantallas públicas (_publico.scss), en modo claro u oscuro según el tema
+ * (TemaService; la piel va en el contenedor de la página, REGLA-010). Etiqueta visible en cada campo (ui-field, H-29)
+ * y borde de control (H-28); un campo dice su error al salir de él solo si ya se escribió algo, y al enviar se muestran
+ * todos y el foco va al primero; el botón dice que trabaja (ui-button [loading]) y no envía dos veces; al alternar
+ * formularios el foco va al encabezado del nuevo (nunca a body). Al lado, desde 64rem, una ventana del simulador con UNA
+ * imagen fija de la escena real: nada se mueve solo en el acceso (sin partículas ni video que pausar).
  */
 @Component({
   selector: 'app-login',
   standalone: true,
   imports: [
-    ReactiveFormsModule, MatIconModule, PublicBarComponent, SiepParticleLayerComponent, UiButton, UiCheck, UiControl,
-    UiField, UiScopeNotice,
+    ReactiveFormsModule, MatIconModule, PublicBarComponent, UiButton, UiCheck, UiControl, UiField, UiScopeNotice,
   ],
   templateUrl: './login.component.html',
   changeDetection: ChangeDetectionStrategy.Eager,
@@ -51,7 +53,9 @@ export class LoginComponent implements AfterViewInit {
   readonly roles = LOGIN_ROLES;
   readonly pedagogyPillars = LOGIN_PEDAGOGY_PILLARS;
   readonly loginHeroImage = LOGIN_ASSETS.images.hero;
-  readonly loginHeroSrcset = `${LOGIN_ASSETS.images.hero} 640w, ${LOGIN_ASSETS.images.hero2x} 1280w`;
+
+  /** Tema de las pantallas públicas: claro (piel portal) u oscuro (piel juego), en el contenedor de la página. */
+  protected readonly tema = inject(TemaService);
 
   private readonly fb = inject(FormBuilder);
   private readonly auth = inject(AuthService);
@@ -87,8 +91,12 @@ export class LoginComponent implements AfterViewInit {
   readonly googleUnavailable = signal(false);
   private googleInitialized = false;
 
-  /** Partículas del panel en pausa (H-22, VD-25). */
-  readonly particlesPaused = signal(false);
+  /**
+   * Se intentó enviar el formulario: desde ahí cada campo vacío dice qué falta. Antes, un campo solo lo dice si ya se
+   * escribió algo en él y se salió (validar al salir, nunca antes de escribir: guía de psicología de interfaces §5).
+   */
+  readonly signInTried = signal(false);
+  readonly requestTried = signal(false);
 
   /**
    * Región de estado SIEMPRE presente (revisión de F4, I-4 y M-5): una región viva que nace con su texto no se
@@ -122,11 +130,20 @@ export class LoginComponent implements AfterViewInit {
     if (typeof ngDevMode === 'undefined' || ngDevMode) {
       void import('./login-demo.dev').then(module => this.demo.set(module.LOGIN_DEMO_CREDENTIALS));
     }
+    // Al cambiar de modo, el botón de Google se pinta otra vez con el tema que toca (claro u oscuro).
+    effect(() => {
+      this.tema.piel();
+      untracked(() => { if (this.googleEnabled()) this.renderGoogleButton(); });
+    });
   }
 
-  /** Mensaje de error de un campo, solo cuando ya se tocó o se intentó enviar. */
-  fieldError(control: AbstractControl, messages: { required: string; email?: string }): string | null {
+  /**
+   * Mensaje de error de un campo: tras salir de él con algo escrito, o tras intentar enviar. Mientras el campo siga
+   * en error se revalida al escribir, así que el mensaje se va en cuanto queda bien (y lo escrito se conserva).
+   */
+  fieldError(control: AbstractControl, messages: { required: string; email?: string }, tried = false): string | null {
     if (!control.touched || control.valid) return null;
+    if (!control.dirty && !tried) return null;
     if (control.hasError('required')) return messages.required;
     if (control.hasError('email') && messages.email) return messages.email;
     return null;
@@ -180,6 +197,7 @@ export class LoginComponent implements AfterViewInit {
 
   onSubmit(): void {
     if (this.loading()) return;
+    this.signInTried.set(true);
     if (this.form.invalid) {
       this.form.markAllAsTouched();
       this.focusFirstInvalid(this.form.controls, SIGN_IN_FIELDS);
@@ -208,6 +226,7 @@ export class LoginComponent implements AfterViewInit {
 
   onRegisterSubmit(): void {
     if (this.registerLoading()) return;
+    this.requestTried.set(true);
     if (this.registerForm.invalid) {
       this.registerForm.markAllAsTouched();
       this.focusFirstInvalid(this.registerForm.controls, REQUEST_FIELDS);
@@ -225,6 +244,7 @@ export class LoginComponent implements AfterViewInit {
         this.registerNotice.set(notice);
         this.announcement.set(notice);
         this.registerLoading.set(false);
+        this.requestTried.set(false);
         this.registerForm.reset({ nombre: '', apellido: '', email: '', website: '' });
       },
       error: (error: unknown) => {
@@ -277,15 +297,17 @@ export class LoginComponent implements AfterViewInit {
 
   /**
    * Pinta el botón de Google en su contenedor ACTUAL: el formulario de entrada se recrea al alternar, así que se
-   * llama al cargar Google y cada vez que se vuelve a «Iniciar sesión» (revisión de F4, I-2).
+   * llama al cargar Google, cada vez que se vuelve a «Iniciar sesión» (revisión de F4, I-2) y al cambiar de modo. Toma
+   * el ancho de su contenedor (Google admite de 200 a 400 px): en un teléfono no se sale de la tarjeta.
    */
   private renderGoogleButton(): void {
     const host = this.googleBtn()?.nativeElement;
     if (!host || typeof google === 'undefined' || !google.accounts?.id) return;
     host.innerHTML = '';
+    const width = Math.round(Math.min(400, Math.max(200, host.clientWidth || 320)));
     google.accounts.id.renderButton(host, {
-      theme: 'outline', size: 'large', type: 'standard', text: 'continue_with', shape: 'pill',
-      logo_alignment: 'left', width: 320,
+      theme: this.tema.piel() === 'game' ? 'filled_black' : 'outline', size: 'large', type: 'standard',
+      text: 'continue_with', shape: 'pill', logo_alignment: 'left', width,
     });
   }
 
@@ -335,18 +357,18 @@ export class LoginComponent implements AfterViewInit {
   }
 
   private googleErrorMessage(error: unknown): string {
-    if (!(error instanceof HttpErrorResponse)) return 'No fue posible conectar con Google. Intenta nuevamente.';
+    if (!(error instanceof HttpErrorResponse)) return 'No pudimos conectar con Google. Inténtalo de nuevo en un momento.';
     if (error.status === 429) return throttledMessage(error);
     if (error.status === 401 || error.status === 403) {
-      return 'Esa cuenta de Google no está registrada o está inactiva. Solicita acceso o usa tu correo y contraseña.';
+      return 'No pudimos entrar con esa cuenta de Google. Usa tu correo y contraseña, o solicita acceso.';
     }
-    return error.error?.message || 'No fue posible iniciar sesión con Google. Intenta nuevamente.';
+    return error.error?.message || 'No pudimos iniciar sesión con Google. Inténtalo de nuevo en un momento.';
   }
 
   private registerErrorMessage(error: unknown): string {
-    if (!(error instanceof HttpErrorResponse)) return 'No fue posible enviar la solicitud. Intenta nuevamente en unos minutos.';
+    if (!(error instanceof HttpErrorResponse)) return 'No pudimos enviar la solicitud. Inténtalo de nuevo en unos minutos.';
     if (error.status === 429) return throttledMessage(error);
-    return error.error?.message || 'No fue posible enviar la solicitud. Intenta nuevamente en unos minutos.';
+    return error.error?.message || 'No pudimos enviar la solicitud. Inténtalo de nuevo en unos minutos.';
   }
 
   private loadRememberedEmail(): string {
@@ -357,12 +379,19 @@ export class LoginComponent implements AfterViewInit {
     }
   }
 
+  /**
+   * Mensajes del acceso (guía de psicología de interfaces §5): el sistema asume la responsabilidad, no se dice
+   * «inválido» ni «incorrecto», cada mensaje trae una salida y el mismo texto vale para un correo que no existe y para
+   * una contraseña que no coincide (no revela qué cuentas hay).
+   */
   private loginErrorMessage(error: unknown): string {
-    if (!(error instanceof HttpErrorResponse)) return 'No fue posible conectar con el servidor. Intenta nuevamente.';
+    if (!(error instanceof HttpErrorResponse)) return 'No pudimos conectar con el servidor. Revisa tu conexión e inténtalo de nuevo.';
     if (error.status === 429) return throttledMessage(error);
-    if (error.status === 401) return 'Correo o contraseña incorrectos. Verifica tus datos e intenta nuevamente.';
-    if (error.status === 403) return 'Tu usuario está inactivo o no tiene permisos para ingresar. Contacta al administrador.';
-    if (error.status === 0) return 'No fue posible conectar con el servidor. Intenta nuevamente.';
-    return 'No fue posible iniciar sesión. Intenta nuevamente.';
+    if (error.status === 401) {
+      return 'No encontramos esa combinación de correo y contraseña. Revísala o usa «¿Olvidaste tu contraseña?».';
+    }
+    if (error.status === 403) return 'Tu cuenta no está activa o no tiene permiso para entrar. Escribe a la secretaría del programa.';
+    if (error.status === 0) return 'No pudimos conectar con el servidor. Revisa tu conexión e inténtalo de nuevo.';
+    return 'No pudimos iniciar sesión. Inténtalo de nuevo en un momento.';
   }
 }

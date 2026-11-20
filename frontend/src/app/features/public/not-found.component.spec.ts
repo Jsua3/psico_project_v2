@@ -36,12 +36,22 @@ describe('NotFoundComponent', () => {
     expect(host.querySelector('header')).toBeNull();
   });
 
-  it('fuera del portal: la barra pública y su propio <main id="main-content"> con el mismo contenido', async () => {
-    const host = await render('/no-existe', true);
+  // Rediseño Metafrónesis 2026-11-20: fuera del portal es una pantalla pública (tema claro u oscuro en su contenedor),
+  // breve y sin culpa, con salida a la portada y al acceso y un contacto real; no repite la dirección pedida.
+  it('fuera del portal: la barra pública, su propio <main id="main-content">, un h1 sin culpa y salida al inicio y al acceso', async () => {
+    const host = await render('/no-existe-ni-aqui', true);
     expect(host.querySelector('header.cromo')).not.toBeNull();
+    expect(host.querySelector('.perdida.publico')!.getAttribute('data-skin')).toMatch(/^(game|portal)$/);
     const main = host.querySelector('main#main-content')!;
     expect(main.getAttribute('tabindex')).toBe('-1');
-    expect(main.querySelectorAll('h1')).toHaveLength(1);
-    expect(main.querySelector('ui-error-state')).not.toBeNull();
+    expect([...main.querySelectorAll('h1')].map(h1 => h1.textContent!.trim())).toEqual(['No encontramos esta página']);
+    const links = [...main.querySelectorAll<HTMLAnchorElement>('a')].map(a => [a.textContent!.trim(), a.getAttribute('href')]);
+    expect(links).toEqual([
+      ['Volver al inicio', '/'],
+      ['Iniciar sesión', '/login'],
+      ['secretariapsicologia@cue.edu.co', 'mailto:secretariapsicologia@cue.edu.co'],
+    ]);
+    expect(main.textContent).not.toContain('no-existe-ni-aqui');
+    expect(main.textContent).not.toMatch(/\b(error tuyo|culpa|inválid|incorrect)/i);
   });
 });

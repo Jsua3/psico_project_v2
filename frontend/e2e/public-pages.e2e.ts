@@ -65,8 +65,9 @@ test.describe('@publico acceso', () => {
     await page.goto('/login');
     await page.locator('#login-email').fill('');
     await page.getByRole('button', { name: 'Ingresar', exact: true }).click();
-    await expect(page.getByText('El correo es obligatorio.')).toBeVisible();
-    await expect(page.getByText('La contraseña es obligatoria.')).toBeVisible();
+    // Rediseño 2026-11-20: los mensajes dicen qué hacer (guía de psicología de interfaces §5).
+    await expect(page.getByText('Escribe tu correo institucional.')).toBeVisible();
+    await expect(page.getByText('Escribe tu contraseña.')).toBeVisible();
     await expect(page.locator('#login-email')).toBeFocused();
   });
 

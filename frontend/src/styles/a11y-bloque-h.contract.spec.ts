@@ -49,12 +49,48 @@ describe('bloque H: login (contraste)', () => {
     expect(contrastRatio('#6F8296', '#FFFFFF')).toBeGreaterThanOrEqual(3);
   });
 
-  it('el texto pequeño del panel del simulador llega a 4,5:1 (F4-2: piel juego en vez del panel índigo)', () => {
-    // Antes: rgba(255,255,255,.82) = 3,85:1 sobre #5c6bc0 (panel índigo, retirado).
+  it('el texto pequeño del panel del simulador llega a 4,5:1 en los dos modos (rediseño Metafrónesis 2026-11-20)', () => {
+    // Antes: rgba(255,255,255,.82) = 3,85:1 sobre #5c6bc0 (panel índigo, retirado); F4-2 lo fijó en la piel juego
+    // (data-skin="game"). Rediseño 2026-11-20: el panel sigue el tema de la página, así que se mide en claro y en
+    // oscuro sobre su vidrio (--l-vidrio-alto: superficie-2 al 78 % en oscuro, superficie-1 al 90 % en claro) encima
+    // del resplandor de marca (acento al 20 %), con la luz de arriba (texto-1 al 7 %) y sobre las baldosas de los pilares.
     const html = source('../app/features/login/login.component.html');
-    expect(html).toMatch(/<aside class="acceso__panel" data-skin="game"/);
+    expect(html).toMatch(/<aside class="acceso__panel" aria-label="Sobre el simulador">/);
     expect(scss).toMatch(/\.acceso__panel p \{[^}]*color: var\(--ds-text-2\);/);
+    expect(scss).toMatch(/\.acceso__pillars span \{[^}]*color: var\(--ds-text-2\);/);
+    const panel = (vidrio: string, alfa: number, texto1: string, acento: string, pagina: string) =>
+      blend(texto1, 0.07, blend(vidrio, alfa, blend(acento, 0.2, pagina)));
+    const oscuro = panel('#1D2540', 0.78, '#E8ECF8', '#B69CFF', '#0E1322');
+    const claro = panel('#FFFFFF', 0.9, '#14202E', '#5B3FD1', '#F5F7FA');
+    expect(contrastRatio('#A9B3CC', oscuro)).toBeGreaterThanOrEqual(4.5);
+    expect(contrastRatio('#A9B3CC', blend('#E8ECF8', 0.05, oscuro))).toBeGreaterThanOrEqual(4.5);
+    expect(contrastRatio('#C9B3FF', blend('#E8ECF8', 0.05, oscuro))).toBeGreaterThanOrEqual(4.5);
+    expect(contrastRatio(muted, claro)).toBeGreaterThanOrEqual(4.5);
+    expect(contrastRatio(muted, blend('#14202E', 0.035, claro))).toBeGreaterThanOrEqual(4.5);
+    expect(contrastRatio('#5B3FD1', blend('#14202E', 0.035, claro))).toBeGreaterThanOrEqual(4.5);
     expect(contrastRatio('#A9B3CC', '#0E1322')).toBeGreaterThanOrEqual(4.5);
+  });
+});
+
+describe('bloque H: 404 pública (rediseño Metafrónesis 2026-11-20)', () => {
+  const ts = source('../app/features/public/not-found.component.ts');
+
+  it('sigue al tema en su contenedor y su texto secundario y su enlace llegan a 4,5:1 en los dos modos', () => {
+    // La tarjeta es .pub-vidrio (--l-vidrio: superficie-1 al 72 % en oscuro y al 80 % en claro, con la luz de arriba)
+    // sobre el resplandor de marca de la página (acento al 20 %).
+    expect(ts).toContain('<div class="perdida publico" [attr.data-skin]="tema.piel()">');
+    expect(ts).toMatch(/\.perdida__texto \{[^}]*color: var\(--ds-text-2\);/);
+    expect(ts).toMatch(/\.perdida__enlace \{[^}]*color: var\(--l-acento-tinta\);[^}]*text-decoration: underline;/);
+    const vidrio = (superficie: string, alfa: number, texto1: string, luz: number, acento: string, pagina: string) =>
+      blend(texto1, luz, blend(superficie, alfa, blend(acento, 0.2, pagina)));
+    const oscuro = vidrio('#151B2E', 0.72, '#E8ECF8', 0.05, '#B69CFF', '#0E1322');
+    const claro = vidrio('#FFFFFF', 0.8, '#14202E', 0.035, '#5B3FD1', '#F5F7FA');
+    expect(contrastRatio('#A9B3CC', oscuro)).toBeGreaterThanOrEqual(4.5);
+    expect(contrastRatio('#C9B3FF', oscuro)).toBeGreaterThanOrEqual(4.5);
+    expect(contrastRatio('#C9B3FF', oscuro)).toBeGreaterThanOrEqual(3); // anillo de foco de la piel juego
+    expect(contrastRatio('#4A5A6A', claro)).toBeGreaterThanOrEqual(4.5);
+    expect(contrastRatio('#5B3FD1', claro)).toBeGreaterThanOrEqual(4.5);
+    expect(contrastRatio('#004876', claro)).toBeGreaterThanOrEqual(3); // anillo de foco de la piel portal
   });
 });
 

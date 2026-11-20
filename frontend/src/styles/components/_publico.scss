@@ -1,0 +1,256 @@
+// Lenguaje común de las pantallas públicas (portada, acceso y 404), rediseño Metafrónesis 2026-11-20: acabado tipo
+// iOS sobre la paleta del simulador. Filos de 1 px, esquinas continuas, vidrio translúcido sin desenfoque (no hay
+// contenido que pase por detrás), sombras en capas, luz ambiental y la curva de las hojas de iOS. Se activa con la clase
+// `.publico` en el contenedor de la pantalla, que lleva también la piel del tema (`[attr.data-skin]="tema.piel()"`:
+// juego = oscuro, portal = claro; REGLA-010). Es global para que el CSS de cada componente quepa en su presupuesto.
+// Las clases genéricas son `.pub-vidrio`, `.pub-icono(--lg)` y `.pub-etiqueta`; la portada usa sus nombres propios.
+
+.publico {
+  // Acento de marca: el violeta del logo en las dos pieles (juego: #B69CFF; portal: #5B3FD1).
+  --l-acento: var(--ds-accent-sim);
+  --l-acento-tinta: var(--ds-primary-hover);
+
+  // Materiales de la portada, derivados de los tokens de la piel (sin colores sueltos).
+  --l-filo: color-mix(in oklab, var(--ds-text-1) 10%, transparent);
+  --l-filo-fuerte: color-mix(in oklab, var(--ds-text-1) 17%, transparent);
+  --l-brillo: color-mix(in oklab, var(--ds-text-1) 9%, transparent);
+  --l-vidrio: color-mix(in oklab, var(--ds-surface-1) 72%, transparent);
+  --l-vidrio-alto: color-mix(in oklab, var(--ds-surface-2) 78%, transparent);
+  --l-relleno: color-mix(in oklab, var(--ds-text-1) 5%, transparent);
+  --l-tinte: color-mix(in oklab, var(--l-acento) 16%, transparent);
+  --l-tinte-filo: color-mix(in oklab, var(--l-acento) 34%, transparent);
+  --l-trama: color-mix(in oklab, var(--ds-text-1) 4.5%, transparent);
+  --l-sombra:
+    0 1px 1px color-mix(in oklab, black 22%, transparent),
+    0 12px 32px -14px color-mix(in oklab, black 60%, transparent);
+  --l-sombra-alta:
+    0 2px 6px color-mix(in oklab, black 22%, transparent),
+    0 30px 70px -24px color-mix(in oklab, black 70%, transparent);
+  --l-radio: 1.5rem;
+  --l-radio-chico: 0.875rem;
+  --l-curva: var(--ds-ease-drawer);
+  --l-entrada: var(--ds-dur-glass);
+
+  color-scheme: dark;
+  background:
+    radial-gradient(70rem 42rem at 8% -6%, color-mix(in oklab, var(--l-acento) 20%, transparent), transparent 62%),
+    radial-gradient(56rem 36rem at 96% 4%, color-mix(in oklab, var(--ds-info) 13%, transparent), transparent 64%),
+    var(--ds-surface-page);
+  color: var(--ds-text-1);
+  font-family: var(--ds-font-sans);
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+// Modo claro (piel portal): mismo vidrio y misma luz, recalibrados para fondo claro. Sombras más suaves y tintadas
+// con la tinta de la piel (no negro puro), vidrio casi blanco, retícula más tenue y el violeta de marca como tinta.
+.publico[data-skin='portal'] {
+  color-scheme: light;
+  --l-acento-tinta: var(--ds-accent-sim);
+  --l-filo: color-mix(in oklab, var(--ds-text-1) 9%, transparent);
+  --l-filo-fuerte: color-mix(in oklab, var(--ds-text-1) 15%, transparent);
+  --l-brillo: color-mix(in oklab, white 90%, transparent);
+  --l-vidrio: color-mix(in oklab, var(--ds-surface-1) 80%, transparent);
+  --l-vidrio-alto: color-mix(in oklab, var(--ds-surface-1) 90%, transparent);
+  --l-relleno: color-mix(in oklab, var(--ds-text-1) 3.5%, transparent);
+  --l-tinte: color-mix(in oklab, var(--l-acento) 10%, transparent);
+  --l-tinte-filo: color-mix(in oklab, var(--l-acento) 26%, transparent);
+  --l-trama: color-mix(in oklab, var(--ds-text-1) 6%, transparent);
+  --l-sombra:
+    0 1px 2px color-mix(in oklab, var(--ds-text-1) 6%, transparent),
+    0 12px 32px -16px color-mix(in oklab, var(--ds-text-1) 22%, transparent);
+  --l-sombra-alta:
+    0 2px 6px color-mix(in oklab, var(--ds-text-1) 7%, transparent),
+    0 30px 70px -28px color-mix(in oklab, var(--ds-text-1) 30%, transparent);
+}
+
+.publico :is(.pub-etiqueta, .landing-kicker, .landing-hero__eyebrow) {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--ds-space-2);
+  margin: 0 0 var(--ds-space-4);
+  padding: var(--ds-space-1) var(--ds-space-3);
+  border-radius: var(--ds-radius-pill);
+  background: var(--l-tinte);
+  box-shadow: inset 0 0 0 1px var(--l-tinte-filo);
+  color: var(--l-acento-tinta);
+  font-size: var(--ds-type-caption-size);
+  font-weight: 600;
+  line-height: var(--ds-type-caption-line);
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+// Foco visible sobre la piel oscura: el anillo sigue la esquina del elemento.
+.publico :is(a, button):focus-visible {
+  outline: 3px solid var(--ds-focus);
+  outline-offset: 3px;
+}
+
+// ── Botones: cápsulas con brillo superior y respuesta al presionar ─────────────────────────────────
+.publico a[ui-button],
+.publico button[ui-button] {
+  border-radius: var(--ds-radius-pill);
+  font-weight: 600;
+  letter-spacing: -0.005em;
+  text-decoration: none;
+  transition:
+    background-color var(--ds-dur-fast) var(--ds-ease-out),
+    box-shadow var(--ds-dur-fast) var(--ds-ease-out),
+    color var(--ds-dur-fast) var(--ds-ease-out),
+    scale var(--ds-dur-press) var(--ds-ease-out);
+}
+
+// Primario sólido (contrato de contraste del bloque H: sin degradado propio); el filo de luz va en la sombra.
+.publico a[ui-button][variant='primary'] {
+  background: var(--ds-primary);
+  box-shadow:
+    inset 0 1px 0 color-mix(in oklab, white 45%, transparent),
+    0 1px 2px color-mix(in oklab, black 30%, transparent),
+    0 10px 28px -10px color-mix(in oklab, var(--ds-primary) 70%, transparent);
+  color: var(--ds-on-primary);
+}
+
+.publico a[ui-button][variant='secondary'],
+.publico button[ui-button][variant='secondary'] {
+  border-color: transparent;
+  background: var(--l-relleno);
+  box-shadow:
+    inset 0 0 0 1px var(--l-filo-fuerte),
+    inset 0 1px 0 var(--l-brillo);
+  color: var(--ds-text-1);
+}
+
+@media (hover: hover) and (pointer: fine) {
+  .publico a[ui-button][variant='primary']:hover {
+    background: var(--ds-primary-hover);
+    box-shadow:
+      inset 0 1px 0 color-mix(in oklab, white 50%, transparent),
+      0 1px 2px color-mix(in oklab, black 30%, transparent),
+      0 14px 34px -10px color-mix(in oklab, var(--ds-primary) 80%, transparent);
+  }
+
+  .publico a[ui-button][variant='secondary']:hover,
+  .publico button[ui-button][variant='secondary']:hover {
+    background: color-mix(in oklab, var(--ds-text-1) 10%, transparent);
+    color: var(--ds-text-1);
+  }
+}
+
+.publico a[ui-button]:active,
+.publico button[ui-button]:active {
+  scale: 0.97;
+}
+
+// La barra compartida conserva su material de vidrio; solo se adaptan sus alias a la superficie oscura.
+.publico .cromo {
+  --asb-linea: var(--l-filo-fuerte);
+  --asb-cromo-tinta-tenue: var(--ds-text-2);
+  --asb-filo: var(--l-brillo);
+  --asb-brillo: color-mix(in oklab, var(--ds-text-1) 6%, transparent);
+  --asb-canto: color-mix(in oklab, var(--ds-border-strong) 45%, transparent);
+  --asb-resplandor: 0 20px 70px color-mix(in oklab, black 28%, transparent);
+}
+
+// ── Icono en baldosa (como los de Ajustes de iOS), un solo tinte para toda la página (VD-3) ────────
+.publico :is(.pub-icono, .landing-icon) {
+  display: grid;
+  flex: none;
+  place-items: center;
+  width: 2.75rem;
+  height: 2.75rem;
+  border-radius: 0.75rem;
+  background:
+    radial-gradient(130% 130% at 25% 0%, color-mix(in oklab, var(--l-acento) 36%, transparent), color-mix(in oklab, var(--l-acento) 12%, transparent));
+  box-shadow:
+    inset 0 0 0 1px var(--l-tinte-filo),
+    inset 0 1px 0 color-mix(in oklab, white 18%, transparent);
+  color: var(--l-acento-tinta);
+}
+
+.publico :is(.pub-icono, .landing-icon) mat-icon {
+  width: 1.375rem;
+  height: 1.375rem;
+  font-size: 1.375rem;
+  line-height: 1;
+}
+
+.publico :is(.pub-icono--lg, .landing-icon--lg) {
+  width: 3.25rem;
+  height: 3.25rem;
+  border-radius: 0.95rem;
+}
+
+.publico :is(.pub-icono--lg, .landing-icon--lg) mat-icon {
+  width: 1.625rem;
+  height: 1.625rem;
+  font-size: 1.625rem;
+}
+
+// Superficie de vidrio común a las tarjetas: filo fino, brillo arriba y sombra en capas.
+.publico :is(.pub-vidrio, .landing-preview, .landing-case-card, .landing-role-card, .landing-ethics__item, .landing-relato__pantalla, .landing-cta__inner) {
+  border-radius: var(--l-radio);
+  background:
+    radial-gradient(140% 70% at 50% 0%, var(--l-relleno), transparent 70%),
+    var(--l-vidrio);
+  box-shadow:
+    inset 0 0 0 1px var(--l-filo),
+    inset 0 1px 0 var(--l-brillo),
+    var(--l-sombra);
+}
+
+// Esquinas continuas (squircle) donde el navegador las dibuja: la curvatura de iOS en lugar del arco circular.
+@supports (corner-shape: squircle) {
+  .publico[data-skin] .pub-vidrio,
+  .publico[data-skin] .pub-icono,
+  .publico[data-skin] .landing-preview,
+  .publico[data-skin] .landing-preview__scene,
+  .publico[data-skin] .landing-preview__info,
+  .publico[data-skin] .landing-preview__decisions li,
+  .publico[data-skin] .landing-case-card,
+  .publico[data-skin] .landing-role-card,
+    .publico[data-skin] .landing-ethics__item,
+  .publico[data-skin] .landing-cta__inner,
+  .publico[data-skin] .landing-icon {
+    corner-shape: squircle;
+  }
+
+  .landing-preview { border-radius: 2.75rem; }
+  .publico[data-skin] .landing-preview__scene,
+  .landing-preview__info { border-radius: 1.75rem; }
+  .landing-preview__decisions li { border-radius: 1.375rem; }
+  .publico[data-skin] .landing-case-card,
+  .publico[data-skin] .landing-role-card,
+    .landing-ethics__item { border-radius: 2.25rem; }
+  .landing-cta__inner { border-radius: 3rem; }
+  .landing-icon { border-radius: 1.125rem; }
+  .landing-icon--lg { border-radius: 1.375rem; }
+}
+
+// Transparencia reducida y más contraste: superficies sólidas y filos marcados.
+@media (prefers-reduced-transparency: reduce), (prefers-contrast: more) {
+  .publico {
+    --l-vidrio: var(--ds-surface-1);
+    --l-vidrio-alto: var(--ds-surface-2);
+    --l-filo: var(--ds-border-strong);
+    --l-filo-fuerte: var(--ds-border-strong);
+  }
+}
+
+@media (forced-colors: active) {
+  .publico .landing-preview,
+  .publico .landing-preview__scene,
+  .publico .landing-preview__info,
+  .publico .landing-preview__decisions li,
+  .publico .landing-case-card,
+  .publico .landing-role-card,
+    .publico .landing-ethics__item,
+  .publico .landing-cta__inner,
+  .publico .landing-icon {
+    border: 1px solid CanvasText;
+  }
+
+  .publico .landing-case-card--soon {
+    border-style: dashed;
+  }
+}

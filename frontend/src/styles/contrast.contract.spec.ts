@@ -85,12 +85,19 @@ describe('contraste: portada', () => {
     }
   });
 
-  it('el titular no usa degradado: su palabra destacada es el primario sólido de la piel (F4-1)', () => {
-    // Un texto con background-clip: text desaparece con colores forzados (§2.3 del plan visual).
+  it('el titular no usa degradado: su palabra destacada es el violeta sólido de marca en cada modo (rediseño 2026-11-20)', () => {
+    // Un texto con background-clip: text desaparece con colores forzados (§2.3 del plan visual). La tinta de acento es
+    // --l-acento-tinta: oscuro = primary-hover de la piel juego (#C9B3FF); claro = accent-sim de la piel portal (#5B3FD1).
     expect(scss).not.toContain('background-clip');
-    expect(scss).toMatch(/\.landing-accent \{\s*color: var\(--ds-primary\);/);
-    expect(contrast('#B69CFF', '#0E1322')).toBeGreaterThanOrEqual(4.5);
-    expect(contrast('#004876', '#F5F7FA')).toBeGreaterThanOrEqual(4.5);
+    expect(scss).toMatch(/\.landing-accent \{\s*color: var\(--l-acento-tinta\);/);
+    // Los tokens viven en el lenguaje común de las pantallas públicas (styles/components/_publico.scss).
+    const publico = source('./components/_publico.scss');
+    expect(publico).toMatch(/--l-acento-tinta: var\(--ds-primary-hover\);/);
+    expect(publico).toMatch(/\.publico\[data-skin='portal'\] \{\s*color-scheme: light;\s*--l-acento-tinta: var\(--ds-accent-sim\);/);
+    expect(contrast('#C9B3FF', '#0E1322')).toBeGreaterThanOrEqual(4.5);
+    expect(contrast('#C9B3FF', '#151B2E')).toBeGreaterThanOrEqual(4.5);
+    expect(contrast('#5B3FD1', '#F5F7FA')).toBeGreaterThanOrEqual(4.5);
+    expect(contrast('#5B3FD1', '#FFFFFF')).toBeGreaterThanOrEqual(4.5);
   });
 
   it('la cabecera es la barra pública (velo de la barra, no un degradado que se desvanece) y «Ingresar» está en ella', () => {
@@ -104,7 +111,10 @@ describe('contraste: portada', () => {
     // Revisión de F1 (C1): el token que mueve el anillo es --ds-focus (+ halo), no el alias --psy-focus.
     // F3-4: la cabecera oscura dejó paso a la barra de vidrio clara (anillo global). F4-1: el único tramo oscuro es el
     // héroe, en la piel juego, que trae su propio anillo (#C9B3FF): ya no hace falta el parche --ds-focus-on-dark.
-    expect(html).toMatch(/<section class="landing-hero"[^>]*data-skin="game"/);
+    // Rediseño 2026-11-20: la piel (y con ella el anillo) la pone el tema en el contenedor de la página: juego (#C9B3FF)
+    // en oscuro, portal (#004876) en claro.
+    expect(html).toContain('<div class="landing publico" [attr.data-skin]="tema.piel()">');
+    expect(contrast('#004876', '#F5F7FA')).toBeGreaterThanOrEqual(3);
     expect(scss).not.toContain('--ds-focus-on-dark');
     expect(scss).not.toContain('.landing-nav');
     expect(scss).not.toContain('--siep-primary-glow');
@@ -115,24 +125,57 @@ describe('contraste: portada', () => {
 
 describe('contraste: login', () => {
   const scss = source('../app/features/login/login.component.scss');
+  const html = source('../app/features/login/login.component.html');
 
-  it('el foco se adapta a cada superficie: cada piel trae su anillo (F4-2, sin parches por zona)', () => {
-    // Antes: tres reasignaciones de --ds-focus (fondo oscuro, tarjeta blanca y panel índigo). Ahora la tarjeta va en
-    // la piel portal (#004876) y el panel del simulador en la piel juego (#C9B3FF).
-    const html = source('../app/features/login/login.component.html');
+  // Rediseño Metafrónesis 2026-11-20: toda la página sigue al tema (claro = piel portal, oscuro = piel juego). Se mide en
+  // los DOS modos sobre el peor fondo: la tarjeta (superficie al 94 % + la luz de arriba) encima del resplandor de marca
+  // de la página (acento al 20 %, _publico.scss); la pista del control segmentado es texto-1 al 7 % sobre la tarjeta.
+  const MODOS = {
+    oscuro: { pagina: '#0E1322', superficie: '#151B2E', texto1: '#E8ECF8', texto2: '#A9B3CC', acento: '#B69CFF', tinta: '#C9B3FF', foco: '#C9B3FF', borde: '#6070A0', luz: 0.05 },
+    claro: { pagina: '#F5F7FA', superficie: '#FFFFFF', texto1: '#14202E', texto2: '#4A5A6A', acento: '#5B3FD1', tinta: '#5B3FD1', foco: '#004876', borde: '#6F8296', luz: 0.035 },
+  };
+  type Modo = typeof MODOS.oscuro;
+  const tarjeta = (m: Modo) => blend(m.texto1, m.luz, blend(m.superficie, 0.94, blend(m.acento, 0.2, m.pagina)));
+
+  it('el foco se adapta al modo: el tema pone la piel en el contenedor y cada piel trae su anillo (rediseño Metafrónesis 2026-11-20)', () => {
+    // Antes (F4-2): tarjeta en la piel portal (#004876) y panel fijo en la piel juego (data-skin="game", #C9B3FF), sin
+    // parches de --ds-focus por zona. Ahora la piel es la del tema, en el contenedor de la página (REGLA-010), y el anillo
+    // de cada piel llega a 3:1 sobre el peor fondo de su modo.
     expect(scss).not.toContain('--ds-focus');
-    expect(html).toMatch(/<aside class="acceso__panel" data-skin="game"/);
+    expect(html).toContain('<div class="acceso publico" [attr.data-skin]="tema.piel()">');
+    expect(html).not.toContain('data-skin="game"');
+    for (const m of Object.values(MODOS)) expect(contrast(m.foco, tarjeta(m))).toBeGreaterThanOrEqual(3);
     expect(contrast('#004876', '#FFFFFF')).toBeGreaterThanOrEqual(3);
     expect(contrast('#C9B3FF', '#0E1322')).toBeGreaterThanOrEqual(3);
   });
 
   it('el checkbox conserva su contorno de foco (nada lo apaga; lo pinta el anillo global)', () => {
-    // Antes el acceso quitaba los contornos y una regla propia los devolvía; F4-2 ya no los quita.
-    const html = source('../app/features/login/login.component.html');
+    // Antes el acceso quitaba los contornos y una regla propia los devolvía; F4-2 ya no los quita. Rediseño 2026-11-20:
+    // la casilla dice lo que hace («Recordar mi correo»: guarda el correo, no la sesión).
     expect(scss).not.toMatch(/outline:\s*(none|0)\b/);
-    expect(html).toContain('<label ui-check><input type="checkbox" formControlName="remember" /> Recordar sesión</label>');
+    expect(html).toContain('<label ui-check><input type="checkbox" formControlName="remember" /> Recordar mi correo</label>');
     expect(source('./base/_focus.scss')).toMatch(/:focus-visible \{\s*@include ds-focus-ring;/);
     expect(source('./mixins/_focus.scss')).toMatch(/@mixin ds-focus-ring[^{]*\{[^}]*outline:/);
+  });
+
+  it('en los dos modos: texto secundario y enlaces ≥ 4,5:1, y el perfil elegido y el borde del campo ≥ 3:1 (rediseño Metafrónesis 2026-11-20)', () => {
+    for (const m of Object.values(MODOS)) {
+      const fondo = tarjeta(m);
+      const pista = blend(m.texto1, 0.07, fondo);
+      expect(contrast(m.texto2, fondo)).toBeGreaterThanOrEqual(4.5);
+      expect(contrast(m.tinta, fondo)).toBeGreaterThanOrEqual(4.5);
+      expect(contrast(m.texto2, pista)).toBeGreaterThanOrEqual(4.5);
+      // El borde fuerte del campo, contra la tarjeta (fuera) y contra su relleno (dentro): H-28 y WCAG 1.4.11.
+      expect(contrast(m.borde, fondo)).toBeGreaterThanOrEqual(3);
+      expect(contrast(m.borde, blend(m.texto1, 0.04, m.superficie))).toBeGreaterThanOrEqual(3);
+    }
+    // El filo del pulgar del control segmentado: texto secundario en oscuro (el borde fuerte daría 2,5:1) y borde fuerte
+    // en claro; así el estado elegido no depende solo de la sombra ni del peso de la letra.
+    expect(scss).toMatch(/\.acceso \{[^}]*--acceso-pulgar-filo: var\(--ds-text-2\);/);
+    expect(scss).toMatch(/\.acceso\[data-skin='portal'\] \{[^}]*--acceso-pulgar-filo: var\(--ds-border-strong\);/);
+    expect(scss).toMatch(/\.acceso__roles::before \{\s*background: var\(--acceso-pulgar\);\s*box-shadow:\s*inset 0 0 0 1px var\(--acceso-pulgar-filo\)/);
+    expect(contrast(MODOS.oscuro.texto2, blend(MODOS.oscuro.texto1, 0.07, tarjeta(MODOS.oscuro)))).toBeGreaterThanOrEqual(3);
+    expect(contrast(MODOS.claro.borde, blend(MODOS.claro.texto1, 0.07, tarjeta(MODOS.claro)))).toBeGreaterThanOrEqual(3);
   });
 });
 

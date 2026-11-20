@@ -74,7 +74,23 @@ describe('app-public-bar', () => {
     const fixture = TestBed.createComponent(LoginHost);
     await fixture.whenStable();
     const logo = (fixture.nativeElement as HTMLElement).querySelector<HTMLAnchorElement>('a.modulo-logo')!;
-    expect(logo.getAttribute('aria-label')).toBe('SIEP: ir al inicio');
+    // Marca principal: Metafrónesis (SIEP es el simulador). La barra pública es una sola píldora («unida»).
+    expect(logo.getAttribute('aria-label')).toBe('Metafrónesis: ir al inicio');
     expect(logo.getAttribute('href')).toBe('/');
+    expect(logo.querySelector('app-marca')).not.toBeNull();
+    expect((fixture.nativeElement as HTMLElement).querySelector('header.cromo')!.getAttribute('data-forma')).toBe('unida');
+  });
+
+  it('el botón de tema dice el modo actual y pasa de sistema a claro a oscuro', async () => {
+    const fixture = TestBed.createComponent(LoginHost);
+    await fixture.whenStable();
+    const boton = () => (fixture.nativeElement as HTMLElement).querySelector<HTMLButtonElement>('.modulo-cuenta button.tema')!;
+    const nombres: string[] = [];
+    for (let i = 0; i < 3; i++) {
+      nombres.push(boton().getAttribute('aria-label')!);
+      boton().click();
+      await fixture.whenStable();
+    }
+    expect(nombres.map(n => n.split('.')[0])).toEqual(['Tema: según el sistema', 'Tema: claro', 'Tema: oscuro']);
   });
 });

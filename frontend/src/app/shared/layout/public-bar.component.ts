@@ -1,8 +1,11 @@
-import { ChangeDetectionStrategy, Component, computed, input } from '@angular/core';
+import { ChangeDetectionStrategy, Component, computed, inject, input } from '@angular/core';
 import { RouterLink } from '@angular/router';
 
+import { TemaService } from '../../core/tema/tema.service';
 import { UiButton } from '../ui/button/ui-button';
+import { UiIconButton } from '../ui/button/ui-icon-button';
 import { UiGlassBar } from '../ui/glass-bar/ui-glass-bar';
+import { MarcaComponent } from '../ui/marca/marca.component';
 import { BottomTab, BottomTabsComponent } from './bottom-tabs.component';
 
 export interface PublicAnchor { id: string; label: string; icon: string; }
@@ -23,15 +26,16 @@ export const PUBLIC_ANCHORS: readonly PublicAnchor[] = [
  */
 @Component({
   selector: 'app-public-bar',
-  imports: [RouterLink, BottomTabsComponent, UiButton, UiGlassBar],
+  imports: [RouterLink, BottomTabsComponent, MarcaComponent, UiButton, UiGlassBar, UiIconButton],
+  styles: `
+    .barra-marca { --marca-alto: 1.875rem; }
+    @media (max-width: 30rem) { .barra-marca { --marca-alto: 1.625rem; } }
+  `,
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
-    <header ui-glass-bar label="Navegación pública" [navSkip]="anchors().length > 0">
-      <a class="modulo modulo-logo pulsable ds-motion" routerLink="/" aria-label="SIEP: ir al inicio">
-        <span class="logo-doble ds-motion">
-          <span class="logo-doble__completo ds-motion"><span class="logo-doble__marca" aria-hidden="true"></span><span class="logo-doble__nombre">SIEP</span></span>
-          <span class="logo-doble__isotipo ds-motion" aria-hidden="true"><span class="logo-doble__marca" aria-hidden="true"></span></span>
-        </span>
+    <header ui-glass-bar label="Navegación pública" forma="unida" [navSkip]="anchors().length > 0">
+      <a class="modulo modulo-logo pulsable ds-motion" routerLink="/" aria-label="Metafrónesis: ir al inicio">
+        <app-marca class="barra-marca" />
       </a>
       <div class="modulo modulo-principal ds-motion">
         @for (anchor of anchors(); track anchor.id) {
@@ -39,6 +43,7 @@ export const PUBLIC_ANCHORS: readonly PublicAnchor[] = [
         }
       </div>
       <div class="modulo modulo-cuenta ds-motion">
+        <button ui-icon-button class="tema" [icon]="iconoTema()" [label]="nombreTema()" (click)="tema.siguiente()"></button>
         @if (mode() === 'portada') {
           <a ui-button size="md" routerLink="/login">Ingresar</a>
         } @else {
@@ -57,4 +62,18 @@ export class PublicBarComponent {
 
   protected readonly tabs = computed<BottomTab[]>(() =>
     this.anchors().map(({ id, label, icon }) => ({ id, label, icon, href: `#${id}` })));
+
+  protected readonly tema = inject(TemaService);
+  // Nombres sueltos con «icon» para que scripts/ui/icon-names.mjs los meta en el subconjunto de la fuente de iconos.
+  private readonly iconSistema = 'brightness_auto';
+  private readonly iconClaro = 'light_mode';
+  private readonly iconOscuro = 'dark_mode';
+  protected readonly iconoTema = computed(() =>
+    ({ sistema: this.iconSistema, claro: this.iconClaro, oscuro: this.iconOscuro })[this.tema.preferencia()]);
+  /** El nombre dice el estado actual y qué hace el clic (el botón cicla: sistema → claro → oscuro). */
+  protected readonly nombreTema = computed(() => ({
+    sistema: 'Tema: según el sistema. Cambiar a claro',
+    claro: 'Tema: claro. Cambiar a oscuro',
+    oscuro: 'Tema: oscuro. Volver a seguir el sistema',
+  })[this.tema.preferencia()]);
 }

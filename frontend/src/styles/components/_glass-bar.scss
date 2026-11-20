@@ -190,6 +190,7 @@ $corte-tope: 82.499rem;
 // con la misma media que este CSS (64rem). En móvil el vidrio es la banda superior y la barra inferior, siempre; los
 // módulos no llevan vidrio (no hay vidrio sobre vidrio).
 .cromo[data-ancho='escritorio'][data-estado='inicial'][data-vidrio='pseudo'] .bandeja::before,
+.cromo[data-forma='unida'][data-ancho='escritorio'][data-vidrio='pseudo'] .bandeja::before,
 .cromo[data-ancho='escritorio'][data-estado='scroll'][data-vidrio='pseudo'] .modulo::before,
 .cromo[data-ancho='escritorio'][data-estado='atencion'][data-vidrio='pseudo'] .modulo::before,
 .cromo[data-ancho='movil'] .bandeja::before,
@@ -219,6 +220,28 @@ $corte-tope: 82.499rem;
   .cromo[data-estado='scroll'][data-vidrio='pseudo'] .modulo::after,
   .cromo[data-estado='atencion'][data-vidrio='pseudo'] .modulo::after {
     opacity: 1;
+  }
+
+  // Forma «unida» (pantallas públicas): la píldora es el único dueño del vidrio en todos los estados; los módulos no
+  // se separan, no caen y no llevan vidrio ni canto propios (nada de un botón dentro de otra cápsula).
+  .cromo[data-forma='unida'][data-estado] .bandeja {
+    gap: 0;
+  }
+
+  .cromo[data-forma='unida'][data-estado] .modulo {
+    translate: 0 0;
+  }
+
+  .cromo[data-forma='unida'][data-ancho='escritorio'][data-estado][data-vidrio='pseudo'] .modulo::before {
+    border-color: transparent;
+    background-color: transparent;
+    box-shadow: none;
+    -webkit-backdrop-filter: none;
+    backdrop-filter: none;
+  }
+
+  .cromo[data-forma='unida'][data-estado][data-vidrio='pseudo'] .modulo::after {
+    opacity: 0;
   }
 }
 
