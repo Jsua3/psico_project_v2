@@ -101,10 +101,11 @@ describe('contraste: portada', () => {
   });
 
   it('la cabecera es la barra pública (velo de la barra, no un degradado que se desvanece) y «Ingresar» está en ella', () => {
-    // F3-4: «Ingresar» vive en app-public-bar (ui-button en el módulo de cuenta; probado en public-bar.component.spec.ts).
+    // F3-4: «Ingresar» vive en app-public-bar. Rediseño 2026-11-20: es la ficha compacta .cta-vivo de la barra de vidrio
+    // modular (tinte del primario de la piel y su texto: ≥ 4,5:1 en ambas pieles; probado en public-bar.component.spec.ts).
     expect(scss).not.toContain('rgba(12, 18, 34, 0.72) 70%, transparent 100%');
     expect(html).toContain('<app-public-bar [anchors]="anchors" />');
-    expect(source('../app/shared/layout/public-bar.component.ts')).toContain('<a ui-button size="md" routerLink="/login">Ingresar</a>');
+    expect(source('../app/shared/layout/public-bar.component.ts')).toContain('<a class="pulsable cta-vivo" routerLink="/login">Ingresar</a>');
   });
 
   it('el foco es claro en las zonas oscuras y no hay variables inexistentes', () => {

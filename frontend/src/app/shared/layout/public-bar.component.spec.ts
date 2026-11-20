@@ -78,7 +78,24 @@ describe('app-public-bar', () => {
     expect(logo.getAttribute('aria-label')).toBe('Metafrónesis: ir al inicio');
     expect(logo.getAttribute('href')).toBe('/');
     expect(logo.querySelector('app-marca')).not.toBeNull();
-    expect((fixture.nativeElement as HTMLElement).querySelector('header.cromo')!.getAttribute('data-forma')).toBe('unida');
+    // Receta de la barra de vidrio modular: estados servidos (inicial al cargar). El logo es la marca completa siempre
+    // (no cede al isotipo al hacer scroll; pedido del usuario 2026-11-20).
+    const cromo = (fixture.nativeElement as HTMLElement).querySelector('header.cromo')!;
+    expect(cromo.getAttribute('data-estado')).toBe('inicial');
+    expect(logo.querySelectorAll('app-marca')).toHaveLength(1);
+    expect(logo.querySelector('.logo-doble')).toBeNull();
+  });
+
+  it('«Ingresar» es la ficha compacta de la cuenta (cta-vivo) y Roles y Ética se pliegan en «scroll»', async () => {
+    const fixture = TestBed.createComponent(LandingHost);
+    await fixture.whenStable();
+    const host = fixture.nativeElement as HTMLElement;
+    const ingresar = host.querySelector<HTMLAnchorElement>('.modulo-cuenta a.cta-vivo')!;
+    expect(ingresar.textContent!.trim()).toBe('Ingresar');
+    expect(ingresar.classList.contains('ui-button')).toBe(false);
+    const plegables = [...host.querySelectorAll('.modulo-principal a.control-plegable')].map(a => a.textContent!.trim());
+    expect(plegables).toEqual(['Roles', 'Ética']);
+    expect(host.querySelector('.modulo-principal .indicador-mas')!.getAttribute('aria-hidden')).toBe('true');
   });
 
   it('el botón de tema dice el modo actual y pasa de sistema a claro a oscuro', async () => {

@@ -41,8 +41,6 @@ function focusInTextField(): boolean {
     '[attr.data-teclado]': "machine.keyboard() ? 'abierto' : null",
     // Dueño del vidrio por ancho (una sola regla en _glass-bar.scss): píldora/módulos en escritorio, dos barras en móvil.
     '[attr.data-ancho]': "desktop() ? 'escritorio' : 'movil'",
-    // Forma «unida» (pantallas públicas): la píldora no se parte en cápsulas al hacer scroll.
-    '[attr.data-forma]': "forma() === 'unida' ? 'unida' : null",
     '(pointerenter)': 'machine.pointerEnter($any($event).pointerType)',
     '(pointerleave)': 'machine.pointerLeave($any($event).pointerType)',
     '(click)': 'onStripClick($event)',
@@ -73,11 +71,6 @@ export class UiGlassBar {
    * guía señala no salte 6 px. Al soltarla cae al estado que le toca.
    */
   readonly congelada = input(false, { transform: booleanAttribute });
-  /**
-   * modular (portal): una píldora arriba que al hacer scroll se parte en tres cápsulas. unida (pantallas públicas):
-   * logo, enlaces y cuenta siempre en una sola píldora; ningún botón queda encerrado en su propia cápsula.
-   */
-  readonly forma = input<'modular' | 'unida'>('modular');
 
   private readonly host = inject<ElementRef<HTMLElement>>(ElementRef).nativeElement;
   private readonly isFinePointer = media('(hover: hover) and (pointer: fine)', true);

@@ -1,5 +1,6 @@
 <div class="landing publico" [attr.data-skin]="tema.piel()">
   <app-public-bar [anchors]="anchors" />
+  <app-riel-letras [secciones]="seccionesRiel" />
 
   <main id="main-content" tabindex="-1">
     <section class="landing-hero" id="simulador" aria-labelledby="hero-title">
@@ -67,7 +68,7 @@
           <p class="landing-preview__decisions-label" id="preview-decisions">Ejemplo de decisiones</p>
           <ul class="landing-preview__decisions" aria-labelledby="preview-decisions">
             @for (decision of heroDecisions; track decision.label) {
-              <li><mat-icon aria-hidden="true">{{ decision.icon }}</mat-icon><span>{{ decision.label }}</span></li>
+              <li><span>{{ decision.label }}</span></li>
             }
           </ul>
         </aside>
@@ -109,6 +110,11 @@
     </section>
 
     <section id="como-funciona" class="landing-section landing-relato" aria-labelledby="como-funciona-title" #relato>
+      <!-- Modo ambiente a pantalla completa: el cuadro actual del clip, en pequeño y muy desenfocado, fijo a la vista
+           detrás de todo el apartado mientras se recorre. Decorativo. -->
+      <div class="landing-relato__fondo" aria-hidden="true">
+        <canvas class="landing-relato__ambiente" width="48" height="27"></canvas>
+      </div>
       <div class="landing-wrap">
         <div class="landing-section__head landing-section__head--center">
           <p class="landing-kicker">De la lectura a la decisión</p>
@@ -153,10 +159,12 @@
           <ol class="landing-relato__pasos">
             @for (s of workflow; track s.step; let i = $index) {
               <li class="landing-relato__paso" [class.is-activo]="paso() === i" [attr.data-paso]="i" #pasoRelato>
-                <span class="landing-relato__num" aria-hidden="true">0{{ s.step }}</span>
-                <span class="landing-icon" aria-hidden="true"><mat-icon>{{ s.icon }}</mat-icon></span>
-                <h3>{{ s.title }}</h3>
-                <p>{{ s.text }}</p>
+                <div class="landing-relato__tarjeta pub-vidrio">
+                  <span class="landing-relato__num" aria-hidden="true">0{{ s.step }}</span>
+                  <span class="landing-icon" aria-hidden="true"><mat-icon>{{ s.icon }}</mat-icon></span>
+                  <h3>{{ s.title }}</h3>
+                  <p>{{ s.text }}</p>
+                </div>
               </li>
             }
           </ol>
@@ -179,7 +187,11 @@
         <div class="landing-grid landing-grid--3">
           @for (role of roles; track role.title) {
             <article class="landing-role-card">
-              <span class="landing-icon" aria-hidden="true"><mat-icon>{{ role.icon }}</mat-icon></span>
+              <span class="pub-avatares" aria-hidden="true">
+                @for (a of role.avatares; track a) {
+                  <img class="pub-avatar" [src]="a" width="64" height="64" alt="" />
+                }
+              </span>
               <h3>{{ role.title }}</h3>
               <p>{{ role.text }}</p>
               <ul class="landing-role-card__features" [attr.aria-label]="'Funciones de ' + role.title">
@@ -228,9 +240,14 @@
           Ingresar al sistema
           <mat-icon aria-hidden="true">arrow_forward</mat-icon>
         </a>
+        <!-- El elenco del simulador: personajes del kit en pixel art, a escala entera. Decorativo. -->
+        <app-elenco class="landing-elenco" />
       </div>
     </section>
   </main>
+
+  <!-- Objetos del simulador detrás del contenido, de «Casos» a «Cómo funciona» (reaccionan al cursor). -->
+  <app-doodles />
 
   <!-- Fuera del <main>: información del sitio, no contenido de la página. -->
   <footer class="landing-footer">

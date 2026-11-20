@@ -29,6 +29,9 @@
   --l-radio: 1.5rem;
   --l-radio-chico: 0.875rem;
   --l-curva: var(--ds-ease-drawer);
+  // Colores del isotipo de Metafrónesis (cuadros del logo).
+  --marca-cian: #1dbce7;
+  --marca-azul: #1576d6;
   --l-entrada: var(--ds-dur-glass);
 
   color-scheme: dark;
@@ -79,6 +82,20 @@
   line-height: var(--ds-type-caption-line);
   letter-spacing: 0.06em;
   text-transform: uppercase;
+}
+
+// Firma de la marca: tres píxeles con los colores del isotipo (cian, azul y el violeta del tema) delante de cada
+// etiqueta. Es el punto de encuentro entre lo profesional y el pixel art del simulador.
+.publico :is(.pub-etiqueta, .landing-kicker, .landing-hero__eyebrow)::before {
+  content: '';
+  flex: none;
+  width: 0.3125rem;
+  height: 0.3125rem;
+  margin-right: 0.8125rem;
+  background: var(--marca-cian);
+  box-shadow:
+    0.4375rem 0 0 var(--marca-azul),
+    0.875rem 0 0 var(--l-acento);
 }
 
 // Foco visible sobre la piel oscura: el anillo sigue la esquina del elemento.
@@ -187,8 +204,24 @@
   font-size: 1.625rem;
 }
 
+// Avatares del kit del simulador (retratos de 32 × 32 a ×2 exacto, sin suavizado) en una baldosa tintada; varios van
+// lado a lado con aire (superpuestos, el aro tapaba la cara del primero).
+.publico .pub-avatares {
+  display: flex;
+  gap: 0.5rem;
+}
+
+.publico .pub-avatar {
+  width: 64px;
+  height: 64px;
+  border-radius: 1rem;
+  background: var(--l-tinte);
+  box-shadow: inset 0 0 0 1px var(--l-tinte-filo);
+  image-rendering: pixelated;
+}
+
 // Superficie de vidrio común a las tarjetas: filo fino, brillo arriba y sombra en capas.
-.publico :is(.pub-vidrio, .landing-preview, .landing-case-card, .landing-role-card, .landing-ethics__item, .landing-relato__pantalla, .landing-cta__inner) {
+.publico :is(.pub-vidrio, .landing-preview, .landing-case-card, .landing-role-card, .landing-ethics__item, .landing-cta__inner) {
   border-radius: var(--l-radio);
   background:
     radial-gradient(140% 70% at 50% 0%, var(--l-relleno), transparent 70%),
@@ -253,4 +286,14 @@
   .publico .landing-case-card--soon {
     border-style: dashed;
   }
+}
+
+// Secciones con fondo de objetos del simulador (app-doodles en la portada): las tarjetas tapan como las burbujas de un
+// chat, con vidrio casi opaco, y los casos futuros llevan relleno.
+.publico :is(#casos, #como-funciona) {
+  --l-vidrio: color-mix(in oklab, var(--ds-surface-1) 94%, transparent);
+}
+
+.publico #casos .landing-case-card--soon {
+  background: color-mix(in oklab, var(--ds-surface-page) 92%, transparent);
 }

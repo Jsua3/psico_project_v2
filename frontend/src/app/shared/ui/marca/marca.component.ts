@@ -1,6 +1,6 @@
 import { ChangeDetectionStrategy, Component, input } from '@angular/core';
 
-import { ISOTIPO_CAJA, ISOTIPO_CUADROS, ISOTIPO_PERFIL, ISOTIPO_PSI } from './marca-isotipo';
+import { ISOTIPO_CAJA, ISOTIPO_CUADROS, ISOTIPO_PERFIL, ISOTIPO_PSI, PALABRA_CAJA, PALABRA_RUTAS } from './marca-isotipo';
 
 let siguienteId = 0;
 
@@ -49,7 +49,14 @@ let siguienteId = 0;
       </g>
     </svg>
     @if (variante() !== 'isotipo') {
-      <span class="marca__palabra" aria-hidden="true">Metafrónesis</span>
+      <!-- La palabra con la tipografía del logo original (vectorizada), en el color de la piel. -->
+      <svg class="marca__palabra" [attr.viewBox]="cajaPalabra" aria-hidden="true" focusable="false">
+        <g transform="scale(0.333333)" fill="currentColor">
+          @for (p of palabra; track $index) {
+            <path [attr.d]="p[0]" [attr.transform]="'translate(' + p[1] + ')'" />
+          }
+        </g>
+      </svg>
     }
   `,
   styles: `
@@ -95,14 +102,12 @@ let siguienteId = 0;
     :host-context([data-skin='game']) .marca__cuadros--claro { display: none; }
     :host-context([data-skin='game']) .marca__cuadros--oscuro { display: inline; }
 
-    /* La palabra: mayúsculas de peso alto, tracking apenas abierto (como el logo). */
+    /* La palabra del logo: alta como media altura del isotipo (la proporción del logo horizontal). */
     .marca__palabra {
-      font-family: var(--ds-font-sans);
-      font-size: calc(var(--marca-alto) * 0.5);
-      font-weight: 800;
-      letter-spacing: 0.02em;
-      text-transform: uppercase;
-      white-space: nowrap;
+      flex: none;
+      width: auto;
+      height: calc(var(--marca-alto) * 0.46);
+      overflow: visible;
     }
 
     @media (forced-colors: active) {
@@ -121,4 +126,6 @@ export class MarcaComponent {
   protected readonly cuadros = ISOTIPO_CUADROS;
   protected readonly perfil = ISOTIPO_PERFIL;
   protected readonly psi = ISOTIPO_PSI;
+  protected readonly cajaPalabra = PALABRA_CAJA.join(' ');
+  protected readonly palabra = PALABRA_RUTAS;
 }

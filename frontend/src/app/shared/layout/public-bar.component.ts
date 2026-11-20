@@ -2,7 +2,6 @@ import { ChangeDetectionStrategy, Component, computed, inject, input } from '@an
 import { RouterLink } from '@angular/router';
 
 import { TemaService } from '../../core/tema/tema.service';
-import { UiButton } from '../ui/button/ui-button';
 import { UiIconButton } from '../ui/button/ui-icon-button';
 import { UiGlassBar } from '../ui/glass-bar/ui-glass-bar';
 import { MarcaComponent } from '../ui/marca/marca.component';
@@ -26,26 +25,33 @@ export const PUBLIC_ANCHORS: readonly PublicAnchor[] = [
  */
 @Component({
   selector: 'app-public-bar',
-  imports: [RouterLink, BottomTabsComponent, MarcaComponent, UiButton, UiGlassBar, UiIconButton],
+  imports: [RouterLink, BottomTabsComponent, MarcaComponent, UiGlassBar, UiIconButton],
+  // DESVÍO de la receta pedido por el usuario (2026-11-20): el logo NO cede al isotipo al hacer scroll; la marca completa
+  // se queda siempre (más visible como botón de regreso al inicio).
   styles: `
-    .barra-marca { --marca-alto: 1.875rem; }
-    @media (max-width: 30rem) { .barra-marca { --marca-alto: 1.625rem; } }
+    .barra-marca { --marca-alto: 1.75rem; }
   `,
   changeDetection: ChangeDetectionStrategy.OnPush,
+  // Receta de /barra-de-vidrio-modular: arriba una píldora (inicial); al bajar se quiebra en tres cápsulas (scroll); con
+  // el cursor en la franja vuelve lo plegado (atención). El logo se queda completo en todos los estados. Roles y Ética son los
+  // secundarios que se pliegan; «Ingresar» es la ficha compacta de la cuenta (.cta-vivo), no un botón-cápsula.
   template: `
-    <header ui-glass-bar label="Navegación pública" forma="unida" [navSkip]="anchors().length > 0">
+    <header ui-glass-bar label="Navegación pública" [navSkip]="anchors().length > 0">
       <a class="modulo modulo-logo pulsable ds-motion" routerLink="/" aria-label="Metafrónesis: ir al inicio">
         <app-marca class="barra-marca" />
       </a>
       <div class="modulo modulo-principal ds-motion">
         @for (anchor of anchors(); track anchor.id) {
-          <a class="nav-enlace ds-motion" [href]="'#' + anchor.id">{{ anchor.label }}</a>
+          <a class="nav-enlace ds-motion" [class.control-plegable]="secundario(anchor)" [href]="'#' + anchor.id">{{ anchor.label }}</a>
+        }
+        @if (anchors().length) {
+          <span class="indicador-mas ds-motion" aria-hidden="true">···</span>
         }
       </div>
       <div class="modulo modulo-cuenta ds-motion">
         <button ui-icon-button class="tema" [icon]="iconoTema()" [label]="nombreTema()" (click)="tema.siguiente()"></button>
         @if (mode() === 'portada') {
-          <a ui-button size="md" routerLink="/login">Ingresar</a>
+          <a class="pulsable cta-vivo" routerLink="/login">Ingresar</a>
         } @else {
           <a class="nav-enlace ds-motion" routerLink="/">Volver al inicio</a>
         }
@@ -62,6 +68,11 @@ export class PublicBarComponent {
 
   protected readonly tabs = computed<BottomTab[]>(() =>
     this.anchors().map(({ id, label, icon }) => ({ id, label, icon, href: `#${id}` })));
+
+  /** Secundarios que se pliegan en «scroll» (D3 de la receta): los dos últimos destinos de la portada. */
+  protected secundario(anchor: PublicAnchor): boolean {
+    return anchor.id === 'roles' || anchor.id === 'etica';
+  }
 
   protected readonly tema = inject(TemaService);
   // Nombres sueltos con «icon» para que scripts/ui/icon-names.mjs los meta en el subconjunto de la fuente de iconos.

@@ -1,5 +1,5 @@
 import {
-  ChangeDetectionStrategy, Component, DestroyRef, ElementRef, afterNextRender, effect, inject, signal, viewChildren,
+  ChangeDetectionStrategy, Component, DestroyRef, ElementRef, afterNextRender, afterRenderEffect, inject, signal,
 } from '@angular/core';
 import { MatIconModule } from '@angular/material/icon';
 import { RouterLink } from '@angular/router';
@@ -11,6 +11,9 @@ import { UiBadge } from '../../shared/ui/badge/ui-badge';
 import { UiButton } from '../../shared/ui/button/ui-button';
 import { MarcaComponent } from '../../shared/ui/marca/marca.component';
 import { SiepParticleLayerComponent } from '../../shared/ui/siep-particle-layer.component';
+import { DoodlesComponent } from './doodles.component';
+import { ElencoComponent } from './elenco.component';
+import { RielLetrasComponent, SeccionRiel } from './riel-letras.component';
 
 interface TrainingCase {
   icon: string;
@@ -35,7 +38,11 @@ interface RoleCard {
   title: string;
   text: string;
   features: string[];
+  /** Retratos del kit del simulador (32 × 32, se pintan a ×2): estudiantes del juego y NPC para docente y administración. */
+  avatares: string[];
 }
+
+const RETRATO = (ruta: string) => `/assets/characters/kit/${ruta}/portrait-alegre.png`;
 
 interface EthicsItem {
   icon: string;
@@ -53,7 +60,7 @@ interface EthicsItem {
 @Component({
   selector: 'app-landing',
   standalone: true,
-  imports: [RouterLink, MatIconModule, MarcaComponent, PublicBarComponent, SiepParticleLayerComponent, UiBadge, UiButton],
+  imports: [RouterLink, MatIconModule, DoodlesComponent, ElencoComponent, MarcaComponent, PublicBarComponent, RielLetrasComponent, SiepParticleLayerComponent, UiBadge, UiButton],
   templateUrl: './landing.component.html',
   changeDetection: ChangeDetectionStrategy.OnPush,
   styleUrl: './landing.component.scss'
@@ -62,6 +69,8 @@ export class LandingComponent {
   readonly brand = APP_BRAND;
   /** Anclas de la barra pública: las secciones de esta página. */
   readonly anchors = PUBLIC_ANCHORS;
+  /** Índice del riel de letras: las mismas secciones que la barra, numeradas. */
+  readonly seccionesRiel: SeccionRiel[] = PUBLIC_ANCHORS.map((a, i) => ({ id: a.id, num: `0${i + 1}`, nombre: a.label }));
 
   /** Escena real de la vista previa, servida en WebP y con sus dimensiones nativas en el marcado. */
   readonly simulatorSceneSrc = '/assets/images/institution/escena-portada.webp';
@@ -142,14 +151,27 @@ export class LandingComponent {
   readonly videosPausados = signal(
     typeof matchMedia === 'function' && matchMedia('(prefers-reduced-motion: reduce)').matches);
 
-  private readonly videos = viewChildren<ElementRef<HTMLVideoElement>>('clip');
-  private readonly pasos = viewChildren<ElementRef<HTMLElement>>('pasoRelato');
-  private readonly relato = viewChildren<ElementRef<HTMLElement>>('relato');
+  /** El relato está en pantalla: solo entonces se pinta el modo ambiente. */
+  private readonly relatoVisible = signal(false);
 
   constructor() {
     const destroyRef = inject(DestroyRef);
 
+    const host = inject<ElementRef<HTMLElement>>(ElementRef).nativeElement;
+
     afterNextRender(() => {
+      // Las secciones se buscan en el DOM ya pintado; si el relato aún no está, se reintenta en el siguiente cuadro.
+      let intentos = 0;
+      const intentar = () => {
+        if (host.querySelector('.landing-relato') || intentos++ > 120 || typeof requestAnimationFrame !== 'function') iniciar();
+        else requestAnimationFrame(intentar);
+      };
+      intentar();
+    });
+
+    const iniciar = () => {
+      const relato = [...host.querySelectorAll<HTMLElement>('.landing-relato')];
+      const pasos = [...host.querySelectorAll<HTMLElement>('.landing-relato__paso')];
       if (typeof IntersectionObserver !== 'function') {
         this.cargarVideos.set(true);
         return;
@@ -160,7 +182,7 @@ export class LandingComponent {
           cerca.disconnect();
         }
       }, { rootMargin: '600px 0px' });
-      this.relato().forEach(r => cerca.observe(r.nativeElement));
+      relato.forEach(r => cerca.observe(r));
 
       // El paso activo es el que cruza la franja central de la vista.
       const centro = new IntersectionObserver(entradas => {
@@ -168,18 +190,40 @@ export class LandingComponent {
           if (e.isIntersecting) this.paso.set(Number((e.target as HTMLElement).dataset['paso'] ?? 0));
         }
       }, { rootMargin: '-45% 0px -45% 0px' });
-      this.pasos().forEach(p => centro.observe(p.nativeElement));
+      pasos.forEach(p => centro.observe(p));
 
-      destroyRef.onDestroy(() => { cerca.disconnect(); centro.disconnect(); });
-    });
+      const visible = new IntersectionObserver(entradas => {
+        this.relatoVisible.set(entradas.some(e => e.isIntersecting));
+      });
+      relato.forEach(r => visible.observe(r));
 
-    // Solo corre el clip del paso activo; los demás quedan quietos en su primer cuadro.
-    effect(() => {
+      // Modo ambiente: copia el cuadro del clip activo a un lienzo de 48 × 27 cada 120 ms (el desenfoque lo pone CSS).
+      // Con el clip quieto basta un cuadro; fuera de la vista no se pinta nada.
+      const pintar = () => {
+        const lienzo = host.querySelector<HTMLCanvasElement>('.landing-relato__ambiente');
+        const video = host.querySelectorAll<HTMLVideoElement>('.landing-relato__capa video')[this.paso()];
+        const ctx = lienzo?.getContext?.('2d');
+        if (!ctx || !video || video.readyState < 2) return;
+        try {
+          ctx.drawImage(video, 0, 0, lienzo!.width, lienzo!.height);
+        } catch {
+          // Un cuadro que aún no se puede leer: se intenta en el siguiente.
+        }
+      };
+      const reloj = setInterval(() => {
+        if (this.relatoVisible() && this.cargarVideos()) pintar();
+      }, 120);
+
+      destroyRef.onDestroy(() => { cerca.disconnect(); centro.disconnect(); visible.disconnect(); clearInterval(reloj); });
+    };
+
+    // Solo corre el clip del paso activo; los demás quedan quietos en su primer cuadro. Va después del render: los
+    // <video> nacen cuando cargarVideos pasa a true, y se buscan en el DOM ya pintado.
+    afterRenderEffect(() => {
       const activo = this.paso();
       const pausados = this.videosPausados();
       if (!this.cargarVideos()) return;
-      this.videos().forEach((ref, i) => {
-        const video = ref.nativeElement;
+      host.querySelectorAll<HTMLVideoElement>('.landing-relato__capa video').forEach((video, i) => {
         if (i === activo && !pausados) {
           video.play?.()?.catch(() => undefined);
         } else {
@@ -198,19 +242,22 @@ export class LandingComponent {
       icon: 'school',
       title: 'Estudiante',
       text: 'Practica intervención psicosocial en escenarios simulados y recibe retroalimentación formativa.',
-      features: ['Simulaciones', 'Bitácora', 'Retroalimentación']
+      features: ['Simulaciones', 'Bitácora', 'Retroalimentación'],
+      avatares: [RETRATO('camila/bata'), RETRATO('david/bata')]
     },
     {
       icon: 'supervisor_account',
       title: 'Profesor',
       text: 'Asigna casos, supervisa trazabilidad y evalúa el desempeño con rúbricas académicas.',
-      features: ['Rúbricas', 'Evaluación', 'Seguimiento']
+      features: ['Rúbricas', 'Evaluación', 'Seguimiento'],
+      avatares: [RETRATO('docente-universidad')]
     },
     {
       icon: 'admin_panel_settings',
       title: 'Administrador',
       text: 'Gestiona usuarios, publica casos y configura el entorno académico del simulador.',
-      features: ['Gestión', 'Trazabilidad', 'Reportes']
+      features: ['Gestión', 'Trazabilidad', 'Reportes'],
+      avatares: [RETRATO('funcionaria-recepcion')]
     }
   ];
 

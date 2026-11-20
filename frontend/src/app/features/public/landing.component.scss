@@ -14,6 +14,7 @@
   margin-inline: auto;
 }
 
+
 .landing-accent {
   color: var(--l-acento-tinta);
 }
@@ -347,10 +348,6 @@
   line-height: 1;
 }
 
-// El icono de cada decisión sobra junto a la letra: se oculta (sigue aria-hidden en el marcado).
-.landing-preview__decisions li mat-icon {
-  display: none;
-}
 
 // ── Secciones ────────────────────────────────────────────────────────────────────────────────────
 .landing-section {
@@ -534,10 +531,19 @@
   line-height: var(--ds-type-caption-line);
 }
 
+// Ética: tres arriba y dos centradas abajo (con el riel, cinco columnas quedaban apretadas).
 .landing-ethics {
   display: grid;
-  grid-template-columns: repeat(5, minmax(0, 1fr));
+  grid-template-columns: repeat(6, minmax(0, 1fr));
   gap: var(--ds-space-4);
+}
+
+.landing-ethics > * {
+  grid-column: span 2;
+}
+
+.landing-ethics > :nth-child(4) {
+  grid-column: 2 / span 2;
 }
 
 .landing-ethics__item {
@@ -563,35 +569,78 @@
 
 .landing-relato__grid {
   display: grid;
-  grid-template-columns: minmax(0, 1.3fr) minmax(0, 1fr);
+  grid-template-columns: minmax(0, 1.75fr) minmax(0, 1fr);
   gap: clamp(var(--ds-space-6), 5vw, 4.5rem);
   align-items: start;
 }
 
 .landing-relato__escenario {
   position: sticky;
-  top: calc(50vh - min(19vw, 15rem) - 2rem);
+  top: max(5.5rem, calc(50vh - 14.5rem));
   display: grid;
   gap: var(--ds-space-3);
 }
 
+// El clip, sin recuadro: borde continuo de 1,5rem, un filo de luz interior y una sombra profunda. Detrás, el modo ambiente.
 .landing-relato__pantalla {
   position: relative;
+  z-index: 1;
   margin: 0;
-  padding: 0.5rem;
-  border-radius: 1.75rem;
+  border-radius: 1.5rem;
   box-shadow:
-    inset 0 0 0 1px var(--l-filo-fuerte),
-    inset 0 1px 0 var(--l-brillo),
-    var(--l-sombra-alta),
-    0 0 140px -50px color-mix(in oklab, var(--l-acento) 60%, transparent);
+    0 2px 6px color-mix(in oklab, black 25%, transparent),
+    0 40px 90px -36px color-mix(in oklab, black 75%, transparent);
+}
+
+.landing-relato__pantalla::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  z-index: 2;
+  border-radius: inherit;
+  box-shadow:
+    inset 0 0 0 1px color-mix(in oklab, white 14%, transparent),
+    inset 0 1px 0 color-mix(in oklab, white 22%, transparent);
+  pointer-events: none;
+}
+
+// Fondo del apartado: el lienzo ocupa la vista completa (pegajoso dentro de la sección) y el desenfoque lo agranda.
+// Sus bordes se funden solos con el desenfoque; no hay recorte duro.
+.landing-relato__fondo {
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+  pointer-events: none;
+}
+
+.landing-relato__ambiente {
+  position: sticky;
+  top: 0;
+  display: block;
+  width: 100%;
+  height: 100vh;
+  filter: blur(34px) saturate(1.35);
+  opacity: 0.55;
+  transform: scale(1.06);
+}
+
+.landing[data-skin='portal'] .landing-relato__ambiente {
+  opacity: 0.42;
+  mix-blend-mode: multiply;
+  filter: blur(34px) saturate(1.6) brightness(1.3);
+}
+
+// El contenido de las secciones va sobre el fondo de objetos (lienzo fijo de capa 0) y el modo ambiente.
+.landing-section > .landing-wrap {
+  position: relative;
+  z-index: 1;
 }
 
 .landing-relato__capa {
   position: relative;
   overflow: hidden;
   aspect-ratio: 16 / 9;
-  border-radius: 1.25rem;
+  border-radius: 1.5rem;
   background: black;
   opacity: 0;
   transition: opacity 400ms var(--ds-ease-out);
@@ -599,7 +648,7 @@
 
 .landing-relato__capa + .landing-relato__capa {
   position: absolute;
-  inset: 0.5rem;
+  inset: 0;
 }
 
 .landing-relato__capa.is-activa {
@@ -614,6 +663,8 @@
 }
 
 .landing-relato__controles {
+  position: relative;
+  z-index: 1;
   display: flex;
   align-items: center;
   justify-content: space-between;
@@ -658,11 +709,16 @@
   display: flex;
   flex-direction: column;
   justify-content: center;
-  gap: var(--ds-space-3);
   min-height: 72vh;
-  padding: var(--ds-space-5);
-  opacity: 0.4;
+  opacity: 0.45;
   transition: opacity var(--ds-dur-slow) var(--ds-ease-out);
+}
+
+.landing-relato__tarjeta {
+  display: flex;
+  flex-direction: column;
+  gap: var(--ds-space-3);
+  padding: var(--ds-space-5) var(--ds-space-6);
 }
 
 .landing-relato__paso.is-activo {
@@ -843,20 +899,6 @@
 }
 
 // ── Adaptación ───────────────────────────────────────────────────────────────────────────────────
-@media (max-width: 68.75rem) {
-  .landing-ethics {
-    grid-template-columns: repeat(6, minmax(0, 1fr));
-  }
-
-  .landing-ethics__item {
-    grid-column: span 2;
-  }
-
-  .landing-ethics__item:nth-child(4) {
-    grid-column: 2 / span 2;
-  }
-}
-
 @media (max-width: 63.999rem) {
   .landing-relato__grid {
     grid-template-columns: minmax(0, 1fr);
@@ -892,12 +934,12 @@
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 
-  .landing-ethics__item,
-  .landing-ethics__item:nth-child(4) {
+  .landing-ethics > *,
+  .landing-ethics > :nth-child(4) {
     grid-column: auto;
   }
 
-  .landing-ethics__item:last-child {
+  .landing-ethics > :last-child {
     grid-column: 1 / -1;
   }
 }
@@ -931,7 +973,7 @@
     grid-template-columns: minmax(0, 1fr);
   }
 
-  .landing-ethics__item:last-child {
+  .landing-ethics > :last-child {
     grid-column: auto;
   }
 

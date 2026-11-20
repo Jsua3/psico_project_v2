@@ -190,7 +190,6 @@ $corte-tope: 82.499rem;
 // con la misma media que este CSS (64rem). En móvil el vidrio es la banda superior y la barra inferior, siempre; los
 // módulos no llevan vidrio (no hay vidrio sobre vidrio).
 .cromo[data-ancho='escritorio'][data-estado='inicial'][data-vidrio='pseudo'] .bandeja::before,
-.cromo[data-forma='unida'][data-ancho='escritorio'][data-vidrio='pseudo'] .bandeja::before,
 .cromo[data-ancho='escritorio'][data-estado='scroll'][data-vidrio='pseudo'] .modulo::before,
 .cromo[data-ancho='escritorio'][data-estado='atencion'][data-vidrio='pseudo'] .modulo::before,
 .cromo[data-ancho='movil'] .bandeja::before,
@@ -222,27 +221,6 @@ $corte-tope: 82.499rem;
     opacity: 1;
   }
 
-  // Forma «unida» (pantallas públicas): la píldora es el único dueño del vidrio en todos los estados; los módulos no
-  // se separan, no caen y no llevan vidrio ni canto propios (nada de un botón dentro de otra cápsula).
-  .cromo[data-forma='unida'][data-estado] .bandeja {
-    gap: 0;
-  }
-
-  .cromo[data-forma='unida'][data-estado] .modulo {
-    translate: 0 0;
-  }
-
-  .cromo[data-forma='unida'][data-ancho='escritorio'][data-estado][data-vidrio='pseudo'] .modulo::before {
-    border-color: transparent;
-    background-color: transparent;
-    box-shadow: none;
-    -webkit-backdrop-filter: none;
-    backdrop-filter: none;
-  }
-
-  .cromo[data-forma='unida'][data-estado][data-vidrio='pseudo'] .modulo::after {
-    opacity: 0;
-  }
 }
 
 // 6. LOS CONTROLES PLEGABLES (la expansión del módulo central). La geometría va en el <a>. Se pliegan en «scroll»
@@ -772,5 +750,80 @@ $corte-tope: 82.499rem;
       scroll-padding-top: 0;
       scroll-padding-bottom: 0;
     }
+  }
+}
+
+// 10. LA LLAMADA A LA ACCIÓN DEL MÓDULO DE CUENTA (`.cta-vivo` de la gemela, §9 de material.md): una ficha compacta
+// de esquina 0.5rem dentro de la cápsula, con el área pulsable de 44 px por el ::after. DESVÍOS (decididos): el relleno
+// sólido chocaba con el vidrio (pedido del usuario, 2026-11-20), así que la ficha es TINTADA, como un control de la
+// propia cápsula: tinte del acento al 16 %, filo fino del mismo tono y texto en la tinta del acento; al pasar el cursor el
+// tinte sube y al pulsar se hunde. Sin backdrop-filter al pulsar: el presupuesto de vidrio del ui-lint no lo admite.
+:where(.cromo) .cta-vivo {
+  --_cta: var(--l-acento, var(--ds-primary));
+
+  position: relative;
+  isolation: isolate;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.375rem;
+  padding: 0.375rem 0.875rem;
+  border-radius: 0.5rem;
+  color: var(--l-acento-tinta, var(--ds-primary));
+  font-size: var(--ds-type-body-s-size);
+  font-weight: 600;
+  line-height: var(--ds-type-body-s-line);
+  letter-spacing: 0.005em;
+  text-decoration: none;
+  white-space: nowrap;
+  transition: transform var(--duracion-instante) var(--ease-out);
+}
+
+:where(.cromo) .cta-vivo::before {
+  content: '';
+  pointer-events: none;
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  border-radius: inherit;
+  background-color: color-mix(in oklab, var(--_cta) 16%, transparent);
+  box-shadow: inset 0 0 0 1px color-mix(in oklab, var(--_cta) 34%, transparent);
+  transition:
+    background-color var(--duracion-boton) var(--ease-color),
+    box-shadow var(--duracion-boton) var(--ease-color);
+}
+
+// Área pulsable de 33,7 + 12 = 45,7 px sin agrandar el dibujo.
+:where(.cromo) .cta-vivo::after {
+  content: '';
+  position: absolute;
+  inset-inline: 0;
+  inset-block: -0.375rem;
+}
+
+@media (hover: hover) and (pointer: fine) {
+  :where(.cromo) .cta-vivo:hover::before {
+    background-color: color-mix(in oklab, var(--_cta) 26%, transparent);
+    box-shadow: inset 0 0 0 1px color-mix(in oklab, var(--_cta) 52%, transparent);
+  }
+}
+
+:where(.cromo) .cta-vivo:active {
+  transform: scale(0.97);
+  transition-duration: 0ms;
+}
+
+:where(.cromo) .cta-vivo:active::before {
+  background-color: color-mix(in oklab, var(--_cta) 34%, transparent);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  :where(.cromo) .cta-vivo:active {
+    transform: none;
+  }
+}
+
+@media (forced-colors: active) {
+  :where(.cromo) .cta-vivo {
+    border: 1px solid ButtonText;
   }
 }
