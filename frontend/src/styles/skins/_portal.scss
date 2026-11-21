@@ -12,6 +12,16 @@
   @include elevation.emit(elevation.$portal);
 }
 
+// El violeta como único color de acción (DISENO DP-03). Va en el contenedor, no en :root (REGLA-010), y solo con la
+// piel clara: la piel juego ya tiene su violeta. Con colores forzados no se emite: la especificidad de esta regla
+// (dos clases) ganaría a la de `_contrast.scss` (`[data-skin]`) y dejaría el primario violeta en vez de LinkText.
+@media not (forced-colors: active) {
+  .portal[data-skin='portal'],
+  .publico[data-skin='portal'] {
+    @include color.emit(color.$portal-acento);
+  }
+}
+
 :root {
   @include scale.emit;
   @include type.emit;

@@ -5,6 +5,19 @@
 (function () {
   'use strict';
 
+  // Piel de la pantalla de arranque: el tema que la persona eligió (el mismo que lee TemaService). Va en el div de
+  // arranque, no en html ni en body (REGLA-010). Con «Automático» (o sin valor) manda prefers-color-scheme en boot.css.
+  // Dentro de try/catch: el almacenamiento puede estar bloqueado (ventana privada, cookies cerradas).
+  var arranque = document.querySelector('.siep-boot');
+  if (arranque) {
+    try {
+      var tema = localStorage.getItem('metafronesis.tema');
+      if (tema === 'oscuro' || tema === 'claro') arranque.classList.add('siep-boot--' + tema);
+    } catch (e) {
+      /* sin almacenamiento: queda la preferencia del sistema */
+    }
+  }
+
   // «Recargar»: reintenta el arranque (antes onclick="location.reload()").
   var reload = document.querySelector('.siep-boot .siep-boot__reload');
   if (reload) {

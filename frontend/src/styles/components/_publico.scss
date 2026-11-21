@@ -1,3 +1,5 @@
+@use 'materiales' as m;
+
 // Lenguaje común de las pantallas públicas (portada, acceso y 404), rediseño Metafrónesis 2026-11-20: acabado tipo
 // iOS sobre la paleta del simulador. Filos de 1 px, esquinas continuas, vidrio translúcido sin desenfoque (no hay
 // contenido que pase por detrás), sombras en capas, luz ambiental y la curva de las hojas de iOS. Se activa con la clase
@@ -6,33 +8,8 @@
 // Las clases genéricas son `.pub-vidrio`, `.pub-icono(--lg)` y `.pub-etiqueta`; la portada usa sus nombres propios.
 
 .publico {
-  // Acento de marca: el violeta del logo en las dos pieles (juego: #B69CFF; portal: #5B3FD1).
-  --l-acento: var(--ds-accent-sim);
-  --l-acento-tinta: var(--ds-primary-hover);
-
-  // Materiales de la portada, derivados de los tokens de la piel (sin colores sueltos).
-  --l-filo: color-mix(in oklab, var(--ds-text-1) 10%, transparent);
-  --l-filo-fuerte: color-mix(in oklab, var(--ds-text-1) 17%, transparent);
-  --l-brillo: color-mix(in oklab, var(--ds-text-1) 9%, transparent);
-  --l-vidrio: color-mix(in oklab, var(--ds-surface-1) 72%, transparent);
-  --l-vidrio-alto: color-mix(in oklab, var(--ds-surface-2) 78%, transparent);
-  --l-relleno: color-mix(in oklab, var(--ds-text-1) 5%, transparent);
-  --l-tinte: color-mix(in oklab, var(--l-acento) 16%, transparent);
-  --l-tinte-filo: color-mix(in oklab, var(--l-acento) 34%, transparent);
-  --l-trama: color-mix(in oklab, var(--ds-text-1) 4.5%, transparent);
-  --l-sombra:
-    0 1px 1px color-mix(in oklab, black 22%, transparent),
-    0 12px 32px -14px color-mix(in oklab, black 60%, transparent);
-  --l-sombra-alta:
-    0 2px 6px color-mix(in oklab, black 22%, transparent),
-    0 30px 70px -24px color-mix(in oklab, black 70%, transparent);
-  --l-radio: 1.5rem;
-  --l-radio-chico: 0.875rem;
-  --l-curva: var(--ds-ease-drawer);
-  // Colores del isotipo de Metafrónesis (cuadros del logo).
-  --marca-cian: #1dbce7;
-  --marca-azul: #1576d6;
-  --l-entrada: var(--ds-dur-glass);
+  // Los materiales (--l-*) viven en _materiales.scss y los comparte el portal (`.portal`, _portal.scss).
+  @include m.materiales;
 
   color-scheme: dark;
   background:
@@ -48,23 +25,7 @@
 // Modo claro (piel portal): mismo vidrio y misma luz, recalibrados para fondo claro. Sombras más suaves y tintadas
 // con la tinta de la piel (no negro puro), vidrio casi blanco, retícula más tenue y el violeta de marca como tinta.
 .publico[data-skin='portal'] {
-  color-scheme: light;
-  --l-acento-tinta: var(--ds-accent-sim);
-  --l-filo: color-mix(in oklab, var(--ds-text-1) 9%, transparent);
-  --l-filo-fuerte: color-mix(in oklab, var(--ds-text-1) 15%, transparent);
-  --l-brillo: color-mix(in oklab, white 90%, transparent);
-  --l-vidrio: color-mix(in oklab, var(--ds-surface-1) 80%, transparent);
-  --l-vidrio-alto: color-mix(in oklab, var(--ds-surface-1) 90%, transparent);
-  --l-relleno: color-mix(in oklab, var(--ds-text-1) 3.5%, transparent);
-  --l-tinte: color-mix(in oklab, var(--l-acento) 10%, transparent);
-  --l-tinte-filo: color-mix(in oklab, var(--l-acento) 26%, transparent);
-  --l-trama: color-mix(in oklab, var(--ds-text-1) 6%, transparent);
-  --l-sombra:
-    0 1px 2px color-mix(in oklab, var(--ds-text-1) 6%, transparent),
-    0 12px 32px -16px color-mix(in oklab, var(--ds-text-1) 22%, transparent);
-  --l-sombra-alta:
-    0 2px 6px color-mix(in oklab, var(--ds-text-1) 7%, transparent),
-    0 30px 70px -28px color-mix(in oklab, var(--ds-text-1) 30%, transparent);
+  @include m.materiales-claro;
 }
 
 .publico :is(.pub-etiqueta, .landing-kicker, .landing-hero__eyebrow) {
@@ -160,13 +121,8 @@
 }
 
 // La barra compartida conserva su material de vidrio; solo se adaptan sus alias a la superficie oscura.
-.publico .cromo {
-  --asb-linea: var(--l-filo-fuerte);
-  --asb-cromo-tinta-tenue: var(--ds-text-2);
-  --asb-filo: var(--l-brillo);
-  --asb-brillo: color-mix(in oklab, var(--ds-text-1) 6%, transparent);
-  --asb-canto: color-mix(in oklab, var(--ds-border-strong) 45%, transparent);
-  --asb-resplandor: 0 20px 70px color-mix(in oklab, black 28%, transparent);
+:is(.publico, .portal) .cromo {
+  @include m.cromo-alias;
 }
 
 // ── Icono en baldosa (como los de Ajustes de iOS), un solo tinte para toda la página (VD-3) ────────
@@ -263,10 +219,7 @@
 // Transparencia reducida y más contraste: superficies sólidas y filos marcados.
 @media (prefers-reduced-transparency: reduce), (prefers-contrast: more) {
   .publico {
-    --l-vidrio: var(--ds-surface-1);
-    --l-vidrio-alto: var(--ds-surface-2);
-    --l-filo: var(--ds-border-strong);
-    --l-filo-fuerte: var(--ds-border-strong);
+    @include m.materiales-reducidos;
   }
 }
 

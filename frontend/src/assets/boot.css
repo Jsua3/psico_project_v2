@@ -56,6 +56,31 @@
   .siep-boot__bar::after { animation: none; width: 100%; opacity: .5; }
 }
 
+/*
+ * Piel oscura (DISENO §2.2, punto 5): sin destello claro al cargar cuando la persona usa el tema oscuro. Con el tema
+ * «Automático» manda la preferencia del sistema; con un tema elegido, boot.js pone .siep-boot--oscuro o
+ * .siep-boot--claro EN ESTE MISMO DIV (nunca en html ni en body: REGLA-010). Los colores son los de la piel juego
+ * (surface-page #0E1322, text-2 #A9B3CC, primary #B69CFF, on-primary #0E1322, focus #C9B3FF); son literales porque este
+ * archivo carga antes que cualquier hoja del sistema. Las reglas de las clases van DESPUÉS del @media para ganarle.
+ */
+@media (prefers-color-scheme: dark) {
+  .siep-boot { background: #0E1322; color: #A9B3CC; }
+  .siep-boot__bar { background: rgba(182, 156, 255, .2); }
+  .siep-boot__bar::after { background: #B69CFF; }
+  .siep-boot__reload { background: #B69CFF; color: #0E1322; }
+  .siep-boot__reload:focus-visible { outline-color: #C9B3FF; }
+}
+.siep-boot--oscuro { background: #0E1322; color: #A9B3CC; }
+.siep-boot--oscuro .siep-boot__bar { background: rgba(182, 156, 255, .2); }
+.siep-boot--oscuro .siep-boot__bar::after { background: #B69CFF; }
+.siep-boot--oscuro .siep-boot__reload { background: #B69CFF; color: #0E1322; }
+.siep-boot--oscuro .siep-boot__reload:focus-visible { outline-color: #C9B3FF; }
+.siep-boot--claro { background: #F2F2F2; color: #5F6B76; }
+.siep-boot--claro .siep-boot__bar { background: rgba(0, 72, 118, .14); }
+.siep-boot--claro .siep-boot__bar::after { background: #004876; }
+.siep-boot--claro .siep-boot__reload { background: #004876; color: #FFFFFF; }
+.siep-boot--claro .siep-boot__reload:focus-visible { outline-color: #0B5A8A; }
+
 /* Aviso de <noscript> (antes llevaba un atributo style en línea). */
 .siep-noscript {
   margin: 0;

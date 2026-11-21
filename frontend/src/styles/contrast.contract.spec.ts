@@ -112,10 +112,13 @@ describe('contraste: portada', () => {
     // --l-acento-tinta: oscuro = primary-hover de la piel juego (#C9B3FF); claro = accent-sim de la piel portal (#5B3FD1).
     expect(scss).not.toContain('background-clip');
     expect(scss).toMatch(/\.landing-accent \{\s*color: var\(--l-acento-tinta\);/);
-    // Los tokens viven en el lenguaje común de las pantallas públicas (styles/components/_publico.scss).
+    // Los tokens viven en los materiales compartidos (styles/components/_materiales.scss, B0) y `.publico` los incluye.
     const publico = source('./components/_publico.scss');
-    expect(publico).toMatch(/--l-acento-tinta: var\(--ds-primary-hover\);/);
-    expect(publico).toMatch(/\.publico\[data-skin='portal'\] \{\s*color-scheme: light;\s*--l-acento-tinta: var\(--ds-accent-sim\);/);
+    const materiales = source('./components/_materiales.scss');
+    expect(materiales).toMatch(/--l-acento-tinta: var\(--ds-primary-hover\);/);
+    expect(materiales).toMatch(/@mixin materiales-claro \{\s*color-scheme: light;\s*--l-acento-tinta: var\(--ds-accent-sim\);/);
+    expect(publico).toMatch(/@include m\.materiales;/);
+    expect(publico).toMatch(/\.publico\[data-skin='portal'\] \{\s*@include m\.materiales-claro;/);
     expect(contrast('#C9B3FF', '#0E1322')).toBeGreaterThanOrEqual(4.5);
     expect(contrast('#C9B3FF', '#151B2E')).toBeGreaterThanOrEqual(4.5);
     expect(contrast('#5B3FD1', '#F5F7FA')).toBeGreaterThanOrEqual(4.5);
@@ -297,5 +300,54 @@ describe('contraste: botón táctil «Interactuar» en reposo', () => {
   it('en anchos < 700 px el texto en reposo es claro sobre el fondo oscuro translúcido, con la misma marca por forma', () => {
     expect(world).toMatch(/\.touch-interact \{ background: rgba\(8,12,18,\.6\);[^}]*color: #e8f0f4; \}/);
     expect(world).toMatch(/\.touch-interact--idle \{ color: rgba\(232,240,244,\.8\); border-style: dashed; \}/);
+  });
+});
+
+// B0 (rediseño del portal, 2026-11-21, DISENO DP-03): el violeta como único color de acción de la piel clara. El mapa
+// vive en tokens/_color.scss y se emite solo en `.portal` y `.publico` claros; estos pares son los que usan los
+// botones primarios, los enlaces, el foco y los tintes de selección. `scripts/ui/tokens.test.mjs` prueba la salida
+// compilada; aquí queda el contrato de contraste leído de la fuente.
+describe('contraste: acento violeta del portal', () => {
+  const color = source('./tokens/_color.scss');
+  const acento = /\$portal-acento: \(([^)]*)\)/.exec(color)?.[1] ?? '';
+  const token = (name: string): string => new RegExp(`${name}: (#[0-9A-Fa-f]{6})`).exec(acento)?.[1] ?? '';
+  const portal = /\$portal: \(([^)]*)\)/.exec(color)?.[1] ?? '';
+  const claro = (name: string): string => new RegExp(`\n  ${name}: (#[0-9A-Fa-f]{6})`).exec(portal)?.[1] ?? '';
+  const superficies = ['surface-page', 'surface-1', 'surface-2'].map(claro);
+
+  it('define los cinco tokens del acento y no toca los demás', () => {
+    for (const name of ['primary', 'primary-hover', 'primary-active', 'primary-subtle', 'focus']) expect(token(name)).not.toBe('');
+    expect(acento).not.toContain('on-primary');
+    expect(superficies.every(hex => hex !== '')).toBe(true);
+  });
+
+  it('el primario y su hover llegan a AA (4,5:1) como texto y enlace sobre las tres superficies claras', () => {
+    for (const bg of superficies) {
+      expect(contrastRatio(token('primary'), bg)).toBeGreaterThanOrEqual(4.5);
+      expect(contrastRatio(token('primary-hover'), bg)).toBeGreaterThanOrEqual(4.5);
+    }
+  });
+
+  it('el texto de los botones primarios (blanco) llega a AA en reposo, hover y pulsado', () => {
+    for (const name of ['primary', 'primary-hover', 'primary-active']) {
+      expect(contrastRatio(claro('on-primary'), token(name))).toBeGreaterThanOrEqual(4.5);
+    }
+  });
+
+  it('el anillo de foco supera 3:1 sobre las superficies y sobre su halo (WCAG 1.4.11)', () => {
+    for (const bg of [...superficies, claro('focus-halo')]) expect(contrastRatio(token('focus'), bg)).toBeGreaterThanOrEqual(3);
+  });
+
+  it('el tinte de selección admite el primario y la tinta como texto', () => {
+    expect(contrastRatio(token('primary'), token('primary-subtle'))).toBeGreaterThanOrEqual(4.5);
+    expect(contrastRatio(claro('text-1'), token('primary-subtle'))).toBeGreaterThanOrEqual(4.5);
+  });
+
+  // REGLA-010: en :root solo la piel del portal con su azul petróleo; el violeta vive en el contenedor.
+  it('se emite en .portal y .publico claros, fuera de colores forzados, y no en :root', () => {
+    const skin = source('./skins/_portal.scss');
+    expect(skin).toMatch(/@media not \(forced-colors: active\) \{\s*\.portal\[data-skin='portal'\],\s*\.publico\[data-skin='portal'\] \{\s*@include color\.emit\(color\.\$portal-acento\);/);
+    expect(skin).toMatch(/:root,\s*\[data-skin='portal'\] \{[^}]*color\.\$portal\)/);
+    expect(claro('primary')).toBe('#004876');
   });
 });

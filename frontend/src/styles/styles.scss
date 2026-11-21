@@ -8,6 +8,7 @@
 @use 'tokens/glass-bar' as glass-bar-tokens;
 @use 'components/glass-bar';
 @use 'components/publico';
+@use 'components/portal';
 @use 'components/autoria';
 @use 'tokens/pixel' as pixel-tokens;
 @use 'components/pixel';
@@ -31,7 +32,8 @@ body {
   margin: 0;
   font-family: var(--ds-font-sans);
   color: var(--psy-ink);
-  background: linear-gradient(180deg, #FAFAFA 0%, var(--psy-bg) 54%, #ECECEC 100%);
+  /* Sin degradado ni literales: el fondo del portal lo pinta `.portal` (components/_portal.scss), con su piel. */
+  background: var(--ds-surface-page);
   text-rendering: optimizeLegibility;
 }
 

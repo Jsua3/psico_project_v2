@@ -70,3 +70,28 @@ describe('movimiento: juego', () => {
     expect(play).not.toContain('hint-rise');
   });
 });
+
+// B0 (rediseño del portal, DISENO §2.1 y P10): el paso del portal al juego es el único momento cinematográfico del
+// portal y es corto; el velo que deja ver el mundo, más corto aún. Con movimiento reducido valen 0,01 ms.
+describe('movimiento: umbral al juego', () => {
+  const tokens = source('./tokens/_motion.scss');
+  const reducido = source('./base/_motion.scss');
+
+  it('define umbral (420 ms) y revelar (300 ms) como duraciones', () => {
+    expect(tokens).toMatch(/\$durations: \([^)]*umbral: 420ms[^)]*\)/);
+    expect(tokens).toMatch(/\$durations: \([^)]*revelar: 300ms[^)]*\)/);
+  });
+
+  it('ninguna duración del portal pasa de 420 ms, salvo la de la barra de vidrio (glass)', () => {
+    const mapa = /\$durations: \(([^)]*)\)/.exec(tokens)?.[1] ?? '';
+    for (const [, nombre, ms] of mapa.matchAll(/(\w+): (\d+)ms/g)) {
+      if (nombre === 'glass') continue;
+      expect(Number(ms), nombre).toBeLessThanOrEqual(420);
+    }
+  });
+
+  it('con movimiento reducido las dos duraciones nuevas se anulan como el resto', () => {
+    expect(reducido).toContain('--ds-dur-umbral: 0.01ms;');
+    expect(reducido).toContain('--ds-dur-revelar: 0.01ms;');
+  });
+});

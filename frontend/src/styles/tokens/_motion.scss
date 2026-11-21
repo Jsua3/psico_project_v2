@@ -4,7 +4,9 @@
 // fundido corto de opacidad sigue; base/_motion.scss).
 @use 'sass:string';
 
-$durations: (press: 100ms, fast: 160ms, base: 200ms, slow: 300ms, glass: 620ms, move: 200ms, fade: 160ms);
+// `umbral` (420 ms) es el paso del portal al juego y `revelar` (300 ms), el velo del umbral que deja ver el mundo
+// (DISENO P10: el único momento cinematográfico del portal, y corto). Con movimiento reducido valen 0,01 ms.
+$durations: (press: 100ms, fast: 160ms, base: 200ms, slow: 300ms, glass: 620ms, move: 200ms, fade: 160ms, umbral: 420ms, revelar: 300ms);
 $eases: (
   out: cubic-bezier(0.23, 1, 0.32, 1),
   in-out: cubic-bezier(0.77, 0, 0.175, 1),

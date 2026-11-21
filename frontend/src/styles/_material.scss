@@ -66,10 +66,21 @@ html {
 }
 
 // La piel juego vuelve a atar todo: un token que referencia otro se resuelve donde se declara.
-[data-skin='game'] {
+@mixin atar-material {
   @include mat.theme-overrides($sys-overrides);
   @include mat.card-overrides($card-overrides);
   @include mat.table-overrides($table-overrides);
+}
+
+[data-skin='game'] {
+  @include atar-material;
+}
+
+// Lo mismo hacen el portal y la portada en claro, que redefinen el primario en violeta (skins/_portal.scss, DISENO
+// DP-03): sin esto Angular Material seguiría pintando con el azul petróleo resuelto en `html`.
+.portal[data-skin='portal'],
+.publico[data-skin='portal'] {
+  @include atar-material;
 }
 
 // Fila de tabla: el hover solo con puntero fino (plan visual §2.6) y sin !important (el :hover ya gana).

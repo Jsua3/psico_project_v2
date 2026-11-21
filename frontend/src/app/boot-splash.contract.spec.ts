@@ -51,3 +51,27 @@ describe('index.html: pantalla de arranque', () => {
     for (const color of ['#F2F2F2', '#004876', '#5F6B76']) expect(css).toContain(color);
   });
 });
+
+// B0 (rediseño del portal, DISENO §2.2 punto 5): la pantalla de arranque sigue el tema para no destellar en claro
+// cuando la persona usa el oscuro. La piel va en el div de arranque, nunca en html ni en body (REGLA-010).
+describe('index.html: pantalla de arranque con tema', () => {
+  it('con el tema del sistema oscuro usa los colores de la piel juego', () => {
+    expect(css).toMatch(/@media \(prefers-color-scheme: dark\) \{[^}]*\.siep-boot \{ background: #0E1322; color: #A9B3CC; \}/);
+  });
+
+  it('una elección guardada manda sobre el sistema: las clases van después del @media', () => {
+    expect(css.indexOf('.siep-boot--oscuro {')).toBeGreaterThan(css.indexOf('@media (prefers-color-scheme: dark)'));
+    expect(css.indexOf('.siep-boot--claro {')).toBeGreaterThan(css.indexOf('@media (prefers-color-scheme: dark)'));
+    expect(css).toMatch(/\.siep-boot--claro \{ background: #F2F2F2; color: #5F6B76; \}/);
+  });
+
+  it('boot.js lee el tema guardado dentro de try/catch y lo pone en el div de arranque, no en html ni en body', () => {
+    expect(script).toMatch(/try \{[\s\S]*localStorage\.getItem\('metafronesis\.tema'\)[\s\S]*\} catch/);
+    expect(script).toContain("arranque.classList.add('siep-boot--' + tema)");
+    expect(script).not.toMatch(/document\.(documentElement|body)\.classList/);
+  });
+
+  it('el valor guardado se valida: solo «oscuro» y «claro» producen clase', () => {
+    expect(script).toContain("tema === 'oscuro' || tema === 'claro'");
+  });
+});
