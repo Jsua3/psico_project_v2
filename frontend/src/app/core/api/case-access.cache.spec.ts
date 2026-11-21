@@ -155,6 +155,37 @@ describe('CaseAccessCache', () => {
     expect(cache.acceso()).toMatchObject(deA);
   });
 
+  it('A → cierre → A sin que el effect corra entre los cambios: la respuesta de la primera sesión se descarta', () => {
+    const enCamino = new Subject<CaseAccessSnapshot>();
+    enCamino.pipe(cache.guardandoAcceso()).subscribe();
+
+    usuario.set(null);
+    usuario.set(persona(1)); // mismo id, sesión nueva; ni lectura ni TestBed.tick() entre medio
+    enCamino.next(deA);
+
+    expect(cache.acceso()).toBeNull();
+  });
+
+  it('una respuesta que salió antes de olvidar el caso no devuelve el estado viejo', () => {
+    const enCamino = new Subject<SimulationAttemptState | null>();
+    enCamino.pipe(cache.guardandoIntentoAbierto(7)).subscribe();
+
+    cache.olvidarCaso(7); // p. ej. se empezó o terminó el intento mientras la lectura viajaba
+    enCamino.next(intento('de-antes'));
+
+    expect(cache.intentoAbierto(7)).toBeUndefined();
+  });
+
+  it('una respuesta del acceso que salió antes de olvidar el caso tampoco se guarda', () => {
+    const enCamino = new Subject<CaseAccessSnapshot>();
+    enCamino.pipe(cache.guardandoAcceso()).subscribe();
+
+    cache.olvidarCaso(1);
+    enCamino.next(deA);
+
+    expect(cache.acceso()).toBeNull();
+  });
+
   it('vaciar descarta además lo que esté en camino', () => {
     const ticket = cache.ticket();
     cache.vaciar();

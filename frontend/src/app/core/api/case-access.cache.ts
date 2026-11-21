@@ -3,6 +3,7 @@ import { MonoTypeOperatorFunction, defer, tap } from 'rxjs';
 
 import { AuthService } from '../auth/auth.service';
 import { CatalogItem, SimulationAttemptState, StudentAttemptSummary } from '../models/simulation.model';
+import { User } from '../models/user.model';
 
 /**
  * Cuánto vale lo que se sabe del acceso a los casos. Pasado esto se vuelve a preguntar: el estudiante puede haber
@@ -64,16 +65,21 @@ export class CaseAccessCache {
 
   private accesoGuardado: Entry<CaseAccessSnapshot> | null = null;
   private readonly intentos = new Map<number, Entry<SimulationAttemptState | null>>();
-  /** De quién es lo guardado. `undefined`: todavía no se miró quién es. */
-  private dueno: number | null | undefined;
+  /**
+   * La sesión de lo guardado, por identidad del objeto `User` y no solo por su `id`: cerrar sesión y volver a entrar crea un
+   * objeto nuevo, y así A → cierre → A se nota aunque el effect no haya corrido entre los dos cambios (las señales solo
+   * entregan el último valor). Un cambio de datos del mismo usuario también vacía: solo cuesta volver a preguntar.
+   * `undefined`: todavía no se miró quién es.
+   */
+  private sesion: User | null | undefined;
   /** Sube con cada vaciado: una respuesta que salió antes no es de quien mira ahora. */
   private epoca = 0;
 
   constructor() {
     // El effect sigue a la persona aunque nadie lea: sin él, lo de A quedaría en memoria hasta la próxima lectura.
     effect(() => {
-      const id = this.auth.currentUser()?.id ?? null;
-      untracked(() => this.seguirA(id));
+      const usuario = this.auth.currentUser();
+      untracked(() => this.seguirA(usuario));
     });
   }
 
@@ -147,6 +153,9 @@ export class CaseAccessCache {
   olvidarCaso(caseVersionId: number): void {
     this.intentos.delete(caseVersionId);
     this.accesoGuardado = null;
+    // Lo que ya salió a preguntar traería el estado de ANTES del cambio: se sube la época para descartarlo (Codex, BK-1).
+    // Es global y no por caso: descartar de más solo cuesta volver a preguntar.
+    this.epoca += 1;
   }
 
   /** Olvida todo y descarta lo que esté en camino. La caché lo hace sola al cambiar la persona; es pública para las pruebas y el cierre de sesión explícito. */
@@ -158,16 +167,16 @@ export class CaseAccessCache {
 
   /** La persona de la sesión ahora; si cambió respecto de la dueña de lo guardado, se vacía antes de contestar. */
   private personaActual(): number | null {
-    const id = this.auth.currentUser()?.id ?? null;
-    this.seguirA(id);
-    return id;
+    const usuario = this.auth.currentUser();
+    this.seguirA(usuario);
+    return usuario?.id ?? null;
   }
 
-  private seguirA(id: number | null): void {
-    if (this.dueno === id) return;
+  private seguirA(usuario: User | null): void {
+    if (this.sesion === usuario) return;
     // La primera vez (`undefined`) no hay nada guardado, pero subir la época igual es inocuo.
     this.vaciar();
-    this.dueno = id;
+    this.sesion = usuario;
   }
 
   private vigente(ticket: CacheTicket | null): ticket is CacheTicket {
