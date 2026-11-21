@@ -238,6 +238,28 @@ def _instructor_attempts(world):
     return cl(world.profesor).get("/api/instructor/attempts")
 
 
+@calls("/api/instructor/attempts/recent", "GET")
+def _recent_attempts(world):
+    return cl(world.profesor).get("/api/instructor/attempts/recent")
+
+
+@calls("/api/simulation/catalog", "GET")
+def _catalog(world):
+    return cl(world.student).get("/api/simulation/catalog")
+
+
+def _authoring_list(prefix):
+    @calls(prefix, "GET")
+    def _list(world):
+        return cl(world.admin).get(prefix)
+
+    return _list
+
+
+for _prefix in ROUTE_FAMILIES:
+    _authoring_list(_prefix)
+
+
 @calls(WORLD_STATE, "PATCH")
 def _world_patch_ack(world):
     return _patch_position(world)
@@ -1386,6 +1408,24 @@ ERRORS = [
      lambda w: cl(w.admin).get("/api/admin/audit", {"actorId": "abc"}), 400, "INVALID_QUERY_PARAM"),
     ("revisión sin sesión", "/api/instructor/attempts", "GET", lambda w: APIClient().get("/api/instructor/attempts"),
      401, "UNAUTHENTICATED"),
+    ("revisión con un filtro de valoración desconocido", "/api/instructor/attempts", "GET",
+     lambda w: cl(w.profesor).get("/api/instructor/attempts", {"evaluacion": "NOEXISTE"}), 400, "INVALID_QUERY_PARAM"),
+    ("recientes sin sesión", "/api/instructor/attempts/recent", "GET",
+     lambda w: APIClient().get("/api/instructor/attempts/recent"), 401, "UNAUTHENTICATED"),
+    ("recientes sin permiso", "/api/instructor/attempts/recent", "GET",
+     lambda w: cl(w.student).get("/api/instructor/attempts/recent"), 403, "FORBIDDEN"),
+    ("catálogo sin sesión", "/api/simulation/catalog", "GET",
+     lambda w: APIClient().get("/api/simulation/catalog"), 401, "UNAUTHENTICATED"),
+    *[
+        error
+        for _family in ROUTE_FAMILIES
+        for error in (
+            (f"lista de autoría sin sesión ({_family})", _family, "GET",
+             lambda w, f=_family: APIClient().get(f), 401, "UNAUTHENTICATED"),
+            (f"lista de autoría sin permiso ({_family})", _family, "GET",
+             lambda w, f=_family: cl(w.student).get(f), 403, "FORBIDDEN"),
+        )
+    ],
     ("revisión sin permiso", "/api/instructor/attempts", "GET", lambda w: cl(w.student).get("/api/instructor/attempts"),
      403, "FORBIDDEN"),
     ("revisión con estado desconocido", "/api/instructor/attempts", "GET",

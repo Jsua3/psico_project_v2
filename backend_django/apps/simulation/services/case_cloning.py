@@ -47,7 +47,7 @@ class CopySpec:
 
 
 CASE_VERSION = CopySpec(CaseVersion, (
-    "narrative_context", "learning_objectives", "world_schema_version", "rules",
+    "narrative_context", "learning_objectives", "world_schema_version", "rules", "content_warnings",
 ))
 
 NODE = CopySpec(SimulationNode, (

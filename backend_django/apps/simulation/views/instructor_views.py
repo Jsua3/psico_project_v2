@@ -7,7 +7,7 @@ from rest_framework import status
 from rest_framework.views import APIView
 
 from apps.simulation.models import AttemptStatus
-from apps.simulation.serializers.contracts import InstructorAttemptsListSerializer
+from apps.simulation.serializers.contracts import InstructorAttemptsListSerializer, RecentAttemptSerializer
 from shared.exceptions import ApiError
 from shared.openapi import envelope_of, error_responses
 from shared.permissions import policy_permission
@@ -56,6 +56,21 @@ def _status_param(request):
     return raw
 
 
+def _evaluation_param(request):
+    """``evaluacion`` (BK-3): ``pendiente`` o ``aplicada``. Una palabra desconocida es un 400, no «sin resultados»."""
+    raw = request.query_params.get("evaluacion")
+    if not raw:
+        return None
+    if raw not in instructor_service.EVALUATION_FILTERS:
+        raise ApiError(
+            "INVALID_QUERY_PARAM",
+            # BORRADOR: texto nuevo del servidor, pendiente de la aprobación de Psicología (VD-23).
+            f"El parámetro 'evaluacion' debe ser uno de: {', '.join(instructor_service.EVALUATION_FILTERS)}.",
+            status.HTTP_400_BAD_REQUEST,
+        )
+    return raw
+
+
 class InstructorAttemptsView(APIView):
     permission_classes = [policy_permission("attempt", "review")]
 
@@ -65,6 +80,11 @@ class InstructorAttemptsView(APIView):
             OpenApiParameter("estudianteId", int, description="Solo los intentos de este estudiante, dentro del alcance."),
             OpenApiParameter("caseVersionId", int, description="Solo los intentos de esta versión de caso."),
             OpenApiParameter("estado", str, enum=AttemptStatus.values, description="Solo los intentos en este estado."),
+            OpenApiParameter(
+                "evaluacion", str, enum=list(instructor_service.EVALUATION_FILTERS),
+                description="`pendiente`: los terminados que esperan la valoración del docente (una guardada a medias "
+                "sigue pendiente). `aplicada`: los que ya tienen una valoración del docente concluida.",
+            ),
             OpenApiParameter("page", int, description="Página, desde 1 y hasta 1000000 (más allá es un 400)."),
             OpenApiParameter("pageSize", int, description="Intentos por página (tope 200)."),
         ],
@@ -75,6 +95,7 @@ class InstructorAttemptsView(APIView):
         estudiante_id = _int_param(request, "estudianteId", "studentId")
         case_version_id = _int_param(request, "caseVersionId")
         estado = _status_param(request)
+        evaluacion = _evaluation_param(request)
         page = _int_param(request, "page", maximum=instructor_service.MAX_PAGE) or 1
         page_size = _int_param(request, "pageSize", "limit") or instructor_service.DEFAULT_PAGE_SIZE
         return api_ok(
@@ -84,6 +105,7 @@ class InstructorAttemptsView(APIView):
                 estudiante_id=estudiante_id,
                 case_version_id=case_version_id,
                 estado=estado,
+                evaluacion=evaluacion,
                 page=page,
                 page_size=page_size,
             )
@@ -93,6 +115,7 @@ class InstructorAttemptsView(APIView):
 class RecentAttemptsView(APIView):
     permission_classes = [policy_permission("attempt", "review")]
 
+    @extend_schema(responses={200: envelope_of(RecentAttemptSerializer, many=True), **error_responses(401, 403)})
     def get(self, request):
         return api_ok(instructor_service.recent_attempts(request.user))
 

@@ -1,5 +1,5 @@
 import { Injectable, inject } from '@angular/core';
-import { HttpClient } from '@angular/common/http';
+import { HttpClient, HttpParams } from '@angular/common/http';
 import { map } from 'rxjs/operators';
 
 /** Respuesta del reemplazo docente (E1-2). */
@@ -9,7 +9,14 @@ export interface ReplacedAttempt {
   reason: string;
   replacedAt: string | null;
 }
-import { AttemptTrace, FormativeLevel, RecentAttempt, RubricEvaluationView } from '../models/simulation.model';
+import {
+  AttemptTrace,
+  FormativeLevel,
+  InstructorAttemptsPage,
+  InstructorAttemptsQuery,
+  RecentAttempt,
+  RubricEvaluationView,
+} from '../models/simulation.model';
 import { ApiResponse } from './api-response';
 
 /**
@@ -23,6 +30,20 @@ export class InstructorApi {
 
   recentAttempts() {
     return this.http.get<ApiResponse<RecentAttempt[]>>('/api/instructor/attempts/recent')
+      .pipe(map(response => response.data));
+  }
+
+  /**
+   * La revisión docente paginada y filtrable (`GET /api/instructor/attempts`, E5-6). BK-3: `evaluacion: 'pendiente'` trae
+   * la bandeja «Por revisar» (terminados sin valoración concluida) y cada fila dice su `evaluationStatus`. Un filtro
+   * ausente (o vacío) no viaja: el servidor responde 400 a un valor que no conoce, nunca «sin resultados».
+   */
+  listAttempts(query: InstructorAttemptsQuery = {}) {
+    let params = new HttpParams();
+    for (const [key, value] of Object.entries(query) as [string, string | number | undefined][]) {
+      if (value !== undefined && value !== '') params = params.set(key, String(value));
+    }
+    return this.http.get<ApiResponse<InstructorAttemptsPage>>('/api/instructor/attempts', { params })
       .pipe(map(response => response.data));
   }
 

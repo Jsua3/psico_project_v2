@@ -241,6 +241,8 @@ DATA_INVENTORY: dict[str, dict] = {
             "rules": PUBLIC,
             "last_edited_by": (PERSONAL, "última persona que editó la versión"),
             "edited_alone_since": TECHNICAL,
+            "content_warnings": PUBLIC,
+            "updated_at": TECHNICAL,
         },
         "exits": {"created_by": [], "last_edited_by": []},
     },

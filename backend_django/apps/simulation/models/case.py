@@ -94,6 +94,14 @@ class CaseVersion(models.Model):
         db_column="last_edited_by", related_name="+",
     )
     edited_alone_since = models.BigIntegerField(default=0, db_default=0)
+    # Los temas sensibles que el estudiante lee en la ficha antes de empezar (BK-1): una lista de textos planos en
+    # JSON, como ``learning_objectives``. ``[]`` = el caso no los declara (la ficha no pinta la lista). Los edita
+    # «Datos» del editor (RK-7).
+    content_warnings = models.TextField(default="[]", db_default="[]")
+    # Cuándo se editó por última vez (BK-4: «Editado hace 2 h» en la lista de autoría). Lo escribe cada avance de la
+    # revisión (``authoring.guards.revision_bump``). Vacío en lo editado antes de existir la columna: quien la lee cae a
+    # ``published_at`` o ``created_at``, porque inventar «ahora» para todas las filas viejas mentiría.
+    updated_at = models.DateTimeField(null=True, blank=True)
 
     class Meta:
         db_table = "case_versions"

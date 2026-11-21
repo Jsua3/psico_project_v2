@@ -14,6 +14,7 @@ import {
   DecisionRetry,
   HintState,
   InteractionResult,
+  OwnerEvaluation,
   ScenarioConfig,
   SimulationAttemptState,
   SimulationCaseSummary,
@@ -242,6 +243,17 @@ export class SimulationService {
   attemptHistory() {
     return this.http.get<ApiResponse<StudentAttemptSummary[]>>(`${this.API}/attempts/history`)
       .pipe(map(response => response.data));
+  }
+
+  /**
+   * BK-5 · La retroalimentación del docente tal como la lee el dueño del intento (`GET …/attempts/{id}/evaluation`): solo
+   * las valoraciones concluidas, con niveles en palabras y sin números. Otro estudiante recibe 403 y la pantalla del cierre
+   * lo explica en su sección, así que el aviso genérico de «sin permisos» no sale además.
+   */
+  getOwnerEvaluation(attemptId: string) {
+    return this.http.get<ApiResponse<OwnerEvaluation>>(`${this.API}/attempts/${attemptId}/evaluation`, {
+      context: new HttpContext().set(SCREEN_HANDLES_FORBIDDEN, true),
+    }).pipe(map(response => response.data));
   }
 
   studentReport(attemptId: string) {

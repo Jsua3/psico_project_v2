@@ -80,6 +80,10 @@ EXCLUDED = {
         "version": "revisión optimista del editor; no es contenido",
         "last_edited_by": "quién editó por última vez; no es contenido",
         "edited_alone_since": "tanda de ediciones del editor; no es contenido",
+        "updated_at": _STAMP,
+        # BK-1 agrega la columna y su lectura en la ficha; llevarla al documento (exportar e importar) es parte de
+        # RK-7, que es quien la deja editar. Hasta entonces un caso importado nace sin temas declarados.
+        "content_warnings": "temas sensibles de la ficha: entran al documento con RK-7 (hoy no se editan)",
     },
     "SimulationNode": {"id": _ID, "case_version": _OWNER_VERSION, "ai_suggested": _AI_MARK},
     "DecisionOption": {"id": _ID, "case_version": _OWNER_VERSION, "ai_suggested": _AI_MARK},

@@ -329,6 +329,35 @@ export interface AuditLogItem {
   readonly userAgent: string | null;
 }
 
+/** Una versión de caso en la lista de autoría: las propias del docente o todas para el ADMIN. */
+export interface AuthoringCaseSummary {
+  /** El caso al que pertenece la versión: agrupa las versiones de un caso. */
+  readonly caseId: number;
+  readonly caseVersionId: number;
+  readonly code: string;
+  /** Puede venir vacío o nulo. */
+  readonly description: string | null;
+  /** Escenas con narración y, si no son un final, al menos una respuesta. */
+  readonly escenasConGuion: number;
+  /** Cuántas escenas tiene la versión. */
+  readonly nodeCount: number;
+  /** URL del fondo de la sala donde empieza el caso, si es de imagen fija; nulo si la sala se arma por piezas, no tiene fondo o el fondo no es una ruta permitida (la interfaz pinta su composición de respaldo). */
+  readonly portada: string | null;
+  readonly semanticVersion: string;
+  readonly status: CaseVersionStatusEnum;
+  readonly title: string;
+  /** La última edición; en lo editado antes de registrarla, la publicación o la creación. Hora local del servidor (America/Bogota), sin zona horaria. */
+  readonly updatedAt: string | null;
+}
+
+/** Sobre de éxito: `data` es una lista de `AuthoringCaseSummary`. */
+export interface AuthoringCaseSummaryListEnvelope {
+  readonly data: ReadonlyArray<AuthoringCaseSummary>;
+  readonly message?: string;
+  /** Siempre `true` en una respuesta de éxito. */
+  readonly success: boolean;
+}
+
 export type BackingEnum = 'system' | 'constancia' | 'author';
 
 export type BondEnum = 'WITHDRAWN' | 'GUARDED' | 'OPEN';
@@ -341,6 +370,13 @@ export interface BriefCharacter {
   readonly portraitKey: string;
   /** Puede venir vacío. */
   readonly roleLabel: string;
+}
+
+/** Dónde empieza el caso: el título de la escena de inicio y el de su sala. */
+export interface BriefStart {
+  readonly escena: string;
+  /** Vacío si la escena de inicio no tiene sala. */
+  readonly lugar: string;
 }
 
 /** Un bloqueo de publicación: la lista incompleta o los errores de validación (con sus hallazgos). */
@@ -356,10 +392,20 @@ export interface CaseBrief {
   readonly access: AccessDecision;
   readonly caseVersionId: number;
   readonly characters: ReadonlyArray<BriefCharacter>;
+  /** Si el recorrido se valora con una rúbrica (asignada, propia de la versión o la predeterminada). */
+  readonly conRubrica: boolean;
   /** Puede venir vacío. */
   readonly context: string;
+  /** Cuántas escenas tiene el caso. */
+  readonly escenas: number;
   readonly hasSensitiveContent: boolean;
+  /** Nulo si el caso no tiene escena de inicio. */
+  readonly inicio: BriefStart | null;
   readonly learningObjectives: ReadonlyArray<string>;
+  /** URL del fondo de la sala donde empieza el caso, si es de imagen fija; nulo si la sala se arma por piezas, no tiene fondo o el fondo no es una ruta permitida (la interfaz pinta su composición de respaldo). */
+  readonly portada: string | null;
+  /** Los temas sensibles que declara el caso; vacía si no declara ninguno. */
+  readonly temasSensibles: ReadonlyArray<string>;
   readonly title: string;
 }
 
@@ -493,6 +539,32 @@ export interface CaseValidationEnvelope {
 }
 
 export type CaseVersionStatusEnum = 'DRAFT' | 'IN_REVIEW' | 'PUBLISHED' | 'ARCHIVED';
+
+/** Un caso del catálogo del actor, en el orden de su secuencia, con su decisión de acceso. */
+export interface CatalogItem {
+  readonly access: AccessDecision;
+  readonly caseVersionId: number;
+  readonly code: string;
+  readonly completed: boolean;
+  /** Puede venir vacío o nulo. */
+  readonly description: string | null;
+  /** Cuántas escenas tiene el caso. */
+  readonly escenas: number;
+  readonly locked: boolean;
+  readonly order: number;
+  /** URL del fondo de la sala donde empieza el caso, si es de imagen fija; nulo si la sala se arma por piezas, no tiene fondo o el fondo no es una ruta permitida (la interfaz pinta su composición de respaldo). */
+  readonly portada: string | null;
+  readonly title: string;
+  readonly unlocked: boolean;
+}
+
+/** Sobre de éxito: `data` es una lista de `CatalogItem`. */
+export interface CatalogItemListEnvelope {
+  readonly data: ReadonlyArray<CatalogItem>;
+  readonly message?: string;
+  /** Siempre `true` en una respuesta de éxito. */
+  readonly success: boolean;
+}
 
 export type CategoryEnum = 'MAYORIA' | 'MENOS_DE_LA_MITAD';
 
@@ -641,6 +713,8 @@ export interface ErrorEnvelope {
   /** Siempre `false` en un error. */
   readonly success: boolean;
 }
+
+export type EvaluationStatusEnum = 'PENDIENTE' | 'APLICADA' | 'NO_APLICA';
 
 export type FormativeLevelEnum = 'EN_INICIO' | 'EN_PROCESO' | 'LOGRADO' | 'DESTACADO';
 
@@ -826,6 +900,8 @@ export interface InstructorAttemptItem {
   readonly caseVersionStatus: CaseVersionStatusEnum;
   /** Nulo mientras el intento está abierto. Hora local del servidor (America/Bogota), sin zona horaria. */
   readonly endedAt: string | null;
+  /** `APLICADA`: ya hay una valoración del docente concluida. `PENDIENTE`: el intento terminó, el caso se valora con una rúbrica y no hay valoración concluida (una guardada a medias sigue pendiente). `NO_APLICA`: el intento no terminó o el caso no tiene ninguna rúbrica. */
+  readonly evaluationStatus: EvaluationStatusEnum;
   /** Hora local del servidor (America/Bogota), sin zona horaria. */
   readonly startedAt: string;
   readonly status: AttemptStatusEnum;
@@ -956,6 +1032,30 @@ export interface PersonaState {
 export interface PlayerPosition {
   readonly x: number;
   readonly y: number;
+}
+
+/** Uno de los 20 intentos más recientes del alcance del docente (Inicio docente). Solo el alias del estudiante. */
+export interface RecentAttempt {
+  readonly attemptId: string;
+  readonly caseTitle: string;
+  readonly caseVersionId: number;
+  /** Nulo mientras el intento está abierto. Hora local del servidor (America/Bogota), sin zona horaria. */
+  readonly endedAt: string | null;
+  /** `APLICADA`: ya hay una valoración del docente concluida. `PENDIENTE`: el intento terminó, el caso se valora con una rúbrica y no hay valoración concluida (una guardada a medias sigue pendiente). `NO_APLICA`: el intento no terminó o el caso no tiene ninguna rúbrica. */
+  readonly evaluationStatus: EvaluationStatusEnum;
+  /** Hora local del servidor (America/Bogota), sin zona horaria. */
+  readonly startedAt: string;
+  readonly status: AttemptStatusEnum;
+  /** `Estudiante-<hash>`: el mismo en todas las vistas del docente. */
+  readonly studentAlias: string;
+}
+
+/** Sobre de éxito: `data` es una lista de `RecentAttempt`. */
+export interface RecentAttemptListEnvelope {
+  readonly data: ReadonlyArray<RecentAttempt>;
+  readonly message?: string;
+  /** Siempre `true` en una respuesta de éxito. */
+  readonly success: boolean;
 }
 
 export type ReflectionDefinitionEnum = 'ANY' | 'PER_DECISION_SCENE';

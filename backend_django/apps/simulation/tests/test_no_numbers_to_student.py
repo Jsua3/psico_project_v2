@@ -61,6 +61,7 @@ ALLOWED_NUMERIC_KEYS = {
     "available": "cuántas pistas trae la escena (hecho de la escena, no de la persona)",
     "decisionScenes": "cuántas escenas de decisión tiene el caso (estructura del caso)",
     "nodeCount": "cuántas escenas tiene el caso (estructura del caso)",
+    "escenas": "cuántas escenas tiene el caso, en la ficha y el catálogo (BK-1): estructura del caso, no una medida",
     "recommended": "cuántas respuestas hubo de cada clase: hecho, no puntaje (``counts`` del reporte v3)",
     "acceptable": "ídem: respuestas Aceptables registradas",
     "risky": "ídem: respuestas Con riesgo registradas",

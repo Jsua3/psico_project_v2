@@ -22,6 +22,7 @@ from shared.response import api_created, api_ok
 from ..casedef import import_
 from ..serializers import authoring as inputs
 from ..serializers.contracts import (
+    AuthoringCaseSummarySerializer,
     CaseConflictEnvelopeSerializer,
     CaseDefinitionSerializer,
     CaseImportedSerializer,
@@ -90,6 +91,7 @@ class _AuthoringView(APIView):
 
 # ─── Editor / publish / clone ────────────────────────────────────────────────
 class AdminCaseListCreateView(_AuthoringView):
+    @extend_schema(responses={200: envelope_of(AuthoringCaseSummarySerializer, many=True), **error_responses(401, 403)})
     def get(self, request):
         return api_ok(svc.list_authoring_cases(request.user))
 

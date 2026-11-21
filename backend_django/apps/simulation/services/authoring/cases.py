@@ -17,6 +17,7 @@ from apps.simulation.models import (
 )
 from apps.simulation.serializers import authoring as inputs
 from apps.simulation.serializers import game_dtos as dto
+from apps.simulation.services.case_brief import escenas_con_guion, presentacion_de_versiones
 from apps.simulation.services.text_rules import validate_plain_text
 from shared import policies
 from shared.exceptions import ApiError
@@ -45,11 +46,30 @@ def list_authoring_cases(actor):
         versions = versions.filter(simulation_case__created_by_id=actor.id)
     elif scope != policies.ALL:
         versions = versions.none()
+    versions = list(versions)
+    ids = [version.id for version in versions]
+    # BK-4 (aditivo): la tarjeta de la lista dice de qué caso es la versión, cuándo se editó, cuánto guion tiene y su
+    # portada. Todo en consultas por lote: la lista del ADMIN trae todas las versiones.
+    presentacion = presentacion_de_versiones(ids)
+    con_guion = escenas_con_guion(ids)
     result = []
     for version in versions:
-        node_count = SimulationNode.objects.filter(case_version_id=version.id).count()
-        result.append(dto.case_summary(version, node_count))
+        extra = presentacion[version.id]
+        result.append({
+            **dto.case_summary(version, extra["escenas"]),
+            "caseId": version.simulation_case_id,
+            "updatedAt": _editada_por_ultima_vez(version),
+            "escenasConGuion": con_guion[version.id],
+            "portada": extra["portada"],
+        })
     return result
+
+
+def _editada_por_ultima_vez(version):
+    """La fecha de la última edición: la que escribe cada avance de la revisión o, en lo editado antes de existir esa
+    columna, la publicación o la creación (lo último que se sabe con certeza)."""
+    stamp = version.updated_at or version.published_at or version.created_at
+    return stamp.isoformat() if stamp else None
 
 
 @transaction.atomic

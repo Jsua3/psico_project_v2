@@ -6,15 +6,15 @@
 
 ## Resumen
 
-Tablas: 44. Columnas: 389.
+Tablas: 44. Columnas: 391.
 
 | Clasificación | Columnas |
 |---|---:|
-| PUBLIC | 149 |
+| PUBLIC | 150 |
 | PERSONAL | 40 |
 | SENSITIVE | 50 |
 | SECRET | 2 |
-| TECHNICAL | 148 |
+| TECHNICAL | 149 |
 
 ## Tablas
 
@@ -318,6 +318,8 @@ Todas las columnas heredan `PUBLIC`: la tabla no tiene datos personales ni sensi
 | `rules` | PUBLIC | — |  |
 | `last_edited_by` | PERSONAL | ninguna (uso interno) | última persona que editó la versión |
 | `edited_alone_since` | TECHNICAL | — |  |
+| `content_warnings` | PUBLIC | — |  |
+| `updated_at` | TECHNICAL | — |  |
 
 
 ### `clinical_tools` — simulation.ClinicalTool

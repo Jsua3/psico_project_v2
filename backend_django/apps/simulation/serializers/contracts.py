@@ -20,6 +20,18 @@ ASSISTANT_STATUS_MODES = ("connected", "disabled")
 ASSISTANT_GUIDE_MODES = ("resaltar", "foco", "recorrido")
 HINT_REASONS = ("NONE_FOR_SCENE", "ALL_SHOWN")
 LIFECYCLE_ACTIONS = ("submit", "approve", "reject", "archive", "clone")
+#: El estado de la valoración del docente sobre un intento (BK-3; ``instructor_service.EVALUATION_STATUSES``).
+EVALUATION_STATUSES = ("PENDIENTE", "APLICADA", "NO_APLICA")
+EVALUATION_STATUS_HELP = (
+    "`APLICADA`: ya hay una valoración del docente concluida. `PENDIENTE`: el intento terminó, el caso se valora con "
+    "una rúbrica y no hay valoración concluida (una guardada a medias sigue pendiente). `NO_APLICA`: el intento no "
+    "terminó o el caso no tiene ninguna rúbrica."
+)
+#: Lo que dicen ``portada`` y ``escenas`` en el catálogo, la ficha y la lista de autoría (BK-1, BK-4).
+PORTADA_HELP = (
+    "URL del fondo de la sala donde empieza el caso, si es de imagen fija; nulo si la sala se arma por piezas, no tiene "
+    "fondo o el fondo no es una ruta permitida (la interfaz pinta su composición de respaldo)."
+)
 #: Quién respalda una casilla de la lista de publicación (``authoring/checklist.py``: ``SYSTEM``, ``CONSTANCIA``, ``AUTHOR``).
 CHECKLIST_BACKINGS = ("system", "constancia", "author")
 
@@ -90,6 +102,7 @@ class InstructorAttemptItemSerializer(serializers.Serializer):
     activeSeconds = serializers.IntegerField()
     startedAt = serializers.DateTimeField(help_text=LOCAL_TIME)
     endedAt = serializers.DateTimeField(allow_null=True, help_text=f"Nulo mientras el intento está abierto. {LOCAL_TIME}")
+    evaluationStatus = serializers.ChoiceField(choices=EVALUATION_STATUSES, help_text=EVALUATION_STATUS_HELP)
 
 
 class InstructorAttemptsListSerializer(serializers.Serializer):
@@ -99,6 +112,59 @@ class InstructorAttemptsListSerializer(serializers.Serializer):
     page = serializers.IntegerField()
     pageSize = serializers.IntegerField()
     coverage = PageCoverageSerializer()
+
+
+# ─── GET /api/instructor/attempts/recent ──────────────────────────────────────
+class RecentAttemptSerializer(serializers.Serializer):
+    """Uno de los 20 intentos más recientes del alcance del docente (Inicio docente). Solo el alias del estudiante."""
+
+    attemptId = serializers.UUIDField()
+    studentAlias = serializers.CharField(help_text="`Estudiante-<hash>`: el mismo en todas las vistas del docente.")
+    caseTitle = serializers.CharField()
+    status = serializers.ChoiceField(choices=AttemptStatus.choices)
+    startedAt = serializers.DateTimeField(help_text=LOCAL_TIME)
+    caseVersionId = serializers.IntegerField()
+    endedAt = serializers.DateTimeField(allow_null=True, help_text=f"Nulo mientras el intento está abierto. {LOCAL_TIME}")
+    evaluationStatus = serializers.ChoiceField(choices=EVALUATION_STATUSES, help_text=EVALUATION_STATUS_HELP)
+
+
+# ─── GET /api/simulation/catalog ──────────────────────────────────────────────
+class CatalogItemSerializer(serializers.Serializer):
+    """Un caso del catálogo del actor, en el orden de su secuencia, con su decisión de acceso."""
+
+    caseVersionId = serializers.IntegerField()
+    code = serializers.CharField()
+    title = serializers.CharField()
+    description = serializers.CharField(allow_null=True, help_text="Puede venir vacío o nulo.")
+    order = serializers.IntegerField()
+    unlocked = serializers.BooleanField()
+    completed = serializers.BooleanField()
+    locked = serializers.BooleanField()
+    access = AccessDecisionSerializer()
+    portada = serializers.CharField(allow_null=True, help_text=PORTADA_HELP)
+    escenas = serializers.IntegerField(help_text="Cuántas escenas tiene el caso.")
+
+
+# ─── GET /api/{admin,authoring}/cases ─────────────────────────────────────────
+class AuthoringCaseSummarySerializer(serializers.Serializer):
+    """Una versión de caso en la lista de autoría: las propias del docente o todas para el ADMIN."""
+
+    caseVersionId = serializers.IntegerField()
+    code = serializers.CharField()
+    title = serializers.CharField()
+    description = serializers.CharField(allow_null=True, help_text="Puede venir vacío o nulo.")
+    semanticVersion = serializers.CharField()
+    nodeCount = serializers.IntegerField(help_text="Cuántas escenas tiene la versión.")
+    status = serializers.ChoiceField(choices=CaseVersionStatus.choices)
+    caseId = serializers.IntegerField(help_text="El caso al que pertenece la versión: agrupa las versiones de un caso.")
+    updatedAt = serializers.DateTimeField(
+        allow_null=True,
+        help_text=f"La última edición; en lo editado antes de registrarla, la publicación o la creación. {LOCAL_TIME}",
+    )
+    escenasConGuion = serializers.IntegerField(
+        help_text="Escenas con narración y, si no son un final, al menos una respuesta."
+    )
+    portada = serializers.CharField(allow_null=True, help_text=PORTADA_HELP)
 
 
 # ─── POST /api/simulation/ai-assistant (RF-027) ───────────────────────────────
@@ -228,6 +294,13 @@ class BriefCharacterSerializer(serializers.Serializer):
     portraitKey = serializers.CharField(help_text="Puede venir vacío.")
 
 
+class BriefStartSerializer(serializers.Serializer):
+    """Dónde empieza el caso: el título de la escena de inicio y el de su sala."""
+
+    escena = serializers.CharField()
+    lugar = serializers.CharField(help_text="Vacío si la escena de inicio no tiene sala.")
+
+
 class CaseBriefSerializer(serializers.Serializer):
     """La ficha del caso: lo que el estudiante lee antes de jugar. No crea intento."""
 
@@ -238,6 +311,15 @@ class CaseBriefSerializer(serializers.Serializer):
     learningObjectives = serializers.ListField(child=serializers.CharField())
     hasSensitiveContent = serializers.BooleanField()
     access = AccessDecisionSerializer()
+    escenas = serializers.IntegerField(help_text="Cuántas escenas tiene el caso.")
+    inicio = BriefStartSerializer(allow_null=True, help_text="Nulo si el caso no tiene escena de inicio.")
+    portada = serializers.CharField(allow_null=True, help_text=PORTADA_HELP)
+    temasSensibles = serializers.ListField(
+        child=serializers.CharField(), help_text="Los temas sensibles que declara el caso; vacía si no declara ninguno."
+    )
+    conRubrica = serializers.BooleanField(
+        help_text="Si el recorrido se valora con una rúbrica (asignada, propia de la versión o la predeterminada)."
+    )
 
 
 # ─── GET /api/simulation/attempts/{id}/hints  (C9) ────────────────────────────

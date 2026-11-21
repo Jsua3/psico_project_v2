@@ -12,6 +12,7 @@ objeto, decisión, herramienta o diálogo solo se admite si es de la versión qu
 """
 from django.conf import settings
 from django.db.models import BigIntegerField, Case, F, When
+from django.utils import timezone
 from rest_framework import status
 from rest_framework.exceptions import NotFound, ValidationError
 
@@ -161,6 +162,9 @@ def revision_bump(actor_id=None):
         actor_id = current_actor_id()
     return {
         "version": F("version") + 1,
+        # BK-4: cada avance de la revisión es una edición; la lista de autoría dice «Editado hace…» con esto. La hora
+        # es la local del servidor (``USE_TZ = False``), igual que los demás ``auto_now``.
+        "updated_at": timezone.now(),
         "edited_alone_since": Case(
             When(last_edited_by_id=actor_id, then=F("edited_alone_since")),
             default=F("version"),

@@ -11,6 +11,7 @@ from shared.response import api_created, api_ok
 from apps.simulation.serializers.contracts import (
     AttemptStateSerializer,
     CaseBriefSerializer,
+    CatalogItemSerializer,
     HintStateSerializer,
     SurveyRequestSerializer,
     SurveyStateSerializer,
@@ -351,6 +352,7 @@ class EnterRoomView(APIView):
 class CatalogView(APIView):
     permission_classes = [policy_permission("catalog", "read")]
 
+    @extend_schema(responses={200: envelope_of(CatalogItemSerializer, many=True), **error_responses(401)})
     def get(self, request):
         from apps.progression.catalog import build_catalog
         return api_ok(build_catalog(request.user))
