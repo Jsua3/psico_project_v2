@@ -2,6 +2,7 @@ import { Component, provideZonelessChangeDetection } from '@angular/core';
 import { TestBed } from '@angular/core/testing';
 import { provideRouter } from '@angular/router';
 
+import { TemaService } from '../../core/tema/tema.service';
 import { UiDialog } from '../ui/dialog/ui-dialog';
 import { PUBLIC_ANCHORS, PublicBarComponent } from './public-bar.component';
 
@@ -111,17 +112,17 @@ describe('app-public-bar', () => {
     const fixture = TestBed.createComponent(LandingHost);
     await fixture.whenStable();
     const header = (fixture.nativeElement as HTMLElement).querySelector('header.cromo')!;
-    expect(header.querySelector('.modulo-cuenta button.tema')).toBeNull();
+    expect(header.querySelector('.modulo-cuenta .tema')).toBeNull();
     const principal = header.querySelector('.modulo-principal')!;
     expect(principal.classList.contains('con-tema')).toBe(true);
     const ultimos = [...principal.children].slice(-2);
     expect(ultimos[0].classList.contains('filete-tema')).toBe(true);
     expect(ultimos[0].getAttribute('aria-hidden')).toBe('true');
-    expect(ultimos[1].matches('button.tema')).toBe(true);
-    expect(ultimos[1].getAttribute('aria-label')).toMatch(/^Tema: /);
-    // En la portada el orden de tabulación es: logo, destinos, tema, «Ingresar aquí».
-    const orden = [...header.querySelectorAll<HTMLElement>('nav.bandeja a, nav.bandeja button')];
-    expect(orden.at(-2)!.matches('button.tema')).toBe(true);
+    expect(ultimos[1].matches('app-tema-selector.tema')).toBe(true);
+    expect(ultimos[1].querySelector('[role="radiogroup"]')!.getAttribute('aria-label')).toBe('Tema de la página');
+    // En la portada el orden de tabulación es: logo, destinos, tema (solo la opción elegida entra con Tab), «Ingresar aquí».
+    const orden = [...header.querySelectorAll<HTMLElement>('nav.bandeja a, nav.bandeja button')].filter(el => el.tabIndex !== -1);
+    expect(orden.at(-2)!.closest('app-tema-selector')).not.toBeNull();
     expect(orden.at(-1)!.matches('a.cta-modulo')).toBe(true);
   });
 
@@ -132,8 +133,8 @@ describe('app-public-bar', () => {
     expect(header.querySelector('.cta-modulo')).toBeNull();
     expect(header.querySelector('a[href="/login"]')).toBeNull();
     expect(header.querySelector('.modulo-principal')!.classList.contains('con-tema')).toBe(false);
-    expect(header.querySelector('.modulo-principal button.tema')).toBeNull();
-    expect(header.querySelector('div.modulo-cuenta > button.tema')).not.toBeNull();
+    expect(header.querySelector('.modulo-principal .tema')).toBeNull();
+    expect(header.querySelector('div.modulo-cuenta > app-tema-selector.tema')).not.toBeNull();
   });
 
   it('Roles y Ética se pliegan en «scroll» y el indicador ··· es decorativo', async () => {
@@ -151,16 +152,19 @@ describe('app-public-bar', () => {
     expect((fixture.nativeElement as HTMLElement).querySelector('header.cromo [style]')).toBeNull();
   });
 
-  it('el botón de tema dice el modo actual y pasa de sistema a claro a oscuro', async () => {
+  it('el tema se elige en una cápsula Claro · Oscuro · Automático (pedido del usuario, 2026-11-20)', async () => {
+    TestBed.inject(TemaService).fijar('sistema');
     const fixture = TestBed.createComponent(LoginHost);
     await fixture.whenStable();
-    const boton = () => (fixture.nativeElement as HTMLElement).querySelector<HTMLButtonElement>('.modulo-cuenta button.tema')!;
-    const nombres: string[] = [];
-    for (let i = 0; i < 3; i++) {
-      nombres.push(boton().getAttribute('aria-label')!);
-      boton().click();
-      await fixture.whenStable();
-    }
-    expect(nombres.map(n => n.split('.')[0])).toEqual(['Tema: según el sistema', 'Tema: claro', 'Tema: oscuro']);
+    const radios = () => [...(fixture.nativeElement as HTMLElement).querySelectorAll<HTMLButtonElement>('.modulo-cuenta app-tema-selector [role="radio"]')];
+    expect(radios().map(r => r.getAttribute('aria-label'))).toEqual(['Claro', 'Oscuro', 'Automático']);
+    expect(radios().map(r => r.getAttribute('aria-checked'))).toEqual(['false', 'false', 'true']);
+    // Plegada, el primer toque abre; abierta, el toque elige.
+    radios()[0].click();
+    await fixture.whenStable();
+    radios()[0].click();
+    await fixture.whenStable();
+    expect(radios().map(r => r.getAttribute('aria-checked'))).toEqual(['true', 'false', 'false']);
+    TestBed.inject(TemaService).fijar('sistema');
   });
 });

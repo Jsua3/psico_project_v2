@@ -3,8 +3,7 @@ import {
 } from '@angular/core';
 import { RouterLink } from '@angular/router';
 
-import { TemaService } from '../../core/tema/tema.service';
-import { UiIconButton } from '../ui/button/ui-icon-button';
+import { TemaSelectorComponent } from '../ui/tema/tema-selector.component';
 import { UiGlassBar } from '../ui/glass-bar/ui-glass-bar';
 import { MarcaComponent } from '../ui/marca/marca.component';
 import { BottomTab, BottomTabsComponent } from './bottom-tabs.component';
@@ -27,7 +26,7 @@ export const PUBLIC_ANCHORS: readonly PublicAnchor[] = [
  */
 @Component({
   selector: 'app-public-bar',
-  imports: [RouterLink, BottomTabsComponent, MarcaComponent, UiGlassBar, UiIconButton],
+  imports: [RouterLink, BottomTabsComponent, MarcaComponent, UiGlassBar, TemaSelectorComponent],
   // DESVÍO de la receta pedido por el usuario (2026-11-20): el logo NO cede al isotipo al hacer scroll; la marca completa
   // se queda siempre (más visible como botón de regreso al inicio).
   styles: `
@@ -57,7 +56,7 @@ export const PUBLIC_ANCHORS: readonly PublicAnchor[] = [
         }
         @if (mode() === 'portada') {
           <span class="filete-tema" aria-hidden="true"></span>
-          <button ui-icon-button class="tema" [icon]="iconoTema()" [label]="nombreTema()" (click)="tema.siguiente()"></button>
+          <app-tema-selector class="tema" />
         }
       </div>
       @if (mode() === 'portada') {
@@ -68,7 +67,7 @@ export const PUBLIC_ANCHORS: readonly PublicAnchor[] = [
         </a>
       } @else {
         <div class="modulo modulo-cuenta ds-motion">
-          <button ui-icon-button class="tema" [icon]="iconoTema()" [label]="nombreTema()" (click)="tema.siguiente()"></button>
+          <app-tema-selector class="tema" />
           <a class="nav-enlace ds-motion" routerLink="/">Volver al inicio</a>
         </div>
       }
@@ -110,17 +109,4 @@ export class PublicBarComponent {
     return anchor.id === 'roles' || anchor.id === 'etica';
   }
 
-  protected readonly tema = inject(TemaService);
-  // Nombres sueltos con «icon» para que scripts/ui/icon-names.mjs los meta en el subconjunto de la fuente de iconos.
-  private readonly iconSistema = 'brightness_auto';
-  private readonly iconClaro = 'light_mode';
-  private readonly iconOscuro = 'dark_mode';
-  protected readonly iconoTema = computed(() =>
-    ({ sistema: this.iconSistema, claro: this.iconClaro, oscuro: this.iconOscuro })[this.tema.preferencia()]);
-  /** El nombre dice el estado actual y qué hace el clic (el botón cicla: sistema → claro → oscuro). */
-  protected readonly nombreTema = computed(() => ({
-    sistema: 'Tema: según el sistema. Cambiar a claro',
-    claro: 'Tema: claro. Cambiar a oscuro',
-    oscuro: 'Tema: oscuro. Volver a seguir el sistema',
-  })[this.tema.preferencia()]);
 }
