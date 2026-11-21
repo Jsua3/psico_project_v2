@@ -174,6 +174,7 @@ export class LandingComponent {
       const pasos = [...host.querySelectorAll<HTMLElement>('.landing-relato__paso')];
       if (typeof IntersectionObserver !== 'function') {
         this.cargarVideos.set(true);
+        this.relatoVisible.set(true);
         return;
       }
       const cerca = new IntersectionObserver(entradas => {
@@ -197,44 +198,158 @@ export class LandingComponent {
       });
       relato.forEach(r => visible.observe(r));
 
-      // Modo ambiente: copia el cuadro del clip activo a un lienzo de 48 × 27 cada 120 ms (el desenfoque lo pone CSS).
-      // Con el clip quieto basta un cuadro; fuera de la vista no se pinta nada.
-      const pintar = () => {
-        const lienzo = host.querySelector<HTMLCanvasElement>('.landing-relato__ambiente');
-        const video = host.querySelectorAll<HTMLVideoElement>('.landing-relato__capa video')[this.paso()];
-        const ctx = lienzo?.getContext?.('2d');
-        if (!ctx || !video || video.readyState < 2) return;
-        try {
-          ctx.drawImage(video, 0, 0, lienzo!.width, lienzo!.height);
-        } catch {
-          // Un cuadro que aún no se puede leer: se intenta en el siguiente.
-        }
-      };
-      const reloj = setInterval(() => {
-        if (this.relatoVisible() && this.cargarVideos()) pintar();
-      }, 120);
+      const lienzo = host.querySelector<HTMLCanvasElement>('.landing-relato__ambiente');
+      const ctx = typeof requestAnimationFrame === 'function' ? lienzo?.getContext?.('2d') : null;
+      if (lienzo && ctx) {
+        this.ambiente = this.crearAmbiente(host, lienzo, ctx);
+        this.ambiente.correr();
+      }
 
-      destroyRef.onDestroy(() => { cerca.disconnect(); centro.disconnect(); visible.disconnect(); clearInterval(reloj); });
+      destroyRef.onDestroy(() => {
+        cerca.disconnect();
+        centro.disconnect();
+        visible.disconnect();
+        this.ambiente?.parar();
+        this.ambiente = undefined;
+      });
     };
 
-    // Solo corre el clip del paso activo; los demás quedan quietos en su primer cuadro. Va después del render: los
-    // <video> nacen cuando cargarVideos pasa a true, y se buscan en el DOM ya pintado.
+    // Solo corre el clip del paso activo, y solo con el relato en pantalla; los demás quedan quietos. Va después del
+    // render: los <video> nacen cuando cargarVideos pasa a true, y se buscan en el DOM ya pintado. Al final, el modo
+    // ambiente se ajusta al nuevo estado (otro clip, pausa o fuera de la vista).
     afterRenderEffect(() => {
       const activo = this.paso();
       const pausados = this.videosPausados();
+      const enVista = this.relatoVisible();
       if (!this.cargarVideos()) return;
       host.querySelectorAll<HTMLVideoElement>('.landing-relato__capa video').forEach((video, i) => {
-        if (i === activo && !pausados) {
+        // Silenciado por propiedad: Angular crea el <video> desde código y el atributo `muted` no activa la propiedad, así
+        // que Chrome y Brave bloqueaban el play() automático (en el navegador sin interfaz de las pruebas no se veía).
+        video.muted = true;
+        video.defaultMuted = true;
+        if (i === activo && !pausados && enVista) {
           video.play?.()?.catch(() => undefined);
         } else {
           video.pause?.();
         }
       });
+      this.ambiente?.correr();
     });
+  }
+
+  /** Pintor del modo ambiente (solo en un navegador con lienzo; en jsdom no existe). */
+  private ambiente?: { correr: () => void; parar: () => void };
+
+  /**
+   * Modo ambiente: copia el cuadro del clip activo a un lienzo de dos tercios del ancho de la vista (entre 640 y 1280 px,
+   * el tamaño del clip, en 16:9) para que el fondo se reconozca y solo se suavice: a un tercio, el navegador lo estiraba
+   * más del triple y la interpolación lo deshacía en manchas aunque el filtro solo desenfocara unos pocos píxeles. Pinta a la cadencia del video (requestVideoFrameCallback,
+   * que además calla cuando el clip no avanza; si no existe, requestAnimationFrame a ~30 fps). Con los clips en pausa o
+   * movimiento reducido pinta un solo cuadro por cambio de paso: el del video si ya lo tiene, si no su póster. Fuera de
+   * la vista no hace nada. Solo escribe en el lienzo (sin leer el diseño), así que no provoca reflujos por cuadro.
+   */
+  private crearAmbiente(host: HTMLElement, lienzo: HTMLCanvasElement, ctx: CanvasRenderingContext2D) {
+    const posters = new Map<string, HTMLImageElement>();
+    let raf = 0;
+    let rvfc = 0;
+    let conRvfc: HTMLVideoElement | null = null;
+    let ultimo = 0;
+
+    const clipActivo = () => host.querySelectorAll<HTMLVideoElement>('.landing-relato__capa video')[this.paso()];
+    const activo = () => this.relatoVisible() && this.cargarVideos();
+
+    const poster = (video: HTMLVideoElement) => {
+      const src = video.poster;
+      if (!src) return null;
+      let img = posters.get(src);
+      if (!img) {
+        img = new Image();
+        img.decoding = 'async';
+        // El póster llega después del primer intento: se pinta en cuanto está, si su clip sigue siendo el del fondo.
+        img.onload = () => { if (activo() && clipActivo()?.poster === src) pintar(); };
+        img.src = src;
+        posters.set(src, img);
+      }
+      return img.complete && img.naturalWidth ? img : null;
+    };
+
+    const pintar = () => {
+      const video = clipActivo();
+      if (!video) return;
+      // Un clip que nunca ha corrido (pausa o movimiento reducido) no siempre entrega su primer cuadro al lienzo: Chrome
+      // lo deja en blanco hasta reproducirlo. Ahí va el póster, que es ese mismo cuadro.
+      const sinCorrer = video.paused && video.played.length === 0;
+      const fuente = (sinCorrer && poster(video)) || (video.readyState >= 2 ? video : null);
+      if (!fuente) return;
+      try {
+        ctx.drawImage(fuente, 0, 0, lienzo.width, lienzo.height);
+      } catch {
+        // Un cuadro que aún no se puede leer: se intenta en el siguiente.
+      }
+    };
+
+    const medir = () => {
+      const ancho = Math.round(Math.min(1280, Math.max(640, innerWidth * 2 / 3)));
+      if (lienzo.width === ancho) return;
+      // Cambiar el tamaño borra el lienzo: se repinta en seguida.
+      lienzo.width = ancho;
+      lienzo.height = Math.round(ancho * 9 / 16);
+      ctx.imageSmoothingQuality = 'high';
+      if (activo()) pintar();
+    };
+    // Reducir el pixel art de 1280 px a otra escala deja muaré si se toma el vecino más cercano: el suavizado alto lo evita.
+    ctx.imageSmoothingQuality = 'high';
+
+    const parar = () => {
+      if (raf) cancelAnimationFrame(raf);
+      if (rvfc && conRvfc) conRvfc.cancelVideoFrameCallback(rvfc);
+      raf = rvfc = 0;
+      conRvfc = null;
+    };
+
+    const correr = () => {
+      parar();
+      if (!activo()) return;
+      pintar();
+      const video = clipActivo();
+      if (this.videosPausados() || !video) return;
+      if (typeof video.requestVideoFrameCallback === 'function') {
+        const alCuadro = () => { pintar(); rvfc = video.requestVideoFrameCallback(alCuadro); };
+        conRvfc = video;
+        rvfc = video.requestVideoFrameCallback(alCuadro);
+      } else {
+        const alCuadro = (t: number) => {
+          if (t - ultimo >= 32) { ultimo = t; pintar(); }
+          raf = requestAnimationFrame(alCuadro);
+        };
+        raf = requestAnimationFrame(alCuadro);
+      }
+    };
+
+    medir();
+    addEventListener('resize', medir, { passive: true });
+    return {
+      correr,
+      parar: () => { parar(); removeEventListener('resize', medir); },
+    };
   }
 
   alternarVideos(): void {
     this.videosPausados.update(v => !v);
+  }
+
+  /**
+   * Un formato que el navegador eligió pero no logra decodificar deja el clip quieto en su primer cuadro sin pasar a la
+   * fuente siguiente (eso solo lo hace con formatos que ni intenta). Aquí se pasa a mano, una vez por fuente.
+   */
+  alFallarClip(ev: Event, i: number): void {
+    const video = ev.target as HTMLVideoElement;
+    const fuentes = [...video.querySelectorAll('source')].map(s => s.src);
+    const siguiente = fuentes[fuentes.indexOf(video.currentSrc) + 1];
+    if (!siguiente) return;
+    video.src = siguiente;
+    video.load();
+    if (i === this.paso() && !this.videosPausados()) video.play?.()?.catch(() => undefined);
   }
 
   readonly roles: RoleCard[] = [

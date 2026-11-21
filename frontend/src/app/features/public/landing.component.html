@@ -110,10 +110,13 @@
     </section>
 
     <section id="como-funciona" class="landing-section landing-relato" aria-labelledby="como-funciona-title" #relato>
-      <!-- Modo ambiente a pantalla completa: el cuadro actual del clip, en pequeño y muy desenfocado, fijo a la vista
-           detrás de todo el apartado mientras se recorre. Decorativo. -->
+      <!-- Modo ambiente a pantalla completa: el cuadro actual del clip, apenas suavizado y mate, fijo a la vista detrás
+           del apartado mientras se recorre. Tapa el fondo de objetos (app-doodles) y se disuelve en él por los bordes.
+           El tamaño del lienzo lo ajusta el componente a la vista. Decorativo. -->
       <div class="landing-relato__fondo" aria-hidden="true">
-        <canvas class="landing-relato__ambiente" width="48" height="27"></canvas>
+        <div class="landing-relato__vista">
+          <canvas class="landing-relato__ambiente" width="480" height="270"></canvas>
+        </div>
       </div>
       <div class="landing-wrap">
         <div class="landing-section__head landing-section__head--center">
@@ -134,10 +137,12 @@
               @for (s of workflow; track s.step; let i = $index) {
                 <div class="landing-relato__capa" [class.is-activa]="paso() === i">
                   @if (cargarVideos()) {
-                    <video #clip muted loop playsinline preload="metadata" disablepictureinpicture
-                      [attr.poster]="'/assets/landing/video/' + s.video + '.webp'">
-                      <source [attr.src]="'/assets/landing/video/' + s.video + '.webm'" type="video/webm" />
+                    <!-- H.264 primero: el VP9 falla al decodificar tras el primer cuadro en algunas GPU (Chrome 156) y el
+                         navegador no pasa solo a la otra fuente; alFallarClip cubre ese caso con cualquier formato. -->
+                    <video #clip muted [muted]="true" loop playsinline preload="metadata" disablepictureinpicture
+                      [attr.poster]="'/assets/landing/video/' + s.video + '.webp'" (error)="alFallarClip($event, i)">
                       <source [attr.src]="'/assets/landing/video/' + s.video + '.mp4'" type="video/mp4" />
+                      <source [attr.src]="'/assets/landing/video/' + s.video + '.webm'" type="video/webm" />
                     </video>
                   }
                 </div>

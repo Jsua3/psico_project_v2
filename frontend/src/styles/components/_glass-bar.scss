@@ -753,77 +753,353 @@ $corte-tope: 82.499rem;
   }
 }
 
-// 10. LA LLAMADA A LA ACCIÓN DEL MÓDULO DE CUENTA (`.cta-vivo` de la gemela, §9 de material.md): una ficha compacta
-// de esquina 0.5rem dentro de la cápsula, con el área pulsable de 44 px por el ::after. DESVÍOS (decididos): el relleno
-// sólido chocaba con el vidrio (pedido del usuario, 2026-11-20), así que la ficha es TINTADA, como un control de la
-// propia cápsula: tinte del acento al 16 %, filo fino del mismo tono y texto en la tinta del acento; al pasar el cursor el
-// tinte sube y al pulsar se hunde. Sin backdrop-filter al pulsar: el presupuesto de vidrio del ui-lint no lo admite.
-:where(.cromo) .cta-vivo {
-  --_cta: var(--l-acento, var(--ds-primary));
+// 10. LA BARRA PÚBLICA (portada, acceso y 404; `header.barra-publica`). Todo acotado a .barra-publica: la barra del
+// editor y el banco /dev/barra no cambian. Pedido del usuario (2026-11-20): «Ingresar» no es una ficha dentro del
+// módulo de cuenta: el módulo ENTERO es la llamada a la acción, una cápsula violeta que es el enlace; al acercar el
+// cursor se amplía y dice «Ingresar aquí». El botón de tema sale de ese módulo (al principal, tras un filete).
 
-  position: relative;
-  isolation: isolate;
-  display: inline-flex;
+// Tokens de la llamada a la acción. Violeta de marca (--l-acento: #5B3FD1 en la piel clara) con tinta blanca (la
+// «sobre primario» de esa piel): ≥ 4,5:1 sobre el violeta al 88 % encima del peor fondo (contrast.contract.spec.ts).
+// Al 88 % el vidrio del módulo aún se transparenta.
+.barra-publica {
+  --cta-fondo: var(--l-acento, var(--ds-accent-sim));
+  --cta-tinta: var(--ds-on-primary);
+  --cta-presencia: 88%;
+  // Hacia dónde se va el violeta al posarse y al pulsar: siempre más oscuro, lejos de la tinta blanca (sube el contraste).
+  --cta-oscuro: var(--ds-text-1);
+  --cta-fondo-fuerte: color-mix(in oklab, var(--cta-fondo) 84%, var(--cta-oscuro));
+  --cta-velo: color-mix(in oklab, var(--cta-fondo) var(--cta-presencia), transparent);
+  --cta-velo-fuerte: color-mix(in oklab, var(--cta-fondo-fuerte) var(--cta-presencia), transparent);
+  --cta-canto: color-mix(in oklab, var(--cta-fondo-fuerte) 70%, transparent);
+  --cta-filo: color-mix(in oklab, white 30%, transparent);
+  --cta-halo: color-mix(in oklab, var(--cta-fondo) 60%, transparent);
+  // Cuánto crece al ampliarse: el ancho de « aquí →». public-bar.component.ts lo mide con la fuente real y lo escribe en
+  // el módulo; este respaldo es esa medida en em (Poppins 600 a 14 px, 2026-11-20).
+  --cta-crece: 3.9em;
+  // Movimiento que el movimiento reducido anula (invariante 12: el reloj se queda).
+  --cta-escala: 1.035;
+  --cta-escala-pulsada: 0.97;
+  --cta-empuje-flecha: -0.3125rem;
+}
+
+// Piel oscura. El violeta de marca de esa piel es la lavanda #B69CFF, que con texto oscuro se leía como «lila claro» y no
+// como el morado del módulo (revisión 2026-11-20; el arnés lo marcaba como velo claro, M14). Aquí el módulo es el MISMO
+// morado profundo con tinta blanca que en la piel clara: el tono sale del token (h de --l-acento) y solo bajan la luz y
+// sube el croma (oklch 0,52 / 0,2 ≈ #7544CD, dentro de sRGB): blanco 6,0:1 sobre él, 4,7:1 al 88 % sobre blanco y
+// 7,3:1 sobre negro. Al posarse se oscurece hacia el fondo de la piel. Sin sintaxis de color relativo queda la lavanda
+// con tinta oscura de la piel, que también pasa AA.
+@supports (color: oklch(from red l c h)) {
+  .publico[data-skin='game'] .barra-publica {
+    --cta-fondo: oklch(from var(--l-acento, var(--ds-accent-sim)) 0.52 0.2 h);
+    --cta-tinta: white;
+    --cta-oscuro: var(--ds-surface-page);
+  }
+}
+
+@media (prefers-reduced-transparency: reduce) {
+  .barra-publica {
+    --cta-presencia: 100%;
+  }
+}
+
+@media (prefers-contrast: more) {
+  .barra-publica {
+    --cta-presencia: 100%;
+    --cta-canto: var(--ds-text-1);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .barra-publica {
+    --cta-escala: 1;
+    --cta-escala-pulsada: 1;
+    --cta-empuje-flecha: 0rem;
+  }
+}
+
+// 10.1 El módulo «Ingresar». Un solo portador de transition (invariante 13): esta lista reemplaza la de .modulo y nombra
+// todo lo que el módulo anima; :active solo acorta la escala (acuse en 100 ms; vuelve con el resorte de la lista base).
+@mixin cta-transicion($escala: var(--duracion-estado)) {
+  transition:
+    background-color var(--duracion-entrada) var(--ease-color),
+    border-color var(--duracion-entrada) var(--ease-color),
+    box-shadow var(--duracion-entrada) var(--ease-color),
+    translate var(--duracion-estado) var(--ease-rebote-suave),
+    margin var(--duracion-estado) var(--ease-rebote-suave),
+    padding var(--duracion-estado) var(--ease-rebote-suave),
+    scale $escala var(--ease-rebote-vivo);
+}
+
+.cromo.barra-publica .cta-modulo {
+  display: flex;
   align-items: center;
-  gap: 0.375rem;
-  padding: 0.375rem 0.875rem;
-  border-radius: 0.5rem;
-  color: var(--l-acento-tinta, var(--ds-primary));
+  gap: 0;
+  min-height: var(--ds-target-min);
+  margin-inline: 0;
+  padding-inline: 1.125rem;
+  color: var(--cta-tinta);
   font-size: var(--ds-type-body-s-size);
   font-weight: 600;
   line-height: var(--ds-type-body-s-line);
   letter-spacing: 0.005em;
   text-decoration: none;
   white-space: nowrap;
-  transition: transform var(--duracion-instante) var(--ease-out);
+  // Crece hacia la izquierda: la escala también se ancla al canto derecho.
+  transform-origin: right center;
+  -webkit-tap-highlight-color: transparent;
+  @include cta-transicion;
 }
 
-:where(.cromo) .cta-vivo::before {
-  content: '';
-  pointer-events: none;
-  position: absolute;
-  inset: 0;
-  z-index: -1;
-  border-radius: inherit;
-  background-color: color-mix(in oklab, var(--_cta) 16%, transparent);
-  box-shadow: inset 0 0 0 1px color-mix(in oklab, var(--_cta) 34%, transparent);
+// El violeta es la capa del propio módulo (su ::before): en «inicial» tiñe el interior de la píldora, sin vidrio propio
+// (el desenfoque es solo de la píldora); en «scroll» y «atención» tiñe el vidrio del módulo. backdrop-filter no se toca
+// aquí: cambia de dueño como en el resto de la barra (invariante 4). Gana a la regla de los dueños de vidrio por orden.
+.cromo.barra-publica[data-vidrio='pseudo'] .modulo.cta-modulo::before {
+  border-color: var(--cta-canto);
+  background-color: var(--cta-velo);
+  box-shadow:
+    inset 0 1px 0 var(--cta-filo),
+    0 8px 20px -10px var(--cta-halo);
+}
+
+// En la píldora el módulo es el REMATE morado de la píldora, no una cápsula suelta dentro de ella (revisión 2026-11-20:
+// con 8 px de aire alrededor se leía como la ficha rechazada). Se estira sobre la fila y se come el relleno de la
+// píldora (0,5rem arriba y abajo, 0,75rem a la derecha): su capa coincide con el extremo derecho de la píldora y el
+// violeta llega a su borde. En «scroll» vuelve a ser una cápsula de 44 px como las otras dos; los márgenes viajan con
+// el resorte suave (el estiramiento recalcula el alto en cada fotograma). Sin escala aquí: asomaría 1 px por fuera de la
+// píldora; se amplía con el ancho.
+@media (min-width: 64rem) {
+  .cromo.barra-publica .cta-modulo {
+    align-self: stretch;
+    margin-block: 0.0625rem;
+  }
+
+  .cromo.barra-publica[data-estado='inicial'] .cta-modulo {
+    --cta-escala: 1;
+    margin-block: -0.5rem;
+    margin-inline-end: -0.75rem;
+    padding-inline: 1.5rem;
+  }
+}
+
+// Lo que aparece al ampliarse: « aquí →», a ancho 0 y recortado en reposo (sigue en el DOM: el nombre accesible es
+// siempre «Ingresar aquí», y contiene lo visible). Al plegar, el texto se va en 100 ms, antes de que el ancho lo corte.
+.cromo.barra-publica .cta-modulo__mas {
+  display: inline-flex;
+  width: 0;
+  overflow: clip;
+  opacity: 0;
   transition:
-    background-color var(--duracion-boton) var(--ease-color),
-    box-shadow var(--duracion-boton) var(--ease-color);
+    width var(--duracion-estado) var(--ease-rebote-suave),
+    opacity var(--duracion-instante) var(--ease-color);
 }
 
-// Área pulsable de 33,7 + 12 = 45,7 px sin agrandar el dibujo.
-:where(.cromo) .cta-vivo::after {
-  content: '';
+.cromo.barra-publica .cta-modulo__mas-dentro {
+  display: inline-flex;
+  flex: none;
+  align-items: center;
+}
+
+.cromo.barra-publica .cta-modulo__flecha {
+  flex: none;
+  width: 0.875rem;
+  height: 0.875rem;
+  margin-inline-start: 0.375rem;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.75;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  translate: var(--cta-empuje-flecha) 0;
+  transition: translate var(--duracion-estado) var(--ease-rebote-vivo);
+}
+
+// Área de reacción algo mayor que el dibujo (solo con ratón): el cursor que se acerca lo amplía un poco antes. Por la
+// izquierda no pasa de 0,75rem, la separación mínima entre módulos: no tapa ningún otro control. Por la derecha no
+// sobresale (no hay nada a ese lado, y no debe agrandar el desbordamiento del enlace).
+.cromo.barra-publica .cta-modulo > .cta-modulo__alcance {
+  display: none;
   position: absolute;
-  inset-inline: 0;
-  inset-block: -0.375rem;
+  inset: -0.5rem 0 -0.5rem -0.75rem;
+  z-index: var(--ds-z-base);
+  border-radius: inherit;
+}
+
+// La ampliación: el ancho crece con el resorte suave y el módulo devuelve ese mismo ancho con margen negativo (misma
+// curva y duración), así que su huella en la rejilla no cambia: crece hacia la izquierda sin empujar a nadie. Lo que
+// aparece entra con fundido (retrasado 100 ms, cuando ya hay sitio) y la flecha con el resorte vivo.
+@mixin cta-amplio {
+  scale: var(--cta-escala);
+
+  &::before {
+    background-color: var(--cta-velo-fuerte);
+  }
+
+  .cta-modulo__mas {
+    width: var(--cta-crece);
+    opacity: 1;
+    transition:
+      width var(--duracion-estado) var(--ease-rebote-suave),
+      opacity var(--duracion-entrada) var(--ease-color) var(--duracion-instante);
+  }
+
+  .cta-modulo__flecha {
+    translate: 0 0;
+  }
+}
+
+@media (min-width: 64rem) {
+  .cromo.barra-publica[data-vidrio='pseudo'] .modulo.cta-modulo:focus-visible {
+    margin-inline-start: calc(-1 * var(--cta-crece));
+  }
+}
+
+.cromo.barra-publica[data-vidrio='pseudo'] .modulo.cta-modulo:focus-visible {
+  @include cta-amplio;
 }
 
 @media (hover: hover) and (pointer: fine) {
-  :where(.cromo) .cta-vivo:hover::before {
-    background-color: color-mix(in oklab, var(--_cta) 26%, transparent);
-    box-shadow: inset 0 0 0 1px color-mix(in oklab, var(--_cta) 52%, transparent);
+  .cromo.barra-publica .cta-modulo > .cta-modulo__alcance {
+    display: block;
+  }
+
+  .cromo.barra-publica[data-vidrio='pseudo'] .modulo.cta-modulo:hover {
+    @include cta-amplio;
   }
 }
 
-:where(.cromo) .cta-vivo:active {
-  transform: scale(0.97);
-  transition-duration: 0ms;
-}
-
-:where(.cromo) .cta-vivo:active::before {
-  background-color: color-mix(in oklab, var(--_cta) 34%, transparent);
-}
-
-@media (prefers-reduced-motion: reduce) {
-  :where(.cromo) .cta-vivo:active {
-    transform: none;
+@media (hover: hover) and (pointer: fine) and (min-width: 64rem) {
+  .cromo.barra-publica[data-vidrio='pseudo'] .modulo.cta-modulo:hover {
+    margin-inline-start: calc(-1 * var(--cta-crece));
   }
 }
 
+.cromo.barra-publica[data-vidrio='pseudo'] .modulo.cta-modulo:active {
+  scale: var(--cta-escala-pulsada);
+  @include cta-transicion(var(--duracion-instante));
+}
+
+.cromo.barra-publica[data-vidrio='pseudo'] .modulo.cta-modulo:active::before {
+  background-color: var(--cta-fondo-fuerte);
+}
+
+// Colores forzados: el sistema repintaba el ::before y el rótulo con el mismo color (texto invisible sobre su capa,
+// medido con Alto contraste emulado). Se toman las riendas con colores del sistema: rótulo y flecha (currentColor) en
+// LinkText sobre Canvas, con un borde LinkText que dibuja el módulo. Por tokens, para que valga en reposo, al posarse,
+// con el foco y al pulsar.
 @media (forced-colors: active) {
-  :where(.cromo) .cta-vivo {
-    border: 1px solid ButtonText;
+  .cromo.barra-publica .modulo.cta-modulo {
+    --cta-velo: Canvas;
+    --cta-velo-fuerte: Canvas;
+    --cta-fondo-fuerte: Canvas;
+    --cta-canto: LinkText;
+    --cta-filo: transparent;
+    --cta-halo: transparent;
+    forced-color-adjust: none;
+    color: LinkText;
+  }
+}
+
+// 10.2 El tema, fuera del módulo violeta: al final del principal, tras un filete fino. Por debajo de 64rem el principal sale (sus destinos son la barra inferior),
+// pero en la portada se queda con el tema solo, pegado a «Ingresar».
+.cromo.barra-publica .filete-tema {
+  flex: none;
+  width: 1px;
+  height: 1.25rem;
+  margin-inline: 0.25rem;
+  background-color: var(--asb-linea);
+}
+
+.cromo.barra-publica .modulo-principal.con-tema {
+  padding-inline-end: 0.25rem;
+}
+
+.cromo.barra-publica .modulo .tema {
+  // La tinta de los enlaces de la barra (--ds-text-2 quedaba en 3,9:1 sobre el velo en claro con la página violeta debajo).
+  --_fg: var(--asb-cromo-tinta);
+
+  // 46 px y no 44: la barra cae en medios píxeles (relleno de 0,4rem, centrado de la rejilla) y el navegador ajusta la
+  // caja al píxel al decidir el clic; con 44 justos, un canto del objetivo de 44 × 44 quedaba fuera (M16 del arnés). El
+  // margen negativo devuelve los 2 px: el módulo no crece de alto. Esquina continua, no círculo: el clic se recorta al radio.
+  inline-size: 2.875rem;
+  block-size: 2.875rem;
+  margin-block: -0.0625rem;
+  border-radius: 0.875rem;
+}
+
+@media (max-width: 63.999rem) {
+  .cromo.barra-publica .modulo-principal.con-tema {
+    display: flex;
+    margin-inline: auto -0.5rem;
+    padding-inline: 0;
+  }
+
+  .cromo.barra-publica .modulo-principal.con-tema > :not(.tema) {
+    display: none;
+  }
+}
+
+// 10.3 El principal abraza lo que se ve (defecto visto en scroll: un hueco tras «Cómo funciona»). El hueco eran el
+// `···`, que con ratón nunca se ve pero ocupaba sus 44 px, y la separación de 0,25rem de cada plegable a ancho 0.
+// · Con ratón el `···` no existe (solo se muestra con `hover: none`); con dedo ocupa sitio solo cuando se ve.
+// · Cada plegable devuelve su separación con un margen negativo que viaja con su ancho (mismo resorte).
+// · El texto de un plegable no se ve recortado: al plegar se va en 100 ms y solo entonces se cierra su hueco (el ancho
+//   espera esos 100 ms); al volver, el hueco se abre en el acto y el texto entra con 140 ms de retraso, cuando ya tiene
+//   casi todo su sitio. DESVÍO de la receta (160 / 200 ms sin retraso),
+//   pedido por el usuario («Rol Étic» recortado durante la transición).
+.cromo.barra-publica a.control-plegable {
+  margin-inline-end: 0;
+  transition:
+    max-width var(--duracion-estado) var(--ease-rebote-suave),
+    padding var(--duracion-estado) var(--ease-rebote-suave),
+    margin var(--duracion-estado) var(--ease-rebote-suave),
+    opacity var(--duracion-entrada) var(--ease-color) var(--duracion-boton);
+}
+
+.cromo.barra-publica[data-estado='scroll']:is(:not(:focus-within), [data-modalidad='puntero']) a.control-plegable {
+  margin-inline-end: -0.25rem;
+  transition:
+    max-width var(--duracion-estado) var(--ease-rebote-suave) var(--duracion-instante),
+    padding var(--duracion-estado) var(--ease-rebote-suave) var(--duracion-instante),
+    margin var(--duracion-estado) var(--ease-rebote-suave) var(--duracion-instante),
+    opacity var(--duracion-instante) var(--ease-color),
+    visibility 0s linear var(--duracion-estado);
+}
+
+@media (hover: hover) {
+  .cromo.barra-publica .indicador-mas {
+    display: none;
+  }
+}
+
+@media (hover: none) {
+  .cromo.barra-publica .indicador-mas {
+    min-width: 0;
+    max-width: 0;
+    margin-inline-start: -0.25rem;
+    padding-inline: 0;
+    overflow: hidden;
+    transition:
+      opacity var(--duracion-entrada) var(--ease-color),
+      scale var(--duracion-estado) var(--ease-rebote-vivo),
+      max-width var(--duracion-estado) var(--ease-rebote-suave),
+      min-width var(--duracion-estado) var(--ease-rebote-suave),
+      padding var(--duracion-estado) var(--ease-rebote-suave),
+      margin var(--duracion-estado) var(--ease-rebote-suave),
+      visibility 0s linear var(--duracion-entrada);
+  }
+
+  .cromo.barra-publica[data-estado='scroll']:is(:not(:focus-within), [data-modalidad='puntero']) .indicador-mas {
+    min-width: 2.75rem;
+    max-width: 2.75rem;
+    margin-inline-start: 0;
+    padding-inline: 0.5rem;
+    transition:
+      opacity var(--duracion-entrada) var(--ease-color),
+      scale var(--duracion-estado) var(--ease-rebote-vivo),
+      max-width var(--duracion-estado) var(--ease-rebote-suave),
+      min-width var(--duracion-estado) var(--ease-rebote-suave),
+      padding var(--duracion-estado) var(--ease-rebote-suave),
+      margin var(--duracion-estado) var(--ease-rebote-suave),
+      visibility 0s linear 0s;
   }
 }

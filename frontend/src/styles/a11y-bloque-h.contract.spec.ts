@@ -187,3 +187,51 @@ describe('bloque H: semántica del HUD y de la tarjeta de contexto', () => {
     expect(play).toContain('<div class="case-intro-card__body" tabindex="0" role="region" aria-label="Datos de la primera escena">');
   });
 });
+
+// Rediseño 2026-11-20 (pedido del usuario): «Ingresar» es el módulo de cuenta entero de la barra pública (_glass-bar.scss
+// §10). Lo que el lector y el teclado necesitan: 44 px de alto, la ampliación también con el foco de teclado (no solo con
+// el ratón) y, con movimiento reducido, sin escala ni empuje (el ancho y el texto siguen cambiando: invariante 12).
+describe('bloque H: el módulo «Ingresar» de la barra pública', () => {
+  const barra = source('./components/_glass-bar.scss');
+  const bloque = (selector: string) => {
+    const desde = barra.indexOf(`${selector} {`);
+    return desde < 0 ? '' : barra.slice(desde, barra.indexOf('\n}', desde));
+  };
+
+  it('mide 44 px de alto como mínimo y su área de reacción extra no lo tapa al lector ni al teclado', () => {
+    expect(bloque('.cromo.barra-publica .cta-modulo')).toContain('min-height: var(--ds-target-min);');
+    expect(bloque('.cromo.barra-publica .cta-modulo > .cta-modulo__alcance')).toContain('display: none;');
+  });
+
+  it('se amplía con :focus-visible igual que con el cursor, y el cursor solo cuenta con un puntero fino', () => {
+    expect(barra).toMatch(/\.modulo\.cta-modulo:focus-visible \{\s*@include cta-amplio;/);
+    expect(barra).toMatch(/@media \(hover: hover\) and \(pointer: fine\) \{[^@]*\.modulo\.cta-modulo:hover \{\s*@include cta-amplio;/);
+  });
+
+  it('con movimiento reducido no escala ni empuja la flecha, y no toca las duraciones', () => {
+    const reducido = barra.match(/@media \(prefers-reduced-motion: reduce\) \{\s*\.barra-publica \{([^}]*)\}/)?.[1] ?? '';
+    expect(reducido).toContain('--cta-escala: 1;');
+    expect(reducido).toContain('--cta-escala-pulsada: 1;');
+    expect(reducido).toContain('--cta-empuje-flecha: 0rem;');
+    expect(reducido).not.toContain('duracion');
+  });
+
+  it('con colores forzados el rótulo se ve: LinkText sobre Canvas en todos sus estados, con borde LinkText', () => {
+    // Revisión 2026-11-20: el sistema repintaba el rótulo y su capa con el mismo color (texto invisible en Alto
+    // contraste). El módulo toma las riendas y sus tokens de capa valen Canvas también al posarse, con foco y al pulsar.
+    const forzado = barra.match(/@media \(forced-colors: active\) \{\s*\.cromo\.barra-publica \.modulo\.cta-modulo \{([^}]*)\}/)?.[1] ?? '';
+    expect(forzado).toContain('forced-color-adjust: none;');
+    expect(forzado).toContain('color: LinkText;');
+    for (const capa of ['--cta-velo: Canvas;', '--cta-velo-fuerte: Canvas;', '--cta-fondo-fuerte: Canvas;', '--cta-canto: LinkText;']) {
+      expect(forzado).toContain(capa);
+    }
+  });
+
+  it('en la píldora es el remate morado de su extremo derecho (no una cápsula suelta), sin asomar por fuera', () => {
+    const inicial = barra.match(/\.cromo\.barra-publica\[data-estado='inicial'\] \.cta-modulo \{([^}]*)\}/)?.[1] ?? '';
+    expect(inicial).toContain('margin-block: -0.5rem;');
+    expect(inicial).toContain('margin-inline-end: -0.75rem;');
+    expect(inicial).toContain('--cta-escala: 1;');
+    expect(bloque('  .cromo.barra-publica .cta-modulo')).toContain('align-self: stretch;');
+  });
+});

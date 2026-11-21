@@ -39,8 +39,8 @@ describe('app-public-bar', () => {
     const anchors = [...header.querySelectorAll<HTMLAnchorElement>('.modulo-principal a.nav-enlace')];
     expect(anchors.map(anchor => anchor.textContent!.trim())).toEqual(['Simulador', 'Casos', 'Cómo funciona', 'Roles', 'Ética']);
     for (const anchor of anchors) expect(host.querySelector(anchor.getAttribute('href')!)).not.toBeNull();
-    const login = header.querySelector<HTMLAnchorElement>('.modulo-cuenta a')!;
-    expect(login.textContent!.trim()).toBe('Ingresar');
+    const login = header.querySelector<HTMLAnchorElement>('a.modulo-cuenta')!;
+    expect(login.querySelector('.cta-modulo__rotulo')!.textContent!.trim()).toBe('Ingresar');
     expect(login.getAttribute('href')).toBe('/login');
     expect(header.firstElementChild!.textContent!.trim()).toBe('Saltar a la navegación');
   });
@@ -86,16 +86,69 @@ describe('app-public-bar', () => {
     expect(logo.querySelector('.logo-doble')).toBeNull();
   });
 
-  it('«Ingresar» es la ficha compacta de la cuenta (cta-vivo) y Roles y Ética se pliegan en «scroll»', async () => {
+  // Pedido del usuario (2026-11-20): sin «cuadro morado» dentro del módulo; el módulo de cuenta ENTERO es «Ingresar».
+  it('en la portada el módulo de cuenta ES el enlace «Ingresar» (sin nada dentro que se pulse) y dice «Ingresar aquí»', async () => {
+    const fixture = TestBed.createComponent(LandingHost);
+    await fixture.whenStable();
+    const bandeja = (fixture.nativeElement as HTMLElement).querySelector('header.cromo > nav.bandeja')!;
+    const modulo = bandeja.querySelector<HTMLAnchorElement>(':scope > a.modulo.modulo-cuenta.cta-modulo')!;
+    expect(modulo).not.toBeNull(); // hijo directo de la píldora: toda la cápsula es el área de clic
+    expect(modulo.getAttribute('href')).toBe('/login');
+    expect(modulo.querySelectorAll('a, button')).toHaveLength(0);
+    expect(bandeja.querySelector('.cta-vivo')).toBeNull();
+    // Nombre accesible estable = su texto, que contiene lo visible en reposo («Ingresar»; WCAG 2.5.3): « aquí» está
+    // siempre en el DOM (se recorta a ancho 0), no oculto al lector; la flecha es decorativa.
+    expect(modulo.hasAttribute('aria-label')).toBe(false);
+    expect(modulo.textContent!.replace(/\s+/g, ' ').trim()).toBe('Ingresar aquí');
+    const mas = modulo.querySelector('.cta-modulo__mas')!;
+    expect(mas.closest('[aria-hidden="true"], [hidden]')).toBeNull();
+    expect(modulo.querySelector('svg.cta-modulo__flecha')!.getAttribute('aria-hidden')).toBe('true');
+    expect(modulo.querySelector('.cta-modulo__alcance')!.getAttribute('aria-hidden')).toBe('true');
+    expect(modulo.querySelector('.cta-modulo__alcance')!.textContent).toBe('');
+  });
+
+  it('en la portada el tema sale del módulo «Ingresar»: va al final del principal, tras un filete decorativo', async () => {
+    const fixture = TestBed.createComponent(LandingHost);
+    await fixture.whenStable();
+    const header = (fixture.nativeElement as HTMLElement).querySelector('header.cromo')!;
+    expect(header.querySelector('.modulo-cuenta button.tema')).toBeNull();
+    const principal = header.querySelector('.modulo-principal')!;
+    expect(principal.classList.contains('con-tema')).toBe(true);
+    const ultimos = [...principal.children].slice(-2);
+    expect(ultimos[0].classList.contains('filete-tema')).toBe(true);
+    expect(ultimos[0].getAttribute('aria-hidden')).toBe('true');
+    expect(ultimos[1].matches('button.tema')).toBe(true);
+    expect(ultimos[1].getAttribute('aria-label')).toMatch(/^Tema: /);
+    // En la portada el orden de tabulación es: logo, destinos, tema, «Ingresar aquí».
+    const orden = [...header.querySelectorAll<HTMLElement>('nav.bandeja a, nav.bandeja button')];
+    expect(orden.at(-2)!.matches('button.tema')).toBe(true);
+    expect(orden.at(-1)!.matches('a.cta-modulo')).toBe(true);
+  });
+
+  it('en el acceso el módulo de cuenta no es violeta: el tema y «Volver al inicio», sin enlace a /login', async () => {
+    const fixture = TestBed.createComponent(LoginHost);
+    await fixture.whenStable();
+    const header = (fixture.nativeElement as HTMLElement).querySelector('header.cromo')!;
+    expect(header.querySelector('.cta-modulo')).toBeNull();
+    expect(header.querySelector('a[href="/login"]')).toBeNull();
+    expect(header.querySelector('.modulo-principal')!.classList.contains('con-tema')).toBe(false);
+    expect(header.querySelector('.modulo-principal button.tema')).toBeNull();
+    expect(header.querySelector('div.modulo-cuenta > button.tema')).not.toBeNull();
+  });
+
+  it('Roles y Ética se pliegan en «scroll» y el indicador ··· es decorativo', async () => {
     const fixture = TestBed.createComponent(LandingHost);
     await fixture.whenStable();
     const host = fixture.nativeElement as HTMLElement;
-    const ingresar = host.querySelector<HTMLAnchorElement>('.modulo-cuenta a.cta-vivo')!;
-    expect(ingresar.textContent!.trim()).toBe('Ingresar');
-    expect(ingresar.classList.contains('ui-button')).toBe(false);
     const plegables = [...host.querySelectorAll('.modulo-principal a.control-plegable')].map(a => a.textContent!.trim());
     expect(plegables).toEqual(['Roles', 'Ética']);
     expect(host.querySelector('.modulo-principal .indicador-mas')!.getAttribute('aria-hidden')).toBe('true');
+  });
+
+  it('la portada no escribe estilos en línea en jsdom (la medida de «Ingresar aquí» solo corre en un navegador)', async () => {
+    const fixture = TestBed.createComponent(LandingHost);
+    await fixture.whenStable();
+    expect((fixture.nativeElement as HTMLElement).querySelector('header.cromo [style]')).toBeNull();
   });
 
   it('el botón de tema dice el modo actual y pasa de sistema a claro a oscuro', async () => {

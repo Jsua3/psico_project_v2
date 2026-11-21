@@ -14,6 +14,28 @@ function luminance(hex: string): number {
   return 0.2126 * r + 0.7152 * g + 0.0722 * b;
 }
 
+/** `oklch(from <hex> l c h)` con l y c fijos: conserva el tono del color de partida (OKLab de Björn Ottosson). */
+function oklchDesdeTono(hex: string, l: number, c: number): string {
+  const lineal = (v: number) => (v <= 0.04045 ? v / 12.92 : ((v + 0.055) / 1.055) ** 2.4);
+  const [r, g, b] = [1, 3, 5].map(i => lineal(parseInt(hex.slice(i, i + 2), 16) / 255));
+  const [lm, mm, sm] = [
+    0.4122214708 * r + 0.5363325363 * g + 0.0514459929 * b,
+    0.2119034982 * r + 0.6806995451 * g + 0.1073969566 * b,
+    0.0883024619 * r + 0.2817188376 * g + 0.6299787005 * b,
+  ].map(Math.cbrt);
+  const tono = Math.atan2(0.0259040371 * lm + 0.7827717662 * mm - 0.808675766 * sm, 1.9779984951 * lm - 2.428592205 * mm + 0.4505937099 * sm);
+  const [A, B] = [c * Math.cos(tono), c * Math.sin(tono)];
+  const [l3, m3, s3] = [l + 0.3963377774 * A + 0.2158037573 * B, l - 0.1055613458 * A - 0.0638541728 * B, l - 0.0894841775 * A - 1.291485548 * B]
+    .map(v => v ** 3);
+  return '#' + [
+    4.0767416621 * l3 - 3.3077115913 * m3 + 0.2309699292 * s3,
+    -1.2684380046 * l3 + 2.6097574011 * m3 - 0.3413193965 * s3,
+    -0.0041960863 * l3 - 0.7034186147 * m3 + 1.707614701 * s3,
+  ].map(v => Math.min(1, Math.max(0, v)))
+    .map(v => (v <= 0.0031308 ? 12.92 * v : 1.055 * v ** (1 / 2.4) - 0.055))
+    .map(v => Math.round(v * 255).toString(16).padStart(2, '0')).join('').toUpperCase();
+}
+
 function contrast(a: string, b: string): number {
   const [light, dark] = [luminance(a), luminance(b)].sort((x, y) => y - x);
   return (light + 0.05) / (dark + 0.05);
@@ -101,11 +123,42 @@ describe('contraste: portada', () => {
   });
 
   it('la cabecera es la barra pública (velo de la barra, no un degradado que se desvanece) y «Ingresar» está en ella', () => {
-    // F3-4: «Ingresar» vive en app-public-bar. Rediseño 2026-11-20: es la ficha compacta .cta-vivo de la barra de vidrio
-    // modular (tinte del primario de la piel y su texto: ≥ 4,5:1 en ambas pieles; probado en public-bar.component.spec.ts).
+    // F3-4: «Ingresar» vive en app-public-bar. Rediseño 2026-11-20 (pedido del usuario): el módulo de cuenta ENTERO es el
+    // enlace violeta (.cta-modulo), sin ficha dentro; su estructura la prueba public-bar.component.spec.ts.
     expect(scss).not.toContain('rgba(12, 18, 34, 0.72) 70%, transparent 100%');
     expect(html).toContain('<app-public-bar [anchors]="anchors" />');
-    expect(source('../app/shared/layout/public-bar.component.ts')).toContain('<a class="pulsable cta-vivo" routerLink="/login">Ingresar</a>');
+    expect(source('../app/shared/layout/public-bar.component.ts')).toContain('<a class="modulo modulo-cuenta cta-modulo ds-motion" routerLink="/login">');
+  });
+
+  it('el módulo «Ingresar» de la barra: su tinta sobre el violeta de marca al 88 % pasa 4,5:1 sobre el peor fondo de cada piel', () => {
+    // Tokens en _glass-bar.scss §10: fondo = --l-acento (accent-sim de la piel), tinta = --ds-on-primary de la piel, el
+    // violeta con presencia del 88 % (el vidrio se transparenta). El peor fondo: el más claro para la tinta blanca (piel
+    // portal) y el más oscuro para la tinta oscura (piel juego). Al posarse el violeta se aleja del fondo: sube el contraste.
+    const barra = source('./components/_glass-bar.scss');
+    expect(barra).toMatch(/--cta-fondo: var\(--l-acento, var\(--ds-accent-sim\)\);/);
+    expect(barra).toMatch(/--cta-tinta: var\(--ds-on-primary\);/);
+    expect(barra).toMatch(/--cta-presencia: 88%;/);
+    const colores = source('./tokens/_color.scss');
+    const [portal, juego] = colores.split('$game:');
+    const token = (mapa: string, nombre: string) => mapa.match(new RegExp(`\\n\\s*${nombre}: (#[0-9A-Fa-f]{6}),`))![1];
+    const violetaClaro = blend(token(portal, 'accent-sim'), 0.88, '#FFFFFF');
+    // Respaldo de la piel juego sin sintaxis de color relativo: la lavanda con su tinta oscura.
+    const violetaOscuro = blend(token(juego, 'accent-sim'), 0.88, '#000000');
+    expect(contrastRatio(token(portal, 'on-primary'), violetaClaro)).toBeGreaterThanOrEqual(4.5);
+    expect(contrastRatio(token(juego, 'on-primary'), violetaOscuro)).toBeGreaterThanOrEqual(4.5);
+  });
+
+  it('en la piel oscura el módulo «Ingresar» es el mismo morado profundo con tinta blanca, y pasa AA sobre cualquier fondo', () => {
+    // Revisión 2026-11-20: la lavanda con texto oscuro se leía como «lila claro». La piel juego toma el tono de su
+    // --l-acento y fija la luz y el croma en oklch (0,52 / 0,2). Se recalcula aquí ese color y se mide la tinta blanca
+    // al 88 % sobre blanco (el peor fondo para el blanco) y sobre negro.
+    const barra = source('./components/_glass-bar.scss');
+    expect(barra).toMatch(/@supports \(color: oklch\(from red l c h\)\) \{\s*\.publico\[data-skin='game'\] \.barra-publica \{\s*--cta-fondo: oklch\(from var\(--l-acento, var\(--ds-accent-sim\)\) 0\.52 0\.2 h\);\s*--cta-tinta: white;\s*--cta-oscuro: var\(--ds-surface-page\);/);
+    const lavanda = source('./tokens/_color.scss').split('$game:')[1].match(/\n\s*accent-sim: (#[0-9A-Fa-f]{6}),/)![1];
+    const morado = oklchDesdeTono(lavanda, 0.52, 0.2);
+    expect(contrastRatio('#FFFFFF', morado)).toBeGreaterThanOrEqual(5.5);
+    expect(contrastRatio('#FFFFFF', blend(morado, 0.88, '#FFFFFF'))).toBeGreaterThanOrEqual(4.5);
+    expect(contrastRatio('#FFFFFF', blend(morado, 0.88, '#000000'))).toBeGreaterThanOrEqual(4.5);
   });
 
   it('el foco es claro en las zonas oscuras y no hay variables inexistentes', () => {

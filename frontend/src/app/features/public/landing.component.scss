@@ -604,31 +604,8 @@
   pointer-events: none;
 }
 
-// Fondo del apartado: el lienzo ocupa la vista completa (pegajoso dentro de la sección) y el desenfoque lo agranda.
-// Sus bordes se funden solos con el desenfoque; no hay recorte duro.
-.landing-relato__fondo {
-  position: absolute;
-  inset: 0;
-  z-index: 0;
-  pointer-events: none;
-}
-
-.landing-relato__ambiente {
-  position: sticky;
-  top: 0;
-  display: block;
-  width: 100%;
-  height: 100vh;
-  filter: blur(34px) saturate(1.35);
-  opacity: 0.55;
-  transform: scale(1.06);
-}
-
-.landing[data-skin='portal'] .landing-relato__ambiente {
-  opacity: 0.42;
-  mix-blend-mode: multiply;
-  filter: blur(34px) saturate(1.6) brightness(1.3);
-}
+// El fondo del apartado (el video mate que se disuelve en los doodles) vive en styles/components/_publico.scss: sus
+// máscaras llevan degradados lineales y este archivo está cerca de su tope de tamaño.
 
 // El contenido de las secciones va sobre el fondo de objetos (lienzo fijo de capa 0) y el modo ambiente.
 .landing-section > .landing-wrap {
@@ -695,7 +672,9 @@
   background: var(--l-acento);
 }
 
+// Sobre el video: vidrio casi opaco, como las tarjetas de los pasos (el relleno de 3,5 % no aseguraba el contraste).
 .landing .landing-relato__pausa[ui-button][variant='secondary'] {
+  background: var(--l-vidrio);
   color: var(--ds-text-2);
 }
 

@@ -297,3 +297,95 @@
 .publico #casos .landing-case-card--soon {
   background: color-mix(in oklab, var(--ds-surface-page) 92%, transparent);
 }
+
+// ── «Cómo funciona»: el video del paso como fondo mate que se disuelve en los doodles ───────────────
+// Pedido del dueño (2026-11-20): el fondo de objetos (app-doodles) no se dibuja SOBRE el video, sino que los dos se
+// encuentran en los bordes. El video va por encima de los doodles (estos son una capa fija de z 0 posterior al <main>;
+// el fondo, z 1 dentro de la sección; el contenido, .landing-wrap, también z 1 pero después en el DOM) y tapa del todo
+// en su cuerpo; sus bordes se disuelven con fundidos suaves y ahí aparece el mosaico. Tres bordes: la entrada desde
+// «Casos», la salida hacia «Roles» (el video se va antes de que los doodles se apaguen: estos se desvanecen en los
+// últimos 180 px del apartado, así que nunca queda una franja vacía) y el marco de la vista mientras la capa pegajosa
+// la llena. Mate: poco desenfoque, algo desaturado y con un velo del color de fondo de la página.
+
+// Fundido en curva suave (smoothstep por cuartos, sin el «escalón» que deja un fundido lineal) desde los dos extremos
+// de un eje: transparente en el borde, opaco a `$ini` del inicio y desde `$fin` antes del final (`$hasta` corre el
+// final hacia dentro). Solo importa el alfa: es una máscara.
+@function pub-fundido($dir, $ini, $fin: $ini, $hasta: 0px) {
+  @return linear-gradient(
+    $dir,
+    transparent,
+    color-mix(in oklab, black 16%, transparent) calc(#{$ini} * 0.25),
+    color-mix(in oklab, black 50%, transparent) calc(#{$ini} * 0.5),
+    color-mix(in oklab, black 84%, transparent) calc(#{$ini} * 0.75),
+    black $ini,
+    black calc(100% - #{$hasta} - #{$fin}),
+    color-mix(in oklab, black 84%, transparent) calc(100% - #{$hasta} - #{$fin} * 0.75),
+    color-mix(in oklab, black 50%, transparent) calc(100% - #{$hasta} - #{$fin} * 0.5),
+    color-mix(in oklab, black 16%, transparent) calc(100% - #{$hasta} - #{$fin} * 0.25),
+    transparent calc(100% - #{$hasta})
+  );
+}
+
+.publico .landing-relato__fondo {
+  position: absolute;
+  inset: 0;
+  z-index: 1;
+  pointer-events: none;
+  // Entra a lo largo de casi media vista y sale antes de los 180 px finales, donde los doodles se apagan.
+  mask-image: pub-fundido(to bottom, min(55vh, 30rem), min(45vh, 24rem), 12rem);
+}
+
+// La vista: pegajosa, del alto de la pantalla, opaca desde el primer cuadro (fondo de página) y enmarcada por doodles.
+.publico .landing-relato__vista {
+  position: sticky;
+  top: 0;
+  height: 100vh;
+  overflow: hidden;
+  background: var(--ds-surface-page);
+  mask-image:
+    pub-fundido(to right, clamp(2.5rem, 9vw, 9rem)),
+    pub-fundido(to bottom, clamp(3.5rem, 16vh, 9rem));
+  mask-composite: intersect;
+}
+
+// El velo: lleva el video hacia el fondo de la página (oscuro: lo apaga; claro: lo lava). Sin opacidad ni fusiones.
+.publico .landing-relato__vista::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: color-mix(in oklab, var(--ds-surface-page) 64%, transparent);
+}
+
+// El lienzo trae el cuadro a dos tercios de la vista; el navegador lo agranda poco y el filtro lo deja mate. Oscuro: el
+// contraste se aplana para que el negro del clip (el panel de diálogo, la barra del HUD) no baje del fondo de la página
+// y no marque bandas con borde duro sobre el cuerpo del video.
+.publico .landing-relato__ambiente {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  filter: blur(2px) saturate(0.7) contrast(0.6) brightness(0.85);
+}
+
+// Claro: el contraste se aplana antes de lavar, para que los negros del clip (el panel de diálogo) no queden como
+// manchas grises bajo el texto secundario (AA medido sobre el peor cuadro).
+.publico[data-skin='portal'] .landing-relato__vista::after {
+  background: color-mix(in oklab, var(--ds-surface-page) 72%, transparent);
+}
+
+.publico[data-skin='portal'] .landing-relato__ambiente {
+  filter: blur(2px) saturate(0.5) contrast(0.4) brightness(1.35);
+}
+
+// Transparencia reducida: el velo pesa más y el texto queda sobre un fondo casi liso.
+@media (prefers-reduced-transparency: reduce), (prefers-contrast: more) {
+  .publico[data-skin] .landing-relato__vista::after {
+    background: color-mix(in oklab, var(--ds-surface-page) 80%, transparent);
+  }
+}
+
+@media (forced-colors: active) {
+  .publico .landing-relato__fondo {
+    display: none;
+  }
+}
