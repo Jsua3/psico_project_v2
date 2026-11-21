@@ -1,0 +1,80 @@
+{
+  "marca": {
+    "cian-marca": {
+      "hex": "#1dbce7",
+      "uso": "cuadros de píxel, acentos frescos, firma de tres píxeles"
+    },
+    "azul-marca": {
+      "hex": "#1576d6",
+      "uso": "cuadros de píxel, enlaces y gráficos"
+    },
+    "violeta-acento-claro": {
+      "hex": "#5b3fd1",
+      "uso": "acento de la interfaz sobre fondo claro (botones, resaltados)"
+    },
+    "violeta-acento-oscuro": {
+      "hex": "#b69cff",
+      "uso": "acento de la interfaz sobre fondo oscuro"
+    },
+    "azul-noche": {
+      "hex": "#0c3563",
+      "uso": "la palabra METAFRÓNESIS sobre fondo claro"
+    },
+    "blanco-niebla": {
+      "hex": "#f2f4fb",
+      "uso": "la palabra METAFRÓNESIS sobre fondo oscuro"
+    }
+  },
+  "degradados": {
+    "perfil-fondo-claro": [
+      "#1a74cc",
+      "#5a2bc0",
+      "#7a06ab"
+    ],
+    "perfil-fondo-oscuro": [
+      "#3f8ff0",
+      "#7d5cf0",
+      "#b062ee"
+    ],
+    "psi-fondo-claro": [
+      "#2f2c97",
+      "#7400b8"
+    ],
+    "psi-fondo-oscuro": [
+      "#8c9bff",
+      "#c48cff"
+    ],
+    "cuadros-fondo-claro": [
+      "#20d3e8",
+      "#0fc3e6",
+      "#1296d3",
+      "#1576d6",
+      "#125dc7",
+      "#1043a7",
+      "#0d417a"
+    ],
+    "cuadros-fondo-oscuro": [
+      "#34d7ea",
+      "#2cd1f1",
+      "#30b2ed",
+      "#338feb",
+      "#3785e7",
+      "#3271eb",
+      "#2c79f1"
+    ]
+  },
+  "fondos": {
+    "fondo-oscuro": {
+      "hex": "#0c1222",
+      "uso": "piel oscura del sitio"
+    },
+    "fondo-claro": {
+      "hex": "#f5f7fa",
+      "uso": "piel clara del sitio"
+    },
+    "tinta-clara": {
+      "hex": "#14202e",
+      "uso": "texto principal sobre fondo claro"
+    }
+  }
+}

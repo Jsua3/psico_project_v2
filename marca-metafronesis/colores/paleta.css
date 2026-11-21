@@ -1,0 +1,15 @@
+:root {
+  --mf-cian-marca: #1dbce7;
+  --mf-azul-marca: #1576d6;
+  --mf-violeta-acento-claro: #5b3fd1;
+  --mf-violeta-acento-oscuro: #b69cff;
+  --mf-azul-noche: #0c3563;
+  --mf-blanco-niebla: #f2f4fb;
+  --mf-fondo-oscuro: #0c1222;
+  --mf-fondo-claro: #f5f7fa;
+  --mf-tinta-clara: #14202e;
+  --mf-degradado-perfil-fondo-claro: linear-gradient(135deg, #1a74cc, #5a2bc0, #7a06ab);
+  --mf-degradado-perfil-fondo-oscuro: linear-gradient(135deg, #3f8ff0, #7d5cf0, #b062ee);
+  --mf-degradado-psi-fondo-claro: linear-gradient(135deg, #2f2c97, #7400b8);
+  --mf-degradado-psi-fondo-oscuro: linear-gradient(135deg, #8c9bff, #c48cff);
+}
