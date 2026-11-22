@@ -142,6 +142,14 @@ describe('RevisionComponent · la compuerta de publicación en lenguaje del doce
     expect(raiz.querySelector('[data-etapa="datos"] .etapa__estado')!.textContent!.trim()).toBe('Listo');
     expect(raiz.querySelector('section.por-resolver h2')!.textContent).toContain('Por resolver (1)');
     expect(enviar().getAttribute('aria-disabled')).toBe('true');
+    // Como en el panel de problemas de un IDE, el problema sale en su etapa, y la fila entera lleva a él (CU-04 · editar el caso).
+    const fila = raiz.querySelector<HTMLButtonElement>('.etapa:has([data-etapa="lugar"]) li.problema button.fila-problema')!;
+    expect(fila.textContent).toContain('tiene respuestas pero en su sala no hay nadie con quien hablar');
+    const navegar = vi.spyOn(TestBed.inject(Router), 'navigateByUrl').mockResolvedValue(true);
+    fila.click();
+    await new Promise((r) => setTimeout(r, 60));
+    expect(navegar.mock.calls.some(([url]) => String(url).includes(`/portal/casos/${store.caso()!.id}/editor/sala/`)), 'lleva a la sala').toBe(true);
+    navegar.mockRestore();
     // «Ver pendientes» abre la hoja, que sí lleva a la sala (su prueba está en panel-pendientes.component.spec.ts).
     raiz.querySelector<HTMLButtonElement>('[data-etapa="lugar"] button')!.click();
     await listo();
