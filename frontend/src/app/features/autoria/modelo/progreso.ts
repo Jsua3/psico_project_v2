@@ -29,8 +29,8 @@ const ETIQUETAS: Record<Etapa, { nombre: string; nombreLargo: string; ruta: stri
   datos: { nombre: 'Datos', nombreLargo: 'Datos del caso', ruta: '/editor/datos' },
   lugar: { nombre: 'Lugar', nombreLargo: 'Lugar y salas', ruta: '/editor/plano' },
   historia: { nombre: 'Historia', nombreLargo: 'Historia: escenas y guion', ruta: '/editor' },
-  // Las pantallas «evaluación» y «rúbrica» del caso llegan con E5; mientras tanto la etapa abre los finales.
-  evaluacion: { nombre: 'Evaluación', nombreLargo: 'Evaluación', ruta: '/editor/finales' },
+  // E5: la etapa abre «Pasos profesionales», la primera de sus tres pestañas (Pasos, Rúbrica y Finales).
+  evaluacion: { nombre: 'Evaluación', nombreLargo: 'Evaluación', ruta: '/editor/evaluacion' },
   enviar: { nombre: 'Enviar', nombreLargo: 'Enviar a revisión', ruta: '/revision' },
 };
 

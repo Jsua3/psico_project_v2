@@ -320,6 +320,24 @@ export class ServidorFalso {
         }
         this.editor.rules.milestones = clonar(milestones);
       }),
+    /**
+     * RK-1 · Como el servidor: la rúbrica adoptada pasa a ser la única propia y activa de la versión (la vista del editor
+     * solo trae las activas). Con `fromCompetencies`, un criterio por competencia del programa con pesos iguales.
+     */
+    adoptRubric: (cv: number, cuerpo: { rubricId?: number; fromCompetencies?: boolean }, revision?: number) =>
+      this.escribir('adoptRubric', revision, [cuerpo], () => {
+        // Como el servidor: la del programa guarda el CÓDIGO del catálogo en `competency` y el nombre en el título.
+        const competencias: Array<[string, string]> = cuerpo.fromCompetencies
+          ? [['ESCUCHA_ACTIVA', 'Escucha activa'], ['VALORACION_DEL_RIESGO', 'Valoración del riesgo'], ['ETICA_PROFESIONAL', 'Ética profesional'], ['DERIVACION', 'Derivación y red de apoyo']]
+          : [['Escucha activa', 'Escuchar sin juzgar'], ['Valoración del riesgo', 'Valorar el riesgo']];
+        this.editor.rubrics = [{
+          rubricId: this.id(), rubricName: cuerpo.fromCompetencies ? 'Competencias del programa' : 'Copia de una rúbrica', description: null,
+          criteria: competencias.map(([competency, title], i) => ({
+            id: this.id(), competency, title, description: null, displayOrder: i, weight: 100 / competencias.length, active: true,
+          })),
+          scores: [], comment: null,
+        }];
+      }),
     updateRisk: (cv: number, riskLevel: RiskLevel | null, revision?: number) =>
       this.escribir('updateRisk', revision, [riskLevel], () => {
         this.editor.rules.riskLevel = riskLevel;

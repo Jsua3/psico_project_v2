@@ -65,7 +65,11 @@ export function competenciasDeRubricas(rubricas: Pick<RubricEvaluationView, 'cri
   for (const rubrica of rubricas) {
     for (const criterio of rubrica.criteria) {
       const codigo = codigoDeCompetencia(criterio.competency ?? '');
-      if (codigo && !vistas.has(codigo)) vistas.set(codigo, { codigo, nombre: criterio.competency.trim() });
+      // La rúbrica «Competencias del programa» (RK-1) guarda el CÓDIGO del catálogo («ESCUCHA_ACTIVA»): a la vista va
+      // entonces el título del criterio, que es el nombre de la competencia. Un nombre escrito a mano se deja como está.
+      const esCodigo = criterio.competency.trim() === codigo && !!criterio.title?.trim();
+      const nombre = esCodigo ? criterio.title.trim() : criterio.competency.trim();
+      if (codigo && !vistas.has(codigo)) vistas.set(codigo, { codigo, nombre });
     }
   }
   return [...vistas.values()];

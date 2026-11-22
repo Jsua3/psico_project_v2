@@ -33,41 +33,15 @@ async function montar() {
   return { fixture, store, caso, valorar, raiz: fixture.nativeElement as HTMLElement, listo };
 }
 
-describe('EditorComponent · hitos del caso e intensidad de las escenas', () => {
+describe('EditorComponent · intensidad de las escenas (los hitos se mudaron a Evaluación)', () => {
   afterEach(() => document.querySelectorAll('app-root, [ng-version]').forEach((n) => n.remove()));
 
-  it('el panel «Hitos del caso» lista el catálogo con dónde se cumple cada hito', async () => {
-    const { raiz, caso, valorar } = await montar();
-    const panel = raiz.querySelector('section.hitos-del-caso')!;
-    expect(panel.querySelector('h2')!.textContent).toContain('Hitos del caso');
-    const filas = [...panel.querySelectorAll<HTMLElement>('li.hito')];
-    expect(filas.map((f) => f.querySelector('strong')!.textContent)).toEqual(caso.hitos.map((h) => h.nombre));
-    const valorarFila = filas.find((f) => f.id === `hito-${valorar}`)!;
-    expect(valorarFila.textContent).toContain('Se cumple en');
-    expect(valorarFila.textContent).toContain('Cuéntame cómo te sientes en casa.');
-    expect(valorarFila.textContent).toContain('Decide el final'); // el catálogo trae «Valorar el riesgo» como decisivo
-  });
-
-  // E1: el aviso del hito sale cuando ya es algo por corregir (no quedan escenas por escribir y algún hito está marcado).
-  // La lista «Por resolver» del lateral se fue a la hoja «Pendientes» del marco (E0), que tiene su propia prueba.
-  it('un hito que ninguna respuesta marca avisa que es inalcanzable, con «Llévame ahí»', async () => {
-    const { raiz, store, caso, listo } = await montar();
-    const escrito = structuredClone(store.caso()!);
-    for (const e of escrito.escenas) e.lineas = [{ id: `l-${e.id}`, personajeId: escrito.personajes[0].id, texto: 'Hola', expresion: 'neutral', marcaIa: false }];
-    store.fijar(escrito);
-    await listo();
-    const informar = caso.hitos.find((h) => h.clave === 'informar_derechos')!;
-    const fila = raiz.querySelector<HTMLElement>(`li.hito[id="hito-${informar.clave}"]`)!;
-    expect(fila.textContent).toContain(`El hito «${informar.nombre}» no se puede cumplir: ninguna respuesta lo marca.`);
-    expect(fila.querySelector('button')!.textContent!.trim()).toBe('Llévame ahí');
-    expect(raiz.querySelector('li.hito[id="hito-valorar_el_riesgo"] .aviso-hito')).toBeNull(); // el que sí se cumple no avisa
-  });
-
-  it('E1 · con escenas por escribir, un hito sin marcar no se muestra como aviso (es trabajo pendiente)', async () => {
-    const { raiz, caso } = await montar();
-    const informar = caso.hitos.find((h) => h.clave === 'informar_derechos')!;
-    expect(raiz.querySelector(`li.hito[id="hito-${informar.clave}"] .aviso-hito`)).toBeNull();
-    expect(raiz.querySelector(`li.hito[id="hito-${informar.clave}"]`)!.textContent).toContain('Ninguna respuesta lo marca todavía.');
+  // E5: «Hitos del caso» dejó el mapa; sus casos (lista, «Llévame ahí» y avisos) viven en
+  // `pantallas/evaluacion/evaluacion.component.spec.ts`. Aquí queda lo que sigue siendo del mapa.
+  it('E5 · el mapa ya no lleva «Hitos del caso»: los pasos profesionales viven en Evaluación', async () => {
+    const { raiz } = await montar();
+    expect(raiz.querySelector('section.hitos-del-caso')).toBeNull();
+    expect(raiz.querySelector('[id^="hito-"]')).toBeNull();
   });
 
   it('cada escena muestra su intensidad con palabras, no solo con color', async () => {

@@ -91,8 +91,8 @@ describe('FinalesComponent · modo automático con hitos decisivos', () => {
     const alcance = filas.map((f) => f.querySelector('.alcance')!.textContent!.trim());
     // buena → cumple los dos decisivos → protectora; mala → una contraindicada sin los decisivos → crítica
     expect(alcance).toEqual([
-      'Algún recorrido llega aquí.', 'Algún recorrido llega aquí.', 'Ningún recorrido llega aquí con las respuestas de ahora.',
-      'Ningún recorrido llega aquí con las respuestas de ahora.',
+      // E5: la insignia de cada final es corta; «con las respuestas de ahora» lo dice el resumen de los recorridos.
+      'Algún recorrido llega aquí', 'Algún recorrido llega aquí', 'Ningún recorrido llega aquí', 'Ningún recorrido llega aquí',
     ]);
     expect(filas[3].querySelector('.regla')!.textContent).toContain('En cualquier otro caso.');
   });

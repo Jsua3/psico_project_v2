@@ -144,7 +144,7 @@ describe('Editor de casos: la barra de vidrio (tableros 45–51)', () => {
     const secciones = raiz.querySelector('header .modulo-principal nav[aria-label="Secciones del caso"]')!;
     expect([...secciones.querySelectorAll('a')].map((a) => a.getAttribute('href'))).toEqual([
       '/portal/casos/41/editor/datos', '/portal/casos/41/editor/plano', '/portal/casos/41/editor',
-      '/portal/casos/41/editor/finales', '/portal/casos/41/editor/revision',
+      '/portal/casos/41/editor/evaluacion', '/portal/casos/41/editor/revision',
     ]);
     // Cada etapa se anuncia con su nombre completo y su estado, aunque por ancho se vea solo su número.
     const nombres = [...secciones.querySelectorAll('a')].map((a) => a.getAttribute('aria-label')!);

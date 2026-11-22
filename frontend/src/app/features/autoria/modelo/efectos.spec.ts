@@ -55,4 +55,12 @@ describe('las competencias del caso salen de su rúbrica', () => {
       { codigo: 'ESCUCHA_ACTIVA', nombre: 'Escucha activa' },
     ]);
   });
+
+  it('E5 · si el criterio guarda el código del catálogo (rúbrica de las competencias del programa), se muestra su título', () => {
+    const programa: RubricEvaluationView = {
+      rubricId: 2, rubricName: 'Competencias del programa', description: null, scores: [], comment: null,
+      criteria: [{ id: 1, competency: 'ESCUCHA_ACTIVA', title: 'Escucha activa', description: null, displayOrder: 1 }],
+    };
+    expect(competenciasDeRubricas([programa])).toEqual([{ codigo: 'ESCUCHA_ACTIVA', nombre: 'Escucha activa' }]);
+  });
 });

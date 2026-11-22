@@ -5,11 +5,13 @@ import { AutoriaShellComponent } from './autoria-shell.component';
 import { AvanceComponent } from './pantallas/avance/avance.component';
 import { DatosComponent } from './pantallas/datos/datos.component';
 import { EditorComponent } from './pantallas/editor/editor.component';
+import { EvaluacionComponent } from './pantallas/evaluacion/evaluacion.component';
 import { FinalesComponent } from './pantallas/finales/finales.component';
 import { GuionComponent } from './pantallas/guion/guion.component';
 import { LugarComponent } from './pantallas/lugar/lugar.component';
 import { PlanoCasoComponent } from './pantallas/plano/plano.component';
 import { RevisionComponent } from './pantallas/revision/revision.component';
+import { RubricaDelCasoComponent } from './pantallas/rubrica/rubrica-del-caso.component';
 import { SalaComponent } from './pantallas/sala/sala.component';
 import { SalasComponent } from './pantallas/salas/salas.component';
 
@@ -19,6 +21,9 @@ export const pantallasDelEditor: Routes = [
   { path: 'sala/:salaId', component: SalaComponent, title: 'Sala · Editor de casos' },
   { path: 'escena/:escenaId', component: GuionComponent, title: 'Guion · Editor de casos' },
   { path: 'datos', component: DatosComponent, title: 'Datos del caso · Editor de casos' },
+  // E5: la etapa Evaluación tiene tres pestañas, cada una con su dirección (EDITOR.md §3.5).
+  { path: 'evaluacion', component: EvaluacionComponent, title: 'Pasos profesionales · Editor de casos' },
+  { path: 'rubrica', component: RubricaDelCasoComponent, title: 'Rúbrica del caso · Editor de casos' },
   { path: 'finales', component: FinalesComponent, title: 'Finales · Editor de casos' },
   { path: 'revision', component: RevisionComponent, title: 'Enviar a revisión · Editor de casos' },
   { path: 'plano', component: PlanoCasoComponent, title: 'Plano del caso · Editor de casos' },

@@ -4,7 +4,7 @@ import { Router } from '@angular/router';
 import { firstValueFrom } from 'rxjs';
 
 import { revisionConflictOf } from '../../../core/api/revision-conflict.util';
-import type { CaseLifecycle, ValidationIssue } from '../../../core/models/simulation.model';
+import type { CaseLifecycle, RubricAdoptRequest, ValidationIssue } from '../../../core/models/simulation.model';
 import { AutoriaApiService } from '../api/autoria-api.service';
 import { claveDeMueble, crearChoque, fijarClavesDeMuebles, trasladarChoque } from '../modelo/choques-mueble';
 import { casoDesdeApi } from '../modelo/desde-api';
@@ -1468,6 +1468,25 @@ export class CasoStore {
     }
     await this.cargar(sesion.caseVersionId, true);
     return ciclo;
+  }
+
+  /**
+   * E5 · El caso adopta una rúbrica (RK-1): una copia propia de la versión, de una rúbrica que la docente ve o de las
+   * competencias del programa. Como `enviarARevision`, va fuera de la cola (no es un cambio del borrador que se pueda
+   * deshacer) pero con la revisión vigente, después de que lo pendiente llegó; luego relee el caso, que trae las
+   * competencias nuevas para la faceta «Criterios». Con la revisión vencida avisa el conflicto de siempre.
+   */
+  async adoptarRubrica(cuerpo: RubricAdoptRequest): Promise<void> {
+    await this.sincronizado();
+    const sesion = this.sesion;
+    if (!sesion) throw new Error('Este caso todavía no se guardó.');
+    try {
+      await firstValueFrom(sesion.api.adoptRubric(sesion.caseVersionId, cuerpo, sesion.revision));
+    } catch (error) {
+      if (this.sesion === sesion && revisionConflictOf(error)) this.avisarConflicto([]);
+      throw error;
+    }
+    await this.cargar(sesion.caseVersionId, true);
   }
 
   /** Otra sesión cambió el caso: se avisa, no se manda nada más y se espera a que el docente decida recargar. */

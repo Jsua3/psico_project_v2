@@ -27,6 +27,8 @@ export const PANTALLAS = {
   datos: 'Datos del caso',
   sala: 'Editar una sala',
   guion: 'Guion de una escena',
+  evaluacion: 'Pasos profesionales',
+  rubrica: 'Rúbrica del caso',
   finales: 'Finales del caso',
   revision: 'Enviar a revisión',
   plano: 'Plano del caso',
@@ -83,7 +85,23 @@ export const ACCIONES: readonly Accion[] = [
     ayuda: 'En «Lleva a…» de una respuesta, elige «Una escena nueva» y pulsa «Crear la escena nueva».',
   },
   { id: 'revisar-caminos', nombre: 'Revisar los caminos del caso', pantalla: PANTALLAS.mapa, ruta: '/editor', palabras: 'avisos problemas errores sin salida', ayuda: 'Aquí están los avisos de caminos; «Llévame ahí» te lleva a la escena.' },
-  { id: 'hitos-del-caso', nombre: 'Ver los hitos del caso y dónde se cumplen', pantalla: PANTALLAS.mapa, ruta: '/editor', palabras: 'pasos profesionales cumplir decisivo inalcanzable valorar riesgo', ayuda: 'En «Hitos del caso» ves cada paso profesional, dónde se cumple y si nadie podría lograrlo.' },
+  // E5: los pasos profesionales (los hitos) dejan el mapa y pasan a Evaluación. BORRADOR: textos nuevos, pendientes de la
+  // aprobación de Psicología.
+  {
+    id: 'hitos-del-caso', nombre: 'Ver los pasos profesionales del caso y qué respuestas los cumplen', pantalla: PANTALLAS.evaluacion,
+    ruta: '/editor/evaluacion', palabras: 'hitos pasos profesionales cumplir decisivo decide final inalcanzable valorar riesgo marcar',
+    ayuda: 'En «Pasos profesionales» ves cada paso, qué respuestas lo cumplen y cuáles deciden el final. «Agregar una respuesta» lo marca sin abrir el guion.',
+  },
+  {
+    id: 'rubrica-del-caso', nombre: 'Elegir la rúbrica con la que se valora el caso', pantalla: PANTALLAS.rubrica, ruta: '/editor/rubrica',
+    palabras: 'rúbrica criterios competencias valorar evaluar calificar adoptar copiar programa',
+    ayuda: 'El caso guarda su propia copia de la rúbrica: la de las competencias del programa o una de las tuyas.',
+  },
+  {
+    id: 'evidencia-por-respuesta', nombre: 'Ver qué respuestas evidencian cada criterio de la rúbrica', pantalla: PANTALLAS.rubrica, ruta: '/editor/rubrica',
+    palabras: 'evidencia criterios competencias respuestas dónde se evidencia cobertura',
+    ayuda: 'Cada criterio lista las respuestas que lo marcan. Se marcan en la faceta «Criterios» de cada respuesta del guion.',
+  },
   { id: 'intensidad-escena', nombre: 'Cambiar la intensidad de una escena y su aviso', pantalla: PANTALLAS.guion, ruta: '/editor/escena/:escena', palabras: 'baja media alta fuerte sensible advertencia aviso contenido', ayuda: 'Elige qué tan intensa es la escena; si es alta, escribe el aviso que lee el estudiante antes de empezar.' },
   { id: 'datos-del-caso', nombre: 'Escribir el contexto y los objetivos del caso', pantalla: PANTALLAS.datos, ruta: '/editor/datos', palabras: 'ficha contexto objetivos aprendizaje presentación descripción lee antes empezar', ayuda: 'Aquí escribes lo que lee el estudiante antes de empezar y los objetivos de aprendizaje.' },
   { id: 'definir-finales', nombre: 'Definir los finales del caso', pantalla: PANTALLAS.finales, ruta: '/editor/finales', palabras: 'final cierre puntaje resultado', ayuda: 'Elige si los finales se calculan solos o escribes los tuyos.' },

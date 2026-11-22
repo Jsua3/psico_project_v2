@@ -159,7 +159,7 @@ export interface DestinoPosible { id: string; etiqueta: string }
           </label>
         } @empty {
           <!-- BORRADOR: texto nuevo, pendiente de la aprobación de Psicología -->
-          <p class="nota">Este caso aún no tiene rúbrica propia. Elígela en <a [routerLink]="rutas.a('/editor/finales')">Evaluación</a>.</p>
+          <p class="nota">Este caso aún no tiene rúbrica propia. Elígela en <a [routerLink]="rutas.a('/editor/rubrica')">Evaluación</a>.</p>
         }
       </fieldset>
     }
