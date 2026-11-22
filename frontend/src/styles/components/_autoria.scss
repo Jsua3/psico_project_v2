@@ -272,9 +272,24 @@ app-autoria-shell .volver--pieza::before {
   // _glass-bar.scss: la pieza es un dueño más, como la píldora y los módulos.
 }
 
+// La expansión: el ANCHO REAL del contenido (no un techo de max-width), para que el rebote del resorte caiga donde se ve.
+// Con un techo de 12 rem y un texto de 9, el resorte gastaba su recorrido y su rebote fuera de la vista: el texto llegaba
+// en ~150 ms y se detenía en seco (lo notó el usuario, 2026-11-22). `interpolate-size` deja animar hasta `max-content`
+// (sirve para «Volver a casos», «Volver a Caminos» o «Volver al Plano»); el resorte VIVO de la barra (ζ 0,55, el de lo que
+// aparece) en 620 ms, y la barra le cede el sitio con el mismo movimiento. Sin `interpolate-size`, el techo de respaldo.
 app-autoria-shell .volver--pieza .volver__contenido {
+  min-inline-size: 1.25rem;
   max-inline-size: 1.25rem;
-  transition: max-inline-size var(--ds-dur-glass) var(--ds-spring-soft);
+  transition: max-inline-size var(--ds-dur-glass) var(--ds-spring-live);
+}
+
+@supports (interpolate-size: allow-keywords) {
+  app-autoria-shell .volver--pieza .volver__contenido {
+    interpolate-size: allow-keywords;
+    inline-size: 1.25rem;
+    max-inline-size: none;
+    transition: inline-size var(--ds-dur-glass) var(--ds-spring-live);
+  }
 }
 
 @media (hover: hover) and (pointer: fine) {
@@ -290,6 +305,20 @@ app-autoria-shell .volver--pieza .volver__contenido {
 
 app-autoria-shell .volver--pieza:focus-visible .volver__contenido {
   max-inline-size: 12rem;
+}
+
+@supports (interpolate-size: allow-keywords) {
+  @media (hover: hover) and (pointer: fine) {
+    app-autoria-shell .volver--pieza:hover .volver__contenido {
+      inline-size: max-content;
+      max-inline-size: none;
+    }
+  }
+
+  app-autoria-shell .volver--pieza:focus-visible .volver__contenido {
+    inline-size: max-content;
+    max-inline-size: none;
+  }
 }
 
 app-autoria-shell .volver--pieza:focus-visible .volver__texto {
