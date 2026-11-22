@@ -1,5 +1,6 @@
 import { Component, provideZonelessChangeDetection } from '@angular/core';
 import { TestBed } from '@angular/core/testing';
+import { provideRouter } from '@angular/router';
 
 import { UiPageActions, UiPageHeader } from './ui-page-header';
 
@@ -42,5 +43,35 @@ describe('ui-page-header', () => {
     const header = fixture.nativeElement as HTMLElement;
     expect(header.querySelectorAll('p').length).toBe(0);
     expect(header.querySelector('h1')?.textContent?.trim()).toBe('Reportes');
+  });
+
+  // req: DISENO C1 (enlace de regreso en las pantallas que cuelgan de otra; firma decorativa)
+  it('con volverA pinta un enlace de regreso que dice adónde vuelve, y la firma de la marca es decorativa', async () => {
+    TestBed.configureTestingModule({ providers: [provideZonelessChangeDetection(), provideRouter([])] });
+    const fixture = TestBed.createComponent(UiPageHeader);
+    fixture.componentRef.setInput('title', 'Grupo PSI-2026-1');
+    fixture.componentRef.setInput('eyebrow', 'Docencia');
+    fixture.componentRef.setInput('volverA', '/portal/grupos');
+    fixture.componentRef.setInput('volverEtiqueta', 'Tus grupos');
+    await fixture.whenStable();
+    const header = fixture.nativeElement as HTMLElement;
+    const volver = header.querySelector<HTMLAnchorElement>('a.ui-page-header__volver')!;
+    expect(volver.getAttribute('href')).toBe('/portal/grupos');
+    expect(volver.textContent?.replace('arrow_back', '').trim()).toBe('Tus grupos');
+    expect(volver.querySelector('mat-icon')?.getAttribute('aria-hidden')).toBe('true');
+    // El regreso va antes del título, y sigue habiendo un solo h1.
+    expect(volver.compareDocumentPosition(header.querySelector('h1')!) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    expect(header.querySelectorAll('h1')).toHaveLength(1);
+    const firma = header.querySelector('.ui-page-header__eyebrow .ui-page-header__firma')!;
+    expect(firma.getAttribute('aria-hidden')).toBe('true');
+    expect(header.querySelector('.ui-page-header__eyebrow')?.textContent?.trim()).toBe('Docencia');
+  });
+
+  it('sin volverA no hay enlace de regreso (ni hace falta el router)', async () => {
+    TestBed.configureTestingModule({ providers: [provideZonelessChangeDetection()] });
+    const fixture = TestBed.createComponent(UiPageHeader);
+    fixture.componentRef.setInput('title', 'Casos');
+    await fixture.whenStable();
+    expect((fixture.nativeElement as HTMLElement).querySelector('a')).toBeNull();
   });
 });

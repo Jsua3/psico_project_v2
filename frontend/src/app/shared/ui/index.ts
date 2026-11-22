@@ -8,6 +8,7 @@ export { UiSpinner } from './spinner/ui-spinner';
 export { UiControl, UiField } from './field/ui-field';
 export { UiCheck, UiSwitch } from './field/ui-check';
 export { UiCard } from './card/ui-card';
+export type { UiCardSuperficie } from './card/ui-card';
 export { UiStat } from './stat/ui-stat';
 export { UiBadge } from './badge/ui-badge';
 export type { UiBadgeTone } from './badge/ui-badge';
@@ -30,13 +31,28 @@ export { UiMenu } from './menu/ui-menu';
 export type { UiMenuItem } from './menu/ui-menu';
 export { UiTab, UiTabs } from './tabs/ui-tabs';
 export { describeHostWith } from './describe';
-export { UiConfirmDialog, UiConsequenceDialog, UiDialog, UiDialogActions, UiDialogFrame } from './dialog/ui-dialog';
+export { UiConfirmDialog, UiConsequenceDialog, UiDialog, UiDialogActions, UiDialogFrame, contenedorDePiel } from './dialog/ui-dialog';
 export type {
-  UiConfirmOptions, UiConsequenceAnswer, UiConsequenceOptions, UiDialogOptions, UiDialogSize, UiSheetOptions,
+  UiConfirmOptions, UiConsequenceAnswer, UiConsequenceOptions, UiDialogOptions, UiDialogSize, UiPiel, UiSheetOptions,
 } from './dialog/ui-dialog';
 export { UiToastHost } from './toast/ui-toast-host';
-export { UiTable, UiTableEmpty, UiTableError, UiTableRow, UiTableTable } from './table/ui-table';
+export { UiTable, UiTableEmpty, UiTableError, UiTableRow, UiTableTable, marcarTablaApilable } from './table/ui-table';
+export { UiCelda, UiCeldaAcciones, UiCeldaPrincipal } from './table/ui-table-celda';
 export { SCOPE_NOTICE_DRAFT_TEXT, UiScopeNotice } from './scope-notice/ui-scope-notice';
 export { UiGlassBar } from './glass-bar/ui-glass-bar';
 export { GLASS_BAR_GRACE_MS, GLASS_BAR_THRESHOLD_PX, GlassBarMachine } from './glass-bar/glass-bar-machine';
 export type { GlassBarModality, GlassBarSignals, GlassBarState, GlassBarTimers } from './glass-bar/glass-bar-machine';
+// Rediseño del portal (DISENO §2.5, bloque B2): piezas nuevas del lenguaje de Metafrónesis.
+export { UiSegmentado } from './segmentado/ui-segmentado';
+export type { UiSegmento } from './segmentado/ui-segmentado';
+export { UI_FILTROS_ANUNCIO_MS, UiFiltros } from './filtros/ui-filtros';
+export { UiBarraAcciones } from './barra-acciones/ui-barra-acciones';
+export type { UiBarraAccionesPosicion } from './barra-acciones/ui-barra-acciones';
+export { UiFiguraPixel, escalaEntera, rutaFiguraKit } from './figura-pixel/ui-figura-pixel';
+export type { UiFiguraEscala } from './figura-pixel/ui-figura-pixel';
+export { PORTADA_MEDIDAS, UiPortadaCaso } from './portada-caso/ui-portada-caso';
+export type { UiPortadaTamano } from './portada-caso/ui-portada-caso';
+export { UiBarras, filasDeBarras, textoCantidad } from './barras/ui-barras';
+export type { UiBarrasDato, UiBarrasFila, UiBarrasPatron, UiBarrasTono } from './barras/ui-barras';
+export { UiArchivo, archivoAceptado, tamanoLegible } from './archivo/ui-archivo';
+export { DoodlesComponent } from './doodles/doodles.component';

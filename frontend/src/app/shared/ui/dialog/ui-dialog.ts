@@ -3,17 +3,32 @@ import { DIALOG_DATA, Dialog, DialogConfig, DialogRef } from '@angular/cdk/dialo
 import { createGlobalPositionStrategy } from '@angular/cdk/overlay';
 import { ComponentType } from '@angular/cdk/portal';
 import {
-  ChangeDetectionStrategy, Component, DestroyRef, Directive, ElementRef, Injectable, Injector, afterNextRender,
-  booleanAttribute, effect, inject, input,
+  ChangeDetectionStrategy, Component, DestroyRef, Directive, ElementRef, Injectable, Injector, ViewEncapsulation,
+  afterNextRender, booleanAttribute, effect, inject, input,
 } from '@angular/core';
 import { firstValueFrom } from 'rxjs';
 
+import { TemaService } from '../../../core/tema/tema.service';
 import { uniqueUiId } from '../button/click-guard';
 import { UiButton } from '../button/ui-button';
 import { UiIconButton } from '../button/ui-icon-button';
+import { UiPiel, contenedorDePiel, pielDe } from '../piel';
 
-/** Duración de la salida de diálogos y hojas (§2.7: 160–200 ms). */
-const UI_DIALOG_LEAVE_MS = 180;
+export type { UiPiel } from '../piel';
+export { contenedorDePiel } from '../piel';
+
+/**
+ * Duración de la salida (DISENO §2.6): el diálogo se va en 160 ms y la hoja en 200 ms, siempre más rápido que su
+ * entrada (200 y 300 ms). Tienen que coincidir con `ui-dialog-frame.scss`.
+ */
+const UI_DIALOG_LEAVE_MS = 160;
+const UI_SHEET_LEAVE_MS = 200;
+
+/**
+ * De dónde toma su piel una capa (DISENO C13, revisado tras Codex): fija, la de un contenedor vivo (que puede cambiar
+ * mientras la capa está abierta: el shell sigue al tema) o el tema de la persona.
+ */
+type FuentePiel = { tipo: 'fija'; piel: UiPiel } | { tipo: 'contenedor'; contenedor: Element } | { tipo: 'tema' };
 
 /**
  * Foco inicial por PRIORIDAD (no por orden del documento): primero `[data-autofocus]`, luego el primer control
@@ -54,6 +69,14 @@ export interface UiDialogOptions<D = unknown> {
   autoFocus?: string;
   /** Devolver el foco al disparador al cerrar (por defecto, sí). */
   restoreFocus?: boolean;
+  /**
+   * Piel de la capa (DISENO C13). `game` o `portal` la fijan (el juego pasa `game`); `tema` sigue al tema de la persona
+   * aunque cambie con la capa abierta. Sin ella se hereda: de `origen`, luego del foco (si no está en `body`) y, si
+   * nada de eso tiene piel, del tema.
+   */
+  piel?: UiPiel | 'tema';
+  /** Quién abre la capa (su botón o su anfitrión): la capa toma la piel del contenedor de ese elemento. */
+  origen?: Element | null;
 }
 
 export interface UiSheetOptions<D = unknown> extends UiDialogOptions<D> {
@@ -61,6 +84,9 @@ export interface UiSheetOptions<D = unknown> extends UiDialogOptions<D> {
 }
 
 export interface UiConsequenceOptions {
+  /** Ver `UiDialogOptions.piel`: el juego pasa `'game'`. */
+  piel?: UiPiel | 'tema';
+  origen?: Element | null;
   title: string;
   /** Qué se pierde si se sigue adelante, dicho sin rodeos. */
   consequence: string;
@@ -73,6 +99,9 @@ export interface UiConsequenceOptions {
 export type UiConsequenceAnswer = 'continue' | 'proceed';
 
 export interface UiConfirmOptions {
+  /** Ver `UiDialogOptions.piel`. */
+  piel?: UiPiel | 'tema';
+  origen?: Element | null;
   title: string;
   message: string;
   confirmLabel: string;
@@ -94,11 +123,15 @@ export class UiDialogActions {}
  * Marco de diálogo y hoja (plan visual F2-7): título (`h2`, nombra el diálogo), descripción opcional (lo describe),
  * botón de cerrar opcional, cuerpo y acciones al pie. Se registra en el contenedor del CDK, así el contenido no tiene
  * que conocer ids.
+ *
+ * Sin encapsular (C13): sus estilos también visten la capa que lo contiene (`.ui-overlay-materiales`, con la piel y
+ * los materiales de quien la abre), y esa capa vive en el contenedor del CDK, fuera de cualquier componente.
  */
 @Component({
   selector: 'ui-dialog-frame',
   imports: [UiIconButton],
   changeDetection: ChangeDetectionStrategy.OnPush,
+  encapsulation: ViewEncapsulation.None,
   host: { class: 'ui-dialog-frame', '[attr.title]': 'null' },
   template: `
     <header class="ui-dialog-frame__header">
@@ -196,6 +229,7 @@ export class UiConsequenceDialog {
 export class UiDialog {
   private readonly dialog = inject(Dialog);
   private readonly injector = inject(Injector);
+  private readonly tema = inject(TemaService);
 
   open<R = unknown, D = unknown, C = unknown>(component: ComponentType<C>, options: UiDialogOptions<D> = {}): DialogRef<R, C> {
     return this.launch<R, D, C>(component, options, {
@@ -214,7 +248,7 @@ export class UiDialog {
   }
 
   confirm(options: UiConfirmOptions): Promise<boolean> {
-    const ref = this.launch<boolean, UiConfirmOptions, UiConfirmDialog>(UiConfirmDialog, { data: options }, {
+    const ref = this.launch<boolean, UiConfirmOptions, UiConfirmDialog>(UiConfirmDialog, { data: options, piel: options.piel, origen: options.origen }, {
       role: 'alertdialog',
       panelClass: ['ui-dialog-pane', 'ui-dialog-pane--sm'],
       autoFocus: options.tone === 'danger' ? '.ui-confirm__cancel' : '.ui-confirm__confirm',
@@ -223,7 +257,7 @@ export class UiDialog {
   }
 
   consequence(options: UiConsequenceOptions): Promise<UiConsequenceAnswer> {
-    const ref = this.launch<UiConsequenceAnswer, UiConsequenceOptions, UiConsequenceDialog>(UiConsequenceDialog, { data: options }, {
+    const ref = this.launch<UiConsequenceAnswer, UiConsequenceOptions, UiConsequenceDialog>(UiConsequenceDialog, { data: options, piel: options.piel, origen: options.origen }, {
       role: 'alertdialog',
       panelClass: ['ui-dialog-pane', 'ui-dialog-pane--sm'],
       autoFocus: '.ui-consequence__continue',
@@ -236,6 +270,9 @@ export class UiDialog {
     let leaving = false;
     let mayClose = reduceMotion;
     const priorityFocus = !options.autoFocus && !extra.autoFocus;
+    // La piel se decide ANTES de abrir: después el CDK ya movió el foco a la capa nueva y se perdería el disparador.
+    const fuente = this.fuentePiel(options);
+    const leaveMs = (extra.panelClass as string[] | undefined)?.includes('ui-sheet-pane') ? UI_SHEET_LEAVE_MS : UI_DIALOG_LEAVE_MS;
     const ref: DialogRef<R, C> = this.dialog.open<R, D, C>(component, {
       data: options.data,
       ariaLabel: options.ariaLabel ?? null,
@@ -259,14 +296,61 @@ export class UiDialog {
           setTimeout(() => {
             mayClose = true;
             ref.close(result as R);
-          }, UI_DIALOG_LEAVE_MS);
+          }, leaveMs);
         }
         return false;
       },
       ...extra,
     });
+    this.vestir(ref, fuente);
     // Después del foco del CDK (que se registra al abrir): el foco por prioridad.
     if (priorityFocus) afterNextRender(() => focusByPriority(ref.overlayRef.overlayElement), { injector: this.injector });
     return ref;
+  }
+
+  /**
+   * Orden de C13: piel explícita → contenedor de `origen` → contenedor del foco (si no está en `body`) → tema. Un
+   * diálogo anidado cae en el foco y hereda la piel del padre, porque la capa del padre ya lleva `data-skin`.
+   */
+  private fuentePiel(options: UiDialogOptions<unknown>): FuentePiel {
+    if (options.piel === 'game' || options.piel === 'portal') return { tipo: 'fija', piel: options.piel };
+    if (options.piel === 'tema') return { tipo: 'tema' };
+    const activo = typeof document === 'undefined' ? null : document.activeElement;
+    const contenedor = contenedorDePiel(options.origen)
+      ?? (activo && activo !== document.body ? contenedorDePiel(activo) : null);
+    return contenedor ? { tipo: 'contenedor', contenedor } : { tipo: 'tema' };
+  }
+
+  /**
+   * Pone la piel en la capa y en su velo (contenedores, nunca `body`: REGLA-010) con la clase que les da los materiales
+   * de la portada (`ui-dialog-frame.scss`). La piel se pinta en el acto, sin esperar a un ciclo (así no destella la
+   * otra), y se sigue mientras la capa esté abierta: el tema, con un efecto; un contenedor heredado, observando su
+   * `data-skin` (el shell del portal cambia de piel si la persona o el sistema cambian el tema). Una piel fija no se
+   * sigue: el juego es siempre oscuro.
+   */
+  private vestir<R, C>(ref: DialogRef<R, C>, fuente: FuentePiel): void {
+    const pintar = (piel: UiPiel) => {
+      for (const capa of [ref.overlayRef.overlayElement, ref.overlayRef.backdropElement]) {
+        if (!capa) continue;
+        capa.classList.add('ui-overlay-materiales');
+        if (capa.getAttribute('data-skin') !== piel) capa.setAttribute('data-skin', piel);
+      }
+    };
+    if (fuente.tipo === 'fija') {
+      pintar(fuente.piel);
+      return;
+    }
+    if (fuente.tipo === 'contenedor') {
+      const { contenedor } = fuente;
+      pintar(pielDe(contenedor));
+      if (typeof MutationObserver === 'undefined') return;
+      const observador = new MutationObserver(() => pintar(pielDe(contenedor)));
+      observador.observe(contenedor, { attributes: true, attributeFilter: ['data-skin'] });
+      ref.closed.subscribe(() => observador.disconnect());
+      return;
+    }
+    pintar(this.tema.piel());
+    const seguir = effect(() => pintar(this.tema.piel()), { injector: this.injector });
+    ref.closed.subscribe(() => seguir.destroy());
   }
 }

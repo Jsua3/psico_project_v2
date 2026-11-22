@@ -11,7 +11,7 @@ import { UiBadge } from '../../shared/ui/badge/ui-badge';
 import { UiButton } from '../../shared/ui/button/ui-button';
 import { MarcaComponent } from '../../shared/ui/marca/marca.component';
 import { SiepParticleLayerComponent } from '../../shared/ui/siep-particle-layer.component';
-import { DoodlesComponent } from './doodles.component';
+import { DoodlesComponent } from '../../shared/ui/doodles/doodles.component';
 import { ElencoComponent } from './elenco.component';
 import { RielLetrasComponent, SeccionRiel } from './riel-letras.component';
 

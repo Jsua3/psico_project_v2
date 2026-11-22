@@ -3,6 +3,7 @@ import { ChangeDetectionStrategy, Component, inject, provideZonelessChangeDetect
 import { TestBed } from '@angular/core/testing';
 import { firstValueFrom } from 'rxjs';
 
+import { TemaService } from '../../../core/tema/tema.service';
 import { UiButton } from '../button/ui-button';
 import { UiDialog, UiDialogActions, UiDialogFrame } from './ui-dialog';
 
@@ -280,5 +281,143 @@ describe('UiDialog con salida animada y opciones (revisión de F2)', () => {
     closed = firstValueFrom(ref.closed);
     ref.close();
     await closed;
+  });
+});
+
+/**
+ * C13 revisado (DISENO §2.5, hallazgo 10 de Codex): la capa del CDK vive en `body`, fuera de cualquier piel, así que
+ * `UiDialog` le pone la de quien la abre, en la capa y en su velo (nunca en `body`: REGLA-010). Orden: piel explícita →
+ * contenedor de `origen` → contenedor del foco (si no está en `body`) → tema. Una piel heredada o del tema se sigue
+ * mientras la capa está abierta; una explícita queda fija.
+ */
+// req: DP-24 (los diálogos heredan la piel de quien los abre), REGLA-010
+describe('UiDialog: la piel de la capa (C13)', () => {
+  let tema: TemaService;
+  const settle = async () => {
+    await new Promise(resolve => setTimeout(resolve));
+    TestBed.tick();
+  };
+  const capas = () => [...document.querySelectorAll<HTMLElement>('.cdk-overlay-pane')];
+  const velos = () => [...document.querySelectorAll<HTMLElement>('.cdk-overlay-backdrop')];
+  const pielDe = (el: Element | undefined) => el?.getAttribute('data-skin');
+  const cerrarTodo = async () => {
+    TestBed.inject(Dialog).closeAll();
+    await new Promise(resolve => setTimeout(resolve, 250));
+    await settle();
+  };
+  /** Un botón dentro de un contenedor con piel, como el del juego o el del shell del portal. */
+  const botonEn = (piel: 'game' | 'portal') => {
+    const contenedor = document.createElement('section');
+    contenedor.setAttribute('data-skin', piel);
+    const boton = document.createElement('button');
+    boton.textContent = 'Abrir';
+    contenedor.appendChild(boton);
+    document.body.appendChild(contenedor);
+    return { contenedor, boton };
+  };
+
+  beforeEach(() => {
+    TestBed.configureTestingModule({ providers: [provideZonelessChangeDetection()] });
+    tema = TestBed.inject(TemaService);
+    tema.fijar('claro');
+  });
+
+  afterEach(async () => {
+    await cerrarTodo();
+    tema.fijar('sistema');
+    document.querySelectorAll('section[data-skin]').forEach(el => el.remove());
+  });
+
+  it('abierto por teclado desde un botón dentro de [data-skin="game"] sale oscuro, y desde el portal, claro', async () => {
+    const juego = botonEn('game');
+    juego.boton.focus();
+    TestBed.inject(UiDialog).open(EditGroupDialog, {});
+    await settle();
+    expect(pielDe(capas()[0])).toBe('game');
+    expect(pielDe(velos()[0])).toBe('game');
+    expect(capas()[0].classList).toContain('ui-overlay-materiales');
+    expect(velos()[0].classList).toContain('ui-overlay-materiales');
+    await cerrarTodo();
+
+    // Con el tema en oscuro, para que la piel salga del contenedor y no del tema.
+    tema.fijar('oscuro');
+    const portal = botonEn('portal');
+    portal.boton.focus();
+    void TestBed.inject(UiDialog).confirm({ title: 'Publicar caso', message: 'Lo verán tus estudiantes.', confirmLabel: 'Publicar' });
+    await settle();
+    expect(pielDe(capas()[0])).toBe('portal');
+    // Nunca en body ni en html (REGLA-010).
+    expect(document.body.hasAttribute('data-skin')).toBe(false);
+    expect(document.documentElement.hasAttribute('data-skin')).toBe(false);
+  });
+
+  it('con `origen` toma la piel del contenedor de quien la abre aunque el foco esté en otra parte', async () => {
+    const juego = botonEn('game');
+    const portal = botonEn('portal');
+    portal.boton.focus();
+    void TestBed.inject(UiDialog).consequence({
+      title: '¿Iniciar un intento nuevo?', consequence: 'Perderás el avance.', continueLabel: 'Continuar', proceedLabel: 'Iniciar',
+      origen: juego.boton,
+    });
+    await settle();
+    expect(pielDe(capas()[0])).toBe('game');
+  });
+
+  it('apertura programática con el foco en body (tras una respuesta del servidor): la piel del tema', async () => {
+    (document.activeElement as HTMLElement | null)?.blur();
+    expect(document.activeElement).toBe(document.body);
+    TestBed.inject(UiDialog).open(EditGroupDialog, {});
+    await settle();
+    expect(pielDe(capas()[0])).toBe('portal');
+    await cerrarTodo();
+
+    tema.fijar('oscuro');
+    (document.activeElement as HTMLElement | null)?.blur();
+    TestBed.inject(UiDialog).sheet(EditGroupDialog, { side: 'end' });
+    await settle();
+    expect(pielDe(capas()[0])).toBe('game');
+  });
+
+  it('un diálogo anidado hereda la piel del diálogo padre', async () => {
+    const dialog = TestBed.inject(UiDialog);
+    // Padre oscuro y fijo con el tema en claro: si el hijo cayera al tema, saldría claro.
+    dialog.open(EditGroupDialog, { piel: 'game' });
+    await settle();
+    expect(capas()[0].contains(document.activeElement)).toBe(true);
+    dialog.open(EditGroupDialog, {});
+    await settle();
+    expect(capas().map(pielDe)).toEqual(['game', 'game']);
+  });
+
+  it('con piel «tema», cambiar el tema con el diálogo abierto cambia la capa y el velo', async () => {
+    TestBed.inject(UiDialog).open(EditGroupDialog, { piel: 'tema' });
+    await settle();
+    expect(pielDe(capas()[0])).toBe('portal');
+    tema.fijar('oscuro');
+    await settle();
+    expect(pielDe(capas()[0])).toBe('game');
+    expect(pielDe(velos()[0])).toBe('game');
+  });
+
+  it('con piel explícita «game» la capa queda oscura aunque cambie el tema', async () => {
+    TestBed.inject(UiDialog).open(EditGroupDialog, { piel: 'game' });
+    await settle();
+    expect(pielDe(capas()[0])).toBe('game');
+    tema.fijar('oscuro');
+    await settle();
+    tema.fijar('claro');
+    await settle();
+    expect(pielDe(capas()[0])).toBe('game');
+  });
+
+  it('una piel heredada sigue a su contenedor: si el shell cambia de piel con el diálogo abierto, la capa también', async () => {
+    const shell = botonEn('portal');
+    shell.boton.focus();
+    TestBed.inject(UiDialog).open(EditGroupDialog, {});
+    await settle();
+    expect(pielDe(capas()[0])).toBe('portal');
+    shell.contenedor.setAttribute('data-skin', 'game');
+    await settle();
+    expect(pielDe(capas()[0])).toBe('game');
   });
 });

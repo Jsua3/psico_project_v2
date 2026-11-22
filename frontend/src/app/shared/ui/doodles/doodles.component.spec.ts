@@ -42,6 +42,15 @@ describe('DoodlesComponent', () => {
       expect(luz?.querySelectorAll('.figura')).toHaveLength(0);
     });
 
+    it('intensidad suave: una clase en el anfitrión (la tinta la baja el CSS), sin estilos en línea', async () => {
+      const fixture = TestBed.createComponent(DoodlesComponent);
+      fixture.componentRef.setInput('intensidad', 'suave');
+      await fixture.whenStable();
+      const host = fixture.nativeElement as HTMLElement;
+      expect(host.classList).toContain('doodles--suave');
+      expect(host.hasAttribute('style')).toBe(false);
+    });
+
     it('es decorativo: aria-hidden en el anfitrión', async () => {
       const host = await crear();
       expect(host.getAttribute('aria-hidden')).toBe('true');
@@ -106,6 +115,16 @@ describe('DoodlesComponent', () => {
         expect(escuchas.mock.calls.map(c => c[0])).toContain('pointermove');
         expect(fetchFalso).toHaveBeenCalledTimes(1);
       });
+
+      // DISENO §2.8: en el portal los doodles acompañan la cabecera sin luz del cursor (hay una tarea que no distraer).
+      it('con [interactivo]="false" no escucha el ratón ni carga el mosaico de la luz', async () => {
+        const { fetchFalso, escuchas } = preparar(false);
+        const fixture = TestBed.createComponent(DoodlesComponent);
+        fixture.componentRef.setInput('interactivo', false);
+        await fixture.whenStable();
+        expect(escuchas.mock.calls.map(c => c[0])).not.toContain('pointermove');
+        expect(fetchFalso).not.toHaveBeenCalled();
+      });
     });
   });
 
@@ -169,7 +188,7 @@ describe('DoodlesComponent', () => {
   // Pedido del usuario (2026-11-20): algunas figuras, al azar, ya van en morado apagado. Son dos máscaras del mismo
   // dibujo generadas desde mosaico.svg; si alguien regenera una sin la otra, una figura saldría doble o desaparecería.
   describe('figuras de acento (morado apagado al azar)', () => {
-    const doodles = join(__dirname, '../../../assets/landing/doodles');
+    const doodles = join(__dirname, '../../../../assets/landing/doodles');
     const leer = (nombre: string) => readFileSync(join(doodles, nombre), 'utf-8');
     const contar = (svg: string, etiqueta: string) => (svg.match(new RegExp(`<${etiqueta}\\b`, 'g')) ?? []).length;
     const original = leer('mosaico.svg');

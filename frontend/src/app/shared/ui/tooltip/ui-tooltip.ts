@@ -8,6 +8,7 @@ import {
   ChangeDetectionStrategy, Component, ComponentRef, DestroyRef, Directive, ElementRef, Injectable, Injector, effect,
   inject, input, signal,
 } from '@angular/core';
+import { contenedorDePiel } from '../piel';
 
 /** Retardo con el ratón la primera vez (plan visual §2.6). */
 export const UI_TOOLTIP_SHOW_DELAY_MS = 400;
@@ -153,6 +154,12 @@ export class UiTooltipController {
         }),
       ];
     }
+    // DP-24: el globo vive en la capa del CDK, fuera de la piel de su disparador; se la copia en cada aparición (el
+    // shell cambia de piel con el tema). Sin contenedor con piel, queda la de :root.
+    const piel = contenedorDePiel(this.element)?.getAttribute('data-skin');
+    const pane = this.overlayRef!.overlayElement;
+    if (piel) pane.setAttribute('data-skin', piel);
+    else pane.removeAttribute('data-skin');
     this.panel.instance.leaving.set(false);
     this.render(text);
     this.coordinator.visible = this;

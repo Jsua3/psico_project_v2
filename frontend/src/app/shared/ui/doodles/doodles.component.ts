@@ -1,5 +1,6 @@
 import {
-  ChangeDetectionStrategy, Component, DestroyRef, ElementRef, ViewEncapsulation, afterNextRender, inject, input,
+  ChangeDetectionStrategy, Component, DestroyRef, ElementRef, ViewEncapsulation, afterNextRender, booleanAttribute, inject,
+  input,
 } from '@angular/core';
 
 /** Lado del mosaico en px: el SVG mide 520 × 520 y la máscara lo repite a ese tamaño desde la esquina de la vista. */
@@ -109,6 +110,10 @@ const RETIRO_MS = 300;
  * base: el hueco entre figuras no cambia ni un píxel (sin disco, halo ni resplandor). Se enciende con un fundido y un
  * leve escalonado por distancia, y se apaga con otro más corto. Solo con ratón; sin obra en jsdom ni con la zona fuera
  * de la pantalla.
+ *
+ * Vive en `shared/ui` (DISENO §2.8, DP-23) porque también lo usa el portal: detrás de la banda de cabecera de Inicio
+ * (`intensidad="suave"`, sin luz: `[interactivo]="false"`) y de las páginas de estado. Nunca detrás de tablas,
+ * formularios ni texto del caso. El selector sigue siendo `app-doodles` para no tocar las pruebas de la portada.
  */
 @Component({
   selector: 'app-doodles',
@@ -116,7 +121,7 @@ const RETIRO_MS = 300;
   // Sin encapsular: las figuras encendidas se crean por DOM (no llevan el atributo del componente) y sus reglas tienen
   // que alcanzarlas. Por eso todos los selectores van bajo `app-doodles`.
   encapsulation: ViewEncapsulation.None,
-  host: { 'aria-hidden': 'true' },
+  host: { 'aria-hidden': 'true', '[class.doodles--suave]': "intensidad() === 'suave'" },
   template: `<div class="capa"></div><div class="capa acento"></div><svg class="luz" focusable="false"><defs></defs><g class="figuras"></g></svg>`,
   styles: `
     /* Dos máscaras complementarias del mismo dibujo (las genera .superpowers/landing/generar-doodles-acento.py desde
@@ -186,6 +191,11 @@ const RETIRO_MS = 300;
       opacity: 0.72;
     }
 
+    /* Suave (portal): el mismo mosaico a menos de la mitad de tinta; acompaña una cabecera sin competir con ella. */
+    app-doodles.doodles--suave .capa {
+      opacity: 0.45;
+    }
+
     app-doodles .luz defs {
       display: none;
     }
@@ -213,6 +223,10 @@ const RETIRO_MS = 300;
 export class DoodlesComponent {
   readonly desde = input('#casos');
   readonly hasta = input('#como-funciona');
+  /** `portada`: la tinta de la portada; `suave`: 0,45 de esa tinta, para las bandas de cabecera del portal. */
+  readonly intensidad = input<'portada' | 'suave'>('portada');
+  /** Sin luz del cursor ni escucha del ratón: donde hay una tarea, la luz distraería. */
+  readonly interactivo = input(true, { transform: booleanAttribute });
 
   constructor() {
     const destroyRef = inject(DestroyRef);
@@ -381,7 +395,7 @@ export class DoodlesComponent {
         zonaB = Math.round(b.getBoundingClientRect().bottom);
         host.style.setProperty('--a', `${zonaA}px`);
         host.style.setProperty('--b', `${zonaB}px`);
-        escuchar(fino.matches && !forzado.matches && zonaA < innerHeight && zonaB > 0);
+        escuchar(this.interactivo() && fino.matches && !forzado.matches && zonaA < innerHeight && zonaB > 0);
         // Con el cursor quieto, al desplazar la página la zona se mueve: las figuras que entran o salen se repasan.
         if (cursor) pedirLuz();
       };

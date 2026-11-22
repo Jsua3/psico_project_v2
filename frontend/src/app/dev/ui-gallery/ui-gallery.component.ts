@@ -1,6 +1,6 @@
 import { NgTemplateOutlet } from '@angular/common';
 import { DialogRef } from '@angular/cdk/dialog';
-import { ChangeDetectionStrategy, Component, inject, signal } from '@angular/core';
+import { ChangeDetectionStrategy, Component, computed, inject, signal } from '@angular/core';
 
 import { NotificationService, NotificationType } from '../../core/notifications/notification.service';
 import { UiBadge } from '../../shared/ui/badge/ui-badge';
@@ -26,6 +26,16 @@ import { UiTable, UiTableEmpty, UiTableError, UiTableRow, UiTableTable } from '.
 import { UiTab, UiTabs } from '../../shared/ui/tabs/ui-tabs';
 import { UiToastHost } from '../../shared/ui/toast/ui-toast-host';
 import { UiTooltip } from '../../shared/ui/tooltip/ui-tooltip';
+import { UiArchivo } from '../../shared/ui/archivo/ui-archivo';
+import { UiBarraAcciones } from '../../shared/ui/barra-acciones/ui-barra-acciones';
+import { UiBarras, UiBarrasDato } from '../../shared/ui/barras/ui-barras';
+import { DoodlesComponent } from '../../shared/ui/doodles/doodles.component';
+import { UiFiguraPixel } from '../../shared/ui/figura-pixel/ui-figura-pixel';
+import { UiFiltros } from '../../shared/ui/filtros/ui-filtros';
+import { UiPortadaCaso } from '../../shared/ui/portada-caso/ui-portada-caso';
+import { UiSegmentado, UiSegmento } from '../../shared/ui/segmentado/ui-segmentado';
+import { FIGURAS_VACIO } from '../../shared/ui/state/state-copy';
+import { UiCelda, UiCeldaAcciones, UiCeldaPrincipal } from '../../shared/ui/table/ui-table-celda';
 
 /** Diálogo de muestra de la galería: marco, un campo y acciones. */
 @Component({
@@ -35,6 +45,7 @@ import { UiTooltip } from '../../shared/ui/tooltip/ui-tooltip';
   template: `
     <ui-dialog-frame title="Editar grupo" description="Cambia el nombre que ven tus estudiantes.">
       <ui-field label="Nombre del grupo" hint="Máximo 40 caracteres"><input uiControl value="Psicología 2026-1" /></ui-field>
+      <button ui-button uiDialogActions type="button" variant="ghost" class="ui-gallery__anidado" (click)="anidar()">Abrir otro encima</button>
       <button ui-button uiDialogActions type="button" variant="secondary" (click)="ref.close()">Cancelar</button>
       <button ui-button uiDialogActions type="button" (click)="ref.close(true)">Guardar</button>
     </ui-dialog-frame>
@@ -42,6 +53,12 @@ import { UiTooltip } from '../../shared/ui/tooltip/ui-tooltip';
 })
 export class UiGalleryDialog {
   protected readonly ref = inject(DialogRef);
+  private readonly dialog = inject(UiDialog);
+
+  /** Sin opciones de piel: el anidado la toma del foco, que está en este diálogo (C13). */
+  protected anidar(): void {
+    void this.dialog.confirm({ title: 'Diálogo anidado', message: 'Tiene la piel del diálogo que lo abrió.', confirmLabel: 'Entendido' });
+  }
 }
 
 /**
@@ -59,12 +76,16 @@ export class UiGalleryDialog {
     NgTemplateOutlet, UiBadge, UiButton, UiCard, UiCheck, UiControl, UiEmptyState, UiErrorState, UiField, UiIconButton, UiLink,
     UiMenu, UiPageHeader, UiProgress, UiScopeNotice, UiSection, UiSkeleton, UiSpinner, UiStat, UiSwitch, UiTab, UiTable, UiTableEmpty, UiTableError, UiTableRow,
     UiTableTable, UiTabs, UiToastHost, UiTooltip,
+    DoodlesComponent, UiArchivo, UiBarraAcciones, UiBarras, UiCelda, UiCeldaAcciones, UiCeldaPrincipal, UiFiguraPixel, UiFiltros,
+    UiPortadaCaso, UiSegmentado,
   ],
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
     <main id="main-content" class="ui-gallery" tabindex="-1">
-      <ui-page-header eyebrow="Solo en desarrollo" title="Galería de componentes"
-        description="Cada componente de shared/ui en todos sus estados y en las dos pieles." />
+      <ui-page-header eyebrow="Solo en desarrollo" title="Galería de componentes" volverA="/dev/barra" volverEtiqueta="Banco de la barra"
+        description="Cada componente de shared/ui en todos sus estados y en las dos pieles.">
+        <button ui-button uiPageActions type="button" variant="secondary" (click)="abrirConTema()">Diálogo con el tema</button>
+      </ui-page-header>
       @for (skin of skins; track skin.id) {
         <section class="ui-gallery__skin" [attr.data-skin]="skin.id" [attr.aria-labelledby]="'piel-' + skin.id">
           <h2 [id]="'piel-' + skin.id">Piel {{ skin.label }}</h2>
@@ -152,6 +173,14 @@ export class UiGalleryDialog {
             <strong class="ui-gallery__card-title">Retomar intento</strong>
             <span>Tarjeta clicable como botón.</span>
           </button>
+          <ui-card superficie="hundida">
+            <strong class="ui-gallery__card-title">Superficie hundida</strong>
+            <span>Un bloque dentro de otro: la cita del caso.</span>
+          </ui-card>
+          <a ui-card superficie="tinte" href="#main-content">
+            <strong class="ui-gallery__card-title">Siguiente paso</strong>
+            <span>Superficie de tinte: lo que sigue.</span>
+          </a>
         </div>
         <div class="ui-gallery__row">
           <ui-badge>Borrador</ui-badge>
@@ -187,6 +216,14 @@ export class UiGalleryDialog {
           <ui-card><ui-empty-state kind="first-use" title="Aún no tienes grupos" actionLabel="Crear grupo" /></ui-card>
           <ui-card><ui-empty-state kind="no-results" withAction (action)="notify('info', 'Filtros limpios')" /></ui-card>
           <ui-card><ui-empty-state kind="restricted" /></ui-card>
+        </div>
+        <div class="ui-gallery__grid">
+          <ui-card><ui-empty-state [figura]="figuras.estudiante" title="Aún no tienes casos asignados"
+            description="Cuando tu docente te asigne un caso, aparecerá aquí." /></ui-card>
+          <ui-card><ui-empty-state [figura]="figuras.revision" title="Nada por revisar"
+            description="Cuando un estudiante termine un caso, aparecerá aquí." /></ui-card>
+          <ui-card><ui-empty-state [figura]="figuras.docente" title="Aún no tienes grupos" actionLabel="Crear grupo"
+            description="Crea un grupo y comparte su código con tus estudiantes." /></ui-card>
         </div>
         <div class="ui-gallery__grid">
           <ui-error-state kind="network" [status]="0" detail="net::ERR_INTERNET_DISCONNECTED" />
@@ -245,6 +282,80 @@ export class UiGalleryDialog {
         </ui-table>
       </ui-section>
 
+      <ui-section title="Tabla que se apila" [level]="3">
+        <p class="ui-gallery__nota">Seis columnas. A todo lo ancho es una tabla; en un contenedor de menos de 40rem (la columna de 320 px, o un teléfono) cada fila es una tarjeta.</p>
+        <ng-container [ngTemplateOutlet]="tablaApilada" />
+        <div class="ui-gallery__estrecha"><ng-container [ngTemplateOutlet]="tablaApilada" /></div>
+      </ui-section>
+
+      <ui-section title="Segmentado y filtros" [level]="3">
+        <ui-segmentado etiqueta="Vista" [opciones]="vistas" [(valor)]="vista" />
+        <ui-filtros etiquetaBusqueda="Buscar casos" [(busqueda)]="busqueda" [total]="casosDemo.length" [visibles]="casosVisibles().length"
+          [hayFiltros]="estadoCaso() !== 'todos'" (limpiar)="estadoCaso.set('todos')">
+          <ui-segmentado etiqueta="Estado del caso" [opciones]="estadosCaso()" [(valor)]="estadoCaso" />
+        </ui-filtros>
+        <ul class="ui-gallery__nota">
+          @for (caso of casosVisibles(); track caso.titulo) {
+            <li>{{ caso.titulo }}</li>
+          }
+        </ul>
+      </ui-section>
+
+      <ui-section title="Barra de acciones" [level]="3">
+        <div class="ui-gallery__mini-pagina">
+          @for (parrafo of parrafos; track $index) {
+            <p>{{ parrafo }}</p>
+          }
+          <ui-barra-acciones nota="Al comenzar aceptas el aviso de contenido.">
+            <button ui-button type="button" variant="secondary">Volver a Casos</button>
+            <button ui-button type="button">Comenzar el caso</button>
+          </ui-barra-acciones>
+        </div>
+        <div class="ui-gallery__columna">
+          <p>Tres de cuatro criterios valorados.</p>
+          <ui-barra-acciones posicion="columna">
+            <button ui-button type="button" variant="secondary">Guardar sin entregar</button>
+            <button ui-button type="button">Guardar evaluación</button>
+          </ui-barra-acciones>
+        </div>
+      </ui-section>
+
+      <ui-section title="Figuras del kit y portadas de caso" [level]="3">
+        <div class="ui-gallery__figuras">
+          <ui-figura-pixel personaje="camila/bata" [escala]="2" />
+          <ui-figura-pixel personaje="docente-universidad" [escala]="3" etiqueta="Docente de la universidad" />
+          <ui-figura-pixel personaje="funcionaria-recepcion" [escala]="3" />
+          <ui-figura-pixel personaje="supervisor-clinico" [escala]="4" respira />
+        </div>
+        <div class="ui-gallery__figuras">
+          <ui-portada-caso titulo="La casa de Sofía" portada="/assets/biblioteca/escenarios/casa/arte/salas/fachada.png" tamano="heroe" />
+          <ui-portada-caso titulo="La casa de Sofía" portada="/assets/biblioteca/escenarios/casa/arte/salas/fachada.png" />
+          <ui-portada-caso titulo="Caso por piezas, sin portada" />
+          <ui-portada-caso titulo="Caso por piezas, sin portada" tamano="mini" />
+        </div>
+      </ui-section>
+
+      <ui-section title="Barras" [level]="3">
+        <div class="ui-gallery__grid">
+          <ui-barras [datos]="avanceGrupo" [total]="9" etiquetaColumna="Avance"
+            descripcion="De 9 estudiantes, 3 terminaron el caso, 4 lo tienen en curso y 2 no lo han empezado." />
+          <ui-barras modo="apilada" [datos]="clasesRespuesta" [total]="20" etiquetaColumna="Clase de respuesta"
+            descripcion="En la escena 3, la mitad de las respuestas fueron adecuadas y 3 de 20 fueron de riesgo." />
+        </div>
+      </ui-section>
+
+      <ui-section title="Archivo" [level]="3">
+        <ui-archivo etiqueta="Lista de estudiantes" acepta=".xlsx" ayuda="Una fila por estudiante: nombre, apellido y correo institucional." />
+      </ui-section>
+
+      <ui-section title="Doodles en la cabecera" [level]="3">
+        <div class="ui-gallery__banda" [id]="'doodles-' + skin">
+          <strong>Buenas tardes, Ana</strong>
+          <p>El mosaico de la portada, suave y sin luz del cursor: solo en la banda de cabecera de Inicio.</p>
+        </div>
+        <app-doodles [desde]="'#doodles-' + skin" [hasta]="'#doodles-' + skin" intensidad="suave" [interactivo]="false" />
+      </ui-section>
+
       <ui-section title="Alcance y consecuencia (borrador)" [level]="3">
         <ui-scope-notice />
         <div class="ui-gallery__row">
@@ -265,25 +376,25 @@ export class UiGalleryDialog {
         </div>
       </ui-section>
     </ng-template>
+
+    <ng-template #tablaApilada>
+      <ui-table label="Intentos por revisar" apilar>
+        <table ui-table>
+          <thead><tr><th scope="col">Estudiante</th><th scope="col">Caso</th><th scope="col">Estado</th><th scope="col">Terminó</th><th scope="col">Escenas</th><th scope="col"><span class="ds-sr-only">Acciones</span></th></tr></thead>
+          <tbody>
+            @for (row of tableRows; track row.name) {
+              <tr uiRow [selected]="row.name === 'Luis Pérez'">
+                <td uiCeldaPrincipal>{{ row.name }}</td><td>{{ row.caseName }}</td>
+                <td uiCelda="Situación"><ui-badge [tone]="row.tone">{{ row.state }}</ui-badge></td><td>hace 2 días</td><td>5 de 8</td>
+                <td uiCeldaAcciones><button ui-button type="button" size="sm" variant="secondary">Revisar</button></td>
+              </tr>
+            }
+          </tbody>
+        </table>
+      </ui-table>
+    </ng-template>
   `,
-  styles: [`
-    .ui-gallery { max-width: 72rem; margin: 0 auto; padding: var(--ds-space-6) var(--ds-space-4); }
-    .ui-gallery:focus { outline: none; }
-    .ui-gallery__skin {
-      margin-block: var(--ds-space-5);
-      padding: var(--ds-space-5);
-      border: 1px solid var(--ds-border);
-      border-radius: var(--ds-radius-lg);
-      background: var(--ds-surface-page);
-      color: var(--ds-text-1);
-    }
-    .ui-gallery__grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(16rem, 1fr)); gap: var(--ds-space-4); }
-    /* El h2 global hereda el primario del portal (alias en :root): cada piel pinta su título con su texto. */
-    .ui-gallery__skin > h2 { margin-block: 0 var(--ds-space-4); color: var(--ds-text-1); font-size: var(--ds-type-h2-size); }
-    .ui-gallery__grow { flex: 1; }
-    .ui-gallery__card-title { display: block; margin-block-end: var(--ds-space-1); }
-    .ui-gallery__row { display: flex; flex-wrap: wrap; align-items: center; gap: var(--ds-space-3); margin-block: var(--ds-space-3); }
-  `],
+  styleUrl: './ui-gallery.component.scss',
 })
 export class UiGalleryComponent {
   protected readonly saving = signal(false);
@@ -303,6 +414,53 @@ export class UiGalleryComponent {
     { value: 'ver', label: 'Ver intento', icon: 'visibility' },
     { value: 'reabrir', label: 'Reabrir', icon: 'undo' },
     { value: 'borrar', label: 'Borrar', icon: 'delete', tone: 'danger' },
+  ];
+  protected readonly figuras = FIGURAS_VACIO;
+  protected readonly vistas: readonly UiSegmento[] = [
+    { valor: 'solicitudes', etiqueta: 'Solicitudes', cuenta: 3 },
+    { valor: 'cuentas', etiqueta: 'Cuentas' },
+    { valor: 'grupos', etiqueta: 'Grupos' },
+  ];
+  protected readonly vista = signal('solicitudes');
+  protected readonly casosDemo = [
+    { titulo: 'Crisis en urgencias', estado: 'en-curso' },
+    { titulo: 'Acompañamiento familiar', estado: 'sin-empezar' },
+    { titulo: 'La casa de Sofía', estado: 'terminado' },
+    { titulo: 'Primera entrevista', estado: 'sin-empezar' },
+  ] as const;
+  protected readonly busqueda = signal('');
+  protected readonly estadoCaso = signal('todos');
+  protected readonly estadosCaso = computed<UiSegmento[]>(() => {
+    const cuenta = (estado: string) => this.casosDemo.filter(caso => caso.estado === estado).length;
+    return [
+      { valor: 'todos', etiqueta: 'Todos', cuenta: this.casosDemo.length },
+      { valor: 'sin-empezar', etiqueta: 'Sin empezar', cuenta: cuenta('sin-empezar') },
+      { valor: 'en-curso', etiqueta: 'En curso', cuenta: cuenta('en-curso') },
+      { valor: 'terminado', etiqueta: 'Terminados', cuenta: cuenta('terminado') },
+    ];
+  });
+  protected readonly casosVisibles = computed(() => {
+    const texto = this.busqueda().trim().toLowerCase();
+    const estado = this.estadoCaso();
+    return this.casosDemo.filter(caso =>
+      (estado === 'todos' || caso.estado === estado) && caso.titulo.toLowerCase().includes(texto));
+  });
+  protected readonly parrafos = [
+    'La ficha del caso se lee de arriba abajo: el aviso de contenido, el contexto y quiénes aparecen.',
+    'Mientras se desplaza, la barra de acciones se queda pegada al borde inferior de la página.',
+    'En un teléfono se apoya sobre las pestañas de la barra y sus botones toman el ancho.',
+    'La página reserva su alto con .p-con-barra-acciones para que no tape la última fila.',
+    'Fin de la página de muestra.',
+  ];
+  protected readonly avanceGrupo: readonly UiBarrasDato[] = [
+    { etiqueta: 'Terminaron', valor: 3, tono: 'success' },
+    { etiqueta: 'En curso', valor: 4, tono: 'info' },
+    { etiqueta: 'Sin empezar', valor: 2 },
+  ];
+  protected readonly clasesRespuesta: readonly UiBarrasDato[] = [
+    { etiqueta: 'Adecuadas', valor: 10, tono: 'success' },
+    { etiqueta: 'Mejorables', valor: 7, tono: 'warning' },
+    { etiqueta: 'De riesgo', valor: 3, tono: 'danger' },
   ];
   protected readonly wideColumns = ['Escena 1', 'Escena 2', 'Escena 3', 'Escena 4', 'Escena 5', 'Escena 6', 'Escena 7', 'Escena 8'];
   private readonly dialog = inject(UiDialog);
@@ -343,6 +501,11 @@ export class UiGalleryComponent {
 
   protected openDialog(): void {
     this.dialog.open(UiGalleryDialog);
+  }
+
+  /** Piel «tema»: sigue a la cápsula de tema aunque cambie con el diálogo abierto (C13). */
+  protected abrirConTema(): void {
+    this.dialog.open(UiGalleryDialog, { piel: 'tema' });
   }
 
   protected async confirm(tone: 'default' | 'danger'): Promise<void> {

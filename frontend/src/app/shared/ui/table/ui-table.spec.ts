@@ -3,7 +3,8 @@ import { ComponentFixture, TestBed } from '@angular/core/testing';
 
 import { UiDataStateValue } from '../state/ui-data-state';
 import { UiErrorState } from '../state/ui-error-state';
-import { UiTable, UiTableEmpty, UiTableError, UiTableRow, UiTableTable } from './ui-table';
+import { UiCelda, UiCeldaAcciones, UiCeldaPrincipal } from './ui-table-celda';
+import { UiTable, UiTableEmpty, UiTableError, UiTableRow, UiTableTable, marcarTablaApilable } from './ui-table';
 
 /**
  * ui-table (plan visual F2-8): marco de tabla nativa con densidad, cabecera pegajosa, fila con hover (puntero fino)
@@ -149,5 +150,94 @@ describe('ui-table: foco tras un reintento fallido', () => {
     await fixture.whenStable();
     expect(document.activeElement).toBe(root.querySelector('.ui-error-state__title'));
     root.remove();
+  });
+});
+
+/**
+ * ui-table apilar (DISENO C3, DP-20): en un contenedor estrecho cada fila pasa a ser una tarjeta. El CSS lo decide por
+ * consulta de contenedor (el ancho real se mira en la captura a 320 px de la galería); aquí se prueba lo que lo hace
+ * posible y accesible: la clase, los roles explícitos (con `display: block` algunos navegadores pierden la semántica de
+ * tabla) y el rótulo de cada celda, propio o tomado de su columna, también en las filas que llegan después.
+ */
+// req: RNF-004 (WCAG 1.4.10, reflujo: nada se desborda a 320 px), P7
+@Component({
+  imports: [UiTable, UiTableTable, UiTableRow, UiCelda, UiCeldaPrincipal, UiCeldaAcciones],
+  template: `
+    <ui-table label="Intentos del grupo" [apilar]="apilar()">
+      <table ui-table>
+        <thead><tr><th scope="col">Estudiante</th><th scope="col">Estado</th><th scope="col" colspan="2">Caso y escena</th><th scope="col"><span class="ds-sr-only">Acciones</span></th></tr></thead>
+        <tbody>
+          @for (fila of filas(); track fila) {
+            <tr uiRow>
+              <td uiCeldaPrincipal>{{ fila }}</td>
+              <td uiCelda="Situación">En curso</td>
+              <td>Crisis en urgencias</td>
+              <td>Escena 2</td>
+              <td uiCeldaAcciones><button type="button">Revisar</button></td>
+            </tr>
+          }
+        </tbody>
+      </table>
+    </ui-table>
+  `,
+})
+class ApilarHost {
+  readonly apilar = signal(true);
+  readonly filas = signal(['Ana', 'Luis']);
+}
+
+describe('ui-table apilar', () => {
+  let fixture: ComponentFixture<ApilarHost>;
+  const tabla = () => (fixture.nativeElement as HTMLElement).querySelector('table')!;
+
+  beforeEach(async () => {
+    TestBed.configureTestingModule({ providers: [provideZonelessChangeDetection()] });
+    fixture = TestBed.createComponent(ApilarHost);
+    await fixture.whenStable();
+  });
+
+  it('marca el marco para el apilado por consulta de contenedor', () => {
+    expect((fixture.nativeElement as HTMLElement).querySelector('ui-table')!.classList).toContain('ui-table--apilar');
+  });
+
+  it('pone roles explícitos de tabla en la tabla, los grupos, las filas y las celdas', () => {
+    expect(tabla().getAttribute('role')).toBe('table');
+    expect([...tabla().querySelectorAll('thead, tbody')].map(el => el.getAttribute('role'))).toEqual(['rowgroup', 'rowgroup']);
+    expect([...tabla().querySelectorAll('tr')].every(fila => fila.getAttribute('role') === 'row')).toBe(true);
+    expect([...tabla().querySelectorAll('thead th')].every(th => th.getAttribute('role') === 'columnheader')).toBe(true);
+    expect([...tabla().querySelectorAll('tbody td')].every(td => td.getAttribute('role') === 'cell')).toBe(true);
+  });
+
+  it('cada celda lleva su rótulo: el propio de [uiCelda] o el de su columna (respetando colspan)', () => {
+    const primera = [...tabla().querySelectorAll('tbody tr')[0].querySelectorAll('td')];
+    expect(primera.map(td => td.getAttribute('data-etiqueta'))).toEqual(['Estudiante', 'Situación', 'Caso y escena', 'Caso y escena', 'Acciones']);
+    expect(primera[0].getAttribute('data-celda')).toBe('principal');
+    expect(primera[4].getAttribute('data-celda')).toBe('acciones');
+  });
+
+  it('las filas que llegan después también se marcan', async () => {
+    fixture.componentInstance.filas.set(['Ana', 'Luis', 'Sara']);
+    await fixture.whenStable();
+    await new Promise(resolve => setTimeout(resolve));
+    const nueva = tabla().querySelectorAll('tbody tr')[2];
+    expect(nueva.getAttribute('role')).toBe('row');
+    expect(nueva.querySelector('td')?.getAttribute('data-etiqueta')).toBe('Estudiante');
+  });
+
+  it('sin apilar no quedan roles ni rótulos puestos por el apilado (los de [uiCelda] se conservan)', async () => {
+    fixture.componentInstance.apilar.set(false);
+    await fixture.whenStable();
+    expect(tabla().hasAttribute('role')).toBe(false);
+    expect(tabla().querySelector('tbody tr')!.hasAttribute('role')).toBe(false);
+    const celdas = [...tabla().querySelectorAll('tbody tr')[0].querySelectorAll('td')];
+    expect(celdas.map(td => td.getAttribute('data-etiqueta'))).toEqual([null, 'Situación', null, null, null]);
+  });
+
+  it('marcarTablaApilable toma la fila de encabezados de filas como rowheader', () => {
+    const t = document.createElement('table');
+    t.innerHTML = '<thead><tr><th>Escena</th><th>Decisión</th></tr></thead><tbody><tr><th scope="row">1</th><td>Escuchar</td></tr></tbody>';
+    marcarTablaApilable(t, true);
+    expect(t.querySelector('tbody th')?.getAttribute('role')).toBe('rowheader');
+    expect(t.querySelector('tbody td')?.getAttribute('data-etiqueta')).toBe('Decisión');
   });
 });

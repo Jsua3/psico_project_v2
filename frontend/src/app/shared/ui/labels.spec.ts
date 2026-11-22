@@ -1,4 +1,6 @@
-import { invitationLabel, membershipLabel, objectTypeLabel, plural, roleLabel, statusLabel } from './labels';
+import {
+  evaluationStatusLabel, invitationLabel, membershipLabel, objectTypeLabel, plural, roleLabel, statusLabel, statusTone,
+} from './labels';
 
 /** Plan visual §2.10: una sola tabla de etiquetas; nunca un enum crudo ni una clave técnica en pantalla. */
 describe('labels: etiquetas humanas', () => {
@@ -55,5 +57,22 @@ describe('labels: etiquetas humanas', () => {
     expect(plural(2, 'nodo')).toBe('2 nodos');
     expect(plural(0, 'error', 'errores')).toBe('0 errores');
     expect(plural(1, 'advertencia')).toBe('1 advertencia');
+  });
+
+  // req: DISENO BK-3 y B5a (la bandeja «Por revisar» de la docente)
+  it('traduce si un intento ya tiene valoración docente, sin claves en mayúsculas', () => {
+    expect(evaluationStatusLabel('PENDIENTE')).toBe('Por revisar');
+    expect(evaluationStatusLabel('APLICADA')).toBe('Revisado');
+    expect(evaluationStatusLabel('NO_APLICA')).toBe('Sin valoración');
+    expect(evaluationStatusLabel(null)).toBe('Sin valoración');
+  });
+
+  it('da a cada estado el tono de su insignia, y neutro al que no conoce', () => {
+    expect(statusTone('PUBLISHED')).toBe('success');
+    expect(statusTone('in_review')).toBe('info');
+    expect(statusTone('SAFE_EXITED')).toBe('warning');
+    expect(statusTone('DRAFT')).toBe('neutral');
+    expect(statusTone('ALGO_NUEVO')).toBe('neutral');
+    expect(statusTone(undefined)).toBe('neutral');
   });
 });

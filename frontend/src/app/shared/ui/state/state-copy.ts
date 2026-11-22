@@ -48,6 +48,21 @@ export const EMPTY_STATE_COPY: Readonly<Record<UiEmptyKind, EmptyStateCopy>> = {
   },
 };
 
+/**
+ * Quién acompaña cada estado vacío del portal (DISENO §2.7): un personaje del kit a ×3 en `ui-empty-state [figura]`.
+ * Una sola tabla para que cada rol vea siempre a la misma persona: el estudiante, a Camila en bata; la docente, a la
+ * docente de la universidad; la administración, a la funcionaria de recepción; la bandeja de revisión, al supervisor
+ * clínico. Son rutas bajo `assets/characters/kit/`.
+ */
+export const FIGURAS_VACIO = {
+  estudiante: 'camila/bata',
+  docente: 'docente-universidad',
+  admin: 'funcionaria-recepcion',
+  revision: 'supervisor-clinico',
+} as const;
+
+export type UiFiguraVacio = keyof typeof FIGURAS_VACIO;
+
 export const ERROR_STATE_COPY: Readonly<Record<UiErrorKind, ErrorStateCopy>> = {
   network: {
     title: 'Sin conexión',
