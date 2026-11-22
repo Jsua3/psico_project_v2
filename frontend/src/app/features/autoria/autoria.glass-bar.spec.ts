@@ -74,16 +74,23 @@ describe('Editor de casos: la barra de vidrio (tableros 45–51)', () => {
   // guardado, «Probar» y «Pendientes» junto a la cuenta, y el selector de tema.
   it('con un caso abierto, el módulo central trae «‹ Casos», el nombre del caso y su hilo; la cuenta, las herramientas, la ayuda y el menú', async () => {
     const { raiz } = await irA('/portal/casos/41/editor');
+    // Volver a Casos es el logo con su «‹» (pedido del usuario, 2026-11-22): ya no hay un botón aparte en el módulo central.
+    const logo = raiz.querySelector<HTMLAnchorElement>('header .modulo-logo')!;
+    expect(logo.getAttribute('href')).toBe('/portal/casos');
+    expect(logo.getAttribute('aria-label')).toBe('Volver a Casos');
+    expect(logo.querySelector('.logo-volver__flecha')).not.toBeNull();
+    expect(logo.querySelector('.logo-volver__texto')!.textContent).toBe('Volver a casos');
     const central = raiz.querySelector('header .modulo-principal')!;
-    expect(central.querySelector('a')!.getAttribute('href')).toBe('/portal/casos');
-    expect(central.textContent).toContain('Casos');
+    expect(central.querySelector('a[href="/portal/casos"]')).toBeNull();
     expect(central.textContent).not.toContain('Mis casos');
     expect(central.querySelector('.caso-actual')!.textContent).toContain('Primera escucha');
     const cuenta = raiz.querySelector('header .modulo-cuenta')!;
     const ayuda = cuenta.querySelector('[role="group"][aria-label="Ayuda"]')!;
     expect([...ayuda.querySelectorAll('button')].map((b) => b.textContent!.replace(/\s+/g, ' ').trim().split(' Ctrl')[0])).toEqual(['Ayuda', 'Asistente de IA']);
     expect(ayuda.querySelector('button')!.getAttribute('data-accion')).toBe('buscar guia');
-    expect(cuenta.querySelector('[data-estado-guardado]')).not.toBeNull();
+    // El guardado informa: vive en la barra de estado, junto a «Pendientes», no entre los botones de arriba.
+    expect(cuenta.querySelector('[data-estado-guardado]')).toBeNull();
+    expect(raiz.querySelector('app-estudio-barra-estado [data-estado-guardado]')).not.toBeNull();
     expect(cuenta.querySelector('a.enlace-probar')).not.toBeNull();
     expect(cuenta.querySelector('button[data-accion="ver-pendientes"] .solo-lector')!.textContent).toMatch(/^Pendientes: /);
     expect(cuenta.querySelector('app-tema-selector')).not.toBeNull();
