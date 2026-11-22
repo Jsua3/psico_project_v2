@@ -98,6 +98,14 @@ describe('RehearsalPanelComponent', () => {
     expect(el.querySelector('a[href="/portal/casos/9/editor/escena/7"]')).not.toBeNull();
   });
 
+  it('el regreso al guion va arriba, antes del cuerpo del panel, y se ve aunque el panel esté plegado', () => {
+    const enlace = el.querySelector<HTMLAnchorElement>('a.rp__volver')!;
+    expect(enlace.getAttribute('href')).toBe('/portal/casos/9/editor/escena/7');
+    expect(enlace.compareDocumentPosition(el.querySelector('.rp__toggle')!) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    expect(enlace.closest('.rp__body')).toBeNull();
+    expect(el.querySelectorAll('a[href="/portal/casos/9/editor/escena/7"]')).toHaveLength(1);
+  });
+
   it('marcar una casilla manda lo explorado completo, avisa al juego y queda ocupado (aria-busy) mientras tanto', () => {
     (el.querySelector('input[type=checkbox][value="inspected:carpeta"]') as HTMLInputElement).click();
     fixture.detectChanges();

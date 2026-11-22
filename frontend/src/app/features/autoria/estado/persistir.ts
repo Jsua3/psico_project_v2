@@ -9,7 +9,7 @@
 import { HttpErrorResponse } from '@angular/common/http';
 
 import type {
-  ChecklistUpdateRequest, WorldDefinition, WorldDialogueChoice, WorldDialogueTree, WorldObject, WorldRoomSaveRequest,
+  BriefUpdateRequest, ChecklistUpdateRequest, WorldDefinition, WorldDialogueChoice, WorldDialogueTree, WorldObject, WorldRoomSaveRequest,
 } from '../../../core/models/simulation.model';
 import type { CasoBorrador, Escena, Respuesta } from '../modelo/caso';
 import { arbolDeGuion, salaPorClaveDeNodoDe } from '../modelo/desde-api';
@@ -515,12 +515,22 @@ export async function guardarHitosYFinales(s: SesionServidor, caso: CasoBorrador
   if (!quitaHitos && dependen) await guardarFinales(s, caso);
 }
 
-/** El contexto y los objetivos del caso; si el servidor ya los tiene así, no le dice nada (tampoco sube la revisión). */
+/**
+ * La ficha del caso: contexto, objetivos, temas sensibles (RK-7) y nombre (RK-8). Solo viaja lo que cambió respecto de lo que
+ * tiene el servidor; si nada cambió no le dice nada (tampoco sube la revisión). Un caso sin `temasSensibles` (servidor sin
+ * RK-7) no los envía.
+ */
 export async function guardarFicha(s: SesionServidor, caso: CasoBorrador): Promise<void> {
   const contexto = caso.contexto ?? '';
   const objetivos = caso.objetivos ?? [];
-  if (s.vista.context === contexto && igual(s.vista.learningObjectives ?? [], objetivos)) return;
-  await s.guardarFicha({ context: contexto, learningObjectives: objetivos });
+  const cuerpo: BriefUpdateRequest = {};
+  if (s.vista.context !== contexto || !igual(s.vista.learningObjectives ?? [], objetivos)) {
+    cuerpo.context = contexto;
+    cuerpo.learningObjectives = objetivos;
+  }
+  if (caso.temasSensibles && !igual(s.vista.contentWarnings ?? [], caso.temasSensibles)) cuerpo.contentWarnings = caso.temasSensibles;
+  if (caso.titulo.trim() && caso.titulo !== s.vista.title) cuerpo.title = caso.titulo;
+  if (Object.keys(cuerpo).length) await s.guardarFicha(cuerpo);
 }
 
 /** Pone al día la lista de verificación; si el servidor ya la tiene así, no le dice nada (tampoco sube la revisión). */

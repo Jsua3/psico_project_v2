@@ -763,6 +763,29 @@ describe('CasoStore con la API · los datos del caso (contexto y objetivos)', ()
     expect(store.error()).toBeNull();
   });
 
+  it('los temas sensibles y el nombre viajan en el mismo «brief», solo lo que cambió (RK-7 y RK-8)', async () => {
+    const { servidor, store } = await abrir();
+    servidor.editor.contentWarnings = [];
+    await store.cargar(servidor.editor.caseVersionId, true);
+    servidor.llamadas.length = 0;
+    store.editarFicha(caso(store).contexto ?? '', caso(store).objetivos ?? [], { temas: ['  Violencia de pareja ', '', 'Duelo'], titulo: '  Primera atención  ' });
+    expect(caso(store).temasSensibles).toEqual(['Violencia de pareja', 'Duelo']);
+    expect(caso(store).titulo).toBe('Primera atención');
+    await store.sincronizado();
+    expect(servidor.metodos).toEqual(['updateBrief']);
+    expect(servidor.llamadas[0].args[0]).toEqual({ contentWarnings: ['Violencia de pareja', 'Duelo'], title: 'Primera atención' });
+    expect(servidor.editor.contentWarnings).toEqual(['Violencia de pareja', 'Duelo']);
+    expect(servidor.editor.title).toBe('Primera atención');
+  });
+
+  it('con un servidor que no trae temas sensibles, no se mandan aunque la pantalla los pase vacíos', async () => {
+    const { servidor, store } = await abrir();
+    expect(caso(store).temasSensibles).toBeUndefined();
+    store.editarFicha('Nuevo.', [], {});
+    await store.sincronizado();
+    expect(servidor.llamadas[0].args[0]).toEqual({ context: 'Nuevo.', learningObjectives: [] });
+  });
+
   it('el contexto se guarda sin espacios sobrantes', async () => {
     const { servidor, store } = await abrir();
     store.editarFicha('  Un contexto.  \n', []);

@@ -65,3 +65,18 @@ export function revisarFicha(contexto: string, objetivosTexto: string): ErroresF
   }
   return { contexto: errorContexto, objetivos: errorObjetivos };
 }
+
+/** El tope del nombre del caso en el servidor (RK-8). */
+export const MAX_NOMBRE = 255;
+
+/** Qué le pasa a un nombre de caso que se quiere guardar (vacío, muy largo o con formato), o `null` si está bien. */
+export function problemaDeNombre(nombre: string): string | null {
+  const limpio = nombre.trim();
+  if (!limpio) return 'El caso necesita un nombre.';
+  if (limpio.length > MAX_NOMBRE) return `El nombre admite hasta ${MAX_NOMBRE} caracteres (ahora tiene ${limpio.length}).`;
+  const problema = problemaDeTextoPlano(limpio);
+  if (problema === 'control') return 'El nombre tiene caracteres que no se admiten.';
+  if (problema === 'etiquetas') return 'Escribe el nombre como texto plano, sin etiquetas ni formato.';
+  if (problema === 'enlaces') return 'Escribe el nombre como texto plano, sin enlaces.';
+  return null;
+}

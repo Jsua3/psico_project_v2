@@ -80,7 +80,7 @@ const MENU_CUENTA: UiMenuItem[] = [{ value: 'salir', label: 'Cerrar sesión', ic
             <app-avisos-guardado class="guardado" parte="estado" />
             <!-- BORRADOR: texto nuevo, pendiente de la aprobación de Psicología -->
             <a class="boton-barra enlace-probar" [attr.href]="rutaEnsayo()" target="_blank" rel="noopener" data-accion="probar"
-               aria-label="Probar el caso en el juego (se abre en otra pestaña)" (click)="probar($event)">Probar <span aria-hidden="true">↗</span></a>
+               aria-label="Probar el caso en el juego (con Ctrl o clic central se abre en otra pestaña)" (click)="probar($event)">Probar <span aria-hidden="true">↗</span></a>
             <button type="button" class="boton-barra boton-pendientes" data-accion="ver-pendientes" aria-haspopup="dialog"
                     [attr.aria-label]="textoPendientes()" [attr.title]="textoPendientes()" (click)="abrirPendientes($event)">
               Pendientes
@@ -281,7 +281,7 @@ export class AutoriaShellComponent implements CanLeave {
    * datos del caso (sus campos son de solo lectura, para poder leerlos con el teclado) y la revisión: en un caso que ya no es un borrador es donde se decide (aprobar, devolver, archivar) y se crea la versión nueva.
    */
   protected readonly bloqueado = computed(() => this.store.soloLectura() && !/\/(revision|datos)$/.test(this.direccion().split('?')[0]));
-  /** «Probar» abre el borrador en el juego real, en otra pestaña, desde la escena de inicio. */
+  /** «Probar» lleva el borrador al juego real, en esta pestaña (con Ctrl o clic central, en otra), desde la escena de inicio. */
   protected readonly rutaEnsayo = computed(() => RUTA_ENSAYO(this.store.caso()?.id ?? ''));
   protected probar(evento: MouseEvent): void {
     void alPulsarProbar(evento, this.store);

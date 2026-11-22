@@ -1,5 +1,6 @@
 import { HttpErrorResponse } from '@angular/common/http';
 import { Injectable, Injector, computed, inject, signal } from '@angular/core';
+import { Router } from '@angular/router';
 import { firstValueFrom } from 'rxjs';
 
 import { revisionConflictOf } from '../../../core/api/revision-conflict.util';
@@ -160,6 +161,13 @@ export function mensajeDeCarga(error: unknown): string {
 @Injectable({ providedIn: 'root' })
 export class CasoStore {
   private readonly injector = inject(Injector);
+  /**
+   * Va a una dirección del portal en esta misma pestaña (`state` viaja con la navegación). Lo usa el ensayo («Probar»), que
+   * se pulsa desde varias pantallas; el router se pide aquí, al usarlo, para que el store no dependa de él al crearse.
+   */
+  navegar(url: string, state?: Record<string, unknown>): Promise<boolean> {
+    return this.injector.get(Router).navigateByUrl(url, state ? { state } : undefined);
+  }
   private readonly estado = signal<CasoBorrador | null>(null);
   private readonly puertasPendientes = signal<ReadonlyMap<string, readonly string[]>>(new Map());
   readonly puertasSinGuardar = this.puertasPendientes.asReadonly();
@@ -1491,19 +1499,28 @@ export class CasoStore {
 
   // ─── Datos del caso ─────────────────────────────────────────────────────────
 
-  /** El contexto que lee el estudiante y los objetivos de aprendizaje del caso (texto plano; el servidor pone los topes). */
-  editarFicha(contexto: string, objetivos: string[]): void {
+  /**
+   * El contexto que lee el estudiante y los objetivos de aprendizaje del caso (texto plano; el servidor pone los topes).
+   * `extra` (opcional) lleva los temas sensibles (RK-7) y el nombre (RK-8); lo que no se pasa no se toca.
+   */
+  editarFicha(contexto: string, objetivos: string[], extra: { temas?: string[]; titulo?: string } = {}): void {
     const limpio = contexto.trim();
     const lista = objetivos.map((o) => o.trim()).filter(Boolean);
+    const temas = extra.temas?.map((t) => t.trim()).filter(Boolean);
+    const titulo = extra.titulo?.trim();
     this.ejecutar({
       nombre: 'los datos del caso',
       resumen: [
         ...textoCompleto('Contexto del caso', limpio),
         ...(lista.length ? [`Objetivos de aprendizaje: ${lista.map((o) => `«${o}»`).join(', ')}`] : []),
+        ...(temas?.length ? [`Temas sensibles: ${temas.map((t) => `«${t}»`).join(', ')}`] : []),
+        ...(titulo ? [`Nombre del caso: «${titulo}»`] : []),
       ],
       aplicar: (caso) => {
         caso.contexto = limpio;
         caso.objetivos = [...lista];
+        if (temas) caso.temasSensibles = [...temas];
+        if (titulo) caso.titulo = titulo;
       },
       enviar: (despues, sesion) => persistir.guardarFicha(sesion, despues),
       fusion: 'ficha',

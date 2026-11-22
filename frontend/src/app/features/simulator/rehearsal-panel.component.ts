@@ -30,6 +30,10 @@ const SECCION_DE: Record<CampoError, string> = { irA: 'escena', explorado: 'expl
   host: { '(document:keydown)': 'onKey($event)' },
   template: `
     <aside class="rp" [attr.aria-label]="draft.rehearsalPanelTitle.text">
+      <!-- El regreso va arriba y siempre a la vista (también con el panel plegado): antes estaba al final de un panel largo. -->
+      <a class="rp__volver" [routerLink]="['/portal/casos', caseVersionId(), 'editor', 'escena', block().sceneId]">
+        <span aria-hidden="true">‹</span> {{ draft.rehearsalBackToScript.text }}
+      </a>
       <button type="button" class="rp__toggle" aria-keyshortcuts="Alt+A" aria-controls="rehearsal-panel-body"
         [attr.aria-expanded]="open()" (click)="toggle()">
         {{ draft.rehearsalPanelTitle.text }}
@@ -127,7 +131,6 @@ const SECCION_DE: Record<CampoError, string> = { irA: 'escena', explorado: 'expl
 
             <div class="rp__actions">
               <button type="button" data-action="reload" (click)="reload()">{{ draft.rehearsalReload.text }}</button>
-              <a [routerLink]="['/portal/casos', caseVersionId(), 'editor', 'escena', block().sceneId]">{{ draft.rehearsalBackToScript.text }}</a>
             </div>
           </fieldset>
         </div>
@@ -159,7 +162,10 @@ const SECCION_DE: Record<CampoError, string> = { irA: 'escena', explorado: 'expl
     .rp__item, .rp__note { margin: 4px 0; font-size: .85rem; } .rp__note { color: var(--ds-text-2, rgba(244,247,251,.8)); }
     .rp__error { margin: 4px 0; font-size: .85rem; color: var(--ds-danger-text, #ffb4b4); }
     .rp__actions { display: flex; flex-direction: column; gap: 6px; margin-top: 12px; }
-    .rp__actions a { color: inherit; }
+    .rp__volver { display: flex; align-items: center; gap: 6px; padding: 6px 12px; color: inherit; font-weight: 600; text-decoration: none;
+      border-block-end: 1px solid var(--ds-border, rgba(182,156,255,.3)); }
+    @media (hover: hover) and (pointer: fine) { .rp__volver:hover { text-decoration: underline; } }
+    .rp__volver:focus-visible { outline: 2px solid var(--ds-focus, currentColor); outline-offset: -2px; }
     select, button:not(.rp__toggle) { font: inherit; min-block-size: 44px; }
     .sr-only { position: absolute; inline-size: 1px; block-size: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
   `],

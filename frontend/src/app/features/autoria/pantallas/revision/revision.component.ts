@@ -1,21 +1,33 @@
 import { HttpErrorResponse } from '@angular/common/http';
-import { ChangeDetectionStrategy, Component, computed, inject, signal } from '@angular/core';
+import { ChangeDetectionStrategy, Component, computed, effect, inject, signal, untracked } from '@angular/core';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { Router, RouterLink } from '@angular/router';
 import { firstValueFrom } from 'rxjs';
 
 import type { CaseLifecycle, ValidationIssue } from '../../../../core/models/simulation.model';
+import { UiStat } from '../../../../shared/ui/stat/ui-stat';
 import { CaseReviewPanelComponent } from '../../../simulator/case-review-panel.component';
+import { UiDialog } from '../../../../shared/ui/dialog/ui-dialog';
 import { AutoriaApiService } from '../../api/autoria-api.service';
 import { CasoStore } from '../../estado/caso.store';
 import { GuiaService } from '../../guia/guia.service';
+import { PanelPendientesComponent } from '../../marco/panel-pendientes.component';
+import { ProgresoDelCaso } from '../../marco/progreso.service';
+import type { Etapa } from '../../modelo/pendientes';
 import { type Falta, avisosDeLectura, faltasDelServidor, puedeEnviar, sugerencias } from '../../modelo/revision';
 import { RutasAutoria, rutaDelEditor } from '../../rutas';
+import { RUTA_ENSAYO, alPulsarProbar } from '../../ensayo';
 
 /** Cómo se nombra el estado del caso ante el docente. */
 const NOMBRE_ESTADO: Record<string, string> = {
   DRAFT: 'Borrador', IN_REVIEW: 'En revisión', PUBLISHED: 'Publicado', ARCHIVED: 'Archivado',
 };
+
+/** Las etapas que resume esta pantalla, en el orden del hilo (la etapa «Enviar» es esta misma pantalla). */
+const ETAPAS_DE_ENVIO: ReadonlyArray<{ etapa: Etapa; nombre: string }> = [
+  { etapa: 'datos', nombre: 'Datos del caso' }, { etapa: 'lugar', nombre: 'Lugar y salas' },
+  { etapa: 'historia', nombre: 'Historia' }, { etapa: 'evaluacion', nombre: 'Evaluación' },
+];
 
 /** Cómo se nombra el motivo con el que Psicología devuelve un caso. */
 const NOMBRE_MOTIVO: Record<string, string> = { FORMA: 'Forma', CONTENIDO: 'Contenido' };
@@ -31,7 +43,7 @@ const NO_SE_PUDO_ENVIAR = 'No se pudo enviar el caso. No se cambió nada: vuelve
  */
 @Component({
   selector: 'app-revision',
-  imports: [RouterLink, CaseReviewPanelComponent],
+  imports: [RouterLink, CaseReviewPanelComponent, UiStat],
   host: { '(document:visibilitychange)': 'alCambiarVisibilidad()' },
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
@@ -42,10 +54,26 @@ const NO_SE_PUDO_ENVIAR = 'No se pudo enviar el caso. No se cambió nada: vuelve
           <p class="texto-secundario">Psicología revisa el caso antes de publicarlo. Mientras esté en revisión se puede ver, pero no editar.</p>
         </div>
 
+        @if (devuelto(); as d) {
+          <section aria-labelledby="dv" class="tarjeta bloque devuelto" data-accion="devuelto-por-psicologia">
+            <h2 id="dv">Psicología devolvió el caso</h2>
+            <p>Motivo: {{ d.motivo }}.</p>
+            @if (d.nota) { <p>Nota: {{ d.nota }}</p> }
+          </section>
+        }
+
         <section aria-label="El caso" class="tarjeta resumen">
-          <h2>{{ caso.titulo }}</h2>
-          <p class="texto-secundario">@if (lugar(); as nombre) { {{ nombre }} · }{{ caso.escenas.length }} {{ caso.escenas.length === 1 ? 'escena' : 'escenas' }} · {{ textoFinales() }}</p>
+          <div class="resumen__texto">
+            <h2>{{ caso.titulo }}</h2>
+            @if (lugar(); as nombre) { <p class="texto-secundario">{{ nombre }} · {{ textoFinales() }}</p> } @else { <p class="texto-secundario">{{ textoFinales() }}</p> }
+          </div>
           <span class="pildora estado">{{ nombreEstado() }}</span>
+          <div class="cifras">
+            <ui-stat label="Escenas" [value]="caso.escenas.length" />
+            <ui-stat label="Respuestas" [value]="cuantasRespuestas()" />
+            <ui-stat label="Finales posibles" [value]="cuantosFinales()" />
+          </div>
+          <p class="linea-estado" data-linea-estado [attr.data-tono]="tonoDeEstado()">{{ lineaDeEstado() }}</p>
         </section>
 
         @if (store.soloLectura()) {
@@ -64,112 +92,150 @@ const NO_SE_PUDO_ENVIAR = 'No se pudo enviar el caso. No se cambió nada: vuelve
             }
           </section>
         } @else {
-          @if (devuelto(); as d) {
-            <section aria-labelledby="dv" class="tarjeta bloque devuelto" data-accion="devuelto-por-psicologia">
-              <h2 id="dv">Psicología devolvió el caso</h2>
-              <p>Motivo: {{ d.motivo }}.</p>
-              @if (d.nota) { <p>Nota: {{ d.nota }}</p> }
-            </section>
-          }
-          <section aria-labelledby="fl" class="bloque por-resolver">
-            <h2 id="fl">Por resolver ({{ faltas().length }})</h2>
-            @if (consultando()) {
-              <p class="texto-secundario" role="status">Comprobando el caso…</p>
-            }
-            @if (faltas().length) {
-              <ul class="lista">
-                @for (f of faltas(); track $index) {
-                  <li class="tarjeta falta">
-                    <p>{{ f.mensaje }}</p>
-                    <button type="button" class="boton" [attr.aria-label]="'Llévame ahí: ' + f.mensaje" (click)="llevar(f)">Llévame ahí</button>
-                  </li>
+          <div class="dos-columnas">
+              <section aria-labelledby="fl" class="tarjeta bloque por-resolver">
+                <h2 id="fl">Por resolver ({{ faltas().length }})</h2>
+                @if (consultando()) {
+                  <p class="texto-secundario" role="status">Comprobando el caso…</p>
                 }
-              </ul>
-            } @else if (!consultando()) {
-              <p>Nada por resolver.</p>
-            }
-            @if (noSeComprobo()) {
-              <p class="aviso" role="note">No se pudo comprobar el caso con Psicología: revisa tu conexión. Lo de arriba es lo que se ve desde aquí.</p>
-            }
-            <button type="button" class="boton boton-texto comprobar" (click)="comprobar()">Comprobar de nuevo</button>
-          </section>
-
-          @if (sugeridas().length) {
-            <section aria-labelledby="sg" class="bloque">
-              <h2 id="sg">Sugerencias ({{ sugeridas().length }}) <span class="texto-secundario">· no impiden enviar</span></h2>
-              <ul class="lista">
-                @for (s of sugeridas(); track $index) {
-                  <li class="tarjeta falta">
-                    <p>{{ s.mensaje }}</p>
-                    @if (s.ir.accionId === 'probar') {
-                      <button type="button" class="boton" [attr.aria-label]="'Llévame ahí: ' + s.mensaje" (click)="llevar(s)">Llévame ahí</button>
-                    } @else {
-                      <a class="boton" [routerLink]="rutas.a(s.ir.ruta)">Ir a revisarlo</a>
-                    }
-                  </li>
-                }
-              </ul>
-            </section>
-          }
-
-          <section aria-labelledby="ok" class="bloque">
-            <h2 id="ok">Ya está listo ({{ listo().length }})</h2>
-            <ul class="hechos">
-              @for (l of listo(); track l) { <li><span aria-hidden="true">✓</span> {{ l }}</li> }
-            </ul>
-          </section>
-
-          @if (caso.lista; as lista) {
-            @if (lista.items.length) {
-              <section aria-labelledby="lv" class="tarjeta bloque" id="lista-verificacion" tabindex="-1">
-                <h2 id="lv">Lista de verificación</h2>
-                <p class="texto-secundario">Marca lo que ya revisaste del caso. Los ítems obligatorios hay que marcarlos para poder enviarlo a Psicología.</p>
-                <ul class="lista">
-                  @for (i of lista.items; track i.codigo) {
-                    <li class="item-lista">
-                      <label class="casilla">
-                        <input type="checkbox" [attr.data-codigo]="i.codigo" [checked]="i.cumplido" (change)="marcarItem(i.codigo, $any($event.target).checked)" />
-                        {{ i.texto }}
-                      </label>
-                      <span class="etiquetas">
-                        <span class="pildora">{{ i.obligatorio ? 'Obligatorio' : 'Opcional' }}</span>
-                        @if (i.enBorrador) { <span class="pildora">Texto pendiente de validar con Psicología</span> }
-                        @if (i.respaldo) { <span class="texto-secundario">{{ i.respaldo }}</span> }
-                      </span>
-                      @if (i.respaldado === false) {
-                        <p class="nota">Marcarla no basta: todavía no existe en el caso lo que la respalda.</p>
+                <!-- Un resumen por etapa, no la lista entera: la lista completa vive en la hoja «Pendientes», una sola vez. -->
+                <ul class="etapas" aria-label="Estado de cada etapa">
+                  @for (e of etapas(); track e.etapa) {
+                    <li class="etapa" [attr.data-etapa]="e.etapa" [attr.data-listo]="e.total === 0">
+                      <span class="marca" aria-hidden="true">{{ e.total === 0 ? '✓' : '▲' }}</span>
+                      <span class="etapa__nombre">{{ e.nombre }}</span>
+                      <span class="etapa__estado" [class.pendiente]="e.total > 0">{{ e.texto }}</span>
+                      @if (e.total > 0) {
+                        <button type="button" class="boton boton-texto etapa__ver" [attr.aria-label]="'Ver los pendientes de ' + e.nombre" (click)="abrirPendientes($event)">Ver pendientes</button>
                       }
                     </li>
                   }
                 </ul>
-                <p class="texto-secundario constancia">
-                  @if (lista.constanciaRegistrada) {
-                    Constancia de Psicología registrada.
-                  } @else {
-                    Pendiente: la constancia la registra Psicología al aprobar el caso; no es una casilla tuya.
+                <div class="probado" data-probado [attr.data-listo]="!!caso.probadoHastaElFinal">
+                  <span class="marca" aria-hidden="true">{{ caso.probadoHastaElFinal ? '✓' : '○' }}</span>
+                  <span class="probado__texto">{{ caso.probadoHastaElFinal ? 'Lo probaste hasta un final.' : 'Aún no lo has probado hasta un final.' }}</span>
+                  <a class="boton boton-texto" [attr.href]="rutaEnsayo()" target="_blank" rel="noopener" data-accion="probar" (click)="probar($event)">Probar</a>
+                </div>
+                @if (faltasDelServidor().length) {
+                  <p class="texto-secundario sub">Además, Psicología pide:</p>
+                  <ul class="lista">
+                    @for (f of faltasDelServidor(); track $index) {
+                      <li class="falta">
+                        <p>{{ f.mensaje }}</p>
+                        <button type="button" class="boton" [attr.aria-label]="'Llévame ahí: ' + f.mensaje" (click)="llevar(f)">Llévame ahí</button>
+                      </li>
+                    }
+                  </ul>
+                }
+                @if (faltasDeLista().length) {
+                  <p class="texto-secundario sub">De la lista de verificación:</p>
+                  <ul class="lista">
+                    @for (f of faltasDeLista(); track $index) {
+                      <li class="falta">
+                        <p>{{ f.mensaje }}</p>
+                        <button type="button" class="boton" [attr.aria-label]="'Llévame ahí: ' + f.mensaje" (click)="llevar(f)">Llévame ahí</button>
+                      </li>
+                    }
+                  </ul>
+                }
+                @if (faltas().length === 0 && !consultando()) {
+                  <p class="texto-secundario">Nada por resolver.</p>
+                }
+                @if (noSeComprobo()) {
+                  <p class="aviso" role="note">No se pudo comprobar el caso con Psicología: revisa tu conexión. Lo de arriba es lo que se ve desde aquí.</p>
+                }
+                <button type="button" class="boton boton-texto comprobar" (click)="comprobar()">Comprobar de nuevo</button>
+              </section>
+
+              @if (sugeridas().length) {
+                <details class="tarjeta bloque plegable">
+                  <summary>Sugerencias ({{ sugeridas().length }}) <span class="texto-secundario">· no impiden enviar</span></summary>
+                  <ul class="lista">
+                    @for (s of sugeridas(); track $index) {
+                      <li class="falta">
+                        <p>{{ s.mensaje }}</p>
+                        @if (s.ir.accionId === 'probar') {
+                          <button type="button" class="boton" [attr.aria-label]="'Llévame ahí: ' + s.mensaje" (click)="llevar(s)">Llévame ahí</button>
+                        } @else {
+                          <a class="boton" [routerLink]="rutas.a(s.ir.ruta)">Ir a revisarlo</a>
+                        }
+                      </li>
+                    }
+                  </ul>
+                </details>
+              }
+
+              @if (listo().length) {
+                <details class="tarjeta bloque plegable" aria-label="Lo que ya está listo">
+                  <summary>Ya está listo ({{ listo().length }})</summary>
+                  <ul class="hechos">
+                    @for (l of listo(); track l) { <li><span aria-hidden="true">✓</span> {{ l }}</li> }
+                  </ul>
+                </details>
+              }
+
+              @if (caso.lista; as lista) {
+                @if (lista.items.length) {
+                  <section aria-labelledby="lv" class="tarjeta bloque" id="lista-verificacion" tabindex="-1">
+                    <h2 id="lv">Lista de verificación</h2>
+                    <p class="texto-secundario">Lo declaras tú: marca lo que ya revisaste del caso. Los ítems obligatorios hay que marcarlos para poder enviarlo a Psicología.</p>
+                    <ul class="lista">
+                      @for (i of casillas(); track i.codigo) {
+                        <li class="item-lista">
+                          <label class="casilla">
+                            <input type="checkbox" [attr.data-codigo]="i.codigo" [checked]="i.cumplido" (change)="marcarItem(i.codigo, $any($event.target).checked)" />
+                            <span>{{ i.texto }}</span>
+                          </label>
+                          <span class="etiquetas">
+                            <span class="pildora">{{ i.obligatorio ? 'Obligatorio' : 'Opcional' }}</span>
+                            @if (i.quien === 'constancia') { <span class="pildora">Psicología lo confirma al aprobar</span> }
+                            @if (i.enBorrador) { <span class="pildora">Texto pendiente de validar con Psicología</span> }
+                          </span>
+                        </li>
+                      }
+                    </ul>
+                    @if (deSistema().length) {
+                      <p class="texto-secundario sub">Lo comprueba el sistema: no se marca, se cumple solo cuando el caso lo tiene.</p>
+                      <ul class="lista filas-estado" aria-label="Comprobaciones del sistema">
+                        @for (i of deSistema(); track i.codigo) {
+                          <li class="item-estado" [attr.data-codigo]="i.codigo" [attr.data-listo]="i.respaldado === true">
+                            <span class="marca" aria-hidden="true">{{ i.respaldado ? '✓' : '○' }}</span>
+                            <span class="item-estado__texto">{{ i.texto }}</span>
+                            <span class="pildora">{{ i.respaldado ? 'Hecho' : 'Falta' }}</span>
+                            @if (i.respaldo) { <span class="texto-secundario item-estado__respaldo">{{ i.respaldo }}</span> }
+                          </li>
+                        }
+                      </ul>
+                    }
+                    <p class="texto-secundario constancia">
+                      @if (lista.constanciaRegistrada) {
+                        Constancia de Psicología registrada.
+                      } @else {
+                        Pendiente: la constancia la registra Psicología al aprobar el caso; no es una casilla tuya.
+                      }
+                    </p>
+                  </section>
+                }
+              }
+
+              <section aria-labelledby="ms" class="tarjeta envio" data-accion="enviar-revision">
+                <label id="ms" for="mp" class="etiqueta">Mensaje para Psicología (opcional)</label>
+                <textarea id="mp" class="campo" rows="2" aria-describedby="mph" [value]="mensaje()" (input)="mensaje.set($any($event.target).value)"></textarea>
+                <p id="mph" class="texto-secundario">Por ejemplo, qué quieres que revisen con más cuidado.</p>
+                <button type="button" class="boton boton-primario" [attr.aria-disabled]="!puedeEnviarAhora()" aria-describedby="eph" (click)="enviar()">Enviar a Psicología</button>
+                <p role="status" id="eph" [class.error]="!!falloEnvio()">
+                  @if (falloEnvio(); as fallo) {
+                    {{ fallo }}
+                  } @else if (enviando()) {
+                    Enviando el caso a Psicología…
+                  } @else if (!puedeEnviarAhora() && faltas().length) {
+                    Resuelve {{ faltas().length === 1 ? 'la cosa' : 'las ' + faltas().length + ' cosas' }} de «Por resolver» para poder enviar el caso.
+                  } @else if (!puedeEnviarAhora() && !consultando()) {
+                    En este momento no puedes enviar este caso a revisión.
                   }
                 </p>
               </section>
-            }
-          }
-
-          <section aria-labelledby="ms" class="tarjeta envio" data-accion="enviar-revision">
-            <label id="ms" for="mp" class="etiqueta">Mensaje para Psicología (opcional)</label>
-            <textarea id="mp" class="campo" rows="3" aria-describedby="mph" [value]="mensaje()" (input)="mensaje.set($any($event.target).value)"></textarea>
-            <p id="mph" class="texto-secundario">Por ejemplo, qué quieres que revisen con más cuidado.</p>
-            <button type="button" class="boton boton-primario" [attr.aria-disabled]="!puedeEnviarAhora()" aria-describedby="eph" (click)="enviar()">Enviar a Psicología</button>
-            <p role="status" id="eph" [class.error]="!!falloEnvio()">
-              @if (falloEnvio(); as fallo) {
-                {{ fallo }}
-              } @else if (enviando()) {
-                Enviando el caso a Psicología…
-              } @else if (!puedeEnviarAhora() && faltas().length) {
-                Resuelve {{ faltas().length === 1 ? 'la cosa' : 'las ' + faltas().length + ' cosas' }} de arriba para poder enviar el caso.
-              } @else if (!puedeEnviarAhora() && !consultando()) {
-                En este momento no puedes enviar este caso a revisión.
-              }
-            </p>
-          </section>
+          </div>
         }
         <p role="status" class="solo-lector">{{ anuncio() }}</p>
       </div>
@@ -177,36 +243,78 @@ const NO_SE_PUDO_ENVIAR = 'No se pudo enviar el caso. No se cambió nada: vuelve
   `,
   styles: `
     .pagina > div > p { margin: 4px 0 0; }
-    .resumen { display: flex; flex-direction: column; gap: 6px; align-items: flex-start; }
-    .resumen h2, .resumen p { margin: 0; }
-    .bloque { display: flex; flex-direction: column; gap: 8px; }
+    .resumen { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 4px 12px; align-items: center; }
+    .resumen__texto { min-inline-size: 0; }
+    .resumen h2, .resumen p { margin: 0; overflow-wrap: anywhere; }
+    .resumen .linea-estado { grid-column: 1 / -1; font-weight: 700; padding: 6px 12px; border-radius: var(--radio-control); background: var(--fondo-hundido); }
+    .resumen .linea-estado[data-tono='aviso'] { background: var(--aviso-tinte); color: var(--aviso-texto); }
+    .resumen .linea-estado[data-tono='ok'] { background: var(--adecuada-tinte); color: var(--adecuada); }
+    .cifras { grid-column: 1 / -1; display: flex; flex-wrap: wrap; gap: 8px 32px; }
+    .probado { display: grid; grid-template-columns: auto minmax(0, 1fr) auto; align-items: center; gap: 0 12px; min-block-size: 56px; padding-block: 4px; border-block-start: 1px solid var(--linea); }
+    .probado[data-listo='false'] .marca { color: var(--aviso-texto); }
+    .probado__texto { min-inline-size: 0; overflow-wrap: anywhere; font-weight: 700; }
+    /* En una columna (móvil) el orden es el de lectura: lo que falta, la lista y, al final, enviar. En pantalla ancha, la lista
+       ocupa la columna de la derecha y «enviar» se queda bajo lo que falta, a su izquierda. */
+    .dos-columnas { display: grid; grid-template-columns: minmax(0, 1fr); gap: 16px; align-items: start; }
+    @media (min-width: 64rem) {
+      .dos-columnas { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); column-gap: 24px; row-gap: 0; }
+      .dos-columnas > * { grid-column: 1; margin-block-end: 16px; }
+      .dos-columnas > #lista-verificacion { grid-column: 2; grid-row: 1 / span 6; }
+    }
+    .bloque { display: flex; flex-direction: column; gap: 8px; min-inline-size: 0; }
     .bloque h2 { margin: 0; font-size: var(--autoria-texto-22); line-height: 30px; }
+    .sub { margin: 4px 0 0; font-weight: 700; }
     .lista { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 8px; }
-    .falta { display: flex; flex-wrap: wrap; gap: 8px 16px; align-items: center; justify-content: space-between; }
-    .falta p { margin: 0; flex: 1 1 360px; }
+    .etapas { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; }
+    .etapa { display: grid; grid-template-columns: auto minmax(0, 1fr) auto; align-items: center; gap: 0 12px; min-block-size: 52px; padding-block: 2px; border-block-end: 1px solid var(--linea); }
+    .etapa:last-child { border-block-end: 0; }
+    .marca { inline-size: 1.5rem; text-align: center; font-weight: 700; color: var(--adecuada); }
+    .etapa[data-listo='false'] .marca { color: var(--aviso-texto); }
+    .etapa__nombre { font-weight: 700; min-inline-size: 0; overflow-wrap: anywhere; }
+    .etapa__estado { grid-column: 2; color: var(--texto-secundario); font-size: var(--autoria-texto-16); }
+    .etapa__estado.pendiente { color: var(--aviso-texto); font-weight: 700; }
+    .etapa__ver { grid-column: 3; grid-row: 1 / span 2; white-space: nowrap; }
+    .falta { display: flex; flex-wrap: wrap; gap: 8px 16px; align-items: center; justify-content: space-between; padding: 8px 12px; border: 1px solid var(--linea); border-radius: var(--radio-control); }
+    .falta p { margin: 0; flex: 1 1 14rem; min-inline-size: 0; overflow-wrap: anywhere; }
     .comprobar { align-self: flex-start; }
     .aviso { margin: 0; color: var(--aviso-texto); font-weight: 700; }
-    #lista-verificacion { display: flex; flex-direction: column; gap: 8px; }
+    .plegable summary { min-block-size: 44px; display: flex; align-items: center; gap: 6px; font-weight: 700; font-size: var(--autoria-texto-18); cursor: pointer; }
+    .plegable[open] summary { margin-block-end: 8px; }
+    .plegable summary:focus-visible { outline: 2px solid var(--foco); outline-offset: 2px; border-radius: var(--radio-control); }
     #lista-verificacion p { margin: 0; }
-    .item-lista { display: flex; flex-direction: column; gap: 2px; padding: 4px 0; border-bottom: 1px solid var(--linea); }
-    .casilla { display: inline-flex; align-items: center; gap: 8px; min-height: 48px; font-size: var(--autoria-texto-16); }
-    .casilla input { width: 20px; height: 20px; flex: none; accent-color: var(--primario); }
-    .etiquetas { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; padding-left: 28px; }
-    .item-lista .nota { padding-left: 28px; color: var(--aviso-texto); font-weight: 700; font-size: var(--autoria-texto-16); }
+    .item-lista { display: flex; flex-direction: column; gap: 2px; padding: 4px 0; border-block-end: 1px solid var(--linea); }
+    .casilla { display: flex; align-items: flex-start; gap: 10px; min-block-size: 44px; padding-block: 8px; font-size: var(--autoria-texto-16); overflow-wrap: anywhere; }
+    .casilla input { inline-size: 24px; block-size: 24px; flex: none; accent-color: var(--primario); }
+    .etiquetas { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; padding-inline-start: 34px; }
+    .filas-estado { gap: 0; }
+    .item-estado { display: grid; grid-template-columns: auto minmax(0, 1fr) auto; align-items: center; gap: 2px 10px; padding-block: 8px; border-block-end: 1px solid var(--linea); }
+    .item-estado[data-listo='false'] .marca { color: var(--aviso-texto); }
+    .item-estado__texto { min-inline-size: 0; overflow-wrap: anywhere; }
+    .item-estado__respaldo { grid-column: 2 / -1; font-size: var(--autoria-texto-14); }
     .hechos { margin: 0; padding-left: 4px; list-style: none; display: flex; flex-direction: column; gap: 4px; }
     .hechos span { color: var(--adecuada); font-weight: 700; }
-    .envio { display: flex; flex-direction: column; gap: 6px; }
+    .envio { display: flex; flex-direction: column; gap: 6px; min-inline-size: 0; }
     .envio p { margin: 0; font-size: var(--autoria-texto-16); }
     .envio .boton { align-self: flex-start; }
     .envio .error { color: var(--peligro); font-weight: 700; }
     .etiqueta { font-weight: 700; font-size: var(--autoria-texto-16); }
-    .campo { padding: 8px 12px; font: inherit; font-size: var(--autoria-texto-16); border: 2px solid var(--borde-control); border-radius: var(--radio-control); resize: vertical; }
+    .campo { padding: 8px 12px; font: inherit; font-size: var(--autoria-texto-16); resize: vertical; inline-size: 100%; box-sizing: border-box; min-inline-size: 0; }
+    .campo:focus-visible { outline: 2px solid var(--foco); outline-offset: 2px; }
     .devuelto { border-color: var(--aviso-texto); }
-    .devuelto p { margin: 0; }
+    .devuelto p { margin: 0; overflow-wrap: anywhere; }
     .version-nueva { display: flex; flex-direction: column; gap: 6px; align-items: flex-start; }
     .version-nueva p { margin: 0; }
     .version-nueva .error { color: var(--peligro); font-weight: 700; }
     .listo { margin: 0; padding: 10px 12px; border-radius: var(--radio-control); background: var(--adecuada-tinte); color: var(--adecuada); font-weight: 700; }
+    @media (max-width: 40rem) {
+      .probado { grid-template-columns: auto minmax(0, 1fr); }
+      .probado .boton { grid-column: 2; justify-self: start; }
+      .etapa { grid-template-columns: auto minmax(0, 1fr); }
+      .etapa__ver { grid-column: 2; grid-row: auto; justify-self: start; }
+    }
+    @media (forced-colors: active) {
+      .tarjeta, .falta { border: 1px solid CanvasText; }
+    }
   `,
 })
 export class RevisionComponent {
@@ -215,6 +323,8 @@ export class RevisionComponent {
   private readonly router = inject(Router);
   private readonly guia = inject(GuiaService);
   private readonly autoria = inject(AutoriaApiService);
+  private readonly progreso = inject(ProgresoDelCaso);
+  private readonly dialogo = inject(UiDialog);
   protected readonly mensaje = signal('');
   protected readonly anuncio = signal('');
   protected readonly enviando = signal(false);
@@ -233,6 +343,24 @@ export class RevisionComponent {
   constructor() {
     void this.comprobar();
     void this.store.releerProbado();
+    // Lo que comprueba el sistema no es una casilla de la docente, pero el servidor cuenta la lista por lo marcado: aquí se
+    // pone al día solo (marcado = el dato existe). Lo que respalda la constancia SÍ es casilla: sin ella la docente no podría
+    // completar la lista antes de que Psicología apruebe. Cada ítem se intenta una vez, para no repetir un guardado que falla.
+    const intentados = new Set<string>();
+    effect(() => {
+      const caso = this.store.caso();
+      if (!caso?.lista || this.store.soloLectura()) return;
+      untracked(() => {
+        let cambio = false;
+        for (const i of caso.lista!.items) {
+          if (i.quien !== 'system' || (i.respaldado === true) === i.cumplido || intentados.has(i.codigo)) continue;
+          intentados.add(i.codigo);
+          this.store.marcarItemLista(i.codigo, i.respaldado === true);
+          cambio = true;
+        }
+        if (cambio) void this.comprobar();
+      });
+    });
     // Una decisión tomada en el panel (aprobar, devolver, archivar) cambia el caso en el servidor: se vuelve a leer para
     // que el editor, la revisión vigente y las acciones permitidas sean las nuevas.
     this.autoria.api.caseChanges.pipe(takeUntilDestroyed()).subscribe((id) => {
@@ -265,11 +393,17 @@ export class RevisionComponent {
   /** El estado del caso: el que el servidor acaba de decir o, si no, el del borrador que se está viendo. */
   protected readonly nombreEstado = computed(() => NOMBRE_ESTADO[this.store.caso()?.estado ?? this.ciclo()?.state ?? 'DRAFT'] ?? 'Borrador');
 
+  /** Lo que el editor ve por su cuenta en el borrador (lo mismo que cuenta la hoja «Pendientes»). */
+  private readonly faltasLocales = computed<Falta[]>(() => {
+    const caso = this.store.caso();
+    return caso ? puedeEnviar(caso).faltas : [];
+  });
+
   /** Lo que falta, de dos fuentes: lo que el editor ve en el borrador y lo que dice la compuerta del servidor (sin repetir). */
   protected readonly faltas = computed<Falta[]>(() => {
     const caso = this.store.caso();
     if (!caso) return [];
-    const locales = puedeEnviar(caso).faltas;
+    const locales = this.faltasLocales();
     const delServidor: ValidationIssue[] = [...this.hallazgos(), ...this.bloqueosDelEnvio()];
     // El motivo que el servidor da para no dejar enviar, si no es uno de los hallazgos de arriba (por ejemplo, la lista de verificación).
     const motivo = this.ciclo()?.blockedReason;
@@ -285,6 +419,57 @@ export class RevisionComponent {
     ];
   });
 
+  /** Lo de la lista de verificación que impide enviar (viene del editor o del servidor): se muestra junto a la lista. */
+  protected readonly faltasDeLista = computed(() => this.faltas().filter((f) => f.codigo === 'CHECKLIST_INCOMPLETE'));
+
+  /** Lo que solo dice el servidor (no está en la hoja «Pendientes», que se arma con lo que ve el editor): se lista aquí. */
+  protected readonly faltasDelServidor = computed(() => {
+    const locales = new Set(this.faltasLocales());
+    return this.faltas().filter((f) => !locales.has(f) && f.codigo !== 'CHECKLIST_INCOMPLETE');
+  });
+
+  /**
+   * Un resumen por etapa de lo que el editor ve (por corregir y por escribir): la lista completa vive una sola vez, en la
+   * hoja «Pendientes», que se abre desde aquí. La etapa «Enviar» no sale: es esta pantalla.
+   */
+  protected readonly etapas = computed(() => {
+    const pendientes = this.progreso.pendientes().filter((p) => p.tipo !== 'sugerencia');
+    return ETAPAS_DE_ENVIO.map(({ etapa, nombre }) => {
+      const corregir = pendientes.filter((p) => p.etapa === etapa && p.tipo === 'por-corregir').length;
+      const escribir = pendientes.filter((p) => p.etapa === etapa && p.tipo === 'por-escribir').length;
+      const partes = [corregir ? `${corregir} por corregir` : '', escribir ? `${escribir} por escribir` : ''].filter(Boolean);
+      return { etapa, nombre, total: corregir + escribir, texto: partes.length ? partes.join(' · ') : 'Listo' };
+    });
+  });
+
+  /** La línea de estado del caso: en qué punto del ciclo está y qué sigue, en una frase. */
+  protected readonly lineaDeEstado = computed(() => {
+    switch (this.store.caso()?.estado ?? this.ciclo()?.state ?? 'DRAFT') {
+      case 'IN_REVIEW': return 'Enviado a Psicología. Esperando su decisión.';
+      case 'PUBLISHED': return 'Publicado: los estudiantes ya pueden jugarlo.';
+      case 'ARCHIVED': return 'Archivado: ya no aparece para los estudiantes.';
+      default: {
+        if (this.devuelto()) return 'Psicología lo devolvió: corrige lo que pide y vuelve a enviarlo.';
+        const n = this.faltas().length;
+        return n === 0 ? 'Borrador listo para enviar.' : `Borrador: faltan ${n} ${n === 1 ? 'cosa' : 'cosas'} para poder enviarlo.`;
+      }
+    }
+  });
+
+  /**
+   * Los ítems de la lista que la docente puede marcar: sus declaraciones y los que respalda la constancia (los declara al
+   * enviar; Psicología los confirma al aprobar). Todos, con un servidor que no dice quién respalda.
+   */
+  protected readonly casillas = computed(() => (this.store.caso()?.lista?.items ?? []).filter((i) => i.quien !== 'system'));
+  /** Los que no se marcan: los comprueba el sistema con los datos del caso. */
+  protected readonly deSistema = computed(() => (this.store.caso()?.lista?.items ?? []).filter((i) => i.quien === 'system'));
+
+  /** El tono de la línea de estado: aviso si quedan cosas por resolver, bien si está listo; el resto es neutro. */
+  protected readonly tonoDeEstado = computed(() => {
+    if (this.store.soloLectura()) return 'neutro';
+    return this.faltas().length > 0 ? 'aviso' : this.consultando() ? 'neutro' : 'ok';
+  });
+
   protected readonly puedeEnviarAhora = computed(
     () => this.faltas().length === 0 && !this.consultando() && !this.enviando() && !this.store.soloLectura()
       && (this.ciclo()?.allowedTransitions ?? ['submit']).includes('submit'),
@@ -296,8 +481,20 @@ export class RevisionComponent {
     // Un aviso del editor que la compuerta ya convirtió en falta no se repite como sugerencia.
     const codigosEnFaltas = new Set(this.faltas().map((f) => f.codigo).filter(Boolean));
     // Los textos largos los avisa el servidor (también en un caso escrito a mano): se suman como sugerencias, con su escena.
-    return [...sugerencias(caso).filter((s) => !s.codigo || !codigosEnFaltas.has(s.codigo)), ...avisosDeLectura(this.hallazgos())];
+    // «Probar» no es una sugerencia suelta: tiene su fila, con su botón, junto a lo que falta (`data-probado`).
+    return [...sugerencias(caso).filter((s) => s.ir.accionId !== 'probar' && (!s.codigo || !codigosEnFaltas.has(s.codigo))), ...avisosDeLectura(this.hallazgos())];
   });
+  protected readonly cuantasRespuestas = computed(() => (this.store.caso()?.escenas ?? []).reduce((n, e) => n + e.respuestas.length, 0));
+  /** Los finales que el caso puede dar: los cuatro del modelo, o los que escribió la docente. */
+  protected readonly cuantosFinales = computed(() => {
+    const caso = this.store.caso();
+    return !caso ? 0 : caso.modoFinales === 'automatico' ? 4 : caso.finales.length;
+  });
+  /** «Probar» abre el borrador en el juego real: con clic normal en esta pestaña; con Ctrl o clic central, en otra (como la barra). */
+  protected readonly rutaEnsayo = computed(() => RUTA_ENSAYO(this.store.caso()?.id ?? ''));
+  protected probar(evento: MouseEvent): void {
+    void alPulsarProbar(evento, this.store);
+  }
   /** El nombre del lugar del caso; nada si el caso no tiene lugar. */
   protected readonly lugar = computed(() => (this.store.caso(), this.store.nombreDelLugar()));
   protected readonly textoFinales = computed(() => {
@@ -324,6 +521,11 @@ export class RevisionComponent {
     if (caso.probadoHastaElFinal) hechos.push('Ya lo probaste como estudiante.');
     return hechos;
   });
+
+  /** La hoja «Pendientes» de la barra, desde aquí: la única lista completa de lo que falta. */
+  protected abrirPendientes(evento: Event): void {
+    this.dialogo.sheet(PanelPendientesComponent, { side: 'end', origen: evento.currentTarget as Element | null });
+  }
 
   /** El ensayo corre en otra pestaña: al volver a esta, se pregunta si ya llegó a un final. */
   protected alCambiarVisibilidad(): void {
