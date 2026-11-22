@@ -349,8 +349,11 @@ def test_un_id_temporal_se_declara_antes_de_usarse_y_no_se_repite(version, ids):
 
 def test_ids_reales_de_otro_caso_son_invalid_proposal(version, ids, foreign):
     """Existen en la base, pero no en ESTA versión: cada operación los rechaza."""
-    for other in (foreign["node"], foreign["map"], foreign["object"], foreign["decision"]):
-        assert other not in (ids["node"], ids["map"], ids["object"], ids["decision"])
+    # Cada id ajeno se compara con el de SU mismo tipo: tablas distintas tienen secuencias propias, así que un nodo
+    # ajeno puede compartir número con un mapa de esta versión según el orden de las pruebas (falso rojo medido el
+    # 2026-11-22: nodo 404 == mapa 404), y eso no dice nada sobre si el id pertenece a esta versión.
+    for kind in ("node", "map", "object", "decision"):
+        assert foreign[kind] != ids[kind]
     _invalid(version, _raw(_line(foreign["node"], ids["character"])))
     _invalid(version, _raw(_response(foreign["node"])))
     _invalid(version, _raw(_response(ids["node"], targetNodeId=foreign["node"])))
