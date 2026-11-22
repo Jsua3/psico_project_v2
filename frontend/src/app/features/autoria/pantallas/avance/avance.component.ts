@@ -6,10 +6,12 @@ import { NgTemplateOutlet } from '@angular/common';
 import { ActivatedRoute, Router, RouterLink } from '@angular/router';
 
 import type { Generation } from '../../../../core/models/generacion.model';
+import { CasoStore } from '../../estado/caso.store';
 import { GeneracionService } from '../../generacion/generacion.service';
 import { rutaDelEditor } from '../../rutas';
 import { anuncioDeLasPartes, esNegativa, parteConError, partesDeLaGeneracion } from './avance-partes';
 import { ParteAvanceComponent, cuantoLleva } from './parte-avance.component';
+import { abrirElCasoNuevo } from '../pasos-crear.component';
 
 /** Desde qué parte del tope de llamadas se le dice a la docente cuántos intentos con la IA lleva. */
 const AVISO_DE_INTENTOS = 0.75;
@@ -252,6 +254,7 @@ type Modo = 'generando' | 'listo' | 'fallo' | 'fatal' | 'cancelada';
 export class AvanceComponent implements OnInit, OnDestroy {
   private readonly generacion = inject(GeneracionService);
   private readonly router = inject(Router);
+  private readonly store = inject(CasoStore);
   private readonly injector = inject(Injector);
   private readonly anfitrion = inject<ElementRef<HTMLElement>>(ElementRef);
   private readonly id = inject(ActivatedRoute).snapshot.paramMap.get('generacionId') ?? '';
@@ -441,7 +444,8 @@ export class AvanceComponent implements OnInit, OnDestroy {
 
   protected abrirMiCaso(): void {
     const id = this.g()?.caseVersionId;
-    if (id) void this.router.navigateByUrl(rutaDelEditor('/editor', String(id)));
+    // Lo primero que hay por revisar es el guion de la primera escena: se abre ahí y no en la pantalla del caso.
+    if (id) void abrirElCasoNuevo(this.store, this.router, id);
   }
 
   /**

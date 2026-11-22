@@ -85,21 +85,24 @@ export const MAXIMO_DESCRIPCION = 2000;
     </section>
   `,
   styles: `
-    .describir, .formulario { display: flex; flex-direction: column; gap: 12px; }
-    .campo { display: flex; flex-direction: column; gap: 4px; }
+    .describir, .formulario { display: flex; flex-direction: column; gap: 0.75rem; min-inline-size: 0; }
+    .formulario { max-inline-size: 48rem; }
+    .campo { display: flex; flex-direction: column; gap: 0.25rem; }
     .campo label { font-weight: 700; font-size: var(--autoria-texto-16); }
-    .campo p, .formulario > p, .retomar p { margin: 0; font-size: var(--autoria-texto-16); line-height: 24px; }
+    .campo p, .formulario > p, .retomar p { margin: 0; font-size: var(--autoria-texto-16); line-height: 1.5rem; }
+    /* El cuadro crece con lo que se escribe (E0); el mínimo da cabida a un párrafo sin que la docente tenga que estirarlo. */
     textarea {
-      min-height: 160px; padding: 8px 12px; font: inherit; line-height: 24px; resize: vertical;
-      border: 2px solid var(--borde-control); border-radius: var(--radio-control);
+      min-block-size: 9rem; padding: 0.5rem 0.75rem; font: inherit; line-height: 1.5rem; color: var(--tinta); background: var(--superficie);
+      border: 1px solid var(--borde-control); border-radius: var(--radio-control);
     }
-    textarea[aria-invalid='true'] { border-color: var(--peligro); }
-    .aviso-datos { padding: 8px 12px; border-left: 4px solid var(--borde-control); background: var(--superficie); font-weight: 700; }
+    textarea[aria-invalid='true'] { border-color: var(--peligro); box-shadow: inset 0 0 0 1px var(--peligro); }
+    .aviso-datos { padding: 0.5rem 0.75rem; border-inline-start: 4px solid var(--borde-control); border-radius: var(--radio-control); background: var(--fondo-hundido); font-weight: 700; }
     .cuenta { align-self: flex-end; }
     .error-campo { color: var(--peligro); font-weight: 700; }
-    .retomar { display: flex; flex-direction: column; gap: 12px; }
-    .aviso-error { margin: 0; border: 2px solid var(--peligro); background: var(--peligro-tinte); }
-    .acciones { display: flex; flex-wrap: wrap; gap: 8px 16px; align-items: center; }
+    .retomar { display: flex; flex-direction: column; gap: 0.75rem; }
+    .aviso-error { margin: 0; border-color: var(--peligro); background: var(--peligro-tinte); }
+    .acciones { display: flex; flex-wrap: wrap; gap: 0.5rem 1rem; align-items: center; }
+    @media (max-width: 40rem) { .acciones .boton { flex: 1 1 100%; } }
   `,
 })
 export class DescribirComponent {

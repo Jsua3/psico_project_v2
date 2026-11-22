@@ -7,20 +7,27 @@ import { GeneracionService } from '../../generacion/generacion.service';
 import { BibliotecaService, rutaArte } from '../../modelo/biblioteca.service';
 import type { Escenario, Recorrido, Sala } from '../../modelo/escenario';
 import { ENCUADRE_LEGIBLE, listaNumerada } from '../../modelo/textos';
-import { RutasAutoria, rutaDelEditor } from '../../rutas';
+import { RutasAutoria } from '../../rutas';
 import { DescribirComponent } from '../describir/describir.component';
-import { PasosCrearComponent } from '../pasos-crear.component';
+import { PasosCrearComponent, abrirElCasoNuevo } from '../pasos-crear.component';
+
+/** El puntero es un ratón: con él, pasar el cursor o tabular a una sala enseña su vista previa. Con el dedo, solo el botón «Ver sala». */
+function hayPunteroFino(): boolean {
+  return typeof matchMedia !== 'function' || matchMedia('(hover: hover) and (pointer: fine)').matches;
+}
 
 /**
- * Paso 2 de crear un caso (tablero 24): ideas para empezar (los recorridos sugeridos), la
- * lista de salas con vista previa al pasar el cursor o al recibir el foco, el orden y el nombre.
+ * Paso 2 de crear un caso (tablero 24). De arriba abajo: el nombre del caso (lo primero que se escribe), las ideas para
+ * empezar, las salas con su vista previa (al pasar el cursor, al llegar con el teclado o con «Ver sala») y, al lado, el
+ * recorrido con su orden (se cambia arrastrando o con los botones). El pie pegado mide 64 px y no tapa ninguna sala.
+ * El caso mínimo: elegir el lugar, usar una idea y crear (3 clics; 4 si se marca una sala a mano), más el nombre.
  */
 @Component({
   selector: 'app-salas',
   imports: [FormsModule, RouterLink, PasosCrearComponent, DescribirComponent],
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
-    <div class="pagina con-barra">
+    <div class="pagina crear">
       <app-pasos-crear [paso]="2" />
       @if (escenario(); as e) {
         <div class="titulo">
@@ -28,148 +35,160 @@ import { PasosCrearComponent } from '../pasos-crear.component';
           <p class="texto-secundario">{{ e.nombre }} · {{ e.salas.length }} salas. Empieza con una idea o elige las salas una por una.</p>
         </div>
 
-        <!-- BORRADOR: los textos de las dos opciones son nuevos, pendientes de la aprobación de Psicología -->
-        <fieldset class="forma">
-          <legend>¿Cómo quieres empezar?</legend>
-          <div class="opciones">
-            <label class="tarjeta opcion" [class.elegida]="forma() === 'describe'" [class.apagada]="generacionApagada()">
-              <input type="radio" name="forma" value="describe" [checked]="forma() === 'describe'" [disabled]="generacionApagada()"
-                     aria-describedby="forma-describe-texto" (change)="forma.set('describe')" />
-              <span class="dato-opcion">
-                <span class="nombre">Describe tu caso</span>
-                <span id="forma-describe-texto" class="texto-secundario">
-                  La IA arma un borrador completo a partir de tu descripción. Tú lo revisas y lo cambias.
-                  @if (generacionApagada()) {
-                    <span class="motivo">La generación con IA no está disponible por ahora. Puedes elegir las salas a mano.</span>
-                  }
+        <!-- Con la IA apagada no se muestra nada de ella: una opción que no se puede usar solo estorba. -->
+        @if (generacion() === 'encendida') {
+          <!-- BORRADOR: los textos de las dos opciones son nuevos, pendientes de la aprobación de Psicología -->
+          <fieldset class="forma">
+            <legend>¿Cómo quieres empezar?</legend>
+            <div class="opciones">
+              <label class="tarjeta opcion" [class.elegida]="forma() === 'describe'">
+                <input type="radio" name="forma" value="describe" [checked]="forma() === 'describe'"
+                       aria-describedby="forma-describe-texto" (change)="forma.set('describe')" />
+                <span class="dato-opcion">
+                  <span class="nombre">Describe tu caso</span>
+                  <span id="forma-describe-texto" class="texto-secundario">
+                    La IA arma un borrador completo a partir de tu descripción. Tú lo revisas y lo cambias.
+                  </span>
                 </span>
-              </span>
-            </label>
-            <label class="tarjeta opcion" [class.elegida]="forma() === 'a-mano'">
-              <input type="radio" name="forma" value="a-mano" [checked]="forma() === 'a-mano'"
-                     aria-describedby="forma-a-mano-texto" (change)="forma.set('a-mano')" />
-              <span class="dato-opcion">
-                <span class="nombre">Elegir salas a mano</span>
-                <span id="forma-a-mano-texto" class="texto-secundario">Eliges las salas y escribes tú cada escena.</span>
-              </span>
-            </label>
-          </div>
-        </fieldset>
+              </label>
+              <label class="tarjeta opcion" [class.elegida]="forma() === 'a-mano'">
+                <input type="radio" name="forma" value="a-mano" [checked]="forma() === 'a-mano'"
+                       aria-describedby="forma-a-mano-texto" (change)="forma.set('a-mano')" />
+                <span class="dato-opcion">
+                  <span class="nombre">Elegir salas a mano</span>
+                  <span id="forma-a-mano-texto" class="texto-secundario">Eliges las salas y escribes tú cada escena.</span>
+                </span>
+              </label>
+            </div>
+          </fieldset>
+        }
 
         @if (forma() === 'describe') {
           <app-describir [lugarId]="lugarId" [(descripcion)]="descripcionEscrita" />
         } @else {
-        <section aria-labelledby="ideas" class="bloque">
-          <h2 id="ideas">Ideas para empezar</h2>
-          <div class="ideas">
-            @for (r of e.recorridosSugeridos; track r.id) {
-              <article class="tarjeta idea" [class.elegida]="ideaElegida() === r.id">
-                <h3>{{ r.nombre }}</h3>
-                <p>{{ r.descripcion }}</p>
-                <ol class="texto-secundario">
-                  @for (id of r.salas; track id) { <li>{{ nombreSala(id) }}</li> }
-                </ol>
-                @if (ideaElegida() === r.id) {
-                  <p class="pildora pildora-adecuada">✓ Elegida</p>
-                } @else {
-                  <button type="button" class="boton boton-secundario" [attr.aria-label]="'Usar esta idea: ' + r.nombre" (click)="usarIdea(r)">
-                    Usar esta idea
-                  </button>
-                }
-              </article>
-            }
+          <div class="nombre-caso">
+            <label for="nombre-caso">Nombre del caso</label>
+            <input id="nombre-caso" type="text" autocomplete="off" [ngModel]="nombre()" (ngModelChange)="nombrar($event)"
+                   (focus)="seleccionar($event)" aria-describedby="nombre-ayuda" />
+            <p id="nombre-ayuda" class="texto-secundario">Si lo dejas vacío, se llamará «{{ nombrePorDefecto() }}».</p>
           </div>
-        </section>
 
-        <section aria-labelledby="lista" class="bloque" data-accion="elegir-salas">
-          <div class="encabezado-lista">
-            <h2 id="lista">Salas de la {{ e.nombre.toLowerCase() }}</h2>
-            <span class="pildora">{{ elegidas().length }} de {{ e.salas.length }} elegidas</span>
-          </div>
-          <div class="salas-y-vista" (keydown.escape)="cerrarVista()">
-            <div class="salas">
-              @for (s of e.salas; track s.id) {
-                <label class="sala tarjeta" [class.marcada]="posicion(s.id) > 0"
-                       (mouseenter)="verSala(s.id)" (focusin)="verSala(s.id)">
-                  <span class="miniatura">
-                    <img class="pixel" [src]="arte(s.fondo)" alt="" width="960" height="528" />
-                    @if (posicion(s.id) > 0) { <span class="orden" aria-hidden="true">{{ posicion(s.id) }}</span> }
-                  </span>
-                  <span class="dato">
-                    <input type="checkbox" [value]="s.id" [checked]="posicion(s.id) > 0" (change)="alternar(s.id)" />
-                    <span>
-                      <span class="nombre">{{ s.nombre }}</span>
-                      <span class="texto-secundario">{{ encuadre(s) }}</span>
-                    </span>
-                  </span>
-                </label>
+          <section aria-labelledby="ideas" class="bloque">
+            <h2 id="ideas">Ideas para empezar</h2>
+            <div class="ideas">
+              @for (r of e.recorridosSugeridos; track r.id) {
+                <article class="tarjeta idea" [class.elegida]="ideaElegida() === r.id">
+                  <h3>{{ r.nombre }}</h3>
+                  <p>{{ r.descripcion }}</p>
+                  <ol class="texto-secundario">
+                    @for (id of r.salas; track id) { <li>{{ nombreSala(id) }}</li> }
+                  </ol>
+                  @if (ideaElegida() === r.id) {
+                    <p class="pildora pildora-adecuada">✓ Elegida</p>
+                  } @else {
+                    <button type="button" class="boton boton-secundario" [attr.aria-label]="'Usar esta idea: ' + r.nombre" (click)="usarIdea(r)">
+                      Usar esta idea
+                    </button>
+                  }
+                </article>
               }
             </div>
-            @if (salaVista(); as v) {
-              <aside class="vista tarjeta" aria-label="Vista previa de la sala">
-                <img class="pixel" [src]="arte(v.fondo)" alt="" width="960" height="528" />
-                <h3>{{ v.nombre }}</h3>
-                <p>{{ v.descripcion }}</p>
-                <dl>
-                  <dt>Personajes</dt><dd>{{ nombresPersonajes(v) || 'Ninguno' }}</dd>
-                  <dt>Muebles</dt><dd>{{ nombresMuebles(v) || 'Ninguno' }}</dd>
-                  <dt>Objetos</dt><dd>{{ nombresObjetos(v) || 'Ninguno' }}</dd>
-                  <dt>Puertas</dt><dd>{{ etiquetasPuertas(v) || 'Ninguna' }}</dd>
-                </dl>
-                <p class="texto-secundario nota">Se muestra al pasar el cursor o al llegar con el teclado. Se cierra con Esc.</p>
-              </aside>
-            }
-          </div>
-        </section>
-
-        @if (ordenAbierto()) {
-          <section aria-labelledby="orden" class="tarjeta bloque">
-            <h2 id="orden">Cambiar el orden</h2>
-            <ol class="lista-orden">
-              @for (id of elegidas(); track id; let i = $index; let ultimo = $last) {
-                <li>
-                  <span>{{ i + 1 }}. {{ nombreSala(id) }}</span>
-                  <span class="acciones">
-                    <button type="button" class="boton" [attr.aria-label]="'Subir ' + nombreSala(id)"
-                            [attr.aria-disabled]="i === 0" (click)="mover(i, -1)">↑</button>
-                    <button type="button" class="boton" [attr.aria-label]="'Bajar ' + nombreSala(id)"
-                            [attr.aria-disabled]="ultimo" (click)="mover(i, 1)">↓</button>
-                  </span>
-                </li>
-              }
-            </ol>
-            <p role="status" class="texto-secundario">{{ anuncioOrden() }}</p>
           </section>
-        }
 
-        <section aria-label="Crear el caso" class="barra-crear">
-          <div class="campo">
-            <label for="nombre-caso">Nombre del caso</label>
-            <input id="nombre-caso" type="text" [ngModel]="nombre()" (ngModelChange)="nombrar($event)" />
-            <p class="texto-secundario">Si lo dejas vacío, se llamará «{{ nombrePorDefecto() }}».</p>
+          <div class="zona-salas" (keydown.escape)="cerrarVista()">
+            <section aria-labelledby="lista" class="bloque" data-accion="elegir-salas">
+              <div class="encabezado-lista">
+                <h2 id="lista">Salas de la {{ e.nombre.toLowerCase() }}</h2>
+                <span class="pildora">{{ elegidas().length }} de {{ e.salas.length }} elegidas</span>
+              </div>
+              <div class="salas">
+                @for (s of e.salas; track s.id) {
+                  <div class="sala tarjeta" [class.marcada]="posicion(s.id) > 0" [class.vista-activa]="vistaId() === s.id"
+                       (mouseenter)="alPasar(s.id)" (focusin)="alPasar(s.id)">
+                    <label class="marca-sala">
+                      <span class="miniatura">
+                        <img class="pixel" [src]="arte(s.fondo)" alt="" width="960" height="528" />
+                        @if (posicion(s.id) > 0) { <span class="orden" aria-hidden="true">{{ posicion(s.id) }}</span> }
+                      </span>
+                      <span class="dato">
+                        <input type="checkbox" [value]="s.id" [checked]="posicion(s.id) > 0" (change)="alternar(s.id)" />
+                        <span>
+                          <span class="nombre">{{ s.nombre }}</span>
+                          <span class="texto-secundario">{{ encuadre(s) }}</span>
+                        </span>
+                      </span>
+                    </label>
+                    <button type="button" class="boton boton-texto ver" [attr.aria-expanded]="vistaId() === s.id" aria-controls="vista-sala"
+                            [attr.aria-label]="'Ver sala: ' + s.nombre" (click)="verSala(s.id)">
+                      {{ vistaId() === s.id ? 'Ocultar' : 'Ver sala' }}
+                    </button>
+                  </div>
+                }
+              </div>
+            </section>
+
+            <aside class="lateral" aria-label="Recorrido y vista previa">
+              <section aria-labelledby="orden" class="tarjeta recorrido">
+                <h2 id="orden">Tu recorrido</h2>
+                @if (elegidas().length) {
+                  <p class="texto-secundario">Cada sala será una escena, en este orden. Arrastra por el asa o usa las flechas para cambiarlo.</p>
+                  <ol class="lista-orden">
+                    @for (id of elegidas(); track id; let i = $index; let ultimo = $last) {
+                      <li [class.destino]="destinoArrastre() === i" (dragstart)="iniciarArrastre(i, $event)" (dragover)="sobreSala(i, $event)"
+                          (drop)="soltarSala($event, i)" (dragend)="terminarArrastre($event)">
+                        <span class="asa" aria-hidden="true" (pointerdown)="tomarAsa($event)" (pointerup)="soltarAsa($event)"
+                              (pointercancel)="soltarAsa($event)">⋮⋮</span>
+                        <span class="posicion">{{ i + 1 }}.</span>
+                        <span class="nombre-orden">{{ nombreSala(id) }}</span>
+                        <span class="mover">
+                          <button type="button" class="boton" [attr.aria-label]="'Subir ' + nombreSala(id)"
+                                  [attr.aria-disabled]="i === 0" (click)="mover(i, -1)">↑</button>
+                          <button type="button" class="boton" [attr.aria-label]="'Bajar ' + nombreSala(id)"
+                                  [attr.aria-disabled]="ultimo" (click)="mover(i, 1)">↓</button>
+                        </span>
+                      </li>
+                    }
+                  </ol>
+                  <p role="status" class="solo-lector">{{ anuncioOrden() }}</p>
+                } @else {
+                  <p class="texto-secundario">Ninguna sala elegida. Marca las salas o usa una idea para empezar.</p>
+                }
+              </section>
+
+              @if (salaVista(); as v) {
+                <section id="vista-sala" class="tarjeta vista" aria-label="Vista previa de la sala">
+                  <div class="vista__cabeza">
+                    <h3>{{ v.nombre }}</h3>
+                    <button type="button" class="boton boton-texto" (click)="cerrarVista()">Cerrar</button>
+                  </div>
+                  <img class="pixel" [src]="arte(v.fondo)" alt="" width="960" height="528" />
+                  <p>{{ v.descripcion }}</p>
+                  <dl>
+                    <dt>Personajes</dt><dd>{{ nombresPersonajes(v) || 'Ninguno' }}</dd>
+                    <dt>Muebles</dt><dd>{{ nombresMuebles(v) || 'Ninguno' }}</dd>
+                    <dt>Objetos</dt><dd>{{ nombresObjetos(v) || 'Ninguno' }}</dd>
+                    <dt>Puertas</dt><dd>{{ etiquetasPuertas(v) || 'Ninguna' }}</dd>
+                  </dl>
+                </section>
+              }
+            </aside>
           </div>
-          <div class="resumen" role="status">
-            @if (elegidas().length) {
-              <p><strong>{{ elegidas().length }} {{ elegidas().length === 1 ? 'sala elegida' : 'salas elegidas' }}, en este orden:</strong></p>
-              <p>{{ resumenOrden() }}</p>
-              <p class="texto-secundario">Cada sala será una escena, en ese orden. Después las unes escribiendo las respuestas.</p>
+
+          <div class="pie" role="group" aria-label="Crear el caso" data-accion="crear-caso">
+            @if (errorAlCrear(); as mensaje) {
+              <p class="pie__texto pie__error" role="alert">{{ mensaje }}</p>
+            } @else if (elegidas().length) {
+              <p class="pie__texto" role="status" [attr.title]="resumenOrden()">
+                <strong>{{ elegidas().length }} {{ elegidas().length === 1 ? 'sala' : 'salas' }}</strong><span class="pie__orden">, en este orden: {{ resumenOrden() }}</span>
+              </p>
             } @else {
-              <p id="sin-salas">Ninguna sala elegida. Elige al menos una, o usa una idea para empezar.</p>
+              <p class="pie__texto pie__vacio" role="status">Ninguna sala elegida: marca una o usa una idea</p>
             }
-          </div>
-          @if (errorAlCrear(); as mensaje) {
-            <p class="tarjeta aviso-error" role="alert">{{ mensaje }}</p>
-          }
-          <div class="acciones">
             <a [routerLink]="rutas.a('/lugar')" class="boton boton-texto">Volver</a>
-            <button type="button" class="boton" [attr.aria-expanded]="ordenAbierto()" [attr.aria-disabled]="elegidas().length < 2"
-                    (click)="elegidas().length > 1 && ordenAbierto.set(!ordenAbierto())">Cambiar el orden</button>
-            <button type="button" class="boton boton-primario" [attr.aria-disabled]="!elegidas().length || creando()"
-                    [attr.aria-describedby]="elegidas().length ? null : 'sin-salas'" (click)="crear()">
-              {{ creando() ? 'Creando el caso…' : 'Crear el caso con estas salas' }}
+            <button type="button" class="boton boton-primario" [attr.aria-disabled]="creando()" (click)="crear()">
+              {{ creando() ? 'Creando el caso…' : 'Crear el caso' }}<span class="pie__resto"> con estas salas</span>
             </button>
           </div>
-        </section>
         }
       } @else if (error()) {
         <p role="alert">{{ error() }}</p>
@@ -179,73 +198,129 @@ import { PasosCrearComponent } from '../pasos-crear.component';
     </div>
   `,
   styles: `
-    .con-barra { padding-bottom: 220px; }
-    .forma { margin: 0; padding: 0; border: 0; min-width: 0; display: flex; flex-direction: column; gap: 8px; }
-    .forma legend { padding: 0; font-weight: 700; font-size: var(--autoria-texto-20); line-height: 28px; }
-    .opciones { display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 12px; }
-    .opcion { display: flex; gap: 10px; align-items: flex-start; padding: 12px; cursor: pointer; }
-    .opcion.elegida { border: 2px solid var(--primario); }
-    .opcion.apagada { cursor: not-allowed; }
-    .opcion input { width: 24px; height: 24px; margin: 2px 0 0; flex: none; accent-color: var(--primario); }
-    .dato-opcion { display: flex; flex-direction: column; gap: 2px; }
-    .dato-opcion .texto-secundario { font-size: var(--autoria-texto-16); line-height: 24px; }
-    .motivo { display: block; margin-top: 4px; font-weight: 700; }
-    .titulo { display: flex; flex-direction: column; gap: 4px; }
+    .crear { gap: 1.25rem; }
+    .titulo { display: flex; flex-direction: column; gap: 0.25rem; }
+    .titulo h1 { margin: 0; }
     .titulo p { margin: 0; }
-    .bloque { display: flex; flex-direction: column; gap: 12px; }
+    .forma { margin: 0; padding: 0; border: 0; min-inline-size: 0; display: flex; flex-direction: column; gap: 0.5rem; }
+    .forma legend { padding: 0; font-weight: 700; font-size: var(--autoria-texto-20); line-height: 1.75rem; }
+    .opciones { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 16rem), 1fr)); gap: 0.75rem; }
+    .opcion { display: flex; gap: 0.625rem; align-items: flex-start; padding: 0.75rem; cursor: pointer; }
+    .opcion.elegida { border-color: var(--primario); box-shadow: inset 0 0 0 1px var(--primario); }
+    .opcion input { inline-size: 1.5rem; block-size: 1.5rem; margin: 0.125rem 0 0; flex: none; accent-color: var(--primario); }
+    .dato-opcion { display: flex; flex-direction: column; gap: 0.125rem; min-inline-size: 0; }
+    .dato-opcion .texto-secundario { font-size: var(--autoria-texto-16); line-height: 1.5rem; }
+
+    /* El nombre del caso es el primer campo: ancho de lectura y no de página, con la ayuda debajo. */
+    .nombre-caso { display: flex; flex-direction: column; gap: 0.25rem; max-inline-size: 36rem; }
+    .nombre-caso label { font-weight: 700; font-size: var(--autoria-texto-16); }
+    .nombre-caso input {
+      min-block-size: 2.75rem; padding: 0 0.75rem; font: inherit; color: var(--tinta); background: var(--superficie);
+      border: 1px solid var(--borde-control); border-radius: var(--radio-control);
+    }
+    .nombre-caso p { margin: 0; font-size: var(--autoria-texto-16); line-height: 1.5rem; }
+
+    .bloque { display: flex; flex-direction: column; gap: 0.75rem; min-inline-size: 0; }
     .bloque h2 { margin: 0; }
-    .ideas { display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 16px; }
-    .idea { display: flex; flex-direction: column; gap: 8px; }
-    .idea h3 { margin: 0; font-size: var(--autoria-texto-20); line-height: 28px; }
-    .idea p, .idea ol { margin: 0; font-size: var(--autoria-texto-16); line-height: 24px; }
-    .idea ol { padding-left: 20px; }
-    .idea.elegida { border: 2px solid var(--adecuada-borde); }
-    .idea .boton, .idea .pildora { align-self: flex-start; margin-top: auto; }
-    .encabezado-lista { display: flex; flex-wrap: wrap; gap: 8px 16px; align-items: center; }
-    .salas-y-vista { display: flex; flex-wrap: wrap; gap: 16px; align-items: flex-start; }
-    .salas { flex: 1 1 560px; display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 12px; }
-    .sala { display: flex; flex-direction: column; gap: 8px; padding: 8px; cursor: pointer; }
-    .sala.marcada { border: 2px solid var(--primario); }
-    .miniatura { position: relative; display: block; border-radius: 10px; overflow: hidden; border: 1px solid var(--linea); }
-    .miniatura img { display: block; width: 100%; height: auto; aspect-ratio: 960 / 528; }
+    .ideas { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 16rem), 1fr)); gap: 0.75rem; }
+    .idea { display: flex; flex-direction: column; gap: 0.5rem; min-inline-size: 0; }
+    .idea h3 { margin: 0; font-size: var(--autoria-texto-20); line-height: 1.75rem; }
+    .idea p, .idea ol { margin: 0; font-size: var(--autoria-texto-16); line-height: 1.5rem; }
+    .idea ol { padding-inline-start: 1.25rem; }
+    .idea.elegida { border-color: var(--adecuada-borde); box-shadow: inset 0 0 0 1px var(--adecuada-borde); }
+    .idea .boton, .idea .pildora { align-self: flex-start; margin-block-start: auto; }
+
+    .encabezado-lista { display: flex; flex-wrap: wrap; gap: 0.5rem 1rem; align-items: center; }
+
+    /* Las salas a la izquierda y, al lado, el recorrido y la vista previa; el lateral se queda a la vista al desplazarse. */
+    .zona-salas { display: grid; grid-template-columns: minmax(0, 1fr); gap: 1rem; align-items: start; }
+    .salas { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(100%, 11rem), 1fr)); gap: 0.75rem; }
+    .sala { display: flex; flex-direction: column; gap: 0.25rem; padding: 0.5rem; min-inline-size: 0; }
+    .sala.marcada { border-color: var(--primario); box-shadow: inset 0 0 0 1px var(--primario); }
+    .sala.vista-activa:not(.marcada) { border-color: var(--borde-control); }
+    .marca-sala { display: flex; flex-direction: column; gap: 0.5rem; cursor: pointer; min-inline-size: 0; }
+    .miniatura { position: relative; display: block; border-radius: var(--radio-control); overflow: hidden; border: 1px solid var(--linea); }
+    .miniatura img { display: block; inline-size: 100%; block-size: auto; aspect-ratio: 960 / 528; }
     .orden {
-      position: absolute; top: 6px; left: 6px; width: 32px; height: 32px; border-radius: 999px; display: grid; place-items: center;
-      background: var(--primario); color: var(--sobre-primario); font-weight: 700;
+      position: absolute; inset-block-start: 0.375rem; inset-inline-start: 0.375rem; inline-size: 2rem; block-size: 2rem; border-radius: 999px;
+      display: grid; place-items: center; background: var(--primario); color: var(--sobre-primario); font-weight: 700;
     }
-    .dato { display: flex; gap: 10px; align-items: flex-start; }
-    .dato input { width: 24px; height: 24px; margin: 2px 0 0; flex: none; accent-color: var(--primario); }
-    .dato > span { display: flex; flex-direction: column; }
-    .nombre { font-weight: 700; font-size: var(--autoria-texto-16); line-height: 22px; }
-    .dato .texto-secundario { font-size: var(--autoria-texto-16); }
-    .vista { flex: 0 1 380px; position: sticky; top: calc(var(--alto-cabecera, 64px) + 16px); display: flex; flex-direction: column; gap: 8px; }
-    .vista img { width: 100%; height: auto; border-radius: 10px; }
-    .vista h3, .vista p { margin: 0; }
-    .vista dl { margin: 0; display: grid; grid-template-columns: auto 1fr; gap: 4px 12px; font-size: var(--autoria-texto-16); line-height: 24px; }
+    .dato { display: flex; gap: 0.5rem; align-items: flex-start; min-inline-size: 0; }
+    .dato input { inline-size: 1.5rem; block-size: 1.5rem; margin: 0.125rem 0 0; flex: none; accent-color: var(--primario); }
+    .dato > span { display: flex; flex-direction: column; min-inline-size: 0; }
+    .nombre { font-weight: 700; font-size: var(--autoria-texto-16); line-height: 1.375rem; overflow-wrap: anywhere; }
+    .dato .texto-secundario { font-size: var(--autoria-texto-16); line-height: 1.5rem; }
+    .ver { align-self: flex-start; min-block-size: 2.75rem; padding-inline: 0.5rem; }
+
+    .lateral { display: flex; flex-direction: column; gap: 0.75rem; min-inline-size: 0; }
+    .lateral h2, .lateral h3 { margin: 0; }
+    .recorrido { display: flex; flex-direction: column; gap: 0.5rem; }
+    .recorrido p { margin: 0; font-size: var(--autoria-texto-16); line-height: 1.5rem; }
+    .lista-orden { margin: 0; padding: 0; list-style: none; display: flex; flex-direction: column; gap: 0.25rem; }
+    .lista-orden li {
+      display: flex; align-items: center; gap: 0.375rem; min-block-size: 2.75rem; padding-inline-start: 0.25rem;
+      border-radius: var(--radio-control); border: 1px solid transparent;
+    }
+    .lista-orden li.destino { border-color: var(--primario); background: var(--primario-tinte); }
+    .asa { flex: none; inline-size: 1.25rem; text-align: center; color: var(--texto-secundario); cursor: grab; touch-action: none; user-select: none; letter-spacing: -0.2em; }
+    .posicion { flex: none; font-variant-numeric: tabular-nums; font-weight: 700; }
+    .nombre-orden { flex: 1; min-inline-size: 0; font-size: var(--autoria-texto-16); line-height: 1.375rem; overflow-wrap: anywhere; }
+    .mover { display: flex; flex: none; gap: 0.25rem; }
+    .mover .boton { inline-size: 2.75rem; min-block-size: 2.75rem; padding: 0; }
+
+    .vista { display: flex; flex-direction: column; gap: 0.5rem; }
+    .vista__cabeza { display: flex; align-items: center; justify-content: space-between; gap: 0.5rem; }
+    .vista img { inline-size: 100%; block-size: auto; aspect-ratio: 960 / 528; border-radius: var(--radio-control); }
+    .vista p { margin: 0; }
+    .vista dl { margin: 0; display: grid; grid-template-columns: auto 1fr; gap: 0.25rem 0.75rem; font-size: var(--autoria-texto-16); line-height: 1.5rem; }
     .vista dt { font-weight: 700; }
-    .vista dd { margin: 0; }
-    .nota { font-size: var(--autoria-texto-16); }
-    .lista-orden { margin: 0; padding: 0; list-style: none; display: flex; flex-direction: column; gap: 8px; }
-    .lista-orden li { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; justify-content: space-between; }
-    .lista-orden .boton { width: 48px; padding: 0; }
-    .barra-crear {
-      position: fixed; left: 0; right: 0; bottom: 0; z-index: var(--autoria-capa-4); display: flex; flex-wrap: wrap; gap: 12px 24px; align-items: center;
-      padding: 12px 24px; background: var(--superficie); border-top: 2px solid var(--linea);
+    .vista dd { margin: 0; min-inline-size: 0; overflow-wrap: anywhere; }
+
+    /* El pie pegado al borde de la zona: 64 px de alto, una sola fila. Velo casi opaco y sin desenfoque (el trinquete de ui:lint
+       no admite un backdrop-filter nuevo, D-25): al 96 % el material se nota y el texto de las salas no se cuela tras los botones. */
+    .pie {
+      position: sticky; inset-block-end: 0.75rem; z-index: var(--autoria-capa-4); margin-block-start: auto;
+      display: flex; align-items: center; gap: 0.75rem; block-size: 4rem; padding: 0 0.75rem;
+      border: 1px solid var(--l-filo-fuerte, var(--linea)); border-radius: var(--radio-tarjeta);
+      background: color-mix(in oklab, var(--superficie) 96%, transparent);
+      box-shadow: inset 0 1px 0 var(--l-brillo, transparent), var(--sombra-menu);
     }
-    .campo { display: flex; flex-direction: column; gap: 4px; flex: 1 1 260px; }
-    .campo label { font-weight: 700; font-size: var(--autoria-texto-16); }
-    .campo input {
-      min-height: 48px; padding: 0 12px; font: inherit; border: 2px solid var(--borde-control); border-radius: var(--radio-control);
+    @media (prefers-reduced-transparency: reduce), (prefers-contrast: more) { .pie { background: var(--superficie); } }
+    @media (forced-colors: active) { .pie { border-color: CanvasText; } }
+    .pie__texto { flex: 1; min-inline-size: 0; margin: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: var(--autoria-texto-16); }
+    .pie__error { color: var(--peligro); font-weight: 700; }
+    .pie .boton { flex: none; }
+    .pie .boton-primario { min-block-size: 3rem; }
+
+    @media (min-width: 64rem) {
+      .zona-salas { grid-template-columns: minmax(0, 1fr) 20rem; }
+      .lateral { position: sticky; inset-block-start: 0; max-block-size: calc(100dvh - var(--alto-barra, 4.5rem) - 7rem); overflow-y: auto; overscroll-behavior: contain; }
     }
-    .campo p, .resumen p { margin: 0; font-size: var(--autoria-texto-16); line-height: 24px; }
-    .resumen { flex: 2 1 320px; }
-    .aviso-error { flex: 1 1 100%; margin: 0; border: 2px solid var(--peligro); background: var(--peligro-tinte); }
+    @media (max-width: 63.999rem) {
+      /* En pantallas angostas la vista previa es una hoja sobre el pie; se cierra con «Cerrar» o con Esc. */
+      .vista {
+        position: fixed; inset-inline: 0.75rem; inset-block-end: 5.25rem; z-index: var(--autoria-capa-5);
+        max-block-size: min(60dvh, 28rem); overflow-y: auto; box-shadow: var(--sombra-menu);
+      }
+    }
+    @media (max-width: 40rem) {
+      .crear { gap: 1rem; }
+      .pie { gap: 0.5rem; padding-inline: 0.5rem; }
+      .pie__orden, .pie__resto { display: none; }
+      /* Sin salas el aviso no cabe junto a los dos botones; el error al pulsar «Crear» ya dice qué falta. */
+      .pie__vacio { display: none; }
+      .pie .boton-primario { flex: 1; }
+    }
+    @media (prefers-reduced-motion: reduce) {
+      .sala, .opcion { transition: none; }
+    }
   `,
 })
 export class SalasComponent {
   private readonly biblioteca = inject(BibliotecaService);
   private readonly store = inject(CasoStore);
   private readonly router = inject(Router);
-  private readonly generacion = inject(GeneracionService);
+  private readonly generacionSvc = inject(GeneracionService);
   protected readonly rutas = inject(RutasAutoria);
   protected readonly lugarId = inject(ActivatedRoute).snapshot.queryParamMap.get('lugar') ?? 'universidad';
 
@@ -253,23 +328,25 @@ export class SalasComponent {
   protected readonly forma = signal<'describe' | 'a-mano'>('a-mano');
   /** La descripción vive aquí y no en «Describe tu caso», que se destruye al pasar a «Elegir salas a mano»: así no se pierde. */
   protected readonly descripcionEscrita = signal('');
-  /** La generación con IA está apagada: la opción «Describe tu caso» queda apagada con su motivo. */
-  protected readonly generacionApagada = signal(false);
+  /** La generación con IA: apagada, ni se menciona (nada de opciones que no se pueden usar); encendida, se ofrece la elección. */
+  protected readonly generacion = signal<'cargando' | 'encendida' | 'apagada'>('cargando');
   protected readonly escenario = signal<Escenario | null>(null);
   protected readonly error = signal<string | null>(null);
   protected readonly elegidas = signal<string[]>([]);
   protected readonly ideaElegida = signal<string | null>(null);
   protected readonly nombre = signal('');
   private nombreEditado = false;
-  protected readonly ordenAbierto = signal(false);
   protected readonly anuncioOrden = signal('');
   /** El caso se está creando en el servidor. */
   protected readonly creando = signal(false);
   protected readonly errorAlCrear = signal<string | null>(null);
   protected readonly nombrePorDefecto = computed(() => `Caso nuevo en la ${(this.escenario()?.nombre ?? 'universidad').toLowerCase()}`);
-  private readonly vistaId = signal<string | null>(null);
+  protected readonly vistaId = signal<string | null>(null);
   protected readonly salaVista = computed(() => this.escenario()?.salas.find((s) => s.id === this.vistaId()) ?? null);
   protected readonly resumenOrden = computed(() => listaNumerada(this.elegidas().map((id) => this.nombreSala(id))));
+  /** La fila del recorrido sobre la que se suelta lo que se arrastra (para pintar la ranura). */
+  protected readonly destinoArrastre = signal<number | null>(null);
+  private arrastrado: number | null = null;
 
   constructor() {
     void this.revisarGeneracion();
@@ -284,17 +361,28 @@ export class SalasComponent {
 
   private async revisarGeneracion(): Promise<void> {
     try {
-      const estado = await this.generacion.estado();
-      this.generacionApagada.set(!estado.enabled);
+      const estado = await this.generacionSvc.estado();
+      this.generacion.set(estado.enabled ? 'encendida' : 'apagada');
       // Con una generación a medio hacer, el aviso de retomar debe verse sin que la docente adivine la opción.
       if (estado.enabled && estado.inProgress) this.forma.set('describe');
     } catch {
       // Sin saberlo, la opción queda disponible: «Describe tu caso» dice por sí misma si no se pudo comprobar.
+      this.generacion.set('encendida');
     }
   }
 
   protected cerrarVista(): void {
     this.vistaId.set(null);
+  }
+
+  /** Cursor o teclado sobre una sala: la vista previa la sigue. Con el dedo no (un toque para marcar abriría la hoja). */
+  protected alPasar(id: string): void {
+    if (hayPunteroFino()) this.vistaId.set(id);
+  }
+
+  /** «Ver sala»: abre la vista previa de esa sala o, si ya era la que se veía, la cierra. Es el camino del toque y del teclado. */
+  protected verSala(id: string): void {
+    this.vistaId.update((actual) => (actual === id ? null : id));
   }
 
   protected arte(relativa: string): string {
@@ -313,19 +401,21 @@ export class SalasComponent {
     return this.elegidas().indexOf(id) + 1;
   }
 
-  protected verSala(id: string): void {
-    this.vistaId.set(id);
+  protected seleccionar(evento: Event): void {
+    (evento.target as HTMLInputElement).select();
   }
 
   protected usarIdea(r: Recorrido): void {
     this.elegidas.set([...r.salas]);
     this.ideaElegida.set(r.id);
+    this.errorAlCrear.set(null);
     if (!this.nombreEditado) this.nombre.set(r.nombre);
   }
 
   protected alternar(id: string): void {
     this.elegidas.update((ids) => (ids.includes(id) ? ids.filter((x) => x !== id) : [...ids, id]));
     this.ideaElegida.set(null);
+    this.errorAlCrear.set(null);
   }
 
   protected nombrar(valor: string): void {
@@ -334,19 +424,70 @@ export class SalasComponent {
   }
 
   protected mover(i: number, paso: -1 | 1): void {
-    const ids = [...this.elegidas()];
-    const j = i + paso;
-    if (j < 0 || j >= ids.length) return;
-    [ids[i], ids[j]] = [ids[j], ids[i]];
-    this.elegidas.set(ids);
-    this.ideaElegida.set(null);
-    this.anuncioOrden.set(`${this.nombreSala(ids[j])}, ahora en la posición ${j + 1} de ${ids.length}.`);
+    this.moverA(i, i + paso);
   }
 
-  /** Crea el caso en el servidor con las salas elegidas, en ese orden, y abre su editor. */
+  /** Cambia una sala de lugar en el recorrido (botones y arrastre hacen lo mismo) y lo anuncia. */
+  private moverA(desde: number, hasta: number): void {
+    const ids = [...this.elegidas()];
+    if (desde === hasta || hasta < 0 || hasta >= ids.length || desde < 0 || desde >= ids.length) return;
+    const [sala] = ids.splice(desde, 1);
+    ids.splice(hasta, 0, sala);
+    this.elegidas.set(ids);
+    this.ideaElegida.set(null);
+    this.anuncioOrden.set(`${this.nombreSala(sala)}, ahora en la posición ${hasta + 1} de ${ids.length}.`);
+  }
+
+  // ─── Arrastrar el orden ────────────────────────────────────────────────────
+
+  /** El asa arma el arrastre de su fila: solo desde el asa, para que no se arrastre nada al tocar un botón. */
+  protected tomarAsa(evento: PointerEvent): void {
+    const fila = (evento.currentTarget as HTMLElement | null)?.closest('li');
+    if (fila) fila.draggable = true;
+  }
+
+  protected soltarAsa(evento: Event): void {
+    const fila = (evento.currentTarget as HTMLElement | null)?.closest('li');
+    if (fila) fila.draggable = false;
+  }
+
+  protected iniciarArrastre(indice: number, evento: DragEvent): void {
+    this.arrastrado = indice;
+    if (evento.dataTransfer) {
+      evento.dataTransfer.effectAllowed = 'move';
+      // Firefox no arrastra sin datos.
+      evento.dataTransfer.setData('text/plain', String(indice));
+    }
+  }
+
+  protected sobreSala(indice: number, evento: DragEvent): void {
+    if (this.arrastrado === null) return;
+    evento.preventDefault();
+    if (evento.dataTransfer) evento.dataTransfer.dropEffect = 'move';
+    if (this.destinoArrastre() !== indice) this.destinoArrastre.set(indice);
+  }
+
+  protected soltarSala(evento: DragEvent, indice: number): void {
+    evento.preventDefault();
+    if (this.arrastrado !== null) this.moverA(this.arrastrado, indice);
+    this.terminarArrastre(evento);
+  }
+
+  protected terminarArrastre(evento?: Event): void {
+    this.arrastrado = null;
+    this.destinoArrastre.set(null);
+    const fila = (evento?.target as HTMLElement | null)?.closest?.('li');
+    if (fila) fila.draggable = false;
+  }
+
+  /** Crea el caso en el servidor con las salas elegidas, en ese orden, y abre el guion de su primera escena. */
   protected async crear(): Promise<void> {
     const e = this.escenario();
-    if (!e || !this.elegidas().length || this.creando()) return;
+    if (!e || this.creando()) return;
+    if (!this.elegidas().length) {
+      this.errorAlCrear.set('Elige al menos una sala, o usa una idea para empezar.');
+      return;
+    }
     this.creando.set(true);
     this.errorAlCrear.set(null);
     try {
@@ -354,7 +495,7 @@ export class SalasComponent {
       // La descripción del caso es la de la idea elegida o, si se eligieron las salas una por una, la del lugar.
       const idea = e.recorridosSugeridos.find((r) => r.id === this.ideaElegida());
       const id = await this.store.crearCaso(titulo, e.id, this.elegidas(), idea?.descripcion || e.descripcion);
-      await this.router.navigateByUrl(rutaDelEditor('/editor', String(id)));
+      await abrirElCasoNuevo(this.store, this.router, id);
     } catch {
       this.errorAlCrear.set('No se pudo crear el caso. Vuelve a intentarlo en un momento.');
     } finally {

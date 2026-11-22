@@ -7,7 +7,7 @@ import { TEMAS, nombreTema } from '../../modelo/textos';
 import { PasosCrearComponent } from '../pasos-crear.component';
 import { RutasAutoria } from '../../rutas';
 
-/** Paso 1 de crear un caso (tablero 23): elegir el lugar donde pasa. */
+/** Paso 1 de crear un caso (tablero 23): elegir el lugar donde pasa. Un clic en «Elegir este lugar» lleva al paso 2. */
 @Component({
   selector: 'app-lugar',
   imports: [RouterLink, PasosCrearComponent],
@@ -22,14 +22,12 @@ import { RutasAutoria } from '../../rutas';
         </p>
       </div>
 
-      <div class="filtro">
+      <div class="filtro" role="group" aria-labelledby="ftema">
         <span id="ftema" class="etiqueta">Filtrar por tema</span>
-        <div role="group" aria-labelledby="ftema" class="acciones">
-          <button type="button" class="boton" [attr.aria-pressed]="tema() === null" (click)="tema.set(null)">Todos los temas</button>
-          @for (t of temas; track t.id) {
-            <button type="button" class="boton" [attr.aria-pressed]="tema() === t.id" (click)="tema.set(t.id)">{{ t.nombre }}</button>
-          }
-        </div>
+        <button type="button" class="boton ficha" [attr.aria-pressed]="tema() === null" (click)="tema.set(null)">Todos los temas</button>
+        @for (t of temas; track t.id) {
+          <button type="button" class="boton ficha" [attr.aria-pressed]="tema() === t.id" (click)="tema.set(t.id)">{{ t.nombre }}</button>
+        }
       </div>
 
       @if (fallo()) {
@@ -38,7 +36,7 @@ import { RutasAutoria } from '../../rutas';
           <button type="button" class="boton boton-primario" (click)="cargar()">Volver a intentarlo</button>
         </div>
       } @else {
-        <p role="status" class="texto-secundario">{{ estado() }}</p>
+        <p role="status" class="texto-secundario estado">{{ estado() }}</p>
       }
 
       @if (filtrados().length && !hayDisponibles()) {
@@ -82,23 +80,29 @@ import { RutasAutoria } from '../../rutas';
     </div>
   `,
   styles: `
-    .titulo { display: flex; flex-direction: column; gap: 4px; }
-    .titulo p { margin: 0; max-width: 760px; }
-    .filtro { display: flex; flex-direction: column; gap: 8px; }
-    .etiqueta { font-weight: 700; font-size: var(--autoria-texto-16); }
+    .titulo { display: flex; flex-direction: column; gap: 0.25rem; }
+    .titulo h1 { margin: 0; }
+    .titulo p { margin: 0; max-inline-size: 48rem; }
+    /* El filtro es una sola fila de fichas (se parte en renglones si no caben): el título del grupo va en la misma línea. */
+    .filtro { display: flex; flex-wrap: wrap; align-items: center; gap: 0.5rem; }
+    .etiqueta { font-weight: 700; font-size: var(--autoria-texto-16); margin-inline-end: 0.25rem; }
+    .ficha { min-height: 2.75rem; border-radius: 999px; }
     .boton[aria-pressed='true'] { background: var(--primario-tinte); border-color: var(--primario); color: var(--primario-oscuro); }
-    .aviso-filtro { display: flex; flex-wrap: wrap; gap: 12px; align-items: center; }
-    .aviso-filtro p { margin: 0; flex: 1 1 320px; }
-    .lugares { display: flex; flex-direction: column; gap: 16px; }
-    .lugar { display: flex; flex-wrap: wrap; gap: 16px 24px; }
+    .estado { margin: 0; }
+    .aviso-filtro { display: flex; flex-wrap: wrap; gap: 0.75rem; align-items: center; }
+    .aviso-filtro p { margin: 0; flex: 1 1 20rem; }
+    /* Las tarjetas se reparten el ancho: a 1440 caben los cuatro lugares sin bajar; a 390, uno por renglón. */
+    .lugares { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(100%, 16.5rem), 1fr)); gap: 1rem; align-items: stretch; }
+    .lugar { display: flex; flex-direction: column; gap: 0.75rem; padding: 0.75rem; min-inline-size: 0; }
     .lugar.pronto { background: var(--fondo-hundido); }
-    .portada { width: 320px; max-width: 100%; height: auto; border-radius: 10px; border: 1px solid var(--linea); align-self: flex-start; }
-    .cuerpo { flex: 1 1 360px; display: flex; flex-direction: column; gap: 8px; }
+    .portada { inline-size: 100%; block-size: auto; aspect-ratio: 960 / 528; object-fit: cover; border-radius: var(--radio-control); border: 1px solid var(--linea); }
+    .cuerpo { flex: 1; display: flex; flex-direction: column; gap: 0.5rem; min-inline-size: 0; padding-inline: 0.25rem; }
     .cuerpo p { margin: 0; }
-    .cuerpo .boton { align-self: flex-start; }
-    .nombre { display: flex; flex-wrap: wrap; gap: 8px 12px; align-items: center; }
+    /* El botón queda siempre al pie de la tarjeta: las «Elegir este lugar» quedan alineadas aunque las descripciones difieran. */
+    .cuerpo .boton { align-self: stretch; margin-block-start: auto; }
+    .nombre { display: flex; flex-wrap: wrap; gap: 0.5rem 0.75rem; align-items: center; }
     .nombre h2 { margin: 0; }
-    .temas { display: flex; flex-wrap: wrap; gap: 6px; }
+    .temas { display: flex; flex-wrap: wrap; gap: 0.375rem; }
   `,
 })
 export class LugarComponent {
