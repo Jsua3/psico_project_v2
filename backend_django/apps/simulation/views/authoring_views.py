@@ -34,6 +34,7 @@ from ..serializers.contracts import (
 )
 from ..services import authoring_service as svc
 from ..services import rehearsal
+from ..services import rubric_service
 from ..services import world_layout
 from ..services.authoring import guards, importing, lifecycle
 
@@ -426,6 +427,22 @@ class BriefView(_AuthoringView):
         self.version_for(request, case_version_id, mutate=True)
         body = self.payload(request, inputs.BriefRequest)
         return api_ok(svc.update_brief(case_version_id, body), "Ficha del caso actualizada")
+
+
+class CaseRubricAdoptView(_AuthoringView):
+    """RK-1 · ``POST …/cases/{id}/rubric``: el caso adopta una rúbrica (una copia propia de la versión).
+
+    Cuerpo ``{revision, rubricId}`` o ``{revision, fromCompetencies: true}``. Solo un borrador y solo quien autora el caso
+    (403 al ajeno, como toda mutación de autoría); devuelve la vista del editor, con la rúbrica nueva en ``rubrics``.
+    """
+
+    def post(self, request, case_version_id):
+        self.version_for(request, case_version_id, mutate=True)
+        body = self.payload(request, inputs.RubricAdoptRequest)
+        return api_ok(
+            rubric_service.adopt_for_case_version(case_version_id, body, request.user),
+            "Rúbrica del caso actualizada",
+        )
 
 
 # ─── Character CRUD (E3-3) ──────────────────────────────────────────────────

@@ -317,6 +317,49 @@ def _valoracion_del_sistema(attempt, evaluations):
     return summary, True
 
 
+def _evidencia_por_competencia(attempt, events):
+    """RK-4 · ``[{code, name, items: [{order, nodeTitle, optionText, class, atSeconds}]}]``: por cada competencia de la
+    rúbrica con que se valora el intento, las decisiones registradas que la tocan, en orden.
+
+    Es lo que la docente mira al lado de cada criterio mientras valora. A propósito NO trae ningún nivel: ni el que
+    aporta cada decisión ni el que calculó el sistema para la competencia. Esa valoración automática sigue plegada hasta
+    que la docente guarda la suya (``_valoracion_del_sistema``): verla antes ancla su juicio. Reutiliza la misma regla que
+    el perfil por competencia (``assessment.competencies.contributions``), así que una ficha aparece aquí solo si esa
+    decisión entra en el perfil. Sin rúbrica, o sin criterios con competencia, la lista está vacía.
+    """
+    from apps.simulation.assessment import competencies as perfil  # perezoso: assessment importa rubric_service
+
+    rubric = perfil.rubric_of(attempt.case_version_id)
+    if rubric is None:
+        return []
+    competencias = perfil.rubric_competencies(rubric)
+    codigos = {c.code for c in competencias}
+    fichas = {code: [] for code in codigos}
+    order = 0
+    for ev in events:
+        if not ev.decision_option_id or ev.event_type not in REGISTERED_DECISION_EVENT_TYPES:
+            continue
+        order += 1  # la posición entre las registradas: la misma ``order`` que el perfil y ``decisionReview``
+        option = ev.decision_option
+        tocadas = perfil.contributions(option, codigos)
+        if not tocadas:
+            continue
+        response_class = case_state.response_class_of(option)
+        at_seconds = (
+            int((ev.occurred_at - attempt.started_at).total_seconds())
+            if ev.occurred_at and attempt.started_at else None
+        )
+        for code in tocadas:
+            fichas[code].append({
+                "order": order,
+                "nodeTitle": ev.node.title if ev.node_id else "",
+                "optionText": option.text,
+                "class": response_class.value if response_class else None,
+                "atSeconds": at_seconds,
+            })
+    return [{"code": c.code, "name": c.name, "items": fichas[c.code]} for c in competencias]
+
+
 @transaction.atomic
 def trace(attempt_id, instructor=None):
     attempt = _require_attempt(attempt_id, instructor)
@@ -376,6 +419,8 @@ def trace(attempt_id, instructor=None):
         # V5: sin competencias declaradas en el caso no hay valoración del sistema; la docente ve por qué y el editor.
         "caseVersionId": attempt.case_version_id,
         "competenciesDeclared": _declara_competencias(attempt),
+        # RK-4 (aditivo): la evidencia por competencia para valorar cada criterio a la vista, sin niveles calculados.
+        "evidenceByCompetency": _evidencia_por_competencia(attempt, events),
     }
 
 

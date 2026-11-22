@@ -625,6 +625,33 @@ export interface AttemptTrace {
   systemEvaluation: SystemEvaluation | null;
   /** Hay una valoración automática que mostrar cuando el docente registre la suya. */
   systemEvaluationAvailable: boolean;
+  /**
+   * RK-4 (bloque R0) · Por cada competencia de la rúbrica con que se valora el intento, las decisiones registradas que la
+   * tocan: las fichas de «Evidencia» junto a cada criterio. A propósito no trae ningún nivel (ni el de cada decisión ni
+   * el que calculó el sistema): la valoración automática sigue plegada hasta que el docente guarda la suya. Opcional:
+   * sin ella el panel de valoración no pinta las fichas. Vacía si el caso no tiene rúbrica.
+   */
+  evidenceByCompetency?: CompetencyEvidence[];
+}
+
+/** RK-4 · Las decisiones del intento que tocan una competencia de la rúbrica, en el orden en que se tomaron. */
+export interface CompetencyEvidence {
+  /** El mismo código que `RubricCriterionView.competency` y `competencyLevels[].code`: así se emparejan con el criterio. */
+  code: string;
+  /** El nombre de la competencia en el catálogo, para mostrar en vez del código. */
+  name: string;
+  items: CompetencyEvidenceItem[];
+}
+
+/** RK-4 · Una decisión que sirve de evidencia: dónde, qué eligió y su clase. Sin nivel ni puntaje. */
+export interface CompetencyEvidenceItem {
+  /** Su posición entre las decisiones registradas (desde 1): la misma que usa la columna de evidencia para resaltarla. */
+  order: number;
+  nodeTitle: string;
+  optionText: string;
+  class: ResponseClass | null;
+  /** Segundos desde que empezó el intento; nulo si falta alguna de las dos marcas de tiempo. */
+  atSeconds: number | null;
 }
 
 /** La valoración automática del sistema que ve el docente tras registrar la suya: resumen y perfil por competencia. */
@@ -725,7 +752,11 @@ export interface OwnerEvaluationCriterion {
   level: FormativeLevel | null;
   /** La observación del docente para este criterio; vacía si no escribió ninguna. */
   comment: string;
-  /** Qué significa ese nivel en ese criterio. Lo agrega RK-6 (bloque R0): hasta entonces no viene. */
+  /**
+   * RK-6 (bloque R0) · Qué significa ese nivel en ese criterio, en palabras: el descriptor propio del criterio (RK-2) o,
+   * si no lo tiene, el general del nivel. Nunca un número. Ausente si el criterio no tiene nivel o con un servidor
+   * anterior: la pieza muestra entonces solo el nivel y la observación.
+   */
   descriptor?: string;
 }
 
@@ -785,6 +816,33 @@ export interface RubricCriterionView {
   description: string | null;
   weight?: number;
   displayOrder: number;
+  /** Si el criterio cuenta. Lo trae la vista del editor (RK-2); la de valorar solo lista los activos. */
+  active?: boolean;
+  /**
+   * RK-2 (bloque R0) · Qué significa cada nivel EN ESTE criterio. Solo trae los niveles con texto propio: el que falta
+   * se lee con el descriptor general (`RubricLevelOption.descriptor`, ver `descriptorDelNivel`). Ausente con un servidor
+   * anterior, que equivale a `{}`.
+   */
+  levelDescriptors?: LevelDescriptors;
+}
+
+/** RK-2 · Los descriptores propios de un criterio, por nivel. Un nivel ausente usa el descriptor general. */
+export type LevelDescriptors = Partial<Record<FormativeLevel, string>>;
+
+/**
+ * RK-2 · Qué significa `level` en `criterion`: el descriptor propio si lo tiene; si no, el general de `levels`. Es la
+ * misma regla que el servidor aplica al estudiante (RK-6), en un solo sitio para la matriz, el panel de valoración y la
+ * vista «Así la lee el estudiante». `null` sin nivel o si no hay con qué explicarlo.
+ */
+export function descriptorDelNivel(
+  criterion: Pick<RubricCriterionView, 'levelDescriptors'>,
+  level: FormativeLevel | null | undefined,
+  levels: readonly RubricLevelOption[] = [],
+): string | null {
+  if (!level) return null;
+  const propio = criterion.levelDescriptors?.[level]?.trim();
+  if (propio) return propio;
+  return levels.find(option => option.value === level)?.descriptor ?? null;
 }
 
 /** Un nivel que el docente puede elegir en un criterio: valor, nombre y descriptor. */
@@ -1038,6 +1096,11 @@ export interface CaseEditorView {
   context: string;
   /** Los objetivos de aprendizaje de la ficha (E3-4). */
   learningObjectives: string[];
+  /**
+   * RK-7 (bloque R0) · Los temas sensibles que el estudiante lee en la ficha antes de empezar. «Datos» los edita con
+   * `updateBrief`. Ausente con un servidor anterior (equivale a ninguno).
+   */
+  contentWarnings?: string[];
   nodes: NodeEditorState[];
   decisions: DecisionEdgeState[];
   maps: MapEditorState[];
@@ -1126,7 +1189,23 @@ export interface CharacterUpsertRequest {
 export interface BriefUpdateRequest {
   context?: string;
   learningObjectives?: string[];
+  /**
+   * RK-7 · Los temas sensibles: hasta 8, de hasta 60 caracteres, texto plano; `[]` los quita. El servidor descarta los
+   * vacíos y los repetidos.
+   */
+  contentWarnings?: string[];
+  /**
+   * RK-8 · El nombre del caso (1 a 255 caracteres). Solo si el caso no tiene otra versión publicada o archivada, que
+   * comparten el nombre: si la tiene, 409 `CASE_TITLE_SHARED`.
+   */
+  title?: string;
 }
+
+/**
+ * RK-1 · Qué rúbrica adopta el caso como copia propia de la versión: una que quien edita ve (`rubricId`) o una nueva con
+ * un criterio por competencia del programa (`fromCompetencies`). Exactamente una de las dos.
+ */
+export type RubricAdoptRequest = { rubricId: number } | { fromCompetencies: true };
 
 export interface MapUpsertRequest {
   nodeId: number;

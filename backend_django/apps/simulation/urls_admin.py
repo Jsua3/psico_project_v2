@@ -6,6 +6,7 @@ from .views.authoring_views import (
     BriefView,
     CaseDefinitionView,
     CaseImportView,
+    CaseRubricAdoptView,
     CasePlanView,
     CaseValidateView,
     CharacterDetailView,
@@ -52,6 +53,8 @@ urlpatterns = [
     path("<int:case_version_id>/editor", EditorView.as_view()),
     path("<int:case_version_id>/definition", CaseDefinitionView.as_view()),
     path("<int:case_version_id>/brief", BriefView.as_view()),
+    # RK-1 (bloque R0): la rúbrica que viaja con el caso.
+    path("<int:case_version_id>/rubric", CaseRubricAdoptView.as_view()),
     path("<int:case_version_id>/publish", PublishView.as_view()),
     path("<int:case_version_id>/clone-version", CloneVersionView.as_view()),
     path("<int:case_version_id>/lifecycle", LifecycleView.as_view()),

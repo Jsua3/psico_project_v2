@@ -32,6 +32,13 @@ MAX_CONTEXT_LENGTH = 4000
 MAX_TITLE_LENGTH = 255  # la columna ``SimulationCase.title`` (varchar 255)
 MAX_OBJECTIVE_LENGTH = 280
 MAX_OBJECTIVES = 12
+#: RK-7 · Los temas sensibles de la ficha: fichas cortas («violencia de pareja», «riesgo de feminicidio») que el estudiante
+#: lee antes de empezar. Ocho caben en dos renglones de la ficha; más que eso deja de ser un aviso y se vuelve una lista
+#: que nadie lee.
+MAX_CONTENT_WARNINGS = 8
+MAX_CONTENT_WARNING_LENGTH = 60
+#: RK-8 · Los estados de versión que ya vio alguien fuera del editor: si el caso tiene una, su título no se cambia aquí.
+_TITLE_LOCKING_STATUSES = ("PUBLISHED", "ARCHIVED")
 
 
 def list_authoring_cases(actor):
@@ -162,8 +169,14 @@ def update_brief(case_version_id, request):
 
     «Ausente = no tocar»: un cuerpo sin ``context`` deja el contexto como estaba, y uno sin
     ``learningObjectives`` deja la lista; ``[]`` la vacía. Todo es texto plano con tope.
+
+    Aditivos del rediseño (bloque R0), con la misma regla: ``contentWarnings`` (RK-7, los temas sensibles que lee la
+    ficha del estudiante; ``[]`` los quita) y ``title`` (RK-8, el nombre del caso). Un cliente que no los manda obtiene
+    exactamente lo de antes.
     """
     version = ensure_draft(case_version_id, request.get("revision"))
+    if "title" in request:
+        _rename_case(version, request.get("title"))
     fields = []
     if "context" in request:
         version.narrative_context = validate_plain_text(
@@ -175,10 +188,63 @@ def update_brief(case_version_id, request):
             _validated_objectives(request.get("learningObjectives")), ensure_ascii=False
         )
         fields.append("learning_objectives")
+    if "contentWarnings" in request:
+        version.content_warnings = json.dumps(
+            _validated_content_warnings(request.get("contentWarnings")), ensure_ascii=False
+        )
+        fields.append("content_warnings")
     if fields:
         version.save(update_fields=fields)
     bump_revision(case_version_id)
     return editor(case_version_id)
+
+
+def _validated_content_warnings(raw):
+    """RK-7 · Hasta ``MAX_CONTENT_WARNINGS`` temas, cada uno texto plano de una línea y de hasta
+    ``MAX_CONTENT_WARNING_LENGTH``. Los vacíos se descartan y los repetidos (sin distinguir mayúsculas) se guardan una
+    vez: una ficha que dice dos veces lo mismo no avisa más, solo ocupa más."""
+    if raw is None:
+        return []
+    if len(raw) > MAX_CONTENT_WARNINGS:
+        raise ApiError(
+            "VALIDATION_ERROR",
+            # BORRADOR: texto nuevo del servidor, pendiente de la aprobación de Psicología (VD-23).
+            f"Un caso admite hasta {MAX_CONTENT_WARNINGS} temas sensibles.",
+            status.HTTP_400_BAD_REQUEST,
+            field="contentWarnings",
+        )
+    themes, seen = [], set()
+    for position, item in enumerate(raw):
+        text = validate_plain_text(item, MAX_CONTENT_WARNING_LENGTH, "contentWarnings", index=position)
+        if text and text.casefold() not in seen:
+            seen.add(text.casefold())
+            themes.append(text)
+    return themes
+
+
+def _rename_case(version, raw_title):
+    """RK-8 · Cambia el nombre del caso desde su borrador.
+
+    El título vive en ``SimulationCase``, que comparten TODAS las versiones del caso: renombrar desde un borrador también
+    renombraría lo que ya ven los estudiantes y lo archivado. Por eso solo se permite mientras el caso no tenga otra
+    versión publicada o archivada; si la tiene, 409 ``CASE_TITLE_SHARED`` con un mensaje que dice por qué.
+    """
+    title = validate_plain_text(raw_title, MAX_TITLE_LENGTH, "title", required=True)
+    shared = (
+        CaseVersion.objects.filter(simulation_case_id=version.simulation_case_id, status__in=_TITLE_LOCKING_STATUSES)
+        .exclude(pk=version.pk)
+        .exists()
+    )
+    if shared:
+        raise ApiError(
+            "CASE_TITLE_SHARED",
+            # BORRADOR: texto nuevo del servidor, pendiente de la aprobación de Psicología (VD-23).
+            "Este caso ya tiene una versión publicada o archivada que comparte el nombre. Cambiarlo aquí también lo "
+            "cambiaría allí, así que por ahora el nombre no se puede editar.",
+            status.HTTP_409_CONFLICT,
+            field="title",
+        )
+    SimulationCase.objects.filter(pk=version.simulation_case_id).update(title=title)
 
 
 def _validated_objectives(raw):

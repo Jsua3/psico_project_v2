@@ -20,6 +20,7 @@ import {
   Milestone,
   NodeUpsertRequest,
   RiskLevel,
+  RubricAdoptRequest,
   SimulationCaseSummary,
   ToolUpsertRequest,
   WorldDefinition,
@@ -290,9 +291,23 @@ export class AuthoringApi {
       .pipe(map(r => r.data));
   }
 
-  /** El contexto y los objetivos de la ficha del caso. */
+  /**
+   * La ficha del caso: contexto y objetivos; con R0 también los temas sensibles (RK-7) y el nombre (RK-8). Lo que no
+   * viaja no se toca, así que quien manda solo el contexto obtiene lo de siempre.
+   */
   updateBrief(caseVersionId: number, body: BriefUpdateRequest, revision?: number) {
     return this.http.put<ApiResponse<CaseEditorView>>(`${this.API}/${caseVersionId}/brief`, body, withRevision(revision))
+      .pipe(map(r => r.data));
+  }
+
+  /**
+   * RK-1 · El caso adopta una rúbrica: el servidor guarda una COPIA propia de la versión (la que se sella al publicar y
+   * viaja con cada versión nueva) y deja inactivas la anterior y la asignación compartida. Devuelve la vista del editor
+   * con la rúbrica nueva en `rubrics`. Solo en borrador y solo quien autora el caso (403 al ajeno, que explica el
+   * interceptor); 400 si la rúbrica no suma 100 o el catálogo no tiene competencias; 404 si la rúbrica no es visible.
+   */
+  adoptRubric(caseVersionId: number, body: RubricAdoptRequest, revision?: number) {
+    return this.http.post<ApiResponse<CaseEditorView>>(`${this.API}/${caseVersionId}/rubric`, body, withRevision(revision))
       .pipe(map(r => r.data));
   }
 

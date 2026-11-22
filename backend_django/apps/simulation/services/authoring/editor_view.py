@@ -20,7 +20,9 @@ from apps.simulation.models import (
     SimulationNode,
 )
 from apps.simulation.services import case_rules
+from apps.simulation.services.case_brief import temas_sensibles
 from apps.simulation.services.case_state import response_class_of
+from apps.simulation.services.rubric_service import criterion_weight, level_descriptors_of
 from shared.jsonutils import read_map as _read_map, read_string_list as _read_string_list
 
 from . import checklist as checklist_rules
@@ -64,6 +66,8 @@ def editor(case_version_id, actor=None):
         "status": version.status,
         "context": version.narrative_context or "",
         "learningObjectives": _read_string_list(version.learning_objectives),
+        # RK-7: los temas sensibles que lee la ficha del estudiante antes de empezar; «Datos» los edita (``PUT …/brief``).
+        "contentWarnings": temas_sensibles(version),
         "rules": rules_state(version),
         "nodes": [node_editor_state(n) for n in nodes],
         "decisions": [decision_edge(d) for d in decisions],
@@ -334,6 +338,12 @@ def rubric_view(rubric):
                 "title": c.title,
                 "description": c.description,
                 "displayOrder": c.display_order,
+                # RK-2 (aditivos): el peso, si el criterio cuenta y lo que significa cada nivel en él. La vista del
+                # editor los trae para que la rúbrica del caso se muestre sin otra petición; nada de esto le llega al
+                # estudiante.
+                "weight": float(criterion_weight(c)),
+                "active": c.active,
+                "levelDescriptors": level_descriptors_of(c),
             }
             for c in RubricCriterion.objects.filter(rubric_id=rubric.id).order_by("display_order")
         ],

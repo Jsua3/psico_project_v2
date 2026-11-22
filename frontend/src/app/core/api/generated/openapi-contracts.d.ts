@@ -1331,6 +1331,7 @@ export interface OpenApiPaths {
   readonly '/api/admin/cases/{case_version_id}/publish': 'POST';
   readonly '/api/admin/cases/{case_version_id}/rehearsal': 'POST';
   readonly '/api/admin/cases/{case_version_id}/rehearsal/{attempt_id}': 'GET' | 'PATCH';
+  readonly '/api/admin/cases/{case_version_id}/rubric': 'POST';
   readonly '/api/admin/cases/{case_version_id}/rules/endings': 'PUT';
   readonly '/api/admin/cases/{case_version_id}/rules/milestones': 'PUT';
   readonly '/api/admin/cases/{case_version_id}/rules/risk': 'PUT';
@@ -1389,6 +1390,7 @@ export interface OpenApiPaths {
   readonly '/api/authoring/cases/{case_version_id}/publish': 'POST';
   readonly '/api/authoring/cases/{case_version_id}/rehearsal': 'POST';
   readonly '/api/authoring/cases/{case_version_id}/rehearsal/{attempt_id}': 'GET' | 'PATCH';
+  readonly '/api/authoring/cases/{case_version_id}/rubric': 'POST';
   readonly '/api/authoring/cases/{case_version_id}/rules/endings': 'PUT';
   readonly '/api/authoring/cases/{case_version_id}/rules/milestones': 'PUT';
   readonly '/api/authoring/cases/{case_version_id}/rules/risk': 'PUT';

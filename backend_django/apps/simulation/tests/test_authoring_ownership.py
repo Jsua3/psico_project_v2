@@ -150,6 +150,8 @@ FOREIGN_ROUTES = [
     ("put", "<int:case_version_id>/rules/risk", {"riskLevel": None}, 403),
     ("put", "<int:case_version_id>/rules/endings", {"endings": []}, 403),
     ("put", "<int:case_version_id>/brief", {"context": "x"}, 403),
+    # RK-1 (bloque R0): adoptar una rúbrica en un caso ajeno es mutarlo.
+    ("post", "<int:case_version_id>/rubric", {"fromCompetencies": True}, 403),
     ("post", "<int:case_version_id>/maps/<int:map_id>/hints", {"text": "x"}, 403),
     ("put", "<int:case_version_id>/hints/<int:hint_id>", {"text": "x"}, 403),
     ("delete", "<int:case_version_id>/hints/<int:hint_id>", None, 403),

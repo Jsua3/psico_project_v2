@@ -93,6 +93,11 @@ class RubricCriterion(models.Model):
     weight = models.DecimalField(max_digits=5, decimal_places=2, default=0, db_default=0)
     active = models.BooleanField(default=True, db_default=True)
     display_order = models.IntegerField(default=0, db_default=0)
+    #: RK-2 · Qué significa cada nivel EN ESTE criterio: ``{"EN_INICIO": "…", "LOGRADO": "…"}`` en texto con JSON.
+    #: Un nivel sin texto propio se lee con el descriptor general (``rubric_service.LEVELS``); por eso ``{}`` (el valor
+    #: de las filas de antes) es una rúbrica válida que se aplica igual que hoy. Es texto y no ``JSONField`` por la misma
+    #: razón que ``evidence_json`` o ``snapshot_json``: el esquema lo comparten SQL y Django (Django-dueño).
+    level_descriptors_json = models.TextField(default="{}", db_default="{}")
 
     class Meta:
         db_table = "rubric_criteria"
