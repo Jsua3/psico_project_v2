@@ -277,10 +277,13 @@ app-autoria-shell .volver--pieza::before {
 // en ~150 ms y se detenía en seco (lo notó el usuario, 2026-11-22). `interpolate-size` deja animar hasta `max-content`
 // (sirve para «Volver a casos», «Volver a Caminos» o «Volver al Plano»); el resorte VIVO de la barra (ζ 0,55, el de lo que
 // aparece) en 620 ms, y la barra le cede el sitio con el mismo movimiento. Sin `interpolate-size`, el techo de respaldo.
+// Al PLEGAR, sin resorte: la curva de respaldo de la receta (rápida al empezar y suave al llegar, sin pasarse). Con el
+// resorte vivo el ancho se hundía bajo el círculo, chocaba con su mínimo, se quedaba quieto ~200 ms y daba un respingo a
+// los 400 (medido, 2026-11-22): lo que se va no rebota contra un piso. El resorte vivo queda para lo que aparece (abrir).
 app-autoria-shell .volver--pieza .volver__contenido {
   min-inline-size: 1.25rem;
   max-inline-size: 1.25rem;
-  transition: max-inline-size var(--ds-dur-glass) var(--ds-spring-live);
+  transition: max-inline-size var(--ds-dur-glass) var(--ds-ease-drawer);
 }
 
 @supports (interpolate-size: allow-keywords) {
@@ -288,13 +291,14 @@ app-autoria-shell .volver--pieza .volver__contenido {
     interpolate-size: allow-keywords;
     inline-size: 1.25rem;
     max-inline-size: none;
-    transition: inline-size var(--ds-dur-glass) var(--ds-spring-live);
+    transition: inline-size var(--ds-dur-glass) var(--ds-ease-drawer);
   }
 }
 
 @media (hover: hover) and (pointer: fine) {
   app-autoria-shell .volver--pieza:hover .volver__contenido {
     max-inline-size: 12rem;
+    transition-timing-function: var(--ds-spring-live);
   }
 
   app-autoria-shell .volver--pieza:hover .volver__texto {
@@ -305,6 +309,7 @@ app-autoria-shell .volver--pieza .volver__contenido {
 
 app-autoria-shell .volver--pieza:focus-visible .volver__contenido {
   max-inline-size: 12rem;
+  transition-timing-function: var(--ds-spring-live);
 }
 
 @supports (interpolate-size: allow-keywords) {
