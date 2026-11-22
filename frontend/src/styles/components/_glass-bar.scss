@@ -193,7 +193,9 @@ $corte-tope: 82.499rem;
 .cromo[data-ancho='escritorio'][data-estado='scroll'][data-vidrio='pseudo'] .modulo::before,
 .cromo[data-ancho='escritorio'][data-estado='atencion'][data-vidrio='pseudo'] .modulo::before,
 .cromo[data-ancho='movil'] .bandeja::before,
-.cromo[data-ancho='movil'] .modulo-inferior::before {
+.cromo[data-ancho='movil'] .modulo-inferior::before,
+// La pieza «volver» del editor de casos: separada de la píldora, con su propio vidrio (2026-11-22).
+.cromo[data-ancho='escritorio'] .volver--pieza::before {
   @include m.ds-glass-bar-layer;
 }
 
