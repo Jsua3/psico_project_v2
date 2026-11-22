@@ -78,7 +78,8 @@ describe('PlanoCasoComponent', () => {
 
   it('sin salas por piezas muestra el aviso', async () => {
     const { raiz } = await montar(null);
-    expect(raiz.textContent).toContain('Este caso no tiene salas por piezas: el plano aparece cuando las tiene.');
+    expect(raiz.textContent).toContain('Este caso todavía no tiene plano');
+    expect(raiz.textContent).toContain('Las salas de este caso son de imagen fija');
     expect(raiz.querySelector('app-plano-del-lugar')).toBeNull();
   });
 });

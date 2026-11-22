@@ -258,7 +258,7 @@ const NO_SE_PUDO_ENVIAR = 'No se pudo enviar el caso. No se cambió nada: vuelve
     .dos-columnas { display: grid; grid-template-columns: minmax(0, 1fr); gap: 16px; align-items: start; }
     @media (min-width: 64rem) {
       .dos-columnas { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); column-gap: 24px; row-gap: 0; }
-      .dos-columnas > * { grid-column: 1; margin-block-end: 16px; }
+      .dos-columnas > * { grid-column: 1; margin-block-end: 24px; } /* el mismo ritmo que entre columnas */
       .dos-columnas > #lista-verificacion { grid-column: 2; grid-row: 1 / span 6; }
     }
     .bloque { display: flex; flex-direction: column; gap: 8px; min-inline-size: 0; }

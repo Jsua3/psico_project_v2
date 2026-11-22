@@ -10,9 +10,12 @@
 .paso[data-estado='con-pendientes'] { box-shadow: inset 0 0 0 1px var(--ds-warning-text), inset 3px 0 0 var(--ds-warning-text); }
 .paso:focus-visible { outline: 2px solid var(--ds-focus); outline-offset: 2px; }
 
-.paso__cabeza { display: flex; flex-wrap: wrap; align-items: center; gap: 0.25rem 0.625rem; min-inline-size: 0; }
+// Arriba, no al centro: con un nombre de dos renglones el interruptor y «Más» se quedan en el primero, junto a donde empieza.
+// El relleno del nombre (10 px arriba y abajo) lo centra en el alto de 44 px de los controles cuando cabe en uno.
+.paso__cabeza { display: flex; flex-wrap: wrap; align-items: flex-start; gap: 0.25rem 0.625rem; min-inline-size: 0; }
 .paso__nombre {
-  flex: 1 1 12rem; min-inline-size: 0; margin: 0; font-size: var(--autoria-texto-18); line-height: 1.5rem; overflow-wrap: anywhere;
+  flex: 1 1 12rem; min-inline-size: 0; margin: 0; padding-block: 0.625rem; font-size: var(--autoria-texto-18); line-height: 1.5rem;
+  overflow-wrap: anywhere;
 }
 // «Texto por validar»: una etiqueta pasiva (sin borde de botón), en el primer renglón de la descripción.
 .insignia {

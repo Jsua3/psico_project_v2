@@ -2,6 +2,7 @@ import { ChangeDetectionStrategy, Component, computed, effect, inject, signal } 
 import { Router, RouterLink } from '@angular/router';
 import { firstValueFrom } from 'rxjs';
 
+import { UiFiguraPixel } from '../../../../shared/ui/figura-pixel/ui-figura-pixel';
 import { PlanoDelLugarComponent, type PuertaRota } from '../../../simulator/plano/plano-del-lugar.component';
 import { dibujarPlano, normalizarLayout, puntoEnElMuro, type PlanoDelLugar, type SalaDibujada } from '../../../simulator/plano/plano';
 import { AutoriaApiService } from '../../api/autoria-api.service';
@@ -33,9 +34,9 @@ const PUERTA_GROSOR = 14;
 @Component({
   selector: 'app-plano-caso',
   changeDetection: ChangeDetectionStrategy.OnPush,
-  imports: [PlanoDelLugarComponent, RouterLink],
+  imports: [PlanoDelLugarComponent, RouterLink, UiFiguraPixel],
   template: `
-    <section class="plano-caso" aria-labelledby="plano-caso-titulo">
+    <section class="plano-caso" [class.plano-caso--angosto]="!conDibujo()" aria-labelledby="plano-caso-titulo">
       <header class="plano-caso__cabecera">
         <div class="plano-caso__titulo">
           <!-- BORRADOR: texto nuevo, pendiente de la aprobación de Psicología -->
@@ -111,8 +112,16 @@ const PUERTA_GROSOR = 14;
               </aside>
             </div>
           } @else {
-            <!-- BORRADOR: texto nuevo, pendiente de la aprobación de Psicología -->
-            <p class="plano-caso__estado" role="status">Este caso no tiene salas por piezas: el plano aparece cuando las tiene.</p>
+            <!-- El vacío con la misma forma que los de Evaluación (figura del simulador, título, frase y salida), no una nota suelta. -->
+            <section class="plano-caso__vacio" aria-labelledby="plano-vacio-titulo">
+              <ui-figura-pixel class="plano-caso__figura" personaje="supervisor-clinico" [escala]="3" />
+              <div class="plano-caso__vacio-texto">
+                <!-- BORRADOR: texto nuevo, pendiente de la aprobación de Psicología -->
+                <h2 id="plano-vacio-titulo">Este caso todavía no tiene plano</h2>
+                <!-- BORRADOR: texto nuevo, pendiente de la aprobación de Psicología -->
+                <p role="status">El plano dibuja las salas armadas por piezas y sus puertas. Las salas de este caso son de imagen fija: se editan desde el mapa del caso.</p>
+              </div>
+            </section>
           }
         }
       }
@@ -126,8 +135,8 @@ const PUERTA_GROSOR = 14;
     }
     .plano-caso__cabecera { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: var(--ds-space-2) var(--ds-space-5); }
     .plano-caso__titulo { min-inline-size: 0; }
-    .plano-caso__titulo h1 { margin: 0; font-size: var(--autoria-texto-24); line-height: 2rem; letter-spacing: -0.015em; overflow-wrap: anywhere; }
-    .plano-caso__descripcion { margin: 2px 0 0; color: var(--ds-text-2); font-size: var(--autoria-texto-14); overflow-wrap: anywhere; }
+    .plano-caso__titulo h1 { margin: 0; font-size: var(--autoria-texto-32); line-height: 2.5rem; letter-spacing: -0.015em; overflow-wrap: anywhere; }
+    .plano-caso__descripcion { margin: 0.25rem 0 0; color: var(--ds-text-2); font-size: var(--autoria-texto-16); line-height: 1.5rem; overflow-wrap: anywhere; }
     .plano-caso__volver { min-block-size: var(--ds-target-min); }
 
     .plano-caso__cuerpo { display: grid; grid-template-columns: minmax(0, 1fr); gap: var(--ds-space-3); min-inline-size: 0; }
@@ -177,6 +186,21 @@ const PUERTA_GROSOR = 14;
       border: 1px solid var(--l-filo); border-radius: var(--l-radio-tarjeta); background: var(--l-superficie); overflow-wrap: anywhere;
     }
     .plano-caso__estado p { margin: 0 0 var(--ds-space-3); }
+    /* Sin dibujo (cargando, error o vacío) no hace falta todo el ancho: la misma medida y el mismo margen que las demás pantallas. */
+    .plano-caso--angosto { box-sizing: border-box; inline-size: 100%; max-inline-size: 72rem; margin-inline: auto; padding-block-start: var(--ds-space-5); }
+    .plano-caso__vacio {
+      display: flex; align-items: center; gap: 1.25rem 2rem; max-inline-size: 48rem; padding: 1.5rem 1.75rem;
+      border-radius: var(--l-radio-tarjeta); background: var(--l-superficie); box-shadow: inset 0 0 0 1px var(--l-filo), var(--l-sombra-trabajo);
+    }
+    .plano-caso__figura { flex: none; }
+    .plano-caso__vacio-texto { display: flex; flex-direction: column; gap: 0.5rem; min-inline-size: 0; }
+    .plano-caso__vacio-texto h2 { margin: 0; font-size: var(--autoria-texto-24); line-height: 2rem; }
+    .plano-caso__vacio-texto p { margin: 0; color: var(--ds-text-2); font-size: var(--autoria-texto-16); line-height: 1.5rem; }
+    @media (max-width: 40rem) {
+      .plano-caso__titulo h1 { font-size: var(--autoria-texto-24); line-height: 2rem; }
+      .plano-caso__vacio { flex-direction: column; align-items: flex-start; padding: 1.25rem; }
+    }
+    @media (forced-colors: active) { .plano-caso__vacio { border: 1px solid CanvasText; } }
 
     /* Escritorio: la pantalla mide la zona central (no se desplaza); la lista de salas se desplaza por su cuenta. */
     @media (min-width: 64rem) {
@@ -206,6 +230,8 @@ export class PlanoCasoComponent {
   /** El lugar del caso, para las miniaturas de las salas por piezas (su fondo no viaja con el caso). */
   private readonly escenario = signal<Escenario | null>(null);
   protected readonly PUERTA_LARGO = PUERTA_LARGO;
+  /** Hay plano que dibujar: solo entonces la pantalla usa todo el ancho. */
+  protected readonly conDibujo = computed(() => this.plano() !== null);
   protected readonly PUERTA_GROSOR = PUERTA_GROSOR;
   protected readonly estado = signal<Estado>({ tipo: 'cargando' });
   protected readonly plano = computed(() => { const e = this.estado(); return e.tipo === 'listo' ? e.plano : null; });
