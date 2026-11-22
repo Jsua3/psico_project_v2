@@ -1,10 +1,10 @@
 @if (isEstudiante()) {
   <app-student-dashboard />
 } @else {
-  <ui-page-header [eyebrow]="isAdmin() ? 'Administración' : 'Docencia'" [title]="titulo()" [description]="descripcion()">
-    <!-- La firma de la portada en el inicio: una figura del kit, quieta y decorativa (respira tres veces al llegar). -->
-    <ui-figura-pixel uiPageActions class="firma-kit" [personaje]="isAdmin() ? 'funcionaria-recepcion' : 'docente-universidad'" [escala]="2" respira />
-  </ui-page-header>
+  <!-- Cabecera ilustrada (ronda 3), el mismo armazón del inicio del estudiante: para el docente, el escritorio de la
+       orientadora con tres herramientas del simulador; para la administración, el archivo de expedientes. -->
+  <ui-cabecera-ilustrada [eyebrow]="isAdmin() ? 'Administración' : 'Docencia'" [title]="titulo()" [description]="descripcion()"
+    [escena]="isAdmin() ? 'archivo' : 'orientadora'" />
   <p class="ds-sr-only" role="status">{{ loading() ? 'Cargando el inicio…' : '' }}</p>
   @if (state() === 'loading' || state() === 'pending') {
     <div aria-busy="true"><ui-skeleton shape="row" /><ui-skeleton shape="row" /></div>

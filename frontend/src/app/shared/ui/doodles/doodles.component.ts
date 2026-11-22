@@ -121,7 +121,12 @@ const RETIRO_MS = 300;
   // Sin encapsular: las figuras encendidas se crean por DOM (no llevan el atributo del componente) y sus reglas tienen
   // que alcanzarlas. Por eso todos los selectores van bajo `app-doodles`.
   encapsulation: ViewEncapsulation.None,
-  host: { 'aria-hidden': 'true', '[class.doodles--suave]': "intensidad() === 'suave'" },
+  host: {
+    'aria-hidden': 'true',
+    '[class.doodles--suave]': "intensidad() === 'suave'",
+    '[class.doodles--borde-corto]': "borde() === 'corto'",
+    '[class.doodles--hacia-fin]': "hacia() === 'fin'",
+  },
   template: `<div class="capa"></div><div class="capa acento"></div><svg class="luz" focusable="false"><defs></defs><g class="figuras"></g></svg>`,
   styles: `
     /* Dos máscaras complementarias del mismo dibujo (las genera .superpowers/landing/generar-doodles-acento.py desde
@@ -134,7 +139,10 @@ const RETIRO_MS = 300;
       --lado: 1040px;
       --a: -9999px;
       --b: -9999px;
-      --zona: linear-gradient(to bottom, transparent var(--a), #000 calc(var(--a) + 180px), #000 calc(var(--b) - 180px), transparent var(--b));
+      --borde: 180px;
+      --zona: linear-gradient(to bottom, transparent var(--a), #000 calc(var(--a) + var(--borde)), #000 calc(var(--b) - var(--borde)), transparent var(--b));
+      /* Fundido horizontal de la zona: opaco de lado a lado por defecto (currentColor es opaco; la máscara solo lee el alfa). */
+      --zona-h: linear-gradient(currentColor, currentColor);
 
       position: fixed;
       inset: 0;
@@ -145,14 +153,14 @@ const RETIRO_MS = 300;
     app-doodles .capa {
       position: absolute;
       inset: 0;
-      -webkit-mask-image: var(--mosaico), var(--zona);
-      mask-image: var(--mosaico), var(--zona);
-      -webkit-mask-size: var(--lado) var(--lado), 100% 100%;
-      mask-size: var(--lado) var(--lado), 100% 100%;
-      -webkit-mask-repeat: repeat, no-repeat;
-      mask-repeat: repeat, no-repeat;
-      -webkit-mask-composite: source-in;
-      mask-composite: intersect;
+      -webkit-mask-image: var(--mosaico), var(--zona), var(--zona-h);
+      mask-image: var(--mosaico), var(--zona), var(--zona-h);
+      -webkit-mask-size: var(--lado) var(--lado), 100% 100%, 100% 100%;
+      mask-size: var(--lado) var(--lado), 100% 100%, 100% 100%;
+      -webkit-mask-repeat: repeat, no-repeat, no-repeat;
+      mask-repeat: repeat, no-repeat, no-repeat;
+      -webkit-mask-composite: source-in, source-in;
+      mask-composite: intersect, intersect;
       /* El tono de WhatsApp: apenas más claro (u oscuro) que el fondo. */
       background-color: color-mix(in oklab, var(--ds-text-1) 9%, transparent);
     }
@@ -163,8 +171,8 @@ const RETIRO_MS = 300;
 
     /* El acento: morado de marca apagado, apenas más presente que el gris de la base; no brilla (eso es la luz). */
     app-doodles .capa.acento {
-      -webkit-mask-image: var(--mosaico-acento), var(--zona);
-      mask-image: var(--mosaico-acento), var(--zona);
+      -webkit-mask-image: var(--mosaico-acento), var(--zona), var(--zona-h);
+      mask-image: var(--mosaico-acento), var(--zona), var(--zona-h);
       background-color: color-mix(in oklab, var(--l-acento, var(--ds-accent-sim)) 28%, transparent);
     }
 
@@ -180,8 +188,10 @@ const RETIRO_MS = 300;
       width: 100%;
       height: 100%;
       overflow: hidden;
-      -webkit-mask-image: var(--zona);
-      mask-image: var(--zona);
+      -webkit-mask-image: var(--zona), var(--zona-h);
+      mask-image: var(--zona), var(--zona-h);
+      -webkit-mask-composite: source-in;
+      mask-composite: intersect;
       color: var(--l-acento, var(--ds-accent-sim));
       opacity: 0.92;
     }
@@ -196,6 +206,14 @@ const RETIRO_MS = 300;
       opacity: 0.45;
     }
 
+    /* Borde corto: en una cabecera baja (≈ 200 px) el difuminado de 180 px por lado se comería toda la zona. */
+    app-doodles.doodles--borde-corto {
+      --borde: 48px;
+    }
+    /* Hacia el fin: la tinta crece hacia el lado de la viñeta y casi desaparece detrás del título (el texto manda). */
+    app-doodles.doodles--hacia-fin {
+      --zona-h: linear-gradient(to right, transparent 28%, currentColor 72%);
+    }
     app-doodles .luz defs {
       display: none;
     }
@@ -227,6 +245,10 @@ export class DoodlesComponent {
   readonly intensidad = input<'portada' | 'suave'>('portada');
   /** Sin luz del cursor ni escucha del ratón: donde hay una tarea, la luz distraería. */
   readonly interactivo = input(true, { transform: booleanAttribute });
+  /** `amplio`: 180 px de difuminado arriba y abajo (la portada); `corto`: 48 px, para cabeceras bajas del portal. */
+  readonly borde = input<'amplio' | 'corto'>('amplio');
+  /** `todo`: la misma tinta de lado a lado; `fin`: se desvanece hacia el inicio, donde suele ir el título. */
+  readonly hacia = input<'todo' | 'fin'>('todo');
 
   constructor() {
     const destroyRef = inject(DestroyRef);

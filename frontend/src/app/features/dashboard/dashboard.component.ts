@@ -17,9 +17,8 @@ import { haceCuanto } from '../simulator/trace-labels.util';
 import { NavBadgesService } from '../../shared/layout/nav-badges.service';
 import { NotificationService } from '../../core/notifications/notification.service';
 import { UiButton } from '../../shared/ui/button/ui-button';
-import { UiFiguraPixel } from '../../shared/ui/figura-pixel/ui-figura-pixel';
+import { UiCabeceraIlustrada } from '../../shared/ui/cabecera-ilustrada/ui-cabecera-ilustrada';
 import { UiProgress } from '../../shared/ui/progress/ui-progress';
-import { UiPageActions, UiPageHeader } from '../../shared/ui/page-header/ui-page-header';
 import { UiSkeleton } from '../../shared/ui/skeleton/ui-skeleton';
 import { uiDataState } from '../../shared/ui/state/ui-data-state';
 import { UiEmptyState } from '../../shared/ui/state/ui-empty-state';
@@ -31,7 +30,7 @@ interface GrupoVista { grupo: Grupo; asignaciones: Assignment[] | null; avances:
 
 @Component({
   selector: 'app-dashboard',
-  imports: [RouterLink, UiButton, UiFiguraPixel, UiProgress, UiPageActions, UiPageHeader, UiSkeleton, UiEmptyState, UiErrorState, StudentDashboardComponent],
+  imports: [RouterLink, UiButton, UiCabeceraIlustrada, UiProgress, UiSkeleton, UiEmptyState, UiErrorState, StudentDashboardComponent],
   templateUrl: './dashboard.component.html', styleUrl: './dashboard.component.scss',
   changeDetection: ChangeDetectionStrategy.OnPush,
 })

@@ -1,8 +1,6 @@
-<!-- Banda de cabecera con los doodles suaves detrás (DISENO §2.8): solo aquí, nunca detrás de tarjetas ni de texto del caso. -->
-<div id="inicio-cabecera" class="sd-cabecera">
-  <app-doodles desde="#inicio-cabecera" hasta="#inicio-cabecera" intensidad="suave" [interactivo]="false" />
-  <ui-page-header [eyebrow]="copy.eyebrow" [title]="saludo()" [description]="descripcion()" />
-</div>
+<!-- Cabecera ilustrada (ronda 3): el mismo armazón de los tres inicios, con su repisa, la mochila y el pupitre del
+     simulador, y los doodles suaves detrás de esta banda solamente (nunca detrás de tarjetas ni de texto del caso). -->
+<ui-cabecera-ilustrada [eyebrow]="copy.eyebrow" [title]="saludo()" [description]="descripcion()" escena="estudio" />
 
 <p class="ds-sr-only" role="status">{{ cargando() ? copy.cargando : '' }}</p>
 

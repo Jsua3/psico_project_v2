@@ -13,12 +13,6 @@
   color: var(--ds-text-1);
 }
 
-// Los doodles son fijos y llegan hasta aquí por los ids: la cabecera se pone por encima para que el texto nunca quede detrás.
-.sd-cabecera {
-  position: relative;
-  z-index: var(--ds-z-base);
-  min-inline-size: 0;
-}
 
 .sd-cargando {
   display: grid;

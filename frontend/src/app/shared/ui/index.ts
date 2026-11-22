@@ -62,3 +62,4 @@ export { UiPiezaPixel } from './vineta/ui-pieza-pixel';
 export { ESCENAS, PIEZAS, capasDeEscena, escalaQueCabe } from './vineta/vineta-catalogo';
 export type { CapaVineta, ClavePieza, EscalaVineta, EscenaVineta, NombreEscena } from './vineta/vineta-catalogo';
 export { UiVacioIlustrado } from './vacio-ilustrado/ui-vacio-ilustrado';
+export { UiCabeceraIlustrada } from './cabecera-ilustrada/ui-cabecera-ilustrada';

@@ -12,9 +12,8 @@ import { NavBadgesService } from '../../shared/layout/nav-badges.service';
 import { UiBadge } from '../../shared/ui/badge/ui-badge';
 import { UiButton } from '../../shared/ui/button/ui-button';
 import { UiCard } from '../../shared/ui/card/ui-card';
-import { DoodlesComponent } from '../../shared/ui/doodles/doodles.component';
+import { UiCabeceraIlustrada } from '../../shared/ui/cabecera-ilustrada/ui-cabecera-ilustrada';
 import { plural } from '../../shared/ui/labels';
-import { UiPageHeader } from '../../shared/ui/page-header/ui-page-header';
 import { UiPortadaCaso } from '../../shared/ui/portada-caso/ui-portada-caso';
 import { UiSection } from '../../shared/ui/section/ui-section';
 import { UiSkeleton } from '../../shared/ui/skeleton/ui-skeleton';
@@ -53,7 +52,7 @@ interface FilaCaso {
  */
 @Component({
   selector: 'app-student-dashboard',
-  imports: [NgTemplateOutlet, RouterLink, DoodlesComponent, UiBadge, UiButton, UiCard, UiPageHeader, UiPortadaCaso, UiSection, UiSkeleton, UiErrorState, UiEmptyState],
+  imports: [NgTemplateOutlet, RouterLink, UiBadge, UiButton, UiCabeceraIlustrada, UiCard, UiPortadaCaso, UiSection, UiSkeleton, UiErrorState, UiEmptyState],
   templateUrl: './student-dashboard.component.html',
   styleUrl: './student-dashboard.component.scss',
   changeDetection: ChangeDetectionStrategy.OnPush,

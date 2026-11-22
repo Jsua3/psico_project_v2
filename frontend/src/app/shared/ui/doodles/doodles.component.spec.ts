@@ -51,6 +51,21 @@ describe('DoodlesComponent', () => {
       expect(host.hasAttribute('style')).toBe(false);
     });
 
+    // Ronda 3 del portal: las cabeceras bajas usan un borde corto y la tinta crece hacia la viñeta, lejos del título.
+    it('borde corto y hacia el fin: clases en el anfitrión, sin estilos en línea; por defecto ninguna', async () => {
+      const fixture = TestBed.createComponent(DoodlesComponent);
+      await fixture.whenStable();
+      const host = fixture.nativeElement as HTMLElement;
+      expect(host.classList).not.toContain('doodles--borde-corto');
+      expect(host.classList).not.toContain('doodles--hacia-fin');
+      fixture.componentRef.setInput('borde', 'corto');
+      fixture.componentRef.setInput('hacia', 'fin');
+      await fixture.whenStable();
+      expect(host.classList).toContain('doodles--borde-corto');
+      expect(host.classList).toContain('doodles--hacia-fin');
+      expect(host.hasAttribute('style')).toBe(false);
+    });
+
     it('es decorativo: aria-hidden en el anfitrión', async () => {
       const host = await crear();
       expect(host.getAttribute('aria-hidden')).toBe('true');
