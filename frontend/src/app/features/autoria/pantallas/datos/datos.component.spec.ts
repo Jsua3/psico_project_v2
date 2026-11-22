@@ -75,7 +75,7 @@ describe('DatosComponent · los datos del caso se guardan solos', () => {
     for (const [id, texto] of [['d-nombre', 'Nombre del caso'], ['d-contexto', 'Contexto que lee el estudiante'], ['d-tema', 'Nuevo tema sensible']]) {
       expect(raiz.querySelector(`label[for="${id}"]`)!.textContent).toContain(texto);
     }
-    expect(raiz.querySelector('legend')!.textContent).toContain('Objetivos de aprendizaje');
+    expect([...raiz.querySelectorAll('legend')].map((l) => l.textContent?.trim())).toContain('Objetivos de aprendizaje');
     expect(raiz.textContent).toContain('Los revisa Psicología');
     expect(raiz.textContent).not.toContain('Los redacta Psicología');
   });
