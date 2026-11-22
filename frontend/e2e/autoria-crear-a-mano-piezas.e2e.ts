@@ -64,6 +64,8 @@ test.describe('crear un caso a mano arma las salas por piezas', () => {
       // 1. Crear a mano: el lugar, una idea de salas y el nombre.
       await page.goto('/portal/casos/nuevo');
       await expect(page.getByRole('heading', { level: 1, name: '¿Dónde pasa tu caso?' })).toBeVisible({ timeout: scaled(30_000) });
+      // Las plantillas son radios (como el «Nuevo proyecto» de Unity Hub): se elige y «Continuar» lleva a las salas.
+      await page.getByRole('radio', { name: ruta.lugar, exact: true }).check();
       await page.getByRole('link', { name: `Elegir este lugar: ${ruta.lugar}` }).click();
       await expect(page.getByRole('heading', { level: 1, name: 'Elige las salas de tu caso' })).toBeVisible({ timeout: scaled(30_000) });
       // Con la IA de autoría encendida la pantalla abre en «Describe tu caso»; sin ella, ya está a mano.
