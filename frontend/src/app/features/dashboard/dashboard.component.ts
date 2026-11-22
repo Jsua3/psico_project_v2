@@ -8,6 +8,7 @@ import { AuthoringApi } from '../../core/api/authoring.api';
 import { Grupo, GrupoService } from '../../core/api/grupo.service';
 import { InstructorApi } from '../../core/api/instructor.api';
 import { ReporteService } from '../../core/api/reporte.service';
+import { SimulationService } from '../../core/api/simulation.service';
 import { AdminUser, UserAdminService } from '../../core/api/user-admin.service';
 import { AuthService } from '../../core/auth/auth.service';
 import { Assignment } from '../../core/models/assignment.model';
@@ -16,8 +17,9 @@ import { haceCuanto } from '../simulator/trace-labels.util';
 import { NavBadgesService } from '../../shared/layout/nav-badges.service';
 import { NotificationService } from '../../core/notifications/notification.service';
 import { UiButton } from '../../shared/ui/button/ui-button';
+import { UiFiguraPixel } from '../../shared/ui/figura-pixel/ui-figura-pixel';
 import { UiProgress } from '../../shared/ui/progress/ui-progress';
-import { UiPageHeader } from '../../shared/ui/page-header/ui-page-header';
+import { UiPageActions, UiPageHeader } from '../../shared/ui/page-header/ui-page-header';
 import { UiSkeleton } from '../../shared/ui/skeleton/ui-skeleton';
 import { uiDataState } from '../../shared/ui/state/ui-data-state';
 import { UiEmptyState } from '../../shared/ui/state/ui-empty-state';
@@ -29,7 +31,7 @@ interface GrupoVista { grupo: Grupo; asignaciones: Assignment[] | null; avances:
 
 @Component({
   selector: 'app-dashboard',
-  imports: [RouterLink, UiButton, UiProgress, UiPageHeader, UiSkeleton, UiEmptyState, UiErrorState, StudentDashboardComponent],
+  imports: [RouterLink, UiButton, UiFiguraPixel, UiProgress, UiPageActions, UiPageHeader, UiSkeleton, UiEmptyState, UiErrorState, StudentDashboardComponent],
   templateUrl: './dashboard.component.html', styleUrl: './dashboard.component.scss',
   changeDetection: ChangeDetectionStrategy.OnPush,
 })
@@ -40,6 +42,8 @@ export class DashboardComponent implements OnInit {
   private readonly asignacionesApi = inject(AssignmentService);
   private readonly reportes = inject(ReporteService);
   private readonly autoria = inject(AuthoringApi);
+  /** Los casos publicados: nombran cada asignación de un grupo (los del docente en edición no bastan: «Caso 4»). */
+  private readonly simulacion = inject(SimulationService);
   private readonly usuariosApi = inject(UserAdminService);
   private readonly solicitudesApi = inject(AccessRequestAdminService);
   private readonly badges = inject(NavBadgesService);
@@ -53,6 +57,7 @@ export class DashboardComponent implements OnInit {
   readonly revision = signal<InstructorAttemptsPage | null>(null);
   readonly grupos = signal<GrupoVista[]>([]);
   readonly casos = signal<SimulationCaseSummary[]>([]);
+  readonly publicados = signal<SimulationCaseSummary[]>([]);
   readonly solicitudes = signal<AccessRequest[]>([]);
   readonly usuarios = signal<AdminUser[]>([]);
   readonly state = uiDataState({ loading: this.loading, error: this.error, isEmpty: computed(() => false) });
@@ -67,7 +72,7 @@ export class DashboardComponent implements OnInit {
   readonly descripcion = computed(() => {
     if (this.loading()) return 'Estamos preparando tu inicio.';
     if (this.isAdmin()) return this.failedSources().size ? 'Consulta las fuentes disponibles.' : this.totalAdmin() ? `Tienes ${this.totalAdmin()} cosas por atender.` : 'Todo al día.';
-    return this.failedSources().has('revision') ? 'No pudimos consultar los recorridos pendientes.' : this.totalRevision() ? `Tienes ${this.totalRevision()} recorridos por revisar.` : 'No tienes nada pendiente por revisar.';
+    return this.failedSources().has('revision') ? 'No pudimos consultar los recorridos pendientes.' : this.totalRevision() ? `Tienes ${this.cantidad(this.totalRevision(), 'recorrido', 'recorridos')} por revisar.` : 'No tienes nada pendiente por revisar.';
   });
   ngOnInit(): void { if (this.isEstudiante()) this.loading.set(false); else this.reload(); }
   isEstudiante(): boolean { return this.auth.hasRole('ESTUDIANTE'); }
@@ -102,13 +107,41 @@ export class DashboardComponent implements OnInit {
           }), catchError(() => this.fallar('grupos', { grupo, asignaciones: null, avances: {} } as GrupoVista)),
         )));
       }), catchError(() => this.fallar('grupos', [] as GrupoVista[])));
-      forkJoin({ casos, grupos, revision: this.instructor.listAttempts({ evaluacion: 'pendiente', pageSize: 5 }).pipe(catchError(() => this.fallar('revision', null as InstructorAttemptsPage | null))) }).subscribe(({ casos, grupos, revision }) => {
-        this.casos.set(casos); this.grupos.set(grupos); this.revision.set(revision);
+      // Sin los publicados, cada asignación se nombra con el título que haya (o «Caso N»): no es un fallo que mostrar.
+      const publicados = this.simulacion.listCases().pipe(catchError(() => of([] as SimulationCaseSummary[])));
+      forkJoin({ casos, grupos, publicados, revision: this.instructor.listAttempts({ evaluacion: 'pendiente', pageSize: 5 }).pipe(catchError(() => this.fallar('revision', null as InstructorAttemptsPage | null))) }).subscribe(({ casos, grupos, publicados, revision }) => {
+        this.casos.set(casos); this.grupos.set(grupos); this.publicados.set(publicados); this.revision.set(revision);
         this.badges.fijar('trazabilidad', revision?.coverage.total ?? 0); this.loading.set(false);
       });
     }
   }
-  nombreCaso(id: number): string { return this.casos().find(c => c.caseVersionId === id)?.title ?? `Caso ${id}`; }
+  nombreCaso(id: number): string {
+    // Publicados, luego los del docente y, por último, la bandeja (una versión retirada sigue nombrada en sus intentos).
+    return this.publicados().find(c => c.caseVersionId === id)?.title ?? this.casos().find(c => c.caseVersionId === id)?.title
+      ?? this.revision()?.items.find(item => item.caseVersionId === id)?.caseTitle ?? `Caso ${id}`;
+  }
+  /**
+   * Varios intentos de la misma persona en el mismo caso se veían como filas idénticas: cada uno dice cuál es
+   * («Intento 2 de 3», del más antiguo al más reciente dentro de lo que muestra la bandeja). Con uno solo, nada.
+   */
+  readonly numeroIntento = computed(() => {
+    const items = this.revision()?.items ?? [];
+    const grupos = new Map<string, string[]>();
+    for (const item of [...items].sort((a, b) => (a.startedAt ?? '').localeCompare(b.startedAt ?? ''))) {
+      const clave = `${item.studentAlias}|${item.caseVersionId}`;
+      grupos.set(clave, [...(grupos.get(clave) ?? []), item.attemptId]);
+    }
+    const numeros: Record<string, string> = {};
+    for (const ids of grupos.values()) {
+      if (ids.length > 1) ids.forEach((id, i) => (numeros[id] = `Intento ${i + 1} de ${ids.length}`));
+    }
+    return numeros;
+  });
+  /** La línea de tiempo de cada fila, siempre presente para que las filas no queden desparejas. */
+  terminoTexto(valor: string | null | undefined): string {
+    const hace = this.hace(valor);
+    return hace ? `Terminó ${hace}` : 'Sin fecha de término registrada';
+  }
   /** «terminó hace 2 días»; vacío si la fecha no llegó, para no escribir «fecha no disponible» en cada fila. */
   hace(valor: string | null | undefined): string { return haceCuanto(valor); }
   /** El avance del grupo en palabras («4 de 12 terminaron»), sin porcentajes que parezcan una nota. */

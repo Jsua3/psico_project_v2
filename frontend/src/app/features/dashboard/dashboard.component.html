@@ -1,7 +1,10 @@
 @if (isEstudiante()) {
   <app-student-dashboard />
 } @else {
-  <ui-page-header [eyebrow]="isAdmin() ? 'Administración' : 'Docencia'" [title]="titulo()" [description]="descripcion()" />
+  <ui-page-header [eyebrow]="isAdmin() ? 'Administración' : 'Docencia'" [title]="titulo()" [description]="descripcion()">
+    <!-- La firma de la portada en el inicio: una figura del kit, quieta y decorativa (respira tres veces al llegar). -->
+    <ui-figura-pixel uiPageActions class="firma-kit" [personaje]="isAdmin() ? 'funcionaria-recepcion' : 'docente-universidad'" [escala]="2" respira />
+  </ui-page-header>
   <p class="ds-sr-only" role="status">{{ loading() ? 'Cargando el inicio…' : '' }}</p>
   @if (state() === 'loading' || state() === 'pending') {
     <div aria-busy="true"><ui-skeleton shape="row" /><ui-skeleton shape="row" /></div>
@@ -22,10 +25,10 @@
                 <li class="fila">
                   <div>
                     <strong>{{ intento.studentAlias }}</strong>
-                    <p>{{ intento.caseTitle }}</p>
-                    @if (hace(intento.endedAt)) { <small>Terminó {{ hace(intento.endedAt) }}</small> }
+                    <p>{{ intento.caseTitle }}@if (numeroIntento()[intento.attemptId]; as numero) { · {{ numero }}}</p>
+                    <small>{{ terminoTexto(intento.endedAt) }}</small>
                   </div>
-                  <a ui-button variant="secondary" routerLink="/portal/docente/trazabilidad" [queryParams]="{ intento: intento.attemptId }">Revisar<span class="ds-sr-only"> {{ intento.caseTitle }} de {{ intento.studentAlias }}</span></a>
+                  <a ui-button variant="secondary" routerLink="/portal/docente/trazabilidad" [queryParams]="{ intento: intento.attemptId }">Revisar<span class="ds-sr-only"> {{ intento.caseTitle }} de {{ intento.studentAlias }}@if (numeroIntento()[intento.attemptId]; as numero) {, {{ numero }}}</span></a>
                 </li>
               }
             </ul>
@@ -70,7 +73,8 @@
                 }
                 <div class="acciones">
                   <a ui-button variant="secondary" [routerLink]="['/portal/grupos', vista.grupo.id]">Ver grupo</a>
-                  <a ui-button variant="ghost" routerLink="/portal/reportes" [queryParams]="{ grupo: vista.grupo.id }">Ver reporte</a>
+                  <!-- El reporte se lee caso por caso: se abre en el primer caso asignado (sin asignaciones, pide elegirlo). -->
+                  <a ui-button variant="ghost" routerLink="/portal/reportes" [queryParams]="{ grupo: vista.grupo.id, caseVersionId: vista.asignaciones?.[0]?.caseVersionId }">Ver reporte</a>
                 </div>
               </article>
             }
@@ -79,10 +83,15 @@
       </section>
 
       @if (fallo('casos')) {
-        <section><h2>Tus casos en edición</h2><ui-error-state message="No pudimos cargar tus casos." (retry)="reload()" /></section>
+        <section aria-labelledby="edicion-titulo">
+          <div class="encabezado"><div><p class="epigrafe">Autoría</p><h2 id="edicion-titulo">Tus casos en edición</h2></div></div>
+          <ui-error-state message="No pudimos cargar tus casos." (retry)="reload()" /></section>
       } @else if (casosEdicion().length) {
         <section aria-labelledby="edicion-titulo">
-          <h2 id="edicion-titulo">Tus casos en edición</h2>
+          <div class="encabezado">
+            <div><p class="epigrafe">Autoría</p><h2 id="edicion-titulo">Tus casos en edición</h2></div>
+            <a class="enlace" routerLink="/portal/casos">Ver casos →</a>
+          </div>
           <div class="panel">
             <ul class="filas">
               @for (caso of casosEdicion(); track caso.caseVersionId) {
@@ -105,7 +114,7 @@
           @if (fallo('solicitudes')) {
             <div class="panel"><h3>Solicitudes de acceso</h3><ui-error-state message="No pudimos cargar las solicitudes." (retry)="reload()" /></div>
           } @else if (solicitudes().length) {
-            <article class="panel">
+            <article class="panel protagonista">
               <h3>Solicitudes de acceso ({{ solicitudes().length }})</h3>
               <ul class="filas">
                 @for (solicitud of solicitudes().slice(0, 3); track solicitud.id) {
@@ -128,7 +137,7 @@
           @if (fallo('usuarios')) {
             <div class="panel"><h3>Cuentas por aprobar</h3><ui-error-state message="No pudimos cargar las cuentas." (retry)="reload()" /></div>
           } @else if (pendientesCuentas()) {
-            <article class="panel">
+            <article class="panel protagonista">
               <h3>Cuentas por aprobar ({{ pendientesCuentas() }})</h3>
               <p>{{ cantidad(pendientesCuentas(), 'cuenta importada espera', 'cuentas importadas esperan') }} tu aprobación.</p>
               <a ui-button variant="secondary" routerLink="/portal/admin/usuarios" [queryParams]="{ vista: 'por-aprobar' }">Aprobar {{ cantidad(pendientesCuentas(), 'cuenta', 'cuentas') }}</a>
@@ -137,7 +146,7 @@
           @if (fallo('casos')) {
             <div class="panel"><h3>Casos por aprobar</h3><ui-error-state message="No pudimos cargar los casos." (retry)="reload()" /></div>
           } @else if (casosRevision().length) {
-            <article class="panel">
+            <article class="panel protagonista">
               <h3>Casos por aprobar ({{ casosRevision().length }})</h3>
               <ul class="filas">
                 @for (caso of casosRevision().slice(0, 3); track caso.caseVersionId) {
@@ -154,7 +163,8 @@
       </section>
       @if (!fallo('usuarios')) {
         <section class="panel sistema" aria-labelledby="sistema-titulo">
-          <h2 id="sistema-titulo">El sistema en una línea</h2>
+          <!-- Un resumen, no un pendiente: va como rótulo de sección, por debajo de «Por atender» en la jerarquía. -->
+          <h2 id="sistema-titulo" class="epigrafe">El sistema en una línea</h2>
           <p>{{ cantidad(cuentasActivas().length, 'cuenta activa', 'cuentas activas') }}: {{ cantidad(contarRol('ESTUDIANTE'), 'estudiante', 'estudiantes') }}, {{ cantidad(contarRol('PROFESOR'), 'docente', 'docentes') }} y {{ cantidad(contarRol('ADMIN'), 'administrador', 'administradores') }}.</p>
           <a class="enlace" routerLink="/portal/admin/usuarios">Gestionar usuarios →</a>
         </section>

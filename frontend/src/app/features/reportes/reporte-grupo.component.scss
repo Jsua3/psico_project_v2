@@ -57,6 +57,12 @@
   min-width: 0;
 }
 
+// Ritmo vertical: cada sección («Cobertura por hito», «¿Qué decisiones…?», «Simulación por estudiante») se separa del
+// bloque anterior más que las tarjetas entre sí, para que su título no quede pegado a lo de arriba.
+.rg-stack > ui-section {
+  margin-block-start: var(--ds-space-4);
+}
+
 .rg-stats {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(11rem, 1fr));
@@ -118,6 +124,11 @@
   align-items: center;
   gap: var(--ds-space-2);
 }
+
+.rg-hito ui-progress { margin-block-start: var(--ds-space-1); }
+
+// La lectura del gráfico, con el mismo estilo de descripción y el aire del sistema respecto de la lista.
+.rg-lectura { margin-block-start: var(--ds-space-3); }
 
 .rg-hito__words {
   color: var(--ds-text-2);

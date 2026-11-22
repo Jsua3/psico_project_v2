@@ -124,14 +124,15 @@ describe('pantalla Reportes (F7-3)', () => {
       expect(buttonLabelled('Generar reporte')).toBeUndefined();
     });
 
-    it('con un reporte sin intentos dice «Sin intentos en este corte», no «Selecciona un grupo», y sin tono de éxito', async () => {
+    it('sin caso elegido pide elegir uno (el servidor no consolida el grupo), no dice que nadie empezó, y sin tono de éxito', async () => {
       await render({ reporte: grupoId => of(report(grupoId, null)) });
       choose(select('Grupo'), 'Cohorte A · COH-A');
       await fixture.whenStable();
       fixture.detectChanges();
 
       const empty = host().querySelector('ui-empty-state')!;
-      expect(text(empty)).toContain('Sin intentos en este corte');
+      expect(text(empty)).toContain('Elige un caso');
+      expect(text(empty)).not.toContain('Sin intentos en este corte');
       expect(text(empty)).not.toContain('Selecciona un grupo');
       expect(host().querySelectorAll('ui-stat')).toHaveLength(0);
       // El vacío no es un éxito: ni icono de «check», ni mensaje verde, ni aviso de éxito.
@@ -140,7 +141,7 @@ describe('pantalla Reportes (F7-3)', () => {
       expect(notify.success).not.toHaveBeenCalled();
     });
 
-    it('un reporte con simulación pero cero intentos también es «Sin intentos», y «Ver todos los casos» quita el filtro de caso', async () => {
+    it('un caso elegido sin intentos dice «Sin intentos» con el título del caso y propone otro caso', async () => {
       await render({ reporte: (grupoId, caseVersionId) => of(report(grupoId, simulation({ totalIntentos: 0, estudiantes: [] }), caseVersionId ?? null)) });
       choose(select('Grupo'), 'Cohorte A · COH-A');
       choose(select('Caso'), 'Caso doce · v1.0.0');
@@ -149,16 +150,12 @@ describe('pantalla Reportes (F7-3)', () => {
 
       const empty = host().querySelector('ui-empty-state')!;
       expect(text(empty)).toContain('Sin intentos en este corte');
+      expect(text(empty)).toContain('«Caso doce»');
+      expect(text(empty)).toContain('Prueba con otro caso');
       expect(reporteService.getReporteGrupo).toHaveBeenLastCalledWith(1, 12);
-
-      (empty.querySelector('button') as HTMLButtonElement).click();
-      await fixture.whenStable();
-      fixture.detectChanges();
-      expect(select('Caso').value).toBe(select('Caso').options[0].value);
-      expect(reporteService.getReporteGrupo).toHaveBeenLastCalledWith(1, null);
     });
 
-    it('sin un caso elegido, «Sin intentos» no ofrece quitar un filtro que no hay', async () => {
+    it('sin un caso elegido, el vacío no ofrece quitar un filtro que no hay', async () => {
       await render({ reporte: grupoId => of(report(grupoId, null)) });
       choose(select('Grupo'), 'Cohorte A · COH-A');
       await fixture.whenStable();
@@ -434,13 +431,16 @@ describe('pantalla Reportes (F7-3)', () => {
         choose(select('Grupo'), 'Cohorte A · COH-A');
         await fixture.whenStable();
         fixture.detectChanges();
-        const chart = host().querySelector('ui-barras');
+        // Una fila por hito con su palabra, su porcentaje y su barra: sin un segundo gráfico que repita los hitos.
+        const lista = host().querySelector('.rg-hitos');
+        expect(host().querySelector('ui-barras:not(.ui-barras--apilada)')).toBeNull();
+        expect(lista?.querySelectorAll('.rg-hito ui-progress')).toHaveLength(2);
         // Es un porcentaje, no un conteo de personas: nunca «de 100».
-        expect(text(chart)).toContain('62,5 %');
-        expect(text(chart)).toContain('30 %');
-        expect(text(chart)).not.toContain('de 100');
-        expect(text(chart?.querySelector('.ui-barras__descripcion'))).toContain('El paso menos logrado es «Proteger», con 30 %.');
-        expect(chart?.querySelector('.ui-barras__tinta--rayas')).not.toBeNull();
+        // El separador decimal lo pone el LOCALE_ID de la app (en la prueba, el predeterminado).
+        expect(text(lista)).toMatch(/62[,.]5 % del grupo/);
+        expect(text(lista)).toContain('30 % del grupo');
+        expect(text(lista)).not.toContain('de 100');
+        expect(text(host().querySelector('.rg-lectura'))).toContain('El paso menos logrado es «Proteger», con 30 %.');
       });
 
       it('la descripción del gráfico de decisiones dice qué predomina y cuántas piden atención', async () => {

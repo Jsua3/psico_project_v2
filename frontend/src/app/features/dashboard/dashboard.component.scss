@@ -18,6 +18,11 @@ p, small, .casos span { color: var(--ds-text-2); }
 a:not([ui-button]) { display: inline-flex; align-items: center; min-height: var(--ds-target-min); color: var(--l-acento); font-weight: var(--ds-type-h3-weight); }
 a:focus-visible { outline: 2px solid var(--ds-focus); outline-offset: 3px; }
 .sistema { gap: var(--ds-space-2); }
+/* El rótulo del resumen hereda el tamaño del antetítulo, no el de un h2. */
+.sistema h2.epigrafe { font-size: var(--ds-type-body-s-size); line-height: var(--ds-type-body-s-line); }
+/* La firma del kit junto al saludo: se va en el teléfono, donde la cabecera necesita el ancho. */
+.firma-kit { align-self: end; }
+@media (max-width: 40rem) { .firma-kit { display: none; } }
 /* Las filas con botones (solicitudes) pasan los botones debajo del texto cuando falta ancho, sin desbordar. */
 .acciones { justify-content: flex-start; }
 .fila .acciones { flex: 0 1 auto; }

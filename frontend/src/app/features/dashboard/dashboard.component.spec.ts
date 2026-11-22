@@ -10,6 +10,7 @@ import { GrupoService } from '../../core/api/grupo.service';
 import { InstructorApi } from '../../core/api/instructor.api';
 import { ReporteService } from '../../core/api/reporte.service';
 import { UserAdminService } from '../../core/api/user-admin.service';
+import { SimulationService } from '../../core/api/simulation.service';
 import { AuthService } from '../../core/auth/auth.service';
 import { NotificationService } from '../../core/notifications/notification.service';
 import { NavBadgesService } from '../../shared/layout/nav-badges.service';
@@ -43,7 +44,9 @@ describe('Inicio docente y administración', () => {
       { provide: InstructorApi, useValue: instructor }, { provide: GrupoService, useValue: groups },
       { provide: AuthoringApi, useValue: authoring }, { provide: UserAdminService, useValue: users },
       { provide: AccessRequestAdminService, useValue: requests }, { provide: NotificationService, useValue: notify }, { provide: NavBadgesService, useValue: badges },
-      { provide: AssignmentService, useValue: { list: () => of([{ id: 2, active: true, caseVersionId: 7 }]) } },
+      { provide: AssignmentService, useValue: { list: () => of([{ id: 2, active: true, caseVersionId: 7 }, { id: 3, active: true, caseVersionId: 9 }]) } },
+      // Los publicados nombran las asignaciones que el docente no autoró (el 9 no está entre sus casos en edición).
+      { provide: SimulationService, useValue: { listCases: () => of([{ caseVersionId: 9, title: 'Violencia en el aula', status: 'PUBLISHED' }]) } },
       { provide: ReporteService, useValue: { getReporteGrupo: () => of({ simulacion: { estudiantes: [{ intentosCompletados: 2 }, { intentosCompletados: 0 }] } }) } },
     ] }).overrideComponent(DashboardComponent, { remove: { imports: [StudentDashboardComponent] }, add: { imports: [StudentStub] } });
   });
@@ -76,6 +79,32 @@ describe('Inicio docente y administración', () => {
     expect(fixture.componentInstance.failedSources().has('solicitudes')).toBe(true);
     expect(badges.fijar).toHaveBeenCalledWith('usuarios', 0);
     expect(fixture.componentInstance.descripcion()).toContain('fuentes disponibles');
+  });
+  it('nombra cada asignación con el título del caso publicado, no con «Caso N»', () => {
+    const fixture = TestBed.createComponent(DashboardComponent); fixture.detectChanges();
+    expect(fixture.componentInstance.nombreCaso(9)).toBe('Violencia en el aula');
+    expect(fixture.componentInstance.nombreCaso(7)).toBe('Caso de prueba');
+    expect(fixture.componentInstance.nombreCaso(99)).toBe('Caso 99');
+  });
+  it('distingue los intentos de la misma persona en el mismo caso y siempre dice cuándo terminó', () => {
+    instructor.listAttempts.mockReturnValue(of({ items: [
+      { attemptId: 'b', studentAlias: 'Estudiante-1', caseVersionId: 7, caseTitle: 'Caso de prueba', startedAt: '2026-11-02', endedAt: null },
+      { attemptId: 'a', studentAlias: 'Estudiante-1', caseVersionId: 7, caseTitle: 'Caso de prueba', startedAt: '2026-11-01', endedAt: '2026-11-01T12:00:00Z' },
+      { attemptId: 'c', studentAlias: 'Estudiante-2', caseVersionId: 7, caseTitle: 'Caso de prueba', startedAt: '2026-11-01', endedAt: null },
+    ], coverage: { shown: 3, total: 3 } }));
+    const fixture = TestBed.createComponent(DashboardComponent); fixture.detectChanges();
+    const c = fixture.componentInstance;
+    expect(c.numeroIntento()).toEqual({ a: 'Intento 1 de 2', b: 'Intento 2 de 2' });
+    expect(c.terminoTexto(null)).toBe('Sin fecha de término registrada');
+    const filas = [...(fixture.nativeElement as HTMLElement).querySelectorAll('.protagonista .fila')];
+    expect(filas).toHaveLength(3);
+    expect(filas.every(fila => !!fila.querySelector('small')?.textContent?.trim())).toBe(true);
+    expect(c.descripcion()).toBe('Tienes 3 recorridos por revisar.');
+  });
+  it('un solo recorrido por revisar se dice en singular', () => {
+    instructor.listAttempts.mockReturnValue(of({ ...pagina, coverage: { shown: 1, total: 1 } }));
+    const fixture = TestBed.createComponent(DashboardComponent); fixture.detectChanges();
+    expect(fixture.componentInstance.descripcion()).toBe('Tienes 1 recorrido por revisar.');
   });
   it('dice el avance del grupo en palabras y sin plural equivocado', () => {
     const c = TestBed.createComponent(DashboardComponent).componentInstance;

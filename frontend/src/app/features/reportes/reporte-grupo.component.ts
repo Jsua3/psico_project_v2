@@ -106,6 +106,14 @@ export class ReporteGrupoComponent {
     caseVersionId: this.selectedCaseVersionId(),
   }));
 
+  /**
+   * Sin caso elegido el servidor no consolida el grupo (`simulacion: null` a propósito): no es «nadie ha empezado»,
+   * es que falta elegir el caso. Decir lo primero sería falso (pasada final).
+   */
+  protected readonly faltaCaso = computed(() => {
+    const data = this.reporte();
+    return data !== null && data.simulacion === null && (data.caseVersionId ?? null) === null;
+  });
   /** La consulta respondió, pero sin intentos que mostrar. */
   private readonly sinIntentos = computed(() => {
     const data = this.reporte();
@@ -172,11 +180,6 @@ export class ReporteGrupoComponent {
 
   limpiar() {
     this.form.reset({ grupoId: null, caseVersionId: null });
-  }
-
-  /** Quita el filtro de caso (con un caso elegido y sin intentos, es lo único que puede cambiar el resultado). */
-  verTodosLosCasos() {
-    this.form.patchValue({ caseVersionId: null });
   }
 
   generar() {
