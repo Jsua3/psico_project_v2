@@ -129,7 +129,7 @@ export class ObjetivoPistasComponent {
   protected quitar(indice: number): void {
     const quedan = this.pistas().length - 1;
     // Nada del caso apunta a una pista: se quita al instante y el marco ofrece «Deshacer» durante 8 s (EDITOR.md §4.6).
-    this.deshacer.pista(this.escena().id, indice);
+    this.deshacer.pista(this.escena().id, indice, MAX_PISTAS);
     // El foco pasa a la pista que ocupa ahora el lugar de la quitada, o al botón de agregar si era la última.
     this.enfocar(indice < quedan ? `pista-texto-${indice}` : 'agregar-pista');
   }

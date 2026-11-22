@@ -49,11 +49,22 @@ export function dependenciasDeRespuesta(caso: CasoBorrador, respuesta: Respuesta
   return partes;
 }
 
-/** ¿Una respuesta está en blanco? Entonces borrarla no pierde nada y no hace falta preguntar. */
-export function respuestaEnBlanco(r: Respuesta): boolean {
+/**
+ * ¿Una respuesta está en blanco? Entonces borrarla no pierde nada y no hace falta preguntar. Cuenta TODO lo que puede llevar
+ * (cualquier efecto: pasos, persona, competencias…) y lo que apunta a ella desde el caso (un objeto de sala que la ofrece):
+ * una respuesta sin texto pero con competencias o referenciada no está en blanco (revisión de Codex, hallazgo 2).
+ */
+export function respuestaEnBlanco(caso: CasoBorrador, r: Respuesta): boolean {
   return !r.texto.trim() && !r.clase && !r.retroalimentacion.trim() && !r.razon.trim() && r.destinoId === null
-    && !r.efectos.hitos?.length && !r.efectos.persona && Object.keys(r.requiere ?? {}).length === 0
-    && Object.keys(r.reaccion ?? {}).length === 0;
+    && Object.values(r.efectos ?? {}).every(vacio) && Object.keys(r.requiere ?? {}).length === 0
+    && Object.keys(r.reaccion ?? {}).length === 0 && dependenciasDeRespuesta(caso, r).length === 0;
+}
+
+/** Un efecto sin contenido: ausente, lista vacía u objeto sin claves. */
+function vacio(valor: unknown): boolean {
+  if (valor === undefined || valor === null) return true;
+  if (Array.isArray(valor)) return valor.length === 0;
+  return typeof valor === 'object' && Object.keys(valor).length === 0;
 }
 
 /**

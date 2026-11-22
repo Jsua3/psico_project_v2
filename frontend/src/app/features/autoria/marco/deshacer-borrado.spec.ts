@@ -91,6 +91,43 @@ describe('DeshacerBorrado', () => {
     expect(sinIds(store.caso())).toEqual(antes);
   });
 
+  it('«Deshacer» una frase no se lleva lo que se editó o agregó después del borrado (revisión de Codex, hallazgo 1)', () => {
+    const { store, escenaId, deshacer } = montar();
+    const p = 'psicologa-bienestar';
+    store.fijarComentarios(escenaId, [{ personaje: p, linea: 'Uno.' }, { personaje: p, linea: 'Dos.' }]);
+    deshacer.comentario(escenaId, 0);
+    store.fijarComentarios(escenaId, [{ personaje: p, linea: 'Dos, corregida.' }, { personaje: p, linea: 'Tres.' }]);
+    deshacer.deshacer();
+    expect(store.caso()!.escenas[1].comentarios!.map((c) => c.linea)).toEqual(['Uno.', 'Dos, corregida.', 'Tres.']);
+  });
+
+  it('con la escena otra vez llena de frases, «Deshacer» explica por qué no puede y no lanza error', () => {
+    const { store, escenaId, deshacer } = montar();
+    const p = 'psicologa-bienestar';
+    const seis = Array.from({ length: 6 }, (_, i) => ({ personaje: p, linea: `Frase ${i + 1}.` }));
+    store.fijarComentarios(escenaId, seis);
+    deshacer.comentario(escenaId, 2);
+    store.fijarComentarios(escenaId, [...seis.filter((_, i) => i !== 2), { personaje: p, linea: 'Nueva.' }]);
+    expect(() => deshacer.deshacer()).not.toThrow();
+    expect(store.caso()!.escenas[1].comentarios).toHaveLength(6);
+    expect(deshacer.aviso()).toEqual({ texto: expect.stringMatching(/^No se pudo deshacer/), deshacible: false });
+  });
+
+  it('«Deshacer» una pista la devuelve a su sitio sin perder la pista editada después, y respeta el tope', () => {
+    const { store, escenaId, deshacer } = montar();
+    store.fijarPistas(escenaId, ['Uno.', 'Dos.']);
+    deshacer.pista(escenaId, 1, 3);
+    store.fijarPistas(escenaId, ['Uno, corregida.', 'Nueva.']);
+    deshacer.deshacer();
+    expect(store.caso()!.escenas[1].pistas!.map((p) => p.texto)).toEqual(['Uno, corregida.', 'Dos.', 'Nueva.']);
+
+    deshacer.pista(escenaId, 0, 3);
+    store.fijarPistas(escenaId, ['Dos.', 'Nueva.', 'Otra.']);
+    deshacer.deshacer();
+    expect(store.caso()!.escenas[1].pistas!.map((p) => p.texto)).toEqual(['Dos.', 'Nueva.', 'Otra.']);
+    expect(deshacer.aviso()?.deshacible).toBe(false);
+  });
+
   it('un borrado nuevo reemplaza el aviso del anterior (un solo «Deshacer» a la vez)', () => {
     const { store, escenaId, deshacer } = montar();
     store.fijarPistas(escenaId, ['Uno.', 'Dos.']);

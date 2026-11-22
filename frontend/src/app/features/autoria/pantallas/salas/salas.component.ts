@@ -43,7 +43,7 @@ function hayPunteroFino(): boolean {
             <div class="opciones">
               <label class="tarjeta opcion" [class.elegida]="forma() === 'describe'">
                 <input type="radio" name="forma" value="describe" [checked]="forma() === 'describe'"
-                       aria-describedby="forma-describe-texto" (change)="forma.set('describe')" />
+                       aria-describedby="forma-describe-texto" (change)="elegirForma('describe')" />
                 <span class="dato-opcion">
                   <span class="nombre">Describe tu caso</span>
                   <span id="forma-describe-texto" class="texto-secundario">
@@ -53,7 +53,7 @@ function hayPunteroFino(): boolean {
               </label>
               <label class="tarjeta opcion" [class.elegida]="forma() === 'a-mano'">
                 <input type="radio" name="forma" value="a-mano" [checked]="forma() === 'a-mano'"
-                       aria-describedby="forma-a-mano-texto" (change)="forma.set('a-mano')" />
+                       aria-describedby="forma-a-mano-texto" (change)="elegirForma('a-mano')" />
                 <span class="dato-opcion">
                   <span class="nombre">Elegir salas a mano</span>
                   <span id="forma-a-mano-texto" class="texto-secundario">Eliges las salas y escribes tú cada escena.</span>
@@ -336,6 +336,7 @@ export class SalasComponent {
   protected readonly ideaElegida = signal<string | null>(null);
   protected readonly nombre = signal('');
   private nombreEditado = false;
+  private formaElegida = false;
   protected readonly anuncioOrden = signal('');
   /** El caso se está creando en el servidor. */
   protected readonly creando = signal(false);
@@ -363,12 +364,25 @@ export class SalasComponent {
     try {
       const estado = await this.generacionSvc.estado();
       this.generacion.set(estado.enabled ? 'encendida' : 'apagada');
-      // Con una generación a medio hacer, el aviso de retomar debe verse sin que la docente adivine la opción.
-      if (estado.enabled && estado.inProgress) this.forma.set('describe');
+      // Con una generación a medio hacer, el aviso de retomar debe verse sin que la docente adivine la opción. Pero la
+      // respuesta puede llegar tarde: si la docente ya empezó a mano (eligió forma, salas, una idea o escribió el nombre), no
+      // se le cambia la pantalla bajo los dedos; «Describe tu caso» sigue a un clic y ahí ve el aviso (Codex, hallazgo 3).
+      if (estado.enabled && estado.inProgress && !this.yaEmpezo()) this.forma.set('describe');
     } catch {
       // Sin saberlo, la opción queda disponible: «Describe tu caso» dice por sí misma si no se pudo comprobar.
       this.generacion.set('encendida');
     }
+  }
+
+  /** La docente eligió cómo empezar: desde ahí, lo que responda tarde el servidor ya no le cambia la opción. */
+  protected elegirForma(forma: 'describe' | 'a-mano'): void {
+    this.formaElegida = true;
+    this.forma.set(forma);
+  }
+
+  /** ¿La docente ya tocó algo de esta pantalla? */
+  private yaEmpezo(): boolean {
+    return this.formaElegida || this.nombreEditado || this.elegidas().length > 0 || this.ideaElegida() !== null;
   }
 
   protected cerrarVista(): void {

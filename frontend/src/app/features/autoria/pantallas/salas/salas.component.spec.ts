@@ -1,7 +1,7 @@
 import { TestBed } from '@angular/core/testing';
 import { Router, provideRouter } from '@angular/router';
 import { throwError } from 'rxjs';
-import { of } from 'rxjs';
+import { Subject, of } from 'rxjs';
 
 import { AuthoringApi } from '../../../../core/api/authoring.api';
 
@@ -105,6 +105,31 @@ describe('SalasComponent', () => {
     expect(raiz.querySelector('app-describir')).toBeTruthy();
     expect(raiz.textContent).toContain('Tienes un caso a medio generar');
     expect(raiz.querySelector('#ideas')).toBeNull();
+  });
+
+  it('si el estado de la generación llega tarde, no cambia a «Describe tu caso» a quien ya empezó a mano (Codex, hallazgo 3)', async () => {
+    const estado = new Subject<unknown>();
+    await TestBed.configureTestingModule({
+      imports: [SalasComponent],
+      providers: [
+        provideRouter(rutasDePrueba),
+        { provide: BibliotecaService, useValue: { escenario: async () => universidad } },
+        { provide: AuthoringApi, useValue: { createCase: vi.fn(), generationStatus: () => estado, libraryPlaces: () => of([]) } },
+      ],
+    }).compileComponents();
+    const fixture = TestBed.createComponent(SalasComponent);
+    for (let i = 0; i < 3; i++) { await new Promise((r) => setTimeout(r, 0)); fixture.detectChanges(); }
+    const raiz = fixture.nativeElement as HTMLElement;
+    raiz.querySelector<HTMLInputElement>('.salas input[type="checkbox"]')!.click();
+    fixture.detectChanges();
+
+    estado.next({ enabled: true, remainingToday: 4, inProgress: { id: 'g-7', lugarId: 'universidad', status: 'skeleton_ready', scenes: [] } });
+    estado.complete();
+    for (let i = 0; i < 5; i++) { await new Promise((r) => setTimeout(r, 0)); fixture.detectChanges(); }
+
+    expect(raiz.querySelector<HTMLInputElement>('input[value="a-mano"]')!.checked).toBe(true);
+    expect(raiz.querySelector('app-describir')).toBeNull();
+    expect(raiz.querySelector('#ideas')).toBeTruthy();
   });
 
   it('con la generación apagada no se ofrece nada de la IA: ni opciones apagadas ni el motivo', async () => {

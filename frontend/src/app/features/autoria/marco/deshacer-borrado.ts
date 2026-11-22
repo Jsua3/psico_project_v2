@@ -1,6 +1,6 @@
-﻿import { DestroyRef, Injectable, inject, signal } from '@angular/core';
+import { DestroyRef, Injectable, inject, signal } from '@angular/core';
 
-import { CasoStore } from '../estado/caso.store';
+import { CasoStore, MAX_COMENTARIOS } from '../estado/caso.store';
 import type { Comentario, Linea } from '../modelo/caso';
 
 /** Cuánto se ofrece «Deshacer» después de borrar (EDITOR.md §4.6). */
@@ -9,6 +9,8 @@ export const PLAZO_DESHACER_MS = 8000;
 export interface AvisoDeshacer {
   /** Qué se borró, en palabras de la docente («Borraste una línea de Laura»). */
   texto: string;
+  /** `false` cuando el aviso solo explica por qué no se pudo deshacer: entonces no lleva el botón. */
+  deshacible: boolean;
 }
 
 /**
@@ -16,7 +18,8 @@ export interface AvisoDeshacer {
  * (EDITOR.md §4.6, revisado tras Codex, hallazgo 5). El borrado va al store EN EL ACTO —así el modelo, los pendientes, la
  * vista del estudiante y el servidor nunca difieren de la pantalla— y durante 8 s se ofrece «Deshacer», que VUELVE A CREAR
  * el elemento con la API pública del store (la línea con `agregarLinea` + `editarLinea` + `moverLinea` hasta su sitio; las
- * frases y las pistas con su lista anterior). Que lo recreado tenga otro identificador no rompe nada: nada apunta a ellos.
+ * frases y las pistas se vuelven a insertar en su sitio, sobre la lista de ese momento). Que lo recreado tenga otro
+ * identificador no rompe nada: nada apunta a ellos.
  *
  * Reemplaza al borrado diferido de la primera versión, que ocultaba el elemento sin decírselo al store: mientras duraba el
  * plazo, la validación, el riel y la mini simulación leían algo que la pantalla ya no mostraba, y el borrado dependía de que
@@ -32,7 +35,8 @@ export class DeshacerBorrado {
   private readonly avisoActual = signal<AvisoDeshacer | null>(null);
   /** El aviso con «Deshacer» que pinta el marco, o `null`. */
   readonly aviso = this.avisoActual.asReadonly();
-  private restaurar: (() => void) | null = null;
+  /** Vuelve a poner lo borrado; devuelve por qué no pudo, o `null` si lo hizo. */
+  private restaurar: (() => string | null) | null = null;
   private temporizador: ReturnType<typeof setTimeout> | null = null;
 
   constructor() {
@@ -47,31 +51,57 @@ export class DeshacerBorrado {
     const { id: _id, ...campos } = structuredClone(escena.lineas[posicion]);
     const nombre = this.store.caso()?.personajes.find((p) => p.id === campos.personajeId)?.nombre;
     this.store.borrarLinea(escenaId, lineaId);
-    this.ofrecer(nombre ? `Borraste una línea de ${nombre}` : 'Borraste una línea', () => this.recrearLinea(escenaId, posicion, campos));
+    this.ofrecer(nombre ? `Borraste una línea de ${nombre}` : 'Borraste una línea', () => {
+      this.recrearLinea(escenaId, posicion, campos);
+      return null;
+    });
   }
 
-  /** Borra una frase al acercarse (por su posición) y ofrece volver a la lista anterior. */
+  /**
+   * Borra una frase al acercarse (por su posición) y ofrece volver a ponerla. Se guarda SOLO la frase y su sitio, no la lista
+   * entera: si entre el borrado y «Deshacer» la docente edita o agrega otra frase, restaurar la lista vieja se llevaría esos
+   * cambios (revisión de Codex de la pasada final, hallazgo 1).
+   */
   comentario(escenaId: string, indice: number): void {
     const antes = this.store.caso()?.escenas.find((e) => e.id === escenaId)?.comentarios;
     if (!antes || indice < 0 || indice >= antes.length) return;
-    const copia: Comentario[] = structuredClone(antes);
-    this.store.fijarComentarios(escenaId, copia.filter((_, i) => i !== indice));
-    this.ofrecer('Borraste una frase al acercarse', () => this.store.fijarComentarios(escenaId, copia));
+    const borrada: Comentario = structuredClone(antes[indice]);
+    this.store.fijarComentarios(escenaId, antes.filter((_, i) => i !== indice));
+    this.ofrecer('Borraste una frase al acercarse', () => {
+      const ahora = this.store.caso()?.escenas.find((e) => e.id === escenaId)?.comentarios;
+      if (!ahora) return null;
+      // El tope del servidor manda: con la escena otra vez llena no se puede volver a poner (el store lanzaría un error).
+      if (ahora.length >= MAX_COMENTARIOS) return `No se pudo deshacer: la escena ya tiene ${MAX_COMENTARIOS} frases al acercarse.`;
+      this.store.fijarComentarios(escenaId, insertar(ahora, indice, borrada));
+      return null;
+    });
   }
 
-  /** Borra una pista (por su posición) y ofrece volver a la lista anterior, en su orden. */
-  pista(escenaId: string, indice: number): void {
+  /**
+   * Borra una pista (por su posición) y ofrece volver a ponerla en su sitio, sobre la lista que haya en ese momento (igual que
+   * las frases). `tope` es el máximo de pistas de la pantalla que las pinta.
+   */
+  pista(escenaId: string, indice: number, tope = Number.POSITIVE_INFINITY): void {
     const antes = this.store.caso()?.escenas.find((e) => e.id === escenaId)?.pistas?.map((p) => p.texto);
     if (!antes || indice < 0 || indice >= antes.length) return;
+    const borrada = antes[indice];
     this.store.fijarPistas(escenaId, antes.filter((_, i) => i !== indice));
-    this.ofrecer('Borraste una pista', () => this.store.fijarPistas(escenaId, antes));
+    this.ofrecer('Borraste una pista', () => {
+      const ahora = this.store.caso()?.escenas.find((e) => e.id === escenaId)?.pistas?.map((p) => p.texto);
+      if (!ahora) return null;
+      if (ahora.length >= tope) return `No se pudo deshacer: la escena ya tiene ${tope} pistas.`;
+      this.store.fijarPistas(escenaId, insertar(ahora, indice, borrada));
+      return null;
+    });
   }
 
   /** Vuelve a crear lo último que se borró (si el plazo no venció) y retira el aviso. */
   deshacer(): void {
     const accion = this.restaurar;
     this.descartar();
-    accion?.();
+    const impedimento = accion?.() ?? null;
+    // Si no se pudo, se dice por qué en el mismo aviso (sin botón «Deshacer»): nunca un clic que no hace nada en silencio.
+    if (impedimento) this.mostrar({ texto: impedimento, deshacible: false });
   }
 
   /** Retira el aviso sin deshacer: el borrado se queda. */
@@ -82,10 +112,14 @@ export class DeshacerBorrado {
     this.avisoActual.set(null);
   }
 
-  private ofrecer(texto: string, restaurar: () => void): void {
+  private ofrecer(texto: string, restaurar: () => string | null): void {
     this.descartar();
     this.restaurar = restaurar;
-    this.avisoActual.set({ texto });
+    this.mostrar({ texto, deshacible: true });
+  }
+
+  private mostrar(aviso: AvisoDeshacer): void {
+    this.avisoActual.set(aviso);
     this.temporizador = setTimeout(() => this.descartar(), PLAZO_DESHACER_MS);
   }
 
@@ -101,4 +135,11 @@ export class DeshacerBorrado {
       if (lugar() === actual) break; // no se movió: no insistir
     }
   }
+}
+
+/** Una copia de la lista con el elemento puesto en `indice` (o al final, si la lista ahora es más corta). */
+function insertar<T>(lista: readonly T[], indice: number, elemento: T): T[] {
+  const copia = [...lista];
+  copia.splice(Math.min(indice, copia.length), 0, elemento);
+  return copia;
 }

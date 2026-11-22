@@ -158,7 +158,9 @@ const MENU_CUENTA: UiMenuItem[] = [{ value: 'salir', label: 'Cerrar sesión', ic
       @if (deshacer.aviso(); as aviso) {
         <div class="deshacer">
           <span class="deshacer__texto">{{ aviso.texto }}</span>
-          <button type="button" class="deshacer__accion" (click)="deshacer.deshacer()">Deshacer</button>
+          @if (aviso.deshacible) {
+            <button type="button" class="deshacer__accion" (click)="deshacer.deshacer()">Deshacer</button>
+          }
           <button type="button" class="deshacer__cerrar" aria-label="Cerrar el aviso" (click)="deshacer.descartar()"><span aria-hidden="true">×</span></button>
         </div>
       }
@@ -181,6 +183,8 @@ const MENU_CUENTA: UiMenuItem[] = [{ value: 'salir', label: 'Cerrar sesión', ic
     }
     @media (min-width: 64rem) { app-hilo-del-caso { flex: none; } }
     .contexto-editor { padding: 0 0.75rem; font-weight: 700; color: var(--asb-cromo-tinta); white-space: nowrap; }
+    /* A 390 px el rótulo no cabe junto a «‹ Casos» y la cuenta (se pisaba con el menú): el título de la página ya lo dice. */
+    @media (max-width: 29.999rem) { .contexto-editor { display: none; } }
     .barra-ayuda { display: flex; flex-wrap: nowrap; gap: 0.375rem; }
     .atajo-ayuda { display: inline-flex; gap: 0.125rem; }
     .atajo-ayuda kbd { font-size: var(--autoria-texto-14); padding: 0 0.25rem; border-radius: 0.3125rem; background: transparent; }

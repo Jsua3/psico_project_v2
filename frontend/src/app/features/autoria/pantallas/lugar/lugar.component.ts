@@ -51,6 +51,9 @@ import { RutasAutoria } from '../../rutas';
           <article class="tarjeta lugar" [class.pronto]="!l.completo">
             @if (l.portada) {
               <img class="pixel portada" [src]="l.portada" alt="" width="960" height="528" />
+            } @else {
+              <!-- Sin portada no queda un hueco: un piso de baldosas en la misma proporción mantiene las tarjetas parejas. -->
+              <span class="portada portada--patron" aria-hidden="true"></span>
             }
             <div class="cuerpo">
               <div class="nombre">
@@ -96,6 +99,16 @@ import { RutasAutoria } from '../../rutas';
     .lugar { display: flex; flex-direction: column; gap: 0.75rem; padding: 0.75rem; min-inline-size: 0; }
     .lugar.pronto { background: var(--fondo-hundido); }
     .portada { inline-size: 100%; block-size: auto; aspect-ratio: 960 / 528; object-fit: cover; border-radius: var(--radio-control); border: 1px solid var(--linea); }
+    .portada--patron {
+      display: block;
+      background:
+        repeating-conic-gradient(var(--fondo-hundido) 0 25%, color-mix(in oklab, var(--fondo-hundido) 80%, var(--linea)) 0 50%) 0 0 / 1.5rem 1.5rem;
+    }
+    /* En el teléfono las fichas del filtro van en una fila que se desliza, en vez de ocupar media pantalla antes de los lugares. */
+    @media (max-width: 39.999rem) {
+      .filtro { flex-wrap: nowrap; overflow-x: auto; scrollbar-width: none; padding: 0.25rem; }
+      .ficha, .etiqueta { flex: none; white-space: nowrap; }
+    }
     .cuerpo { flex: 1; display: flex; flex-direction: column; gap: 0.5rem; min-inline-size: 0; padding-inline: 0.25rem; }
     .cuerpo p { margin: 0; }
     /* El botón queda siempre al pie de la tarjeta: las «Elegir este lugar» quedan alineadas aunque las descripciones difieran. */

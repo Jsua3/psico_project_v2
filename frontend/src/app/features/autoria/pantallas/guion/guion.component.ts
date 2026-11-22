@@ -338,7 +338,7 @@ export class GuionComponent {
   protected async borrarRespuesta(e: Escena, r: Respuesta, i: number, como: 'borrada' | 'descartada' = 'borrada', origen?: Element | null): Promise<void> {
     const caso = this.store.caso();
     if (!caso) return;
-    if (!respuestaEnBlanco(r)) {
+    if (!respuestaEnBlanco(caso, r)) {
       // BORRADOR: texto nuevo, pendiente de la aprobación de Psicología
       const decision = await this.dialogo.consequence({
         title: `¿Borrar la respuesta ${i + 1}?`,

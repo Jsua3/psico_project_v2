@@ -14,9 +14,19 @@ function caso(): CasoBorrador {
 
 describe('dependencias de un borrado', () => {
   it('una respuesta en blanco no pierde nada; con texto o clase, sí', () => {
-    expect(respuestaEnBlanco(respuesta())).toBe(true);
-    expect(respuestaEnBlanco(respuesta({ texto: 'Hola' }))).toBe(false);
-    expect(respuestaEnBlanco(respuesta({ clase: 'RISKY' }))).toBe(false);
+    const c = caso();
+    expect(respuestaEnBlanco(c, respuesta())).toBe(true);
+    expect(respuestaEnBlanco(c, respuesta({ texto: 'Hola' }))).toBe(false);
+    expect(respuestaEnBlanco(c, respuesta({ clase: 'RISKY' }))).toBe(false);
+  });
+
+  it('sin texto pero con competencias, o la ofrece un objeto de la sala, no está en blanco: pide confirmación (Codex, hallazgo 2)', () => {
+    const c = caso();
+    expect(respuestaEnBlanco(c, respuesta({ efectos: { competencias: ['C1'] } }))).toBe(false);
+    expect(respuestaEnBlanco(c, respuesta({ efectos: { competencias: {} } }))).toBe(true);
+    const sala = c.salas[0];
+    sala.objetos = [{ ...sala.objetos[0], decisionOptionId: 9 }];
+    expect(respuestaEnBlanco(c, respuesta({ id: '9' }))).toBe(false);
   });
 
   it('nombra el objeto de la sala que ofrece la respuesta (por el número de su opción)', () => {
