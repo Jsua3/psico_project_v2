@@ -100,8 +100,8 @@ describe('CierreCasoComponent', () => {
 
   it('RF-14 ? explica un recorrido sin datos y no revela cifras', async () => {
     const f = await montar({ studentReport: () => of(reporte({ ending: null, persona: undefined, milestones: undefined, decisionReview: [], competencyLevels: [] })) });
-    expect(texto(f)).toContain('Este recorrido no tiene informaci?n disponible para mostrar.');
-    expect(texto(f)).not.toMatch(/puntaje|estr?s|porcentaje|%/i);
+    expect(texto(f)).toContain('Este recorrido no tiene información disponible para mostrar.');
+    expect(texto(f)).not.toMatch(/puntaje|estrés|porcentaje|%/i);
   });
 
   it('no muestra tiempos ni recuentos: nada de duración, reintentos ni cifras sueltas', async () => {

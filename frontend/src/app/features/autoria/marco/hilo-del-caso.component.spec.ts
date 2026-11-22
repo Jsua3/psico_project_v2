@@ -16,9 +16,11 @@ describe('HiloDelCasoComponent', () => {
     for (const a of etapas) {
       expect(a.querySelector('.marca-estado')!.getAttribute('data-estado')).toMatch(/^(sin-empezar|en-curso|con-pendientes|lista)$/);
       // El estado también es texto: el nombre accesible lo dice entero.
-      expect(a.getAttribute('aria-label')).toBe(a.getAttribute('title'));
+      // Sin aria-label: el nombre es el texto para lectores (Axe pegaba el aria-label con el texto visible).
+      expect(a.hasAttribute('aria-label')).toBe(false);
+      expect(a.querySelector('.solo-lector')!.textContent).toBe(a.getAttribute('title'));
       const visible = [a.querySelector('.hilo__nombre')?.textContent?.trim(), a.querySelector('.hilo__cifra')?.textContent?.trim()].filter(Boolean).join(' ');
-      expect(a.getAttribute('aria-label')?.startsWith(visible)).toBe(true);
+      expect(a.querySelector('.solo-lector')!.textContent!.startsWith(visible)).toBe(true);
     }
     expect(etapas[0].getAttribute('aria-current')).toBe('page');
 

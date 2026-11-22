@@ -85,7 +85,7 @@ describe('Editor de casos: la barra de vidrio (tableros 45–51)', () => {
     expect(ayuda.querySelector('button')!.getAttribute('data-accion')).toBe('buscar guia');
     expect(cuenta.querySelector('[data-estado-guardado]')).not.toBeNull();
     expect(cuenta.querySelector('a.enlace-probar')).not.toBeNull();
-    expect(cuenta.querySelector('button[data-accion="ver-pendientes"]')!.getAttribute('aria-label')).toMatch(/^Pendientes: /);
+    expect(cuenta.querySelector('button[data-accion="ver-pendientes"] .solo-lector')!.textContent).toMatch(/^Pendientes: /);
     expect(cuenta.querySelector('app-tema-selector')).not.toBeNull();
     expect(cuenta.querySelector('ui-menu')).not.toBeNull();
     expect(cuenta.textContent).toContain('Marta Ríos');
@@ -148,7 +148,7 @@ describe('Editor de casos: la barra de vidrio (tableros 45–51)', () => {
       '/portal/casos/41/editor/evaluacion', '/portal/casos/41/editor/revision',
     ]);
     // Cada etapa se anuncia con su nombre completo y su estado, aunque por ancho se vea solo su número.
-    const nombres = [...secciones.querySelectorAll('a')].map((a) => a.getAttribute('aria-label')!);
+    const nombres = [...secciones.querySelectorAll('a')].map((a) => a.querySelector('.solo-lector')!.textContent!);
     expect(nombres.map((n) => n.split(',')[1].trim())).toEqual(['Datos del caso', 'Lugar y salas', 'Historia: escenas y guion', 'Evaluación', 'Enviar a revisión']);
     expect(nombres[2]).toMatch(/Historia: escenas y guion, \d+ de \d+ escenas? escritas?/);
     // Cada etapa lleva su estado también como forma (no solo color).
@@ -157,7 +157,7 @@ describe('Editor de casos: la barra de vidrio (tableros 45–51)', () => {
     for (const accion of ['datos-del-caso', 'definir-finales', 'enviar-revision']) expect(secciones.querySelector(`[data-accion~="${accion}"]`)).not.toBeNull();
     expect(raiz.querySelector('header [data-accion~="probar"]')).not.toBeNull();
     // La etapa en la que estás se marca para el lector de pantalla.
-    expect(secciones.querySelector('a[aria-current="page"]')!.getAttribute('aria-label')).toMatch(/^Historia/);
+    expect(secciones.querySelector('a[aria-current="page"] .solo-lector')!.textContent).toMatch(/^Historia/);
   });
 
   it('las secciones nunca se pliegan al desplazarse: ninguna es plegable', async () => {

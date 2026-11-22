@@ -5,7 +5,7 @@ import {
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { FormBuilder, ReactiveFormsModule, Validators } from '@angular/forms';
 import { ActivatedRoute, RouterLink } from '@angular/router';
-import { Subscription } from 'rxjs';
+import { Observable, Subscription, concatMap, defaultIfEmpty, filter, from, map, take } from 'rxjs';
 import { Grupo, GrupoService } from '../../core/api/grupo.service';
 import { ReporteService } from '../../core/api/reporte.service';
 import { SimulationService } from '../../core/api/simulation.service';
@@ -73,6 +73,7 @@ export class ReporteGrupoComponent {
 
   /** La consulta en curso: elegir otro corte la cancela. */
   private request: Subscription | null = null;
+  private casosCargados = false;
 
   readonly form = this.fb.group({
     grupoId: [null as number | null, Validators.required],
@@ -130,7 +131,11 @@ export class ReporteGrupoComponent {
     this.destroyRef.onDestroy(() => this.request?.unsubscribe());
     // Primero se escucha el formulario: la carga de grupos puede preseleccionar uno (`?grupo=`) y eso debe generar.
     this.form.valueChanges.pipe(takeUntilDestroyed(this.destroyRef)).subscribe(() => {
-      const { grupoId, caseVersionId } = this.form.getRawValue();
+      let { grupoId, caseVersionId } = this.form.getRawValue();
+      if (this.selectedGrupoId() !== null && grupoId !== this.selectedGrupoId()) {
+        caseVersionId = null;
+        this.form.controls.caseVersionId.setValue(null, { emitEvent: false });
+      }
       this.selectedGrupoId.set(grupoId);
       this.selectedCaseVersionId.set(caseVersionId);
       this.request?.unsubscribe();
@@ -140,6 +145,7 @@ export class ReporteGrupoComponent {
         this.loading.set(false);
         return;
       }
+      if (caseVersionId === null && !this.casosCargados) return;
       this.generar();
     });
     this.cargarFiltros();
@@ -160,7 +166,11 @@ export class ReporteGrupoComponent {
       }
     });
     this.simulationService.listCases().subscribe({
-      next: casos => this.casos.set(casos),
+      next: casos => {
+        this.casos.set(casos);
+        this.casosCargados = true;
+        if (this.selectedGrupoId() !== null && this.selectedCaseVersionId() === null) this.generar();
+      },
       error: () => this.loadFiltersError.update(msg => msg || 'No fue posible cargar los casos de simulación.')
     });
   }
@@ -189,8 +199,26 @@ export class ReporteGrupoComponent {
     this.loading.set(true);
     this.error.set('');
     this.reporte.set(null);
-    this.request = this.reporteService.getReporteGrupo(grupoId, caseVersionId).subscribe({
-      next: reporte => {
+    // Se busca en orden el primer caso con intentos; si ninguno tiene, se muestra el primero vacío.
+    const casos = this.casos();
+    const consulta: Observable<{ caso: SimulationCaseSummary | null; reporte: ReporteGrupo }> = caseVersionId === null && casos.length
+      ? from(casos).pipe(
+          concatMap(caso => this.reporteService.getReporteGrupo(grupoId, caso.caseVersionId).pipe(
+            map(reporte => ({ caso, reporte })))),
+          filter(({ reporte }) => (reporte.simulacion?.totalIntentos ?? 0) > 0),
+          take(1),
+          defaultIfEmpty(null),
+          concatMap(resultado => resultado
+            ? from([resultado])
+            : this.reporteService.getReporteGrupo(grupoId, casos[0].caseVersionId).pipe(map(reporte => ({ caso: casos[0], reporte })))),
+        )
+      : this.reporteService.getReporteGrupo(grupoId, caseVersionId).pipe(map(reporte => ({ caso: null, reporte })));
+    this.request = consulta.subscribe({
+      next: ({ caso, reporte }) => {
+        if (caso) {
+          this.form.controls.caseVersionId.setValue(caso.caseVersionId, { emitEvent: false });
+          this.selectedCaseVersionId.set(caso.caseVersionId);
+        }
         this.reporte.set(reporte);
         this.loading.set(false);
       },

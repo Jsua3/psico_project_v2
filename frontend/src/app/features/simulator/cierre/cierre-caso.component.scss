@@ -328,7 +328,7 @@
   align-items: start;
 }
 
-// El t?tulo largo ocupa la banda completa; la vi?eta acompa?a en la fila siguiente.
+// El título largo ocupa la banda completa; la viñeta acompaña en la fila siguiente.
 :host ::ng-deep ui-cabecera-ilustrada { grid-template-columns: minmax(0, 1fr); }
 :host ::ng-deep .ui-cabecera-ilustrada__vineta { justify-self: end; }
 :host ::ng-deep .ui-page-header__text { max-inline-size: none; }

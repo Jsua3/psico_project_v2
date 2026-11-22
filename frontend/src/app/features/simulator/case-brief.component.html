@@ -169,7 +169,7 @@
 <ng-template #acciones>
   <div class="ficha__acciones">
     @if (lineaConsentimiento(); as linea) {
-      <p class="ficha__consentimiento">{{ linea }} <a href="#aviso" class="ficha__enlace">Leer el aviso</a></p>
+      <p class="ficha__consentimiento">{{ linea }} <a href="#aviso" class="ficha__enlace" (click)="irAlAviso($event)">Leer el aviso</a></p>
     }
     <div class="ficha__botones"><ng-container [ngTemplateOutlet]="botones" /></div>
     <ng-container [ngTemplateOutlet]="errorDeEntrada" />

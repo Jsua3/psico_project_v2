@@ -143,6 +143,14 @@ describe('CaseBriefComponent', () => {
     expect(aviso.compareDocumentPosition(contexto) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
   });
 
+  it('Leer el aviso coloca el foco en el aviso sin salir de la ficha', async () => {
+    await render();
+    const enlace = host().querySelector<HTMLAnchorElement>('a[href="#aviso"]')!;
+    const aviso = host().querySelector<HTMLElement>('#aviso')!;
+    enlace.click();
+    expect(document.activeElement).toBe(aviso);
+  });
+
   it('el aviso es el MISMO texto validado del juego, con los temas que el caso declara y el alcance como nota', async () => {
     await render();
     const aviso = host().querySelector('#aviso')!;

@@ -88,8 +88,11 @@ const MENU_CUENTA: UiMenuItem[] = [{ value: 'salir', label: 'Cerrar sesión', ic
             <a class="boton-barra enlace-probar" [attr.href]="rutaEnsayo()" target="_blank" rel="noopener" data-accion="probar"
                aria-label="Probar el caso en el juego (con Ctrl o clic central se abre en otra pestaña)" (click)="probar($event)">Probar <span aria-hidden="true">↗</span></a>
             <button type="button" class="boton-barra boton-pendientes" data-accion="ver-pendientes" aria-haspopup="dialog"
-                    [attr.aria-label]="textoPendientes()" [attr.title]="textoPendientes()" (click)="abrirPendientes($event)">
-              Pendientes
+                    [attr.title]="textoPendientes()" (click)="abrirPendientes($event)">
+              <!-- El nombre es el texto para lectores («Pendientes: …», empieza por la palabra visible), no un aria-label:
+                   Axe pegaba la palabra con la cifra de la insignia y lo daba por distinto. -->
+              <span class="solo-lector">{{ textoPendientes() }}</span>
+              <span aria-hidden="true">Pendientes</span>
               <span class="insignia" [class.insignia--cero]="!progreso.porCorregir().length" aria-hidden="true">{{ progreso.porCorregir().length }}</span>
             </button>
           }

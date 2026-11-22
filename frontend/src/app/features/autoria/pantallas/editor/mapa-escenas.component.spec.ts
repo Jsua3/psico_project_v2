@@ -29,7 +29,7 @@ describe('MapaEscenasComponent', () => {
   afterEach(() => document.querySelectorAll('.cdk-overlay-container').forEach((o) => (o.innerHTML = '')));
 
   // req: EDITOR-PRO punto 3 y 4: encuadre completo y regreso legible al inicio.
-  it('F y el bot?n encuadran todo; Volver al inicio recupera el encuadre legible', async () => {
+  it('F y el botón encuadran todo; Volver al inicio recupera el encuadre legible', async () => {
     const { fixture, caso, raiz } = await montar();
     fixture.componentRef.setInput('caso', { ...caso, inicioId: caso.escenas[1].id, escenas: [
       { ...caso.escenas[0], posicion: { x: 0, y: 0 } },

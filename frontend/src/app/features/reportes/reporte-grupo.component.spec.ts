@@ -209,19 +209,30 @@ describe('pantalla Reportes (F7-3)', () => {
 
   // req: RNF-04, BLOQUE-H, RQ-NEG-006
   describe('consulta', () => {
-    it('elegir un grupo genera el reporte sin otro clic: se pide con el grupo y sin caso, y salen las cifras', async () => {
+    it('elegir un grupo genera el reporte sin otro clic: elige el caso y muestra las cifras', async () => {
       await render();
       choose(select('Grupo'), 'Cohorte B · COH-B');
       await fixture.whenStable();
       fixture.detectChanges();
 
       expect(reporteService.getReporteGrupo).toHaveBeenCalledTimes(1);
-      expect(reporteService.getReporteGrupo).toHaveBeenCalledWith(2, null);
+      expect(reporteService.getReporteGrupo).toHaveBeenCalledWith(2, 12);
       expect(text(stat('Intentos')!.querySelector('.ui-stat__value'))).toBe('10');
       expect(stat('Puntaje promedio')).toBeUndefined();
       expect(stat('Decisiones adecuadas')).toBeUndefined();
       expect(text(stat('Bitácoras')!.querySelector('.ui-stat__value'))).toBe('9');
       expect(text(host().querySelector('.rg-result h2'))).toContain('Cohorte B');
+    });
+
+    it('RQ-NEG-006: elige el primer caso con intentos, aun si otro caso no tiene', async () => {
+      const segundo = { ...caso, caseVersionId: 13, title: 'Caso trece' };
+      await render({ casos: () => of([caso, segundo]), reporte: (grupo, id) => of(report(grupo, id === 13 ? simulation() : null, id)) });
+      choose(select('Grupo'), 'Cohorte A · COH-A');
+      await fixture.whenStable();
+      fixture.detectChanges();
+      expect(select('Caso').selectedOptions[0].textContent?.trim()).toBe('Caso trece · v1.0.0');
+      expect(reporteService.getReporteGrupo.mock.calls.map(call => call[1])).toEqual([12, 13]);
+      expect(text(stat('Intentos')!.querySelector('.ui-stat__value'))).toBe('10');
     });
 
     it('cambiar el caso vuelve a pedir el reporte con ese caso', async () => {
@@ -239,7 +250,7 @@ describe('pantalla Reportes (F7-3)', () => {
       await render({}, { query: { grupo: '2' } });
 
       expect(select('Grupo').selectedOptions[0].textContent?.trim()).toBe('Cohorte B · COH-B');
-      expect(reporteService.getReporteGrupo).toHaveBeenCalledWith(2, null);
+      expect(reporteService.getReporteGrupo).toHaveBeenCalledWith(2, 12);
       expect(stat('Intentos')).toBeDefined();
     });
 
@@ -256,7 +267,7 @@ describe('pantalla Reportes (F7-3)', () => {
     it('un ?caseVersionId= que no es un número se ignora (el grupo sí se elige)', async () => {
       await render({}, { query: { grupo: '2', caseVersionId: 'abc' } });
 
-      expect(reporteService.getReporteGrupo).toHaveBeenCalledWith(2, null);
+      expect(reporteService.getReporteGrupo).toHaveBeenCalledWith(2, 12);
     });
 
     it('un ?grupo= que no existe se ignora: queda «Selecciona un grupo» y no se consulta nada', async () => {
@@ -335,7 +346,7 @@ describe('pantalla Reportes (F7-3)', () => {
     it('cada estudiante es un enlace a su reporte (F10-7), con el grupo y el caso elegidos para que el reporte conserve el contexto', async () => {
       await withReport();
       const hrefs = () => [...studentTable().querySelectorAll('tbody a')].map(link => link.getAttribute('href'));
-      expect(hrefs()).toEqual(['/portal/reportes/estudiante/11?grupo=1', '/portal/reportes/estudiante/12?grupo=1']);
+      expect(hrefs()).toEqual(['/portal/reportes/estudiante/11?grupo=1&caseVersionId=12', '/portal/reportes/estudiante/12?grupo=1&caseVersionId=12']);
       expect(text(studentTable().querySelector('tbody a'))).toContain('Marta Ríos');
 
       choose(select('Caso de simulación'), 'Caso doce · v1.0.0');
@@ -375,7 +386,7 @@ describe('pantalla Reportes (F7-3)', () => {
         buttonLabelled('Exportar CSV')!.click();
         await fixture.whenStable();
 
-        expect(reporteService.exportarCsv).toHaveBeenCalledWith(1, null);
+        expect(reporteService.exportarCsv).toHaveBeenCalledWith(1, 12);
         expect(notify.success).toHaveBeenCalledWith('El archivo CSV se descargó correctamente.');
         expect(host().querySelector('.state-message')).toBeNull();
       } finally {

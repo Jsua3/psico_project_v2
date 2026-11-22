@@ -104,7 +104,10 @@ interface FilaEscena {
 
     <ng-template #fila let-f>
       <a class="riel__escena ds-motion" [routerLink]="rutas.a('/editor/escena', f.escena.id)" [attr.title]="f.escena.titulo"
-         [attr.aria-label]="f.etiqueta" [attr.aria-current]="progreso.escenaActual() === f.escena.id ? 'page' : null">
+         [attr.aria-current]="progreso.escenaActual() === f.escena.id ? 'page' : null">
+        <!-- El nombre sale de este texto para lectores y no de un aria-label (Axe lo comparaba con el número y el título
+             visibles pegados y lo daba por distinto). Dice lo mismo que antes: «Escena 1, Título: estado». -->
+        <span class="solo-lector">{{ f.etiqueta }}</span>
         <span class="riel__tesela" aria-hidden="true">
           @if (f.miniatura) {
             <img class="riel__miniatura" [src]="f.miniatura" alt="" width="96" height="53" decoding="async" />

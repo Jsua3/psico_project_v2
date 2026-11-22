@@ -145,9 +145,6 @@ function finalesQueNombran(caso: CasoBorrador, clave: string): string[] {
         </app-estudio-seccion>
       </ng-template>
 
-      <ng-template estudioRanura="estado">
-        <span class="est-dato">{{ cubiertos() }} de {{ pasos().length }} pasos con respuesta</span>
-      </ng-template>
     }
   `,
   styleUrl: './evaluacion.component.scss',

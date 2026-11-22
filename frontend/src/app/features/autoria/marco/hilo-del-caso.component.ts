@@ -40,7 +40,10 @@ export function cifraDeEtapa(a: AvanceEtapa): string {
           <li>
             <a class="hilo__etapa ds-motion" [routerLink]="rutas.a(a.ruta)" [attr.data-estado]="a.estado"
                [attr.data-accion]="accion[a.etapa]" [attr.aria-current]="progreso.etapaActual() === a.etapa ? 'page' : null"
-               [attr.aria-label]="a.nombre + (cifraDeEtapa(a) ? ' ' + cifraDeEtapa(a) : '') + ', ' + textoDeEtapa(a)" [attr.title]="a.nombre + (cifraDeEtapa(a) ? ' ' + cifraDeEtapa(a) : '') + ', ' + textoDeEtapa(a)">
+               [attr.title]="a.nombre + (cifraDeEtapa(a) ? ' ' + cifraDeEtapa(a) : '') + ', ' + textoDeEtapa(a)">
+              <!-- El nombre se lee del texto para lectores (no de un aria-label): Axe comparaba el aria-label con el texto
+                   visible pegado («Historia1») y lo daba por distinto. Empieza por el nombre visible (WCAG 2.5.3). -->
+              <span class="solo-lector">{{ a.nombre + (cifraDeEtapa(a) ? ' ' + cifraDeEtapa(a) : '') + ', ' + textoDeEtapa(a) }}</span>
               <span class="hilo__marca marca-estado" [attr.data-estado]="a.estado" aria-hidden="true"></span>
               <span class="hilo__nombre" aria-hidden="true">{{ a.nombre }}</span>
               @if (cifraDeEtapa(a); as cifra) { <span class="hilo__cifra" aria-hidden="true">{{ cifra }}</span> }

@@ -42,7 +42,7 @@ describe('Casos del estudiante', () => {
     return { fixture, host: fixture.nativeElement as HTMLElement, navegar };
   }
 
-  beforeEach(() => info.mockClear());
+  beforeEach(() => { info.mockClear(); sessionStorage.removeItem('siep.catalogo.retorno'); });
 
   it('agrupa los intentos por caso sin duración ni nombre repetido, y «Ver tu recorrido» navega al cierre', async () => {
     const { host, navegar } = await render([entrada(1, { completed: true })], [intento()]);
@@ -61,6 +61,17 @@ describe('Casos del estudiante', () => {
     expect(accion.textContent).toContain('Ver tu recorrido');
     accion.click();
     expect(navegar).toHaveBeenCalledWith(['/portal/simulador', 1, 'cierre', 'abc']);
+  });
+
+  it('al volver del recorrido devuelve el foco a la accion del caso', async () => {
+    sessionStorage.setItem('siep.catalogo.retorno', '1');
+    const foco = vi.spyOn(HTMLElement.prototype, 'focus');
+    const { host } = await render([entrada(1, { completed: true })], [intento()]);
+    const boton = host.querySelector('[data-case-id="1"] .cs-acciones button');
+    expect(boton).not.toBeNull();
+    expect(foco.mock.instances).toContain(boton);
+    expect(sessionStorage.getItem('siep.catalogo.retorno')).toBeNull();
+    foco.mockRestore();
   });
 
   it('lo abierto se continúa directo; sin empezar abre la ficha; el estado va en palabras', async () => {

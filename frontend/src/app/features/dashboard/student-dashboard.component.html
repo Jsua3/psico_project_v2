@@ -80,6 +80,11 @@
   </ui-section>
 }
 
+@if (!cargando() && !error() && historial().length) {
+  <!-- El progreso dicho en palabras (intentos completados), nunca como puntaje ni porcentaje. -->
+  <p class="sd-progreso">{{ progresoIntentos() }}</p>
+}
+
 @if (!cargando() && !error() && cierres().length) {
   <ui-section [title]="copy.cierres.titulo">
     <ul class="sd-lista">

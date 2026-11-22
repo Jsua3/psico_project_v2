@@ -18,7 +18,7 @@
           @if (fallo('revision')) {
             <ui-error-state message="No pudimos cargar los recorridos por revisar." (retry)="reload()" />
           } @else if (!totalRevision()) {
-            <ui-empty-state figura="supervisor-clinico" title="Nada por revisar" description="Cuando un estudiante termine un caso, aparecerá aquí." />
+            <p>Nada por revisar. Cuando un estudiante termine un caso, aparecerá aquí.</p>
           } @else {
             <ul class="filas">
               @for (intento of revision()?.items; track intento.attemptId) {

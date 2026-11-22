@@ -78,6 +78,11 @@ function coincide(consulta: string, porDefecto: boolean): boolean {
   host: { '[class.p-con-barra-acciones]': "!amplio() && state() === 'ready'" },
 })
 export class CaseBriefComponent {
+  protected irAlAviso(evento: Event): void {
+    evento.preventDefault();
+    document.getElementById('aviso')?.focus();
+  }
+
   private readonly simulationService = inject(SimulationService);
   private readonly router = inject(Router);
   /**

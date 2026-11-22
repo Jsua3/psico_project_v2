@@ -121,6 +121,11 @@ export class StudentDashboardComponent {
   });
   protected readonly filasVisibles = computed(() => this.filas().slice(0, MAX_FILAS));
   protected readonly cierres = computed(() => lastClosings(this.historial()));
+  protected readonly progresoIntentos = computed(() => {
+    const intentos = this.historial();
+    const terminados = intentos.filter(intento => intento.status === 'COMPLETED').length;
+    return `${terminados} de ${intentos.length} intentos completados`;
+  });
   protected readonly invitacionTitulo = computed(() => (this.pendientes() === 1 ? this.copy.invitaciones.uno : this.copy.invitaciones.varias(this.pendientes())));
   protected readonly fecha = formatDate;
 

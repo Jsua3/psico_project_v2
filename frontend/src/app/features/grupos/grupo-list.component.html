@@ -4,7 +4,7 @@
 <ui-cabecera-ilustrada [herramienta]="true" class="gl-cab gl-cab--lista" [class.gl-cab--con-detalle]="!!grupoActivo() && !!grupoId()"
   [escena]="state() === 'empty' ? null : 'grupos'" eyebrow="Cohortes académicas" title="Grupos"
   description="Organiza estudiantes y asigna casos a cada grupo.">
-  <button ui-button uiHerramientaAcciones type="button" icon="add" (click)="nuevoGrupo()">Nuevo grupo</button>
+  @if (state() !== 'empty') { <button ui-button uiHerramientaAcciones type="button" icon="add" (click)="nuevoGrupo()">Nuevo grupo</button> }
 </ui-cabecera-ilustrada>
 @if (grupoActivo(); as abierto) {
   <ui-page-header class="gl-cab gl-cab--detalle" [class.gl-cab--con-detalle]="!!grupoId()"
@@ -18,8 +18,8 @@
 } @else if (state() === 'empty') {
   <ui-vacio-ilustrado escena="grupos" titulo="Aún no tienes grupos" marco="placa"
     frase="Un grupo reúne a tus estudiantes: le pones un nombre y un código, los invitas y le asignas casos.">
-    <button ui-button type="button" icon="add" (click)="nuevoGrupo()">Crear mi primer grupo</button>
   </ui-vacio-ilustrado>
+  <ng-container [ngTemplateOutlet]="formularioGrupo" />
 } @else {
   <div class="gl-layout" [class.gl-layout--detalle]="!!grupoId()">
     <section class="gl-list" aria-label="Lista de grupos" [attr.aria-busy]="state() === 'loading' ? 'true' : null">
@@ -201,7 +201,7 @@
         <button ui-button type="submit" [loading]="saving()">
           {{ saving() ? 'Guardando…' : (editandoGrupo() ? 'Guardar cambios' : 'Crear grupo') }}
         </button>
-        <button ui-button type="button" variant="ghost" (click)="cancelarEdicion()">Cancelar</button>
+        @if (state() !== 'empty') { <button ui-button type="button" variant="ghost" (click)="cancelarEdicion()">Cancelar</button> }
       </div>
     </form>
   </div>

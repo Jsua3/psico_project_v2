@@ -183,12 +183,12 @@ describe('Primitivas del estudio en la pantalla', () => {
 })
 class BancoMarco {}
 
-// req: EDITOR-PRO punto 1: el foco acompa?a la apertura y el cierre de los paneles.
+// req: EDITOR-PRO punto 1: el foco acompaña la apertura y el cierre de los paneles.
 describe('EstudioMarco ? foco de los paneles', () => {
   beforeEach(() => localStorage.clear());
   for (const escritorio of [true, false]) {
     for (const panel of ['explorador', 'inspector']) {
-      it(`${panel}: devuelve el foco al control visible y lo introduce al reabrir (${escritorio ? 'escritorio' : 'm?vil'})`, async () => {
+      it(`${panel}: devuelve el foco al control visible y lo introduce al reabrir (${escritorio ? 'escritorio' : 'móvil'})`, async () => {
         const media = vi.stubGlobal('matchMedia', vi.fn().mockReturnValue({ matches: escritorio, addListener: vi.fn(), removeListener: vi.fn() }));
         const f = TestBed.createComponent(BancoMarco);
         document.body.appendChild(f.nativeElement);

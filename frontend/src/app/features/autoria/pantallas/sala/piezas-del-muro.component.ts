@@ -43,9 +43,9 @@ interface Pieza {
   `,
   styles: [`
     :host { position: absolute; inset: 0; pointer-events: none; z-index: var(--autoria-capa-5); }
-    .pieza-muro { position: absolute; box-sizing: border-box; min-width: calc(24px / var(--escala, 1)); min-height: calc(24px / var(--escala, 1)); padding: 0;
+    .pieza-muro { position: absolute; box-sizing: border-box; min-width: calc(25px / var(--escala, 1)); min-height: calc(25px / var(--escala, 1)); padding: 0;
       border: 2px solid transparent; border-radius: calc(4px / var(--escala, 1)); background: transparent; touch-action: none; pointer-events: auto; cursor: grab; }
-    .pieza-muro::before { content: ""; position: absolute; left: 50%; top: 50%; width: calc(44px / var(--escala, 1)); height: calc(44px / var(--escala, 1));
+    .pieza-muro::before { content: ""; position: absolute; left: 50%; top: 50%; width: calc(25px / var(--escala, 1)); height: calc(25px / var(--escala, 1));
       transform: translate(-50%, -50%); }
     .pieza-muro:active { cursor: grabbing; }
     /* Solo mirar (pantallas angostas): se elige, no se arrastra. */

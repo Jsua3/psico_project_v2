@@ -410,7 +410,7 @@
   display: inline-flex;
   align-items: center;
   gap: var(--ds-space-1);
-  min-height: 2.75rem;
+  min-height: 44px;
   padding-inline: var(--ds-space-1);
   border-radius: var(--ds-radius-sm);
   color: var(--l-acento-tinta);
@@ -560,7 +560,7 @@
 // El scroll es el del navegador (sin secuestrarlo): el escenario queda fijo y el texto avanza; el paso que cruza el
 // centro de la vista enciende su clip. Cada paso ocupa casi una pantalla para que haya tiempo de leer y de ver.
 .landing-relato__saltar {
-  display: inline-flex; align-items: center; min-block-size: 2.75rem;
+  display: inline-flex; align-items: center; min-block-size: 44px;
   margin-top: var(--ds-space-3);
   color: var(--l-acento-tinta);
   font-size: var(--ds-type-body-s-size);
@@ -866,9 +866,10 @@
   }
 
   @keyframes landing-aparecer {
+    // Sin scale: con 0.985 los enlaces de 44 px medían 43 mientras la sección entraba (la prueba táctil los marcaba).
     from {
       opacity: 0;
-      transform: translateY(1.75rem) scale(0.985);
+      transform: translateY(1.75rem);
     }
 
     to {

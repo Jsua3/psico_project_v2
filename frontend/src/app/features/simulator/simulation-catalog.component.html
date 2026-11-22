@@ -36,7 +36,7 @@
            (portada a la izquierda, texto a la derecha) cuando cabe. -->
       <div class="p-rejilla p-rejilla--24" [class.cs-rejilla--uno]="filtradas().length === 1">
         @for (card of filtradas(); track card.item.caseVersionId) {
-          <ui-card class="cs-tarjeta" [class.cs-tarjeta--resaltada]="card.resaltado">
+          <ui-card class="cs-tarjeta" [attr.data-case-id]="card.item.caseVersionId" [class.cs-tarjeta--resaltada]="card.resaltado">
             <ui-portada-caso class="cs-portada" tamano="tarjeta" [umbral]="entrando() === card.item.caseVersionId" [titulo]="card.item.title" [portada]="card.portada" />
             <div class="cs-cuerpo">
               <p class="cs-codigo">{{ card.item.code }}</p>

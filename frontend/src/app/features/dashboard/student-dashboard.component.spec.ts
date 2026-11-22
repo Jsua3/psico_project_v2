@@ -65,6 +65,12 @@ describe('Inicio del estudiante', () => {
     expect(fijar).toHaveBeenCalledWith('invitaciones', 1);
   });
 
+  it('expresa el número exacto de intentos completados sin convertirlo en puntaje', async () => {
+    const { host } = await render({ historial: [intento(), intento({ attemptId: 'b', status: 'COMPLETED' }), intento({ attemptId: 'c', status: 'SAFE_EXITED' })] });
+    expect(host.textContent).toContain('1 de 3 intentos completados');
+    expect(host.textContent).not.toMatch(/puntaje|puntos|%/i);
+  });
+
   it('si la escena no se conoce, la línea es genérica y nunca dice «null»', async () => {
     const { host } = await render({ escena: null });
     expect(host.textContent).toContain('Retomas donde lo dejaste.');

@@ -144,16 +144,14 @@ describe('pantalla Grupos en maestro-detalle (B5c)', () => {
       expect(links.map(a => a.getAttribute('href'))).toEqual(['/portal/grupos/1', '/portal/grupos/2']);
     });
 
-    it('sin grupos: el primer uso dice qué es un grupo y «Crear mi primer grupo» abre la hoja', async () => {
+    it('sin grupos: muestra el formulario de primer uso', async () => {
       await render({ listar: () => of([]) });
-      expect(text(host().querySelector('ui-vacio-ilustrado'))).toContain('Aún no tienes grupos');
+      expect(host().querySelectorAll('ui-vacio-ilustrado')).toHaveLength(1);
       expect(host().querySelector('.gl-layout')).toBeNull();
-
-      (host().querySelector('ui-vacio-ilustrado button') as HTMLButtonElement).click();
-      fixture.detectChanges();
-      expect(dialog.sheet).toHaveBeenCalledTimes(1);
-      expect(dialog.sheet.mock.results[0].value.title).toBe('Nuevo grupo');
-      expect(hoja().querySelector('.gl-form form')).not.toBeNull();
+      expect(host().querySelector('form input[formControlName="nombre"]')).not.toBeNull();
+      expect(host().querySelector('form input[formControlName="codigo"]')).not.toBeNull();
+      expect(host().querySelector('form button[type="submit"]')?.textContent).toContain('Crear grupo');
+      expect(dialog.sheet).not.toHaveBeenCalled();
     });
 
     it('si falla la carga: UN error con «Reintentar» que vuelve a pedir los grupos', async () => {

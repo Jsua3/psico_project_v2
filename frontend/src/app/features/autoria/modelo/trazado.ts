@@ -23,7 +23,7 @@ export function posicionLibre(ocupadas: { x: number; y: number }[], deseada: { x
   return p;
 }
 
-/** Distribuye por distancia m?nima desde el inicio; los ciclos nunca alteran una capa ya alcanzada. */
+/** Distribuye por distancia mínima desde el inicio; los ciclos nunca alteran una capa ya alcanzada. */
 export function trazarEscenas(
   caso: CasoBorrador,
   direccion: DireccionTrazado = 'izquierda-derecha',
@@ -46,11 +46,11 @@ export function trazarEscenas(
   };
   const inicio = caso.inicioId && escenas.has(caso.inicioId) ? caso.inicioId : caso.escenas[0]?.id;
   if (inicio) recorrer(inicio, 0);
-  // Las escenas desconectadas se colocan despu?s del recorrido principal, sin ocultarlas.
+  // Las escenas desconectadas se colocan después del recorrido principal, sin ocultarlas.
   for (const e of caso.escenas) if (!capas.has(e.id)) recorrer(e.id, Math.max(0, ...capas.values()) + 1);
   const columnas: string[][] = [];
   for (const e of caso.escenas) (columnas[capas.get(e.id)!] ??= []).push(e.id);
-  // Orden baric?ntrico de los predecesores: reduce cruces conservando el orden ante empates.
+  // Orden baricéntrico de los predecesores: reduce cruces conservando el orden ante empates.
   for (let c = 1; c < columnas.length; c++) {
     const anterior = columnas[c - 1];
     const centro = (id: string) => {

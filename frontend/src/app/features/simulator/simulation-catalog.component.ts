@@ -1,4 +1,4 @@
-import { ChangeDetectionStrategy, Component, computed, effect, inject, signal, untracked } from '@angular/core';
+import { ChangeDetectionStrategy, Component, ElementRef, Injector, afterNextRender, computed, effect, inject, signal, untracked } from '@angular/core';
 import { toSignal } from '@angular/core/rxjs-interop';
 import { ActivatedRoute, Router } from '@angular/router';
 
@@ -72,6 +72,12 @@ export class SimulationCatalogComponent {
   private readonly auth = inject(AuthService);
   private readonly cache = inject(CaseAccessCache);
   private readonly notify = inject(NotificationService);
+  private readonly host = inject<ElementRef<HTMLElement>>(ElementRef);
+  private readonly injector = inject(Injector);
+  /** La tarjeta desde la que se abrió un recorrido: al volver, el foco regresa a ella UNA sola vez. */
+  private retorno: string | null = (() => {
+    try { return sessionStorage.getItem('siep.catalogo.retorno'); } catch { return null; }
+  })();
 
   protected readonly copy = CASOS_COPY;
   protected readonly filtro = signal<FiltroEstado | string>('todos');
@@ -171,6 +177,17 @@ export class SimulationCatalogComponent {
   protected readonly statusLabel = statusLabel;
 
   constructor() {
+    effect(() => {
+      if (!this.retorno || this.casesState() !== 'ready') return;
+      const tarjeta = this.cards().find(card => String(card.item.caseVersionId) === this.retorno);
+      if (!tarjeta) return;
+      // Se consume ya: si las tarjetas cambian después (filtros, recarga del historial), el foco no vuelve a saltar.
+      this.retorno = null;
+      afterNextRender(() => {
+        this.host.nativeElement.querySelector<HTMLElement>(`[data-case-id="${tarjeta.item.caseVersionId}"] .cs-acciones button`)?.focus();
+        try { sessionStorage.removeItem('siep.catalogo.retorno'); } catch { /* almacenamiento bloqueado */ }
+      }, { injector: this.injector });
+    });
     this.loadCases();
     if (this.isStudent) {
       this.loadAccess();
@@ -299,6 +316,7 @@ export class SimulationCatalogComponent {
 
   /** «Ver tu recorrido»: la página de cierre del intento (DP-13), con URL estable. */
   protected openReport(attempt: StudentAttemptSummary): void {
+    try { sessionStorage.setItem('siep.catalogo.retorno', String(attempt.caseVersionId)); } catch { /* almacenamiento bloqueado */ }
     void this.router.navigate(['/portal/simulador', attempt.caseVersionId, 'cierre', attempt.attemptId]);
   }
 }

@@ -50,7 +50,7 @@
       } @else if (r(); as reporte) {
         <div class="cierre__recorrido">
           @if (!reporte.ending && !reporte.persona?.label && !reporte.milestones && !escenas().length && !competencias().length) {
-            <p class="cierre__tenue">Este recorrido no tiene informaci?n disponible para mostrar.</p>
+            <p class="cierre__tenue">Este recorrido no tiene información disponible para mostrar.</p>
           }
           @if (!reporte.ending) { @if (persona(); as label) { <p class="cierre__persona"><span class="cierre__rotulo">{{ copy.personaTitulo }}</span> {{ label }}</p> } }
           @if (reporte.ending; as final) {

@@ -804,6 +804,6 @@
   }
 }
 
-// La matriz en lectura conserva espacio para la barra y su superficie impide leer detr?s.
+// La matriz en lectura conserva espacio para la barra y su superficie impide leer detrás.
 .re-marco--sola { padding-block-end: 4.5rem; }
 :host ::ng-deep .re-marco--sola + ui-barra-acciones .ui-barra-acciones__bandeja { background: var(--l-superficie, var(--ds-surface-1)); }

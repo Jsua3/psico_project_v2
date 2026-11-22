@@ -186,3 +186,12 @@ a.sd-fila--cierre::after {
     @include m.ds-sr-only;
   }
 }
+
+// El progreso en palabras, entre el siguiente paso y los cierres: una línea tranquila, no una cifra protagonista.
+.sd-progreso {
+  margin: 0;
+  padding-inline-start: var(--ds-space-3);
+  border-inline-start: 2px solid var(--ds-border);
+  color: var(--ds-text-2);
+  font-size: var(--ds-type-body-s-size);
+}

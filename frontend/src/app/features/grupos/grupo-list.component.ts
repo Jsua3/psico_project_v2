@@ -77,7 +77,7 @@ function removeLabel(student: GrupoEstudiante): string {
   selector: 'app-grupo-list',
   standalone: true,
   imports: [
-    ReactiveFormsModule, RouterLink,
+    ReactiveFormsModule, RouterLink, NgTemplateOutlet,
     UiBadge, UiButton, UiIconButton, UiCard, UiControl, UiField, UiMenu, UiPageHeader, UiCabeceraIlustrada, UiVacioIlustrado, UiArchivo, UiTab, UiTabs,
     UiSkeleton, UiTable, UiTableTable, UiTableRow, UiCelda, UiCeldaPrincipal, UiCeldaAcciones,
     UiEmptyState, UiErrorState, GroupAssignmentsComponent,

@@ -37,7 +37,7 @@ describe('trazarEscenas', () => {
     expect(new Set([a.x, b.x, c.x]).size).toBe(1);
   });
 
-  it('EDITOR-PRO ? separa ocho escenas, ramas y vueltas atr?s por profundidad m?nima', () => {
+  it('EDITOR-PRO · separa ocho escenas, ramas y vueltas atrás por profundidad mínima', () => {
     const caso = lineal();
     const base = caso.escenas[0];
     caso.escenas = Array.from({ length: 8 }, (_, i) => ({ ...structuredClone(base), id: `e${i}`, respuestas: [] }));

@@ -17,7 +17,7 @@ describe('RielDeEscenasComponent', () => {
     expect(filas).toHaveLength(store.caso()!.escenas.length);
     expect(filas[0].querySelector('.riel__numero')!.textContent).toBe('1');
     expect(filas[0].getAttribute('title')).toBe(primera.titulo);
-    expect(filas[0].getAttribute('aria-label')).toMatch(new RegExp(`^Escena 1, ${primera.titulo}: `));
+    expect(filas[0].querySelector('.solo-lector')!.textContent).toMatch(new RegExp(`^Escena 1, ${primera.titulo}: `));
     expect(filas[0].getAttribute('aria-current')).toBe('page');
     expect(filas.every((a) => !!a.querySelector('.marca-estado')!.getAttribute('data-estado'))).toBe(true);
   });
@@ -84,7 +84,7 @@ describe('RielDeEscenasComponent', () => {
     expect(marcas(filas[1])).toContain('Final');
     expect(marcas(filas[1])).toContain('IA');
     expect(marcas(filas[1])).toContain('Sin escribir');
-    expect(filas[1].getAttribute('aria-label')).toContain('es un final');
+    expect(filas[1].querySelector('.solo-lector')!.textContent).toContain('es un final');
     for (const img of raiz.querySelectorAll<HTMLImageElement>('app-riel-de-escenas img')) expect(img.getAttribute('src')).toBeTruthy();
   });
 
