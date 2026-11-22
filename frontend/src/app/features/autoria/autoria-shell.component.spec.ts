@@ -221,7 +221,8 @@ describe('AutoriaShellComponent · como ruta del programa', () => {
     expect(servidor.llamadasA('caseEditor')).toHaveLength(0);
     expect(raiz.querySelector('main h1')!.textContent).toContain('¿Dónde pasa tu caso?');
     // Solo la marca y «Mis casos» de la barra: sin caso no hay secciones.
-    expect([...raiz.querySelectorAll<HTMLAnchorElement>('nav a')].map((a) => a.getAttribute('href'))).toEqual(['/portal/casos', '/portal/casos']);
+    // Solo los enlaces del marco: la página de crear un caso trae su propia barra de pasos dentro de <main>.
+    expect([...raiz.querySelectorAll<HTMLAnchorElement>('nav a')].filter((a) => !a.closest('main')).map((a) => a.getAttribute('href'))).toEqual(['/portal/casos', '/portal/casos']);
   });
 
   it('salir del editor espera a que lo pendiente llegue al servidor y cierra el caso', async () => {

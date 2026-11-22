@@ -13,7 +13,7 @@ import type { CasoBorrador, Escena } from '../../modelo/caso';
 import { escenasEnOrden } from '../../modelo/progreso';
 import { NOMBRE_INTENSIDAD, plural } from '../../modelo/textos';
 import { ALTO_ESCENA, ANCHO_ESCENA } from '../../modelo/trazado';
-import { type Camara, type Punto, centrarEn, encuadrar, seVe, ventana, zoomEn } from './camara';
+import { type Camara, type Punto, centrarEn, encuadrarLegible, seVe, ventana, zoomEn } from './camara';
 import { caminoIluminado } from './iluminar';
 import { MinimapaComponent, type NodoMini } from './minimapa.component';
 import { type Flecha, trazo } from './trazo-flecha';
@@ -27,6 +27,13 @@ const MARGEN = 32;
 const PASO_MOVER = 24;
 /** Por debajo de este zoom la tarjeta pasa a su forma compacta (a 75 % el texto de 16 px queda en 12: el mínimo legible, D-38). */
 const UMBRAL_COMPACTO = 0.75;
+/**
+ * Al abrir, el mapa nunca baja de aquí: con 8 escenas en un lienzo entre dos paneles, «ver todo» quedaba en 48 % y los
+ * títulos en 7 px (QA del líder). Si el caso no cabe, se ve el comienzo y el minimapa lleva al resto.
+ */
+const ZOOM_AL_ABRIR = 0.75;
+/** Mantiene legibles los títulos; el minimapa permite llegar al resto. */
+const ZOOM_VER_TODO = 0.75;
 const ALTO_MINIMO = 320;
 /** Lo que dura la cámara animada (igual que `--ds-dur-slow`). */
 const DURACION_CAMARA = 420;
@@ -93,6 +100,7 @@ export class MapaEscenasComponent {
   /** La docente movió o acercó a mano: un cambio de ventana ya no reencuadra. */
   private camaraManual = false;
   private finAnimacion: ReturnType<typeof setTimeout> | undefined;
+  private limpiarMenuPendiente: (() => void) | undefined;
   private readonly trigger = viewChild.required<CdkMenuTrigger>('trigger');
   private readonly plantillaMenu = viewChild.required<TemplateRef<unknown>>('menu');
   private readonly marco = viewChild.required<ElementRef<HTMLElement>>('marco');
@@ -200,7 +208,7 @@ export class MapaEscenasComponent {
       primera = false;
     });
     afterNextRender(() => this.observarTamano());
-    inject(DestroyRef).onDestroy(() => clearTimeout(this.finAnimacion));
+    inject(DestroyRef).onDestroy(() => { clearTimeout(this.finAnimacion); this.limpiarMenuPendiente?.(); });
   }
 
   // ── Datos de la tarjeta ───────────────────────────────────────────────────
@@ -301,13 +309,23 @@ export class MapaEscenasComponent {
   private abrirAlSoltar(id: string): void {
     const vista = this.raiz.ownerDocument.defaultView;
     if (!vista) return this.abrirMenu(id);
+    this.limpiarMenuPendiente?.();
+    let temporizador: ReturnType<typeof setTimeout> | undefined;
+    const limpiar = () => {
+      vista.removeEventListener('pointerup', soltar, true);
+      vista.removeEventListener('pointercancel', cancelar, true);
+      clearTimeout(temporizador);
+      this.limpiarMenuPendiente = undefined;
+    };
     const soltar = () => {
       vista.removeEventListener('pointerup', soltar, true);
-      vista.removeEventListener('pointercancel', soltar, true);
-      setTimeout(() => this.abrirMenu(id));
+      vista.removeEventListener('pointercancel', cancelar, true);
+      temporizador = setTimeout(() => { this.limpiarMenuPendiente = undefined; this.abrirMenu(id); });
     };
+    const cancelar = () => soltar();
+    this.limpiarMenuPendiente = limpiar;
     vista.addEventListener('pointerup', soltar, true);
-    vista.addEventListener('pointercancel', soltar, true);
+    vista.addEventListener('pointercancel', cancelar, true);
   }
 
   private abrirMenu(id: string): void {
@@ -409,10 +427,19 @@ export class MapaEscenasComponent {
     this.mover(zoomEn(this.camara(), { x: w / 2, y: h / 2 }, z), true);
   }
 
-  /** «Ver todo el mapa» (F): el caso entero, sin pasar del 100 %, con una cámara suave. */
+  /** «Ver todo el mapa» (F): el caso entero, sin pasar del 100 % ni bajar de la escala legible, con una cámara suave. */
   verTodo(): void {
     this.camaraManual = false;
-    this.mover(encuadrar({ w: this.limites().ancho, h: this.limites().alto }, this.tamMarco()), true);
+    this.mover(this.encuadreLegible(ZOOM_VER_TODO), true);
+  }
+
+  /** El encuadre con un mínimo de escala, anclado en la escena de inicio (o en la primera) si el caso no cabe. */
+  private encuadreLegible(minimo: number): Camara {
+    const caso = this.caso();
+    const inicio = caso.escenas.find((e) => e.id === caso.inicioId) ?? caso.escenas[0];
+    const p = inicio ? this.pos(inicio) : { x: 0, y: 0 };
+    const ancla = { x: p.x + ANCHO_ESCENA / 2, y: p.y + ALTO_ESCENA / 2 };
+    return encuadrarLegible({ w: this.limites().ancho, h: this.limites().alto }, this.tamMarco(), ancla, minimo);
   }
 
   /** Vuelve a encuadrar el caso entero (después de ordenar el mapa, por ejemplo). */
@@ -533,7 +560,7 @@ export class MapaEscenasComponent {
     const marco = this.marco().nativeElement;
     const ajustar = () => {
       this.tamMarco.set({ w: marco.clientWidth, h: marco.clientHeight });
-      if (!this.camaraManual) this.mover(encuadrar({ w: this.limites().ancho, h: this.limites().alto }, this.tamMarco()));
+      if (!this.camaraManual) this.mover(this.encuadreLegible(ZOOM_AL_ABRIR));
     };
     this.medirAlto();
     afterNextRender(ajustar, { injector: this.injector });

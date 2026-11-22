@@ -156,6 +156,15 @@ describe('MapaEscenasComponent', () => {
     expect(menuitems()).toContain('Marcar como final');
   });
 
+  it('al destruir el mapa cancela la apertura diferida del menú contextual', async () => {
+    const { fixture, raiz } = await montar();
+    nodo(raiz, 0).dispatchEvent(new MouseEvent('contextmenu', { bubbles: true, cancelable: true, button: 2, buttons: 2 }));
+    fixture.destroy();
+    window.dispatchEvent(new MouseEvent('pointerup', { bubbles: true }));
+    await new Promise((resolve) => setTimeout(resolve));
+    expect(menuitems()).toEqual([]);
+  });
+
   // Axe (color-contrast) en un caso de solo lectura: el fieldset deshabilitado atenúa «Acciones», pero un aria-disabled="false"
   // explícito decía lo contrario, y Axe y el lector de pantalla lo tomaban por habilitado.
   it('«Acciones» nunca dice aria-disabled="false": sin escena elegida va deshabilitado y con escena no lo dice', async () => {

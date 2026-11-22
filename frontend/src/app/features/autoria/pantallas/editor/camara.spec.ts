@@ -1,5 +1,5 @@
 import type { CasoBorrador } from '../../modelo/caso';
-import { centrarEn, encuadrar, seVe, ventana, zoomEn } from './camara';
+import { centrarEn, encuadrar, encuadrarLegible, seVe, ventana, zoomEn } from './camara';
 import { caminoIluminado } from './iluminar';
 
 // req: EDITOR-PRO.md punto 3 (lienzo de Caminos: zoom, mover, ver todo y caminos que se iluminan)
@@ -10,6 +10,19 @@ describe('Caminos · la cámara del lienzo', () => {
     expect([c.x, c.y]).toEqual([300, 200]);
     const grande = encuadrar({ w: 2000, h: 1000 }, { w: 1000, h: 600 }, 0);
     expect(grande.z).toBe(0.5);
+  });
+
+  it('un caso que no cabe legible se encuadra al mínimo desde el inicio, sin lienzo vacío arriba ni abajo', () => {
+    // 8 escenas en 6 columnas (como el caso 2) en un lienzo de 816 × 658: «Ver todo» bajaría a 48 %.
+    const mundo = { w: 1592, h: 644 }, vista = { w: 816, h: 658 };
+    expect(encuadrar(mundo, vista).z).toBeLessThan(0.5);
+    const c = encuadrarLegible(mundo, vista, { x: 136, y: 102 }, 0.75);
+    expect(c.z).toBe(0.75);
+    expect(c.x).toBe(24);
+    // En alto, 644 × 0,75 = 483 cabe: se centra el mapa entero.
+    expect(c.y).toBe(Math.round((658 - 483) / 2));
+    // Si cabe con buena escala, es «Ver todo» sin más.
+    expect(encuadrarLegible({ w: 400, h: 200 }, { w: 1000, h: 600 }, { x: 0, y: 0 }, 0.75)).toEqual(encuadrar({ w: 400, h: 200 }, { w: 1000, h: 600 }));
   });
 
   it('acercar con el cursor deja quieto el punto que está bajo el cursor', () => {

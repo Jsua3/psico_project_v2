@@ -23,6 +23,22 @@ export function encuadrar(mundo: Tam, vista: Tam, aire = 48, tope = 1): Camara {
   return { x: Math.round((vista.w - mundo.w * z) / 2), y: Math.round((vista.h - mundo.h * z) / 2), z };
 }
 
+/**
+ * Un encuadre que nunca deja el texto ilegible: si el caso entero cabe con una escala de al menos `minimo`, es «Ver todo»;
+ * si no, se queda en `minimo` y muestra el comienzo de la historia (el borde izquierdo del mapa con aire, y en alto el
+ * `ancla`, la escena de inicio, centrada sin dejar lienzo vacío arriba ni abajo). El minimapa lleva al resto.
+ */
+export function encuadrarLegible(mundo: Tam, vista: Tam, ancla: Punto, minimo: number, aire = 48): Camara {
+  const todo = encuadrar(mundo, vista, aire);
+  if (todo.z >= minimo || !vista.w || !vista.h) return todo;
+  const z = minimo, borde = aire / 2;
+  const x = mundo.w * z <= vista.w - aire ? Math.round((vista.w - mundo.w * z) / 2) : borde;
+  const y = mundo.h * z <= vista.h - aire
+    ? Math.round((vista.h - mundo.h * z) / 2)
+    : Math.round(Math.min(borde, Math.max(vista.h - borde - mundo.h * z, vista.h / 2 - ancla.y * z)));
+  return { x, y, z };
+}
+
 /** Acerca o aleja manteniendo quieto el punto de la pantalla `ancla` (el cursor, o el centro con los botones). */
 export function zoomEn(c: Camara, ancla: Punto, z: number): Camara {
   const nz = acotarZoom(z);

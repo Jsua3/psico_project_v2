@@ -51,6 +51,13 @@ describe('LugarComponent · RF-05 · CU-04 crear un caso: paso 1, elegir el luga
     expect(lugares).toHaveBeenCalledTimes(2);
   });
 
+  it('una lista vacía termina la carga y explica el estado', async () => {
+    const { raiz } = await montar(() => Promise.resolve([]));
+    expect(raiz.textContent).toContain('Aún no hay lugares disponibles');
+    expect(raiz.textContent).not.toContain('Cargando lugares…');
+    expect(raiz.querySelector('.esqueleto')).toBeNull();
+  });
+
   it('elige de entrada el primer lugar disponible y «Continuar» lleva a sus salas', async () => {
     const { raiz } = await montar(() => Promise.resolve(LUGARES));
     expect(raiz.querySelector<HTMLInputElement>('input[type="radio"][value="universidad"]')!.checked).toBe(true);

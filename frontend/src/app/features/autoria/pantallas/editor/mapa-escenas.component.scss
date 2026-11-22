@@ -128,7 +128,7 @@ $alto-miniatura: 64px;
 .cuerpo-tarjeta { display: flex; flex-direction: column; gap: 0.125rem; min-block-size: 0; min-inline-size: 0; overflow: hidden; padding: 0.4375rem 0.625rem 0.5rem; }
 .titulo {
   display: -webkit-box; overflow: hidden; -webkit-box-orient: vertical; -webkit-line-clamp: 2; line-clamp: 2;
-  font-size: var(--autoria-texto-16); font-weight: 700; line-height: 1.25rem; overflow-wrap: anywhere;
+  font-size: var(--autoria-texto-18); font-weight: 700; line-height: 1.25rem; overflow-wrap: anywhere;
 }
 .pie-tarjeta { display: flex; align-items: baseline; gap: 0.5rem; margin-block-start: auto; min-inline-size: 0; font-size: var(--autoria-texto-14); line-height: 1.125rem; }
 .sala { flex: 1; min-inline-size: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }

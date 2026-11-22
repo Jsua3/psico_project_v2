@@ -18,9 +18,9 @@ interface Pieza { id: string; nombre: string; detalle: string; arte: string; ret
   selector: 'app-explorador-biblioteca',
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
-    <div class="estantes" role="radiogroup" aria-label="Qué mostrar">
+    <div class="estantes" role="group" aria-label="Qué mostrar">
       @for (e of estantes; track e.id) {
-        <button type="button" role="radio" class="estante" [attr.aria-checked]="estante() === e.id" (click)="estante.set(e.id)">
+        <button type="button" class="estante" [attr.aria-pressed]="estante() === e.id" (click)="estante.set(e.id)">
           {{ e.nombre }} <span class="cuenta">{{ cuenta()[e.id] }}</span>
         </button>
       }
@@ -51,7 +51,7 @@ interface Pieza { id: string; nombre: string; detalle: string; arte: string; ret
       font-weight: 600; cursor: pointer; transition: background-color var(--ds-dur-fast) var(--ds-ease-out);
     }
     .estante::after { content: ''; position: absolute; inset: -0.375rem 0; }
-    .estante[aria-checked='true'] { background: var(--l-superficie); color: var(--ds-text-1); box-shadow: 0 0 0 1px var(--l-filo-fuerte); }
+    .estante[aria-pressed='true'] { background: var(--l-superficie); color: var(--ds-text-1); box-shadow: 0 0 0 1px var(--l-filo-fuerte); }
     .cuenta { color: var(--ds-text-2); font-variant-numeric: tabular-nums; font-weight: 500; }
     .rejilla { display: grid; grid-template-columns: repeat(auto-fill, minmax(5.5rem, 1fr)); gap: 0.5rem; margin: 0; padding: 0; list-style: none; }
     .bib-pieza { display: flex; flex-direction: column; gap: 0.125rem; min-inline-size: 0; animation: entra var(--ds-dur-base) var(--ds-ease-out) both; }

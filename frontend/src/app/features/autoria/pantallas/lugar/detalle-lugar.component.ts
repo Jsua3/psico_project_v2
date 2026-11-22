@@ -56,7 +56,7 @@ import { nombreTema } from '../../modelo/textos';
                 </li>
               }
             </ul>
-          } @else {
+          } @else if (!fallo()) {
             <!-- Esqueleto con la forma real: seis miniaturas en la misma rejilla, sin texto que salte después. -->
             <ul class="salas" aria-hidden="true">
               @for (n of esqueleto; track n) { <li><span class="hueco"></span><span class="raya"></span></li> }
@@ -116,6 +116,7 @@ import { nombreTema } from '../../modelo/textos';
 export class DetalleLugarComponent {
   readonly lugar = input.required<LugarResumen>();
   readonly escenario = input<Escenario | null>(null);
+  readonly fallo = input(false);
   readonly portada = input<string | null>(null);
   /** La imagen de cada sala por su id (la del fondo o la compuesta por piezas); falta mientras se pinta. */
   readonly vistas = input<Record<string, string | null>>({});

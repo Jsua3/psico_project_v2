@@ -71,16 +71,17 @@
 
   .plegable__cuerpo { padding: 0.25rem 0.75rem 0.875rem; }
   // La intensidad en una fila de tres; su nombre, encima (la leyenda queda para el lector: no se lee dos veces).
-  .segmentos { display: flex; inline-size: 100%; }
+  .segmentos { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); inline-size: 100%; }
   .segmentos::before {
     content: 'Intensidad' / '';
-    flex-basis: 100%;
+    grid-column: 1 / -1;
     padding: 0.125rem 0.5rem 0.25rem;
     color: var(--ds-text-2);
     font-weight: 700;
   }
   .segmentos__rotulo { position: absolute; inline-size: 1px; block-size: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
-  .segmento { flex: 1; justify-content: center; }
+  .segmento { min-inline-size: 0; min-block-size: 44px; padding-inline: 0.125rem; justify-content: center; }
+  .plegable__resumen { min-inline-size: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; text-transform: none; letter-spacing: normal; }
 }
 
 .insp__escena {

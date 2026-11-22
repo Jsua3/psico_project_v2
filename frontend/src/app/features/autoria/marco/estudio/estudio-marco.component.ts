@@ -62,6 +62,10 @@ const ATAJOS_GENERALES: GrupoAtajos[] = [
                            [min]="limites.explorador.min" [max]="limites.explorador.max" [hidden]="!estudio.verExplorador()"
                            (cambio)="estudio.fijarAncho('explorador', $event)" (restablecer)="estudio.restablecerAncho('explorador')" />
     }
+    <nav class="paneles-movil" aria-label="Paneles del editor">
+      @if (exploradorDisponible()) { <button type="button" (click)="estudio.alternar('explorador')" [attr.aria-pressed]="estudio.verExplorador()">Explorador</button> }
+      @if (inspectorDisponible()) { <button type="button" (click)="estudio.alternar('inspector')" [attr.aria-pressed]="estudio.verInspector()">Inspector</button> }
+    </nav>
     <div class="centro">
       @if (estudio.ranura('herramientas'); as herramientas) {
         <div class="herramientas" role="toolbar" aria-label="Herramientas de la vista"><ng-container [ngTemplateOutlet]="herramientas" /></div>
@@ -115,6 +119,9 @@ const ATAJOS_GENERALES: GrupoAtajos[] = [
       display: flex; align-items: center; gap: 0.25rem; min-block-size: 2.75rem; padding: 0.25rem 0.5rem; overflow-x: auto;
       border-block-end: 1px solid var(--l-filo); background: var(--l-superficie);
     }
+    .paneles-movil { display: flex; gap: 0.5rem; padding: 0.25rem; background: var(--l-superficie); }
+    .paneles-movil button { min-block-size: 44px; padding-inline: 0.75rem; color: var(--ds-text-1); background: var(--l-superficie); border: 1px solid var(--l-filo-fuerte); border-radius: var(--l-radio-control); }
+    .paneles-movil button:focus-visible { outline: 2px solid var(--ds-primary); outline-offset: 2px; }
     .divisor { display: none; }
     .estado { display: none; }
     .estado kbd {
@@ -135,6 +142,7 @@ const ATAJOS_GENERALES: GrupoAtajos[] = [
       :host(.con-explorador.con-inspector) {
         grid-template-columns: var(--est-ancho-explorador) 0 minmax(28rem, 1fr) 0 var(--est-ancho-inspector);
       }
+      .paneles-movil { display: none; }
       .panel, .centro, .divisor { grid-row: 1; min-block-size: 0; }
       .panel--explorador, .panel--inspector { border-block: 0; }
       .divisor:not([hidden]) { display: block; }
@@ -180,7 +188,7 @@ export class EstudioMarcoComponent {
    * modificadores, y si nadie más atendió la tecla.
    */
   protected tecla(e: KeyboardEvent): void {
-    if (e.defaultPrevented) return;
+    if (e.defaultPrevented || this.estudio.paletaAbierta() || this.estudio.atajosAbiertos()) return;
     if ((e.ctrlKey || e.metaKey) && !e.altKey && e.key.toLowerCase() === 'k') {
       e.preventDefault();
       this.abrir(() => this.estudio.paletaAbierta.set(true));

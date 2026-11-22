@@ -33,10 +33,13 @@ export class PintorDeVistas {
   vista(lugarId: string, sala: SalaDeBiblioteca): Promise<string | null> {
     if (sala.fondo) return Promise.resolve(rutaArte(lugarId, sala.fondo) || null);
     if (!sala.estructura) return Promise.resolve(null);
-    const clave = `${lugarId}/${sala.id}`;
+    const clave = JSON.stringify([lugarId, sala]);
     let vista = this.vistas.get(clave);
     if (!vista) {
-      vista = this.componer(lugarId, sala).catch(() => null);
+      vista = this.componer(lugarId, sala).catch(() => null).then((resultado) => {
+        if (!resultado) this.vistas.delete(clave);
+        return resultado;
+      });
       this.vistas.set(clave, vista);
     }
     return vista;
@@ -96,6 +99,7 @@ export class PintorDeVistas {
         i.onerror = () => falla(new Error(`No cargó ${ruta}`));
         i.src = urlDePieza(ruta);
       });
+      img = img.catch((error) => { this.imagenes.delete(ruta); throw error; });
       this.imagenes.set(ruta, img);
     }
     return img;

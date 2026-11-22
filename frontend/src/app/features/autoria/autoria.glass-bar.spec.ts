@@ -167,7 +167,8 @@ describe('Editor de casos: la barra de vidrio (tableros 45–51)', () => {
 
   it('crear un caso (sin caso abierto) trae la misma barra y ninguna sección', async () => {
     const { raiz } = await irA('/portal/casos/nuevo');
-    expect(raiz.querySelectorAll('header')).toHaveLength(1);
+    // Una sola barra del marco: las cabeceras dentro de <main> son de la página (crear un caso trae la suya).
+    expect([...raiz.querySelectorAll('header')].filter((h) => !h.closest('main'))).toHaveLength(1);
     expect(raiz.querySelector('header .modulo-principal')!.textContent).toContain('Editor de casos');
     expect(raiz.querySelectorAll('nav[aria-label="Secciones del caso"] a')).toHaveLength(0);
   });

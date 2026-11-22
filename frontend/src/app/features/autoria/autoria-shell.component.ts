@@ -234,6 +234,9 @@ const MENU_CUENTA: UiMenuItem[] = [{ value: 'salir', label: 'Cerrar sesión', ic
 
     .zona-centro { inline-size: 100%; min-inline-size: 0; outline: none; }
     .marco-pantalla { border: 0; margin: 0; padding: 0; min-inline-size: 0; }
+    /* La sala encaja su lienzo en el alto que queda: necesita un alto definido en toda la cadena (sin esto el lienzo
+       medía 89 px dentro del estudio, medido el 2026-11-22). Las demás pantallas crecen con su contenido y desplazan. */
+    .marco-pantalla:has(> app-sala) { block-size: 100%; }
     /* Aviso de solo lectura: un aviso de verdad (filo, icono de candado en píxeles y texto), igual en claro y en oscuro. */
     .solo-lectura {
       display: flex; align-items: center; gap: 0.625rem; margin: 0.75rem 1rem 0; padding: 0.5rem 0.875rem;

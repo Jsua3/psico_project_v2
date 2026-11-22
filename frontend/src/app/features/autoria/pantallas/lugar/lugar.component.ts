@@ -85,11 +85,16 @@ import { PintorDeVistas } from './pintor-de-vistas.service';
                 </span>
               </label>
             } @empty {
-              @if (!fallo()) {
+              @if (cargando()) {
                 @for (n of [1, 2, 3, 4]; track n) { <span class="plantilla esqueleto" aria-hidden="true"><span class="arte"></span><span class="raya"></span></span> }
               }
             }
           </div>
+          @if (!cargando() && !fallo() && !filtrados().length) {
+            <div class="tarjeta aviso-filtro"><p>{{ tema() ? 'No hay lugares para este tema.' : 'Aún no hay lugares disponibles.' }}</p>
+              @if (tema()) { <button type="button" class="boton" (click)="tema.set(null)">Quitar el filtro</button> }
+            </div>
+          }
           @if (filtrados().length && !hayDisponibles()) {
             <div class="tarjeta aviso-filtro">
               <p>Con este tema solo hay lugares que llegan pronto. Por ahora puedes quitar el filtro y usar la universidad.</p>
@@ -100,7 +105,10 @@ import { PintorDeVistas } from './pintor-de-vistas.service';
 
         @if (elegido(); as l) {
           <aside class="inspector" aria-labelledby="detalle-nombre">
-            <app-detalle-lugar [lugar]="l" [escenario]="escenarios()[l.id] ?? null" [portada]="portadaDe(l)" [vistas]="vistas()[l.id] ?? {}" />
+            @if (erroresDetalle().has(l.id) && !escenarios()[l.id]) {
+              <div class="tarjeta error" role="alert"><p>No pudimos cargar el detalle de este lugar.</p><button type="button" class="boton" (click)="elegir(l.id)">Reintentar</button></div>
+            }
+            <app-detalle-lugar [lugar]="l" [escenario]="escenarios()[l.id] ?? null" [fallo]="erroresDetalle().has(l.id)" [portada]="portadaDe(l)" [vistas]="vistas()[l.id] ?? {}" />
           </aside>
         }
       </div>
@@ -131,6 +139,8 @@ export class LugarComponent {
   protected readonly tema = signal<string | null>(null);
   /** Los lugares no se pudieron leer. */
   protected readonly fallo = signal(false);
+  protected readonly cargando = signal(true);
+  protected readonly erroresDetalle = signal<ReadonlySet<string>>(new Set());
   protected readonly elegidoId = signal<string | null>(null);
   /** Escenarios ya leídos, por id de lugar: dan las salas, los personajes y las ideas del panel. */
   protected readonly escenarios = signal<Record<string, Escenario>>({});
@@ -153,7 +163,7 @@ export class LugarComponent {
     const total = this.filtrados().length;
     const listos = this.filtrados().filter((l) => l.completo).length;
     if (this.fallo()) return '';
-    if (!this.lugares().length) return 'Cargando lugares…';
+    if (this.cargando()) return 'Cargando lugares…';
     return `${total} ${total === 1 ? 'lugar' : 'lugares'} · ${listos} ${listos === 1 ? 'disponible' : 'disponibles'} ahora`;
   });
 
@@ -191,12 +201,13 @@ export class LugarComponent {
 
   protected cargar(): void {
     this.fallo.set(false);
+    this.cargando.set(true);
     this.biblioteca.lugares().then((l) => {
       this.lugares.set(l);
       const inicial = l.find((x) => x.id === this.pedido) ?? l.find((x) => x.completo) ?? l[0];
       if (inicial) this.elegir(inicial.id);
       for (const sin of l.filter((x) => !x.portada)) void this.componerPortada(sin.id);
-    }).catch(() => this.fallo.set(true));
+    }).catch(() => this.fallo.set(true)).finally(() => this.cargando.set(false));
   }
 
   protected portadaDe(l: LugarResumen): string | null {
@@ -205,6 +216,7 @@ export class LugarComponent {
 
   protected elegir(id: string): void {
     this.elegidoId.set(id);
+    this.erroresDetalle.update((e) => { const siguiente = new Set(e); siguiente.delete(id); return siguiente; });
     void this.pintarSalas(id);
   }
 
@@ -222,7 +234,8 @@ export class LugarComponent {
       this.escenarios.update((todos) => ({ ...todos, [id]: e }));
       return e;
     } catch {
-      return null; // El panel se queda con su esqueleto; elegir y continuar siguen funcionando.
+      this.erroresDetalle.update((e) => new Set(e).add(id));
+      return null;
     }
   }
 
