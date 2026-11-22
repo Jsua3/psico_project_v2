@@ -14,7 +14,8 @@ vi.mock('phaser', () => ({
 import { Location } from '@angular/common';
 import { TestBed } from '@angular/core/testing';
 import { ActivatedRoute, Router, convertToParamMap } from '@angular/router';
-import { EMPTY, Observable, Subject, of } from 'rxjs';
+import { EMPTY, Observable, Subject, of, throwError } from 'rxjs';
+import { HttpErrorResponse } from '@angular/common/http';
 import type { Mock } from 'vitest';
 
 import { SimulationService } from '../../core/api/simulation.service';
@@ -169,6 +170,21 @@ describe('SimulationPlayComponent: entrar al caso (intento por URL, permiso de r
       component.ngOnInit();
       expect(sim['startAttempt']).not.toHaveBeenCalled();
       expect(component.showResumePrompt()).toBe(true);
+    });
+
+    it('carrera: si el servidor responde 409 ATTEMPT_CHANGED no reintenta a ciegas, relee y vuelve a preguntar', () => {
+      const lecturas = [intento(), intento({ attemptId: 'nuevo-de-la-otra-pestana' })];
+      setup({
+        state: { reemplazar: { attemptId: 'abierto-1' } },
+        active: () => of(lecturas.shift() ?? null),
+        start: () => throwError(() => new HttpErrorResponse({ status: 409, error: { code: 'ATTEMPT_CHANGED' } })),
+      });
+      component.ngOnInit();
+      expect(sim['startAttempt']).toHaveBeenCalledTimes(1);
+      expect(sim['getActiveAttempt']).toHaveBeenCalledTimes(2);
+      expect(component.error()).toBeFalsy();
+      expect(component.showResumePrompt()).toBe(true);
+      expect(component.pendingActiveAttempt()?.attemptId).toBe('nuevo-de-la-otra-pestana');
     });
 
     it('un permiso cuyo intento ya no está abierto no reemplaza nada: empieza uno con forceNew = false', () => {

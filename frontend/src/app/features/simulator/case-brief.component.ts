@@ -80,6 +80,11 @@ function coincide(consulta: string, porDefecto: boolean): boolean {
 export class CaseBriefComponent {
   private readonly simulationService = inject(SimulationService);
   private readonly router = inject(Router);
+  /**
+   * La ficha ya se cerró (Codex B4b, hallazgo 7): una promesa que se resuelve después (el registro del consentimiento o el
+   * diálogo de empezar de nuevo) no debe llevar al juego a quien ya está en otra pantalla.
+   */
+  private destruida = false;
   private readonly consent = inject(CONSENT_RECORDER);
   private readonly cache = inject(CaseAccessCache);
   private readonly dialog = inject(UiDialog);
@@ -186,6 +191,7 @@ export class CaseBriefComponent {
   private readonly umbral = computed<UmbralEstado>(() => ({ titulo: this.brief()?.title ?? '', portada: this.brief()?.portada ?? null }));
 
   constructor() {
+    inject(DestroyRef).onDestroy(() => { this.destruida = true; });
     // El retrato es un complemento: si el kit no carga, cada personaje se queda con su nombre y su rol.
     this.kit.load().catch(() => undefined);
     this.load();
@@ -247,7 +253,7 @@ export class CaseBriefComponent {
       continueLabel: 'Continuar',
       proceedLabel: 'Iniciar nuevo intento',
     });
-    if (respuesta !== 'proceed') return;
+    if (respuesta !== 'proceed' || this.destruida) return;
     this.entrar('nuevo', () => this.router.navigate(['/portal/simulador', this.caseVersionId], {
       state: { umbral: this.umbral(), reemplazar: { attemptId: abierto.attemptId } },
     }));
@@ -277,6 +283,7 @@ export class CaseBriefComponent {
         this.consentimientoDado.set(true);
       }
     } catch (cause) {
+      if (this.destruida) return;
       const motivo = cause instanceof ConsentNoticeStaleError ? 'aviso' : 'fallo';
       this.errorEntrada.set(motivo);
       this.entrando.set(null);
@@ -284,6 +291,7 @@ export class CaseBriefComponent {
       this.announcer.announce((motivo === 'aviso' ? DRAFT_COPY.briefConsentStale : DRAFT_COPY.briefConsentError).text, 'assertive');
       return;
     }
+    if (this.destruida) return;
     try {
       // Si la navegación no ocurre (una guarda la desvía), los botones vuelven a responder.
       if (!(await navegar())) this.entrando.set(null);

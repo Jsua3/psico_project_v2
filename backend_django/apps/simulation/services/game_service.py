@@ -262,13 +262,18 @@ def _resumed_state(attempt):
 
 
 @transaction.atomic
-def start_attempt(case_version_id, actor, force_new=False):
+def start_attempt(case_version_id, actor, force_new=False, expected_attempt_id=None):
     """Inicia un intento o devuelve el abierto (C1, RN-07, DM-5.4).
 
     Un intento pausado también cuenta como abierto: nunca se duplica en silencio. Con
     ``ATTEMPT_START_STRICT``, ``forceNew`` de un estudiante que ya tiene uno abierto es un
     409: reemplazar un intento es una acción docente (``replace_attempt``). El índice único
     parcial de la BD es la última defensa; quien pierde una carrera recibe el intento ganador.
+
+    ``expected_attempt_id`` (opcional, solo con ``forceNew``): el intento que la persona aceptó perder. Se compara con el
+    abierto BAJO el cerrojo de su fila, así que la comprobación y el reemplazo son una sola operación: si otro pedido lo
+    reemplazó entre la lectura del cliente y este envío, el abierto es otro y se responde 409 ``ATTEMPT_CHANGED`` sin
+    tocar nada. Sin intento abierto no hay nada que perder y se crea uno nuevo, como siempre.
     """
     version = _get_version(case_version_id)
     is_student = getattr(actor, "role", None) == "ESTUDIANTE"
@@ -282,6 +287,14 @@ def start_attempt(case_version_id, actor, force_new=False):
         lock_attempt_row(open_attempt.id)
         open_attempt = _open_attempt_of(actor.id, case_version_id)
     if open_attempt is not None:
+        if force_new and expected_attempt_id is not None and str(open_attempt.id) != str(expected_attempt_id):
+            raise ApiError(
+                "ATTEMPT_CHANGED",
+                # BORRADOR: texto nuevo del servidor, pendiente de la aprobación de Psicología (VD-23).
+                "Tu intento abierto cambió desde que lo viste. No se reemplazó nada; vuelve a elegir.",
+                status.HTTP_409_CONFLICT,
+                currentAttemptId=str(open_attempt.id),
+            )
         if not force_new:
             # Reanudar no exige que la versión siga publicada: se deja terminar (Review Focus 2).
             return _resumed_state(open_attempt)

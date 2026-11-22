@@ -1,7 +1,8 @@
+import { HttpErrorResponse } from '@angular/common/http';
 import { provideZonelessChangeDetection } from '@angular/core';
 import { ComponentFixture, TestBed } from '@angular/core/testing';
 import { provideRouter } from '@angular/router';
-import { Observable, of, throwError } from 'rxjs';
+import { Observable, of, switchMap, throwError, timer } from 'rxjs';
 
 import { SimulationService } from '../../../core/api/simulation.service';
 import { AttemptCompletionReport, CaseBrief, OwnerEvaluation, StudentAttemptSummary } from '../../../core/models/simulation.model';
@@ -32,7 +33,7 @@ const valoracion: OwnerEvaluation = {
   attemptId: 'a-1',
   evaluations: [{ rubricName: 'R', origin: 'DOCENTE', evaluatedAt: null, comment: 'Buen trabajo', overallLevel: 'LOGRADO', criteria: [] }],
 };
-const historial = [{ attemptId: 'a-1', endedAt: '2026-10-28T10:35:13Z' } as StudentAttemptSummary];
+const historial = [{ attemptId: 'a-1', caseVersionId: 1, endedAt: '2026-10-28T10:35:13Z' } as StudentAttemptSummary];
 
 interface Api {
   studentReport: () => Observable<AttemptCompletionReport>;
@@ -170,5 +171,26 @@ describe('CierreCasoComponent', () => {
     const enlaces = [...(f.nativeElement as HTMLElement).querySelectorAll('a')];
     expect(enlaces.find(a => a.textContent?.includes('Volver al inicio'))?.getAttribute('href')).toBe('/portal/dashboard');
     expect(enlaces.find(a => a.textContent?.includes('Intentar el caso de nuevo'))?.getAttribute('href')).toBe('/portal/simulador/1/ficha');
+  });
+
+  it('URL con IDs cruzados: la ficha y «Intentar de nuevo» son del caso DEL INTENTO, no del número de la URL', async () => {
+    let pedida: unknown = null;
+    const f = await montar({
+      attemptHistory: () => of([{ attemptId: 'a-1', caseVersionId: 7, endedAt: null } as StudentAttemptSummary]),
+      getCaseBrief: ((id: unknown) => { pedida = id; return of(ficha); }) as never,
+    });
+    expect(pedida).toBe(7);
+    const enlaces = [...(f.nativeElement as HTMLElement).querySelectorAll('a')];
+    expect(enlaces.find(a => a.textContent?.includes('Intentar el caso de nuevo'))?.getAttribute('href')).toBe('/portal/simulador/7/ficha');
+  });
+
+  it('mientras el reporte no responde no se pide ni se pinta nada más; si llega un 403, nunca se pidió', async () => {
+    // El 403 llega tarde (en otro turno): si las demás fuentes no esperaran al reporte, ya se habrían pedido.
+    const f = await montar({ studentReport: () => timer(30).pipe(switchMap(() => throwError(() => new HttpErrorResponse({ status: 403 })))) });
+    f.detectChanges();
+    expect(texto(f)).toContain('Este recorrido no es tuyo');
+    expect(llamadas.attemptHistory).toBe(0);
+    expect(llamadas.getOwnerEvaluation).toBe(0);
+    expect(llamadas.getCaseBrief).toBe(0);
   });
 });

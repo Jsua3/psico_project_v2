@@ -68,6 +68,11 @@ describe('caseUnlockedGuard', () => {
     expect(await run('2')).toBe(true);
   });
 
+  it('caso bloqueado con el historial caído: no afirma que no haya intento abierto, deja pasar y decide el servidor', async () => {
+    setup('ESTUDIANTE', () => of([item(1, 1, true), item(2, 2, false)]), () => throwError(() => ({ status: 500 })));
+    expect(await run('2')).toBe(true);
+  });
+
   it('si el catálogo no responde, a los pocos segundos deja pasar (nadie se queda esperando a la puerta)', async () => {
     vi.useFakeTimers();
     setup('ESTUDIANTE', () => NEVER, () => NEVER);

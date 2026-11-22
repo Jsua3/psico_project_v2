@@ -75,18 +75,24 @@ export class CierreCasoComponent {
     params: () => this.attemptId(),
     stream: ({ params }) => (params === undefined ? EMPTY : this.simulation.studentReport(params)),
   });
-  protected readonly ficha = rxResource<CaseBrief, string | undefined>({
-    // Sin permiso sobre el intento no se pide la ficha: no mostraría nada que el reporte no hubiera dicho antes.
-    params: () => (this.bloqueado() ? undefined : this.caseVersionId()),
-    stream: ({ params }) => (params === undefined ? EMPTY : this.simulation.getCaseBrief(Number(params))),
+  /**
+   * El reporte respondió: el intento es de quien mira (Codex B4d, hallazgo 6). Hasta entonces no se pide ni se pinta
+   * ninguna otra fuente, así un 403 o 404 que llega tarde nunca deja ver la valoración o la ficha un instante.
+   */
+  private readonly autorizado = computed(() => this.reporte.hasValue());
+  protected readonly ficha = rxResource<CaseBrief, number | undefined>({
+    // La ficha es la del caso DEL INTENTO, no la del número de la URL (Codex B4d, hallazgo 5): una URL con el intento del
+    // caso A y el número del caso B no mezcla el recorrido de A con los objetivos de B.
+    params: () => this.casoDelIntento() ?? undefined,
+    stream: ({ params }) => (params === undefined ? EMPTY : this.simulation.getCaseBrief(params)),
   });
   protected readonly valoracion = rxResource<OwnerEvaluation, string | undefined>({
-    params: () => (this.bloqueado() ? undefined : this.attemptId()),
+    params: () => (this.autorizado() ? this.attemptId() : undefined),
     stream: ({ params }) => (params === undefined ? EMPTY : this.simulation.getOwnerEvaluation(params)),
   });
   /** Solo para la fecha: si falla o no la trae, el encabezado no dice fecha y ya. */
   private readonly historial = rxResource<StudentAttemptSummary[], string | undefined>({
-    params: () => (this.bloqueado() ? undefined : this.attemptId()),
+    params: () => (this.autorizado() ? this.attemptId() : undefined),
     stream: ({ params }) => (params === undefined ? EMPTY : this.simulation.attemptHistory().pipe(catchError(() => of([])))),
   });
 
@@ -95,6 +101,15 @@ export class CierreCasoComponent {
     const error = recurso.error() as { status?: number; cause?: { status?: number } } | undefined;
     return error ? (error.status ?? error.cause?.status ?? 0) : null;
   }
+
+  /** El caso al que pertenece el intento, según el historial del propio estudiante; `null` mientras no se sabe. */
+  private readonly casoDelIntento = computed<number | null>(() => {
+    if (!this.historial.hasValue()) return null;
+    const id = this.attemptId();
+    return this.historial.value().find(a => String(a.attemptId) === id)?.caseVersionId ?? null;
+  });
+  /** A dónde lleva «Intentar de nuevo»: el caso del intento si se sabe; si no, el de la URL. */
+  protected readonly casoParaEnlaces = computed(() => this.casoDelIntento() ?? Number(this.caseVersionId()));
 
   protected readonly estadoReporte = computed(() => this.estado(this.reporte));
   /** Intento ajeno (403) o inexistente (404): ninguna sección se pide ni se pinta. */

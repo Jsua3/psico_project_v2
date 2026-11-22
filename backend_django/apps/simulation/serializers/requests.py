@@ -4,6 +4,9 @@ from rest_framework import serializers
 class StartAttemptRequest(serializers.Serializer):
     caseVersionId = serializers.IntegerField()
     forceNew = serializers.BooleanField(required=False, default=False)
+    # Pasada final (DP-26): el intento que la persona vio y aceptó perder. Opcional y solo con ``forceNew``: si el abierto
+    # ya no es ese (otra pestaña lo reemplazó), 409 ``ATTEMPT_CHANGED`` y no se reemplaza nada. Sin él, lo de siempre.
+    expectedAttemptId = serializers.UUIDField(required=False, allow_null=True)
     # Reservado (C1): iniciar ya es idempotente por el índice único del intento abierto; se valida
     # el formato para que un cliente que lo envíe no reciba un 500 cuando se use.
     requestId = serializers.CharField(required=False, allow_null=True, allow_blank=True, max_length=200)

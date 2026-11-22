@@ -83,7 +83,8 @@ class StartAttemptView(APIView):
         ser.is_valid(raise_exception=True)
         normalize_request_id(ser.validated_data.get("requestId"))  # 400 si el formato no vale
         state = game_service.start_attempt(
-            ser.validated_data["caseVersionId"], request.user, ser.validated_data["forceNew"]
+            ser.validated_data["caseVersionId"], request.user, ser.validated_data["forceNew"],
+            expected_attempt_id=ser.validated_data.get("expectedAttemptId"),
         )
         return api_ok(state, message="Intento iniciado")
 

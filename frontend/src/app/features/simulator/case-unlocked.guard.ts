@@ -28,9 +28,11 @@ export const caseUnlockedGuard: CanActivateFn = route => {
   const cache = inject(CaseAccessCache);
   const caseVersionId = Number(route.paramMap.get('caseVersionId'));
 
-  const decidir = (catalog: CatalogItem[] | null, history: StudentAttemptSummary[]): boolean | UrlTree => {
+  // `history` en null = no se sabe (falló o tardó): no se puede afirmar que no haya un intento abierto que continuar, así
+  // que un caso bloqueado deja pasar y decide el servidor (Codex B4b, hallazgo 4). Nunca se cierra la puerta a ciegas.
+  const decidir = (catalog: CatalogItem[] | null, history: StudentAttemptSummary[] | null): boolean | UrlTree => {
     const item = catalog?.find(entry => entry.caseVersionId === caseVersionId);
-    if (!item || item.unlocked) return true;
+    if (!item || item.unlocked || history === null) return true;
     const open = history.some(attempt => attempt.caseVersionId === caseVersionId
       && (attempt.status === 'IN_PROGRESS' || attempt.status === 'PAUSED'));
     return open || router.createUrlTree(['/portal/simulador'], { queryParams: { bloqueado: caseVersionId } });
@@ -47,7 +49,7 @@ export const caseUnlockedGuard: CanActivateFn = route => {
       history: simulation.attemptHistory().pipe(timeout(CASE_UNLOCK_CHECK_MS), catchError(() => of(null as StudentAttemptSummary[] | null))),
     }).pipe(map(({ catalog, history }) => {
       if (catalog && history) cache.guardarAcceso(ticket, { catalogo: catalog, historial: history });
-      return decidir(catalog, history ?? []);
+      return decidir(catalog, history);
     }));
   });
 };

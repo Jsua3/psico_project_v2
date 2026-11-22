@@ -1,7 +1,7 @@
 import { provideZonelessChangeDetection, signal } from '@angular/core';
 import { TestBed } from '@angular/core/testing';
 import { ActivatedRoute, Router, convertToParamMap, provideRouter } from '@angular/router';
-import { of } from 'rxjs';
+import { of, throwError } from 'rxjs';
 
 import { CaseAccessCache } from '../../core/api/case-access.cache';
 import { SimulationService } from '../../core/api/simulation.service';
@@ -122,5 +122,56 @@ describe('Casos del estudiante', () => {
     expect(host.textContent).toContain('Editor visual');
     expect(host.querySelector('ui-segmentado')).toBeNull();
     expect(host.querySelector('details')).toBeNull();
+  });
+
+  describe('catálogo e historial fallan por separado (Codex B4a, hallazgo 3)', () => {
+    async function renderSinCache(servicio: Record<string, unknown>) {
+      const guardarAcceso = vi.fn();
+      TestBed.configureTestingModule({
+        providers: [
+          provideZonelessChangeDetection(),
+          provideRouter([]),
+          { provide: AuthService, useValue: { currentUser: signal({ id: 1 }), hasRole: (r: string) => r === 'ESTUDIANTE' } },
+          { provide: NotificationService, useValue: { info } },
+          { provide: ActivatedRoute, useValue: { queryParamMap: of(convertToParamMap({})) } },
+          { provide: CaseAccessCache, useValue: { acceso: () => null, ticket: () => ({ dueno: 1, epoca: 0 }), guardarAcceso } },
+          { provide: SimulationService, useValue: { listCases: () => of([resumen(1)]), ...servicio } },
+        ],
+      });
+      const fixture = TestBed.createComponent(SimulationCatalogComponent);
+      await fixture.whenStable();
+      fixture.detectChanges();
+      return { host: fixture.nativeElement as HTMLElement, fixture, guardarAcceso };
+    }
+    const falla = () => throwError(() => ({ status: 500 }));
+
+    it('si falla el catálogo, el historial se ve, el error es de los casos y su reintento pide el catálogo', async () => {
+      const getCatalog = vi.fn().mockReturnValueOnce(falla()).mockReturnValue(of([entrada(1)]));
+      const attemptHistory = vi.fn(() => of([intento({ status: 'PAUSED' })]));
+      const { host, fixture, guardarAcceso } = await renderSinCache({ getCatalog, attemptHistory });
+      // Sin catálogo no se pintan tarjetas con un «abierto» inventado; el historial llegó y no se volvió a pedir.
+      expect(host.querySelector('.cs-acciones')).toBeNull();
+      expect(guardarAcceso).not.toHaveBeenCalled();
+      const reintentos = Array.from(host.querySelectorAll('ui-error-state'));
+      expect(reintentos).toHaveLength(1);
+      (reintentos[0].querySelector('button') as HTMLButtonElement).click();
+      await fixture.whenStable();
+      fixture.detectChanges();
+      expect(getCatalog).toHaveBeenCalledTimes(2);
+      expect(attemptHistory).toHaveBeenCalledTimes(1);
+      expect(host.querySelector('.cs-acciones button')?.textContent).toContain('Continuar');
+      expect(guardarAcceso).toHaveBeenCalledTimes(1);
+    });
+
+    it('si falla el historial, las tarjetas usan el catálogo y el reintento solo pide el historial', async () => {
+      const getCatalog = vi.fn(() => of([entrada(1, { locked: true, unlocked: false })]));
+      const attemptHistory = vi.fn().mockReturnValueOnce(falla()).mockReturnValue(of([]));
+      const { host, guardarAcceso } = await renderSinCache({ getCatalog, attemptHistory });
+      expect(host.querySelectorAll('ui-error-state')).toHaveLength(1);
+      // La tarjeta sale del catálogo (bloqueada), no del respaldo «abierto».
+      expect(host.querySelector('.cs-acciones')?.textContent).toContain('Se abre al terminar el caso anterior.');
+      expect(guardarAcceso).not.toHaveBeenCalled();
+      expect(getCatalog).toHaveBeenCalledTimes(1);
+    });
   });
 });

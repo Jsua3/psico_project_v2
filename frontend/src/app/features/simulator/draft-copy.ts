@@ -1156,6 +1156,17 @@ export const DRAFT_COPY = {
     where: 'Umbral del juego: anuncio al terminar de cargar',
     text: 'Listo. Pulsa Continuar para entrar.',
   },
+  /**
+   * El intento abierto cambió entre la decisión y el envío (otra pestaña empezó de nuevo o lo continuó): no se reemplaza
+   * nada y se vuelve a preguntar con lo que hay ahora (pasada final, hallazgo crítico de Codex).
+   */
+  intentoCambio: {
+    decision: 'VD-23',
+    owner: 'Psicología',
+    review: 'conocimiento',
+    where: 'Juego: el intento abierto cambió en otra pestaña antes de empezar de nuevo',
+    text: 'Tu intento cambió en otra pestaña. No reemplazamos nada: elige de nuevo qué hacer.',
+  },
 } as const satisfies Record<string, DraftCopyEntry>;
 
 export type DraftCopyKey = keyof typeof DRAFT_COPY;

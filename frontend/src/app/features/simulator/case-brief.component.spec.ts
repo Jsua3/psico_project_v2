@@ -192,6 +192,18 @@ describe('CaseBriefComponent', () => {
     expect(service.startAttempt).not.toHaveBeenCalled();
   });
 
+  it('si la ficha se cierra mientras se registra el consentimiento, no lleva al juego al resolverse (Codex B4b, 7)', async () => {
+    await render();
+    let terminar: () => void = () => undefined;
+    consent.recordForCase.mockImplementation(() => new Promise<void>(resolver => { terminar = resolver; }));
+    button('Comenzar')!.click();
+    fixture.destroy();
+    terminar();
+    await Promise.resolve();
+    await Promise.resolve();
+    expect(navigate).not.toHaveBeenCalled();
+  });
+
   it('con el consentimiento ya dado no lo vuelve a registrar ni muestra la línea de consentimiento', async () => {
     await render({}, undefined, { dado: true });
     expect(text(host())).not.toContain('confirmas que leíste el aviso');

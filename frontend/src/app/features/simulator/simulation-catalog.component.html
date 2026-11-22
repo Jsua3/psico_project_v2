@@ -16,7 +16,7 @@
       </div>
     }
     @case ('error') {
-      <ui-error-state [kind]="casesErrorKind()" [message]="copy.errorCasos" (retry)="loadCases()" />
+      <ui-error-state [kind]="casesErrorKind()" [message]="copy.errorCasos" (retry)="reintentarCasos()" />
     }
     @case ('empty') {
       <ui-empty-state kind="first-use" figura="camila/bata" [title]="emptyCases.titulo" [description]="emptyCases.texto" />

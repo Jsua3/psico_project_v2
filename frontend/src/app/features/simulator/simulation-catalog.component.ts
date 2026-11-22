@@ -1,7 +1,6 @@
 import { ChangeDetectionStrategy, Component, computed, effect, inject, signal, untracked } from '@angular/core';
 import { toSignal } from '@angular/core/rxjs-interop';
 import { ActivatedRoute, Router } from '@angular/router';
-import { forkJoin } from 'rxjs';
 
 import { CaseAccessCache } from '../../core/api/case-access.cache';
 import { SimulationService } from '../../core/api/simulation.service';
@@ -97,13 +96,19 @@ export class SimulationCatalogComponent {
   /** Desbloqueo lineal del estudiante (SIEP-RF-12): si no llega, no se inventa ningún bloqueo. */
   private readonly catalogItems = signal<CatalogItem[]>([]);
   private readonly catalogSettled = signal(!this.isStudent);
+  /**
+   * El catálogo de acceso falló (Codex B4a, hallazgo 3): sin él no se sabe qué está bloqueado, así que las tarjetas no se
+   * pintan con un «abierto» inventado; se muestra el error de los casos y su reintento lo vuelve a pedir.
+   */
+  private readonly catalogError = signal<HttpLikeError | null>(null);
+  private readonly casesOrCatalogError = computed(() => this.casesError() ?? this.catalogError());
   /** El historial respondió al menos una vez (bien o mal): hasta entonces las tarjetas no saben si hay algo abierto. */
   private readonly historySettled = signal(!this.isStudent);
 
   /** Las tarjetas esperan al primer historial (la acción de cada caso depende de él); un reintento no las recarga. */
   protected readonly casesState = uiDataState({
     loading: computed(() => this.casesLoading() || !this.historySettled() || !this.catalogSettled()),
-    error: this.casesError,
+    error: this.casesOrCatalogError,
     isEmpty: computed(() => this.cases().length === 0),
   });
   protected readonly historyState = uiDataState({
@@ -112,7 +117,7 @@ export class SimulationCatalogComponent {
     isEmpty: computed(() => this.history().length === 0),
   });
   protected readonly statusText = computed(() => (this.casesState() === 'loading' ? this.copy.cargando : ''));
-  protected readonly casesErrorKind = computed(() => errorKindFromStatus(this.casesError()?.status));
+  protected readonly casesErrorKind = computed(() => errorKindFromStatus(this.casesOrCatalogError()?.status));
   protected readonly historyErrorKind = computed(() => errorKindFromStatus(this.historyError()?.status));
   protected readonly titulo = this.isStudent ? this.copy.titulo : 'Casos';
 
@@ -187,6 +192,12 @@ export class SimulationCatalogComponent {
     this.busqueda.set('');
   }
 
+  /** Reintento del bloque de casos: vuelve a pedir lo que falló (la lista, el catálogo de acceso o los dos). */
+  protected reintentarCasos(): void {
+    if (this.catalogError()) this.loadCatalog();
+    if (this.casesError() || !this.catalogError()) this.loadCases();
+  }
+
   protected loadCases(): void {
     this.casesLoading.set(true);
     this.simulationService.listCases().subscribe({
@@ -210,6 +221,7 @@ export class SimulationCatalogComponent {
         this.historyError.set(null);
         this.historyLoading.set(false);
         this.historySettled.set(true);
+        this.guardarSiCompleto();
       },
       error: (error: HttpLikeError) => {
         this.historyError.set(error ?? {});
@@ -218,6 +230,34 @@ export class SimulationCatalogComponent {
       },
     });
   }
+
+  /** El catálogo de acceso (desbloqueo lineal), por separado del historial: cada uno con su error y su reintento. */
+  private loadCatalog(): void {
+    this.catalogSettled.set(false);
+    this.simulationService.getCatalog().subscribe({
+      next: catalogo => {
+        this.catalogItems.set(catalogo);
+        this.catalogError.set(null);
+        this.catalogSettled.set(true);
+        this.guardarSiCompleto();
+      },
+      error: (error: HttpLikeError) => {
+        this.catalogError.set(error ?? {});
+        this.catalogSettled.set(true);
+      },
+    });
+  }
+
+  /**
+   * Guarda en la caché el catálogo y el historial solo cuando los dos llegaron bien: lo guardado siempre es un par
+   * coherente. El permiso (`ticket`) se pidió al salir las peticiones, así que una respuesta de otra sesión se descarta.
+   */
+  private guardarSiCompleto(): void {
+    if (!this.accessTicket || this.catalogError() || this.historyError() || !this.catalogSettled() || !this.historySettled()) return;
+    this.cache.guardarAcceso(this.accessTicket, { catalogo: this.catalogItems(), historial: this.history() });
+  }
+
+  private accessTicket: ReturnType<CaseAccessCache['ticket']> = null;
 
   private loadAccess(): void {
     const previo = this.cache.acceso();
@@ -228,25 +268,10 @@ export class SimulationCatalogComponent {
       this.historySettled.set(true);
       return;
     }
-    this.historyLoading.set(true);
-    forkJoin({ catalogo: this.simulationService.getCatalog(), historial: this.simulationService.attemptHistory() })
-      .pipe(this.cache.guardandoAcceso())
-      .subscribe({
-        next: datos => {
-          this.catalogItems.set(datos.catalogo);
-          this.history.set(datos.historial);
-          this.historyError.set(null);
-          this.historyLoading.set(false);
-          this.catalogSettled.set(true);
-          this.historySettled.set(true);
-        },
-        error: (error: HttpLikeError) => {
-          this.historyError.set(error ?? {});
-          this.historyLoading.set(false);
-          this.catalogSettled.set(true);
-          this.historySettled.set(true);
-        },
-      });
+    // Antes, un forkJoin: si fallaba el catálogo se perdía también el historial y el error decía «historial» (Codex B4a, 3).
+    this.accessTicket = this.cache.ticket();
+    this.loadCatalog();
+    this.loadHistory();
   }
 
   /**

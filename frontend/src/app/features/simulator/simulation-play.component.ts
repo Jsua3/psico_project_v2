@@ -82,6 +82,8 @@ import {
 } from './scene-map-display.util';
 import { AttemptOutcomeComponent } from './attempt-outcome.component';
 import { accessErrorMessage } from './case-access.util';
+import { CaseAccessCache } from '../../core/api/case-access.cache';
+import { AuthService } from '../../core/auth/auth.service';
 import { resolveViewMode, SimulationViewMode } from './simulation-view-mode.util';
 import { IntroGateStep, introCardLines, resolveIntroStep } from './intro-gate.util';
 import { COARSE_POINTER_QUERY, matchesMedia, watchMedia } from './pointer-modality.util';
@@ -96,6 +98,8 @@ import { CONTENT_NOTICE_TEXT, DRAFT_COPY } from './draft-copy';
 import { variablesDeArte } from './dialogo-arte';
 import { PixelIconoComponent } from './pixel/pixel-icono.component';
 import { FaseUmbral, UmbralCasoComponent } from './umbral/umbral-caso.component';
+import { NotaTransicionComponent } from './nota-transicion.component';
+import { ErrorConsentimientoComponent } from './error-consentimiento.component';
 
 /**
  * Plazo máximo de la precarga del consentimiento (S3-2b): antes de decidir si se pide el aviso se pregunta al servidor si la
@@ -158,6 +162,13 @@ export const UMBRAL_LENTO_MS = 10_000;
 /** Lo que dura la clase `revelando`: el velo (300 ms) y la entrada escalonada del HUD (200 ms + 2 × 40 ms), con holgura. */
 const REVELAR_MS = 600;
 
+/** El servidor rechazó empezar de nuevo porque el intento abierto no es el esperado o ya está abierto (409). */
+function esConflictoDeIntento(error: unknown): boolean {
+  if (!(error instanceof HttpErrorResponse) || error.status !== 409) return false;
+  const code = (error.error as { code?: unknown } | null)?.code;
+  return code === 'ATTEMPT_CHANGED' || code === 'ATTEMPT_ALREADY_OPEN';
+}
+
 /** El estado de la navegación que trajo hasta aquí (`history.state`), o `null` si no hay o no se puede leer. */
 function estadoDeNavegacion(): Record<string, unknown> | null {
   try {
@@ -186,7 +197,7 @@ function umbralDelEstado(estado: Record<string, unknown> | null): { titulo: stri
     ToolInventoryComponent, JournalPanelComponent, AttemptOutcomeComponent,
     SafeExitButtonComponent, PixelIconoComponent, SceneGoalCardComponent, GameHelpComponent, WorldPlacesListComponent,
     MinimapaComponent, PlanoCompletoComponent,
-    ReactionDirectorComponent, CommentBubbleComponent, RehearsalGoneComponent, RehearsalPanelComponent, SensitiveNoticeComponent, UiButton, UiErrorState, UiScopeNotice, UmbralCasoComponent
+    ReactionDirectorComponent, CommentBubbleComponent, RehearsalGoneComponent, RehearsalPanelComponent, SensitiveNoticeComponent, UiButton, UiErrorState, UiScopeNotice, UmbralCasoComponent, NotaTransicionComponent, ErrorConsentimientoComponent
   ],
   template: `
     <div class="game-container pixel-juego" data-skin="game" id="main-content" tabindex="-1" [attr.data-mode]="viewMode()" [style]="arteJuego"
@@ -239,14 +250,7 @@ function umbralDelEstado(estado: Record<string, unknown> | null): { titulo: stri
       }
       @if (transitionNote()) {
         <!-- Bloque U1: la pestaña del capítulo sobre la placa del texto (como el nombre de quien habla sobre su placa). -->
-        <div class="transition-note">
-          <div class="transition-note__bloque">
-            @if (transitionParts().capitulo; as capitulo) {
-              <p class="transition-note__capitulo u-rotulo">{{ capitulo }}</p>
-            }
-            <p class="transition-note__texto u-placa u-sombra">{{ transitionParts().texto }}</p>
-          </div>
-        </div>
+        <app-nota-transicion class="transition-note" [capitulo]="transitionParts().capitulo" [texto]="transitionParts().texto" />
       }
 
       @if (showResumePrompt() && pendingActiveAttempt(); as active) {
@@ -304,11 +308,7 @@ function umbralDelEstado(estado: Record<string, unknown> | null): { titulo: stri
                 @if (consentState() === 'error') {
                   <!-- ETH-01: un almacenamiento que falla NUNCA da el consentimiento por registrado. No se arranca
                        nada y se puede reintentar; «Volver al catálogo» sigue operable. Se anuncia por la región. -->
-                  <div class="consent-error">
-                    <mat-icon aria-hidden="true">error</mat-icon>
-                    <p>{{ consentErrorText() }}</p>
-                    <button ui-button type="button" variant="secondary" (click)="acceptContentWarning()">Reintentar</button>
-                  </div>
+                  <app-error-consentimiento [texto]="consentErrorText()" (reintentar)="acceptContentWarning()" />
                 }
               </div>
 
@@ -1119,13 +1119,12 @@ function umbralDelEstado(estado: Record<string, unknown> | null): { titulo: stri
     .scene-fade--active { opacity: 1; pointer-events: auto; }
     /* Arranque y fallo (F6-1): ocupan SOLO la zona del mundo (fila 2 de la rejilla). La cabecera y el pie —con
        «Salida segura»— quedan a la vista y operables mientras carga o falla (REGLA-004). */
-    .game-boot, .game-failure {
+    .game-failure {
       grid-area: 2 / 1; z-index: 300;
       display: flex; flex-direction: column; align-items: center; justify-content: center;
       gap: var(--ds-space-3); padding: var(--ds-space-5);
       background: var(--ds-surface-page); color: var(--ds-text-1); text-align: center;
     }
-    .game-boot p { margin: 0; color: var(--ds-text-2); font-size: .95rem; }
     .game-failure ui-error-state { max-inline-size: 28rem; }
     .game-container[data-rehearsal] { --alto-franja-ensayo: 30px; }
     .rehearsal-banner { box-sizing: border-box; height: var(--alto-franja-ensayo); overflow: hidden; white-space: nowrap; text-overflow: ellipsis; line-height: 21px; margin: 0; padding: 4px 12px; font-size: .85rem; text-align: center; background: var(--ds-surface-2, rgba(18,24,42,.9)); color: var(--ds-text-1); border-block-end: 1px solid var(--ds-border, rgba(182,156,255,.3)); }
@@ -1147,36 +1146,15 @@ function umbralDelEstado(estado: Record<string, unknown> | null): { titulo: stri
     .room-banner { font-family: var(--pixel-f-nombre); font-weight: 700; color: var(--luz); animation: room-banner-in 260ms ease; }
     @keyframes room-banner-in { from { opacity: 0; transform: translateY(-8px); } }
     @keyframes room-banner-in-centered { from { opacity: 0; transform: translate(-50%, -8px); } }
-    /* Tarjeta de capítulo (U1): el velo fuerte de la paleta y, al centro, la pestaña del capítulo sobre la placa del texto.
-       El pie sube por encima del velo (REGLA-004, .bottom-zone--above-veils). */
-    .transition-note {
-      position: fixed; inset: 0; z-index: 340; display: grid; place-items: center;
-      background: var(--pixel-velo-fuerte); pointer-events: none;
-      animation: transition-note-in 420ms ease;
-    }
-    .transition-note__bloque { display: grid; justify-items: start; width: min(88vw, 640px); }
-    .transition-note__capitulo { margin-bottom: calc(-1 * var(--pixel-px)); }
-    .transition-note__texto {
-      box-sizing: border-box; width: 100%; margin: 0;
-      padding: calc(8 * var(--pixel-px)) calc(12 * var(--pixel-px)) calc(9 * var(--pixel-px));
-      text-align: center; font-family: var(--pixel-f-texto); font-size: calc(var(--pixel-tam) * 1.5); font-weight: 600; font-style: italic;
-      line-height: 1.6; letter-spacing: .02em;
-    }
-    @keyframes transition-note-in { from { opacity: 0; } }
+    /* Tarjeta de capítulo (U1): su forma vive en app-nota-transicion (tope de 20 kB); aquí solo su sitio en la pila de
+       capas. El pie sube por encima del velo (REGLA-004, .bottom-zone--above-veils). */
+    .transition-note { position: fixed; inset: 0; z-index: 340; }
     /* «Reanudar» es la misma entrada que las otras tres (F6-2): por encima de ellas y sin el CSS propio que tenía. */
     .case-intro-overlay--resume { z-index: 400; }
     .case-intro-card--entry { width: min(560px, 100%); }
 
     /* Las entradas en placas de pixel (U1, crítica r2) viven en la hoja común, src/styles/components/_pixel.scss. */
-    /* ETH-01: el almacenamiento falló y el consentimiento NO está registrado; el aviso previo sigue (sin mundo). */
-    .consent-error {
-      display: grid; grid-template-columns: auto minmax(0, 1fr); align-items: start; gap: 8px 10px;
-      margin-top: 14px; padding: 12px 14px; border-radius: 12px;
-      border: 1px solid rgba(226,90,79,.5); background: rgba(226,90,79,.1);
-    }
-    .consent-error mat-icon { color: #f1a79f; }
-    .consent-error p { margin: 0; color: #f4f7fb; font-size: .9rem; line-height: 1.5; }
-    .consent-error button { grid-column: 2; justify-self: start; }
+    /* ETH-01: el error del registro del consentimiento vive en app-error-consentimiento (tope de 20 kB). */
 
     @keyframes panel-in {
       from { opacity: 0; transform: translateX(14px); }
@@ -1347,7 +1325,7 @@ function umbralDelEstado(estado: Record<string, unknown> | null): { titulo: stri
     @media (prefers-reduced-motion: reduce) {
       .scene-fade { transition: none; }
       .right-panel, .overlay-backdrop { animation: none; }
-      .room-banner, .transition-note { animation: none; }
+      .room-banner { animation: none; }
     }
 
     /* ── El umbral (DISENO §4.4, B4b) ─────────────────────────────────────────────────────────────────────────────
@@ -2306,6 +2284,16 @@ export class SimulationPlayComponent implements OnInit, OnDestroy {
     this.pausa.cancelar();
     this.decisionOnline.cancelar();
     this.positionRetry.cancelar();
+    // Al salir del juego, Inicio y Casos no deben pintar lo de antes (Codex B4a, hallazgo 2): aquí se empieza, pausa,
+    // reanuda o termina el intento, así que lo guardado de este caso ya no vale. Se pide perezoso y a prueba de fallos:
+    // las pruebas de instancia montan el juego sin la sesión que la caché necesita.
+    const caso = this.attempt()?.caseVersionId ?? Number(this.route.snapshot?.paramMap?.get('caseVersionId'));
+    // La caché sigue a la sesión con un effect sobre `currentUser`: sin una sesión de verdad (pruebas de instancia con un
+    // AuthService de mentira) no se crea, porque su effect fallaría después, fuera de este try.
+    const sesion = this.injector.get(AuthService, null) as { currentUser?: unknown } | null;
+    if (caso && typeof sesion?.currentUser === 'function') {
+      try { this.injector.get(CaseAccessCache).olvidarCaso(caso); } catch { /* sin caché no hay nada viejo que olvidar */ }
+    }
   }
 
   startNewAttempt() {
@@ -2443,9 +2431,33 @@ export class SimulationPlayComponent implements OnInit, OnDestroy {
       // da el mismo 403. Cualquier otro fallo conserva su mensaje y su reintento.
       error: cause => {
         if (!this.esArranqueVigente(numero)) return;
+        // 409: el intento abierto ya no es el que la persona aceptó perder (otra pestaña lo reemplazó o lo abrió) o el
+        // servidor no deja reemplazarlo. Nunca se reintenta a ciegas: se relee y se vuelve a preguntar.
+        if (forceNew && esConflictoDeIntento(cause)) { this.volverAPreguntar(caseVersionId); return; }
         const refused = accessErrorMessage(cause);
         if (refused) this.fail(refused, cause, null);
         else this.fail('No pudimos iniciar la simulación. Inténtalo de nuevo.', cause, () => this.beginAttempt(caseVersionId, forceNew));
+      },
+    });
+  }
+
+  /** Relee el intento abierto tras un conflicto y ofrece otra vez «Continuar / Iniciar nuevo» con lo que hay ahora. */
+  private volverAPreguntar(caseVersionId: number): void {
+    const numero = this.nuevoArranque();
+    this.announce(DRAFT_COPY.intentoCambio.text, 'assertive');
+    this.simulationService.getActiveAttempt(caseVersionId).subscribe({
+      next: active => {
+        if (!this.esArranqueVigente(numero)) return;
+        if (active && (active.status === 'IN_PROGRESS' || active.status === 'PAUSED')) {
+          this.pendingActiveAttempt.set(active);
+          this.showResumePrompt.set(true);
+          this.loading.set(false);
+          return;
+        }
+        this.beginAttempt(caseVersionId, false);
+      },
+      error: cause => {
+        if (this.esArranqueVigente(numero)) this.fail('No pudimos iniciar la simulación. Inténtalo de nuevo.', cause, () => this.volverAPreguntar(caseVersionId));
       },
     });
   }
